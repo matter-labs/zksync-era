@@ -1,0 +1,5 @@
+ALTER TABLE contracts ALTER COLUMN bytecode SET NOT NULL;
+ALTER TABLE contracts ALTER COLUMN tx_hash SET NOT NULL;
+ALTER TABLE contracts ALTER COLUMN miniblock_number SET NOT NULL;
+ALTER TABLE contracts ALTER COLUMN created_at SET NOT NULL;
+ALTER TABLE contracts ALTER COLUMN updated_at SET NOT NULL;

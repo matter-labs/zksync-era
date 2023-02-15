@@ -1,0 +1,1 @@
+DROP INDEX prover_jobs_composite_index;

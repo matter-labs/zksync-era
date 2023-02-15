@@ -1,0 +1,12 @@
+{
+  "name": "contracts-test-data",
+  "version": "0.1.0",
+  "license": "MIT",
+  "dependencies": {
+    "@openzeppelin/contracts": "^4.8.0",
+    "hardhat": "2.12.4"
+  },
+  "devDependencies": {
+    "@matterlabs/hardhat-zksync-solc": "^0.3.14-beta.3"
+  }
+}

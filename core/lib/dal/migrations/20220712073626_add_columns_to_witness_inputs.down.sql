@@ -1,0 +1,1 @@
+ALTER TABLE witness_inputs DROP COLUMN status;

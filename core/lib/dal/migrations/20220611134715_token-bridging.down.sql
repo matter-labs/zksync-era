@@ -1,0 +1,3 @@
+ALTER TABLE tokens DROP COLUMN l1_address;
+ALTER TABLE tokens DROP COLUMN l2_address;
+ALTER TABLE tokens ADD COLUMN address BYTEA;

@@ -1,0 +1,29 @@
+[package]
+name = "zksync_utils"
+version = "1.0.0"
+edition = "2018"
+authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
+homepage = "https://zksync.io/"
+repository = "https://github.com/matter-labs/zksync-2"
+license = "Apache-2.0"
+keywords = ["blockchain", "zksync"]
+categories = ["cryptography"]
+
+[dependencies]
+zksync_basic_types = { path = "../../lib/basic_types", version = "1.0" }
+zk_evm = {git = "https://github.com/matter-labs/zk_evm.git", branch = "v1.3.1"}
+#zk_evm = { path = "../../../../zk_evm" }
+
+num = { version = "0.3.1", features = ["serde"] }
+bigdecimal = { version = "=0.2.0", features = ["serde"]}
+serde = { version = "1.0", features = ["derive"] }
+tokio = { version = "1", features = ["time"] }
+anyhow = "1.0"
+thiserror = "1.0"
+futures = "0.3"
+hex = "0.4"
+envy = "0.4"
+
+[dev-dependencies]
+serde_json = "1.0.0"
+

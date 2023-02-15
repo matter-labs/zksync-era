@@ -1,0 +1,16 @@
+[fetcher]
+
+[fetcher.token_list]
+source="Mock"
+url=""
+fetching_interval=3
+
+[fetcher.token_price]
+source="Mock"
+url=""
+fetching_interval=3
+
+[fetcher.token_trading_volume]
+source="Mock"
+url=""
+fetching_interval=3

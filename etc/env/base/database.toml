@@ -1,0 +1,13 @@
+[database]
+
+# Path to the database data directory.
+path="./db"
+# Path to the database data directory that contains state cache.
+state_keeper_db_path="./db/state_keeper"
+merkle_tree_backup_path="./db/backups"
+merkle_tree_fast_ssd_path="./db/lightweight"
+backup_count=5
+backup_interval_ms=60000
+max_block_batch=100
+# Amount of open connections to the database.
+pool_size=50

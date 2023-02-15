@@ -1,0 +1,17 @@
+coverage:
+  range: "10...90"
+  status:
+    # We might gate PRs based on coverage diffs,
+    # but we don't want that for now
+    project:
+      default:
+        informational: true
+    patch:
+      default:
+        informational: true
+
+comment:
+  require_changes: true
+
+github_checks:
+  annotations: false

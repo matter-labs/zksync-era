@@ -1,0 +1,5 @@
+[object_store]
+service_account_path="~/gcloud/service_account.json"
+bucket_base_url="base_url"
+mode="FileBacked"
+file_backed_base_path="artifacts"

@@ -1,0 +1,21 @@
+[coverage]
+release = true
+workspace = true
+exclude = ["loadnext", "zksync_testkit", "zksync"]
+# For some reason tarpaulin does not actually exclude these
+# packages fully, so we specify them as files here.
+exclude-files = [
+    "core/lib/eth_client/src/clients/mock.rs",
+    "core/tests/loadnext/*",
+    "sdk/zksync-rs/*",
+]
+skip-clean = true
+ignore-tests = true
+# This flag is needed because somewhere in our dependency tree
+# is an outdated package which breaks tarpaulin.
+# `cargo update` fixed the tarpaulin error but broke something else
+# in the server, so I'm just gonna leave this here for now.
+avoid_cfg_tarpaulin = true
+
+[report]
+out = ["Xml"]

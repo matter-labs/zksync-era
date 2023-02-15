@@ -1,0 +1,20 @@
+[package]
+name = "zksync_state"
+version = "1.0.0"
+edition = "2018"
+authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
+homepage = "https://zksync.io/"
+repository = "https://github.com/matter-labs/zksync-2"
+license = "Apache-2.0"
+keywords = ["blockchain", "zksync"]
+categories = ["cryptography"]
+
+[dependencies]
+zksync_utils = { path = "../utils", version = "1.0" }
+zksync_types = { path = "../types", version = "1.0" }
+zksync_storage = { path = "../storage", version = "1.0" }
+
+vlog = { path = "../../lib/vlog", version = "1.0" }
+
+[dev-dependencies]
+tempfile = "3.0.2"

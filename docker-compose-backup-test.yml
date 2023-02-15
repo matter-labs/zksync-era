@@ -1,0 +1,25 @@
+version: '3.2'
+services:
+
+  geth:
+    image: "matterlabs/geth:latest"
+    environment:
+      - PLUGIN_CONFIG
+
+  zk:
+    image: "matterlabs/zk-environment:latest2.0"
+    depends_on:
+      - geth
+    command: cargo run --bin zksync_core
+    volumes:
+      - .:/usr/src/zksync
+      - /usr/src/cache:/usr/src/cache
+      - /usr/src/keys:/usr/src/keys
+    environment:
+      - IN_DOCKER=1
+      - CACHE_DIR=/usr/src/cache
+      - SCCACHE_CACHE_SIZE=50g
+      - DB_PATH=/usr/src/db
+      - CI=1
+    env_file:
+      - ./etc/env/dev.env

@@ -1,0 +1,4 @@
+[contract_verifier]
+compilation_timeout=30
+polling_interval=1000
+prometheus_port=3314

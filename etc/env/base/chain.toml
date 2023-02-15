@@ -1,0 +1,63 @@
+# zkSync chain parameters
+
+[chain.eth]
+# Name of the used Ethereum network
+network="localhost"
+# Name of current zkSync network
+# Used for Sentry environment
+zksync_network="localhost"
+# ID of current zkSync network treated as ETH network ID.
+# Used to distinguish zkSync from other Web3-capable networks.
+zksync_network_id=270
+
+[chain.state_keeper]
+fee_account_addr="0xde03a0B5963f75f1C8485B355fF6D30f3093BDE7"
+
+# Detones the amount of slots for transactions in the block.
+transaction_slots=250
+
+max_allowed_l2_tx_gas_limit=4000000000
+block_commit_deadline_ms=2500
+miniblock_commit_deadline_ms=1000
+# Max gas that can used to include single block in aggregated operation
+max_single_tx_gas=6000000
+
+# Configuration option for block to be sealed in case
+# it takes more percentage of the max block capacity than this value.
+close_block_at_geometry_percentage=0.95
+# Configuration option for block to be sealed in case
+# it takes more percentage of the max block capacity than this value.
+close_block_at_eth_params_percentage=0.95
+
+# Configuration option for block to be sealed in case
+# it takes more percentage of the max block capacity than this value.
+close_block_at_gas_percentage=0.95
+
+# Configuration option for tx to be rejected in case
+# it takes more percentage of the block capacity than this value.
+reject_tx_at_geometry_percentage=0.95
+# Configuration option for block to be sealed in case
+# it takes more percentage of the max block capacity than this value.
+reject_tx_at_eth_params_percentage=0.95
+
+# Configuration option for block to be sealed in case
+# it takes more percentage of the max block gas capacity than this value.
+reject_tx_at_gas_percentage=0.95
+
+
+# Whether all transactions should be reexecuted. This is needed to test the rollback functionality.
+reexecute_each_tx=true
+
+[chain.operations_manager]
+# Sleep time when there is no new input data
+delay_interval=100
+
+[chain.mempool]
+sync_interval_ms=10
+sync_batch_size = 1000
+capacity=10_000_000
+stuck_tx_timeout=86400 # 1 day in seconds
+remove_stuck_txs=true
+
+[chain.circuit_breaker]
+sync_interval_ms=30000

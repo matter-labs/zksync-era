@@ -1,0 +1,17 @@
+{
+  "name": "local-setup-preparation",
+  "version": "1.0.0",
+  "main": "build/index.js",
+  "license": "MIT",
+  "dependencies": {
+    "ts-node": "^10.7.0",
+    "ethers": "~5.5.0",
+    "zksync-web3": "link:../../sdk/zksync-web3.js"
+  },
+  "devDependencies": {
+    "typescript": "^4.5.5"
+  },
+  "scripts": {
+    "start": "ts-node ./src/index.ts"
+  }
+}
