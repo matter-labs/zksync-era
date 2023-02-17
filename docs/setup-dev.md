@@ -129,10 +129,18 @@ rustc 1.xx.y (xxxxxx 20xx-yy-zz) # Output may vary depending on actual version o
 
 ### Postgres
 
-Install the latest postgres.
+Install the latest postgres:
+
+On mac:
 
 ```bash
 brew install postgresql
+```
+
+On Linux:
+
+```bash
+sudo apt-get install postgresql
 ```
 
 ### SQLx CLI
