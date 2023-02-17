@@ -137,7 +137,7 @@ On mac:
 brew install postgresql
 ```
 
-On Linux:
+On linux:
 
 ```bash
 sudo apt-get install postgresql
