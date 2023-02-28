@@ -10,7 +10,7 @@ keywords = ["blockchain", "zksync"]
 categories = ["cryptography"]
 
 [dependencies]
-zkevm-assembly = { git = "https://github.com/matter-labs/zkEVM-assembly.git", branch = "v1.3.1" }
+zkevm-assembly = { git = "https://github.com/matter-labs/era-zkEVM-assembly.git", branch = "main" }
 zksync_crypto = { path = "../crypto", version = "1.0" }
 zksync_types = { path = "../types", version = "1.0" }
 zksync_utils = { path = "../utils", version = "1.0" }
@@ -18,7 +18,7 @@ zksync_config = { path = "../config", version = "1.0" }
 zksync_state = {path = "../state", version = "1.0" }
 zksync_storage = {path = "../storage", version = "1.0" }
 
-zk_evm = {git = "https://github.com/matter-labs/zk_evm.git", branch = "v1.3.1"}
+zk_evm = {git = "https://github.com/matter-labs/era-zk_evm.git", branch = "main"}
 zksync_contracts = { path = "../contracts" }
 
 hex = "0.4"

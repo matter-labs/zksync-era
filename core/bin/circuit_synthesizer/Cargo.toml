@@ -18,8 +18,8 @@ vlog = { path = "../../lib/vlog", version = "1.0" }
 prometheus_exporter = { path = "../../lib/prometheus_exporter", version = "1.0" }
 zksync_prover_utils = {path = "../../lib/prover_utils", version = "1.0" }
 
-zkevm_test_harness = { git = "https://github.com/matter-labs/zkevm_test_harness.git", branch = "v1.3.1"}
-prover-service = { git = "https://github.com/matter-labs/heavy-ops-service.git", branch = "cleanup", features=["legacy"], default-features=false}
+zkevm_test_harness = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "main"}
+prover-service = { git = "https://github.com/matter-labs/era-heavy-ops-service.git", branch = "main", features=["legacy"], default-features=false}
 
 structopt = "0.3.26"
 queues = "1.1.0"
