@@ -4,7 +4,7 @@ version = "1.0.0"
 edition = "2018"
 authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
 homepage = "https://zksync.io/"
-repository = "https://github.com/matter-labs/zksync-2"
+repository = "https://github.com/matter-labs/zksync-era"
 license = "Apache-2.0"
 keywords = ["blockchain", "zksync"]
 categories = ["cryptography"]
@@ -24,10 +24,10 @@ zksync_object_store = { path = "../../lib/object_store", version = "1.0" }
 setup_key_generator_and_server = { path = "../setup_key_generator_and_server", version = "1.0" }
 
 
-api = { git = "https://github.com/matter-labs/heavy-ops-service.git", branch = "cleanup", features=["gpu"], default-features=false}
-prover-service = { git = "https://github.com/matter-labs/heavy-ops-service.git", branch = "cleanup", features=["gpu"], default-features=false}
+api = { git = "https://github.com/matter-labs/era-heavy-ops-service.git", branch = "main", features=["gpu"], default-features=false}
+prover-service = { git = "https://github.com/matter-labs/era-heavy-ops-service.git", branch = "main", features=["gpu"], default-features=false}
 
-zkevm_test_harness = { git = "https://github.com/matter-labs/zkevm_test_harness.git", branch = "v1.3.1"}
+zkevm_test_harness = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "main"}
 
 tokio = { version = "1", features = ["time"] }
 futures = { version = "0.3", features = ["compat"] }

@@ -72,6 +72,7 @@ RUN wget https://github.com/ethereum/solc-bin/raw/gh-pages/linux-amd64/solc-linu
     && mv solc-linux-amd64-v0.8.12+commit.f00d7308 /usr/bin/solc \
     && chmod +x /usr/bin/solc
 # Obtain `zksolc` 1.1.5.
+
 RUN wget https://github.com/matter-labs/zksolc-bin/raw/main/linux-amd64/zksolc-linux-amd64-musl-v1.1.6 \
     && mv zksolc-linux-amd64-musl-v1.1.6 /usr/bin/zksolc \
     && chmod +x /usr/bin/zksolc

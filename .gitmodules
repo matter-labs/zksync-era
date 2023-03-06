@@ -3,10 +3,10 @@
 	url = git@github.com:WebAssembly/binaryen.git
 [submodule "etc/system-contracts"]
 	path = etc/system-contracts
-	url = git@github.com:matter-labs/system-contracts.git
+	url = git@github.com:matter-labs/era-system-contracts.git
 [submodule "etc/openzeppelin-contracts"]
 	path = etc/openzeppelin-contracts
-	url = git@github.com:matter-labs/openzeppelin-contracts.git
+	url = git@github.com:matter-labs/era-openzeppelin.git
 [submodule "contracts"]
 	path = contracts
-	url = https://github.com/matter-labs/zksync-2-contracts.git
+	url = https://github.com/matter-labs/era-contracts.git
