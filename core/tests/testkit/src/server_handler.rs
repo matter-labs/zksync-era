@@ -32,6 +32,7 @@ impl ServerHandler {
         _metadata_calculator_pool: ConnectionPool,
         _mempool_pool: ConnectionPool,
     ) -> Self {
+        todo!("Spawning server is not implemented yet")
     }
 
     pub fn empty() -> Self {
