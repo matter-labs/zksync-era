@@ -124,8 +124,7 @@ fn generate_rust_fee_constants(intrinsic_gas_constants: &IntrinsicSystemGasConst
 
     scope.raw(
         vec![
-            "// TODO (SMA-1699): Use this method to ensure that the transactions provide enough",
-            "// intrinsic gas on the API level.",
+            "",
         ]
         .join("\n"),
     );
