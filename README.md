@@ -38,7 +38,7 @@ at your option.
 
 ## Disclaimer
 
-zkSync Era is has been through lots of testing and audits. Although it is live, it is still in alpha state and will go
+zkSync Era has been through lots of testing and audits. Although it is live, it is still in alpha state and will go
 through more audits and bug bounties programs. We would love to hear our community's thoughts and suggestions about it!
 It is important to state that forking it now can potentially lead to missing important security updates, critical
 features, and performance improvements.
