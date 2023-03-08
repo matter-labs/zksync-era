@@ -118,7 +118,7 @@ checksum = "224afbd727c3d6e4b90103ece64b8d1b67fbb1973b1046c2281eed3f3803f800"
 [[package]]
 name = "api"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-heavy-ops-service.git?branch=main#84d3d487441337b0cb5861174fca5cb552ad9402"
+source = "git+https://github.com/matter-labs/era-heavy-ops-service.git?branch=main#ce5ba80e0a046a2351e12766fd2241c6510f0026"
 dependencies = [
  "bellman_ce",
  "cfg-if 1.0.0",
@@ -740,14 +740,6 @@ dependencies = [
 [[package]]
 name = "circuit_testing"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/circuit_testing.git?branch=main#7160c45c844944748663c91b6860c77f5376d9e4"
-dependencies = [
- "bellman_ce",
-]
-
-[[package]]
-name = "circuit_testing"
-version = "0.1.0"
 source = "git+https://github.com/matter-labs/era-circuit_testing.git?branch=main#1769d65aa592645a097af20b1739c7cacb0715c1"
 dependencies = [
  "bellman_ce",
@@ -1132,7 +1124,7 @@ dependencies = [
 [[package]]
 name = "cs_derive"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/sync_vm.git?branch=v1.3.1#a69bcef3eafcc39887ca8c09ec835c1a426d0813"
+source = "git+https://github.com/matter-labs/era-sync_vm.git?branch=main#370c4165dee04e15235af2692b4aafcca28243b9"
 dependencies = [
  "proc-macro-error",
  "proc-macro2 1.0.51",
@@ -1601,7 +1593,7 @@ dependencies = [
 [[package]]
 name = "franklin-crypto"
 version = "0.0.5"
-source = "git+ssh://git@github.com/matter-labs/franklin-crypto?branch=dev#3baf4c4eb3b41fcaca5cfd36d0dc46b097ba7322"
+source = "git+ssh://git@github.com/matter-labs/franklin-crypto?branch=dev#5922873d25ecec827cd60420ca8cd84a188bb965"
 dependencies = [
  "arr_macro",
  "bellman_ce",
@@ -1631,7 +1623,7 @@ dependencies = [
 [[package]]
 name = "franklin-crypto"
 version = "0.0.5"
-source = "git+https://github.com/matter-labs/franklin-crypto?branch=dev#3baf4c4eb3b41fcaca5cfd36d0dc46b097ba7322"
+source = "git+https://github.com/matter-labs/franklin-crypto?branch=dev#5922873d25ecec827cd60420ca8cd84a188bb965"
 dependencies = [
  "arr_macro",
  "bellman_ce",
@@ -1918,10 +1910,10 @@ dependencies = [
 [[package]]
 name = "gpu-ffi"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-heavy-ops-service.git?branch=main#84d3d487441337b0cb5861174fca5cb552ad9402"
+source = "git+https://github.com/matter-labs/era-heavy-ops-service.git?branch=main#ce5ba80e0a046a2351e12766fd2241c6510f0026"
 dependencies = [
  "bindgen",
- "crossbeam 0.7.3",
+ "crossbeam 0.8.2",
  "derivative",
  "futures 0.3.26",
  "futures-locks",
@@ -1931,11 +1923,11 @@ dependencies = [
 [[package]]
 name = "gpu-prover"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-heavy-ops-service.git?branch=main#84d3d487441337b0cb5861174fca5cb552ad9402"
+source = "git+https://github.com/matter-labs/era-heavy-ops-service.git?branch=main#ce5ba80e0a046a2351e12766fd2241c6510f0026"
 dependencies = [
  "bit-vec",
  "cfg-if 1.0.0",
- "crossbeam 0.7.3",
+ "crossbeam 0.8.2",
  "franklin-crypto 0.0.5 (git+ssh://git@github.com/matter-labs/franklin-crypto?branch=dev)",
  "gpu-ffi",
  "itertools",
@@ -3739,7 +3731,7 @@ dependencies = [
 [[package]]
 name = "prover-service"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-heavy-ops-service.git?branch=main#84d3d487441337b0cb5861174fca5cb552ad9402"
+source = "git+https://github.com/matter-labs/era-heavy-ops-service.git?branch=main#ce5ba80e0a046a2351e12766fd2241c6510f0026"
 dependencies = [
  "api",
  "bincode",
@@ -3749,7 +3741,7 @@ dependencies = [
  "rand 0.4.6",
  "serde",
  "serde_json",
- "zkevm_test_harness 1.3.1 (git+https://github.com/matter-labs/zkevm_test_harness.git?branch=v1.3.1)",
+ "zkevm_test_harness",
 ]
 
 [[package]]
@@ -4128,7 +4120,7 @@ dependencies = [
 [[package]]
 name = "rescue_poseidon"
 version = "0.4.1"
-source = "git+https://github.com/matter-labs/rescue-poseidon.git#fbb3882b8f1e63dff769a1f1a59211d0e0838351"
+source = "git+https://github.com/matter-labs/rescue-poseidon.git#f611a3353e48cf42153e44d89ed90da9bc5934e8"
 dependencies = [
  "addchain",
  "arrayvec 0.7.2",
@@ -4581,12 +4573,12 @@ name = "setup_key_generator_and_server"
 version = "1.0.0"
 dependencies = [
  "api",
- "circuit_testing 0.1.0 (git+https://github.com/matter-labs/era-circuit_testing.git?branch=main)",
+ "circuit_testing",
  "itertools",
  "prover-service",
  "structopt",
  "vlog",
- "zkevm_test_harness 1.3.1 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=main)",
+ "zkevm_test_harness",
  "zksync_config",
  "zksync_types",
 ]
@@ -4996,7 +4988,7 @@ dependencies = [
 [[package]]
 name = "sync_vm"
 version = "1.3.1"
-source = "git+https://github.com/matter-labs/sync_vm.git?branch=v1.3.1#a69bcef3eafcc39887ca8c09ec835c1a426d0813"
+source = "git+https://github.com/matter-labs/era-sync_vm.git?branch=main#370c4165dee04e15235af2692b4aafcca28243b9"
 dependencies = [
  "arrayvec 0.7.2",
  "cs_derive",
@@ -5016,8 +5008,8 @@ dependencies = [
  "sha2 0.10.6",
  "sha3 0.10.6",
  "smallvec",
- "zk_evm 1.3.1 (git+https://github.com/matter-labs/zk_evm.git?branch=v1.3.1)",
- "zkevm_opcode_defs 1.3.1 (git+https://github.com/matter-labs/zkevm_opcode_defs.git?branch=v1.3.1)",
+ "zk_evm",
+ "zkevm_opcode_defs",
 ]
 
 [[package]]
@@ -5670,8 +5662,8 @@ dependencies = [
  "thiserror",
  "tracing",
  "vlog",
- "zk_evm 1.3.1 (git+https://github.com/matter-labs/era-zk_evm.git?branch=main)",
- "zkevm-assembly 1.3.0 (git+https://github.com/matter-labs/era-zkEVM-assembly.git?branch=main)",
+ "zk_evm",
+ "zkevm-assembly",
  "zksync_config",
  "zksync_contracts",
  "zksync_crypto",
@@ -6031,24 +6023,7 @@ dependencies = [
  "sha2 0.10.6",
  "sha3 0.10.6",
  "static_assertions",
- "zkevm_opcode_defs 1.3.1 (git+https://github.com/matter-labs/era-zkevm_opcode_defs.git?branch=main)",
-]
-
-[[package]]
-name = "zk_evm"
-version = "1.3.1"
-source = "git+https://github.com/matter-labs/zk_evm.git?branch=v1.3.1#76a3877f5a0b7449bcca73d35bae3ae226996fdd"
-dependencies = [
- "blake2 0.10.6",
- "k256",
- "lazy_static",
- "num 0.4.0",
- "serde",
- "serde_json",
- "sha2 0.10.6",
- "sha3 0.10.6",
- "static_assertions",
- "zkevm_opcode_defs 1.3.1 (git+https://github.com/matter-labs/zkevm_opcode_defs.git?branch=v1.3.1)",
+ "zkevm_opcode_defs",
 ]
 
 [[package]]
@@ -6067,26 +6042,7 @@ dependencies = [
  "smallvec",
  "structopt",
  "thiserror",
- "zkevm_opcode_defs 1.3.1 (git+https://github.com/matter-labs/era-zkevm_opcode_defs.git?branch=main)",
-]
-
-[[package]]
-name = "zkevm-assembly"
-version = "1.3.0"
-source = "git+https://github.com/matter-labs/zkEVM-assembly.git?branch=v1.3.1#e2a2145a90ceeb54407df1be5254291a9f693422"
-dependencies = [
- "env_logger 0.9.3",
- "hex",
- "lazy_static",
- "log",
- "nom",
- "num-bigint 0.4.3",
- "num-traits",
- "regex",
- "smallvec",
- "structopt",
- "thiserror",
- "zkevm_opcode_defs 1.3.1 (git+https://github.com/matter-labs/zkevm_opcode_defs.git?branch=v1.3.1)",
+ "zkevm_opcode_defs",
 ]
 
 [[package]]
@@ -6101,54 +6057,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "zkevm_opcode_defs"
-version = "1.3.1"
-source = "git+https://github.com/matter-labs/zkevm_opcode_defs.git?branch=v1.3.1#dc5b5c463d867855514f03c179992acbde74face"
-dependencies = [
- "bitflags",
- "ethereum-types",
- "lazy_static",
- "sha2 0.10.6",
-]
-
-[[package]]
 name = "zkevm_test_harness"
 version = "1.3.1"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=main#4273a90f85cd50cb66df312a142cef4eb5b5f2aa"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=main#e4e6aaf78b45280ec99057ba45a393776d8e45a2"
 dependencies = [
  "bincode",
  "blake2 0.10.6",
- "circuit_testing 0.1.0 (git+https://github.com/matter-labs/circuit_testing.git?branch=main)",
- "codegen 0.2.0",
- "crossbeam 0.8.2",
- "derivative",
- "env_logger 0.9.3",
- "hex",
- "num-bigint 0.4.3",
- "num-integer",
- "num-traits",
- "rayon",
- "serde",
- "serde_json",
- "sha2 0.10.6",
- "sha3 0.10.6",
- "smallvec",
- "structopt",
- "sync_vm",
- "test-log",
- "tracing",
- "zk_evm 1.3.1 (git+https://github.com/matter-labs/zk_evm.git?branch=v1.3.1)",
- "zkevm-assembly 1.3.0 (git+https://github.com/matter-labs/zkEVM-assembly.git?branch=v1.3.1)",
-]
-
-[[package]]
-name = "zkevm_test_harness"
-version = "1.3.1"
-source = "git+https://github.com/matter-labs/zkevm_test_harness.git?branch=v1.3.1#2100f00f9cb79e851bf11ec21391672244e382fc"
-dependencies = [
- "bincode",
- "blake2 0.10.6",
- "circuit_testing 0.1.0 (git+https://github.com/matter-labs/circuit_testing.git?branch=main)",
+ "circuit_testing",
  "codegen 0.2.0",
  "crossbeam 0.8.2",
  "derivative",
@@ -6167,8 +6082,8 @@ dependencies = [
  "sync_vm",
  "test-log",
  "tracing",
- "zk_evm 1.3.1 (git+https://github.com/matter-labs/zk_evm.git?branch=v1.3.1)",
- "zkevm-assembly 1.3.0 (git+https://github.com/matter-labs/zkEVM-assembly.git?branch=v1.3.1)",
+ "zk_evm",
+ "zkevm-assembly",
 ]
 
 [[package]]
@@ -6352,7 +6267,7 @@ dependencies = [
  "thiserror",
  "tokio 1.25.0",
  "vlog",
- "zkevm_test_harness 1.3.1 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=main)",
+ "zkevm_test_harness",
  "zksync_circuit_breaker",
  "zksync_config",
  "zksync_dal",
@@ -6419,9 +6334,9 @@ dependencies = [
  "strum",
  "thiserror",
  "tiny-keccak 1.5.0",
- "zk_evm 1.3.1 (git+https://github.com/matter-labs/era-zk_evm.git?branch=main)",
- "zkevm-assembly 1.3.0 (git+https://github.com/matter-labs/era-zkEVM-assembly.git?branch=main)",
- "zkevm_test_harness 1.3.1 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=main)",
+ "zk_evm",
+ "zkevm-assembly",
+ "zkevm_test_harness",
  "zksync_basic_types",
  "zksync_config",
  "zksync_contracts",
@@ -6442,7 +6357,7 @@ dependencies = [
  "serde",
  "thiserror",
  "tokio 1.25.0",
- "zk_evm 1.3.1 (git+https://github.com/matter-labs/era-zk_evm.git?branch=main)",
+ "zk_evm",
  "zksync_basic_types",
 ]
 
@@ -6451,7 +6366,7 @@ name = "zksync_verification_key_generator_and_server"
 version = "1.0.0"
 dependencies = [
  "bincode",
- "circuit_testing 0.1.0 (git+https://github.com/matter-labs/era-circuit_testing.git?branch=main)",
+ "circuit_testing",
  "ff_ce",
  "hex",
  "itertools",

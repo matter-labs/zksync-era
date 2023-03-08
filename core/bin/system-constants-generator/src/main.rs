@@ -124,6 +124,7 @@ fn generate_rust_fee_constants(intrinsic_gas_constants: &IntrinsicSystemGasConst
 
     scope.raw(
         vec![
+            "",
         ]
         .join("\n"),
     );
