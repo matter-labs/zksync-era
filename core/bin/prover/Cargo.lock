@@ -118,7 +118,7 @@ checksum = "224afbd727c3d6e4b90103ece64b8d1b67fbb1973b1046c2281eed3f3803f800"
 [[package]]
 name = "api"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-heavy-ops-service.git?branch=main#ce5ba80e0a046a2351e12766fd2241c6510f0026"
+source = "git+https://github.com/matter-labs/era-heavy-ops-service.git?branch=main#fda73622aac502ed5944bf135e31a6be9355886b"
 dependencies = [
  "bellman_ce",
  "cfg-if 1.0.0",
@@ -1910,7 +1910,7 @@ dependencies = [
 [[package]]
 name = "gpu-ffi"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-heavy-ops-service.git?branch=main#ce5ba80e0a046a2351e12766fd2241c6510f0026"
+source = "git+https://github.com/matter-labs/era-heavy-ops-service.git?branch=main#fda73622aac502ed5944bf135e31a6be9355886b"
 dependencies = [
  "bindgen",
  "crossbeam 0.8.2",
@@ -1923,7 +1923,7 @@ dependencies = [
 [[package]]
 name = "gpu-prover"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-heavy-ops-service.git?branch=main#ce5ba80e0a046a2351e12766fd2241c6510f0026"
+source = "git+https://github.com/matter-labs/era-heavy-ops-service.git?branch=main#fda73622aac502ed5944bf135e31a6be9355886b"
 dependencies = [
  "bit-vec",
  "cfg-if 1.0.0",
@@ -3731,7 +3731,7 @@ dependencies = [
 [[package]]
 name = "prover-service"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-heavy-ops-service.git?branch=main#ce5ba80e0a046a2351e12766fd2241c6510f0026"
+source = "git+https://github.com/matter-labs/era-heavy-ops-service.git?branch=main#fda73622aac502ed5944bf135e31a6be9355886b"
 dependencies = [
  "api",
  "bincode",
