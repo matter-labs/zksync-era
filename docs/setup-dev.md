@@ -9,6 +9,18 @@ If you're using Windows, then make sure to use WSL 2, since WSL 1 is known to ca
 Additionally, if you are going to use WSL 2, make sure that your project is located in the _linux filesystem_, since
 accessing NTFS partitions from inside of WSL is very slow.
 
+If you are a NixOS user or would like to have a reproducible environment, skip to the section about `nix`.
+
+## `git`
+
+If you are using an ssh key to authenticate with GitHub you need to make git always use ssh instead of http.
+
+```bash
+git config --global url."ssh://git@github.com/".insteadOf https://github.com/
+```
+
+[More information about how we use git](https://www.notion.so/matterlabs/Working-with-dependencies-in-private-repositories-697620178338452798a0ea5ac0d8e56a)
+
 ## `Docker`
 
 Install `docker`. It is recommended to follow the instructions from the
@@ -127,7 +139,7 @@ rustc --version
 rustc 1.xx.y (xxxxxx 20xx-yy-zz) # Output may vary depending on actual version of rust
 ```
 
-### Postgres
+## Postgres
 
 Install the latest postgres.
 
@@ -143,6 +155,33 @@ features of the library.
 ```bash
 cargo install sqlx-cli --version 0.5.13
 ```
+
+## Solidity compiler `solc`
+
+Install the latest solidity compiler.
+
+```bash
+brew install solidity
+```
+
+Alternatively, download a [precompiled version](https://github.com/ethereum/solc-bin) and add it to your PATH.
+
+## Python
+
+Most environments will have this preinstalled but if not, install Python.
+
+## Easier method using `nix`
+
+Nix is a tool that can fetch _exactly_ the right dependencies specified via hashes. The current config is Linux-only, but
+it is likely that it can be adapted to Mac.
+
+Install `nix`. Enable the nix command and flakes.
+
+Install docker, rustup and use rust to install SQLx CLI like described above. If you are on NixOS, you also need to
+enable nix-ld.
+
+Go to the zksync folder and run `nix develop --impure`. After it finishes, you are in a shell that has all the
+dependencies.
 
 ## Environment
 
