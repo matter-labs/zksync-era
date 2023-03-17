@@ -1,22 +1,32 @@
 {
   "name": "zksync-web3",
   "version": "0.13.0",
+  "description": "A Web3 library for interacting with the ZkSync Layer 2 scaling solution.",
   "main": "build/src/index.js",
   "types": "build/src/index.d.ts",
-  "files": [
-    "build/",
-    "abi/",
-    "src/",
-    "typechain/"
-  ],
   "license": "MIT",
-  "dependencies": {},
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/matter-labs/zksync-web3.git"
+  },
+  "bugs": {
+    "url": "https://github.com/matter-labs/zksync-web3/issues"
+  },
+  "homepage": "https://github.com/matter-labs/zksync-web3#readme",
+  "keywords": [
+    "zksync",
+    "web3",
+    "ethereum",
+    "layer2"
+  ],
+  "dependencies": {
+    "ethers": "^5.7.0"
+  },
   "devDependencies": {
     "@types/chai": "^4.2.19",
     "@types/mocha": "^8.2.2",
     "@types/node": "^16.0.0",
     "chai": "^4.3.4",
-    "ethers": "~5.7.0",
     "mocha": "^9.0.2",
     "ts-node": "^10.0.0",
     "typescript": "^4.3.5"
@@ -25,8 +35,11 @@
     "ethers": "^5.7.0"
   },
   "scripts": {
-    "tests": "mocha -r ts-node/register tests/**/*.test.ts",
+    "test": "mocha -r ts-node/register tests/**/*.test.ts",
     "build": "tsc && cp -f typechain/*.d.ts build/typechain",
     "watch": "tsc --watch"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }
