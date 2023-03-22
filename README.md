@@ -1,6 +1,6 @@
 # zkSync Era: A ZK Rollup For Scaling Ethereum
 
-[![Logo](eraLogo.svg)](https://zksync.io/)
+[![Logo](eraLogo.png)](https://zksync.io/)
 
 zkSync Era is a layer 2 rollup that uses zero-knowledge proofs to scale Ethereum without compromising on security or
 decentralization. Since it's EVM compatible (Solidity/Vyper), 99% of Ethereum projects can redeploy without refactoring
