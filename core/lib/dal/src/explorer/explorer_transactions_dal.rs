@@ -12,8 +12,8 @@ use zksync_types::explorer_api::{
     TransactionsResponse, TxPosition,
 };
 use zksync_types::{
-    tokens::ETHEREUM_ADDRESS, tx::Execute, Address, MiniblockNumber, H256, L2_ETH_TOKEN_ADDRESS,
-    U256, U64,
+    tokens::ETHEREUM_ADDRESS, tx::Execute, Address, L1BatchNumber, MiniblockNumber, H256,
+    L2_ETH_TOKEN_ADDRESS, U256, U64,
 };
 
 use crate::models::storage_event::StorageWeb3Log;
@@ -112,6 +112,7 @@ impl ExplorerTransactionsDal<'_, '_> {
         &mut self,
         from_tx_location: Option<TxPosition>,
         block_number: Option<MiniblockNumber>,
+        l1_batch_number: Option<L1BatchNumber>,
         contract_address: Option<Address>,
         pagination: PaginationQuery,
         max_total: usize,
@@ -144,6 +145,9 @@ impl ExplorerTransactionsDal<'_, '_> {
             }
             if let Some(number) = block_number {
                 filters.push(format!("transactions.miniblock_number = {}", number.0));
+            }
+            if let Some(number) = l1_batch_number {
+                filters.push(format!("transactions.l1_batch_number = {}", number.0));
             }
             let filters: String = if !filters.is_empty() {
                 format!("WHERE {}", filters.join(" AND "))
@@ -337,12 +341,17 @@ impl ExplorerTransactionsDal<'_, '_> {
                         FROM events
                         WHERE
                         (
-                            topic2 = $1
-                            OR
-                            topic3 = $1
+                            (
+                                (
+                                    topic2 = $1
+                                    OR
+                                    topic3 = $1
+                                )
+                                AND topic1 = $2
+                                AND (address IN (SELECT l2_address FROM tokens) OR address = $3)
+                            )
+                            OR events.tx_initiator_address = $4
                         )
-                        AND topic1 = $2
-                        AND (address IN (SELECT l2_address FROM tokens) OR address = $3)
                         {1}
                     ) AS h
                     WHERE prev_hash IS NULL OR tx_hash != prev_hash
@@ -355,7 +364,8 @@ impl ExplorerTransactionsDal<'_, '_> {
             let sql_count_query = sqlx::query(&sql_count_query_str)
                 .bind(padded_address)
                 .bind(ERC20_TRANSFER_TOPIC.as_bytes().to_vec())
-                .bind(L2_ETH_TOKEN_ADDRESS.as_bytes().to_vec());
+                .bind(L2_ETH_TOKEN_ADDRESS.as_bytes().to_vec())
+                .bind(account_address.as_bytes().to_vec());
             let total = sql_count_query
                 .fetch_one(self.storage.conn())
                 .await?

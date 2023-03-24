@@ -1,11 +1,12 @@
-use vm::zk_evm::abstractions::MEMORY_CELLS_OTHER_PAGES;
+use vm::zk_evm::abstractions::MAX_MEMORY_BYTES;
 use vm::zk_evm::ethereum_types::U256;
 use zksync_object_store::gcs_utils::prover_circuit_input_blob_url;
 use zksync_object_store::object_store::{DynamicObjectStore, PROVER_JOBS_BUCKET_PATH};
 use zksync_types::{proofs::AggregationRound, L1BatchNumber};
 
 pub fn expand_bootloader_contents(packed: Vec<(usize, U256)>) -> Vec<u8> {
-    let mut result: [u8; MEMORY_CELLS_OTHER_PAGES] = [0; MEMORY_CELLS_OTHER_PAGES];
+    let mut result: Vec<u8> = Vec::new();
+    result.resize(MAX_MEMORY_BYTES, 0);
 
     for (offset, value) in packed {
         value.to_big_endian(&mut result[(offset * 32)..(offset + 1) * 32]);

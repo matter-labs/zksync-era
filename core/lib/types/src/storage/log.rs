@@ -1,7 +1,5 @@
-use crate::{H160, U256};
 use serde::{Deserialize, Serialize};
-use zk_evm::aux_structures::{LogQuery, Timestamp};
-use zkevm_test_harness::witness::sort_storage_access::LogQueryLike;
+use zk_evm::aux_structures::LogQuery;
 use zksync_basic_types::AccountTreeId;
 use zksync_utils::u256_to_h256;
 
@@ -82,60 +80,4 @@ pub enum StorageLogQueryType {
 pub struct StorageLogQuery {
     pub log_query: LogQuery,
     pub log_type: StorageLogQueryType,
-}
-
-impl LogQueryLike for StorageLogQuery {
-    fn shard_id(&self) -> u8 {
-        self.log_query.shard_id
-    }
-
-    fn address(&self) -> H160 {
-        self.log_query.address
-    }
-
-    fn key(&self) -> U256 {
-        self.log_query.key
-    }
-
-    fn rw_flag(&self) -> bool {
-        self.log_query.rw_flag
-    }
-
-    fn rollback(&self) -> bool {
-        self.log_query.rollback
-    }
-
-    fn read_value(&self) -> U256 {
-        self.log_query.read_value
-    }
-
-    fn written_value(&self) -> U256 {
-        self.log_query.written_value
-    }
-
-    fn create_partially_filled_from_fields(
-        shard_id: u8,
-        address: H160,
-        key: U256,
-        read_value: U256,
-        written_value: U256,
-        rw_flag: bool,
-    ) -> Self {
-        Self {
-            log_type: StorageLogQueryType::Read,
-            log_query: LogQuery {
-                timestamp: Timestamp::empty(),
-                tx_number_in_block: 0,
-                aux_byte: 0,
-                shard_id,
-                address,
-                key,
-                read_value,
-                written_value,
-                rw_flag,
-                rollback: false,
-                is_service: false,
-            },
-        }
-    }
 }

@@ -15,10 +15,13 @@ impl PeriodicJob for GpuProverQueueMonitor {
             .access_storage_blocking()
             .gpu_prover_queue_dal()
             .get_count_of_jobs_ready_for_processing();
-        vlog::info!(
-            "Found {} free circuit synthesizer jobs",
-            free_prover_instance_count
-        );
+
+        if free_prover_instance_count > 0 {
+            vlog::info!(
+                "Found {} free circuit synthesizer jobs",
+                free_prover_instance_count
+            );
+        }
 
         metrics::gauge!(
             "server.circuit_synthesizer.jobs",

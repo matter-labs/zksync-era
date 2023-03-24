@@ -2,12 +2,13 @@ use crate::models::storage_contract::StorageContractSource;
 use crate::StorageProcessor;
 use std::collections::{HashMap, HashSet};
 use std::time::Instant;
+use zksync_contracts::{BaseSystemContracts, SystemContractCode};
 use zksync_types::{
     vm_trace::ContractSourceDebugInfo, Address, MiniblockNumber, StorageKey, StorageLog,
     StorageValue, ACCOUNT_CODE_STORAGE_ADDRESS, FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH, H256,
     U256,
 };
-use zksync_utils::{bytes_to_chunks, h256_to_account_address};
+use zksync_utils::{bytes_to_be_words, bytes_to_chunks, h256_to_account_address};
 
 #[derive(Debug)]
 pub struct StorageDal<'a, 'c> {
@@ -55,6 +56,35 @@ impl StorageDal<'_, '_> {
             .await
             .unwrap()
             .map(|row| row.bytecode)
+        })
+    }
+
+    pub fn get_base_system_contracts(
+        &mut self,
+        bootloader_hash: H256,
+        default_aa_hash: H256,
+    ) -> BaseSystemContracts {
+        async_std::task::block_on(async {
+            let bootloader_bytecode = self
+                .get_factory_dep(bootloader_hash)
+                .expect("Bootloader code should be presented in the database");
+            let bootloader_code = SystemContractCode {
+                code: bytes_to_be_words(bootloader_bytecode),
+                hash: bootloader_hash,
+            };
+
+            let default_aa_bytecode = self
+                .get_factory_dep(default_aa_hash)
+                .expect("Default account code should be presented in the database");
+
+            let default_aa_code = SystemContractCode {
+                code: bytes_to_be_words(default_aa_bytecode),
+                hash: default_aa_hash,
+            };
+            BaseSystemContracts {
+                bootloader: bootloader_code,
+                default_aa: default_aa_code,
+            }
         })
     }
 

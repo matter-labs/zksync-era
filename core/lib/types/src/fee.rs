@@ -44,8 +44,8 @@ impl Fee {
         assert!(block_base_fee_per_gas <= self.max_fee_per_gas);
         assert!(self.max_priority_fee_per_gas <= self.max_fee_per_gas);
 
-        let max_that_operator_could_take = block_base_fee_per_gas + self.max_priority_fee_per_gas;
-        std::cmp::min(max_that_operator_could_take, self.max_fee_per_gas)
+        // For now, we charge only for base fee.
+        block_base_fee_per_gas
     }
 }
 

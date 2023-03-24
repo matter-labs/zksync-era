@@ -1,14 +1,22 @@
-use std::error::Error;
 use std::fmt::Debug;
 use std::fs;
 use std::fs::File;
-use std::io::{Read, Write};
+use std::io::{ErrorKind, Read, Write};
 
 use crate::object_store::{
-    ObjectStore, LEAF_AGGREGATION_WITNESS_JOBS_BUCKET_PATH,
+    ObjectStore, ObjectStoreError, LEAF_AGGREGATION_WITNESS_JOBS_BUCKET_PATH,
     NODE_AGGREGATION_WITNESS_JOBS_BUCKET_PATH, PROVER_JOBS_BUCKET_PATH,
     SCHEDULER_WITNESS_JOBS_BUCKET_PATH, WITNESS_INPUT_BUCKET_PATH,
 };
+
+impl From<std::io::Error> for ObjectStoreError {
+    fn from(err: std::io::Error) -> Self {
+        match err.kind() {
+            ErrorKind::NotFound => ObjectStoreError::KeyNotFound(err.to_string()),
+            _ => ObjectStoreError::Other(err.to_string()),
+        }
+    }
+}
 
 #[derive(Debug)]
 pub struct FileBackedObjectStore {
@@ -38,13 +46,12 @@ impl ObjectStore for FileBackedObjectStore {
     type Bucket = &'static str;
     type Key = String;
     type Value = Vec<u8>;
-    type Error = Box<dyn Error>;
 
     fn get_store_type(&self) -> &'static str {
         "FileBackedStore"
     }
 
-    fn get(&self, bucket: Self::Bucket, key: Self::Key) -> Result<Self::Value, Self::Error> {
+    fn get(&self, bucket: Self::Bucket, key: Self::Key) -> Result<Self::Value, ObjectStoreError> {
         let filename = self.filename(bucket, key);
         let mut file = File::open(filename)?;
         let mut buffer = Vec::<u8>::new();
@@ -57,14 +64,14 @@ impl ObjectStore for FileBackedObjectStore {
         bucket: Self::Bucket,
         key: Self::Key,
         value: Self::Value,
-    ) -> Result<(), Self::Error> {
+    ) -> Result<(), ObjectStoreError> {
         let filename = self.filename(bucket, key);
         let mut file = File::create(filename)?;
         file.write_all(&value)?;
         Ok(())
     }
 
-    fn remove(&mut self, bucket: Self::Bucket, key: Self::Key) -> Result<(), Self::Error> {
+    fn remove(&mut self, bucket: Self::Bucket, key: Self::Key) -> Result<(), ObjectStoreError> {
         let filename = self.filename(bucket, key);
         fs::remove_file(filename)?;
         Ok(())
@@ -73,8 +80,9 @@ impl ObjectStore for FileBackedObjectStore {
 
 #[cfg(test)]
 mod test {
-    use super::*;
     use tempdir::TempDir;
+
+    use super::*;
 
     #[test]
     fn test_get() {

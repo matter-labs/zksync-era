@@ -37,9 +37,6 @@ pub struct IntrinsicSystemGasConstants {
 /// Note that it is bigger than 16 to account for potential overhead
 pub const L1_GAS_PER_PUBDATA_BYTE: u32 = 17;
 
-/// The price the operator spends on 1 gas of computation in wei. (0.5 gwei)
-pub const FAIR_L2_GAS_PRICE: u64 = 500000000;
-
 /// The amount of pubdata that is strictly guaranteed to be available for a block
 pub const GUARANTEED_PUBDATA_IN_TX: u32 = 100000;
 

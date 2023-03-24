@@ -2,7 +2,10 @@ use std::fmt::Debug;
 use vm::MAX_CYCLES_FOR_TX;
 use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_types::circuit::GEOMETRY_CONFIG;
-use zksync_types::{block::BlockGasCount, tx::ExecutionMetrics};
+use zksync_types::{
+    block::BlockGasCount,
+    tx::tx_execution_info::{DeduplicatedWritesMetrics, ExecutionMetrics},
+};
 // Local uses
 use crate::state_keeper::seal_criteria::{SealCriterion, SealResolution};
 
@@ -21,7 +24,7 @@ pub struct MaxCyclesCriterion;
 trait MetricExtractor {
     const PROM_METRIC_CRITERION_NAME: &'static str;
     fn limit_per_block() -> usize;
-    fn extract(metric: &ExecutionMetrics) -> usize;
+    fn extract(metric: &ExecutionMetrics, writes: &DeduplicatedWritesMetrics) -> usize;
 }
 
 impl<T> SealCriterion for T
@@ -37,15 +40,21 @@ where
         tx_execution_metrics: ExecutionMetrics,
         _block_gas_count: BlockGasCount,
         _tx_gas_count: BlockGasCount,
+        _block_included_txs_size: usize,
+        _tx_size: usize,
+        block_writes_metrics: DeduplicatedWritesMetrics,
+        tx_writes_metrics: DeduplicatedWritesMetrics,
     ) -> SealResolution {
-        if T::extract(&tx_execution_metrics)
+        if T::extract(&tx_execution_metrics, &tx_writes_metrics)
             > (T::limit_per_block() as f64 * config.reject_tx_at_geometry_percentage).round()
                 as usize
         {
             SealResolution::Unexecutable("ZK proof cannot be generated for a transaction".into())
-        } else if T::extract(&block_execution_metrics) >= T::limit_per_block() {
+        } else if T::extract(&block_execution_metrics, &block_writes_metrics)
+            >= T::limit_per_block()
+        {
             SealResolution::ExcludeAndSeal
-        } else if T::extract(&block_execution_metrics)
+        } else if T::extract(&block_execution_metrics, &block_writes_metrics)
             > (T::limit_per_block() as f64 * config.close_block_at_geometry_percentage).round()
                 as usize
         {
@@ -67,7 +76,7 @@ impl MetricExtractor for BytecodeHashesCriterion {
         GEOMETRY_CONFIG.limit_for_code_decommitter_sorter as usize
     }
 
-    fn extract(metrics: &ExecutionMetrics) -> usize {
+    fn extract(metrics: &ExecutionMetrics, _writes: &DeduplicatedWritesMetrics) -> usize {
         metrics.contracts_used
     }
 }
@@ -79,8 +88,8 @@ impl MetricExtractor for RepeatedWritesCriterion {
         GEOMETRY_CONFIG.limit_for_repeated_writes_pubdata_hasher as usize
     }
 
-    fn extract(metrics: &ExecutionMetrics) -> usize {
-        metrics.repeated_storage_writes
+    fn extract(_metrics: &ExecutionMetrics, writes: &DeduplicatedWritesMetrics) -> usize {
+        writes.repeated_storage_writes
     }
 }
 
@@ -91,8 +100,8 @@ impl MetricExtractor for InitialWritesCriterion {
         GEOMETRY_CONFIG.limit_for_initial_writes_pubdata_hasher as usize
     }
 
-    fn extract(metrics: &ExecutionMetrics) -> usize {
-        metrics.initial_storage_writes
+    fn extract(_metrics: &ExecutionMetrics, writes: &DeduplicatedWritesMetrics) -> usize {
+        writes.initial_storage_writes
     }
 }
 
@@ -103,7 +112,7 @@ impl MetricExtractor for MaxCyclesCriterion {
         MAX_CYCLES_FOR_TX as usize
     }
 
-    fn extract(metrics: &ExecutionMetrics) -> usize {
+    fn extract(metrics: &ExecutionMetrics, _writes: &DeduplicatedWritesMetrics) -> usize {
         metrics.cycles_used as usize
     }
 }
@@ -111,6 +120,7 @@ impl MetricExtractor for MaxCyclesCriterion {
 #[cfg(test)]
 mod tests {
     use zksync_config::configs::chain::StateKeeperConfig;
+    use zksync_types::tx::tx_execution_info::DeduplicatedWritesMetrics;
     use zksync_types::tx::ExecutionMetrics;
 
     use crate::state_keeper::seal_criteria::geometry_seal_criteria::MaxCyclesCriterion;
@@ -130,6 +140,7 @@ mod tests {
 
     fn test_no_seal_block_resolution(
         block_execution_metrics: ExecutionMetrics,
+        block_writes_metrics: DeduplicatedWritesMetrics,
         criterion: &dyn SealCriterion,
     ) {
         let config = get_config();
@@ -140,6 +151,10 @@ mod tests {
             block_execution_metrics,
             Default::default(),
             Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            block_writes_metrics,
             Default::default(),
         );
         assert_eq!(block_resolution, SealResolution::NoSeal);
@@ -147,6 +162,7 @@ mod tests {
 
     fn test_include_and_seal_block_resolution(
         block_execution_metrics: ExecutionMetrics,
+        block_writes_metrics: DeduplicatedWritesMetrics,
         criterion: &dyn SealCriterion,
     ) {
         let config = get_config();
@@ -157,6 +173,10 @@ mod tests {
             block_execution_metrics,
             Default::default(),
             Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            block_writes_metrics,
             Default::default(),
         );
         assert_eq!(block_resolution, SealResolution::IncludeAndSeal);
@@ -164,6 +184,7 @@ mod tests {
 
     fn test_exclude_and_seal_block_resolution(
         block_execution_metrics: ExecutionMetrics,
+        block_writes_metrics: DeduplicatedWritesMetrics,
         criterion: &dyn SealCriterion,
     ) {
         let config = get_config();
@@ -175,12 +196,17 @@ mod tests {
             Default::default(),
             Default::default(),
             Default::default(),
+            Default::default(),
+            Default::default(),
+            block_writes_metrics,
+            Default::default(),
         );
         assert_eq!(block_resolution, SealResolution::ExcludeAndSeal);
     }
 
     fn test_unexecutable_tx_resolution(
         tx_execution_metrics: ExecutionMetrics,
+        tx_writes_metrics: DeduplicatedWritesMetrics,
         criterion: &dyn SealCriterion,
     ) {
         let config = get_config();
@@ -192,6 +218,10 @@ mod tests {
             tx_execution_metrics,
             Default::default(),
             Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            tx_writes_metrics,
         );
 
         assert_eq!(
@@ -200,28 +230,37 @@ mod tests {
         );
     }
 
-    macro_rules! test_scenario {
+    macro_rules! test_scenario_execution_metrics {
         ($criterion: tt, $metric_name: ident, $metric_type: ty) => {
             let config = get_config();
+            let writes_metrics = DeduplicatedWritesMetrics::default();
             let block_execution_metrics = ExecutionMetrics {
                 $metric_name: ($criterion::limit_per_block() / 2) as $metric_type,
                 ..Default::default()
             };
-            test_no_seal_block_resolution(block_execution_metrics, &$criterion);
+            test_no_seal_block_resolution(block_execution_metrics, writes_metrics, &$criterion);
 
             let block_execution_metrics = ExecutionMetrics {
                 $metric_name: ($criterion::limit_per_block() - 1) as $metric_type,
                 ..Default::default()
             };
 
-            test_include_and_seal_block_resolution(block_execution_metrics, &$criterion);
+            test_include_and_seal_block_resolution(
+                block_execution_metrics,
+                writes_metrics,
+                &$criterion,
+            );
 
             let block_execution_metrics = ExecutionMetrics {
                 $metric_name: ($criterion::limit_per_block()) as $metric_type,
                 ..Default::default()
             };
 
-            test_exclude_and_seal_block_resolution(block_execution_metrics, &$criterion);
+            test_exclude_and_seal_block_resolution(
+                block_execution_metrics,
+                writes_metrics,
+                &$criterion,
+            );
 
             let tx_execution_metrics = ExecutionMetrics {
                 $metric_name: ($criterion::limit_per_block() as f64
@@ -231,27 +270,71 @@ mod tests {
                 ..Default::default()
             };
 
-            test_unexecutable_tx_resolution(tx_execution_metrics, &$criterion);
+            test_unexecutable_tx_resolution(tx_execution_metrics, writes_metrics, &$criterion);
+        };
+    }
+
+    macro_rules! test_scenario_writes_metrics {
+        ($criterion: tt, $metric_name: ident, $metric_type: ty) => {
+            let config = get_config();
+            let execution_metrics = ExecutionMetrics::default();
+            let block_writes_metrics = DeduplicatedWritesMetrics {
+                $metric_name: ($criterion::limit_per_block() / 2) as $metric_type,
+                ..Default::default()
+            };
+            test_no_seal_block_resolution(execution_metrics, block_writes_metrics, &$criterion);
+
+            let block_writes_metrics = DeduplicatedWritesMetrics {
+                $metric_name: ($criterion::limit_per_block() - 1) as $metric_type,
+                ..Default::default()
+            };
+
+            test_include_and_seal_block_resolution(
+                execution_metrics,
+                block_writes_metrics,
+                &$criterion,
+            );
+
+            let block_writes_metrics = DeduplicatedWritesMetrics {
+                $metric_name: ($criterion::limit_per_block()) as $metric_type,
+                ..Default::default()
+            };
+
+            test_exclude_and_seal_block_resolution(
+                execution_metrics,
+                block_writes_metrics,
+                &$criterion,
+            );
+
+            let tx_writes_metrics = DeduplicatedWritesMetrics {
+                $metric_name: ($criterion::limit_per_block() as f64
+                    * config.reject_tx_at_geometry_percentage
+                    + 1f64)
+                    .round() as $metric_type,
+                ..Default::default()
+            };
+
+            test_unexecutable_tx_resolution(execution_metrics, tx_writes_metrics, &$criterion);
         };
     }
 
     #[test]
     fn bytecode_hashes_criterion() {
-        test_scenario!(BytecodeHashesCriterion, contracts_used, usize);
+        test_scenario_execution_metrics!(BytecodeHashesCriterion, contracts_used, usize);
     }
 
     #[test]
     fn repeated_writes_seal_criterion() {
-        test_scenario!(RepeatedWritesCriterion, repeated_storage_writes, usize);
+        test_scenario_writes_metrics!(RepeatedWritesCriterion, repeated_storage_writes, usize);
     }
 
     #[test]
     fn initial_writes_seal_criterion() {
-        test_scenario!(InitialWritesCriterion, initial_storage_writes, usize);
+        test_scenario_writes_metrics!(InitialWritesCriterion, initial_storage_writes, usize);
     }
 
     #[test]
     fn initial_max_cycles_seal_criterion() {
-        test_scenario!(MaxCyclesCriterion, cycles_used, u32);
+        test_scenario_execution_metrics!(MaxCyclesCriterion, cycles_used, u32);
     }
 }

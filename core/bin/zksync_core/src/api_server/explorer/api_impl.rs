@@ -9,10 +9,10 @@ use serde::Serialize;
 use zksync_types::{
     explorer_api::{
         AccountDetails, AccountType, AddressDetails, BlocksQuery, ContractDetails, EventsQuery,
-        PaginationQuery, TransactionsQuery, VerificationIncomingRequest,
+        L1BatchesQuery, PaginationQuery, TransactionsQuery, VerificationIncomingRequest,
     },
     storage::L2_ETH_TOKEN_ADDRESS,
-    Address, MiniblockNumber, H256,
+    Address, L1BatchNumber, MiniblockNumber, H256,
 };
 
 use super::api_decl::RestApi;
@@ -250,6 +250,7 @@ impl RestApi {
                 .get_transactions_page(
                     query.tx_position(),
                     query.block_number,
+                    query.l1_batch_number,
                     query.contract_address,
                     query.pagination,
                     self_.config.api.explorer.offset_limit(),
@@ -258,7 +259,9 @@ impl RestApi {
                 .unwrap()
         };
 
-        let query_type = if query.block_number.is_some() {
+        let query_type = if query.l1_batch_number.is_some() {
+            "l1_batch_txs"
+        } else if query.block_number.is_some() {
             "block_txs"
         } else if query.account_address.is_some() {
             "account_txs"
@@ -338,6 +341,57 @@ impl RestApi {
         metrics::histogram!("api.explorer.call", start.elapsed(), "method" => "block_details");
         match block_details {
             Some(block_details) => ok_json(block_details),
+            None => Ok(HttpResponse::NotFound().finish()),
+        }
+    }
+
+    #[tracing::instrument(skip(self_))]
+    pub async fn l1_batch_pagination(
+        self_: web::Data<Self>,
+        web::Query(query): web::Query<L1BatchesQuery>,
+    ) -> ActixResult<HttpResponse> {
+        let start = Instant::now();
+        if let Err(res) = self_.validate_pagination_query(query.pagination) {
+            return Ok(res);
+        }
+        let last_verified_miniblock = self_.network_stats.read().await.last_verified;
+        let mut storage = self_.replica_connection_pool.access_storage().await;
+
+        let last_verified_l1_batch = storage
+            .blocks_web3_dal()
+            .get_l1_batch_number_of_miniblock(last_verified_miniblock)
+            .unwrap()
+            .expect("Verified miniblock must be included in l1 batch");
+
+        let l1_batches = storage
+            .explorer()
+            .blocks_dal()
+            .get_l1_batches_page(query, last_verified_l1_batch)
+            .unwrap();
+
+        metrics::histogram!("api.explorer.call", start.elapsed(), "method" => "l1_batch_pagination");
+        ok_json(l1_batches)
+    }
+
+    #[tracing::instrument(skip(self_))]
+    pub async fn l1_batch_details(
+        self_: web::Data<Self>,
+        number: web::Path<u32>,
+    ) -> ActixResult<HttpResponse> {
+        let start = Instant::now();
+
+        let l1_batch_details = self_
+            .replica_connection_pool
+            .access_storage()
+            .await
+            .explorer()
+            .blocks_dal()
+            .get_l1_batch_details(L1BatchNumber(*number))
+            .unwrap();
+
+        metrics::histogram!("api.explorer.call", start.elapsed(), "method" => "l1_batch_details");
+        match l1_batch_details {
+            Some(l1_batch_details) => ok_json(l1_batch_details),
             None => Ok(HttpResponse::NotFound().finish()),
         }
     }

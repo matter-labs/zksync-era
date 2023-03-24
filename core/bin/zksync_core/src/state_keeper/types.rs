@@ -45,7 +45,6 @@ impl MempoolGuard {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ExecutionMetricsForCriteria {
-    pub storage_updates: usize,
     pub l1_gas: BlockGasCount,
     pub execution_metrics: ExecutionMetrics,
 }

@@ -1,22 +1,28 @@
+// Built-in uses
 use std::convert::{TryFrom, TryInto};
 
+// External uses
 use rlp::{DecoderError, Rlp, RlpStream};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tiny_keccak::keccak256;
+use zk_evm::abstractions::MAX_MEMORY_BYTES;
 use zksync_basic_types::H256;
 use zksync_config::constants::MAX_GAS_PER_PUBDATA_BYTE;
 use zksync_utils::bytecode::{hash_bytecode, validate_bytecode, InvalidBytecodeError};
+use zksync_utils::u256_to_h256;
 
+use crate::l1::L1Tx;
+use crate::L1TxCommonData;
 use crate::{
     web3::types::AccessList, Address, Bytes, EIP712TypedStructure, Eip712Domain, L2ChainId, Nonce,
     PackedEthSignature, StructBuilder, U256, U64,
 };
 
+// Local uses
 use super::{EIP_1559_TX_TYPE, EIP_2930_TX_TYPE, EIP_712_TX_TYPE};
 use crate::fee::Fee;
 use crate::l2::{L2Tx, TransactionType};
-use zksync_utils::u256_to_h256;
 
 /// Call contract request (eth_call / eth_estimateGas)
 ///
@@ -143,7 +149,7 @@ impl CallRequestBuilder {
     }
 }
 
-#[derive(Debug, Error)]
+#[derive(Debug, Error, PartialEq)]
 pub enum SerializationTransactionError {
     #[error("transaction type is not supported")]
     UnknownTransactionFormat,
@@ -171,6 +177,15 @@ pub enum SerializationTransactionError {
     AccessListsNotSupported,
     #[error("nonce has max value")]
     TooBigNonce,
+    /// TooHighGas is a sanity error to avoid extremely big numbers specified
+    /// to gas and pubdata price.
+    #[error("{0}")]
+    TooHighGas(String),
+    /// OversizedData is returned if the raw tx size is greater
+    /// than some meaningful limit a user might use. This is not a consensus error
+    /// making the transaction invalid, rather a DOS protection.
+    #[error("oversized data. max: {0}; actual: {0}")]
+    OversizedData(usize, usize),
 }
 
 /// Description of a Transaction, pending or in the chain.
@@ -248,7 +263,6 @@ impl PaymasterParams {
 #[serde(rename_all = "camelCase")]
 pub struct Eip712Meta {
     pub gas_per_pubdata: U256,
-    // This field need to backward compatibility with the old way of withdraw. Will be deleted after public testnet
     #[serde(default)]
     pub factory_deps: Option<Vec<Vec<u8>>>,
     pub custom_signature: Option<Vec<u8>>,
@@ -522,6 +536,7 @@ impl TransactionRequest {
     pub fn from_bytes(
         bytes: &[u8],
         chain_id: u16,
+        max_tx_size: usize,
     ) -> Result<(Self, H256), SerializationTransactionError> {
         let rlp;
         let mut tx = match bytes.first() {
@@ -610,7 +625,6 @@ impl TransactionRequest {
             }
             _ => return Err(SerializationTransactionError::UnknownTransactionFormat),
         };
-
         let factory_deps_ref = tx
             .eip712_meta
             .as_ref()
@@ -618,7 +632,6 @@ impl TransactionRequest {
         if let Some(deps) = factory_deps_ref {
             validate_factory_deps(deps)?;
         }
-
         tx.raw = Some(Bytes(bytes.to_vec()));
 
         let default_signed_message = tx.get_default_signed_message(chain_id);
@@ -638,6 +651,8 @@ impl TransactionRequest {
         } else {
             H256(keccak256(bytes))
         };
+
+        check_tx_data(&tx, max_tx_size)?;
 
         Ok((tx, hash))
     }
@@ -677,24 +692,42 @@ impl TransactionRequest {
         Ok(address)
     }
 
-    fn get_fee_data(&self) -> Result<Fee, SerializationTransactionError> {
+    fn get_fee_data_checked(&self) -> Result<Fee, SerializationTransactionError> {
+        if self.gas_price > u64::MAX.into() {
+            return Err(SerializationTransactionError::TooHighGas(
+                "max fee per gas higher than 2^64-1".to_string(),
+            ));
+        }
+
         let gas_per_pubdata_limit = if let Some(meta) = &self.eip712_meta {
+            if meta.gas_per_pubdata > u64::MAX.into() {
+                return Err(SerializationTransactionError::TooHighGas(
+                    "max fee per pubdata byte higher than 2^64-1".to_string(),
+                ));
+            }
             meta.gas_per_pubdata
         } else {
             // For transactions that don't support corresponding field, a default is chosen.
             U256::from(MAX_GAS_PER_PUBDATA_BYTE)
         };
 
+        let max_priority_fee_per_gas = self.max_priority_fee_per_gas.unwrap_or(self.gas_price);
+        if max_priority_fee_per_gas > u64::MAX.into() {
+            return Err(SerializationTransactionError::TooHighGas(
+                "max priority fee per gas higher than 2^64-1".to_string(),
+            ));
+        }
+
         Ok(Fee {
             gas_limit: self.gas,
             max_fee_per_gas: self.gas_price,
-            max_priority_fee_per_gas: self.max_priority_fee_per_gas.unwrap_or(self.gas_price),
+            max_priority_fee_per_gas,
             gas_per_pubdata_limit,
         })
     }
 
     fn get_nonce_checked(&self) -> Result<Nonce, SerializationTransactionError> {
-        if self.nonce <= u32::MAX.into() {
+        if self.nonce <= U256::from(u32::MAX) {
             Ok(Nonce(self.nonce.as_u32()))
         } else {
             Err(SerializationTransactionError::TooBigNonce)
@@ -706,9 +739,8 @@ impl TryFrom<TransactionRequest> for L2Tx {
     type Error = SerializationTransactionError;
 
     fn try_from(value: TransactionRequest) -> Result<Self, Self::Error> {
-        let fee = value.get_fee_data()?;
+        let fee = value.get_fee_data_checked()?;
         let nonce = value.get_nonce_checked()?;
-
         // Attempt to decode factory deps.
         let factory_deps = value
             .eip712_meta
@@ -749,24 +781,6 @@ impl TryFrom<TransactionRequest> for L2Tx {
     }
 }
 
-impl From<CallRequest> for TransactionRequest {
-    fn from(value: CallRequest) -> Self {
-        TransactionRequest {
-            nonce: Default::default(),
-            from: value.from,
-            to: value.to,
-            value: value.value.unwrap_or_default(),
-            gas_price: value.gas_price.unwrap_or_default(),
-            gas: value.gas.unwrap_or_default(),
-            input: value.data.unwrap_or_default(),
-            transaction_type: value.transaction_type,
-            access_list: value.access_list,
-            eip712_meta: value.eip712_meta,
-            ..Default::default()
-        }
-    }
-}
-
 impl From<L2Tx> for CallRequest {
     fn from(tx: L2Tx) -> Self {
         let mut meta = Eip712Meta {
@@ -794,11 +808,68 @@ impl From<L2Tx> for CallRequest {
     }
 }
 
-impl TryFrom<CallRequest> for L2Tx {
+pub fn tx_req_from_call_req(
+    call_request: CallRequest,
+    max_tx_size: usize,
+) -> Result<TransactionRequest, SerializationTransactionError> {
+    let calldata = call_request.data.unwrap_or_default();
+
+    let transaction_request = TransactionRequest {
+        nonce: Default::default(),
+        from: call_request.from,
+        to: call_request.to,
+        value: call_request.value.unwrap_or_default(),
+        gas_price: call_request.gas_price.unwrap_or_default(),
+        gas: call_request.gas.unwrap_or_default(),
+        input: calldata,
+        transaction_type: call_request.transaction_type,
+        access_list: call_request.access_list,
+        eip712_meta: call_request.eip712_meta,
+        ..Default::default()
+    };
+    check_tx_data(&transaction_request, max_tx_size)?;
+    Ok(transaction_request)
+}
+
+pub fn l2_tx_from_call_req(
+    call_request: CallRequest,
+    max_tx_size: usize,
+) -> Result<L2Tx, SerializationTransactionError> {
+    let tx_request: TransactionRequest = tx_req_from_call_req(call_request, max_tx_size)?;
+    let l2_tx = tx_request.try_into()?;
+    Ok(l2_tx)
+}
+
+impl TryFrom<CallRequest> for L1Tx {
     type Error = SerializationTransactionError;
     fn try_from(tx: CallRequest) -> Result<Self, Self::Error> {
-        let tx: TransactionRequest = tx.into();
-        tx.try_into()
+        // L1 transactions have no limitations on the transaction size.
+        let tx: L2Tx = l2_tx_from_call_req(tx, MAX_MEMORY_BYTES)?;
+
+        // Note, that while the user has theoretically provided the fee for ETH on L1,
+        // the payment to the operator as well as refunds happen on L2 and so all the ETH
+        // that the transaction requires to pay the operator needs to be minted on L2.
+        let total_needed_eth =
+            tx.execute.value + tx.common_data.fee.max_fee_per_gas * tx.common_data.fee.gas_limit;
+
+        // Note, that we do not set refund_recipient here, to keep it explicitly 0,
+        // so that during fee estimation it is taken into account that the refund recipient may be a different address
+        let common_data = L1TxCommonData {
+            sender: tx.common_data.initiator_address,
+            max_fee_per_gas: tx.common_data.fee.max_fee_per_gas,
+            gas_limit: tx.common_data.fee.gas_limit,
+            gas_per_pubdata_limit: tx.common_data.fee.gas_per_pubdata_limit,
+            to_mint: total_needed_eth,
+            ..Default::default()
+        };
+
+        let tx = L1Tx {
+            execute: tx.execute,
+            common_data,
+            received_timestamp_ms: 0u64,
+        };
+
+        Ok(tx)
     }
 }
 
@@ -834,16 +905,35 @@ pub fn validate_factory_deps(
     Ok(())
 }
 
+fn check_tx_data(
+    tx_request: &TransactionRequest,
+    max_tx_size: usize,
+) -> Result<(), SerializationTransactionError> {
+    let l2_tx: L2Tx = tx_request.clone().try_into()?;
+    // since abi_encoding_len returns 32-byte words multiplication on 32 is needed
+    let tx_size = l2_tx.abi_encoding_len() * 32;
+    if tx_size > max_tx_size {
+        return Err(SerializationTransactionError::OversizedData(
+            max_tx_size,
+            tx_size,
+        ));
+    };
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::web3::api::Namespace;
-    use crate::web3::transports::test::TestTransport;
-    use crate::web3::types::{TransactionParameters, H256, U256};
+    use crate::web3::{
+        api::Namespace,
+        transports::test::TestTransport,
+        types::{TransactionParameters, H256, U256},
+    };
     use secp256k1::SecretKey;
 
     #[tokio::test]
     async fn decode_real_tx() {
+        let random_tx_max_size = 1_000_000; // bytes
         let accounts = crate::web3::api::Accounts::new(TestTransport::default());
 
         let pk = hex::decode("4c0883a69102937d6231471b5dbb6204fe5129617082792ae468d01a3f362318")
@@ -865,8 +955,12 @@ mod tests {
             access_list: None,
         };
         let signed_tx = accounts.sign_transaction(tx.clone(), &key).await.unwrap();
-        let (tx2, _) =
-            TransactionRequest::from_bytes(signed_tx.raw_transaction.0.as_slice(), 270).unwrap();
+        let (tx2, _) = TransactionRequest::from_bytes(
+            signed_tx.raw_transaction.0.as_slice(),
+            270,
+            random_tx_max_size,
+        )
+        .unwrap();
         assert_eq!(tx.gas, tx2.gas);
         assert_eq!(tx.gas_price.unwrap(), tx2.gas_price);
         assert_eq!(tx.nonce.unwrap(), tx2.nonce);
@@ -877,6 +971,7 @@ mod tests {
 
     #[test]
     fn decode_rlp() {
+        let random_tx_max_size = 1_000_000; // bytes
         let private_key = H256::random();
         let address = PackedEthSignature::address_from_private_key(&private_key).unwrap();
 
@@ -899,7 +994,7 @@ mod tests {
         let mut rlp = RlpStream::new();
         tx.rlp(&mut rlp, 270, Some(&signature));
         let data = rlp.out().to_vec();
-        let (tx2, _) = TransactionRequest::from_bytes(&data, 270).unwrap();
+        let (tx2, _) = TransactionRequest::from_bytes(&data, 270, random_tx_max_size).unwrap();
         assert_eq!(tx.gas, tx2.gas);
         assert_eq!(tx.gas_price, tx2.gas_price);
         assert_eq!(tx.nonce, tx2.nonce);
@@ -916,6 +1011,7 @@ mod tests {
 
     #[test]
     fn decode_eip712_with_meta() {
+        let random_tx_max_size = 1_000_000; // bytes
         let private_key = H256::random();
         let address = PackedEthSignature::address_from_private_key(&private_key).unwrap();
 
@@ -955,13 +1051,14 @@ mod tests {
         tx.r = Some(U256::from_big_endian(signature.r()));
         tx.s = Some(U256::from_big_endian(signature.s()));
 
-        let (tx2, _) = TransactionRequest::from_bytes(&data, 270).unwrap();
+        let (tx2, _) = TransactionRequest::from_bytes(&data, 270, random_tx_max_size).unwrap();
 
         assert_eq!(tx, tx2);
     }
 
     #[test]
     fn check_recovered_public_key_eip712() {
+        let random_tx_max_size = 1_000_000; // bytes
         let private_key = H256::random();
         let address = PackedEthSignature::address_from_private_key(&private_key).unwrap();
 
@@ -991,13 +1088,15 @@ mod tests {
 
         let encoded_tx = transaction_request.get_signed_bytes(&signature, L2ChainId(270));
 
-        let (decoded_tx, _) = TransactionRequest::from_bytes(encoded_tx.as_slice(), 270).unwrap();
+        let (decoded_tx, _) =
+            TransactionRequest::from_bytes(encoded_tx.as_slice(), 270, random_tx_max_size).unwrap();
         let recovered_signer = decoded_tx.from.unwrap();
         assert_eq!(address, recovered_signer);
     }
 
     #[test]
     fn check_recovered_public_key_eip712_with_wrong_chain_id() {
+        let random_tx_max_size = 1_000_000; // bytes
         let private_key = H256::random();
         let address = PackedEthSignature::address_from_private_key(&private_key).unwrap();
 
@@ -1030,15 +1129,17 @@ mod tests {
 
         let encoded_tx = transaction_request.get_signed_bytes(&signature, L2ChainId(270));
 
-        let decoded_tx = TransactionRequest::from_bytes(encoded_tx.as_slice(), 272);
-        assert!(matches!(
+        let decoded_tx =
+            TransactionRequest::from_bytes(encoded_tx.as_slice(), 272, random_tx_max_size);
+        assert_eq!(
             decoded_tx,
             Err(SerializationTransactionError::WrongChainId(Some(270)))
-        ));
+        );
     }
 
     #[test]
     fn check_recovered_public_key_eip1559() {
+        let random_tx_max_size = 1_000_000; // bytes
         let private_key = H256::random();
         let address = PackedEthSignature::address_from_private_key(&private_key).unwrap();
 
@@ -1070,13 +1171,15 @@ mod tests {
         let mut data = rlp.out().to_vec();
         data.insert(0, EIP_1559_TX_TYPE);
 
-        let (decoded_tx, _) = TransactionRequest::from_bytes(data.as_slice(), 270).unwrap();
+        let (decoded_tx, _) =
+            TransactionRequest::from_bytes(data.as_slice(), 270, random_tx_max_size).unwrap();
         let recovered_signer = decoded_tx.from.unwrap();
         assert_eq!(address, recovered_signer);
     }
 
     #[test]
     fn check_recovered_public_key_eip1559_with_wrong_chain_id() {
+        let random_tx_max_size = 1_000_000; // bytes
         let private_key = H256::random();
         let address = PackedEthSignature::address_from_private_key(&private_key).unwrap();
 
@@ -1107,15 +1210,16 @@ mod tests {
         let mut data = rlp.out().to_vec();
         data.insert(0, EIP_1559_TX_TYPE);
 
-        let decoded_tx = TransactionRequest::from_bytes(data.as_slice(), 270);
-        assert!(matches!(
+        let decoded_tx = TransactionRequest::from_bytes(data.as_slice(), 270, random_tx_max_size);
+        assert_eq!(
             decoded_tx,
             Err(SerializationTransactionError::WrongChainId(Some(272)))
-        ));
+        );
     }
 
     #[test]
     fn check_decode_eip1559_with_access_list() {
+        let random_tx_max_size = 1_000_000; // bytes
         let private_key = H256::random();
         let address = PackedEthSignature::address_from_private_key(&private_key).unwrap();
 
@@ -1147,15 +1251,16 @@ mod tests {
         let mut data = rlp.out().to_vec();
         data.insert(0, EIP_1559_TX_TYPE);
 
-        let res = TransactionRequest::from_bytes(data.as_slice(), 270);
-        assert!(matches!(
+        let res = TransactionRequest::from_bytes(data.as_slice(), 270, random_tx_max_size);
+        assert_eq!(
             res,
             Err(SerializationTransactionError::AccessListsNotSupported)
-        ));
+        );
     }
 
     #[test]
     fn check_failed_to_decode_eip2930() {
+        let random_tx_max_size = 1_000_000; // bytes
         let private_key = H256::random();
         let address = PackedEthSignature::address_from_private_key(&private_key).unwrap();
 
@@ -1184,11 +1289,11 @@ mod tests {
         let mut data = rlp.out().to_vec();
         data.insert(0, EIP_2930_TX_TYPE);
 
-        let res = TransactionRequest::from_bytes(data.as_slice(), 270);
-        assert!(matches!(
+        let res = TransactionRequest::from_bytes(data.as_slice(), 270, random_tx_max_size);
+        assert_eq!(
             res,
             Err(SerializationTransactionError::AccessListsNotSupported)
-        ));
+        );
     }
 
     #[test]
@@ -1204,16 +1309,144 @@ mod tests {
         assert!(execute_tx1.is_ok());
 
         let tx2 = TransactionRequest {
-            nonce: U256::from((u32::MAX as u64) + 1),
+            nonce: U256::from(u32::MAX as u64 + 1),
             to: Some(Address::repeat_byte(0x1)),
             from: Some(Address::repeat_byte(0x1)),
             value: U256::zero(),
             ..Default::default()
         };
         let execute_tx2: Result<L2Tx, SerializationTransactionError> = tx2.try_into();
+        assert_eq!(
+            execute_tx2.unwrap_err(),
+            SerializationTransactionError::TooBigNonce
+        );
+    }
+
+    #[test]
+    fn transaction_request_with_big_gas() {
+        let tx1 = TransactionRequest {
+            to: Some(Address::repeat_byte(0x1)),
+            from: Some(Address::repeat_byte(0x1)),
+            value: U256::zero(),
+            gas_price: U256::MAX,
+            ..Default::default()
+        };
+        let execute_tx1: Result<L2Tx, SerializationTransactionError> = tx1.try_into();
+        assert_eq!(
+            execute_tx1.unwrap_err(),
+            SerializationTransactionError::TooHighGas(
+                "max fee per gas higher than 2^64-1".to_string()
+            )
+        );
+
+        let tx2 = TransactionRequest {
+            to: Some(Address::repeat_byte(0x1)),
+            from: Some(Address::repeat_byte(0x1)),
+            value: U256::zero(),
+            max_priority_fee_per_gas: Some(U256::MAX),
+            ..Default::default()
+        };
+        let execute_tx2: Result<L2Tx, SerializationTransactionError> = tx2.try_into();
+        assert_eq!(
+            execute_tx2.unwrap_err(),
+            SerializationTransactionError::TooHighGas(
+                "max priority fee per gas higher than 2^64-1".to_string()
+            )
+        );
+
+        let tx3 = TransactionRequest {
+            to: Some(Address::repeat_byte(0x1)),
+            from: Some(Address::repeat_byte(0x1)),
+            value: U256::zero(),
+            eip712_meta: Some(Eip712Meta {
+                gas_per_pubdata: U256::MAX,
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+
+        let execute_tx3: Result<L2Tx, SerializationTransactionError> = tx3.try_into();
+        assert_eq!(
+            execute_tx3.unwrap_err(),
+            SerializationTransactionError::TooHighGas(
+                "max fee per pubdata byte higher than 2^64-1".to_string()
+            )
+        );
+    }
+
+    #[test]
+    fn transaction_request_with_oversize_data() {
+        let random_tx_max_size = 1_000_000; // bytes
+        let private_key = H256::random();
+        let address = PackedEthSignature::address_from_private_key(&private_key).unwrap();
+        // choose some number that devides on 8 and is > 1_000_000
+        let factory_dep = vec![2u8; 1600000];
+        let factory_deps: Vec<Vec<u8>> = factory_dep.chunks(32).map(|s| s.into()).collect();
+        let mut tx = TransactionRequest {
+            nonce: U256::from(1u32),
+            to: Some(Address::random()),
+            from: Some(address),
+            value: U256::from(10u32),
+            gas_price: U256::from(11u32),
+            max_priority_fee_per_gas: Some(U256::from(0u32)),
+            gas: U256::from(12u32),
+            input: Bytes::from(vec![1, 2, 3]),
+            transaction_type: Some(U64::from(EIP_712_TX_TYPE)),
+            eip712_meta: Some(Eip712Meta {
+                gas_per_pubdata: U256::from(4u32),
+                factory_deps: Some(factory_deps),
+                custom_signature: Some(vec![1, 2, 3]),
+                paymaster_params: Some(PaymasterParams {
+                    paymaster: Default::default(),
+                    paymaster_input: vec![],
+                }),
+            }),
+            chain_id: Some(270),
+            ..Default::default()
+        };
+
+        let msg =
+            PackedEthSignature::typed_data_to_signed_bytes(&Eip712Domain::new(L2ChainId(270)), &tx);
+        let signature = PackedEthSignature::sign_raw(&private_key, &msg).unwrap();
+
+        let mut rlp = RlpStream::new();
+        tx.rlp(&mut rlp, 270, Some(&signature));
+        let mut data = rlp.out().to_vec();
+        data.insert(0, EIP_712_TX_TYPE);
+        tx.raw = Some(Bytes(data.clone()));
+        tx.v = Some(U64::from(signature.v()));
+        tx.r = Some(U256::from_big_endian(signature.r()));
+        tx.s = Some(U256::from_big_endian(signature.s()));
         assert!(matches!(
-            execute_tx2,
-            Err(SerializationTransactionError::TooBigNonce)
+            TransactionRequest::from_bytes(data.as_slice(), 270, random_tx_max_size),
+            Err(SerializationTransactionError::OversizedData(_, _))
+        ))
+    }
+
+    #[test]
+    fn check_call_req_to_l2_tx_oversize_data() {
+        let factory_dep = vec![2u8; 1600000];
+        let random_tx_max_size = 100_000; // bytes
+        let call_request = CallRequest {
+            from: Some(Address::random()),
+            to: Some(Address::random()),
+            gas: Some(U256::from(12u32)),
+            gas_price: Some(U256::from(12u32)),
+            max_fee_per_gas: Some(U256::from(12u32)),
+            max_priority_fee_per_gas: Some(U256::from(12u32)),
+            value: Some(U256::from(12u32)),
+            data: Some(Bytes(factory_dep)),
+            transaction_type: Some(U64::from(EIP_712_TX_TYPE)),
+            access_list: None,
+            eip712_meta: None,
+        };
+
+        let try_to_l2_tx: Result<L2Tx, SerializationTransactionError> =
+            l2_tx_from_call_req(call_request, random_tx_max_size);
+
+        assert!(matches!(
+            try_to_l2_tx,
+            Err(SerializationTransactionError::OversizedData(_, _))
         ));
     }
 }

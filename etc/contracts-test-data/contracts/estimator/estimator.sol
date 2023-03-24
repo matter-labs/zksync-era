@@ -14,7 +14,6 @@ interface IL2Messenger {
 uint160 constant SYSTEM_CONTRACTS_OFFSET = 0x8000; // 2^15
 IL2Messenger constant L2_MESSENGER = IL2Messenger(address(SYSTEM_CONTRACTS_OFFSET + 0x08));
 
-// TODO: Should be set to the actual value (SMA-1185).
 // Represents the maximum amount of L2->L1 messages that can happen in one block.
 uint256 constant MAX_L2_L1_MESSAGES_IN_BLOCK = 256;
 

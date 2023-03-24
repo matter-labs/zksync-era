@@ -1,7 +1,7 @@
 use super::{SealCriterion, SealResolution, StateKeeperConfig};
 use crate::gas_tracker::new_block_gas_count;
 use zksync_types::block::BlockGasCount;
-use zksync_types::tx::ExecutionMetrics;
+use zksync_types::tx::tx_execution_info::{DeduplicatedWritesMetrics, ExecutionMetrics};
 
 /// This is a temporary solution
 /// Instead of checking for gas it simply checks that the contracts'
@@ -22,6 +22,10 @@ impl SealCriterion for GasCriterion {
         _tx_execution_metrics: ExecutionMetrics,
         block_gas_count: BlockGasCount,
         tx_gas_count: BlockGasCount,
+        _block_included_txs_size: usize,
+        _tx_size: usize,
+        _block_writes_metrics: DeduplicatedWritesMetrics,
+        _tx_writes_metrics: DeduplicatedWritesMetrics,
     ) -> SealResolution {
         if (tx_gas_count + new_block_gas_count()).has_greater_than(
             (config.max_single_tx_gas as f64 * config.reject_tx_at_gas_percentage).round() as u32,
@@ -64,6 +68,10 @@ mod tests {
             Default::default(),
             empty_block_gas,
             Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
         );
         assert_eq!(empty_block_resolution, SealResolution::NoSeal);
         let tx_gas = BlockGasCount {
@@ -80,6 +88,10 @@ mod tests {
             Default::default(),
             empty_block_gas + tx_gas,
             tx_gas,
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
         );
         assert_eq!(
             huge_transaction_resolution,
@@ -106,6 +118,10 @@ mod tests {
             Default::default(),
             empty_block_gas + tx_gas,
             tx_gas,
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
         );
         assert_eq!(resolution_after_first_tx, SealResolution::NoSeal);
 
@@ -144,6 +160,10 @@ mod tests {
             Default::default(),
             block_gas,
             tx_gas,
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
         );
         assert_eq!(resolution_after_first_tx, SealResolution::IncludeAndSeal);
 
@@ -167,6 +187,10 @@ mod tests {
             Default::default(),
             empty_block_gas + tx_gas + tx_gas,
             tx_gas,
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
         );
         assert_eq!(resolution_after_first_tx, SealResolution::ExcludeAndSeal);
     }

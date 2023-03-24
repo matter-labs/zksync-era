@@ -5,8 +5,8 @@ use zksync_types::{
         BlockId, BlockNumber, L2ToL1Log, Log, Transaction, TransactionDetails, TransactionId,
         TransactionReceipt,
     },
-    Address, L2ChainId, ACCOUNT_CODE_STORAGE_ADDRESS, FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH,
-    H160, H256, U256, U64,
+    Address, L2ChainId, MiniblockNumber, ACCOUNT_CODE_STORAGE_ADDRESS,
+    FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH, H160, H256, U256, U64,
 };
 use zksync_utils::{bigdecimal_to_u256, h256_to_account_address};
 
@@ -14,7 +14,8 @@ use crate::models::{
     storage_block::{bind_block_where_sql_params, web3_block_where_sql},
     storage_event::{StorageL2ToL1Log, StorageWeb3Log},
     storage_transaction::{
-        extract_web3_transaction, web3_transaction_select_sql, StorageTransactionDetails,
+        extract_web3_transaction, web3_transaction_select_sql, StorageTransaction,
+        StorageTransactionDetails,
     },
 };
 use crate::SqlxError;
@@ -343,6 +344,31 @@ impl TransactionsWeb3Dal<'_, '_> {
             }
 
             Ok(U256::from(pending_nonce))
+        })
+    }
+
+    /// Returns the server transactions (not API ones) from a certain miniblock.
+    /// Returns an empty list if the miniblock doesn't exist.
+    pub fn get_raw_miniblock_transactions(
+        &mut self,
+        miniblock: MiniblockNumber,
+    ) -> Result<Vec<zksync_types::Transaction>, SqlxError> {
+        async_std::task::block_on(async {
+            let txs = sqlx::query_as!(
+                StorageTransaction,
+                "
+                    SELECT * FROM transactions
+                    WHERE miniblock_number = $1
+                    ORDER BY index_in_block
+                ",
+                miniblock.0 as i64
+            )
+            .fetch_all(self.storage.conn())
+            .await?
+            .into_iter()
+            .map(zksync_types::Transaction::from)
+            .collect();
+            Ok(txs)
         })
     }
 }

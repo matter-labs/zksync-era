@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
 use vm::vm_with_bootloader::{get_bootloader_memory, BlockContextMode, TxExecutionMode};
+use vm::zk_evm::aux_structures::LogQuery;
 use zksync_dal::StorageProcessor;
 use zksync_types::block::DeployedContract;
 use zksync_types::tx::{IncludedTxLocation, TransactionExecutionResult};
@@ -155,17 +156,29 @@ pub(crate) fn get_initial_bootloader_memory(
         .map(|res| res.operator_suggested_refund)
         .collect();
 
+    let compressed_bytecodes = updates_accumulator
+        .executed_transactions
+        .iter()
+        .map(|res| res.compressed_bytecodes.clone())
+        .collect();
+
     get_bootloader_memory(
         transactions_data,
         refunds,
+        compressed_bytecodes,
         TxExecutionMode::VerifyExecute,
         block_context,
     )
 }
 
-pub(crate) fn log_query_write_read_counts(logs: &[StorageLogQuery]) -> (usize, usize) {
+pub(crate) fn storage_log_query_write_read_counts(logs: &[StorageLogQuery]) -> (usize, usize) {
     let (reads, writes): (Vec<&StorageLogQuery>, Vec<&StorageLogQuery>) =
         logs.iter().partition(|l| l.log_query.rw_flag);
+    (reads.len(), writes.len())
+}
+
+pub(crate) fn log_query_write_read_counts(logs: &[LogQuery]) -> (usize, usize) {
+    let (reads, writes): (Vec<&LogQuery>, Vec<&LogQuery>) = logs.iter().partition(|l| l.rw_flag);
     (reads.len(), writes.len())
 }
 

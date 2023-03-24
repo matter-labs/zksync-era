@@ -1,5 +1,6 @@
 use serde::de::{Deserializer, Error, MapAccess, Unexpected, Visitor};
 use std::{collections::HashMap, fmt};
+use zksync_contracts::BaseSystemContractsHashes;
 
 use bigdecimal::BigDecimal;
 use chrono::{DateTime, Utc};
@@ -40,6 +41,14 @@ pub struct BlocksQuery {
     pub pagination: PaginationQuery,
 }
 
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct L1BatchesQuery {
+    pub from: Option<L1BatchNumber>,
+    #[serde(flatten)]
+    pub pagination: PaginationQuery,
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct TxPosition {
     pub block_number: MiniblockNumber,
@@ -52,6 +61,7 @@ pub struct TransactionsQuery {
     pub from_block_number: Option<MiniblockNumber>,
     pub from_tx_index: Option<u32>,
     pub block_number: Option<MiniblockNumber>,
+    pub l1_batch_number: Option<L1BatchNumber>,
     pub address: Option<Address>,
     pub account_address: Option<Address>,
     pub contract_address: Option<Address>,
@@ -260,6 +270,7 @@ pub struct ContractBasicInfo {
 #[serde(rename_all = "camelCase")]
 pub struct BlockDetails {
     pub number: MiniblockNumber,
+    pub l1_batch_number: L1BatchNumber,
     pub timestamp: u64,
     pub l1_tx_count: usize,
     pub l2_tx_count: usize,
@@ -271,6 +282,40 @@ pub struct BlockDetails {
     pub proven_at: Option<DateTime<Utc>>,
     pub execute_tx_hash: Option<H256>,
     pub executed_at: Option<DateTime<Utc>>,
+    pub l1_gas_price: u64,
+    pub l2_fair_gas_price: u64,
+    pub base_system_contracts_hashes: BaseSystemContractsHashes,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct L1BatchDetails {
+    pub number: L1BatchNumber,
+    pub timestamp: u64,
+    pub l1_tx_count: usize,
+    pub l2_tx_count: usize,
+    pub root_hash: Option<H256>,
+    pub status: BlockStatus,
+    pub commit_tx_hash: Option<H256>,
+    pub committed_at: Option<DateTime<Utc>>,
+    pub prove_tx_hash: Option<H256>,
+    pub proven_at: Option<DateTime<Utc>>,
+    pub execute_tx_hash: Option<H256>,
+    pub executed_at: Option<DateTime<Utc>>,
+    pub l1_gas_price: u64,
+    pub l2_fair_gas_price: u64,
+    pub base_system_contracts_hashes: BaseSystemContractsHashes,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct L1BatchPageItem {
+    pub number: L1BatchNumber,
+    pub timestamp: u64,
+    pub l1_tx_count: usize,
+    pub l2_tx_count: usize,
+    pub root_hash: Option<H256>,
+    pub status: BlockStatus,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -360,6 +405,8 @@ pub struct VerificationIncomingRequest {
     pub optimization_used: bool,
     #[serde(default)]
     pub constructor_arguments: Bytes,
+    #[serde(default)]
+    pub is_system: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

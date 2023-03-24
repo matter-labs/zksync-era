@@ -36,7 +36,7 @@ pub async fn test_gas_price() {
     let test_db_manager = TestDatabaseManager::new().await;
     let mut storage = test_db_manager.connect_to_postgres().await;
     {
-        ensure_genesis_state(&mut storage, config.clone()).await;
+        ensure_genesis_state(&mut storage, &config).await;
     }
 
     println!("deploying contracts");

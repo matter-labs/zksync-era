@@ -30,7 +30,7 @@ zksync_mini_merkle_tree = { path = "../../lib/mini_merkle_tree", version = "1.0"
 zksync_verification_key_generator_and_server = { path = "../verification_key_generator_and_server", version = "1.0" }
 prometheus_exporter = { path = "../../lib/prometheus_exporter", version = "1.0" }
 zksync_web3_decl = { path = "../../lib/web3_decl", version = "1.0", default-features = false, features = [
-    "server",
+    "server", "client"
 ] }
 zksync_object_store = { path = "../../lib/object_store", version = "1.0" }
 vlog = { path = "../../lib/vlog", version = "1.0" }

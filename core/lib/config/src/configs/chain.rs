@@ -4,7 +4,7 @@ use serde::Deserialize;
 use std::time::Duration;
 // Local uses
 use zksync_basic_types::network::Network;
-use zksync_basic_types::Address;
+use zksync_basic_types::{Address, H256};
 
 use crate::envy_load;
 
@@ -48,12 +48,15 @@ pub struct Eth {
 
 #[derive(Debug, Deserialize, Clone, PartialEq, Default)]
 pub struct StateKeeperConfig {
-    /// Detones the amount of slots for transactions in the block.
+    /// The max number of slots for txs in a block before it should be sealed by the slots sealer.
     pub transaction_slots: usize,
 
+    /// Number of ms after which an L1 batch is going to be unconditionally sealed.
     pub block_commit_deadline_ms: u64,
+    /// Number of ms after which a miniblock should be sealed by the timeout sealer.
     pub miniblock_commit_deadline_ms: u64,
 
+    /// The max number of gas to spend on an L1 tx before its batch should be sealed by the gas sealer.
     pub max_single_tx_gas: u32,
 
     pub max_allowed_l2_tx_gas_limit: u32,
@@ -77,6 +80,15 @@ pub struct StateKeeperConfig {
     pub fee_account_addr: Address,
 
     pub reexecute_each_tx: bool,
+
+    /// The price the operator spends on 1 gas of computation in wei.
+    pub fair_l2_gas_price: u64,
+
+    pub bootloader_hash: H256,
+    pub default_aa_hash: H256,
+
+    /// Max number of computational gas that validation step is allowed to take.
+    pub validation_computational_gas_limit: u32,
 }
 
 #[derive(Debug, Deserialize, Clone, PartialEq)]
@@ -147,6 +159,10 @@ mod tests {
                 fee_account_addr: addr("de03a0B5963f75f1C8485B355fF6D30f3093BDE7"),
                 reject_tx_at_gas_percentage: 0.5,
                 reexecute_each_tx: true,
+                fair_l2_gas_price: 250000000,
+                bootloader_hash: H256::from(&[254; 32]),
+                default_aa_hash: H256::from(&[254; 32]),
+                validation_computational_gas_limit: 10_000_000,
             },
             operations_manager: OperationsManager {
                 delay_interval: 100,
@@ -183,6 +199,10 @@ CHAIN_STATE_KEEPER_REJECT_TX_AT_GAS_PERCENTAGE="0.5"
 CHAIN_STATE_KEEPER_REEXECUTE_EACH_TX="true"
 CHAIN_STATE_KEEPER_BLOCK_COMMIT_DEADLINE_MS="2500"
 CHAIN_STATE_KEEPER_MINIBLOCK_COMMIT_DEADLINE_MS="1000"
+CHAIN_STATE_KEEPER_FAIR_L2_GAS_PRICE="250000000"
+CHAIN_STATE_KEEPER_BOOTLOADER_HASH="0xfefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefe"
+CHAIN_STATE_KEEPER_DEFAULT_AA_HASH="0xfefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefe"
+CHAIN_STATE_KEEPER_VALIDATION_COMPUTATIONAL_GAS_LIMIT="10000000"
 CHAIN_OPERATIONS_MANAGER_DELAY_INTERVAL="100"
 CHAIN_MEMPOOL_SYNC_INTERVAL_MS="10"
 CHAIN_MEMPOOL_SYNC_BATCH_SIZE="1000"

@@ -42,6 +42,7 @@ pub struct Tester {
     account_balances: AccountBalances,
     server_handler: ServerHandler,
     state: State,
+    config: ZkSyncConfig,
 }
 
 impl Tester {
@@ -54,7 +55,7 @@ impl Tester {
         let server_handler = ServerHandler::spawn_server(
             db_manager.get_db_path(),
             db_manager.get_state_keeper_db(),
-            config,
+            config.clone(),
             db_manager.create_pool(),
             db_manager.create_pool(),
             db_manager.create_pool(),
@@ -69,6 +70,7 @@ impl Tester {
             operations_queue: Default::default(),
             server_handler,
             state,
+            config,
         }
     }
 
@@ -464,10 +466,11 @@ impl Tester {
             if start.elapsed().as_secs() > 20 {
                 panic!("Expect load new operation");
             }
-            let all_blocks = self
-                .storage
-                .blocks_dal()
-                .get_ready_for_commit_blocks(VERY_BIG_BLOCK_NUMBER.0 as usize);
+            let all_blocks = self.storage.blocks_dal().get_ready_for_commit_blocks(
+                VERY_BIG_BLOCK_NUMBER.0 as usize,
+                self.config.chain.state_keeper.bootloader_hash,
+                self.config.chain.state_keeper.default_aa_hash,
+            );
             let blocks: Vec<_> = all_blocks
                 .into_iter()
                 .filter(|block| block.header.number > self.state.last_committed_block)

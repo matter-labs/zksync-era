@@ -2,7 +2,7 @@
 # Not expected to work locally
 
 # syntax=docker/dockerfile:experimental
-FROM rust:1.65-buster as builder
+FROM rust:1.67-buster as builder
 RUN apt-get update && apt-get install -y clang && rm -rf /var/lib/apt/lists/*
 WORKDIR /usr/src/zksync
 COPY . .
@@ -19,6 +19,8 @@ COPY --from=builder /usr/src/zksync/target/release/block_reverter /usr/bin
 COPY --from=builder /usr/src/zksync/target/release/merkle_tree_consistency_checker /usr/bin
 COPY --from=builder /usr/src/zksync/target/release/rocksdb_util /usr/bin
 COPY etc/system-contracts/bootloader/build/artifacts/ /etc/system-contracts/bootloader/build/artifacts/
+COPY etc/system-contracts/contracts/artifacts/ /etc/system-contracts/contracts/artifacts/
+COPY etc/system-contracts/contracts/precompiles/artifacts/ /etc/system-contracts/contracts/precompiles/artifacts/
 COPY etc/system-contracts/artifacts-zk /etc/system-contracts/artifacts-zk
 COPY contracts/ethereum/artifacts/ /contracts/ethereum/artifacts/
 COPY contracts/zksync/artifacts-zk/ /contracts/zksync/artifacts-zk/

@@ -82,6 +82,7 @@ impl EthereumProvider {
         _processing_type: OpProcessingType,
         _layer_2_tip_fee: BigUint,
     ) -> anyhow::Result<U256> {
+        todo!("Testkit is not updated yet")
         // let get_base_cost_func_name = match tx_id {
         //     TransactionID::Deposit => "depositBaseCost",
         //     TransactionID::AddToken => "addTokenBaseCost",
@@ -111,7 +112,6 @@ impl EthereumProvider {
         //     .ok_or_else(|| {
         //         format_err!("overflow when adding layer 1 base cost and layer 2 tip fee")
         //     })
-        todo!("Testkit is not updated yet")
     }
 
     pub async fn erc20_balance(
@@ -204,6 +204,7 @@ impl EthereumProvider {
         _processing_type: OpProcessingType,
         _layer_2_tip_fee: BigUint,
     ) -> anyhow::Result<EthExecResult> {
+        todo!("Testkit is not updated yet")
         // let value = self
         //     .get_layer_1_base_cost(
         //         TransactionID::AddToken,
@@ -242,8 +243,6 @@ impl EthereumProvider {
         //     send_raw_tx_wait_confirmation(&self.main_contract_eth_client, signed_tx.raw_tx).await?;
 
         // Ok(EthExecResult::new(receipt, &self.main_contract_eth_client).await)
-        todo!("Testkit is not updated yet")
-
     }
 
     pub async fn add_token(
@@ -253,6 +252,7 @@ impl EthereumProvider {
         _processing_type: OpProcessingType,
         _layer_2_tip_fee: BigUint,
     ) -> anyhow::Result<EthExecResult> {
+        todo!("Testkit is not updated yet")
         // let value = self
         //     .get_layer_1_base_cost(
         //         TransactionID::AddToken,
@@ -284,8 +284,6 @@ impl EthereumProvider {
         //     send_raw_tx_wait_confirmation(&self.main_contract_eth_client, signed_tx.raw_tx).await?;
 
         // Ok(EthExecResult::new(receipt, &self.main_contract_eth_client).await)
-        todo!("Testkit is not updated yet")
-
     }
 
     pub async fn request_withdraw(
@@ -297,6 +295,7 @@ impl EthereumProvider {
         _processing_type: OpProcessingType,
         _layer_2_tip_fee: BigUint,
     ) -> anyhow::Result<EthExecResult> {
+        todo!("Testkit is not updated yet")
         // let value = self
         //     .get_layer_1_base_cost(
         //         TransactionID::Withdraw,
@@ -334,7 +333,6 @@ impl EthereumProvider {
         //     send_raw_tx_wait_confirmation(&self.main_contract_eth_client, signed_tx.raw_tx).await?;
 
         // Ok(EthExecResult::new(receipt, &self.main_contract_eth_client).await)
-        todo!("Testkit is not updated yet")
     }
 
     pub async fn deposit_eth(
@@ -345,6 +343,7 @@ impl EthereumProvider {
         _processing_type: OpProcessingType,
         _layer_2_tip_fee: BigUint,
     ) -> anyhow::Result<EthExecResult> {
+        todo!("Testkit is not updated yet")
         // let value = self
         //     .get_layer_1_base_cost(
         //         TransactionID::Deposit,
@@ -381,7 +380,6 @@ impl EthereumProvider {
         //     send_raw_tx_wait_confirmation(&self.main_contract_eth_client, signed_tx.raw_tx).await?;
 
         // Ok(EthExecResult::new(receipt, &self.main_contract_eth_client).await)
-        todo!("Testkit is not updated yet")
     }
 
     pub async fn send_eth(&self, to: Address, value: BigUint) -> anyhow::Result<EthExecResult> {
@@ -448,6 +446,7 @@ impl EthereumProvider {
         _processing_type: OpProcessingType,
         _layer_2_tip_fee: BigUint,
     ) -> anyhow::Result<EthExecResult> {
+        todo!("Testkit is not updated yet")
         // let value = self
         //     .get_layer_1_base_cost(
         //         TransactionID::Deposit,
@@ -484,7 +483,6 @@ impl EthereumProvider {
         //     send_raw_tx_wait_confirmation(&self.main_contract_eth_client, signed_tx.raw_tx).await?;
 
         // Ok(EthExecResult::new(receipt, &self.main_contract_eth_client).await)
-        todo!("Testkit is not updated yet")
     }
 
     pub async fn commit_blocks(

@@ -49,11 +49,12 @@ impl ContractVerificationDal<'_, '_> {
                     compiler_solc_version,
                     optimization_used,
                     constructor_arguments,
+                    is_system,
                     status,
                     created_at,
                     updated_at
                 )
-                VALUES ($1, $2, $3, $4, $5, $6, $7, 'queued', now(), now())
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'queued', now(), now())
                 RETURNING id
                 ",
                 query.contract_address.as_bytes(),
@@ -63,6 +64,7 @@ impl ContractVerificationDal<'_, '_> {
                 query.compiler_solc_version,
                 query.optimization_used,
                 query.constructor_arguments.0,
+                query.is_system,
             )
             .fetch_one(self.storage.conn())
             .await
@@ -111,6 +113,7 @@ impl ContractVerificationDal<'_, '_> {
                     compiler_solc_version: row.compiler_solc_version,
                     optimization_used: row.optimization_used,
                     constructor_arguments: row.constructor_arguments.into(),
+                    is_system: row.is_system,
                 },
             });
             Ok(result)

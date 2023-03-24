@@ -177,7 +177,7 @@ pub fn update_database(
         );
 
     transaction.commit_blocking();
-    track_witness_generation_stage(block_number, started_at, AggregationRound::Scheduler);
+    track_witness_generation_stage(started_at, AggregationRound::Scheduler);
 }
 
 pub async fn save_artifacts(

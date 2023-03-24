@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt::{Debug, Formatter};
 use std::ops::{Add, AddAssign};
 use zksync_basic_types::{H2048, H256, U256};
-use zksync_config::constants::FAIR_L2_GAS_PRICE;
+use zksync_contracts::BaseSystemContractsHashes;
 
 use crate::{
     l2_to_l1_log::L2ToL1Log, priority_op_onchain_data::PriorityOpOnchainData,
@@ -59,6 +59,7 @@ pub struct L1BatchHeader {
     pub l1_gas_price: u64,
     /// The L2 gas price that the operator agrees on.
     pub l2_fair_gas_price: u64,
+    pub base_system_contracts_hashes: BaseSystemContractsHashes,
 }
 
 /// Holder for the miniblock metadata that is not available from transactions themselves.
@@ -73,6 +74,7 @@ pub struct MiniblockHeader {
 
     pub l1_gas_price: u64, // L1 gas price assumed in the corresponding batch
     pub l2_fair_gas_price: u64, // L2 gas price assumed in the corresponding batch
+    pub base_system_contracts_hashes: BaseSystemContractsHashes,
 }
 
 impl L1BatchHeader {
@@ -80,6 +82,7 @@ impl L1BatchHeader {
         number: L1BatchNumber,
         timestamp: u64,
         fee_account_address: Address,
+        base_system_contracts_hashes: BaseSystemContractsHashes,
     ) -> L1BatchHeader {
         Self {
             number,
@@ -94,17 +97,11 @@ impl L1BatchHeader {
             bloom: H2048::default(),
             initial_bootloader_contents: vec![],
             used_contract_hashes: vec![],
-            // For now, base fee is always equal to the minimal one.
-            base_fee_per_gas: FAIR_L2_GAS_PRICE,
+            base_fee_per_gas: 0,
             l1_gas_price: 0,
-            l2_fair_gas_price: FAIR_L2_GAS_PRICE,
+            l2_fair_gas_price: 0,
+            base_system_contracts_hashes,
         }
-    }
-
-    /// Mock block header, existing only for tests.
-    #[doc(hidden)]
-    pub fn mock(number: L1BatchNumber) -> Self {
-        Self::new(number, 0, Address::default())
     }
 
     /// Creates a hash of the priority ops data.

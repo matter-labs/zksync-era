@@ -184,7 +184,7 @@ pub fn update_database(
         );
 
     transaction.commit_blocking();
-    track_witness_generation_stage(block_number, started_at, AggregationRound::NodeAggregation);
+    track_witness_generation_stage(started_at, AggregationRound::NodeAggregation);
 }
 
 pub async fn get_artifacts(

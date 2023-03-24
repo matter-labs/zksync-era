@@ -1,8 +1,7 @@
 use std::collections::HashMap;
-use std::convert::TryFrom;
+use std::convert::{TryFrom, TryInto};
 use std::ops::Range;
 use std::time::{Duration, Instant};
-
 use zksync_object_store::gcs_utils::prover_circuit_input_blob_url;
 use zksync_types::aggregated_operations::BlockProofForL1;
 use zksync_types::proofs::{
@@ -65,6 +64,28 @@ impl ProverDal<'_, '_> {
         })
     }
 
+    pub fn get_proven_l1_batches(&mut self) -> Vec<(L1BatchNumber, AggregationRound)> {
+        async_std::task::block_on(async {
+            sqlx::query!(
+                r#"SELECT MAX(l1_batch_number) as "l1_batch_number!", aggregation_round FROM prover_jobs 
+                 WHERE status='successful'
+                 GROUP BY aggregation_round 
+                "#
+            )
+                .fetch_all(self.storage.conn())
+                .await
+                .unwrap()
+                .into_iter()
+                .map(|record| {
+                    (
+                        L1BatchNumber(record.l1_batch_number as u32),
+                        record.aggregation_round.try_into().unwrap(),
+                    )
+                })
+                .collect()
+        })
+    }
+
     pub fn get_next_prover_job_by_circuit_types(
         &mut self,
         processing_timeout: Duration,
@@ -85,6 +106,7 @@ impl ProverDal<'_, '_> {
                     AND
                     (   status = 'queued'
                         OR (status = 'in_progress' AND  processing_started_at < now() - $1::interval)
+                        OR (status = 'in_gpu_proof' AND  processing_started_at < now() - $1::interval)
                         OR (status = 'failed' AND attempts < $2)
                     )
                     ORDER BY aggregation_round DESC, l1_batch_number ASC, id ASC
@@ -255,6 +277,39 @@ impl ProverDal<'_, '_> {
                     }
                 })
                 .collect()
+        })
+    }
+
+    pub fn get_prover_jobs_stats_per_circuit(&mut self) -> HashMap<String, JobCountStatistics> {
+        async_std::task::block_on(async {
+            sqlx::query!(
+                r#"
+                SELECT COUNT(*) as "count!", circuit_type as "circuit_type!", status as "status!"
+                FROM prover_jobs
+                GROUP BY circuit_type, status
+                "#
+            )
+            .fetch_all(self.storage.conn())
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|row| (row.circuit_type, row.status, row.count as usize))
+            .fold(HashMap::new(), |mut acc, (circuit_type, status, value)| {
+                let stats = acc.entry(circuit_type).or_insert(JobCountStatistics {
+                    queued: 0,
+                    in_progress: 0,
+                    failed: 0,
+                    successful: 0,
+                });
+                match status.as_ref() {
+                    "queued" => stats.queued = value,
+                    "in_progress" => stats.in_progress = value,
+                    "failed" => stats.failed = value,
+                    "successful" => stats.successful = value,
+                    _ => (),
+                }
+                acc
+            })
         })
     }
 
@@ -468,23 +523,6 @@ impl ProverDal<'_, '_> {
         })
     }
 
-    pub fn get_l1_batches_with_blobs_in_db(&mut self, limit: u8) -> Vec<i64> {
-        async_std::task::block_on(async {
-            let job_ids = sqlx::query!(
-                r#"
-                    SELECT id FROM prover_jobs
-                    WHERE length(prover_input) <> 0
-                    LIMIT $1;
-                "#,
-                limit as i32
-            )
-            .fetch_all(self.storage.conn())
-            .await
-            .unwrap();
-            job_ids.into_iter().map(|row| row.id).collect()
-        })
-    }
-
     pub fn get_circuit_input_blob_urls_to_be_cleaned(&mut self, limit: u8) -> Vec<(i64, String)> {
         async_std::task::block_on(async {
             let job_ids = sqlx::query!(
@@ -492,7 +530,7 @@ impl ProverDal<'_, '_> {
                     SELECT id, circuit_input_blob_url FROM prover_jobs
                     WHERE status='successful' AND is_blob_cleaned=FALSE
                     AND circuit_input_blob_url is NOT NULL
-                    AND updated_at < NOW() - INTERVAL '2 days'
+                    AND updated_at < NOW() - INTERVAL '30 days'
                     LIMIT $1;
                 "#,
                 limit as i32
@@ -516,22 +554,6 @@ impl ProverDal<'_, '_> {
                 WHERE id = ANY($1);
             "#,
                 &ids[..]
-            )
-            .execute(self.storage.conn())
-            .await
-            .unwrap();
-        })
-    }
-
-    pub fn purge_blobs_from_db(&mut self, job_ids: Vec<i64>) {
-        async_std::task::block_on(async {
-            sqlx::query!(
-                r#"
-                UPDATE prover_jobs
-                SET prover_input=''
-                WHERE id = ANY($1);
-            "#,
-                &job_ids[..]
             )
             .execute(self.storage.conn())
             .await

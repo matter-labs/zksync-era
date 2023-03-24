@@ -2,10 +2,14 @@ import { Command } from 'commander';
 import * as fs from 'fs';
 import { confirmAction } from './utils';
 
-export function clean(directory: string) {
-    if (fs.existsSync(directory)) {
-        fs.rmdirSync(directory, { recursive: true });
-        console.log(`Successfully removed ${directory}`);
+export function clean(path: string) {
+    if (fs.existsSync(path)) {
+        if (fs.lstatSync(path).isDirectory()) {
+            fs.rmdirSync(path, { recursive: true });
+        } else {
+            fs.rmSync(path);
+        }
+        console.log(`Successfully removed ${path}`);
     }
 }
 
@@ -18,17 +22,16 @@ export const command = new Command('clean')
     .option('--all')
     .description('removes generated files')
     .action(async (cmd) => {
-        if (!cmd.contracts && !cmd.config && !cmd.database && !cmd.backups) {
+        if (!cmd.contracts && !cmd.config && !cmd.database && !cmd.backups && !cmd.artifacts) {
             cmd.all = true; // default is all
         }
         await confirmAction();
 
         if (cmd.all || cmd.config) {
-            const env = cmd.environment || process.env.ZKSYNC_ENV || 'dev';
-            clean(`etc/env/${env}`);
-
-            fs.rmSync(`etc/env/${env}.env`);
-            console.log(`Successfully removed etc/env/${env}.env`);
+            const env = process.env.ZKSYNC_ENV;
+            clean(`etc/env/${env}.env`);
+            clean('etc/env/.current');
+            clean('etc/env/.init.env');
         }
 
         if (cmd.all || cmd.artifacts) {

@@ -21,13 +21,7 @@ pub struct PrecalculatedMerklePathsProvider {
 }
 
 impl PrecalculatedMerklePathsProvider {
-    pub fn new(input: PrepareBasicCircuitsJob) -> Self {
-        let root_hash = input
-            .merkle_paths
-            .first()
-            .map(|e| e.root_hash.clone())
-            .unwrap_or_else(|| vec![0; 32]);
-
+    pub fn new(input: PrepareBasicCircuitsJob, root_hash: Vec<u8>) -> Self {
         vlog::debug!("Initializing PrecalculatedMerklePathsProvider. Initial root_hash: {:?}, initial next_enumeration_index: {:?}", root_hash, input.next_enumeration_index);
         Self {
             root_hash,

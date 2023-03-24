@@ -68,14 +68,14 @@ export async function anyTransaction(wallet: zksync.Wallet): Promise<ethers.prov
  *
  * @param wallet Wallet to send transaction from. Should have enough balance to cover the fee.
  */
-export async function waitForNewL1Batch(wallet: zksync.Wallet) {
+export async function waitForNewL1Batch(wallet: zksync.Wallet): Promise<zksync.types.TransactionReceipt> {
     // Send a dummy transaction and wait until the new L1 batch is created.
-    const currentL1Batch = await wallet.provider.getL1BatchNumber();
-    await anyTransaction(wallet);
+    const oldReceipt = await anyTransaction(wallet);
     // Invariant: even with 1 transaction, l1 batch must be eventually sealed, so this loop must exit.
-    while ((await wallet.provider.getL1BatchNumber()) <= currentL1Batch) {
+    while (!(await wallet.provider.getTransactionReceipt(oldReceipt.transactionHash)).l1BatchNumber) {
         await zksync.utils.sleep(wallet.provider.pollingInterval);
     }
+    return await wallet.provider.getTransactionReceipt(oldReceipt.transactionHash);
 }
 /**
  * Waits until the requested block is finalized.

@@ -5,7 +5,6 @@ use std::collections::VecDeque;
 use std::sync::{Arc, RwLock};
 use tokio::sync::watch::Receiver;
 use vm::vm_with_bootloader::derive_base_fee_and_gas_per_pubdata;
-use zksync_types::FAIR_L2_GAS_PRICE;
 
 use zksync_config::GasAdjusterConfig;
 use zksync_eth_client::{clients::http_client::Error, EthInterface};
@@ -25,7 +24,14 @@ pub struct GasAdjuster<E> {
 
 impl<E: EthInterface> GasAdjuster<E> {
     pub async fn new(eth_client: E, config: GasAdjusterConfig) -> Result<Self, Error> {
-        let current_block = eth_client.block_number("gas_adjuster").await?.as_usize();
+        // Subtracting 1 from the "latest" block number to prevent errors in case
+        // the info about the latest block is not yet present on the node.
+        // This sometimes happens on Infura.
+        let current_block = eth_client
+            .block_number("gas_adjuster")
+            .await?
+            .as_usize()
+            .saturating_sub(1);
         let history = eth_client
             .base_fee_history(current_block, config.max_base_fee_samples, "gas_adjuster")
             .await?;
@@ -39,6 +45,10 @@ impl<E: EthInterface> GasAdjuster<E> {
     /// Returns the sum of base and priority fee, in wei, not considering time in mempool.
     /// Can be used to get an estimate of current gas price.
     pub fn estimate_effective_gas_price(&self) -> u64 {
+        if let Some(price) = self.config.internal_enforced_l1_gas_price {
+            return price;
+        }
+
         let effective_gas_price = self.get_base_fee(0) + self.get_priority_fee();
 
         (self.config.internal_l1_pricing_multiplier * effective_gas_price as f64) as u64
@@ -120,11 +130,11 @@ impl<E: EthInterface> GasAdjuster<E> {
         Ok(())
     }
 
-    pub fn l2_tx_filter(&self) -> L2TxFilter {
+    pub fn l2_tx_filter(&self, fair_l2_gas_price: u64) -> L2TxFilter {
         let effective_gas_price = self.estimate_effective_gas_price();
 
         let (base_fee, gas_per_pubdata) =
-            derive_base_fee_and_gas_per_pubdata(effective_gas_price, FAIR_L2_GAS_PRICE);
+            derive_base_fee_and_gas_per_pubdata(effective_gas_price, fair_l2_gas_price);
         L2TxFilter {
             l1_gas_price: effective_gas_price,
             fee_per_gas: base_fee,

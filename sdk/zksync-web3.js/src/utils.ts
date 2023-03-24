@@ -12,6 +12,8 @@ import {
 import { TypedDataDomain, TypedDataField } from '@ethersproject/abstract-signer';
 import { Provider } from './provider';
 import { EIP712Signer } from './signer';
+import { IERC20MetadataFactory } from '../typechain';
+import { AbiCoder } from 'ethers/lib/utils';
 
 export * from './paymaster-utils';
 
@@ -47,16 +49,7 @@ export const DEFAULT_GAS_PER_PUBDATA_LIMIT = 50000;
 
 // It is possible to provide practically any gasPerPubdataByte for L1->L2 transactions, since
 // the cost per gas will be adjusted respectively. We will use 800 as an relatively optimal value for now.
-export const DEPOSIT_GAS_PER_PUBDATA_LIMIT = 800;
-
-// The recommended L2 gas limit for a deposit.
-export const RECOMMENDED_DEPOSIT_L2_GAS_LIMIT = 10000000;
-
-export const RECOMMENDED_GAS_LIMIT = {
-    DEPOSIT: 600_000,
-    EXECUTE: 620_000,
-    ERC20_APPROVE: 50_000
-};
+export const REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_LIMIT = 800;
 
 export function isETH(token: Address) {
     return token.toLowerCase() == ETH_ADDRESS || token.toLowerCase() == L2_ETH_TOKEN_ADDRESS;
@@ -376,12 +369,55 @@ export function getL2HashFromPriorityOp(
     return txHash;
 }
 
+const ADDRESS_MODULO = BigNumber.from(2).pow(160);
+
 export function applyL1ToL2Alias(address: string): string {
-    return ethers.utils.hexlify(ethers.BigNumber.from(address).add(L1_TO_L2_ALIAS_OFFSET));
+    return ethers.utils.hexlify(ethers.BigNumber.from(address).add(L1_TO_L2_ALIAS_OFFSET).mod(ADDRESS_MODULO));
 }
 
 export function undoL1ToL2Alias(address: string): string {
-    return ethers.utils.hexlify(ethers.BigNumber.from(address).sub(L1_TO_L2_ALIAS_OFFSET));
+    let result = ethers.BigNumber.from(address).sub(L1_TO_L2_ALIAS_OFFSET);
+    if (result.lt(BigNumber.from(0))) {
+        result = result.add(ADDRESS_MODULO);
+    }
+
+    return ethers.utils.hexlify(result);
+}
+
+/// Getters data used to correctly initialize the L1 token counterpart on L2
+async function getERC20GettersData(l1TokenAddress: string, provider: ethers.providers.Provider): Promise<string> {
+    const token = IERC20MetadataFactory.connect(l1TokenAddress, provider);
+
+    const name = await token.name();
+    const symbol = await token.symbol();
+    const decimals = await token.decimals();
+
+    const coder = new AbiCoder();
+
+    const nameBytes = coder.encode(['string'], [name]);
+    const symbolBytes = coder.encode(['string'], [symbol]);
+    const decimalsBytes = coder.encode(['uint256'], [decimals]);
+
+    return coder.encode(['bytes', 'bytes', 'bytes'], [nameBytes, symbolBytes, decimalsBytes]);
+}
+
+/// The method that returns the calldata that will be sent by an L1 ERC20 bridge to its L2 counterpart
+/// during bridging of a token.
+export async function getERC20BridgeCalldata(
+    l1TokenAddress: string,
+    l1Sender: string,
+    l2Receiver: string,
+    amount: BigNumberish,
+    provider: ethers.providers.Provider
+): Promise<string> {
+    const gettersData = await getERC20GettersData(l1TokenAddress, provider);
+    return L2_BRIDGE_ABI.encodeFunctionData('finalizeDeposit', [
+        l1Sender,
+        l2Receiver,
+        l1TokenAddress,
+        amount,
+        gettersData
+    ]);
 }
 
 // The method with similar functionality is already available in ethers.js,
@@ -460,4 +496,41 @@ export async function isTypedDataSignatureCorrect(
 ): Promise<boolean> {
     const msgHash = ethers.utils._TypedDataEncoder.hash(domain, types, value);
     return await isSignatureCorrect(provider, address, msgHash, signature);
+}
+
+export async function estimateDefaultBridgeDepositL2Gas(
+    providerL1: ethers.providers.Provider,
+    providerL2: Provider,
+    token: Address,
+    amount: BigNumberish,
+    to: Address,
+    from?: Address,
+    gasPerPubdataByte?: BigNumberish
+): Promise<BigNumber> {
+    // If the `from` address is not provided, we use a random address, because
+    // due to storage slot aggregation, the gas estimation will depend on the address
+    // and so estimation for the zero address may be smaller than for the sender.
+    from ??= ethers.Wallet.createRandom().address;
+
+    if (token == ETH_ADDRESS) {
+        return await providerL2.estimateL1ToL2Execute({
+            contractAddress: to,
+            gasPerPubdataByte: gasPerPubdataByte,
+            caller: from,
+            calldata: '0x',
+            l2Value: amount
+        });
+    } else {
+        const l1ERC20BridgeAddresses = (await providerL2.getDefaultBridgeAddresses()).erc20L1;
+        const erc20BridgeAddress = (await providerL2.getDefaultBridgeAddresses()).erc20L2;
+
+        const calldata = await getERC20BridgeCalldata(token, from, to, amount, providerL1);
+
+        return await providerL2.estimateL1ToL2Execute({
+            caller: applyL1ToL2Alias(l1ERC20BridgeAddresses),
+            contractAddress: erc20BridgeAddress,
+            gasPerPubdataByte: gasPerPubdataByte,
+            calldata: calldata
+        });
+    }
 }

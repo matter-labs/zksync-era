@@ -1,5 +1,5 @@
 use zksync_types::block::BlockGasCount;
-use zksync_types::tx::ExecutionMetrics;
+use zksync_types::tx::tx_execution_info::{DeduplicatedWritesMetrics, ExecutionMetrics};
 use zksync_utils::time::millis_since_epoch;
 
 use super::{SealCriterion, SealResolution, StateKeeperConfig};
@@ -18,6 +18,10 @@ impl SealCriterion for TimeoutCriterion {
         _tx_execution_metrics: ExecutionMetrics,
         _block_gas_count: BlockGasCount,
         _tx_gas_count: BlockGasCount,
+        _block_included_txs_size: usize,
+        _tx_size: usize,
+        _block_writes_metrics: DeduplicatedWritesMetrics,
+        _tx_writes_metrics: DeduplicatedWritesMetrics,
     ) -> SealResolution {
         if tx_count == 0 {
             return SealResolution::NoSeal;
@@ -62,6 +66,10 @@ mod tests {
             Default::default(),
             Default::default(),
             Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
         );
         assert_eq!(empty_block_resolution, SealResolution::NoSeal);
 
@@ -74,6 +82,10 @@ mod tests {
             Default::default(),
             Default::default(),
             Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
         );
         assert_eq!(no_timeout_resolution, SealResolution::NoSeal);
 
@@ -81,6 +93,10 @@ mod tests {
             &config,
             millis_since_epoch() - config.block_commit_deadline_ms as u128 - 1,
             1,
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
             Default::default(),
             Default::default(),
             Default::default(),

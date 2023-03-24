@@ -83,6 +83,10 @@ async function _push(image: string, tagList: string[]) {
 
     for (const tag of tagList) {
         await utils.spawn(`docker push matterlabs/${image}:${tag}`);
+        await utils.spawn(
+            `docker tag matterlabs/${image}:${tag} us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${image}:${tag}`
+        );
+        await utils.spawn(`docker push us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${image}:${tag}`);
     }
 }
 

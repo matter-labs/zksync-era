@@ -6,23 +6,22 @@ use crate::api_server::web3::backend_jsonrpc::error::internal_error;
 use thiserror::Error;
 use tracing::{span, Level};
 use vm::oracles::tracer::{ValidationError, ValidationTracerParams};
-use vm::utils::default_block_properties;
 use zksync_types::api::BlockId;
-use zksync_types::tx::tx_execution_info::get_initial_and_repeated_storage_writes;
 use zksync_types::utils::storage_key_for_eth_balance;
-use zksync_types::{
-    get_known_code_key, H256, PUBLISH_BYTECODE_OVERHEAD, TRUSTED_ADDRESS_SLOTS, TRUSTED_TOKEN_SLOTS,
-};
+use zksync_types::{PUBLISH_BYTECODE_OVERHEAD, TRUSTED_ADDRESS_SLOTS, TRUSTED_TOKEN_SLOTS};
 
 use crate::db_storage_provider::DbStorageProvider;
 use vm::vm_with_bootloader::{
     derive_base_fee_and_gas_per_pubdata, init_vm, push_transaction_to_bootloader_memory,
     BlockContext, BlockContextMode, BootloaderJobType, DerivedBlockContext, TxExecutionMode,
 };
+use vm::zk_evm::block_properties::BlockProperties;
 use vm::{
     storage::Storage, utils::ETH_CALL_GAS_LIMIT, TxRevertReason, VmBlockResult, VmExecutionResult,
     VmInstance,
 };
+use zksync_config::constants::ZKPORTER_IS_AVAILABLE;
+use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_state::storage_view::StorageView;
 use zksync_types::{
@@ -31,10 +30,11 @@ use zksync_types::{
     fee::TransactionExecutionMetrics,
     get_nonce_key,
     l2::L2Tx,
+    storage_writes_deduplicator::StorageWritesDeduplicator,
     utils::{decompose_full_nonce, nonces_to_full_nonce},
     AccountTreeId, MiniblockNumber, Nonce, Transaction, U256,
 };
-use zksync_utils::bytecode::{bytecode_len_in_bytes, hash_bytecode};
+use zksync_utils::bytecode::{bytecode_len_in_bytes, hash_bytecode, CompressedBytecodeInfo};
 use zksync_utils::time::millis_since_epoch;
 use zksync_utils::{h256_to_u256, u256_to_h256};
 use zksync_web3_decl::error::Web3Error;
@@ -75,6 +75,7 @@ pub fn execute_tx_eth_call(
     l1_gas_price: u64,
     fair_l2_gas_price: u64,
     enforced_base_fee: Option<u64>,
+    base_system_contract: &BaseSystemContracts,
 ) -> Result<VmExecutionResult, Web3Error> {
     let mut storage = connection_pool.access_storage_blocking();
     let resolved_block_number = storage
@@ -92,7 +93,7 @@ pub fn execute_tx_eth_call(
     tx.common_data.fee.gas_limit = ETH_CALL_GAS_LIMIT.into();
     let vm_result = execute_tx_in_sandbox(
         storage,
-        tx,
+        tx.into(),
         TxExecutionMode::EthCall,
         AccountTreeId::default(),
         block_id,
@@ -104,6 +105,7 @@ pub fn execute_tx_eth_call(
         l1_gas_price,
         fair_l2_gas_price,
         enforced_base_fee,
+        base_system_contract,
     )
     .1
     .map_err(|err| {
@@ -127,11 +129,17 @@ fn get_pending_state(
     (block_id, connection, resolved_block_number)
 }
 
-#[tracing::instrument(skip(connection_pool, tx, operator_account, enforced_nonce))]
+#[tracing::instrument(skip(
+    connection_pool,
+    tx,
+    operator_account,
+    enforced_nonce,
+    base_system_contracts
+))]
 #[allow(clippy::too_many_arguments)]
 pub fn execute_tx_with_pending_state(
     connection_pool: &ConnectionPool,
-    tx: L2Tx,
+    tx: Transaction,
     operator_account: AccountTreeId,
     execution_mode: TxExecutionMode,
     enforced_nonce: Option<Nonce>,
@@ -139,6 +147,7 @@ pub fn execute_tx_with_pending_state(
     l1_gas_price: u64,
     fair_l2_gas_price: u64,
     enforced_base_fee: Option<u64>,
+    base_system_contracts: &BaseSystemContracts,
 ) -> (
     TransactionExecutionMetrics,
     Result<VmExecutionResult, SandboxExecutionError>,
@@ -150,7 +159,7 @@ pub fn execute_tx_with_pending_state(
     let l1_gas_price = adjust_l1_gas_price_for_tx(
         l1_gas_price,
         fair_l2_gas_price,
-        tx.common_data.fee.gas_per_pubdata_limit,
+        tx.gas_per_pubdata_byte_limit(),
     );
 
     execute_tx_in_sandbox(
@@ -167,6 +176,7 @@ pub fn execute_tx_with_pending_state(
         l1_gas_price,
         fair_l2_gas_price,
         enforced_base_fee,
+        base_system_contracts,
     )
 }
 
@@ -182,20 +192,23 @@ pub fn get_pubdata_for_factory_deps(
     factory_deps
         .as_ref()
         .map(|deps| {
-            let mut total_published_length = 0;
+            deps.iter()
+                .filter_map(|bytecode| {
+                    if storage_view.is_bytecode_known(&hash_bytecode(bytecode)) {
+                        return None;
+                    }
 
-            for dep in deps.iter() {
-                let bytecode_hash = hash_bytecode(dep);
-                let key = get_known_code_key(&bytecode_hash);
+                    let length = if let Ok(compressed) =
+                        CompressedBytecodeInfo::from_original(bytecode.clone())
+                    {
+                        compressed.compressed.len()
+                    } else {
+                        bytecode.len()
+                    };
 
-                // The bytecode needs to be published only if it is not known
-                let is_known = storage_view.get_value(&key);
-                if is_known == H256::zero() {
-                    total_published_length += dep.len() as u32 + PUBLISH_BYTECODE_OVERHEAD;
-                }
-            }
-
-            total_published_length
+                    Some(length as u32 + PUBLISH_BYTECODE_OVERHEAD)
+                })
+                .sum()
         })
         .unwrap_or_default()
 }
@@ -211,6 +224,8 @@ pub fn validate_tx_with_pending_state(
     l1_gas_price: u64,
     fair_l2_gas_price: u64,
     enforced_base_fee: Option<u64>,
+    base_system_contracts: &BaseSystemContracts,
+    computational_gas_limit: u32,
 ) -> Result<(), ValidationError> {
     let (block_id, connection, resolved_block_number) = get_pending_state(connection_pool);
 
@@ -227,6 +242,7 @@ pub fn validate_tx_with_pending_state(
         tx,
         execution_mode,
         operator_account,
+        base_system_contracts,
         block_id,
         resolved_block_number,
         None,
@@ -235,10 +251,11 @@ pub fn validate_tx_with_pending_state(
         l1_gas_price,
         fair_l2_gas_price,
         enforced_base_fee,
+        computational_gas_limit,
     )
 }
 
-fn adjust_l1_gas_price_for_tx(
+pub(crate) fn adjust_l1_gas_price_for_tx(
     l1_gas_price: u64,
     fair_l2_gas_price: u64,
     tx_gas_per_pubdata_limit: U256,
@@ -262,11 +279,17 @@ fn adjust_l1_gas_price_for_tx(
 
 /// This method assumes that (block with number `resolved_block_number` is present in DB)
 /// or (`block_id` is `pending` and block with number `resolved_block_number - 1` is present in DB)
-#[tracing::instrument(skip(connection, tx, operator_account, block_timestamp_s))]
 #[allow(clippy::too_many_arguments)]
+#[tracing::instrument(skip(
+    connection,
+    tx,
+    operator_account,
+    block_timestamp_s,
+    base_system_contract
+))]
 fn execute_tx_in_sandbox(
     connection: StorageProcessor<'_>,
-    tx: L2Tx,
+    tx: Transaction,
     execution_mode: TxExecutionMode,
     operator_account: AccountTreeId,
     block_id: api::BlockId,
@@ -278,6 +301,7 @@ fn execute_tx_in_sandbox(
     l1_gas_price: u64,
     fair_l2_gas_price: u64,
     enforced_base_fee: Option<u64>,
+    base_system_contract: &BaseSystemContracts,
 ) -> (
     TransactionExecutionMetrics,
     Result<VmExecutionResult, SandboxExecutionError>,
@@ -295,6 +319,7 @@ fn execute_tx_in_sandbox(
         connection,
         tx,
         execution_mode,
+        base_system_contract,
         operator_account,
         block_id,
         resolved_block_number,
@@ -305,8 +330,7 @@ fn execute_tx_in_sandbox(
         fair_l2_gas_price,
         enforced_base_fee,
         |vm, tx| {
-            let tx: Transaction = tx.into();
-            push_transaction_to_bootloader_memory(vm, &tx, execution_mode);
+            push_transaction_to_bootloader_memory(vm, &tx, execution_mode, None);
             let VmBlockResult {
                 full_result: result,
                 ..
@@ -333,8 +357,9 @@ fn execute_tx_in_sandbox(
 #[allow(clippy::too_many_arguments)]
 fn apply_vm_in_sandbox<T>(
     mut connection: StorageProcessor<'_>,
-    tx: L2Tx,
+    tx: Transaction,
     execution_mode: TxExecutionMode,
+    base_system_contracts: &BaseSystemContracts,
     operator_account: AccountTreeId,
     block_id: api::BlockId,
     resolved_block_number: zksync_types::MiniblockNumber,
@@ -344,7 +369,7 @@ fn apply_vm_in_sandbox<T>(
     l1_gas_price: u64,
     fair_l2_gas_price: u64,
     enforced_base_fee: Option<u64>,
-    apply: impl FnOnce(&mut Box<VmInstance<'_>>, L2Tx) -> T,
+    apply: impl FnOnce(&mut Box<VmInstance<'_>>, Transaction) -> T,
 ) -> T {
     let stage_started_at = Instant::now();
     let span = span!(Level::DEBUG, "initialization").entered();
@@ -416,7 +441,10 @@ fn apply_vm_in_sandbox<T>(
     }
 
     let mut oracle_tools = vm::OracleTools::new(&mut storage_view as &mut dyn Storage);
-    let block_properties = default_block_properties();
+    let block_properties = BlockProperties {
+        default_aa_code_hash: h256_to_u256(base_system_contracts.default_aa.hash),
+        zkporter_is_available: ZKPORTER_IS_AVAILABLE,
+    };
 
     let block_context = DerivedBlockContext {
         context: BlockContext {
@@ -440,6 +468,7 @@ fn apply_vm_in_sandbox<T>(
         block_context_properties,
         &block_properties,
         execution_mode,
+        base_system_contracts,
     );
 
     metrics::histogram!("api.web3.sandbox", stage_started_at.elapsed(), "stage" => "initialization");
@@ -447,22 +476,31 @@ fn apply_vm_in_sandbox<T>(
 
     let result = apply(&mut vm, tx);
 
+    let oracles_sizes = record_vm_memory_metrics(vm);
+    let storage_view_cache = storage_view.get_cache_size();
+    metrics::histogram!(
+        "runtime_context.memory.storage_view_cache_size",
+        storage_view_cache as f64
+    );
+    metrics::histogram!(
+        "runtime_context.memory",
+        (oracles_sizes + storage_view_cache) as f64
+    );
+
     metrics::histogram!("runtime_context.storage_interaction", storage_view.storage_invocations as f64, "interaction" => "set_value_storage_invocations");
     metrics::histogram!("runtime_context.storage_interaction", storage_view.new_storage_invocations as f64, "interaction" => "set_value_new_storage_invocations");
     metrics::histogram!("runtime_context.storage_interaction", storage_view.get_value_storage_invocations as f64, "interaction" => "set_value_get_value_storage_invocations");
     metrics::histogram!("runtime_context.storage_interaction", storage_view.set_value_storage_invocations as f64, "interaction" => "set_value_set_value_storage_invocations");
-    metrics::histogram!("runtime_context.storage_interaction", storage_view.contract_load_invocations as f64, "interaction" => "set_value_contract_load_invocations");
 
     const STORAGE_INVOCATIONS_DEBUG_THRESHOLD: usize = 1000;
 
     if storage_view.storage_invocations > STORAGE_INVOCATIONS_DEBUG_THRESHOLD {
         vlog::info!(
-            "Tx resulted in {} storage_invocations, {} new_storage_invocations, {} get_value_storage_invocations, {} set_value_storage_invocations, {} contract_load_invocations",
+            "Tx resulted in {} storage_invocations, {} new_storage_invocations, {} get_value_storage_invocations, {} set_value_storage_invocations",
             storage_view.storage_invocations,
             storage_view.new_storage_invocations,
             storage_view.get_value_storage_invocations,
             storage_view.set_value_storage_invocations,
-            storage_view.contract_load_invocations
         );
     }
 
@@ -475,6 +513,7 @@ fn apply_vm_in_sandbox<T>(
 fn get_validation_params(
     connection: &mut StorageProcessor<'_>,
     tx: &L2Tx,
+    computational_gas_limit: u32,
 ) -> ValidationTracerParams {
     let user_address = tx.common_data.initiator_address;
     let paymaster_address = tx.common_data.paymaster_params.paymaster;
@@ -520,6 +559,7 @@ fn get_validation_params(
         trusted_slots,
         trusted_addresses,
         trusted_address_slots,
+        computational_gas_limit,
     }
 }
 
@@ -529,6 +569,7 @@ fn validate_tx_in_sandbox(
     tx: L2Tx,
     execution_mode: TxExecutionMode,
     operator_account: AccountTreeId,
+    base_system_contracts: &BaseSystemContracts,
     block_id: api::BlockId,
     resolved_block_number: zksync_types::MiniblockNumber,
     block_timestamp_s: Option<u64>,
@@ -537,15 +578,19 @@ fn validate_tx_in_sandbox(
     l1_gas_price: u64,
     fair_l2_gas_price: u64,
     enforced_base_fee: Option<u64>,
+    computational_gas_limit: u32,
 ) -> Result<(), ValidationError> {
     let stage_started_at = Instant::now();
     let span = span!(Level::DEBUG, "validate_in_sandbox").entered();
-    let validation_params = get_validation_params(&mut connection, &tx);
+    let validation_params = get_validation_params(&mut connection, &tx, computational_gas_limit);
+
+    let tx: Transaction = tx.into();
 
     let validation_result = apply_vm_in_sandbox(
         connection,
         tx,
         execution_mode,
+        base_system_contracts,
         operator_account,
         block_id,
         resolved_block_number,
@@ -559,8 +604,7 @@ fn validate_tx_in_sandbox(
             let stage_started_at = Instant::now();
             let span = span!(Level::DEBUG, "validation").entered();
 
-            let tx: Transaction = tx.into();
-            push_transaction_to_bootloader_memory(vm, &tx, execution_mode);
+            push_transaction_to_bootloader_memory(vm, &tx, execution_mode, None);
             let result = vm.execute_validation(validation_params);
 
             metrics::histogram!("api.web3.sandbox", stage_started_at.elapsed(), "stage" => "validation");
@@ -596,12 +640,12 @@ fn collect_tx_execution_metrics(
         .map(|bytecodehash| bytecode_len_in_bytes(*bytecodehash))
         .sum();
 
-    let (initial_storage_writes, repeated_storage_writes) =
-        get_initial_and_repeated_storage_writes(result.storage_log_queries.as_slice());
+    let writes_metrics =
+        StorageWritesDeduplicator::apply_on_empty_state(&result.storage_log_queries);
 
     TransactionExecutionMetrics {
-        initial_storage_writes: initial_storage_writes as usize,
-        repeated_storage_writes: repeated_storage_writes as usize,
+        initial_storage_writes: writes_metrics.initial_storage_writes,
+        repeated_storage_writes: writes_metrics.repeated_storage_writes,
         gas_used: result.gas_used as usize,
         event_topics,
         l2_l1_long_messages,
@@ -620,9 +664,7 @@ impl From<TxRevertReason> for SandboxExecutionError {
     fn from(reason: TxRevertReason) -> Self {
         match reason {
             TxRevertReason::EthCall(reason) => SandboxExecutionError::Revert(reason.to_string()),
-            TxRevertReason::TxOutOfGas => {
-                SandboxExecutionError::Revert(TxRevertReason::TxOutOfGas.to_string())
-            }
+            TxRevertReason::TxReverted(reason) => SandboxExecutionError::Revert(reason.to_string()),
             TxRevertReason::FailedToChargeFee(reason) => {
                 SandboxExecutionError::FailedToChargeFee(reason.to_string())
             }
@@ -660,4 +702,38 @@ impl From<TxRevertReason> for SandboxExecutionError {
             }
         }
     }
+}
+
+/// Returns the sum of all oracles' sizes.
+fn record_vm_memory_metrics(vm: Box<VmInstance>) -> usize {
+    let event_sink_inner = vm.state.event_sink.get_size();
+    let event_sink_history = vm.state.event_sink.get_history_size();
+    let memory_inner = vm.state.memory.get_size();
+    let memory_history = vm.state.memory.get_history_size();
+    let decommittment_processor_inner = vm.state.decommittment_processor.get_size();
+    let decommittment_processor_history = vm.state.decommittment_processor.get_history_size();
+    let storage_inner = vm.state.storage.get_size();
+    let storage_history = vm.state.storage.get_history_size();
+
+    metrics::histogram!("runtime_context.memory.event_sink_size", event_sink_inner as f64, "type" => "inner");
+    metrics::histogram!("runtime_context.memory.event_sink_size", event_sink_history as f64, "type" => "history");
+    metrics::histogram!("runtime_context.memory.memory_size", memory_inner as f64, "type" => "inner");
+    metrics::histogram!("runtime_context.memory.memory_size", memory_history as f64, "type" => "history");
+    metrics::histogram!("runtime_context.memory.decommitter_size", decommittment_processor_inner as f64, "type" => "inner");
+    metrics::histogram!("runtime_context.memory.decommitter_size", decommittment_processor_history as f64, "type" => "history");
+    metrics::histogram!("runtime_context.memory.storage_size", storage_inner as f64, "type" => "inner");
+    metrics::histogram!("runtime_context.memory.storage_size", storage_history as f64, "type" => "history");
+
+    [
+        event_sink_inner,
+        event_sink_history,
+        memory_inner,
+        memory_history,
+        decommittment_processor_inner,
+        decommittment_processor_history,
+        storage_inner,
+        storage_history,
+    ]
+    .iter()
+    .sum::<usize>()
 }

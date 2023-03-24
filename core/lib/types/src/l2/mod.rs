@@ -1,11 +1,12 @@
-use rlp::RlpStream;
+use rlp::{Rlp, RlpStream};
 
 use self::error::SignError;
 use crate::transaction_request::PaymasterParams;
 use crate::{
-    api::Eip712Meta, tx::primitives::PackedEthSignature, tx::Execute, web3::types::U64, Address,
-    Bytes, EIP712TypedStructure, Eip712Domain, ExecuteTransactionCommon, InputData, L2ChainId,
-    Nonce, StructBuilder, Transaction, EIP_712_TX_TYPE, H256, PRIORITY_OPERATION_L2_TX_TYPE, U256,
+    api, tx::primitives::PackedEthSignature, tx::Execute, web3::types::U64, Address, Bytes,
+    EIP712TypedStructure, Eip712Domain, ExecuteTransactionCommon, InputData, L2ChainId, Nonce,
+    StructBuilder, Transaction, EIP_1559_TX_TYPE, EIP_712_TX_TYPE, H256,
+    PRIORITY_OPERATION_L2_TX_TYPE, U256,
 };
 
 use serde::{Deserialize, Serialize};
@@ -189,6 +190,27 @@ impl L2Tx {
         self.common_data.set_input(data, hash)
     }
 
+    pub fn extract_chain_id(&self) -> Option<u16> {
+        let bytes = self.common_data.input_data()?;
+        let chain_id = match bytes.first() {
+            Some(x) if *x >= 0x80 => {
+                let rlp = Rlp::new(&bytes);
+                let v = rlp.val_at(6).ok()?;
+                PackedEthSignature::unpack_v(v).ok()?.1.unwrap_or(0)
+            }
+            Some(x) if *x == EIP_1559_TX_TYPE => {
+                let rlp = Rlp::new(&bytes[1..]);
+                rlp.val_at(0).ok()?
+            }
+            Some(x) if *x == EIP_712_TX_TYPE => {
+                let rlp = Rlp::new(&bytes[1..]);
+                rlp.val_at(10).ok()?
+            }
+            _ => return None,
+        };
+        Some(chain_id)
+    }
+
     pub fn get_rlp_bytes(&self, chain_id: L2ChainId) -> Bytes {
         let mut rlp_stream = RlpStream::new();
         let tx: TransactionRequest = self.clone().into();
@@ -281,7 +303,7 @@ impl From<L2Tx> for TransactionRequest {
                 Some(U64::from(tx_type))
             },
             access_list: None,
-            eip712_meta: Some(Eip712Meta {
+            eip712_meta: Some(api::Eip712Meta {
                 gas_per_pubdata: tx.common_data.fee.gas_per_pubdata_limit,
                 factory_deps: tx.execute.factory_deps,
                 custom_signature: Some(tx.common_data.signature),
@@ -303,6 +325,45 @@ impl From<L2Tx> for Transaction {
             common_data: ExecuteTransactionCommon::L2(common_data),
             execute,
             received_timestamp_ms,
+        }
+    }
+}
+
+impl From<L2Tx> for api::Transaction {
+    fn from(tx: L2Tx) -> Self {
+        let tx_type = tx.common_data.transaction_type as u32;
+        let (v, r, s) =
+            if let Ok(sig) = PackedEthSignature::deserialize_packed(&tx.common_data.signature) {
+                (
+                    Some(U64::from(sig.v())),
+                    Some(U256::from(sig.r())),
+                    Some(U256::from(sig.s())),
+                )
+            } else {
+                (None, None, None)
+            };
+
+        Self {
+            hash: tx.hash(),
+            chain_id: tx.extract_chain_id().unwrap_or_default().into(),
+            nonce: U256::from(tx.common_data.nonce.0),
+            from: Some(tx.common_data.initiator_address),
+            to: Some(tx.recipient_account()),
+            value: tx.execute.value,
+            gas_price: Some(tx.common_data.fee.max_fee_per_gas),
+            max_priority_fee_per_gas: Some(tx.common_data.fee.max_priority_fee_per_gas),
+            max_fee_per_gas: Some(tx.common_data.fee.max_fee_per_gas),
+            gas: tx.common_data.fee.gas_limit,
+            input: Bytes(tx.execute.calldata),
+            v,
+            r,
+            s,
+            transaction_type: if tx_type == 0 {
+                None
+            } else {
+                Some(U64::from(tx_type))
+            },
+            ..Default::default()
         }
     }
 }

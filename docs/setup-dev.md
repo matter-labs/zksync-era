@@ -13,7 +13,7 @@ If you are a NixOS user or would like to have a reproducible environment, skip t
 
 ## `git`
 
-If you are using an ssh key to authenticate with GitHub you need to make git always use ssh instead of http.
+If you are using an ssh key to authenticate with Github you need to make git always use ssh instead of http.
 
 ```bash
 git config --global url."ssh://git@github.com/".insteadOf https://github.com/
@@ -63,13 +63,14 @@ If logging out does not help, restarting the computer should.
 
 ## `Node` & `Yarn`
 
-1. Install `Node` (requires version 14.14.0). Since our team attempts to always use the latest LTS version of`Node.js`,
+1. Install `Node` (requires version 16.19.1). Since our team attempts to always use the latest LTS version of`Node.js`,
    we suggest you to install [nvm](https://github.com/nvm-sh/nvm). It will allow you to update `Node.js`version easily
-   in the future.
-2. Install `yarn`. Instructions can be found on the [official site](https://classic.yarnpkg.com/en/docs/install/). Check
-   if `yarn` is installed by running `yarn -v`. If you face any problems when installing `yarn`, it might be the case
-   that your package manager installed the wrong package.Make sure to thoroughly follow the instructions above on the
-   official website. It contains a lot of troubleshooting guides in it.
+   in the future (by running `nvm use 16.19.1`)
+2. Install `yarn` (make sure to get version 1.22.19 - you can change the version by running `yarn set version 1.22.19`).
+   Instructions can be found on the [official site](https://classic.yarnpkg.com/en/docs/install/).  
+   Check if `yarn` is installed by running `yarn -v`. If you face any problems when installing `yarn`, it might be the
+   case that your package manager installed the wrong package.Make sure to thoroughly follow the instructions above on
+   the official website. It contains a lot of troubleshooting guides in it.
 
 ## `Axel`
 
@@ -172,7 +173,7 @@ Most environments will have this preinstalled but if not, install Python.
 
 ## Easier method using `nix`
 
-Nix is a tool that can fetch _exactly_ the right dependencies specified via hashes. The current config is Linux-only, but
+Nix is a tool that can fetch _exactly_ the right dependencies specified via hashes. The current config is Linux-only but
 it is likely that it can be adapted to Mac.
 
 Install `nix`. Enable the nix command and flakes.

@@ -7,9 +7,7 @@ import { command as contractVerifier } from './contract_verifier';
 import { command as up } from './up';
 import { command as down } from './down';
 import { command as contract } from './contract';
-import { command as dummyProver } from './dummy-prover';
-import { initCommand as init, reinitCommand as reinit, lightweightInitCommand as lightweight_init } from './init';
-import { command as prover } from './prover';
+import { initCommand as init, reinitCommand as reinit, lightweightInitCommand as lightweightInit } from './init';
 import { command as run } from './run/run';
 import { command as test } from './test/test';
 import { command as docker } from './docker';
@@ -20,7 +18,6 @@ import { command as completion } from './completion';
 import { command as config } from './config';
 import { command as clean } from './clean';
 import { command as db } from './database/database';
-// import { command as uni } from './uni';
 import * as env from './env';
 
 const COMMANDS = [
@@ -30,11 +27,9 @@ const COMMANDS = [
     down,
     db,
     contract,
-    dummyProver,
     init,
     reinit,
-    lightweight_init,
-    prover,
+    lightweightInit,
     run,
     test,
     fmt,
@@ -43,7 +38,6 @@ const COMMANDS = [
     config,
     clean,
     compiler,
-    // uni,
     env.command,
     completion(program as Command)
 ];
@@ -58,7 +52,7 @@ async function main() {
         process.chdir(ZKSYNC_HOME);
     }
 
-    await env.load();
+    env.load();
 
     program.version('0.1.0').name('zk').description('zksync workflow tools');
 

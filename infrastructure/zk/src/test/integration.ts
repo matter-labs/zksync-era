@@ -22,9 +22,18 @@ export async function server() {
     await utils.spawn('yarn ts-integration test');
 }
 
+export async function fees() {
+    await utils.spawn('yarn ts-integration fee-test');
+}
+
 export async function revert(bail: boolean = false) {
     const flag = bail ? ' --bail' : '';
     await utils.spawn('yarn revert-test revert-and-restart-test' + flag);
+}
+
+export async function upgrade(bail: boolean = false) {
+    const flag = bail ? ' --bail' : '';
+    await utils.spawn('yarn upgrade-test upgrade-test' + flag);
 }
 
 export async function withdrawalHelpers() {
@@ -99,11 +108,26 @@ command
     });
 
 command
+    .command('fees')
+    .description('run server integration tests')
+    .action(async () => {
+        await fees();
+    });
+
+command
     .command('revert')
     .description('run revert test')
     .option('--bail')
     .action(async (cmd: Command) => {
         await revert(cmd.bail);
+    });
+
+command
+    .command('upgrade')
+    .description('run upgrade test')
+    .option('--bail')
+    .action(async (cmd: Command) => {
+        await upgrade(cmd.bail);
     });
 
 command

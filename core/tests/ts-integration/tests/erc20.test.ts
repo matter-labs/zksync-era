@@ -50,7 +50,7 @@ describe('ERC20 contract checks', () => {
         const l2BalanceChange = await shouldChangeTokenBalances(tokenDetails.l2Address, [
             { wallet: alice, change: amount }
         ]);
-        const feeCheck = await shouldOnlyTakeFee(alice);
+        const feeCheck = await shouldOnlyTakeFee(alice, true);
         await expect(
             alice.deposit({
                 token: tokenDetails.l1Address,
@@ -176,6 +176,7 @@ describe('ERC20 contract checks', () => {
             to: ethers.constants.AddressZero,
             token: tokenDetails.l1Address,
             amount,
+            l2GasLimit: 5_000_000, // Setting the limit manually to avoid estimation for L1->L2 transaction
             approveERC20: true
         });
         const l1Receipt = await depositHandle.waitL1Commit();

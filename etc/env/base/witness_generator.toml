@@ -3,9 +3,4 @@ generation_timeout_in_secs=900
 initial_setup_key_path="./keys/setup/setup_2^22.key"
 key_download_url="https://storage.googleapis.com/universal-setup/setup_2^22.key"
 max_attempts=1
-# Witness/proof sampling params.
-# Sampling will be enabled only if `sampling_enabled=true` and `sampling_safe_prover_lag`,
-# `sampling_max_prover_lag` are provided, otherwise it will generate witnesses/proofs for every block.
-# When setting `sampling_safe_prover_lag=sampling_max_prover_lag=0` every block proof is skipped.
-sampling_enabled=false
 dump_arguments_for_blocks="2,3"

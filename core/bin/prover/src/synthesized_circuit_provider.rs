@@ -31,6 +31,7 @@ impl RemoteSynthesizer for SynthesizedCircuitProvider {
         let is_full = assembly_queue.capacity() == assembly_queue.size();
         return match assembly_queue.remove() {
             Ok(blob) => {
+                let queue_free_slots = assembly_queue.capacity() - assembly_queue.size();
                 if is_full {
                     self.pool
                         .clone()
@@ -38,9 +39,19 @@ impl RemoteSynthesizer for SynthesizedCircuitProvider {
                         .gpu_prover_queue_dal()
                         .update_prover_instance_from_full_to_available(
                             self.address.clone(),
-                            assembly_queue.capacity() - assembly_queue.size(),
+                            queue_free_slots,
                         );
                 }
+                vlog::info!(
+                    "Queue free slot {} for capacity {}",
+                    queue_free_slots,
+                    assembly_queue.capacity()
+                );
+                metrics::histogram!(
+                    "server.prover.queue_free_slots",
+                    queue_free_slots as f64,
+                    "queue_capacity" => assembly_queue.capacity().to_string()
+                );
                 Some(Box::new(Cursor::new(blob)))
             }
             Err(_) => None,

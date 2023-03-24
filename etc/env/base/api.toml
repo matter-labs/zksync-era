@@ -42,6 +42,7 @@ account_pks=[
 ]
 estimate_gas_scale_factor=1.2
 estimate_gas_acceptable_overestimation=1000
+max_tx_size=1000000
 # Configuration for the explorer API
 [api.explorer]
 # Port for the explorer API.

@@ -1,4 +1,3 @@
-use std::convert::TryInto;
 use std::time::Instant;
 
 use itertools::Itertools;
@@ -9,11 +8,11 @@ use zksync_types::{
         TransactionVariant,
     },
     l2::{L2Tx, TransactionType},
-    transaction_request::CallRequest,
+    transaction_request::{l2_tx_from_call_req, CallRequest},
     utils::decompose_full_nonce,
     web3::types::SyncState,
-    AccountTreeId, Bytes, L2ChainId, MiniblockNumber, StorageKey, FAIR_L2_GAS_PRICE, H256,
-    L2_ETH_TOKEN_ADDRESS, MAX_GAS_PER_PUBDATA_BYTE, U256,
+    AccountTreeId, Bytes, L2ChainId, MiniblockNumber, StorageKey, H256, L2_ETH_TOKEN_ADDRESS,
+    MAX_GAS_PER_PUBDATA_BYTE, U256,
 };
 
 use zksync_web3_decl::{
@@ -21,9 +20,10 @@ use zksync_web3_decl::{
     types::{Address, Block, Filter, FilterChanges, Log, TypedFilter, U64},
 };
 
-use crate::api_server::execution_sandbox::execute_tx_eth_call;
-use crate::api_server::web3::backend_jsonrpc::error::internal_error;
-use crate::api_server::web3::state::RpcState;
+use crate::api_server::{
+    execution_sandbox::execute_tx_eth_call, web3::backend_jsonrpc::error::internal_error,
+    web3::state::RpcState,
+};
 
 use zksync_utils::u256_to_h256;
 
@@ -80,13 +80,15 @@ impl EthNamespace {
 
         let block = block.unwrap_or(BlockId::Number(BlockNumber::Pending));
         #[cfg(not(feature = "openzeppelin_tests"))]
-        let tx: L2Tx = request.try_into().map_err(Web3Error::SerializationError)?;
+        let tx = l2_tx_from_call_req(request, self.state.config.api.web3_json_rpc.max_tx_size)?;
 
         #[cfg(feature = "openzeppelin_tests")]
         let tx: L2Tx = self
-            .convert_evm_like_deploy_requests(request.into())?
-            .try_into()
-            .map_err(Web3Error::SerializationError)?;
+            .convert_evm_like_deploy_requests(tx_req_from_call_req(
+                request,
+                self.state.config.api.web3_json_rpc.max_tx_size,
+            )?)?
+            .try_into()?;
 
         let enforced_base_fee = Some(tx.common_data.fee.max_fee_per_gas.as_u64());
         let result = execute_tx_eth_call(
@@ -98,8 +100,9 @@ impl EthNamespace {
                 .0
                 .gas_adjuster
                 .estimate_effective_gas_price(),
-            FAIR_L2_GAS_PRICE,
+            self.state.tx_sender.0.state_keeper_config.fair_l2_gas_price,
             enforced_base_fee,
+            &self.state.tx_sender.0.playground_base_system_contracts,
         )?;
 
         let mut res_bytes = match result.revert_reason {
@@ -136,13 +139,16 @@ impl EthNamespace {
         let is_eip712 = request.eip712_meta.is_some();
 
         #[cfg(not(feature = "openzeppelin_tests"))]
-        let mut tx: L2Tx = request.try_into().map_err(Web3Error::SerializationError)?;
+        let mut tx: L2Tx =
+            l2_tx_from_call_req(request, self.state.config.api.web3_json_rpc.max_tx_size)?;
 
         #[cfg(feature = "openzeppelin_tests")]
         let mut tx: L2Tx = self
-            .convert_evm_like_deploy_requests(request.into())?
-            .try_into()
-            .map_err(Web3Error::SerializationError)?;
+            .convert_evm_like_deploy_requests(tx_req_from_call_req(
+                request,
+                self.state.config.api.web3_json_rpc.max_tx_size,
+            )?)?
+            .try_into()?;
 
         // The user may not include the proper transaction type during the estimation of
         // the gas fee. However, it is needed for the bootloader checks to pass properly.
@@ -174,7 +180,7 @@ impl EthNamespace {
         let fee = self
             .state
             .tx_sender
-            .get_txs_fee_in_wei(tx, scale_factor, acceptable_overestimation)
+            .get_txs_fee_in_wei(tx.into(), scale_factor, acceptable_overestimation)
             .map_err(|err| Web3Error::SubmitTransactionError(err.to_string()))?;
 
         metrics::histogram!("api.web3.call", start.elapsed(), "method" => "estimate_gas");
@@ -410,13 +416,35 @@ impl EthNamespace {
         let start = Instant::now();
         let endpoint_name = "get_transaction";
 
-        let transaction = self
+        let mut transaction = self
             .state
             .connection_pool
             .access_storage_blocking()
             .transactions_web3_dal()
             .get_transaction(id, L2ChainId(self.state.config.chain.eth.zksync_network_id))
             .map_err(|err| internal_error(endpoint_name, err));
+
+        if let Some(proxy) = &self.state.tx_sender.0.proxy {
+            // We're running an external node - check the proxy cache in
+            // case the transaction was proxied but not yet synced back to us
+            if let Ok(Some(tx)) = &transaction {
+                // If the transaction is already in the db, remove it from cache
+                proxy.forget_tx(tx.hash)
+            } else {
+                if let TransactionId::Hash(hash) = id {
+                    // If the transaction is not in the db, check the cache
+                    if let Some(tx) = proxy.find_tx(hash) {
+                        transaction = Ok(Some(tx.into()));
+                    }
+                }
+                if !matches!(transaction, Ok(Some(_))) {
+                    // If the transaction is not in the db or cache, query main node
+                    transaction = proxy
+                        .request_tx(id)
+                        .map_err(|err| internal_error(endpoint_name, err));
+                }
+            }
+        }
 
         metrics::histogram!("api.web3.call", start.elapsed(), "method" => endpoint_name);
         transaction
@@ -704,14 +732,15 @@ impl EthNamespace {
         };
         let mut eip712_meta = Eip712Meta::default();
         eip712_meta.gas_per_pubdata = U256::from(MAX_GAS_PER_PUBDATA_BYTE);
+        let fair_l2_gas_price = self.state.tx_sender.0.state_keeper_config.fair_l2_gas_price;
         let transaction_request = TransactionRequest {
             nonce,
             from: Some(transaction_request.from),
             to: transaction_request.to,
             value: transaction_request.value.unwrap_or(U256::from(0)),
-            gas_price: U256::from(FAIR_L2_GAS_PRICE),
+            gas_price: U256::from(fair_l2_gas_price),
             gas: transaction_request.gas.unwrap(),
-            max_priority_fee_per_gas: Some(U256::from(FAIR_L2_GAS_PRICE)),
+            max_priority_fee_per_gas: Some(U256::from(fair_l2_gas_price)),
             input: transaction_request.data.unwrap_or_default(),
             v: None,
             r: None,

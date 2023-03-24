@@ -6,10 +6,9 @@ use std::rc::Rc;
 use std::time::Instant;
 use vm::zk_evm::bitflags::_core::cell::RefCell;
 use vm::zk_evm::ethereum_types::H256;
-use vm::{StorageOracle, MAX_CYCLES_FOR_TX};
+use vm::{memory::SimpleMemory, StorageOracle, MAX_CYCLES_FOR_TX};
 use zksync_config::configs::WitnessGeneratorConfig;
 use zksync_config::constants::BOOTLOADER_ADDRESS;
-use zksync_contracts::{read_proved_block_bootloader_bytecode, read_sys_contract_bytecode};
 use zksync_dal::ConnectionPool;
 use zksync_object_store::gcs_utils::{
     basic_circuits_blob_url, basic_circuits_inputs_blob_url, merkle_tree_paths_blob_url,
@@ -35,7 +34,6 @@ use zksync_types::{
     },
     Address, L1BatchNumber, U256,
 };
-use zksync_utils::bytecode::hash_bytecode;
 use zksync_utils::{bytes_to_chunks, h256_to_u256, u256_to_h256};
 
 use crate::db_storage_provider::DbStorageProvider;
@@ -115,7 +113,7 @@ pub fn update_database(
         );
 
     transaction.commit_blocking();
-    track_witness_generation_stage(block_number, started_at, AggregationRound::BasicCircuits);
+    track_witness_generation_stage(started_at, AggregationRound::BasicCircuits);
 }
 
 pub async fn get_artifacts(
@@ -202,9 +200,14 @@ pub fn build_basic_circuits_witness_generator_input(
         .blocks_dal()
         .get_block_header(block_number - 1)
         .unwrap();
+    let previous_block_hash = connection
+        .blocks_dal()
+        .get_block_state_root(block_number - 1)
+        .expect("cannot generate witness before the root hash is computed");
     BasicCircuitWitnessGeneratorInput {
         block_number,
         previous_block_timestamp: previous_block_header.timestamp,
+        previous_block_hash,
         block_timestamp: block_header.timestamp,
         used_bytecodes_hashes: block_header.used_contract_hashes,
         initial_heap_content: block_header.initial_bootloader_contents,
@@ -222,33 +225,47 @@ pub fn generate_witness(
     SchedulerCircuitInstanceWitness<Bn256>,
 ) {
     let mut connection = connection_pool.access_storage_blocking();
-
-    let account_bytecode = read_sys_contract_bytecode("", "DefaultAccount");
-    let account_code_hash = h256_to_u256(hash_bytecode(&account_bytecode));
-    let bootloader_code_bytes = read_proved_block_bootloader_bytecode();
-    let bootloader_code_hash = h256_to_u256(hash_bytecode(&bootloader_code_bytes));
+    let header = connection
+        .blocks_dal()
+        .get_block_header(input.block_number)
+        .unwrap();
+    let bootloader_code_bytes = connection
+        .storage_dal()
+        .get_factory_dep(header.base_system_contracts_hashes.bootloader)
+        .expect("Bootloader bytecode should exist");
     let bootloader_code = bytes_to_chunks(&bootloader_code_bytes);
+    let account_bytecode_bytes = connection
+        .storage_dal()
+        .get_factory_dep(header.base_system_contracts_hashes.default_aa)
+        .expect("Default aa bytecode should exist");
+    let account_bytecode = bytes_to_chunks(&account_bytecode_bytes);
     let bootloader_contents = expand_bootloader_contents(input.initial_heap_content);
+    let account_code_hash = h256_to_u256(header.base_system_contracts_hashes.default_aa);
 
     let hashes: HashSet<H256> = input
         .used_bytecodes_hashes
         .iter()
         // SMA-1555: remove this hack once updated to the latest version of zkevm_test_harness
-        .filter(|&&hash| hash != bootloader_code_hash)
+        .filter(|&&hash| hash != h256_to_u256(header.base_system_contracts_hashes.bootloader))
         .map(|hash| u256_to_h256(*hash))
         .collect();
 
     let mut used_bytecodes = connection.storage_dal().get_factory_deps(&hashes);
     if input.used_bytecodes_hashes.contains(&account_code_hash) {
-        used_bytecodes.insert(account_code_hash, bytes_to_chunks(&account_bytecode));
+        used_bytecodes.insert(account_code_hash, account_bytecode);
     }
-
-    assert_eq!(
-        hashes.len(),
-        used_bytecodes.len(),
-        "{} factory deps are not found in DB",
-        hashes.len() - used_bytecodes.len()
-    );
+    let factory_dep_bytecode_hashes: HashSet<H256> = used_bytecodes
+        .clone()
+        .keys()
+        .map(|&hash| u256_to_h256(hash))
+        .collect();
+    let missing_deps: HashSet<_> = hashes
+        .difference(&factory_dep_bytecode_hashes)
+        .cloned()
+        .collect();
+    if !missing_deps.is_empty() {
+        vlog::error!("{:?} factory deps are not found in DB", missing_deps);
+    }
 
     // `DbStorageProvider` was designed to be used in API, so it accepts miniblock numbers.
     // Probably, we should make it work with L1 batch numbers too.
@@ -257,10 +274,14 @@ pub fn generate_witness(
         .get_miniblock_range_of_l1_batch(input.block_number - 1)
         .expect("L1 batch should contain at least one miniblock");
     let db_storage_provider = DbStorageProvider::new(connection, last_miniblock_number, true);
-    let mut tree = PrecalculatedMerklePathsProvider::new(input.merkle_paths_input);
+    let mut tree = PrecalculatedMerklePathsProvider::new(
+        input.merkle_paths_input,
+        input.previous_block_hash.0.to_vec(),
+    );
 
     let storage_ptr: &mut dyn vm::storage::Storage = &mut StorageView::new(db_storage_provider);
     let storage_oracle = StorageOracle::new(Rc::new(RefCell::new(storage_ptr)));
+    let memory = SimpleMemory::default();
     let mut hasher = DefaultHasher::new();
     GEOMETRY_CONFIG.hash(&mut hasher);
     vlog::info!(
@@ -301,6 +322,7 @@ pub fn generate_witness(
         MAX_CYCLES_FOR_TX as usize,
         GEOMETRY_CONFIG,
         storage_oracle,
+        memory,
         &mut tree,
     )
 }
@@ -351,17 +373,17 @@ fn save_run_with_fixed_params_args_to_gcs(
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct RunWithFixedParamsInput {
-    l1_batch_number: u32,
-    last_miniblock_number: u32,
-    caller: Address,
-    entry_point_address: Address,
-    entry_point_code: Vec<[u8; 32]>,
-    initial_heap_content: Vec<u8>,
-    zk_porter_is_available: bool,
-    default_aa_code_hash: U256,
-    used_bytecodes: HashMap<U256, Vec<[u8; 32]>>,
-    ram_verification_queries: Vec<(u32, U256)>,
-    cycle_limit: usize,
-    geometry: GeometryConfig,
-    tree: PrecalculatedMerklePathsProvider,
+    pub l1_batch_number: u32,
+    pub last_miniblock_number: u32,
+    pub caller: Address,
+    pub entry_point_address: Address,
+    pub entry_point_code: Vec<[u8; 32]>,
+    pub initial_heap_content: Vec<u8>,
+    pub zk_porter_is_available: bool,
+    pub default_aa_code_hash: U256,
+    pub used_bytecodes: HashMap<U256, Vec<[u8; 32]>>,
+    pub ram_verification_queries: Vec<(u32, U256)>,
+    pub cycle_limit: usize,
+    pub geometry: GeometryConfig,
+    pub tree: PrecalculatedMerklePathsProvider,
 }

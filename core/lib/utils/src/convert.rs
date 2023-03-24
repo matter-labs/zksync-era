@@ -126,6 +126,17 @@ pub fn bytes_to_be_words(vec: Vec<u8>) -> Vec<U256> {
     vec.chunks(32).map(U256::from_big_endian).collect()
 }
 
+pub fn be_words_to_bytes(words: &[U256]) -> Vec<u8> {
+    words
+        .iter()
+        .flat_map(|w| {
+            let mut bytes = [0u8; 32];
+            w.to_big_endian(&mut bytes);
+            bytes
+        })
+        .collect()
+}
+
 pub fn u256_to_h256(num: U256) -> H256 {
     let mut bytes = [0u8; 32];
     num.to_big_endian(&mut bytes);

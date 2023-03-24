@@ -36,6 +36,8 @@ impl RestApi {
             .route("/network_stats", web::get().to(Self::network_stats))
             .route("/blocks", web::get().to(Self::block_pagination))
             .route("/block/{number}", web::get().to(Self::block_details))
+            .route("/l1_batches", web::get().to(Self::l1_batch_pagination))
+            .route("/l1_batch/{number}", web::get().to(Self::l1_batch_details))
             .route("/transactions", web::get().to(Self::transaction_pagination))
             .route(
                 "/transaction/{hash}",

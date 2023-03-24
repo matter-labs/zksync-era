@@ -10,11 +10,9 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 
 use serde::{Deserialize, Serialize};
-use zksync_contracts::{DEFAULT_ACCOUNT_CODE, PROVED_BLOCK_BOOTLOADER_CODE};
 
 use zksync_config::constants::ZKPORTER_IS_AVAILABLE;
 use zksync_mini_merkle_tree::mini_merkle_tree_root_hash;
-use zksync_utils::u256_to_h256;
 
 use crate::circuit::GEOMETRY_CONFIG;
 use crate::ethabi::Token;
@@ -67,27 +65,6 @@ pub struct BlockMetadata {
     pub aux_data_hash: H256,
     pub meta_parameters_hash: H256,
     pub pass_through_data_hash: H256,
-}
-
-impl BlockMetadata {
-    /// Mock metadata, exists only for tests.
-    #[doc(hidden)]
-    pub fn mock() -> Self {
-        Self {
-            root_hash: H256::zero(),
-            rollup_last_leaf_index: 1,
-            merkle_root_hash: H256::zero(),
-            initial_writes_compressed: vec![],
-            repeated_writes_compressed: vec![],
-            commitment: Default::default(),
-            l2_l1_messages_compressed: vec![],
-            l2_l1_merkle_root: H256::default(),
-            block_meta_params: BlockMetaParameters::default(),
-            aux_data_hash: Default::default(),
-            meta_parameters_hash: Default::default(),
-            pass_through_data_hash: Default::default(),
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -331,16 +308,6 @@ pub struct BlockMetaParameters {
     pub default_aa_code_hash: H256,
 }
 
-impl Default for BlockMetaParameters {
-    fn default() -> Self {
-        Self {
-            zkporter_is_available: ZKPORTER_IS_AVAILABLE,
-            bootloader_code_hash: u256_to_h256(PROVED_BLOCK_BOOTLOADER_CODE.hash),
-            default_aa_code_hash: u256_to_h256(DEFAULT_ACCOUNT_CODE.hash),
-        }
-    }
-}
-
 impl BlockMetaParameters {
     pub fn to_bytes(&self) -> Vec<u8> {
         const SERIALIZED_SIZE: usize = 4 + 1 + 32 + 32;
@@ -411,8 +378,14 @@ impl BlockCommitment {
         rollup_root_hash: H256,
         initial_writes: Vec<InitialStorageWrite>,
         repeated_writes: Vec<RepeatedStorageWrite>,
+        bootloader_code_hash: H256,
+        default_aa_code_hash: H256,
     ) -> Self {
-        let meta_parameters = BlockMetaParameters::default();
+        let meta_parameters = BlockMetaParameters {
+            zkporter_is_available: ZKPORTER_IS_AVAILABLE,
+            bootloader_code_hash,
+            default_aa_code_hash,
+        };
 
         Self {
             pass_through_data: BlockPassThroughData {

@@ -1,6 +1,6 @@
 use super::{SealCriterion, SealResolution, StateKeeperConfig};
 use zksync_types::block::BlockGasCount;
-use zksync_types::tx::ExecutionMetrics;
+use zksync_types::tx::tx_execution_info::{DeduplicatedWritesMetrics, ExecutionMetrics};
 
 /// Checks whether we should seal the block because we've run out of transaction slots.
 #[derive(Debug)]
@@ -16,6 +16,10 @@ impl SealCriterion for SlotsCriterion {
         _tx_execution_metrics: ExecutionMetrics,
         _block_gas_count: BlockGasCount,
         _tx_gas_count: BlockGasCount,
+        _block_included_txs_size: usize,
+        _tx_size: usize,
+        _block_writes_metrics: DeduplicatedWritesMetrics,
+        _tx_writes_metrics: DeduplicatedWritesMetrics,
     ) -> SealResolution {
         if tx_count >= config.transaction_slots {
             SealResolution::IncludeAndSeal
@@ -48,6 +52,10 @@ mod tests {
             Default::default(),
             Default::default(),
             Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
         );
         assert_eq!(almost_full_block_resolution, SealResolution::NoSeal);
 
@@ -55,6 +63,10 @@ mod tests {
             &config,
             Default::default(),
             config.transaction_slots,
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
             Default::default(),
             Default::default(),
             Default::default(),

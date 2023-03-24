@@ -17,7 +17,7 @@ pub async fn test_upgrade_contract() {
     let test_db_manager = TestDatabaseManager::new().await;
     let db = test_db_manager.get_db();
 
-    ensure_genesis_state(db.clone(), config.clone());
+    ensure_genesis_state(db.clone(), &config);
 
     println!("deploying contracts");
     let deploy_timer = Instant::now();

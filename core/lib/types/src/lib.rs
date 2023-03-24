@@ -5,6 +5,7 @@
 
 #![allow(clippy::upper_case_acronyms, clippy::derive_partial_eq_without_eq)]
 
+use fee::encoding_len;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 
@@ -36,6 +37,7 @@ pub mod l2_to_l1_log;
 pub mod priority_op_onchain_data;
 pub mod pubdata_packing;
 pub mod storage;
+pub mod storage_writes_deduplicator;
 pub mod system_contracts;
 pub mod tokens;
 pub mod tx;
@@ -44,11 +46,9 @@ pub mod vm_trace;
 pub mod api;
 pub mod eth_sender;
 pub mod helpers;
-pub mod log_query_sorter;
 pub mod proofs;
 pub mod transaction_request;
 pub mod utils;
-
 /// Denotes the first byte of the special zkSync's EIP-712-signed transaction.
 pub const EIP_712_TX_TYPE: u8 = 0x71;
 
@@ -64,11 +64,17 @@ pub const LEGACY_TX_TYPE: u8 = 0x0;
 /// Denotes the first byte of some legacy transaction, which type is unknown to the server.
 pub const PRIORITY_OPERATION_L2_TX_TYPE: u8 = 0xff;
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Transaction {
     pub common_data: ExecuteTransactionCommon,
     pub execute: Execute,
     pub received_timestamp_ms: u64,
+}
+
+impl std::fmt::Debug for Transaction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("Transaction").field(&self.hash()).finish()
+    }
 }
 
 impl PartialEq for Transaction {
@@ -109,9 +115,7 @@ impl Transaction {
             ExecuteTransactionCommon::L2(_) => "l2_transaction",
         }
     }
-}
 
-impl Transaction {
     pub fn hash(&self) -> H256 {
         match &self.common_data {
             ExecuteTransactionCommon::L1(data) => data.hash(),
@@ -127,11 +131,66 @@ impl Transaction {
         }
     }
 
+    /// Returns the payer for L2 transaction and 0 for L1 transactions
+    pub fn payer(&self) -> Address {
+        match &self.common_data {
+            ExecuteTransactionCommon::L1(data) => data.sender,
+            ExecuteTransactionCommon::L2(data) => {
+                let paymaster = data.paymaster_params.paymaster;
+                if paymaster == Address::default() {
+                    data.initiator_address
+                } else {
+                    paymaster
+                }
+            }
+        }
+    }
+
     pub fn gas_limit(&self) -> U256 {
         match &self.common_data {
             ExecuteTransactionCommon::L1(data) => data.gas_limit,
             ExecuteTransactionCommon::L2(data) => data.fee.gas_limit,
         }
+    }
+
+    pub fn max_fee_per_gas(&self) -> U256 {
+        match &self.common_data {
+            ExecuteTransactionCommon::L1(data) => data.max_fee_per_gas,
+            ExecuteTransactionCommon::L2(data) => data.fee.max_fee_per_gas,
+        }
+    }
+
+    pub fn gas_per_pubdata_byte_limit(&self) -> U256 {
+        match &self.common_data {
+            ExecuteTransactionCommon::L1(data) => data.gas_per_pubdata_limit,
+            ExecuteTransactionCommon::L2(data) => data.fee.gas_per_pubdata_limit,
+        }
+    }
+
+    // Returns how many slots it takes to encode the transaction
+    pub fn encoding_len(&self) -> usize {
+        let data_len = self.execute.calldata.len();
+        let factory_deps_len = self
+            .execute
+            .factory_deps
+            .as_ref()
+            .map(|deps| deps.len())
+            .unwrap_or_default();
+        let (signature_len, paymaster_input_len) = match &self.common_data {
+            ExecuteTransactionCommon::L1(_) => (0, 0),
+            ExecuteTransactionCommon::L2(l2_common_data) => (
+                l2_common_data.signature.len(),
+                l2_common_data.paymaster_params.paymaster_input.len(),
+            ),
+        };
+
+        encoding_len(
+            data_len as u64,
+            signature_len as u64,
+            factory_deps_len as u64,
+            paymaster_input_len as u64,
+            0,
+        )
     }
 }
 

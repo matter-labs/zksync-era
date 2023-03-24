@@ -330,6 +330,10 @@ impl From<StorageTransaction> for Transaction {
                 sender: Address::from_slice(&tx.initiator_address),
                 serial_id: PriorityOpId(tx.priority_op_id.unwrap() as u64),
                 gas_limit,
+                max_fee_per_gas: tx
+                    .max_fee_per_gas
+                    .map(bigdecimal_to_u256)
+                    .unwrap_or_default(),
                 to_mint,
                 refund_recipient,
                 // Using 1 for old transactions that did not have the necessary field stored

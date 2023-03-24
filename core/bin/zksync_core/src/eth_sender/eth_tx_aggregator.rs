@@ -5,10 +5,10 @@ use crate::gas_tracker::agg_block_base_cost;
 use std::cmp::max;
 use tokio::sync::watch;
 use zksync_config::configs::eth_sender::SenderConfig;
+use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{ConnectionPool, StorageProcessor};
-use zksync_types::aggregated_operations::AggregatedOperation;
-use zksync_types::eth_sender::EthTx;
-use zksync_types::Address;
+use zksync_eth_client::clients::http_client::EthereumClient;
+use zksync_types::{aggregated_operations::AggregatedOperation, eth_sender::EthTx, Address, H256};
 
 /// The component is responsible for aggregating l1 batches into eth_txs:
 /// Such as CommitBlocks, PublishProofBlocksOnchain and ExecuteBlock
@@ -39,8 +39,17 @@ impl EthTxAggregator {
         }
     }
 
-    pub async fn run(mut self, pool: ConnectionPool, stop_receiver: watch::Receiver<bool>) {
+    pub async fn run(
+        mut self,
+        pool: ConnectionPool,
+        eth_client: EthereumClient,
+        stop_receiver: watch::Receiver<bool>,
+    ) {
         loop {
+            let base_system_contracts_hashes = self
+                .get_l1_base_system_contracts_hashes(&eth_client)
+                .await
+                .unwrap();
             let mut storage = pool.access_storage().await;
 
             if *stop_receiver.borrow() {
@@ -48,22 +57,59 @@ impl EthTxAggregator {
                 break;
             }
 
-            if let Err(e) = self.loop_iteration(&mut storage).await {
+            if let Err(e) = self
+                .loop_iteration(&mut storage, base_system_contracts_hashes)
+                .await
+            {
                 // Web3 API request failures can cause this,
                 // and anything more important is already properly reported.
                 vlog::warn!("eth_sender error {:?}", e);
             }
 
-            tokio::time::sleep(self.config.tx_poll_period()).await;
+            tokio::time::sleep(self.config.aggregate_tx_poll_period()).await;
         }
     }
 
-    #[tracing::instrument(skip(self, storage))]
+    async fn get_l1_base_system_contracts_hashes(
+        &mut self,
+        eth_client: &EthereumClient,
+    ) -> Result<BaseSystemContractsHashes, ETHSenderError> {
+        let bootloader_code_hash: H256 = eth_client
+            .call_main_contract_function(
+                "getL2BootloaderBytecodeHash",
+                (),
+                None,
+                Default::default(),
+                None,
+            )
+            .await?;
+
+        let default_account_code_hash: H256 = eth_client
+            .call_main_contract_function(
+                "getL2DefaultAccountBytecodeHash",
+                (),
+                None,
+                Default::default(),
+                None,
+            )
+            .await?;
+        Ok(BaseSystemContractsHashes {
+            bootloader: bootloader_code_hash,
+            default_aa: default_account_code_hash,
+        })
+    }
+
+    #[tracing::instrument(skip(self, storage, base_system_contracts_hashes))]
     async fn loop_iteration(
         &mut self,
         storage: &mut StorageProcessor<'_>,
+        base_system_contracts_hashes: BaseSystemContractsHashes,
     ) -> Result<(), ETHSenderError> {
-        if let Some(agg_op) = self.aggregator.get_next_ready_operation(storage).await {
+        if let Some(agg_op) = self
+            .aggregator
+            .get_next_ready_operation(storage, base_system_contracts_hashes)
+            .await
+        {
             let tx = self.save_eth_tx(storage, &agg_op).await?;
             Self::log_eth_tx_saving(storage, agg_op, &tx).await;
         }

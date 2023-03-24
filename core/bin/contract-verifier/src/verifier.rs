@@ -117,9 +117,12 @@ impl ContractVerifier {
 
         let zksolc = ZkSolc::new(zksolc_path, solc_path);
 
-        let output = time::timeout(config.compilation_timeout(), zksolc.async_compile(&input))
-            .await
-            .map_err(|_| ContractVerifierError::CompilationTimeout)??;
+        let output = time::timeout(
+            config.compilation_timeout(),
+            zksolc.async_compile(&input, request.req.is_system),
+        )
+        .await
+        .map_err(|_| ContractVerifierError::CompilationTimeout)??;
 
         if let Some(errors) = output.get("errors") {
             let errors = errors.as_array().unwrap().clone();

@@ -44,9 +44,16 @@ pub async fn wait_for_tasks(task_futures: Vec<JoinHandle<()>>) {
 #[tokio::main]
 async fn main() {
     let opt = Opt::from_args();
-    vlog::init();
+    let sentry_guard = vlog::init();
+    match sentry_guard {
+        Some(_) => vlog::info!(
+            "Starting Sentry url: {}",
+            std::env::var("MISC_SENTRY_URL").unwrap(),
+        ),
+        None => vlog::info!("No sentry url configured"),
+    }
     let config: CircuitSynthesizerConfig = CircuitSynthesizerConfig::from_env();
-    let pool = ConnectionPool::new(Some(1), true);
+    let pool = ConnectionPool::new(None, true);
     let circuit_synthesizer = CircuitSynthesizer::new(config.clone());
 
     let (stop_sender, stop_receiver) = watch::channel(false);

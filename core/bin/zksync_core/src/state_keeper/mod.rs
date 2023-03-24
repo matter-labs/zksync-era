@@ -4,6 +4,7 @@ use tokio::sync::watch::Receiver;
 
 use zksync_config::constants::MAX_TXS_IN_BLOCK;
 use zksync_config::ZkSyncConfig;
+use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::ConnectionPool;
 use zksync_eth_client::EthInterface;
 
@@ -12,20 +13,18 @@ use self::io::MempoolIO;
 use crate::gas_adjuster::GasAdjuster;
 use crate::state_keeper::seal_criteria::SealManager;
 
-pub(crate) use self::{
-    keeper::ZkSyncStateKeeper, mempool_actor::MempoolFetcher, types::MempoolGuard,
-};
+pub use self::{keeper::ZkSyncStateKeeper, types::MempoolGuard};
 
-mod batch_executor;
+pub(crate) mod batch_executor;
 mod extractors;
-mod io;
+pub(crate) mod io;
 mod keeper;
 pub(crate) mod mempool_actor;
-pub(crate) mod seal_criteria;
+pub mod seal_criteria;
 #[cfg(test)]
 mod tests;
-mod types;
-mod updates;
+pub(crate) mod types;
+pub(crate) mod updates;
 
 pub(crate) fn start_state_keeper<E>(
     config: &ZkSyncConfig,
@@ -47,13 +46,19 @@ where
         pool.clone(),
         config.chain.state_keeper.reexecute_each_tx,
         config.chain.state_keeper.max_allowed_l2_tx_gas_limit.into(),
+        config.chain.state_keeper.validation_computational_gas_limit,
     );
     let io = MempoolIO::new(
         mempool,
         pool.clone(),
         config.chain.state_keeper.fee_account_addr,
+        config.chain.state_keeper.fair_l2_gas_price,
         config.chain.operations_manager.delay_interval(),
         gas_adjuster,
+        BaseSystemContractsHashes {
+            bootloader: config.chain.state_keeper.bootloader_hash,
+            default_aa: config.chain.state_keeper.default_aa_hash,
+        },
     );
 
     let sealer = SealManager::new(config.chain.state_keeper.clone());

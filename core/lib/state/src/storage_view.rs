@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use std::fmt::Debug;
-use zksync_types::{tokens::TokenInfo, Address, StorageKey, StorageValue, ZkSyncReadStorage, H256};
+use zksync_types::{StorageKey, StorageValue, ZkSyncReadStorage, H256};
 
 /// `StorageView` is buffer for `StorageLog`s between storage and transaction execution code.
 /// In order to commit transactions logs should be submitted
@@ -17,15 +17,11 @@ pub struct StorageView<S> {
     read_storage_keys: HashMap<StorageKey, StorageValue>,
     // Cache for initial/repeated writes. It's only valid within one L1 batch execution.
     read_initial_writes: HashMap<StorageKey, bool>,
-    deployed_contracts: HashMap<Address, Vec<u8>>,
-    added_tokens: Vec<TokenInfo>,
-    new_factory_deps: HashMap<H256, Vec<u8>>,
 
     pub storage_invocations: usize,
     pub new_storage_invocations: usize,
     pub get_value_storage_invocations: usize,
     pub set_value_storage_invocations: usize,
-    pub contract_load_invocations: usize,
 }
 
 impl<S: ZkSyncReadStorage> StorageView<S> {
@@ -35,12 +31,8 @@ impl<S: ZkSyncReadStorage> StorageView<S> {
             modified_storage_keys: HashMap::new(),
             read_storage_keys: HashMap::new(),
             read_initial_writes: HashMap::new(),
-            deployed_contracts: HashMap::new(),
-            new_factory_deps: HashMap::new(),
-            added_tokens: vec![],
             storage_invocations: 0,
             get_value_storage_invocations: 0,
-            contract_load_invocations: 0,
             set_value_storage_invocations: 0,
             new_storage_invocations: 0,
         }
@@ -108,29 +100,14 @@ impl<S: ZkSyncReadStorage> StorageView<S> {
         &self.modified_storage_keys
     }
 
-    pub fn save_token(&mut self, token: TokenInfo) {
-        self.added_tokens.push(token);
-    }
-
-    pub fn save_contract(&mut self, address: Address, bytecode: Vec<u8>) {
-        self.deployed_contracts.insert(address, bytecode);
-    }
-
-    pub fn load_contract(&mut self, address: Address) -> Option<Vec<u8>> {
-        self.contract_load_invocations += 1;
-        self.storage_handle
-            .load_contract(address)
-            .or_else(|| self.deployed_contracts.get(&address).cloned())
-    }
-
     pub fn load_factory_dep(&mut self, hash: H256) -> Option<Vec<u8>> {
-        self.storage_handle
-            .load_factory_dep(hash)
-            .or_else(|| self.new_factory_deps.get(&hash).cloned())
+        self.storage_handle.load_factory_dep(hash)
     }
 
-    pub fn save_factory_dep(&mut self, hash: H256, bytecode: Vec<u8>) {
-        self.new_factory_deps.insert(hash, bytecode);
+    pub fn get_cache_size(&self) -> usize {
+        self.modified_storage_keys.len() * std::mem::size_of::<(StorageKey, StorageValue)>()
+            + self.read_initial_writes.len() * std::mem::size_of::<(StorageKey, bool)>()
+            + self.read_storage_keys.len() * std::mem::size_of::<(StorageKey, StorageValue)>()
     }
 }
 
@@ -141,7 +118,7 @@ mod test {
     use tempfile::TempDir;
     use zksync_storage::db::Database;
     use zksync_storage::RocksDB;
-    use zksync_types::{AccountTreeId, H256};
+    use zksync_types::{AccountTreeId, Address, H256};
     use zksync_utils::u32_to_h256;
 
     #[test]

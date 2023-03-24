@@ -9,7 +9,7 @@ use zk_evm::{
     },
 };
 
-use crate::history_recorder::AppDataFrameManagerWithHistory;
+use crate::history_recorder::{AppDataFrameManagerWithHistory, FrameManager, WithHistory};
 
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct InMemoryEventSink {
@@ -118,6 +118,24 @@ impl InMemoryEventSink {
         }
 
         (events, l1_messages)
+    }
+
+    pub fn get_size(&self) -> usize {
+        self.frames_stack
+            .inner()
+            .get_frames()
+            .iter()
+            .map(|frame| {
+                (frame.forward.len() + frame.rollbacks.len()) * std::mem::size_of::<LogQuery>()
+            })
+            .sum::<usize>()
+    }
+
+    pub fn get_history_size(&self) -> usize {
+        self.frames_stack.history().len()
+            * std::mem::size_of::<
+                <FrameManager<ApplicationData<LogQuery>> as WithHistory>::HistoryRecord,
+            >()
     }
 }
 

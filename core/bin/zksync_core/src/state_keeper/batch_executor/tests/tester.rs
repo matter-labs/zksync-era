@@ -2,14 +2,17 @@
 //! Contains helper functionality to initialize test context and perform tests without too much boilerplate.
 
 use crate::genesis::chain_schema_genesis;
-use crate::state_keeper::batch_executor::BatchExecutorHandle;
+use crate::state_keeper::{
+    batch_executor::BatchExecutorHandle,
+    io::L1BatchParams,
+    tests::{default_block_properties, BASE_SYSTEM_CONTRACTS},
+};
 use tempfile::TempDir;
 use vm::{
     test_utils::{
         get_create_zksync_address, get_deploy_tx, mock_loadnext_gas_burn_call,
         mock_loadnext_test_call,
     },
-    utils::default_block_properties,
     vm_with_bootloader::{BlockContext, BlockContextMode, DerivedBlockContext},
     zk_evm::{
         block_properties::BlockProperties,
@@ -40,7 +43,9 @@ const CHAIN_ID: L2ChainId = L2ChainId(270);
 #[derive(Debug)]
 pub(super) struct TestConfig {
     pub(super) reexecute_each_tx: bool,
+    pub(super) vm_gas_limit: Option<u32>,
     pub(super) max_allowed_tx_gas_limit: u32,
+    pub(super) validation_computational_gas_limit: u32,
 }
 
 impl TestConfig {
@@ -50,7 +55,12 @@ impl TestConfig {
 
         Self {
             reexecute_each_tx: true,
+            vm_gas_limit: None,
             max_allowed_tx_gas_limit: config.chain.state_keeper.max_allowed_l2_tx_gas_limit,
+            validation_computational_gas_limit: config
+                .chain
+                .state_keeper
+                .validation_computational_gas_limit,
         }
     }
 }
@@ -79,6 +89,10 @@ impl Tester {
         }
     }
 
+    pub(super) fn set_config(&mut self, config: TestConfig) {
+        self.config = config;
+    }
+
     /// Creates a batch executor instance.
     /// This function intentionally uses sensible defaults to not introduce boilerplate.
     pub(super) fn create_batch_executor(&self) -> BatchExecutorHandle {
@@ -96,13 +110,18 @@ impl Tester {
             ));
 
         // We don't use the builder because it would require us to clone the `ConnectionPool`, which is forbidden
-        // for the test pool (see the doc-comment on `TestPool` for detauls).
+        // for the test pool (see the doc-comment on `TestPool` for details).
         BatchExecutorHandle::new(
             self.config.reexecute_each_tx,
             self.config.max_allowed_tx_gas_limit.into(),
-            block_context,
-            block_properties,
+            self.config.validation_computational_gas_limit,
             secondary_storage,
+            L1BatchParams {
+                context_mode: block_context,
+                properties: block_properties,
+                base_system_contracts: BASE_SYSTEM_CONTRACTS.clone(),
+            },
+            self.config.vm_gas_limit,
         )
     }
 
@@ -138,7 +157,13 @@ impl Tester {
         let mut storage = self.pool.access_storage_blocking();
         if storage.blocks_dal().is_genesis_needed() {
             let chain_id = H256::from_low_u64_be(CHAIN_ID.0 as u64);
-            chain_schema_genesis(&mut storage, self.fee_account, chain_id).await;
+            chain_schema_genesis(
+                &mut storage,
+                self.fee_account,
+                chain_id,
+                BASE_SYSTEM_CONTRACTS.clone(),
+            )
+            .await;
         }
     }
 
@@ -223,6 +248,15 @@ impl Account {
     /// Returns a valid `execute` transaction initiated from L1.
     /// Does not increment nonce.
     pub(super) fn l1_execute(&mut self, serial_id: PriorityOpId) -> Transaction {
+        let execute = Execute {
+            contract_address: Address::random(),
+            value: Default::default(),
+            calldata: vec![],
+            factory_deps: None,
+        };
+
+        let max_fee_per_gas = U256::from(1u32);
+        let gas_limit = U256::from(100_100);
         let priority_op_data = L1TxCommonData {
             sender: self.address(),
             canonical_tx_hash: H256::from_low_u64_be(serial_id.0),
@@ -230,21 +264,15 @@ impl Account {
             deadline_block: 100000,
             layer_2_tip_fee: U256::zero(),
             full_fee: U256::zero(),
-            gas_limit: U256::from(100_100),
+            gas_limit,
+            max_fee_per_gas,
             op_processing_type: OpProcessingType::Common,
             priority_queue_type: PriorityQueueType::Deque,
             eth_hash: H256::random(),
             eth_block: 1,
             gas_per_pubdata_limit: U256::from(1_000_000),
-            to_mint: U256::zero(),
+            to_mint: gas_limit * max_fee_per_gas + execute.value,
             refund_recipient: self.address(),
-        };
-
-        let execute = Execute {
-            contract_address: Address::random(),
-            value: Default::default(),
-            calldata: vec![],
-            factory_deps: None,
         };
 
         let tx = L1Tx {
@@ -284,13 +312,14 @@ impl Account {
         &mut self,
         address: Address,
         writes: u32,
+        gas_limit: u32,
     ) -> Transaction {
         // For each iteration of the expensive contract, there are two slots that are updated:
         // the length of the vector and the new slot with the element itself.
         let minimal_fee =
             2 * DEFAULT_GAS_PER_PUBDATA * writes * INITIAL_STORAGE_WRITE_PUBDATA_BYTES as u32;
 
-        let fee = fee(minimal_fee + 500_000_000);
+        let fee = fee(minimal_fee + gas_limit);
 
         let tx = mock_loadnext_test_call(
             self.pk,

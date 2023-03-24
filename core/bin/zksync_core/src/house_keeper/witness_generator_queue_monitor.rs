@@ -33,7 +33,9 @@ impl PeriodicJob for WitnessGeneratorStatsReporter {
     fn run_routine_task(&mut self, connection_pool: ConnectionPool) {
         let stats = Self::get_job_statistics(connection_pool);
 
-        vlog::info!("Found {} free witness generators jobs", stats.queued);
+        if stats.queued > 0 {
+            vlog::info!("Found {} free witness generators jobs", stats.queued);
+        }
 
         metrics::gauge!(
             format!("server.{}.jobs", WITNESS_GENERATOR_SERVICE_NAME),

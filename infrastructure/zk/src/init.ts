@@ -1,5 +1,6 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
+import fs from 'fs';
 import * as utils from './utils';
 
 import * as server from './server';
@@ -37,8 +38,9 @@ export async function init(skipSubmodulesCheckout: boolean) {
     await announced('Checking PLONK setup', run.plonkSetup());
     await announced('Building contracts', contract.build());
     await announced('Deploying localhost ERC20 tokens', run.deployERC20('dev'));
-    await announced('Running server genesis setup', server.genesis_from_sources());
+    await announced('Running server genesis setup', server.genesisFromSources());
     await announced('Deploying L1 contracts', contract.redeployL1([]));
+    await announced('Initializing validator', contract.initializeValidator());
     await announced('Initialize L1 allow list', contract.initializeL1AllowList());
     await announced('Deploying L2 contracts', contract.deployL2());
 }
@@ -54,8 +56,9 @@ export async function reinit() {
     await announced('Clean rocksdb', clean('db'));
     await announced('Clean backups', clean('backups'));
     await announced('Building contracts', contract.build());
-    await announced('Running server genesis setup', server.genesis_from_sources());
+    await announced('Running server genesis setup', server.genesisFromSources());
     await announced('Deploying L1 contracts', contract.redeployL1([]));
+    await announced('Initializing validator', contract.initializeValidator());
     await announced('Initializing L1 Allow list', contract.initializeL1AllowList());
     await announced('Deploying L2 contracts', contract.deployL2());
 }
@@ -64,8 +67,9 @@ export async function reinit() {
 export async function lightweightInit() {
     await announced('Clean rocksdb', clean('db'));
     await announced('Clean backups', clean('backups'));
-    await announced('Running server genesis setup', server.genesis_from_binary());
+    await announced('Running server genesis setup', server.genesisFromBinary());
     await announced('Deploying L1 contracts', contract.redeployL1([]));
+    await announced('Initializing validator', contract.initializeValidator());
     await announced('Initializing L1 Allow list', contract.initializeL1AllowList());
     await announced('Deploying L2 contracts', contract.deployL2());
 }
@@ -87,9 +91,9 @@ async function announced(fn: string, promise: Promise<void> | void) {
     console.log(`${successLine} ${timestampLine}`);
 }
 
-async function createVolumes() {
-    await utils.exec('mkdir -p $ZKSYNC_HOME/volumes/geth');
-    await utils.exec('mkdir -p $ZKSYNC_HOME/volumes/postgres');
+function createVolumes() {
+    fs.mkdirSync(`${process.env.ZKSYNC_HOME}/volumes/geth`, { recursive: true });
+    fs.mkdirSync(`${process.env.ZKSYNC_HOME}/volumes/postgres`, { recursive: true });
 }
 
 async function submoduleUpdate() {

@@ -3,7 +3,7 @@ use bigdecimal::BigDecimal;
 use std::collections::HashMap;
 use zksync_types::{
     api::{BridgeAddresses, L2ToL1LogProof, TransactionDetails, U64},
-    explorer_api::BlockDetails,
+    explorer_api::{BlockDetails, L1BatchDetails},
     fee::Fee,
     transaction_request::CallRequest,
     vm_trace::{ContractSourceDebugInfo, VmDebugTrace},
@@ -18,6 +18,11 @@ use zksync_web3_decl::{
 impl ZksNamespaceServer for ZksNamespace {
     fn estimate_fee(&self, req: CallRequest) -> RpcResult<Fee> {
         self.estimate_fee_impl(req)
+            .map_err(|err| CallError::from_std_error(err).into())
+    }
+
+    fn estimate_gas_l1_to_l2(&self, req: CallRequest) -> RpcResult<U256> {
+        self.estimate_l1_to_l2_gas_impl(req)
             .map_err(|err| CallError::from_std_error(err).into())
     }
 
@@ -108,6 +113,22 @@ impl ZksNamespaceServer for ZksNamespace {
 
     fn get_transaction_details(&self, hash: H256) -> RpcResult<Option<TransactionDetails>> {
         self.get_transaction_details_impl(hash)
+            .map_err(|err| CallError::from_std_error(err).into())
+    }
+
+    fn get_raw_block_transactions(
+        &self,
+        block_number: MiniblockNumber,
+    ) -> RpcResult<Vec<zksync_types::Transaction>> {
+        self.get_raw_block_transactions_impl(block_number)
+            .map_err(|err| CallError::from_std_error(err).into())
+    }
+
+    fn get_l1_batch_details(
+        &self,
+        batch_number: L1BatchNumber,
+    ) -> RpcResult<Option<L1BatchDetails>> {
+        self.get_l1_batch_details_impl(batch_number)
             .map_err(|err| CallError::from_std_error(err).into())
     }
 }

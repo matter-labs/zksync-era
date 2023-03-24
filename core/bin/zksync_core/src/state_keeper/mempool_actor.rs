@@ -35,6 +35,7 @@ impl MempoolFetcher {
         pool: ConnectionPool,
         remove_stuck_txs: bool,
         stuck_tx_timeout: Duration,
+        fair_l2_gas_price: u64,
         stop_receiver: watch::Receiver<bool>,
     ) {
         {
@@ -56,7 +57,7 @@ impl MempoolFetcher {
             let started_at = Instant::now();
             let mut storage = pool.access_storage().await;
             let mempool_info = self.mempool.get_mempool_info();
-            let l2_tx_filter = self.gas_adjuster.l2_tx_filter();
+            let l2_tx_filter = self.gas_adjuster.l2_tx_filter(fair_l2_gas_price);
 
             let (transactions, nonces) = storage.transactions_dal().sync_mempool(
                 mempool_info.stashed_accounts,

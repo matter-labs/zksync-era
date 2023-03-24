@@ -6,7 +6,7 @@ use zksync_types::api::{BridgeAddresses, L2ToL1LogProof, TransactionDetails};
 use zksync_types::transaction_request::CallRequest;
 use zksync_types::{
     api::U64,
-    explorer_api::BlockDetails,
+    explorer_api::{BlockDetails, L1BatchDetails},
     fee::Fee,
     vm_trace::{ContractSourceDebugInfo, VmDebugTrace},
     Address, H256, U256,
@@ -28,6 +28,9 @@ use zksync_types::{L1BatchNumber, MiniblockNumber};
 pub trait ZksNamespace {
     #[method(name = "estimateFee")]
     fn estimate_fee(&self, req: CallRequest) -> RpcResult<Fee>;
+
+    #[method(name = "zks_estimateGasL1ToL2")]
+    fn estimate_gas_l1_to_l2(&self, req: CallRequest) -> RpcResult<U256>;
 
     #[method(name = "getMainContract")]
     fn get_main_contract(&self) -> RpcResult<Address>;
@@ -92,4 +95,13 @@ pub trait ZksNamespace {
 
     #[method(name = "getTransactionDetails")]
     fn get_transaction_details(&self, hash: H256) -> RpcResult<Option<TransactionDetails>>;
+
+    #[method(name = "getRawBlockTransactions")]
+    fn get_raw_block_transactions(
+        &self,
+        block_number: MiniblockNumber,
+    ) -> RpcResult<Vec<zksync_types::Transaction>>;
+
+    #[method(name = "getL1BatchDetails")]
+    fn get_l1_batch_details(&self, batch: L1BatchNumber) -> RpcResult<Option<L1BatchDetails>>;
 }

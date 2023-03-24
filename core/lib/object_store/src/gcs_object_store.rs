@@ -1,29 +1,68 @@
-pub use cloud_storage;
-use cloud_storage::Client;
-use std::env;
-use std::error::Error;
+use std::fmt;
 use std::sync::mpsc::channel;
 use std::time::Instant;
+
+use google_cloud_default::WithAuthExt;
+use google_cloud_storage::client::{Client, ClientConfig};
+use google_cloud_storage::http::{
+    objects::{
+        delete::DeleteObjectRequest,
+        download::Range,
+        get::GetObjectRequest,
+        upload::{Media, UploadObjectRequest, UploadType},
+    },
+    Error::{self, HttpClient},
+};
+use http::StatusCode;
 use tokio;
 
 use zksync_config::ObjectStoreConfig;
 
-use crate::object_store::ObjectStore;
+use crate::object_store::{ObjectStore, ObjectStoreError};
 
-#[derive(Debug)]
 pub struct GoogleCloudStorage {
     client: Client,
     bucket_prefix: String,
 }
+
+// we need to implement custom Debug for GoogleCloudStorage because
+// `google_cloud_storage::client::Client` type does not implements debug.
+impl fmt::Debug for GoogleCloudStorage {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("GoogleCloudStorage")
+            .field("bucket_prefix", &self.bucket_prefix)
+            .finish()
+    }
+}
+
+impl From<Error> for ObjectStoreError {
+    fn from(error: Error) -> Self {
+        match error {
+            HttpClient(reqwest_error) => {
+                if let Some(status) = reqwest_error.status() {
+                    match status {
+                        StatusCode::NOT_FOUND => {
+                            ObjectStoreError::KeyNotFound(reqwest_error.to_string())
+                        }
+                        _ => ObjectStoreError::Other(reqwest_error.to_string()),
+                    }
+                } else {
+                    ObjectStoreError::Other(reqwest_error.to_string())
+                }
+            }
+            _ => ObjectStoreError::Other(error.to_string()),
+        }
+    }
+}
+
 pub const GOOGLE_CLOUD_STORAGE_OBJECT_STORE_TYPE: &str = "GoogleCloudStorage";
 
 impl GoogleCloudStorage {
-    pub fn new() -> Self {
-        let config = ObjectStoreConfig::from_env();
-        env::set_var("SERVICE_ACCOUNT", config.service_account_path);
+    pub fn new(client: Client) -> Self {
+        let object_store_config = ObjectStoreConfig::from_env();
         GoogleCloudStorage {
-            client: Client::new(),
-            bucket_prefix: ObjectStoreConfig::from_env().bucket_base_url,
+            client,
+            bucket_prefix: object_store_config.bucket_base_url,
         }
     }
 
@@ -35,7 +74,7 @@ impl GoogleCloudStorage {
         self,
         bucket: &'static str,
         key: String,
-    ) -> Result<Vec<u8>, cloud_storage::Error> {
+    ) -> Result<Vec<u8>, ObjectStoreError> {
         let started_at = Instant::now();
         vlog::info!(
             "Fetching data from GCS for key {} from bucket {}",
@@ -44,8 +83,15 @@ impl GoogleCloudStorage {
         );
         let blob = self
             .client
-            .object()
-            .download(&self.bucket_prefix, &self.filename(bucket, &key))
+            .download_object(
+                &GetObjectRequest {
+                    bucket: self.bucket_prefix.clone(),
+                    object: self.filename(bucket, &key),
+                    ..Default::default()
+                },
+                &Range::default(),
+                None,
+            )
             .await;
         vlog::info!(
             "Fetched data from GCS for key {} from bucket {} and it took: {:?}",
@@ -58,7 +104,7 @@ impl GoogleCloudStorage {
             started_at.elapsed(),
             "bucket" => bucket
         );
-        blob
+        blob.map_err(ObjectStoreError::from)
     }
 
     async fn put_async(
@@ -66,21 +112,24 @@ impl GoogleCloudStorage {
         bucket: &'static str,
         key: String,
         value: Vec<u8>,
-    ) -> Result<(), cloud_storage::Error> {
+    ) -> Result<(), ObjectStoreError> {
         let started_at = Instant::now();
         vlog::info!(
             "Storing data to GCS for key {} from bucket {}",
             &self.filename(bucket, &key),
             self.bucket_prefix
         );
+        let upload_type = UploadType::Simple(Media::new(self.filename(bucket, &key)));
         let object = self
             .client
-            .object()
-            .create(
-                &self.bucket_prefix,
+            .upload_object(
+                &UploadObjectRequest {
+                    bucket: self.bucket_prefix.clone(),
+                    ..Default::default()
+                },
                 value,
-                &self.filename(bucket, &key),
-                "binary/blob",
+                &upload_type,
+                None,
             )
             .await;
         vlog::info!(
@@ -94,29 +143,26 @@ impl GoogleCloudStorage {
             started_at.elapsed(),
             "bucket" => bucket
         );
-        object.map(drop)
+        object.map(drop).map_err(ObjectStoreError::from)
     }
 
-    async fn remove_async(
-        self,
-        bucket: &'static str,
-        key: String,
-    ) -> Result<(), cloud_storage::Error> {
+    async fn remove_async(self, bucket: &'static str, key: String) -> Result<(), ObjectStoreError> {
         vlog::info!(
             "Removing data from GCS for key {} from bucket {}",
             &self.filename(bucket, &key),
             self.bucket_prefix
         );
         self.client
-            .object()
-            .delete(&self.bucket_prefix, &self.filename(bucket, &key))
+            .delete_object(
+                &DeleteObjectRequest {
+                    bucket: self.bucket_prefix.clone(),
+                    object: self.filename(bucket, &key),
+                    ..Default::default()
+                },
+                None,
+            )
             .await
-    }
-}
-
-impl Default for GoogleCloudStorage {
-    fn default() -> Self {
-        Self::new()
+            .map_err(ObjectStoreError::from)
     }
 }
 
@@ -133,8 +179,11 @@ where
             .enable_time()
             .build()
             .unwrap();
-        let gcs = GoogleCloudStorage::new();
-        let result = runtime.block_on(Box::pin(query(gcs)));
+        let result = runtime.block_on(async move {
+            let gcs_config = ClientConfig::default().with_auth().await.unwrap();
+            let gcs = GoogleCloudStorage::new(Client::new(gcs_config));
+            query(gcs).await
+        });
         tx.send(result).unwrap();
     });
     rx.recv().unwrap()
@@ -144,14 +193,13 @@ impl ObjectStore for GoogleCloudStorage {
     type Bucket = &'static str;
     type Key = String;
     type Value = Vec<u8>;
-    type Error = Box<dyn Error>;
 
     fn get_store_type(&self) -> &'static str {
         GOOGLE_CLOUD_STORAGE_OBJECT_STORE_TYPE
     }
 
-    fn get(&self, bucket: Self::Bucket, key: Self::Key) -> Result<Self::Value, Self::Error> {
-        gcs_query(move |gcs| gcs.get_async(bucket, key)).map_err(|e| e.into())
+    fn get(&self, bucket: Self::Bucket, key: Self::Key) -> Result<Self::Value, ObjectStoreError> {
+        gcs_query(move |gcs| gcs.get_async(bucket, key))
     }
 
     fn put(
@@ -159,11 +207,11 @@ impl ObjectStore for GoogleCloudStorage {
         bucket: Self::Bucket,
         key: Self::Key,
         value: Self::Value,
-    ) -> Result<(), Self::Error> {
-        gcs_query(move |gcs| gcs.put_async(bucket, key, value)).map_err(|e| e.into())
+    ) -> Result<(), ObjectStoreError> {
+        gcs_query(move |gcs| gcs.put_async(bucket, key, value))
     }
 
-    fn remove(&mut self, bucket: Self::Bucket, key: Self::Key) -> Result<(), Self::Error> {
-        gcs_query(move |gcs| gcs.remove_async(bucket, key)).map_err(|e| e.into())
+    fn remove(&mut self, bucket: Self::Bucket, key: Self::Key) -> Result<(), ObjectStoreError> {
+        gcs_query(move |gcs| gcs.remove_async(bucket, key))
     }
 }

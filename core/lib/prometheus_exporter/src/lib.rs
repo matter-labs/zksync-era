@@ -15,6 +15,22 @@ pub fn run_prometheus_exporter(config: PrometheusConfig, use_pushgateway: bool) 
     let storage_interactions_per_call_buckets = [
         10.0, 100.0, 1000.0, 10000.0, 100000.0, 1000000.0, 10000000.0,
     ];
+    let vm_memory_per_call_buckets = [
+        1000.0,
+        10000.0,
+        100000.0,
+        500000.0,
+        1000000.0,
+        5000000.0,
+        10000000.0,
+        50000000.0,
+        100000000.0,
+        500000000.0,
+        1000000000.0,
+    ];
+    let percents_buckets = [
+        5.0, 10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0, 90.0, 100.0, 120.0,
+    ];
 
     let builder = if use_pushgateway {
         let job_id = "zksync-pushgateway";
@@ -46,12 +62,19 @@ pub fn run_prometheus_exporter(config: PrometheusConfig, use_pushgateway: bool) 
             &storage_interactions_per_call_buckets,
         )
         .unwrap()
+        .set_buckets_for_metric(
+            Matcher::Prefix("runtime_context.memory".to_owned()),
+            &vm_memory_per_call_buckets,
+        )
+        .unwrap()
         .set_buckets_for_metric(Matcher::Prefix("server.prover".to_owned()), &prover_buckets)
         .unwrap()
         .set_buckets_for_metric(
             Matcher::Prefix("server.witness_generator".to_owned()),
             &slow_latency_buckets,
         )
+        .unwrap()
+        .set_buckets_for_metric(Matcher::Prefix("vm.refund".to_owned()), &percents_buckets)
         .unwrap()
         .build()
         .expect("failed to install Prometheus recorder");

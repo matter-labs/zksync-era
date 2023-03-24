@@ -67,10 +67,15 @@ impl ZkSolc {
     pub async fn async_compile(
         &self,
         input: &CompilerInput,
+        is_system_flag: bool,
     ) -> Result<serde_json::Value, ContractVerifierError> {
         use tokio::io::AsyncWriteExt;
         let content = serde_json::to_vec(input).unwrap();
-        let mut child = tokio::process::Command::new(&self.zksolc_path)
+        let mut command = tokio::process::Command::new(&self.zksolc_path);
+        if is_system_flag {
+            command.arg("--system-mode");
+        }
+        let mut child = command
             .arg("--standard-json")
             .arg("--solc")
             .arg(self.solc_path.to_str().unwrap())

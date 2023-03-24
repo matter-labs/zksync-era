@@ -4,7 +4,9 @@ use zk_evm::vm_state::PrimitiveValue;
 use zk_evm::zkevm_opcode_defs::FatPointer;
 use zksync_types::U256;
 
-use crate::history_recorder::{IntFrameManagerWithHistory, MemoryWithHistory};
+use crate::history_recorder::{
+    FrameManager, IntFrameManagerWithHistory, MemoryWithHistory, MemoryWrapper, WithHistory,
+};
 use crate::oracles::OracleWithHistory;
 use crate::utils::{aux_heap_page_from_base, heap_page_from_base, stack_page_from_base};
 
@@ -116,6 +118,35 @@ impl SimpleMemory {
 
         result
     }
+
+    pub fn get_size(&self) -> usize {
+        // Hashmap memory overhead is neglected.
+        let memory_size = self
+            .memory
+            .inner()
+            .memory
+            .iter()
+            .map(|page| page.len() * std::mem::size_of::<(usize, PrimitiveValue)>())
+            .sum::<usize>();
+        let observable_pages_size = self
+            .observable_pages
+            .inner()
+            .get_frames()
+            .iter()
+            .map(|frame| frame.len() * std::mem::size_of::<u32>())
+            .sum::<usize>();
+
+        memory_size + observable_pages_size
+    }
+
+    pub fn get_history_size(&self) -> usize {
+        let memory_size = self.memory.history().len()
+            * std::mem::size_of::<<MemoryWrapper as WithHistory>::HistoryRecord>();
+        let observable_pages_size = self.observable_pages.history().len()
+            * std::mem::size_of::<<FrameManager<Vec<u32>> as WithHistory>::HistoryRecord>();
+
+        memory_size + observable_pages_size
+    }
 }
 
 impl Memory for SimpleMemory {
@@ -124,14 +155,27 @@ impl Memory for SimpleMemory {
         _monotonic_cycle_counter: u32,
         mut query: MemoryQuery,
     ) -> MemoryQuery {
-        // The following assertion works fine even when doing a read
-        // from heap through pointer, since `value_is_pointer` can only be set to
-        // `true` during memory writes.
-        if query.location.memory_type != MemoryType::Stack {
-            assert!(
-                !query.value_is_pointer,
-                "Pointers can only be stored on stack"
-            );
+        match query.location.memory_type {
+            MemoryType::Stack => {}
+            MemoryType::Heap | MemoryType::AuxHeap => {
+                // The following assertion works fine even when doing a read
+                // from heap through pointer, since `value_is_pointer` can only be set to
+                // `true` during memory writes.
+                assert!(
+                    !query.value_is_pointer,
+                    "Pointers can only be stored on stack"
+                );
+            }
+            MemoryType::FatPointer => {
+                assert!(!query.rw_flag);
+                assert!(
+                    !query.value_is_pointer,
+                    "Pointers can only be stored on stack"
+                );
+            }
+            MemoryType::Code => {
+                unreachable!("code should be through specialized query");
+            }
         }
 
         let page = query.location.page.0 as usize;
@@ -161,6 +205,7 @@ impl Memory for SimpleMemory {
         _monotonic_cycle_counter: u32,
         mut query: MemoryQuery,
     ) -> MemoryQuery {
+        assert_eq!(query.location.memory_type, MemoryType::Code);
         assert!(
             !query.value_is_pointer,
             "Pointers are not used for decommmits"
@@ -193,6 +238,7 @@ impl Memory for SimpleMemory {
         _monotonic_cycle_counter: u32,
         mut query: MemoryQuery,
     ) -> MemoryQuery {
+        assert_eq!(query.location.memory_type, MemoryType::Code);
         assert!(
             !query.value_is_pointer,
             "Pointers are not used for decommmits"
@@ -237,7 +283,7 @@ impl Memory for SimpleMemory {
         returndata_fat_pointer: FatPointer,
         timestamp: Timestamp,
     ) {
-        // Safe to unwrap here, since  `finish_global_frame` is never called with empty stack
+        // Safe to unwrap here, since `finish_global_frame` is never called with empty stack
         let current_observable_pages = self.observable_pages.drain_frame(timestamp);
         let returndata_page = returndata_fat_pointer.memory_page;
 

@@ -4,28 +4,31 @@
 
 use tempfile::TempDir;
 use vm::zk_evm::aux_structures::{LogQuery, Timestamp};
-use zksync_types::system_contracts::get_system_smart_contracts;
-use zksync_types::tokens::{TokenInfo, TokenMetadata, ETHEREUM_ADDRESS};
 use zksync_types::{
+    block::DeployedContract,
     block::{BlockGasCount, L1BatchHeader, MiniblockHeader},
-    get_code_key, Address, L1BatchNumber, MiniblockNumber, StorageLog, StorageLogKind,
-    StorageLogQueryType, H256,
+    commitment::{BlockCommitment, BlockMetadata},
+    get_code_key, get_system_context_init_logs,
+    system_contracts::get_system_smart_contracts,
+    tokens::{TokenInfo, TokenMetadata, ETHEREUM_ADDRESS},
+    zkevm_test_harness::witness::sort_storage_access::sort_storage_access_queries,
+    Address, L1BatchNumber, MiniblockNumber, StorageLog, StorageLogKind, H256,
 };
-use zksync_types::{get_system_context_init_logs, StorageLogQuery, FAIR_L2_GAS_PRICE};
-use zksync_utils::{bytecode::hash_bytecode, h256_to_u256, miniblock_hash};
+use zksync_utils::{be_words_to_bytes, bytecode::hash_bytecode, h256_to_u256, miniblock_hash};
 
 use zksync_config::ZkSyncConfig;
+use zksync_contracts::BaseSystemContracts;
 use zksync_merkle_tree::ZkSyncTree;
 
 use zksync_dal::StorageProcessor;
 use zksync_storage::db::Database;
 
 use zksync_storage::RocksDB;
-use zksync_types::block::DeployedContract;
-use zksync_types::commitment::{BlockCommitment, BlockMetadata};
-use zksync_types::log_query_sorter::sort_storage_access_queries;
 
-pub async fn ensure_genesis_state(storage: &mut StorageProcessor<'_>, config: ZkSyncConfig) {
+pub async fn ensure_genesis_state(
+    storage: &mut StorageProcessor<'_>,
+    config: &ZkSyncConfig,
+) -> H256 {
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
     let db = RocksDB::new(Database::MerkleTree, temp_dir.as_ref(), false);
     let mut tree = ZkSyncTree::new(db);
@@ -35,7 +38,13 @@ pub async fn ensure_genesis_state(storage: &mut StorageProcessor<'_>, config: Zk
     // return if genesis block was already processed
     if !transaction.blocks_dal().is_genesis_needed() {
         vlog::debug!("genesis is not needed!");
-        return;
+        return transaction
+            .blocks_dal()
+            .get_storage_block(L1BatchNumber(0))
+            .expect("genesis block is not found")
+            .hash
+            .map(|h| H256::from_slice(&h))
+            .expect("genesis block hash is empty");
     }
     vlog::info!("running regenesis");
 
@@ -43,7 +52,16 @@ pub async fn ensure_genesis_state(storage: &mut StorageProcessor<'_>, config: Zk
     let first_validator_address = config.eth_sender.sender.operator_commit_eth_addr;
     let chain_id = H256::from_low_u64_be(config.chain.eth.zksync_network_id as u64);
 
-    chain_schema_genesis(&mut transaction, first_validator_address, chain_id).await;
+    let base_system_contracts = BaseSystemContracts::load_from_disk();
+    let base_system_contracts_hash = base_system_contracts.hashes();
+
+    chain_schema_genesis(
+        &mut transaction,
+        first_validator_address,
+        chain_id,
+        base_system_contracts,
+    )
+    .await;
     vlog::info!("chain_schema_genesis is complete");
 
     let storage_logs =
@@ -58,6 +76,8 @@ pub async fn ensure_genesis_state(storage: &mut StorageProcessor<'_>, config: Zk
         genesis_root_hash,
         vec![],
         vec![],
+        config.chain.state_keeper.bootloader_hash,
+        config.chain.state_keeper.default_aa_hash,
     );
 
     operations_schema_genesis(
@@ -83,6 +103,36 @@ pub async fn ensure_genesis_state(storage: &mut StorageProcessor<'_>, config: Zk
         "CONTRACTS_GENESIS_ROLLUP_LEAF_INDEX={}",
         rollup_last_leaf_index
     );
+    println!(
+        "CHAIN_STATE_KEEPER_BOOTLOADER_HASH={:?}",
+        base_system_contracts_hash.bootloader
+    );
+    println!(
+        "CHAIN_STATE_KEEPER_DEFAULT_AA_HASH={:?}",
+        base_system_contracts_hash.default_aa
+    );
+
+    genesis_root_hash
+}
+
+// Default account and bootloader are not a regular system contracts
+// they have never been actually deployed anywhere,
+// They are the initial code that is fed into the VM upon its start.
+// Both are rather parameters of a block and not system contracts.
+// The code of the bootloader should not be deployed anywhere anywhere in the kernel space (i.e. addresses below 2^16)
+// because in this case we will have to worry about protecting it.
+fn insert_base_system_contracts_to_factory_deps(
+    storage: &mut StorageProcessor<'_>,
+    contracts: BaseSystemContracts,
+) {
+    let factory_deps = vec![contracts.bootloader, contracts.default_aa]
+        .iter()
+        .map(|c| (c.hash, be_words_to_bytes(&c.code)))
+        .collect();
+
+    storage
+        .storage_dal()
+        .insert_factory_deps(MiniblockNumber(0), factory_deps);
 }
 
 async fn insert_system_contracts(
@@ -116,7 +166,7 @@ async fn insert_system_contracts(
     // we don't produce proof for the genesis block,
     // but we still need to populate the table
     // to have the correct initial state of the merkle tree
-    let log_queries: Vec<StorageLogQuery> = storage_logs
+    let log_queries: Vec<LogQuery> = storage_logs
         .iter()
         .enumerate()
         .flat_map(|(tx_index, (_, storage_logs))| {
@@ -124,29 +174,22 @@ async fn insert_system_contracts(
                 .iter()
                 .enumerate()
                 .map(move |(log_index, storage_log)| {
-                    let log_type = match storage_log.kind {
-                        StorageLogKind::Read => StorageLogQueryType::Read,
-                        StorageLogKind::Write => StorageLogQueryType::InitialWrite,
-                    };
-                    StorageLogQuery {
-                        log_query: LogQuery {
-                            // Monotonically increasing Timestamp. Normally it's generated by the VM, but we don't have a VM in the genesis block.
-                            timestamp: Timestamp(((tx_index << 16) + log_index) as u32),
-                            tx_number_in_block: tx_index as u16,
-                            aux_byte: 0,
-                            shard_id: 0,
-                            address: *storage_log.key.address(),
-                            key: h256_to_u256(*storage_log.key.key()),
-                            read_value: h256_to_u256(H256::zero()),
-                            written_value: h256_to_u256(storage_log.value),
-                            rw_flag: storage_log.kind == StorageLogKind::Write,
-                            rollback: false,
-                            is_service: false,
-                        },
-                        log_type,
+                    LogQuery {
+                        // Monotonically increasing Timestamp. Normally it's generated by the VM, but we don't have a VM in the genesis block.
+                        timestamp: Timestamp(((tx_index << 16) + log_index) as u32),
+                        tx_number_in_block: tx_index as u16,
+                        aux_byte: 0,
+                        shard_id: 0,
+                        address: *storage_log.key.address(),
+                        key: h256_to_u256(*storage_log.key.key()),
+                        read_value: h256_to_u256(H256::zero()),
+                        written_value: h256_to_u256(storage_log.value),
+                        rw_flag: storage_log.kind == StorageLogKind::Write,
+                        rollback: false,
+                        is_service: false,
                     }
                 })
-                .collect::<Vec<StorageLogQuery>>()
+                .collect::<Vec<LogQuery>>()
         })
         .collect();
 
@@ -156,9 +199,9 @@ async fn insert_system_contracts(
         .storage_logs_dedup_dal()
         .insert_storage_logs(L1BatchNumber(0), &deduped_log_queries);
 
-    let (protective_reads, deduplicated_writes): (Vec<_>, Vec<_>) = deduped_log_queries
+    let (deduplicated_writes, protective_reads): (Vec<_>, Vec<_>) = deduped_log_queries
         .into_iter()
-        .partition(|log_query| log_query.log_type == StorageLogQueryType::Read);
+        .partition(|log_query| log_query.rw_flag);
     transaction
         .storage_logs_dedup_dal()
         .insert_protective_reads(L1BatchNumber(0), &protective_reads);
@@ -183,8 +226,14 @@ pub(crate) async fn chain_schema_genesis<'a>(
     storage: &mut StorageProcessor<'_>,
     first_validator_address: Address,
     chain_id: H256,
+    base_system_contracts: BaseSystemContracts,
 ) {
-    let mut zero_block_header = L1BatchHeader::new(L1BatchNumber(0), 0, first_validator_address);
+    let mut zero_block_header = L1BatchHeader::new(
+        L1BatchNumber(0),
+        0,
+        first_validator_address,
+        base_system_contracts.hashes(),
+    );
     zero_block_header.is_finished = true;
 
     let zero_miniblock_header = MiniblockHeader {
@@ -195,7 +244,8 @@ pub(crate) async fn chain_schema_genesis<'a>(
         l2_tx_count: 0,
         base_fee_per_gas: 0,
         l1_gas_price: 0,
-        l2_fair_gas_price: FAIR_L2_GAS_PRICE,
+        l2_fair_gas_price: 0,
+        base_system_contracts_hashes: base_system_contracts.hashes(),
     };
 
     let mut transaction = storage.start_transaction().await;
@@ -209,6 +259,8 @@ pub(crate) async fn chain_schema_genesis<'a>(
     transaction
         .blocks_dal()
         .mark_miniblocks_as_executed_in_l1_batch(L1BatchNumber(0));
+
+    insert_base_system_contracts_to_factory_deps(&mut transaction, base_system_contracts);
 
     let contracts = get_system_smart_contracts();
     insert_system_contracts(&mut transaction, contracts, chain_id).await;

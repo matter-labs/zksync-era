@@ -41,7 +41,6 @@ interface IZkSyncInterface extends ethers.utils.Interface {
     "getL2DefaultAccountBytecodeHash()": FunctionFragment;
     "getPendingGovernor()": FunctionFragment;
     "getPriorityQueueSize()": FunctionFragment;
-    "getPriorityTxMaxGasLimit()": FunctionFragment;
     "getProposedUpgradeHash()": FunctionFragment;
     "getProposedUpgradeTimestamp()": FunctionFragment;
     "getSecurityCouncil()": FunctionFragment;
@@ -52,6 +51,7 @@ interface IZkSyncInterface extends ethers.utils.Interface {
     "getUpgradeProposalState()": FunctionFragment;
     "getVerifier()": FunctionFragment;
     "getVerifierParams()": FunctionFragment;
+    "getpriorityTxMaxGasLimit()": FunctionFragment;
     "isApprovedBySecurityCouncil()": FunctionFragment;
     "isDiamondStorageFrozen()": FunctionFragment;
     "isEthWithdrawalFinalized(uint256,uint256)": FunctionFragment;
@@ -70,7 +70,6 @@ interface IZkSyncInterface extends ethers.utils.Interface {
     "requestL2Transaction(address,uint256,bytes,uint256,uint256,bytes[],address)": FunctionFragment;
     "revertBlocks(uint256)": FunctionFragment;
     "securityCouncilUpgradeApprove(bytes32)": FunctionFragment;
-    "serializeL2Transaction(uint256,uint256,address,address,bytes,uint256,uint256,bytes[],uint256,address)": FunctionFragment;
     "setL2BootloaderBytecodeHash(bytes32)": FunctionFragment;
     "setL2DefaultAccountBytecodeHash(bytes32)": FunctionFragment;
     "setPendingGovernor(address)": FunctionFragment;
@@ -202,10 +201,6 @@ interface IZkSyncInterface extends ethers.utils.Interface {
     values?: undefined
   ): string;
   encodeFunctionData(
-    functionFragment: "getPriorityTxMaxGasLimit",
-    values?: undefined
-  ): string;
-  encodeFunctionData(
     functionFragment: "getProposedUpgradeHash",
     values?: undefined
   ): string;
@@ -243,6 +238,10 @@ interface IZkSyncInterface extends ethers.utils.Interface {
   ): string;
   encodeFunctionData(
     functionFragment: "getVerifierParams",
+    values?: undefined
+  ): string;
+  encodeFunctionData(
+    functionFragment: "getpriorityTxMaxGasLimit",
     values?: undefined
   ): string;
   encodeFunctionData(
@@ -384,21 +383,6 @@ interface IZkSyncInterface extends ethers.utils.Interface {
     values: [BytesLike]
   ): string;
   encodeFunctionData(
-    functionFragment: "serializeL2Transaction",
-    values: [
-      BigNumberish,
-      BigNumberish,
-      string,
-      string,
-      BytesLike,
-      BigNumberish,
-      BigNumberish,
-      BytesLike[],
-      BigNumberish,
-      string
-    ]
-  ): string;
-  encodeFunctionData(
     functionFragment: "setL2BootloaderBytecodeHash",
     values: [BytesLike]
   ): string;
@@ -529,10 +513,6 @@ interface IZkSyncInterface extends ethers.utils.Interface {
     data: BytesLike
   ): Result;
   decodeFunctionResult(
-    functionFragment: "getPriorityTxMaxGasLimit",
-    data: BytesLike
-  ): Result;
-  decodeFunctionResult(
     functionFragment: "getProposedUpgradeHash",
     data: BytesLike
   ): Result;
@@ -570,6 +550,10 @@ interface IZkSyncInterface extends ethers.utils.Interface {
   ): Result;
   decodeFunctionResult(
     functionFragment: "getVerifierParams",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "getpriorityTxMaxGasLimit",
     data: BytesLike
   ): Result;
   decodeFunctionResult(
@@ -642,10 +626,6 @@ interface IZkSyncInterface extends ethers.utils.Interface {
   ): Result;
   decodeFunctionResult(
     functionFragment: "securityCouncilUpgradeApprove",
-    data: BytesLike
-  ): Result;
-  decodeFunctionResult(
-    functionFragment: "serializeL2Transaction",
     data: BytesLike
   ): Result;
   decodeFunctionResult(
@@ -1018,14 +998,6 @@ export class IZkSync extends Contract {
       0: BigNumber;
     }>;
 
-    getPriorityTxMaxGasLimit(overrides?: CallOverrides): Promise<{
-      0: BigNumber;
-    }>;
-
-    "getPriorityTxMaxGasLimit()"(overrides?: CallOverrides): Promise<{
-      0: BigNumber;
-    }>;
-
     getProposedUpgradeHash(overrides?: CallOverrides): Promise<{
       0: string;
     }>;
@@ -1118,6 +1090,14 @@ export class IZkSync extends Contract {
         1: string;
         2: string;
       };
+    }>;
+
+    getpriorityTxMaxGasLimit(overrides?: CallOverrides): Promise<{
+      0: BigNumber;
+    }>;
+
+    "getpriorityTxMaxGasLimit()"(overrides?: CallOverrides): Promise<{
+      0: BigNumber;
     }>;
 
     isApprovedBySecurityCouncil(overrides?: CallOverrides): Promise<{
@@ -1214,8 +1194,8 @@ export class IZkSync extends Contract {
 
     l2TransactionBaseCost(
       _gasPrice: BigNumberish,
-      _gasLimit: BigNumberish,
-      _gasPerPubdataByteLimit: BigNumberish,
+      _l2GasLimit: BigNumberish,
+      _l2GasPerPubdataByteLimit: BigNumberish,
       overrides?: CallOverrides
     ): Promise<{
       0: BigNumber;
@@ -1223,8 +1203,8 @@ export class IZkSync extends Contract {
 
     "l2TransactionBaseCost(uint256,uint256,uint256)"(
       _gasPrice: BigNumberish,
-      _gasLimit: BigNumberish,
-      _gasPerPubdataByteLimit: BigNumberish,
+      _l2GasLimit: BigNumberish,
+      _l2GasPerPubdataByteLimit: BigNumberish,
       overrides?: CallOverrides
     ): Promise<{
       0: BigNumber;
@@ -1440,8 +1420,8 @@ export class IZkSync extends Contract {
       _contractL2: string,
       _l2Value: BigNumberish,
       _calldata: BytesLike,
-      _gasLimit: BigNumberish,
-      _gasPerPubdataByteLimit: BigNumberish,
+      _l2GasLimit: BigNumberish,
+      _l2GasPerPubdataByteLimit: BigNumberish,
       _factoryDeps: BytesLike[],
       _refundRecipient: string,
       overrides?: PayableOverrides
@@ -1451,8 +1431,8 @@ export class IZkSync extends Contract {
       _contractL2: string,
       _l2Value: BigNumberish,
       _calldata: BytesLike,
-      _gasLimit: BigNumberish,
-      _gasPerPubdataByteLimit: BigNumberish,
+      _l2GasLimit: BigNumberish,
+      _l2GasPerPubdataByteLimit: BigNumberish,
       _factoryDeps: BytesLike[],
       _refundRecipient: string,
       overrides?: PayableOverrides
@@ -1477,104 +1457,6 @@ export class IZkSync extends Contract {
       _upgradeProposalHash: BytesLike,
       overrides?: Overrides
     ): Promise<ContractTransaction>;
-
-    serializeL2Transaction(
-      _txId: BigNumberish,
-      _l2Value: BigNumberish,
-      _sender: string,
-      _contractAddressL2: string,
-      _calldata: BytesLike,
-      _gasLimit: BigNumberish,
-      _gasPerPubdataByteLimit: BigNumberish,
-      _factoryDeps: BytesLike[],
-      _toMint: BigNumberish,
-      _refundRecipient: string,
-      overrides?: CallOverrides
-    ): Promise<{
-      0: {
-        txType: BigNumber;
-        from: BigNumber;
-        to: BigNumber;
-        gasLimit: BigNumber;
-        gasPerPubdataByteLimit: BigNumber;
-        maxFeePerGas: BigNumber;
-        maxPriorityFeePerGas: BigNumber;
-        paymaster: BigNumber;
-        nonce: BigNumber;
-        value: BigNumber;
-        reserved: [BigNumber, BigNumber, BigNumber, BigNumber];
-        data: string;
-        signature: string;
-        factoryDeps: BigNumber[];
-        paymasterInput: string;
-        reservedDynamic: string;
-        0: BigNumber;
-        1: BigNumber;
-        2: BigNumber;
-        3: BigNumber;
-        4: BigNumber;
-        5: BigNumber;
-        6: BigNumber;
-        7: BigNumber;
-        8: BigNumber;
-        9: BigNumber;
-        10: [BigNumber, BigNumber, BigNumber, BigNumber];
-        11: string;
-        12: string;
-        13: BigNumber[];
-        14: string;
-        15: string;
-      };
-    }>;
-
-    "serializeL2Transaction(uint256,uint256,address,address,bytes,uint256,uint256,bytes[],uint256,address)"(
-      _txId: BigNumberish,
-      _l2Value: BigNumberish,
-      _sender: string,
-      _contractAddressL2: string,
-      _calldata: BytesLike,
-      _gasLimit: BigNumberish,
-      _gasPerPubdataByteLimit: BigNumberish,
-      _factoryDeps: BytesLike[],
-      _toMint: BigNumberish,
-      _refundRecipient: string,
-      overrides?: CallOverrides
-    ): Promise<{
-      0: {
-        txType: BigNumber;
-        from: BigNumber;
-        to: BigNumber;
-        gasLimit: BigNumber;
-        gasPerPubdataByteLimit: BigNumber;
-        maxFeePerGas: BigNumber;
-        maxPriorityFeePerGas: BigNumber;
-        paymaster: BigNumber;
-        nonce: BigNumber;
-        value: BigNumber;
-        reserved: [BigNumber, BigNumber, BigNumber, BigNumber];
-        data: string;
-        signature: string;
-        factoryDeps: BigNumber[];
-        paymasterInput: string;
-        reservedDynamic: string;
-        0: BigNumber;
-        1: BigNumber;
-        2: BigNumber;
-        3: BigNumber;
-        4: BigNumber;
-        5: BigNumber;
-        6: BigNumber;
-        7: BigNumber;
-        8: BigNumber;
-        9: BigNumber;
-        10: [BigNumber, BigNumber, BigNumber, BigNumber];
-        11: string;
-        12: string;
-        13: BigNumber[];
-        14: string;
-        15: string;
-      };
-    }>;
 
     setL2BootloaderBytecodeHash(
       _l2BootloaderBytecodeHash: BytesLike,
@@ -1935,10 +1817,6 @@ export class IZkSync extends Contract {
 
   "getPriorityQueueSize()"(overrides?: CallOverrides): Promise<BigNumber>;
 
-  getPriorityTxMaxGasLimit(overrides?: CallOverrides): Promise<BigNumber>;
-
-  "getPriorityTxMaxGasLimit()"(overrides?: CallOverrides): Promise<BigNumber>;
-
   getProposedUpgradeHash(overrides?: CallOverrides): Promise<string>;
 
   "getProposedUpgradeHash()"(overrides?: CallOverrides): Promise<string>;
@@ -1999,6 +1877,10 @@ export class IZkSync extends Contract {
     2: string;
   }>;
 
+  getpriorityTxMaxGasLimit(overrides?: CallOverrides): Promise<BigNumber>;
+
+  "getpriorityTxMaxGasLimit()"(overrides?: CallOverrides): Promise<BigNumber>;
+
   isApprovedBySecurityCouncil(overrides?: CallOverrides): Promise<boolean>;
 
   "isApprovedBySecurityCouncil()"(overrides?: CallOverrides): Promise<boolean>;
@@ -2055,15 +1937,15 @@ export class IZkSync extends Contract {
 
   l2TransactionBaseCost(
     _gasPrice: BigNumberish,
-    _gasLimit: BigNumberish,
-    _gasPerPubdataByteLimit: BigNumberish,
+    _l2GasLimit: BigNumberish,
+    _l2GasPerPubdataByteLimit: BigNumberish,
     overrides?: CallOverrides
   ): Promise<BigNumber>;
 
   "l2TransactionBaseCost(uint256,uint256,uint256)"(
     _gasPrice: BigNumberish,
-    _gasLimit: BigNumberish,
-    _gasPerPubdataByteLimit: BigNumberish,
+    _l2GasLimit: BigNumberish,
+    _l2GasPerPubdataByteLimit: BigNumberish,
     overrides?: CallOverrides
   ): Promise<BigNumber>;
 
@@ -2265,8 +2147,8 @@ export class IZkSync extends Contract {
     _contractL2: string,
     _l2Value: BigNumberish,
     _calldata: BytesLike,
-    _gasLimit: BigNumberish,
-    _gasPerPubdataByteLimit: BigNumberish,
+    _l2GasLimit: BigNumberish,
+    _l2GasPerPubdataByteLimit: BigNumberish,
     _factoryDeps: BytesLike[],
     _refundRecipient: string,
     overrides?: PayableOverrides
@@ -2276,8 +2158,8 @@ export class IZkSync extends Contract {
     _contractL2: string,
     _l2Value: BigNumberish,
     _calldata: BytesLike,
-    _gasLimit: BigNumberish,
-    _gasPerPubdataByteLimit: BigNumberish,
+    _l2GasLimit: BigNumberish,
+    _l2GasPerPubdataByteLimit: BigNumberish,
     _factoryDeps: BytesLike[],
     _refundRecipient: string,
     overrides?: PayableOverrides
@@ -2302,100 +2184,6 @@ export class IZkSync extends Contract {
     _upgradeProposalHash: BytesLike,
     overrides?: Overrides
   ): Promise<ContractTransaction>;
-
-  serializeL2Transaction(
-    _txId: BigNumberish,
-    _l2Value: BigNumberish,
-    _sender: string,
-    _contractAddressL2: string,
-    _calldata: BytesLike,
-    _gasLimit: BigNumberish,
-    _gasPerPubdataByteLimit: BigNumberish,
-    _factoryDeps: BytesLike[],
-    _toMint: BigNumberish,
-    _refundRecipient: string,
-    overrides?: CallOverrides
-  ): Promise<{
-    txType: BigNumber;
-    from: BigNumber;
-    to: BigNumber;
-    gasLimit: BigNumber;
-    gasPerPubdataByteLimit: BigNumber;
-    maxFeePerGas: BigNumber;
-    maxPriorityFeePerGas: BigNumber;
-    paymaster: BigNumber;
-    nonce: BigNumber;
-    value: BigNumber;
-    reserved: [BigNumber, BigNumber, BigNumber, BigNumber];
-    data: string;
-    signature: string;
-    factoryDeps: BigNumber[];
-    paymasterInput: string;
-    reservedDynamic: string;
-    0: BigNumber;
-    1: BigNumber;
-    2: BigNumber;
-    3: BigNumber;
-    4: BigNumber;
-    5: BigNumber;
-    6: BigNumber;
-    7: BigNumber;
-    8: BigNumber;
-    9: BigNumber;
-    10: [BigNumber, BigNumber, BigNumber, BigNumber];
-    11: string;
-    12: string;
-    13: BigNumber[];
-    14: string;
-    15: string;
-  }>;
-
-  "serializeL2Transaction(uint256,uint256,address,address,bytes,uint256,uint256,bytes[],uint256,address)"(
-    _txId: BigNumberish,
-    _l2Value: BigNumberish,
-    _sender: string,
-    _contractAddressL2: string,
-    _calldata: BytesLike,
-    _gasLimit: BigNumberish,
-    _gasPerPubdataByteLimit: BigNumberish,
-    _factoryDeps: BytesLike[],
-    _toMint: BigNumberish,
-    _refundRecipient: string,
-    overrides?: CallOverrides
-  ): Promise<{
-    txType: BigNumber;
-    from: BigNumber;
-    to: BigNumber;
-    gasLimit: BigNumber;
-    gasPerPubdataByteLimit: BigNumber;
-    maxFeePerGas: BigNumber;
-    maxPriorityFeePerGas: BigNumber;
-    paymaster: BigNumber;
-    nonce: BigNumber;
-    value: BigNumber;
-    reserved: [BigNumber, BigNumber, BigNumber, BigNumber];
-    data: string;
-    signature: string;
-    factoryDeps: BigNumber[];
-    paymasterInput: string;
-    reservedDynamic: string;
-    0: BigNumber;
-    1: BigNumber;
-    2: BigNumber;
-    3: BigNumber;
-    4: BigNumber;
-    5: BigNumber;
-    6: BigNumber;
-    7: BigNumber;
-    8: BigNumber;
-    9: BigNumber;
-    10: [BigNumber, BigNumber, BigNumber, BigNumber];
-    11: string;
-    12: string;
-    13: BigNumber[];
-    14: string;
-    15: string;
-  }>;
 
   setL2BootloaderBytecodeHash(
     _l2BootloaderBytecodeHash: BytesLike,
@@ -2750,12 +2538,6 @@ export class IZkSync extends Contract {
 
     "getPriorityQueueSize()"(overrides?: CallOverrides): Promise<BigNumber>;
 
-    getPriorityTxMaxGasLimit(overrides?: CallOverrides): Promise<BigNumber>;
-
-    "getPriorityTxMaxGasLimit()"(
-      overrides?: CallOverrides
-    ): Promise<BigNumber>;
-
     getProposedUpgradeHash(overrides?: CallOverrides): Promise<string>;
 
     "getProposedUpgradeHash()"(overrides?: CallOverrides): Promise<string>;
@@ -2815,6 +2597,10 @@ export class IZkSync extends Contract {
       1: string;
       2: string;
     }>;
+
+    getpriorityTxMaxGasLimit(overrides?: CallOverrides): Promise<BigNumber>;
+
+    "getpriorityTxMaxGasLimit()"(overrides?: CallOverrides): Promise<BigNumber>;
 
     isApprovedBySecurityCouncil(overrides?: CallOverrides): Promise<boolean>;
 
@@ -2877,15 +2663,15 @@ export class IZkSync extends Contract {
 
     l2TransactionBaseCost(
       _gasPrice: BigNumberish,
-      _gasLimit: BigNumberish,
-      _gasPerPubdataByteLimit: BigNumberish,
+      _l2GasLimit: BigNumberish,
+      _l2GasPerPubdataByteLimit: BigNumberish,
       overrides?: CallOverrides
     ): Promise<BigNumber>;
 
     "l2TransactionBaseCost(uint256,uint256,uint256)"(
       _gasPrice: BigNumberish,
-      _gasLimit: BigNumberish,
-      _gasPerPubdataByteLimit: BigNumberish,
+      _l2GasLimit: BigNumberish,
+      _l2GasPerPubdataByteLimit: BigNumberish,
       overrides?: CallOverrides
     ): Promise<BigNumber>;
 
@@ -3087,8 +2873,8 @@ export class IZkSync extends Contract {
       _contractL2: string,
       _l2Value: BigNumberish,
       _calldata: BytesLike,
-      _gasLimit: BigNumberish,
-      _gasPerPubdataByteLimit: BigNumberish,
+      _l2GasLimit: BigNumberish,
+      _l2GasPerPubdataByteLimit: BigNumberish,
       _factoryDeps: BytesLike[],
       _refundRecipient: string,
       overrides?: CallOverrides
@@ -3098,8 +2884,8 @@ export class IZkSync extends Contract {
       _contractL2: string,
       _l2Value: BigNumberish,
       _calldata: BytesLike,
-      _gasLimit: BigNumberish,
-      _gasPerPubdataByteLimit: BigNumberish,
+      _l2GasLimit: BigNumberish,
+      _l2GasPerPubdataByteLimit: BigNumberish,
       _factoryDeps: BytesLike[],
       _refundRecipient: string,
       overrides?: CallOverrides
@@ -3124,100 +2910,6 @@ export class IZkSync extends Contract {
       _upgradeProposalHash: BytesLike,
       overrides?: CallOverrides
     ): Promise<void>;
-
-    serializeL2Transaction(
-      _txId: BigNumberish,
-      _l2Value: BigNumberish,
-      _sender: string,
-      _contractAddressL2: string,
-      _calldata: BytesLike,
-      _gasLimit: BigNumberish,
-      _gasPerPubdataByteLimit: BigNumberish,
-      _factoryDeps: BytesLike[],
-      _toMint: BigNumberish,
-      _refundRecipient: string,
-      overrides?: CallOverrides
-    ): Promise<{
-      txType: BigNumber;
-      from: BigNumber;
-      to: BigNumber;
-      gasLimit: BigNumber;
-      gasPerPubdataByteLimit: BigNumber;
-      maxFeePerGas: BigNumber;
-      maxPriorityFeePerGas: BigNumber;
-      paymaster: BigNumber;
-      nonce: BigNumber;
-      value: BigNumber;
-      reserved: [BigNumber, BigNumber, BigNumber, BigNumber];
-      data: string;
-      signature: string;
-      factoryDeps: BigNumber[];
-      paymasterInput: string;
-      reservedDynamic: string;
-      0: BigNumber;
-      1: BigNumber;
-      2: BigNumber;
-      3: BigNumber;
-      4: BigNumber;
-      5: BigNumber;
-      6: BigNumber;
-      7: BigNumber;
-      8: BigNumber;
-      9: BigNumber;
-      10: [BigNumber, BigNumber, BigNumber, BigNumber];
-      11: string;
-      12: string;
-      13: BigNumber[];
-      14: string;
-      15: string;
-    }>;
-
-    "serializeL2Transaction(uint256,uint256,address,address,bytes,uint256,uint256,bytes[],uint256,address)"(
-      _txId: BigNumberish,
-      _l2Value: BigNumberish,
-      _sender: string,
-      _contractAddressL2: string,
-      _calldata: BytesLike,
-      _gasLimit: BigNumberish,
-      _gasPerPubdataByteLimit: BigNumberish,
-      _factoryDeps: BytesLike[],
-      _toMint: BigNumberish,
-      _refundRecipient: string,
-      overrides?: CallOverrides
-    ): Promise<{
-      txType: BigNumber;
-      from: BigNumber;
-      to: BigNumber;
-      gasLimit: BigNumber;
-      gasPerPubdataByteLimit: BigNumber;
-      maxFeePerGas: BigNumber;
-      maxPriorityFeePerGas: BigNumber;
-      paymaster: BigNumber;
-      nonce: BigNumber;
-      value: BigNumber;
-      reserved: [BigNumber, BigNumber, BigNumber, BigNumber];
-      data: string;
-      signature: string;
-      factoryDeps: BigNumber[];
-      paymasterInput: string;
-      reservedDynamic: string;
-      0: BigNumber;
-      1: BigNumber;
-      2: BigNumber;
-      3: BigNumber;
-      4: BigNumber;
-      5: BigNumber;
-      6: BigNumber;
-      7: BigNumber;
-      8: BigNumber;
-      9: BigNumber;
-      10: [BigNumber, BigNumber, BigNumber, BigNumber];
-      11: string;
-      12: string;
-      13: BigNumber[];
-      14: string;
-      15: string;
-    }>;
 
     setL2BootloaderBytecodeHash(
       _l2BootloaderBytecodeHash: BytesLike,
@@ -3678,12 +3370,6 @@ export class IZkSync extends Contract {
 
     "getPriorityQueueSize()"(overrides?: CallOverrides): Promise<BigNumber>;
 
-    getPriorityTxMaxGasLimit(overrides?: CallOverrides): Promise<BigNumber>;
-
-    "getPriorityTxMaxGasLimit()"(
-      overrides?: CallOverrides
-    ): Promise<BigNumber>;
-
     getProposedUpgradeHash(overrides?: CallOverrides): Promise<BigNumber>;
 
     "getProposedUpgradeHash()"(overrides?: CallOverrides): Promise<BigNumber>;
@@ -3725,6 +3411,10 @@ export class IZkSync extends Contract {
     getVerifierParams(overrides?: CallOverrides): Promise<BigNumber>;
 
     "getVerifierParams()"(overrides?: CallOverrides): Promise<BigNumber>;
+
+    getpriorityTxMaxGasLimit(overrides?: CallOverrides): Promise<BigNumber>;
+
+    "getpriorityTxMaxGasLimit()"(overrides?: CallOverrides): Promise<BigNumber>;
 
     isApprovedBySecurityCouncil(overrides?: CallOverrides): Promise<BigNumber>;
 
@@ -3790,15 +3480,15 @@ export class IZkSync extends Contract {
 
     l2TransactionBaseCost(
       _gasPrice: BigNumberish,
-      _gasLimit: BigNumberish,
-      _gasPerPubdataByteLimit: BigNumberish,
+      _l2GasLimit: BigNumberish,
+      _l2GasPerPubdataByteLimit: BigNumberish,
       overrides?: CallOverrides
     ): Promise<BigNumber>;
 
     "l2TransactionBaseCost(uint256,uint256,uint256)"(
       _gasPrice: BigNumberish,
-      _gasLimit: BigNumberish,
-      _gasPerPubdataByteLimit: BigNumberish,
+      _l2GasLimit: BigNumberish,
+      _l2GasPerPubdataByteLimit: BigNumberish,
       overrides?: CallOverrides
     ): Promise<BigNumber>;
 
@@ -3984,8 +3674,8 @@ export class IZkSync extends Contract {
       _contractL2: string,
       _l2Value: BigNumberish,
       _calldata: BytesLike,
-      _gasLimit: BigNumberish,
-      _gasPerPubdataByteLimit: BigNumberish,
+      _l2GasLimit: BigNumberish,
+      _l2GasPerPubdataByteLimit: BigNumberish,
       _factoryDeps: BytesLike[],
       _refundRecipient: string,
       overrides?: PayableOverrides
@@ -3995,8 +3685,8 @@ export class IZkSync extends Contract {
       _contractL2: string,
       _l2Value: BigNumberish,
       _calldata: BytesLike,
-      _gasLimit: BigNumberish,
-      _gasPerPubdataByteLimit: BigNumberish,
+      _l2GasLimit: BigNumberish,
+      _l2GasPerPubdataByteLimit: BigNumberish,
       _factoryDeps: BytesLike[],
       _refundRecipient: string,
       overrides?: PayableOverrides
@@ -4020,34 +3710,6 @@ export class IZkSync extends Contract {
     "securityCouncilUpgradeApprove(bytes32)"(
       _upgradeProposalHash: BytesLike,
       overrides?: Overrides
-    ): Promise<BigNumber>;
-
-    serializeL2Transaction(
-      _txId: BigNumberish,
-      _l2Value: BigNumberish,
-      _sender: string,
-      _contractAddressL2: string,
-      _calldata: BytesLike,
-      _gasLimit: BigNumberish,
-      _gasPerPubdataByteLimit: BigNumberish,
-      _factoryDeps: BytesLike[],
-      _toMint: BigNumberish,
-      _refundRecipient: string,
-      overrides?: CallOverrides
-    ): Promise<BigNumber>;
-
-    "serializeL2Transaction(uint256,uint256,address,address,bytes,uint256,uint256,bytes[],uint256,address)"(
-      _txId: BigNumberish,
-      _l2Value: BigNumberish,
-      _sender: string,
-      _contractAddressL2: string,
-      _calldata: BytesLike,
-      _gasLimit: BigNumberish,
-      _gasPerPubdataByteLimit: BigNumberish,
-      _factoryDeps: BytesLike[],
-      _toMint: BigNumberish,
-      _refundRecipient: string,
-      overrides?: CallOverrides
     ): Promise<BigNumber>;
 
     setL2BootloaderBytecodeHash(
@@ -4420,14 +4082,6 @@ export class IZkSync extends Contract {
       overrides?: CallOverrides
     ): Promise<PopulatedTransaction>;
 
-    getPriorityTxMaxGasLimit(
-      overrides?: CallOverrides
-    ): Promise<PopulatedTransaction>;
-
-    "getPriorityTxMaxGasLimit()"(
-      overrides?: CallOverrides
-    ): Promise<PopulatedTransaction>;
-
     getProposedUpgradeHash(
       overrides?: CallOverrides
     ): Promise<PopulatedTransaction>;
@@ -4502,6 +4156,14 @@ export class IZkSync extends Contract {
       overrides?: CallOverrides
     ): Promise<PopulatedTransaction>;
 
+    getpriorityTxMaxGasLimit(
+      overrides?: CallOverrides
+    ): Promise<PopulatedTransaction>;
+
+    "getpriorityTxMaxGasLimit()"(
+      overrides?: CallOverrides
+    ): Promise<PopulatedTransaction>;
+
     isApprovedBySecurityCouncil(
       overrides?: CallOverrides
     ): Promise<PopulatedTransaction>;
@@ -4572,15 +4234,15 @@ export class IZkSync extends Contract {
 
     l2TransactionBaseCost(
       _gasPrice: BigNumberish,
-      _gasLimit: BigNumberish,
-      _gasPerPubdataByteLimit: BigNumberish,
+      _l2GasLimit: BigNumberish,
+      _l2GasPerPubdataByteLimit: BigNumberish,
       overrides?: CallOverrides
     ): Promise<PopulatedTransaction>;
 
     "l2TransactionBaseCost(uint256,uint256,uint256)"(
       _gasPrice: BigNumberish,
-      _gasLimit: BigNumberish,
-      _gasPerPubdataByteLimit: BigNumberish,
+      _l2GasLimit: BigNumberish,
+      _l2GasPerPubdataByteLimit: BigNumberish,
       overrides?: CallOverrides
     ): Promise<PopulatedTransaction>;
 
@@ -4768,8 +4430,8 @@ export class IZkSync extends Contract {
       _contractL2: string,
       _l2Value: BigNumberish,
       _calldata: BytesLike,
-      _gasLimit: BigNumberish,
-      _gasPerPubdataByteLimit: BigNumberish,
+      _l2GasLimit: BigNumberish,
+      _l2GasPerPubdataByteLimit: BigNumberish,
       _factoryDeps: BytesLike[],
       _refundRecipient: string,
       overrides?: PayableOverrides
@@ -4779,8 +4441,8 @@ export class IZkSync extends Contract {
       _contractL2: string,
       _l2Value: BigNumberish,
       _calldata: BytesLike,
-      _gasLimit: BigNumberish,
-      _gasPerPubdataByteLimit: BigNumberish,
+      _l2GasLimit: BigNumberish,
+      _l2GasPerPubdataByteLimit: BigNumberish,
       _factoryDeps: BytesLike[],
       _refundRecipient: string,
       overrides?: PayableOverrides
@@ -4804,34 +4466,6 @@ export class IZkSync extends Contract {
     "securityCouncilUpgradeApprove(bytes32)"(
       _upgradeProposalHash: BytesLike,
       overrides?: Overrides
-    ): Promise<PopulatedTransaction>;
-
-    serializeL2Transaction(
-      _txId: BigNumberish,
-      _l2Value: BigNumberish,
-      _sender: string,
-      _contractAddressL2: string,
-      _calldata: BytesLike,
-      _gasLimit: BigNumberish,
-      _gasPerPubdataByteLimit: BigNumberish,
-      _factoryDeps: BytesLike[],
-      _toMint: BigNumberish,
-      _refundRecipient: string,
-      overrides?: CallOverrides
-    ): Promise<PopulatedTransaction>;
-
-    "serializeL2Transaction(uint256,uint256,address,address,bytes,uint256,uint256,bytes[],uint256,address)"(
-      _txId: BigNumberish,
-      _l2Value: BigNumberish,
-      _sender: string,
-      _contractAddressL2: string,
-      _calldata: BytesLike,
-      _gasLimit: BigNumberish,
-      _gasPerPubdataByteLimit: BigNumberish,
-      _factoryDeps: BytesLike[],
-      _toMint: BigNumberish,
-      _refundRecipient: string,
-      overrides?: CallOverrides
     ): Promise<PopulatedTransaction>;
 
     setL2BootloaderBytecodeHash(

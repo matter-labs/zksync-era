@@ -11,21 +11,23 @@ use zk_evm::{
     },
 };
 use zksync_config::constants::MAX_TXS_IN_BLOCK;
-use zksync_contracts::{
-    DEFAULT_ACCOUNT_CODE, ESTIMATE_FEE_BLOCK_CODE, PLAYGROUND_BLOCK_BOOTLOADER_CODE,
-    PROVED_BLOCK_BOOTLOADER_CODE,
-};
+use zksync_contracts::BaseSystemContracts;
 
 use zksync_types::{
     zkevm_test_harness::INITIAL_MONOTONIC_CYCLE_COUNTER, Address, Transaction, BOOTLOADER_ADDRESS,
     L1_GAS_PER_PUBDATA_BYTE, MAX_GAS_PER_PUBDATA_BYTE, MAX_NEW_FACTORY_DEPS, U256,
 };
-use zksync_utils::{address_to_u256, bytecode::hash_bytecode, bytes_to_be_words, misc::ceil_div};
+use zksync_utils::{
+    address_to_u256,
+    bytecode::{compress_bytecode, hash_bytecode, CompressedBytecodeInfo},
+    bytes_to_be_words, h256_to_u256,
+    misc::ceil_div,
+};
 
 use crate::{
     bootloader_state::BootloaderState,
     oracles::OracleWithHistory,
-    transaction_data::TransactionData,
+    transaction_data::{TransactionData, L1_TX_TYPE},
     utils::{
         code_page_candidate_from_base, heap_page_from_base, BLOCK_GAS_LIMIT, INITIAL_BASE_PAGE,
     },
@@ -52,6 +54,12 @@ pub struct BlockContext {
     pub fair_l2_gas_price: u64,
 }
 
+impl BlockContext {
+    pub fn block_gas_price_per_pubdata(&self) -> u64 {
+        derive_base_fee_and_gas_per_pubdata(self.l1_gas_price, self.fair_l2_gas_price).1
+    }
+}
+
 /// Besides the raw values from the `BlockContext`, contains the values that are to be derived
 /// from the other values
 #[derive(Debug, Copy, Clone)]
@@ -60,7 +68,7 @@ pub struct DerivedBlockContext {
     pub base_fee: u64,
 }
 
-fn eth_price_per_pubdata_byte(l1_gas_price: u64) -> u64 {
+pub(crate) fn eth_price_per_pubdata_byte(l1_gas_price: u64) -> u64 {
     // This value will typically be a lot less than u64
     // unless the gas price on L1 goes beyond tens of millions of gwei
     l1_gas_price * (L1_GAS_PER_PUBDATA_BYTE as u64)
@@ -128,7 +136,15 @@ pub const OPERATOR_REFUNDS_OFFSET: usize = DEBUG_SLOTS_OFFSET
 pub const TX_OVERHEAD_OFFSET: usize = OPERATOR_REFUNDS_OFFSET + OPERATOR_REFUNDS_SLOTS;
 pub const TX_OVERHEAD_SLOTS: usize = MAX_TXS_IN_BLOCK;
 
-pub const BOOTLOADER_TX_DESCRIPTION_OFFSET: usize = TX_OVERHEAD_OFFSET + TX_OVERHEAD_SLOTS;
+pub const TX_TRUSTED_GAS_LIMIT_OFFSET: usize = TX_OVERHEAD_OFFSET + TX_OVERHEAD_SLOTS;
+pub const TX_TRUSTED_GAS_LIMIT_SLOTS: usize = MAX_TXS_IN_BLOCK;
+
+pub const COMPRESSED_BYTECODES_OFFSET: usize =
+    TX_TRUSTED_GAS_LIMIT_OFFSET + TX_TRUSTED_GAS_LIMIT_SLOTS;
+pub const COMPRESSED_BYTECODES_SLOTS: usize = 32768;
+
+pub const BOOTLOADER_TX_DESCRIPTION_OFFSET: usize =
+    COMPRESSED_BYTECODES_OFFSET + COMPRESSED_BYTECODES_SLOTS;
 
 // The size of the bootloader memory dedicated to the encodings of transactions
 pub const BOOTLOADER_TX_ENCODING_SPACE: u32 =
@@ -142,6 +158,8 @@ pub const BOOTLOADER_TX_DESCRIPTION_SIZE: usize = 2;
 pub const TX_DESCRIPTION_OFFSET: usize = BOOTLOADER_TX_DESCRIPTION_OFFSET
     + BOOTLOADER_TX_DESCRIPTION_SIZE * MAX_TXS_IN_BLOCK
     + MAX_POSTOP_SLOTS;
+
+pub const TX_GAS_LIMIT_OFFSET: usize = 4;
 
 pub(crate) const BOOTLOADER_HEAP_PAGE: u32 = heap_page_from_base(MemoryPage(INITIAL_BASE_PAGE)).0;
 const BOOTLOADER_CODE_PAGE: u32 = code_page_candidate_from_base(MemoryPage(INITIAL_BASE_PAGE)).0;
@@ -178,12 +196,14 @@ pub fn init_vm<'a>(
     block_context: BlockContextMode,
     block_properties: &'a BlockProperties,
     execution_mode: TxExecutionMode,
+    base_system_contract: &BaseSystemContracts,
 ) -> Box<VmInstance<'a>> {
     init_vm_with_gas_limit(
         oracle_tools,
         block_context,
         block_properties,
         execution_mode,
+        base_system_contract,
         BLOCK_GAS_LIMIT,
     )
 }
@@ -193,23 +213,15 @@ pub fn init_vm_with_gas_limit<'a>(
     block_context: BlockContextMode,
     block_properties: &'a BlockProperties,
     execution_mode: TxExecutionMode,
+    base_system_contract: &BaseSystemContracts,
     gas_limit: u32,
 ) -> Box<VmInstance<'a>> {
-    let bootloader_code = match (&block_context, execution_mode) {
-        (_, TxExecutionMode::EthCall) => PLAYGROUND_BLOCK_BOOTLOADER_CODE.code.clone(),
-        (BlockContextMode::OverrideCurrent(_), TxExecutionMode::VerifyExecute) => {
-            PLAYGROUND_BLOCK_BOOTLOADER_CODE.code.clone()
-        }
-        (_, TxExecutionMode::EstimateFee) => ESTIMATE_FEE_BLOCK_CODE.code.clone(),
-        _ => PROVED_BLOCK_BOOTLOADER_CODE.code.clone(),
-    };
-
     init_vm_inner(
         oracle_tools,
         block_context,
         block_properties,
         gas_limit,
-        bootloader_code,
+        base_system_contract,
         execution_mode,
     )
 }
@@ -296,18 +308,24 @@ pub fn init_vm_inner<'a>(
     block_context: BlockContextMode,
     block_properties: &'a BlockProperties,
     gas_limit: u32,
-    bootloader_bytecode: Vec<U256>,
+    base_system_contract: &BaseSystemContracts,
     execution_mode: TxExecutionMode,
 ) -> Box<VmInstance<'a>> {
     let start = Instant::now();
 
     oracle_tools.decommittment_processor.populate(
-        vec![(DEFAULT_ACCOUNT_CODE.hash, DEFAULT_ACCOUNT_CODE.code.clone())],
+        vec![(
+            h256_to_u256(base_system_contract.default_aa.hash),
+            base_system_contract.default_aa.code.clone(),
+        )],
         Timestamp(0),
     );
 
     oracle_tools.memory.populate(
-        vec![(BOOTLOADER_CODE_PAGE, bootloader_bytecode)],
+        vec![(
+            BOOTLOADER_CODE_PAGE,
+            base_system_contract.bootloader.code.clone(),
+        )],
         Timestamp(0),
     );
 
@@ -339,20 +357,39 @@ fn bootloader_initial_memory(block_properties: &BlockContextMode) -> Vec<(usize,
 pub fn get_bootloader_memory(
     txs: Vec<TransactionData>,
     predefined_refunds: Vec<u32>,
+    predefined_compressed_bytecodes: Vec<Vec<CompressedBytecodeInfo>>,
     execution_mode: TxExecutionMode,
     block_context: BlockContextMode,
 ) -> Vec<(usize, U256)> {
+    let inner_context = block_context.inner_block_context().context;
+
+    let block_gas_price_per_pubdata = inner_context.block_gas_price_per_pubdata();
+
     let mut memory = bootloader_initial_memory(&block_context);
 
+    let mut previous_compressed: usize = 0;
     let mut already_included_txs_size = 0;
     for (tx_index_in_block, tx) in txs.into_iter().enumerate() {
+        let compressed_bytecodes = predefined_compressed_bytecodes[tx_index_in_block].clone();
+
+        let mut total_compressed_len_words = 0;
+        for i in compressed_bytecodes.iter() {
+            total_compressed_len_words += i.encode_call().len() / 32;
+        }
+
         let memory_for_current_tx = get_bootloader_memory_for_tx(
             tx.clone(),
             tx_index_in_block,
             execution_mode,
             already_included_txs_size,
             predefined_refunds[tx_index_in_block],
+            block_gas_price_per_pubdata as u32,
+            previous_compressed,
+            compressed_bytecodes,
         );
+
+        previous_compressed += total_compressed_len_words;
+
         memory.extend(memory_for_current_tx);
         let encoded_struct = tx.into_tokens();
         let encoding_length = encoded_struct.len();
@@ -365,10 +402,18 @@ pub fn push_transaction_to_bootloader_memory(
     vm: &mut VmInstance,
     tx: &Transaction,
     execution_mode: TxExecutionMode,
+    explicit_compressed_bytecodes: Option<Vec<CompressedBytecodeInfo>>,
 ) {
     let tx: TransactionData = tx.clone().into();
-    let overhead = tx.overhead_gas();
-    push_raw_transaction_to_bootloader_memory(vm, tx, execution_mode, overhead);
+    let block_gas_per_pubdata_byte = vm.block_context.context.block_gas_price_per_pubdata();
+    let overhead = tx.overhead_gas(block_gas_per_pubdata_byte as u32);
+    push_raw_transaction_to_bootloader_memory(
+        vm,
+        tx,
+        execution_mode,
+        overhead,
+        explicit_compressed_bytecodes,
+    );
 }
 
 pub fn push_raw_transaction_to_bootloader_memory(
@@ -376,6 +421,7 @@ pub fn push_raw_transaction_to_bootloader_memory(
     tx: TransactionData,
     execution_mode: TxExecutionMode,
     predefined_overhead: u32,
+    explicit_compressed_bytecodes: Option<Vec<CompressedBytecodeInfo>>,
 ) {
     let tx_index_in_block = vm.bootloader_state.free_tx_index();
     let already_included_txs_size = vm.bootloader_state.free_tx_offset();
@@ -386,12 +432,59 @@ pub fn push_raw_transaction_to_bootloader_memory(
         .iter()
         .map(|dep| bytecode_to_factory_dep(dep.clone()))
         .collect();
+
+    let compressed_bytecodes = explicit_compressed_bytecodes.unwrap_or_else(|| {
+        if tx.tx_type == L1_TX_TYPE {
+            // L1 transactions do not need compression
+            return vec![];
+        }
+
+        tx.factory_deps
+            .iter()
+            .filter_map(|bytecode| {
+                if vm
+                    .state
+                    .storage
+                    .storage
+                    .get_ptr()
+                    .borrow_mut()
+                    .is_bytecode_known(&hash_bytecode(bytecode))
+                {
+                    return None;
+                }
+
+                compress_bytecode(bytecode)
+                    .ok()
+                    .map(|compressed| CompressedBytecodeInfo {
+                        original: bytecode.clone(),
+                        compressed,
+                    })
+            })
+            .collect()
+    });
+    let compressed_bytecodes_encoding_len_words = compressed_bytecodes
+        .iter()
+        .map(|bytecode| {
+            let encoding_length_bytes = bytecode.encode_call().len();
+            assert!(
+                encoding_length_bytes % 32 == 0,
+                "ABI encoding of bytecode is not 32-byte aligned"
+            );
+
+            encoding_length_bytes / 32
+        })
+        .sum();
+
     vm.state
         .decommittment_processor
         .populate(codes_for_decommiter, timestamp);
 
+    let block_gas_price_per_pubdata = vm.block_context.context.block_gas_price_per_pubdata();
+    let trusted_ergs_limit = tx.trusted_gas_limit(block_gas_price_per_pubdata as u32);
     let encoded_tx = tx.into_tokens();
     let encoded_tx_size = encoded_tx.len();
+
+    let previous_bytecodes = vm.bootloader_state.get_compressed_bytecodes();
 
     let bootloader_memory = get_bootloader_memory_for_encoded_tx(
         encoded_tx,
@@ -400,6 +493,9 @@ pub fn push_raw_transaction_to_bootloader_memory(
         already_included_txs_size,
         0,
         predefined_overhead,
+        trusted_ergs_limit,
+        previous_bytecodes,
+        compressed_bytecodes,
     );
 
     vm.state.memory.populate_page(
@@ -408,16 +504,23 @@ pub fn push_raw_transaction_to_bootloader_memory(
         Timestamp(vm.state.local_state.timestamp),
     );
     vm.bootloader_state.add_tx_data(encoded_tx_size);
+    vm.bootloader_state
+        .add_compressed_bytecode(compressed_bytecodes_encoding_len_words);
 }
 
+#[allow(clippy::too_many_arguments)]
 fn get_bootloader_memory_for_tx(
     tx: TransactionData,
     tx_index_in_block: usize,
     execution_mode: TxExecutionMode,
     already_included_txs_size: usize,
     predefined_refund: u32,
+    block_gas_per_pubdata: u32,
+    previous_compressed_bytecode_size: usize,
+    compressed_bytecodes: Vec<CompressedBytecodeInfo>,
 ) -> Vec<(usize, U256)> {
-    let overhead_gas = tx.overhead_gas();
+    let overhead_gas = tx.overhead_gas(block_gas_per_pubdata);
+    let trusted_gas_limit = tx.trusted_gas_limit(block_gas_per_pubdata);
     get_bootloader_memory_for_encoded_tx(
         tx.into_tokens(),
         tx_index_in_block,
@@ -425,9 +528,13 @@ fn get_bootloader_memory_for_tx(
         already_included_txs_size,
         predefined_refund,
         overhead_gas,
+        trusted_gas_limit,
+        previous_compressed_bytecode_size,
+        compressed_bytecodes,
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn get_bootloader_memory_for_encoded_tx(
     encoded_tx: Vec<U256>,
     tx_index_in_block: usize,
@@ -435,6 +542,9 @@ pub(crate) fn get_bootloader_memory_for_encoded_tx(
     already_included_txs_size: usize,
     predefined_refund: u32,
     predefined_overhead: u32,
+    trusted_gas_limit: u32,
+    previous_compressed_bytecode_size: usize,
+    compressed_bytecodes: Vec<CompressedBytecodeInfo>,
 ) -> Vec<(usize, U256)> {
     let mut memory: Vec<(usize, U256)> = Vec::default();
     let bootloader_description_offset =
@@ -458,9 +568,28 @@ pub(crate) fn get_bootloader_memory_for_encoded_tx(
     let overhead_offset = TX_OVERHEAD_OFFSET + tx_index_in_block;
     memory.push((overhead_offset, predefined_overhead.into()));
 
+    let trusted_gas_limit_offset = TX_TRUSTED_GAS_LIMIT_OFFSET + tx_index_in_block;
+    memory.push((trusted_gas_limit_offset, trusted_gas_limit.into()));
+
     // Now we need to actually put the transaction description:
     let encoding_length = encoded_tx.len();
     memory.extend((tx_description_offset..tx_description_offset + encoding_length).zip(encoded_tx));
+
+    // Note, +1 is moving for poitner
+    let compressed_bytecodes_offset =
+        COMPRESSED_BYTECODES_OFFSET + 1 + previous_compressed_bytecode_size;
+
+    let memory_addition: Vec<_> = compressed_bytecodes
+        .into_iter()
+        .flat_map(|x| x.encode_call())
+        .collect();
+
+    let memory_addition = bytes_to_be_words(memory_addition);
+
+    memory.extend(
+        (compressed_bytecodes_offset..compressed_bytecodes_offset + memory_addition.len())
+            .zip(memory_addition),
+    );
 
     memory
 }

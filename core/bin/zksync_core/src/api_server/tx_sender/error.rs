@@ -53,6 +53,17 @@ pub enum SubmitTxError {
     FeePerGasTooHigh,
     #[error("max fee per pubdata byte higher than 2^32")]
     FeePerPubdataByteTooHigh,
+    /// InsufficientFundsForTransfer is returned if the transaction sender doesn't
+    /// have enough funds for transfer.
+    #[error("insufficient balance for transfer")]
+    InsufficientFundsForTransfer,
+    /// IntrinsicGas is returned if the transaction is specified to use less gas
+    /// than required to start the invocation.
+    #[error("intrinsic gas too low")]
+    IntrinsicGas,
+    /// Error returned from main node
+    #[error("{0}")]
+    ProxyError(#[from] zksync_web3_decl::jsonrpsee::core::Error),
 }
 impl SubmitTxError {
     pub fn grafana_error_code(&self) -> &'static str {
@@ -80,6 +91,9 @@ impl SubmitTxError {
             SubmitTxError::TooManyFactoryDependencies(_, _) => "too-many-factory-dependencies",
             SubmitTxError::FeePerGasTooHigh => "gas-price-limit-too-high",
             SubmitTxError::FeePerPubdataByteTooHigh => "pubdata-price-limit-too-high",
+            SubmitTxError::InsufficientFundsForTransfer => "insufficient-funds-for-transfer",
+            SubmitTxError::IntrinsicGas => "intrinsic-gas",
+            SubmitTxError::ProxyError(_) => "proxy-error",
         }
     }
 }

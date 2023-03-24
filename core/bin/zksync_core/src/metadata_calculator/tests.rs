@@ -5,13 +5,13 @@ use std::str::FromStr;
 use db_test_macro::db_test;
 use tempfile::TempDir;
 use tokio::sync::watch;
-use zksync_types::FAIR_L2_GAS_PRICE;
 
 use crate::genesis::{chain_schema_genesis, operations_schema_genesis};
 use crate::metadata_calculator::MetadataCalculator;
 
 use crate::MetadataCalculatorMode;
 use zksync_config::ZkSyncConfig;
+use zksync_contracts::BaseSystemContracts;
 use zksync_dal::ConnectionPool;
 use zksync_merkle_tree::ZkSyncTree;
 use zksync_storage::db::Database;
@@ -158,9 +158,18 @@ async fn setup_metadata_calculator_with_options(
 
     if storage.blocks_dal().is_genesis_needed() {
         let chain_id = H256::from_low_u64_be(config.chain.eth.zksync_network_id as u64);
-        chain_schema_genesis(&mut storage, fee_address, chain_id).await;
-        let block_commitment = BlockCommitment::new(vec![], 0, Default::default(), vec![], vec![]);
+        let base_system_contracts = BaseSystemContracts::load_from_disk();
+        let block_commitment = BlockCommitment::new(
+            vec![],
+            0,
+            Default::default(),
+            vec![],
+            vec![],
+            base_system_contracts.bootloader.hash,
+            base_system_contracts.default_aa.hash,
+        );
 
+        chain_schema_genesis(&mut storage, fee_address, chain_id, base_system_contracts).await;
         operations_schema_genesis(
             &mut storage,
             &block_commitment,
@@ -180,11 +189,18 @@ async fn reset_db_state(pool: ConnectionPool, num_blocks: usize) {
     storage.blocks_dal().delete_miniblocks(MiniblockNumber(0));
     storage.blocks_dal().delete_l1_batches(L1BatchNumber(0));
 
+    let base_system_contracts = BaseSystemContracts::load_from_disk();
     let all_logs = gen_storage_logs(num_blocks);
     for (block_number, block_logs) in (1..=(num_blocks as u32)).zip(all_logs) {
-        let mut header = L1BatchHeader::mock(L1BatchNumber(block_number));
+        let mut header = L1BatchHeader::new(
+            L1BatchNumber(block_number),
+            0,
+            Address::default(),
+            base_system_contracts.hashes(),
+        );
         header.is_finished = true;
         // Assumes that L1 batch consists of only one miniblock.
+
         let miniblock_header = MiniblockHeader {
             number: MiniblockNumber(block_number),
             timestamp: header.timestamp,
@@ -193,7 +209,8 @@ async fn reset_db_state(pool: ConnectionPool, num_blocks: usize) {
             l2_tx_count: header.l2_tx_count,
             base_fee_per_gas: header.base_fee_per_gas,
             l1_gas_price: 0,
-            l2_fair_gas_price: FAIR_L2_GAS_PRICE,
+            l2_fair_gas_price: 0,
+            base_system_contracts_hashes: base_system_contracts.hashes(),
         };
 
         storage

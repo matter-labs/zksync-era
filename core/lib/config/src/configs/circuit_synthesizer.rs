@@ -21,6 +21,8 @@ pub struct CircuitSynthesizerConfig {
     pub prometheus_listener_port: u16,
     pub prometheus_pushgateway_url: String,
     pub prometheus_push_interval_ms: Option<u64>,
+    // Group id for this synthesizer, synthesizer running the same circuit types shall have same group id.
+    pub prover_group_id: u8,
 }
 
 impl CircuitSynthesizerConfig {
@@ -61,6 +63,7 @@ mod tests {
             prometheus_listener_port: 3314,
             prometheus_pushgateway_url: "http://127.0.0.1:9091".to_string(),
             prometheus_push_interval_ms: Some(100),
+            prover_group_id: 0,
         }
     }
 
@@ -75,6 +78,7 @@ mod tests {
         CIRCUIT_SYNTHESIZER_PROMETHEUS_LISTENER_PORT=3314
         CIRCUIT_SYNTHESIZER_PROMETHEUS_PUSHGATEWAY_URL="http://127.0.0.1:9091"
         CIRCUIT_SYNTHESIZER_PROMETHEUS_PUSH_INTERVAL_MS=100
+        CIRCUIT_SYNTHESIZER_PROVER_GROUP_ID=0
         "#;
         set_env(config);
         let actual = CircuitSynthesizerConfig::from_env();

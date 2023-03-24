@@ -1,9 +1,8 @@
 use crate::commitment::CommitmentSerializable;
 use crate::event::{extract_long_l2_to_l1_messages, extract_published_bytecodes};
 use crate::l2_to_l1_log::L2ToL1Log;
-use crate::log_query_sorter::sort_storage_access_queries;
 use crate::writes::{InitialStorageWrite, RepeatedStorageWrite};
-use crate::{StorageLogQuery, StorageLogQueryType, VmEvent};
+use crate::{StorageLogQuery, VmEvent, PUBLISH_BYTECODE_OVERHEAD};
 use std::ops::{Add, AddAssign};
 use zksync_utils::bytecode::bytecode_len_in_bytes;
 
@@ -32,10 +31,21 @@ impl TxExecutionStatus {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default, serde::Serialize, PartialEq)]
-pub struct ExecutionMetrics {
+#[derive(Debug, Default, Clone, Copy, PartialEq)]
+pub struct DeduplicatedWritesMetrics {
     pub initial_storage_writes: usize,
     pub repeated_storage_writes: usize,
+}
+
+impl DeduplicatedWritesMetrics {
+    pub fn size(&self) -> usize {
+        self.initial_storage_writes * InitialStorageWrite::SERIALIZED_SIZE
+            + self.repeated_storage_writes * RepeatedStorageWrite::SERIALIZED_SIZE
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default, serde::Serialize, PartialEq)]
+pub struct ExecutionMetrics {
     pub gas_used: usize,
     pub published_bytecode_bytes: usize,
     pub l2_l1_long_messages: usize,
@@ -49,14 +59,8 @@ pub struct ExecutionMetrics {
 }
 
 impl ExecutionMetrics {
-    pub fn storage_writes(&self) -> usize {
-        self.initial_storage_writes + self.repeated_storage_writes
-    }
-
     pub fn size(&self) -> usize {
-        self.initial_storage_writes * InitialStorageWrite::SERIALIZED_SIZE
-            + self.repeated_storage_writes * RepeatedStorageWrite::SERIALIZED_SIZE
-            + self.l2_l1_logs * L2ToL1Log::SERIALIZED_SIZE
+        self.l2_l1_logs * L2ToL1Log::SERIALIZED_SIZE
             + self.l2_l1_long_messages
             + self.published_bytecode_bytes
     }
@@ -68,22 +72,23 @@ impl ExecutionMetrics {
         contracts_used: usize,
         cycles_used: u32,
     ) -> Self {
-        let (initial_storage_writes, repeated_storage_writes) =
-            get_initial_and_repeated_storage_writes(logs.storage_logs.as_slice());
-
+        // We published the data as ABI-encoded `bytes`, so the total length is:
+        // - message length in bytes, rounded up to a multiple of 32
+        // - 32 bytes of encoded offset
+        // - 32 bytes of encoded length
         let l2_l1_long_messages = extract_long_l2_to_l1_messages(&logs.events)
             .iter()
-            .map(|event| event.len())
+            .map(|event| (event.len() + 31) / 32 * 32 + 64)
             .sum();
 
         let published_bytecode_bytes = extract_published_bytecodes(&logs.events)
             .iter()
-            .map(|bytecodehash| bytecode_len_in_bytes(*bytecodehash))
+            .map(|bytecodehash| {
+                bytecode_len_in_bytes(*bytecodehash) + PUBLISH_BYTECODE_OVERHEAD as usize
+            })
             .sum();
 
         ExecutionMetrics {
-            initial_storage_writes: initial_storage_writes as usize,
-            repeated_storage_writes: repeated_storage_writes as usize,
             gas_used,
             published_bytecode_bytes,
             l2_l1_long_messages,
@@ -103,8 +108,6 @@ impl Add for ExecutionMetrics {
 
     fn add(self, other: ExecutionMetrics) -> ExecutionMetrics {
         ExecutionMetrics {
-            initial_storage_writes: self.initial_storage_writes + other.initial_storage_writes,
-            repeated_storage_writes: self.repeated_storage_writes + other.repeated_storage_writes,
             published_bytecode_bytes: self.published_bytecode_bytes
                 + other.published_bytecode_bytes,
             contracts_deployed: self.contracts_deployed + other.contracts_deployed,
@@ -124,23 +127,4 @@ impl AddAssign for ExecutionMetrics {
     fn add_assign(&mut self, other: Self) {
         *self = *self + other;
     }
-}
-
-pub fn get_initial_and_repeated_storage_writes(
-    storage_log_queries: &[StorageLogQuery],
-) -> (u32, u32) {
-    let mut initial_storage_writes = 0;
-    let mut repeated_storage_writes = 0;
-
-    let (_, deduped_storage_logs) = sort_storage_access_queries(storage_log_queries);
-    for log in &deduped_storage_logs {
-        match log.log_type {
-            StorageLogQueryType::InitialWrite => {
-                initial_storage_writes += 1;
-            }
-            StorageLogQueryType::RepeatedWrite => repeated_storage_writes += 1,
-            StorageLogQueryType::Read => {}
-        }
-    }
-    (initial_storage_writes, repeated_storage_writes)
 }

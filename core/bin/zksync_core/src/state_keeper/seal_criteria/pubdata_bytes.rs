@@ -1,4 +1,4 @@
-use zksync_types::tx::ExecutionMetrics;
+use zksync_types::tx::tx_execution_info::{DeduplicatedWritesMetrics, ExecutionMetrics};
 use zksync_types::{block::BlockGasCount, MAX_PUBDATA_PER_L1_BATCH};
 
 use super::{SealCriterion, SealResolution, StateKeeperConfig};
@@ -16,11 +16,16 @@ impl SealCriterion for PubDataBytesCriterion {
         tx_execution_metrics: ExecutionMetrics,
         _block_gas_count: BlockGasCount,
         _tx_gas_count: BlockGasCount,
+        _block_included_txs_size: usize,
+        _tx_size: usize,
+        block_writes_metrics: DeduplicatedWritesMetrics,
+        tx_writes_metrics: DeduplicatedWritesMetrics,
     ) -> SealResolution {
         let max_pubdata_per_l1_batch = MAX_PUBDATA_PER_L1_BATCH as usize;
 
-        let block_size = block_execution_metrics.size();
-        if tx_execution_metrics.size()
+        let block_size = block_execution_metrics.size() + block_writes_metrics.size();
+        let tx_size = tx_execution_metrics.size() + tx_writes_metrics.size();
+        if tx_size
             > (max_pubdata_per_l1_batch as f64 * config.reject_tx_at_eth_params_percentage).round()
                 as usize
         {
@@ -32,7 +37,6 @@ impl SealCriterion for PubDataBytesCriterion {
         } else if block_size
             > (max_pubdata_per_l1_batch as f64 * config.close_block_at_eth_params_percentage)
                 .round() as usize
-            && block_size < max_pubdata_per_l1_batch
         {
             SealResolution::IncludeAndSeal
         } else {
@@ -58,8 +62,6 @@ mod tests {
         let criterion = PubDataBytesCriterion;
 
         let block_execution_metrics = ExecutionMetrics {
-            initial_storage_writes: 0,
-            repeated_storage_writes: 0,
             contracts_deployed: 0,
             contracts_used: 0,
             gas_used: 0,
@@ -83,12 +85,14 @@ mod tests {
             Default::default(),
             Default::default(),
             Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
         );
         assert_eq!(empty_block_resolution, SealResolution::NoSeal);
 
         let block_execution_metrics = ExecutionMetrics {
-            initial_storage_writes: 0,
-            repeated_storage_writes: 0,
             contracts_deployed: 0,
             contracts_used: 0,
             gas_used: 0,
@@ -112,12 +116,14 @@ mod tests {
             Default::default(),
             Default::default(),
             Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
         );
         assert_eq!(full_block_resolution, SealResolution::IncludeAndSeal);
 
         let block_execution_metrics = ExecutionMetrics {
-            initial_storage_writes: 0,
-            repeated_storage_writes: 0,
             contracts_deployed: 0,
             contracts_used: 0,
             gas_used: 0,
@@ -134,6 +140,10 @@ mod tests {
             Default::default(),
             0,
             block_execution_metrics,
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
             Default::default(),
             Default::default(),
             Default::default(),

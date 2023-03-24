@@ -1,6 +1,6 @@
 pub(self) use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_types::block::BlockGasCount;
-use zksync_types::tx::ExecutionMetrics;
+use zksync_types::tx::tx_execution_info::{DeduplicatedWritesMetrics, ExecutionMetrics};
 
 use super::{SealCriterion, SealResolution};
 
@@ -13,6 +13,10 @@ type CustomSealerFn = dyn Fn(
         ExecutionMetrics,
         BlockGasCount,
         BlockGasCount,
+        usize,
+        usize,
+        DeduplicatedWritesMetrics,
+        DeduplicatedWritesMetrics,
     ) -> SealResolution
     + Send
     + 'static;
@@ -37,6 +41,10 @@ impl SealCriterion for FnCriterion {
         tx_execution_metrics: ExecutionMetrics,
         block_gas_count: BlockGasCount,
         tx_gas_count: BlockGasCount,
+        block_included_txs_size: usize,
+        tx_size: usize,
+        block_writes_metrics: DeduplicatedWritesMetrics,
+        tx_writes_metrics: DeduplicatedWritesMetrics,
     ) -> SealResolution {
         self.0(
             config,
@@ -46,6 +54,10 @@ impl SealCriterion for FnCriterion {
             tx_execution_metrics,
             block_gas_count,
             tx_gas_count,
+            block_included_txs_size,
+            tx_size,
+            block_writes_metrics,
+            tx_writes_metrics,
         )
     }
 

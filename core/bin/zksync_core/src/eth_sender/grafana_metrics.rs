@@ -15,11 +15,6 @@ pub fn track_eth_tx_metrics(connection: &mut StorageProcessor<'_>, l1_stage: &st
         return;
     }
 
-    metrics::gauge!(
-        "server.block_number",
-        blocks.last().unwrap().number.0 as f64,
-        "stage" => stage.clone()
-    );
     for block in blocks {
         metrics::histogram!(
             "server.block_latency",

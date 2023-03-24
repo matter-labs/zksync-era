@@ -13,7 +13,7 @@ use loadnext::{
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    vlog::init();
+    let _sentry_guard = vlog::init();
 
     let config = LoadtestConfig::from_env()
         .expect("Config parameters should be loaded from env or from default values");

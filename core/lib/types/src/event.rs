@@ -52,9 +52,21 @@ static L1_MESSAGE_EVENT_SIGNATURE: Lazy<H256> = Lazy::new(|| {
     )
 });
 
-static BRIDGE_INITIALIZATION_SIGNATURE: Lazy<H256> = Lazy::new(|| {
+static BRIDGE_INITIALIZATION_SIGNATURE_OLD: Lazy<H256> = Lazy::new(|| {
     ethabi::long_signature(
         "BridgeInitialization",
+        &[
+            ethabi::ParamType::Address,
+            ethabi::ParamType::String,
+            ethabi::ParamType::String,
+            ethabi::ParamType::Uint(8),
+        ],
+    )
+});
+
+static BRIDGE_INITIALIZATION_SIGNATURE_NEW: Lazy<H256> = Lazy::new(|| {
+    ethabi::long_signature(
+        "BridgeInitialize",
         &[
             ethabi::ParamType::Address,
             ethabi::ParamType::String,
@@ -103,7 +115,8 @@ fn extract_added_token_info_from_addresses(
                 .iter()
                 .find(|event| {
                     event.address == l2_token_address
-                        && event.indexed_topics[0] == *BRIDGE_INITIALIZATION_SIGNATURE
+                        && (event.indexed_topics[0] == *BRIDGE_INITIALIZATION_SIGNATURE_NEW
+                            || event.indexed_topics[0] == *BRIDGE_INITIALIZATION_SIGNATURE_OLD)
                 })
                 .map(|event| {
                     let l1_token_address = h256_to_account_address(&event.indexed_topics[1]);

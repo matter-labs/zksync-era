@@ -27,7 +27,7 @@ struct Opt {
     /// comma-separated list of components to launch
     #[structopt(
         long,
-        default_value = "api,tree,tree_lightweight,eth,data_fetcher,state_keeper,witness_generator"
+        default_value = "api,tree,tree_lightweight,eth,data_fetcher,state_keeper,witness_generator,housekeeper"
     )]
     components: ComponentsToRun,
 }

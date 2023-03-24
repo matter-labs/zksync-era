@@ -1,6 +1,7 @@
 use futures::{channel::mpsc, future::join_all};
 use std::ops::Add;
 use tokio::task::JoinHandle;
+use zksync_types::REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE;
 
 use zksync::ethereum::{PriorityOpHolder, DEFAULT_PRIORITY_FEE};
 use zksync::utils::{
@@ -560,9 +561,21 @@ impl Executor {
         // Assuming that gas prices on testnets are somewhat stable, we will consider it a constant.
         let average_gas_price = ethereum.client().get_gas_price("executor").await?;
 
-        Ok((average_gas_price + U256::from(DEFAULT_PRIORITY_FEE))
-            * MAX_L1_TRANSACTION_GAS_LIMIT
-            * MAX_L1_TRANSACTIONS)
+        let gas_price_with_priority = average_gas_price + U256::from(DEFAULT_PRIORITY_FEE);
+
+        let average_l1_to_l2_gas_limit = 5_000_000u32;
+        let average_price_for_l1_to_l2_execute = ethereum
+            .base_cost(
+                average_l1_to_l2_gas_limit.into(),
+                REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE as u32,
+                Some(gas_price_with_priority),
+            )
+            .await?;
+
+        Ok(
+            gas_price_with_priority * MAX_L1_TRANSACTION_GAS_LIMIT * MAX_L1_TRANSACTIONS
+                + average_price_for_l1_to_l2_execute * MAX_L1_TRANSACTIONS,
+        )
     }
 
     /// Waits for all the test account futures to be completed.
@@ -581,7 +594,7 @@ impl Executor {
 
     /// Returns the amount of funds to be distributed between accounts on l1.
     fn amount_for_l1_distribution(&self) -> u128 {
-        u128::MAX >> 32
+        u128::MAX >> 29
     }
 
     /// Ensures that Ethereum transaction was successfully executed.

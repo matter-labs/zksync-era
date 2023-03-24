@@ -14,12 +14,6 @@ members = [
     # "core/bin/setup_key_generator_and_server",
     # Verification key generator and server
     "core/bin/verification_key_generator_and_server",
-    # Migration to fill events.tx_initiator_address table for old events
-    "core/bin/events_tx_initiator_address_migration",
-    "core/bin/set_correct_tx_format_for_priority_ops",
-    "core/bin/storage_logs_migration",
-    # Tool for removing blobs from database
-    "core/bin/blob_purger",
     # circuit synthesizer: its commented as it cannot be built with stable rust.
     # "core/bin/circuit_synthesizer",
     # Libraries
@@ -56,7 +50,7 @@ members = [
 ]
 resolver = "2"
 
-exclude = [ "core/bin/prover", "core/bin/setup_key_generator_and_server", "core/bin/circuit_synthesizer"]
+exclude = [ "core/bin/prover", "core/bin/circuit_synthesizer", "core/bin/setup_key_generator_and_server"]
 
 [profile.test.package.zksync_merkle_tree]
 opt-level = 3

@@ -19,3 +19,6 @@ pub const MAX_L2_TX_GAS_LIMIT: u64 = 80000000;
 // transactions so that they are able to send at least GUARANTEED_PUBDATA_PER_L1_BATCH bytes per
 // transaction.
 pub const MAX_GAS_PER_PUBDATA_BYTE: u64 = MAX_L2_TX_GAS_LIMIT / GUARANTEED_PUBDATA_PER_L1_BATCH;
+
+// The L1->L2 are required to have the following gas per pubdata byte.
+pub const REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE: u64 = 800;

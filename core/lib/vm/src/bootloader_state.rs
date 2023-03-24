@@ -1,3 +1,5 @@
+use crate::vm_with_bootloader::TX_DESCRIPTION_OFFSET;
+
 /// Intermediate bootloader-related VM state.
 ///
 /// Required to process transactions one by one (since we intercept the VM execution to execute
@@ -19,6 +21,9 @@ pub(crate) struct BootloaderState {
     tx_to_execute: usize,
     /// Vector that contains sizes of all pushed transactions.
     tx_sizes: Vec<usize>,
+
+    /// The number of 32-byte words spent on the already included compressed bytecodes.
+    compressed_bytecodes_encoding: usize,
 }
 
 impl BootloaderState {
@@ -67,6 +72,18 @@ impl BootloaderState {
     #[allow(dead_code)]
     pub(crate) fn get_tx_size(&self, tx_index: usize) -> usize {
         self.tx_sizes[tx_index]
+    }
+
+    pub(crate) fn get_tx_description_offset(&self, tx_index: usize) -> usize {
+        TX_DESCRIPTION_OFFSET + self.tx_sizes.iter().take(tx_index).sum::<usize>()
+    }
+
+    pub(crate) fn add_compressed_bytecode(&mut self, bytecode_compression_encoding_length: usize) {
+        self.compressed_bytecodes_encoding += bytecode_compression_encoding_length;
+    }
+
+    pub(crate) fn get_compressed_bytecodes(&self) -> usize {
+        self.compressed_bytecodes_encoding
     }
 }
 

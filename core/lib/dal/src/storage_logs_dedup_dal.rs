@@ -1,8 +1,8 @@
 use crate::StorageProcessor;
 use sqlx::types::chrono::Utc;
 use std::collections::{HashMap, HashSet};
-use vm::zk_evm::ethereum_types::H256;
-use zksync_types::{AccountTreeId, Address, L1BatchNumber, StorageKey, StorageLogQuery};
+use vm::zk_evm::aux_structures::LogQuery;
+use zksync_types::{AccountTreeId, Address, L1BatchNumber, StorageKey, H256};
 use zksync_utils::u256_to_h256;
 
 #[derive(Debug)]
@@ -11,7 +11,7 @@ pub struct StorageLogsDedupDal<'a, 'c> {
 }
 
 impl StorageLogsDedupDal<'_, '_> {
-    pub fn insert_storage_logs(&mut self, block_number: L1BatchNumber, logs: &[StorageLogQuery]) {
+    pub fn insert_storage_logs(&mut self, block_number: L1BatchNumber, logs: &[LogQuery]) {
         async_std::task::block_on(async {
             let mut copy = self
             .storage
@@ -25,8 +25,7 @@ impl StorageLogsDedupDal<'_, '_> {
 
             let mut bytes: Vec<u8> = Vec::new();
             let now = Utc::now().naive_utc().to_string();
-            for (operation_number, log_query) in logs.iter().enumerate() {
-                let log = &log_query.log_query;
+            for (operation_number, log) in logs.iter().enumerate() {
                 let hashed_key_str = format!(
                     "\\\\x{}",
                     hex::encode(StorageKey::raw_hashed_key(
@@ -74,7 +73,7 @@ impl StorageLogsDedupDal<'_, '_> {
     pub fn insert_protective_reads(
         &mut self,
         l1_batch_number: L1BatchNumber,
-        read_logs: &[StorageLogQuery],
+        read_logs: &[LogQuery],
     ) {
         async_std::task::block_on(async {
             let mut copy = self
@@ -89,8 +88,7 @@ impl StorageLogsDedupDal<'_, '_> {
 
             let mut bytes: Vec<u8> = Vec::new();
             let now = Utc::now().naive_utc().to_string();
-            for log_query in read_logs.iter() {
-                let log = &log_query.log_query;
+            for log in read_logs.iter() {
                 let address_str = format!("\\\\x{}", hex::encode(log.address.0));
                 let key_str = format!("\\\\x{}", hex::encode(u256_to_h256(log.key).0));
                 let row = format!(
@@ -107,17 +105,13 @@ impl StorageLogsDedupDal<'_, '_> {
     pub fn insert_initial_writes(
         &mut self,
         l1_batch_number: L1BatchNumber,
-        write_logs: &[StorageLogQuery],
+        write_logs: &[LogQuery],
     ) {
         async_std::task::block_on(async {
             let hashed_keys: Vec<_> = write_logs
                 .iter()
                 .map(|log| {
-                    StorageKey::raw_hashed_key(
-                        &log.log_query.address,
-                        &u256_to_h256(log.log_query.key),
-                    )
-                    .to_vec()
+                    StorageKey::raw_hashed_key(&log.address, &u256_to_h256(log.key)).to_vec()
                 })
                 .collect();
 
@@ -308,52 +302,6 @@ impl StorageLogsDedupDal<'_, '_> {
                 )
             })
             .collect()
-        })
-    }
-
-    pub fn migrate_protective_reads(
-        &mut self,
-        from_l1_batch_number: L1BatchNumber,
-        to_l1_batch_number: L1BatchNumber,
-    ) {
-        async_std::task::block_on(async {
-            sqlx::query!(
-                "INSERT INTO protective_reads (l1_batch_number, address, key, created_at, updated_at)
-                SELECT storage_logs_dedup.l1_batch_number, storage_logs_dedup.address, storage_logs_dedup.key, now(), now()
-                    FROM storage_logs_dedup
-                WHERE l1_batch_number BETWEEN $1 AND $2
-                    AND is_write = FALSE
-                ON CONFLICT DO NOTHING
-                ",
-                from_l1_batch_number.0 as i64,
-                to_l1_batch_number.0 as i64,
-            )
-                .execute(self.storage.conn())
-                .await
-                .unwrap();
-        })
-    }
-
-    pub fn migrate_initial_writes(
-        &mut self,
-        from_l1_batch_number: L1BatchNumber,
-        to_l1_batch_number: L1BatchNumber,
-    ) {
-        async_std::task::block_on(async {
-            sqlx::query!(
-                "INSERT INTO initial_writes (hashed_key, l1_batch_number, created_at, updated_at)
-                SELECT storage_logs_dedup.hashed_key, storage_logs_dedup.l1_batch_number, now(), now()
-                    FROM storage_logs_dedup
-                WHERE l1_batch_number BETWEEN $1 AND $2
-                    AND is_write = TRUE
-                ON CONFLICT DO NOTHING
-                ",
-                from_l1_batch_number.0 as i64,
-                to_l1_batch_number.0 as i64,
-            )
-                .execute(self.storage.conn())
-                .await
-                .unwrap();
         })
     }
 }

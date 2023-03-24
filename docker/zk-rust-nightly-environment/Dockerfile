@@ -10,8 +10,8 @@ ENV RUSTUP_HOME=/usr/local/rustup \
 
 # Setup rust nightly
 RUN curl https://sh.rustup.rs -sSf | bash -s -- -y && \
-    rustup install nightly-2022-08-23 && \
-    rustup default nightly-2022-08-23
+    rustup install nightly-2023-02-21 && \
+    rustup default nightly-2023-02-21
 
 
 # Setup cmake

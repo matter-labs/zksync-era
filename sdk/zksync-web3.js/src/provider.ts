@@ -31,7 +31,8 @@ import {
     ETH_ADDRESS,
     parseTransaction,
     sleep,
-    L2_ETH_TOKEN_ADDRESS
+    L2_ETH_TOKEN_ADDRESS,
+    REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_LIMIT
 } from './utils';
 import { Signer } from './signer';
 
@@ -239,6 +240,25 @@ export class Provider extends ethers.providers.JsonRpcProvider {
             return BigNumber.from(result);
         } catch (error) {
             throw new Error(`bad result from backend (estimateGas): ${result}`);
+        }
+    }
+
+    async estimateGasL1(transaction: utils.Deferrable<TransactionRequest>): Promise<BigNumber> {
+        await this.getNetwork();
+        const params = await utils.resolveProperties({
+            transaction: this._getTransactionRequest(transaction)
+        });
+        if (transaction.customData != null) {
+            // @ts-ignore
+            params.transaction.customData = transaction.customData;
+        }
+        const result = await this.send('zks_estimateGasL1ToL2', [
+            Provider.hexlifyTransaction(params.transaction, { from: true })
+        ]);
+        try {
+            return BigNumber.from(result);
+        } catch (error) {
+            throw new Error(`bad result from backend (zks_estimateGasL1ToL2): ${result}`);
         }
     }
 
@@ -565,6 +585,40 @@ export class Provider extends ethers.providers.JsonRpcProvider {
             supportedAAVersion: data.supportedAAVersion,
             nonceOrdering: data.nonceOrdering
         };
+    }
+
+    async estimateL1ToL2Execute(transaction: {
+        contractAddress: Address;
+        calldata: BytesLike;
+        caller?: Address;
+        l2Value?: BigNumberish;
+        factoryDeps?: ethers.BytesLike[];
+        gasPerPubdataByte?: BigNumberish;
+        overrides?: ethers.PayableOverrides;
+    }): Promise<BigNumber> {
+        transaction.gasPerPubdataByte ??= REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_LIMIT;
+
+        // If the `from` address is not provided, we use a random address, because
+        // due to storage slot aggregation, the gas estimation will depend on the address
+        // and so estimation for the zero address may be smaller than for the sender.
+        transaction.caller ??= ethers.Wallet.createRandom().address;
+
+        const customData = {
+            gasPerPubdataByte: transaction.gasPerPubdataByte
+        };
+        if (transaction.factoryDeps) {
+            Object.assign(customData, { factoryDeps: transaction.factoryDeps });
+        }
+
+        const fee = await this.estimateGasL1({
+            from: transaction.caller,
+            data: transaction.calldata,
+            to: transaction.contractAddress,
+            value: transaction.l2Value,
+            customData
+        });
+
+        return fee;
     }
 }
 

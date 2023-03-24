@@ -8,7 +8,7 @@ use crate::event_sink::InMemoryEventSink;
 use crate::oracles::decommitter::DecommitterOracle;
 use crate::oracles::precompile::PrecompilesProcessorWithHistory;
 use crate::oracles::storage::StorageOracle;
-use crate::storage::{Storage, StoragePtr};
+use crate::storage::Storage;
 use zk_evm::witness_trace::DummyTracer;
 
 #[derive(Debug)]
@@ -19,7 +19,6 @@ pub struct OracleTools<'a, const B: bool> {
     pub precompiles_processor: PrecompilesProcessorWithHistory<B>,
     pub decommittment_processor: DecommitterOracle<'a, B>,
     pub witness_tracer: DummyTracer,
-    pub storage_view: StoragePtr<'a>,
 }
 
 impl<'a> OracleTools<'a, false> {
@@ -33,7 +32,6 @@ impl<'a> OracleTools<'a, false> {
             precompiles_processor: PrecompilesProcessorWithHistory::default(),
             decommittment_processor: DecommitterOracle::new(pointer.clone()),
             witness_tracer: DummyTracer {},
-            storage_view: pointer,
         }
     }
 }

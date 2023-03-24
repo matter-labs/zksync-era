@@ -15,12 +15,13 @@ use zksync_config::{
     configs::api::Prometheus as PrometheusConfig, ApiConfig, ProverConfig, ProverConfigs,
     ZkSyncConfig,
 };
-use zksync_dal::gpu_prover_queue_dal::SocketAddress;
+use zksync_dal::gpu_prover_queue_dal::{GpuProverInstanceStatus, SocketAddress};
 use zksync_dal::ConnectionPool;
 
 use crate::artifact_provider::ProverArtifactProvider;
 use crate::prover::ProverReporter;
 use crate::prover_params::ProverParams;
+use zksync_prover_utils::region_fetcher::get_region;
 use crate::socket_listener::incoming_socket_listener;
 use crate::synthesized_circuit_provider::SynthesizedCircuitProvider;
 
@@ -33,15 +34,31 @@ mod synthesized_circuit_provider;
 pub async fn wait_for_tasks(task_futures: Vec<JoinHandle<()>>) {
     match future::select_all(task_futures).await.0 {
         Ok(_) => {
+            graceful_shutdown();
             vlog::info!("One of the actors finished its run, while it wasn't expected to do it");
         }
         Err(error) => {
+            graceful_shutdown();
             vlog::info!(
                 "One of the tokio actors unexpectedly finished with error: {:?}",
                 error
             );
         }
     }
+}
+
+fn graceful_shutdown() {
+    let pool = ConnectionPool::new(Some(1), true);
+    let host = local_ip().expect("Failed obtaining local IP address");
+    let port = ProverConfigs::from_env().non_gpu.assembly_receiver_port;
+    let address = SocketAddress {
+        host,
+        port,
+    };
+    pool.clone()
+        .access_storage_blocking()
+        .gpu_prover_queue_dal()
+        .update_prover_instance_status(address, GpuProverInstanceStatus::Dead, 0);
 }
 
 fn get_ram_per_gpu() -> u64 {
@@ -96,6 +113,7 @@ async fn main() {
         ),
         None => vlog::info!("No sentry url configured"),
     }
+    let region = get_region().await;
 
     let (stop_signal_sender, mut stop_signal_receiver) = mpsc::channel(256);
 
@@ -130,7 +148,7 @@ async fn main() {
     let circuit_ids = ProverGroupConfig::from_env()
         .get_circuit_ids_for_group_id(prover_config.specialized_prover_group_id);
 
-    vlog::info!("Starting proof generation for circuits: {:?}", circuit_ids);
+    vlog::info!("Starting proof generation for circuits: {:?} in region: {} with group-id: {}", circuit_ids, region, prover_config.specialized_prover_group_id);
     let mut tasks: Vec<JoinHandle<()>> = vec![];
 
     tasks.push(prometheus_exporter::run_prometheus_exporter(
@@ -161,13 +179,14 @@ async fn main() {
         producer,
         ConnectionPool::new(Some(1), true),
         prover_config.specialized_prover_group_id,
+        region
     )));
 
     let artifact_provider = ProverArtifactProvider {};
     let prover_job_reporter = ProverReporter {
         pool: ConnectionPool::new(Some(1), true),
         config: prover_config.clone(),
-        processed_by: std::env::var("POD_NAME").unwrap_or("Unknown".to_string()),
+        processed_by: env::var("POD_NAME").unwrap_or("Unknown".to_string()),
     };
 
     let params: ProverParams = prover_config.clone().into();

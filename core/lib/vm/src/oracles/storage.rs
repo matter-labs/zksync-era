@@ -3,7 +3,8 @@ use std::collections::HashMap;
 use crate::storage::StoragePtr;
 
 use crate::history_recorder::{
-    AppDataFrameManagerWithHistory, HashMapHistoryEvent, HistoryRecorder, StorageWrapper,
+    AppDataFrameManagerWithHistory, FrameManager, HashMapHistoryEvent, HistoryRecorder,
+    StorageWrapper, WithHistory,
 };
 
 use zk_evm::abstractions::RefundedAmounts;
@@ -13,8 +14,10 @@ use zk_evm::{
     aux_structures::{LogQuery, Timestamp},
     reference_impls::event_sink::ApplicationData,
 };
+use zksync_types::utils::storage_key_for_eth_balance;
 use zksync_types::{
-    AccountTreeId, Address, StorageKey, StorageLogQuery, StorageLogQueryType, U256,
+    AccountTreeId, Address, StorageKey, StorageLogQuery, StorageLogQueryType, BOOTLOADER_ADDRESS,
+    U256,
 };
 use zksync_utils::u256_to_h256;
 
@@ -70,6 +73,7 @@ impl<'a> StorageOracle<'a> {
 
     fn is_storage_key_free(&self, key: &StorageKey) -> bool {
         key.address() == &zksync_config::constants::SYSTEM_CONTEXT_ADDRESS
+            || *key == storage_key_for_eth_balance(&BOOTLOADER_ADDRESS)
     }
 
     pub fn read_value(&mut self, mut query: LogQuery) -> LogQuery {
@@ -156,6 +160,35 @@ impl<'a> StorageOracle<'a> {
         } else {
             base_cost - already_paid
         }
+    }
+
+    pub fn get_size(&self) -> usize {
+        let frames_stack_size = self
+            .frames_stack
+            .inner()
+            .get_frames()
+            .iter()
+            .map(|frame| {
+                (frame.rollbacks.len() + frame.forward.len())
+                    * std::mem::size_of::<StorageLogQuery>()
+            })
+            .sum::<usize>();
+        let paid_changes_size =
+            self.paid_changes.inner().len() * std::mem::size_of::<(StorageKey, u32)>();
+
+        frames_stack_size + paid_changes_size
+    }
+
+    pub fn get_history_size(&self) -> usize {
+        let storage_size = self.storage.history().len()
+            * std::mem::size_of::<<StorageWrapper as WithHistory>::HistoryRecord>();
+        let frames_stack_size = self.frames_stack.history().len()
+            * std::mem::size_of::<
+                <FrameManager<ApplicationData<StorageLogQuery>> as WithHistory>::HistoryRecord,
+            >();
+        let paid_changes_size = self.paid_changes.history().len()
+            * std::mem::size_of::<<HashMap<StorageKey, u32> as WithHistory>::HistoryRecord>();
+        storage_size + frames_stack_size + paid_changes_size
     }
 }
 
@@ -281,7 +314,6 @@ impl<'a> VmStorageOracle for StorageOracle<'a> {
 }
 
 fn get_pubdata_price_bytes(_query: &LogQuery, is_initial: bool) -> u32 {
-    // should cost less.
     if is_initial {
         zk_evm::zkevm_opcode_defs::system_params::INITIAL_STORAGE_WRITE_PUBDATA_BYTES as u32
     } else {

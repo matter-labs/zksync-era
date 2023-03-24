@@ -41,6 +41,5 @@ then
 fi
 
 # start server
-cd /infrastructure/zk && yarn start config compile && cd /
 source /etc/env/dev.env
 zksync_server

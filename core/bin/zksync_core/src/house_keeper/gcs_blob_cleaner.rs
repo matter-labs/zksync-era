@@ -1,11 +1,6 @@
-use std::error;
-
 use zksync_dal::ConnectionPool;
-use zksync_object_store::cloud_storage::Reason;
-use zksync_object_store::gcs_object_store::cloud_storage::Error;
-use zksync_object_store::gcs_object_store::GOOGLE_CLOUD_STORAGE_OBJECT_STORE_TYPE;
 use zksync_object_store::object_store::{
-    DynamicObjectStore, LEAF_AGGREGATION_WITNESS_JOBS_BUCKET_PATH,
+    DynamicObjectStore, ObjectStoreError, LEAF_AGGREGATION_WITNESS_JOBS_BUCKET_PATH,
     NODE_AGGREGATION_WITNESS_JOBS_BUCKET_PATH, PROVER_JOBS_BUCKET_PATH,
     SCHEDULER_WITNESS_JOBS_BUCKET_PATH, WITNESS_INPUT_BUCKET_PATH,
 };
@@ -19,36 +14,20 @@ pub struct GcsBlobCleaner {
 
 const BATCH_CLEANUP_SIZE: u8 = 5;
 
-fn handle_remove_result(object_store_type: &str, result: Result<(), Box<dyn error::Error>>) {
-    if object_store_type == GOOGLE_CLOUD_STORAGE_OBJECT_STORE_TYPE {
-        match result {
-            Ok(_) => {} // DO NOTHING
-            Err(err) => {
-                let gcs_error = err.downcast::<Error>().unwrap();
-                match *gcs_error {
-                    Error::Google(err) => {
-                        if err
-                            .error
-                            .errors
-                            .iter()
-                            .any(|err| matches!(err.reason, Reason::NotFound))
-                        {
-                            return;
-                        }
-                        panic!("{:?}", err)
-                    }
-                    _ => {
-                        panic!("{:?}", gcs_error)
-                    }
-                }
+fn handle_remove_result(result: Result<(), ObjectStoreError>) {
+    if let Err(error) = result {
+        match error {
+            // There can be scenario when the removal from the GCS succeeded and updating the DB after that fails,
+            // in this scenario the retry of removal from GCS would fail as the object is already removed.
+            // Hence we ignore the KeyNotFound error below
+            ObjectStoreError::KeyNotFound(_) => {}
+            ObjectStoreError::Other(err) => {
+                panic!("{:?}", err)
             }
         }
     }
 }
 
-/// There can be scenario when the removal from the GCS succeeded and updating the DB after that fails,
-/// in this scenario the retry of removal from GCS would fail as the object is already removed.
-/// To handle this either the `Key does not exist` error from GCS can be ignored or other option is to do everything inside a transaction.
 impl GcsBlobCleaner {
     fn cleanup_blobs(&mut self, pool: ConnectionPool) {
         self.cleanup_prover_jobs_blobs(pool.clone());
@@ -66,13 +45,12 @@ impl GcsBlobCleaner {
         let (ids, circuit_input_blob_urls): (Vec<_>, Vec<_>) =
             id_blob_urls_tuple.into_iter().unzip();
 
-        vlog::info!("Found {} provers jobs for cleaning blobs", ids.len());
+        if !ids.is_empty() {
+            vlog::info!("Found {} provers jobs for cleaning blobs", ids.len());
+        }
 
         circuit_input_blob_urls.into_iter().for_each(|url| {
-            handle_remove_result(
-                self.object_store.get_store_type(),
-                self.object_store.remove(PROVER_JOBS_BUCKET_PATH, url),
-            );
+            handle_remove_result(self.object_store.remove(PROVER_JOBS_BUCKET_PATH, url));
         });
 
         conn.prover_dal().mark_gcs_blobs_as_cleaned(ids);
@@ -86,16 +64,15 @@ impl GcsBlobCleaner {
         let (l1_batch_numbers, merkle_tree_paths_blob_urls): (Vec<_>, Vec<_>) =
             l1_batches_blob_urls_tuple.into_iter().unzip();
 
-        vlog::info!(
-            "Found {} witness inputs for cleaning blobs",
-            l1_batch_numbers.len()
-        );
+        if !l1_batch_numbers.is_empty() {
+            vlog::info!(
+                "Found {} witness inputs for cleaning blobs",
+                l1_batch_numbers.len()
+            );
+        }
 
         merkle_tree_paths_blob_urls.into_iter().for_each(|url| {
-            handle_remove_result(
-                self.object_store.get_store_type(),
-                self.object_store.remove(WITNESS_INPUT_BUCKET_PATH, url),
-            );
+            handle_remove_result(self.object_store.remove(WITNESS_INPUT_BUCKET_PATH, url));
         });
         conn.blocks_dal()
             .mark_gcs_blobs_as_cleaned(l1_batch_numbers);
@@ -110,21 +87,21 @@ impl GcsBlobCleaner {
         let (l1_batch_numbers, basic_circuit_and_circuit_inputs_blob_urls): (Vec<_>, Vec<_>) =
             l1_batches_blob_urls_tuple.into_iter().unzip();
 
-        vlog::info!(
-            "Found {} leaf aggregation witness jobs for cleaning blobs",
-            l1_batch_numbers.len()
-        );
+        if !l1_batch_numbers.is_empty() {
+            vlog::info!(
+                "Found {} leaf aggregation witness jobs for cleaning blobs",
+                l1_batch_numbers.len()
+            );
+        }
 
         basic_circuit_and_circuit_inputs_blob_urls
             .into_iter()
             .for_each(|url_pair| {
                 handle_remove_result(
-                    self.object_store.get_store_type(),
                     self.object_store
                         .remove(LEAF_AGGREGATION_WITNESS_JOBS_BUCKET_PATH, url_pair.0),
                 );
                 handle_remove_result(
-                    self.object_store.get_store_type(),
                     self.object_store
                         .remove(LEAF_AGGREGATION_WITNESS_JOBS_BUCKET_PATH, url_pair.1),
                 );
@@ -147,21 +124,21 @@ impl GcsBlobCleaner {
             Vec<_>,
         ) = l1_batches_blob_urls_tuple.into_iter().unzip();
 
-        vlog::info!(
-            "Found {} node aggregation witness jobs for cleaning blobs",
-            l1_batch_numbers.len()
-        );
+        if !l1_batch_numbers.is_empty() {
+            vlog::info!(
+                "Found {} node aggregation witness jobs for cleaning blobs",
+                l1_batch_numbers.len()
+            );
+        }
 
         leaf_layer_subqueues_and_aggregation_outputs_blob_urls
             .into_iter()
             .for_each(|url_pair| {
                 handle_remove_result(
-                    self.object_store.get_store_type(),
                     self.object_store
                         .remove(NODE_AGGREGATION_WITNESS_JOBS_BUCKET_PATH, url_pair.0),
                 );
                 handle_remove_result(
-                    self.object_store.get_store_type(),
                     self.object_store
                         .remove(NODE_AGGREGATION_WITNESS_JOBS_BUCKET_PATH, url_pair.1),
                 );
@@ -183,21 +160,21 @@ impl GcsBlobCleaner {
             Vec<_>,
         ) = l1_batches_blob_urls_tuple.into_iter().unzip();
 
-        vlog::info!(
-            "Found {} scheduler witness jobs for cleaning blobs",
-            l1_batch_numbers.len()
-        );
+        if !l1_batch_numbers.is_empty() {
+            vlog::info!(
+                "Found {} scheduler witness jobs for cleaning blobs",
+                l1_batch_numbers.len()
+            );
+        }
 
         scheduler_witness_and_node_aggregations_blob_urls
             .into_iter()
             .for_each(|url_pair| {
                 handle_remove_result(
-                    self.object_store.get_store_type(),
                     self.object_store
                         .remove(SCHEDULER_WITNESS_JOBS_BUCKET_PATH, url_pair.0),
                 );
                 handle_remove_result(
-                    self.object_store.get_store_type(),
                     self.object_store
                         .remove(SCHEDULER_WITNESS_JOBS_BUCKET_PATH, url_pair.1),
                 );

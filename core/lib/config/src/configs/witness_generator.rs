@@ -3,6 +3,7 @@ use std::time::Duration;
 // Built-in uses
 // External uses
 use serde::Deserialize;
+
 // Local uses
 use crate::envy_load;
 
@@ -17,33 +18,14 @@ pub struct WitnessGeneratorConfig {
     pub key_download_url: String,
     /// Max attempts for generating witness
     pub max_attempts: u32,
-    /// Is sampling enabled
-    pub sampling_enabled: bool,
-    /// Safe prover lag to process block
-    pub sampling_safe_prover_lag: Option<usize>,
-    /// Max prover lag to process block
-    pub sampling_max_prover_lag: Option<usize>,
+    // Percentage of the blocks that gets proven in the range [0.0, 1.0]
+    // when 0.0 implies all blocks are skipped and 1.0 implies all blocks are proven.
+    pub blocks_proving_percentage: Option<u8>,
     pub dump_arguments_for_blocks: Vec<u32>,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct SamplingParams {
-    pub safe_prover_lag: usize,
-    pub max_prover_lag: usize,
-}
-
-impl SamplingParams {
-    pub fn calculate_sampling_probability(&self, prover_lag: usize) -> f64 {
-        let numerator = self.max_prover_lag as f64 - prover_lag as f64;
-        let denominator = (self.max_prover_lag - self.safe_prover_lag).max(1) as f64;
-        (numerator / denominator).min(1f64).max(0f64)
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub enum SamplingMode {
-    Enabled(SamplingParams),
-    Disabled,
+    // Optional l1 batch number to process block until(inclusive).
+    // This parameter is used in case of performing circuit upgrades(VK/Setup keys),
+    // to not let witness-generator pick new job and finish all the existing jobs with old circuit.
+    pub last_l1_batch_to_process: Option<u32>,
 }
 
 impl WitnessGeneratorConfig {
@@ -55,27 +37,16 @@ impl WitnessGeneratorConfig {
         Duration::from_secs(self.generation_timeout_in_secs as u64)
     }
 
-    pub fn sampling_mode(&self) -> SamplingMode {
-        match (
-            self.sampling_enabled,
-            self.sampling_safe_prover_lag,
-            self.sampling_max_prover_lag,
-        ) {
-            (true, Some(safe_prover_lag), Some(max_prover_lag)) => {
-                SamplingMode::Enabled(SamplingParams {
-                    safe_prover_lag,
-                    max_prover_lag,
-                })
-            }
-            _ => SamplingMode::Disabled,
-        }
+    pub fn last_l1_batch_to_process(&self) -> u32 {
+        self.last_l1_batch_to_process.unwrap_or(u32::MAX)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::configs::test_utils::set_env;
+
+    use super::*;
 
     fn expected_config() -> WitnessGeneratorConfig {
         WitnessGeneratorConfig {
@@ -83,10 +54,9 @@ mod tests {
             initial_setup_key_path: "key".to_owned(),
             key_download_url: "value".to_owned(),
             max_attempts: 4,
-            sampling_enabled: true,
-            sampling_safe_prover_lag: Some(50),
-            sampling_max_prover_lag: Some(300),
+            blocks_proving_percentage: Some(30),
             dump_arguments_for_blocks: vec![2, 3],
+            last_l1_batch_to_process: None,
         }
     }
 
@@ -97,10 +67,8 @@ mod tests {
         WITNESS_INITIAL_SETUP_KEY_PATH="key"
         WITNESS_KEY_DOWNLOAD_URL="value"
         WITNESS_MAX_ATTEMPTS=4
-        WITNESS_SAMPLING_ENABLED=true
-        WITNESS_SAMPLING_SAFE_PROVER_LAG=50
-        WITNESS_SAMPLING_MAX_PROVER_LAG=300
         WITNESS_DUMP_ARGUMENTS_FOR_BLOCKS="2,3"
+        WITNESS_BLOCKS_PROVING_PERCENTAGE="30"
         "#;
         set_env(config);
         let actual = WitnessGeneratorConfig::from_env();

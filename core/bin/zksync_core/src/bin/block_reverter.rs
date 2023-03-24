@@ -270,7 +270,7 @@ impl BlockReverter {
         let signed_tx = eth_gateway
             .sign_prepared_tx_for_addr(
                 raw_tx.clone(),
-                self.config.contracts.diamond_proxy_addr,
+                self.config.contracts.validator_timelock_addr,
                 Options::with(|opt| {
                     opt.gas = Some(5_000_000.into());
                     opt.max_priority_fee_per_gas = Some(priority_fee_per_gas);
@@ -422,7 +422,7 @@ enum Opt {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    vlog::init();
+    let _sentry_guard = vlog::init();
     let config = ZkSyncConfig::from_env();
     let connection_pool = ConnectionPool::new(None, true);
     let mut block_reverter = BlockReverter {

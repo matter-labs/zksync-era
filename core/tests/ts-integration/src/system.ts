@@ -9,6 +9,7 @@ const DIAMOND_UPGRADE_INIT_ABI = new ethers.utils.Interface(
 const DIAMOND_CUT_FACET_ABI = new ethers.utils.Interface(
     require(`${L1_CONTRACTS_FOLDER}/zksync/facets/DiamondCut.sol/DiamondCutFacet.json`).abi
 );
+
 export interface ForceDeployment {
     // The bytecode hash to put on an address
     bytecodeHash: BytesLike;

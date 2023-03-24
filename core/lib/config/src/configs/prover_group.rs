@@ -16,6 +16,7 @@ pub struct ProverGroupConfig {
     pub group_7_circuit_ids: Vec<u8>,
     pub group_8_circuit_ids: Vec<u8>,
     pub group_9_circuit_ids: Vec<u8>,
+    pub region_read_url: String,
 }
 
 impl ProverGroupConfig {
@@ -37,6 +38,10 @@ impl ProverGroupConfig {
             9 => Some(self.group_9_circuit_ids.clone()),
             _ => None,
         }
+    }
+
+    pub fn is_specialized_group_id(&self, group_id: u8) -> bool {
+        group_id <= 9
     }
 
     pub fn get_group_id_for_circuit_id(&self, circuit_id: u8) -> Option<u8> {
@@ -78,6 +83,7 @@ mod tests {
             group_7_circuit_ids: vec![14, 15],
             group_8_circuit_ids: vec![16, 17],
             group_9_circuit_ids: vec![3],
+            region_read_url: "http://metadata.google.internal/computeMetadata/v1/instance/attributes/cluster-location".to_string(),
         }
     }
 
@@ -92,6 +98,7 @@ mod tests {
         PROVER_GROUP_GROUP_7_CIRCUIT_IDS="14,15"
         PROVER_GROUP_GROUP_8_CIRCUIT_IDS="16,17"
         PROVER_GROUP_GROUP_9_CIRCUIT_IDS="3"
+        PROVER_GROUP_REGION_READ_URL="http://metadata.google.internal/computeMetadata/v1/instance/attributes/cluster-location"
     "#;
 
     #[test]

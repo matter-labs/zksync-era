@@ -14,8 +14,10 @@ import { RetryProvider } from './retry-provider';
 //
 // Please DO NOT change these constants if you don't know why you have to do that. Try to debug the particular issue
 // you face first.
-export const L1_ETH_PER_ACCOUNT = ethers.utils.parseEther('0.05');
-export const L2_ETH_PER_ACCOUNT = ethers.utils.parseEther('0.50');
+export const L1_DEFAULT_ETH_PER_ACCOUNT = ethers.utils.parseEther('0.05');
+// Stress tests for L1->L2 transactions on localhost require a lot of upfront payment, but these are skipped during tests on normal environments
+export const L1_EXTENDED_TESTS_ETH_PER_ACCOUNT = ethers.utils.parseEther('0.5');
+export const L2_ETH_PER_ACCOUNT = ethers.utils.parseEther('0.5');
 export const ERC20_PER_ACCOUNT = ethers.utils.parseEther('10000.0');
 
 /**
@@ -72,6 +74,11 @@ export class TestContextOwner {
 
         this.mainEthersWallet = new ethers.Wallet(env.mainWalletPK, this.l1Provider);
         this.mainSyncWallet = new zksync.Wallet(env.mainWalletPK, this.l2Provider, this.l1Provider);
+    }
+
+    // Returns the required amount of L1 ETH
+    requiredL1ETHPerAccount() {
+        return this.env.network === 'localhost' ? L1_EXTENDED_TESTS_ETH_PER_ACCOUNT : L1_DEFAULT_ETH_PER_ACCOUNT;
     }
 
     /**
@@ -173,7 +180,7 @@ export class TestContextOwner {
             ? requiredL2ETHAmount.sub(actualL2ETHAmount)
             : ethers.BigNumber.from(0);
 
-        const requiredL1ETHAmount = L1_ETH_PER_ACCOUNT.mul(accountsAmount).add(l2ETHAmountToDeposit);
+        const requiredL1ETHAmount = this.requiredL1ETHPerAccount().mul(accountsAmount).add(l2ETHAmountToDeposit);
         const actualL1ETHAmount = await this.mainSyncWallet.getBalanceL1();
         this.reporter.message(`Operator balance on L1 is ${ethers.utils.formatEther(actualL1ETHAmount)} ETH`);
 
@@ -289,7 +296,7 @@ export class TestContextOwner {
             zksync.utils.ETH_ADDRESS,
             this.mainEthersWallet,
             wallets,
-            L1_ETH_PER_ACCOUNT,
+            this.requiredL1ETHPerAccount(),
             nonce,
             gasPrice,
             this.reporter

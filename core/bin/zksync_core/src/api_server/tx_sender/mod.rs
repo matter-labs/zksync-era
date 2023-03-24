@@ -1,9 +1,6 @@
 //! Helper module to submit transactions into the zkSync Network.
-
 // Built-in uses
-use std::num::NonZeroU32;
-use std::sync::Arc;
-use std::time::Instant;
+use std::{cmp::min, num::NonZeroU32, sync::Arc, time::Instant};
 
 // External uses
 use bigdecimal::BigDecimal;
@@ -18,32 +15,48 @@ use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_dal::transactions_dal::L2TxSubmissionResult;
 use zksync_eth_client::clients::http_client::EthereumClient;
 
+use vm::transaction_data::TransactionData;
 use zksync_types::fee::TransactionExecutionMetrics;
-use zksync_types::utils::storage_key_for_eth_balance;
+
 use zksync_types::{
-    FAIR_L2_GAS_PRICE, MAX_GAS_PER_PUBDATA_BYTE, MAX_L2_TX_GAS_LIMIT, MAX_NEW_FACTORY_DEPS,
+    ExecuteTransactionCommon, Transaction, MAX_GAS_PER_PUBDATA_BYTE, MAX_L2_TX_GAS_LIMIT,
+    MAX_NEW_FACTORY_DEPS,
 };
-// Workspace uses
+
+use zksync_config::ZkSyncConfig;
+use zksync_dal::ConnectionPool;
+
 use zksync_types::{
-    api, fee::Fee, l2::error::TxCheckError::TxDuplication, AccountTreeId, Address, L2ChainId, U256,
+    api,
+    fee::Fee,
+    get_code_key, get_intrinsic_constants,
+    l2::error::TxCheckError::TxDuplication,
+    l2::L2Tx,
+    tx::tx_execution_info::{DeduplicatedWritesMetrics, ExecutionMetrics},
+    utils::storage_key_for_eth_balance,
+    AccountTreeId, Address, L2ChainId, Nonce, H160, H256, U256,
 };
+
+use zksync_contracts::BaseSystemContracts;
 use zksync_utils::h256_to_u256;
-pub mod error;
+
 // Local uses
 use crate::api_server::execution_sandbox::{
-    execute_tx_with_pending_state, get_pubdata_for_factory_deps, validate_tx_with_pending_state,
-    SandboxExecutionError,
+    adjust_l1_gas_price_for_tx, execute_tx_with_pending_state, get_pubdata_for_factory_deps,
+    validate_tx_with_pending_state, SandboxExecutionError,
 };
 
 use crate::fee_ticker::{error::TickerError, FeeTicker, TokenPriceRequestType};
 use crate::gas_adjuster::GasAdjuster;
-use crate::gas_tracker::gas_count_from_tx_and_metrics;
+use crate::gas_tracker::{gas_count_from_tx_and_metrics, gas_count_from_writes};
 use crate::state_keeper::seal_criteria::{SealManager, SealResolution};
 
+pub mod error;
 pub use error::SubmitTxError;
-use zksync_config::ZkSyncConfig;
-use zksync_dal::ConnectionPool;
-use zksync_types::{l2::L2Tx, tx::ExecutionMetrics, Nonce};
+use vm::transaction_data::{derive_overhead, OverheadCoeficients};
+
+pub mod proxy;
+pub use proxy::TxProxy;
 
 pub struct TxSenderInner {
     pub master_connection_pool: ConnectionPool,
@@ -58,6 +71,9 @@ pub struct TxSenderInner {
     // Used to keep track of gas prices for the fee ticker.
     pub gas_adjuster: Arc<GasAdjuster<EthereumClient>>,
     pub state_keeper_config: StateKeeperConfig,
+    pub playground_base_system_contracts: BaseSystemContracts,
+    pub estimate_fee_base_system_contracts: BaseSystemContracts,
+    pub proxy: Option<TxProxy>,
 }
 
 #[derive(Clone)]
@@ -75,6 +91,8 @@ impl TxSender {
         master_connection_pool: ConnectionPool,
         replica_connection_pool: ConnectionPool,
         gas_adjuster: Arc<GasAdjuster<EthereumClient>>,
+        playground_base_system_contracts: BaseSystemContracts,
+        estimate_fee_base_system_contracts: BaseSystemContracts,
     ) -> Self {
         let rate_limiter = config
             .api
@@ -87,6 +105,13 @@ impl TxSender {
                 )
             });
 
+        let proxy = config
+            .api
+            .web3_json_rpc
+            .main_node_url
+            .as_ref()
+            .map(|url| TxProxy::new(url));
+
         Self(Arc::new(TxSenderInner {
             chain_id: L2ChainId(config.chain.eth.zksync_network_id),
             master_connection_pool,
@@ -98,6 +123,9 @@ impl TxSender {
             rate_limiter,
             gas_adjuster,
             state_keeper_config: config.chain.state_keeper.clone(),
+            playground_base_system_contracts,
+            estimate_fee_base_system_contracts,
+            proxy,
         }))
     }
 
@@ -128,7 +156,8 @@ impl TxSender {
             );
             return Err(SubmitTxError::GasLimitIsTooBig);
         }
-        if tx.common_data.fee.max_fee_per_gas < FAIR_L2_GAS_PRICE.into() {
+        if tx.common_data.fee.max_fee_per_gas < self.0.state_keeper_config.fair_l2_gas_price.into()
+        {
             vlog::info!(
                 "Submitted Tx is Unexecutable {:?} because of MaxFeePerGasTooLow {}",
                 tx.hash(),
@@ -151,6 +180,25 @@ impl TxSender {
             ));
         }
 
+        let l1_gas_price = self.0.gas_adjuster.estimate_effective_gas_price();
+
+        let (_, gas_per_pubdata_byte) = derive_base_fee_and_gas_per_pubdata(
+            l1_gas_price,
+            self.0.state_keeper_config.fair_l2_gas_price,
+        );
+
+        let intrinsic_constants = get_intrinsic_constants();
+        if tx.common_data.fee.gas_limit
+            < U256::from(intrinsic_constants.l2_tx_intrinsic_gas)
+                + U256::from(intrinsic_constants.l2_tx_intrinsic_pubdata)
+                    * min(
+                        U256::from(gas_per_pubdata_byte),
+                        tx.common_data.fee.gas_per_pubdata_limit,
+                    )
+        {
+            return Err(SubmitTxError::IntrinsicGas);
+        }
+
         // We still double-check the nonce manually
         // to make sure that only the correct nonce is submitted and the transaction's hashes never repeat
         self.validate_account_nonce(&tx)?;
@@ -163,18 +211,19 @@ impl TxSender {
         stage_started_at = Instant::now();
 
         let l1_gas_price = self.0.gas_adjuster.estimate_effective_gas_price();
-        let fair_l2_gas_price = FAIR_L2_GAS_PRICE;
+        let fair_l2_gas_price = self.0.state_keeper_config.fair_l2_gas_price;
 
         let (tx_metrics, _) = execute_tx_with_pending_state(
             &self.0.replica_connection_pool,
-            tx.clone(),
+            tx.clone().into(),
             AccountTreeId::new(self.0.fee_account_addr),
             TxExecutionMode::EthCall,
             Some(tx.nonce()),
             U256::zero(),
             l1_gas_price,
-            FAIR_L2_GAS_PRICE,
+            fair_l2_gas_price,
             Some(tx.common_data.fee.max_fee_per_gas.as_u64()),
+            &self.0.playground_base_system_contracts,
         );
 
         vlog::info!(
@@ -195,6 +244,10 @@ impl TxSender {
             l1_gas_price,
             fair_l2_gas_price,
             Some(tx.common_data.fee.max_fee_per_gas.as_u64()),
+            &self.0.playground_base_system_contracts,
+            self.0
+                .state_keeper_config
+                .validation_computational_gas_limit,
         );
 
         metrics::histogram!("api.web3.submit_tx", stage_started_at.elapsed(), "stage" => "3_verify_execute");
@@ -204,7 +257,16 @@ impl TxSender {
             return Err(err.into());
         }
 
-        self.ensure_tx_executable(&tx, &tx_metrics, true)?;
+        self.ensure_tx_executable(&tx.clone().into(), &tx_metrics, true)?;
+
+        if let Some(proxy) = &self.0.proxy {
+            // We're running an external node: we have to proxy the transaction to the main node.
+            proxy.submit_tx(&tx)?;
+            proxy.save_tx(tx.hash(), tx);
+            metrics::histogram!("api.web3.submit_tx", stage_started_at.elapsed(), "stage" => "4_tx_proxy");
+            metrics::counter!("server.processed_txs", 1, "stage" => "proxied");
+            return Ok(L2TxSubmissionResult::Proxied);
+        }
 
         let nonce = tx.common_data.nonce.0;
         let hash = tx.hash();
@@ -294,21 +356,13 @@ impl TxSender {
             return Ok(());
         }
 
-        let eth_balance_key = storage_key_for_eth_balance(&tx.common_data.initiator_address);
-
-        let balance = self
-            .0
-            .replica_connection_pool
-            .access_storage_blocking()
-            .storage_dal()
-            .get_by_key(&eth_balance_key)
-            .unwrap_or_default();
-        let balance = h256_to_u256(balance);
+        let balance = self.get_balance(&tx.common_data.initiator_address);
 
         // Estimate the minimum fee price user will agree to.
         let gas_price = std::cmp::min(
             tx.common_data.fee.max_fee_per_gas,
-            U256::from(FAIR_L2_GAS_PRICE) + tx.common_data.fee.max_priority_fee_per_gas,
+            U256::from(self.0.state_keeper_config.fair_l2_gas_price)
+                + tx.common_data.fee.max_priority_fee_per_gas,
         );
         let max_fee = tx.common_data.fee.gas_limit * gas_price;
         let max_fee_and_value = max_fee + tx.execute.value;
@@ -348,8 +402,11 @@ impl TxSender {
         }
 
         let l1_gas_price = self.0.gas_adjuster.estimate_effective_gas_price();
-        let suggested_gas_price_per_pubdata =
-            derive_base_fee_and_gas_per_pubdata(l1_gas_price, FAIR_L2_GAS_PRICE).1 as u32;
+        let suggested_gas_price_per_pubdata = derive_base_fee_and_gas_per_pubdata(
+            l1_gas_price,
+            self.0.state_keeper_config.fair_l2_gas_price,
+        )
+        .1 as u32;
 
         // If user provided gas per pubdata limit lower than currently suggested
         // by the server, the users' transaction will not be included in the blocks right away
@@ -360,39 +417,91 @@ impl TxSender {
         Ok(result)
     }
 
+    fn get_balance(&self, initiator_address: &H160) -> U256 {
+        let eth_balance_key = storage_key_for_eth_balance(initiator_address);
+
+        let balance = self
+            .0
+            .replica_connection_pool
+            .access_storage_blocking()
+            .storage_dal()
+            .get_by_key(&eth_balance_key)
+            .unwrap_or_default();
+
+        h256_to_u256(balance)
+    }
+
     pub fn get_txs_fee_in_wei(
         &self,
-        mut tx: L2Tx,
+        mut tx: Transaction,
         estimated_fee_scale_factor: f64,
         acceptable_overestimation: u32,
     ) -> Result<Fee, SubmitTxError> {
         let l1_gas_price = {
             let effective_gas_price = self.0.gas_adjuster.estimate_effective_gas_price();
-            ((effective_gas_price as f64) * self.0.gas_price_scale_factor) as u64
+            let current_l1_gas_price =
+                ((effective_gas_price as f64) * self.0.gas_price_scale_factor) as u64;
+
+            // In order for execution to pass smoothly, we need to ensure that block's required gasPerPubdata will be
+            // <= to the one in the transaction itself.
+            adjust_l1_gas_price_for_tx(
+                current_l1_gas_price,
+                self.0.state_keeper_config.fair_l2_gas_price,
+                tx.gas_per_pubdata_byte_limit(),
+            )
         };
 
-        let (base_fee, gas_per_pubdata_byte) =
-            derive_base_fee_and_gas_per_pubdata(l1_gas_price, FAIR_L2_GAS_PRICE);
+        let (base_fee, gas_per_pubdata_byte) = {
+            let (current_base_fee, gas_per_pubdata_byte) = derive_base_fee_and_gas_per_pubdata(
+                l1_gas_price,
+                self.0.state_keeper_config.fair_l2_gas_price,
+            );
+            let enforced_base_fee = std::cmp::min(tx.max_fee_per_gas().as_u64(), current_base_fee);
 
-        // If no signature has been provided, we will use the correctly-formatted EOA
-        // dummy signature
-        if tx.common_data.signature.is_empty() {
-            tx.common_data.signature = vec![0u8; 65];
-            tx.common_data.signature[64] = 27;
+            (enforced_base_fee, gas_per_pubdata_byte)
+        };
+
+        let hashed_key = get_code_key(&tx.initiator_account());
+        // if the default account does not have enough funds
+        // for transferring tx.value, without taking into account the fee,
+        // there is no sense to estimate the fee
+        let account_code_hash = self
+            .0
+            .replica_connection_pool
+            .access_storage_blocking()
+            .storage_dal()
+            .get_by_key(&hashed_key)
+            .unwrap_or_default();
+
+        if !tx.is_l1()
+            && account_code_hash == H256::zero()
+            && tx.execute.value > self.get_balance(&tx.initiator_account())
+        {
+            vlog::info!(
+                "fee estimation failed on validation step.
+                account: {} does not have enough funds for for transferring tx.value: {}.",
+                &tx.initiator_account(),
+                tx.execute.value
+            );
+            return Err(SubmitTxError::InsufficientFundsForTransfer);
         }
 
-        /// The calculated transaction length below does not include the signature and most likely
-        /// most of the paymasterInput. We will assume that those take no more than 64 slots (2048 bytes)
-        /// in total. If they do, the user should provide manually a higher gasLimit.
-        ///
-        /// In the future, a more advanced protocol for getting the fee for transactions from custom accounts
-        /// will be used.
-        const TX_LENGTH_OVERHEAD: usize = 64;
+        // For L2 transactions we need a properly formatted signature
+        if let ExecuteTransactionCommon::L2(l2_common_data) = &mut tx.common_data {
+            if l2_common_data.signature.is_empty() {
+                l2_common_data.signature = vec![0u8; 65];
+                l2_common_data.signature[64] = 27;
+            }
 
-        let _tx_encoded_len = tx.abi_encoding_len() + TX_LENGTH_OVERHEAD;
+            l2_common_data.fee.gas_per_pubdata_limit = MAX_GAS_PER_PUBDATA_BYTE.into();
+        }
 
         // We already know how many gas is needed to cover for the publishing of the bytecodes.
-        let gas_for_bytecodes_pubdata = {
+        // For L1->L2 transactions all the bytecodes have been made available on L1, so no funds need to be
+        // spent on re-publishing those.
+        let gas_for_bytecodes_pubdata = if tx.is_l1() {
+            0
+        } else {
             let pubdata_for_factory_deps = get_pubdata_for_factory_deps(
                 &self.0.replica_connection_pool,
                 &tx.execute.factory_deps,
@@ -410,27 +519,54 @@ impl TxSender {
         let mut lower_bound = 0;
         let mut upper_bound = MAX_L2_TX_GAS_LIMIT as u32;
 
-        tx.common_data.fee.gas_per_pubdata_limit = MAX_GAS_PER_PUBDATA_BYTE.into();
-
         // Given the gas_limit to be used for the body of the transaction,
         // returns the result for executing the transaction with such gas_limit
         let mut execute = |tx_gas_limit: u32| {
-            let gas_limit_with_overhead = tx_gas_limit;
+            let gas_limit_with_overhead = tx_gas_limit
+                + derive_overhead(
+                    tx_gas_limit,
+                    gas_per_pubdata_byte as u32,
+                    tx.encoding_len(),
+                    OverheadCoeficients::from_tx_type(tx.tx_format() as u8),
+                );
 
-            tx.common_data.fee.gas_limit = gas_limit_with_overhead.into();
-            let initial_paid_fee =
-                U256::from(gas_limit_with_overhead) * tx.common_data.fee.max_fee_per_gas;
+            match &mut tx.common_data {
+                ExecuteTransactionCommon::L1(l1_common_data) => {
+                    l1_common_data.gas_limit = gas_limit_with_overhead.into();
+
+                    let required_funds = l1_common_data.gas_limit * l1_common_data.max_fee_per_gas
+                        + tx.execute.value;
+
+                    l1_common_data.to_mint = required_funds;
+                }
+                ExecuteTransactionCommon::L2(l2_common_data) => {
+                    l2_common_data.fee.gas_limit = gas_limit_with_overhead.into();
+                }
+            }
+
+            let enforced_nonce = match &tx.common_data {
+                ExecuteTransactionCommon::L2(data) => Some(data.nonce),
+                _ => None,
+            };
+
+            // For L2 transactions we need to explicitly put enough balance into the account of the users
+            // while for L1->L2 transactions the `to_mint` field plays this role
+            let added_balance = match &tx.common_data {
+                ExecuteTransactionCommon::L2(data) => data.fee.gas_limit * data.fee.max_fee_per_gas,
+                _ => U256::zero(),
+            };
 
             let (tx_metrics, exec_result) = execute_tx_with_pending_state(
                 &self.0.replica_connection_pool,
                 tx.clone(),
                 AccountTreeId::new(self.0.fee_account_addr),
                 TxExecutionMode::EstimateFee,
-                Some(tx.nonce()),
-                initial_paid_fee,
+                enforced_nonce,
+                added_balance,
                 l1_gas_price,
-                FAIR_L2_GAS_PRICE,
-                Some(tx.common_data.fee.max_fee_per_gas.as_u64()),
+                self.0.state_keeper_config.fair_l2_gas_price,
+                Some(base_fee),
+                &self.0.estimate_fee_base_system_contracts,
             );
 
             self.ensure_tx_executable(&tx, &tx_metrics, false)
@@ -474,7 +610,12 @@ impl TxSender {
         match execute(tx_body_gas_limit + gas_for_bytecodes_pubdata) {
             Err(err) => Err(err.into()),
             Ok(_) => {
-                let overhead = 0;
+                let overhead = derive_overhead(
+                    tx_body_gas_limit + gas_for_bytecodes_pubdata,
+                    gas_per_pubdata_byte as u32,
+                    tx.encoding_len(),
+                    OverheadCoeficients::from_tx_type(tx.tx_format() as u8),
+                );
 
                 let full_gas_limit =
                     match tx_body_gas_limit.overflowing_add(gas_for_bytecodes_pubdata + overhead) {
@@ -511,20 +652,18 @@ impl TxSender {
 
         derive_base_fee_and_gas_per_pubdata(
             (gas_price as f64 * self.0.gas_price_scale_factor).round() as u64,
-            FAIR_L2_GAS_PRICE,
+            self.0.state_keeper_config.fair_l2_gas_price,
         )
         .0
     }
 
     fn ensure_tx_executable(
         &self,
-        transaction: &L2Tx,
+        transaction: &Transaction,
         tx_metrics: &TransactionExecutionMetrics,
         log_message: bool,
     ) -> Result<(), SubmitTxError> {
         let execution_metrics = ExecutionMetrics {
-            initial_storage_writes: tx_metrics.initial_storage_writes,
-            repeated_storage_writes: tx_metrics.repeated_storage_writes,
             published_bytecode_bytes: tx_metrics.published_bytecode_bytes,
             l2_l1_long_messages: tx_metrics.l2_l1_long_messages,
             l2_l1_logs: tx_metrics.l2_l1_logs,
@@ -536,10 +675,16 @@ impl TxSender {
             total_log_queries: tx_metrics.total_log_queries,
             cycles_used: tx_metrics.cycles_used,
         };
+        let writes_metrics = DeduplicatedWritesMetrics {
+            initial_storage_writes: tx_metrics.initial_storage_writes,
+            repeated_storage_writes: tx_metrics.repeated_storage_writes,
+        };
 
         // In api server it's ok to expect that all writes are initial it's safer
-        let tx_gas_count =
-            gas_count_from_tx_and_metrics(&transaction.clone().into(), &execution_metrics);
+        let tx_gas_count = gas_count_from_tx_and_metrics(&transaction.clone(), &execution_metrics)
+            + gas_count_from_writes(&writes_metrics);
+        let tx_data: TransactionData = transaction.clone().into();
+        let tx_encoding_size = tx_data.into_tokens().len();
 
         for sealer in &SealManager::get_default_sealers() {
             let seal_resolution = sealer.should_seal(
@@ -550,6 +695,10 @@ impl TxSender {
                 execution_metrics,
                 tx_gas_count,
                 tx_gas_count,
+                tx_encoding_size,
+                tx_encoding_size,
+                writes_metrics,
+                writes_metrics,
             );
             if matches!(seal_resolution, SealResolution::Unexecutable(_)) {
                 let message = format!(

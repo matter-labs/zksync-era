@@ -1,8 +1,11 @@
 //! This module predicts L1 gas cost for the Commit/PublishProof/Execute operations.
 
 use zksync_types::{
-    aggregated_operations::AggregatedActionType, block::BlockGasCount,
-    commitment::BlockWithMetadata, tx::ExecutionMetrics, ExecuteTransactionCommon, Transaction,
+    aggregated_operations::AggregatedActionType,
+    block::BlockGasCount,
+    commitment::BlockWithMetadata,
+    tx::tx_execution_info::{DeduplicatedWritesMetrics, ExecutionMetrics},
+    ExecuteTransactionCommon, Transaction,
 };
 
 use self::constants::*;
@@ -41,8 +44,12 @@ impl GasCost for Transaction {
     }
 }
 
-pub fn additional_commit_cost(execution_metrics: &ExecutionMetrics) -> u32 {
+fn additional_pubdata_commit_cost(execution_metrics: &ExecutionMetrics) -> u32 {
     (execution_metrics.size() as u32) * GAS_PER_BYTE
+}
+
+fn additional_writes_commit_cost(writes_metrics: &DeduplicatedWritesMetrics) -> u32 {
+    (writes_metrics.size() as u32) * GAS_PER_BYTE
 }
 
 pub fn new_block_gas_count() -> BlockGasCount {
@@ -58,7 +65,7 @@ pub fn gas_count_from_tx_and_metrics(
     execution_metrics: &ExecutionMetrics,
 ) -> BlockGasCount {
     let commit = tx.base_cost(AggregatedActionType::CommitBlocks)
-        + additional_commit_cost(execution_metrics);
+        + additional_pubdata_commit_cost(execution_metrics);
     BlockGasCount {
         commit,
         prove: tx.base_cost(AggregatedActionType::PublishProofBlocksOnchain),
@@ -68,7 +75,15 @@ pub fn gas_count_from_tx_and_metrics(
 
 pub fn gas_count_from_metrics(execution_metrics: &ExecutionMetrics) -> BlockGasCount {
     BlockGasCount {
-        commit: additional_commit_cost(execution_metrics),
+        commit: additional_pubdata_commit_cost(execution_metrics),
+        prove: 0,
+        execute: 0,
+    }
+}
+
+pub fn gas_count_from_writes(writes_metrics: &DeduplicatedWritesMetrics) -> BlockGasCount {
+    BlockGasCount {
+        commit: additional_writes_commit_cost(writes_metrics),
         prove: 0,
         execute: 0,
     }

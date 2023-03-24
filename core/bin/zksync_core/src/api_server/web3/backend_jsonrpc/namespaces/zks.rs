@@ -9,7 +9,7 @@ use jsonrpc_derive::rpc;
 // Workspace uses
 use zksync_types::{
     api::{BridgeAddresses, L2ToL1LogProof, TransactionDetails},
-    explorer_api::BlockDetails,
+    explorer_api::{BlockDetails, L1BatchDetails},
     fee::Fee,
     transaction_request::CallRequest,
     vm_trace::{ContractSourceDebugInfo, VmDebugTrace},
@@ -26,6 +26,9 @@ use crate::web3::namespaces::ZksNamespace;
 pub trait ZksNamespaceT {
     #[rpc(name = "zks_estimateFee", returns = "Fee")]
     fn estimate_fee(&self, req: CallRequest) -> Result<Fee>;
+
+    #[rpc(name = "zks_estimateGasL1ToL2", returns = "U256")]
+    fn estimate_gas_l1_to_l2(&self, req: CallRequest) -> Result<U256>;
 
     #[rpc(name = "zks_getMainContract", returns = "Address")]
     fn get_main_contract(&self) -> Result<Address>;
@@ -97,11 +100,28 @@ pub trait ZksNamespaceT {
         returns = "Option<TransactionDetails>"
     )]
     fn get_transaction_details(&self, hash: H256) -> Result<Option<TransactionDetails>>;
+
+    #[rpc(
+        name = "zks_getRawBlockTransactions",
+        returns = "Vec<zksync_types::Transaction>"
+    )]
+    fn get_raw_block_transactions(
+        &self,
+        block_number: MiniblockNumber,
+    ) -> Result<Vec<zksync_types::Transaction>>;
+
+    #[rpc(name = "zks_getL1BatchDetails", returns = "Option<L1BatchDetails>")]
+    fn get_l1_batch_details(&self, batch: L1BatchNumber) -> Result<Option<L1BatchDetails>>;
 }
 
 impl ZksNamespaceT for ZksNamespace {
     fn estimate_fee(&self, req: CallRequest) -> Result<Fee> {
         self.estimate_fee_impl(req).map_err(into_jsrpc_error)
+    }
+
+    fn estimate_gas_l1_to_l2(&self, req: CallRequest) -> Result<U256> {
+        self.estimate_l1_to_l2_gas_impl(req)
+            .map_err(into_jsrpc_error)
     }
 
     fn get_main_contract(&self) -> Result<Address> {
@@ -196,5 +216,18 @@ impl ZksNamespaceT for ZksNamespace {
 
         #[cfg(not(feature = "openzeppelin_tests"))]
         Err(into_jsrpc_error(Web3Error::NotImplemented))
+    }
+
+    fn get_raw_block_transactions(
+        &self,
+        block_number: MiniblockNumber,
+    ) -> Result<Vec<zksync_types::Transaction>> {
+        self.get_raw_block_transactions_impl(block_number)
+            .map_err(into_jsrpc_error)
+    }
+
+    fn get_l1_batch_details(&self, batch: L1BatchNumber) -> Result<Option<L1BatchDetails>> {
+        self.get_l1_batch_details_impl(batch)
+            .map_err(into_jsrpc_error)
     }
 }

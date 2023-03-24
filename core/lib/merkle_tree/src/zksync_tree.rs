@@ -151,6 +151,7 @@ impl ZkSyncTree {
             .flat_map(|(i, logs)| logs.into_iter().map(move |log| (i, log)))
             .collect();
 
+        let total_logs = storage_logs_with_blocks.len();
         let mut leaf_indices = self
             .storage
             .process_leaf_indices(&storage_logs_with_blocks)?;
@@ -163,17 +164,20 @@ impl ZkSyncTree {
             })
             .collect();
 
-        metrics::histogram!("merkle_tree.leaf_index_update", start.elapsed());
-        let start = Instant::now();
+        metrics::histogram!("merkle_tree.stage", start.elapsed(), "stage" => "leaf_index_update");
+        metrics::histogram!("merkle_tree.average.stage", start.elapsed().div_f64(total_logs as f64), "stage" => "leaf_index_update");
 
+        let start = Instant::now();
         let prepared_updates = self.prepare_batch_update(storage_logs_with_indices)?;
 
-        metrics::histogram!("merkle_tree.prepare_update", start.elapsed());
+        metrics::histogram!("merkle_tree.stage", start.elapsed(), "stage" => "read_hashes");
+        metrics::histogram!("merkle_tree.average.stage", start.elapsed().div_f64(total_logs as f64), "stage" => "read_hashes");
 
         let start = Instant::now();
         let updates = prepared_updates.calculate(self.hasher().clone())?;
 
-        metrics::histogram!("merkle_tree.root_calculation", start.elapsed());
+        metrics::histogram!("merkle_tree.stage", start.elapsed(), "stage" => "calculate");
+        metrics::histogram!("merkle_tree.average.stage", start.elapsed().div_f64(total_logs as f64), "stage" => "calculate");
 
         let start = Instant::now();
 
@@ -237,7 +241,8 @@ impl ZkSyncTree {
             }
         };
 
-        metrics::histogram!("merkle_tree.patch_application", start.elapsed());
+        metrics::histogram!("merkle_tree.stage", start.elapsed(), "stage" => "apply_patch");
+        metrics::histogram!("merkle_tree.average.stage", start.elapsed().div_f64(total_logs as f64), "stage" => "apply_patch");
 
         self.block_number += total_blocks as u32;
         Ok(tree_metadata)

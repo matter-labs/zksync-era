@@ -35,7 +35,11 @@ pub struct RpcState {
 impl RpcState {
     pub fn parse_transaction_bytes(&self, bytes: &[u8]) -> Result<(L2Tx, H256), Web3Error> {
         let chain_id = self.config.chain.eth.zksync_network_id;
-        let (tx_request, hash) = TransactionRequest::from_bytes(bytes, chain_id)?;
+        let (tx_request, hash) = TransactionRequest::from_bytes(
+            bytes,
+            chain_id,
+            self.config.api.web3_json_rpc.max_tx_size,
+        )?;
 
         Ok((tx_request.try_into()?, hash))
     }

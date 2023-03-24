@@ -64,6 +64,10 @@ pub struct Web3JsonRpc {
     pub estimate_gas_scale_factor: f64,
     /// The max possible number of gas that `eth_estimateGas` is allowed to overestimate.
     pub estimate_gas_acceptable_overestimation: u32,
+    ///  Max possible size of an ABI encoded tx (in bytes).
+    pub max_tx_size: usize,
+    /// Main node URL - used only by external node to proxy transactions to.
+    pub main_node_url: Option<String>,
 }
 
 impl Web3JsonRpc {
@@ -169,6 +173,8 @@ mod tests {
                 estimate_gas_scale_factor: 1.0f64,
                 gas_price_scale_factor: 1.2,
                 estimate_gas_acceptable_overestimation: 1000,
+                max_tx_size: 1000000,
+                main_node_url: None,
             },
             explorer: Explorer {
                 port: 3070,
@@ -205,6 +211,7 @@ API_WEB3_JSON_RPC_REQUEST_TIMEOUT=10
 API_WEB3_JSON_RPC_ACCOUNT_PKS=0x0000000000000000000000000000000000000000000000000000000000000001,0x0000000000000000000000000000000000000000000000000000000000000002
 API_WEB3_JSON_RPC_ESTIMATE_GAS_SCALE_FACTOR=1.0
 API_WEB3_JSON_RPC_ESTIMATE_GAS_ACCEPTABLE_OVERESTIMATION=1000
+API_WEB3_JSON_RPC_MAX_TX_SIZE=1000000
 API_EXPLORER_PORT="3070"
 API_EXPLORER_URL="http://127.0.0.1:3070"
 API_EXPLORER_NETWORK_STATS_POLLING_INTERVAL="1000"

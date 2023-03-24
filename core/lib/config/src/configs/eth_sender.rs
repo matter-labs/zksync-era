@@ -43,6 +43,8 @@ pub struct SenderConfig {
     pub wait_confirmations: u64,
     /// Node polling period in seconds.
     pub tx_poll_period: u64,
+    /// Aggregate txs polling period in seconds.
+    pub aggregate_tx_poll_period: u64,
     /// The maximum number of unconfirmed Ethereum transactions.
     pub max_txs_in_flight: u64,
     /// The mode in which proofs are sent.
@@ -56,12 +58,21 @@ pub struct SenderConfig {
     pub aggregated_block_prove_deadline: u64,
     pub aggregated_block_execute_deadline: u64,
     pub timestamp_criteria_max_allowed_lag: usize,
+
+    /// L1 batches will only be executed on L1 contract after they are at least this number of seconds old.
+    /// Note that this number must be slightly higher than the one set on the contract,
+    /// because the contract uses block.timestamp which lags behind the clock time.
+    pub l1_batch_min_age_before_execute_seconds: Option<u64>,
 }
 
 impl SenderConfig {
     /// Converts `self.tx_poll_period` into `Duration`.
     pub fn tx_poll_period(&self) -> Duration {
         Duration::from_secs(self.tx_poll_period)
+    }
+    /// Converts `self.aggregate_tx_poll_period` into `Duration`.
+    pub fn aggregate_tx_poll_period(&self) -> Duration {
+        Duration::from_secs(self.aggregate_tx_poll_period)
     }
 }
 
@@ -77,6 +88,8 @@ pub struct GasAdjusterConfig {
     pub pricing_formula_parameter_b: f64,
     /// Parameter by which the base fee will be multiplied for internal purposes
     pub internal_l1_pricing_multiplier: f64,
+    /// If equal to Some(x), then it will always provide `x` as the L1 gas price
+    pub internal_enforced_l1_gas_price: Option<u64>,
     /// Node polling period in seconds
     pub poll_period: u64,
 }
@@ -108,12 +121,14 @@ mod tests {
                 max_aggregated_blocks_to_execute: 4,
                 wait_confirmations: 1,
                 tx_poll_period: 3,
+                aggregate_tx_poll_period: 3,
                 max_txs_in_flight: 3,
                 operator_private_key: hash(
                     "27593fea79697e947890ecbecce7901b0008345e5d7259710d0dd5e500d040be",
                 ),
                 operator_commit_eth_addr: addr("de03a0B5963f75f1C8485B355fF6D30f3093BDE7"),
                 proof_sending_mode: ProofSendingMode::SkipEveryProof,
+                l1_batch_min_age_before_execute_seconds: Some(1000),
             },
             gas_adjuster: GasAdjusterConfig {
                 default_priority_fee_per_gas: 20000000000,
@@ -121,6 +136,7 @@ mod tests {
                 pricing_formula_parameter_a: 1.5,
                 pricing_formula_parameter_b: 1.0005,
                 internal_l1_pricing_multiplier: 0.8,
+                internal_enforced_l1_gas_price: None,
                 poll_period: 15,
             },
         }
@@ -131,6 +147,7 @@ mod tests {
         let config = r#"
 ETH_SENDER_SENDER_WAIT_CONFIRMATIONS="1"
 ETH_SENDER_SENDER_TX_POLL_PERIOD="3"
+ETH_SENDER_SENDER_AGGREGATE_TX_POLL_PERIOD="3"
 ETH_SENDER_SENDER_MAX_TXS_IN_FLIGHT="3"
 ETH_SENDER_SENDER_OPERATOR_PRIVATE_KEY="0x27593fea79697e947890ecbecce7901b0008345e5d7259710d0dd5e500d040be"
 ETH_SENDER_SENDER_OPERATOR_COMMIT_ETH_ADDR="0xde03a0B5963f75f1C8485B355fF6D30f3093BDE7"
@@ -151,6 +168,7 @@ ETH_SENDER_SENDER_AGGREGATED_BLOCK_EXECUTE_DEADLINE="4000"
 ETH_SENDER_SENDER_TIMESTAMP_CRITERIA_MAX_ALLOWED_LAG="30"
 ETH_SENDER_SENDER_MAX_AGGREGATED_TX_GAS="4000000"
 ETH_SENDER_SENDER_MAX_ETH_TX_DATA_SIZE="120000"
+ETH_SENDER_SENDER_L1_BATCH_MIN_AGE_BEFORE_EXECUTE_SECONDS="1000"
         "#;
         set_env(config);
 

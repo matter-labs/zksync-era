@@ -172,6 +172,7 @@ fn get_sampling_ratio() -> f64 {
 /// If the sentry URL is provided via an environment variable, this function will also initialize sentry.
 /// Returns a sentry client guard. The full description can be found in the official documentation:
 /// https://docs.sentry.io/platforms/rust/#configure
+#[must_use]
 pub fn init() -> Option<ClientInitGuard> {
     let log_format = std::env::var("MISC_LOG_FORMAT").unwrap_or_else(|_| "plain".to_string());
     let service_name =

@@ -3,13 +3,15 @@ use sqlx::postgres::PgArguments;
 use std::convert::TryInto;
 use std::str::FromStr;
 use thiserror::Error;
-use zksync_types::explorer_api::BlockDetails;
+use zksync_types::explorer_api::{BlockDetails, L1BatchDetails, L1BatchPageItem};
 
 use sqlx::query::Query;
 
 use sqlx::types::chrono::{DateTime, NaiveDateTime, Utc};
 use sqlx::Postgres;
+use zksync_contracts::BaseSystemContractsHashes;
 use zksync_types::api::{self, BlockId};
+use zksync_types::block::MiniblockHeader;
 use zksync_types::commitment::{BlockMetaParameters, BlockMetadata};
 use zksync_types::{
     block::L1BatchHeader,
@@ -118,6 +120,16 @@ impl From<StorageBlock> for L1BatchHeader {
                 .base_fee_per_gas
                 .to_u64()
                 .expect("base_fee_per_gas should fit in u64"),
+            base_system_contracts_hashes: BaseSystemContractsHashes {
+                bootloader: block
+                    .bootloader_code_hash
+                    .map(|bootloader_code_hash| H256::from_slice(&bootloader_code_hash))
+                    .expect("Should be not none"),
+                default_aa: block
+                    .default_aa_code_hash
+                    .map(|default_aa_code_hash| H256::from_slice(&default_aa_code_hash))
+                    .expect("Should be not none"),
+            },
             l1_gas_price: block.l1_gas_price as u64,
             l2_fair_gas_price: block.l2_fair_gas_price as u64,
         }
@@ -211,6 +223,17 @@ pub struct StorageBlockPageItem {
     pub timestamp: i64,
 }
 
+// At the moment it has the same fields as `StorageBlockPageItem`
+// but there are no guarantees it won't change in the future.
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct StorageL1BatchPageItem {
+    pub number: i64,
+    pub l1_tx_count: i32,
+    pub l2_tx_count: i32,
+    pub hash: Option<Vec<u8>>,
+    pub timestamp: i64,
+}
+
 pub fn block_page_item_from_storage(
     storage: StorageBlockPageItem,
     last_verified: MiniblockNumber,
@@ -225,6 +248,25 @@ pub fn block_page_item_from_storage(
         l1_tx_count: storage.l1_tx_count as usize,
         l2_tx_count: storage.l2_tx_count as usize,
         hash: storage.hash.map(|hash| H256::from_slice(&hash)),
+        status,
+        timestamp: storage.timestamp as u64,
+    }
+}
+
+pub fn l1_batch_page_item_from_storage(
+    storage: StorageL1BatchPageItem,
+    last_verified: L1BatchNumber,
+) -> L1BatchPageItem {
+    let status = if storage.number > last_verified.0 as i64 {
+        BlockStatus::Sealed
+    } else {
+        BlockStatus::Verified
+    };
+    L1BatchPageItem {
+        number: L1BatchNumber(storage.number as u32),
+        l1_tx_count: storage.l1_tx_count as usize,
+        l2_tx_count: storage.l2_tx_count as usize,
+        root_hash: storage.hash.map(|hash| H256::from_slice(&hash)),
         status,
         timestamp: storage.timestamp as u64,
     }
@@ -295,6 +337,7 @@ pub fn bind_block_where_sql_params(
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct StorageBlockDetails {
     pub number: i64,
+    pub l1_batch_number: i64,
     pub timestamp: i64,
     pub l1_tx_count: i32,
     pub l2_tx_count: i32,
@@ -305,6 +348,10 @@ pub struct StorageBlockDetails {
     pub proven_at: Option<NaiveDateTime>,
     pub execute_tx_hash: Option<String>,
     pub executed_at: Option<NaiveDateTime>,
+    pub l1_gas_price: i64, // L1 gas price assumed in the corresponding batch
+    pub l2_fair_gas_price: i64, // L2 gas price assumed in the corresponding batch
+    pub bootloader_code_hash: Option<Vec<u8>>,
+    pub default_aa_code_hash: Option<Vec<u8>>,
 }
 
 impl From<StorageBlockDetails> for BlockDetails {
@@ -318,6 +365,7 @@ impl From<StorageBlockDetails> for BlockDetails {
         };
         BlockDetails {
             number: MiniblockNumber(storage_block_details.number as u32),
+            l1_batch_number: L1BatchNumber(storage_block_details.l1_batch_number as u32),
             timestamp: storage_block_details.timestamp as u64,
             l1_tx_count: storage_block_details.l1_tx_count as usize,
             l2_tx_count: storage_block_details.l2_tx_count as usize,
@@ -347,6 +395,131 @@ impl From<StorageBlockDetails> for BlockDetails {
             executed_at: storage_block_details
                 .executed_at
                 .map(|executed_at| DateTime::<Utc>::from_utc(executed_at, Utc)),
+            l1_gas_price: storage_block_details.l1_gas_price as u64,
+            l2_fair_gas_price: storage_block_details.l2_fair_gas_price as u64,
+            base_system_contracts_hashes: BaseSystemContractsHashes {
+                bootloader: storage_block_details
+                    .bootloader_code_hash
+                    .map(|bootloader_code_hash| H256::from_slice(&bootloader_code_hash))
+                    .expect("Should be not none"),
+                default_aa: storage_block_details
+                    .default_aa_code_hash
+                    .map(|default_aa_code_hash| H256::from_slice(&default_aa_code_hash))
+                    .expect("Should be not none"),
+            },
+        }
+    }
+}
+
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct StorageL1BatchDetails {
+    pub number: i64,
+    pub timestamp: i64,
+    pub l1_tx_count: i32,
+    pub l2_tx_count: i32,
+    pub root_hash: Option<Vec<u8>>,
+    pub commit_tx_hash: Option<String>,
+    pub committed_at: Option<NaiveDateTime>,
+    pub prove_tx_hash: Option<String>,
+    pub proven_at: Option<NaiveDateTime>,
+    pub execute_tx_hash: Option<String>,
+    pub executed_at: Option<NaiveDateTime>,
+    pub l1_gas_price: i64,
+    pub l2_fair_gas_price: i64,
+    pub bootloader_code_hash: Option<Vec<u8>>,
+    pub default_aa_code_hash: Option<Vec<u8>>,
+}
+
+impl From<StorageL1BatchDetails> for L1BatchDetails {
+    fn from(storage_l1_batch_details: StorageL1BatchDetails) -> Self {
+        let status = if storage_l1_batch_details.number == 0
+            || storage_l1_batch_details.execute_tx_hash.is_some()
+        {
+            BlockStatus::Verified
+        } else {
+            BlockStatus::Sealed
+        };
+        L1BatchDetails {
+            number: L1BatchNumber(storage_l1_batch_details.number as u32),
+            timestamp: storage_l1_batch_details.timestamp as u64,
+            l1_tx_count: storage_l1_batch_details.l1_tx_count as usize,
+            l2_tx_count: storage_l1_batch_details.l2_tx_count as usize,
+            status,
+            root_hash: storage_l1_batch_details
+                .root_hash
+                .as_deref()
+                .map(H256::from_slice),
+            commit_tx_hash: storage_l1_batch_details
+                .commit_tx_hash
+                .as_deref()
+                .map(|hash| H256::from_str(hash).expect("Incorrect commit_tx hash")),
+            committed_at: storage_l1_batch_details
+                .committed_at
+                .map(|committed_at| DateTime::<Utc>::from_utc(committed_at, Utc)),
+            prove_tx_hash: storage_l1_batch_details
+                .prove_tx_hash
+                .as_deref()
+                .map(|hash| H256::from_str(hash).expect("Incorrect verify_tx hash")),
+            proven_at: storage_l1_batch_details
+                .proven_at
+                .map(|proven_at| DateTime::<Utc>::from_utc(proven_at, Utc)),
+            execute_tx_hash: storage_l1_batch_details
+                .execute_tx_hash
+                .as_deref()
+                .map(|hash| H256::from_str(hash).expect("Incorrect verify_tx hash")),
+            executed_at: storage_l1_batch_details
+                .executed_at
+                .map(|executed_at| DateTime::<Utc>::from_utc(executed_at, Utc)),
+            l1_gas_price: storage_l1_batch_details.l1_gas_price as u64,
+            l2_fair_gas_price: storage_l1_batch_details.l2_fair_gas_price as u64,
+            base_system_contracts_hashes: BaseSystemContractsHashes {
+                bootloader: storage_l1_batch_details
+                    .bootloader_code_hash
+                    .map(|bootloader_code_hash| H256::from_slice(&bootloader_code_hash))
+                    .expect("Should be not none"),
+                default_aa: storage_l1_batch_details
+                    .default_aa_code_hash
+                    .map(|default_aa_code_hash| H256::from_slice(&default_aa_code_hash))
+                    .expect("Should be not none"),
+            },
+        }
+    }
+}
+
+pub struct StorageMiniblockHeader {
+    pub number: i64,
+    pub timestamp: i64,
+    pub hash: Vec<u8>,
+    pub l1_tx_count: i32,
+    pub l2_tx_count: i32,
+    pub base_fee_per_gas: BigDecimal,
+    pub l1_gas_price: i64, // L1 gas price assumed in the corresponding batch
+    pub l2_fair_gas_price: i64, // L2 gas price assumed in the corresponding batch
+    pub bootloader_code_hash: Option<Vec<u8>>,
+    pub default_aa_code_hash: Option<Vec<u8>>,
+}
+
+impl From<StorageMiniblockHeader> for MiniblockHeader {
+    fn from(row: StorageMiniblockHeader) -> Self {
+        MiniblockHeader {
+            number: MiniblockNumber(row.number as u32),
+            timestamp: row.timestamp as u64,
+            hash: H256::from_slice(&row.hash),
+            l1_tx_count: row.l1_tx_count as u16,
+            l2_tx_count: row.l2_tx_count as u16,
+            base_fee_per_gas: row.base_fee_per_gas.to_u64().unwrap(),
+            l1_gas_price: row.l1_gas_price as u64,
+            l2_fair_gas_price: row.l2_fair_gas_price as u64,
+            base_system_contracts_hashes: BaseSystemContractsHashes {
+                bootloader: row
+                    .bootloader_code_hash
+                    .map(|bootloader_code_hash| H256::from_slice(&bootloader_code_hash))
+                    .expect("Should be not none"),
+                default_aa: row
+                    .default_aa_code_hash
+                    .map(|default_aa_code_hash| H256::from_slice(&default_aa_code_hash))
+                    .expect("Should be not none"),
+            },
         }
     }
 }

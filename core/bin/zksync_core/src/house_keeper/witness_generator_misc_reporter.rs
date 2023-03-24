@@ -1,8 +1,5 @@
 use crate::house_keeper::periodic_job::PeriodicJob;
-use zksync_config::configs::{
-    prover::ProverConfig,
-    witness_generator::{SamplingMode, WitnessGeneratorConfig},
-};
+use zksync_config::configs::{prover::ProverConfig, witness_generator::WitnessGeneratorConfig};
 use zksync_dal::ConnectionPool;
 
 #[derive(Debug)]
@@ -21,17 +18,6 @@ impl WitnessGeneratorMetricsReporter {
             .unwrap_or(last_sealed_l1_batch_number);
         let prover_lag = last_sealed_l1_batch_number.0 - min_unproved_l1_batch_number.0;
         metrics::gauge!("server.prover.lag", prover_lag as f64);
-
-        if let SamplingMode::Enabled(sampling_params) =
-            self.witness_generator_config.sampling_mode()
-        {
-            let sampling_probability =
-                sampling_params.calculate_sampling_probability(prover_lag as usize);
-            metrics::gauge!(
-                "server.witness_generator.sampling_probability",
-                sampling_probability
-            );
-        }
     }
 }
 

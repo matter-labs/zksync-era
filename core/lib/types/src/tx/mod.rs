@@ -6,6 +6,7 @@
 
 use std::fmt::Debug;
 use zksync_basic_types::{Address, H256};
+use zksync_utils::bytecode::CompressedBytecodeInfo;
 
 pub mod execute;
 pub mod primitives;
@@ -24,6 +25,7 @@ pub struct TransactionExecutionResult {
     pub execution_status: TxExecutionStatus,
     pub refunded_gas: u32,
     pub operator_suggested_refund: u32,
+    pub compressed_bytecodes: Vec<CompressedBytecodeInfo>,
 }
 
 #[derive(Debug, Clone)]

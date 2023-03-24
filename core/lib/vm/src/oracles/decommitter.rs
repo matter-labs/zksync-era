@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::history_recorder::HistoryRecorder;
+use crate::history_recorder::{HistoryRecorder, WithHistory};
 use crate::storage::StoragePtr;
 
 use zk_evm::abstractions::MemoryType;
@@ -103,6 +103,41 @@ impl<'a, const B: bool> DecommitterOracle<'a, B> {
     pub fn get_storage(&self) -> StoragePtr<'a> {
         self.storage.clone()
     }
+
+    pub fn get_size(&self) -> usize {
+        // Hashmap memory overhead is neglected.
+        let known_bytecodes_size = self
+            .known_bytecodes
+            .inner()
+            .iter()
+            .map(|(_, value)| value.len() * std::mem::size_of::<U256>())
+            .sum::<usize>();
+        let decommitted_code_hashes_size =
+            self.decommitted_code_hashes.inner().len() * std::mem::size_of::<(U256, u32)>();
+
+        known_bytecodes_size + decommitted_code_hashes_size
+    }
+
+    pub fn get_history_size(&self) -> usize {
+        let known_bytecodes_stack_size = self.known_bytecodes.history().len()
+            * std::mem::size_of::<<HashMap<U256, Vec<U256>> as WithHistory>::HistoryRecord>();
+        let known_bytecodes_heap_size = self
+            .known_bytecodes
+            .history()
+            .iter()
+            .map(|(_, event)| {
+                if let Some(bytecode) = event.value.as_ref() {
+                    bytecode.len() * std::mem::size_of::<U256>()
+                } else {
+                    0
+                }
+            })
+            .sum::<usize>();
+        let decommitted_code_hashes_size = self.decommitted_code_hashes.history().len()
+            * std::mem::size_of::<<HashMap<U256, u32> as WithHistory>::HistoryRecord>();
+
+        known_bytecodes_stack_size + known_bytecodes_heap_size + decommitted_code_hashes_size
+    }
 }
 
 impl<'a, const B: bool> OracleWithHistory for DecommitterOracle<'a, B> {
@@ -168,7 +203,7 @@ impl<'a, const B: bool> DecommittmentProcessor for DecommitterOracle<'a, B> {
                 for (i, value) in values.iter().enumerate() {
                     tmp_q.location.index = MemoryIndex(i as u32);
                     tmp_q.value = *value;
-                    memory.execute_partial_query(monotonic_cycle_counter, tmp_q);
+                    memory.specialized_code_query(monotonic_cycle_counter, tmp_q);
                 }
 
                 (partial_query, Some(values))
@@ -176,7 +211,7 @@ impl<'a, const B: bool> DecommittmentProcessor for DecommitterOracle<'a, B> {
                 for (i, value) in values.into_iter().enumerate() {
                     tmp_q.location.index = MemoryIndex(i as u32);
                     tmp_q.value = value;
-                    memory.execute_partial_query(monotonic_cycle_counter, tmp_q);
+                    memory.specialized_code_query(monotonic_cycle_counter, tmp_q);
                 }
 
                 (partial_query, None)

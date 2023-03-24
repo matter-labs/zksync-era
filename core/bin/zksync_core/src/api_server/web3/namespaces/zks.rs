@@ -1,21 +1,20 @@
 use bigdecimal::{BigDecimal, Zero};
-use core::convert::TryInto;
-use std::collections::HashMap;
 use std::time::Instant;
+use std::{collections::HashMap, convert::TryInto};
 
 use zksync_mini_merkle_tree::mini_merkle_tree_proof;
 use zksync_types::{
     api::{BridgeAddresses, GetLogsFilter, L2ToL1LogProof, TransactionDetails, U64},
     commitment::CommitmentSerializable,
-    explorer_api::BlockDetails,
+    explorer_api::{BlockDetails, L1BatchDetails},
     fee::Fee,
-    l2::L2Tx,
+    l1::L1Tx,
     l2_to_l1_log::L2ToL1Log,
     tokens::ETHEREUM_ADDRESS,
-    transaction_request::CallRequest,
+    transaction_request::{l2_tx_from_call_req, CallRequest},
     vm_trace::{ContractSourceDebugInfo, VmDebugTrace},
-    L1BatchNumber, MiniblockNumber, FAIR_L2_GAS_PRICE, L1_MESSENGER_ADDRESS, L2_ETH_TOKEN_ADDRESS,
-    MAX_GAS_PER_PUBDATA_BYTE, U256,
+    L1BatchNumber, MiniblockNumber, Transaction, L1_MESSENGER_ADDRESS, L2_ETH_TOKEN_ADDRESS,
+    MAX_GAS_PER_PUBDATA_BYTE, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256,
 };
 use zksync_utils::address_to_h256;
 use zksync_web3_decl::{
@@ -43,14 +42,42 @@ impl ZksNamespace {
     pub fn estimate_fee_impl(&self, request: CallRequest) -> Result<Fee, Web3Error> {
         let start = Instant::now();
 
-        let mut tx: L2Tx = request.try_into().map_err(Web3Error::SerializationError)?;
+        let mut tx = l2_tx_from_call_req(request, self.state.config.api.web3_json_rpc.max_tx_size)?;
 
         // When we're estimating fee, we are trying to deduce values related to fee, so we should
         // not consider provided ones.
-        tx.common_data.fee.max_fee_per_gas = FAIR_L2_GAS_PRICE.into();
-        tx.common_data.fee.max_priority_fee_per_gas = FAIR_L2_GAS_PRICE.into();
+        let fair_l2_gas_price = self.state.tx_sender.0.state_keeper_config.fair_l2_gas_price;
+        tx.common_data.fee.max_fee_per_gas = fair_l2_gas_price.into();
+        tx.common_data.fee.max_priority_fee_per_gas = fair_l2_gas_price.into();
         tx.common_data.fee.gas_per_pubdata_limit = MAX_GAS_PER_PUBDATA_BYTE.into();
 
+        let fee = self.estimate_fee(tx.into())?;
+
+        metrics::histogram!("api.web3.call", start.elapsed(), "method" => "estimate_fee");
+        Ok(fee)
+    }
+
+    #[tracing::instrument(skip(self, request))]
+    pub fn estimate_l1_to_l2_gas_impl(&self, request: CallRequest) -> Result<U256, Web3Error> {
+        let start = Instant::now();
+
+        let mut tx: L1Tx = request.try_into().map_err(Web3Error::SerializationError)?;
+
+        // When we're estimating fee, we are trying to deduce values related to fee, so we should
+        // not consider provided ones.
+        let fair_l2_gas_price = self.state.tx_sender.0.state_keeper_config.fair_l2_gas_price;
+        tx.common_data.max_fee_per_gas = fair_l2_gas_price.into();
+        if tx.common_data.gas_per_pubdata_limit == U256::zero() {
+            tx.common_data.gas_per_pubdata_limit = REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE.into();
+        }
+
+        let fee = self.estimate_fee(tx.into())?;
+
+        metrics::histogram!("api.web3.call", start.elapsed(), "method" => "estimate_gas_l1_to_l2");
+        Ok(fee.gas_limit)
+    }
+
+    fn estimate_fee(&self, tx: Transaction) -> Result<Fee, Web3Error> {
         let scale_factor = self
             .state
             .config
@@ -70,7 +97,6 @@ impl ZksNamespace {
             .get_txs_fee_in_wei(tx, scale_factor, acceptable_overestimation)
             .map_err(|err| Web3Error::SubmitTransactionError(err.to_string()))?;
 
-        metrics::histogram!("api.web3.call", start.elapsed(), "method" => "estimate_fee");
         Ok(fee)
     }
 
@@ -455,6 +481,27 @@ impl ZksNamespace {
     }
 
     #[tracing::instrument(skip(self))]
+    pub fn get_raw_block_transactions_impl(
+        &self,
+        block_number: MiniblockNumber,
+    ) -> Result<Vec<zksync_types::Transaction>, Web3Error> {
+        let start = Instant::now();
+        let endpoint_name = "get_raw_block_transactions";
+
+        let transactions = self
+            .state
+            .connection_pool
+            .access_storage_blocking()
+            .transactions_web3_dal()
+            .get_raw_miniblock_transactions(block_number)
+            .map_err(|err| internal_error(endpoint_name, err));
+
+        metrics::histogram!("api.web3.call", start.elapsed(), "method" => endpoint_name);
+
+        transactions
+    }
+
+    #[tracing::instrument(skip(self))]
     pub fn get_transaction_details_impl(
         &self,
         hash: H256,
@@ -473,6 +520,28 @@ impl ZksNamespace {
         metrics::histogram!("api.web3.call", start.elapsed(), "method" => endpoint_name);
 
         tx_details
+    }
+
+    #[tracing::instrument(skip(self))]
+    pub fn get_l1_batch_details_impl(
+        &self,
+        batch_number: L1BatchNumber,
+    ) -> Result<Option<L1BatchDetails>, Web3Error> {
+        let start = Instant::now();
+        let endpoint_name = "get_l1_batch";
+
+        let l1_batch = self
+            .state
+            .connection_pool
+            .access_storage_blocking()
+            .explorer()
+            .blocks_dal()
+            .get_l1_batch_details(batch_number)
+            .map_err(|err| internal_error(endpoint_name, err));
+
+        metrics::histogram!("api.web3.call", start.elapsed(), "method" => endpoint_name);
+
+        l1_batch
     }
 
     #[cfg(feature = "openzeppelin_tests")]

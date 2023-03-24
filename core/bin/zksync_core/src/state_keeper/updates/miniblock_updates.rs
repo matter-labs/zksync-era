@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use vm::transaction_data::TransactionData;
 use vm::vm::VmTxExecutionResult;
 use zksync_types::block::BlockGasCount;
 use zksync_types::event::extract_bytecodes_marked_as_known;
@@ -6,10 +7,10 @@ use zksync_types::l2_to_l1_log::L2ToL1Log;
 use zksync_types::tx::tx_execution_info::VmExecutionLogs;
 use zksync_types::tx::ExecutionMetrics;
 use zksync_types::{tx::TransactionExecutionResult, StorageLogQuery, Transaction, VmEvent, H256};
-use zksync_utils::bytecode::hash_bytecode;
+use zksync_utils::bytecode::{hash_bytecode, CompressedBytecodeInfo};
 
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) struct MiniblockUpdates {
+pub struct MiniblockUpdates {
     pub executed_transactions: Vec<TransactionExecutionResult>,
     pub events: Vec<VmEvent>,
     pub storage_logs: Vec<StorageLogQuery>,
@@ -18,9 +19,7 @@ pub(crate) struct MiniblockUpdates {
     // how much L1 gas will it take to submit this block?
     pub l1_gas_count: BlockGasCount,
     pub block_execution_metrics: ExecutionMetrics,
-    // We keep track on the number of modified storage keys to close the block by L1 gas
-    // Later on, we'll replace it with closing L2 blocks by gas.
-    pub modified_storage_keys_number: usize,
+    pub txs_encoding_size: usize,
 
     pub timestamp: u64,
 }
@@ -35,7 +34,7 @@ impl MiniblockUpdates {
             new_factory_deps: Default::default(),
             l1_gas_count: Default::default(),
             block_execution_metrics: Default::default(),
-            modified_storage_keys_number: 0,
+            txs_encoding_size: 0,
             timestamp,
         }
     }
@@ -52,6 +51,7 @@ impl MiniblockUpdates {
         tx_execution_result: VmTxExecutionResult,
         tx_l1_gas_this_tx: BlockGasCount,
         execution_metrics: ExecutionMetrics,
+        compressed_bytecodes: Vec<CompressedBytecodeInfo>,
     ) {
         // Get bytecode hashes that were marked as known
         let saved_factory_deps =
@@ -90,6 +90,7 @@ impl MiniblockUpdates {
             execution_status: tx_execution_result.status,
             refunded_gas: tx_execution_result.gas_refunded,
             operator_suggested_refund: tx_execution_result.operator_suggested_refund,
+            compressed_bytecodes,
         });
 
         self.events.extend(tx_execution_result.result.logs.events);
@@ -98,9 +99,11 @@ impl MiniblockUpdates {
         self.l2_to_l1_logs
             .extend(tx_execution_result.result.logs.l2_to_l1_logs);
 
-        self.modified_storage_keys_number += execution_metrics.storage_writes();
         self.l1_gas_count += tx_l1_gas_this_tx;
         self.block_execution_metrics += execution_metrics;
+
+        let tx_data: TransactionData = tx.clone().into();
+        self.txs_encoding_size += tx_data.into_tokens().len();
     }
 }
 
@@ -126,9 +129,10 @@ mod tests {
         );
 
         tx.set_input(H256::random().0.to_vec(), H256::random());
+        let tx: Transaction = tx.into();
 
         accumulator.extend_from_executed_transaction(
-            &tx.into(),
+            &tx,
             VmTxExecutionResult {
                 status: TxExecutionStatus::Success,
                 result: VmPartialExecutionResult {
@@ -142,6 +146,7 @@ mod tests {
             },
             Default::default(),
             Default::default(),
+            Default::default(),
         );
 
         assert_eq!(accumulator.executed_transactions.len(), 1);
@@ -149,16 +154,10 @@ mod tests {
         assert_eq!(accumulator.storage_logs.len(), 0);
         assert_eq!(accumulator.l2_to_l1_logs.len(), 0);
         assert_eq!(accumulator.l1_gas_count, Default::default());
-        assert_eq!(accumulator.modified_storage_keys_number, 0);
         assert_eq!(accumulator.new_factory_deps.len(), 0);
-        assert_eq!(
-            accumulator.block_execution_metrics.initial_storage_writes,
-            0
-        );
-        assert_eq!(
-            accumulator.block_execution_metrics.repeated_storage_writes,
-            0
-        );
         assert_eq!(accumulator.block_execution_metrics.l2_l1_logs, 0);
+
+        let tx_data: TransactionData = tx.into();
+        assert_eq!(accumulator.txs_encoding_size, tx_data.into_tokens().len());
     }
 }

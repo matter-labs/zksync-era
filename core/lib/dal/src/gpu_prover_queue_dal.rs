@@ -32,6 +32,7 @@ impl GpuProverQueueDal<'_, '_> {
         &mut self,
         processing_timeout: Duration,
         specialized_prover_group_id: u8,
+        region: String,
     ) -> Option<SocketAddress> {
         async_std::task::block_on(async {
             let processing_timeout = pg_interval_from_duration(processing_timeout);
@@ -45,6 +46,7 @@ impl GpuProverQueueDal<'_, '_> {
                     SELECT instance_host, instance_port
                     FROM gpu_prover_queue
                     WHERE specialized_prover_group_id=$2
+                    AND region=$3
                     AND (
                         instance_status = 'available'
                         OR (instance_status = 'reserved' AND  processing_started_at < now() - $1::interval)
@@ -57,7 +59,8 @@ impl GpuProverQueueDal<'_, '_> {
                 RETURNING gpu_prover_queue.*
                 ",
                 &processing_timeout,
-                specialized_prover_group_id as i16
+                specialized_prover_group_id as i16,
+                region
             )
                 .fetch_optional(self.storage.conn())
                 .await
@@ -76,18 +79,20 @@ impl GpuProverQueueDal<'_, '_> {
         address: SocketAddress,
         queue_capacity: usize,
         specialized_prover_group_id: u8,
+        region: String,
     ) {
         async_std::task::block_on(async {
             sqlx::query!(
                     "
-                    INSERT INTO gpu_prover_queue (instance_host, instance_port, queue_capacity, queue_free_slots, instance_status, specialized_prover_group_id, created_at, updated_at)
-                    VALUES (cast($1::text as inet), $2, $3, $3, 'available', $4, now(), now())
-                    ON CONFLICT(instance_host, instance_port)
-                    DO UPDATE SET instance_status='available', queue_capacity=$3, queue_free_slots=$3, specialized_prover_group_id=$4, updated_at=now()",
+                    INSERT INTO gpu_prover_queue (instance_host, instance_port, queue_capacity, queue_free_slots, instance_status, specialized_prover_group_id, region, created_at, updated_at)
+                    VALUES (cast($1::text as inet), $2, $3, $3, 'available', $4, $5, now(), now())
+                    ON CONFLICT(instance_host, instance_port, region)
+                    DO UPDATE SET instance_status='available', queue_capacity=$3, queue_free_slots=$3, specialized_prover_group_id=$4, region=$5, updated_at=now()",
                     format!("{}",address.host),
                 address.port as i32,
                 queue_capacity as i32,
-                specialized_prover_group_id as i16)
+                specialized_prover_group_id as i16,
+                region)
                 .execute(self.storage.conn())
                 .await
                 .unwrap();

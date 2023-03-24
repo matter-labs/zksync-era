@@ -14,6 +14,7 @@ pub async fn incoming_socket_listener(
     queue: SharedAssemblyQueue,
     pool: ConnectionPool,
     specialized_prover_group_id: u8,
+    region: String,
 ) {
     let listening_address = SocketAddr::new(host, port);
     vlog::info!(
@@ -32,6 +33,7 @@ pub async fn incoming_socket_listener(
             address.clone(),
             queue.lock().unwrap().capacity(),
             specialized_prover_group_id,
+            region
         );
 
     loop {

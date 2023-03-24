@@ -3,6 +3,7 @@ use std::time::Duration;
 use db_test_macro::db_test;
 use zksync_types::block::{L1BatchHeader, MiniblockHeader};
 use zksync_types::proofs::AggregationRound;
+use zksync_types::MAX_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
     fee::{Fee, TransactionExecutionMetrics},
     helpers::unix_timestamp_ms,
@@ -12,7 +13,6 @@ use zksync_types::{
     Address, Execute, L1BatchNumber, L1BlockNumber, L1TxCommonData, L2ChainId, MiniblockNumber,
     PriorityOpId, H160, H256, U256,
 };
-use zksync_types::{FAIR_L2_GAS_PRICE, MAX_GAS_PER_PUBDATA_BYTE};
 
 use crate::blocks_dal::BlocksDal;
 use crate::prover_dal::{GetProverJobsParams, ProverDal};
@@ -29,7 +29,7 @@ const DEFAULT_GAS_PER_PUBDATA: u32 = 100;
 fn mock_l2_transaction() -> L2Tx {
     let fee = Fee {
         gas_limit: U256::from(1_000_000u32),
-        max_fee_per_gas: FAIR_L2_GAS_PRICE.into(),
+        max_fee_per_gas: U256::from(250_000_000u32),
         max_priority_fee_per_gas: U256::zero(),
         gas_per_pubdata_limit: U256::from(DEFAULT_GAS_PER_PUBDATA),
     };
@@ -60,6 +60,7 @@ fn mock_l1_execute() -> L1Tx {
         layer_2_tip_fee: U256::zero(),
         full_fee: U256::zero(),
         gas_limit: U256::from(100_100),
+        max_fee_per_gas: U256::from(1u32),
         gas_per_pubdata_limit: MAX_GAS_PER_PUBDATA_BYTE.into(),
         op_processing_type: OpProcessingType::Common,
         priority_queue_type: PriorityQueueType::Deque,
@@ -160,6 +161,7 @@ async fn remove_stuck_txs(connection_pool: ConnectionPool) {
         base_fee_per_gas: Default::default(),
         l1_gas_price: 0,
         l2_fair_gas_price: 0,
+        base_system_contracts_hashes: Default::default(),
     });
     transactions_dal.mark_txs_as_executed_in_miniblock(
         MiniblockNumber(1),
@@ -170,6 +172,7 @@ async fn remove_stuck_txs(connection_pool: ConnectionPool) {
             execution_status: TxExecutionStatus::Success,
             refunded_gas: 0,
             operator_suggested_refund: 0,
+            compressed_bytecodes: vec![],
         }],
         U256::from(1),
     );
@@ -199,7 +202,12 @@ async fn remove_stuck_txs(connection_pool: ConnectionPool) {
 async fn test_duplicate_insert_prover_jobs(connection_pool: ConnectionPool) {
     let storage = &mut connection_pool.access_test_storage().await;
     let block_number = 1;
-    let header = L1BatchHeader::mock(L1BatchNumber(block_number));
+    let header = L1BatchHeader::new(
+        L1BatchNumber(block_number),
+        0,
+        Default::default(),
+        Default::default(),
+    );
     storage
         .blocks_dal()
         .insert_l1_batch(header, Default::default());

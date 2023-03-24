@@ -5,8 +5,6 @@ module.exports = {
     // And also there were >290 warnings on *.sol files. Since changes to *.sol 
     // files require an audit, it was decided to postpone the changes to make the solhint
     // pass.
-    //
-    // TODO (ZKS-329): Turn on the majority of the rules and make the solhint comply with them.
     "state-visibility": "off",
     "var-name-mixedcase": "off",
     "avoid-call-value": "off",

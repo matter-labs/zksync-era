@@ -31,11 +31,29 @@ describe('ETH token checks', () => {
         const l1EthBalanceBefore = await alice.getBalanceL1();
         // No need to check fee as the L1->L2 are free for now
         const l2ethBalanceChange = await shouldChangeETHBalances([{ wallet: alice, change: amount }], {
-            noAutoFeeCheck: true
+            l1ToL2: true
         });
+
+        const l2GasLimit = await zksync.utils.estimateDefaultBridgeDepositL2Gas(
+            alice.providerL1!,
+            alice.provider,
+            ETH_ADDRESS,
+            amount,
+            alice.address,
+            alice.address
+        );
+        const gasPerPubdataByte = zksync.utils.REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_LIMIT;
+        const expectedL2Costs = await alice.getBaseCost({
+            gasLimit: l2GasLimit,
+            gasPerPubdataByte,
+            gasPrice: await gasPrice
+        });
+
         const depositOp = alice.deposit({
             token: ETH_ADDRESS,
             amount,
+            gasPerPubdataByte,
+            l2GasLimit,
             overrides: {
                 gasPrice
             }
@@ -44,7 +62,10 @@ describe('ETH token checks', () => {
 
         const depositFee = await depositOp
             .then((op) => op.waitL1Commit())
-            .then((receipt) => receipt.gasUsed.mul(receipt.effectiveGasPrice));
+            .then(async (receipt) => {
+                const l1GasFee = receipt.gasUsed.mul(receipt.effectiveGasPrice);
+                return l1GasFee.add(expectedL2Costs);
+            });
         const l1EthBalanceAfter = await alice.getBalanceL1();
         expect(l1EthBalanceBefore.sub(depositFee).sub(l1EthBalanceAfter)).bnToBeEq(amount);
     });

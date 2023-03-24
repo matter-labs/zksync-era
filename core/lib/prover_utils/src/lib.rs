@@ -6,6 +6,8 @@ use std::path::Path;
 use std::time::Duration;
 use std::time::Instant;
 
+pub mod region_fetcher;
+
 fn download_bytes(key_download_url: &str) -> reqwest::Result<Vec<u8>> {
     vlog::info!("Downloading initial setup from {:?}", key_download_url);
 
@@ -84,6 +86,31 @@ pub fn numeric_index_to_circuit_name(circuit_numeric_index: u8) -> Option<&'stat
         16 => Some("L1 messages sorter"),
         17 => Some("L1 messages rehasher"),
         18 => Some("L1 messages merklizer"),
+        _ => None,
+    }
+}
+
+pub fn circuit_name_to_numeric_index(circuit_name: &str) -> Option<u8> {
+    match circuit_name {
+        "Scheduler" => Some(0),
+        "Node aggregation" => Some(1),
+        "Leaf aggregation" => Some(2),
+        "Main VM" => Some(3),
+        "Decommitts sorter" => Some(4),
+        "Code decommitter" => Some(5),
+        "Log demuxer" => Some(6),
+        "Keccak" => Some(7),
+        "SHA256" => Some(8),
+        "ECRecover" => Some(9),
+        "RAM permutation" => Some(10),
+        "Storage sorter" => Some(11),
+        "Storage application" => Some(12),
+        "Initial writes pubdata rehasher" => Some(13),
+        "Repeated writes pubdata rehasher" => Some(14),
+        "Events sorter" => Some(15),
+        "L1 messages sorter" => Some(16),
+        "L1 messages rehasher" => Some(17),
+        "L1 messages merklizer" => Some(18),
         _ => None,
     }
 }

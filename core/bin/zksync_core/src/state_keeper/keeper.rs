@@ -2,14 +2,17 @@ use std::time::Duration;
 
 use tokio::sync::watch::Receiver;
 
-use vm::{
-    vm_with_bootloader::BlockContextMode, zk_evm::block_properties::BlockProperties, TxRevertReason,
+use vm::transaction_data::TransactionData;
+use vm::TxRevertReason;
+use zksync_types::{
+    storage_writes_deduplicator::StorageWritesDeduplicator, MiniblockNumber, Transaction,
 };
-use zksync_types::{MiniblockNumber, Transaction};
+use zksync_utils::time::millis_since_epoch;
 
+use crate::gas_tracker::gas_count_from_writes;
 use crate::state_keeper::{
     batch_executor::{BatchExecutorHandle, L1BatchExecutorBuilder, TxExecutionResult},
-    io::{PendingBatchData, StateKeeperIO},
+    io::{L1BatchParams, PendingBatchData, StateKeeperIO},
     seal_criteria::{SealManager, SealResolution},
     types::ExecutionMetricsForCriteria,
     updates::UpdatesManager,
@@ -17,7 +20,7 @@ use crate::state_keeper::{
 
 /// Amount of time to block on waiting for some resource. The exact value is not really important,
 /// we only need it to not block on waiting indefinitely and be able to process cancellation requests.
-const POLL_WAIT_DURATION: Duration = Duration::from_secs(1);
+pub(super) const POLL_WAIT_DURATION: Duration = Duration::from_secs(1);
 
 /// Structure used to indicate that task cancellation was requested.
 #[derive(Debug)]
@@ -33,7 +36,7 @@ struct Canceled;
 /// You can think of it as a state machine that runs over a sequence of incoming transactions, turning them into
 /// a sequence of executed miniblocks and batches.
 #[derive(Debug)]
-pub(crate) struct ZkSyncStateKeeper {
+pub struct ZkSyncStateKeeper {
     stop_receiver: Receiver<bool>,
     io: Box<dyn StateKeeperIO>,
     batch_executor_base: Box<dyn L1BatchExecutorBuilder>,
@@ -41,7 +44,7 @@ pub(crate) struct ZkSyncStateKeeper {
 }
 
 impl ZkSyncStateKeeper {
-    pub(crate) fn new(
+    pub fn new(
         stop_receiver: Receiver<bool>,
         io: Box<dyn StateKeeperIO>,
         batch_executor_base: Box<dyn L1BatchExecutorBuilder>,
@@ -101,13 +104,14 @@ impl ZkSyncStateKeeper {
             }
         };
 
-        let (mut block_context, mut block_properties) = params;
+        let mut l1_batch_params = params;
 
-        let mut updates_manager = UpdatesManager::new(&block_context);
+        let mut updates_manager = UpdatesManager::new(
+            &l1_batch_params.context_mode,
+            l1_batch_params.base_system_contracts.hashes(),
+        );
 
-        let mut batch_executor = self
-            .batch_executor_base
-            .init_batch(block_context, block_properties);
+        let mut batch_executor = self.batch_executor_base.init_batch(l1_batch_params.clone());
         self.restore_state(&batch_executor, &mut updates_manager, txs_to_reexecute);
 
         loop {
@@ -118,22 +122,26 @@ impl ZkSyncStateKeeper {
 
             // Finish current batch.
             if !updates_manager.miniblock.executed_transactions.is_empty() {
-                let new_timestamp = self.io.seal_miniblock(&updates_manager);
-                updates_manager.seal_miniblock(new_timestamp);
+                self.io.seal_miniblock(&updates_manager);
+                // We've sealed the miniblock that we had, but we still need to setup the timestamp for the
+                // fictive miniblock.
+                let fictive_miniblock_timestamp = self.wait_for_new_miniblock_params()?;
+                updates_manager.seal_miniblock(fictive_miniblock_timestamp);
             }
             let block_result = batch_executor.finish_batch();
             self.io.seal_l1_batch(
                 block_result,
                 updates_manager,
-                block_context.inner_block_context(),
+                l1_batch_params.context_mode.inner_block_context(),
             );
 
             // Start the new batch.
-            (block_context, block_properties) = self.wait_for_new_batch_params()?;
-            updates_manager = UpdatesManager::new(&block_context);
-            batch_executor = self
-                .batch_executor_base
-                .init_batch(block_context, block_properties);
+            l1_batch_params = self.wait_for_new_batch_params()?;
+            updates_manager = UpdatesManager::new(
+                &l1_batch_params.context_mode,
+                l1_batch_params.base_system_contracts.hashes(),
+            );
+            batch_executor = self.batch_executor_base.init_batch(l1_batch_params.clone());
         }
     }
 
@@ -144,11 +152,19 @@ impl ZkSyncStateKeeper {
         Ok(())
     }
 
-    fn wait_for_new_batch_params(
-        &mut self,
-    ) -> Result<(BlockContextMode, BlockProperties), Canceled> {
+    fn wait_for_new_batch_params(&mut self) -> Result<L1BatchParams, Canceled> {
         let params = loop {
             if let Some(params) = self.io.wait_for_new_batch_params(POLL_WAIT_DURATION) {
+                break params;
+            }
+            self.check_if_cancelled()?;
+        };
+        Ok(params)
+    }
+
+    fn wait_for_new_miniblock_params(&mut self) -> Result<u64, Canceled> {
+        let params = loop {
+            if let Some(params) = self.io.wait_for_new_miniblock_params(POLL_WAIT_DURATION) {
                 break params;
             }
             self.check_if_cancelled()?;
@@ -165,8 +181,6 @@ impl ZkSyncStateKeeper {
         updates_manager: &mut UpdatesManager,
         txs_to_reexecute: Vec<(MiniblockNumber, Vec<Transaction>)>,
     ) {
-        let mut total_batch_updated_slots = 0;
-
         for (miniblock_number, txs) in txs_to_reexecute {
             vlog::info!(
                 "Starting to reexecute transactions from sealed miniblock {}",
@@ -186,22 +200,20 @@ impl ZkSyncStateKeeper {
                 let tx_execution_status = tx_execution_result.status;
 
                 let ExecutionMetricsForCriteria {
-                    storage_updates: storage_updates_this_tx,
                     l1_gas: tx_l1_gas_this_tx,
                     execution_metrics: tx_execution_metrics,
                 } = result.tx_metrics.unwrap();
-                total_batch_updated_slots += storage_updates_this_tx;
 
                 updates_manager.extend_from_executed_transaction(
                     &tx,
                     tx_execution_result,
+                    result.compressed_bytecodes,
                     tx_l1_gas_this_tx,
                     tx_execution_metrics,
                 );
                 vlog::debug!(
                     "finished reexecuting tx {} by {} (is_l1: {}) (#{} in l1 batch {}) \
-                    (#{} in miniblock {}) status: {:?}. New modified storage slots: {}, \
-                    total in l1 batch: {}, L1 gas spent: {:?}, total in l1 batch: {:?}, \
+                    (#{} in miniblock {}) status: {:?}. L1 gas spent: {:?}, total in l1 batch: {:?}, \
                     tx execution metrics: {:?}, block execution metrics: {:?}",
                     tx.hash(),
                     tx.initiator_account(),
@@ -211,8 +223,6 @@ impl ZkSyncStateKeeper {
                     updates_manager.miniblock.executed_transactions.len(),
                     miniblock_number,
                     tx_execution_status,
-                    storage_updates_this_tx,
-                    total_batch_updated_slots,
                     tx_l1_gas_this_tx,
                     updates_manager.pending_l1_gas_count(),
                     &tx_execution_metrics,
@@ -220,9 +230,11 @@ impl ZkSyncStateKeeper {
                 );
             }
 
-            // It's OK to use substitute values here even though we're re-executing the old blocks,
-            // since the correct values are already persisted in the DB and won't be overwritten.
-            updates_manager.seal_miniblock(updates_manager.batch_timestamp());
+            // For old miniblocks that we reexecute the correct timestamps are already persisted in the DB and won't be overwritten.
+            // However, `seal_miniblock` method of `UpdatesManager` takes the only parameter `new_miniblock_timstamp`
+            // that will be used as a timestamp for the next sealed miniblock.
+            // So, we should care about passing the correct timestamp for miniblock that comes after the pending batch.
+            updates_manager.seal_miniblock((millis_since_epoch() / 1000) as u64);
         }
     }
 
@@ -238,6 +250,11 @@ impl ZkSyncStateKeeper {
                 .should_seal_l1_batch_unconditionally(updates_manager)
             {
                 return Ok(());
+            }
+            if self.sealer.should_seal_miniblock(updates_manager) {
+                self.io.seal_miniblock(updates_manager);
+                let new_timestamp = self.wait_for_new_miniblock_params()?;
+                updates_manager.seal_miniblock(new_timestamp);
             }
             let Some(tx) = self.io.wait_for_next_tx(POLL_WAIT_DURATION) else {
                 vlog::trace!("No new transactions. Waiting!");
@@ -257,13 +274,10 @@ impl ZkSyncStateKeeper {
                     updates_manager.extend_from_executed_transaction(
                         &tx,
                         exec_result.tx_result.unwrap(),
+                        exec_result.compressed_bytecodes,
                         tx_l1_gas_this_tx,
                         tx_execution_metrics,
                     );
-                    if self.sealer.should_seal_miniblock(updates_manager) {
-                        let new_timestamp = self.io.seal_miniblock(updates_manager);
-                        updates_manager.seal_miniblock(new_timestamp);
-                    }
                 }
                 SealResolution::IncludeAndSeal => {
                     let ExecutionMetricsForCriteria {
@@ -274,6 +288,7 @@ impl ZkSyncStateKeeper {
                     updates_manager.extend_from_executed_transaction(
                         &tx,
                         exec_result.tx_result.unwrap(),
+                        exec_result.compressed_bytecodes,
                         tx_l1_gas_this_tx,
                         tx_execution_metrics,
                     );
@@ -297,12 +312,14 @@ impl ZkSyncStateKeeper {
     /// Executes one transaction in the batch executor, and then decides whether the batch should be sealed.
     /// Batch may be sealed because of one of the following reasons:
     /// 1. The VM entered an incorrect state (e.g. out of gas). In that case, we must revert the transaction and seal
-    /// the blcok.
+    /// the block.
     /// 2. Seal manager decided that batch is ready to be sealed.
+    /// Note: this method doesn't mutate `updates_manager` in the end. However, reference should be mutable
+    /// because we use `apply_and_rollback` method of `updates_manager.storage_writes_deduplicator`.
     fn process_one_tx(
         &mut self,
         batch_executor: &BatchExecutorHandle,
-        updates_manager: &UpdatesManager,
+        updates_manager: &mut UpdatesManager,
         tx: &Transaction,
     ) -> (SealResolution, TxExecutionResult) {
         let exec_result = batch_executor.execute_tx(tx.clone());
@@ -311,6 +328,7 @@ impl ZkSyncStateKeeper {
             bootloader_dry_run_result,
             tx_metrics,
             bootloader_dry_run_metrics,
+            ..
         } = exec_result.clone();
 
         match tx_result {
@@ -329,14 +347,13 @@ impl ZkSyncStateKeeper {
             Ok(tx_execution_result) => {
                 let tx_execution_status = tx_execution_result.status;
                 let ExecutionMetricsForCriteria {
-                    storage_updates: storage_updates_this_tx,
                     l1_gas: tx_l1_gas_this_tx,
                     execution_metrics: tx_execution_metrics,
                 } = tx_metrics.unwrap();
 
                 vlog::debug!(
                     "finished tx {:?} by {:?} (is_l1: {}) (#{} in l1 batch {}) (#{} in miniblock {}) \
-                    status: {:?}. New modified storage slots: {}, L1 gas spent: {:?}, total in l1 batch: {:?}, \
+                    status: {:?}. L1 gas spent: {:?}, total in l1 batch: {:?}, \
                     tx execution metrics: {:?}, block execution metrics: {:?}",
                     tx.hash(),
                     tx.initiator_account(),
@@ -346,28 +363,48 @@ impl ZkSyncStateKeeper {
                     updates_manager.miniblock.executed_transactions.len() + 1,
                     self.io.current_miniblock_number().0,
                     tx_execution_status,
-                    storage_updates_this_tx,
                     tx_l1_gas_this_tx,
                     updates_manager.pending_l1_gas_count() + tx_l1_gas_this_tx,
                     &tx_execution_metrics,
                     updates_manager.pending_execution_metrics() + tx_execution_metrics,
                 );
 
-                if bootloader_dry_run_result.unwrap().is_err() {
-                    // Exclude and seal.
-                    metrics::increment_counter!(
-                        "server.tx_aggregation.reason",
-                        "criterion" => "bootloader_block_tip_failed",
-                        "seal_resolution" => "exclude_and_seal",
-                    );
-                    return (SealResolution::ExcludeAndSeal, exec_result);
-                }
+                let bootloader_dry_run_result =
+                    if let Ok(bootloader_dry_run_result) = bootloader_dry_run_result.unwrap() {
+                        bootloader_dry_run_result
+                    } else {
+                        // Exclude and seal.
+                        metrics::increment_counter!(
+                            "server.tx_aggregation.reason",
+                            "criterion" => "bootloader_block_tip_failed",
+                            "seal_resolution" => "exclude_and_seal",
+                        );
+                        return (SealResolution::ExcludeAndSeal, exec_result);
+                    };
 
                 let ExecutionMetricsForCriteria {
                     l1_gas: finish_block_l1_gas,
                     execution_metrics: finish_block_execution_metrics,
                     ..
                 } = bootloader_dry_run_metrics.unwrap();
+
+                let tx_data: TransactionData = tx.clone().into();
+                let encoding_len = tx_data.into_tokens().len();
+
+                let logs_to_apply_iter = tx_execution_result
+                    .result
+                    .logs
+                    .storage_logs
+                    .iter()
+                    .chain(&bootloader_dry_run_result.logs.storage_logs);
+                let block_writes_metrics = updates_manager
+                    .storage_writes_deduplicator
+                    .apply_and_rollback(logs_to_apply_iter.clone());
+                let block_writes_l1_gas = gas_count_from_writes(&block_writes_metrics);
+
+                let tx_writes_metrics =
+                    StorageWritesDeduplicator::apply_on_empty_state(logs_to_apply_iter);
+                let tx_writes_l1_gas = gas_count_from_writes(&tx_writes_metrics);
 
                 let resolution = self.sealer.should_seal_l1_batch(
                     self.io.current_l1_batch_number().0,
@@ -379,8 +416,13 @@ impl ZkSyncStateKeeper {
                     tx_execution_metrics + finish_block_execution_metrics,
                     updates_manager.pending_l1_gas_count()
                         + tx_l1_gas_this_tx
-                        + finish_block_l1_gas,
-                    tx_l1_gas_this_tx + finish_block_l1_gas,
+                        + finish_block_l1_gas
+                        + block_writes_l1_gas,
+                    tx_l1_gas_this_tx + finish_block_l1_gas + tx_writes_l1_gas,
+                    updates_manager.pending_txs_encoding_size() + encoding_len,
+                    encoding_len,
+                    block_writes_metrics,
+                    tx_writes_metrics,
                 );
 
                 (resolution, exec_result)

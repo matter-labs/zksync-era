@@ -69,6 +69,15 @@ export class TestMaster {
     }
 
     /**
+     * Returns whether the network is localhost
+     *
+     * @returns `true` if the test suite is run on localhost and `false` otherwise.
+     */
+    isLocalHost(): boolean {
+        return this.env.network == 'localhost';
+    }
+
+    /**
      * Returns an instance of the `TestMaster` initialized for the specified suite file.
      *
      * @param localSuitePath Local path to the suite file, e.g. `erc20.test.ts` or `sample/file.test.ts`

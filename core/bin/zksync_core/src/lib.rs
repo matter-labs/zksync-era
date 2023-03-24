@@ -13,9 +13,8 @@ use zksync_config::configs::WitnessGeneratorConfig;
 use house_keeper::periodic_job::PeriodicJob;
 use prometheus_exporter::run_prometheus_exporter;
 use zksync_circuit_breaker::{
-    code_hashes::CodeHashesChecker, facet_selectors::FacetSelectorsChecker,
-    l1_txs::FailedL1TransactionChecker, vks::VksChecker, CircuitBreaker, CircuitBreakerChecker,
-    CircuitBreakerError,
+    facet_selectors::FacetSelectorsChecker, l1_txs::FailedL1TransactionChecker, vks::VksChecker,
+    CircuitBreaker, CircuitBreakerChecker, CircuitBreakerError,
 };
 use zksync_config::ZkSyncConfig;
 use zksync_dal::{ConnectionPool, StorageProcessor};
@@ -27,14 +26,17 @@ use zksync_queued_job_processor::JobProcessor;
 
 use crate::eth_sender::{Aggregator, EthTxManager};
 use crate::fee_monitor::FeeMonitor;
+use crate::house_keeper::blocks_state_reporter::L1BatchMetricsReporter;
 use crate::house_keeper::gcs_blob_cleaner::GcsBlobCleaner;
 use crate::house_keeper::gpu_prover_queue_monitor::GpuProverQueueMonitor;
 use crate::house_keeper::{
+    prover_queue_monitor::ProverStatsReporter,
     witness_generator_misc_reporter::WitnessGeneratorMetricsReporter,
     witness_generator_queue_monitor::WitnessGeneratorStatsReporter,
 };
 use crate::metadata_calculator::{MetadataCalculator, MetadataCalculatorMode};
-use crate::state_keeper::{MempoolFetcher, MempoolGuard};
+use crate::state_keeper::mempool_actor::MempoolFetcher;
+use crate::state_keeper::MempoolGuard;
 use crate::witness_generator::WitnessGenerator;
 use crate::{
     api_server::{explorer, web3},
@@ -57,6 +59,7 @@ pub mod genesis;
 pub mod house_keeper;
 pub mod metadata_calculator;
 pub mod state_keeper;
+pub mod sync_layer;
 pub mod witness_generator;
 
 /// Waits for *any* of the tokio tasks to be finished.
@@ -86,7 +89,7 @@ pub async fn wait_for_tasks(task_futures: Vec<JoinHandle<()>>, tasks_allowed_to_
 /// Inserts the initial information about zkSync tokens into the database.
 pub async fn genesis_init(config: ZkSyncConfig) {
     let mut storage = StorageProcessor::establish_connection(true).await;
-    genesis::ensure_genesis_state(&mut storage, config).await;
+    genesis::ensure_genesis_state(&mut storage, &config).await;
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -273,6 +276,7 @@ pub async fn initialize_components(
             mempool_fetcher_pool,
             config.chain.mempool.remove_stuck_txs,
             config.chain.mempool.stuck_tx_timeout(),
+            config.chain.state_keeper.fair_l2_gas_price,
             stop_receiver.clone(),
         )));
 
@@ -315,12 +319,14 @@ pub async fn initialize_components(
         let eth_tx_aggregator_actor = EthTxAggregator::new(
             config.eth_sender.sender.clone(),
             Aggregator::new(config.eth_sender.sender.clone()),
-            config.contracts.diamond_proxy_addr,
+            config.contracts.validator_timelock_addr,
             nonce.as_u64(),
         );
-        task_futures.push(tokio::spawn(
-            eth_tx_aggregator_actor.run(eth_sender_storage.clone(), stop_receiver.clone()),
-        ));
+        task_futures.push(tokio::spawn(eth_tx_aggregator_actor.run(
+            eth_sender_storage.clone(),
+            eth_gateway.clone(),
+            stop_receiver.clone(),
+        )));
         vlog::info!("initialized ETH-TxAggregator in {:?}", started_at.elapsed());
         metrics::gauge!("server.init.latency", started_at.elapsed().as_secs() as f64, "stage" => "eth_tx_aggregator");
     }
@@ -432,6 +438,8 @@ pub async fn initialize_components(
             tokio::spawn(witness_generator_misc_reporter.run(ConnectionPool::new(Some(1), true))),
             tokio::spawn(GpuProverQueueMonitor::default().run(ConnectionPool::new(Some(1), true))),
             tokio::spawn(gcs_blob_cleaner.run(ConnectionPool::new(Some(1), true))),
+            tokio::spawn(L1BatchMetricsReporter::default().run(ConnectionPool::new(Some(1), true))),
+            tokio::spawn(ProverStatsReporter::default().run(ConnectionPool::new(Some(1), true))),
         ];
 
         task_futures.extend(witness_generator_metrics);
@@ -510,19 +518,6 @@ fn circuit_breakers_for_components(
         circuit_breakers.push(Box::new(FailedL1TransactionChecker {
             pool: ConnectionPool::new(Some(1), false),
         }));
-    }
-
-    if components.iter().any(|c| {
-        matches!(
-            c,
-            Component::EthTxAggregator
-                | Component::EthTxManager
-                | Component::StateKeeper
-                | Component::Tree
-                | Component::TreeBackup
-        )
-    }) {
-        circuit_breakers.push(Box::new(CodeHashesChecker::new(config)));
     }
 
     if components.iter().any(|c| {

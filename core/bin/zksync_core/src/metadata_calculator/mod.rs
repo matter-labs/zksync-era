@@ -442,6 +442,8 @@ impl MetadataCalculator {
             merkle_root_hash,
             tree_metadata_at_block.initial_writes.clone(),
             tree_metadata_at_block.repeated_writes.clone(),
+            l1_batch_header.base_system_contracts_hashes.bootloader,
+            l1_batch_header.base_system_contracts_hashes.default_aa,
         );
         let block_commitment_hash = block_commitment.hash();
         vlog::trace!("Block commitment {:?}", &block_commitment);

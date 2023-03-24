@@ -13,7 +13,10 @@ use vm::{
     zk_evm::{aux_structures::Timestamp, zkevm_opcode_defs::BOOTLOADER_HEAP_PAGE},
     OracleTools,
 };
-use zksync_contracts::{load_sys_contract, read_bootloader_code, SystemContractCode};
+use zksync_contracts::{
+    load_sys_contract, read_bootloader_code, read_sys_contract_bytecode, BaseSystemContracts,
+    ContractLanguage, SystemContractCode,
+};
 use zksync_state::{secondary_storage::SecondaryStateStorage, storage_view::StorageView};
 use zksync_storage::{db::Database, RocksDB};
 use zksync_types::{
@@ -30,17 +33,27 @@ use zksync_types::{
     BOOTLOADER_ADDRESS, H256, SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_GAS_PRICE_POSITION,
     SYSTEM_CONTEXT_TX_ORIGIN_POSITION, U256,
 };
-use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256, u256_to_h256};
+use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, u256_to_h256};
 
 use crate::intrinsic_costs::VmSpentResourcesResult;
 
-pub static GAS_TEST_BOOTLOADER_CODE: Lazy<SystemContractCode> = Lazy::new(|| {
+pub static GAS_TEST_SYSTEM_CONTRACTS: Lazy<BaseSystemContracts> = Lazy::new(|| {
     let bytecode = read_bootloader_code("gas_test");
     let hash = hash_bytecode(&bytecode);
 
-    SystemContractCode {
+    let bootloader = SystemContractCode {
         code: bytes_to_be_words(bytecode),
-        hash: h256_to_u256(hash),
+        hash,
+    };
+
+    let bytecode = read_sys_contract_bytecode("", "DefaultAccount", ContractLanguage::Sol);
+    let hash = hash_bytecode(&bytecode);
+    BaseSystemContracts {
+        default_aa: SystemContractCode {
+            code: bytes_to_be_words(bytecode),
+            hash,
+        },
+        bootloader,
     }
 });
 
@@ -146,14 +159,33 @@ pub(super) fn execute_internal_transfer_test() -> u32 {
 
     let mut oracle_tools = OracleTools::new(storage_ptr);
 
-    let transfer_test_bootloader = read_bootloader_test_code("transfer_test");
+    let bytecode = read_bootloader_test_code("transfer_test");
+    let hash = hash_bytecode(&bytecode);
+
+    let bootloader = SystemContractCode {
+        code: bytes_to_be_words(bytecode),
+        hash,
+    };
+
+    let bytecode = read_sys_contract_bytecode("", "DefaultAccount", ContractLanguage::Sol);
+    let hash = hash_bytecode(&bytecode);
+
+    let default_aa = SystemContractCode {
+        code: bytes_to_be_words(bytecode),
+        hash,
+    };
+
+    let base_system_contract = BaseSystemContracts {
+        bootloader,
+        default_aa,
+    };
 
     let mut vm = init_vm_inner(
         &mut oracle_tools,
         BlockContextMode::NewBlock(block_context, Default::default()),
         &block_properties,
         BLOCK_GAS_LIMIT,
-        transfer_test_bootloader,
+        &base_system_contract,
         TxExecutionMode::VerifyExecute,
     );
 
@@ -247,7 +279,7 @@ pub(super) fn execute_user_txs_in_test_gas_vm(
         BlockContextMode::NewBlock(block_context, Default::default()),
         &block_properties,
         BLOCK_GAS_LIMIT,
-        GAS_TEST_BOOTLOADER_CODE.code.clone(),
+        &GAS_TEST_SYSTEM_CONTRACTS,
         TxExecutionMode::VerifyExecute,
     );
 
@@ -258,9 +290,10 @@ pub(super) fn execute_user_txs_in_test_gas_vm(
             tx.clone().into(),
             TxExecutionMode::VerifyExecute,
             0,
+            None,
         );
         let tx_execution_result = vm
-            .execute_next_tx()
+            .execute_next_tx(u32::MAX)
             .expect("Bootloader failed while processing transaction");
 
         total_gas_refunded += tx_execution_result.gas_refunded;

@@ -392,6 +392,7 @@ fn gen_l1_tx(priority_id: PriorityOpId) -> Transaction {
         layer_2_tip_fee: U256::zero(),
         full_fee: U256::zero(),
         gas_limit: U256::zero(),
+        max_fee_per_gas: U256::zero(),
         gas_per_pubdata_limit: U256::one(),
         op_processing_type: OpProcessingType::Common,
         priority_queue_type: PriorityQueueType::Deque,

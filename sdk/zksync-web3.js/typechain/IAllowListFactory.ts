@@ -23,30 +23,23 @@ const _abi = [
       {
         indexed: true,
         internalType: "address",
-        name: "newOwner",
-        type: "address",
-      },
-    ],
-    name: "NewOwner",
-    type: "event",
-  },
-  {
-    anonymous: false,
-    inputs: [
-      {
-        indexed: true,
-        internalType: "address",
-        name: "oldPendingOwner",
+        name: "target",
         type: "address",
       },
       {
-        indexed: true,
-        internalType: "address",
-        name: "newPendingOwner",
-        type: "address",
+        indexed: false,
+        internalType: "enum IAllowList.AccessMode",
+        name: "previousMode",
+        type: "uint8",
+      },
+      {
+        indexed: false,
+        internalType: "enum IAllowList.AccessMode",
+        name: "newMode",
+        type: "uint8",
       },
     ],
-    name: "NewPendingOwner",
+    name: "UpdateAccessMode",
     type: "event",
   },
   {
@@ -81,32 +74,6 @@ const _abi = [
     type: "event",
   },
   {
-    anonymous: false,
-    inputs: [
-      {
-        indexed: true,
-        internalType: "address",
-        name: "target",
-        type: "address",
-      },
-      {
-        indexed: false,
-        internalType: "bool",
-        name: "newStatus",
-        type: "bool",
-      },
-    ],
-    name: "UpdatePublicAccess",
-    type: "event",
-  },
-  {
-    inputs: [],
-    name: "acceptOwner",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
     inputs: [
       {
         internalType: "address",
@@ -130,6 +97,56 @@ const _abi = [
         internalType: "bool",
         name: "",
         type: "bool",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "_target",
+        type: "address",
+      },
+    ],
+    name: "getAccessMode",
+    outputs: [
+      {
+        internalType: "enum IAllowList.AccessMode",
+        name: "",
+        type: "uint8",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "_l1Token",
+        type: "address",
+      },
+    ],
+    name: "getTokenDepositLimitData",
+    outputs: [
+      {
+        components: [
+          {
+            internalType: "bool",
+            name: "depositLimitation",
+            type: "bool",
+          },
+          {
+            internalType: "uint256",
+            name: "depositCap",
+            type: "uint256",
+          },
+        ],
+        internalType: "struct IAllowList.Deposit",
+        name: "",
+        type: "tuple",
       },
     ],
     stateMutability: "view",
@@ -171,42 +188,33 @@ const _abi = [
         name: "_target",
         type: "address",
       },
-    ],
-    name: "isAccessPublic",
-    outputs: [
       {
-        internalType: "bool",
-        name: "",
-        type: "bool",
+        internalType: "enum IAllowList.AccessMode",
+        name: "_accessMode",
+        type: "uint8",
       },
     ],
-    stateMutability: "view",
+    name: "setAccessMode",
+    outputs: [],
+    stateMutability: "nonpayable",
     type: "function",
   },
   {
-    inputs: [],
-    name: "owner",
-    outputs: [
+    inputs: [
       {
-        internalType: "address",
-        name: "",
-        type: "address",
+        internalType: "address[]",
+        name: "_targets",
+        type: "address[]",
+      },
+      {
+        internalType: "enum IAllowList.AccessMode[]",
+        name: "_accessMode",
+        type: "uint8[]",
       },
     ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [],
-    name: "pendingOwner",
-    outputs: [
-      {
-        internalType: "address",
-        name: "",
-        type: "address",
-      },
-    ],
-    stateMutability: "view",
+    name: "setBatchAccessMode",
+    outputs: [],
+    stateMutability: "nonpayable",
     type: "function",
   },
   {
@@ -240,30 +248,22 @@ const _abi = [
   {
     inputs: [
       {
-        internalType: "address[]",
-        name: "_targets",
-        type: "address[]",
-      },
-      {
-        internalType: "bool[]",
-        name: "_enables",
-        type: "bool[]",
-      },
-    ],
-    name: "setBatchPublicAccess",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
         internalType: "address",
-        name: "_newPendingOwner",
+        name: "_l1Token",
         type: "address",
       },
+      {
+        internalType: "bool",
+        name: "_depositLimitation",
+        type: "bool",
+      },
+      {
+        internalType: "uint256",
+        name: "_depositCap",
+        type: "uint256",
+      },
     ],
-    name: "setPendingOwner",
+    name: "setDepositLimit",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",
@@ -292,24 +292,6 @@ const _abi = [
       },
     ],
     name: "setPermissionToCall",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "address",
-        name: "_target",
-        type: "address",
-      },
-      {
-        internalType: "bool",
-        name: "_enable",
-        type: "bool",
-      },
-    ],
-    name: "setPublicAccess",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",

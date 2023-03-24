@@ -166,8 +166,8 @@ impl<E: EthInterface + Sync> EthTxManager<E> {
             return Err(ETHSenderError::from(Error::from(Web3Error::Internal)));
         }
 
-        // Increase `priority_fee_per_gas` by at least 10% to prevent "replacement transaction underpriced" error.
-        Ok((previous_priority_fee + (previous_priority_fee / 10) + 1)
+        // Increase `priority_fee_per_gas` by at least 20% to prevent "replacement transaction underpriced" error.
+        Ok((previous_priority_fee + (previous_priority_fee / 5) + 1)
             .max(self.gas_adjuster.get_priority_fee()))
     }
 

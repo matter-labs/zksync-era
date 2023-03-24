@@ -97,26 +97,6 @@ impl EventsDal<'_, '_> {
         })
     }
 
-    pub fn set_tx_initiator_address(
-        &mut self,
-        from_block_number: MiniblockNumber,
-        to_block_number: MiniblockNumber,
-    ) {
-        async_std::task::block_on(async {
-            sqlx::query!(
-                "
-                    UPDATE events SET tx_initiator_address = transactions.initiator_address
-                    FROM transactions WHERE transactions.hash = events.tx_hash AND events.miniblock_number BETWEEN $1 AND $2
-                ",
-                from_block_number.0 as i64,
-                to_block_number.0 as i64,
-            )
-                .execute(self.storage.conn())
-                .await
-                .unwrap();
-        })
-    }
-
     pub fn save_l2_to_l1_logs(
         &mut self,
         block_number: MiniblockNumber,

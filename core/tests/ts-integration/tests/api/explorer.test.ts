@@ -2,7 +2,13 @@ import { TestMaster } from '../../src/index';
 import * as zksync from 'zksync-web3';
 import * as ethers from 'ethers';
 import fetch from 'node-fetch';
-import { anyTransaction, deployContract, getContractSource, getTestContract } from '../../src/helpers';
+import {
+    anyTransaction,
+    deployContract,
+    getContractSource,
+    getTestContract,
+    waitForNewL1Batch
+} from '../../src/helpers';
 import { sleep } from 'zksync-web3/build/src/utils';
 import { IERC20MetadataFactory } from 'zksync-web3/build/typechain';
 import { extractFee } from '../../src/modifiers/balance-checker';
@@ -94,6 +100,58 @@ describe('Tests for the Explorer API', () => {
         }
     });
 
+    test('Should test /l1_batches endpoint', async () => {
+        if (testMaster.isFastMode()) {
+            // This test requires a new L1 batch to be created, which may be very time consuming on stage.
+            return;
+        }
+
+        // To ensure that the newest batch is not verified yet, we're sealing a new batch.
+        await waitForNewL1Batch(alice);
+
+        const l1BatchesResponse = await query('/l1_batches', { direction: 'older', limit: '1' });
+        expect(l1BatchesResponse).toHaveLength(1);
+        const apiL1Batch = l1BatchesResponse[0];
+        expect(apiL1Batch).toMatchObject({
+            number: expect.any(Number),
+            l1TxCount: expect.any(Number),
+            l2TxCount: expect.any(Number),
+            status: 'sealed',
+            timestamp: expect.any(Number)
+        });
+
+        // Sanity checks for the values we can't control.
+        expect(apiL1Batch.l1TxCount).toBeGreaterThanOrEqual(0);
+        expect(apiL1Batch.l2TxCount).toBeGreaterThanOrEqual(0);
+        expectTimestampToBeSane(apiL1Batch.timestamp);
+
+        // Now try to find the same batch using the "newer" query.
+        const newL1BatchesResponse = await query('/l1_batches', {
+            from: (apiL1Batch.number - 1).toString(),
+            direction: 'newer',
+            limit: '1'
+        });
+        expect(newL1BatchesResponse).toHaveLength(1);
+        const apiL1BatchCopy = newL1BatchesResponse[0];
+        // Response should be the same.
+        expect(apiL1BatchCopy).toEqual(apiL1Batch);
+
+        // Finally, in the long mode also check, that once l1 batch becomes finalized, status also changes
+        // in the explorer API.
+        if (!testMaster.isFastMode()) {
+            await waitFor(async () => {
+                const verifiedApiL1Batch = (
+                    await query('/l1_batches', {
+                        from: (apiL1Batch.number - 1).toString(),
+                        direction: 'newer',
+                        limit: '1'
+                    })
+                )[0];
+                return verifiedApiL1Batch.status == 'verified';
+            }, 'L1 batch was not verified');
+        }
+    });
+
     test('Should test /block endpoint', async () => {
         // Send the transaction to query block data about.
         const tx = await anyTransaction(alice);
@@ -101,11 +159,18 @@ describe('Tests for the Explorer API', () => {
         const apiBlock = await query(`/block/${tx.blockNumber}`);
         expect(apiBlock).toMatchObject({
             number: expect.any(Number),
+            l1BatchNumber: expect.any(Number),
             l1TxCount: expect.any(Number),
             l2TxCount: expect.any(Number),
             rootHash: expect.stringMatching(HASH_REGEX),
             status: expect.stringMatching(/sealed|verified/),
-            timestamp: expect.any(Number)
+            timestamp: expect.any(Number),
+            baseSystemContractsHashes: {
+                bootloader: expect.stringMatching(HASH_REGEX),
+                default_aa: expect.stringMatching(HASH_REGEX)
+            },
+            l1GasPrice: expect.any(Number),
+            l2FairGasPrice: expect.any(Number)
         });
         expect(apiBlock.number).toEqual(tx.blockNumber);
         expect(apiBlock.rootHash).toEqual(tx.blockHash);
@@ -128,6 +193,7 @@ describe('Tests for the Explorer API', () => {
             }, 'Block was not verified');
             expect(verifiedBlock).toEqual({
                 number: expect.any(Number),
+                l1BatchNumber: expect.any(Number),
                 l1TxCount: expect.any(Number),
                 l2TxCount: expect.any(Number),
                 rootHash: expect.stringMatching(/^0x[\da-fA-F]{64}$/),
@@ -138,9 +204,80 @@ describe('Tests for the Explorer API', () => {
                 proveTxHash: expect.stringMatching(HASH_REGEX),
                 provenAt: expect.stringMatching(DATE_REGEX),
                 executeTxHash: expect.stringMatching(HASH_REGEX),
-                executedAt: expect.stringMatching(DATE_REGEX)
+                executedAt: expect.stringMatching(DATE_REGEX),
+                baseSystemContractsHashes: {
+                    bootloader: expect.stringMatching(HASH_REGEX),
+                    default_aa: expect.stringMatching(HASH_REGEX)
+                },
+                l1GasPrice: expect.any(Number),
+                l2FairGasPrice: expect.any(Number)
             });
         }
+    });
+
+    test('Should test /l1_batch endpoint', async () => {
+        if (testMaster.isFastMode()) {
+            // This test requires a new L1 batch to be created, which may be very time consuming on stage.
+            return;
+        }
+
+        // Send the transaction to query l1 batch data about.
+        const tx = await waitForNewL1Batch(alice);
+
+        const apiL1Batch = await query(`/l1_batch/${tx.l1BatchNumber}`);
+        expect(apiL1Batch).toMatchObject({
+            number: expect.any(Number),
+            l1TxCount: expect.any(Number),
+            l2TxCount: expect.any(Number),
+            status: expect.stringMatching(/sealed|verified/),
+            timestamp: expect.any(Number),
+            baseSystemContractsHashes: {
+                bootloader: expect.stringMatching(HASH_REGEX),
+                default_aa: expect.stringMatching(HASH_REGEX)
+            },
+            l1GasPrice: expect.any(Number),
+            l2FairGasPrice: expect.any(Number)
+        });
+        expect(apiL1Batch.number).toEqual(tx.l1BatchNumber);
+        expect(apiL1Batch.l1TxCount).toBeGreaterThanOrEqual(0);
+        expect(apiL1Batch.l2TxCount).toBeGreaterThanOrEqual(1); // We know that at least 1 tx is included there.
+        expectTimestampToBeSane(apiL1Batch.timestamp);
+
+        // Check that L1 transaction count can also be non-zero.
+        const l1Tx = await alice.deposit({ token: zksync.utils.ETH_ADDRESS, amount: 1 }).then((tx) => tx.wait());
+        // Wait for l1 batch to be sealed.
+        await waitForNewL1Batch(alice);
+        const l1TxReceipt = await alice.provider.getTransactionReceipt(l1Tx.transactionHash);
+
+        const l1BatchWithL1Tx = await query(`/l1_batch/${l1TxReceipt.l1BatchNumber}`);
+        expect(l1BatchWithL1Tx.l1TxCount).toBeGreaterThanOrEqual(1);
+
+        // Wait until the block is verified and check that the required fields are set.
+        let verifiedL1Batch = null;
+        await waitFor(async () => {
+            verifiedL1Batch = await query(`/l1_batch/${tx.l1BatchNumber}`);
+            return verifiedL1Batch.status == 'verified';
+        }, 'Block was not verified');
+        expect(verifiedL1Batch).toEqual({
+            number: expect.any(Number),
+            l1TxCount: expect.any(Number),
+            l2TxCount: expect.any(Number),
+            rootHash: expect.stringMatching(/^0x[\da-fA-F]{64}$/),
+            status: 'verified',
+            timestamp: expect.any(Number),
+            commitTxHash: expect.stringMatching(HASH_REGEX),
+            committedAt: expect.stringMatching(DATE_REGEX),
+            proveTxHash: expect.stringMatching(HASH_REGEX),
+            provenAt: expect.stringMatching(DATE_REGEX),
+            executeTxHash: expect.stringMatching(HASH_REGEX),
+            executedAt: expect.stringMatching(DATE_REGEX),
+            baseSystemContractsHashes: {
+                bootloader: expect.stringMatching(HASH_REGEX),
+                default_aa: expect.stringMatching(HASH_REGEX)
+            },
+            l1GasPrice: expect.any(Number),
+            l2FairGasPrice: expect.any(Number)
+        });
     });
 
     test('Should test /account endpoint for an EOA', async () => {
@@ -295,6 +432,24 @@ describe('Tests for the Explorer API', () => {
             type: tx.type
         });
 
+        // Perform L1 batch-related checks in the long mode only.
+        if (!testMaster.isFastMode()) {
+            const tx = await waitForNewL1Batch(alice);
+            const response: any = await query('/transactions', {
+                l1BatchNumber: tx.l1BatchNumber.toString(),
+                limit: '100',
+                direction: 'older'
+            });
+            expect(response).toEqual({
+                total: expect.any(Number),
+                list: expect.anything()
+            });
+            expect(response.total).toBeGreaterThanOrEqual(1);
+
+            const apiTx = response.list.find((apiTx: any) => apiTx.transactionHash == tx.transactionHash);
+            expect(apiTx).toBeDefined();
+        }
+
         // Check other query parameters combinations
         const backwards = await query('/transactions', {
             limit: '1',
@@ -309,18 +464,29 @@ describe('Tests for the Explorer API', () => {
         });
         expect(forward.list.length).toEqual(1);
 
-        const account = await query('/transactions', {
-            limit: '1',
+        const tom = testMaster.newEmptyAccount();
+        await alice.transfer({ to: tom.address, amount }).then((tx) => tx.wait());
+
+        // Alice sent at least 2 txs: to Bob and to Tom.
+        let accountTxs = await query('/transactions', {
+            limit: '2',
             direction: 'older',
-            account: alice.address
+            accountAddress: alice.address
         });
-        expect(account.list.length).toEqual(1);
+        expect(accountTxs.list.length).toEqual(2);
+        // Tom received only 1 tx from Alice.
+        accountTxs = await query('/transactions', {
+            limit: '10',
+            direction: 'older',
+            accountAddress: tom.address
+        });
+        expect(accountTxs.list.length).toEqual(1);
 
         // Invariant: ERC20 tokens are distributed during init, so it must have transactions.
         const contract = await query('/transactions', {
             limit: '1',
             direction: 'older',
-            contract: erc20.l2Address
+            contractAddress: erc20.l2Address
         });
         expect(contract.list.length).toEqual(1);
     });
@@ -400,12 +566,13 @@ describe('Tests for the Explorer API', () => {
 
         const requestBody = {
             contractAddress: counterContract.address,
-            contractName: 'Counter',
+            contractName: 'contracts/counter/counter.sol:Counter',
             sourceCode: getContractSource('counter/counter.sol'),
-            compilerZksolcVersion: 'v1.3.1',
+            compilerZksolcVersion: 'v1.3.7',
             compilerSolcVersion: '0.8.16',
             optimizationUsed: true,
-            constructorArguments
+            constructorArguments,
+            isSystem: true
         };
         let requestId = await query('/contract_verification', undefined, requestBody);
 
@@ -428,8 +595,8 @@ describe('Tests for the Explorer API', () => {
         const standardJsonInput = {
             language: 'Solidity',
             sources: {
-                'create.sol': { content: getContractSource('create/create.sol') },
-                'Foo.sol': { content: getContractSource('create/Foo.sol') }
+                'contracts/create/create.sol': { content: getContractSource('create/create.sol') },
+                'contracts/create/Foo.sol': { content: getContractSource('create/Foo.sol') }
             },
             settings: {
                 optimizer: { enabled: true }
@@ -440,13 +607,14 @@ describe('Tests for the Explorer API', () => {
 
         const requestBody = {
             contractAddress: importContract.address,
-            contractName: 'create.sol:Import',
+            contractName: 'contracts/create/create.sol:Import',
             sourceCode: standardJsonInput,
             codeFormat: 'solidity-standard-json-input',
-            compilerZksolcVersion: 'v1.3.1',
+            compilerZksolcVersion: 'v1.3.7',
             compilerSolcVersion: '0.8.16',
             optimizationUsed: true,
-            constructorArguments
+            constructorArguments,
+            isSystem: true
         };
         let requestId = await query('/contract_verification', undefined, requestBody);
 

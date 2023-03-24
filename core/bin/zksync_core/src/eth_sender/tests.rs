@@ -37,7 +37,7 @@ impl EthSenderTester {
         let eth_sender_config = ETHSenderConfig::from_env();
         let aggregator_config = SenderConfig {
             aggregated_proof_sizes: vec![1],
-            ..eth_sender_config.sender
+            ..eth_sender_config.sender.clone()
         };
 
         let gateway = Arc::new(MockEthereum::default().with_fee_history(history));

@@ -6,7 +6,7 @@ use std::io::Read;
 use std::path::PathBuf;
 use zksync_utils::parse_env;
 
-use zksync_contracts::read_sys_contract_bytecode;
+use zksync_contracts::{read_sys_contract_bytecode, ContractLanguage};
 use zksync_eth_client::ETHDirectClient;
 use zksync_eth_signer::PrivateKeySigner;
 use zksync_types::{l1::L1Tx, web3::types::TransactionReceipt, Address};
@@ -17,7 +17,7 @@ use crate::types::ETHEREUM_ADDRESS;
 pub fn load_test_bytecode_and_calldata() -> (Vec<u8>, Vec<u8>, Vec<u8>) {
     let mut dir_path = parse_env::<PathBuf>("ZKSYNC_HOME");
     dir_path.push("etc/contracts-test-data/e");
-    let bytecode = read_sys_contract_bytecode("", "Emitter");
+    let bytecode = read_sys_contract_bytecode("", "Emitter", ContractLanguage::Sol);
 
     let mut dir_path = parse_env::<PathBuf>("ZKSYNC_HOME");
     dir_path.push("etc");

@@ -34,6 +34,7 @@ impl WitnessGeneratorDal<'_, '_> {
         &mut self,
         processing_timeout: Duration,
         max_attempts: u32,
+        last_l1_batch_to_process: u32,
     ) -> Option<WitnessGeneratorJobMetadata> {
         async_std::task::block_on(async {
             let processing_timeout = pg_interval_from_duration(processing_timeout);
@@ -45,9 +46,12 @@ impl WitnessGeneratorDal<'_, '_> {
                 WHERE l1_batch_number = (
                     SELECT l1_batch_number
                     FROM witness_inputs
-                    WHERE status = 'queued' 
-                    OR (status = 'in_progress' AND processing_started_at < now() - $1::interval)
-                    OR (status = 'failed' AND attempts < $2)
+                    WHERE l1_batch_number <= $3
+                    AND
+                    (   status = 'queued'
+                        OR (status = 'in_progress' AND processing_started_at < now() - $1::interval)
+                        OR (status = 'failed' AND attempts < $2)
+                    )
                     ORDER BY l1_batch_number ASC
                     LIMIT 1
                     FOR UPDATE
@@ -56,7 +60,8 @@ impl WitnessGeneratorDal<'_, '_> {
                 RETURNING witness_inputs.*
                ",
                 &processing_timeout,
-                max_attempts as i32
+                max_attempts as i32,
+                last_l1_batch_to_process as i64
             )
             .fetch_optional(self.storage.conn())
             .await
@@ -70,10 +75,46 @@ impl WitnessGeneratorDal<'_, '_> {
         })
     }
 
+    pub fn get_witness_generated_l1_batches(&mut self) -> Vec<(L1BatchNumber, AggregationRound)> {
+        [
+            "node_aggregation_witness_jobs",
+            "leaf_aggregation_witness_jobs",
+            "scheduler_witness_jobs",
+            "witness_inputs",
+        ]
+        .map(|round| {
+            async_std::task::block_on(async {
+                let record = sqlx::query(&format!(
+                    "SELECT MAX(l1_batch_number) as l1_batch FROM {} WHERE status='successful'",
+                    round
+                ))
+                .fetch_one(self.storage.conn())
+                .await
+                .unwrap();
+                (
+                    L1BatchNumber(
+                        record
+                            .get::<Option<i64>, &str>("l1_batch")
+                            .unwrap_or_default() as u32,
+                    ),
+                    match round {
+                        "node_aggregation_witness_jobs" => AggregationRound::NodeAggregation,
+                        "leaf_aggregation_witness_jobs" => AggregationRound::LeafAggregation,
+                        "scheduler_witness_jobs" => AggregationRound::Scheduler,
+                        "witness_inputs" => AggregationRound::BasicCircuits,
+                        _ => unreachable!(),
+                    },
+                )
+            })
+        })
+        .to_vec()
+    }
+
     pub fn get_next_leaf_aggregation_witness_job(
         &mut self,
         processing_timeout: Duration,
         max_attempts: u32,
+        last_l1_batch_to_process: u32,
     ) -> Option<WitnessGeneratorJobMetadata> {
         async_std::task::block_on(async {
             let processing_timeout = pg_interval_from_duration(processing_timeout);
@@ -85,9 +126,12 @@ impl WitnessGeneratorDal<'_, '_> {
                 WHERE l1_batch_number = (
                     SELECT l1_batch_number
                     FROM leaf_aggregation_witness_jobs
-                    WHERE status = 'queued' 
-                    OR (status = 'in_progress' AND processing_started_at < now() - $1::interval)
-                    OR (status = 'failed' AND attempts < $2)
+                    WHERE l1_batch_number <= $3
+                    AND
+                    (   status = 'queued'
+                        OR (status = 'in_progress' AND processing_started_at < now() - $1::interval)
+                        OR (status = 'failed' AND attempts < $2)
+                    )
                     ORDER BY l1_batch_number ASC
                     LIMIT 1
                     FOR UPDATE
@@ -95,7 +139,8 @@ impl WitnessGeneratorDal<'_, '_> {
                 )
                 RETURNING leaf_aggregation_witness_jobs.*
                 ", &processing_timeout,
-                max_attempts as i32
+                max_attempts as i32,
+                last_l1_batch_to_process as i64
             )
                 .fetch_optional(self.storage.conn())
                 .await
@@ -133,6 +178,7 @@ impl WitnessGeneratorDal<'_, '_> {
         &mut self,
         processing_timeout: Duration,
         max_attempts: u32,
+        last_l1_batch_to_process: u32,
     ) -> Option<WitnessGeneratorJobMetadata> {
         async_std::task::block_on(async {
             let processing_timeout = pg_interval_from_duration(processing_timeout);
@@ -144,9 +190,12 @@ impl WitnessGeneratorDal<'_, '_> {
                 WHERE l1_batch_number = (
                     SELECT l1_batch_number
                     FROM node_aggregation_witness_jobs
-                    WHERE status = 'queued' 
-                    OR (status = 'in_progress' AND processing_started_at < now() - $1::interval)
-                    OR (status = 'failed' AND attempts < $2)
+                    WHERE l1_batch_number <= $3
+                    AND
+                    (   status = 'queued'
+                        OR (status = 'in_progress' AND processing_started_at < now() - $1::interval)
+                        OR (status = 'failed' AND attempts < $2)
+                    )
                     ORDER BY l1_batch_number ASC
                     LIMIT 1
                     FOR UPDATE
@@ -154,7 +203,8 @@ impl WitnessGeneratorDal<'_, '_> {
                 )
                 RETURNING node_aggregation_witness_jobs.*
             ", &processing_timeout, 
-                max_attempts as i32
+                max_attempts as i32,
+                last_l1_batch_to_process as i64,
             )
                 .fetch_optional(self.storage.conn())
                 .await
@@ -189,6 +239,7 @@ impl WitnessGeneratorDal<'_, '_> {
         &mut self,
         processing_timeout: Duration,
         max_attempts: u32,
+        last_l1_batch_to_process: u32,
     ) -> Option<WitnessGeneratorJobMetadata> {
         async_std::task::block_on(async {
             let processing_timeout = pg_interval_from_duration(processing_timeout);
@@ -200,9 +251,12 @@ impl WitnessGeneratorDal<'_, '_> {
                 WHERE l1_batch_number = (
                     SELECT l1_batch_number
                     FROM scheduler_witness_jobs
-                    WHERE status = 'queued' 
-                    OR (status = 'in_progress' AND processing_started_at < now() - $1::interval)
-                    OR (status = 'failed' AND attempts < $2)
+                    WHERE l1_batch_number <= $3
+                    AND
+                    (   status = 'queued'
+                        OR (status = 'in_progress' AND processing_started_at < now() - $1::interval)
+                        OR (status = 'failed' AND attempts < $2)
+                    )
                     ORDER BY l1_batch_number ASC
                     LIMIT 1
                     FOR UPDATE
@@ -210,7 +264,8 @@ impl WitnessGeneratorDal<'_, '_> {
                 )
                 RETURNING scheduler_witness_jobs.*
                 ", &processing_timeout, 
-                max_attempts as i32
+                max_attempts as i32,
+                last_l1_batch_to_process as i64
             )
                 .fetch_optional(self.storage.conn())
                 .await
@@ -458,7 +513,9 @@ impl WitnessGeneratorDal<'_, '_> {
 
     /// Saves artifacts in node_aggregation_job
     /// and advances it to `waiting_for_proofs` status
-    /// it will be advanced to `queued` by the prover when all the dependency proofs are computed
+    /// it will be advanced to `queued` by the prover when all the dependency proofs are computed.
+    /// If the node aggregation job was already `queued` in case of connrecunt run of same leaf aggregation job
+    /// we keep the status as is to prevent data race.
     pub fn save_leaf_aggregation_artifacts(
         &mut self,
         block_number: L1BatchNumber,
@@ -474,7 +531,7 @@ impl WitnessGeneratorDal<'_, '_> {
                             aggregation_outputs_blob_url = $4,
                             status = 'waiting_for_proofs',
                             updated_at = now()
-                    WHERE l1_batch_number = $2
+                    WHERE l1_batch_number = $2 AND status != 'queued'
                     ",
                 number_of_leaf_circuits as i64,
                 block_number.0 as i64,
@@ -491,16 +548,19 @@ impl WitnessGeneratorDal<'_, '_> {
 
     /// Saves artifacts in scheduler_artifacts_jobs`
     /// and advances it to `waiting_for_proofs` status
-    /// it will be advanced to `queued` by the prover when all the dependency proofs are computed
+    /// it will be advanced to `queued` by the prover when all the dependency proofs are computed.
+    /// If the scheduler witness job was already `queued` in case of connrecunt run of same node aggregation job
+    /// we keep the status as is to prevent data race.
     pub fn save_node_aggregation_artifacts(&mut self, block_number: L1BatchNumber) {
         async_std::task::block_on(async {
             let started_at = Instant::now();
             sqlx::query!(
                 "
                     UPDATE scheduler_witness_jobs
-                        SET final_node_aggregations_blob_url = $2, status = 'waiting_for_proofs',
-                            updated_at = now()
-                    WHERE l1_batch_number = $1
+                        SET final_node_aggregations_blob_url = $2,
+                         status = 'waiting_for_proofs',
+                         updated_at = now()
+                    WHERE l1_batch_number = $1 AND status != 'queued'
                     ",
                 block_number.0 as i64,
                 final_node_aggregations_blob_url(block_number),
@@ -676,30 +736,6 @@ impl WitnessGeneratorDal<'_, '_> {
             .collect())
     }
 
-    pub fn get_leaf_aggregation_l1_batches_with_blobs_in_db(
-        &mut self,
-        limit: u8,
-    ) -> Vec<L1BatchNumber> {
-        async_std::task::block_on(async {
-            let l1_batches = sqlx::query!(
-                r#"
-                    SELECT l1_batch_number FROM leaf_aggregation_witness_jobs
-                    WHERE length(basic_circuits) <> 0
-                    OR length(basic_circuits_inputs) <> 0
-                    LIMIT $1;
-                "#,
-                limit as i32
-            )
-            .fetch_all(self.storage.conn())
-            .await
-            .unwrap();
-            l1_batches
-                .into_iter()
-                .map(|row| L1BatchNumber(row.l1_batch_number as u32))
-                .collect()
-        })
-    }
-
     pub fn save_witness_inputs(&mut self, block_number: L1BatchNumber) {
         async_std::task::block_on(async {
             sqlx::query!(
@@ -716,112 +752,6 @@ impl WitnessGeneratorDal<'_, '_> {
         })
     }
 
-    pub fn purge_leaf_aggregation_blobs_from_db(&mut self, l1_batches: Vec<L1BatchNumber>) {
-        let l1_batches: Vec<i64> = l1_batches
-            .iter()
-            .map(|l1_batch| l1_batch.0 as i64)
-            .collect();
-        async_std::task::block_on(async {
-            sqlx::query!(
-                r#"
-                UPDATE leaf_aggregation_witness_jobs
-                SET basic_circuits='',
-                basic_circuits_inputs=''
-                WHERE l1_batch_number = ANY($1);
-            "#,
-                &l1_batches[..]
-            )
-            .execute(self.storage.conn())
-            .await
-            .unwrap();
-        })
-    }
-
-    pub fn get_node_aggregation_l1_batches_with_blobs_in_db(
-        &mut self,
-        limit: u8,
-    ) -> Vec<L1BatchNumber> {
-        async_std::task::block_on(async {
-            let l1_batches = sqlx::query!(
-                r#"
-                    SELECT l1_batch_number FROM node_aggregation_witness_jobs
-                    WHERE length(leaf_layer_subqueues) <> 0
-                    OR length(aggregation_outputs) <> 0
-                    LIMIT $1;
-                "#,
-                limit as i32
-            )
-            .fetch_all(self.storage.conn())
-            .await
-            .unwrap();
-            l1_batches
-                .into_iter()
-                .map(|row| L1BatchNumber(row.l1_batch_number as u32))
-                .collect()
-        })
-    }
-
-    pub fn purge_node_aggregation_blobs_from_db(&mut self, l1_batches: Vec<L1BatchNumber>) {
-        let l1_batches: Vec<i64> = l1_batches
-            .iter()
-            .map(|l1_batch| l1_batch.0 as i64)
-            .collect();
-        async_std::task::block_on(async {
-            sqlx::query!(
-                r#"
-                UPDATE node_aggregation_witness_jobs
-                SET leaf_layer_subqueues='',
-                aggregation_outputs=''
-                WHERE l1_batch_number = ANY($1);
-            "#,
-                &l1_batches[..]
-            )
-            .execute(self.storage.conn())
-            .await
-            .unwrap();
-        })
-    }
-
-    pub fn get_scheduler_l1_batches_with_blobs_in_db(&mut self, limit: u8) -> Vec<L1BatchNumber> {
-        async_std::task::block_on(async {
-            let l1_batches = sqlx::query!(
-                r#"
-                    SELECT l1_batch_number FROM scheduler_witness_jobs
-                    WHERE length(final_node_aggregations) <> 0
-                    LIMIT $1;
-                "#,
-                limit as i32
-            )
-            .fetch_all(self.storage.conn())
-            .await
-            .unwrap();
-            l1_batches
-                .into_iter()
-                .map(|row| L1BatchNumber(row.l1_batch_number as u32))
-                .collect()
-        })
-    }
-
-    pub fn purge_scheduler_blobs_from_db(&mut self, l1_batches: Vec<L1BatchNumber>) {
-        let l1_batches: Vec<i64> = l1_batches
-            .iter()
-            .map(|l1_batch| l1_batch.0 as i64)
-            .collect();
-        async_std::task::block_on(async {
-            sqlx::query!(
-                r#"
-                UPDATE scheduler_witness_jobs
-                SET final_node_aggregations=''
-                WHERE l1_batch_number = ANY($1);
-            "#,
-                &l1_batches[..]
-            )
-            .execute(self.storage.conn())
-            .await
-            .unwrap();
-        })
-    }
-
     pub fn get_basic_circuit_and_circuit_inputs_blob_urls_to_be_cleaned(
         &mut self,
         limit: u8,
@@ -833,7 +763,7 @@ impl WitnessGeneratorDal<'_, '_> {
                     WHERE status='successful' AND is_blob_cleaned=FALSE
                     AND basic_circuits_blob_url is NOT NULL
                     AND basic_circuits_inputs_blob_url is NOT NULL
-                    AND updated_at < NOW() - INTERVAL '2 days'
+                    AND updated_at < NOW() - INTERVAL '30 days'
                     LIMIT $1;
                 "#,
                 limit as i32
@@ -867,7 +797,7 @@ impl WitnessGeneratorDal<'_, '_> {
                     WHERE status='successful' AND is_blob_cleaned=FALSE
                     AND leaf_layer_subqueues_blob_url is NOT NULL
                     AND aggregation_outputs_blob_url is NOT NULL
-                    AND updated_at < NOW() - INTERVAL '2 days'
+                    AND updated_at < NOW() - INTERVAL '30 days'
                     LIMIT $1;
                 "#,
                 limit as i32
@@ -899,7 +829,7 @@ impl WitnessGeneratorDal<'_, '_> {
                 r#"
                     SELECT l1_batch_number, scheduler_witness_blob_url, final_node_aggregations_blob_url FROM scheduler_witness_jobs
                     WHERE status='successful' AND is_blob_cleaned=FALSE
-                    AND updated_at < NOW() - INTERVAL '2 days'
+                    AND updated_at < NOW() - INTERVAL '30 days'
                     AND scheduler_witness_blob_url is NOT NULL
                     AND final_node_aggregations_blob_url is NOT NULL
                     LIMIT $1;

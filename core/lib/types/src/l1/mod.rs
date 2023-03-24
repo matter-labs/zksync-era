@@ -87,6 +87,8 @@ pub struct L1TxCommonData {
     pub layer_2_tip_fee: U256,
     /// The total cost the sender paid for the transaction.
     pub full_fee: U256,
+    /// The maximal fee per gas to be used for L1->L2 transaction
+    pub max_fee_per_gas: U256,
     /// The maximum number of gas that a transaction can spend at a price of gas equals 1.
     pub gas_limit: U256,
     /// The maximum number of gas per 1 byte of pubdata.
@@ -262,7 +264,6 @@ impl TryFrom<Log> for L1Tx {
         let gas_per_pubdata_limit = transaction.remove(0).into_uint().unwrap();
 
         let max_fee_per_gas = transaction.remove(0).into_uint().unwrap();
-        assert_eq!(max_fee_per_gas, U256::zero());
 
         let max_priority_fee_per_gas = transaction.remove(0).into_uint().unwrap();
         assert_eq!(max_priority_fee_per_gas, U256::zero());
@@ -324,6 +325,7 @@ impl TryFrom<Log> for L1Tx {
             refund_recipient,
             full_fee: U256::zero(),
             gas_limit,
+            max_fee_per_gas,
             gas_per_pubdata_limit,
             op_processing_type: OpProcessingType::Common,
             priority_queue_type: PriorityQueueType::Deque,

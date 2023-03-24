@@ -1,10 +1,15 @@
 use vm::{vm::VmTxExecutionResult, vm_with_bootloader::BlockContextMode};
-use zksync_types::block::BlockGasCount;
-use zksync_types::tx::ExecutionMetrics;
-use zksync_types::Transaction;
+use zksync_contracts::BaseSystemContractsHashes;
+use zksync_types::{
+    block::BlockGasCount,
+    storage_writes_deduplicator::StorageWritesDeduplicator,
+    tx::tx_execution_info::{ExecutionMetrics, VmExecutionLogs},
+    Transaction,
+};
+use zksync_utils::bytecode::CompressedBytecodeInfo;
 
-mod l1_batch_updates;
-mod miniblock_updates;
+pub mod l1_batch_updates;
+pub mod miniblock_updates;
 
 pub(crate) use self::{l1_batch_updates::L1BatchUpdates, miniblock_updates::MiniblockUpdates};
 
@@ -15,17 +20,22 @@ pub(crate) use self::{l1_batch_updates::L1BatchUpdates, miniblock_updates::Minib
 /// `UpdatesManager` manages the state of both of these accumulators to be consistent
 /// and provides information about the pending state of the current L1 batch.
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) struct UpdatesManager {
+pub struct UpdatesManager {
     batch_timestamp: u64,
     l1_gas_price: u64,
     fair_l2_gas_price: u64,
     base_fee_per_gas: u64,
+    base_system_contract_hashes: BaseSystemContractsHashes,
     pub l1_batch: L1BatchUpdates,
     pub miniblock: MiniblockUpdates,
+    pub storage_writes_deduplicator: StorageWritesDeduplicator,
 }
 
 impl UpdatesManager {
-    pub(crate) fn new(block_context: &BlockContextMode) -> Self {
+    pub(crate) fn new(
+        block_context: &BlockContextMode,
+        base_system_contract_hashes: BaseSystemContractsHashes,
+    ) -> Self {
         let batch_timestamp = block_context.timestamp();
         let context = block_context.inner_block_context().context;
         Self {
@@ -33,13 +43,19 @@ impl UpdatesManager {
             l1_gas_price: context.l1_gas_price,
             fair_l2_gas_price: context.fair_l2_gas_price,
             base_fee_per_gas: block_context.inner_block_context().base_fee,
+            base_system_contract_hashes,
             l1_batch: L1BatchUpdates::new(),
             miniblock: MiniblockUpdates::new(batch_timestamp),
+            storage_writes_deduplicator: StorageWritesDeduplicator::new(),
         }
     }
 
     pub(crate) fn batch_timestamp(&self) -> u64 {
         self.batch_timestamp
+    }
+
+    pub(crate) fn base_system_contract_hashes(&self) -> BaseSystemContractsHashes {
+        self.base_system_contract_hashes
     }
 
     pub(crate) fn l1_gas_price(&self) -> u64 {
@@ -58,15 +74,26 @@ impl UpdatesManager {
         &mut self,
         tx: &Transaction,
         tx_execution_result: VmTxExecutionResult,
+        compressed_bytecodes: Vec<CompressedBytecodeInfo>,
         tx_l1_gas_this_tx: BlockGasCount,
         execution_metrics: ExecutionMetrics,
     ) {
+        self.storage_writes_deduplicator
+            .apply(&tx_execution_result.result.logs.storage_logs);
         self.miniblock.extend_from_executed_transaction(
             tx,
             tx_execution_result,
             tx_l1_gas_this_tx,
             execution_metrics,
-        )
+            compressed_bytecodes,
+        );
+    }
+
+    pub(crate) fn extend_from_fictive_transaction(&mut self, vm_execution_logs: VmExecutionLogs) {
+        self.storage_writes_deduplicator
+            .apply(&vm_execution_logs.storage_logs);
+        self.miniblock
+            .extend_from_fictive_transaction(vm_execution_logs);
     }
 
     pub(crate) fn seal_miniblock(&mut self, new_miniblock_timestamp: u64) {
@@ -87,6 +114,10 @@ impl UpdatesManager {
 
     pub(crate) fn pending_execution_metrics(&self) -> ExecutionMetrics {
         self.l1_batch.block_execution_metrics + self.miniblock.block_execution_metrics
+    }
+
+    pub(crate) fn pending_txs_encoding_size(&self) -> usize {
+        self.l1_batch.txs_encoding_size + self.miniblock.txs_encoding_size
     }
 
     pub(crate) fn get_tx_by_index(&self, index: usize) -> &Transaction {
@@ -126,7 +157,7 @@ mod tests {
             },
             0.into(),
         );
-        let mut updates_manager = UpdatesManager::new(&block_context);
+        let mut updates_manager = UpdatesManager::new(&block_context, Default::default());
         assert_eq!(updates_manager.pending_executed_transactions_len(), 0);
 
         // Apply tx.
@@ -154,6 +185,7 @@ mod tests {
                 gas_refunded: 0,
                 operator_suggested_refund: 0,
             },
+            vec![],
             new_block_gas_count(),
             Default::default(),
         );

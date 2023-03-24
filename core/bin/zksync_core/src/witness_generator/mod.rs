@@ -2,11 +2,9 @@ use std::fmt::Debug;
 use std::time::Instant;
 
 use async_trait::async_trait;
+use rand::Rng;
 
-use zksync_config::configs::prover::ProverConfigs;
-use zksync_config::configs::witness_generator::SamplingMode;
 use zksync_config::configs::WitnessGeneratorConfig;
-use zksync_config::ProverConfig;
 use zksync_dal::ConnectionPool;
 use zksync_object_store::object_store::create_object_store_from_env;
 use zksync_queued_job_processor::JobProcessor;
@@ -98,33 +96,23 @@ impl WitnessGenerator {
         started_at: Instant,
     ) -> Option<WitnessGeneratorArtifacts> {
         let config: WitnessGeneratorConfig = WitnessGeneratorConfig::from_env();
-        let prover_config: ProverConfig = ProverConfigs::from_env().non_gpu;
         let WitnessGeneratorJob { block_number, job } = job;
 
-        if let (
-            SamplingMode::Enabled(sampling_params),
-            &WitnessGeneratorJobInput::BasicCircuits(_),
-        ) = (config.sampling_mode(), &job)
+        if let (Some(blocks_proving_percentage), &WitnessGeneratorJobInput::BasicCircuits(_)) =
+            (config.blocks_proving_percentage, &job)
         {
-            let mut storage = connection_pool.access_storage_blocking();
-
-            let last_sealed_l1_batch_number = storage.blocks_dal().get_sealed_block_number();
-            let min_unproved_l1_batch_number = storage
-                .prover_dal()
-                .min_unproved_l1_batch_number(prover_config.max_attempts)
-                .unwrap_or(last_sealed_l1_batch_number);
-            let prover_lag = last_sealed_l1_batch_number.0 - min_unproved_l1_batch_number.0;
-
-            let sampling_probability =
-                sampling_params.calculate_sampling_probability(prover_lag as usize);
-
-            // Generate random number in [0; 1).
-            let rand_value = rand::random::<f64>();
-            // We get value higher than `sampling_probability` with prob = `1 - sampling_probability`.
+            // Generate random number in (0; 100).
+            let rand_value = rand::thread_rng().gen_range(1..100);
+            // We get value higher than `blocks_proving_percentage` with prob = `1 - blocks_proving_percentage`.
             // In this case job should be skipped.
-            if rand_value > sampling_probability {
+            if rand_value > blocks_proving_percentage {
                 metrics::counter!("server.witness_generator.skipped_blocks", 1);
-                vlog::info!("Skipping witness generation for block {}, prover lag: {}, sampling probability: {}", block_number.0, prover_lag, sampling_probability);
+                vlog::info!(
+                    "Skipping witness generation for block {}, blocks_proving_percentage: {}",
+                    block_number.0,
+                    blocks_proving_percentage
+                );
+                let mut storage = connection_pool.access_storage_blocking();
                 storage
                     .witness_generator_dal()
                     .mark_witness_job_as_skipped(block_number, AggregationRound::BasicCircuits);
@@ -192,12 +180,13 @@ impl JobProcessor for WitnessGenerator {
     ) -> Option<(Self::JobId, Self::Job)> {
         let mut connection = connection_pool.access_storage().await;
         let object_store = create_object_store_from_env();
-
+        let last_l1_batch_to_process = self.config.last_l1_batch_to_process();
         let optional_metadata = connection
             .witness_generator_dal()
             .get_next_scheduler_witness_job(
                 self.config.witness_generation_timeout(),
                 self.config.max_attempts,
+                last_l1_batch_to_process,
             );
 
         if let Some(metadata) = optional_metadata {
@@ -224,6 +213,7 @@ impl JobProcessor for WitnessGenerator {
             .get_next_node_aggregation_witness_job(
                 self.config.witness_generation_timeout(),
                 self.config.max_attempts,
+                last_l1_batch_to_process,
             );
 
         if let Some(metadata) = optional_metadata {
@@ -236,6 +226,7 @@ impl JobProcessor for WitnessGenerator {
             .get_next_leaf_aggregation_witness_job(
                 self.config.witness_generation_timeout(),
                 self.config.max_attempts,
+                last_l1_batch_to_process,
             );
 
         if let Some(metadata) = optional_metadata {
@@ -248,6 +239,7 @@ impl JobProcessor for WitnessGenerator {
             .get_next_basic_circuit_witness_job(
                 self.config.witness_generation_timeout(),
                 self.config.max_attempts,
+                last_l1_batch_to_process,
             );
 
         if let Some(metadata) = optional_metadata {
@@ -387,11 +379,7 @@ fn get_circuit_types(serialized_circuits: &[(String, Vec<u8>)]) -> Vec<String> {
         .collect()
 }
 
-fn track_witness_generation_stage(
-    block_number: L1BatchNumber,
-    started_at: Instant,
-    round: AggregationRound,
-) {
+fn track_witness_generation_stage(started_at: Instant, round: AggregationRound) {
     let stage = match round {
         AggregationRound::BasicCircuits => "basic_circuits",
         AggregationRound::LeafAggregation => "leaf_aggregation",
@@ -401,11 +389,6 @@ fn track_witness_generation_stage(
     metrics::histogram!(
         "server.witness_generator.processing_time",
         started_at.elapsed(),
-        "stage" => format!("wit_gen_{}", stage)
-    );
-    metrics::gauge!(
-        "server.block_number",
-        block_number.0 as f64,
         "stage" => format!("wit_gen_{}", stage)
     );
 }

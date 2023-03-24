@@ -197,6 +197,10 @@ where
     pub fn len(&self) -> usize {
         self.frame_stack.len()
     }
+
+    pub fn get_frames(&self) -> &[T] {
+        &self.frame_stack
+    }
 }
 
 impl<T: WithHistory + Default> HistoryRecorder<FrameManager<T>> {
@@ -569,7 +573,6 @@ impl HistoryRecorder<MemoryWrapper> {
 }
 
 #[derive(Debug)]
-
 pub struct StorageWrapper<'a> {
     storage_ptr: StoragePtr<'a>,
 }

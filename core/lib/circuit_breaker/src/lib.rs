@@ -6,11 +6,9 @@ use tokio::sync::watch;
 
 use zksync_config::configs::chain::CircuitBreakerConfig;
 
-use crate::code_hashes::MismatchedCodeHashError;
 use crate::facet_selectors::MismatchedFacetSelectorsError;
 use crate::vks::VerifierError;
 
-pub mod code_hashes;
 pub mod facet_selectors;
 pub mod l1_txs;
 pub mod utils;
@@ -20,8 +18,6 @@ pub mod vks;
 pub enum CircuitBreakerError {
     #[error("System has failed L1 transaction")]
     FailedL1Transaction,
-    #[error("Mismatched code hash: {0}")]
-    MismatchedCodeHash(MismatchedCodeHashError),
     #[error("Verifier error: {0}")]
     Verifier(VerifierError),
     #[error("Mismatched facet selectors: {0}")]

@@ -7,7 +7,7 @@
 use crate::errors::{VmRevertReason, VmRevertReasonParsingResult};
 use crate::memory::SimpleMemory;
 use crate::oracles::tracer::{
-    read_pointer, ExecutionEndTracer, NoopMemoryTracer, PendingRefundTracer, VmHook,
+    ExecutionEndTracer, PendingRefundTracer, PubdataSpentTracer, TransactionResultTracer,
 };
 use crate::storage::{Storage, StoragePtr};
 use crate::test_utils::{
@@ -15,8 +15,8 @@ use crate::test_utils::{
     mock_loadnext_test_call, VmInstanceInnerState,
 };
 use crate::utils::{
-    create_test_block_params, default_block_properties, insert_system_contracts,
-    read_bootloader_test_code, BLOCK_GAS_LIMIT,
+    create_test_block_params, insert_system_contracts, read_bootloader_test_code,
+    BASE_SYSTEM_CONTRACTS, BLOCK_GAS_LIMIT,
 };
 use crate::vm::{
     get_vm_hook_params, tx_has_failed, VmBlockResult, VmExecutionStopReason, ZkSyncVmState,
@@ -26,7 +26,7 @@ use crate::vm_with_bootloader::{
     bytecode_to_factory_dep, get_bootloader_memory, get_bootloader_memory_for_encoded_tx,
     init_vm_inner, push_raw_transaction_to_bootloader_memory,
     push_transaction_to_bootloader_memory, BlockContext, DerivedBlockContext, BOOTLOADER_HEAP_PAGE,
-    BOOTLOADER_TX_DESCRIPTION_OFFSET, TX_DESCRIPTION_OFFSET,
+    BOOTLOADER_TX_DESCRIPTION_OFFSET, TX_DESCRIPTION_OFFSET, TX_GAS_LIMIT_OFFSET,
 };
 use crate::vm_with_bootloader::{BlockContextMode, BootloaderJobType, TxExecutionMode};
 use crate::{test_utils, VmInstance};
@@ -43,6 +43,7 @@ use zk_evm::abstractions::{
 };
 use zk_evm::aux_structures::Timestamp;
 use zk_evm::block_properties::BlockProperties;
+use zk_evm::opcodes::execution::ret;
 use zk_evm::sha3::digest::typenum::U830;
 use zk_evm::witness_trace::VmWitnessTracer;
 use zk_evm::zkevm_opcode_defs::decoding::VmEncodingMode;
@@ -50,7 +51,9 @@ use zk_evm::zkevm_opcode_defs::FatPointer;
 use zksync_types::block::DeployedContract;
 use zksync_types::ethabi::encode;
 use zksync_types::l1::L1Tx;
+use zksync_types::storage_writes_deduplicator::StorageWritesDeduplicator;
 use zksync_types::tx::tx_execution_info::{TxExecutionStatus, VmExecutionLogs};
+use zksync_utils::bytecode::CompressedBytecodeInfo;
 use zksync_utils::test_utils::LoadnextContractExecutionParams;
 use zksync_utils::{
     address_to_h256, bytecode::hash_bytecode, bytes_to_be_words, bytes_to_le_words, h256_to_u256,
@@ -63,7 +66,7 @@ use std::time;
 use zksync_contracts::{
     default_erc20_bytecode, get_loadnext_contract, known_codes_contract, load_contract,
     load_sys_contract, read_bootloader_code, read_bytecode, read_zbin_bytecode,
-    DEFAULT_ACCOUNT_CODE, PLAYGROUND_BLOCK_BOOTLOADER_CODE, PROVED_BLOCK_BOOTLOADER_CODE,
+    BaseSystemContracts, SystemContractCode, PLAYGROUND_BLOCK_BOOTLOADER_CODE,
 };
 use zksync_crypto::rand::random;
 use zksync_state::secondary_storage::SecondaryStateStorage;
@@ -79,15 +82,17 @@ use zksync_types::{
     L2ChainId, PackedEthSignature, StorageKey, StorageLogQueryType, Transaction, H256,
     KNOWN_CODES_STORAGE_ADDRESS, U256,
 };
-use zksync_types::{fee::Fee, l2::L2Tx, l2_to_l1_log::L2ToL1Log, tx::ExecutionMetrics};
+use zksync_types::{fee::Fee, l2::L2Tx, l2_to_l1_log::L2ToL1Log};
 use zksync_types::{
     get_code_key, get_is_account_key, get_known_code_key, get_nonce_key, L1TxCommonData, Nonce,
     PriorityOpId, SerialId, StorageLog, ZkSyncReadStorage, BOOTLOADER_ADDRESS,
-    CONTRACT_DEPLOYER_ADDRESS, FAIR_L2_GAS_PRICE, H160, L2_ETH_TOKEN_ADDRESS,
-    MAX_GAS_PER_PUBDATA_BYTE, MAX_TXS_IN_BLOCK, SYSTEM_CONTEXT_ADDRESS,
-    SYSTEM_CONTEXT_GAS_PRICE_POSITION, SYSTEM_CONTEXT_MINIMAL_BASE_FEE,
-    SYSTEM_CONTEXT_TX_ORIGIN_POSITION,
+    CONTRACT_DEPLOYER_ADDRESS, H160, L2_ETH_TOKEN_ADDRESS, MAX_GAS_PER_PUBDATA_BYTE,
+    MAX_TXS_IN_BLOCK, SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_GAS_PRICE_POSITION,
+    SYSTEM_CONTEXT_MINIMAL_BASE_FEE, SYSTEM_CONTEXT_TX_ORIGIN_POSITION,
 };
+
+use once_cell::sync::Lazy;
+use zksync_config::constants::ZKPORTER_IS_AVAILABLE;
 
 fn run_vm_with_custom_factory_deps<'a>(
     oracle_tools: &'a mut OracleTools<'a, false>,
@@ -97,12 +102,14 @@ fn run_vm_with_custom_factory_deps<'a>(
     predefined_overhead: u32,
     expected_error: Option<TxRevertReason>,
 ) {
+    let mut base_system_contracts = BASE_SYSTEM_CONTRACTS.clone();
+    base_system_contracts.bootloader = PLAYGROUND_BLOCK_BOOTLOADER_CODE.clone();
     let mut vm = init_vm_inner(
         oracle_tools,
         BlockContextMode::OverrideCurrent(block_context.into()),
         block_properties,
         BLOCK_GAS_LIMIT,
-        PLAYGROUND_BLOCK_BOOTLOADER_CODE.code.clone(),
+        &base_system_contracts,
         TxExecutionMode::VerifyExecute,
     );
 
@@ -116,11 +123,14 @@ fn run_vm_with_custom_factory_deps<'a>(
             0,
             0,
             predefined_overhead,
+            u32::MAX,
+            0,
+            vec![],
         ),
         Timestamp(0),
     );
 
-    let result = vm.execute_next_tx().err();
+    let result = vm.execute_next_tx(u32::MAX).err();
 
     assert_eq!(expected_error, result);
 }
@@ -141,13 +151,21 @@ fn test_dummy_bootloader() {
 
     let mut oracle_tools = OracleTools::new(storage_ptr);
     let (block_context, block_properties) = create_test_block_params();
+    let mut base_system_contracts = BASE_SYSTEM_CONTRACTS.clone();
+    let bootloader_code = read_bootloader_test_code("dummy");
+    let bootloader_hash = hash_bytecode(&bootloader_code);
+
+    base_system_contracts.bootloader = SystemContractCode {
+        code: bytes_to_be_words(bootloader_code),
+        hash: bootloader_hash,
+    };
 
     let mut vm = init_vm_inner(
         &mut oracle_tools,
         BlockContextMode::NewBlock(block_context.into(), Default::default()),
         &block_properties,
         BLOCK_GAS_LIMIT,
-        read_bootloader_test_code("dummy"),
+        &base_system_contracts,
         TxExecutionMode::VerifyExecute,
     );
 
@@ -178,13 +196,23 @@ fn test_bootloader_out_of_gas() {
     let mut oracle_tools = OracleTools::new(storage_ptr);
     let (block_context, block_properties) = create_test_block_params();
 
-    // init vm with only 100 gas
+    let mut base_system_contracts = BASE_SYSTEM_CONTRACTS.clone();
+
+    let bootloader_code = read_bootloader_test_code("dummy");
+    let bootloader_hash = hash_bytecode(&bootloader_code);
+
+    base_system_contracts.bootloader = SystemContractCode {
+        code: bytes_to_be_words(bootloader_code),
+        hash: bootloader_hash,
+    };
+
+    // init vm with only 10 ergs
     let mut vm = init_vm_inner(
         &mut oracle_tools,
         BlockContextMode::NewBlock(block_context.into(), Default::default()),
         &block_properties,
         10,
-        read_bootloader_test_code("dummy"),
+        &base_system_contracts,
         TxExecutionMode::VerifyExecute,
     );
 
@@ -240,7 +268,7 @@ fn test_default_aa_interaction() {
         vec![],
         &[],
         Fee {
-            gas_limit: U256::from(10000000u32),
+            gas_limit: U256::from(20000000u32),
             max_fee_per_gas: U256::from(base_fee),
             max_priority_fee_per_gas: U256::from(0),
             gas_per_pubdata_limit: U256::from(MAX_GAS_PER_PUBDATA_BYTE),
@@ -263,13 +291,13 @@ fn test_default_aa_interaction() {
         BlockContextMode::NewBlock(block_context, Default::default()),
         &block_properties,
         BLOCK_GAS_LIMIT,
-        PROVED_BLOCK_BOOTLOADER_CODE.code.clone(),
+        &BASE_SYSTEM_CONTRACTS,
         TxExecutionMode::VerifyExecute,
     );
-    push_transaction_to_bootloader_memory(&mut vm, &tx, TxExecutionMode::VerifyExecute);
+    push_transaction_to_bootloader_memory(&mut vm, &tx, TxExecutionMode::VerifyExecute, None);
 
     let tx_execution_result = vm
-        .execute_next_tx()
+        .execute_next_tx(u32::MAX)
         .expect("Bootloader failed while processing transaction");
 
     assert_eq!(
@@ -323,7 +351,11 @@ fn test_default_aa_interaction() {
     );
 }
 
-fn execute_vm_with_predetermined_refund(txs: Vec<Transaction>, refunds: Vec<u32>) -> VmBlockResult {
+fn execute_vm_with_predetermined_refund(
+    txs: Vec<Transaction>,
+    refunds: Vec<u32>,
+    compressed_bytecodes: Vec<Vec<CompressedBytecodeInfo>>,
+) -> VmBlockResult {
     let (block_context, block_properties) = create_test_block_params();
     let block_context: DerivedBlockContext = block_context.into();
 
@@ -347,7 +379,7 @@ fn execute_vm_with_predetermined_refund(txs: Vec<Transaction>, refunds: Vec<u32>
         BlockContextMode::NewBlock(block_context, Default::default()),
         &block_properties,
         BLOCK_GAS_LIMIT,
-        PROVED_BLOCK_BOOTLOADER_CODE.code.clone(),
+        &BASE_SYSTEM_CONTRACTS,
         TxExecutionMode::VerifyExecute,
     );
 
@@ -372,6 +404,7 @@ fn execute_vm_with_predetermined_refund(txs: Vec<Transaction>, refunds: Vec<u32>
     let memory_with_suggested_refund = get_bootloader_memory(
         txs.into_iter().map(Into::into).collect(),
         refunds,
+        compressed_bytecodes,
         TxExecutionMode::VerifyExecute,
         BlockContextMode::NewBlock(block_context, Default::default()),
     );
@@ -400,8 +433,10 @@ fn test_predetermined_refunded_gas() {
     let storage_ptr: &mut dyn Storage = &mut StorageView::new(&raw_storage);
 
     let base_fee = block_context.base_fee;
+
     // We deploy here counter contract, because its logic is trivial
     let contract_code = read_test_contract();
+    let published_bytecode = CompressedBytecodeInfo::from_original(contract_code.clone()).unwrap();
     let tx: Transaction = get_deploy_tx(
         H256::random(),
         Nonce(0),
@@ -409,7 +444,7 @@ fn test_predetermined_refunded_gas() {
         vec![],
         &[],
         Fee {
-            gas_limit: U256::from(10000000u32),
+            gas_limit: U256::from(20000000u32),
             max_fee_per_gas: U256::from(base_fee),
             max_priority_fee_per_gas: U256::from(0),
             gas_per_pubdata_limit: U256::from(MAX_GAS_PER_PUBDATA_BYTE),
@@ -430,14 +465,14 @@ fn test_predetermined_refunded_gas() {
         BlockContextMode::NewBlock(block_context, Default::default()),
         &block_properties,
         BLOCK_GAS_LIMIT,
-        PROVED_BLOCK_BOOTLOADER_CODE.code.clone(),
+        &BASE_SYSTEM_CONTRACTS,
         TxExecutionMode::VerifyExecute,
     );
 
-    push_transaction_to_bootloader_memory(&mut vm, &tx, TxExecutionMode::VerifyExecute);
+    push_transaction_to_bootloader_memory(&mut vm, &tx, TxExecutionMode::VerifyExecute, None);
 
     let tx_execution_result = vm
-        .execute_next_tx()
+        .execute_next_tx(u32::MAX)
         .expect("Bootloader failed while processing transaction");
 
     assert_eq!(
@@ -468,6 +503,7 @@ fn test_predetermined_refunded_gas() {
     let mut result_with_predetermined_refund = execute_vm_with_predetermined_refund(
         vec![tx],
         vec![tx_execution_result.operator_suggested_refund],
+        vec![vec![published_bytecode]],
     );
     // We need to sort these lists as those are flattened from HashMaps
     result.full_result.used_contract_hashes.sort();
@@ -573,7 +609,7 @@ fn execute_vm_with_possible_rollbacks(
         BlockContextMode::NewBlock(block_context, Default::default()),
         &block_properties,
         BLOCK_GAS_LIMIT,
-        PROVED_BLOCK_BOOTLOADER_CODE.code.clone(),
+        &BASE_SYSTEM_CONTRACTS,
         TxExecutionMode::VerifyExecute,
     );
 
@@ -584,9 +620,10 @@ fn execute_vm_with_possible_rollbacks(
             &mut vm,
             test_info.get_transaction(),
             TxExecutionMode::VerifyExecute,
+            None,
         );
 
-        match vm.execute_next_tx() {
+        match vm.execute_next_tx(u32::MAX) {
             Err(reason) => {
                 assert_eq!(test_info.rejection_reason(), Some(reason));
             }
@@ -657,7 +694,7 @@ fn test_vm_rollbacks() {
         vec![],
         &[],
         Fee {
-            gas_limit: U256::from(5000000u32),
+            gas_limit: U256::from(12000000u32),
             max_fee_per_gas: base_fee,
             max_priority_fee_per_gas: U256::zero(),
             gas_per_pubdata_limit: U256::from(MAX_GAS_PER_PUBDATA_BYTE),
@@ -671,7 +708,7 @@ fn test_vm_rollbacks() {
         vec![],
         &[],
         Fee {
-            gas_limit: U256::from(5000000u32),
+            gas_limit: U256::from(12000000u32),
             max_fee_per_gas: base_fee,
             max_priority_fee_per_gas: U256::zero(),
             gas_per_pubdata_limit: U256::from(MAX_GAS_PER_PUBDATA_BYTE),
@@ -685,7 +722,7 @@ fn test_vm_rollbacks() {
         vec![],
         &[],
         Fee {
-            gas_limit: U256::from(5000000u32),
+            gas_limit: U256::from(12000000u32),
             max_fee_per_gas: base_fee,
             max_priority_fee_per_gas: U256::zero(),
             gas_per_pubdata_limit: U256::from(MAX_GAS_PER_PUBDATA_BYTE),
@@ -796,7 +833,7 @@ fn test_vm_rollbacks() {
         loadnext_contract.factory_deps,
         &loadnext_constructor_data,
         Fee {
-            gas_limit: U256::from(30000000u32),
+            gas_limit: U256::from(70000000u32),
             max_fee_per_gas: base_fee,
             max_priority_fee_per_gas: U256::zero(),
             gas_per_pubdata_limit: U256::from(MAX_GAS_PER_PUBDATA_BYTE),
@@ -818,7 +855,7 @@ fn test_vm_rollbacks() {
             nonce,
             loadnext_contract_address,
             Fee {
-                gas_limit: U256::from(60000000u32),
+                gas_limit: U256::from(100000000u32),
                 max_fee_per_gas: base_fee,
                 max_priority_fee_per_gas: U256::zero(),
                 gas_per_pubdata_limit: U256::from(MAX_GAS_PER_PUBDATA_BYTE),
@@ -837,7 +874,7 @@ fn test_vm_rollbacks() {
             events: 100,
             hashes: 500,
             recursive_calls: 10,
-            deploys: 100,
+            deploys: 60,
         },
         Nonce(1),
     );
@@ -848,7 +885,7 @@ fn test_vm_rollbacks() {
             events: 100,
             hashes: 500,
             recursive_calls: 10,
-            deploys: 100,
+            deploys: 60,
         },
         Nonce(2),
     );
@@ -1009,20 +1046,26 @@ fn run_vm_with_raw_tx<'a>(
     block_properties: &'a BlockProperties,
     tx: TransactionData,
 ) -> (VmExecutionResult, bool) {
+    let mut base_system_contracts = BASE_SYSTEM_CONTRACTS.clone();
+    base_system_contracts.bootloader = PLAYGROUND_BLOCK_BOOTLOADER_CODE.clone();
     let mut vm = init_vm_inner(
         oracle_tools,
         BlockContextMode::OverrideCurrent(block_context),
         block_properties,
         BLOCK_GAS_LIMIT,
-        PLAYGROUND_BLOCK_BOOTLOADER_CODE.code.clone(),
+        &base_system_contracts,
         TxExecutionMode::VerifyExecute,
     );
-    let overhead = tx.overhead_gas();
+
+    let block_gas_price_per_pubdata = block_context.context.block_gas_price_per_pubdata();
+
+    let overhead = tx.overhead_gas(block_gas_price_per_pubdata as u32);
     push_raw_transaction_to_bootloader_memory(
         &mut vm,
         tx,
         TxExecutionMode::VerifyExecute,
         overhead,
+        None,
     );
     let VmBlockResult {
         full_result: result,
@@ -1228,12 +1271,17 @@ fn test_l1_tx_execution() {
         BlockContextMode::NewBlock(block_context.into(), Default::default()),
         &block_properties,
         BLOCK_GAS_LIMIT,
-        PROVED_BLOCK_BOOTLOADER_CODE.code.clone(),
+        &BASE_SYSTEM_CONTRACTS,
         TxExecutionMode::VerifyExecute,
     );
-    push_transaction_to_bootloader_memory(&mut vm, &l1_deploy_tx, TxExecutionMode::VerifyExecute);
+    push_transaction_to_bootloader_memory(
+        &mut vm,
+        &l1_deploy_tx,
+        TxExecutionMode::VerifyExecute,
+        None,
+    );
 
-    let res = vm.execute_next_tx().unwrap();
+    let res = vm.execute_next_tx(u32::MAX).unwrap();
 
     // The code hash of the deployed contract should be marked as republished.
     let known_codes_key = get_known_code_key(&contract_code_hash);
@@ -1253,19 +1301,38 @@ fn test_l1_tx_execution() {
     assert_eq!(res.result.logs.l2_to_l1_logs, required_l2_to_l1_logs);
 
     let tx = get_l1_execute_test_contract_tx(deployed_address, true);
-    push_transaction_to_bootloader_memory(&mut vm, &tx, TxExecutionMode::VerifyExecute);
-    let res = ExecutionMetrics::new(&vm.execute_next_tx().unwrap().result.logs, 0, 0, 0, 0);
+    push_transaction_to_bootloader_memory(&mut vm, &tx, TxExecutionMode::VerifyExecute, None);
+
+    let res = StorageWritesDeduplicator::apply_on_empty_state(
+        &vm.execute_next_tx(u32::MAX)
+            .unwrap()
+            .result
+            .logs
+            .storage_logs,
+    );
     assert_eq!(res.initial_storage_writes, 0);
 
     let tx = get_l1_execute_test_contract_tx(deployed_address, false);
-    push_transaction_to_bootloader_memory(&mut vm, &tx, TxExecutionMode::VerifyExecute);
-    let res = ExecutionMetrics::new(&vm.execute_next_tx().unwrap().result.logs, 0, 0, 0, 0);
+    push_transaction_to_bootloader_memory(&mut vm, &tx, TxExecutionMode::VerifyExecute, None);
+    let res = StorageWritesDeduplicator::apply_on_empty_state(
+        &vm.execute_next_tx(u32::MAX)
+            .unwrap()
+            .result
+            .logs
+            .storage_logs,
+    );
     assert_eq!(res.initial_storage_writes, 2);
 
     let repeated_writes = res.repeated_storage_writes;
 
-    push_transaction_to_bootloader_memory(&mut vm, &tx, TxExecutionMode::VerifyExecute);
-    let res = ExecutionMetrics::new(&vm.execute_next_tx().unwrap().result.logs, 0, 0, 0, 0);
+    push_transaction_to_bootloader_memory(&mut vm, &tx, TxExecutionMode::VerifyExecute, None);
+    let res = StorageWritesDeduplicator::apply_on_empty_state(
+        &vm.execute_next_tx(u32::MAX)
+            .unwrap()
+            .result
+            .logs
+            .storage_logs,
+    );
     assert_eq!(res.initial_storage_writes, 1);
     // We do the same storage write, so it will be deduplicated
     assert_eq!(res.repeated_storage_writes, repeated_writes);
@@ -1278,8 +1345,8 @@ fn test_l1_tx_execution() {
         }
         _ => unreachable!(),
     }
-    push_transaction_to_bootloader_memory(&mut vm, &tx, TxExecutionMode::VerifyExecute);
-    let execution_result = vm.execute_next_tx().unwrap();
+    push_transaction_to_bootloader_memory(&mut vm, &tx, TxExecutionMode::VerifyExecute, None);
+    let execution_result = vm.execute_next_tx(u32::MAX).unwrap();
     // The method is not payable, so the transaction with non-zero value should fail
     assert_eq!(
         execution_result.status,
@@ -1287,7 +1354,8 @@ fn test_l1_tx_execution() {
         "The transaction should fail"
     );
 
-    let res = ExecutionMetrics::new(&execution_result.result.logs, 0, 0, 0, 0);
+    let res =
+        StorageWritesDeduplicator::apply_on_empty_state(&execution_result.result.logs.storage_logs);
 
     // There are 2 initial writes here:
     // - totalSupply of ETH token
@@ -1302,6 +1370,7 @@ fn test_invalid_bytecode() {
     let mut raw_storage = SecondaryStateStorage::new(db);
     insert_system_contracts(&mut raw_storage);
     let (block_context, block_properties) = create_test_block_params();
+    let block_gas_per_pubdata = block_context.block_gas_price_per_pubdata();
 
     let test_vm_with_custom_bytecode_hash =
         |bytecode_hash: H256, expected_revert_reason: Option<TxRevertReason>| {
@@ -1309,8 +1378,10 @@ fn test_invalid_bytecode() {
             let storage_ptr: &mut dyn Storage = &mut storage_accessor;
             let mut oracle_tools = OracleTools::new(storage_ptr);
 
-            let (encoded_tx, predefined_overhead) =
-                get_l1_tx_with_custom_bytecode_hash(h256_to_u256(bytecode_hash));
+            let (encoded_tx, predefined_overhead) = get_l1_tx_with_custom_bytecode_hash(
+                h256_to_u256(bytecode_hash),
+                block_gas_per_pubdata as u32,
+            );
 
             run_vm_with_custom_factory_deps(
                 &mut oracle_tools,
@@ -1375,78 +1446,6 @@ fn test_invalid_bytecode() {
     );
 }
 
-#[derive(Debug)]
-enum TestExecutionResult {
-    Success(Vec<u8>),
-    Revert(Vec<u8>),
-}
-
-#[derive(Debug, Default)]
-struct TransactionExecutionErrorTracer {
-    result: Option<TestExecutionResult>,
-}
-
-impl Tracer for TransactionExecutionErrorTracer {
-    type SupportedMemory = SimpleMemory;
-    const CALL_BEFORE_EXECUTION: bool = true;
-
-    fn before_decoding(&mut self, _state: VmLocalStateData<'_>, _memory: &Self::SupportedMemory) {}
-    fn after_decoding(
-        &mut self,
-        _state: VmLocalStateData<'_>,
-        _data: AfterDecodingData,
-        _memory: &Self::SupportedMemory,
-    ) {
-    }
-    fn before_execution(
-        &mut self,
-        state: VmLocalStateData<'_>,
-        data: BeforeExecutionData,
-        memory: &Self::SupportedMemory,
-    ) {
-        let hook = VmHook::from_opcode_memory(&state, &data);
-
-        if matches!(hook, VmHook::ExecutionResult) {
-            let vm_hook_params = get_vm_hook_params(memory);
-
-            let success = vm_hook_params[0];
-            let returndata_ptr = FatPointer::from_u256(vm_hook_params[1]);
-            let returndata = read_pointer(memory, returndata_ptr);
-
-            assert!(
-                success == U256::zero() || success == U256::one(),
-                "The success should be either 0 or 1"
-            );
-            assert!(self.result.is_none(), "The result is emitted twice");
-
-            let result = if success == U256::zero() {
-                TestExecutionResult::Revert(returndata)
-            } else {
-                TestExecutionResult::Success(returndata)
-            };
-
-            self.result = Some(result);
-        }
-    }
-    fn after_execution(
-        &mut self,
-        _state: VmLocalStateData<'_>,
-        _data: AfterExecutionData,
-        _memory: &Self::SupportedMemory,
-    ) {
-    }
-}
-
-impl ExecutionEndTracer for TransactionExecutionErrorTracer {
-    fn should_stop_execution(&self) -> bool {
-        // This tracer will not prevent the execution from going forward
-        // until the end of the block.
-        false
-    }
-}
-
-impl PendingRefundTracer for TransactionExecutionErrorTracer {}
-
 #[test]
 fn test_tracing_of_execution_errors() {
     // In this test, we are checking that the execution errors are transmitted correctly from the bootloader.
@@ -1472,7 +1471,7 @@ fn test_tracing_of_execution_errors() {
             gas_limit: U256::from(1000000u32),
             max_fee_per_gas: U256::from(10000000000u64),
             max_priority_fee_per_gas: U256::zero(),
-            gas_per_pubdata_limit: U256::from(50000u32),
+            gas_per_pubdata_limit: U256::from(MAX_GAS_PER_PUBDATA_BYTE),
         },
     );
 
@@ -1490,20 +1489,25 @@ fn test_tracing_of_execution_errors() {
         BlockContextMode::NewBlock(block_context, Default::default()),
         &block_properties,
         BLOCK_GAS_LIMIT,
-        PROVED_BLOCK_BOOTLOADER_CODE.code.clone(),
+        &BASE_SYSTEM_CONTRACTS,
         TxExecutionMode::VerifyExecute,
     );
-    push_transaction_to_bootloader_memory(&mut vm, &tx.into(), TxExecutionMode::VerifyExecute);
+    push_transaction_to_bootloader_memory(
+        &mut vm,
+        &tx.into(),
+        TxExecutionMode::VerifyExecute,
+        None,
+    );
 
-    let mut tracer = TransactionExecutionErrorTracer::default();
+    let mut tracer = TransactionResultTracer::default();
     assert_eq!(
         vm.execute_with_custom_tracer(&mut tracer),
         VmExecutionStopReason::VmFinished,
         "Tracer should never request stop"
     );
 
-    match tracer.result {
-        Some(TestExecutionResult::Revert(revert_reason)) => {
+    match tracer.revert_reason {
+        Some(revert_reason) => {
             let revert_reason = VmRevertReason::try_from(&revert_reason as &[u8]).unwrap();
             assert_eq!(
                 revert_reason,
@@ -1512,13 +1516,130 @@ fn test_tracing_of_execution_errors() {
                 }
             )
         }
-        _ => panic!("Tracer captured incorrect result {:#?}", tracer.result),
+        _ => panic!(
+            "Tracer captured incorrect result {:#?}",
+            tracer.revert_reason
+        ),
     }
 }
 
-pub fn get_l1_tx_with_custom_bytecode_hash(bytecode_hash: U256) -> (Vec<U256>, u32) {
+/// Checks that `TX_GAS_LIMIT_OFFSET` constant is correct.
+#[test]
+fn test_tx_gas_limit_offset() {
+    let gas_limit = U256::from(999999);
+
+    let (block_context, block_properties) = create_test_block_params();
+    let block_context: DerivedBlockContext = block_context.into();
+
+    let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
+    let db = RocksDB::new(Database::StateKeeper, temp_dir.as_ref(), false);
+    let raw_storage = SecondaryStateStorage::new(db);
+    let storage_ptr: &mut dyn Storage = &mut StorageView::new(&raw_storage);
+
+    let contract_code = read_test_contract();
+    let tx: Transaction = get_deploy_tx(
+        H256::random(),
+        Nonce(0),
+        &contract_code,
+        Default::default(),
+        Default::default(),
+        Fee {
+            gas_limit,
+            ..Default::default()
+        },
+    )
+    .into();
+
+    let mut oracle_tools = OracleTools::new(storage_ptr);
+
+    let mut vm = init_vm_inner(
+        &mut oracle_tools,
+        BlockContextMode::NewBlock(block_context, Default::default()),
+        &block_properties,
+        BLOCK_GAS_LIMIT,
+        &BASE_SYSTEM_CONTRACTS,
+        TxExecutionMode::VerifyExecute,
+    );
+    push_transaction_to_bootloader_memory(&mut vm, &tx, TxExecutionMode::VerifyExecute, None);
+
+    let gas_limit_from_memory = vm
+        .state
+        .memory
+        .read_slot(
+            BOOTLOADER_HEAP_PAGE as usize,
+            TX_DESCRIPTION_OFFSET + TX_GAS_LIMIT_OFFSET,
+        )
+        .value;
+    assert_eq!(gas_limit_from_memory, gas_limit);
+}
+
+#[test]
+fn test_is_write_initial_behaviour() {
+    // In this test, we check result of `is_write_initial` at different stages.
+
+    let (block_context, block_properties) = create_test_block_params();
+    let block_context: DerivedBlockContext = block_context.into();
+
+    let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
+    let db = RocksDB::new(Database::StateKeeper, temp_dir.as_ref(), false);
+    let mut raw_storage = SecondaryStateStorage::new(db);
+    insert_system_contracts(&mut raw_storage);
+    let storage_ptr: &mut dyn Storage = &mut StorageView::new(&raw_storage);
+
+    let base_fee = block_context.base_fee;
+    let account_pk = H256::random();
+    let contract_code = read_test_contract();
+    let tx: Transaction = get_deploy_tx(
+        account_pk,
+        Nonce(0),
+        &contract_code,
+        vec![],
+        &[],
+        Fee {
+            gas_limit: U256::from(20000000u32),
+            max_fee_per_gas: U256::from(base_fee),
+            max_priority_fee_per_gas: U256::from(0),
+            gas_per_pubdata_limit: U256::from(MAX_GAS_PER_PUBDATA_BYTE),
+        },
+    )
+    .into();
+
+    let sender_address = tx.initiator_account();
+    let nonce_key = get_nonce_key(&sender_address);
+
+    // Check that the next write to the nonce key will be initial.
+    assert!(storage_ptr.is_write_initial(&nonce_key));
+
+    // Set balance to be able to pay fee for txs.
+    let balance_key = storage_key_for_eth_balance(&sender_address);
+    storage_ptr.set_value(&balance_key, u256_to_h256(U256([0, 0, 1, 0])));
+
+    let mut oracle_tools = OracleTools::new(storage_ptr);
+
+    let mut vm = init_vm_inner(
+        &mut oracle_tools,
+        BlockContextMode::NewBlock(block_context, Default::default()),
+        &block_properties,
+        BLOCK_GAS_LIMIT,
+        &BASE_SYSTEM_CONTRACTS,
+        TxExecutionMode::VerifyExecute,
+    );
+
+    push_transaction_to_bootloader_memory(&mut vm, &tx, TxExecutionMode::VerifyExecute, None);
+
+    vm.execute_next_tx(u32::MAX)
+        .expect("Bootloader failed while processing the first transaction");
+    // Check that `is_write_initial` still returns true for the nonce key.
+    assert!(storage_ptr.is_write_initial(&nonce_key));
+}
+
+pub fn get_l1_tx_with_custom_bytecode_hash(
+    bytecode_hash: U256,
+    block_gas_per_pubdata: u32,
+) -> (Vec<U256>, u32) {
     let tx: TransactionData = get_l1_execute_test_contract_tx(Default::default(), false).into();
-    let predefined_overhead = tx.overhead_gas_with_custom_factory_deps(vec![bytecode_hash]);
+    let predefined_overhead =
+        tx.overhead_gas_with_custom_factory_deps(vec![bytecode_hash], block_gas_per_pubdata);
     let tx_bytes = tx.abi_encode_with_custom_factory_deps(vec![bytecode_hash]);
 
     (bytes_to_be_words(tx_bytes), predefined_overhead)

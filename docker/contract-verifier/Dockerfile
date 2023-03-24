@@ -32,6 +32,34 @@ RUN mkdir -p /etc/zksolc-bin/v1.3.1 \
     && wget https://github.com/matter-labs/zksolc-bin/raw/main/linux-amd64/zksolc-linux-amd64-musl-v1.3.1 \
     && cp zksolc-linux-amd64-musl-v1.3.1 /etc/zksolc-bin/v1.3.1/zksolc \
     && chmod +x /etc/zksolc-bin/v1.3.1/zksolc
+RUN mkdir -p /etc/zksolc-bin/v1.3.2 \
+    && wget https://github.com/matter-labs/zksolc-bin/raw/main/linux-amd64/zksolc-linux-amd64-musl-v1.3.2 \
+    && cp zksolc-linux-amd64-musl-v1.3.2 /etc/zksolc-bin/v1.3.2/zksolc \
+    && chmod +x /etc/zksolc-bin/v1.3.2/zksolc
+RUN mkdir -p /etc/zksolc-bin/v1.3.3 \
+    && wget https://github.com/matter-labs/zksolc-bin/raw/main/linux-amd64/zksolc-linux-amd64-musl-v1.3.3 \
+    && cp zksolc-linux-amd64-musl-v1.3.3 /etc/zksolc-bin/v1.3.3/zksolc \
+    && chmod +x /etc/zksolc-bin/v1.3.3/zksolc
+RUN mkdir -p /etc/zksolc-bin/v1.3.4 \
+    && wget https://github.com/matter-labs/zksolc-bin/raw/main/linux-amd64/zksolc-linux-amd64-musl-v1.3.4 \
+    && cp zksolc-linux-amd64-musl-v1.3.4 /etc/zksolc-bin/v1.3.4/zksolc \
+    && chmod +x /etc/zksolc-bin/v1.3.4/zksolc
+RUN mkdir -p /etc/zksolc-bin/v1.3.5 \
+    && wget https://github.com/matter-labs/zksolc-bin/raw/main/linux-amd64/zksolc-linux-amd64-musl-v1.3.5 \
+    && cp zksolc-linux-amd64-musl-v1.3.5 /etc/zksolc-bin/v1.3.5/zksolc \
+    && chmod +x /etc/zksolc-bin/v1.3.5/zksolc
+
+
+RUN mkdir -p /etc/zksolc-bin/v1.3.6 \
+    && wget https://github.com/matter-labs/zksolc-bin/raw/main/linux-amd64/zksolc-linux-amd64-musl-v1.3.6 \
+    && cp zksolc-linux-amd64-musl-v1.3.6 /etc/zksolc-bin/v1.3.6/zksolc \
+    && chmod +x /etc/zksolc-bin/v1.3.6/zksolc
+
+
+RUN mkdir -p /etc/zksolc-bin/v1.3.7 \
+    && wget https://github.com/matter-labs/zksolc-bin/raw/main/linux-amd64/zksolc-linux-amd64-musl-v1.3.7 \
+    && cp zksolc-linux-amd64-musl-v1.3.7 /etc/zksolc-bin/v1.3.7/zksolc \
+    && chmod +x /etc/zksolc-bin/v1.3.7/zksolc
 
 COPY docker/contract-verifier/install-all-solc.sh install-all-solc.sh
 RUN sh ./install-all-solc.sh

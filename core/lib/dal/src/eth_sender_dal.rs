@@ -1,9 +1,12 @@
-use crate::models::storage_eth_tx::{StorageEthTx, StorageTxHistory, StorageTxHistoryToSend};
+use crate::models::storage_eth_tx::{
+    L1BatchEthSenderStats, StorageEthTx, StorageTxHistory, StorageTxHistoryToSend,
+};
 use crate::StorageProcessor;
+use sqlx::Row;
 use std::convert::TryFrom;
 use zksync_types::aggregated_operations::AggregatedActionType;
 use zksync_types::eth_sender::{EthTx, TxHistory, TxHistoryToSend};
-use zksync_types::{Address, H256, U256};
+use zksync_types::{Address, L1BatchNumber, H256, U256};
 
 #[derive(Debug)]
 pub struct EthSenderDal<'a, 'c> {
@@ -23,6 +26,38 @@ impl EthSenderDal<'_, '_> {
             .await
             .unwrap();
             txs.into_iter().map(|tx| tx.into()).collect()
+        })
+    }
+
+    pub fn get_eth_l1_batches(&mut self) -> L1BatchEthSenderStats {
+        async_std::task::block_on(async {
+            let mut stats = L1BatchEthSenderStats::default();
+            for tx_type in ["execute_tx", "commit_tx", "prove_tx"] {
+                let records= sqlx::query(&format!(
+                        "SELECT MAX(number) as number, txs.confirmed_at IS NOT NULL as confirmed FROM l1_batches
+                         LEFT JOIN eth_txs_history as txs ON (l1_batches.eth_{}_id = txs.eth_tx_id)
+                         GROUP BY confirmed",
+                        tx_type
+                    ))
+                        .fetch_all(self.storage.conn())
+                        .await
+                        .unwrap();
+                for record in records {
+                    let batch_number = L1BatchNumber(record.get::<i64, &str>("number") as u32);
+                    let aggregation_action = match tx_type {
+                        "execute_tx" => AggregatedActionType::ExecuteBlocks,
+                        "commit_tx" => AggregatedActionType::CommitBlocks,
+                        "prove_tx" => AggregatedActionType::PublishProofBlocksOnchain,
+                        _ => unreachable!(),
+                    };
+                    if record.get::<bool, &str>("confirmed") {
+                        stats.mined.push((aggregation_action, batch_number));
+                    } else {
+                        stats.saved.push((aggregation_action, batch_number));
+                    }
+                }
+            }
+            stats
         })
     }
 

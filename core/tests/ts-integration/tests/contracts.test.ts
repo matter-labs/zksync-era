@@ -24,7 +24,8 @@ const contracts = {
         ...getTestContract('Import'),
         factoryDep: getTestContract('Foo').bytecode
     },
-    context: getTestContract('Context')
+    context: getTestContract('Context'),
+    error: getTestContract('SimpleRequire')
 };
 
 describe('Smart contract behavior checks', () => {
@@ -97,8 +98,6 @@ describe('Smart contract behavior checks', () => {
         const infiniteLoop = await deployContract(alice, contracts.infinite, []);
 
         // Test eth_call first
-        // await expect(infiniteLoop.callStatic.infiniteLoop()).toBeRejected('cannot estimate transaction: out of gas');
-        // ...and then an actual transaction
         await expect(infiniteLoop.infiniteLoop({ gasLimit: 1_000_000 })).toBeReverted([]);
     });
 
@@ -196,6 +195,13 @@ describe('Smart contract behavior checks', () => {
         });
     });
 
+    test('Should return correct error during fee estimation', async () => {
+        const errorContract = await deployContract(alice, contracts.error, []);
+
+        await expect(errorContract.estimateGas.require_long()).toBeRejected('longlonglong');
+        await expect(errorContract.require_long()).toBeRejected('longlonglong');
+    });
+
     test('Should check block properties for tx execution', async () => {
         if (testMaster.isFastMode()) {
             // This test requires a new L1 batch to be created, which may be very time consuming on stage.
@@ -254,6 +260,38 @@ describe('Smart contract behavior checks', () => {
         // This is why we use `initialTimestamp` here.
         await expect(
             contextContract.checkBlockTimestamp(initialTimestamp, initialTimestamp.add(acceptedTimestampLag))
+        ).toBeAccepted([]);
+    });
+
+    test('Should successfully publish a large packable bytecode', async () => {
+        // The rough length of the packed bytecode should be 350_000 / 4 = 87500,
+        // which should fit into a batch
+        const BYTECODE_LEN = 350_016 + 32; // +32 to ensure validity of the bytecode
+
+        // Our current packing algorithm uses 8-byte chunks for dictionary and
+        // so in order to make an effectively-packable bytecode, we need to have bytecode
+        // consist of the same 2 types of 8-byte chunks.
+        // Note, that instead of having 1 type of 8-byte chunks, we need 2 in order to have
+        // a unique bytecode for each test run.
+        const CHUNK_TYPE_1 = '00000000';
+        const CHUNK_TYPE_2 = 'ffffffff';
+
+        let bytecode = '0x';
+        while (bytecode.length < BYTECODE_LEN * 2 + 2) {
+            if (Math.random() < 0.5) {
+                bytecode += CHUNK_TYPE_1;
+            } else {
+                bytecode += CHUNK_TYPE_2;
+            }
+        }
+
+        await expect(
+            alice.sendTransaction({
+                to: alice.address,
+                customData: {
+                    factoryDeps: [bytecode]
+                }
+            })
         ).toBeAccepted([]);
     });
 

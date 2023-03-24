@@ -9,10 +9,8 @@ use assert_matches::assert_matches;
 use tokio::sync::watch;
 
 use vm::{
-    utils::default_block_properties,
     vm::{VmPartialExecutionResult, VmTxExecutionResult},
     vm_with_bootloader::{BlockContext, BlockContextMode, DerivedBlockContext},
-    zk_evm::block_properties::BlockProperties,
     VmBlockResult, VmExecutionResult,
 };
 use zksync_types::{
@@ -22,8 +20,9 @@ use zksync_types::{
 
 use crate::state_keeper::{
     batch_executor::{BatchExecutorHandle, Command, L1BatchExecutorBuilder, TxExecutionResult},
-    io::{PendingBatchData, StateKeeperIO},
+    io::{L1BatchParams, PendingBatchData, StateKeeperIO},
     seal_criteria::SealManager,
+    tests::{default_block_properties, BASE_SYSTEM_CONTRACTS},
     types::ExecutionMetricsForCriteria,
     updates::UpdatesManager,
     ZkSyncStateKeeper,
@@ -62,6 +61,13 @@ impl TestScenario {
     /// it only recovers the temporary state).
     pub(crate) fn load_pending_batch(mut self, pending_batch: PendingBatchData) -> Self {
         self.pending_batch = Some(pending_batch);
+        self
+    }
+
+    /// Configures scenario to repeatedly return `None` to tx requests until the next action from the scenario happens.
+    pub(crate) fn no_txs_until_next_action(mut self, description: &'static str) -> Self {
+        self.actions
+            .push_back(ScenarioItem::NoTxsUntilNextAction(description));
         self
     }
 
@@ -209,20 +215,21 @@ fn partial_execution_result() -> VmPartialExecutionResult {
 
 /// Creates a `TxExecutionResult` object denoting a successful tx execution.
 pub(crate) fn successful_exec() -> TxExecutionResult {
-    let mut result = TxExecutionResult::new(Ok(VmTxExecutionResult {
-        status: TxExecutionStatus::Success,
-        result: partial_execution_result(),
-        gas_refunded: 0,
-        operator_suggested_refund: 0,
-    }));
+    let mut result = TxExecutionResult::new(Ok((
+        VmTxExecutionResult {
+            status: TxExecutionStatus::Success,
+            result: partial_execution_result(),
+            gas_refunded: 0,
+            operator_suggested_refund: 0,
+        },
+        vec![],
+    )));
     result.add_tx_metrics(ExecutionMetricsForCriteria {
-        storage_updates: Default::default(),
         l1_gas: Default::default(),
         execution_metrics: Default::default(),
     });
     result.add_bootloader_result(Ok(partial_execution_result()));
     result.add_bootloader_metrics(ExecutionMetricsForCriteria {
-        storage_updates: Default::default(),
         l1_gas: Default::default(),
         execution_metrics: Default::default(),
     });
@@ -237,14 +244,16 @@ pub(crate) fn rejected_exec() -> TxExecutionResult {
 /// Creates a `TxExecutionResult` object denoting a transaction that was executed, but caused a bootloader tip out of
 /// gas error.
 pub(crate) fn bootloader_tip_out_of_gas() -> TxExecutionResult {
-    let mut result = TxExecutionResult::new(Ok(VmTxExecutionResult {
-        status: TxExecutionStatus::Success,
-        result: partial_execution_result(),
-        gas_refunded: 0,
-        operator_suggested_refund: 0,
-    }));
+    let mut result = TxExecutionResult::new(Ok((
+        VmTxExecutionResult {
+            status: TxExecutionStatus::Success,
+            result: partial_execution_result(),
+            gas_refunded: 0,
+            operator_suggested_refund: 0,
+        },
+        vec![],
+    )));
     result.add_tx_metrics(ExecutionMetricsForCriteria {
-        storage_updates: Default::default(),
         l1_gas: Default::default(),
         execution_metrics: Default::default(),
     });
@@ -270,16 +279,19 @@ pub(crate) fn pending_batch_data(
         base_fee: 1,
     };
 
-    let params = (
-        BlockContextMode::NewBlock(derived_context, Default::default()),
-        block_properties,
-    );
+    let params = L1BatchParams {
+        context_mode: BlockContextMode::NewBlock(derived_context, Default::default()),
+        properties: block_properties,
+        base_system_contracts: BASE_SYSTEM_CONTRACTS.clone(),
+    };
 
     PendingBatchData { params, txs }
 }
 
 #[allow(clippy::type_complexity, clippy::large_enum_variant)] // It's OK for tests.
 enum ScenarioItem {
+    /// Configures scenraio to repeatedly return `None` to tx requests until the next action from the scenario happens.
+    NoTxsUntilNextAction(&'static str),
     Tx(&'static str, Transaction, TxExecutionResult),
     Rollback(&'static str, Transaction),
     Reject(&'static str, Transaction, Option<String>),
@@ -296,6 +308,9 @@ enum ScenarioItem {
 impl std::fmt::Debug for ScenarioItem {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::NoTxsUntilNextAction(descr) => {
+                f.debug_tuple("NoTxsUntilNextAction").field(descr).finish()
+            }
             Self::Tx(descr, tx, result) => f
                 .debug_tuple("Tx")
                 .field(descr)
@@ -382,11 +397,7 @@ impl TestBatchExecutorBuilder {
 }
 
 impl L1BatchExecutorBuilder for TestBatchExecutorBuilder {
-    fn init_batch(
-        &self,
-        _block_context: BlockContextMode,
-        _block_properties: BlockProperties,
-    ) -> BatchExecutorHandle {
+    fn init_batch(&self, _l1batch_params: L1BatchParams) -> BatchExecutorHandle {
         let (commands_sender, commands_receiver) = mpsc::channel();
 
         let executor = TestBatchExecutor::new(
@@ -502,6 +513,9 @@ pub(crate) struct TestIO {
     miniblock_number: MiniblockNumber,
     fee_account: Address,
     scenario: TestScenario,
+    /// Internal flag that is being set if scenario was configured to return `None` to all the transaction
+    /// requests until some other action happens.
+    skipping_txs: bool,
 }
 
 impl TestIO {
@@ -515,6 +529,7 @@ impl TestIO {
             miniblock_number: MiniblockNumber(1),
             fee_account: FEE_ACCOUNT,
             scenario,
+            skipping_txs: false,
         }
     }
 
@@ -527,6 +542,12 @@ impl TestIO {
         }
 
         let action = self.scenario.actions.pop_front().unwrap();
+        if matches!(action, ScenarioItem::NoTxsUntilNextAction(_)) {
+            self.skipping_txs = true;
+            // This is a mock item, so pop an actual one for the IO to process.
+            return self.pop_next_item(request);
+        }
+
         // If that was a last action, tell the state keeper to stop after that.
         if self.scenario.actions.is_empty() {
             self.stop_sender.send(true).unwrap();
@@ -548,10 +569,7 @@ impl StateKeeperIO for TestIO {
         self.scenario.pending_batch.take()
     }
 
-    fn wait_for_new_batch_params(
-        &mut self,
-        _max_wait: Duration,
-    ) -> Option<(BlockContextMode, BlockProperties)> {
+    fn wait_for_new_batch_params(&mut self, _max_wait: Duration) -> Option<L1BatchParams> {
         let block_properties = default_block_properties();
 
         let previous_block_hash = U256::zero();
@@ -567,14 +585,30 @@ impl StateKeeperIO for TestIO {
             base_fee: 1,
         };
 
-        Some((
-            BlockContextMode::NewBlock(derived_context, previous_block_hash),
-            block_properties,
-        ))
+        Some(L1BatchParams {
+            context_mode: BlockContextMode::NewBlock(derived_context, previous_block_hash),
+            properties: block_properties,
+            base_system_contracts: BASE_SYSTEM_CONTRACTS.clone(),
+        })
     }
 
-    fn wait_for_next_tx(&mut self, _max_wait: Duration) -> Option<Transaction> {
+    fn wait_for_new_miniblock_params(&mut self, _max_wait: Duration) -> Option<u64> {
+        Some(self.timestamp)
+    }
+
+    fn wait_for_next_tx(&mut self, max_wait: Duration) -> Option<Transaction> {
         let action = self.pop_next_item("wait_for_next_tx");
+
+        // Check whether we should ignore tx requests.
+        if self.skipping_txs {
+            // As per expectation, we should provide a delay given by the state keeper.
+            std::thread::sleep(max_wait);
+            // Return the action to the scenario as we don't use it.
+            self.scenario.actions.push_front(action);
+            return None;
+        }
+
+        // We shouldn't, process normally.
         assert_matches!(
             action,
             ScenarioItem::Tx(_, _, _),
@@ -596,6 +630,7 @@ impl StateKeeperIO for TestIO {
             tx, &expected_tx,
             "Incorrect transaction has been rolled back"
         );
+        self.skipping_txs = false;
     }
 
     fn reject(&mut self, tx: &Transaction, error: &str) {
@@ -615,9 +650,10 @@ impl StateKeeperIO for TestIO {
                 error
             );
         }
+        self.skipping_txs = false;
     }
 
-    fn seal_miniblock(&mut self, updates_manager: &UpdatesManager) -> u64 {
+    fn seal_miniblock(&mut self, updates_manager: &UpdatesManager) {
         let action = self.pop_next_item("seal_miniblock");
         assert_matches!(
             action,
@@ -630,7 +666,7 @@ impl StateKeeperIO for TestIO {
         }
         self.miniblock_number += 1;
         self.timestamp += 1;
-        self.timestamp
+        self.skipping_txs = false;
     }
 
     fn seal_l1_batch(
@@ -653,5 +689,6 @@ impl StateKeeperIO for TestIO {
         self.miniblock_number += 1; // Seal the fictive miniblock.
         self.batch_number += 1;
         self.timestamp += 1;
+        self.skipping_txs = false;
     }
 }

@@ -1,19 +1,20 @@
 use crate::{memory::SimpleMemory, vm_with_bootloader::BlockContext};
+use once_cell::sync::Lazy;
 
+use zk_evm::block_properties::BlockProperties;
 use zk_evm::{
     aux_structures::{LogQuery, MemoryPage, Timestamp},
-    block_properties::BlockProperties,
     vm_state::PrimitiveValue,
     zkevm_opcode_defs::FatPointer,
 };
-use zksync_contracts::{read_zbin_bytecode, DEFAULT_ACCOUNT_CODE};
+use zksync_config::constants::ZKPORTER_IS_AVAILABLE;
+use zksync_contracts::{read_zbin_bytecode, BaseSystemContracts};
 use zksync_state::secondary_storage::SecondaryStateStorage;
 use zksync_types::{
     get_code_key, get_system_context_init_logs, system_contracts::get_system_smart_contracts,
-    Address, L1BatchNumber, StorageLog, StorageLogQuery, FAIR_L2_GAS_PRICE, H160, H256,
-    MAX_L2_TX_GAS_LIMIT, U256,
+    Address, L1BatchNumber, StorageLog, StorageLogQuery, H160, H256, MAX_L2_TX_GAS_LIMIT, U256,
 };
-use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words};
+use zksync_utils::{bytecode::hash_bytecode, h256_to_u256};
 
 pub const INITIAL_TIMESTAMP: u32 = 1024;
 pub const INITIAL_MEMORY_COUNTER: u32 = 2048;
@@ -230,25 +231,25 @@ pub fn precompile_calls_count_after_timestamp(
     sorted_timestamps.len() - sorted_timestamps.partition_point(|t| *t < from_timestamp)
 }
 
-pub fn default_block_properties() -> BlockProperties {
-    BlockProperties {
-        default_aa_code_hash: DEFAULT_ACCOUNT_CODE.hash,
-        zkporter_is_available: false,
-    }
-}
+pub static BASE_SYSTEM_CONTRACTS: Lazy<BaseSystemContracts> =
+    Lazy::new(BaseSystemContracts::load_from_disk);
 
 pub fn create_test_block_params() -> (BlockContext, BlockProperties) {
     let context = BlockContext {
         block_number: 1u32,
         block_timestamp: 1000,
-        l1_gas_price: 50_000_000_000, // 50 gwei
-        fair_l2_gas_price: FAIR_L2_GAS_PRICE,
+        l1_gas_price: 50_000_000_000,   // 50 gwei
+        fair_l2_gas_price: 250_000_000, // 0.25 gwei
         operator_address: H160::zero(),
     };
 
-    let block_properties = default_block_properties();
-
-    (context, block_properties)
+    (
+        context,
+        BlockProperties {
+            default_aa_code_hash: h256_to_u256(BASE_SYSTEM_CONTRACTS.default_aa.hash),
+            zkporter_is_available: ZKPORTER_IS_AVAILABLE,
+        },
+    )
 }
 
 pub fn insert_system_contracts(raw_storage: &mut SecondaryStateStorage) {
@@ -272,10 +273,9 @@ pub fn insert_system_contracts(raw_storage: &mut SecondaryStateStorage) {
     raw_storage.save(L1BatchNumber(0))
 }
 
-pub fn read_bootloader_test_code(test: &str) -> Vec<U256> {
-    let bytecode = read_zbin_bytecode(format!(
+pub fn read_bootloader_test_code(test: &str) -> Vec<u8> {
+    read_zbin_bytecode(format!(
         "etc/system-contracts/bootloader/tests/artifacts/{}.yul/{}.yul.zbin",
         test, test
-    ));
-    bytes_to_be_words(bytecode)
+    ))
 }

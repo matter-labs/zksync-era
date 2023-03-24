@@ -15,10 +15,11 @@ import { IERC20MetadataFactory } from 'zksync-web3/build/typechain';
  * modifier, since it also includes the fee check.
  *
  * @param wallet Wallet that is expected to pay for a transaction.
+ * @param isL1ToL2 Optional parameter that, if true, denotes that the checked transaction is an L1->L2 transaction.
  * @returns Matcher object
  */
-export async function shouldOnlyTakeFee(wallet: zksync.Wallet): Promise<ShouldChangeBalance> {
-    return await ShouldChangeBalance.create(zksync.utils.ETH_ADDRESS, [{ wallet, change: 0 }]);
+export async function shouldOnlyTakeFee(wallet: zksync.Wallet, isL1ToL2?: boolean): Promise<ShouldChangeBalance> {
+    return await ShouldChangeBalance.create(zksync.utils.ETH_ADDRESS, [{ wallet, change: 0 }], { l1ToL2: isL1ToL2 });
 }
 
 /**
@@ -78,6 +79,7 @@ export interface BalanceChange {
 export interface Params {
     noAutoFeeCheck?: boolean;
     l1?: boolean;
+    l1ToL2?: boolean;
 }
 
 /**
@@ -97,10 +99,12 @@ class ShouldChangeBalance extends MatcherModifier {
     balanceChanges: PopulatedBalanceChange[];
     noAutoFeeCheck: boolean;
     l1: boolean;
+    l1ToL2: boolean;
 
     static async create(token: string, balanceChanges: BalanceChange[], params?: Params) {
         const l1 = params?.l1 ?? false;
         const noAutoFeeCheck = params?.noAutoFeeCheck ?? false;
+        const l1ToL2 = params?.l1ToL2 ?? false;
 
         if (token == zksync.utils.ETH_ADDRESS && l1 && !noAutoFeeCheck) {
             throw new Error('ETH balance checks on L1 are not supported');
@@ -119,15 +123,22 @@ class ShouldChangeBalance extends MatcherModifier {
             });
         }
 
-        return new ShouldChangeBalance(token, populatedBalanceChanges, noAutoFeeCheck, l1);
+        return new ShouldChangeBalance(token, populatedBalanceChanges, noAutoFeeCheck, l1, l1ToL2);
     }
 
-    private constructor(token: string, balanceChanges: PopulatedBalanceChange[], noAutoFeeCheck: boolean, l1: boolean) {
+    private constructor(
+        token: string,
+        balanceChanges: PopulatedBalanceChange[],
+        noAutoFeeCheck: boolean,
+        l1: boolean,
+        l1ToL2: boolean
+    ) {
         super();
         this.token = token;
         this.balanceChanges = balanceChanges;
         this.noAutoFeeCheck = noAutoFeeCheck;
         this.l1 = l1;
+        this.l1ToL2 = l1ToL2;
     }
 
     async check(receipt: zksync.types.TransactionReceipt): Promise<MatcherMessage | null> {
@@ -140,9 +151,15 @@ class ShouldChangeBalance extends MatcherModifier {
 
             // If fee should be checked, we're checking ETH token and this wallet is an initiator,
             // we should consider fees as well.
-            if (!this.noAutoFeeCheck && this.token == zksync.utils.ETH_ADDRESS && address == receipt.from) {
+            const autoFeeCheck = !this.noAutoFeeCheck && this.token == zksync.utils.ETH_ADDRESS;
+            if (autoFeeCheck) {
                 // To "ignore" subtracted fee, we just add it back to the account balance.
-                newBalance = newBalance.add(extractFee(receipt).feeAfterRefund);
+                // For L1->L2 transactions the sender might be different from the refund recipient
+                if (this.l1ToL2) {
+                    newBalance = newBalance.sub(extractRefundForL1ToL2(receipt, address));
+                } else if (address == receipt.from) {
+                    newBalance = newBalance.add(extractFee(receipt).feeAfterRefund);
+                }
             }
 
             const diff = newBalance.sub(prevBalance);
@@ -215,6 +232,46 @@ export function extractFee(receipt: zksync.types.TransactionReceipt, from?: stri
         feeAfterRefund: feeAmount.sub(feeRefund),
         refund: feeRefund
     };
+}
+
+/**
+ * Helper method to extract the refund for the L1->L2 transaction in ETH wei.
+ *
+ * @param receipt Receipt of the transaction to extract fee from.
+ * @param from Optional substitute to `receipt.from`.
+ * @returns Extracted fee
+ */
+function extractRefundForL1ToL2(receipt: zksync.types.TransactionReceipt, refundRecipient?: string): ethers.BigNumber {
+    refundRecipient = refundRecipient ?? receipt.from;
+
+    const mintTopic = ethers.utils.keccak256(ethers.utils.toUtf8Bytes('Mint(address,uint256)'));
+
+    const refundLogs = receipt.logs.filter((log) => {
+        return log.topics.length == 2 && log.topics[0] == mintTopic;
+    });
+
+    if (refundLogs.length === 0) {
+        throw {
+            message: `No refund log was found in the following transaction receipt`,
+            receipt
+        };
+    }
+
+    // Note, that it is important that the refund log is the last log in the receipt, because
+    // there are multiple `Mint` events during a single L1->L2 transaction, so this one covers the
+    // final refund.
+    const refundLog = refundLogs[refundLogs.length - 1];
+
+    const formattedRefundRecipient = ethers.utils.hexlify(ethers.utils.zeroPad(refundRecipient, 32));
+
+    if (refundLog.topics[1].toLowerCase() !== formattedRefundRecipient.toLowerCase()) {
+        throw {
+            message: `The last ETH minted is not the refund recipient in the following transaction receipt`,
+            receipt
+        };
+    }
+
+    return ethers.BigNumber.from(refundLog.data);
 }
 
 /**

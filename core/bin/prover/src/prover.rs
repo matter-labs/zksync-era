@@ -2,15 +2,12 @@ use std::time::Duration;
 
 use prover_service::JobResult::{Failure, ProofGenerated};
 use prover_service::{JobReporter, JobResult};
-use zkevm_test_harness::abstract_zksync_circuit::concrete_circuits::{ZkSyncProof};
+use zkevm_test_harness::abstract_zksync_circuit::concrete_circuits::ZkSyncProof;
 use zkevm_test_harness::pairing::bn256::Bn256;
-
 
 use zksync_config::ProverConfig;
 use zksync_dal::ConnectionPool;
-
 use zksync_object_store::object_store::{create_object_store_from_env, PROVER_JOBS_BUCKET_PATH};
-
 
 #[derive(Debug)]
 pub struct ProverReporter {
@@ -84,6 +81,11 @@ impl ProverReporter {
             );
 
             if successful_proofs_count == required_proofs_count {
+                vlog::info!(
+                    "Marking {:?} job for l1 batch number {:?} as queued",
+                    next_round,
+                    prover_job_metadata.block_number
+                );
                 transaction
                     .witness_generator_dal()
                     .mark_witness_job_as_queued(prover_job_metadata.block_number, next_round);
@@ -100,11 +102,6 @@ impl ProverReporter {
             );
         }
         transaction.commit_blocking();
-        metrics::gauge!(
-            "server.block_number",
-            prover_job_metadata.block_number.0 as f64,
-            "stage" =>  format!("prove_{:?}",prover_job_metadata.aggregation_round),
-        );
     }
 
     fn get_circuit_type(&self, job_id: usize) -> String {

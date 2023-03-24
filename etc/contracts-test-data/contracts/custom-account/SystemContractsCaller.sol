@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-pragma solidity ^0.8;
+pragma solidity ^0.8.0;
 
 import {MSG_VALUE_SIMULATOR_IS_SYSTEM_BIT, MSG_VALUE_SYSTEM_CONTRACT} from "./Constants.sol";
 import "./Utils.sol";

@@ -17,6 +17,7 @@ pub struct ContractsConfig {
     pub diamond_init_addr: Address,
     pub diamond_upgrade_init_addr: Address,
     pub diamond_proxy_addr: Address,
+    pub validator_timelock_addr: Address,
     pub genesis_tx_hash: H256,
     pub l1_erc20_bridge_proxy_addr: Address,
     pub l1_erc20_bridge_impl_addr: Address,
@@ -47,6 +48,7 @@ mod tests {
             diamond_init_addr: addr("FFC35A5e767BE36057c34586303498e3de7C62Ba"),
             diamond_upgrade_init_addr: addr("FFC35A5e767BE36057c34586303498e3de7C62Ba"),
             diamond_proxy_addr: addr("F00B988a98Ca742e7958DeF9F7823b5908715f4a"),
+            validator_timelock_addr: addr("F00B988a98Ca742e7958DeF9F7823b5908715f4a"),
             genesis_tx_hash: hash(
                 "b99ebfea46cbe05a21cd80fe5597d97b204befc52a16303f579c607dc1ac2e2e",
             ),
@@ -70,6 +72,7 @@ CONTRACTS_VERIFIER_ADDR="0x34782eE00206EAB6478F2692caa800e4A581687b"
 CONTRACTS_DIAMOND_INIT_ADDR="0xFFC35A5e767BE36057c34586303498e3de7C62Ba"
 CONTRACTS_DIAMOND_UPGRADE_INIT_ADDR="0xFFC35A5e767BE36057c34586303498e3de7C62Ba"
 CONTRACTS_DIAMOND_PROXY_ADDR="0xF00B988a98Ca742e7958DeF9F7823b5908715f4a"
+CONTRACTS_VALIDATOR_TIMELOCK_ADDR="0xF00B988a98Ca742e7958DeF9F7823b5908715f4a"
 CONTRACTS_GENESIS_TX_HASH="0xb99ebfea46cbe05a21cd80fe5597d97b204befc52a16303f579c607dc1ac2e2e"
 CONTRACTS_L1_ERC20_BRIDGE_PROXY_ADDR="0x8656770FA78c830456B00B4fFCeE6b1De0e1b888"
 CONTRACTS_L1_ALLOW_LIST_ADDR="0x8656770FA78c830456B00B4fFCeE6b1De0e1b888"

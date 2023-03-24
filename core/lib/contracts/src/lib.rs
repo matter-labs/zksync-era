@@ -1,13 +1,20 @@
 #![allow(clippy::derive_partial_eq_without_eq)]
 
-use ethabi::ethereum_types::U256;
+use ethabi::ethereum_types::{H256, U256};
 use ethabi::Contract;
 use once_cell::sync::Lazy;
+use serde::{Deserialize, Serialize};
+
 use std::fs::{self, File};
 use std::path::Path;
-
 use zksync_utils::bytecode::hash_bytecode;
-use zksync_utils::{bytes_to_be_words, h256_to_u256};
+use zksync_utils::bytes_to_be_words;
+
+#[derive(Debug)]
+pub enum ContractLanguage {
+    Sol,
+    Yul,
+}
 
 const ZKSYNC_CONTRACT_FILE: &str =
     "contracts/ethereum/artifacts/cache/solpp-generated-contracts/zksync/interfaces/IZkSync.sol/IZkSync.json";
@@ -136,11 +143,21 @@ pub fn default_erc20_bytecode() -> Vec<u8> {
     read_bytecode("etc/ERC20/artifacts-zk/contracts/ZkSyncERC20.sol/ZkSyncERC20.json")
 }
 
-pub fn read_sys_contract_bytecode(directory: &str, name: &str) -> Vec<u8> {
-    read_bytecode(format!(
-        "etc/system-contracts/artifacts-zk/cache-zk/solpp-generated-contracts/{0}{1}.sol/{1}.json",
-        directory, name
-    ))
+pub fn read_sys_contract_bytecode(directory: &str, name: &str, lang: ContractLanguage) -> Vec<u8> {
+    match lang {
+        ContractLanguage::Sol => {
+            read_bytecode(format!(
+                "etc/system-contracts/artifacts-zk/cache-zk/solpp-generated-contracts/{0}{1}.sol/{1}.json",
+                directory, name
+            ))
+        },
+        ContractLanguage::Yul => {
+            read_zbin_bytecode(format!(
+                "etc/system-contracts/contracts/{0}artifacts/{1}.yul/{1}.yul.zbin",
+                directory, name
+            ))
+        }
+    }
 }
 
 pub fn read_bootloader_code(bootloader_type: &str) -> Vec<u8> {
@@ -178,26 +195,31 @@ pub fn read_zbin_bytecode(zbin_path: impl AsRef<Path>) -> Vec<u8> {
         .unwrap_or_else(|err| panic!("Can't read .zbin bytecode at {:?}: {}", bytecode_path, err))
 }
 
-pub fn read_bootloader_bytecode() -> Vec<u8> {
-    read_zbin_bytecode("etc/system-contracts/bootloader/artifacts/bootloader/bootloader.yul.zbin")
-}
-
 /// Hash of code and code which consists of 32 bytes words
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SystemContractCode {
     pub code: Vec<U256>,
-    pub hash: U256,
+    pub hash: H256,
 }
 
-pub static PROVED_BLOCK_BOOTLOADER_CODE: Lazy<SystemContractCode> = Lazy::new(|| {
-    let bytecode = read_proved_block_bootloader_bytecode();
-    let hash = hash_bytecode(&bytecode);
+#[derive(Debug, Clone)]
+pub struct BaseSystemContracts {
+    pub bootloader: SystemContractCode,
+    pub default_aa: SystemContractCode,
+}
 
-    SystemContractCode {
-        code: bytes_to_be_words(bytecode),
-        hash: h256_to_u256(hash),
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq)]
+pub struct BaseSystemContractsHashes {
+    pub bootloader: H256,
+    pub default_aa: H256,
+}
+
+impl PartialEq for BaseSystemContracts {
+    fn eq(&self, other: &Self) -> bool {
+        self.bootloader.hash == other.bootloader.hash
+            && self.default_aa.hash == other.default_aa.hash
     }
-});
+}
 
 pub static PLAYGROUND_BLOCK_BOOTLOADER_CODE: Lazy<SystemContractCode> = Lazy::new(|| {
     let bytecode = read_playground_block_bootloader_bytecode();
@@ -205,7 +227,7 @@ pub static PLAYGROUND_BLOCK_BOOTLOADER_CODE: Lazy<SystemContractCode> = Lazy::ne
 
     SystemContractCode {
         code: bytes_to_be_words(bytecode),
-        hash: h256_to_u256(hash),
+        hash,
     }
 });
 
@@ -215,16 +237,38 @@ pub static ESTIMATE_FEE_BLOCK_CODE: Lazy<SystemContractCode> = Lazy::new(|| {
 
     SystemContractCode {
         code: bytes_to_be_words(bytecode),
-        hash: h256_to_u256(hash),
+        hash,
     }
 });
 
-pub static DEFAULT_ACCOUNT_CODE: Lazy<SystemContractCode> = Lazy::new(|| {
-    let bytecode = read_sys_contract_bytecode("", "DefaultAccount");
-    let hash = hash_bytecode(&bytecode);
+impl BaseSystemContracts {
+    pub fn load_from_disk() -> Self {
+        let bytecode = read_proved_block_bootloader_bytecode();
+        let hash = hash_bytecode(&bytecode);
 
-    SystemContractCode {
-        code: bytes_to_be_words(bytecode),
-        hash: h256_to_u256(hash),
+        let bootloader = SystemContractCode {
+            code: bytes_to_be_words(bytecode),
+            hash,
+        };
+
+        let bytecode = read_sys_contract_bytecode("", "DefaultAccount", ContractLanguage::Sol);
+        let hash = hash_bytecode(&bytecode);
+
+        let default_aa = SystemContractCode {
+            code: bytes_to_be_words(bytecode),
+            hash,
+        };
+
+        BaseSystemContracts {
+            bootloader,
+            default_aa,
+        }
     }
-});
+
+    pub fn hashes(&self) -> BaseSystemContractsHashes {
+        BaseSystemContractsHashes {
+            bootloader: self.bootloader.hash,
+            default_aa: self.default_aa.hash,
+        }
+    }
+}

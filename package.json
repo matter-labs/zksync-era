@@ -15,6 +15,7 @@
       "infrastructure/local-setup-preparation",
       "infrastructure/openzeppelin-tests-preparation",
       "core/tests/revert-test",
+      "core/tests/upgrade-test",
       "core/tests/ts-integration"
     ],
     "nohoist": [
@@ -30,6 +31,7 @@
     "l1-contracts": "yarn workspace l1-zksync-contracts",
     "l2-contracts": "yarn workspace l2-zksync-contracts",
     "revert-test": "yarn workspace revert-test",
+    "upgrade-test": "yarn workspace upgrade-test",
     "ts-integration": "yarn workspace ts-integration",
     "zk": "yarn workspace zk",
     "reading-tool": "yarn workspace reading-tool",

@@ -594,6 +594,11 @@ describe('web3 API compatibility tests', () => {
         expect(thrown).toBeTruthy();
     });
 
+    test('Should throw error for estimate gas for account with balance < tx.value', async () => {
+        let poorBob = testMaster.newEmptyAccount();
+        expect(poorBob.estimateGas({ value: 1, to: alice.address })).toBeRejected('insufficient balance for transfer');
+    });
+
     afterAll(async () => {
         await testMaster.deinitialize();
     });

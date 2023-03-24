@@ -1,3 +1,4 @@
+use std::convert::TryFrom;
 use std::fmt::Debug;
 
 use zk_evm::aux_structures::Timestamp;
@@ -21,8 +22,8 @@ use crate::oracles::decommitter::DecommitterOracle;
 use crate::oracles::precompile::PrecompilesProcessorWithHistory;
 use crate::oracles::storage::StorageOracle;
 use crate::oracles::tracer::{
-    BootloaderTracer, ExecutionEndTracer, NoopMemoryTracer, OneTxTracer, PendingRefundTracer,
-    ValidationError, ValidationTracer, ValidationTracerParams,
+    BootloaderTracer, ExecutionEndTracer, OneTxTracer, PendingRefundTracer, PubdataSpentTracer,
+    TransactionResultTracer, ValidationError, ValidationTracer, ValidationTracerParams,
 };
 use crate::oracles::OracleWithHistory;
 use crate::utils::{
@@ -87,7 +88,7 @@ pub struct VmExecutionResult {
     /// available to VM before and after execution.
     ///
     /// It means, that depending on the context, `gas_used` may represent different things.
-    /// If VM is continously invoked and interrupted after each tx, this field may represent the
+    /// If VM is continuously invoked and interrupted after each tx, this field may represent the
     /// amount of gas spent by a single transaction.
     ///
     /// To understand, which value does `gas_used` represent, see the documentation for the method
@@ -370,21 +371,21 @@ impl<'a> VmInstance<'a> {
 
         let timestamp = Timestamp(local_state.timestamp);
 
-        vlog::trace!("Rollbacking decomitter");
+        vlog::trace!("Rolling back decomitter");
         self.state
             .decommittment_processor
             .rollback_to_timestamp(timestamp);
 
-        vlog::trace!("Rollbacking event_sink");
+        vlog::trace!("Rolling back event_sink");
         self.state.event_sink.rollback_to_timestamp(timestamp);
 
-        vlog::trace!("Rollbacking storage");
+        vlog::trace!("Rolling back storage");
         self.state.storage.rollback_to_timestamp(timestamp);
 
-        vlog::trace!("Rollbacking memory");
+        vlog::trace!("Rolling back memory");
         self.state.memory.rollback_to_timestamp(timestamp);
 
-        vlog::trace!("Rollbacking precompiles_processor");
+        vlog::trace!("Rolling back precompiles_processor");
         self.state
             .precompiles_processor
             .rollback_to_timestamp(timestamp);
@@ -405,6 +406,12 @@ impl<'a> VmInstance<'a> {
         self.rollback_to_snapshot(snapshot);
     }
 
+    /// Removes the latest snapshot without rollbacking to it.
+    /// This function expects that there is at least one snapshot present.
+    pub fn pop_snapshot_no_rollback(&mut self) {
+        self.snapshots.pop().unwrap();
+    }
+
     /// Returns the amount of gas remaining to the VM.
     /// Note that this *does not* correspond to the gas limit of a transaction.
     /// To calculate the amount of gas spent by transaction, you should call this method before and after
@@ -413,7 +420,7 @@ impl<'a> VmInstance<'a> {
     /// Note: this method should only be called when either transaction is fully completed or VM completed
     /// its execution. Remaining gas value is read from the current stack frame, so if you'll attempt to
     /// read it during the transaction execution, you may receive invalid value.
-    fn gas_remaining(&self) -> u32 {
+    pub(crate) fn gas_remaining(&self) -> u32 {
         self.state.local_state.callstack.current.ergs_remaining
     }
 
@@ -487,13 +494,16 @@ impl<'a> VmInstance<'a> {
     }
 
     // Returns a tuple of `VmExecutionStopReason` and the size of the refund proposed by the operator
-    fn execute_with_custom_tracer_and_refunds<T: ExecutionEndTracer + PendingRefundTracer>(
+    fn execute_with_custom_tracer_and_refunds<
+        T: ExecutionEndTracer + PendingRefundTracer + PubdataSpentTracer,
+    >(
         &mut self,
         tracer: &mut T,
     ) -> (VmExecutionStopReason, u32) {
         let mut operator_refund = None;
         let timestamp_initial = Timestamp(self.state.local_state.timestamp);
         let gas_remaining_before = self.gas_remaining();
+        let spent_pubdata_counter_before = self.state.local_state.spent_pubdata_counter;
 
         loop {
             // Sanity check: we should never reach the maximum value, because then we won't be able to process the next cycle.
@@ -520,10 +530,28 @@ impl<'a> VmInstance<'a> {
                     "Operator was asked for refund two times"
                 );
 
-                let refund_to_propose = bootloader_refund
-                    + self.block_overhead_refund(timestamp_initial, gas_remaining_before);
-                let refund_slot =
-                    OPERATOR_REFUNDS_OFFSET + self.bootloader_state.tx_to_execute() - 1;
+                let gas_spent_on_pubdata = tracer.gas_spent_on_pubdata(&self.state.local_state)
+                    - spent_pubdata_counter_before;
+                let tx_body_refund =
+                    self.tx_body_refund(timestamp_initial, bootloader_refund, gas_spent_on_pubdata);
+
+                if tx_body_refund < bootloader_refund {
+                    vlog::error!(
+                        "Suggested tx body refund is less than bootloader refund. Tx body refund: {}, bootloader refund: {}",
+                        tx_body_refund,
+                        bootloader_refund
+                    );
+                }
+
+                let refund_to_propose = tx_body_refund
+                    + self.block_overhead_refund(
+                        timestamp_initial,
+                        gas_remaining_before,
+                        gas_spent_on_pubdata,
+                    );
+
+                let current_tx_index = self.bootloader_state.tx_to_execute() - 1;
+                let refund_slot = OPERATOR_REFUNDS_OFFSET + current_tx_index;
 
                 // Writing the refund into memory
                 self.state.memory.memory.write_to_memory(
@@ -537,6 +565,31 @@ impl<'a> VmInstance<'a> {
                 );
                 operator_refund = Some(refund_to_propose);
                 tracer.set_refund_as_done();
+
+                let tx_gas_limit = self.get_tx_gas_limit(current_tx_index);
+
+                if tx_gas_limit < bootloader_refund {
+                    vlog::error!(
+                        "Tx gas limit is less than bootloader refund. Tx gas limit: {}, bootloader refund: {}",
+                        tx_gas_limit,
+                        bootloader_refund
+                    );
+                }
+                if tx_gas_limit < refund_to_propose {
+                    vlog::error!(
+                        "Tx gas limit is less than operator refund. Tx gas limit: {}, operator refund: {}",
+                        tx_gas_limit,
+                        refund_to_propose
+                    );
+                }
+
+                metrics::histogram!("vm.refund", bootloader_refund as f64 / tx_gas_limit as f64 * 100.0, "type" => "bootloader");
+                metrics::histogram!("vm.refund", refund_to_propose as f64 / tx_gas_limit as f64 * 100.0, "type" => "operator");
+                metrics::histogram!(
+                    "vm.refund.diff",
+                    (refund_to_propose as f64 - bootloader_refund as f64) / tx_gas_limit as f64
+                        * 100.0
+                );
             }
 
             if tracer.should_stop_execution() {
@@ -548,124 +601,10 @@ impl<'a> VmInstance<'a> {
         }
     }
 
-    /// Calculates the refund for the block overhead.
-    /// This refund is the difference between how much user paid in advance for the block overhead
-    /// and how much he should pay based on actual tx execution result.
-    fn block_overhead_refund(&self, _from_timestamp: Timestamp, _gas_remaining_before: u32) -> u32 {
-        0
-
-        // let pubdata_used = self.pubdata_used(from_timestamp);
-
-        // let gas_used = gas_remaining_before - self.gas_remaining();
-        // //  Can be fixed in the scope of SMA-1654 because it also requires calculation of `pubdata_paid_for`.
-        // let computational_gas_used =
-        //     gas_used - pubdata_used * self.state.local_state.current_ergs_per_pubdata_byte;
-        // let (_, l2_to_l1_logs) = self.collect_events_and_l1_logs_after_timestamp(from_timestamp);
-        // let current_tx_index = self.bootloader_state.tx_to_execute() - 1;
-
-        // let actual_overhead = Self::actual_overhead_gas(
-        //     self.state.local_state.current_ergs_per_pubdata_byte,
-        //     self.bootloader_state.get_tx_size(current_tx_index),
-        //     pubdata_used,
-        //     computational_gas_used,
-        //     self.state
-        //         .decommittment_processor
-        //         .get_number_of_decommitment_requests_after_timestamp(from_timestamp),
-        //     l2_to_l1_logs.len(),
-        // );
-
-        // let predefined_overhead = self
-        //     .state
-        //     .memory
-        //     .read_slot(
-        //         BOOTLOADER_HEAP_PAGE as usize,
-        //         TX_OVERHEAD_OFFSET + current_tx_index,
-        //     )
-        //     .value
-        //     .as_u32();
-
-        // if actual_overhead <= predefined_overhead {
-        //     predefined_overhead - actual_overhead
-        // } else {
-        //     // This should never happen but potential mistakes at the early stage should not bring the server down.
-        //     vlog::error!(
-        //         "Actual overhead is greater than predefined one, actual: {}, predefined: {}",
-        //         actual_overhead,
-        //         predefined_overhead
-        //     );
-        //     0
-        // }
-    }
-
-    #[allow(dead_code)]
-    fn actual_overhead_gas(
-        _gas_per_pubdata_byte_limit: u32,
-        _encoded_len: usize,
-        _pubdata_used: u32,
-        _computational_gas_used: u32,
-        _number_of_decommitment_requests: usize,
-        _l2_l1_logs: usize,
-    ) -> u32 {
-        0
-
-        // let overhead_for_block_gas = U256::from(crate::transaction_data::block_overhead_gas(
-        //     gas_per_pubdata_byte_limit,
-        // ));
-
-        // let encoded_len = U256::from(encoded_len);
-        // let pubdata_used = U256::from(pubdata_used);
-        // let computational_gas_used = U256::from(computational_gas_used);
-        // let number_of_decommitment_requests = U256::from(number_of_decommitment_requests);
-        // let l2_l1_logs = U256::from(l2_l1_logs);
-
-        // let tx_slot_overhead = ceil_div_u256(overhead_for_block_gas, MAX_TXS_IN_BLOCK.into());
-
-        // let overhead_for_length = ceil_div_u256(
-        //     encoded_len * overhead_for_block_gas,
-        //     BOOTLOADER_TX_ENCODING_SPACE.into(),
-        // );
-
-        // let actual_overhead_for_pubdata = ceil_div_u256(
-        //     pubdata_used * overhead_for_block_gas,
-        //     MAX_PUBDATA_PER_BLOCK.into(),
-        // );
-
-        // let actual_gas_limit_overhead = ceil_div_u256(
-        //     computational_gas_used * overhead_for_block_gas,
-        //     MAX_BLOCK_MULTIINSTANCE_GAS_LIMIT.into(),
-        // );
-
-        // let code_decommitter_sorter_circuit_overhead = ceil_div_u256(
-        //     number_of_decommitment_requests * overhead_for_block_gas,
-        //     GEOMETRY_CONFIG.limit_for_code_decommitter_sorter.into(),
-        // );
-
-        // let l1_l2_logs_overhead = ceil_div_u256(
-        //     l2_l1_logs * overhead_for_block_gas,
-        //     std::cmp::min(
-        //         GEOMETRY_CONFIG.limit_for_l1_messages_merklizer,
-        //         GEOMETRY_CONFIG.limit_for_l1_messages_pudata_hasher,
-        //     )
-        //     .into(),
-        // );
-
-        // let overhead = vec![
-        //     tx_slot_overhead,
-        //     overhead_for_length,
-        //     actual_overhead_for_pubdata,
-        //     actual_gas_limit_overhead,
-        //     code_decommitter_sorter_circuit_overhead,
-        //     l1_l2_logs_overhead,
-        // ]
-        // .into_iter()
-        // .max()
-        // .unwrap();
-
-        // overhead.as_u32()
-    }
-
     // Executes VM until the end or tracer says to stop.
-    pub(crate) fn execute_with_custom_tracer<T: ExecutionEndTracer + PendingRefundTracer>(
+    pub(crate) fn execute_with_custom_tracer<
+        T: ExecutionEndTracer + PendingRefundTracer + PubdataSpentTracer,
+    >(
         &mut self,
         tracer: &mut T,
     ) -> VmExecutionStopReason {
@@ -676,9 +615,12 @@ impl<'a> VmInstance<'a> {
     // Ok(status: TxExecutionStatus::Success) when the transaction succeeded
     // Ok(status: TxExecutionStatus::Failure) when the transaction failed.
     // Note that failed transactions are considered properly processed and are included in blocks
-    pub fn execute_next_tx(&mut self) -> Result<VmTxExecutionResult, TxRevertReason> {
+    pub fn execute_next_tx(
+        &mut self,
+        validation_computational_gas_limit: u32,
+    ) -> Result<VmTxExecutionResult, TxRevertReason> {
         let tx_index = self.bootloader_state.next_unexecuted_tx() as u32;
-        let mut tx_tracer = OneTxTracer::default();
+        let mut tx_tracer = OneTxTracer::new(validation_computational_gas_limit);
 
         let timestamp_initial = Timestamp(self.state.local_state.timestamp);
         let cycles_initial = self.state.local_state.monotonic_cycle_counter;
@@ -729,8 +671,16 @@ impl<'a> VmInstance<'a> {
                                 - cycles_initial,
                         },
                     })
+                } else if tx_tracer.validation_run_out_of_gas() {
+                    Err(TxRevertReason::ValidationFailed(VmRevertReason::General {
+                        msg: format!(
+                            "Took too many computational gas, allowed limit: {}",
+                            validation_computational_gas_limit
+                        ),
+                    }))
                 } else {
-                    // VM ended up in state `stop_reason == VmExecutionStopReason::TracerRequestedStop && !tx_tracer.tx_has_been_processed()`.
+                    // VM ended up in state
+                    // `stop_reason == VmExecutionStopReason::TracerRequestedStop && !tx_tracer.tx_has_been_processed() && !tx_tracer.validation_run_out_of_gas()`.
                     // It means that bootloader successfully finished its execution without executing the transaction.
                     // It is an unexpected situation.
                     panic!("VM successfully finished executing bootloader but transaction wasn't executed");
@@ -745,21 +695,39 @@ impl<'a> VmInstance<'a> {
         let cycles_initial = self.state.local_state.monotonic_cycle_counter;
         let gas_before = self.gas_remaining();
 
-        let stop_reason = self.execute_with_custom_tracer(&mut NoopMemoryTracer);
+        let mut tx_result_tracer = TransactionResultTracer::default();
+        let stop_reason = self.execute_with_custom_tracer(&mut tx_result_tracer);
         match stop_reason {
             VmExecutionStopReason::VmFinished => {
                 let mut full_result = vm_may_have_ended(self, gas_before).unwrap();
 
-                // if `job_type == BootloaderJobType::TransactionExecution` it means
-                // that the transaction has been executed as eth_call.
                 if job_type == BootloaderJobType::TransactionExecution
                     && tx_has_failed(&self.state, 0)
                     && full_result.revert_reason.is_none()
                 {
-                    full_result.revert_reason = Some(VmRevertReasonParsingResult {
-                        revert_reason: TxRevertReason::TxOutOfGas,
-                        original_data: vec![],
-                    });
+                    let revert_reason = tx_result_tracer
+                        .revert_reason
+                        .map(|reason| {
+                            let vm_revert_reason = VmRevertReason::try_from(reason.as_slice())
+                                .unwrap_or_else(|_| VmRevertReason::Unknown {
+                                    function_selector: vec![],
+                                    data: reason.clone(),
+                                });
+
+                            VmRevertReasonParsingResult {
+                                revert_reason: TxRevertReason::TxReverted(vm_revert_reason),
+                                original_data: reason,
+                            }
+                        })
+                        .unwrap_or_else(|| VmRevertReasonParsingResult {
+                            revert_reason: TxRevertReason::TxReverted(VmRevertReason::General {
+                                msg: "Transaction reverted with empty reason. Possibly out of gas"
+                                    .to_string(),
+                            }),
+                            original_data: vec![],
+                        });
+
+                    full_result.revert_reason = Some(revert_reason);
                 }
 
                 let block_tip_result = VmPartialExecutionResult {

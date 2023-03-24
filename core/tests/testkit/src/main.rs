@@ -37,7 +37,7 @@ async fn main() -> anyhow::Result<()> {
     let opt = Opt::from_args();
 
     if opt.debug {
-        vlog::init();
+        let _sentry_guard = vlog::init();
     }
 
     match opt.command {

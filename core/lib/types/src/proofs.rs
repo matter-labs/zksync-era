@@ -14,7 +14,7 @@ use zkevm_test_harness::{
     LeafAggregationOutputDataWitness, NodeAggregationOutputDataWitness,
     SchedulerCircuitInstanceWitness,
 };
-use zksync_basic_types::{L1BatchNumber, U256};
+use zksync_basic_types::{L1BatchNumber, H256, U256};
 
 /// Metadata emitted by merkle tree after processing single storage log
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -130,6 +130,7 @@ pub struct PrepareBasicCircuitsJob {
 #[derive(Clone)]
 pub struct BasicCircuitWitnessGeneratorInput {
     pub block_number: L1BatchNumber,
+    pub previous_block_hash: H256,
     pub previous_block_timestamp: u64,
     pub block_timestamp: u64,
     pub used_bytecodes_hashes: Vec<U256>,

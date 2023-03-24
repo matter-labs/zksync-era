@@ -3,6 +3,7 @@ use crate::eth_sender::block_publish_criterion::{
     TimestampDeadlineCriterion,
 };
 use zksync_config::configs::eth_sender::{ProofSendingMode, SenderConfig};
+use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::StorageProcessor;
 use zksync_types::aggregated_operations::{
     AggregatedActionType, AggregatedOperation, BlocksCommitOperation, BlocksExecuteOperation,
@@ -81,6 +82,7 @@ impl Aggregator {
     pub async fn get_next_ready_operation(
         &mut self,
         storage: &mut StorageProcessor<'_>,
+        base_system_contracts_hashes: BaseSystemContractsHashes,
     ) -> Option<AggregatedOperation> {
         let last_sealed_block_number = storage.blocks_dal().get_sealed_block_number();
         if let Some(op) = self
@@ -106,6 +108,7 @@ impl Aggregator {
                 storage,
                 self.config.max_aggregated_blocks_to_commit as usize,
                 last_sealed_block_number,
+                base_system_contracts_hashes,
             )
             .await
             .map(AggregatedOperation::CommitBlocks)
@@ -118,7 +121,10 @@ impl Aggregator {
         limit: usize,
         last_sealed_block: L1BatchNumber,
     ) -> Option<BlocksExecuteOperation> {
-        let ready_for_execute_blocks = storage.blocks_dal().get_ready_for_execute_blocks(limit);
+        let ready_for_execute_blocks = storage.blocks_dal().get_ready_for_execute_blocks(
+            limit,
+            self.config.l1_batch_min_age_before_execute_seconds,
+        );
         let blocks = extract_ready_subrange(
             storage,
             &mut self.execute_criterion,
@@ -135,11 +141,28 @@ impl Aggregator {
         storage: &mut StorageProcessor<'_>,
         limit: usize,
         last_sealed_block: L1BatchNumber,
+        base_system_contracts_hashes: BaseSystemContractsHashes,
     ) -> Option<BlocksCommitOperation> {
         let mut blocks_dal = storage.blocks_dal();
 
         let last_block = blocks_dal.get_last_committed_to_eth_block()?;
-        let ready_for_commit_blocks = blocks_dal.get_ready_for_commit_blocks(limit);
+
+        let ready_for_commit_blocks = blocks_dal.get_ready_for_commit_blocks(
+            limit,
+            base_system_contracts_hashes.bootloader,
+            base_system_contracts_hashes.default_aa,
+        );
+
+        // Check that the blocks that are selected are sequential
+        ready_for_commit_blocks
+            .iter()
+            .reduce(|last_block, next_block| {
+                if last_block.header.number + 1 == next_block.header.number {
+                    next_block
+                } else {
+                    panic!("Blocks are not sequential")
+                }
+            });
 
         let blocks = extract_ready_subrange(
             storage,

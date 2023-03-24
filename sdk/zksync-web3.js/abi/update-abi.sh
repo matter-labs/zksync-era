@@ -17,4 +17,5 @@ cat $ZKSYNC_CONTRACTS/bridge/interfaces/IL2Bridge.sol/IL2Bridge.json | jq '{ abi
 cat $ZKSYNC_CONTRACTS/interfaces/IPaymasterFlow.sol/IPaymasterFlow.json | jq '{ abi: .abi}' > IPaymasterFlow.json
 
 cat $SYSTEM_CONTRACTS/interfaces/IL1Messenger.sol/IL1Messenger.json | jq '{ abi: .abi}' > IL1Messenger.json
+cat $SYSTEM_CONTRACTS/interfaces/IEthToken.sol/IEthToken.json | jq '{ abi: .abi}' > IEthToken.json
 cat $SYSTEM_CONTRACTS/ContractDeployer.sol/ContractDeployer.json | jq '{ abi: .abi}' > ContractDeployer.json

@@ -33,6 +33,7 @@ use backend_jsonrpc::{
 use namespaces::{EthNamespace, EthSubscribe, NetNamespace, Web3Namespace, ZksNamespace};
 use pubsub_notifier::{notify_blocks, notify_logs, notify_txs};
 use state::{Filters, RpcState};
+use zksync_contracts::{ESTIMATE_FEE_BLOCK_CODE, PLAYGROUND_BLOCK_BOOTLOADER_CODE};
 
 pub mod backend_jsonrpc;
 pub mod backend_jsonrpsee;
@@ -56,11 +57,26 @@ impl RpcState {
         gas_adjuster: Arc<GasAdjuster<EthereumClient>>,
     ) -> Self {
         let config = get_config();
+        let mut storage = replica_connection_pool.access_storage_blocking();
+
+        let base_system_contracts = storage.storage_dal().get_base_system_contracts(
+            config.chain.state_keeper.bootloader_hash,
+            config.chain.state_keeper.default_aa_hash,
+        );
+
+        let mut playground_base_system_contracts = base_system_contracts.clone();
+        let mut estimate_fee_base_system_contracts = base_system_contracts;
+        playground_base_system_contracts.bootloader = PLAYGROUND_BLOCK_BOOTLOADER_CODE.clone();
+        estimate_fee_base_system_contracts.bootloader = ESTIMATE_FEE_BLOCK_CODE.clone();
+
+        drop(storage);
         let tx_sender = TxSender::new(
             config,
             master_connection_pool,
             replica_connection_pool.clone(),
             gas_adjuster,
+            playground_base_system_contracts,
+            estimate_fee_base_system_contracts,
         );
 
         let accounts = if cfg!(feature = "openzeppelin_tests") {

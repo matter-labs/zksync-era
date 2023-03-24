@@ -9,7 +9,8 @@ use super::{BootloaderErrorCode, VmRevertReason};
 pub enum TxRevertReason {
     // Can only be returned in EthCall execution mode (=ExecuteOnly)
     EthCall(VmRevertReason),
-    TxOutOfGas,
+    // Returned when the execution of an L2 transaction has failed
+    TxReverted(VmRevertReason),
     // Can only be returned in VerifyAndExecute
     ValidationFailed(VmRevertReason),
     PaymasterValidationFailed(VmRevertReason),
@@ -160,7 +161,7 @@ impl Display for TxRevertReason {
         match &self {
             // EthCall reason is usually returned unchanged.
             TxRevertReason::EthCall(reason) => write!(f, "{}", reason),
-            TxRevertReason::TxOutOfGas => write!(f, "out of gas"),
+            TxRevertReason::TxReverted(reason) => write!(f, "{}", reason),
             TxRevertReason::ValidationFailed(reason) => {
                 write!(f, "Account validation error: {}", reason)
             }

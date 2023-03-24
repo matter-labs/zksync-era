@@ -11,6 +11,8 @@ categories = ["cryptography"]
 
 [dependencies]
 vlog = { path = "../../lib/vlog", version = "1.0" }
+zksync_config = { path = "../../lib/config", version = "1.0" }
+zksync_utils = { path = "../../lib/utils", version = "1.0" }
 
 metrics = "0.20"
 reqwest = { version = "0.11", features = ["blocking"] }
