@@ -147,7 +147,7 @@ pub fn read_sys_contract_bytecode(directory: &str, name: &str, lang: ContractLan
     match lang {
         ContractLanguage::Sol => {
             read_bytecode(format!(
-                "etc/system-contracts/artifacts-zk/cache-zk/solpp-generated-contracts/{0}{1}.sol/{1}.json",
+                "etc/system-contracts/artifacts-zk/cache-zk/solpp-generated-contracts/{0}/{1}.sol/{1}.json",
                 directory, name
             ))
         },
