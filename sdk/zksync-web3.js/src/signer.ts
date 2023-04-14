@@ -35,9 +35,9 @@ export class EIP712Signer {
     }
 
     static getSignInput(transaction: TransactionRequest) {
-        const maxFeePerGas = transaction.maxFeePerGas || transaction.gasPrice;
-        const maxPriorityFeePerGas = transaction.maxPriorityFeePerGas || maxFeePerGas;
-        const gasPerPubdataByteLimit = transaction.customData?.gasPerPubdata || DEFAULT_GAS_PER_PUBDATA_LIMIT;
+        const maxFeePerGas = transaction.maxFeePerGas ?? transaction.gasPrice ?? 0;
+        const maxPriorityFeePerGas = transaction.maxPriorityFeePerGas ?? maxFeePerGas;
+        const gasPerPubdataByteLimit = transaction.customData?.gasPerPubdata ?? DEFAULT_GAS_PER_PUBDATA_LIMIT;
         const signInput = {
             txType: transaction.type,
             from: transaction.from,
