@@ -84,6 +84,16 @@ impl ReportBuilder {
     pub fn finish(self) -> Report {
         self.report
     }
+
+    pub fn build_init_complete_report() -> Report {
+        Report {
+            reporter: Default::default(),
+            label: ReportLabel::done(),
+            action: ActionType::InitComplete,
+            retries: 0,
+            time: Default::default(),
+        }
+    }
 }
 
 /// Denotes the outcome of a performed action.
@@ -180,6 +190,7 @@ impl From<ApiRequest> for ApiActionType {
 /// Generic wrapper of all the actions that can be done in loadtest.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ActionType {
+    InitComplete,
     Tx(TxActionType),
     Api(ApiActionType),
     ExplorerApi(ExplorerApiRequestType),

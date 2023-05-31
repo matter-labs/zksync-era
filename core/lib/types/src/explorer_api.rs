@@ -157,6 +157,7 @@ pub struct TransactionDetails {
     pub index_in_block: Option<u32>,
     pub initiator_address: Address,
     pub received_at: DateTime<Utc>,
+    pub miniblock_timestamp: Option<u64>,
     pub eth_commit_tx_hash: Option<H256>,
     pub eth_prove_tx_hash: Option<H256>,
     pub eth_execute_tx_hash: Option<H256>,
@@ -285,6 +286,7 @@ pub struct BlockDetails {
     pub l1_gas_price: u64,
     pub l2_fair_gas_price: u64,
     pub base_system_contracts_hashes: BaseSystemContractsHashes,
+    pub operator_address: Address,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -322,9 +324,11 @@ pub struct L1BatchPageItem {
 #[serde(tag = "codeFormat", content = "sourceCode")]
 pub enum SourceCodeData {
     #[serde(rename = "solidity-single-file")]
-    SingleFile(String),
+    SolSingleFile(String),
     #[serde(rename = "solidity-standard-json-input")]
     StandardJsonInput(serde_json::Map<String, serde_json::Value>),
+    #[serde(rename = "yul-single-file")]
+    YulSingleFile(String),
 }
 
 // Implementing Custom deserializer which deserializes `SourceCodeData`
@@ -362,7 +366,18 @@ impl<'de> Visitor<'de> for SourceCodeVisitor {
         let result = match r#type.as_deref() {
             Some("solidity-single-file") | None => {
                 let value = source_code.ok_or_else(|| A::Error::missing_field("source_code"))?;
-                SourceCodeData::SingleFile(
+                SourceCodeData::SolSingleFile(
+                    value
+                        .as_str()
+                        .ok_or_else(|| {
+                            A::Error::invalid_type(Unexpected::Other(&value.to_string()), &self)
+                        })?
+                        .to_string(),
+                )
+            }
+            Some("yul-single-file") => {
+                let value = source_code.ok_or_else(|| A::Error::missing_field("source_code"))?;
+                SourceCodeData::YulSingleFile(
                     value
                         .as_str()
                         .ok_or_else(|| {
@@ -385,7 +400,11 @@ impl<'de> Visitor<'de> for SourceCodeVisitor {
             Some(x) => {
                 return Err(A::Error::unknown_variant(
                     x,
-                    &["solidity-single-file", "solidity-standard-json-input"],
+                    &[
+                        "solidity-single-file",
+                        "solidity-standard-json-input",
+                        "yul-single-file",
+                    ],
                 ))
             }
         };
@@ -458,7 +477,7 @@ mod tests {
         let single_file_result = serde_json::from_str::<SourceCodeData>(single_file_str);
         assert!(matches!(
             single_file_result,
-            Ok(SourceCodeData::SingleFile(_))
+            Ok(SourceCodeData::SolSingleFile(_))
         ));
 
         let stand_json_input_str =
@@ -474,7 +493,7 @@ mod tests {
             serde_json::from_str::<SourceCodeData>(type_not_specified_str);
         assert!(matches!(
             type_not_specified_result,
-            Ok(SourceCodeData::SingleFile(_))
+            Ok(SourceCodeData::SolSingleFile(_))
         ));
 
         let type_not_specified_object_str = r#"{"sourceCode": {}}"#;

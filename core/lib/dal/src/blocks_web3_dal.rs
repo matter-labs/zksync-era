@@ -12,8 +12,10 @@ use std::time::Instant;
 use vm::utils::BLOCK_GAS_LIMIT;
 use zksync_config::constants::EMPTY_UNCLES_HASH;
 
+use crate::models::storage_transaction::CallTrace;
 use zksync_types::api::{self, Block, BlockId, TransactionVariant};
 use zksync_types::l2_to_l1_log::L2ToL1Log;
+use zksync_types::vm_trace::Call;
 use zksync_types::web3::types::{BlockHeader, U64};
 use zksync_types::{L1BatchNumber, L2ChainId, MiniblockNumber, H160, H256, U256};
 use zksync_utils::{bigdecimal_to_u256, miniblock_hash};
@@ -266,17 +268,25 @@ impl BlocksWeb3Dal<'_, '_> {
 
     pub fn resolve_block_id(
         &mut self,
-        block_id: api::BlockId,
+        block_id: BlockId,
     ) -> Result<Result<MiniblockNumber, Web3Error>, SqlxError> {
         async_std::task::block_on(async {
             let query_string = match block_id {
-                api::BlockId::Hash(_) => {
-                    "SELECT number FROM miniblocks WHERE hash = $1".to_string()
+                BlockId::Hash(_) => "SELECT number FROM miniblocks WHERE hash = $1".to_string(),
+                BlockId::Number(api::BlockNumber::Number(block_number)) => {
+                    // The reason why instead of returning the `block_number` directly we use query is
+                    // to handle numbers of blocks that are not created yet.
+                    // the `SELECT number FROM miniblocks WHERE number=block_number` for
+                    // non-existing block number will returns zero.
+                    format!(
+                        "SELECT number FROM miniblocks WHERE number = {}",
+                        block_number
+                    )
                 }
-                api::BlockId::Number(api::BlockNumber::Number(_)) => {
-                    "SELECT number FROM miniblocks WHERE number = $1".to_string()
+                BlockId::Number(api::BlockNumber::Earliest) => {
+                    return Ok(Ok(MiniblockNumber(0)));
                 }
-                api::BlockId::Number(block_number) => web3_block_number_to_sql(block_number, 1).0,
+                BlockId::Number(block_number) => web3_block_number_to_sql(block_number),
             };
             let row = bind_block_where_sql_params(block_id, sqlx::query(&query_string))
                 .fetch_optional(self.storage.conn())
@@ -393,5 +403,48 @@ impl BlocksWeb3Dal<'_, '_> {
             });
             Ok(result)
         })
+    }
+
+    pub fn get_trace_for_miniblock(&mut self, block: BlockId) -> Result<Vec<Call>, Web3Error> {
+        async_std::task::block_on(async {
+            let block_number = self.resolve_block_id(block).unwrap()?;
+            let traces = sqlx::query_as!(
+                CallTrace,
+                r#"
+                    SELECT * FROM call_traces WHERE tx_hash IN (
+                        SELECT hash FROM transactions WHERE miniblock_number = $1
+                    )
+                "#,
+                block_number.0 as i64
+            )
+            .fetch_all(self.storage.conn())
+            .await
+            .unwrap()
+            .into_iter()
+            .map(Call::from)
+            .collect();
+            Ok(traces)
+        })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::ConnectionPool;
+
+    use super::*;
+    use db_test_macro::db_test;
+    use zksync_types::{
+        api::{BlockId, BlockNumber},
+        MiniblockNumber,
+    };
+
+    #[db_test(dal_crate)]
+    async fn test_resolve_block_id_earliest(connection_pool: ConnectionPool) {
+        let storage = &mut connection_pool.access_test_storage().await;
+        let mut block_web3_dal = BlocksWeb3Dal { storage };
+        let miniblock_number =
+            block_web3_dal.resolve_block_id(BlockId::Number(BlockNumber::Earliest));
+        assert_eq!(miniblock_number.unwrap().unwrap(), MiniblockNumber(0));
     }
 }

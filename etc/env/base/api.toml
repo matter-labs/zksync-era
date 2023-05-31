@@ -51,7 +51,7 @@ url="http://127.0.0.1:3070"
 # Interval between polling db for network stats (in ms).
 network_stats_polling_interval=1000
 req_entities_limit=100
-offset_limit=10000
+offset_limit=250
 threads_per_server=128
 
 # Configuration for the prometheus exporter server.
@@ -59,3 +59,7 @@ threads_per_server=128
 listener_port=3312
 pushgateway_url="http://127.0.0.1:9091"
 push_interval_ms=100
+
+# Configuration for the healtcheck server.
+[api.healthcheck]
+port=3071

@@ -174,9 +174,27 @@ export interface ContractAccountInfo {
     nonceOrdering: AccountNonceOrdering;
 }
 
+export interface BatchDetails {
+    number: number;
+    timestamp: number;
+    l1TxCount: number;
+    l2TxCount: number;
+    rootHash?: string;
+    status: string;
+    commitTxHash?: string;
+    committedAt?: Date;
+    proveTxHash?: string;
+    provenAt?: Date;
+    executeTxHash?: string;
+    executedAt?: Date;
+    l1GasPrice: number;
+    l2FairGasPrice: number;
+}
+
 export interface BlockDetails {
     number: number;
     timestamp: number;
+    l1BatchNumber: number;
     l1TxCount: number;
     l2TxCount: number;
     rootHash?: string;
@@ -198,4 +216,13 @@ export interface TransactionDetails {
     ethCommitTxHash?: string;
     ethProveTxHash?: string;
     ethExecuteTxHash?: string;
+}
+
+export interface FullDepositFee {
+    maxFeePerGas?: BigNumber;
+    maxPriorityFeePerGas?: BigNumber;
+    gasPrice?: BigNumber;
+    baseCost: BigNumber;
+    l1GasLimit: BigNumber;
+    l2GasLimit: BigNumber;
 }

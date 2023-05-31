@@ -109,7 +109,7 @@ basic_type!(
 basic_type!(
     /// ChainId in the Ethereum network.
     L1ChainId,
-    u8
+    u64
 );
 
 basic_type!(

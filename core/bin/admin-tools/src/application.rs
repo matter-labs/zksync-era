@@ -24,8 +24,7 @@ pub fn create_app<'a>(profile: &Option<String>) -> Result<App<'a>, AppError> {
 
     let tokio = tokio::runtime::Runtime::new().map_err(|x| AppError::Init(InitError::IO(x)))?;
 
-    let db =
-        tokio.block_on(async { zksync_dal::StorageProcessor::establish_connection(true).await });
+    let db = zksync_dal::StorageProcessor::establish_connection_blocking(true);
 
     let invocation = std::process::Command::new("stty")
         .arg("-f")

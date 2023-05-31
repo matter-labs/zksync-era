@@ -6,7 +6,7 @@ use zk_evm::{
     precompiles::DefaultPrecompilesProcessor,
 };
 
-use crate::history_recorder::HistoryRecorder;
+use crate::history_recorder::{HistoryEnabled, HistoryMode, HistoryRecorder};
 
 use super::OracleWithHistory;
 
@@ -16,40 +16,37 @@ use super::OracleWithHistory;
 /// saving timestamps allows us to check the exact number
 /// of log queries, that were used during the tx execution.
 #[derive(Debug, Clone)]
-pub struct PrecompilesProcessorWithHistory<const B: bool> {
-    pub timestamp_history: HistoryRecorder<Vec<Timestamp>>,
+pub struct PrecompilesProcessorWithHistory<const B: bool, H: HistoryMode> {
+    pub timestamp_history: HistoryRecorder<Vec<Timestamp>, H>,
     pub default_precompiles_processor: DefaultPrecompilesProcessor<B>,
 }
 
-impl<const B: bool> OracleWithHistory for PrecompilesProcessorWithHistory<B> {
+impl<const B: bool, H: HistoryMode> Default for PrecompilesProcessorWithHistory<B, H> {
+    fn default() -> Self {
+        Self {
+            timestamp_history: Default::default(),
+            default_precompiles_processor: DefaultPrecompilesProcessor,
+        }
+    }
+}
+
+impl<const B: bool> OracleWithHistory for PrecompilesProcessorWithHistory<B, HistoryEnabled> {
     fn rollback_to_timestamp(&mut self, timestamp: Timestamp) {
         self.timestamp_history.rollback_to_timestamp(timestamp);
     }
+}
 
-    fn delete_history(&mut self) {
+impl<const B: bool, H: HistoryMode> PrecompilesProcessorWithHistory<B, H> {
+    pub fn get_timestamp_history(&self) -> &Vec<Timestamp> {
+        self.timestamp_history.inner()
+    }
+
+    pub fn delete_history(&mut self) {
         self.timestamp_history.delete_history();
     }
 }
 
-impl<const B: bool> PrecompilesProcessorWithHistory<B> {
-    pub fn new() -> Self {
-        Self {
-            timestamp_history: Default::default(),
-            default_precompiles_processor: DefaultPrecompilesProcessor {},
-        }
-    }
-    pub fn get_timestamp_history(&self) -> &Vec<Timestamp> {
-        self.timestamp_history.inner()
-    }
-}
-
-impl<const B: bool> Default for PrecompilesProcessorWithHistory<B> {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl<const B: bool> PrecompilesProcessor for PrecompilesProcessorWithHistory<B> {
+impl<const B: bool, H: HistoryMode> PrecompilesProcessor for PrecompilesProcessorWithHistory<B, H> {
     fn start_frame(&mut self) {
         self.default_precompiles_processor.start_frame();
     }

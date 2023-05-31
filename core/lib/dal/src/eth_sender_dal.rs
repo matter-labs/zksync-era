@@ -2,8 +2,12 @@ use crate::models::storage_eth_tx::{
     L1BatchEthSenderStats, StorageEthTx, StorageTxHistory, StorageTxHistoryToSend,
 };
 use crate::StorageProcessor;
-use sqlx::Row;
+use sqlx::{
+    types::chrono::{DateTime, Utc},
+    Row,
+};
 use std::convert::TryFrom;
+use std::str::FromStr;
 use zksync_types::aggregated_operations::AggregatedActionType;
 use zksync_types::eth_sender::{EthTx, TxHistory, TxHistoryToSend};
 use zksync_types::{Address, L1BatchNumber, H256, U256};
@@ -33,15 +37,29 @@ impl EthSenderDal<'_, '_> {
         async_std::task::block_on(async {
             let mut stats = L1BatchEthSenderStats::default();
             for tx_type in ["execute_tx", "commit_tx", "prove_tx"] {
-                let records= sqlx::query(&format!(
-                        "SELECT MAX(number) as number, txs.confirmed_at IS NOT NULL as confirmed FROM l1_batches
-                         LEFT JOIN eth_txs_history as txs ON (l1_batches.eth_{}_id = txs.eth_tx_id)
-                         GROUP BY confirmed",
+                let mut records= sqlx::query(&format!(
+                        "SELECT number as number, true as confirmed FROM l1_batches
+                         INNER JOIN eth_txs_history ON (l1_batches.eth_{}_id = eth_txs_history.eth_tx_id)
+                         WHERE eth_txs_history.confirmed_at IS NOT NULL
+                         ORDER BY number DESC
+                         LIMIT 1",
                         tx_type
                     ))
                         .fetch_all(self.storage.conn())
                         .await
                         .unwrap();
+
+                records.extend(sqlx::query(&format!(
+                    "SELECT number as number, false as confirmed FROM l1_batches
+                     INNER JOIN eth_txs_history ON (l1_batches.eth_{}_id = eth_txs_history.eth_tx_id)
+                     ORDER BY number DESC
+                     LIMIT 1",
+                    tx_type
+                ))
+                    .fetch_all(self.storage.conn())
+                    .await
+                    .unwrap());
+
                 for record in records {
                     let batch_number = L1BatchNumber(record.get::<i64, &str>("number") as u32);
                     let aggregation_action = match tx_type {
@@ -153,7 +171,7 @@ impl EthSenderDal<'_, '_> {
         priority_fee_per_gas: u64,
         tx_hash: H256,
         raw_signed_tx: Vec<u8>,
-    ) -> u32 {
+    ) -> Option<u32> {
         async_std::task::block_on(async {
             let priority_fee_per_gas =
                 i64::try_from(priority_fee_per_gas).expect("Can't convert U256 to i64");
@@ -165,6 +183,7 @@ impl EthSenderDal<'_, '_> {
                 "INSERT INTO eth_txs_history
                 (eth_tx_id, base_fee_per_gas, priority_fee_per_gas, tx_hash, signed_raw_tx, created_at, updated_at)
                 VALUES ($1, $2, $3, $4, $5, now(), now())
+                ON CONFLICT (tx_hash) DO NOTHING
                 RETURNING id",
                 eth_tx_id as u32,
                 base_fee_per_gas,
@@ -172,10 +191,10 @@ impl EthSenderDal<'_, '_> {
                 tx_hash,
                 raw_signed_tx
             )
-            .fetch_one(self.storage.conn())
+            .fetch_optional(self.storage.conn())
             .await
             .unwrap()
-            .id as u32
+            .map(|row| row.id as u32)
         })
     }
 
@@ -208,6 +227,7 @@ impl EthSenderDal<'_, '_> {
 
     pub fn confirm_tx(&mut self, tx_hash: H256, gas_used: U256) {
         async_std::task::block_on(async {
+            let mut transaction = self.storage.start_transaction().await;
             let gas_used = i64::try_from(gas_used).expect("Can't convert U256 to i64");
             let tx_hash = format!("{:#x}", tx_hash);
             let ids = sqlx::query!(
@@ -217,7 +237,7 @@ impl EthSenderDal<'_, '_> {
                 RETURNING id, eth_tx_id",
                 tx_hash,
             )
-            .fetch_one(self.storage.conn())
+            .fetch_one(transaction.conn())
             .await
             .unwrap();
 
@@ -229,9 +249,117 @@ impl EthSenderDal<'_, '_> {
                 ids.id,
                 ids.eth_tx_id
             )
-            .execute(self.storage.conn())
+            .execute(transaction.conn())
             .await
             .unwrap();
+
+            transaction.commit().await;
+        })
+    }
+
+    pub fn get_confirmed_tx_hash_by_eth_tx_id(&mut self, eth_tx_id: u32) -> Option<H256> {
+        async_std::task::block_on(async {
+            let tx_hash = sqlx::query!(
+                "SELECT tx_hash FROM eth_txs_history
+                WHERE eth_tx_id = $1 AND confirmed_at IS NOT NULL",
+                eth_tx_id as i64
+            )
+            .fetch_optional(self.storage.conn())
+            .await
+            .unwrap();
+
+            tx_hash.map(|tx_hash| {
+                let tx_hash = tx_hash.tx_hash;
+                let tx_hash = tx_hash.trim_start_matches("0x");
+                H256::from_str(tx_hash).unwrap()
+            })
+        })
+    }
+
+    /// This method inserts a fake transaction into the database that would make the corresponding L1 batch
+    /// to be considered committed/proven/executed.
+    ///
+    /// The designed use case is the External Node usage, where we don't really care about the actual transactions apart
+    /// from the hash and the fact that tx was sent.
+    ///
+    /// ## Warning
+    ///
+    /// After this method is used anywhere in the codebase, it is considered a bug to try to directly query `eth_txs_history`
+    /// or `eth_txs` tables.
+    pub fn insert_bogus_confirmed_eth_tx(
+        &mut self,
+        l1_batch: L1BatchNumber,
+        tx_type: AggregatedActionType,
+        tx_hash: H256,
+        confirmed_at: DateTime<Utc>,
+    ) {
+        async_std::task::block_on(async {
+            let mut transaction = self.storage.start_transaction().await;
+            let tx_hash = format!("{:#x}", tx_hash);
+
+            let eth_tx_id = sqlx::query_scalar!(
+                "SELECT eth_txs.id FROM eth_txs_history JOIN eth_txs
+                ON eth_txs.confirmed_eth_tx_history_id = eth_txs_history.id
+                WHERE eth_txs_history.tx_hash = $1",
+                tx_hash
+            )
+            .fetch_optional(transaction.conn())
+            .await
+            .unwrap();
+
+            // Check if the transaction with the corresponding hash already exists.
+            let eth_tx_id = if let Some(eth_tx_id) = eth_tx_id {
+                eth_tx_id
+            } else {
+                // No such transaction in the database yet, we have to insert it.
+
+                // Insert general tx descriptor.
+                let eth_tx_id = sqlx::query_scalar!(
+                    "INSERT INTO eth_txs (raw_tx, nonce, tx_type, contract_address, predicted_gas_cost, created_at, updated_at)
+                    VALUES ('\\x00', 0, $1, '', 0, now(), now())
+                    RETURNING id",
+                    tx_type.to_string()
+                )
+                .fetch_one(transaction.conn())
+                .await
+                .unwrap();
+
+                // Insert a "sent transaction".
+                let eth_history_id = sqlx::query_scalar!(
+                    "INSERT INTO eth_txs_history
+                    (eth_tx_id, base_fee_per_gas, priority_fee_per_gas, tx_hash, signed_raw_tx, created_at, updated_at, confirmed_at)
+                    VALUES ($1, 0, 0, $2, '\\x00', now(), now(), $3)
+                    RETURNING id",
+                    eth_tx_id,
+                    tx_hash,
+                    confirmed_at.naive_utc()
+                )
+                .fetch_one(transaction.conn())
+                .await
+                .unwrap();
+
+                // Mark general entry as confirmed.
+                sqlx::query!(
+                    "UPDATE eth_txs
+                    SET confirmed_eth_tx_history_id = $1
+                    WHERE id = $2",
+                    eth_history_id,
+                    eth_tx_id
+                )
+                .execute(transaction.conn())
+                .await
+                .unwrap();
+
+                eth_tx_id
+            };
+
+            // Tie the ETH tx to the L1 batch.
+            super::BlocksDal {
+                storage: &mut transaction,
+            }
+            .set_eth_tx_id(l1_batch, l1_batch, eth_tx_id as u32, tx_type);
+
+            transaction.commit().await;
         })
     }
 

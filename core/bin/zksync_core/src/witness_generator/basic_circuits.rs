@@ -1,55 +1,208 @@
-use serde::{Deserialize, Serialize};
+use std::cell::RefCell;
 use std::collections::hash_map::DefaultHasher;
 use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
 use std::rc::Rc;
+use std::sync::Arc;
 use std::time::Instant;
-use vm::zk_evm::bitflags::_core::cell::RefCell;
+
+use async_trait::async_trait;
+use rand::Rng;
+use serde::{Deserialize, Serialize};
+
 use vm::zk_evm::ethereum_types::H256;
+use vm::HistoryDisabled;
 use vm::{memory::SimpleMemory, StorageOracle, MAX_CYCLES_FOR_TX};
 use zksync_config::configs::WitnessGeneratorConfig;
 use zksync_config::constants::BOOTLOADER_ADDRESS;
 use zksync_dal::ConnectionPool;
-use zksync_object_store::gcs_utils::{
-    basic_circuits_blob_url, basic_circuits_inputs_blob_url, merkle_tree_paths_blob_url,
-    scheduler_witness_blob_url,
-};
-use zksync_object_store::object_store::create_object_store_from_env;
-use zksync_object_store::object_store::{
-    DynamicObjectStore, LEAF_AGGREGATION_WITNESS_JOBS_BUCKET_PATH,
-    SCHEDULER_WITNESS_JOBS_BUCKET_PATH, WITNESS_INPUT_BUCKET_PATH,
-};
+use zksync_db_storage_provider::DbStorageProvider;
+use zksync_object_store::{Bucket, ObjectStore, ObjectStoreFactory, StoredObject};
+use zksync_queued_job_processor::JobProcessor;
 use zksync_state::storage_view::StorageView;
 use zksync_types::zkevm_test_harness::toolset::GeometryConfig;
 use zksync_types::{
     circuit::GEOMETRY_CONFIG,
-    proofs::{
-        AggregationRound, BasicCircuitWitnessGeneratorInput, PrepareBasicCircuitsJob,
-        StorageLogMetadata, WitnessGeneratorJob, WitnessGeneratorJobInput,
-    },
+    proofs::{AggregationRound, BasicCircuitWitnessGeneratorInput, PrepareBasicCircuitsJob},
     zkevm_test_harness::{
+        abstract_zksync_circuit::concrete_circuits::ZkSyncCircuit,
         bellman::bn256::Bn256,
         witness::full_block_artifact::{BlockBasicCircuits, BlockBasicCircuitsPublicInputs},
+        witness::oracle::VmWitnessOracle,
         SchedulerCircuitInstanceWitness,
     },
     Address, L1BatchNumber, U256,
 };
 use zksync_utils::{bytes_to_chunks, h256_to_u256, u256_to_h256};
 
-use crate::db_storage_provider::DbStorageProvider;
-use crate::witness_generator;
 use crate::witness_generator::precalculated_merkle_paths_provider::PrecalculatedMerklePathsProvider;
 use crate::witness_generator::track_witness_generation_stage;
 use crate::witness_generator::utils::{expand_bootloader_contents, save_prover_input_artifacts};
 
 pub struct BasicCircuitArtifacts {
-    pub basic_circuits: BlockBasicCircuits<Bn256>,
-    pub basic_circuits_inputs: BlockBasicCircuitsPublicInputs<Bn256>,
-    pub scheduler_witness: SchedulerCircuitInstanceWitness<Bn256>,
-    pub serialized_circuits: Vec<(String, Vec<u8>)>,
+    basic_circuits: BlockBasicCircuits<Bn256>,
+    basic_circuits_inputs: BlockBasicCircuitsPublicInputs<Bn256>,
+    scheduler_witness: SchedulerCircuitInstanceWitness<Bn256>,
+    circuits: Vec<ZkSyncCircuit<Bn256, VmWitnessOracle<Bn256>>>,
+}
+
+#[derive(Debug)]
+struct BlobUrls {
+    basic_circuits_url: String,
+    basic_circuits_inputs_url: String,
+    scheduler_witness_url: String,
+    circuit_types_and_urls: Vec<(&'static str, String)>,
+}
+
+#[derive(Clone)]
+pub struct BasicWitnessGeneratorJob {
+    block_number: L1BatchNumber,
+    job: PrepareBasicCircuitsJob,
+}
+
+#[derive(Debug)]
+pub struct BasicWitnessGenerator {
+    config: WitnessGeneratorConfig,
+    object_store: Arc<dyn ObjectStore>,
+}
+
+impl BasicWitnessGenerator {
+    pub fn new(config: WitnessGeneratorConfig, store_factory: &ObjectStoreFactory) -> Self {
+        Self {
+            config,
+            object_store: store_factory.create_store().into(),
+        }
+    }
+
+    fn process_job_sync(
+        object_store: &dyn ObjectStore,
+        connection_pool: ConnectionPool,
+        basic_job: BasicWitnessGeneratorJob,
+        started_at: Instant,
+    ) -> Option<BasicCircuitArtifacts> {
+        let config: WitnessGeneratorConfig = WitnessGeneratorConfig::from_env();
+        let BasicWitnessGeneratorJob { block_number, job } = basic_job;
+
+        if let Some(blocks_proving_percentage) = config.blocks_proving_percentage {
+            // Generate random number in (0; 100).
+            let threshold = rand::thread_rng().gen_range(1..100);
+            // We get value higher than `blocks_proving_percentage` with prob = `1 - blocks_proving_percentage`.
+            // In this case job should be skipped.
+            if threshold > blocks_proving_percentage {
+                metrics::counter!("server.witness_generator.skipped_blocks", 1);
+                vlog::info!(
+                    "Skipping witness generation for block {}, blocks_proving_percentage: {}",
+                    block_number.0,
+                    blocks_proving_percentage
+                );
+                let mut storage = connection_pool.access_storage_blocking();
+                storage
+                    .witness_generator_dal()
+                    .mark_witness_job_as_skipped(block_number, AggregationRound::BasicCircuits);
+                return None;
+            }
+        }
+
+        metrics::counter!("server.witness_generator.sampled_blocks", 1);
+        vlog::info!(
+            "Starting witness generation of type {:?} for block {}",
+            AggregationRound::BasicCircuits,
+            block_number.0
+        );
+
+        Some(process_basic_circuits_job(
+            object_store,
+            config,
+            connection_pool,
+            started_at,
+            block_number,
+            job,
+        ))
+    }
+}
+
+#[async_trait]
+impl JobProcessor for BasicWitnessGenerator {
+    type Job = BasicWitnessGeneratorJob;
+    type JobId = L1BatchNumber;
+    // The artifact is optional to support skipping blocks when sampling is enabled.
+    type JobArtifacts = Option<BasicCircuitArtifacts>;
+
+    const SERVICE_NAME: &'static str = "basic_circuit_witness_generator";
+
+    async fn get_next_job(
+        &self,
+        connection_pool: ConnectionPool,
+    ) -> Option<(Self::JobId, Self::Job)> {
+        let mut connection = connection_pool.access_storage_blocking();
+        let last_l1_batch_to_process = self.config.last_l1_batch_to_process();
+
+        match connection
+            .witness_generator_dal()
+            .get_next_basic_circuit_witness_job(
+                self.config.witness_generation_timeout(),
+                self.config.max_attempts,
+                last_l1_batch_to_process,
+            ) {
+            Some(metadata) => {
+                let job = get_artifacts(metadata.block_number, &*self.object_store);
+                Some((job.block_number, job))
+            }
+            None => None,
+        }
+    }
+
+    async fn save_failure(
+        &self,
+        connection_pool: ConnectionPool,
+        job_id: L1BatchNumber,
+        started_at: Instant,
+        error: String,
+    ) -> () {
+        connection_pool
+            .access_storage_blocking()
+            .witness_generator_dal()
+            .mark_witness_job_as_failed(
+                job_id,
+                AggregationRound::BasicCircuits,
+                started_at.elapsed(),
+                error,
+                self.config.max_attempts,
+            );
+    }
+
+    #[allow(clippy::async_yields_async)]
+    async fn process_job(
+        &self,
+        connection_pool: ConnectionPool,
+        job: BasicWitnessGeneratorJob,
+        started_at: Instant,
+    ) -> tokio::task::JoinHandle<Option<BasicCircuitArtifacts>> {
+        let object_store = Arc::clone(&self.object_store);
+        tokio::task::spawn_blocking(move || {
+            Self::process_job_sync(&*object_store, connection_pool.clone(), job, started_at)
+        })
+    }
+
+    async fn save_result(
+        &self,
+        connection_pool: ConnectionPool,
+        job_id: L1BatchNumber,
+        started_at: Instant,
+        optional_artifacts: Option<BasicCircuitArtifacts>,
+    ) {
+        match optional_artifacts {
+            None => (),
+            Some(artifacts) => {
+                let blob_urls = save_artifacts(job_id, artifacts, &*self.object_store);
+                update_database(connection_pool, started_at, job_id, blob_urls);
+            }
+        }
+    }
 }
 
 pub fn process_basic_circuits_job(
+    object_store: &dyn ObjectStore,
     config: WitnessGeneratorConfig,
     connection_pool: ConnectionPool,
     started_at: Instant,
@@ -58,50 +211,44 @@ pub fn process_basic_circuits_job(
 ) -> BasicCircuitArtifacts {
     let witness_gen_input =
         build_basic_circuits_witness_generator_input(connection_pool.clone(), job, block_number);
-
     let (basic_circuits, basic_circuits_inputs, scheduler_witness) =
-        generate_witness(config, connection_pool, witness_gen_input);
+        generate_witness(object_store, config, connection_pool, witness_gen_input);
+    let circuits = basic_circuits.clone().into_flattened_set();
 
-    let individual_circuits = basic_circuits.clone().into_flattened_set();
-
-    let serialized_circuits: Vec<(String, Vec<u8>)> =
-        witness_generator::serialize_circuits(&individual_circuits);
-
-    let total_size_bytes: usize = serialized_circuits
-        .iter()
-        .map(|(_, bytes)| bytes.len())
-        .sum();
     vlog::info!(
-        "Witness generation for block {} is complete in {:?}. Number of circuits: {}, total size: {}KB",
+        "Witness generation for block {} is complete in {:?}. Number of circuits: {}",
         block_number.0,
         started_at.elapsed(),
-        serialized_circuits.len(),
-        total_size_bytes >> 10
+        circuits.len()
     );
 
     BasicCircuitArtifacts {
         basic_circuits,
         basic_circuits_inputs,
         scheduler_witness,
-        serialized_circuits,
+        circuits,
     }
 }
 
-pub fn update_database(
+fn update_database(
     connection_pool: ConnectionPool,
     started_at: Instant,
     block_number: L1BatchNumber,
-    circuits: Vec<String>,
+    blob_urls: BlobUrls,
 ) {
     let mut connection = connection_pool.access_storage_blocking();
     let mut transaction = connection.start_transaction_blocking();
 
-    transaction
-        .witness_generator_dal()
-        .create_aggregation_jobs(block_number, circuits.len());
+    transaction.witness_generator_dal().create_aggregation_jobs(
+        block_number,
+        &blob_urls.basic_circuits_url,
+        &blob_urls.basic_circuits_inputs_url,
+        blob_urls.circuit_types_and_urls.len(),
+        &blob_urls.scheduler_witness_url,
+    );
     transaction.prover_dal().insert_prover_jobs(
         block_number,
-        circuits,
+        blob_urls.circuit_types_and_urls,
         AggregationRound::BasicCircuits,
     );
     transaction
@@ -116,72 +263,40 @@ pub fn update_database(
     track_witness_generation_stage(started_at, AggregationRound::BasicCircuits);
 }
 
-pub async fn get_artifacts(
+pub fn get_artifacts(
     block_number: L1BatchNumber,
-    object_store: &DynamicObjectStore,
-) -> WitnessGeneratorJob {
-    let merkle_tree_paths = object_store
-        .get(
-            WITNESS_INPUT_BUCKET_PATH,
-            merkle_tree_paths_blob_url(block_number),
-        )
-        .unwrap();
-
-    let (merkle_paths, next_enumeration_index) =
-        bincode::deserialize::<(Vec<StorageLogMetadata>, u64)>(&merkle_tree_paths)
-            .expect("witness deserialization failed");
-
-    WitnessGeneratorJob {
-        block_number,
-        job: WitnessGeneratorJobInput::BasicCircuits(Box::new(PrepareBasicCircuitsJob {
-            merkle_paths,
-            next_enumeration_index,
-        })),
-    }
+    object_store: &dyn ObjectStore,
+) -> BasicWitnessGeneratorJob {
+    let job = object_store.get(block_number).unwrap();
+    BasicWitnessGeneratorJob { block_number, job }
 }
 
-pub async fn save_artifacts(
+fn save_artifacts(
     block_number: L1BatchNumber,
     artifacts: BasicCircuitArtifacts,
-    object_store: &mut DynamicObjectStore,
-) {
-    let basic_circuits_serialized =
-        bincode::serialize(&artifacts.basic_circuits).expect("cannot serialize basic_circuits");
-    object_store
-        .put(
-            LEAF_AGGREGATION_WITNESS_JOBS_BUCKET_PATH,
-            basic_circuits_blob_url(block_number),
-            basic_circuits_serialized,
-        )
+    object_store: &dyn ObjectStore,
+) -> BlobUrls {
+    let basic_circuits_url = object_store
+        .put(block_number, &artifacts.basic_circuits)
         .unwrap();
-
-    let basic_circuits_inputs_serialized = bincode::serialize(&artifacts.basic_circuits_inputs)
-        .expect("cannot serialize basic_circuits_inputs");
-    object_store
-        .put(
-            LEAF_AGGREGATION_WITNESS_JOBS_BUCKET_PATH,
-            basic_circuits_inputs_blob_url(block_number),
-            basic_circuits_inputs_serialized,
-        )
+    let basic_circuits_inputs_url = object_store
+        .put(block_number, &artifacts.basic_circuits_inputs)
         .unwrap();
-
-    let scheduler_witness_serialized = bincode::serialize(&artifacts.scheduler_witness)
-        .expect("cannot serialize scheduler_witness");
-
-    object_store
-        .put(
-            SCHEDULER_WITNESS_JOBS_BUCKET_PATH,
-            scheduler_witness_blob_url(block_number),
-            scheduler_witness_serialized,
-        )
+    let scheduler_witness_url = object_store
+        .put(block_number, &artifacts.scheduler_witness)
         .unwrap();
-    save_prover_input_artifacts(
+    let circuit_types_and_urls = save_prover_input_artifacts(
         block_number,
-        artifacts.serialized_circuits,
+        &artifacts.circuits,
         object_store,
         AggregationRound::BasicCircuits,
-    )
-    .await;
+    );
+    BlobUrls {
+        basic_circuits_url,
+        basic_circuits_inputs_url,
+        scheduler_witness_url,
+        circuit_types_and_urls,
+    }
 }
 
 // If making changes to this method, consider moving this logic to the DAL layer and make
@@ -216,6 +331,7 @@ pub fn build_basic_circuits_witness_generator_input(
 }
 
 pub fn generate_witness(
+    object_store: &dyn ObjectStore,
     config: WitnessGeneratorConfig,
     connection_pool: ConnectionPool,
     input: BasicCircuitWitnessGeneratorInput,
@@ -254,18 +370,13 @@ pub fn generate_witness(
     if input.used_bytecodes_hashes.contains(&account_code_hash) {
         used_bytecodes.insert(account_code_hash, account_bytecode);
     }
-    let factory_dep_bytecode_hashes: HashSet<H256> = used_bytecodes
-        .clone()
-        .keys()
-        .map(|&hash| u256_to_h256(hash))
-        .collect();
-    let missing_deps: HashSet<_> = hashes
-        .difference(&factory_dep_bytecode_hashes)
-        .cloned()
-        .collect();
-    if !missing_deps.is_empty() {
-        vlog::error!("{:?} factory deps are not found in DB", missing_deps);
-    }
+
+    assert_eq!(
+        hashes.len(),
+        used_bytecodes.len(),
+        "{} factory deps are not found in DB",
+        hashes.len() - used_bytecodes.len()
+    );
 
     // `DbStorageProvider` was designed to be used in API, so it accepts miniblock numbers.
     // Probably, we should make it work with L1 batch numbers too.
@@ -276,12 +387,13 @@ pub fn generate_witness(
     let db_storage_provider = DbStorageProvider::new(connection, last_miniblock_number, true);
     let mut tree = PrecalculatedMerklePathsProvider::new(
         input.merkle_paths_input,
-        input.previous_block_hash.0.to_vec(),
+        input.previous_block_hash.0,
     );
 
     let storage_ptr: &mut dyn vm::storage::Storage = &mut StorageView::new(db_storage_provider);
-    let storage_oracle = StorageOracle::new(Rc::new(RefCell::new(storage_ptr)));
-    let memory = SimpleMemory::default();
+    let storage_oracle: StorageOracle<HistoryDisabled> =
+        StorageOracle::new(Rc::new(RefCell::new(storage_ptr)));
+    let memory: SimpleMemory<HistoryDisabled> = SimpleMemory::default();
     let mut hasher = DefaultHasher::new();
     GEOMETRY_CONFIG.hash(&mut hasher);
     vlog::info!(
@@ -294,6 +406,7 @@ pub fn generate_witness(
         .contains(&input.block_number.0)
     {
         save_run_with_fixed_params_args_to_gcs(
+            object_store,
             input.block_number.0,
             last_miniblock_number.0,
             Address::zero(),
@@ -329,6 +442,7 @@ pub fn generate_witness(
 
 #[allow(clippy::too_many_arguments)]
 fn save_run_with_fixed_params_args_to_gcs(
+    object_store: &dyn ObjectStore,
     l1_batch_number: u32,
     last_miniblock_number: u32,
     caller: Address,
@@ -358,16 +472,8 @@ fn save_run_with_fixed_params_args_to_gcs(
         geometry,
         tree,
     };
-    let run_with_fixed_params_input_serialized = bincode::serialize(&run_with_fixed_params_input)
-        .expect("cannot serialize run_with_fixed_params_input");
-    let blob_url = format!("run_with_fixed_params_input_{}.bin", l1_batch_number);
-    let mut object_store = create_object_store_from_env();
     object_store
-        .put(
-            WITNESS_INPUT_BUCKET_PATH,
-            blob_url,
-            run_with_fixed_params_input_serialized,
-        )
+        .put(L1BatchNumber(l1_batch_number), &run_with_fixed_params_input)
         .unwrap();
 }
 
@@ -386,4 +492,15 @@ pub struct RunWithFixedParamsInput {
     pub cycle_limit: usize,
     pub geometry: GeometryConfig,
     pub tree: PrecalculatedMerklePathsProvider,
+}
+
+impl StoredObject for RunWithFixedParamsInput {
+    const BUCKET: Bucket = Bucket::WitnessInput;
+    type Key<'a> = L1BatchNumber;
+
+    fn encode_key(key: Self::Key<'_>) -> String {
+        format!("run_with_fixed_params_input_{}.bin", key)
+    }
+
+    zksync_object_store::serialize_using_bincode!();
 }

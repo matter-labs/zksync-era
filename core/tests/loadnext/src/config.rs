@@ -129,6 +129,10 @@ pub struct LoadtestConfig {
     /// that should be compared to the actual result.
     #[serde(default = "default_expected_tx_count")]
     pub expected_tx_count: Option<usize>,
+
+    /// Label to use for results pushed to Prometheus.
+    #[serde(default = "default_prometheus_label")]
+    pub prometheus_label: String,
 }
 
 fn default_max_inflight_txs() -> usize {
@@ -236,7 +240,7 @@ pub fn get_default_l2_rpc_address() -> String {
 }
 
 fn default_l2_rpc_address() -> String {
-    // http://z2-dev-api.zksync.dev/ for stage2
+    // https://z2-dev-api.zksync.dev:443 for stage2
     let result = get_default_l2_rpc_address();
     vlog::info!("Using default L2_RPC_ADDRESS: {}", result);
     result
@@ -252,6 +256,12 @@ fn default_l2_ws_rpc_address() -> String {
 fn default_expected_tx_count() -> Option<usize> {
     let result = None;
     vlog::info!("Using default EXPECTED_TX_COUNT: {:?}", result);
+    result
+}
+
+fn default_prometheus_label() -> String {
+    let result = "unset".to_string();
+    vlog::info!("Using default PROMETHEUS_LABEL: {:?}", result);
     result
 }
 

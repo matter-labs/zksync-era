@@ -1,8 +1,9 @@
 use std::net::SocketAddr;
 use std::time::Duration;
 
-use zksync_config::ZkSyncConfig;
+use zksync_config::configs::api::Explorer as ExplorerApiConfig;
 use zksync_dal::connection::ConnectionPool;
+use zksync_types::Address;
 use zksync_utils::panic_notify::{spawn_panic_handler, ThreadPanicNotify};
 
 use actix_cors::Cors;
@@ -47,13 +48,14 @@ fn start_server(api: RestApi, bind_to: SocketAddr, threads: usize) -> Server {
 
 /// Start HTTP REST API
 pub fn start_server_thread_detached(
-    config: &ZkSyncConfig,
+    api_config: ExplorerApiConfig,
+    l2_erc20_bridge_addr: Address,
+    fee_account_addr: Address,
     master_connection_pool: ConnectionPool,
     replica_connection_pool: ConnectionPool,
     mut stop_receiver: watch::Receiver<bool>,
 ) -> JoinHandle<()> {
     let (handler, panic_sender) = spawn_panic_handler();
-    let config = config.clone();
 
     std::thread::Builder::new()
         .name("explorer-api".to_string())
@@ -61,9 +63,15 @@ pub fn start_server_thread_detached(
             let _panic_sentinel = ThreadPanicNotify(panic_sender.clone());
 
             actix_rt::System::new().block_on(async move {
-                let bind_address = config.api.explorer.bind_addr();
-                let threads = config.api.explorer.threads_per_server as usize;
-                let api = RestApi::new(master_connection_pool, replica_connection_pool, config);
+                let bind_address = api_config.bind_addr();
+                let threads = api_config.threads_per_server as usize;
+                let api = RestApi::new(
+                    master_connection_pool,
+                    replica_connection_pool,
+                    api_config,
+                    l2_erc20_bridge_addr,
+                    fee_account_addr,
+                );
                 api.spawn_network_stats_updater(panic_sender, stop_receiver.clone());
 
                 let server = start_server(api, bind_address, threads);

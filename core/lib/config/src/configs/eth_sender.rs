@@ -63,6 +63,8 @@ pub struct SenderConfig {
     /// Note that this number must be slightly higher than the one set on the contract,
     /// because the contract uses block.timestamp which lags behind the clock time.
     pub l1_batch_min_age_before_execute_seconds: Option<u64>,
+    // Max acceptable fee for sending tx it acts as a safeguard to prevent sending tx with very high fees.
+    pub max_acceptable_priority_fee_in_gwei: u64,
 }
 
 impl SenderConfig {
@@ -129,6 +131,7 @@ mod tests {
                 operator_commit_eth_addr: addr("de03a0B5963f75f1C8485B355fF6D30f3093BDE7"),
                 proof_sending_mode: ProofSendingMode::SkipEveryProof,
                 l1_batch_min_age_before_execute_seconds: Some(1000),
+                max_acceptable_priority_fee_in_gwei: 100_000_000_000,
             },
             gas_adjuster: GasAdjusterConfig {
                 default_priority_fee_per_gas: 20000000000,
@@ -169,6 +172,7 @@ ETH_SENDER_SENDER_TIMESTAMP_CRITERIA_MAX_ALLOWED_LAG="30"
 ETH_SENDER_SENDER_MAX_AGGREGATED_TX_GAS="4000000"
 ETH_SENDER_SENDER_MAX_ETH_TX_DATA_SIZE="120000"
 ETH_SENDER_SENDER_L1_BATCH_MIN_AGE_BEFORE_EXECUTE_SECONDS="1000"
+ETH_SENDER_SENDER_MAX_ACCEPTABLE_PRIORITY_FEE_IN_GWEI="100000000000"
         "#;
         set_env(config);
 

@@ -17,6 +17,12 @@ pub struct ProverGroupConfig {
     pub group_8_circuit_ids: Vec<u8>,
     pub group_9_circuit_ids: Vec<u8>,
     pub region_read_url: String,
+    // This is used while running the provers/synthesizer in non-gcp cloud env.
+    pub region_override: Option<String>,
+    pub zone_read_url: String,
+    // This is used while running the provers/synthesizer in non-gcp cloud env.
+    pub zone_override: Option<String>,
+    pub synthesizer_per_gpu: u16,
 }
 
 impl ProverGroupConfig {
@@ -84,6 +90,10 @@ mod tests {
             group_8_circuit_ids: vec![16, 17],
             group_9_circuit_ids: vec![3],
             region_read_url: "http://metadata.google.internal/computeMetadata/v1/instance/attributes/cluster-location".to_string(),
+            region_override: Some("us-central-1".to_string()),
+            zone_read_url: "http://metadata.google.internal/computeMetadata/v1/instance/zone".to_string(),
+            zone_override: Some("us-central-1-b".to_string()),
+            synthesizer_per_gpu: 10,
         }
     }
 
@@ -99,6 +109,10 @@ mod tests {
         PROVER_GROUP_GROUP_8_CIRCUIT_IDS="16,17"
         PROVER_GROUP_GROUP_9_CIRCUIT_IDS="3"
         PROVER_GROUP_REGION_READ_URL="http://metadata.google.internal/computeMetadata/v1/instance/attributes/cluster-location"
+        PROVER_GROUP_REGION_OVERRIDE="us-central-1"
+        PROVER_GROUP_ZONE_READ_URL="http://metadata.google.internal/computeMetadata/v1/instance/zone"
+        PROVER_GROUP_ZONE_OVERRIDE="us-central-1-b"
+        PROVER_GROUP_SYNTHESIZER_PER_GPU="10"
     "#;
 
     #[test]

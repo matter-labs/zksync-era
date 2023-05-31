@@ -11,13 +11,14 @@ use itertools::Itertools;
 use rayon::prelude::{IntoParallelIterator, ParallelIterator};
 use std::borrow::Borrow;
 use std::collections::{hash_map::Entry, HashMap, HashSet};
+use std::convert::TryInto;
 use std::iter::once;
 use std::sync::Arc;
-use tokio::time::Instant;
+use std::time::Instant;
 use zksync_config::constants::ROOT_TREE_DEPTH;
 use zksync_crypto::hasher::Hasher;
 use zksync_storage::RocksDB;
-use zksync_types::proofs::StorageLogMetadata;
+use zksync_types::proofs::{PrepareBasicCircuitsJob, StorageLogMetadata};
 use zksync_types::{L1BatchNumber, StorageLogKind, WitnessStorageLog, H256};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -60,8 +61,12 @@ impl ZkSyncTree {
         Self::new_with_mode(db, TreeMode::Lightweight)
     }
 
-    pub fn root_hash(&self) -> ZkHash {
-        self.root_hash.clone()
+    pub fn mode(&self) -> TreeMode {
+        self.mode
+    }
+
+    pub fn root_hash(&self) -> H256 {
+        H256::from_slice(&self.root_hash)
     }
 
     pub fn is_empty(&self) -> bool {
@@ -188,7 +193,7 @@ impl ZkSyncTree {
 
                 self.root_hash = patch_metadata
                     .last()
-                    .map(|metadata| metadata.root_hash.clone())
+                    .map(|metadata| metadata.root_hash.to_vec())
                     .unwrap_or_else(|| self.root_hash.clone());
 
                 patch_metadata
@@ -207,14 +212,17 @@ impl ZkSyncTree {
 
                         let metadata: Vec<_> =
                             group.into_iter().map(|(metadata, _)| metadata).collect();
-                        let root_hash = metadata.last().unwrap().root_hash.clone();
-                        let witness_input = bincode::serialize(&(metadata, previous_index))
-                            .expect("witness serialization failed");
+                        let root_hash = metadata.last().unwrap().root_hash;
+                        let mut witness_input = PrepareBasicCircuitsJob::new(previous_index);
+                        witness_input.reserve(metadata.len());
+                        for merkle_path in metadata {
+                            witness_input.push_merkle_path(merkle_path);
+                        }
 
                         TreeMetadata {
-                            root_hash,
+                            root_hash: H256::from_slice(&root_hash),
                             rollup_last_leaf_index: last_index,
-                            witness_input,
+                            witness_input: Some(witness_input),
                             initial_writes,
                             repeated_writes,
                         }
@@ -232,9 +240,9 @@ impl ZkSyncTree {
                 } = std::mem::take(&mut leaf_indices[0]);
 
                 vec![TreeMetadata {
-                    root_hash: self.root_hash.clone(),
+                    root_hash: H256::from_slice(&self.root_hash),
                     rollup_last_leaf_index: last_index,
-                    witness_input: Vec::new(),
+                    witness_input: None,
                     initial_writes,
                     repeated_writes,
                 }]
@@ -403,7 +411,7 @@ impl ZkSyncTree {
                         } else {
                             left_hash
                         };
-                        merkle_paths.push(witness_hash.clone());
+                        merkle_paths.push(witness_hash.as_slice().try_into().unwrap());
                     }
                     Self::make_node(level, key, node)
                 }));
@@ -421,7 +429,7 @@ impl ZkSyncTree {
                     TreeOperation::Delete => H256::zero(),
                 };
                 let metadata_log = StorageLogMetadata {
-                    root_hash,
+                    root_hash: root_hash.try_into().unwrap(),
                     is_write,
                     first_write,
                     merkle_paths,
@@ -449,8 +457,11 @@ impl ZkSyncTree {
         let empty_tree = self.config.empty_tree().to_vec();
         let hasher = self.hasher().clone();
 
-        let mut current_level =
-            vec![(self.root_hash(), (1, 0.into()).into(), (1, 1.into()).into())];
+        let mut current_level = vec![(
+            self.root_hash.clone(),
+            (1, 0.into()).into(),
+            (1, 1.into()).into(),
+        )];
 
         for node in empty_tree.iter().take(ROOT_TREE_DEPTH + 1).skip(1) {
             let default_hash = node.hash().to_vec();

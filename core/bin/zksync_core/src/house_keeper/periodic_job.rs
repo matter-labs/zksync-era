@@ -6,11 +6,10 @@ use tokio::time::sleep;
 use zksync_dal::ConnectionPool;
 
 #[async_trait]
-pub trait PeriodicJob {
+pub trait PeriodicJob: Sync + Send {
     const SERVICE_NAME: &'static str;
-    const POLLING_INTERVAL_MS: u64 = 1000;
 
-    /// Runs the routine task periodically in `POLLING_INTERVAL_MS` frequency.
+    /// Runs the routine task periodically in [`Self::polling_interval_ms()`] frequency.
     fn run_routine_task(&mut self, connection_pool: ConnectionPool);
 
     async fn run(mut self, connection_pool: ConnectionPool)
@@ -20,11 +19,13 @@ pub trait PeriodicJob {
         vlog::info!(
             "Starting periodic job: {} with frequency: {} ms",
             Self::SERVICE_NAME,
-            Self::POLLING_INTERVAL_MS
+            self.polling_interval_ms()
         );
         loop {
             self.run_routine_task(connection_pool.clone());
-            sleep(Duration::from_millis(Self::POLLING_INTERVAL_MS)).await;
+            sleep(Duration::from_millis(self.polling_interval_ms())).await;
         }
     }
+
+    fn polling_interval_ms(&self) -> u64;
 }

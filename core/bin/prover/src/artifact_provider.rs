@@ -7,6 +7,7 @@ use zksync_verification_key_server::get_vk_for_circuit_type;
 
 #[derive(Debug)]
 pub struct ProverArtifactProvider;
+
 impl ArtifactProvider for ProverArtifactProvider {
     type ArtifactError = String;
 

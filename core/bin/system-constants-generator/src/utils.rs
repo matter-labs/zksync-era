@@ -11,7 +11,7 @@ use vm::{
         BootloaderJobType, DerivedBlockContext, TxExecutionMode,
     },
     zk_evm::{aux_structures::Timestamp, zkevm_opcode_defs::BOOTLOADER_HEAP_PAGE},
-    OracleTools,
+    HistoryEnabled, OracleTools,
 };
 use zksync_contracts::{
     load_sys_contract, read_bootloader_code, read_sys_contract_bytecode, BaseSystemContracts,
@@ -157,7 +157,7 @@ pub(super) fn execute_internal_transfer_test() -> u32 {
     let bootloader_balane_key = storage_key_for_eth_balance(&BOOTLOADER_ADDRESS);
     storage_ptr.set_value(&bootloader_balane_key, u256_to_h256(U256([0, 0, 1, 0])));
 
-    let mut oracle_tools = OracleTools::new(storage_ptr);
+    let mut oracle_tools = OracleTools::new(storage_ptr, HistoryEnabled);
 
     let bytecode = read_bootloader_test_code("transfer_test");
     let hash = hash_bytecode(&bytecode);
@@ -272,7 +272,7 @@ pub(super) fn execute_user_txs_in_test_gas_vm(
         storage_ptr.set_value(&tx_gas_price_key, u256_to_h256(U256([1, 0, 0, 0])));
     }
 
-    let mut oracle_tools = OracleTools::new(storage_ptr);
+    let mut oracle_tools = OracleTools::new(storage_ptr, HistoryEnabled);
 
     let mut vm = init_vm_inner(
         &mut oracle_tools,
@@ -293,7 +293,7 @@ pub(super) fn execute_user_txs_in_test_gas_vm(
             None,
         );
         let tx_execution_result = vm
-            .execute_next_tx(u32::MAX)
+            .execute_next_tx(u32::MAX, false)
             .expect("Bootloader failed while processing transaction");
 
         total_gas_refunded += tx_execution_result.gas_refunded;
@@ -320,6 +320,7 @@ pub(super) fn execute_user_txs_in_test_gas_vm(
         0, // The number of contracts deployed is irrelevant for our needs
         result.full_result.contracts_used,
         result.full_result.cycles_used,
+        result.full_result.computational_gas_used,
     );
 
     VmSpentResourcesResult {

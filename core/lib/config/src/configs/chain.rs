@@ -5,6 +5,7 @@ use std::time::Duration;
 // Local uses
 use zksync_basic_types::network::Network;
 use zksync_basic_types::{Address, H256};
+use zksync_contracts::BaseSystemContractsHashes;
 
 use crate::envy_load;
 
@@ -79,8 +80,6 @@ pub struct StateKeeperConfig {
 
     pub fee_account_addr: Address,
 
-    pub reexecute_each_tx: bool,
-
     /// The price the operator spends on 1 gas of computation in wei.
     pub fair_l2_gas_price: u64,
 
@@ -89,6 +88,22 @@ pub struct StateKeeperConfig {
 
     /// Max number of computational gas that validation step is allowed to take.
     pub validation_computational_gas_limit: u32,
+    pub save_call_traces: bool,
+    /// Max number of l1 gas price that is allowed to be used in state keeper.
+    pub max_l1_gas_price: Option<u64>,
+}
+
+impl StateKeeperConfig {
+    pub fn max_l1_gas_price(&self) -> u64 {
+        self.max_l1_gas_price.unwrap_or(u64::MAX)
+    }
+
+    pub fn base_system_contracts_hashes(&self) -> BaseSystemContractsHashes {
+        BaseSystemContractsHashes {
+            bootloader: self.bootloader_hash,
+            default_aa: self.default_aa_hash,
+        }
+    }
 }
 
 #[derive(Debug, Deserialize, Clone, PartialEq)]
@@ -106,11 +121,17 @@ impl OperationsManager {
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct CircuitBreakerConfig {
     pub sync_interval_ms: u64,
+    pub http_req_max_retry_number: usize,
+    pub http_req_retry_interval_sec: u8,
 }
 
 impl CircuitBreakerConfig {
     pub fn sync_interval(&self) -> Duration {
         Duration::from_millis(self.sync_interval_ms)
+    }
+
+    pub fn http_req_retry_interval(&self) -> Duration {
+        Duration::from_secs(self.http_req_retry_interval_sec as u64)
     }
 }
 
@@ -158,11 +179,12 @@ mod tests {
                 reject_tx_at_geometry_percentage: 0.3,
                 fee_account_addr: addr("de03a0B5963f75f1C8485B355fF6D30f3093BDE7"),
                 reject_tx_at_gas_percentage: 0.5,
-                reexecute_each_tx: true,
                 fair_l2_gas_price: 250000000,
                 bootloader_hash: H256::from(&[254; 32]),
                 default_aa_hash: H256::from(&[254; 32]),
                 validation_computational_gas_limit: 10_000_000,
+                save_call_traces: false,
+                max_l1_gas_price: Some(100000000),
             },
             operations_manager: OperationsManager {
                 delay_interval: 100,
@@ -176,6 +198,8 @@ mod tests {
             },
             circuit_breaker: CircuitBreakerConfig {
                 sync_interval_ms: 1000,
+                http_req_max_retry_number: 5,
+                http_req_retry_interval_sec: 2,
             },
         }
     }
@@ -196,13 +220,14 @@ CHAIN_STATE_KEEPER_CLOSE_BLOCK_AT_ETH_PARAMS_PERCENTAGE="0.2"
 CHAIN_STATE_KEEPER_REJECT_TX_AT_GEOMETRY_PERCENTAGE="0.3"
 CHAIN_STATE_KEEPER_REJECT_TX_AT_ETH_PARAMS_PERCENTAGE="0.8"
 CHAIN_STATE_KEEPER_REJECT_TX_AT_GAS_PERCENTAGE="0.5"
-CHAIN_STATE_KEEPER_REEXECUTE_EACH_TX="true"
 CHAIN_STATE_KEEPER_BLOCK_COMMIT_DEADLINE_MS="2500"
 CHAIN_STATE_KEEPER_MINIBLOCK_COMMIT_DEADLINE_MS="1000"
 CHAIN_STATE_KEEPER_FAIR_L2_GAS_PRICE="250000000"
 CHAIN_STATE_KEEPER_BOOTLOADER_HASH="0xfefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefe"
 CHAIN_STATE_KEEPER_DEFAULT_AA_HASH="0xfefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefe"
 CHAIN_STATE_KEEPER_VALIDATION_COMPUTATIONAL_GAS_LIMIT="10000000"
+CHAIN_STATE_KEEPER_SAVE_CALL_TRACES="false"
+CHAIN_STATE_KEEPER_MAX_L1_GAS_PRICE="100000000"
 CHAIN_OPERATIONS_MANAGER_DELAY_INTERVAL="100"
 CHAIN_MEMPOOL_SYNC_INTERVAL_MS="10"
 CHAIN_MEMPOOL_SYNC_BATCH_SIZE="1000"
@@ -210,6 +235,8 @@ CHAIN_MEMPOOL_STUCK_TX_TIMEOUT="10"
 CHAIN_MEMPOOL_REMOVE_STUCK_TXS="true"
 CHAIN_MEMPOOL_CAPACITY="1000000"
 CHAIN_CIRCUIT_BREAKER_SYNC_INTERVAL_MS="1000"
+CHAIN_CIRCUIT_BREAKER_HTTP_REQ_MAX_RETRY_NUMBER="5"
+CHAIN_CIRCUIT_BREAKER_HTTP_REQ_RETRY_INTERVAL_SEC="2"
         "#;
         set_env(config);
 

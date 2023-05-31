@@ -6,7 +6,7 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 
 use db_test_macro::db_test;
-use zksync_dal::StorageProcessor;
+use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_types::web3::types::{Address, BlockNumber};
 use zksync_types::{
     l1::{L1Tx, OpProcessingType, PriorityQueueType},

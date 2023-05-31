@@ -68,8 +68,8 @@ impl TradingVolumeFetcher {
             fetching_interval.tick().await;
             self.error_handler.update().await;
 
-            let mut storage = pool.access_storage().await;
-            let known_l1_tokens = self.load_tokens(&mut storage).await;
+            let mut storage = pool.access_storage_blocking();
+            let known_l1_tokens = self.load_tokens(&mut storage);
 
             let trading_volumes = match self.fetch_trading_volumes(&known_l1_tokens).await {
                 Ok(volumes) => {
@@ -82,8 +82,7 @@ impl TradingVolumeFetcher {
                 }
             };
 
-            self.store_market_volumes(&mut storage, trading_volumes)
-                .await;
+            self.store_market_volumes(&mut storage, trading_volumes);
         }
     }
 
@@ -100,7 +99,7 @@ impl TradingVolumeFetcher {
             .map_err(|_| ApiFetchError::RequestTimeout)?
     }
 
-    async fn store_market_volumes(
+    fn store_market_volumes(
         &self,
         storage: &mut StorageProcessor<'_>,
         tokens: HashMap<Address, TokenMarketVolume>,
@@ -113,7 +112,7 @@ impl TradingVolumeFetcher {
 
     /// Returns the list of tokens with known metadata (if token is not in the list we use,
     /// it's very likely to not have required level of trading volume anyways).
-    async fn load_tokens(&self, storage: &mut StorageProcessor<'_>) -> Vec<Address> {
+    fn load_tokens(&self, storage: &mut StorageProcessor<'_>) -> Vec<Address> {
         storage
             .tokens_dal()
             .get_well_known_token_addresses()

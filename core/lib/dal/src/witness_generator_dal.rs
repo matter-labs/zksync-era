@@ -5,12 +5,6 @@ use std::time::{Duration, Instant};
 use itertools::Itertools;
 use sqlx::Row;
 
-use crate::models::storage_witness_job_info::StorageWitnessJobInfo;
-use zksync_object_store::gcs_utils::merkle_tree_paths_blob_url;
-use zksync_object_store::gcs_utils::{
-    aggregation_outputs_blob_url, basic_circuits_blob_url, basic_circuits_inputs_blob_url,
-    final_node_aggregations_blob_url, leaf_layer_subqueues_blob_url, scheduler_witness_blob_url,
-};
 use zksync_types::proofs::{
     AggregationRound, JobCountStatistics, WitnessGeneratorJobMetadata, WitnessJobInfo,
 };
@@ -21,6 +15,7 @@ use zksync_types::zkevm_test_harness::bellman::plonk::better_better_cs::proof::P
 use zksync_types::zkevm_test_harness::witness::oracle::VmWitnessOracle;
 use zksync_types::L1BatchNumber;
 
+use crate::models::storage_witness_job_info::StorageWitnessJobInfo;
 use crate::time_utils::{duration_to_naive_time, pg_interval_from_duration};
 use crate::StorageProcessor;
 
@@ -168,7 +163,7 @@ impl WitnessGeneratorDal<'_, '_> {
 
                     WitnessGeneratorJobMetadata {
                         block_number: l1_batch_number,
-                        proofs: basic_circuits_proofs
+                        proofs: basic_circuits_proofs,
                     }
                 })
         })
@@ -229,7 +224,7 @@ impl WitnessGeneratorDal<'_, '_> {
                     );
                     WitnessGeneratorJobMetadata {
                         block_number: l1_batch_number,
-                        proofs: leaf_circuits_proofs
+                        proofs: leaf_circuits_proofs,
                     }
                 })
         })
@@ -288,7 +283,7 @@ impl WitnessGeneratorDal<'_, '_> {
 
                     WitnessGeneratorJobMetadata {
                         block_number: l1_batch_number,
-                        proofs: leaf_circuits_proofs
+                        proofs: leaf_circuits_proofs,
                     }
                 })
         })
@@ -459,7 +454,10 @@ impl WitnessGeneratorDal<'_, '_> {
     pub fn create_aggregation_jobs(
         &mut self,
         block_number: L1BatchNumber,
+        basic_circuits_blob_url: &str,
+        basic_circuits_inputs_blob_url: &str,
         number_of_basic_circuits: usize,
+        scheduler_witness_blob_url: &str,
     ) {
         async_std::task::block_on(async {
             let started_at = Instant::now();
@@ -473,8 +471,8 @@ impl WitnessGeneratorDal<'_, '_> {
                     block_number.0 as i64,
                     vec![],
                     vec![],
-                    basic_circuits_blob_url(block_number),
-                    basic_circuits_inputs_blob_url(block_number),
+                    basic_circuits_blob_url,
+                    basic_circuits_inputs_blob_url,
                     number_of_basic_circuits as i64,
                 )
                 .execute(self.storage.conn())
@@ -501,7 +499,7 @@ impl WitnessGeneratorDal<'_, '_> {
                     ",
                 block_number.0 as i64,
                 vec![],
-                scheduler_witness_blob_url(block_number),
+                scheduler_witness_blob_url,
             )
             .execute(self.storage.conn())
             .await
@@ -520,6 +518,8 @@ impl WitnessGeneratorDal<'_, '_> {
         &mut self,
         block_number: L1BatchNumber,
         number_of_leaf_circuits: usize,
+        leaf_layer_subqueues_blob_url: &str,
+        aggregation_outputs_blob_url: &str,
     ) {
         async_std::task::block_on(async {
             let started_at = Instant::now();
@@ -535,23 +535,30 @@ impl WitnessGeneratorDal<'_, '_> {
                     ",
                 number_of_leaf_circuits as i64,
                 block_number.0 as i64,
-                leaf_layer_subqueues_blob_url(block_number),
-                aggregation_outputs_blob_url(block_number),
+                leaf_layer_subqueues_blob_url,
+                aggregation_outputs_blob_url,
             )
             .execute(self.storage.conn())
             .await
             .unwrap();
 
-            metrics::histogram!("dal.request", started_at.elapsed(), "method" => "save_leaf_aggregation_artifacts");
+            metrics::histogram!(
+                "dal.request",
+                started_at.elapsed(),
+                "method" => "save_leaf_aggregation_artifacts"
+            );
         })
     }
 
-    /// Saves artifacts in scheduler_artifacts_jobs`
-    /// and advances it to `waiting_for_proofs` status
-    /// it will be advanced to `queued` by the prover when all the dependency proofs are computed.
-    /// If the scheduler witness job was already `queued` in case of connrecunt run of same node aggregation job
-    /// we keep the status as is to prevent data race.
-    pub fn save_node_aggregation_artifacts(&mut self, block_number: L1BatchNumber) {
+    /// Saves artifacts in `scheduler_artifacts_jobs` and advances it to `waiting_for_proofs` status.
+    /// It will be advanced to `queued` by the prover when all the dependency proofs are computed.
+    /// If the scheduler witness job was already queued the in case of concurrent run
+    /// of same node aggregation job, we keep the status as is to prevent data race.
+    pub fn save_node_aggregation_artifacts(
+        &mut self,
+        block_number: L1BatchNumber,
+        node_aggregations_blob_url: &str,
+    ) {
         async_std::task::block_on(async {
             let started_at = Instant::now();
             sqlx::query!(
@@ -563,13 +570,17 @@ impl WitnessGeneratorDal<'_, '_> {
                     WHERE l1_batch_number = $1 AND status != 'queued'
                     ",
                 block_number.0 as i64,
-                final_node_aggregations_blob_url(block_number),
+                node_aggregations_blob_url,
             )
             .execute(self.storage.conn())
             .await
             .unwrap();
 
-            metrics::histogram!("dal.request", started_at.elapsed(), "method" => "save_node_aggregation_artifacts");
+            metrics::histogram!(
+                "dal.request",
+                started_at.elapsed(),
+                "method" => "save_node_aggregation_artifacts",
+            );
         })
     }
 
@@ -626,39 +637,6 @@ impl WitnessGeneratorDal<'_, '_> {
                 failed: results.remove("failed").unwrap_or(0i64) as usize,
                 successful: results.remove("successful").unwrap_or(0i64) as usize,
             }
-        })
-    }
-
-    pub fn required_proofs_count(
-        &mut self,
-        block_number: L1BatchNumber,
-        aggregation_round: AggregationRound,
-    ) -> usize {
-        async_std::task::block_on(async {
-            let table_name = Self::input_table_name_for(aggregation_round);
-            let circuits_number_input_name = match aggregation_round {
-                // Basic circuit job doesn't have any pre-requirements
-                AggregationRound::BasicCircuits => unreachable!(),
-                AggregationRound::LeafAggregation => "number_of_basic_circuits",
-                AggregationRound::NodeAggregation => "number_of_leaf_circuits",
-                // There is always just one final node circuit
-                AggregationRound::Scheduler => return 1,
-            };
-            let sql = format!(
-                r#"
-                    SELECT {} as "count"
-                    FROM {}
-                    WHERE l1_batch_number = $1
-                    "#,
-                circuits_number_input_name, table_name
-            );
-            let mut query = sqlx::query(&sql);
-            query = query.bind(block_number.0 as i64);
-            query
-                .fetch_one(self.storage.conn())
-                .await
-                .unwrap()
-                .get::<i32, &str>("count") as usize
         })
     }
 
@@ -736,7 +714,7 @@ impl WitnessGeneratorDal<'_, '_> {
             .collect())
     }
 
-    pub fn save_witness_inputs(&mut self, block_number: L1BatchNumber) {
+    pub fn save_witness_inputs(&mut self, block_number: L1BatchNumber, object_key: &str) {
         async_std::task::block_on(async {
             sqlx::query!(
                 "INSERT INTO witness_inputs(l1_batch_number, merkle_tree_paths, merkel_tree_paths_blob_url, status, created_at, updated_at) \
@@ -744,7 +722,7 @@ impl WitnessGeneratorDal<'_, '_> {
                  ON CONFLICT (l1_batch_number) DO NOTHING",
                 block_number.0 as i64,
                 vec![],
-                merkle_tree_paths_blob_url(block_number),
+                object_key,
             )
                 .fetch_optional(self.storage.conn())
                 .await
@@ -899,6 +877,89 @@ impl WitnessGeneratorDal<'_, '_> {
             .execute(self.storage.conn())
             .await
             .unwrap();
+        })
+    }
+
+    pub fn move_leaf_aggregation_jobs_from_waiting_to_queued(&mut self) -> Vec<i64> {
+        async_std::task::block_on(async {
+            sqlx::query!(
+                r#"
+                UPDATE leaf_aggregation_witness_jobs
+                SET status='queued'
+                WHERE l1_batch_number IN
+                      (SELECT prover_jobs.l1_batch_number
+                       FROM prover_jobs
+                                JOIN leaf_aggregation_witness_jobs lawj ON prover_jobs.l1_batch_number = lawj.l1_batch_number
+                       WHERE lawj.status = 'waiting_for_proofs'
+                         AND prover_jobs.status = 'successful'
+                         AND prover_jobs.aggregation_round = 0
+                       GROUP BY prover_jobs.l1_batch_number, lawj.number_of_basic_circuits
+                       HAVING COUNT(*) = lawj.number_of_basic_circuits)
+                RETURNING l1_batch_number;
+            "#,
+            )
+            .fetch_all(self.storage.conn())
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|row| row.l1_batch_number)
+            .collect()
+        })
+    }
+
+    pub fn move_node_aggregation_jobs_from_waiting_to_queued(&mut self) -> Vec<i64> {
+        async_std::task::block_on(async {
+            sqlx::query!(
+                r#"
+                UPDATE node_aggregation_witness_jobs
+                SET status='queued'
+                WHERE l1_batch_number IN
+                      (SELECT prover_jobs.l1_batch_number
+                       FROM prover_jobs
+                                JOIN node_aggregation_witness_jobs nawj ON prover_jobs.l1_batch_number = nawj.l1_batch_number
+                       WHERE nawj.status = 'waiting_for_proofs'
+                         AND prover_jobs.status = 'successful'
+                         AND prover_jobs.aggregation_round = 1
+                       GROUP BY prover_jobs.l1_batch_number, nawj.number_of_leaf_circuits
+                       HAVING COUNT(*) = nawj.number_of_leaf_circuits)
+                RETURNING l1_batch_number;
+            "#,
+            )
+            .fetch_all(self.storage.conn())
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|row| row.l1_batch_number)
+            .collect()
+        })
+    }
+
+    pub fn move_scheduler_jobs_from_waiting_to_queued(&mut self) -> Vec<i64> {
+        async_std::task::block_on(async {
+            // There is always just one final node circuit
+            // hence we do AND p.number_of_jobs = 1
+            sqlx::query!(
+                r#"
+                UPDATE scheduler_witness_jobs
+                SET status='queued'
+                WHERE l1_batch_number IN
+                      (SELECT prover_jobs.l1_batch_number
+                       FROM prover_jobs
+                                JOIN scheduler_witness_jobs swj ON prover_jobs.l1_batch_number = swj.l1_batch_number
+                       WHERE swj.status = 'waiting_for_proofs'
+                         AND prover_jobs.status = 'successful'
+                         AND prover_jobs.aggregation_round = 2
+                       GROUP BY prover_jobs.l1_batch_number
+                       HAVING COUNT(*) = 1)
+                RETURNING l1_batch_number;
+            "#,
+            )
+            .fetch_all(self.storage.conn())
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|row| row.l1_batch_number)
+            .collect()
         })
     }
 }

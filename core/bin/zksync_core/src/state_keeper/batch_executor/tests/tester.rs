@@ -1,7 +1,7 @@
 //! Testing harness for the batch executor.
 //! Contains helper functionality to initialize test context and perform tests without too much boilerplate.
 
-use crate::genesis::chain_schema_genesis;
+use crate::genesis::create_genesis_block;
 use crate::state_keeper::{
     batch_executor::BatchExecutorHandle,
     io::L1BatchParams,
@@ -42,7 +42,7 @@ const CHAIN_ID: L2ChainId = L2ChainId(270);
 /// Has sensible defaults for most tests, each of which can be overridden.
 #[derive(Debug)]
 pub(super) struct TestConfig {
-    pub(super) reexecute_each_tx: bool,
+    pub(super) save_call_traces: bool,
     pub(super) vm_gas_limit: Option<u32>,
     pub(super) max_allowed_tx_gas_limit: u32,
     pub(super) validation_computational_gas_limit: u32,
@@ -54,8 +54,8 @@ impl TestConfig {
         let config = ZkSyncConfig::from_env();
 
         Self {
-            reexecute_each_tx: true,
             vm_gas_limit: None,
+            save_call_traces: false,
             max_allowed_tx_gas_limit: config.chain.state_keeper.max_allowed_l2_tx_gas_limit,
             validation_computational_gas_limit: config
                 .chain
@@ -112,7 +112,7 @@ impl Tester {
         // We don't use the builder because it would require us to clone the `ConnectionPool`, which is forbidden
         // for the test pool (see the doc-comment on `TestPool` for details).
         BatchExecutorHandle::new(
-            self.config.reexecute_each_tx,
+            self.config.save_call_traces,
             self.config.max_allowed_tx_gas_limit.into(),
             self.config.validation_computational_gas_limit,
             secondary_storage,
@@ -153,17 +153,15 @@ impl Tester {
     }
 
     /// Performs the genesis in the storage.
-    pub(super) async fn genesis(&self) {
+    pub(super) fn genesis(&self) {
         let mut storage = self.pool.access_storage_blocking();
         if storage.blocks_dal().is_genesis_needed() {
-            let chain_id = H256::from_low_u64_be(CHAIN_ID.0 as u64);
-            chain_schema_genesis(
+            create_genesis_block(
                 &mut storage,
                 self.fee_account,
-                chain_id,
+                CHAIN_ID,
                 BASE_SYSTEM_CONTRACTS.clone(),
-            )
-            .await;
+            );
         }
     }
 
@@ -270,7 +268,7 @@ impl Account {
             priority_queue_type: PriorityQueueType::Deque,
             eth_hash: H256::random(),
             eth_block: 1,
-            gas_per_pubdata_limit: U256::from(1_000_000),
+            gas_per_pubdata_limit: U256::from(800),
             to_mint: gas_limit * max_fee_per_gas + execute.value,
             refund_recipient: self.address(),
         };

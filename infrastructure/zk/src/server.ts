@@ -22,6 +22,14 @@ export async function server(rebuildTree: boolean, openzeppelinTests: boolean, c
     await utils.spawn(`cargo run --bin zksync_server --release ${options}`);
 }
 
+export async function externalNode() {
+    if (process.env.ZKSYNC_ENV != 'ext-node') {
+        console.warn(`WARINING: using ${process.env.ZKSYNC_ENV} environment for external node`);
+        console.warn('If this is a mistake, set $ZKSYNC_ENV to "ext-node" or other environment');
+    }
+    await utils.spawn('cargo run --release --bin zksync_external_node');
+}
+
 async function create_genesis(cmd: string) {
     await utils.confirmAction();
     await utils.spawn(`${cmd} | tee genesis.log`);
@@ -92,7 +100,7 @@ export async function genesisFromBinary() {
     await create_genesis('zksync_server --genesis');
 }
 
-export const command = new Command('server')
+export const serverCommand = new Command('server')
     .description('start zksync server')
     .option('--genesis', 'generate genesis data via server')
     .option('--rebuild-tree', 'rebuilds merkle tree from database logs', 'rebuild_tree')
@@ -105,3 +113,7 @@ export const command = new Command('server')
             await server(cmd.rebuildTree, cmd.openzeppelinTests, cmd.components);
         }
     });
+
+export const enCommand = new Command('external-node').description('start zksync external node').action(async () => {
+    await externalNode();
+});

@@ -6,9 +6,8 @@ use rlp::{DecoderError, Rlp, RlpStream};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tiny_keccak::keccak256;
-use zk_evm::abstractions::MAX_MEMORY_BYTES;
 use zksync_basic_types::H256;
-use zksync_config::constants::MAX_GAS_PER_PUBDATA_BYTE;
+use zksync_config::constants::{MAX_GAS_PER_PUBDATA_BYTE, USED_BOOTLOADER_MEMORY_BYTES};
 use zksync_utils::bytecode::{hash_bytecode, validate_bytecode, InvalidBytecodeError};
 use zksync_utils::u256_to_h256;
 
@@ -48,13 +47,15 @@ pub struct CallRequest {
     pub max_fee_per_gas: Option<U256>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_priority_fee_per_gas: Option<U256>,
-    /// Transfered value (None for no transfer)
+    /// Transferred value (None for no transfer)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub value: Option<U256>,
     /// Data (None for empty data)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub data: Option<Bytes>,
-
+    /// Nonce
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub nonce: Option<U256>,
     #[serde(rename = "type", default, skip_serializing_if = "Option::is_none")]
     pub transaction_type: Option<U64>,
     /// Access list
@@ -66,7 +67,7 @@ pub struct CallRequest {
 }
 
 impl CallRequest {
-    /// Funtion to return a builder for a Call Request
+    /// Function to return a builder for a Call Request
     pub fn builder() -> CallRequestBuilder {
         CallRequestBuilder::default()
     }
@@ -186,6 +187,8 @@ pub enum SerializationTransactionError {
     /// making the transaction invalid, rather a DOS protection.
     #[error("oversized data. max: {0}; actual: {0}")]
     OversizedData(usize, usize),
+    #[error("gas per pub data limit is zero")]
+    GasPerPubDataLimitZero,
 }
 
 /// Description of a Transaction, pending or in the chain.
@@ -704,6 +707,8 @@ impl TransactionRequest {
                 return Err(SerializationTransactionError::TooHighGas(
                     "max fee per pubdata byte higher than 2^64-1".to_string(),
                 ));
+            } else if meta.gas_per_pubdata == U256::zero() {
+                return Err(SerializationTransactionError::GasPerPubDataLimitZero);
             }
             meta.gas_per_pubdata
         } else {
@@ -815,7 +820,7 @@ pub fn tx_req_from_call_req(
     let calldata = call_request.data.unwrap_or_default();
 
     let transaction_request = TransactionRequest {
-        nonce: Default::default(),
+        nonce: call_request.nonce.unwrap_or_default(),
         from: call_request.from,
         to: call_request.to,
         value: call_request.value.unwrap_or_default(),
@@ -844,7 +849,7 @@ impl TryFrom<CallRequest> for L1Tx {
     type Error = SerializationTransactionError;
     fn try_from(tx: CallRequest) -> Result<Self, Self::Error> {
         // L1 transactions have no limitations on the transaction size.
-        let tx: L2Tx = l2_tx_from_call_req(tx, MAX_MEMORY_BYTES)?;
+        let tx: L2Tx = l2_tx_from_call_req(tx, USED_BOOTLOADER_MEMORY_BYTES)?;
 
         // Note, that while the user has theoretically provided the fee for ETH on L1,
         // the payment to the operator as well as refunds happen on L2 and so all the ETH
@@ -1436,6 +1441,7 @@ mod tests {
             max_priority_fee_per_gas: Some(U256::from(12u32)),
             value: Some(U256::from(12u32)),
             data: Some(Bytes(factory_dep)),
+            nonce: None,
             transaction_type: Some(U64::from(EIP_712_TX_TYPE)),
             access_list: None,
             eip712_meta: None,
@@ -1448,5 +1454,36 @@ mod tests {
             try_to_l2_tx,
             Err(SerializationTransactionError::OversizedData(_, _))
         ));
+    }
+
+    #[test]
+    fn test_tx_req_from_call_req_nonce_pass() {
+        let call_request_with_nonce = CallRequest {
+            from: Some(Address::random()),
+            to: Some(Address::random()),
+            gas: Some(U256::from(12u32)),
+            gas_price: Some(U256::from(12u32)),
+            max_fee_per_gas: Some(U256::from(12u32)),
+            max_priority_fee_per_gas: Some(U256::from(12u32)),
+            value: Some(U256::from(12u32)),
+            data: Some(Bytes(vec![1, 2, 3])),
+            nonce: Some(U256::from(123u32)),
+            transaction_type: Some(U64::from(EIP_712_TX_TYPE)),
+            access_list: None,
+            eip712_meta: None,
+        };
+        let tx_request = tx_req_from_call_req(
+            call_request_with_nonce.clone(),
+            USED_BOOTLOADER_MEMORY_BYTES,
+        )
+        .unwrap();
+        assert_eq!(tx_request.nonce, U256::from(123u32));
+
+        let mut call_request_without_nonce = call_request_with_nonce;
+        call_request_without_nonce.nonce = None;
+
+        let tx_request =
+            tx_req_from_call_req(call_request_without_nonce, USED_BOOTLOADER_MEMORY_BYTES).unwrap();
+        assert_eq!(tx_request.nonce, U256::from(0u32));
     }
 }

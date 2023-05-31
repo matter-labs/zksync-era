@@ -56,6 +56,7 @@ pub struct ExecutionMetrics {
     pub storage_logs: usize,
     pub total_log_queries: usize,
     pub cycles_used: u32,
+    pub computational_gas_used: u32,
 }
 
 impl ExecutionMetrics {
@@ -71,6 +72,7 @@ impl ExecutionMetrics {
         contracts_deployed: u16,
         contracts_used: usize,
         cycles_used: u32,
+        computational_gas_used: u32,
     ) -> Self {
         // We published the data as ABI-encoded `bytes`, so the total length is:
         // - message length in bytes, rounded up to a multiple of 32
@@ -99,6 +101,7 @@ impl ExecutionMetrics {
             storage_logs: logs.storage_logs.len(),
             total_log_queries: logs.total_log_queries_count,
             cycles_used,
+            computational_gas_used,
         }
     }
 }
@@ -119,6 +122,7 @@ impl Add for ExecutionMetrics {
             storage_logs: self.storage_logs + other.storage_logs,
             total_log_queries: self.total_log_queries + other.total_log_queries,
             cycles_used: self.cycles_used + other.cycles_used,
+            computational_gas_used: self.computational_gas_used + other.computational_gas_used,
         }
     }
 }

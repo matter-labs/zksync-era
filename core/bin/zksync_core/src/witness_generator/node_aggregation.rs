@@ -2,23 +2,17 @@ use std::collections::HashMap;
 use std::env;
 use std::time::Instant;
 
+use async_trait::async_trait;
+
 use zksync_config::configs::WitnessGeneratorConfig;
 use zksync_dal::ConnectionPool;
-use zksync_object_store::gcs_utils::{
-    aggregation_outputs_blob_url, final_node_aggregations_blob_url, leaf_layer_subqueues_blob_url,
-};
-use zksync_object_store::object_store::{
-    DynamicObjectStore, NODE_AGGREGATION_WITNESS_JOBS_BUCKET_PATH,
-    SCHEDULER_WITNESS_JOBS_BUCKET_PATH,
-};
+use zksync_object_store::{ObjectStore, ObjectStoreFactory};
+use zksync_queued_job_processor::JobProcessor;
 use zksync_types::{
     circuit::{
         LEAF_CIRCUIT_INDEX, LEAF_SPLITTING_FACTOR, NODE_CIRCUIT_INDEX, NODE_SPLITTING_FACTOR,
     },
-    proofs::{
-        AggregationRound, PrepareNodeAggregationCircuitJob, WitnessGeneratorJob,
-        WitnessGeneratorJobInput, WitnessGeneratorJobMetadata,
-    },
+    proofs::{AggregationRound, PrepareNodeAggregationCircuitJob, WitnessGeneratorJobMetadata},
     zkevm_test_harness::{
         abstract_zksync_circuit::concrete_circuits::ZkSyncCircuit,
         bellman::bn256::Bn256,
@@ -29,7 +23,7 @@ use zksync_types::{
             oracle::VmWitnessOracle,
             recursive_aggregation::{erase_vk_type, padding_aggregations},
         },
-        LeafAggregationOutputDataWitness, NodeAggregationOutputDataWitness,
+        NodeAggregationOutputDataWitness,
     },
     L1BatchNumber,
 };
@@ -37,13 +31,125 @@ use zksync_verification_key_server::{
     get_vk_for_circuit_type, get_vks_for_basic_circuits, get_vks_for_commitment,
 };
 
-use crate::witness_generator;
 use crate::witness_generator::track_witness_generation_stage;
 use crate::witness_generator::utils::save_prover_input_artifacts;
 
 pub struct NodeAggregationArtifacts {
-    pub final_node_aggregation: NodeAggregationOutputDataWitness<Bn256>,
-    pub serialized_circuits: Vec<(String, Vec<u8>)>,
+    final_node_aggregation: NodeAggregationOutputDataWitness<Bn256>,
+    node_circuits: Vec<ZkSyncCircuit<Bn256, VmWitnessOracle<Bn256>>>,
+}
+
+#[derive(Debug)]
+struct BlobUrls {
+    node_aggregations_url: String,
+    circuit_types_and_urls: Vec<(&'static str, String)>,
+}
+
+#[derive(Clone)]
+pub struct NodeAggregationWitnessGeneratorJob {
+    block_number: L1BatchNumber,
+    job: PrepareNodeAggregationCircuitJob,
+}
+
+#[derive(Debug)]
+pub struct NodeAggregationWitnessGenerator {
+    config: WitnessGeneratorConfig,
+    object_store: Box<dyn ObjectStore>,
+}
+
+impl NodeAggregationWitnessGenerator {
+    pub fn new(config: WitnessGeneratorConfig, store_factory: &ObjectStoreFactory) -> Self {
+        Self {
+            config,
+            object_store: store_factory.create_store(),
+        }
+    }
+
+    fn process_job_sync(
+        node_job: NodeAggregationWitnessGeneratorJob,
+        started_at: Instant,
+    ) -> NodeAggregationArtifacts {
+        let config: WitnessGeneratorConfig = WitnessGeneratorConfig::from_env();
+        let NodeAggregationWitnessGeneratorJob { block_number, job } = node_job;
+
+        vlog::info!(
+            "Starting witness generation of type {:?} for block {}",
+            AggregationRound::NodeAggregation,
+            block_number.0
+        );
+        process_node_aggregation_job(config, started_at, block_number, job)
+    }
+}
+
+#[async_trait]
+impl JobProcessor for NodeAggregationWitnessGenerator {
+    type Job = NodeAggregationWitnessGeneratorJob;
+    type JobId = L1BatchNumber;
+    type JobArtifacts = NodeAggregationArtifacts;
+
+    const SERVICE_NAME: &'static str = "node_aggregation_witness_generator";
+
+    async fn get_next_job(
+        &self,
+        connection_pool: ConnectionPool,
+    ) -> Option<(Self::JobId, Self::Job)> {
+        let mut connection = connection_pool.access_storage_blocking();
+        let last_l1_batch_to_process = self.config.last_l1_batch_to_process();
+
+        match connection
+            .witness_generator_dal()
+            .get_next_node_aggregation_witness_job(
+                self.config.witness_generation_timeout(),
+                self.config.max_attempts,
+                last_l1_batch_to_process,
+            ) {
+            Some(metadata) => {
+                let job = get_artifacts(metadata, &*self.object_store);
+                return Some((job.block_number, job));
+            }
+            None => None,
+        }
+    }
+
+    async fn save_failure(
+        &self,
+        connection_pool: ConnectionPool,
+        job_id: L1BatchNumber,
+        started_at: Instant,
+        error: String,
+    ) -> () {
+        connection_pool
+            .access_storage_blocking()
+            .witness_generator_dal()
+            .mark_witness_job_as_failed(
+                job_id,
+                AggregationRound::NodeAggregation,
+                started_at.elapsed(),
+                error,
+                self.config.max_attempts,
+            );
+    }
+
+    #[allow(clippy::async_yields_async)]
+    async fn process_job(
+        &self,
+        _connection_pool: ConnectionPool,
+        job: NodeAggregationWitnessGeneratorJob,
+        started_at: Instant,
+    ) -> tokio::task::JoinHandle<NodeAggregationArtifacts> {
+        tokio::task::spawn_blocking(move || Self::process_job_sync(job, started_at))
+    }
+
+    async fn save_result(
+        &self,
+        connection_pool: ConnectionPool,
+        job_id: L1BatchNumber,
+        started_at: Instant,
+        artifacts: NodeAggregationArtifacts,
+    ) {
+        let blob_urls = save_artifacts(job_id, artifacts, &*self.object_store);
+        update_database(connection_pool, started_at, job_id, blob_urls);
+    }
 }
 
 pub fn process_node_aggregation_job(
@@ -140,9 +246,6 @@ pub fn process_node_aggregation_job(
         "prepare_node_aggregations returned more than one node aggregation"
     );
 
-    let serialized_circuits: Vec<(String, Vec<u8>)> =
-        witness_generator::serialize_circuits(&node_circuits);
-
     vlog::info!(
         "Node witness generation for block {} is complete in {:?}. Number of circuits: {}",
         block_number.0,
@@ -152,15 +255,15 @@ pub fn process_node_aggregation_job(
 
     NodeAggregationArtifacts {
         final_node_aggregation: final_node_aggregations.into_iter().next().unwrap(),
-        serialized_circuits,
+        node_circuits,
     }
 }
 
-pub fn update_database(
+fn update_database(
     connection_pool: ConnectionPool,
     started_at: Instant,
     block_number: L1BatchNumber,
-    circuits: Vec<String>,
+    blob_urls: BlobUrls,
 ) {
     let mut connection = connection_pool.access_storage_blocking();
     let mut transaction = connection.start_transaction_blocking();
@@ -169,10 +272,10 @@ pub fn update_database(
     // and advances it to waiting_for_proofs status
     transaction
         .witness_generator_dal()
-        .save_node_aggregation_artifacts(block_number);
+        .save_node_aggregation_artifacts(block_number, &blob_urls.node_aggregations_url);
     transaction.prover_dal().insert_prover_jobs(
         block_number,
-        circuits,
+        blob_urls.circuit_types_and_urls,
         AggregationRound::NodeAggregation,
     );
     transaction
@@ -187,77 +290,43 @@ pub fn update_database(
     track_witness_generation_stage(started_at, AggregationRound::NodeAggregation);
 }
 
-pub async fn get_artifacts(
+pub fn get_artifacts(
     metadata: WitnessGeneratorJobMetadata,
-    object_store: &DynamicObjectStore,
-) -> WitnessGeneratorJob {
-    let leaf_layer_subqueues_serialized = object_store
-        .get(
-            NODE_AGGREGATION_WITNESS_JOBS_BUCKET_PATH,
-            leaf_layer_subqueues_blob_url(metadata.block_number),
-        )
-        .expect(
-            "leaf_layer_subqueues is not found in a `queued` `node_aggregation_witness_jobs` job",
-        );
-    let leaf_layer_subqueues = bincode::deserialize::<
-        Vec<
-            zksync_types::zkevm_test_harness::encodings::QueueSimulator<
-                Bn256,
-                zksync_types::zkevm_test_harness::encodings::recursion_request::RecursionRequest<
-                    Bn256,
-                >,
-                2,
-                2,
-            >,
-        >,
-    >(&leaf_layer_subqueues_serialized)
-    .expect("leaf_layer_subqueues deserialization failed");
+    object_store: &dyn ObjectStore,
+) -> NodeAggregationWitnessGeneratorJob {
+    let leaf_layer_subqueues = object_store
+        .get(metadata.block_number)
+        .expect("leaf_layer_subqueues not found in queued `node_aggregation_witness_jobs` job");
+    let aggregation_outputs = object_store
+        .get(metadata.block_number)
+        .expect("aggregation_outputs not found in queued `node_aggregation_witness_jobs` job");
 
-    let aggregation_outputs_serialized = object_store
-        .get(
-            NODE_AGGREGATION_WITNESS_JOBS_BUCKET_PATH,
-            aggregation_outputs_blob_url(metadata.block_number),
-        )
-        .expect(
-            "aggregation_outputs is not found in a `queued` `node_aggregation_witness_jobs` job",
-        );
-    let aggregation_outputs = bincode::deserialize::<Vec<LeafAggregationOutputDataWitness<Bn256>>>(
-        &aggregation_outputs_serialized,
-    )
-    .expect("aggregation_outputs deserialization failed");
-
-    WitnessGeneratorJob {
+    NodeAggregationWitnessGeneratorJob {
         block_number: metadata.block_number,
-        job: WitnessGeneratorJobInput::NodeAggregation(Box::new(
-            PrepareNodeAggregationCircuitJob {
-                previous_level_proofs: metadata.proofs,
-                previous_level_leafs_aggregations: aggregation_outputs,
-                previous_sequence: leaf_layer_subqueues,
-            },
-        )),
+        job: PrepareNodeAggregationCircuitJob {
+            previous_level_proofs: metadata.proofs,
+            previous_level_leafs_aggregations: aggregation_outputs,
+            previous_sequence: leaf_layer_subqueues,
+        },
     }
 }
 
-pub async fn save_artifacts(
+fn save_artifacts(
     block_number: L1BatchNumber,
     artifacts: NodeAggregationArtifacts,
-    object_store: &mut DynamicObjectStore,
-) {
-    let final_node_aggregations_serialized = bincode::serialize(&artifacts.final_node_aggregation)
-        .expect("cannot serialize final_node_aggregations");
-
-    object_store
-        .put(
-            SCHEDULER_WITNESS_JOBS_BUCKET_PATH,
-            final_node_aggregations_blob_url(block_number),
-            final_node_aggregations_serialized,
-        )
+    object_store: &dyn ObjectStore,
+) -> BlobUrls {
+    let node_aggregations_url = object_store
+        .put(block_number, &artifacts.final_node_aggregation)
         .unwrap();
-    save_prover_input_artifacts(
+    let circuit_types_and_urls = save_prover_input_artifacts(
         block_number,
-        artifacts.serialized_circuits,
+        &artifacts.node_circuits,
         object_store,
         AggregationRound::NodeAggregation,
-    )
-    .await;
+    );
+    BlobUrls {
+        node_aggregations_url,
+        circuit_types_and_urls,
+    }
 }

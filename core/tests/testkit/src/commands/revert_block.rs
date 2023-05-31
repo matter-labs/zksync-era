@@ -1,7 +1,8 @@
 use num::BigUint;
 use std::time::Instant;
 
-use zksync_core::genesis::ensure_genesis_state;
+use zksync_core::genesis::{ensure_genesis_state, GenesisParams};
+use zksync_types::L2ChainId;
 
 use crate::commands::utils::{
     create_first_block, create_test_accounts, get_root_hashes, get_test_config,
@@ -16,7 +17,14 @@ pub async fn test_revert_blocks() {
 
     let test_db_manager = TestDatabaseManager::new().await;
     let db = test_db_manager.get_db();
-    ensure_genesis_state(db.clone(), &config);
+    ensure_genesis_state(
+        &mut storage,
+        L2ChainId(config.chain.eth.zksync_network_id),
+        GenesisParams::MainNode {
+            first_validator: config.eth_sender.sender.operator_commit_eth_addr,
+        },
+    )
+    .await;
 
     println!("deploying contracts");
     let deploy_timer = Instant::now();

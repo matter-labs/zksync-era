@@ -262,7 +262,7 @@ pub async fn commit_cost_of_deploys(
                 bytecode.clone(),
                 constructor_calldata.clone(),
                 rng.gen_biguint_range(&BigUint::from(u32::MAX / 2), &BigUint::from(u32::MAX)),
-                n_accounts.into(),
+                n_accounts.into(), // TODO: May be incorrect, needs to be checked.
             )
             .await;
     }
@@ -292,7 +292,7 @@ pub async fn commit_cost_of_executes(
             bytecode.clone(),
             constructor_calldata.clone(),
             rng.gen_biguint_range(&BigUint::from(u32::MAX / 2), &BigUint::from(u32::MAX)),
-            0.into(),
+            0.into(), // TODO: May be incorrect, needs to be checked.
         )
         .await;
     process_blocks(tester, 1).await;

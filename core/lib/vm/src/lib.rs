@@ -21,11 +21,10 @@ pub mod vm_with_bootloader;
 mod tests;
 
 pub use crate::errors::TxRevertReason;
+pub use crate::history_recorder::{HistoryDisabled, HistoryEnabled, HistoryMode};
 pub use crate::oracle_tools::OracleTools;
 pub use crate::oracles::storage::StorageOracle;
-pub use crate::vm::VmBlockResult;
-pub use crate::vm::VmExecutionResult;
-pub use crate::vm::VmInstance;
+pub use crate::vm::{VmBlockResult, VmExecutionResult, VmInstance};
 pub use zk_evm;
 pub use zksync_types::vm_trace::VmExecutionTrace;
 

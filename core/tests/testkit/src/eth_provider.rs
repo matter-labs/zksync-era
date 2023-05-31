@@ -1,6 +1,6 @@
 use anyhow::format_err;
 use num::BigUint;
-use zksync_eth_client::clients::http_client::{Error, EthInterface};
+use zksync_eth_client::{types::Error, BoundEthInterface, EthInterface};
 use zksync_types::ethabi;
 use zksync_types::web3::{
     contract::{tokens::Tokenize, Options},
@@ -10,7 +10,7 @@ use zksync_types::web3::{
 use zksync_types::L1ChainId;
 
 use zksync_contracts::{erc20_contract, zksync_contract};
-use zksync_eth_client::ETHDirectClient;
+use zksync_eth_client::clients::http::SigningClient;
 use zksync_eth_signer::PrivateKeySigner;
 use zksync_types::aggregated_operations::{
     BlocksCommitOperation, BlocksExecuteOperation, BlocksProofOperation,
@@ -27,7 +27,7 @@ const DEFAULT_PRIORITY_FEE: usize = 5; // 5 wei, doesn't really matter
 /// Used to sign and post ETH transactions for the zkSync contracts.
 #[derive(Debug, Clone)]
 pub struct EthereumProvider {
-    pub main_contract_eth_client: ETHDirectClient<PrivateKeySigner>,
+    pub main_contract_eth_client: SigningClient<PrivateKeySigner>,
     pub erc20_abi: ethabi::Contract,
     pub address: Address,
 }
@@ -44,7 +44,7 @@ impl EthereumProvider {
             .expect("failed get address from private key");
 
         let eth_signer = PrivateKeySigner::new(private_key);
-        let main_contract_eth_client = ETHDirectClient::new(
+        let main_contract_eth_client = SigningClient::new(
             transport,
             zksync_contract(),
             address,
@@ -204,6 +204,7 @@ impl EthereumProvider {
         _processing_type: OpProcessingType,
         _layer_2_tip_fee: BigUint,
     ) -> anyhow::Result<EthExecResult> {
+        // TODO: Add interaction with the default bridge to testkit.
         todo!("Testkit is not updated yet")
         // let value = self
         //     .get_layer_1_base_cost(
@@ -252,6 +253,7 @@ impl EthereumProvider {
         _processing_type: OpProcessingType,
         _layer_2_tip_fee: BigUint,
     ) -> anyhow::Result<EthExecResult> {
+        // TODO: Add interaction with the default bridge to testkit.
         todo!("Testkit is not updated yet")
         // let value = self
         //     .get_layer_1_base_cost(
@@ -295,6 +297,7 @@ impl EthereumProvider {
         _processing_type: OpProcessingType,
         _layer_2_tip_fee: BigUint,
     ) -> anyhow::Result<EthExecResult> {
+        // TODO: Add interaction with the default bridge to testkit.
         todo!("Testkit is not updated yet")
         // let value = self
         //     .get_layer_1_base_cost(
@@ -343,6 +346,7 @@ impl EthereumProvider {
         _processing_type: OpProcessingType,
         _layer_2_tip_fee: BigUint,
     ) -> anyhow::Result<EthExecResult> {
+        // TODO: Add interaction with the default bridge to testkit.
         todo!("Testkit is not updated yet")
         // let value = self
         //     .get_layer_1_base_cost(
@@ -446,6 +450,7 @@ impl EthereumProvider {
         _processing_type: OpProcessingType,
         _layer_2_tip_fee: BigUint,
     ) -> anyhow::Result<EthExecResult> {
+        // TODO: Add interaction with the default bridge to testkit.
         todo!("Testkit is not updated yet")
         // let value = self
         //     .get_layer_1_base_cost(
@@ -587,7 +592,7 @@ pub struct EthExecResult {
 impl EthExecResult {
     pub async fn new(
         receipt: TransactionReceipt,
-        client: &ETHDirectClient<PrivateKeySigner>,
+        client: &SigningClient<PrivateKeySigner>,
     ) -> Self {
         let revert_reason = if receipt.status == Some(U64::from(1)) {
             None
@@ -641,7 +646,7 @@ impl EthExecResult {
 }
 
 async fn send_raw_tx_wait_confirmation(
-    client: &ETHDirectClient<PrivateKeySigner>,
+    client: &SigningClient<PrivateKeySigner>,
     raw_tx: Vec<u8>,
 ) -> Result<TransactionReceipt, anyhow::Error> {
     let tx_hash = client

@@ -18,8 +18,8 @@ use zksync_web3_decl::error::Web3Error;
 use zksync_web3_decl::types::{Block, Filter, FilterChanges, Log};
 
 // Local uses
-use crate::web3::backend_jsonrpc::error::into_jsrpc_error;
 use crate::web3::namespaces::EthNamespace;
+use crate::{l1_gas_price::L1GasPriceProvider, web3::backend_jsonrpc::error::into_jsrpc_error};
 
 #[rpc]
 pub trait EthNamespaceT {
@@ -178,7 +178,7 @@ pub trait EthNamespaceT {
     ) -> Result<H256>;
 }
 
-impl EthNamespaceT for EthNamespace {
+impl<G: L1GasPriceProvider + Send + Sync + 'static> EthNamespaceT for EthNamespace<G> {
     fn get_block_number(&self) -> Result<U64> {
         self.get_block_number_impl().map_err(into_jsrpc_error)
     }

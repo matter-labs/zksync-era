@@ -117,6 +117,7 @@ pub struct TokenResponse {
 }
 
 #[tokio::test]
+#[ignore] // Remote API may be unavailable, so we ignore this test by default.
 async fn test_fetch_uniswap_trading_volumes() {
     let mut config = FetcherConfig::from_env();
     config.token_trading_volume.url =

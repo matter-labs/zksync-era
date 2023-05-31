@@ -4,7 +4,7 @@ version = "1.0.0"
 edition = "2018"
 authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
 homepage = "https://zksync.io/"
-repository = "https://github.com/matter-labs/zksync-era"
+repository = "https://github.com/matter-labs/zksync-2"
 license = "Apache-2.0"
 keywords = ["blockchain", "zksync"]
 categories = ["cryptography"]
@@ -18,17 +18,10 @@ zksync_contracts = { path = "../contracts", version = "1.0" }
 zksync_mini_merkle_tree = { path = "../mini_merkle_tree", version = "1.0"}
 # We need this import because we wanat DAL to be responsible for (de)serialization
 codegen = { git = "https://github.com/matter-labs/solidity_plonk_verifier.git", branch = "dev" }
+zkevm_test_harness = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.3.2" }
+zk_evm = {git = "https://github.com/matter-labs/era-zk_evm.git", branch = "v1.3.2"}
+zkevm-assembly = { git = "https://github.com/matter-labs/era-zkEVM-assembly.git", branch = "v1.3.2" }
 
-zkevm_test_harness = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "main" }
-#zkevm_test_harness = { path = "../../../../zkevm_test_harness" }
-
-
-#codegen = { path = "../../../../solidity_plonk_verifier/codegen" }
-
-zk_evm = {git = "https://github.com/matter-labs/era-zk_evm.git", branch = "main"}
-#zk_evm = { path = "../../../../zk_evm" }
-
-zkevm-assembly = { git = "https://github.com/matter-labs/era-zkEVM-assembly.git", branch = "main" }
 
 rlp = "0.5"
 metrics = "0.20"
@@ -55,5 +48,4 @@ blake2 = "0.10"
 [dev-dependencies]
 secp256k1 = {version = "0.21", features = ["recovery"] }
 tokio = { version = "1", features = ["rt", "macros"] }
-serde_with = {version="1", features=["hex"]}
-
+serde_with = { version = "1", features = ["hex"] }

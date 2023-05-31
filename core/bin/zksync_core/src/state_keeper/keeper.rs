@@ -1,13 +1,11 @@
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use tokio::sync::watch::Receiver;
 
-use vm::transaction_data::TransactionData;
-use vm::TxRevertReason;
+use vm::{transaction_data::TransactionData, TxRevertReason};
 use zksync_types::{
     storage_writes_deduplicator::StorageWritesDeduplicator, MiniblockNumber, Transaction,
 };
-use zksync_utils::time::millis_since_epoch;
 
 use crate::gas_tracker::gas_count_from_writes;
 use crate::state_keeper::{
@@ -112,7 +110,7 @@ impl ZkSyncStateKeeper {
         );
 
         let mut batch_executor = self.batch_executor_base.init_batch(l1_batch_params.clone());
-        self.restore_state(&batch_executor, &mut updates_manager, txs_to_reexecute);
+        self.restore_state(&batch_executor, &mut updates_manager, txs_to_reexecute)?;
 
         loop {
             self.check_if_cancelled()?;
@@ -175,13 +173,16 @@ impl ZkSyncStateKeeper {
     /// Applies the "pending state" on the `UpdatesManager`.
     /// Pending state means transactions that were executed before the server restart. Before we continue processing the
     /// batch, we need to restore the state. We must ensure that every transaction is executed successfully.
+    ///
+    /// Additionally, it initialized the next miniblock timestamp.
     fn restore_state(
         &mut self,
         batch_executor: &BatchExecutorHandle,
         updates_manager: &mut UpdatesManager,
         txs_to_reexecute: Vec<(MiniblockNumber, Vec<Transaction>)>,
-    ) {
-        for (miniblock_number, txs) in txs_to_reexecute {
+    ) -> Result<(), Canceled> {
+        let miniblocks_count = txs_to_reexecute.len();
+        for (idx, (miniblock_number, txs)) in txs_to_reexecute.into_iter().enumerate() {
             vlog::info!(
                 "Starting to reexecute transactions from sealed miniblock {}",
                 miniblock_number
@@ -189,25 +190,30 @@ impl ZkSyncStateKeeper {
             for tx in txs {
                 let result = batch_executor.execute_tx(tx.clone());
 
-                if !result.success() {
-                    let err = result.err().unwrap();
-                    panic!(
-                        "Re-executing stored tx failed. Tx: {:?}. Err: {:?}",
-                        tx, err
-                    )
+                let TxExecutionResult::Success {
+                        tx_result,
+                        tx_metrics,
+                        compressed_bytecodes,
+                        ..
+                    } = result else {
+                        panic!(
+                            "Re-executing stored tx failed. Tx: {:?}. Err: {:?}",
+                            tx,
+                            result.err()
+                        );
                 };
-                let tx_execution_result = result.tx_result.unwrap();
-                let tx_execution_status = tx_execution_result.status;
 
                 let ExecutionMetricsForCriteria {
                     l1_gas: tx_l1_gas_this_tx,
                     execution_metrics: tx_execution_metrics,
-                } = result.tx_metrics.unwrap();
+                } = tx_metrics;
+
+                let exec_result_status = tx_result.status;
 
                 updates_manager.extend_from_executed_transaction(
                     &tx,
-                    tx_execution_result,
-                    result.compressed_bytecodes,
+                    *tx_result,
+                    compressed_bytecodes,
                     tx_l1_gas_this_tx,
                     tx_execution_metrics,
                 );
@@ -222,7 +228,7 @@ impl ZkSyncStateKeeper {
                     self.io.current_l1_batch_number().0,
                     updates_manager.miniblock.executed_transactions.len(),
                     miniblock_number,
-                    tx_execution_status,
+                    exec_result_status,
                     tx_l1_gas_this_tx,
                     updates_manager.pending_l1_gas_count(),
                     &tx_execution_metrics,
@@ -230,12 +236,17 @@ impl ZkSyncStateKeeper {
                 );
             }
 
-            // For old miniblocks that we reexecute the correct timestamps are already persisted in the DB and won't be overwritten.
-            // However, `seal_miniblock` method of `UpdatesManager` takes the only parameter `new_miniblock_timstamp`
-            // that will be used as a timestamp for the next sealed miniblock.
-            // So, we should care about passing the correct timestamp for miniblock that comes after the pending batch.
-            updates_manager.seal_miniblock((millis_since_epoch() / 1000) as u64);
+            if idx == miniblocks_count - 1 {
+                // We've processed all the miniblocks, and right now we're initializing the next *actual* miniblock.
+                let new_timestamp = self.wait_for_new_miniblock_params()?;
+                updates_manager.seal_miniblock(new_timestamp);
+            } else {
+                // For all the blocks except the last one we pass 0 as a timestamp, since we don't expect it to be used
+                // anywhere. Using an obviously wrong value would make bugs easier to spot.
+                updates_manager.seal_miniblock(0);
+            }
         }
+        Ok(())
     }
 
     fn process_l1_batch(
@@ -256,39 +267,41 @@ impl ZkSyncStateKeeper {
                 let new_timestamp = self.wait_for_new_miniblock_params()?;
                 updates_manager.seal_miniblock(new_timestamp);
             }
+            let started_waiting = Instant::now();
             let Some(tx) = self.io.wait_for_next_tx(POLL_WAIT_DURATION) else {
+                metrics::histogram!("server.state_keeper.waiting_for_tx", started_waiting.elapsed());
                 vlog::trace!("No new transactions. Waiting!");
                 continue;
             };
+            metrics::histogram!(
+                "server.state_keeper.waiting_for_tx",
+                started_waiting.elapsed(),
+            );
 
             let (seal_resolution, exec_result) =
                 self.process_one_tx(batch_executor, updates_manager, &tx);
 
             match &seal_resolution {
-                SealResolution::NoSeal => {
+                SealResolution::NoSeal | SealResolution::IncludeAndSeal => {
+                    let TxExecutionResult::Success {
+                            tx_result,
+                            tx_metrics,
+                            compressed_bytecodes,
+                            ..
+                        } = exec_result else {
+                            panic!(
+                                "Tx inclusion seal resolution must be a result of a successful tx execution",
+                            );
+                        };
                     let ExecutionMetricsForCriteria {
                         l1_gas: tx_l1_gas_this_tx,
                         execution_metrics: tx_execution_metrics,
                         ..
-                    } = exec_result.tx_metrics.unwrap();
+                    } = tx_metrics;
                     updates_manager.extend_from_executed_transaction(
                         &tx,
-                        exec_result.tx_result.unwrap(),
-                        exec_result.compressed_bytecodes,
-                        tx_l1_gas_this_tx,
-                        tx_execution_metrics,
-                    );
-                }
-                SealResolution::IncludeAndSeal => {
-                    let ExecutionMetricsForCriteria {
-                        l1_gas: tx_l1_gas_this_tx,
-                        execution_metrics: tx_execution_metrics,
-                        ..
-                    } = exec_result.tx_metrics.unwrap();
-                    updates_manager.extend_from_executed_transaction(
-                        &tx,
-                        exec_result.tx_result.unwrap(),
-                        exec_result.compressed_bytecodes,
+                        *tx_result,
+                        compressed_bytecodes,
                         tx_l1_gas_this_tx,
                         tx_execution_metrics,
                     );
@@ -323,16 +336,9 @@ impl ZkSyncStateKeeper {
         tx: &Transaction,
     ) -> (SealResolution, TxExecutionResult) {
         let exec_result = batch_executor.execute_tx(tx.clone());
-        let TxExecutionResult {
-            tx_result,
-            bootloader_dry_run_result,
-            tx_metrics,
-            bootloader_dry_run_metrics,
-            ..
-        } = exec_result.clone();
 
-        match tx_result {
-            Err(TxRevertReason::BootloaderOutOfGas) => {
+        match exec_result.clone() {
+            TxExecutionResult::BootloaderOutOfGasForTx => {
                 metrics::increment_counter!(
                     "server.tx_aggregation.reason",
                     "criterion" => "bootloader_tx_out_of_gas",
@@ -340,18 +346,42 @@ impl ZkSyncStateKeeper {
                 );
                 (SealResolution::ExcludeAndSeal, exec_result)
             }
-            Err(rejection) => (
-                SealResolution::Unexecutable(rejection.to_string()),
-                exec_result,
-            ),
-            Ok(tx_execution_result) => {
-                let tx_execution_status = tx_execution_result.status;
+            TxExecutionResult::BootloaderOutOfGasForBlockTip => {
+                metrics::increment_counter!(
+                    "server.tx_aggregation.reason",
+                    "criterion" => "bootloader_block_tip_failed",
+                    "seal_resolution" => "exclude_and_seal",
+                );
+                (SealResolution::ExcludeAndSeal, exec_result)
+            }
+            TxExecutionResult::RejectedByVm { rejection_reason } => match rejection_reason {
+                TxRevertReason::NotEnoughGasProvided => {
+                    metrics::increment_counter!(
+                        "server.tx_aggregation.reason",
+                        "criterion" => "not_enough_gas_provided_to_start_tx",
+                        "seal_resolution" => "exclude_and_seal",
+                    );
+                    (SealResolution::ExcludeAndSeal, exec_result)
+                }
+                _ => (
+                    SealResolution::Unexecutable(rejection_reason.to_string()),
+                    exec_result,
+                ),
+            },
+            TxExecutionResult::Success {
+                tx_result,
+                tx_metrics,
+                bootloader_dry_run_metrics,
+                bootloader_dry_run_result,
+                ..
+            } => {
+                let tx_execution_status = tx_result.status;
                 let ExecutionMetricsForCriteria {
                     l1_gas: tx_l1_gas_this_tx,
                     execution_metrics: tx_execution_metrics,
-                } = tx_metrics.unwrap();
+                } = tx_metrics;
 
-                vlog::debug!(
+                vlog::trace!(
                     "finished tx {:?} by {:?} (is_l1: {}) (#{} in l1 batch {}) (#{} in miniblock {}) \
                     status: {:?}. L1 gas spent: {:?}, total in l1 batch: {:?}, \
                     tx execution metrics: {:?}, block execution metrics: {:?}",
@@ -369,29 +399,16 @@ impl ZkSyncStateKeeper {
                     updates_manager.pending_execution_metrics() + tx_execution_metrics,
                 );
 
-                let bootloader_dry_run_result =
-                    if let Ok(bootloader_dry_run_result) = bootloader_dry_run_result.unwrap() {
-                        bootloader_dry_run_result
-                    } else {
-                        // Exclude and seal.
-                        metrics::increment_counter!(
-                            "server.tx_aggregation.reason",
-                            "criterion" => "bootloader_block_tip_failed",
-                            "seal_resolution" => "exclude_and_seal",
-                        );
-                        return (SealResolution::ExcludeAndSeal, exec_result);
-                    };
-
                 let ExecutionMetricsForCriteria {
                     l1_gas: finish_block_l1_gas,
                     execution_metrics: finish_block_execution_metrics,
                     ..
-                } = bootloader_dry_run_metrics.unwrap();
+                } = bootloader_dry_run_metrics;
 
                 let tx_data: TransactionData = tx.clone().into();
                 let encoding_len = tx_data.into_tokens().len();
 
-                let logs_to_apply_iter = tx_execution_result
+                let logs_to_apply_iter = tx_result
                     .result
                     .logs
                     .storage_logs

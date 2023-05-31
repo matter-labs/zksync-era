@@ -5,9 +5,14 @@ use serde::Serialize;
 use std::collections::HashMap;
 use zksync_crypto::hasher::blake2::Blake2Hasher;
 pub use zksync_types::writes::{InitialStorageWrite, RepeatedStorageWrite};
-use zksync_types::H256;
+use zksync_types::{proofs::PrepareBasicCircuitsJob, H256};
 use zksync_utils::impl_from_wrapper;
 
+/// Position of a node in a tree.
+/// The first argument (u16) is the depth, and the second (u256) is the index on this depth.
+/// So the root, will have (0, 0)
+/// Its children: (1,0), (1,1)
+/// Their children: (2, 0), (2,1), (2,2), (2,3) etc.
 #[derive(PartialEq, Eq, Hash, Clone, Debug, Serialize)]
 pub struct LevelIndex(pub (u16, U256));
 
@@ -73,9 +78,9 @@ pub type ZkHash = Bytes;
 /// Includes root hash, current tree location and serialized merkle paths for each storage log
 #[derive(Debug, Clone, Default)]
 pub struct TreeMetadata {
-    pub root_hash: ZkHash,
+    pub root_hash: H256,
     pub rollup_last_leaf_index: u64,
-    pub witness_input: Vec<u8>,
+    pub witness_input: Option<PrepareBasicCircuitsJob>,
     pub initial_writes: Vec<InitialStorageWrite>,
     pub repeated_writes: Vec<RepeatedStorageWrite>,
 }

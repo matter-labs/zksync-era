@@ -98,6 +98,8 @@ describe('Smart contract behavior checks', () => {
         const infiniteLoop = await deployContract(alice, contracts.infinite, []);
 
         // Test eth_call first
+        // await expect(infiniteLoop.callStatic.infiniteLoop()).toBeRejected('cannot estimate transaction: out of gas');
+        // ...and then an actual transaction
         await expect(infiniteLoop.infiniteLoop({ gasLimit: 1_000_000 })).toBeReverted([]);
     });
 
@@ -198,8 +200,16 @@ describe('Smart contract behavior checks', () => {
     test('Should return correct error during fee estimation', async () => {
         const errorContract = await deployContract(alice, contracts.error, []);
 
-        await expect(errorContract.estimateGas.require_long()).toBeRejected('longlonglong');
-        await expect(errorContract.require_long()).toBeRejected('longlonglong');
+        await expect(errorContract.estimateGas.require_long()).toBeRevertedEstimateGas('longlonglong');
+        await expect(errorContract.require_long()).toBeRevertedEthCall('longlonglong');
+        await expect(errorContract.estimateGas.new_error()).toBeRevertedEstimateGas(
+            undefined,
+            '0x157bea60000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000000046461746100000000000000000000000000000000000000000000000000000000'
+        );
+        await expect(errorContract.callStatic.new_error()).toBeRevertedEthCall(
+            undefined,
+            '0x157bea60000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000000046461746100000000000000000000000000000000000000000000000000000000'
+        );
     });
 
     test('Should check block properties for tx execution', async () => {

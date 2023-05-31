@@ -16,7 +16,7 @@ pub const COMMIT_TIMEOUT: Duration = Duration::from_secs(600);
 /// every couple of seconds, chosen value seems to be adequate to provide the result in one or two calls at average.
 pub const POLLING_INTERVAL: Duration = Duration::from_secs(3);
 
-pub const MAX_OUTSTANDING_NONCE: usize = 50;
+pub const MAX_OUTSTANDING_NONCE: usize = 20;
 
 /// Each account continuously sends API requests in addition to transactions. Such requests are considered failed
 /// after this amount of time elapsed without any server response.

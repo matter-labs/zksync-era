@@ -9,11 +9,16 @@ contract Counter {
         value += x;
     }
 
-    function incrementWithRevert(uint256 x, bool shouldRevert) public {
+    function incrementWithRevertPayable(uint256 x, bool shouldRevert) payable public returns (uint256) {
+        return incrementWithRevert(x, shouldRevert);
+    }
+
+    function incrementWithRevert(uint256 x, bool shouldRevert) public returns (uint256) {
         value += x;
         if(shouldRevert) {
             revert("This method always reverts");
         }
+        return value;
     }
 
     function get() public view returns (uint256) {

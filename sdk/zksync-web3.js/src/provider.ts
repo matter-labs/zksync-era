@@ -19,6 +19,7 @@ import {
     BlockWithTransactions,
     Log,
     TransactionDetails,
+    BatchDetails,
     BlockDetails,
     ContractAccountInfo
 } from './types';
@@ -359,6 +360,10 @@ export class Provider extends ethers.providers.JsonRpcProvider {
     async getL1BatchNumber(): Promise<number> {
         const number = await this.send('zks_L1BatchNumber', []);
         return BigNumber.from(number).toNumber();
+    }
+
+    async getL1BatchDetails(number: number): Promise<BatchDetails> {
+        return await this.send('zks_getL1BatchDetails', [number]);
     }
 
     async getBlockDetails(number: number): Promise<BlockDetails> {

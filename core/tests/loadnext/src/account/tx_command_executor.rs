@@ -1,3 +1,4 @@
+use std::time::Instant;
 use zksync::web3::ethabi;
 use zksync::EthNamespaceClient;
 use zksync::{
@@ -346,11 +347,23 @@ impl AccountLifespan {
             }
 
             ExecutionType::L2 => {
+                let mut started_at = Instant::now();
                 let tx = self
                     .build_execute_loadnext_contract(command, contract_address)
                     .await?;
-
-                self.execute_submit(tx, command.modifier).await
+                vlog::trace!(
+                    "Account {:?}: execute_loadnext_contract: tx built in {:?}",
+                    self.wallet.wallet.address(),
+                    started_at.elapsed()
+                );
+                started_at = Instant::now();
+                let result = self.execute_submit(tx, command.modifier).await;
+                vlog::trace!(
+                    "Account {:?}: execute_loadnext_contract: tx executed in {:?}",
+                    self.wallet.wallet.address(),
+                    started_at.elapsed()
+                );
+                result
             }
         }
     }

@@ -62,10 +62,7 @@ export async function deployL2(args: any[] = []) {
 
     // Skip compilation for local setup, since we already copied artifacts into the container.
     await utils.spawn(`${baseCommandL2} build`);
-    await utils.spawn(`${baseCommandL2} compile-and-deploy-libs ${args.join(' ')}`);
 
-    // IMPORTANT: initialize-bridges must go strictly *right after* the compile-and-deploy-libs step.
-    // Otherwise, the ExternalDecoder library will be erased.
     await utils.spawn(`${baseCommandL1} initialize-bridges ${args.join(' ')} | tee deployL2.log`);
 
     await utils.spawn(`${baseCommandL2} deploy-testnet-paymaster ${args.join(' ')} | tee -a deployL2.log`);
@@ -107,6 +104,9 @@ export async function deployL1(args: any[]) {
         'CONTRACTS_GENESIS_TX_HASH',
         'CONTRACTS_L1_ERC20_BRIDGE_PROXY_ADDR',
         'CONTRACTS_L1_ERC20_BRIDGE_IMPL_ADDR',
+        'CONTRACTS_L1_WETH_BRIDGE_IMPL_ADDR',
+        'CONTRACTS_L1_WETH_BRIDGE_PROXY_ADDR',
+        'CONTRACTS_L1_WETH_TOKEN_ADDR',
         'CONTRACTS_L1_ALLOW_LIST_ADDR'
     ];
     const updatedContracts = updateContractsEnv(deployLog, envVars);

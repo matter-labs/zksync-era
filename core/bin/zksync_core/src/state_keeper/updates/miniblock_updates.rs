@@ -91,6 +91,11 @@ impl MiniblockUpdates {
             refunded_gas: tx_execution_result.gas_refunded,
             operator_suggested_refund: tx_execution_result.operator_suggested_refund,
             compressed_bytecodes,
+            call_traces: tx_execution_result.call_traces,
+            revert_reason: tx_execution_result
+                .result
+                .revert_reason
+                .map(|reason| reason.to_string()),
         });
 
         self.events.extend(tx_execution_result.result.logs.events);
@@ -140,7 +145,9 @@ mod tests {
                     revert_reason: None,
                     contracts_used: 0,
                     cycles_used: 0,
+                    computational_gas_used: 0,
                 },
+                call_traces: vec![],
                 gas_refunded: 0,
                 operator_suggested_refund: 0,
             },

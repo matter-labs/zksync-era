@@ -14,8 +14,8 @@ pub enum SubmitTxError {
     IncorrectTx(#[from] TxCheckError),
     #[error("insufficient funds for gas + value. balance: {0}, fee: {1}, value: {2}")]
     NotEnoughBalanceForFeeValue(U256, U256, U256),
-    #[error("cannot estimate transaction: {0}.")]
-    CannotEstimateTransaction(String),
+    #[error("execution reverted{}{}" , if .0.is_empty() { "" } else { ": " }, .0)]
+    ExecutionReverted(String, Vec<u8>),
     #[error("exceeds block gas limit")]
     GasLimitIsTooBig,
     #[error("{0}")]
@@ -65,6 +65,7 @@ pub enum SubmitTxError {
     #[error("{0}")]
     ProxyError(#[from] zksync_web3_decl::jsonrpsee::core::Error),
 }
+
 impl SubmitTxError {
     pub fn grafana_error_code(&self) -> &'static str {
         match self {
@@ -72,7 +73,7 @@ impl SubmitTxError {
             SubmitTxError::NonceIsTooLow(_, _, _) => "nonce-is-too-low",
             SubmitTxError::IncorrectTx(_) => "incorrect-tx",
             SubmitTxError::NotEnoughBalanceForFeeValue(_, _, _) => "not-enough-balance-for-fee",
-            SubmitTxError::CannotEstimateTransaction(_) => "cannot-estimate-transaction",
+            SubmitTxError::ExecutionReverted(_, _) => "execution-reverted",
             SubmitTxError::GasLimitIsTooBig => "gas-limit-is-too-big",
             SubmitTxError::Unexecutable(_) => "unexecutable",
             SubmitTxError::RateLimitExceeded => "rate-limit-exceeded",
@@ -96,13 +97,21 @@ impl SubmitTxError {
             SubmitTxError::ProxyError(_) => "proxy-error",
         }
     }
+
+    pub fn data(&self) -> Vec<u8> {
+        if let SubmitTxError::ExecutionReverted(_, data) = self {
+            data.clone()
+        } else {
+            Vec::new()
+        }
+    }
 }
 
 impl From<SandboxExecutionError> for SubmitTxError {
     fn from(err: SandboxExecutionError) -> SubmitTxError {
         match err {
-            SandboxExecutionError::Revert(reason) => {
-                SubmitTxError::CannotEstimateTransaction(reason)
+            SandboxExecutionError::Revert(reason, data) => {
+                SubmitTxError::ExecutionReverted(reason, data)
             }
             SandboxExecutionError::BootloaderFailure(reason) => {
                 SubmitTxError::BootloaderFailure(reason)
@@ -121,7 +130,7 @@ impl From<SandboxExecutionError> for SubmitTxError {
             }
             SandboxExecutionError::FromIsNotAnAccount => SubmitTxError::FromIsNotAnAccount,
             SandboxExecutionError::InnerTxError => {
-                SubmitTxError::CannotEstimateTransaction("Bootloader-based tx failed".to_owned())
+                SubmitTxError::ExecutionReverted("Bootloader-based tx failed".to_owned(), vec![])
             }
             SandboxExecutionError::UnexpectedVMBehavior(reason) => {
                 SubmitTxError::UnexpectedVMBehavior(reason)

@@ -1,21 +1,19 @@
-use std::collections::HashMap;
-
 use zksync_config::configs::ProverGroupConfig;
 use zksync_dal::ConnectionPool;
 use zksync_prover_utils::circuit_name_to_numeric_index;
-use zksync_types::proofs::JobCountStatistics;
 
 use crate::house_keeper::periodic_job::PeriodicJob;
 
-const PROVER_SERVICE_NAME: &str = "prover";
-
-#[derive(Debug, Default)]
-pub struct ProverStatsReporter {}
+#[derive(Debug)]
+pub struct ProverStatsReporter {
+    reporting_interval_ms: u64,
+}
 
 impl ProverStatsReporter {
-    fn get_job_statistics(connection_pool: ConnectionPool) -> HashMap<String, JobCountStatistics> {
-        let mut conn = connection_pool.access_storage_blocking();
-        conn.prover_dal().get_prover_jobs_stats_per_circuit()
+    pub fn new(reporting_interval_ms: u64) -> Self {
+        Self {
+            reporting_interval_ms,
+        }
     }
 }
 
@@ -26,31 +24,48 @@ impl PeriodicJob for ProverStatsReporter {
 
     fn run_routine_task(&mut self, connection_pool: ConnectionPool) {
         let prover_group_config = ProverGroupConfig::from_env();
-        let stats = Self::get_job_statistics(connection_pool);
-        let prover_group_to_stats: HashMap<u8, JobCountStatistics> = stats
-            .into_iter()
-            .map(|(key, value)| {
-                (
-                    prover_group_config
-                        .get_group_id_for_circuit_id(circuit_name_to_numeric_index(&key).unwrap())
-                        .unwrap(),
-                    value,
-                )
-            })
-            .collect();
-        for (group_id, stats) in prover_group_to_stats.into_iter() {
+        let mut conn = connection_pool.access_storage_blocking();
+        let stats = conn.prover_dal().get_prover_jobs_stats_per_circuit();
+
+        for (circuit_name, stats) in stats.into_iter() {
+            let group_id = prover_group_config
+                .get_group_id_for_circuit_id(circuit_name_to_numeric_index(&circuit_name).unwrap())
+                .unwrap();
+
             metrics::gauge!(
-              format!("server.{}.jobs", PROVER_SERVICE_NAME),
+              "server.prover.jobs",
               stats.queued as f64,
               "type" => "queued",
               "prover_group_id" => group_id.to_string(),
+              "circuit_name" => circuit_name.clone(),
+              "circuit_type" => circuit_name_to_numeric_index(&circuit_name).unwrap().to_string()
             );
 
             metrics::gauge!(
-              format!("server.{}.jobs", PROVER_SERVICE_NAME),
+              "server.prover.jobs",
               stats.in_progress as f64,
-              "type" => "in_progress", "prover_group_id" => group_id.to_string(),
+              "type" => "in_progress",
+              "prover_group_id" => group_id.to_string(),
+              "circuit_name" => circuit_name.clone(),
+              "circuit_type" => circuit_name_to_numeric_index(&circuit_name).unwrap().to_string()
             );
         }
+
+        if let Some(min_unproved_l1_batch_number) = conn.prover_dal().min_unproved_l1_batch_number()
+        {
+            metrics::gauge!("server.block_number", min_unproved_l1_batch_number.0 as f64, "stage" => "circuit_aggregation")
+        }
+
+        let lag_by_circuit_type = conn
+            .prover_dal()
+            .min_unproved_l1_batch_number_by_basic_circuit_type();
+
+        for (circuit_type, l1_batch_number) in lag_by_circuit_type {
+            metrics::gauge!("server.block_number", l1_batch_number.0 as f64, "stage" => format!("circuit_{}", circuit_type));
+        }
+    }
+
+    fn polling_interval_ms(&self) -> u64 {
+        self.reporting_interval_ms
     }
 }

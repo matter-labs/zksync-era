@@ -1,4 +1,5 @@
 use crate::report::{ActionType, ReportLabel};
+use std::time::Duration;
 
 /// Collector that analyzes the outcomes of the performed operations.
 /// Currently it's solely capable of deciding whether test was failed or not.
@@ -9,6 +10,7 @@ pub struct OperationResultsCollector {
     api_requests_results: ResultCollector,
     subscriptions_results: ResultCollector,
     explorer_api_requests_results: ResultCollector,
+    loadtest_duration: Duration,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -45,8 +47,11 @@ impl ResultCollector {
 }
 
 impl OperationResultsCollector {
-    pub fn new() -> Self {
-        Self::default()
+    pub fn new(loadtest_duration: Duration) -> Self {
+        Self {
+            loadtest_duration,
+            ..Default::default()
+        }
     }
 
     pub fn add_status(&mut self, status: &ReportLabel, action_type: ActionType) {
@@ -55,12 +60,21 @@ impl OperationResultsCollector {
             ActionType::Api(_) => self.api_requests_results.add_status(status),
             ActionType::Subscription(_) => self.subscriptions_results.add_status(status),
             ActionType::ExplorerApi(_) => self.explorer_api_requests_results.add_status(status),
+            ActionType::InitComplete => {}
         }
     }
 
+    pub fn tps(&self) -> f64 {
+        self.tx_results.successes() as f64 / self.loadtest_duration.as_secs() as f64
+    }
     pub fn report(&self) {
         vlog::info!(
-            "Loadtest status: {} successful operations, {} skipped, {} failures. {} actions total.",
+            "Ran loadtest for {:?}. TPS: {}",
+            self.loadtest_duration,
+            self.tps()
+        );
+        vlog::info!(
+            "Transaction execution stats: {} successful, {} skipped, {} failures. {} actions total.",
             self.tx_results.successes(),
             self.tx_results.skipped(),
             self.tx_results.failures(),

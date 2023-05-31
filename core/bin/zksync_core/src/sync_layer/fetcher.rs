@@ -1,26 +1,21 @@
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
+use tokio::sync::watch::Receiver;
+
+use crate::sync_layer::sync_action::{ActionQueue, BatchStatusChange, SyncAction};
+use zksync_dal::ConnectionPool;
 use zksync_types::{explorer_api::BlockDetails, L1BatchNumber, MiniblockNumber};
-use zksync_web3_decl::{
-    jsonrpsee::{
-        core::{Error as RpcError, RpcResult},
-        http_client::{HttpClient, HttpClientBuilder},
-    },
-    namespaces::{EthNamespaceClient, ZksNamespaceClient},
-};
+use zksync_web3_decl::jsonrpsee::core::{Error as RpcError, RpcResult};
 
-use crate::sync_layer::sync_action::{BatchStatusChange, SyncAction};
-
-use super::sync_action::ActionQueue;
+use super::{cached_main_node_client::CachedMainNodeClient, SyncState};
 
 const DELAY_INTERVAL: Duration = Duration::from_millis(500);
-const RECONNECT_INTERVAL: Duration = Duration::from_secs(5);
+const RETRY_DELAY_INTERVAL: Duration = Duration::from_secs(5);
 
 /// Structure responsible for fetching batches and miniblock data from the main node.
 #[derive(Debug)]
 pub struct MainNodeFetcher {
-    main_node_url: String,
-    client: HttpClient,
+    client: CachedMainNodeClient,
     current_l1_batch: L1BatchNumber,
     current_miniblock: MiniblockNumber,
 
@@ -29,22 +24,53 @@ pub struct MainNodeFetcher {
     last_committed_l1_batch: L1BatchNumber,
 
     actions: ActionQueue,
+    sync_state: SyncState,
+    stop_receiver: Receiver<bool>,
 }
 
 impl MainNodeFetcher {
     pub fn new(
+        pool: ConnectionPool,
         main_node_url: &str,
-        current_l1_batch: L1BatchNumber,
-        current_miniblock: MiniblockNumber,
-        last_executed_l1_batch: L1BatchNumber,
-        last_proven_l1_batch: L1BatchNumber,
-        last_committed_l1_batch: L1BatchNumber,
         actions: ActionQueue,
+        sync_state: SyncState,
+        stop_receiver: Receiver<bool>,
     ) -> Self {
-        let client = Self::build_client(main_node_url);
+        let mut storage = pool.access_storage_blocking();
+        let last_sealed_block_header = storage.blocks_dal().get_newest_block_header();
+        let last_miniblock_number = storage.blocks_dal().get_sealed_miniblock_number();
+
+        // It's important to know whether we have opened a new batch already or just sealed the previous one.
+        // Depending on it, we must either insert `OpenBatch` item into the queue, or not.
+        let was_new_batch_open = storage.blocks_dal().pending_batch_exists();
+
+        // Miniblocks are always fully processed.
+        let current_miniblock = last_miniblock_number + 1;
+        // Decide whether the next batch should be explicitly opened or not.
+        let current_l1_batch = if was_new_batch_open {
+            // No `OpenBatch` action needed.
+            last_sealed_block_header.number + 1
+        } else {
+            // We need to open the next batch.
+            last_sealed_block_header.number
+        };
+
+        let last_executed_l1_batch = storage
+            .blocks_dal()
+            .get_number_of_last_block_executed_on_eth()
+            .unwrap_or_default();
+        let last_proven_l1_batch = storage
+            .blocks_dal()
+            .get_number_of_last_block_proven_on_eth()
+            .unwrap_or_default();
+        let last_committed_l1_batch = storage
+            .blocks_dal()
+            .get_number_of_last_block_committed_on_eth()
+            .unwrap_or_default();
+
+        let client = CachedMainNodeClient::build_client(main_node_url);
 
         Self {
-            main_node_url: main_node_url.into(),
             client,
             current_l1_batch,
             current_miniblock,
@@ -54,13 +80,9 @@ impl MainNodeFetcher {
             last_committed_l1_batch,
 
             actions,
+            sync_state,
+            stop_receiver,
         }
-    }
-
-    fn build_client(main_node_url: &str) -> HttpClient {
-        HttpClientBuilder::default()
-            .build(main_node_url)
-            .expect("Unable to create a main node client")
     }
 
     pub async fn run(mut self) {
@@ -72,11 +94,14 @@ impl MainNodeFetcher {
         // Run the main routine and reconnect upon the network errors.
         loop {
             match self.run_inner().await {
-                Ok(()) => unreachable!("Fetcher actor never exits"),
-                Err(RpcError::Transport(err)) => {
+                Ok(()) => {
+                    vlog::info!("Stop signal received, exiting the fetcher routine");
+                    return;
+                }
+                Err(err @ RpcError::Transport(_) | err @ RpcError::RequestTimeout) => {
                     vlog::warn!("Following transport error occurred: {}", err);
-                    vlog::info!("Trying to reconnect");
-                    self.reconnect().await;
+                    vlog::info!("Trying again after a delay");
+                    tokio::time::sleep(RETRY_DELAY_INTERVAL).await;
                 }
                 Err(err) => {
                     panic!("Unexpected error in the fetcher: {}", err);
@@ -85,24 +110,25 @@ impl MainNodeFetcher {
         }
     }
 
-    async fn reconnect(&mut self) {
-        loop {
-            self.client = Self::build_client(&self.main_node_url);
-            if self.client.chain_id().await.is_ok() {
-                vlog::info!("Reconnected");
-                break;
-            }
-            vlog::warn!(
-                "Reconnect attempt unsuccessful. Next attempt would happen after a timeout"
-            );
-            std::thread::sleep(RECONNECT_INTERVAL);
-        }
+    fn check_if_cancelled(&self) -> bool {
+        *self.stop_receiver.borrow()
     }
 
     async fn run_inner(&mut self) -> RpcResult<()> {
         loop {
+            if self.check_if_cancelled() {
+                return Ok(());
+            }
+
             let mut progressed = false;
 
+            let last_main_node_block =
+                MiniblockNumber(self.client.get_block_number().await?.as_u32());
+            self.sync_state.set_main_node_block(last_main_node_block);
+
+            self.client
+                .populate_miniblocks_cache(self.current_miniblock, last_main_node_block)
+                .await;
             if self.actions.has_action_capacity() {
                 progressed |= self.fetch_next_miniblock().await?;
             }
@@ -121,6 +147,9 @@ impl MainNodeFetcher {
     /// Tries to fetch the next miniblock and insert it to the sync queue.
     /// Returns `true` if a miniblock was processed and `false` otherwise.
     async fn fetch_next_miniblock(&mut self) -> RpcResult<bool> {
+        let start = Instant::now();
+
+        let request_start = Instant::now();
         let Some(miniblock_header) = self
                 .client
                 .get_block_details(self.current_miniblock)
@@ -128,6 +157,12 @@ impl MainNodeFetcher {
             else {
                 return Ok(false);
             };
+        metrics::histogram!(
+            "external_node.fetcher.requests",
+            request_start.elapsed(),
+            "stage" => "get_block_details",
+            "actor" => "miniblock_fetcher"
+        );
 
         let mut new_actions = Vec::new();
         if miniblock_header.l1_batch_number != self.current_l1_batch {
@@ -149,8 +184,11 @@ impl MainNodeFetcher {
                 l1_gas_price: miniblock_header.l1_gas_price,
                 l2_fair_gas_price: miniblock_header.l2_fair_gas_price,
                 base_system_contracts_hashes: miniblock_header.base_system_contracts_hashes,
+                operator_address: miniblock_header.operator_address,
             });
+            metrics::gauge!("external_node.fetcher.l1_batch", miniblock_header.l1_batch_number.0 as f64, "status" => "open");
 
+            self.client.forget_l1_batch(self.current_l1_batch);
             self.current_l1_batch += 1;
         } else {
             // New batch implicitly means a new miniblock, so we only need to push the miniblock action
@@ -159,39 +197,74 @@ impl MainNodeFetcher {
                 number: miniblock_header.number,
                 timestamp: miniblock_header.timestamp,
             });
+            metrics::gauge!(
+                "external_node.fetcher.miniblock",
+                miniblock_header.number.0 as f64
+            );
         }
 
+        let request_start = Instant::now();
         let miniblock_txs = self
             .client
             .get_raw_block_transactions(self.current_miniblock)
             .await?
             .into_iter()
             .map(|tx| SyncAction::Tx(Box::new(tx)));
+        metrics::histogram!(
+            "external_node.fetcher.requests",
+            request_start.elapsed(),
+            "stage" => "get_raw_block_transactions",
+            "actor" => "miniblock_fetcher"
+        );
+
+        metrics::counter!(
+            "server.processed_txs",
+            miniblock_txs.len() as u64,
+            "stage" => "mempool_added"
+        );
         new_actions.extend(miniblock_txs);
-        new_actions.push(SyncAction::SealMiniblock);
 
         // Check if this was the last miniblock in the batch.
         // If we will receive `None` here, it would mean that it's the currently open batch and it was not sealed
         // after the current miniblock.
+        let request_start = Instant::now();
         let is_last_miniblock_of_batch = self
             .client
             .get_miniblock_range(self.current_l1_batch)
             .await?
             .map(|(_, last)| last.as_u32() == miniblock_header.number.0)
             .unwrap_or(false);
+        metrics::histogram!(
+            "external_node.fetcher.requests",
+            request_start.elapsed(),
+            "stage" => "get_miniblock_range",
+            "actor" => "miniblock_fetcher"
+        );
+
+        // Last miniblock of the batch is a "fictive" miniblock and would be replicated locally.
+        // We don't need to seal it explicitly, so we only put the seal miniblock command if it's not the last miniblock.
         if is_last_miniblock_of_batch {
             new_actions.push(SyncAction::SealBatch);
+        } else {
+            new_actions.push(SyncAction::SealMiniblock);
         }
 
         vlog::info!("New miniblock: {}", miniblock_header.number);
+        self.client.forget_miniblock(self.current_miniblock);
         self.current_miniblock += 1;
         self.actions.push_actions(new_actions);
+
+        metrics::histogram!(
+            "external_node.fetcher.fetch_next_miniblock",
+            start.elapsed()
+        );
         Ok(true)
     }
 
     /// Goes through the already fetched batches trying to update their statuses.
     /// Returns `true` if at least one batch was updated, and `false` otherwise.
     async fn update_batch_statuses(&mut self) -> RpcResult<bool> {
+        let start = Instant::now();
         assert!(
             self.last_executed_l1_batch <= self.last_proven_l1_batch,
             "Incorrect local state: executed batch must be proven"
@@ -206,15 +279,26 @@ impl MainNodeFetcher {
         );
 
         let mut applied_updates = false;
-        for batch in
-            (self.last_executed_l1_batch.next().0..=self.current_l1_batch.0).map(L1BatchNumber)
-        {
+        let mut batch = self.last_executed_l1_batch.next();
+        // In this loop we try to progress on the batch statuses, utilizing the same request to the node to potentially
+        // update all three statuses (e.g. if the node is still syncing), but also skipping the gaps in the statuses
+        // (e.g. if the last executed batch is 10, but the last proven is 20, we don't need to check the batches 11-19).
+        while batch <= self.current_l1_batch {
             // While we may receive `None` for the `self.current_l1_batch`, it's OK: open batch is guaranteed to not
             // be sent to L1.
+            let request_start = Instant::now();
             let Some((start_miniblock, _)) = self.client.get_miniblock_range(batch).await? else {
                 return Ok(applied_updates);
             };
+            metrics::histogram!(
+                "external_node.fetcher.requests",
+                request_start.elapsed(),
+                "stage" => "get_miniblock_range",
+                "actor" => "batch_status_fetcher"
+            );
+
             // We could've used any miniblock from the range, all of them share the same info.
+            let request_start = Instant::now();
             let Some(batch_info) = self
                 .client
                 .get_block_details(MiniblockNumber(start_miniblock.as_u32()))
@@ -226,17 +310,33 @@ impl MainNodeFetcher {
                     but API has no information about this miniblock", start_miniblock, batch
                 );
             };
+            metrics::histogram!(
+                "external_node.fetcher.requests",
+                request_start.elapsed(),
+                "stage" => "get_block_details",
+                "actor" => "batch_status_fetcher"
+            );
 
             applied_updates |= self.update_committed_batch(&batch_info);
             applied_updates |= self.update_proven_batch(&batch_info);
             applied_updates |= self.update_executed_batch(&batch_info);
 
+            // Check whether we can skip a part of the range.
             if batch_info.commit_tx_hash.is_none() {
                 // No committed batches after this one.
                 break;
+            } else if batch_info.prove_tx_hash.is_none() && batch < self.last_committed_l1_batch {
+                // The interval between this batch and the last committed one is not proven.
+                batch = self.last_committed_l1_batch.next();
+            } else if batch_info.executed_at.is_none() && batch < self.last_proven_l1_batch {
+                // The interval between this batch and the last proven one is not executed.
+                batch = self.last_proven_l1_batch.next();
+            } else {
+                batch += 1;
             }
         }
 
+        metrics::histogram!("external_node.update_batch_statuses", start.elapsed());
         Ok(applied_updates)
     }
 
@@ -255,6 +355,7 @@ impl MainNodeFetcher {
                 happened_at: batch_info.committed_at.unwrap(),
             });
             vlog::info!("Batch {}: committed", batch_info.l1_batch_number);
+            metrics::gauge!("external_node.fetcher.l1_batch", batch_info.l1_batch_number.0 as f64, "status" => "committed");
             self.last_committed_l1_batch += 1;
             true
         } else {
@@ -277,6 +378,7 @@ impl MainNodeFetcher {
                 happened_at: batch_info.proven_at.unwrap(),
             });
             vlog::info!("Batch {}: proven", batch_info.l1_batch_number);
+            metrics::gauge!("external_node.fetcher.l1_batch", batch_info.l1_batch_number.0 as f64, "status" => "proven");
             self.last_proven_l1_batch += 1;
             true
         } else {
@@ -299,6 +401,7 @@ impl MainNodeFetcher {
                 happened_at: batch_info.executed_at.unwrap(),
             });
             vlog::info!("Batch {}: executed", batch_info.l1_batch_number);
+            metrics::gauge!("external_node.fetcher.l1_batch", batch_info.l1_batch_number.0 as f64, "status" => "executed");
             self.last_executed_l1_batch += 1;
             true
         } else {

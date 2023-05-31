@@ -1,6 +1,8 @@
 use futures::{channel::mpsc::Receiver, StreamExt};
 use operation_results_collector::OperationResultsCollector;
+use std::time::Duration;
 
+use crate::report::ActionType;
 use crate::{
     report::{Report, ReportLabel},
     report_collector::metrics_collector::MetricsCollector,
@@ -47,21 +49,36 @@ pub struct ReportCollector {
     metrics_collector: MetricsCollector,
     operations_results_collector: OperationResultsCollector,
     expected_tx_count: Option<usize>,
+    loadtest_duration: Duration,
+    prometheus_label: String,
 }
 
 impl ReportCollector {
-    pub fn new(reports_stream: Receiver<Report>, expected_tx_count: Option<usize>) -> Self {
+    pub fn new(
+        reports_stream: Receiver<Report>,
+        expected_tx_count: Option<usize>,
+        loadtest_duration: Duration,
+        prometheus_label: String,
+    ) -> Self {
         Self {
             reports_stream,
             metrics_collector: MetricsCollector::new(),
-            operations_results_collector: OperationResultsCollector::new(),
+            operations_results_collector: OperationResultsCollector::new(loadtest_duration),
             expected_tx_count,
+            loadtest_duration,
+            prometheus_label,
         }
     }
 
     pub async fn run(mut self) -> LoadtestResult {
         while let Some(report) = self.reports_stream.next().await {
             vlog::trace!("Report: {:?}", &report);
+            if matches!(&report.action, ActionType::InitComplete) {
+                self.metrics_collector = MetricsCollector::new();
+                self.operations_results_collector =
+                    OperationResultsCollector::new(self.loadtest_duration);
+                continue;
+            }
 
             if matches!(&report.label, ReportLabel::ActionDone) {
                 // We only count successfully created statistics.
@@ -81,6 +98,11 @@ impl ReportCollector {
         // All the receivers are gone, it's likely the end of the test.
         // Now we can output the statistics.
         self.metrics_collector.report();
+        metrics::gauge!(
+            "loadtest.tps",
+            self.operations_results_collector.tps(),
+            "label" => self.prometheus_label.clone(),
+        );
         self.operations_results_collector.report();
 
         self.final_resolution()

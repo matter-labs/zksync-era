@@ -1,4 +1,8 @@
-use crate::{memory::SimpleMemory, vm_with_bootloader::BlockContext};
+use crate::history_recorder::HistoryMode;
+use crate::{
+    memory::SimpleMemory, oracles::tracer::PubdataSpentTracer, vm_with_bootloader::BlockContext,
+    VmInstance,
+};
 use once_cell::sync::Lazy;
 
 use zk_evm::block_properties::BlockProperties;
@@ -12,7 +16,8 @@ use zksync_contracts::{read_zbin_bytecode, BaseSystemContracts};
 use zksync_state::secondary_storage::SecondaryStateStorage;
 use zksync_types::{
     get_code_key, get_system_context_init_logs, system_contracts::get_system_smart_contracts,
-    Address, L1BatchNumber, StorageLog, StorageLogQuery, H160, H256, MAX_L2_TX_GAS_LIMIT, U256,
+    Address, L1BatchNumber, L2ChainId, StorageLog, StorageLogQuery, H160, MAX_L2_TX_GAS_LIMIT,
+    U256,
 };
 use zksync_utils::{bytecode::hash_bytecode, h256_to_u256};
 
@@ -52,8 +57,8 @@ pub const fn aux_heap_page_from_base(base: MemoryPage) -> MemoryPage {
     MemoryPage(base.0 + 3)
 }
 
-pub(crate) fn dump_memory_page_using_primitive_value(
-    memory: &SimpleMemory,
+pub(crate) fn dump_memory_page_using_primitive_value<H: HistoryMode>(
+    memory: &SimpleMemory<H>,
     ptr: PrimitiveValue,
 ) -> Vec<u8> {
     if !ptr.is_pointer {
@@ -63,8 +68,8 @@ pub(crate) fn dump_memory_page_using_primitive_value(
     dump_memory_page_using_fat_pointer(memory, fat_ptr)
 }
 
-pub(crate) fn dump_memory_page_using_fat_pointer(
-    memory: &SimpleMemory,
+pub(crate) fn dump_memory_page_using_fat_pointer<H: HistoryMode>(
+    memory: &SimpleMemory<H>,
     fat_ptr: FatPointer,
 ) -> Vec<u8> {
     dump_memory_page_by_offset_and_length(
@@ -75,8 +80,8 @@ pub(crate) fn dump_memory_page_using_fat_pointer(
     )
 }
 
-pub(crate) fn dump_memory_page_by_offset_and_length(
-    memory: &SimpleMemory,
+pub(crate) fn dump_memory_page_by_offset_and_length<H: HistoryMode>(
+    memory: &SimpleMemory<H>,
     page: u32,
     offset: usize,
     length: usize,
@@ -254,7 +259,7 @@ pub fn create_test_block_params() -> (BlockContext, BlockProperties) {
 
 pub fn insert_system_contracts(raw_storage: &mut SecondaryStateStorage) {
     let contracts = get_system_smart_contracts();
-    let system_context_init_log = get_system_context_init_logs(H256::from_low_u64_be(270));
+    let system_context_init_log = get_system_context_init_logs(L2ChainId(270));
 
     let logs: Vec<StorageLog> = contracts
         .iter()
@@ -267,7 +272,6 @@ pub fn insert_system_contracts(raw_storage: &mut SecondaryStateStorage) {
     raw_storage.process_transaction_logs(&logs);
 
     for contract in contracts {
-        raw_storage.store_contract(*contract.account_id.address(), contract.bytecode.clone());
         raw_storage.store_factory_dep(hash_bytecode(&contract.bytecode), contract.bytecode);
     }
     raw_storage.save(L1BatchNumber(0))
@@ -278,4 +282,27 @@ pub fn read_bootloader_test_code(test: &str) -> Vec<u8> {
         "etc/system-contracts/bootloader/tests/artifacts/{}.yul/{}.yul.zbin",
         test, test
     ))
+}
+
+pub(crate) fn calculate_computational_gas_used<T: PubdataSpentTracer<H>, H: HistoryMode>(
+    vm: &VmInstance<'_, H>,
+    tracer: &T,
+    gas_remaining_before: u32,
+    spent_pubdata_counter_before: u32,
+) -> u32 {
+    let total_gas_used = gas_remaining_before
+        .checked_sub(vm.gas_remaining())
+        .expect("underflow");
+    let gas_used_on_pubdata =
+        tracer.gas_spent_on_pubdata(&vm.state.local_state) - spent_pubdata_counter_before;
+    total_gas_used
+        .checked_sub(gas_used_on_pubdata)
+        .unwrap_or_else(|| {
+            vlog::error!(
+                "Gas used on pubdata is greater than total gas used. On pubdata: {}, total: {}",
+                gas_used_on_pubdata,
+                total_gas_used
+            );
+            0
+        })
 }

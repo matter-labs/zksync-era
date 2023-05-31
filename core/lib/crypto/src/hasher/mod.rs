@@ -16,8 +16,15 @@ pub mod sha256;
 pub trait Hasher<Hash> {
     /// Gets the hash of the byte sequence.
     fn hash_bytes<I: IntoIterator<Item = u8>>(&self, value: I) -> Hash;
+
     /// Get the hash of the hashes sequence.
-    fn hash_elements<I: IntoIterator<Item = Hash>>(&self, elements: I) -> Hash;
+    fn hash_elements<I: IntoIterator<Item = Hash>>(&self, elements: I) -> Hash
+    where
+        Hash: IntoIterator<Item = u8>,
+    {
+        self.hash_bytes(elements.into_iter().flatten())
+    }
+
     /// Merges two hashes into one.
     fn compress(&self, lhs: &Hash, rhs: &Hash) -> Hash;
 }

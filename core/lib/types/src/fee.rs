@@ -21,6 +21,7 @@ pub struct TransactionExecutionMetrics {
     // and the number of precompile calls
     pub total_log_queries: usize,
     pub cycles_used: u32,
+    pub computational_gas_used: u32,
 }
 
 #[derive(Default, Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash)]

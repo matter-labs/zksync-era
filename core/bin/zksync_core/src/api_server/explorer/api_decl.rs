@@ -1,5 +1,6 @@
-use zksync_config::ZkSyncConfig;
+use zksync_config::configs::api::Explorer as ExplorerApiConfig;
 use zksync_dal::connection::ConnectionPool;
+use zksync_types::Address;
 
 use actix_web::web;
 use futures::channel::mpsc;
@@ -12,20 +13,26 @@ pub struct RestApi {
     pub(super) master_connection_pool: ConnectionPool,
     pub(super) replica_connection_pool: ConnectionPool,
     pub(super) network_stats: SharedNetworkStats,
-    pub(super) config: ZkSyncConfig,
+    pub(super) api_config: ExplorerApiConfig,
+    pub(super) l2_erc20_bridge_addr: Address,
+    pub(super) fee_account_addr: Address,
 }
 
 impl RestApi {
     pub fn new(
         master_connection_pool: ConnectionPool,
         replica_connection_pool: ConnectionPool,
-        config: ZkSyncConfig,
+        api_config: ExplorerApiConfig,
+        l2_erc20_bridge_addr: Address,
+        fee_account_addr: Address,
     ) -> Self {
         Self {
             master_connection_pool,
             replica_connection_pool,
             network_stats: SharedNetworkStats::default(),
-            config,
+            api_config,
+            l2_erc20_bridge_addr,
+            fee_account_addr,
         }
     }
 
@@ -75,7 +82,7 @@ impl RestApi {
         self.network_stats.clone().start_updater_detached(
             panic_notify,
             self.replica_connection_pool.clone(),
-            self.config.api.explorer.network_stats_interval(),
+            self.api_config.network_stats_interval(),
             stop_receiver,
         );
     }

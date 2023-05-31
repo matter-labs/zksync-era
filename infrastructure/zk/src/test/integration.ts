@@ -15,7 +15,7 @@ export async function all() {
 
 export async function api(bail: boolean = false) {
     const flag = bail ? ' --bail' : '';
-    await utils.spawn('yarn ts-tests api-test' + flag);
+    await utils.spawn('yarn ts-integration api-test' + flag);
 }
 
 export async function server() {

@@ -69,6 +69,7 @@ impl BootloaderState {
 
     /// Returns the size of the transaction with given index.
     /// Panics if there is no such transaction.
+    /// Use it after
     #[allow(dead_code)]
     pub(crate) fn get_tx_size(&self, tx_index: usize) -> usize {
         self.tx_sizes[tx_index]

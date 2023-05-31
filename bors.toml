@@ -4,14 +4,12 @@ timeout-sec = 14400
 
 # If expected statuses are not specified explicitly, bors tries to "guess" and apperently does it wrong sometimes
 status = [
-  "codecov/patch",
-  "codecov/project",
-  "generate",
   "integration",
   "loadtest",
   "lint",
   "testkit",
-  "Build images / Build and Push Docker Images"
+  "unit-tests",
+  "Build images / Build and Push Docker Images",
 ]
 
 use_squash_merge = true

@@ -6,7 +6,6 @@ use zksync_types::{
     AccountTreeId, Address, L1BatchNumber, StorageKey, StorageLog, ACCOUNT_CODE_STORAGE_ADDRESS,
     FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH, H256,
 };
-use zksync_utils::h256_to_account_address;
 
 #[derive(Debug)]
 pub struct StorageLoadDal<'a, 'c> {
@@ -70,38 +69,6 @@ impl StorageLoadDal<'_, '_> {
                     "loading deployed contracts for l1 batch {}",
                     current_l1_batch_number
                 );
-                sqlx::query!(
-                    "
-                        SELECT storage_logs.key, factory_deps.bytecode
-                        FROM storage_logs
-                        JOIN factory_deps ON storage_logs.value = factory_deps.bytecode_hash
-                        WHERE
-                            storage_logs.address = $1 AND
-                            storage_logs.miniblock_number >= $3 AND
-                            storage_logs.miniblock_number <= $4 AND
-                            NOT EXISTS (
-                                SELECT 1 FROM storage_logs as s
-                                WHERE
-                                    s.hashed_key = storage_logs.hashed_key AND
-                                    (s.miniblock_number, s.operation_number) >= (storage_logs.miniblock_number, storage_logs.operation_number) AND
-                                    s.value = $2
-                            )
-                    ",
-                    ACCOUNT_CODE_STORAGE_ADDRESS.as_bytes(),
-                    FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH.as_bytes(),
-                    from_miniblock_number.0 as i64,
-                    to_miniblock_number.0 as i64
-                )
-                .fetch_all(self.storage.conn())
-                .await
-                .unwrap()
-                .into_iter()
-                .for_each(|row| {
-                    result.store_contract(
-                        h256_to_account_address(&H256::from_slice(&row.key)),
-                        row.bytecode,
-                    )
-                });
 
                 vlog::debug!(
                     "loading factory deps for l1 batch {}",

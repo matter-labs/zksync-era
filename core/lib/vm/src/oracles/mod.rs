@@ -15,5 +15,4 @@ pub mod tracer;
 
 pub trait OracleWithHistory {
     fn rollback_to_timestamp(&mut self, timestamp: Timestamp);
-    fn delete_history(&mut self);
 }

@@ -11,7 +11,6 @@ use zksync_types::{
         AccountDetails, AccountType, AddressDetails, BlocksQuery, ContractDetails, EventsQuery,
         L1BatchesQuery, PaginationQuery, TransactionsQuery, VerificationIncomingRequest,
     },
-    storage::L2_ETH_TOKEN_ADDRESS,
     Address, L1BatchNumber, MiniblockNumber, H256,
 };
 
@@ -39,27 +38,21 @@ impl RestApi {
     ) -> ActixResult<HttpResponse> {
         let start = Instant::now();
 
-        let account_type = if *address == Address::zero() {
-            AccountType::Contract
-        } else {
-            self_
-                .replica_connection_pool
-                .access_storage()
-                .await
-                .explorer()
-                .accounts_dal()
-                .get_account_type(*address)
-                .unwrap()
-        };
+        let account_type = self_
+            .replica_connection_pool
+            .access_storage_blocking()
+            .explorer()
+            .accounts_dal()
+            .get_account_type(*address)
+            .unwrap();
         let response = match account_type {
             AccountType::EOA => ok_json(AddressDetails::Account(
-                self_.account_details_inner(address).await,
+                self_.account_details_inner(address),
             )),
             AccountType::Contract => {
                 // If account type is a contract, then `contract_details_inner` must return `Some`.
                 let contract_details = self_
                     .contract_details_inner(address)
-                    .await
                     .expect("Failed to get contract info");
                 ok_json(AddressDetails::Contract(contract_details))
             }
@@ -69,8 +62,8 @@ impl RestApi {
         response
     }
 
-    async fn account_details_inner(&self, address: web::Path<Address>) -> AccountDetails {
-        let mut storage = self.replica_connection_pool.access_storage().await;
+    fn account_details_inner(&self, address: web::Path<Address>) -> AccountDetails {
+        let mut storage = self.replica_connection_pool.access_storage_blocking();
 
         let balances = storage
             .explorer()
@@ -83,16 +76,11 @@ impl RestApi {
             .get_account_nonces(*address)
             .unwrap();
 
-        // Dirty fix for zero address.
-        let account_type = if *address == Address::zero() {
-            AccountType::Contract
-        } else {
-            storage
-                .explorer()
-                .accounts_dal()
-                .get_account_type(*address)
-                .unwrap()
-        };
+        let account_type = storage
+            .explorer()
+            .accounts_dal()
+            .get_account_type(*address)
+            .unwrap();
 
         AccountDetails {
             address: *address,
@@ -109,26 +97,19 @@ impl RestApi {
         address: web::Path<Address>,
     ) -> ActixResult<HttpResponse> {
         let start = Instant::now();
-        let account_details = self_.account_details_inner(address).await;
+        let account_details = self_.account_details_inner(address);
         metrics::histogram!("api.explorer.call", start.elapsed(), "method" => "account_details");
         ok_json(account_details)
     }
 
-    async fn contract_details_inner(&self, address: web::Path<Address>) -> Option<ContractDetails> {
-        // Dirty fix for zero address.
-        let contract_address = if *address == Address::zero() {
-            L2_ETH_TOKEN_ADDRESS
-        } else {
-            *address
-        };
-        let mut storage = self.replica_connection_pool.access_storage().await;
+    fn contract_details_inner(&self, address: web::Path<Address>) -> Option<ContractDetails> {
+        let mut storage = self.replica_connection_pool.access_storage_blocking();
         let contract_info = storage
             .explorer()
             .misc_dal()
-            .get_contract_info(contract_address)
+            .get_contract_info(*address)
             .unwrap();
-        if let Some(mut contract_info) = contract_info {
-            contract_info.address = *address;
+        if let Some(contract_info) = contract_info {
             let contract_stats = storage
                 .explorer()
                 .misc_dal()
@@ -156,7 +137,7 @@ impl RestApi {
     ) -> ActixResult<HttpResponse> {
         let start = Instant::now();
 
-        let response = match self_.contract_details_inner(address).await {
+        let response = match self_.contract_details_inner(address) {
             Some(contract_details) => ok_json(contract_details),
             None => Ok(HttpResponse::NotFound().finish()),
         };
@@ -184,16 +165,16 @@ impl RestApi {
 
     #[tracing::instrument(skip(self))]
     fn validate_pagination_query(&self, pagination: PaginationQuery) -> Result<(), HttpResponse> {
-        if pagination.limit > self.config.api.explorer.req_entities_limit() {
+        if pagination.limit > self.api_config.req_entities_limit() {
             return Err(HttpResponse::BadRequest().body(format!(
                 "Limit should not exceed {}",
-                self.config.api.explorer.req_entities_limit()
+                self.api_config.req_entities_limit()
             )));
         }
-        if pagination.offset + pagination.limit > self.config.api.explorer.offset_limit() {
+        if pagination.offset + pagination.limit > self.api_config.offset_limit() {
             return Err(HttpResponse::BadRequest().body(format!(
                 "(offset + limit) should not exceed {}",
-                self.config.api.explorer.offset_limit()
+                self.api_config.offset_limit()
             )));
         }
 
@@ -213,7 +194,7 @@ impl RestApi {
             return Ok(res);
         }
 
-        let mut storage = self_.replica_connection_pool.access_storage().await;
+        let mut storage = self_.replica_connection_pool.access_storage_blocking();
         if let Some(address) = query.address {
             match storage
                 .explorer()
@@ -237,8 +218,8 @@ impl RestApi {
                     query.tx_position(),
                     query.block_number,
                     query.pagination,
-                    self_.config.api.explorer.offset_limit(),
-                    self_.config.contracts.l2_erc20_bridge_addr,
+                    self_.api_config.offset_limit(),
+                    self_.l2_erc20_bridge_addr,
                 )
                 .unwrap()
         } else {
@@ -253,8 +234,8 @@ impl RestApi {
                     query.l1_batch_number,
                     query.contract_address,
                     query.pagination,
-                    self_.config.api.explorer.offset_limit(),
-                    self_.config.contracts.l2_erc20_bridge_addr,
+                    self_.api_config.offset_limit(),
+                    self_.l2_erc20_bridge_addr,
                 )
                 .unwrap()
         };
@@ -285,11 +266,10 @@ impl RestApi {
 
         let tx_details = self_
             .replica_connection_pool
-            .access_storage()
-            .await
+            .access_storage_blocking()
             .explorer()
             .transactions_dal()
-            .get_transaction_details(*hash, self_.config.contracts.l2_erc20_bridge_addr)
+            .get_transaction_details(*hash, self_.l2_erc20_bridge_addr)
             .unwrap();
 
         metrics::histogram!("api.explorer.call", start.elapsed(), "method" => "transaction_details");
@@ -311,8 +291,7 @@ impl RestApi {
 
         let blocks = self_
             .replica_connection_pool
-            .access_storage()
-            .await
+            .access_storage_blocking()
             .explorer()
             .blocks_dal()
             .get_blocks_page(query, self_.network_stats.read().await.last_verified)
@@ -331,11 +310,10 @@ impl RestApi {
 
         let block_details = self_
             .replica_connection_pool
-            .access_storage()
-            .await
+            .access_storage_blocking()
             .explorer()
             .blocks_dal()
-            .get_block_details(MiniblockNumber(*number))
+            .get_block_details(MiniblockNumber(*number), self_.fee_account_addr)
             .unwrap();
 
         metrics::histogram!("api.explorer.call", start.elapsed(), "method" => "block_details");
@@ -355,7 +333,7 @@ impl RestApi {
             return Ok(res);
         }
         let last_verified_miniblock = self_.network_stats.read().await.last_verified;
-        let mut storage = self_.replica_connection_pool.access_storage().await;
+        let mut storage = self_.replica_connection_pool.access_storage_blocking();
 
         let last_verified_l1_batch = storage
             .blocks_web3_dal()
@@ -382,8 +360,7 @@ impl RestApi {
 
         let l1_batch_details = self_
             .replica_connection_pool
-            .access_storage()
-            .await
+            .access_storage_blocking()
             .explorer()
             .blocks_dal()
             .get_l1_batch_details(L1BatchNumber(*number))
@@ -405,8 +382,7 @@ impl RestApi {
 
         let token_details = self_
             .replica_connection_pool
-            .access_storage()
-            .await
+            .access_storage_blocking()
             .explorer()
             .misc_dal()
             .get_token_details(*address)
@@ -427,7 +403,7 @@ impl RestApi {
     ) -> ActixResult<HttpResponse> {
         let start = Instant::now();
 
-        let mut storage = self_.master_connection_pool.access_storage().await;
+        let mut storage = self_.master_connection_pool.access_storage_blocking();
 
         if !storage
             .storage_logs_dal()
@@ -467,11 +443,10 @@ impl RestApi {
 
         let events = self_
             .replica_connection_pool
-            .access_storage()
-            .await
+            .access_storage_blocking()
             .explorer()
             .events_dal()
-            .get_events_page(query, self_.config.api.explorer.offset_limit())
+            .get_events_page(query, self_.api_config.offset_limit())
             .unwrap();
 
         metrics::histogram!("api.explorer.call", start.elapsed(), "method" => "events_pagination");
@@ -488,8 +463,7 @@ impl RestApi {
 
         let status = self_
             .replica_connection_pool
-            .access_storage()
-            .await
+            .access_storage_blocking()
             .explorer()
             .contract_verification_dal()
             .get_verification_request_status(*id)
@@ -510,8 +484,7 @@ impl RestApi {
 
         let versions = self_
             .replica_connection_pool
-            .access_storage()
-            .await
+            .access_storage_blocking()
             .explorer()
             .contract_verification_dal()
             .get_zksolc_versions()
@@ -529,8 +502,7 @@ impl RestApi {
 
         let versions = self_
             .replica_connection_pool
-            .access_storage()
-            .await
+            .access_storage_blocking()
             .explorer()
             .contract_verification_dal()
             .get_solc_versions()

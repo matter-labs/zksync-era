@@ -7,13 +7,15 @@ use vm::{
         init_vm, init_vm_with_gas_limit, push_transaction_to_bootloader_memory, BootloaderJobType,
         TxExecutionMode,
     },
-    TxRevertReason, VmBlockResult, VmInstance,
+    HistoryEnabled, HistoryMode, TxRevertReason, VmBlockResult, VmInstance,
 };
 use zksync_dal::ConnectionPool;
 use zksync_state::{secondary_storage::SecondaryStateStorage, storage_view::StorageView};
 use zksync_storage::{db::Database, RocksDB};
 use zksync_types::{tx::ExecutionMetrics, Transaction, U256};
 use zksync_utils::bytecode::{hash_bytecode, CompressedBytecodeInfo};
+
+use itertools::Itertools;
 
 use crate::gas_tracker::{gas_count_from_metrics, gas_count_from_tx_and_metrics};
 use crate::state_keeper::io::L1BatchParams;
@@ -24,81 +26,35 @@ use crate::state_keeper::types::ExecutionMetricsForCriteria;
 mod tests;
 
 /// Representation of a transaction executed in the virtual machine.
-#[derive(Debug, Clone, PartialEq)]
-pub(crate) struct TxExecutionResult {
-    /// `Ok(_)` represents a transaction that was executed (even if it reverted), while
-    /// `Err(_)` represents a rejected transaction (one that can't be applied to the state).
-    pub(super) tx_result: Result<VmTxExecutionResult, TxRevertReason>,
-    /// Result of dry run executing the bootloader tip. Will be `None` if the transaction was rejected
-    /// (`tx_result` field is `err).
-    pub(super) bootloader_dry_run_result: Option<Result<VmPartialExecutionResult, TxRevertReason>>,
-    /// Execution metrics for the transaction itself.
-    /// Will be `None` if the transaction was rejected.
-    pub(super) tx_metrics: Option<ExecutionMetricsForCriteria>,
-    /// Execution metrics for the bootloader tip dry run.
-    /// Will be `None` if either the transaction was rejected or if bootloader tip dry run failed.
-    pub(super) bootloader_dry_run_metrics: Option<ExecutionMetricsForCriteria>,
-    /// Bytecodes that are to be published as compressed with this transaction
-    pub(super) compressed_bytecodes: Vec<CompressedBytecodeInfo>,
+#[derive(Debug, Clone)]
+pub(crate) enum TxExecutionResult {
+    /// Successful execution of the tx and the block tip dry run.
+    Success {
+        tx_result: Box<VmTxExecutionResult>,
+        tx_metrics: ExecutionMetricsForCriteria,
+        bootloader_dry_run_metrics: ExecutionMetricsForCriteria,
+        bootloader_dry_run_result: Box<VmPartialExecutionResult>,
+        compressed_bytecodes: Vec<CompressedBytecodeInfo>,
+    },
+    /// The VM rejected the tx for some reason.
+    RejectedByVm { rejection_reason: TxRevertReason },
+    /// Bootloader gas limit is not enough to execute the tx.
+    BootloaderOutOfGasForTx,
+    /// Bootloader gas limit is enough to run the tx but not enough to execute block tip.
+    BootloaderOutOfGasForBlockTip,
 }
 
 impl TxExecutionResult {
-    pub(crate) fn new(
-        tx_result: Result<(VmTxExecutionResult, Vec<CompressedBytecodeInfo>), TxRevertReason>,
-    ) -> Self {
-        let (tx_result, compressed_bytecodes) = match tx_result {
-            Ok((result, compressed_bytecodes)) => (Ok(result), compressed_bytecodes),
-            Err(err) => (Err(err), vec![]),
-        };
-
-        Self {
-            tx_result,
-            bootloader_dry_run_result: None,
-            tx_metrics: None,
-            bootloader_dry_run_metrics: None,
-            compressed_bytecodes,
-        }
-    }
-
-    pub(crate) fn add_tx_metrics(&mut self, tx_metrics: ExecutionMetricsForCriteria) {
-        self.tx_metrics = Some(tx_metrics);
-    }
-
-    pub(crate) fn add_bootloader_result(
-        &mut self,
-        bootloader_dry_run_result: Result<VmPartialExecutionResult, TxRevertReason>,
-    ) {
-        self.bootloader_dry_run_result = Some(bootloader_dry_run_result);
-    }
-
-    pub(crate) fn add_bootloader_metrics(
-        &mut self,
-        bootloader_dry_run_metrics: ExecutionMetricsForCriteria,
-    ) {
-        self.bootloader_dry_run_metrics = Some(bootloader_dry_run_metrics);
-    }
-
-    /// Returns `true` if both transaction and bootloader tip dry run were successful.
-    pub(super) fn success(&self) -> bool {
-        self.tx_result.is_ok()
-            && self
-                .bootloader_dry_run_result
-                .as_ref()
-                .map(|res| res.is_ok())
-                .unwrap_or(false)
-    }
-
-    /// Returns a revert reason if either transaction was rejected or bootloader dry run tip failed.
+    /// Returns a revert reason if either transaction was rejected or bootloader ran out of gas.
     pub(super) fn err(&self) -> Option<TxRevertReason> {
-        self.tx_result
-            .as_ref()
-            .err()
-            .or_else(|| {
-                self.bootloader_dry_run_result
-                    .as_ref()
-                    .and_then(|res| res.as_ref().err())
-            })
-            .cloned()
+        match self {
+            TxExecutionResult::Success { .. } => None,
+            TxExecutionResult::RejectedByVm { rejection_reason } => Some(rejection_reason.clone()),
+            TxExecutionResult::BootloaderOutOfGasForTx
+            | TxExecutionResult::BootloaderOutOfGasForBlockTip { .. } => {
+                Some(TxRevertReason::BootloaderOutOfGas)
+            }
+        }
     }
 }
 
@@ -112,26 +68,26 @@ pub trait L1BatchExecutorBuilder: 'static + std::fmt::Debug + Send {
 /// The default implementation of the `BatchExecutorBuilder`.
 /// Creates a "real" batch executor which maintains the VM (as opposed to the test builder which doesn't use the VM).
 #[derive(Debug, Clone)]
-pub(crate) struct MainBatchExecutorBuilder {
+pub struct MainBatchExecutorBuilder {
     state_keeper_db_path: String,
     pool: ConnectionPool,
-    reexecute_each_tx: bool,
+    save_call_traces: bool,
     max_allowed_tx_gas_limit: U256,
     validation_computational_gas_limit: u32,
 }
 
 impl MainBatchExecutorBuilder {
-    pub(crate) fn new(
+    pub fn new(
         state_keeper_db_path: String,
         pool: ConnectionPool,
-        reexecute_each_tx: bool,
         max_allowed_tx_gas_limit: U256,
+        save_call_traces: bool,
         validation_computational_gas_limit: u32,
     ) -> Self {
         Self {
             state_keeper_db_path,
             pool,
-            reexecute_each_tx,
+            save_call_traces,
             max_allowed_tx_gas_limit,
             validation_computational_gas_limit,
         }
@@ -163,7 +119,7 @@ impl L1BatchExecutorBuilder for MainBatchExecutorBuilder {
             secondary_storage.get_estimated_map_size() as f64,
         );
         BatchExecutorHandle::new(
-            self.reexecute_each_tx,
+            self.save_call_traces,
             self.max_allowed_tx_gas_limit,
             self.validation_computational_gas_limit,
             secondary_storage,
@@ -184,7 +140,7 @@ pub struct BatchExecutorHandle {
 
 impl BatchExecutorHandle {
     pub(super) fn new(
-        reexecute_each_tx: bool,
+        save_call_traces: bool,
         max_allowed_tx_gas_limit: U256,
         validation_computational_gas_limit: u32,
         secondary_storage: SecondaryStateStorage,
@@ -193,7 +149,7 @@ impl BatchExecutorHandle {
     ) -> Self {
         let (commands_sender, commands_receiver) = mpsc::channel();
         let executor = BatchExecutor {
-            reexecute_each_tx,
+            save_call_traces,
             max_allowed_tx_gas_limit,
             validation_computational_gas_limit,
             commands: commands_receiver,
@@ -262,7 +218,7 @@ impl BatchExecutorHandle {
 /// be constructed.
 #[derive(Debug)]
 pub(super) struct BatchExecutor {
-    reexecute_each_tx: bool,
+    save_call_traces: bool,
     max_allowed_tx_gas_limit: U256,
     validation_computational_gas_limit: u32,
     commands: mpsc::Receiver<Command>,
@@ -292,7 +248,8 @@ impl BatchExecutor {
         );
 
         let mut storage_view = StorageView::new(&secondary_storage);
-        let mut oracle_tools = vm::OracleTools::new(&mut storage_view as &mut dyn Storage);
+        let mut oracle_tools =
+            vm::OracleTools::new(&mut storage_view as &mut dyn Storage, HistoryEnabled);
 
         let mut vm = match self.vm_gas_limit {
             Some(vm_gas_limit) => init_vm_with_gas_limit(
@@ -332,7 +289,11 @@ impl BatchExecutor {
         vlog::info!("State keeper exited with an unfinished batch");
     }
 
-    fn execute_tx(&self, tx: &Transaction, vm: &mut VmInstance) -> TxExecutionResult {
+    fn execute_tx(
+        &self,
+        tx: &Transaction,
+        vm: &mut VmInstance<'_, HistoryEnabled>,
+    ) -> TxExecutionResult {
         let gas_consumed_before_tx = vm.gas_consumed();
 
         // Save pre-`execute_next_tx` VM snapshot.
@@ -347,12 +308,8 @@ impl BatchExecutor {
                 tx.hash(),
                 tx.gas_limit()
             );
-            return TxExecutionResult {
-                tx_result: Err(TxRevertReason::TooBigGasLimit),
-                bootloader_dry_run_result: None,
-                tx_metrics: None,
-                bootloader_dry_run_metrics: None,
-                compressed_bytecodes: vec![],
+            return TxExecutionResult::RejectedByVm {
+                rejection_reason: TxRevertReason::TooBigGasLimit,
             };
         }
 
@@ -374,38 +331,35 @@ impl BatchExecutor {
             "stage" => "state_keeper"
         );
 
-        if self.reexecute_each_tx {
-            self.reexecute_tx_in_vm(vm, tx, tx_result.clone());
-        }
+        let (exec_result, compressed_bytecodes) = match tx_result {
+            Err(TxRevertReason::BootloaderOutOfGas) => {
+                return TxExecutionResult::BootloaderOutOfGasForTx
+            }
+            Err(rejection_reason) => return TxExecutionResult::RejectedByVm { rejection_reason },
+            Ok((exec_result, compressed_bytecodes)) => (exec_result, compressed_bytecodes),
+        };
 
-        let mut result = TxExecutionResult::new(tx_result.clone());
-        if result.err().is_some() {
-            return result;
-        }
-
-        let tx_metrics = Self::get_execution_metrics(
-            vm,
-            Some(tx),
-            &tx_result.as_ref().unwrap().0.result,
-            gas_consumed_before_tx,
-        );
-        result.add_tx_metrics(tx_metrics);
+        let tx_metrics =
+            Self::get_execution_metrics(vm, Some(tx), &exec_result.result, gas_consumed_before_tx);
 
         match self.dryrun_block_tip(vm) {
-            Ok((exec_result, metrics)) => {
-                result.add_bootloader_result(Ok(exec_result));
-                result.add_bootloader_metrics(metrics);
+            Ok((bootloader_dry_run_result, bootloader_dry_run_metrics)) => {
+                TxExecutionResult::Success {
+                    tx_result: Box::new(exec_result),
+                    tx_metrics,
+                    bootloader_dry_run_metrics,
+                    bootloader_dry_run_result: Box::new(bootloader_dry_run_result),
+                    compressed_bytecodes,
+                }
             }
             Err(err) => {
                 vlog::warn!("VM reverted while executing block tip: {}", err);
-                result.add_bootloader_result(Err(err));
+                TxExecutionResult::BootloaderOutOfGasForBlockTip
             }
         }
-
-        result
     }
 
-    fn rollback_last_tx(&self, vm: &mut VmInstance) {
+    fn rollback_last_tx(&self, vm: &mut VmInstance<'_, HistoryEnabled>) {
         let stage_started_at = Instant::now();
         vm.rollback_to_latest_snapshot_popping();
         metrics::histogram!(
@@ -415,7 +369,7 @@ impl BatchExecutor {
         );
     }
 
-    fn finish_batch(&self, vm: &mut VmInstance) -> VmBlockResult {
+    fn finish_batch<H: HistoryMode>(&self, vm: &mut VmInstance<'_, H>) -> VmBlockResult {
         vm.execute_till_block_end(BootloaderJobType::BlockPostprocessing)
     }
 
@@ -426,7 +380,7 @@ impl BatchExecutor {
     fn execute_tx_in_vm(
         &self,
         tx: &Transaction,
-        vm: &mut VmInstance,
+        vm: &mut VmInstance<'_, HistoryEnabled>,
     ) -> Result<(VmTxExecutionResult, Vec<CompressedBytecodeInfo>), TxRevertReason> {
         // Note, that the space where we can put the calldata for compressing transactions
         // is limited and the transactions do not pay for taking it.
@@ -435,7 +389,7 @@ impl BatchExecutor {
         // We try to execute the transaction with compressed bytecodes.
         // If it fails and the compressed bytecodes have not been published,
         // it means that there is no sense in pollutting the space of compressed bytecodes,
-        // and so we reeexecute the transaction, but without compressions.
+        // and so we reexecute the transaction, but without compressions.
 
         // Saving the snapshot before executing
         vm.save_current_vm_as_snapshot();
@@ -444,12 +398,16 @@ impl BatchExecutor {
             // For L1 transactions there are no compressed bytecodes
             vec![]
         } else {
+            // Deduplicate and filter factory deps preserving original order.
             tx.execute
                 .factory_deps
                 .as_ref()
                 .unwrap()
                 .iter()
-                .filter(|dep| {
+                .enumerate()
+                .sorted_by_key(|(_idx, dep)| *dep)
+                .dedup_by(|x, y| x.1 == y.1)
+                .filter(|(_idx, dep)| {
                     !vm.state
                         .storage
                         .storage
@@ -457,7 +415,8 @@ impl BatchExecutor {
                         .borrow_mut()
                         .is_bytecode_known(&hash_bytecode(dep))
                 })
-                .filter_map(|dep| CompressedBytecodeInfo::from_original(dep.clone()).ok())
+                .sorted_by_key(|(idx, _dep)| *idx)
+                .filter_map(|(_idx, dep)| CompressedBytecodeInfo::from_original(dep.clone()).ok())
                 .collect()
         };
 
@@ -467,8 +426,10 @@ impl BatchExecutor {
             TxExecutionMode::VerifyExecute,
             Some(compressed_bytecodes.clone()),
         );
-        let result_with_compression =
-            vm.execute_next_tx(self.validation_computational_gas_limit)?;
+        let result_with_compression = vm.execute_next_tx(
+            self.validation_computational_gas_limit,
+            self.save_call_traces,
+        )?;
 
         let at_least_one_unpublished = compressed_bytecodes.iter().any(|info| {
             !vm.state
@@ -480,7 +441,7 @@ impl BatchExecutor {
         });
 
         if at_least_one_unpublished {
-            // Rollbacking and now trying to execute one more time.
+            // Rolling back and trying to execute one more time.
             vm.rollback_to_latest_snapshot_popping();
             push_transaction_to_bootloader_memory(
                 vm,
@@ -489,8 +450,11 @@ impl BatchExecutor {
                 Some(vec![]),
             );
 
-            vm.execute_next_tx(self.validation_computational_gas_limit)
-                .map(|val| (val, vec![]))
+            vm.execute_next_tx(
+                self.validation_computational_gas_limit,
+                self.save_call_traces,
+            )
+            .map(|val| (val, vec![]))
         } else {
             // Remove the snapshot taken at the start of this function as it is not needed anymore.
             vm.pop_snapshot_no_rollback();
@@ -499,31 +463,9 @@ impl BatchExecutor {
         }
     }
 
-    fn reexecute_tx_in_vm(
-        &self,
-        vm: &mut VmInstance<'_>,
-        tx: &Transaction,
-        expected_tx_result: Result<
-            (VmTxExecutionResult, Vec<CompressedBytecodeInfo>),
-            TxRevertReason,
-        >,
-    ) {
-        // Rollback to the pre-`execute_next_tx` VM snapshot.
-        // `rollback_to_latest_snapshot` (not `rollback_to_latest_snapshot_popping`) is used here because
-        // we will need this snapshot again if seal criteria will result in `ExcludeAndSeal`.
-        vm.rollback_to_latest_snapshot();
-        let alternative_result = self.execute_tx_in_vm(tx, vm);
-        assert_eq!(
-            alternative_result,
-            expected_tx_result,
-            "Failed to reexecute transaction {}",
-            tx.hash()
-        );
-    }
-
     fn dryrun_block_tip(
         &self,
-        vm: &mut VmInstance,
+        vm: &mut VmInstance<'_, HistoryEnabled>,
     ) -> Result<(VmPartialExecutionResult, ExecutionMetricsForCriteria), TxRevertReason> {
         let stage_started_at = Instant::now();
         let gas_consumed_before = vm.gas_consumed();
@@ -555,8 +497,8 @@ impl BatchExecutor {
         result
     }
 
-    fn get_execution_metrics(
-        vm: &VmInstance,
+    fn get_execution_metrics<H: HistoryMode>(
+        vm: &VmInstance<'_, H>,
         tx: Option<&Transaction>,
         execution_result: &VmPartialExecutionResult,
         gas_consumed_before: u32,
@@ -583,6 +525,7 @@ impl BatchExecutor {
             total_factory_deps,
             execution_result.contracts_used,
             execution_result.cycles_used,
+            execution_result.computational_gas_used,
         );
 
         let l1_gas = match tx {

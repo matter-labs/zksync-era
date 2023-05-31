@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::history_recorder::{HistoryRecorder, WithHistory};
+use crate::history_recorder::{HistoryEnabled, HistoryMode, HistoryRecorder, WithHistory};
 use crate::storage::StoragePtr;
 
 use zk_evm::abstractions::MemoryType;
@@ -15,19 +15,24 @@ use zksync_utils::{bytes_to_be_words, u256_to_h256};
 
 use super::OracleWithHistory;
 
+/// The main job of the DecommiterOracle is to implement the DecommittmentProcessor trait - that is
+/// used by the VM to 'load' bytecodes into memory.
 #[derive(Debug)]
-pub struct DecommitterOracle<'a, const B: bool> {
+pub struct DecommitterOracle<'a, const B: bool, H: HistoryMode> {
     /// Pointer that enables to read contract bytecodes from the database.
     storage: StoragePtr<'a>,
     /// The cache of bytecodes that the bootloader "knows", but that are not necessarily in the database.
-    pub known_bytecodes: HistoryRecorder<HashMap<U256, Vec<U256>>>,
+    /// And it is also used as a database cache.
+    pub known_bytecodes: HistoryRecorder<HashMap<U256, Vec<U256>>, H>,
     /// Stores pages of memory where certain code hashes have already been decommitted.
-    decommitted_code_hashes: HistoryRecorder<HashMap<U256, u32>>,
+    /// It is expected that they all are present in the DB.
+    // `decommitted_code_hashes` history is necessary
+    pub decommitted_code_hashes: HistoryRecorder<HashMap<U256, u32>, HistoryEnabled>,
     /// Stores history of decommitment requests.
-    decommitment_requests: HistoryRecorder<Vec<()>>,
+    decommitment_requests: HistoryRecorder<Vec<()>, H>,
 }
 
-impl<'a, const B: bool> DecommitterOracle<'a, B> {
+impl<'a, const B: bool, H: HistoryMode> DecommitterOracle<'a, B, H> {
     pub fn new(storage: StoragePtr<'a>) -> Self {
         Self {
             storage,
@@ -37,6 +42,8 @@ impl<'a, const B: bool> DecommitterOracle<'a, B> {
         }
     }
 
+    /// Gets the bytecode for a given hash (either from storage, or from 'known_bytecodes' that were populated by `populate` method).
+    /// Panics if bytecode doesn't exist.
     pub fn get_bytecode(&mut self, hash: U256, timestamp: Timestamp) -> Vec<U256> {
         let entry = self.known_bytecodes.inner().get(&hash);
 
@@ -59,6 +66,7 @@ impl<'a, const B: bool> DecommitterOracle<'a, B> {
         }
     }
 
+    /// Adds additional bytecodes. They will take precendent over the bytecodes from storage.
     pub fn populate(&mut self, bytecodes: Vec<(U256, Vec<U256>)>, timestamp: Timestamp) {
         for (hash, bytecode) in bytecodes {
             self.known_bytecodes.insert(hash, bytecode, timestamp);
@@ -73,7 +81,7 @@ impl<'a, const B: bool> DecommitterOracle<'a, B> {
             .collect()
     }
 
-    pub fn get_decommitted_bytes_after_timestamp(&self, timestamp: Timestamp) -> usize {
+    pub fn get_decommitted_bytecodes_after_timestamp(&self, timestamp: Timestamp) -> usize {
         // Note, that here we rely on the fact that for each used bytecode
         // there is one and only one corresponding event in the history of it.
         self.decommitted_code_hashes
@@ -84,26 +92,18 @@ impl<'a, const B: bool> DecommitterOracle<'a, B> {
             .count()
     }
 
-    pub fn get_number_of_decommitment_requests_after_timestamp(
+    pub fn get_decommitted_code_hashes_with_history(
         &self,
-        timestamp: Timestamp,
-    ) -> usize {
-        self.decommitment_requests
-            .history()
-            .iter()
-            .rev()
-            .take_while(|(t, _)| *t >= timestamp)
-            .count()
-    }
-
-    pub fn get_decommitted_code_hashes_with_history(&self) -> &HistoryRecorder<HashMap<U256, u32>> {
+    ) -> &HistoryRecorder<HashMap<U256, u32>, HistoryEnabled> {
         &self.decommitted_code_hashes
     }
 
+    /// Returns the storage handle. Used only in tests.
     pub fn get_storage(&self) -> StoragePtr<'a> {
         self.storage.clone()
     }
 
+    /// Measures the amount of memory used by this Oracle (used for metrics only).
     pub fn get_size(&self) -> usize {
         // Hashmap memory overhead is neglected.
         let known_bytecodes_size = self
@@ -119,43 +119,47 @@ impl<'a, const B: bool> DecommitterOracle<'a, B> {
     }
 
     pub fn get_history_size(&self) -> usize {
-        let known_bytecodes_stack_size = self.known_bytecodes.history().len()
+        let known_bytecodes_stack_size = self.known_bytecodes.borrow_history(|h| h.len(), 0)
             * std::mem::size_of::<<HashMap<U256, Vec<U256>> as WithHistory>::HistoryRecord>();
-        let known_bytecodes_heap_size = self
-            .known_bytecodes
-            .history()
-            .iter()
-            .map(|(_, event)| {
-                if let Some(bytecode) = event.value.as_ref() {
-                    bytecode.len() * std::mem::size_of::<U256>()
-                } else {
-                    0
-                }
-            })
-            .sum::<usize>();
-        let decommitted_code_hashes_size = self.decommitted_code_hashes.history().len()
-            * std::mem::size_of::<<HashMap<U256, u32> as WithHistory>::HistoryRecord>();
+        let known_bytecodes_heap_size = self.known_bytecodes.borrow_history(
+            |h| {
+                h.iter()
+                    .map(|(_, event)| {
+                        if let Some(bytecode) = event.value.as_ref() {
+                            bytecode.len() * std::mem::size_of::<U256>()
+                        } else {
+                            0
+                        }
+                    })
+                    .sum::<usize>()
+            },
+            0,
+        );
+        let decommitted_code_hashes_size =
+            self.decommitted_code_hashes.borrow_history(|h| h.len(), 0)
+                * std::mem::size_of::<<HashMap<U256, u32> as WithHistory>::HistoryRecord>();
 
         known_bytecodes_stack_size + known_bytecodes_heap_size + decommitted_code_hashes_size
     }
-}
 
-impl<'a, const B: bool> OracleWithHistory for DecommitterOracle<'a, B> {
-    fn rollback_to_timestamp(&mut self, timestamp: Timestamp) {
-        self.decommitted_code_hashes
-            .rollback_to_timestamp(timestamp);
-        self.known_bytecodes.rollback_to_timestamp(timestamp);
-        self.decommitment_requests.rollback_to_timestamp(timestamp);
-    }
-
-    fn delete_history(&mut self) {
+    pub fn delete_history(&mut self) {
         self.decommitted_code_hashes.delete_history();
         self.known_bytecodes.delete_history();
         self.decommitment_requests.delete_history();
     }
 }
 
-impl<'a, const B: bool> DecommittmentProcessor for DecommitterOracle<'a, B> {
+impl<'a, const B: bool> OracleWithHistory for DecommitterOracle<'a, B, HistoryEnabled> {
+    fn rollback_to_timestamp(&mut self, timestamp: Timestamp) {
+        self.decommitted_code_hashes
+            .rollback_to_timestamp(timestamp);
+        self.known_bytecodes.rollback_to_timestamp(timestamp);
+        self.decommitment_requests.rollback_to_timestamp(timestamp);
+    }
+}
+
+impl<'a, const B: bool, H: HistoryMode> DecommittmentProcessor for DecommitterOracle<'a, B, H> {
+    /// Loads a given bytecode hash into memory (see trait description for more details).
     fn decommit_into_memory<M: Memory>(
         &mut self,
         monotonic_cycle_counter: u32,
@@ -163,6 +167,8 @@ impl<'a, const B: bool> DecommittmentProcessor for DecommitterOracle<'a, B> {
         memory: &mut M,
     ) -> (DecommittmentQuery, Option<Vec<U256>>) {
         self.decommitment_requests.push((), partial_query.timestamp);
+        // First - check if we didn't fetch this bytecode in the past.
+        // If we did - we can just return the page that we used before (as the memory is read only).
         if let Some(memory_page) = self
             .decommitted_code_hashes
             .inner()
@@ -176,14 +182,15 @@ impl<'a, const B: bool> DecommittmentProcessor for DecommitterOracle<'a, B> {
 
             (partial_query, None)
         } else {
-            // fresh one
+            // We are fetching a fresh bytecode that we didn't read before.
             let values = self.get_bytecode(partial_query.hash, partial_query.timestamp);
             let page_to_use = partial_query.memory_page;
             let timestamp = partial_query.timestamp;
             partial_query.decommitted_length = values.len() as u16;
             partial_query.is_fresh = true;
 
-            // write into memory
+            // Create a template query, that we'll use for writing into memory.
+            // value & index are set to 0 - as they will be updated in the inner loop below.
             let mut tmp_q = MemoryQuery {
                 timestamp,
                 location: MemoryLocation {
@@ -199,13 +206,14 @@ impl<'a, const B: bool> DecommittmentProcessor for DecommitterOracle<'a, B> {
             self.decommitted_code_hashes
                 .insert(partial_query.hash, page_to_use.0, timestamp);
 
+            // Copy the bytecode (that is stored in 'values' Vec) into the memory page.
             if B {
                 for (i, value) in values.iter().enumerate() {
                     tmp_q.location.index = MemoryIndex(i as u32);
                     tmp_q.value = *value;
                     memory.specialized_code_query(monotonic_cycle_counter, tmp_q);
                 }
-
+                // If we're in the witness mode - we also have to return the values.
                 (partial_query, Some(values))
             } else {
                 for (i, value) in values.into_iter().enumerate() {

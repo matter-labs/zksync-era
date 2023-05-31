@@ -1,13 +1,17 @@
-use crate::api_server::web3::get_config;
-
-use zksync_types::U256;
+use zksync_types::{L2ChainId, U256};
 
 #[derive(Debug, Clone)]
-pub struct NetNamespace;
+pub struct NetNamespace {
+    zksync_network_id: L2ChainId,
+}
 
 impl NetNamespace {
+    pub fn new(zksync_network_id: L2ChainId) -> Self {
+        Self { zksync_network_id }
+    }
+
     pub fn version_impl(&self) -> String {
-        get_config().chain.eth.zksync_network_id.to_string()
+        self.zksync_network_id.to_string()
     }
 
     pub fn peer_count_impl(&self) -> U256 {

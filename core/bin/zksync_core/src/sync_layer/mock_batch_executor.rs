@@ -14,6 +14,7 @@ use vm::{
     VmBlockResult, VmExecutionResult,
 };
 use zksync_types::tx::tx_execution_info::TxExecutionStatus;
+use zksync_types::vm_trace::{VmExecutionTrace, VmTrace};
 
 use crate::state_keeper::{
     batch_executor::{BatchExecutorHandle, Command, L1BatchExecutorBuilder, TxExecutionResult},
@@ -48,15 +49,17 @@ impl L1BatchExecutorBuilder for MockBatchExecutorBuilder {
                             gas_used: Default::default(),
                             contracts_used: Default::default(),
                             revert_reason: Default::default(),
-                            trace: Default::default(),
+                            trace: VmTrace::ExecutionTrace(VmExecutionTrace::default()),
                             total_log_queries: Default::default(),
                             cycles_used: Default::default(),
+                            computational_gas_used: Default::default(),
                         },
                         block_tip_result: VmPartialExecutionResult {
                             logs: Default::default(),
                             revert_reason: Default::default(),
                             contracts_used: Default::default(),
                             cycles_used: Default::default(),
+                            computational_gas_used: Default::default(),
                         },
                     };
 
@@ -76,28 +79,29 @@ fn partial_execution_result() -> VmPartialExecutionResult {
         revert_reason: Default::default(),
         contracts_used: Default::default(),
         cycles_used: Default::default(),
+        computational_gas_used: Default::default(),
     }
 }
 
 /// Creates a `TxExecutionResult` object denoting a successful tx execution.
 pub(crate) fn successful_exec() -> TxExecutionResult {
-    let mut result = TxExecutionResult::new(Ok((
-        VmTxExecutionResult {
+    TxExecutionResult::Success {
+        tx_result: Box::new(VmTxExecutionResult {
             status: TxExecutionStatus::Success,
             result: partial_execution_result(),
+            call_traces: vec![],
             gas_refunded: 0,
             operator_suggested_refund: 0,
+        }),
+        tx_metrics: ExecutionMetricsForCriteria {
+            l1_gas: Default::default(),
+            execution_metrics: Default::default(),
         },
-        vec![],
-    )));
-    result.add_tx_metrics(ExecutionMetricsForCriteria {
-        l1_gas: Default::default(),
-        execution_metrics: Default::default(),
-    });
-    result.add_bootloader_result(Ok(partial_execution_result()));
-    result.add_bootloader_metrics(ExecutionMetricsForCriteria {
-        l1_gas: Default::default(),
-        execution_metrics: Default::default(),
-    });
-    result
+        bootloader_dry_run_metrics: ExecutionMetricsForCriteria {
+            l1_gas: Default::default(),
+            execution_metrics: Default::default(),
+        },
+        bootloader_dry_run_result: Box::new(partial_execution_result()),
+        compressed_bytecodes: vec![],
+    }
 }

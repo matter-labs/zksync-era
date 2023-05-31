@@ -41,6 +41,15 @@ export const PRIORITY_OPERATION_L2_TX_TYPE = 0xff;
 
 export const MAX_BYTECODE_LEN_BYTES = ((1 << 16) - 1) * 32;
 
+// Currently, for some reason the SDK may return slightly smaller L1 gas limit than required for initiating L1->L2
+// transaction. We use a coefficient to ensure that the transaction will be accepted.
+export const L1_FEE_ESTIMATION_COEF_NUMERATOR = BigNumber.from(12);
+export const L1_FEE_ESTIMATION_COEF_DENOMINATOR = BigNumber.from(10);
+
+// This gas limit will be used for displaying the error messages when the users do not have enough fee.
+export const L1_RECOMMENDED_MIN_ERC20_DEPOSIT_GAS_LIMIT = 400000;
+export const L1_RECOMMENDED_MIN_ETH_DEPOSIT_GAS_LIMIT = 200000;
+
 // The large L2 gas per pubdata to sign. This gas is enough to ensure that
 // any reasonable limit will be accepted. Note, that the operator is NOT required to
 // use the honest value of gas per pubdata and it can use any value up to the one signed by the user.
@@ -385,7 +394,10 @@ export function undoL1ToL2Alias(address: string): string {
 }
 
 /// Getters data used to correctly initialize the L1 token counterpart on L2
-async function getERC20GettersData(l1TokenAddress: string, provider: ethers.providers.Provider): Promise<string> {
+export async function getERC20DefaultBridgeData(
+    l1TokenAddress: string,
+    provider: ethers.providers.Provider
+): Promise<string> {
     const token = IERC20MetadataFactory.connect(l1TokenAddress, provider);
 
     const name = await token.name();
@@ -408,15 +420,14 @@ export async function getERC20BridgeCalldata(
     l1Sender: string,
     l2Receiver: string,
     amount: BigNumberish,
-    provider: ethers.providers.Provider
+    bridgeData: BytesLike
 ): Promise<string> {
-    const gettersData = await getERC20GettersData(l1TokenAddress, provider);
     return L2_BRIDGE_ABI.encodeFunctionData('finalizeDeposit', [
         l1Sender,
         l2Receiver,
         l1TokenAddress,
         amount,
-        gettersData
+        bridgeData
     ]);
 }
 
@@ -523,14 +534,41 @@ export async function estimateDefaultBridgeDepositL2Gas(
     } else {
         const l1ERC20BridgeAddresses = (await providerL2.getDefaultBridgeAddresses()).erc20L1;
         const erc20BridgeAddress = (await providerL2.getDefaultBridgeAddresses()).erc20L2;
-
-        const calldata = await getERC20BridgeCalldata(token, from, to, amount, providerL1);
-
-        return await providerL2.estimateL1ToL2Execute({
-            caller: applyL1ToL2Alias(l1ERC20BridgeAddresses),
-            contractAddress: erc20BridgeAddress,
-            gasPerPubdataByte: gasPerPubdataByte,
-            calldata: calldata
-        });
+        const bridgeData = await getERC20DefaultBridgeData(token, providerL1);
+        return await estimateCustomBridgeDepositL2Gas(
+            providerL2,
+            l1ERC20BridgeAddresses,
+            erc20BridgeAddress,
+            token,
+            amount,
+            to,
+            bridgeData,
+            from,
+            gasPerPubdataByte
+        );
     }
+}
+
+export function scaleGasLimit(gasLimit: BigNumber): BigNumber {
+    return gasLimit.mul(L1_FEE_ESTIMATION_COEF_NUMERATOR).div(L1_FEE_ESTIMATION_COEF_DENOMINATOR);
+}
+
+export async function estimateCustomBridgeDepositL2Gas(
+    providerL2: Provider,
+    l1BridgeAddress: Address,
+    l2BridgeAddress: Address,
+    token: Address,
+    amount: BigNumberish,
+    to: Address,
+    bridgeData: BytesLike,
+    from?: Address,
+    gasPerPubdataByte?: BigNumberish
+): Promise<BigNumber> {
+    const calldata = await getERC20BridgeCalldata(token, from, to, amount, bridgeData);
+    return await providerL2.estimateL1ToL2Execute({
+        caller: applyL1ToL2Alias(l1BridgeAddress),
+        contractAddress: l2BridgeAddress,
+        gasPerPubdataByte: gasPerPubdataByte,
+        calldata: calldata
+    });
 }

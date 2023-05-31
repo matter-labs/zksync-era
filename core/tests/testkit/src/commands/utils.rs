@@ -11,6 +11,7 @@ use crate::utils::load_test_bytecode_and_calldata;
 use zksync_config::ZkSyncConfig;
 use zksync_contracts::zksync_contract;
 use zksync_dal::{ConnectionPool, StorageProcessor};
+use zksync_eth_client::EthInterface;
 use zksync_storage::db::Database;
 use zksync_types::{l1::L1Tx, tokens::ETHEREUM_ADDRESS, Address, L1BatchNumber, H256};
 
@@ -65,7 +66,7 @@ impl TestDatabaseManager {
     pub async fn connect_to_postgres(&self) -> StorageProcessor<'static> {
         // This method is currently redundant, but it was created so that if some tweaks would be required,
         // it'll be easier to introduce them through `TestDatabaseManager`.
-        StorageProcessor::establish_connection(true).await
+        StorageProcessor::establish_connection_blocking(true)
     }
 
     pub fn create_pool(&self) -> ConnectionPool {
@@ -289,7 +290,7 @@ pub async fn perform_transactions(
             bytecode,
             constructor_calldata,
             fee_amount.clone(),
-            0.into(),
+            0.into(), // TODO: May be incorrect, needs to be checked.
         )
         .await;
     println!("Deploy contract test success");

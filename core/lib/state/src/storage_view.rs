@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use std::fmt::Debug;
+use std::time::Duration;
 use zksync_types::{StorageKey, StorageValue, ZkSyncReadStorage, H256};
 
 /// `StorageView` is buffer for `StorageLog`s between storage and transaction execution code.
@@ -18,10 +19,13 @@ pub struct StorageView<S> {
     // Cache for initial/repeated writes. It's only valid within one L1 batch execution.
     read_initial_writes: HashMap<StorageKey, bool>,
 
-    pub storage_invocations: usize,
-    pub new_storage_invocations: usize,
+    pub storage_invocations_missed: usize,
     pub get_value_storage_invocations: usize,
     pub set_value_storage_invocations: usize,
+
+    pub time_spent_on_storage_missed: Duration,
+    pub time_spent_on_get_value: Duration,
+    pub time_spent_on_set_value: Duration,
 }
 
 impl<S: ZkSyncReadStorage> StorageView<S> {
@@ -31,14 +35,35 @@ impl<S: ZkSyncReadStorage> StorageView<S> {
             modified_storage_keys: HashMap::new(),
             read_storage_keys: HashMap::new(),
             read_initial_writes: HashMap::new(),
-            storage_invocations: 0,
+            storage_invocations_missed: 0,
             get_value_storage_invocations: 0,
             set_value_storage_invocations: 0,
-            new_storage_invocations: 0,
+            time_spent_on_storage_missed: Default::default(),
+            time_spent_on_get_value: Default::default(),
+            time_spent_on_set_value: Default::default(),
+        }
+    }
+
+    pub fn new_with_read_keys(
+        storage_handle: S,
+        read_storage_keys: HashMap<StorageKey, StorageValue>,
+    ) -> Self {
+        Self {
+            storage_handle,
+            modified_storage_keys: HashMap::new(),
+            read_storage_keys,
+            read_initial_writes: HashMap::new(),
+            storage_invocations_missed: 0,
+            get_value_storage_invocations: 0,
+            set_value_storage_invocations: 0,
+            time_spent_on_storage_missed: Default::default(),
+            time_spent_on_get_value: Default::default(),
+            time_spent_on_set_value: Default::default(),
         }
     }
 
     pub fn get_value(&mut self, key: &StorageKey) -> StorageValue {
+        let started_at = std::time::Instant::now();
         self.get_value_storage_invocations += 1;
         let value = self.get_value_no_log(key);
 
@@ -50,13 +75,16 @@ impl<S: ZkSyncReadStorage> StorageView<S> {
             key.key()
         );
 
+        self.time_spent_on_get_value += started_at.elapsed();
         value
     }
 
     // returns the value before write. Doesn't generate read logs.
     // `None` for value is only possible for rolling back the transaction
     pub fn set_value(&mut self, key: &StorageKey, value: StorageValue) -> StorageValue {
+        let started_at = std::time::Instant::now();
         self.set_value_storage_invocations += 1;
+
         let original = self.get_value_no_log(key);
 
         vlog::trace!(
@@ -69,19 +97,25 @@ impl<S: ZkSyncReadStorage> StorageView<S> {
         );
         self.modified_storage_keys.insert(*key, value);
 
+        self.time_spent_on_set_value += started_at.elapsed();
+
         original
     }
 
     fn get_value_no_log(&mut self, key: &StorageKey) -> StorageValue {
-        self.storage_invocations += 1;
+        let started_at = std::time::Instant::now();
+
         if let Some(value) = self.modified_storage_keys.get(key) {
             *value
         } else if let Some(value) = self.read_storage_keys.get(key) {
             *value
         } else {
-            self.new_storage_invocations += 1;
             let value = self.storage_handle.read_value(key);
             self.read_storage_keys.insert(*key, value);
+
+            self.time_spent_on_storage_missed += started_at.elapsed();
+            self.storage_invocations_missed += 1;
+
             value
         }
     }
@@ -108,6 +142,10 @@ impl<S: ZkSyncReadStorage> StorageView<S> {
         self.modified_storage_keys.len() * std::mem::size_of::<(StorageKey, StorageValue)>()
             + self.read_initial_writes.len() * std::mem::size_of::<(StorageKey, bool)>()
             + self.read_storage_keys.len() * std::mem::size_of::<(StorageKey, StorageValue)>()
+    }
+
+    pub fn take_read_storage_keys(self) -> HashMap<StorageKey, StorageValue> {
+        self.read_storage_keys
     }
 }
 

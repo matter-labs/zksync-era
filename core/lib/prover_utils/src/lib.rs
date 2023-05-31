@@ -1,10 +1,17 @@
 #![allow(clippy::upper_case_acronyms, clippy::derive_partial_eq_without_eq)]
 
+extern crate core;
+
 use std::fs::create_dir_all;
 use std::io::Cursor;
 use std::path::Path;
 use std::time::Duration;
 use std::time::Instant;
+
+use futures::channel::mpsc;
+use futures::executor::block_on;
+use futures::{future, SinkExt};
+use tokio::task::JoinHandle;
 
 pub mod region_fetcher;
 
@@ -113,4 +120,27 @@ pub fn circuit_name_to_numeric_index(circuit_name: &str) -> Option<u8> {
         "L1 messages merklizer" => Some(18),
         _ => None,
     }
+}
+
+pub async fn wait_for_tasks(task_futures: Vec<JoinHandle<()>>) {
+    match future::select_all(task_futures).await.0 {
+        Ok(_) => {
+            vlog::info!("One of the actors finished its run, while it wasn't expected to do it");
+        }
+        Err(error) => {
+            vlog::info!(
+                "One of the tokio actors unexpectedly finished with error: {:?}",
+                error
+            );
+        }
+    }
+}
+
+pub fn get_stop_signal_receiver() -> mpsc::Receiver<bool> {
+    let (mut stop_signal_sender, stop_signal_receiver) = mpsc::channel(256);
+    ctrlc::set_handler(move || {
+        block_on(stop_signal_sender.send(true)).expect("Ctrl+C signal send");
+    })
+    .expect("Error setting Ctrl+C handler");
+    stop_signal_receiver
 }

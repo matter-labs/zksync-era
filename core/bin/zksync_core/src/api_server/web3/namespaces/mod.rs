@@ -1,6 +1,7 @@
 //! Actual implementation of Web3 API namespaces logic, not tied to the backend
 //! used to create a JSON RPC server.
 
+pub mod debug;
 pub mod eth;
 pub mod eth_subscribe;
 pub mod net;
@@ -12,8 +13,8 @@ use zksync_types::U256;
 use zksync_utils::{biguint_to_u256, u256_to_biguint};
 
 pub use self::{
-    eth::EthNamespace, eth_subscribe::EthSubscribe, net::NetNamespace, web3::Web3Namespace,
-    zks::ZksNamespace,
+    debug::DebugNamespace, eth::EthNamespace, eth_subscribe::EthSubscribe, net::NetNamespace,
+    web3::Web3Namespace, zks::ZksNamespace,
 };
 
 pub fn scale_u256(val: U256, scale_factor: &Ratio<BigUint>) -> U256 {

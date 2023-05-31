@@ -11,12 +11,13 @@ use zksync_types::{
         transports::Http,
         types::{TransactionReceipt, H160, H256, U256},
     },
-    L1ChainId, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U64,
+    L1ChainId, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE,
 };
 use zksync_web3_decl::namespaces::{EthNamespaceClient, ZksNamespaceClient};
 
-use zksync_eth_client::clients::http_client::Error;
-use zksync_eth_client::{ETHDirectClient, EthInterface};
+use zksync_eth_client::{
+    clients::http::SigningClient, types::Error, BoundEthInterface, EthInterface,
+};
 use zksync_eth_signer::EthereumSigner;
 use zksync_types::network::Network;
 use zksync_types::{l1::L1Tx, Address, L1TxCommonData};
@@ -58,7 +59,7 @@ pub fn l1_bridge_contract() -> ethabi::Contract {
 /// via `EthereumProvider::web3` method.
 #[derive(Debug)]
 pub struct EthereumProvider<S: EthereumSigner> {
-    eth_client: ETHDirectClient<S>,
+    eth_client: SigningClient<S>,
     default_bridges: BridgeAddresses,
     erc20_abi: ethabi::Contract,
     l1_bridge_abi: ethabi::Contract,
@@ -83,13 +84,11 @@ impl<S: EthereumSigner> EthereumProvider<S> {
             .map_err(|err| ClientError::NetworkError(err.to_string()))?;
 
         let l1_chain_id = provider.l1_chain_id().await?;
-        if l1_chain_id > U64::from(u16::MAX) {
-            return Err(ClientError::MalformedResponse(
-                "Chain id overflow".to_owned(),
-            ));
-        }
-        let l1_chain_id =
-            u8::try_from(l1_chain_id).expect("Expected chain id to be in range 0..256");
+        let l1_chain_id = u64::try_from(l1_chain_id).map_err(|_| {
+            ClientError::MalformedResponse(
+                "Chain id overflow - Expected chain id to be in range 0..2^64".to_owned(),
+            )
+        })?;
 
         let contract_address = provider.get_main_contract().await?;
         let default_bridges = provider
@@ -97,7 +96,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
             .await
             .map_err(|err| ClientError::NetworkError(err.to_string()))?;
 
-        let eth_client = ETHDirectClient::new(
+        let eth_client = SigningClient::new(
             transport,
             zksync_contract(),
             eth_addr,
@@ -120,7 +119,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
     }
 
     /// Exposes Ethereum node `web3` API.
-    pub fn client(&self) -> &ETHDirectClient<S> {
+    pub fn client(&self) -> &SigningClient<S> {
         &self.eth_client
     }
 
@@ -209,7 +208,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
         let bridge = bridge.unwrap_or(self.default_bridges.l1_erc20_default_bridge);
         let current_allowance = self
             .client()
-            .allowance_on_contract(token_address, bridge, self.erc20_abi.clone())
+            .allowance_on_account(token_address, bridge, self.erc20_abi.clone())
             .await
             .map_err(|err| ClientError::NetworkError(err.to_string()))?;
 

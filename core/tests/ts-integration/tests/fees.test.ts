@@ -166,7 +166,7 @@ async function updateReport(
 }
 
 async function killServerAndWaitForShutdown(provider: zksync.Provider) {
-    await utils.exec('pkill zksync_server');
+    await utils.exec('pkill -9 zksync_server');
     // Wait until it's really stopped.
     let iter = 0;
     while (iter < 30) {

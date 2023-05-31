@@ -11,9 +11,9 @@ pub struct ProverParams {
     number_of_setup_slots: u8,
 }
 
-impl From<ProverConfig> for ProverParams {
-    fn from(config: ProverConfig) -> Self {
-        ProverParams {
+impl ProverParams {
+    pub(crate) fn new(config: &ProverConfig) -> Self {
+        Self {
             number_of_threads: config.number_of_threads as u8,
             polling_duration: Duration::from_millis(config.polling_duration_in_millis),
             number_of_setup_slots: config.number_of_setup_slots,
@@ -23,7 +23,7 @@ impl From<ProverConfig> for ProverParams {
 
 impl Params for ProverParams {
     fn number_of_parallel_synthesis(&self) -> u8 {
-        self.number_of_threads as u8
+        self.number_of_threads
     }
 
     fn number_of_setup_slots(&self) -> u8 {

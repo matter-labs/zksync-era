@@ -240,10 +240,6 @@ pub(crate) fn wait_for_l1_batch_state_root_unchecked(
                 number.0,
                 stage_started_at.elapsed()
             );
-            metrics::histogram!(
-                "server.state_keeper.wait_for_prev_hash_time",
-                stage_started_at.elapsed()
-            );
             return h256_to_u256(root);
         }
 

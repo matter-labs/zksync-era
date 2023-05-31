@@ -1,11 +1,11 @@
 [database]
 
 # Path to the database data directory.
-path="./db"
+path="./db/main/full"
 # Path to the database data directory that contains state cache.
-state_keeper_db_path="./db/state_keeper"
-merkle_tree_backup_path="./db/backups"
-merkle_tree_fast_ssd_path="./db/lightweight"
+state_keeper_db_path="./db/main/state_keeper"
+merkle_tree_backup_path="./db/main/backups"
+merkle_tree_fast_ssd_path="./db/main/lightweight"
 backup_count=5
 backup_interval_ms=60000
 max_block_batch=100

@@ -1,16 +1,15 @@
 use serde::{Deserialize, Serialize};
-use std::convert::TryInto;
 use zksync_types::proofs::{PrepareBasicCircuitsJob, StorageLogMetadata};
+use zksync_types::zkevm_test_harness::blake2::Blake2s256;
 use zksync_types::zkevm_test_harness::witness::tree::BinaryHasher;
 use zksync_types::zkevm_test_harness::witness::tree::{
     BinarySparseStorageTree, EnumeratedBinaryLeaf, LeafQuery, ZkSyncStorageLeaf,
 };
-use zksync_types::zkevm_test_harness::Blake2s256;
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct PrecalculatedMerklePathsProvider {
     // We keep the root hash of the last processed leaf, as it is needed by the the witness generator.
-    pub root_hash: Vec<u8>,
+    pub root_hash: [u8; 32],
     // The ordered list of expected leaves to be interacted with
     pub pending_leaves: Vec<StorageLogMetadata>,
     // The index that would be assigned to the next new leaf
@@ -21,12 +20,13 @@ pub struct PrecalculatedMerklePathsProvider {
 }
 
 impl PrecalculatedMerklePathsProvider {
-    pub fn new(input: PrepareBasicCircuitsJob, root_hash: Vec<u8>) -> Self {
-        vlog::debug!("Initializing PrecalculatedMerklePathsProvider. Initial root_hash: {:?}, initial next_enumeration_index: {:?}", root_hash, input.next_enumeration_index);
+    pub fn new(input: PrepareBasicCircuitsJob, root_hash: [u8; 32]) -> Self {
+        let next_enumeration_index = input.next_enumeration_index();
+        vlog::debug!("Initializing PrecalculatedMerklePathsProvider. Initial root_hash: {:?}, initial next_enumeration_index: {:?}", root_hash, next_enumeration_index);
         Self {
             root_hash,
-            pending_leaves: input.merkle_paths,
-            next_enumeration_index: input.next_enumeration_index,
+            pending_leaves: input.into_merkle_paths().collect(),
+            next_enumeration_index,
             is_get_leaf_invoked: false,
         }
     }
@@ -50,7 +50,7 @@ impl BinarySparseStorageTree<256, 32, 32, 8, 32, Blake2s256, ZkSyncStorageLeaf>
     }
 
     fn root(&self) -> [u8; 32] {
-        self.root_hash.clone().try_into().unwrap()
+        self.root_hash
     }
 
     fn get_leaf(&mut self, index: &[u8; 32]) -> LeafQuery<256, 32, 32, 32, ZkSyncStorageLeaf> {
@@ -70,7 +70,7 @@ impl BinarySparseStorageTree<256, 32, 32, 8, 32, Blake2s256, ZkSyncStorageLeaf>
                 index
             )
         });
-        self.root_hash = next.root_hash.clone();
+        self.root_hash = next.root_hash;
 
         assert_eq!(
             &next.leaf_hashed_key_array(),
@@ -85,7 +85,7 @@ impl BinarySparseStorageTree<256, 32, 32, 8, 32, Blake2s256, ZkSyncStorageLeaf>
             },
             first_write: next.first_write,
             index: *index,
-            merkle_path: next.merkle_paths_array(),
+            merkle_path: next.clone().into_merkle_paths_array(),
         };
 
         if next.is_write {
@@ -119,7 +119,7 @@ impl BinarySparseStorageTree<256, 32, 32, 8, 32, Blake2s256, ZkSyncStorageLeaf>
             "`get_leaf()` is expected to be invoked before `insert_leaf()`"
         );
         let next = self.pending_leaves.remove(0);
-        self.root_hash = next.root_hash.clone();
+        self.root_hash = next.root_hash;
 
         assert!(
             next.is_write,
@@ -153,7 +153,7 @@ impl BinarySparseStorageTree<256, 32, 32, 8, 32, Blake2s256, ZkSyncStorageLeaf>
             },
             first_write: next.first_write,
             index: *index,
-            merkle_path: next.merkle_paths_array(),
+            merkle_path: next.into_merkle_paths_array(),
         }
     }
 

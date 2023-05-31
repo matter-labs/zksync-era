@@ -1,13 +1,13 @@
 use std::{collections::HashMap, time::Instant};
 
 use zk_evm::{
-    abstractions::{MAX_HEAP_PAGE_SIZE_IN_WORDS, MAX_MEMORY_BYTES},
     aux_structures::{MemoryPage, Timestamp},
     block_properties::BlockProperties,
     vm_state::{CallStackEntry, PrimitiveValue, VmState},
     zkevm_opcode_defs::{
-        system_params::INITIAL_FRAME_FORMAL_EH_LOCATION, FatPointer, BOOTLOADER_BASE_PAGE,
-        BOOTLOADER_CALLDATA_PAGE, STARTING_BASE_PAGE, STARTING_TIMESTAMP,
+        system_params::{BOOTLOADER_MAX_MEMORY, INITIAL_FRAME_FORMAL_EH_LOCATION},
+        FatPointer, BOOTLOADER_BASE_PAGE, BOOTLOADER_CALLDATA_PAGE, STARTING_BASE_PAGE,
+        STARTING_TIMESTAMP,
     },
 };
 use zksync_config::constants::MAX_TXS_IN_BLOCK;
@@ -16,6 +16,7 @@ use zksync_contracts::BaseSystemContracts;
 use zksync_types::{
     zkevm_test_harness::INITIAL_MONOTONIC_CYCLE_COUNTER, Address, Transaction, BOOTLOADER_ADDRESS,
     L1_GAS_PER_PUBDATA_BYTE, MAX_GAS_PER_PUBDATA_BYTE, MAX_NEW_FACTORY_DEPS, U256,
+    USED_BOOTLOADER_MEMORY_WORDS,
 };
 use zksync_utils::{
     address_to_u256,
@@ -24,9 +25,11 @@ use zksync_utils::{
     misc::ceil_div,
 };
 
+use itertools::Itertools;
+
 use crate::{
     bootloader_state::BootloaderState,
-    oracles::OracleWithHistory,
+    history_recorder::HistoryMode,
     transaction_data::{TransactionData, L1_TX_TYPE},
     utils::{
         code_page_candidate_from_base, heap_page_from_base, BLOCK_GAS_LIMIT, INITIAL_BASE_PAGE,
@@ -83,7 +86,7 @@ pub fn base_fee_to_gas_per_pubdata(l1_gas_price: u64, base_fee: u64) -> u64 {
 pub fn derive_base_fee_and_gas_per_pubdata(l1_gas_price: u64, fair_gas_price: u64) -> (u64, u64) {
     let eth_price_per_pubdata_byte = eth_price_per_pubdata_byte(l1_gas_price);
 
-    // The baseFee is set in such a way that it is always possible to a transaciton to
+    // The baseFee is set in such a way that it is always possible for a transaction to
     // publish enough public data while compensating us for it.
     let base_fee = std::cmp::max(
         fair_gas_price,
@@ -148,7 +151,7 @@ pub const BOOTLOADER_TX_DESCRIPTION_OFFSET: usize =
 
 // The size of the bootloader memory dedicated to the encodings of transactions
 pub const BOOTLOADER_TX_ENCODING_SPACE: u32 =
-    (MAX_HEAP_PAGE_SIZE_IN_WORDS - TX_DESCRIPTION_OFFSET - MAX_TXS_IN_BLOCK) as u32;
+    (USED_BOOTLOADER_MEMORY_WORDS - TX_DESCRIPTION_OFFSET - MAX_TXS_IN_BLOCK) as u32;
 
 // Size of the bootloader tx description in words
 pub const BOOTLOADER_TX_DESCRIPTION_SIZE: usize = 2;
@@ -175,8 +178,26 @@ const BOOTLOADER_CODE_PAGE: u32 = code_page_candidate_from_base(MemoryPage(INITI
 #[derive(Debug, Clone, Copy)]
 pub enum TxExecutionMode {
     VerifyExecute,
-    EstimateFee,
-    EthCall,
+    EstimateFee {
+        missed_storage_invocation_limit: usize,
+    },
+    EthCall {
+        missed_storage_invocation_limit: usize,
+    },
+}
+
+impl TxExecutionMode {
+    pub fn invocation_limit(&self) -> usize {
+        match self {
+            Self::VerifyExecute => usize::MAX,
+            TxExecutionMode::EstimateFee {
+                missed_storage_invocation_limit,
+            } => *missed_storage_invocation_limit,
+            TxExecutionMode::EthCall {
+                missed_storage_invocation_limit,
+            } => *missed_storage_invocation_limit,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -191,13 +212,13 @@ impl Default for TxExecutionMode {
     }
 }
 
-pub fn init_vm<'a>(
-    oracle_tools: &'a mut OracleTools<'a, false>,
+pub fn init_vm<'a, H: HistoryMode>(
+    oracle_tools: &'a mut OracleTools<'a, false, H>,
     block_context: BlockContextMode,
     block_properties: &'a BlockProperties,
     execution_mode: TxExecutionMode,
     base_system_contract: &BaseSystemContracts,
-) -> Box<VmInstance<'a>> {
+) -> Box<VmInstance<'a, H>> {
     init_vm_with_gas_limit(
         oracle_tools,
         block_context,
@@ -208,14 +229,14 @@ pub fn init_vm<'a>(
     )
 }
 
-pub fn init_vm_with_gas_limit<'a>(
-    oracle_tools: &'a mut OracleTools<'a, false>,
+pub fn init_vm_with_gas_limit<'a, H: HistoryMode>(
+    oracle_tools: &'a mut OracleTools<'a, false, H>,
     block_context: BlockContextMode,
     block_properties: &'a BlockProperties,
     execution_mode: TxExecutionMode,
     base_system_contract: &BaseSystemContracts,
     gas_limit: u32,
-) -> Box<VmInstance<'a>> {
+) -> Box<VmInstance<'a, H>> {
     init_vm_inner(
         oracle_tools,
         block_context,
@@ -303,14 +324,14 @@ impl BlockContextMode {
 
 // This method accepts a custom bootloader code.
 // It should be used only in tests.
-pub fn init_vm_inner<'a>(
-    oracle_tools: &'a mut OracleTools<'a, false>,
+pub fn init_vm_inner<'a, H: HistoryMode>(
+    oracle_tools: &'a mut OracleTools<'a, false, H>,
     block_context: BlockContextMode,
     block_properties: &'a BlockProperties,
     gas_limit: u32,
     base_system_contract: &BaseSystemContracts,
     execution_mode: TxExecutionMode,
-) -> Box<VmInstance<'a>> {
+) -> Box<VmInstance<'a, H>> {
     let start = Instant::now();
 
     oracle_tools.decommittment_processor.populate(
@@ -398,8 +419,8 @@ pub fn get_bootloader_memory(
     memory
 }
 
-pub fn push_transaction_to_bootloader_memory(
-    vm: &mut VmInstance,
+pub fn push_transaction_to_bootloader_memory<H: HistoryMode>(
+    vm: &mut VmInstance<H>,
     tx: &Transaction,
     execution_mode: TxExecutionMode,
     explicit_compressed_bytecodes: Option<Vec<CompressedBytecodeInfo>>,
@@ -416,8 +437,8 @@ pub fn push_transaction_to_bootloader_memory(
     );
 }
 
-pub fn push_raw_transaction_to_bootloader_memory(
-    vm: &mut VmInstance,
+pub fn push_raw_transaction_to_bootloader_memory<H: HistoryMode>(
+    vm: &mut VmInstance<H>,
     tx: TransactionData,
     execution_mode: TxExecutionMode,
     predefined_overhead: u32,
@@ -439,24 +460,26 @@ pub fn push_raw_transaction_to_bootloader_memory(
             return vec![];
         }
 
+        // Deduplicate and filter factory deps preserving original order.
         tx.factory_deps
             .iter()
-            .filter_map(|bytecode| {
-                if vm
-                    .state
+            .enumerate()
+            .sorted_by_key(|(_idx, dep)| *dep)
+            .dedup_by(|x, y| x.1 == y.1)
+            .filter(|(_idx, dep)| {
+                !vm.state
                     .storage
                     .storage
                     .get_ptr()
                     .borrow_mut()
-                    .is_bytecode_known(&hash_bytecode(bytecode))
-                {
-                    return None;
-                }
-
-                compress_bytecode(bytecode)
+                    .is_bytecode_known(&hash_bytecode(dep))
+            })
+            .sorted_by_key(|(idx, _dep)| *idx)
+            .filter_map(|(_idx, dep)| {
+                compress_bytecode(dep)
                     .ok()
                     .map(|compressed| CompressedBytecodeInfo {
-                        original: bytecode.clone(),
+                        original: dep.clone(),
                         compressed,
                     })
             })
@@ -594,11 +617,11 @@ pub(crate) fn get_bootloader_memory_for_encoded_tx(
     memory
 }
 
-fn get_default_local_state<'a>(
-    tools: &'a mut OracleTools<'a, false>,
+fn get_default_local_state<'a, H: HistoryMode>(
+    tools: &'a mut OracleTools<'a, false, H>,
     block_properties: &'a BlockProperties,
     gas_limit: u32,
-) -> ZkSyncVmState<'a> {
+) -> ZkSyncVmState<'a, H> {
     let mut vm = VmState::empty_state(
         &mut tools.storage,
         &mut tools.memory,
@@ -608,6 +631,8 @@ fn get_default_local_state<'a>(
         &mut tools.witness_tracer,
         block_properties,
     );
+    // Override ergs limit for the initial frame.
+    vm.local_state.callstack.current.ergs_remaining = gas_limit;
 
     let initial_context = CallStackEntry {
         this_address: BOOTLOADER_ADDRESS,
@@ -619,8 +644,8 @@ fn get_default_local_state<'a>(
         pc: 0,
         // Note, that since the results are written at the end of the memory
         // it is needed to have the entire heap available from the beginning
-        heap_bound: MAX_MEMORY_BYTES as u32,
-        aux_heap_bound: MAX_MEMORY_BYTES as u32,
+        heap_bound: BOOTLOADER_MAX_MEMORY,
+        aux_heap_bound: BOOTLOADER_MAX_MEMORY,
         exception_handler_location: INITIAL_FRAME_FORMAL_EH_LOCATION,
         ergs_remaining: gas_limit,
         this_shard_id: 0,
@@ -693,8 +718,8 @@ fn assemble_tx_meta(execution_mode: TxExecutionMode, execute_tx: bool) -> U256 {
     // Set 0 byte (execution mode)
     output[0] = match execution_mode {
         TxExecutionMode::VerifyExecute => 0x00,
-        TxExecutionMode::EstimateFee => 0x00,
-        TxExecutionMode::EthCall => 0x02,
+        TxExecutionMode::EstimateFee { .. } => 0x00,
+        TxExecutionMode::EthCall { .. } => 0x02,
     };
 
     // Set 31 byte (marker for tx execution)

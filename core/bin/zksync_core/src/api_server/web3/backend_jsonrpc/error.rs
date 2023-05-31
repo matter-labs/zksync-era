@@ -1,5 +1,4 @@
 use jsonrpc_core::{Error, ErrorCode};
-use serde_json::json;
 use zksync_web3_decl::error::Web3Error;
 
 pub fn into_jsrpc_error(err: Web3Error) -> Error {
@@ -14,20 +13,18 @@ pub fn into_jsrpc_error(err: Web3Error) -> Error {
             | Web3Error::FilterNotFound
             | Web3Error::InvalidFeeParams(_)
             | Web3Error::LogsLimitExceeded(_, _, _) => ErrorCode::InvalidParams,
-            Web3Error::SubmitTransactionError(_) | Web3Error::SerializationError(_) => 3.into(),
+            Web3Error::SubmitTransactionError(_, _) | Web3Error::SerializationError(_) => 3.into(),
             Web3Error::PubSubTimeout => 4.into(),
             Web3Error::RequestTimeout => 5.into(),
         },
         message: match err {
-            Web3Error::SubmitTransactionError(_) => err.to_string(),
+            Web3Error::SubmitTransactionError(_, _) => err.to_string(),
             _ => err.to_string(),
         },
         data: match err {
-            Web3Error::SubmitTransactionError(err) => json! ({
-                "code": 104,
-                "message": err
-            })
-            .into(),
+            Web3Error::SubmitTransactionError(_, data) => {
+                Some(format!("0x{}", hex::encode(data)).into())
+            }
             _ => None,
         },
     }

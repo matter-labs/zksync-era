@@ -35,6 +35,8 @@ pub enum TxRevertReason {
     TooBigGasLimit,
     // The bootloader did not have enough gas to start the transaction in the first place
     NotEnoughGasProvided,
+    // The tx consumes too much missing invocations to memory
+    MissingInvocationLimitReached,
 }
 
 impl TxRevertReason {
@@ -75,7 +77,8 @@ impl TxRevertReason {
             BootloaderErrorCode::FailedToChargeFee => Self::FailedToChargeFee(revert_reason),
             BootloaderErrorCode::FromIsNotAnAccount => Self::FromIsNotAnAccount,
             BootloaderErrorCode::FailedToCheckAccount => Self::ValidationFailed(VmRevertReason::General {
-                msg: "Failed to check if `from` is an account. Most likely not enough gas provided".to_string()
+                msg: "Failed to check if `from` is an account. Most likely not enough gas provided".to_string(),
+                data: vec![],
             }),
             BootloaderErrorCode::UnacceptableGasPrice => Self::UnexpectedVMBehavior(
                 "The operator included transaction with an unacceptable gas price".to_owned(),
@@ -110,11 +113,13 @@ impl TxRevertReason {
             BootloaderErrorCode::PaymasterReturnedInvalidContext => {
                 Self::PaymasterValidationFailed(VmRevertReason::General {
                     msg: String::from("Paymaster returned invalid context"),
+                    data: vec![],
                 })
             }
             BootloaderErrorCode::PaymasterContextIsTooLong => {
                 Self::PaymasterValidationFailed(VmRevertReason::General {
                     msg: String::from("Paymaster returned context that is too long"),
+                    data: vec![],
                 })
             }
             BootloaderErrorCode::AssertionError => {
@@ -127,26 +132,26 @@ impl TxRevertReason {
                 Self::PayForTxFailed(revert_reason)
             },
             BootloaderErrorCode::FailedToMarkFactoryDeps => {
-                let msg = if let VmRevertReason::General { msg } = revert_reason {
-                    msg
+                let (msg, data) = if let VmRevertReason::General { msg , data} = revert_reason {
+                    (msg, data)
                 } else {
-                    String::from("Most likely not enough gas provided")
+                    (String::from("Most likely not enough gas provided"), vec![])
                 };
                 Self::FailedToMarkFactoryDependencies(VmRevertReason::General {
-                    msg
+                    msg, data
                 })
             },
             BootloaderErrorCode::TxValidationOutOfGas => {
-                Self::ValidationFailed(VmRevertReason::General { msg: String::from("Not enough gas for transaction validation") })
+                Self::ValidationFailed(VmRevertReason::General { msg: String::from("Not enough gas for transaction validation"), data: vec![] })
             },
             BootloaderErrorCode::NotEnoughGasProvided => {
                 Self::NotEnoughGasProvided
             },
             BootloaderErrorCode::AccountReturnedInvalidMagic => {
-                Self::ValidationFailed(VmRevertReason::General { msg: String::from("Account validation returned invalid magic value. Most often this means that the signature is incorrect") })
+                Self::ValidationFailed(VmRevertReason::General { msg: String::from("Account validation returned invalid magic value. Most often this means that the signature is incorrect"), data: vec![] })
             },
             BootloaderErrorCode::PaymasterReturnedInvalidMagic => {
-                Self::ValidationFailed(VmRevertReason::General { msg: String::from("Paymaster validation returned invalid magic value. Please refer to the documentation of the paymaster for more details") })
+                Self::ValidationFailed(VmRevertReason::General { msg: String::from("Paymaster validation returned invalid magic value. Please refer to the documentation of the paymaster for more details"), data: vec![] })
             }
             BootloaderErrorCode::Unknown => Self::UnexpectedVMBehavior(format!(
                 "Unsupported error code: {}. Revert reason: {}",
@@ -201,6 +206,9 @@ impl Display for TxRevertReason {
                     f,
                     "Transaction has a too big ergs limit and will not be executed by the server"
                 )
+            }
+            TxRevertReason::MissingInvocationLimitReached => {
+                write!(f, "Tx produced too much cold storage accesses")
             }
         }
     }

@@ -6,6 +6,7 @@ use serde::Deserialize;
 // Workspace uses
 // Local uses
 use crate::envy_load;
+
 #[derive(Debug, Deserialize, Clone, Copy, PartialEq)]
 pub enum TokenListSource {
     OneInch,

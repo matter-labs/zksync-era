@@ -2,7 +2,7 @@
 
 import { program, Command } from 'commander';
 import { spawnSync } from 'child_process';
-import { command as server } from './server';
+import { serverCommand as server, enCommand as en } from './server';
 import { command as contractVerifier } from './contract_verifier';
 import { command as up } from './up';
 import { command as down } from './down';
@@ -17,11 +17,12 @@ import { command as compiler } from './compiler';
 import { command as completion } from './completion';
 import { command as config } from './config';
 import { command as clean } from './clean';
-import { command as db } from './database/database';
+import { command as db } from './database';
 import * as env from './env';
 
 const COMMANDS = [
     server,
+    en,
     contractVerifier,
     up,
     down,

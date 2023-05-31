@@ -25,7 +25,7 @@ pub struct IntrinsicSystemGasConstants {
     pub l1_tx_delta_factory_dep_gas: u32,
     // The number of pubdata an L1->L2 transaction requires with each new factory dependency
     pub l1_tx_delta_factory_dep_pubdata: u32,
-    // The nubmer of computational gas the bootloader requires
+    // The number of computational gas the bootloader requires
     pub bootloader_intrinsic_gas: u32,
     // The number of overhead pubdata the bootloader requires
     pub bootloader_intrinsic_pubdata: u32,

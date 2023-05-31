@@ -87,11 +87,11 @@ impl TokenListFetcher {
             };
 
             // We assume that token metadata does not change, thus we only looking for the new tokens.
-            let mut storage = pool.access_storage().await;
-            let unknown_tokens = self.load_unknown_tokens(&mut storage).await;
+            let mut storage = pool.access_storage_blocking();
+            let unknown_tokens = self.load_unknown_tokens(&mut storage);
             token_list.retain(|token, _data| unknown_tokens.contains(token));
 
-            self.update_tokens(&mut storage, token_list).await;
+            self.update_tokens(&mut storage, token_list);
         }
     }
 
@@ -105,7 +105,7 @@ impl TokenListFetcher {
             .map_err(|_| ApiFetchError::RequestTimeout)?
     }
 
-    async fn update_tokens(
+    fn update_tokens(
         &self,
         storage: &mut StorageProcessor<'_>,
         tokens: HashMap<Address, TokenMetadata>,
@@ -116,7 +116,7 @@ impl TokenListFetcher {
         }
     }
 
-    async fn load_unknown_tokens(&self, storage: &mut StorageProcessor<'_>) -> HashSet<Address> {
+    fn load_unknown_tokens(&self, storage: &mut StorageProcessor<'_>) -> HashSet<Address> {
         storage
             .tokens_dal()
             .get_unknown_l1_token_addresses()

@@ -1,23 +1,33 @@
-use crate::genesis::ensure_genesis_state;
+use crate::genesis::{ensure_genesis_state, GenesisParams};
 
-use zksync_config::ZkSyncConfig;
+use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes, SystemContractCode};
 use zksync_dal::StorageProcessor;
-use zksync_types::{L1BatchNumber, H256};
-use zksync_web3_decl::{jsonrpsee::http_client::HttpClientBuilder, namespaces::ZksNamespaceClient};
+use zksync_types::{L1BatchNumber, L2ChainId, H256};
+use zksync_web3_decl::{
+    jsonrpsee::{core::error::Error, http_client::HttpClientBuilder},
+    namespaces::ZksNamespaceClient,
+};
 
-pub async fn perform_genesis_if_needed(storage: &mut StorageProcessor<'_>, config: &ZkSyncConfig) {
-    let mut transaction = storage.start_transaction().await;
-    let main_node_url = config
-        .api
-        .web3_json_rpc
-        .main_node_url
-        .as_ref()
-        .expect("main node url is not set");
+pub async fn perform_genesis_if_needed(
+    storage: &mut StorageProcessor<'_>,
+    zksync_chain_id: L2ChainId,
+    base_system_contracts_hashes: BaseSystemContractsHashes,
+    main_node_url: String,
+) {
+    let mut transaction = storage.start_transaction_blocking();
 
-    let genesis_block_hash = ensure_genesis_state(&mut transaction, config).await;
+    let genesis_block_hash = ensure_genesis_state(
+        &mut transaction,
+        zksync_chain_id,
+        GenesisParams::ExternalNode {
+            base_system_contracts_hashes,
+            main_node_url: main_node_url.clone(),
+        },
+    )
+    .await;
 
-    validate_genesis_state(main_node_url, genesis_block_hash).await;
-    transaction.commit().await;
+    validate_genesis_state(&main_node_url, genesis_block_hash).await;
+    transaction.commit_blocking();
 }
 
 // When running an external node, we want to make sure we have the same
@@ -38,4 +48,34 @@ async fn validate_genesis_state(main_node_url: &str, root_hash: H256) {
             root_hash, genesis_block_hash
         );
     }
+}
+
+pub async fn fetch_system_contract_by_hash(
+    main_node_url: &str,
+    hash: H256,
+) -> Result<SystemContractCode, Error> {
+    let client = HttpClientBuilder::default().build(main_node_url).unwrap();
+    let bytecode = client
+        .get_bytecode_by_hash(hash)
+        .await?
+        .expect("Failed to get base system contract bytecode");
+    assert_eq!(
+        hash,
+        zksync_utils::bytecode::hash_bytecode(&bytecode),
+        "Got invalid base system contract bytecode from main node"
+    );
+    Ok(SystemContractCode {
+        code: zksync_utils::bytes_to_be_words(bytecode),
+        hash,
+    })
+}
+
+pub async fn fetch_base_system_contracts(
+    main_node_url: &str,
+    hashes: BaseSystemContractsHashes,
+) -> Result<BaseSystemContracts, Error> {
+    Ok(BaseSystemContracts {
+        bootloader: fetch_system_contract_by_hash(main_node_url, hashes.bootloader).await?,
+        default_aa: fetch_system_contract_by_hash(main_node_url, hashes.default_aa).await?,
+    })
 }

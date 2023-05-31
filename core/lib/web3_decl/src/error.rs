@@ -17,8 +17,8 @@ pub enum Web3Error {
     NoSuchFunction,
     #[error("Invalid transaction data: {0}")]
     InvalidTransactionData(#[from] zksync_types::ethabi::Error),
-    #[error("Failed to submit transaction: {0}")]
-    SubmitTransactionError(String),
+    #[error("{0}")]
+    SubmitTransactionError(String, Vec<u8>),
     #[error("Failed to serialize transaction: {0}")]
     SerializationError(#[from] SerializationTransactionError),
     #[error("Invalid fee parameters: {0}")]

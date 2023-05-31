@@ -49,7 +49,7 @@ impl SharedNetworkStats {
 
                         timer.tick().await;
 
-                        let mut storage = connection_pool.access_storage().await;
+                        let mut storage = connection_pool.access_storage_blocking();
 
                         let last_sealed = storage
                             .blocks_web3_dal()
@@ -64,7 +64,7 @@ impl SharedNetworkStats {
                         let new_transactions = storage
                             .explorer()
                             .transactions_dal()
-                            .get_transactions_count_after(prev_stats.last_sealed)
+                            .get_transactions_count_between(prev_stats.last_sealed + 1, last_sealed)
                             .unwrap();
 
                         let stats = NetworkStats {

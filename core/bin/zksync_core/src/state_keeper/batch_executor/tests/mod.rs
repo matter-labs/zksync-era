@@ -1,38 +1,34 @@
-use crate::state_keeper::batch_executor::tests::tester::TestConfig;
-
-use self::tester::{Account, Tester};
 use assert_matches::assert_matches;
 use db_test_macro::db_test;
-use vm::TxRevertReason;
+
+use zksync_dal::ConnectionPool;
 use zksync_types::{tx::tx_execution_info::TxExecutionStatus, PriorityOpId};
 
 mod tester;
 
+use self::tester::{Account, Tester};
 use super::TxExecutionResult;
+use crate::state_keeper::batch_executor::tests::tester::TestConfig;
 
 /// Ensures that the transaction was executed successfully.
 fn assert_executed(execution_result: TxExecutionResult) {
-    assert_matches!(execution_result.tx_result, Ok(_));
-    assert_matches!(execution_result.bootloader_dry_run_result, Some(Ok(_)));
-    assert_matches!(execution_result.tx_metrics, Some(_));
-    assert_matches!(execution_result.bootloader_dry_run_metrics, Some(_));
+    assert_matches!(execution_result, TxExecutionResult::Success { .. });
 }
 
-/// Ensures that the transaction was rejected.
+/// Ensures that the transaction was rejected by the VM.
 fn assert_rejected(execution_result: TxExecutionResult) {
-    assert_matches!(execution_result.tx_result, Err(_));
-    assert_matches!(execution_result.bootloader_dry_run_result, None);
-    assert_matches!(execution_result.tx_metrics, None);
-    assert_matches!(execution_result.bootloader_dry_run_metrics, None);
+    assert_matches!(execution_result, TxExecutionResult::RejectedByVm { .. });
 }
 
 /// Ensures that the transaction was executed successfully but reverted by the VM.
 fn assert_reverted(execution_result: TxExecutionResult) {
     assert_executed(execution_result.clone());
-    assert_matches!(
-        execution_result.tx_result.unwrap().status,
-        TxExecutionStatus::Failure
-    );
+
+    if let TxExecutionResult::Success { tx_result, .. } = execution_result {
+        assert_matches!(tx_result.status, TxExecutionStatus::Failure);
+    } else {
+        unreachable!();
+    }
 }
 
 /// Checks that we can successfully execute a single L2 tx in batch executor.
@@ -41,7 +37,7 @@ async fn execute_l2_tx(connection_pool: ConnectionPool) {
     let mut alice = Account::random();
 
     let tester = Tester::new(connection_pool);
-    tester.genesis().await;
+    tester.genesis();
     tester.fund(&[alice.address()]);
     let executor = tester.create_batch_executor();
 
@@ -56,7 +52,7 @@ async fn execute_l1_tx(connection_pool: ConnectionPool) {
     let mut alice = Account::random();
 
     let tester = Tester::new(connection_pool);
-    tester.genesis().await;
+    tester.genesis();
     tester.fund(&[alice.address()]);
     let executor = tester.create_batch_executor();
 
@@ -71,7 +67,7 @@ async fn execute_l2_and_l1_txs(connection_pool: ConnectionPool) {
     let mut alice = Account::random();
 
     let tester = Tester::new(connection_pool);
-    tester.genesis().await;
+    tester.genesis();
     tester.fund(&[alice.address()]);
     let executor = tester.create_batch_executor();
 
@@ -90,7 +86,7 @@ async fn rollback(connection_pool: ConnectionPool) {
     let mut alice = Account::random();
 
     let tester = Tester::new(connection_pool);
-    tester.genesis().await;
+    tester.genesis();
     tester.fund(&[alice.address()]);
     let executor = tester.create_batch_executor();
 
@@ -104,8 +100,21 @@ async fn rollback(connection_pool: ConnectionPool) {
     let res_new = executor.execute_tx(tx);
     assert_executed(res_new.clone());
 
+    let (
+        TxExecutionResult::Success {
+            tx_metrics: tx_metrics_old,
+            ..
+        },
+        TxExecutionResult::Success {
+            tx_metrics: tx_metrics_new,
+            ..
+        },
+    ) = (res_old, res_new) else {
+        unreachable!();
+    };
+
     assert_eq!(
-        res_old.tx_metrics, res_new.tx_metrics,
+        tx_metrics_old, tx_metrics_new,
         "Execution results must be the same"
     );
 
@@ -118,7 +127,7 @@ async fn reject_tx(connection_pool: ConnectionPool) {
     let mut alice = Account::random();
 
     let tester = Tester::new(connection_pool);
-    tester.genesis().await;
+    tester.genesis();
     let executor = tester.create_batch_executor();
 
     // Wallet is not funded, it can't pay for fees.
@@ -133,7 +142,7 @@ async fn too_big_gas_limit(connection_pool: ConnectionPool) {
     let mut alice = Account::random();
 
     let tester = Tester::new(connection_pool);
-    tester.genesis().await;
+    tester.genesis();
     tester.fund(&[alice.address()]);
     let executor = tester.create_batch_executor();
 
@@ -146,7 +155,22 @@ async fn too_big_gas_limit(connection_pool: ConnectionPool) {
     let res2 = executor.execute_tx(bad_tx);
     assert_rejected(res2.clone());
 
-    assert_eq!(res1, res2);
+    let (
+        TxExecutionResult::RejectedByVm {
+            rejection_reason: rejection_reason_old,
+            ..
+        },
+        TxExecutionResult::RejectedByVm {
+            rejection_reason: rejection_reason_new,
+            ..
+        },
+    ) = (res1, res2) else {
+        unreachable!();
+    };
+    assert_eq!(
+        rejection_reason_old, rejection_reason_new,
+        "Rejection reasons must be the same"
+    );
 
     // Ensure that now we can execute a valid tx.
     alice.nonce -= 1; // Reset the nonce.
@@ -161,7 +185,7 @@ async fn tx_cant_be_reexecuted(connection_pool: ConnectionPool) {
     let mut alice = Account::random();
 
     let tester = Tester::new(connection_pool);
-    tester.genesis().await;
+    tester.genesis();
     tester.fund(&[alice.address()]);
     let executor = tester.create_batch_executor();
 
@@ -181,7 +205,7 @@ async fn deploy_and_call_loadtest(connection_pool: ConnectionPool) {
     let mut alice = Account::random();
 
     let tester = Tester::new(connection_pool);
-    tester.genesis().await;
+    tester.genesis();
     tester.fund(&[alice.address()]);
     let executor = tester.create_batch_executor();
 
@@ -206,7 +230,7 @@ async fn execute_reverted_tx(connection_pool: ConnectionPool) {
     let mut alice = Account::random();
 
     let tester = Tester::new(connection_pool);
-    tester.genesis().await;
+    tester.genesis();
     tester.fund(&[alice.address()]);
     let executor = tester.create_batch_executor();
 
@@ -229,7 +253,7 @@ async fn execute_realistic_scenario(connection_pool: ConnectionPool) {
     let mut bob = Account::random();
 
     let tester = Tester::new(connection_pool);
-    tester.genesis().await;
+    tester.genesis();
     tester.fund(&[alice.address()]);
     tester.fund(&[bob.address()]);
     let executor = tester.create_batch_executor();
@@ -278,34 +302,33 @@ async fn bootloader_out_of_gas_for_any_tx(connection_pool: ConnectionPool) {
     let tester = Tester::with_config(
         connection_pool,
         TestConfig {
-            reexecute_each_tx: false,
+            save_call_traces: false,
             vm_gas_limit: Some(10),
             max_allowed_tx_gas_limit: u32::MAX,
             validation_computational_gas_limit: u32::MAX,
         },
     );
 
-    tester.genesis().await;
+    tester.genesis();
     tester.fund(&[alice.address()]);
     let executor = tester.create_batch_executor();
 
     let res = executor.execute_tx(alice.execute());
 
-    assert_rejected(res.clone());
-    assert_matches!(res.err().unwrap(), TxRevertReason::BootloaderOutOfGas);
+    assert_matches!(res, TxExecutionResult::BootloaderOutOfGasForTx);
 
     executor.finish_batch();
 }
 
 /// Checks that we can handle the bootloader out of gas error on tip phase.
 #[db_test]
-#[ignore] // This test is blocked by [PLA-50] as gas calculation are affected by the underflow.
+#[ignore] // This test fails.
 async fn bootloader_tip_out_of_gas(connection_pool: ConnectionPool) {
     let mut alice = Account::random();
 
     let mut tester = Tester::new(connection_pool);
 
-    tester.genesis().await;
+    tester.genesis();
     tester.fund(&[alice.address()]);
     let executor = tester.create_batch_executor();
 
@@ -317,7 +340,7 @@ async fn bootloader_tip_out_of_gas(connection_pool: ConnectionPool) {
     // Just a bit below the gas used for the previous batch execution should be fine to execute the tx
     // but not enough to execute the block tip.
     tester.set_config(TestConfig {
-        reexecute_each_tx: false,
+        save_call_traces: false,
         vm_gas_limit: Some(vm_block_res.full_result.gas_used - 10),
         max_allowed_tx_gas_limit: u32::MAX,
         validation_computational_gas_limit: u32::MAX,
@@ -326,11 +349,7 @@ async fn bootloader_tip_out_of_gas(connection_pool: ConnectionPool) {
     let second_executor = tester.create_batch_executor();
 
     let res = second_executor.execute_tx(alice.execute());
-    assert!(res.tx_result.is_ok());
-    assert_matches!(
-        res.bootloader_dry_run_result,
-        Some(Err(TxRevertReason::BootloaderOutOfGas))
-    );
+    assert_matches!(res, TxExecutionResult::BootloaderOutOfGasForBlockTip);
 
     second_executor.finish_batch();
 }

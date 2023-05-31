@@ -1,39 +1,45 @@
 // Built-in uses
+use std::collections::HashMap;
+use std::net::SocketAddr;
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
+
 // External uses
 use futures::channel::oneshot;
 use futures::FutureExt;
 use jsonrpc_core::IoHandler;
 use jsonrpc_pubsub::PubSubHandler;
-use once_cell::{self, sync::Lazy};
 use tokio::sync::watch;
-use zksync_dal::ConnectionPool;
 
 // Workspace uses
-use zksync_config::ZkSyncConfig;
-use zksync_eth_client::clients::http_client::EthereumClient;
+use zksync_contracts::BaseSystemContractsHashes;
+use zksync_dal::ConnectionPool;
 use zksync_eth_signer::{EthereumSigner, PrivateKeySigner};
-use zksync_types::H256;
+use zksync_types::{Address, H256};
 use zksync_web3_decl::{
     jsonrpsee::{server::ServerBuilder, RpcModule},
     namespaces::{EthNamespaceServer, NetNamespaceServer, Web3NamespaceServer, ZksNamespaceServer},
 };
 
-use crate::gas_adjuster::GasAdjuster;
+use crate::l1_gas_price::L1GasPriceProvider;
+use crate::sync_layer::SyncState;
+
+use self::state::InternalApiConfig;
 
 // Local uses
 use super::tx_sender::TxSender;
 use backend_jsonrpc::{
     namespaces::{
-        eth::EthNamespaceT, net::NetNamespaceT, web3::Web3NamespaceT, zks::ZksNamespaceT,
+        debug::DebugNamespaceT, eth::EthNamespaceT, net::NetNamespaceT, web3::Web3NamespaceT,
+        zks::ZksNamespaceT,
     },
     pub_sub::Web3PubSub,
 };
-use namespaces::{EthNamespace, EthSubscribe, NetNamespace, Web3Namespace, ZksNamespace};
+use namespaces::{
+    DebugNamespace, EthNamespace, EthSubscribe, NetNamespace, Web3Namespace, ZksNamespace,
+};
 use pubsub_notifier::{notify_blocks, notify_logs, notify_txs};
 use state::{Filters, RpcState};
-use zksync_contracts::{ESTIMATE_FEE_BLOCK_CODE, PLAYGROUND_BLOCK_BOOTLOADER_CODE};
 
 pub mod backend_jsonrpc;
 pub mod backend_jsonrpsee;
@@ -41,46 +47,126 @@ pub mod namespaces;
 mod pubsub_notifier;
 pub mod state;
 
-pub fn get_config() -> &'static ZkSyncConfig {
-    static ZKSYNC_CONFIG: Lazy<ZkSyncConfig> = Lazy::new(ZkSyncConfig::from_env);
-
-    &ZKSYNC_CONFIG
+#[derive(Debug, Clone, Copy)]
+enum ApiBackend {
+    Jsonrpsee,
+    Jsonrpc,
 }
 
-impl RpcState {
-    pub fn init(
-        master_connection_pool: ConnectionPool,
-        replica_connection_pool: ConnectionPool,
-        req_entities_limit: usize,
-        filters_limit: usize,
-        account_pks: Vec<H256>,
-        gas_adjuster: Arc<GasAdjuster<EthereumClient>>,
-    ) -> Self {
-        let config = get_config();
-        let mut storage = replica_connection_pool.access_storage_blocking();
+#[derive(Debug, Clone, Copy)]
+enum ApiTransport {
+    WebSocket(SocketAddr),
+    Http(SocketAddr),
+}
 
-        let base_system_contracts = storage.storage_dal().get_base_system_contracts(
-            config.chain.state_keeper.bootloader_hash,
-            config.chain.state_keeper.default_aa_hash,
-        );
+#[derive(Debug)]
+pub struct ApiBuilder<G> {
+    backend: ApiBackend,
+    pool: ConnectionPool,
+    config: InternalApiConfig,
+    transport: Option<ApiTransport>,
+    tx_sender: Option<TxSender<G>>,
+    filters_limit: Option<usize>,
+    subscriptions_limit: Option<usize>,
+    sync_state: Option<SyncState>,
+    threads: Option<usize>,
+    polling_interval: Option<Duration>,
+    accounts: HashMap<Address, PrivateKeySigner>,
+    debug_namespace_config: Option<(BaseSystemContractsHashes, u64, Option<usize>)>,
+}
 
-        let mut playground_base_system_contracts = base_system_contracts.clone();
-        let mut estimate_fee_base_system_contracts = base_system_contracts;
-        playground_base_system_contracts.bootloader = PLAYGROUND_BLOCK_BOOTLOADER_CODE.clone();
-        estimate_fee_base_system_contracts.bootloader = ESTIMATE_FEE_BLOCK_CODE.clone();
-
-        drop(storage);
-        let tx_sender = TxSender::new(
+impl<G> ApiBuilder<G> {
+    pub fn jsonrpsee_backend(config: InternalApiConfig, pool: ConnectionPool) -> Self {
+        Self {
+            backend: ApiBackend::Jsonrpsee,
+            transport: None,
+            pool,
+            sync_state: None,
+            tx_sender: None,
+            filters_limit: None,
+            subscriptions_limit: None,
+            threads: None,
+            polling_interval: None,
+            debug_namespace_config: None,
+            accounts: Default::default(),
             config,
-            master_connection_pool,
-            replica_connection_pool.clone(),
-            gas_adjuster,
-            playground_base_system_contracts,
-            estimate_fee_base_system_contracts,
-        );
+        }
+    }
 
-        let accounts = if cfg!(feature = "openzeppelin_tests") {
-            account_pks
+    pub fn jsonrpc_backend(config: InternalApiConfig, pool: ConnectionPool) -> Self {
+        Self {
+            backend: ApiBackend::Jsonrpc,
+            transport: None,
+            pool,
+            sync_state: None,
+            tx_sender: None,
+            filters_limit: None,
+            subscriptions_limit: None,
+            threads: None,
+            polling_interval: None,
+            debug_namespace_config: None,
+            accounts: Default::default(),
+            config,
+        }
+    }
+
+    pub fn ws(mut self, port: u16) -> Self {
+        self.transport = Some(ApiTransport::WebSocket(([0, 0, 0, 0], port).into()));
+        self
+    }
+
+    pub fn http(mut self, port: u16) -> Self {
+        self.transport = Some(ApiTransport::Http(([0, 0, 0, 0], port).into()));
+        self
+    }
+
+    pub fn with_tx_sender(mut self, tx_sender: TxSender<G>) -> Self {
+        self.tx_sender = Some(tx_sender);
+        self
+    }
+
+    pub fn with_filter_limit(mut self, filters_limit: usize) -> Self {
+        self.filters_limit = Some(filters_limit);
+        self
+    }
+
+    pub fn with_subscriptions_limit(mut self, subscriptions_limit: usize) -> Self {
+        self.subscriptions_limit = Some(subscriptions_limit);
+        self
+    }
+
+    pub fn with_sync_state(mut self, sync_state: SyncState) -> Self {
+        self.sync_state = Some(sync_state);
+        self
+    }
+
+    pub fn with_threads(mut self, threads: usize) -> Self {
+        self.threads = Some(threads);
+        self
+    }
+
+    pub fn with_polling_interval(mut self, polling_interval: Duration) -> Self {
+        self.polling_interval = Some(polling_interval);
+        self
+    }
+
+    pub fn enable_debug_namespace(
+        mut self,
+        base_system_contract_hashes: BaseSystemContractsHashes,
+        fair_l2_gas_price: u64,
+        cache_misses_limit: Option<usize>,
+    ) -> Self {
+        self.debug_namespace_config = Some((
+            base_system_contract_hashes,
+            fair_l2_gas_price,
+            cache_misses_limit,
+        ));
+        self
+    }
+
+    pub fn enable_oz_tests(mut self, account_pks: Vec<H256>) -> Self {
+        if cfg!(feature = "openzeppelin_tests") {
+            self.accounts = account_pks
                 .into_iter()
                 .map(|pk| {
                     let signer = PrivateKeySigner::new(pk);
@@ -88,322 +174,290 @@ impl RpcState {
                         .expect("Failed to get address of a signer");
                     (address, signer)
                 })
-                .collect()
+                .collect();
         } else {
-            Default::default()
-        };
+            vlog::info!("OpenZeppelin tests are not enabled, ignoring `enable_oz_tests` call");
+        }
+        self
+    }
+}
 
+impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
+    fn build_rpc_state(&self) -> RpcState<G> {
         RpcState {
-            installed_filters: Arc::new(RwLock::new(Filters::new(filters_limit))),
-            connection_pool: replica_connection_pool,
-            tx_sender,
-            req_entities_limit,
-            accounts,
-            config,
+            installed_filters: Arc::new(RwLock::new(Filters::new(
+                self.filters_limit.unwrap_or(usize::MAX),
+            ))),
+            connection_pool: self.pool.clone(),
+            tx_sender: self.tx_sender.clone().expect("TxSender is not provided"),
+            sync_state: self.sync_state.clone(),
+            api_config: self.config.clone(),
+            accounts: self.accounts.clone(),
             #[cfg(feature = "openzeppelin_tests")]
             known_bytecodes: Arc::new(RwLock::new(Default::default())),
         }
     }
-}
 
-pub fn start_http_rpc_server_old(
-    master_connection_pool: ConnectionPool,
-    replica_connection_pool: ConnectionPool,
-    config: &ZkSyncConfig,
-    _stop_receiver: watch::Receiver<bool>,
-    gas_adjuster: Arc<GasAdjuster<EthereumClient>>,
-) -> tokio::task::JoinHandle<()> {
-    let io_handler = build_http_io_handler(
-        master_connection_pool,
-        replica_connection_pool,
-        config,
-        gas_adjuster,
-    );
-    let addr = config.api.web3_json_rpc.http_bind_addr();
-    let threads_per_server = config.api.web3_json_rpc.threads_per_server as usize;
+    fn build_rpc_module(&self) -> RpcModule<EthNamespace<G>> {
+        let zksync_network_id = self.config.l2_chain_id;
+        let rpc_app = self.build_rpc_state();
 
-    let (sender, recv) = oneshot::channel::<()>();
-    std::thread::spawn(move || {
-        let runtime = tokio::runtime::Builder::new_multi_thread()
-            .enable_all()
-            .worker_threads(threads_per_server)
-            .build()
-            .unwrap();
+        // Declare namespaces we have.
+        let eth = EthNamespace::new(rpc_app.clone());
+        let net = NetNamespace::new(zksync_network_id);
+        let web3 = Web3Namespace;
+        let zks = ZksNamespace::new(rpc_app);
 
-        let server = jsonrpc_http_server::ServerBuilder::new(io_handler)
-            .threads(1)
-            .event_loop_executor(runtime.handle().clone())
-            .start_http(&addr)
-            .unwrap();
+        assert!(
+            self.debug_namespace_config.is_none(),
+            "Debug namespace is not supported with jsonrpsee_backend"
+        );
 
-        server.wait();
-        let _ = sender;
-    });
+        // Collect all the methods into a single RPC module.
+        let mut rpc: RpcModule<_> = eth.into_rpc();
+        rpc.merge(net.into_rpc())
+            .expect("Can't merge net namespace");
+        rpc.merge(web3.into_rpc())
+            .expect("Can't merge web3 namespace");
+        rpc.merge(zks.into_rpc())
+            .expect("Can't merge zks namespace");
 
-    tokio::spawn(recv.map(drop))
-}
+        rpc
+    }
 
-fn start_notifying_active_subs(
-    pub_sub: EthSubscribe,
-    connection_pool: ConnectionPool,
-    polling_interval: Duration,
-    stop_receiver: watch::Receiver<bool>,
-) -> Vec<tokio::task::JoinHandle<()>> {
-    vec![
-        tokio::spawn(notify_blocks(
-            pub_sub.active_block_subs,
-            connection_pool.clone(),
-            polling_interval,
-            stop_receiver.clone(),
-        )),
-        tokio::spawn(notify_txs(
-            pub_sub.active_tx_subs,
-            connection_pool.clone(),
-            polling_interval,
-            stop_receiver.clone(),
-        )),
-        tokio::spawn(notify_logs(
-            pub_sub.active_log_subs,
-            connection_pool,
-            polling_interval,
-            stop_receiver,
-        )),
-    ]
-}
-
-pub fn start_ws_rpc_server_old(
-    master_connection_pool: ConnectionPool,
-    replica_connection_pool: ConnectionPool,
-    config: &ZkSyncConfig,
-    stop_receiver: watch::Receiver<bool>,
-    gas_adjuster: Arc<GasAdjuster<EthereumClient>>,
-) -> Vec<tokio::task::JoinHandle<()>> {
-    let pub_sub = EthSubscribe::default();
-    let mut notify_handles = start_notifying_active_subs(
-        pub_sub.clone(),
-        replica_connection_pool.clone(),
-        config.api.web3_json_rpc.pubsub_interval(),
-        stop_receiver.clone(),
-    );
-
-    let addr = config.api.web3_json_rpc.ws_bind_addr();
-    let (sender, recv) = oneshot::channel::<()>();
-    let io = build_pubsub_io_handler(
-        master_connection_pool,
-        replica_connection_pool,
-        config,
-        gas_adjuster.clone(),
-        pub_sub,
-    );
-
-    let server = jsonrpc_ws_server::ServerBuilder::with_meta_extractor(
-        io,
-        |context: &jsonrpc_ws_server::RequestContext| {
-            Arc::new(jsonrpc_pubsub::Session::new(context.sender()))
-        },
-    )
-    .max_connections(config.api.web3_json_rpc.subscriptions_limit())
-    .start(&addr)
-    .unwrap();
-    let close_handler = server.close_handle();
-
-    std::thread::spawn(move || {
-        server.wait().unwrap();
-        let _ = sender;
-    });
-    let mut thread_stop_receiver = stop_receiver.clone();
-    std::thread::spawn(move || {
-        let stop_signal = futures::executor::block_on(thread_stop_receiver.changed());
-        if stop_signal.is_ok() {
-            close_handler.close();
-            vlog::info!("Stop signal received, WS JSON RPC API is shutting down");
+    pub fn build(
+        mut self,
+        stop_receiver: watch::Receiver<bool>,
+    ) -> Vec<tokio::task::JoinHandle<()>> {
+        if self.filters_limit.is_none() {
+            vlog::warn!("Filters limit is not set - unlimited filters are allowed");
         }
-    });
 
-    notify_handles.push(tokio::spawn(gas_adjuster.run(stop_receiver)));
-    notify_handles.push(tokio::spawn(recv.map(drop)));
-    notify_handles
-}
+        match (&self.transport, self.subscriptions_limit) {
+            (Some(ApiTransport::WebSocket(_)), None) => {
+                vlog::warn!(
+                    "`subscriptions_limit` is not set - unlimited subscriptions are allowed"
+                );
+            }
+            (Some(ApiTransport::Http(_)), Some(_)) => {
+                vlog::warn!(
+                    "`subscriptions_limit` is ignored for HTTP transport, use WebSocket instead"
+                );
+            }
+            _ => {}
+        }
 
-pub fn start_http_rpc_server(
-    master_connection_pool: ConnectionPool,
-    replica_connection_pool: ConnectionPool,
-    config: &ZkSyncConfig,
-    gas_adjuster: Arc<GasAdjuster<EthereumClient>>,
-) -> tokio::task::JoinHandle<()> {
-    let rpc = build_rpc_module(
-        master_connection_pool,
-        replica_connection_pool,
-        config,
-        gas_adjuster,
-    );
-    let addr = config.api.web3_json_rpc.http_bind_addr();
-    let threads_per_server = config.api.web3_json_rpc.threads_per_server as usize;
+        match (self.backend, self.transport.take()) {
+            (ApiBackend::Jsonrpc, Some(ApiTransport::Http(addr))) => {
+                vec![self.build_jsonrpc_http(addr)]
+            }
+            (ApiBackend::Jsonrpc, Some(ApiTransport::WebSocket(addr))) => {
+                self.build_jsonrpc_ws(addr, stop_receiver)
+            }
+            (ApiBackend::Jsonrpsee, Some(ApiTransport::Http(addr))) => {
+                vec![self.build_jsonrpsee_http(addr)]
+            }
+            (ApiBackend::Jsonrpsee, Some(ApiTransport::WebSocket(addr))) => {
+                vec![self.build_jsonrpsee_ws(addr)]
+            }
+            (_, None) => panic!("ApiTransport is not specified"),
+        }
+    }
 
-    // Start the server in a separate tokio runtime from a dedicated thread.
-    let (sender, recv) = oneshot::channel::<()>();
-    std::thread::spawn(move || {
-        let runtime = tokio::runtime::Builder::new_multi_thread()
-            .enable_all()
-            .worker_threads(threads_per_server)
-            .build()
-            .unwrap();
+    fn build_jsonrpc_http(self, addr: SocketAddr) -> tokio::task::JoinHandle<()> {
+        let io_handler = {
+            let zksync_network_id = self.config.l2_chain_id;
+            let rpc_state = self.build_rpc_state();
+            let mut io = IoHandler::new();
+            io.extend_with(EthNamespace::new(rpc_state.clone()).to_delegate());
+            io.extend_with(ZksNamespace::new(rpc_state.clone()).to_delegate());
+            io.extend_with(Web3Namespace.to_delegate());
+            io.extend_with(NetNamespace::new(zksync_network_id).to_delegate());
+            if let Some((hashes, fair_l2_gas_price, cache_misses_limit)) =
+                self.debug_namespace_config
+            {
+                io.extend_with(
+                    DebugNamespace::new(
+                        rpc_state.connection_pool,
+                        hashes,
+                        fair_l2_gas_price,
+                        cache_misses_limit,
+                    )
+                    .to_delegate(),
+                );
+            }
 
-        runtime.block_on(async move {
-            let server = ServerBuilder::default()
-                .http_only()
-                .max_connections(5000)
-                .build(addr)
-                .await
-                .expect("Can't start the HTTP JSON RPC server");
+            io
+        };
 
-            let server_handle = server
-                .start(rpc)
-                .expect("Failed to start HTTP JSON RPC application");
-            server_handle.stopped().await
+        let (sender, recv) = oneshot::channel::<()>();
+        std::thread::spawn(move || {
+            let runtime = tokio::runtime::Builder::new_multi_thread()
+                .enable_all()
+                .worker_threads(self.threads.unwrap())
+                .build()
+                .unwrap();
+
+            let server = jsonrpc_http_server::ServerBuilder::new(io_handler)
+                .threads(1)
+                .event_loop_executor(runtime.handle().clone())
+                .start_http(&addr)
+                .unwrap();
+
+            server.wait();
+            let _ = sender;
         });
 
-        sender.send(()).unwrap();
-    });
+        tokio::spawn(recv.map(drop))
+    }
 
-    // Notifier for the rest of application about the end of the task.
-    tokio::spawn(recv.map(drop))
-}
+    fn build_jsonrpsee_http(self, addr: SocketAddr) -> tokio::task::JoinHandle<()> {
+        let rpc = self.build_rpc_module();
 
-pub fn start_ws_rpc_server(
-    master_connection_pool: ConnectionPool,
-    replica_connection_pool: ConnectionPool,
-    config: &ZkSyncConfig,
-    gas_adjuster: Arc<GasAdjuster<EthereumClient>>,
-) -> tokio::task::JoinHandle<()> {
-    let rpc = build_rpc_module(
-        master_connection_pool,
-        replica_connection_pool,
-        config,
-        gas_adjuster,
-    );
-    let addr = config.api.web3_json_rpc.ws_bind_addr();
-    let threads_per_server = config.api.web3_json_rpc.threads_per_server as usize;
+        // Start the server in a separate tokio runtime from a dedicated thread.
+        let (sender, recv) = oneshot::channel::<()>();
+        std::thread::spawn(move || {
+            let runtime = tokio::runtime::Builder::new_multi_thread()
+                .enable_all()
+                .worker_threads(self.threads.unwrap())
+                .build()
+                .unwrap();
 
-    // Start the server in a separate tokio runtime from a dedicated thread.
-    let (sender, recv) = oneshot::channel::<()>();
-    std::thread::spawn(move || {
-        let runtime = tokio::runtime::Builder::new_multi_thread()
-            .enable_all()
-            .worker_threads(threads_per_server)
-            .build()
-            .unwrap();
+            runtime.block_on(async move {
+                let server = ServerBuilder::default()
+                    .http_only()
+                    .max_connections(5000)
+                    .build(addr)
+                    .await
+                    .expect("Can't start the HTTP JSON RPC server");
 
-        runtime.block_on(async move {
-            let server = ServerBuilder::default()
-                .ws_only()
-                .build(addr)
-                .await
-                .expect("Can't start the WS JSON RPC server");
+                let server_handle = server
+                    .start(rpc)
+                    .expect("Failed to start HTTP JSON RPC application");
+                server_handle.stopped().await
+            });
 
-            let server_handle = server
-                .start(rpc)
-                .expect("Failed to start WS JSON RPC application");
-            server_handle.stopped().await
+            sender.send(()).unwrap();
         });
 
-        sender.send(()).unwrap();
-    });
+        // Notifier for the rest of application about the end of the task.
+        tokio::spawn(recv.map(drop))
+    }
 
-    // Notifier for the rest of application about the end of the task.
-    tokio::spawn(recv.map(drop))
+    fn build_jsonrpsee_ws(self, addr: SocketAddr) -> tokio::task::JoinHandle<()> {
+        vlog::warn!(
+            "`eth_subscribe` is not implemented for jsonrpsee backend, use jsonrpc instead"
+        );
+
+        let rpc = self.build_rpc_module();
+
+        // Start the server in a separate tokio runtime from a dedicated thread.
+        let (sender, recv) = oneshot::channel::<()>();
+        std::thread::spawn(move || {
+            let runtime = tokio::runtime::Builder::new_multi_thread()
+                .enable_all()
+                .worker_threads(self.threads.unwrap())
+                .build()
+                .unwrap();
+
+            runtime.block_on(async move {
+                let server = ServerBuilder::default()
+                    .ws_only()
+                    .build(addr)
+                    .await
+                    .expect("Can't start the WS JSON RPC server");
+
+                let server_handle = server
+                    .start(rpc)
+                    .expect("Failed to start WS JSON RPC application");
+                server_handle.stopped().await
+            });
+
+            sender.send(()).unwrap();
+        });
+
+        // Notifier for the rest of application about the end of the task.
+        tokio::spawn(recv.map(drop))
+    }
+
+    fn build_jsonrpc_ws(
+        self,
+        addr: SocketAddr,
+        mut stop_receiver: watch::Receiver<bool>,
+    ) -> Vec<tokio::task::JoinHandle<()>> {
+        let pub_sub = EthSubscribe::default();
+        let polling_interval = self.polling_interval.expect("Polling interval is not set");
+
+        let mut notify_handles = vec![
+            tokio::spawn(notify_blocks(
+                pub_sub.active_block_subs.clone(),
+                self.pool.clone(),
+                polling_interval,
+                stop_receiver.clone(),
+            )),
+            tokio::spawn(notify_txs(
+                pub_sub.active_tx_subs.clone(),
+                self.pool.clone(),
+                polling_interval,
+                stop_receiver.clone(),
+            )),
+            tokio::spawn(notify_logs(
+                pub_sub.active_log_subs.clone(),
+                self.pool.clone(),
+                polling_interval,
+                stop_receiver.clone(),
+            )),
+        ];
+
+        let (sender, recv) = oneshot::channel::<()>();
+        let io = {
+            let zksync_network_id = self.config.l2_chain_id;
+            let rpc_state = self.build_rpc_state();
+            let mut io = PubSubHandler::default();
+            io.extend_with(pub_sub.to_delegate());
+            io.extend_with(EthNamespace::new(rpc_state.clone()).to_delegate());
+            io.extend_with(ZksNamespace::new(rpc_state).to_delegate());
+            io.extend_with(Web3Namespace.to_delegate());
+            io.extend_with(NetNamespace::new(zksync_network_id).to_delegate());
+            io
+        };
+        let server = jsonrpc_ws_server::ServerBuilder::with_meta_extractor(
+            io,
+            |context: &jsonrpc_ws_server::RequestContext| {
+                Arc::new(jsonrpc_pubsub::Session::new(context.sender()))
+            },
+        )
+        .max_connections(self.subscriptions_limit.unwrap_or(usize::MAX))
+        .session_stats(TrackOpenWsConnections)
+        .start(&addr)
+        .unwrap();
+        let close_handler = server.close_handle();
+
+        std::thread::spawn(move || {
+            server.wait().unwrap();
+            let _ = sender;
+        });
+        std::thread::spawn(move || {
+            let stop_signal = futures::executor::block_on(stop_receiver.changed());
+            if stop_signal.is_ok() {
+                close_handler.close();
+                vlog::info!("Stop signal received, WS JSON RPC API is shutting down");
+            }
+        });
+
+        notify_handles.push(tokio::spawn(recv.map(drop)));
+        notify_handles
+    }
 }
 
-fn build_rpc_state(
-    master_connection_pool: ConnectionPool,
-    replica_connection_pool: ConnectionPool,
-    config: &ZkSyncConfig,
-    gas_adjuster: Arc<GasAdjuster<EthereumClient>>,
-) -> RpcState {
-    let req_entities_limit = config.api.web3_json_rpc.req_entities_limit();
-    let filters_limit = config.api.web3_json_rpc.filters_limit();
-    let account_pks = config.api.web3_json_rpc.account_pks();
+struct TrackOpenWsConnections;
 
-    RpcState::init(
-        master_connection_pool,
-        replica_connection_pool,
-        req_entities_limit,
-        filters_limit,
-        account_pks,
-        gas_adjuster,
-    )
-}
+impl jsonrpc_ws_server::SessionStats for TrackOpenWsConnections {
+    fn open_session(&self, _id: jsonrpc_ws_server::SessionId) {
+        metrics::increment_gauge!("api.ws.open_sessions", 1.0);
+    }
 
-fn build_http_io_handler(
-    master_connection_pool: ConnectionPool,
-    replica_connection_pool: ConnectionPool,
-    config: &ZkSyncConfig,
-    gas_adjuster: Arc<GasAdjuster<EthereumClient>>,
-) -> IoHandler {
-    let rpc_state = build_rpc_state(
-        master_connection_pool,
-        replica_connection_pool,
-        config,
-        gas_adjuster,
-    );
-    let mut io = IoHandler::new();
-    io.extend_with(EthNamespace::new(rpc_state.clone()).to_delegate());
-    io.extend_with(ZksNamespace::new(rpc_state).to_delegate());
-    io.extend_with(Web3Namespace.to_delegate());
-    io.extend_with(NetNamespace.to_delegate());
-
-    io
-}
-
-fn build_pubsub_io_handler(
-    master_connection_pool: ConnectionPool,
-    replica_connection_pool: ConnectionPool,
-    config: &ZkSyncConfig,
-    gas_adjuster: Arc<GasAdjuster<EthereumClient>>,
-    pub_sub: EthSubscribe,
-) -> PubSubHandler<Arc<jsonrpc_pubsub::Session>> {
-    let rpc_state = build_rpc_state(
-        master_connection_pool,
-        replica_connection_pool,
-        config,
-        gas_adjuster,
-    );
-    let mut io = PubSubHandler::default();
-    io.extend_with(pub_sub.to_delegate());
-    io.extend_with(EthNamespace::new(rpc_state.clone()).to_delegate());
-    io.extend_with(ZksNamespace::new(rpc_state).to_delegate());
-    io.extend_with(Web3Namespace.to_delegate());
-    io.extend_with(NetNamespace.to_delegate());
-
-    io
-}
-
-fn build_rpc_module(
-    master_connection_pool: ConnectionPool,
-    replica_connection_pool: ConnectionPool,
-    config: &ZkSyncConfig,
-    gas_adjuster: Arc<GasAdjuster<EthereumClient>>,
-) -> RpcModule<EthNamespace> {
-    let rpc_app = build_rpc_state(
-        master_connection_pool,
-        replica_connection_pool,
-        config,
-        gas_adjuster,
-    );
-
-    // Declare namespaces we have.
-    let eth = EthNamespace::new(rpc_app.clone());
-    let net = NetNamespace;
-    let web3 = Web3Namespace;
-    let zks = ZksNamespace::new(rpc_app);
-
-    // Collect all the methods into a single RPC module.
-    let mut rpc: RpcModule<_> = eth.into_rpc();
-    rpc.merge(net.into_rpc())
-        .expect("Can't merge net namespace");
-    rpc.merge(web3.into_rpc())
-        .expect("Can't merge web3 namespace");
-    rpc.merge(zks.into_rpc())
-        .expect("Can't merge zks namespace");
-    rpc
+    fn close_session(&self, _id: jsonrpc_ws_server::SessionId) {
+        metrics::decrement_gauge!("api.ws.open_sessions", 1.0);
+    }
 }

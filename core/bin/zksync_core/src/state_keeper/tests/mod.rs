@@ -16,19 +16,22 @@ use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes};
 use zksync_types::{
     block::BlockGasCount, zk_evm::block_properties::BlockProperties, MiniblockNumber,
 };
-use zksync_utils::{h256_to_u256, time::millis_since_epoch};
+use zksync_utils::h256_to_u256;
 
 use crate::state_keeper::{
-    seal_criteria::{gas::GasCriterion, slots::SlotsCriterion, SealManager},
+    seal_criteria::{
+        criteria::{gas::GasCriterion, slots::SlotsCriterion},
+        SealManager,
+    },
     types::ExecutionMetricsForCriteria,
 };
 
 use self::tester::{
     bootloader_tip_out_of_gas, pending_batch_data, random_tx, rejected_exec, successful_exec,
-    TestScenario,
+    successful_exec_with_metrics, TestScenario,
 };
 
-use super::keeper::POLL_WAIT_DURATION;
+use super::{keeper::POLL_WAIT_DURATION, seal_criteria::conditional_sealer::ConditionalSealer};
 
 mod tester;
 
@@ -48,11 +51,16 @@ fn sealed_by_number_of_txs() {
         transaction_slots: 2,
         ..Default::default()
     };
-    let sealer = SealManager::custom(
+    let conditional_sealer = Some(ConditionalSealer::with_sealers(
         config,
         vec![Box::new(SlotsCriterion)],
-        Box::new(|_| false),
-        Box::new(|updates| updates.miniblock.executed_transactions.len() == 1),
+    ));
+    let sealer = SealManager::custom(
+        conditional_sealer,
+        vec![Box::new(|_| false)],
+        vec![Box::new(|updates| {
+            updates.miniblock.executed_transactions.len() == 1
+        })],
     );
 
     let scenario = TestScenario::new();
@@ -74,20 +82,24 @@ fn sealed_by_gas() {
         close_block_at_gas_percentage: 0.5,
         ..Default::default()
     };
-    let sealer = SealManager::custom(
+    let conditional_sealer = Some(ConditionalSealer::with_sealers(
         config,
         vec![Box::new(GasCriterion)],
-        Box::new(|_| false),
-        Box::new(|updates| updates.miniblock.executed_transactions.len() == 1),
+    ));
+    let sealer = SealManager::custom(
+        conditional_sealer,
+        vec![Box::new(|_| false)],
+        vec![Box::new(|updates| {
+            updates.miniblock.executed_transactions.len() == 1
+        })],
     );
 
-    let mut execution_result = successful_exec();
     let l1_gas_per_tx = BlockGasCount {
         commit: 1, // Both txs together with block_base_cost would bring it over the block 31_001 commit bound.
         prove: 0,
         execute: 0,
     };
-    execution_result.add_tx_metrics(ExecutionMetricsForCriteria {
+    let execution_result = successful_exec_with_metrics(ExecutionMetricsForCriteria {
         l1_gas: l1_gas_per_tx,
         execution_metrics: Default::default(),
     });
@@ -126,15 +138,19 @@ fn sealed_by_gas_then_by_num_tx() {
         transaction_slots: 3,
         ..Default::default()
     };
-    let sealer = SealManager::custom(
+    let conditional_sealer = Some(ConditionalSealer::with_sealers(
         config,
         vec![Box::new(GasCriterion), Box::new(SlotsCriterion)],
-        Box::new(|_| false),
-        Box::new(|updates| updates.miniblock.executed_transactions.len() == 1),
+    ));
+    let sealer = SealManager::custom(
+        conditional_sealer,
+        vec![Box::new(|_| false)],
+        vec![Box::new(|updates| {
+            updates.miniblock.executed_transactions.len() == 1
+        })],
     );
 
-    let mut execution_result = successful_exec();
-    execution_result.add_tx_metrics(ExecutionMetricsForCriteria {
+    let execution_result = successful_exec_with_metrics(ExecutionMetricsForCriteria {
         l1_gas: BlockGasCount {
             commit: 1,
             prove: 0,
@@ -164,11 +180,16 @@ fn batch_sealed_before_miniblock_does() {
         transaction_slots: 2,
         ..Default::default()
     };
-    let sealer = SealManager::custom(
+    let conditional_sealer = Some(ConditionalSealer::with_sealers(
         config,
         vec![Box::new(SlotsCriterion)],
-        Box::new(|_| false),
-        Box::new(|updates| updates.miniblock.executed_transactions.len() == 3),
+    ));
+    let sealer = SealManager::custom(
+        conditional_sealer,
+        vec![Box::new(|_| false)],
+        vec![Box::new(|updates| {
+            updates.miniblock.executed_transactions.len() == 3
+        })],
     );
 
     let scenario = TestScenario::new();
@@ -194,11 +215,16 @@ fn basic_flow() {
         transaction_slots: 2,
         ..Default::default()
     };
-    let sealer = SealManager::custom(
+    let conditional_sealer = Some(ConditionalSealer::with_sealers(
         config,
         vec![Box::new(SlotsCriterion)],
-        Box::new(|_| false),
-        Box::new(|updates| updates.miniblock.executed_transactions.len() == 1),
+    ));
+    let sealer = SealManager::custom(
+        conditional_sealer,
+        vec![Box::new(|_| false)],
+        vec![Box::new(|updates| {
+            updates.miniblock.executed_transactions.len() == 1
+        })],
     );
 
     TestScenario::new()
@@ -216,11 +242,16 @@ fn rejected_tx() {
         transaction_slots: 2,
         ..Default::default()
     };
-    let sealer = SealManager::custom(
+    let conditional_sealer = Some(ConditionalSealer::with_sealers(
         config,
         vec![Box::new(SlotsCriterion)],
-        Box::new(|_| false),
-        Box::new(|updates| updates.miniblock.executed_transactions.len() == 1),
+    ));
+    let sealer = SealManager::custom(
+        conditional_sealer,
+        vec![Box::new(|_| false)],
+        vec![Box::new(|updates| {
+            updates.miniblock.executed_transactions.len() == 1
+        })],
     );
 
     let rejected_tx = random_tx(1);
@@ -241,11 +272,16 @@ fn bootloader_tip_out_of_gas_flow() {
         transaction_slots: 2,
         ..Default::default()
     };
-    let sealer = SealManager::custom(
+    let conditional_sealer = Some(ConditionalSealer::with_sealers(
         config,
         vec![Box::new(SlotsCriterion)],
-        Box::new(|_| false),
-        Box::new(|updates| updates.miniblock.executed_transactions.len() == 1),
+    ));
+    let sealer = SealManager::custom(
+        conditional_sealer,
+        vec![Box::new(|_| false)],
+        vec![Box::new(|updates| {
+            updates.miniblock.executed_transactions.len() == 1
+        })],
     );
 
     let first_tx = random_tx(1);
@@ -278,21 +314,15 @@ fn bootloader_tip_out_of_gas_flow() {
 
 #[test]
 fn bootloader_config_has_been_updated() {
-    let config = StateKeeperConfig {
-        transaction_slots: 300,
-        ..Default::default()
-    };
     let sealer = SealManager::custom(
-        config,
-        vec![],
-        SealManager::timeout_and_code_hash_batch_sealer(
-            u64::MAX,
+        None,
+        vec![SealManager::code_hash_batch_sealer(
             BaseSystemContractsHashes {
                 bootloader: Default::default(),
                 default_aa: Default::default(),
             },
-        ),
-        Box::new(|_| false),
+        )],
+        vec![Box::new(|_| false)],
     );
 
     let pending_batch =
@@ -325,11 +355,16 @@ fn pending_batch_is_applied() {
         transaction_slots: 3,
         ..Default::default()
     };
-    let sealer = SealManager::custom(
+    let conditional_sealer = Some(ConditionalSealer::with_sealers(
         config,
         vec![Box::new(SlotsCriterion)],
-        Box::new(|_| false),
-        Box::new(|updates| updates.miniblock.executed_transactions.len() == 1),
+    ));
+    let sealer = SealManager::custom(
+        conditional_sealer,
+        vec![Box::new(|_| false)],
+        vec![Box::new(|updates| {
+            updates.miniblock.executed_transactions.len() == 1
+        })],
     );
 
     let pending_batch = pending_batch_data(vec![
@@ -372,11 +407,16 @@ fn unconditional_sealing() {
         transaction_slots: 2,
         ..Default::default()
     };
-    let sealer = SealManager::custom(
+    let conditional_sealer = Some(ConditionalSealer::with_sealers(
         config,
         vec![Box::new(SlotsCriterion)],
-        Box::new(move |_| batch_seal_trigger_checker.load(Ordering::Relaxed)),
-        Box::new(move |upd_manager| {
+    ));
+    let sealer = SealManager::custom(
+        conditional_sealer,
+        vec![Box::new(move |_| {
+            batch_seal_trigger_checker.load(Ordering::Relaxed)
+        })],
+        vec![Box::new(move |upd_manager| {
             if upd_manager.pending_executed_transactions_len() != 0
                 && start.elapsed() >= seal_miniblock_after
             {
@@ -385,7 +425,7 @@ fn unconditional_sealing() {
             } else {
                 false
             }
-        }),
+        })],
     );
 
     TestScenario::new()
@@ -404,16 +444,19 @@ fn miniblock_timestamp_after_pending_batch() {
         transaction_slots: 2,
         ..Default::default()
     };
-    let sealer = SealManager::custom(
+    let conditional_sealer = Some(ConditionalSealer::with_sealers(
         config,
         vec![Box::new(SlotsCriterion)],
-        Box::new(|_| false),
-        Box::new(|updates| updates.miniblock.executed_transactions.len() == 1),
+    ));
+    let sealer = SealManager::custom(
+        conditional_sealer,
+        vec![Box::new(|_| false)],
+        vec![Box::new(|updates| {
+            updates.miniblock.executed_transactions.len() == 1
+        })],
     );
 
     let pending_batch = pending_batch_data(vec![(MiniblockNumber(1), vec![random_tx(1)])]);
-
-    let current_timestamp = (millis_since_epoch() / 1000) as u64;
 
     TestScenario::new()
         .load_pending_batch(pending_batch)
@@ -424,8 +467,8 @@ fn miniblock_timestamp_after_pending_batch() {
         )
         .miniblock_sealed_with("Miniblock with a single tx", move |updates| {
             assert!(
-                updates.miniblock.timestamp >= current_timestamp,
-                "Timestamp cannot decrease"
+                updates.miniblock.timestamp == 1,
+                "Timestamp for the new block must be taken from the test IO"
             );
         })
         .batch_sealed("Batch is sealed with two transactions")
@@ -446,11 +489,16 @@ fn time_is_monotonic() {
         transaction_slots: 2,
         ..Default::default()
     };
-    let sealer = SealManager::custom(
+    let conditional_sealer = Some(ConditionalSealer::with_sealers(
         config,
         vec![Box::new(SlotsCriterion)],
-        Box::new(|_| false),
-        Box::new(|updates| updates.miniblock.executed_transactions.len() == 1),
+    ));
+    let sealer = SealManager::custom(
+        conditional_sealer,
+        vec![Box::new(|_| false)],
+        vec![Box::new(|updates| {
+            updates.miniblock.executed_transactions.len() == 1
+        })],
     );
 
     let scenario = TestScenario::new();

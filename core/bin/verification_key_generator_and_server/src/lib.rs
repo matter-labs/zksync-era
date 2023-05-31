@@ -102,7 +102,7 @@ pub fn get_circuits_for_vk() -> Vec<ZkSyncCircuit<Bn256, VmWitnessOracle<Bn256>>
 
 fn ensure_setup_key_exist() {
     if !Path::new("setup_2^26.key").exists() {
-        panic!("File setup_2^26.key is required to be present in current directory for verification keys generation. \ndownload from https://storage.googleapis.com/universal-setup/setup_2^26.key");
+        panic!("File setup_2^26.key is required to be present in current directory for verification keys generation. \ndownload from https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2^26.key");
     }
 }
 fn get_file_path(circuit_type: u8) -> String {

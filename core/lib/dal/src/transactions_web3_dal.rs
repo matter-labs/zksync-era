@@ -243,6 +243,7 @@ impl TransactionsWeb3Dal<'_, '_> {
                 StorageTransactionDetails,
                 r#"
                     SELECT transactions.*,
+                        miniblocks.timestamp as "miniblock_timestamp?",
                         miniblocks.hash as "block_hash?",
                         commit_tx.tx_hash as "eth_commit_tx_hash?",
                         prove_tx.tx_hash as "eth_prove_tx_hash?",

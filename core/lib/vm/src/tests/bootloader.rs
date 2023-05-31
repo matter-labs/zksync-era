@@ -2,100 +2,81 @@
 //! Tests for the bootloader
 //! The description for each of the tests can be found in the corresponding `.yul` file.
 //!
-#![cfg_attr(test, allow(unused_imports))]
-
-use crate::errors::{VmRevertReason, VmRevertReasonParsingResult};
-use crate::memory::SimpleMemory;
-use crate::oracles::tracer::{
-    ExecutionEndTracer, PendingRefundTracer, PubdataSpentTracer, TransactionResultTracer,
-};
-use crate::storage::{Storage, StoragePtr};
-use crate::test_utils::{
-    get_create_execute, get_create_zksync_address, get_deploy_tx, get_error_tx,
-    mock_loadnext_test_call, VmInstanceInnerState,
-};
-use crate::utils::{
-    create_test_block_params, insert_system_contracts, read_bootloader_test_code,
-    BASE_SYSTEM_CONTRACTS, BLOCK_GAS_LIMIT,
-};
-use crate::vm::{
-    get_vm_hook_params, tx_has_failed, VmBlockResult, VmExecutionStopReason, ZkSyncVmState,
-    MAX_MEM_SIZE_BYTES,
-};
-use crate::vm_with_bootloader::{
-    bytecode_to_factory_dep, get_bootloader_memory, get_bootloader_memory_for_encoded_tx,
-    init_vm_inner, push_raw_transaction_to_bootloader_memory,
-    push_transaction_to_bootloader_memory, BlockContext, DerivedBlockContext, BOOTLOADER_HEAP_PAGE,
-    BOOTLOADER_TX_DESCRIPTION_OFFSET, TX_DESCRIPTION_OFFSET, TX_GAS_LIMIT_OFFSET,
-};
-use crate::vm_with_bootloader::{BlockContextMode, BootloaderJobType, TxExecutionMode};
-use crate::{test_utils, VmInstance};
-use crate::{TxRevertReason, VmExecutionResult};
 use itertools::Itertools;
-use std::cell::RefCell;
-use std::convert::TryFrom;
-use std::ops::{Add, DivAssign};
-use std::rc::Rc;
+use std::{
+    collections::{HashMap, HashSet},
+    convert::TryFrom,
+};
 use tempfile::TempDir;
-use zk_evm::abstractions::{
-    AfterDecodingData, AfterExecutionData, BeforeExecutionData, Tracer, VmLocalStateData,
-    MAX_HEAP_PAGE_SIZE_IN_WORDS, MAX_MEMORY_BYTES,
+
+use crate::{
+    errors::VmRevertReason,
+    history_recorder::HistoryMode,
+    oracles::tracer::{StorageInvocationTracer, TransactionResultTracer},
+    storage::{Storage, StoragePtr},
+    test_utils::{
+        get_create_execute, get_create_zksync_address, get_deploy_tx, get_error_tx,
+        mock_loadnext_test_call,
+    },
+    transaction_data::TransactionData,
+    utils::{
+        create_test_block_params, insert_system_contracts, read_bootloader_test_code,
+        BASE_SYSTEM_CONTRACTS, BLOCK_GAS_LIMIT,
+    },
+    vm::{tx_has_failed, VmExecutionStopReason, ZkSyncVmState},
+    vm_with_bootloader::{
+        bytecode_to_factory_dep, get_bootloader_memory, get_bootloader_memory_for_encoded_tx,
+        push_raw_transaction_to_bootloader_memory, BlockContext, BlockContextMode,
+        BootloaderJobType, TxExecutionMode,
+    },
+    vm_with_bootloader::{
+        init_vm_inner, push_transaction_to_bootloader_memory, DerivedBlockContext,
+        BOOTLOADER_HEAP_PAGE, TX_DESCRIPTION_OFFSET, TX_GAS_LIMIT_OFFSET,
+    },
+    HistoryEnabled, OracleTools, TxRevertReason, VmBlockResult, VmExecutionResult, VmInstance,
 };
-use zk_evm::aux_structures::Timestamp;
-use zk_evm::block_properties::BlockProperties;
-use zk_evm::opcodes::execution::ret;
-use zk_evm::sha3::digest::typenum::U830;
-use zk_evm::witness_trace::VmWitnessTracer;
-use zk_evm::zkevm_opcode_defs::decoding::VmEncodingMode;
-use zk_evm::zkevm_opcode_defs::FatPointer;
-use zksync_types::block::DeployedContract;
-use zksync_types::ethabi::encode;
-use zksync_types::l1::L1Tx;
-use zksync_types::storage_writes_deduplicator::StorageWritesDeduplicator;
-use zksync_types::tx::tx_execution_info::{TxExecutionStatus, VmExecutionLogs};
-use zksync_utils::bytecode::CompressedBytecodeInfo;
-use zksync_utils::test_utils::LoadnextContractExecutionParams;
+
+use zk_evm::{
+    aux_structures::Timestamp, block_properties::BlockProperties, zkevm_opcode_defs::FarCallOpcode,
+};
+
+use zksync_types::{
+    block::DeployedContract,
+    ethabi::encode,
+    get_is_account_key,
+    storage_writes_deduplicator::StorageWritesDeduplicator,
+    system_contracts::{DEPLOYMENT_NONCE_INCREMENT, TX_NONCE_INCREMENT},
+    tx::tx_execution_info::TxExecutionStatus,
+    utils::{
+        deployed_address_create, storage_key_for_eth_balance,
+        storage_key_for_standard_token_balance,
+    },
+    vm_trace::{Call, CallType},
+    Execute, L1BatchNumber, L1TxCommonData, StorageKey, StorageLog, L1_MESSENGER_ADDRESS,
+    {ethabi::Token, AccountTreeId, Address, ExecuteTransactionCommon, Transaction, H256, U256},
+    {fee::Fee, l2_to_l1_log::L2ToL1Log},
+    {
+        get_code_key, get_known_code_key, get_nonce_key, Nonce, BOOTLOADER_ADDRESS, H160,
+        L2_ETH_TOKEN_ADDRESS, MAX_GAS_PER_PUBDATA_BYTE, SYSTEM_CONTEXT_ADDRESS,
+    },
+};
+
 use zksync_utils::{
-    address_to_h256, bytecode::hash_bytecode, bytes_to_be_words, bytes_to_le_words, h256_to_u256,
-    u256_to_h256,
+    bytecode::CompressedBytecodeInfo,
+    test_utils::LoadnextContractExecutionParams,
+    {bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256, u256_to_h256},
 };
-use zksync_utils::{h256_to_account_address, u256_to_account_address};
 
-use crate::{transaction_data::TransactionData, OracleTools};
-use std::time;
 use zksync_contracts::{
-    default_erc20_bytecode, get_loadnext_contract, known_codes_contract, load_contract,
-    load_sys_contract, read_bootloader_code, read_bytecode, read_zbin_bytecode,
-    BaseSystemContracts, SystemContractCode, PLAYGROUND_BLOCK_BOOTLOADER_CODE,
-};
-use zksync_crypto::rand::random;
-use zksync_state::secondary_storage::SecondaryStateStorage;
-use zksync_state::storage_view::StorageView;
-use zksync_storage::db::Database;
-use zksync_storage::RocksDB;
-use zksync_types::system_contracts::{DEPLOYMENT_NONCE_INCREMENT, TX_NONCE_INCREMENT};
-use zksync_types::utils::{
-    deployed_address_create, storage_key_for_eth_balance, storage_key_for_standard_token_balance,
-};
-use zksync_types::{
-    ethabi::Token, AccountTreeId, Address, Execute, ExecuteTransactionCommon, L1BatchNumber,
-    L2ChainId, PackedEthSignature, StorageKey, StorageLogQueryType, Transaction, H256,
-    KNOWN_CODES_STORAGE_ADDRESS, U256,
-};
-use zksync_types::{fee::Fee, l2::L2Tx, l2_to_l1_log::L2ToL1Log};
-use zksync_types::{
-    get_code_key, get_is_account_key, get_known_code_key, get_nonce_key, L1TxCommonData, Nonce,
-    PriorityOpId, SerialId, StorageLog, ZkSyncReadStorage, BOOTLOADER_ADDRESS,
-    CONTRACT_DEPLOYER_ADDRESS, H160, L2_ETH_TOKEN_ADDRESS, MAX_GAS_PER_PUBDATA_BYTE,
-    MAX_TXS_IN_BLOCK, SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_GAS_PRICE_POSITION,
-    SYSTEM_CONTEXT_MINIMAL_BASE_FEE, SYSTEM_CONTEXT_TX_ORIGIN_POSITION,
+    get_loadnext_contract, load_contract, read_bytecode, SystemContractCode,
+    PLAYGROUND_BLOCK_BOOTLOADER_CODE,
 };
 
-use once_cell::sync::Lazy;
-use zksync_config::constants::ZKPORTER_IS_AVAILABLE;
+use zksync_state::{secondary_storage::SecondaryStateStorage, storage_view::StorageView};
+use zksync_storage::{db::Database, RocksDB};
 
-fn run_vm_with_custom_factory_deps<'a>(
-    oracle_tools: &'a mut OracleTools<'a, false>,
+fn run_vm_with_custom_factory_deps<'a, H: HistoryMode>(
+    oracle_tools: &'a mut OracleTools<'a, false, H>,
     block_context: BlockContext,
     block_properties: &'a BlockProperties,
     encoded_tx: Vec<U256>,
@@ -130,7 +111,7 @@ fn run_vm_with_custom_factory_deps<'a>(
         Timestamp(0),
     );
 
-    let result = vm.execute_next_tx(u32::MAX).err();
+    let result = vm.execute_next_tx(u32::MAX, false).err();
 
     assert_eq!(expected_error, result);
 }
@@ -149,7 +130,7 @@ fn test_dummy_bootloader() {
     let mut storage_accessor = StorageView::new(&raw_storage);
     let storage_ptr: &mut dyn Storage = &mut storage_accessor;
 
-    let mut oracle_tools = OracleTools::new(storage_ptr);
+    let mut oracle_tools = OracleTools::new(storage_ptr, HistoryEnabled);
     let (block_context, block_properties) = create_test_block_params();
     let mut base_system_contracts = BASE_SYSTEM_CONTRACTS.clone();
     let bootloader_code = read_bootloader_test_code("dummy");
@@ -193,7 +174,7 @@ fn test_bootloader_out_of_gas() {
     let mut storage_accessor = StorageView::new(&raw_storage);
     let storage_ptr: &mut dyn Storage = &mut storage_accessor;
 
-    let mut oracle_tools = OracleTools::new(storage_ptr);
+    let mut oracle_tools = OracleTools::new(storage_ptr, HistoryEnabled);
     let (block_context, block_properties) = create_test_block_params();
 
     let mut base_system_contracts = BASE_SYSTEM_CONTRACTS.clone();
@@ -221,7 +202,10 @@ fn test_bootloader_out_of_gas() {
     assert_eq!(res.revert_reason, Some(TxRevertReason::BootloaderOutOfGas));
 }
 
-fn verify_required_storage(state: &ZkSyncVmState<'_>, required_values: Vec<(H256, StorageKey)>) {
+fn verify_required_storage<H: HistoryMode>(
+    state: &ZkSyncVmState<'_, H>,
+    required_values: Vec<(H256, StorageKey)>,
+) {
     for (required_value, key) in required_values {
         let current_value = state.storage.storage.read_from_storage(&key);
 
@@ -233,11 +217,15 @@ fn verify_required_storage(state: &ZkSyncVmState<'_>, required_values: Vec<(H256
     }
 }
 
-fn verify_required_memory(state: &ZkSyncVmState<'_>, required_values: Vec<(U256, u32, u32)>) {
+fn verify_required_memory<H: HistoryMode>(
+    state: &ZkSyncVmState<'_, H>,
+    required_values: Vec<(U256, u32, u32)>,
+) {
     for (required_value, memory_page, cell) in required_values {
         let current_value = state
             .memory
-            .dump_page_content_as_u256_words(memory_page, cell..cell + 1)[0];
+            .read_slot(memory_page as usize, cell as usize)
+            .value;
         assert_eq!(current_value, required_value);
     }
 }
@@ -284,7 +272,7 @@ fn test_default_aa_interaction() {
     let key = storage_key_for_eth_balance(&sender_address);
     storage_ptr.set_value(&key, u256_to_h256(U256([0, 0, 1, 0])));
 
-    let mut oracle_tools = OracleTools::new(storage_ptr);
+    let mut oracle_tools = OracleTools::new(storage_ptr, HistoryEnabled);
 
     let mut vm = init_vm_inner(
         &mut oracle_tools,
@@ -297,7 +285,7 @@ fn test_default_aa_interaction() {
     push_transaction_to_bootloader_memory(&mut vm, &tx, TxExecutionMode::VerifyExecute, None);
 
     let tx_execution_result = vm
-        .execute_next_tx(u32::MAX)
+        .execute_next_tx(u32::MAX, false)
         .expect("Bootloader failed while processing transaction");
 
     assert_eq!(
@@ -372,7 +360,7 @@ fn execute_vm_with_predetermined_refund(
         storage_ptr.set_value(&key, u256_to_h256(U256([0, 0, 1, 0])));
     }
 
-    let mut oracle_tools = OracleTools::new(storage_ptr);
+    let mut oracle_tools = OracleTools::new(storage_ptr, HistoryEnabled);
 
     let mut vm = init_vm_inner(
         &mut oracle_tools,
@@ -458,7 +446,7 @@ fn test_predetermined_refunded_gas() {
     let key = storage_key_for_eth_balance(&sender_address);
     storage_ptr.set_value(&key, u256_to_h256(U256([0, 0, 1, 0])));
 
-    let mut oracle_tools = OracleTools::new(storage_ptr);
+    let mut oracle_tools = OracleTools::new(storage_ptr, HistoryEnabled);
 
     let mut vm = init_vm_inner(
         &mut oracle_tools,
@@ -472,7 +460,7 @@ fn test_predetermined_refunded_gas() {
     push_transaction_to_bootloader_memory(&mut vm, &tx, TxExecutionMode::VerifyExecute, None);
 
     let tx_execution_result = vm
-        .execute_next_tx(u32::MAX)
+        .execute_next_tx(u32::MAX, false)
         .expect("Bootloader failed while processing transaction");
 
     assert_eq!(
@@ -602,7 +590,7 @@ fn execute_vm_with_possible_rollbacks(
     let key = storage_key_for_eth_balance(&sender_address);
     storage_ptr.set_value(&key, u256_to_h256(U256([0, 0, 1, 0])));
 
-    let mut oracle_tools = OracleTools::new(storage_ptr);
+    let mut oracle_tools = OracleTools::new(storage_ptr, HistoryEnabled);
 
     let mut vm = init_vm_inner(
         &mut oracle_tools,
@@ -623,7 +611,7 @@ fn execute_vm_with_possible_rollbacks(
             None,
         );
 
-        match vm.execute_next_tx(u32::MAX) {
+        match vm.execute_next_tx(u32::MAX, false) {
             Err(reason) => {
                 assert_eq!(test_info.rejection_reason(), Some(reason));
             }
@@ -762,18 +750,45 @@ fn test_vm_rollbacks() {
 
     let incorrect_nonce = TxRevertReason::ValidationFailed(VmRevertReason::General {
         msg: "Incorrect nonce".to_string(),
+        data: vec![
+            8, 195, 121, 160, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 15, 73, 110, 99, 111, 114, 114, 101, 99, 116, 32, 110,
+            111, 110, 99, 101, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        ],
     });
     let reusing_nonce_twice = TxRevertReason::ValidationFailed(VmRevertReason::General {
         msg: "Reusing the same nonce twice".to_string(),
+        data: vec![
+            8, 195, 121, 160, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 28, 82, 101, 117, 115, 105, 110, 103, 32, 116, 104,
+            101, 32, 115, 97, 109, 101, 32, 110, 111, 110, 99, 101, 32, 116, 119, 105, 99, 101, 0,
+            0, 0, 0,
+        ],
     });
     let signature_length_is_incorrect = TxRevertReason::ValidationFailed(VmRevertReason::General {
         msg: "Signature length is incorrect".to_string(),
+        data: vec![
+            8, 195, 121, 160, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 29, 83, 105, 103, 110, 97, 116, 117, 114, 101, 32,
+            108, 101, 110, 103, 116, 104, 32, 105, 115, 32, 105, 110, 99, 111, 114, 114, 101, 99,
+            116, 0, 0, 0,
+        ],
     });
     let v_is_incorrect = TxRevertReason::ValidationFailed(VmRevertReason::General {
         msg: "v is neither 27 nor 28".to_string(),
+        data: vec![
+            8, 195, 121, 160, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 22, 118, 32, 105, 115, 32, 110, 101, 105, 116, 104,
+            101, 114, 32, 50, 55, 32, 110, 111, 114, 32, 50, 56, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        ],
     });
     let signature_is_incorrect = TxRevertReason::ValidationFailed(VmRevertReason::General {
         msg: "Account validation returned invalid magic value. Most often this means that the signature is incorrect".to_string(),
+        data: vec![],
     });
 
     let result_with_rollbacks = execute_vm_with_possible_rollbacks(
@@ -986,7 +1001,6 @@ fn insert_contracts(
     raw_storage.process_transaction_logs(&logs);
 
     for (contract, _) in contracts {
-        raw_storage.store_contract(*contract.account_id.address(), contract.bytecode.clone());
         raw_storage.store_factory_dep(hash_bytecode(&contract.bytecode), contract.bytecode);
     }
     raw_storage.save(L1BatchNumber(0));
@@ -1040,8 +1054,8 @@ fn get_nonce_holder_test_tx(
     }
 }
 
-fn run_vm_with_raw_tx<'a>(
-    oracle_tools: &'a mut OracleTools<'a, false>,
+fn run_vm_with_raw_tx<'a, H: HistoryMode>(
+    oracle_tools: &'a mut OracleTools<'a, false, H>,
     block_context: DerivedBlockContext,
     block_properties: &'a BlockProperties,
     tx: TransactionData,
@@ -1108,17 +1122,19 @@ fn test_nonce_holder() {
                               comment: &'static str| {
         let tx = get_nonce_holder_test_tx(nonce, account_address, test_mode, &block_context);
 
-        let mut oracle_tools = OracleTools::new(storage_ptr);
+        let mut oracle_tools = OracleTools::new(storage_ptr, HistoryEnabled);
         let (result, tx_has_failed) =
             run_vm_with_raw_tx(&mut oracle_tools, block_context, &block_properties, tx);
         if let Some(msg) = error_message {
-            let expected_error = TxRevertReason::ValidationFailed(VmRevertReason::General { msg });
+            let expected_error =
+                TxRevertReason::ValidationFailed(VmRevertReason::General { msg, data: vec![] });
             assert_eq!(
                 result
                     .revert_reason
                     .expect("No revert reason")
-                    .revert_reason,
-                expected_error,
+                    .revert_reason
+                    .to_string(),
+                expected_error.to_string(),
                 "{}",
                 comment
             );
@@ -1227,7 +1243,7 @@ fn test_l1_tx_execution() {
     let mut storage_accessor = StorageView::new(&raw_storage);
     let storage_ptr: &mut dyn Storage = &mut storage_accessor;
 
-    let mut oracle_tools = OracleTools::new(storage_ptr);
+    let mut oracle_tools = OracleTools::new(storage_ptr, HistoryEnabled);
     let (block_context, block_properties) = create_test_block_params();
 
     // Here instead of marking code hash via the bootloader means, we will
@@ -1281,7 +1297,7 @@ fn test_l1_tx_execution() {
         None,
     );
 
-    let res = vm.execute_next_tx(u32::MAX).unwrap();
+    let res = vm.execute_next_tx(u32::MAX, false).unwrap();
 
     // The code hash of the deployed contract should be marked as republished.
     let known_codes_key = get_known_code_key(&contract_code_hash);
@@ -1304,7 +1320,7 @@ fn test_l1_tx_execution() {
     push_transaction_to_bootloader_memory(&mut vm, &tx, TxExecutionMode::VerifyExecute, None);
 
     let res = StorageWritesDeduplicator::apply_on_empty_state(
-        &vm.execute_next_tx(u32::MAX)
+        &vm.execute_next_tx(u32::MAX, false)
             .unwrap()
             .result
             .logs
@@ -1315,7 +1331,7 @@ fn test_l1_tx_execution() {
     let tx = get_l1_execute_test_contract_tx(deployed_address, false);
     push_transaction_to_bootloader_memory(&mut vm, &tx, TxExecutionMode::VerifyExecute, None);
     let res = StorageWritesDeduplicator::apply_on_empty_state(
-        &vm.execute_next_tx(u32::MAX)
+        &vm.execute_next_tx(u32::MAX, false)
             .unwrap()
             .result
             .logs
@@ -1327,7 +1343,7 @@ fn test_l1_tx_execution() {
 
     push_transaction_to_bootloader_memory(&mut vm, &tx, TxExecutionMode::VerifyExecute, None);
     let res = StorageWritesDeduplicator::apply_on_empty_state(
-        &vm.execute_next_tx(u32::MAX)
+        &vm.execute_next_tx(u32::MAX, false)
             .unwrap()
             .result
             .logs
@@ -1346,7 +1362,7 @@ fn test_l1_tx_execution() {
         _ => unreachable!(),
     }
     push_transaction_to_bootloader_memory(&mut vm, &tx, TxExecutionMode::VerifyExecute, None);
-    let execution_result = vm.execute_next_tx(u32::MAX).unwrap();
+    let execution_result = vm.execute_next_tx(u32::MAX, false).unwrap();
     // The method is not payable, so the transaction with non-zero value should fail
     assert_eq!(
         execution_result.status,
@@ -1376,7 +1392,7 @@ fn test_invalid_bytecode() {
         |bytecode_hash: H256, expected_revert_reason: Option<TxRevertReason>| {
             let mut storage_accessor = StorageView::new(&raw_storage);
             let storage_ptr: &mut dyn Storage = &mut storage_accessor;
-            let mut oracle_tools = OracleTools::new(storage_ptr);
+            let mut oracle_tools = OracleTools::new(storage_ptr, HistoryEnabled);
 
             let (encoded_tx, predefined_overhead) = get_l1_tx_with_custom_bytecode_hash(
                 h256_to_u256(bytecode_hash),
@@ -1393,9 +1409,10 @@ fn test_invalid_bytecode() {
             );
         };
 
-    let failed_to_mark_factory_deps = |msg: &str| {
+    let failed_to_mark_factory_deps = |msg: &str, data: Vec<u8>| {
         TxRevertReason::FailedToMarkFactoryDependencies(VmRevertReason::General {
             msg: msg.to_string(),
+            data,
         })
     };
 
@@ -1418,6 +1435,13 @@ fn test_invalid_bytecode() {
         ]),
         Some(failed_to_mark_factory_deps(
             "Code length in words must be odd",
+            vec![
+                8, 195, 121, 160, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 32, 67, 111, 100, 101, 32, 108, 101, 110,
+                103, 116, 104, 32, 105, 110, 32, 119, 111, 114, 100, 115, 32, 109, 117, 115, 116,
+                32, 98, 101, 32, 111, 100, 100,
+            ],
         )),
     );
 
@@ -1430,6 +1454,14 @@ fn test_invalid_bytecode() {
         ]),
         Some(failed_to_mark_factory_deps(
             "Incorrectly formatted bytecodeHash",
+            vec![
+                8, 195, 121, 160, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 34, 73, 110, 99, 111, 114, 114, 101, 99,
+                116, 108, 121, 32, 102, 111, 114, 109, 97, 116, 116, 101, 100, 32, 98, 121, 116,
+                101, 99, 111, 100, 101, 72, 97, 115, 104, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            ],
         )),
     );
 
@@ -1442,6 +1474,14 @@ fn test_invalid_bytecode() {
         ]),
         Some(failed_to_mark_factory_deps(
             "Incorrectly formatted bytecodeHash",
+            vec![
+                8, 195, 121, 160, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 34, 73, 110, 99, 111, 114, 114, 101, 99,
+                116, 108, 121, 32, 102, 111, 114, 109, 97, 116, 116, 101, 100, 32, 98, 121, 116,
+                101, 99, 111, 100, 101, 72, 97, 115, 104, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            ],
         )),
     );
 }
@@ -1456,6 +1496,7 @@ fn test_tracing_of_execution_errors() {
     let db = RocksDB::new(Database::StateKeeper, temp_dir.as_ref(), false);
     let mut raw_storage = SecondaryStateStorage::new(db);
     insert_system_contracts(&mut raw_storage);
+    let private_key = H256::random();
 
     let contract_address = Address::random();
     let error_contract = DeployedContract {
@@ -1464,7 +1505,7 @@ fn test_tracing_of_execution_errors() {
     };
 
     let tx = get_error_tx(
-        H256::random(),
+        private_key,
         Nonce(0),
         contract_address,
         Fee {
@@ -1482,7 +1523,7 @@ fn test_tracing_of_execution_errors() {
     let key = storage_key_for_eth_balance(&tx.common_data.initiator_address);
     storage_ptr.set_value(&key, u256_to_h256(U256([0, 0, 1, 0])));
 
-    let mut oracle_tools = OracleTools::new(storage_ptr);
+    let mut oracle_tools = OracleTools::new(storage_ptr, HistoryEnabled);
 
     let mut vm = init_vm_inner(
         &mut oracle_tools,
@@ -1499,7 +1540,7 @@ fn test_tracing_of_execution_errors() {
         None,
     );
 
-    let mut tracer = TransactionResultTracer::default();
+    let mut tracer = TransactionResultTracer::new(usize::MAX, false);
     assert_eq!(
         vm.execute_with_custom_tracer(&mut tracer),
         VmExecutionStopReason::VmFinished,
@@ -1512,7 +1553,14 @@ fn test_tracing_of_execution_errors() {
             assert_eq!(
                 revert_reason,
                 VmRevertReason::General {
-                    msg: "short".to_string()
+                    msg: "short".to_string(),
+                    data: vec![
+                        8, 195, 121, 160, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, 115, 104, 111,
+                        114, 116, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                        0, 0, 0, 0, 0
+                    ],
                 }
             )
         }
@@ -1521,6 +1569,40 @@ fn test_tracing_of_execution_errors() {
             tracer.revert_reason
         ),
     }
+    let mut oracle_tools = OracleTools::new(storage_ptr, HistoryEnabled);
+
+    let mut vm = init_vm_inner(
+        &mut oracle_tools,
+        BlockContextMode::NewBlock(block_context, Default::default()),
+        &block_properties,
+        BLOCK_GAS_LIMIT,
+        &BASE_SYSTEM_CONTRACTS,
+        TxExecutionMode::VerifyExecute,
+    );
+    let tx = get_error_tx(
+        private_key,
+        Nonce(1),
+        contract_address,
+        Fee {
+            gas_limit: U256::from(1000000u32),
+            max_fee_per_gas: U256::from(10000000000u64),
+            max_priority_fee_per_gas: U256::zero(),
+            gas_per_pubdata_limit: U256::from(MAX_GAS_PER_PUBDATA_BYTE),
+        },
+    );
+    push_transaction_to_bootloader_memory(
+        &mut vm,
+        &tx.into(),
+        TxExecutionMode::VerifyExecute,
+        None,
+    );
+
+    let mut tracer = TransactionResultTracer::new(10, false);
+    assert_eq!(
+        vm.execute_with_custom_tracer(&mut tracer),
+        VmExecutionStopReason::TracerRequestedStop,
+    );
+    assert!(tracer.is_limit_reached());
 }
 
 /// Checks that `TX_GAS_LIMIT_OFFSET` constant is correct.
@@ -1550,7 +1632,7 @@ fn test_tx_gas_limit_offset() {
     )
     .into();
 
-    let mut oracle_tools = OracleTools::new(storage_ptr);
+    let mut oracle_tools = OracleTools::new(storage_ptr, HistoryEnabled);
 
     let mut vm = init_vm_inner(
         &mut oracle_tools,
@@ -1614,7 +1696,7 @@ fn test_is_write_initial_behaviour() {
     let balance_key = storage_key_for_eth_balance(&sender_address);
     storage_ptr.set_value(&balance_key, u256_to_h256(U256([0, 0, 1, 0])));
 
-    let mut oracle_tools = OracleTools::new(storage_ptr);
+    let mut oracle_tools = OracleTools::new(storage_ptr, HistoryEnabled);
 
     let mut vm = init_vm_inner(
         &mut oracle_tools,
@@ -1627,7 +1709,7 @@ fn test_is_write_initial_behaviour() {
 
     push_transaction_to_bootloader_memory(&mut vm, &tx, TxExecutionMode::VerifyExecute, None);
 
-    vm.execute_next_tx(u32::MAX)
+    vm.execute_next_tx(u32::MAX, false)
         .expect("Bootloader failed while processing the first transaction");
     // Check that `is_write_initial` still returns true for the nonce key.
     assert!(storage_ptr.is_write_initial(&nonce_key));
@@ -1648,12 +1730,59 @@ pub fn get_l1_tx_with_custom_bytecode_hash(
 const L1_TEST_GAS_PER_PUBDATA_BYTE: u32 = 800;
 
 pub fn get_l1_execute_test_contract_tx(deployed_address: Address, with_panic: bool) -> Transaction {
-    let execute = execute_test_contract(deployed_address, with_panic);
+    let sender = H160::random();
+    get_l1_execute_test_contract_tx_with_sender(
+        sender,
+        deployed_address,
+        with_panic,
+        U256::zero(),
+        false,
+    )
+}
+
+pub fn get_l1_tx_with_large_output(sender: Address, deployed_address: Address) -> Transaction {
+    let test_contract = load_contract(
+        "etc/contracts-test-data/artifacts-zk/contracts/long-return-data/long-return-data.sol/LongReturnData.json",
+    );
+
+    let function = test_contract.function("longReturnData").unwrap();
+
+    let calldata = function
+        .encode_input(&[])
+        .expect("failed to encode parameters");
+
     Transaction {
         common_data: ExecuteTransactionCommon::L1(L1TxCommonData {
-            sender: H160::random(),
-            gas_limit: U256::from(1000000u32),
+            sender,
+            gas_limit: U256::from(100000000u32),
             gas_per_pubdata_limit: L1_TEST_GAS_PER_PUBDATA_BYTE.into(),
+            ..Default::default()
+        }),
+        execute: Execute {
+            contract_address: deployed_address,
+            calldata,
+            value: U256::zero(),
+            factory_deps: None,
+        },
+        received_timestamp_ms: 0,
+    }
+}
+
+pub fn get_l1_execute_test_contract_tx_with_sender(
+    sender: Address,
+    deployed_address: Address,
+    with_panic: bool,
+    value: U256,
+    payable: bool,
+) -> Transaction {
+    let execute = execute_test_contract(deployed_address, with_panic, value, payable);
+
+    Transaction {
+        common_data: ExecuteTransactionCommon::L1(L1TxCommonData {
+            sender,
+            gas_limit: U256::from(200_000_000u32),
+            gas_per_pubdata_limit: L1_TEST_GAS_PER_PUBDATA_BYTE.into(),
+            to_mint: value,
             ..Default::default()
         }),
         execute,
@@ -1680,6 +1809,10 @@ fn read_test_contract() -> Vec<u8> {
     read_bytecode("etc/contracts-test-data/artifacts-zk/contracts/counter/counter.sol/Counter.json")
 }
 
+fn read_long_return_data_contract() -> Vec<u8> {
+    read_bytecode("etc/contracts-test-data/artifacts-zk/contracts/long-return-data/long-return-data.sol/LongReturnData.json")
+}
+
 fn read_nonce_holder_tester() -> Vec<u8> {
     read_bytecode("etc/contracts-test-data/artifacts-zk/contracts/custom-account/nonce-holder-test.sol/NonceHolderTest.json")
 }
@@ -1690,20 +1823,352 @@ fn read_error_contract() -> Vec<u8> {
     )
 }
 
-fn execute_test_contract(address: Address, with_panic: bool) -> Execute {
+fn execute_test_contract(
+    address: Address,
+    with_panic: bool,
+    value: U256,
+    payable: bool,
+) -> Execute {
     let test_contract = load_contract(
         "etc/contracts-test-data/artifacts-zk/contracts/counter/counter.sol/Counter.json",
     );
 
-    let function = test_contract.function("incrementWithRevert").unwrap();
+    let function = if payable {
+        test_contract
+            .function("incrementWithRevertPayable")
+            .unwrap()
+    } else {
+        test_contract.function("incrementWithRevert").unwrap()
+    };
 
     let calldata = function
         .encode_input(&[Token::Uint(U256::from(1u8)), Token::Bool(with_panic)])
         .expect("failed to encode parameters");
+
     Execute {
         contract_address: address,
         calldata,
-        value: U256::zero(),
+        value,
         factory_deps: None,
     }
+}
+
+#[test]
+fn test_call_tracer() {
+    let sender = H160::random();
+    let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
+    let db = RocksDB::new(Database::StateKeeper, temp_dir.as_ref(), false);
+    let mut raw_storage = SecondaryStateStorage::new(db);
+    insert_system_contracts(&mut raw_storage);
+
+    let (block_context, block_properties) = create_test_block_params();
+
+    let contract_code = read_test_contract();
+    let contract_code_hash = hash_bytecode(&contract_code);
+    let l1_deploy_tx = get_l1_deploy_tx(&contract_code, &[]);
+    let l1_deploy_tx_data: TransactionData = l1_deploy_tx.clone().into();
+
+    let sender_address_counter = l1_deploy_tx_data.from();
+    let mut storage_accessor = StorageView::new(&raw_storage);
+    let storage_ptr: &mut dyn Storage = &mut storage_accessor;
+
+    let key = storage_key_for_eth_balance(&sender_address_counter);
+    storage_ptr.set_value(&key, u256_to_h256(U256([0, 0, 1, 0])));
+
+    let mut oracle_tools = OracleTools::new(storage_ptr, HistoryEnabled);
+    oracle_tools.decommittment_processor.populate(
+        vec![(
+            h256_to_u256(contract_code_hash),
+            bytes_to_be_words(contract_code),
+        )],
+        Timestamp(0),
+    );
+
+    let contract_code = read_long_return_data_contract();
+    let contract_code_hash = hash_bytecode(&contract_code);
+    let l1_deploy_long_return_data_tx = get_l1_deploy_tx(&contract_code, &[]);
+    oracle_tools.decommittment_processor.populate(
+        vec![(
+            h256_to_u256(contract_code_hash),
+            bytes_to_be_words(contract_code),
+        )],
+        Timestamp(0),
+    );
+
+    let tx_data: TransactionData = l1_deploy_long_return_data_tx.clone().into();
+    let sender_long_return_address = tx_data.from();
+    // The contract should be deployed successfully.
+    let deployed_address_long_return_data =
+        deployed_address_create(sender_long_return_address, U256::zero());
+    let mut vm = init_vm_inner(
+        &mut oracle_tools,
+        BlockContextMode::NewBlock(block_context.into(), Default::default()),
+        &block_properties,
+        BLOCK_GAS_LIMIT,
+        &BASE_SYSTEM_CONTRACTS,
+        TxExecutionMode::VerifyExecute,
+    );
+
+    push_transaction_to_bootloader_memory(
+        &mut vm,
+        &l1_deploy_tx,
+        TxExecutionMode::VerifyExecute,
+        None,
+    );
+
+    // The contract should be deployed successfully.
+    let deployed_address = deployed_address_create(sender_address_counter, U256::zero());
+    let res = vm.execute_next_tx(u32::MAX, true).unwrap();
+    let calls = res.call_traces;
+    let mut create_call = None;
+    // The first MIMIC call is call to value simulator. All calls goes through it.
+    // The second MIMIC call is call to Deployer contract.
+    // And only third level call is construct call to the newly deployed contract And we call it create_call.
+    for call in &calls {
+        if let CallType::Call(FarCallOpcode::Mimic) = call.r#type {
+            for call in &call.calls {
+                if let CallType::Call(FarCallOpcode::Mimic) = call.r#type {
+                    for call in &call.calls {
+                        if let CallType::Create = call.r#type {
+                            create_call = Some(call.clone());
+                        }
+                    }
+                }
+            }
+        }
+    }
+    let expected = Call {
+        r#type: CallType::Create,
+        to: deployed_address,
+        from: sender_address_counter,
+        parent_gas: 0,
+        gas_used: 0,
+        gas: 0,
+        value: U256::zero(),
+        input: vec![],
+        output: vec![
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0,
+        ],
+        error: None,
+        revert_reason: None,
+        calls: vec![],
+    };
+    assert_eq!(create_call.unwrap(), expected);
+
+    push_transaction_to_bootloader_memory(
+        &mut vm,
+        &l1_deploy_long_return_data_tx,
+        TxExecutionMode::VerifyExecute,
+        None,
+    );
+
+    vm.execute_next_tx(u32::MAX, false).unwrap();
+
+    let tx = get_l1_execute_test_contract_tx_with_sender(
+        sender,
+        deployed_address,
+        false,
+        U256::from(1u8),
+        true,
+    );
+
+    let tx_data: TransactionData = tx.clone().into();
+    push_transaction_to_bootloader_memory(&mut vm, &tx, TxExecutionMode::VerifyExecute, None);
+
+    let res = vm.execute_next_tx(u32::MAX, true).unwrap();
+    let calls = res.call_traces;
+
+    // We don't want to compare gas used, because it's not fully deterministic.
+    let expected = Call {
+        r#type: CallType::Call(FarCallOpcode::Mimic),
+        to: deployed_address,
+        from: tx_data.from(),
+        parent_gas: 0,
+        gas_used: 0,
+        gas: 0,
+        value: U256::from(1),
+        input: tx_data.data,
+        output: vec![
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 1,
+        ],
+        error: None,
+        revert_reason: None,
+        calls: vec![],
+    };
+
+    // First loop filter out the bootloaders calls and
+    // the second loop filters out the calls msg value simulator calls
+    for call in calls {
+        if let CallType::Call(FarCallOpcode::Mimic) = call.r#type {
+            for call in call.calls {
+                if let CallType::Call(FarCallOpcode::Mimic) = call.r#type {
+                    assert_eq!(expected, call);
+                }
+            }
+        }
+    }
+
+    let tx = get_l1_execute_test_contract_tx_with_sender(
+        sender,
+        deployed_address,
+        true,
+        U256::from(1u8),
+        true,
+    );
+
+    let tx_data: TransactionData = tx.clone().into();
+    push_transaction_to_bootloader_memory(&mut vm, &tx, TxExecutionMode::VerifyExecute, None);
+
+    let res = vm.execute_next_tx(u32::MAX, true).unwrap();
+    let calls = res.call_traces;
+
+    let expected = Call {
+        r#type: CallType::Call(FarCallOpcode::Mimic),
+        to: deployed_address,
+        from: tx_data.from(),
+        parent_gas: 257030,
+        gas_used: 348,
+        gas: 253008,
+        value: U256::from(1u8),
+        input: tx_data.data,
+        output: vec![],
+        error: None,
+        revert_reason: Some("This method always reverts".to_string()),
+        calls: vec![],
+    };
+
+    for call in calls {
+        if let CallType::Call(FarCallOpcode::Mimic) = call.r#type {
+            for call in call.calls {
+                if let CallType::Call(FarCallOpcode::Mimic) = call.r#type {
+                    assert_eq!(expected, call);
+                }
+            }
+        }
+    }
+
+    let tx = get_l1_tx_with_large_output(sender, deployed_address_long_return_data);
+
+    let tx_data: TransactionData = tx.clone().into();
+    push_transaction_to_bootloader_memory(&mut vm, &tx, TxExecutionMode::VerifyExecute, None);
+
+    assert_ne!(deployed_address_long_return_data, deployed_address);
+    let res = vm.execute_next_tx(u32::MAX, true).unwrap();
+    let calls = res.call_traces;
+    for call in calls {
+        if let CallType::Call(FarCallOpcode::Mimic) = call.r#type {
+            for call in call.calls {
+                if let CallType::Call(FarCallOpcode::Mimic) = call.r#type {
+                    assert_eq!(call.input, tx_data.data);
+                    assert_eq!(
+                        call.revert_reason,
+                        Some("Unknown revert reason".to_string())
+                    );
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn test_get_used_contracts() {
+    // get block context
+    let (block_context, block_properties) = create_test_block_params();
+    let block_context: DerivedBlockContext = block_context.into();
+
+    // insert system contracts to avoid vm errors during initialization
+    let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
+    let db = RocksDB::new(Database::StateKeeper, temp_dir.as_ref(), false);
+    let mut raw_storage = SecondaryStateStorage::new(db);
+    insert_system_contracts(&mut raw_storage);
+
+    // get oracle tools
+    let storage_ptr: &mut dyn Storage = &mut StorageView::new(&raw_storage);
+    let mut oracle_tools = OracleTools::new(storage_ptr, HistoryEnabled);
+
+    // init vm
+    let mut vm = init_vm_inner(
+        &mut oracle_tools,
+        BlockContextMode::NewBlock(block_context, Default::default()),
+        &block_properties,
+        BLOCK_GAS_LIMIT,
+        &BASE_SYSTEM_CONTRACTS,
+        TxExecutionMode::VerifyExecute,
+    );
+
+    assert!(known_bytecodes_without_aa_code(&vm).is_empty());
+
+    // create and push and execute some not-empty factory deps transaction with success status
+    // to check that get_used_contracts() updates
+    let contract_code = read_test_contract();
+    let contract_code_hash = hash_bytecode(&contract_code);
+    let tx1 = get_l1_deploy_tx(&contract_code, &[]);
+
+    push_transaction_to_bootloader_memory(&mut vm, &tx1, TxExecutionMode::VerifyExecute, None);
+
+    let res1 = vm.execute_next_tx(u32::MAX, true).unwrap();
+    assert_eq!(res1.status, TxExecutionStatus::Success);
+    assert!(vm
+        .get_used_contracts()
+        .contains(&h256_to_u256(contract_code_hash)));
+
+    assert_eq!(
+        vm.get_used_contracts()
+            .into_iter()
+            .collect::<HashSet<U256>>(),
+        known_bytecodes_without_aa_code(&vm)
+            .keys()
+            .cloned()
+            .collect::<HashSet<U256>>()
+    );
+
+    // create push and execute some non-empty factory deps transaction that fails
+    // (known_bytecodes will be updated but we expect get_used_contracts() to not be updated)
+
+    let mut tx2 = tx1;
+    tx2.execute.contract_address = L1_MESSENGER_ADDRESS;
+
+    let calldata = vec![1, 2, 3];
+    let big_calldata: Vec<u8> = calldata
+        .iter()
+        .cycle()
+        .take(calldata.len() * 1024)
+        .cloned()
+        .collect();
+
+    tx2.execute.calldata = big_calldata;
+    tx2.execute.factory_deps = Some(vec![vec![1; 32]]);
+
+    push_transaction_to_bootloader_memory(&mut vm, &tx2, TxExecutionMode::VerifyExecute, None);
+
+    let res2 = vm.execute_next_tx(u32::MAX, false).unwrap();
+
+    assert_eq!(res2.status, TxExecutionStatus::Failure);
+
+    for factory_dep in tx2.execute.factory_deps.unwrap() {
+        let hash = hash_bytecode(&factory_dep);
+        let hash_to_u256 = h256_to_u256(hash);
+        assert!(known_bytecodes_without_aa_code(&vm)
+            .keys()
+            .contains(&hash_to_u256));
+        assert!(!vm.get_used_contracts().contains(&hash_to_u256));
+    }
+}
+
+fn known_bytecodes_without_aa_code<H: HistoryMode>(vm: &VmInstance<H>) -> HashMap<U256, Vec<U256>> {
+    let mut known_bytecodes_without_aa_code = vm
+        .state
+        .decommittment_processor
+        .known_bytecodes
+        .inner()
+        .clone();
+
+    known_bytecodes_without_aa_code
+        .remove(&h256_to_u256(BASE_SYSTEM_CONTRACTS.default_aa.hash))
+        .unwrap();
+
+    known_bytecodes_without_aa_code
 }

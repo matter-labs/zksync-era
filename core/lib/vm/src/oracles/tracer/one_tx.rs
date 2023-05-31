@@ -1,25 +1,27 @@
 use super::utils::{computational_gas_price, print_debug_if_needed};
 use crate::{
+    history_recorder::HistoryMode,
     memory::SimpleMemory,
     oracles::tracer::{
-        utils::VmHook, BootloaderTracer, ExecutionEndTracer, PendingRefundTracer,
-        PubdataSpentTracer,
+        utils::{gas_spent_on_bytecodes_and_long_messages_this_opcode, VmHook},
+        BootloaderTracer, ExecutionEndTracer, PendingRefundTracer, PubdataSpentTracer,
     },
     vm::get_vm_hook_params,
 };
 
+use crate::oracles::tracer::{CallTracer, StorageInvocationTracer};
 use zk_evm::{
     abstractions::{
         AfterDecodingData, AfterExecutionData, BeforeExecutionData, Tracer, VmLocalStateData,
     },
     vm_state::VmLocalState,
-    zkevm_opcode_defs::{LogOpcode, Opcode},
 };
-use zksync_config::constants::{KNOWN_CODES_STORAGE_ADDRESS, L1_MESSENGER_ADDRESS};
+use zksync_types::vm_trace::Call;
 
 /// Allows any opcodes, but tells the VM to end the execution once the tx is over.
-#[derive(Debug, Clone)]
-pub struct OneTxTracer {
+// Internally depeds on Bootloader's VMHooks to get the notification once the transaction is finished.
+#[derive(Debug)]
+pub struct OneTxTracer<H: HistoryMode> {
     tx_has_been_processed: bool,
 
     // Some(x) means that the bootloader has asked the operator
@@ -30,19 +32,23 @@ pub struct OneTxTracer {
     pub refund_gas: u32,
     pub gas_spent_on_bytecodes_and_long_messages: u32,
 
+    // Amount of gas used during account validation.
     computational_gas_used: u32,
+    // Maximum number of gas that we're allowed to use during account validation.
     computational_gas_limit: u32,
     in_account_validation: bool,
 
-    bootloader_tracer: BootloaderTracer,
+    bootloader_tracer: BootloaderTracer<H>,
+    call_tracer: Option<CallTracer<H>>,
 }
 
-impl Tracer for OneTxTracer {
+impl<H: HistoryMode> Tracer for OneTxTracer<H> {
     const CALL_BEFORE_EXECUTION: bool = true;
     const CALL_AFTER_EXECUTION: bool = true;
-    type SupportedMemory = SimpleMemory;
+    type SupportedMemory = SimpleMemory<H>;
 
     fn before_decoding(&mut self, _state: VmLocalStateData<'_>, _memory: &Self::SupportedMemory) {}
+
     fn after_decoding(
         &mut self,
         _state: VmLocalStateData<'_>,
@@ -77,17 +83,8 @@ impl Tracer for OneTxTracer {
             _ => {}
         }
 
-        if data.opcode.variant.opcode == Opcode::Log(LogOpcode::PrecompileCall) {
-            let current_stack = state.vm_local_state.callstack.get_current_stack();
-            // Trace for precompile calls from `KNOWN_CODES_STORAGE_ADDRESS` and `L1_MESSENGER_ADDRESS` that burn some gas.
-            // Note, that if there is less gas left than requested to burn it will be burnt anyway.
-            if current_stack.this_address == KNOWN_CODES_STORAGE_ADDRESS
-                || current_stack.this_address == L1_MESSENGER_ADDRESS
-            {
-                self.gas_spent_on_bytecodes_and_long_messages +=
-                    std::cmp::min(data.src1_value.value.as_u32(), current_stack.ergs_remaining);
-            }
-        }
+        self.gas_spent_on_bytecodes_and_long_messages +=
+            gas_spent_on_bytecodes_and_long_messages_this_opcode(&state, &data);
     }
 
     fn after_execution(
@@ -96,11 +93,14 @@ impl Tracer for OneTxTracer {
         data: AfterExecutionData,
         memory: &Self::SupportedMemory,
     ) {
-        self.bootloader_tracer.after_execution(state, data, memory)
+        self.bootloader_tracer.after_execution(state, data, memory);
+        if let Some(call_tracer) = self.call_tracer.as_mut() {
+            call_tracer.after_execution(state, data, memory);
+        }
     }
 }
 
-impl ExecutionEndTracer for OneTxTracer {
+impl<H: HistoryMode> ExecutionEndTracer<H> for OneTxTracer<H> {
     fn should_stop_execution(&self) -> bool {
         self.tx_has_been_processed
             || self.bootloader_tracer.should_stop_execution()
@@ -108,7 +108,7 @@ impl ExecutionEndTracer for OneTxTracer {
     }
 }
 
-impl PendingRefundTracer for OneTxTracer {
+impl<H: HistoryMode> PendingRefundTracer<H> for OneTxTracer<H> {
     fn requested_refund(&self) -> Option<u32> {
         self.pending_operator_refund
     }
@@ -118,14 +118,21 @@ impl PendingRefundTracer for OneTxTracer {
     }
 }
 
-impl PubdataSpentTracer for OneTxTracer {
+impl<H: HistoryMode> PubdataSpentTracer<H> for OneTxTracer<H> {
     fn gas_spent_on_pubdata(&self, vm_local_state: &VmLocalState) -> u32 {
         self.gas_spent_on_bytecodes_and_long_messages + vm_local_state.spent_pubdata_counter
     }
 }
 
-impl OneTxTracer {
-    pub fn new(computational_gas_limit: u32) -> Self {
+impl<H: HistoryMode> StorageInvocationTracer<H> for OneTxTracer<H> {}
+
+impl<H: HistoryMode> OneTxTracer<H> {
+    pub fn new(computational_gas_limit: u32, with_call_tracer: bool) -> Self {
+        let call_tracer = if with_call_tracer {
+            Some(CallTracer::new())
+        } else {
+            None
+        };
         Self {
             tx_has_been_processed: false,
             pending_operator_refund: None,
@@ -135,6 +142,7 @@ impl OneTxTracer {
             computational_gas_limit,
             in_account_validation: false,
             bootloader_tracer: BootloaderTracer::default(),
+            call_tracer,
         }
     }
 
@@ -148,5 +156,11 @@ impl OneTxTracer {
 
     pub fn validation_run_out_of_gas(&self) -> bool {
         self.computational_gas_used > self.computational_gas_limit
+    }
+
+    pub fn call_traces(&mut self) -> Vec<Call> {
+        self.call_tracer
+            .as_mut()
+            .map_or(vec![], |call_tracer| call_tracer.extract_calls())
     }
 }

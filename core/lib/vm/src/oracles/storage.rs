@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use crate::storage::StoragePtr;
 
 use crate::history_recorder::{
-    AppDataFrameManagerWithHistory, FrameManager, HashMapHistoryEvent, HistoryRecorder,
-    StorageWrapper, WithHistory,
+    AppDataFrameManagerWithHistory, HashMapHistoryEvent, HistoryEnabled, HistoryMode,
+    HistoryRecorder, StorageWrapper, WithHistory,
 };
 
 use zk_evm::abstractions::RefundedAmounts;
@@ -12,7 +12,6 @@ use zk_evm::zkevm_opcode_defs::system_params::INITIAL_STORAGE_WRITE_PUBDATA_BYTE
 use zk_evm::{
     abstractions::{RefundType, Storage as VmStorageOracle},
     aux_structures::{LogQuery, Timestamp},
-    reference_impls::event_sink::ApplicationData,
 };
 use zksync_types::utils::storage_key_for_eth_balance;
 use zksync_types::{
@@ -34,41 +33,42 @@ pub fn storage_key_of_log(query: &LogQuery) -> StorageKey {
 }
 
 #[derive(Debug)]
-pub struct StorageOracle<'a> {
+pub struct StorageOracle<'a, H: HistoryMode> {
     // Access to the persistent storage. Please note that it
     // is used only for read access. All the actual writes happen
     // after the execution ended.
-    pub storage: HistoryRecorder<StorageWrapper<'a>>,
+    pub storage: HistoryRecorder<StorageWrapper<'a>, H>,
 
-    pub frames_stack: AppDataFrameManagerWithHistory<StorageLogQuery>,
+    pub frames_stack: AppDataFrameManagerWithHistory<StorageLogQuery, H>,
 
     // The changes that have been paid for in previous transactions.
     // It is a mapping from storage key to the number of *bytes* that was paid by the user
     // to cover this slot.
-    pub paid_changes: HistoryRecorder<HashMap<StorageKey, u32>>,
+    // `paid_changes` history is necessary
+    pub paid_changes: HistoryRecorder<HashMap<StorageKey, u32>, HistoryEnabled>,
 }
 
-impl<'a> OracleWithHistory for StorageOracle<'a> {
+impl OracleWithHistory for StorageOracle<'_, HistoryEnabled> {
     fn rollback_to_timestamp(&mut self, timestamp: Timestamp) {
         self.frames_stack.rollback_to_timestamp(timestamp);
         self.storage.rollback_to_timestamp(timestamp);
         self.paid_changes.rollback_to_timestamp(timestamp);
     }
-
-    fn delete_history(&mut self) {
-        self.frames_stack.delete_history();
-        self.storage.delete_history();
-        self.paid_changes.delete_history();
-    }
 }
 
-impl<'a> StorageOracle<'a> {
+impl<'a, H: HistoryMode> StorageOracle<'a, H> {
     pub fn new(storage: StoragePtr<'a>) -> Self {
         Self {
             storage: HistoryRecorder::from_inner(StorageWrapper::new(storage)),
             frames_stack: Default::default(),
             paid_changes: Default::default(),
         }
+    }
+
+    pub fn delete_history(&mut self) {
+        self.frames_stack.delete_history();
+        self.storage.delete_history();
+        self.paid_changes.delete_history();
     }
 
     fn is_storage_key_free(&self, key: &StorageKey) -> bool {
@@ -163,16 +163,7 @@ impl<'a> StorageOracle<'a> {
     }
 
     pub fn get_size(&self) -> usize {
-        let frames_stack_size = self
-            .frames_stack
-            .inner()
-            .get_frames()
-            .iter()
-            .map(|frame| {
-                (frame.rollbacks.len() + frame.forward.len())
-                    * std::mem::size_of::<StorageLogQuery>()
-            })
-            .sum::<usize>();
+        let frames_stack_size = self.frames_stack.get_size();
         let paid_changes_size =
             self.paid_changes.inner().len() * std::mem::size_of::<(StorageKey, u32)>();
 
@@ -180,19 +171,16 @@ impl<'a> StorageOracle<'a> {
     }
 
     pub fn get_history_size(&self) -> usize {
-        let storage_size = self.storage.history().len()
+        let storage_size = self.storage.borrow_history(|h| h.len(), 0)
             * std::mem::size_of::<<StorageWrapper as WithHistory>::HistoryRecord>();
-        let frames_stack_size = self.frames_stack.history().len()
-            * std::mem::size_of::<
-                <FrameManager<ApplicationData<StorageLogQuery>> as WithHistory>::HistoryRecord,
-            >();
-        let paid_changes_size = self.paid_changes.history().len()
+        let frames_stack_size = self.frames_stack.get_history_size();
+        let paid_changes_size = self.paid_changes.borrow_history(|h| h.len(), 0)
             * std::mem::size_of::<<HashMap<StorageKey, u32> as WithHistory>::HistoryRecord>();
         storage_size + frames_stack_size + paid_changes_size
     }
 }
 
-impl<'a> VmStorageOracle for StorageOracle<'a> {
+impl<H: HistoryMode> VmStorageOracle for StorageOracle<'_, H> {
     // Perform a storage read/write access by taking an partially filled query
     // and returning filled query and cold/warm marker for pricing purposes
     fn execute_partial_query(
@@ -260,12 +248,9 @@ impl<'a> VmStorageOracle for StorageOracle<'a> {
     fn finish_frame(&mut self, timestamp: Timestamp, panicked: bool) {
         // If we panic then we append forward and rollbacks to the forward of parent,
         // otherwise we place rollbacks of child before rollbacks of the parent
-        let current_frame = self.frames_stack.drain_frame(timestamp);
-        let ApplicationData { forward, rollbacks } = current_frame;
-
         if panicked {
             // perform actual rollback
-            for query in rollbacks.iter().rev() {
+            for query in self.frames_stack.rollback().current_frame().iter().rev() {
                 let read_value = match query.log_type {
                     StorageLogQueryType::Read => {
                         // Having Read logs in rollback is not possible
@@ -296,23 +281,21 @@ impl<'a> VmStorageOracle for StorageOracle<'a> {
                 assert_eq!(current_value, written_value);
             }
 
-            for query in forward {
-                self.frames_stack.push_forward(query, timestamp)
-            }
-            for query in rollbacks.into_iter().rev() {
-                self.frames_stack.push_forward(query, timestamp)
-            }
-        } else {
-            for query in forward {
-                self.frames_stack.push_forward(query, timestamp)
-            }
-            for query in rollbacks {
-                self.frames_stack.push_rollback(query, timestamp)
-            }
+            self.frames_stack
+                .move_rollback_to_forward(|_| true, timestamp);
         }
+        self.frames_stack.merge_frame(timestamp);
     }
 }
 
+/// Returns the number of bytes needed to publish a slot.
+// Since we need to publish the state diffs onchain, for each of the updated storage slot
+// we basically need to publish the following pair: (<storage_key, new_value>).
+// While new_value is always 32 bytes long, for key we use the following optimization:
+//   - The first time we publish it, we use 32 bytes.
+//         Then, we remember a 8-byte id for this slot and assign it to it. We call this initial write.
+//   - The second time we publish it, we will use this 8-byte instead of the 32 bytes of the entire key.
+//         So the total size of the publish pubdata is 40 bytes. We call this kind of write the repeated one
 fn get_pubdata_price_bytes(_query: &LogQuery, is_initial: bool) -> u32 {
     if is_initial {
         zk_evm::zkevm_opcode_defs::system_params::INITIAL_STORAGE_WRITE_PUBDATA_BYTES as u32

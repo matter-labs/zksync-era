@@ -2,7 +2,7 @@ use core::fmt::Debug;
 
 use blake2::{Blake2s256, Digest};
 use serde::{Deserialize, Serialize};
-use zksync_basic_types::web3::signing::keccak256;
+use zksync_basic_types::{web3::signing::keccak256, L2ChainId};
 
 use crate::{AccountTreeId, Address, H160, H256, U256};
 
@@ -110,18 +110,15 @@ pub trait ZkSyncReadStorage: Debug {
     /// Returns if the write to the given key is initial.
     fn is_write_initial(&mut self, key: &StorageKey) -> bool;
 
-    /// Load the contract code deployed to the provided address.
-    fn load_contract(&mut self, address: Address) -> Option<Vec<u8>>;
-
     /// Load the factory dependency code by its hash.
     fn load_factory_dep(&mut self, hash: H256) -> Option<Vec<u8>>;
 }
 
-pub fn get_system_context_init_logs(chain_id: H256) -> Vec<StorageLog> {
+pub fn get_system_context_init_logs(chain_id: L2ChainId) -> Vec<StorageLog> {
     vec![
         StorageLog::new_write_log(
             get_system_context_key(SYSTEM_CONTEXT_CHAIN_ID_POSITION),
-            chain_id,
+            H256::from_low_u64_be(chain_id.0 as u64),
         ),
         StorageLog::new_write_log(
             get_system_context_key(SYSTEM_CONTEXT_BLOCK_GAS_LIMIT_POSITION),

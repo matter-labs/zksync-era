@@ -1,18 +1,22 @@
-use structopt::StructOpt;
+use clap::{Parser, Subcommand};
 use zksync_config::DBConfig;
 use zksync_storage::rocksdb::backup::{BackupEngine, BackupEngineOptions, RestoreOptions};
 use zksync_storage::rocksdb::{Error, Options, DB};
 
-#[derive(StructOpt, Debug)]
-#[structopt(name = "rocksdb management utility")]
-enum Opt {
-    #[structopt(
-        name = "backup",
-        about = "Creates new backup of running rocksdb instance"
-    )]
-    Backup,
+#[derive(Debug, Parser)]
+#[command(author = "Matter Labs", version, about = "RocksDB management utility", long_about = None)]
+struct Cli {
+    #[command(subcommand)]
+    command: Command,
+}
 
-    #[structopt(name = "restore-from-backup", about = "Restores rocksdb from backup")]
+#[derive(Debug, Subcommand)]
+enum Command {
+    /// Creates new backup of running RocksDB instance.
+    #[command(name = "backup")]
+    Backup,
+    /// Restores RocksDB from backup.
+    #[command(name = "restore-from-backup")]
     Restore,
 }
 
@@ -36,9 +40,9 @@ fn restore_from_latest_backup(config: &DBConfig) -> Result<(), Error> {
 
 fn main() {
     let config = DBConfig::from_env();
-    match Opt::from_args() {
-        Opt::Backup => create_backup(&config).unwrap(),
-        Opt::Restore => restore_from_latest_backup(&config).unwrap(),
+    match Cli::parse().command {
+        Command::Backup => create_backup(&config).unwrap(),
+        Command::Restore => restore_from_latest_backup(&config).unwrap(),
     }
 }
 

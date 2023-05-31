@@ -1,14 +1,10 @@
-use std::{
-    cmp::{max, min},
-    collections::HashMap,
-    str::FromStr,
-};
+use std::{collections::HashMap, str::FromStr};
 
 use async_trait::async_trait;
 use chrono::{DateTime, NaiveDateTime, Utc};
 use futures::try_join;
 use itertools::Itertools;
-use num::{rational::Ratio, BigUint, FromPrimitive};
+use num::{rational::Ratio, BigUint};
 use reqwest::{Client, Url};
 use serde::{Deserialize, Serialize};
 
@@ -139,26 +135,7 @@ impl FetcherImpl for CoinGeckoFetcher {
         let result = token_prices
             .into_iter()
             .map(|(address, coingecko_token_price)| {
-                let usd_price = {
-                    let current_price = coingecko_token_price.usd;
-                    if let Some(usd_24h_change) = coingecko_token_price.usd_24h_change {
-                        let percent_price_diff = BigUint::from_f64(100.0f64 - usd_24h_change);
-                        if let Some(percent_price_diff) = percent_price_diff {
-                            let yesterdays_price =
-                                (&current_price * percent_price_diff) / BigUint::from(100u32);
-
-                            if address == ETHEREUM_ADDRESS {
-                                max(current_price, yesterdays_price)
-                            } else {
-                                min(current_price, yesterdays_price)
-                            }
-                        } else {
-                            current_price
-                        }
-                    } else {
-                        current_price
-                    }
-                };
+                let usd_price = coingecko_token_price.usd;
 
                 let last_updated = {
                     let naive_last_updated =

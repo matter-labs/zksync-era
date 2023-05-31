@@ -18,6 +18,7 @@ pub mod eth_client;
 pub mod eth_sender;
 pub mod eth_watch;
 pub mod fetcher;
+pub mod house_keeper;
 pub mod nfs;
 pub mod object_store;
 pub mod prover;

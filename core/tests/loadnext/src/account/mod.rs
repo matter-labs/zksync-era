@@ -143,7 +143,6 @@ impl AccountLifespan {
         };
         self.execute_command(deploy_command.clone()).await;
         self.wait_for_all_inflight_tx().await;
-
         let mut timer = tokio::time::interval(POLLING_INTERVAL);
         loop {
             let command = self.generate_command();
@@ -173,21 +172,45 @@ impl AccountLifespan {
         // If some txs haven't been processed yet, we'll check them in the next iteration.
         // Due to natural sleep for sending tx, usually more than 1 tx can be already
         // processed and have a receipt
+        let start = Instant::now();
+        vlog::debug!(
+            "Account {:?}: check_inflight_txs len {:?}",
+            self.wallet.wallet.address(),
+            self.inflight_txs.len()
+        );
         while let Some(tx) = self.inflight_txs.pop_front() {
-            if let Ok(Some(transaction_receipt)) =
-                self.get_tx_receipt_for_committed_block(tx.tx_hash).await
-            {
-                let label = self.verify_receipt(
-                    &transaction_receipt,
-                    &tx.command.modifier.expected_outcome(),
-                );
-                self.report(label, tx.start.elapsed(), tx.attempt, tx.command)
-                    .await;
-            } else {
-                self.inflight_txs.push_front(tx);
-                break;
+            let receipt = self.get_tx_receipt_for_committed_block(tx.tx_hash).await;
+            match receipt {
+                Ok(Some(transaction_receipt)) => {
+                    let label = self.verify_receipt(
+                        &transaction_receipt,
+                        &tx.command.modifier.expected_outcome(),
+                    );
+                    vlog::trace!(
+                        "Account {:?}: check_inflight_txs tx is included after {:?} attempt {:?}",
+                        self.wallet.wallet.address(),
+                        tx.start.elapsed(),
+                        tx.attempt
+                    );
+                    self.report(label, tx.start.elapsed(), tx.attempt, tx.command)
+                        .await;
+                }
+                other => {
+                    vlog::debug!(
+                        "Account {:?}: check_inflight_txs tx not yet included: {:?}",
+                        self.wallet.wallet.address(),
+                        other
+                    );
+                    self.inflight_txs.push_front(tx);
+                    break;
+                }
             }
         }
+        vlog::debug!(
+            "Account {:?}: check_inflight_txs complete {:?}",
+            self.wallet.wallet.address(),
+            start.elapsed()
+        );
     }
 
     fn verify_receipt(
@@ -240,6 +263,10 @@ impl AccountLifespan {
                 Ok(result) => result,
                 Err(ClientError::NetworkError(_)) | Err(ClientError::OperationTimeout) => {
                     if attempt < MAX_RETRIES {
+                        vlog::warn!(
+                            "Error while sending tx: {}. Retrying...",
+                            result.unwrap_err()
+                        );
                         // Retry operation.
                         attempt += 1;
                         continue;
@@ -269,7 +296,7 @@ impl AccountLifespan {
                     self.successfully_sent_txs.write().await.push(tx_hash)
                 }
                 SubmitResult::ReportLabel(label) => {
-                    // Make a report if it was some problems in sending tx
+                    // Make a report if there was some problems sending tx
                     self.report(label, start.elapsed(), attempt, command).await
                 }
             };
@@ -357,7 +384,7 @@ impl AccountLifespan {
                             err.message().to_string()
                         }
                     };
-                    if message.contains("nonce is incorrect") {
+                    if message.contains("nonce") {
                         self.reset_nonce().await;
                         return Ok(SubmitResult::ReportLabel(ReportLabel::skipped(&message)));
                     }

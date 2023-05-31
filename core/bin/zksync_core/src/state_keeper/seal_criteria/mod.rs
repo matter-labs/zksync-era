@@ -17,15 +17,11 @@ use zksync_types::block::BlockGasCount;
 use zksync_types::tx::tx_execution_info::{DeduplicatedWritesMetrics, ExecutionMetrics};
 use zksync_utils::time::{millis_since, millis_since_epoch};
 
+use self::conditional_sealer::ConditionalSealer;
 use super::updates::UpdatesManager;
 
-pub(crate) mod function;
-pub(crate) mod gas;
-mod geometry_seal_criteria;
-mod pubdata_bytes;
-pub(crate) mod slots;
-mod timeout;
-mod tx_encoding_size;
+pub(crate) mod conditional_sealer;
+pub(crate) mod criteria;
 
 /// Reported decision regarding block sealing.
 #[derive(Debug, Clone, PartialEq)]
@@ -102,68 +98,64 @@ pub trait SealCriterion: Debug + Send + 'static {
 pub type SealerFn = dyn Fn(&UpdatesManager) -> bool + Send;
 
 pub struct SealManager {
-    config: StateKeeperConfig,
-    /// Primary sealers set that is used to check if batch should be sealed after executing a transaction.
-    sealers: Vec<Box<dyn SealCriterion>>,
+    /// Conditional sealer, i.e. one that can decide whether the batch should be sealed after executing a tx.
+    /// Currently, it's expected to be `Some` on the main node and `None` on the external nodes, since external nodes
+    /// do not decide whether to seal the batch or not.
+    conditional_sealer: Option<ConditionalSealer>,
     /// Unconditional batch sealer, i.e. one that can be used if we should seal the batch *without* executing a tx.
-    unconditional_sealer: Box<SealerFn>,
+    /// If any of the unconditional sealers returns `true`, the batch will be sealed.
+    ///
+    /// Note: only non-empty batch can be sealed.
+    unconditional_sealers: Vec<Box<SealerFn>>,
     /// Miniblock sealer function used to determine if we should seal the miniblock.
-    miniblock_sealer: Box<SealerFn>,
+    /// If any of the miniblock sealers returns `true`, the miniblock will be sealed.
+    miniblock_sealers: Vec<Box<SealerFn>>,
 }
 
 impl Debug for SealManager {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("SealManager")
-            .field("config", &self.config)
-            .field("sealers", &self.sealers)
-            .finish()
+        f.debug_struct("SealManager").finish()
     }
 }
 
 impl SealManager {
-    /// Creates a default pre-configured seal manager.
+    /// Creates a default pre-configured seal manager for the main node.
     pub(crate) fn new(config: StateKeeperConfig) -> Self {
-        let sealers: Vec<Box<dyn SealCriterion>> = Self::get_default_sealers();
-        let unconditional_sealer = Self::timeout_and_code_hash_batch_sealer(
-            config.block_commit_deadline_ms,
-            BaseSystemContractsHashes {
-                bootloader: config.bootloader_hash,
-                default_aa: config.default_aa_hash,
-            },
-        );
-        let miniblock_sealer = Self::timeout_miniblock_sealer(config.miniblock_commit_deadline_ms);
+        let timeout_batch_sealer = Self::timeout_batch_sealer(config.block_commit_deadline_ms);
+        let code_hash_batch_sealer = Self::code_hash_batch_sealer(BaseSystemContractsHashes {
+            bootloader: config.bootloader_hash,
+            default_aa: config.default_aa_hash,
+        });
+        let timeout_miniblock_sealer =
+            Self::timeout_miniblock_sealer(config.miniblock_commit_deadline_ms);
+        let conditional_sealer = ConditionalSealer::new(config);
 
-        Self::custom(config, sealers, unconditional_sealer, miniblock_sealer)
+        Self::custom(
+            Some(conditional_sealer),
+            vec![timeout_batch_sealer, code_hash_batch_sealer],
+            vec![timeout_miniblock_sealer],
+        )
     }
 
     /// Allows to create a seal manager object from externally-defined sealers.
-    /// Mostly useful for test configuration.
     pub fn custom(
-        config: StateKeeperConfig,
-        sealers: Vec<Box<dyn SealCriterion>>,
-        unconditional_sealer: Box<SealerFn>,
-        miniblock_sealer: Box<SealerFn>,
+        conditional_sealer: Option<ConditionalSealer>,
+        unconditional_sealer: Vec<Box<SealerFn>>,
+        miniblock_sealer: Vec<Box<SealerFn>>,
     ) -> Self {
         Self {
-            config,
-            sealers,
-            unconditional_sealer,
-            miniblock_sealer,
+            conditional_sealer,
+            unconditional_sealers: unconditional_sealer,
+            miniblock_sealers: miniblock_sealer,
         }
     }
 
     /// Creates a sealer function that would seal the batch because of the timeout.
-    pub(crate) fn timeout_and_code_hash_batch_sealer(
-        block_commit_deadline_ms: u64,
-        base_system_contracts_hashes: BaseSystemContractsHashes,
-    ) -> Box<SealerFn> {
+    pub(crate) fn timeout_batch_sealer(block_commit_deadline_ms: u64) -> Box<SealerFn> {
         Box::new(move |manager| {
             // Verify timestamp
             let should_seal_timeout =
                 millis_since(manager.batch_timestamp()) > block_commit_deadline_ms;
-            // Verify code hashes
-            let should_seal_code_hashes =
-                base_system_contracts_hashes != manager.base_system_contract_hashes();
 
             if should_seal_timeout {
                 metrics::increment_counter!(
@@ -177,6 +169,20 @@ impl SealManager {
                     millis_since_epoch()
                 );
             }
+
+            should_seal_timeout
+        })
+    }
+
+    /// Creates a sealer function that would seal the batch if the provided base system contract hashes are different
+    /// from ones in the updates manager.
+    pub(crate) fn code_hash_batch_sealer(
+        base_system_contracts_hashes: BaseSystemContractsHashes,
+    ) -> Box<SealerFn> {
+        Box::new(move |manager| {
+            // Verify code hashes
+            let should_seal_code_hashes =
+                base_system_contracts_hashes != manager.base_system_contract_hashes();
 
             if should_seal_code_hashes {
                 metrics::increment_counter!(
@@ -192,7 +198,7 @@ impl SealManager {
                 );
             }
 
-            should_seal_timeout || should_seal_code_hashes
+            should_seal_code_hashes
         })
     }
 
@@ -220,10 +226,9 @@ impl SealManager {
         block_writes_metrics: DeduplicatedWritesMetrics,
         tx_writes_metrics: DeduplicatedWritesMetrics,
     ) -> SealResolution {
-        let mut final_seal_resolution = SealResolution::NoSeal;
-        for sealer in &self.sealers {
-            let seal_resolution = sealer.should_seal(
-                &self.config,
+        if let Some(sealer) = self.conditional_sealer.as_ref() {
+            sealer.should_seal_l1_batch(
+                l1_batch_number,
                 block_open_timestamp_ms,
                 tx_count,
                 block_execution_metrics,
@@ -234,64 +239,22 @@ impl SealManager {
                 tx_size,
                 block_writes_metrics,
                 tx_writes_metrics,
-            );
-            match seal_resolution {
-                SealResolution::IncludeAndSeal => {
-                    vlog::debug!(
-                        "Seal block with resolution: IncludeAndSeal {} {} block: {:?}",
-                        l1_batch_number,
-                        sealer.prom_criterion_name(),
-                        block_execution_metrics
-                    );
-                    metrics::counter!(
-                        "server.tx_aggregation.reason",
-                        1,
-                        "criterion" => sealer.prom_criterion_name(),
-                        "seal_resolution" => "include_and_seal",
-                    );
-                }
-                SealResolution::ExcludeAndSeal => {
-                    vlog::debug!(
-                        "Seal block with resolution: ExcludeAndSeal {} {} block: {:?}",
-                        l1_batch_number,
-                        sealer.prom_criterion_name(),
-                        block_execution_metrics
-                    );
-                    metrics::counter!(
-                        "server.tx_aggregation.reason",
-                        1,
-                        "criterion" => sealer.prom_criterion_name(),
-                        "seal_resolution" => "exclude_and_seal",
-                    );
-                }
-                SealResolution::Unexecutable(_) => {
-                    vlog::debug!(
-                        "Unexecutable {} {} block: {:?}",
-                        l1_batch_number,
-                        sealer.prom_criterion_name(),
-                        block_execution_metrics
-                    );
-                    metrics::counter!(
-                        "server.tx_aggregation.reason",
-                        1,
-                        "criterion" => sealer.prom_criterion_name(),
-                        "seal_resolution" => "unexecutable",
-                    );
-                }
-                _ => {}
-            }
-
-            final_seal_resolution = final_seal_resolution.stricter(seal_resolution);
+            )
+        } else {
+            SealResolution::NoSeal
         }
-        final_seal_resolution
     }
 
     pub(crate) fn should_seal_l1_batch_unconditionally(
         &self,
         updates_manager: &UpdatesManager,
     ) -> bool {
+        // Regardless of which sealers are provided, we never want to seal an empty batch.
         updates_manager.pending_executed_transactions_len() != 0
-            && (self.unconditional_sealer)(updates_manager)
+            && self
+                .unconditional_sealers
+                .iter()
+                .any(|sealer| (sealer)(updates_manager))
     }
 
     pub(crate) fn should_seal_miniblock(&self, updates_manager: &UpdatesManager) -> bool {
@@ -300,21 +263,9 @@ impl SealManager {
         // where we have to replicate the state of the main node, including the last (empty) miniblock of the batch).
         // The check for the number of transactions is expected to be done, if relevant, in the `miniblock_sealer`
         // directly.
-        (self.miniblock_sealer)(updates_manager)
-    }
-
-    pub(crate) fn get_default_sealers() -> Vec<Box<dyn SealCriterion>> {
-        let sealers: Vec<Box<dyn SealCriterion>> = vec![
-            Box::new(slots::SlotsCriterion),
-            Box::new(gas::GasCriterion),
-            Box::new(pubdata_bytes::PubDataBytesCriterion),
-            Box::new(geometry_seal_criteria::BytecodeHashesCriterion),
-            Box::new(geometry_seal_criteria::InitialWritesCriterion),
-            Box::new(geometry_seal_criteria::RepeatedWritesCriterion),
-            Box::new(geometry_seal_criteria::MaxCyclesCriterion),
-            Box::new(tx_encoding_size::TxEncodingSizeCriterion),
-        ];
-        sealers
+        self.miniblock_sealers
+            .iter()
+            .any(|sealer| (sealer)(updates_manager))
     }
 }
 
@@ -371,7 +322,9 @@ mod tests {
                     revert_reason: None,
                     contracts_used: 0,
                     cycles_used: 0,
+                    computational_gas_used: 0,
                 },
+                call_traces: vec![],
                 gas_refunded: 0,
                 operator_suggested_refund: 0,
             },
@@ -384,7 +337,7 @@ mod tests {
     /// This test mostly exists to make sure that we can't seal empty miniblocks on the main node.
     #[test]
     fn timeout_miniblock_sealer() {
-        let timeout_miniblock_sealer = SealManager::timeout_miniblock_sealer(1000);
+        let timeout_miniblock_sealer = SealManager::timeout_miniblock_sealer(10_000);
 
         let mut manager = create_manager();
         // Empty miniblock should not trigger.
@@ -401,7 +354,9 @@ mod tests {
             "Non-empty miniblock with old timestamp should be sealed"
         );
 
-        // Check the timestamp logic.
+        // Check the timestamp logic. This relies on the fact that the test shouldn't run
+        // for more than 10 seconds (while the test itself is trivial, it may be preempted
+        // by other tests).
         manager.miniblock.timestamp = seconds_since_epoch();
         assert!(
             !timeout_miniblock_sealer(&manager),

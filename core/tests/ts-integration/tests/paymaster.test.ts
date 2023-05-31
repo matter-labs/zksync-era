@@ -3,7 +3,7 @@
  */
 import { TestMaster } from '../src/index';
 import * as zksync from 'zksync-web3';
-import { Provider, Wallet, utils } from 'zksync-web3';
+import { Provider, Wallet, utils, Contract } from 'zksync-web3';
 import * as ethers from 'ethers';
 import { deployContract, getTestContract } from '../src/helpers';
 import { L2_ETH_PER_ACCOUNT } from '../src/context-owner';
@@ -11,6 +11,9 @@ import { checkReceipt } from '../src/modifiers/receipt-check';
 import { extractFee } from '../src/modifiers/balance-checker';
 import { TestMessage } from '../src/matchers/matcher-helpers';
 import { Address } from 'zksync-web3/build/src/types';
+import * as hre from 'hardhat';
+import { Deployer } from '@matterlabs/hardhat-zksync-deploy';
+import { ZkSyncArtifact } from '@matterlabs/hardhat-zksync-deploy/dist/types';
 
 const contracts = {
     customPaymaster: getTestContract('CustomPaymaster')
@@ -225,6 +228,64 @@ describe('Paymaster tests', () => {
         ).toBeRejected('Paymaster validation error');
     });
 
+    it('Should deploy nonce-check paymaster and not fail validation', async function () {
+        const deployer = new Deployer(hre, alice);
+        const paymaster = await deployPaymaster(deployer);
+        const token = testMaster.environment().erc20Token;
+
+        await (
+            await deployer.zkWallet.sendTransaction({
+                to: paymaster.address,
+                value: ethers.utils.parseEther('0.01')
+            })
+        ).wait();
+
+        const paymasterParams = utils.getPaymasterParams(paymaster.address, {
+            type: 'ApprovalBased',
+            token: token.l2Address,
+            minimalAllowance: ethers.BigNumber.from(1),
+            innerInput: new Uint8Array()
+        });
+
+        let bob = testMaster.newEmptyAccount();
+
+        let aliceTx = await alice.transfer({
+            to: bob.address,
+            amount: 100,
+            token: token.l2Address
+        });
+
+        await aliceTx.wait();
+
+        let bobTx = bob.transfer({
+            to: alice.address,
+            amount: 1,
+            token: token.l2Address,
+            overrides: {
+                customData: {
+                    gasPerPubdata: utils.DEFAULT_GAS_PER_PUBDATA_LIMIT,
+                    paymasterParams
+                }
+            }
+        });
+
+        await expect(bobTx).toBeRejected('Nonce is zerooo');
+
+        const aliceTx2 = alice.transfer({
+            to: alice.address,
+            amount: 1,
+            token: token.l2Address,
+            overrides: {
+                customData: {
+                    gasPerPubdata: utils.DEFAULT_GAS_PER_PUBDATA_LIMIT,
+                    paymasterParams
+                }
+            }
+        });
+
+        await expect(aliceTx2).toBeAccepted();
+    });
+
     afterAll(async () => {
         await testMaster.deinitialize();
     });
@@ -381,4 +442,9 @@ async function sendTxWithTestPaymasterParams(
     };
     const signedTx = await sender.signTransaction(tx);
     return await web3Provider.sendTransaction(signedTx);
+}
+
+async function deployPaymaster(deployer: Deployer): Promise<Contract> {
+    const artifactPay = getTestContract('Paymaster');
+    return await deployer.deploy(artifactPay as ZkSyncArtifact);
 }

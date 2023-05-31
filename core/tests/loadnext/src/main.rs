@@ -10,6 +10,7 @@ use loadnext::{
     executor::Executor,
     report_collector::LoadtestResult,
 };
+use std::time::Duration;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -18,6 +19,8 @@ async fn main() -> anyhow::Result<()> {
     let config = LoadtestConfig::from_env()
         .expect("Config parameters should be loaded from env or from default values");
     let execution_config = ExecutionConfig::from_env();
+    let prometheus_config = envy::prefixed("PROMETHEUS_").from_env().ok();
+
     TxType::initialize_weights(&execution_config.transaction_weights);
     ExplorerApiRequestType::initialize_weights(&execution_config.explorer_api_config_weights);
 
@@ -31,10 +34,24 @@ async fn main() -> anyhow::Result<()> {
         execution_config.explorer_api_config_weights
     );
 
-    let mut executor = Executor::new(config, execution_config).await?;
-    let final_resolution = executor.start().await;
+    let mut executor = Executor::new(config.clone(), execution_config).await?;
 
-    match final_resolution {
+    if let Some(prometheus_config) = prometheus_config {
+        vlog::info!(
+            "Starting prometheus exporter with config {:?}",
+            prometheus_config
+        );
+        tokio::spawn(prometheus_exporter::run_prometheus_exporter(
+            prometheus_config,
+            true,
+        ));
+    } else {
+        vlog::info!("Starting without prometheus exporter");
+    }
+    let result = executor.start().await;
+    vlog::info!("Waiting 5 seconds to make sure all the metrics are pushed to the push gateway");
+    tokio::time::sleep(Duration::from_secs(5)).await;
+    match result {
         LoadtestResult::TestPassed => {
             vlog::info!("Test passed");
             Ok(())

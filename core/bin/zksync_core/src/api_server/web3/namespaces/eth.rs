@@ -10,8 +10,8 @@ use zksync_types::{
     l2::{L2Tx, TransactionType},
     transaction_request::{l2_tx_from_call_req, CallRequest},
     utils::decompose_full_nonce,
-    web3::types::SyncState,
-    AccountTreeId, Bytes, L2ChainId, MiniblockNumber, StorageKey, H256, L2_ETH_TOKEN_ADDRESS,
+    web3::types::{SyncInfo, SyncState},
+    AccountTreeId, Bytes, MiniblockNumber, StorageKey, H256, L2_ETH_TOKEN_ADDRESS,
     MAX_GAS_PER_PUBDATA_BYTE, U256,
 };
 
@@ -20,15 +20,19 @@ use zksync_web3_decl::{
     types::{Address, Block, Filter, FilterChanges, Log, TypedFilter, U64},
 };
 
-use crate::api_server::{
-    execution_sandbox::execute_tx_eth_call, web3::backend_jsonrpc::error::internal_error,
-    web3::state::RpcState,
+use crate::{
+    api_server::{
+        execution_sandbox::execute_tx_eth_call, web3::backend_jsonrpc::error::internal_error,
+        web3::state::RpcState,
+    },
+    l1_gas_price::L1GasPriceProvider,
 };
 
 use zksync_utils::u256_to_h256;
 
 #[cfg(feature = "openzeppelin_tests")]
 use zksync_utils::bytecode::hash_bytecode;
+
 #[cfg(feature = "openzeppelin_tests")]
 use {
     zksync_eth_signer::EthereumSigner,
@@ -43,12 +47,12 @@ pub const EVENT_TOPIC_NUMBER_LIMIT: usize = 4;
 pub const PROTOCOL_VERSION: &str = "zks/1";
 
 #[derive(Debug, Clone)]
-pub struct EthNamespace {
-    pub state: RpcState,
+pub struct EthNamespace<G> {
+    pub state: RpcState<G>,
 }
 
-impl EthNamespace {
-    pub fn new(state: RpcState) -> Self {
+impl<G: L1GasPriceProvider> EthNamespace<G> {
+    pub fn new(state: RpcState<G>) -> Self {
         Self { state }
     }
 
@@ -79,14 +83,19 @@ impl EthNamespace {
         let start = Instant::now();
 
         let block = block.unwrap_or(BlockId::Number(BlockNumber::Pending));
+
+        let mut request_with_set_nonce = request.clone();
+        self.state
+            .set_nonce_for_call_request(&mut request_with_set_nonce)?;
+
         #[cfg(not(feature = "openzeppelin_tests"))]
-        let tx = l2_tx_from_call_req(request, self.state.config.api.web3_json_rpc.max_tx_size)?;
+        let tx = l2_tx_from_call_req(request, self.state.api_config.max_tx_size)?;
 
         #[cfg(feature = "openzeppelin_tests")]
         let tx: L2Tx = self
             .convert_evm_like_deploy_requests(tx_req_from_call_req(
                 request,
-                self.state.config.api.web3_json_rpc.max_tx_size,
+                self.state.api_config.max_tx_size,
             )?)?
             .try_into()?;
 
@@ -98,11 +107,17 @@ impl EthNamespace {
             self.state
                 .tx_sender
                 .0
-                .gas_adjuster
+                .l1_gas_price_source
                 .estimate_effective_gas_price(),
-            self.state.tx_sender.0.state_keeper_config.fair_l2_gas_price,
+            self.state.tx_sender.0.sender_config.fair_l2_gas_price,
             enforced_base_fee,
             &self.state.tx_sender.0.playground_base_system_contracts,
+            self.state
+                .tx_sender
+                .0
+                .sender_config
+                .vm_execution_cache_misses_limit,
+            false,
         )?;
 
         let mut res_bytes = match result.revert_reason {
@@ -135,18 +150,32 @@ impl EthNamespace {
         _block: Option<BlockNumber>,
     ) -> Result<U256, Web3Error> {
         let start = Instant::now();
+        let mut request_with_gas_per_pubdata_overridden = request;
 
-        let is_eip712 = request.eip712_meta.is_some();
+        self.state
+            .set_nonce_for_call_request(&mut request_with_gas_per_pubdata_overridden)?;
+
+        if let Some(ref mut eip712_meta) = request_with_gas_per_pubdata_overridden.eip712_meta {
+            if eip712_meta.gas_per_pubdata == U256::zero() {
+                eip712_meta.gas_per_pubdata = MAX_GAS_PER_PUBDATA_BYTE.into();
+            }
+        }
+
+        let is_eip712 = request_with_gas_per_pubdata_overridden
+            .eip712_meta
+            .is_some();
 
         #[cfg(not(feature = "openzeppelin_tests"))]
-        let mut tx: L2Tx =
-            l2_tx_from_call_req(request, self.state.config.api.web3_json_rpc.max_tx_size)?;
+        let mut tx: L2Tx = l2_tx_from_call_req(
+            request_with_gas_per_pubdata_overridden,
+            self.state.api_config.max_tx_size,
+        )?;
 
         #[cfg(feature = "openzeppelin_tests")]
         let mut tx: L2Tx = self
             .convert_evm_like_deploy_requests(tx_req_from_call_req(
-                request,
-                self.state.config.api.web3_json_rpc.max_tx_size,
+                request_with_gas_per_pubdata_overridden,
+                self.state.api_config.max_tx_size,
             )?)?
             .try_into()?;
 
@@ -161,27 +190,17 @@ impl EthNamespace {
 
         tx.common_data.fee.max_fee_per_gas = self.state.tx_sender.gas_price().into();
         tx.common_data.fee.max_priority_fee_per_gas = tx.common_data.fee.max_fee_per_gas;
-        tx.common_data.fee.gas_per_pubdata_limit = MAX_GAS_PER_PUBDATA_BYTE.into();
 
         // Modify the l1 gas price with the scale factor
-        let scale_factor = self
-            .state
-            .config
-            .api
-            .web3_json_rpc
-            .estimate_gas_scale_factor;
-        let acceptable_overestimation = self
-            .state
-            .config
-            .api
-            .web3_json_rpc
-            .estimate_gas_acceptable_overestimation;
+        let scale_factor = self.state.api_config.estimate_gas_scale_factor;
+        let acceptable_overestimation =
+            self.state.api_config.estimate_gas_acceptable_overestimation;
 
         let fee = self
             .state
             .tx_sender
             .get_txs_fee_in_wei(tx.into(), scale_factor, acceptable_overestimation)
-            .map_err(|err| Web3Error::SubmitTransactionError(err.to_string()))?;
+            .map_err(|err| Web3Error::SubmitTransactionError(err.to_string(), err.data()))?;
 
         metrics::histogram!("api.web3.call", start.elapsed(), "method" => "estimate_gas");
         Ok(fee.gas_limit)
@@ -284,11 +303,7 @@ impl EthNamespace {
             .connection_pool
             .access_storage_blocking()
             .blocks_web3_dal()
-            .get_block_by_web3_block_id(
-                block,
-                full_transactions,
-                L2ChainId(self.state.config.chain.eth.zksync_network_id),
-            )
+            .get_block_by_web3_block_id(block, full_transactions, self.state.api_config.l2_chain_id)
             .map_err(|err| internal_error(endpoint_name, err));
 
         metrics::histogram!("api.web3.call", start.elapsed(), "method" => endpoint_name);
@@ -341,7 +356,7 @@ impl EthNamespace {
 
     #[tracing::instrument(skip(self))]
     pub fn chain_id_impl(&self) -> U64 {
-        self.state.config.chain.eth.zksync_network_id.into()
+        self.state.api_config.l2_chain_id.0.into()
     }
 
     #[tracing::instrument(skip(self))]
@@ -421,7 +436,7 @@ impl EthNamespace {
             .connection_pool
             .access_storage_blocking()
             .transactions_web3_dal()
-            .get_transaction(id, L2ChainId(self.state.config.chain.eth.zksync_network_id))
+            .get_transaction(id, self.state.api_config.l2_chain_id)
             .map_err(|err| internal_error(endpoint_name, err));
 
         if let Some(proxy) = &self.state.tx_sender.0.proxy {
@@ -458,7 +473,7 @@ impl EthNamespace {
         let start = Instant::now();
         let endpoint_name = "get_transaction_receipt";
 
-        let res = self
+        let mut receipt = self
             .state
             .connection_pool
             .access_storage_blocking()
@@ -466,8 +481,32 @@ impl EthNamespace {
             .get_transaction_receipt(hash)
             .map_err(|err| internal_error(endpoint_name, err));
 
+        if let Some(proxy) = &self.state.tx_sender.0.proxy {
+            // We're running an external node
+            if matches!(receipt, Ok(None)) {
+                // If the transaction is not in the db, query main node.
+                // Because it might be the case that it got rejected in state keeper
+                // and won't be synced back to us, but we still want to return a receipt.
+                // We want to only forwared these kinds of receipts because otherwise
+                // clients will assume that the transaction they got the receipt for
+                // was already processed on the EN (when it was not),
+                // and will think that the state has already been updated on the EN (when it was not).
+                if let Ok(Some(main_node_receipt)) = proxy
+                    .request_tx_receipt(hash)
+                    .map_err(|err| internal_error(endpoint_name, err))
+                {
+                    if main_node_receipt.status == Some(0.into())
+                        && main_node_receipt.block_number.is_none()
+                    {
+                        // Transaction was rejected in state-keeper.
+                        receipt = Ok(Some(main_node_receipt));
+                    }
+                }
+            }
+        }
+
         metrics::histogram!("api.web3.call", start.elapsed(), "method" => endpoint_name);
-        res
+        receipt
     }
 
     #[tracing::instrument(skip(self))]
@@ -598,7 +637,10 @@ impl EthNamespace {
                     1,
                     "reason" => err.grafana_error_code()
                 );
-                Err(Web3Error::SubmitTransactionError(err.to_string()))
+                Err(Web3Error::SubmitTransactionError(
+                    err.to_string(),
+                    err.data(),
+                ))
             }
             Ok(_) => Ok(hash),
         };
@@ -614,7 +656,21 @@ impl EthNamespace {
 
     #[tracing::instrument(skip(self))]
     pub fn syncing_impl(&self) -> SyncState {
-        SyncState::NotSyncing
+        if let Some(state) = self.state.sync_state.as_ref() {
+            // Node supports syncing process (i.e. not the main node).
+            if state.is_synced() {
+                SyncState::NotSyncing
+            } else {
+                SyncState::Syncing(SyncInfo {
+                    starting_block: 0u64.into(), // We always start syncing from genesis right now.
+                    current_block: state.get_local_block().0.into(),
+                    highest_block: state.get_main_node_block().0.into(),
+                })
+            }
+        } else {
+            // If there is no sync state, then the node is the main node and it's always synced.
+            SyncState::NotSyncing
+        }
     }
 
     #[tracing::instrument(skip(self, typed_filter))]
@@ -631,7 +687,7 @@ impl EthNamespace {
                     .connection_pool
                     .access_storage_blocking()
                     .blocks_web3_dal()
-                    .get_block_hashes_after(from_block, self.state.req_entities_limit)
+                    .get_block_hashes_after(from_block, self.state.api_config.req_entities_limit)
                     .map_err(|err| internal_error(method_name, err))?;
                 (
                     FilterChanges::Hashes(block_hashes),
@@ -646,7 +702,7 @@ impl EthNamespace {
                     .transactions_web3_dal()
                     .get_pending_txs_hashes_after(
                         from_timestamp,
-                        Some(self.state.req_entities_limit),
+                        Some(self.state.api_config.req_entities_limit),
                     )
                     .map_err(|err| internal_error(method_name, err))?;
                 (
@@ -687,11 +743,14 @@ impl EthNamespace {
                 // In this case we should return error and suggest requesting logs with smaller block range.
                 if let Some(miniblock_number) = storage
                     .events_web3_dal()
-                    .get_log_block_number(get_logs_filter.clone(), self.state.req_entities_limit)
+                    .get_log_block_number(
+                        get_logs_filter.clone(),
+                        self.state.api_config.req_entities_limit,
+                    )
                     .map_err(|err| internal_error(method_name, err))?
                 {
                     return Err(Web3Error::LogsLimitExceeded(
-                        self.state.req_entities_limit,
+                        self.state.api_config.req_entities_limit,
                         from_block.0,
                         miniblock_number.0 - 1,
                     ));
@@ -699,7 +758,7 @@ impl EthNamespace {
 
                 let logs = storage
                     .events_web3_dal()
-                    .get_logs(get_logs_filter, self.state.req_entities_limit)
+                    .get_logs(get_logs_filter, self.state.api_config.req_entities_limit)
                     .map_err(|err| internal_error(method_name, err))?;
                 let new_from_block = logs
                     .last()
@@ -757,9 +816,9 @@ impl EthNamespace {
             .from
             .and_then(|from| self.state.accounts.get(&from).cloned())
         {
-            let chain_id = self.state.config.chain.eth.zksync_network_id.into();
+            let chain_id = self.state.api_config.l2_chain_id;
             let domain = Eip712Domain::new(chain_id);
-            let signature = async_std::task::block_on(async {
+            let signature = crate::block_on(async {
                 signer
                     .sign_typed_data(&domain, &transaction_request)
                     .await
@@ -844,7 +903,7 @@ impl EthNamespace {
 // They are moved into a separate `impl` block so they don't make the actual implementation noisy.
 // This `impl` block contains methods that we *have* to implement for compliance, but don't really
 // make sense in terms in L2.
-impl EthNamespace {
+impl<E> EthNamespace<E> {
     pub fn coinbase_impl(&self) -> Address {
         // There is no coinbase account.
         Address::default()

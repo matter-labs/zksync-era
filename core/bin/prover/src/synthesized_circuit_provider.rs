@@ -4,6 +4,7 @@ use std::sync::{Arc, Mutex};
 
 use prover_service::RemoteSynthesizer;
 use queues::{Buffer, IsQueue};
+
 use zksync_dal::gpu_prover_queue_dal::SocketAddress;
 use zksync_dal::ConnectionPool;
 
@@ -13,14 +14,24 @@ pub struct SynthesizedCircuitProvider {
     queue: SharedAssemblyQueue,
     pool: ConnectionPool,
     address: SocketAddress,
+    region: String,
+    zone: String,
 }
 
 impl SynthesizedCircuitProvider {
-    pub fn new(queue: SharedAssemblyQueue, pool: ConnectionPool, address: SocketAddress) -> Self {
+    pub fn new(
+        queue: SharedAssemblyQueue,
+        pool: ConnectionPool,
+        address: SocketAddress,
+        region: String,
+        zone: String,
+    ) -> Self {
         Self {
             queue,
             pool,
             address,
+            region,
+            zone,
         }
     }
 }
@@ -34,15 +45,16 @@ impl RemoteSynthesizer for SynthesizedCircuitProvider {
                 let queue_free_slots = assembly_queue.capacity() - assembly_queue.size();
                 if is_full {
                     self.pool
-                        .clone()
                         .access_storage_blocking()
                         .gpu_prover_queue_dal()
                         .update_prover_instance_from_full_to_available(
                             self.address.clone(),
                             queue_free_slots,
+                            self.region.clone(),
+                            self.zone.clone(),
                         );
                 }
-                vlog::info!(
+                vlog::trace!(
                     "Queue free slot {} for capacity {}",
                     queue_free_slots,
                     assembly_queue.capacity()

@@ -31,8 +31,8 @@ pub async fn wait_for_tasks(task_futures: Vec<JoinHandle<()>>) {
 }
 
 async fn update_compiler_versions(connection_pool: &ConnectionPool) {
-    let mut storage = connection_pool.access_storage().await;
-    let mut transaction = storage.start_transaction().await;
+    let mut storage = connection_pool.access_storage_blocking();
+    let mut transaction = storage.start_transaction_blocking();
 
     let zksync_home = std::env::var("ZKSYNC_HOME").unwrap_or_else(|_| ".".into());
 
@@ -72,7 +72,7 @@ async fn update_compiler_versions(connection_pool: &ConnectionPool) {
         .set_solc_versions(solc_versions)
         .unwrap();
 
-    transaction.commit().await;
+    transaction.commit_blocking();
 }
 
 use structopt::StructOpt;

@@ -1,6 +1,7 @@
-use futures::{channel::mpsc, future::join_all};
+use futures::{channel::mpsc, future::join_all, SinkExt};
 use std::ops::Add;
 use tokio::task::JoinHandle;
+use zksync_eth_client::BoundEthInterface;
 use zksync_types::REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE;
 
 use zksync::ethereum::{PriorityOpHolder, DEFAULT_PRIORITY_FEE};
@@ -15,6 +16,7 @@ use zksync_eth_signer::PrivateKeySigner;
 use zksync_types::api::{BlockNumber, U64};
 use zksync_types::{tokens::ETHEREUM_ADDRESS, Address, Nonce, U256};
 
+use crate::report::ReportBuilder;
 use crate::{
     account::AccountLifespan,
     account_pool::AccountPool,
@@ -327,11 +329,11 @@ impl Executor {
         // We request nonce each time, so that if one iteration was failed, it will be repeated on the next iteration.
         let mut nonce = Nonce(master_wallet.get_nonce().await?);
 
-        // 2 txs per account (1 ERC-20 & 1 ETH transfer) + 1 fee tx.
         let txs_amount = accounts_to_process * 2 + 1;
-        let mut handles = Vec::with_capacity(txs_amount);
+        let mut handles = Vec::with_capacity(accounts_to_process);
 
-        let mut eth_txs = Vec::with_capacity((txs_amount + 1) * 2);
+        // 2 txs per account (1 ERC-20 & 1 ETH transfer).
+        let mut eth_txs = Vec::with_capacity(txs_amount * 2);
         let mut eth_nonce = ethereum.client().pending_nonce("loadnext").await?;
 
         for account in self.pool.accounts.iter().take(accounts_to_process) {
@@ -348,10 +350,13 @@ impl Executor {
                     .client()
                     .eth_balance(target_address, "loadnext")
                     .await?;
+                let gas_price = ethereum.client().get_gas_price("loadnext").await?;
 
                 if balance < eth_to_distribute {
                     let options = Options {
                         nonce: Some(eth_nonce),
+                        max_fee_per_gas: Some(gas_price * 2),
+                        max_priority_fee_per_gas: Some(gas_price * 2),
                         ..Default::default()
                     };
                     let res = ethereum
@@ -374,6 +379,8 @@ impl Executor {
                 if ethereum_erc20_balance < U256::from(l1_transfer_amount) {
                     let options = Options {
                         nonce: Some(eth_nonce),
+                        max_fee_per_gas: Some(gas_price * 2),
+                        max_priority_fee_per_gas: Some(gas_price * 2),
                         ..Default::default()
                     };
                     let res = ethereum
@@ -469,9 +476,14 @@ impl Executor {
         const MAX_RETRIES: usize = 3;
 
         // Prepare channels for the report collector.
-        let (report_sender, report_receiver) = mpsc::channel(256);
+        let (mut report_sender, report_receiver) = mpsc::channel(256);
 
-        let report_collector = ReportCollector::new(report_receiver, self.config.expected_tx_count);
+        let report_collector = ReportCollector::new(
+            report_receiver,
+            self.config.expected_tx_count,
+            self.config.duration(),
+            self.config.prometheus_label.clone(),
+        );
         let report_collector_future = tokio::spawn(report_collector.run());
 
         let config = &self.config;
@@ -495,7 +507,7 @@ impl Executor {
             }
 
             let accounts_left = accounts_amount - accounts_processed;
-            let max_accounts_per_iter = MAX_OUTSTANDING_NONCE / 2; // We send two transfers per account: ERC-20 and ETH.
+            let max_accounts_per_iter = MAX_OUTSTANDING_NONCE;
             let accounts_to_process = std::cmp::min(accounts_left, max_accounts_per_iter);
 
             if let Err(err) = self.send_initial_transfers_inner(accounts_to_process).await {
@@ -507,6 +519,7 @@ impl Executor {
                 continue;
             }
 
+            accounts_processed += accounts_to_process;
             vlog::info!(
                 "[{}/{}] Accounts processed",
                 accounts_processed,
@@ -514,11 +527,13 @@ impl Executor {
             );
 
             retry_counter = 0;
-            accounts_processed += accounts_to_process;
 
             let contract_execution_params = self.execution_config.contract_execution_params.clone();
             // Spawn each account lifespan.
             let main_token = self.l2_main_token;
+            report_sender
+                .send(ReportBuilder::build_init_complete_report())
+                .await?;
             let new_account_futures =
                 self.pool
                     .accounts

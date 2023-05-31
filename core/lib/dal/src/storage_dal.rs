@@ -5,10 +5,9 @@ use std::time::Instant;
 use zksync_contracts::{BaseSystemContracts, SystemContractCode};
 use zksync_types::{
     vm_trace::ContractSourceDebugInfo, Address, MiniblockNumber, StorageKey, StorageLog,
-    StorageValue, ACCOUNT_CODE_STORAGE_ADDRESS, FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH, H256,
-    U256,
+    StorageValue, H256, U256,
 };
-use zksync_utils::{bytes_to_be_words, bytes_to_chunks, h256_to_account_address};
+use zksync_utils::{bytes_to_be_words, bytes_to_chunks};
 
 #[derive(Debug)]
 pub struct StorageDal<'a, 'c> {
@@ -67,7 +66,7 @@ impl StorageDal<'_, '_> {
         async_std::task::block_on(async {
             let bootloader_bytecode = self
                 .get_factory_dep(bootloader_hash)
-                .expect("Bootloader code should be presented in the database");
+                .expect("Bootloader code should be present in the database");
             let bootloader_code = SystemContractCode {
                 code: bytes_to_be_words(bootloader_bytecode),
                 hash: bootloader_hash,
@@ -75,7 +74,7 @@ impl StorageDal<'_, '_> {
 
             let default_aa_bytecode = self
                 .get_factory_dep(default_aa_hash)
-                .expect("Default account code should be presented in the database");
+                .expect("Default account code should be present in the database");
 
             let default_aa_code = SystemContractCode {
                 code: bytes_to_be_words(default_aa_bytecode),
@@ -106,33 +105,6 @@ impl StorageDal<'_, '_> {
                     bytes_to_chunks(&row.bytecode),
                 )
             })
-            .collect()
-        })
-    }
-
-    pub fn get_contracts_for_revert(&mut self, block_number: MiniblockNumber) -> Vec<Address> {
-        async_std::task::block_on(async {
-            sqlx::query!(
-                "
-                    SELECT key
-                    FROM storage_logs
-                    WHERE address = $1 AND miniblock_number > $2 AND NOT EXISTS (
-                        SELECT 1 FROM storage_logs as s
-                        WHERE
-                            s.hashed_key = storage_logs.hashed_key AND
-                            (s.miniblock_number, s.operation_number) >= (storage_logs.miniblock_number, storage_logs.operation_number) AND
-                            s.value = $3
-                    )
-                ",
-                ACCOUNT_CODE_STORAGE_ADDRESS.as_bytes(),
-                block_number.0 as i64,
-                FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH.as_bytes()
-            )
-            .fetch_all(self.storage.conn())
-            .await
-            .unwrap()
-            .into_iter()
-            .map(|row| h256_to_account_address(&H256::from_slice(&row.key)))
             .collect()
         })
     }

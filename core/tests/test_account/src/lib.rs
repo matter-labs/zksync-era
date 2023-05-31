@@ -75,7 +75,7 @@ impl ZkSyncAccount {
         _nonce: Option<Nonce>,
         _increment_nonce: bool,
     ) -> L2Tx {
-        todo!("New withdrawal support is not yet implemented")
+        todo!("TODO")
 
         // let mut stored_nonce = self.nonce.lock().unwrap();
         // let withdraw = GenericL2Tx::<Withdraw>::new_signed(

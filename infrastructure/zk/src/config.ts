@@ -21,7 +21,8 @@ const CONFIG_FILES = [
     'fetcher.toml',
     'witness_generator.toml',
     'circuit_synthesizer.toml',
-    'prover_group.toml'
+    'prover_group.toml',
+    'house_keeper.toml'
 ];
 
 function loadConfigFile(path: string) {

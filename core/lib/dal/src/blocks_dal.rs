@@ -466,6 +466,38 @@ impl BlocksDal<'_, '_> {
         })
     }
 
+    /// Returns the number of the last block for which an Ethereum commit tx was sent and confirmed.
+    pub fn get_number_of_last_block_committed_on_eth(&mut self) -> Option<L1BatchNumber> {
+        async_std::task::block_on(async {
+            sqlx::query!(
+                "SELECT number FROM l1_batches
+                LEFT JOIN eth_txs_history as commit_tx ON (l1_batches.eth_commit_tx_id = commit_tx.eth_tx_id)
+                WHERE commit_tx.confirmed_at IS NOT NULL
+                ORDER BY number DESC LIMIT 1"
+            )
+                .fetch_optional(self.storage.conn())
+                .await
+                .unwrap()
+                .map(|record| L1BatchNumber(record.number as u32))
+        })
+    }
+
+    /// Returns the number of the last block for which an Ethereum prove tx was sent and confirmed.
+    pub fn get_number_of_last_block_proven_on_eth(&mut self) -> Option<L1BatchNumber> {
+        async_std::task::block_on(async {
+            sqlx::query!(
+                "SELECT number FROM l1_batches
+                LEFT JOIN eth_txs_history as prove_tx ON (l1_batches.eth_prove_tx_id = prove_tx.eth_tx_id)
+                WHERE prove_tx.confirmed_at IS NOT NULL
+                ORDER BY number DESC LIMIT 1"
+            )
+                .fetch_optional(self.storage.conn())
+                .await
+                .unwrap()
+                .map(|record| L1BatchNumber(record.number as u32))
+        })
+    }
+
     /// Returns the number of the last block for which an Ethereum execute tx was sent and confirmed.
     pub fn get_number_of_last_block_executed_on_eth(&mut self) -> Option<L1BatchNumber> {
         async_std::task::block_on(async {
@@ -637,7 +669,8 @@ impl BlocksDal<'_, '_> {
                     sqlx::query_as!(
                         StorageBlock,
                         "SELECT l1_batches.* FROM l1_batches \
-                        JOIN eth_txs_history as commit_tx ON (l1_batches.eth_commit_tx_id = commit_tx.eth_tx_id) \
+                        JOIN eth_txs ON (l1_batches.eth_commit_tx_id = eth_txs.id) \
+	                    JOIN eth_txs_history as commit_tx ON (eth_txs.confirmed_eth_tx_history_id = commit_tx.id) \
                         WHERE commit_tx.confirmed_at IS NOT NULL \
                             AND eth_prove_tx_id IS NOT NULL \
                             AND eth_execute_tx_id IS NULL \
@@ -752,7 +785,7 @@ impl BlocksDal<'_, '_> {
         })
     }
 
-    fn get_block_with_metadata(
+    pub fn get_block_with_metadata(
         &mut self,
         storage_block: StorageBlock,
     ) -> Option<BlockWithMetadata> {
@@ -892,6 +925,21 @@ impl BlocksDal<'_, '_> {
         })
     }
 
+    /// Returns `true` if there exists a non-sealed batch (i.e. there is one+ stored miniblock that isn't assigned
+    /// to any batch yet).
+    pub fn pending_batch_exists(&mut self) -> bool {
+        async_std::task::block_on(async {
+            let count = sqlx::query_scalar!(
+                r#"SELECT COUNT(miniblocks.number) FROM miniblocks WHERE l1_batch_number IS NULL"#
+            )
+            .fetch_one(self.storage.conn())
+            .await
+            .unwrap()
+            .unwrap_or(0);
+            count != 0
+        })
+    }
+
     pub fn get_last_l1_batch_number_with_witness_inputs(&mut self) -> L1BatchNumber {
         async_std::task::block_on(async {
             sqlx::query!(
@@ -984,6 +1032,27 @@ impl BlocksDal<'_, '_> {
                 WHERE l1_batch_number = ANY($1);
             "#,
                 &l1_batch_numbers[..]
+            )
+            .execute(self.storage.conn())
+            .await
+            .unwrap();
+        })
+    }
+}
+
+impl BlocksDal<'_, '_> {
+    // This function is only used for tests.
+    // The actual l1 batch hash is only set by the metadata calculator.
+    pub fn set_l1_batch_hash(&mut self, batch_num: L1BatchNumber, hash: H256) {
+        async_std::task::block_on(async {
+            sqlx::query!(
+                "
+                    UPDATE l1_batches
+                    SET hash = $1
+                    WHERE number = $2
+                ",
+                hash.as_bytes(),
+                batch_num.0 as i64
             )
             .execute(self.storage.conn())
             .await

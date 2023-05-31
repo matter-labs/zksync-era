@@ -35,9 +35,9 @@ export class EIP712Signer {
     }
 
     static getSignInput(transaction: TransactionRequest) {
-        const maxFeePerGas = transaction.maxFeePerGas || transaction.gasPrice;
-        const maxPriorityFeePerGas = transaction.maxPriorityFeePerGas || maxFeePerGas;
-        const gasPerPubdataByteLimit = transaction.customData?.gasPerPubdata || DEFAULT_GAS_PER_PUBDATA_LIMIT;
+        const maxFeePerGas = transaction.maxFeePerGas ?? transaction.gasPrice ?? 0;
+        const maxPriorityFeePerGas = transaction.maxPriorityFeePerGas ?? maxFeePerGas;
+        const gasPerPubdataByteLimit = transaction.customData?.gasPerPubdata ?? DEFAULT_GAS_PER_PUBDATA_LIMIT;
         const signInput = {
             txType: transaction.type,
             from: transaction.from,
@@ -159,6 +159,92 @@ export class L1Signer extends AdapterL1(ethers.providers.JsonRpcSigner) {
 
     static from(signer: ethers.providers.JsonRpcSigner, zksyncProvider: Provider): L1Signer {
         const newSigner: L1Signer = Object.setPrototypeOf(signer, L1Signer.prototype);
+        newSigner.providerL2 = zksyncProvider;
+        return newSigner;
+    }
+
+    connectToL2(provider: Provider): this {
+        this.providerL2 = provider;
+        return this;
+    }
+}
+
+export class L2VoidSigner extends AdapterL2(ethers.VoidSigner) {
+    public override provider: Provider;
+    public eip712: EIP712Signer;
+
+    override _signerL2() {
+        return this;
+    }
+
+    override _providerL2() {
+        return this.provider;
+    }
+
+    static from(signer: ethers.VoidSigner & { provider: Provider }): L2VoidSigner {
+        const newSigner: L2VoidSigner = Object.setPrototypeOf(signer, L2VoidSigner.prototype);
+        // @ts-ignore
+        newSigner.eip712 = new EIP712Signer(newSigner, newSigner.getChainId());
+        return newSigner;
+    }
+
+    // an alias with a better name
+    async getNonce(blockTag?: BlockTag) {
+        return await this.getTransactionCount(blockTag);
+    }
+
+    override async sendTransaction(transaction: TransactionRequest): Promise<TransactionResponse> {
+        if (transaction.customData == null && transaction.type == null) {
+            // use legacy txs by default
+            transaction.type = 0;
+        }
+        if (transaction.customData == null && transaction.type != EIP712_TX_TYPE) {
+            return (await super.sendTransaction(transaction)) as TransactionResponse;
+        } else {
+            const address = await this.getAddress();
+            transaction.from ??= address;
+            if (transaction.from.toLowerCase() != address.toLowerCase()) {
+                throw new Error('Transaction `from` address mismatch');
+            }
+            transaction.type = EIP712_TX_TYPE;
+            transaction.value ??= 0;
+            transaction.data ??= '0x';
+            transaction.nonce ??= await this.getNonce();
+            transaction.customData = this._fillCustomData(transaction.customData);
+            transaction.gasPrice ??= await this.provider.getGasPrice();
+            transaction.gasLimit ??= await this.provider.estimateGas(transaction);
+            transaction.chainId ??= (await this.provider.getNetwork()).chainId;
+            transaction.customData.customSignature = await this.eip712.sign(transaction);
+
+            const txBytes = serialize(transaction);
+            return await this.provider.sendTransaction(txBytes);
+        }
+    }
+}
+
+// This class is to be used on the frontend with metamask injection.
+// It only contains L1 operations. For L2 operations, see Signer.
+// Sample usage:
+// const provider = new ethers.Web3Provider(window.ethereum);
+// const zksyncProvider = new zkweb3.Provider('<rpc_url>');
+// const signer = zkweb3.L1Signer.from(provider.getSigner(), zksyncProvider);
+// const tx = await signer.deposit({ ... });
+export class L1VoidSigner extends AdapterL1(ethers.VoidSigner) {
+    public providerL2: Provider;
+    override _providerL2() {
+        return this.providerL2;
+    }
+
+    override _providerL1() {
+        return this.provider;
+    }
+
+    override _signerL1() {
+        return this;
+    }
+
+    static from(signer: ethers.VoidSigner, zksyncProvider: Provider): L1VoidSigner {
+        const newSigner: L1VoidSigner = Object.setPrototypeOf(signer, L1VoidSigner.prototype);
         newSigner.providerL2 = zksyncProvider;
         return newSigner;
     }

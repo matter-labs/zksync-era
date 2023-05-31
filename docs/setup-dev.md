@@ -16,7 +16,7 @@ If you are a NixOS user or would like to have a reproducible environment, skip t
 If you are using an ssh key to authenticate with Github you need to make git always use ssh instead of http.
 
 ```bash
-git config --global url."ssh://git@github.com/".insteadOf https://github.com/
+git config url."ssh://git@github.com/".insteadOf https://github.com/
 ```
 
 [More information about how we use git](https://www.notion.so/matterlabs/Working-with-dependencies-in-private-repositories-697620178338452798a0ea5ac0d8e56a)

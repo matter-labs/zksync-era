@@ -1,4 +1,4 @@
-use zksync_eth_client::clients::http_client::Error;
+use zksync_eth_client::types::Error;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ETHSenderError {

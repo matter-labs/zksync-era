@@ -1,18 +1,28 @@
+use std::convert::TryFrom;
 use std::time::Duration;
 
-use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes};
-use zksync_types::{Address, L1BatchNumber, MiniblockNumber, Transaction};
+use super::genesis::fetch_system_contract_by_hash;
+use actix_rt::time::Instant;
+use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes, SystemContractCode};
+use zksync_dal::ConnectionPool;
+use zksync_types::{l1::L1Tx, l2::L2Tx, L1BatchNumber, MiniblockNumber, Transaction, H256};
+use zksync_utils::{be_words_to_bytes, bytes_to_be_words};
 
 use crate::state_keeper::{
+    extractors,
     io::{
-        common::{l1_batch_params, poll_until},
+        common::{l1_batch_params, load_pending_batch, poll_until, StateKeeperStats},
+        seal_logic::{seal_l1_batch_impl, seal_miniblock_impl},
         L1BatchParams, PendingBatchData, StateKeeperIO,
     },
     seal_criteria::SealerFn,
     updates::UpdatesManager,
 };
 
-use super::sync_action::{ActionQueue, SyncAction};
+use super::{
+    sync_action::{ActionQueue, SyncAction},
+    SyncState,
+};
 
 /// The interval between the action queue polling attempts for the new actions.
 const POLL_INTERVAL: Duration = Duration::from_millis(100);
@@ -33,13 +43,17 @@ impl ExternalNodeSealer {
 
     fn should_seal_miniblock(&self) -> bool {
         let res = matches!(self.actions.peek_action(), Some(SyncAction::SealMiniblock));
-        vlog::info!("Asked if should seal the miniblock. The answer is {res}");
+        if res {
+            vlog::info!("Sealing miniblock");
+        }
         res
     }
 
     fn should_seal_batch(&self) -> bool {
         let res = matches!(self.actions.peek_action(), Some(SyncAction::SealBatch));
-        vlog::info!("Asked if should seal the batch. The answer is {res}");
+        if res {
+            vlog::info!("Sealing the batch");
+        }
         res
     }
 
@@ -60,20 +74,81 @@ impl ExternalNodeSealer {
 /// to the one in the mempool IO (which is used in the main node).
 #[derive(Debug)]
 pub struct ExternalIO {
-    fee_account: Address,
+    pool: ConnectionPool,
+
+    // Grafana metrics
+    statistics: StateKeeperStats,
 
     current_l1_batch_number: L1BatchNumber,
     current_miniblock_number: MiniblockNumber,
     actions: ActionQueue,
+    sync_state: SyncState,
+    main_node_url: String,
 }
 
 impl ExternalIO {
-    pub fn new(fee_account: Address, actions: ActionQueue) -> Self {
+    pub fn new(
+        pool: ConnectionPool,
+        actions: ActionQueue,
+        sync_state: SyncState,
+        main_node_url: String,
+    ) -> Self {
+        let mut storage = pool.access_storage_blocking();
+        let last_sealed_block_header = storage.blocks_dal().get_newest_block_header();
+        let last_miniblock_number = storage.blocks_dal().get_sealed_miniblock_number();
+        let num_contracts = storage.storage_load_dal().load_number_of_contracts();
+        drop(storage);
+
+        vlog::info!(
+            "Initialized the ExternalIO: current L1 batch number {}, current miniblock number {}",
+            last_sealed_block_header.number + 1,
+            last_miniblock_number + 1,
+        );
+
+        sync_state.set_local_block(last_miniblock_number);
+
         Self {
-            fee_account,
-            current_l1_batch_number: L1BatchNumber(1),
-            current_miniblock_number: MiniblockNumber(1),
+            pool,
+            statistics: StateKeeperStats { num_contracts },
+            current_l1_batch_number: last_sealed_block_header.number + 1,
+            current_miniblock_number: last_miniblock_number + 1,
             actions,
+            sync_state,
+            main_node_url,
+        }
+    }
+
+    fn get_base_system_contract(&self, hash: H256) -> SystemContractCode {
+        let bytecode = self
+            .pool
+            .access_storage_blocking()
+            .storage_dal()
+            .get_factory_dep(hash);
+
+        match bytecode {
+            Some(bytecode) => SystemContractCode {
+                code: bytes_to_be_words(bytecode),
+                hash,
+            },
+            None => {
+                let main_node_url = self.main_node_url.clone();
+                let contract = crate::block_on(async move {
+                    vlog::info!("Fetching base system contract bytecode from the main node");
+                    fetch_system_contract_by_hash(&main_node_url, hash)
+                        .await
+                        .expect("Failed to fetch base system contract bytecode from the main node")
+                });
+                self.pool
+                    .access_storage_blocking()
+                    .storage_dal()
+                    .insert_factory_deps(
+                        self.current_miniblock_number,
+                        vec![(contract.hash, be_words_to_bytes(&contract.code))]
+                            .into_iter()
+                            .collect(),
+                    );
+                contract
+            }
         }
     }
 }
@@ -88,11 +163,23 @@ impl StateKeeperIO for ExternalIO {
     }
 
     fn load_pending_batch(&mut self) -> Option<PendingBatchData> {
-        None
+        let mut storage = self.pool.access_storage_blocking();
+
+        let fee_account = storage
+            .blocks_dal()
+            .get_block_header(self.current_l1_batch_number - 1)
+            .unwrap_or_else(|| {
+                panic!(
+                    "No block header for batch {}",
+                    self.current_l1_batch_number - 1
+                )
+            })
+            .fee_account_address;
+        load_pending_batch(&mut storage, self.current_l1_batch_number, fee_account)
     }
 
     fn wait_for_new_batch_params(&mut self, max_wait: Duration) -> Option<L1BatchParams> {
-        vlog::info!("Waiting for the new batch params");
+        vlog::debug!("Waiting for the new batch params");
         poll_until(POLL_INTERVAL, max_wait, || {
             match self.actions.pop_action()? {
                 SyncAction::OpenBatch {
@@ -100,20 +187,49 @@ impl StateKeeperIO for ExternalIO {
                     timestamp,
                     l1_gas_price,
                     l2_fair_gas_price,
-                    base_system_contracts_hashes,
+                    base_system_contracts_hashes:
+                        BaseSystemContractsHashes {
+                            bootloader,
+                            default_aa,
+                        },
+                    operator_address,
                 } => {
                     assert_eq!(
                         number, self.current_l1_batch_number,
                         "Batch number mismatch"
                     );
+                    vlog::info!("Getting previous block hash");
+                    let previous_l1_batch_hash = {
+                        let mut storage = self.pool.access_storage_blocking();
+
+                        let stage_started_at: Instant = Instant::now();
+                        let hash = extractors::wait_for_prev_l1_batch_state_root_unchecked(
+                            &mut storage,
+                            self.current_l1_batch_number,
+                        );
+                        metrics::histogram!(
+                            "server.state_keeper.wait_for_prev_hash_time",
+                            stage_started_at.elapsed()
+                        );
+                        hash
+                    };
+                    vlog::info!("Previous l1_batch_hash: {}", previous_l1_batch_hash);
+
+                    vlog::info!("Previous l1_batch_hash: {}", previous_l1_batch_hash);
+
+                    let base_system_contracts = BaseSystemContracts {
+                        bootloader: self.get_base_system_contract(bootloader),
+                        default_aa: self.get_base_system_contract(default_aa),
+                    };
+
                     Some(l1_batch_params(
                         number,
-                        self.fee_account,
+                        operator_address,
                         timestamp,
-                        Default::default(),
+                        previous_l1_batch_hash,
                         l1_gas_price,
                         l2_fair_gas_price,
-                        load_base_contracts(base_system_contracts_hashes),
+                        base_system_contracts,
                     ))
                 }
                 other => {
@@ -153,7 +269,7 @@ impl StateKeeperIO for ExternalIO {
     }
 
     fn wait_for_next_tx(&mut self, max_wait: Duration) -> Option<Transaction> {
-        vlog::info!(
+        vlog::debug!(
             "Waiting for the new tx, next action is {:?}",
             self.actions.peek_action()
         );
@@ -184,7 +300,7 @@ impl StateKeeperIO for ExternalIO {
         );
     }
 
-    fn seal_miniblock(&mut self, _updates_manager: &UpdatesManager) {
+    fn seal_miniblock(&mut self, updates_manager: &UpdatesManager) {
         match self.actions.pop_action() {
             Some(SyncAction::SealMiniblock) => {}
             other => panic!(
@@ -192,15 +308,57 @@ impl StateKeeperIO for ExternalIO {
                 other
             ),
         };
+
+        let mut storage = self.pool.access_storage_blocking();
+        let mut transaction = storage.start_transaction_blocking();
+
+        let start = Instant::now();
+        // We don't store the transactions in the database until they're executed to not overcomplicate the state
+        // recovery on restart. So we have to store them here.
+        for tx in updates_manager.miniblock.executed_transactions.iter() {
+            if let Ok(l1_tx) = L1Tx::try_from(tx.transaction.clone()) {
+                // Using `Default` for `l1_block_number` is OK here, since it's only used to track the last processed
+                // L1 number in the `eth_watch` module.
+                transaction
+                    .transactions_dal()
+                    .insert_transaction_l1(l1_tx, Default::default())
+            } else if let Ok(l2_tx) = L2Tx::try_from(tx.transaction.clone()) {
+                // Using `Default` for execution metrics should be OK here, since this data is not used on the EN.
+                transaction
+                    .transactions_dal()
+                    .insert_transaction_l2(l2_tx, Default::default());
+            } else {
+                unreachable!("Transaction {:?} is neither L1 nor L2", tx.transaction);
+            }
+        }
+        metrics::histogram!(
+            "server.state_keeper.l1_batch.sealed_time_stage",
+            start.elapsed(),
+            "stage" => "external_node_store_transactions"
+        );
+
+        // Now transactions are stored, and we may mark them as executed.
+        seal_miniblock_impl(
+            self.current_miniblock_number,
+            self.current_l1_batch_number,
+            &mut self.statistics,
+            &mut transaction,
+            updates_manager,
+            false,
+        );
+        transaction.commit_blocking();
+
+        self.sync_state
+            .set_local_block(self.current_miniblock_number);
         self.current_miniblock_number += 1;
         vlog::info!("Miniblock {} is sealed", self.current_miniblock_number);
     }
 
     fn seal_l1_batch(
         &mut self,
-        _block_result: vm::VmBlockResult,
-        _updates_manager: UpdatesManager,
-        _block_context: vm::vm_with_bootloader::DerivedBlockContext,
+        block_result: vm::VmBlockResult,
+        updates_manager: UpdatesManager,
+        block_context: vm::vm_with_bootloader::DerivedBlockContext,
     ) {
         match self.actions.pop_action() {
             Some(SyncAction::SealBatch) => {}
@@ -209,22 +367,28 @@ impl StateKeeperIO for ExternalIO {
                 other
             ),
         };
-        self.current_l1_batch_number += 1;
+
+        let mut storage = self.pool.access_storage_blocking();
+        seal_l1_batch_impl(
+            self.current_miniblock_number,
+            self.current_l1_batch_number,
+            &mut self.statistics,
+            &mut storage,
+            block_result,
+            updates_manager,
+            block_context,
+        );
 
         vlog::info!("Batch {} is sealed", self.current_l1_batch_number);
+
+        // Mimic the metric emitted by the main node to reuse existing grafana charts.
+        metrics::gauge!(
+            "server.block_number",
+            self.current_l1_batch_number.0 as f64,
+            "stage" =>  "sealed"
+        );
+
+        self.current_miniblock_number += 1; // Due to fictive miniblock being sealed.
+        self.current_l1_batch_number += 1;
     }
-}
-
-/// Currently it always returns the contracts that are present on the disk.
-/// Later on, support for different base contracts versions will be added.
-fn load_base_contracts(expected_hashes: BaseSystemContractsHashes) -> BaseSystemContracts {
-    let base_system_contracts = BaseSystemContracts::load_from_disk();
-    let local_hashes = base_system_contracts.hashes();
-
-    assert_eq!(
-        local_hashes, expected_hashes,
-        "Local base system contract hashes do not match ones required to process the L1 batch"
-    );
-
-    base_system_contracts
 }

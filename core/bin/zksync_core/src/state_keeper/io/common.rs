@@ -5,10 +5,13 @@ use vm::{
     zk_evm::block_properties::BlockProperties,
 };
 use zksync_contracts::BaseSystemContracts;
+use zksync_dal::StorageProcessor;
 use zksync_types::{Address, L1BatchNumber, U256, ZKPORTER_IS_AVAILABLE};
 use zksync_utils::h256_to_u256;
 
-use super::L1BatchParams;
+use crate::state_keeper::extractors;
+
+use super::{L1BatchParams, PendingBatchData};
 
 #[derive(Debug)]
 pub(crate) struct StateKeeperStats {
@@ -61,4 +64,52 @@ pub(crate) fn poll_until<T, F: FnMut() -> Option<T>>(
         std::thread::sleep(wait_interval);
     }
     None
+}
+
+/// Loads the pending L1 block data from the database.
+pub(crate) fn load_pending_batch(
+    storage: &mut StorageProcessor<'_>,
+    current_l1_batch_number: L1BatchNumber,
+    fee_account: Address,
+) -> Option<PendingBatchData> {
+    // If pending miniblock doesn't exist, it means that there is no unsynced state (i.e. no transaction
+    // were executed after the last sealed batch).
+    let pending_miniblock_number = {
+        let (_, last_miniblock_number_included_in_l1_batch) = storage
+            .blocks_dal()
+            .get_miniblock_range_of_l1_batch(current_l1_batch_number - 1)
+            .unwrap();
+        last_miniblock_number_included_in_l1_batch + 1
+    };
+    let pending_miniblock_header = storage
+        .blocks_dal()
+        .get_miniblock_header(pending_miniblock_number)?;
+
+    vlog::info!("Getting previous batch hash");
+    let previous_l1_batch_hash =
+        extractors::wait_for_prev_l1_batch_state_root_unchecked(storage, current_l1_batch_number);
+
+    let base_system_contracts = storage.storage_dal().get_base_system_contracts(
+        pending_miniblock_header
+            .base_system_contracts_hashes
+            .bootloader,
+        pending_miniblock_header
+            .base_system_contracts_hashes
+            .default_aa,
+    );
+
+    vlog::info!("Previous l1_batch_hash: {}", previous_l1_batch_hash);
+    let params = l1_batch_params(
+        current_l1_batch_number,
+        fee_account,
+        pending_miniblock_header.timestamp,
+        previous_l1_batch_hash,
+        pending_miniblock_header.l1_gas_price,
+        pending_miniblock_header.l2_fair_gas_price,
+        base_system_contracts,
+    );
+
+    let txs = storage.transactions_dal().get_transactions_to_reexecute();
+
+    Some(PendingBatchData { params, txs })
 }

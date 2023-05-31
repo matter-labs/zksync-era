@@ -1,12 +1,12 @@
 use crate::eth_sender::{Aggregator, EthTxAggregator, EthTxManager};
-use crate::gas_adjuster::GasAdjuster;
+use crate::l1_gas_price::GasAdjuster;
 use db_test_macro::db_test;
 use zksync_config::{
     configs::eth_sender::{ProofSendingMode, SenderConfig},
     ETHSenderConfig, GasAdjusterConfig,
 };
 use zksync_dal::{ConnectionPool, StorageProcessor};
-use zksync_eth_client::clients::{http_client::EthInterface, mock::MockEthereum};
+use zksync_eth_client::{clients::mock::MockEthereum, EthInterface};
 use zksync_types::{
     aggregated_operations::{AggregatedOperation, BlocksExecuteOperation},
     Address, L1BlockNumber,
@@ -15,7 +15,7 @@ use zksync_types::{
 use std::sync::Arc;
 
 // Alias to conveniently call static methods of ETHSender.
-type MockEthTxManager = EthTxManager<Arc<MockEthereum>>;
+type MockEthTxManager = EthTxManager<Arc<MockEthereum>, GasAdjuster<Arc<MockEthereum>>>;
 
 const DUMMY_OPERATION: AggregatedOperation =
     AggregatedOperation::ExecuteBlocks(BlocksExecuteOperation { blocks: vec![] });
@@ -101,8 +101,7 @@ async fn confirm_many(connection_pool: ConnectionPool) -> anyhow::Result<()> {
     for _ in 0..5 {
         let tx = tester
             .aggregator
-            .save_eth_tx(&mut tester.storage().await, &DUMMY_OPERATION)
-            .await?;
+            .save_eth_tx(&mut tester.storage().await, &DUMMY_OPERATION)?;
         let hash = tester
             .manager
             .send_eth_tx(
@@ -170,8 +169,7 @@ async fn resend_each_block(connection_pool: ConnectionPool) -> anyhow::Result<()
     let block = L1BlockNumber(tester.gateway.block_number("").await?.as_u32());
     let tx = tester
         .aggregator
-        .save_eth_tx(&mut tester.storage().await, &DUMMY_OPERATION)
-        .await?;
+        .save_eth_tx(&mut tester.storage().await, &DUMMY_OPERATION)?;
 
     let hash = tester
         .manager
@@ -238,7 +236,6 @@ async fn dont_resend_already_mined(connection_pool: ConnectionPool) -> anyhow::R
     let tx = tester
         .aggregator
         .save_eth_tx(&mut tester.storage().await, &DUMMY_OPERATION)
-        .await
         .unwrap();
 
     let hash = tester
@@ -303,7 +300,6 @@ async fn three_scenarios(connection_pool: ConnectionPool) -> anyhow::Result<()> 
         let tx = tester
             .aggregator
             .save_eth_tx(&mut tester.storage().await, &DUMMY_OPERATION)
-            .await
             .unwrap();
 
         let hash = tester
@@ -367,7 +363,6 @@ async fn failed_eth_tx(connection_pool: ConnectionPool) {
     let tx = tester
         .aggregator
         .save_eth_tx(&mut tester.storage().await, &DUMMY_OPERATION)
-        .await
         .unwrap();
 
     let hash = tester

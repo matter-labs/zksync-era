@@ -12,7 +12,7 @@ use tokio::{sync::watch, task::JoinHandle};
 
 // Workspace deps
 use zksync_config::constants::PRIORITY_EXPIRATION;
-use zksync_eth_client::clients::http_client::EthereumClient;
+use zksync_eth_client::clients::http::PKSigningClient;
 use zksync_types::{
     l1::L1Tx, web3::types::BlockNumber as Web3BlockNumber, L1BlockNumber, PriorityOpId,
 };
@@ -53,7 +53,7 @@ impl<W: EthClient> EthWatch<W> {
         number_of_confirmations_for_event: usize,
         poll_interval: Duration,
     ) -> Self {
-        let mut storage = pool.access_storage().await;
+        let mut storage = pool.access_storage_blocking();
 
         let state =
             Self::initialize_state(&client, &mut storage, number_of_confirmations_for_event).await;
@@ -109,7 +109,7 @@ impl<W: EthClient> EthWatch<W> {
 
             metrics::counter!("server.eth_watch.eth_poll", 1);
 
-            let mut storage = pool.access_storage().await;
+            let mut storage = pool.access_storage_blocking();
             if let Err(error) = self.loop_iteration(&mut storage).await {
                 // This is an error because otherwise we could potentially miss a priority operation
                 // thus entering priority mode, which is not desired.
@@ -228,7 +228,7 @@ impl<W: EthClient> EthWatch<W> {
 
 pub async fn start_eth_watch(
     pool: ConnectionPool,
-    eth_gateway: EthereumClient,
+    eth_gateway: PKSigningClient,
     config_options: &ZkSyncConfig,
     stop_receiver: watch::Receiver<bool>,
 ) -> JoinHandle<()> {

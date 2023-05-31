@@ -17,6 +17,8 @@ pub struct ApiConfig {
     pub explorer: Explorer,
     /// Configuration options for the Prometheus exporter.
     pub prometheus: Prometheus,
+    /// Configuration options for the Health check.
+    pub healthcheck: HealthCheck,
 }
 
 impl ApiConfig {
@@ -25,6 +27,7 @@ impl ApiConfig {
             web3_json_rpc: envy_load!("web3_json_rpc", "API_WEB3_JSON_RPC_"),
             explorer: envy_load!("explorer", "API_EXPLORER_"),
             prometheus: envy_load!("prometheus", "API_PROMETHEUS_"),
+            healthcheck: envy_load!("healthcheck", "API_HEALTHCHECK_"),
         }
     }
 }
@@ -68,6 +71,9 @@ pub struct Web3JsonRpc {
     pub max_tx_size: usize,
     /// Main node URL - used only by external node to proxy transactions to.
     pub main_node_url: Option<String>,
+    /// Max number of cache misses during one VM execution. If the number of cache misses exceeds this value, the api server panics.
+    /// This is a temporary solution to mitigate API request resulting in thousands of DB queries.
+    pub vm_execution_cache_misses_limit: Option<usize>,
 }
 
 impl Web3JsonRpc {
@@ -101,6 +107,18 @@ impl Web3JsonRpc {
 
     pub fn account_pks(&self) -> Vec<H256> {
         self.account_pks.clone().unwrap_or_default()
+    }
+}
+
+#[derive(Debug, Deserialize, Clone, PartialEq)]
+pub struct HealthCheck {
+    /// Port to which the REST server is listening.
+    pub port: u16,
+}
+
+impl HealthCheck {
+    pub fn bind_addr(&self) -> SocketAddr {
+        SocketAddr::new("0.0.0.0".parse().unwrap(), self.port)
     }
 }
 
@@ -175,6 +193,7 @@ mod tests {
                 estimate_gas_acceptable_overestimation: 1000,
                 max_tx_size: 1000000,
                 main_node_url: None,
+                vm_execution_cache_misses_limit: None,
             },
             explorer: Explorer {
                 port: 3070,
@@ -189,6 +208,7 @@ mod tests {
                 pushgateway_url: "http://127.0.0.1:9091".into(),
                 push_interval_ms: Some(100),
             },
+            healthcheck: HealthCheck { port: 8081 },
         }
     }
 
@@ -221,6 +241,7 @@ API_EXPLORER_THREADS_PER_SERVER=128
 API_PROMETHEUS_LISTENER_PORT="3312"
 API_PROMETHEUS_PUSHGATEWAY_URL="http://127.0.0.1:9091"
 API_PROMETHEUS_PUSH_INTERVAL_MS=100
+API_HEALTHCHECK_PORT=8081
         "#;
         set_env(config);
 

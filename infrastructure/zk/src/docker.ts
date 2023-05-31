@@ -4,12 +4,14 @@ import * as contract from './contract';
 
 const IMAGES = [
     'server-v2',
+    'external-node',
     'contract-verifier',
     'prover-v2',
     'geth',
     'local-node',
     'zk-environment',
-    'circuit-synthesizer'
+    'circuit-synthesizer',
+    'witness-generator'
 ];
 const UNIX_TIMESTAMP = Date.now();
 
@@ -52,7 +54,15 @@ async function dockerCommand(command: 'push' | 'build', image: string, customTag
 }
 
 function defaultTagList(image: string, imageTagSha: string, imageTagShaTS: string) {
-    const tagList = ['server-v2', 'prover', 'contract-verifier', 'prover-v2', 'circuit-synthesizer'].includes(image)
+    const tagList = [
+        'server-v2',
+        'external-node',
+        'prover',
+        'contract-verifier',
+        'prover-v2',
+        'circuit-synthesizer',
+        'witness-generator'
+    ].includes(image)
         ? ['latest2.0', `2.0-${imageTagSha}`, `2.0-${imageTagShaTS}`]
         : [`latest2.0`];
 
@@ -60,7 +70,7 @@ function defaultTagList(image: string, imageTagSha: string, imageTagShaTS: strin
 }
 
 async function _build(image: string, tagList: string[]) {
-    if (image == 'server-v2' || image == 'prover') {
+    if (image == 'server-v2' || image == 'external-node' || image == 'prover') {
         await contract.build();
     }
 
@@ -87,6 +97,13 @@ async function _push(image: string, tagList: string[]) {
             `docker tag matterlabs/${image}:${tag} us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${image}:${tag}`
         );
         await utils.spawn(`docker push us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${image}:${tag}`);
+
+        if (image == 'circuit-synthesizer') {
+            await utils.spawn(
+                `docker tag us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${image}:${tag} asia-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${image}:${tag}`
+            );
+            await utils.spawn(`docker push asia-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${image}:${tag}`);
+        }
     }
 }
 

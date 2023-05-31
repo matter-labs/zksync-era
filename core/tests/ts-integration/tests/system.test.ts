@@ -193,7 +193,7 @@ describe('System behavior checks', () => {
         const amount = 1;
 
         // Fund bob's account.
-        await alice.transfer({ amount, to: bob.address, token: l2Token });
+        await alice.transfer({ amount, to: bob.address, token: l2Token }).then((tx) => tx.wait());
         await alice
             .transfer({ amount: L2_ETH_PER_ACCOUNT.div(8), to: bob.address, token: zksync.utils.ETH_ADDRESS })
             .then((tx) => tx.wait());
@@ -309,6 +309,22 @@ describe('System behavior checks', () => {
             await (await contract.increment(1)).wait();
             expect(contract.get()).resolves.bnToBeEq(2);
         }
+    });
+
+    test('should accept transaction with duplicated factory dep', async () => {
+        const bytecode = contracts.counter.bytecode;
+        // We need some bytecodes that weren't deployed before to test behavior properly.
+        const dep1 = ethers.utils.hexConcat([bytecode, ethers.utils.randomBytes(64)]);
+        const dep2 = ethers.utils.hexConcat([bytecode, ethers.utils.randomBytes(64)]);
+        const dep3 = ethers.utils.hexConcat([bytecode, ethers.utils.randomBytes(64)]);
+        await expect(
+            alice.sendTransaction({
+                to: alice.address,
+                customData: {
+                    factoryDeps: [dep2, dep1, dep3, dep3, dep1, dep2]
+                }
+            })
+        ).toBeAccepted();
     });
 
     it('should reject transaction with huge gas limit', async () => {

@@ -1,0 +1,8 @@
+[house_keeper]
+l1_batch_metrics_reporting_interval_ms=10000
+blob_cleaning_interval_ms=60000
+gpu_prover_queue_reporting_interval_ms=10000
+prover_job_retrying_interval_ms=300000
+prover_stats_reporting_interval_ms=5000
+witness_job_moving_interval_ms=30000
+witness_generator_stats_reporting_interval_ms=10000

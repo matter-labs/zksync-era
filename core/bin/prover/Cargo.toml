@@ -4,7 +4,7 @@ version = "1.0.0"
 edition = "2018"
 authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
 homepage = "https://zksync.io/"
-repository = "https://github.com/matter-labs/zksync-era"
+repository = "https://github.com/matter-labs/zksync-2"
 license = "Apache-2.0"
 keywords = ["blockchain", "zksync"]
 categories = ["cryptography"]
@@ -17,6 +17,7 @@ zksync_config = { path = "../../lib/config", version = "1.0" }
 zksync_utils = {path = "../../lib/utils", version = "1.0" }
 zksync_prover_utils = {path = "../../lib/prover_utils", version = "1.0" }
 zksync_circuit_breaker = {path = "../../lib/circuit_breaker", version = "1.0" }
+zksync_eth_client = {path = "../../lib/eth_client", version = "1.0" }
 prometheus_exporter = { path = "../../lib/prometheus_exporter", version = "1.0" }
 vlog = { path = "../../lib/vlog", version = "1.0" }
 zksync_verification_key_generator_and_server = { path = "../verification_key_generator_and_server", version = "1.0" }
@@ -24,10 +25,11 @@ zksync_object_store = { path = "../../lib/object_store", version = "1.0" }
 setup_key_generator_and_server = { path = "../setup_key_generator_and_server", version = "1.0" }
 
 
-api = { git = "https://github.com/matter-labs/era-heavy-ops-service.git", branch = "main", features=["gpu"], default-features=false}
-prover-service = { git = "https://github.com/matter-labs/era-heavy-ops-service.git", branch = "main", features=["gpu"], default-features=false}
+api = { git = "https://github.com/matter-labs/era-heavy-ops-service.git", branch = "v1.3.2", features=["gpu"], default-features=false}
+prover-service = { git = "https://github.com/matter-labs/era-heavy-ops-service.git", branch = "v1.3.2", features=["gpu"], default-features=false}
 
-zkevm_test_harness = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "main"}
+zkevm_test_harness = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.3.2"}
+
 
 tokio = { version = "1", features = ["time"] }
 futures = { version = "0.3", features = ["compat"] }

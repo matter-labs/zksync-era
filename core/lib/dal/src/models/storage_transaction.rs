@@ -8,6 +8,7 @@ use sqlx::Row;
 use std::str::FromStr;
 use zksync_types::l2::TransactionType;
 use zksync_types::transaction_request::PaymasterParams;
+use zksync_types::vm_trace::Call;
 use zksync_types::web3::types::U64;
 use zksync_types::{api, explorer_api, L2_ETH_TOKEN_ADDRESS};
 use zksync_types::{
@@ -91,6 +92,7 @@ pub struct StorageTransactionDetails {
     pub l1_batch_tx_index: Option<i32>,
     pub l1_batch_number: Option<i64>,
     pub miniblock_number: Option<i64>,
+    pub miniblock_timestamp: Option<i64>,
     pub block_hash: Option<Vec<u8>>,
     pub index_in_block: Option<i32>,
     pub error: Option<String>,
@@ -133,26 +135,17 @@ impl From<StorageTransactionDetails> for api::TransactionDetails {
     fn from(tx_details: StorageTransactionDetails) -> Self {
         let status = tx_details.get_transaction_status();
 
-        let fee = if tx_details.is_priority {
-            let full_fee_string = tx_details
-                .full_fee
-                .expect("full fee is mandatory for priority operation")
-                .to_string();
+        let effective_gas_price =
+            bigdecimal_to_u256(tx_details.effective_gas_price.clone().unwrap_or_default());
 
-            U256::from_dec_str(&full_fee_string)
-                .unwrap_or_else(|_| panic!("Incorrect full fee value in DB {}", full_fee_string))
-        } else {
-            let effective_gas_price =
-                bigdecimal_to_u256(tx_details.effective_gas_price.clone().unwrap_or_default());
-
-            let gas_limit = bigdecimal_to_u256(
-                tx_details
-                    .gas_limit
-                    .clone()
-                    .expect("gas limit is mandatory for transaction"),
-            );
-            gas_limit * effective_gas_price
-        };
+        let gas_limit = bigdecimal_to_u256(
+            tx_details
+                .gas_limit
+                .clone()
+                .expect("gas limit is mandatory for transaction"),
+        );
+        let gas_refunded = U256::from(tx_details.refunded_gas as u32);
+        let fee = (gas_limit - gas_refunded) * effective_gas_price;
 
         let initiator_address = H160::from_slice(tx_details.initiator_address.as_slice());
         let received_at = DateTime::<Utc>::from_utc(tx_details.received_at, Utc);
@@ -480,6 +473,7 @@ pub fn transaction_details_from_storage(
     let block_number = tx_details
         .miniblock_number
         .map(|number| MiniblockNumber(number as u32));
+    let miniblock_timestamp = tx_details.miniblock_timestamp.map(|number| number as u64);
     let l1_batch_number = tx_details
         .l1_batch_number
         .map(|number| L1BatchNumber(number as u32));
@@ -539,12 +533,7 @@ pub fn transaction_details_from_storage(
     let effective_gas_price =
         bigdecimal_to_u256(storage_tx.effective_gas_price.clone().unwrap_or_default());
     let tx: Transaction = storage_tx.into();
-    let fee = match &tx.common_data {
-        ExecuteTransactionCommon::L1(data) => data.full_fee,
-        ExecuteTransactionCommon::L2(data) => {
-            (data.fee.gas_limit - tx_details.refunded_gas) * effective_gas_price
-        }
-    };
+    let fee = (tx.gas_limit() - tx_details.refunded_gas) * effective_gas_price;
 
     let tx_type = tx.tx_format();
 
@@ -569,13 +558,16 @@ pub fn transaction_details_from_storage(
             to,
             amount: withdraw.amount,
         };
-        let elem_to_remove = transfer_changes
-            .iter()
-            .find_position(|event| event == &&burn_event_to_remove);
+        let elem_to_remove = transfer_changes.iter().find_position(|event| {
+            event.token_info.l2_address == burn_event_to_remove.token_info.l2_address
+                && event.from == burn_event_to_remove.from
+                && event.to == burn_event_to_remove.to
+                && event.amount == burn_event_to_remove.amount
+        });
         if let Some(idx_to_remove) = elem_to_remove {
             transfer_changes.remove(idx_to_remove.0);
         } else {
-            vlog::error!(
+            vlog::warn!(
                 "Burn event for withdrawal must be present, tx hash: {:?}",
                 transaction_hash
             );
@@ -590,13 +582,16 @@ pub fn transaction_details_from_storage(
                 to: deposit.to,
                 amount: deposit.amount,
             };
-            let elem_to_remove = transfer_changes
-                .iter()
-                .find_position(|event| event == &&mint_event_to_remove);
+            let elem_to_remove = transfer_changes.iter().find_position(|event| {
+                event.token_info.l2_address == mint_event_to_remove.token_info.l2_address
+                    && event.from == mint_event_to_remove.from
+                    && event.to == mint_event_to_remove.to
+                    && event.amount == mint_event_to_remove.amount
+            });
             if let Some(idx_to_remove) = elem_to_remove {
                 transfer_changes.remove(idx_to_remove.0);
             } else {
-                vlog::error!(
+                vlog::warn!(
                     "Mint event for deposit must be present, tx hash: {:?}",
                     transaction_hash
                 );
@@ -641,6 +636,7 @@ pub fn transaction_details_from_storage(
         index_in_block,
         initiator_address,
         received_at,
+        miniblock_timestamp,
         eth_commit_tx_hash,
         eth_prove_tx_hash,
         eth_execute_tx_hash,
@@ -648,5 +644,17 @@ pub fn transaction_details_from_storage(
         transfer,
         balance_changes,
         r#type: tx_type as u32,
+    }
+}
+
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct CallTrace {
+    pub tx_hash: Vec<u8>,
+    pub call_trace: Vec<u8>,
+}
+
+impl From<CallTrace> for Call {
+    fn from(call_trace: CallTrace) -> Self {
+        bincode::deserialize(&call_trace.call_trace).unwrap()
     }
 }

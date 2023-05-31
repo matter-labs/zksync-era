@@ -4,6 +4,7 @@ use crate::explorer_api::TransactionStatus;
 pub use crate::transaction_request::{
     Eip712Meta, SerializationTransactionError, TransactionRequest,
 };
+use crate::vm_trace::{Call, CallType};
 use crate::web3::types::{AccessList, Index, H2048};
 use crate::{Address, MiniblockNumber};
 use chrono::{DateTime, Utc};
@@ -173,7 +174,7 @@ pub struct L2ToL1LogProof {
 }
 
 /// A struct with the two default bridge contracts.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BridgeAddresses {
     pub l1_erc20_default_bridge: Address,
@@ -490,4 +491,58 @@ pub struct GetLogsFilter {
     pub to_block: Option<BlockNumber>,
     pub addresses: Vec<Address>,
     pub topics: Vec<(u32, Vec<H256>)>,
+}
+
+/// Result of debugging block
+/// For some reasons geth returns result as {result: DebugCall}
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ResultDebugCall {
+    pub result: DebugCall,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+pub enum DebugCallType {
+    Call,
+    Create,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DebugCall {
+    pub r#type: DebugCallType,
+    pub from: Address,
+    pub to: Address,
+    pub gas: U256,
+    pub gas_used: U256,
+    pub value: U256,
+    pub output: Bytes,
+    pub input: Bytes,
+    pub error: Option<String>,
+    pub revert_reason: Option<String>,
+    pub calls: Vec<DebugCall>,
+}
+
+impl From<Call> for DebugCall {
+    fn from(value: Call) -> Self {
+        let calls = value.calls.into_iter().map(DebugCall::from).collect();
+        let debug_type = match value.r#type {
+            CallType::Call(_) => DebugCallType::Call,
+            CallType::Create => DebugCallType::Create,
+            CallType::NearCall => unreachable!("We have to filter our near calls before"),
+        };
+        Self {
+            r#type: debug_type,
+            from: value.from,
+            to: value.to,
+            gas: U256::from(value.gas),
+            gas_used: U256::from(value.gas_used),
+            value: value.value,
+            output: Bytes::from(value.output.clone()),
+            input: Bytes::from(value.input.clone()),
+            error: value.error.clone(),
+            revert_reason: value.revert_reason,
+            calls,
+        }
+    }
 }

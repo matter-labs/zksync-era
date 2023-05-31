@@ -1,3 +1,4 @@
+use crate::history_recorder::HistoryMode;
 use crate::vm_with_bootloader::{
     eth_price_per_pubdata_byte, BOOTLOADER_HEAP_PAGE, TX_GAS_LIMIT_OFFSET,
 };
@@ -6,7 +7,7 @@ use zk_evm::aux_structures::Timestamp;
 use zksync_types::U256;
 use zksync_utils::ceil_div_u256;
 
-impl<'a> VmInstance<'a> {
+impl<H: HistoryMode> VmInstance<'_, H> {
     pub(crate) fn tx_body_refund(
         &self,
         from_timestamp: Timestamp,
@@ -184,6 +185,7 @@ impl<'a> VmInstance<'a> {
         // overhead.as_u32()
     }
 
+    /// Returns the given transactions' gas limit - by reading it directly from the VM memory.
     pub(crate) fn get_tx_gas_limit(&self, tx_index: usize) -> u32 {
         let tx_description_offset = self.bootloader_state.get_tx_description_offset(tx_index);
         self.state

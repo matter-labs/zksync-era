@@ -14,7 +14,7 @@ pub struct ProverConfig {
     pub prometheus_port: u16,
     /// Currently only a single (largest) key is supported. We'll support different ones in the future
     pub initial_setup_key_path: String,
-    /// https://storage.googleapis.com/universal-setup/setup_2\^26.key
+    /// https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2\^26.key
     pub key_download_url: String,
     /// Max time for proof to be generated
     pub generation_timeout_in_secs: u16,

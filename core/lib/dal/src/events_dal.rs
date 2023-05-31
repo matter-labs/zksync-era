@@ -30,7 +30,6 @@ impl EventsDal<'_, '_> {
                 )
                 .await
                 .unwrap();
-
             let mut bytes: Vec<u8> = Vec::new();
             let now = Utc::now().naive_utc().to_string();
             let mut event_index_in_block = 0u32;
@@ -81,6 +80,7 @@ impl EventsDal<'_, '_> {
                 }
             }
             copy.send(bytes).await.unwrap();
+            // note: all the time spent in this function is spent in `copy.finish()`
             copy.finish().await.unwrap();
         })
     }

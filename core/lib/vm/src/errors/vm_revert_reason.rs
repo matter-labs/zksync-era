@@ -20,6 +20,7 @@ pub enum VmRevertReasonParsingError {
 pub enum VmRevertReason {
     General {
         msg: String,
+        data: Vec<u8>,
     },
     InnerTxError,
     VmError,
@@ -31,8 +32,8 @@ pub enum VmRevertReason {
 
 impl VmRevertReason {
     const GENERAL_ERROR_SELECTOR: &'static [u8] = &[0x08, 0xc3, 0x79, 0xa0];
-
-    fn parse_general_error(bytes: &[u8]) -> Result<Self, VmRevertReasonParsingError> {
+    fn parse_general_error(original_bytes: &[u8]) -> Result<Self, VmRevertReasonParsingError> {
+        let bytes = &original_bytes[4..];
         if bytes.len() < 32 {
             return Err(VmRevertReasonParsingError::InputIsTooShort(bytes.to_vec()));
         }
@@ -61,9 +62,28 @@ impl VmRevertReason {
             ));
         };
 
+        let raw_data = &data[32..32 + string_length];
         Ok(Self::General {
-            msg: String::from_utf8_lossy(&data[32..32 + string_length]).to_string(),
+            msg: String::from_utf8_lossy(raw_data).to_string(),
+            data: original_bytes.to_vec(),
         })
+    }
+
+    pub fn to_user_friendly_string(&self) -> String {
+        match self {
+            // In case of `Unknown` reason we suppress it to prevent verbose Error function_selector = 0x{}
+            // message shown to user.
+            VmRevertReason::Unknown { .. } => "".to_owned(),
+            _ => self.to_string(),
+        }
+    }
+
+    pub fn encoded_data(&self) -> Vec<u8> {
+        match self {
+            VmRevertReason::Unknown { data, .. } => data.clone(),
+            VmRevertReason::General { data, .. } => data.clone(),
+            _ => vec![],
+        }
     }
 }
 
@@ -91,13 +111,12 @@ impl TryFrom<&[u8]> for VmRevertReason {
         }
 
         let function_selector = &bytes[0..4];
-        let error_data = &bytes[4..];
         match function_selector {
-            VmRevertReason::GENERAL_ERROR_SELECTOR => Self::parse_general_error(error_data),
+            VmRevertReason::GENERAL_ERROR_SELECTOR => Self::parse_general_error(bytes),
             _ => {
                 let result = VmRevertReason::Unknown {
                     function_selector: function_selector.to_vec(),
-                    data: error_data.to_vec(),
+                    data: bytes.to_vec(),
                 };
                 vlog::warn!("Unsupported error type: {}", result);
                 Ok(result)
@@ -111,7 +130,7 @@ impl Display for VmRevertReason {
         use VmRevertReason::{General, InnerTxError, Unknown, VmError};
 
         match self {
-            General { msg } => write!(f, "{}", msg),
+            General { msg, .. } => write!(f, "{}", msg),
             VmError => write!(f, "VM Error",),
             InnerTxError => write!(f, "Bootloader-based tx failed"),
             Unknown {
@@ -163,7 +182,8 @@ mod tests {
         assert_eq!(
             reason,
             VmRevertReason::General {
-                msg: "ERC20: transfer amount exceeds balance".to_string()
+                msg: "ERC20: transfer amount exceeds balance".to_string(),
+                data: msg
             }
         );
     }

@@ -7,7 +7,7 @@ import * as server from './server';
 import * as contract from './contract';
 import * as run from './run/run';
 import * as compiler from './compiler';
-import * as db from './database/database';
+import * as db from './database';
 import { clean } from './clean';
 import * as env from './env';
 import * as docker from './docker';
@@ -97,6 +97,7 @@ function createVolumes() {
 }
 
 async function submoduleUpdate() {
+    await utils.exec('git submodule init');
     await utils.exec('git submodule update');
 }
 

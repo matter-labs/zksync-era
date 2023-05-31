@@ -1,29 +1,26 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::time::Instant;
 
-use super::tx_sender::SubmitTxError;
-use crate::api_server::web3::backend_jsonrpc::error::internal_error;
 use thiserror::Error;
 use tracing::{span, Level};
-use vm::oracles::tracer::{ValidationError, ValidationTracerParams};
-use zksync_types::api::BlockId;
-use zksync_types::utils::storage_key_for_eth_balance;
-use zksync_types::{PUBLISH_BYTECODE_OVERHEAD, TRUSTED_ADDRESS_SLOTS, TRUSTED_TOKEN_SLOTS};
 
-use crate::db_storage_provider::DbStorageProvider;
+use vm::oracles::tracer::{ValidationError, ValidationTracerParams};
 use vm::vm_with_bootloader::{
     derive_base_fee_and_gas_per_pubdata, init_vm, push_transaction_to_bootloader_memory,
     BlockContext, BlockContextMode, BootloaderJobType, DerivedBlockContext, TxExecutionMode,
 };
 use vm::zk_evm::block_properties::BlockProperties;
 use vm::{
-    storage::Storage, utils::ETH_CALL_GAS_LIMIT, TxRevertReason, VmBlockResult, VmExecutionResult,
-    VmInstance,
+    storage::Storage, utils::ETH_CALL_GAS_LIMIT, TxRevertReason, VmExecutionResult, VmInstance,
 };
+use vm::{HistoryDisabled, HistoryMode};
 use zksync_config::constants::ZKPORTER_IS_AVAILABLE;
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{ConnectionPool, StorageProcessor};
+use zksync_db_storage_provider::DbStorageProvider;
 use zksync_state::storage_view::StorageView;
+use zksync_types::api::BlockId;
+use zksync_types::utils::storage_key_for_eth_balance;
 use zksync_types::{
     api,
     event::{extract_long_l2_to_l1_messages, extract_published_bytecodes},
@@ -32,12 +29,17 @@ use zksync_types::{
     l2::L2Tx,
     storage_writes_deduplicator::StorageWritesDeduplicator,
     utils::{decompose_full_nonce, nonces_to_full_nonce},
-    AccountTreeId, MiniblockNumber, Nonce, Transaction, U256,
+    AccountTreeId, MiniblockNumber, Nonce, StorageKey, Transaction, H256, U256,
 };
+use zksync_types::{PUBLISH_BYTECODE_OVERHEAD, TRUSTED_ADDRESS_SLOTS, TRUSTED_TOKEN_SLOTS};
 use zksync_utils::bytecode::{bytecode_len_in_bytes, hash_bytecode, CompressedBytecodeInfo};
 use zksync_utils::time::millis_since_epoch;
 use zksync_utils::{h256_to_u256, u256_to_h256};
 use zksync_web3_decl::error::Web3Error;
+
+use crate::api_server::web3::backend_jsonrpc::error::internal_error;
+
+use super::tx_sender::SubmitTxError;
 
 #[derive(Debug, Error)]
 pub enum SandboxExecutionError {
@@ -54,13 +56,13 @@ pub enum SandboxExecutionError {
     #[error("Bootloader failure: {0}")]
     BootloaderFailure(String),
     #[error("Revert: {0}")]
-    Revert(String),
+    Revert(String, Vec<u8>),
     #[error("Failed to pay for the transaction: {0}")]
     FailedToPayForTransaction(String),
     #[error("Bootloader-based tx failed")]
     InnerTxError,
     #[error(
-        "Virtual machine entered unexpected state. Please contact developers and provide transaction details \
+    "Virtual machine entered unexpected state. Please contact developers and provide transaction details \
         that caused this error. Error description: {0}"
     )]
     UnexpectedVMBehavior(String),
@@ -68,6 +70,7 @@ pub enum SandboxExecutionError {
     Unexecutable(String),
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn execute_tx_eth_call(
     connection_pool: &ConnectionPool,
     mut tx: L2Tx,
@@ -76,6 +79,8 @@ pub fn execute_tx_eth_call(
     fair_l2_gas_price: u64,
     enforced_base_fee: Option<u64>,
     base_system_contract: &BaseSystemContracts,
+    vm_execution_cache_misses_limit: Option<usize>,
+    trace_call: bool,
 ) -> Result<VmExecutionResult, Web3Error> {
     let mut storage = connection_pool.access_storage_blocking();
     let resolved_block_number = storage
@@ -94,7 +99,9 @@ pub fn execute_tx_eth_call(
     let vm_result = execute_tx_in_sandbox(
         storage,
         tx.into(),
-        TxExecutionMode::EthCall,
+        TxExecutionMode::EthCall {
+            missed_storage_invocation_limit: vm_execution_cache_misses_limit.unwrap_or(usize::MAX),
+        },
         AccountTreeId::default(),
         block_id,
         resolved_block_number,
@@ -106,11 +113,13 @@ pub fn execute_tx_eth_call(
         fair_l2_gas_price,
         enforced_base_fee,
         base_system_contract,
+        trace_call,
+        &mut Default::default(),
     )
     .1
     .map_err(|err| {
         let submit_tx_error: SubmitTxError = err.into();
-        Web3Error::SubmitTransactionError(submit_tx_error.to_string())
+        Web3Error::SubmitTransactionError(submit_tx_error.to_string(), submit_tx_error.data())
     })?;
     Ok(vm_result)
 }
@@ -134,7 +143,8 @@ fn get_pending_state(
     tx,
     operator_account,
     enforced_nonce,
-    base_system_contracts
+    base_system_contracts,
+    storage_read_cache
 ))]
 #[allow(clippy::too_many_arguments)]
 pub fn execute_tx_with_pending_state(
@@ -148,6 +158,7 @@ pub fn execute_tx_with_pending_state(
     fair_l2_gas_price: u64,
     enforced_base_fee: Option<u64>,
     base_system_contracts: &BaseSystemContracts,
+    storage_read_cache: &mut HashMap<StorageKey, H256>,
 ) -> (
     TransactionExecutionMetrics,
     Result<VmExecutionResult, SandboxExecutionError>,
@@ -177,6 +188,8 @@ pub fn execute_tx_with_pending_state(
         fair_l2_gas_price,
         enforced_base_fee,
         base_system_contracts,
+        false,
+        storage_read_cache,
     )
 }
 
@@ -285,7 +298,8 @@ pub(crate) fn adjust_l1_gas_price_for_tx(
     tx,
     operator_account,
     block_timestamp_s,
-    base_system_contract
+    base_system_contract,
+    storage_read_cache
 ))]
 fn execute_tx_in_sandbox(
     connection: StorageProcessor<'_>,
@@ -302,11 +316,12 @@ fn execute_tx_in_sandbox(
     fair_l2_gas_price: u64,
     enforced_base_fee: Option<u64>,
     base_system_contract: &BaseSystemContracts,
+    trace_call: bool,
+    storage_read_cache: &mut HashMap<StorageKey, H256>,
 ) -> (
     TransactionExecutionMetrics,
     Result<VmExecutionResult, SandboxExecutionError>,
 ) {
-    let stage_started_at = Instant::now();
     let span = span!(Level::DEBUG, "execute_in_sandbox").entered();
 
     let total_factory_deps = tx
@@ -329,17 +344,17 @@ fn execute_tx_in_sandbox(
         l1_gas_price,
         fair_l2_gas_price,
         enforced_base_fee,
+        storage_read_cache,
         |vm, tx| {
             push_transaction_to_bootloader_memory(vm, &tx, execution_mode, None);
-            let VmBlockResult {
-                full_result: result,
-                ..
-            } = vm.execute_till_block_end(job_type);
+            let result = if trace_call {
+                vm.execute_till_block_end_with_call_tracer(job_type)
+            } else {
+                vm.execute_till_block_end(job_type)
+            };
 
-            metrics::histogram!("api.web3.sandbox", stage_started_at.elapsed(), "stage" => "execution");
             span.exit();
-
-            result
+            result.full_result
         },
     );
 
@@ -369,7 +384,8 @@ fn apply_vm_in_sandbox<T>(
     l1_gas_price: u64,
     fair_l2_gas_price: u64,
     enforced_base_fee: Option<u64>,
-    apply: impl FnOnce(&mut Box<VmInstance<'_>>, Transaction) -> T,
+    storage_read_cache: &mut HashMap<StorageKey, H256>,
+    apply: impl FnOnce(&mut Box<VmInstance<'_, HistoryDisabled>>, Transaction) -> T,
 ) -> T {
     let stage_started_at = Instant::now();
     let span = span!(Level::DEBUG, "initialization").entered();
@@ -407,7 +423,9 @@ fn apply_vm_in_sandbox<T>(
 
     let db_storage_provider = DbStorageProvider::new(connection, state_block_number, false);
 
-    let mut storage_view = StorageView::new(db_storage_provider);
+    // Moving `storage_read_cache` to `storage_view`. It will be moved back once execution is finished and `storage_view` is not needed.
+    let mut storage_view =
+        StorageView::new_with_read_keys(db_storage_provider, std::mem::take(storage_read_cache));
 
     let block_timestamp_ms = match block_id {
         api::BlockId::Number(api::BlockNumber::Pending) => millis_since_epoch(),
@@ -440,7 +458,8 @@ fn apply_vm_in_sandbox<T>(
         storage_view.set_value(&balance_key, u256_to_h256(current_balance + added_balance));
     }
 
-    let mut oracle_tools = vm::OracleTools::new(&mut storage_view as &mut dyn Storage);
+    let mut oracle_tools =
+        vm::OracleTools::new(&mut storage_view as &mut dyn Storage, HistoryDisabled);
     let block_properties = BlockProperties {
         default_aa_code_hash: h256_to_u256(base_system_contracts.default_aa.hash),
         zkporter_is_available: ZKPORTER_IS_AVAILABLE,
@@ -474,7 +493,16 @@ fn apply_vm_in_sandbox<T>(
     metrics::histogram!("api.web3.sandbox", stage_started_at.elapsed(), "stage" => "initialization");
     span.exit();
 
+    let tx_id = format!(
+        "{:?}-{} ",
+        tx.initiator_account(),
+        tx.nonce().unwrap_or(Nonce(0))
+    );
+
+    let stage_started_at = Instant::now();
     let result = apply(&mut vm, tx);
+    let vm_execution_took = stage_started_at.elapsed();
+    metrics::histogram!("api.web3.sandbox", vm_execution_took, "stage" => "execution");
 
     let oracles_sizes = record_vm_memory_metrics(vm);
     let storage_view_cache = storage_view.get_cache_size();
@@ -487,22 +515,61 @@ fn apply_vm_in_sandbox<T>(
         (oracles_sizes + storage_view_cache) as f64
     );
 
-    metrics::histogram!("runtime_context.storage_interaction", storage_view.storage_invocations as f64, "interaction" => "set_value_storage_invocations");
-    metrics::histogram!("runtime_context.storage_interaction", storage_view.new_storage_invocations as f64, "interaction" => "set_value_new_storage_invocations");
-    metrics::histogram!("runtime_context.storage_interaction", storage_view.get_value_storage_invocations as f64, "interaction" => "set_value_get_value_storage_invocations");
-    metrics::histogram!("runtime_context.storage_interaction", storage_view.set_value_storage_invocations as f64, "interaction" => "set_value_set_value_storage_invocations");
+    let total_storage_invocations =
+        storage_view.get_value_storage_invocations + storage_view.set_value_storage_invocations;
+    let total_time_spent_in_storage =
+        storage_view.time_spent_on_get_value + storage_view.time_spent_on_set_value;
+
+    metrics::histogram!("runtime_context.storage_interaction.amount", storage_view.storage_invocations_missed as f64, "interaction" => "missed");
+    metrics::histogram!("runtime_context.storage_interaction.amount", storage_view.get_value_storage_invocations as f64, "interaction" => "get_value");
+    metrics::histogram!("runtime_context.storage_interaction.amount", storage_view.set_value_storage_invocations as f64, "interaction" => "set_value");
+    metrics::histogram!("runtime_context.storage_interaction.amount", (total_storage_invocations) as f64, "interaction" => "total");
+
+    metrics::histogram!("runtime_context.storage_interaction.duration", storage_view.time_spent_on_storage_missed, "interaction" => "missed");
+    metrics::histogram!("runtime_context.storage_interaction.duration", storage_view.time_spent_on_get_value, "interaction" => "get_value");
+    metrics::histogram!("runtime_context.storage_interaction.duration", storage_view.time_spent_on_set_value, "interaction" => "set_value");
+    metrics::histogram!("runtime_context.storage_interaction.duration", total_time_spent_in_storage, "interaction" => "total");
+
+    if total_storage_invocations > 0 {
+        metrics::histogram!(
+            "runtime_context.storage_interaction.duration_per_unit",
+            total_time_spent_in_storage.div_f64(total_storage_invocations as f64),
+            "interaction" => "total"
+        );
+    }
+    if storage_view.storage_invocations_missed > 0 {
+        metrics::histogram!(
+            "runtime_context.storage_interaction.duration_per_unit",
+            storage_view.time_spent_on_storage_missed.div_f64(storage_view.storage_invocations_missed as f64),
+            "interaction" => "missed"
+        );
+    }
+
+    metrics::histogram!(
+        "runtime_context.storage_interaction.ratio",
+        total_time_spent_in_storage.as_secs_f64() / vm_execution_took.as_secs_f64(),
+    );
 
     const STORAGE_INVOCATIONS_DEBUG_THRESHOLD: usize = 1000;
 
-    if storage_view.storage_invocations > STORAGE_INVOCATIONS_DEBUG_THRESHOLD {
+    if total_storage_invocations > STORAGE_INVOCATIONS_DEBUG_THRESHOLD {
         vlog::info!(
-            "Tx resulted in {} storage_invocations, {} new_storage_invocations, {} get_value_storage_invocations, {} set_value_storage_invocations",
-            storage_view.storage_invocations,
-            storage_view.new_storage_invocations,
+            "Tx {} resulted in {} storage_invocations, {} new_storage_invocations, {} get_value_storage_invocations, {} set_value_storage_invocations, vm execution tool {:?}, storage interaction took {:?} (missed: {:?} get: {:?} set: {:?})",
+            tx_id,
+            total_storage_invocations,
+            storage_view.storage_invocations_missed,
             storage_view.get_value_storage_invocations,
             storage_view.set_value_storage_invocations,
+            vm_execution_took,
+            total_time_spent_in_storage,
+            storage_view.time_spent_on_storage_missed,
+            storage_view.time_spent_on_get_value,
+            storage_view.time_spent_on_set_value,
         );
     }
+
+    // Move `read_storage_keys` from `storage_view` back to cache.
+    *storage_read_cache = storage_view.take_read_storage_keys();
 
     result
 }
@@ -600,6 +667,7 @@ fn validate_tx_in_sandbox(
         l1_gas_price,
         fair_l2_gas_price,
         enforced_base_fee,
+        &mut Default::default(),
         |vm, tx| {
             let stage_started_at = Instant::now();
             let span = span!(Level::DEBUG, "validation").entered();
@@ -657,14 +725,21 @@ fn collect_tx_execution_metrics(
         storage_logs: result.storage_log_queries.len(),
         total_log_queries: result.total_log_queries,
         cycles_used: result.cycles_used,
+        computational_gas_used: result.computational_gas_used,
     }
 }
 
 impl From<TxRevertReason> for SandboxExecutionError {
     fn from(reason: TxRevertReason) -> Self {
         match reason {
-            TxRevertReason::EthCall(reason) => SandboxExecutionError::Revert(reason.to_string()),
-            TxRevertReason::TxReverted(reason) => SandboxExecutionError::Revert(reason.to_string()),
+            TxRevertReason::EthCall(reason) => SandboxExecutionError::Revert(
+                reason.to_user_friendly_string(),
+                reason.encoded_data(),
+            ),
+            TxRevertReason::TxReverted(reason) => SandboxExecutionError::Revert(
+                reason.to_user_friendly_string(),
+                reason.encoded_data(),
+            ),
             TxRevertReason::FailedToChargeFee(reason) => {
                 SandboxExecutionError::FailedToChargeFee(reason.to_string())
             }
@@ -692,20 +767,21 @@ impl From<TxRevertReason> for SandboxExecutionError {
                 "The bootloader did not contain enough gas to execute the transaction".to_string(),
             ),
             revert_reason @ TxRevertReason::FailedToMarkFactoryDependencies(_) => {
-                SandboxExecutionError::Revert(revert_reason.to_string())
+                SandboxExecutionError::Revert(revert_reason.to_string(), vec![])
             }
             TxRevertReason::PayForTxFailed(reason) => {
                 SandboxExecutionError::FailedToPayForTransaction(reason.to_string())
             }
             TxRevertReason::TooBigGasLimit => {
-                SandboxExecutionError::Revert(TxRevertReason::TooBigGasLimit.to_string())
+                SandboxExecutionError::Revert(TxRevertReason::TooBigGasLimit.to_string(), vec![])
             }
+            TxRevertReason::MissingInvocationLimitReached => SandboxExecutionError::InnerTxError,
         }
     }
 }
 
 /// Returns the sum of all oracles' sizes.
-fn record_vm_memory_metrics(vm: Box<VmInstance>) -> usize {
+fn record_vm_memory_metrics<H: HistoryMode>(vm: Box<VmInstance<'_, H>>) -> usize {
     let event_sink_inner = vm.state.event_sink.get_size();
     let event_sink_history = vm.state.event_sink.get_history_size();
     let memory_inner = vm.state.memory.get_size();

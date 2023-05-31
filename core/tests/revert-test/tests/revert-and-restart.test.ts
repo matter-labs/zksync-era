@@ -6,8 +6,25 @@ import { expect } from 'chai';
 
 // Parses output of "print-suggested-values" command of the revert block tool.
 function parseSuggestedValues(suggestedValuesString: string) {
-    let result = suggestedValuesString.match(/(?<=l1 batch number: |nonce: |priority fee: )[0-9]*/g)!;
-    return { lastL1BatchNumber: parseInt(result[0]), nonce: parseInt(result[1]), priorityFee: parseInt(result[2]) };
+    const json = JSON.parse(suggestedValuesString);
+    if (!json || typeof json !== 'object') {
+        throw new TypeError('suggested values are not an object');
+    }
+
+    const lastL1BatchNumber = json.last_executed_l1_batch_number;
+    if (!Number.isInteger(lastL1BatchNumber)) {
+        throw new TypeError('suggested `lastL1BatchNumber` is not an integer');
+    }
+    const nonce = json.nonce;
+    if (!Number.isInteger(nonce)) {
+        throw new TypeError('suggested `nonce` is not an integer');
+    }
+    const priorityFee = json.priority_fee;
+    if (!Number.isInteger(priorityFee)) {
+        throw new TypeError('suggested `priorityFee` is not an integer');
+    }
+
+    return { lastL1BatchNumber, nonce, priorityFee };
 }
 
 async function killServerAndWaitForShutdown(tester: Tester) {
@@ -28,6 +45,11 @@ async function killServerAndWaitForShutdown(tester: Tester) {
     throw new Error("Server didn't stop after a kill request");
 }
 
+function ignoreError(err: any, context?: string) {
+    const message = context ? `Error ignored (context: ${context}).` : 'Error ignored.';
+    console.info(message, err);
+}
+
 const depositAmount = ethers.utils.parseEther('0.001');
 
 describe('Block reverting test', function () {
@@ -43,21 +65,21 @@ describe('Block reverting test', function () {
 
     step('run server and execute some transactions', async () => {
         // Make sure server isn't running.
-        try {
-            await killServerAndWaitForShutdown(tester);
-        } catch (_) {}
+        await killServerAndWaitForShutdown(tester).catch(ignoreError);
 
         // Set 1000 seconds deadline for `ExecuteBlocks` operation.
         process.env.CHAIN_STATE_KEEPER_AGGREGATED_BLOCK_EXECUTE_DEADLINE = '1000';
 
         // Run server in background.
-        utils.background(`zk server --components api,tree,tree_lightweight,eth,data_fetcher,state_keeper`);
+        const components = 'api,tree,tree_lightweight,tree_lightweight_new,eth,data_fetcher,state_keeper';
+        utils.background(`zk server --components ${components}`);
         // Server may need some time to recompile if it's a cold run, so wait for it.
         let iter = 0;
         while (iter < 30 && !mainContract) {
             try {
                 mainContract = await tester.syncWallet.getMainContract();
-            } catch (_) {
+            } catch (err) {
+                ignoreError(err, 'waiting for server HTTP JSON-RPC to start');
                 await utils.sleep(5);
                 iter += 1;
             }
@@ -112,10 +134,13 @@ describe('Block reverting test', function () {
     });
 
     step('revert blocks', async () => {
-        let suggestedValuesOutput = (
-            await utils.exec(`cd $ZKSYNC_HOME && cargo run --bin block_reverter --release -- print-suggested-values`)
-        ).stdout;
-        let { lastL1BatchNumber, nonce, priorityFee } = parseSuggestedValues(suggestedValuesOutput);
+        const executedProcess = await utils.exec(
+            'cd $ZKSYNC_HOME && ' +
+                'RUST_LOG=off cargo run --bin block_reverter --release -- print-suggested-values --json'
+            // ^ Switch off logs to not pollute the output JSON
+        );
+        const suggestedValuesOutput = executedProcess.stdout;
+        const { lastL1BatchNumber, nonce, priorityFee } = parseSuggestedValues(suggestedValuesOutput);
         expect(lastL1BatchNumber < blocksCommittedBeforeRevert, 'There should be at least one block for revert').to.be
             .true;
 
@@ -142,7 +167,7 @@ describe('Block reverting test', function () {
         process.env.CHAIN_STATE_KEEPER_AGGREGATED_BLOCK_EXECUTE_DEADLINE = '1';
 
         // Run server.
-        utils.background(`zk server --components api,tree,tree_lightweight,eth,data_fetcher,state_keeper`);
+        utils.background(`zk server --components api,tree_new,tree_lightweight,eth,data_fetcher,state_keeper`);
         await utils.sleep(10);
 
         const balanceBefore = await alice.getBalance();
@@ -170,7 +195,7 @@ describe('Block reverting test', function () {
         await killServerAndWaitForShutdown(tester);
 
         // Run again.
-        utils.background(`zk server --components=api,tree,tree_lightweight,eth,data_fetcher,state_keeper`);
+        utils.background(`zk server --components=api,tree_new,tree_lightweight,eth,data_fetcher,state_keeper`);
         await utils.sleep(10);
 
         // Trying to send a transaction from the same address again
@@ -178,9 +203,7 @@ describe('Block reverting test', function () {
     });
 
     after('Try killing server', async () => {
-        try {
-            await utils.exec('pkill zksync_server');
-        } catch (_) {}
+        await utils.exec('pkill zksync_server').catch(ignoreError);
     });
 });
 

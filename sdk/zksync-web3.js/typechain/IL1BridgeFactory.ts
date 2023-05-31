@@ -9,8 +9,8 @@ import type { IL1Bridge } from "./IL1Bridge";
 
 export class IL1BridgeFactory {
   static connect(
-    address: string,
-    signerOrProvider: Signer | Provider
+      address: string,
+      signerOrProvider: Signer | Provider
   ): IL1Bridge {
     return new Contract(address, _abi, signerOrProvider) as IL1Bridge;
   }
@@ -47,6 +47,12 @@ const _abi = [
     inputs: [
       {
         indexed: true,
+        internalType: "bytes32",
+        name: "l2DepositTxHash",
+        type: "bytes32",
+      },
+      {
+        indexed: true,
         internalType: "address",
         name: "from",
         type: "address",
@@ -58,7 +64,7 @@ const _abi = [
         type: "address",
       },
       {
-        indexed: true,
+        indexed: false,
         internalType: "address",
         name: "l1Token",
         type: "address",
@@ -168,6 +174,11 @@ const _abi = [
         name: "_l2TxGasPerPubdataByte",
         type: "uint256",
       },
+      {
+        internalType: "address",
+        name: "_refundRecipient",
+        type: "address",
+      },
     ],
     name: "deposit",
     outputs: [
@@ -232,6 +243,19 @@ const _abi = [
         internalType: "bool",
         name: "",
         type: "bool",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "l2Bridge",
+    outputs: [
+      {
+        internalType: "address",
+        name: "",
+        type: "address",
       },
     ],
     stateMutability: "view",

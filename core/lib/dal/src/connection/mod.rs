@@ -36,6 +36,11 @@ impl ConnectionPool {
         Self::Real(pool)
     }
 
+    /// WARNING: this method is intentionally private.
+    /// `zksync_dal` crate uses `async-std` runtime, whereas most of our crates use `tokio`.
+    /// Calling `async-std` future from `tokio` context may cause deadlocks (and it did happen).
+    /// Use blocking counterpart instead.
+    ///
     /// Creates a `StorageProcessor` entity over a recoverable connection.
     /// Upon a database outage connection will block the thread until
     /// it will be able to recover the connection (or, if connection cannot
@@ -44,7 +49,7 @@ impl ConnectionPool {
     ///
     /// This method is intended to be used in crucial contexts, where the
     /// database access is must-have (e.g. block committer).
-    pub async fn access_storage(&self) -> StorageProcessor<'_> {
+    async fn access_storage(&self) -> StorageProcessor<'_> {
         match self {
             ConnectionPool::Real(real_pool) => {
                 let start = Instant::now();
@@ -56,7 +61,7 @@ impl ConnectionPool {
         }
     }
 
-    pub async fn acquire_connection_retried(pool: &PgPool) -> PoolConnection<Postgres> {
+    async fn acquire_connection_retried(pool: &PgPool) -> PoolConnection<Postgres> {
         const DB_CONNECTION_RETRIES: u32 = 3;
 
         let mut retry_count = 0;
@@ -87,8 +92,8 @@ impl ConnectionPool {
     pub async fn access_test_storage(&self) -> StorageProcessor<'static> {
         match self {
             ConnectionPool::Test(test) => test.access_storage().await,
-            ConnectionPool::Real(_real) => {
-                panic!("Attempt to access test storage with the real pool")
+            ConnectionPool::Real(_) => {
+                panic!("Attempt to access test storage with the real pool");
             }
         }
     }

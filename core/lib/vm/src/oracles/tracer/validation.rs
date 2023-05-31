@@ -1,25 +1,25 @@
-use std::collections::HashSet;
 use std::fmt;
 use std::fmt::Display;
+use std::{collections::HashSet, marker::PhantomData};
 
 use crate::{
     errors::VmRevertReasonParsingResult,
+    history_recorder::HistoryMode,
     memory::SimpleMemory,
     oracles::tracer::{
         utils::{computational_gas_price, print_debug_if_needed, VmHook},
         ExecutionEndTracer, PendingRefundTracer, PubdataSpentTracer,
     },
-    utils::{aux_heap_page_from_base, heap_page_from_base},
 };
 
 use zk_evm::{
     abstractions::{
         AfterDecodingData, AfterExecutionData, BeforeExecutionData, Tracer, VmLocalStateData,
     },
-    aux_structures::MemoryPage,
-    zkevm_opcode_defs::{ContextOpcode, FarCallABI, FarCallForwardPageType, LogOpcode, Opcode},
+    zkevm_opcode_defs::{ContextOpcode, FarCallABI, LogOpcode, Opcode},
 };
 
+use crate::oracles::tracer::{utils::get_calldata_page_via_abi, StorageInvocationTracer};
 use crate::storage::StoragePtr;
 use zksync_config::constants::{
     ACCOUNT_CODE_STORAGE_ADDRESS, BOOTLOADER_ADDRESS, CONTRACT_DEPLOYER_ADDRESS,
@@ -130,7 +130,7 @@ fn valid_eth_token_call(address: Address, msg_sender: Address) -> bool {
 /// Tracer that is used to ensure that the validation adheres to all the rules
 /// to prevent DDoS attacks on the server.
 #[derive(Clone)]
-pub struct ValidationTracer<'a> {
+pub struct ValidationTracer<'a, H> {
     // A copy of it should be used in the Storage oracle
     pub storage: StoragePtr<'a>,
     pub validation_mode: ValidationTracerMode,
@@ -145,9 +145,11 @@ pub struct ValidationTracer<'a> {
     trusted_address_slots: HashSet<(Address, U256)>,
     computational_gas_used: u32,
     computational_gas_limit: u32,
+
+    _marker: PhantomData<H>,
 }
 
-impl fmt::Debug for ValidationTracer<'_> {
+impl<H: HistoryMode> fmt::Debug for ValidationTracer<'_, H> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ValidationTracer")
             .field("storage", &"StoragePtr")
@@ -188,7 +190,7 @@ pub struct NewTrustedValidationItems {
 
 type ValidationRoundResult = Result<NewTrustedValidationItems, ViolatedValidationRule>;
 
-impl<'a> ValidationTracer<'a> {
+impl<'a, H: HistoryMode> ValidationTracer<'a, H> {
     pub fn new(storage: StoragePtr<'a>, params: ValidationTracerParams) -> Self {
         ValidationTracer {
             storage,
@@ -204,6 +206,8 @@ impl<'a> ValidationTracer<'a> {
             trusted_address_slots: params.trusted_address_slots,
             computational_gas_used: 0,
             computational_gas_limit: params.computational_gas_limit,
+
+            _marker: PhantomData,
         }
     }
 
@@ -305,7 +309,7 @@ impl<'a> ValidationTracer<'a> {
         &mut self,
         state: VmLocalStateData<'_>,
         data: BeforeExecutionData,
-        memory: &SimpleMemory,
+        memory: &SimpleMemory<H>,
     ) -> ValidationRoundResult {
         if self.computational_gas_used > self.computational_gas_limit {
             return Err(ViolatedValidationRule::TookTooManyComputationalGas(
@@ -362,7 +366,6 @@ impl<'a> ValidationTracer<'a> {
                         return Err(ViolatedValidationRule::TouchedUnallowedContext);
                     }
                     ContextOpcode::ErgsLeft => {
-                        // T
                     }
                     _ => {}
                 }
@@ -398,10 +401,10 @@ impl<'a> ValidationTracer<'a> {
     }
 }
 
-impl Tracer for ValidationTracer<'_> {
+impl<H: HistoryMode> Tracer for ValidationTracer<'_, H> {
     const CALL_BEFORE_EXECUTION: bool = true;
 
-    type SupportedMemory = SimpleMemory;
+    type SupportedMemory = SimpleMemory<H>;
     fn before_decoding(&mut self, _state: VmLocalStateData<'_>, _memory: &Self::SupportedMemory) {}
     fn after_decoding(
         &mut self,
@@ -467,21 +470,13 @@ impl Tracer for ValidationTracer<'_> {
     }
 }
 
-fn get_calldata_page_via_abi(far_call_abi: &FarCallABI, base_page: MemoryPage) -> u32 {
-    match far_call_abi.forwarding_mode {
-        FarCallForwardPageType::ForwardFatPointer => {
-            far_call_abi.memory_quasi_fat_pointer.memory_page
-        }
-        FarCallForwardPageType::UseAuxHeap => aux_heap_page_from_base(base_page).0,
-        FarCallForwardPageType::UseHeap => heap_page_from_base(base_page).0,
-    }
-}
-
-impl ExecutionEndTracer for ValidationTracer<'_> {
+impl<H: HistoryMode> ExecutionEndTracer<H> for ValidationTracer<'_, H> {
     fn should_stop_execution(&self) -> bool {
         self.should_stop_execution || self.validation_error.is_some()
     }
 }
 
-impl PendingRefundTracer for ValidationTracer<'_> {}
-impl PubdataSpentTracer for ValidationTracer<'_> {}
+impl<H: HistoryMode> PendingRefundTracer<H> for ValidationTracer<'_, H> {}
+impl<H: HistoryMode> PubdataSpentTracer<H> for ValidationTracer<'_, H> {}
+
+impl<H: HistoryMode> StorageInvocationTracer<H> for ValidationTracer<'_, H> {}

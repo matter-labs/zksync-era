@@ -105,6 +105,21 @@ describe('web3 API compatibility tests', () => {
         const blockDetails = await alice.provider.getBlockDetails(1);
         const block = await alice.provider.getBlock(1);
         expect(blockDetails.rootHash).toEqual(block.hash);
+        expect(blockDetails.l1BatchNumber).toEqual(block.l1BatchNumber);
+        // zks_getL1BatchDetails
+        const batchDetails = await alice.provider.getL1BatchDetails(block.l1BatchNumber);
+        expect(batchDetails.number).toEqual(block.l1BatchNumber);
+        // zks_estimateFee
+        const response = await alice.provider.send('zks_estimateFee', [
+            { from: alice.address, to: alice.address, value: '0x1' }
+        ]);
+        const expectedResponse = {
+            gas_limit: expect.stringMatching(HEX_VALUE_REGEX),
+            gas_per_pubdata_limit: expect.stringMatching(HEX_VALUE_REGEX),
+            max_fee_per_gas: expect.stringMatching(HEX_VALUE_REGEX),
+            max_priority_fee_per_gas: expect.stringMatching(HEX_VALUE_REGEX)
+        };
+        expect(response).toMatchObject(expectedResponse);
     });
 
     test('Should check the network version', async () => {
@@ -597,6 +612,101 @@ describe('web3 API compatibility tests', () => {
     test('Should throw error for estimate gas for account with balance < tx.value', async () => {
         let poorBob = testMaster.newEmptyAccount();
         expect(poorBob.estimateGas({ value: 1, to: alice.address })).toBeRejected('insufficient balance for transfer');
+    });
+
+    test('Should check API returns correct block for every tag', async () => {
+        const earliestBlock = await alice.provider.send('eth_getBlockByNumber', ['earliest', true]);
+        expect(+earliestBlock.number!).toEqual(0);
+        const committedBlock = await alice.provider.send('eth_getBlockByNumber', ['committed', true]);
+        expect(+committedBlock.number!).toEqual(expect.any(Number));
+        const finalizedBlock = await alice.provider.send('eth_getBlockByNumber', ['finalized', true]);
+        expect(+finalizedBlock.number!).toEqual(expect.any(Number));
+        const latestBlock = await alice.provider.send('eth_getBlockByNumber', ['latest', true]);
+        expect(+latestBlock.number!).toEqual(expect.any(Number));
+        const pendingBlock = await alice.provider.send('eth_getBlockByNumber', ['pending', true]);
+        expect(pendingBlock).toEqual(null);
+    });
+
+    test('Should check sendRawTransaction returns GasPerPubDataLimitZero with 0 gas_per_pubdata_limit', async () => {
+        const gasPrice = await alice.provider.getGasPrice();
+        const chainId = (await alice.provider.getNetwork()).chainId;
+        const address = zksync.Wallet.createRandom().address;
+        const senderNonce = await alice.getTransactionCount();
+        const tx: ethers.providers.TransactionRequest = {
+            to: address,
+            from: alice.address,
+            nonce: senderNonce,
+            gasLimit: ethers.BigNumber.from(300000),
+            data: '0x',
+            value: 0,
+            chainId,
+            type: 113,
+            maxPriorityFeePerGas: gasPrice,
+            maxFeePerGas: gasPrice,
+            customData: {
+                gasPerPubdata: '0'
+            }
+        };
+
+        await expect(alice.sendTransaction(tx)).toBeRejected('gas per pub data limit is zero');
+    });
+
+    test('Should check getLogs works with address/topics in filter', async () => {
+        // We're sending a transfer from the wallet, so we'll use a new account to make event unique.
+        let uniqueRecipient = testMaster.newEmptyAccount().address;
+        const tx = await alice.transfer({
+            to: uniqueRecipient,
+            amount: 1,
+            token: l2Token
+        });
+        const receipt = await tx.wait();
+        const logs = await alice.provider.getLogs({
+            fromBlock: receipt.blockNumber,
+            toBlock: receipt.blockNumber,
+            address: l2Token,
+            topics: [
+                '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef',
+                ethers.utils.hexZeroPad(alice.address, 32),
+                ethers.utils.hexZeroPad(uniqueRecipient, 32)
+            ]
+        });
+        expect(logs).toHaveLength(1);
+        expect(logs[0].transactionHash).toEqual(tx.hash);
+    });
+
+    test('Should check getLogs endpoint works properly with blocks', async () => {
+        const earliestLogs = alice.provider.send('eth_getLogs', [
+            {
+                fromBlock: 'earliest',
+                // we have to set this parameter to avoid `Query returned more than 10000 results. Try with this block range` error
+                toBlock: '1'
+            }
+        ]);
+        await expect(earliestLogs).resolves.not.toThrow();
+
+        const committedLogs = alice.provider.send('eth_getLogs', [
+            {
+                fromBlock: 'committed',
+                address: alice.address
+            }
+        ]);
+        await expect(committedLogs).resolves.not.toThrow();
+
+        const finalizedLogs = alice.provider.send('eth_getLogs', [
+            {
+                fromBlock: 'finalized',
+                address: alice.address
+            }
+        ]);
+        await expect(finalizedLogs).resolves.not.toThrow();
+
+        const latestLogs = alice.provider.send('eth_getLogs', [
+            {
+                fromBlock: 'latest',
+                address: alice.address
+            }
+        ]);
+        await expect(latestLogs).resolves.not.toThrow();
     });
 
     afterAll(async () => {

@@ -5,8 +5,7 @@ use zksync_storage::rocksdb::WriteBatch;
 use zksync_storage::util::{deserialize_block_number, serialize_block_number};
 use zksync_storage::RocksDB;
 use zksync_types::{
-    Address, L1BatchNumber, StorageKey, StorageLog, StorageLogKind, StorageValue,
-    ZkSyncReadStorage, H256,
+    L1BatchNumber, StorageKey, StorageLog, StorageLogKind, StorageValue, ZkSyncReadStorage, H256,
 };
 
 const BLOCK_NUMBER_KEY: &[u8; 12] = b"block_number";
@@ -21,7 +20,6 @@ pub struct SecondaryStateStorage {
 #[derive(Default, Debug)]
 struct PendingPatch {
     state: HashMap<StorageKey, [u8; 32]>,
-    contracts: HashMap<Address, Vec<u8>>,
     factory_deps: HashMap<H256, Vec<u8>>,
 }
 
@@ -32,18 +30,6 @@ impl ZkSyncReadStorage for &SecondaryStateStorage {
 
     fn is_write_initial(&mut self, key: &StorageKey) -> bool {
         self.read_value_inner(key).is_none()
-    }
-
-    fn load_contract(&mut self, address: Address) -> Option<Vec<u8>> {
-        if let Some(value) = self.pending_patch.contracts.get(&address) {
-            return Some(value.clone());
-        }
-        let cf = self
-            .db
-            .cf_state_keeper_handle(StateKeeperColumnFamily::Contracts);
-        self.db
-            .get_cf(cf, address.to_fixed_bytes())
-            .expect("failed to read rocksdb state value")
     }
 
     fn load_factory_dep(&mut self, hash: H256) -> Option<Vec<u8>> {
@@ -95,10 +81,6 @@ impl SecondaryStateStorage {
         }
     }
 
-    pub fn store_contract(&mut self, address: Address, bytecode: Vec<u8>) {
-        self.pending_patch.contracts.insert(address, bytecode);
-    }
-
     pub fn store_factory_dep(&mut self, hash: H256, bytecode: Vec<u8>) {
         self.pending_patch.factory_deps.insert(hash, bytecode);
     }
@@ -106,7 +88,6 @@ impl SecondaryStateStorage {
     pub fn rollback(
         &mut self,
         logs: Vec<(H256, Option<H256>)>,
-        contracts: Vec<Address>,
         factory_deps: Vec<H256>,
         l1_batch_number: L1BatchNumber,
     ) {
@@ -126,13 +107,6 @@ impl SecondaryStateStorage {
             BLOCK_NUMBER_KEY,
             serialize_block_number(l1_batch_number.0 + 1),
         );
-
-        let cf = self
-            .db
-            .cf_state_keeper_handle(StateKeeperColumnFamily::Contracts);
-        for contract_address in contracts {
-            batch.delete_cf(cf, contract_address.to_fixed_bytes());
-        }
 
         let cf = self
             .db
@@ -159,13 +133,6 @@ impl SecondaryStateStorage {
         );
         for (key, value) in self.pending_patch.state.iter() {
             batch.put_cf(cf, Self::serialize_state_key(key), value);
-        }
-
-        let cf = self
-            .db
-            .cf_state_keeper_handle(StateKeeperColumnFamily::Contracts);
-        for (address, value) in self.pending_patch.contracts.iter() {
-            batch.put_cf(cf, address.to_fixed_bytes(), value);
         }
 
         let cf = self

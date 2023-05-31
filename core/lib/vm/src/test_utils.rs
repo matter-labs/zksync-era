@@ -9,9 +9,7 @@
 use std::collections::HashMap;
 
 use itertools::Itertools;
-use zk_evm::{
-    aux_structures::Timestamp, reference_impls::event_sink::ApplicationData, vm_state::VmLocalState,
-};
+use zk_evm::{aux_structures::Timestamp, vm_state::VmLocalState};
 use zksync_contracts::{deployer_contract, get_loadnext_contract, load_contract};
 use zksync_types::{
     ethabi::{Address, Token},
@@ -29,7 +27,9 @@ use zksync_utils::{
 /// The tests here help us with the testing the VM
 use crate::{
     event_sink::InMemoryEventSink,
-    history_recorder::{FrameManager, HistoryRecorder},
+    history_recorder::{
+        AppDataFrameManagerWithHistory, HistoryEnabled, HistoryMode, HistoryRecorder,
+    },
     memory::SimpleMemory,
     VmInstance,
 };
@@ -56,43 +56,43 @@ impl PartialEq for ModifiedKeysMap {
 }
 
 #[derive(Clone, PartialEq, Debug)]
-pub struct DecommitterTestInnerState {
+pub struct DecommitterTestInnerState<H: HistoryMode> {
     /// There is no way to "trully" compare the storage pointer,
     /// so we just compare the modified keys. This is reasonable enough.
     pub modified_storage_keys: ModifiedKeysMap,
-    pub known_bytecodes: HistoryRecorder<HashMap<U256, Vec<U256>>>,
-    pub decommitted_code_hashes: HistoryRecorder<HashMap<U256, u32>>,
+    pub known_bytecodes: HistoryRecorder<HashMap<U256, Vec<U256>>, H>,
+    pub decommitted_code_hashes: HistoryRecorder<HashMap<U256, u32>, HistoryEnabled>,
 }
 
 #[derive(Clone, PartialEq, Debug)]
-pub struct StorageOracleInnerState {
+pub struct StorageOracleInnerState<H: HistoryMode> {
     /// There is no way to "trully" compare the storage pointer,
     /// so we just compare the modified keys. This is reasonable enough.
     pub modified_storage_keys: ModifiedKeysMap,
 
-    pub frames_stack: HistoryRecorder<FrameManager<ApplicationData<StorageLogQuery>>>,
+    pub frames_stack: AppDataFrameManagerWithHistory<StorageLogQuery, H>,
 }
 
 #[derive(Clone, PartialEq, Debug)]
-pub struct PrecompileProcessorTestInnerState {
-    pub timestamp_history: HistoryRecorder<Vec<Timestamp>>,
+pub struct PrecompileProcessorTestInnerState<H: HistoryMode> {
+    pub timestamp_history: HistoryRecorder<Vec<Timestamp>, H>,
 }
 
 /// A struct that encapsulates the state of the VM's oracles
 /// The state is to be used in tests.
 #[derive(Clone, PartialEq, Debug)]
-pub struct VmInstanceInnerState {
-    event_sink: InMemoryEventSink,
-    precompile_processor_state: PrecompileProcessorTestInnerState,
-    memory: SimpleMemory,
-    decommitter_state: DecommitterTestInnerState,
-    storage_oracle_state: StorageOracleInnerState,
+pub struct VmInstanceInnerState<H: HistoryMode> {
+    event_sink: InMemoryEventSink<H>,
+    precompile_processor_state: PrecompileProcessorTestInnerState<H>,
+    memory: SimpleMemory<H>,
+    decommitter_state: DecommitterTestInnerState<H>,
+    storage_oracle_state: StorageOracleInnerState<H>,
     local_state: VmLocalState,
 }
 
-impl<'a> VmInstance<'a> {
+impl<H: HistoryMode> VmInstance<'_, H> {
     /// This method is mostly to be used in tests. It dumps the inner state of all the oracles and the VM itself.
-    pub fn dump_inner_state(&self) -> VmInstanceInnerState {
+    pub fn dump_inner_state(&self) -> VmInstanceInnerState<H> {
         let event_sink = self.state.event_sink.clone();
         let precompile_processor_state = PrecompileProcessorTestInnerState {
             timestamp_history: self.state.precompiles_processor.timestamp_history.clone(),

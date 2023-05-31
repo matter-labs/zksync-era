@@ -7,7 +7,7 @@ import { shouldChangeETHBalances, shouldOnlyTakeFee } from '../src/modifiers/bal
 import { checkReceipt } from '../src/modifiers/receipt-check';
 
 import * as zksync from 'zksync-web3';
-import { BigNumber } from 'ethers';
+import { BigNumber, Overrides } from 'ethers';
 import { scaledGasPrice } from '../src/helpers';
 
 const ETH_ADDRESS = zksync.utils.ETH_ADDRESS;
@@ -29,7 +29,6 @@ describe('ETH token checks', () => {
 
         // Unfortunately, since fee is taken in ETH, we must calculate the L1 ETH balance diff explicitly.
         const l1EthBalanceBefore = await alice.getBalanceL1();
-        // No need to check fee as the L1->L2 are free for now
         const l2ethBalanceChange = await shouldChangeETHBalances([{ wallet: alice, change: amount }], {
             l1ToL2: true
         });
@@ -178,6 +177,37 @@ describe('ETH token checks', () => {
         await withdrawalTx.waitFinalize();
 
         await expect(alice.finalizeWithdrawal(withdrawalTx.hash)).toBeAccepted();
+    });
+
+    test('Can perform a deposit with precalculated max value', async () => {
+        const depositFee = await alice.getFullRequiredDepositFee({
+            token: ETH_ADDRESS
+        });
+        const l1Fee = depositFee.l1GasLimit.mul(depositFee.maxFeePerGas! || depositFee.gasPrice!);
+        const l2Fee = depositFee.baseCost;
+
+        const maxAmount = (await alice.getBalanceL1()).sub(l1Fee).sub(l2Fee);
+
+        const l2ethBalanceChange = await shouldChangeETHBalances([{ wallet: alice, change: maxAmount }], {
+            l1ToL2: true
+        });
+
+        const overrides: Overrides = depositFee.gasPrice
+            ? { gasPrice: depositFee.gasPrice }
+            : {
+                  maxFeePerGas: depositFee.maxFeePerGas,
+                  maxPriorityFeePerGas: depositFee.maxPriorityFeePerGas
+              };
+        overrides.gasLimit = depositFee.l1GasLimit;
+
+        const depositOp = await alice.deposit({
+            token: ETH_ADDRESS,
+            amount: maxAmount,
+            l2GasLimit: depositFee.l2GasLimit,
+            overrides
+        });
+
+        await expect(depositOp).toBeAccepted([l2ethBalanceChange]);
     });
 
     afterAll(async () => {

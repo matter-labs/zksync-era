@@ -1,17 +1,26 @@
-use crate::{utils::unwrap_tuple, CircuitBreaker, CircuitBreakerError};
+use backon::{ConstantBuilder, Retryable};
 use serde::{Deserialize, Serialize};
-use std::convert::TryInto;
-use std::{env, str::FromStr};
-use thiserror::Error;
-use zksync_config::ZkSyncConfig;
-use zksync_eth_client::clients::http_client::EthereumClient;
-use zksync_types::ethabi::Token;
-use zksync_types::zkevm_test_harness::bellman::{
-    bn256::{Fq, Fq2, Fr, G1Affine, G2Affine},
-    CurveAffine, PrimeField,
+use std::{
+    convert::TryInto,
+    fmt::Debug,
+    {env, str::FromStr},
 };
-use zksync_types::{Address, H256};
+use thiserror::Error;
+
+use zksync_config::configs::chain::CircuitBreakerConfig;
+use zksync_eth_client::{types::Error as EthClientError, BoundEthInterface};
+use zksync_types::{
+    ethabi::Token,
+    zkevm_test_harness::bellman::{
+        bn256::{Fq, Fq2, Fr, G1Affine, G2Affine},
+        CurveAffine, PrimeField,
+    },
+    {Address, H256},
+};
 use zksync_verification_key_server::get_vk_for_circuit_type;
+
+// local imports
+use crate::{utils::unwrap_tuple, CircuitBreaker, CircuitBreakerError};
 
 #[derive(Debug, Error)]
 pub enum VerifierError {
@@ -57,25 +66,38 @@ pub struct VerificationKey {
 }
 
 #[derive(Debug)]
-pub struct VksChecker {
-    pub eth_client: EthereumClient,
+pub struct VksChecker<E> {
+    pub eth_client: E,
+    pub config: CircuitBreakerConfig,
 }
 
-impl VksChecker {
-    pub fn new(config: &ZkSyncConfig) -> Self {
+impl<E: BoundEthInterface + Debug> VksChecker<E> {
+    pub fn new(config: &CircuitBreakerConfig, eth_client: E) -> Self {
         Self {
-            eth_client: EthereumClient::from_config(config),
+            eth_client,
+            config: config.clone(),
         }
     }
 
     async fn check_verifier_address(&self) -> Result<(), CircuitBreakerError> {
         let address_from_env =
             Address::from_str(&env::var("CONTRACTS_VERIFIER_ADDR").unwrap()).unwrap();
-        let address_from_contract: Address = self
-            .eth_client
-            .call_main_contract_function("getVerifier", (), None, Default::default(), None)
-            .await
-            .unwrap();
+
+        let address_from_contract: Address = (|| async {
+            let result: Result<Address, EthClientError> = self
+                .eth_client
+                .call_main_contract_function("getVerifier", (), None, Default::default(), None)
+                .await;
+            result
+        })
+        .retry(
+            &ConstantBuilder::default()
+                .with_max_times(self.config.http_req_max_retry_number)
+                .with_delay(self.config.http_req_retry_interval()),
+        )
+        .await
+        .unwrap();
+
         if address_from_env != address_from_contract {
             return Err(CircuitBreakerError::Verifier(
                 VerifierError::VerifierAddressMismatch {
@@ -88,11 +110,27 @@ impl VksChecker {
     }
 
     async fn check_commitments(&self) -> Result<(), CircuitBreakerError> {
-        let verifier_params_token: Token = self
-            .eth_client
-            .call_main_contract_function("getVerifierParams", (), None, Default::default(), None)
-            .await
-            .unwrap();
+        let verifier_params_token: Token = (|| async {
+            let result: Result<Token, EthClientError> = self
+                .eth_client
+                .call_main_contract_function(
+                    "getVerifierParams",
+                    (),
+                    None,
+                    Default::default(),
+                    None,
+                )
+                .await;
+            result
+        })
+        .retry(
+            &ConstantBuilder::default()
+                .with_max_times(self.config.http_req_max_retry_number)
+                .with_delay(self.config.http_req_retry_interval()),
+        )
+        .await
+        .unwrap();
+
         let vks_vec: Vec<H256> = unwrap_tuple(verifier_params_token)
             .into_iter()
             .map(|token| H256::from_slice(&token.into_fixed_bytes().unwrap()))
@@ -150,93 +188,42 @@ impl VksChecker {
     }
 
     async fn get_contract_vk(&self) -> VerificationKey {
+        let vk_token = self.get_vk_token_with_retries().await.unwrap();
+
+        parse_vk_token(vk_token)
+    }
+
+    pub(super) async fn get_vk_token_with_retries(&self) -> Result<Token, EthClientError> {
         let verifier_contract_address =
             Address::from_str(&env::var("CONTRACTS_VERIFIER_ADDR").unwrap()).unwrap();
         let verifier_contract_abi = zksync_contracts::verifier_contract();
-        let vk_token: Token = self
-            .eth_client
-            .call_contract_function(
-                "get_verification_key",
-                (),
-                None,
-                Default::default(),
-                None,
-                verifier_contract_address,
-                verifier_contract_abi,
-            )
-            .await
-            .unwrap();
+        (|| async {
+            let result: Result<Token, EthClientError> = self
+                .eth_client
+                .call_contract_function(
+                    "get_verification_key",
+                    (),
+                    None,
+                    Default::default(),
+                    None,
+                    verifier_contract_address,
+                    verifier_contract_abi.clone(),
+                )
+                .await;
 
-        let tokens = unwrap_tuple(vk_token);
-        let n = tokens[0].clone().into_uint().unwrap().as_usize() - 1;
-        let num_inputs = tokens[1].clone().into_uint().unwrap().as_usize();
-        let gate_selectors_commitments = tokens[3]
-            .clone()
-            .into_fixed_array()
-            .unwrap()
-            .into_iter()
-            .map(g1_affine_from_token)
-            .collect();
-        let gate_setup_commitments = tokens[4]
-            .clone()
-            .into_fixed_array()
-            .unwrap()
-            .into_iter()
-            .map(g1_affine_from_token)
-            .collect();
-        let permutation_commitments = tokens[5]
-            .clone()
-            .into_fixed_array()
-            .unwrap()
-            .into_iter()
-            .map(g1_affine_from_token)
-            .collect();
-        let lookup_selector_commitment = g1_affine_from_token(tokens[6].clone());
-        let lookup_tables_commitments = tokens[7]
-            .clone()
-            .into_fixed_array()
-            .unwrap()
-            .into_iter()
-            .map(g1_affine_from_token)
-            .collect();
-        let lookup_table_type_commitment = g1_affine_from_token(tokens[8].clone());
-        let non_residues = tokens[9]
-            .clone()
-            .into_fixed_array()
-            .unwrap()
-            .into_iter()
-            .map(fr_from_token)
-            .collect();
-        let g2_elements = tokens[10]
-            .clone()
-            .into_fixed_array()
-            .unwrap()
-            .into_iter()
-            .map(g2_affine_from_token)
-            .collect::<Vec<G2Affine>>()
-            .try_into()
-            .unwrap();
-
-        VerificationKey {
-            n,
-            num_inputs,
-
-            gate_setup_commitments,
-            gate_selectors_commitments,
-            permutation_commitments,
-
-            lookup_selector_commitment: Some(lookup_selector_commitment),
-            lookup_tables_commitments,
-            lookup_table_type_commitment: Some(lookup_table_type_commitment),
-
-            non_residues,
-            g2_elements,
-        }
+            result
+        })
+        .retry(
+            &ConstantBuilder::default()
+                .with_max_times(self.config.http_req_max_retry_number)
+                .with_delay(self.config.http_req_retry_interval()),
+        )
+        .await
     }
 }
 
 #[async_trait::async_trait]
-impl CircuitBreaker for VksChecker {
+impl<E: BoundEthInterface + Debug> CircuitBreaker for VksChecker<E> {
     async fn check(&self) -> Result<(), CircuitBreakerError> {
         self.check_verifier_address().await?;
         self.check_commitments().await?;
@@ -272,4 +259,71 @@ fn g2_affine_from_token(token: Token) -> G2Affine {
             c0: Fq::from_str(&tokens1[1].clone().into_uint().unwrap().to_string()).unwrap(),
         },
     )
+}
+
+fn parse_vk_token(vk_token: Token) -> VerificationKey {
+    let tokens = unwrap_tuple(vk_token);
+    let n = tokens[0].clone().into_uint().unwrap().as_usize() - 1;
+    let num_inputs = tokens[1].clone().into_uint().unwrap().as_usize();
+    let gate_selectors_commitments = tokens[3]
+        .clone()
+        .into_fixed_array()
+        .unwrap()
+        .into_iter()
+        .map(g1_affine_from_token)
+        .collect();
+    let gate_setup_commitments = tokens[4]
+        .clone()
+        .into_fixed_array()
+        .unwrap()
+        .into_iter()
+        .map(g1_affine_from_token)
+        .collect();
+    let permutation_commitments = tokens[5]
+        .clone()
+        .into_fixed_array()
+        .unwrap()
+        .into_iter()
+        .map(g1_affine_from_token)
+        .collect();
+    let lookup_selector_commitment = g1_affine_from_token(tokens[6].clone());
+    let lookup_tables_commitments = tokens[7]
+        .clone()
+        .into_fixed_array()
+        .unwrap()
+        .into_iter()
+        .map(g1_affine_from_token)
+        .collect();
+    let lookup_table_type_commitment = g1_affine_from_token(tokens[8].clone());
+    let non_residues = tokens[9]
+        .clone()
+        .into_fixed_array()
+        .unwrap()
+        .into_iter()
+        .map(fr_from_token)
+        .collect();
+
+    let g2_elements = tokens[10]
+        .clone()
+        .into_fixed_array()
+        .unwrap()
+        .into_iter()
+        .map(g2_affine_from_token)
+        .collect::<Vec<G2Affine>>();
+
+    VerificationKey {
+        n,
+        num_inputs,
+
+        gate_setup_commitments,
+        gate_selectors_commitments,
+        permutation_commitments,
+
+        lookup_selector_commitment: Some(lookup_selector_commitment),
+        lookup_tables_commitments,
+        lookup_table_type_commitment: Some(lookup_table_type_commitment),
+
+        non_residues,
+        g2_elements: g2_elements.try_into().unwrap(),
+    }
 }

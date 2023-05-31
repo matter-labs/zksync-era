@@ -15,9 +15,12 @@ pub(crate) mod common;
 pub(crate) mod mempool;
 pub(crate) mod seal_logic;
 
+#[cfg(test)]
+mod tests;
+
 /// System parameters for L1 batch.
 /// It includes system params such as Basic System Contracts and zkPorter configuration
-/// And l1batch-specific parameters like timestamp, number, etc.
+/// and l1batch-specific parameters like timestamp, number, etc.
 #[derive(Debug, Clone)]
 pub struct L1BatchParams {
     pub context_mode: BlockContextMode,
@@ -57,7 +60,7 @@ pub trait StateKeeperIO: 'static + std::fmt::Debug + Send {
     /// Returns the data required to initialize the VM for the next batch.
     fn wait_for_new_batch_params(&mut self, max_wait: Duration) -> Option<L1BatchParams>;
     /// Blocks for up to `max_wait` until the parameters for the next miniblock are available.
-    /// Right now it's only a timetamp.
+    /// Right now it's only a timestamp.
     fn wait_for_new_miniblock_params(&mut self, max_wait: Duration) -> Option<u64>;
     /// Blocks for up to `max_wait` until the next transaction is available for execution.
     /// Returns `None` if no transaction became available until the timeout.

@@ -1,14 +1,11 @@
 import { Command } from 'commander';
 import * as fs from 'fs';
+import * as path from 'path';
 import { confirmAction } from './utils';
 
 export function clean(path: string) {
     if (fs.existsSync(path)) {
-        if (fs.lstatSync(path).isDirectory()) {
-            fs.rmdirSync(path, { recursive: true });
-        } else {
-            fs.rmSync(path);
-        }
+        fs.rmSync(path, { recursive: true });
         console.log(`Successfully removed ${path}`);
     }
 }
@@ -16,7 +13,6 @@ export function clean(path: string) {
 export const command = new Command('clean')
     .option('--config [environment]')
     .option('--database')
-    .option('--backups')
     .option('--contracts')
     .option('--artifacts')
     .option('--all')
@@ -30,7 +26,6 @@ export const command = new Command('clean')
         if (cmd.all || cmd.config) {
             const env = process.env.ZKSYNC_ENV;
             clean(`etc/env/${env}.env`);
-            clean('etc/env/.current');
             clean('etc/env/.init.env');
         }
 
@@ -39,11 +34,8 @@ export const command = new Command('clean')
         }
 
         if (cmd.all || cmd.database) {
-            clean('db');
-        }
-
-        if (cmd.all || cmd.backups) {
-            clean('backups');
+            const dbPath = process.env.DATABASE_PATH!;
+            clean(path.dirname(dbPath));
         }
 
         if (cmd.all || cmd.contracts) {

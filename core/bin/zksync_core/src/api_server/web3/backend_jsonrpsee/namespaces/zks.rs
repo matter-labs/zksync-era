@@ -1,4 +1,4 @@
-use crate::api_server::web3::namespaces::zks::ZksNamespace;
+use crate::{api_server::web3::namespaces::zks::ZksNamespace, l1_gas_price::L1GasPriceProvider};
 use bigdecimal::BigDecimal;
 use std::collections::HashMap;
 use zksync_types::{
@@ -15,7 +15,7 @@ use zksync_web3_decl::{
     types::Token,
 };
 
-impl ZksNamespaceServer for ZksNamespace {
+impl<G: L1GasPriceProvider + Send + Sync + 'static> ZksNamespaceServer for ZksNamespace<G> {
     fn estimate_fee(&self, req: CallRequest) -> RpcResult<Fee> {
         self.estimate_fee_impl(req)
             .map_err(|err| CallError::from_std_error(err).into())
@@ -130,5 +130,13 @@ impl ZksNamespaceServer for ZksNamespace {
     ) -> RpcResult<Option<L1BatchDetails>> {
         self.get_l1_batch_details_impl(batch_number)
             .map_err(|err| CallError::from_std_error(err).into())
+    }
+
+    fn get_bytecode_by_hash(&self, hash: H256) -> RpcResult<Option<Vec<u8>>> {
+        Ok(self.get_bytecode_by_hash_impl(hash))
+    }
+
+    fn get_l1_gas_price(&self) -> RpcResult<U64> {
+        Ok(self.get_l1_gas_price_impl())
     }
 }

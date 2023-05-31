@@ -1,35 +1,41 @@
-use std::sync::Arc;
-use std::time::Duration;
-use std::time::Instant;
+use std::{
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
-use vm::vm_with_bootloader::derive_base_fee_and_gas_per_pubdata;
-use vm::vm_with_bootloader::DerivedBlockContext;
-use vm::VmBlockResult;
+use vm::{
+    vm_with_bootloader::{derive_base_fee_and_gas_per_pubdata, DerivedBlockContext},
+    VmBlockResult,
+};
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes};
-use zksync_dal::{ConnectionPool, StorageProcessor};
-use zksync_eth_client::EthInterface;
+use zksync_dal::ConnectionPool;
 use zksync_mempool::L2TxFilter;
 use zksync_types::{Address, L1BatchNumber, MiniblockNumber, Transaction};
 use zksync_utils::time::millis_since_epoch;
 
-use crate::gas_adjuster::GasAdjuster;
-use crate::state_keeper::{
-    extractors,
-    io::{
-        common::{l1_batch_params, poll_until, StateKeeperStats},
-        seal_logic::{seal_l1_batch_impl, seal_miniblock_impl},
-        L1BatchParams, PendingBatchData, StateKeeperIO,
+use crate::state_keeper::mempool_actor::l2_tx_filter;
+use crate::{
+    l1_gas_price::L1GasPriceProvider,
+    state_keeper::{
+        extractors,
+        io::{
+            common::{l1_batch_params, poll_until, StateKeeperStats},
+            seal_logic::{seal_l1_batch_impl, seal_miniblock_impl},
+            L1BatchParams, PendingBatchData, StateKeeperIO,
+        },
+        updates::UpdatesManager,
+        MempoolGuard,
     },
-    updates::UpdatesManager,
-    MempoolGuard,
 };
+
+use super::common::load_pending_batch;
 
 /// Mempool-based IO for the state keeper.
 /// Receives transactions from the database through the mempool filtering logic.
 /// Decides which batch parameters should be used for the new batch.
 /// This is an IO for the main server application.
 #[derive(Debug)]
-pub(crate) struct MempoolIO<E> {
+pub(crate) struct MempoolIO<G> {
     mempool: MempoolGuard,
     pool: ConnectionPool,
     filter: L2TxFilter,
@@ -43,12 +49,14 @@ pub(crate) struct MempoolIO<E> {
     statistics: StateKeeperStats,
 
     // Used to keep track of gas prices to set accepted price per pubdata byte in blocks.
-    gas_adjuster: Arc<GasAdjuster<E>>,
+    l1_gas_price_provider: Arc<G>,
 
     base_system_contracts: BaseSystemContracts,
 }
 
-impl<E: 'static + EthInterface + std::fmt::Debug + Send + Sync> StateKeeperIO for MempoolIO<E> {
+impl<G: 'static + L1GasPriceProvider + std::fmt::Debug + Send + Sync> StateKeeperIO
+    for MempoolIO<G>
+{
     fn current_l1_batch_number(&self) -> L1BatchNumber {
         self.current_l1_batch_number
     }
@@ -60,49 +68,15 @@ impl<E: 'static + EthInterface + std::fmt::Debug + Send + Sync> StateKeeperIO fo
     fn load_pending_batch(&mut self) -> Option<PendingBatchData> {
         let mut storage = self.pool.access_storage_blocking();
 
-        // If pending miniblock doesn't exist, it means that there is no unsynced state (i.e. no transaction
-        // were executed after the last sealed batch).
-        let pending_miniblock_number = self.pending_miniblock_number(&mut storage);
-        let pending_miniblock_header = storage
-            .blocks_dal()
-            .get_miniblock_header(pending_miniblock_number)?;
-
-        vlog::info!("getting previous block hash");
-        let previous_l1_batch_hash = extractors::wait_for_prev_l1_batch_state_root_unchecked(
-            &mut storage,
-            self.current_l1_batch_number,
-        );
-
-        let base_system_contracts = storage.storage_dal().get_base_system_contracts(
-            pending_miniblock_header
-                .base_system_contracts_hashes
-                .bootloader,
-            pending_miniblock_header
-                .base_system_contracts_hashes
-                .default_aa,
-        );
-
-        vlog::info!("previous_l1_batch_hash: {}", previous_l1_batch_hash);
-        let params = l1_batch_params(
-            self.current_l1_batch_number,
-            self.fee_account,
-            pending_miniblock_header.timestamp,
-            previous_l1_batch_hash,
-            pending_miniblock_header.l1_gas_price,
-            pending_miniblock_header.l2_fair_gas_price,
-            base_system_contracts,
-        );
-
-        let txs = storage.transactions_dal().get_transactions_to_reexecute();
-
+        let PendingBatchData { params, txs } =
+            load_pending_batch(&mut storage, self.current_l1_batch_number, self.fee_account)?;
         // Initialize the filter for the transactions that come after the pending batch.
         // We use values from the pending block to match the filter with one used before the restart.
-        let (base_fee, gas_per_pubdata) = derive_base_fee_and_gas_per_pubdata(
-            pending_miniblock_header.l1_gas_price,
-            pending_miniblock_header.l2_fair_gas_price,
-        );
+        let context = params.context_mode.inner_block_context().context;
+        let (base_fee, gas_per_pubdata) =
+            derive_base_fee_and_gas_per_pubdata(context.l1_gas_price, context.fair_l2_gas_price);
         self.filter = L2TxFilter {
-            l1_gas_price: pending_miniblock_header.l1_gas_price,
+            l1_gas_price: context.l1_gas_price,
             fee_per_gas: base_fee,
             gas_per_pubdata: gas_per_pubdata as u32,
         };
@@ -116,16 +90,23 @@ impl<E: 'static + EthInterface + std::fmt::Debug + Send + Sync> StateKeeperIO fo
         poll_until(self.delay_interval, max_wait, || {
             // We create a new filter each time, since parameters may change and a previously
             // ignored transaction in the mempool may be scheduled for the execution.
-            self.filter = self.gas_adjuster.l2_tx_filter(self.fair_l2_gas_price);
+            self.filter = l2_tx_filter(self.l1_gas_price_provider.as_ref(), self.fair_l2_gas_price);
             self.mempool.has_next(&self.filter).then(|| {
                 // We only need to get the root hash when we're certain that we have a new transaction.
                 vlog::info!("getting previous block hash");
                 let previous_l1_batch_hash = {
                     let mut storage = self.pool.access_storage_blocking();
-                    extractors::wait_for_prev_l1_batch_state_root_unchecked(
+
+                    let stage_started_at: Instant = Instant::now();
+                    let hash = extractors::wait_for_prev_l1_batch_state_root_unchecked(
                         &mut storage,
                         self.current_l1_batch_number,
-                    )
+                    );
+                    metrics::histogram!(
+                        "server.state_keeper.wait_for_prev_hash_time",
+                        stage_started_at.elapsed()
+                    );
+                    hash
                 };
                 vlog::info!("previous_l1_batch_hash: {}", previous_l1_batch_hash);
                 vlog::info!(
@@ -227,7 +208,6 @@ impl<E: 'static + EthInterface + std::fmt::Debug + Send + Sync> StateKeeperIO fo
             self.current_miniblock_number,
             self.current_l1_batch_number,
             &mut self.statistics,
-            self.fee_account,
             &mut storage,
             block_result,
             updates_manager,
@@ -238,14 +218,14 @@ impl<E: 'static + EthInterface + std::fmt::Debug + Send + Sync> StateKeeperIO fo
     }
 }
 
-impl<E: EthInterface> MempoolIO<E> {
+impl<G: L1GasPriceProvider> MempoolIO<G> {
     pub(crate) fn new(
         mempool: MempoolGuard,
         pool: ConnectionPool,
         fee_account: Address,
         fair_l2_gas_price: u64,
         delay_interval: Duration,
-        gas_adjuster: Arc<GasAdjuster<E>>,
+        l1_gas_price_provider: Arc<G>,
         base_system_contracts_hashes: BaseSystemContractsHashes,
     ) -> Self {
         let mut storage = pool.access_storage_blocking();
@@ -270,16 +250,16 @@ impl<E: EthInterface> MempoolIO<E> {
             fair_l2_gas_price,
             delay_interval,
             statistics: StateKeeperStats { num_contracts },
-            gas_adjuster,
+            l1_gas_price_provider,
             base_system_contracts,
         }
     }
+}
 
-    fn pending_miniblock_number(&self, storage: &mut StorageProcessor<'_>) -> MiniblockNumber {
-        let (_, last_miniblock_number_included_in_l1_batch) = storage
-            .blocks_dal()
-            .get_miniblock_range_of_l1_batch(self.current_l1_batch_number - 1)
-            .unwrap();
-        last_miniblock_number_included_in_l1_batch + 1
+/// Getters reqiored for testing the MempoolIO.
+#[cfg(test)]
+impl<G: L1GasPriceProvider> MempoolIO<G> {
+    pub(super) fn filter(&self) -> &L2TxFilter {
+        &self.filter
     }
 }

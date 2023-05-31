@@ -1,10 +1,19 @@
-use crate::house_keeper::periodic_job::PeriodicJob;
 use zksync_dal::ConnectionPool;
 
-#[derive(Debug, Default)]
-pub struct L1BatchMetricsReporter;
+use crate::house_keeper::periodic_job::PeriodicJob;
+
+#[derive(Debug)]
+pub struct L1BatchMetricsReporter {
+    reporting_interval_ms: u64,
+}
 
 impl L1BatchMetricsReporter {
+    pub fn new(reporting_interval_ms: u64) -> Self {
+        Self {
+            reporting_interval_ms,
+        }
+    }
+
     fn report_metrics(&self, connection_pool: ConnectionPool) {
         let mut conn = connection_pool.access_storage_blocking();
         let mut block_metrics = vec![
@@ -62,9 +71,12 @@ impl L1BatchMetricsReporter {
 
 impl PeriodicJob for L1BatchMetricsReporter {
     const SERVICE_NAME: &'static str = "L1BatchMetricsReporter";
-    const POLLING_INTERVAL_MS: u64 = 10000;
 
     fn run_routine_task(&mut self, connection_pool: ConnectionPool) {
         self.report_metrics(connection_pool);
+    }
+
+    fn polling_interval_ms(&self) -> u64 {
+        self.reporting_interval_ms
     }
 }

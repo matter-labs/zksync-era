@@ -13,8 +13,8 @@ pub use sqlx::types::BigDecimal;
 // Local imports
 use crate::blocks_dal::BlocksDal;
 use crate::blocks_web3_dal::BlocksWeb3Dal;
-use crate::connection::holder::ConnectionHolder;
 pub use crate::connection::ConnectionPool;
+use crate::connection::{holder::ConnectionHolder, test_pool::TestPoolLock};
 use crate::eth_sender_dal::EthSenderDal;
 use crate::events_dal::EventsDal;
 use crate::events_web3_dal::EventsWeb3Dal;
@@ -42,6 +42,7 @@ pub mod events_web3_dal;
 pub mod explorer;
 pub mod fee_monitor_dal;
 pub mod gpu_prover_queue_dal;
+pub mod healthcheck;
 mod models;
 pub mod prover_dal;
 pub mod storage_dal;
@@ -84,8 +85,13 @@ pub struct StorageProcessor<'a> {
 }
 
 impl<'a> StorageProcessor<'a> {
+    /// WARNING: this method is intentionally private.
+    /// `zksync_dal` crate uses `async-std` runtime, whereas most of our crates use `tokio`.
+    /// Calling `async-std` future from `tokio` context may cause deadlocks (and it did happen).
+    /// Use blocking counterpart instead.
+    ///
     /// Creates a `StorageProcessor` using an unique sole connection to the database.
-    pub async fn establish_connection(connect_to_master: bool) -> StorageProcessor<'static> {
+    async fn establish_connection(connect_to_master: bool) -> StorageProcessor<'static> {
         let database_url = if connect_to_master {
             get_master_database_url()
         } else {
@@ -98,7 +104,16 @@ impl<'a> StorageProcessor<'a> {
         }
     }
 
-    pub async fn start_transaction<'c: 'b, 'b>(&'c mut self) -> StorageProcessor<'b> {
+    /// Creates a `StorageProcessor` using an unique sole connection to the database.
+    pub fn establish_connection_blocking(connect_to_master: bool) -> StorageProcessor<'static> {
+        block_on(Self::establish_connection(connect_to_master))
+    }
+
+    /// WARNING: this method is intentionally private.
+    /// `zksync_dal` crate uses `async-std` runtime, whereas most of our crates use `tokio`.
+    /// Calling `async-std` future from `tokio` context may cause deadlocks (and it did happen).
+    /// Use blocking counterpart instead.
+    async fn start_transaction<'c: 'b, 'b>(&'c mut self) -> StorageProcessor<'b> {
         let transaction = self.conn().begin().await.unwrap();
 
         let mut processor = StorageProcessor::from_transaction(transaction);
@@ -116,23 +131,26 @@ impl<'a> StorageProcessor<'a> {
         self.in_transaction
     }
 
-    pub fn from_transaction(conn: Transaction<'_, Postgres>) -> StorageProcessor<'_> {
-        StorageProcessor {
+    pub fn from_transaction(conn: Transaction<'a, Postgres>) -> Self {
+        Self {
             conn: ConnectionHolder::Transaction(conn),
             in_transaction: true,
         }
     }
 
-    pub fn from_test_transaction<'b>(
-        conn: &'b mut Transaction<'static, Postgres>,
-    ) -> StorageProcessor<'b> {
+    pub fn from_test_transaction(conn: TestPoolLock) -> StorageProcessor<'static> {
         StorageProcessor {
             conn: ConnectionHolder::TestTransaction(conn),
             in_transaction: true,
         }
     }
 
-    pub async fn commit(self) {
+    /// WARNING: this method is intentionally private.
+    /// `zksync_dal` crate uses `async-std` runtime, whereas most of our crates use `tokio`.
+    /// Calling `async-std` future from `tokio` context may cause deadlocks (and it did happen).
+    /// Use blocking counterpart instead.
+    ///
+    async fn commit(self) {
         if let ConnectionHolder::Transaction(transaction) = self.conn {
             transaction.commit().await.unwrap();
         } else {
@@ -159,7 +177,7 @@ impl<'a> StorageProcessor<'a> {
             ConnectionHolder::Pooled(conn) => conn,
             ConnectionHolder::Direct(conn) => conn,
             ConnectionHolder::Transaction(conn) => conn,
-            ConnectionHolder::TestTransaction(conn) => conn,
+            ConnectionHolder::TestTransaction(conn) => conn.as_connection(),
         }
     }
 

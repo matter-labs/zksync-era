@@ -122,11 +122,13 @@ impl Storage {
                             tree_operation,
                         ) {
                             // revert of first occurrence
-                            (_, TreeOperation::Delete) => {
+                            (Some(_), TreeOperation::Delete) => {
                                 write_batch.delete_cf(cf, serialize_tree_leaf(leaf));
                                 current_index -= 1;
                                 0
                             }
+                            // leaf doesn't exist
+                            (None, TreeOperation::Delete) => 0,
                             // existing leaf
                             (Some(bytes), TreeOperation::Write { value, .. }) => {
                                 let index = deserialize_leaf_index(&bytes);

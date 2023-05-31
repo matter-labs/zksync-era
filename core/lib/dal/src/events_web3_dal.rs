@@ -3,13 +3,14 @@ use std::time::Instant;
 use sqlx::Row;
 
 use crate::models::storage_block::web3_block_number_to_sql;
+use zksync_types::{
+    api::{GetLogsFilter, Log},
+    MiniblockNumber,
+};
+
 use crate::models::storage_event::StorageWeb3Log;
 use crate::SqlxError;
 use crate::StorageProcessor;
-use zksync_types::{
-    api::{self, GetLogsFilter, Log},
-    MiniblockNumber,
-};
 
 #[derive(Debug)]
 pub struct EventsWeb3Dal<'a, 'c> {
@@ -40,11 +41,7 @@ impl EventsWeb3Dal<'_, '_> {
             );
 
             let mut query = sqlx::query(&query);
-            query = query.bind(filter.from_block.0 as i64);
 
-            if let Some(api::BlockNumber::Number(number)) = filter.to_block {
-                query = query.bind(number.as_u64() as i64);
-            }
             if !filter.addresses.is_empty() {
                 let addresses: Vec<_> = filter
                     .addresses
@@ -94,11 +91,6 @@ impl EventsWeb3Dal<'_, '_> {
             );
 
             let mut query = sqlx::query_as(&query);
-            query = query.bind(filter.from_block.0 as i64);
-
-            if let Some(api::BlockNumber::Number(number)) = filter.to_block {
-                query = query.bind(number.as_u64() as i64);
-            }
             if !filter.addresses.is_empty() {
                 let addresses: Vec<_> = filter
                     .addresses
@@ -123,17 +115,11 @@ impl EventsWeb3Dal<'_, '_> {
     fn build_get_logs_where_clause(&self, filter: &GetLogsFilter) -> (String, u8) {
         let mut arg_index = 1;
 
-        let (block_sql, new_arg_index) = web3_block_number_to_sql(
-            api::BlockNumber::Number(filter.from_block.0.into()),
-            arg_index,
-        );
-        let mut where_sql = format!("(miniblock_number >= {})", block_sql);
-        arg_index = new_arg_index;
+        let mut where_sql = format!("(miniblock_number >= {})", filter.from_block.0 as i64);
 
         if let Some(to_block) = filter.to_block {
-            let (block_sql, new_arg_index) = web3_block_number_to_sql(to_block, arg_index);
+            let block_sql = web3_block_number_to_sql(to_block);
             where_sql += &format!(" AND (miniblock_number <= {})", block_sql);
-            arg_index = new_arg_index;
         }
         if !filter.addresses.is_empty() {
             where_sql += &format!(" AND (address = ANY(${}))", arg_index);
@@ -171,10 +157,40 @@ impl EventsWeb3Dal<'_, '_> {
                 "#,
                 from_block.0 as i64
             )
-            .fetch_all(self.storage.conn())
-            .await?;
+                .fetch_all(self.storage.conn())
+                .await?;
             let logs = db_logs.into_iter().map(Into::into).collect();
             Ok(logs)
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use db_test_macro::db_test;
+    use vm::zk_evm::ethereum_types::{Address, H256};
+    use zksync_types::api::BlockNumber;
+
+    use super::*;
+    use crate::connection::ConnectionPool;
+
+    #[db_test(dal_crate)]
+    async fn test_build_get_logs_where_clause(connection_pool: ConnectionPool) {
+        let storage = &mut connection_pool.access_test_storage().await;
+        let events_web3_dal = EventsWeb3Dal { storage };
+        let filter = GetLogsFilter {
+            from_block: MiniblockNumber(100),
+            to_block: Some(BlockNumber::Number(200.into())),
+            addresses: vec![Address::from_low_u64_be(123)],
+            topics: vec![(0, vec![H256::from_low_u64_be(456)])],
+        };
+
+        let expected_sql = "(miniblock_number >= 100) AND (miniblock_number <= 200) AND (address = ANY($1)) AND (topic0 = ANY($2))";
+        let expected_arg_index = 3;
+
+        let (actual_sql, actual_arg_index) = events_web3_dal.build_get_logs_where_clause(&filter);
+
+        assert_eq!(actual_sql, expected_sql);
+        assert_eq!(actual_arg_index, expected_arg_index);
     }
 }

@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use zksync_utils::parse_env;
 
 use zksync_contracts::{read_sys_contract_bytecode, ContractLanguage};
-use zksync_eth_client::ETHDirectClient;
+use zksync_eth_client::{clients::http::SigningClient, EthInterface};
 use zksync_eth_signer::PrivateKeySigner;
 use zksync_types::{l1::L1Tx, web3::types::TransactionReceipt, Address};
 use zksync_utils::u256_to_biguint;
@@ -50,7 +50,7 @@ pub fn is_token_eth(token_address: Address) -> bool {
 
 /// Get fee paid in wei for tx execution
 pub async fn get_executed_tx_fee(
-    client: &ETHDirectClient<PrivateKeySigner>,
+    client: &SigningClient<PrivateKeySigner>,
     receipt: &TransactionReceipt,
 ) -> anyhow::Result<BigUint> {
     let gas_used = receipt.gas_used.ok_or_else(|| {

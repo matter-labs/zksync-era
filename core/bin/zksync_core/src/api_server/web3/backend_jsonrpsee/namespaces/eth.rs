@@ -1,4 +1,4 @@
-use crate::api_server::web3::namespaces::eth::EthNamespace;
+use crate::{api_server::web3::namespaces::eth::EthNamespace, l1_gas_price::L1GasPriceProvider};
 
 use zksync_types::{
     api::{
@@ -16,7 +16,7 @@ use zksync_web3_decl::{
     types::{Filter, FilterChanges},
 };
 
-impl EthNamespaceServer for EthNamespace {
+impl<G: L1GasPriceProvider + Send + Sync + 'static> EthNamespaceServer for EthNamespace<G> {
     fn get_block_number(&self) -> RpcResult<U64> {
         self.get_block_number_impl()
             .map_err(|err| CallError::from_std_error(err).into())

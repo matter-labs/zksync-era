@@ -219,12 +219,14 @@ describe('Tests for the custom account behavior', () => {
         const transfer = await erc20.populateTransaction.transfer(alice.address, TRANSFER_AMOUNT);
         const nonce = await alice.provider.getTransactionCount(badCustomAccount.address);
 
-        // Create a *promise* that would await for the rejection.
-        // Even though we use `toBeReverted` matcher, we'll check that it's actually rejected based on the nonce.
-        // However, we use `await` on the `sendTransaction` to make sure that tx is past the API server checks.
-        const rejectionCheckPromise = expect(
-            await sendCustomAccountTransaction(transfer, alice.provider, badCustomAccount.address, undefined, nonce + 1)
-        ).toBeReverted();
+        // Not using .toBeReverted matcher here in part because of BFT-170
+        const delayedTx = await sendCustomAccountTransaction(
+            transfer,
+            alice.provider,
+            badCustomAccount.address,
+            undefined,
+            nonce + 1
+        );
 
         // Increase nonce and set flag to do many calculations during validation.
         const validationGasLimit = +process.env.CHAIN_STATE_KEEPER_VALIDATION_COMPUTATIONAL_GAS_LIMIT!;
@@ -233,7 +235,18 @@ describe('Tests for the custom account behavior', () => {
             sendCustomAccountTransaction(tx, alice.provider, badCustomAccount.address, undefined, nonce)
         ).toBeAccepted();
 
-        await rejectionCheckPromise;
+        try {
+            const delayedTxReceipt = await delayedTx.wait();
+            fail(
+                'Transaction was expected to be reverted, but it succeeded. Receipt:' +
+                    JSON.stringify(delayedTxReceipt, null, 2)
+            );
+        } catch (e: any) {
+            // We expect the transaction to fail in the state-keeper
+            expect(e.receipt.status).toBe(0);
+            expect(e.receipt.blockNumber).toBeNull();
+            expect(e.receipt.blockHash).toBeNull();
+        }
     });
 
     afterAll(async () => {

@@ -4,7 +4,9 @@ use std::fmt::{Debug, Display};
 
 use tokio::time::Instant;
 
-use zksync_eth_client::clients::http_client::{self, EthInterface, EthereumClient};
+use zksync_eth_client::{
+    clients::http::PKSigningClient, types::Error as EthClientError, BoundEthInterface, EthInterface,
+};
 use zksync_types::ethabi::{Contract, Hash};
 
 use zksync_contracts::zksync_contract;
@@ -23,7 +25,7 @@ pub enum Error {
     #[error("Log parsing filed: {0}")]
     LogParse(String),
     #[error("Eth client error: {0}")]
-    EthClient(#[from] http_client::Error),
+    EthClient(#[from] EthClientError),
     #[error("Infinite recursion caused by too many responses")]
     InfiniteRecursion,
 }
@@ -63,13 +65,13 @@ const TOO_MANY_RESULTS_ALCHEMY: &str = "response size exceeded";
 
 #[derive(Debug)]
 pub struct EthHttpClient {
-    client: EthereumClient,
+    client: PKSigningClient,
     topics: ContractTopics,
     zksync_contract_addr: H160,
 }
 
 impl EthHttpClient {
-    pub fn new(client: EthereumClient, zksync_contract_addr: H160) -> Self {
+    pub fn new(client: PKSigningClient, zksync_contract_addr: H160) -> Self {
         vlog::debug!("New eth client, contract addr: {:x}", zksync_contract_addr);
         let topics = ContractTopics::new(&zksync_contract());
         Self {
@@ -121,7 +123,7 @@ impl EthClient for EthHttpClient {
 
         // This code is compatible with both Infura and Alchemy API providers.
         // Note: we don't handle rate-limits here - assumption is that we're never going to hit them.
-        if let Err(Error::EthClient(http_client::Error::EthereumGateway(err))) = &result {
+        if let Err(Error::EthClient(EthClientError::EthereumGateway(err))) = &result {
             vlog::warn!("Provider returned error message: {:?}", err);
             let err_message = err.to_string();
             let err_code = if let web3::Error::Rpc(err) = err {

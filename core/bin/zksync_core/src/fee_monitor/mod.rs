@@ -4,7 +4,7 @@
 use std::time::Duration;
 use zksync_config::ZkSyncConfig;
 use zksync_dal::ConnectionPool;
-use zksync_eth_client::clients::http_client::EthereumClient;
+use zksync_eth_client::{clients::http::PKSigningClient, EthInterface};
 use zksync_types::{
     api::BlockId, AccountTreeId, Address, L1BatchNumber, L2_ETH_TOKEN_ADDRESS, U256,
 };
@@ -42,18 +42,14 @@ pub struct FeeMonitor {
     fee_account_address: Address,
 
     storage: ConnectionPool,
-    client: EthereumClient,
+    client: PKSigningClient,
 
     next_finalized_block: L1BatchNumber,
 }
 
 impl FeeMonitor {
-    pub async fn new(
-        config: &ZkSyncConfig,
-        storage: ConnectionPool,
-        client: EthereumClient,
-    ) -> Self {
-        let mut storage_processor = storage.access_storage().await;
+    pub fn new(config: &ZkSyncConfig, storage: ConnectionPool, client: PKSigningClient) -> Self {
+        let mut storage_processor = storage.access_storage_blocking();
         let latest_l1_batch_finalized = storage_processor
             .blocks_dal()
             .get_number_of_last_block_executed_on_eth()
@@ -83,7 +79,7 @@ impl FeeMonitor {
 
     async fn run_iter(&mut self) {
         let last_finalized = {
-            let mut storage = self.storage.access_storage().await;
+            let mut storage = self.storage.access_storage_blocking();
             storage
                 .blocks_dal()
                 .get_number_of_last_block_executed_on_eth()
@@ -96,15 +92,11 @@ impl FeeMonitor {
 
         // Only report data if new blocks were finalized.
         if last_finalized >= self.next_finalized_block {
-            let _ = self
-                .report_collected_fees(last_finalized)
-                .await
-                .map_err(|err| {
-                    vlog::warn!("Unable to report collected fees in fee monitor: {err}");
-                });
+            let _ = self.report_collected_fees(last_finalized).map_err(|err| {
+                vlog::warn!("Unable to report collected fees in fee monitor: {err}");
+            });
             let _ = self
                 .report_l1_batch_finalized(last_finalized)
-                .await
                 .map_err(|err| {
                     vlog::warn!("Unable to report l1 batch finalization in fee monitor: {err}");
                 });
@@ -114,7 +106,7 @@ impl FeeMonitor {
     }
 
     async fn report_balances(&self) -> anyhow::Result<()> {
-        let mut storage = self.storage.access_storage().await;
+        let mut storage = self.storage.access_storage_blocking();
         let mut operator_balance_l1 = self
             .client
             .eth_balance(self.operator_address, COMPONENT_NAME)
@@ -152,8 +144,8 @@ impl FeeMonitor {
         Ok(())
     }
 
-    async fn report_collected_fees(&mut self, last_finalized: L1BatchNumber) -> anyhow::Result<()> {
-        let mut storage = self.storage.access_storage().await;
+    fn report_collected_fees(&mut self, last_finalized: L1BatchNumber) -> anyhow::Result<()> {
+        let mut storage = self.storage.access_storage_blocking();
         for block_number in block_range(self.next_finalized_block, last_finalized) {
             let collected_fees = storage
                 .fee_monitor_dal()
@@ -172,11 +164,8 @@ impl FeeMonitor {
         Ok(())
     }
 
-    async fn report_l1_batch_finalized(
-        &mut self,
-        last_finalized: L1BatchNumber,
-    ) -> anyhow::Result<()> {
-        let mut storage = self.storage.access_storage().await;
+    fn report_l1_batch_finalized(&mut self, last_finalized: L1BatchNumber) -> anyhow::Result<()> {
+        let mut storage = self.storage.access_storage_blocking();
         for block_number in block_range(self.next_finalized_block, last_finalized) {
             let block_data = storage
                 .fee_monitor_dal()

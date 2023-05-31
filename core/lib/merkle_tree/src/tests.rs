@@ -1,6 +1,6 @@
 use crate::tree_config::TreeConfig;
 use crate::types::{TreeKey, ZkHash, ZkHasher};
-use crate::ZkSyncTree;
+use crate::{TreeMetadata, ZkSyncTree};
 use std::str::FromStr;
 use tempfile::TempDir;
 use zksync_config::constants::ACCOUNT_CODE_STORAGE_ADDRESS;
@@ -28,10 +28,10 @@ fn basic_workflow() {
 
     assert_eq!(
         expected_root_hash,
-        [
+        H256([
             125, 25, 107, 171, 182, 155, 32, 70, 138, 108, 238, 150, 140, 205, 193, 39, 90, 92,
             122, 233, 118, 238, 248, 201, 160, 55, 58, 206, 244, 216, 188, 10
-        ],
+        ]),
     );
 
     let db = RocksDB::new(Database::MerkleTree, temp_dir.as_ref(), false);
@@ -57,10 +57,10 @@ fn basic_workflow_multiblock() {
 
     assert_eq!(
         expected_root_hash,
-        [
+        H256([
             125, 25, 107, 171, 182, 155, 32, 70, 138, 108, 238, 150, 140, 205, 193, 39, 90, 92,
             122, 233, 118, 238, 248, 201, 160, 55, 58, 206, 244, 216, 188, 10
-        ],
+        ]),
     );
 
     let db = RocksDB::new(Database::MerkleTree, temp_dir.as_ref(), false);
@@ -137,7 +137,7 @@ fn revert_blocks() {
         tree_metadata
     };
 
-    let witness_tree = TestWitnessTree::deserialize(tree_metadata[3].witness_input.clone());
+    let witness_tree = TestWitnessTree::new(tree_metadata[3].clone());
     assert!(witness_tree.get_leaf((4 * block_size - 1) as u64).is_some());
 
     // revert last block
@@ -176,6 +176,22 @@ fn revert_blocks() {
         tree.save().unwrap();
     }
 
+    // revert two more blocks second time
+    // The result should be the same
+    let storage = RocksDB::new(Database::MerkleTree, temp_dir.as_ref(), false);
+    let logs_to_revert = mirror_logs
+        .iter()
+        .skip(2 * block_size)
+        .take(2 * block_size)
+        .map(|witness_log| (witness_log.storage_log.key.hashed_key_u256(), None))
+        .collect();
+    {
+        let mut tree = ZkSyncTree::new(storage);
+        tree.revert_logs(L1BatchNumber(1), logs_to_revert);
+        assert_eq!(tree.root_hash(), tree_metadata[1].root_hash);
+        tree.save().unwrap();
+    }
+
     // reapply one of the reverted logs and verify that indexing is correct
     let storage = RocksDB::new(Database::MerkleTree, temp_dir.as_ref(), false);
     {
@@ -183,7 +199,7 @@ fn revert_blocks() {
         let mut tree = ZkSyncTree::new(storage);
         let metadata = tree.process_block(vec![storage_log]);
 
-        let witness_tree = TestWitnessTree::deserialize(metadata.witness_input);
+        let witness_tree = TestWitnessTree::new(metadata);
         assert!(witness_tree.get_leaf((2 * block_size + 1) as u64).is_some());
         tree.save().unwrap();
     }
@@ -201,10 +217,11 @@ fn reset_tree() {
     let logs = gen_storage_logs();
     let mut tree = ZkSyncTree::new(storage);
     let config = TreeConfig::new(ZkHasher::default());
+    let empty_tree_hash = H256::from_slice(&config.default_root_hash());
 
     logs.chunks(5)
         .into_iter()
-        .fold(config.default_root_hash(), |hash, chunk| {
+        .fold(empty_tree_hash, |hash, chunk| {
             let _ = tree.process_block(chunk);
             tree.reset();
             assert_eq!(tree.root_hash(), hash);
@@ -260,13 +277,14 @@ pub struct TestWitnessTree {
 }
 
 impl TestWitnessTree {
-    pub fn deserialize(bytes: Vec<u8>) -> Self {
-        let storage_logs = bincode::deserialize(&bytes).expect("failed to deserialize witness");
+    pub fn new(metadata: TreeMetadata) -> Self {
+        let witness_input = metadata.witness_input.unwrap();
+        let storage_logs = witness_input.into_merkle_paths().collect();
         Self { storage_logs }
     }
 
     pub fn root(&self) -> ZkHash {
-        self.storage_logs.last().unwrap().root_hash.clone()
+        self.storage_logs.last().unwrap().root_hash.to_vec()
     }
 
     pub fn get_leaf(&self, index: u64) -> Option<TreeKey> {
@@ -289,7 +307,7 @@ fn basic_witness_workflow() {
         let db = RocksDB::new(Database::MerkleTree, temp_dir.as_ref(), false);
         let mut tree = ZkSyncTree::new(db);
         let metadata = tree.process_block(first_chunk);
-        let witness_tree = TestWitnessTree::deserialize(metadata.witness_input);
+        let witness_tree = TestWitnessTree::new(metadata);
 
         assert_eq!(
             witness_tree.get_leaf(1),
@@ -305,7 +323,7 @@ fn basic_witness_workflow() {
     let db = RocksDB::new(Database::MerkleTree, temp_dir.as_ref(), false);
     let mut tree = ZkSyncTree::new(db);
     let metadata = tree.process_block(second_chunk);
-    let witness_tree = TestWitnessTree::deserialize(metadata.witness_input);
+    let witness_tree = TestWitnessTree::new(metadata);
     assert_eq!(
         witness_tree.root(),
         [
@@ -343,7 +361,7 @@ fn read_logs() {
     let read_metadata = tree.process_block(convert_logs(read_logs));
 
     assert_eq!(read_metadata.root_hash, write_metadata.root_hash);
-    let witness_tree = TestWitnessTree::deserialize(read_metadata.witness_input);
+    let witness_tree = TestWitnessTree::new(read_metadata);
     assert!(witness_tree.get_leaf(1).is_some());
     assert!(witness_tree.get_leaf(2).is_some());
 }
@@ -355,10 +373,10 @@ fn root_hash_compatibility() {
     let mut tree = ZkSyncTree::new(db);
     assert_eq!(
         tree.root_hash(),
-        [
+        H256([
             152, 164, 142, 78, 209, 115, 97, 136, 56, 74, 232, 167, 157, 210, 28, 77, 102, 135,
             229, 253, 34, 202, 24, 20, 137, 6, 215, 135, 54, 192, 216, 106
-        ],
+        ]),
     );
     let storage_logs = vec![
         WitnessStorageLog {
@@ -445,10 +463,10 @@ fn root_hash_compatibility() {
     let metadata = tree.process_block(storage_logs);
     assert_eq!(
         metadata.root_hash,
-        [
+        H256([
             35, 191, 235, 50, 17, 223, 143, 160, 240, 38, 139, 111, 221, 156, 42, 29, 72, 90, 196,
             198, 72, 13, 219, 88, 59, 250, 94, 112, 221, 3, 44, 171
-        ]
+        ])
     );
 }
 

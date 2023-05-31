@@ -13,6 +13,7 @@ use vm::{
     vm_with_bootloader::{BlockContext, BlockContextMode, DerivedBlockContext},
     VmBlockResult, VmExecutionResult,
 };
+use zksync_types::vm_trace::{VmExecutionTrace, VmTrace};
 use zksync_types::{
     l2::L2Tx, tx::tx_execution_info::TxExecutionStatus, Address, L1BatchNumber, MiniblockNumber,
     Nonce, Transaction, H256, U256,
@@ -210,55 +211,66 @@ fn partial_execution_result() -> VmPartialExecutionResult {
         revert_reason: Default::default(),
         contracts_used: Default::default(),
         cycles_used: Default::default(),
+        computational_gas_used: Default::default(),
     }
 }
 
 /// Creates a `TxExecutionResult` object denoting a successful tx execution.
 pub(crate) fn successful_exec() -> TxExecutionResult {
-    let mut result = TxExecutionResult::new(Ok((
-        VmTxExecutionResult {
+    TxExecutionResult::Success {
+        tx_result: Box::new(VmTxExecutionResult {
             status: TxExecutionStatus::Success,
             result: partial_execution_result(),
+            call_traces: vec![],
             gas_refunded: 0,
             operator_suggested_refund: 0,
+        }),
+        tx_metrics: ExecutionMetricsForCriteria {
+            l1_gas: Default::default(),
+            execution_metrics: Default::default(),
         },
-        vec![],
-    )));
-    result.add_tx_metrics(ExecutionMetricsForCriteria {
-        l1_gas: Default::default(),
-        execution_metrics: Default::default(),
-    });
-    result.add_bootloader_result(Ok(partial_execution_result()));
-    result.add_bootloader_metrics(ExecutionMetricsForCriteria {
-        l1_gas: Default::default(),
-        execution_metrics: Default::default(),
-    });
-    result
+        bootloader_dry_run_metrics: ExecutionMetricsForCriteria {
+            l1_gas: Default::default(),
+            execution_metrics: Default::default(),
+        },
+        bootloader_dry_run_result: Box::new(partial_execution_result()),
+        compressed_bytecodes: vec![],
+    }
+}
+
+/// Creates a `TxExecutionResult` object denoting a successful tx execution with the given execution metrics.
+pub(crate) fn successful_exec_with_metrics(
+    tx_metrics: ExecutionMetricsForCriteria,
+) -> TxExecutionResult {
+    TxExecutionResult::Success {
+        tx_result: Box::new(VmTxExecutionResult {
+            status: TxExecutionStatus::Success,
+            result: partial_execution_result(),
+            call_traces: vec![],
+            gas_refunded: 0,
+            operator_suggested_refund: 0,
+        }),
+        tx_metrics,
+        bootloader_dry_run_metrics: ExecutionMetricsForCriteria {
+            l1_gas: Default::default(),
+            execution_metrics: Default::default(),
+        },
+        bootloader_dry_run_result: Box::new(partial_execution_result()),
+        compressed_bytecodes: vec![],
+    }
 }
 
 /// Creates a `TxExecutionResult` object denoting a tx that was rejected.
 pub(crate) fn rejected_exec() -> TxExecutionResult {
-    TxExecutionResult::new(Err(vm::TxRevertReason::InnerTxError))
+    TxExecutionResult::RejectedByVm {
+        rejection_reason: vm::TxRevertReason::InnerTxError,
+    }
 }
 
 /// Creates a `TxExecutionResult` object denoting a transaction that was executed, but caused a bootloader tip out of
 /// gas error.
 pub(crate) fn bootloader_tip_out_of_gas() -> TxExecutionResult {
-    let mut result = TxExecutionResult::new(Ok((
-        VmTxExecutionResult {
-            status: TxExecutionStatus::Success,
-            result: partial_execution_result(),
-            gas_refunded: 0,
-            operator_suggested_refund: 0,
-        },
-        vec![],
-    )));
-    result.add_tx_metrics(ExecutionMetricsForCriteria {
-        l1_gas: Default::default(),
-        execution_metrics: Default::default(),
-    });
-    result.add_bootloader_result(Err(vm::TxRevertReason::BootloaderOutOfGas));
-    result
+    TxExecutionResult::BootloaderOutOfGasForBlockTip
 }
 
 /// Creates a mock `PendingBatchData` object containing the provided sequence of miniblocks.
@@ -290,7 +302,7 @@ pub(crate) fn pending_batch_data(
 
 #[allow(clippy::type_complexity, clippy::large_enum_variant)] // It's OK for tests.
 enum ScenarioItem {
-    /// Configures scenraio to repeatedly return `None` to tx requests until the next action from the scenario happens.
+    /// Configures scenario to repeatedly return `None` to tx requests until the next action from the scenario happens.
     NoTxsUntilNextAction(&'static str),
     Tx(&'static str, Transaction, TxExecutionResult),
     Rollback(&'static str, Transaction),
@@ -483,15 +495,17 @@ impl TestBatchExecutor {
                             gas_used: Default::default(),
                             contracts_used: Default::default(),
                             revert_reason: Default::default(),
-                            trace: Default::default(),
+                            trace: VmTrace::ExecutionTrace(VmExecutionTrace::default()),
                             total_log_queries: Default::default(),
                             cycles_used: Default::default(),
+                            computational_gas_used: Default::default(),
                         },
                         block_tip_result: VmPartialExecutionResult {
                             logs: Default::default(),
                             revert_reason: Default::default(),
                             contracts_used: Default::default(),
                             cycles_used: Default::default(),
+                            computational_gas_used: Default::default(),
                         },
                     };
 

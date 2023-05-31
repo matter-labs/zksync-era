@@ -7,7 +7,7 @@ use tokio::sync::watch;
 use zksync_config::configs::eth_sender::SenderConfig;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{ConnectionPool, StorageProcessor};
-use zksync_eth_client::clients::http_client::EthereumClient;
+use zksync_eth_client::{clients::http::PKSigningClient, BoundEthInterface};
 use zksync_types::{aggregated_operations::AggregatedOperation, eth_sender::EthTx, Address, H256};
 
 /// The component is responsible for aggregating l1 batches into eth_txs:
@@ -42,7 +42,7 @@ impl EthTxAggregator {
     pub async fn run(
         mut self,
         pool: ConnectionPool,
-        eth_client: EthereumClient,
+        eth_client: PKSigningClient,
         stop_receiver: watch::Receiver<bool>,
     ) {
         loop {
@@ -50,7 +50,7 @@ impl EthTxAggregator {
                 .get_l1_base_system_contracts_hashes(&eth_client)
                 .await
                 .unwrap();
-            let mut storage = pool.access_storage().await;
+            let mut storage = pool.access_storage_blocking();
 
             if *stop_receiver.borrow() {
                 vlog::info!("Stop signal received, eth_tx_aggregator is shutting down");
@@ -72,7 +72,7 @@ impl EthTxAggregator {
 
     async fn get_l1_base_system_contracts_hashes(
         &mut self,
-        eth_client: &EthereumClient,
+        eth_client: &PKSigningClient,
     ) -> Result<BaseSystemContractsHashes, ETHSenderError> {
         let bootloader_code_hash: H256 = eth_client
             .call_main_contract_function(
@@ -110,13 +110,13 @@ impl EthTxAggregator {
             .get_next_ready_operation(storage, base_system_contracts_hashes)
             .await
         {
-            let tx = self.save_eth_tx(storage, &agg_op).await?;
-            Self::log_eth_tx_saving(storage, agg_op, &tx).await;
+            let tx = self.save_eth_tx(storage, &agg_op)?;
+            Self::log_eth_tx_saving(storage, agg_op, &tx);
         }
         Ok(())
     }
 
-    async fn log_eth_tx_saving(
+    fn log_eth_tx_saving(
         storage: &mut StorageProcessor<'_>,
         aggregated_op: AggregatedOperation,
         tx: &EthTx,
@@ -176,13 +176,13 @@ impl EthTxAggregator {
         .to_vec()
     }
 
-    pub(super) async fn save_eth_tx(
+    pub(super) fn save_eth_tx(
         &self,
         storage: &mut StorageProcessor<'_>,
         aggregated_op: &AggregatedOperation,
     ) -> Result<EthTx, ETHSenderError> {
-        let mut transaction = storage.start_transaction().await;
-        let nonce = self.get_next_nonce(&mut transaction).await?;
+        let mut transaction = storage.start_transaction_blocking();
+        let nonce = self.get_next_nonce(&mut transaction)?;
         let calldata = self.encode_aggregated_op(aggregated_op);
         let (first_block, last_block) = aggregated_op.get_block_range();
         let op_type = aggregated_op.get_action_type();
@@ -204,14 +204,11 @@ impl EthTxAggregator {
         transaction
             .blocks_dal()
             .set_eth_tx_id(first_block, last_block, eth_tx.id, op_type);
-        transaction.commit().await;
+        transaction.commit_blocking();
         Ok(eth_tx)
     }
 
-    async fn get_next_nonce(
-        &self,
-        storage: &mut StorageProcessor<'_>,
-    ) -> Result<u64, ETHSenderError> {
+    fn get_next_nonce(&self, storage: &mut StorageProcessor<'_>) -> Result<u64, ETHSenderError> {
         let db_nonce = storage.eth_sender_dal().get_next_nonce().unwrap_or(0);
         // Between server starts we can execute some txs using operator account or remove some txs from the database
         // At the start we have to consider this fact and get the max nonce.

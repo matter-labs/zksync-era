@@ -19,8 +19,8 @@ use zksync_web3_decl::error::Web3Error;
 use zksync_web3_decl::types::Token;
 
 // Local uses
-use crate::web3::backend_jsonrpc::error::into_jsrpc_error;
 use crate::web3::namespaces::ZksNamespace;
+use crate::{l1_gas_price::L1GasPriceProvider, web3::backend_jsonrpc::error::into_jsrpc_error};
 
 #[rpc]
 pub trait ZksNamespaceT {
@@ -112,9 +112,15 @@ pub trait ZksNamespaceT {
 
     #[rpc(name = "zks_getL1BatchDetails", returns = "Option<L1BatchDetails>")]
     fn get_l1_batch_details(&self, batch: L1BatchNumber) -> Result<Option<L1BatchDetails>>;
+
+    #[rpc(name = "zks_getBytecodeByHash", returns = "Option<Vec<u8>>")]
+    fn get_bytecode_by_hash(&self, hash: H256) -> Result<Option<Vec<u8>>>;
+
+    #[rpc(name = "zks_getL1GasPrice", returns = "U64")]
+    fn get_l1_gas_price(&self) -> Result<U64>;
 }
 
-impl ZksNamespaceT for ZksNamespace {
+impl<G: L1GasPriceProvider + Send + Sync + 'static> ZksNamespaceT for ZksNamespace<G> {
     fn estimate_fee(&self, req: CallRequest) -> Result<Fee> {
         self.estimate_fee_impl(req).map_err(into_jsrpc_error)
     }
@@ -229,5 +235,13 @@ impl ZksNamespaceT for ZksNamespace {
     fn get_l1_batch_details(&self, batch: L1BatchNumber) -> Result<Option<L1BatchDetails>> {
         self.get_l1_batch_details_impl(batch)
             .map_err(into_jsrpc_error)
+    }
+
+    fn get_bytecode_by_hash(&self, hash: H256) -> Result<Option<Vec<u8>>> {
+        Ok(self.get_bytecode_by_hash_impl(hash))
+    }
+
+    fn get_l1_gas_price(&self) -> Result<U64> {
+        Ok(self.get_l1_gas_price_impl())
     }
 }

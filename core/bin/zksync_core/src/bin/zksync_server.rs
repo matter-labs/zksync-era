@@ -1,58 +1,50 @@
-use std::cell::RefCell;
+use clap::Parser;
 
-use futures::{channel::mpsc, executor::block_on, SinkExt, StreamExt};
-use structopt::StructOpt;
+use std::{env, str::FromStr, time::Duration};
 
 use zksync_config::ZkSyncConfig;
-use zksync_core::{genesis_init, initialize_components, wait_for_tasks, Component, Components};
+use zksync_core::{
+    genesis_init, initialize_components, setup_sigint_handler, wait_for_tasks, Component,
+    Components,
+};
 use zksync_storage::RocksDB;
 
-#[derive(Debug, Clone, Copy)]
-pub enum ServerCommand {
-    Genesis,
-    Launch,
-}
-
-#[derive(StructOpt)]
-#[structopt(name = "zkSync operator node", author = "Matter Labs")]
-struct Opt {
-    /// Generate genesis block for the first contract deployment using temporary db
-    #[structopt(long)]
+#[derive(Debug, Parser)]
+#[structopt(author = "Matter Labs", version, about = "zkSync operator node", long_about = None)]
+struct Cli {
+    /// Generate genesis block for the first contract deployment using temporary DB.
+    #[arg(long)]
     genesis: bool,
-
-    /// Rebuild tree
-    #[structopt(long)]
+    /// Rebuild tree.
+    #[arg(long)]
     rebuild_tree: bool,
-
-    /// comma-separated list of components to launch
-    #[structopt(
+    /// Comma-separated list of components to launch.
+    #[arg(
         long,
         default_value = "api,tree,tree_lightweight,eth,data_fetcher,state_keeper,witness_generator,housekeeper"
     )]
     components: ComponentsToRun,
 }
 
+#[derive(Debug, Clone)]
 struct ComponentsToRun(Vec<Component>);
 
-impl std::str::FromStr for ComponentsToRun {
+impl FromStr for ComponentsToRun {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let components = s
-            .split(',')
-            .map(|x| Components::from_str(x.trim()))
-            .collect::<Result<Vec<Components>, String>>()?;
-        let components = components
-            .into_iter()
-            .flat_map(|c| c.0)
-            .collect::<Vec<Component>>();
-        Ok(ComponentsToRun(components))
+        let components = s.split(',').try_fold(vec![], |mut acc, component_str| {
+            let components = Components::from_str(component_str.trim())?;
+            acc.extend(components.0);
+            Ok::<_, String>(acc)
+        })?;
+        Ok(Self(components))
     }
 }
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let opt = Opt::from_args();
+    let opt = Cli::parse();
     let mut config = ZkSyncConfig::from_env();
     let sentry_guard = vlog::init();
 
@@ -61,14 +53,15 @@ async fn main() -> anyhow::Result<()> {
         return Ok(());
     }
 
-    match sentry_guard {
-        Some(_) => vlog::info!(
+    if sentry_guard.is_some() {
+        vlog::info!(
             "Starting Sentry url: {}, l1_network: {}, l2_network {}",
-            std::env::var("MISC_SENTRY_URL").unwrap(),
-            std::env::var("CHAIN_ETH_NETWORK").unwrap(),
-            std::env::var("CHAIN_ETH_ZKSYNC_NETWORK").unwrap(),
-        ),
-        None => vlog::info!("No sentry url configured"),
+            env::var("MISC_SENTRY_URL").unwrap(),
+            env::var("CHAIN_ETH_NETWORK").unwrap(),
+            env::var("CHAIN_ETH_ZKSYNC_NETWORK").unwrap(),
+        );
+    } else {
+        vlog::info!("No sentry url configured");
     }
 
     let components = if opt.rebuild_tree {
@@ -86,45 +79,34 @@ async fn main() -> anyhow::Result<()> {
 
     // OneShotWitnessGenerator is the only component that is not expected to run indefinitely
     // if this value is `false`, we expect all components to run indefinitely: we panic if any component returns.
-    let is_only_an_oneshotwitness_generator_task = components.len() == 1
-        && components
-            .iter()
-            .all(|c| matches!(c, Component::WitnessGenerator(Some(_))));
+    let is_only_oneshot_witness_generator_task = matches!(
+        components.as_slice(),
+        [Component::WitnessGenerator(Some(_), _)]
+    );
 
     // Run core actors.
-    let (core_task_handles, stop_sender, cb_receiver) = initialize_components(
-        &config,
-        components,
-        is_only_an_oneshotwitness_generator_task,
-    )
-    .await
-    .expect("Unable to start Core actors");
+    let (core_task_handles, stop_sender, cb_receiver) =
+        initialize_components(&config, components, is_only_oneshot_witness_generator_task)
+            .await
+            .expect("Unable to start Core actors");
 
     vlog::info!("Running {} core task handlers", core_task_handles.len());
-    let (stop_signal_sender, mut stop_signal_receiver) = mpsc::channel(256);
-    {
-        let stop_signal_sender = RefCell::new(stop_signal_sender.clone());
-        ctrlc::set_handler(move || {
-            let mut sender = stop_signal_sender.borrow_mut();
-            block_on(sender.send(true)).expect("Ctrl+C signal send");
-        })
-        .expect("Error setting Ctrl+C handler");
-    }
+    let sigint_receiver = setup_sigint_handler();
 
     tokio::select! {
-        _ = async { wait_for_tasks(core_task_handles, is_only_an_oneshotwitness_generator_task).await } => {},
-        _ = async { stop_signal_receiver.next().await } => {
+        _ = wait_for_tasks(core_task_handles, is_only_oneshot_witness_generator_task) => {},
+        _ = sigint_receiver => {
             vlog::info!("Stop signal received, shutting down");
         },
-        error = async { cb_receiver.await } => {
+        error = cb_receiver => {
             if let Ok(error_msg) = error {
                 vlog::warn!("Circuit breaker received, shutting down. Reason: {}", error_msg);
             }
         },
     };
-    let _ = stop_sender.send(true);
+    stop_sender.send(true).ok();
     RocksDB::await_rocksdb_termination();
     // Sleep for some time to let some components gracefully stop.
-    tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+    tokio::time::sleep(Duration::from_secs(5)).await;
     Ok(())
 }

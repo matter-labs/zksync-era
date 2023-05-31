@@ -1,8 +1,12 @@
-use bigdecimal::{BigDecimal, Zero};
 use std::time::Instant;
 use std::{collections::HashMap, convert::TryInto};
 
+use bigdecimal::{BigDecimal, Zero};
+
 use zksync_mini_merkle_tree::mini_merkle_tree_proof;
+
+#[cfg(feature = "openzeppelin_tests")]
+use zksync_types::Bytes;
 use zksync_types::{
     api::{BridgeAddresses, GetLogsFilter, L2ToL1LogProof, TransactionDetails, U64},
     commitment::CommitmentSerializable,
@@ -23,32 +27,40 @@ use zksync_web3_decl::{
 };
 
 use crate::api_server::web3::{backend_jsonrpc::error::internal_error, RpcState};
+use crate::fee_ticker::FeeTicker;
 use crate::fee_ticker::{error::TickerError, TokenPriceRequestType};
-
-#[cfg(feature = "openzeppelin_tests")]
-use zksync_types::Bytes;
+use crate::l1_gas_price::L1GasPriceProvider;
 
 #[derive(Debug, Clone)]
-pub struct ZksNamespace {
-    pub state: RpcState,
+pub struct ZksNamespace<G> {
+    pub state: RpcState<G>,
 }
 
-impl ZksNamespace {
-    pub fn new(state: RpcState) -> Self {
+impl<G: L1GasPriceProvider> ZksNamespace<G> {
+    pub fn new(state: RpcState<G>) -> Self {
         Self { state }
     }
 
     #[tracing::instrument(skip(self, request))]
     pub fn estimate_fee_impl(&self, request: CallRequest) -> Result<Fee, Web3Error> {
         let start = Instant::now();
+        let mut request_with_gas_per_pubdata_overridden = request;
 
-        let mut tx = l2_tx_from_call_req(request, self.state.config.api.web3_json_rpc.max_tx_size)?;
+        self.state
+            .set_nonce_for_call_request(&mut request_with_gas_per_pubdata_overridden)?;
+
+        if let Some(ref mut eip712_meta) = request_with_gas_per_pubdata_overridden.eip712_meta {
+            eip712_meta.gas_per_pubdata = MAX_GAS_PER_PUBDATA_BYTE.into();
+        }
+
+        let mut tx = l2_tx_from_call_req(
+            request_with_gas_per_pubdata_overridden,
+            self.state.api_config.max_tx_size,
+        )?;
 
         // When we're estimating fee, we are trying to deduce values related to fee, so we should
         // not consider provided ones.
-        let fair_l2_gas_price = self.state.tx_sender.0.state_keeper_config.fair_l2_gas_price;
-        tx.common_data.fee.max_fee_per_gas = fair_l2_gas_price.into();
-        tx.common_data.fee.max_priority_fee_per_gas = fair_l2_gas_price.into();
+        tx.common_data.fee.max_priority_fee_per_gas = 0u64.into();
         tx.common_data.fee.gas_per_pubdata_limit = MAX_GAS_PER_PUBDATA_BYTE.into();
 
         let fee = self.estimate_fee(tx.into())?;
@@ -60,16 +72,18 @@ impl ZksNamespace {
     #[tracing::instrument(skip(self, request))]
     pub fn estimate_l1_to_l2_gas_impl(&self, request: CallRequest) -> Result<U256, Web3Error> {
         let start = Instant::now();
-
-        let mut tx: L1Tx = request.try_into().map_err(Web3Error::SerializationError)?;
-
+        let mut request_with_gas_per_pubdata_overridden = request;
         // When we're estimating fee, we are trying to deduce values related to fee, so we should
         // not consider provided ones.
-        let fair_l2_gas_price = self.state.tx_sender.0.state_keeper_config.fair_l2_gas_price;
-        tx.common_data.max_fee_per_gas = fair_l2_gas_price.into();
-        if tx.common_data.gas_per_pubdata_limit == U256::zero() {
-            tx.common_data.gas_per_pubdata_limit = REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE.into();
+        if let Some(ref mut eip712_meta) = request_with_gas_per_pubdata_overridden.eip712_meta {
+            if eip712_meta.gas_per_pubdata == U256::zero() {
+                eip712_meta.gas_per_pubdata = REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE.into();
+            }
         }
+
+        let tx: L1Tx = request_with_gas_per_pubdata_overridden
+            .try_into()
+            .map_err(Web3Error::SerializationError)?;
 
         let fee = self.estimate_fee(tx.into())?;
 
@@ -78,49 +92,37 @@ impl ZksNamespace {
     }
 
     fn estimate_fee(&self, tx: Transaction) -> Result<Fee, Web3Error> {
-        let scale_factor = self
-            .state
-            .config
-            .api
-            .web3_json_rpc
-            .estimate_gas_scale_factor;
-        let acceptable_overestimation = self
-            .state
-            .config
-            .api
-            .web3_json_rpc
-            .estimate_gas_acceptable_overestimation;
+        let scale_factor = self.state.api_config.estimate_gas_scale_factor;
+        let acceptable_overestimation =
+            self.state.api_config.estimate_gas_acceptable_overestimation;
 
         let fee = self
             .state
             .tx_sender
             .get_txs_fee_in_wei(tx, scale_factor, acceptable_overestimation)
-            .map_err(|err| Web3Error::SubmitTransactionError(err.to_string()))?;
+            .map_err(|err| Web3Error::SubmitTransactionError(err.to_string(), err.data()))?;
 
         Ok(fee)
     }
 
     #[tracing::instrument(skip(self))]
     pub fn get_main_contract_impl(&self) -> Address {
-        self.state.config.contracts.diamond_proxy_addr
+        self.state.api_config.diamond_proxy_addr
     }
 
     #[tracing::instrument(skip(self))]
     pub fn get_testnet_paymaster_impl(&self) -> Option<Address> {
-        self.state.config.contracts.l2_testnet_paymaster_addr
+        self.state.api_config.l2_testnet_paymaster_addr
     }
 
     #[tracing::instrument(skip(self))]
     pub fn get_bridge_contracts_impl(&self) -> BridgeAddresses {
-        BridgeAddresses {
-            l1_erc20_default_bridge: self.state.config.contracts.l1_erc20_bridge_proxy_addr,
-            l2_erc20_default_bridge: self.state.config.contracts.l2_erc20_bridge_addr,
-        }
+        self.state.api_config.bridge_addresses.clone()
     }
 
     #[tracing::instrument(skip(self))]
     pub fn l1_chain_id_impl(&self) -> U64 {
-        U64::from(*self.state.config.chain.eth.network.chain_id())
+        U64::from(*self.state.api_config.l1_chain_id)
     }
 
     #[tracing::instrument(skip(self))]
@@ -156,11 +158,17 @@ impl ZksNamespace {
         let start = Instant::now();
         let endpoint_name = "get_token_price";
 
-        let result = match self
-            .state
-            .tx_sender
-            .token_price(TokenPriceRequestType::USDForOneToken, l2_token)
-        {
+        let token_price_result = {
+            let mut storage = self.state.connection_pool.access_storage_blocking();
+            let mut tokens_web3_dal = storage.tokens_web3_dal();
+            FeeTicker::get_l2_token_price(
+                &mut tokens_web3_dal,
+                TokenPriceRequestType::USDForOneToken,
+                &l2_token,
+            )
+        };
+
+        let result = match token_price_result {
             Ok(price) => Ok(price),
             Err(TickerError::PriceNotTracked(_)) => Ok(BigDecimal::zero()),
             Err(err) => Err(internal_error(endpoint_name, err)),
@@ -302,7 +310,7 @@ impl ZksNamespace {
                         addresses: vec![L1_MESSENGER_ADDRESS],
                         topics: vec![(2, vec![address_to_h256(&sender)]), (3, vec![msg])],
                     },
-                    self.state.req_entities_limit,
+                    self.state.api_config.req_entities_limit,
                 )
                 .map_err(|err| internal_error(endpoint_name, err))?
                 .iter()
@@ -472,7 +480,10 @@ impl ZksNamespace {
             .access_storage_blocking()
             .explorer()
             .blocks_dal()
-            .get_block_details(block_number)
+            .get_block_details(
+                block_number,
+                self.state.tx_sender.0.sender_config.fee_account_addr,
+            )
             .map_err(|err| internal_error(endpoint_name, err));
 
         metrics::histogram!("api.web3.call", start.elapsed(), "method" => endpoint_name);
@@ -509,13 +520,24 @@ impl ZksNamespace {
         let start = Instant::now();
         let endpoint_name = "get_transaction_details";
 
-        let tx_details = self
+        let mut tx_details = self
             .state
             .connection_pool
             .access_storage_blocking()
             .transactions_web3_dal()
             .get_transaction_details(hash)
             .map_err(|err| internal_error(endpoint_name, err));
+
+        if let Some(proxy) = &self.state.tx_sender.0.proxy {
+            // We're running an external node - we should query the main node directly
+            // in case the transaction was proxied but not yet synced back to us
+            if matches!(tx_details, Ok(None)) {
+                // If the transaction is not in the db, query main node for details
+                tx_details = proxy
+                    .request_tx_details(hash)
+                    .map_err(|err| internal_error(endpoint_name, err));
+            }
+        }
 
         metrics::histogram!("api.web3.call", start.elapsed(), "method" => endpoint_name);
 
@@ -542,6 +564,40 @@ impl ZksNamespace {
         metrics::histogram!("api.web3.call", start.elapsed(), "method" => endpoint_name);
 
         l1_batch
+    }
+
+    #[tracing::instrument(skip(self))]
+    pub fn get_bytecode_by_hash_impl(&self, hash: H256) -> Option<Vec<u8>> {
+        let start = Instant::now();
+        let endpoint_name = "get_bytecode_by_hash";
+
+        let bytecode = self
+            .state
+            .connection_pool
+            .access_storage_blocking()
+            .storage_dal()
+            .get_factory_dep(hash);
+
+        metrics::histogram!("api.web3.call", start.elapsed(), "method" => endpoint_name);
+
+        bytecode
+    }
+
+    #[tracing::instrument(skip(self))]
+    pub fn get_l1_gas_price_impl(&self) -> U64 {
+        let start = Instant::now();
+        let endpoint_name = "get_l1_gas_price";
+
+        let gas_price = self
+            .state
+            .tx_sender
+            .0
+            .l1_gas_price_source
+            .estimate_effective_gas_price();
+
+        metrics::histogram!("api.web3.call", start.elapsed(), "method" => endpoint_name);
+
+        gas_price.into()
     }
 
     #[cfg(feature = "openzeppelin_tests")]

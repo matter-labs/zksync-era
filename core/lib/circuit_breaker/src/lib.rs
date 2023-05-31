@@ -14,6 +14,9 @@ pub mod l1_txs;
 pub mod utils;
 pub mod vks;
 
+#[cfg(test)]
+mod tests;
+
 #[derive(Debug, Error)]
 pub enum CircuitBreakerError {
     #[error("System has failed L1 transaction")]
@@ -32,7 +35,7 @@ pub struct CircuitBreakerChecker {
 }
 
 #[async_trait::async_trait]
-pub trait CircuitBreaker: std::fmt::Debug + Send + Sync + 'static {
+pub trait CircuitBreaker: std::fmt::Debug + Send + Sync {
     async fn check(&self) -> Result<(), CircuitBreakerError>;
 }
 

@@ -26,6 +26,7 @@ zksync_circuit_breaker = { path = "../../lib/circuit_breaker", version = "1.0" }
 vm = { path = "../../lib/vm", version = "0.1.0" }
 zksync_storage = { path = "../../lib/storage", version = "1.0" }
 zksync_merkle_tree = { path = "../../lib/merkle_tree", version = "1.0" }
+zksync_merkle_tree2 = { path = "../../lib/merkle_tree2", version = "1.0" }
 zksync_mini_merkle_tree = { path = "../../lib/mini_merkle_tree", version = "1.0" }
 zksync_verification_key_generator_and_server = { path = "../verification_key_generator_and_server", version = "1.0" }
 prometheus_exporter = { path = "../../lib/prometheus_exporter", version = "1.0" }
@@ -33,13 +34,15 @@ zksync_web3_decl = { path = "../../lib/web3_decl", version = "1.0", default-feat
     "server", "client"
 ] }
 zksync_object_store = { path = "../../lib/object_store", version = "1.0" }
+zksync_health_check = { path = "../../lib/health_check", version = "0.1.0" }
 vlog = { path = "../../lib/vlog", version = "1.0" }
+zksync_db_storage_provider = { path = "../../lib/db_storage_provider", version = "1.0" }
 
+clap = { version = "4.2.4", features = ["derive"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 metrics = "0.20"
 itertools = "0.10.3"
-structopt = "0.3.20"
 once_cell = "1.7"
 ctrlc = { version = "3.1", features = ["termination"] }
 bincode = "1"
@@ -51,7 +54,7 @@ chrono = { version = "0.4", features = ["serde", "rustc-serialize"] }
 anyhow = "1.0"
 thiserror = "1.0"
 async-trait = "0.1"
-async-std = "1.12.0"
+bitflags = "1.3.2"
 
 # API dependencies
 jsonrpc-core = { git = "https://github.com/matter-labs/jsonrpc.git", branch = "master" }

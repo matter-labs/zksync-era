@@ -2,6 +2,7 @@ import { TestMaster } from '../../src/index';
 import * as zksync from 'zksync-web3';
 import * as ethers from 'ethers';
 import fetch from 'node-fetch';
+import fs from 'fs';
 import {
     anyTransaction,
     deployContract,
@@ -31,6 +32,9 @@ const ADDRESS_REGEX = /^0x[\da-f]{40}$/;
 const HEX_VALUE_REGEX = /^0x[\da-fA-F]*$/;
 // Regular expression to match ISO dates.
 const DATE_REGEX = /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{6})?/;
+
+const ZKSOLC_VERSION = 'v1.3.10';
+const SOLC_VERSION = '0.8.16';
 
 describe('Tests for the Explorer API', () => {
     let testMaster: TestMaster;
@@ -64,7 +68,7 @@ describe('Tests for the Explorer API', () => {
             l1TxCount: expect.any(Number),
             l2TxCount: expect.any(Number),
             hash: expect.stringMatching(/^0x[\da-fA-F]{64}$/),
-            status: 'sealed',
+            status: expect.stringMatching(/sealed|verified/),
             timestamp: expect.any(Number)
         });
 
@@ -116,7 +120,7 @@ describe('Tests for the Explorer API', () => {
             number: expect.any(Number),
             l1TxCount: expect.any(Number),
             l2TxCount: expect.any(Number),
-            status: 'sealed',
+            status: expect.stringMatching(/sealed|verified/),
             timestamp: expect.any(Number)
         });
 
@@ -170,7 +174,8 @@ describe('Tests for the Explorer API', () => {
                 default_aa: expect.stringMatching(HASH_REGEX)
             },
             l1GasPrice: expect.any(Number),
-            l2FairGasPrice: expect.any(Number)
+            l2FairGasPrice: expect.any(Number),
+            operatorAddress: expect.stringMatching(/^0x[\da-f]{40}$/)
         });
         expect(apiBlock.number).toEqual(tx.blockNumber);
         expect(apiBlock.rootHash).toEqual(tx.blockHash);
@@ -210,7 +215,8 @@ describe('Tests for the Explorer API', () => {
                     default_aa: expect.stringMatching(HASH_REGEX)
                 },
                 l1GasPrice: expect.any(Number),
-                l2FairGasPrice: expect.any(Number)
+                l2FairGasPrice: expect.any(Number),
+                operatorAddress: expect.stringMatching(/^0x[\da-f]{40}$/)
             });
         }
     });
@@ -339,6 +345,7 @@ describe('Tests for the Explorer API', () => {
             isL1Originated: false,
             initiatorAddress: alice.address.toLowerCase(),
             receivedAt: expect.stringMatching(DATE_REGEX),
+            miniblockTimestamp: expect.any(Number),
             balanceChanges: expect.any(Array),
             erc20Transfers: expect.any(Array),
             data: {
@@ -371,6 +378,40 @@ describe('Tests for the Explorer API', () => {
                 l1BatchNumber: expect.any(Number)
             });
         }
+    });
+
+    test('Should test /transaction endpoint for L1->L2', async () => {
+        if (testMaster.isFastMode()) {
+            // This test requires an L1->L2 transaction to be included, which may be time consuming on stage.
+            return;
+        }
+
+        const amount = 1;
+        const txHandle = await alice.deposit({ to: alice.address, amount, token: erc20.l1Address, approveERC20: true });
+        const tx = await txHandle.wait();
+
+        const apiTx = await query(`/transaction/${tx.transactionHash}`);
+        expect(apiTx).toMatchObject({
+            transactionHash: tx.transactionHash,
+            blockNumber: tx.blockNumber,
+            blockHash: tx.blockHash,
+            indexInBlock: expect.any(Number),
+            status: expect.stringMatching(/included|verified/),
+            fee: ethers.utils.hexValue(tx.gasUsed.mul(tx.effectiveGasPrice)),
+            isL1Originated: true,
+            initiatorAddress: expect.stringMatching(HEX_VALUE_REGEX),
+            receivedAt: expect.stringMatching(DATE_REGEX),
+            miniblockTimestamp: expect.any(Number),
+            balanceChanges: expect.any(Array),
+            erc20Transfers: expect.any(Array),
+            data: {
+                calldata: expect.stringMatching(HEX_VALUE_REGEX),
+                contractAddress: expect.stringMatching(ADDRESS_REGEX),
+                factoryDeps: expect.any(Array),
+                value: expect.stringMatching(HEX_VALUE_REGEX)
+            },
+            logs: expect.any(Array)
+        });
     });
 
     test('Should test /transactions endpoint', async () => {
@@ -407,6 +448,7 @@ describe('Tests for the Explorer API', () => {
             isL1Originated: false,
             initiatorAddress: alice.address.toLowerCase(),
             receivedAt: expect.stringMatching(DATE_REGEX),
+            miniblockTimestamp: expect.any(Number),
             balanceChanges: expect.any(Array),
             erc20Transfers: expect.any(Array),
             data: {
@@ -568,8 +610,8 @@ describe('Tests for the Explorer API', () => {
             contractAddress: counterContract.address,
             contractName: 'contracts/counter/counter.sol:Counter',
             sourceCode: getContractSource('counter/counter.sol'),
-            compilerZksolcVersion: 'v1.3.7',
-            compilerSolcVersion: '0.8.16',
+            compilerZksolcVersion: ZKSOLC_VERSION,
+            compilerSolcVersion: SOLC_VERSION,
             optimizationUsed: true,
             constructorArguments,
             isSystem: true
@@ -599,7 +641,8 @@ describe('Tests for the Explorer API', () => {
                 'contracts/create/Foo.sol': { content: getContractSource('create/Foo.sol') }
             },
             settings: {
-                optimizer: { enabled: true }
+                optimizer: { enabled: true },
+                isSystem: true
             }
         };
 
@@ -610,15 +653,45 @@ describe('Tests for the Explorer API', () => {
             contractName: 'contracts/create/create.sol:Import',
             sourceCode: standardJsonInput,
             codeFormat: 'solidity-standard-json-input',
-            compilerZksolcVersion: 'v1.3.7',
-            compilerSolcVersion: '0.8.16',
+            compilerZksolcVersion: ZKSOLC_VERSION,
+            compilerSolcVersion: SOLC_VERSION,
             optimizationUsed: true,
-            constructorArguments,
-            isSystem: true
+            constructorArguments
         };
         let requestId = await query('/contract_verification', undefined, requestBody);
 
         await expectVerifyRequestToSucceed(requestId, importContract.address);
+    });
+
+    test('should test yul contract verification', async () => {
+        if (process.env.RUN_CONTRACT_VERIFICATION_TEST != 'true') {
+            // Contract verification test is not requested to run.
+            return;
+        }
+        const contractPath = `${process.env.ZKSYNC_HOME}/core/tests/ts-integration/contracts/yul/Empty.yul`;
+        const sourceCode = fs.readFileSync(contractPath, 'utf8');
+
+        const bytecodePath = `${process.env.ZKSYNC_HOME}/core/tests/ts-integration/contracts/yul/artifacts/Empty.yul/Empty.yul.zbin`;
+        const bytecode = fs.readFileSync(bytecodePath);
+
+        const contractFactory = new zksync.ContractFactory([], bytecode, alice);
+        const deployTx = await contractFactory.deploy();
+        const contractAddress = (await deployTx.deployed()).address;
+
+        const requestBody = {
+            contractAddress,
+            contractName: 'Empty',
+            sourceCode,
+            codeFormat: 'yul-single-file',
+            compilerZksolcVersion: ZKSOLC_VERSION,
+            compilerSolcVersion: SOLC_VERSION,
+            optimizationUsed: true,
+            constructorArguments: '0x',
+            isSystem: true
+        };
+        let requestId = await query('/contract_verification', undefined, requestBody);
+
+        await expectVerifyRequestToSucceed(requestId, contractAddress);
     });
 
     afterAll(async () => {

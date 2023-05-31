@@ -4,8 +4,8 @@ use tokio::sync::watch;
 use zksync_config::configs::eth_sender::SenderConfig;
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_eth_client::{
-    clients::http_client::{Error, ExecutedTxStatus, SignedCallResult},
-    EthInterface,
+    types::{Error, ExecutedTxStatus, SignedCallResult},
+    BoundEthInterface,
 };
 use zksync_types::{
     eth_sender::EthTx,
@@ -14,9 +14,8 @@ use zksync_types::{
 };
 use zksync_utils::time::seconds_since_epoch;
 
-use crate::eth_sender::grafana_metrics::track_eth_tx_metrics;
 use crate::eth_sender::ETHSenderError;
-use crate::gas_adjuster::GasAdjuster;
+use crate::{eth_sender::grafana_metrics::track_eth_tx_metrics, l1_gas_price::L1TxParamsProvider};
 
 #[derive(Debug)]
 struct EthFee {
@@ -38,18 +37,18 @@ struct OperatorNonce {
 /// Based on eth_tx_history queue the component can mark txs as stuck and create the new attempt
 /// with higher gas price
 #[derive(Debug)]
-pub struct EthTxManager<E> {
+pub struct EthTxManager<E, G> {
     ethereum_gateway: E,
     config: SenderConfig,
-    gas_adjuster: Arc<GasAdjuster<E>>,
+    gas_adjuster: Arc<G>,
 }
 
-impl<E: EthInterface + Sync> EthTxManager<E> {
-    pub fn new(
-        config: SenderConfig,
-        gas_adjuster: Arc<GasAdjuster<E>>,
-        ethereum_gateway: E,
-    ) -> Self {
+impl<E, G> EthTxManager<E, G>
+where
+    E: BoundEthInterface + Sync,
+    G: L1TxParamsProvider,
+{
+    pub fn new(config: SenderConfig, gas_adjuster: Arc<G>, ethereum_gateway: E) -> Self {
         Self {
             ethereum_gateway,
             config,
@@ -122,12 +121,11 @@ impl<E: EthInterface + Sync> EthTxManager<E> {
         };
 
         // Extra check to prevent sending transaction will extremely high priority fee.
-        const MAX_ACCEPTABLE_PRIORITY_FEE: u64 = 10u64.pow(11); // 100 gwei
-        if priority_fee_per_gas > MAX_ACCEPTABLE_PRIORITY_FEE {
+        if priority_fee_per_gas > self.config.max_acceptable_priority_fee_in_gwei {
             panic!(
                 "Extremely high value of priority_fee_per_gas is suggested: {}, while max acceptable is {}",
                 priority_fee_per_gas,
-                MAX_ACCEPTABLE_PRIORITY_FEE
+                self.config.max_acceptable_priority_fee_in_gwei
             );
         }
 
@@ -197,27 +195,26 @@ impl<E: EthInterface + Sync> EthTxManager<E> {
             .sign_tx(tx, base_fee_per_gas, priority_fee_per_gas)
             .await;
 
-        let tx_history_id = storage.eth_sender_dal().insert_tx_history(
+        if let Some(tx_history_id) = storage.eth_sender_dal().insert_tx_history(
             tx.id,
             base_fee_per_gas,
             priority_fee_per_gas,
             signed_tx.hash,
             signed_tx.raw_tx.clone(),
-        );
-
-        if let Err(error) = self
-            .send_raw_transaction(storage, tx_history_id, signed_tx.raw_tx, current_block)
-            .await
-        {
-            vlog::warn!(
-                "Error when sending new signed tx for tx {}, base_fee_per_gas {}, priority_fee_per_gas: {}: {}",
-                tx.id,
-                base_fee_per_gas,
-                priority_fee_per_gas,
-                error
-            );
+        ) {
+            if let Err(error) = self
+                .send_raw_transaction(storage, tx_history_id, signed_tx.raw_tx, current_block)
+                .await
+            {
+                vlog::warn!(
+                    "Error when sending new signed tx for tx {}, base_fee_per_gas {}, priority_fee_per_gas: {}: {}",
+                    tx.id,
+                    base_fee_per_gas,
+                    priority_fee_per_gas,
+                    error
+                );
+            }
         }
-
         Ok(signed_tx.hash)
     }
 
@@ -279,9 +276,15 @@ impl<E: EthInterface + Sync> EthTxManager<E> {
 
         let operator_nonce = self.get_operator_nonce(current_block).await?;
 
+        let inflight_txs = storage.eth_sender_dal().get_inflight_txs();
+        metrics::gauge!(
+            "server.eth_sender.number_of_inflight_txs",
+            inflight_txs.len() as f64,
+        );
+
         // Not confirmed transactions, ordered by nonce
-        for tx in storage.eth_sender_dal().get_inflight_txs() {
-            vlog::debug!(
+        for tx in inflight_txs {
+            vlog::trace!(
                 "Going through not confirmed txs. \
                  Current block: {}, current tx id: {}, \
                  sender's nonce on block `current block - number of confirmations`: {}",
@@ -295,15 +298,11 @@ impl<E: EthInterface + Sync> EthTxManager<E> {
             // We only resend the first unmined transaction.
             if operator_nonce.current <= tx.nonce {
                 // None means txs hasn't been sent yet
-                if let Some(first_sent_at_block) = storage
+                let first_sent_at_block = storage
                     .eth_sender_dal()
                     .get_block_number_on_first_sent_attempt(tx.id)
-                {
-                    return Ok(Some((tx, first_sent_at_block)));
-                } else {
-                    vlog::warn!("ETH Tx {} wasn't send", tx.id);
-                }
-                continue;
+                    .unwrap_or(current_block.0);
+                return Ok(Some((tx, first_sent_at_block)));
             }
 
             // If on block `current_block - self.wait_confirmations`
@@ -314,7 +313,7 @@ impl<E: EthInterface + Sync> EthTxManager<E> {
                 continue;
             }
 
-            vlog::debug!(
+            vlog::trace!(
                 "Sender's nonce on block `current block - number of confirmations` is greater than current tx's nonce. \
                  Checking transaction with id {}. Tx nonce is equal to {}",
                 tx.id,
@@ -418,11 +417,10 @@ impl<E: EthInterface + Sync> EthTxManager<E> {
             }
         } else {
             vlog::debug!(
-                "There is {} confirmations for transaction with history item tx hash: {} and id: {}. \
-                 But {} number of confirmations is required",
-                 confirmations,
+                "Transaction {} with id {} has {} out of {} required confirmations",
                 tx_status.tx_hash,
                 tx.id,
+                confirmations,
                 self.config.wait_confirmations
             );
         }
@@ -518,7 +516,7 @@ impl<E: EthInterface + Sync> EthTxManager<E> {
                     .unwrap()
                     .as_u32(),
             );
-            let mut storage = pool.access_storage().await;
+            let mut storage = pool.access_storage_blocking();
             self.send_unsent_txs(&mut storage, current_block).await;
         }
 
@@ -526,7 +524,7 @@ impl<E: EthInterface + Sync> EthTxManager<E> {
         // will never check inflight txs status
         let mut last_known_l1_block = L1BlockNumber(0);
         loop {
-            let mut storage = pool.access_storage().await;
+            let mut storage = pool.access_storage_blocking();
 
             if *stop_receiver.borrow() {
                 vlog::info!("Stop signal received, eth_tx_manager is shutting down");

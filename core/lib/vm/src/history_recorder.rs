@@ -1,5 +1,6 @@
 use std::{
     collections::HashMap,
+    fmt::Debug,
     hash::{BuildHasherDefault, Hash, Hasher},
 };
 
@@ -7,7 +8,6 @@ use crate::storage::StoragePtr;
 
 use zk_evm::{
     aux_structures::Timestamp,
-    reference_impls::event_sink::ApplicationData,
     vm_state::PrimitiveValue,
     zkevm_opcode_defs::{self},
 };
@@ -15,14 +15,13 @@ use zk_evm::{
 use zksync_types::{StorageKey, U256};
 use zksync_utils::{h256_to_u256, u256_to_h256};
 
-pub type AppDataFrameManagerWithHistory<T> = FrameManagerWithHistory<ApplicationData<T>>;
-pub type MemoryWithHistory = HistoryRecorder<MemoryWrapper>;
-pub type FrameManagerWithHistory<T> = HistoryRecorder<FrameManager<T>>;
-pub type IntFrameManagerWithHistory<T> = FrameManagerWithHistory<Vec<T>>;
+pub type MemoryWithHistory<H> = HistoryRecorder<MemoryWrapper, H>;
+pub type IntFrameManagerWithHistory<T, H> = HistoryRecorder<FramedStack<T>, H>;
 
 // Within the same cycle, timestamps in range timestamp..timestamp+TIME_DELTA_PER_CYCLE-1
 // can be used. This can sometimes vioalate monotonicity of the timestamp within the
 // same cycle, so it should be normalized.
+#[inline]
 fn normalize_timestamp(timestamp: Timestamp) -> Timestamp {
     let timestamp = timestamp.0;
 
@@ -43,31 +42,143 @@ pub trait WithHistory {
     ) -> (Self::HistoryRecord, Self::ReturnValue);
 }
 
-/// A struct responsible for tracking history for
-/// a component that is passed as a generic parameter to it (`inner`).
-#[derive(Debug, PartialEq)]
-pub struct HistoryRecorder<T: WithHistory> {
-    inner: T,
-    history: Vec<(Timestamp, T::HistoryRecord)>,
+type EventList<T> = Vec<(Timestamp, <T as WithHistory>::HistoryRecord)>;
+
+/// Controls if rolling back is possible or not.
+/// Either [HistoryEnabled] or [HistoryDisabled].
+pub trait HistoryMode: private::Sealed + Debug + Clone + Default {
+    type History<T: WithHistory>: Default;
+
+    fn clone_history<T: WithHistory>(history: &Self::History<T>) -> Self::History<T>
+    where
+        T::HistoryRecord: Clone;
+    fn mutate_history<T: WithHistory, F: FnOnce(&mut EventList<T>)>(
+        recorder: &mut HistoryRecorder<T, Self>,
+        f: F,
+    );
+    fn borrow_history<T: WithHistory, F: FnOnce(&EventList<T>) -> R, R>(
+        recorder: &HistoryRecorder<T, Self>,
+        f: F,
+        default: R,
+    ) -> R;
 }
 
-impl<T: WithHistory + Clone> Clone for HistoryRecorder<T>
+mod private {
+    pub trait Sealed {}
+    impl Sealed for super::HistoryEnabled {}
+    impl Sealed for super::HistoryDisabled {}
+}
+
+// derives require that all type parameters implement the trait, which is why
+// HistoryEnabled/Disabled derive so many traits even though they mostly don't
+// exist at runtime.
+
+/// A data structure with this parameter can be rolled back.
+/// See also: [HistoryDisabled]
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct HistoryEnabled;
+
+/// A data structure with this parameter cannot be rolled back.
+/// It won't even have rollback methods.
+/// See also: [HistoryEnabled]
+#[derive(Debug, Clone, Default)]
+pub struct HistoryDisabled;
+
+impl HistoryMode for HistoryEnabled {
+    type History<T: WithHistory> = EventList<T>;
+
+    fn clone_history<T: WithHistory>(history: &Self::History<T>) -> Self::History<T>
+    where
+        T::HistoryRecord: Clone,
+    {
+        history.clone()
+    }
+    fn mutate_history<T: WithHistory, F: FnOnce(&mut EventList<T>)>(
+        recorder: &mut HistoryRecorder<T, Self>,
+        f: F,
+    ) {
+        f(&mut recorder.history)
+    }
+    fn borrow_history<T: WithHistory, F: FnOnce(&EventList<T>) -> R, R>(
+        recorder: &HistoryRecorder<T, Self>,
+        f: F,
+        _: R,
+    ) -> R {
+        f(&recorder.history)
+    }
+}
+
+impl HistoryMode for HistoryDisabled {
+    type History<T: WithHistory> = ();
+
+    fn clone_history<T: WithHistory>(_: &Self::History<T>) -> Self::History<T> {}
+    fn mutate_history<T: WithHistory, F: FnOnce(&mut EventList<T>)>(
+        _: &mut HistoryRecorder<T, Self>,
+        _: F,
+    ) {
+    }
+    fn borrow_history<T: WithHistory, F: FnOnce(&EventList<T>) -> R, R>(
+        _: &HistoryRecorder<T, Self>,
+        _: F,
+        default: R,
+    ) -> R {
+        default
+    }
+}
+
+/// A struct responsible for tracking history for
+/// a component that is passed as a generic parameter to it (`inner`).
+#[derive(Default)]
+pub struct HistoryRecorder<T: WithHistory, H: HistoryMode> {
+    inner: T,
+    history: H::History<T>,
+}
+
+impl<T: WithHistory + PartialEq, H: HistoryMode> PartialEq for HistoryRecorder<T, H>
+where
+    T::HistoryRecord: PartialEq,
+{
+    fn eq(&self, other: &Self) -> bool {
+        self.inner == other.inner
+            && self.borrow_history(|h1| other.borrow_history(|h2| h1 == h2, true), true)
+    }
+}
+
+impl<T: WithHistory + Debug, H: HistoryMode> Debug for HistoryRecorder<T, H>
+where
+    T::HistoryRecord: Debug,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut debug_struct = f.debug_struct("HistoryRecorder");
+        debug_struct.field("inner", &self.inner);
+        self.borrow_history(
+            |h| {
+                debug_struct.field("history", h);
+            },
+            (),
+        );
+        debug_struct.finish()
+    }
+}
+
+impl<T: WithHistory + Clone, H> Clone for HistoryRecorder<T, H>
 where
     T::HistoryRecord: Clone,
+    H: HistoryMode,
 {
     fn clone(&self) -> Self {
         Self {
             inner: self.inner.clone(),
-            history: self.history.clone(),
+            history: H::clone_history(&self.history),
         }
     }
 }
 
-impl<T: WithHistory> HistoryRecorder<T> {
+impl<T: WithHistory, H: HistoryMode> HistoryRecorder<T, H> {
     pub fn from_inner(inner: T) -> Self {
         Self {
             inner,
-            history: vec![],
+            history: Default::default(),
         }
     }
 
@@ -75,8 +186,14 @@ impl<T: WithHistory> HistoryRecorder<T> {
         &self.inner
     }
 
-    pub fn history(&self) -> &Vec<(Timestamp, T::HistoryRecord)> {
-        &self.history
+    /// If history exists, modify it using `f`.
+    pub fn mutate_history<F: FnOnce(&mut EventList<T>)>(&mut self, f: F) {
+        H::mutate_history(self, f);
+    }
+
+    /// If history exists, feed it into `f`. Otherwise return `default`.
+    pub fn borrow_history<F: FnOnce(&EventList<T>) -> R, R>(&self, f: F, default: R) -> R {
+        H::borrow_history(self, f, default)
     }
 
     pub fn apply_historic_record(
@@ -84,17 +201,31 @@ impl<T: WithHistory> HistoryRecorder<T> {
         item: T::HistoryRecord,
         timestamp: Timestamp,
     ) -> T::ReturnValue {
-        let timestamp = normalize_timestamp(timestamp);
-        let last_recorded_timestamp = self.history.last().map(|(t, _)| *t).unwrap_or(Timestamp(0));
-        assert!(
-            last_recorded_timestamp <= timestamp,
-            "Timestamps are not monotonic"
-        );
-
         let (reversed_item, return_value) = self.inner.apply_historic_record(item);
-        self.history.push((timestamp, reversed_item));
+
+        self.mutate_history(|history| {
+            let last_recorded_timestamp = history.last().map(|(t, _)| *t).unwrap_or(Timestamp(0));
+            let timestamp = normalize_timestamp(timestamp);
+            assert!(
+                last_recorded_timestamp <= timestamp,
+                "Timestamps are not monotonic"
+            );
+            history.push((timestamp, reversed_item));
+        });
 
         return_value
+    }
+
+    /// Deletes all the history for its component, making
+    /// its current state irreversible
+    pub fn delete_history(&mut self) {
+        self.mutate_history(|h| h.clear())
+    }
+}
+
+impl<T: WithHistory> HistoryRecorder<T, HistoryEnabled> {
+    pub fn history(&self) -> &Vec<(Timestamp, T::HistoryRecord)> {
+        &self.history
     }
 
     pub fn rollback_to_timestamp(&mut self, timestamp: Timestamp) {
@@ -112,170 +243,6 @@ impl<T: WithHistory> HistoryRecorder<T> {
             self.inner.apply_historic_record(item_to_apply);
         }
     }
-
-    /// Deletes all the history for its component, making
-    /// its current state irreversible
-    pub fn delete_history(&mut self) {
-        self.history.clear();
-    }
-}
-
-impl<T: WithHistory + Default> Default for HistoryRecorder<T> {
-    fn default() -> Self {
-        Self::from_inner(T::default())
-    }
-}
-
-/// Frame manager is basically a wrapper
-/// over a stack of items, which typically constitute
-/// frames in oracles like StorageOracle, Memory, etc.
-#[derive(Debug, PartialEq, Clone)]
-pub struct FrameManager<T: WithHistory> {
-    frame_stack: Vec<T>,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum FrameManagerHistoryRecord<V> {
-    PushFrame,
-    PopFrame,
-    /// The operation should be handled by the current frame itself
-    InnerOperation(V),
-}
-
-impl<T: WithHistory + Default> Default for FrameManager<T> {
-    fn default() -> Self {
-        Self {
-            // We typically require at least the first frame to be there
-            // since the last user-provided frame might be reverted
-            frame_stack: vec![T::default()],
-        }
-    }
-}
-
-impl<T: WithHistory + Default> WithHistory for FrameManager<T> {
-    type HistoryRecord = FrameManagerHistoryRecord<T::HistoryRecord>;
-    type ReturnValue = Option<T::ReturnValue>;
-
-    fn apply_historic_record(
-        &mut self,
-        item: FrameManagerHistoryRecord<T::HistoryRecord>,
-    ) -> (Self::HistoryRecord, Self::ReturnValue) {
-        match item {
-            FrameManagerHistoryRecord::PopFrame => {
-                self.frame_stack.pop().unwrap();
-                (FrameManagerHistoryRecord::PushFrame, None)
-            }
-            FrameManagerHistoryRecord::PushFrame => {
-                self.frame_stack.push(T::default());
-                (FrameManagerHistoryRecord::PopFrame, None)
-            }
-            FrameManagerHistoryRecord::InnerOperation(record) => {
-                let (resulting_op, return_value) = self
-                    .frame_stack
-                    .last_mut()
-                    .unwrap()
-                    .apply_historic_record(record);
-                (
-                    FrameManagerHistoryRecord::InnerOperation(resulting_op),
-                    Some(return_value),
-                )
-            }
-        }
-    }
-}
-
-impl<T> FrameManager<T>
-where
-    T: WithHistory + Default,
-{
-    pub fn current_frame(&self) -> &T {
-        self.frame_stack
-            .last()
-            .expect("Frame stack should never be empty")
-    }
-
-    pub fn len(&self) -> usize {
-        self.frame_stack.len()
-    }
-
-    pub fn get_frames(&self) -> &[T] {
-        &self.frame_stack
-    }
-}
-
-impl<T: WithHistory + Default> HistoryRecorder<FrameManager<T>> {
-    /// Add a new frame.
-    pub fn push_frame(&mut self, timestamp: Timestamp) {
-        self.apply_historic_record(FrameManagerHistoryRecord::PushFrame, timestamp);
-    }
-
-    /// Remove the current frame.
-    pub fn pop_frame(&mut self, timestamp: Timestamp) {
-        self.apply_historic_record(FrameManagerHistoryRecord::PopFrame, timestamp);
-    }
-}
-
-impl<T: Copy + Clone> HistoryRecorder<FrameManager<ApplicationData<T>>> {
-    /// Push an element to the forward queue
-    pub fn push_forward(&mut self, elem: T, timestamp: Timestamp) {
-        let forward_event =
-            ApplicationDataHistoryEvent::ForwardEvent(VectorHistoryEvent::Push(elem));
-        let event = FrameManagerHistoryRecord::InnerOperation(forward_event);
-
-        self.apply_historic_record(event, timestamp);
-    }
-
-    /// Pop an element from the forward queue
-    pub fn pop_forward(&mut self, timestamp: Timestamp) -> T {
-        let forward_event = ApplicationDataHistoryEvent::ForwardEvent(VectorHistoryEvent::Pop);
-        let event = FrameManagerHistoryRecord::InnerOperation(forward_event);
-
-        self.apply_historic_record(event, timestamp)
-            .flatten()
-            .unwrap()
-    }
-
-    /// Push an element to the rollback queue
-    pub fn push_rollback(&mut self, elem: T, timestamp: Timestamp) {
-        let rollback_event =
-            ApplicationDataHistoryEvent::RollbacksEvent(VectorHistoryEvent::Push(elem));
-        let event = FrameManagerHistoryRecord::InnerOperation(rollback_event);
-
-        self.apply_historic_record(event, timestamp);
-    }
-
-    /// Pop an element from the rollback queue
-    pub fn pop_rollback(&mut self, timestamp: Timestamp) -> T {
-        let rollback_event = ApplicationDataHistoryEvent::RollbacksEvent(VectorHistoryEvent::Pop);
-        let event = FrameManagerHistoryRecord::InnerOperation(rollback_event);
-
-        self.apply_historic_record(event, timestamp)
-            .flatten()
-            .unwrap()
-    }
-
-    /// Pops the current frame and returns its value
-    pub fn drain_frame(&mut self, timestamp: Timestamp) -> ApplicationData<T> {
-        let mut forward = vec![];
-        while !self.inner.current_frame().forward.is_empty() {
-            let popped_item = self.pop_forward(timestamp);
-            forward.push(popped_item);
-        }
-
-        let mut rollbacks = vec![];
-        while !self.inner.current_frame().rollbacks.is_empty() {
-            let popped_item = self.pop_rollback(timestamp);
-            rollbacks.push(popped_item);
-        }
-
-        self.pop_frame(timestamp);
-
-        // items are in reversed order:
-        ApplicationData {
-            forward: forward.into_iter().rev().collect(),
-            rollbacks: rollbacks.into_iter().rev().collect(),
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -284,7 +251,7 @@ pub enum VectorHistoryEvent<X> {
     Pop,
 }
 
-impl<T: Copy + Clone> WithHistory for Vec<T> {
+impl<T: Copy> WithHistory for Vec<T> {
     type HistoryRecord = VectorHistoryEvent<T>;
     type ReturnValue = Option<T>;
     fn apply_historic_record(
@@ -309,7 +276,7 @@ impl<T: Copy + Clone> WithHistory for Vec<T> {
     }
 }
 
-impl<T: Copy + Clone> HistoryRecorder<Vec<T>> {
+impl<T: Copy, H: HistoryMode> HistoryRecorder<Vec<T>, H> {
     pub fn push(&mut self, elem: T, timestamp: Timestamp) {
         self.apply_historic_record(VectorHistoryEvent::Push(elem), timestamp);
     }
@@ -328,54 +295,13 @@ impl<T: Copy + Clone> HistoryRecorder<Vec<T>> {
     }
 }
 
-impl<T: Copy + Clone> HistoryRecorder<FrameManager<Vec<T>>> {
-    /// Push an element to the current frame
-    pub fn push_to_frame(&mut self, elem: T, timestamp: Timestamp) {
-        self.apply_historic_record(
-            FrameManagerHistoryRecord::InnerOperation(VectorHistoryEvent::Push(elem)),
-            timestamp,
-        );
-    }
-
-    /// Pop an element from the current frame
-    pub fn pop_from_frame(&mut self, timestamp: Timestamp) -> T {
-        self.apply_historic_record(
-            FrameManagerHistoryRecord::InnerOperation(VectorHistoryEvent::Pop),
-            timestamp,
-        )
-        .flatten()
-        .unwrap()
-    }
-
-    /// Drains the top frame and returns its value
-    pub fn drain_frame(&mut self, timestamp: Timestamp) -> Vec<T> {
-        let mut items = vec![];
-        while !self.inner.current_frame().is_empty() {
-            let popped_item = self.pop_from_frame(timestamp);
-            items.push(popped_item);
-        }
-
-        self.pop_frame(timestamp);
-
-        // items are in reversed order:
-        items.into_iter().rev().collect()
-    }
-
-    /// Extends the top frame with a vector of items
-    pub fn extend_frame(&mut self, items: Vec<T>, timestamp: Timestamp) {
-        for item in items {
-            self.push_to_frame(item, timestamp);
-        }
-    }
-}
-
 #[derive(Debug, Clone, PartialEq)]
 pub struct HashMapHistoryEvent<K, V> {
     pub key: K,
     pub value: Option<V>,
 }
 
-impl<K: Eq + Hash + Copy, V: Clone> WithHistory for HashMap<K, V> {
+impl<K: Eq + Hash + Copy, V: Clone + Debug> WithHistory for HashMap<K, V> {
     type HistoryRecord = HashMapHistoryEvent<K, V>;
     type ReturnValue = Option<V>;
     fn apply_historic_record(
@@ -399,7 +325,7 @@ impl<K: Eq + Hash + Copy, V: Clone> WithHistory for HashMap<K, V> {
     }
 }
 
-impl<K: Eq + Hash + Copy, V: Clone> HistoryRecorder<HashMap<K, V>> {
+impl<K: Eq + Hash + Copy, V: Clone + Debug, H: HistoryMode> HistoryRecorder<HashMap<K, V>, H> {
     pub fn insert(&mut self, key: K, value: V, timestamp: Timestamp) -> Option<V> {
         self.apply_historic_record(
             HashMapHistoryEvent {
@@ -411,35 +337,179 @@ impl<K: Eq + Hash + Copy, V: Clone> HistoryRecorder<HashMap<K, V>> {
     }
 }
 
+/// A stack of stacks. The inner stacks are called frames.
+///
+/// Does not support popping from the outer stack. Instead, the outer stack can
+/// push its topmost frame's contents onto the previous frame.
 #[derive(Debug, Clone, PartialEq)]
-pub enum ApplicationDataHistoryEvent<T: Copy + Clone> {
-    // The event about the forward queue
-    ForwardEvent(VectorHistoryEvent<T>),
-    // The event about the rollbacks queue
-    RollbacksEvent(VectorHistoryEvent<T>),
+pub struct FramedStack<T> {
+    data: Vec<T>,
+    frame_start_indices: Vec<usize>,
 }
 
-impl<T: Copy + Clone> WithHistory for ApplicationData<T> {
-    type HistoryRecord = ApplicationDataHistoryEvent<T>;
-    type ReturnValue = Option<T>;
+impl<T> Default for FramedStack<T> {
+    fn default() -> Self {
+        // We typically require at least the first frame to be there
+        // since the last user-provided frame might be reverted
+        Self {
+            data: vec![],
+            frame_start_indices: vec![0],
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum FramedStackEvent<T> {
+    Push(T),
+    Pop,
+    PushFrame(usize),
+    MergeFrame,
+}
+
+impl<T> WithHistory for FramedStack<T> {
+    type HistoryRecord = FramedStackEvent<T>;
+    type ReturnValue = ();
 
     fn apply_historic_record(
         &mut self,
-        item: ApplicationDataHistoryEvent<T>,
+        item: Self::HistoryRecord,
     ) -> (Self::HistoryRecord, Self::ReturnValue) {
+        use FramedStackEvent::*;
         match item {
-            ApplicationDataHistoryEvent::ForwardEvent(e) => {
-                let (vec_event, result) = self.forward.apply_historic_record(e);
-                (ApplicationDataHistoryEvent::ForwardEvent(vec_event), result)
+            Push(x) => {
+                self.data.push(x);
+                (Pop, ())
             }
-            ApplicationDataHistoryEvent::RollbacksEvent(e) => {
-                let (vec_event, result) = self.rollbacks.apply_historic_record(e);
-                (
-                    ApplicationDataHistoryEvent::RollbacksEvent(vec_event),
-                    result,
-                )
+            Pop => {
+                let x = self.data.pop().unwrap();
+                (Push(x), ())
+            }
+            PushFrame(i) => {
+                self.frame_start_indices.push(i);
+                (MergeFrame, ())
+            }
+            MergeFrame => {
+                let pos = self.frame_start_indices.pop().unwrap();
+                (PushFrame(pos), ())
             }
         }
+    }
+}
+
+impl<T> FramedStack<T> {
+    fn push_frame(&self) -> FramedStackEvent<T> {
+        FramedStackEvent::PushFrame(self.data.len())
+    }
+
+    pub fn current_frame(&self) -> &[T] {
+        &self.data[*self.frame_start_indices.last().unwrap()..self.data.len()]
+    }
+
+    fn len(&self) -> usize {
+        self.frame_start_indices.len()
+    }
+
+    /// Returns the amount of memory taken up by the stored items
+    pub fn get_size(&self) -> usize {
+        self.data.len() * std::mem::size_of::<T>()
+    }
+}
+
+impl<T, H: HistoryMode> HistoryRecorder<FramedStack<T>, H> {
+    pub fn push_to_frame(&mut self, x: T, timestamp: Timestamp) {
+        self.apply_historic_record(FramedStackEvent::Push(x), timestamp);
+    }
+    pub fn clear_frame(&mut self, timestamp: Timestamp) {
+        let start = *self.inner.frame_start_indices.last().unwrap();
+        while self.inner.data.len() > start {
+            self.apply_historic_record(FramedStackEvent::Pop, timestamp);
+        }
+    }
+    pub fn extend_frame(&mut self, items: impl IntoIterator<Item = T>, timestamp: Timestamp) {
+        for x in items {
+            self.push_to_frame(x, timestamp);
+        }
+    }
+    pub fn push_frame(&mut self, timestamp: Timestamp) {
+        self.apply_historic_record(self.inner.push_frame(), timestamp);
+    }
+    pub fn merge_frame(&mut self, timestamp: Timestamp) {
+        self.apply_historic_record(FramedStackEvent::MergeFrame, timestamp);
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct AppDataFrameManagerWithHistory<T, H: HistoryMode> {
+    forward: HistoryRecorder<FramedStack<T>, H>,
+    rollback: HistoryRecorder<FramedStack<T>, H>,
+}
+
+impl<T, H: HistoryMode> Default for AppDataFrameManagerWithHistory<T, H> {
+    fn default() -> Self {
+        Self {
+            forward: Default::default(),
+            rollback: Default::default(),
+        }
+    }
+}
+
+impl<T, H: HistoryMode> AppDataFrameManagerWithHistory<T, H> {
+    pub fn delete_history(&mut self) {
+        self.forward.delete_history();
+        self.rollback.delete_history();
+    }
+
+    pub fn push_forward(&mut self, item: T, timestamp: Timestamp) {
+        self.forward.push_to_frame(item, timestamp);
+    }
+    pub fn push_rollback(&mut self, item: T, timestamp: Timestamp) {
+        self.rollback.push_to_frame(item, timestamp);
+    }
+    pub fn push_frame(&mut self, timestamp: Timestamp) {
+        self.forward.push_frame(timestamp);
+        self.rollback.push_frame(timestamp);
+    }
+    pub fn merge_frame(&mut self, timestamp: Timestamp) {
+        self.forward.merge_frame(timestamp);
+        self.rollback.merge_frame(timestamp);
+    }
+
+    pub fn len(&self) -> usize {
+        self.forward.inner.len()
+    }
+    pub fn forward(&self) -> &FramedStack<T> {
+        &self.forward.inner
+    }
+    pub fn rollback(&self) -> &FramedStack<T> {
+        &self.rollback.inner
+    }
+
+    /// Returns the amount of memory taken up by the stored items
+    pub fn get_size(&self) -> usize {
+        self.forward().get_size() + self.rollback().get_size()
+    }
+
+    pub fn get_history_size(&self) -> usize {
+        (self.forward.borrow_history(|h| h.len(), 0) + self.rollback.borrow_history(|h| h.len(), 0))
+            * std::mem::size_of::<<FramedStack<T> as WithHistory>::HistoryRecord>()
+    }
+}
+
+impl<T: Clone, H: HistoryMode> AppDataFrameManagerWithHistory<T, H> {
+    pub fn move_rollback_to_forward<F: Fn(&T) -> bool>(&mut self, filter: F, timestamp: Timestamp) {
+        for x in self.rollback.inner.current_frame().iter().rev() {
+            if filter(x) {
+                self.forward.push_to_frame(x.clone(), timestamp);
+            }
+        }
+        self.rollback.clear_frame(timestamp);
+    }
+}
+
+impl<T> AppDataFrameManagerWithHistory<T, HistoryEnabled> {
+    pub fn rollback_to_timestamp(&mut self, timestamp: Timestamp) {
+        self.forward.rollback_to_timestamp(timestamp);
+        self.rollback.rollback_to_timestamp(timestamp);
     }
 }
 
@@ -469,7 +539,7 @@ pub struct MemoryWrapper {
 pub struct MemoryHistoryRecord {
     pub page: usize,
     pub slot: usize,
-    pub set_value: Option<PrimitiveValue>,
+    pub set_value: PrimitiveValue,
 }
 
 impl MemoryWrapper {
@@ -507,11 +577,20 @@ impl MemoryWrapper {
             vec![PrimitiveValue::empty(); range.len()]
         }
     }
+
+    const EMPTY: PrimitiveValue = PrimitiveValue::empty();
+
+    pub fn read_slot(&self, page: usize, slot: usize) -> &PrimitiveValue {
+        self.memory
+            .get(page)
+            .and_then(|page| page.get(&slot))
+            .unwrap_or(&Self::EMPTY)
+    }
 }
 
 impl WithHistory for MemoryWrapper {
     type HistoryRecord = MemoryHistoryRecord;
-    type ReturnValue = Option<PrimitiveValue>;
+    type ReturnValue = PrimitiveValue;
 
     fn apply_historic_record(
         &mut self,
@@ -525,10 +604,12 @@ impl WithHistory for MemoryWrapper {
 
         self.ensure_page_exists(page);
         let page_handle = self.memory.get_mut(page).unwrap();
-        let prev_value = match set_value {
-            Some(x) => page_handle.insert(slot, x),
-            None => page_handle.remove(&slot),
-        };
+        let prev_value = if set_value == PrimitiveValue::empty() {
+            page_handle.remove(&slot)
+        } else {
+            page_handle.insert(slot, set_value)
+        }
+        .unwrap_or(PrimitiveValue::empty());
         self.shrink_pages();
 
         let reserved_item = MemoryHistoryRecord {
@@ -541,14 +622,14 @@ impl WithHistory for MemoryWrapper {
     }
 }
 
-impl HistoryRecorder<MemoryWrapper> {
+impl<H: HistoryMode> HistoryRecorder<MemoryWrapper, H> {
     pub fn write_to_memory(
         &mut self,
         page: usize,
         slot: usize,
-        value: Option<PrimitiveValue>,
+        value: PrimitiveValue,
         timestamp: Timestamp,
-    ) -> Option<PrimitiveValue> {
+    ) -> PrimitiveValue {
         self.apply_historic_record(
             MemoryHistoryRecord {
                 page,
@@ -567,7 +648,7 @@ impl HistoryRecorder<MemoryWrapper> {
 
         // We manually clear the page to preserve correct history
         for slot in slots_to_clear {
-            self.write_to_memory(page, slot, None, timestamp);
+            self.write_to_memory(page, slot, PrimitiveValue::empty(), timestamp);
         }
     }
 }
@@ -620,7 +701,7 @@ impl<'a> WithHistory for StorageWrapper<'a> {
     }
 }
 
-impl<'a> HistoryRecorder<StorageWrapper<'a>> {
+impl<'a, H: HistoryMode> HistoryRecorder<StorageWrapper<'a>, H> {
     pub fn read_from_storage(&self, key: &StorageKey) -> U256 {
         self.inner.read_from_storage(key)
     }

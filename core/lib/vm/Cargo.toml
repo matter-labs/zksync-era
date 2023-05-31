@@ -4,13 +4,14 @@ version = "0.1.0"
 edition = "2018"
 authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
 homepage = "https://zksync.io/"
-repository = "https://github.com/matter-labs/zksync-era"
+repository = "https://github.com/matter-labs/zksync-2"
 license = "Apache-2.0"
 keywords = ["blockchain", "zksync"]
 categories = ["cryptography"]
 
 [dependencies]
-zkevm-assembly = { git = "https://github.com/matter-labs/era-zkEVM-assembly.git", branch = "main" }
+zkevm-assembly = { git = "https://github.com/matter-labs/era-zkEVM-assembly.git", branch = "v1.3.2" }
+
 zksync_crypto = { path = "../crypto", version = "1.0" }
 zksync_types = { path = "../types", version = "1.0" }
 zksync_utils = { path = "../utils", version = "1.0" }
@@ -18,7 +19,8 @@ zksync_config = { path = "../config", version = "1.0" }
 zksync_state = {path = "../state", version = "1.0" }
 zksync_storage = {path = "../storage", version = "1.0" }
 
-zk_evm = {git = "https://github.com/matter-labs/era-zk_evm.git", branch = "main"}
+zk_evm = {git = "https://github.com/matter-labs/era-zk_evm.git", branch = "v1.3.2"}
+
 zksync_contracts = { path = "../contracts" }
 
 hex = "0.4"
@@ -34,4 +36,3 @@ tracing = "0.1"
 tempfile = "3.0.2"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-

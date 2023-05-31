@@ -2,7 +2,7 @@ import { Command } from 'commander';
 import * as utils from '../utils';
 
 import * as integration from './integration';
-import * as db from '../database/database';
+import * as db from '../database';
 export { integration };
 
 export async function l1Contracts() {

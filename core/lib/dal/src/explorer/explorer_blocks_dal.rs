@@ -4,7 +4,7 @@ use zksync_types::explorer_api::{
     BlockDetails, BlockPageItem, BlocksQuery, L1BatchDetails, L1BatchPageItem, L1BatchesQuery,
     PaginationDirection,
 };
-use zksync_types::{L1BatchNumber, MiniblockNumber};
+use zksync_types::{Address, L1BatchNumber, MiniblockNumber};
 
 use crate::models::storage_block::{
     block_page_item_from_storage, l1_batch_page_item_from_storage, StorageBlockDetails,
@@ -63,10 +63,11 @@ impl ExplorerBlocksDal<'_, '_> {
     pub fn get_block_details(
         &mut self,
         block_number: MiniblockNumber,
+        current_operator_address: Address,
     ) -> Result<Option<BlockDetails>, SqlxError> {
         async_std::task::block_on(async {
             let started_at = Instant::now();
-            let block_details: Option<StorageBlockDetails> = sqlx::query_as!(
+            let storage_block_details: Option<StorageBlockDetails> = sqlx::query_as!(
                 StorageBlockDetails,
                 r#"
                     SELECT miniblocks.number,
@@ -84,7 +85,8 @@ impl ExplorerBlocksDal<'_, '_> {
                         miniblocks.l1_gas_price,
                         miniblocks.l2_fair_gas_price,
                         miniblocks.bootloader_code_hash,
-                        miniblocks.default_aa_code_hash
+                        miniblocks.default_aa_code_hash,
+                        l1_batches.fee_account_address as "fee_account_address?"
                     FROM miniblocks
                     LEFT JOIN l1_batches ON miniblocks.l1_batch_number = l1_batches.number
                     LEFT JOIN eth_txs_history as commit_tx ON (l1_batches.eth_commit_tx_id = commit_tx.eth_tx_id AND commit_tx.confirmed_at IS NOT NULL)
@@ -97,7 +99,9 @@ impl ExplorerBlocksDal<'_, '_> {
             .fetch_optional(self.storage.conn())
             .await?;
             metrics::histogram!("dal.request", started_at.elapsed(), "method" => "explorer_get_block_details");
-            Ok(block_details.map(BlockDetails::from))
+            Ok(storage_block_details.map(|storage_block_details| {
+                storage_block_details.into_block_details(current_operator_address)
+            }))
         })
     }
 
@@ -112,14 +116,14 @@ impl ExplorerBlocksDal<'_, '_> {
                 PaginationDirection::Newer => (">", "ASC"),
             };
             let cmp_str = if query.from.is_some() {
-                format!("WHERE l1_batches.number {} $3", cmp_sign)
+                format!("AND l1_batches.number {} $3", cmp_sign)
             } else {
                 "".to_string()
             };
             let sql_query_str = format!(
                 "
                 SELECT number, l1_tx_count, l2_tx_count, hash, timestamp FROM l1_batches
-                {}
+                WHERE l1_batches.hash IS NOT NULL {}
                 ORDER BY l1_batches.number {}
                 LIMIT $1
                 OFFSET $2

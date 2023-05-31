@@ -387,6 +387,10 @@ impl Tester {
         );
     }
 
+    // TODO: Currently this method relies on our ability to deterministically generate the contract address.
+    //  Right now, it can only be done if we know the deployment nonce: amount of contracts deployed from the address.
+    //  In the future, it may change, so temporarily we require caller to explicitly tell how many contracts were deployed
+    //  from this address (including ones that used `CREATE`/`CREATE2`).
     pub async fn deploy_contract(
         &mut self,
         from: &AccountHandler,

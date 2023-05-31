@@ -1,0 +1,38 @@
+[package]
+name = "zksync_witness_generator"
+version = "1.0.0"
+edition = "2018"
+authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
+homepage = "https://zksync.io/"
+repository = "https://github.com/matter-labs/zksync-era"
+license = "MIT OR Apache-2.0"
+keywords = ["blockchain", "zksync"]
+categories = ["cryptography"]
+publish = false # We don't want to publish our binaries.
+
+[dependencies]
+zksync_dal = { path = "../../lib/dal", version = "1.0" }
+zksync_config = { path = "../../lib/config", version = "1.0" }
+prometheus_exporter = { path = "../../lib/prometheus_exporter", version = "1.0" }
+vlog = { path = "../../lib/vlog", version = "1.0" }
+zksync_queued_job_processor = { path = "../../lib/queued_job_processor", version = "1.0" }
+vm = { path = "../../lib/vm", version = "0.1.0" }
+zksync_object_store = { path = "../../lib/object_store", version = "1.0" }
+zksync_types = { path = "../../lib/types", version = "1.0" }
+zksync_state = { path = "../../lib/state", version = "1.0" }
+zksync_utils = { path = "../../lib/utils", version = "1.0" }
+zksync_verification_key_generator_and_server = { path = "../verification_key_generator_and_server", version = "1.0" }
+zksync_prover_utils = { path = "../../lib/prover_utils", version = "1.0" }
+zksync_db_storage_provider = { path = "../../lib/db_storage_provider", version = "1.0" }
+
+tokio = { version = "1", features = ["time"] }
+futures = { version = "0.3", features = ["compat"] }
+metrics = "0.20"
+serde = { version = "1.0", features = ["derive"] }
+async-trait = "0.1"
+rand = "0.8"
+structopt = "0.3.26"
+
+[dev-dependencies]
+bincode = "1"
+const-decoder = "0.3.0"

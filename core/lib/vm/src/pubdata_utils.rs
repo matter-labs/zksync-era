@@ -1,3 +1,4 @@
+use crate::history_recorder::HistoryMode;
 use crate::oracles::storage::storage_key_of_log;
 use crate::utils::collect_storage_log_queries_after_timestamp;
 use crate::VmInstance;
@@ -8,7 +9,7 @@ use zksync_types::zkevm_test_harness::witness::sort_storage_access::sort_storage
 use zksync_types::{StorageKey, PUBLISH_BYTECODE_OVERHEAD, SYSTEM_CONTEXT_ADDRESS};
 use zksync_utils::bytecode::bytecode_len_in_bytes;
 
-impl<'a> VmInstance<'a> {
+impl<H: HistoryMode> VmInstance<'_, H> {
     pub fn pubdata_published(&self, from_timestamp: Timestamp) -> u32 {
         let storage_writes_pubdata_published = self.pubdata_published_for_writes(from_timestamp);
 
@@ -68,13 +69,7 @@ impl<'a> VmInstance<'a> {
         };
 
         let storage_logs = collect_storage_log_queries_after_timestamp(
-            &self
-                .state
-                .storage
-                .frames_stack
-                .inner()
-                .current_frame()
-                .forward,
+            self.state.storage.frames_stack.forward().current_frame(),
             from_timestamp,
         );
         let (_, deduplicated_logs) =

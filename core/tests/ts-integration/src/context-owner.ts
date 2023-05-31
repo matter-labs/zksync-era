@@ -60,11 +60,18 @@ export class TestContextOwner {
     constructor(env: TestEnvironment) {
         this.env = env;
 
+        this.reporter.message('Using L1 provider: ' + env.l1NodeUrl);
+        this.reporter.message('Using L2 provider: ' + env.l2NodeUrl);
+
         this.l1Provider = new ethers.providers.JsonRpcProvider(env.l1NodeUrl);
-        this.l2Provider = new RetryProvider({
-            url: env.l2NodeUrl,
-            timeout: 1200 * 1000
-        });
+        this.l2Provider = new RetryProvider(
+            {
+                url: env.l2NodeUrl,
+                timeout: 1200 * 1000
+            },
+            undefined,
+            this.reporter
+        );
 
         if (env.network == 'localhost') {
             // Setup small polling interval on localhost to speed up tests.
@@ -454,7 +461,7 @@ export async function sendTransfers(
                 nonce: txNonce,
                 gasPrice
             });
-            reporter?.debug(`Inititated ERC20 transfer with nonce: ${tx.nonce}`);
+            reporter?.debug(`Inititated ERC20 transfer with nonce: ${txNonce}`);
             // @ts-ignore
             return tx.then((tx) => {
                 reporter?.debug(`Sent ERC20 transfer tx: ${tx.hash}, nonce: ${tx.nonce}`);

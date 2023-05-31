@@ -1,32 +1,20 @@
 use std::collections::HashMap;
 use std::time::Instant;
 
+use async_trait::async_trait;
+
+use zksync_config::configs::WitnessGeneratorConfig;
 use zksync_dal::ConnectionPool;
-use zksync_object_store::gcs_utils::{
-    aggregation_outputs_blob_url, basic_circuits_blob_url, basic_circuits_inputs_blob_url,
-    leaf_layer_subqueues_blob_url,
-};
-use zksync_object_store::object_store::{
-    DynamicObjectStore, LEAF_AGGREGATION_WITNESS_JOBS_BUCKET_PATH,
-    NODE_AGGREGATION_WITNESS_JOBS_BUCKET_PATH,
-};
+use zksync_object_store::{ObjectStore, ObjectStoreFactory};
+use zksync_queued_job_processor::JobProcessor;
 use zksync_types::{
     circuit::LEAF_SPLITTING_FACTOR,
-    proofs::{
-        AggregationRound, PrepareLeafAggregationCircuitsJob, WitnessGeneratorJob,
-        WitnessGeneratorJobInput, WitnessGeneratorJobMetadata,
-    },
+    proofs::{AggregationRound, PrepareLeafAggregationCircuitsJob, WitnessGeneratorJobMetadata},
     zkevm_test_harness::{
-        abstract_zksync_circuit::concrete_circuits::ZkSyncCircuit,
-        bellman::bn256::Bn256,
+        abstract_zksync_circuit::concrete_circuits::ZkSyncCircuit, bellman::bn256::Bn256,
         bellman::plonk::better_better_cs::setup::VerificationKey,
-        encodings::recursion_request::RecursionRequest,
-        encodings::QueueSimulator,
-        sync_vm, witness,
-        witness::{
-            full_block_artifact::{BlockBasicCircuits, BlockBasicCircuitsPublicInputs},
-            oracle::VmWitnessOracle,
-        },
+        encodings::recursion_request::RecursionRequest, encodings::QueueSimulator, witness,
+        witness::oracle::VmWitnessOracle, LeafAggregationOutputDataWitness,
     },
     L1BatchNumber,
 };
@@ -34,16 +22,133 @@ use zksync_verification_key_server::{
     get_ordered_vks_for_basic_circuits, get_vks_for_basic_circuits, get_vks_for_commitment,
 };
 
-use crate::witness_generator;
 use crate::witness_generator::track_witness_generation_stage;
 use crate::witness_generator::utils::save_prover_input_artifacts;
 
 pub struct LeafAggregationArtifacts {
-    pub leaf_layer_subqueues: Vec<QueueSimulator<Bn256, RecursionRequest<Bn256>, 2, 2>>,
-    pub aggregation_outputs:
-        Vec<sync_vm::recursion::leaf_aggregation::LeafAggregationOutputDataWitness<Bn256>>,
-    pub serialized_circuits: Vec<(String, Vec<u8>)>,
-    pub leaf_circuits: Vec<ZkSyncCircuit<Bn256, VmWitnessOracle<Bn256>>>,
+    leaf_layer_subqueues: Vec<QueueSimulator<Bn256, RecursionRequest<Bn256>, 2, 2>>,
+    aggregation_outputs: Vec<LeafAggregationOutputDataWitness<Bn256>>,
+    leaf_circuits: Vec<ZkSyncCircuit<Bn256, VmWitnessOracle<Bn256>>>,
+}
+
+#[derive(Debug)]
+struct BlobUrls {
+    leaf_layer_subqueues_url: String,
+    aggregation_outputs_url: String,
+    circuit_types_and_urls: Vec<(&'static str, String)>,
+}
+
+#[derive(Clone)]
+pub struct LeafAggregationWitnessGeneratorJob {
+    block_number: L1BatchNumber,
+    job: PrepareLeafAggregationCircuitsJob,
+}
+
+#[derive(Debug)]
+pub struct LeafAggregationWitnessGenerator {
+    config: WitnessGeneratorConfig,
+    object_store: Box<dyn ObjectStore>,
+}
+
+impl LeafAggregationWitnessGenerator {
+    pub fn new(config: WitnessGeneratorConfig, store_factory: &ObjectStoreFactory) -> Self {
+        Self {
+            config,
+            object_store: store_factory.create_store(),
+        }
+    }
+
+    fn process_job_sync(
+        leaf_job: LeafAggregationWitnessGeneratorJob,
+        started_at: Instant,
+    ) -> LeafAggregationArtifacts {
+        let LeafAggregationWitnessGeneratorJob { block_number, job } = leaf_job;
+
+        vlog::info!(
+            "Starting witness generation of type {:?} for block {}",
+            AggregationRound::LeafAggregation,
+            block_number.0
+        );
+        process_leaf_aggregation_job(started_at, block_number, job)
+    }
+}
+
+#[async_trait]
+impl JobProcessor for LeafAggregationWitnessGenerator {
+    type Job = LeafAggregationWitnessGeneratorJob;
+    type JobId = L1BatchNumber;
+    type JobArtifacts = LeafAggregationArtifacts;
+
+    const SERVICE_NAME: &'static str = "leaf_aggregation_witness_generator";
+
+    async fn get_next_job(
+        &self,
+        connection_pool: ConnectionPool,
+    ) -> Option<(Self::JobId, Self::Job)> {
+        let mut connection = connection_pool.access_storage_blocking();
+        let last_l1_batch_to_process = self.config.last_l1_batch_to_process();
+
+        match connection
+            .witness_generator_dal()
+            .get_next_leaf_aggregation_witness_job(
+                self.config.witness_generation_timeout(),
+                self.config.max_attempts,
+                last_l1_batch_to_process,
+            ) {
+            Some(metadata) => {
+                let job = get_artifacts(metadata, &*self.object_store);
+                Some((job.block_number, job))
+            }
+            None => None,
+        }
+    }
+
+    async fn save_failure(
+        &self,
+        connection_pool: ConnectionPool,
+        job_id: L1BatchNumber,
+        started_at: Instant,
+        error: String,
+    ) -> () {
+        connection_pool
+            .access_storage_blocking()
+            .witness_generator_dal()
+            .mark_witness_job_as_failed(
+                job_id,
+                AggregationRound::LeafAggregation,
+                started_at.elapsed(),
+                error,
+                self.config.max_attempts,
+            );
+    }
+
+    #[allow(clippy::async_yields_async)]
+    async fn process_job(
+        &self,
+        _connection_pool: ConnectionPool,
+        job: LeafAggregationWitnessGeneratorJob,
+        started_at: Instant,
+    ) -> tokio::task::JoinHandle<LeafAggregationArtifacts> {
+        tokio::task::spawn_blocking(move || Self::process_job_sync(job, started_at))
+    }
+
+    async fn save_result(
+        &self,
+        connection_pool: ConnectionPool,
+        job_id: L1BatchNumber,
+        started_at: Instant,
+        artifacts: LeafAggregationArtifacts,
+    ) {
+        let leaf_circuits_len = artifacts.leaf_circuits.len();
+        let blob_urls = save_artifacts(job_id, artifacts, &*self.object_store);
+        update_database(
+            connection_pool,
+            started_at,
+            job_id,
+            leaf_circuits_len,
+            blob_urls,
+        );
+    }
 }
 
 pub fn process_leaf_aggregation_job(
@@ -75,18 +180,10 @@ pub fn process_leaf_aggregation_job(
 
     vlog::info!("Commitments generated in {:?}", stage_started_at.elapsed());
 
-    // fs::write("basic_circuits.bincode", bincode::serialize(&job.basic_circuits).unwrap()).unwrap();
-    // fs::write("basic_circuits_inputs.bincode", bincode::serialize(&job.basic_circuits_inputs).unwrap()).unwrap();
-    // fs::write("basic_circuits_proofs.bincode", bincode::serialize(&job.basic_circuits_proofs).unwrap()).unwrap();
-    // fs::write("vks_for_aggregation.bincode", bincode::serialize(&vks_for_aggregation).unwrap()).unwrap();
-    // fs::write("all_vk_committments.bincode", bincode::serialize(&all_vk_committments).unwrap()).unwrap();
-    // fs::write("set_committment.bincode", bincode::serialize(&set_committment).unwrap()).unwrap();
-    // fs::write("g2_points.bincode", bincode::serialize(&g2_points).unwrap()).unwrap();
-
     let stage_started_at = Instant::now();
 
     let (leaf_layer_subqueues, aggregation_outputs, leaf_circuits) =
-        zksync_types::zkevm_test_harness::witness::recursive_aggregation::prepare_leaf_aggregations(
+        witness::recursive_aggregation::prepare_leaf_aggregations(
             job.basic_circuits,
             job.basic_circuits_inputs,
             job.basic_circuits_proofs,
@@ -96,9 +193,6 @@ pub fn process_leaf_aggregation_job(
             set_committment,
             g2_points,
         );
-
-    let serialized_circuits: Vec<(String, Vec<u8>)> =
-        witness_generator::serialize_circuits(&leaf_circuits);
 
     vlog::info!(
         "prepare_leaf_aggregations took {:?}",
@@ -114,17 +208,16 @@ pub fn process_leaf_aggregation_job(
     LeafAggregationArtifacts {
         leaf_layer_subqueues,
         aggregation_outputs,
-        serialized_circuits,
         leaf_circuits,
     }
 }
 
-pub fn update_database(
+fn update_database(
     connection_pool: ConnectionPool,
     started_at: Instant,
     block_number: L1BatchNumber,
     leaf_circuits_len: usize,
-    circuits: Vec<String>,
+    blob_urls: BlobUrls,
 ) {
     let mut connection = connection_pool.access_storage_blocking();
     let mut transaction = connection.start_transaction_blocking();
@@ -133,10 +226,15 @@ pub fn update_database(
     // and advances it to waiting_for_proofs status
     transaction
         .witness_generator_dal()
-        .save_leaf_aggregation_artifacts(block_number, leaf_circuits_len);
+        .save_leaf_aggregation_artifacts(
+            block_number,
+            leaf_circuits_len,
+            &blob_urls.leaf_layer_subqueues_url,
+            &blob_urls.aggregation_outputs_url,
+        );
     transaction.prover_dal().insert_prover_jobs(
         block_number,
-        circuits,
+        blob_urls.circuit_types_and_urls,
         AggregationRound::LeafAggregation,
     );
     transaction
@@ -151,72 +249,43 @@ pub fn update_database(
     track_witness_generation_stage(started_at, AggregationRound::LeafAggregation);
 }
 
-pub async fn get_artifacts(
+pub fn get_artifacts(
     metadata: WitnessGeneratorJobMetadata,
-    object_store: &DynamicObjectStore,
-) -> WitnessGeneratorJob {
-    let basic_circuits_serialized = object_store
-        .get(
-            LEAF_AGGREGATION_WITNESS_JOBS_BUCKET_PATH,
-            basic_circuits_blob_url(metadata.block_number),
-        )
-        .unwrap();
-    let basic_circuits =
-        bincode::deserialize::<BlockBasicCircuits<Bn256>>(&basic_circuits_serialized)
-            .expect("basic_circuits deserialization failed");
+    object_store: &dyn ObjectStore,
+) -> LeafAggregationWitnessGeneratorJob {
+    let basic_circuits = object_store.get(metadata.block_number).unwrap();
+    let basic_circuits_inputs = object_store.get(metadata.block_number).unwrap();
 
-    let basic_circuits_inputs_serialized = object_store
-        .get(
-            LEAF_AGGREGATION_WITNESS_JOBS_BUCKET_PATH,
-            basic_circuits_inputs_blob_url(metadata.block_number),
-        )
-        .unwrap();
-    let basic_circuits_inputs = bincode::deserialize::<BlockBasicCircuitsPublicInputs<Bn256>>(
-        &basic_circuits_inputs_serialized,
-    )
-    .expect("basic_circuits_inputs deserialization failed");
-
-    WitnessGeneratorJob {
+    LeafAggregationWitnessGeneratorJob {
         block_number: metadata.block_number,
-        job: WitnessGeneratorJobInput::LeafAggregation(Box::new(
-            PrepareLeafAggregationCircuitsJob {
-                basic_circuits_inputs,
-                basic_circuits_proofs: metadata.proofs,
-                basic_circuits,
-            },
-        )),
+        job: PrepareLeafAggregationCircuitsJob {
+            basic_circuits_inputs,
+            basic_circuits_proofs: metadata.proofs,
+            basic_circuits,
+        },
     }
 }
 
-pub async fn save_artifacts(
+fn save_artifacts(
     block_number: L1BatchNumber,
     artifacts: LeafAggregationArtifacts,
-    object_store: &mut DynamicObjectStore,
-) {
-    let leaf_layer_subqueues_serialized = bincode::serialize(&artifacts.leaf_layer_subqueues)
-        .expect("cannot serialize leaf_layer_subqueues");
-    object_store
-        .put(
-            NODE_AGGREGATION_WITNESS_JOBS_BUCKET_PATH,
-            leaf_layer_subqueues_blob_url(block_number),
-            leaf_layer_subqueues_serialized,
-        )
+    object_store: &dyn ObjectStore,
+) -> BlobUrls {
+    let leaf_layer_subqueues_url = object_store
+        .put(block_number, &artifacts.leaf_layer_subqueues)
         .unwrap();
-
-    let aggregation_outputs_serialized = bincode::serialize(&artifacts.aggregation_outputs)
-        .expect("cannot serialize aggregation_outputs");
-    object_store
-        .put(
-            NODE_AGGREGATION_WITNESS_JOBS_BUCKET_PATH,
-            aggregation_outputs_blob_url(block_number),
-            aggregation_outputs_serialized,
-        )
+    let aggregation_outputs_url = object_store
+        .put(block_number, &artifacts.aggregation_outputs)
         .unwrap();
-    save_prover_input_artifacts(
+    let circuit_types_and_urls = save_prover_input_artifacts(
         block_number,
-        artifacts.serialized_circuits,
+        &artifacts.leaf_circuits,
         object_store,
         AggregationRound::LeafAggregation,
-    )
-    .await;
+    );
+    BlobUrls {
+        leaf_layer_subqueues_url,
+        aggregation_outputs_url,
+        circuit_types_and_urls,
+    }
 }

@@ -31,6 +31,7 @@ pub fn run_prometheus_exporter(config: PrometheusConfig, use_pushgateway: bool) 
     let percents_buckets = [
         5.0, 10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0, 90.0, 100.0, 120.0,
     ];
+    let zero_to_one_buckets = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9];
 
     let builder = if use_pushgateway {
         let job_id = "zksync-pushgateway";
@@ -58,8 +59,13 @@ pub fn run_prometheus_exporter(config: PrometheusConfig, use_pushgateway: bool) 
         .set_buckets(&default_latency_buckets)
         .unwrap()
         .set_buckets_for_metric(
-            Matcher::Full("runtime_context.storage_interaction".to_owned()),
+            Matcher::Full("runtime_context.storage_interaction.amount".to_owned()),
             &storage_interactions_per_call_buckets,
+        )
+        .unwrap()
+        .set_buckets_for_metric(
+            Matcher::Full("runtime_context.storage_interaction.ratio".to_owned()),
+            &zero_to_one_buckets,
         )
         .unwrap()
         .set_buckets_for_metric(

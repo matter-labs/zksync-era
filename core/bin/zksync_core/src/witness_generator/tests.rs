@@ -7,29 +7,31 @@ use zksync_types::zkevm_test_harness::witness::tree::{BinarySparseStorageTree, Z
 fn test_filter_renumerate_all_first_writes() {
     let logs = vec![
         generate_storage_log_metadata(
-            "DDC60818D8F7CFE42514F8EA3CC52806",
-            "12E9FF974B0FAEE514AD4AC50E2BDC6E",
+            "DDC60818D8F7CFE42514F8EA3CC52806DDC60818D8F7CFE42514F8EA3CC52806",
+            "12E9FF974B0FAEE514AD4AC50E2BDC6E12E9FF974B0FAEE514AD4AC50E2BDC6E",
             false,
             false,
             1,
         ),
         generate_storage_log_metadata(
-            "BDA1617CC883E2251D3BE0FD9B3F3064",
-            "D14917FCB067922F92322025D1BA50B4",
+            "BDA1617CC883E2251D3BE0FD9B3F3064BDA1617CC883E2251D3BE0FD9B3F3064",
+            "D14917FCB067922F92322025D1BA50B4D14917FCB067922F92322025D1BA50B4",
             true,
             true,
             2,
         ),
         generate_storage_log_metadata(
-            "77F035AD50811CFABD956F6F1B48E482",
-            "7CF33B959916CC9B56F21C427ED7CA18",
+            "77F035AD50811CFABD956F6F1B48E48277F035AD50811CFABD956F6F1B48E482",
+            "7CF33B959916CC9B56F21C427ED7CA187CF33B959916CC9B56F21C427ED7CA18",
             true,
             true,
             3,
         ),
     ];
     let precalculated_merkle_paths_provider = PrecalculatedMerklePathsProvider {
-        root_hash: hex::decode("4AF44B3D5D4F9C7B117A68351AAB65CF").unwrap(),
+        root_hash: string_to_array(
+            "4AF44B3D5D4F9C7B117A68351AAB65CF4AF44B3D5D4F9C7B117A68351AAB65CF",
+        ),
         pending_leaves: logs,
         next_enumeration_index: 4,
         is_get_leaf_invoked: false,
@@ -46,29 +48,31 @@ fn test_filter_renumerate_all_first_writes() {
 fn test_filter_renumerate_all_repeated_writes() {
     let logs = vec![
         generate_storage_log_metadata(
-            "DDC60818D8F7CFE42514F8EA3CC52806",
-            "12E9FF974B0FAEE514AD4AC50E2BDC6E",
+            "DDC60818D8F7CFE42514F8EA3CC52806DDC60818D8F7CFE42514F8EA3CC52806",
+            "12E9FF974B0FAEE514AD4AC50E2BDC6E12E9FF974B0FAEE514AD4AC50E2BDC6E",
             false,
             false,
             1,
         ),
         generate_storage_log_metadata(
-            "BDA1617CC883E2251D3BE0FD9B3F3064",
-            "D14917FCB067922F92322025D1BA50B4",
+            "BDA1617CC883E2251D3BE0FD9B3F3064BDA1617CC883E2251D3BE0FD9B3F3064",
+            "D14917FCB067922F92322025D1BA50B4D14917FCB067922F92322025D1BA50B4",
             true,
             false,
             2,
         ),
         generate_storage_log_metadata(
-            "77F035AD50811CFABD956F6F1B48E482",
-            "7CF33B959916CC9B56F21C427ED7CA18",
+            "77F035AD50811CFABD956F6F1B48E48277F035AD50811CFABD956F6F1B48E482",
+            "7CF33B959916CC9B56F21C427ED7CA187CF33B959916CC9B56F21C427ED7CA18",
             true,
             false,
             3,
         ),
     ];
     let precalculated_merkle_paths_provider = PrecalculatedMerklePathsProvider {
-        root_hash: hex::decode("4AF44B3D5D4F9C7B117A68351AAB65CF").unwrap(),
+        root_hash: string_to_array(
+            "4AF44B3D5D4F9C7B117A68351AAB65CF4AF44B3D5D4F9C7B117A68351AAB65CF",
+        ),
         pending_leaves: logs,
         next_enumeration_index: 4,
         is_get_leaf_invoked: false,
@@ -85,29 +89,31 @@ fn test_filter_renumerate_all_repeated_writes() {
 fn test_filter_renumerate_repeated_writes_with_first_write() {
     let logs = vec![
         generate_storage_log_metadata(
-            "DDC60818D8F7CFE42514F8EA3CC52806",
-            "12E9FF974B0FAEE514AD4AC50E2BDC6E",
+            "DDC60818D8F7CFE42514F8EA3CC52806DDC60818D8F7CFE42514F8EA3CC52806",
+            "12E9FF974B0FAEE514AD4AC50E2BDC6E12E9FF974B0FAEE514AD4AC50E2BDC6E",
             false,
             false,
             1,
         ),
         generate_storage_log_metadata(
-            "BDA1617CC883E2251D3BE0FD9B3F3064",
-            "D14917FCB067922F92322025D1BA50B4",
+            "BDA1617CC883E2251D3BE0FD9B3F3064BDA1617CC883E2251D3BE0FD9B3F3064",
+            "D14917FCB067922F92322025D1BA50B4D14917FCB067922F92322025D1BA50B4",
             true,
             false,
             2,
         ),
         generate_storage_log_metadata(
-            "77F035AD50811CFABD956F6F1B48E482",
-            "7CF33B959916CC9B56F21C427ED7CA18",
+            "77F035AD50811CFABD956F6F1B48E48277F035AD50811CFABD956F6F1B48E482",
+            "7CF33B959916CC9B56F21C427ED7CA187CF33B959916CC9B56F21C427ED7CA18",
             true,
             true,
             3,
         ),
     ];
     let precalculated_merkle_paths_provider = PrecalculatedMerklePathsProvider {
-        root_hash: hex::decode("4AF44B3D5D4F9C7B117A68351AAB65CF").unwrap(),
+        root_hash: string_to_array(
+            "4AF44B3D5D4F9C7B117A68351AAB65CF4AF44B3D5D4F9C7B117A68351AAB65CF",
+        ),
         pending_leaves: logs,
         next_enumeration_index: 4,
         is_get_leaf_invoked: false,
@@ -127,29 +133,31 @@ fn test_filter_renumerate_repeated_writes_with_first_write() {
 fn test_filter_renumerate_panic_when_leafs_and_indices_are_of_different_length() {
     let logs = vec![
         generate_storage_log_metadata(
-            "DDC60818D8F7CFE42514F8EA3CC52806",
-            "12E9FF974B0FAEE514AD4AC50E2BDC6E",
+            "DDC60818D8F7CFE42514F8EA3CC52806DDC60818D8F7CFE42514F8EA3CC52806",
+            "12E9FF974B0FAEE514AD4AC50E2BDC6E12E9FF974B0FAEE514AD4AC50E2BDC6E",
             false,
             false,
             1,
         ),
         generate_storage_log_metadata(
-            "BDA1617CC883E2251D3BE0FD9B3F3064",
-            "D14917FCB067922F92322025D1BA50B4",
+            "BDA1617CC883E2251D3BE0FD9B3F3064BDA1617CC883E2251D3BE0FD9B3F3064",
+            "D14917FCB067922F92322025D1BA50B4D14917FCB067922F92322025D1BA50B4",
             true,
             false,
             2,
         ),
         generate_storage_log_metadata(
-            "77F035AD50811CFABD956F6F1B48E482",
-            "7CF33B959916CC9B56F21C427ED7CA18",
+            "77F035AD50811CFABD956F6F1B48E48277F035AD50811CFABD956F6F1B48E482",
+            "7CF33B959916CC9B56F21C427ED7CA187CF33B959916CC9B56F21C427ED7CA18",
             true,
             true,
             3,
         ),
     ];
     let precalculated_merkle_paths_provider = PrecalculatedMerklePathsProvider {
-        root_hash: hex::decode("4AF44B3D5D4F9C7B117A68351AAB65CF").unwrap(),
+        root_hash: string_to_array(
+            "4AF44B3D5D4F9C7B117A68351AAB65CF4AF44B3D5D4F9C7B117A68351AAB65CF",
+        ),
         pending_leaves: logs,
         next_enumeration_index: 4,
         is_get_leaf_invoked: false,
@@ -182,29 +190,31 @@ fn test_filter_renumerate_panic_when_leafs_and_indices_are_of_different_length()
 fn test_filter_renumerate_panic_when_indices_and_pending_leaves_are_of_different_length() {
     let logs = vec![
         generate_storage_log_metadata(
-            "DDC60818D8F7CFE42514F8EA3CC52806",
-            "12E9FF974B0FAEE514AD4AC50E2BDC6E",
+            "DDC60818D8F7CFE42514F8EA3CC52806DDC60818D8F7CFE42514F8EA3CC52806",
+            "12E9FF974B0FAEE514AD4AC50E2BDC6E12E9FF974B0FAEE514AD4AC50E2BDC6E",
             false,
             false,
             1,
         ),
         generate_storage_log_metadata(
-            "BDA1617CC883E2251D3BE0FD9B3F3064",
-            "D14917FCB067922F92322025D1BA50B4",
+            "BDA1617CC883E2251D3BE0FD9B3F3064BDA1617CC883E2251D3BE0FD9B3F3064",
+            "D14917FCB067922F92322025D1BA50B4D14917FCB067922F92322025D1BA50B4",
             true,
             false,
             2,
         ),
         generate_storage_log_metadata(
-            "77F035AD50811CFABD956F6F1B48E482",
-            "7CF33B959916CC9B56F21C427ED7CA18",
+            "77F035AD50811CFABD956F6F1B48E48277F035AD50811CFABD956F6F1B48E482",
+            "7CF33B959916CC9B56F21C427ED7CA187CF33B959916CC9B56F21C427ED7CA18",
             true,
             true,
             3,
         ),
     ];
     let precalculated_merkle_paths_provider = PrecalculatedMerklePathsProvider {
-        root_hash: hex::decode("4AF44B3D5D4F9C7B117A68351AAB65CF").unwrap(),
+        root_hash: string_to_array(
+            "4AF44B3D5D4F9C7B117A68351AAB65CF4AF44B3D5D4F9C7B117A68351AAB65CF",
+        ),
         pending_leaves: logs,
         next_enumeration_index: 4,
         is_get_leaf_invoked: false,
@@ -274,10 +284,10 @@ fn generate_storage_log_metadata(
     leaf_enumeration_index: u64,
 ) -> StorageLogMetadata {
     StorageLogMetadata {
-        root_hash: hex::decode(root_hash).expect("Hex decoding failed"),
+        root_hash: string_to_array(root_hash),
         is_write,
         first_write,
-        merkle_paths: vec![hex::decode(merkle_path).expect("Hex decoding failed")],
+        merkle_paths: vec![string_to_array(merkle_path)],
         leaf_hashed_key: Default::default(),
         leaf_enumeration_index,
         value_written: [0; 32],

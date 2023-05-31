@@ -182,6 +182,25 @@
         {
           "indexed": true,
           "internalType": "address",
+          "name": "oldAllowList",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "newAllowList",
+          "type": "address"
+        }
+      ],
+      "name": "NewAllowList",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
           "name": "oldGovernor",
           "type": "address"
         },
@@ -961,6 +980,19 @@
     },
     {
       "inputs": [],
+      "name": "getAllowList",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
       "name": "getCurrentProposalId",
       "outputs": [
         {
@@ -1040,6 +1072,19 @@
     {
       "inputs": [],
       "name": "getPriorityQueueSize",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "getPriorityTxMaxGasLimit",
       "outputs": [
         {
           "internalType": "uint256",
@@ -1192,19 +1237,6 @@
           "internalType": "struct VerifierParams",
           "name": "",
           "type": "tuple"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "getpriorityTxMaxGasLimit",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
         }
       ],
       "stateMutability": "view",
@@ -1821,6 +1853,19 @@
         }
       ],
       "name": "securityCouncilUpgradeApprove",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "contract IAllowList",
+          "name": "_newAllowList",
+          "type": "address"
+        }
+      ],
+      "name": "setAllowList",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"

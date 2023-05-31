@@ -1,7 +1,7 @@
 use once_cell::sync::Lazy;
 use rocksdb::{
-    AsColumnFamilyRef, BlockBasedOptions, ColumnFamily, ColumnFamilyDescriptor, Options,
-    WriteBatch, DB,
+    AsColumnFamilyRef, BlockBasedOptions, ColumnFamily, ColumnFamilyDescriptor, DBIterator,
+    Options, WriteBatch, WriteOptions, DB,
 };
 use std::path::Path;
 use std::sync::{Condvar, Mutex};
@@ -17,6 +17,7 @@ pub(crate) static ROCKSDB_INSTANCE_COUNTER: Lazy<(Mutex<usize>, Condvar)> =
 #[derive(Debug)]
 pub struct RocksDB {
     db: DB,
+    sync_writes: bool,
     _registry_entry: RegistryEntry,
 }
 
@@ -92,8 +93,17 @@ impl RocksDB {
 
         Self {
             db,
+            sync_writes: false,
             _registry_entry: RegistryEntry::new(),
         }
+    }
+
+    /// Switches on sync writes in [`Self::write()`] and [`Self::put()`]. This has a performance
+    /// penalty and is mostly useful for tests.
+    #[must_use]
+    pub fn with_sync_writes(mut self) -> Self {
+        self.sync_writes = true;
+        self
     }
 
     fn rocksdb_options(tune_options: bool) -> Options {
@@ -139,7 +149,13 @@ impl RocksDB {
     }
 
     pub fn write(&self, batch: WriteBatch) -> Result<(), rocksdb::Error> {
-        self.db.write(batch)
+        if self.sync_writes {
+            let mut options = WriteOptions::new();
+            options.set_sync(true);
+            self.db.write_opt(batch, &options)
+        } else {
+            self.db.write(batch)
+        }
     }
 
     pub fn put<K, V>(&self, key: K, value: V) -> Result<(), rocksdb::Error>
@@ -147,21 +163,27 @@ impl RocksDB {
         K: AsRef<[u8]>,
         V: AsRef<[u8]>,
     {
-        self.db.put(key, value)
+        if self.sync_writes {
+            let mut options = WriteOptions::new();
+            options.set_sync(true);
+            self.db.put_opt(key, value, &options)
+        } else {
+            self.db.put(key, value)
+        }
     }
 
     pub fn get<K: AsRef<[u8]>>(&self, key: K) -> Result<Option<Vec<u8>>, rocksdb::Error> {
         self.db.get(key)
     }
 
-    /// Returns column family handle for State Keeper database
+    /// Returns column family handle for State Keeper database.
     pub fn cf_state_keeper_handle(&self, cf: StateKeeperColumnFamily) -> &ColumnFamily {
         self.db
             .cf_handle(&cf.to_string())
             .unwrap_or_else(|| panic!("Column family '{}' doesn't exist", cf))
     }
 
-    /// Returns column family handle for Merkle Tree database
+    /// Returns column family handle for Merkle Tree database.
     pub fn cf_merkle_tree_handle(&self, cf: MerkleTreeColumnFamily) -> &ColumnFamily {
         self.db
             .cf_handle(&cf.to_string())
@@ -176,7 +198,17 @@ impl RocksDB {
         self.db.get_cf(cf, key)
     }
 
-    /// awaits termination of all running rocksdb instances
+    /// Iterates over key-value pairs in the specified column family `cf` in the lexical
+    /// key order. The keys are filtered so that they start from the specified `prefix`.
+    pub fn prefix_iterator_cf<P: AsRef<[u8]>>(
+        &self,
+        cf: &impl AsColumnFamilyRef,
+        prefix: P,
+    ) -> DBIterator<'_> {
+        self.db.prefix_iterator_cf(cf, prefix)
+    }
+
+    /// Awaits termination of all running rocksdb instances.
     pub fn await_rocksdb_termination() {
         let (lock, cvar) = &*ROCKSDB_INSTANCE_COUNTER;
         let mut num_instances = lock.lock().unwrap();

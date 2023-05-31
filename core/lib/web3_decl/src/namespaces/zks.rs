@@ -104,4 +104,10 @@ pub trait ZksNamespace {
 
     #[method(name = "getL1BatchDetails")]
     fn get_l1_batch_details(&self, batch: L1BatchNumber) -> RpcResult<Option<L1BatchDetails>>;
+
+    #[method(name = "getBytecodeByHash")]
+    fn get_bytecode_by_hash(&self, hash: H256) -> RpcResult<Option<Vec<u8>>>;
+
+    #[method(name = "getL1GasPrice")]
+    fn get_l1_gas_price(&self) -> RpcResult<U64>;
 }

@@ -231,8 +231,8 @@ impl ContractVerificationDal<'_, '_> {
         async_std::task::block_on(async {
             let hashed_key = get_code_key(&address).hashed_key();
             let result = sqlx::query!(
-                "
-                    SELECT factory_deps.bytecode, transactions.data, transactions.contract_address
+                r#"
+                    SELECT factory_deps.bytecode, transactions.data as "data?", transactions.contract_address as "contract_address?"
                     FROM (
                         SELECT * FROM storage_logs
                         WHERE storage_logs.hashed_key = $1
@@ -240,9 +240,9 @@ impl ContractVerificationDal<'_, '_> {
                         LIMIT 1
                     ) storage_logs
                     JOIN factory_deps ON factory_deps.bytecode_hash = storage_logs.value
-                    JOIN transactions ON transactions.hash = storage_logs.tx_hash
+                    LEFT JOIN transactions ON transactions.hash = storage_logs.tx_hash
                     WHERE storage_logs.value != $2
-                ",
+                "#,
                 hashed_key.as_bytes(),
                 FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH.as_bytes()
             )
@@ -253,7 +253,9 @@ impl ContractVerificationDal<'_, '_> {
                     Some(contract_address)
                         if contract_address == CONTRACT_DEPLOYER_ADDRESS.0.to_vec() =>
                     {
-                        let data: serde_json::Value = row.data;
+                        // `row.contract_address` and `row.data` are either both `None` or both `Some(_)`.
+                        // In this arm it's checked that `row.contract_address` is `Some(_)`, so it's safe to unwrap `row.data`.
+                        let data: serde_json::Value = row.data.unwrap();
                         let calldata_str: String =
                             serde_json::from_value(data.get("calldata").unwrap().clone()).unwrap();
                         let calldata = hex::decode(&calldata_str[2..]).unwrap();
@@ -361,6 +363,34 @@ impl ContractVerificationDal<'_, '_> {
 
             transaction.commit().await;
             Ok(())
+        })
+    }
+
+    pub fn get_all_successful_requests(&mut self) -> Result<Vec<VerificationRequest>, SqlxError> {
+        async_std::task::block_on(async {
+            let result = sqlx::query!(
+                "SELECT * FROM contract_verification_requests
+                WHERE status = 'successful'
+                ORDER BY id",
+            )
+            .fetch_all(self.storage.conn())
+            .await?
+            .into_iter()
+            .map(|row| VerificationRequest {
+                id: row.id as usize,
+                req: VerificationIncomingRequest {
+                    contract_address: Address::from_slice(&row.contract_address),
+                    source_code_data: serde_json::from_str(&row.source_code).unwrap(),
+                    contract_name: row.contract_name,
+                    compiler_zksolc_version: row.compiler_zksolc_version,
+                    compiler_solc_version: row.compiler_solc_version,
+                    optimization_used: row.optimization_used,
+                    constructor_arguments: row.constructor_arguments.into(),
+                    is_system: row.is_system,
+                },
+            })
+            .collect();
+            Ok(result)
         })
     }
 }

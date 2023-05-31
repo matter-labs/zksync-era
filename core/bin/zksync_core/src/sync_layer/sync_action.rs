@@ -1,11 +1,12 @@
 use std::{
     collections::VecDeque,
     sync::{Arc, RwLock},
+    time::Instant,
 };
 
 use chrono::{DateTime, Utc};
 use zksync_contracts::BaseSystemContractsHashes;
-use zksync_types::{L1BatchNumber, MiniblockNumber, Transaction, H256};
+use zksync_types::{Address, L1BatchNumber, MiniblockNumber, Transaction, H256};
 
 /// Action queue is used to communicate between the fetcher and the rest of the external node
 /// by collecting the fetched data in memory until it gets processed by the different entities.
@@ -21,14 +22,15 @@ impl ActionQueue {
 
     /// Removes the first action from the queue.
     pub(crate) fn pop_action(&self) -> Option<SyncAction> {
-        let mut write_lock = self.inner.write().unwrap();
-        write_lock.actions.pop_front()
+        self.write_lock().actions.pop_front().map(|action| {
+            metrics::decrement_gauge!("external_node.action_queue.action_queue_size", 1_f64);
+            action
+        })
     }
 
     /// Returns the first action from the queue without removing it.
     pub(crate) fn peek_action(&self) -> Option<SyncAction> {
-        let read_lock = self.inner.read().unwrap();
-        read_lock.actions.front().cloned()
+        self.read_lock().actions.front().cloned()
     }
 
     /// Returns true if the queue has capacity for a new action.
@@ -41,8 +43,7 @@ impl ActionQueue {
         // decompose received data into a sequence of actions.
         // This is not a problem, since the size of decomposed action is much smaller
         // than the configured capacity.
-        let read_lock = self.inner.read().unwrap();
-        read_lock.actions.len() < ACTION_CAPACITY
+        self.read_lock().actions.len() < ACTION_CAPACITY
     }
 
     /// Returns true if the queue has capacity for a new status change.
@@ -52,7 +53,7 @@ impl ActionQueue {
 
         // We don't really care about any particular queue size, as the only intention
         // of this check is to prevent memory exhaustion.
-        let read_lock = self.inner.read().unwrap();
+        let read_lock = self.read_lock();
         read_lock.commit_status_changes.len() < STATUS_CHANGE_CAPACITY
             && read_lock.prove_status_changes.len() < STATUS_CHANGE_CAPACITY
             && read_lock.execute_status_changes.len() < STATUS_CHANGE_CAPACITY
@@ -66,37 +67,70 @@ impl ActionQueue {
     pub(crate) fn push_actions(&self, actions: Vec<SyncAction>) {
         // We need to enforce the ordering of actions to make sure that they can be processed.
         Self::check_action_sequence(&actions).expect("Invalid sequence of actions.");
+        metrics::increment_gauge!(
+            "external_node.action_queue.action_queue_size",
+            actions.len() as f64
+        );
 
-        let mut write_lock = self.inner.write().unwrap();
-        write_lock.actions.extend(actions);
+        self.write_lock().actions.extend(actions);
     }
 
     /// Pushes a notification about certain batch being committed.
     pub(crate) fn push_commit_status_change(&self, change: BatchStatusChange) {
-        let mut write_lock = self.inner.write().unwrap();
-        write_lock.commit_status_changes.push_back(change);
+        metrics::increment_gauge!("external_node.action_queue.status_change_queue_size", 1_f64, "item" => "commit");
+        self.write_lock().commit_status_changes.push_back(change);
     }
 
     /// Pushes a notification about certain batch being proven.
     pub(crate) fn push_prove_status_change(&self, change: BatchStatusChange) {
-        let mut write_lock = self.inner.write().unwrap();
-        write_lock.prove_status_changes.push_back(change);
+        metrics::increment_gauge!("external_node.action_queue.status_change_queue_size", 1_f64, "item" => "prove");
+        self.write_lock().prove_status_changes.push_back(change);
     }
 
     /// Pushes a notification about certain batch being executed.
     pub(crate) fn push_execute_status_change(&self, change: BatchStatusChange) {
-        let mut write_lock = self.inner.write().unwrap();
-        write_lock.execute_status_changes.push_back(change);
+        metrics::increment_gauge!("external_node.action_queue.status_change_queue_size", 1_f64, "item" => "execute");
+        self.write_lock().execute_status_changes.push_back(change);
     }
 
     /// Collects all status changes and returns them.
-    pub(crate) fn take_status_changes(&self) -> StatusChanges {
-        let mut write_lock = self.inner.write().unwrap();
-        StatusChanges {
-            commit: write_lock.commit_status_changes.drain(..).collect(),
-            prove: write_lock.prove_status_changes.drain(..).collect(),
-            execute: write_lock.execute_status_changes.drain(..).collect(),
+    pub(crate) fn take_status_changes(&self, last_sealed_batch: L1BatchNumber) -> StatusChanges {
+        fn drain(
+            queue: &mut VecDeque<BatchStatusChange>,
+            last_sealed_batch: L1BatchNumber,
+        ) -> Vec<BatchStatusChange> {
+            let range_end = queue
+                .iter()
+                .position(|change| change.number > last_sealed_batch)
+                .unwrap_or(queue.len());
+            queue.drain(..range_end).collect()
         }
+
+        let mut write_lock = self.write_lock();
+
+        let result = StatusChanges {
+            commit: drain(&mut write_lock.commit_status_changes, last_sealed_batch),
+            prove: drain(&mut write_lock.prove_status_changes, last_sealed_batch),
+            execute: drain(&mut write_lock.execute_status_changes, last_sealed_batch),
+        };
+
+        metrics::gauge!(
+            "external_node.action_queue.status_change_queue_size",
+            write_lock.commit_status_changes.len() as f64,
+            "item" => "commit"
+        );
+        metrics::gauge!(
+            "external_node.action_queue.status_change_queue_size",
+            write_lock.prove_status_changes.len() as f64,
+            "item" => "prove"
+        );
+        metrics::gauge!(
+            "external_node.action_queue.status_change_queue_size",
+            write_lock.execute_status_changes.len() as f64,
+            "item" => "execute"
+        );
+
+        result
     }
 
     /// Checks whether the action sequence is valid.
@@ -106,12 +140,10 @@ impl ActionQueue {
         // Rules for the sequence:
         // 1. Must start with either `OpenBatch` or `Miniblock`, both of which may be met only once.
         // 2. Followed by a sequence of `Tx` actions which consists of 0 or more elements.
-        // 3. Must have `SealMiniblock` come after transactions.
-        // 4. May or may not have `SealBatch` come after `SealMiniblock`.
+        // 3. Must have either `SealMiniblock` or `SealBatch` at the end.
 
         let mut opened = false;
         let mut miniblock_sealed = false;
-        let mut batch_sealed = false;
 
         for action in actions {
             match action {
@@ -126,17 +158,11 @@ impl ActionQueue {
                         return Err(format!("Unexpected Tx: {:?}", actions));
                     }
                 }
-                SyncAction::SealMiniblock => {
+                SyncAction::SealMiniblock | SyncAction::SealBatch => {
                     if !opened || miniblock_sealed {
-                        return Err(format!("Unexpected SealMiniblock: {:?}", actions));
+                        return Err(format!("Unexpected SealMiniblock/SealBatch: {:?}", actions));
                     }
                     miniblock_sealed = true;
-                }
-                SyncAction::SealBatch => {
-                    if !miniblock_sealed || batch_sealed {
-                        return Err(format!("Unexpected SealBatch: {:?}", actions));
-                    }
-                    batch_sealed = true;
                 }
             }
         }
@@ -145,6 +171,20 @@ impl ActionQueue {
         }
         Ok(())
     }
+
+    fn read_lock(&self) -> std::sync::RwLockReadGuard<'_, ActionQueueInner> {
+        let start = Instant::now();
+        let lock = self.inner.read().unwrap();
+        metrics::histogram!("external_node.action_queue.lock", start.elapsed(), "action" => "acquire_read");
+        lock
+    }
+
+    fn write_lock(&self) -> std::sync::RwLockWriteGuard<'_, ActionQueueInner> {
+        let start = Instant::now();
+        let lock = self.inner.write().unwrap();
+        metrics::histogram!("external_node.action_queue.lock", start.elapsed(), "action" => "acquire_write");
+        lock
+    }
 }
 
 #[derive(Debug)]
@@ -152,6 +192,13 @@ pub(crate) struct StatusChanges {
     pub(crate) commit: Vec<BatchStatusChange>,
     pub(crate) prove: Vec<BatchStatusChange>,
     pub(crate) execute: Vec<BatchStatusChange>,
+}
+
+impl StatusChanges {
+    /// Returns true if there are no status changes.
+    pub(crate) fn is_empty(&self) -> bool {
+        self.commit.is_empty() && self.prove.is_empty() && self.execute.is_empty()
+    }
 }
 
 #[derive(Debug, Default)]
@@ -171,6 +218,7 @@ pub(crate) enum SyncAction {
         l1_gas_price: u64,
         l2_fair_gas_price: u64,
         base_system_contracts_hashes: BaseSystemContractsHashes,
+        operator_address: Address,
     },
     Miniblock {
         number: MiniblockNumber,
@@ -208,6 +256,7 @@ mod tests {
             l1_gas_price: 1,
             l2_fair_gas_price: 1,
             base_system_contracts_hashes: BaseSystemContractsHashes::default(),
+            operator_address: Default::default(),
         }
     }
 
@@ -246,13 +295,14 @@ mod tests {
     fn correct_sequence() {
         let test_vector = vec![
             vec![open_batch(), seal_miniblock()],
+            vec![open_batch(), seal_batch()],
             vec![open_batch(), tx(), seal_miniblock()],
-            vec![open_batch(), seal_miniblock(), seal_batch()],
-            vec![open_batch(), tx(), seal_miniblock(), seal_batch()],
+            vec![open_batch(), tx(), tx(), tx(), seal_miniblock()],
+            vec![open_batch(), tx(), seal_batch()],
             vec![miniblock(), seal_miniblock()],
+            vec![miniblock(), seal_batch()],
             vec![miniblock(), tx(), seal_miniblock()],
-            vec![miniblock(), seal_miniblock(), seal_batch()],
-            vec![miniblock(), tx(), seal_miniblock(), seal_batch()],
+            vec![miniblock(), tx(), seal_batch()],
         ];
         for (idx, sequence) in test_vector.into_iter().enumerate() {
             ActionQueue::check_action_sequence(&sequence)
@@ -292,30 +342,20 @@ mod tests {
                 vec![miniblock(), seal_miniblock(), seal_miniblock()],
                 "Unexpected SealMiniblock",
             ),
-            // Unexpected SealBatch.
-            (
-                vec![open_batch(), tx(), seal_batch()],
-                "Unexpected SealBatch",
-            ),
-            (vec![open_batch(), seal_batch()], "Unexpected SealBatch"),
             (
                 vec![open_batch(), seal_miniblock(), seal_batch(), seal_batch()],
-                "Unexpected SealBatch",
+                "Unexpected SealMiniblock/SealBatch",
             ),
-            (vec![miniblock(), seal_batch()], "Unexpected SealBatch"),
             (
                 vec![miniblock(), seal_miniblock(), seal_batch(), seal_batch()],
-                "Unexpected SealBatch",
+                "Unexpected SealMiniblock/SealBatch",
             ),
-            (vec![seal_batch()], "Unexpected SealBatch"),
-            (
-                vec![miniblock(), tx(), seal_batch()],
-                "Unexpected SealBatch",
-            ),
+            (vec![seal_batch()], "Unexpected SealMiniblock/SealBatch"),
         ];
         for (idx, (sequence, expected_err)) in test_vector.into_iter().enumerate() {
-            let err =
-                ActionQueue::check_action_sequence(&sequence).expect_err("Invalid sequence passed");
+            let Err(err) = ActionQueue::check_action_sequence(&sequence) else {
+                panic!("Invalid sequence passed the test. Sequence #{}, expected error: {}", idx, expected_err);
+            };
             assert!(
                 err.starts_with(expected_err),
                 "Sequence #{} failed. Expected error: {}, got: {}",
@@ -324,5 +364,51 @@ mod tests {
                 err
             );
         }
+    }
+
+    fn batch_status_change(batch: u32) -> BatchStatusChange {
+        BatchStatusChange {
+            number: L1BatchNumber(batch),
+            l1_tx_hash: H256::default(),
+            happened_at: Utc::now(),
+        }
+    }
+
+    /// Checks that `ActionQueue::take_status_changes` correctly takes the status changes from the queue.
+    #[test]
+    fn take_status_changes() {
+        let queue = ActionQueue::new();
+        let taken = queue.take_status_changes(L1BatchNumber(1000));
+        assert!(taken.commit.is_empty() && taken.prove.is_empty() && taken.execute.is_empty());
+
+        queue.push_commit_status_change(batch_status_change(1));
+        queue.push_prove_status_change(batch_status_change(1));
+
+        let taken = queue.take_status_changes(L1BatchNumber(0));
+        assert!(taken.commit.is_empty() && taken.prove.is_empty() && taken.execute.is_empty());
+
+        let taken = queue.take_status_changes(L1BatchNumber(1));
+        assert!(taken.commit.len() == 1 && taken.prove.len() == 1 && taken.execute.is_empty());
+        // Changes are already taken.
+        let taken = queue.take_status_changes(L1BatchNumber(1));
+        assert!(taken.commit.is_empty() && taken.prove.is_empty() && taken.execute.is_empty());
+
+        // Test partial draining.
+        queue.push_commit_status_change(batch_status_change(2));
+        queue.push_commit_status_change(batch_status_change(3));
+        queue.push_commit_status_change(batch_status_change(4));
+        queue.push_prove_status_change(batch_status_change(2));
+        queue.push_prove_status_change(batch_status_change(3));
+        queue.push_execute_status_change(batch_status_change(1));
+        queue.push_execute_status_change(batch_status_change(2));
+        let taken = queue.take_status_changes(L1BatchNumber(3));
+        assert_eq!(taken.commit.len(), 2);
+        assert_eq!(taken.prove.len(), 2);
+        assert_eq!(taken.execute.len(), 2);
+
+        let taken = queue.take_status_changes(L1BatchNumber(4));
+        assert_eq!(taken.commit.len(), 1);
+        assert_eq!(taken.prove.len(), 0);
+        assert_eq!(taken.execute.len(), 0);
     }
 }

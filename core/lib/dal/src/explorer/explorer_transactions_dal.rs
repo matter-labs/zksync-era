@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::time::Instant;
 
 use itertools::Itertools;
 use once_cell::sync::Lazy;
@@ -29,15 +30,17 @@ pub struct ExplorerTransactionsDal<'a, 'c> {
 }
 
 impl ExplorerTransactionsDal<'_, '_> {
-    pub fn get_transactions_count_after(
+    pub fn get_transactions_count_between(
         &mut self,
-        block_number: MiniblockNumber,
+        from_block_number: MiniblockNumber,
+        to_block_number: MiniblockNumber,
     ) -> Result<usize, SqlxError> {
         async_std::task::block_on(async {
             let tx_count = sqlx::query!(
                 r#"SELECT COUNT(*) as "count!" FROM transactions
-                WHERE miniblock_number > $1 AND miniblock_number IS NOT NULL"#,
-                block_number.0 as i64
+                WHERE miniblock_number BETWEEN $1 AND $2"#,
+                from_block_number.0 as i64,
+                to_block_number.0 as i64,
             )
             .fetch_one(self.storage.conn())
             .await?
@@ -56,6 +59,7 @@ impl ExplorerTransactionsDal<'_, '_> {
                 StorageTransactionDetails,
                 r#"
                     SELECT transactions.*, miniblocks.hash as "block_hash?",
+                        miniblocks.timestamp as "miniblock_timestamp?",
                         commit_tx.tx_hash as "eth_commit_tx_hash?",
                         prove_tx.tx_hash as "eth_prove_tx_hash?",
                         execute_tx.tx_hash as "eth_execute_tx_hash?"
@@ -162,6 +166,7 @@ impl ExplorerTransactionsDal<'_, '_> {
             let sql_query_list_str = format!(
                 r#"
                 SELECT transactions.*, miniblocks.hash as "block_hash",
+                    miniblocks.timestamp as "miniblock_timestamp",
                     commit_tx.tx_hash as eth_commit_tx_hash,
                     prove_tx.tx_hash as eth_prove_tx_hash,
                     execute_tx.tx_hash as eth_execute_tx_hash
@@ -232,6 +237,7 @@ impl ExplorerTransactionsDal<'_, '_> {
             let sql_query_str = format!(
                 r#"
                 SELECT transactions.*, miniblocks.hash as "block_hash",
+                    miniblocks.timestamp as "miniblock_timestamp",
                     commit_tx.tx_hash as eth_commit_tx_hash,
                     prove_tx.tx_hash as eth_prove_tx_hash,
                     execute_tx.tx_hash as eth_execute_tx_hash
@@ -266,6 +272,7 @@ impl ExplorerTransactionsDal<'_, '_> {
         max_total: usize,
     ) -> Result<(Vec<Vec<u8>>, usize), SqlxError> {
         async_std::task::block_on(async {
+            let started_at = Instant::now();
             let (cmp_sign, order_str) = match pagination.direction {
                 PaginationDirection::Older => ("<", "DESC"),
                 PaginationDirection::Newer => (">", "ASC"),
@@ -293,84 +300,122 @@ impl ExplorerTransactionsDal<'_, '_> {
             let mut padded_address = [0u8; 12].to_vec();
             padded_address.extend_from_slice(account_address.as_bytes());
 
-            let sql_query_str = format!(
-                "
-                    SELECT tx_hash FROM (
-                        SELECT tx_hash, lag(tx_hash) OVER (ORDER BY miniblock_number {0}, tx_index_in_block {0}) as prev_hash,
-                            miniblock_number, tx_index_in_block
-                        FROM events
-                        WHERE
-                        (
-                            (
-                                (
-                                    topic2 = $1
-                                    OR
-                                    topic3 = $1
-                                )
-                                AND topic1 = $2
-                                AND (address IN (SELECT l2_address FROM tokens) OR address = $3)
-                            )
-                            OR events.tx_initiator_address = $4
-                        )
-                        {1}
-                    ) AS h
-                    WHERE prev_hash IS NULL OR tx_hash != prev_hash
-                    ORDER BY miniblock_number {0}, tx_index_in_block {0}
-                    LIMIT {2} OFFSET {3}
-                ",
-                order_str, optional_filters, pagination.limit, pagination.offset
-            );
-            let sql_query = sqlx::query(&sql_query_str)
-                .bind(padded_address.clone())
-                .bind(ERC20_TRANSFER_TOPIC.as_bytes().to_vec())
-                .bind(L2_ETH_TOKEN_ADDRESS.as_bytes().to_vec())
-                .bind(account_address.as_bytes().to_vec());
-            let hashes: Vec<Vec<u8>> = sql_query
-                .fetch_all(self.storage.conn())
-                .await?
-                .into_iter()
-                .map(|row| row.get::<Vec<u8>, &str>("tx_hash"))
-                .collect();
+            // We query more events than `max_total`, so after deduplication we receive at least `max_total`.
+            let estimated_required_limit = max_total * 4;
 
-            let sql_count_query_str = format!(
-                r#"
-                SELECT COUNT(*) as "count" FROM (
-                    SELECT true FROM (
-                        SELECT tx_hash, lag(tx_hash) OVER (ORDER BY miniblock_number {0}, tx_index_in_block {0}) as prev_hash,
-                            miniblock_number, tx_index_in_block
-                        FROM events
-                        WHERE
-                        (
-                            (
-                                (
-                                    topic2 = $1
-                                    OR
-                                    topic3 = $1
-                                )
-                                AND topic1 = $2
-                                AND (address IN (SELECT l2_address FROM tokens) OR address = $3)
-                            )
-                            OR events.tx_initiator_address = $4
-                        )
-                        {1}
-                    ) AS h
-                    WHERE prev_hash IS NULL OR tx_hash != prev_hash
+            let mut started_at_stage = Instant::now();
+            let hashes_transfer_from: Vec<(Vec<u8>, i64, i32)> = {
+                let sql_query_str = format!(
+                    r#"
+                    SELECT tx_hash, miniblock_number, tx_index_in_block FROM events
+                    WHERE topic1 = $1 AND topic2 = $2
+                    {1}
                     ORDER BY miniblock_number {0}, tx_index_in_block {0}
                     LIMIT {2}
-                ) AS c
                 "#,
-                order_str, optional_filters, max_total
-            );
-            let sql_count_query = sqlx::query(&sql_count_query_str)
-                .bind(padded_address)
-                .bind(ERC20_TRANSFER_TOPIC.as_bytes().to_vec())
-                .bind(L2_ETH_TOKEN_ADDRESS.as_bytes().to_vec())
-                .bind(account_address.as_bytes().to_vec());
-            let total = sql_count_query
-                .fetch_one(self.storage.conn())
-                .await?
-                .get::<i64, &str>("count");
-            Ok((hashes, total as usize))
+                    order_str, optional_filters, estimated_required_limit
+                );
+                let sql_query = sqlx::query(&sql_query_str)
+                    .bind(ERC20_TRANSFER_TOPIC.as_bytes().to_vec())
+                    .bind(padded_address.clone());
+                sql_query
+                    .fetch_all(self.storage.conn())
+                    .await?
+                    .into_iter()
+                    .map(|row| {
+                        (
+                            row.get::<Vec<u8>, &str>("tx_hash"),
+                            row.get::<i64, &str>("miniblock_number"),
+                            row.get::<i32, &str>("tx_index_in_block"),
+                        )
+                    })
+                    .collect()
+            };
+            metrics::histogram!("dal.request", started_at_stage.elapsed(), "method" => "get_hashes_transfer_from");
+
+            started_at_stage = Instant::now();
+            let hashes_transfer_to: Vec<(Vec<u8>, i64, i32)> = {
+                let sql_query_str = format!(
+                    r#"
+                    SELECT tx_hash, miniblock_number, tx_index_in_block FROM events
+                    WHERE topic1 = $1 AND topic3 = $2
+                    {1}
+                    ORDER BY miniblock_number {0}, tx_index_in_block {0}
+                    LIMIT {2}
+                "#,
+                    order_str, optional_filters, estimated_required_limit
+                );
+                let sql_query = sqlx::query(&sql_query_str)
+                    .bind(ERC20_TRANSFER_TOPIC.as_bytes().to_vec())
+                    .bind(padded_address.clone());
+                sql_query
+                    .fetch_all(self.storage.conn())
+                    .await?
+                    .into_iter()
+                    .map(|row| {
+                        (
+                            row.get::<Vec<u8>, &str>("tx_hash"),
+                            row.get::<i64, &str>("miniblock_number"),
+                            row.get::<i32, &str>("tx_index_in_block"),
+                        )
+                    })
+                    .collect()
+            };
+            metrics::histogram!("dal.request", started_at_stage.elapsed(), "method" => "get_hashes_transfer_to");
+
+            started_at_stage = Instant::now();
+            let hashes_initiated: Vec<(Vec<u8>, i64, i32)> = {
+                let sql_query_str = format!(
+                    r#"
+                    SELECT hash, miniblock_number, index_in_block FROM transactions
+                    WHERE initiator_address = $1 AND miniblock_number IS NOT NULL
+                    {1}
+                    ORDER BY nonce {0}
+                    LIMIT {2}
+                "#,
+                    order_str,
+                    optional_filters.replace("tx_index_in_block", "index_in_block"),
+                    max_total
+                );
+                let sql_query =
+                    sqlx::query(&sql_query_str).bind(account_address.as_bytes().to_vec());
+                sql_query
+                    .fetch_all(self.storage.conn())
+                    .await?
+                    .into_iter()
+                    .map(|row| {
+                        (
+                            row.get::<Vec<u8>, &str>("hash"),
+                            row.get::<i64, &str>("miniblock_number"),
+                            row.get::<i32, &str>("index_in_block"),
+                        )
+                    })
+                    .collect()
+            };
+            metrics::histogram!("dal.request", started_at_stage.elapsed(), "method" => "get_hashes_initiated");
+
+            let mut merged: Vec<_> = hashes_transfer_from
+                .into_iter()
+                .chain(hashes_transfer_to.into_iter())
+                .chain(hashes_initiated.into_iter())
+                .sorted_by(|(_, b1, i1), (_, b2, i2)| match pagination.direction {
+                    PaginationDirection::Older => (b2, i2).cmp(&(b1, i1)),
+                    PaginationDirection::Newer => (b1, i1).cmp(&(b2, i2)),
+                })
+                .map(|(hash, _, _)| hash)
+                .collect();
+            merged.dedup();
+
+            let total = merged.len();
+            let result: Vec<_> = merged
+                .into_iter()
+                .skip(pagination.offset)
+                .take(pagination.limit)
+                .collect();
+
+            metrics::histogram!("dal.request", started_at.elapsed(), "method" => "get_account_transactions_hashes_page");
+
+            Ok((result, total))
         })
     }
 

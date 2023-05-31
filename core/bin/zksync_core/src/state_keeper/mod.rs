@@ -6,17 +6,16 @@ use zksync_config::constants::MAX_TXS_IN_BLOCK;
 use zksync_config::ZkSyncConfig;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::ConnectionPool;
-use zksync_eth_client::EthInterface;
 
 use self::batch_executor::MainBatchExecutorBuilder;
 use self::io::MempoolIO;
-use crate::gas_adjuster::GasAdjuster;
+use crate::l1_gas_price::L1GasPriceProvider;
 use crate::state_keeper::seal_criteria::SealManager;
 
 pub use self::{keeper::ZkSyncStateKeeper, types::MempoolGuard};
 
-pub(crate) mod batch_executor;
-mod extractors;
+pub mod batch_executor;
+pub(crate) mod extractors;
 pub(crate) mod io;
 mod keeper;
 pub(crate) mod mempool_actor;
@@ -26,15 +25,15 @@ mod tests;
 pub(crate) mod types;
 pub(crate) mod updates;
 
-pub(crate) fn start_state_keeper<E>(
+pub(crate) fn start_state_keeper<G>(
     config: &ZkSyncConfig,
     pool: &ConnectionPool,
     mempool: MempoolGuard,
-    gas_adjuster: Arc<GasAdjuster<E>>,
+    l1_gas_price_provider: Arc<G>,
     stop_receiver: Receiver<bool>,
 ) -> ZkSyncStateKeeper
 where
-    E: EthInterface + 'static + std::fmt::Debug + Send + Sync,
+    G: L1GasPriceProvider + 'static + std::fmt::Debug + Send + Sync,
 {
     assert!(
         config.chain.state_keeper.transaction_slots <= MAX_TXS_IN_BLOCK,
@@ -44,8 +43,8 @@ where
     let batch_executor_base = MainBatchExecutorBuilder::new(
         config.db.state_keeper_db_path.clone(),
         pool.clone(),
-        config.chain.state_keeper.reexecute_each_tx,
         config.chain.state_keeper.max_allowed_l2_tx_gas_limit.into(),
+        config.chain.state_keeper.save_call_traces,
         config.chain.state_keeper.validation_computational_gas_limit,
     );
     let io = MempoolIO::new(
@@ -54,7 +53,7 @@ where
         config.chain.state_keeper.fee_account_addr,
         config.chain.state_keeper.fair_l2_gas_price,
         config.chain.operations_manager.delay_interval(),
-        gas_adjuster,
+        l1_gas_price_provider,
         BaseSystemContractsHashes {
             bootloader: config.chain.state_keeper.bootloader_hash,
             default_aa: config.chain.state_keeper.default_aa_hash,

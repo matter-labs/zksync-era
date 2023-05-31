@@ -11,7 +11,8 @@
 use std::time::Instant;
 
 use rand::thread_rng;
-use zksync_core::genesis::ensure_genesis_state;
+use zksync_core::genesis::{ensure_genesis_state, GenesisParams};
+use zksync_types::L2ChainId;
 
 use crate::commands::gas_price::utils::{
     commit_cost_of_add_tokens, commit_cost_of_deploys, commit_cost_of_deposits,
@@ -36,7 +37,14 @@ pub async fn test_gas_price() {
     let test_db_manager = TestDatabaseManager::new().await;
     let mut storage = test_db_manager.connect_to_postgres().await;
     {
-        ensure_genesis_state(&mut storage, &config).await;
+        ensure_genesis_state(
+            &mut storage,
+            L2ChainId(config.chain.eth.zksync_network_id),
+            GenesisParams::MainNode {
+                first_validator: config.eth_sender.sender.operator_commit_eth_addr,
+            },
+        )
+        .await;
     }
 
     println!("deploying contracts");

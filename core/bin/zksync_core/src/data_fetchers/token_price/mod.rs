@@ -77,8 +77,8 @@ impl TokenPriceFetcher {
             self.error_handler.update().await;
 
             // We refresh token list in case new tokens were added.
-            let mut storage = pool.access_storage().await;
-            let tokens = self.get_tokens(&mut storage).await;
+            let mut storage = pool.access_storage_blocking();
+            let tokens = self.get_tokens(&mut storage);
 
             // Vector of received token prices in the format of (`token_addr`, `price_in_usd`, `fetch_timestamp`).
             let token_prices = match self.fetch_token_price(&tokens).await {
@@ -91,7 +91,7 @@ impl TokenPriceFetcher {
                     continue;
                 }
             };
-            self.store_token_prices(&mut storage, token_prices).await;
+            self.store_token_prices(&mut storage, token_prices);
         }
     }
 
@@ -108,7 +108,7 @@ impl TokenPriceFetcher {
             .map_err(|_| ApiFetchError::RequestTimeout)?
     }
 
-    async fn store_token_prices(
+    fn store_token_prices(
         &self,
         storage: &mut StorageProcessor<'_>,
         token_prices: HashMap<Address, TokenPrice>,
@@ -121,7 +121,7 @@ impl TokenPriceFetcher {
 
     /// Returns the list of "interesting" tokens, e.g. ones that can be used to pay fees.
     /// We don't actually need prices for other tokens.
-    async fn get_tokens(&self, storage: &mut StorageProcessor<'_>) -> Vec<Address> {
+    fn get_tokens(&self, storage: &mut StorageProcessor<'_>) -> Vec<Address> {
         storage
             .tokens_dal()
             .get_l1_tokens_by_volume(&self.minimum_required_liquidity)

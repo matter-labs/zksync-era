@@ -1,3 +1,5 @@
+use std::convert::TryFrom;
+
 use rlp::{Rlp, RlpStream};
 
 use self::error::SignError;
@@ -364,6 +366,26 @@ impl From<L2Tx> for api::Transaction {
                 Some(U64::from(tx_type))
             },
             ..Default::default()
+        }
+    }
+}
+
+impl TryFrom<Transaction> for L2Tx {
+    type Error = ();
+
+    fn try_from(value: Transaction) -> Result<Self, Self::Error> {
+        let Transaction {
+            common_data,
+            execute,
+            received_timestamp_ms,
+        } = value;
+        match common_data {
+            ExecuteTransactionCommon::L1(_) => Err(()),
+            ExecuteTransactionCommon::L2(common_data) => Ok(L2Tx {
+                execute,
+                common_data,
+                received_timestamp_ms,
+            }),
         }
     }
 }

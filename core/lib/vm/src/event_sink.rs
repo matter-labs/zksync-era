@@ -1,54 +1,47 @@
-use crate::{oracles::OracleWithHistory, utils::collect_log_queries_after_timestamp};
+use crate::{
+    history_recorder::{AppDataFrameManagerWithHistory, HistoryEnabled, HistoryMode},
+    oracles::OracleWithHistory,
+    utils::collect_log_queries_after_timestamp,
+};
 use std::collections::HashMap;
 use zk_evm::{
     abstractions::EventSink,
     aux_structures::{LogQuery, Timestamp},
-    reference_impls::event_sink::{ApplicationData, EventMessage},
+    reference_impls::event_sink::EventMessage,
     zkevm_opcode_defs::system_params::{
         BOOTLOADER_FORMAL_ADDRESS, EVENT_AUX_BYTE, L1_MESSAGE_AUX_BYTE,
     },
 };
 
-use crate::history_recorder::{AppDataFrameManagerWithHistory, FrameManager, WithHistory};
-
-#[derive(Debug, Default, Clone, PartialEq)]
-pub struct InMemoryEventSink {
-    pub frames_stack: AppDataFrameManagerWithHistory<LogQuery>,
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct InMemoryEventSink<H: HistoryMode> {
+    pub frames_stack: AppDataFrameManagerWithHistory<LogQuery, H>,
 }
 
-impl OracleWithHistory for InMemoryEventSink {
+impl OracleWithHistory for InMemoryEventSink<HistoryEnabled> {
     fn rollback_to_timestamp(&mut self, timestamp: Timestamp) {
         self.frames_stack.rollback_to_timestamp(timestamp);
-    }
-
-    fn delete_history(&mut self) {
-        self.frames_stack.delete_history();
     }
 }
 
 // as usual, if we rollback the current frame then we apply changes to storage immediately,
 // otherwise we carry rollbacks to the parent's frames
 
-impl InMemoryEventSink {
+impl<H: HistoryMode> InMemoryEventSink<H> {
     pub fn flatten(&self) -> (Vec<LogQuery>, Vec<EventMessage>, Vec<EventMessage>) {
         assert_eq!(
-            self.frames_stack.inner().len(),
+            self.frames_stack.len(),
             1,
             "there must exist an initial keeper frame"
         );
-        let full_history = self.frames_stack.inner().current_frame().clone();
         // we forget rollbacks as we have finished the execution and can just apply them
-        let ApplicationData {
-            forward,
-            rollbacks: _,
-        } = full_history;
-        let history = forward.clone();
-        let (events, l1_messages) = Self::events_and_l1_messages_from_history(forward);
-        (history, events, l1_messages)
+        let history = self.frames_stack.forward().current_frame();
+        let (events, l1_messages) = Self::events_and_l1_messages_from_history(history);
+        (history.to_vec(), events, l1_messages)
     }
 
     pub fn get_log_queries(&self) -> usize {
-        let history = &self.frames_stack.inner().current_frame().forward;
+        let history = &self.frames_stack.forward().current_frame();
         history.len()
     }
 
@@ -57,32 +50,32 @@ impl InMemoryEventSink {
         from_timestamp: Timestamp,
     ) -> (Vec<EventMessage>, Vec<EventMessage>) {
         let history = collect_log_queries_after_timestamp(
-            &self.frames_stack.inner().current_frame().forward,
+            self.frames_stack.forward().current_frame(),
             from_timestamp,
         );
-        Self::events_and_l1_messages_from_history(history)
+        Self::events_and_l1_messages_from_history(&history)
     }
 
     fn events_and_l1_messages_from_history(
-        history: Vec<LogQuery>,
+        history: &[LogQuery],
     ) -> (Vec<EventMessage>, Vec<EventMessage>) {
         let mut tmp = HashMap::<u32, LogQuery>::with_capacity(history.len());
 
         // note that we only use "forward" part and discard the rollbacks at the end,
         // since if rollbacks of parents were not appended anywhere we just still keep them
-        for el in history.into_iter() {
+        for el in history {
             // we are time ordered here in terms of rollbacks
             if tmp.get(&el.timestamp.0).is_some() {
                 assert!(el.rollback);
                 tmp.remove(&el.timestamp.0);
             } else {
                 assert!(!el.rollback);
-                tmp.insert(el.timestamp.0, el);
+                tmp.insert(el.timestamp.0, *el);
             }
         }
 
         // naturally sorted by timestamp
-        let mut keys: Vec<_> = tmp.keys().into_iter().cloned().collect();
+        let mut keys: Vec<_> = tmp.keys().cloned().collect();
         keys.sort_unstable();
 
         let mut events = vec![];
@@ -121,25 +114,19 @@ impl InMemoryEventSink {
     }
 
     pub fn get_size(&self) -> usize {
-        self.frames_stack
-            .inner()
-            .get_frames()
-            .iter()
-            .map(|frame| {
-                (frame.forward.len() + frame.rollbacks.len()) * std::mem::size_of::<LogQuery>()
-            })
-            .sum::<usize>()
+        self.frames_stack.get_size()
     }
 
     pub fn get_history_size(&self) -> usize {
-        self.frames_stack.history().len()
-            * std::mem::size_of::<
-                <FrameManager<ApplicationData<LogQuery>> as WithHistory>::HistoryRecord,
-            >()
+        self.frames_stack.get_history_size()
+    }
+
+    pub fn delete_history(&mut self) {
+        self.frames_stack.delete_history();
     }
 }
 
-impl EventSink for InMemoryEventSink {
+impl<H: HistoryMode> EventSink for InMemoryEventSink<H> {
     // when we enter a new frame we should remember all our current applications and rollbacks
     // when we exit the current frame then if we did panic we should concatenate all current
     // forward and rollback cases
@@ -163,26 +150,12 @@ impl EventSink for InMemoryEventSink {
     fn finish_frame(&mut self, panicked: bool, timestamp: Timestamp) {
         // if we panic then we append forward and rollbacks to the forward of parent,
         // otherwise we place rollbacks of child before rollbacks of the parent
-        let ApplicationData { forward, rollbacks } = self.frames_stack.drain_frame(timestamp);
         if panicked {
-            for query in forward {
-                self.frames_stack.push_forward(query, timestamp);
-            }
-            for query in rollbacks.into_iter().rev().into_iter().filter(|q| {
-                // As of now, the bootloader only emits debug logs
-                // for events, so we keep them here for now.
-                // They will be cleared on the server level.
-                q.address != *BOOTLOADER_FORMAL_ADDRESS || q.aux_byte != EVENT_AUX_BYTE
-            }) {
-                self.frames_stack.push_forward(query, timestamp);
-            }
-        } else {
-            for query in forward {
-                self.frames_stack.push_forward(query, timestamp);
-            } // we need to prepend rollbacks. No reverse here, as we do not care yet!
-            for query in rollbacks {
-                self.frames_stack.push_rollback(query, timestamp);
-            }
+            self.frames_stack.move_rollback_to_forward(
+                |q| q.address != *BOOTLOADER_FORMAL_ADDRESS || q.aux_byte != EVENT_AUX_BYTE,
+                timestamp,
+            );
         }
+        self.frames_stack.merge_frame(timestamp);
     }
 }

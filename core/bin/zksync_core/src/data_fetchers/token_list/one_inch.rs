@@ -57,6 +57,8 @@ pub(super) struct OneInchTokensResponse {
 }
 
 #[tokio::test]
+#[ignore]
+// We can't rely on 1inch API in unit tests, so we ignore this test.
 async fn test_fetch_one_inch_token_list() {
     let mut config = FetcherConfig::from_env();
     config.token_list.url = "https://api.1inch.exchange".to_string();

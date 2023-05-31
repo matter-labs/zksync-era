@@ -21,7 +21,7 @@
         "zksync-web3": "link:../../sdk/zksync-web3.js"
     },
     "devDependencies": {
-        "@matterlabs/hardhat-zksync-solc": "^0.3.14-beta.3",
+        "@matterlabs/hardhat-zksync-solc": "^0.3.15",
         "@types/deep-extend": "^0.4.31",
         "@types/node": "^14.6.1",
         "@types/node-fetch": "^2.5.7",

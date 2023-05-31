@@ -15,8 +15,7 @@ pub async fn notify_blocks(
     stop_receiver: watch::Receiver<bool>,
 ) {
     let mut last_block_number = connection_pool
-        .access_storage()
-        .await
+        .access_storage_blocking()
         .blocks_web3_dal()
         .get_sealed_miniblock_number()
         .unwrap();
@@ -31,8 +30,7 @@ pub async fn notify_blocks(
 
         let start = Instant::now();
         let new_blocks = connection_pool
-            .access_storage()
-            .await
+            .access_storage_blocking()
             .blocks_web3_dal()
             .get_block_headers_after(last_block_number)
             .unwrap();
@@ -70,8 +68,7 @@ pub async fn notify_txs(
 
         let start = Instant::now();
         let (new_txs, new_last_time) = connection_pool
-            .access_storage()
-            .await
+            .access_storage_blocking()
             .transactions_web3_dal()
             .get_pending_txs_hashes_after(last_time, None)
             .unwrap();
@@ -97,8 +94,7 @@ pub async fn notify_logs(
     stop_receiver: watch::Receiver<bool>,
 ) {
     let mut last_block_number = connection_pool
-        .access_storage()
-        .await
+        .access_storage_blocking()
         .blocks_web3_dal()
         .get_sealed_miniblock_number()
         .unwrap();
@@ -113,8 +109,7 @@ pub async fn notify_logs(
 
         let start = Instant::now();
         let new_logs = connection_pool
-            .access_storage()
-            .await
+            .access_storage_blocking()
             .events_web3_dal()
             .get_all_logs(last_block_number)
             .unwrap();

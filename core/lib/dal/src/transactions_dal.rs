@@ -2,7 +2,7 @@ use bigdecimal::BigDecimal;
 use std::collections::HashMap;
 use std::fmt::{self, Debug};
 use std::iter::FromIterator;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use zksync_types::fee::TransactionExecutionMetrics;
 
 use itertools::Itertools;
@@ -10,6 +10,7 @@ use sqlx::error;
 use sqlx::types::chrono::NaiveDateTime;
 
 use zksync_types::tx::tx_execution_info::TxExecutionStatus;
+use zksync_types::vm_trace::Call;
 use zksync_types::{get_nonce_key, U256};
 use zksync_types::{
     l1::L1Tx, l2::L2Tx, tx::TransactionExecutionResult, vm_trace::VmExecutionTrace, Address,
@@ -18,7 +19,7 @@ use zksync_types::{
 };
 use zksync_utils::{h256_to_u32, u256_to_big_decimal};
 
-use crate::models::storage_transaction::StorageTransaction;
+use crate::models::storage_transaction::{CallTrace, StorageTransaction};
 use crate::time_utils::pg_interval_from_duration;
 use crate::StorageProcessor;
 
@@ -102,6 +103,7 @@ impl TransactionsDal<'_, '_> {
                         $1, TRUE, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,
                         $13, $14, $15, $16, $17, $18, now(), now()
                     )
+                ON CONFLICT (hash) DO NOTHING
                 ",
                 tx_hash,
                 sender,
@@ -329,6 +331,7 @@ impl TransactionsDal<'_, '_> {
         block_base_fee_per_gas: U256,
     ) {
         async_std::task::block_on(async {
+            let mut transaction = self.storage.start_transaction().await;
             let mut l1_hashes = Vec::with_capacity(transactions.len());
             let mut l1_indices_in_block = Vec::with_capacity(transactions.len());
             let mut l1_errors = Vec::with_capacity(transactions.len());
@@ -356,6 +359,8 @@ impl TransactionsDal<'_, '_> {
             let mut l2_gas_per_pubdata_limit = Vec::with_capacity(transactions.len());
             let mut l2_refunded_gas = Vec::with_capacity(transactions.len());
 
+            let mut call_traces_tx_hashes = Vec::with_capacity(transactions.len());
+            let mut bytea_call_traces = Vec::with_capacity(transactions.len());
             transactions
                 .iter()
                 .enumerate()
@@ -377,6 +382,16 @@ impl TransactionsDal<'_, '_> {
                         // currently detailed errors are not supported.
                         TxExecutionStatus::Failure => Some("Bootloader-based tx failed".to_owned()),
                     };
+
+                    if let Some(call_trace) = tx_res.call_trace() {
+                        let started_at = Instant::now();
+                        bytea_call_traces.push(bincode::serialize(&call_trace).unwrap());
+                        call_traces_tx_hashes.push(hash.0.to_vec());
+                        metrics::histogram!(
+                            "dal.transactions.serialize_tracer",
+                            started_at.elapsed()
+                        );
+                    }
 
                     match &transaction.common_data {
                         ExecuteTransactionCommon::L1(_) => {
@@ -504,7 +519,7 @@ impl TransactionsDal<'_, '_> {
                     &l2_paymaster_input,
                     miniblock_number.0 as i32,
                 )
-                .execute(self.storage.conn())
+                .execute(transaction.conn())
                 .await
                 .unwrap();
             }
@@ -538,12 +553,31 @@ impl TransactionsDal<'_, '_> {
                     &l1_indices_in_block,
                     &l1_errors,
                     &l1_execution_infos,
-                    &l1_refunded_gas
+                    &l1_refunded_gas,
                 )
-                .execute(self.storage.conn())
+                .execute(transaction.conn())
                 .await
                 .unwrap();
             }
+
+            if !bytea_call_traces.is_empty() {
+                let started_at = Instant::now();
+                sqlx::query!(
+                    r#"
+                        INSERT INTO call_traces (tx_hash, call_trace)
+                        SELECT u.tx_hash, u.call_trace
+                        FROM UNNEST($1::bytea[], $2::bytea[])
+                        AS u(tx_hash, call_trace)
+                        "#,
+                    &call_traces_tx_hashes,
+                    &bytea_call_traces
+                )
+                .execute(transaction.conn())
+                .await
+                .unwrap();
+                metrics::histogram!("dal.transactions.insert_call_tracer", started_at.elapsed());
+            }
+            transaction.commit().await;
         })
     }
 
@@ -567,11 +601,24 @@ impl TransactionsDal<'_, '_> {
 
     pub fn reset_transactions_state(&mut self, miniblock_number: MiniblockNumber) {
         async_std::task::block_on(async {
-            sqlx::query!(
+            let tx_hashes = sqlx::query!(
                 "UPDATE transactions
                     SET l1_batch_number = NULL, miniblock_number = NULL, error = NULL, index_in_block = NULL, execution_info = '{}'
-                    WHERE miniblock_number > $1",
+                    WHERE miniblock_number > $1
+                    RETURNING hash
+                    ",
                 miniblock_number.0 as i64
+            )
+            .fetch_all(self.storage.conn())
+            .await
+            .unwrap();
+            sqlx::query!(
+                "DELETE FROM call_traces
+                 WHERE tx_hash = ANY($1)",
+                &tx_hashes
+                    .iter()
+                    .map(|tx| tx.hash.clone())
+                    .collect::<Vec<Vec<u8>>>()
             )
             .execute(self.storage.conn())
             .await
@@ -824,6 +871,23 @@ impl TransactionsDal<'_, '_> {
                     )
                 })
                 .collect()
+        })
+    }
+
+    pub fn get_call_trace(&mut self, tx_hash: H256) -> Option<Call> {
+        async_std::task::block_on(async {
+            sqlx::query_as!(
+                CallTrace,
+                r#"
+                    SELECT * FROM call_traces
+                    WHERE tx_hash = $1
+                "#,
+                tx_hash.as_bytes()
+            )
+            .fetch_optional(self.storage.conn())
+            .await
+            .unwrap()
+            .map(|trace| trace.into())
         })
     }
 }

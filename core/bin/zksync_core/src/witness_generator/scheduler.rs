@@ -1,25 +1,23 @@
 use std::collections::HashMap;
+use std::slice;
 use std::time::Instant;
 
+use async_trait::async_trait;
+
+use zksync_config::configs::WitnessGeneratorConfig;
 use zksync_dal::ConnectionPool;
-use zksync_object_store::gcs_utils::{
-    final_node_aggregations_blob_url, scheduler_witness_blob_url,
-};
-use zksync_object_store::object_store::{DynamicObjectStore, SCHEDULER_WITNESS_JOBS_BUCKET_PATH};
+use zksync_object_store::{ObjectStore, ObjectStoreFactory};
+use zksync_queued_job_processor::JobProcessor;
 use zksync_types::{
     circuit::{
         LEAF_CIRCUIT_INDEX, LEAF_SPLITTING_FACTOR, NODE_CIRCUIT_INDEX, NODE_SPLITTING_FACTOR,
     },
-    proofs::{
-        AggregationRound, PrepareSchedulerCircuitJob, WitnessGeneratorJob,
-        WitnessGeneratorJobInput, WitnessGeneratorJobMetadata,
-    },
+    proofs::{AggregationRound, PrepareSchedulerCircuitJob, WitnessGeneratorJobMetadata},
     zkevm_test_harness::{
         abstract_zksync_circuit::concrete_circuits::ZkSyncCircuit,
         bellman::{bn256::Bn256, plonk::better_better_cs::setup::VerificationKey},
         sync_vm::scheduler::BlockApplicationWitness,
         witness::{self, oracle::VmWitnessOracle, recursive_aggregation::erase_vk_type},
-        NodeAggregationOutputDataWitness, SchedulerCircuitInstanceWitness,
     },
     L1BatchNumber,
 };
@@ -27,13 +25,138 @@ use zksync_verification_key_server::{
     get_vk_for_circuit_type, get_vks_for_basic_circuits, get_vks_for_commitment,
 };
 
-use crate::witness_generator;
 use crate::witness_generator::track_witness_generation_stage;
 use crate::witness_generator::utils::save_prover_input_artifacts;
 
 pub struct SchedulerArtifacts {
-    pub final_aggregation_result: BlockApplicationWitness<Bn256>,
-    pub serialized_circuits: Vec<(String, Vec<u8>)>,
+    final_aggregation_result: BlockApplicationWitness<Bn256>,
+    scheduler_circuit: ZkSyncCircuit<Bn256, VmWitnessOracle<Bn256>>,
+}
+
+#[derive(Clone)]
+pub struct SchedulerWitnessGeneratorJob {
+    block_number: L1BatchNumber,
+    job: PrepareSchedulerCircuitJob,
+}
+
+#[derive(Debug)]
+pub struct SchedulerWitnessGenerator {
+    config: WitnessGeneratorConfig,
+    object_store: Box<dyn ObjectStore>,
+}
+
+impl SchedulerWitnessGenerator {
+    pub fn new(config: WitnessGeneratorConfig, store_factory: &ObjectStoreFactory) -> Self {
+        Self {
+            config,
+            object_store: store_factory.create_store(),
+        }
+    }
+
+    fn process_job_sync(
+        scheduler_job: SchedulerWitnessGeneratorJob,
+        started_at: Instant,
+    ) -> SchedulerArtifacts {
+        let SchedulerWitnessGeneratorJob { block_number, job } = scheduler_job;
+
+        vlog::info!(
+            "Starting witness generation of type {:?} for block {}",
+            AggregationRound::Scheduler,
+            block_number.0
+        );
+        process_scheduler_job(started_at, block_number, job)
+    }
+}
+
+#[async_trait]
+impl JobProcessor for SchedulerWitnessGenerator {
+    type Job = SchedulerWitnessGeneratorJob;
+    type JobId = L1BatchNumber;
+    type JobArtifacts = SchedulerArtifacts;
+
+    const SERVICE_NAME: &'static str = "scheduler_witness_generator";
+
+    async fn get_next_job(
+        &self,
+        connection_pool: ConnectionPool,
+    ) -> Option<(Self::JobId, Self::Job)> {
+        let mut connection = connection_pool.access_storage_blocking();
+        let last_l1_batch_to_process = self.config.last_l1_batch_to_process();
+
+        match connection
+            .witness_generator_dal()
+            .get_next_scheduler_witness_job(
+                self.config.witness_generation_timeout(),
+                self.config.max_attempts,
+                last_l1_batch_to_process,
+            ) {
+            Some(metadata) => {
+                let prev_metadata = connection
+                    .blocks_dal()
+                    .get_block_metadata(metadata.block_number - 1);
+                let previous_aux_hash = prev_metadata
+                    .as_ref()
+                    .map_or([0u8; 32], |e| e.metadata.aux_data_hash.0);
+                let previous_meta_hash =
+                    prev_metadata.map_or([0u8; 32], |e| e.metadata.meta_parameters_hash.0);
+                let job = get_artifacts(
+                    metadata,
+                    previous_aux_hash,
+                    previous_meta_hash,
+                    &*self.object_store,
+                );
+                Some((job.block_number, job))
+            }
+            None => None,
+        }
+    }
+
+    async fn save_failure(
+        &self,
+        connection_pool: ConnectionPool,
+        job_id: L1BatchNumber,
+        started_at: Instant,
+        error: String,
+    ) -> () {
+        connection_pool
+            .access_storage_blocking()
+            .witness_generator_dal()
+            .mark_witness_job_as_failed(
+                job_id,
+                AggregationRound::Scheduler,
+                started_at.elapsed(),
+                error,
+                self.config.max_attempts,
+            );
+    }
+
+    #[allow(clippy::async_yields_async)]
+    async fn process_job(
+        &self,
+        _connection_pool: ConnectionPool,
+        job: SchedulerWitnessGeneratorJob,
+        started_at: Instant,
+    ) -> tokio::task::JoinHandle<SchedulerArtifacts> {
+        tokio::task::spawn_blocking(move || Self::process_job_sync(job, started_at))
+    }
+
+    async fn save_result(
+        &self,
+        connection_pool: ConnectionPool,
+        job_id: L1BatchNumber,
+        started_at: Instant,
+        artifacts: SchedulerArtifacts,
+    ) {
+        let circuit_types_and_urls =
+            save_artifacts(job_id, &artifacts.scheduler_circuit, &*self.object_store);
+        update_database(
+            connection_pool,
+            started_at,
+            job_id,
+            artifacts.final_aggregation_result,
+            circuit_types_and_urls,
+        );
+    }
 }
 
 pub fn process_scheduler_job(
@@ -75,19 +198,8 @@ pub fn process_scheduler_job(
     vlog::info!("Commitments generated in {:?}", stage_started_at.elapsed());
     let stage_started_at = Instant::now();
 
-    // fs::write("incomplete_scheduler_witness.bincode", bincode::serialize(&job.incomplete_scheduler_witness).unwrap()).unwrap();
-    // fs::write("node_final_proof_level_proofs.bincode", bincode::serialize(&job.node_final_proof_level_proof).unwrap()).unwrap();
-    // fs::write("node_aggregation_vk.bincode", bincode::serialize(&node_aggregation_vk).unwrap()).unwrap();
-    // fs::write("final_node_aggregations.bincode", bincode::serialize(&job.final_node_aggregations).unwrap()).unwrap();
-    // fs::write("leaf_vks_committment.bincode", bincode::serialize(&set_committment).unwrap()).unwrap();
-    // fs::write("node_aggregation_vk_committment.bincode", bincode::serialize(&node_aggregation_vk_committment).unwrap()).unwrap();
-    // fs::write("leaf_aggregation_vk_committment.bincode", bincode::serialize(&leaf_aggregation_vk_committment).unwrap()).unwrap();
-    // fs::write("previous_aux_hash.bincode", bincode::serialize(&job.previous_aux_hash).unwrap()).unwrap();
-    // fs::write("previous_meta_hash.bincode", bincode::serialize(&job.previous_meta_hash).unwrap()).unwrap();
-    // fs::write("g2_points.bincode", bincode::serialize(&g2_points).unwrap()).unwrap();
-
     let (scheduler_circuit, final_aggregation_result) =
-        zksync_types::zkevm_test_harness::witness::recursive_aggregation::prepare_scheduler_circuit(
+        witness::recursive_aggregation::prepare_scheduler_circuit(
             job.incomplete_scheduler_witness,
             job.node_final_proof_level_proof,
             node_aggregation_vk,
@@ -106,9 +218,6 @@ pub fn process_scheduler_job(
         stage_started_at.elapsed()
     );
 
-    let serialized_circuits: Vec<(String, Vec<u8>)> =
-        witness_generator::serialize_circuits(&vec![scheduler_circuit]);
-
     vlog::info!(
         "Scheduler generation for block {} is complete in {:?}",
         block_number.0,
@@ -117,7 +226,7 @@ pub fn process_scheduler_job(
 
     SchedulerArtifacts {
         final_aggregation_result,
-        serialized_circuits,
+        scheduler_circuit,
     }
 }
 
@@ -126,7 +235,7 @@ pub fn update_database(
     started_at: Instant,
     block_number: L1BatchNumber,
     final_aggregation_result: BlockApplicationWitness<Bn256>,
-    circuits: Vec<String>,
+    circuit_types_and_urls: Vec<(&'static str, String)>,
 ) {
     let mut connection = connection_pool.access_storage_blocking();
     let mut transaction = connection.start_transaction_blocking();
@@ -157,7 +266,7 @@ pub fn update_database(
 
     transaction.prover_dal().insert_prover_jobs(
         block_number,
-        circuits,
+        circuit_types_and_urls,
         AggregationRound::Scheduler,
     );
 
@@ -180,56 +289,36 @@ pub fn update_database(
     track_witness_generation_stage(started_at, AggregationRound::Scheduler);
 }
 
-pub async fn save_artifacts(
+pub fn save_artifacts(
     block_number: L1BatchNumber,
-    serialized_circuits: Vec<(String, Vec<u8>)>,
-    object_store: &mut DynamicObjectStore,
-) {
+    scheduler_circuit: &ZkSyncCircuit<Bn256, VmWitnessOracle<Bn256>>,
+    object_store: &dyn ObjectStore,
+) -> Vec<(&'static str, String)> {
     save_prover_input_artifacts(
         block_number,
-        serialized_circuits,
+        slice::from_ref(scheduler_circuit),
         object_store,
         AggregationRound::Scheduler,
     )
-    .await;
 }
 
-pub async fn get_artifacts(
+pub fn get_artifacts(
     metadata: WitnessGeneratorJobMetadata,
     previous_aux_hash: [u8; 32],
     previous_meta_hash: [u8; 32],
-    object_store: &DynamicObjectStore,
-) -> WitnessGeneratorJob {
-    let scheduler_witness_serialized = object_store
-        .get(
-            SCHEDULER_WITNESS_JOBS_BUCKET_PATH,
-            scheduler_witness_blob_url(metadata.block_number),
-        )
-        .unwrap();
-    let scheduler_witness = bincode::deserialize::<SchedulerCircuitInstanceWitness<Bn256>>(
-        &scheduler_witness_serialized,
-    )
-    .expect("scheduler_witness deserialization failed");
+    object_store: &dyn ObjectStore,
+) -> SchedulerWitnessGeneratorJob {
+    let scheduler_witness = object_store.get(metadata.block_number).unwrap();
+    let final_node_aggregations = object_store.get(metadata.block_number).unwrap();
 
-    let final_node_aggregations_serialized = object_store
-        .get(
-            SCHEDULER_WITNESS_JOBS_BUCKET_PATH,
-            final_node_aggregations_blob_url(metadata.block_number),
-        )
-        .expect("final_node_aggregations is not found in a `queued` `scheduler_witness_jobs` job");
-    let final_node_aggregations = bincode::deserialize::<NodeAggregationOutputDataWitness<Bn256>>(
-        &final_node_aggregations_serialized,
-    )
-    .expect("final_node_aggregations deserialization failed");
-
-    WitnessGeneratorJob {
+    SchedulerWitnessGeneratorJob {
         block_number: metadata.block_number,
-        job: WitnessGeneratorJobInput::Scheduler(Box::new(PrepareSchedulerCircuitJob {
+        job: PrepareSchedulerCircuitJob {
             incomplete_scheduler_witness: scheduler_witness,
             final_node_aggregations,
             node_final_proof_level_proof: metadata.proofs.into_iter().next().unwrap(),
             previous_aux_hash,
             previous_meta_hash,
-        })),
+        },
     }
 }

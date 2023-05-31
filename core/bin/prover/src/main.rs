@@ -1,13 +1,12 @@
-use std::cell::RefCell;
 use std::env;
 use std::sync::{Arc, Mutex};
 
 use api::gpu_prover;
-use futures::{channel::mpsc, executor::block_on, future, SinkExt, StreamExt};
+use futures::future;
 use local_ip_address::local_ip;
 use prover_service::run_prover::run_prover_with_remote_synthesizer;
 use queues::Buffer;
-use tokio::task::JoinHandle;
+use tokio::{sync::oneshot, task::JoinHandle};
 
 use zksync_circuit_breaker::{vks::VksChecker, CircuitBreakerChecker};
 use zksync_config::configs::prover_group::ProverGroupConfig;
@@ -17,11 +16,13 @@ use zksync_config::{
 };
 use zksync_dal::gpu_prover_queue_dal::{GpuProverInstanceStatus, SocketAddress};
 use zksync_dal::ConnectionPool;
+use zksync_eth_client::clients::http::PKSigningClient;
+use zksync_object_store::ObjectStoreFactory;
+use zksync_prover_utils::region_fetcher::{get_region, get_zone};
 
 use crate::artifact_provider::ProverArtifactProvider;
 use crate::prover::ProverReporter;
 use crate::prover_params::ProverParams;
-use zksync_prover_utils::region_fetcher::get_region;
 use crate::socket_listener::incoming_socket_listener;
 use crate::synthesized_circuit_provider::SynthesizedCircuitProvider;
 
@@ -34,11 +35,11 @@ mod synthesized_circuit_provider;
 pub async fn wait_for_tasks(task_futures: Vec<JoinHandle<()>>) {
     match future::select_all(task_futures).await.0 {
         Ok(_) => {
-            graceful_shutdown();
+            graceful_shutdown().await;
             vlog::info!("One of the actors finished its run, while it wasn't expected to do it");
         }
         Err(error) => {
-            graceful_shutdown();
+            graceful_shutdown().await;
             vlog::info!(
                 "One of the tokio actors unexpectedly finished with error: {:?}",
                 error
@@ -47,18 +48,17 @@ pub async fn wait_for_tasks(task_futures: Vec<JoinHandle<()>>) {
     }
 }
 
-fn graceful_shutdown() {
+async fn graceful_shutdown() {
     let pool = ConnectionPool::new(Some(1), true);
     let host = local_ip().expect("Failed obtaining local IP address");
     let port = ProverConfigs::from_env().non_gpu.assembly_receiver_port;
-    let address = SocketAddress {
-        host,
-        port,
-    };
+    let region = get_region().await;
+    let zone = get_zone().await;
+    let address = SocketAddress { host, port };
     pool.clone()
         .access_storage_blocking()
         .gpu_prover_queue_dal()
-        .update_prover_instance_status(address, GpuProverInstanceStatus::Dead, 0);
+        .update_prover_instance_status(address, GpuProverInstanceStatus::Dead, 0, region, zone);
 }
 
 fn get_ram_per_gpu() -> u64 {
@@ -68,29 +68,35 @@ fn get_ram_per_gpu() -> u64 {
     ram_in_gb
 }
 
-fn get_prover_config_for_machine_type() -> ProverConfig {
+fn get_prover_config_for_machine_type() -> (ProverConfig, u8) {
     let prover_configs = ProverConfigs::from_env();
-    let actual_num_gpus = gpu_prover::cuda_bindings::devices().unwrap() as usize;
+    let actual_num_gpus = match gpu_prover::cuda_bindings::devices() {
+        Ok(gpus) => gpus as u8,
+        Err(err) => {
+            vlog::error!("unable to get number of GPUs: {err:?}");
+            panic!("unable to get number of GPUs: {:?}", err);
+        }
+    };
     vlog::info!("detected number of gpus: {}", actual_num_gpus);
     let ram_in_gb = get_ram_per_gpu();
 
     match actual_num_gpus {
         1 => {
             vlog::info!("Detected machine type with 1 GPU and 80GB RAM");
-            prover_configs.one_gpu_eighty_gb_mem
+            (prover_configs.one_gpu_eighty_gb_mem, actual_num_gpus)
         }
         2 => {
             if ram_in_gb > 39 {
                 vlog::info!("Detected machine type with 2 GPU and 80GB RAM");
-                prover_configs.two_gpu_eighty_gb_mem
+                (prover_configs.two_gpu_eighty_gb_mem, actual_num_gpus)
             } else {
                 vlog::info!("Detected machine type with 2 GPU and 40GB RAM");
-                prover_configs.two_gpu_forty_gb_mem
+                (prover_configs.two_gpu_forty_gb_mem, actual_num_gpus)
             }
         }
         4 => {
             vlog::info!("Detected machine type with 4 GPU and 80GB RAM");
-            prover_configs.four_gpu_eighty_gb_mem
+            (prover_configs.four_gpu_eighty_gb_mem, actual_num_gpus)
         }
         _ => panic!("actual_num_gpus: {} not supported yet", actual_num_gpus),
     }
@@ -100,7 +106,7 @@ fn get_prover_config_for_machine_type() -> ProverConfig {
 async fn main() {
     let sentry_guard = vlog::init();
     let config = ZkSyncConfig::from_env();
-    let prover_config = get_prover_config_for_machine_type();
+    let (prover_config, num_gpu) = get_prover_config_for_machine_type();
     let prometheus_config = PrometheusConfig {
         listener_port: prover_config.prometheus_port,
         ..ApiConfig::from_env().prometheus
@@ -114,17 +120,16 @@ async fn main() {
         None => vlog::info!("No sentry url configured"),
     }
     let region = get_region().await;
+    let zone = get_zone().await;
 
-    let (stop_signal_sender, mut stop_signal_receiver) = mpsc::channel(256);
-
-    {
-        let stop_signal_sender = RefCell::new(stop_signal_sender.clone());
-        ctrlc::set_handler(move || {
-            let mut sender = stop_signal_sender.borrow_mut();
-            block_on(sender.send(true)).expect("Ctrl+C signal send");
-        })
-        .expect("Error setting Ctrl+C handler");
-    }
+    let (stop_signal_sender, stop_signal_receiver) = oneshot::channel();
+    let mut stop_signal_sender = Some(stop_signal_sender);
+    ctrlc::set_handler(move || {
+        if let Some(sender) = stop_signal_sender.take() {
+            sender.send(()).ok();
+        }
+    })
+    .expect("Error setting Ctrl+C handler");
 
     zksync_prover_utils::ensure_initial_setup_keys_present(
         &prover_config.initial_setup_key_path,
@@ -132,8 +137,12 @@ async fn main() {
     );
     env::set_var("CRS_FILE", prover_config.initial_setup_key_path.clone());
 
+    let eth_client = PKSigningClient::from_config(&config);
     let circuit_breaker_checker = CircuitBreakerChecker::new(
-        vec![Box::new(VksChecker::new(&config))],
+        vec![Box::new(VksChecker::new(
+            &config.chain.circuit_breaker,
+            eth_client,
+        ))],
         &config.chain.circuit_breaker,
     );
     circuit_breaker_checker
@@ -148,7 +157,11 @@ async fn main() {
     let circuit_ids = ProverGroupConfig::from_env()
         .get_circuit_ids_for_group_id(prover_config.specialized_prover_group_id);
 
-    vlog::info!("Starting proof generation for circuits: {:?} in region: {} with group-id: {}", circuit_ids, region, prover_config.specialized_prover_group_id);
+    vlog::info!(
+        "Starting proof generation for circuits: {circuit_ids:?} \
+         in region: {region} and zone: {zone} with group-id: {}",
+        prover_config.specialized_prover_group_id
+    );
     let mut tasks: Vec<JoinHandle<()>> = vec![];
 
     tasks.push(prometheus_exporter::run_prometheus_exporter(
@@ -168,33 +181,34 @@ async fn main() {
         host: local_ip,
         port: prover_config.assembly_receiver_port,
     };
-    let synthesized_circuit_provider =
-        SynthesizedCircuitProvider::new(consumer, ConnectionPool::new(Some(1), true), address);
+    let synthesized_circuit_provider = SynthesizedCircuitProvider::new(
+        consumer,
+        ConnectionPool::new(Some(1), true),
+        address,
+        region.clone(),
+        zone.clone(),
+    );
     vlog::info!("local IP address is: {:?}", local_ip);
 
     tasks.push(tokio::task::spawn(incoming_socket_listener(
         local_ip,
         prover_config.assembly_receiver_port,
-        prover_config.assembly_receiver_poll_time_in_millis,
         producer,
         ConnectionPool::new(Some(1), true),
         prover_config.specialized_prover_group_id,
-        region
+        region,
+        zone,
+        num_gpu,
     )));
 
-    let artifact_provider = ProverArtifactProvider {};
-    let prover_job_reporter = ProverReporter {
-        pool: ConnectionPool::new(Some(1), true),
-        config: prover_config.clone(),
-        processed_by: env::var("POD_NAME").unwrap_or("Unknown".to_string()),
-    };
-
-    let params: ProverParams = prover_config.clone().into();
+    let params = ProverParams::new(&prover_config);
+    let store_factory = ObjectStoreFactory::from_env();
+    let prover_job_reporter = ProverReporter::new(prover_config, &store_factory);
 
     tasks.push(tokio::task::spawn_blocking(move || {
-        run_prover_with_remote_synthesizer::<_, _, _, _>(
+        run_prover_with_remote_synthesizer(
             synthesized_circuit_provider,
-            artifact_provider,
+            ProverArtifactProvider,
             prover_job_reporter,
             circuit_ids,
             params,
@@ -202,11 +216,11 @@ async fn main() {
     }));
 
     tokio::select! {
-        _ = async { wait_for_tasks(tasks).await } => {},
-        _ = async { stop_signal_receiver.next().await } => {
+        _ = wait_for_tasks(tasks) => {},
+        _ = stop_signal_receiver => {
             vlog::info!("Stop signal received, shutting down");
         },
-        error = async { cb_receiver.await } => {
+        error = cb_receiver => {
             if let Ok(error_msg) = error {
                 vlog::warn!("Circuit breaker received, shutting down. Reason: {}", error_msg);
             }
