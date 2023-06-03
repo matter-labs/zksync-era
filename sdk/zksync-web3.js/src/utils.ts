@@ -111,7 +111,7 @@ export function getDeployedContracts(receipt: ethers.providers.TransactionReceip
     return deployedContracts;
 }
 
-export function create2Address(sender: Address, bytecodeHash: BytesLike, salt: BytesLike, input: BytesLike) {
+export function create2Address(sender: Address, bytecodeHash: BytesLike, salt: BytesLike, input: BytesLike = '') {
     const prefix = ethers.utils.keccak256(ethers.utils.toUtf8Bytes('zksyncCreate2'));
     const inputHash = ethers.utils.keccak256(input);
     const addressBytes = ethers.utils
