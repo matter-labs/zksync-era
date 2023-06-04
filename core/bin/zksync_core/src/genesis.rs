@@ -64,6 +64,10 @@ pub async fn ensure_genesis_state(
             main_node_url,
             base_system_contracts_hashes,
         } => {
+            if main_node_url.contains("mainnet") || main_node_url.contains("testnet") {
+                panic!("EN is still WIP. Can't run genesis for mainnet/testnet");
+            }
+
             // These have to be *initial* base contract hashes of main node
             // (those that were used during genesis), not necessarily the current ones.
             let contracts =

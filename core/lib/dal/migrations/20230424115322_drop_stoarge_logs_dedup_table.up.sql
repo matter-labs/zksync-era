@@ -1,1 +1,1 @@
-DROP table storage_logs_dedup;
+DROP TABLE IF EXISTS storage_logs_dedup;

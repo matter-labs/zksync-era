@@ -211,6 +211,8 @@ async fn main() -> anyhow::Result<()> {
     let main_node_url = config.api.web3_json_rpc.main_node_url.as_ref().unwrap();
     let sigint_receiver = setup_sigint_handler();
 
+    vlog::warn!("The external node is in the experimental stage, use it at your own risk");
+
     vlog::info!("Started the external node");
     vlog::info!("Main node URL is: {}", main_node_url);
 

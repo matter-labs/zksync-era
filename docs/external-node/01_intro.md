@@ -2,6 +2,10 @@
 
 This documentation explains the basics of the zkSync Era External Node.
 
+## Alpha phase disclaimer
+
+Warning: the external node is in the alpha phase, and not suitable for production use.
+
 ## What is the external node
 
 The external node (herein EN) is a read-replica of the main (centralized) node that can be run by external parties. It

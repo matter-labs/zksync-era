@@ -1,0 +1,44 @@
+database_url = "postgres://postgres@postgres/zksync_local_ext_node"
+test_database_url = "postgres://postgres@postgres/zksync_local_test_ext_node"
+is_external_node = true # this is probably temporary
+l1_rpc_address = "http://geth:8545"
+
+[api.web3_json_rpc]
+http_port = 3060
+http_url = "http://127.0.0.1:3060"
+ws_port = 3061
+ws_url = "ws://127.0.0.1:3061"
+main_node_url = "http://127.0.0.1:3050"
+
+[api.explorer]
+port = 3080
+url = "http://127.0.0.1:3080"
+
+[api.prometheus]
+listener_port = 3322
+
+[api.healthcheck]
+port = 3081
+
+[contract_verifier]
+prometheus_port = 3324
+
+[database]
+path="./db/ext-node/full"
+state_keeper_db_path="./db/ext-node/state_keeper"
+merkle_tree_backup_path="./db/ext-node/backups"
+merkle_tree_fast_ssd_path="./db/ext-node/lightweight"
+
+# Fields below are required for genesis block creation
+[eth_sender.sender]
+operator_commit_eth_addr = "0xde03a0B5963f75f1C8485B355fF6D30f3093BDE7"
+
+[chain.eth]
+zksync_network_id = 270
+
+[eth_client]
+web3_url = "http://geth:8545"
+
+[chain.state_keeper]
+miniblock_iteration_interval = 50
+
