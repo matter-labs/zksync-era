@@ -21,3 +21,18 @@ pub const MAX_OUTSTANDING_NONCE: usize = 20;
 /// Each account continuously sends API requests in addition to transactions. Such requests are considered failed
 /// after this amount of time elapsed without any server response.
 pub const API_REQUEST_TIMEOUT: Duration = Duration::from_secs(5);
+
+/// Max number of L1 transactions that can be sent in parallel.
+pub const MAX_L1_TRANSACTIONS: u64 = 10;
+
+/// Minimum amount of funds that should be present on the master account.
+/// Loadtest won't start if master account balance is less than this value.
+pub const MIN_MASTER_ACCOUNT_BALANCE: u64 = 2u64.pow(17);
+
+/// Minimum amount of funds that should be present on the paymaster account.
+/// Loadtest will deposit funds to the paymaster account if its balance is less than this value.
+pub const MIN_PAYMASTER_BALANCE: u64 = 10u64.pow(18) * 10;
+
+/// If the paymaster balance is lower than MIN_PAYMASTER_BALANCE,
+/// loadtest will deposit funds to the paymaster account so that its balance reaches this value
+pub const TARGET_PAYMASTER_BALANCE: u128 = 10u128.pow(18) * 20;

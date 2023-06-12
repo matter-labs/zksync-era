@@ -30,10 +30,12 @@ pub struct LoadtestConfig {
     /// Amount of accounts to be used in test.
     /// This option configures the "width" of the test:
     /// how many concurrent operation flows will be executed.
+    /// The higher the value is, the more load will be put on the node.
+    /// If testing the sequencer throughput, this number must be sufficiently high.
     #[serde(default = "default_accounts_amount")]
     pub accounts_amount: usize,
 
-    /// Duration of the test.
+    /// Duration of the test. For proper results, this value should be at least 10 minutes.
     #[serde(default = "default_duration_sec")]
     pub duration_sec: u64,
 
@@ -44,7 +46,7 @@ pub struct LoadtestConfig {
     /// - Have `mint` operation.
     ///
     /// Note that we use ERC-20 token since we can't easily mint a lot of ETH on
-    /// Rinkeby or Ropsten without caring about collecting it back.
+    /// Testnets without caring about collecting it back.
     #[serde(default = "default_main_token")]
     pub main_token: Address,
 
@@ -78,7 +80,7 @@ pub struct LoadtestConfig {
     #[serde(default = "default_sync_api_requests_limit")]
     pub sync_api_requests_limit: usize,
 
-    /// Limits the number of simultaneous active PubSub subscriptions at any moment of time.
+    /// Limits the number of simultaneously active PubSub subscriptions at any moment of time.
     ///
     /// Setting it to:
     /// - 0 turns off PubSub subscriptions.
@@ -114,7 +116,8 @@ pub struct LoadtestConfig {
     #[serde(default = "default_l2_explorer_api_address")]
     pub l2_explorer_api_address: String,
 
-    /// The maximum number of transactions per account that can be sent without waiting for confirmation
+    /// The maximum number of transactions per account that can be sent without waiting for confirmation.
+    /// Should not exceed the corresponding value in the L2 node configuration.
     #[serde(default = "default_max_inflight_txs")]
     pub max_inflight_txs: usize,
 
@@ -127,6 +130,7 @@ pub struct LoadtestConfig {
 
     /// The expected number of the processed transactions during loadtest
     /// that should be compared to the actual result.
+    /// If the value is `None`, the comparison is not performed.
     #[serde(default = "default_expected_tx_count")]
     pub expected_tx_count: Option<usize>,
 
@@ -142,7 +146,6 @@ fn default_max_inflight_txs() -> usize {
 }
 
 fn default_l1_rpc_address() -> String {
-    // https://rinkeby.infura.io/v3/8934c959275444d480834ba1587c095f for rinkeby
     let result = "http://127.0.0.1:8545".to_string();
     vlog::info!("Using default L1_RPC_ADDRESS: {}", result);
     result

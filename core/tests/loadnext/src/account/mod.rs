@@ -15,6 +15,7 @@ use zksync_types::{
 };
 use zksync_web3_decl::jsonrpsee;
 
+use crate::utils::format_gwei;
 use crate::{
     account::{explorer_api_executor::ExplorerApiClient, tx_command_executor::SubmitResult},
     account_pool::{AddressPool, TestWallet},
@@ -173,7 +174,7 @@ impl AccountLifespan {
         // Due to natural sleep for sending tx, usually more than 1 tx can be already
         // processed and have a receipt
         let start = Instant::now();
-        vlog::debug!(
+        vlog::trace!(
             "Account {:?}: check_inflight_txs len {:?}",
             self.wallet.wallet.address(),
             self.inflight_txs.len()
@@ -186,17 +187,24 @@ impl AccountLifespan {
                         &transaction_receipt,
                         &tx.command.modifier.expected_outcome(),
                     );
-                    vlog::trace!(
-                        "Account {:?}: check_inflight_txs tx is included after {:?} attempt {:?}",
+                    let gas_used = transaction_receipt.gas_used.unwrap_or(U256::zero());
+                    let effective_gas_price = transaction_receipt
+                        .effective_gas_price
+                        .unwrap_or(U256::zero());
+                    vlog::debug!(
+                        "Account {:?}: tx included. Total fee: {}, gas used: {}gas, gas price: {} WEI. Latency {:?} at attempt {:?}",
                         self.wallet.wallet.address(),
+                        format_gwei(gas_used * effective_gas_price),
+                        gas_used,
+                        effective_gas_price,
                         tx.start.elapsed(),
-                        tx.attempt
+                        tx.attempt,
                     );
                     self.report(label, tx.start.elapsed(), tx.attempt, tx.command)
                         .await;
                 }
                 other => {
-                    vlog::debug!(
+                    vlog::trace!(
                         "Account {:?}: check_inflight_txs tx not yet included: {:?}",
                         self.wallet.wallet.address(),
                         other
@@ -206,7 +214,7 @@ impl AccountLifespan {
                 }
             }
         }
-        vlog::debug!(
+        vlog::trace!(
             "Account {:?}: check_inflight_txs complete {:?}",
             self.wallet.wallet.address(),
             start.elapsed()

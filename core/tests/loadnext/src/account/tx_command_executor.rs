@@ -17,6 +17,7 @@ use zksync_types::{
 };
 
 use crate::account::ExecutionType;
+use crate::utils::format_gwei;
 use crate::{
     account::AccountLifespan,
     command::{IncorrectnessModifier, TxCommand, TxType},
@@ -403,6 +404,14 @@ impl AccountLifespan {
                 self.main_l2_token,
             )))
             .await?;
+        vlog::trace!(
+            "Account {:?}: fee estimated. Max total fee: {}, gas limit: {}gas; Max gas price: {}WEI, Gas per pubdata: {:?}gas",
+            self.wallet.wallet.address(),
+            format_gwei(fee.max_total_fee()),
+            fee.gas_limit,
+            fee.max_fee_per_gas,
+            fee.gas_per_pubdata_limit
+        );
         builder = builder.fee(fee.clone());
 
         let paymaster_params = get_approval_based_paymaster_input(

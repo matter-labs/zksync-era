@@ -9,7 +9,7 @@ use zksync::utils::{
     get_approval_based_paymaster_input, get_approval_based_paymaster_input_for_estimation,
 };
 use zksync::web3::{contract::Options, types::TransactionReceipt};
-use zksync::{EthereumProvider, ZksNamespaceClient};
+use zksync::{EthNamespaceClient, EthereumProvider, ZksNamespaceClient};
 use zksync_config::constants::MAX_L1_TRANSACTION_GAS_LIMIT;
 use zksync_eth_client::EthInterface;
 use zksync_eth_signer::PrivateKeySigner;
@@ -17,6 +17,7 @@ use zksync_types::api::{BlockNumber, U64};
 use zksync_types::{tokens::ETHEREUM_ADDRESS, Address, Nonce, U256};
 
 use crate::report::ReportBuilder;
+use crate::utils::format_eth;
 use crate::{
     account::AccountLifespan,
     account_pool::AccountPool,
@@ -24,8 +25,6 @@ use crate::{
     constants::*,
     report_collector::{LoadtestResult, ReportCollector},
 };
-
-pub const MAX_L1_TRANSACTIONS: u64 = 10;
 
 /// Executor is the entity capable of running the loadtest flow.
 ///
@@ -88,10 +87,7 @@ impl Executor {
         self.mint().await?;
         self.deposit_to_master().await?;
 
-        // Top up paymaster for local env.
-        if self.config.l2_rpc_address == crate::config::get_default_l2_rpc_address() {
-            self.deposit_eth_to_paymaster().await?;
-        }
+        self.deposit_eth_to_paymaster().await?;
 
         let (executor_future, account_futures) = self.send_initial_transfers().await?;
         self.wait_account_routines(account_futures).await;
@@ -103,19 +99,28 @@ impl Executor {
 
     /// Verifies that onchain ETH balance for the main account is sufficient to run the loadtest.
     async fn check_onchain_balance(&mut self) -> anyhow::Result<()> {
-        vlog::info!("Master Account: Checking onchain balance...");
+        vlog::info!("Master Account: Checking onchain balance");
         let master_wallet = &mut self.pool.master_wallet;
         let ethereum = master_wallet.ethereum(&self.config.l1_rpc_address).await?;
         let eth_balance = ethereum.balance().await?;
-        if eth_balance < 2u64.pow(17).into() {
+        if eth_balance < U256::from(MIN_MASTER_ACCOUNT_BALANCE) {
             anyhow::bail!(
-                "ETH balance on {:x} is too low to safely perform the loadtest: {}",
+                "ETH balance on {:x} is too low to safely perform the loadtest: {} - at least {} is required",
                 ethereum.client().sender_account(),
-                eth_balance
+                format_eth(eth_balance),
+                format_eth(U256::from(MIN_MASTER_ACCOUNT_BALANCE))
             );
         }
+        vlog::info!(
+            "Master Account {} L1 balance is {}",
+            self.pool.master_wallet.address(),
+            format_eth(eth_balance)
+        );
+        metrics::gauge!(
+            "loadtest.master_account_balance",
+            eth_balance.as_u64() as f64
+        );
 
-        vlog::info!("Master Account: Onchain balance is OK");
         Ok(())
     }
 
@@ -188,6 +193,12 @@ impl Executor {
         let necessary_balance =
             U256::from(self.erc20_transfer_amount() * self.config.accounts_amount as u128);
 
+        vlog::info!(
+                "Master account token balance on l2: {:?}, necessary balance for initial transfers {:?}",
+                balance,
+                necessary_balance
+            );
+
         if balance > necessary_balance {
             vlog::info!(
                 "Master account has enough money on l2, nothing to deposit. Current balance {:?},\
@@ -250,8 +261,7 @@ impl Executor {
     }
 
     async fn deposit_eth_to_paymaster(&mut self) -> anyhow::Result<()> {
-        vlog::info!("Master Account: Performing an ETH deposit to the paymaster");
-        let deposit_amount = U256::from(10u32).pow(U256::from(20u32)); // 100 ETH
+        vlog::info!("Master Account: Checking paymaster balance");
         let mut ethereum = self
             .pool
             .master_wallet
@@ -267,6 +277,25 @@ impl Executor {
             .get_testnet_paymaster()
             .await?
             .expect("No testnet paymaster is set");
+
+        let paymaster_balance: U256 = self
+            .pool
+            .master_wallet
+            .provider
+            .get_balance(paymaster_address, None)
+            .await?;
+
+        vlog::info!(
+            "Paymaster balance is {}. Minimum amount {}",
+            format_eth(paymaster_balance),
+            format_eth(U256::from(MIN_PAYMASTER_BALANCE))
+        );
+
+        if paymaster_balance >= U256::from(MIN_PAYMASTER_BALANCE) {
+            return Ok(());
+        }
+
+        let deposit_amount = U256::from(TARGET_PAYMASTER_BALANCE) - paymaster_balance;
 
         // Perform the deposit itself.
         let receipt = deposit_with_attempts(
@@ -296,7 +325,18 @@ impl Executor {
             .wait_for_commit()
             .await?;
 
-        vlog::info!("Master Account: ETH deposit to the paymaster is OK");
+        let paymaster_balance: U256 = self
+            .pool
+            .master_wallet
+            .provider
+            .get_balance(paymaster_address, None)
+            .await?;
+
+        vlog::info!(
+            "Paymaster deposit complete. New balance: {}",
+            format_eth(paymaster_balance)
+        );
+
         Ok(())
     }
 
@@ -578,6 +618,7 @@ impl Executor {
 
         let gas_price_with_priority = average_gas_price + U256::from(DEFAULT_PRIORITY_FEE);
 
+        // TODO (PLA-85): Add gas estimations for deposits in Rust SDK
         let average_l1_to_l2_gas_limit = 5_000_000u32;
         let average_price_for_l1_to_l2_execute = ethereum
             .base_cost(

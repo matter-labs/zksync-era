@@ -1,125 +1,112 @@
-# Loadnext: the next generation loadtest for zkSync
+# Loadnext: loadtest for zkSync
 
 Loadnext is an utility for random stress-testing the zkSync server. It is capable of simulating the behavior of many
 independent users of zkSync network, who are sending quasi-random requests to the server.
 
+The general flow is as follows:
+
+- The master account performs an initial deposit to L2
+- Paymaster on L2 is funded if necessary
+- The L2 master account distributes funds to the participating accounts (`accounts_amount` configuration option)
+- Each account continiously sends L2 transactions as configured in `contract_execution_params` configuration option. At
+  any given time there are no more than `max_inflight_txs` transactions in flight for each account.
+- Once each account is done with the initial deposit, the test is run for `duration_sec` seconds.
+- After the test is finished, the master account withdraws all the remaining funds from L2.
+- The average TPS is reported.
+
+## Features
+
 It:
 
-- doesn't care whether the server is alive or not. At worst, it will just consider the test failed. No panics, no
-  mindless unwraps, yay.
+- doesn't care whether the server is alive or not. At worst, it will just consider the test failed.
 - does a unique set of operations for each participating account.
 - sends transactions and priority operations.
 - sends incorrect transactions as well as correct ones and compares the outcome to the expected one.
 - has an easy-to-extend command system that allows adding new types of actions to the flow.
 - has an easy-to-extend report analysis system.
 
-Flaws:
+## Transactions Parameters
 
-- It does not send API requests other than required to execute transactions.
-- So far it has pretty primitive report system.
+The smart contract that is used for every l2 transaction can be found here:
+`etc/contracts-test-data/contracts/loadnext/loadnext_contract.sol`.
 
-## Launch
+The `execute` function of the contract has the following parameters:
 
-In order to launch the test in the development scenario, you must first run server and prover (it is recommended to use
-dummy prover), and then launch the test itself.
-
-```sh
-# First terminal
-zk server
-# Second terminal
-RUST_BACKTRACE=1 RUST_LOG=info,jsonrpsee_ws_client=error cargo run --bin loadnext
+```
+    function execute(uint reads, uint writes, uint hashes, uint events, uint max_recursion, uint deploys) external returns(uint) {
 ```
 
-Without any configuration supplied, the test will fallback to the dev defaults:
+which correspond to the following configuration options:
 
-- Use one of the "rich" accounts in the private local Ethereum chain.
-- Use a random ERC-20 token from `etc/tokens/localhost.json`.
-- Connect to the localhost zkSync node and use localhost web3 API.
+```
+pub struct LoadnextContractExecutionParams {
+    pub reads: usize,
+    pub writes: usize,
+    pub events: usize,
+    pub hashes: usize,
+    pub recursive_calls: usize,
+    pub deploys: usize,
+}
+```
 
-**Note:** when running the loadtest in the localhost scenario, you **must** adjust the supported block chunks sizes.
-Edit the `etc/env/dev/chain.toml` and set `block_chunk_sizes` to `[10,32,72,156,322,654]` and `aggregated_proof_sizes`
-to `[1,4,8,18]`. Do not forget to re-compile configs after that.
+For example, to simulate an average transaction on mainnet, one could do:
 
-This is required because the loadtest relies on batches, which will not fit into smaller block sizes.
+```
+CONTRACT_EXECUTION_PARAMS_WRITES=2
+CONTRACT_EXECUTION_PARAMS_READS=6
+CONTRACT_EXECUTION_PARAMS_EVENTS=2
+CONTRACT_EXECUTION_PARAMS_HASHES=10
+CONTRACT_EXECUTION_PARAMS_RECURSIVE_CALLS=0
+CONTRACT_EXECUTION_PARAMS_DEPLOYS=0
+```
+
+Similarly, to simulate a lightweight transaction:
+
+```
+CONTRACT_EXECUTION_PARAMS_WRITES=0
+CONTRACT_EXECUTION_PARAMS_READS=0
+CONTRACT_EXECUTION_PARAMS_EVENTS=0
+CONTRACT_EXECUTION_PARAMS_HASHES=0
+CONTRACT_EXECUTION_PARAMS_RECURSIVE_CALLS=0
+CONTRACT_EXECUTION_PARAMS_DEPLOYS=0
+```
 
 ## Configuration
 
-For cases when loadtest is launched outside of the localhost environment, configuration is provided via environment
-variables.
+For the full list of configuration options, see `loadnext/src/config.rs`.
 
-The following variables are required:
+Example invocation:
 
-```sh
-# Address of the Ethereum web3 API.
-L1_RPC_ADDRESS
-# Ethereum private key of the wallet that has funds to perform a test (without `0x` prefix).
-MASTER_WALLET_PK
-# Amount of accounts to be used in test.
-# This option configures the "width" of the test:
-# how many concurrent operation flows will be executed.
-ACCOUNTS_AMOUNT
-# All of test accounts get split into groups that share the
-# deployed contract address. This helps to emulate the behavior of
-# sending `Execute` to the same contract and reading its events by
-# single a group. This value should be less than or equal to `ACCOUNTS_AMOUNT`.
-ACCOUNTS_GROUP_SIZE
-# Amount of operations per account.
-# This option configures the "length" of the test:
-# how many individual operations each account of the test will execute.
-OPERATIONS_PER_ACCOUNT
-# Address of the ERC-20 token to be used in test.
-#
-# Token must satisfy two criteria:
-# - Be supported by zkSync.
-# - Have `mint` operation.
-#
-# Note that we use ERC-20 token since we can't easily mint a lot of ETH on
-# Rinkeby or Ropsten without caring about collecting it back.
-MAIN_TOKEN
-# Path to test contracts bytecode and ABI required for sending
-# deploy and execute L2 transactions. Each folder in the path is expected
-# to have the following structure:
-# .
-# ├── bytecode
-# └── abi.json
-# Contract folder names names are not restricted.
-# An example:
-# .
-# ├── erc-20
-# │   ├── bytecode
-# │   └── abi.json
-# └── simple-contract
-#     ├── bytecode
-#     └── abi.json
-TEST_CONTRACTS_PATH
-# Limits the number of simultaneous API requests being performed at any moment of time.
-#
-# Setting it to:
-# - 0 turns off API requests.
-# - `ACCOUNTS_AMOUNT` relieves the limit.
-SYNC_API_REQUESTS_LIMIT
-# zkSync Chain ID.
-L2_CHAIN_ID
-# Address of the zkSync web3 API.
-L2_RPC_ADDRESS
+- transactions similar to mainnet
+- 300 accounts - should be enough to put full load to the sequencer
+- 20 transactions in flight - corresponds to the current limits on the mainnet and testnet
+- 20 minutes of testing - should be enough to properly estimate the TPS
+- As `L2_RPC_ADDRESS`, `L2_WS_RPC_ADDRESS`, `L1_RPC_ADDRESS` and `L1_RPC_ADDRESS` is not set, the test will run against
+  the local environment.
+- `MASTER_WALLET_PK` needs to be set to the private key of the master account.
+- `MAIN_TOKEN` needs to be set to the address of the token to be used for the loadtest.
+
 ```
+cargo build
 
-Optional parameters:
-
-```sh
-# Optional seed to be used in the test: normally you don't need to set the seed,
-# but you can re-use seed from previous run to reproduce the sequence of operations locally.
-# Seed must be represented as a hexadecimal string.
-SEED
+CONTRACT_EXECUTION_PARAMS_WRITES=2 \
+CONTRACT_EXECUTION_PARAMS_READS=6 \
+CONTRACT_EXECUTION_PARAMS_EVENTS=2 \
+CONTRACT_EXECUTION_PARAMS_HASHES=10 \
+CONTRACT_EXECUTION_PARAMS_RECURSIVE_CALLS=0 \
+CONTRACT_EXECUTION_PARAMS_DEPLOYS=0 \
+ACCOUNTS_AMOUNT=300 \
+ACCOUNTS_GROUP_SIZE=300 \
+MAX_INFLIGHT_TXS=20 \
+RUST_LOG="info,loadnext=debug" \
+SYNC_API_REQUESTS_LIMIT=0 \
+SYNC_PUBSUB_SUBSCRIPTIONS_LIMIT=0 \
+TRANSACTION_WEIGHTS_DEPOSIT=0 \
+TRANSACTION_WEIGHTS_WITHDRAWAL=0 \
+TRANSACTION_WEIGHTS_L1_TRANSACTIONS=0 \
+TRANSACTION_WEIGHTS_L2_TRANSACTIONS=1 \
+DURATION_SEC=1200 \
+MASTER_WALLET_PK="..." \
+MAIN_TOKEN="..." \
+cargo run --bin loadnext
 ```
-
-## Infrastructure relationship
-
-This crate is meant to be independent of the existing zkSync infrastructure. It is not integrated in `zk` and does not
-rely on `zksync_config` crate, and is not meant to be.
-
-The reason is that this application is meant to be used in CI, where any kind of configuration pre-requisites makes the
-tool harder to use:
-
-- Additional tools (e.g. `zk`) must be shipped together with the application, or included into the docker container.
-- Configuration that lies in files is harder to use in CI, due some sensitive data being stored in GITHUB_SECRETS.
