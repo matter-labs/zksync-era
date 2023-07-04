@@ -4,7 +4,7 @@ This documentation explains the basics of the zkSync Era External Node.
 
 ## Alpha phase disclaimer
 
-Warning: the external node is in the alpha phase, and not suitable for production use.
+Warning: the external node is in the alpha phase, and should be used with caution.
 
 ## What is the external node
 
