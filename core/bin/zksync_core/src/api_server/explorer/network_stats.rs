@@ -49,15 +49,17 @@ impl SharedNetworkStats {
 
                         timer.tick().await;
 
-                        let mut storage = connection_pool.access_storage_blocking();
+                        let mut storage = connection_pool.access_storage_tagged("api").await;
 
                         let last_sealed = storage
                             .blocks_web3_dal()
                             .get_sealed_miniblock_number()
+                            .await
                             .unwrap();
                         let last_verified = storage
                             .blocks_web3_dal()
                             .resolve_block_id(api::BlockId::Number(api::BlockNumber::Finalized))
+                            .await
                             .unwrap()
                             .unwrap_or(MiniblockNumber(0));
                         let prev_stats = self.read().await;
@@ -65,6 +67,7 @@ impl SharedNetworkStats {
                             .explorer()
                             .transactions_dal()
                             .get_transactions_count_between(prev_stats.last_sealed + 1, last_sealed)
+                            .await
                             .unwrap();
 
                         let stats = NetworkStats {

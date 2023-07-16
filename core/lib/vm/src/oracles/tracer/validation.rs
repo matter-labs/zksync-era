@@ -1,6 +1,4 @@
-use std::fmt;
-use std::fmt::Display;
-use std::{collections::HashSet, marker::PhantomData};
+use std::{collections::HashSet, fmt::Display, marker::PhantomData};
 
 use crate::{
     errors::VmRevertReasonParsingResult,
@@ -13,19 +11,19 @@ use crate::{
 };
 
 use zk_evm::{
-    abstractions::{
+    tracing::{
         AfterDecodingData, AfterExecutionData, BeforeExecutionData, Tracer, VmLocalStateData,
     },
     zkevm_opcode_defs::{ContextOpcode, FarCallABI, LogOpcode, Opcode},
 };
 
 use crate::oracles::tracer::{utils::get_calldata_page_via_abi, StorageInvocationTracer};
-use crate::storage::StoragePtr;
 use zksync_config::constants::{
     ACCOUNT_CODE_STORAGE_ADDRESS, BOOTLOADER_ADDRESS, CONTRACT_DEPLOYER_ADDRESS,
     KECCAK256_PRECOMPILE_ADDRESS, L2_ETH_TOKEN_ADDRESS, MSG_VALUE_SIMULATOR_ADDRESS,
     SYSTEM_CONTEXT_ADDRESS,
 };
+use zksync_state::StoragePtr;
 use zksync_types::{
     get_code_key, web3::signing::keccak256, AccountTreeId, Address, StorageKey, H256, U256,
 };
@@ -54,7 +52,7 @@ pub enum ViolatedValidationRule {
 
 pub enum ValidationError {
     FailedTx(VmRevertReasonParsingResult),
-    VioalatedRule(ViolatedValidationRule),
+    ViolatedRule(ViolatedValidationRule),
 }
 
 impl Display for ViolatedValidationRule {
@@ -89,7 +87,7 @@ impl Display for ValidationError {
             Self::FailedTx(revert_reason) => {
                 write!(f, "Validation revert: {}", revert_reason.revert_reason)
             }
-            Self::VioalatedRule(rule) => {
+            Self::ViolatedRule(rule) => {
                 write!(f, "Violated validation rules: {}", rule)
             }
         }
@@ -112,7 +110,7 @@ fn is_constant_code_hash(address: Address, key: U256, storage: StoragePtr<'_>) -
         return false;
     }
 
-    let value = storage.borrow_mut().get_value(&StorageKey::new(
+    let value = storage.borrow_mut().read_value(&StorageKey::new(
         AccountTreeId::new(address),
         u256_to_h256(key),
     ));
@@ -129,7 +127,7 @@ fn valid_eth_token_call(address: Address, msg_sender: Address) -> bool {
 
 /// Tracer that is used to ensure that the validation adheres to all the rules
 /// to prevent DDoS attacks on the server.
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct ValidationTracer<'a, H> {
     // A copy of it should be used in the Storage oracle
     pub storage: StoragePtr<'a>,
@@ -138,6 +136,7 @@ pub struct ValidationTracer<'a, H> {
     pub validation_error: Option<ViolatedValidationRule>,
 
     user_address: Address,
+    #[allow(dead_code)]
     paymaster_address: Address,
     should_stop_execution: bool,
     trusted_slots: HashSet<(Address, U256)>,
@@ -147,23 +146,6 @@ pub struct ValidationTracer<'a, H> {
     computational_gas_limit: u32,
 
     _marker: PhantomData<H>,
-}
-
-impl<H: HistoryMode> fmt::Debug for ValidationTracer<'_, H> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("ValidationTracer")
-            .field("storage", &"StoragePtr")
-            .field("validation_mode", &self.validation_mode)
-            .field("auxilary_allowed_slots", &self.auxilary_allowed_slots)
-            .field("validation_error", &self.validation_error)
-            .field("user_address", &self.user_address)
-            .field("paymaster_address", &self.paymaster_address)
-            .field("should_stop_execution", &self.should_stop_execution)
-            .field("trusted_slots", &self.trusted_slots)
-            .field("trusted_addresses", &self.trusted_addresses)
-            .field("trusted_address_slots", &self.trusted_address_slots)
-            .finish()
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -350,7 +332,7 @@ impl<'a, H: HistoryMode> ValidationTracer<'a, H> {
                     }
                 } else if called_address != self.user_address {
                     let code_key = get_code_key(&called_address);
-                    let code = self.storage.borrow_mut().get_value(&code_key);
+                    let code = self.storage.borrow_mut().read_value(&code_key);
 
                     if code == H256::zero() {
                         // The users are not allowed to call contracts with no code
@@ -366,6 +348,7 @@ impl<'a, H: HistoryMode> ValidationTracer<'a, H> {
                         return Err(ViolatedValidationRule::TouchedUnallowedContext);
                     }
                     ContextOpcode::ErgsLeft => {
+                        //
                     }
                     _ => {}
                 }
@@ -386,7 +369,7 @@ impl<'a, H: HistoryMode> ValidationTracer<'a, H> {
                     let storage_key =
                         StorageKey::new(AccountTreeId::new(this_address), u256_to_h256(key));
 
-                    let value = self.storage.borrow_mut().get_value(&storage_key);
+                    let value = self.storage.borrow_mut().read_value(&storage_key);
 
                     return Ok(NewTrustedValidationItems {
                         new_trusted_addresses: vec![h256_to_account_address(&value)],
@@ -478,5 +461,4 @@ impl<H: HistoryMode> ExecutionEndTracer<H> for ValidationTracer<'_, H> {
 
 impl<H: HistoryMode> PendingRefundTracer<H> for ValidationTracer<'_, H> {}
 impl<H: HistoryMode> PubdataSpentTracer<H> for ValidationTracer<'_, H> {}
-
 impl<H: HistoryMode> StorageInvocationTracer<H> for ValidationTracer<'_, H> {}

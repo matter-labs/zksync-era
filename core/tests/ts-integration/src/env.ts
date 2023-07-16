@@ -68,19 +68,32 @@ export async function loadTestEnvironment(): Promise<TestEnvironment> {
         process.env.ZKSYNC_WEB3_WS_API_URL || process.env.API_WEB3_JSON_RPC_WS_URL,
         'WS L2 node URL'
     );
-    const explorerUrl = ensureVariable(process.env.API_EXPLORER_URL, 'Explorer API');
+    const explorerUrl = process.env.ZKSYNC_ENV!.startsWith('ext-node')
+        ? ''
+        : ensureVariable(process.env.API_EXPLORER_URL, 'Explorer API');
 
     const tokens = getTokens(process.env.CHAIN_ETH_NETWORK || 'localhost');
     // wBTC is chosen because it has decimals different from ETH (8 instead of 18).
     // Using this token will help us to detect decimals-related errors.
-    const wBTC = tokens.find((token: { symbol: string }) => token.symbol == 'wBTC')!;
+    // but if it's not available, we'll use the first token from the list.
+    let token = tokens.find((token: { symbol: string }) => token.symbol == 'wBTC')!;
+    if (!token) {
+        token = tokens[0];
+    }
+    const weth = tokens.find((token: { symbol: string }) => token.symbol == 'WETH')!;
 
     // `waitForServer` is expected to be executed. Otherwise this call may throw.
-    const wBTCl2Address = await new zksync.Wallet(
+    const l2TokenAddress = await new zksync.Wallet(
         mainWalletPK,
         new zksync.Provider(l2NodeUrl),
         ethers.getDefaultProvider(l1NodeUrl)
-    ).l2TokenAddress(wBTC.address);
+    ).l2TokenAddress(token.address);
+
+    const l2WethAddress = await new zksync.Wallet(
+        mainWalletPK,
+        new zksync.Provider(l2NodeUrl),
+        ethers.getDefaultProvider(l1NodeUrl)
+    ).l2TokenAddress(weth.address);
 
     return {
         network,
@@ -90,11 +103,18 @@ export async function loadTestEnvironment(): Promise<TestEnvironment> {
         wsL2NodeUrl,
         explorerUrl,
         erc20Token: {
-            name: wBTC.name,
-            symbol: wBTC.symbol,
-            decimals: wBTC.decimals,
-            l1Address: wBTC.address,
-            l2Address: wBTCl2Address
+            name: token.name,
+            symbol: token.symbol,
+            decimals: token.decimals,
+            l1Address: token.address,
+            l2Address: l2TokenAddress
+        },
+        wethToken: {
+            name: weth.name,
+            symbol: weth.symbol,
+            decimals: weth.decimals,
+            l1Address: weth.address,
+            l2Address: l2WethAddress
         }
     };
 }

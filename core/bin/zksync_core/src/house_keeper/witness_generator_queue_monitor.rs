@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use async_trait::async_trait;
 use zksync_dal::ConnectionPool;
 use zksync_types::proofs::{AggregationRound, JobCountStatistics};
 
@@ -10,39 +11,45 @@ const WITNESS_GENERATOR_SERVICE_NAME: &str = "witness_generator";
 #[derive(Debug)]
 pub struct WitnessGeneratorStatsReporter {
     reporting_interval_ms: u64,
+    prover_connection_pool: ConnectionPool,
 }
 
 impl WitnessGeneratorStatsReporter {
-    pub fn new(reporting_interval_ms: u64) -> Self {
+    pub fn new(reporting_interval_ms: u64, prover_connection_pool: ConnectionPool) -> Self {
         Self {
             reporting_interval_ms,
+            prover_connection_pool,
         }
     }
 
-    fn get_job_statistics(
-        connection_pool: ConnectionPool,
+    async fn get_job_statistics(
+        prover_connection_pool: &ConnectionPool,
     ) -> HashMap<AggregationRound, JobCountStatistics> {
-        let mut conn = connection_pool.access_storage_blocking();
+        let mut conn = prover_connection_pool.access_storage().await;
         HashMap::from([
             (
                 AggregationRound::BasicCircuits,
                 conn.witness_generator_dal()
-                    .get_witness_jobs_stats(AggregationRound::BasicCircuits),
+                    .get_witness_jobs_stats(AggregationRound::BasicCircuits)
+                    .await,
             ),
             (
                 AggregationRound::LeafAggregation,
                 conn.witness_generator_dal()
-                    .get_witness_jobs_stats(AggregationRound::LeafAggregation),
+                    .get_witness_jobs_stats(AggregationRound::LeafAggregation)
+                    .await,
             ),
             (
                 AggregationRound::NodeAggregation,
                 conn.witness_generator_dal()
-                    .get_witness_jobs_stats(AggregationRound::NodeAggregation),
+                    .get_witness_jobs_stats(AggregationRound::NodeAggregation)
+                    .await,
             ),
             (
                 AggregationRound::Scheduler,
                 conn.witness_generator_dal()
-                    .get_witness_jobs_stats(AggregationRound::Scheduler),
+                    .get_witness_jobs_stats(AggregationRound::Scheduler)
+                    .await,
             ),
         ])
     }
@@ -75,11 +82,12 @@ fn emit_metrics_for_round(round: AggregationRound, stats: JobCountStatistics) {
 
 /// Invoked periodically to push job statistics to Prometheus
 /// Note: these values will be used for auto-scaling job processors
+#[async_trait]
 impl PeriodicJob for WitnessGeneratorStatsReporter {
     const SERVICE_NAME: &'static str = "WitnessGeneratorStatsReporter";
 
-    fn run_routine_task(&mut self, connection_pool: ConnectionPool) {
-        let stats_for_all_rounds = Self::get_job_statistics(connection_pool);
+    async fn run_routine_task(&mut self) {
+        let stats_for_all_rounds = Self::get_job_statistics(&self.prover_connection_pool).await;
         let mut aggregated = JobCountStatistics::default();
         for (round, stats) in stats_for_all_rounds {
             emit_metrics_for_round(round, stats);

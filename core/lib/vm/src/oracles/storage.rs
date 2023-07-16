@@ -1,7 +1,5 @@
 use std::collections::HashMap;
 
-use crate::storage::StoragePtr;
-
 use crate::history_recorder::{
     AppDataFrameManagerWithHistory, HashMapHistoryEvent, HistoryEnabled, HistoryMode,
     HistoryRecorder, StorageWrapper, WithHistory,
@@ -13,6 +11,7 @@ use zk_evm::{
     abstractions::{RefundType, Storage as VmStorageOracle},
     aux_structures::{LogQuery, Timestamp},
 };
+use zksync_state::StoragePtr;
 use zksync_types::utils::storage_key_for_eth_balance;
 use zksync_types::{
     AccountTreeId, Address, StorageKey, StorageLogQuery, StorageLogQueryType, BOOTLOADER_ADDRESS,
@@ -39,7 +38,7 @@ pub struct StorageOracle<'a, H: HistoryMode> {
     // after the execution ended.
     pub storage: HistoryRecorder<StorageWrapper<'a>, H>,
 
-    pub frames_stack: AppDataFrameManagerWithHistory<StorageLogQuery, H>,
+    pub frames_stack: AppDataFrameManagerWithHistory<Box<StorageLogQuery>, H>,
 
     // The changes that have been paid for in previous transactions.
     // It is a mapping from storage key to the number of *bytes* that was paid by the user
@@ -83,10 +82,10 @@ impl<'a, H: HistoryMode> StorageOracle<'a, H> {
         query.read_value = current_value;
 
         self.frames_stack.push_forward(
-            StorageLogQuery {
+            Box::new(StorageLogQuery {
                 log_query: query,
                 log_type: StorageLogQueryType::Read,
-            },
+            }),
             query.timestamp,
         );
 
@@ -99,7 +98,8 @@ impl<'a, H: HistoryMode> StorageOracle<'a, H> {
             self.storage
                 .write_to_storage(key, query.written_value, query.timestamp);
 
-        let log_query_type = if self.storage.get_ptr().borrow_mut().is_write_initial(&key) {
+        let is_initial_write = self.storage.get_ptr().borrow_mut().is_write_initial(&key);
+        let log_query_type = if is_initial_write {
             StorageLogQueryType::InitialWrite
         } else {
             StorageLogQueryType::RepeatedWrite
@@ -112,10 +112,10 @@ impl<'a, H: HistoryMode> StorageOracle<'a, H> {
             log_type: log_query_type,
         };
         self.frames_stack
-            .push_forward(storage_log_query, query.timestamp);
+            .push_forward(Box::new(storage_log_query), query.timestamp);
         storage_log_query.log_query.rollback = true;
         self.frames_stack
-            .push_rollback(storage_log_query, query.timestamp);
+            .push_rollback(Box::new(storage_log_query), query.timestamp);
         storage_log_query.log_query.rollback = false;
 
         query
@@ -137,13 +137,13 @@ impl<'a, H: HistoryMode> StorageOracle<'a, H> {
             return 0;
         }
 
-        let is_initial = self
+        let is_initial_write = self
             .storage
             .get_ptr()
             .borrow_mut()
             .is_write_initial(&storage_key);
 
-        get_pubdata_price_bytes(query, is_initial)
+        get_pubdata_price_bytes(query, is_initial_write)
     }
 
     // Returns the price of the update in terms of pubdata bytes.
@@ -160,6 +160,35 @@ impl<'a, H: HistoryMode> StorageOracle<'a, H> {
         } else {
             base_cost - already_paid
         }
+    }
+
+    /// Returns storage log queries from current frame where `log.log_query.timestamp >= from_timestamp`.
+    pub fn storage_log_queries_after_timestamp(
+        &self,
+        from_timestamp: Timestamp,
+    ) -> &[Box<StorageLogQuery>] {
+        let logs = self.frames_stack.forward().current_frame();
+
+        // Select all of the last elements where l.log_query.timestamp >= from_timestamp.
+        // Note, that using binary search here is dangerous, because the logs are not sorted by timestamp.
+        logs.rsplit(|l| l.log_query.timestamp < from_timestamp)
+            .next()
+            .unwrap_or(&[])
+    }
+
+    pub fn get_final_log_queries(&self) -> Vec<StorageLogQuery> {
+        assert_eq!(
+            self.frames_stack.len(),
+            1,
+            "VM finished execution in unexpected state"
+        );
+
+        self.frames_stack
+            .forward()
+            .current_frame()
+            .iter()
+            .map(|x| **x)
+            .collect()
     }
 
     pub fn get_size(&self) -> usize {

@@ -1,4 +1,3 @@
-use std::cmp::max;
 use std::collections::HashMap;
 use std::convert::TryInto;
 use std::sync::Arc;
@@ -10,7 +9,7 @@ use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_types::web3::types::{Address, BlockNumber};
 use zksync_types::{
     l1::{L1Tx, OpProcessingType, PriorityQueueType},
-    Execute, L1TxCommonData, Nonce, PriorityOpId, Transaction, H256, U256,
+    Execute, L1TxCommonData, PriorityOpId, Transaction, H256, U256,
 };
 
 use super::client::Error;
@@ -18,29 +17,28 @@ use crate::eth_watch::{client::EthClient, EthWatch};
 
 struct FakeEthClientData {
     transactions: HashMap<u64, Vec<L1Tx>>,
-    last_block_number: u64,
+    last_finalized_block_number: u64,
 }
 
 impl FakeEthClientData {
     fn new() -> Self {
         Self {
             transactions: Default::default(),
-            last_block_number: 0,
+            last_finalized_block_number: 0,
         }
     }
 
     fn add_transactions(&mut self, transactions: &[L1Tx]) {
         for transaction in transactions {
             let eth_block = transaction.eth_block();
-            self.last_block_number = max(eth_block, self.last_block_number);
             self.transactions
                 .entry(eth_block)
                 .or_insert_with(Vec::new)
                 .push(transaction.clone());
         }
     }
-    fn set_last_block_number(&mut self, number: u64) {
-        self.last_block_number = number;
+    fn set_last_finalized_block_number(&mut self, number: u64) {
+        self.last_finalized_block_number = number;
     }
 }
 
@@ -60,13 +58,16 @@ impl FakeEthClient {
         self.inner.write().await.add_transactions(transactions);
     }
 
-    async fn set_last_block_number(&mut self, number: u64) {
-        self.inner.write().await.set_last_block_number(number);
+    async fn set_last_finalized_block_number(&mut self, number: u64) {
+        self.inner
+            .write()
+            .await
+            .set_last_finalized_block_number(number);
     }
 
     async fn block_to_number(&self, block: BlockNumber) -> u64 {
         match block {
-            BlockNumber::Latest => self.inner.read().await.last_block_number,
+            BlockNumber::Latest => unreachable!(),
             BlockNumber::Earliest => 0,
             BlockNumber::Pending => unreachable!(),
             BlockNumber::Number(number) => number.as_u64(),
@@ -93,20 +94,8 @@ impl EthClient for FakeEthClient {
         Ok(transactions)
     }
 
-    async fn block_number(&self) -> Result<u64, Error> {
-        Ok(self.block_to_number(BlockNumber::Latest).await)
-    }
-
-    async fn get_auth_fact(&self, _address: Address, _nonce: Nonce) -> Result<Vec<u8>, Error> {
-        unreachable!()
-    }
-
-    async fn get_auth_fact_reset_time(
-        &self,
-        _address: Address,
-        _nonce: Nonce,
-    ) -> Result<u64, Error> {
-        unreachable!()
+    async fn finalized_block_number(&self) -> Result<u64, Error> {
+        Ok(self.inner.read().await.last_finalized_block_number)
     }
 }
 
@@ -145,7 +134,6 @@ async fn test_normal_operation(connection_pool: ConnectionPool) {
     let mut watcher = EthWatch::new(
         client.clone(),
         &connection_pool,
-        5,
         std::time::Duration::from_nanos(1),
     )
     .await;
@@ -154,20 +142,20 @@ async fn test_normal_operation(connection_pool: ConnectionPool) {
     client
         .add_transactions(&[build_tx(0, 10), build_tx(1, 14), build_tx(2, 18)])
         .await;
-    client.set_last_block_number(20).await;
-    // second tx will not be processed, as it has less than 5 confirmations
+    client.set_last_finalized_block_number(15).await;
+    // second tx will not be processed, as it's block is not finalized yet.
     watcher.loop_iteration(&mut storage).await.unwrap();
-    let db_txs = get_all_db_txs(&mut storage);
+    let db_txs = get_all_db_txs(&mut storage).await;
     assert_eq!(db_txs.len(), 2);
     let db_tx: L1Tx = db_txs[0].clone().try_into().unwrap();
     assert_eq!(db_tx.common_data.serial_id.0, 0);
     let db_tx: L1Tx = db_txs[1].clone().try_into().unwrap();
     assert_eq!(db_tx.common_data.serial_id.0, 1);
 
-    client.set_last_block_number(25).await;
+    client.set_last_finalized_block_number(20).await;
     // now the second tx will be processed
     watcher.loop_iteration(&mut storage).await.unwrap();
-    let db_txs = get_all_db_txs(&mut storage);
+    let db_txs = get_all_db_txs(&mut storage).await;
     assert_eq!(db_txs.len(), 3);
     let db_tx: L1Tx = db_txs[2].clone().try_into().unwrap();
     assert_eq!(db_tx.common_data.serial_id.0, 2);
@@ -180,7 +168,6 @@ async fn test_gap_in_single_batch(connection_pool: ConnectionPool) {
     let mut watcher = EthWatch::new(
         client.clone(),
         &connection_pool,
-        5,
         std::time::Duration::from_nanos(1),
     )
     .await;
@@ -195,7 +182,7 @@ async fn test_gap_in_single_batch(connection_pool: ConnectionPool) {
             build_tx(5, 14),
         ])
         .await;
-    client.set_last_block_number(20).await;
+    client.set_last_finalized_block_number(15).await;
     watcher.loop_iteration(&mut storage).await.unwrap();
 }
 
@@ -206,7 +193,6 @@ async fn test_gap_between_batches(connection_pool: ConnectionPool) {
     let mut watcher = EthWatch::new(
         client.clone(),
         &connection_pool,
-        5,
         std::time::Duration::from_nanos(1),
     )
     .await;
@@ -223,11 +209,11 @@ async fn test_gap_between_batches(connection_pool: ConnectionPool) {
             build_tx(5, 22),
         ])
         .await;
-    client.set_last_block_number(20).await;
+    client.set_last_finalized_block_number(15).await;
     watcher.loop_iteration(&mut storage).await.unwrap();
-    let db_txs = get_all_db_txs(&mut storage);
+    let db_txs = get_all_db_txs(&mut storage).await;
     assert_eq!(db_txs.len(), 3);
-    client.set_last_block_number(30).await;
+    client.set_last_finalized_block_number(25).await;
     watcher.loop_iteration(&mut storage).await.unwrap();
 }
 
@@ -237,7 +223,6 @@ async fn test_overlapping_batches(connection_pool: ConnectionPool) {
     let mut watcher = EthWatch::new(
         client.clone(),
         &connection_pool,
-        5,
         std::time::Duration::from_nanos(1),
     )
     .await;
@@ -256,13 +241,13 @@ async fn test_overlapping_batches(connection_pool: ConnectionPool) {
             build_tx(4, 23),
         ])
         .await;
-    client.set_last_block_number(20).await;
+    client.set_last_finalized_block_number(15).await;
     watcher.loop_iteration(&mut storage).await.unwrap();
-    let db_txs = get_all_db_txs(&mut storage);
+    let db_txs = get_all_db_txs(&mut storage).await;
     assert_eq!(db_txs.len(), 3);
-    client.set_last_block_number(30).await;
+    client.set_last_finalized_block_number(25).await;
     watcher.loop_iteration(&mut storage).await.unwrap();
-    let db_txs = get_all_db_txs(&mut storage);
+    let db_txs = get_all_db_txs(&mut storage).await;
     assert_eq!(db_txs.len(), 5);
     let tx: L1Tx = db_txs[2].clone().try_into().unwrap();
     assert_eq!(tx.common_data.serial_id.0, 2);
@@ -270,10 +255,11 @@ async fn test_overlapping_batches(connection_pool: ConnectionPool) {
     assert_eq!(tx.common_data.serial_id.0, 4);
 }
 
-fn get_all_db_txs(storage: &mut StorageProcessor<'_>) -> Vec<Transaction> {
-    storage.transactions_dal().reset_mempool();
+async fn get_all_db_txs(storage: &mut StorageProcessor<'_>) -> Vec<Transaction> {
+    storage.transactions_dal().reset_mempool().await;
     storage
         .transactions_dal()
         .sync_mempool(vec![], vec![], 0, 0, 1000)
+        .await
         .0
 }

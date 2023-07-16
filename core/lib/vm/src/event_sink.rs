@@ -1,7 +1,6 @@
 use crate::{
     history_recorder::{AppDataFrameManagerWithHistory, HistoryEnabled, HistoryMode},
     oracles::OracleWithHistory,
-    utils::collect_log_queries_after_timestamp,
 };
 use std::collections::HashMap;
 use zk_evm::{
@@ -15,7 +14,7 @@ use zk_evm::{
 
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct InMemoryEventSink<H: HistoryMode> {
-    pub frames_stack: AppDataFrameManagerWithHistory<LogQuery, H>,
+    frames_stack: AppDataFrameManagerWithHistory<Box<LogQuery>, H>,
 }
 
 impl OracleWithHistory for InMemoryEventSink<HistoryEnabled> {
@@ -36,28 +35,36 @@ impl<H: HistoryMode> InMemoryEventSink<H> {
         );
         // we forget rollbacks as we have finished the execution and can just apply them
         let history = self.frames_stack.forward().current_frame();
+
         let (events, l1_messages) = Self::events_and_l1_messages_from_history(history);
-        (history.to_vec(), events, l1_messages)
+        (history.iter().map(|x| **x).collect(), events, l1_messages)
     }
 
     pub fn get_log_queries(&self) -> usize {
-        let history = &self.frames_stack.forward().current_frame();
-        history.len()
+        self.frames_stack.forward().current_frame().len()
+    }
+
+    /// Returns the log queries in the current frame where `log_query.timestamp >= from_timestamp`.
+    pub fn log_queries_after_timestamp(&self, from_timestamp: Timestamp) -> &[Box<LogQuery>] {
+        let events = self.frames_stack.forward().current_frame();
+
+        // Select all of the last elements where e.timestamp >= from_timestamp.
+        // Note, that using binary search here is dangerous, because the logs are not sorted by timestamp.
+        events
+            .rsplit(|e| e.timestamp < from_timestamp)
+            .next()
+            .unwrap_or(&[])
     }
 
     pub fn get_events_and_l2_l1_logs_after_timestamp(
         &self,
         from_timestamp: Timestamp,
     ) -> (Vec<EventMessage>, Vec<EventMessage>) {
-        let history = collect_log_queries_after_timestamp(
-            self.frames_stack.forward().current_frame(),
-            from_timestamp,
-        );
-        Self::events_and_l1_messages_from_history(&history)
+        Self::events_and_l1_messages_from_history(self.log_queries_after_timestamp(from_timestamp))
     }
 
     fn events_and_l1_messages_from_history(
-        history: &[LogQuery],
+        history: &[Box<LogQuery>],
     ) -> (Vec<EventMessage>, Vec<EventMessage>) {
         let mut tmp = HashMap::<u32, LogQuery>::with_capacity(history.len());
 
@@ -70,7 +77,7 @@ impl<H: HistoryMode> InMemoryEventSink<H> {
                 tmp.remove(&el.timestamp.0);
             } else {
                 assert!(!el.rollback);
-                tmp.insert(el.timestamp.0, *el);
+                tmp.insert(el.timestamp.0, **el);
             }
         }
 
@@ -135,12 +142,15 @@ impl<H: HistoryMode> EventSink for InMemoryEventSink<H> {
         assert!(query.rw_flag);
         assert!(query.aux_byte == EVENT_AUX_BYTE || query.aux_byte == L1_MESSAGE_AUX_BYTE);
         assert!(!query.rollback);
+
         // just append to rollbacks and a full history
 
-        self.frames_stack.push_forward(query, query.timestamp);
+        self.frames_stack
+            .push_forward(Box::new(query), query.timestamp);
         // we do not need it explicitly here, but let's be consistent with circuit counterpart
         query.rollback = true;
-        self.frames_stack.push_rollback(query, query.timestamp);
+        self.frames_stack
+            .push_rollback(Box::new(query), query.timestamp);
     }
 
     fn start_frame(&mut self, timestamp: Timestamp) {

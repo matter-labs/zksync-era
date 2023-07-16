@@ -1,7 +1,7 @@
 use std::net::SocketAddr;
 use std::time::Duration;
 
-use zksync_config::configs::api::Explorer as ExplorerApiConfig;
+use zksync_config::configs::api::ExplorerApiConfig;
 use zksync_dal::connection::ConnectionPool;
 use zksync_types::Address;
 use zksync_utils::panic_notify::{spawn_panic_handler, ThreadPanicNotify};

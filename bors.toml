@@ -7,9 +7,15 @@ status = [
   "integration",
   "loadtest",
   "lint",
-  "testkit",
   "unit-tests",
-  "Build images / Build and Push Docker Images",
+  "Build images / Build and Push Docker Images (circuit-synthesizer)",
+  "Build images / Build and Push Docker Images (contract-verifier)",
+  "Build images / Build and Push Docker Images (external-node)",
+  "Build images / Build and Push Docker Images (prover-fri)",
+  "Build images / Build and Push Docker Images (prover-v2)",
+  "Build images / Build and Push Docker Images (server-v2)",
+  "Build images / Build and Push Docker Images (witness-generator)",
+  "Build images / Build and Push Docker Images (cross-external-nodes-checker)",
 ]
 
 use_squash_merge = true

@@ -1,13 +1,8 @@
 //! Testing harness for the batch executor.
 //! Contains helper functionality to initialize test context and perform tests without too much boilerplate.
 
-use crate::genesis::create_genesis_block;
-use crate::state_keeper::{
-    batch_executor::BatchExecutorHandle,
-    io::L1BatchParams,
-    tests::{default_block_properties, BASE_SYSTEM_CONTRACTS},
-};
 use tempfile::TempDir;
+
 use vm::{
     test_utils::{
         get_create_zksync_address, get_deploy_tx, mock_loadnext_gas_burn_call,
@@ -19,10 +14,11 @@ use vm::{
         zkevm_opcode_defs::system_params::INITIAL_STORAGE_WRITE_PUBDATA_BYTES,
     },
 };
-use zksync_config::ZkSyncConfig;
+use zksync_config::configs::chain::StateKeeperConfig;
+
 use zksync_contracts::{get_loadnext_contract, TestContract};
 use zksync_dal::ConnectionPool;
-use zksync_storage::{db::Database, RocksDB};
+use zksync_state::RocksdbStorage;
 use zksync_types::{
     ethabi::{encode, Token},
     fee::Fee,
@@ -34,6 +30,13 @@ use zksync_types::{
     SYSTEM_CONTEXT_MINIMAL_BASE_FEE, U256,
 };
 use zksync_utils::{test_utils::LoadnextContractExecutionParams, u256_to_h256};
+
+use crate::genesis::create_genesis_block;
+use crate::state_keeper::{
+    batch_executor::BatchExecutorHandle,
+    io::L1BatchParams,
+    tests::{default_block_properties, BASE_SYSTEM_CONTRACTS},
+};
 
 const DEFAULT_GAS_PER_PUBDATA: u32 = 100;
 const CHAIN_ID: L2ChainId = L2ChainId(270);
@@ -51,16 +54,13 @@ pub(super) struct TestConfig {
 impl TestConfig {
     pub(super) fn new() -> Self {
         // It's OK to use env config here, since we would load the postgres URL from there anyway.
-        let config = ZkSyncConfig::from_env();
+        let config = StateKeeperConfig::from_env();
 
         Self {
             vm_gas_limit: None,
             save_call_traces: false,
-            max_allowed_tx_gas_limit: config.chain.state_keeper.max_allowed_l2_tx_gas_limit,
-            validation_computational_gas_limit: config
-                .chain
-                .state_keeper
-                .validation_computational_gas_limit,
+            max_allowed_tx_gas_limit: config.max_allowed_l2_tx_gas_limit,
+            validation_computational_gas_limit: config.validation_computational_gas_limit,
         }
     }
 }
@@ -95,19 +95,14 @@ impl Tester {
 
     /// Creates a batch executor instance.
     /// This function intentionally uses sensible defaults to not introduce boilerplate.
-    pub(super) fn create_batch_executor(&self) -> BatchExecutorHandle {
+    pub(super) async fn create_batch_executor(&self) -> BatchExecutorHandle {
         // Not really important for the batch executor - it operates over a single batch.
         let (block_context, block_properties) = self.batch_params(L1BatchNumber(1), 100);
 
-        let secondary_storage = self
-            .pool
-            .access_storage_blocking()
-            .storage_load_dal()
-            .load_secondary_storage(RocksDB::new(
-                Database::StateKeeper,
-                self.db_dir.path().to_str().unwrap(),
-                true,
-            ));
+        let mut secondary_storage = RocksdbStorage::new(self.db_dir.path());
+        let mut conn = self.pool.access_storage_tagged("state_keeper").await;
+        secondary_storage.update_from_postgres(&mut conn).await;
+        drop(conn);
 
         // We don't use the builder because it would require us to clone the `ConnectionPool`, which is forbidden
         // for the test pool (see the doc-comment on `TestPool` for details).
@@ -153,22 +148,23 @@ impl Tester {
     }
 
     /// Performs the genesis in the storage.
-    pub(super) fn genesis(&self) {
-        let mut storage = self.pool.access_storage_blocking();
-        if storage.blocks_dal().is_genesis_needed() {
+    pub(super) async fn genesis(&self) {
+        let mut storage = self.pool.access_storage_tagged("state_keeper").await;
+        if storage.blocks_dal().is_genesis_needed().await {
             create_genesis_block(
                 &mut storage,
                 self.fee_account,
                 CHAIN_ID,
                 BASE_SYSTEM_CONTRACTS.clone(),
-            );
+            )
+            .await;
         }
     }
 
     /// Adds funds for specified account list.
     /// Expects genesis to be performed (i.e. `setup_storage` called beforehand).
-    pub(super) fn fund(&self, addresses: &[Address]) {
-        let mut storage = self.pool.access_storage_blocking();
+    pub(super) async fn fund(&self, addresses: &[Address]) {
+        let mut storage = self.pool.access_storage_tagged("state_keeper").await;
 
         let eth_amount = U256::from(10u32).pow(U256::from(32)); //10^32 wei
 
@@ -182,10 +178,12 @@ impl Tester {
 
             storage
                 .storage_logs_dal()
-                .append_storage_logs(MiniblockNumber(0), &[(H256::zero(), storage_logs.clone())]);
+                .append_storage_logs(MiniblockNumber(0), &[(H256::zero(), storage_logs.clone())])
+                .await;
             storage
                 .storage_dal()
-                .apply_storage_logs(&[(H256::zero(), storage_logs)]);
+                .apply_storage_logs(&[(H256::zero(), storage_logs)])
+                .await;
         }
     }
 }

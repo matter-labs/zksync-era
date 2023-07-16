@@ -1,12 +1,15 @@
-use futures::future;
-use structopt::StructOpt;
-use tokio::{sync::oneshot, sync::watch, task::JoinHandle};
-
 use prometheus_exporter::run_prometheus_exporter;
-use zksync_config::configs::{utils::Prometheus, CircuitSynthesizerConfig, ProverGroupConfig};
+use structopt::StructOpt;
+use tokio::{sync::oneshot, sync::watch};
+
+use zksync_config::configs::{
+    AlertsConfig, CircuitSynthesizerConfig, PrometheusConfig, ProverGroupConfig,
+};
+use zksync_dal::connection::DbVariant;
 use zksync_dal::ConnectionPool;
 use zksync_object_store::ObjectStoreFactory;
 use zksync_queued_job_processor::JobProcessor;
+use zksync_utils::wait_for_tasks::wait_for_tasks;
 
 use crate::circuit_synthesizer::CircuitSynthesizer;
 
@@ -20,35 +23,18 @@ struct Opt {
     number_of_iterations: Option<usize>,
 }
 
-async fn wait_for_tasks(task_futures: Vec<JoinHandle<()>>) {
-    match future::select_all(task_futures).await.0 {
-        Ok(_) => {
-            vlog::info!("One of the actors finished its run, while it wasn't expected to do it");
-        }
-        Err(err) => {
-            vlog::info!("One of the tokio actors unexpectedly finished with error: {err:?}");
-        }
-    }
-}
-
 #[tokio::main]
 async fn main() {
+    vlog::init();
     let opt = Opt::from_args();
-    let sentry_guard = vlog::init();
-    match sentry_guard {
-        Some(_) => vlog::info!(
-            "Starting Sentry url: {}",
-            std::env::var("MISC_SENTRY_URL").unwrap(),
-        ),
-        None => vlog::info!("No sentry url configured"),
-    }
     let config: CircuitSynthesizerConfig = CircuitSynthesizerConfig::from_env();
-    let pool = ConnectionPool::new(None, true);
+    let pool = ConnectionPool::new(None, DbVariant::Prover).await;
 
     let circuit_synthesizer = CircuitSynthesizer::new(
         config.clone(),
         ProverGroupConfig::from_env(),
         &ObjectStoreFactory::from_env(),
+        pool,
     )
     .await
     .unwrap_or_else(|err| {
@@ -68,18 +54,21 @@ async fn main() {
     .expect("Error setting Ctrl+C handler");
 
     vlog::info!("Starting circuit synthesizer");
-    let prometheus_config = Prometheus {
+    let prometheus_config = PrometheusConfig {
         listener_port: config.prometheus_listener_port,
         pushgateway_url: config.prometheus_pushgateway_url,
         push_interval_ms: config.prometheus_push_interval_ms,
     };
     let tasks = vec![
-        run_prometheus_exporter(prometheus_config, true),
-        tokio::spawn(circuit_synthesizer.run(pool, stop_receiver, opt.number_of_iterations)),
+        run_prometheus_exporter(prometheus_config.listener_port, None),
+        tokio::spawn(circuit_synthesizer.run(stop_receiver, opt.number_of_iterations)),
     ];
 
+    let particular_crypto_alerts = Some(AlertsConfig::from_env().sporadic_crypto_errors_substrs);
+    let graceful_shutdown = None::<futures::future::Ready<()>>;
+    let tasks_allowed_to_finish = false;
     tokio::select! {
-        _ = wait_for_tasks(tasks) => {},
+        _ = wait_for_tasks(tasks, particular_crypto_alerts, graceful_shutdown, tasks_allowed_to_finish) => {},
         _ = stop_signal_receiver => {
             vlog::info!("Stop signal received, shutting down");
         }

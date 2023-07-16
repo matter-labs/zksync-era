@@ -1,17 +1,16 @@
-use crate::memory::SimpleMemory;
 use std::cell::RefCell;
-
 use std::fmt::Debug;
 use std::rc::Rc;
 
 use crate::event_sink::InMemoryEventSink;
 use crate::history_recorder::HistoryMode;
+use crate::memory::SimpleMemory;
 use crate::oracles::{
     decommitter::DecommitterOracle, precompile::PrecompilesProcessorWithHistory,
     storage::StorageOracle,
 };
-use crate::storage::Storage;
 use zk_evm::witness_trace::DummyTracer;
+use zksync_state::WriteStorage;
 
 /// zkEVM requires a bunch of objects implementing given traits to work.
 /// For example: Storage, Memory, PrecompilerProcessor etc
@@ -30,15 +29,15 @@ pub struct OracleTools<'a, const B: bool, H: HistoryMode> {
 }
 
 impl<'a, H: HistoryMode> OracleTools<'a, false, H> {
-    pub fn new(storage_view: &'a mut dyn Storage, _: H) -> Self {
-        let pointer: Rc<RefCell<&'a mut dyn Storage>> = Rc::new(RefCell::new(storage_view));
+    pub fn new(storage_view: &'a mut dyn WriteStorage, _: H) -> Self {
+        let pointer = Rc::new(RefCell::new(storage_view));
 
         Self {
             storage: StorageOracle::new(pointer.clone()),
-            memory: Default::default(),
-            event_sink: Default::default(),
-            precompiles_processor: Default::default(),
-            decommittment_processor: DecommitterOracle::new(pointer.clone()),
+            memory: SimpleMemory::default(),
+            event_sink: InMemoryEventSink::default(),
+            precompiles_processor: PrecompilesProcessorWithHistory::default(),
+            decommittment_processor: DecommitterOracle::new(pointer),
             witness_tracer: DummyTracer {},
         }
     }

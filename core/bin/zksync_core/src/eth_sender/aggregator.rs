@@ -1,16 +1,20 @@
+use zksync_config::configs::eth_sender::{ProofSendingMode, SenderConfig};
+use zksync_contracts::BaseSystemContractsHashes;
+use zksync_dal::StorageProcessor;
+use zksync_types::{
+    aggregated_operations::{
+        AggregatedActionType, AggregatedOperation, BlocksCommitOperation, BlocksExecuteOperation,
+        BlocksProofOperation,
+    },
+    commitment::BlockWithMetadata,
+    helpers::unix_timestamp_ms,
+    L1BatchNumber,
+};
+
 use crate::eth_sender::block_publish_criterion::{
     BlockNumberCriterion, BlockPublishCriterion, DataSizeCriterion, GasCriterion,
     TimestampDeadlineCriterion,
 };
-use zksync_config::configs::eth_sender::{ProofSendingMode, SenderConfig};
-use zksync_contracts::BaseSystemContractsHashes;
-use zksync_dal::StorageProcessor;
-use zksync_types::aggregated_operations::{
-    AggregatedActionType, AggregatedOperation, BlocksCommitOperation, BlocksExecuteOperation,
-    BlocksProofOperation,
-};
-use zksync_types::commitment::BlockWithMetadata;
-use zksync_types::L1BatchNumber;
 
 #[derive(Debug)]
 pub struct Aggregator {
@@ -82,9 +86,10 @@ impl Aggregator {
     pub async fn get_next_ready_operation(
         &mut self,
         storage: &mut StorageProcessor<'_>,
+        prover_storage: &mut StorageProcessor<'_>,
         base_system_contracts_hashes: BaseSystemContractsHashes,
     ) -> Option<AggregatedOperation> {
-        let last_sealed_block_number = storage.blocks_dal().get_sealed_block_number();
+        let last_sealed_block_number = storage.blocks_dal().get_sealed_block_number().await;
         if let Some(op) = self
             .get_execute_operations(
                 storage,
@@ -97,6 +102,7 @@ impl Aggregator {
         } else if let Some(op) = self
             .get_proof_operation(
                 storage,
+                prover_storage,
                 *self.config.aggregated_proof_sizes.iter().max().unwrap(),
                 last_sealed_block_number,
             )
@@ -121,10 +127,14 @@ impl Aggregator {
         limit: usize,
         last_sealed_block: L1BatchNumber,
     ) -> Option<BlocksExecuteOperation> {
-        let ready_for_execute_blocks = storage.blocks_dal().get_ready_for_execute_blocks(
-            limit,
-            self.config.l1_batch_min_age_before_execute_seconds,
-        );
+        let max_l1_batch_timestamp_millis = self
+            .config
+            .l1_batch_min_age_before_execute_seconds
+            .map(|age| unix_timestamp_ms() - age * 1_000);
+        let ready_for_execute_blocks = storage
+            .blocks_dal()
+            .get_ready_for_execute_blocks(limit, max_l1_batch_timestamp_millis)
+            .await;
         let blocks = extract_ready_subrange(
             storage,
             &mut self.execute_criterion,
@@ -145,13 +155,15 @@ impl Aggregator {
     ) -> Option<BlocksCommitOperation> {
         let mut blocks_dal = storage.blocks_dal();
 
-        let last_block = blocks_dal.get_last_committed_to_eth_block()?;
+        let last_block = blocks_dal.get_last_committed_to_eth_block().await?;
 
-        let ready_for_commit_blocks = blocks_dal.get_ready_for_commit_blocks(
-            limit,
-            base_system_contracts_hashes.bootloader,
-            base_system_contracts_hashes.default_aa,
-        );
+        let ready_for_commit_blocks = blocks_dal
+            .get_ready_for_commit_blocks(
+                limit,
+                base_system_contracts_hashes.bootloader,
+                base_system_contracts_hashes.default_aa,
+            )
+            .await;
 
         // Check that the blocks that are selected are sequential
         ready_for_commit_blocks
@@ -177,32 +189,53 @@ impl Aggregator {
         })
     }
 
-    fn load_real_proof_operation(
+    async fn load_real_proof_operation(
         storage: &mut StorageProcessor<'_>,
+        prover_storage: &mut StorageProcessor<'_>,
     ) -> Option<BlocksProofOperation> {
-        let blocks = storage
-            .blocks_dal()
-            .get_ready_for_proof_blocks_real_verifier(1usize);
-        if !blocks.is_empty() {
-            let prev_block_number = blocks.first().map(|bl| bl.header.number - 1)?;
-            let prev_block = storage.blocks_dal().get_block_metadata(prev_block_number)?;
-            let from = blocks.first().map(|bl| bl.header.number)?;
-            let to = blocks.last().map(|bl| bl.header.number)?;
-            let proofs = storage.prover_dal().get_final_proofs_for_blocks(from, to);
-
-            // currently we only support sending one proof
-            assert_eq!(proofs.len(), 1);
-            assert_eq!(from, to);
-
-            Some(BlocksProofOperation {
-                prev_block,
-                blocks,
-                proofs,
-                should_verify: true,
-            })
-        } else {
-            None
+        let previous_proven_block_number =
+            storage.blocks_dal().get_last_l1_batch_with_prove_tx().await;
+        let proofs = prover_storage
+            .prover_dal()
+            .get_final_proofs_for_blocks(
+                previous_proven_block_number + 1,
+                previous_proven_block_number + 1,
+            )
+            .await;
+        if proofs.is_empty() {
+            // The proof for the next block is not generated yet
+            return None;
         }
+
+        assert_eq!(proofs.len(), 1);
+
+        let previous_proven_block_metadata = storage
+            .blocks_dal()
+            .get_block_metadata(previous_proven_block_number)
+            .await
+            .unwrap_or_else(|| {
+                panic!(
+                    "Block number {} with submitted proof is not complete in the DB",
+                    previous_proven_block_number
+                )
+            });
+        let block_to_prove_metadata = storage
+            .blocks_dal()
+            .get_block_metadata(previous_proven_block_number + 1)
+            .await
+            .unwrap_or_else(|| {
+                panic!(
+                    "Block number {} with generated proof is not complete in the DB",
+                    previous_proven_block_number + 1
+                )
+            });
+
+        Some(BlocksProofOperation {
+            prev_block: previous_proven_block_metadata,
+            blocks: vec![block_to_prove_metadata],
+            proofs,
+            should_verify: true,
+        })
     }
 
     async fn prepare_dummy_proof_operation(
@@ -220,7 +253,10 @@ impl Aggregator {
         .await
         {
             let prev_block_number = blocks.first().map(|bl| bl.header.number - 1)?;
-            let prev_block = storage.blocks_dal().get_block_metadata(prev_block_number)?;
+            let prev_block = storage
+                .blocks_dal()
+                .get_block_metadata(prev_block_number)
+                .await?;
 
             Some(BlocksProofOperation {
                 prev_block,
@@ -236,14 +272,19 @@ impl Aggregator {
     async fn get_proof_operation(
         &mut self,
         storage: &mut StorageProcessor<'_>,
+        prover_storage: &mut StorageProcessor<'_>,
         limit: usize,
         last_sealed_block: L1BatchNumber,
     ) -> Option<BlocksProofOperation> {
         match self.config.proof_sending_mode {
-            ProofSendingMode::OnlyRealProofs => Self::load_real_proof_operation(storage),
+            ProofSendingMode::OnlyRealProofs => {
+                Self::load_real_proof_operation(storage, prover_storage).await
+            }
             ProofSendingMode::SkipEveryProof => {
-                let ready_for_proof_blocks =
-                    storage.blocks_dal().get_ready_for_dummy_proof_blocks(limit);
+                let ready_for_proof_blocks = storage
+                    .blocks_dal()
+                    .get_ready_for_dummy_proof_blocks(limit)
+                    .await;
                 self.prepare_dummy_proof_operation(
                     storage,
                     ready_for_proof_blocks,
@@ -253,11 +294,13 @@ impl Aggregator {
             }
             ProofSendingMode::OnlySampledProofs => {
                 // if there is a sampled proof then send it, otherwise check for skipped ones.
-                if let Some(op) = Self::load_real_proof_operation(storage) {
+                if let Some(op) = Self::load_real_proof_operation(storage, prover_storage).await {
                     Some(op)
                 } else {
-                    let ready_for_proof_blocks =
-                        storage.blocks_dal().get_skipped_for_proof_blocks(limit);
+                    let ready_for_proof_blocks = storage
+                        .blocks_dal()
+                        .get_skipped_for_proof_blocks(limit)
+                        .await;
                     self.prepare_dummy_proof_operation(
                         storage,
                         ready_for_proof_blocks,

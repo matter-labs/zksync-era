@@ -104,26 +104,15 @@ describe('Tests for the mempool behavior', () => {
         const fund = gasLimit.mul(gasPrice).mul(13).div(10);
         await alice.sendTransaction({ to: poorBob.address, value: fund }).then((tx) => tx.wait());
 
-        // Not using .toBeReverted matcher here in part because of BFT-170
         const delayedTx = await poorBob.sendTransaction({
             to: poorBob.address,
             nonce: nonce + 1
         });
+        // delayedTx passed API checks (since we got the response) but should be rejected by the state-keeper.
+        const rejection = expect(delayedTx).toBeReverted();
 
         await expect(poorBob.sendTransaction({ to: poorBob.address, nonce })).toBeAccepted();
-
-        try {
-            const delayedTxReceipt = await delayedTx.wait();
-            fail(
-                'Transaction was expected to be reverted, but it succeeded. Receipt:' +
-                    JSON.stringify(delayedTxReceipt, null, 2)
-            );
-        } catch (e: any) {
-            // We expect the transaction to fail in the state-keeper
-            expect(e.receipt.status).toBe(0);
-            expect(e.receipt.blockNumber).toBeNull();
-            expect(e.receipt.blockHash).toBeNull();
-        }
+        await rejection;
 
         // Now check that there is only one executed transaction for the account.
         await expect(poorBob.getTransactionCount()).resolves.toEqual(1);

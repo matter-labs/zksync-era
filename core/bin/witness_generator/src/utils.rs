@@ -1,18 +1,31 @@
-use std::time::Instant;
-use vm::zk_evm::ethereum_types::U256;
-use zksync_config::configs::WitnessGeneratorConfig;
-use zksync_object_store::{CircuitKey, ObjectStore};
-use zksync_types::zkevm_test_harness::abstract_zksync_circuit::concrete_circuits::ZkSyncCircuit;
-use zksync_types::zkevm_test_harness::bellman::bn256::Bn256;
-use zksync_types::zkevm_test_harness::witness::oracle::VmWitnessOracle;
-use zksync_types::USED_BOOTLOADER_MEMORY_BYTES;
-use zksync_types::{proofs::AggregationRound, L1BatchNumber};
+use circuit_definitions::aux_definitions::witness_oracle::VmWitnessOracle;
+use circuit_definitions::boojum::field::goldilocks::GoldilocksExt2;
+use circuit_definitions::boojum::gadgets::recursion::recursive_tree_hasher::CircuitGoldilocksPoseidon2Sponge;
+use circuit_definitions::circuit_definitions::base_layer::{
+    ZkSyncBaseLayerCircuit, ZkSyncBaseLayerClosedFormInput, ZkSyncBaseLayerProof,
+};
+use circuit_definitions::circuit_definitions::recursion_layer::{
+    base_circuit_type_into_recursive_leaf_circuit_type, ZkSyncRecursionLayerProof,
+    ZkSyncRecursionLayerStorageType, ZkSyncRecursiveLayerCircuit,
+};
 
-trait WitnessGenerator {
-    fn new(config: WitnessGeneratorConfig) -> Self;
-}
+use circuit_definitions::encodings::recursion_request::RecursionQueueSimulator;
+use circuit_definitions::zkevm_circuits::scheduler::aux::BaseLayerCircuitType;
+use circuit_definitions::zkevm_circuits::scheduler::input::SchedulerCircuitInstanceWitness;
+use circuit_definitions::ZkSyncDefaultRoundFunction;
+use zkevm_test_harness::boojum::field::goldilocks::GoldilocksField;
+use zkevm_test_harness::witness::full_block_artifact::BlockBasicCircuits;
 
-pub fn expand_bootloader_contents(packed: Vec<(usize, U256)>) -> Vec<u8> {
+use zkevm_test_harness::zkevm_circuits::scheduler::block_header::BlockAuxilaryOutputWitness;
+use zksync_config::constants::USED_BOOTLOADER_MEMORY_BYTES;
+use zksync_object_store::{
+    serialize_using_bincode, AggregationsKey, Bucket, ClosedFormInputKey, FriCircuitKey,
+    ObjectStore, StoredObject,
+};
+use zksync_types::proofs::AggregationRound;
+use zksync_types::{L1BatchNumber, U256};
+
+pub fn expand_bootloader_contents(packed: &[(usize, U256)]) -> Vec<u8> {
     let mut result: Vec<u8> = Vec::new();
     result.resize(USED_BOOTLOADER_MEMORY_BYTES, 0);
 
@@ -23,39 +36,230 @@ pub fn expand_bootloader_contents(packed: Vec<(usize, U256)>) -> Vec<u8> {
     result.to_vec()
 }
 
-pub fn save_prover_input_artifacts(
-    block_number: L1BatchNumber,
-    circuits: &[ZkSyncCircuit<Bn256, VmWitnessOracle<Bn256>>],
-    object_store: &dyn ObjectStore,
-    aggregation_round: AggregationRound,
-) -> Vec<(&'static str, String)> {
-    let types_and_urls = circuits
-        .iter()
-        .enumerate()
-        .map(|(sequence_number, circuit)| {
-            let circuit_type = circuit.short_description();
-            let circuit_key = CircuitKey {
-                block_number,
-                sequence_number,
-                circuit_type,
-                aggregation_round,
-            };
-            let blob_url = object_store.put(circuit_key, circuit).unwrap();
-            (circuit_type, blob_url)
-        });
-    types_and_urls.collect()
+#[derive(serde::Serialize, serde::Deserialize)]
+pub enum CircuitWrapper {
+    Base(
+        ZkSyncBaseLayerCircuit<
+            GoldilocksField,
+            VmWitnessOracle<GoldilocksField>,
+            ZkSyncDefaultRoundFunction,
+        >,
+    ),
+    Recursive(ZkSyncRecursiveLayerCircuit),
 }
 
-pub fn track_witness_generation_stage(started_at: Instant, round: AggregationRound) {
-    let stage = match round {
-        AggregationRound::BasicCircuits => "basic_circuits",
-        AggregationRound::LeafAggregation => "leaf_aggregation",
-        AggregationRound::NodeAggregation => "node_aggregation",
-        AggregationRound::Scheduler => "scheduler",
+impl StoredObject for CircuitWrapper {
+    const BUCKET: Bucket = Bucket::ProverJobsFri;
+    type Key<'a> = FriCircuitKey;
+
+    fn encode_key(key: Self::Key<'_>) -> String {
+        let FriCircuitKey {
+            block_number,
+            sequence_number,
+            circuit_id,
+            aggregation_round,
+            depth,
+        } = key;
+        format!("{block_number}_{sequence_number}_{circuit_id}_{aggregation_round:?}_{depth}.bin")
+    }
+
+    serialize_using_bincode!();
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct ClosedFormInputWrapper(
+    pub(crate) Vec<ZkSyncBaseLayerClosedFormInput<GoldilocksField>>,
+    pub(crate) RecursionQueueSimulator<GoldilocksField>,
+);
+
+impl StoredObject for ClosedFormInputWrapper {
+    const BUCKET: Bucket = Bucket::LeafAggregationWitnessJobsFri;
+    type Key<'a> = ClosedFormInputKey;
+
+    fn encode_key(key: Self::Key<'_>) -> String {
+        let ClosedFormInputKey {
+            block_number,
+            circuit_id,
+        } = key;
+        format!("closed_form_inputs_{block_number}_{circuit_id}.bin")
+    }
+
+    serialize_using_bincode!();
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct AggregationWrapper(
+    pub  Vec<(
+        u64,
+        RecursionQueueSimulator<GoldilocksField>,
+        ZkSyncRecursiveLayerCircuit,
+    )>,
+);
+
+impl StoredObject for AggregationWrapper {
+    const BUCKET: Bucket = Bucket::NodeAggregationWitnessJobsFri;
+    type Key<'a> = AggregationsKey;
+
+    fn encode_key(key: Self::Key<'_>) -> String {
+        let AggregationsKey {
+            block_number,
+            circuit_id,
+            depth,
+        } = key;
+        format!("aggregations_{block_number}_{circuit_id}_{depth}.bin")
+    }
+
+    serialize_using_bincode!();
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct SchedulerPartialInputWrapper(
+    pub  SchedulerCircuitInstanceWitness<
+        GoldilocksField,
+        CircuitGoldilocksPoseidon2Sponge,
+        GoldilocksExt2,
+    >,
+);
+
+impl StoredObject for SchedulerPartialInputWrapper {
+    const BUCKET: Bucket = Bucket::SchedulerWitnessJobsFri;
+    type Key<'a> = L1BatchNumber;
+
+    fn encode_key(key: Self::Key<'_>) -> String {
+        format!("scheduler_witness_{key}.bin")
+    }
+
+    serialize_using_bincode!();
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+pub enum FriProofWrapper {
+    Base(ZkSyncBaseLayerProof),
+    Recursive(ZkSyncRecursionLayerProof),
+}
+
+impl StoredObject for FriProofWrapper {
+    const BUCKET: Bucket = Bucket::ProofsFri;
+    type Key<'a> = u32;
+
+    fn encode_key(key: Self::Key<'_>) -> String {
+        format!("proof_{key}.bin")
+    }
+
+    serialize_using_bincode!();
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct AuxOutputWitnessWrapper(pub BlockAuxilaryOutputWitness<GoldilocksField>);
+
+impl StoredObject for AuxOutputWitnessWrapper {
+    const BUCKET: Bucket = Bucket::SchedulerWitnessJobsFri;
+    type Key<'a> = L1BatchNumber;
+
+    fn encode_key(key: Self::Key<'_>) -> String {
+        format!("aux_output_witness_{key}.bin")
+    }
+
+    serialize_using_bincode!();
+}
+
+pub async fn save_base_prover_input_artifacts(
+    block_number: L1BatchNumber,
+    circuits: BlockBasicCircuits<GoldilocksField, ZkSyncDefaultRoundFunction>,
+    object_store: &dyn ObjectStore,
+    aggregation_round: AggregationRound,
+) -> Vec<(u8, String)> {
+    let circuits = circuits.into_flattened_set();
+    let mut ids_and_urls = Vec::with_capacity(circuits.len());
+    for (sequence_number, circuit) in circuits.into_iter().enumerate() {
+        let circuit_id = circuit.numeric_circuit_type();
+        let circuit_key = FriCircuitKey {
+            block_number,
+            sequence_number,
+            circuit_id,
+            aggregation_round,
+            depth: 0,
+        };
+        let blob_url = object_store
+            .put(circuit_key, &CircuitWrapper::Base(circuit))
+            .await
+            .unwrap();
+        ids_and_urls.push((circuit_id, blob_url));
+    }
+    ids_and_urls
+}
+
+pub async fn save_recursive_layer_prover_input_artifacts(
+    block_number: L1BatchNumber,
+    aggregations: Vec<(
+        u64,
+        RecursionQueueSimulator<GoldilocksField>,
+        ZkSyncRecursiveLayerCircuit,
+    )>,
+    aggregation_round: AggregationRound,
+    depth: u16,
+    object_store: &dyn ObjectStore,
+    base_layer_circuit_id: Option<u8>,
+) -> Vec<(u8, String)> {
+    let mut ids_and_urls = Vec::with_capacity(aggregations.len());
+    for (sequence_number, (_, _, circuit)) in aggregations.into_iter().enumerate() {
+        let circuit_id = base_layer_circuit_id.unwrap_or_else(|| circuit.numeric_circuit_type());
+        let circuit_key = FriCircuitKey {
+            block_number,
+            sequence_number,
+            circuit_id,
+            aggregation_round,
+            depth,
+        };
+        let blob_url = object_store
+            .put(circuit_key, &CircuitWrapper::Recursive(circuit))
+            .await
+            .unwrap();
+        ids_and_urls.push((circuit_id, blob_url));
+    }
+    ids_and_urls
+}
+
+pub async fn save_node_aggregations_artifacts(
+    block_number: L1BatchNumber,
+    circuit_id: u8,
+    depth: u16,
+    aggregations: Vec<(
+        u64,
+        RecursionQueueSimulator<GoldilocksField>,
+        ZkSyncRecursiveLayerCircuit,
+    )>,
+    object_store: &dyn ObjectStore,
+) -> String {
+    let key = AggregationsKey {
+        block_number,
+        circuit_id,
+        depth,
     };
-    metrics::histogram!(
-        "server.witness_generator.processing_time",
-        started_at.elapsed(),
-        "stage" => format!("wit_gen_{}", stage)
+    object_store
+        .put(key, &AggregationWrapper(aggregations))
+        .await
+        .unwrap()
+}
+
+pub fn get_recursive_layer_circuit_id_for_base_layer(base_layer_circuit_id: u8) -> u8 {
+    let recursive_circuit_type = base_circuit_type_into_recursive_leaf_circuit_type(
+        BaseLayerCircuitType::from_numeric_value(base_layer_circuit_id),
     );
+    recursive_circuit_type as u8
+}
+
+pub fn get_base_layer_circuit_id_for_recursive_layer(recursive_layer_circuit_id: u8) -> u8 {
+    recursive_layer_circuit_id - ZkSyncRecursionLayerStorageType::NodeLayerCircuit as u8
+}
+
+pub async fn load_proofs_for_job_ids(
+    job_ids: &[u32],
+    object_store: &dyn ObjectStore,
+) -> Vec<FriProofWrapper> {
+    let mut proofs = Vec::with_capacity(job_ids.len());
+    for &job_id in job_ids {
+        proofs.push(object_store.get(job_id).await.unwrap());
+    }
+    proofs
 }

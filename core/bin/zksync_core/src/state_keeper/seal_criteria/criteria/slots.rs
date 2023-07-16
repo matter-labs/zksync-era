@@ -1,6 +1,6 @@
-use crate::state_keeper::seal_criteria::{SealCriterion, SealResolution, StateKeeperConfig};
-use zksync_types::block::BlockGasCount;
-use zksync_types::tx::tx_execution_info::{DeduplicatedWritesMetrics, ExecutionMetrics};
+use crate::state_keeper::seal_criteria::{
+    SealCriterion, SealData, SealResolution, StateKeeperConfig,
+};
 
 /// Checks whether we should seal the block because we've run out of transaction slots.
 #[derive(Debug)]
@@ -12,14 +12,8 @@ impl SealCriterion for SlotsCriterion {
         config: &StateKeeperConfig,
         _block_open_timestamp_ms: u128,
         tx_count: usize,
-        _block_execution_metrics: ExecutionMetrics,
-        _tx_execution_metrics: ExecutionMetrics,
-        _block_gas_count: BlockGasCount,
-        _tx_gas_count: BlockGasCount,
-        _block_included_txs_size: usize,
-        _tx_size: usize,
-        _block_writes_metrics: DeduplicatedWritesMetrics,
-        _tx_writes_metrics: DeduplicatedWritesMetrics,
+        _block_data: &SealData,
+        _tx_data: &SealData,
     ) -> SealResolution {
         if tx_count >= config.transaction_slots {
             SealResolution::IncludeAndSeal
@@ -35,27 +29,19 @@ impl SealCriterion for SlotsCriterion {
 
 #[cfg(test)]
 mod tests {
-
-    use super::{SealCriterion, SealResolution, SlotsCriterion};
-    use zksync_config::ZkSyncConfig;
+    use super::*;
 
     #[test]
     fn test_slots_seal_criterion() {
-        let config = ZkSyncConfig::from_env().chain.state_keeper;
+        let config = StateKeeperConfig::from_env();
         let criterion = SlotsCriterion;
 
         let almost_full_block_resolution = criterion.should_seal(
             &config,
             Default::default(),
             config.transaction_slots - 1,
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            Default::default(),
+            &SealData::default(),
+            &SealData::default(),
         );
         assert_eq!(almost_full_block_resolution, SealResolution::NoSeal);
 
@@ -63,14 +49,8 @@ mod tests {
             &config,
             Default::default(),
             config.transaction_slots,
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            Default::default(),
+            &SealData::default(),
+            &SealData::default(),
         );
         assert_eq!(full_block_resolution, SealResolution::IncludeAndSeal);
     }

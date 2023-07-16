@@ -5,12 +5,14 @@ use std::sync::{Arc, Mutex};
 use prover_service::RemoteSynthesizer;
 use queues::{Buffer, IsQueue};
 
+use tokio::runtime::Handle;
 use zksync_dal::gpu_prover_queue_dal::SocketAddress;
 use zksync_dal::ConnectionPool;
 
 pub type SharedAssemblyQueue = Arc<Mutex<Buffer<Vec<u8>>>>;
 
 pub struct SynthesizedCircuitProvider {
+    rt_handle: Handle,
     queue: SharedAssemblyQueue,
     pool: ConnectionPool,
     address: SocketAddress,
@@ -25,8 +27,10 @@ impl SynthesizedCircuitProvider {
         address: SocketAddress,
         region: String,
         zone: String,
+        rt_handle: Handle,
     ) -> Self {
         Self {
+            rt_handle,
             queue,
             pool,
             address,
@@ -44,15 +48,19 @@ impl RemoteSynthesizer for SynthesizedCircuitProvider {
             Ok(blob) => {
                 let queue_free_slots = assembly_queue.capacity() - assembly_queue.size();
                 if is_full {
-                    self.pool
-                        .access_storage_blocking()
-                        .gpu_prover_queue_dal()
-                        .update_prover_instance_from_full_to_available(
-                            self.address.clone(),
-                            queue_free_slots,
-                            self.region.clone(),
-                            self.zone.clone(),
-                        );
+                    self.rt_handle.block_on(async {
+                        self.pool
+                            .access_storage()
+                            .await
+                            .gpu_prover_queue_dal()
+                            .update_prover_instance_from_full_to_available(
+                                self.address.clone(),
+                                queue_free_slots,
+                                self.region.clone(),
+                                self.zone.clone(),
+                            )
+                            .await
+                    });
                 }
                 vlog::trace!(
                     "Queue free slot {} for capacity {}",

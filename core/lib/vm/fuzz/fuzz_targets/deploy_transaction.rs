@@ -1,7 +1,7 @@
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
-use vm_benchmark::{BenchmarkingVm, get_deploy_tx};
+use vm_benchmark_harness::{BenchmarkingVm, get_deploy_tx};
 use zksync_types::tx::tx_execution_info::TxExecutionStatus::Success;
 
 fuzz_target!(|input: &[u8]| {

@@ -27,7 +27,7 @@ impl L1BatchUpdates {
     }
 
     pub(crate) fn extend_from_sealed_miniblock(&mut self, miniblock_updates: MiniblockUpdates) {
-        for tx in miniblock_updates.executed_transactions.iter() {
+        for tx in &miniblock_updates.executed_transactions {
             if let ExecuteTransactionCommon::L1(data) = &tx.transaction.common_data {
                 let onchain_metadata = data.onchain_metadata().onchain_data;
                 self.priority_ops_onchain_data.push(onchain_metadata);
@@ -45,47 +45,26 @@ impl L1BatchUpdates {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::gas_tracker::new_block_gas_count;
-    use vm::transaction_data::TransactionData;
-    use vm::vm::{VmPartialExecutionResult, VmTxExecutionResult};
-    use zksync_types::tx::tx_execution_info::TxExecutionStatus;
-    use zksync_types::{l2::L2Tx, Address, Nonce, Transaction, H256, U256};
+    use crate::{
+        gas_tracker::new_block_gas_count,
+        state_keeper::{
+            extractors,
+            tests::{create_execution_result, create_transaction},
+        },
+    };
 
     #[test]
     fn apply_miniblock_with_empty_tx() {
         let mut miniblock_accumulator = MiniblockUpdates::new(0);
-        let mut tx = L2Tx::new(
-            Default::default(),
-            Default::default(),
-            Nonce(0),
-            Default::default(),
-            Address::default(),
-            U256::zero(),
-            None,
-            Default::default(),
-        );
-
-        tx.set_input(H256::random().0.to_vec(), H256::random());
-        let tx: Transaction = tx.into();
+        let tx = create_transaction(10, 100);
+        let expected_tx_size = extractors::encoded_transaction_size(tx.clone());
 
         miniblock_accumulator.extend_from_executed_transaction(
-            &tx,
-            VmTxExecutionResult {
-                status: TxExecutionStatus::Success,
-                result: VmPartialExecutionResult {
-                    logs: Default::default(),
-                    revert_reason: None,
-                    contracts_used: 0,
-                    cycles_used: 0,
-                    computational_gas_used: 0,
-                },
-                call_traces: vec![],
-                gas_refunded: 0,
-                operator_suggested_refund: 0,
-            },
-            Default::default(),
-            Default::default(),
-            Default::default(),
+            tx,
+            create_execution_result(0, []),
+            BlockGasCount::default(),
+            ExecutionMetrics::default(),
+            vec![],
         );
 
         let mut l1_batch_accumulator = L1BatchUpdates::new();
@@ -95,11 +74,6 @@ mod tests {
         assert_eq!(l1_batch_accumulator.l1_gas_count, new_block_gas_count());
         assert_eq!(l1_batch_accumulator.priority_ops_onchain_data.len(), 0);
         assert_eq!(l1_batch_accumulator.block_execution_metrics.l2_l1_logs, 0);
-
-        let tx_data: TransactionData = tx.into();
-        assert_eq!(
-            l1_batch_accumulator.txs_encoding_size,
-            tx_data.into_tokens().len()
-        );
+        assert_eq!(l1_batch_accumulator.txs_encoding_size, expected_tx_size);
     }
 }

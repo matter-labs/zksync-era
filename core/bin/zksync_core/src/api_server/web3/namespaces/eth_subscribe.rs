@@ -1,24 +1,54 @@
 use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
-use zksync_types::web3::types::H128;
-use zksync_web3_decl::types::{PubSubFilter, PubSubResult};
+use std::sync::Arc;
 
 use jsonrpc_core::error::{Error, ErrorCode};
 use jsonrpc_pubsub::typed;
 use jsonrpc_pubsub::SubscriptionId;
+use tokio::sync::RwLock;
+
+use zksync_types::web3::types::H128;
+use zksync_web3_decl::types::{PubSubFilter, PubSubResult};
 
 use super::eth::EVENT_TOPIC_NUMBER_LIMIT;
 
 pub type SubscriptionMap<T> = Arc<RwLock<HashMap<SubscriptionId, T>>>;
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Copy)]
+enum SubscriptionType {
+    Blocks,
+    Txs,
+    Logs,
+}
+
+impl SubscriptionType {
+    fn as_str(&self) -> &'static str {
+        match self {
+            Self::Blocks => "blocks",
+            Self::Txs => "txs",
+            Self::Logs => "logs",
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct EthSubscribe {
+    // `jsonrpc` backend executes task subscription on a separate thread that has no tokio context.
+    pub runtime_handle: tokio::runtime::Handle,
     pub active_block_subs: SubscriptionMap<typed::Sink<PubSubResult>>,
     pub active_tx_subs: SubscriptionMap<typed::Sink<PubSubResult>>,
     pub active_log_subs: SubscriptionMap<(typed::Sink<PubSubResult>, PubSubFilter)>,
 }
 
 impl EthSubscribe {
+    pub fn new(runtime_handle: tokio::runtime::Handle) -> Self {
+        Self {
+            runtime_handle,
+            active_block_subs: SubscriptionMap::default(),
+            active_tx_subs: SubscriptionMap::default(),
+            active_log_subs: SubscriptionMap::default(),
+        }
+    }
+
     fn assign_id(
         subscriber: typed::Subscriber<PubSubResult>,
     ) -> (typed::Sink<PubSubResult>, SubscriptionId) {
@@ -39,23 +69,24 @@ impl EthSubscribe {
     }
 
     #[tracing::instrument(skip(self, subscriber, params))]
-    pub fn sub(
+    pub async fn sub(
         &self,
         subscriber: typed::Subscriber<PubSubResult>,
         sub_type: String,
         params: Option<serde_json::Value>,
     ) {
-        let mut block_subs = self.active_block_subs.write().unwrap();
-        let mut tx_subs = self.active_tx_subs.write().unwrap();
-        let mut log_subs = self.active_log_subs.write().unwrap();
-        match sub_type.as_str() {
+        let sub_type = match sub_type.as_str() {
             "newHeads" => {
+                let mut block_subs = self.active_block_subs.write().await;
                 let (sink, id) = Self::assign_id(subscriber);
                 block_subs.insert(id, sink);
+                Some(SubscriptionType::Blocks)
             }
             "newPendingTransactions" => {
+                let mut tx_subs = self.active_tx_subs.write().await;
                 let (sink, id) = Self::assign_id(subscriber);
                 tx_subs.insert(id, sink);
+                Some(SubscriptionType::Txs)
             }
             "logs" => {
                 let filter = params.map(serde_json::from_value).transpose();
@@ -70,42 +101,49 @@ impl EthSubscribe {
                             > EVENT_TOPIC_NUMBER_LIMIT
                         {
                             Self::reject(subscriber);
+                            None
                         } else {
+                            let mut log_subs = self.active_log_subs.write().await;
                             let (sink, id) = Self::assign_id(subscriber);
                             log_subs.insert(id, (sink, filter));
+                            Some(SubscriptionType::Logs)
                         }
                     }
-                    Err(_) => Self::reject(subscriber),
+                    Err(_) => {
+                        Self::reject(subscriber);
+                        None
+                    }
                 }
             }
             "syncing" => {
                 let (sink, _) = Self::assign_id(subscriber);
                 let _ = sink.notify(Ok(PubSubResult::Syncing(false)));
+                None
             }
-            _ => Self::reject(subscriber),
+            _ => {
+                Self::reject(subscriber);
+                None
+            }
         };
 
-        metrics::gauge!("api.web3.pubsub.active_subscribers", block_subs.len() as f64, "subscription_type" => "blocks");
-        metrics::gauge!("api.web3.pubsub.active_subscribers", tx_subs.len() as f64, "subscription_type" => "txs");
-        metrics::gauge!("api.web3.pubsub.active_subscribers", log_subs.len() as f64, "subscription_type" => "logs");
+        if let Some(sub_type) = sub_type {
+            metrics::increment_gauge!("api.web3.pubsub.active_subscribers", 1f64, "subscription_type" => sub_type.as_str());
+        }
     }
 
     #[tracing::instrument(skip(self))]
-    pub fn unsub(&self, id: SubscriptionId) -> Result<bool, Error> {
-        let removed = self
-            .active_block_subs
-            .write()
-            .unwrap()
-            .remove(&id)
-            .or_else(|| self.active_tx_subs.write().unwrap().remove(&id))
-            .or_else(|| {
-                self.active_log_subs
-                    .write()
-                    .unwrap()
-                    .remove(&id)
-                    .map(|(sink, _)| sink)
-            });
-        if removed.is_some() {
+    pub async fn unsub(&self, id: SubscriptionId) -> Result<bool, Error> {
+        let removed = if self.active_block_subs.write().await.remove(&id).is_some() {
+            Some(SubscriptionType::Blocks)
+        } else if self.active_tx_subs.write().await.remove(&id).is_some() {
+            Some(SubscriptionType::Txs)
+        } else if self.active_log_subs.write().await.remove(&id).is_some() {
+            Some(SubscriptionType::Logs)
+        } else {
+            None
+        };
+        if let Some(sub_type) = removed {
+            metrics::decrement_gauge!("api.web3.pubsub.active_subscribers", 1f64, "subscription_type" => sub_type.as_str());
             Ok(true)
         } else {
             Err(Error {

@@ -1,14 +1,16 @@
 use std::io::Write;
-use zksync_dal::ConnectionPool;
+use zksync_dal::{connection::DbVariant, ConnectionPool};
 use zksync_types::explorer_api::SourceCodeData;
 
-fn main() {
-    let pool = ConnectionPool::new(Some(1), false);
-    let mut storage = pool.access_storage_blocking();
+#[tokio::main]
+async fn main() {
+    let pool = ConnectionPool::new(Some(1), DbVariant::Replica).await;
+    let mut storage = pool.access_storage().await;
     let reqs = storage
         .explorer()
         .contract_verification_dal()
         .get_all_successful_requests()
+        .await
         .unwrap();
 
     std::fs::create_dir_all("./verified_sources").unwrap();
@@ -45,6 +47,16 @@ fn main() {
                     std::fs::create_dir_all(prefix).unwrap();
                     let mut file = std::fs::File::create(path).unwrap();
                     let content = val.get(&"content".to_string()).unwrap().as_str().unwrap();
+                    file.write_all(content.as_bytes()).unwrap();
+                }
+            }
+            SourceCodeData::VyperMultiFile(sources) => {
+                for (key, content) in sources {
+                    let p = format!("{}/{}.vy", &dir, key);
+                    let path = std::path::Path::new(p.as_str());
+                    let prefix = path.parent().unwrap();
+                    std::fs::create_dir_all(prefix).unwrap();
+                    let mut file = std::fs::File::create(path).unwrap();
                     file.write_all(content.as_bytes()).unwrap();
                 }
             }

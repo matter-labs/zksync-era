@@ -185,6 +185,8 @@ pub struct Filter {
     /// Topics
     #[serde(skip_serializing_if = "Option::is_none")]
     pub topics: Option<Vec<Option<ValueOrArray<H256>>>>,
+    #[serde(rename = "blockHash", skip_serializing_if = "Option::is_none")]
+    pub block_hash: Option<H256>,
 }
 
 /// Filter Builder
@@ -338,7 +340,7 @@ fn topic_to_option<T>(topic: ethabi::Topic<T>) -> Option<Vec<T>> {
 }
 
 #[allow(clippy::large_enum_variant)]
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum PubSubResult {
     Header(BlockHeader),

@@ -4,12 +4,8 @@
 //! which unconditionally follows the instructions from the main node).
 
 use zksync_config::configs::chain::StateKeeperConfig;
-use zksync_types::{
-    block::BlockGasCount,
-    tx::{tx_execution_info::DeduplicatedWritesMetrics, ExecutionMetrics},
-};
 
-use super::{criteria, SealCriterion, SealResolution};
+use super::{criteria, SealCriterion, SealData, SealResolution};
 
 #[derive(Debug)]
 pub struct ConditionalSealer {
@@ -19,94 +15,75 @@ pub struct ConditionalSealer {
 }
 
 impl ConditionalSealer {
-    pub(crate) fn new(config: StateKeeperConfig) -> Self {
-        let sealers: Vec<Box<dyn SealCriterion>> = Self::get_default_sealers();
+    /// Finds a reason why a transaction with the specified `data` is unexecutable.
+    pub(crate) fn find_unexecutable_reason(
+        config: &StateKeeperConfig,
+        data: &SealData,
+    ) -> Option<&'static str> {
+        for sealer in &Self::default_sealers() {
+            const MOCK_BLOCK_TIMESTAMP: u128 = 0;
+            const TX_COUNT: usize = 1;
 
+            let resolution = sealer.should_seal(config, MOCK_BLOCK_TIMESTAMP, TX_COUNT, data, data);
+            if matches!(resolution, SealResolution::Unexecutable(_)) {
+                return Some(sealer.prom_criterion_name());
+            }
+        }
+        None
+    }
+
+    pub(super) fn new(config: StateKeeperConfig) -> Self {
+        let sealers = Self::default_sealers();
         Self { config, sealers }
     }
 
     #[cfg(test)]
-    pub(crate) fn with_sealers(
+    pub(in crate::state_keeper) fn with_sealers(
         config: StateKeeperConfig,
         sealers: Vec<Box<dyn SealCriterion>>,
     ) -> Self {
         Self { config, sealers }
     }
 
-    #[allow(clippy::too_many_arguments)]
-    pub(crate) fn should_seal_l1_batch(
+    pub(super) fn should_seal_l1_batch(
         &self,
         l1_batch_number: u32,
         block_open_timestamp_ms: u128,
         tx_count: usize,
-        block_execution_metrics: ExecutionMetrics,
-        tx_execution_metrics: ExecutionMetrics,
-        block_gas_count: BlockGasCount,
-        tx_gas_count: BlockGasCount,
-        block_included_txs_size: usize,
-        tx_size: usize,
-        block_writes_metrics: DeduplicatedWritesMetrics,
-        tx_writes_metrics: DeduplicatedWritesMetrics,
+        block_data: &SealData,
+        tx_data: &SealData,
     ) -> SealResolution {
+        vlog::debug!(
+            "Determining seal resolution for L1 batch #{l1_batch_number} with {tx_count} transactions \
+             and metrics {:?}",
+            block_data.execution_metrics
+        );
+
         let mut final_seal_resolution = SealResolution::NoSeal;
         for sealer in &self.sealers {
             let seal_resolution = sealer.should_seal(
                 &self.config,
                 block_open_timestamp_ms,
                 tx_count,
-                block_execution_metrics,
-                tx_execution_metrics,
-                block_gas_count,
-                tx_gas_count,
-                block_included_txs_size,
-                tx_size,
-                block_writes_metrics,
-                tx_writes_metrics,
+                block_data,
+                tx_data,
             );
-            match seal_resolution {
-                SealResolution::IncludeAndSeal => {
+            match &seal_resolution {
+                SealResolution::IncludeAndSeal
+                | SealResolution::ExcludeAndSeal
+                | SealResolution::Unexecutable(_) => {
                     vlog::debug!(
-                        "Seal block with resolution: IncludeAndSeal {} {} block: {:?}",
-                        l1_batch_number,
-                        sealer.prom_criterion_name(),
-                        block_execution_metrics
+                        "L1 batch #{l1_batch_number} processed by `{name}` with resolution {seal_resolution:?}",
+                        name = sealer.prom_criterion_name()
                     );
                     metrics::counter!(
                         "server.tx_aggregation.reason",
                         1,
                         "criterion" => sealer.prom_criterion_name(),
-                        "seal_resolution" => "include_and_seal",
+                        "seal_resolution" => seal_resolution.name(),
                     );
                 }
-                SealResolution::ExcludeAndSeal => {
-                    vlog::debug!(
-                        "Seal block with resolution: ExcludeAndSeal {} {} block: {:?}",
-                        l1_batch_number,
-                        sealer.prom_criterion_name(),
-                        block_execution_metrics
-                    );
-                    metrics::counter!(
-                        "server.tx_aggregation.reason",
-                        1,
-                        "criterion" => sealer.prom_criterion_name(),
-                        "seal_resolution" => "exclude_and_seal",
-                    );
-                }
-                SealResolution::Unexecutable(_) => {
-                    vlog::debug!(
-                        "Unexecutable {} {} block: {:?}",
-                        l1_batch_number,
-                        sealer.prom_criterion_name(),
-                        block_execution_metrics
-                    );
-                    metrics::counter!(
-                        "server.tx_aggregation.reason",
-                        1,
-                        "criterion" => sealer.prom_criterion_name(),
-                        "seal_resolution" => "unexecutable",
-                    );
-                }
-                _ => {}
+                SealResolution::NoSeal => { /* Don't do anything */ }
             }
 
             final_seal_resolution = final_seal_resolution.stricter(seal_resolution);
@@ -114,17 +91,16 @@ impl ConditionalSealer {
         final_seal_resolution
     }
 
-    pub(crate) fn get_default_sealers() -> Vec<Box<dyn SealCriterion>> {
-        let sealers: Vec<Box<dyn SealCriterion>> = vec![
-            Box::new(criteria::slots::SlotsCriterion),
-            Box::new(criteria::gas::GasCriterion),
-            Box::new(criteria::pubdata_bytes::PubDataBytesCriterion),
-            Box::new(criteria::geometry_seal_criteria::InitialWritesCriterion),
-            Box::new(criteria::geometry_seal_criteria::RepeatedWritesCriterion),
-            Box::new(criteria::geometry_seal_criteria::MaxCyclesCriterion),
-            Box::new(criteria::geometry_seal_criteria::ComputationalGasCriterion),
-            Box::new(criteria::tx_encoding_size::TxEncodingSizeCriterion),
-        ];
-        sealers
+    fn default_sealers() -> Vec<Box<dyn SealCriterion>> {
+        vec![
+            Box::new(criteria::SlotsCriterion),
+            Box::new(criteria::GasCriterion),
+            Box::new(criteria::PubDataBytesCriterion),
+            Box::new(criteria::InitialWritesCriterion),
+            Box::new(criteria::RepeatedWritesCriterion),
+            Box::new(criteria::MaxCyclesCriterion),
+            Box::new(criteria::ComputationalGasCriterion),
+            Box::new(criteria::TxEncodingSizeCriterion),
+        ]
     }
 }

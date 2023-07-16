@@ -7,7 +7,7 @@ use std::{collections::HashMap, time::Duration};
 use async_trait::async_trait;
 use tokio::sync::watch;
 
-use zksync_config::{configs::fetcher::TokenTradingVolumeSource, ZkSyncConfig};
+use zksync_config::{configs::fetcher::TokenTradingVolumeSource, FetcherConfig};
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_types::{tokens::TokenMarketVolume, Address};
 
@@ -27,18 +27,17 @@ pub trait FetcherImpl: std::fmt::Debug + Send + Sync {
 
 #[derive(Debug)]
 pub struct TradingVolumeFetcher {
-    config: ZkSyncConfig,
+    config: FetcherConfig,
     fetcher: Box<dyn FetcherImpl>,
     error_handler: ErrorAnalyzer,
 }
 
 impl TradingVolumeFetcher {
-    fn create_fetcher(config: &ZkSyncConfig) -> Box<dyn FetcherImpl> {
-        let token_trading_volume_config = &config.fetcher.token_trading_volume;
+    fn create_fetcher(config: &FetcherConfig) -> Box<dyn FetcherImpl> {
+        let token_trading_volume_config = &config.token_trading_volume;
         match token_trading_volume_config.source {
             TokenTradingVolumeSource::Uniswap => {
-                Box::new(uniswap::UniswapTradingVolumeFetcher::new(&config.fetcher))
-                    as Box<dyn FetcherImpl>
+                Box::new(uniswap::UniswapTradingVolumeFetcher::new(config)) as Box<dyn FetcherImpl>
             }
             TokenTradingVolumeSource::Mock => {
                 Box::new(mock::MockTradingVolumeFetcher::new()) as Box<dyn FetcherImpl>
@@ -46,7 +45,7 @@ impl TradingVolumeFetcher {
         }
     }
 
-    pub fn new(config: ZkSyncConfig) -> Self {
+    pub fn new(config: FetcherConfig) -> Self {
         let fetcher = Self::create_fetcher(&config);
         let error_handler = ErrorAnalyzer::new("TradingVolumeFetcher");
         Self {
@@ -58,7 +57,7 @@ impl TradingVolumeFetcher {
 
     pub async fn run(mut self, pool: ConnectionPool, stop_receiver: watch::Receiver<bool>) {
         let mut fetching_interval =
-            tokio::time::interval(self.config.fetcher.token_trading_volume.fetching_interval());
+            tokio::time::interval(self.config.token_trading_volume.fetching_interval());
         loop {
             if *stop_receiver.borrow() {
                 vlog::info!("Stop signal received, trading_volume_fetcher is shutting down");
@@ -68,8 +67,8 @@ impl TradingVolumeFetcher {
             fetching_interval.tick().await;
             self.error_handler.update().await;
 
-            let mut storage = pool.access_storage_blocking();
-            let known_l1_tokens = self.load_tokens(&mut storage);
+            let mut storage = pool.access_storage().await;
+            let known_l1_tokens = self.load_tokens(&mut storage).await;
 
             let trading_volumes = match self.fetch_trading_volumes(&known_l1_tokens).await {
                 Ok(volumes) => {
@@ -82,7 +81,8 @@ impl TradingVolumeFetcher {
                 }
             };
 
-            self.store_market_volumes(&mut storage, trading_volumes);
+            self.store_market_volumes(&mut storage, trading_volumes)
+                .await;
         }
     }
 
@@ -99,23 +99,24 @@ impl TradingVolumeFetcher {
             .map_err(|_| ApiFetchError::RequestTimeout)?
     }
 
-    fn store_market_volumes(
+    async fn store_market_volumes(
         &self,
         storage: &mut StorageProcessor<'_>,
         tokens: HashMap<Address, TokenMarketVolume>,
     ) {
         let mut tokens_dal = storage.tokens_dal();
         for (token, volume) in tokens {
-            tokens_dal.set_l1_token_market_volume(&token, volume);
+            tokens_dal.set_l1_token_market_volume(&token, volume).await;
         }
     }
 
     /// Returns the list of tokens with known metadata (if token is not in the list we use,
     /// it's very likely to not have required level of trading volume anyways).
-    fn load_tokens(&self, storage: &mut StorageProcessor<'_>) -> Vec<Address> {
+    async fn load_tokens(&self, storage: &mut StorageProcessor<'_>) -> Vec<Address> {
         storage
             .tokens_dal()
             .get_well_known_token_addresses()
+            .await
             .into_iter()
             .map(|(l1_token, _)| l1_token)
             .collect()

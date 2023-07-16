@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
 use crate::history_recorder::{HistoryEnabled, HistoryMode, HistoryRecorder, WithHistory};
-use crate::storage::StoragePtr;
 
 use zk_evm::abstractions::MemoryType;
 use zk_evm::aux_structures::Timestamp;
@@ -9,6 +8,7 @@ use zk_evm::{
     abstractions::{DecommittmentProcessor, Memory},
     aux_structures::{DecommittmentQuery, MemoryIndex, MemoryLocation, MemoryPage, MemoryQuery},
 };
+use zksync_state::StoragePtr;
 use zksync_types::U256;
 use zksync_utils::bytecode::bytecode_len_in_words;
 use zksync_utils::{bytes_to_be_words, u256_to_h256};
@@ -36,9 +36,9 @@ impl<'a, const B: bool, H: HistoryMode> DecommitterOracle<'a, B, H> {
     pub fn new(storage: StoragePtr<'a>) -> Self {
         Self {
             storage,
-            known_bytecodes: Default::default(),
-            decommitted_code_hashes: Default::default(),
-            decommitment_requests: Default::default(),
+            known_bytecodes: HistoryRecorder::default(),
+            decommitted_code_hashes: HistoryRecorder::default(),
+            decommitment_requests: HistoryRecorder::default(),
         }
     }
 
@@ -149,7 +149,7 @@ impl<'a, const B: bool, H: HistoryMode> DecommitterOracle<'a, B, H> {
     }
 }
 
-impl<'a, const B: bool> OracleWithHistory for DecommitterOracle<'a, B, HistoryEnabled> {
+impl<const B: bool> OracleWithHistory for DecommitterOracle<'_, B, HistoryEnabled> {
     fn rollback_to_timestamp(&mut self, timestamp: Timestamp) {
         self.decommitted_code_hashes
             .rollback_to_timestamp(timestamp);
@@ -158,14 +158,20 @@ impl<'a, const B: bool> OracleWithHistory for DecommitterOracle<'a, B, HistoryEn
     }
 }
 
-impl<'a, const B: bool, H: HistoryMode> DecommittmentProcessor for DecommitterOracle<'a, B, H> {
+impl<const B: bool, H: HistoryMode> DecommittmentProcessor for DecommitterOracle<'_, B, H> {
     /// Loads a given bytecode hash into memory (see trait description for more details).
     fn decommit_into_memory<M: Memory>(
         &mut self,
         monotonic_cycle_counter: u32,
         mut partial_query: DecommittmentQuery,
         memory: &mut M,
-    ) -> (DecommittmentQuery, Option<Vec<U256>>) {
+    ) -> Result<
+        (
+            zk_evm::aux_structures::DecommittmentQuery,
+            Option<Vec<U256>>,
+        ),
+        anyhow::Error,
+    > {
         self.decommitment_requests.push((), partial_query.timestamp);
         // First - check if we didn't fetch this bytecode in the past.
         // If we did - we can just return the page that we used before (as the memory is read only).
@@ -180,7 +186,7 @@ impl<'a, const B: bool, H: HistoryMode> DecommittmentProcessor for DecommitterOr
             partial_query.decommitted_length =
                 bytecode_len_in_words(&u256_to_h256(partial_query.hash));
 
-            (partial_query, None)
+            Ok((partial_query, None))
         } else {
             // We are fetching a fresh bytecode that we didn't read before.
             let values = self.get_bytecode(partial_query.hash, partial_query.timestamp);
@@ -201,7 +207,6 @@ impl<'a, const B: bool, H: HistoryMode> DecommittmentProcessor for DecommitterOr
                 value: U256::zero(),
                 value_is_pointer: false,
                 rw_flag: true,
-                is_pended: false,
             };
             self.decommitted_code_hashes
                 .insert(partial_query.hash, page_to_use.0, timestamp);
@@ -214,7 +219,7 @@ impl<'a, const B: bool, H: HistoryMode> DecommittmentProcessor for DecommitterOr
                     memory.specialized_code_query(monotonic_cycle_counter, tmp_q);
                 }
                 // If we're in the witness mode - we also have to return the values.
-                (partial_query, Some(values))
+                Ok((partial_query, Some(values)))
             } else {
                 for (i, value) in values.into_iter().enumerate() {
                     tmp_q.location.index = MemoryIndex(i as u32);
@@ -222,7 +227,7 @@ impl<'a, const B: bool, H: HistoryMode> DecommittmentProcessor for DecommitterOr
                     memory.specialized_code_query(monotonic_cycle_counter, tmp_q);
                 }
 
-                (partial_query, None)
+                Ok((partial_query, None))
             }
         }
     }

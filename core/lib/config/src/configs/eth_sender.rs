@@ -3,9 +3,9 @@ use std::time::Duration;
 // External uses
 use serde::Deserialize;
 // Workspace uses
-use zksync_basic_types::{Address, H256};
+use zksync_basic_types::H256;
 // Local uses
-use crate::envy_load;
+use super::envy_load;
 
 /// Configuration for the Ethereum sender crate.
 #[derive(Debug, Deserialize, Clone, PartialEq)]
@@ -19,8 +19,8 @@ pub struct ETHSenderConfig {
 impl ETHSenderConfig {
     pub fn from_env() -> Self {
         Self {
-            sender: envy_load!("eth_sender", "ETH_SENDER_SENDER_"),
-            gas_adjuster: envy_load!("eth_sender.gas_adjuster", "ETH_SENDER_GAS_ADJUSTER_"),
+            sender: SenderConfig::from_env(),
+            gas_adjuster: GasAdjusterConfig::from_env(),
         }
     }
 }
@@ -35,12 +35,9 @@ pub enum ProofSendingMode {
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct SenderConfig {
     pub aggregated_proof_sizes: Vec<usize>,
-    /// Private key of the operator account.
-    pub operator_private_key: H256,
-    /// Address of the operator account.
-    pub operator_commit_eth_addr: Address,
-    /// mount of confirmations required to consider L1 transaction committed.
-    pub wait_confirmations: u64,
+    /// Amount of confirmations required to consider L1 transaction committed.
+    /// If not specified L1 transaction will be considered finalized once its block is finalized.
+    pub wait_confirmations: Option<u64>,
     /// Node polling period in seconds.
     pub tx_poll_period: u64,
     /// Aggregate txs polling period in seconds.
@@ -76,6 +73,17 @@ impl SenderConfig {
     pub fn aggregate_tx_poll_period(&self) -> Duration {
         Duration::from_secs(self.aggregate_tx_poll_period)
     }
+
+    // Don't load private key, if it's not required.
+    pub fn private_key(&self) -> Option<H256> {
+        std::env::var("ETH_SENDER_SENDER_OPERATOR_PRIVATE_KEY")
+            .ok()
+            .map(|pk| pk.parse().unwrap())
+    }
+
+    pub fn from_env() -> Self {
+        envy_load("eth_sender", "ETH_SENDER_SENDER_")
+    }
 }
 
 #[derive(Debug, Deserialize, Copy, Clone, PartialEq)]
@@ -94,6 +102,8 @@ pub struct GasAdjusterConfig {
     pub internal_enforced_l1_gas_price: Option<u64>,
     /// Node polling period in seconds
     pub poll_period: u64,
+    /// Max number of l1 gas price that is allowed to be used in state keeper.
+    pub max_l1_gas_price: Option<u64>,
 }
 
 impl GasAdjusterConfig {
@@ -101,12 +111,20 @@ impl GasAdjusterConfig {
     pub fn poll_period(&self) -> Duration {
         Duration::from_secs(self.poll_period)
     }
+
+    pub fn max_l1_gas_price(&self) -> u64 {
+        self.max_l1_gas_price.unwrap_or(u64::MAX)
+    }
+
+    pub fn from_env() -> Self {
+        envy_load("eth_sender.gas_adjuster", "ETH_SENDER_GAS_ADJUSTER_")
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::configs::test_utils::{addr, hash, set_env};
+    use crate::configs::test_utils::{hash, set_env};
 
     fn expected_config() -> ETHSenderConfig {
         ETHSenderConfig {
@@ -121,14 +139,10 @@ mod tests {
                 timestamp_criteria_max_allowed_lag: 30,
                 max_aggregated_blocks_to_commit: 3,
                 max_aggregated_blocks_to_execute: 4,
-                wait_confirmations: 1,
+                wait_confirmations: Some(1),
                 tx_poll_period: 3,
                 aggregate_tx_poll_period: 3,
                 max_txs_in_flight: 3,
-                operator_private_key: hash(
-                    "27593fea79697e947890ecbecce7901b0008345e5d7259710d0dd5e500d040be",
-                ),
-                operator_commit_eth_addr: addr("de03a0B5963f75f1C8485B355fF6D30f3093BDE7"),
                 proof_sending_mode: ProofSendingMode::SkipEveryProof,
                 l1_batch_min_age_before_execute_seconds: Some(1000),
                 max_acceptable_priority_fee_in_gwei: 100_000_000_000,
@@ -141,6 +155,7 @@ mod tests {
                 internal_l1_pricing_multiplier: 0.8,
                 internal_enforced_l1_gas_price: None,
                 poll_period: 15,
+                max_l1_gas_price: Some(100000000),
             },
         }
     }
@@ -153,7 +168,6 @@ ETH_SENDER_SENDER_TX_POLL_PERIOD="3"
 ETH_SENDER_SENDER_AGGREGATE_TX_POLL_PERIOD="3"
 ETH_SENDER_SENDER_MAX_TXS_IN_FLIGHT="3"
 ETH_SENDER_SENDER_OPERATOR_PRIVATE_KEY="0x27593fea79697e947890ecbecce7901b0008345e5d7259710d0dd5e500d040be"
-ETH_SENDER_SENDER_OPERATOR_COMMIT_ETH_ADDR="0xde03a0B5963f75f1C8485B355fF6D30f3093BDE7"
 ETH_SENDER_SENDER_PROOF_SENDING_MODE="SkipEveryProof"
 ETH_SENDER_GAS_ADJUSTER_DEFAULT_PRIORITY_FEE_PER_GAS="20000000000"
 ETH_SENDER_GAS_ADJUSTER_MAX_BASE_FEE_SAMPLES="10000"
@@ -161,6 +175,7 @@ ETH_SENDER_GAS_ADJUSTER_PRICING_FORMULA_PARAMETER_A="1.5"
 ETH_SENDER_GAS_ADJUSTER_PRICING_FORMULA_PARAMETER_B="1.0005"
 ETH_SENDER_GAS_ADJUSTER_INTERNAL_L1_PRICING_MULTIPLIER="0.8"
 ETH_SENDER_GAS_ADJUSTER_POLL_PERIOD="15"
+ETH_SENDER_GAS_ADJUSTER_MAX_L1_GAS_PRICE="100000000"
 ETH_SENDER_WAIT_FOR_PROOFS="false"
 ETH_SENDER_SENDER_AGGREGATED_PROOF_SIZES="1,5"
 ETH_SENDER_SENDER_MAX_AGGREGATED_BLOCKS_TO_COMMIT="3"
@@ -178,6 +193,10 @@ ETH_SENDER_SENDER_MAX_ACCEPTABLE_PRIORITY_FEE_IN_GWEI="100000000000"
 
         let actual = ETHSenderConfig::from_env();
         assert_eq!(actual, expected_config());
+        assert_eq!(
+            actual.sender.private_key().unwrap(),
+            hash("27593fea79697e947890ecbecce7901b0008345e5d7259710d0dd5e500d040be")
+        );
     }
 
     /// Checks the correctness of the config helper methods.

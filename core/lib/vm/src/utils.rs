@@ -7,19 +7,14 @@ use once_cell::sync::Lazy;
 
 use zk_evm::block_properties::BlockProperties;
 use zk_evm::{
-    aux_structures::{LogQuery, MemoryPage, Timestamp},
+    aux_structures::{MemoryPage, Timestamp},
     vm_state::PrimitiveValue,
     zkevm_opcode_defs::FatPointer,
 };
 use zksync_config::constants::ZKPORTER_IS_AVAILABLE;
 use zksync_contracts::{read_zbin_bytecode, BaseSystemContracts};
-use zksync_state::secondary_storage::SecondaryStateStorage;
-use zksync_types::{
-    get_code_key, get_system_context_init_logs, system_contracts::get_system_smart_contracts,
-    Address, L1BatchNumber, L2ChainId, StorageLog, StorageLogQuery, H160, MAX_L2_TX_GAS_LIMIT,
-    U256,
-};
-use zksync_utils::{bytecode::hash_bytecode, h256_to_u256};
+use zksync_types::{Address, H160, MAX_L2_TX_GAS_LIMIT, U256};
+use zksync_utils::h256_to_u256;
 
 pub const INITIAL_TIMESTAMP: u32 = 1024;
 pub const INITIAL_MEMORY_COUNTER: u32 = 2048;
@@ -192,40 +187,6 @@ impl IntoFixedLengthByteIterator<32> for U256 {
     }
 }
 
-/// Collects storage log queries where `log.log_query.timestamp >= from_timestamp`.
-/// Denote `n` to be the number of such queries, then it works in O(n).
-pub fn collect_storage_log_queries_after_timestamp(
-    all_log_queries: &[StorageLogQuery],
-    from_timestamp: Timestamp,
-) -> Vec<StorageLogQuery> {
-    all_log_queries
-        .iter()
-        .rev()
-        .take_while(|log_query| log_query.log_query.timestamp >= from_timestamp)
-        .cloned()
-        .collect::<Vec<StorageLogQuery>>()
-        .into_iter()
-        .rev()
-        .collect()
-}
-
-/// Collects all log queries where `log_query.timestamp >= from_timestamp`.
-/// Denote `n` to be the number of such queries, then it works in O(n).
-pub fn collect_log_queries_after_timestamp(
-    all_log_queries: &[LogQuery],
-    from_timestamp: Timestamp,
-) -> Vec<LogQuery> {
-    all_log_queries
-        .iter()
-        .rev()
-        .take_while(|log_query| log_query.timestamp >= from_timestamp)
-        .cloned()
-        .collect::<Vec<LogQuery>>()
-        .into_iter()
-        .rev()
-        .collect()
-}
-
 /// Receives sorted slice of timestamps.
 /// Returns count of timestamps that are greater than or equal to `from_timestamp`.
 /// Works in O(log(sorted_timestamps.len())).
@@ -255,26 +216,6 @@ pub fn create_test_block_params() -> (BlockContext, BlockProperties) {
             zkporter_is_available: ZKPORTER_IS_AVAILABLE,
         },
     )
-}
-
-pub fn insert_system_contracts(raw_storage: &mut SecondaryStateStorage) {
-    let contracts = get_system_smart_contracts();
-    let system_context_init_log = get_system_context_init_logs(L2ChainId(270));
-
-    let logs: Vec<StorageLog> = contracts
-        .iter()
-        .map(|contract| {
-            let deployer_code_key = get_code_key(contract.account_id.address());
-            StorageLog::new_write_log(deployer_code_key, hash_bytecode(&contract.bytecode))
-        })
-        .chain(system_context_init_log)
-        .collect();
-    raw_storage.process_transaction_logs(&logs);
-
-    for contract in contracts {
-        raw_storage.store_factory_dep(hash_bytecode(&contract.bytecode), contract.bytecode);
-    }
-    raw_storage.save(L1BatchNumber(0))
 }
 
 pub fn read_bootloader_test_code(test: &str) -> Vec<u8> {

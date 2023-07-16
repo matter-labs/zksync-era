@@ -2,15 +2,17 @@ use std::{env, time::Duration};
 
 use prover_service::JobResult::{Failure, ProofGenerated};
 use prover_service::{JobReporter, JobResult};
+use tokio::runtime::Handle;
 use zkevm_test_harness::abstract_zksync_circuit::concrete_circuits::ZkSyncProof;
 use zkevm_test_harness::pairing::bn256::Bn256;
 
 use zksync_config::ProverConfig;
-use zksync_dal::ConnectionPool;
+use zksync_dal::{connection::DbVariant, ConnectionPool};
 use zksync_object_store::{Bucket, ObjectStore, ObjectStoreFactory};
 
 #[derive(Debug)]
 pub struct ProverReporter {
+    rt_handle: Handle,
     pool: ConnectionPool,
     config: ProverConfig,
     processed_by: String,
@@ -22,12 +24,18 @@ fn assembly_debug_blob_url(job_id: usize, circuit_id: u8) -> String {
 }
 
 impl ProverReporter {
-    pub(crate) fn new(config: ProverConfig, store_factory: &ObjectStoreFactory) -> Self {
+    pub(crate) fn new(
+        config: ProverConfig,
+        store_factory: &ObjectStoreFactory,
+        rt_handle: Handle,
+    ) -> Self {
+        let pool = rt_handle.block_on(ConnectionPool::new(Some(1), DbVariant::Prover));
         Self {
-            pool: ConnectionPool::new(Some(1), true),
+            pool,
             config,
             processed_by: env::var("POD_NAME").unwrap_or("Unknown".to_string()),
-            object_store: store_factory.create_store(),
+            object_store: rt_handle.block_on(store_factory.create_store()),
+            rt_handle,
         }
     }
 
@@ -54,38 +62,34 @@ impl ProverReporter {
             "circuit_type" => circuit_type,
         );
         let job_id = job_id as u32;
-        let mut connection = self.pool.access_storage_blocking();
-        let mut transaction = connection.start_transaction_blocking();
+        self.rt_handle.block_on(async {
+            let mut connection = self.pool.access_storage().await;
+            let mut transaction = connection.start_transaction().await;
 
-        transaction
-            .prover_dal()
-            .save_proof(job_id, duration, serialized, &self.processed_by);
-        let prover_job_metadata = transaction
-            .prover_dal()
-            .get_prover_job_by_id(job_id)
-            .unwrap_or_else(|| panic!("No job with id: {} exist", job_id));
+            transaction
+                .prover_dal()
+                .save_proof(job_id, duration, serialized, &self.processed_by)
+                .await;
+            let _prover_job_metadata = transaction
+                .prover_dal()
+                .get_prover_job_by_id(job_id)
+                .await
+                .unwrap_or_else(|| panic!("No job with id: {} exist", job_id));
 
-        if prover_job_metadata.aggregation_round.next().is_none() {
-            let block = transaction
-                .blocks_dal()
-                .get_block_header(prover_job_metadata.block_number)
-                .unwrap();
-            metrics::counter!(
-                "server.processed_txs",
-                block.tx_count() as u64,
-                "stage" => "prove_generated"
-            );
-        }
-        transaction.commit_blocking();
+            transaction.commit().await;
+        });
     }
 
     fn get_circuit_type(&self, job_id: usize) -> String {
-        let prover_job_metadata = self
-            .pool
-            .access_storage_blocking()
-            .prover_dal()
-            .get_prover_job_by_id(job_id as u32)
-            .unwrap_or_else(|| panic!("No job with id: {} exist", job_id));
+        let prover_job_metadata = self.rt_handle.block_on(async {
+            self.pool
+                .access_storage()
+                .await
+                .prover_dal()
+                .get_prover_job_by_id(job_id as u32)
+                .await
+                .unwrap_or_else(|| panic!("No job with id: {} exist", job_id))
+        });
         prover_job_metadata.circuit_type
     }
 }
@@ -99,10 +103,14 @@ impl JobReporter for ProverReporter {
                     job_id,
                     error
                 );
-                self.pool
-                    .access_storage_blocking()
-                    .prover_dal()
-                    .save_proof_error(job_id as u32, error, self.config.max_attempts);
+                self.rt_handle.block_on(async {
+                    self.pool
+                        .access_storage()
+                        .await
+                        .prover_dal()
+                        .save_proof_error(job_id as u32, error, self.config.max_attempts)
+                        .await;
+                });
             }
             ProofGenerated(job_id, duration, proof, index) => {
                 self.handle_successful_proof_generation(job_id, proof, duration, index);
@@ -194,8 +202,11 @@ impl JobReporter for ProverReporter {
                     error,
                 );
                 let blob_url = assembly_debug_blob_url(job_id, circuit_id);
-                self.object_store
-                    .put_raw(Bucket::ProverJobs, &blob_url, assembly)
+                let put_task = self
+                    .object_store
+                    .put_raw(Bucket::ProverJobs, &blob_url, assembly);
+                self.rt_handle
+                    .block_on(put_task)
                     .expect("Failed saving debug assembly to GCS");
             }
             JobResult::AssemblyTransferred(job_id, duration) => {

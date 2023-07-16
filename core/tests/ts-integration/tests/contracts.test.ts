@@ -74,11 +74,9 @@ describe('Smart contract behavior checks', () => {
         const expensiveContract = await deployContract(alice, contracts.expensive, []);
 
         // First, check that the transaction that is too expensive would be rejected by the API server.
-        await expect(expensiveContract.expensive(2000)).toBeRejected(
-            'transaction may fail or may require manual gas limit'
-        );
+        await expect(expensiveContract.expensive(2000)).toBeRejected();
 
-        // Second, check that processable transaction may fail with out of gas error.
+        // Second, check that processable transaction may fail with "out of gas" error.
         // To do so, we estimate gas for arg "1" and supply it to arg "20".
         // This guarantees that transaction won't fail during verification.
         const lowGasLimit = await expensiveContract.estimateGas.expensive(1);
@@ -98,8 +96,6 @@ describe('Smart contract behavior checks', () => {
         const infiniteLoop = await deployContract(alice, contracts.infinite, []);
 
         // Test eth_call first
-        // await expect(infiniteLoop.callStatic.infiniteLoop()).toBeRejected('cannot estimate transaction: out of gas');
-        // ...and then an actual transaction
         await expect(infiniteLoop.infiniteLoop({ gasLimit: 1_000_000 })).toBeReverted([]);
     });
 

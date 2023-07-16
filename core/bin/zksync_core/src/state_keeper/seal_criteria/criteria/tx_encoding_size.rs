@@ -1,8 +1,8 @@
 use vm::vm_with_bootloader::BOOTLOADER_TX_ENCODING_SPACE;
-use zksync_types::block::BlockGasCount;
-use zksync_types::tx::tx_execution_info::{DeduplicatedWritesMetrics, ExecutionMetrics};
 
-use crate::state_keeper::seal_criteria::{SealCriterion, SealResolution, StateKeeperConfig};
+use crate::state_keeper::seal_criteria::{
+    SealCriterion, SealData, SealResolution, StateKeeperConfig,
+};
 
 #[derive(Debug)]
 pub struct TxEncodingSizeCriterion;
@@ -13,28 +13,21 @@ impl SealCriterion for TxEncodingSizeCriterion {
         config: &StateKeeperConfig,
         _block_open_timestamp_ms: u128,
         _tx_count: usize,
-        _block_execution_metrics: ExecutionMetrics,
-        _tx_execution_metrics: ExecutionMetrics,
-        _block_gas_count: BlockGasCount,
-        _tx_gas_count: BlockGasCount,
-        block_included_txs_size: usize,
-        tx_size: usize,
-        _block_writes_metrics: DeduplicatedWritesMetrics,
-        _tx_writes_metrics: DeduplicatedWritesMetrics,
+        block_data: &SealData,
+        tx_data: &SealData,
     ) -> SealResolution {
-        if tx_size
-            > (BOOTLOADER_TX_ENCODING_SPACE as f64 * config.reject_tx_at_geometry_percentage)
-                .round() as usize
-        {
-            SealResolution::Unexecutable(
-                "Transaction cannot be included due to large encoding size".into(),
-            )
-        } else if block_included_txs_size > BOOTLOADER_TX_ENCODING_SPACE as usize {
+        let reject_bound =
+            (BOOTLOADER_TX_ENCODING_SPACE as f64 * config.reject_tx_at_geometry_percentage).round();
+        let include_and_seal_bound = (BOOTLOADER_TX_ENCODING_SPACE as f64
+            * config.close_block_at_geometry_percentage)
+            .round();
+
+        if tx_data.cumulative_size > reject_bound as usize {
+            let message = "Transaction cannot be included due to large encoding size";
+            SealResolution::Unexecutable(message.into())
+        } else if block_data.cumulative_size > BOOTLOADER_TX_ENCODING_SPACE as usize {
             SealResolution::ExcludeAndSeal
-        } else if block_included_txs_size
-            > (BOOTLOADER_TX_ENCODING_SPACE as f64 * config.close_block_at_geometry_percentage)
-                .round() as usize
-        {
+        } else if block_data.cumulative_size > include_and_seal_bound as usize {
             SealResolution::IncludeAndSeal
         } else {
             SealResolution::NoSeal
@@ -48,43 +41,26 @@ impl SealCriterion for TxEncodingSizeCriterion {
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        SealCriterion, SealResolution, TxEncodingSizeCriterion, BOOTLOADER_TX_ENCODING_SPACE,
-    };
-    use zksync_config::ZkSyncConfig;
+    use super::*;
 
     #[test]
     fn seal_criterion() {
-        let config = ZkSyncConfig::from_env().chain.state_keeper;
+        let config = StateKeeperConfig::from_env();
         let criterion = TxEncodingSizeCriterion;
 
-        let empty_block_resolution = criterion.should_seal(
-            &config,
-            Default::default(),
-            0,
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            Default::default(),
-        );
+        let empty_block_resolution =
+            criterion.should_seal(&config, 0, 0, &SealData::default(), &SealData::default());
         assert_eq!(empty_block_resolution, SealResolution::NoSeal);
 
         let unexecutable_resolution = criterion.should_seal(
             &config,
-            Default::default(),
             0,
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            BOOTLOADER_TX_ENCODING_SPACE as usize + 1,
-            Default::default(),
-            Default::default(),
+            0,
+            &SealData::default(),
+            &SealData {
+                cumulative_size: BOOTLOADER_TX_ENCODING_SPACE as usize + 1,
+                ..SealData::default()
+            },
         );
         assert_eq!(
             unexecutable_resolution,
@@ -95,31 +71,31 @@ mod tests {
 
         let exclude_and_seal_resolution = criterion.should_seal(
             &config,
-            Default::default(),
             0,
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            BOOTLOADER_TX_ENCODING_SPACE as usize + 1,
-            1,
-            Default::default(),
-            Default::default(),
+            0,
+            &SealData {
+                cumulative_size: BOOTLOADER_TX_ENCODING_SPACE as usize + 1,
+                ..SealData::default()
+            },
+            &SealData {
+                cumulative_size: 1,
+                ..SealData::default()
+            },
         );
         assert_eq!(exclude_and_seal_resolution, SealResolution::ExcludeAndSeal);
 
         let include_and_seal_resolution = criterion.should_seal(
             &config,
-            Default::default(),
             0,
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            BOOTLOADER_TX_ENCODING_SPACE as usize,
-            1,
-            Default::default(),
-            Default::default(),
+            0,
+            &SealData {
+                cumulative_size: BOOTLOADER_TX_ENCODING_SPACE as usize,
+                ..SealData::default()
+            },
+            &SealData {
+                cumulative_size: 1,
+                ..SealData::default()
+            },
         );
         assert_eq!(include_and_seal_resolution, SealResolution::IncludeAndSeal);
     }

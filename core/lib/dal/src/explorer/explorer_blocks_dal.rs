@@ -15,16 +15,16 @@ use crate::StorageProcessor;
 
 #[derive(Debug)]
 pub struct ExplorerBlocksDal<'a, 'c> {
-    pub storage: &'a mut StorageProcessor<'c>,
+    pub(super) storage: &'a mut StorageProcessor<'c>,
 }
 
 impl ExplorerBlocksDal<'_, '_> {
-    pub fn get_blocks_page(
+    pub async fn get_blocks_page(
         &mut self,
         query: BlocksQuery,
         last_verified: MiniblockNumber,
     ) -> Result<Vec<BlockPageItem>, SqlxError> {
-        async_std::task::block_on(async {
+        {
             let (cmp_sign, order_str) = match query.pagination.direction {
                 PaginationDirection::Older => ("<", "DESC"),
                 PaginationDirection::Newer => (">", "ASC"),
@@ -57,15 +57,15 @@ impl ExplorerBlocksDal<'_, '_> {
                 .map(|row| block_page_item_from_storage(row, last_verified))
                 .collect();
             Ok(result)
-        })
+        }
     }
 
-    pub fn get_block_details(
+    pub async fn get_block_details(
         &mut self,
         block_number: MiniblockNumber,
         current_operator_address: Address,
     ) -> Result<Option<BlockDetails>, SqlxError> {
-        async_std::task::block_on(async {
+        {
             let started_at = Instant::now();
             let storage_block_details: Option<StorageBlockDetails> = sqlx::query_as!(
                 StorageBlockDetails,
@@ -102,15 +102,15 @@ impl ExplorerBlocksDal<'_, '_> {
             Ok(storage_block_details.map(|storage_block_details| {
                 storage_block_details.into_block_details(current_operator_address)
             }))
-        })
+        }
     }
 
-    pub fn get_l1_batches_page(
+    pub async fn get_l1_batches_page(
         &mut self,
         query: L1BatchesQuery,
         last_verified: L1BatchNumber,
     ) -> Result<Vec<L1BatchPageItem>, SqlxError> {
-        async_std::task::block_on(async {
+        {
             let (cmp_sign, order_str) = match query.pagination.direction {
                 PaginationDirection::Older => ("<", "DESC"),
                 PaginationDirection::Newer => (">", "ASC"),
@@ -143,14 +143,14 @@ impl ExplorerBlocksDal<'_, '_> {
                 .map(|row| l1_batch_page_item_from_storage(row, last_verified))
                 .collect();
             Ok(result)
-        })
+        }
     }
 
-    pub fn get_l1_batch_details(
+    pub async fn get_l1_batch_details(
         &mut self,
         l1_batch_number: L1BatchNumber,
     ) -> Result<Option<L1BatchDetails>, SqlxError> {
-        async_std::task::block_on(async {
+        {
             let started_at = Instant::now();
             let l1_batch_details: Option<StorageL1BatchDetails> = sqlx::query_as!(
                 StorageL1BatchDetails,
@@ -182,6 +182,6 @@ impl ExplorerBlocksDal<'_, '_> {
                 .await?;
             metrics::histogram!("dal.request", started_at.elapsed(), "method" => "explorer_get_l1_batch_details");
             Ok(l1_batch_details.map(L1BatchDetails::from))
-        })
+        }
     }
 }

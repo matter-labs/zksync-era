@@ -6,7 +6,6 @@ use tokio::sync::watch;
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
 
-use zksync_dal::ConnectionPool;
 use zksync_utils::panic_extractor::try_extract_panic_message;
 
 #[async_trait]
@@ -23,25 +22,15 @@ pub trait JobProcessor: Sync + Send {
     /// Returns None when there is no pending job
     /// Otherwise, returns Some(job_id, job)
     /// Note: must be concurrency-safe - that is, one job must not be returned in two parallel processes
-    async fn get_next_job(
-        &self,
-        connection_pool: ConnectionPool,
-    ) -> Option<(Self::JobId, Self::Job)>;
+    async fn get_next_job(&self) -> Option<(Self::JobId, Self::Job)>;
 
     /// Invoked when `process_job` panics
     /// Should mark the job as failed
-    async fn save_failure(
-        &self,
-        connection_pool: ConnectionPool,
-        job_id: Self::JobId,
-        started_at: Instant,
-        error: String,
-    );
+    async fn save_failure(&self, job_id: Self::JobId, started_at: Instant, error: String);
 
     /// Function that processes a job
     async fn process_job(
         &self,
-        connection_pool: ConnectionPool,
         job: Self::Job,
         started_at: Instant,
     ) -> JoinHandle<Self::JobArtifacts>;
@@ -50,12 +39,8 @@ pub trait JobProcessor: Sync + Send {
     /// To run indefinitely, pass `None`,
     /// To process one job, pass `Some(1)`,
     /// To process a batch, pass `Some(batch_size)`.
-    async fn run(
-        self,
-        connection_pool: ConnectionPool,
-        stop_receiver: watch::Receiver<bool>,
-        mut iterations_left: Option<usize>,
-    ) where
+    async fn run(self, stop_receiver: watch::Receiver<bool>, mut iterations_left: Option<usize>)
+    where
         Self: Sized,
     {
         let mut backoff: u64 = Self::POLLING_INTERVAL_MS;
@@ -67,23 +52,19 @@ pub trait JobProcessor: Sync + Send {
                 );
                 return;
             }
-            if let Some((job_id, job)) = Self::get_next_job(&self, connection_pool.clone()).await {
+            if let Some((job_id, job)) = Self::get_next_job(&self).await {
                 let started_at = Instant::now();
                 backoff = Self::POLLING_INTERVAL_MS;
                 iterations_left = iterations_left.map(|i| i - 1);
 
-                let connection_pool_for_task = connection_pool.clone();
                 vlog::debug!(
                     "Spawning thread processing {:?} job with id {:?}",
                     Self::SERVICE_NAME,
                     job_id
                 );
-                let task = self
-                    .process_job(connection_pool_for_task, job, started_at)
-                    .await;
+                let task = self.process_job(job, started_at).await;
 
-                self.wait_for_task(connection_pool.clone(), job_id, started_at, task)
-                    .await
+                self.wait_for_task(job_id, started_at, task).await
             } else if iterations_left.is_some() {
                 vlog::info!("No more jobs to process. Server can stop now.");
                 return;
@@ -96,9 +77,9 @@ pub trait JobProcessor: Sync + Send {
         vlog::info!("Requested number of jobs is processed. Server can stop now.")
     }
 
+    /// Polls task handle, saving its outcome.
     async fn wait_for_task(
         &self,
-        connection_pool: ConnectionPool,
         job_id: Self::JobId,
         started_at: Instant,
         task: JoinHandle<Self::JobArtifacts>,
@@ -119,8 +100,7 @@ pub trait JobProcessor: Sync + Send {
                             Self::SERVICE_NAME,
                             job_id
                         );
-                        self.save_result(connection_pool.clone(), job_id, started_at, data)
-                            .await;
+                        self.save_result(job_id, started_at, data).await;
                     }
                     Err(error) => {
                         let error_message = try_extract_panic_message(error);
@@ -130,13 +110,7 @@ pub trait JobProcessor: Sync + Send {
                             job_id,
                             error_message
                         );
-                        self.save_failure(
-                            connection_pool.clone(),
-                            job_id,
-                            started_at,
-                            error_message,
-                        )
-                        .await;
+                        self.save_failure(job_id, started_at, error_message).await;
                     }
                 }
                 break;
@@ -145,9 +119,9 @@ pub trait JobProcessor: Sync + Send {
         }
     }
 
+    /// Invoked when `process_job` doesn't panic
     async fn save_result(
         &self,
-        connection_pool: ConnectionPool,
         job_id: Self::JobId,
         started_at: Instant,
         artifacts: Self::JobArtifacts,

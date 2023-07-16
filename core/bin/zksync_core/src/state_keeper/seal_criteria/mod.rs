@@ -10,18 +10,24 @@
 //! Maintaining all the criteria in one place has proven itself to be very error-prone,
 //! thus now every criterion is independent of the others.
 
-use std::fmt::Debug;
-pub(self) use zksync_config::configs::chain::StateKeeperConfig;
+use std::fmt;
+
+use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_contracts::BaseSystemContractsHashes;
-use zksync_types::block::BlockGasCount;
-use zksync_types::tx::tx_execution_info::{DeduplicatedWritesMetrics, ExecutionMetrics};
-use zksync_utils::time::{millis_since, millis_since_epoch};
+use zksync_types::{
+    block::BlockGasCount,
+    fee::TransactionExecutionMetrics,
+    tx::tx_execution_info::{DeduplicatedWritesMetrics, ExecutionMetrics},
+    Transaction,
+};
+use zksync_utils::time::millis_since;
 
-use self::conditional_sealer::ConditionalSealer;
-use super::updates::UpdatesManager;
+mod conditional_sealer;
+pub(super) mod criteria;
 
-pub(crate) mod conditional_sealer;
-pub(crate) mod criteria;
+pub(crate) use self::conditional_sealer::ConditionalSealer;
+use super::{extractors, updates::UpdatesManager};
+use crate::gas_tracker::{gas_count_from_tx_and_metrics, gas_count_from_writes};
 
 /// Reported decision regarding block sealing.
 #[derive(Debug, Clone, PartialEq)]
@@ -50,45 +56,73 @@ impl SealResolution {
     /// `Unexecutable` is stricter than `ExcludeAndSeal`.
     /// `ExcludeAndSeal` is stricter than `IncludeAndSeal`.
     /// `IncludeAndSeal` is stricter than `NoSeal`.
-    pub fn stricter(self, other: SealResolution) -> SealResolution {
+    pub fn stricter(self, other: Self) -> Self {
         match (self, other) {
-            (SealResolution::Unexecutable(reason), _)
-            | (_, SealResolution::Unexecutable(reason)) => SealResolution::Unexecutable(reason),
-            (SealResolution::ExcludeAndSeal, _) | (_, SealResolution::ExcludeAndSeal) => {
-                SealResolution::ExcludeAndSeal
+            (Self::Unexecutable(reason), _) | (_, Self::Unexecutable(reason)) => {
+                Self::Unexecutable(reason)
             }
-            (SealResolution::IncludeAndSeal, _) | (_, SealResolution::IncludeAndSeal) => {
-                SealResolution::IncludeAndSeal
-            }
-            _ => SealResolution::NoSeal,
+            (Self::ExcludeAndSeal, _) | (_, Self::ExcludeAndSeal) => Self::ExcludeAndSeal,
+            (Self::IncludeAndSeal, _) | (_, Self::IncludeAndSeal) => Self::IncludeAndSeal,
+            _ => Self::NoSeal,
         }
     }
 
     /// Returns `true` if L1 batch should be sealed according to this resolution.
-    pub fn should_seal(self) -> bool {
-        matches!(
-            self,
-            SealResolution::IncludeAndSeal | SealResolution::ExcludeAndSeal
-        )
+    pub fn should_seal(&self) -> bool {
+        matches!(self, Self::IncludeAndSeal | Self::ExcludeAndSeal)
+    }
+
+    /// Name of this resolution usable as a metric label.
+    pub fn name(&self) -> &'static str {
+        match self {
+            Self::NoSeal => "no_seal",
+            Self::IncludeAndSeal => "include_and_seal",
+            Self::ExcludeAndSeal => "exclude_and_seal",
+            Self::Unexecutable(_) => "unexecutable",
+        }
     }
 }
 
-pub trait SealCriterion: Debug + Send + 'static {
-    #[allow(clippy::too_many_arguments)]
+/// Information about transaction or block applicable either to a single transaction, or
+/// to the entire miniblock / L1 batch.
+#[derive(Debug, Default)]
+pub struct SealData {
+    pub(super) execution_metrics: ExecutionMetrics,
+    pub(super) gas_count: BlockGasCount,
+    pub(super) cumulative_size: usize,
+    pub(super) writes_metrics: DeduplicatedWritesMetrics,
+}
+
+impl SealData {
+    /// Creates sealing data based on the execution of a `transaction`. Assumes that all writes
+    /// performed by the transaction are initial.
+    pub(crate) fn for_transaction(
+        transaction: Transaction,
+        tx_metrics: &TransactionExecutionMetrics,
+    ) -> Self {
+        let execution_metrics = ExecutionMetrics::from_tx_metrics(tx_metrics);
+        let writes_metrics = DeduplicatedWritesMetrics::from_tx_metrics(tx_metrics);
+        let gas_count = gas_count_from_tx_and_metrics(&transaction, &execution_metrics)
+            + gas_count_from_writes(&writes_metrics);
+        Self {
+            execution_metrics,
+            gas_count,
+            cumulative_size: extractors::encoded_transaction_size(transaction),
+            writes_metrics,
+        }
+    }
+}
+
+pub(super) trait SealCriterion: fmt::Debug + Send + 'static {
     fn should_seal(
         &self,
         config: &StateKeeperConfig,
         block_open_timestamp_ms: u128,
         tx_count: usize,
-        block_execution_metrics: ExecutionMetrics,
-        tx_execution_metrics: ExecutionMetrics,
-        block_gas_count: BlockGasCount,
-        tx_gas_count: BlockGasCount,
-        block_included_txs_size: usize,
-        tx_size: usize,
-        block_writes_metrics: DeduplicatedWritesMetrics,
-        tx_writes_metrics: DeduplicatedWritesMetrics,
+        block_data: &SealData,
+        tx_data: &SealData,
     ) -> SealResolution;
+
     // We need self here only for rust restrictions for creating an object from trait
     // https://doc.rust-lang.org/reference/items/traits.html#object-safety
     fn prom_criterion_name(&self) -> &'static str;
@@ -112,15 +146,17 @@ pub struct SealManager {
     miniblock_sealers: Vec<Box<SealerFn>>,
 }
 
-impl Debug for SealManager {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("SealManager").finish()
+impl fmt::Debug for SealManager {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("SealManager")
+            .finish_non_exhaustive()
     }
 }
 
 impl SealManager {
     /// Creates a default pre-configured seal manager for the main node.
-    pub(crate) fn new(config: StateKeeperConfig) -> Self {
+    pub(super) fn new(config: StateKeeperConfig) -> Self {
         let timeout_batch_sealer = Self::timeout_batch_sealer(config.block_commit_deadline_ms);
         let code_hash_batch_sealer = Self::code_hash_batch_sealer(BaseSystemContractsHashes {
             bootloader: config.bootloader_hash,
@@ -140,64 +176,58 @@ impl SealManager {
     /// Allows to create a seal manager object from externally-defined sealers.
     pub fn custom(
         conditional_sealer: Option<ConditionalSealer>,
-        unconditional_sealer: Vec<Box<SealerFn>>,
-        miniblock_sealer: Vec<Box<SealerFn>>,
+        unconditional_sealers: Vec<Box<SealerFn>>,
+        miniblock_sealers: Vec<Box<SealerFn>>,
     ) -> Self {
         Self {
             conditional_sealer,
-            unconditional_sealers: unconditional_sealer,
-            miniblock_sealers: miniblock_sealer,
+            unconditional_sealers,
+            miniblock_sealers,
         }
     }
 
     /// Creates a sealer function that would seal the batch because of the timeout.
-    pub(crate) fn timeout_batch_sealer(block_commit_deadline_ms: u64) -> Box<SealerFn> {
+    fn timeout_batch_sealer(block_commit_deadline_ms: u64) -> Box<SealerFn> {
+        const RULE_NAME: &str = "no_txs_timeout";
+
         Box::new(move |manager| {
             // Verify timestamp
             let should_seal_timeout =
                 millis_since(manager.batch_timestamp()) > block_commit_deadline_ms;
 
             if should_seal_timeout {
-                metrics::increment_counter!(
-                    "server.tx_aggregation.reason",
-                    "criterion" => "no_txs_timeout"
-                );
-                vlog::info!(
-                    "l1_batch_timeout_triggered without new txs: {:?} {:?} {:?}",
-                    manager.batch_timestamp(),
-                    block_commit_deadline_ms,
-                    millis_since_epoch()
+                metrics::increment_counter!("server.tx_aggregation.reason", "criterion" => RULE_NAME);
+                vlog::debug!(
+                    "Decided to seal L1 batch using rule `{RULE_NAME}`; batch timestamp: {}, \
+                     commit deadline: {block_commit_deadline_ms}ms",
+                    extractors::display_timestamp(manager.batch_timestamp())
                 );
             }
-
             should_seal_timeout
         })
     }
 
     /// Creates a sealer function that would seal the batch if the provided base system contract hashes are different
     /// from ones in the updates manager.
-    pub(crate) fn code_hash_batch_sealer(
+    pub(super) fn code_hash_batch_sealer(
         base_system_contracts_hashes: BaseSystemContractsHashes,
     ) -> Box<SealerFn> {
+        const RULE_NAME: &str = "different_code_hashes";
+
         Box::new(move |manager| {
             // Verify code hashes
             let should_seal_code_hashes =
                 base_system_contracts_hashes != manager.base_system_contract_hashes();
 
             if should_seal_code_hashes {
-                metrics::increment_counter!(
-                    "server.tx_aggregation.reason",
-                    "criterion" => "different_code_hashes"
-                );
-                vlog::info!(
-                    "l1_batch_different_code_hashes_triggered without new txs \n
-                    l1 batch code hashes: {:?} \n
-                    expected code hashes {:?} ",
+                metrics::increment_counter!("server.tx_aggregation.reason", "criterion" => RULE_NAME);
+                vlog::debug!(
+                    "Decided to seal L1 batch using rule `{RULE_NAME}`; L1 batch code hashes: {:?}, \
+                     expected code hashes: {:?}",
                     base_system_contracts_hashes,
-                    manager.base_system_contract_hashes(),
+                    manager.base_system_contract_hashes()
                 );
             }
-
             should_seal_code_hashes
         })
     }
@@ -211,41 +241,28 @@ impl SealManager {
         })
     }
 
-    #[allow(clippy::too_many_arguments)]
-    pub(crate) fn should_seal_l1_batch(
+    pub(super) fn should_seal_l1_batch(
         &self,
         l1_batch_number: u32,
         block_open_timestamp_ms: u128,
         tx_count: usize,
-        block_execution_metrics: ExecutionMetrics,
-        tx_execution_metrics: ExecutionMetrics,
-        block_gas_count: BlockGasCount,
-        tx_gas_count: BlockGasCount,
-        block_included_txs_size: usize,
-        tx_size: usize,
-        block_writes_metrics: DeduplicatedWritesMetrics,
-        tx_writes_metrics: DeduplicatedWritesMetrics,
+        block_data: &SealData,
+        tx_data: &SealData,
     ) -> SealResolution {
-        if let Some(sealer) = self.conditional_sealer.as_ref() {
+        if let Some(sealer) = &self.conditional_sealer {
             sealer.should_seal_l1_batch(
                 l1_batch_number,
                 block_open_timestamp_ms,
                 tx_count,
-                block_execution_metrics,
-                tx_execution_metrics,
-                block_gas_count,
-                tx_gas_count,
-                block_included_txs_size,
-                tx_size,
-                block_writes_metrics,
-                tx_writes_metrics,
+                block_data,
+                tx_data,
             )
         } else {
             SealResolution::NoSeal
         }
     }
 
-    pub(crate) fn should_seal_l1_batch_unconditionally(
+    pub(super) fn should_seal_l1_batch_unconditionally(
         &self,
         updates_manager: &UpdatesManager,
     ) -> bool {
@@ -257,7 +274,7 @@ impl SealManager {
                 .any(|sealer| (sealer)(updates_manager))
     }
 
-    pub(crate) fn should_seal_miniblock(&self, updates_manager: &UpdatesManager) -> bool {
+    pub(super) fn should_seal_miniblock(&self, updates_manager: &UpdatesManager) -> bool {
         // Unlike with the L1 batch, we don't check the number of transactions in the miniblock,
         // because we might want to seal the miniblock even if it's empty (e.g. on an external node,
         // where we have to replicate the state of the main node, including the last (empty) miniblock of the batch).
@@ -271,66 +288,21 @@ impl SealManager {
 
 #[cfg(test)]
 mod tests {
-    use vm::{
-        vm::{VmPartialExecutionResult, VmTxExecutionResult},
-        vm_with_bootloader::{BlockContext, BlockContextMode, DerivedBlockContext},
-    };
-    use zksync_types::{
-        l2::L2Tx,
-        tx::tx_execution_info::{TxExecutionStatus, VmExecutionLogs},
-        Address, Nonce, H256, U256,
-    };
     use zksync_utils::time::seconds_since_epoch;
 
     use super::*;
-
-    fn create_manager() -> UpdatesManager {
-        let block_context = BlockContextMode::NewBlock(
-            DerivedBlockContext {
-                context: BlockContext {
-                    block_number: 0,
-                    block_timestamp: 0,
-                    l1_gas_price: 0,
-                    fair_l2_gas_price: 0,
-                    operator_address: Default::default(),
-                },
-                base_fee: 0,
-            },
-            0.into(),
-        );
-        UpdatesManager::new(&block_context, Default::default())
-    }
+    use crate::state_keeper::tests::{
+        create_execution_result, create_transaction, create_updates_manager,
+    };
 
     fn apply_tx_to_manager(manager: &mut UpdatesManager) {
-        let mut tx = L2Tx::new(
-            Default::default(),
-            Default::default(),
-            Nonce(0),
-            Default::default(),
-            Address::default(),
-            U256::zero(),
-            None,
-            Default::default(),
-        );
-        tx.set_input(H256::random().0.to_vec(), H256::random());
+        let tx = create_transaction(10, 100);
         manager.extend_from_executed_transaction(
-            &tx.into(),
-            VmTxExecutionResult {
-                status: TxExecutionStatus::Success,
-                result: VmPartialExecutionResult {
-                    logs: VmExecutionLogs::default(),
-                    revert_reason: None,
-                    contracts_used: 0,
-                    cycles_used: 0,
-                    computational_gas_used: 0,
-                },
-                call_traces: vec![],
-                gas_refunded: 0,
-                operator_suggested_refund: 0,
-            },
-            Default::default(),
-            Default::default(),
-            Default::default(),
+            tx,
+            create_execution_result(0, []),
+            vec![],
+            BlockGasCount::default(),
+            ExecutionMetrics::default(),
         );
     }
 
@@ -339,7 +311,7 @@ mod tests {
     fn timeout_miniblock_sealer() {
         let timeout_miniblock_sealer = SealManager::timeout_miniblock_sealer(10_000);
 
-        let mut manager = create_manager();
+        let mut manager = create_updates_manager();
         // Empty miniblock should not trigger.
         manager.miniblock.timestamp = seconds_since_epoch() - 10;
         assert!(

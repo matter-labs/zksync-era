@@ -1,3 +1,4 @@
+use async_trait::async_trait;
 use tokio::sync::watch;
 use zksync_health_check::{CheckHealth, CheckHealthStatus};
 
@@ -24,8 +25,9 @@ impl TreeHealthCheck {
     }
 }
 
+#[async_trait]
 impl CheckHealth for TreeHealthCheck {
-    fn check_health(&self) -> CheckHealthStatus {
+    async fn check_health(&self) -> CheckHealthStatus {
         match *self.receiver.borrow() {
             MetadataCalculatorStatus::Ready => CheckHealthStatus::Ready,
             MetadataCalculatorStatus::NotReady => CheckHealthStatus::NotReady(format!(

@@ -3,7 +3,7 @@ use std::{collections::HashMap, fs::read_to_string, path::PathBuf, str::FromStr}
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
-use zksync_config::ZkSyncConfig;
+use zksync_types::network::Network;
 use zksync_types::{
     tokens::{TokenMetadata, ETHEREUM_ADDRESS},
     Address,
@@ -20,8 +20,8 @@ pub struct MockTokenListFetcher {
 }
 
 impl MockTokenListFetcher {
-    pub fn new(config: &ZkSyncConfig) -> Self {
-        let network = config.chain.eth.network.to_string();
+    pub fn new(network: Network) -> Self {
+        let network = network.to_string();
         let tokens: HashMap<_, _> = get_genesis_token_list(&network)
             .into_iter()
             .map(|item| {

@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.15.2](https://github.com/matter-labs/zksync-2-dev/compare/zksync-web3-v0.15.1...zksync-web3-v0.15.2) (2023-07-06)
+
+
+### Features
+
+* (DONT MERGE!) Integrate WETH bridge into server & SDK ([#1929](https://github.com/matter-labs/zksync-2-dev/issues/1929)) ([b3caf1e](https://github.com/matter-labs/zksync-2-dev/commit/b3caf1e35718c742e8d1d59427855df3b9109300))
+* add tx_index_in_l1_batch field to L2ToL1Log ([#2032](https://github.com/matter-labs/zksync-2-dev/issues/2032)) ([3ce5779](https://github.com/matter-labs/zksync-2-dev/commit/3ce5779f500d5738c92e09eff13d553e20625055))
+* **api:** add `gas_per_pubdata` to `zks_getTransactionDetails` ([#2085](https://github.com/matter-labs/zksync-2-dev/issues/2085)) ([dd91bb6](https://github.com/matter-labs/zksync-2-dev/commit/dd91bb673b29a17cea91e12ec95f53deba556798))
+
 ## [0.15.1](https://github.com/matter-labs/zksync-2-dev/compare/zksync-web3-v0.15.0...zksync-web3-v0.15.1) (2023-04-24)
 
 

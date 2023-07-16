@@ -29,8 +29,7 @@ use crate::oracles::tracer::{
 };
 use crate::oracles::OracleWithHistory;
 use crate::utils::{
-    calculate_computational_gas_used, collect_log_queries_after_timestamp,
-    collect_storage_log_queries_after_timestamp, dump_memory_page_using_primitive_value,
+    calculate_computational_gas_used, dump_memory_page_using_primitive_value,
     precompile_calls_count_after_timestamp,
 };
 use crate::vm_with_bootloader::{
@@ -212,7 +211,7 @@ fn vm_may_have_ended<H: HistoryMode>(
                 // The correct `events` value for this field should be set separately
                 // later on based on the information inside the event_sink oracle.
                 events: vec![],
-                storage_log_queries: vm.get_final_log_queries(),
+                storage_log_queries: vm.state.storage.get_final_log_queries(),
                 used_contract_hashes: vm.get_used_contracts(),
                 l2_to_l1_logs: vec![],
                 return_data: bytes_to_be_words(data),
@@ -228,7 +227,7 @@ fn vm_may_have_ended<H: HistoryMode>(
                 trace: VmTrace::ExecutionTrace(VmExecutionTrace::default()),
                 total_log_queries: vm.state.event_sink.get_log_queries()
                     + vm.state.precompiles_processor.get_timestamp_history().len()
-                    + vm.get_final_log_queries().len(),
+                    + vm.state.storage.get_final_log_queries().len(),
                 cycles_used: vm.state.local_state.monotonic_cycle_counter,
             })
         }
@@ -252,7 +251,7 @@ fn vm_may_have_ended<H: HistoryMode>(
 
             Some(VmExecutionResult {
                 events: vec![],
-                storage_log_queries: vm.get_final_log_queries(),
+                storage_log_queries: vm.state.storage.get_final_log_queries(),
                 used_contract_hashes: vm.get_used_contracts(),
                 l2_to_l1_logs: vec![],
                 return_data: vec![],
@@ -268,7 +267,7 @@ fn vm_may_have_ended<H: HistoryMode>(
                 trace: VmTrace::ExecutionTrace(VmExecutionTrace::default()),
                 total_log_queries: vm.state.event_sink.get_log_queries()
                     + vm.state.precompiles_processor.get_timestamp_history().len()
-                    + vm.get_final_log_queries().len(),
+                    + vm.state.storage.get_final_log_queries().len(),
                 cycles_used: vm.state.local_state.monotonic_cycle_counter,
             })
         }
@@ -294,7 +293,7 @@ fn vm_may_have_ended<H: HistoryMode>(
             trace: VmTrace::ExecutionTrace(VmExecutionTrace::default()),
             total_log_queries: vm.state.event_sink.get_log_queries()
                 + vm.state.precompiles_processor.get_timestamp_history().len()
-                + vm.get_final_log_queries().len(),
+                + vm.state.storage.get_final_log_queries().len(),
             cycles_used: vm.state.local_state.monotonic_cycle_counter,
         }),
         NewVmExecutionResult::MostLikelyDidNotFinish(_, _) => {
@@ -407,19 +406,21 @@ impl<H: HistoryMode> VmInstance<'_, H> {
     }
 
     fn collect_execution_logs_after_timestamp(&self, from_timestamp: Timestamp) -> VmExecutionLogs {
-        let storage_logs = collect_storage_log_queries_after_timestamp(
-            self.state.storage.frames_stack.forward().current_frame(),
-            from_timestamp,
-        );
+        let storage_logs = self
+            .state
+            .storage
+            .storage_log_queries_after_timestamp(from_timestamp)
+            .to_vec();
         let storage_logs_count = storage_logs.len();
+        let storage_logs = storage_logs.iter().map(|x| **x).collect();
 
         let (events, l2_to_l1_logs) =
             self.collect_events_and_l1_logs_after_timestamp(from_timestamp);
 
-        let log_queries = collect_log_queries_after_timestamp(
-            self.state.event_sink.frames_stack.forward().current_frame(),
-            from_timestamp,
-        );
+        let log_queries = self
+            .state
+            .event_sink
+            .log_queries_after_timestamp(from_timestamp);
 
         let precompile_calls_count = precompile_calls_count_after_timestamp(
             self.state.precompiles_processor.timestamp_history.inner(),
@@ -461,7 +462,9 @@ impl<H: HistoryMode> VmInstance<'_, H> {
             );
 
             let timestamp_before_cycle = self.state.local_state.timestamp;
-            self.state.cycle(tracer);
+            self.state
+                .cycle(tracer)
+                .expect("Failed execution VM cycle.");
 
             if self.has_ended() {
                 return (
@@ -868,26 +871,10 @@ impl<H: HistoryMode> VmInstance<'_, H> {
                 Err(ValidationError::FailedTx(self.revert_reason().unwrap()))
             }
             (VmExecutionStopReason::TracerRequestedStop, Some(err)) => {
-                Err(ValidationError::VioalatedRule(err))
+                Err(ValidationError::ViolatedRule(err))
             }
             (VmExecutionStopReason::TracerRequestedStop, None) => Ok(()),
         }
-    }
-
-    // returns Some only when there is just one frame in execution trace.
-    fn get_final_log_queries(&self) -> Vec<StorageLogQuery> {
-        assert_eq!(
-            self.state.storage.frames_stack.len(),
-            1,
-            "VM finished execution in unexpected state"
-        );
-
-        self.state
-            .storage
-            .frames_stack
-            .forward()
-            .current_frame()
-            .to_vec()
     }
 
     /// Returns the keys of contracts that are already loaded (known) by bootloader.
@@ -908,7 +895,8 @@ impl<H: HistoryMode> VmInstance<'_, H> {
             .inner()
             .get_ptr()
             .borrow_mut()
-            .number_of_updated_storage_slots()
+            .modified_storage_keys()
+            .len()
     }
 }
 

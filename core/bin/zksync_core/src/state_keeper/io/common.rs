@@ -1,4 +1,4 @@
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use vm::{
     vm_with_bootloader::{BlockContext, BlockContextMode},
@@ -9,14 +9,8 @@ use zksync_dal::StorageProcessor;
 use zksync_types::{Address, L1BatchNumber, U256, ZKPORTER_IS_AVAILABLE};
 use zksync_utils::h256_to_u256;
 
-use crate::state_keeper::extractors;
-
 use super::{L1BatchParams, PendingBatchData};
-
-#[derive(Debug)]
-pub(crate) struct StateKeeperStats {
-    pub(crate) num_contracts: u64,
-}
+use crate::state_keeper::extractors;
 
 /// Returns the parameters required to initialize the VM for the next L1 batch.
 pub(crate) fn l1_batch_params(
@@ -48,26 +42,17 @@ pub(crate) fn l1_batch_params(
     }
 }
 
-/// Runs the provided closure `f` until it returns `Some` or the `max_wait` time has elapsed.
-pub(crate) fn poll_until<T, F: FnMut() -> Option<T>>(
-    delay_interval: Duration,
-    max_wait: Duration,
-    mut f: F,
-) -> Option<T> {
-    let wait_interval = delay_interval.min(max_wait);
-    let start = Instant::now();
-    while start.elapsed() <= max_wait {
-        let res = f();
-        if res.is_some() {
-            return res;
-        }
-        std::thread::sleep(wait_interval);
-    }
-    None
+/// Returns the amount of iterations `delay_interval` fits into `max_wait`, rounding up.
+pub(crate) fn poll_iters(delay_interval: Duration, max_wait: Duration) -> usize {
+    let max_wait_millis = max_wait.as_millis() as u64;
+    let delay_interval_millis = delay_interval.as_millis() as u64;
+    assert!(delay_interval_millis > 0, "delay interval must be positive");
+
+    ((max_wait_millis + delay_interval_millis - 1) / delay_interval_millis).max(1) as usize
 }
 
 /// Loads the pending L1 block data from the database.
-pub(crate) fn load_pending_batch(
+pub(crate) async fn load_pending_batch(
     storage: &mut StorageProcessor<'_>,
     current_l1_batch_number: L1BatchNumber,
     fee_account: Address,
@@ -78,25 +63,30 @@ pub(crate) fn load_pending_batch(
         let (_, last_miniblock_number_included_in_l1_batch) = storage
             .blocks_dal()
             .get_miniblock_range_of_l1_batch(current_l1_batch_number - 1)
+            .await
             .unwrap();
         last_miniblock_number_included_in_l1_batch + 1
     };
     let pending_miniblock_header = storage
         .blocks_dal()
-        .get_miniblock_header(pending_miniblock_number)?;
+        .get_miniblock_header(pending_miniblock_number)
+        .await?;
 
     vlog::info!("Getting previous batch hash");
-    let previous_l1_batch_hash =
-        extractors::wait_for_prev_l1_batch_state_root_unchecked(storage, current_l1_batch_number);
+    let (previous_l1_batch_hash, _) =
+        extractors::wait_for_prev_l1_batch_params(storage, current_l1_batch_number).await;
 
-    let base_system_contracts = storage.storage_dal().get_base_system_contracts(
-        pending_miniblock_header
-            .base_system_contracts_hashes
-            .bootloader,
-        pending_miniblock_header
-            .base_system_contracts_hashes
-            .default_aa,
-    );
+    let base_system_contracts = storage
+        .storage_dal()
+        .get_base_system_contracts(
+            pending_miniblock_header
+                .base_system_contracts_hashes
+                .bootloader,
+            pending_miniblock_header
+                .base_system_contracts_hashes
+                .default_aa,
+        )
+        .await;
 
     vlog::info!("Previous l1_batch_hash: {}", previous_l1_batch_hash);
     let params = l1_batch_params(
@@ -109,7 +99,25 @@ pub(crate) fn load_pending_batch(
         base_system_contracts,
     );
 
-    let txs = storage.transactions_dal().get_transactions_to_reexecute();
+    let txs = storage
+        .transactions_dal()
+        .get_transactions_to_reexecute()
+        .await;
 
     Some(PendingBatchData { params, txs })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    #[rustfmt::skip] // One-line formatting looks better here.
+    fn test_poll_iters() {
+        assert_eq!(poll_iters(Duration::from_millis(100), Duration::from_millis(0)), 1);
+        assert_eq!(poll_iters(Duration::from_millis(100), Duration::from_millis(100)), 1);
+        assert_eq!(poll_iters(Duration::from_millis(100), Duration::from_millis(101)), 2);
+        assert_eq!(poll_iters(Duration::from_millis(100), Duration::from_millis(200)), 2);
+        assert_eq!(poll_iters(Duration::from_millis(100), Duration::from_millis(201)), 3);
+    }
 }

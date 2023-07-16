@@ -1,11 +1,11 @@
 // Built-in deps
 use std::{fmt, mem, pin::Pin, sync::Arc, time::Duration};
 // External imports
-use async_std::{
-    future::timeout,
-    sync::{Mutex, MutexGuardArc},
-};
 use sqlx::{Acquire, Connection, PgConnection, Postgres, Transaction};
+use tokio::{
+    sync::{Mutex, OwnedMutexGuard},
+    time::timeout,
+};
 // Local imports
 use crate::StorageProcessor;
 
@@ -68,7 +68,7 @@ impl TestPoolInner {
 
 #[derive(Debug)]
 pub struct TestPoolLock {
-    lock: MutexGuardArc<TestPoolInner>,
+    lock: OwnedMutexGuard<TestPoolInner>,
 }
 
 impl TestPoolLock {
@@ -114,7 +114,7 @@ impl TestPool {
     pub async fn access_storage(&self) -> StorageProcessor<'static> {
         const LOCK_TIMEOUT: Duration = Duration::from_secs(1);
 
-        let lock = self.inner.lock_arc();
+        let lock = self.inner.clone().lock_owned();
         let lock = timeout(LOCK_TIMEOUT, lock).await.expect(
             "Timed out waiting to acquire a lock in test `ConnectionPool`. \
              Check the backtrace and make sure that no `StorageProcessor`s are alive",

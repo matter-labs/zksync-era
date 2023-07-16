@@ -1,25 +1,28 @@
-use std::time::Instant;
+#![feature(generic_const_exprs)]
 
-use futures::StreamExt;
 use prometheus_exporter::run_prometheus_exporter;
-use zksync_config::configs::WitnessGeneratorConfig;
-use zksync_config::ZkSyncConfig;
-use zksync_dal::ConnectionPool;
+use std::time::Instant;
+use structopt::StructOpt;
+use tokio::sync::watch;
+use zksync_config::configs::{AlertsConfig, FriWitnessGeneratorConfig, PrometheusConfig};
+use zksync_config::ObjectStoreConfig;
+use zksync_dal::{connection::DbVariant, ConnectionPool};
 use zksync_object_store::ObjectStoreFactory;
-use zksync_prover_utils::{get_stop_signal_receiver, wait_for_tasks};
+use zksync_prover_utils::get_stop_signal_receiver;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::proofs::AggregationRound;
+use zksync_types::web3::futures::StreamExt;
+use zksync_utils::wait_for_tasks::wait_for_tasks;
 
 use crate::basic_circuits::BasicWitnessGenerator;
 use crate::leaf_aggregation::LeafAggregationWitnessGenerator;
 use crate::node_aggregation::NodeAggregationWitnessGenerator;
 use crate::scheduler::SchedulerWitnessGenerator;
-use structopt::StructOpt;
 
 mod basic_circuits;
 mod leaf_aggregation;
 mod node_aggregation;
-mod precalculated;
+mod precalculated_merkle_paths_provider;
 mod scheduler;
 mod utils;
 
@@ -39,11 +42,17 @@ struct Opt {
 
 #[tokio::main]
 async fn main() {
+    vlog::init();
+    let sentry_guard = vlog::init_sentry();
+    match sentry_guard {
+        Some(_) => vlog::info!(
+            "Starting Sentry url: {}",
+            std::env::var("MISC_SENTRY_URL").unwrap(),
+        ),
+        None => vlog::info!("No sentry url configured"),
+    }
+
     let opt = Opt::from_args();
-    let _sentry_guard = vlog::init();
-    let connection_pool = ConnectionPool::new(None, true);
-    let zksync_config = ZkSyncConfig::from_env();
-    let (stop_sender, stop_receiver) = tokio::sync::watch::channel::<bool>(false);
     let started_at = Instant::now();
     vlog::info!(
         "initializing the {:?} witness generator, batch size: {:?}",
@@ -52,28 +61,60 @@ async fn main() {
     );
     let use_push_gateway = opt.batch_size.is_some();
 
-    let config = WitnessGeneratorConfig::from_env();
     let store_factory = ObjectStoreFactory::from_env();
+    let config = FriWitnessGeneratorConfig::from_env();
+    let prometheus_config = PrometheusConfig::from_env();
+    let connection_pool = ConnectionPool::new(None, DbVariant::Master).await;
+    let prover_connection_pool = ConnectionPool::new(None, DbVariant::Prover).await;
+    let (stop_sender, stop_receiver) = watch::channel(false);
+
     let witness_generator_task = match opt.round {
         AggregationRound::BasicCircuits => {
-            let generator = BasicWitnessGenerator::new(config, &store_factory);
-            generator.run(connection_pool, stop_receiver, opt.batch_size)
+            let public_blob_store = ObjectStoreFactory::new(ObjectStoreConfig::public_from_env())
+                .create_store()
+                .await;
+            let generator = BasicWitnessGenerator::new(
+                config,
+                &store_factory,
+                public_blob_store,
+                connection_pool,
+                prover_connection_pool,
+            )
+            .await;
+            generator.run(stop_receiver, opt.batch_size)
         }
         AggregationRound::LeafAggregation => {
-            let generator = LeafAggregationWitnessGenerator::new(config, &store_factory);
-            generator.run(connection_pool, stop_receiver, opt.batch_size)
+            let generator = LeafAggregationWitnessGenerator::new(
+                config,
+                &store_factory,
+                prover_connection_pool,
+            )
+            .await;
+            generator.run(stop_receiver, opt.batch_size)
         }
         AggregationRound::NodeAggregation => {
-            let generator = NodeAggregationWitnessGenerator::new(config, &store_factory);
-            generator.run(connection_pool, stop_receiver, opt.batch_size)
+            let generator =
+                NodeAggregationWitnessGenerator::new(&store_factory, prover_connection_pool).await;
+            generator.run(stop_receiver, opt.batch_size)
         }
         AggregationRound::Scheduler => {
-            let generator = SchedulerWitnessGenerator::new(config, &store_factory);
-            generator.run(connection_pool, stop_receiver, opt.batch_size)
+            let generator =
+                SchedulerWitnessGenerator::new(&store_factory, prover_connection_pool).await;
+            generator.run(stop_receiver, opt.batch_size)
         }
     };
-
-    let witness_generator_task = tokio::spawn(witness_generator_task);
+    let tasks = vec![
+        run_prometheus_exporter(
+            prometheus_config.listener_port,
+            use_push_gateway.then(|| {
+                (
+                    prometheus_config.pushgateway_url.clone(),
+                    prometheus_config.push_interval(),
+                )
+            }),
+        ),
+        tokio::spawn(witness_generator_task),
+    ];
     vlog::info!(
         "initialized {:?} witness generator in {:?}",
         opt.round,
@@ -82,19 +123,20 @@ async fn main() {
     metrics::gauge!(
         "server.init.latency",
         started_at.elapsed(),
-        "stage" => format!("witness_generator_{:?}", opt.round)
+        "stage" => format!("fri_witness_generator_{:?}", opt.round)
     );
-    let tasks = vec![
-        run_prometheus_exporter(zksync_config.api.prometheus, use_push_gateway),
-        witness_generator_task,
-    ];
 
     let mut stop_signal_receiver = get_stop_signal_receiver();
+    let particular_crypto_alerts = Some(AlertsConfig::from_env().sporadic_crypto_errors_substrs);
+    let graceful_shutdown = None::<futures::future::Ready<()>>;
+    let tasks_allowed_to_finish = false;
     tokio::select! {
-        _ = wait_for_tasks(tasks) => {},
+        _ = wait_for_tasks(tasks, particular_crypto_alerts, graceful_shutdown, tasks_allowed_to_finish) => {},
         _ = stop_signal_receiver.next() => {
             vlog::info!("Stop signal received, shutting down");
-        },
+        }
     }
-    let _ = stop_sender.send(true);
+
+    stop_sender.send(true).ok();
+    vlog::info!("Finished witness generation");
 }

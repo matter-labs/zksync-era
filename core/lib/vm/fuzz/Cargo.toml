@@ -9,7 +9,7 @@ cargo-fuzz = true
 
 [dependencies]
 libfuzzer-sys = "0.4"
-vm-benchmark = {path = "../../../tests/vm-benchmark"}
+vm-benchmark-harness = {path = "../../../tests/vm-benchmark/harness"}
 zksync_types = {path = "../../types"}
 
 # Prevent this from interfering with workspaces

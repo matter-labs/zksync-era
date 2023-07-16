@@ -40,11 +40,210 @@ import { Signer } from './signer';
 let defaultFormatter: Formatter = null;
 
 export class Provider extends ethers.providers.JsonRpcProvider {
+    private static _nextPollId = 1;
     protected contractAddresses: {
         mainContract?: Address;
         erc20BridgeL1?: Address;
         erc20BridgeL2?: Address;
+        wethBridgeL1?: Address;
+        wethBridgeL2?: Address;
     };
+
+    // NOTE: this is almost a complete copy-paste of the parent poll method
+    // https://github.com/ethers-io/ethers.js/blob/v5.7.2/packages/providers/src.ts/base-provider.ts#L977
+    // The only difference is that we handle transaction receipts with `blockNumber: null` differently here.
+    override async poll(): Promise<void> {
+        const pollId = Provider._nextPollId++;
+
+        // Track all running promises, so we can trigger a post-poll once they are complete
+        const runners: Array<Promise<void>> = [];
+
+        let blockNumber: number = null;
+        try {
+            blockNumber = await this._getInternalBlockNumber(100 + this.pollingInterval / 2);
+        } catch (error) {
+            this.emit('error', error);
+            return;
+        }
+        this._setFastBlockNumber(blockNumber);
+
+        // Emit a poll event after we have the latest (fast) block number
+        this.emit('poll', pollId, blockNumber);
+
+        // If the block has not changed, meh.
+        if (blockNumber === this._lastBlockNumber) {
+            this.emit('didPoll', pollId);
+            return;
+        }
+
+        // First polling cycle, trigger a "block" events
+        if (this._emitted.block === -2) {
+            this._emitted.block = blockNumber - 1;
+        }
+
+        if (Math.abs(<number>this._emitted.block - blockNumber) > 1000) {
+            console.warn(
+                `network block skew detected; skipping block events (emitted=${this._emitted.block} blockNumber=${blockNumber})`
+            );
+            this.emit('error', {
+                blockNumber: blockNumber,
+                event: 'blockSkew',
+                previousBlockNumber: this._emitted.block
+            });
+            this.emit('block', blockNumber);
+        } else {
+            // Notify all listener for each block that has passed
+            for (let i = <number>this._emitted.block + 1; i <= blockNumber; i++) {
+                this.emit('block', i);
+            }
+        }
+
+        // The emitted block was updated, check for obsolete events
+        if (<number>this._emitted.block !== blockNumber) {
+            this._emitted.block = blockNumber;
+
+            Object.keys(this._emitted).forEach((key) => {
+                // The block event does not expire
+                if (key === 'block') {
+                    return;
+                }
+
+                // The block we were at when we emitted this event
+                const eventBlockNumber = this._emitted[key];
+
+                // We cannot garbage collect pending transactions or blocks here
+                // They should be garbage collected by the Provider when setting
+                // "pending" events
+                if (eventBlockNumber === 'pending') {
+                    return;
+                }
+
+                // Evict any transaction hashes or block hashes over 12 blocks
+                // old, since they should not return null anyways
+                if (blockNumber - eventBlockNumber > 12) {
+                    delete this._emitted[key];
+                }
+            });
+        }
+
+        // First polling cycle
+        if (this._lastBlockNumber === -2) {
+            this._lastBlockNumber = blockNumber - 1;
+        }
+        // Find all transaction hashes we are waiting on
+        this._events.forEach((event) => {
+            switch (event.type) {
+                case 'tx': {
+                    const hash = event.hash;
+                    let runner = this.getTransactionReceipt(hash)
+                        .then((receipt) => {
+                            if (!receipt) {
+                                return null;
+                            }
+
+                            // NOTE: receipts with blockNumber == null are OK.
+                            // this means they were rejected in state-keeper or replaced in mempool.
+                            // But we still check that they were actually rejected.
+                            if (
+                                receipt.blockNumber == null &&
+                                !(receipt.status != null && BigNumber.from(receipt.status).isZero())
+                            ) {
+                                return null;
+                            }
+
+                            this._emitted['t:' + hash] = receipt.blockNumber;
+                            this.emit(hash, receipt);
+                            return null;
+                        })
+                        .catch((error: Error) => {
+                            this.emit('error', error);
+                        });
+
+                    runners.push(runner);
+
+                    break;
+                }
+
+                case 'filter': {
+                    // We only allow a single getLogs to be in-flight at a time
+                    if (!event._inflight) {
+                        event._inflight = true;
+
+                        // This is the first filter for this event, so we want to
+                        // restrict events to events that happened no earlier than now
+                        if (event._lastBlockNumber === -2) {
+                            event._lastBlockNumber = blockNumber - 1;
+                        }
+
+                        // Filter from the last *known* event; due to load-balancing
+                        // and some nodes returning updated block numbers before
+                        // indexing events, a logs result with 0 entries cannot be
+                        // trusted and we must retry a range which includes it again
+                        const filter = event.filter;
+                        filter.fromBlock = event._lastBlockNumber + 1;
+                        filter.toBlock = blockNumber;
+
+                        // Prevent fitler ranges from growing too wild, since it is quite
+                        // likely there just haven't been any events to move the lastBlockNumber.
+                        const minFromBlock = filter.toBlock - this._maxFilterBlockRange;
+                        if (minFromBlock > filter.fromBlock) {
+                            filter.fromBlock = minFromBlock;
+                        }
+
+                        if (filter.fromBlock < 0) {
+                            filter.fromBlock = 0;
+                        }
+
+                        const runner = this.getLogs(filter)
+                            .then((logs) => {
+                                // Allow the next getLogs
+                                event._inflight = false;
+
+                                if (logs.length === 0) {
+                                    return;
+                                }
+
+                                logs.forEach((log: Log) => {
+                                    // Only when we get an event for a given block number
+                                    // can we trust the events are indexed
+                                    if (log.blockNumber > event._lastBlockNumber) {
+                                        event._lastBlockNumber = log.blockNumber;
+                                    }
+
+                                    // Make sure we stall requests to fetch blocks and txs
+                                    this._emitted['b:' + log.blockHash] = log.blockNumber;
+                                    this._emitted['t:' + log.transactionHash] = log.blockNumber;
+
+                                    this.emit(filter, log);
+                                });
+                            })
+                            .catch((error: Error) => {
+                                this.emit('error', error);
+
+                                // Allow another getLogs (the range was not updated)
+                                event._inflight = false;
+                            });
+                        runners.push(runner);
+                    }
+
+                    break;
+                }
+            }
+        });
+
+        this._lastBlockNumber = blockNumber;
+
+        // Once all events for this loop have been processed, emit "didPoll"
+        Promise.all(runners)
+            .then(() => {
+                this.emit('didPoll', pollId);
+            })
+            .catch((error) => {
+                this.emit('error', error);
+            });
+
+        return;
+    }
 
     override async getTransactionReceipt(transactionHash: string | Promise<string>): Promise<TransactionReceipt> {
         await this.getNetwork();
@@ -58,7 +257,7 @@ export class Provider extends ethers.providers.JsonRpcProvider {
                 const result = await this.perform('getTransactionReceipt', params);
 
                 if (result == null) {
-                    if (this._emitted['t:' + transactionHash] == null) {
+                    if (this._emitted['t:' + transactionHash] === undefined) {
                         return null;
                     }
                     return undefined;
@@ -135,6 +334,7 @@ export class Provider extends ethers.providers.JsonRpcProvider {
                 key: hash,
                 value: hash,
                 transactionHash: hash,
+                txIndexInL1Batch: number,
                 logIndex: number
             };
 
@@ -174,21 +374,35 @@ export class Provider extends ethers.providers.JsonRpcProvider {
     async l2TokenAddress(token: Address) {
         if (token == ETH_ADDRESS) {
             return ETH_ADDRESS;
-        } else {
-            const erc20BridgeAddress = (await this.getDefaultBridgeAddresses()).erc20L2;
-            const erc20Bridge = IL2BridgeFactory.connect(erc20BridgeAddress, this);
-            return await erc20Bridge.l2TokenAddress(token);
         }
+
+        const bridgeAddresses = await this.getDefaultBridgeAddresses();
+        const l2WethBridge = IL2BridgeFactory.connect(bridgeAddresses.wethL2, this);
+        const l2WethToken = await l2WethBridge.l2TokenAddress(token);
+        // If the token is Wrapped Ether, return its L2 token address
+        if (l2WethToken != ethers.constants.AddressZero) {
+            return l2WethToken;
+        }
+
+        const l2Erc20Bridge = IL2BridgeFactory.connect(bridgeAddresses.erc20L2, this);
+        return await l2Erc20Bridge.l2TokenAddress(token);
     }
 
     async l1TokenAddress(token: Address) {
         if (token == ETH_ADDRESS) {
             return ETH_ADDRESS;
-        } else {
-            const erc20BridgeAddress = (await this.getDefaultBridgeAddresses()).erc20L2;
-            const erc20Bridge = IL2BridgeFactory.connect(erc20BridgeAddress, this);
-            return await erc20Bridge.l1TokenAddress(token);
         }
+
+        const bridgeAddresses = await this.getDefaultBridgeAddresses();
+        const l2WethBridge = IL2BridgeFactory.connect(bridgeAddresses.wethL2, this);
+        const l1WethToken = await l2WethBridge.l1TokenAddress(token);
+        // If the token is Wrapped Ether, return its L1 token address
+        if (l1WethToken != ethers.constants.AddressZero) {
+            return l1WethToken;
+        }
+
+        const erc20Bridge = IL2BridgeFactory.connect(bridgeAddresses.erc20L2, this);
+        return await erc20Bridge.l1TokenAddress(token);
     }
 
     // This function is used when formatting requests for
@@ -328,10 +542,14 @@ export class Provider extends ethers.providers.JsonRpcProvider {
             let addresses = await this.send('zks_getBridgeContracts', []);
             this.contractAddresses.erc20BridgeL1 = addresses.l1Erc20DefaultBridge;
             this.contractAddresses.erc20BridgeL2 = addresses.l2Erc20DefaultBridge;
+            this.contractAddresses.wethBridgeL1 = addresses.l1WethBridge;
+            this.contractAddresses.wethBridgeL2 = addresses.l2WethBridge;
         }
         return {
             erc20L1: this.contractAddresses.erc20BridgeL1,
-            erc20L2: this.contractAddresses.erc20BridgeL2
+            erc20L2: this.contractAddresses.erc20BridgeL2,
+            wethL1: this.contractAddresses.wethBridgeL1,
+            wethL2: this.contractAddresses.wethBridgeL2
         };
     }
 
@@ -410,8 +628,12 @@ export class Provider extends ethers.providers.JsonRpcProvider {
         }
 
         if (tx.bridgeAddress == null) {
-            const bridges = await this.getDefaultBridgeAddresses();
-            tx.bridgeAddress = bridges.erc20L2;
+            const bridgeAddresses = await this.getDefaultBridgeAddresses();
+            const l2WethBridge = IL2BridgeFactory.connect(bridgeAddresses.wethL2, this);
+            const l1WethToken = await l2WethBridge.l1TokenAddress(tx.token);
+
+            tx.bridgeAddress =
+                l1WethToken != ethers.constants.AddressZero ? bridgeAddresses.wethL2 : bridgeAddresses.erc20L2;
         }
 
         const bridge = IL2BridgeFactory.connect(tx.bridgeAddress!, this);

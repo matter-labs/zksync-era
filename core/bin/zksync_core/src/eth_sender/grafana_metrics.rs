@@ -3,11 +3,18 @@ use zksync_dal::StorageProcessor;
 use zksync_types::eth_sender::EthTx;
 use zksync_utils::time::seconds_since_epoch;
 
-pub fn track_eth_tx_metrics(connection: &mut StorageProcessor<'_>, l1_stage: &str, tx: &EthTx) {
+pub async fn track_eth_tx_metrics(
+    connection: &mut StorageProcessor<'_>,
+    l1_stage: &str,
+    tx: &EthTx,
+) {
     let start = Instant::now();
     let stage = format!("l1_{}_{}", l1_stage, tx.tx_type.to_string());
 
-    let blocks = connection.blocks_dal().get_blocks_for_eth_tx_id(tx.id);
+    let blocks = connection
+        .blocks_dal()
+        .get_blocks_for_eth_tx_id(tx.id)
+        .await;
 
     // This should be only the case when some blocks were reverted.
     if blocks.is_empty() {

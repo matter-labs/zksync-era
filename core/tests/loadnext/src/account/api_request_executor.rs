@@ -1,10 +1,7 @@
 use std::time::Instant;
 
-use futures::SinkExt;
-use once_cell::sync::OnceCell;
 use rand::seq::IteratorRandom;
 use regex::Regex;
-use tokio::sync::Semaphore;
 
 use zksync::{
     error::{ClientError, RpcError},
@@ -12,20 +9,15 @@ use zksync::{
     EthNamespaceClient,
 };
 use zksync_types::{api, ethabi::Contract, H256, U64};
-use zksync_web3_decl::jsonrpsee::types::error::{CallError, ErrorObject};
 
-use super::AccountLifespan;
+use super::{Aborted, AccountLifespan};
 use crate::{
     command::{ApiRequest, ApiRequestType},
+    config::RequestLimiters,
     constants::API_REQUEST_TIMEOUT,
     report::{ApiActionType, ReportBuilder, ReportLabel},
     rng::LoadtestRng,
 };
-
-/// Shared semaphore which limits the number of accounts performing
-/// API requests at any moment of time.
-/// Lazily initialized by the first account accessing it.
-static REQUEST_LIMITER: OnceCell<Semaphore> = OnceCell::new();
 
 impl AccountLifespan {
     async fn execute_api_request(&mut self, request: ApiRequest) -> Result<(), ClientError> {
@@ -63,15 +55,14 @@ impl AccountLifespan {
             ApiRequestType::GetLogs => {
                 let topics =
                     random_topics(&self.wallet.test_contract.contract, &mut self.wallet.rng);
-                // Safety: `run_api_requests_task` checks whether the cell is initialized
+                // `run_api_requests_task` checks whether the cell is initialized
                 // at every loop iteration and skips logs action if it's not. Thus,
                 // it's safe to unwrap it.
-                let contract_address =
-                    unsafe { self.wallet.deployed_contract_address.get_unchecked() };
+                let contract_address = *self.wallet.deployed_contract_address.get().unwrap();
 
                 let to_block_number = match block_number {
                     api::BlockNumber::Number(number) => {
-                        api::BlockNumber::Number(number + U64::from(99u64))
+                        api::BlockNumber::Number(number + U64::from(99_u64))
                     }
                     _ => api::BlockNumber::Latest,
                 };
@@ -79,21 +70,20 @@ impl AccountLifespan {
                     .set_from_block(block_number)
                     .set_to_block(to_block_number)
                     .set_topics(Some(topics), None, None, None)
-                    .set_address(vec![*contract_address])
+                    .set_address(vec![contract_address])
                     .build();
 
                 let response = wallet.provider.get_logs(filter.clone()).await;
                 match response {
                     Err(RpcError::Call(err)) => {
-                        let error_object: ErrorObject = err.into();
                         let re = Regex::new(r"^Query returned more than \d* results\. Try with this block range \[0x([a-fA-F0-9]+), 0x([a-fA-F0-9]+)]\.$").unwrap();
-                        if let Some(caps) = re.captures(error_object.message()) {
+                        if let Some(caps) = re.captures(err.message()) {
                             filter.to_block = Some(api::BlockNumber::Number(
                                 U64::from_str_radix(&caps[2], 16).unwrap(),
                             ));
-                            wallet.provider.get_logs(filter).await.map(|_| ())
+                            wallet.provider.get_logs(filter).await.map(drop)
                         } else {
-                            Err(RpcError::Call(CallError::Custom(error_object)))
+                            Err(RpcError::Call(err))
                         }
                     }
                     Err(err) => Err(err),
@@ -103,18 +93,14 @@ impl AccountLifespan {
         }
     }
 
-    pub(super) async fn run_api_requests_task(mut self) {
+    pub(super) async fn run_api_requests_task(
+        mut self,
+        limiters: &RequestLimiters,
+    ) -> Result<(), Aborted> {
         loop {
-            let semaphore =
-                REQUEST_LIMITER.get_or_init(|| Semaphore::new(self.config.sync_api_requests_limit));
             // The number of simultaneous requests is limited by semaphore.
-            let permit = semaphore
-                .acquire()
-                .await
-                .expect("static semaphore cannot be closed");
-
+            let permit = limiters.api_requests.acquire().await.unwrap();
             let request = ApiRequest::random(&self.wallet.wallet, &mut self.wallet.rng).await;
-
             let start = Instant::now();
 
             // Skip the action if the contract is not yet initialized for the account.
@@ -126,26 +112,23 @@ impl AccountLifespan {
             } else {
                 let result = self.execute_api_request(request).await;
                 match result {
-                    Ok(_) => ReportLabel::ActionDone,
+                    Ok(()) => ReportLabel::ActionDone,
                     Err(err) => {
-                        let error = err.to_string();
-
-                        vlog::error!("API request failed: {:?}, reason: {}", request, error);
-                        ReportLabel::ActionFailed { error }
+                        vlog::error!("API request failed: {request:?}, reason: {err}");
+                        ReportLabel::failed(err.to_string())
                     }
                 }
             };
+            drop(permit);
 
             let api_action_type = ApiActionType::from(request);
-
             let report = ReportBuilder::default()
                 .action(api_action_type)
                 .label(label)
                 .time(start.elapsed())
                 .reporter(self.wallet.wallet.address())
                 .finish();
-            drop(permit);
-            let _ = self.report_sink.send(report).await;
+            self.send_report(report).await?;
         }
     }
 }

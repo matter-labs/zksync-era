@@ -1393,6 +1393,17 @@
     chalk "4.1.2"
     dockerode "^3.3.4"
 
+"@matterlabs/hardhat-zksync-vyper@^0.2.0":
+  version "0.2.0"
+  resolved "https://registry.yarnpkg.com/@matterlabs/hardhat-zksync-vyper/-/hardhat-zksync-vyper-0.2.0.tgz#4cefe09cdceb9251faaa434f04cda018713c4545"
+  integrity sha512-buahDcREIMTYSwwvbRxw+qE3mSChJ8ll/Q1+BF/Tn0qjZGI67YRm6Wm/lh9up9I1mIlvcbTpLrY1odzc433KhA==
+  dependencies:
+    "@nomiclabs/hardhat-docker" "^2.0.0"
+    chalk "4.1.2"
+    dockerode "^3.3.4"
+    fs-extra "^7.0.1"
+    semver "^6.3.0"
+
 "@metamask/eth-sig-util@^4.0.0":
   version "4.0.1"
   resolved "https://registry.yarnpkg.com/@metamask/eth-sig-util/-/eth-sig-util-4.0.1.tgz#3ad61f6ea9ad73ba5b19db780d40d9aae5157088"
@@ -1652,18 +1663,21 @@
   resolved "https://registry.yarnpkg.com/@nomiclabs/hardhat-ethers/-/hardhat-ethers-2.2.2.tgz#812d48929c3bf8fe840ec29eab4b613693467679"
   integrity sha512-NLDlDFL2us07C0jB/9wzvR0kuLivChJWCXTKcj3yqjZqMoYp7g7wwS157F70VHx/+9gHIBGzak5pKDwG8gEefA==
 
-"@nomiclabs/hardhat-etherscan@^2.1.0":
-  version "2.1.8"
-  resolved "https://registry.yarnpkg.com/@nomiclabs/hardhat-etherscan/-/hardhat-etherscan-2.1.8.tgz#e206275e96962cd15e5ba9148b44388bc922d8c2"
-  integrity sha512-0+rj0SsZotVOcTLyDOxnOc3Gulo8upo0rsw/h+gBPcmtj91YqYJNhdARHoBxOhhE8z+5IUQPx+Dii04lXT14PA==
+"@nomiclabs/hardhat-etherscan@^3.1.0":
+  version "3.1.7"
+  resolved "https://registry.yarnpkg.com/@nomiclabs/hardhat-etherscan/-/hardhat-etherscan-3.1.7.tgz#72e3d5bd5d0ceb695e097a7f6f5ff6fcbf062b9a"
+  integrity sha512-tZ3TvSgpvsQ6B6OGmo1/Au6u8BrAkvs1mIC/eURA3xgIfznUZBhmpne8hv7BXUzw9xNL3fXdpOYgOQlVMTcoHQ==
   dependencies:
     "@ethersproject/abi" "^5.1.2"
     "@ethersproject/address" "^5.0.2"
-    cbor "^5.0.2"
+    cbor "^8.1.0"
+    chalk "^2.4.2"
     debug "^4.1.1"
     fs-extra "^7.0.1"
-    node-fetch "^2.6.0"
+    lodash "^4.17.11"
     semver "^6.3.0"
+    table "^6.8.0"
+    undici "^5.14.0"
 
 "@nomiclabs/hardhat-solpp@^2.0.0":
   version "2.0.1"
@@ -1672,6 +1686,17 @@
   dependencies:
     fs-extra "^7.0.1"
     solpp "^0.11.5"
+
+"@nomiclabs/hardhat-vyper@^3.0.3":
+  version "3.0.3"
+  resolved "https://registry.yarnpkg.com/@nomiclabs/hardhat-vyper/-/hardhat-vyper-3.0.3.tgz#f20474c585e4828b6ab5be9cb78405344a328012"
+  integrity sha512-WzpXACy7d1AsEmanAOmEqqxI4wrIvDx6q6k07Xb68Dc4JB/+9gKb6kz6UF0Qviq8vYUVfJ8YRpyAjHVZ2uQFlg==
+  dependencies:
+    debug "^4.1.1"
+    fs-extra "^7.0.1"
+    io-ts "1.10.4"
+    lodash "^4.17.11"
+    semver "^6.3.0"
 
 "@nomiclabs/hardhat-waffle@^2.0.0":
   version "2.0.3"
@@ -3922,13 +3947,12 @@ catering@^2.1.0, catering@^2.1.1:
   resolved "https://registry.yarnpkg.com/catering/-/catering-2.1.1.tgz#66acba06ed5ee28d5286133982a927de9a04b510"
   integrity sha512-K7Qy8O9p76sL3/3m7/zLKbRkyOlSZAgzEaLhyj2mXS8PsCud2Eo4hAb8aLtZqHh0QGqLcb9dlJSu6lHRVENm1w==
 
-cbor@^5.0.2:
-  version "5.2.0"
-  resolved "https://registry.yarnpkg.com/cbor/-/cbor-5.2.0.tgz#4cca67783ccd6de7b50ab4ed62636712f287a67c"
-  integrity sha512-5IMhi9e1QU76ppa5/ajP1BmMWZ2FHkhAhjeVKQ/EFCgYSEaeVaoGtL7cxJskf9oCCk+XjzaIdc3IuU/dbA/o2A==
+cbor@^8.1.0:
+  version "8.1.0"
+  resolved "https://registry.yarnpkg.com/cbor/-/cbor-8.1.0.tgz#cfc56437e770b73417a2ecbfc9caf6b771af60d5"
+  integrity sha512-DwGjNW9omn6EwP70aXsn7FQJx5kO12tX0bZkaTjzdVFM6/7nhA4t0EENocKGx6D2Bch9PE2KzCUf5SceBdeijg==
   dependencies:
-    bignumber.js "^9.0.1"
-    nofilter "^1.0.4"
+    nofilter "^3.1.0"
 
 chai-as-promised@^7.1.1:
   version "7.1.1"
@@ -9590,10 +9614,10 @@ node-releases@^2.0.6:
   resolved "https://registry.yarnpkg.com/node-releases/-/node-releases-2.0.6.tgz#8a7088c63a55e493845683ebf3c828d8c51c5503"
   integrity sha512-PiVXnNuFm5+iYkLBNeq5211hvO38y63T0i2KKh2KnUs3RpzJ+JtODFjkD8yjLwnDkTYF1eKXheUwdssR+NRZdg==
 
-nofilter@^1.0.4:
-  version "1.0.4"
-  resolved "https://registry.yarnpkg.com/nofilter/-/nofilter-1.0.4.tgz#78d6f4b6a613e7ced8b015cec534625f7667006e"
-  integrity sha512-N8lidFp+fCz+TD51+haYdbDGrcBWwuHX40F5+z0qkUjMJ5Tp+rdSuAkMJ9N9eoolDlEVTf6u5icM+cNKkKW2mA==
+nofilter@^3.1.0:
+  version "3.1.0"
+  resolved "https://registry.yarnpkg.com/nofilter/-/nofilter-3.1.0.tgz#c757ba68801d41ff930ba2ec55bab52ca184aa66"
+  integrity sha512-l2NNj07e9afPnhAhvgVrCD/oy2Ai1yfLpuo3EpiO1jFTsB4sFz6oIfAfSZyQzVpkZQ9xS8ZS5g1jCBgq4Hwo0g==
 
 nopt@3.x:
   version "3.0.6"
@@ -11860,7 +11884,7 @@ table@^5.2.3:
     slice-ansi "^2.1.0"
     string-width "^3.0.0"
 
-table@^6.0.9:
+table@^6.0.9, table@^6.8.0:
   version "6.8.1"
   resolved "https://registry.yarnpkg.com/table/-/table-6.8.1.tgz#ea2b71359fe03b017a5fbc296204471158080bdf"
   integrity sha512-Y4X9zqrCftUhMeH2EptSSERdVKt/nEdijTOacGD/97EKjhQ/Qs8RTlEGABSJNNN8lac9kheH+af7yAkEWlgneA==
@@ -12393,6 +12417,13 @@ underscore@1.9.1:
   version "1.9.1"
   resolved "https://registry.yarnpkg.com/underscore/-/underscore-1.9.1.tgz#06dce34a0e68a7babc29b365b8e74b8925203961"
   integrity sha512-5/4etnCkd9c8gwgowi5/om/mYO5ajCaOgdzj/oW+0eQV9WxKBDZw5+ycmKmeaTXjInS/W0BzpGLo2xR2aBwZdg==
+
+undici@^5.14.0:
+  version "5.22.1"
+  resolved "https://registry.yarnpkg.com/undici/-/undici-5.22.1.tgz#877d512effef2ac8be65e695f3586922e1a57d7b"
+  integrity sha512-Ji2IJhFXZY0x/0tVBXeQwgPlLWw13GVzpsWPQ3rV50IFMMof2I55PZZxtm4P6iNq+L5znYN9nSTAq0ZyE6lSJw==
+  dependencies:
+    busboy "^1.6.0"
 
 undici@^5.4.0:
   version "5.12.0"
@@ -13307,5 +13338,10 @@ yocto-queue@^0.1.0:
   resolved "https://registry.yarnpkg.com/yocto-queue/-/yocto-queue-0.1.0.tgz#0294eb3dee05028d31ee1a5fa2c556a6aaf10a1b"
   integrity sha512-rVksvsnNCdJ/ohGc6xgPwyN8eheCxsiLM8mxuE/t/mOVqJewPuO1miLpTHQiRgTKCLexL4MeAFVagts7HmNZ2Q==
 
+zksync-web3@^0.14.3:
+  version "0.14.3"
+  resolved "https://registry.yarnpkg.com/zksync-web3/-/zksync-web3-0.14.3.tgz#64ac2a16d597464c3fc4ae07447a8007631c57c9"
+  integrity sha512-hT72th4AnqyLW1d5Jlv8N2B/qhEnl2NePK2A3org7tAa24niem/UAaHMkEvmWI3SF9waYUPtqAtjpf+yvQ9zvQ==
+
 "zksync-web3@link:sdk/zksync-web3.js":
-  version "0.15.1"
+  version "0.15.2"

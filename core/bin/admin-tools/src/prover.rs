@@ -19,11 +19,10 @@ pub struct ProverStats {
 }
 
 pub fn get_stats(app: &mut App) -> Result<ProverStats, AppError> {
-    let stats = app.db.prover_dal().get_prover_jobs_stats();
-    let stats_extended = app
-        .db
-        .prover_dal()
-        .get_extended_stats()
+    let handle = app.tokio.handle();
+    let stats = handle.block_on(app.db.prover_dal().get_prover_jobs_stats());
+    let stats_extended = handle
+        .block_on(app.db.prover_dal().get_extended_stats())
         .map_err(|x| AppError::Db(x.to_string()))?;
 
     Ok(ProverStats {
@@ -140,9 +139,9 @@ pub fn print_stats(stats: &ProverStats, term_width: u32) -> Result<(), AppError>
 }
 
 pub fn get_jobs(app: &mut App, opts: GetProverJobsParams) -> Result<Vec<ProverJobInfo>, AppError> {
-    app.db
-        .prover_dal()
-        .get_jobs(opts)
+    let handle = app.tokio.handle();
+    handle
+        .block_on(app.db.prover_dal().get_jobs(opts))
         .map_err(|x| AppError::Db(x.to_string()))
 }
 

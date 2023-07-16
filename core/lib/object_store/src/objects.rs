@@ -50,13 +50,13 @@ macro_rules! serialize_using_bincode {
         fn serialize(
             &self,
         ) -> std::result::Result<std::vec::Vec<u8>, $crate::_reexports::BoxedError> {
-            $crate::_reexports::bincode::serialize(self).map_err(std::convert::From::from)
+            $crate::bincode::serialize(self).map_err(std::convert::From::from)
         }
 
         fn deserialize(
             bytes: std::vec::Vec<u8>,
         ) -> std::result::Result<Self, $crate::_reexports::BoxedError> {
-            $crate::_reexports::bincode::deserialize(&bytes).map_err(std::convert::From::from)
+            $crate::bincode::deserialize(&bytes).map_err(std::convert::From::from)
         }
     };
 }
@@ -138,6 +138,31 @@ impl StoredObject for Vec<QueueSimulator<Bn256, RecursionRequest<Bn256>, 2, 2>> 
     serialize_using_bincode!();
 }
 
+/// Storage key for a [AggregationWrapper`].
+#[derive(Debug, Clone, Copy)]
+pub struct AggregationsKey {
+    pub block_number: L1BatchNumber,
+    pub circuit_id: u8,
+    pub depth: u16,
+}
+
+/// Storage key for a [ClosedFormInputWrapper`].
+#[derive(Debug, Clone, Copy)]
+pub struct ClosedFormInputKey {
+    pub block_number: L1BatchNumber,
+    pub circuit_id: u8,
+}
+
+/// Storage key for a [`CircuitWrapper`].
+#[derive(Debug, Clone, Copy)]
+pub struct FriCircuitKey {
+    pub block_number: L1BatchNumber,
+    pub sequence_number: usize,
+    pub circuit_id: u8,
+    pub aggregation_round: AggregationRound,
+    pub depth: u16,
+}
+
 /// Storage key for a [`ZkSyncCircuit`].
 #[derive(Debug, Clone, Copy)]
 pub struct CircuitKey<'a> {
@@ -171,9 +196,9 @@ impl dyn ObjectStore + '_ {
     ///
     /// Returns an error if an object with the `key` does not exist, cannot be accessed,
     /// or cannot be deserialized.
-    pub fn get<V: StoredObject>(&self, key: V::Key<'_>) -> Result<V, ObjectStoreError> {
+    pub async fn get<V: StoredObject>(&self, key: V::Key<'_>) -> Result<V, ObjectStoreError> {
         let key = V::encode_key(key);
-        let bytes = self.get_raw(V::BUCKET, &key)?;
+        let bytes = self.get_raw(V::BUCKET, &key).await?;
         V::deserialize(bytes).map_err(ObjectStoreError::Serialization)
     }
 
@@ -183,14 +208,14 @@ impl dyn ObjectStore + '_ {
     /// # Errors
     ///
     /// Returns an error if serialization or the insertion / replacement operation fails.
-    pub fn put<V: StoredObject>(
+    pub async fn put<V: StoredObject>(
         &self,
         key: V::Key<'_>,
         value: &V,
     ) -> Result<String, ObjectStoreError> {
         let key = V::encode_key(key);
         let bytes = value.serialize().map_err(ObjectStoreError::Serialization)?;
-        self.put_raw(V::BUCKET, &key, bytes)?;
+        self.put_raw(V::BUCKET, &key, bytes).await?;
         Ok(key)
     }
 }

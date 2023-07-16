@@ -8,7 +8,7 @@ use crate::oracles::tracer::{
 };
 
 use zk_evm::{
-    abstractions::{
+    tracing::{
         AfterDecodingData, AfterExecutionData, BeforeExecutionData, Tracer, VmLocalStateData,
     },
     vm_state::{ErrorFlags, VmLocalState},

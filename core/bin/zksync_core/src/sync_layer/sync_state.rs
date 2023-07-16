@@ -85,7 +85,8 @@ impl SyncState {
                 .0
                 .checked_sub(local_block.0)
                 else {
-                    return (false, None);
+                    // We're ahead of the main node, this situation is handled by the reorg detector.
+                    return (true, Some(0));
                 };
             (block_diff <= SYNC_MINIBLOCK_DELTA, Some(block_diff))
         } else {
@@ -136,6 +137,9 @@ mod tests {
         sync_state.set_main_node_block(MiniblockNumber(1));
         sync_state.set_local_block(MiniblockNumber(2));
         // ^ should not panic, as we defer the situation to the reorg detector.
+
+        // At the same time, we should consider ourselves synced unless `ReorgDetector` tells us otherwise.
+        assert!(sync_state.is_synced());
     }
 
     #[test]

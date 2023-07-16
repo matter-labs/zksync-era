@@ -1,3 +1,4 @@
+use std::fmt::{Display, Formatter};
 use std::time::Duration;
 
 use zksync_types::{
@@ -10,17 +11,37 @@ use zksync_types::{
 
 use sqlx::postgres::types::PgInterval;
 
+use crate::models::storage_verification_request::StorageVerificationRequest;
 use crate::SqlxError;
 use crate::StorageProcessor;
 
 #[derive(Debug)]
 pub struct ContractVerificationDal<'a, 'c> {
-    pub storage: &'a mut StorageProcessor<'c>,
+    pub(super) storage: &'a mut StorageProcessor<'c>,
+}
+
+#[derive(Debug)]
+enum Compiler {
+    ZkSolc,
+    Solc,
+    ZkVyper,
+    Vyper,
+}
+
+impl Display for Compiler {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::ZkSolc => f.write_str("zksolc"),
+            Self::Solc => f.write_str("solc"),
+            Self::ZkVyper => f.write_str("zkvyper"),
+            Self::Vyper => f.write_str("vyper"),
+        }
+    }
 }
 
 impl ContractVerificationDal<'_, '_> {
-    pub fn get_count_of_queued_verification_requests(&mut self) -> Result<usize, SqlxError> {
-        async_std::task::block_on(async {
+    pub async fn get_count_of_queued_verification_requests(&mut self) -> Result<usize, SqlxError> {
+        {
             sqlx::query!(
                 r#"
                 SELECT COUNT(*) as "count!"
@@ -31,62 +52,65 @@ impl ContractVerificationDal<'_, '_> {
             .fetch_one(self.storage.conn())
             .await
             .map(|row| row.count as usize)
-        })
+        }
     }
 
-    pub fn add_contract_verification_request(
+    pub async fn add_contract_verification_request(
         &mut self,
         query: VerificationIncomingRequest,
     ) -> Result<usize, SqlxError> {
-        async_std::task::block_on(async {
+        {
             sqlx::query!(
                 "
                 INSERT INTO contract_verification_requests (
                     contract_address,
                     source_code,
                     contract_name,
-                    compiler_zksolc_version,
-                    compiler_solc_version,
+                    zk_compiler_version,
+                    compiler_version,
                     optimization_used,
+                    optimizer_mode,
                     constructor_arguments,
                     is_system,
                     status,
                     created_at,
                     updated_at
                 )
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'queued', now(), now())
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'queued', now(), now())
                 RETURNING id
                 ",
                 query.contract_address.as_bytes(),
                 serde_json::to_string(&query.source_code_data).unwrap(),
                 query.contract_name,
-                query.compiler_zksolc_version,
-                query.compiler_solc_version,
+                query.compiler_versions.zk_compiler_version(),
+                query.compiler_versions.compiler_version(),
                 query.optimization_used,
+                query.optimizer_mode,
                 query.constructor_arguments.0,
                 query.is_system,
             )
             .fetch_one(self.storage.conn())
             .await
             .map(|row| row.id as usize)
-        })
+        }
     }
 
     /// Returns the next verification request for processing.
     /// Considering the situation where processing of some request
     /// can be interrupted (panic, pod restart, etc..),
     /// `processing_timeout` parameter is added to avoid stucking of requests.
-    pub fn get_next_queued_verification_request(
+    pub async fn get_next_queued_verification_request(
         &mut self,
         processing_timeout: Duration,
     ) -> Result<Option<VerificationRequest>, SqlxError> {
-        async_std::task::block_on(async {
+        {
             let processing_timeout = PgInterval {
                 months: 0,
                 days: 0,
                 microseconds: processing_timeout.as_micros() as i64,
             };
-            let result = sqlx::query!(
+            let result = sqlx::query_as!(
+                StorageVerificationRequest,
                 "UPDATE contract_verification_requests
                 SET status = 'in_progress', attempts = attempts + 1,
                     updated_at = now(), processing_started_at = now()
@@ -98,34 +122,24 @@ impl ContractVerificationDal<'_, '_> {
                     FOR UPDATE
                     SKIP LOCKED
                 )
-                RETURNING contract_verification_requests.*",
+                RETURNING id, contract_address, source_code, contract_name, zk_compiler_version, compiler_version, optimization_used,
+                    optimizer_mode, constructor_arguments, is_system
+                ",
                 &processing_timeout
             )
             .fetch_optional(self.storage.conn())
             .await?
-            .map(|row| VerificationRequest {
-                id: row.id as usize,
-                req: VerificationIncomingRequest {
-                    contract_address: Address::from_slice(&row.contract_address),
-                    source_code_data: serde_json::from_str(&row.source_code).unwrap(),
-                    contract_name: row.contract_name,
-                    compiler_zksolc_version: row.compiler_zksolc_version,
-                    compiler_solc_version: row.compiler_solc_version,
-                    optimization_used: row.optimization_used,
-                    constructor_arguments: row.constructor_arguments.into(),
-                    is_system: row.is_system,
-                },
-            });
+            .map(Into::into);
             Ok(result)
-        })
+        }
     }
 
     /// Updates the verification request status and inserts the verification info upon successful verification.
-    pub fn save_verification_info(
+    pub async fn save_verification_info(
         &mut self,
         verification_info: VerificationInfo,
     ) -> Result<(), SqlxError> {
-        async_std::task::block_on(async {
+        {
             let mut transaction = self.storage.start_transaction().await;
 
             sqlx::query!(
@@ -158,17 +172,17 @@ impl ContractVerificationDal<'_, '_> {
 
             transaction.commit().await;
             Ok(())
-        })
+        }
     }
 
-    pub fn save_verification_error(
+    pub async fn save_verification_error(
         &mut self,
         id: usize,
         error: String,
         compilation_errors: serde_json::Value,
         panic_message: Option<String>,
     ) -> Result<(), SqlxError> {
-        async_std::task::block_on(async {
+        {
             sqlx::query!(
                 "
                 UPDATE contract_verification_requests
@@ -183,14 +197,14 @@ impl ContractVerificationDal<'_, '_> {
             .execute(self.storage.conn())
             .await?;
             Ok(())
-        })
+        }
     }
 
-    pub fn get_verification_request_status(
+    pub async fn get_verification_request_status(
         &mut self,
         id: usize,
     ) -> Result<Option<VerificationRequestStatus>, SqlxError> {
-        async_std::task::block_on(async {
+        {
             let result = sqlx::query!(
                 "
                 SELECT status, error, compilation_errors FROM contract_verification_requests
@@ -220,15 +234,15 @@ impl ContractVerificationDal<'_, '_> {
                     }),
             });
             Ok(result)
-        })
+        }
     }
 
     /// Returns bytecode and calldata from the contract and the transaction that created it.
-    pub fn get_contract_info_for_verification(
+    pub async fn get_contract_info_for_verification(
         &mut self,
         address: Address,
     ) -> Result<Option<(Vec<u8>, DeployContractCalldata)>, SqlxError> {
-        async_std::task::block_on(async {
+        {
             let hashed_key = get_code_key(&address).hashed_key();
             let result = sqlx::query!(
                 r#"
@@ -266,12 +280,12 @@ impl ContractVerificationDal<'_, '_> {
                 (row.bytecode, calldata)
             });
             Ok(result)
-        })
+        }
     }
 
     /// Returns true if the contract has a stored contracts_verification_info.
-    pub fn is_contract_verified(&mut self, address: Address) -> bool {
-        async_std::task::block_on(async {
+    pub async fn is_contract_verified(&mut self, address: Address) -> bool {
+        {
             let count = sqlx::query!(
                 r#"
                     SELECT COUNT(*) as "count!"
@@ -285,13 +299,18 @@ impl ContractVerificationDal<'_, '_> {
             .unwrap()
             .count;
             count > 0
-        })
+        }
     }
 
-    pub fn get_zksolc_versions(&mut self) -> Result<Vec<String>, SqlxError> {
-        async_std::task::block_on(async {
+    async fn get_compiler_versions(
+        &mut self,
+        compiler: Compiler,
+    ) -> Result<Vec<String>, SqlxError> {
+        {
+            let compiler = format!("{compiler}");
             let versions: Vec<_> = sqlx::query!(
-                "SELECT version FROM contract_verification_zksolc_versions ORDER by version"
+                "SELECT version FROM compiler_versions WHERE compiler = $1 ORDER by version",
+                &compiler
             )
             .fetch_all(self.storage.conn())
             .await?
@@ -299,98 +318,93 @@ impl ContractVerificationDal<'_, '_> {
             .map(|row| row.version)
             .collect();
             Ok(versions)
-        })
+        }
     }
 
-    pub fn get_solc_versions(&mut self) -> Result<Vec<String>, SqlxError> {
-        async_std::task::block_on(async {
-            let versions: Vec<_> = sqlx::query!(
-                "SELECT version FROM contract_verification_solc_versions ORDER by version"
-            )
-            .fetch_all(self.storage.conn())
-            .await?
-            .into_iter()
-            .map(|row| row.version)
-            .collect();
-            Ok(versions)
-        })
+    pub async fn get_zksolc_versions(&mut self) -> Result<Vec<String>, SqlxError> {
+        self.get_compiler_versions(Compiler::ZkSolc).await
     }
 
-    pub fn set_zksolc_versions(&mut self, versions: Vec<String>) -> Result<(), SqlxError> {
-        async_std::task::block_on(async {
+    pub async fn get_solc_versions(&mut self) -> Result<Vec<String>, SqlxError> {
+        self.get_compiler_versions(Compiler::Solc).await
+    }
+
+    pub async fn get_zkvyper_versions(&mut self) -> Result<Vec<String>, SqlxError> {
+        self.get_compiler_versions(Compiler::ZkVyper).await
+    }
+
+    pub async fn get_vyper_versions(&mut self) -> Result<Vec<String>, SqlxError> {
+        self.get_compiler_versions(Compiler::Vyper).await
+    }
+
+    async fn set_compiler_versions(
+        &mut self,
+        compiler: Compiler,
+        versions: Vec<String>,
+    ) -> Result<(), SqlxError> {
+        {
             let mut transaction = self.storage.start_transaction().await;
+            let compiler = format!("{compiler}");
 
-            sqlx::query!("DELETE FROM contract_verification_zksolc_versions")
-                .execute(transaction.conn())
-                .await?;
+            sqlx::query!(
+                "DELETE FROM compiler_versions WHERE compiler = $1",
+                &compiler
+            )
+            .execute(transaction.conn())
+            .await?;
 
             sqlx::query!(
                 "
-                    INSERT INTO contract_verification_zksolc_versions (version, created_at, updated_at)
-                    SELECT u.version, now(), now()
-                        FROM UNNEST($1::text[])
-                    AS u(version)
-                ",
-                &versions
+                INSERT INTO compiler_versions (version, compiler, created_at, updated_at)
+                SELECT u.version, $2, now(), now()
+                FROM UNNEST($1::text[])
+                AS u(version)",
+                &versions,
+                &compiler,
             )
-                .execute(transaction.conn())
-                .await?;
+            .execute(transaction.conn())
+            .await?;
 
             transaction.commit().await;
             Ok(())
-        })
+        }
     }
 
-    pub fn set_solc_versions(&mut self, versions: Vec<String>) -> Result<(), SqlxError> {
-        async_std::task::block_on(async {
-            let mut transaction = self.storage.start_transaction().await;
-
-            sqlx::query!("DELETE FROM contract_verification_solc_versions")
-                .execute(transaction.conn())
-                .await?;
-
-            sqlx::query!(
-                "
-                    INSERT INTO contract_verification_solc_versions (version, created_at, updated_at)
-                    SELECT u.version, now(), now()
-                        FROM UNNEST($1::text[])
-                    AS u(version)
-                ",
-                &versions
-            )
-                .execute(transaction.conn())
-                .await?;
-
-            transaction.commit().await;
-            Ok(())
-        })
+    pub async fn set_zksolc_versions(&mut self, versions: Vec<String>) -> Result<(), SqlxError> {
+        self.set_compiler_versions(Compiler::ZkSolc, versions).await
     }
 
-    pub fn get_all_successful_requests(&mut self) -> Result<Vec<VerificationRequest>, SqlxError> {
-        async_std::task::block_on(async {
-            let result = sqlx::query!(
-                "SELECT * FROM contract_verification_requests
+    pub async fn set_solc_versions(&mut self, versions: Vec<String>) -> Result<(), SqlxError> {
+        self.set_compiler_versions(Compiler::Solc, versions).await
+    }
+
+    pub async fn set_zkvyper_versions(&mut self, versions: Vec<String>) -> Result<(), SqlxError> {
+        self.set_compiler_versions(Compiler::ZkVyper, versions)
+            .await
+    }
+
+    pub async fn set_vyper_versions(&mut self, versions: Vec<String>) -> Result<(), SqlxError> {
+        self.set_compiler_versions(Compiler::Vyper, versions).await
+    }
+
+    pub async fn get_all_successful_requests(
+        &mut self,
+    ) -> Result<Vec<VerificationRequest>, SqlxError> {
+        {
+            let result = sqlx::query_as!(
+                StorageVerificationRequest,
+                "SELECT id, contract_address, source_code, contract_name, zk_compiler_version, compiler_version, optimization_used,
+                    optimizer_mode, constructor_arguments, is_system
+                FROM contract_verification_requests
                 WHERE status = 'successful'
                 ORDER BY id",
             )
             .fetch_all(self.storage.conn())
             .await?
             .into_iter()
-            .map(|row| VerificationRequest {
-                id: row.id as usize,
-                req: VerificationIncomingRequest {
-                    contract_address: Address::from_slice(&row.contract_address),
-                    source_code_data: serde_json::from_str(&row.source_code).unwrap(),
-                    contract_name: row.contract_name,
-                    compiler_zksolc_version: row.compiler_zksolc_version,
-                    compiler_solc_version: row.compiler_solc_version,
-                    optimization_used: row.optimization_used,
-                    constructor_arguments: row.constructor_arguments.into(),
-                    is_system: row.is_system,
-                },
-            })
+            .map(Into::into)
             .collect();
             Ok(result)
-        })
+        }
     }
 }

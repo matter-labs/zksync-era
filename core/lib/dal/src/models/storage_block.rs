@@ -9,13 +9,14 @@ use sqlx::Postgres;
 use thiserror::Error;
 
 use zksync_contracts::BaseSystemContractsHashes;
-use zksync_types::api::{self, BlockId};
+use zksync_types::api;
 use zksync_types::block::MiniblockHeader;
 use zksync_types::commitment::{BlockMetaParameters, BlockMetadata};
 use zksync_types::explorer_api::{BlockDetails, L1BatchDetails, L1BatchPageItem};
 use zksync_types::{
     block::L1BatchHeader,
     explorer_api::{BlockPageItem, BlockStatus},
+    l2_to_l1_log::L2ToL1Log,
     Address, L1BatchNumber, MiniblockNumber, H2048, H256, U256,
 };
 
@@ -95,7 +96,7 @@ impl From<StorageBlock> for L1BatchHeader {
         let l2_to_l1_logs: Vec<_> = block
             .l2_to_l1_logs
             .into_iter()
-            .map(|raw_data| raw_data.into())
+            .map(|raw_log| L2ToL1Log::from_slice(&raw_log))
             .collect();
 
         L1BatchHeader {
@@ -124,11 +125,11 @@ impl From<StorageBlock> for L1BatchHeader {
                 bootloader: block
                     .bootloader_code_hash
                     .map(|bootloader_code_hash| H256::from_slice(&bootloader_code_hash))
-                    .expect("Should be not none"),
+                    .expect("should not be none"),
                 default_aa: block
                     .default_aa_code_hash
                     .map(|default_aa_code_hash| H256::from_slice(&default_aa_code_hash))
-                    .expect("Should be not none"),
+                    .expect("should not be none"),
             },
             l1_gas_price: block.l1_gas_price as u64,
             l2_fair_gas_price: block.l2_fair_gas_price as u64,
@@ -142,10 +143,7 @@ impl TryInto<BlockMetadata> for StorageBlock {
     fn try_into(self) -> Result<BlockMetadata, Self::Error> {
         Ok(BlockMetadata {
             root_hash: H256::from_slice(
-                &self
-                    .hash
-                    .clone()
-                    .ok_or(StorageBlockConvertError::IncompleteBlock)?,
+                &self.hash.ok_or(StorageBlockConvertError::IncompleteBlock)?,
             ),
             rollup_last_leaf_index: self
                 .rollup_last_leaf_index
@@ -154,25 +152,20 @@ impl TryInto<BlockMetadata> for StorageBlock {
             merkle_root_hash: H256::from_slice(
                 &self
                     .merkle_root_hash
-                    .clone()
                     .ok_or(StorageBlockConvertError::IncompleteBlock)?,
             ),
             initial_writes_compressed: self
                 .compressed_initial_writes
-                .clone()
                 .ok_or(StorageBlockConvertError::IncompleteBlock)?,
             repeated_writes_compressed: self
                 .compressed_repeated_writes
-                .clone()
                 .ok_or(StorageBlockConvertError::IncompleteBlock)?,
             l2_l1_messages_compressed: self
                 .l2_l1_compressed_messages
-                .clone()
                 .ok_or(StorageBlockConvertError::IncompleteBlock)?,
             l2_l1_merkle_root: H256::from_slice(
                 &self
                     .l2_l1_merkle_root
-                    .clone()
                     .ok_or(StorageBlockConvertError::IncompleteBlock)?,
             ),
             aux_data_hash: H256::from_slice(
@@ -275,6 +268,7 @@ pub fn l1_batch_page_item_from_storage(
 /// Returns block_number SQL statement
 pub fn web3_block_number_to_sql(block_number: api::BlockNumber) -> String {
     match block_number {
+        api::BlockNumber::Number(number) => number.to_string(),
         api::BlockNumber::Earliest => 0.to_string(),
         api::BlockNumber::Pending => {
             "(SELECT (MAX(number) + 1) as number FROM miniblocks)".to_string()
@@ -282,7 +276,6 @@ pub fn web3_block_number_to_sql(block_number: api::BlockNumber) -> String {
         api::BlockNumber::Latest | api::BlockNumber::Committed => {
             "(SELECT MAX(number) as number FROM miniblocks)".to_string()
         }
-        api::BlockNumber::Number(block_number) => format!("{}", block_number),
         api::BlockNumber::Finalized => "
                 (SELECT COALESCE(
                     (
@@ -302,23 +295,29 @@ pub fn web3_block_number_to_sql(block_number: api::BlockNumber) -> String {
     }
 }
 
-pub fn web3_block_where_sql(block_id: BlockId, arg_index: u8) -> String {
+pub fn web3_block_where_sql(block_id: api::BlockId, arg_index: u8) -> String {
     match block_id {
-        BlockId::Hash(_) => format!("miniblocks.hash = ${}", arg_index),
-        BlockId::Number(number) => {
+        api::BlockId::Hash(_) => format!("miniblocks.hash = ${arg_index}"),
+        api::BlockId::Number(api::BlockNumber::Number(_)) => {
+            format!("miniblocks.number = ${arg_index}")
+        }
+        api::BlockId::Number(number) => {
             let block_sql = web3_block_number_to_sql(number);
             format!("miniblocks.number = {}", block_sql)
         }
     }
 }
 
-pub fn bind_block_where_sql_params(
-    block_id: BlockId,
-    query: Query<Postgres, PgArguments>,
-) -> Query<Postgres, PgArguments> {
+pub fn bind_block_where_sql_params<'q>(
+    block_id: &'q api::BlockId,
+    query: Query<'q, Postgres, PgArguments>,
+) -> Query<'q, Postgres, PgArguments> {
     match block_id {
         // these block_id types result in `$1` in the query string, which we have to `bind`
-        BlockId::Hash(block_hash) => query.bind(block_hash.0.to_vec()),
+        api::BlockId::Hash(block_hash) => query.bind(block_hash.as_bytes()),
+        api::BlockId::Number(api::BlockNumber::Number(number)) => {
+            query.bind(number.as_u64() as i64)
+        }
         // others don't introduce `$1`, so we don't have to `bind` anything
         _ => query,
     }
@@ -372,14 +371,14 @@ impl StorageBlockDetails {
             prove_tx_hash: self
                 .prove_tx_hash
                 .as_deref()
-                .map(|hash| H256::from_str(hash).expect("Incorrect verify_tx hash")),
+                .map(|hash| H256::from_str(hash).expect("Incorrect prove_tx hash")),
             proven_at: self
                 .proven_at
                 .map(|proven_at| DateTime::<Utc>::from_utc(proven_at, Utc)),
             execute_tx_hash: self
                 .execute_tx_hash
                 .as_deref()
-                .map(|hash| H256::from_str(hash).expect("Incorrect verify_tx hash")),
+                .map(|hash| H256::from_str(hash).expect("Incorrect execute_tx hash")),
             executed_at: self
                 .executed_at
                 .map(|executed_at| DateTime::<Utc>::from_utc(executed_at, Utc)),
@@ -389,11 +388,11 @@ impl StorageBlockDetails {
                 bootloader: self
                     .bootloader_code_hash
                     .map(|bootloader_code_hash| H256::from_slice(&bootloader_code_hash))
-                    .expect("Should be not none"),
+                    .expect("should not be none"),
                 default_aa: self
                     .default_aa_code_hash
                     .map(|default_aa_code_hash| H256::from_slice(&default_aa_code_hash))
-                    .expect("Should be not none"),
+                    .expect("should not be none"),
             },
             operator_address: self
                 .fee_account_address
@@ -451,14 +450,14 @@ impl From<StorageL1BatchDetails> for L1BatchDetails {
             prove_tx_hash: storage_l1_batch_details
                 .prove_tx_hash
                 .as_deref()
-                .map(|hash| H256::from_str(hash).expect("Incorrect verify_tx hash")),
+                .map(|hash| H256::from_str(hash).expect("Incorrect prove_tx hash")),
             proven_at: storage_l1_batch_details
                 .proven_at
                 .map(|proven_at| DateTime::<Utc>::from_utc(proven_at, Utc)),
             execute_tx_hash: storage_l1_batch_details
                 .execute_tx_hash
                 .as_deref()
-                .map(|hash| H256::from_str(hash).expect("Incorrect verify_tx hash")),
+                .map(|hash| H256::from_str(hash).expect("Incorrect execute_tx hash")),
             executed_at: storage_l1_batch_details
                 .executed_at
                 .map(|executed_at| DateTime::<Utc>::from_utc(executed_at, Utc)),
@@ -468,11 +467,11 @@ impl From<StorageL1BatchDetails> for L1BatchDetails {
                 bootloader: storage_l1_batch_details
                     .bootloader_code_hash
                     .map(|bootloader_code_hash| H256::from_slice(&bootloader_code_hash))
-                    .expect("Should be not none"),
+                    .expect("should not be none"),
                 default_aa: storage_l1_batch_details
                     .default_aa_code_hash
                     .map(|default_aa_code_hash| H256::from_slice(&default_aa_code_hash))
-                    .expect("Should be not none"),
+                    .expect("should not be none"),
             },
         }
     }
@@ -508,11 +507,11 @@ impl From<StorageMiniblockHeader> for MiniblockHeader {
                 bootloader: row
                     .bootloader_code_hash
                     .map(|bootloader_code_hash| H256::from_slice(&bootloader_code_hash))
-                    .expect("Should be not none"),
+                    .expect("should not be none"),
                 default_aa: row
                     .default_aa_code_hash
                     .map(|default_aa_code_hash| H256::from_slice(&default_aa_code_hash))
-                    .expect("Should be not none"),
+                    .expect("should not be none"),
             },
         }
     }
@@ -553,12 +552,6 @@ mod tests {
             sql,
             "(SELECT MAX(number) as number FROM miniblocks)".to_string()
         );
-    }
-
-    #[test]
-    fn test_web3_block_number_to_sql_number() {
-        let sql = web3_block_number_to_sql(api::BlockNumber::Number(123.into()));
-        assert_eq!(sql, "123".to_string());
     }
 
     #[test]

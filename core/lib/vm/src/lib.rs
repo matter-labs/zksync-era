@@ -10,7 +10,6 @@ mod oracle_tools;
 pub mod oracles;
 mod pubdata_utils;
 mod refunds;
-pub mod storage;
 pub mod test_utils;
 pub mod transaction_data;
 pub mod utils;

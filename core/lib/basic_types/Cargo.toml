@@ -5,7 +5,7 @@ edition = "2018"
 authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
 homepage = "https://zksync.io/"
 repository = "https://github.com/matter-labs/zksync-era"
-license = "Apache-2.0"
+license = "MIT OR Apache-2.0"
 keywords = ["blockchain", "zksync"]
 categories = ["cryptography"]
 

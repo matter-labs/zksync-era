@@ -14,12 +14,12 @@ pub(crate) const STORED_USD_PRICE_PRECISION: usize = 6;
 
 #[derive(Debug)]
 pub struct TokensDal<'a, 'c> {
-    pub storage: &'a mut StorageProcessor<'c>,
+    pub(crate) storage: &'a mut StorageProcessor<'c>,
 }
 
 impl TokensDal<'_, '_> {
-    pub fn add_tokens(&mut self, tokens: Vec<TokenInfo>) {
-        async_std::task::block_on(async {
+    pub async fn add_tokens(&mut self, tokens: Vec<TokenInfo>) {
+        {
             let mut copy = self
             .storage
             .conn()
@@ -53,11 +53,15 @@ impl TokensDal<'_, '_> {
             }
             copy.send(bytes).await.unwrap();
             copy.finish().await.unwrap();
-        })
+        }
     }
 
-    pub fn update_well_known_l1_token(&mut self, l1_address: &Address, metadata: TokenMetadata) {
-        async_std::task::block_on(async {
+    pub async fn update_well_known_l1_token(
+        &mut self,
+        l1_address: &Address,
+        metadata: TokenMetadata,
+    ) {
+        {
             sqlx::query!(
                 "UPDATE tokens SET token_list_name = $2, token_list_symbol = $3,
                 token_list_decimals = $4, well_known = true, updated_at = now()
@@ -71,11 +75,11 @@ impl TokensDal<'_, '_> {
             .execute(self.storage.conn())
             .await
             .unwrap();
-        })
+        }
     }
 
-    pub fn get_well_known_token_addresses(&mut self) -> Vec<(Address, Address)> {
-        async_std::task::block_on(async {
+    pub async fn get_well_known_token_addresses(&mut self) -> Vec<(Address, Address)> {
+        {
             let records =
                 sqlx::query!("SELECT l1_address, l2_address FROM tokens WHERE well_known = true")
                     .fetch_all(self.storage.conn())
@@ -91,11 +95,25 @@ impl TokensDal<'_, '_> {
                 })
                 .collect();
             addresses
-        })
+        }
     }
 
-    pub fn get_unknown_l1_token_addresses(&mut self) -> Vec<Address> {
-        async_std::task::block_on(async {
+    pub async fn get_all_l2_token_addresses(&mut self) -> Vec<Address> {
+        {
+            let records = sqlx::query!("SELECT l2_address FROM tokens")
+                .fetch_all(self.storage.conn())
+                .await
+                .unwrap();
+            let addresses: Vec<Address> = records
+                .into_iter()
+                .map(|record| Address::from_slice(&record.l2_address))
+                .collect();
+            addresses
+        }
+    }
+
+    pub async fn get_unknown_l1_token_addresses(&mut self) -> Vec<Address> {
+        {
             let records = sqlx::query!("SELECT l1_address FROM tokens WHERE well_known = false")
                 .fetch_all(self.storage.conn())
                 .await
@@ -105,11 +123,11 @@ impl TokensDal<'_, '_> {
                 .map(|record| Address::from_slice(&record.l1_address))
                 .collect();
             addresses
-        })
+        }
     }
 
-    pub fn get_l1_tokens_by_volume(&mut self, min_volume: &Ratio<BigUint>) -> Vec<Address> {
-        async_std::task::block_on(async {
+    pub async fn get_l1_tokens_by_volume(&mut self, min_volume: &Ratio<BigUint>) -> Vec<Address> {
+        {
             let min_volume = ratio_to_big_decimal(min_volume, STORED_USD_PRICE_PRECISION);
             let records = sqlx::query!(
                 "SELECT l1_address FROM tokens WHERE market_volume > $1",
@@ -123,11 +141,11 @@ impl TokensDal<'_, '_> {
                 .map(|record| Address::from_slice(&record.l1_address))
                 .collect();
             addresses
-        })
+        }
     }
 
-    pub fn set_l1_token_price(&mut self, l1_address: &Address, price: TokenPrice) {
-        async_std::task::block_on(async {
+    pub async fn set_l1_token_price(&mut self, l1_address: &Address, price: TokenPrice) {
+        {
             sqlx::query!(
             "UPDATE tokens SET usd_price = $2, usd_price_updated_at = $3, updated_at = now() WHERE l1_address = $1",
             l1_address.as_bytes(),
@@ -137,15 +155,15 @@ impl TokensDal<'_, '_> {
             .execute(self.storage.conn())
             .await
             .unwrap();
-        })
+        }
     }
 
-    pub fn set_l1_token_market_volume(
+    pub async fn set_l1_token_market_volume(
         &mut self,
         l1_address: &Address,
         market_volume: TokenMarketVolume,
     ) {
-        async_std::task::block_on(async {
+        {
             sqlx::query!(
             "UPDATE tokens SET market_volume = $2, market_volume_updated_at = $3, updated_at = now() WHERE l1_address = $1",
             l1_address.as_bytes(),
@@ -155,11 +173,14 @@ impl TokensDal<'_, '_> {
             .execute(self.storage.conn())
             .await
             .unwrap();
-        })
+        }
     }
 
-    pub fn get_token_market_volume(&mut self, l2_address: &Address) -> Option<TokenMarketVolume> {
-        async_std::task::block_on(async {
+    pub async fn get_token_market_volume(
+        &mut self,
+        l2_address: &Address,
+    ) -> Option<TokenMarketVolume> {
+        {
             let storage_market_volume = sqlx::query_as!(
                 StorageTokenMarketVolume,
                 "SELECT market_volume, market_volume_updated_at FROM tokens WHERE l2_address = $1",
@@ -169,11 +190,11 @@ impl TokensDal<'_, '_> {
             .await
             .unwrap();
             storage_market_volume.and_then(Into::into)
-        })
+        }
     }
 
-    pub fn rollback_tokens(&mut self, block_number: MiniblockNumber) {
-        async_std::task::block_on(async {
+    pub async fn rollback_tokens(&mut self, block_number: MiniblockNumber) {
+        {
             sqlx::query!(
                 "
                     DELETE FROM tokens 
@@ -196,6 +217,6 @@ impl TokensDal<'_, '_> {
             .execute(self.storage.conn())
             .await
             .unwrap();
-        })
+        }
     }
 }

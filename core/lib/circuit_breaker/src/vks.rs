@@ -8,14 +8,15 @@ use std::{
 use thiserror::Error;
 
 use zksync_config::configs::chain::CircuitBreakerConfig;
-use zksync_eth_client::{types::Error as EthClientError, BoundEthInterface};
+use zksync_contracts::zksync_contract;
+use zksync_eth_client::{types::Error as EthClientError, EthInterface};
 use zksync_types::{
     ethabi::Token,
     zkevm_test_harness::bellman::{
         bn256::{Fq, Fq2, Fr, G1Affine, G2Affine},
         CurveAffine, PrimeField,
     },
-    {Address, H256},
+    Address, H160, H256,
 };
 use zksync_verification_key_server::get_vk_for_circuit_type;
 
@@ -69,13 +70,15 @@ pub struct VerificationKey {
 pub struct VksChecker<E> {
     pub eth_client: E,
     pub config: CircuitBreakerConfig,
+    pub main_contract: Address,
 }
 
-impl<E: BoundEthInterface + Debug> VksChecker<E> {
-    pub fn new(config: &CircuitBreakerConfig, eth_client: E) -> Self {
+impl<E: EthInterface + Debug> VksChecker<E> {
+    pub fn new(config: &CircuitBreakerConfig, eth_client: E, main_contract: H160) -> Self {
         Self {
             eth_client,
             config: config.clone(),
+            main_contract,
         }
     }
 
@@ -86,7 +89,15 @@ impl<E: BoundEthInterface + Debug> VksChecker<E> {
         let address_from_contract: Address = (|| async {
             let result: Result<Address, EthClientError> = self
                 .eth_client
-                .call_main_contract_function("getVerifier", (), None, Default::default(), None)
+                .call_contract_function(
+                    "getVerifier",
+                    (),
+                    None,
+                    Default::default(),
+                    None,
+                    self.main_contract,
+                    zksync_contract(),
+                )
                 .await;
             result
         })
@@ -113,12 +124,14 @@ impl<E: BoundEthInterface + Debug> VksChecker<E> {
         let verifier_params_token: Token = (|| async {
             let result: Result<Token, EthClientError> = self
                 .eth_client
-                .call_main_contract_function(
+                .call_contract_function(
                     "getVerifierParams",
                     (),
                     None,
                     Default::default(),
                     None,
+                    self.main_contract,
+                    zksync_contract(),
                 )
                 .await;
             result
@@ -223,7 +236,7 @@ impl<E: BoundEthInterface + Debug> VksChecker<E> {
 }
 
 #[async_trait::async_trait]
-impl<E: BoundEthInterface + Debug> CircuitBreaker for VksChecker<E> {
+impl<E: EthInterface + Debug> CircuitBreaker for VksChecker<E> {
     async fn check(&self) -> Result<(), CircuitBreakerError> {
         self.check_verifier_address().await?;
         self.check_commitments().await?;

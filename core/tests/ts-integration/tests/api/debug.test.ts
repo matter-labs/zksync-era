@@ -23,6 +23,10 @@ describe('Debug methods', () => {
 
         tokenDetails = testMaster.environment().erc20Token;
         aliceErc20 = new zksync.Contract(tokenDetails.l2Address, zksync.utils.IERC20, alice);
+
+        if (process.env.ZKSYNC_ENV!.startsWith('ext-node')) {
+            console.warn("You are trying to run debug namespace tests on external node. It's not supported.");
+        }
     });
 
     test('Debug sending erc20 token in a block', async () => {

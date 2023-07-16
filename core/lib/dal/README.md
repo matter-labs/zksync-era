@@ -9,11 +9,10 @@ Current schema is managed by `diesel` - that applies all the schema changes from
 
 ### Storage tables
 
-| Table name       | Description                                                                       | Usage                                                                                                                                                     |
-| ---------------- | --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| contract_sources | Mapping from contract address to the contract source.                             | Currently set via `zks_setContractDebugInfo` JSON call                                                                                                    |
-| storage          | Main storage column: mapping from hashed StorageKey (account + key) to the value. | We also store additional columns there (like transaction hash or creation time).                                                                          |
-| storage_logs     | Stores all the storage access logs for all the transactions.                      | Main source of truth - other columns (like `storage`) are created by compacting this column. Its primary index is (storage key, mini_block, operation_id) |
+| Table name   | Description                                                                       | Usage                                                                                                                                                     |
+| ------------ | --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| storage      | Main storage column: mapping from hashed StorageKey (account + key) to the value. | We also store additional columns there (like transaction hash or creation time).                                                                          |
+| storage_logs | Stores all the storage access logs for all the transactions.                      | Main source of truth - other columns (like `storage`) are created by compacting this column. Its primary index is (storage key, mini_block, operation_id) |
 
 ### Prover queue tables
 

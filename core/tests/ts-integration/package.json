@@ -5,12 +5,15 @@
     "private": true,
     "scripts": {
         "test": "zk f jest --forceExit --testTimeout 60000",
+        "long-running-test": "zk f jest",
         "fee-test": "RUN_FEE_TEST=1 zk f jest -- fees.test.ts",
         "api-test": "zk f jest -- api/web3.test.ts"
     },
     "devDependencies": {
-        "@matterlabs/hardhat-zksync-solc": "^0.3.15",
         "@matterlabs/hardhat-zksync-deploy": "^0.6.1",
+        "@matterlabs/hardhat-zksync-solc": "^0.3.15",
+        "@matterlabs/hardhat-zksync-vyper": "^0.2.0",
+        "@nomiclabs/hardhat-vyper": "^3.0.3",
         "@types/jest": "^29.0.3",
         "@types/node": "^14.14.5",
         "@types/node-fetch": "^2.5.7",

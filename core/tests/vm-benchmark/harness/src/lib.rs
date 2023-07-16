@@ -7,16 +7,13 @@ use vm::{HistoryEnabled, OracleTools, VmInstance};
 use zk_evm::block_properties::BlockProperties;
 use zksync_config::constants::ethereum::MAX_GAS_PER_PUBDATA_BYTE;
 use zksync_contracts::deployer_contract;
-use zksync_state::storage_view::StorageView;
+use zksync_state::{InMemoryStorage, StorageView};
 use zksync_types::ethabi::{encode, Token};
 use zksync_types::l2::L2Tx;
 use zksync_types::utils::storage_key_for_eth_balance;
 use zksync_types::{fee::Fee, Nonce, Transaction, H256, U256};
 use zksync_types::{L2ChainId, PackedEthSignature, CONTRACT_DEPLOYER_ADDRESS};
 use zksync_utils::bytecode::hash_bytecode;
-
-mod in_memory_storage;
-use in_memory_storage::InMemoryStorage;
 
 /// Bytecodes have consist of an odd number of 32 byte words
 /// This function "fixes" bytecodes of wrong length by cutting off their end.
@@ -33,7 +30,7 @@ pub fn cut_to_allowed_bytecode_size(bytes: &[u8]) -> Option<&[u8]> {
 }
 
 static STORAGE: Lazy<InMemoryStorage> = Lazy::new(|| {
-    let mut storage = InMemoryStorage::default();
+    let mut storage = InMemoryStorage::with_system_contracts(hash_bytecode);
 
     // give PRIVATE_KEY some money
     let my_addr = PackedEthSignature::address_from_private_key(&PRIVATE_KEY).unwrap();

@@ -12,18 +12,18 @@ use tokio::{sync::watch, task::JoinHandle};
 
 // Workspace deps
 use zksync_config::constants::PRIORITY_EXPIRATION;
-use zksync_eth_client::clients::http::PKSigningClient;
 use zksync_types::{
-    l1::L1Tx, web3::types::BlockNumber as Web3BlockNumber, L1BlockNumber, PriorityOpId,
+    l1::L1Tx, web3::types::BlockNumber as Web3BlockNumber, L1BlockNumber, PriorityOpId, H160,
 };
 
 // Local deps
-use self::client::{Error, EthClient, EthHttpClient};
+use self::client::{Error, EthClient};
 
-use zksync_config::ZkSyncConfig;
+use zksync_config::ETHWatchConfig;
 
-use crate::eth_watch::client::RETRY_LIMIT;
+use crate::eth_watch::client::{EthHttpQueryClient, RETRY_LIMIT};
 use zksync_dal::{ConnectionPool, StorageProcessor};
+use zksync_eth_client::EthInterface;
 
 mod client;
 
@@ -39,57 +39,47 @@ struct EthWatchState {
 #[derive(Debug)]
 pub struct EthWatch<W: EthClient> {
     client: W,
-    /// All ethereum events are accepted after sufficient confirmations to eliminate risk of block reorg.
-    number_of_confirmations_for_event: usize,
     poll_interval: Duration,
 
     state: EthWatchState,
 }
 
 impl<W: EthClient> EthWatch<W> {
-    pub async fn new(
-        client: W,
-        pool: &ConnectionPool,
-        number_of_confirmations_for_event: usize,
-        poll_interval: Duration,
-    ) -> Self {
-        let mut storage = pool.access_storage_blocking();
+    pub async fn new(client: W, pool: &ConnectionPool, poll_interval: Duration) -> Self {
+        let mut storage = pool.access_storage_tagged("eth_watch").await;
 
-        let state =
-            Self::initialize_state(&client, &mut storage, number_of_confirmations_for_event).await;
+        let state = Self::initialize_state(&client, &mut storage).await;
 
         vlog::info!("initialized state: {:?}", state);
         Self {
             client,
-            number_of_confirmations_for_event,
             poll_interval,
             state,
         }
     }
 
-    async fn initialize_state(
-        client: &W,
-        storage: &mut StorageProcessor<'_>,
-        number_of_confirmations_for_event: usize,
-    ) -> EthWatchState {
+    async fn initialize_state(client: &W, storage: &mut StorageProcessor<'_>) -> EthWatchState {
         let next_expected_priority_id: PriorityOpId = storage
             .transactions_dal()
             .last_priority_id()
+            .await
             .map_or(PriorityOpId(0), |e| e + 1);
 
-        let last_processed_ethereum_block =
-            match storage.transactions_dal().get_last_processed_l1_block() {
-                // There are some priority ops processed - start from the last processed eth block
-                // but subtract 1 in case the server stopped mid-block.
-                Some(block) => block.0.saturating_sub(1).into(),
-                // There are no priority ops processed - to be safe, scan the last 50k blocks.
-                None => {
-                    Self::get_current_finalized_eth_block(client, number_of_confirmations_for_event)
-                        .await
-                        .expect("cannot initialize eth watch: cannot get current ETH block")
-                        .saturating_sub(PRIORITY_EXPIRATION)
-                }
-            };
+        let last_processed_ethereum_block = match storage
+            .transactions_dal()
+            .get_last_processed_l1_block()
+            .await
+        {
+            // There are some priority ops processed - start from the last processed eth block
+            // but subtract 1 in case the server stopped mid-block.
+            Some(block) => block.0.saturating_sub(1).into(),
+            // There are no priority ops processed - to be safe, scan the last 50k blocks.
+            None => client
+                .finalized_block_number()
+                .await
+                .expect("cannot initialize eth watch: cannot get current ETH block")
+                .saturating_sub(PRIORITY_EXPIRATION),
+        };
 
         EthWatchState {
             next_expected_priority_id,
@@ -109,17 +99,12 @@ impl<W: EthClient> EthWatch<W> {
 
             metrics::counter!("server.eth_watch.eth_poll", 1);
 
-            let mut storage = pool.access_storage_blocking();
+            let mut storage = pool.access_storage_tagged("eth_watch").await;
             if let Err(error) = self.loop_iteration(&mut storage).await {
                 // This is an error because otherwise we could potentially miss a priority operation
                 // thus entering priority mode, which is not desired.
                 vlog::error!("Failed to process new blocks {}", error);
-                self.state = Self::initialize_state(
-                    &self.client,
-                    &mut storage,
-                    self.number_of_confirmations_for_event,
-                )
-                .await;
+                self.state = Self::initialize_state(&self.client, &mut storage).await;
             }
         }
     }
@@ -127,11 +112,7 @@ impl<W: EthClient> EthWatch<W> {
     #[tracing::instrument(skip(self, storage))]
     async fn loop_iteration(&mut self, storage: &mut StorageProcessor<'_>) -> Result<(), Error> {
         let mut stage_start = Instant::now();
-        let to_block = Self::get_current_finalized_eth_block(
-            &self.client,
-            self.number_of_confirmations_for_event,
-        )
-        .await?;
+        let to_block = self.client.finalized_block_number().await?;
 
         if to_block <= self.state.last_processed_ethereum_block {
             return Ok(());
@@ -167,7 +148,8 @@ impl<W: EthClient> EthWatch<W> {
             for (eth_block, new_op) in new_ops {
                 storage
                     .transactions_dal()
-                    .insert_transaction_l1(new_op, eth_block);
+                    .insert_transaction_l1(new_op, eth_block)
+                    .await;
             }
             metrics::histogram!("eth_watcher.poll_eth_node", stage_start.elapsed(), "stage" => "persist");
         }
@@ -213,34 +195,22 @@ impl<W: EthClient> EthWatch<W> {
             .map(|tx| (L1BlockNumber(tx.eth_block() as u32), tx))
             .collect())
     }
-
-    // ETH block assumed to be final (that is, old enough to not worry about reorgs)
-    async fn get_current_finalized_eth_block(
-        client: &W,
-        number_of_confirmations_for_event: usize,
-    ) -> Result<u64, Error> {
-        Ok(client
-            .block_number()
-            .await?
-            .saturating_sub(number_of_confirmations_for_event as u64))
-    }
 }
 
-pub async fn start_eth_watch(
+pub async fn start_eth_watch<E: EthInterface + Send + Sync + 'static>(
     pool: ConnectionPool,
-    eth_gateway: PKSigningClient,
-    config_options: &ZkSyncConfig,
+    eth_gateway: E,
+    diamond_proxy_addr: H160,
     stop_receiver: watch::Receiver<bool>,
 ) -> JoinHandle<()> {
-    let eth_client = EthHttpClient::new(eth_gateway, config_options.contracts.diamond_proxy_addr);
+    let eth_watch = ETHWatchConfig::from_env();
+    let eth_client = EthHttpQueryClient::new(
+        eth_gateway,
+        diamond_proxy_addr,
+        eth_watch.confirmations_for_eth_event,
+    );
 
-    let mut eth_watch = EthWatch::new(
-        eth_client,
-        &pool,
-        config_options.eth_watch.confirmations_for_eth_event as usize,
-        config_options.eth_watch.poll_interval(),
-    )
-    .await;
+    let mut eth_watch = EthWatch::new(eth_client, &pool, eth_watch.poll_interval()).await;
 
     tokio::spawn(async move {
         eth_watch.run(pool, stop_receiver).await;

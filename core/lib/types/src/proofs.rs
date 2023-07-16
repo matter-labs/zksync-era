@@ -74,6 +74,18 @@ pub enum AggregationRound {
     Scheduler = 3,
 }
 
+impl From<u8> for AggregationRound {
+    fn from(item: u8) -> Self {
+        match item {
+            0 => AggregationRound::BasicCircuits,
+            1 => AggregationRound::LeafAggregation,
+            2 => AggregationRound::NodeAggregation,
+            3 => AggregationRound::Scheduler,
+            _ => panic!("Invalid round"),
+        }
+    }
+}
+
 impl AggregationRound {
     pub fn next(&self) -> Option<AggregationRound> {
         match self {
@@ -243,6 +255,34 @@ pub struct ProverJobMetadata {
     pub sequence_number: usize,
 }
 
+#[derive(Debug, Clone)]
+pub struct FriProverJobMetadata {
+    pub id: u32,
+    pub block_number: L1BatchNumber,
+    pub circuit_id: u8,
+    pub aggregation_round: AggregationRound,
+    pub sequence_number: usize,
+    pub depth: u16,
+    pub is_node_final_proof: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct LeafAggregationJobMetadata {
+    pub id: u32,
+    pub block_number: L1BatchNumber,
+    pub circuit_id: u8,
+    pub prover_job_ids_for_proofs: Vec<u32>,
+}
+
+#[derive(Debug, Clone)]
+pub struct NodeAggregationJobMetadata {
+    pub id: u32,
+    pub block_number: L1BatchNumber,
+    pub circuit_id: u8,
+    pub depth: u16,
+    pub prover_job_ids_for_proofs: Vec<u32>,
+}
+
 #[derive(Debug)]
 pub struct JobPosition {
     pub aggregation_round: AggregationRound,
@@ -379,6 +419,13 @@ impl Add for JobCountStatistics {
             successful: self.successful + rhs.successful,
         }
     }
+}
+
+#[derive(Debug)]
+pub struct StuckJobs {
+    pub id: u64,
+    pub status: String,
+    pub attempts: u64,
 }
 
 #[cfg(test)]

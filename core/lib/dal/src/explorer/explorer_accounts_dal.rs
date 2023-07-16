@@ -10,25 +10,25 @@ use zksync_types::{
     U256,
 };
 
-use crate::SqlxError;
-use crate::StorageProcessor;
+use crate::{SqlxError, StorageProcessor};
 
 #[derive(Debug)]
 pub struct ExplorerAccountsDal<'a, 'c> {
-    pub storage: &'a mut StorageProcessor<'c>,
+    pub(super) storage: &'a mut StorageProcessor<'c>,
 }
 
 impl ExplorerAccountsDal<'_, '_> {
-    pub fn get_balances_for_address(
+    pub async fn get_balances_for_address(
         &mut self,
         address: Address,
     ) -> Result<HashMap<Address, BalanceItem>, SqlxError> {
-        async_std::task::block_on(async {
+        {
             let token_l2_addresses = self
                 .storage
                 .explorer()
                 .misc_dal()
-                .get_well_known_token_l2_addresses()?;
+                .get_well_known_token_l2_addresses()
+                .await?;
             let hashed_keys: Vec<Vec<u8>> = token_l2_addresses
                 .into_iter()
                 .map(|mut l2_token_address| {
@@ -86,33 +86,45 @@ impl ExplorerAccountsDal<'_, '_> {
                 })
                 .collect();
             Ok(result)
-        })
+        }
     }
 
     /// Returns sealed and verified nonces for address.
-    pub fn get_account_nonces(&mut self, address: Address) -> Result<(Nonce, Nonce), SqlxError> {
+    pub async fn get_account_nonces(
+        &mut self,
+        address: Address,
+    ) -> Result<(Nonce, Nonce), SqlxError> {
+        let latest_block_number = self
+            .storage
+            .blocks_web3_dal()
+            .resolve_block_id(api::BlockId::Number(api::BlockNumber::Latest))
+            .await?
+            .unwrap();
         let sealed_nonce = self
             .storage
             .storage_web3_dal()
-            .get_address_historical_nonce(address, api::BlockId::Number(api::BlockNumber::Latest))?
-            .unwrap()
+            .get_address_historical_nonce(address, latest_block_number)
+            .await?
             .as_u32();
+
+        let finalized_block_number = self
+            .storage
+            .blocks_web3_dal()
+            .resolve_block_id(api::BlockId::Number(api::BlockNumber::Finalized))
+            .await?
+            .unwrap(); // Safe: we always have at least the genesis miniblock finalized
         let verified_nonce = self
             .storage
             .storage_web3_dal()
-            .get_address_historical_nonce(
-                address,
-                api::BlockId::Number(api::BlockNumber::Finalized),
-            )?
-            .unwrap_or_default()
+            .get_address_historical_nonce(address, finalized_block_number)
+            .await?
             .as_u32();
-
         Ok((Nonce(sealed_nonce), Nonce(verified_nonce)))
     }
 
-    pub fn get_account_type(&mut self, address: Address) -> Result<AccountType, SqlxError> {
+    pub async fn get_account_type(&mut self, address: Address) -> Result<AccountType, SqlxError> {
         let hashed_key = get_code_key(&address).hashed_key();
-        async_std::task::block_on(async {
+        {
             let contract_exists = sqlx::query!(
                 r#"
                     SELECT true as "exists"
@@ -134,6 +146,6 @@ impl ExplorerAccountsDal<'_, '_> {
                 None => AccountType::EOA,
             };
             Ok(result)
-        })
+        }
     }
 }

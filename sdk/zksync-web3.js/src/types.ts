@@ -114,6 +114,7 @@ export interface L2ToL1Log {
     blockHash: string;
     l1BatchNumber: number;
     transactionIndex: number;
+    txIndexInL1Batch: number;
     shardId: number;
     isService: boolean;
     sender: string;
@@ -211,6 +212,7 @@ export interface TransactionDetails {
     isL1Originated: boolean;
     status: string;
     fee: BigNumberish;
+    gasPerPubdata: BigNumberish;
     initiatorAddress: Address;
     receivedAt: Date;
     ethCommitTxHash?: string;

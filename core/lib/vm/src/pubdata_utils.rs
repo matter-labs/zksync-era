@@ -1,6 +1,5 @@
 use crate::history_recorder::HistoryMode;
 use crate::oracles::storage::storage_key_of_log;
-use crate::utils::collect_storage_log_queries_after_timestamp;
 use crate::VmInstance;
 use std::collections::HashMap;
 use zk_evm::aux_structures::Timestamp;
@@ -68,10 +67,10 @@ impl<H: HistoryMode> VmInstance<'_, H> {
             }
         };
 
-        let storage_logs = collect_storage_log_queries_after_timestamp(
-            self.state.storage.frames_stack.forward().current_frame(),
-            from_timestamp,
-        );
+        let storage_logs = self
+            .state
+            .storage
+            .storage_log_queries_after_timestamp(from_timestamp);
         let (_, deduplicated_logs) =
             sort_storage_access_queries(storage_logs.iter().map(|log| &log.log_query));
 

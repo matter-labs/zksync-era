@@ -25,6 +25,7 @@ export async function init(skipSubmodulesCheckout: boolean) {
         await announced('Checking environment', checkEnv());
         await announced('Checking git hooks', env.gitHooks());
         await announced('Setting up containers', up());
+        await announced('Checking PLONK setup', run.plonkSetup());
     }
     if (!skipSubmodulesCheckout) {
         await announced('Checkout system-contracts submodule', submoduleUpdate());
@@ -35,7 +36,6 @@ export async function init(skipSubmodulesCheckout: boolean) {
     await announced('Setup postgres db', db.setup());
     await announced('Clean rocksdb', clean('db'));
     await announced('Clean backups', clean('backups'));
-    await announced('Checking PLONK setup', run.plonkSetup());
     await announced('Building contracts', contract.build());
     await announced('Deploying localhost ERC20 tokens', run.deployERC20('dev'));
     await announced('Running server genesis setup', server.genesisFromSources());

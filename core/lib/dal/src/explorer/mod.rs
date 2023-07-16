@@ -15,11 +15,11 @@ pub mod explorer_transactions_dal;
 pub mod storage_contract_info;
 
 #[derive(Debug)]
-pub struct ExplorerIntermediator<'a, 'c> {
-    pub storage: &'a mut StorageProcessor<'c>,
+pub struct ExplorerIntermediary<'a, 'c> {
+    pub(crate) storage: &'a mut StorageProcessor<'c>,
 }
 
-impl<'a, 'c> ExplorerIntermediator<'a, 'c> {
+impl<'a, 'c> ExplorerIntermediary<'a, 'c> {
     pub fn contract_verification_dal(self) -> ContractVerificationDal<'a, 'c> {
         ContractVerificationDal {
             storage: self.storage,

@@ -3,7 +3,6 @@ mod cached_main_node_client;
 pub mod external_io;
 pub mod fetcher;
 pub mod genesis;
-pub mod mock_batch_executor;
 pub(crate) mod sync_action;
 mod sync_state;
 

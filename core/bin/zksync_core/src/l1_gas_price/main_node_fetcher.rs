@@ -54,6 +54,8 @@ impl MainNodeGasPriceFetcher {
                 Ok(price) => price,
                 Err(err) => {
                     vlog::warn!("Unable to get the gas price: {}", err);
+                    // A delay to avoid spamming the main node with requests.
+                    tokio::time::sleep(SLEEP_INTERVAL).await;
                     continue;
                 }
             };

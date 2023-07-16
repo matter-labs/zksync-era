@@ -7,7 +7,7 @@ use tokio::sync::watch;
 use zksync_config::configs::eth_sender::SenderConfig;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{ConnectionPool, StorageProcessor};
-use zksync_eth_client::{clients::http::PKSigningClient, BoundEthInterface};
+use zksync_eth_client::BoundEthInterface;
 use zksync_types::{aggregated_operations::AggregatedOperation, eth_sender::EthTx, Address, H256};
 
 /// The component is responsible for aggregating l1 batches into eth_txs:
@@ -39,18 +39,16 @@ impl EthTxAggregator {
         }
     }
 
-    pub async fn run(
+    pub async fn run<E: BoundEthInterface>(
         mut self,
         pool: ConnectionPool,
-        eth_client: PKSigningClient,
+        prover_pool: ConnectionPool,
+        eth_client: E,
         stop_receiver: watch::Receiver<bool>,
     ) {
         loop {
-            let base_system_contracts_hashes = self
-                .get_l1_base_system_contracts_hashes(&eth_client)
-                .await
-                .unwrap();
-            let mut storage = pool.access_storage_blocking();
+            let mut storage = pool.access_storage_tagged("eth_sender").await;
+            let mut prover_storage = prover_pool.access_storage_tagged("eth_sender").await;
 
             if *stop_receiver.borrow() {
                 vlog::info!("Stop signal received, eth_tx_aggregator is shutting down");
@@ -58,7 +56,7 @@ impl EthTxAggregator {
             }
 
             if let Err(e) = self
-                .loop_iteration(&mut storage, base_system_contracts_hashes)
+                .loop_iteration(&mut storage, &mut prover_storage, &eth_client)
                 .await
             {
                 // Web3 API request failures can cause this,
@@ -70,9 +68,9 @@ impl EthTxAggregator {
         }
     }
 
-    async fn get_l1_base_system_contracts_hashes(
+    async fn get_l1_base_system_contracts_hashes<E: BoundEthInterface>(
         &mut self,
-        eth_client: &PKSigningClient,
+        eth_client: &E,
     ) -> Result<BaseSystemContractsHashes, ETHSenderError> {
         let bootloader_code_hash: H256 = eth_client
             .call_main_contract_function(
@@ -99,24 +97,27 @@ impl EthTxAggregator {
         })
     }
 
-    #[tracing::instrument(skip(self, storage, base_system_contracts_hashes))]
-    async fn loop_iteration(
+    #[tracing::instrument(skip(self, storage, eth_client))]
+    async fn loop_iteration<E: BoundEthInterface>(
         &mut self,
         storage: &mut StorageProcessor<'_>,
-        base_system_contracts_hashes: BaseSystemContractsHashes,
+        prover_storage: &mut StorageProcessor<'_>,
+        eth_client: &E,
     ) -> Result<(), ETHSenderError> {
+        let base_system_contracts_hashes =
+            self.get_l1_base_system_contracts_hashes(eth_client).await?;
         if let Some(agg_op) = self
             .aggregator
-            .get_next_ready_operation(storage, base_system_contracts_hashes)
+            .get_next_ready_operation(storage, prover_storage, base_system_contracts_hashes)
             .await
         {
-            let tx = self.save_eth_tx(storage, &agg_op)?;
-            Self::log_eth_tx_saving(storage, agg_op, &tx);
+            let tx = self.save_eth_tx(storage, &agg_op).await?;
+            Self::log_eth_tx_saving(storage, agg_op, &tx).await;
         }
         Ok(())
     }
 
-    fn log_eth_tx_saving(
+    async fn log_eth_tx_saving(
         storage: &mut StorageProcessor<'_>,
         aggregated_op: AggregatedOperation,
         tx: &EthTx,
@@ -154,7 +155,7 @@ impl EthTxAggregator {
             (aggregated_op.get_block_range().1.0 - aggregated_op.get_block_range().0.0 + 1) as f64,
             "type" => aggregated_op.get_action_type().to_string()
         );
-        track_eth_tx_metrics(storage, "save", tx);
+        track_eth_tx_metrics(storage, "save", tx).await;
     }
 
     fn encode_aggregated_op(&self, op: &AggregatedOperation) -> Vec<u8> {
@@ -176,40 +177,47 @@ impl EthTxAggregator {
         .to_vec()
     }
 
-    pub(super) fn save_eth_tx(
+    pub(super) async fn save_eth_tx(
         &self,
         storage: &mut StorageProcessor<'_>,
         aggregated_op: &AggregatedOperation,
     ) -> Result<EthTx, ETHSenderError> {
-        let mut transaction = storage.start_transaction_blocking();
-        let nonce = self.get_next_nonce(&mut transaction)?;
+        let mut transaction = storage.start_transaction().await;
+        let nonce = self.get_next_nonce(&mut transaction).await?;
         let calldata = self.encode_aggregated_op(aggregated_op);
         let (first_block, last_block) = aggregated_op.get_block_range();
         let op_type = aggregated_op.get_action_type();
 
-        let blocks_predicted_gas =
-            transaction
-                .blocks_dal()
-                .get_blocks_predicted_gas(first_block, last_block, op_type);
+        let blocks_predicted_gas = transaction
+            .blocks_dal()
+            .get_blocks_predicted_gas(first_block, last_block, op_type)
+            .await;
         let eth_tx_predicted_gas = agg_block_base_cost(op_type) + blocks_predicted_gas;
 
-        let eth_tx = transaction.eth_sender_dal().save_eth_tx(
-            nonce,
-            calldata,
-            op_type,
-            self.contract_address,
-            eth_tx_predicted_gas,
-        );
+        let eth_tx = transaction
+            .eth_sender_dal()
+            .save_eth_tx(
+                nonce,
+                calldata,
+                op_type,
+                self.contract_address,
+                eth_tx_predicted_gas,
+            )
+            .await;
 
         transaction
             .blocks_dal()
-            .set_eth_tx_id(first_block, last_block, eth_tx.id, op_type);
-        transaction.commit_blocking();
+            .set_eth_tx_id(first_block, last_block, eth_tx.id, op_type)
+            .await;
+        transaction.commit().await;
         Ok(eth_tx)
     }
 
-    fn get_next_nonce(&self, storage: &mut StorageProcessor<'_>) -> Result<u64, ETHSenderError> {
-        let db_nonce = storage.eth_sender_dal().get_next_nonce().unwrap_or(0);
+    async fn get_next_nonce(
+        &self,
+        storage: &mut StorageProcessor<'_>,
+    ) -> Result<u64, ETHSenderError> {
+        let db_nonce = storage.eth_sender_dal().get_next_nonce().await.unwrap_or(0);
         // Between server starts we can execute some txs using operator account or remove some txs from the database
         // At the start we have to consider this fact and get the max nonce.
         Ok(max(db_nonce, self.base_nonce))

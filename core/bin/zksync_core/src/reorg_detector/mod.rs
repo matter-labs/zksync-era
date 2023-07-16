@@ -1,8 +1,9 @@
 use std::time::Duration;
 use zksync_web3_decl::{
-    jsonrpsee::core::{error::Error as RpcError, RpcResult},
+    jsonrpsee::core::Error as RpcError,
     jsonrpsee::http_client::{HttpClient, HttpClientBuilder},
     namespaces::ZksNamespaceClient,
+    RpcResult,
 };
 
 use zksync_dal::ConnectionPool;
@@ -43,9 +44,11 @@ impl ReorgDetector {
         // Unwrapping is fine since the caller always checks that these root hashes exist.
         let local_hash = self
             .pool
-            .access_storage_blocking()
+            .access_storage()
+            .await
             .blocks_dal()
             .get_block_state_root(block_number)
+            .await
             .unwrap_or_else(|| {
                 panic!("Root hash does not exist for local batch #{}", block_number)
             });
@@ -122,9 +125,11 @@ impl ReorgDetector {
         loop {
             let sealed_block_number = self
                 .pool
-                .access_storage_blocking()
+                .access_storage()
+                .await
                 .blocks_dal()
-                .get_last_block_number_with_metadata();
+                .get_last_block_number_with_metadata()
+                .await;
 
             // If the main node has to catch up with us, we should not do anything just yet.
             if self

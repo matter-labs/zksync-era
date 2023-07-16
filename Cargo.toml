@@ -9,6 +9,7 @@ members = [
     "core/bin/external_node",
     "core/bin/admin-tools",
     "core/bin/system-constants-generator",
+    "core/bin/test_node",
     "core/tests/cross_external_nodes_checker",
     # Contract verifier
     "core/bin/contract-verifier",
@@ -16,9 +17,10 @@ members = [
     # "core/bin/setup_key_generator_and_server",
     # Verification key generator and server
     "core/bin/verification_key_generator_and_server",
-    "core/bin/witness_generator",
+    #"core/bin/witness_generator",
     # circuit synthesizer: its commented as it cannot be built with stable rust.
     # "core/bin/circuit_synthesizer",
+    "core/bin/l1_tx_effective_gas_price_migration",
     # Libraries
     "core/lib/basic_types",
     "core/lib/config",
@@ -31,7 +33,6 @@ members = [
     "core/lib/eth_signer",
     "core/lib/mempool",
     "core/lib/merkle_tree",
-    "core/lib/merkle_tree2",
     "core/lib/object_store",
     "core/lib/mini_merkle_tree",
     "core/lib/prometheus_exporter",
@@ -44,11 +45,9 @@ members = [
     "core/lib/vlog",
     "core/lib/vm",
     "core/lib/web3_decl",
-    "core/lib/db_storage_provider",
 
     # Test infrastructure
     "core/tests/loadnext",
-    "core/tests/testkit",
     "core/tests/vm-benchmark",
     "core/tests/vm-benchmark/harness",
 
@@ -57,10 +56,7 @@ members = [
 ]
 resolver = "2"
 
-exclude = [ "core/bin/prover", "core/bin/circuit_synthesizer", "core/bin/setup_key_generator_and_server"]
-
-[profile.test.package.zksync_merkle_tree]
-opt-level = 3
+exclude = [ "core/bin/prover", "core/bin/circuit_synthesizer", "core/bin/setup_key_generator_and_server", "core/bin/witness_generator", "core/bin/vk_setup_data_generator_server_fri", "core/bin/prover_fri"]
 
 # for `perf` profiling
 [profile.perf]

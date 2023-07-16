@@ -5,7 +5,7 @@ use std::time::Duration;
 use serde::Deserialize;
 
 // Local uses
-use crate::envy_load;
+use super::envy_load;
 
 /// Configuration for the prover application
 #[derive(Debug, Deserialize, Clone, PartialEq)]
@@ -68,22 +68,19 @@ impl ProverConfig {
 impl ProverConfigs {
     pub fn from_env() -> Self {
         Self {
-            non_gpu: envy_load!("non_gpu", "PROVER_NON_GPU_"),
-            two_gpu_forty_gb_mem: envy_load!(
-                "two_gpu_forty_gb_mem",
-                "PROVER_TWO_GPU_FORTY_GB_MEM_"
-            ),
-            one_gpu_eighty_gb_mem: envy_load!(
+            non_gpu: envy_load("non_gpu", "PROVER_NON_GPU_"),
+            two_gpu_forty_gb_mem: envy_load("two_gpu_forty_gb_mem", "PROVER_TWO_GPU_FORTY_GB_MEM_"),
+            one_gpu_eighty_gb_mem: envy_load(
                 "one_gpu_eighty_gb_mem",
-                "PROVER_ONE_GPU_EIGHTY_GB_MEM_"
+                "PROVER_ONE_GPU_EIGHTY_GB_MEM_",
             ),
-            two_gpu_eighty_gb_mem: envy_load!(
+            two_gpu_eighty_gb_mem: envy_load(
                 "two_gpu_eighty_gb_mem",
-                "PROVER_TWO_GPU_EIGHTY_GB_MEM_"
+                "PROVER_TWO_GPU_EIGHTY_GB_MEM_",
             ),
-            four_gpu_eighty_gb_mem: envy_load!(
+            four_gpu_eighty_gb_mem: envy_load(
                 "four_gpu_eighty_gb_mem",
-                "PROVER_FOUR_GPU_EIGHTY_GB_MEM_"
+                "PROVER_FOUR_GPU_EIGHTY_GB_MEM_",
             ),
         }
     }

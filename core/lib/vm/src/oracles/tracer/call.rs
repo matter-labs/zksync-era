@@ -4,7 +4,7 @@ use crate::memory::SimpleMemory;
 use std::convert::TryFrom;
 use std::marker::PhantomData;
 use std::mem;
-use zk_evm::abstractions::{
+use zk_evm::tracing::{
     AfterDecodingData, AfterExecutionData, BeforeExecutionData, Tracer, VmLocalStateData,
 };
 use zk_evm::zkevm_opcode_defs::{

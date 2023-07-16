@@ -3,6 +3,7 @@ import * as utils from '../utils';
 import * as contract from '../contract';
 import * as run from '../run/run';
 import * as compiler from '../compiler';
+import * as config from '../config';
 
 export async function all() {
     await server();
@@ -18,8 +19,21 @@ export async function api(bail: boolean = false) {
     await utils.spawn('yarn ts-integration api-test' + flag);
 }
 
-export async function server() {
-    await utils.spawn('yarn ts-integration test');
+export async function server(options: string[] = []) {
+    if (process.env.ZKSYNC_ENV?.startsWith('ext-node')) {
+        process.env.ZKSYNC_WEB3_API_URL = `http://127.0.0.1:${process.env.EN_HTTP_PORT}`;
+        process.env.ZKSYNC_WEB3_WS_API_URL = `ws://127.0.0.1:${process.env.EN_WS_PORT}`;
+        process.env.ETH_CLIENT_WEB3_URL = process.env.EN_ETH_CLIENT_URL;
+
+        const configs = config.collectVariables(config.loadConfig(process.env.ZKSYNC_ENV, true));
+
+        process.env.CONTRACTS_PRIORITY_TX_MAX_GAS_LIMIT = configs.get('CONTRACTS_PRIORITY_TX_MAX_GAS_LIMIT');
+        process.env.CHAIN_STATE_KEEPER_VALIDATION_COMPUTATIONAL_GAS_LIMIT = configs.get(
+            'CHAIN_STATE_KEEPER_VALIDATION_COMPUTATIONAL_GAS_LIMIT'
+        );
+        process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID = configs.get('CHAIN_ETH_ZKSYNC_NETWORK_ID');
+    }
+    await utils.spawn('yarn ts-integration test ' + options.map((opt) => `'${opt}'`).join(' '));
 }
 
 export async function fees() {
@@ -101,10 +115,11 @@ command
     });
 
 command
-    .command('server')
+    .command('server [options...]')
+    .allowUnknownOption(true)
     .description('run server integration tests')
-    .action(async () => {
-        await server();
+    .action(async (options: string[]) => {
+        await server(options);
     });
 
 command

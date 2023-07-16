@@ -4,15 +4,15 @@ version = "1.0.0"
 edition = "2018"
 authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
 homepage = "https://zksync.io/"
-repository = "https://github.com/matter-labs/zksync-2"
-license = "Apache-2.0"
+repository = "https://github.com/matter-labs/zksync-era"
+license = "MIT OR Apache-2.0"
 keywords = ["blockchain", "zksync"]
 categories = ["cryptography"]
 
 [dependencies]
 zksync_basic_types = { path = "../../lib/basic_types", version = "1.0" }
 vlog = { path = "../../lib/vlog", version = "1.0" }
-zk_evm = {git = "https://github.com/matter-labs/era-zk_evm.git", branch = "v1.3.2"}
+zk_evm = {git = "https://github.com/matter-labs/era-zk_evm.git", branch = "v1.3.3"}
 
 num = { version = "0.3.1", features = ["serde"] }
 bigdecimal = { version = "=0.2.0", features = ["serde"]}
@@ -25,6 +25,7 @@ hex = "0.4"
 envy = "0.4"
 reqwest = { version = "0.11", features = ["blocking"] }
 itertools = "0.10.5"
+metrics = "0.20"
 
 [dev-dependencies]
 serde_json = "1.0.0"

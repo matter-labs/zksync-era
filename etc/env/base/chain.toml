@@ -13,12 +13,13 @@ zksync_network_id=270
 [chain.state_keeper]
 fee_account_addr="0xde03a0B5963f75f1C8485B355fF6D30f3093BDE7"
 
-# Detones the amount of slots for transactions in the block.
+# Denotes the amount of slots for transactions in the block.
 transaction_slots=250
 
 max_allowed_l2_tx_gas_limit=4000000000
 block_commit_deadline_ms=2500
 miniblock_commit_deadline_ms=1000
+miniblock_seal_queue_capacity=10
 # Max gas that can used to include single block in aggregated operation
 max_single_tx_gas=6000000
 
@@ -59,6 +60,7 @@ save_call_traces=true
 delay_interval=100
 
 [chain.mempool]
+delay_interval=100
 sync_interval_ms=10
 sync_batch_size = 1000
 capacity=10_000_000

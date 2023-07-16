@@ -26,16 +26,16 @@ use crate::StorageProcessor;
 
 #[derive(Debug)]
 pub struct ExplorerTransactionsDal<'a, 'c> {
-    pub storage: &'a mut StorageProcessor<'c>,
+    pub(super) storage: &'a mut StorageProcessor<'c>,
 }
 
 impl ExplorerTransactionsDal<'_, '_> {
-    pub fn get_transactions_count_between(
+    pub async fn get_transactions_count_between(
         &mut self,
         from_block_number: MiniblockNumber,
         to_block_number: MiniblockNumber,
     ) -> Result<usize, SqlxError> {
-        async_std::task::block_on(async {
+        {
             let tx_count = sqlx::query!(
                 r#"SELECT COUNT(*) as "count!" FROM transactions
                 WHERE miniblock_number BETWEEN $1 AND $2"#,
@@ -46,15 +46,15 @@ impl ExplorerTransactionsDal<'_, '_> {
             .await?
             .count as usize;
             Ok(tx_count)
-        })
+        }
     }
 
-    pub fn get_transaction_details(
+    pub async fn get_transaction_details(
         &mut self,
         hash: H256,
         l2_erc20_bridge_addr: Address,
     ) -> Result<Option<TransactionResponse>, SqlxError> {
-        async_std::task::block_on(async {
+        {
             let tx_details: Option<StorageTransactionDetails> = sqlx::query_as!(
                 StorageTransactionDetails,
                 r#"
@@ -77,7 +77,8 @@ impl ExplorerTransactionsDal<'_, '_> {
             .await?;
             let tx = if let Some(tx_details) = tx_details {
                 let list = self
-                    .storage_tx_list_to_tx_details_list(vec![tx_details], l2_erc20_bridge_addr)?;
+                    .storage_tx_list_to_tx_details_list(vec![tx_details], l2_erc20_bridge_addr)
+                    .await?;
                 let tx = list[0].clone();
                 let logs: Vec<Log> = sqlx::query_as!(
                     StorageWeb3Log,
@@ -108,11 +109,11 @@ impl ExplorerTransactionsDal<'_, '_> {
                 None
             };
             Ok(tx)
-        })
+        }
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub fn get_transactions_page(
+    pub async fn get_transactions_page(
         &mut self,
         from_tx_location: Option<TxPosition>,
         block_number: Option<MiniblockNumber>,
@@ -122,7 +123,7 @@ impl ExplorerTransactionsDal<'_, '_> {
         max_total: usize,
         l2_erc20_bridge_addr: Address,
     ) -> Result<TransactionsResponse, SqlxError> {
-        async_std::task::block_on(async {
+        {
             let (cmp_sign, order_str) = match pagination.direction {
                 PaginationDirection::Older => ("<", "DESC"),
                 PaginationDirection::Newer => (">", "ASC"),
@@ -189,8 +190,9 @@ impl ExplorerTransactionsDal<'_, '_> {
             let storage_txs: Vec<StorageTransactionDetails> = sqlx::query_as(&sql_query_list_str)
                 .fetch_all(self.storage.conn())
                 .await?;
-            let list =
-                self.storage_tx_list_to_tx_details_list(storage_txs, l2_erc20_bridge_addr)?;
+            let list = self
+                .storage_tx_list_to_tx_details_list(storage_txs, l2_erc20_bridge_addr)
+                .await?;
 
             let sql_query_total_str = format!(
                 r#"
@@ -208,11 +210,11 @@ impl ExplorerTransactionsDal<'_, '_> {
                 .get::<i64, &str>("count") as usize;
 
             Ok(TransactionsResponse { list, total })
-        })
+        }
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub fn get_account_transactions_page(
+    pub async fn get_account_transactions_page(
         &mut self,
         account_address: Address,
         from_tx_location: Option<TxPosition>,
@@ -221,19 +223,21 @@ impl ExplorerTransactionsDal<'_, '_> {
         max_total: usize,
         l2_erc20_bridge_addr: Address,
     ) -> Result<TransactionsResponse, SqlxError> {
-        async_std::task::block_on(async {
+        {
             let order_str = match pagination.direction {
                 PaginationDirection::Older => "DESC",
                 PaginationDirection::Newer => "ASC",
             };
 
-            let (hashes, total) = self.get_account_transactions_hashes_page(
-                account_address,
-                from_tx_location,
-                block_number,
-                pagination,
-                max_total,
-            )?;
+            let (hashes, total) = self
+                .get_account_transactions_hashes_page(
+                    account_address,
+                    from_tx_location,
+                    block_number,
+                    pagination,
+                    max_total,
+                )
+                .await?;
             let sql_query_str = format!(
                 r#"
                 SELECT transactions.*, miniblocks.hash as "block_hash",
@@ -256,14 +260,15 @@ impl ExplorerTransactionsDal<'_, '_> {
             let sql_query = sqlx::query_as(&sql_query_str).bind(hashes);
             let storage_txs: Vec<StorageTransactionDetails> =
                 sql_query.fetch_all(self.storage.conn()).await?;
-            let list =
-                self.storage_tx_list_to_tx_details_list(storage_txs, l2_erc20_bridge_addr)?;
+            let list = self
+                .storage_tx_list_to_tx_details_list(storage_txs, l2_erc20_bridge_addr)
+                .await?;
 
             Ok(TransactionsResponse { list, total })
-        })
+        }
     }
 
-    fn get_account_transactions_hashes_page(
+    async fn get_account_transactions_hashes_page(
         &mut self,
         account_address: Address,
         from_tx_location: Option<TxPosition>,
@@ -271,7 +276,7 @@ impl ExplorerTransactionsDal<'_, '_> {
         pagination: PaginationQuery,
         max_total: usize,
     ) -> Result<(Vec<Vec<u8>>, usize), SqlxError> {
-        async_std::task::block_on(async {
+        {
             let started_at = Instant::now();
             let (cmp_sign, order_str) = match pagination.direction {
                 PaginationDirection::Older => ("<", "DESC"),
@@ -416,14 +421,14 @@ impl ExplorerTransactionsDal<'_, '_> {
             metrics::histogram!("dal.request", started_at.elapsed(), "method" => "get_account_transactions_hashes_page");
 
             Ok((result, total))
-        })
+        }
     }
 
-    fn get_erc20_transfers(
+    async fn get_erc20_transfers(
         &mut self,
         hashes: Vec<Vec<u8>>,
     ) -> Result<HashMap<H256, Vec<Erc20TransferInfo>>, SqlxError> {
-        async_std::task::block_on(async {
+        {
             let transfers = sqlx::query!(
                 r#"
                 SELECT tx_hash, topic2 as "topic2!", topic3 as "topic3!", value as "value!",
@@ -467,15 +472,15 @@ impl ExplorerTransactionsDal<'_, '_> {
             }).collect::<Vec<Erc20TransferInfo>>()))
             .collect();
             Ok(transfers)
-        })
+        }
     }
 
-    fn get_withdrawals(
+    async fn get_withdrawals(
         &mut self,
         hashes: Vec<Vec<u8>>,
         l2_erc20_bridge_addr: Address,
     ) -> Result<HashMap<H256, Vec<BalanceChangeInfo>>, SqlxError> {
-        async_std::task::block_on(async {
+        {
             static ERC20_WITHDRAW_EVENT_SIGNATURE: Lazy<H256> = Lazy::new(|| {
                 zksync_contracts::l2_bridge_contract()
                     .event("WithdrawalInitiated")
@@ -581,16 +586,16 @@ impl ExplorerTransactionsDal<'_, '_> {
             }
 
             Ok(withdrawals)
-        })
+        }
     }
 
     /// Returns hashmap with transactions that are deposits.
-    fn get_deposits(
+    async fn get_deposits(
         &mut self,
         hashes: Vec<Vec<u8>>,
         l2_erc20_bridge_addr: Address,
     ) -> Result<HashMap<H256, Vec<BalanceChangeInfo>>, SqlxError> {
-        async_std::task::block_on(async {
+        {
             static ERC20_DEPOSIT_EVENT_SIGNATURE: Lazy<H256> = Lazy::new(|| {
                 zksync_contracts::l2_bridge_contract()
                     .event("FinalizeDeposit")
@@ -693,15 +698,15 @@ impl ExplorerTransactionsDal<'_, '_> {
             }
 
             Ok(deposits)
-        })
+        }
     }
 
     /// Returns hashmap with transactions that are ERC20 transfers.
-    fn filter_erc20_transfers(
+    async fn filter_erc20_transfers(
         &mut self,
         txs: &[StorageTransactionDetails],
     ) -> Result<HashMap<H256, Erc20TransferInfo>, SqlxError> {
-        async_std::task::block_on(async {
+        {
             let hashes: Vec<Vec<u8>> = txs.iter().map(|tx| tx.hash.clone()).collect();
             // For transaction to be ERC20 transfer 2 conditions should be met
             // 1) It is an execute transaction and contract address is an ERC20 token.
@@ -764,7 +769,8 @@ impl ExplorerTransactionsDal<'_, '_> {
                 .storage
                 .explorer()
                 .misc_dal()
-                .get_token_details(Address::zero())?
+                .get_token_details(Address::zero())
+                .await?
                 .expect("Info about ETH should be present in DB");
             let eth_transfers_iter = txs.iter().filter_map(|tx| {
                 let hash = H256::from_slice(&tx.hash);
@@ -791,19 +797,21 @@ impl ExplorerTransactionsDal<'_, '_> {
 
             let result = erc20_transfers_iter.chain(eth_transfers_iter).collect();
             Ok(result)
-        })
+        }
     }
 
-    fn storage_tx_list_to_tx_details_list(
+    async fn storage_tx_list_to_tx_details_list(
         &mut self,
         txs: Vec<StorageTransactionDetails>,
         l2_erc20_bridge_addr: Address,
     ) -> Result<Vec<TransactionDetails>, SqlxError> {
         let hashes: Vec<Vec<u8>> = txs.iter().map(|tx| tx.hash.clone()).collect();
-        let erc20_transfers_map = self.get_erc20_transfers(hashes.clone())?;
-        let withdrawals_map = self.get_withdrawals(hashes.clone(), l2_erc20_bridge_addr)?;
-        let erc20_transfers_filtered = self.filter_erc20_transfers(&txs)?;
-        let deposits_map = self.get_deposits(hashes, l2_erc20_bridge_addr)?;
+        let erc20_transfers_map = self.get_erc20_transfers(hashes.clone()).await?;
+        let withdrawals_map = self
+            .get_withdrawals(hashes.clone(), l2_erc20_bridge_addr)
+            .await?;
+        let erc20_transfers_filtered = self.filter_erc20_transfers(&txs).await?;
+        let deposits_map = self.get_deposits(hashes, l2_erc20_bridge_addr).await?;
         let txs = txs
             .into_iter()
             .map(|tx_details| {

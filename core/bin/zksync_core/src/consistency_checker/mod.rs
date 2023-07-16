@@ -1,19 +1,12 @@
 use std::time::Duration;
 use zksync_dal::ConnectionPool;
-use zksync_types::web3::{
-    error, ethabi,
-    transports::Http,
-    types::{Address, TransactionId},
-    Web3,
-};
+use zksync_types::web3::{error, ethabi, transports::Http, types::TransactionId, Web3};
 use zksync_types::L1BatchNumber;
 
 #[derive(Debug)]
 pub struct ConsistencyChecker {
     // ABI of the zkSync contract
     contract: ethabi::Contract,
-    // Address of the zkSync contract
-    contract_addr: Address,
     // How many past batches to check when starting
     max_batches_to_recheck: u32,
     web3: Web3<Http>,
@@ -23,29 +16,24 @@ pub struct ConsistencyChecker {
 const SLEEP_DELAY: Duration = Duration::from_secs(5);
 
 impl ConsistencyChecker {
-    pub fn new(
-        web3_url: &str,
-        contract_addr: Address,
-        max_batches_to_recheck: u32,
-        db: ConnectionPool,
-    ) -> Self {
+    pub fn new(web3_url: &str, max_batches_to_recheck: u32, db: ConnectionPool) -> Self {
         let web3 = Web3::new(Http::new(web3_url).unwrap());
         let contract = zksync_contracts::zksync_contract();
         Self {
             web3,
             contract,
-            contract_addr,
             max_batches_to_recheck,
             db,
         }
     }
 
     async fn check_commitments(&self, batch_number: L1BatchNumber) -> Result<bool, error::Error> {
-        let mut storage = self.db.access_storage_blocking();
+        let mut storage = self.db.access_storage().await;
 
         let storage_block = storage
             .blocks_dal()
             .get_storage_block(batch_number)
+            .await
             .unwrap_or_else(|| panic!("Block {} not found in the database", batch_number));
 
         let commit_tx_id = storage_block
@@ -56,6 +44,7 @@ impl ConsistencyChecker {
         let block_metadata = storage
             .blocks_dal()
             .get_block_with_metadata(storage_block)
+            .await
             .unwrap_or_else(|| {
                 panic!(
                     "Block metadata for block {} not found in the database",
@@ -66,6 +55,7 @@ impl ConsistencyChecker {
         let commit_tx_hash = storage
             .eth_sender_dal()
             .get_confirmed_tx_hash_by_eth_tx_id(commit_tx_id)
+            .await
             .unwrap_or_else(|| {
                 panic!(
                     "Commit tx hash not found in the database. Commit tx id: {}",
@@ -100,11 +90,6 @@ impl ConsistencyChecker {
             Some(1.into()),
             "Main node gave us a failed commit tx"
         );
-        assert_eq!(
-            commit_tx.to,
-            Some(self.contract_addr),
-            "Main node gave us a commit tx sent to a wrong address"
-        );
 
         let commitments = self
             .contract
@@ -128,17 +113,20 @@ impl ConsistencyChecker {
         Ok(commitment == &block_metadata.l1_commit_data())
     }
 
-    fn last_committed_batch(&self) -> L1BatchNumber {
+    async fn last_committed_batch(&self) -> L1BatchNumber {
         self.db
-            .access_storage_blocking()
+            .access_storage()
+            .await
             .blocks_dal()
             .get_number_of_last_block_committed_on_eth()
+            .await
             .unwrap_or(L1BatchNumber(0))
     }
 
     pub async fn run(self, stop_receiver: tokio::sync::watch::Receiver<bool>) {
         let mut batch_number: L1BatchNumber = self
             .last_committed_batch()
+            .await
             .0
             .saturating_sub(self.max_batches_to_recheck)
             .max(1)
@@ -154,15 +142,17 @@ impl ConsistencyChecker {
 
             let batch_has_metadata = self
                 .db
-                .access_storage_blocking()
+                .access_storage()
+                .await
                 .blocks_dal()
                 .get_block_metadata(batch_number)
+                .await
                 .is_some();
 
             // The batch might be already committed but not yet processed by the external node's tree
             // OR the batch might be processed by the external node's tree but not yet committed.
             // We need both.
-            if !batch_has_metadata || self.last_committed_batch() < batch_number {
+            if !batch_has_metadata || self.last_committed_batch().await < batch_number {
                 tokio::time::sleep(SLEEP_DELAY).await;
                 continue;
             }

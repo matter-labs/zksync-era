@@ -1,0 +1,5 @@
+[fri_witness]
+generation_timeout_in_secs=900
+max_attempts=10
+dump_arguments_for_blocks="1"
+force_process_block=1

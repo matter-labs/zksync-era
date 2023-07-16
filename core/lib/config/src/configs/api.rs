@@ -4,36 +4,36 @@ use serde::Deserialize;
 use std::net::SocketAddr;
 use std::time::Duration;
 // Local uses
-pub use crate::configs::utils::Prometheus;
-use crate::envy_load;
+use super::envy_load;
+pub use crate::configs::PrometheusConfig;
 use zksync_basic_types::H256;
 
 /// API configuration.
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct ApiConfig {
     /// Configuration options for the Web3 JSON RPC servers.
-    pub web3_json_rpc: Web3JsonRpc,
+    pub web3_json_rpc: Web3JsonRpcConfig,
     /// Configuration options for the REST servers.
-    pub explorer: Explorer,
+    pub explorer: ExplorerApiConfig,
     /// Configuration options for the Prometheus exporter.
-    pub prometheus: Prometheus,
+    pub prometheus: PrometheusConfig,
     /// Configuration options for the Health check.
-    pub healthcheck: HealthCheck,
+    pub healthcheck: HealthCheckConfig,
 }
 
 impl ApiConfig {
     pub fn from_env() -> Self {
         Self {
-            web3_json_rpc: envy_load!("web3_json_rpc", "API_WEB3_JSON_RPC_"),
-            explorer: envy_load!("explorer", "API_EXPLORER_"),
-            prometheus: envy_load!("prometheus", "API_PROMETHEUS_"),
-            healthcheck: envy_load!("healthcheck", "API_HEALTHCHECK_"),
+            web3_json_rpc: Web3JsonRpcConfig::from_env(),
+            explorer: ExplorerApiConfig::from_env(),
+            prometheus: PrometheusConfig::from_env(),
+            healthcheck: HealthCheckConfig::from_env(),
         }
     }
 }
 
 #[derive(Debug, Deserialize, Clone, PartialEq)]
-pub struct Web3JsonRpc {
+pub struct Web3JsonRpcConfig {
     /// Port to which the HTTP RPC server is listening.
     pub http_port: u16,
     /// URL to access HTTP RPC server.
@@ -69,14 +69,28 @@ pub struct Web3JsonRpc {
     pub estimate_gas_acceptable_overestimation: u32,
     ///  Max possible size of an ABI encoded tx (in bytes).
     pub max_tx_size: usize,
-    /// Main node URL - used only by external node to proxy transactions to.
-    pub main_node_url: Option<String>,
     /// Max number of cache misses during one VM execution. If the number of cache misses exceeds this value, the api server panics.
     /// This is a temporary solution to mitigate API request resulting in thousands of DB queries.
     pub vm_execution_cache_misses_limit: Option<usize>,
+    /// Max number of VM instances to be concurrently spawned by the API server.
+    /// This option can be tweaked down if the API server is running out of memory.
+    /// If not set, the VM concurrency limit will be efficiently disabled.
+    pub vm_concurrency_limit: Option<usize>,
+    /// Smart contract cache size in MBs
+    pub factory_deps_cache_size_mb: Option<usize>,
+    /// Override value for the amount of threads used for HTTP RPC server.
+    /// If not set, the value from `threads_per_server` is used.
+    pub http_threads: Option<u32>,
+    /// Override value for the amount of threads used for WebSocket RPC server.
+    /// If not set, the value from `threads_per_server` is used.
+    pub ws_threads: Option<u32>,
 }
 
-impl Web3JsonRpc {
+impl Web3JsonRpcConfig {
+    pub fn from_env() -> Self {
+        envy_load("web3_json_rpc", "API_WEB3_JSON_RPC_")
+    }
+
     pub fn http_bind_addr(&self) -> SocketAddr {
         SocketAddr::new("0.0.0.0".parse().unwrap(), self.http_port)
     }
@@ -108,22 +122,39 @@ impl Web3JsonRpc {
     pub fn account_pks(&self) -> Vec<H256> {
         self.account_pks.clone().unwrap_or_default()
     }
+
+    pub fn factory_deps_cache_size_mb(&self) -> usize {
+        // 128MB is the default smart contract code cache size.
+        self.factory_deps_cache_size_mb.unwrap_or(128)
+    }
+
+    pub fn http_server_threads(&self) -> usize {
+        self.http_threads.unwrap_or(self.threads_per_server) as usize
+    }
+
+    pub fn ws_server_threads(&self) -> usize {
+        self.ws_threads.unwrap_or(self.threads_per_server) as usize
+    }
 }
 
 #[derive(Debug, Deserialize, Clone, PartialEq)]
-pub struct HealthCheck {
+pub struct HealthCheckConfig {
     /// Port to which the REST server is listening.
     pub port: u16,
 }
 
-impl HealthCheck {
+impl HealthCheckConfig {
+    pub fn from_env() -> Self {
+        envy_load("healthcheck", "API_HEALTHCHECK_")
+    }
+
     pub fn bind_addr(&self) -> SocketAddr {
         SocketAddr::new("0.0.0.0".parse().unwrap(), self.port)
     }
 }
 
 #[derive(Debug, Deserialize, Clone, PartialEq)]
-pub struct Explorer {
+pub struct ExplorerApiConfig {
     /// Port to which the REST server is listening.
     pub port: u16,
     /// URL to access REST server.
@@ -138,7 +169,7 @@ pub struct Explorer {
     pub threads_per_server: u32,
 }
 
-impl Explorer {
+impl ExplorerApiConfig {
     pub fn bind_addr(&self) -> SocketAddr {
         SocketAddr::new("0.0.0.0".parse().unwrap(), self.port)
     }
@@ -154,6 +185,10 @@ impl Explorer {
     pub fn offset_limit(&self) -> usize {
         self.offset_limit.unwrap_or(10000) as usize
     }
+
+    pub fn from_env() -> Self {
+        envy_load("explorer", "API_EXPLORER_")
+    }
 }
 
 #[cfg(test)]
@@ -165,7 +200,7 @@ mod tests {
 
     fn expected_config() -> ApiConfig {
         ApiConfig {
-            web3_json_rpc: Web3JsonRpc {
+            web3_json_rpc: Web3JsonRpcConfig {
                 http_port: 3050,
                 http_url: "http://127.0.0.1:3050".into(),
                 ws_port: 3051,
@@ -192,10 +227,13 @@ mod tests {
                 gas_price_scale_factor: 1.2,
                 estimate_gas_acceptable_overestimation: 1000,
                 max_tx_size: 1000000,
-                main_node_url: None,
                 vm_execution_cache_misses_limit: None,
+                vm_concurrency_limit: Some(512),
+                factory_deps_cache_size_mb: Some(128),
+                http_threads: Some(128),
+                ws_threads: Some(256),
             },
-            explorer: Explorer {
+            explorer: ExplorerApiConfig {
                 port: 3070,
                 url: "http://127.0.0.1:3070".into(),
                 network_stats_polling_interval: Some(1000),
@@ -203,12 +241,12 @@ mod tests {
                 offset_limit: Some(10000),
                 threads_per_server: 128,
             },
-            prometheus: Prometheus {
+            prometheus: PrometheusConfig {
                 listener_port: 3312,
                 pushgateway_url: "http://127.0.0.1:9091".into(),
                 push_interval_ms: Some(100),
             },
-            healthcheck: HealthCheck { port: 8081 },
+            healthcheck: HealthCheckConfig { port: 8081 },
         }
     }
 
@@ -232,6 +270,10 @@ API_WEB3_JSON_RPC_ACCOUNT_PKS=0x000000000000000000000000000000000000000000000000
 API_WEB3_JSON_RPC_ESTIMATE_GAS_SCALE_FACTOR=1.0
 API_WEB3_JSON_RPC_ESTIMATE_GAS_ACCEPTABLE_OVERESTIMATION=1000
 API_WEB3_JSON_RPC_MAX_TX_SIZE=1000000
+API_WEB3_JSON_RPC_VM_CONCURRENCY_LIMIT=512
+API_WEB3_JSON_RPC_FACTORY_DEPS_CACHE_SIZE_MB=128
+API_WEB3_JSON_RPC_HTTP_THREADS=128
+API_WEB3_JSON_RPC_WS_THREADS=256
 API_EXPLORER_PORT="3070"
 API_EXPLORER_URL="http://127.0.0.1:3070"
 API_EXPLORER_NETWORK_STATS_POLLING_INTERVAL="1000"

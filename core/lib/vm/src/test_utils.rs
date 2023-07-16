@@ -70,7 +70,7 @@ pub struct StorageOracleInnerState<H: HistoryMode> {
     /// so we just compare the modified keys. This is reasonable enough.
     pub modified_storage_keys: ModifiedKeysMap,
 
-    pub frames_stack: AppDataFrameManagerWithHistory<StorageLogQuery, H>,
+    pub frames_stack: AppDataFrameManagerWithHistory<Box<StorageLogQuery>, H>,
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -104,7 +104,7 @@ impl<H: HistoryMode> VmInstance<'_, H> {
                     .decommittment_processor
                     .get_storage()
                     .borrow()
-                    .get_modified_storage_keys()
+                    .modified_storage_keys()
                     .clone(),
             ),
             known_bytecodes: self.state.decommittment_processor.known_bytecodes.clone(),
@@ -121,7 +121,7 @@ impl<H: HistoryMode> VmInstance<'_, H> {
                     .storage
                     .get_ptr()
                     .borrow()
-                    .get_modified_storage_keys()
+                    .modified_storage_keys()
                     .clone(),
             ),
             frames_stack: self.state.storage.frames_stack.clone(),

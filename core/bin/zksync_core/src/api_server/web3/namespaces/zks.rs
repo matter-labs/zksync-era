@@ -3,20 +3,19 @@ use std::{collections::HashMap, convert::TryInto};
 
 use bigdecimal::{BigDecimal, Zero};
 
-use zksync_mini_merkle_tree::mini_merkle_tree_proof;
+use zksync_mini_merkle_tree::MiniMerkleTree;
 
 #[cfg(feature = "openzeppelin_tests")]
 use zksync_types::Bytes;
 use zksync_types::{
     api::{BridgeAddresses, GetLogsFilter, L2ToL1LogProof, TransactionDetails, U64},
-    commitment::CommitmentSerializable,
+    commitment::SerializeCommitment,
     explorer_api::{BlockDetails, L1BatchDetails},
     fee::Fee,
     l1::L1Tx,
     l2_to_l1_log::L2ToL1Log,
     tokens::ETHEREUM_ADDRESS,
     transaction_request::{l2_tx_from_call_req, CallRequest},
-    vm_trace::{ContractSourceDebugInfo, VmDebugTrace},
     L1BatchNumber, MiniblockNumber, Transaction, L1_MESSENGER_ADDRESS, L2_ETH_TOKEN_ADDRESS,
     MAX_GAS_PER_PUBDATA_BYTE, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256,
 };
@@ -31,9 +30,17 @@ use crate::fee_ticker::FeeTicker;
 use crate::fee_ticker::{error::TickerError, TokenPriceRequestType};
 use crate::l1_gas_price::L1GasPriceProvider;
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct ZksNamespace<G> {
     pub state: RpcState<G>,
+}
+
+impl<G> Clone for ZksNamespace<G> {
+    fn clone(&self) -> Self {
+        Self {
+            state: self.state.clone(),
+        }
+    }
 }
 
 impl<G: L1GasPriceProvider> ZksNamespace<G> {
@@ -42,12 +49,13 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
     }
 
     #[tracing::instrument(skip(self, request))]
-    pub fn estimate_fee_impl(&self, request: CallRequest) -> Result<Fee, Web3Error> {
+    pub async fn estimate_fee_impl(&self, request: CallRequest) -> Result<Fee, Web3Error> {
         let start = Instant::now();
         let mut request_with_gas_per_pubdata_overridden = request;
 
         self.state
-            .set_nonce_for_call_request(&mut request_with_gas_per_pubdata_overridden)?;
+            .set_nonce_for_call_request(&mut request_with_gas_per_pubdata_overridden)
+            .await?;
 
         if let Some(ref mut eip712_meta) = request_with_gas_per_pubdata_overridden.eip712_meta {
             eip712_meta.gas_per_pubdata = MAX_GAS_PER_PUBDATA_BYTE.into();
@@ -63,14 +71,17 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
         tx.common_data.fee.max_priority_fee_per_gas = 0u64.into();
         tx.common_data.fee.gas_per_pubdata_limit = MAX_GAS_PER_PUBDATA_BYTE.into();
 
-        let fee = self.estimate_fee(tx.into())?;
+        let fee = self.estimate_fee(tx.into()).await?;
 
         metrics::histogram!("api.web3.call", start.elapsed(), "method" => "estimate_fee");
         Ok(fee)
     }
 
     #[tracing::instrument(skip(self, request))]
-    pub fn estimate_l1_to_l2_gas_impl(&self, request: CallRequest) -> Result<U256, Web3Error> {
+    pub async fn estimate_l1_to_l2_gas_impl(
+        &self,
+        request: CallRequest,
+    ) -> Result<U256, Web3Error> {
         let start = Instant::now();
         let mut request_with_gas_per_pubdata_overridden = request;
         // When we're estimating fee, we are trying to deduce values related to fee, so we should
@@ -85,13 +96,13 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
             .try_into()
             .map_err(Web3Error::SerializationError)?;
 
-        let fee = self.estimate_fee(tx.into())?;
+        let fee = self.estimate_fee(tx.into()).await?;
 
         metrics::histogram!("api.web3.call", start.elapsed(), "method" => "estimate_gas_l1_to_l2");
         Ok(fee.gas_limit)
     }
 
-    fn estimate_fee(&self, tx: Transaction) -> Result<Fee, Web3Error> {
+    async fn estimate_fee(&self, tx: Transaction) -> Result<Fee, Web3Error> {
         let scale_factor = self.state.api_config.estimate_gas_scale_factor;
         let acceptable_overestimation =
             self.state.api_config.estimate_gas_acceptable_overestimation;
@@ -100,6 +111,7 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
             .state
             .tx_sender
             .get_txs_fee_in_wei(tx, scale_factor, acceptable_overestimation)
+            .await
             .map_err(|err| Web3Error::SubmitTransactionError(err.to_string(), err.data()))?;
 
         Ok(fee)
@@ -126,17 +138,23 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
     }
 
     #[tracing::instrument(skip(self))]
-    pub fn get_confirmed_tokens_impl(&self, from: u32, limit: u8) -> Result<Vec<Token>, Web3Error> {
-        let start = Instant::now();
-        let endpoint_name = "get_confirmed_tokens";
+    pub async fn get_confirmed_tokens_impl(
+        &self,
+        from: u32,
+        limit: u8,
+    ) -> Result<Vec<Token>, Web3Error> {
+        const METHOD_NAME: &str = "get_confirmed_tokens";
 
+        let start = Instant::now();
         let tokens = self
             .state
             .connection_pool
-            .access_storage_blocking()
+            .access_storage_tagged("api")
+            .await
             .tokens_web3_dal()
             .get_well_known_tokens()
-            .map_err(|err| internal_error(endpoint_name, err))?
+            .await
+            .map_err(|err| internal_error(METHOD_NAME, err))?
             .into_iter()
             .skip(from as usize)
             .take(limit.into())
@@ -149,111 +167,58 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
             })
             .collect();
 
-        metrics::histogram!("api.web3.call", start.elapsed(), "method" => endpoint_name);
+        metrics::histogram!("api.web3.call", start.elapsed(), "method" => METHOD_NAME);
         Ok(tokens)
     }
 
     #[tracing::instrument(skip(self))]
-    pub fn get_token_price_impl(&self, l2_token: Address) -> Result<BigDecimal, Web3Error> {
-        let start = Instant::now();
-        let endpoint_name = "get_token_price";
+    pub async fn get_token_price_impl(&self, l2_token: Address) -> Result<BigDecimal, Web3Error> {
+        const METHOD_NAME: &str = "get_token_price";
 
+        let start = Instant::now();
         let token_price_result = {
-            let mut storage = self.state.connection_pool.access_storage_blocking();
+            let mut storage = self
+                .state
+                .connection_pool
+                .access_storage_tagged("api")
+                .await;
             let mut tokens_web3_dal = storage.tokens_web3_dal();
             FeeTicker::get_l2_token_price(
                 &mut tokens_web3_dal,
                 TokenPriceRequestType::USDForOneToken,
                 &l2_token,
             )
+            .await
         };
 
         let result = match token_price_result {
             Ok(price) => Ok(price),
             Err(TickerError::PriceNotTracked(_)) => Ok(BigDecimal::zero()),
-            Err(err) => Err(internal_error(endpoint_name, err)),
+            Err(err) => Err(internal_error(METHOD_NAME, err)),
         };
 
-        metrics::histogram!("api.web3.call", start.elapsed(), "method" => endpoint_name);
-        result
-    }
-
-    // This method is currently to be used for internal debug purposes only.
-    // It should be reworked for being public (validate contract info and maybe store it elsewhere).
-    #[tracing::instrument(skip(self, info))]
-    pub fn set_contract_debug_info_impl(
-        &self,
-        address: Address,
-        info: ContractSourceDebugInfo,
-    ) -> bool {
-        let start = Instant::now();
-
-        self.state
-            .connection_pool
-            .access_storage_blocking()
-            .storage_dal()
-            .set_contract_source(address, info);
-
-        metrics::histogram!("api.web3.call", start.elapsed(), "method" => "set_contract_debug_info");
-        true
-    }
-
-    #[tracing::instrument(skip(self))]
-    pub fn get_contract_debug_info_impl(
-        &self,
-        address: Address,
-    ) -> Option<ContractSourceDebugInfo> {
-        let start = Instant::now();
-
-        let info = self
-            .state
-            .connection_pool
-            .access_storage_blocking()
-            .storage_dal()
-            .get_contract_source(address);
-
-        metrics::histogram!("api.web3.call", start.elapsed(), "method" => "get_contract_debug_info");
-        info
-    }
-
-    #[tracing::instrument(skip(self))]
-    pub fn get_transaction_trace_impl(&self, hash: H256) -> Option<VmDebugTrace> {
-        let start = Instant::now();
-        let mut storage = self.state.connection_pool.access_storage_blocking();
-        let trace = storage.transactions_dal().get_trace(hash);
-        let result = trace.map(|trace| {
-            let mut storage_dal = storage.storage_dal();
-            let mut sources = HashMap::new();
-            for address in trace.contracts {
-                let source = storage_dal.get_contract_source(address);
-                sources.insert(address, source);
-            }
-            VmDebugTrace {
-                steps: trace.steps,
-                sources,
-            }
-        });
-
-        metrics::histogram!("api.web3.call", start.elapsed(), "method" => "get_transaction_trace");
+        metrics::histogram!("api.web3.call", start.elapsed(), "method" => METHOD_NAME);
         result
     }
 
     #[tracing::instrument(skip(self))]
-    pub fn get_all_account_balances_impl(
+    pub async fn get_all_account_balances_impl(
         &self,
         address: Address,
     ) -> Result<HashMap<Address, U256>, Web3Error> {
-        let start = Instant::now();
-        let endpoint_name = "get_all_balances";
+        const METHOD_NAME: &str = "get_all_balances";
 
+        let start = Instant::now();
         let balances = self
             .state
             .connection_pool
-            .access_storage_blocking()
+            .access_storage_tagged("api")
+            .await
             .explorer()
             .accounts_dal()
             .get_balances_for_address(address)
-            .map_err(|err| internal_error(endpoint_name, err))?
+            .await
+            .map_err(|err| internal_error(METHOD_NAME, err))?
             .into_iter()
             .map(|(address, balance_item)| {
                 if address == L2_ETH_TOKEN_ADDRESS {
@@ -264,26 +229,31 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
             })
             .collect();
 
-        metrics::histogram!("api.web3.call", start.elapsed(), "method" => endpoint_name);
+        metrics::histogram!("api.web3.call", start.elapsed(), "method" => METHOD_NAME);
         Ok(balances)
     }
 
     #[tracing::instrument(skip(self))]
-    pub fn get_l2_to_l1_msg_proof_impl(
+    pub async fn get_l2_to_l1_msg_proof_impl(
         &self,
         block_number: MiniblockNumber,
         sender: Address,
         msg: H256,
         l2_log_position: Option<usize>,
     ) -> Result<Option<L2ToL1LogProof>, Web3Error> {
-        let start = Instant::now();
-        let endpoint_name = "get_l2_to_l1_msg_proof";
+        const METHOD_NAME: &str = "get_l2_to_l1_msg_proof";
 
-        let mut storage = self.state.connection_pool.access_storage_blocking();
+        let start = Instant::now();
+        let mut storage = self
+            .state
+            .connection_pool
+            .access_storage_tagged("api")
+            .await;
         let l1_batch_number = match storage
             .blocks_web3_dal()
             .get_l1_batch_number_of_miniblock(block_number)
-            .map_err(|err| internal_error(endpoint_name, err))?
+            .await
+            .map_err(|err| internal_error(METHOD_NAME, err))?
         {
             Some(number) => number,
             None => return Ok(None),
@@ -291,13 +261,15 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
         let (first_miniblock_of_l1_batch, _) = storage
             .blocks_web3_dal()
             .get_miniblock_range_of_l1_batch(l1_batch_number)
-            .map_err(|err| internal_error(endpoint_name, err))?
+            .await
+            .map_err(|err| internal_error(METHOD_NAME, err))?
             .expect("L1 batch should contain at least one miniblock");
 
         let all_l1_logs_in_block = storage
             .blocks_web3_dal()
             .get_l2_to_l1_logs(l1_batch_number)
-            .map_err(|err| internal_error(endpoint_name, err))?;
+            .await
+            .map_err(|err| internal_error(METHOD_NAME, err))?;
 
         // Position of l1 log in block relative to logs with identical data
         let l1_log_relative_position = if let Some(l2_log_position) = l2_log_position {
@@ -312,7 +284,8 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
                     },
                     self.state.api_config.req_entities_limit,
                 )
-                .map_err(|err| internal_error(endpoint_name, err))?
+                .await
+                .map_err(|err| internal_error(METHOD_NAME, err))?
                 .iter()
                 .position(|event| {
                     event.block_number == Some(block_number.0.into())
@@ -343,43 +316,38 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
                 return Ok(None);
             }
         };
-        let values: Vec<Vec<u8>> = all_l1_logs_in_block
-            .into_iter()
-            .map(|a| a.to_bytes())
-            .collect();
-        let mut proof: Vec<H256> = mini_merkle_tree_proof(
-            values,
-            l1_log_index,
-            L2ToL1Log::SERIALIZED_SIZE,
-            L2ToL1Log::limit_per_block(),
-        )
-        .into_iter()
-        .map(|elem| H256::from_slice(&elem))
-        .collect();
-        let root = proof.pop().unwrap();
+
+        let merkle_tree_leaves = all_l1_logs_in_block.iter().map(L2ToL1Log::to_bytes);
+        let (root, proof) = MiniMerkleTree::new(merkle_tree_leaves, L2ToL1Log::LIMIT_PER_BLOCK)
+            .merkle_root_and_path(l1_log_index);
         let msg_proof = L2ToL1LogProof {
             proof,
             root,
             id: l1_log_index as u32,
         };
-        metrics::histogram!("api.web3.call", start.elapsed(), "method" => endpoint_name);
+        metrics::histogram!("api.web3.call", start.elapsed(), "method" => METHOD_NAME);
         Ok(Some(msg_proof))
     }
 
     #[tracing::instrument(skip(self))]
-    pub fn get_l2_to_l1_log_proof_impl(
+    pub async fn get_l2_to_l1_log_proof_impl(
         &self,
         tx_hash: H256,
         index: Option<usize>,
     ) -> Result<Option<L2ToL1LogProof>, Web3Error> {
-        let start = Instant::now();
-        let endpoint_name = "get_l2_to_l1_msg_proof";
+        const METHOD_NAME: &str = "get_l2_to_l1_msg_proof";
 
-        let mut storage = self.state.connection_pool.access_storage_blocking();
+        let start = Instant::now();
+        let mut storage = self
+            .state
+            .connection_pool
+            .access_storage_tagged("api")
+            .await;
         let (l1_batch_number, l1_batch_tx_index) = match storage
             .blocks_web3_dal()
             .get_l1_batch_info_for_tx(tx_hash)
-            .map_err(|err| internal_error(endpoint_name, err))?
+            .await
+            .map_err(|err| internal_error(METHOD_NAME, err))?
         {
             Some(x) => x,
             None => return Ok(None),
@@ -388,7 +356,8 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
         let all_l1_logs_in_block = storage
             .blocks_web3_dal()
             .get_l2_to_l1_logs(l1_batch_number)
-            .map_err(|err| internal_error(endpoint_name, err))?;
+            .await
+            .map_err(|err| internal_error(METHOD_NAME, err))?;
 
         let l1_log_index = match all_l1_logs_in_block
             .iter()
@@ -402,131 +371,127 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
             }
         };
 
-        let values: Vec<Vec<u8>> = all_l1_logs_in_block
-            .into_iter()
-            .map(|a| a.to_bytes())
-            .collect();
-        let mut proof: Vec<H256> = mini_merkle_tree_proof(
-            values,
-            l1_log_index,
-            L2ToL1Log::SERIALIZED_SIZE,
-            L2ToL1Log::limit_per_block(),
-        )
-        .into_iter()
-        .map(|elem| H256::from_slice(&elem))
-        .collect();
-        let root = proof.pop().unwrap();
-
+        let merkle_tree_leaves = all_l1_logs_in_block.iter().map(L2ToL1Log::to_bytes);
+        let (root, proof) = MiniMerkleTree::new(merkle_tree_leaves, L2ToL1Log::LIMIT_PER_BLOCK)
+            .merkle_root_and_path(l1_log_index);
         let msg_proof = L2ToL1LogProof {
             proof,
             root,
             id: l1_log_index as u32,
         };
 
-        metrics::histogram!("api.web3.call", start.elapsed(), "method" => endpoint_name);
+        metrics::histogram!("api.web3.call", start.elapsed(), "method" => METHOD_NAME);
         Ok(Some(msg_proof))
     }
 
     #[tracing::instrument(skip(self))]
-    pub fn get_l1_batch_number_impl(&self) -> Result<U64, Web3Error> {
-        let start = Instant::now();
-        let endpoint_name = "get_l1_batch_number";
+    pub async fn get_l1_batch_number_impl(&self) -> Result<U64, Web3Error> {
+        const METHOD_NAME: &str = "get_l1_batch_number";
 
+        let start = Instant::now();
         let l1_batch_number = self
             .state
             .connection_pool
-            .access_storage_blocking()
+            .access_storage_tagged("api")
+            .await
             .blocks_web3_dal()
             .get_sealed_l1_batch_number()
+            .await
             .map(|n| U64::from(n.0))
-            .map_err(|err| internal_error(endpoint_name, err));
+            .map_err(|err| internal_error(METHOD_NAME, err));
 
-        metrics::histogram!("api.web3.call", start.elapsed(), "endpoint" => endpoint_name);
+        metrics::histogram!("api.web3.call", start.elapsed(), "endpoint" => METHOD_NAME);
         l1_batch_number
     }
 
     #[tracing::instrument(skip(self))]
-    pub fn get_miniblock_range_impl(
+    pub async fn get_miniblock_range_impl(
         &self,
         batch: L1BatchNumber,
     ) -> Result<Option<(U64, U64)>, Web3Error> {
-        let start = Instant::now();
-        let endpoint_name = "get_miniblock_range";
+        const METHOD_NAME: &str = "get_miniblock_range";
 
+        let start = Instant::now();
         let minmax = self
             .state
             .connection_pool
-            .access_storage_blocking()
+            .access_storage_tagged("api")
+            .await
             .blocks_web3_dal()
             .get_miniblock_range_of_l1_batch(batch)
+            .await
             .map(|minmax| minmax.map(|(min, max)| (U64::from(min.0), U64::from(max.0))))
-            .map_err(|err| internal_error(endpoint_name, err));
+            .map_err(|err| internal_error(METHOD_NAME, err));
 
-        metrics::histogram!("api.web3.call", start.elapsed(), "endpoint" => endpoint_name);
+        metrics::histogram!("api.web3.call", start.elapsed(), "endpoint" => METHOD_NAME);
         minmax
     }
 
     #[tracing::instrument(skip(self))]
-    pub fn get_block_details_impl(
+    pub async fn get_block_details_impl(
         &self,
         block_number: MiniblockNumber,
     ) -> Result<Option<BlockDetails>, Web3Error> {
-        let start = Instant::now();
-        let endpoint_name = "get_block_details";
+        const METHOD_NAME: &str = "get_block_details";
 
+        let start = Instant::now();
         let block_details = self
             .state
             .connection_pool
-            .access_storage_blocking()
+            .access_storage_tagged("api")
+            .await
             .explorer()
             .blocks_dal()
             .get_block_details(
                 block_number,
                 self.state.tx_sender.0.sender_config.fee_account_addr,
             )
-            .map_err(|err| internal_error(endpoint_name, err));
+            .await
+            .map_err(|err| internal_error(METHOD_NAME, err));
 
-        metrics::histogram!("api.web3.call", start.elapsed(), "method" => endpoint_name);
-
+        metrics::histogram!("api.web3.call", start.elapsed(), "method" => METHOD_NAME);
         block_details
     }
 
     #[tracing::instrument(skip(self))]
-    pub fn get_raw_block_transactions_impl(
+    pub async fn get_raw_block_transactions_impl(
         &self,
         block_number: MiniblockNumber,
-    ) -> Result<Vec<zksync_types::Transaction>, Web3Error> {
-        let start = Instant::now();
-        let endpoint_name = "get_raw_block_transactions";
+    ) -> Result<Vec<Transaction>, Web3Error> {
+        const METHOD_NAME: &str = "get_raw_block_transactions";
 
+        let start = Instant::now();
         let transactions = self
             .state
             .connection_pool
-            .access_storage_blocking()
+            .access_storage_tagged("api")
+            .await
             .transactions_web3_dal()
             .get_raw_miniblock_transactions(block_number)
-            .map_err(|err| internal_error(endpoint_name, err));
+            .await
+            .map_err(|err| internal_error(METHOD_NAME, err));
 
-        metrics::histogram!("api.web3.call", start.elapsed(), "method" => endpoint_name);
-
+        metrics::histogram!("api.web3.call", start.elapsed(), "method" => METHOD_NAME);
         transactions
     }
 
     #[tracing::instrument(skip(self))]
-    pub fn get_transaction_details_impl(
+    pub async fn get_transaction_details_impl(
         &self,
         hash: H256,
     ) -> Result<Option<TransactionDetails>, Web3Error> {
-        let start = Instant::now();
-        let endpoint_name = "get_transaction_details";
+        const METHOD_NAME: &str = "get_transaction_details";
 
+        let start = Instant::now();
         let mut tx_details = self
             .state
             .connection_pool
-            .access_storage_blocking()
+            .access_storage_tagged("api")
+            .await
             .transactions_web3_dal()
             .get_transaction_details(hash)
-            .map_err(|err| internal_error(endpoint_name, err));
+            .await
+            .map_err(|err| internal_error(METHOD_NAME, err));
 
         if let Some(proxy) = &self.state.tx_sender.0.proxy {
             // We're running an external node - we should query the main node directly
@@ -535,59 +500,61 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
                 // If the transaction is not in the db, query main node for details
                 tx_details = proxy
                     .request_tx_details(hash)
-                    .map_err(|err| internal_error(endpoint_name, err));
+                    .await
+                    .map_err(|err| internal_error(METHOD_NAME, err));
             }
         }
 
-        metrics::histogram!("api.web3.call", start.elapsed(), "method" => endpoint_name);
-
+        metrics::histogram!("api.web3.call", start.elapsed(), "method" => METHOD_NAME);
         tx_details
     }
 
     #[tracing::instrument(skip(self))]
-    pub fn get_l1_batch_details_impl(
+    pub async fn get_l1_batch_details_impl(
         &self,
         batch_number: L1BatchNumber,
     ) -> Result<Option<L1BatchDetails>, Web3Error> {
-        let start = Instant::now();
-        let endpoint_name = "get_l1_batch";
+        const METHOD_NAME: &str = "get_l1_batch";
 
+        let start = Instant::now();
         let l1_batch = self
             .state
             .connection_pool
-            .access_storage_blocking()
+            .access_storage_tagged("api")
+            .await
             .explorer()
             .blocks_dal()
             .get_l1_batch_details(batch_number)
-            .map_err(|err| internal_error(endpoint_name, err));
+            .await
+            .map_err(|err| internal_error(METHOD_NAME, err));
 
-        metrics::histogram!("api.web3.call", start.elapsed(), "method" => endpoint_name);
-
+        metrics::histogram!("api.web3.call", start.elapsed(), "method" => METHOD_NAME);
         l1_batch
     }
 
     #[tracing::instrument(skip(self))]
-    pub fn get_bytecode_by_hash_impl(&self, hash: H256) -> Option<Vec<u8>> {
-        let start = Instant::now();
-        let endpoint_name = "get_bytecode_by_hash";
+    pub async fn get_bytecode_by_hash_impl(&self, hash: H256) -> Option<Vec<u8>> {
+        const METHOD_NAME: &str = "get_bytecode_by_hash";
 
+        let start = Instant::now();
         let bytecode = self
             .state
             .connection_pool
-            .access_storage_blocking()
+            .access_storage_tagged("api")
+            .await
             .storage_dal()
-            .get_factory_dep(hash);
+            .get_factory_dep(hash)
+            .await;
 
-        metrics::histogram!("api.web3.call", start.elapsed(), "method" => endpoint_name);
-
+        metrics::histogram!("api.web3.call", start.elapsed(), "method" => METHOD_NAME);
         bytecode
     }
 
     #[tracing::instrument(skip(self))]
     pub fn get_l1_gas_price_impl(&self) -> U64 {
-        let start = Instant::now();
-        let endpoint_name = "get_l1_gas_price";
+        const METHOD_NAME: &str = "get_l1_gas_price";
 
+        let start = Instant::now();
         let gas_price = self
             .state
             .tx_sender
@@ -595,8 +562,7 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
             .l1_gas_price_source
             .estimate_effective_gas_price();
 
-        metrics::histogram!("api.web3.call", start.elapsed(), "method" => endpoint_name);
-
+        metrics::histogram!("api.web3.call", start.elapsed(), "method" => METHOD_NAME);
         gas_price.into()
     }
 
@@ -605,7 +571,6 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
     pub fn set_known_bytecode_impl(&self, bytecode: Bytes) -> bool {
         let mut lock = self.state.known_bytecodes.write().unwrap();
         lock.insert(bytecode.0.clone());
-
         true
     }
 }

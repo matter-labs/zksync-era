@@ -8,16 +8,16 @@ use crate::{SqlxError, StorageProcessor};
 
 #[derive(Debug)]
 pub struct ExplorerEventsDal<'a, 'c> {
-    pub storage: &'a mut StorageProcessor<'c>,
+    pub(super) storage: &'a mut StorageProcessor<'c>,
 }
 
 impl ExplorerEventsDal<'_, '_> {
-    pub fn get_events_page(
+    pub async fn get_events_page(
         &mut self,
         query: EventsQuery,
         max_total: usize,
     ) -> Result<EventsResponse, SqlxError> {
-        async_std::task::block_on(async {
+        {
             let (cmp_sign, order_str) = match query.pagination.direction {
                 PaginationDirection::Older => ("<", "DESC"),
                 PaginationDirection::Newer => (">", "ASC"),
@@ -112,6 +112,6 @@ impl ExplorerEventsDal<'_, '_> {
                 list: logs,
                 total: total as usize,
             })
-        })
+        }
     }
 }

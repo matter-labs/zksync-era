@@ -3,6 +3,9 @@ import * as utils from './utils';
 import * as env from './env';
 import { clean } from './clean';
 import fs from 'fs';
+import { unloadInit } from './env';
+import * as path from 'path';
+import * as db from './database';
 
 export async function server(rebuildTree: boolean, openzeppelinTests: boolean, components?: string) {
     let options = '';
@@ -22,11 +25,26 @@ export async function server(rebuildTree: boolean, openzeppelinTests: boolean, c
     await utils.spawn(`cargo run --bin zksync_server --release ${options}`);
 }
 
-export async function externalNode() {
+export async function externalNode(reinit: boolean = false) {
     if (process.env.ZKSYNC_ENV != 'ext-node') {
         console.warn(`WARINING: using ${process.env.ZKSYNC_ENV} environment for external node`);
         console.warn('If this is a mistake, set $ZKSYNC_ENV to "ext-node" or other environment');
     }
+
+    // Set proper environment variables for external node.
+    process.env.EN_BOOTLOADER_HASH = process.env.CHAIN_STATE_KEEPER_BOOTLOADER_HASH;
+    process.env.EN_DEFAULT_AA_HASH = process.env.CHAIN_STATE_KEEPER_DEFAULT_AA_HASH;
+
+    // We don't need to have server-native variables in the config.
+    unloadInit();
+
+    // On --reinit we want to reset RocksDB and Postgres before we start.
+    if (reinit) {
+        await utils.confirmAction();
+        await db.reset();
+        clean(path.dirname(process.env.EN_MERKLE_TREE_PATH!));
+    }
+
     await utils.spawn('cargo run --release --bin zksync_external_node');
 }
 
@@ -114,6 +132,9 @@ export const serverCommand = new Command('server')
         }
     });
 
-export const enCommand = new Command('external-node').description('start zksync external node').action(async () => {
-    await externalNode();
-});
+export const enCommand = new Command('external-node')
+    .description('start zksync external node')
+    .option('--reinit', 'reset postgres and rocksdb before starting')
+    .action(async (cmd: Command) => {
+        await externalNode(cmd.reinit);
+    });

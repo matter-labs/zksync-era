@@ -175,7 +175,7 @@ const BOOTLOADER_CODE_PAGE: u32 = code_page_candidate_from_base(MemoryPage(INITI
 /// With `VerifyExecute` mode, transaction will be executed normally.
 /// With `EstimateFee`, the bootloader will be used that has the same behavior
 /// as the full `VerifyExecute` block, but errors in the account validation will be ignored.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TxExecutionMode {
     VerifyExecute,
     EstimateFee {

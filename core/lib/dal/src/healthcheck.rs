@@ -15,11 +15,12 @@ impl ConnectionPoolHealthCheck {
     }
 }
 
+#[zksync_health_check::async_trait]
 impl CheckHealth for ConnectionPoolHealthCheck {
-    fn check_health(&self) -> CheckHealthStatus {
+    async fn check_health(&self) -> CheckHealthStatus {
         // This check is rather feeble, plan to make reliable here:
         // https://linear.app/matterlabs/issue/PLA-255/revamp-db-connection-health-check
-        let _ = self.connection_pool.access_storage_blocking();
+        let _ = self.connection_pool.access_storage().await;
         CheckHealthStatus::Ready
     }
 }

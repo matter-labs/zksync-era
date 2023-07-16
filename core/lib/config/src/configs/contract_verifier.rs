@@ -3,7 +3,7 @@ use std::time::Duration;
 // External uses
 use serde::Deserialize;
 // Local uses
-use crate::envy_load;
+use super::envy_load;
 
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct ContractVerifierConfig {
@@ -17,7 +17,7 @@ pub struct ContractVerifierConfig {
 
 impl ContractVerifierConfig {
     pub fn from_env() -> Self {
-        envy_load!("contract_verifier", "CONTRACT_VERIFIER_")
+        envy_load("contract_verifier", "CONTRACT_VERIFIER_")
     }
 
     pub fn compilation_timeout(&self) -> Duration {

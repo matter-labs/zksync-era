@@ -28,7 +28,7 @@ function parseSuggestedValues(suggestedValuesString: string) {
 }
 
 async function killServerAndWaitForShutdown(tester: Tester) {
-    await utils.exec('pkill zksync_server');
+    await utils.exec('pkill -9 zksync_server');
     // Wait until it's really stopped.
     let iter = 0;
     while (iter < 30) {
@@ -71,7 +71,7 @@ describe('Block reverting test', function () {
         process.env.CHAIN_STATE_KEEPER_AGGREGATED_BLOCK_EXECUTE_DEADLINE = '1000';
 
         // Run server in background.
-        const components = 'api,tree,tree_lightweight,tree_lightweight_new,eth,data_fetcher,state_keeper';
+        const components = 'api,tree,eth,data_fetcher,state_keeper';
         utils.background(`zk server --components ${components}`);
         // Server may need some time to recompile if it's a cold run, so wait for it.
         let iter = 0;
@@ -167,7 +167,7 @@ describe('Block reverting test', function () {
         process.env.CHAIN_STATE_KEEPER_AGGREGATED_BLOCK_EXECUTE_DEADLINE = '1';
 
         // Run server.
-        utils.background(`zk server --components api,tree_new,tree_lightweight,eth,data_fetcher,state_keeper`);
+        utils.background(`zk server --components api,tree_lightweight,eth,data_fetcher,state_keeper`);
         await utils.sleep(10);
 
         const balanceBefore = await alice.getBalance();
@@ -195,7 +195,7 @@ describe('Block reverting test', function () {
         await killServerAndWaitForShutdown(tester);
 
         // Run again.
-        utils.background(`zk server --components=api,tree_new,tree_lightweight,eth,data_fetcher,state_keeper`);
+        utils.background(`zk server --components=api,tree,eth,data_fetcher,state_keeper`);
         await utils.sleep(10);
 
         // Trying to send a transaction from the same address again

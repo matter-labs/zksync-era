@@ -4,14 +4,13 @@ use std::{
     hash::{BuildHasherDefault, Hash, Hasher},
 };
 
-use crate::storage::StoragePtr;
-
 use zk_evm::{
     aux_structures::Timestamp,
     vm_state::PrimitiveValue,
     zkevm_opcode_defs::{self},
 };
 
+use zksync_state::StoragePtr;
 use zksync_types::{StorageKey, U256};
 use zksync_utils::{h256_to_u256, u256_to_h256};
 
@@ -19,7 +18,7 @@ pub type MemoryWithHistory<H> = HistoryRecorder<MemoryWrapper, H>;
 pub type IntFrameManagerWithHistory<T, H> = HistoryRecorder<FramedStack<T>, H>;
 
 // Within the same cycle, timestamps in range timestamp..timestamp+TIME_DELTA_PER_CYCLE-1
-// can be used. This can sometimes vioalate monotonicity of the timestamp within the
+// can be used. This can sometimes violate monotonicity of the timestamp within the
 // same cycle, so it should be normalized.
 #[inline]
 fn normalize_timestamp(timestamp: Timestamp) -> Timestamp {
@@ -530,9 +529,22 @@ impl Hasher for NoopHasher {
     }
 }
 
-#[derive(Debug, Default, Clone, PartialEq)]
+#[derive(Debug, Default, Clone)]
 pub struct MemoryWrapper {
     pub memory: Vec<HashMap<usize, PrimitiveValue, BuildHasherDefault<NoopHasher>>>,
+}
+
+impl PartialEq for MemoryWrapper {
+    fn eq(&self, other: &Self) -> bool {
+        let empty_page = Default::default();
+        let empty_pages = std::iter::repeat(&empty_page);
+        self.memory
+            .iter()
+            .chain(empty_pages.clone())
+            .zip(other.memory.iter().chain(empty_pages))
+            .take(self.memory.len().max(other.memory.len()))
+            .all(|(a, b)| a == b)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -543,12 +555,6 @@ pub struct MemoryHistoryRecord {
 }
 
 impl MemoryWrapper {
-    pub fn shrink_pages(&mut self) {
-        while self.memory.last().map(|h| h.is_empty()).unwrap_or(false) {
-            self.memory.pop();
-        }
-    }
-
     pub fn ensure_page_exists(&mut self, page: usize) {
         if self.memory.len() <= page {
             // We don't need to record such events in history
@@ -610,7 +616,6 @@ impl WithHistory for MemoryWrapper {
             page_handle.insert(slot, set_value)
         }
         .unwrap_or(PrimitiveValue::empty());
-        self.shrink_pages();
 
         let reserved_item = MemoryHistoryRecord {
             page,
@@ -668,7 +673,7 @@ impl<'a> StorageWrapper<'a> {
     }
 
     pub fn read_from_storage(&self, key: &StorageKey) -> U256 {
-        h256_to_u256(self.storage_ptr.borrow_mut().get_value(key))
+        h256_to_u256(self.storage_ptr.borrow_mut().read_value(key))
     }
 }
 
@@ -678,7 +683,7 @@ pub struct StorageHistoryRecord {
     pub value: U256,
 }
 
-impl<'a> WithHistory for StorageWrapper<'a> {
+impl WithHistory for StorageWrapper<'_> {
     type HistoryRecord = StorageHistoryRecord;
     type ReturnValue = U256;
 
@@ -689,7 +694,7 @@ impl<'a> WithHistory for StorageWrapper<'a> {
         let prev_value = h256_to_u256(
             self.storage_ptr
                 .borrow_mut()
-                .set_value(&item.key, u256_to_h256(item.value)),
+                .set_value(item.key, u256_to_h256(item.value)),
         );
 
         let reverse_item = StorageHistoryRecord {
@@ -715,5 +720,46 @@ impl<'a, H: HistoryMode> HistoryRecorder<StorageWrapper<'a>, H> {
     /// will NOT be recorded as its history.
     pub fn get_ptr(&self) -> StoragePtr<'a> {
         self.inner.get_ptr()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        history_recorder::{HistoryRecorder, MemoryWrapper},
+        HistoryDisabled,
+    };
+    use zk_evm::{aux_structures::Timestamp, vm_state::PrimitiveValue};
+    use zksync_types::U256;
+
+    #[test]
+    fn memory_equality() {
+        let mut a: HistoryRecorder<MemoryWrapper, HistoryDisabled> = Default::default();
+        let mut b = a.clone();
+        let nonzero = U256::from_dec_str("123").unwrap();
+        let different_value = U256::from_dec_str("1234").unwrap();
+
+        let write = |memory: &mut HistoryRecorder<MemoryWrapper, HistoryDisabled>, value| {
+            memory.write_to_memory(
+                17,
+                34,
+                PrimitiveValue {
+                    value,
+                    is_pointer: false,
+                },
+                Timestamp::empty(),
+            );
+        };
+
+        assert_eq!(a, b);
+
+        write(&mut b, nonzero);
+        assert_ne!(a, b);
+
+        write(&mut a, different_value);
+        assert_ne!(a, b);
+
+        write(&mut a, nonzero);
+        assert_eq!(a, b);
     }
 }

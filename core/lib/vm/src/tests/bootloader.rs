@@ -2,26 +2,25 @@
 //! Tests for the bootloader
 //! The description for each of the tests can be found in the corresponding `.yul` file.
 //!
+use ethabi::Contract;
 use itertools::Itertools;
 use std::{
     collections::{HashMap, HashSet},
-    convert::TryFrom,
+    convert::{TryFrom, TryInto},
 };
-use tempfile::TempDir;
+use zksync_eth_signer::{raw_ethereum_tx::TransactionParameters, EthereumSigner, PrivateKeySigner};
 
 use crate::{
     errors::VmRevertReason,
     history_recorder::HistoryMode,
     oracles::tracer::{StorageInvocationTracer, TransactionResultTracer},
-    storage::{Storage, StoragePtr},
     test_utils::{
         get_create_execute, get_create_zksync_address, get_deploy_tx, get_error_tx,
         mock_loadnext_test_call,
     },
     transaction_data::TransactionData,
     utils::{
-        create_test_block_params, insert_system_contracts, read_bootloader_test_code,
-        BASE_SYSTEM_CONTRACTS, BLOCK_GAS_LIMIT,
+        create_test_block_params, read_bootloader_test_code, BASE_SYSTEM_CONTRACTS, BLOCK_GAS_LIMIT,
     },
     vm::{tx_has_failed, VmExecutionStopReason, ZkSyncVmState},
     vm_with_bootloader::{
@@ -39,41 +38,166 @@ use crate::{
 use zk_evm::{
     aux_structures::Timestamp, block_properties::BlockProperties, zkevm_opcode_defs::FarCallOpcode,
 };
-
+use zksync_contracts::{
+    get_loadnext_contract, load_contract, read_bytecode, SystemContractCode,
+    PLAYGROUND_BLOCK_BOOTLOADER_CODE,
+};
+use zksync_state::{InMemoryStorage, ReadStorage, StoragePtr, StorageView, WriteStorage};
 use zksync_types::{
     block::DeployedContract,
     ethabi::encode,
-    get_is_account_key,
+    ethabi::Token,
+    fee::Fee,
+    get_code_key, get_is_account_key, get_known_code_key, get_nonce_key,
+    l2::L2Tx,
+    l2_to_l1_log::L2ToL1Log,
     storage_writes_deduplicator::StorageWritesDeduplicator,
     system_contracts::{DEPLOYMENT_NONCE_INCREMENT, TX_NONCE_INCREMENT},
+    transaction_request::TransactionRequest,
     tx::tx_execution_info::TxExecutionStatus,
     utils::{
         deployed_address_create, storage_key_for_eth_balance,
         storage_key_for_standard_token_balance,
     },
     vm_trace::{Call, CallType},
-    Execute, L1BatchNumber, L1TxCommonData, StorageKey, StorageLog, L1_MESSENGER_ADDRESS,
-    {ethabi::Token, AccountTreeId, Address, ExecuteTransactionCommon, Transaction, H256, U256},
-    {fee::Fee, l2_to_l1_log::L2ToL1Log},
-    {
-        get_code_key, get_known_code_key, get_nonce_key, Nonce, BOOTLOADER_ADDRESS, H160,
-        L2_ETH_TOKEN_ADDRESS, MAX_GAS_PER_PUBDATA_BYTE, SYSTEM_CONTEXT_ADDRESS,
-    },
+    AccountTreeId, Address, Eip712Domain, Execute, ExecuteTransactionCommon, L1TxCommonData,
+    L2ChainId, Nonce, PackedEthSignature, StorageKey, Transaction, BOOTLOADER_ADDRESS, H160, H256,
+    L1_MESSENGER_ADDRESS, L2_ETH_TOKEN_ADDRESS, MAX_GAS_PER_PUBDATA_BYTE, SYSTEM_CONTEXT_ADDRESS,
+    U256,
 };
-
 use zksync_utils::{
     bytecode::CompressedBytecodeInfo,
     test_utils::LoadnextContractExecutionParams,
     {bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256, u256_to_h256},
 };
 
-use zksync_contracts::{
-    get_loadnext_contract, load_contract, read_bytecode, SystemContractCode,
-    PLAYGROUND_BLOCK_BOOTLOADER_CODE,
-};
+/// Helper struct for tests, that takes care of setting the database and provides some functions to get and set balances.
+/// Example use:
+///```ignore
+///      let test_env = VmTestEnv::default();
+///      test_env.set_rich_account(address);
+///      // To create VM and run a single transaction:
+///      test_env.run_vm_or_die(transaction_data);
+///      // To create VM:
+///      let mut helper = VmTestHelper::new(&test_env);
+///      let mut vm = helper.vm();
+/// ```
+#[derive(Debug)]
+pub struct VmTestEnv {
+    pub block_context: DerivedBlockContext,
+    pub block_properties: BlockProperties,
+    pub storage_ptr: Box<StorageView<InMemoryStorage>>,
+}
 
-use zksync_state::{secondary_storage::SecondaryStateStorage, storage_view::StorageView};
-use zksync_storage::{db::Database, RocksDB};
+impl VmTestEnv {
+    /// Creates a new test helper with a bunch of already deployed contracts.
+    pub fn new_with_contracts(contracts: &[(H160, Vec<u8>)]) -> Self {
+        let (block_context, block_properties): (DerivedBlockContext, BlockProperties) = {
+            let (block_context, block_properties) = create_test_block_params();
+            (block_context.into(), block_properties)
+        };
+
+        let mut raw_storage = InMemoryStorage::with_system_contracts(hash_bytecode);
+        for (address, bytecode) in contracts {
+            let account = DeployedContract {
+                account_id: AccountTreeId::new(*address),
+                bytecode: bytecode.clone(),
+            };
+
+            insert_contracts(&mut raw_storage, vec![(account, true)]);
+        }
+
+        let storage_ptr = Box::new(StorageView::new(raw_storage));
+
+        VmTestEnv {
+            block_context,
+            block_properties,
+            storage_ptr,
+        }
+    }
+
+    /// Gets the current ETH balance for a given account.
+    pub fn get_eth_balance(&mut self, address: &H160) -> U256 {
+        get_eth_balance(address, self.storage_ptr.as_mut())
+    }
+
+    /// Sets a large balance for a given account.
+    pub fn set_rich_account(&mut self, address: &H160) {
+        let key = storage_key_for_eth_balance(address);
+
+        self.storage_ptr
+            .set_value(key, u256_to_h256(U256::from(10u64.pow(19))));
+    }
+
+    /// Runs a given transaction in a VM.
+    // Note: that storage changes will be preserved, but not changed to events etc.
+    // Strongly suggest to use this function only if this is the only transaction executed within the test.
+    pub fn run_vm(&mut self, transaction_data: TransactionData) -> (VmExecutionResult, bool) {
+        let mut oracle_tools = OracleTools::new(self.storage_ptr.as_mut(), HistoryEnabled);
+        let (result, tx_has_failed) = run_vm_with_raw_tx(
+            &mut oracle_tools,
+            self.block_context,
+            &self.block_properties,
+            transaction_data,
+        );
+        (result, tx_has_failed)
+    }
+
+    /// Runs a given transaction in a VM and asserts if it fails.
+    pub fn run_vm_or_die(&mut self, transaction_data: TransactionData) {
+        let (result, tx_has_failed) = self.run_vm(transaction_data);
+        assert!(
+            !tx_has_failed,
+            "Transaction failed with: {:?}",
+            result.revert_reason
+        );
+    }
+}
+
+impl Default for VmTestEnv {
+    fn default() -> Self {
+        VmTestEnv::new_with_contracts(&[])
+    }
+}
+
+/// Helper struct to create a default VM for a given environment.
+#[derive(Debug)]
+pub struct VmTestHelper<'a> {
+    pub oracle_tools: OracleTools<'a, false, HistoryEnabled>,
+    pub block_context: DerivedBlockContext,
+    pub block_properties: BlockProperties,
+    vm_created: bool,
+}
+
+impl<'a> VmTestHelper<'a> {
+    pub fn new(test_env: &'a mut VmTestEnv) -> Self {
+        let block_context = test_env.block_context;
+        let block_properties = test_env.block_properties;
+
+        let oracle_tools = OracleTools::new(test_env.storage_ptr.as_mut(), HistoryEnabled);
+        VmTestHelper {
+            oracle_tools,
+            block_context,
+            block_properties,
+            vm_created: false,
+        }
+    }
+
+    /// Creates the VM that can be used in tests.
+    pub fn vm(&'a mut self) -> Box<VmInstance<'a, HistoryEnabled>> {
+        assert!(!self.vm_created, "Vm can be created only once");
+        let vm = init_vm_inner(
+            &mut self.oracle_tools,
+            BlockContextMode::NewBlock(self.block_context, Default::default()),
+            &self.block_properties,
+            BLOCK_GAS_LIMIT,
+            &BASE_SYSTEM_CONTRACTS,
+            TxExecutionMode::VerifyExecute,
+        );
+        self.vm_created = true;
+        vm
+    }
+}
 
 fn run_vm_with_custom_factory_deps<'a, H: HistoryMode>(
     oracle_tools: &'a mut OracleTools<'a, false, H>,
@@ -116,22 +240,21 @@ fn run_vm_with_custom_factory_deps<'a, H: HistoryMode>(
     assert_eq!(expected_error, result);
 }
 
-fn get_balance(token_id: AccountTreeId, account: &Address, main_storage: StoragePtr<'_>) -> U256 {
+fn get_balance(token_id: AccountTreeId, account: &Address, main_storage: StoragePtr) -> U256 {
     let key = storage_key_for_standard_token_balance(token_id, account);
-    h256_to_u256(main_storage.borrow_mut().get_value(&key))
+    h256_to_u256(main_storage.borrow_mut().read_value(&key))
+}
+
+fn get_eth_balance(account: &Address, main_storage: &mut StorageView<InMemoryStorage>) -> U256 {
+    let key =
+        storage_key_for_standard_token_balance(AccountTreeId::new(L2_ETH_TOKEN_ADDRESS), account);
+    h256_to_u256(main_storage.read_value(&key))
 }
 
 #[test]
 fn test_dummy_bootloader() {
-    let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
-    let db = RocksDB::new(Database::StateKeeper, temp_dir.as_ref(), false);
-    let mut raw_storage = SecondaryStateStorage::new(db);
-    insert_system_contracts(&mut raw_storage);
-    let mut storage_accessor = StorageView::new(&raw_storage);
-    let storage_ptr: &mut dyn Storage = &mut storage_accessor;
-
-    let mut oracle_tools = OracleTools::new(storage_ptr, HistoryEnabled);
-    let (block_context, block_properties) = create_test_block_params();
+    let mut vm_test_env = VmTestEnv::default();
+    let mut oracle_tools = OracleTools::new(vm_test_env.storage_ptr.as_mut(), HistoryEnabled);
     let mut base_system_contracts = BASE_SYSTEM_CONTRACTS.clone();
     let bootloader_code = read_bootloader_test_code("dummy");
     let bootloader_hash = hash_bytecode(&bootloader_code);
@@ -143,8 +266,8 @@ fn test_dummy_bootloader() {
 
     let mut vm = init_vm_inner(
         &mut oracle_tools,
-        BlockContextMode::NewBlock(block_context.into(), Default::default()),
-        &block_properties,
+        BlockContextMode::NewBlock(vm_test_env.block_context, Default::default()),
+        &vm_test_env.block_properties,
         BLOCK_GAS_LIMIT,
         &base_system_contracts,
         TxExecutionMode::VerifyExecute,
@@ -167,15 +290,8 @@ fn test_dummy_bootloader() {
 
 #[test]
 fn test_bootloader_out_of_gas() {
-    let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
-    let db = RocksDB::new(Database::StateKeeper, temp_dir.as_ref(), false);
-    let mut raw_storage = SecondaryStateStorage::new(db);
-    insert_system_contracts(&mut raw_storage);
-    let mut storage_accessor = StorageView::new(&raw_storage);
-    let storage_ptr: &mut dyn Storage = &mut storage_accessor;
-
-    let mut oracle_tools = OracleTools::new(storage_ptr, HistoryEnabled);
-    let (block_context, block_properties) = create_test_block_params();
+    let mut vm_test_env = VmTestEnv::default();
+    let mut oracle_tools = OracleTools::new(vm_test_env.storage_ptr.as_mut(), HistoryEnabled);
 
     let mut base_system_contracts = BASE_SYSTEM_CONTRACTS.clone();
 
@@ -190,8 +306,8 @@ fn test_bootloader_out_of_gas() {
     // init vm with only 10 ergs
     let mut vm = init_vm_inner(
         &mut oracle_tools,
-        BlockContextMode::NewBlock(block_context.into(), Default::default()),
-        &block_properties,
+        BlockContextMode::NewBlock(vm_test_env.block_context, Default::default()),
+        &vm_test_env.block_properties,
         10,
         &base_system_contracts,
         TxExecutionMode::VerifyExecute,
@@ -235,17 +351,10 @@ fn test_default_aa_interaction() {
     // In this test, we aim to test whether a simple account interaction (without any fee logic)
     // will work. The account will try to deploy a simple contract from integration tests.
 
-    let (block_context, block_properties) = create_test_block_params();
-    let block_context: DerivedBlockContext = block_context.into();
+    let mut vm_test_env = VmTestEnv::default();
 
-    let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
-    let db = RocksDB::new(Database::StateKeeper, temp_dir.as_ref(), false);
-    let mut raw_storage = SecondaryStateStorage::new(db);
-    insert_system_contracts(&mut raw_storage);
-    let storage_ptr: &mut dyn Storage = &mut StorageView::new(&raw_storage);
-
-    let operator_address = block_context.context.operator_address;
-    let base_fee = block_context.base_fee;
+    let operator_address = vm_test_env.block_context.context.operator_address;
+    let base_fee = vm_test_env.block_context.base_fee;
     // We deploy here counter contract, because its logic is trivial
     let contract_code = read_test_contract();
     let contract_code_hash = hash_bytecode(&contract_code);
@@ -267,21 +376,12 @@ fn test_default_aa_interaction() {
 
     let maximal_fee = tx_data.gas_limit * tx_data.max_fee_per_gas;
     let sender_address = tx_data.from();
-    // set balance
 
-    let key = storage_key_for_eth_balance(&sender_address);
-    storage_ptr.set_value(&key, u256_to_h256(U256([0, 0, 1, 0])));
+    vm_test_env.set_rich_account(&sender_address);
 
-    let mut oracle_tools = OracleTools::new(storage_ptr, HistoryEnabled);
+    let mut vm_helper = VmTestHelper::new(&mut vm_test_env);
+    let mut vm = vm_helper.vm();
 
-    let mut vm = init_vm_inner(
-        &mut oracle_tools,
-        BlockContextMode::NewBlock(block_context, Default::default()),
-        &block_properties,
-        BLOCK_GAS_LIMIT,
-        &BASE_SYSTEM_CONTRACTS,
-        TxExecutionMode::VerifyExecute,
-    );
     push_transaction_to_bootloader_memory(&mut vm, &tx, TxExecutionMode::VerifyExecute, None);
 
     let tx_execution_result = vm
@@ -333,8 +433,8 @@ fn test_default_aa_interaction() {
         vm.state.storage.storage.get_ptr(),
     );
 
-    assert!(
-        operator_balance == expected_fee,
+    assert_eq!(
+        operator_balance, expected_fee,
         "Operator did not receive his fee"
     );
 }
@@ -344,32 +444,16 @@ fn execute_vm_with_predetermined_refund(
     refunds: Vec<u32>,
     compressed_bytecodes: Vec<Vec<CompressedBytecodeInfo>>,
 ) -> VmBlockResult {
-    let (block_context, block_properties) = create_test_block_params();
-    let block_context: DerivedBlockContext = block_context.into();
+    let mut vm_test_env = VmTestEnv::default();
+    let block_context = vm_test_env.block_context;
 
-    let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
-    let db = RocksDB::new(Database::StateKeeper, temp_dir.as_ref(), false);
-    let mut raw_storage = SecondaryStateStorage::new(db);
-    insert_system_contracts(&mut raw_storage);
-    let storage_ptr: &mut dyn Storage = &mut StorageView::new(&raw_storage);
-
-    // set balance
     for tx in txs.iter() {
         let sender_address = tx.initiator_account();
-        let key = storage_key_for_eth_balance(&sender_address);
-        storage_ptr.set_value(&key, u256_to_h256(U256([0, 0, 1, 0])));
+        vm_test_env.set_rich_account(&sender_address);
     }
 
-    let mut oracle_tools = OracleTools::new(storage_ptr, HistoryEnabled);
-
-    let mut vm = init_vm_inner(
-        &mut oracle_tools,
-        BlockContextMode::NewBlock(block_context, Default::default()),
-        &block_properties,
-        BLOCK_GAS_LIMIT,
-        &BASE_SYSTEM_CONTRACTS,
-        TxExecutionMode::VerifyExecute,
-    );
+    let mut vm_helper = VmTestHelper::new(&mut vm_test_env);
+    let mut vm = vm_helper.vm();
 
     let codes_for_decommiter = txs
         .iter()
@@ -411,16 +495,8 @@ fn test_predetermined_refunded_gas() {
     // In this test, we compare the execution of the bootloader with the predefined
     // refunded gas and without them
 
-    let (block_context, block_properties) = create_test_block_params();
-    let block_context: DerivedBlockContext = block_context.into();
-
-    let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
-    let db = RocksDB::new(Database::StateKeeper, temp_dir.as_ref(), false);
-    let mut raw_storage = SecondaryStateStorage::new(db);
-    insert_system_contracts(&mut raw_storage);
-    let storage_ptr: &mut dyn Storage = &mut StorageView::new(&raw_storage);
-
-    let base_fee = block_context.base_fee;
+    let mut vm_test_env = VmTestEnv::default();
+    let base_fee = vm_test_env.block_context.base_fee;
 
     // We deploy here counter contract, because its logic is trivial
     let contract_code = read_test_contract();
@@ -443,19 +519,10 @@ fn test_predetermined_refunded_gas() {
     let sender_address = tx.initiator_account();
 
     // set balance
-    let key = storage_key_for_eth_balance(&sender_address);
-    storage_ptr.set_value(&key, u256_to_h256(U256([0, 0, 1, 0])));
+    vm_test_env.set_rich_account(&sender_address);
 
-    let mut oracle_tools = OracleTools::new(storage_ptr, HistoryEnabled);
-
-    let mut vm = init_vm_inner(
-        &mut oracle_tools,
-        BlockContextMode::NewBlock(block_context, Default::default()),
-        &block_properties,
-        BLOCK_GAS_LIMIT,
-        &BASE_SYSTEM_CONTRACTS,
-        TxExecutionMode::VerifyExecute,
-    );
+    let mut vm_helper = VmTestHelper::new(&mut vm_test_env);
+    let mut vm = vm_helper.vm();
 
     push_transaction_to_bootloader_memory(&mut vm, &tx, TxExecutionMode::VerifyExecute, None);
 
@@ -580,26 +647,17 @@ fn execute_vm_with_possible_rollbacks(
     block_context: DerivedBlockContext,
     block_properties: BlockProperties,
 ) -> VmExecutionResult {
-    let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
-    let db = RocksDB::new(Database::StateKeeper, temp_dir.as_ref(), false);
-    let mut raw_storage = SecondaryStateStorage::new(db);
-    insert_system_contracts(&mut raw_storage);
-    let storage_ptr: &mut dyn Storage = &mut StorageView::new(&raw_storage);
+    let mut vm_test_env = VmTestEnv {
+        block_context,
+        block_properties,
+        ..Default::default()
+    };
 
     // Setting infinite balance for the sender.
-    let key = storage_key_for_eth_balance(&sender_address);
-    storage_ptr.set_value(&key, u256_to_h256(U256([0, 0, 1, 0])));
+    vm_test_env.set_rich_account(&sender_address);
 
-    let mut oracle_tools = OracleTools::new(storage_ptr, HistoryEnabled);
-
-    let mut vm = init_vm_inner(
-        &mut oracle_tools,
-        BlockContextMode::NewBlock(block_context, Default::default()),
-        &block_properties,
-        BLOCK_GAS_LIMIT,
-        &BASE_SYSTEM_CONTRACTS,
-        TxExecutionMode::VerifyExecute,
-    );
+    let mut vm_helper = VmTestHelper::new(&mut vm_test_env);
+    let mut vm = vm_helper.vm();
 
     for test_info in transactions {
         vm.save_current_vm_as_snapshot();
@@ -972,38 +1030,18 @@ fn test_vm_rollbacks() {
 // deployer system contract. Besides the reference to storage
 // it accepts a `contracts` tuple of information about the contract
 // and whether or not it is an account.
-fn insert_contracts(
-    raw_storage: &mut SecondaryStateStorage,
-    contracts: Vec<(DeployedContract, bool)>,
-) {
-    let logs: Vec<StorageLog> = contracts
-        .iter()
-        .flat_map(|(contract, is_account)| {
-            let mut new_logs = vec![];
+fn insert_contracts(raw_storage: &mut InMemoryStorage, contracts: Vec<(DeployedContract, bool)>) {
+    for (contract, is_account) in contracts {
+        let deployer_code_key = get_code_key(contract.account_id.address());
+        raw_storage.set_value(deployer_code_key, hash_bytecode(&contract.bytecode));
 
-            let deployer_code_key = get_code_key(contract.account_id.address());
-            new_logs.push(StorageLog::new_write_log(
-                deployer_code_key,
-                hash_bytecode(&contract.bytecode),
-            ));
+        if is_account {
+            let is_account_key = get_is_account_key(contract.account_id.address());
+            raw_storage.set_value(is_account_key, u256_to_h256(1_u32.into()));
+        }
 
-            if *is_account {
-                let is_account_key = get_is_account_key(contract.account_id.address());
-                new_logs.push(StorageLog::new_write_log(
-                    is_account_key,
-                    u256_to_h256(1u32.into()),
-                ));
-            }
-
-            new_logs
-        })
-        .collect();
-    raw_storage.process_transaction_logs(&logs);
-
-    for (contract, _) in contracts {
         raw_storage.store_factory_dep(hash_bytecode(&contract.bytecode), contract.bytecode);
     }
-    raw_storage.save(L1BatchNumber(0));
 }
 
 enum NonceHolderTestMode {
@@ -1091,40 +1129,24 @@ fn run_vm_with_raw_tx<'a, H: HistoryMode>(
 
 #[test]
 fn test_nonce_holder() {
-    let (block_context, block_properties): (DerivedBlockContext, BlockProperties) = {
-        let (block_context, block_properties) = create_test_block_params();
-        (block_context.into(), block_properties)
-    };
-
-    let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
-    let db = RocksDB::new(Database::StateKeeper, temp_dir.as_ref(), false);
-    let mut raw_storage = SecondaryStateStorage::new(db);
-    insert_system_contracts(&mut raw_storage);
-
     let account_address = H160::random();
-    let account = DeployedContract {
-        account_id: AccountTreeId::new(account_address),
-        bytecode: read_nonce_holder_tester(),
-    };
+    let mut vm_test_env =
+        VmTestEnv::new_with_contracts(&[(account_address, read_nonce_holder_tester())]);
 
-    insert_contracts(&mut raw_storage, vec![(account, true)]);
-
-    let storage_ptr: &mut dyn Storage = &mut StorageView::new(&raw_storage);
-
-    // We deploy here counter contract, because its logic is trivial
-
-    let key = storage_key_for_eth_balance(&account_address);
-    storage_ptr.set_value(&key, u256_to_h256(U256([0, 0, 1, 0])));
+    vm_test_env.set_rich_account(&account_address);
 
     let mut run_nonce_test = |nonce: U256,
                               test_mode: NonceHolderTestMode,
                               error_message: Option<String>,
                               comment: &'static str| {
-        let tx = get_nonce_holder_test_tx(nonce, account_address, test_mode, &block_context);
+        let tx = get_nonce_holder_test_tx(
+            nonce,
+            account_address,
+            test_mode,
+            &vm_test_env.block_context,
+        );
 
-        let mut oracle_tools = OracleTools::new(storage_ptr, HistoryEnabled);
-        let (result, tx_has_failed) =
-            run_vm_with_raw_tx(&mut oracle_tools, block_context, &block_properties, tx);
+        let (result, tx_has_failed) = vm_test_env.run_vm(tx);
         if let Some(msg) = error_message {
             let expected_error =
                 TxRevertReason::ValidationFailed(VmRevertReason::General { msg, data: vec![] });
@@ -1236,16 +1258,8 @@ fn test_nonce_holder() {
 #[test]
 fn test_l1_tx_execution() {
     // In this test, we try to execute a contract deployment from L1
-    let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
-    let db = RocksDB::new(Database::StateKeeper, temp_dir.as_ref(), false);
-    let mut raw_storage = SecondaryStateStorage::new(db);
-    insert_system_contracts(&mut raw_storage);
-    let mut storage_accessor = StorageView::new(&raw_storage);
-    let storage_ptr: &mut dyn Storage = &mut storage_accessor;
-
-    let mut oracle_tools = OracleTools::new(storage_ptr, HistoryEnabled);
-    let (block_context, block_properties) = create_test_block_params();
-
+    let mut vm_test_env = VmTestEnv::default();
+    let mut vm_helper = VmTestHelper::new(&mut vm_test_env);
     // Here instead of marking code hash via the bootloader means, we will
     // using L1->L2 communication, the same it would likely be done during the priority mode.
     let contract_code = read_test_contract();
@@ -1259,7 +1273,7 @@ fn test_l1_tx_execution() {
             is_service: false,
             tx_number_in_block: 0,
             sender: SYSTEM_CONTEXT_ADDRESS,
-            key: u256_to_h256(U256::from(block_context.block_timestamp)),
+            key: u256_to_h256(U256::from(vm_helper.block_context.context.block_timestamp)),
             value: Default::default(),
         },
         L2ToL1Log {
@@ -1274,7 +1288,7 @@ fn test_l1_tx_execution() {
 
     let sender_address = l1_deploy_tx_data.from();
 
-    oracle_tools.decommittment_processor.populate(
+    vm_helper.oracle_tools.decommittment_processor.populate(
         vec![(
             h256_to_u256(contract_code_hash),
             bytes_to_be_words(contract_code),
@@ -1282,14 +1296,8 @@ fn test_l1_tx_execution() {
         Timestamp(0),
     );
 
-    let mut vm = init_vm_inner(
-        &mut oracle_tools,
-        BlockContextMode::NewBlock(block_context.into(), Default::default()),
-        &block_properties,
-        BLOCK_GAS_LIMIT,
-        &BASE_SYSTEM_CONTRACTS,
-        TxExecutionMode::VerifyExecute,
-    );
+    let mut vm = vm_helper.vm();
+
     push_transaction_to_bootloader_memory(
         &mut vm,
         &l1_deploy_tx,
@@ -1381,18 +1389,17 @@ fn test_l1_tx_execution() {
 
 #[test]
 fn test_invalid_bytecode() {
-    let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
-    let db = RocksDB::new(Database::StateKeeper, temp_dir.as_ref(), false);
-    let mut raw_storage = SecondaryStateStorage::new(db);
-    insert_system_contracts(&mut raw_storage);
-    let (block_context, block_properties) = create_test_block_params();
-    let block_gas_per_pubdata = block_context.block_gas_price_per_pubdata();
+    let mut vm_test_env = VmTestEnv::default();
 
-    let test_vm_with_custom_bytecode_hash =
+    let block_gas_per_pubdata = vm_test_env
+        .block_context
+        .context
+        .block_gas_price_per_pubdata();
+
+    let mut test_vm_with_custom_bytecode_hash =
         |bytecode_hash: H256, expected_revert_reason: Option<TxRevertReason>| {
-            let mut storage_accessor = StorageView::new(&raw_storage);
-            let storage_ptr: &mut dyn Storage = &mut storage_accessor;
-            let mut oracle_tools = OracleTools::new(storage_ptr, HistoryEnabled);
+            let mut oracle_tools =
+                OracleTools::new(vm_test_env.storage_ptr.as_mut(), HistoryEnabled);
 
             let (encoded_tx, predefined_overhead) = get_l1_tx_with_custom_bytecode_hash(
                 h256_to_u256(bytecode_hash),
@@ -1401,8 +1408,8 @@ fn test_invalid_bytecode() {
 
             run_vm_with_custom_factory_deps(
                 &mut oracle_tools,
-                block_context,
-                &block_properties,
+                vm_test_env.block_context.context,
+                &vm_test_env.block_properties,
                 encoded_tx,
                 predefined_overhead,
                 expected_revert_reason,
@@ -1489,20 +1496,12 @@ fn test_invalid_bytecode() {
 #[test]
 fn test_tracing_of_execution_errors() {
     // In this test, we are checking that the execution errors are transmitted correctly from the bootloader.
-    let (block_context, block_properties) = create_test_block_params();
-    let block_context: DerivedBlockContext = block_context.into();
-
-    let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
-    let db = RocksDB::new(Database::StateKeeper, temp_dir.as_ref(), false);
-    let mut raw_storage = SecondaryStateStorage::new(db);
-    insert_system_contracts(&mut raw_storage);
-    let private_key = H256::random();
-
     let contract_address = Address::random();
-    let error_contract = DeployedContract {
-        account_id: AccountTreeId::new(contract_address),
-        bytecode: read_error_contract(),
-    };
+
+    let mut vm_test_env =
+        VmTestEnv::new_with_contracts(&[(contract_address, read_error_contract())]);
+
+    let private_key = H256::random();
 
     let tx = get_error_tx(
         private_key,
@@ -1516,23 +1515,10 @@ fn test_tracing_of_execution_errors() {
         },
     );
 
-    insert_contracts(&mut raw_storage, vec![(error_contract, false)]);
+    vm_test_env.set_rich_account(&tx.common_data.initiator_address);
+    let mut vm_helper = VmTestHelper::new(&mut vm_test_env);
+    let mut vm = vm_helper.vm();
 
-    let storage_ptr: &mut dyn Storage = &mut StorageView::new(&raw_storage);
-
-    let key = storage_key_for_eth_balance(&tx.common_data.initiator_address);
-    storage_ptr.set_value(&key, u256_to_h256(U256([0, 0, 1, 0])));
-
-    let mut oracle_tools = OracleTools::new(storage_ptr, HistoryEnabled);
-
-    let mut vm = init_vm_inner(
-        &mut oracle_tools,
-        BlockContextMode::NewBlock(block_context, Default::default()),
-        &block_properties,
-        BLOCK_GAS_LIMIT,
-        &BASE_SYSTEM_CONTRACTS,
-        TxExecutionMode::VerifyExecute,
-    );
     push_transaction_to_bootloader_memory(
         &mut vm,
         &tx.into(),
@@ -1569,16 +1555,9 @@ fn test_tracing_of_execution_errors() {
             tracer.revert_reason
         ),
     }
-    let mut oracle_tools = OracleTools::new(storage_ptr, HistoryEnabled);
 
-    let mut vm = init_vm_inner(
-        &mut oracle_tools,
-        BlockContextMode::NewBlock(block_context, Default::default()),
-        &block_properties,
-        BLOCK_GAS_LIMIT,
-        &BASE_SYSTEM_CONTRACTS,
-        TxExecutionMode::VerifyExecute,
-    );
+    let mut vm_helper = VmTestHelper::new(&mut vm_test_env);
+    let mut vm = vm_helper.vm();
     let tx = get_error_tx(
         private_key,
         Nonce(1),
@@ -1609,14 +1588,7 @@ fn test_tracing_of_execution_errors() {
 #[test]
 fn test_tx_gas_limit_offset() {
     let gas_limit = U256::from(999999);
-
-    let (block_context, block_properties) = create_test_block_params();
-    let block_context: DerivedBlockContext = block_context.into();
-
-    let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
-    let db = RocksDB::new(Database::StateKeeper, temp_dir.as_ref(), false);
-    let raw_storage = SecondaryStateStorage::new(db);
-    let storage_ptr: &mut dyn Storage = &mut StorageView::new(&raw_storage);
+    let mut vm_test_env = VmTestEnv::default();
 
     let contract_code = read_test_contract();
     let tx: Transaction = get_deploy_tx(
@@ -1632,16 +1604,8 @@ fn test_tx_gas_limit_offset() {
     )
     .into();
 
-    let mut oracle_tools = OracleTools::new(storage_ptr, HistoryEnabled);
-
-    let mut vm = init_vm_inner(
-        &mut oracle_tools,
-        BlockContextMode::NewBlock(block_context, Default::default()),
-        &block_properties,
-        BLOCK_GAS_LIMIT,
-        &BASE_SYSTEM_CONTRACTS,
-        TxExecutionMode::VerifyExecute,
-    );
+    let mut vm_helper = VmTestHelper::new(&mut vm_test_env);
+    let mut vm = vm_helper.vm();
     push_transaction_to_bootloader_memory(&mut vm, &tx, TxExecutionMode::VerifyExecute, None);
 
     let gas_limit_from_memory = vm
@@ -1658,17 +1622,9 @@ fn test_tx_gas_limit_offset() {
 #[test]
 fn test_is_write_initial_behaviour() {
     // In this test, we check result of `is_write_initial` at different stages.
+    let mut vm_test_env = VmTestEnv::default();
 
-    let (block_context, block_properties) = create_test_block_params();
-    let block_context: DerivedBlockContext = block_context.into();
-
-    let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
-    let db = RocksDB::new(Database::StateKeeper, temp_dir.as_ref(), false);
-    let mut raw_storage = SecondaryStateStorage::new(db);
-    insert_system_contracts(&mut raw_storage);
-    let storage_ptr: &mut dyn Storage = &mut StorageView::new(&raw_storage);
-
-    let base_fee = block_context.base_fee;
+    let base_fee = vm_test_env.block_context.base_fee;
     let account_pk = H256::random();
     let contract_code = read_test_contract();
     let tx: Transaction = get_deploy_tx(
@@ -1690,29 +1646,20 @@ fn test_is_write_initial_behaviour() {
     let nonce_key = get_nonce_key(&sender_address);
 
     // Check that the next write to the nonce key will be initial.
-    assert!(storage_ptr.is_write_initial(&nonce_key));
+    assert!(vm_test_env.storage_ptr.is_write_initial(&nonce_key));
 
     // Set balance to be able to pay fee for txs.
-    let balance_key = storage_key_for_eth_balance(&sender_address);
-    storage_ptr.set_value(&balance_key, u256_to_h256(U256([0, 0, 1, 0])));
+    vm_test_env.set_rich_account(&sender_address);
 
-    let mut oracle_tools = OracleTools::new(storage_ptr, HistoryEnabled);
-
-    let mut vm = init_vm_inner(
-        &mut oracle_tools,
-        BlockContextMode::NewBlock(block_context, Default::default()),
-        &block_properties,
-        BLOCK_GAS_LIMIT,
-        &BASE_SYSTEM_CONTRACTS,
-        TxExecutionMode::VerifyExecute,
-    );
+    let mut vm_helper = VmTestHelper::new(&mut vm_test_env);
+    let mut vm = vm_helper.vm();
 
     push_transaction_to_bootloader_memory(&mut vm, &tx, TxExecutionMode::VerifyExecute, None);
 
     vm.execute_next_tx(u32::MAX, false)
         .expect("Bootloader failed while processing the first transaction");
     // Check that `is_write_initial` still returns true for the nonce key.
-    assert!(storage_ptr.is_write_initial(&nonce_key));
+    assert!(vm_test_env.storage_ptr.is_write_initial(&nonce_key));
 }
 
 pub fn get_l1_tx_with_custom_bytecode_hash(
@@ -1823,6 +1770,11 @@ fn read_error_contract() -> Vec<u8> {
     )
 }
 
+fn read_many_owners_custom_account_contract() -> (Vec<u8>, Contract) {
+    let path = "etc/contracts-test-data/artifacts-zk/contracts/custom-account/many-owners-custom-account.sol/ManyOwnersCustomAccount.json";
+    (read_bytecode(path), load_contract(path))
+}
+
 fn execute_test_contract(
     address: Address,
     with_panic: bool,
@@ -1855,13 +1807,9 @@ fn execute_test_contract(
 
 #[test]
 fn test_call_tracer() {
-    let sender = H160::random();
-    let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
-    let db = RocksDB::new(Database::StateKeeper, temp_dir.as_ref(), false);
-    let mut raw_storage = SecondaryStateStorage::new(db);
-    insert_system_contracts(&mut raw_storage);
+    let mut vm_test_env = VmTestEnv::default();
 
-    let (block_context, block_properties) = create_test_block_params();
+    let sender = H160::random();
 
     let contract_code = read_test_contract();
     let contract_code_hash = hash_bytecode(&contract_code);
@@ -1869,14 +1817,11 @@ fn test_call_tracer() {
     let l1_deploy_tx_data: TransactionData = l1_deploy_tx.clone().into();
 
     let sender_address_counter = l1_deploy_tx_data.from();
-    let mut storage_accessor = StorageView::new(&raw_storage);
-    let storage_ptr: &mut dyn Storage = &mut storage_accessor;
 
-    let key = storage_key_for_eth_balance(&sender_address_counter);
-    storage_ptr.set_value(&key, u256_to_h256(U256([0, 0, 1, 0])));
+    vm_test_env.set_rich_account(&sender_address_counter);
+    let mut vm_helper = VmTestHelper::new(&mut vm_test_env);
 
-    let mut oracle_tools = OracleTools::new(storage_ptr, HistoryEnabled);
-    oracle_tools.decommittment_processor.populate(
+    vm_helper.oracle_tools.decommittment_processor.populate(
         vec![(
             h256_to_u256(contract_code_hash),
             bytes_to_be_words(contract_code),
@@ -1887,7 +1832,7 @@ fn test_call_tracer() {
     let contract_code = read_long_return_data_contract();
     let contract_code_hash = hash_bytecode(&contract_code);
     let l1_deploy_long_return_data_tx = get_l1_deploy_tx(&contract_code, &[]);
-    oracle_tools.decommittment_processor.populate(
+    vm_helper.oracle_tools.decommittment_processor.populate(
         vec![(
             h256_to_u256(contract_code_hash),
             bytes_to_be_words(contract_code),
@@ -1900,14 +1845,7 @@ fn test_call_tracer() {
     // The contract should be deployed successfully.
     let deployed_address_long_return_data =
         deployed_address_create(sender_long_return_address, U256::zero());
-    let mut vm = init_vm_inner(
-        &mut oracle_tools,
-        BlockContextMode::NewBlock(block_context.into(), Default::default()),
-        &block_properties,
-        BLOCK_GAS_LIMIT,
-        &BASE_SYSTEM_CONTRACTS,
-        TxExecutionMode::VerifyExecute,
-    );
+    let mut vm = vm_helper.vm();
 
     push_transaction_to_bootloader_memory(
         &mut vm,
@@ -2075,29 +2013,10 @@ fn test_call_tracer() {
 
 #[test]
 fn test_get_used_contracts() {
-    // get block context
-    let (block_context, block_properties) = create_test_block_params();
-    let block_context: DerivedBlockContext = block_context.into();
+    let mut vm_test_env = VmTestEnv::default();
 
-    // insert system contracts to avoid vm errors during initialization
-    let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
-    let db = RocksDB::new(Database::StateKeeper, temp_dir.as_ref(), false);
-    let mut raw_storage = SecondaryStateStorage::new(db);
-    insert_system_contracts(&mut raw_storage);
-
-    // get oracle tools
-    let storage_ptr: &mut dyn Storage = &mut StorageView::new(&raw_storage);
-    let mut oracle_tools = OracleTools::new(storage_ptr, HistoryEnabled);
-
-    // init vm
-    let mut vm = init_vm_inner(
-        &mut oracle_tools,
-        BlockContextMode::NewBlock(block_context, Default::default()),
-        &block_properties,
-        BLOCK_GAS_LIMIT,
-        &BASE_SYSTEM_CONTRACTS,
-        TxExecutionMode::VerifyExecute,
-    );
+    let mut vm_helper = VmTestHelper::new(&mut vm_test_env);
+    let mut vm = vm_helper.vm();
 
     assert!(known_bytecodes_without_aa_code(&vm).is_empty());
 
@@ -2171,4 +2090,159 @@ fn known_bytecodes_without_aa_code<H: HistoryMode>(vm: &VmInstance<H>) -> HashMa
         .unwrap();
 
     known_bytecodes_without_aa_code
+}
+
+#[tokio::test]
+/// This test deploys 'buggy' account abstraction code, and then tries accessing it both with legacy
+/// and EIP712 transactions.
+/// Currently we support both, but in the future, we should allow only EIP712 transactions to access the AA accounts.
+async fn test_require_eip712() {
+    // Use 3 accounts:
+    // - private_address - EOA account, where we have the key
+    // - account_address - AA account, where the contract is deployed
+    // - beneficiary - an EOA account, where we'll try to transfer the tokens.
+    let account_address = H160::random();
+
+    let (bytecode, contract) = read_many_owners_custom_account_contract();
+
+    let mut vm_test_env = VmTestEnv::new_with_contracts(&[(account_address, bytecode)]);
+
+    let beneficiary = H160::random();
+
+    assert_eq!(vm_test_env.get_eth_balance(&beneficiary), U256::from(0));
+
+    let private_key = H256::random();
+    let private_address = PackedEthSignature::address_from_private_key(&private_key).unwrap();
+    let pk_signer = PrivateKeySigner::new(private_key);
+
+    vm_test_env.set_rich_account(&account_address);
+    vm_test_env.set_rich_account(&private_address);
+
+    let chain_id: u16 = 270;
+
+    // First, let's set the owners of the AA account to the private_address.
+    // (so that messages signed by private_address, are authorized to act on behalf of the AA account).
+    {
+        let set_owners_function = contract.function("setOwners").unwrap();
+        let encoded_input = set_owners_function
+            .encode_input(&[Token::Array(vec![Token::Address(private_address)])]);
+
+        // Create a legacy transaction to set the owners.
+        let raw_tx = TransactionParameters {
+            nonce: U256::from(0),
+            to: Some(account_address),
+            gas: U256::from(100000000),
+            gas_price: Some(U256::from(10000000)),
+            value: U256::from(0),
+            data: encoded_input.unwrap(),
+            chain_id: chain_id as u64,
+            transaction_type: None,
+            access_list: None,
+            max_fee_per_gas: U256::from(1000000000),
+            max_priority_fee_per_gas: U256::from(1000000000),
+        };
+        let txn = pk_signer.sign_transaction(raw_tx).await.unwrap();
+
+        let (txn_request, hash) = TransactionRequest::from_bytes(&txn, chain_id, 100000).unwrap();
+
+        let mut l2_tx: L2Tx = txn_request.try_into().unwrap();
+        l2_tx.set_input(txn, hash);
+        let transaction: Transaction = l2_tx.try_into().unwrap();
+        let transaction_data: TransactionData = transaction.try_into().unwrap();
+
+        vm_test_env.run_vm_or_die(transaction_data);
+    }
+
+    let private_account_balance = vm_test_env.get_eth_balance(&private_address);
+
+    // And now let's do the transfer from the 'account abstraction' to 'beneficiary' (using 'legacy' transaction).
+    // Normally this would not work - unless the operator is malicious.
+    {
+        let aa_raw_tx = TransactionParameters {
+            nonce: U256::from(0),
+            to: Some(beneficiary),
+            gas: U256::from(100000000),
+            gas_price: Some(U256::from(10000000)),
+            value: U256::from(888000088),
+            data: vec![],
+            chain_id: 270,
+            transaction_type: None,
+            access_list: None,
+            max_fee_per_gas: U256::from(1000000000),
+            max_priority_fee_per_gas: U256::from(1000000000),
+        };
+
+        let aa_txn = pk_signer.sign_transaction(aa_raw_tx).await.unwrap();
+
+        let (aa_txn_request, aa_hash) =
+            TransactionRequest::from_bytes(&aa_txn, 270, 100000).unwrap();
+
+        let mut l2_tx: L2Tx = aa_txn_request.try_into().unwrap();
+        l2_tx.set_input(aa_txn, aa_hash);
+        // Pretend that operator is malicious and sets the initiator to the AA account.
+        l2_tx.common_data.initiator_address = account_address;
+
+        let transaction: Transaction = l2_tx.try_into().unwrap();
+
+        let transaction_data: TransactionData = transaction.try_into().unwrap();
+
+        vm_test_env.run_vm_or_die(transaction_data);
+        assert_eq!(
+            vm_test_env.get_eth_balance(&beneficiary),
+            U256::from(888000088)
+        );
+        // Make sure that the tokens were transfered from the AA account.
+        assert_eq!(
+            private_account_balance,
+            vm_test_env.get_eth_balance(&private_address)
+        )
+    }
+
+    // Now send the 'classic' EIP712 transaction
+    {
+        let tx_712 = L2Tx::new(
+            beneficiary,
+            vec![],
+            Nonce(1),
+            Fee {
+                gas_limit: U256::from(1000000000),
+                max_fee_per_gas: U256::from(1000000000),
+                max_priority_fee_per_gas: U256::from(1000000000),
+                gas_per_pubdata_limit: U256::from(1000000000),
+            },
+            account_address,
+            U256::from(28374938),
+            None,
+            Default::default(),
+        );
+
+        let transaction_request: TransactionRequest = tx_712.into();
+
+        let domain = Eip712Domain::new(L2ChainId(chain_id));
+        let signature = pk_signer
+            .sign_typed_data(&domain, &transaction_request)
+            .await
+            .unwrap();
+        let encoded_tx = transaction_request.get_signed_bytes(&signature, L2ChainId(chain_id));
+
+        let (aa_txn_request, aa_hash) =
+            TransactionRequest::from_bytes(&encoded_tx, chain_id, 100000).unwrap();
+
+        let mut l2_tx: L2Tx = aa_txn_request.try_into().unwrap();
+        l2_tx.set_input(encoded_tx, aa_hash);
+
+        let transaction: Transaction = l2_tx.try_into().unwrap();
+        let transaction_data: TransactionData = transaction.try_into().unwrap();
+
+        vm_test_env.run_vm_or_die(transaction_data);
+
+        assert_eq!(
+            vm_test_env.get_eth_balance(&beneficiary),
+            U256::from(916375026)
+        );
+        assert_eq!(
+            private_account_balance,
+            vm_test_env.get_eth_balance(&private_address)
+        );
+    }
 }

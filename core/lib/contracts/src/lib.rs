@@ -1,14 +1,16 @@
 #![allow(clippy::derive_partial_eq_without_eq)]
-
-use ethabi::ethereum_types::{H256, U256};
-use ethabi::Contract;
+use ethabi::{
+    ethereum_types::{H256, U256},
+    Contract,
+};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
+use std::{
+    fs::{self, File},
+    path::Path,
+};
 
-use std::fs::{self, File};
-use std::path::Path;
-use zksync_utils::bytecode::hash_bytecode;
-use zksync_utils::bytes_to_be_words;
+use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words};
 
 #[derive(Debug)]
 pub enum ContractLanguage {
@@ -242,12 +244,11 @@ pub static ESTIMATE_FEE_BLOCK_CODE: Lazy<SystemContractCode> = Lazy::new(|| {
 });
 
 impl BaseSystemContracts {
-    pub fn load_from_disk() -> Self {
-        let bytecode = read_proved_block_bootloader_bytecode();
-        let hash = hash_bytecode(&bytecode);
+    fn load_with_bootloader(bootloader_bytecode: Vec<u8>) -> Self {
+        let hash = hash_bytecode(&bootloader_bytecode);
 
         let bootloader = SystemContractCode {
-            code: bytes_to_be_words(bytecode),
+            code: bytes_to_be_words(bootloader_bytecode),
             hash,
         };
 
@@ -263,6 +264,17 @@ impl BaseSystemContracts {
             bootloader,
             default_aa,
         }
+    }
+    // BaseSystemContracts with proved bootloader - for handling transactions.
+    pub fn load_from_disk() -> Self {
+        let bootloader_bytecode = read_proved_block_bootloader_bytecode();
+        BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
+    }
+
+    /// BaseSystemContracts with playground bootloader -  used for handling 'eth_calls'.
+    pub fn playground() -> Self {
+        let bootloader_bytecode = read_playground_block_bootloader_bytecode();
+        BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
     }
 
     pub fn hashes(&self) -> BaseSystemContractsHashes {

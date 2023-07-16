@@ -15,7 +15,7 @@ aggregation. That is, every aggregation round needs two sets of input:
 ## BasicCircuitsWitnessGenerator
 
 - generates basic circuits (circuits like `Main VM` - up to 50 \* 48 = 2400 circuits):
-- input table: `basic_circuit_witness_jobs` 
+- input table: `basic_circuit_witness_jobs`
 - artifact/output table: `leaf_aggregation_jobs` (also creates job stubs in `node_aggregation_jobs` and
   `scheduler_aggregation_jobs`) value in `aggregation_round` field of `prover_jobs` table: 0
 

@@ -3,7 +3,7 @@ use serde::Deserialize;
 // Workspace uses
 use zksync_basic_types::{Address, H256};
 // Local uses
-use crate::envy_load;
+use super::envy_load;
 
 /// Data about deployed contracts.
 #[derive(Debug, Deserialize, Clone, PartialEq)]
@@ -22,13 +22,15 @@ pub struct ContractsConfig {
     pub l1_erc20_bridge_proxy_addr: Address,
     pub l1_erc20_bridge_impl_addr: Address,
     pub l2_erc20_bridge_addr: Address,
+    pub l1_weth_bridge_proxy_addr: Option<Address>,
+    pub l2_weth_bridge_addr: Option<Address>,
     pub l1_allow_list_addr: Address,
     pub l2_testnet_paymaster_addr: Option<Address>,
 }
 
 impl ContractsConfig {
     pub fn from_env() -> Self {
-        envy_load!("contracts", "CONTRACTS_")
+        envy_load("contracts", "CONTRACTS_")
     }
 }
 
@@ -56,6 +58,8 @@ mod tests {
             l1_erc20_bridge_impl_addr: addr("8656770FA78c830456B00B4fFCeE6b1De0e1b888"),
             l2_erc20_bridge_addr: addr("8656770FA78c830456B00B4fFCeE6b1De0e1b888"),
             l1_allow_list_addr: addr("8656770FA78c830456B00B4fFCeE6b1De0e1b888"),
+            l1_weth_bridge_proxy_addr: Some(addr("8656770FA78c830456B00B4fFCeE6b1De0e1b888")),
+            l2_weth_bridge_addr: Some(addr("8656770FA78c830456B00B4fFCeE6b1De0e1b888")),
             l2_testnet_paymaster_addr: Some(addr("FC073319977e314F251EAE6ae6bE76B0B3BAeeCF")),
         }
     }
@@ -78,6 +82,8 @@ CONTRACTS_L1_ERC20_BRIDGE_PROXY_ADDR="0x8656770FA78c830456B00B4fFCeE6b1De0e1b888
 CONTRACTS_L1_ALLOW_LIST_ADDR="0x8656770FA78c830456B00B4fFCeE6b1De0e1b888"
 CONTRACTS_L1_ERC20_BRIDGE_IMPL_ADDR="0x8656770FA78c830456B00B4fFCeE6b1De0e1b888"
 CONTRACTS_L2_ERC20_BRIDGE_ADDR="0x8656770FA78c830456B00B4fFCeE6b1De0e1b888"
+CONTRACTS_L1_WETH_BRIDGE_PROXY_ADDR="0x8656770FA78c830456B00B4fFCeE6b1De0e1b888"
+CONTRACTS_L2_WETH_BRIDGE_ADDR="0x8656770FA78c830456B00B4fFCeE6b1De0e1b888"
 CONTRACTS_L2_TESTNET_PAYMASTER_ADDR="FC073319977e314F251EAE6ae6bE76B0B3BAeeCF"
         "#;
         set_env(config);

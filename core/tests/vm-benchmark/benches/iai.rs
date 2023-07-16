@@ -28,4 +28,5 @@ make_functions_and_main!(
     deploy_simple_contract,
     finish_eventful_frames,
     write_and_decode,
+    event_spam,
 );

@@ -11,7 +11,7 @@ pub enum StorageLogKind {
     Write,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct StorageLog {
     pub kind: StorageLogKind,
     pub key: StorageKey,

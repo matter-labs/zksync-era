@@ -2,23 +2,26 @@ use std::env;
 use std::sync::{Arc, Mutex};
 
 use api::gpu_prover;
-use futures::future;
 use local_ip_address::local_ip;
 use prover_service::run_prover::run_prover_with_remote_synthesizer;
 use queues::Buffer;
 use tokio::{sync::oneshot, task::JoinHandle};
 
 use zksync_circuit_breaker::{vks::VksChecker, CircuitBreakerChecker};
-use zksync_config::configs::prover_group::ProverGroupConfig;
 use zksync_config::{
-    configs::api::Prometheus as PrometheusConfig, ApiConfig, ProverConfig, ProverConfigs,
-    ZkSyncConfig,
+    configs::chain::CircuitBreakerConfig,
+    configs::{api::PrometheusConfig, prover_group::ProverGroupConfig, AlertsConfig},
+    ApiConfig, ContractsConfig, ETHClientConfig, ProverConfig, ProverConfigs,
 };
-use zksync_dal::gpu_prover_queue_dal::{GpuProverInstanceStatus, SocketAddress};
-use zksync_dal::ConnectionPool;
-use zksync_eth_client::clients::http::PKSigningClient;
+use zksync_dal::{
+    connection::DbVariant,
+    gpu_prover_queue_dal::{GpuProverInstanceStatus, SocketAddress},
+    ConnectionPool,
+};
+use zksync_eth_client::clients::http::QueryClient;
 use zksync_object_store::ObjectStoreFactory;
 use zksync_prover_utils::region_fetcher::{get_region, get_zone};
+use zksync_utils::wait_for_tasks::wait_for_tasks;
 
 use crate::artifact_provider::ProverArtifactProvider;
 use crate::prover::ProverReporter;
@@ -32,33 +35,19 @@ mod prover_params;
 mod socket_listener;
 mod synthesized_circuit_provider;
 
-pub async fn wait_for_tasks(task_futures: Vec<JoinHandle<()>>) {
-    match future::select_all(task_futures).await.0 {
-        Ok(_) => {
-            graceful_shutdown().await;
-            vlog::info!("One of the actors finished its run, while it wasn't expected to do it");
-        }
-        Err(error) => {
-            graceful_shutdown().await;
-            vlog::info!(
-                "One of the tokio actors unexpectedly finished with error: {:?}",
-                error
-            );
-        }
-    }
-}
-
 async fn graceful_shutdown() {
-    let pool = ConnectionPool::new(Some(1), true);
+    let pool = ConnectionPool::new(Some(1), DbVariant::Prover).await;
     let host = local_ip().expect("Failed obtaining local IP address");
     let port = ProverConfigs::from_env().non_gpu.assembly_receiver_port;
     let region = get_region().await;
     let zone = get_zone().await;
     let address = SocketAddress { host, port };
     pool.clone()
-        .access_storage_blocking()
+        .access_storage()
+        .await
         .gpu_prover_queue_dal()
-        .update_prover_instance_status(address, GpuProverInstanceStatus::Dead, 0, region, zone);
+        .update_prover_instance_status(address, GpuProverInstanceStatus::Dead, 0, region, zone)
+        .await;
 }
 
 fn get_ram_per_gpu() -> u64 {
@@ -104,21 +93,15 @@ fn get_prover_config_for_machine_type() -> (ProverConfig, u8) {
 
 #[tokio::main]
 async fn main() {
-    let sentry_guard = vlog::init();
-    let config = ZkSyncConfig::from_env();
+    vlog::init();
+    vlog::trace!("starting prover");
     let (prover_config, num_gpu) = get_prover_config_for_machine_type();
+
     let prometheus_config = PrometheusConfig {
         listener_port: prover_config.prometheus_port,
         ..ApiConfig::from_env().prometheus
     };
 
-    match sentry_guard {
-        Some(_) => vlog::info!(
-            "Starting Sentry url: {}",
-            std::env::var("MISC_SENTRY_URL").unwrap(),
-        ),
-        None => vlog::info!("No sentry url configured"),
-    }
     let region = get_region().await;
     let zone = get_zone().await;
 
@@ -136,19 +119,24 @@ async fn main() {
         &prover_config.key_download_url,
     );
     env::set_var("CRS_FILE", prover_config.initial_setup_key_path.clone());
-
-    let eth_client = PKSigningClient::from_config(&config);
+    vlog::trace!("initial setup keys loaded, preparing eth_client + circuit breaker");
+    let eth_client_config = ETHClientConfig::from_env();
+    let circuit_breaker_config = CircuitBreakerConfig::from_env();
+    let eth_client = QueryClient::new(&eth_client_config.web3_url).unwrap();
+    let contracts_config = ContractsConfig::from_env();
     let circuit_breaker_checker = CircuitBreakerChecker::new(
         vec![Box::new(VksChecker::new(
-            &config.chain.circuit_breaker,
+            &circuit_breaker_config,
             eth_client,
+            contracts_config.diamond_proxy_addr,
         ))],
-        &config.chain.circuit_breaker,
+        &circuit_breaker_config,
     );
     circuit_breaker_checker
         .check()
         .await
         .expect("Circuit breaker triggered");
+
     let (cb_sender, cb_receiver) = futures::channel::oneshot::channel();
     // We don't have a graceful shutdown process for the prover, so `_stop_sender` is unused.
     // Though we still need to create a channel because circuit breaker expects `stop_receiver`.
@@ -165,8 +153,8 @@ async fn main() {
     let mut tasks: Vec<JoinHandle<()>> = vec![];
 
     tasks.push(prometheus_exporter::run_prometheus_exporter(
-        prometheus_config,
-        true,
+        prometheus_config.listener_port,
+        None,
     ));
     tasks.push(tokio::spawn(
         circuit_breaker_checker.run(cb_sender, stop_receiver),
@@ -181,31 +169,34 @@ async fn main() {
         host: local_ip,
         port: prover_config.assembly_receiver_port,
     };
-    let synthesized_circuit_provider = SynthesizedCircuitProvider::new(
-        consumer,
-        ConnectionPool::new(Some(1), true),
-        address,
-        region.clone(),
-        zone.clone(),
-    );
     vlog::info!("local IP address is: {:?}", local_ip);
 
     tasks.push(tokio::task::spawn(incoming_socket_listener(
         local_ip,
         prover_config.assembly_receiver_port,
         producer,
-        ConnectionPool::new(Some(1), true),
+        ConnectionPool::new(Some(1), DbVariant::Prover).await,
         prover_config.specialized_prover_group_id,
-        region,
-        zone,
+        region.clone(),
+        zone.clone(),
         num_gpu,
     )));
 
     let params = ProverParams::new(&prover_config);
     let store_factory = ObjectStoreFactory::from_env();
-    let prover_job_reporter = ProverReporter::new(prover_config, &store_factory);
 
+    let circuit_provider_pool = ConnectionPool::new(Some(1), DbVariant::Prover).await;
     tasks.push(tokio::task::spawn_blocking(move || {
+        let rt_handle = tokio::runtime::Handle::current();
+        let synthesized_circuit_provider = SynthesizedCircuitProvider::new(
+            consumer,
+            circuit_provider_pool,
+            address,
+            region,
+            zone,
+            rt_handle.clone(),
+        );
+        let prover_job_reporter = ProverReporter::new(prover_config, &store_factory, rt_handle);
         run_prover_with_remote_synthesizer(
             synthesized_circuit_provider,
             ProverArtifactProvider,
@@ -215,15 +206,29 @@ async fn main() {
         )
     }));
 
+    let particular_crypto_alerts = Some(AlertsConfig::from_env().sporadic_crypto_errors_substrs);
+    let graceful_shutdown = Some(graceful_shutdown());
+    let tasks_allowed_to_finish = false;
     tokio::select! {
-        _ = wait_for_tasks(tasks) => {},
+        _ = wait_for_tasks(tasks, particular_crypto_alerts, graceful_shutdown, tasks_allowed_to_finish) => {},
         _ = stop_signal_receiver => {
             vlog::info!("Stop signal received, shutting down");
+
+            // BEWARE, HERE BE DRAGONS.
+            // This is necessary because of blocking prover. See end of functions for more details.
+            std::process::exit(0);
         },
         error = cb_receiver => {
             if let Ok(error_msg) = error {
                 vlog::warn!("Circuit breaker received, shutting down. Reason: {}", error_msg);
             }
         },
-    };
+    }
+
+    // BEWARE, HERE BE DRAGONS.
+    // The process hangs here if we panic outside `run_prover_with_remote_synthesizer`.
+    // Given the task is spawned as blocking, it's in a different thread that can't be cancelled on demand.
+    // See: https://docs.rs/tokio/latest/tokio/task/fn.spawn_blocking.html for more information
+    // Follow [PR](https://github.com/matter-labs/zksync-2-dev/pull/2129) for logic behind it
+    std::process::exit(-1);
 }

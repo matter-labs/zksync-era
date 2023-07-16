@@ -1,10 +1,12 @@
+use std::mem;
+
 use vm::{vm::VmTxExecutionResult, vm_with_bootloader::BlockContextMode};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_types::{
     block::BlockGasCount,
     storage_writes_deduplicator::StorageWritesDeduplicator,
     tx::tx_execution_info::{ExecutionMetrics, VmExecutionLogs},
-    Transaction,
+    Address, L1BatchNumber, MiniblockNumber, Transaction,
 };
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
@@ -66,13 +68,28 @@ impl UpdatesManager {
         self.fair_l2_gas_price
     }
 
-    pub(crate) fn base_fee_per_gas(&self) -> u64 {
-        self.base_fee_per_gas
+    pub(crate) fn seal_miniblock_command(
+        &self,
+        l1_batch_number: L1BatchNumber,
+        miniblock_number: MiniblockNumber,
+        l2_erc20_bridge_addr: Address,
+    ) -> MiniblockSealCommand {
+        MiniblockSealCommand {
+            l1_batch_number,
+            miniblock_number,
+            miniblock: self.miniblock.clone(),
+            first_tx_index: self.l1_batch.executed_transactions.len(),
+            l1_gas_price: self.l1_gas_price,
+            fair_l2_gas_price: self.fair_l2_gas_price,
+            base_fee_per_gas: self.base_fee_per_gas,
+            base_system_contracts_hashes: self.base_system_contract_hashes,
+            l2_erc20_bridge_addr,
+        }
     }
 
     pub(crate) fn extend_from_executed_transaction(
         &mut self,
-        tx: &Transaction,
+        tx: Transaction,
         tx_execution_result: VmTxExecutionResult,
         compressed_bytecodes: Vec<CompressedBytecodeInfo>,
         tx_l1_gas_this_tx: BlockGasCount,
@@ -96,9 +113,11 @@ impl UpdatesManager {
             .extend_from_fictive_transaction(vm_execution_logs);
     }
 
-    pub(crate) fn seal_miniblock(&mut self, new_miniblock_timestamp: u64) {
+    /// Pushes a new miniblock with the specified timestamp into this manager. The previously
+    /// held miniblock is considered sealed and is used to extend the L1 batch data.
+    pub(crate) fn push_miniblock(&mut self, new_miniblock_timestamp: u64) {
         let new_miniblock_updates = MiniblockUpdates::new(new_miniblock_timestamp);
-        let old_miniblock_updates = std::mem::replace(&mut self.miniblock, new_miniblock_updates);
+        let old_miniblock_updates = mem::replace(&mut self.miniblock, new_miniblock_updates);
 
         self.l1_batch
             .extend_from_sealed_miniblock(old_miniblock_updates);
@@ -119,77 +138,46 @@ impl UpdatesManager {
     pub(crate) fn pending_txs_encoding_size(&self) -> usize {
         self.l1_batch.txs_encoding_size + self.miniblock.txs_encoding_size
     }
+}
 
-    pub(crate) fn get_tx_by_index(&self, index: usize) -> &Transaction {
-        if index < self.l1_batch.executed_transactions.len() {
-            &self.l1_batch.executed_transactions[index].transaction
-        } else if index < self.pending_executed_transactions_len() {
-            &self.miniblock.executed_transactions[index - self.l1_batch.executed_transactions.len()]
-                .transaction
-        } else {
-            panic!("Incorrect index provided");
-        }
-    }
+/// Command to seal a miniblock containing all necessary data for it.
+#[derive(Debug)]
+pub(crate) struct MiniblockSealCommand {
+    pub l1_batch_number: L1BatchNumber,
+    pub miniblock_number: MiniblockNumber,
+    pub miniblock: MiniblockUpdates,
+    pub first_tx_index: usize,
+    pub l1_gas_price: u64,
+    pub fair_l2_gas_price: u64,
+    pub base_fee_per_gas: u64,
+    pub base_system_contracts_hashes: BaseSystemContractsHashes,
+    pub l2_erc20_bridge_addr: Address,
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::gas_tracker::new_block_gas_count;
-    use vm::vm::VmPartialExecutionResult;
-    use vm::vm_with_bootloader::{BlockContext, DerivedBlockContext};
-    use zksync_types::tx::tx_execution_info::{TxExecutionStatus, VmExecutionLogs};
-    use zksync_types::{l2::L2Tx, Address, Nonce, H256, U256};
+    use crate::{
+        gas_tracker::new_block_gas_count,
+        state_keeper::tests::{
+            create_execution_result, create_transaction, create_updates_manager,
+        },
+    };
 
     #[test]
     fn apply_miniblock() {
         // Init accumulators.
-        let block_context = BlockContextMode::NewBlock(
-            DerivedBlockContext {
-                context: BlockContext {
-                    block_number: 0,
-                    block_timestamp: 0,
-                    l1_gas_price: 0,
-                    fair_l2_gas_price: 0,
-                    operator_address: Default::default(),
-                },
-                base_fee: 0,
-            },
-            0.into(),
-        );
-        let mut updates_manager = UpdatesManager::new(&block_context, Default::default());
+        let mut updates_manager = create_updates_manager();
         assert_eq!(updates_manager.pending_executed_transactions_len(), 0);
 
         // Apply tx.
-        let mut tx = L2Tx::new(
-            Default::default(),
-            Default::default(),
-            Nonce(0),
-            Default::default(),
-            Address::default(),
-            U256::zero(),
-            None,
-            Default::default(),
-        );
-        tx.set_input(H256::random().0.to_vec(), H256::random());
+        let tx = create_transaction(10, 100);
         updates_manager.extend_from_executed_transaction(
-            &tx.into(),
-            VmTxExecutionResult {
-                status: TxExecutionStatus::Success,
-                result: VmPartialExecutionResult {
-                    logs: VmExecutionLogs::default(),
-                    revert_reason: None,
-                    contracts_used: 0,
-                    cycles_used: 0,
-                    computational_gas_used: 0,
-                },
-                call_traces: vec![],
-                gas_refunded: 0,
-                operator_suggested_refund: 0,
-            },
+            tx,
+            create_execution_result(0, []),
             vec![],
             new_block_gas_count(),
-            Default::default(),
+            ExecutionMetrics::default(),
         );
 
         // Check that only pending state is updated.
@@ -198,7 +186,7 @@ mod tests {
         assert_eq!(updates_manager.l1_batch.executed_transactions.len(), 0);
 
         // Seal miniblock.
-        updates_manager.seal_miniblock(2);
+        updates_manager.push_miniblock(2);
 
         // Check that L1 batch updates are the same with the pending state
         // and miniblock updates are empty.

@@ -17,23 +17,17 @@ pub struct TimeHistogram {
 
 impl Default for TimeHistogram {
     fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl TimeHistogram {
-    pub fn new() -> Self {
         // Ranges from the 0 to 1000 ms with windows of 100 ms.
         let sub_sec_ranges = (0..10).map(|window_idx| Self::window(window_idx, 100));
         // Ranges from 1 second to 20 seconds with windows of 1 second.
         let sec_ranges = (1..20).map(|window_idx| Self::window(window_idx, 1000));
         // Range for (20 sec; MAX).
-        let rest_range = std::iter::once((20_000u64, u64::max_value()));
+        let rest_range = [(20_000u64, u64::MAX)];
 
         let ranges: Vec<_> = sub_sec_ranges.chain(sec_ranges).chain(rest_range).collect();
         let mut histogram = BTreeMap::new();
 
-        for &(start, _) in ranges.iter() {
+        for &(start, _) in &ranges {
             histogram.insert(start, 0);
         }
 
@@ -43,7 +37,9 @@ impl TimeHistogram {
             total: 0,
         }
     }
+}
 
+impl TimeHistogram {
     pub fn add_metric(&mut self, time: Duration) {
         let range = self.range_for(time);
 
@@ -62,7 +58,7 @@ impl TimeHistogram {
         debug_assert!(lower_gap <= self.total);
 
         let mut amount = 0;
-        for (range_start, current_amount) in self.histogram.iter() {
+        for (range_start, current_amount) in &self.histogram {
             amount += current_amount;
 
             if amount >= lower_gap {
@@ -117,20 +113,16 @@ pub struct MetricsCollector {
 
 impl Default for MetricsCollector {
     fn default() -> Self {
-        Self::new()
+        Self {
+            action_stats: ActionType::all()
+                .into_iter()
+                .map(|action| (action, TimeHistogram::default()))
+                .collect(),
+        }
     }
 }
 
 impl MetricsCollector {
-    pub fn new() -> Self {
-        Self {
-            action_stats: ActionType::all()
-                .into_iter()
-                .map(|action| (action, TimeHistogram::new()))
-                .collect(),
-        }
-    }
-
     pub fn add_metric(&mut self, action: ActionType, time: Duration) {
         self.action_stats
             .entry(action)
@@ -139,12 +131,11 @@ impl MetricsCollector {
 
     pub fn report(&self) {
         vlog::info!("Action: [10 percentile, 50 percentile, 90 percentile]");
-        for (action, histogram) in self.action_stats.iter() {
+        for (action, histogram) in &self.action_stats {
             // Only report data that was actually gathered.
             if !histogram.is_empty() {
                 vlog::info!(
-                    "{:?}: [>{}ms >{}ms >{}ms]",
-                    action,
+                    "{action:?}: [>{}ms >{}ms >{}ms]",
                     histogram.percentile(10).0.as_millis(),
                     histogram.percentile(50).0.as_millis(),
                     histogram.percentile(90).0.as_millis(),
@@ -167,7 +158,7 @@ mod tests {
             ((2, 1000), (2000, 2999)),
         ];
 
-        for &((window_idx, window_size), expected_result) in test_vector.iter() {
+        for ((window_idx, window_size), expected_result) in test_vector {
             assert_eq!(
                 TimeHistogram::window(window_idx, window_size),
                 expected_result
@@ -178,10 +169,10 @@ mod tests {
     /// Checks that the whole diapason of u64 is covered by histogram windows.
     #[test]
     fn histogram_ranges() {
-        let histogram = TimeHistogram::new();
+        let histogram = TimeHistogram::default();
         // Check that we start at 0 and end at max.
         assert_eq!(histogram.ranges[0].0, 0);
-        assert_eq!(histogram.ranges.last().unwrap().1, u64::max_value());
+        assert_eq!(histogram.ranges.last().unwrap().1, u64::MAX);
 
         // Check that we go through all the range without gaps.
         for idx in 0..(histogram.ranges.len() - 1) {
@@ -191,7 +182,7 @@ mod tests {
 
     #[test]
     fn histogram_item_addition() {
-        let mut histogram = TimeHistogram::new();
+        let mut histogram = TimeHistogram::default();
 
         let (first_range_start, first_range_end) = histogram.ranges[0];
         let (second_range_start, _) = histogram.ranges[1];
@@ -209,7 +200,7 @@ mod tests {
 
     #[test]
     fn histogram_percentile() {
-        let mut histogram = TimeHistogram::new();
+        let mut histogram = TimeHistogram::default();
         let first_range = (
             Duration::from_millis(histogram.ranges[0].0),
             Duration::from_millis(histogram.ranges[0].1),

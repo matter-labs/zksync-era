@@ -1,6 +1,6 @@
-use std::time::Instant;
-
 use itertools::Itertools;
+
+use std::time::Instant;
 
 use zksync_types::{
     api::{
@@ -14,25 +14,11 @@ use zksync_types::{
     AccountTreeId, Bytes, MiniblockNumber, StorageKey, H256, L2_ETH_TOKEN_ADDRESS,
     MAX_GAS_PER_PUBDATA_BYTE, U256,
 };
-
+use zksync_utils::u256_to_h256;
 use zksync_web3_decl::{
     error::Web3Error,
     types::{Address, Block, Filter, FilterChanges, Log, TypedFilter, U64},
 };
-
-use crate::{
-    api_server::{
-        execution_sandbox::execute_tx_eth_call, web3::backend_jsonrpc::error::internal_error,
-        web3::state::RpcState,
-    },
-    l1_gas_price::L1GasPriceProvider,
-};
-
-use zksync_utils::u256_to_h256;
-
-#[cfg(feature = "openzeppelin_tests")]
-use zksync_utils::bytecode::hash_bytecode;
-
 #[cfg(feature = "openzeppelin_tests")]
 use {
     zksync_eth_signer::EthereumSigner,
@@ -41,14 +27,31 @@ use {
         transaction_request::Eip712Meta, web3::contract::tokens::Tokenizable, Eip712Domain,
         EIP_712_TX_TYPE,
     },
+    zksync_utils::bytecode::hash_bytecode,
+};
+
+use crate::{
+    api_server::{
+        execution_sandbox::BlockArgs,
+        web3::{backend_jsonrpc::error::internal_error, resolve_block, state::RpcState},
+    },
+    l1_gas_price::L1GasPriceProvider,
 };
 
 pub const EVENT_TOPIC_NUMBER_LIMIT: usize = 4;
 pub const PROTOCOL_VERSION: &str = "zks/1";
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct EthNamespace<G> {
-    pub state: RpcState<G>,
+    state: RpcState<G>,
+}
+
+impl<G> Clone for EthNamespace<G> {
+    fn clone(&self) -> Self {
+        Self {
+            state: self.state.clone(),
+        }
+    }
 }
 
 impl<G: L1GasPriceProvider> EthNamespace<G> {
@@ -57,25 +60,27 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
     }
 
     #[tracing::instrument(skip(self))]
-    pub fn get_block_number_impl(&self) -> Result<U64, Web3Error> {
-        let start = Instant::now();
-        let endpoint_name = "get_block_number";
+    pub async fn get_block_number_impl(&self) -> Result<U64, Web3Error> {
+        const METHOD_NAME: &str = "get_block_number";
 
+        let start = Instant::now();
         let block_number = self
             .state
             .connection_pool
-            .access_storage_blocking()
+            .access_storage_tagged("api")
+            .await
             .blocks_web3_dal()
             .get_sealed_miniblock_number()
+            .await
             .map(|n| U64::from(n.0))
-            .map_err(|err| internal_error(endpoint_name, err));
+            .map_err(|err| internal_error(METHOD_NAME, err));
 
-        metrics::histogram!("api.web3.call", start.elapsed(), "method" => endpoint_name);
+        metrics::histogram!("api.web3.call", start.elapsed(), "method" => METHOD_NAME);
         block_number
     }
 
     #[tracing::instrument(skip(self, request, block))]
-    pub fn call_impl(
+    pub async fn call_impl(
         &self,
         request: CallRequest,
         block: Option<BlockId>,
@@ -83,14 +88,24 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
         let start = Instant::now();
 
         let block = block.unwrap_or(BlockId::Number(BlockNumber::Pending));
+        let mut connection = self
+            .state
+            .connection_pool
+            .access_storage_tagged("api")
+            .await;
+        let block_args = BlockArgs::new(&mut connection, block)
+            .await
+            .map_err(|err| internal_error("eth_call", err))?
+            .ok_or(Web3Error::NoBlock)?;
+        drop(connection);
 
         let mut request_with_set_nonce = request.clone();
         self.state
-            .set_nonce_for_call_request(&mut request_with_set_nonce)?;
+            .set_nonce_for_call_request(&mut request_with_set_nonce)
+            .await?;
 
         #[cfg(not(feature = "openzeppelin_tests"))]
         let tx = l2_tx_from_call_req(request, self.state.api_config.max_tx_size)?;
-
         #[cfg(feature = "openzeppelin_tests")]
         let tx: L2Tx = self
             .convert_evm_like_deploy_requests(tx_req_from_call_req(
@@ -99,38 +114,9 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
             )?)?
             .try_into()?;
 
-        let enforced_base_fee = Some(tx.common_data.fee.max_fee_per_gas.as_u64());
-        let result = execute_tx_eth_call(
-            &self.state.connection_pool,
-            tx,
-            block,
-            self.state
-                .tx_sender
-                .0
-                .l1_gas_price_source
-                .estimate_effective_gas_price(),
-            self.state.tx_sender.0.sender_config.fair_l2_gas_price,
-            enforced_base_fee,
-            &self.state.tx_sender.0.playground_base_system_contracts,
-            self.state
-                .tx_sender
-                .0
-                .sender_config
-                .vm_execution_cache_misses_limit,
-            false,
-        )?;
-
-        let mut res_bytes = match result.revert_reason {
-            Some(result) => result.original_data,
-            None => result
-                .return_data
-                .into_iter()
-                .flat_map(|val| {
-                    let bytes: [u8; 32] = val.into();
-                    bytes.to_vec()
-                })
-                .collect::<Vec<_>>(),
-        };
+        let call_result = self.state.tx_sender.eth_call(block_args, tx).await;
+        let mut res_bytes = call_result
+            .map_err(|err| Web3Error::SubmitTransactionError(err.to_string(), err.data()))?;
 
         if cfg!(feature = "openzeppelin_tests")
             && res_bytes.len() >= 100
@@ -144,7 +130,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
     }
 
     #[tracing::instrument(skip(self, request, _block))]
-    pub fn estimate_gas_impl(
+    pub async fn estimate_gas_impl(
         &self,
         request: CallRequest,
         _block: Option<BlockNumber>,
@@ -153,7 +139,8 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
         let mut request_with_gas_per_pubdata_overridden = request;
 
         self.state
-            .set_nonce_for_call_request(&mut request_with_gas_per_pubdata_overridden)?;
+            .set_nonce_for_call_request(&mut request_with_gas_per_pubdata_overridden)
+            .await?;
 
         if let Some(ref mut eip712_meta) = request_with_gas_per_pubdata_overridden.eip712_meta {
             if eip712_meta.gas_per_pubdata == U256::zero() {
@@ -200,6 +187,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
             .state
             .tx_sender
             .get_txs_fee_in_wei(tx.into(), scale_factor, acceptable_overestimation)
+            .await
             .map_err(|err| Web3Error::SubmitTransactionError(err.to_string(), err.data()))?;
 
         metrics::histogram!("api.web3.call", start.elapsed(), "method" => "estimate_gas");
@@ -208,49 +196,54 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
 
     #[tracing::instrument(skip(self))]
     pub fn gas_price_impl(&self) -> Result<U256, Web3Error> {
+        const METHOD_NAME: &str = "gas_price";
+
         let start = Instant::now();
-        let endpoint_name = "gas_price";
-
         let price = self.state.tx_sender.gas_price();
-
-        metrics::histogram!("api.web3.call", start.elapsed(), "method" => endpoint_name);
+        metrics::histogram!("api.web3.call", start.elapsed(), "method" => METHOD_NAME);
         Ok(price.into())
     }
 
     #[tracing::instrument(skip(self))]
-    pub fn get_balance_impl(
+    pub async fn get_balance_impl(
         &self,
         address: Address,
         block: Option<BlockId>,
     ) -> Result<U256, Web3Error> {
-        let start = Instant::now();
-        let endpoint_name = "get_balance";
+        const METHOD_NAME: &str = "get_balance";
 
-        let block = block.unwrap_or(BlockId::Number(BlockNumber::Pending));
-        let balance = self
+        let start = Instant::now();
+        let mut connection = self
             .state
             .connection_pool
-            .access_storage_blocking()
+            .access_storage_tagged("api")
+            .await;
+        let block = block.unwrap_or(BlockId::Number(BlockNumber::Pending));
+        let block_number = resolve_block(&mut connection, block, METHOD_NAME).await?;
+        let balance = connection
             .storage_web3_dal()
             .standard_token_historical_balance(
                 AccountTreeId::new(L2_ETH_TOKEN_ADDRESS),
                 AccountTreeId::new(address),
-                block,
+                block_number,
             )
-            .map_err(|err| internal_error(endpoint_name, err))?;
-        metrics::histogram!("api.web3.call", start.elapsed(), "method" => endpoint_name);
-        balance
+            .await
+            .map_err(|err| internal_error(METHOD_NAME, err))?;
+        metrics::histogram!("api.web3.call", start.elapsed(), "method" => METHOD_NAME);
+        Ok(balance)
     }
 
     #[tracing::instrument(skip(self, filter))]
-    pub fn get_logs_impl(&self, mut filter: Filter) -> Result<Vec<Log>, Web3Error> {
+    pub async fn get_logs_impl(&self, mut filter: Filter) -> Result<Vec<Log>, Web3Error> {
         let start = Instant::now();
 
-        let (from_block, to_block) = self.state.resolve_filter_block_range(&filter)?;
+        self.state.resolve_filter_block_hash(&mut filter).await?;
+        let (from_block, to_block) = self.state.resolve_filter_block_range(&filter).await?;
 
         filter.to_block = Some(BlockNumber::Number(to_block.0.into()));
         let changes = self
-            .filter_changes(TypedFilter::Events(filter, from_block))?
+            .filter_changes(TypedFilter::Events(filter, from_block))
+            .await?
             .0;
 
         metrics::histogram!("api.web3.call", start.elapsed(), "method" => "get_logs");
@@ -260,39 +253,39 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
         })
     }
 
-    #[tracing::instrument(skip(self))]
-    pub fn get_filter_logs_impl(&self, idx: U256) -> Result<FilterChanges, Web3Error> {
+    // #[tracing::instrument(skip(self))]
+    pub async fn get_filter_logs_impl(&self, idx: U256) -> Result<FilterChanges, Web3Error> {
         let start = Instant::now();
 
-        let filter = match self
-            .state
-            .installed_filters
-            .read()
-            .unwrap()
-            .get(idx)
-            .cloned()
-        {
+        // Note: We have to keep this as a separate variable, since otherwise the lock guard would exist
+        // for duration of the whole `match` block, and this guard is not `Send`. This would make the whole future
+        // not `Send`, since `match` has an `await` point.
+        let maybe_filter = self.state.installed_filters.read().await.get(idx).cloned();
+        let filter = match maybe_filter {
             Some(TypedFilter::Events(filter, _)) => {
-                let from_block = self.state.resolve_filter_block_number(filter.from_block)?;
+                let from_block = self
+                    .state
+                    .resolve_filter_block_number(filter.from_block)
+                    .await?;
                 TypedFilter::Events(filter, from_block)
             }
             _ => return Err(Web3Error::FilterNotFound),
         };
 
-        let logs = self.filter_changes(filter)?.0;
+        let logs = self.filter_changes(filter).await?.0;
 
         metrics::histogram!("api.web3.call", start.elapsed(), "method" => "get_filter_logs");
         Ok(logs)
     }
 
     #[tracing::instrument(skip(self))]
-    pub fn get_block_impl(
+    pub async fn get_block_impl(
         &self,
         block: BlockId,
         full_transactions: bool,
     ) -> Result<Option<Block<TransactionVariant>>, Web3Error> {
         let start = Instant::now();
-        let endpoint_name = if full_transactions {
+        let method_name = if full_transactions {
             "get_block_with_txs"
         } else {
             "get_block"
@@ -301,57 +294,63 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
         let block = self
             .state
             .connection_pool
-            .access_storage_blocking()
+            .access_storage_tagged("api")
+            .await
             .blocks_web3_dal()
             .get_block_by_web3_block_id(block, full_transactions, self.state.api_config.l2_chain_id)
-            .map_err(|err| internal_error(endpoint_name, err));
+            .await
+            .map_err(|err| internal_error(method_name, err));
 
-        metrics::histogram!("api.web3.call", start.elapsed(), "method" => endpoint_name);
-
+        metrics::histogram!("api.web3.call", start.elapsed(), "method" => method_name);
         block
     }
 
     #[tracing::instrument(skip(self))]
-    pub fn get_block_transaction_count_impl(
+    pub async fn get_block_transaction_count_impl(
         &self,
         block: BlockId,
     ) -> Result<Option<U256>, Web3Error> {
-        let start = Instant::now();
-        let endpoint_name = "get_block_transaction_count";
+        const METHOD_NAME: &str = "get_block_transaction_count";
 
+        let start = Instant::now();
         let tx_count = self
             .state
             .connection_pool
-            .access_storage_blocking()
+            .access_storage_tagged("api")
+            .await
             .blocks_web3_dal()
             .get_block_tx_count(block)
-            .map_err(|err| internal_error(endpoint_name, err));
+            .await
+            .map_err(|err| internal_error(METHOD_NAME, err));
 
-        metrics::histogram!("api.web3.call", start.elapsed(), "method" => endpoint_name);
+        metrics::histogram!("api.web3.call", start.elapsed(), "method" => METHOD_NAME);
         tx_count
     }
 
     #[tracing::instrument(skip(self))]
-    pub fn get_code_impl(
+    pub async fn get_code_impl(
         &self,
         address: Address,
         block: Option<BlockId>,
     ) -> Result<Bytes, Web3Error> {
+        const METHOD_NAME: &str = "get_code";
+
         let start = Instant::now();
-        let endpoint_name = "get_code";
-
-        let block = block.unwrap_or(BlockId::Number(BlockNumber::Pending));
-
-        let contract_code = self
+        let mut connection = self
             .state
             .connection_pool
-            .access_storage_blocking()
+            .access_storage_tagged("api")
+            .await;
+        let block = block.unwrap_or(BlockId::Number(BlockNumber::Pending));
+        let block_number = resolve_block(&mut connection, block, METHOD_NAME).await?;
+        let contract_code = connection
             .storage_web3_dal()
-            .get_contract_code(address, block)
-            .map_err(|err| internal_error(endpoint_name, err))?;
+            .get_contract_code_unchecked(address, block_number)
+            .await
+            .map_err(|err| internal_error(METHOD_NAME, err))?;
 
-        metrics::histogram!("api.web3.call", start.elapsed(), "method" => endpoint_name);
-        contract_code.map(|code| code.unwrap_or_default().into())
+        metrics::histogram!("api.web3.call", start.elapsed(), "method" => METHOD_NAME);
+        Ok(contract_code.unwrap_or_default().into())
     }
 
     #[tracing::instrument(skip(self))]
@@ -360,34 +359,36 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
     }
 
     #[tracing::instrument(skip(self))]
-    pub fn get_storage_at_impl(
+    pub async fn get_storage_at_impl(
         &self,
         address: Address,
         idx: U256,
         block: Option<BlockId>,
     ) -> Result<H256, Web3Error> {
-        let start = Instant::now();
-        let endpoint_name = "get_storage_at";
+        const METHOD_NAME: &str = "get_storage_at";
 
+        let start = Instant::now();
         let block = block.unwrap_or(BlockId::Number(BlockNumber::Pending));
-        let value = self
+        let storage_key = StorageKey::new(AccountTreeId::new(address), u256_to_h256(idx));
+        let mut connection = self
             .state
             .connection_pool
-            .access_storage_blocking()
+            .access_storage_tagged("api")
+            .await;
+        let block_number = resolve_block(&mut connection, block, METHOD_NAME).await?;
+        let value = connection
             .storage_web3_dal()
-            .get_historical_value(
-                &StorageKey::new(AccountTreeId::new(address), u256_to_h256(idx)),
-                block,
-            )
-            .map_err(|err| internal_error(endpoint_name, err))?;
+            .get_historical_value_unchecked(&storage_key, block_number)
+            .await
+            .map_err(|err| internal_error(METHOD_NAME, err))?;
 
-        metrics::histogram!("api.web3.call", start.elapsed(), "method" => endpoint_name);
-        value
+        metrics::histogram!("api.web3.call", start.elapsed(), "method" => METHOD_NAME);
+        Ok(value)
     }
 
     /// Account nonce.
     #[tracing::instrument(skip(self))]
-    pub fn get_transaction_count_impl(
+    pub async fn get_transaction_count_impl(
         &self,
         address: Address,
         block: Option<BlockId>,
@@ -399,22 +400,26 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
             BlockId::Number(BlockNumber::Pending) => "get_pending_transaction_count",
             _ => "get_historical_transaction_count",
         };
+        let mut connection = self
+            .state
+            .connection_pool
+            .access_storage_tagged("api")
+            .await;
 
         let full_nonce = match block {
-            BlockId::Number(BlockNumber::Pending) => self
-                .state
-                .connection_pool
-                .access_storage_blocking()
+            BlockId::Number(BlockNumber::Pending) => connection
                 .transactions_web3_dal()
                 .next_nonce_by_initiator_account(address)
+                .await
                 .map_err(|err| internal_error(method_name, err)),
-            _ => self
-                .state
-                .connection_pool
-                .access_storage_blocking()
-                .storage_web3_dal()
-                .get_address_historical_nonce(address, block)
-                .map_err(|err| internal_error(method_name, err))?,
+            _ => {
+                let block_number = resolve_block(&mut connection, block, method_name).await?;
+                connection
+                    .storage_web3_dal()
+                    .get_address_historical_nonce(address, block_number)
+                    .await
+                    .map_err(|err| internal_error(method_name, err))
+            }
         };
 
         let account_nonce = full_nonce.map(|nonce| decompose_full_nonce(nonce).0);
@@ -424,31 +429,33 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
     }
 
     #[tracing::instrument(skip(self))]
-    pub fn get_transaction_impl(
+    pub async fn get_transaction_impl(
         &self,
         id: TransactionId,
     ) -> Result<Option<Transaction>, Web3Error> {
-        let start = Instant::now();
-        let endpoint_name = "get_transaction";
+        const METHOD_NAME: &str = "get_transaction";
 
+        let start = Instant::now();
         let mut transaction = self
             .state
             .connection_pool
-            .access_storage_blocking()
+            .access_storage_tagged("api")
+            .await
             .transactions_web3_dal()
             .get_transaction(id, self.state.api_config.l2_chain_id)
-            .map_err(|err| internal_error(endpoint_name, err));
+            .await
+            .map_err(|err| internal_error(METHOD_NAME, err));
 
         if let Some(proxy) = &self.state.tx_sender.0.proxy {
             // We're running an external node - check the proxy cache in
             // case the transaction was proxied but not yet synced back to us
             if let Ok(Some(tx)) = &transaction {
                 // If the transaction is already in the db, remove it from cache
-                proxy.forget_tx(tx.hash)
+                proxy.forget_tx(tx.hash).await
             } else {
                 if let TransactionId::Hash(hash) = id {
                     // If the transaction is not in the db, check the cache
-                    if let Some(tx) = proxy.find_tx(hash) {
+                    if let Some(tx) = proxy.find_tx(hash).await {
                         transaction = Ok(Some(tx.into()));
                     }
                 }
@@ -456,30 +463,33 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
                     // If the transaction is not in the db or cache, query main node
                     transaction = proxy
                         .request_tx(id)
-                        .map_err(|err| internal_error(endpoint_name, err));
+                        .await
+                        .map_err(|err| internal_error(METHOD_NAME, err));
                 }
             }
         }
 
-        metrics::histogram!("api.web3.call", start.elapsed(), "method" => endpoint_name);
+        metrics::histogram!("api.web3.call", start.elapsed(), "method" => METHOD_NAME);
         transaction
     }
 
     #[tracing::instrument(skip(self))]
-    pub fn get_transaction_receipt_impl(
+    pub async fn get_transaction_receipt_impl(
         &self,
         hash: H256,
     ) -> Result<Option<TransactionReceipt>, Web3Error> {
-        let start = Instant::now();
-        let endpoint_name = "get_transaction_receipt";
+        const METHOD_NAME: &str = "get_transaction_receipt";
 
+        let start = Instant::now();
         let mut receipt = self
             .state
             .connection_pool
-            .access_storage_blocking()
+            .access_storage_tagged("api")
+            .await
             .transactions_web3_dal()
             .get_transaction_receipt(hash)
-            .map_err(|err| internal_error(endpoint_name, err));
+            .await
+            .map_err(|err| internal_error(METHOD_NAME, err));
 
         if let Some(proxy) = &self.state.tx_sender.0.proxy {
             // We're running an external node
@@ -487,13 +497,14 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
                 // If the transaction is not in the db, query main node.
                 // Because it might be the case that it got rejected in state keeper
                 // and won't be synced back to us, but we still want to return a receipt.
-                // We want to only forwared these kinds of receipts because otherwise
+                // We want to only forward these kinds of receipts because otherwise
                 // clients will assume that the transaction they got the receipt for
                 // was already processed on the EN (when it was not),
                 // and will think that the state has already been updated on the EN (when it was not).
                 if let Ok(Some(main_node_receipt)) = proxy
                     .request_tx_receipt(hash)
-                    .map_err(|err| internal_error(endpoint_name, err))
+                    .await
+                    .map_err(|err| internal_error(METHOD_NAME, err))
                 {
                     if main_node_receipt.status == Some(0.into())
                         && main_node_receipt.block_number.is_none()
@@ -505,36 +516,38 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
             }
         }
 
-        metrics::histogram!("api.web3.call", start.elapsed(), "method" => endpoint_name);
+        metrics::histogram!("api.web3.call", start.elapsed(), "method" => METHOD_NAME);
         receipt
     }
 
     #[tracing::instrument(skip(self))]
-    pub fn new_block_filter_impl(&self) -> Result<U256, Web3Error> {
-        let start = Instant::now();
-        let endpoint_name = "new_block_filter";
+    pub async fn new_block_filter_impl(&self) -> Result<U256, Web3Error> {
+        const METHOD_NAME: &str = "new_block_filter";
 
+        let start = Instant::now();
         let last_block_number = self
             .state
             .connection_pool
-            .access_storage_blocking()
+            .access_storage_tagged("api")
+            .await
             .blocks_web3_dal()
             .get_sealed_miniblock_number()
-            .map_err(|err| internal_error(endpoint_name, err))?;
+            .await
+            .map_err(|err| internal_error(METHOD_NAME, err))?;
 
         let idx = self
             .state
             .installed_filters
             .write()
-            .unwrap()
+            .await
             .add(TypedFilter::Blocks(last_block_number));
 
-        metrics::histogram!("api.web3.call", start.elapsed(), "method" => endpoint_name);
+        metrics::histogram!("api.web3.call", start.elapsed(), "method" => METHOD_NAME);
         Ok(idx)
     }
 
     #[tracing::instrument(skip(self, filter))]
-    pub fn new_filter_impl(&self, filter: Filter) -> Result<U256, Web3Error> {
+    pub async fn new_filter_impl(&self, mut filter: Filter) -> Result<U256, Web3Error> {
         let start = Instant::now();
 
         if let Some(topics) = filter.topics.as_ref() {
@@ -542,12 +555,13 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
                 return Err(Web3Error::TooManyTopics);
             }
         }
-        let from_block = self.state.get_filter_from_block(&filter)?;
+        self.state.resolve_filter_block_hash(&mut filter).await?;
+        let from_block = self.state.get_filter_from_block(&filter).await?;
         let idx = self
             .state
             .installed_filters
             .write()
-            .unwrap()
+            .await
             .add(TypedFilter::Events(filter, from_block));
 
         metrics::histogram!("api.web3.call", start.elapsed(), "method" => "new_filter");
@@ -555,50 +569,47 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
     }
 
     #[tracing::instrument(skip(self))]
-    pub fn new_pending_transaction_filter_impl(&self) -> U256 {
+    pub async fn new_pending_transaction_filter_impl(&self) -> U256 {
         let start = Instant::now();
 
-        let idx =
-            self.state
-                .installed_filters
-                .write()
-                .unwrap()
-                .add(TypedFilter::PendingTransactions(
-                    chrono::Utc::now().naive_utc(),
-                ));
+        let idx = self
+            .state
+            .installed_filters
+            .write()
+            .await
+            .add(TypedFilter::PendingTransactions(
+                chrono::Utc::now().naive_utc(),
+            ));
 
         metrics::histogram!("api.web3.call", start.elapsed(), "method" => "new_pending_transaction_filter");
         idx
     }
 
     #[tracing::instrument(skip(self))]
-    pub fn get_filter_changes_impl(&self, idx: U256) -> Result<FilterChanges, Web3Error> {
+    pub async fn get_filter_changes_impl(&self, idx: U256) -> Result<FilterChanges, Web3Error> {
         let start = Instant::now();
 
-        let filter = match self
+        let filter = self
             .state
             .installed_filters
             .read()
-            .unwrap()
+            .await
             .get(idx)
             .cloned()
-        {
-            Some(filter) => filter,
-            None => return Err(Web3Error::FilterNotFound),
-        };
+            .ok_or(Web3Error::FilterNotFound)?;
 
-        let result = match self.filter_changes(filter) {
+        let result = match self.filter_changes(filter).await {
             Ok((changes, updated_filter)) => {
                 self.state
                     .installed_filters
                     .write()
-                    .unwrap()
+                    .await
                     .update(idx, updated_filter);
                 Ok(changes)
             }
             Err(Web3Error::LogsLimitExceeded(_, _, _)) => {
                 // The filter was not being polled for a long time, so we remove it.
-                self.state.installed_filters.write().unwrap().remove(idx);
+                self.state.installed_filters.write().await.remove(idx);
                 Err(Web3Error::FilterNotFound)
             }
             Err(err) => Err(err),
@@ -609,10 +620,10 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
     }
 
     #[tracing::instrument(skip(self))]
-    pub fn uninstall_filter_impl(&self, idx: U256) -> bool {
+    pub async fn uninstall_filter_impl(&self, idx: U256) -> bool {
         let start = Instant::now();
 
-        let removed = self.state.installed_filters.write().unwrap().remove(idx);
+        let removed = self.state.installed_filters.write().await.remove(idx);
 
         metrics::histogram!("api.web3.call", start.elapsed(), "method" => "uninstall_filter");
         removed
@@ -624,29 +635,24 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
     }
 
     #[tracing::instrument(skip(self, tx_bytes))]
-    pub fn send_raw_transaction_impl(&self, tx_bytes: Bytes) -> Result<H256, Web3Error> {
+    pub async fn send_raw_transaction_impl(&self, tx_bytes: Bytes) -> Result<H256, Web3Error> {
         let start = Instant::now();
         let (mut tx, hash) = self.state.parse_transaction_bytes(&tx_bytes.0)?;
         tx.set_input(tx_bytes.0, hash);
 
-        let submit_res = match self.state.tx_sender.submit_tx(tx) {
-            Err(err) => {
-                vlog::debug!("Send raw transaction error {}", err);
-                metrics::counter!(
-                    "api.submit_tx_error",
-                    1,
-                    "reason" => err.grafana_error_code()
-                );
-                Err(Web3Error::SubmitTransactionError(
-                    err.to_string(),
-                    err.data(),
-                ))
-            }
-            Ok(_) => Ok(hash),
-        };
+        let submit_result = self.state.tx_sender.submit_tx(tx).await;
+        let submit_result = submit_result.map(|_| hash).map_err(|err| {
+            vlog::debug!("Send raw transaction error: {err}");
+            metrics::counter!(
+                "api.submit_tx_error",
+                1,
+                "reason" => err.grafana_error_code()
+            );
+            Web3Error::SubmitTransactionError(err.to_string(), err.data())
+        });
 
         metrics::histogram!("api.web3.call", start.elapsed(), "method" => "send_raw_transaction");
-        submit_res
+        submit_result
     }
 
     #[tracing::instrument(skip(self))]
@@ -656,7 +662,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
 
     #[tracing::instrument(skip(self))]
     pub fn syncing_impl(&self) -> SyncState {
-        if let Some(state) = self.state.sync_state.as_ref() {
+        if let Some(state) = &self.state.sync_state {
             // Node supports syncing process (i.e. not the main node).
             if state.is_synced() {
                 SyncState::NotSyncing
@@ -674,21 +680,23 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
     }
 
     #[tracing::instrument(skip(self, typed_filter))]
-    fn filter_changes(
+    async fn filter_changes(
         &self,
         typed_filter: TypedFilter,
     ) -> Result<(FilterChanges, TypedFilter), Web3Error> {
-        let method_name = "filter_changes";
+        const METHOD_NAME: &str = "filter_changes";
 
         let res = match typed_filter {
             TypedFilter::Blocks(from_block) => {
                 let (block_hashes, last_block_number) = self
                     .state
                     .connection_pool
-                    .access_storage_blocking()
+                    .access_storage_tagged("api")
+                    .await
                     .blocks_web3_dal()
                     .get_block_hashes_after(from_block, self.state.api_config.req_entities_limit)
-                    .map_err(|err| internal_error(method_name, err))?;
+                    .await
+                    .map_err(|err| internal_error(METHOD_NAME, err))?;
                 (
                     FilterChanges::Hashes(block_hashes),
                     TypedFilter::Blocks(last_block_number.unwrap_or(from_block)),
@@ -698,13 +706,15 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
                 let (tx_hashes, last_timestamp) = self
                     .state
                     .connection_pool
-                    .access_storage_blocking()
+                    .access_storage_tagged("api")
+                    .await
                     .transactions_web3_dal()
                     .get_pending_txs_hashes_after(
                         from_timestamp,
                         Some(self.state.api_config.req_entities_limit),
                     )
-                    .map_err(|err| internal_error(method_name, err))?;
+                    .await
+                    .map_err(|err| internal_error(METHOD_NAME, err))?;
                 (
                     FilterChanges::Hashes(tx_hashes),
                     TypedFilter::PendingTransactions(last_timestamp.unwrap_or(from_timestamp)),
@@ -736,30 +746,42 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
                     addresses,
                     topics,
                 };
+                let to_block = self
+                    .state
+                    .resolve_filter_block_number(filter.to_block)
+                    .await?;
 
-                let mut storage = self.state.connection_pool.access_storage_blocking();
+                let mut storage = self
+                    .state
+                    .connection_pool
+                    .access_storage_tagged("api")
+                    .await;
 
-                // Check if there are more than `req_entities_limit` logs that satisfies filter.
+                // Check if there is more than one block in range and there are more than `req_entities_limit` logs that satisfies filter.
                 // In this case we should return error and suggest requesting logs with smaller block range.
-                if let Some(miniblock_number) = storage
-                    .events_web3_dal()
-                    .get_log_block_number(
-                        get_logs_filter.clone(),
-                        self.state.api_config.req_entities_limit,
-                    )
-                    .map_err(|err| internal_error(method_name, err))?
-                {
-                    return Err(Web3Error::LogsLimitExceeded(
-                        self.state.api_config.req_entities_limit,
-                        from_block.0,
-                        miniblock_number.0 - 1,
-                    ));
+                if from_block != to_block {
+                    if let Some(miniblock_number) = storage
+                        .events_web3_dal()
+                        .get_log_block_number(
+                            get_logs_filter.clone(),
+                            self.state.api_config.req_entities_limit,
+                        )
+                        .await
+                        .map_err(|err| internal_error(METHOD_NAME, err))?
+                    {
+                        return Err(Web3Error::LogsLimitExceeded(
+                            self.state.api_config.req_entities_limit,
+                            from_block.0,
+                            miniblock_number.0 - 1,
+                        ));
+                    }
                 }
 
                 let logs = storage
                     .events_web3_dal()
-                    .get_logs(get_logs_filter, self.state.api_config.req_entities_limit)
-                    .map_err(|err| internal_error(method_name, err))?;
+                    .get_logs(get_logs_filter, i32::MAX as usize)
+                    .await
+                    .map_err(|err| internal_error(METHOD_NAME, err))?;
                 let new_from_block = logs
                     .last()
                     .map(|log| MiniblockNumber(log.block_number.unwrap().as_u32()))
@@ -784,7 +806,8 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
         } else {
             self.state
                 .connection_pool
-                .access_storage_blocking()
+                .access_storage_tagged("api")
+                .await
                 .transactions_web3_dal()
                 .next_nonce_by_initiator_account(transaction_request.from)
                 .map_err(|err| internal_error("send_transaction", err))?
@@ -818,12 +841,10 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
         {
             let chain_id = self.state.api_config.l2_chain_id;
             let domain = Eip712Domain::new(chain_id);
-            let signature = crate::block_on(async {
-                signer
-                    .sign_typed_data(&domain, &transaction_request)
-                    .await
-                    .map_err(|err| internal_error("send_transaction", err))
-            })?;
+            let signature = signer
+                .sign_typed_data(&domain, &transaction_request)
+                .await
+                .map_err(|err| internal_error("send_transaction", err))?;
 
             let encoded_tx = transaction_request.get_signed_bytes(&signature, chain_id);
             Bytes(encoded_tx)

@@ -40,6 +40,7 @@ pub struct CircuitSynthesizer {
     allowed_circuit_types: Option<Vec<String>>,
     region: String,
     zone: String,
+    prover_connection_pool: ConnectionPool,
 }
 
 impl CircuitSynthesizer {
@@ -47,6 +48,7 @@ impl CircuitSynthesizer {
         config: CircuitSynthesizerConfig,
         prover_groups: ProverGroupConfig,
         store_factory: &ObjectStoreFactory,
+        prover_connection_pool: ConnectionPool,
     ) -> Result<Self, CircuitSynthesizerError> {
         let is_specialized = prover_groups.is_specialized_group_id(config.prover_group_id);
         let allowed_circuit_types = if is_specialized {
@@ -74,11 +76,12 @@ impl CircuitSynthesizer {
 
         Ok(Self {
             config,
-            blob_store: store_factory.create_store(),
+            blob_store: store_factory.create_store().await,
             allowed_circuit_types: allowed_circuit_types
                 .map(|x| x.into_iter().map(|x| x.1).collect()),
             region: get_region().await,
             zone: get_zone().await,
+            prover_connection_pool,
         })
     }
 
@@ -116,21 +119,21 @@ impl JobProcessor for CircuitSynthesizer {
     type JobArtifacts = (ProvingAssembly, u8);
     const SERVICE_NAME: &'static str = "CircuitSynthesizer";
 
-    async fn get_next_job(
-        &self,
-        connection_pool: ConnectionPool,
-    ) -> Option<(Self::JobId, Self::Job)> {
+    async fn get_next_job(&self) -> Option<(Self::JobId, Self::Job)> {
         vlog::trace!(
             "Attempting to fetch job types: {:?}",
             self.allowed_circuit_types
         );
 
-        let mut storage = connection_pool.access_storage_blocking();
+        let mut storage = self.prover_connection_pool.access_storage().await;
         let prover_job = match &self.allowed_circuit_types {
-            Some(types) => storage
-                .prover_dal()
-                .get_next_prover_job_by_circuit_types(types.clone()),
-            None => storage.prover_dal().get_next_prover_job(),
+            Some(types) => {
+                storage
+                    .prover_dal()
+                    .get_next_prover_job_by_circuit_types(types.clone())
+                    .await
+            }
+            None => storage.prover_dal().get_next_prover_job().await,
         }?;
 
         let circuit_key = CircuitKey {
@@ -142,6 +145,7 @@ impl JobProcessor for CircuitSynthesizer {
         let input = self
             .blob_store
             .get(circuit_key)
+            .await
             .map_err(CircuitSynthesizerError::InputLoadFailed)
             .unwrap_or_else(|err| panic!("{err:?}"));
 
@@ -150,19 +154,20 @@ impl JobProcessor for CircuitSynthesizer {
 
     async fn save_failure(
         &self,
-        pool: ConnectionPool,
         job_id: Self::JobId,
         _started_at: Instant,
         error: String,
     ) {
-        pool.access_storage_blocking()
+        self.prover_connection_pool
+            .access_storage()
+            .await
             .prover_dal()
-            .save_proof_error(job_id, error, self.config.max_attempts);
+            .save_proof_error(job_id, error, self.config.max_attempts)
+            .await;
     }
 
     async fn process_job(
         &self,
-        _connection_pool: ConnectionPool,
         job: Self::Job,
         _started_at: Instant,
     ) -> JoinHandle<Self::JobArtifacts> {
@@ -171,7 +176,6 @@ impl JobProcessor for CircuitSynthesizer {
 
     async fn save_result(
         &self,
-        pool: ConnectionPool,
         job_id: Self::JobId,
         _started_at: Instant,
         (assembly, circuit_id): Self::JobArtifacts,
@@ -194,15 +198,18 @@ impl JobProcessor for CircuitSynthesizer {
         let mut attempts = 0;
 
         while now.elapsed() < self.config.prover_instance_wait_timeout() {
-            let prover = pool
-                .access_storage_blocking()
+            let prover = self
+                .prover_connection_pool
+                .access_storage()
+                .await
                 .gpu_prover_queue_dal()
                 .lock_available_prover(
                     self.config.gpu_prover_queue_timeout(),
                     self.config.prover_group_id,
                     self.region.clone(),
                     self.zone.clone(),
-                );
+                )
+                .await;
 
             if let Some(address) = prover {
                 let result = send_assembly(job_id, &mut serialized, &address);
@@ -210,10 +217,11 @@ impl JobProcessor for CircuitSynthesizer {
                     &result,
                     job_id,
                     &address,
-                    &pool,
+                    &self.prover_connection_pool,
                     self.region.clone(),
                     self.zone.clone(),
-                );
+                )
+                .await;
 
                 if result.is_ok() {
                     return;
@@ -294,7 +302,7 @@ fn can_be_retried(err: ErrorKind) -> bool {
     matches!(err, ErrorKind::TimedOut | ErrorKind::ConnectionRefused)
 }
 
-fn handle_send_result(
+async fn handle_send_result(
     result: &Result<(Duration, u64), String>,
     job_id: u32,
     address: &SocketAddress,
@@ -321,9 +329,11 @@ fn handle_send_result(
 
             // endregion
 
-            pool.access_storage_blocking()
+            pool.access_storage()
+                .await
                 .prover_dal()
-                .update_status(job_id, "in_gpu_proof");
+                .update_status(job_id, "in_gpu_proof")
+                .await;
         }
 
         Err(err) => {
@@ -333,7 +343,8 @@ fn handle_send_result(
             );
 
             // mark prover instance in gpu_prover_queue dead
-            pool.access_storage_blocking()
+            pool.access_storage()
+                .await
                 .gpu_prover_queue_dal()
                 .update_prover_instance_status(
                     address.clone(),
@@ -341,17 +352,20 @@ fn handle_send_result(
                     0,
                     region,
                     zone,
-                );
+                )
+                .await;
 
             let prover_config = ProverConfigs::from_env().non_gpu;
             // mark the job as failed
-            pool.access_storage_blocking()
+            pool.access_storage()
+                .await
                 .prover_dal()
                 .save_proof_error(
                     job_id,
                     "prover instance unreachable".to_string(),
                     prover_config.max_attempts,
-                );
+                )
+                .await;
         }
     }
 }

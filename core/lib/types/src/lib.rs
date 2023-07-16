@@ -7,7 +7,7 @@
 
 use fee::encoding_len;
 use serde::{Deserialize, Serialize};
-use std::fmt::Debug;
+use std::{fmt, fmt::Debug};
 
 pub use crate::{Nonce, H256, U256, U64};
 
@@ -109,13 +109,6 @@ impl Transaction {
         }
     }
 
-    pub fn type_display(&self) -> &'static str {
-        match &self.common_data {
-            ExecuteTransactionCommon::L1(_) => "l1_transaction",
-            ExecuteTransactionCommon::L2(_) => "l2_transaction",
-        }
-    }
-
     pub fn hash(&self) -> H256 {
         match &self.common_data {
             ExecuteTransactionCommon::L1(data) => data.hash(),
@@ -208,4 +201,13 @@ pub struct InputData {
 pub enum ExecuteTransactionCommon {
     L1(L1TxCommonData),
     L2(L2TxCommonData),
+}
+
+impl fmt::Display for ExecuteTransactionCommon {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            ExecuteTransactionCommon::L1(data) => write!(f, "L1TxCommonData: {:?}", data),
+            ExecuteTransactionCommon::L2(data) => write!(f, "L2TxCommonData: {:?}", data),
+        }
+    }
 }

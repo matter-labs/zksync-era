@@ -10,12 +10,13 @@ use zksync_types::web3::{
         Contract, Options,
     },
     ethabi,
+    helpers::CallFuture,
     transports::Http,
     types::{
-        Address, BlockId, BlockNumber, Bytes, Filter, Log, Transaction, TransactionId,
+        Address, Block, BlockId, BlockNumber, Bytes, Filter, Log, Transaction, TransactionId,
         TransactionReceipt, H256, U256, U64,
     },
-    Web3,
+    Transport, Web3,
 };
 
 use crate::{
@@ -286,5 +287,22 @@ impl EthInterface for QueryClient {
         let logs = self.web3.eth().logs(filter).await?;
         metrics::histogram!("eth_client.direct.logs", start.elapsed());
         Ok(logs)
+    }
+
+    async fn block(
+        &self,
+        block_id: String,
+        component: &'static str,
+    ) -> Result<Option<Block<H256>>, Error> {
+        metrics::counter!("server.ethereum_gateway.call", 1, "component" => component, "method" => "block");
+        let start = Instant::now();
+        let block = CallFuture::new(
+            self.web3
+                .transport()
+                .execute("eth_getBlockByNumber", vec![block_id.into(), false.into()]),
+        )
+        .await?;
+        metrics::histogram!("eth_client.direct.block", start.elapsed());
+        Ok(block)
     }
 }

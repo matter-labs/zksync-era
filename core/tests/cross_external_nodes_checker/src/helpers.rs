@@ -1,21 +1,8 @@
-use futures::{channel::oneshot, future};
+use futures::channel::oneshot;
 use serde_json::{Map, Value};
-use std::collections::HashMap;
-use tokio::task::JoinHandle;
-
-pub async fn wait_for_tasks(task_futures: Vec<JoinHandle<()>>) {
-    match future::select_all(task_futures).await.0 {
-        Ok(_) => {
-            vlog::info!("One of the instance loops unexpectedly finished its run");
-        }
-        Err(error) => {
-            vlog::info!(
-                "One of the tokio threads unexpectedly finished with error: {:?}",
-                error
-            );
-        }
-    }
-}
+use std::future::Future;
+use std::{collections::HashMap, time::Duration};
+use tokio::time::sleep;
 
 /// Sets up an interrupt handler and returns a future that resolves once an interrupt signal is received.
 pub fn setup_sigint_handler() -> oneshot::Receiver<()> {
@@ -108,6 +95,39 @@ fn compare_json_array(
     }
 
     differences
+}
+
+#[derive(Debug, Clone)]
+pub struct ExponentialBackoff {
+    pub max_retries: u32,
+    pub base_delay: Duration,
+    pub retry_message: String,
+}
+
+impl ExponentialBackoff {
+    // Keep retrying until the operation returns Some or we reach the max number of retries.
+    pub async fn retry<F, Fut, T>(&self, mut operation: F) -> Option<T>
+    where
+        F: FnMut() -> Fut,
+        Fut: Future<Output = Option<T>>,
+    {
+        for retry in 1..=self.max_retries {
+            if let Some(result) = operation().await {
+                return Some(result);
+            }
+            if retry == self.max_retries {
+                break;
+            }
+            let delay = self.base_delay * retry;
+            vlog::warn!(
+                "{} Retrying in {} seconds",
+                self.retry_message,
+                delay.as_secs()
+            );
+            sleep(delay).await;
+        }
+        None
+    }
 }
 
 #[cfg(test)]

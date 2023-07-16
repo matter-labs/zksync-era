@@ -14,11 +14,18 @@ fn main() {
     let before = get_name_to_cycles(&args[0]);
     let after = get_name_to_cycles(&args[1]);
 
+    let mut header_written = false;
+
     for (name, cycles) in before {
         if let Some(&cycles2) = after.get(&name) {
             let change = ((cycles2 as f64) - (cycles as f64)) / (cycles as f64);
             if change.abs() > 0.02 {
-                println!("{} {:+.1}%", name, change * 100.0);
+                if !header_written {
+                    println!("Benchmark name | Difference in runtime\n--- | ---");
+                    header_written = true;
+                }
+
+                println!("{} | {:+.1}%", name, change * 100.0);
             }
         }
     }

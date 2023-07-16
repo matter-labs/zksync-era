@@ -7,12 +7,13 @@
 //! transactions, thus the calculations are done separately and asynchronously.
 
 use std::collections::HashMap;
+use std::convert::TryFrom;
 use std::fmt::Debug;
 
 use serde::{Deserialize, Serialize};
 
 use zksync_config::constants::ZKPORTER_IS_AVAILABLE;
-use zksync_mini_merkle_tree::mini_merkle_tree_root_hash;
+use zksync_mini_merkle_tree::MiniMerkleTree;
 
 use crate::circuit::GEOMETRY_CONFIG;
 use crate::ethabi::Token;
@@ -21,32 +22,29 @@ use crate::web3::signing::keccak256;
 use crate::writes::{InitialStorageWrite, RepeatedStorageWrite};
 use crate::{block::L1BatchHeader, H256, KNOWN_CODES_STORAGE_ADDRESS, U256};
 
-/// Make the struct serializable for commitment.
-pub trait CommitmentSerializable: Clone {
-    /// Size of the structure in bytes
+/// Type that can be serialized for commitment.
+pub trait SerializeCommitment {
+    /// Size of the structure in bytes.
     const SERIALIZED_SIZE: usize;
-    /// The number of objects of this type that can be included in the block
-    fn limit_per_block() -> usize;
-    fn to_bytes(self) -> Vec<u8>;
+    /// The number of objects of this type that can be included in the block.
+    const LIMIT_PER_BLOCK: usize;
+    /// Serializes this struct into the provided buffer, which is guaranteed to have byte length
+    /// [`Self::SERIALIZED_SIZE`].
+    fn serialize_commitment(&self, buffer: &mut [u8]);
 }
 
 /// Serialize elements for commitment. The results consist of:
 /// 1. Number of elements (4 bytes)
 /// 2. Serialized elements
-pub(crate) fn serialize_commitments<I: CommitmentSerializable>(values: &[I]) -> Vec<u8> {
-    let final_len = I::limit_per_block() * I::SERIALIZED_SIZE + 4;
-    let mut input = Vec::with_capacity(final_len);
-    let result = values
-        .iter()
-        .cloned()
-        .flat_map(CommitmentSerializable::to_bytes);
-    input.extend((values.len() as u32).to_be_bytes());
-    input.extend(result);
-    assert!(
-        input.len() <= final_len,
-        "The size of serialized values is more than expected expected_len {} actual_len {} size {} capacity {}",
-        final_len,  input.len() , I::SERIALIZED_SIZE,   I::limit_per_block()
-    );
+pub(crate) fn serialize_commitments<I: SerializeCommitment>(values: &[I]) -> Vec<u8> {
+    let final_len = values.len() * I::SERIALIZED_SIZE + 4;
+    let mut input = vec![0_u8; final_len];
+    input[0..4].copy_from_slice(&(values.len() as u32).to_be_bytes());
+
+    let chunks = input[4..].chunks_mut(I::SERIALIZED_SIZE);
+    for (value, chunk) in values.iter().zip(chunks) {
+        value.serialize_commitment(chunk);
+    }
     input
 }
 
@@ -164,62 +162,38 @@ impl BlockWithMetadata {
     }
 }
 
-impl CommitmentSerializable for L2ToL1Log {
+impl SerializeCommitment for L2ToL1Log {
     const SERIALIZED_SIZE: usize = 88;
+    const LIMIT_PER_BLOCK: usize = GEOMETRY_CONFIG.limit_for_l1_messages_merklizer as usize;
 
-    fn limit_per_block() -> usize {
-        GEOMETRY_CONFIG.limit_for_l1_messages_merklizer as usize
-    }
-
-    fn to_bytes(self) -> Vec<u8> {
-        let mut raw_data = Vec::with_capacity(Self::SERIALIZED_SIZE);
-        raw_data.push(self.shard_id);
-        raw_data.push(self.is_service as u8);
-        raw_data.extend(self.tx_number_in_block.to_be_bytes());
-        raw_data.extend(self.sender.as_bytes());
-        raw_data.extend(self.key.as_bytes());
-        raw_data.extend(self.value.as_bytes());
-        assert_eq!(
-            raw_data.len(),
-            Self::SERIALIZED_SIZE,
-            "Serialized size for L2ToL1Log is bigger than expected"
-        );
-        raw_data
+    fn serialize_commitment(&self, buffer: &mut [u8]) {
+        buffer[0] = self.shard_id;
+        buffer[1] = self.is_service as u8;
+        buffer[2..4].copy_from_slice(&self.tx_number_in_block.to_be_bytes());
+        buffer[4..24].copy_from_slice(self.sender.as_bytes());
+        buffer[24..56].copy_from_slice(self.key.as_bytes());
+        buffer[56..88].copy_from_slice(self.value.as_bytes());
     }
 }
 
-impl CommitmentSerializable for InitialStorageWrite {
+impl SerializeCommitment for InitialStorageWrite {
     const SERIALIZED_SIZE: usize = 64;
+    const LIMIT_PER_BLOCK: usize = GEOMETRY_CONFIG.limit_for_initial_writes_pubdata_hasher as usize;
 
-    fn limit_per_block() -> usize {
-        GEOMETRY_CONFIG.limit_for_initial_writes_pubdata_hasher as usize
-    }
-
-    fn to_bytes(self) -> Vec<u8> {
-        let mut result = vec![0; Self::SERIALIZED_SIZE];
-        self.key.to_little_endian(&mut result[0..32]);
-        result[32..64].copy_from_slice(self.value.as_bytes());
-        result
+    fn serialize_commitment(&self, buffer: &mut [u8]) {
+        self.key.to_little_endian(&mut buffer[0..32]);
+        buffer[32..].copy_from_slice(self.value.as_bytes());
     }
 }
 
-impl CommitmentSerializable for RepeatedStorageWrite {
+impl SerializeCommitment for RepeatedStorageWrite {
     const SERIALIZED_SIZE: usize = 40;
+    const LIMIT_PER_BLOCK: usize =
+        GEOMETRY_CONFIG.limit_for_repeated_writes_pubdata_hasher as usize;
 
-    fn limit_per_block() -> usize {
-        GEOMETRY_CONFIG.limit_for_repeated_writes_pubdata_hasher as usize
-    }
-
-    fn to_bytes(self) -> Vec<u8> {
-        let mut result = Vec::with_capacity(Self::SERIALIZED_SIZE);
-        result.extend_from_slice(&self.index.to_be_bytes());
-        result.extend_from_slice(self.value.as_bytes());
-        assert_eq!(
-            result.len(),
-            Self::SERIALIZED_SIZE,
-            "Serialized size for RepeatedStorageWrite is bigger than expected"
-        );
-        result
+    fn serialize_commitment(&self, buffer: &mut [u8]) {
+        buffer[..8].copy_from_slice(&self.index.to_be_bytes());
+        buffer[8..].copy_from_slice(self.value.as_bytes());
     }
 }
 
@@ -256,18 +230,12 @@ impl BlockAuxiliaryOutput {
         let initial_writes_hash = H256::from(keccak256(&initial_writes_compressed));
         let repeated_writes_hash = H256::from(keccak256(&repeated_writes_compressed));
 
-        let l2_l1_logs_merkle_root = {
-            let values: Vec<Vec<u8>> = l2_l1_logs
-                .iter()
-                .cloned()
-                .map(CommitmentSerializable::to_bytes)
-                .collect();
-            mini_merkle_tree_root_hash(
-                values,
-                L2ToL1Log::SERIALIZED_SIZE,
-                L2ToL1Log::limit_per_block(),
-            )
-        };
+        let merkle_tree_leaves = l2_l1_logs_compressed[4..]
+            .chunks(L2ToL1Log::SERIALIZED_SIZE)
+            .map(|chunk| <[u8; L2ToL1Log::SERIALIZED_SIZE]>::try_from(chunk).unwrap());
+        // ^ Skip first 4 bytes of the serialized logs (i.e., the number of logs).
+        let l2_l1_logs_merkle_root =
+            MiniMerkleTree::new(merkle_tree_leaves, L2ToL1Log::LIMIT_PER_BLOCK).merkle_root();
 
         Self {
             l2_l1_logs_compressed,

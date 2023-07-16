@@ -31,21 +31,23 @@ pub enum L2TxSubmissionResult {
     Duplicate,
     Proxied,
 }
+
 impl fmt::Display for L2TxSubmissionResult {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{:?}", self)
     }
 }
 
+#[derive(Debug)]
 pub struct TransactionsDal<'c, 'a> {
-    pub storage: &'c mut StorageProcessor<'a>,
+    pub(crate) storage: &'c mut StorageProcessor<'a>,
 }
 
 type TxLocations = Vec<(MiniblockNumber, Vec<(H256, u32, u16)>)>;
 
 impl TransactionsDal<'_, '_> {
-    pub fn insert_transaction_l1(&mut self, tx: L1Tx, l1_block_number: L1BlockNumber) {
-        async_std::task::block_on(async {
+    pub async fn insert_transaction_l1(&mut self, tx: L1Tx, l1_block_number: L1BlockNumber) {
+        {
             let contract_address = tx.execute.contract_address.as_bytes().to_vec();
             let tx_hash = tx.hash().0.to_vec();
             let json_data = serde_json::to_value(&tx.execute)
@@ -127,15 +129,15 @@ impl TransactionsDal<'_, '_> {
             .fetch_optional(self.storage.conn())
             .await
             .unwrap();
-        })
+        }
     }
 
-    pub fn insert_transaction_l2(
+    pub async fn insert_transaction_l2(
         &mut self,
         tx: L2Tx,
         exec_info: TransactionExecutionMetrics,
     ) -> L2TxSubmissionResult {
-        async_std::task::block_on(async {
+        {
             let contract_address = tx.execute.contract_address.as_bytes().to_vec();
             let tx_hash = tx.hash().0.to_vec();
             let json_data = serde_json::to_value(&tx.execute)
@@ -286,15 +288,15 @@ impl TransactionsDal<'_, '_> {
             );
 
             l2_tx_insertion_result
-        })
+        }
     }
 
-    pub fn mark_txs_as_executed_in_l1_batch(
+    pub async fn mark_txs_as_executed_in_l1_batch(
         &mut self,
         block_number: L1BatchNumber,
         transactions: &[TransactionExecutionResult],
     ) {
-        async_std::task::block_on(async {
+        {
             let hashes: Vec<Vec<u8>> = transactions
                 .iter()
                 .map(|tx| tx.hash.as_bytes().to_vec())
@@ -321,22 +323,23 @@ impl TransactionsDal<'_, '_> {
             .execute(self.storage.conn())
             .await
             .unwrap();
-        })
+        }
     }
 
-    pub fn mark_txs_as_executed_in_miniblock(
+    pub async fn mark_txs_as_executed_in_miniblock(
         &mut self,
         miniblock_number: MiniblockNumber,
         transactions: &[TransactionExecutionResult],
         block_base_fee_per_gas: U256,
     ) {
-        async_std::task::block_on(async {
+        {
             let mut transaction = self.storage.start_transaction().await;
             let mut l1_hashes = Vec::with_capacity(transactions.len());
             let mut l1_indices_in_block = Vec::with_capacity(transactions.len());
             let mut l1_errors = Vec::with_capacity(transactions.len());
             let mut l1_execution_infos = Vec::with_capacity(transactions.len());
             let mut l1_refunded_gas = Vec::with_capacity(transactions.len());
+            let mut l1_effective_gas_prices = Vec::with_capacity(transactions.len());
 
             let mut l2_hashes = Vec::with_capacity(transactions.len());
             let mut l2_values = Vec::with_capacity(transactions.len());
@@ -394,12 +397,14 @@ impl TransactionsDal<'_, '_> {
                     }
 
                     match &transaction.common_data {
-                        ExecuteTransactionCommon::L1(_) => {
+                        ExecuteTransactionCommon::L1(common_data) => {
                             l1_hashes.push(hash.0.to_vec());
                             l1_indices_in_block.push(index_in_block as i32);
                             l1_errors.push(error.unwrap_or_default());
                             l1_execution_infos.push(serde_json::to_value(execution_info).unwrap());
                             l1_refunded_gas.push(*refunded_gas as i64);
+                            l1_effective_gas_prices
+                                .push(u256_to_big_decimal(common_data.max_fee_per_gas));
                         }
                         ExecuteTransactionCommon::L2(common_data) => {
                             let data = serde_json::to_value(&transaction.execute).unwrap();
@@ -510,7 +515,7 @@ impl TransactionsDal<'_, '_> {
                     &l2_errors,
                     &l2_effective_gas_prices,
                     &l2_execution_infos,
-                    &l2_inputs,
+                    &l2_inputs as &[&[u8]],
                     &l2_datas,
                     &l2_refunded_gas,
                     &l2_values,
@@ -536,6 +541,7 @@ impl TransactionsDal<'_, '_> {
                                 in_mempool=FALSE,
                                 execution_info = execution_info || data_table.new_execution_info,
                                 refunded_gas = data_table.refunded_gas,
+                                effective_gas_price = data_table.effective_gas_price,
                                 updated_at = now()
                         FROM
                             (
@@ -544,7 +550,8 @@ impl TransactionsDal<'_, '_> {
                                     UNNEST($3::integer[]) AS index_in_block,
                                     UNNEST($4::varchar[]) AS error,
                                     UNNEST($5::jsonb[]) AS new_execution_info,
-                                    UNNEST($6::bigint[]) as refunded_gas
+                                    UNNEST($6::bigint[]) as refunded_gas,
+                                    UNNEST($7::numeric[]) as effective_gas_price
                             ) AS data_table
                         WHERE transactions.hash = data_table.hash
                     "#,
@@ -554,6 +561,7 @@ impl TransactionsDal<'_, '_> {
                     &l1_errors,
                     &l1_execution_infos,
                     &l1_refunded_gas,
+                    &l1_effective_gas_prices,
                 )
                 .execute(transaction.conn())
                 .await
@@ -578,11 +586,11 @@ impl TransactionsDal<'_, '_> {
                 metrics::histogram!("dal.transactions.insert_call_tracer", started_at.elapsed());
             }
             transaction.commit().await;
-        })
+        }
     }
 
-    pub fn mark_tx_as_rejected(&mut self, transaction_hash: H256, error: &str) {
-        async_std::task::block_on(async {
+    pub async fn mark_tx_as_rejected(&mut self, transaction_hash: H256, error: &str) {
+        {
             // If the rejected tx has been replaced, it means that this tx hash does not exist in the database
             // and we will update nothing.
             // These txs don't affect the state, so we can just easily skip this update.
@@ -596,11 +604,11 @@ impl TransactionsDal<'_, '_> {
             .execute(self.storage.conn())
             .await
             .unwrap();
-        })
+        }
     }
 
-    pub fn reset_transactions_state(&mut self, miniblock_number: MiniblockNumber) {
-        async_std::task::block_on(async {
+    pub async fn reset_transactions_state(&mut self, miniblock_number: MiniblockNumber) {
+        {
             let tx_hashes = sqlx::query!(
                 "UPDATE transactions
                     SET l1_batch_number = NULL, miniblock_number = NULL, error = NULL, index_in_block = NULL, execution_info = '{}'
@@ -623,11 +631,11 @@ impl TransactionsDal<'_, '_> {
             .execute(self.storage.conn())
             .await
             .unwrap();
-        })
+        }
     }
 
-    pub fn remove_stuck_txs(&mut self, stuck_tx_timeout: Duration) -> usize {
-        async_std::task::block_on(async {
+    pub async fn remove_stuck_txs(&mut self, stuck_tx_timeout: Duration) -> usize {
+        {
             let stuck_tx_timeout = pg_interval_from_duration(stuck_tx_timeout);
             sqlx::query!(
                 "DELETE FROM transactions \
@@ -640,13 +648,13 @@ impl TransactionsDal<'_, '_> {
             .await
             .unwrap()
             .len()
-        })
+        }
     }
 
     /// Fetches new updates for mempool
     /// Returns new transactions and current nonces for related accounts
     /// Latter is only used to bootstrap mempool for given account
-    pub fn sync_mempool(
+    pub async fn sync_mempool(
         &mut self,
         stashed_accounts: Vec<Address>,
         purged_accounts: Vec<Address>,
@@ -654,7 +662,7 @@ impl TransactionsDal<'_, '_> {
         fee_per_gas: u64,
         limit: usize,
     ) -> (Vec<Transaction>, HashMap<Address, Nonce>) {
-        async_std::task::block_on(async {
+        {
             let stashed_addresses: Vec<_> =
                 stashed_accounts.into_iter().map(|a| a.0.to_vec()).collect();
             sqlx::query!(
@@ -689,6 +697,7 @@ impl TransactionsDal<'_, '_> {
                         AND (is_priority = TRUE OR (max_fee_per_gas >= $2 and gas_per_pubdata_limit >= $3))
                     ORDER BY is_priority DESC, priority_op_id, received_at
                     LIMIT $1
+                    FOR UPDATE
                 ) as subquery
                 WHERE transactions.hash = subquery.hash
                 RETURNING transactions.*",
@@ -730,20 +739,20 @@ impl TransactionsDal<'_, '_> {
                 transactions.into_iter().map(|tx| tx.into()).collect(),
                 nonces,
             )
-        })
+        }
     }
 
-    pub fn reset_mempool(&mut self) {
-        async_std::task::block_on(async {
+    pub async fn reset_mempool(&mut self) {
+        {
             sqlx::query!("UPDATE transactions SET in_mempool = FALSE WHERE in_mempool = TRUE")
                 .execute(self.storage.conn())
                 .await
                 .unwrap();
-        })
+        }
     }
 
-    pub fn get_last_processed_l1_block(&mut self) -> Option<L1BlockNumber> {
-        async_std::task::block_on(async {
+    pub async fn get_last_processed_l1_block(&mut self) -> Option<L1BlockNumber> {
+        {
             sqlx::query!(
                 "SELECT l1_block_number FROM transactions
                 WHERE priority_op_id IS NOT NULL
@@ -754,11 +763,11 @@ impl TransactionsDal<'_, '_> {
             .await
             .unwrap()
             .and_then(|x| x.l1_block_number.map(|block| L1BlockNumber(block as u32)))
-        })
+        }
     }
 
-    pub fn last_priority_id(&mut self) -> Option<PriorityOpId> {
-        async_std::task::block_on(async {
+    pub async fn last_priority_id(&mut self) -> Option<PriorityOpId> {
+        {
             let op_id = sqlx::query!(
                 r#"SELECT MAX(priority_op_id) as "op_id" from transactions where is_priority = true"#
             )
@@ -767,11 +776,11 @@ impl TransactionsDal<'_, '_> {
             .unwrap()?
             .op_id?;
             Some(PriorityOpId(op_id as u64))
-        })
+        }
     }
 
-    pub fn next_priority_id(&mut self) -> PriorityOpId {
-        async_std::task::block_on(async {
+    pub async fn next_priority_id(&mut self) -> PriorityOpId {
+        {
             sqlx::query!(
                 r#"SELECT MAX(priority_op_id) as "op_id" from transactions where is_priority = true AND miniblock_number IS NOT NULL"#
             )
@@ -781,11 +790,11 @@ impl TransactionsDal<'_, '_> {
                 .and_then(|row| row.op_id)
                 .map(|value| PriorityOpId((value + 1) as u64))
                 .unwrap_or_default()
-        })
+        }
     }
 
-    pub fn insert_trace(&mut self, hash: H256, trace: VmExecutionTrace) {
-        async_std::task::block_on(async {
+    pub async fn insert_trace(&mut self, hash: H256, trace: VmExecutionTrace) {
+        {
             sqlx::query!(
                 "INSERT INTO transaction_traces (tx_hash, trace, created_at, updated_at) VALUES ($1, $2, now(), now())",
                 hash.as_bytes(),
@@ -794,11 +803,11 @@ impl TransactionsDal<'_, '_> {
             .execute(self.storage.conn())
             .await
             .unwrap();
-        })
+        }
     }
 
-    pub fn get_trace(&mut self, hash: H256) -> Option<VmExecutionTrace> {
-        async_std::task::block_on(async {
+    pub async fn get_trace(&mut self, hash: H256) -> Option<VmExecutionTrace> {
+        {
             let trace = sqlx::query!(
                 "SELECT trace FROM transaction_traces WHERE tx_hash = $1",
                 hash.as_bytes()
@@ -811,15 +820,17 @@ impl TransactionsDal<'_, '_> {
                 serde_json::from_value(trace)
                     .unwrap_or_else(|_| panic!("invalid trace json in database for {:?}", hash))
             })
-        })
+        }
     }
 
     // Returns transactions that state_keeper needs to reexecute on restart.
     // That is the transactions that are included to some miniblock,
     // but not included to L1 batch. The order of the transactions is the same as it was
     // during the previous execution.
-    pub fn get_transactions_to_reexecute(&mut self) -> Vec<(MiniblockNumber, Vec<Transaction>)> {
-        async_std::task::block_on(async {
+    pub async fn get_transactions_to_reexecute(
+        &mut self,
+    ) -> Vec<(MiniblockNumber, Vec<Transaction>)> {
+        {
             sqlx::query_as!(
                 StorageTransaction,
                 "
@@ -842,11 +853,11 @@ impl TransactionsDal<'_, '_> {
                 )
             })
             .collect()
-        })
+        }
     }
 
-    pub fn get_tx_locations(&mut self, l1_batch_number: L1BatchNumber) -> TxLocations {
-        async_std::task::block_on(async {
+    pub async fn get_tx_locations(&mut self, l1_batch_number: L1BatchNumber) -> TxLocations {
+        {
             sqlx::query!(
                 r#"
                     SELECT miniblock_number as "miniblock_number!",
@@ -871,11 +882,11 @@ impl TransactionsDal<'_, '_> {
                     )
                 })
                 .collect()
-        })
+        }
     }
 
-    pub fn get_call_trace(&mut self, tx_hash: H256) -> Option<Call> {
-        async_std::task::block_on(async {
+    pub async fn get_call_trace(&mut self, tx_hash: H256) -> Option<Call> {
+        {
             sqlx::query_as!(
                 CallTrace,
                 r#"
@@ -888,6 +899,46 @@ impl TransactionsDal<'_, '_> {
             .await
             .unwrap()
             .map(|trace| trace.into())
-        })
+        }
+    }
+
+    pub async fn migrate_l1_txs_effective_gas_price_pre_m6(
+        &mut self,
+        from_block: u32,
+        to_block: u32,
+    ) {
+        sqlx::query!(
+            "
+                UPDATE transactions
+                SET effective_gas_price = 0
+                WHERE miniblock_number BETWEEN $1 AND $2
+                    AND is_priority = TRUE
+            ",
+            from_block as i32,
+            to_block as i32,
+        )
+        .execute(self.storage.conn())
+        .await
+        .unwrap();
+    }
+
+    pub async fn migrate_l1_txs_effective_gas_price_post_m6(
+        &mut self,
+        from_block: u32,
+        to_block: u32,
+    ) {
+        sqlx::query!(
+            "
+                UPDATE transactions
+                SET effective_gas_price = max_fee_per_gas
+                WHERE miniblock_number BETWEEN $1 AND $2
+                    AND is_priority = TRUE
+            ",
+            from_block as i32,
+            to_block as i32,
+        )
+        .execute(self.storage.conn())
+        .await
+        .unwrap();
     }
 }

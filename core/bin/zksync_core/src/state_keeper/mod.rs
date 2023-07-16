@@ -1,66 +1,75 @@
+use tokio::sync::watch;
+
 use std::sync::Arc;
 
-use tokio::sync::watch::Receiver;
-
-use zksync_config::constants::MAX_TXS_IN_BLOCK;
-use zksync_config::ZkSyncConfig;
-use zksync_contracts::BaseSystemContractsHashes;
+use zksync_config::{
+    configs::chain::{MempoolConfig, StateKeeperConfig},
+    constants::MAX_TXS_IN_BLOCK,
+    ContractsConfig, DBConfig,
+};
 use zksync_dal::ConnectionPool;
 
-use self::batch_executor::MainBatchExecutorBuilder;
-use self::io::MempoolIO;
-use crate::l1_gas_price::L1GasPriceProvider;
-use crate::state_keeper::seal_criteria::SealManager;
-
-pub use self::{keeper::ZkSyncStateKeeper, types::MempoolGuard};
-
-pub mod batch_executor;
+mod batch_executor;
 pub(crate) mod extractors;
 pub(crate) mod io;
 mod keeper;
-pub(crate) mod mempool_actor;
-pub mod seal_criteria;
+mod mempool_actor;
+pub(crate) mod seal_criteria;
 #[cfg(test)]
 mod tests;
-pub(crate) mod types;
+mod types;
 pub(crate) mod updates;
 
-pub(crate) fn start_state_keeper<G>(
-    config: &ZkSyncConfig,
-    pool: &ConnectionPool,
+pub use self::{
+    batch_executor::MainBatchExecutorBuilder, keeper::ZkSyncStateKeeper, seal_criteria::SealManager,
+};
+pub(crate) use self::{io::MiniblockSealer, mempool_actor::MempoolFetcher, types::MempoolGuard};
+
+use self::io::{MempoolIO, MiniblockSealerHandle};
+use crate::l1_gas_price::L1GasPriceProvider;
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) async fn create_state_keeper<G>(
+    contracts_config: &ContractsConfig,
+    state_keeper_config: StateKeeperConfig,
+    db_config: &DBConfig,
+    mempool_config: &MempoolConfig,
+    pool: ConnectionPool,
     mempool: MempoolGuard,
     l1_gas_price_provider: Arc<G>,
-    stop_receiver: Receiver<bool>,
+    miniblock_sealer_handle: MiniblockSealerHandle,
+    stop_receiver: watch::Receiver<bool>,
 ) -> ZkSyncStateKeeper
 where
-    G: L1GasPriceProvider + 'static + std::fmt::Debug + Send + Sync,
+    G: L1GasPriceProvider + 'static + Send + Sync,
 {
     assert!(
-        config.chain.state_keeper.transaction_slots <= MAX_TXS_IN_BLOCK,
-        "Configured transaction_slots must be lower than the bootloader constant MAX_TXS_IN_BLOCK"
+        state_keeper_config.transaction_slots <= MAX_TXS_IN_BLOCK,
+        "Configured transaction_slots ({}) must be lower than the bootloader constant MAX_TXS_IN_BLOCK={}",
+        state_keeper_config.transaction_slots,
+        MAX_TXS_IN_BLOCK
     );
 
     let batch_executor_base = MainBatchExecutorBuilder::new(
-        config.db.state_keeper_db_path.clone(),
+        db_config.state_keeper_db_path.clone(),
         pool.clone(),
-        config.chain.state_keeper.max_allowed_l2_tx_gas_limit.into(),
-        config.chain.state_keeper.save_call_traces,
-        config.chain.state_keeper.validation_computational_gas_limit,
-    );
-    let io = MempoolIO::new(
-        mempool,
-        pool.clone(),
-        config.chain.state_keeper.fee_account_addr,
-        config.chain.state_keeper.fair_l2_gas_price,
-        config.chain.operations_manager.delay_interval(),
-        l1_gas_price_provider,
-        BaseSystemContractsHashes {
-            bootloader: config.chain.state_keeper.bootloader_hash,
-            default_aa: config.chain.state_keeper.default_aa_hash,
-        },
+        state_keeper_config.max_allowed_l2_tx_gas_limit.into(),
+        state_keeper_config.save_call_traces,
+        state_keeper_config.validation_computational_gas_limit,
     );
 
-    let sealer = SealManager::new(config.chain.state_keeper.clone());
+    let io = MempoolIO::new(
+        mempool,
+        miniblock_sealer_handle,
+        l1_gas_price_provider,
+        pool,
+        &state_keeper_config,
+        mempool_config.delay_interval(),
+        contracts_config.l2_erc20_bridge_addr,
+    )
+    .await;
+
+    let sealer = SealManager::new(state_keeper_config);
     ZkSyncStateKeeper::new(
         stop_receiver,
         Box::new(io),

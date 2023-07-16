@@ -1,6 +1,7 @@
-use crate::api_server::web3::namespaces::net::NetNamespace;
 use zksync_types::U256;
 use zksync_web3_decl::{jsonrpsee::core::RpcResult, namespaces::net::NetNamespaceServer};
+
+use crate::api_server::web3::NetNamespace;
 
 impl NetNamespaceServer for NetNamespace {
     fn version(&self) -> RpcResult<String> {

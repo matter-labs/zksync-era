@@ -8,7 +8,6 @@ use zksync_types::{
     api::U64,
     explorer_api::{BlockDetails, L1BatchDetails},
     fee::Fee,
-    vm_trace::{ContractSourceDebugInfo, VmDebugTrace},
     Address, H256, U256,
 };
 use zksync_types::{L1BatchNumber, MiniblockNumber};
@@ -27,49 +26,34 @@ use zksync_types::{L1BatchNumber, MiniblockNumber};
 )]
 pub trait ZksNamespace {
     #[method(name = "estimateFee")]
-    fn estimate_fee(&self, req: CallRequest) -> RpcResult<Fee>;
+    async fn estimate_fee(&self, req: CallRequest) -> RpcResult<Fee>;
 
-    #[method(name = "zks_estimateGasL1ToL2")]
-    fn estimate_gas_l1_to_l2(&self, req: CallRequest) -> RpcResult<U256>;
+    #[method(name = "estimateGasL1ToL2")]
+    async fn estimate_gas_l1_to_l2(&self, req: CallRequest) -> RpcResult<U256>;
 
     #[method(name = "getMainContract")]
-    fn get_main_contract(&self) -> RpcResult<Address>;
+    async fn get_main_contract(&self) -> RpcResult<Address>;
 
     #[method(name = "getTestnetPaymaster")]
-    fn get_testnet_paymaster(&self) -> RpcResult<Option<Address>>;
+    async fn get_testnet_paymaster(&self) -> RpcResult<Option<Address>>;
 
     #[method(name = "getBridgeContracts")]
-    fn get_bridge_contracts(&self) -> RpcResult<BridgeAddresses>;
+    async fn get_bridge_contracts(&self) -> RpcResult<BridgeAddresses>;
 
     #[method(name = "L1ChainId")]
-    fn l1_chain_id(&self) -> RpcResult<U64>;
+    async fn l1_chain_id(&self) -> RpcResult<U64>;
 
     #[method(name = "getConfirmedTokens")]
-    fn get_confirmed_tokens(&self, from: u32, limit: u8) -> RpcResult<Vec<Token>>;
+    async fn get_confirmed_tokens(&self, from: u32, limit: u8) -> RpcResult<Vec<Token>>;
     #[method(name = "getTokenPrice")]
-    fn get_token_price(&self, token_address: Address) -> RpcResult<BigDecimal>;
-
-    #[method(name = "setContractDebugInfo")]
-    fn set_contract_debug_info(
-        &self,
-        address: Address,
-        info: ContractSourceDebugInfo,
-    ) -> RpcResult<bool>;
-
-    #[method(name = "getContractDebugInfo")]
-    fn get_contract_debug_info(
-        &self,
-        address: Address,
-    ) -> RpcResult<Option<ContractSourceDebugInfo>>;
-
-    #[method(name = "getTransactionTrace")]
-    fn get_transaction_trace(&self, hash: H256) -> RpcResult<Option<VmDebugTrace>>;
+    async fn get_token_price(&self, token_address: Address) -> RpcResult<BigDecimal>;
 
     #[method(name = "getAllAccountBalances")]
-    fn get_all_account_balances(&self, address: Address) -> RpcResult<HashMap<Address, U256>>;
+    async fn get_all_account_balances(&self, address: Address)
+        -> RpcResult<HashMap<Address, U256>>;
 
     #[method(name = "getL2ToL1MsgProof")]
-    fn get_l2_to_l1_msg_proof(
+    async fn get_l2_to_l1_msg_proof(
         &self,
         block: MiniblockNumber,
         sender: Address,
@@ -78,36 +62,40 @@ pub trait ZksNamespace {
     ) -> RpcResult<Option<L2ToL1LogProof>>;
 
     #[method(name = "getL2ToL1LogProof")]
-    fn get_l2_to_l1_log_proof(
+    async fn get_l2_to_l1_log_proof(
         &self,
         tx_hash: H256,
         index: Option<usize>,
     ) -> RpcResult<Option<L2ToL1LogProof>>;
 
     #[method(name = "L1BatchNumber")]
-    fn get_l1_batch_number(&self) -> RpcResult<U64>;
+    async fn get_l1_batch_number(&self) -> RpcResult<U64>;
 
     #[method(name = "getL1BatchBlockRange")]
-    fn get_miniblock_range(&self, batch: L1BatchNumber) -> RpcResult<Option<(U64, U64)>>;
+    async fn get_miniblock_range(&self, batch: L1BatchNumber) -> RpcResult<Option<(U64, U64)>>;
 
     #[method(name = "getBlockDetails")]
-    fn get_block_details(&self, block_number: MiniblockNumber) -> RpcResult<Option<BlockDetails>>;
+    async fn get_block_details(
+        &self,
+        block_number: MiniblockNumber,
+    ) -> RpcResult<Option<BlockDetails>>;
 
     #[method(name = "getTransactionDetails")]
-    fn get_transaction_details(&self, hash: H256) -> RpcResult<Option<TransactionDetails>>;
+    async fn get_transaction_details(&self, hash: H256) -> RpcResult<Option<TransactionDetails>>;
 
     #[method(name = "getRawBlockTransactions")]
-    fn get_raw_block_transactions(
+    async fn get_raw_block_transactions(
         &self,
         block_number: MiniblockNumber,
     ) -> RpcResult<Vec<zksync_types::Transaction>>;
 
     #[method(name = "getL1BatchDetails")]
-    fn get_l1_batch_details(&self, batch: L1BatchNumber) -> RpcResult<Option<L1BatchDetails>>;
+    async fn get_l1_batch_details(&self, batch: L1BatchNumber)
+        -> RpcResult<Option<L1BatchDetails>>;
 
     #[method(name = "getBytecodeByHash")]
-    fn get_bytecode_by_hash(&self, hash: H256) -> RpcResult<Option<Vec<u8>>>;
+    async fn get_bytecode_by_hash(&self, hash: H256) -> RpcResult<Option<Vec<u8>>>;
 
     #[method(name = "getL1GasPrice")]
-    fn get_l1_gas_price(&self) -> RpcResult<U64>;
+    async fn get_l1_gas_price(&self) -> RpcResult<U64>;
 }

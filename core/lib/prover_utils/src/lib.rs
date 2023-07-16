@@ -2,16 +2,9 @@
 
 extern crate core;
 
-use std::fs::create_dir_all;
-use std::io::Cursor;
-use std::path::Path;
-use std::time::Duration;
-use std::time::Instant;
+use std::{fs::create_dir_all, io::Cursor, path::Path, time::Duration, time::Instant};
 
-use futures::channel::mpsc;
-use futures::executor::block_on;
-use futures::{future, SinkExt};
-use tokio::task::JoinHandle;
+use futures::{channel::mpsc, executor::block_on, SinkExt};
 
 pub mod region_fetcher;
 
@@ -119,20 +112,6 @@ pub fn circuit_name_to_numeric_index(circuit_name: &str) -> Option<u8> {
         "L1 messages rehasher" => Some(17),
         "L1 messages merklizer" => Some(18),
         _ => None,
-    }
-}
-
-pub async fn wait_for_tasks(task_futures: Vec<JoinHandle<()>>) {
-    match future::select_all(task_futures).await.0 {
-        Ok(_) => {
-            vlog::info!("One of the actors finished its run, while it wasn't expected to do it");
-        }
-        Err(error) => {
-            vlog::info!(
-                "One of the tokio actors unexpectedly finished with error: {:?}",
-                error
-            );
-        }
     }
 }
 

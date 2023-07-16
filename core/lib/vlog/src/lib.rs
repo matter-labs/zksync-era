@@ -168,12 +168,7 @@ fn get_sampling_ratio() -> f64 {
 }
 
 /// Initialize logging with tracing and set up log format
-///
-/// If the sentry URL is provided via an environment variable, this function will also initialize sentry.
-/// Returns a sentry client guard. The full description can be found in the official documentation:
-/// https://docs.sentry.io/platforms/rust/#configure
-#[must_use]
-pub fn init() -> Option<ClientInitGuard> {
+pub fn init() {
     let log_format = std::env::var("MISC_LOG_FORMAT").unwrap_or_else(|_| "plain".to_string());
     let service_name =
         std::env::var("SERVICE_NAME").unwrap_or_else(|_| "UNKNOWN_SERVICE".to_string());
@@ -243,14 +238,28 @@ pub fn init() -> Option<ClientInitGuard> {
         }
         _ => panic!("MISC_LOG_FORMAT has an unexpected value {}", log_format),
     };
+}
 
+/// If the sentry URL is provided via an environment variable, this function will initialize sentry.
+/// Returns a sentry client guard. The full description can be found in the official documentation:
+/// https://docs.sentry.io/platforms/rust/#configure
+pub fn init_sentry() -> Option<ClientInitGuard> {
     get_sentry_url().map(|sentry_url| {
-        let l1_network = std::env::var("CHAIN_ETH_NETWORK").expect("Must be set");
-        let l2_network = std::env::var("CHAIN_ETH_ZKSYNC_NETWORK").expect("Must be set");
+        // Either use the environment provided for EN, or load it from default main node config.
+        let environment = match std::env::var("EN_SENTRY_ENVIRONMENT") {
+            Ok(environment) => environment,
+            Err(_) => {
+                // No EN environment provided, load it from the main node config.
+                let l1_network = std::env::var("CHAIN_ETH_NETWORK").expect("Must be set");
+                let l2_network = std::env::var("CHAIN_ETH_ZKSYNC_NETWORK").expect("Must be set");
+
+                format!("{} - {}", l1_network, l2_network)
+            }
+        };
 
         let options = sentry::ClientOptions {
             release: sentry::release_name!(),
-            environment: Some(Cow::from(format!("{} - {}", l1_network, l2_network))),
+            environment: Some(Cow::from(environment)),
             attach_stacktrace: true,
             ..Default::default()
         }

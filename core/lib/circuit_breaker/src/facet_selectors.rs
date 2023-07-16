@@ -3,8 +3,9 @@ use convert_case::{Case, Casing};
 use std::{collections::BTreeMap, env, fmt, fs, path::Path, str::FromStr};
 
 use zksync_config::configs::chain::CircuitBreakerConfig;
-use zksync_eth_client::{types::Error as EthClientError, BoundEthInterface};
-use zksync_types::{ethabi::Token, Address};
+use zksync_contracts::zksync_contract;
+use zksync_eth_client::{types::Error as EthClientError, EthInterface};
+use zksync_types::{ethabi::Token, Address, H160};
 
 // local imports
 use crate::{utils::unwrap_tuple, CircuitBreaker, CircuitBreakerError};
@@ -31,10 +32,11 @@ pub struct FacetSelectorsChecker<E> {
     // BTreeMap is used to have fixed order of elements when printing error.
     server_selectors: BTreeMap<Address, Vec<String>>,
     config: CircuitBreakerConfig,
+    main_contract: H160,
 }
 
-impl<E: BoundEthInterface + std::fmt::Debug> FacetSelectorsChecker<E> {
-    pub fn new(config: &CircuitBreakerConfig, eth_client: E) -> Self {
+impl<E: EthInterface + std::fmt::Debug> FacetSelectorsChecker<E> {
+    pub fn new(config: &CircuitBreakerConfig, eth_client: E, main_contract: H160) -> Self {
         let zksync_home = env::var("ZKSYNC_HOME").unwrap_or_else(|_| ".".into());
         let path_str = "contracts/ethereum/artifacts/cache/solpp-generated-contracts/zksync/facets";
         let facets_path = Path::new(&zksync_home).join(path_str);
@@ -60,6 +62,10 @@ impl<E: BoundEthInterface + std::fmt::Debug> FacetSelectorsChecker<E> {
                 let selectors = contract
                     .functions
                     .into_values()
+                    .filter(|func| {
+                        let func = func.first().cloned().unwrap();
+                        func.name != "getName"
+                    })
                     .map(|func| {
                         let func = func.first().cloned().unwrap();
                         format!("0x{}", hex::encode(func.short_signature()))
@@ -74,11 +80,12 @@ impl<E: BoundEthInterface + std::fmt::Debug> FacetSelectorsChecker<E> {
             eth_client,
             server_selectors,
             config: config.clone(),
+            main_contract,
         }
     }
 }
 
-impl<E: BoundEthInterface + std::fmt::Debug> FacetSelectorsChecker<E> {
+impl<E: EthInterface + std::fmt::Debug> FacetSelectorsChecker<E> {
     async fn get_contract_facet_selectors(&self) -> BTreeMap<Address, Vec<String>> {
         let facets = self.get_facets_token_with_retry().await.unwrap();
 
@@ -89,7 +96,15 @@ impl<E: BoundEthInterface + std::fmt::Debug> FacetSelectorsChecker<E> {
         (|| async {
             let result: Result<Token, EthClientError> = self
                 .eth_client
-                .call_main_contract_function("facets", (), None, Default::default(), None)
+                .call_contract_function(
+                    "facets",
+                    (),
+                    None,
+                    Default::default(),
+                    None,
+                    self.main_contract,
+                    zksync_contract(),
+                )
                 .await;
 
             result
@@ -104,7 +119,7 @@ impl<E: BoundEthInterface + std::fmt::Debug> FacetSelectorsChecker<E> {
 }
 
 #[async_trait::async_trait]
-impl<E: BoundEthInterface + std::fmt::Debug> CircuitBreaker for FacetSelectorsChecker<E> {
+impl<E: EthInterface + std::fmt::Debug> CircuitBreaker for FacetSelectorsChecker<E> {
     async fn check(&self) -> Result<(), CircuitBreakerError> {
         let contract_selectors = self.get_contract_facet_selectors().await;
         if self.server_selectors != contract_selectors {

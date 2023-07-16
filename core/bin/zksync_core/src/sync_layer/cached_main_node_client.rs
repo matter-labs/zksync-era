@@ -1,18 +1,14 @@
 use std::{collections::HashMap, time::Instant};
 
-use zksync_types::{explorer_api::BlockDetails, L1BatchNumber, MiniblockNumber, Transaction, U64};
+use zksync_types::{api::en::SyncBlock, MiniblockNumber, U64};
 use zksync_web3_decl::{
-    jsonrpsee::{
-        core::RpcResult,
-        http_client::{HttpClient, HttpClientBuilder},
-    },
-    namespaces::{EthNamespaceClient, ZksNamespaceClient},
+    jsonrpsee::http_client::{HttpClient, HttpClientBuilder},
+    namespaces::{EnNamespaceClient, EthNamespaceClient},
+    RpcResult,
 };
 
 /// Maximum number of concurrent requests to the main node.
 const MAX_CONCURRENT_REQUESTS: usize = 100;
-/// Set of fields fetched together for a single miniblock.
-type MiniblockData = (BlockDetails, Option<(U64, U64)>, Vec<Transaction>);
 
 /// This is a temporary implementation of a cache layer for the main node HTTP requests.
 /// It was introduced to quickly develop a way to fetch data from the main node concurrently,
@@ -33,9 +29,7 @@ pub(super) struct CachedMainNodeClient {
     /// Earliest miniblock number that is not yet cached.
     /// Used as a marker to refill the cache.
     next_refill_at: MiniblockNumber,
-    miniblock_headers: HashMap<MiniblockNumber, BlockDetails>,
-    batch_ranges: HashMap<L1BatchNumber, (U64, U64)>,
-    txs: HashMap<MiniblockNumber, Vec<Transaction>>,
+    blocks: HashMap<MiniblockNumber, SyncBlock>,
 }
 
 impl CachedMainNodeClient {
@@ -46,54 +40,20 @@ impl CachedMainNodeClient {
         Self {
             client,
             next_refill_at: MiniblockNumber(0),
-            miniblock_headers: Default::default(),
-            batch_ranges: Default::default(),
-            txs: Default::default(),
+            blocks: Default::default(),
         }
     }
 
-    /// Cached version of [`HttpClient::get_raw_block_transaction`].
-    pub async fn get_raw_block_transactions(
-        &self,
-        miniblock: MiniblockNumber,
-    ) -> RpcResult<Vec<Transaction>> {
-        let txs = { self.txs.get(&miniblock).cloned() };
-        metrics::increment_counter!("external_node.fetcher.cache.total", "method" => "get_raw_block_transactions");
-        match txs {
-            Some(txs) => {
-                metrics::increment_counter!("external_node.fetcher.cache.hit", "method" => "get_raw_block_transactions");
-                Ok(txs)
+    /// Cached version of [`HttpClient::sync_l2_block`].
+    pub async fn sync_l2_block(&self, miniblock: MiniblockNumber) -> RpcResult<Option<SyncBlock>> {
+        let block = { self.blocks.get(&miniblock).cloned() };
+        metrics::increment_counter!("external_node.fetcher.cache.total", "method" => "sync_l2_block");
+        match block {
+            Some(block) => {
+                metrics::increment_counter!("external_node.fetcher.cache.hit", "method" => "sync_l2_block");
+                Ok(Some(block))
             }
-            None => self.client.get_raw_block_transactions(miniblock).await,
-        }
-    }
-
-    /// Cached version of [`HttpClient::get_block_range`].
-    pub async fn get_block_details(
-        &self,
-        miniblock: MiniblockNumber,
-    ) -> RpcResult<Option<BlockDetails>> {
-        let block_details = self.miniblock_headers.get(&miniblock).cloned();
-        metrics::increment_counter!("external_node.fetcher.cache.total", "method" => "get_block_details");
-        match block_details {
-            Some(block_details) => {
-                metrics::increment_counter!("external_node.fetcher.cache.hit", "method" => "get_block_details");
-                Ok(Some(block_details))
-            }
-            None => self.client.get_block_details(miniblock).await,
-        }
-    }
-
-    /// Cached version of [`HttpClient::get_miniblock_range`].
-    pub async fn get_miniblock_range(&self, batch: L1BatchNumber) -> RpcResult<Option<(U64, U64)>> {
-        let range = self.batch_ranges.get(&batch).cloned();
-        metrics::increment_counter!("external_node.fetcher.cache.total", "method" => "get_miniblock_range");
-        match range {
-            Some(range) => {
-                metrics::increment_counter!("external_node.fetcher.cache.hit", "method" => "get_miniblock_range");
-                Ok(Some(range))
-            }
-            None => self.client.get_miniblock_range(batch).await,
+            None => self.client.sync_l2_block(miniblock, true).await,
         }
     }
 
@@ -105,12 +65,7 @@ impl CachedMainNodeClient {
 
     /// Removes a miniblock data from the cache.
     pub fn forget_miniblock(&mut self, miniblock: MiniblockNumber) {
-        self.miniblock_headers.remove(&miniblock);
-        self.txs.remove(&miniblock);
-    }
-
-    pub fn forget_l1_batch(&mut self, l1_batch: L1BatchNumber) {
-        self.batch_ranges.remove(&l1_batch);
+        self.blocks.remove(&miniblock);
     }
 
     pub async fn populate_miniblocks_cache(
@@ -133,19 +88,13 @@ impl CachedMainNodeClient {
                 // If the miniblock is already in the cache, we don't need to fetch it.
                 !self.has_miniblock(miniblock)
             })
-            .map(|miniblock| Self::fetch_one_miniblock(&self.client, miniblock));
+            .map(|block_number| self.client.sync_l2_block(block_number, true));
 
         let results = futures::future::join_all(task_futures).await;
         for result in results {
-            if let Ok(Some((header, range, txs))) = result {
-                let miniblock = header.number;
-                let batch = header.l1_batch_number;
-                self.miniblock_headers.insert(miniblock, header);
-                if let Some(range) = range {
-                    self.batch_ranges.insert(batch, range);
-                }
-                self.txs.insert(miniblock, txs);
-                self.next_refill_at = self.next_refill_at.max(miniblock + 1);
+            if let Ok(Some(block)) = result {
+                self.next_refill_at = self.next_refill_at.max(block.number + 1);
+                self.blocks.insert(block.number, block);
             } else {
                 // At the cache level, it's fine to just silence errors.
                 // The entry won't be included into the cache, and whoever uses the cache, will have to process
@@ -157,29 +106,6 @@ impl CachedMainNodeClient {
     }
 
     fn has_miniblock(&self, miniblock: MiniblockNumber) -> bool {
-        self.miniblock_headers.contains_key(&miniblock)
-    }
-
-    async fn fetch_one_miniblock(
-        client: &HttpClient,
-        miniblock: MiniblockNumber,
-    ) -> RpcResult<Option<MiniblockData>> {
-        // Error propagation here would mean that these entries won't appear in the cache.
-        // This would cause a cache miss, but generally it shouldn't be a problem as long as the API errors are rare.
-        // If the API returns lots of errors, that's a problem regardless of caching.
-        let start = Instant::now();
-        let header = client.get_block_details(miniblock).await;
-        metrics::histogram!("external_node.fetcher.cache.requests", start.elapsed(), "stage" => "get_block_details");
-        let Some(header) = header? else { return Ok(None) };
-
-        let start = Instant::now();
-        let miniblock_range = client.get_miniblock_range(header.l1_batch_number).await?;
-        metrics::histogram!("external_node.fetcher.cache.requests", start.elapsed(), "stage" => "get_miniblock_range");
-
-        let start = Instant::now();
-        let miniblock_txs = client.get_raw_block_transactions(miniblock).await?;
-        metrics::histogram!("external_node.fetcher.cache.requests", start.elapsed(), "stage" => "get_raw_block_transactions");
-
-        Ok(Some((header, miniblock_range, miniblock_txs)))
+        self.blocks.contains_key(&miniblock)
     }
 }

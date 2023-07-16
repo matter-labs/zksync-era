@@ -1,7 +1,12 @@
-use std::{sync::mpsc, thread, time::Instant};
+use async_trait::async_trait;
+use tokio::{
+    sync::{mpsc, oneshot},
+    task::JoinHandle,
+};
+
+use std::{collections::HashSet, fmt, time::Instant};
 
 use vm::{
-    storage::Storage,
     vm::{VmPartialExecutionResult, VmTxExecutionResult},
     vm_with_bootloader::{
         init_vm, init_vm_with_gas_limit, push_transaction_to_bootloader_memory, BootloaderJobType,
@@ -10,20 +15,17 @@ use vm::{
     HistoryEnabled, HistoryMode, TxRevertReason, VmBlockResult, VmInstance,
 };
 use zksync_dal::ConnectionPool;
-use zksync_state::{secondary_storage::SecondaryStateStorage, storage_view::StorageView};
-use zksync_storage::{db::Database, RocksDB};
+use zksync_state::{RocksdbStorage, StorageView};
 use zksync_types::{tx::ExecutionMetrics, Transaction, U256};
 use zksync_utils::bytecode::{hash_bytecode, CompressedBytecodeInfo};
 
-use itertools::Itertools;
-
-use crate::gas_tracker::{gas_count_from_metrics, gas_count_from_tx_and_metrics};
-use crate::state_keeper::io::L1BatchParams;
-
-use crate::state_keeper::types::ExecutionMetricsForCriteria;
-
 #[cfg(test)]
 mod tests;
+
+use crate::{
+    gas_tracker::{gas_count_from_metrics, gas_count_from_tx_and_metrics},
+    state_keeper::{io::L1BatchParams, types::ExecutionMetricsForCriteria},
+};
 
 /// Representation of a transaction executed in the virtual machine.
 #[derive(Debug, Clone)]
@@ -46,26 +48,26 @@ pub(crate) enum TxExecutionResult {
 
 impl TxExecutionResult {
     /// Returns a revert reason if either transaction was rejected or bootloader ran out of gas.
-    pub(super) fn err(&self) -> Option<TxRevertReason> {
+    pub(super) fn err(&self) -> Option<&TxRevertReason> {
         match self {
-            TxExecutionResult::Success { .. } => None,
-            TxExecutionResult::RejectedByVm { rejection_reason } => Some(rejection_reason.clone()),
-            TxExecutionResult::BootloaderOutOfGasForTx
-            | TxExecutionResult::BootloaderOutOfGasForBlockTip { .. } => {
-                Some(TxRevertReason::BootloaderOutOfGas)
+            Self::Success { .. } => None,
+            Self::RejectedByVm { rejection_reason } => Some(rejection_reason),
+            Self::BootloaderOutOfGasForTx | Self::BootloaderOutOfGasForBlockTip { .. } => {
+                Some(&TxRevertReason::BootloaderOutOfGas)
             }
         }
     }
 }
 
 /// An abstraction that allows us to create different kinds of batch executors.
-/// The only requirement is to return the `BatchExecutorHandle` object, which does its work
+/// The only requirement is to return a [`BatchExecutorHandle`], which does its work
 /// by communicating with the externally initialized thread.
-pub trait L1BatchExecutorBuilder: 'static + std::fmt::Debug + Send {
-    fn init_batch(&self, l1_batch_params: L1BatchParams) -> BatchExecutorHandle;
+#[async_trait]
+pub trait L1BatchExecutorBuilder: 'static + Send + Sync + fmt::Debug {
+    async fn init_batch(&self, l1_batch_params: L1BatchParams) -> BatchExecutorHandle;
 }
 
-/// The default implementation of the `BatchExecutorBuilder`.
+/// The default implementation of [`L1BatchExecutorBuilder`].
 /// Creates a "real" batch executor which maintains the VM (as opposed to the test builder which doesn't use the VM).
 #[derive(Debug, Clone)]
 pub struct MainBatchExecutorBuilder {
@@ -94,17 +96,14 @@ impl MainBatchExecutorBuilder {
     }
 }
 
+#[async_trait]
 impl L1BatchExecutorBuilder for MainBatchExecutorBuilder {
-    fn init_batch(&self, l1_batch_params: L1BatchParams) -> BatchExecutorHandle {
-        let secondary_storage = self
-            .pool
-            .access_storage_blocking()
-            .storage_load_dal()
-            .load_secondary_storage(RocksDB::new(
-                Database::StateKeeper,
-                &self.state_keeper_db_path,
-                true,
-            ));
+    async fn init_batch(&self, l1_batch_params: L1BatchParams) -> BatchExecutorHandle {
+        let mut secondary_storage = RocksdbStorage::new(self.state_keeper_db_path.as_ref());
+        let mut conn = self.pool.access_storage_tagged("state_keeper").await;
+        secondary_storage.update_from_postgres(&mut conn).await;
+        drop(conn);
+
         vlog::info!(
             "Secondary storage for batch {} initialized, size is {}",
             l1_batch_params
@@ -112,11 +111,11 @@ impl L1BatchExecutorBuilder for MainBatchExecutorBuilder {
                 .inner_block_context()
                 .context
                 .block_number,
-            secondary_storage.get_estimated_map_size()
+            secondary_storage.estimated_map_size()
         );
         metrics::gauge!(
             "server.state_keeper.storage_map_size",
-            secondary_storage.get_estimated_map_size() as f64,
+            secondary_storage.estimated_map_size() as f64,
         );
         BatchExecutorHandle::new(
             self.save_call_traces,
@@ -134,7 +133,7 @@ impl L1BatchExecutorBuilder for MainBatchExecutorBuilder {
 /// the batches.
 #[derive(Debug)]
 pub struct BatchExecutorHandle {
-    handle: thread::JoinHandle<()>,
+    handle: JoinHandle<()>,
     commands: mpsc::Sender<Command>,
 }
 
@@ -143,11 +142,13 @@ impl BatchExecutorHandle {
         save_call_traces: bool,
         max_allowed_tx_gas_limit: U256,
         validation_computational_gas_limit: u32,
-        secondary_storage: SecondaryStateStorage,
+        secondary_storage: RocksdbStorage,
         l1_batch_params: L1BatchParams,
         vm_gas_limit: Option<u32>,
     ) -> Self {
-        let (commands_sender, commands_receiver) = mpsc::channel();
+        // Since we process `BatchExecutor` commands one-by-one (the next command is never enqueued
+        // until a previous command is processed), capacity 1 is enough for the commands channel.
+        let (commands_sender, commands_receiver) = mpsc::channel(1);
         let executor = BatchExecutor {
             save_call_traces,
             max_allowed_tx_gas_limit,
@@ -156,8 +157,8 @@ impl BatchExecutorHandle {
             vm_gas_limit,
         };
 
-        let handle = thread::spawn(move || executor.run(secondary_storage, l1_batch_params));
-
+        let handle =
+            tokio::task::spawn_blocking(move || executor.run(secondary_storage, l1_batch_params));
         Self {
             handle,
             commands: commands_sender,
@@ -166,48 +167,77 @@ impl BatchExecutorHandle {
 
     /// Creates a batch executor handle from the provided sender and thread join handle.
     /// Can be used to inject an alternative batch executor implementation.
-    pub(crate) fn from_raw(
-        handle: thread::JoinHandle<()>,
-        commands: mpsc::Sender<Command>,
-    ) -> Self {
+    #[cfg(test)]
+    pub(super) fn from_raw(handle: JoinHandle<()>, commands: mpsc::Sender<Command>) -> Self {
         Self { handle, commands }
     }
 
-    pub(super) fn execute_tx(&self, tx: Transaction) -> TxExecutionResult {
-        let (response_sender, response_receiver) = mpsc::sync_channel(0);
+    pub(super) async fn execute_tx(&self, tx: Transaction) -> TxExecutionResult {
+        let tx_gas_limit = tx.gas_limit().as_u32();
+
+        let (response_sender, response_receiver) = oneshot::channel();
         self.commands
-            .send(Command::ExecuteTx(tx, response_sender))
+            .send(Command::ExecuteTx(Box::new(tx), response_sender))
+            .await
             .unwrap();
 
         let start = Instant::now();
-        let res = response_receiver.recv().unwrap();
-        metrics::histogram!("state_keeper.batch_executor.command_response_time", start.elapsed(), "command" => "execute_tx");
+        let res = response_receiver.await.unwrap();
+        let elapsed = start.elapsed();
+
+        metrics::histogram!("state_keeper.batch_executor.command_response_time", elapsed, "command" => "execute_tx");
+
+        if let TxExecutionResult::Success { tx_metrics, .. } = res {
+            metrics::histogram!(
+                "state_keeper.computational_gas_per_nanosecond",
+                tx_metrics.execution_metrics.computational_gas_used as f64
+                    / elapsed.as_nanos() as f64
+            );
+        } else {
+            // The amount of computational gas paid for failed transactions is hard to get
+            // but comparing to the gas limit makes sense, since we can burn all gas
+            // if some kind of failure is a DDoS vector otherwise.
+            metrics::histogram!(
+                "state_keeper.failed_tx_gas_limit_per_nanosecond",
+                tx_gas_limit as f64 / elapsed.as_nanos() as f64
+            );
+        }
+
         res
     }
 
-    pub(super) fn rollback_last_tx(&self) {
+    pub(super) async fn rollback_last_tx(&self) {
         // While we don't get anything from the channel, it's useful to have it as a confirmation that the operation
         // indeed has been processed.
-        let (response_sender, response_receiver) = mpsc::sync_channel(0);
+        let (response_sender, response_receiver) = oneshot::channel();
         self.commands
             .send(Command::RollbackLastTx(response_sender))
+            .await
             .unwrap();
         let start = Instant::now();
-        response_receiver.recv().unwrap();
+        response_receiver.await.unwrap();
         metrics::histogram!("state_keeper.batch_executor.command_response_time", start.elapsed(), "command" => "rollback_last_tx");
     }
 
-    pub(super) fn finish_batch(self) -> VmBlockResult {
-        let (response_sender, response_receiver) = mpsc::sync_channel(0);
+    pub(super) async fn finish_batch(self) -> VmBlockResult {
+        let (response_sender, response_receiver) = oneshot::channel();
         self.commands
             .send(Command::FinishBatch(response_sender))
+            .await
             .unwrap();
         let start = Instant::now();
-        let resp = response_receiver.recv().unwrap();
-        self.handle.join().unwrap();
+        let resp = response_receiver.await.unwrap();
+        self.handle.await.unwrap();
         metrics::histogram!("state_keeper.batch_executor.command_response_time", start.elapsed(), "command" => "finish_batch");
         resp
     }
+}
+
+#[derive(Debug)]
+pub(super) enum Command {
+    ExecuteTx(Box<Transaction>, oneshot::Sender<TxExecutionResult>),
+    RollbackLastTx(oneshot::Sender<()>),
+    FinishBatch(oneshot::Sender<VmBlockResult>),
 }
 
 /// Implementation of the "primary" (non-test) batch executor.
@@ -225,19 +255,8 @@ pub(super) struct BatchExecutor {
     vm_gas_limit: Option<u32>,
 }
 
-#[allow(clippy::large_enum_variant)]
-pub(crate) enum Command {
-    ExecuteTx(Transaction, mpsc::SyncSender<TxExecutionResult>),
-    RollbackLastTx(mpsc::SyncSender<()>),
-    FinishBatch(mpsc::SyncSender<VmBlockResult>),
-}
-
 impl BatchExecutor {
-    pub(super) fn run(
-        self,
-        secondary_storage: SecondaryStateStorage,
-        l1_batch_params: L1BatchParams,
-    ) {
+    pub(super) fn run(mut self, secondary_storage: RocksdbStorage, l1_batch_params: L1BatchParams) {
         vlog::info!(
             "Starting executing batch #{}",
             l1_batch_params
@@ -248,9 +267,7 @@ impl BatchExecutor {
         );
 
         let mut storage_view = StorageView::new(&secondary_storage);
-        let mut oracle_tools =
-            vm::OracleTools::new(&mut storage_view as &mut dyn Storage, HistoryEnabled);
-
+        let mut oracle_tools = vm::OracleTools::new(&mut storage_view, HistoryEnabled);
         let mut vm = match self.vm_gas_limit {
             Some(vm_gas_limit) => init_vm_with_gas_limit(
                 &mut oracle_tools,
@@ -269,7 +286,7 @@ impl BatchExecutor {
             ),
         };
 
-        while let Ok(cmd) = self.commands.recv() {
+        while let Some(cmd) = self.commands.blocking_recv() {
             match cmd {
                 Command::ExecuteTx(tx, resp) => {
                     let result = self.execute_tx(&tx, &mut vm);
@@ -281,6 +298,21 @@ impl BatchExecutor {
                 }
                 Command::FinishBatch(resp) => {
                     resp.send(self.finish_batch(&mut vm)).unwrap();
+
+                    // storage_view cannot be accessed while borrowed by the VM,
+                    // so this is the only point at which storage metrics can be obtained
+                    let metrics = storage_view.metrics();
+                    metrics::histogram!(
+                        "state_keeper.batch_storage_interaction_duration",
+                        metrics.time_spent_on_get_value,
+                        "interaction" => "get_value"
+                    );
+                    metrics::histogram!(
+                        "state_keeper.batch_storage_interaction_duration",
+                        metrics.time_spent_on_set_value,
+                        "interaction" => "set_value"
+                    );
+
                     return;
                 }
             }
@@ -394,30 +426,26 @@ impl BatchExecutor {
         // Saving the snapshot before executing
         vm.save_current_vm_as_snapshot();
 
-        let compressed_bytecodes = if tx.is_l1() || tx.execute.factory_deps.is_none() {
+        let compressed_bytecodes = if tx.is_l1() {
             // For L1 transactions there are no compressed bytecodes
             vec![]
         } else {
             // Deduplicate and filter factory deps preserving original order.
-            tx.execute
-                .factory_deps
-                .as_ref()
-                .unwrap()
-                .iter()
-                .enumerate()
-                .sorted_by_key(|(_idx, dep)| *dep)
-                .dedup_by(|x, y| x.1 == y.1)
-                .filter(|(_idx, dep)| {
-                    !vm.state
-                        .storage
-                        .storage
-                        .get_ptr()
-                        .borrow_mut()
-                        .is_bytecode_known(&hash_bytecode(dep))
-                })
-                .sorted_by_key(|(idx, _dep)| *idx)
-                .filter_map(|(_idx, dep)| CompressedBytecodeInfo::from_original(dep.clone()).ok())
-                .collect()
+            let deps = tx.execute.factory_deps.as_deref().unwrap_or_default();
+            let storage_ptr = vm.state.storage.storage.get_ptr();
+            let mut storage_ptr = storage_ptr.borrow_mut();
+            let mut deps_hashes = HashSet::with_capacity(deps.len());
+            let filtered_deps = deps.iter().filter_map(|bytecode| {
+                let bytecode_hash = hash_bytecode(bytecode);
+                let is_known = !deps_hashes.insert(bytecode_hash)
+                    || storage_ptr.is_bytecode_known(&bytecode_hash);
+                if is_known {
+                    None
+                } else {
+                    CompressedBytecodeInfo::from_original(bytecode.clone()).ok()
+                }
+            });
+            filtered_deps.collect()
         };
 
         push_transaction_to_bootloader_memory(
@@ -431,14 +459,13 @@ impl BatchExecutor {
             self.save_call_traces,
         )?;
 
-        let at_least_one_unpublished = compressed_bytecodes.iter().any(|info| {
-            !vm.state
-                .storage
-                .storage
-                .get_ptr()
-                .borrow_mut()
-                .is_bytecode_known(&hash_bytecode(&info.original))
-        });
+        let at_least_one_unpublished = {
+            let storage_ptr = vm.state.storage.storage.get_ptr();
+            let mut storage_ptr = storage_ptr.borrow_mut();
+            compressed_bytecodes
+                .iter()
+                .any(|info| !storage_ptr.is_bytecode_known(&hash_bytecode(&info.original)))
+        };
 
         if at_least_one_unpublished {
             // Rolling back and trying to execute one more time.
@@ -458,7 +485,6 @@ impl BatchExecutor {
         } else {
             // Remove the snapshot taken at the start of this function as it is not needed anymore.
             vm.pop_snapshot_no_rollback();
-
             Ok((result_with_compression, compressed_bytecodes))
         }
     }

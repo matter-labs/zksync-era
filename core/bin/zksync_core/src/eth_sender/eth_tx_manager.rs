@@ -10,7 +10,7 @@ use zksync_eth_client::{
 use zksync_types::{
     eth_sender::EthTx,
     web3::{contract::Options, error::Error as Web3Error},
-    L1BlockNumber, H256, U256,
+    L1BlockNumber, Nonce, H256, U256,
 };
 use zksync_utils::time::seconds_since_epoch;
 
@@ -23,12 +23,18 @@ struct EthFee {
     priority_fee_per_gas: u64,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 struct OperatorNonce {
-    // Nonce on block `current_block - self.wait_confirmations`
-    lagging: u64,
-    // Nonce on block `current_block`
-    current: u64,
+    // Nonce on finalized block
+    finalized: Nonce,
+    // Nonce on latest block
+    latest: Nonce,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub(super) struct L1BlockNumbers {
+    pub finalized: L1BlockNumber,
+    pub latest: L1BlockNumber,
 }
 
 /// The component is responsible for managing sending eth_txs attempts:
@@ -56,48 +62,44 @@ where
         }
     }
 
-    async fn get_tx_status_and_confirmations_count(
+    async fn get_tx_status(
         &self,
         tx_hash: H256,
-        current_block: L1BlockNumber,
-    ) -> Result<Option<(ExecutedTxStatus, u64)>, ETHSenderError> {
-        let status = self
-            .ethereum_gateway
+    ) -> Result<Option<ExecutedTxStatus>, ETHSenderError> {
+        self.ethereum_gateway
             .get_tx_status(tx_hash, "eth_tx_manager")
-            .await?;
-        if let Some(status) = status {
-            // Amount of confirmations for a block containing the transaction.
-            let confirmations = (current_block.0 as u64)
-                .saturating_sub(status.receipt.block_number.unwrap().as_u64());
-            return Ok(Some((status, confirmations)));
-        }
-        Ok(None)
+            .await
+            .map_err(Into::into)
     }
 
     async fn check_all_sending_attempts(
         &self,
         storage: &mut StorageProcessor<'_>,
         op: &EthTx,
-        current_block: L1BlockNumber,
-    ) -> Option<(ExecutedTxStatus, u64)> {
+    ) -> Option<ExecutedTxStatus> {
         // Checking history items, starting from most recently sent.
-        for history_item in storage.eth_sender_dal().get_tx_history_to_check(op.id) {
+        for history_item in storage
+            .eth_sender_dal()
+            .get_tx_history_to_check(op.id)
+            .await
+        {
             // `status` is a Result here and we don't unwrap it with `?`
             // because if we do and get an `Err`, we won't finish the for loop,
             // which means we might miss the transaction that actually succeeded.
-            match self
-                .get_tx_status_and_confirmations_count(history_item.tx_hash, current_block)
-                .await
-            {
+            match self.get_tx_status(history_item.tx_hash).await {
                 Ok(Some(s)) => return Some(s),
                 Ok(_) => continue,
-                Err(err) => vlog::warn!("Can't check transaction {:?}", err),
+                Err(err) => vlog::warn!(
+                    "Can't check transaction {:?}: {:?}",
+                    history_item.tx_hash,
+                    err
+                ),
             }
         }
         None
     }
 
-    fn calculate_fee(
+    async fn calculate_fee(
         &self,
         storage: &mut StorageProcessor<'_>,
         tx: &EthTx,
@@ -107,8 +109,9 @@ where
 
         let priority_fee_per_gas = if time_in_mempool != 0 {
             metrics::increment_counter!("server.eth_sender.transaction_resent");
-            let priority_fee_per_gas =
-                self.increase_priority_fee(storage, tx.id, base_fee_per_gas)?;
+            let priority_fee_per_gas = self
+                .increase_priority_fee(storage, tx.id, base_fee_per_gas)
+                .await?;
             vlog::info!(
                 "Resending operation {} with base fee {:?} and priority fee {:?}",
                 tx.id,
@@ -135,7 +138,7 @@ where
         })
     }
 
-    fn increase_priority_fee(
+    async fn increase_priority_fee(
         &self,
         storage: &mut StorageProcessor<'_>,
         eth_tx_id: u32,
@@ -144,6 +147,7 @@ where
         let previous_sent_tx = storage
             .eth_sender_dal()
             .get_last_sent_eth_tx(eth_tx_id)
+            .await
             .unwrap();
 
         let previous_base_fee = previous_sent_tx.base_fee_per_gas;
@@ -179,7 +183,7 @@ where
         let EthFee {
             base_fee_per_gas,
             priority_fee_per_gas,
-        } = self.calculate_fee(storage, tx, time_in_mempool)?;
+        } = self.calculate_fee(storage, tx, time_in_mempool).await?;
 
         metrics::histogram!(
             "server.eth_sender.used_base_fee_per_gas",
@@ -195,13 +199,17 @@ where
             .sign_tx(tx, base_fee_per_gas, priority_fee_per_gas)
             .await;
 
-        if let Some(tx_history_id) = storage.eth_sender_dal().insert_tx_history(
-            tx.id,
-            base_fee_per_gas,
-            priority_fee_per_gas,
-            signed_tx.hash,
-            signed_tx.raw_tx.clone(),
-        ) {
+        if let Some(tx_history_id) = storage
+            .eth_sender_dal()
+            .insert_tx_history(
+                tx.id,
+                base_fee_per_gas,
+                priority_fee_per_gas,
+                signed_tx.hash,
+                signed_tx.raw_tx.clone(),
+            )
+            .await
+        {
             if let Err(error) = self
                 .send_raw_transaction(storage, tx_history_id, signed_tx.raw_tx, current_block)
                 .await
@@ -229,11 +237,15 @@ where
             Ok(tx_hash) => {
                 storage
                     .eth_sender_dal()
-                    .set_sent_at_block(tx_history_id, current_block.0);
+                    .set_sent_at_block(tx_history_id, current_block.0)
+                    .await;
                 Ok(tx_hash)
             }
             Err(error) => {
-                storage.eth_sender_dal().remove_tx_history(tx_history_id);
+                storage
+                    .eth_sender_dal()
+                    .remove_tx_history(tx_history_id)
+                    .await;
                 Err(error.into())
             }
         }
@@ -241,25 +253,50 @@ where
 
     async fn get_operator_nonce(
         &self,
-        current_block: L1BlockNumber,
+        block_numbers: L1BlockNumbers,
     ) -> Result<OperatorNonce, ETHSenderError> {
-        let lagging = self
+        let finalized = self
             .ethereum_gateway
-            .nonce_at(
-                current_block
-                    .saturating_sub(self.config.wait_confirmations as u32)
-                    .into(),
-                "eth_tx_manager",
-            )
+            .nonce_at(block_numbers.finalized.0.into(), "eth_tx_manager")
             .await?
-            .as_u64();
+            .as_u32()
+            .into();
 
-        let current = self
+        let latest = self
             .ethereum_gateway
-            .current_nonce("eth_tx_manager")
+            .nonce_at(block_numbers.latest.0.into(), "eth_tx_manager")
             .await?
-            .as_u64();
-        Ok(OperatorNonce { lagging, current })
+            .as_u32()
+            .into();
+        Ok(OperatorNonce { finalized, latest })
+    }
+
+    async fn get_l1_block_numbers(&self) -> Result<L1BlockNumbers, ETHSenderError> {
+        let finalized = if let Some(confirmations) = self.config.wait_confirmations {
+            let latest_block_number = self
+                .ethereum_gateway
+                .block_number("eth_tx_manager")
+                .await?
+                .as_u64();
+            (latest_block_number.saturating_sub(confirmations) as u32).into()
+        } else {
+            self.ethereum_gateway
+                .block("finalized".to_string(), "eth_tx_manager")
+                .await?
+                .expect("Finalized block must be present on L1")
+                .number
+                .expect("Finalized block must contain number")
+                .as_u32()
+                .into()
+        };
+
+        let latest = self
+            .ethereum_gateway
+            .block_number("eth_tx_manager")
+            .await?
+            .as_u32()
+            .into();
+        Ok(L1BlockNumbers { finalized, latest })
     }
 
     // Monitors the inflight transactions, marks mined ones as confirmed,
@@ -267,75 +304,75 @@ where
     pub(super) async fn monitor_inflight_transactions(
         &mut self,
         storage: &mut StorageProcessor<'_>,
-        current_block: L1BlockNumber,
+        l1_block_numbers: L1BlockNumbers,
     ) -> Result<Option<(EthTx, u32)>, ETHSenderError> {
         metrics::gauge!(
             "server.eth_sender.last_known_l1_block",
-            current_block.0 as f64
+            l1_block_numbers.latest.0 as f64
         );
 
-        let operator_nonce = self.get_operator_nonce(current_block).await?;
+        let operator_nonce = self.get_operator_nonce(l1_block_numbers).await?;
 
-        let inflight_txs = storage.eth_sender_dal().get_inflight_txs();
+        let inflight_txs = storage.eth_sender_dal().get_inflight_txs().await;
         metrics::gauge!(
             "server.eth_sender.number_of_inflight_txs",
             inflight_txs.len() as f64,
         );
 
+        vlog::trace!(
+            "Going through not confirmed txs. \
+             Block numbers: latest {}, finalized {}, \
+             operator's nonce: latest {}, finalized {}",
+            l1_block_numbers.latest,
+            l1_block_numbers.finalized,
+            operator_nonce.latest,
+            operator_nonce.finalized,
+        );
+
         // Not confirmed transactions, ordered by nonce
         for tx in inflight_txs {
-            vlog::trace!(
-                "Going through not confirmed txs. \
-                 Current block: {}, current tx id: {}, \
-                 sender's nonce on block `current block - number of confirmations`: {}",
-                current_block,
-                tx.id,
-                operator_nonce.lagging
-            );
+            vlog::trace!("Checking tx id: {}", tx.id,);
 
-            // If the `current_sender_nonce` <= `tx.nonce`, this means
+            // If the `operator_nonce.latest` <= `tx.nonce`, this means
             // that `tx` is not mined and we should resend it.
             // We only resend the first unmined transaction.
-            if operator_nonce.current <= tx.nonce {
+            if operator_nonce.latest <= tx.nonce {
                 // None means txs hasn't been sent yet
                 let first_sent_at_block = storage
                     .eth_sender_dal()
                     .get_block_number_on_first_sent_attempt(tx.id)
-                    .unwrap_or(current_block.0);
+                    .await
+                    .unwrap_or(l1_block_numbers.latest.0);
                 return Ok(Some((tx, first_sent_at_block)));
             }
 
-            // If on block `current_block - self.wait_confirmations`
-            // sender's nonce was > tx.nonce, then `tx` is mined and confirmed (either successful or reverted).
+            // If on finalized block sender's nonce was > tx.nonce,
+            // then `tx` is mined and confirmed (either successful or reverted).
             // Only then we will check the history to find the receipt.
             // Otherwise, `tx` is mined but not confirmed, so we skip to the next one.
-            if operator_nonce.lagging <= tx.nonce {
+            if operator_nonce.finalized <= tx.nonce {
                 continue;
             }
 
             vlog::trace!(
-                "Sender's nonce on block `current block - number of confirmations` is greater than current tx's nonce. \
+                "Sender's nonce on finalized block is greater than current tx's nonce. \
                  Checking transaction with id {}. Tx nonce is equal to {}",
                 tx.id,
                 tx.nonce,
             );
 
-            match self
-                .check_all_sending_attempts(storage, &tx, current_block)
-                .await
-            {
-                Some((tx_status, confirmations)) => {
-                    self.apply_tx_status(storage, &tx, tx_status, confirmations, current_block)
+            match self.check_all_sending_attempts(storage, &tx).await {
+                Some(tx_status) => {
+                    self.apply_tx_status(storage, &tx, tx_status, l1_block_numbers.finalized)
                         .await;
                 }
                 None => {
                     // The nonce has increased but we did not find the receipt.
                     // This is an error because such a big reorg may cause transactions that were
                     // previously recorded as confirmed to become pending again and we have to
-                    // make sure it's not the case - otherwire eth_sender may not work properly.
+                    // make sure it's not the case - otherwise eth_sender may not work properly.
                     vlog::error!(
-                        "Possible block reorgs: nonce increase detected {} blocks ago, but no tx receipt found for tx {:?}",
-                        self.config.wait_confirmations,
+                        "Possible block reorgs: finalized nonce increase detected, but no tx receipt found for tx {:?}",
                         &tx
                     );
                 }
@@ -358,7 +395,7 @@ where
                     opt.gas = Some(self.config.max_aggregated_tx_gas.into());
                     opt.max_fee_per_gas = Some(U256::from(base_fee_per_gas + priority_fee_per_gas));
                     opt.max_priority_fee_per_gas = Some(U256::from(priority_fee_per_gas));
-                    opt.nonce = Some(tx.nonce.into());
+                    opt.nonce = Some(tx.nonce.0.into());
                 }),
                 "eth_tx_manager",
             )
@@ -369,31 +406,36 @@ where
     async fn send_unsent_txs(
         &mut self,
         storage: &mut StorageProcessor<'_>,
-        current_block: L1BlockNumber,
+        l1_block_numbers: L1BlockNumbers,
     ) {
-        for tx in storage.eth_sender_dal().get_unsent_txs() {
+        for tx in storage.eth_sender_dal().get_unsent_txs().await {
             // Check already sent txs not marked as sent and mark them as sent.
             // The common reason for this behaviour is that we sent tx and stop the server
             // before updating the database
-            let tx_status = self
-                .get_tx_status_and_confirmations_count(tx.tx_hash, current_block)
-                .await;
+            let tx_status = self.get_tx_status(tx.tx_hash).await;
 
-            if let Ok(Some((tx_status, confirmations))) = tx_status {
+            if let Ok(Some(tx_status)) = tx_status {
                 vlog::info!("The tx {:?} has been already sent", tx.tx_hash);
                 storage
                     .eth_sender_dal()
-                    .set_sent_at_block(tx.id, tx_status.receipt.block_number.unwrap().as_u32());
+                    .set_sent_at_block(tx.id, tx_status.receipt.block_number.unwrap().as_u32())
+                    .await;
 
                 let eth_tx = storage
                     .eth_sender_dal()
                     .get_eth_tx(tx.eth_tx_id)
+                    .await
                     .expect("Eth tx should exist");
 
-                self.apply_tx_status(storage, &eth_tx, tx_status, confirmations, current_block)
+                self.apply_tx_status(storage, &eth_tx, tx_status, l1_block_numbers.finalized)
                     .await;
             } else if let Err(error) = self
-                .send_raw_transaction(storage, tx.id, tx.signed_raw_tx.clone(), current_block)
+                .send_raw_transaction(
+                    storage,
+                    tx.id,
+                    tx.signed_raw_tx.clone(),
+                    l1_block_numbers.latest,
+                )
                 .await
             {
                 vlog::warn!("Error {:?} in sending tx {:?}", error, &tx);
@@ -406,22 +448,20 @@ where
         storage: &mut StorageProcessor<'_>,
         tx: &EthTx,
         tx_status: ExecutedTxStatus,
-        confirmations: u64,
-        current_block: L1BlockNumber,
+        finalized_block: L1BlockNumber,
     ) {
-        if confirmations >= self.config.wait_confirmations {
+        let receipt_block_number = tx_status.receipt.block_number.unwrap().as_u32();
+        if receipt_block_number <= finalized_block.0 {
             if tx_status.success {
-                self.confirm_tx(storage, tx, tx_status, current_block);
+                self.confirm_tx(storage, tx, tx_status).await;
             } else {
                 self.fail_tx(storage, tx, tx_status).await;
             }
         } else {
             vlog::debug!(
-                "Transaction {} with id {} has {} out of {} required confirmations",
+                "Transaction {} with id {} is not yet finalized: block in receipt {receipt_block_number}, finalized block {finalized_block}",
                 tx_status.tx_hash,
                 tx.id,
-                confirmations,
-                self.config.wait_confirmations
             );
         }
     }
@@ -432,7 +472,10 @@ where
         tx: &EthTx,
         tx_status: ExecutedTxStatus,
     ) {
-        storage.eth_sender_dal().mark_failed_transaction(tx.id);
+        storage
+            .eth_sender_dal()
+            .mark_failed_transaction(tx.id)
+            .await;
         let failure_reason = self
             .ethereum_gateway
             .failure_reason(tx_status.receipt.transaction_hash)
@@ -450,12 +493,11 @@ where
         panic!("We can't operate after tx fail");
     }
 
-    pub fn confirm_tx(
+    pub async fn confirm_tx(
         &self,
         storage: &mut StorageProcessor<'_>,
         tx: &EthTx,
         tx_status: ExecutedTxStatus,
-        current_block: L1BlockNumber,
     ) {
         let tx_hash = tx_status.receipt.transaction_hash;
         let gas_used = tx_status
@@ -465,9 +507,10 @@ where
 
         storage
             .eth_sender_dal()
-            .confirm_tx(tx_status.tx_hash, gas_used);
+            .confirm_tx(tx_status.tx_hash, gas_used)
+            .await;
 
-        track_eth_tx_metrics(storage, "mined", tx);
+        track_eth_tx_metrics(storage, "mined", tx).await;
 
         if gas_used > U256::from(tx.predicted_gas_cost) {
             vlog::error!(
@@ -499,32 +542,27 @@ where
         let sent_at_block = storage
             .eth_sender_dal()
             .get_block_number_on_first_sent_attempt(tx.id)
+            .await
             .unwrap_or(0);
         metrics::histogram!(
             "server.eth_sender.l1_blocks_waited_in_mempool",
-            (current_block.0 - sent_at_block - self.config.wait_confirmations as u32) as f64,
+            (tx_status.receipt.block_number.unwrap().as_u32() - sent_at_block) as f64,
             "type" => tx.tx_type.to_string()
         );
     }
 
     pub async fn run(mut self, pool: ConnectionPool, stop_receiver: watch::Receiver<bool>) {
         {
-            let current_block = L1BlockNumber(
-                self.ethereum_gateway
-                    .block_number("etx_tx_manager")
-                    .await
-                    .unwrap()
-                    .as_u32(),
-            );
-            let mut storage = pool.access_storage_blocking();
-            self.send_unsent_txs(&mut storage, current_block).await;
+            let l1_block_numbers = self.get_l1_block_numbers().await.unwrap();
+            let mut storage = pool.access_storage_tagged("eth_sender").await;
+            self.send_unsent_txs(&mut storage, l1_block_numbers).await;
         }
 
         // It's mandatory to set last_known_l1_block to zero, otherwise the first iteration
         // will never check inflight txs status
         let mut last_known_l1_block = L1BlockNumber(0);
         loop {
-            let mut storage = pool.access_storage_blocking();
+            let mut storage = pool.access_storage_tagged("eth_sender").await;
 
             if *stop_receiver.borrow() {
                 vlog::info!("Stop signal received, eth_tx_manager is shutting down");
@@ -549,7 +587,7 @@ where
         storage: &mut StorageProcessor<'_>,
         current_block: L1BlockNumber,
     ) {
-        let number_inflight_txs = storage.eth_sender_dal().get_inflight_txs().len();
+        let number_inflight_txs = storage.eth_sender_dal().get_inflight_txs().await.len();
         let number_of_available_slots_for_eth_txs = self
             .config
             .max_txs_in_flight
@@ -559,7 +597,8 @@ where
             // Get the new eth tx and create history item for them
             let new_eth_tx = storage
                 .eth_sender_dal()
-                .get_new_eth_txs(number_of_available_slots_for_eth_txs);
+                .get_new_eth_txs(number_of_available_slots_for_eth_txs)
+                .await;
 
             for tx in new_eth_tx {
                 let _ = self.send_eth_tx(storage, &tx, 0, current_block).await;
@@ -573,35 +612,31 @@ where
         storage: &mut StorageProcessor<'_>,
         previous_block: L1BlockNumber,
     ) -> Result<L1BlockNumber, ETHSenderError> {
-        let current_block = L1BlockNumber(
-            self.ethereum_gateway
-                .block_number("eth_tx_manager")
-                .await?
-                .as_u32(),
-        );
+        let l1_block_numbers = self.get_l1_block_numbers().await?;
 
-        self.send_new_eth_txs(storage, current_block).await;
+        self.send_new_eth_txs(storage, l1_block_numbers.latest)
+            .await;
 
-        if current_block <= previous_block {
+        if l1_block_numbers.latest <= previous_block {
             // Nothing to do - no new blocks were mined.
-            return Ok(current_block);
+            return Ok(previous_block);
         }
 
         if let Some((tx, sent_at_block)) = self
-            .monitor_inflight_transactions(storage, current_block)
+            .monitor_inflight_transactions(storage, l1_block_numbers)
             .await?
         {
             // New gas price depends on the time this tx spent in mempool.
-            let time_in_mempool = current_block.0 - sent_at_block;
+            let time_in_mempool = l1_block_numbers.latest.0 - sent_at_block;
 
             // We don't want to return early in case resend does not succeed -
             // the error is logged anyway, but early returns will prevent
             // sending new operations.
             let _ = self
-                .send_eth_tx(storage, &tx, time_in_mempool, current_block)
+                .send_eth_tx(storage, &tx, time_in_mempool, l1_block_numbers.latest)
                 .await;
         }
 
-        Ok(current_block)
+        Ok(l1_block_numbers.latest)
     }
 }

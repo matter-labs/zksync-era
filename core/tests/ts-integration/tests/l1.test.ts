@@ -374,13 +374,6 @@ function getOverheadForTransaction(
         blockOverheadForTransaction = overheadForLength;
     }
 
-    // The overhead for possible published public data
-    // let maxPubdataInTx = ceilDiv(bodyGasLimit, gasPricePerPubdata);
-    // let overheadForPublicData = ceilDiv(maxPubdataInTx.mul(maxBlockOverhead), MAX_PUBDATA_PER_BLOCK);
-    // if (overheadForPublicData.gt(blockOverheadForTransaction)) {
-    //     blockOverheadForTransaction = overheadForPublicData;
-    // }
-
     // The overhead for gas that could be used to use single-instance circuits
     let overheadForSingleInstanceCircuits = ceilDiv(bodyGasLimit.mul(maxBlockOverhead), L2_TX_MAX_GAS_LIMIT);
     if (overheadForSingleInstanceCircuits.gt(blockOverheadForTransaction)) {

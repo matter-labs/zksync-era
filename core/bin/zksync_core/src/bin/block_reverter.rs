@@ -1,11 +1,13 @@
 use clap::{Parser, Subcommand};
 use tokio::io::{self, AsyncReadExt};
 
-use zksync_config::ZkSyncConfig;
-use zksync_dal::ConnectionPool;
+use zksync_config::{ContractsConfig, DBConfig, ETHClientConfig, ETHSenderConfig};
+use zksync_dal::{connection::DbVariant, ConnectionPool};
 use zksync_types::{L1BatchNumber, U256};
 
-use zksync_core::block_reverter::{BlockReverter, BlockReverterFlags, L1ExecutedBatchesRevert};
+use zksync_core::block_reverter::{
+    BlockReverter, BlockReverterEthConfig, BlockReverterFlags, L1ExecutedBatchesRevert,
+};
 
 #[derive(Debug, Parser)]
 #[command(author = "Matter Labs", version, about = "Block revert utility", long_about = None)]
@@ -63,13 +65,23 @@ enum Command {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let _sentry_guard = vlog::init();
-    let config = ZkSyncConfig::from_env();
+    vlog::init();
+    let _sentry_guard = vlog::init_sentry();
+    let eth_sender = ETHSenderConfig::from_env();
+    let db_config = DBConfig::from_env();
+    let eth_client = ETHClientConfig::from_env();
     let default_priority_fee_per_gas =
-        U256::from(config.eth_sender.gas_adjuster.default_priority_fee_per_gas);
-    let connection_pool = ConnectionPool::new(None, true);
-    let block_reverter =
-        BlockReverter::new(config, connection_pool, L1ExecutedBatchesRevert::Disallowed);
+        U256::from(eth_sender.gas_adjuster.default_priority_fee_per_gas);
+    let contracts = ContractsConfig::from_env();
+    let config = BlockReverterEthConfig::new(eth_sender, contracts, eth_client.web3_url.clone());
+
+    let connection_pool = ConnectionPool::new(None, DbVariant::Master).await;
+    let block_reverter = BlockReverter::new(
+        db_config,
+        Some(config),
+        connection_pool,
+        L1ExecutedBatchesRevert::Disallowed,
+    );
 
     match Cli::parse().command {
         Command::Display { json } => {

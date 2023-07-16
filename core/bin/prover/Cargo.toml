@@ -4,14 +4,13 @@ version = "1.0.0"
 edition = "2018"
 authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
 homepage = "https://zksync.io/"
-repository = "https://github.com/matter-labs/zksync-2"
-license = "Apache-2.0"
+repository = "https://github.com/matter-labs/zksync-era"
+license = "MIT OR Apache-2.0"
 keywords = ["blockchain", "zksync"]
 categories = ["cryptography"]
 publish = false # We don't want to publish our binaries.
 
 [dependencies]
-zksync_types = { path = "../../lib/types", version = "1.0" }
 zksync_dal = { path = "../../lib/dal", version = "1.0" }
 zksync_config = { path = "../../lib/config", version = "1.0" }
 zksync_utils = {path = "../../lib/utils", version = "1.0" }
@@ -25,10 +24,10 @@ zksync_object_store = { path = "../../lib/object_store", version = "1.0" }
 setup_key_generator_and_server = { path = "../setup_key_generator_and_server", version = "1.0" }
 
 
-api = { git = "https://github.com/matter-labs/era-heavy-ops-service.git", branch = "v1.3.2", features=["gpu"], default-features=false}
-prover-service = { git = "https://github.com/matter-labs/era-heavy-ops-service.git", branch = "v1.3.2", features=["gpu"], default-features=false}
+api = { git = "https://github.com/matter-labs/era-heavy-ops-service.git", branch = "v1.3.3", features=["gpu"], default-features=false}
+prover-service = { git = "https://github.com/matter-labs/era-heavy-ops-service.git", branch = "v1.3.3", features=["gpu"], default-features=false}
 
-zkevm_test_harness = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.3.2"}
+zkevm_test_harness = { git = "https://github.com/matter-labs/zkevm_test_harness.git", branch = "v1.3.3"}
 
 
 tokio = { version = "1", features = ["time"] }

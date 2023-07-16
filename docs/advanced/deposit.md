@@ -144,7 +144,7 @@ get the nice result:
 
 This means that we requested that the 3 ETH (2nd argument) is transferred to 0x6182 (1st argument). The Calldata being
 0x0 - means that we're talking about ETH (this would be a different value for other ERC tokens). Then we also specify a
-gas limit (641k) and set the gas per pubdata byte limit to 800.
+gas limit (641k) and set the gas per pubdata byte limit to 800. (TODO: explain what these values mean.)
 
 #### What happens under the hood
 

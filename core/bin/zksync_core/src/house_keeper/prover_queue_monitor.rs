@@ -1,3 +1,4 @@
+use async_trait::async_trait;
 use zksync_config::configs::ProverGroupConfig;
 use zksync_dal::ConnectionPool;
 use zksync_prover_utils::circuit_name_to_numeric_index;
@@ -7,25 +8,28 @@ use crate::house_keeper::periodic_job::PeriodicJob;
 #[derive(Debug)]
 pub struct ProverStatsReporter {
     reporting_interval_ms: u64,
+    prover_connection_pool: ConnectionPool,
 }
 
 impl ProverStatsReporter {
-    pub fn new(reporting_interval_ms: u64) -> Self {
+    pub fn new(reporting_interval_ms: u64, prover_connection_pool: ConnectionPool) -> Self {
         Self {
             reporting_interval_ms,
+            prover_connection_pool,
         }
     }
 }
 
 /// Invoked periodically to push job statistics to Prometheus
 /// Note: these values will be used for manually scaling provers.
+#[async_trait]
 impl PeriodicJob for ProverStatsReporter {
     const SERVICE_NAME: &'static str = "ProverStatsReporter";
 
-    fn run_routine_task(&mut self, connection_pool: ConnectionPool) {
+    async fn run_routine_task(&mut self) {
         let prover_group_config = ProverGroupConfig::from_env();
-        let mut conn = connection_pool.access_storage_blocking();
-        let stats = conn.prover_dal().get_prover_jobs_stats_per_circuit();
+        let mut conn = self.prover_connection_pool.access_storage().await;
+        let stats = conn.prover_dal().get_prover_jobs_stats_per_circuit().await;
 
         for (circuit_name, stats) in stats.into_iter() {
             let group_id = prover_group_config
@@ -51,14 +55,16 @@ impl PeriodicJob for ProverStatsReporter {
             );
         }
 
-        if let Some(min_unproved_l1_batch_number) = conn.prover_dal().min_unproved_l1_batch_number()
+        if let Some(min_unproved_l1_batch_number) =
+            conn.prover_dal().min_unproved_l1_batch_number().await
         {
             metrics::gauge!("server.block_number", min_unproved_l1_batch_number.0 as f64, "stage" => "circuit_aggregation")
         }
 
         let lag_by_circuit_type = conn
             .prover_dal()
-            .min_unproved_l1_batch_number_by_basic_circuit_type();
+            .min_unproved_l1_batch_number_by_basic_circuit_type()
+            .await;
 
         for (circuit_type, l1_batch_number) in lag_by_circuit_type {
             metrics::gauge!("server.block_number", l1_batch_number.0 as f64, "stage" => format!("circuit_{}", circuit_type));

@@ -29,6 +29,9 @@ describe('Tests for the custom bridge behavior', () => {
     });
 
     test('Should deploy custom bridge', async () => {
+        if (testMaster.isFastMode()) {
+            return;
+        }
         let balance = await alice.getBalanceL1();
         let transferTx = await alice._signerL1().sendTransaction({
             to: bob.address,
@@ -51,7 +54,7 @@ describe('Tests for the custom bridge behavior', () => {
         await l1Bridge.deployTransaction.wait(2);
         let l1BridgeProxyFactory = new TransparentUpgradeableProxyFactory(alice._signerL1());
         let l1BridgeProxy = await l1BridgeProxyFactory.deploy(l1Bridge.address, bob.address, '0x');
-        const amount = 1000; // 1 wei is enough.
+        const amount = 1000; // 1000 wei is enough.
         await l1BridgeProxy.deployTransaction.wait(2);
 
         const isLocalSetup = process.env.ZKSYNC_LOCAL_SETUP;

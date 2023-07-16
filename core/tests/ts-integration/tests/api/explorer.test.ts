@@ -21,6 +21,10 @@ const contracts = {
     create: {
         ...getTestContract('Import'),
         factoryDep: getTestContract('Foo').bytecode
+    },
+    createForwarder: {
+        ...getTestContract('CreateForwarder'),
+        factoryDep: getTestContract('DeployMe').bytecode
     }
 };
 
@@ -33,8 +37,11 @@ const HEX_VALUE_REGEX = /^0x[\da-fA-F]*$/;
 // Regular expression to match ISO dates.
 const DATE_REGEX = /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{6})?/;
 
-const ZKSOLC_VERSION = 'v1.3.10';
-const SOLC_VERSION = '0.8.16';
+const ZKSOLC_VERSION = 'v1.3.13';
+const SOLC_VERSION = '0.8.20';
+
+const ZKVYPER_VERSION = 'v1.3.9';
+const VYPER_VERSION = '0.3.3';
 
 describe('Tests for the Explorer API', () => {
     let testMaster: TestMaster;
@@ -45,6 +52,10 @@ describe('Tests for the Explorer API', () => {
         testMaster = TestMaster.getInstance(__filename);
         alice = testMaster.mainAccount();
         erc20 = testMaster.environment().erc20Token;
+
+        if (process.env.ZKSYNC_ENV!.startsWith('ext-node')) {
+            console.warn("You are trying to run explorer tests on external node. It's not supported.");
+        }
     });
 
     test('Should test /network_stats endpoint', async () => {
@@ -391,6 +402,7 @@ describe('Tests for the Explorer API', () => {
         const tx = await txHandle.wait();
 
         const apiTx = await query(`/transaction/${tx.transactionHash}`);
+        expect(ethers.BigNumber.from(apiTx.fee).toNumber()).toBeGreaterThan(0);
         expect(apiTx).toMatchObject({
             transactionHash: tx.transactionHash,
             blockNumber: tx.blockNumber,
@@ -694,6 +706,42 @@ describe('Tests for the Explorer API', () => {
         await expectVerifyRequestToSucceed(requestId, contractAddress);
     });
 
+    test('should test vyper contract verification', async () => {
+        if (process.env.RUN_CONTRACT_VERIFICATION_TEST != 'true') {
+            // Contract verification test is not requested to run.
+            return;
+        }
+
+        const contractFactory = new zksync.ContractFactory(
+            contracts.createForwarder.abi,
+            contracts.createForwarder.bytecode,
+            alice
+        );
+        const contractHandle = await contractFactory.deploy({
+            customData: {
+                factoryDeps: [contracts.createForwarder.factoryDep]
+            }
+        });
+        const contractAddress = (await contractHandle.deployed()).address;
+
+        const requestBody = {
+            contractAddress,
+            contractName: 'CreateForwarder',
+            sourceCode: {
+                CreateForwarder: getContractSource('vyper/CreateForwarder.vy'),
+                DeployMe: getContractSource('vyper/DeployMe.vy')
+            },
+            codeFormat: 'vyper-multi-file',
+            compilerZkvyperVersion: ZKVYPER_VERSION,
+            compilerVyperVersion: VYPER_VERSION,
+            optimizationUsed: true,
+            constructorArguments: '0x'
+        };
+        let requestId = await query('/contract_verification', undefined, requestBody);
+
+        await expectVerifyRequestToSucceed(requestId, contractAddress);
+    });
+
     afterAll(async () => {
         await testMaster.deinitialize();
     });
@@ -799,7 +847,7 @@ describe('Tests for the Explorer API', () => {
     async function expectVerifyRequestToSucceed(requestId: number, contractAddress: string) {
         let retries = 0;
         while (true) {
-            if (retries > 100) {
+            if (retries > 20) {
                 throw new Error('Too many retries');
             }
 
@@ -810,7 +858,7 @@ describe('Tests for the Explorer API', () => {
                 throw new Error(statusObject.error);
             } else {
                 retries += 1;
-                await sleep(alice.provider.pollingInterval);
+                await sleep(1000);
             }
         }
 

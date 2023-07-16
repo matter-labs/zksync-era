@@ -177,6 +177,9 @@ describe('ETH token checks', () => {
         await withdrawalTx.waitFinalize();
 
         await expect(alice.finalizeWithdrawal(withdrawalTx.hash)).toBeAccepted();
+        const tx = await alice.provider.getTransactionReceipt(withdrawalTx.hash);
+
+        expect(tx.l2ToL1Logs[0].txIndexInL1Batch).toEqual(expect.anything());
     });
 
     test('Can perform a deposit with precalculated max value', async () => {

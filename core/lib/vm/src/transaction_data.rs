@@ -42,7 +42,7 @@ pub struct TransactionData {
 
 impl From<Transaction> for TransactionData {
     fn from(execute_tx: Transaction) -> Self {
-        match &execute_tx.common_data {
+        match execute_tx.common_data {
             ExecuteTransactionCommon::L2(common_data) => {
                 let nonce = U256::from_big_endian(&common_data.nonce.to_be_bytes());
 
@@ -57,7 +57,7 @@ impl From<Transaction> for TransactionData {
 
                 TransactionData {
                     tx_type: (common_data.transaction_type as u32) as u8,
-                    from: execute_tx.initiator_account(),
+                    from: common_data.initiator_address,
                     to: execute_tx.execute.contract_address,
                     gas_limit: common_data.fee.gas_limit,
                     pubdata_price_limit: common_data.fee.gas_per_pubdata_limit,
@@ -73,9 +73,9 @@ impl From<Transaction> for TransactionData {
                         U256::zero(),
                     ],
                     data: execute_tx.execute.calldata,
-                    signature: common_data.signature.clone(),
+                    signature: common_data.signature,
                     factory_deps: execute_tx.execute.factory_deps.unwrap_or_default(),
-                    paymaster_input: common_data.paymaster_params.paymaster_input.clone(),
+                    paymaster_input: common_data.paymaster_params.paymaster_input,
                     reserved_dynamic: vec![],
                 }
             }
@@ -268,12 +268,6 @@ pub fn derive_overhead(
     // We use "ceil" here for formal reasons to allow easier approach for calculating the overhead in O(1)
     // let max_pubdata_in_tx = ceil_div_u256(gas_limit, gas_price_per_pubdata);
 
-    // The maximal potential overhead from pubdata
-    // let pubdata_overhead = ceil_div_u256(
-    //     max_pubdata_in_tx * max_block_overhead,
-    //     MAX_PUBDATA_PER_BLOCK.into(),
-    // );
-
     vec![
         (coeficients.ergs_limit_overhead_coeficient
             * overhead_for_single_instance_circuits.as_u32() as f64)
@@ -401,7 +395,7 @@ pub fn get_amortized_overhead(
             as u32
     };
 
-    // since the pubdat is not published. If decided to use the pubdata overhead, it needs to be updated.
+    // since the pubdata is not published. If decided to use the pubdata overhead, it needs to be updated.
     // 3. ceil(O3 * overhead_for_block_gas) >= overhead_gas
     // O3 = max_pubdata_in_tx / MAX_PUBDATA_PER_BLOCK = ceil(gas_limit / gas_per_pubdata_byte_limit) / MAX_PUBDATA_PER_BLOCK
     // >= (gas_limit / (gas_per_pubdata_byte_limit * MAX_PUBDATA_PER_BLOCK). Throwing off the `ceil`, while may provide marginally lower

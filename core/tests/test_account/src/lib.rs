@@ -75,25 +75,7 @@ impl ZkSyncAccount {
         _nonce: Option<Nonce>,
         _increment_nonce: bool,
     ) -> L2Tx {
-        todo!("TODO")
-
-        // let mut stored_nonce = self.nonce.lock().unwrap();
-        // let withdraw = GenericL2Tx::<Withdraw>::new_signed(
-        //     token,
-        //     amount,
-        //     to,
-        //     nonce.unwrap_or(*stored_nonce),
-        //     fee,
-        //     L2ChainId(270),
-        //     &self.private_key,
-        // )
-        // .expect("should create a signed transfer transaction");
-
-        // if increment_nonce {
-        //     **stored_nonce += 1;
-        // }
-
-        // withdraw.into()
+        todo!("New withdrawal support is not yet implemented")
     }
 
     pub fn sign_deploy_contract(

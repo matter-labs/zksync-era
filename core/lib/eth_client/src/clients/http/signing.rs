@@ -3,10 +3,11 @@ use std::{fmt, time::Instant};
 
 use async_trait::async_trait;
 
-use zksync_config::ZkSyncConfig;
+use zksync_config::{ContractsConfig, ETHClientConfig, ETHSenderConfig};
 use zksync_contracts::zksync_contract;
 use zksync_eth_signer::PrivateKeySigner;
 use zksync_eth_signer::{raw_ethereum_tx::TransactionParameters, EthereumSigner};
+use zksync_types::web3::types::Block;
 use zksync_types::web3::{
     self,
     contract::{
@@ -33,16 +34,21 @@ use crate::{
 pub type PKSigningClient = SigningClient<PrivateKeySigner>;
 
 impl PKSigningClient {
-    pub fn from_config(config: &ZkSyncConfig) -> Self {
+    pub fn from_config(
+        eth_sender: &ETHSenderConfig,
+        contracts_config: &ContractsConfig,
+        eth_client: &ETHClientConfig,
+    ) -> Self {
         // Gather required data from the config.
         // It's done explicitly to simplify getting rid of this function later.
-        let main_node_url = &config.eth_client.web3_url;
-        let operator_private_key = config.eth_sender.sender.operator_private_key;
-        let operator_commit_eth_addr = config.eth_sender.sender.operator_commit_eth_addr;
-        let diamond_proxy_addr = config.contracts.diamond_proxy_addr;
-        let default_priority_fee_per_gas =
-            config.eth_sender.gas_adjuster.default_priority_fee_per_gas;
-        let l1_chain_id = config.eth_client.chain_id;
+        let main_node_url = &eth_client.web3_url;
+        let operator_private_key = eth_sender
+            .sender
+            .private_key()
+            .expect("Operator private key is required for signing client");
+        let diamond_proxy_addr = contracts_config.diamond_proxy_addr;
+        let default_priority_fee_per_gas = eth_sender.gas_adjuster.default_priority_fee_per_gas;
+        let l1_chain_id = eth_client.chain_id;
 
         let transport =
             web3::transports::Http::new(main_node_url).expect("Failed to create transport");
@@ -54,7 +60,7 @@ impl PKSigningClient {
         SigningClient::new(
             transport,
             zksync_contract(),
-            operator_commit_eth_addr,
+            operator_address,
             PrivateKeySigner::new(operator_private_key),
             diamond_proxy_addr,
             default_priority_fee_per_gas.into(),
@@ -207,6 +213,14 @@ impl<S: EthereumSigner> EthInterface for SigningClient<S> {
 
     async fn logs(&self, filter: Filter, component: &'static str) -> Result<Vec<Log>, Error> {
         self.query_client.logs(filter, component).await
+    }
+
+    async fn block(
+        &self,
+        block_id: String,
+        component: &'static str,
+    ) -> Result<Option<Block<H256>>, Error> {
+        self.query_client.block(block_id, component).await
     }
 }
 

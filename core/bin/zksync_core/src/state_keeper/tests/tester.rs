@@ -1,29 +1,30 @@
+use async_trait::async_trait;
+use tokio::sync::{mpsc, watch};
+
 use std::{
-    cell::RefCell,
     collections::{HashMap, HashSet, VecDeque},
-    sync::mpsc,
+    sync::{Arc, RwLock},
     time::{Duration, Instant},
 };
-
-use assert_matches::assert_matches;
-use tokio::sync::watch;
 
 use vm::{
     vm::{VmPartialExecutionResult, VmTxExecutionResult},
     vm_with_bootloader::{BlockContext, BlockContextMode, DerivedBlockContext},
-    VmBlockResult, VmExecutionResult,
+    VmBlockResult,
 };
-use zksync_types::vm_trace::{VmExecutionTrace, VmTrace};
 use zksync_types::{
-    l2::L2Tx, tx::tx_execution_info::TxExecutionStatus, Address, L1BatchNumber, MiniblockNumber,
-    Nonce, Transaction, H256, U256,
+    tx::tx_execution_info::TxExecutionStatus, Address, L1BatchNumber, MiniblockNumber, Transaction,
+    H256, U256,
 };
 
 use crate::state_keeper::{
     batch_executor::{BatchExecutorHandle, Command, L1BatchExecutorBuilder, TxExecutionResult},
     io::{L1BatchParams, PendingBatchData, StateKeeperIO},
     seal_criteria::SealManager,
-    tests::{default_block_properties, BASE_SYSTEM_CONTRACTS},
+    tests::{
+        create_l2_transaction, default_block_properties, default_vm_block_result,
+        BASE_SYSTEM_CONTRACTS,
+    },
     types::ExecutionMetricsForCriteria,
     updates::UpdatesManager,
     ZkSyncStateKeeper,
@@ -151,7 +152,7 @@ impl TestScenario {
 
     /// Launches the test.
     /// Provided `SealManager` is expected to be externally configured to adhere the written scenario logic.
-    pub(crate) fn run(self, sealer: SealManager) {
+    pub(crate) async fn run(self, sealer: SealManager) {
         assert!(!self.actions.is_empty(), "Test scenario can't be empty");
 
         let batch_executor_base = TestBatchExecutorBuilder::new(&self);
@@ -166,7 +167,7 @@ impl TestScenario {
             sealer,
         );
 
-        let sk_thread = std::thread::spawn(move || sk.run());
+        let sk_thread = tokio::spawn(sk.run());
 
         // We must assume that *theoretically* state keeper may ignore the stop signal from IO once scenario is
         // completed, so we spawn it in a separate thread to not get test stuck.
@@ -176,11 +177,11 @@ impl TestScenario {
         while start.elapsed() <= hard_timeout {
             if sk_thread.is_finished() {
                 sk_thread
-                    .join()
+                    .await
                     .unwrap_or_else(|_| panic!("State keeper thread panicked"));
                 return;
             }
-            std::thread::sleep(poll_interval);
+            tokio::time::sleep(poll_interval).await;
         }
         panic!("State keeper test did not exit until the hard timeout, probably it got stuck");
     }
@@ -189,16 +190,7 @@ impl TestScenario {
 /// Creates a random transaction. Provided tx number would be used as a transaction hash,
 /// so it's easier to understand which transaction caused test to fail.
 pub(crate) fn random_tx(tx_number: u64) -> Transaction {
-    let mut tx = L2Tx::new(
-        Default::default(),
-        Default::default(),
-        Nonce(0),
-        Default::default(),
-        Default::default(),
-        Default::default(),
-        Default::default(),
-        Default::default(),
-    );
+    let mut tx = create_l2_transaction(10, 100);
     // Set the `tx_number` as tx hash so if transaction causes problems,
     // it'll be easier to understand which one.
     tx.set_input(H256::random().0.to_vec(), H256::from_low_u64_be(tx_number));
@@ -342,13 +334,15 @@ impl std::fmt::Debug for ScenarioItem {
     }
 }
 
+type ExpectedTransactions = VecDeque<HashMap<H256, VecDeque<TxExecutionResult>>>;
+
 #[derive(Debug)]
 pub(crate) struct TestBatchExecutorBuilder {
     /// Sequence of known transaction execution results per batch.
     /// We need to store txs for each batch separately, since the same transaction
     /// can be executed in several batches (e.g. after an `ExcludeAndSeal` rollback).
     /// When initializing each batch, we will `pop_front` known txs for the corresponding executor.
-    txs: RefCell<VecDeque<HashMap<H256, VecDeque<TxExecutionResult>>>>,
+    txs: Arc<RwLock<ExpectedTransactions>>,
     /// Set of transactions that would be rolled back at least once.
     rollback_set: HashSet<H256>,
 }
@@ -402,23 +396,23 @@ impl TestBatchExecutorBuilder {
         txs.push_back(HashMap::default());
 
         Self {
-            txs: RefCell::new(txs),
+            txs: Arc::new(RwLock::new(txs)),
             rollback_set,
         }
     }
 }
 
+#[async_trait]
 impl L1BatchExecutorBuilder for TestBatchExecutorBuilder {
-    fn init_batch(&self, _l1batch_params: L1BatchParams) -> BatchExecutorHandle {
-        let (commands_sender, commands_receiver) = mpsc::channel();
+    async fn init_batch(&self, _l1batch_params: L1BatchParams) -> BatchExecutorHandle {
+        let (commands_sender, commands_receiver) = mpsc::channel(1);
 
         let executor = TestBatchExecutor::new(
             commands_receiver,
-            self.txs.borrow_mut().pop_front().unwrap(),
+            self.txs.write().unwrap().pop_front().unwrap(),
             self.rollback_set.clone(),
         );
-
-        let handle = std::thread::spawn(move || executor.run());
+        let handle = tokio::task::spawn_blocking(move || executor.run());
 
         BatchExecutorHandle::from_raw(handle, commands_sender)
     }
@@ -451,7 +445,7 @@ impl TestBatchExecutor {
     }
 
     pub(super) fn run(mut self) {
-        while let Ok(cmd) = self.commands.recv() {
+        while let Some(cmd) = self.commands.blocking_recv() {
             match cmd {
                 Command::ExecuteTx(tx, resp) => {
                     let result = self
@@ -485,31 +479,7 @@ impl TestBatchExecutor {
                 }
                 Command::FinishBatch(resp) => {
                     // Blanket result, it doesn't really matter.
-                    let result = VmBlockResult {
-                        full_result: VmExecutionResult {
-                            events: Default::default(),
-                            storage_log_queries: Default::default(),
-                            used_contract_hashes: Default::default(),
-                            l2_to_l1_logs: Default::default(),
-                            return_data: Default::default(),
-                            gas_used: Default::default(),
-                            contracts_used: Default::default(),
-                            revert_reason: Default::default(),
-                            trace: VmTrace::ExecutionTrace(VmExecutionTrace::default()),
-                            total_log_queries: Default::default(),
-                            cycles_used: Default::default(),
-                            computational_gas_used: Default::default(),
-                        },
-                        block_tip_result: VmPartialExecutionResult {
-                            logs: Default::default(),
-                            revert_reason: Default::default(),
-                            contracts_used: Default::default(),
-                            cycles_used: Default::default(),
-                            computational_gas_used: Default::default(),
-                        },
-                    };
-
-                    resp.send(result).unwrap();
+                    resp.send(default_vm_block_result()).unwrap();
                     return;
                 }
             }
@@ -570,6 +540,7 @@ impl TestIO {
     }
 }
 
+#[async_trait]
 impl StateKeeperIO for TestIO {
     fn current_l1_batch_number(&self) -> L1BatchNumber {
         self.batch_number
@@ -579,11 +550,11 @@ impl StateKeeperIO for TestIO {
         self.miniblock_number
     }
 
-    fn load_pending_batch(&mut self) -> Option<PendingBatchData> {
+    async fn load_pending_batch(&mut self) -> Option<PendingBatchData> {
         self.scenario.pending_batch.take()
     }
 
-    fn wait_for_new_batch_params(&mut self, _max_wait: Duration) -> Option<L1BatchParams> {
+    async fn wait_for_new_batch_params(&mut self, _max_wait: Duration) -> Option<L1BatchParams> {
         let block_properties = default_block_properties();
 
         let previous_block_hash = U256::zero();
@@ -606,55 +577,46 @@ impl StateKeeperIO for TestIO {
         })
     }
 
-    fn wait_for_new_miniblock_params(&mut self, _max_wait: Duration) -> Option<u64> {
+    async fn wait_for_new_miniblock_params(&mut self, _max_wait: Duration) -> Option<u64> {
         Some(self.timestamp)
     }
 
-    fn wait_for_next_tx(&mut self, max_wait: Duration) -> Option<Transaction> {
+    async fn wait_for_next_tx(&mut self, max_wait: Duration) -> Option<Transaction> {
         let action = self.pop_next_item("wait_for_next_tx");
 
         // Check whether we should ignore tx requests.
         if self.skipping_txs {
             // As per expectation, we should provide a delay given by the state keeper.
-            std::thread::sleep(max_wait);
+            tokio::time::sleep(max_wait).await;
             // Return the action to the scenario as we don't use it.
             self.scenario.actions.push_front(action);
             return None;
         }
 
         // We shouldn't, process normally.
-        assert_matches!(
-            action,
-            ScenarioItem::Tx(_, _, _),
-            "Expected action from scenario (first), instead got another action (second)"
-        );
-        let ScenarioItem::Tx(_, tx, _) = action else { unreachable!() };
+        let ScenarioItem::Tx(_, tx, _) = action else {
+            panic!("Unexpected action: {:?}", action);
+        };
         Some(tx)
     }
 
-    fn rollback(&mut self, tx: &Transaction) {
+    async fn rollback(&mut self, tx: Transaction) {
         let action = self.pop_next_item("rollback");
-        assert_matches!(
-            action,
-            ScenarioItem::Rollback(_, _),
-            "Expected action from scenario (first), instead got another action (second)"
-        );
-        let ScenarioItem::Rollback(_, expected_tx) = action else { unreachable!() };
+        let ScenarioItem::Rollback(_, expected_tx) = action else {
+            panic!("Unexpected action: {:?}", action);
+        };
         assert_eq!(
-            tx, &expected_tx,
+            tx, expected_tx,
             "Incorrect transaction has been rolled back"
         );
         self.skipping_txs = false;
     }
 
-    fn reject(&mut self, tx: &Transaction, error: &str) {
+    async fn reject(&mut self, tx: &Transaction, error: &str) {
         let action = self.pop_next_item("reject");
-        assert_matches!(
-            action,
-            ScenarioItem::Reject(_, _, _),
-            "Expected action from scenario (first), instead got another action (second)"
-        );
-        let ScenarioItem::Reject(_, expected_tx, expected_err) = action else { unreachable!() };
+        let ScenarioItem::Reject(_, expected_tx, expected_err) = action else {
+            panic!("Unexpected action: {:?}", action);
+        };
         assert_eq!(tx, &expected_tx, "Incorrect transaction has been rejected");
         if let Some(expected_err) = expected_err {
             assert!(
@@ -667,14 +629,11 @@ impl StateKeeperIO for TestIO {
         self.skipping_txs = false;
     }
 
-    fn seal_miniblock(&mut self, updates_manager: &UpdatesManager) {
+    async fn seal_miniblock(&mut self, updates_manager: &UpdatesManager) {
         let action = self.pop_next_item("seal_miniblock");
-        assert_matches!(
-            action,
-            ScenarioItem::MiniblockSeal(_, _),
-            "Expected action from scenario (first), instead got another action (second)"
-        );
-        let ScenarioItem::MiniblockSeal(_, check_fn) = action else { unreachable!() };
+        let ScenarioItem::MiniblockSeal(_, check_fn) = action else {
+            panic!("Unexpected action: {:?}", action);
+        };
         if let Some(check_fn) = check_fn {
             check_fn(updates_manager);
         }
@@ -683,19 +642,16 @@ impl StateKeeperIO for TestIO {
         self.skipping_txs = false;
     }
 
-    fn seal_l1_batch(
+    async fn seal_l1_batch(
         &mut self,
         block_result: VmBlockResult,
         updates_manager: UpdatesManager,
         block_context: DerivedBlockContext,
     ) {
         let action = self.pop_next_item("seal_l1_batch");
-        assert_matches!(
-            action,
-            ScenarioItem::BatchSeal(_, _),
-            "Expected action from scenario (first), instead got another action (second)"
-        );
-        let ScenarioItem::BatchSeal(_, check_fn) = action else { unreachable!() };
+        let ScenarioItem::BatchSeal(_, check_fn) = action else {
+            panic!("Unexpected action: {:?}", action);
+        };
         if let Some(check_fn) = check_fn {
             check_fn(&block_result, &updates_manager, &block_context.context);
         }

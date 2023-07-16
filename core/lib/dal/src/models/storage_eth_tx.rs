@@ -2,7 +2,7 @@ use sqlx::types::chrono::NaiveDateTime;
 use std::str::FromStr;
 use zksync_types::aggregated_operations::AggregatedActionType;
 use zksync_types::eth_sender::{EthTx, TxHistory, TxHistoryToSend};
-use zksync_types::{Address, L1BatchNumber, H256};
+use zksync_types::{Address, L1BatchNumber, Nonce, H256};
 
 #[derive(Debug, Clone)]
 pub struct StorageEthTx {
@@ -56,7 +56,7 @@ impl From<StorageEthTx> for EthTx {
     fn from(tx: StorageEthTx) -> EthTx {
         EthTx {
             id: tx.id as u32,
-            nonce: tx.nonce as u64,
+            nonce: Nonce(tx.nonce as u32),
             contract_address: Address::from_str(&tx.contract_address)
                 .expect("Incorrect address in db"),
             raw_tx: tx.raw_tx.clone(),
@@ -95,7 +95,7 @@ impl From<StorageTxHistoryToSend> for TxHistoryToSend {
             signed_raw_tx: history
                 .signed_raw_tx
                 .expect("Should rely only on the new txs"),
-            nonce: history.nonce as u64,
+            nonce: Nonce(history.nonce as u32),
         }
     }
 }

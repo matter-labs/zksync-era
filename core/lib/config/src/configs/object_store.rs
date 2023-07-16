@@ -1,4 +1,4 @@
-use crate::envy_load;
+use super::envy_load;
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize, Eq, PartialEq, Clone, Copy)]
@@ -20,7 +20,11 @@ pub struct ObjectStoreConfig {
 
 impl ObjectStoreConfig {
     pub fn from_env() -> Self {
-        envy_load!("object_store", "OBJECT_STORE_")
+        envy_load("object_store", "OBJECT_STORE_")
+    }
+
+    pub fn public_from_env() -> Self {
+        envy_load("public_object_store", "PUBLIC_OBJECT_STORE_")
     }
 }
 
@@ -29,9 +33,9 @@ mod tests {
     use super::*;
     use crate::configs::test_utils::set_env;
 
-    fn expected_config() -> ObjectStoreConfig {
+    fn expected_config(bucket_base_url: &str) -> ObjectStoreConfig {
         ObjectStoreConfig {
-            bucket_base_url: "/base/url".to_string(),
+            bucket_base_url: bucket_base_url.to_string(),
             mode: ObjectStoreMode::FileBacked,
             file_backed_base_path: "artifacts".to_string(),
             gcs_credential_file_path: "/path/to/credentials.json".to_string(),
@@ -50,6 +54,20 @@ OBJECT_STORE_MAX_RETRIES="5"
         "#;
         set_env(config);
         let actual = ObjectStoreConfig::from_env();
-        assert_eq!(actual, expected_config());
+        assert_eq!(actual, expected_config("/base/url"));
+    }
+
+    #[test]
+    fn public_bucket_config_from_env() {
+        let config = r#"
+PUBLIC_OBJECT_STORE_BUCKET_BASE_URL="/public_base_url"
+PUBLIC_OBJECT_STORE_MODE="FileBacked"
+PUBLIC_OBJECT_STORE_FILE_BACKED_BASE_PATH="artifacts"
+PUBLIC_OBJECT_STORE_GCS_CREDENTIAL_FILE_PATH="/path/to/credentials.json"
+PUBLIC_OBJECT_STORE_MAX_RETRIES="5"
+        "#;
+        set_env(config);
+        let actual = ObjectStoreConfig::public_from_env();
+        assert_eq!(actual, expected_config("/public_base_url"));
     }
 }

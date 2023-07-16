@@ -43,13 +43,22 @@ pub struct SchedulerWitnessGeneratorJob {
 pub struct SchedulerWitnessGenerator {
     config: WitnessGeneratorConfig,
     object_store: Box<dyn ObjectStore>,
+    connection_pool: ConnectionPool,
+    prover_connection_pool: ConnectionPool,
 }
 
 impl SchedulerWitnessGenerator {
-    pub fn new(config: WitnessGeneratorConfig, store_factory: &ObjectStoreFactory) -> Self {
+    pub async fn new(
+        config: WitnessGeneratorConfig,
+        store_factory: &ObjectStoreFactory,
+        connection_pool: ConnectionPool,
+        prover_connection_pool: ConnectionPool,
+    ) -> Self {
         Self {
             config,
-            object_store: store_factory.create_store(),
+            object_store: store_factory.create_store().await,
+            connection_pool,
+            prover_connection_pool,
         }
     }
 
@@ -76,24 +85,25 @@ impl JobProcessor for SchedulerWitnessGenerator {
 
     const SERVICE_NAME: &'static str = "scheduler_witness_generator";
 
-    async fn get_next_job(
-        &self,
-        connection_pool: ConnectionPool,
-    ) -> Option<(Self::JobId, Self::Job)> {
-        let mut connection = connection_pool.access_storage_blocking();
+    async fn get_next_job(&self) -> Option<(Self::JobId, Self::Job)> {
+        let mut connection = self.connection_pool.access_storage().await;
+        let mut prover_connection = self.prover_connection_pool.access_storage().await;
         let last_l1_batch_to_process = self.config.last_l1_batch_to_process();
 
-        match connection
+        match prover_connection
             .witness_generator_dal()
             .get_next_scheduler_witness_job(
                 self.config.witness_generation_timeout(),
                 self.config.max_attempts,
                 last_l1_batch_to_process,
-            ) {
+            )
+            .await
+        {
             Some(metadata) => {
                 let prev_metadata = connection
                     .blocks_dal()
-                    .get_block_metadata(metadata.block_number - 1);
+                    .get_block_metadata(metadata.block_number - 1)
+                    .await;
                 let previous_aux_hash = prev_metadata
                     .as_ref()
                     .map_or([0u8; 32], |e| e.metadata.aux_data_hash.0);
@@ -104,36 +114,41 @@ impl JobProcessor for SchedulerWitnessGenerator {
                     previous_aux_hash,
                     previous_meta_hash,
                     &*self.object_store,
-                );
+                )
+                .await;
                 Some((job.block_number, job))
             }
             None => None,
         }
     }
 
-    async fn save_failure(
-        &self,
-        connection_pool: ConnectionPool,
-        job_id: L1BatchNumber,
-        started_at: Instant,
-        error: String,
-    ) -> () {
-        connection_pool
-            .access_storage_blocking()
+    async fn save_failure(&self, job_id: L1BatchNumber, started_at: Instant, error: String) -> () {
+        let attempts = self
+            .prover_connection_pool
+            .access_storage()
+            .await
             .witness_generator_dal()
             .mark_witness_job_as_failed(
-                job_id,
                 AggregationRound::Scheduler,
+                job_id,
                 started_at.elapsed(),
                 error,
-                self.config.max_attempts,
-            );
+            )
+            .await;
+
+        if attempts >= self.config.max_attempts {
+            self.connection_pool
+                .access_storage()
+                .await
+                .blocks_dal()
+                .set_skip_proof_for_l1_batch(job_id)
+                .await;
+        }
     }
 
     #[allow(clippy::async_yields_async)]
     async fn process_job(
         &self,
-        _connection_pool: ConnectionPool,
         job: SchedulerWitnessGeneratorJob,
         started_at: Instant,
     ) -> tokio::task::JoinHandle<SchedulerArtifacts> {
@@ -142,20 +157,21 @@ impl JobProcessor for SchedulerWitnessGenerator {
 
     async fn save_result(
         &self,
-        connection_pool: ConnectionPool,
         job_id: L1BatchNumber,
         started_at: Instant,
         artifacts: SchedulerArtifacts,
     ) {
         let circuit_types_and_urls =
-            save_artifacts(job_id, &artifacts.scheduler_circuit, &*self.object_store);
+            save_artifacts(job_id, &artifacts.scheduler_circuit, &*self.object_store).await;
         update_database(
-            connection_pool,
+            &self.connection_pool,
+            &self.prover_connection_pool,
             started_at,
             job_id,
             artifacts.final_aggregation_result,
             circuit_types_and_urls,
-        );
+        )
+        .await;
     }
 }
 
@@ -230,18 +246,19 @@ pub fn process_scheduler_job(
     }
 }
 
-pub fn update_database(
-    connection_pool: ConnectionPool,
+pub async fn update_database(
+    connection_pool: &ConnectionPool,
+    prover_connection_pool: &ConnectionPool,
     started_at: Instant,
     block_number: L1BatchNumber,
     final_aggregation_result: BlockApplicationWitness<Bn256>,
     circuit_types_and_urls: Vec<(&'static str, String)>,
 ) {
-    let mut connection = connection_pool.access_storage_blocking();
-    let mut transaction = connection.start_transaction_blocking();
-    let block = transaction
+    let mut connection = connection_pool.access_storage().await;
+    let block = connection
         .blocks_dal()
         .get_block_metadata(block_number)
+        .await
         .expect("L1 batch should exist");
 
     assert_eq!(
@@ -264,18 +281,24 @@ pub fn update_database(
         "Commitment is wrong"
     );
 
-    transaction.prover_dal().insert_prover_jobs(
-        block_number,
-        circuit_types_and_urls,
-        AggregationRound::Scheduler,
-    );
+    let mut prover_connection = prover_connection_pool.access_storage().await;
+    let mut transaction = prover_connection.start_transaction().await;
+    transaction
+        .prover_dal()
+        .insert_prover_jobs(
+            block_number,
+            circuit_types_and_urls,
+            AggregationRound::Scheduler,
+        )
+        .await;
 
     transaction
         .witness_generator_dal()
         .save_final_aggregation_result(
             block_number,
             final_aggregation_result.aggregation_result_coords,
-        );
+        )
+        .await;
 
     transaction
         .witness_generator_dal()
@@ -283,13 +306,14 @@ pub fn update_database(
             block_number,
             AggregationRound::Scheduler,
             started_at.elapsed(),
-        );
+        )
+        .await;
 
-    transaction.commit_blocking();
+    transaction.commit().await;
     track_witness_generation_stage(started_at, AggregationRound::Scheduler);
 }
 
-pub fn save_artifacts(
+async fn save_artifacts(
     block_number: L1BatchNumber,
     scheduler_circuit: &ZkSyncCircuit<Bn256, VmWitnessOracle<Bn256>>,
     object_store: &dyn ObjectStore,
@@ -300,16 +324,17 @@ pub fn save_artifacts(
         object_store,
         AggregationRound::Scheduler,
     )
+    .await
 }
 
-pub fn get_artifacts(
+async fn get_artifacts(
     metadata: WitnessGeneratorJobMetadata,
     previous_aux_hash: [u8; 32],
     previous_meta_hash: [u8; 32],
     object_store: &dyn ObjectStore,
 ) -> SchedulerWitnessGeneratorJob {
-    let scheduler_witness = object_store.get(metadata.block_number).unwrap();
-    let final_node_aggregations = object_store.get(metadata.block_number).unwrap();
+    let scheduler_witness = object_store.get(metadata.block_number).await.unwrap();
+    let final_node_aggregations = object_store.get(metadata.block_number).await.unwrap();
 
     SchedulerWitnessGeneratorJob {
         block_number: metadata.block_number,

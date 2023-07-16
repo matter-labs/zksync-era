@@ -81,18 +81,24 @@ pub fn get_block_info(id: L1BatchNumber, app: &mut App) -> Result<BlockInfo, App
         })
     }
 
-    let witness_jobs = app
-        .db
-        .witness_generator_dal()
-        .get_jobs(GetWitnessJobsParams {
-            blocks: Some(id..id),
-        })
+    let handle = app.tokio.handle();
+
+    let witness_jobs = handle
+        .block_on(
+            app.db
+                .witness_generator_dal()
+                .get_jobs(GetWitnessJobsParams {
+                    blocks: Some(id..id),
+                }),
+        )
         .map_err(|x| AppError::Db(x.to_string()))?;
 
-    let proof_jobs = app
-        .db
-        .prover_dal()
-        .get_jobs(GetProverJobsParams::blocks(id..id))
+    let proof_jobs = handle
+        .block_on(
+            app.db
+                .prover_dal()
+                .get_jobs(GetProverJobsParams::blocks(id..id)),
+        )
         .map_err(|x| AppError::Db(x.to_string()))?;
 
     let mut proof_groups =

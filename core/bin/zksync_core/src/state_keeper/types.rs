@@ -1,12 +1,22 @@
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
+};
+
 use zksync_mempool::{L2TxFilter, MempoolInfo, MempoolStore};
-use zksync_types::{block::BlockGasCount, tx::ExecutionMetrics, Address, Nonce, Transaction};
+use zksync_types::{
+    block::BlockGasCount, tx::ExecutionMetrics, Address, Nonce, PriorityOpId, Transaction,
+};
 
 #[derive(Debug, Clone)]
-pub struct MempoolGuard(pub Arc<Mutex<MempoolStore>>);
+pub struct MempoolGuard(Arc<Mutex<MempoolStore>>);
 
 impl MempoolGuard {
+    pub fn new(next_priority_id: PriorityOpId, capacity: u64) -> Self {
+        let store = MempoolStore::new(next_priority_id, capacity);
+        Self(Arc::new(Mutex::new(store)))
+    }
+
     pub fn insert(&mut self, transactions: Vec<Transaction>, nonces: HashMap<Address, Nonce>) {
         self.0
             .lock()

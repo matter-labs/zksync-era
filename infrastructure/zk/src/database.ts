@@ -1,6 +1,5 @@
 import { Command } from 'commander';
 import * as utils from './utils';
-import * as env from './env';
 
 export async function reset() {
     await utils.confirmAction();
@@ -54,7 +53,6 @@ export async function setup() {
     }
 
     process.chdir(process.env.ZKSYNC_HOME as string);
-    env.reload();
 }
 
 export async function wait(tries: number = 4) {

@@ -1,4 +1,4 @@
-use crate::envy_load;
+use super::envy_load;
 use serde::Deserialize;
 /// Configuration for the Network file system.
 #[derive(Debug, Deserialize, Clone, PartialEq)]
@@ -8,7 +8,7 @@ pub struct NfsConfig {
 
 impl NfsConfig {
     pub fn from_env() -> Self {
-        envy_load!("nfs", "NFS_")
+        envy_load("nfs", "NFS_")
     }
 }
 

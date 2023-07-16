@@ -8,13 +8,14 @@ WORKDIR /usr/src/zksync
 COPY . .
 
 RUN CARGO_HOME=./cargo cargo build --release
+RUN CARGO_HOME=./cargo cargo install sqlx-cli --version 0.5.13
 
 FROM debian:buster-slim
 RUN apt-get update && apt-get install -y curl libpq5 ca-certificates && rm -rf /var/lib/apt/lists/*
-EXPOSE 3000
-EXPOSE 3031
-EXPOSE 3030
+
 COPY --from=builder /usr/src/zksync/target/release/zksync_external_node /usr/bin
+COPY --from=builder /usr/src/zksync/cargo/bin/sqlx /usr/bin
+COPY --from=builder /usr/src/zksync/docker/external-node/entrypoint.sh /usr/bin
 COPY etc/system-contracts/bootloader/build/artifacts/ /etc/system-contracts/bootloader/build/artifacts/
 COPY etc/system-contracts/contracts/artifacts/ /etc/system-contracts/contracts/artifacts/
 COPY etc/system-contracts/contracts/precompiles/artifacts/ /etc/system-contracts/contracts/precompiles/artifacts/
@@ -23,6 +24,6 @@ COPY contracts/ethereum/artifacts/ /contracts/ethereum/artifacts/
 COPY contracts/zksync/artifacts-zk/ /contracts/zksync/artifacts-zk/
 COPY etc/tokens/ /etc/tokens/
 COPY etc/ERC20/ /etc/ERC20/
-COPY core/bin/verification_key_generator_and_server/data/ /core/bin/verification_key_generator_and_server/data/
+COPY core/lib/dal/migrations/ /migrations
 
-ENTRYPOINT ["zksync_external_node"]
+ENTRYPOINT [ "sh", "/usr/bin/entrypoint.sh"]

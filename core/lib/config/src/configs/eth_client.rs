@@ -1,7 +1,7 @@
 // External uses
 use serde::Deserialize;
 // Local uses
-use crate::envy_load;
+use super::envy_load;
 
 /// Configuration for the Ethereum gateways.
 #[derive(Debug, Deserialize, Clone, PartialEq)]
@@ -14,7 +14,7 @@ pub struct ETHClientConfig {
 
 impl ETHClientConfig {
     pub fn from_env() -> Self {
-        let config: Self = envy_load!("eth_client", "ETH_CLIENT_");
+        let config: Self = envy_load("eth_client", "ETH_CLIENT_");
         if config.web3_url.find(',').is_some() {
             panic!(
                 "Multiple web3 URLs aren't supported anymore. Provided invalid value: {}",

@@ -14,12 +14,12 @@ pub async fn perform_genesis_if_needed(
     base_system_contracts_hashes: BaseSystemContractsHashes,
     main_node_url: String,
 ) {
-    let mut transaction = storage.start_transaction_blocking();
+    let mut transaction = storage.start_transaction().await;
 
     let genesis_block_hash = ensure_genesis_state(
         &mut transaction,
         zksync_chain_id,
-        GenesisParams::ExternalNode {
+        &GenesisParams::ExternalNode {
             base_system_contracts_hashes,
             main_node_url: main_node_url.clone(),
         },
@@ -27,7 +27,7 @@ pub async fn perform_genesis_if_needed(
     .await;
 
     validate_genesis_state(&main_node_url, genesis_block_hash).await;
-    transaction.commit_blocking();
+    transaction.commit().await;
 }
 
 // When running an external node, we want to make sure we have the same
@@ -55,10 +55,12 @@ pub async fn fetch_system_contract_by_hash(
     hash: H256,
 ) -> Result<SystemContractCode, Error> {
     let client = HttpClientBuilder::default().build(main_node_url).unwrap();
-    let bytecode = client
-        .get_bytecode_by_hash(hash)
-        .await?
-        .expect("Failed to get base system contract bytecode");
+    let bytecode = client.get_bytecode_by_hash(hash).await?.unwrap_or_else(|| {
+        panic!(
+            "Base system contract bytecode is absent on the main node. Dependency hash: {:?}",
+            hash
+        )
+    });
     assert_eq!(
         hash,
         zksync_utils::bytecode::hash_bytecode(&bytecode),

@@ -1,0 +1,6 @@
+[alerts]
+sporadic_crypto_errors_substrs=[
+    "EventDestroyErr",
+    "Can't free memory of DeviceBuf",
+    "called `Result::unwrap()` on an `Err` value: PoisonError"
+]

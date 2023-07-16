@@ -1,10 +1,11 @@
 use crate::synthesized_circuit_provider::SharedAssemblyQueue;
 use queues::IsQueue;
-use std::io::copy;
-use std::net::{IpAddr, SocketAddr, TcpListener, TcpStream};
+use std::net::{IpAddr, SocketAddr};
 use std::time::Instant;
 use zksync_dal::gpu_prover_queue_dal::{GpuProverInstanceStatus, SocketAddress};
 use zksync_dal::ConnectionPool;
+
+use tokio::{io::copy, net::{TcpListener, TcpStream}};
 
 #[allow(clippy::too_many_arguments)]
 pub async fn incoming_socket_listener(
@@ -24,29 +25,38 @@ pub async fn incoming_socket_listener(
         port
     );
     let listener = TcpListener::bind(listening_address)
+        .await
         .unwrap_or_else(|_| panic!("Failed binding address: {:?}", listening_address));
     let address = SocketAddress { host, port };
 
-    pool.access_storage_blocking()
+    let queue_capacity = queue.lock().unwrap().capacity();
+    pool.access_storage()
+        .await
         .gpu_prover_queue_dal()
         .insert_prover_instance(
             address.clone(),
-            queue.lock().unwrap().capacity(),
+            queue_capacity,
             specialized_prover_group_id,
             region.clone(),
             zone.clone(),
             num_gpu,
-        );
+        )
+        .await;
 
     let mut now = Instant::now();
 
-    for stream in listener.incoming() {
+    loop {
+        let stream = match listener.accept().await {
+            Ok(stream) => stream.0,
+            Err(e) => {
+                panic!("could not accept connection: {e:?}");
+            }
+        };
         vlog::trace!(
             "Received new assembly send connection, waited for {}ms.",
             now.elapsed().as_millis()
         );
 
-        let stream = stream.expect("Stream closed early");
         handle_incoming_file(
             stream,
             queue.clone(),
@@ -54,13 +64,14 @@ pub async fn incoming_socket_listener(
             address.clone(),
             region.clone(),
             zone.clone(),
-        );
+        )
+        .await;
 
         now = Instant::now();
     }
 }
 
-fn handle_incoming_file(
+async fn handle_incoming_file(
     mut stream: TcpStream,
     queue: SharedAssemblyQueue,
     pool: ConnectionPool,
@@ -70,31 +81,31 @@ fn handle_incoming_file(
 ) {
     let mut assembly: Vec<u8> = vec![];
     let started_at = Instant::now();
-    copy(&mut stream, &mut assembly).expect("Failed reading from stream");
+    copy(&mut stream, &mut assembly).await.expect("Failed reading from stream");
     let file_size_in_gb = assembly.len() / (1024 * 1024 * 1024);
     vlog::trace!(
         "Read file of size: {}GB from stream took: {} seconds",
         file_size_in_gb,
         started_at.elapsed().as_secs()
     );
-    let mut assembly_queue = queue.lock().unwrap();
+    let (queue_free_slots, status) = {
+        let mut assembly_queue = queue.lock().unwrap();
 
-    assembly_queue
-        .add(assembly)
-        .expect("Failed saving assembly to queue");
-    let status = if assembly_queue.capacity() == assembly_queue.size() {
-        GpuProverInstanceStatus::Full
-    } else {
-        GpuProverInstanceStatus::Available
+        assembly_queue
+            .add(assembly)
+            .expect("Failed saving assembly to queue");
+        let status = if assembly_queue.capacity() == assembly_queue.size() {
+            GpuProverInstanceStatus::Full
+        } else {
+            GpuProverInstanceStatus::Available
+        };
+        let queue_free_slots = assembly_queue.capacity() - assembly_queue.size();
+        (queue_free_slots, status)
     };
 
-    pool.access_storage_blocking()
+    pool.access_storage()
+        .await
         .gpu_prover_queue_dal()
-        .update_prover_instance_status(
-            address,
-            status,
-            assembly_queue.capacity() - assembly_queue.size(),
-            region,
-            zone,
-        );
+        .update_prover_instance_status(address, status, queue_free_slots, region, zone)
+        .await;
 }

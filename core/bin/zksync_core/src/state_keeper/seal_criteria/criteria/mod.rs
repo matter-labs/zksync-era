@@ -1,8 +1,16 @@
-pub(crate) mod function;
-pub(crate) mod gas;
-pub(crate) mod slots;
+mod gas;
+mod geometry_seal_criteria;
+mod pubdata_bytes;
+mod slots;
+mod tx_encoding_size;
 
-pub(super) mod geometry_seal_criteria;
-pub(super) mod pubdata_bytes;
-pub(super) mod timeout;
-pub(super) mod tx_encoding_size;
+pub(in crate::state_keeper) use self::{
+    gas::GasCriterion,
+    geometry_seal_criteria::{
+        ComputationalGasCriterion, InitialWritesCriterion, MaxCyclesCriterion,
+        RepeatedWritesCriterion,
+    },
+    pubdata_bytes::PubDataBytesCriterion,
+    slots::SlotsCriterion,
+    tx_encoding_size::TxEncodingSizeCriterion,
+};

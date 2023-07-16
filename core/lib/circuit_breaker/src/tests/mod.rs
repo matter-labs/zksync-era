@@ -3,11 +3,12 @@ use std::sync::Mutex;
 use assert_matches::assert_matches;
 use async_trait::async_trait;
 
-use zksync_config::configs::chain::CircuitBreakerConfig;
+use zksync_config::configs::{chain::CircuitBreakerConfig, ContractsConfig};
 use zksync_eth_client::{
     types::{Error, ExecutedTxStatus, FailureInfo, SignedCallResult},
     BoundEthInterface, EthInterface,
 };
+use zksync_types::web3::types::Block;
 use zksync_types::{
     ethabi::Token,
     web3::{
@@ -193,6 +194,14 @@ impl EthInterface for ETHDirectClientMock {
     async fn logs(&self, _filter: Filter, _component: &'static str) -> Result<Vec<Log>, Error> {
         Ok(Default::default())
     }
+
+    async fn block(
+        &self,
+        _block_id: String,
+        _component: &'static str,
+    ) -> Result<Option<Block<H256>>, Error> {
+        Ok(Default::default())
+    }
 }
 
 #[async_trait]
@@ -253,8 +262,10 @@ async fn retries_for_contract_vk() {
         )))
     );
 
+    let contracts = ContractsConfig::from_env();
     let config = get_test_circuit_breaker_config();
-    let vks_checker = crate::vks::VksChecker::new(&config, eth_client);
+    let vks_checker =
+        crate::vks::VksChecker::new(&config, eth_client, contracts.diamond_proxy_addr);
 
     assert_matches!(vks_checker.get_vk_token_with_retries().await, Ok(_));
 }
@@ -282,9 +293,13 @@ async fn retries_for_facet_selectors() {
         )))
     );
 
+    let contracts = ContractsConfig::from_env();
     let config = get_test_circuit_breaker_config();
-    let facet_selectors_checker =
-        crate::facet_selectors::FacetSelectorsChecker::new(&config, eth_client);
+    let facet_selectors_checker = crate::facet_selectors::FacetSelectorsChecker::new(
+        &config,
+        eth_client,
+        contracts.diamond_proxy_addr,
+    );
 
     assert_matches!(
         facet_selectors_checker.get_facets_token_with_retry().await,

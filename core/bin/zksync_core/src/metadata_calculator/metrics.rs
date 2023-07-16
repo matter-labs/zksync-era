@@ -39,13 +39,6 @@ impl TreeUpdateStage {
             start: Instant::now(),
         }
     }
-
-    pub fn run<T>(self, action: impl FnOnce() -> T) -> T {
-        let latency = self.start();
-        let output = action();
-        latency.report();
-        output
-    }
 }
 
 /// Latency metric for a certain stage of the tree update.
@@ -58,10 +51,15 @@ pub(super) struct UpdateTreeLatency {
 
 impl UpdateTreeLatency {
     pub fn report(self) {
+        let elapsed = self.start.elapsed();
         metrics::histogram!(
             "server.metadata_calculator.update_tree.latency.stage",
-            self.start.elapsed(),
+            elapsed,
             "stage" => self.stage.as_str()
+        );
+        vlog::trace!(
+            "Metadata calculator stage `{stage}` completed in {elapsed:?}",
+            stage = self.stage.as_str()
         );
     }
 }
@@ -74,19 +72,15 @@ impl MetadataCalculator {
         start: Instant,
     ) {
         let mode_tag = mode.as_tag();
-        let tree_implementation = mode.tree_implementation();
-        let tree_tag = tree_implementation.as_tag();
 
         metrics::histogram!(
             "server.metadata_calculator.update_tree.latency",
-            start.elapsed(),
-            "tree" => tree_tag
+            start.elapsed()
         );
         if total_logs > 0 {
             metrics::histogram!(
                 "server.metadata_calculator.update_tree.per_log.latency",
-                start.elapsed().div_f32(total_logs as f32),
-                "tree" => tree_tag
+                start.elapsed().div_f32(total_logs as f32)
             );
         }
 
@@ -95,40 +89,24 @@ impl MetadataCalculator {
             .iter()
             .map(|block| u64::from(block.l1_tx_count))
             .sum();
-        metrics::counter!(
-            "server.processed_txs",
-            total_tx as u64,
-            "stage" => "tree",
-            "tree" => tree_tag
-        );
-        metrics::counter!(
-            "server.processed_l1_txs",
-            total_l1_tx,
-            "stage" => "tree",
-            "tree" => tree_tag
-        );
-        metrics::histogram!(
-            "server.metadata_calculator.log_batch",
-            total_logs as f64,
-            "tree" => tree_tag
-        );
+        metrics::counter!("server.processed_txs", total_tx as u64, "stage" => "tree");
+        metrics::counter!("server.processed_l1_txs", total_l1_tx, "stage" => "tree");
+        metrics::histogram!("server.metadata_calculator.log_batch", total_logs as f64);
         metrics::histogram!(
             "server.metadata_calculator.blocks_batch",
-            block_headers.len() as f64,
-            "tree" => tree_tag
+            block_headers.len() as f64
         );
 
+        let first_block_number = block_headers.first().unwrap().number.0;
         let last_block_number = block_headers.last().unwrap().number.0;
         vlog::info!(
-            "block {:?} processed in {} tree",
-            last_block_number,
-            tree_tag
+            "L1 batches #{:?} processed in tree",
+            first_block_number..=last_block_number
         );
         metrics::gauge!(
             "server.block_number",
             last_block_number as f64,
-            "stage" => format!("tree_{}_mode", mode_tag),
-            "tree" => tree_tag
+            "stage" => format!("tree_{mode_tag}_mode")
         );
 
         let latency =
@@ -136,8 +114,7 @@ impl MetadataCalculator {
         metrics::histogram!(
             "server.block_latency",
             latency as f64,
-            "stage" => format!("tree_{}_mode", mode_tag),
-            "tree" => tree_tag
+            "stage" => format!("tree_{mode_tag}_mode")
         );
     }
 }

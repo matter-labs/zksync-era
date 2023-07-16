@@ -5,7 +5,7 @@ use std::time::Duration;
 use serde::Deserialize;
 
 // Local uses
-use crate::envy_load;
+use super::envy_load;
 
 /// Configuration for the witness generation
 #[derive(Debug, Deserialize, Clone, PartialEq)]
@@ -30,7 +30,7 @@ pub struct WitnessGeneratorConfig {
 
 impl WitnessGeneratorConfig {
     pub fn from_env() -> Self {
-        envy_load!("witness", "WITNESS_")
+        envy_load("witness", "WITNESS_")
     }
 
     pub fn witness_generation_timeout(&self) -> Duration {

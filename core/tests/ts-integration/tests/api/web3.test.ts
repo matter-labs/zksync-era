@@ -94,9 +94,13 @@ describe('web3 API compatibility tests', () => {
 
     test('Should test some zks web3 methods', async () => {
         // zks_getAllAccountBalances
-        const balances = await alice.getAllBalances();
-        const tokenBalance = await alice.getBalance(l2Token);
-        expect(balances[l2Token.toLowerCase()].eq(tokenBalance));
+        // NOTE: `getAllBalances` will not work on external node,
+        // since TokenListFetcher is not running
+        if (!process.env.EN_MAIN_NODE_URL) {
+            const balances = await alice.getAllBalances();
+            const tokenBalance = await alice.getBalance(l2Token);
+            expect(balances[l2Token.toLowerCase()].eq(tokenBalance));
+        }
         // zks_L1ChainId
         const l1ChainId = (await alice.providerL1!.getNetwork()).chainId;
         const l1ChainIdFromL2Provider = await alice.provider.l1ChainId();
@@ -400,6 +404,7 @@ describe('web3 API compatibility tests', () => {
         });
         let expectedDetails = {
             fee: expect.stringMatching(HEX_VALUE_REGEX),
+            gasPerPubdata: expect.stringMatching(HEX_VALUE_REGEX),
             initiatorAddress: alice.address.toLowerCase(),
             isL1Originated: false,
             receivedAt: expect.stringMatching(DATE_REGEX),
@@ -580,7 +585,9 @@ describe('web3 API compatibility tests', () => {
 
     test('Should check API returns error when there are too many logs in eth_getLogs', async () => {
         const contract = await deployContract(alice, contracts.events, []);
-        const maxLogsLimit = parseInt(process.env.API_WEB3_JSON_RPC_REQ_ENTITIES_LIMIT!);
+        const maxLogsLimit = parseInt(
+            process.env.EN_REQ_ENTITIES_LIMIT ?? process.env.API_WEB3_JSON_RPC_REQ_ENTITIES_LIMIT!
+        );
 
         // Send 3 transactions that emit `maxLogsLimit / 2` events.
         const tx1 = await contract.emitManyEvents(maxLogsLimit / 2);
@@ -599,14 +606,9 @@ describe('web3 API compatibility tests', () => {
 
         // There are at least `1.5 * maxLogsLimit` logs in [tx1Receipt.blockNumber, tx3Receipt.blockNumber] range,
         // so query with such filter should fail.
-        let thrown = false;
-        try {
-            await alice.provider.getLogs({ fromBlock: tx1Receipt.blockNumber, toBlock: tx3Receipt.blockNumber });
-        } catch (err: any) {
-            thrown = true;
-            expect(err.toString().includes(`Query returned more than ${maxLogsLimit} results.`)).toBeTruthy();
-        }
-        expect(thrown).toBeTruthy();
+        await expect(
+            alice.provider.getLogs({ fromBlock: tx1Receipt.blockNumber, toBlock: tx3Receipt.blockNumber })
+        ).rejects.toThrow(`Query returned more than ${maxLogsLimit} results.`);
     });
 
     test('Should throw error for estimate gas for account with balance < tx.value', async () => {
@@ -674,7 +676,7 @@ describe('web3 API compatibility tests', () => {
         expect(logs[0].transactionHash).toEqual(tx.hash);
     });
 
-    test('Should check getLogs endpoint works properly with blocks', async () => {
+    test('Should check getLogs endpoint works properly with block tags', async () => {
         const earliestLogs = alice.provider.send('eth_getLogs', [
             {
                 fromBlock: 'earliest',
@@ -707,6 +709,29 @@ describe('web3 API compatibility tests', () => {
             }
         ]);
         await expect(latestLogs).resolves.not.toThrow();
+    });
+
+    test('Should check getLogs endpoint works properly with blockHash', async () => {
+        let latestBlock = await alice.provider.getBlock('latest');
+
+        // Check API returns identical logs by block number and block hash.
+        const getLogsByNumber = await alice.provider.getLogs({
+            fromBlock: latestBlock.number,
+            toBlock: latestBlock.number
+        });
+        const getLogsByHash = await alice.provider.getLogs({
+            blockHash: latestBlock.hash
+        });
+        await expect(getLogsByNumber).toEqual(getLogsByHash);
+
+        // Check that incorrect queries are rejected.
+        await expect(
+            alice.provider.getLogs({
+                fromBlock: latestBlock.number,
+                toBlock: latestBlock.number,
+                blockHash: latestBlock.hash
+            })
+        ).rejects.toThrow(`invalid filter: if blockHash is supplied fromBlock and toBlock must not be`);
     });
 
     afterAll(async () => {

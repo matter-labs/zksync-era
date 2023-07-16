@@ -5,7 +5,7 @@ use jsonrpc_core::types::error::Error as RpcError;
 use std::collections::{BTreeMap, HashMap};
 use std::sync::RwLock;
 use zksync_types::web3::contract::tokens::Detokenize;
-use zksync_types::web3::types::{BlockId, Filter, Log, Transaction};
+use zksync_types::web3::types::{Block, BlockId, Filter, Log, Transaction};
 use zksync_types::web3::{
     contract::tokens::Tokenize,
     contract::Options,
@@ -64,6 +64,9 @@ pub struct MockEthereum {
     pub current_nonce: AtomicU64,
     pub pending_nonce: AtomicU64,
     pub nonces: RwLock<BTreeMap<u64, u64>>,
+    /// If true, the mock will not check the ordering nonces of the transactions.
+    /// This is useful for testing the cases when the transactions are executed out of order.
+    pub non_ordering_confirmations: bool,
 }
 
 impl Default for MockEthereum {
@@ -78,6 +81,7 @@ impl Default for MockEthereum {
             current_nonce: Default::default(),
             pending_nonce: Default::default(),
             nonces: RwLock::new([(0, 0)].into()),
+            non_ordering_confirmations: false,
         }
     }
 }
@@ -109,7 +113,14 @@ impl MockEthereum {
         let nonce = self.current_nonce.fetch_add(1, Ordering::SeqCst);
         let tx_nonce = self.sent_txs.read().unwrap()[&tx_hash].nonce;
 
-        anyhow::ensure!(tx_nonce == nonce, "nonce mismatch");
+        if self.non_ordering_confirmations {
+            if tx_nonce >= nonce {
+                self.current_nonce.store(tx_nonce, Ordering::SeqCst);
+            }
+        } else {
+            anyhow::ensure!(tx_nonce == nonce, "nonce mismatch");
+        }
+
         self.nonces.write().unwrap().insert(block_number, nonce + 1);
 
         let status = ExecutedTxStatus {
@@ -165,6 +176,13 @@ impl MockEthereum {
     pub fn with_fee_history(self, history: Vec<u64>) -> Self {
         Self {
             base_fee_history: RwLock::new(history),
+            ..self
+        }
+    }
+
+    pub fn with_non_ordering_confirmation(self, non_ordering_confirmations: bool) -> Self {
+        Self {
+            non_ordering_confirmations,
             ..self
         }
     }
@@ -295,6 +313,14 @@ impl EthInterface for MockEthereum {
     async fn logs(&self, _filter: Filter, _component: &'static str) -> Result<Vec<Log>, Error> {
         unimplemented!("Not needed right now")
     }
+
+    async fn block(
+        &self,
+        _block_id: String,
+        _component: &'static str,
+    ) -> Result<Option<Block<H256>>, Error> {
+        unimplemented!("Not needed right now")
+    }
 }
 
 #[async_trait::async_trait]
@@ -360,7 +386,7 @@ impl BoundEthInterface for MockEthereum {
 }
 
 #[async_trait]
-impl<T: AsRef<MockEthereum> + Sync> EthInterface for T {
+impl<T: AsRef<MockEthereum> + Send + Sync> EthInterface for T {
     async fn nonce_at_for_account(
         &self,
         account: Address,
@@ -468,6 +494,14 @@ impl<T: AsRef<MockEthereum> + Sync> EthInterface for T {
 
     async fn logs(&self, filter: Filter, component: &'static str) -> Result<Vec<Log>, Error> {
         self.as_ref().logs(filter, component).await
+    }
+
+    async fn block(
+        &self,
+        block_id: String,
+        component: &'static str,
+    ) -> Result<Option<Block<H256>>, Error> {
+        self.as_ref().block(block_id, component).await
     }
 }
 

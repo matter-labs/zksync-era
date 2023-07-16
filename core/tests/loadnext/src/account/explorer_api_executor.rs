@@ -1,14 +1,10 @@
-use std::cmp;
-use std::time::Instant;
-
-use futures::SinkExt;
-use once_cell::sync::OnceCell;
+use futures::{stream, TryStreamExt};
 use rand::{seq::SliceRandom, Rng};
-use rand_distr::Distribution;
-use rand_distr::Normal;
+use rand_distr::{Distribution, Normal};
 use reqwest::{Response, StatusCode};
 use serde::{de::DeserializeOwned, Deserialize};
-use tokio::sync::Semaphore;
+
+use std::{cmp, str, time::Instant};
 
 use zksync::error::ClientError;
 use zksync_types::explorer_api::{
@@ -16,21 +12,29 @@ use zksync_types::explorer_api::{
 };
 use zksync_types::{Address, MiniblockNumber, H256};
 
-use crate::account::AccountLifespan;
-use crate::command::{ExplorerApiRequest, ExplorerApiRequestType};
-use crate::constants::API_REQUEST_TIMEOUT;
-use crate::report::{ActionType, ReportBuilder, ReportLabel};
-
-/// Shared semaphore which limits the number of accounts performing
-/// API requests at any moment of time.
-/// Lazily initialized by the first account accessing it.
-static REQUEST_LIMITER: OnceCell<Semaphore> = OnceCell::new();
+use super::{Aborted, AccountLifespan};
+use crate::{
+    command::{ExplorerApiRequest, ExplorerApiRequestType},
+    config::RequestLimiters,
+    constants::API_REQUEST_TIMEOUT,
+    report::{ActionType, ReportBuilder, ReportLabel},
+};
 
 #[derive(Debug, Clone)]
 pub struct ExplorerApiClient {
-    pub client: reqwest::Client,
-    pub base_url: String,
-    pub last_sealed_block_number: Option<MiniblockNumber>,
+    client: reqwest::Client,
+    base_url: String,
+    last_sealed_block_number: Option<MiniblockNumber>,
+}
+
+impl ExplorerApiClient {
+    pub fn new(base_url: String) -> Self {
+        Self {
+            client: reqwest::Client::default(),
+            base_url,
+            last_sealed_block_number: None,
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -48,7 +52,21 @@ impl ExplorerApiClient {
         match response.status() {
             StatusCode::OK => Ok(Some(response.json().await?)),
             StatusCode::NOT_FOUND => Ok(None),
-            code => Err(anyhow::anyhow!("Unexpected status code: {}", code)),
+            code => {
+                let body = response.bytes().await;
+                let body_str = if let Ok(body) = &body {
+                    str::from_utf8(body).ok().filter(|body| body.len() < 1_024)
+                } else {
+                    None
+                };
+                let (body_sep, body_str) = match body_str {
+                    Some(s) => (", body: ", s),
+                    None => ("", ""),
+                };
+                Err(anyhow::anyhow!(
+                    "Unexpected status code: {code}{body_sep}{body_str}"
+                ))
+            }
         }
     }
 
@@ -62,29 +80,26 @@ impl ExplorerApiClient {
         result
     }
 
-    pub async fn blocks(
-        &mut self,
-        query: BlocksQuery,
-    ) -> anyhow::Result<Option<serde_json::Value>> {
+    pub async fn blocks(&self, query: BlocksQuery) -> anyhow::Result<Option<serde_json::Value>> {
         let url = format!("{}/blocks", &self.base_url);
         let response = self.client.get(url).query(&query).send().await?;
         Self::response_to_result(response).await
     }
 
-    pub async fn block(&mut self, number: u32) -> anyhow::Result<Option<serde_json::Value>> {
+    pub async fn block(&self, number: u32) -> anyhow::Result<Option<serde_json::Value>> {
         let url = format!("{}/block/{}", &self.base_url, number);
         let response = self.client.get(url).send().await?;
         Self::response_to_result(response).await
     }
 
-    pub async fn transaction(&mut self, hash: &H256) -> anyhow::Result<Option<serde_json::Value>> {
+    pub async fn transaction(&self, hash: &H256) -> anyhow::Result<Option<serde_json::Value>> {
         let url = format!("{}/transaction/{:?}", &self.base_url, hash);
         let response = self.client.get(url).send().await?;
         Self::response_to_result(response).await
     }
 
     pub async fn transactions(
-        &mut self,
+        &self,
         query: TransactionsQuery,
     ) -> anyhow::Result<Option<serde_json::Value>> {
         let url = format!("{}/transactions", &self.base_url);
@@ -92,26 +107,20 @@ impl ExplorerApiClient {
         Self::response_to_result(response).await
     }
 
-    pub async fn account(
-        &mut self,
-        address: &Address,
-    ) -> anyhow::Result<Option<serde_json::Value>> {
-        let url = format!("{}/account/{:?}", &self.base_url, address);
+    pub async fn account(&self, address: &Address) -> anyhow::Result<Option<serde_json::Value>> {
+        let url = format!("{}/account/{address:?}", &self.base_url);
         let response = self.client.get(url).send().await?;
         Self::response_to_result(response).await
     }
 
-    pub async fn contract(
-        &mut self,
-        address: &Address,
-    ) -> anyhow::Result<Option<serde_json::Value>> {
-        let url = format!("{}/contract/{:?}", &self.base_url, address);
+    pub async fn contract(&self, address: &Address) -> anyhow::Result<Option<serde_json::Value>> {
+        let url = format!("{}/contract/{address:?}", &self.base_url);
         let response = self.client.get(url).send().await?;
         Self::response_to_result(response).await
     }
 
-    pub async fn token(&mut self, address: &Address) -> anyhow::Result<Option<serde_json::Value>> {
-        let url = format!("{}/token/{:?}", &self.base_url, address);
+    pub async fn token(&self, address: &Address) -> anyhow::Result<Option<serde_json::Value>> {
+        let url = format!("{}/token/{address:?}", &self.base_url);
         let response = self.client.get(url).send().await?;
         Self::response_to_result(response).await
     }
@@ -134,7 +143,7 @@ impl AccountLifespan {
         }
     }
 
-    fn random_existed_block(&self) -> Option<MiniblockNumber> {
+    fn random_existing_block(&self) -> Option<MiniblockNumber> {
         self.explorer_client.last_sealed_block_number.map(|number| {
             let num = rand::thread_rng().gen_range(0..number.0);
             MiniblockNumber(num)
@@ -152,32 +161,27 @@ impl AccountLifespan {
                 self.explorer_client.network_stats().await.map(drop)
             }
             ExplorerApiRequestType::Blocks => {
-                let from_block = self.random_existed_block();
-
-                // Offset should be less than last_block_number - from, otherwise no blocks will be returned for the request
-                // Offset should be less than 9990 because we have a limit for value (limit + offset) <= 10000
-                let offset = from_block
-                    .map(|bl| {
-                        let last_block = self.explorer_client.last_sealed_block_number.unwrap();
-                        rand::thread_rng()
-                            .gen_range(0..std::cmp::min((last_block - bl.0).0, 9900) as usize)
-                    })
-                    .unwrap_or_default();
+                let from_block = self.random_existing_block();
+                // Offset should be less than `last_block - from_block`, otherwise no blocks
+                // will be returned for the request.
+                let mut pagination = Self::random_pagination();
+                pagination.offset = if let Some(from_block) = from_block {
+                    let last_block = self.explorer_client.last_sealed_block_number.unwrap();
+                    cmp::min(pagination.offset, (last_block.0 - from_block.0) as usize)
+                } else {
+                    0
+                };
 
                 self.explorer_client
                     .blocks(BlocksQuery {
                         from: from_block,
-                        pagination: PaginationQuery {
-                            limit: 100,
-                            offset,
-                            direction: PaginationDirection::Newer,
-                        },
+                        pagination,
                     })
                     .await
                     .map(drop)
             }
             ExplorerApiRequestType::Block => {
-                let block = self.random_existed_block().map(|b| *b).unwrap_or(1);
+                let block = self.random_existing_block().map(|b| *b).unwrap_or(1);
                 self.explorer_client.block(block).await.map(drop)
             }
             ExplorerApiRequestType::Account => self
@@ -209,8 +213,7 @@ impl AccountLifespan {
                 .await
                 .map(drop),
             ExplorerApiRequestType::Transactions => {
-                let from_block = self.random_existed_block();
-                let offset = self.get_normally_distributed_offset(3000.0, 9900);
+                let from_block = self.random_existing_block();
                 self.explorer_client
                     .transactions(TransactionsQuery {
                         from_block_number: from_block,
@@ -220,19 +223,13 @@ impl AccountLifespan {
                         address: None,
                         account_address: None,
                         contract_address: None,
-                        pagination: PaginationQuery {
-                            limit: 100,
-                            offset,
-                            direction: PaginationDirection::Newer,
-                        },
+                        pagination: Self::random_pagination(),
                     })
                     .await
                     .map(drop)
             }
             ExplorerApiRequestType::AccountTransactions => {
-                let from_block = self.random_existed_block();
-                let offset = self.get_normally_distributed_offset(3000.0, 9900);
-
+                let from_block = self.random_existing_block();
                 self.explorer_client
                     .transactions(TransactionsQuery {
                         from_block_number: from_block,
@@ -242,11 +239,7 @@ impl AccountLifespan {
                         address: None,
                         account_address: Some(self.wallet.wallet.address()),
                         contract_address: None,
-                        pagination: PaginationQuery {
-                            limit: 100,
-                            offset,
-                            direction: PaginationDirection::Newer,
-                        },
+                        pagination: Self::random_pagination(),
                     })
                     .await
                     .map(drop)
@@ -254,66 +247,82 @@ impl AccountLifespan {
         }
     }
 
-    fn get_normally_distributed_offset(&self, std_dev: f32, limit: usize) -> usize {
-        let normal = Normal::new(0.0, std_dev).unwrap();
-        let v: f32 = normal.sample(&mut rand::thread_rng());
+    fn random_pagination() -> PaginationQuery {
+        // These parameters should correspond to pagination validation logic on the server
+        // so that we don't get all API requests failing.
+        const LIMIT: usize = 50;
+        const OFFSET_STD_DEV: f32 = 60.0;
+        const MAX_OFFSET: usize = 200;
 
-        let offset = v.abs() as usize;
+        PaginationQuery {
+            limit: LIMIT,
+            offset: Self::normally_distributed_offset(OFFSET_STD_DEV, MAX_OFFSET),
+            direction: PaginationDirection::Newer,
+        }
+    }
+
+    fn normally_distributed_offset(std_dev: f32, limit: usize) -> usize {
+        let normal = Normal::new(0.0, std_dev).unwrap();
+        let sampled = normal.sample(&mut rand::thread_rng());
+        let offset = sampled.abs() as usize;
         cmp::min(offset, limit)
     }
 
-    pub(super) async fn run_explorer_api_requests_task(mut self) {
-        // Setup current last block
-        let _ = self.explorer_client.network_stats().await;
-        loop {
-            let semaphore =
-                REQUEST_LIMITER.get_or_init(|| Semaphore::new(self.config.sync_api_requests_limit));
-            // The number of simultaneous requests is limited by semaphore.
-            let permit = semaphore
-                .acquire()
-                .await
-                .expect("static semaphore cannot be closed");
+    async fn run_single_request(mut self, limiters: &RequestLimiters) -> Result<(), Aborted> {
+        let permit = limiters.explorer_api_requests.acquire().await.unwrap();
 
-            let request = ExplorerApiRequest::random(&mut self.wallet.rng).await;
-
-            let start = Instant::now();
-            let mut empty_success_txs = true;
-            if request.request_type == ExplorerApiRequestType::Transaction {
-                empty_success_txs = self.successfully_sent_txs.read().await.is_empty();
-            }
-
-            let label = if let (ExplorerApiRequestType::Contract, None) = (
-                request.request_type,
-                self.wallet.deployed_contract_address.get(),
-            ) {
-                ReportLabel::skipped("Contract not deployed yet")
-            } else if let (ExplorerApiRequestType::Transaction, true) =
-                (request.request_type, empty_success_txs)
-            {
-                ReportLabel::skipped("No one txs has been submitted yet")
-            } else {
-                let result = self.execute_explorer_api_request(request).await;
-                match result {
-                    Ok(_) => ReportLabel::ActionDone,
-                    Err(err) => {
-                        let error = err.to_string();
-
-                        vlog::error!("API request failed: {:?}, reason: {}", request, error);
-                        ReportLabel::ActionFailed { error }
-                    }
-                }
-            };
-
-            let api_action_type = ActionType::from(request.request_type);
-
-            let report = ReportBuilder::default()
-                .action(api_action_type)
-                .label(label)
-                .time(start.elapsed())
-                .reporter(self.wallet.wallet.address())
-                .finish();
-            drop(permit);
-            let _ = self.report_sink.send(report).await;
+        let request = ExplorerApiRequest::random(&mut self.wallet.rng).await;
+        let start = Instant::now();
+        let mut empty_success_txs = true;
+        if request.request_type == ExplorerApiRequestType::Transaction {
+            empty_success_txs = self.successfully_sent_txs.read().await.is_empty();
         }
+
+        let label = if let (ExplorerApiRequestType::Contract, None) = (
+            request.request_type,
+            self.wallet.deployed_contract_address.get(),
+        ) {
+            ReportLabel::skipped("Contract not deployed yet")
+        } else if let (ExplorerApiRequestType::Transaction, true) =
+            (request.request_type, empty_success_txs)
+        {
+            ReportLabel::skipped("No one txs has been submitted yet")
+        } else {
+            let result = self.execute_explorer_api_request(request).await;
+            match result {
+                Ok(_) => ReportLabel::ActionDone,
+                Err(err) => {
+                    vlog::error!("API request failed: {request:?}, reason: {err}");
+                    ReportLabel::failed(err.to_string())
+                }
+            }
+        };
+        drop(permit);
+
+        let api_action_type = ActionType::from(request.request_type);
+        let report = ReportBuilder::default()
+            .action(api_action_type)
+            .label(label)
+            .time(start.elapsed())
+            .reporter(self.wallet.wallet.address())
+            .finish();
+        self.send_report(report).await
+    }
+
+    pub(super) async fn run_explorer_api_requests_task(
+        mut self,
+        limiters: &RequestLimiters,
+    ) -> Result<(), Aborted> {
+        // Setup current last block
+        self.explorer_client.network_stats().await.ok();
+
+        // We use `try_for_each_concurrent` to propagate test abortion, but we cannot
+        // rely solely on its concurrency limiter because we need to limit concurrency
+        // for all accounts in total, rather than for each account separately.
+        let local_limit = (self.config.sync_api_requests_limit / 5).max(1);
+        let request = stream::repeat_with(move || Ok(self.clone()));
+        request
+            .try_for_each_concurrent(local_limit, |this| this.run_single_request(limiters))
+            .await
     }
 }

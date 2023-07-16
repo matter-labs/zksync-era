@@ -34,16 +34,16 @@ pub struct FeeTicker;
 
 impl FeeTicker {
     /// Returns the token price in USD.
-    pub fn get_l2_token_price(
+    pub async fn get_l2_token_price(
         tokens_web3_dal: &mut TokensWeb3Dal<'_, '_>,
         request_type: TokenPriceRequestType,
         l2_token_addr: &Address,
     ) -> Result<BigDecimal, TickerError> {
-        Self::get_l2_token_price_inner(tokens_web3_dal, request_type, l2_token_addr).map(
-            |final_price| {
+        Self::get_l2_token_price_inner(tokens_web3_dal, request_type, l2_token_addr)
+            .await
+            .map(|final_price| {
                 ratio_to_big_decimal_normalized(&final_price, USD_PRECISION, MIN_PRECISION)
-            },
-        )
+            })
     }
 
     /// Returns the acceptable `gas_per_pubdata_byte` based on the current gas price.
@@ -51,13 +51,14 @@ impl FeeTicker {
         base_fee_to_gas_per_pubdata(gas_price_wei, base_fee) as u32
     }
 
-    fn get_l2_token_price_inner(
+    async fn get_l2_token_price_inner(
         tokens_web3_dal: &mut TokensWeb3Dal<'_, '_>,
         request_type: TokenPriceRequestType,
         l2_token_addr: &Address,
     ) -> Result<Ratio<BigUint>, TickerError> {
         let token_price = tokens_web3_dal
             .get_token_price(l2_token_addr)
+            .await
             .map_err(|_| TickerError::InternalError)?
             .ok_or(TickerError::PriceNotTracked(*l2_token_addr))?
             .usd_price;
@@ -67,6 +68,7 @@ impl FeeTicker {
             TokenPriceRequestType::USDForOneWei => {
                 let token_metadata = tokens_web3_dal
                     .get_token_metadata(l2_token_addr)
+                    .await
                     .map_err(|_| TickerError::InternalError)?
                     .ok_or_else(|| {
                         // It's kinda not OK that we have a price for token, but no metadata.

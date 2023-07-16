@@ -2,18 +2,19 @@ use std::fs;
 use std::time::Duration;
 
 use db_test_macro::db_test;
-use zksync_types::block::{L1BatchHeader, MiniblockHeader};
-use zksync_types::proofs::AggregationRound;
-use zksync_types::MAX_GAS_PER_PUBDATA_BYTE;
+use zksync_contracts::BaseSystemContractsHashes;
 use zksync_types::{
+    block::{L1BatchHeader, MiniblockHeader},
     fee::{Fee, TransactionExecutionMetrics},
     helpers::unix_timestamp_ms,
     l1::{L1Tx, OpProcessingType, PriorityQueueType},
     l2::L2Tx,
-    tx::{tx_execution_info::TxExecutionStatus, TransactionExecutionResult},
+    proofs::AggregationRound,
+    tx::{tx_execution_info::TxExecutionStatus, ExecutionMetrics, TransactionExecutionResult},
     Address, Execute, L1BatchNumber, L1BlockNumber, L1TxCommonData, L2ChainId, MiniblockNumber,
-    PriorityOpId, H160, H256, U256,
+    PriorityOpId, H160, H256, MAX_GAS_PER_PUBDATA_BYTE, U256,
 };
+use zksync_utils::miniblock_hash;
 
 use crate::blocks_dal::BlocksDal;
 use crate::connection::ConnectionPool;
@@ -23,13 +24,27 @@ use crate::transactions_dal::TransactionsDal;
 use crate::transactions_web3_dal::TransactionsWeb3Dal;
 use crate::witness_generator_dal::WitnessGeneratorDal;
 
+const DEFAULT_GAS_PER_PUBDATA: u32 = 100;
+
 fn mock_tx_execution_metrics() -> TransactionExecutionMetrics {
     TransactionExecutionMetrics::default()
 }
 
-const DEFAULT_GAS_PER_PUBDATA: u32 = 100;
+pub(crate) fn create_miniblock_header(number: u32) -> MiniblockHeader {
+    MiniblockHeader {
+        number: MiniblockNumber(number),
+        timestamp: 0,
+        hash: miniblock_hash(MiniblockNumber(number)),
+        l1_tx_count: 0,
+        l2_tx_count: 0,
+        base_fee_per_gas: 100,
+        l1_gas_price: 100,
+        l2_fair_gas_price: 100,
+        base_system_contracts_hashes: BaseSystemContractsHashes::default(),
+    }
+}
 
-fn mock_l2_transaction() -> L2Tx {
+pub(crate) fn mock_l2_transaction() -> L2Tx {
     let fee = Fee {
         gas_limit: U256::from(1_000_000u32),
         max_fee_per_gas: U256::from(250_000_000u32),
@@ -87,17 +102,35 @@ fn mock_l1_execute() -> L1Tx {
     }
 }
 
+pub(crate) fn mock_execution_result(transaction: L2Tx) -> TransactionExecutionResult {
+    TransactionExecutionResult {
+        hash: transaction.hash(),
+        transaction: transaction.into(),
+        execution_info: ExecutionMetrics::default(),
+        execution_status: TxExecutionStatus::Success,
+        refunded_gas: 0,
+        operator_suggested_refund: 0,
+        compressed_bytecodes: vec![],
+        call_traces: vec![],
+        revert_reason: None,
+    }
+}
+
 #[db_test(dal_crate)]
 async fn workflow_with_submit_tx_equal_hashes(connection_pool: ConnectionPool) {
     let storage = &mut connection_pool.access_test_storage().await;
     let mut transactions_dal = TransactionsDal { storage };
 
     let tx = mock_l2_transaction();
-    let result = transactions_dal.insert_transaction_l2(tx.clone(), mock_tx_execution_metrics());
+    let result = transactions_dal
+        .insert_transaction_l2(tx.clone(), mock_tx_execution_metrics())
+        .await;
 
     assert_eq!(result, L2TxSubmissionResult::Added);
 
-    let result = transactions_dal.insert_transaction_l2(tx, mock_tx_execution_metrics());
+    let result = transactions_dal
+        .insert_transaction_l2(tx, mock_tx_execution_metrics())
+        .await;
 
     assert_eq!(result, L2TxSubmissionResult::Replaced);
 }
@@ -112,14 +145,18 @@ async fn workflow_with_submit_tx_diff_hashes(connection_pool: ConnectionPool) {
     let nonce = tx.common_data.nonce;
     let initiator_address = tx.common_data.initiator_address;
 
-    let result = transactions_dal.insert_transaction_l2(tx, mock_tx_execution_metrics());
+    let result = transactions_dal
+        .insert_transaction_l2(tx, mock_tx_execution_metrics())
+        .await;
 
     assert_eq!(result, L2TxSubmissionResult::Added);
 
     let mut tx = mock_l2_transaction();
     tx.common_data.nonce = nonce;
     tx.common_data.initiator_address = initiator_address;
-    let result = transactions_dal.insert_transaction_l2(tx, mock_tx_execution_metrics());
+    let result = transactions_dal
+        .insert_transaction_l2(tx, mock_tx_execution_metrics())
+        .await;
 
     assert_eq!(result, L2TxSubmissionResult::Replaced);
 }
@@ -132,67 +169,70 @@ async fn remove_stuck_txs(connection_pool: ConnectionPool) {
     // Stuck tx
     let mut tx = mock_l2_transaction();
     tx.received_timestamp_ms = unix_timestamp_ms() - Duration::new(1000, 0).as_millis() as u64;
-    transactions_dal.insert_transaction_l2(tx, mock_tx_execution_metrics());
+    transactions_dal
+        .insert_transaction_l2(tx, mock_tx_execution_metrics())
+        .await;
     // Tx in mempool
     let tx = mock_l2_transaction();
-    transactions_dal.insert_transaction_l2(tx, mock_tx_execution_metrics());
+    transactions_dal
+        .insert_transaction_l2(tx, mock_tx_execution_metrics())
+        .await;
 
     // Stuck L1 tx. We should never ever remove L1 tx
     let mut tx = mock_l1_execute();
     tx.received_timestamp_ms = unix_timestamp_ms() - Duration::new(1000, 0).as_millis() as u64;
-    transactions_dal.insert_transaction_l1(tx, L1BlockNumber(1));
+    transactions_dal
+        .insert_transaction_l1(tx, L1BlockNumber(1))
+        .await;
 
     // Old executed tx
     let mut executed_tx = mock_l2_transaction();
     executed_tx.received_timestamp_ms =
         unix_timestamp_ms() - Duration::new(1000, 0).as_millis() as u64;
-    transactions_dal.insert_transaction_l2(executed_tx.clone(), mock_tx_execution_metrics());
+    transactions_dal
+        .insert_transaction_l2(executed_tx.clone(), mock_tx_execution_metrics())
+        .await;
 
     // Get all txs
-    transactions_dal.reset_mempool();
-    let txs = transactions_dal.sync_mempool(vec![], vec![], 0, 0, 1000).0;
+    transactions_dal.reset_mempool().await;
+    let txs = transactions_dal
+        .sync_mempool(vec![], vec![], 0, 0, 1000)
+        .await
+        .0;
     assert_eq!(txs.len(), 4);
 
     let storage = transactions_dal.storage;
-    BlocksDal { storage }.insert_miniblock(MiniblockHeader {
-        number: MiniblockNumber(1),
-        timestamp: 0,
-        hash: Default::default(),
-        l1_tx_count: 0,
-        l2_tx_count: 0,
-        base_fee_per_gas: Default::default(),
-        l1_gas_price: 0,
-        l2_fair_gas_price: 0,
-        base_system_contracts_hashes: Default::default(),
-    });
+    BlocksDal { storage }
+        .insert_miniblock(&create_miniblock_header(1))
+        .await;
 
     let mut transactions_dal = TransactionsDal { storage };
-    transactions_dal.mark_txs_as_executed_in_miniblock(
-        MiniblockNumber(1),
-        &[TransactionExecutionResult {
-            transaction: executed_tx.clone().into(),
-            hash: executed_tx.hash(),
-            execution_info: Default::default(),
-            execution_status: TxExecutionStatus::Success,
-            refunded_gas: 0,
-            operator_suggested_refund: 0,
-            compressed_bytecodes: vec![],
-            call_traces: vec![],
-            revert_reason: None,
-        }],
-        U256::from(1),
-    );
+    transactions_dal
+        .mark_txs_as_executed_in_miniblock(
+            MiniblockNumber(1),
+            &[mock_execution_result(executed_tx.clone())],
+            U256::from(1),
+        )
+        .await;
 
     // Get all txs
-    transactions_dal.reset_mempool();
-    let txs = transactions_dal.sync_mempool(vec![], vec![], 0, 0, 1000).0;
+    transactions_dal.reset_mempool().await;
+    let txs = transactions_dal
+        .sync_mempool(vec![], vec![], 0, 0, 1000)
+        .await
+        .0;
     assert_eq!(txs.len(), 3);
 
     // Remove one stuck tx
-    let removed_txs = transactions_dal.remove_stuck_txs(Duration::from_secs(500));
+    let removed_txs = transactions_dal
+        .remove_stuck_txs(Duration::from_secs(500))
+        .await;
     assert_eq!(removed_txs, 1);
-    transactions_dal.reset_mempool();
-    let txs = transactions_dal.sync_mempool(vec![], vec![], 0, 0, 1000).0;
+    transactions_dal.reset_mempool().await;
+    let txs = transactions_dal
+        .sync_mempool(vec![], vec![], 0, 0, 1000)
+        .await
+        .0;
     assert_eq!(txs.len(), 2);
 
     // We shouldn't collect executed tx
@@ -200,6 +240,7 @@ async fn remove_stuck_txs(connection_pool: ConnectionPool) {
     let mut transactions_web3_dal = TransactionsWeb3Dal { storage };
     transactions_web3_dal
         .get_transaction_receipt(executed_tx.hash())
+        .await
         .unwrap()
         .unwrap();
 }
@@ -231,23 +272,28 @@ async fn test_duplicate_insert_prover_jobs(connection_pool: ConnectionPool) {
     );
     storage
         .blocks_dal()
-        .insert_l1_batch(header, Default::default());
+        .insert_l1_batch(&header, Default::default())
+        .await;
 
     let mut prover_dal = ProverDal { storage };
     let circuits = create_circuits();
     let l1_batch_number = L1BatchNumber(block_number);
-    prover_dal.insert_prover_jobs(
-        l1_batch_number,
-        circuits.clone(),
-        AggregationRound::BasicCircuits,
-    );
+    prover_dal
+        .insert_prover_jobs(
+            l1_batch_number,
+            circuits.clone(),
+            AggregationRound::BasicCircuits,
+        )
+        .await;
 
     // try inserting the same jobs again to ensure it does not panic
-    prover_dal.insert_prover_jobs(
-        l1_batch_number,
-        circuits.clone(),
-        AggregationRound::BasicCircuits,
-    );
+    prover_dal
+        .insert_prover_jobs(
+            l1_batch_number,
+            circuits.clone(),
+            AggregationRound::BasicCircuits,
+        )
+        .await;
 
     let prover_jobs_params = GetProverJobsParams {
         statuses: None,
@@ -259,7 +305,7 @@ async fn test_duplicate_insert_prover_jobs(connection_pool: ConnectionPool) {
         desc: false,
         round: None,
     };
-    let jobs = prover_dal.get_jobs(prover_jobs_params).unwrap();
+    let jobs = prover_dal.get_jobs(prover_jobs_params).await.unwrap();
     assert_eq!(circuits.len(), jobs.len());
 }
 
@@ -275,26 +321,31 @@ async fn test_requeue_prover_jobs(connection_pool: ConnectionPool) {
     );
     storage
         .blocks_dal()
-        .insert_l1_batch(header, Default::default());
+        .insert_l1_batch(&header, Default::default())
+        .await;
 
     let mut prover_dal = ProverDal { storage };
     let circuits = create_circuits();
     let l1_batch_number = L1BatchNumber(block_number);
-    prover_dal.insert_prover_jobs(l1_batch_number, circuits, AggregationRound::BasicCircuits);
+    prover_dal
+        .insert_prover_jobs(l1_batch_number, circuits, AggregationRound::BasicCircuits)
+        .await;
 
     // take all jobs from prover_job table
     for _ in 1..=4 {
-        let job = prover_dal.get_next_prover_job();
+        let job = prover_dal.get_next_prover_job().await;
         assert!(job.is_some());
     }
-    let job = prover_dal.get_next_prover_job();
+    let job = prover_dal.get_next_prover_job().await;
     assert!(job.is_none());
     // re-queue jobs
-    let stuck_jobs = prover_dal.requeue_stuck_jobs(Duration::from_secs(0), 10);
+    let stuck_jobs = prover_dal
+        .requeue_stuck_jobs(Duration::from_secs(0), 10)
+        .await;
     assert_eq!(4, stuck_jobs.len());
     // re-check that all jobs can be taken again
     for _ in 1..=4 {
-        let job = prover_dal.get_next_prover_job();
+        let job = prover_dal.get_next_prover_job().await;
         assert!(job.is_some());
     }
 }
@@ -311,45 +362,52 @@ async fn test_move_leaf_aggregation_jobs_from_waiting_to_queued(connection_pool:
     );
     storage
         .blocks_dal()
-        .insert_l1_batch(header, Default::default());
+        .insert_l1_batch(&header, Default::default())
+        .await;
 
     let mut prover_dal = ProverDal { storage };
     let circuits = create_circuits();
     let l1_batch_number = L1BatchNumber(block_number);
-    prover_dal.insert_prover_jobs(
-        l1_batch_number,
-        circuits.clone(),
-        AggregationRound::BasicCircuits,
-    );
+    prover_dal
+        .insert_prover_jobs(
+            l1_batch_number,
+            circuits.clone(),
+            AggregationRound::BasicCircuits,
+        )
+        .await;
     let prover_jobs_params = get_default_prover_jobs_params(l1_batch_number);
-    let jobs = prover_dal.get_jobs(prover_jobs_params);
+    let jobs = prover_dal.get_jobs(prover_jobs_params).await;
     let job_ids: Vec<u32> = jobs.unwrap().into_iter().map(|job| job.id).collect();
 
     let proof = get_sample_proof();
 
     // mark all basic circuit proofs as successful.
-    job_ids.iter().for_each(|&id| {
-        prover_dal.save_proof(id, Duration::from_secs(0), proof.clone(), "unit-test")
-    });
+    for id in job_ids.iter() {
+        prover_dal
+            .save_proof(*id, Duration::from_secs(0), proof.clone(), "unit-test")
+            .await;
+    }
     let mut witness_generator_dal = WitnessGeneratorDal { storage };
 
-    witness_generator_dal.create_aggregation_jobs(
-        l1_batch_number,
-        "basic_circuits_1.bin",
-        "basic_circuits_inputs_1.bin",
-        circuits.len(),
-        "scheduler_witness_1.bin",
-    );
+    witness_generator_dal
+        .create_aggregation_jobs(
+            l1_batch_number,
+            "basic_circuits_1.bin",
+            "basic_circuits_inputs_1.bin",
+            circuits.len(),
+            "scheduler_witness_1.bin",
+        )
+        .await;
 
     // move the leaf aggregation job to be queued
-    witness_generator_dal.move_leaf_aggregation_jobs_from_waiting_to_queued();
+    witness_generator_dal
+        .move_leaf_aggregation_jobs_from_waiting_to_queued()
+        .await;
 
     // Ensure get-next job gives the leaf aggregation witness job
-    let job = witness_generator_dal.get_next_leaf_aggregation_witness_job(
-        Duration::from_secs(0),
-        10,
-        u32::MAX,
-    );
+    let job = witness_generator_dal
+        .get_next_leaf_aggregation_witness_job(Duration::from_secs(0), 10, u32::MAX)
+        .await;
     assert_eq!(l1_batch_number, job.unwrap().block_number);
 }
 
@@ -365,50 +423,59 @@ async fn test_move_node_aggregation_jobs_from_waiting_to_queued(connection_pool:
     );
     storage
         .blocks_dal()
-        .insert_l1_batch(header, Default::default());
+        .insert_l1_batch(&header, Default::default())
+        .await;
 
     let mut prover_dal = ProverDal { storage };
     let circuits = create_circuits();
     let l1_batch_number = L1BatchNumber(block_number);
-    prover_dal.insert_prover_jobs(
-        l1_batch_number,
-        circuits.clone(),
-        AggregationRound::LeafAggregation,
-    );
+    prover_dal
+        .insert_prover_jobs(
+            l1_batch_number,
+            circuits.clone(),
+            AggregationRound::LeafAggregation,
+        )
+        .await;
     let prover_jobs_params = get_default_prover_jobs_params(l1_batch_number);
-    let jobs = prover_dal.get_jobs(prover_jobs_params);
+    let jobs = prover_dal.get_jobs(prover_jobs_params).await;
     let job_ids: Vec<u32> = jobs.unwrap().into_iter().map(|job| job.id).collect();
 
     let proof = get_sample_proof();
     // mark all leaf aggregation circuit proofs as successful.
-    job_ids.iter().for_each(|&id| {
-        prover_dal.save_proof(id, Duration::from_secs(0), proof.clone(), "unit-test")
-    });
+    for id in job_ids {
+        prover_dal
+            .save_proof(id, Duration::from_secs(0), proof.clone(), "unit-test")
+            .await;
+    }
     let mut witness_generator_dal = WitnessGeneratorDal { storage };
 
-    witness_generator_dal.create_aggregation_jobs(
-        l1_batch_number,
-        "basic_circuits_1.bin",
-        "basic_circuits_inputs_1.bin",
-        circuits.len(),
-        "scheduler_witness_1.bin",
-    );
-    witness_generator_dal.save_leaf_aggregation_artifacts(
-        l1_batch_number,
-        circuits.len(),
-        "leaf_layer_subqueues_1.bin",
-        "aggregation_outputs_1.bin",
-    );
+    witness_generator_dal
+        .create_aggregation_jobs(
+            l1_batch_number,
+            "basic_circuits_1.bin",
+            "basic_circuits_inputs_1.bin",
+            circuits.len(),
+            "scheduler_witness_1.bin",
+        )
+        .await;
+    witness_generator_dal
+        .save_leaf_aggregation_artifacts(
+            l1_batch_number,
+            circuits.len(),
+            "leaf_layer_subqueues_1.bin",
+            "aggregation_outputs_1.bin",
+        )
+        .await;
 
     // move the leaf aggregation job to be queued
-    witness_generator_dal.move_node_aggregation_jobs_from_waiting_to_queued();
+    witness_generator_dal
+        .move_node_aggregation_jobs_from_waiting_to_queued()
+        .await;
 
     // Ensure get-next job gives the node aggregation witness job
-    let job = witness_generator_dal.get_next_node_aggregation_witness_job(
-        Duration::from_secs(0),
-        10,
-        u32::MAX,
-    );
+    let job = witness_generator_dal
+        .get_next_node_aggregation_witness_job(Duration::from_secs(0), 10, u32::MAX)
+        .await;
     assert_eq!(l1_batch_number, job.unwrap().block_number);
 }
 
@@ -424,7 +491,8 @@ async fn test_move_scheduler_jobs_from_waiting_to_queued(connection_pool: Connec
     );
     storage
         .blocks_dal()
-        .insert_l1_batch(header, Default::default());
+        .insert_l1_batch(&header, Default::default())
+        .await;
 
     let mut prover_dal = ProverDal { storage };
     let circuits = vec![(
@@ -432,38 +500,48 @@ async fn test_move_scheduler_jobs_from_waiting_to_queued(connection_pool: Connec
         "1_0_Node aggregation_NodeAggregation.bin".to_owned(),
     )];
     let l1_batch_number = L1BatchNumber(block_number);
-    prover_dal.insert_prover_jobs(
-        l1_batch_number,
-        circuits.clone(),
-        AggregationRound::NodeAggregation,
-    );
+    prover_dal
+        .insert_prover_jobs(
+            l1_batch_number,
+            circuits.clone(),
+            AggregationRound::NodeAggregation,
+        )
+        .await;
     let prover_jobs_params = get_default_prover_jobs_params(l1_batch_number);
-    let jobs = prover_dal.get_jobs(prover_jobs_params);
+    let jobs = prover_dal.get_jobs(prover_jobs_params).await;
     let job_ids: Vec<u32> = jobs.unwrap().into_iter().map(|job| job.id).collect();
 
     let proof = get_sample_proof();
     // mark node aggregation circuit proofs as successful.
-    job_ids.iter().for_each(|&id| {
-        prover_dal.save_proof(id, Duration::from_secs(0), proof.clone(), "unit-test")
-    });
+    for id in &job_ids {
+        prover_dal
+            .save_proof(*id, Duration::from_secs(0), proof.clone(), "unit-test")
+            .await;
+    }
     let mut witness_generator_dal = WitnessGeneratorDal { storage };
 
-    witness_generator_dal.create_aggregation_jobs(
-        l1_batch_number,
-        "basic_circuits_1.bin",
-        "basic_circuits_inputs_1.bin",
-        circuits.len(),
-        "scheduler_witness_1.bin",
-    );
     witness_generator_dal
-        .save_node_aggregation_artifacts(l1_batch_number, "final_node_aggregations_1.bin");
+        .create_aggregation_jobs(
+            l1_batch_number,
+            "basic_circuits_1.bin",
+            "basic_circuits_inputs_1.bin",
+            circuits.len(),
+            "scheduler_witness_1.bin",
+        )
+        .await;
+    witness_generator_dal
+        .save_node_aggregation_artifacts(l1_batch_number, "final_node_aggregations_1.bin")
+        .await;
 
     // move the leaf aggregation job to be queued
-    witness_generator_dal.move_scheduler_jobs_from_waiting_to_queued();
+    witness_generator_dal
+        .move_scheduler_jobs_from_waiting_to_queued()
+        .await;
 
     // Ensure get-next job gives the scheduler witness job
-    let job =
-        witness_generator_dal.get_next_scheduler_witness_job(Duration::from_secs(0), 10, u32::MAX);
+    let job = witness_generator_dal
+        .get_next_scheduler_witness_job(Duration::from_secs(0), 10, u32::MAX)
+        .await;
     assert_eq!(l1_batch_number, job.unwrap().block_number);
 }
 

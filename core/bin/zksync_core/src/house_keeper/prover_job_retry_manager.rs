@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use async_trait::async_trait;
 use zksync_dal::ConnectionPool;
 
 use crate::house_keeper::periodic_job::PeriodicJob;
@@ -9,27 +10,38 @@ pub struct ProverJobRetryManager {
     max_attempts: u32,
     processing_timeout: Duration,
     retry_interval_ms: u64,
+    prover_connection_pool: ConnectionPool,
 }
 
 impl ProverJobRetryManager {
-    pub fn new(max_attempts: u32, processing_timeout: Duration, retry_interval_ms: u64) -> Self {
+    pub fn new(
+        max_attempts: u32,
+        processing_timeout: Duration,
+        retry_interval_ms: u64,
+        prover_connection_pool: ConnectionPool,
+    ) -> Self {
         Self {
             max_attempts,
             processing_timeout,
             retry_interval_ms,
+            prover_connection_pool,
         }
     }
 }
 
 /// Invoked periodically to re-queue stuck prover jobs.
+#[async_trait]
 impl PeriodicJob for ProverJobRetryManager {
     const SERVICE_NAME: &'static str = "ProverJobRetryManager";
 
-    fn run_routine_task(&mut self, connection_pool: ConnectionPool) {
-        let stuck_jobs = connection_pool
-            .access_storage_blocking()
+    async fn run_routine_task(&mut self) {
+        let stuck_jobs = self
+            .prover_connection_pool
+            .access_storage()
+            .await
             .prover_dal()
-            .requeue_stuck_jobs(self.processing_timeout, self.max_attempts);
+            .requeue_stuck_jobs(self.processing_timeout, self.max_attempts)
+            .await;
         let job_len = stuck_jobs.len();
         for stuck_job in stuck_jobs {
             vlog::info!("re-queuing prover job {:?}", stuck_job);

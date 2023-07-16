@@ -1,4 +1,4 @@
-use zksync_config::configs::api::Explorer as ExplorerApiConfig;
+use zksync_config::configs::api::ExplorerApiConfig;
 use zksync_dal::connection::ConnectionPool;
 use zksync_types::Address;
 
@@ -66,6 +66,14 @@ impl RestApi {
             .route(
                 "/contract_verification/solc_versions",
                 web::get().to(Self::contract_verification_solc_versions),
+            )
+            .route(
+                "/contract_verification/zkvyper_versions",
+                web::get().to(Self::contract_verification_zkvyper_versions),
+            )
+            .route(
+                "/contract_verification/vyper_versions",
+                web::get().to(Self::contract_verification_vyper_versions),
             )
             .route(
                 "/contract_verification/{id}",

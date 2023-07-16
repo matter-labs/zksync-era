@@ -7,7 +7,7 @@ use crate::vm_with_bootloader::BOOTLOADER_HEAP_PAGE;
 use zk_evm::aux_structures::MemoryPage;
 use zk_evm::zkevm_opcode_defs::{FarCallABI, FarCallForwardPageType};
 use zk_evm::{
-    abstractions::{BeforeExecutionData, VmLocalStateData},
+    tracing::{BeforeExecutionData, VmLocalStateData},
     zkevm_opcode_defs::{FatPointer, LogOpcode, Opcode, UMAOpcode},
 };
 use zksync_config::constants::{

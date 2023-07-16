@@ -3,16 +3,14 @@ use std::time::Duration;
 use async_trait::async_trait;
 use tokio::time::sleep;
 
-use zksync_dal::ConnectionPool;
-
 #[async_trait]
 pub trait PeriodicJob: Sync + Send {
     const SERVICE_NAME: &'static str;
 
     /// Runs the routine task periodically in [`Self::polling_interval_ms()`] frequency.
-    fn run_routine_task(&mut self, connection_pool: ConnectionPool);
+    async fn run_routine_task(&mut self);
 
-    async fn run(mut self, connection_pool: ConnectionPool)
+    async fn run(mut self)
     where
         Self: Sized,
     {
@@ -22,7 +20,7 @@ pub trait PeriodicJob: Sync + Send {
             self.polling_interval_ms()
         );
         loop {
-            self.run_routine_task(connection_pool.clone());
+            self.run_routine_task().await;
             sleep(Duration::from_millis(self.polling_interval_ms())).await;
         }
     }

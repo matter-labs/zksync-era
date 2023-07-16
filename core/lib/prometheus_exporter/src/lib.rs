@@ -1,8 +1,11 @@
 use metrics_exporter_prometheus::{Matcher, PrometheusBuilder};
+use std::time::Duration;
 use tokio::task::JoinHandle;
-use zksync_config::configs::utils::Prometheus as PrometheusConfig;
 
-pub fn run_prometheus_exporter(config: PrometheusConfig, use_pushgateway: bool) -> JoinHandle<()> {
+pub fn run_prometheus_exporter(
+    port: u16,
+    pushgateway_config: Option<(String, Duration)>,
+) -> JoinHandle<()> {
     // in seconds
     let default_latency_buckets = [0.001, 0.005, 0.025, 0.1, 0.25, 1.0, 5.0, 30.0, 120.0];
     let slow_latency_buckets = [
@@ -33,7 +36,11 @@ pub fn run_prometheus_exporter(config: PrometheusConfig, use_pushgateway: bool) 
     ];
     let zero_to_one_buckets = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9];
 
-    let builder = if use_pushgateway {
+    let around_one_buckets = [
+        0.1, 0.25, 0.5, 0.75, 1., 1.5, 2., 3., 4., 5., 10., 20., 50., 100., 1000.,
+    ];
+
+    let builder = if let Some((pushgateway_url, push_interval)) = pushgateway_config {
         let job_id = "zksync-pushgateway";
         let namespace = std::env::var("POD_NAMESPACE").unwrap_or_else(|_| {
             vlog::warn!("Missing POD_NAMESPACE env");
@@ -45,13 +52,13 @@ pub fn run_prometheus_exporter(config: PrometheusConfig, use_pushgateway: bool) 
         });
         let endpoint = format!(
             "{}/metrics/job/{}/namespace/{}/pod/{}",
-            config.pushgateway_url, job_id, namespace, pod
+            pushgateway_url, job_id, namespace, pod
         );
         PrometheusBuilder::new()
-            .with_push_gateway(endpoint.as_str(), config.push_interval())
+            .with_push_gateway(endpoint.as_str(), push_interval)
             .unwrap()
     } else {
-        let addr = ([0, 0, 0, 0], config.listener_port);
+        let addr = ([0, 0, 0, 0], port);
         PrometheusBuilder::new().with_http_listener(addr)
     };
 
@@ -81,6 +88,11 @@ pub fn run_prometheus_exporter(config: PrometheusConfig, use_pushgateway: bool) 
         )
         .unwrap()
         .set_buckets_for_metric(Matcher::Prefix("vm.refund".to_owned()), &percents_buckets)
+        .unwrap()
+        .set_buckets_for_metric(
+            Matcher::Full("state_keeper_computational_gas_per_nanosecond".to_owned()),
+            &around_one_buckets,
+        )
         .unwrap()
         .build()
         .expect("failed to install Prometheus recorder");

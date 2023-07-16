@@ -135,7 +135,7 @@ impl GasCriterion {
         GasCriterion { op, gas_limit }
     }
 
-    fn get_gas_amount(
+    async fn get_gas_amount(
         &mut self,
         storage: &mut StorageProcessor<'_>,
         block_number: L1BatchNumber,
@@ -143,6 +143,7 @@ impl GasCriterion {
         storage
             .blocks_dal()
             .get_blocks_predicted_gas(block_number, block_number, self.op)
+            .await
     }
 }
 
@@ -164,7 +165,7 @@ impl BlockPublishCriterion for GasCriterion {
 
         let mut last_block: Option<L1BatchNumber> = None;
         for (index, block) in consecutive_blocks.iter().enumerate() {
-            let block_gas = self.get_gas_amount(storage, block.header.number);
+            let block_gas = self.get_gas_amount(storage, block.header.number).await;
             if block_gas >= gas_left {
                 if index == 0 {
                     panic!(

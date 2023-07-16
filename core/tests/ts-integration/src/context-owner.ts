@@ -14,7 +14,7 @@ import { RetryProvider } from './retry-provider';
 //
 // Please DO NOT change these constants if you don't know why you have to do that. Try to debug the particular issue
 // you face first.
-export const L1_DEFAULT_ETH_PER_ACCOUNT = ethers.utils.parseEther('0.05');
+export const L1_DEFAULT_ETH_PER_ACCOUNT = ethers.utils.parseEther('0.08');
 // Stress tests for L1->L2 transactions on localhost require a lot of upfront payment, but these are skipped during tests on normal environments
 export const L1_EXTENDED_TESTS_ETH_PER_ACCOUNT = ethers.utils.parseEther('0.5');
 export const L2_ETH_PER_ACCOUNT = ethers.utils.parseEther('0.5');

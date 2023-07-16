@@ -6,7 +6,7 @@ use zksync_dal::ConnectionPool;
 use zksync_types::MiniblockNumber;
 use zksync_web3_decl::types::{PubSubFilter, PubSubResult};
 
-use super::namespaces::eth_subscribe::SubscriptionMap;
+use super::namespaces::SubscriptionMap;
 
 pub async fn notify_blocks(
     subscribers: SubscriptionMap<typed::Sink<PubSubResult>>,
@@ -15,9 +15,11 @@ pub async fn notify_blocks(
     stop_receiver: watch::Receiver<bool>,
 ) {
     let mut last_block_number = connection_pool
-        .access_storage_blocking()
+        .access_storage_tagged("api")
+        .await
         .blocks_web3_dal()
         .get_sealed_miniblock_number()
+        .await
         .unwrap();
     let mut timer = interval(polling_interval);
     loop {
@@ -30,18 +32,30 @@ pub async fn notify_blocks(
 
         let start = Instant::now();
         let new_blocks = connection_pool
-            .access_storage_blocking()
+            .access_storage_tagged("api")
+            .await
             .blocks_web3_dal()
             .get_block_headers_after(last_block_number)
+            .await
             .unwrap();
         metrics::histogram!("api.web3.pubsub.db_poll_latency", start.elapsed(), "subscription_type" => "blocks");
         if !new_blocks.is_empty() {
             last_block_number =
                 MiniblockNumber(new_blocks.last().unwrap().number.unwrap().as_u32());
+
             let start = Instant::now();
-            for sink in subscribers.read().unwrap().values() {
-                for block in new_blocks.clone() {
-                    let _ = sink.notify(Ok(PubSubResult::Header(block)));
+            let subscribers = subscribers
+                .read()
+                .await
+                .values()
+                .cloned()
+                .collect::<Vec<_>>();
+            for sink in subscribers {
+                for block in new_blocks.iter().cloned() {
+                    if sink.notify(Ok(PubSubResult::Header(block))).is_err() {
+                        // Subscriber disconnected.
+                        break;
+                    }
                     metrics::counter!("api.web3.pubsub.notify", 1, "subscription_type" => "blocks");
                 }
             }
@@ -68,17 +82,29 @@ pub async fn notify_txs(
 
         let start = Instant::now();
         let (new_txs, new_last_time) = connection_pool
-            .access_storage_blocking()
+            .access_storage_tagged("api")
+            .await
             .transactions_web3_dal()
             .get_pending_txs_hashes_after(last_time, None)
+            .await
             .unwrap();
         metrics::histogram!("api.web3.pubsub.db_poll_latency", start.elapsed(), "subscription_type" => "txs");
         if let Some(new_last_time) = new_last_time {
             last_time = new_last_time;
             let start = Instant::now();
-            for sink in subscribers.read().unwrap().values() {
-                for tx_hash in new_txs.clone() {
-                    let _ = sink.notify(Ok(PubSubResult::TxHash(tx_hash)));
+
+            let subscribers = subscribers
+                .read()
+                .await
+                .values()
+                .cloned()
+                .collect::<Vec<_>>();
+            for sink in subscribers {
+                for tx_hash in new_txs.iter().cloned() {
+                    if sink.notify(Ok(PubSubResult::TxHash(tx_hash))).is_err() {
+                        // Subscriber disconnected.
+                        break;
+                    }
                     metrics::counter!("api.web3.pubsub.notify", 1, "subscription_type" => "txs");
                 }
             }
@@ -94,9 +120,11 @@ pub async fn notify_logs(
     stop_receiver: watch::Receiver<bool>,
 ) {
     let mut last_block_number = connection_pool
-        .access_storage_blocking()
+        .access_storage_tagged("api")
+        .await
         .blocks_web3_dal()
         .get_sealed_miniblock_number()
+        .await
         .unwrap();
     let mut timer = interval(polling_interval);
     loop {
@@ -109,19 +137,32 @@ pub async fn notify_logs(
 
         let start = Instant::now();
         let new_logs = connection_pool
-            .access_storage_blocking()
+            .access_storage_tagged("api")
+            .await
             .events_web3_dal()
             .get_all_logs(last_block_number)
+            .await
             .unwrap();
         metrics::histogram!("api.web3.pubsub.db_poll_latency", start.elapsed(), "subscription_type" => "logs");
         if !new_logs.is_empty() {
             last_block_number =
                 MiniblockNumber(new_logs.last().unwrap().block_number.unwrap().as_u32());
             let start = Instant::now();
-            for (sink, filter) in subscribers.read().unwrap().values() {
-                for log in new_logs.clone() {
+
+            let subscribers = subscribers
+                .read()
+                .await
+                .values()
+                .cloned()
+                .collect::<Vec<_>>();
+
+            for (sink, filter) in subscribers {
+                for log in new_logs.iter().cloned() {
                     if filter.matches(&log) {
-                        let _ = sink.notify(Ok(PubSubResult::Log(log)));
+                        if sink.notify(Ok(PubSubResult::Log(log))).is_err() {
+                            // Subscriber disconnected.
+                            break;
+                        }
                         metrics::counter!("api.web3.pubsub.notify", 1, "subscription_type" => "logs");
                     }
                 }

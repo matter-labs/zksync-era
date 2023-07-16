@@ -5,23 +5,21 @@ use std::convert::{TryFrom, TryInto};
 use rlp::{DecoderError, Rlp, RlpStream};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use tiny_keccak::keccak256;
 use zksync_basic_types::H256;
 use zksync_config::constants::{MAX_GAS_PER_PUBDATA_BYTE, USED_BOOTLOADER_MEMORY_BYTES};
 use zksync_utils::bytecode::{hash_bytecode, validate_bytecode, InvalidBytecodeError};
 use zksync_utils::u256_to_h256;
 
-use crate::l1::L1Tx;
-use crate::L1TxCommonData;
-use crate::{
-    web3::types::AccessList, Address, Bytes, EIP712TypedStructure, Eip712Domain, L2ChainId, Nonce,
-    PackedEthSignature, StructBuilder, U256, U64,
-};
-
 // Local uses
 use super::{EIP_1559_TX_TYPE, EIP_2930_TX_TYPE, EIP_712_TX_TYPE};
-use crate::fee::Fee;
-use crate::l2::{L2Tx, TransactionType};
+use crate::{
+    fee::Fee,
+    l1::L1Tx,
+    l2::{L2Tx, TransactionType},
+    web3::{signing::keccak256, types::AccessList},
+    Address, Bytes, EIP712TypedStructure, Eip712Domain, L1TxCommonData, L2ChainId, Nonce,
+    PackedEthSignature, StructBuilder, U256, U64,
+};
 
 /// Call contract request (eth_call / eth_estimateGas)
 ///

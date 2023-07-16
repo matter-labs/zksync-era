@@ -48,13 +48,22 @@ pub struct LeafAggregationWitnessGeneratorJob {
 pub struct LeafAggregationWitnessGenerator {
     config: WitnessGeneratorConfig,
     object_store: Box<dyn ObjectStore>,
+    connection_pool: ConnectionPool,
+    prover_connection_pool: ConnectionPool,
 }
 
 impl LeafAggregationWitnessGenerator {
-    pub fn new(config: WitnessGeneratorConfig, store_factory: &ObjectStoreFactory) -> Self {
+    pub async fn new(
+        config: WitnessGeneratorConfig,
+        store_factory: &ObjectStoreFactory,
+        connection_pool: ConnectionPool,
+        prover_connection_pool: ConnectionPool,
+    ) -> Self {
         Self {
             config,
-            object_store: store_factory.create_store(),
+            object_store: store_factory.create_store().await,
+            connection_pool,
+            prover_connection_pool,
         }
     }
 
@@ -81,51 +90,54 @@ impl JobProcessor for LeafAggregationWitnessGenerator {
 
     const SERVICE_NAME: &'static str = "leaf_aggregation_witness_generator";
 
-    async fn get_next_job(
-        &self,
-        connection_pool: ConnectionPool,
-    ) -> Option<(Self::JobId, Self::Job)> {
-        let mut connection = connection_pool.access_storage_blocking();
+    async fn get_next_job(&self) -> Option<(Self::JobId, Self::Job)> {
+        let mut prover_connection = self.prover_connection_pool.access_storage().await;
         let last_l1_batch_to_process = self.config.last_l1_batch_to_process();
 
-        match connection
+        match prover_connection
             .witness_generator_dal()
             .get_next_leaf_aggregation_witness_job(
                 self.config.witness_generation_timeout(),
                 self.config.max_attempts,
                 last_l1_batch_to_process,
-            ) {
+            )
+            .await
+        {
             Some(metadata) => {
-                let job = get_artifacts(metadata, &*self.object_store);
+                let job = get_artifacts(metadata, &*self.object_store).await;
                 Some((job.block_number, job))
             }
             None => None,
         }
     }
 
-    async fn save_failure(
-        &self,
-        connection_pool: ConnectionPool,
-        job_id: L1BatchNumber,
-        started_at: Instant,
-        error: String,
-    ) -> () {
-        connection_pool
-            .access_storage_blocking()
+    async fn save_failure(&self, job_id: L1BatchNumber, started_at: Instant, error: String) -> () {
+        let attempts = self
+            .prover_connection_pool
+            .access_storage()
+            .await
             .witness_generator_dal()
             .mark_witness_job_as_failed(
-                job_id,
                 AggregationRound::LeafAggregation,
+                job_id,
                 started_at.elapsed(),
                 error,
-                self.config.max_attempts,
-            );
+            )
+            .await;
+
+        if attempts >= self.config.max_attempts {
+            self.connection_pool
+                .access_storage()
+                .await
+                .blocks_dal()
+                .set_skip_proof_for_l1_batch(job_id)
+                .await;
+        }
     }
 
     #[allow(clippy::async_yields_async)]
     async fn process_job(
         &self,
-        _connection_pool: ConnectionPool,
         job: LeafAggregationWitnessGeneratorJob,
         started_at: Instant,
     ) -> tokio::task::JoinHandle<LeafAggregationArtifacts> {
@@ -134,20 +146,20 @@ impl JobProcessor for LeafAggregationWitnessGenerator {
 
     async fn save_result(
         &self,
-        connection_pool: ConnectionPool,
         job_id: L1BatchNumber,
         started_at: Instant,
         artifacts: LeafAggregationArtifacts,
     ) {
         let leaf_circuits_len = artifacts.leaf_circuits.len();
-        let blob_urls = save_artifacts(job_id, artifacts, &*self.object_store);
+        let blob_urls = save_artifacts(job_id, artifacts, &*self.object_store).await;
         update_database(
-            connection_pool,
+            &self.prover_connection_pool,
             started_at,
             job_id,
             leaf_circuits_len,
             blob_urls,
-        );
+        )
+        .await;
     }
 }
 
@@ -212,15 +224,15 @@ pub fn process_leaf_aggregation_job(
     }
 }
 
-fn update_database(
-    connection_pool: ConnectionPool,
+async fn update_database(
+    prover_connection_pool: &ConnectionPool,
     started_at: Instant,
     block_number: L1BatchNumber,
     leaf_circuits_len: usize,
     blob_urls: BlobUrls,
 ) {
-    let mut connection = connection_pool.access_storage_blocking();
-    let mut transaction = connection.start_transaction_blocking();
+    let mut prover_connection = prover_connection_pool.access_storage().await;
+    let mut transaction = prover_connection.start_transaction().await;
 
     // inserts artifacts into the node_aggregation_witness_jobs table
     // and advances it to waiting_for_proofs status
@@ -231,30 +243,35 @@ fn update_database(
             leaf_circuits_len,
             &blob_urls.leaf_layer_subqueues_url,
             &blob_urls.aggregation_outputs_url,
-        );
-    transaction.prover_dal().insert_prover_jobs(
-        block_number,
-        blob_urls.circuit_types_and_urls,
-        AggregationRound::LeafAggregation,
-    );
+        )
+        .await;
+    transaction
+        .prover_dal()
+        .insert_prover_jobs(
+            block_number,
+            blob_urls.circuit_types_and_urls,
+            AggregationRound::LeafAggregation,
+        )
+        .await;
     transaction
         .witness_generator_dal()
         .mark_witness_job_as_successful(
             block_number,
             AggregationRound::LeafAggregation,
             started_at.elapsed(),
-        );
+        )
+        .await;
 
-    transaction.commit_blocking();
+    transaction.commit().await;
     track_witness_generation_stage(started_at, AggregationRound::LeafAggregation);
 }
 
-pub fn get_artifacts(
+async fn get_artifacts(
     metadata: WitnessGeneratorJobMetadata,
     object_store: &dyn ObjectStore,
 ) -> LeafAggregationWitnessGeneratorJob {
-    let basic_circuits = object_store.get(metadata.block_number).unwrap();
-    let basic_circuits_inputs = object_store.get(metadata.block_number).unwrap();
+    let basic_circuits = object_store.get(metadata.block_number).await.unwrap();
+    let basic_circuits_inputs = object_store.get(metadata.block_number).await.unwrap();
 
     LeafAggregationWitnessGeneratorJob {
         block_number: metadata.block_number,
@@ -266,23 +283,26 @@ pub fn get_artifacts(
     }
 }
 
-fn save_artifacts(
+async fn save_artifacts(
     block_number: L1BatchNumber,
     artifacts: LeafAggregationArtifacts,
     object_store: &dyn ObjectStore,
 ) -> BlobUrls {
     let leaf_layer_subqueues_url = object_store
         .put(block_number, &artifacts.leaf_layer_subqueues)
+        .await
         .unwrap();
     let aggregation_outputs_url = object_store
         .put(block_number, &artifacts.aggregation_outputs)
+        .await
         .unwrap();
     let circuit_types_and_urls = save_prover_input_artifacts(
         block_number,
         &artifacts.leaf_circuits,
         object_store,
         AggregationRound::LeafAggregation,
-    );
+    )
+    .await;
     BlobUrls {
         leaf_layer_subqueues_url,
         aggregation_outputs_url,

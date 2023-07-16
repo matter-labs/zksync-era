@@ -1,21 +1,25 @@
 [package]
 name = "zksync_state"
 version = "1.0.0"
-edition = "2018"
+edition = "2021"
 authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
 homepage = "https://zksync.io/"
-repository = "https://github.com/matter-labs/zksync-2"
-license = "Apache-2.0"
+repository = "https://github.com/matter-labs/zksync-era"
+license = "MIT OR Apache-2.0"
 keywords = ["blockchain", "zksync"]
 categories = ["cryptography"]
 
 [dependencies]
-zksync_utils = { path = "../utils", version = "1.0" }
+zksync_dal = { path = "../dal", version = "1.0" }
 zksync_types = { path = "../types", version = "1.0" }
 zksync_storage = { path = "../storage", version = "1.0" }
-
 vlog = { path = "../../lib/vlog", version = "1.0" }
+
 metrics = "0.20"
+mini-moka = "0.10.0"
+tokio = { version = "1", features = ["rt"] }
 
 [dev-dependencies]
+db_test_macro = { path = "../db_test_macro" }
+
 tempfile = "3.0.2"

@@ -11,7 +11,7 @@ use crate::{
 
 use crate::oracles::tracer::{CallTracer, StorageInvocationTracer};
 use zk_evm::{
-    abstractions::{
+    tracing::{
         AfterDecodingData, AfterExecutionData, BeforeExecutionData, Tracer, VmLocalStateData,
     },
     vm_state::VmLocalState,

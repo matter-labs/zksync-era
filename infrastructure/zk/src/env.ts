@@ -71,6 +71,16 @@ function loadInit() {
     }
 }
 
+// Unset env variables loaded from `.init.env` file
+export function unloadInit() {
+    if (fs.existsSync('etc/env/.init.env')) {
+        const initEnv = dotenv.parse(fs.readFileSync('etc/env/.init.env'));
+        for (const envVar in initEnv) {
+            delete process.env[envVar];
+        }
+    }
+}
+
 // we have to manually override the environment
 // because dotenv won't override variables that are already set
 export function reload() {

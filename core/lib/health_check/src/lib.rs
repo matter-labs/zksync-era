@@ -1,7 +1,11 @@
+/// Public re-export for other crates to be able to implement the interface.
+pub use async_trait::async_trait;
+
 /// Interface to be used for healthchecks
 /// There's a list of health checks that are looped in the /healthcheck endpoint to verify status
+#[async_trait]
 pub trait CheckHealth: Send + Sync + 'static {
-    fn check_health(&self) -> CheckHealthStatus;
+    async fn check_health(&self) -> CheckHealthStatus;
 }
 
 /// Used to return health status when checked.

@@ -3,9 +3,11 @@
 pub use gas_adjuster::bounded_gas_adjuster::BoundedGasAdjuster;
 pub use gas_adjuster::GasAdjuster;
 pub use main_node_fetcher::MainNodeGasPriceFetcher;
+pub use singleton::GasAdjusterSingleton;
 
 mod gas_adjuster;
 mod main_node_fetcher;
+pub mod singleton;
 
 /// Abstraction that provides information about the L1 gas price currently
 /// observed by the application.

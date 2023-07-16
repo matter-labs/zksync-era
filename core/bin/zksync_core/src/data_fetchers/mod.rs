@@ -11,7 +11,7 @@
 
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
-use zksync_config::ZkSyncConfig;
+use zksync_config::FetcherConfig;
 use zksync_dal::ConnectionPool;
 
 pub mod error;
@@ -20,11 +20,12 @@ pub mod token_price;
 pub mod token_trading_volume;
 
 pub fn run_data_fetchers(
-    config: &ZkSyncConfig,
+    config: &FetcherConfig,
+    network: zksync_types::network::Network,
     pool: ConnectionPool,
     stop_receiver: watch::Receiver<bool>,
 ) -> Vec<JoinHandle<()>> {
-    let list_fetcher = token_list::TokenListFetcher::new(config.clone());
+    let list_fetcher = token_list::TokenListFetcher::new(config.clone(), network);
     let price_fetcher = token_price::TokenPriceFetcher::new(config.clone());
     let volume_fetcher = token_trading_volume::TradingVolumeFetcher::new(config.clone());
 

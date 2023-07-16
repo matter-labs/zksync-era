@@ -5,13 +5,15 @@ import * as contract from './contract';
 const IMAGES = [
     'server-v2',
     'external-node',
+    'cross-external-nodes-checker',
     'contract-verifier',
     'prover-v2',
     'geth',
     'local-node',
     'zk-environment',
     'circuit-synthesizer',
-    'witness-generator'
+    'witness-generator',
+    'prover-fri'
 ];
 const UNIX_TIMESTAMP = Date.now();
 
@@ -39,7 +41,7 @@ async function dockerCommand(command: 'push' | 'build', image: string, customTag
     const tagList = customTag ? [customTag] : defaultTagList(image, COMMIT_SHORT_SHA.trim(), imageTagShaTS);
 
     // Main build\push flow
-    // COMMIT_SHORT_SHA returnes with newline, so we need to trim it
+    // COMMIT_SHORT_SHA returns with newline, so we need to trim it
     switch (command) {
         case 'build':
             await _build(image, tagList);
@@ -57,11 +59,13 @@ function defaultTagList(image: string, imageTagSha: string, imageTagShaTS: strin
     const tagList = [
         'server-v2',
         'external-node',
+        'cross-external-nodes-checker',
         'prover',
         'contract-verifier',
         'prover-v2',
         'circuit-synthesizer',
-        'witness-generator'
+        'witness-generator',
+        'prover-fri'
     ].includes(image)
         ? ['latest2.0', `2.0-${imageTagSha}`, `2.0-${imageTagShaTS}`]
         : [`latest2.0`];

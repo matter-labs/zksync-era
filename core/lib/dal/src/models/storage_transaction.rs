@@ -147,6 +147,9 @@ impl From<StorageTransactionDetails> for api::TransactionDetails {
         let gas_refunded = U256::from(tx_details.refunded_gas as u32);
         let fee = (gas_limit - gas_refunded) * effective_gas_price;
 
+        let gas_per_pubdata =
+            bigdecimal_to_u256(tx_details.gas_per_pubdata_limit.unwrap_or_default());
+
         let initiator_address = H160::from_slice(tx_details.initiator_address.as_slice());
         let received_at = DateTime::<Utc>::from_utc(tx_details.received_at, Utc);
 
@@ -164,6 +167,7 @@ impl From<StorageTransactionDetails> for api::TransactionDetails {
             is_l1_originated: tx_details.is_priority,
             status,
             fee,
+            gas_per_pubdata: Some(gas_per_pubdata),
             initiator_address,
             received_at,
             eth_commit_tx_hash,
@@ -195,14 +199,11 @@ pub fn web3_transaction_select_sql() -> &'static str {
     "#
 }
 
-pub fn extract_web3_transaction(
-    db_row: PgRow,
-    chain_id: L2ChainId,
-) -> zksync_types::api::Transaction {
+pub fn extract_web3_transaction(db_row: PgRow, chain_id: L2ChainId) -> api::Transaction {
     let row_signature: Option<Vec<u8>> = db_row.get("signature");
     let signature =
         row_signature.and_then(|signature| PackedEthSignature::deserialize_packed(&signature).ok());
-    zksync_types::api::Transaction {
+    api::Transaction {
         hash: H256::from_slice(db_row.get("tx_hash")),
         nonce: U256::from(db_row.try_get::<i64, &str>("nonce").ok().unwrap_or(0)),
         block_hash: db_row.try_get("block_hash").ok().map(H256::from_slice),

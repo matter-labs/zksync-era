@@ -1,22 +1,23 @@
 use crate::StorageProcessor;
 use sqlx::types::chrono::Utc;
 use std::collections::HashSet;
-use vm::zk_evm::aux_structures::LogQuery;
-use zksync_types::{AccountTreeId, Address, L1BatchNumber, StorageKey, H256};
+use zksync_types::{
+    zk_evm::aux_structures::LogQuery, AccountTreeId, Address, L1BatchNumber, StorageKey, H256,
+};
 use zksync_utils::u256_to_h256;
 
 #[derive(Debug)]
 pub struct StorageLogsDedupDal<'a, 'c> {
-    pub storage: &'a mut StorageProcessor<'c>,
+    pub(crate) storage: &'a mut StorageProcessor<'c>,
 }
 
 impl StorageLogsDedupDal<'_, '_> {
-    pub fn insert_protective_reads(
+    pub async fn insert_protective_reads(
         &mut self,
         l1_batch_number: L1BatchNumber,
         read_logs: &[LogQuery],
     ) {
-        async_std::task::block_on(async {
+        {
             let mut copy = self
                 .storage
                 .conn()
@@ -40,15 +41,15 @@ impl StorageLogsDedupDal<'_, '_> {
             }
             copy.send(bytes).await.unwrap();
             copy.finish().await.unwrap();
-        })
+        }
     }
 
-    pub fn insert_initial_writes(
+    pub async fn insert_initial_writes(
         &mut self,
         l1_batch_number: L1BatchNumber,
         write_logs: &[LogQuery],
     ) {
-        async_std::task::block_on(async {
+        {
             let hashed_keys: Vec<_> = write_logs
                 .iter()
                 .map(|log| {
@@ -68,14 +69,14 @@ impl StorageLogsDedupDal<'_, '_> {
             .execute(self.storage.conn())
             .await
             .unwrap();
-        })
+        }
     }
 
-    pub fn get_protective_reads_for_l1_batch(
+    pub async fn get_protective_reads_for_l1_batch(
         &mut self,
         l1_batch_number: L1BatchNumber,
     ) -> HashSet<StorageKey> {
-        async_std::task::block_on(async {
+        {
             sqlx::query!(
                 "
                 SELECT address, key FROM protective_reads
@@ -94,6 +95,6 @@ impl StorageLogsDedupDal<'_, '_> {
                 )
             })
             .collect()
-        })
+        }
     }
 }

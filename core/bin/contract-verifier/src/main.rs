@@ -1,38 +1,23 @@
 use std::cell::RefCell;
 
-use zksync_config::{
-    configs::utils::Prometheus as PrometheusConfig, ApiConfig, ContractVerifierConfig,
-};
+use zksync_config::{configs::PrometheusConfig, ApiConfig, ContractVerifierConfig};
 use zksync_dal::ConnectionPool;
 use zksync_queued_job_processor::JobProcessor;
+use zksync_utils::wait_for_tasks::wait_for_tasks;
 
-use futures::{channel::mpsc, executor::block_on, future, SinkExt, StreamExt};
+use futures::{channel::mpsc, executor::block_on, SinkExt, StreamExt};
 use tokio::sync::watch;
-use tokio::task::JoinHandle;
 
 use crate::verifier::ContractVerifier;
 
 pub mod error;
 pub mod verifier;
 pub mod zksolc_utils;
-
-pub async fn wait_for_tasks(task_futures: Vec<JoinHandle<()>>) {
-    match future::select_all(task_futures).await.0 {
-        Ok(_) => {
-            vlog::info!("One of the actors finished its run, while it wasn't expected to do it");
-        }
-        Err(error) => {
-            vlog::info!(
-                "One of the tokio actors unexpectedly finished with error: {:?}",
-                error
-            );
-        }
-    }
-}
+pub mod zkvyper_utils;
 
 async fn update_compiler_versions(connection_pool: &ConnectionPool) {
-    let mut storage = connection_pool.access_storage_blocking();
-    let mut transaction = storage.start_transaction_blocking();
+    let mut storage = connection_pool.access_storage().await;
+    let mut transaction = storage.start_transaction().await;
 
     let zksync_home = std::env::var("ZKSYNC_HOME").unwrap_or_else(|_| ".".into());
 
@@ -41,8 +26,11 @@ async fn update_compiler_versions(connection_pool: &ConnectionPool) {
         .unwrap()
         .filter_map(|file| {
             let file = file.unwrap();
-            if file.file_type().unwrap().is_dir() {
-                Some(file.file_name().into_string().unwrap())
+            let Ok(file_type) = file.file_type() else {
+                return None;
+            };
+            if file_type.is_dir() {
+                file.file_name().into_string().ok()
             } else {
                 None
             }
@@ -52,6 +40,7 @@ async fn update_compiler_versions(connection_pool: &ConnectionPool) {
         .explorer()
         .contract_verification_dal()
         .set_zksolc_versions(zksolc_versions)
+        .await
         .unwrap();
 
     let solc_path = format!("{}/etc/solc-bin/", zksync_home);
@@ -59,8 +48,11 @@ async fn update_compiler_versions(connection_pool: &ConnectionPool) {
         .unwrap()
         .filter_map(|file| {
             let file = file.unwrap();
-            if file.file_type().unwrap().is_dir() {
-                Some(file.file_name().into_string().unwrap())
+            let Ok(file_type) = file.file_type() else {
+                return None;
+            };
+            if file_type.is_dir() {
+                file.file_name().into_string().ok()
             } else {
                 None
             }
@@ -70,12 +62,59 @@ async fn update_compiler_versions(connection_pool: &ConnectionPool) {
         .explorer()
         .contract_verification_dal()
         .set_solc_versions(solc_versions)
+        .await
         .unwrap();
 
-    transaction.commit_blocking();
+    let zkvyper_path = format!("{}/etc/zkvyper-bin/", zksync_home);
+    let zkvyper_versions: Vec<String> = std::fs::read_dir(zkvyper_path)
+        .unwrap()
+        .filter_map(|file| {
+            let file = file.unwrap();
+            let Ok(file_type) = file.file_type() else {
+                return None;
+            };
+            if file_type.is_dir() {
+                file.file_name().into_string().ok()
+            } else {
+                None
+            }
+        })
+        .collect();
+    transaction
+        .explorer()
+        .contract_verification_dal()
+        .set_zkvyper_versions(zkvyper_versions)
+        .await
+        .unwrap();
+
+    let vyper_path = format!("{}/etc/vyper-bin/", zksync_home);
+    let vyper_versions: Vec<String> = std::fs::read_dir(vyper_path)
+        .unwrap()
+        .filter_map(|file| {
+            let file = file.unwrap();
+            let Ok(file_type) = file.file_type() else {
+                return None;
+            };
+            if file_type.is_dir() {
+                file.file_name().into_string().ok()
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    transaction
+        .explorer()
+        .contract_verification_dal()
+        .set_vyper_versions(vyper_versions)
+        .await
+        .unwrap();
+
+    transaction.commit().await;
 }
 
 use structopt::StructOpt;
+use zksync_dal::connection::DbVariant;
 
 #[derive(StructOpt)]
 #[structopt(name = "zkSync contract code verifier", author = "Matter Labs")]
@@ -94,9 +133,10 @@ async fn main() {
         listener_port: verifier_config.prometheus_port,
         ..ApiConfig::from_env().prometheus
     };
-    let pool = ConnectionPool::new(Some(1), true);
+    let pool = ConnectionPool::new(Some(1), DbVariant::Master).await;
 
-    let sentry_guard = vlog::init();
+    vlog::init();
+    let sentry_guard = vlog::init_sentry();
     match sentry_guard {
         Some(_) => vlog::info!(
             "Starting Sentry url: {}",
@@ -118,14 +158,20 @@ async fn main() {
 
     update_compiler_versions(&pool).await;
 
-    let contract_verifier = ContractVerifier::new(verifier_config);
+    let contract_verifier = ContractVerifier::new(verifier_config, pool);
     let tasks = vec![
-        tokio::spawn(contract_verifier.run(pool, stop_receiver, opt.jobs_number)),
-        prometheus_exporter::run_prometheus_exporter(prometheus_config, false),
+        // The prover connection pool is not used by the contract verifier, but we need to pass it
+        // since `JobProcessor` trait requires it.
+        tokio::spawn(contract_verifier.run(stop_receiver, opt.jobs_number)),
+        prometheus_exporter::run_prometheus_exporter(prometheus_config.listener_port, None),
     ];
+
+    let particular_crypto_alerts = None;
+    let graceful_shutdown = None::<futures::future::Ready<()>>;
+    let tasks_allowed_to_finish = false;
     tokio::select! {
-        _ = async { wait_for_tasks(tasks).await } => {},
-        _ = async { stop_signal_receiver.next().await } => {
+        _ = wait_for_tasks(tasks, particular_crypto_alerts, graceful_shutdown, tasks_allowed_to_finish) => {},
+        _ = stop_signal_receiver.next() => {
             vlog::info!("Stop signal received, shutting down");
         },
     };

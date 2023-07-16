@@ -4,20 +4,19 @@ use std::collections::HashSet;
 use std::convert::TryInto;
 use std::sync::Arc;
 
-use std::sync::RwLock;
+use tokio::sync::RwLock;
+use zksync_config::configs::{api::Web3JsonRpcConfig, chain::NetworkConfig, ContractsConfig};
 
 use crate::api_server::tx_sender::TxSender;
-use crate::api_server::web3::backend_jsonrpc::error::internal_error;
+use crate::api_server::web3::{backend_jsonrpc::error::internal_error, resolve_block};
 use crate::sync_layer::SyncState;
 
-use zksync_config::ZkSyncConfig;
 use zksync_dal::ConnectionPool;
 use zksync_eth_signer::PrivateKeySigner;
+
 use zksync_types::{
-    api::{self, BlockId, BlockNumber, BridgeAddresses, TransactionRequest},
-    l2::L2Tx,
-    transaction_request::CallRequest,
-    Address, L1ChainId, L2ChainId, MiniblockNumber, H256, U256, U64,
+    api, l2::L2Tx, transaction_request::CallRequest, Address, L1ChainId, L2ChainId,
+    MiniblockNumber, H256, U256, U64,
 };
 use zksync_web3_decl::{
     error::Web3Error,
@@ -35,30 +34,34 @@ pub struct InternalApiConfig {
     pub max_tx_size: usize,
     pub estimate_gas_scale_factor: f64,
     pub estimate_gas_acceptable_overestimation: u32,
-    pub bridge_addresses: BridgeAddresses,
+    pub bridge_addresses: api::BridgeAddresses,
     pub diamond_proxy_addr: Address,
     pub l2_testnet_paymaster_addr: Option<Address>,
     pub req_entities_limit: usize,
 }
 
-impl From<ZkSyncConfig> for InternalApiConfig {
-    fn from(config: ZkSyncConfig) -> Self {
+impl InternalApiConfig {
+    pub fn new(
+        eth_config: &NetworkConfig,
+        web3_config: &Web3JsonRpcConfig,
+        contracts_config: &ContractsConfig,
+    ) -> Self {
         Self {
-            l1_chain_id: config.chain.eth.network.chain_id(),
-            l2_chain_id: L2ChainId(config.chain.eth.zksync_network_id),
-            max_tx_size: config.api.web3_json_rpc.max_tx_size,
-            estimate_gas_scale_factor: config.api.web3_json_rpc.estimate_gas_scale_factor,
-            estimate_gas_acceptable_overestimation: config
-                .api
-                .web3_json_rpc
+            l1_chain_id: eth_config.network.chain_id(),
+            l2_chain_id: L2ChainId(eth_config.zksync_network_id),
+            max_tx_size: web3_config.max_tx_size,
+            estimate_gas_scale_factor: web3_config.estimate_gas_scale_factor,
+            estimate_gas_acceptable_overestimation: web3_config
                 .estimate_gas_acceptable_overestimation,
-            bridge_addresses: BridgeAddresses {
-                l1_erc20_default_bridge: config.contracts.l1_erc20_bridge_proxy_addr,
-                l2_erc20_default_bridge: config.contracts.l2_erc20_bridge_addr,
+            bridge_addresses: api::BridgeAddresses {
+                l1_erc20_default_bridge: contracts_config.l1_erc20_bridge_proxy_addr,
+                l2_erc20_default_bridge: contracts_config.l2_erc20_bridge_addr,
+                l1_weth_bridge: contracts_config.l1_weth_bridge_proxy_addr,
+                l2_weth_bridge: contracts_config.l2_weth_bridge_addr,
             },
-            diamond_proxy_addr: config.contracts.diamond_proxy_addr,
-            l2_testnet_paymaster_addr: config.contracts.l2_testnet_paymaster_addr,
-            req_entities_limit: config.api.web3_json_rpc.req_entities_limit(),
+            diamond_proxy_addr: contracts_config.diamond_proxy_addr,
+            l2_testnet_paymaster_addr: contracts_config.l2_testnet_paymaster_addr,
+            req_entities_limit: web3_config.req_entities_limit(),
         }
     }
 }
@@ -98,7 +101,7 @@ impl<E> RpcState<E> {
     pub fn parse_transaction_bytes(&self, bytes: &[u8]) -> Result<(L2Tx, H256), Web3Error> {
         let chain_id = self.api_config.l2_chain_id;
         let (tx_request, hash) =
-            TransactionRequest::from_bytes(bytes, chain_id.0, self.api_config.max_tx_size)?;
+            api::TransactionRequest::from_bytes(bytes, chain_id.0, self.api_config.max_tx_size)?;
 
         Ok((tx_request.try_into()?, hash))
     }
@@ -111,50 +114,77 @@ impl<E> RpcState<E> {
         }
     }
 
-    pub fn resolve_filter_block_number(
+    pub async fn resolve_filter_block_number(
         &self,
         block_number: Option<api::BlockNumber>,
     ) -> Result<MiniblockNumber, Web3Error> {
-        let method_name = "resolve_filter_block_number";
-        let block_number = match block_number {
-            None => self
-                .connection_pool
-                .access_storage_blocking()
-                .blocks_web3_dal()
-                .resolve_block_id(api::BlockId::Number(api::BlockNumber::Latest))
-                .map_err(|err| internal_error(method_name, err))?
-                .unwrap(),
-            Some(api::BlockNumber::Number(number)) => Self::u64_to_block_number(number),
-            Some(block_number) => self
-                .connection_pool
-                .access_storage_blocking()
-                .blocks_web3_dal()
-                .resolve_block_id(api::BlockId::Number(block_number))
-                .map_err(|err| internal_error(method_name, err))?
-                .unwrap(),
-        };
-        Ok(block_number)
+        const METHOD_NAME: &str = "resolve_filter_block_number";
+
+        if let Some(api::BlockNumber::Number(number)) = block_number {
+            return Ok(Self::u64_to_block_number(number));
+        }
+
+        let block_number = block_number.unwrap_or(api::BlockNumber::Latest);
+        let block_id = api::BlockId::Number(block_number);
+        let mut conn = self.connection_pool.access_storage_tagged("api").await;
+        Ok(conn
+            .blocks_web3_dal()
+            .resolve_block_id(block_id)
+            .await
+            .map_err(|err| internal_error(METHOD_NAME, err))?
+            .unwrap())
+        // ^ `unwrap()` is safe: `resolve_block_id(api::BlockId::Number(_))` can only return `None`
+        // if called with an explicit number, and we've handled this case earlier.
     }
 
-    pub fn resolve_filter_block_range(
+    pub async fn resolve_filter_block_range(
         &self,
         filter: &Filter,
     ) -> Result<(MiniblockNumber, MiniblockNumber), Web3Error> {
-        let from_block = self.resolve_filter_block_number(filter.from_block)?;
-        let to_block = self.resolve_filter_block_number(filter.to_block)?;
+        let from_block = self.resolve_filter_block_number(filter.from_block).await?;
+        let to_block = self.resolve_filter_block_number(filter.to_block).await?;
         Ok((from_block, to_block))
+    }
+
+    /// If filter has `block_hash` then it resolves block number by hash and sets it to `from_block` and `to_block`.
+    pub async fn resolve_filter_block_hash(&self, filter: &mut Filter) -> Result<(), Web3Error> {
+        match (filter.block_hash, filter.from_block, filter.to_block) {
+            (Some(block_hash), None, None) => {
+                let block_number = self
+                    .connection_pool
+                    .access_storage_tagged("api")
+                    .await
+                    .blocks_web3_dal()
+                    .resolve_block_id(api::BlockId::Hash(block_hash))
+                    .await
+                    .map_err(|err| internal_error("resolve_filter_block_hash", err))?
+                    .ok_or(Web3Error::NoBlock)?;
+
+                filter.from_block = Some(api::BlockNumber::Number(block_number.0.into()));
+                filter.to_block = Some(api::BlockNumber::Number(block_number.0.into()));
+                Ok(())
+            }
+            (Some(_), _, _) => Err(Web3Error::InvalidFilterBlockHash),
+            (None, _, _) => Ok(()),
+        }
     }
 
     /// Returns initial `from_block` for filter.
     /// It is equal to max(filter.from_block, PENDING_BLOCK).
-    pub fn get_filter_from_block(&self, filter: &Filter) -> Result<MiniblockNumber, Web3Error> {
-        let method_name = "get_filter_from_block";
+    pub async fn get_filter_from_block(
+        &self,
+        filter: &Filter,
+    ) -> Result<MiniblockNumber, Web3Error> {
+        const METHOD_NAME: &str = "get_filter_from_block";
+
         let pending_block = self
             .connection_pool
-            .access_storage_blocking()
+            .access_storage_tagged("api")
+            .await
             .blocks_web3_dal()
             .resolve_block_id(api::BlockId::Number(api::BlockNumber::Pending))
-            .map_err(|err| internal_error(method_name, err))?
+            .await
+            .map_err(|err| internal_error(METHOD_NAME, err))?
             .expect("Pending block number shouldn't be None");
         let block_number = match filter.from_block {
             Some(api::BlockNumber::Number(number)) => {
@@ -166,24 +196,23 @@ impl<E> RpcState<E> {
         Ok(block_number)
     }
 
-    pub(crate) fn set_nonce_for_call_request(
+    pub(crate) async fn set_nonce_for_call_request(
         &self,
         call_request: &mut CallRequest,
     ) -> Result<(), Web3Error> {
-        let method_name = "set_nonce_for_call_request";
+        const METHOD_NAME: &str = "set_nonce_for_call_request";
+
         if call_request.nonce.is_none() {
             let from = call_request.from.unwrap_or_default();
-            let address_historical_nonce = self
-                .connection_pool
-                .access_storage_blocking()
+            let block_id = api::BlockId::Number(api::BlockNumber::Latest);
+            let mut connection = self.connection_pool.access_storage_tagged("api").await;
+            let block_number = resolve_block(&mut connection, block_id, METHOD_NAME).await?;
+            let address_historical_nonce = connection
                 .storage_web3_dal()
-                .get_address_historical_nonce(from, BlockId::Number(BlockNumber::Latest));
-
-            call_request.nonce = Some(
-                address_historical_nonce
-                    .unwrap()
-                    .map_err(|result| internal_error(method_name, result.to_string()))?,
-            );
+                .get_address_historical_nonce(from, block_number)
+                .await
+                .map_err(|err| internal_error(METHOD_NAME, err))?;
+            call_request.nonce = Some(address_historical_nonce);
         }
         Ok(())
     }

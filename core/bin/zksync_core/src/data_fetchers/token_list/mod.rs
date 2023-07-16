@@ -16,8 +16,9 @@ use std::{
 use async_trait::async_trait;
 use tokio::sync::watch;
 
-use zksync_config::{configs::fetcher::TokenListSource, ZkSyncConfig};
+use zksync_config::{configs::fetcher::TokenListSource, FetcherConfig};
 use zksync_dal::{ConnectionPool, StorageProcessor};
+use zksync_types::network::Network;
 use zksync_types::{tokens::TokenMetadata, Address};
 
 use super::error::{ApiFetchError, ErrorAnalyzer};
@@ -33,27 +34,26 @@ pub trait FetcherImpl: std::fmt::Debug + Send + Sync {
 
 #[derive(Debug)]
 pub struct TokenListFetcher {
-    config: ZkSyncConfig,
+    config: FetcherConfig,
     fetcher: Box<dyn FetcherImpl>,
     error_handler: ErrorAnalyzer,
 }
 
 impl TokenListFetcher {
-    fn create_fetcher(config: &ZkSyncConfig) -> Box<dyn FetcherImpl> {
-        let token_list_config = &config.fetcher.token_list;
+    fn create_fetcher(config: &FetcherConfig, network: Network) -> Box<dyn FetcherImpl> {
+        let token_list_config = &config.token_list;
         match token_list_config.source {
             TokenListSource::OneInch => {
-                Box::new(one_inch::OneInchTokenListFetcher::new(&config.fetcher))
-                    as Box<dyn FetcherImpl>
+                Box::new(one_inch::OneInchTokenListFetcher::new(config)) as Box<dyn FetcherImpl>
             }
             TokenListSource::Mock => {
-                Box::new(mock::MockTokenListFetcher::new(config)) as Box<dyn FetcherImpl>
+                Box::new(mock::MockTokenListFetcher::new(network)) as Box<dyn FetcherImpl>
             }
         }
     }
 
-    pub fn new(config: ZkSyncConfig) -> Self {
-        let fetcher = Self::create_fetcher(&config);
+    pub fn new(config: FetcherConfig, network: Network) -> Self {
+        let fetcher = Self::create_fetcher(&config, network);
         let error_handler = ErrorAnalyzer::new("TokenListFetcher");
         Self {
             config,
@@ -64,7 +64,7 @@ impl TokenListFetcher {
 
     pub async fn run(mut self, pool: ConnectionPool, stop_receiver: watch::Receiver<bool>) {
         let mut fetching_interval =
-            tokio::time::interval(self.config.fetcher.token_list.fetching_interval());
+            tokio::time::interval(self.config.token_list.fetching_interval());
 
         loop {
             if *stop_receiver.borrow() {
@@ -87,11 +87,11 @@ impl TokenListFetcher {
             };
 
             // We assume that token metadata does not change, thus we only looking for the new tokens.
-            let mut storage = pool.access_storage_blocking();
-            let unknown_tokens = self.load_unknown_tokens(&mut storage);
+            let mut storage = pool.access_storage().await;
+            let unknown_tokens = self.load_unknown_tokens(&mut storage).await;
             token_list.retain(|token, _data| unknown_tokens.contains(token));
 
-            self.update_tokens(&mut storage, token_list);
+            self.update_tokens(&mut storage, token_list).await;
         }
     }
 
@@ -105,21 +105,24 @@ impl TokenListFetcher {
             .map_err(|_| ApiFetchError::RequestTimeout)?
     }
 
-    fn update_tokens(
+    async fn update_tokens(
         &self,
         storage: &mut StorageProcessor<'_>,
         tokens: HashMap<Address, TokenMetadata>,
     ) {
         let mut tokens_dal = storage.tokens_dal();
         for (token, metadata) in tokens {
-            tokens_dal.update_well_known_l1_token(&token, metadata);
+            tokens_dal
+                .update_well_known_l1_token(&token, metadata)
+                .await;
         }
     }
 
-    fn load_unknown_tokens(&self, storage: &mut StorageProcessor<'_>) -> HashSet<Address> {
+    async fn load_unknown_tokens(&self, storage: &mut StorageProcessor<'_>) -> HashSet<Address> {
         storage
             .tokens_dal()
             .get_unknown_l1_token_addresses()
+            .await
             .into_iter()
             .collect()
     }

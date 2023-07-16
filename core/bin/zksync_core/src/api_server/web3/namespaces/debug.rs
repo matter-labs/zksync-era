@@ -1,37 +1,52 @@
-use crate::api_server::execution_sandbox::execute_tx_eth_call;
-use crate::api_server::web3::backend_jsonrpc::namespaces::debug::TracerConfig;
-use std::time::Instant;
+use std::{sync::Arc, time::Instant};
+
 use zksync_contracts::{
     BaseSystemContracts, BaseSystemContractsHashes, PLAYGROUND_BLOCK_BOOTLOADER_CODE,
 };
 use zksync_dal::ConnectionPool;
-use zksync_types::api::{BlockId, BlockNumber, DebugCall, ResultDebugCall};
-use zksync_types::transaction_request::{l2_tx_from_call_req, CallRequest};
-use zksync_types::vm_trace::{Call, VmTrace};
-use zksync_types::{H256, USED_BOOTLOADER_MEMORY_BYTES};
+use zksync_state::FactoryDepsCache;
+use zksync_types::{
+    api::{BlockId, BlockNumber, DebugCall, ResultDebugCall, TracerConfig},
+    transaction_request::{l2_tx_from_call_req, CallRequest},
+    vm_trace::{Call, VmTrace},
+    AccountTreeId, H256, USED_BOOTLOADER_MEMORY_BYTES,
+};
 use zksync_web3_decl::error::Web3Error;
+
+use crate::api_server::{
+    execution_sandbox::{execute_tx_eth_call, BlockArgs, TxSharedArgs, VmConcurrencyLimiter},
+    tx_sender::SubmitTxError,
+    web3::{backend_jsonrpc::error::internal_error, resolve_block},
+};
 
 #[derive(Debug, Clone)]
 pub struct DebugNamespace {
-    pub connection_pool: ConnectionPool,
-    pub fair_l2_gas_price: u64,
-    pub base_system_contracts: BaseSystemContracts,
-    pub vm_execution_cache_misses_limit: Option<usize>,
+    connection_pool: ConnectionPool,
+    fair_l2_gas_price: u64,
+    base_system_contracts: BaseSystemContracts,
+    vm_execution_cache_misses_limit: Option<usize>,
+    vm_concurrency_limiter: Arc<VmConcurrencyLimiter>,
+    factory_deps_cache: FactoryDepsCache,
 }
 
 impl DebugNamespace {
-    pub fn new(
+    pub async fn new(
         connection_pool: ConnectionPool,
         base_system_contract_hashes: BaseSystemContractsHashes,
         fair_l2_gas_price: u64,
         vm_execution_cache_misses_limit: Option<usize>,
+        vm_concurrency_limiter: Arc<VmConcurrencyLimiter>,
+        factory_deps_cache: FactoryDepsCache,
     ) -> Self {
-        let mut storage = connection_pool.access_storage_blocking();
+        let mut storage = connection_pool.access_storage_tagged("api").await;
 
-        let mut base_system_contracts = storage.storage_dal().get_base_system_contracts(
-            base_system_contract_hashes.bootloader,
-            base_system_contract_hashes.default_aa,
-        );
+        let mut base_system_contracts = storage
+            .storage_dal()
+            .get_base_system_contracts(
+                base_system_contract_hashes.bootloader,
+                base_system_contract_hashes.default_aa,
+            )
+            .await;
 
         drop(storage);
 
@@ -41,23 +56,29 @@ impl DebugNamespace {
             fair_l2_gas_price,
             base_system_contracts,
             vm_execution_cache_misses_limit,
+            vm_concurrency_limiter,
+            factory_deps_cache,
         }
     }
 
     #[tracing::instrument(skip(self))]
-    pub fn debug_trace_block_impl(
+    pub async fn debug_trace_block_impl(
         &self,
         block: BlockId,
         options: Option<TracerConfig>,
     ) -> Result<Vec<ResultDebugCall>, Web3Error> {
+        const METHOD_NAME: &str = "debug_trace_block";
+
         let only_top_call = options
             .map(|options| options.tracer_config.only_top_call)
             .unwrap_or(false);
-        let call_trace = self
-            .connection_pool
-            .access_storage_blocking()
+        let mut connection = self.connection_pool.access_storage_tagged("api").await;
+        let block_number = resolve_block(&mut connection, block, METHOD_NAME).await?;
+        let call_trace = connection
             .blocks_web3_dal()
-            .get_trace_for_miniblock(block)?;
+            .get_trace_for_miniblock(block_number)
+            .await;
+
         Ok(call_trace
             .into_iter()
             .map(|call_trace| {
@@ -71,7 +92,7 @@ impl DebugNamespace {
     }
 
     #[tracing::instrument(skip(self))]
-    pub fn debug_trace_transaction_impl(
+    pub async fn debug_trace_transaction_impl(
         &self,
         tx_hash: H256,
         options: Option<TracerConfig>,
@@ -81,9 +102,11 @@ impl DebugNamespace {
             .unwrap_or(false);
         let call_trace = self
             .connection_pool
-            .access_storage_blocking()
+            .access_storage_tagged("api")
+            .await
             .transactions_dal()
-            .get_call_trace(tx_hash);
+            .get_call_trace(tx_hash)
+            .await;
         call_trace.map(|call_trace| {
             let mut result: DebugCall = call_trace.into();
             if only_top_call {
@@ -94,7 +117,7 @@ impl DebugNamespace {
     }
 
     #[tracing::instrument(skip(self, request, block))]
-    pub fn debug_trace_call_impl(
+    pub async fn debug_trace_call_impl(
         &self,
         request: CallRequest,
         block: Option<BlockId>,
@@ -104,22 +127,35 @@ impl DebugNamespace {
         let only_top_call = options
             .map(|options| options.tracer_config.only_top_call)
             .unwrap_or(false);
+
         let block = block.unwrap_or(BlockId::Number(BlockNumber::Pending));
+        let mut connection = self.connection_pool.access_storage_tagged("api").await;
+        let block_args = BlockArgs::new(&mut connection, block)
+            .await
+            .map_err(|err| internal_error("debug_trace_call", err))?
+            .ok_or(Web3Error::NoBlock)?;
+        drop(connection);
+
         let tx = l2_tx_from_call_req(request, USED_BOOTLOADER_MEMORY_BYTES)?;
 
-        let enforced_base_fee = Some(tx.common_data.fee.max_fee_per_gas.as_u64());
+        let shared_args = self.shared_args();
+        let vm_permit = self.vm_concurrency_limiter.acquire().await;
         // We don't need properly trace if we only need top call
         let result = execute_tx_eth_call(
-            &self.connection_pool,
+            &vm_permit,
+            shared_args,
+            self.connection_pool.clone(),
             tx.clone(),
-            block,
-            100000,
-            self.fair_l2_gas_price,
-            enforced_base_fee,
-            &self.base_system_contracts,
+            block_args,
             self.vm_execution_cache_misses_limit,
             !only_top_call,
-        )?;
+        )
+        .await
+        .map_err(|err| {
+            let submit_tx_error = SubmitTxError::from(err);
+            Web3Error::SubmitTransactionError(submit_tx_error.to_string(), submit_tx_error.data())
+        })?;
+        drop(vm_permit); // Unblock other VMs to enter.
 
         let (output, revert_reason) = match result.revert_reason {
             Some(result) => (vec![], Some(result.revert_reason.to_string())),
@@ -127,11 +163,8 @@ impl DebugNamespace {
                 result
                     .return_data
                     .into_iter()
-                    .flat_map(|val| {
-                        let bytes: [u8; 32] = val.into();
-                        bytes.to_vec()
-                    })
-                    .collect::<Vec<_>>(),
+                    .flat_map(<[u8; 32]>::from)
+                    .collect(),
                 None,
             ),
         };
@@ -151,5 +184,15 @@ impl DebugNamespace {
 
         metrics::histogram!("api.web3.call", start.elapsed(), "method" => "debug_trace_call");
         Ok(call.into())
+    }
+
+    fn shared_args(&self) -> TxSharedArgs {
+        TxSharedArgs {
+            operator_account: AccountTreeId::default(),
+            l1_gas_price: 100_000,
+            fair_l2_gas_price: self.fair_l2_gas_price,
+            base_system_contracts: self.base_system_contracts.clone(),
+            factory_deps_cache: self.factory_deps_cache.clone(),
+        }
     }
 }

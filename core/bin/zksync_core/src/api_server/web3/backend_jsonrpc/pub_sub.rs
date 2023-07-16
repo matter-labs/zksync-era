@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use jsonrpc_core::Result;
+use jsonrpc_core::{BoxFuture, Result};
 use jsonrpc_derive::rpc;
 use jsonrpc_pubsub::typed;
 use jsonrpc_pubsub::{Session, SubscriptionId};
@@ -31,7 +31,7 @@ pub trait Web3PubSub {
         &self,
         meta: Option<Self::Metadata>,
         subscription: SubscriptionId,
-    ) -> Result<bool>;
+    ) -> BoxFuture<Result<bool>>;
 }
 
 impl Web3PubSub for EthSubscribe {
@@ -44,10 +44,18 @@ impl Web3PubSub for EthSubscribe {
         sub_type: String,
         params: Option<serde_json::Value>,
     ) {
-        self.sub(subscriber, sub_type, params);
+        let self_ = self.clone();
+        // Fire and forget is OK here.
+        self.runtime_handle
+            .spawn(async move { self_.sub(subscriber, sub_type, params).await });
     }
 
-    fn unsubscribe(&self, _meta: Option<Self::Metadata>, id: SubscriptionId) -> Result<bool> {
-        self.unsub(id)
+    fn unsubscribe(
+        &self,
+        _meta: Option<Self::Metadata>,
+        id: SubscriptionId,
+    ) -> BoxFuture<Result<bool>> {
+        let self_ = self.clone();
+        Box::pin(async move { self_.unsub(id).await })
     }
 }

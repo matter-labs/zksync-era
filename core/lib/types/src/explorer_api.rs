@@ -327,8 +327,21 @@ pub enum SourceCodeData {
     SolSingleFile(String),
     #[serde(rename = "solidity-standard-json-input")]
     StandardJsonInput(serde_json::Map<String, serde_json::Value>),
+    #[serde(rename = "vyper-multi-file")]
+    VyperMultiFile(HashMap<String, String>),
     #[serde(rename = "yul-single-file")]
     YulSingleFile(String),
+}
+
+impl SourceCodeData {
+    pub fn compiler_type(&self) -> CompilerType {
+        match self {
+            SourceCodeData::SolSingleFile(_)
+            | SourceCodeData::StandardJsonInput(_)
+            | SourceCodeData::YulSingleFile(_) => CompilerType::Solc,
+            SourceCodeData::VyperMultiFile(_) => CompilerType::Vyper,
+        }
+    }
 }
 
 // Implementing Custom deserializer which deserializes `SourceCodeData`
@@ -397,6 +410,18 @@ impl<'de> Visitor<'de> for SourceCodeVisitor {
                         .clone(),
                 )
             }
+            Some("vyper-multi-file") => {
+                let value = source_code.ok_or_else(|| A::Error::missing_field("source_code"))?;
+                let obj = value
+                    .as_object()
+                    .ok_or_else(|| {
+                        A::Error::invalid_type(Unexpected::Other(&value.to_string()), &self)
+                    })?
+                    .clone();
+                let sources = serde_json::from_value(serde_json::Value::Object(obj))
+                    .map_err(|_| A::Error::custom("invalid object"))?;
+                SourceCodeData::VyperMultiFile(sources)
+            }
             Some(x) => {
                 return Err(A::Error::unknown_variant(
                     x,
@@ -404,6 +429,7 @@ impl<'de> Visitor<'de> for SourceCodeVisitor {
                         "solidity-single-file",
                         "solidity-standard-json-input",
                         "yul-single-file",
+                        "vyper-multi-file",
                     ],
                 ))
             }
@@ -419,13 +445,70 @@ pub struct VerificationIncomingRequest {
     #[serde(flatten)]
     pub source_code_data: SourceCodeData,
     pub contract_name: String,
-    pub compiler_zksolc_version: String,
-    pub compiler_solc_version: String,
+    #[serde(flatten)]
+    pub compiler_versions: CompilerVersions,
     pub optimization_used: bool,
+    pub optimizer_mode: Option<String>,
     #[serde(default)]
     pub constructor_arguments: Bytes,
     #[serde(default)]
     pub is_system: bool,
+}
+
+#[derive(Debug, Eq, PartialEq, Clone, Copy)]
+pub enum CompilerType {
+    Solc,
+    Vyper,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum CompilerVersions {
+    #[serde(rename_all = "camelCase")]
+    Solc {
+        compiler_zksolc_version: String,
+        compiler_solc_version: String,
+    },
+    #[serde(rename_all = "camelCase")]
+    Vyper {
+        compiler_zkvyper_version: String,
+        compiler_vyper_version: String,
+    },
+}
+
+impl CompilerVersions {
+    pub fn compiler_type(&self) -> CompilerType {
+        match self {
+            CompilerVersions::Solc { .. } => CompilerType::Solc,
+            CompilerVersions::Vyper { .. } => CompilerType::Vyper,
+        }
+    }
+
+    pub fn zk_compiler_version(&self) -> String {
+        match self {
+            CompilerVersions::Solc {
+                compiler_zksolc_version,
+                ..
+            } => compiler_zksolc_version.clone(),
+            CompilerVersions::Vyper {
+                compiler_zkvyper_version,
+                ..
+            } => compiler_zkvyper_version.clone(),
+        }
+    }
+
+    pub fn compiler_version(&self) -> String {
+        match self {
+            CompilerVersions::Solc {
+                compiler_solc_version,
+                ..
+            } => compiler_solc_version.clone(),
+            CompilerVersions::Vyper {
+                compiler_vyper_version,
+                ..
+            } => compiler_vyper_version.clone(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

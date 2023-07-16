@@ -3,14 +3,14 @@ use std::time::Duration;
 // External uses
 use serde::Deserialize;
 // Local uses
-use crate::envy_load;
+use super::envy_load;
 
 /// Configuration for the Ethereum sender crate.
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct ETHWatchConfig {
     /// Amount of confirmations for the priority operation to be processed.
-    /// In production this should be a non-zero value because of block reverts.
-    pub confirmations_for_eth_event: u64,
+    /// If not specified operation will be processed once its block is finalized.
+    pub confirmations_for_eth_event: Option<u64>,
     /// How often we want to poll the Ethereum node.
     /// Value in milliseconds.
     pub eth_node_poll_interval: u64,
@@ -18,7 +18,7 @@ pub struct ETHWatchConfig {
 
 impl ETHWatchConfig {
     pub fn from_env() -> Self {
-        envy_load!("eth_watch", "ETH_WATCH_")
+        envy_load("eth_watch", "ETH_WATCH_")
     }
 
     /// Converts `self.eth_node_poll_interval` into `Duration`.
@@ -34,7 +34,7 @@ mod tests {
 
     fn expected_config() -> ETHWatchConfig {
         ETHWatchConfig {
-            confirmations_for_eth_event: 0,
+            confirmations_for_eth_event: Some(0),
             eth_node_poll_interval: 300,
         }
     }

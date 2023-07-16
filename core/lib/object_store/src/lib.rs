@@ -29,13 +29,15 @@ mod mock;
 mod objects;
 mod raw;
 
+// Re-export `bincode` crate so that client binaries can conveniently use it.
+pub use bincode;
+
 #[doc(hidden)] // used by the `serialize_using_bincode!` macro
 pub mod _reexports {
     pub use crate::raw::BoxedError;
-    pub use bincode;
 }
 
 pub use self::{
-    objects::{CircuitKey, StoredObject},
+    objects::{AggregationsKey, CircuitKey, ClosedFormInputKey, FriCircuitKey, StoredObject},
     raw::{Bucket, ObjectStore, ObjectStoreError, ObjectStoreFactory},
 };

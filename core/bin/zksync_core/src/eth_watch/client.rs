@@ -4,9 +4,7 @@ use std::fmt::{Debug, Display};
 
 use tokio::time::Instant;
 
-use zksync_eth_client::{
-    clients::http::PKSigningClient, types::Error as EthClientError, BoundEthInterface, EthInterface,
-};
+use zksync_eth_client::{types::Error as EthClientError, EthInterface};
 use zksync_types::ethabi::{Contract, Hash};
 
 use zksync_contracts::zksync_contract;
@@ -14,10 +12,9 @@ use zksync_types::{
     l1::L1Tx,
     web3::{
         self,
-        contract::Options,
         types::{BlockNumber, FilterBuilder, Log},
     },
-    Address, Nonce, H160,
+    H160,
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -54,9 +51,7 @@ pub trait EthClient {
         to: BlockNumber,
         retries_left: usize,
     ) -> Result<Vec<L1Tx>, Error>;
-    async fn block_number(&self) -> Result<u64, Error>;
-    async fn get_auth_fact(&self, address: Address, nonce: Nonce) -> Result<Vec<u8>, Error>;
-    async fn get_auth_fact_reset_time(&self, address: Address, nonce: Nonce) -> Result<u64, Error>;
+    async fn finalized_block_number(&self) -> Result<u64, Error>;
 }
 
 pub const RETRY_LIMIT: usize = 5;
@@ -64,20 +59,26 @@ const TOO_MANY_RESULTS_INFURA: &str = "query returned more than";
 const TOO_MANY_RESULTS_ALCHEMY: &str = "response size exceeded";
 
 #[derive(Debug)]
-pub struct EthHttpClient {
-    client: PKSigningClient,
+pub struct EthHttpQueryClient<E> {
+    client: E,
     topics: ContractTopics,
     zksync_contract_addr: H160,
+    confirmations_for_eth_event: Option<u64>,
 }
 
-impl EthHttpClient {
-    pub fn new(client: PKSigningClient, zksync_contract_addr: H160) -> Self {
+impl<E: EthInterface> EthHttpQueryClient<E> {
+    pub fn new(
+        client: E,
+        zksync_contract_addr: H160,
+        confirmations_for_eth_event: Option<u64>,
+    ) -> Self {
         vlog::debug!("New eth client, contract addr: {:x}", zksync_contract_addr);
         let topics = ContractTopics::new(&zksync_contract());
         Self {
             client,
             topics,
             zksync_contract_addr,
+            confirmations_for_eth_event,
         }
     }
 
@@ -108,7 +109,7 @@ impl EthHttpClient {
 }
 
 #[async_trait::async_trait]
-impl EthClient for EthHttpClient {
+impl<E: EthInterface + Send + Sync + 'static> EthClient for EthHttpQueryClient<E> {
     async fn get_priority_op_events(
         &self,
         from: BlockNumber,
@@ -199,33 +200,21 @@ impl EthClient for EthHttpClient {
         Ok(events)
     }
 
-    async fn block_number(&self) -> Result<u64, Error> {
-        Ok(self.client.block_number("watch").await?.as_u64())
-    }
-
-    async fn get_auth_fact(&self, address: Address, nonce: Nonce) -> Result<Vec<u8>, Error> {
-        Ok(self
-            .client
-            .call_main_contract_function(
-                "authFacts",
-                (address, u64::from(*nonce)),
-                None,
-                Options::default(),
-                None,
-            )
-            .await?)
-    }
-
-    async fn get_auth_fact_reset_time(&self, address: Address, nonce: Nonce) -> Result<u64, Error> {
-        Ok(self
-            .client
-            .call_main_contract_function::<u64, _, _, _>(
-                "authFactsResetTimer",
-                (address, u64::from(*nonce)),
-                None,
-                Options::default(),
-                None,
-            )
-            .await?)
+    async fn finalized_block_number(&self) -> Result<u64, Error> {
+        if let Some(confirmations) = self.confirmations_for_eth_event {
+            let latest_block_number = self.client.block_number("watch").await?.as_u64();
+            Ok(latest_block_number.saturating_sub(confirmations))
+        } else {
+            self.client
+                .block("finalized".to_string(), "watch")
+                .await
+                .map_err(Into::into)
+                .map(|res| {
+                    res.expect("Finalized block must be present on L1")
+                        .number
+                        .expect("Finalized block must contain number")
+                        .as_u64()
+                })
+        }
     }
 }

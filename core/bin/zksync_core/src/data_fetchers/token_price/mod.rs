@@ -4,7 +4,7 @@ use std::{collections::HashMap, time::Duration};
 
 use async_trait::async_trait;
 
-use zksync_config::{configs::fetcher::TokenPriceSource, ZkSyncConfig};
+use zksync_config::{configs::fetcher::TokenPriceSource, FetcherConfig};
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_types::{tokens::TokenPrice, Address};
 
@@ -29,17 +29,17 @@ pub trait FetcherImpl: std::fmt::Debug + Send + Sync {
 #[derive(Debug)]
 pub struct TokenPriceFetcher {
     minimum_required_liquidity: Ratio<BigUint>,
-    config: ZkSyncConfig,
+    config: FetcherConfig,
     fetcher: Box<dyn FetcherImpl>,
     error_handler: ErrorAnalyzer,
 }
 
 impl TokenPriceFetcher {
-    fn create_fetcher(config: &ZkSyncConfig) -> Box<dyn FetcherImpl> {
-        let token_price_config = &config.fetcher.token_price;
+    fn create_fetcher(config: &FetcherConfig) -> Box<dyn FetcherImpl> {
+        let token_price_config = &config.token_price;
         match token_price_config.source {
             TokenPriceSource::CoinGecko => {
-                Box::new(coingecko::CoinGeckoFetcher::new(&config.fetcher)) as Box<dyn FetcherImpl>
+                Box::new(coingecko::CoinGeckoFetcher::new(config)) as Box<dyn FetcherImpl>
             }
             TokenPriceSource::CoinMarketCap => {
                 unimplemented!()
@@ -50,7 +50,7 @@ impl TokenPriceFetcher {
         }
     }
 
-    pub fn new(config: ZkSyncConfig) -> Self {
+    pub fn new(config: FetcherConfig) -> Self {
         let fetcher = Self::create_fetcher(&config);
         let error_handler = ErrorAnalyzer::new("TokenPriceFetcher");
         Self {
@@ -65,7 +65,7 @@ impl TokenPriceFetcher {
 
     pub async fn run(mut self, pool: ConnectionPool, stop_receiver: watch::Receiver<bool>) {
         let mut fetching_interval =
-            tokio::time::interval(self.config.fetcher.token_price.fetching_interval());
+            tokio::time::interval(self.config.token_price.fetching_interval());
 
         loop {
             if *stop_receiver.borrow() {
@@ -77,8 +77,8 @@ impl TokenPriceFetcher {
             self.error_handler.update().await;
 
             // We refresh token list in case new tokens were added.
-            let mut storage = pool.access_storage_blocking();
-            let tokens = self.get_tokens(&mut storage);
+            let mut storage = pool.access_storage().await;
+            let tokens = self.get_tokens(&mut storage).await;
 
             // Vector of received token prices in the format of (`token_addr`, `price_in_usd`, `fetch_timestamp`).
             let token_prices = match self.fetch_token_price(&tokens).await {
@@ -91,7 +91,7 @@ impl TokenPriceFetcher {
                     continue;
                 }
             };
-            self.store_token_prices(&mut storage, token_prices);
+            self.store_token_prices(&mut storage, token_prices).await;
         }
     }
 
@@ -108,22 +108,23 @@ impl TokenPriceFetcher {
             .map_err(|_| ApiFetchError::RequestTimeout)?
     }
 
-    fn store_token_prices(
+    async fn store_token_prices(
         &self,
         storage: &mut StorageProcessor<'_>,
         token_prices: HashMap<Address, TokenPrice>,
     ) {
         let mut tokens_dal = storage.tokens_dal();
         for (token, price) in token_prices {
-            tokens_dal.set_l1_token_price(&token, price);
+            tokens_dal.set_l1_token_price(&token, price).await;
         }
     }
 
     /// Returns the list of "interesting" tokens, e.g. ones that can be used to pay fees.
     /// We don't actually need prices for other tokens.
-    fn get_tokens(&self, storage: &mut StorageProcessor<'_>) -> Vec<Address> {
+    async fn get_tokens(&self, storage: &mut StorageProcessor<'_>) -> Vec<Address> {
         storage
             .tokens_dal()
             .get_l1_tokens_by_volume(&self.minimum_required_liquidity)
+            .await
     }
 }

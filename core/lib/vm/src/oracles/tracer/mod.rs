@@ -1,4 +1,4 @@
-use zk_evm::abstractions::Tracer;
+use zk_evm::tracing::Tracer;
 use zk_evm::vm_state::VmLocalState;
 
 mod bootloader;

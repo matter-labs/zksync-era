@@ -1,5 +1,6 @@
-use crate::commitment::CommitmentSerializable;
+use crate::commitment::SerializeCommitment;
 use crate::event::{extract_long_l2_to_l1_messages, extract_published_bytecodes};
+use crate::fee::TransactionExecutionMetrics;
 use crate::l2_to_l1_log::L2ToL1Log;
 use crate::writes::{InitialStorageWrite, RepeatedStorageWrite};
 use crate::{StorageLogQuery, VmEvent, PUBLISH_BYTECODE_OVERHEAD};
@@ -38,13 +39,20 @@ pub struct DeduplicatedWritesMetrics {
 }
 
 impl DeduplicatedWritesMetrics {
+    pub fn from_tx_metrics(tx_metrics: &TransactionExecutionMetrics) -> Self {
+        Self {
+            initial_storage_writes: tx_metrics.initial_storage_writes,
+            repeated_storage_writes: tx_metrics.repeated_storage_writes,
+        }
+    }
+
     pub fn size(&self) -> usize {
         self.initial_storage_writes * InitialStorageWrite::SERIALIZED_SIZE
             + self.repeated_storage_writes * RepeatedStorageWrite::SERIALIZED_SIZE
     }
 }
 
-#[derive(Debug, Clone, Copy, Default, serde::Serialize, PartialEq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, serde::Serialize)]
 pub struct ExecutionMetrics {
     pub gas_used: usize,
     pub published_bytecode_bytes: usize,
@@ -60,6 +68,22 @@ pub struct ExecutionMetrics {
 }
 
 impl ExecutionMetrics {
+    pub fn from_tx_metrics(tx_metrics: &TransactionExecutionMetrics) -> Self {
+        Self {
+            published_bytecode_bytes: tx_metrics.published_bytecode_bytes,
+            l2_l1_long_messages: tx_metrics.l2_l1_long_messages,
+            l2_l1_logs: tx_metrics.l2_l1_logs,
+            contracts_deployed: tx_metrics.contracts_deployed,
+            contracts_used: tx_metrics.contracts_used,
+            gas_used: tx_metrics.gas_used,
+            storage_logs: tx_metrics.storage_logs,
+            vm_events: tx_metrics.vm_events,
+            total_log_queries: tx_metrics.total_log_queries,
+            cycles_used: tx_metrics.cycles_used,
+            computational_gas_used: tx_metrics.computational_gas_used,
+        }
+    }
+
     pub fn size(&self) -> usize {
         self.l2_l1_logs * L2ToL1Log::SERIALIZED_SIZE
             + self.l2_l1_long_messages

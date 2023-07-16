@@ -73,12 +73,16 @@ impl L2TxCommonData {
         }
     }
 
-    pub fn input_data(&self) -> Option<Vec<u8>> {
-        self.input.as_ref().map(|i| i.data.clone())
+    pub fn input_data(&self) -> Option<&[u8]> {
+        self.input.as_ref().map(|input| &*input.data)
     }
 
+    /// Returns zero hash if the transaction doesn't contain input data.
     pub fn hash(&self) -> H256 {
-        self.input.clone().unwrap().hash
+        self.input
+            .as_ref()
+            .expect("Transaction must have input data")
+            .hash
     }
 
     pub fn set_input(&mut self, input: Vec<u8>, hash: H256) {
@@ -196,7 +200,7 @@ impl L2Tx {
         let bytes = self.common_data.input_data()?;
         let chain_id = match bytes.first() {
             Some(x) if *x >= 0x80 => {
-                let rlp = Rlp::new(&bytes);
+                let rlp = Rlp::new(bytes);
                 let v = rlp.val_at(6).ok()?;
                 PackedEthSignature::unpack_v(v).ok()?.1.unwrap_or(0)
             }

@@ -13,8 +13,8 @@ use zksync_types::{
         },
         ethabi,
         types::{
-            Address, BlockId, BlockNumber, Filter, Log, Transaction, TransactionReceipt, H160,
-            H256, U256, U64,
+            Address, Block, BlockId, BlockNumber, Filter, Log, Transaction, TransactionReceipt,
+            H160, H256, U256, U64,
         },
     },
     L1ChainId,
@@ -37,7 +37,7 @@ use zksync_types::{
 /// unnecessary high amount of Web3 calls. Implementations are advices to count invokations
 /// per component and expose them to prometheus, e.g. via `metrics` crate.
 #[async_trait]
-pub trait EthInterface {
+pub trait EthInterface: Sync + Send {
     /// Returns the nonce of the provided account at the specified block.
     async fn nonce_at_for_account(
         &self,
@@ -127,6 +127,13 @@ pub trait EthInterface {
 
     /// Returns the logs for the specified filter.
     async fn logs(&self, filter: Filter, component: &'static str) -> Result<Vec<Log>, Error>;
+
+    /// Returns the block header for the specified block number or hash.
+    async fn block(
+        &self,
+        block_id: String,
+        component: &'static str,
+    ) -> Result<Option<Block<H256>>, Error>;
 }
 
 /// An extension of `EthInterface` trait, which is used to perform queries that are bound to
@@ -141,10 +148,7 @@ pub trait EthInterface {
 /// 2. Consider adding the "unbound" version to the `EthInterface` trait and create a default method
 /// implementation that invokes `contract` / `contract_addr` / `sender_account` methods.
 #[async_trait]
-pub trait BoundEthInterface: EthInterface
-where
-    Self: Sync + Send,
-{
+pub trait BoundEthInterface: EthInterface {
     /// ABI of the contract that is used by the implementor.
     fn contract(&self) -> &ethabi::Contract;
 
