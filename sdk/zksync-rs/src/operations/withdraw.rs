@@ -25,9 +25,9 @@ pub struct WithdrawBuilder<'a, S: EthereumSigner, P> {
 }
 
 impl<'a, S, P> WithdrawBuilder<'a, S, P>
-where
-    S: EthereumSigner,
-    P: ZksNamespaceClient + EthNamespaceClient + Sync,
+    where
+        S: EthereumSigner,
+        P: ZksNamespaceClient + EthNamespaceClient + Sync,
 {
     /// Initializes a withdraw transaction building process.
     pub fn new(wallet: &'a Wallet<S, P>) -> Self {
@@ -55,6 +55,7 @@ where
             .ok_or_else(|| ClientError::MissingRequiredField("amount".into()))?;
 
         let (contract_address, calldata, value) = if token == ETHEREUM_ADDRESS {
+            let calldata_params = vec![ethabi::ParamType::Address];
             let mut calldata = ethabi::short_signature("withdraw", &calldata_params).to_vec();
             calldata.append(&mut ethabi::encode(&[ethabi::Token::Address(to)]));
             (L2_ETH_TOKEN_ADDRESS, calldata, amount)
