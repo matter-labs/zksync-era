@@ -27,6 +27,7 @@ use crate::gpu_prover_queue_dal::GpuProverQueueDal;
 use crate::proof_generation_dal::ProofGenerationDal;
 use crate::protocol_versions_dal::ProtocolVersionsDal;
 use crate::protocol_versions_web3_dal::ProtocolVersionsWeb3Dal;
+use crate::oracle_dal::OracleDal;
 use crate::prover_dal::ProverDal;
 use crate::storage_dal::StorageDal;
 use crate::storage_logs_dal::StorageLogsDal;
@@ -60,6 +61,7 @@ mod models;
 pub mod proof_generation_dal;
 pub mod protocol_versions_dal;
 pub mod protocol_versions_web3_dal;
+pub mod oracle_dal;
 pub mod prover_dal;
 pub mod storage_dal;
 pub mod storage_logs_dal;
@@ -278,5 +280,9 @@ impl<'a> StorageProcessor<'a> {
 
     pub fn fri_gpu_prover_queue_dal(&mut self) -> FriGpuProverQueueDal<'_, 'a> {
         FriGpuProverQueueDal { storage: self }
+    }
+
+    pub fn oracle_dal(&mut self) -> OracleDal<'_, 'a> {
+        OracleDal { storage: self }
     }
 }

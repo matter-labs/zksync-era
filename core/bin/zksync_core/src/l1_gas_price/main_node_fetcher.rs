@@ -6,14 +6,16 @@ use std::{
     time::Duration,
 };
 
+use bigdecimal::ToPrimitive;
 use tokio::sync::watch::Receiver;
 
+use zksync_dal::StorageProcessor;
 use zksync_web3_decl::{
     jsonrpsee::http_client::{HttpClient, HttpClientBuilder},
     namespaces::ZksNamespaceClient,
 };
 
-use super::L1GasPriceProvider;
+use super::{gas_adjuster::GasAdjustCoefficient, L1GasPriceProvider};
 
 const SLEEP_INTERVAL: Duration = Duration::from_secs(5);
 
@@ -27,13 +29,18 @@ const SLEEP_INTERVAL: Duration = Duration::from_secs(5);
 pub struct MainNodeGasPriceFetcher {
     client: HttpClient,
     gas_price: AtomicU64,
+    gas_token_adjust_coef: GasAdjustCoefficient,
 }
 
 impl MainNodeGasPriceFetcher {
-    pub fn new(main_node_url: &str) -> Self {
+    pub async fn new(main_node_url: &str) -> Self {
+        let mut storage = StorageProcessor::establish_connection(true).await;
+        let coef = storage.oracle_dal().get_adjust_coefficient().await.unwrap();
+
         Self {
             client: Self::build_client(main_node_url),
             gas_price: AtomicU64::new(1u64), // Start with 1 wei until the first update.
+            gas_token_adjust_coef: GasAdjustCoefficient::new(&coef),
         }
     }
 
@@ -41,6 +48,13 @@ impl MainNodeGasPriceFetcher {
         HttpClientBuilder::default()
             .build(main_node_url)
             .expect("Unable to create a main node client")
+    }
+
+    async fn update_coef(&self) {
+        let mut storage = StorageProcessor::establish_connection(true).await;
+        let coef = storage.oracle_dal().get_adjust_coefficient().await.unwrap();
+        self.gas_token_adjust_coef
+            .update_gas_token_adjust_coefficient(&coef);
     }
 
     pub async fn run(self: Arc<Self>, stop_receiver: Receiver<bool>) {
@@ -61,6 +75,9 @@ impl MainNodeGasPriceFetcher {
             };
             self.gas_price
                 .store(main_node_gas_price.as_u64(), Ordering::Relaxed);
+
+            self.update_coef().await;
+
             tokio::time::sleep(SLEEP_INTERVAL).await;
         }
     }
@@ -68,6 +85,11 @@ impl MainNodeGasPriceFetcher {
 
 impl L1GasPriceProvider for MainNodeGasPriceFetcher {
     fn estimate_effective_gas_price(&self) -> u64 {
-        self.gas_price.load(Ordering::Relaxed)
+        let adj_coef = self
+            .gas_token_adjust_coef
+            .get_gas_token_adjust_coefficient()
+            .to_f64()
+            .unwrap();
+        (self.gas_price.load(Ordering::Relaxed) as f64 * adj_coef) as u64
     }
 }

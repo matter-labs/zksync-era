@@ -1,11 +1,15 @@
 //! This module determines the fees to pay in txs containing blocks submitted to the L1.
 
+use bigdecimal::ToPrimitive;
 // Built-in deps
+use num::rational::Ratio;
+use num::BigUint;
 use std::collections::VecDeque;
 use std::sync::{Arc, RwLock};
 use tokio::sync::watch::Receiver;
 
 use zksync_config::GasAdjusterConfig;
+use zksync_dal::StorageProcessor;
 use zksync_eth_client::{types::Error, EthInterface};
 
 use super::{L1GasPriceProvider, L1TxParamsProvider};
@@ -21,6 +25,7 @@ pub struct GasAdjuster<E> {
     pub(super) statistics: GasStatistics,
     pub(super) config: GasAdjusterConfig,
     eth_client: E,
+    pub(super) gas_token_adjust_coef: GasAdjustCoefficient,
 }
 
 impl<E: EthInterface> GasAdjuster<E> {
@@ -36,10 +41,15 @@ impl<E: EthInterface> GasAdjuster<E> {
         let history = eth_client
             .base_fee_history(current_block, config.max_base_fee_samples, "gas_adjuster")
             .await?;
+
+        let mut storage = StorageProcessor::establish_connection(true).await;
+        let coef = storage.oracle_dal().get_adjust_coefficient().await.unwrap();
+
         Ok(Self {
             statistics: GasStatistics::new(config.max_base_fee_samples, current_block, &history),
             eth_client,
             config,
+            gas_token_adjust_coef: GasAdjustCoefficient::new(&coef),
         })
     }
 
@@ -79,6 +89,13 @@ impl<E: EthInterface> GasAdjuster<E> {
         Ok(())
     }
 
+    pub async fn update_coef(&self) {
+        let mut storage = StorageProcessor::establish_connection(true).await;
+        let coef = storage.oracle_dal().get_adjust_coefficient().await.unwrap();
+        self.gas_token_adjust_coef
+            .update_gas_token_adjust_coefficient(&coef);
+    }
+
     pub async fn run(self: Arc<Self>, stop_receiver: Receiver<bool>) {
         loop {
             if *stop_receiver.borrow() {
@@ -90,13 +107,16 @@ impl<E: EthInterface> GasAdjuster<E> {
                 vlog::warn!("Cannot add the base fee to gas statistics: {}", err);
             }
 
+            self.update_coef().await;
+
             tokio::time::sleep(self.config.poll_period()).await;
         }
     }
 }
 
 impl<E: EthInterface> L1GasPriceProvider for GasAdjuster<E> {
-    /// Returns the sum of base and priority fee, in wei, not considering time in mempool.
+    /// Returns the sum of base, priority fee, and the gas token adjust coefficient, in wei,
+    /// not considering time in mempool.
     /// Can be used to get an estimate of current gas price.
     fn estimate_effective_gas_price(&self) -> u64 {
         if let Some(price) = self.config.internal_enforced_l1_gas_price {
@@ -105,7 +125,13 @@ impl<E: EthInterface> L1GasPriceProvider for GasAdjuster<E> {
 
         let effective_gas_price = self.get_base_fee(0) + self.get_priority_fee();
 
-        (self.config.internal_l1_pricing_multiplier * effective_gas_price as f64) as u64
+        let adj_coef = self
+            .gas_token_adjust_coef
+            .get_gas_token_adjust_coefficient()
+            .to_f64()
+            .unwrap();
+
+        (self.config.internal_l1_pricing_multiplier * adj_coef * effective_gas_price as f64) as u64
     }
 }
 
@@ -226,5 +252,46 @@ impl GasStatistics {
 
     pub fn last_processed_block(&self) -> usize {
         self.0.read().unwrap().last_processed_block
+    }
+}
+
+#[derive(Debug)]
+pub(super) struct GasAdjustCoefficientInner {
+    coef: Ratio<BigUint>,
+}
+
+impl GasAdjustCoefficientInner {
+    pub fn new(ratio: &Ratio<BigUint>) -> Self {
+        Self {
+            coef: ratio.clone(),
+        }
+    }
+
+    pub fn update_gas_token_adjust_coefficient(&mut self, ratio: &Ratio<BigUint>) {
+        self.coef = ratio.clone();
+    }
+
+    pub fn get_gas_token_adjust_coefficient(&self) -> Ratio<BigUint> {
+        self.coef.clone()
+    }
+}
+
+#[derive(Debug)]
+pub(super) struct GasAdjustCoefficient(RwLock<GasAdjustCoefficientInner>);
+
+impl GasAdjustCoefficient {
+    pub fn new(ratio: &Ratio<BigUint>) -> Self {
+        Self(RwLock::new(GasAdjustCoefficientInner::new(ratio)))
+    }
+
+    pub fn update_gas_token_adjust_coefficient(&self, ratio: &Ratio<BigUint>) {
+        self.0
+            .write()
+            .unwrap()
+            .update_gas_token_adjust_coefficient(ratio);
+    }
+
+    pub fn get_gas_token_adjust_coefficient(&self) -> Ratio<BigUint> {
+        self.0.read().unwrap().get_gas_token_adjust_coefficient()
     }
 }

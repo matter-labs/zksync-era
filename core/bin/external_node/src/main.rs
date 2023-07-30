@@ -122,7 +122,7 @@ async fn init_tasks(
     let (stop_sender, stop_receiver) = watch::channel::<bool>(false);
     let mut healthchecks: Vec<Box<dyn CheckHealth>> = Vec::new();
     // Create components.
-    let gas_adjuster = Arc::new(MainNodeGasPriceFetcher::new(&main_node_url));
+    let gas_adjuster = Arc::new(MainNodeGasPriceFetcher::new(&main_node_url).await);
 
     let sync_state = SyncState::new();
     let action_queue = ActionQueue::new();
