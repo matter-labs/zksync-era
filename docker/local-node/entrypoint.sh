@@ -43,4 +43,4 @@ fi
 # start server
 source /etc/env/dev.env
 source /etc/env/.init.env
-zksync_server
+exec zksync_server
