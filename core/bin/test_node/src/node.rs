@@ -183,12 +183,6 @@ impl InMemoryNode {
             None => vm_block_result
                 .full_result
                 .return_data
-                .into_iter()
-                .flat_map(|val| {
-                    let bytes: [u8; 32] = val.into();
-                    bytes.to_vec()
-                })
-                .collect::<Vec<_>>(),
         }
     }
 

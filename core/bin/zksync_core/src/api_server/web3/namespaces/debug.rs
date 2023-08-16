@@ -160,11 +160,7 @@ impl DebugNamespace {
         let (output, revert_reason) = match result.revert_reason {
             Some(result) => (vec![], Some(result.revert_reason.to_string())),
             None => (
-                result
-                    .return_data
-                    .into_iter()
-                    .flat_map(<[u8; 32]>::from)
-                    .collect(),
+                result.return_data,
                 None,
             ),
         };

@@ -815,9 +815,6 @@ impl<G: L1GasPriceProvider> TxSender<G> {
             Some(result) => result.original_data,
             None => result
                 .return_data
-                .into_iter()
-                .flat_map(<[u8; 32]>::from)
-                .collect(),
         })
     }
 
