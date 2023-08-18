@@ -11,10 +11,9 @@ use zksync_types::{
         TransactionVariant,
     },
     transaction_request::CallRequest,
-    web3::types::{Index, SyncState},
+    web3::types::{FeeHistory, Index, SyncState},
     Address, Bytes, H256, U256, U64,
 };
-use zksync_web3_decl::error::Web3Error;
 use zksync_web3_decl::types::{Block, Filter, FilterChanges, Log};
 
 // Local uses
@@ -168,11 +167,13 @@ pub trait EthNamespaceT {
     #[rpc(name = "eth_mining")]
     fn mining(&self) -> BoxFuture<Result<bool>>;
 
-    #[rpc(name = "eth_sendTransaction")]
-    fn send_transaction(
+    #[rpc(name = "eth_feeHistory")]
+    fn fee_history(
         &self,
-        transaction_request: zksync_types::web3::types::TransactionRequest,
-    ) -> BoxFuture<Result<H256>>;
+        block_count: U64,
+        newest_block: BlockNumber,
+        reward_percentiles: Vec<f32>,
+    ) -> BoxFuture<Result<FeeHistory>>;
 }
 
 impl<G: L1GasPriceProvider + Send + Sync + 'static> EthNamespaceT for EthNamespace<G> {
@@ -492,21 +493,18 @@ impl<G: L1GasPriceProvider + Send + Sync + 'static> EthNamespaceT for EthNamespa
         Box::pin(async move { Ok(self_.mining_impl()) })
     }
 
-    fn send_transaction(
+    fn fee_history(
         &self,
-        _transaction_request: zksync_types::web3::types::TransactionRequest,
-    ) -> BoxFuture<Result<H256>> {
-        #[cfg(feature = "openzeppelin_tests")]
+        block_count: U64,
+        newest_block: BlockNumber,
+        reward_percentiles: Vec<f32>,
+    ) -> BoxFuture<Result<FeeHistory>> {
         let self_ = self.clone();
         Box::pin(async move {
-            #[cfg(feature = "openzeppelin_tests")]
-            return self_
-                .send_transaction_impl(_transaction_request)
+            self_
+                .fee_history_impl(block_count, newest_block, reward_percentiles)
                 .await
-                .map_err(into_jsrpc_error);
-
-            #[cfg(not(feature = "openzeppelin_tests"))]
-            Err(into_jsrpc_error(Web3Error::NotImplemented))
+                .map_err(into_jsrpc_error)
         })
     }
 }

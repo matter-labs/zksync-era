@@ -31,6 +31,8 @@ zksync_external_node=info,\
 cross_nodes_checker=debug,\
 zksync_witness_generator=info,\
 zksync_prover_fri=info,\
+slot_index_consistency_checker=debug,\
+zksync_witness_vector_generator=info,\
 """
 
 # `RUST_BACKTRACE` variable

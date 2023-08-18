@@ -61,7 +61,7 @@ async fn wait_for_l1_batch_params_unchecked(
     loop {
         let data = storage
             .blocks_dal()
-            .get_block_state_root_and_timestamp(number)
+            .get_l1_batch_state_root_and_timestamp(number)
             .await;
         if let Some((root_hash, timestamp)) = data {
             vlog::trace!(

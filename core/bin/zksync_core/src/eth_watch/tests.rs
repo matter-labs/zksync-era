@@ -5,18 +5,24 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 
 use db_test_macro::db_test;
+use zksync_contracts::zksync_contract;
 use zksync_dal::{ConnectionPool, StorageProcessor};
+use zksync_types::protocol_version::{ProtocolUpgradeTx, ProtocolUpgradeTxCommonData};
 use zksync_types::web3::types::{Address, BlockNumber};
 use zksync_types::{
+    ethabi::{encode, Hash, Token},
     l1::{L1Tx, OpProcessingType, PriorityQueueType},
-    Execute, L1TxCommonData, PriorityOpId, Transaction, H256, U256,
+    web3::types::Log,
+    Execute, L1TxCommonData, PriorityOpId, ProtocolUpgrade, ProtocolVersion, ProtocolVersionId,
+    Transaction, H256, U256,
 };
 
 use super::client::Error;
 use crate::eth_watch::{client::EthClient, EthWatch};
 
 struct FakeEthClientData {
-    transactions: HashMap<u64, Vec<L1Tx>>,
+    transactions: HashMap<u64, Vec<Log>>,
+    upgrades: HashMap<u64, Vec<Log>>,
     last_finalized_block_number: u64,
 }
 
@@ -24,6 +30,7 @@ impl FakeEthClientData {
     fn new() -> Self {
         Self {
             transactions: Default::default(),
+            upgrades: Default::default(),
             last_finalized_block_number: 0,
         }
     }
@@ -32,11 +39,21 @@ impl FakeEthClientData {
         for transaction in transactions {
             let eth_block = transaction.eth_block();
             self.transactions
-                .entry(eth_block)
+                .entry(eth_block.0 as u64)
                 .or_insert_with(Vec::new)
-                .push(transaction.clone());
+                .push(tx_into_log(transaction.clone()));
         }
     }
+
+    fn add_upgrades(&mut self, upgrades: &[(ProtocolUpgrade, u64)]) {
+        for (upgrade, eth_block) in upgrades {
+            self.upgrades
+                .entry(*eth_block)
+                .or_insert_with(Vec::new)
+                .push(upgrade_into_log(upgrade.clone(), *eth_block));
+        }
+    }
+
     fn set_last_finalized_block_number(&mut self, number: u64) {
         self.last_finalized_block_number = number;
     }
@@ -58,6 +75,10 @@ impl FakeEthClient {
         self.inner.write().await.add_transactions(transactions);
     }
 
+    async fn add_upgrades(&mut self, upgrades: &[(ProtocolUpgrade, u64)]) {
+        self.inner.write().await.add_upgrades(upgrades);
+    }
+
     async fn set_last_finalized_block_number(&mut self, number: u64) {
         self.inner
             .write()
@@ -67,31 +88,42 @@ impl FakeEthClient {
 
     async fn block_to_number(&self, block: BlockNumber) -> u64 {
         match block {
-            BlockNumber::Latest => unreachable!(),
             BlockNumber::Earliest => 0,
-            BlockNumber::Pending => unreachable!(),
             BlockNumber::Number(number) => number.as_u64(),
+            BlockNumber::Pending
+            | BlockNumber::Latest
+            | BlockNumber::Finalized
+            | BlockNumber::Safe => unreachable!(),
         }
     }
 }
 
 #[async_trait::async_trait]
 impl EthClient for FakeEthClient {
-    async fn get_priority_op_events(
+    async fn get_events(
         &self,
         from: BlockNumber,
         to: BlockNumber,
         _retries_left: usize,
-    ) -> Result<Vec<L1Tx>, Error> {
+    ) -> Result<Vec<Log>, Error> {
         let from = self.block_to_number(from).await;
         let to = self.block_to_number(to).await;
-        let mut transactions = vec![];
+        let mut logs = vec![];
         for number in from..=to {
             if let Some(ops) = self.inner.read().await.transactions.get(&number) {
-                transactions.extend_from_slice(ops);
+                logs.extend_from_slice(ops);
+            }
+            if let Some(ops) = self.inner.read().await.upgrades.get(&number) {
+                logs.extend_from_slice(ops);
             }
         }
-        Ok(transactions)
+        Ok(logs)
+    }
+
+    fn set_topics(&mut self, _topics: Vec<Hash>) {}
+
+    async fn scheduler_vk_hash(&self, _verifier_address: Address) -> Result<H256, Error> {
+        Ok(H256::zero())
     }
 
     async fn finalized_block_number(&self) -> Result<u64, Error> {
@@ -99,7 +131,7 @@ impl EthClient for FakeEthClient {
     }
 }
 
-fn build_tx(serial_id: u64, eth_block: u64) -> L1Tx {
+fn build_l1_tx(serial_id: u64, eth_block: u64) -> L1Tx {
     L1Tx {
         execute: Execute {
             contract_address: Address::repeat_byte(0x11),
@@ -128,8 +160,34 @@ fn build_tx(serial_id: u64, eth_block: u64) -> L1Tx {
     }
 }
 
+fn build_upgrade_tx(id: ProtocolVersionId, eth_block: u64) -> ProtocolUpgradeTx {
+    ProtocolUpgradeTx {
+        execute: Execute {
+            contract_address: Address::repeat_byte(0x11),
+            calldata: vec![1, 2, 3],
+            factory_deps: None,
+            value: U256::zero(),
+        },
+        common_data: ProtocolUpgradeTxCommonData {
+            upgrade_id: id,
+            sender: [1u8; 20].into(),
+            eth_hash: [2; 32].into(),
+            eth_block,
+            gas_limit: Default::default(),
+            max_fee_per_gas: Default::default(),
+            gas_per_pubdata_limit: 1u32.into(),
+            refund_recipient: Address::zero(),
+            to_mint: Default::default(),
+            canonical_tx_hash: H256::from_low_u64_be(id as u64),
+        },
+        received_timestamp_ms: 0,
+    }
+}
+
 #[db_test]
-async fn test_normal_operation(connection_pool: ConnectionPool) {
+async fn test_normal_operation_l1_txs(connection_pool: ConnectionPool) {
+    setup_db(&connection_pool).await;
+
     let mut client = FakeEthClient::new();
     let mut watcher = EthWatch::new(
         client.clone(),
@@ -140,30 +198,136 @@ async fn test_normal_operation(connection_pool: ConnectionPool) {
 
     let mut storage = connection_pool.access_test_storage().await;
     client
-        .add_transactions(&[build_tx(0, 10), build_tx(1, 14), build_tx(2, 18)])
+        .add_transactions(&[build_l1_tx(0, 10), build_l1_tx(1, 14), build_l1_tx(2, 18)])
         .await;
     client.set_last_finalized_block_number(15).await;
     // second tx will not be processed, as it's block is not finalized yet.
     watcher.loop_iteration(&mut storage).await.unwrap();
     let db_txs = get_all_db_txs(&mut storage).await;
+    let mut db_txs: Vec<L1Tx> = db_txs
+        .into_iter()
+        .map(|tx| tx.try_into().unwrap())
+        .collect();
+    db_txs.sort_by_key(|tx| tx.common_data.serial_id);
     assert_eq!(db_txs.len(), 2);
-    let db_tx: L1Tx = db_txs[0].clone().try_into().unwrap();
+    let db_tx = db_txs[0].clone();
     assert_eq!(db_tx.common_data.serial_id.0, 0);
-    let db_tx: L1Tx = db_txs[1].clone().try_into().unwrap();
+    let db_tx = db_txs[1].clone();
     assert_eq!(db_tx.common_data.serial_id.0, 1);
 
     client.set_last_finalized_block_number(20).await;
     // now the second tx will be processed
     watcher.loop_iteration(&mut storage).await.unwrap();
     let db_txs = get_all_db_txs(&mut storage).await;
+    let mut db_txs: Vec<L1Tx> = db_txs
+        .into_iter()
+        .map(|tx| tx.try_into().unwrap())
+        .collect();
+    db_txs.sort_by_key(|tx| tx.common_data.serial_id);
     assert_eq!(db_txs.len(), 3);
-    let db_tx: L1Tx = db_txs[2].clone().try_into().unwrap();
+    let db_tx = db_txs[2].clone();
     assert_eq!(db_tx.common_data.serial_id.0, 2);
+}
+
+#[db_test]
+async fn test_normal_operation_upgrades(connection_pool: ConnectionPool) {
+    setup_db(&connection_pool).await;
+
+    let mut client = FakeEthClient::new();
+    let mut watcher = EthWatch::new(
+        client.clone(),
+        &connection_pool,
+        std::time::Duration::from_nanos(1),
+    )
+    .await;
+
+    let mut storage = connection_pool.access_test_storage().await;
+    client
+        .add_upgrades(&[
+            (
+                ProtocolUpgrade {
+                    id: ProtocolVersionId::latest(),
+                    tx: None,
+                    ..Default::default()
+                },
+                10,
+            ),
+            (
+                ProtocolUpgrade {
+                    id: ProtocolVersionId::next(),
+                    tx: Some(build_upgrade_tx(ProtocolVersionId::next(), 18)),
+                    ..Default::default()
+                },
+                18,
+            ),
+        ])
+        .await;
+    client.set_last_finalized_block_number(15).await;
+    // second upgrade will not be processed, as it has less than 5 confirmations
+    watcher.loop_iteration(&mut storage).await.unwrap();
+
+    let db_ids = storage.protocol_versions_dal().all_version_ids().await;
+    // there should be genesis version and just added version
+    assert_eq!(db_ids.len(), 2);
+    assert_eq!(db_ids[1], ProtocolVersionId::latest());
+
+    client.set_last_finalized_block_number(20).await;
+    // now the second upgrade will be processed
+    watcher.loop_iteration(&mut storage).await.unwrap();
+    let db_ids = storage.protocol_versions_dal().all_version_ids().await;
+    assert_eq!(db_ids.len(), 3);
+    assert_eq!(db_ids[2], ProtocolVersionId::next());
+
+    // check that tx was saved with the last upgrade
+    let tx = storage
+        .protocol_versions_dal()
+        .get_protocol_upgrade_tx(ProtocolVersionId::next())
+        .await
+        .unwrap();
+    assert_eq!(tx.common_data.upgrade_id, ProtocolVersionId::next());
+}
+
+#[db_test]
+async fn test_gap_in_upgrades(connection_pool: ConnectionPool) {
+    setup_db(&connection_pool).await;
+
+    let mut client = FakeEthClient::new();
+    let mut watcher = EthWatch::new(
+        client.clone(),
+        &connection_pool,
+        std::time::Duration::from_nanos(1),
+    )
+    .await;
+
+    let mut storage = connection_pool.access_test_storage().await;
+    client
+        .add_upgrades(&[(
+            ProtocolUpgrade {
+                id: ProtocolVersionId::next(),
+                tx: None,
+                ..Default::default()
+            },
+            10,
+        )])
+        .await;
+    client.set_last_finalized_block_number(15).await;
+    watcher.loop_iteration(&mut storage).await.unwrap();
+
+    let db_ids = storage.protocol_versions_dal().all_version_ids().await;
+    // there should be genesis version and just added version
+    assert_eq!(db_ids.len(), 2);
+
+    let previous_version = (ProtocolVersionId::latest() as u16 - 1).try_into().unwrap();
+    let next_version = ProtocolVersionId::next();
+    assert_eq!(db_ids[0], previous_version);
+    assert_eq!(db_ids[1], next_version);
 }
 
 #[db_test]
 #[should_panic]
 async fn test_gap_in_single_batch(connection_pool: ConnectionPool) {
+    setup_db(&connection_pool).await;
+
     let mut client = FakeEthClient::new();
     let mut watcher = EthWatch::new(
         client.clone(),
@@ -175,11 +339,11 @@ async fn test_gap_in_single_batch(connection_pool: ConnectionPool) {
     let mut storage = connection_pool.access_test_storage().await;
     client
         .add_transactions(&[
-            build_tx(0, 10),
-            build_tx(1, 14),
-            build_tx(2, 14),
-            build_tx(3, 14),
-            build_tx(5, 14),
+            build_l1_tx(0, 10),
+            build_l1_tx(1, 14),
+            build_l1_tx(2, 14),
+            build_l1_tx(3, 14),
+            build_l1_tx(5, 14),
         ])
         .await;
     client.set_last_finalized_block_number(15).await;
@@ -189,6 +353,8 @@ async fn test_gap_in_single_batch(connection_pool: ConnectionPool) {
 #[db_test]
 #[should_panic]
 async fn test_gap_between_batches(connection_pool: ConnectionPool) {
+    setup_db(&connection_pool).await;
+
     let mut client = FakeEthClient::new();
     let mut watcher = EthWatch::new(
         client.clone(),
@@ -201,12 +367,12 @@ async fn test_gap_between_batches(connection_pool: ConnectionPool) {
     client
         .add_transactions(&[
             // this goes to the first batch
-            build_tx(0, 10),
-            build_tx(1, 14),
-            build_tx(2, 14),
+            build_l1_tx(0, 10),
+            build_l1_tx(1, 14),
+            build_l1_tx(2, 14),
             // this goes to the second batch
-            build_tx(4, 20),
-            build_tx(5, 22),
+            build_l1_tx(4, 20),
+            build_l1_tx(5, 22),
         ])
         .await;
     client.set_last_finalized_block_number(15).await;
@@ -219,6 +385,8 @@ async fn test_gap_between_batches(connection_pool: ConnectionPool) {
 
 #[db_test]
 async fn test_overlapping_batches(connection_pool: ConnectionPool) {
+    setup_db(&connection_pool).await;
+
     let mut client = FakeEthClient::new();
     let mut watcher = EthWatch::new(
         client.clone(),
@@ -231,14 +399,14 @@ async fn test_overlapping_batches(connection_pool: ConnectionPool) {
     client
         .add_transactions(&[
             // this goes to the first batch
-            build_tx(0, 10),
-            build_tx(1, 14),
-            build_tx(2, 14),
+            build_l1_tx(0, 10),
+            build_l1_tx(1, 14),
+            build_l1_tx(2, 14),
             // this goes to the second batch
-            build_tx(1, 20),
-            build_tx(2, 22),
-            build_tx(3, 23),
-            build_tx(4, 23),
+            build_l1_tx(1, 20),
+            build_l1_tx(2, 22),
+            build_l1_tx(3, 23),
+            build_l1_tx(4, 23),
         ])
         .await;
     client.set_last_finalized_block_number(15).await;
@@ -249,9 +417,14 @@ async fn test_overlapping_batches(connection_pool: ConnectionPool) {
     watcher.loop_iteration(&mut storage).await.unwrap();
     let db_txs = get_all_db_txs(&mut storage).await;
     assert_eq!(db_txs.len(), 5);
-    let tx: L1Tx = db_txs[2].clone().try_into().unwrap();
+    let mut db_txs: Vec<L1Tx> = db_txs
+        .into_iter()
+        .map(|tx| tx.try_into().unwrap())
+        .collect();
+    db_txs.sort_by_key(|tx| tx.common_data.serial_id);
+    let tx = db_txs[2].clone();
     assert_eq!(tx.common_data.serial_id.0, 2);
-    let tx: L1Tx = db_txs[4].clone().try_into().unwrap();
+    let tx = db_txs[4].clone();
     assert_eq!(tx.common_data.serial_id.0, 4);
 }
 
@@ -262,4 +435,201 @@ async fn get_all_db_txs(storage: &mut StorageProcessor<'_>) -> Vec<Transaction> 
         .sync_mempool(vec![], vec![], 0, 0, 1000)
         .await
         .0
+}
+
+fn tx_into_log(tx: L1Tx) -> Log {
+    let eth_block = tx.eth_block().0.into();
+
+    let tx_data_token = Token::Tuple(vec![
+        Token::Uint(0xff.into()),
+        Token::Address(tx.common_data.sender),
+        Token::Address(tx.execute.contract_address),
+        Token::Uint(tx.common_data.gas_limit),
+        Token::Uint(tx.common_data.gas_per_pubdata_limit),
+        Token::Uint(tx.common_data.max_fee_per_gas),
+        Token::Uint(U256::zero()),
+        Token::Address(Address::zero()),
+        Token::Uint(tx.common_data.serial_id.0.into()),
+        Token::Uint(tx.execute.value),
+        Token::FixedArray(vec![
+            Token::Uint(U256::zero()),
+            Token::Uint(U256::zero()),
+            Token::Uint(U256::zero()),
+            Token::Uint(U256::zero()),
+        ]),
+        Token::Bytes(tx.execute.calldata),
+        Token::Bytes(Vec::new()),
+        Token::Array(Vec::new()),
+        Token::Bytes(Vec::new()),
+        Token::Bytes(Vec::new()),
+    ]);
+
+    let data = encode(&[
+        Token::Uint(tx.common_data.serial_id.0.into()),
+        Token::FixedBytes(H256::random().0.to_vec()),
+        Token::Uint(u64::MAX.into()),
+        tx_data_token,
+        Token::Array(Vec::new()),
+    ]);
+
+    Log {
+        address: Address::repeat_byte(0x1),
+        topics: vec![zksync_contract()
+            .event("NewPriorityRequest")
+            .expect("NewPriorityRequest event is missing in abi")
+            .signature()],
+        data: data.into(),
+        block_hash: Some(H256::repeat_byte(0x11)),
+        block_number: Some(eth_block),
+        transaction_hash: Some(H256::random()),
+        transaction_index: Some(0u64.into()),
+        log_index: Some(0u64.into()),
+        transaction_log_index: Some(0u64.into()),
+        log_type: None,
+        removed: None,
+    }
+}
+
+fn upgrade_into_log(upgrade: ProtocolUpgrade, eth_block: u64) -> Log {
+    let tx_data_token = if let Some(tx) = upgrade.tx {
+        Token::Tuple(vec![
+            Token::Uint(0xfe.into()),
+            Token::Address(tx.common_data.sender),
+            Token::Address(tx.execute.contract_address),
+            Token::Uint(tx.common_data.gas_limit),
+            Token::Uint(tx.common_data.gas_per_pubdata_limit),
+            Token::Uint(tx.common_data.max_fee_per_gas),
+            Token::Uint(U256::zero()),
+            Token::Address(Address::zero()),
+            Token::Uint((tx.common_data.upgrade_id as u16).into()),
+            Token::Uint(tx.execute.value),
+            Token::FixedArray(vec![
+                Token::Uint(U256::zero()),
+                Token::Uint(U256::zero()),
+                Token::Uint(U256::zero()),
+                Token::Uint(U256::zero()),
+            ]),
+            Token::Bytes(tx.execute.calldata),
+            Token::Bytes(Vec::new()),
+            Token::Array(Vec::new()),
+            Token::Bytes(Vec::new()),
+            Token::Bytes(Vec::new()),
+        ])
+    } else {
+        Token::Tuple(vec![
+            Token::Uint(0.into()),
+            Token::Address(Default::default()),
+            Token::Address(Default::default()),
+            Token::Uint(Default::default()),
+            Token::Uint(Default::default()),
+            Token::Uint(Default::default()),
+            Token::Uint(Default::default()),
+            Token::Address(Default::default()),
+            Token::Uint(Default::default()),
+            Token::Uint(Default::default()),
+            Token::FixedArray(vec![
+                Token::Uint(Default::default()),
+                Token::Uint(Default::default()),
+                Token::Uint(Default::default()),
+                Token::Uint(Default::default()),
+            ]),
+            Token::Bytes(Default::default()),
+            Token::Bytes(Default::default()),
+            Token::Array(Default::default()),
+            Token::Bytes(Default::default()),
+            Token::Bytes(Default::default()),
+        ])
+    };
+
+    let upgrade_token = Token::Tuple(vec![
+        tx_data_token,
+        Token::Array(Vec::new()),
+        Token::FixedBytes(
+            upgrade
+                .bootloader_code_hash
+                .unwrap_or_default()
+                .as_bytes()
+                .to_vec(),
+        ),
+        Token::FixedBytes(
+            upgrade
+                .default_account_code_hash
+                .unwrap_or_default()
+                .as_bytes()
+                .to_vec(),
+        ),
+        Token::Address(upgrade.verifier_address.unwrap_or_default()),
+        Token::Tuple(vec![
+            Token::FixedBytes(
+                upgrade
+                    .verifier_params
+                    .unwrap_or_default()
+                    .recursion_node_level_vk_hash
+                    .as_bytes()
+                    .to_vec(),
+            ),
+            Token::FixedBytes(
+                upgrade
+                    .verifier_params
+                    .unwrap_or_default()
+                    .recursion_leaf_level_vk_hash
+                    .as_bytes()
+                    .to_vec(),
+            ),
+            Token::FixedBytes(
+                upgrade
+                    .verifier_params
+                    .unwrap_or_default()
+                    .recursion_circuits_set_vks_hash
+                    .as_bytes()
+                    .to_vec(),
+            ),
+        ]),
+        Token::Bytes(Default::default()),
+        Token::Bytes(Default::default()),
+        Token::Uint(upgrade.timestamp.into()),
+        Token::Uint((upgrade.id as u16).into()),
+        Token::Address(Default::default()),
+    ]);
+
+    let final_token = Token::Tuple(vec![
+        Token::Array(vec![]),
+        Token::Address(Default::default()),
+        Token::Bytes(
+            vec![0u8; 4]
+                .into_iter()
+                .chain(encode(&[upgrade_token]))
+                .collect(),
+        ),
+    ]);
+
+    let data = encode(&[final_token, Token::FixedBytes(vec![0u8; 32])]);
+    Log {
+        address: Address::repeat_byte(0x1),
+        topics: vec![zksync_contract()
+            .event("ProposeTransparentUpgrade")
+            .expect("ProposeTransparentUpgrade event is missing in abi")
+            .signature()],
+        data: data.into(),
+        block_hash: Some(H256::repeat_byte(0x11)),
+        block_number: Some(eth_block.into()),
+        transaction_hash: Some(H256::random()),
+        transaction_index: Some(0u64.into()),
+        log_index: Some(0u64.into()),
+        transaction_log_index: Some(0u64.into()),
+        log_type: None,
+        removed: None,
+    }
+}
+
+async fn setup_db(connection_pool: &ConnectionPool) {
+    connection_pool
+        .access_test_storage()
+        .await
+        .protocol_versions_dal()
+        .save_protocol_version(ProtocolVersion {
+            id: (ProtocolVersionId::latest() as u16 - 1).try_into().unwrap(),
+            ..Default::default()
+        })
+        .await;
 }

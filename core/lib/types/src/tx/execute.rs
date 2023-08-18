@@ -27,7 +27,7 @@ impl EIP712TypedStructure for Execute {
     fn build_structure<BUILDER: StructBuilder>(&self, builder: &mut BUILDER) {
         builder.add_member("to", &U256::from(self.contract_address.as_bytes()));
         builder.add_member("value", &self.value);
-        builder.add_member("data", &self.calldata().as_slice());
+        builder.add_member("data", &self.calldata.as_slice());
         // Factory deps are not included into the transaction signature, since they are parsed from the
         // transaction metadata.
         // Note that for the deploy transactions all the dependencies are implicitly included into the "calldataHash"
@@ -36,8 +36,8 @@ impl EIP712TypedStructure for Execute {
 }
 
 impl Execute {
-    pub fn calldata(&self) -> Vec<u8> {
-        self.calldata.clone()
+    pub fn calldata(&self) -> &[u8] {
+        &self.calldata
     }
 
     /// Prepares calldata to invoke deployer contract.

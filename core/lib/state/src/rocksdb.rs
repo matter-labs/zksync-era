@@ -78,7 +78,7 @@ impl RocksdbStorage {
     /// in Postgres.
     pub async fn update_from_postgres(&mut self, conn: &mut StorageProcessor<'_>) {
         let stage_started_at: Instant = Instant::now();
-        let latest_l1_batch_number = conn.blocks_dal().get_sealed_block_number().await;
+        let latest_l1_batch_number = conn.blocks_dal().get_sealed_l1_batch_number().await;
         vlog::debug!(
             "loading storage for l1 batch number {}",
             latest_l1_batch_number.0

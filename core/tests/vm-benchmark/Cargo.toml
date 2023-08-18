@@ -32,3 +32,7 @@ path = "src/iai_results_to_prometheus.rs"
 [[bin]]
 name = "compare_iai_results"
 path = "src/compare_iai_results.rs"
+
+[[bin]]
+name = "find-slowest"
+path = "src/find_slowest.rs"

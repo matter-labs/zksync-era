@@ -1,0 +1,32 @@
+[package]
+name = "setup_key_generator_and_server"
+version = "1.0.0"
+edition = "2018"
+authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
+homepage = "https://zksync.io/"
+repository = "https://github.com/matter-labs/zksync-era"
+license = "MIT OR Apache-2.0"
+keywords = ["blockchain", "zksync"]
+categories = ["cryptography"]
+
+[lib]
+name = "zksync_setup_key_server"
+path = "src/lib.rs"
+
+[[bin]]
+name = "zksync_setup_key_generator"
+path = "src/main.rs"
+
+[dependencies]
+zksync_types = {path = "../../core/lib/types", version = "1.0" }
+vlog = { path = "../../core/lib/vlog", version = "1.0" }
+zksync_config = { path = "../../core/lib/config", version = "1.0" }
+
+circuit_testing = {git = "https://github.com/matter-labs/era-circuit_testing.git", branch = "main"}
+api = { git = "https://github.com/matter-labs/era-heavy-ops-service.git", branch = "v1.3.3", features=["gpu"], default-features=false}
+prover-service = { git = "https://github.com/matter-labs/era-heavy-ops-service.git", branch = "v1.3.3", features=["gpu"], default-features=false}
+zkevm_test_harness = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.3.3"}
+
+
+structopt = "0.3.26"
+itertools = "0.10.5"

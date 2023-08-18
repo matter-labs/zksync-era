@@ -13,7 +13,9 @@ const IMAGES = [
     'zk-environment',
     'circuit-synthesizer',
     'witness-generator',
-    'prover-fri'
+    'prover-fri',
+    'prover-gpu-fri',
+    'witness-vector-generator'
 ];
 const UNIX_TIMESTAMP = Date.now();
 
@@ -65,7 +67,9 @@ function defaultTagList(image: string, imageTagSha: string, imageTagShaTS: strin
         'prover-v2',
         'circuit-synthesizer',
         'witness-generator',
-        'prover-fri'
+        'prover-fri',
+        'prover-gpu-fri',
+        'witness-vector-generator'
     ].includes(image)
         ? ['latest2.0', `2.0-${imageTagSha}`, `2.0-${imageTagShaTS}`]
         : [`latest2.0`];

@@ -1,6 +1,7 @@
 //! Testing harness for the batch executor.
 //! Contains helper functionality to initialize test context and perform tests without too much boilerplate.
 
+use multivm::VmVersion;
 use tempfile::TempDir;
 
 use vm::{
@@ -24,14 +25,15 @@ use zksync_types::{
     fee::Fee,
     l1::{L1Tx, OpProcessingType, PriorityQueueType},
     l2::L2Tx,
+    system_contracts::get_system_smart_contracts,
     utils::storage_key_for_standard_token_balance,
     AccountTreeId, Address, Execute, L1BatchNumber, L1TxCommonData, L2ChainId, MiniblockNumber,
-    Nonce, PackedEthSignature, PriorityOpId, StorageLog, Transaction, H256, L2_ETH_TOKEN_ADDRESS,
-    SYSTEM_CONTEXT_MINIMAL_BASE_FEE, U256,
+    Nonce, PackedEthSignature, PriorityOpId, ProtocolVersionId, StorageLog, Transaction, H256,
+    L2_ETH_TOKEN_ADDRESS, SYSTEM_CONTEXT_MINIMAL_BASE_FEE, U256,
 };
 use zksync_utils::{test_utils::LoadnextContractExecutionParams, u256_to_h256};
 
-use crate::genesis::create_genesis_block;
+use crate::genesis::create_genesis_l1_batch;
 use crate::state_keeper::{
     batch_executor::BatchExecutorHandle,
     io::L1BatchParams,
@@ -107,6 +109,7 @@ impl Tester {
         // We don't use the builder because it would require us to clone the `ConnectionPool`, which is forbidden
         // for the test pool (see the doc-comment on `TestPool` for details).
         BatchExecutorHandle::new(
+            VmVersion::latest(),
             self.config.save_call_traces,
             self.config.max_allowed_tx_gas_limit.into(),
             self.config.validation_computational_gas_limit,
@@ -115,6 +118,7 @@ impl Tester {
                 context_mode: block_context,
                 properties: block_properties,
                 base_system_contracts: BASE_SYSTEM_CONTRACTS.clone(),
+                protocol_version: ProtocolVersionId::latest(),
             },
             self.config.vm_gas_limit,
         )
@@ -151,11 +155,14 @@ impl Tester {
     pub(super) async fn genesis(&self) {
         let mut storage = self.pool.access_storage_tagged("state_keeper").await;
         if storage.blocks_dal().is_genesis_needed().await {
-            create_genesis_block(
+            create_genesis_l1_batch(
                 &mut storage,
                 self.fee_account,
                 CHAIN_ID,
-                BASE_SYSTEM_CONTRACTS.clone(),
+                &BASE_SYSTEM_CONTRACTS,
+                &get_system_smart_contracts(),
+                Default::default(),
+                Default::default(),
             )
             .await;
         }

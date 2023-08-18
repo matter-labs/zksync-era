@@ -14,7 +14,6 @@ use num::{rational::Ratio, BigUint};
 use tokio::sync::watch;
 
 pub mod coingecko;
-// pub mod coinmarketcap;
 pub mod mock;
 
 #[async_trait]

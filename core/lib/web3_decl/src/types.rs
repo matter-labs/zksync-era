@@ -20,8 +20,8 @@ pub use zksync_types::{
     web3::{
         ethabi,
         types::{
-            Address, BlockHeader, Bytes, CallRequest, Index, SyncState, TraceFilter, Transaction,
-            Work, H160, H256, H64, U256, U64,
+            Address, BlockHeader, Bytes, CallRequest, FeeHistory, Index, SyncState, TraceFilter,
+            Transaction, Work, H160, H256, H64, U256, U64,
         },
     },
 };

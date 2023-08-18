@@ -1,25 +1,23 @@
-use itertools::Itertools;
-use std::convert::TryFrom;
-use std::fmt::{Debug, Display};
+use std::fmt::Debug;
 
 use tokio::time::Instant;
 
+use zksync_contracts::verifier_contract;
 use zksync_eth_client::{types::Error as EthClientError, EthInterface};
-use zksync_types::ethabi::{Contract, Hash};
 
-use zksync_contracts::zksync_contract;
 use zksync_types::{
-    l1::L1Tx,
+    ethabi::{Contract, Token},
+    vk_transform::l1_vk_commitment,
     web3::{
         self,
         types::{BlockNumber, FilterBuilder, Log},
     },
-    H160,
+    Address, H256,
 };
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    #[error("Log parsing filed: {0}")]
+    #[error("Log parsing failed: {0}")]
     LogParse(String),
     #[error("Eth client error: {0}")]
     EthClient(#[from] EthClientError),
@@ -27,31 +25,21 @@ pub enum Error {
     InfiniteRecursion,
 }
 
-#[derive(Debug)]
-struct ContractTopics {
-    new_priority_request: Hash,
-}
-
-impl ContractTopics {
-    fn new(zksync_contract: &Contract) -> Self {
-        Self {
-            new_priority_request: zksync_contract
-                .event("NewPriorityRequest")
-                .expect("main contract abi error")
-                .signature(),
-        }
-    }
-}
-
 #[async_trait::async_trait]
 pub trait EthClient {
-    async fn get_priority_op_events(
+    /// Returns events in a given block range.
+    async fn get_events(
         &self,
         from: BlockNumber,
         to: BlockNumber,
         retries_left: usize,
-    ) -> Result<Vec<L1Tx>, Error>;
+    ) -> Result<Vec<Log>, Error>;
+    /// Returns finalized L1 block number.
     async fn finalized_block_number(&self) -> Result<u64, Error>;
+    /// Returns scheduler verification key hash by verifier address.
+    async fn scheduler_vk_hash(&self, verifier_address: Address) -> Result<H256, Error>;
+    /// Sets list of topics to return events for.
+    fn set_topics(&mut self, topics: Vec<H256>);
 }
 
 pub const RETRY_LIMIT: usize = 5;
@@ -61,37 +49,34 @@ const TOO_MANY_RESULTS_ALCHEMY: &str = "response size exceeded";
 #[derive(Debug)]
 pub struct EthHttpQueryClient<E> {
     client: E,
-    topics: ContractTopics,
-    zksync_contract_addr: H160,
+    topics: Vec<H256>,
+    zksync_contract_addr: Address,
+    verifier_contract_abi: Contract,
     confirmations_for_eth_event: Option<u64>,
 }
 
 impl<E: EthInterface> EthHttpQueryClient<E> {
     pub fn new(
         client: E,
-        zksync_contract_addr: H160,
+        zksync_contract_addr: Address,
         confirmations_for_eth_event: Option<u64>,
     ) -> Self {
         vlog::debug!("New eth client, contract addr: {:x}", zksync_contract_addr);
-        let topics = ContractTopics::new(&zksync_contract());
         Self {
             client,
-            topics,
+            topics: Vec::new(),
             zksync_contract_addr,
+            verifier_contract_abi: verifier_contract(),
             confirmations_for_eth_event,
         }
     }
 
-    async fn get_filter_logs<T>(
+    async fn get_filter_logs(
         &self,
         from: BlockNumber,
         to: BlockNumber,
-        topics: Vec<Hash>,
-    ) -> Result<Vec<T>, Error>
-    where
-        T: TryFrom<Log>,
-        T::Error: Debug + Display,
-    {
+        topics: Vec<H256>,
+    ) -> Result<Vec<Log>, Error> {
         let filter = FilterBuilder::default()
             .address(vec![self.zksync_contract_addr])
             .from_block(from)
@@ -99,28 +84,37 @@ impl<E: EthInterface> EthHttpQueryClient<E> {
             .topics(Some(topics), None, None, None)
             .build();
 
-        self.client
-            .logs(filter, "watch")
-            .await?
-            .into_iter()
-            .map(|log| T::try_from(log).map_err(|err| Error::LogParse(format!("{}", err))))
-            .collect()
+        self.client.logs(filter, "watch").await.map_err(Into::into)
     }
 }
 
 #[async_trait::async_trait]
 impl<E: EthInterface + Send + Sync + 'static> EthClient for EthHttpQueryClient<E> {
-    async fn get_priority_op_events(
+    async fn scheduler_vk_hash(&self, verifier_address: Address) -> Result<H256, Error> {
+        let vk_token: Token = self
+            .client
+            .call_contract_function(
+                "get_verification_key",
+                (),
+                None,
+                Default::default(),
+                None,
+                verifier_address,
+                self.verifier_contract_abi.clone(),
+            )
+            .await?;
+        Ok(l1_vk_commitment(vk_token))
+    }
+
+    async fn get_events(
         &self,
         from: BlockNumber,
         to: BlockNumber,
         retries_left: usize,
-    ) -> Result<Vec<L1Tx>, Error> {
+    ) -> Result<Vec<Log>, Error> {
         let start = Instant::now();
 
-        let mut result = self
-            .get_filter_logs(from, to, vec![self.topics.new_priority_request])
-            .await;
+        let mut result = self.get_filter_logs(from, to, self.topics.clone()).await;
 
         // This code is compatible with both Infura and Alchemy API providers.
         // Note: we don't handle rate-limits here - assumption is that we're never going to hit them.
@@ -136,8 +130,8 @@ impl<E: EthInterface + Send + Sync + 'static> EthClient for EthHttpQueryClient<E
             let should_retry = |err_code, err_message: String| {
                 // All of these can be emitted by either API provider.
                 err_code == Some(-32603)             // Internal error
-                || err_message.contains("failed")    // Server error
-                || err_message.contains("timed out") // Time-out error
+                    || err_message.contains("failed")    // Server error
+                    || err_message.contains("timed out") // Time-out error
             };
 
             // check whether the error is related to having too many results
@@ -175,29 +169,22 @@ impl<E: EthInterface + Send + Sync + 'static> EthClient for EthHttpQueryClient<E
                     to
                 );
                 let mut first_half = self
-                    .get_priority_op_events(from, BlockNumber::Number(mid), RETRY_LIMIT)
+                    .get_events(from, BlockNumber::Number(mid), RETRY_LIMIT)
                     .await?;
                 let mut second_half = self
-                    .get_priority_op_events(BlockNumber::Number(mid + 1u64), to, RETRY_LIMIT)
+                    .get_events(BlockNumber::Number(mid + 1u64), to, RETRY_LIMIT)
                     .await?;
 
                 first_half.append(&mut second_half);
                 result = Ok(first_half);
             } else if should_retry(err_code, err_message) && retries_left > 0 {
                 vlog::warn!("Retrying. Retries left: {:?}", retries_left);
-                result = self
-                    .get_priority_op_events(from, to, retries_left - 1)
-                    .await;
+                result = self.get_events(from, to, retries_left - 1).await;
             }
         }
 
-        let events: Vec<L1Tx> = result?
-            .into_iter()
-            .sorted_by_key(|event| event.serial_id())
-            .collect();
-
         metrics::histogram!("eth_watcher.get_priority_op_events", start.elapsed());
-        Ok(events)
+        result
     }
 
     async fn finalized_block_number(&self) -> Result<u64, Error> {
@@ -216,5 +203,9 @@ impl<E: EthInterface + Send + Sync + 'static> EthClient for EthHttpQueryClient<E
                         .as_u64()
                 })
         }
+    }
+
+    fn set_topics(&mut self, topics: Vec<H256>) {
+        self.topics = topics;
     }
 }

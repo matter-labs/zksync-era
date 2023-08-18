@@ -1,0 +1,32 @@
+[package]
+name = "zksync_circuit_synthesizer"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "zksync_circuit_synthesizer"
+path = "src/main.rs"
+
+[dependencies]
+zksync_dal = { path = "../../core/lib/dal", version = "1.0" }
+zksync_types = { path = "../../core/lib/types", version = "1.0" }
+zksync_queued_job_processor = { path = "../../core/lib/queued_job_processor", version = "1.0" }
+zksync_config = { path = "../../core/lib/config", version = "1.0" }
+zksync_object_store = { path = "../../core/lib/object_store", version = "1.0" }
+zksync_utils = { path = "../../core/lib/utils", version = "1.0" }
+zksync_prover_fri_utils = { path = "../prover_fri_utils", version = "1.0" }
+vlog = { path = "../../core/lib/vlog", version = "1.0" }
+prometheus_exporter = { path = "../../core/lib/prometheus_exporter", version = "1.0" }
+zksync_prover_utils = { path = "../../core/lib/prover_utils", version = "1.0" }
+zksync_verification_key_generator_and_server = { path = "../../core/bin/verification_key_generator_and_server", version = "1.0" }
+
+zkevm_test_harness = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.3.3"}
+
+prover-service = { git = "https://github.com/matter-labs/era-heavy-ops-service.git", branch = "v1.3.2", features=["legacy"], default-features=false}
+
+structopt = "0.3.26"
+tokio = { version = "1.23.0", features = ["full"] }
+futures = "0.3"
+ctrlc = { version = "3.1", features = ["termination"] }
+local-ip-address = "0.5.0"
+metrics = "0.20"

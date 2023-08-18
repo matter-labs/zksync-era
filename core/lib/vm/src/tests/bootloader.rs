@@ -2,7 +2,6 @@
 //! Tests for the bootloader
 //! The description for each of the tests can be found in the corresponding `.yul` file.
 //!
-use ethabi::Contract;
 use itertools::Itertools;
 use std::{
     collections::{HashMap, HashSet},
@@ -15,8 +14,12 @@ use crate::{
     history_recorder::HistoryMode,
     oracles::tracer::{StorageInvocationTracer, TransactionResultTracer},
     test_utils::{
-        get_create_execute, get_create_zksync_address, get_deploy_tx, get_error_tx,
-        mock_loadnext_test_call,
+        get_create_zksync_address, get_deploy_tx, get_error_tx, mock_loadnext_test_call,
+        verify_required_storage,
+    },
+    tests::utils::{
+        get_l1_deploy_tx, get_l1_execute_test_contract_tx_with_sender, read_error_contract,
+        read_long_return_data_contract, read_test_contract,
     },
     transaction_data::TransactionData,
     utils::{
@@ -38,10 +41,6 @@ use crate::{
 use zk_evm::{
     aux_structures::Timestamp, block_properties::BlockProperties, zkevm_opcode_defs::FarCallOpcode,
 };
-use zksync_contracts::{
-    get_loadnext_contract, load_contract, read_bytecode, SystemContractCode,
-    PLAYGROUND_BLOCK_BOOTLOADER_CODE,
-};
 use zksync_state::{InMemoryStorage, ReadStorage, StoragePtr, StorageView, WriteStorage};
 use zksync_types::{
     block::DeployedContract,
@@ -61,9 +60,9 @@ use zksync_types::{
     },
     vm_trace::{Call, CallType},
     AccountTreeId, Address, Eip712Domain, Execute, ExecuteTransactionCommon, L1TxCommonData,
-    L2ChainId, Nonce, PackedEthSignature, StorageKey, Transaction, BOOTLOADER_ADDRESS, H160, H256,
-    L1_MESSENGER_ADDRESS, L2_ETH_TOKEN_ADDRESS, MAX_GAS_PER_PUBDATA_BYTE, SYSTEM_CONTEXT_ADDRESS,
-    U256,
+    L2ChainId, Nonce, PackedEthSignature, Transaction, BOOTLOADER_ADDRESS, H160, H256,
+    L1_MESSENGER_ADDRESS, L2_ETH_TOKEN_ADDRESS, MAX_GAS_PER_PUBDATA_BYTE,
+    REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, SYSTEM_CONTEXT_ADDRESS, U256,
 };
 use zksync_utils::{
     bytecode::CompressedBytecodeInfo,
@@ -71,6 +70,11 @@ use zksync_utils::{
     {bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256, u256_to_h256},
 };
 
+use zksync_contracts::{
+    get_loadnext_contract, load_contract, SystemContractCode, PLAYGROUND_BLOCK_BOOTLOADER_CODE,
+};
+
+use super::utils::{read_many_owners_custom_account_contract, read_nonce_holder_tester};
 /// Helper struct for tests, that takes care of setting the database and provides some functions to get and set balances.
 /// Example use:
 ///```ignore
@@ -316,21 +320,6 @@ fn test_bootloader_out_of_gas() {
     let res = vm.execute_block_tip();
 
     assert_eq!(res.revert_reason, Some(TxRevertReason::BootloaderOutOfGas));
-}
-
-fn verify_required_storage<H: HistoryMode>(
-    state: &ZkSyncVmState<'_, H>,
-    required_values: Vec<(H256, StorageKey)>,
-) {
-    for (required_value, key) in required_values {
-        let current_value = state.storage.storage.read_from_storage(&key);
-
-        assert_eq!(
-            u256_to_h256(current_value),
-            required_value,
-            "Invalid value at key {key:?}"
-        );
-    }
 }
 
 fn verify_required_memory<H: HistoryMode>(
@@ -1674,8 +1663,6 @@ pub fn get_l1_tx_with_custom_bytecode_hash(
     (bytes_to_be_words(tx_bytes), predefined_overhead)
 }
 
-const L1_TEST_GAS_PER_PUBDATA_BYTE: u32 = 800;
-
 pub fn get_l1_execute_test_contract_tx(deployed_address: Address, with_panic: bool) -> Transaction {
     let sender = H160::random();
     get_l1_execute_test_contract_tx_with_sender(
@@ -1702,7 +1689,7 @@ pub fn get_l1_tx_with_large_output(sender: Address, deployed_address: Address) -
         common_data: ExecuteTransactionCommon::L1(L1TxCommonData {
             sender,
             gas_limit: U256::from(100000000u32),
-            gas_per_pubdata_limit: L1_TEST_GAS_PER_PUBDATA_BYTE.into(),
+            gas_per_pubdata_limit: REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE.into(),
             ..Default::default()
         }),
         execute: Execute {
@@ -1712,96 +1699,6 @@ pub fn get_l1_tx_with_large_output(sender: Address, deployed_address: Address) -
             factory_deps: None,
         },
         received_timestamp_ms: 0,
-    }
-}
-
-pub fn get_l1_execute_test_contract_tx_with_sender(
-    sender: Address,
-    deployed_address: Address,
-    with_panic: bool,
-    value: U256,
-    payable: bool,
-) -> Transaction {
-    let execute = execute_test_contract(deployed_address, with_panic, value, payable);
-
-    Transaction {
-        common_data: ExecuteTransactionCommon::L1(L1TxCommonData {
-            sender,
-            gas_limit: U256::from(200_000_000u32),
-            gas_per_pubdata_limit: L1_TEST_GAS_PER_PUBDATA_BYTE.into(),
-            to_mint: value,
-            ..Default::default()
-        }),
-        execute,
-        received_timestamp_ms: 0,
-    }
-}
-
-pub fn get_l1_deploy_tx(code: &[u8], calldata: &[u8]) -> Transaction {
-    let execute = get_create_execute(code, calldata);
-
-    Transaction {
-        common_data: ExecuteTransactionCommon::L1(L1TxCommonData {
-            sender: H160::random(),
-            gas_limit: U256::from(2000000u32),
-            gas_per_pubdata_limit: L1_TEST_GAS_PER_PUBDATA_BYTE.into(),
-            ..Default::default()
-        }),
-        execute,
-        received_timestamp_ms: 0,
-    }
-}
-
-fn read_test_contract() -> Vec<u8> {
-    read_bytecode("etc/contracts-test-data/artifacts-zk/contracts/counter/counter.sol/Counter.json")
-}
-
-fn read_long_return_data_contract() -> Vec<u8> {
-    read_bytecode("etc/contracts-test-data/artifacts-zk/contracts/long-return-data/long-return-data.sol/LongReturnData.json")
-}
-
-fn read_nonce_holder_tester() -> Vec<u8> {
-    read_bytecode("etc/contracts-test-data/artifacts-zk/contracts/custom-account/nonce-holder-test.sol/NonceHolderTest.json")
-}
-
-fn read_error_contract() -> Vec<u8> {
-    read_bytecode(
-        "etc/contracts-test-data/artifacts-zk/contracts/error/error.sol/SimpleRequire.json",
-    )
-}
-
-fn read_many_owners_custom_account_contract() -> (Vec<u8>, Contract) {
-    let path = "etc/contracts-test-data/artifacts-zk/contracts/custom-account/many-owners-custom-account.sol/ManyOwnersCustomAccount.json";
-    (read_bytecode(path), load_contract(path))
-}
-
-fn execute_test_contract(
-    address: Address,
-    with_panic: bool,
-    value: U256,
-    payable: bool,
-) -> Execute {
-    let test_contract = load_contract(
-        "etc/contracts-test-data/artifacts-zk/contracts/counter/counter.sol/Counter.json",
-    );
-
-    let function = if payable {
-        test_contract
-            .function("incrementWithRevertPayable")
-            .unwrap()
-    } else {
-        test_contract.function("incrementWithRevert").unwrap()
-    };
-
-    let calldata = function
-        .encode_input(&[Token::Uint(U256::from(1u8)), Token::Bool(with_panic)])
-        .expect("failed to encode parameters");
-
-    Execute {
-        contract_address: address,
-        calldata,
-        value,
-        factory_deps: None,
     }
 }
 
@@ -2143,9 +2040,9 @@ async fn test_require_eip712() {
         };
         let txn = pk_signer.sign_transaction(raw_tx).await.unwrap();
 
-        let (txn_request, hash) = TransactionRequest::from_bytes(&txn, chain_id, 100000).unwrap();
+        let (txn_request, hash) = TransactionRequest::from_bytes(&txn, chain_id).unwrap();
 
-        let mut l2_tx: L2Tx = txn_request.try_into().unwrap();
+        let mut l2_tx: L2Tx = L2Tx::from_request(txn_request, 100000).unwrap();
         l2_tx.set_input(txn, hash);
         let transaction: Transaction = l2_tx.try_into().unwrap();
         let transaction_data: TransactionData = transaction.try_into().unwrap();
@@ -2174,10 +2071,9 @@ async fn test_require_eip712() {
 
         let aa_txn = pk_signer.sign_transaction(aa_raw_tx).await.unwrap();
 
-        let (aa_txn_request, aa_hash) =
-            TransactionRequest::from_bytes(&aa_txn, 270, 100000).unwrap();
+        let (aa_txn_request, aa_hash) = TransactionRequest::from_bytes(&aa_txn, 270).unwrap();
 
-        let mut l2_tx: L2Tx = aa_txn_request.try_into().unwrap();
+        let mut l2_tx: L2Tx = L2Tx::from_request(aa_txn_request, 100000).unwrap();
         l2_tx.set_input(aa_txn, aa_hash);
         // Pretend that operator is malicious and sets the initiator to the AA account.
         l2_tx.common_data.initiator_address = account_address;
@@ -2226,9 +2122,9 @@ async fn test_require_eip712() {
         let encoded_tx = transaction_request.get_signed_bytes(&signature, L2ChainId(chain_id));
 
         let (aa_txn_request, aa_hash) =
-            TransactionRequest::from_bytes(&encoded_tx, chain_id, 100000).unwrap();
+            TransactionRequest::from_bytes(&encoded_tx, chain_id).unwrap();
 
-        let mut l2_tx: L2Tx = aa_txn_request.try_into().unwrap();
+        let mut l2_tx: L2Tx = L2Tx::from_request(aa_txn_request, 100000).unwrap();
         l2_tx.set_input(encoded_tx, aa_hash);
 
         let transaction: Transaction = l2_tx.try_into().unwrap();

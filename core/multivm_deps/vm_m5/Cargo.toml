@@ -1,0 +1,35 @@
+[package]
+name = "vm_m5"
+version = "0.1.0"
+edition = "2018"
+authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
+homepage = "https://zksync.io/"
+repository = "https://github.com/matter-labs/zksync-era"
+license = "Apache-2.0"
+keywords = ["blockchain", "zksync"]
+categories = ["cryptography"]
+
+[dependencies]
+zksync_crypto = { path = "../../lib/crypto", version = "1.0" }
+zksync_types = { path = "../../lib/types", version = "1.0" }
+zksync_utils = { path = "../../lib/utils", version = "1.0" }
+zksync_config = { path = "../../lib/config", version = "1.0" }
+zksync_state = { path = "../../lib/state", version = "1.0" }
+zksync_storage = { path = "../../lib/storage", version = "1.0" }
+
+zk_evm = { git = "https://github.com/matter-labs/era-zk_evm.git", branch = "v1.3.1" }
+zksync_contracts = { path = "../../lib/contracts" }
+
+hex = "0.4"
+thiserror = "1.0"
+itertools = "0.10"
+once_cell = "1.7"
+vlog = { path = "../../lib/vlog", version = "1.0" }
+metrics = "0.20"
+
+tracing = "0.1"
+
+[dev-dependencies]
+tempfile = "3.0.2"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"

@@ -37,7 +37,6 @@ async fn update_compiler_versions(connection_pool: &ConnectionPool) {
         })
         .collect();
     transaction
-        .explorer()
         .contract_verification_dal()
         .set_zksolc_versions(zksolc_versions)
         .await
@@ -59,7 +58,6 @@ async fn update_compiler_versions(connection_pool: &ConnectionPool) {
         })
         .collect();
     transaction
-        .explorer()
         .contract_verification_dal()
         .set_solc_versions(solc_versions)
         .await
@@ -81,7 +79,6 @@ async fn update_compiler_versions(connection_pool: &ConnectionPool) {
         })
         .collect();
     transaction
-        .explorer()
         .contract_verification_dal()
         .set_zkvyper_versions(zkvyper_versions)
         .await
@@ -104,7 +101,6 @@ async fn update_compiler_versions(connection_pool: &ConnectionPool) {
         .collect();
 
     transaction
-        .explorer()
         .contract_verification_dal()
         .set_vyper_versions(vyper_versions)
         .await
@@ -133,7 +129,7 @@ async fn main() {
         listener_port: verifier_config.prometheus_port,
         ..ApiConfig::from_env().prometheus
     };
-    let pool = ConnectionPool::new(Some(1), DbVariant::Master).await;
+    let pool = ConnectionPool::singleton(DbVariant::Master).build().await;
 
     vlog::init();
     let sentry_guard = vlog::init_sentry();
@@ -160,8 +156,6 @@ async fn main() {
 
     let contract_verifier = ContractVerifier::new(verifier_config, pool);
     let tasks = vec![
-        // The prover connection pool is not used by the contract verifier, but we need to pass it
-        // since `JobProcessor` trait requires it.
         tokio::spawn(contract_verifier.run(stop_receiver, opt.jobs_number)),
         prometheus_exporter::run_prometheus_exporter(prometheus_config.listener_port, None),
     ];

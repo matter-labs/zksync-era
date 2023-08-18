@@ -26,6 +26,11 @@ pub struct ContractsConfig {
     pub l2_weth_bridge_addr: Option<Address>,
     pub l1_allow_list_addr: Address,
     pub l2_testnet_paymaster_addr: Option<Address>,
+    pub recursion_scheduler_level_vk_hash: H256,
+    pub recursion_node_level_vk_hash: H256,
+    pub recursion_leaf_level_vk_hash: H256,
+    pub recursion_circuits_set_vks_hash: H256,
+    pub l1_multicall3_addr: Address,
 }
 
 impl ContractsConfig {
@@ -37,7 +42,9 @@ impl ContractsConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::configs::test_utils::{addr, hash, set_env};
+    use crate::configs::test_utils::{addr, hash, EnvMutex};
+
+    static MUTEX: EnvMutex = EnvMutex::new();
 
     fn expected_config() -> ContractsConfig {
         ContractsConfig {
@@ -61,11 +68,25 @@ mod tests {
             l1_weth_bridge_proxy_addr: Some(addr("8656770FA78c830456B00B4fFCeE6b1De0e1b888")),
             l2_weth_bridge_addr: Some(addr("8656770FA78c830456B00B4fFCeE6b1De0e1b888")),
             l2_testnet_paymaster_addr: Some(addr("FC073319977e314F251EAE6ae6bE76B0B3BAeeCF")),
+            recursion_scheduler_level_vk_hash: hash(
+                "0x1186ec268d49f1905f8d9c1e9d39fc33e98c74f91d91a21b8f7ef78bd09a8db8",
+            ),
+            recursion_node_level_vk_hash: hash(
+                "0x1186ec268d49f1905f8d9c1e9d39fc33e98c74f91d91a21b8f7ef78bd09a8db8",
+            ),
+            recursion_leaf_level_vk_hash: hash(
+                "0x101e08b00193e529145ee09823378ef51a3bc8966504064f1f6ba3f1ba863210",
+            ),
+            recursion_circuits_set_vks_hash: hash(
+                "0x142a364ef2073132eaf07aa7f3d8495065be5b92a2dc14fda09b4216affed9c0",
+            ),
+            l1_multicall3_addr: addr("0xcA11bde05977b3631167028862bE2a173976CA11"),
         }
     }
 
     #[test]
     fn from_env() {
+        let mut lock = MUTEX.lock();
         let config = r#"
 CONTRACTS_MAILBOX_FACET_ADDR="0x0f6Fa881EF414Fc6E818180657c2d5CD7Ac6cCAd"
 CONTRACTS_EXECUTOR_FACET_ADDR="0x18B631537801963A964211C0E86645c1aBfbB2d3"
@@ -85,8 +106,13 @@ CONTRACTS_L2_ERC20_BRIDGE_ADDR="0x8656770FA78c830456B00B4fFCeE6b1De0e1b888"
 CONTRACTS_L1_WETH_BRIDGE_PROXY_ADDR="0x8656770FA78c830456B00B4fFCeE6b1De0e1b888"
 CONTRACTS_L2_WETH_BRIDGE_ADDR="0x8656770FA78c830456B00B4fFCeE6b1De0e1b888"
 CONTRACTS_L2_TESTNET_PAYMASTER_ADDR="FC073319977e314F251EAE6ae6bE76B0B3BAeeCF"
+CONTRACTS_RECURSION_SCHEDULER_LEVEL_VK_HASH="0x1186ec268d49f1905f8d9c1e9d39fc33e98c74f91d91a21b8f7ef78bd09a8db8"
+CONTRACTS_RECURSION_NODE_LEVEL_VK_HASH="0x1186ec268d49f1905f8d9c1e9d39fc33e98c74f91d91a21b8f7ef78bd09a8db8"
+CONTRACTS_RECURSION_LEAF_LEVEL_VK_HASH="0x101e08b00193e529145ee09823378ef51a3bc8966504064f1f6ba3f1ba863210"
+CONTRACTS_RECURSION_CIRCUITS_SET_VKS_HASH="0x142a364ef2073132eaf07aa7f3d8495065be5b92a2dc14fda09b4216affed9c0"
+CONTRACTS_L1_MULTICALL3_ADDR="0xcA11bde05977b3631167028862bE2a173976CA11"
         "#;
-        set_env(config);
+        lock.set_env(config);
 
         let actual = ContractsConfig::from_env();
         assert_eq!(actual, expected_config());

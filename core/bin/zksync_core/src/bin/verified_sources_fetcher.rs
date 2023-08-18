@@ -1,13 +1,12 @@
 use std::io::Write;
 use zksync_dal::{connection::DbVariant, ConnectionPool};
-use zksync_types::explorer_api::SourceCodeData;
+use zksync_types::contract_verification_api::SourceCodeData;
 
 #[tokio::main]
 async fn main() {
-    let pool = ConnectionPool::new(Some(1), DbVariant::Replica).await;
+    let pool = ConnectionPool::singleton(DbVariant::Replica).build().await;
     let mut storage = pool.access_storage().await;
     let reqs = storage
-        .explorer()
         .contract_verification_dal()
         .get_all_successful_requests()
         .await

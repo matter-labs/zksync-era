@@ -1,6 +1,6 @@
-use crate::house_keeper::periodic_job::PeriodicJob;
 use async_trait::async_trait;
 use zksync_dal::ConnectionPool;
+use zksync_prover_utils::periodic_job::PeriodicJob;
 
 #[derive(Debug)]
 pub struct FriProverStatsReporter {

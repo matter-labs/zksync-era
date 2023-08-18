@@ -6,7 +6,9 @@ use std::{fs::create_dir_all, io::Cursor, path::Path, time::Duration, time::Inst
 
 use futures::{channel::mpsc, executor::block_on, SinkExt};
 
+pub mod periodic_job;
 pub mod region_fetcher;
+pub mod vk_commitment_helper;
 
 fn download_bytes(key_download_url: &str) -> reqwest::Result<Vec<u8>> {
     vlog::info!("Downloading initial setup from {:?}", key_download_url);

@@ -4,18 +4,17 @@ use serde::{Deserialize, Serialize};
 use serde_with::{hex::Hex, serde_as};
 use tempfile::TempDir;
 
-use std::{num::NonZeroU32, slice};
+use std::slice;
 
 use zksync_config::constants::ACCOUNT_CODE_STORAGE_ADDRESS;
 use zksync_crypto::hasher::blake2::Blake2Hasher;
 use zksync_merkle_tree::{domain::ZkSyncTree, HashTree};
 use zksync_storage::RocksDB;
 use zksync_types::{
-    proofs::StorageLogMetadata, AccountTreeId, Address, L1BatchNumber, StorageKey, StorageLog,
-    WitnessStorageLog, H256,
+    proofs::StorageLogMetadata, AccountTreeId, Address, L1BatchNumber, StorageKey, StorageLog, H256,
 };
 
-fn gen_storage_logs() -> Vec<WitnessStorageLog> {
+fn gen_storage_logs() -> Vec<StorageLog> {
     let addrs = vec![
         "4b3af74f66ab1f0da3f2e4ec7a3cb99baf1af7b2",
         "ef4bb7b21c5fe7432a7d63876cc59ecc23b46636",
@@ -33,36 +32,21 @@ fn gen_storage_logs() -> Vec<WitnessStorageLog> {
 
     proof_keys
         .zip(proof_values)
-        .map(|(proof_key, proof_value)| {
-            let storage_log = StorageLog::new_write_log(proof_key, proof_value);
-            WitnessStorageLog {
-                storage_log,
-                previous_value: H256::zero(),
-            }
-        })
+        .map(|(proof_key, proof_value)| StorageLog::new_write_log(proof_key, proof_value))
         .collect()
-}
-
-fn convert_logs(logs: impl Iterator<Item = StorageLog>) -> Vec<WitnessStorageLog> {
-    logs.map(|storage_log| WitnessStorageLog {
-        storage_log,
-        previous_value: H256::zero(),
-    })
-    .collect()
 }
 
 #[test]
 fn basic_workflow() {
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
     let logs = gen_storage_logs();
-    let block_number = NonZeroU32::new(1).unwrap();
 
     let (metadata, expected_root_hash) = {
         let db = RocksDB::new(temp_dir.as_ref(), false);
         let mut tree = ZkSyncTree::new_lightweight(db);
-        let metadata = tree.process_block(&logs);
+        let metadata = tree.process_l1_batch(&logs);
         tree.save();
-        tree.verify_consistency(block_number);
+        tree.verify_consistency(L1BatchNumber(0));
         (metadata, tree.root_hash())
     };
 
@@ -70,7 +54,7 @@ fn basic_workflow() {
     assert_eq!(metadata.rollup_last_leaf_index, 101);
     assert_eq!(metadata.initial_writes.len(), logs.len());
     for (write, log) in metadata.initial_writes.iter().zip(&logs) {
-        assert_eq!(write.value, log.storage_log.value);
+        assert_eq!(write.value, log.value);
     }
     assert!(metadata.repeated_writes.is_empty());
 
@@ -84,9 +68,9 @@ fn basic_workflow() {
 
     let db = RocksDB::new(temp_dir.as_ref(), false);
     let tree = ZkSyncTree::new_lightweight(db);
-    tree.verify_consistency(block_number);
+    tree.verify_consistency(L1BatchNumber(0));
     assert_eq!(tree.root_hash(), expected_root_hash);
-    assert_eq!(tree.block_number(), block_number.get());
+    assert_eq!(tree.next_l1_batch_number(), L1BatchNumber(1));
 }
 
 #[test]
@@ -100,7 +84,7 @@ fn basic_workflow_multiblock() {
         let mut tree = ZkSyncTree::new_lightweight(db);
         tree.use_dedicated_thread_pool(2);
         for block in blocks {
-            tree.process_block(block);
+            tree.process_l1_batch(block);
         }
         tree.save();
         tree.root_hash()
@@ -117,7 +101,42 @@ fn basic_workflow_multiblock() {
     let db = RocksDB::new(temp_dir.as_ref(), false);
     let tree = ZkSyncTree::new_lightweight(db);
     assert_eq!(tree.root_hash(), expected_root_hash);
-    assert_eq!(tree.block_number(), 12);
+    assert_eq!(tree.next_l1_batch_number(), L1BatchNumber(12));
+}
+
+#[test]
+fn filtering_out_no_op_writes() {
+    let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
+    let db = RocksDB::new(temp_dir.as_ref(), false);
+    let mut tree = ZkSyncTree::new(db);
+    let mut logs = gen_storage_logs();
+    let root_hash = tree.process_l1_batch(&logs).root_hash;
+    tree.save();
+
+    // All writes are no-op updates and thus must be filtered out.
+    let new_metadata = tree.process_l1_batch(&logs);
+    assert_eq!(new_metadata.root_hash, root_hash);
+    assert!(new_metadata.initial_writes.is_empty());
+    assert!(new_metadata.repeated_writes.is_empty());
+    let merkle_paths = new_metadata.witness.unwrap().into_merkle_paths();
+    assert_eq!(merkle_paths.len(), 0);
+
+    // Add some actual repeated writes.
+    let mut expected_writes_count = 0;
+    for log in logs.iter_mut().step_by(3) {
+        log.value = H256::repeat_byte(0xff);
+        expected_writes_count += 1;
+    }
+    let new_metadata = tree.process_l1_batch(&logs);
+    assert_ne!(new_metadata.root_hash, root_hash);
+    assert!(new_metadata.initial_writes.is_empty());
+    assert_eq!(new_metadata.repeated_writes.len(), expected_writes_count);
+    let merkle_paths = new_metadata.witness.unwrap().into_merkle_paths();
+    assert_eq!(merkle_paths.len(), expected_writes_count);
+    for merkle_path in merkle_paths {
+        assert!(!merkle_path.first_write);
+        assert_eq!(merkle_path.value_written, [0xff; 32]);
+    }
 }
 
 #[test]
@@ -134,25 +153,24 @@ fn revert_blocks() {
     let proof_values = (0..100).map(H256::from_low_u64_be);
 
     // Add couple of blocks of distinct keys/values
-    let mut logs: Vec<_> = convert_logs(
-        proof_keys
-            .zip(proof_values)
-            .map(|(proof_key, proof_value)| StorageLog::new_write_log(proof_key, proof_value)),
-    );
+    let mut logs: Vec<_> = proof_keys
+        .zip(proof_values)
+        .map(|(proof_key, proof_value)| StorageLog::new_write_log(proof_key, proof_value))
+        .collect();
     // Add a block with repeated keys
-    let mut extra_logs = convert_logs((0..block_size).map(move |i| {
+    let extra_logs = (0..block_size).map(move |i| {
         StorageLog::new_write_log(
             StorageKey::new(AccountTreeId::new(address), H256::from_low_u64_be(i as u64)),
             H256::from_low_u64_be((i + 1) as u64),
         )
-    }));
-    logs.append(&mut extra_logs);
+    });
+    logs.extend(extra_logs);
 
     let mirror_logs = logs.clone();
     let tree_metadata: Vec<_> = {
         let mut tree = ZkSyncTree::new_lightweight(storage);
         let metadata = logs.chunks(block_size).map(|chunk| {
-            let metadata = tree.process_block(chunk);
+            let metadata = tree.process_l1_batch(chunk);
             tree.save();
             metadata
         });
@@ -212,14 +230,14 @@ fn revert_blocks() {
     {
         let storage_log = mirror_logs.get(3 * block_size).unwrap();
         let mut tree = ZkSyncTree::new_lightweight(storage);
-        tree.process_block(slice::from_ref(storage_log));
+        tree.process_l1_batch(slice::from_ref(storage_log));
         tree.save();
     }
 
     // check saved block number
     let storage = RocksDB::new(temp_dir.as_ref(), false);
     let tree = ZkSyncTree::new_lightweight(storage);
-    assert_eq!(tree.block_number(), 3);
+    assert_eq!(tree.next_l1_batch_number(), L1BatchNumber(3));
 }
 
 #[test]
@@ -233,11 +251,11 @@ fn reset_tree() {
     logs.chunks(5)
         .into_iter()
         .fold(empty_root_hash, |hash, chunk| {
-            tree.process_block(chunk);
+            tree.process_l1_batch(chunk);
             tree.reset();
             assert_eq!(tree.root_hash(), hash);
 
-            tree.process_block(chunk);
+            tree.process_l1_batch(chunk);
             tree.save();
             tree.root_hash()
         });
@@ -252,17 +270,18 @@ fn read_logs() {
     let write_metadata = {
         let db = RocksDB::new(temp_dir.as_ref(), false);
         let mut tree = ZkSyncTree::new_lightweight(db);
-        let metadata = tree.process_block(&logs);
+        let metadata = tree.process_l1_batch(&logs);
         tree.save();
         metadata
     };
 
     let db = RocksDB::new(temp_dir.as_ref(), false);
     let mut tree = ZkSyncTree::new_lightweight(db);
-    let read_logs = logs
+    let read_logs: Vec<_> = logs
         .into_iter()
-        .map(|log| StorageLog::new_read_log(log.storage_log.key, log.storage_log.value));
-    let read_metadata = tree.process_block(&convert_logs(read_logs));
+        .map(|log| StorageLog::new_read_log(log.key, log.value))
+        .collect();
+    let read_metadata = tree.process_l1_batch(&read_logs);
 
     assert_eq!(read_metadata.root_hash, write_metadata.root_hash);
 }
@@ -271,14 +290,11 @@ fn create_write_log(
     address: Address,
     address_storage_key: [u8; 32],
     value: [u8; 32],
-) -> WitnessStorageLog {
-    WitnessStorageLog {
-        storage_log: StorageLog::new_write_log(
-            StorageKey::new(AccountTreeId::new(address), H256(address_storage_key)),
-            H256(value),
-        ),
-        previous_value: H256::zero(),
-    }
+) -> StorageLog {
+    StorageLog::new_write_log(
+        StorageKey::new(AccountTreeId::new(address), H256(address_storage_key)),
+        H256(value),
+    )
 }
 
 fn subtract_from_max_value(diff: u8) -> [u8; 32] {
@@ -329,7 +345,7 @@ fn root_hash_compatibility() {
         ),
     ];
 
-    let metadata = tree.process_block(&storage_logs);
+    let metadata = tree.process_l1_batch(&storage_logs);
     assert_eq!(
         metadata.root_hash,
         H256([
@@ -345,11 +361,11 @@ fn process_block_idempotency_check() {
     let rocks_db = RocksDB::new(temp_dir.as_ref(), false);
     let mut tree = ZkSyncTree::new_lightweight(rocks_db);
     let logs = gen_storage_logs();
-    let tree_metadata = tree.process_block(&logs);
+    let tree_metadata = tree.process_l1_batch(&logs);
 
     // Simulate server restart by calling `process_block` again on the same tree
     tree.reset();
-    let repeated_tree_metadata = tree.process_block(&logs);
+    let repeated_tree_metadata = tree.process_l1_batch(&logs);
     assert_eq!(repeated_tree_metadata.root_hash, tree_metadata.root_hash);
     assert_eq!(
         repeated_tree_metadata.initial_writes,
@@ -407,7 +423,7 @@ fn witness_workflow() {
 
     let db = RocksDB::new(temp_dir.as_ref(), false);
     let mut tree = ZkSyncTree::new(db);
-    let metadata = tree.process_block(first_chunk);
+    let metadata = tree.process_l1_batch(first_chunk);
     let job = metadata.witness.unwrap();
     assert_eq!(job.next_enumeration_index(), 1);
     let merkle_paths: Vec<_> = job.into_merkle_paths().collect();
@@ -442,7 +458,7 @@ fn witnesses_with_multiple_blocks() {
         .collect();
 
     let non_empty_levels_by_block = logs.chunks(10).map(|block| {
-        let metadata = tree.process_block(block);
+        let metadata = tree.process_l1_batch(block);
         let witness = metadata.witness.unwrap();
 
         let non_empty_levels = witness.into_merkle_paths().map(|log| {

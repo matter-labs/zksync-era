@@ -20,7 +20,9 @@ impl AlertsConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::configs::test_utils::set_env;
+    use crate::configs::test_utils::EnvMutex;
+
+    static MUTEX: EnvMutex = EnvMutex::new();
 
     fn expected_config() -> AlertsConfig {
         AlertsConfig {
@@ -34,10 +36,12 @@ mod tests {
 
     #[test]
     fn test_from_env() {
+        let mut lock = MUTEX.lock();
         let config = r#"
-        ALERTS_SPORADIC_CRYPTO_ERRORS_SUBSTRS=EventDestroyErr,Can't free memory of DeviceBuf,called `Result::unwrap()` on an `Err` value: PoisonError
+            ALERTS_SPORADIC_CRYPTO_ERRORS_SUBSTRS=EventDestroyErr,Can't free memory of DeviceBuf,called `Result::unwrap()` on an `Err` value: PoisonError
         "#;
-        set_env(config);
+        lock.set_env(config);
+
         assert_eq!(AlertsConfig::from_env(), expected_config());
     }
 }

@@ -73,6 +73,51 @@ impl<H: HistoryMode> VmInstance<'_, H> {
         _gas_spent_on_pubdata: u32,
     ) -> u32 {
         0
+
+        // let pubdata_published = self.pubdata_published(from_timestamp);
+        //
+        // let total_gas_spent = gas_remaining_before - self.gas_remaining();
+        // let gas_spent_on_computation = total_gas_spent.checked_sub(gas_spent_on_pubdata).unwrap_or_else(|| {
+        //     vlog::error!("Gas spent on pubdata is greater than total gas spent. On pubdata: {}, total: {}", gas_spent_on_pubdata, total_gas_spent);
+        //     0
+        // });
+        // let (_, l2_to_l1_logs) = self.collect_events_and_l1_logs_after_timestamp(from_timestamp);
+        // let current_tx_index = self.bootloader_state.tx_to_execute() - 1;
+        //
+        // let actual_overhead = Self::actual_overhead_gas(
+        //     self.state.local_state.current_ergs_per_pubdata_byte,
+        //     self.bootloader_state.get_tx_size(current_tx_index),
+        //     pubdata_published,
+        //     gas_spent_on_computation,
+        //     self.state
+        //         .decommittment_processor
+        //         .get_number_of_decommitment_requests_after_timestamp(from_timestamp),
+        //     l2_to_l1_logs.len(),
+        // );
+        //
+        // let predefined_overhead = self
+        //     .state
+        //     .memory
+        //     .read_slot(
+        //         BOOTLOADER_HEAP_PAGE as usize,
+        //         TX_OVERHEAD_OFFSET + current_tx_index,
+        //     )
+        //     .value
+        //     .as_u32();
+        //
+        // if actual_overhead <= predefined_overhead {
+        //     predefined_overhead - actual_overhead
+        // } else {
+        //     // This should never happen but potential mistakes at the early stage should not bring the server down.
+        //     //
+        //     //   to make debugging easier.
+        //     vlog::error!(
+        //         "Actual overhead is greater than predefined one, actual: {}, predefined: {}",
+        //         actual_overhead,
+        //         predefined_overhead
+        //     );
+        //     0
+        // }
     }
 
     #[allow(dead_code)]
@@ -85,6 +130,61 @@ impl<H: HistoryMode> VmInstance<'_, H> {
         _l2_l1_logs: usize,
     ) -> u32 {
         0
+
+        // let overhead_for_block_gas = U256::from(crate::transaction_data::block_overhead_gas(
+        //     gas_per_pubdata_byte_limit,
+        // ));
+
+        // let encoded_len = U256::from(encoded_len);
+        // let pubdata_published = U256::from(pubdata_published);
+        // let gas_spent_on_computation = U256::from(gas_spent_on_computation);
+        // let number_of_decommitment_requests = U256::from(number_of_decommitment_requests);
+        // let l2_l1_logs = U256::from(l2_l1_logs);
+
+        // let tx_slot_overhead = ceil_div_u256(overhead_for_block_gas, MAX_TXS_IN_BLOCK.into());
+
+        // let overhead_for_length = ceil_div_u256(
+        //     encoded_len * overhead_for_block_gas,
+        //     BOOTLOADER_TX_ENCODING_SPACE.into(),
+        // );
+
+        // let actual_overhead_for_pubdata = ceil_div_u256(
+        //     pubdata_published * overhead_for_block_gas,
+        //     MAX_PUBDATA_PER_BLOCK.into(),
+        // );
+
+        // let actual_gas_limit_overhead = ceil_div_u256(
+        //     gas_spent_on_computation * overhead_for_block_gas,
+        //     MAX_BLOCK_MULTIINSTANCE_GAS_LIMIT.into(),
+        // );
+
+        // let code_decommitter_sorter_circuit_overhead = ceil_div_u256(
+        //     number_of_decommitment_requests * overhead_for_block_gas,
+        //     GEOMETRY_CONFIG.limit_for_code_decommitter_sorter.into(),
+        // );
+
+        // let l1_l2_logs_overhead = ceil_div_u256(
+        //     l2_l1_logs * overhead_for_block_gas,
+        //     std::cmp::min(
+        //         GEOMETRY_CONFIG.limit_for_l1_messages_merklizer,
+        //         GEOMETRY_CONFIG.limit_for_l1_messages_pudata_hasher,
+        //     )
+        //     .into(),
+        // );
+
+        // let overhead = vec![
+        //     tx_slot_overhead,
+        //     overhead_for_length,
+        //     actual_overhead_for_pubdata,
+        //     actual_gas_limit_overhead,
+        //     code_decommitter_sorter_circuit_overhead,
+        //     l1_l2_logs_overhead,
+        // ]
+        // .into_iter()
+        // .max()
+        // .unwrap();
+
+        // overhead.as_u32()
     }
 
     /// Returns the given transactions' gas limit - by reading it directly from the VM memory.

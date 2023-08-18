@@ -22,6 +22,11 @@ will immediately crash.
 Other kinds of panic aren't normally expected. While in most cases, the state will be recovered after a restart, please
 [report][contact_us] such cases to Matter Labs regardless.
 
+## Genesis Issues
+
+The EN is supposed to start with an applied DB dump. If you see any genesis-related errors, it probably means the EN was
+started without an applied dump.
+
 [contact_us]: https://docs.zksync.io/contact/
 
 ## Logs

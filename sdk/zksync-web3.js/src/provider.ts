@@ -334,7 +334,7 @@ export class Provider extends ethers.providers.JsonRpcProvider {
                 key: hash,
                 value: hash,
                 transactionHash: hash,
-                txIndexInL1Batch: number,
+                txIndexInL1Batch: Formatter.allowNull(number),
                 logIndex: number
             };
 
@@ -428,6 +428,8 @@ export class Provider extends ethers.providers.JsonRpcProvider {
         if (transaction.customData.factoryDeps) {
             // @ts-ignore
             result.eip712Meta.factoryDeps = transaction.customData.factoryDeps.map((dep: ethers.BytesLike) =>
+                // TODO (SMA-1605): we arraify instead of hexlifying because server expects Vec<u8>.
+                //  We should change deserialization there.
                 Array.from(utils.arrayify(dep))
             );
         }
@@ -687,6 +689,7 @@ export class Provider extends ethers.providers.JsonRpcProvider {
     }
 
     static getDefaultProvider() {
+        // TODO (SMA-1606): Add different urls for different networks.
         return new Provider(process.env.ZKSYNC_WEB3_API_URL || 'http://localhost:3050');
     }
 
@@ -814,6 +817,7 @@ export class Provider extends ethers.providers.JsonRpcProvider {
         };
     }
 
+    // TODO (EVM-3): support refundRecipient for fee estimation
     async estimateL1ToL2Execute(transaction: {
         contractAddress: Address;
         calldata: BytesLike;

@@ -1,83 +1,90 @@
-use actix_web::dev::Server;
-use actix_web::{get, web, App, HttpResponse, HttpServer, Responder};
-use serde::Serialize;
-use std::{net::SocketAddr, sync::Arc};
+use axum::{extract::State, http::StatusCode, routing::get, Json, Router};
 use tokio::sync::watch;
-use zksync_health_check::{CheckHealth, CheckHealthStatus};
-use zksync_utils::panic_notify::{spawn_panic_handler, ThreadPanicNotify};
 
-#[derive(Serialize)]
-pub struct Response {
-    pub message: String,
+use std::{collections::HashSet, net::SocketAddr, sync::Arc, time::Duration};
+
+use zksync_health_check::{AppHealth, CheckHealth};
+
+type SharedHealthchecks = Arc<[Box<dyn CheckHealth>]>;
+
+async fn check_health(health_checks: State<SharedHealthchecks>) -> (StatusCode, Json<AppHealth>) {
+    let response = AppHealth::new(&health_checks).await;
+    let response_code = if response.is_ready() {
+        StatusCode::OK
+    } else {
+        StatusCode::SERVICE_UNAVAILABLE
+    };
+    (response_code, Json(response))
 }
 
-#[get("/health")]
-async fn healthcheck(healthchecks: web::Data<[Box<dyn CheckHealth>]>) -> impl Responder {
-    for healthcheck in healthchecks.iter() {
-        match healthcheck.check_health().await {
-            CheckHealthStatus::NotReady(message) => {
-                let response = Response { message };
-                return HttpResponse::ServiceUnavailable().json(response);
-            }
-            CheckHealthStatus::Ready => (),
+async fn run_server(
+    bind_address: &SocketAddr,
+    health_checks: Vec<Box<dyn CheckHealth>>,
+    mut stop_receiver: watch::Receiver<bool>,
+) {
+    let mut health_check_names = HashSet::with_capacity(health_checks.len());
+    for check in &health_checks {
+        let health_check_name = check.name();
+        if !health_check_names.insert(health_check_name) {
+            vlog::warn!(
+                "Health check with name `{health_check_name}` is defined multiple times; only the last mention \
+                 will be present in `/health` endpoint output"
+            );
         }
     }
-    let response = Response {
-        message: "Everything is working fine".to_string(),
-    };
-    HttpResponse::Ok().json(response)
+    vlog::debug!(
+        "Starting healthcheck server with checks {health_check_names:?} on {bind_address}"
+    );
+
+    let health_checks = SharedHealthchecks::from(health_checks);
+    let app = Router::new()
+        .route("/health", get(check_health))
+        .with_state(health_checks);
+
+    axum::Server::bind(bind_address)
+        .serve(app.into_make_service())
+        .with_graceful_shutdown(async move {
+            if stop_receiver.changed().await.is_err() {
+                vlog::warn!("Stop signal sender for healthcheck server was dropped without sending a signal");
+            }
+            vlog::info!("Stop signal received, healthcheck server is shutting down");
+        })
+        .await
+        .expect("Healthcheck server failed");
+    vlog::info!("Healthcheck server shut down");
 }
 
-fn run_server(bind_address: SocketAddr, healthchecks: Vec<Box<dyn CheckHealth>>) -> Server {
-    let healthchecks: Arc<[Box<dyn CheckHealth>]> = healthchecks.into();
-    let data = web::Data::from(healthchecks);
-    HttpServer::new(move || App::new().service(healthcheck).app_data(data.clone()))
-        .workers(1)
-        .bind(bind_address)
-        .unwrap()
-        .run()
-}
-
+#[derive(Debug)]
 pub struct HealthCheckHandle {
     server: tokio::task::JoinHandle<()>,
     stop_sender: watch::Sender<bool>,
 }
 
 impl HealthCheckHandle {
-    pub async fn stop(self) {
-        self.stop_sender.send(true).ok();
-        self.server.await.unwrap();
+    pub fn spawn_server(addr: SocketAddr, healthchecks: Vec<Box<dyn CheckHealth>>) -> Self {
+        let (stop_sender, stop_receiver) = watch::channel(false);
+        let server = tokio::spawn(async move {
+            run_server(&addr, healthchecks, stop_receiver).await;
+        });
+
+        Self {
+            server,
+            stop_sender,
+        }
     }
-}
 
-/// Start HTTP healthcheck API
-pub fn start_server_thread_detached(
-    addr: SocketAddr,
-    healthchecks: Vec<Box<dyn CheckHealth>>,
-) -> HealthCheckHandle {
-    let (handler, panic_sender) = spawn_panic_handler();
-    let (stop_sender, mut stop_receiver) = watch::channel(false);
-    std::thread::Builder::new()
-        .name("healthcheck".to_string())
-        .spawn(move || {
-            let _panic_sentinel = ThreadPanicNotify(panic_sender.clone());
+    pub async fn stop(self) {
+        // Paradoxically, `hyper` server is quite slow to shut down if it isn't queried during shutdown:
+        // https://github.com/hyperium/hyper/issues/3188. It is thus recommended to set a timeout for shutdown.
+        const GRACEFUL_SHUTDOWN_WAIT: Duration = Duration::from_secs(10);
 
-            actix_rt::System::new().block_on(async move {
-                let server = run_server(addr, healthchecks);
-                let close_handle = server.handle();
-                actix_rt::spawn(async move {
-                    if stop_receiver.changed().await.is_ok() {
-                        close_handle.stop(true).await;
-                        vlog::info!("Stop signal received, Health api is shutting down");
-                    }
-                });
-                server.await.expect("Health api crashed");
-            });
-        })
-        .expect("Failed to spawn thread for REST API");
-
-    HealthCheckHandle {
-        server: handler,
-        stop_sender,
+        self.stop_sender.send(true).ok();
+        let server_result = tokio::time::timeout(GRACEFUL_SHUTDOWN_WAIT, self.server).await;
+        if let Ok(server_result) = server_result {
+            // Propagate potential panics from the server task.
+            server_result.unwrap();
+        } else {
+            vlog::debug!("Timed out {GRACEFUL_SHUTDOWN_WAIT:?} waiting for healthcheck server to gracefully shut down");
+        }
     }
 }

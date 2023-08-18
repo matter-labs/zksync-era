@@ -13,7 +13,6 @@
 use std::fmt;
 
 use zksync_config::configs::chain::StateKeeperConfig;
-use zksync_contracts::BaseSystemContractsHashes;
 use zksync_types::{
     block::BlockGasCount,
     fee::TransactionExecutionMetrics,
@@ -158,18 +157,19 @@ impl SealManager {
     /// Creates a default pre-configured seal manager for the main node.
     pub(super) fn new(config: StateKeeperConfig) -> Self {
         let timeout_batch_sealer = Self::timeout_batch_sealer(config.block_commit_deadline_ms);
-        let code_hash_batch_sealer = Self::code_hash_batch_sealer(BaseSystemContractsHashes {
-            bootloader: config.bootloader_hash,
-            default_aa: config.default_aa_hash,
-        });
         let timeout_miniblock_sealer =
             Self::timeout_miniblock_sealer(config.miniblock_commit_deadline_ms);
+        // Currently, it's assumed that timeout is the only criterion for miniblock sealing.
+        // If this doesn't hold and some miniblocks are sealed in less than 1 second,
+        // then state keeper will be blocked waiting for the miniblock timestamp to be changed.
+        let miniblock_sealers = vec![timeout_miniblock_sealer];
+
         let conditional_sealer = ConditionalSealer::new(config);
 
         Self::custom(
             Some(conditional_sealer),
-            vec![timeout_batch_sealer, code_hash_batch_sealer],
-            vec![timeout_miniblock_sealer],
+            vec![timeout_batch_sealer],
+            miniblock_sealers,
         )
     }
 
@@ -207,34 +207,13 @@ impl SealManager {
         })
     }
 
-    /// Creates a sealer function that would seal the batch if the provided base system contract hashes are different
-    /// from ones in the updates manager.
-    pub(super) fn code_hash_batch_sealer(
-        base_system_contracts_hashes: BaseSystemContractsHashes,
-    ) -> Box<SealerFn> {
-        const RULE_NAME: &str = "different_code_hashes";
-
-        Box::new(move |manager| {
-            // Verify code hashes
-            let should_seal_code_hashes =
-                base_system_contracts_hashes != manager.base_system_contract_hashes();
-
-            if should_seal_code_hashes {
-                metrics::increment_counter!("server.tx_aggregation.reason", "criterion" => RULE_NAME);
-                vlog::debug!(
-                    "Decided to seal L1 batch using rule `{RULE_NAME}`; L1 batch code hashes: {:?}, \
-                     expected code hashes: {:?}",
-                    base_system_contracts_hashes,
-                    manager.base_system_contract_hashes()
-                );
-            }
-            should_seal_code_hashes
-        })
-    }
-
     /// Creates a sealer function that would seal the miniblock because of the timeout.
     /// Will only trigger for the non-empty miniblocks.
     fn timeout_miniblock_sealer(miniblock_commit_deadline_ms: u64) -> Box<SealerFn> {
+        if miniblock_commit_deadline_ms < 1000 {
+            panic!("`miniblock_commit_deadline_ms` should be at least 1000, because miniblocks must have different timestamps");
+        }
+
         Box::new(move |manager| {
             !manager.miniblock.executed_transactions.is_empty()
                 && millis_since(manager.miniblock.timestamp) > miniblock_commit_deadline_ms

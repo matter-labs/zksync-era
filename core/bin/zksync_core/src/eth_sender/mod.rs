@@ -1,5 +1,5 @@
 mod aggregator;
-mod block_publish_criterion;
+mod publish_criterion;
 
 mod error;
 mod eth_tx_aggregator;

@@ -3,11 +3,13 @@ use bigdecimal::BigDecimal;
 use std::collections::HashMap;
 
 use zksync_types::{
-    api::{BridgeAddresses, L2ToL1LogProof, TransactionDetails, U64},
-    explorer_api::{BlockDetails, L1BatchDetails},
+    api::{
+        BlockDetails, BridgeAddresses, L1BatchDetails, L2ToL1LogProof, ProtocolVersion,
+        TransactionDetails,
+    },
     fee::Fee,
     transaction_request::CallRequest,
-    Address, L1BatchNumber, MiniblockNumber, H256, U256,
+    Address, L1BatchNumber, MiniblockNumber, H256, U256, U64,
 };
 use zksync_web3_decl::{
     jsonrpsee::core::{async_trait, RpcResult},
@@ -142,5 +144,12 @@ impl<G: L1GasPriceProvider + Send + Sync + 'static> ZksNamespaceServer for ZksNa
 
     async fn get_l1_gas_price(&self) -> RpcResult<U64> {
         Ok(self.get_l1_gas_price_impl())
+    }
+
+    async fn get_protocol_version(
+        &self,
+        version_id: Option<u16>,
+    ) -> RpcResult<Option<ProtocolVersion>> {
+        Ok(self.get_protocol_version_impl(version_id).await)
     }
 }

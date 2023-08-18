@@ -14,7 +14,7 @@ vlog = { path = "../../lib/vlog", version = "1.0" }
 
 metrics = "0.20"
 num_cpus = "1.13"
-rocksdb = { version = "0.18.0", default-features = false, features = ["snappy"] }
+rocksdb = { version = "0.21.0", default-features = false, features = ["snappy"] }
 
 [dev-dependencies]
 tempfile = "3.0.2"

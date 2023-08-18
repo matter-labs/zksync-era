@@ -48,7 +48,7 @@ export async function setup() {
     }
     await utils.spawn('cargo sqlx database create');
     await utils.spawn('cargo sqlx migrate run');
-    if (process.env.DATABASE_URL == localDbUrl) {
+    if (process.env.DATABASE_URL!.startsWith(localDbUrl)) {
         await utils.spawn('cargo sqlx prepare --check -- --tests || cargo sqlx prepare -- --tests');
     }
 

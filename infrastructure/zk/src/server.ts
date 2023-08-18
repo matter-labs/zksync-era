@@ -7,10 +7,10 @@ import { unloadInit } from './env';
 import * as path from 'path';
 import * as db from './database';
 
-export async function server(rebuildTree: boolean, openzeppelinTests: boolean, components?: string) {
+export async function server(rebuildTree: boolean, uring: boolean, components?: string) {
     let options = '';
-    if (openzeppelinTests) {
-        options += '--features=openzeppelin_tests';
+    if (uring) {
+        options += '--features=rocksdb/io-uring';
     }
     if (rebuildTree || components) {
         options += ' --';
@@ -122,13 +122,13 @@ export const serverCommand = new Command('server')
     .description('start zksync server')
     .option('--genesis', 'generate genesis data via server')
     .option('--rebuild-tree', 'rebuilds merkle tree from database logs', 'rebuild_tree')
-    .option('--openzeppelin-tests', `enables 'openzeppelin_tests' feature`)
+    .option('--uring', 'enables uring support for RocksDB')
     .option('--components <components>', 'comma-separated list of components to run')
     .action(async (cmd: Command) => {
         if (cmd.genesis) {
             await genesisFromSources();
         } else {
-            await server(cmd.rebuildTree, cmd.openzeppelinTests, cmd.components);
+            await server(cmd.rebuildTree, cmd.uring, cmd.components);
         }
     });
 

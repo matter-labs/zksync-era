@@ -4,7 +4,8 @@ FROM us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/prover-v2:2.0-$PROVER_
 
 FROM nvidia/cuda:11.8.0-runtime-ubuntu22.04 as app
 
-COPY *.bin/ /
+# HACK copying to root is the only way to make Docker layer caching work for these files for some reason
+COPY *.bin /
 COPY setup_2\^26.key /setup_2\^26.key
 
 RUN apt-get update && apt-get install -y libpq5 ca-certificates openssl && rm -rf /var/lib/apt/lists/*

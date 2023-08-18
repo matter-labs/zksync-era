@@ -1,8 +1,4 @@
-use std::{
-    collections::HashMap,
-    fmt::Debug,
-    hash::{BuildHasherDefault, Hash, Hasher},
-};
+use std::{collections::HashMap, fmt::Debug, hash::Hash};
 
 use zk_evm::{
     aux_structures::Timestamp,
@@ -51,7 +47,7 @@ pub trait HistoryMode: private::Sealed + Debug + Clone + Default {
     fn clone_history<T: WithHistory>(history: &Self::History<T>) -> Self::History<T>
     where
         T::HistoryRecord: Clone;
-    fn mutate_history<T: WithHistory, F: FnOnce(&mut EventList<T>)>(
+    fn mutate_history<T: WithHistory, F: FnOnce(&mut T, &mut EventList<T>)>(
         recorder: &mut HistoryRecorder<T, Self>,
         f: F,
     );
@@ -92,11 +88,11 @@ impl HistoryMode for HistoryEnabled {
     {
         history.clone()
     }
-    fn mutate_history<T: WithHistory, F: FnOnce(&mut EventList<T>)>(
+    fn mutate_history<T: WithHistory, F: FnOnce(&mut T, &mut EventList<T>)>(
         recorder: &mut HistoryRecorder<T, Self>,
         f: F,
     ) {
-        f(&mut recorder.history)
+        f(&mut recorder.inner, &mut recorder.history)
     }
     fn borrow_history<T: WithHistory, F: FnOnce(&EventList<T>) -> R, R>(
         recorder: &HistoryRecorder<T, Self>,
@@ -111,7 +107,7 @@ impl HistoryMode for HistoryDisabled {
     type History<T: WithHistory> = ();
 
     fn clone_history<T: WithHistory>(_: &Self::History<T>) -> Self::History<T> {}
-    fn mutate_history<T: WithHistory, F: FnOnce(&mut EventList<T>)>(
+    fn mutate_history<T: WithHistory, F: FnOnce(&mut T, &mut EventList<T>)>(
         _: &mut HistoryRecorder<T, Self>,
         _: F,
     ) {
@@ -186,7 +182,7 @@ impl<T: WithHistory, H: HistoryMode> HistoryRecorder<T, H> {
     }
 
     /// If history exists, modify it using `f`.
-    pub fn mutate_history<F: FnOnce(&mut EventList<T>)>(&mut self, f: F) {
+    pub fn mutate_history<F: FnOnce(&mut T, &mut EventList<T>)>(&mut self, f: F) {
         H::mutate_history(self, f);
     }
 
@@ -202,7 +198,7 @@ impl<T: WithHistory, H: HistoryMode> HistoryRecorder<T, H> {
     ) -> T::ReturnValue {
         let (reversed_item, return_value) = self.inner.apply_historic_record(item);
 
-        self.mutate_history(|history| {
+        self.mutate_history(|_, history| {
             let last_recorded_timestamp = history.last().map(|(t, _)| *t).unwrap_or(Timestamp(0));
             let timestamp = normalize_timestamp(timestamp);
             assert!(
@@ -218,7 +214,7 @@ impl<T: WithHistory, H: HistoryMode> HistoryRecorder<T, H> {
     /// Deletes all the history for its component, making
     /// its current state irreversible
     pub fn delete_history(&mut self) {
-        self.mutate_history(|h| h.clear())
+        self.mutate_history(|_, h| h.clear())
     }
 }
 
@@ -512,31 +508,69 @@ impl<T> AppDataFrameManagerWithHistory<T, HistoryEnabled> {
     }
 }
 
-#[derive(Default)]
-pub struct NoopHasher(u64);
+const PRIMITIVE_VALUE_EMPTY: PrimitiveValue = PrimitiveValue::empty();
+const PAGE_SUBDIVISION_LEN: usize = 64;
 
-impl Hasher for NoopHasher {
-    fn write_usize(&mut self, value: usize) {
-        self.0 = value as u64;
+#[derive(Debug, Default, Clone)]
+struct MemoryPage {
+    root: Vec<Option<Box<[PrimitiveValue; PAGE_SUBDIVISION_LEN]>>>,
+}
+
+impl MemoryPage {
+    fn get(&self, slot: usize) -> &PrimitiveValue {
+        self.root
+            .get(slot / PAGE_SUBDIVISION_LEN)
+            .and_then(|inner| inner.as_ref())
+            .map(|leaf| &leaf[slot % PAGE_SUBDIVISION_LEN])
+            .unwrap_or(&PRIMITIVE_VALUE_EMPTY)
+    }
+    fn set(&mut self, slot: usize, value: PrimitiveValue) -> PrimitiveValue {
+        let root_index = slot / PAGE_SUBDIVISION_LEN;
+        let leaf_index = slot % PAGE_SUBDIVISION_LEN;
+
+        if self.root.len() <= root_index {
+            self.root.resize_with(root_index + 1, || None);
+        }
+        let node = &mut self.root[root_index];
+
+        if let Some(leaf) = node {
+            let old = leaf[leaf_index];
+            leaf[leaf_index] = value;
+            old
+        } else {
+            let mut leaf = [PrimitiveValue::empty(); PAGE_SUBDIVISION_LEN];
+            leaf[leaf_index] = value;
+            self.root[root_index] = Some(Box::new(leaf));
+            PrimitiveValue::empty()
+        }
     }
 
-    fn write(&mut self, _bytes: &[u8]) {
-        unreachable!("internal hasher only handles usize type");
+    fn get_size(&self) -> usize {
+        self.root.iter().filter_map(|x| x.as_ref()).count()
+            * PAGE_SUBDIVISION_LEN
+            * std::mem::size_of::<PrimitiveValue>()
     }
+}
 
-    fn finish(&self) -> u64 {
-        self.0
+impl PartialEq for MemoryPage {
+    fn eq(&self, other: &Self) -> bool {
+        for slot in 0..self.root.len().max(other.root.len()) * PAGE_SUBDIVISION_LEN {
+            if self.get(slot) != other.get(slot) {
+                return false;
+            }
+        }
+        true
     }
 }
 
 #[derive(Debug, Default, Clone)]
 pub struct MemoryWrapper {
-    pub memory: Vec<HashMap<usize, PrimitiveValue, BuildHasherDefault<NoopHasher>>>,
+    memory: Vec<MemoryPage>,
 }
 
 impl PartialEq for MemoryWrapper {
     fn eq(&self, other: &Self) -> bool {
-        let empty_page = Default::default();
+        let empty_page = MemoryPage::default();
         let empty_pages = std::iter::repeat(&empty_page);
         self.memory
             .iter()
@@ -559,7 +593,7 @@ impl MemoryWrapper {
         if self.memory.len() <= page {
             // We don't need to record such events in history
             // because all these vectors will be empty
-            self.memory.resize_with(page + 1, HashMap::default);
+            self.memory.resize_with(page + 1, MemoryPage::default);
         }
     }
 
@@ -571,26 +605,23 @@ impl MemoryWrapper {
         if let Some(page) = self.memory.get(page_number as usize) {
             let mut result = vec![];
             for i in range {
-                if let Some(word) = page.get(&(i as usize)) {
-                    result.push(*word);
-                } else {
-                    result.push(PrimitiveValue::empty());
-                }
+                result.push(*page.get(i as usize));
             }
-
             result
         } else {
             vec![PrimitiveValue::empty(); range.len()]
         }
     }
 
-    const EMPTY: PrimitiveValue = PrimitiveValue::empty();
-
     pub fn read_slot(&self, page: usize, slot: usize) -> &PrimitiveValue {
         self.memory
             .get(page)
-            .and_then(|page| page.get(&slot))
-            .unwrap_or(&Self::EMPTY)
+            .map(|page| page.get(slot))
+            .unwrap_or(&PRIMITIVE_VALUE_EMPTY)
+    }
+
+    pub fn get_size(&self) -> usize {
+        self.memory.iter().map(|page| page.get_size()).sum()
     }
 }
 
@@ -610,20 +641,15 @@ impl WithHistory for MemoryWrapper {
 
         self.ensure_page_exists(page);
         let page_handle = self.memory.get_mut(page).unwrap();
-        let prev_value = if set_value == PrimitiveValue::empty() {
-            page_handle.remove(&slot)
-        } else {
-            page_handle.insert(slot, set_value)
-        }
-        .unwrap_or(PrimitiveValue::empty());
+        let prev_value = page_handle.set(slot, set_value);
 
-        let reserved_item = MemoryHistoryRecord {
+        let undo = MemoryHistoryRecord {
             page,
             slot,
             set_value: prev_value,
         };
 
-        (reserved_item, prev_value)
+        (undo, prev_value)
     }
 }
 
@@ -646,15 +672,27 @@ impl<H: HistoryMode> HistoryRecorder<MemoryWrapper, H> {
     }
 
     pub fn clear_page(&mut self, page: usize, timestamp: Timestamp) {
-        let slots_to_clear: Vec<_> = match self.inner.memory.get(page) {
-            None => return,
-            Some(x) => x.keys().copied().collect(),
-        };
-
-        // We manually clear the page to preserve correct history
-        for slot in slots_to_clear {
-            self.write_to_memory(page, slot, PrimitiveValue::empty(), timestamp);
-        }
+        self.mutate_history(|inner, history| {
+            if let Some(page_handle) = inner.memory.get(page) {
+                for (i, x) in page_handle.root.iter().enumerate() {
+                    if let Some(slots) = x {
+                        for (j, value) in slots.iter().enumerate() {
+                            if *value != PrimitiveValue::empty() {
+                                history.push((
+                                    timestamp,
+                                    MemoryHistoryRecord {
+                                        page,
+                                        slot: PAGE_SUBDIVISION_LEN * i + j,
+                                        set_value: *value,
+                                    },
+                                ))
+                            }
+                        }
+                    }
+                }
+                inner.memory[page] = MemoryPage::default();
+            }
+        });
     }
 }
 

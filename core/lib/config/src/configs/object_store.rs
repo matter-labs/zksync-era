@@ -1,5 +1,6 @@
-use super::envy_load;
 use serde::Deserialize;
+
+use super::envy_load;
 
 #[derive(Debug, Deserialize, Eq, PartialEq, Clone, Copy)]
 pub enum ObjectStoreMode {
@@ -31,7 +32,9 @@ impl ObjectStoreConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::configs::test_utils::set_env;
+    use crate::configs::test_utils::EnvMutex;
+
+    static MUTEX: EnvMutex = EnvMutex::new();
 
     fn expected_config(bucket_base_url: &str) -> ObjectStoreConfig {
         ObjectStoreConfig {
@@ -45,28 +48,30 @@ mod tests {
 
     #[test]
     fn from_env() {
+        let mut lock = MUTEX.lock();
         let config = r#"
-OBJECT_STORE_BUCKET_BASE_URL="/base/url"
-OBJECT_STORE_MODE="FileBacked"
-OBJECT_STORE_FILE_BACKED_BASE_PATH="artifacts"
-OBJECT_STORE_GCS_CREDENTIAL_FILE_PATH="/path/to/credentials.json"
-OBJECT_STORE_MAX_RETRIES="5"
+            OBJECT_STORE_BUCKET_BASE_URL="/base/url"
+            OBJECT_STORE_MODE="FileBacked"
+            OBJECT_STORE_FILE_BACKED_BASE_PATH="artifacts"
+            OBJECT_STORE_GCS_CREDENTIAL_FILE_PATH="/path/to/credentials.json"
+            OBJECT_STORE_MAX_RETRIES="5"
         "#;
-        set_env(config);
+        lock.set_env(config);
         let actual = ObjectStoreConfig::from_env();
         assert_eq!(actual, expected_config("/base/url"));
     }
 
     #[test]
     fn public_bucket_config_from_env() {
+        let mut lock = MUTEX.lock();
         let config = r#"
-PUBLIC_OBJECT_STORE_BUCKET_BASE_URL="/public_base_url"
-PUBLIC_OBJECT_STORE_MODE="FileBacked"
-PUBLIC_OBJECT_STORE_FILE_BACKED_BASE_PATH="artifacts"
-PUBLIC_OBJECT_STORE_GCS_CREDENTIAL_FILE_PATH="/path/to/credentials.json"
-PUBLIC_OBJECT_STORE_MAX_RETRIES="5"
+            PUBLIC_OBJECT_STORE_BUCKET_BASE_URL="/public_base_url"
+            PUBLIC_OBJECT_STORE_MODE="FileBacked"
+            PUBLIC_OBJECT_STORE_FILE_BACKED_BASE_PATH="artifacts"
+            PUBLIC_OBJECT_STORE_GCS_CREDENTIAL_FILE_PATH="/path/to/credentials.json"
+            PUBLIC_OBJECT_STORE_MAX_RETRIES="5"
         "#;
-        set_env(config);
+        lock.set_env(config);
         let actual = ObjectStoreConfig::public_from_env();
         assert_eq!(actual, expected_config("/public_base_url"));
     }

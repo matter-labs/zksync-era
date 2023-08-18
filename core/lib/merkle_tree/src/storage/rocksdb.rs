@@ -13,7 +13,7 @@ use crate::{
     },
     types::{InternalNode, LeafNode, Manifest, Nibbles, Node, NodeKey, Root, StaleNodeKey},
 };
-use zksync_storage::{db::NamedColumnFamily, RocksDB};
+use zksync_storage::{db::NamedColumnFamily, rocksdb::DBPinnableSlice, RocksDB};
 
 /// RocksDB column families used by the tree.
 #[derive(Debug, Clone, Copy)]
@@ -77,8 +77,6 @@ impl RocksDBWrapper {
     /// the `io-uring` feature of `rocksdb` crate and is only available on Linux.
     /// Thus, setting this value to around `100..1_000` can still lead to substantial
     /// performance boost (order of 2x) in some environments.
-    ///
-    /// [RocksDB docs]: https://github.com/facebook/rocksdb/wiki/MultiGet-Performance
     pub fn set_multi_get_chunk_size(&mut self, chunk_size: usize) {
         self.multi_get_chunk_size = chunk_size;
     }
@@ -89,7 +87,7 @@ impl RocksDBWrapper {
             .expect("Failed reading from RocksDB")
     }
 
-    fn raw_nodes(&self, keys: &NodeKeys) -> Vec<Option<Vec<u8>>> {
+    fn raw_nodes(&self, keys: &NodeKeys) -> Vec<Option<DBPinnableSlice<'_>>> {
         // `par_chunks()` below uses `rayon` to speed up multi-get I/O;
         // see `Self::set_multi_get_chunk_size()` docs for an explanation why this makes sense.
         keys.par_chunks(self.multi_get_chunk_size)

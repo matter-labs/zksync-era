@@ -14,9 +14,9 @@ use zksync_config::constants::MAX_TXS_IN_BLOCK;
 use zksync_contracts::BaseSystemContracts;
 
 use zksync_types::{
-    zkevm_test_harness::INITIAL_MONOTONIC_CYCLE_COUNTER, Address, Transaction, BOOTLOADER_ADDRESS,
-    L1_GAS_PER_PUBDATA_BYTE, MAX_GAS_PER_PUBDATA_BYTE, MAX_NEW_FACTORY_DEPS, U256,
-    USED_BOOTLOADER_MEMORY_WORDS,
+    l1::is_l1_tx_type, zkevm_test_harness::INITIAL_MONOTONIC_CYCLE_COUNTER, Address, Transaction,
+    BOOTLOADER_ADDRESS, L1_GAS_PER_PUBDATA_BYTE, MAX_GAS_PER_PUBDATA_BYTE, MAX_NEW_FACTORY_DEPS,
+    U256, USED_BOOTLOADER_MEMORY_WORDS,
 };
 use zksync_utils::{
     address_to_u256,
@@ -30,7 +30,7 @@ use itertools::Itertools;
 use crate::{
     bootloader_state::BootloaderState,
     history_recorder::HistoryMode,
-    transaction_data::{TransactionData, L1_TX_TYPE},
+    transaction_data::TransactionData,
     utils::{
         code_page_candidate_from_base, heap_page_from_base, BLOCK_GAS_LIMIT, INITIAL_BASE_PAGE,
     },
@@ -455,7 +455,7 @@ pub fn push_raw_transaction_to_bootloader_memory<H: HistoryMode>(
         .collect();
 
     let compressed_bytecodes = explicit_compressed_bytecodes.unwrap_or_else(|| {
-        if tx.tx_type == L1_TX_TYPE {
+        if is_l1_tx_type(tx.tx_type) {
             // L1 transactions do not need compression
             return vec![];
         }

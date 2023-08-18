@@ -1,5 +1,6 @@
 use std::convert::{TryFrom, TryInto};
 use std::fmt::Debug;
+use std::net::IpAddr;
 use std::ops::Add;
 use std::str::FromStr;
 
@@ -66,7 +67,7 @@ pub struct WitnessGeneratorJobMetadata {
 
 /// Represents the sequential number of the proof aggregation round.
 /// Mostly used to be stored in `aggregation_round` column  in `prover_jobs` table
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum AggregationRound {
     BasicCircuits = 0,
     LeafAggregation = 1,
@@ -426,6 +427,24 @@ pub struct StuckJobs {
     pub id: u64,
     pub status: String,
     pub attempts: u64,
+}
+
+#[derive(Debug, Clone)]
+pub struct SocketAddress {
+    pub host: IpAddr,
+    pub port: u16,
+}
+
+#[derive(Debug)]
+pub enum GpuProverInstanceStatus {
+    // The instance is available for processing.
+    Available,
+    // The instance is running at full capacity.
+    Full,
+    // The instance is reserved by an synthesizer.
+    Reserved,
+    // The instance is not alive anymore.
+    Dead,
 }
 
 #[cfg(test)]

@@ -30,24 +30,24 @@ impl ConsistencyChecker {
     async fn check_commitments(&self, batch_number: L1BatchNumber) -> Result<bool, error::Error> {
         let mut storage = self.db.access_storage().await;
 
-        let storage_block = storage
+        let storage_l1_batch = storage
             .blocks_dal()
-            .get_storage_block(batch_number)
+            .get_storage_l1_batch(batch_number)
             .await
-            .unwrap_or_else(|| panic!("Block {} not found in the database", batch_number));
+            .unwrap_or_else(|| panic!("L1 batch #{} not found in the database", batch_number));
 
-        let commit_tx_id = storage_block
+        let commit_tx_id = storage_l1_batch
             .eth_commit_tx_id
-            .unwrap_or_else(|| panic!("Block commit tx not found for block {}", batch_number))
+            .unwrap_or_else(|| panic!("Commit tx not found for L1 batch #{}", batch_number))
             as u32;
 
         let block_metadata = storage
             .blocks_dal()
-            .get_block_with_metadata(storage_block)
+            .get_l1_batch_with_metadata(storage_l1_batch)
             .await
             .unwrap_or_else(|| {
                 panic!(
-                    "Block metadata for block {} not found in the database",
+                    "Metadata for L1 batch #{} not found in the database",
                     batch_number
                 )
             });
@@ -118,7 +118,7 @@ impl ConsistencyChecker {
             .access_storage()
             .await
             .blocks_dal()
-            .get_number_of_last_block_committed_on_eth()
+            .get_number_of_last_l1_batch_committed_on_eth()
             .await
             .unwrap_or(L1BatchNumber(0))
     }
@@ -145,7 +145,7 @@ impl ConsistencyChecker {
                 .access_storage()
                 .await
                 .blocks_dal()
-                .get_block_metadata(batch_number)
+                .get_l1_batch_metadata(batch_number)
                 .await
                 .is_some();
 

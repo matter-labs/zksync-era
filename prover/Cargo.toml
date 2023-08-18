@@ -1,0 +1,22 @@
+[workspace]
+members = [
+    # lib
+    "prover_fri_utils",
+    "prover_fri_types",
+
+    # binaries
+    "prover",
+    "circuit_synthesizer",
+    "setup_key_generator_and_server",
+    "witness_generator",
+    "vk_setup_data_generator_server_fri",
+    "prover_fri",
+    "witness_vector_generator"
+]
+
+resolver = "2"
+
+# for `perf` profiling
+[profile.perf]
+inherits = "release"
+debug = true

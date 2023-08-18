@@ -4,18 +4,18 @@ use async_trait::async_trait;
 use jsonrpc_core::types::error::Error as RpcError;
 use std::collections::{BTreeMap, HashMap};
 use std::sync::RwLock;
-use zksync_types::web3::contract::tokens::Detokenize;
-use zksync_types::web3::types::{Block, BlockId, Filter, Log, Transaction};
-use zksync_types::web3::{
-    contract::tokens::Tokenize,
-    contract::Options,
-    ethabi,
-    types::{BlockNumber, U64},
-    Error as Web3Error,
+use zksync_types::{
+    web3::{
+        contract::{
+            tokens::{Detokenize, Tokenize},
+            Options,
+        },
+        ethabi::{self, Token},
+        types::{Block, BlockId, BlockNumber, Filter, Log, Transaction, TransactionReceipt, U64},
+        Error as Web3Error,
+    },
+    Address, L1ChainId, ProtocolVersionId, H160, H256, U256,
 };
-use zksync_types::{Address, L1ChainId};
-
-use zksync_types::{web3::types::TransactionReceipt, H160, H256, U256};
 
 use crate::{
     types::{Error, ExecutedTxStatus, FailureInfo, SignedCallResult},
@@ -67,6 +67,7 @@ pub struct MockEthereum {
     /// If true, the mock will not check the ordering nonces of the transactions.
     /// This is useful for testing the cases when the transactions are executed out of order.
     pub non_ordering_confirmations: bool,
+    pub multicall_address: Address,
 }
 
 impl Default for MockEthereum {
@@ -82,6 +83,7 @@ impl Default for MockEthereum {
             pending_nonce: Default::default(),
             nonces: RwLock::new([(0, 0)].into()),
             non_ordering_confirmations: false,
+            multicall_address: Address::default(),
         }
     }
 }
@@ -186,6 +188,13 @@ impl MockEthereum {
             ..self
         }
     }
+
+    pub fn with_multicall_address(self, address: Address) -> Self {
+        Self {
+            multicall_address: address,
+            ..self
+        }
+    }
 }
 
 #[async_trait]
@@ -266,14 +275,6 @@ impl EthInterface for MockEthereum {
         }))
     }
 
-    async fn get_tx(
-        &self,
-        _hash: H256,
-        _component: &'static str,
-    ) -> Result<Option<Transaction>, Error> {
-        unimplemented!("Not needed right now")
-    }
-
     #[allow(clippy::too_many_arguments)]
     async fn call_contract_function<R, A, B, P>(
         &self,
@@ -282,7 +283,7 @@ impl EthInterface for MockEthereum {
         _from: A,
         _options: Options,
         _block: B,
-        _contract_address: Address,
+        contract_address: Address,
         _contract_abi: ethabi::Contract,
     ) -> Result<R, Error>
     where
@@ -291,6 +292,31 @@ impl EthInterface for MockEthereum {
         B: Into<Option<BlockId>> + Send,
         P: Tokenize + Send,
     {
+        if contract_address == self.multicall_address {
+            let token = Token::Array(vec![
+                Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![1u8; 32])]),
+                Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![2u8; 32])]),
+                Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![3u8; 96])]),
+                Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![4u8; 32])]),
+                Token::Tuple(vec![
+                    Token::Bool(true),
+                    Token::Bytes(
+                        H256::from_low_u64_be(ProtocolVersionId::default() as u64)
+                            .0
+                            .to_vec(),
+                    ),
+                ]),
+            ]);
+            return Ok(R::from_tokens(vec![token]).unwrap());
+        }
+        Ok(R::from_tokens(vec![]).unwrap())
+    }
+
+    async fn get_tx(
+        &self,
+        _hash: H256,
+        _component: &'static str,
+    ) -> Result<Option<Transaction>, Error> {
         unimplemented!("Not needed right now")
     }
 

@@ -96,6 +96,8 @@ describe('Smart contract behavior checks', () => {
         const infiniteLoop = await deployContract(alice, contracts.infinite, []);
 
         // Test eth_call first
+        // await expect(infiniteLoop.callStatic.infiniteLoop()).toBeRejected('cannot estimate transaction: out of gas');
+        // ...and then an actual transaction
         await expect(infiniteLoop.infiniteLoop({ gasLimit: 1_000_000 })).toBeReverted([]);
     });
 

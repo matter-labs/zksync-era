@@ -81,13 +81,10 @@ impl SyncState {
         if let (Some(main_node_block), Some(local_block)) =
             (inner.main_node_block, inner.local_block)
         {
-            let Some(block_diff) = main_node_block
-                .0
-                .checked_sub(local_block.0)
-                else {
-                    // We're ahead of the main node, this situation is handled by the reorg detector.
-                    return (true, Some(0));
-                };
+            let Some(block_diff) = main_node_block.0.checked_sub(local_block.0) else {
+                // We're ahead of the main node, this situation is handled by the reorg detector.
+                return (true, Some(0));
+            };
             (block_diff <= SYNC_MINIBLOCK_DELTA, Some(block_diff))
         } else {
             (false, None)

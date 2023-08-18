@@ -113,10 +113,6 @@ pub struct LoadtestConfig {
     #[serde(default = "default_l2_ws_rpc_address")]
     pub l2_ws_rpc_address: String,
 
-    /// Explorer api address of L2 node.
-    #[serde(default = "default_l2_explorer_api_address")]
-    pub l2_explorer_api_address: String,
-
     /// The maximum number of transactions per account that can be sent without waiting for confirmation.
     /// Should not exceed the corresponding value in the L2 node configuration.
     #[serde(default = "default_max_inflight_txs")]
@@ -154,12 +150,6 @@ fn default_max_inflight_txs() -> usize {
 fn default_l1_rpc_address() -> String {
     let result = "http://127.0.0.1:8545".to_string();
     vlog::info!("Using default L1_RPC_ADDRESS: {result}");
-    result
-}
-
-fn default_l2_explorer_api_address() -> String {
-    let result = "http://127.0.0.1:3070".to_string();
-    vlog::info!("Using default L2_EXPLORER_API_ADDRESS: {result}");
     result
 }
 
@@ -293,7 +283,6 @@ impl LoadtestConfig {
 pub struct ExecutionConfig {
     pub transaction_weights: TransactionWeights,
     pub contract_execution_params: LoadnextContractExecutionParams,
-    pub explorer_api_config_weights: ExplorerApiRequestWeights,
 }
 
 impl ExecutionConfig {
@@ -302,50 +291,10 @@ impl ExecutionConfig {
             TransactionWeights::from_env().unwrap_or_else(default_transaction_weights);
         let contract_execution_params = LoadnextContractExecutionParams::from_env()
             .unwrap_or_else(default_contract_execution_params);
-        let explorer_api_config_weights = ExplorerApiRequestWeights::from_env()
-            .unwrap_or_else(default_explorer_api_request_weights);
         Self {
             transaction_weights,
             contract_execution_params,
-            explorer_api_config_weights,
         }
-    }
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct ExplorerApiRequestWeights {
-    pub network_stats: f32,
-    pub blocks: f32,
-    pub block: f32,
-    pub account_transactions: f32,
-    pub transaction: f32,
-    pub transactions: f32,
-    pub account: f32,
-    pub contract: f32,
-    pub token: f32,
-}
-
-impl Default for ExplorerApiRequestWeights {
-    fn default() -> Self {
-        Self {
-            network_stats: 1.0,
-            blocks: 1.0,
-            block: 1.0,
-            transactions: 1.0,
-            account: 1.0,
-            token: 1.0,
-            contract: 1.0,
-            transaction: 1.0,
-            account_transactions: 1.0,
-        }
-    }
-}
-
-impl ExplorerApiRequestWeights {
-    pub fn from_env() -> Option<Self> {
-        envy::prefixed("EXPLORER_API_REQUESTS_WEIGHTS_")
-            .from_env()
-            .ok()
     }
 }
 
@@ -386,16 +335,9 @@ fn default_contract_execution_params() -> LoadnextContractExecutionParams {
     result
 }
 
-fn default_explorer_api_request_weights() -> ExplorerApiRequestWeights {
-    let result = ExplorerApiRequestWeights::default();
-    vlog::info!("Using default ExplorerApiRequestWeights: {result:?}");
-    result
-}
-
 #[derive(Debug)]
 pub struct RequestLimiters {
     pub api_requests: Semaphore,
-    pub explorer_api_requests: Semaphore,
     pub subscriptions: Semaphore,
 }
 
@@ -403,7 +345,6 @@ impl RequestLimiters {
     pub fn new(config: &LoadtestConfig) -> Self {
         Self {
             api_requests: Semaphore::new(config.sync_api_requests_limit),
-            explorer_api_requests: Semaphore::new(config.sync_api_requests_limit),
             subscriptions: Semaphore::new(config.sync_pubsub_subscriptions_limit),
         }
     }

@@ -1,13 +1,17 @@
-use crate::config::{CheckerConfig, RpcMode};
 use std::{
     cmp::Ordering::{Equal, Greater, Less},
     collections::HashMap,
     fmt::Debug,
     time::Duration,
 };
+
+use serde_json::Value;
+use tokio::{sync::watch::Receiver, time::sleep};
+
 use zksync_types::{
-    api::BlockNumber, explorer_api::BlockDetails, web3::types::U64, L1BatchNumber, MiniblockNumber,
-    H256,
+    api::{BlockDetails, BlockNumber, L1BatchDetails},
+    web3::types::U64,
+    L1BatchNumber, MiniblockNumber, H256,
 };
 use zksync_utils::wait_for_tasks::wait_for_tasks;
 use zksync_web3_decl::{
@@ -15,16 +19,14 @@ use zksync_web3_decl::{
     jsonrpsee::http_client::{HttpClient, HttpClientBuilder},
     namespaces::{EnNamespaceClient, EthNamespaceClient, ZksNamespaceClient},
     types::FilterBuilder,
+    RpcResult,
 };
 
+use crate::config::{CheckerConfig, RpcMode};
 use crate::{
     divergence::{Divergence, DivergenceDetails},
     helpers::compare_json,
 };
-use serde_json::Value;
-use tokio::{sync::watch::Receiver, time::sleep};
-use zksync_types::explorer_api::L1BatchDetails;
-use zksync_web3_decl::RpcResult;
 
 #[derive(Debug, Clone)]
 pub struct Checker {

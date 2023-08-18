@@ -1,4 +1,5 @@
-use std::time::Duration;
+use zksync_dal::ConnectionPool;
+use zksync_types::L1BatchNumber;
 use zksync_web3_decl::{
     jsonrpsee::core::Error as RpcError,
     jsonrpsee::http_client::{HttpClient, HttpClientBuilder},
@@ -6,8 +7,7 @@ use zksync_web3_decl::{
     RpcResult,
 };
 
-use zksync_dal::ConnectionPool;
-use zksync_types::L1BatchNumber;
+use std::{future::Future, time::Duration};
 
 const SLEEP_INTERVAL: Duration = Duration::from_secs(5);
 
@@ -40,36 +40,39 @@ impl ReorgDetector {
     }
 
     /// Compares root hashes of the latest local batch and of the same batch from the main node.
-    async fn root_hashes_match(&self, block_number: L1BatchNumber) -> RpcResult<bool> {
+    async fn root_hashes_match(&self, l1_batch_number: L1BatchNumber) -> RpcResult<bool> {
         // Unwrapping is fine since the caller always checks that these root hashes exist.
         let local_hash = self
             .pool
             .access_storage()
             .await
             .blocks_dal()
-            .get_block_state_root(block_number)
+            .get_l1_batch_state_root(l1_batch_number)
             .await
             .unwrap_or_else(|| {
-                panic!("Root hash does not exist for local batch #{}", block_number)
+                panic!(
+                    "Root hash does not exist for local batch #{}",
+                    l1_batch_number
+                )
             });
         let Some(hash) = self
             .client
-            .get_l1_batch_details(block_number)
+            .get_l1_batch_details(l1_batch_number)
             .await?
-            .and_then(|b| b.root_hash)
-            else {
-                // Due to reorg, locally we may be ahead of the main node.
-                // Lack of the root hash on the main node is treated as a hash mismatch,
-                // so we can continue searching for the last correct block.
-                return Ok(false);
-            };
+            .and_then(|b| b.base.root_hash)
+        else {
+            // Due to reorg, locally we may be ahead of the main node.
+            // Lack of the root hash on the main node is treated as a hash mismatch,
+            // so we can continue searching for the last correct block.
+            return Ok(false);
+        };
         Ok(hash == local_hash)
     }
 
     /// Localizes a reorg: performs binary search to determine the last non-diverged block.
-    async fn detect_reorg(&self, diverged_block: L1BatchNumber) -> RpcResult<L1BatchNumber> {
-        binary_search_with(1, diverged_block.0, |block_number| {
-            self.root_hashes_match(L1BatchNumber(block_number))
+    async fn detect_reorg(&self, diverged_l1_batch: L1BatchNumber) -> RpcResult<L1BatchNumber> {
+        binary_search_with(1, diverged_l1_batch.0, |number| {
+            self.root_hashes_match(L1BatchNumber(number))
         })
         .await
         .map(L1BatchNumber)
@@ -78,9 +81,9 @@ impl ReorgDetector {
     pub async fn run(self) -> L1BatchNumber {
         loop {
             match self.run_inner().await {
-                Ok(batch_number) => return batch_number,
+                Ok(l1_batch_number) => return l1_batch_number,
                 Err(err @ RpcError::Transport(_) | err @ RpcError::RequestTimeout) => {
-                    vlog::warn!("Following transport error occurred: {}", err);
+                    vlog::warn!("Following transport error occurred: {err}");
                     vlog::info!("Trying again after a delay");
                     tokio::time::sleep(SLEEP_INTERVAL).await;
                 }
@@ -99,41 +102,41 @@ impl ReorgDetector {
     /// both on the main node and on the external node.
     async fn is_legally_ahead_of_main_node(
         &self,
-        sealed_block_number: L1BatchNumber,
+        sealed_l1_batch_number: L1BatchNumber,
     ) -> RpcResult<bool> {
         // We must know the latest batch on the main node *before* we ask it for a root hash
         // to prevent a race condition (asked for root hash, batch sealed on main node, we've got
         // inconsistent results).
-        let last_main_node_batch = self.client.get_l1_batch_number().await?;
-        let main_node_batch_root_hash = self
+        let last_main_node_l1_batch = self.client.get_l1_batch_number().await?;
+        let main_node_l1_batch_root_hash = self
             .client
-            .get_l1_batch_details(sealed_block_number)
+            .get_l1_batch_details(sealed_l1_batch_number)
             .await?
-            .and_then(|b| b.root_hash);
+            .and_then(|b| b.base.root_hash);
 
-        let en_ahead_for = sealed_block_number
+        let en_ahead_for = sealed_l1_batch_number
             .0
-            .checked_sub(last_main_node_batch.as_u32());
+            .checked_sub(last_main_node_l1_batch.as_u32());
         // Theoretically it's possible that the EN would not only calculate the root hash, but also seal the batch
         // quicker than the main node. So, we allow us to be at most one batch ahead of the main node.
         // If the gap is bigger, it's certainly a reorg.
         // Allowing the gap is safe: if reorg has happened, it'll be detected anyway in the future iterations.
-        Ok(main_node_batch_root_hash.is_none() && en_ahead_for <= Some(1))
+        Ok(main_node_l1_batch_root_hash.is_none() && en_ahead_for <= Some(1))
     }
 
     async fn run_inner(&self) -> RpcResult<L1BatchNumber> {
         loop {
-            let sealed_block_number = self
+            let sealed_l1_batch_number = self
                 .pool
                 .access_storage()
                 .await
                 .blocks_dal()
-                .get_last_block_number_with_metadata()
+                .get_last_l1_batch_number_with_metadata()
                 .await;
 
             // If the main node has to catch up with us, we should not do anything just yet.
             if self
-                .is_legally_ahead_of_main_node(sealed_block_number)
+                .is_legally_ahead_of_main_node(sealed_l1_batch_number)
                 .await?
             {
                 vlog::trace!(
@@ -144,20 +147,23 @@ impl ReorgDetector {
             }
 
             // At this point we're certain that if we detect a reorg, it's real.
-            vlog::trace!("Checking for reorgs - batch number {}", sealed_block_number);
-            if self.root_hashes_match(sealed_block_number).await? {
+            vlog::trace!("Checking for reorgs - L1 batch #{sealed_l1_batch_number}");
+            if self.root_hashes_match(sealed_l1_batch_number).await? {
                 metrics::gauge!(
                     "external_node.last_correct_batch",
-                    sealed_block_number.0 as f64,
+                    sealed_l1_batch_number.0 as f64,
                     "component" => "reorg_detector",
                 );
                 tokio::time::sleep(SLEEP_INTERVAL).await;
             } else {
-                vlog::warn!("Reorg detected: last state hash doesn't match the state hash from main node (batch #{sealed_block_number})");
+                vlog::warn!(
+                    "Reorg detected: last state hash doesn't match the state hash from main node \
+                     (L1 batch #{sealed_l1_batch_number})"
+                );
                 vlog::info!("Searching for the first diverged batch");
-                let last_correct_block = self.detect_reorg(sealed_block_number).await?;
-                vlog::info!("Reorg localized: last correct batch is #{last_correct_block}",);
-                return Ok(last_correct_block);
+                let last_correct_l1_batch = self.detect_reorg(sealed_l1_batch_number).await?;
+                vlog::info!("Reorg localized: last correct L1 batch is #{last_correct_l1_batch}");
+                return Ok(last_correct_l1_batch);
             }
         }
     }
@@ -166,7 +172,7 @@ impl ReorgDetector {
 async fn binary_search_with<F, Fut, E>(mut left: u32, mut right: u32, mut f: F) -> Result<u32, E>
 where
     F: FnMut(u32) -> Fut,
-    Fut: std::future::Future<Output = Result<bool, E>>,
+    Fut: Future<Output = Result<bool, E>>,
 {
     while left + 1 < right {
         let middle = (left + right) / 2;

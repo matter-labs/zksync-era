@@ -6,8 +6,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use crate::{
     errors::DeserializeError,
-    types::{LeafNode, Nibbles, Node, NodeKey},
-    Database, Key, MerkleTree, Root, ValueHash,
+    types::{LeafNode, Nibbles, Node, NodeKey, Root},
+    Database, Key, MerkleTree, ValueHash,
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -332,7 +332,11 @@ mod tests {
         let mut db = prepare_database();
 
         let root = db.roots_mut().get_mut(&0).unwrap();
-        let Root::Filled { node: Node::Internal(node), .. } = root else {
+        let Root::Filled {
+            node: Node::Internal(node),
+            ..
+        } = root
+        else {
             panic!("unexpected root: {root:?}");
         };
         let child_ref = node.child_ref_mut(0xd).unwrap();

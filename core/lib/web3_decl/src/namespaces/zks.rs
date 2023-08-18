@@ -1,16 +1,19 @@
-use crate::types::Token;
+use std::collections::HashMap;
+
 use bigdecimal::BigDecimal;
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
-use std::collections::HashMap;
-use zksync_types::api::{BridgeAddresses, L2ToL1LogProof, TransactionDetails};
-use zksync_types::transaction_request::CallRequest;
+
 use zksync_types::{
-    api::U64,
-    explorer_api::{BlockDetails, L1BatchDetails},
+    api::{
+        BlockDetails, BridgeAddresses, L1BatchDetails, L2ToL1LogProof, ProtocolVersion,
+        TransactionDetails,
+    },
     fee::Fee,
-    Address, H256, U256,
+    transaction_request::CallRequest,
+    Address, L1BatchNumber, MiniblockNumber, H256, U256, U64,
 };
-use zksync_types::{L1BatchNumber, MiniblockNumber};
+
+use crate::types::Token;
 
 #[cfg_attr(
     all(feature = "client", feature = "server"),
@@ -98,4 +101,10 @@ pub trait ZksNamespace {
 
     #[method(name = "getL1GasPrice")]
     async fn get_l1_gas_price(&self) -> RpcResult<U64>;
+
+    #[method(name = "getProtocolVersion")]
+    async fn get_protocol_version(
+        &self,
+        version_id: Option<u16>,
+    ) -> RpcResult<Option<ProtocolVersion>>;
 }

@@ -10,7 +10,7 @@ use std::collections::{HashMap, HashSet};
 use super::*;
 use crate::{
     hasher::{HasherWithStats, MerklePath},
-    types::{NodeKey, TreeInstruction},
+    types::{NodeKey, TreeInstruction, KEY_SIZE},
 };
 use zksync_types::{H256, U256};
 
@@ -43,7 +43,7 @@ fn inserting_entries_in_empty_database() {
     let db = PatchSet::default();
     let mut updater = TreeUpdater::new(0, Root::Empty);
     assert_eq!(updater.patch_set.version(), 0);
-    assert!(updater.root_node_mut().is_none());
+    assert!(updater.patch_set.get(&Nibbles::EMPTY).is_none());
 
     let sorted_keys = SortedKeys::new([FIRST_KEY, SECOND_KEY, THIRD_KEY].into_iter());
     let parent_nibbles = updater.load_ancestors(&sorted_keys, &db);
@@ -302,7 +302,11 @@ fn reading_keys_does_not_change_child_version() {
     ];
 
     let (_, patch) = storage.extend_with_proofs(instructions);
-    let Root::Filled { leaf_count, node: Node::Internal(node) } = &patch.roots[&1] else {
+    let Root::Filled {
+        leaf_count,
+        node: Node::Internal(node),
+    } = &patch.roots[&1]
+    else {
         panic!("unexpected root");
     };
     assert_eq!(u64::from(*leaf_count), 3);

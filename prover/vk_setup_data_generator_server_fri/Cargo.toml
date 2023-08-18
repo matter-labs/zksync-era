@@ -1,0 +1,46 @@
+[package]
+name = "vk_setup_data_generator_server_fri"
+version = "1.0.0"
+edition = "2021"
+
+
+[[bin]]
+name = "zksync_vk_generator_fri"
+path = "src/main.rs"
+
+[[bin]]
+name = "zksync_setup_data_generator_fri"
+path = "src/setup_data_generator.rs"
+
+[lib]
+name = "zksync_vk_setup_data_server_fri"
+path = "src/lib.rs"
+
+[[bin]]
+name = "zksync_commitment_generator_fri"
+path = "src/commitment_generator.rs"
+
+[dependencies]
+vlog = { path = "../../core/lib/vlog", version = "1.0" }
+zksync_types = {path = "../../core/lib/types", version = "1.0" }
+zksync_prover_utils = {path = "../../core/lib/prover_utils", version = "1.0" }
+zksync_prover_fri_types = { path = "../prover_fri_types", version = "1.0" }
+
+zkevm_test_harness = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.4.0"}
+circuit_definitions = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.4.0", features = ["log_tracing"]}
+shivini = {git = "https://github.com/matter-labs/shivini.git", branch ="main", optional = true }
+zksync_config = { path = "../../core/lib/config", version = "1.0" }
+
+serde_json = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_derive = "1.0"
+itertools = "0.10.5"
+bincode = "1"
+structopt = "0.3.26"
+
+[dev-dependencies]
+proptest = "1.2.0"
+
+[features]
+default = []
+gpu = ["shivini"]

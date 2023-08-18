@@ -23,7 +23,7 @@ This is the library that can be used by other components to fetch the verificati
 The main binary that generates verification key for given circuits. Most of the heavy lifting is done by the
 `create_vk_for_padding_size_log_2` method from circuit_testing repo.
 
-The results are writte to the `verification_XX_key.json` files in the current repository.
+The results are written to the `verification_XX_key.json` files in the current repository.
 
 ## zksync_json_to_binary_vk_converter
 

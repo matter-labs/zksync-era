@@ -1,64 +1,55 @@
 //! Tree updater trait and its implementations.
 
+use futures::{future, FutureExt};
 use tokio::sync::watch;
 
-use std::time::Instant;
+use std::{ops, time::Instant};
 
+use zksync_config::configs::database::MerkleTreeMode;
 use zksync_dal::{ConnectionPool, StorageProcessor};
-use zksync_merkle_tree::domain::ZkSyncTree;
+use zksync_health_check::HealthUpdater;
+use zksync_merkle_tree::domain::TreeMetadata;
 use zksync_object_store::ObjectStore;
-use zksync_storage::{db::NamedColumnFamily, RocksDB};
-use zksync_types::{block::WitnessBlockWithLogs, L1BatchNumber};
+use zksync_types::{block::L1BatchHeader, writes::InitialStorageWrite, L1BatchNumber, U256};
 
 use super::{
-    get_logs_for_l1_batch,
-    helpers::{AsyncTree, Delayer},
-    metrics::TreeUpdateStage,
-    MetadataCalculator, MetadataCalculatorMode, MetadataCalculatorStatus,
+    helpers::{AsyncTree, Delayer, L1BatchWithLogs, TreeHealthCheckDetails},
+    metrics::{ReportStage, TreeUpdateStage},
+    MetadataCalculator, MetadataCalculatorConfig,
 };
 
 #[derive(Debug)]
 pub(super) struct TreeUpdater {
-    mode: MetadataCalculatorMode,
+    mode: MerkleTreeMode,
     tree: AsyncTree,
-    max_block_batch: usize,
+    max_l1_batches_per_iter: usize,
     object_store: Option<Box<dyn ObjectStore>>,
 }
 
 impl TreeUpdater {
-    pub fn new(
-        mode: MetadataCalculatorMode,
-        db_path: &str,
-        max_block_batch: usize,
+    pub async fn new(
+        mode: MerkleTreeMode,
+        config: &MetadataCalculatorConfig<'_>,
         object_store: Option<Box<dyn ObjectStore>>,
     ) -> Self {
         assert!(
-            max_block_batch > 0,
-            "Maximum block batch is misconfigured to be 0; please update it to positive value"
+            config.max_l1_batches_per_iter > 0,
+            "Maximum L1 batches per iteration is misconfigured to be 0; please update it to positive value"
         );
 
-        let db = Self::create_db(db_path);
-        let tree = AsyncTree::new(match mode {
-            MetadataCalculatorMode::Full => ZkSyncTree::new(db),
-            MetadataCalculatorMode::Lightweight => ZkSyncTree::new_lightweight(db),
-        });
-
+        let db_path = config.db_path.into();
+        let tree = AsyncTree::new(
+            db_path,
+            mode,
+            config.multi_get_chunk_size,
+            config.block_cache_capacity,
+        )
+        .await;
         Self {
             mode,
             tree,
-            max_block_batch,
+            max_l1_batches_per_iter: config.max_l1_batches_per_iter,
             object_store,
-        }
-    }
-
-    fn create_db<CF: NamedColumnFamily>(path: &str) -> RocksDB<CF> {
-        let db = RocksDB::new(path, true);
-        if cfg!(test) {
-            // We need sync writes for the unit tests to execute reliably. With the default config,
-            // some writes to RocksDB may occur, but not be visible to the test code.
-            db.with_sync_writes()
-        } else {
-            db
         }
     }
 
@@ -67,130 +58,148 @@ impl TreeUpdater {
         &self.tree
     }
 
-    pub fn mode(&self) -> MetadataCalculatorMode {
-        self.mode
+    async fn process_l1_batch(
+        &mut self,
+        l1_batch: L1BatchWithLogs,
+    ) -> (L1BatchHeader, TreeMetadata, Option<String>) {
+        let compute_latency = TreeUpdateStage::Compute.start();
+        let mut metadata = self.tree.process_l1_batch(l1_batch.storage_logs).await;
+        compute_latency.report();
+
+        let witness_input = metadata.witness.take();
+        let l1_batch_number = l1_batch.header.number;
+        let object_key = if let Some(object_store) = &self.object_store {
+            let witness_input =
+                witness_input.expect("No witness input provided by tree; this is a bug");
+            let save_witnesses_latency = TreeUpdateStage::SaveWitnesses.start();
+            let object_key = object_store
+                .put(l1_batch_number, &witness_input)
+                .await
+                .unwrap();
+            save_witnesses_latency.report();
+
+            vlog::info!(
+                "Saved witnesses for L1 batch #{l1_batch_number} to object storage at `{object_key}`"
+            );
+            Some(object_key)
+        } else {
+            None
+        };
+
+        (l1_batch.header, metadata, object_key)
     }
 
-    async fn process_multiple_blocks(
+    /// Processes a range of L1 batches with a single flushing of the tree updates to RocksDB at the end.
+    /// This allows to save on RocksDB I/O ops.
+    ///
+    /// Returns the number of the next L1 batch to be processed by the tree.
+    ///
+    /// # Implementation details
+    ///
+    /// We load L1 batch data from Postgres in parallel with updating the tree. (Naturally, we need to load
+    /// the first L1 batch data beforehand.) This allows saving some time if we actually process
+    /// multiple L1 batches at once (e.g., during the initial tree syncing), and if loading data from Postgres
+    /// is slow for whatever reason.
+    async fn process_multiple_batches(
         &mut self,
         storage: &mut StorageProcessor<'_>,
         prover_storage: &mut StorageProcessor<'_>,
-        blocks: Vec<WitnessBlockWithLogs>,
-    ) {
+        l1_batch_numbers: ops::RangeInclusive<u32>,
+    ) -> L1BatchNumber {
         let start = Instant::now();
+        vlog::info!("Processing L1 batches #{l1_batch_numbers:?}");
+        let first_l1_batch_number = L1BatchNumber(*l1_batch_numbers.start());
+        let last_l1_batch_number = L1BatchNumber(*l1_batch_numbers.end());
+        let mut l1_batch_data = L1BatchWithLogs::new(storage, first_l1_batch_number).await;
 
-        let compute_latency = TreeUpdateStage::Compute.start();
-        let total_logs: usize = blocks.iter().map(|block| block.storage_logs.len()).sum();
-        if let (Some(first), Some(last)) = (blocks.first(), blocks.last()) {
-            let l1_batch_numbers = first.header.number.0..=last.header.number.0;
-            vlog::info!("Processing L1 batches #{l1_batch_numbers:?} with {total_logs} total logs");
-        };
-
-        let (storage_logs, block_headers): (Vec<_>, Vec<_>) = blocks
-            .into_iter()
-            .map(|block| (block.storage_logs, block.header))
-            .unzip();
         let mut previous_root_hash = self.tree.root_hash();
-        let metadata = self.tree.process_blocks(storage_logs).await;
-        compute_latency.report();
+        let mut total_logs = 0;
+        let mut updated_headers = vec![];
+        for l1_batch_number in l1_batch_numbers {
+            let l1_batch_number = L1BatchNumber(l1_batch_number);
+            let Some(current_l1_batch_data) = l1_batch_data else {
+                return l1_batch_number;
+            };
+            total_logs += current_l1_batch_data.storage_logs.len();
 
-        let mut updated_headers = Vec::with_capacity(block_headers.len());
-        for (mut metadata_at_block, block_header) in metadata.into_iter().zip(block_headers) {
+            let process_l1_batch_task = self.process_l1_batch(current_l1_batch_data);
+            let load_next_l1_batch_task = async {
+                if l1_batch_number < last_l1_batch_number {
+                    L1BatchWithLogs::new(storage, l1_batch_number + 1).await
+                } else {
+                    None // Don't need to load the next L1 batch after the last one we're processing.
+                }
+            };
+            let ((header, metadata, object_key), next_l1_batch_data) =
+                future::join(process_l1_batch_task, load_next_l1_batch_task).await;
+
             let prepare_results_latency = TreeUpdateStage::PrepareResults.start();
-            let witness_input = metadata_at_block.witness.take();
-
-            let next_root_hash = metadata_at_block.root_hash;
-            let metadata =
-                MetadataCalculator::build_block_metadata(metadata_at_block, &block_header);
+            Self::check_initial_writes_consistency(
+                storage,
+                header.number,
+                &metadata.initial_writes,
+            )
+            .await;
+            let metadata = MetadataCalculator::build_l1_batch_metadata(metadata, &header);
             prepare_results_latency.report();
 
-            let block_with_metadata =
-                MetadataCalculator::reestimate_block_commit_gas(storage, block_header, metadata)
-                    .await;
-            let block_number = block_with_metadata.header.number;
+            MetadataCalculator::reestimate_l1_batch_commit_gas(storage, &header, &metadata).await;
 
-            let object_key = if let Some(object_store) = &self.object_store {
-                let witness_input =
-                    witness_input.expect("No witness input provided by tree; this is a bug");
-                let save_witnesses_latency = TreeUpdateStage::SaveWitnesses.start();
-                let object_key = object_store
-                    .put(block_number, &witness_input)
-                    .await
-                    .unwrap();
-                save_witnesses_latency.report();
-
-                vlog::info!(
-                    "Saved witnesses for L1 batch #{block_number} to object storage at `{object_key}`"
-                );
-                Some(object_key)
-            } else {
-                None
-            };
-
-            // Save the metadata in case the lightweight tree is behind / not running
-            let metadata = &block_with_metadata.metadata;
             let save_postgres_latency = TreeUpdateStage::SavePostgres.start();
             storage
                 .blocks_dal()
-                .save_blocks_metadata(block_number, metadata, previous_root_hash)
+                .save_l1_batch_metadata(l1_batch_number, &metadata, previous_root_hash)
                 .await;
-            // ^ Note that `save_blocks_metadata()` will not blindly overwrite changes if the block
+            // ^ Note that `save_l1_batch_metadata()` will not blindly overwrite changes if L1 batch
             // metadata already exists; instead, it'll check that the old an new metadata match.
-            // That is, if we run both tree implementations, we'll get metadata correspondence
+            // That is, if we run multiple tree instances, we'll get metadata correspondence
             // right away without having to implement dedicated code.
 
             if let Some(object_key) = &object_key {
                 prover_storage
                     .witness_generator_dal()
-                    .save_witness_inputs(block_number, object_key)
+                    .save_witness_inputs(l1_batch_number, object_key)
                     .await;
                 prover_storage
                     .fri_witness_generator_dal()
-                    .save_witness_inputs(block_number, object_key)
+                    .save_witness_inputs(l1_batch_number, object_key)
                     .await;
             }
             save_postgres_latency.report();
-            vlog::info!("Updated metadata for L1 batch #{block_number} in Postgres");
+            vlog::info!("Updated metadata for L1 batch #{l1_batch_number} in Postgres");
 
-            previous_root_hash = next_root_hash;
-            updated_headers.push(block_with_metadata.header);
+            previous_root_hash = metadata.merkle_root_hash;
+            updated_headers.push(header);
+            l1_batch_data = next_l1_batch_data;
         }
 
         let save_rocksdb_latency = TreeUpdateStage::SaveRocksDB.start();
         self.tree.save().await;
         save_rocksdb_latency.report();
         MetadataCalculator::update_metrics(self.mode, &updated_headers, total_logs, start);
+
+        last_l1_batch_number + 1
     }
 
     async fn step(
         &mut self,
         mut storage: StorageProcessor<'_>,
         mut prover_storage: StorageProcessor<'_>,
-        next_block_to_seal: &mut L1BatchNumber,
+        next_l1_batch_to_seal: &mut L1BatchNumber,
     ) {
-        let load_changes_latency = TreeUpdateStage::LoadChanges.start();
-        let last_sealed_block = storage.blocks_dal().get_sealed_block_number().await;
-        let last_requested_block = next_block_to_seal.0 + self.max_block_batch as u32 - 1;
-        let last_requested_block = last_requested_block.min(last_sealed_block.0);
-        let block_numbers = next_block_to_seal.0..=last_requested_block;
-        if block_numbers.is_empty() {
+        let last_sealed_l1_batch = storage.blocks_dal().get_sealed_l1_batch_number().await;
+        let last_requested_l1_batch =
+            next_l1_batch_to_seal.0 + self.max_l1_batches_per_iter as u32 - 1;
+        let last_requested_l1_batch = last_requested_l1_batch.min(last_sealed_l1_batch.0);
+        let l1_batch_numbers = next_l1_batch_to_seal.0..=last_requested_l1_batch;
+        if l1_batch_numbers.is_empty() {
             vlog::trace!(
-                "No blocks to seal: block numbers range to be loaded {block_numbers:?} is empty"
+                "No L1 batches to seal: batch numbers range to be loaded {l1_batch_numbers:?} is empty"
             );
         } else {
-            vlog::info!("Loading blocks with numbers {block_numbers:?} to update Merkle tree");
-        }
-
-        let mut new_blocks = vec![];
-        for block_number in block_numbers {
-            let logs = get_logs_for_l1_batch(&mut storage, L1BatchNumber(block_number)).await;
-            new_blocks.extend(logs);
-        }
-        load_changes_latency.report();
-
-        if let Some(last_block) = new_blocks.last() {
-            *next_block_to_seal = last_block.header.number + 1;
-            self.process_multiple_blocks(&mut storage, &mut prover_storage, new_blocks)
+            vlog::info!("Updating Merkle tree with L1 batches #{l1_batch_numbers:?}");
+            *next_l1_batch_to_seal = self
+                .process_multiple_batches(&mut storage, &mut prover_storage, l1_batch_numbers)
                 .await;
         }
     }
@@ -199,44 +208,70 @@ impl TreeUpdater {
     pub async fn loop_updating_tree(
         mut self,
         delayer: Delayer,
-        throttler: Delayer,
         pool: &ConnectionPool,
         prover_pool: &ConnectionPool,
         mut stop_receiver: watch::Receiver<bool>,
-        status_sender: watch::Sender<MetadataCalculatorStatus>,
+        health_updater: HealthUpdater,
     ) {
         let mut storage = pool.access_storage_tagged("metadata_calculator").await;
 
         // Ensure genesis creation
         let tree = &mut self.tree;
         if tree.is_empty() {
-            let Some(logs) = get_logs_for_l1_batch(&mut storage, L1BatchNumber(0)).await else {
-                panic!("Missing storage logs for the genesis block");
+            let Some(logs) = L1BatchWithLogs::new(&mut storage, L1BatchNumber(0)).await else {
+                panic!("Missing storage logs for the genesis L1 batch");
             };
-            tree.process_block(logs.storage_logs).await;
+            tree.process_l1_batch(logs.storage_logs).await;
             tree.save().await;
         }
-        let mut next_block_to_seal = L1BatchNumber(tree.block_number());
+        let mut next_l1_batch_to_seal = tree.next_l1_batch_number();
 
-        let current_db_block = storage.blocks_dal().get_sealed_block_number().await + 1;
-        let last_block_number_with_metadata = storage
+        let current_db_batch = storage.blocks_dal().get_sealed_l1_batch_number().await;
+        let last_l1_batch_with_metadata = storage
             .blocks_dal()
-            .get_last_block_number_with_metadata()
-            .await
-            + 1;
+            .get_last_l1_batch_number_with_metadata()
+            .await;
         drop(storage);
 
         vlog::info!(
-            "Initialized metadata calculator with {max_block_batch} max batch size. \
-             Current RocksDB block: {next_block_to_seal}, current Postgres block: {current_db_block}, \
-             last block with metadata: {last_block_number_with_metadata}",
-            max_block_batch = self.max_block_batch
+            "Initialized metadata calculator with {max_batches_per_iter} max L1 batches per iteration. \
+             Next L1 batch for Merkle tree: {next_l1_batch_to_seal}, current Postgres L1 batch: {current_db_batch}, \
+             last L1 batch with metadata: {last_l1_batch_with_metadata}",
+            max_batches_per_iter = self.max_l1_batches_per_iter
         );
-        metrics::gauge!(
-            "server.metadata_calculator.backup_lag",
-            (last_block_number_with_metadata - *next_block_to_seal).0 as f64
-        );
-        status_sender.send_replace(MetadataCalculatorStatus::Ready);
+        let backup_lag =
+            (last_l1_batch_with_metadata.0 + 1).saturating_sub(next_l1_batch_to_seal.0);
+        metrics::gauge!("server.metadata_calculator.backup_lag", backup_lag as f64);
+
+        let health = TreeHealthCheckDetails {
+            mode: self.mode,
+            next_l1_batch_to_seal,
+        };
+        health_updater.update(health.into());
+
+        if next_l1_batch_to_seal > last_l1_batch_with_metadata + 1 {
+            // Check stop signal before proceeding with a potentially time-consuming operation.
+            if *stop_receiver.borrow_and_update() {
+                vlog::info!("Stop signal received, metadata_calculator is shutting down");
+                return;
+            }
+
+            vlog::warn!(
+                "Next L1 batch of the tree ({next_l1_batch_to_seal}) is greater than last L1 batch with metadata in Postgres \
+                 ({last_l1_batch_with_metadata}); this may be a result of restoring Postgres from a snapshot. \
+                 Truncating Merkle tree versions so that this mismatch is fixed..."
+            );
+            tree.revert_logs(last_l1_batch_with_metadata);
+            tree.save().await;
+            next_l1_batch_to_seal = tree.next_l1_batch_number();
+            vlog::info!("Truncated Merkle tree to L1 batch #{next_l1_batch_to_seal}");
+
+            let health = TreeHealthCheckDetails {
+                mode: self.mode,
+                next_l1_batch_to_seal,
+            };
+            health_updater.update(health.into());
+        }
 
         loop {
             if *stop_receiver.borrow_and_update() {
@@ -248,21 +283,26 @@ impl TreeUpdater {
                 .access_storage_tagged("metadata_calculator")
                 .await;
 
-            let next_block_snapshot = *next_block_to_seal;
-            self.step(storage, prover_storage, &mut next_block_to_seal)
+            let snapshot = *next_l1_batch_to_seal;
+            self.step(storage, prover_storage, &mut next_l1_batch_to_seal)
                 .await;
-            let delay = if next_block_snapshot == *next_block_to_seal {
+            let delay = if snapshot == *next_l1_batch_to_seal {
                 vlog::trace!(
-                    "Metadata calculator (next L1 batch: #{next_block_to_seal}) \
+                    "Metadata calculator (next L1 batch: #{next_l1_batch_to_seal}) \
                      didn't make any progress; delaying it using {delayer:?}"
                 );
-                delayer.wait(&self.tree)
+                delayer.wait(&self.tree).left_future()
             } else {
+                let health = TreeHealthCheckDetails {
+                    mode: self.mode,
+                    next_l1_batch_to_seal,
+                };
+                health_updater.update(health.into());
+
                 vlog::trace!(
-                    "Metadata calculator (next L1 batch: #{next_block_to_seal}) \
-                     made progress from #{next_block_snapshot}; throttling it using {throttler:?}"
+                    "Metadata calculator (next L1 batch: #{next_l1_batch_to_seal}) made progress from #{snapshot}"
                 );
-                throttler.wait(&self.tree)
+                future::ready(()).right_future()
             };
 
             // The delays we're operating with are reasonably small, but selecting between the delay
@@ -275,5 +315,38 @@ impl TreeUpdater {
                 () = delay => { /* The delay has passed */ }
             }
         }
+        drop(health_updater); // Explicitly mark where the updater should be dropped
+    }
+
+    async fn check_initial_writes_consistency(
+        connection: &mut StorageProcessor<'_>,
+        l1_batch_number: L1BatchNumber,
+        tree_initial_writes: &[InitialStorageWrite],
+    ) {
+        let pg_initial_writes: Vec<_> = connection
+            .storage_logs_dedup_dal()
+            .initial_writes_for_batch(l1_batch_number)
+            .await;
+
+        let pg_initial_writes: Option<Vec<_>> = pg_initial_writes
+            .into_iter()
+            .map(|(key, index)| {
+                let key = U256::from_little_endian(key.as_bytes());
+                Some((key, index?))
+            })
+            .collect();
+        let Some(pg_initial_writes) = pg_initial_writes else {
+            vlog::info!("Skipping indices consistency check as they are missing in Postgres for L1 batch {l1_batch_number}");
+            return;
+        };
+
+        let tree_initial_writes: Vec<_> = tree_initial_writes
+            .iter()
+            .map(|write| (write.key, write.index))
+            .collect();
+        assert_eq!(
+            pg_initial_writes, tree_initial_writes,
+            "Leaf indices are not consistent for L1 batch {l1_batch_number}"
+        );
     }
 }

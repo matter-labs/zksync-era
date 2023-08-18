@@ -19,7 +19,7 @@ use zksync_types::{
         sync_vm::scheduler::BlockApplicationWitness,
         witness::{self, oracle::VmWitnessOracle, recursive_aggregation::erase_vk_type},
     },
-    L1BatchNumber,
+    L1BatchNumber, ProtocolVersionId,
 };
 use zksync_verification_key_server::{
     get_vk_for_circuit_type, get_vks_for_basic_circuits, get_vks_for_commitment,
@@ -43,6 +43,7 @@ pub struct SchedulerWitnessGeneratorJob {
 pub struct SchedulerWitnessGenerator {
     config: WitnessGeneratorConfig,
     object_store: Box<dyn ObjectStore>,
+    protocol_versions: Vec<ProtocolVersionId>,
     connection_pool: ConnectionPool,
     prover_connection_pool: ConnectionPool,
 }
@@ -51,12 +52,14 @@ impl SchedulerWitnessGenerator {
     pub async fn new(
         config: WitnessGeneratorConfig,
         store_factory: &ObjectStoreFactory,
+        protocol_versions: Vec<ProtocolVersionId>,
         connection_pool: ConnectionPool,
         prover_connection_pool: ConnectionPool,
     ) -> Self {
         Self {
             config,
             object_store: store_factory.create_store().await,
+            protocol_versions,
             connection_pool,
             prover_connection_pool,
         }
@@ -96,13 +99,14 @@ impl JobProcessor for SchedulerWitnessGenerator {
                 self.config.witness_generation_timeout(),
                 self.config.max_attempts,
                 last_l1_batch_to_process,
+                &self.protocol_versions,
             )
             .await
         {
             Some(metadata) => {
                 let prev_metadata = connection
                     .blocks_dal()
-                    .get_block_metadata(metadata.block_number - 1)
+                    .get_l1_batch_metadata(metadata.block_number - 1)
                     .await;
                 let previous_aux_hash = prev_metadata
                     .as_ref()
@@ -257,7 +261,7 @@ pub async fn update_database(
     let mut connection = connection_pool.access_storage().await;
     let block = connection
         .blocks_dal()
-        .get_block_metadata(block_number)
+        .get_l1_batch_metadata(block_number)
         .await
         .expect("L1 batch should exist");
 
@@ -283,12 +287,23 @@ pub async fn update_database(
 
     let mut prover_connection = prover_connection_pool.access_storage().await;
     let mut transaction = prover_connection.start_transaction().await;
+    let protocol_version = transaction
+        .witness_generator_dal()
+        .protocol_version_for_l1_batch(block_number)
+        .await
+        .unwrap_or_else(|| {
+            panic!(
+                "No system version exist for l1 batch {} for node agg",
+                block_number.0
+            )
+        });
     transaction
         .prover_dal()
         .insert_prover_jobs(
             block_number,
             circuit_types_and_urls,
             AggregationRound::Scheduler,
+            protocol_version,
         )
         .await;
 

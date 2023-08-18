@@ -3,7 +3,8 @@ use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
 // Workspace uses
 use crate::types::{
-    Block, Bytes, Filter, FilterChanges, Index, Log, SyncState, TransactionReceipt, U256, U64,
+    Block, Bytes, FeeHistory, Filter, FilterChanges, Index, Log, SyncState, TransactionReceipt,
+    U256, U64,
 };
 
 use zksync_types::{
@@ -162,4 +163,12 @@ pub trait EthNamespace {
 
     #[method(name = "mining")]
     async fn mining(&self) -> RpcResult<bool>;
+
+    #[method(name = "feeHistory")]
+    async fn fee_history(
+        &self,
+        block_count: U64,
+        newest_block: BlockNumber,
+        reward_percentiles: Vec<f32>,
+    ) -> RpcResult<FeeHistory>;
 }

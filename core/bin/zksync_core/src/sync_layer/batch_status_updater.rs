@@ -5,8 +5,8 @@ use tokio::sync::watch::Receiver;
 
 use zksync_dal::ConnectionPool;
 use zksync_types::{
-    aggregated_operations::AggregatedActionType, explorer_api::BlockDetails, L1BatchNumber,
-    MiniblockNumber, H256,
+    aggregated_operations::AggregatedActionType, api::BlockDetails, L1BatchNumber, MiniblockNumber,
+    H256,
 };
 
 use zksync_web3_decl::{
@@ -67,17 +67,17 @@ impl BatchStatusUpdater {
         let mut storage = pool.access_storage_tagged("sync_layer").await;
         let last_executed_l1_batch = storage
             .blocks_dal()
-            .get_number_of_last_block_executed_on_eth()
+            .get_number_of_last_l1_batch_executed_on_eth()
             .await
             .unwrap_or_default();
         let last_proven_l1_batch = storage
             .blocks_dal()
-            .get_number_of_last_block_proven_on_eth()
+            .get_number_of_last_l1_batch_proven_on_eth()
             .await
             .unwrap_or_default();
         let last_committed_l1_batch = storage
             .blocks_dal()
-            .get_number_of_last_block_committed_on_eth()
+            .get_number_of_last_l1_batch_committed_on_eth()
             .await
             .unwrap_or_default();
         drop(storage);
@@ -128,7 +128,7 @@ impl BatchStatusUpdater {
             .access_storage_tagged("sync_layer")
             .await
             .blocks_dal()
-            .get_newest_block_header()
+            .get_newest_l1_batch_header()
             .await
             .number;
 
@@ -193,13 +193,13 @@ impl BatchStatusUpdater {
             Self::update_executed_batch(status_changes, &batch_info, &mut last_executed_l1_batch);
 
             // Check whether we can skip a part of the range.
-            if batch_info.commit_tx_hash.is_none() {
+            if batch_info.base.commit_tx_hash.is_none() {
                 // No committed batches after this one.
                 break;
-            } else if batch_info.prove_tx_hash.is_none() && batch < last_committed_l1_batch {
+            } else if batch_info.base.prove_tx_hash.is_none() && batch < last_committed_l1_batch {
                 // The interval between this batch and the last committed one is not proven.
                 batch = last_committed_l1_batch.next();
-            } else if batch_info.executed_at.is_none() && batch < last_proven_l1_batch {
+            } else if batch_info.base.executed_at.is_none() && batch < last_proven_l1_batch {
                 // The interval between this batch and the last proven one is not executed.
                 batch = last_proven_l1_batch.next();
             } else {
@@ -216,17 +216,17 @@ impl BatchStatusUpdater {
         batch_info: &BlockDetails,
         last_committed_l1_batch: &mut L1BatchNumber,
     ) {
-        if batch_info.commit_tx_hash.is_some()
+        if batch_info.base.commit_tx_hash.is_some()
             && batch_info.l1_batch_number == last_committed_l1_batch.next()
         {
             assert!(
-                batch_info.committed_at.is_some(),
+                batch_info.base.committed_at.is_some(),
                 "Malformed API response: batch is committed, but has no commit timestamp"
             );
             status_changes.commit.push(BatchStatusChange {
                 number: batch_info.l1_batch_number,
-                l1_tx_hash: batch_info.commit_tx_hash.unwrap(),
-                happened_at: batch_info.committed_at.unwrap(),
+                l1_tx_hash: batch_info.base.commit_tx_hash.unwrap(),
+                happened_at: batch_info.base.committed_at.unwrap(),
             });
             vlog::info!("Batch {}: committed", batch_info.l1_batch_number);
             metrics::gauge!("external_node.fetcher.l1_batch", batch_info.l1_batch_number.0 as f64, "status" => "committed");
@@ -239,17 +239,17 @@ impl BatchStatusUpdater {
         batch_info: &BlockDetails,
         last_proven_l1_batch: &mut L1BatchNumber,
     ) {
-        if batch_info.prove_tx_hash.is_some()
+        if batch_info.base.prove_tx_hash.is_some()
             && batch_info.l1_batch_number == last_proven_l1_batch.next()
         {
             assert!(
-                batch_info.proven_at.is_some(),
+                batch_info.base.proven_at.is_some(),
                 "Malformed API response: batch is proven, but has no prove timestamp"
             );
             status_changes.prove.push(BatchStatusChange {
                 number: batch_info.l1_batch_number,
-                l1_tx_hash: batch_info.prove_tx_hash.unwrap(),
-                happened_at: batch_info.proven_at.unwrap(),
+                l1_tx_hash: batch_info.base.prove_tx_hash.unwrap(),
+                happened_at: batch_info.base.proven_at.unwrap(),
             });
             vlog::info!("Batch {}: proven", batch_info.l1_batch_number);
             metrics::gauge!("external_node.fetcher.l1_batch", batch_info.l1_batch_number.0 as f64, "status" => "proven");
@@ -262,17 +262,17 @@ impl BatchStatusUpdater {
         batch_info: &BlockDetails,
         last_executed_l1_batch: &mut L1BatchNumber,
     ) {
-        if batch_info.execute_tx_hash.is_some()
+        if batch_info.base.execute_tx_hash.is_some()
             && batch_info.l1_batch_number == last_executed_l1_batch.next()
         {
             assert!(
-                batch_info.executed_at.is_some(),
+                batch_info.base.executed_at.is_some(),
                 "Malformed API response: batch is executed, but has no execute timestamp"
             );
             status_changes.execute.push(BatchStatusChange {
                 number: batch_info.l1_batch_number,
-                l1_tx_hash: batch_info.execute_tx_hash.unwrap(),
-                happened_at: batch_info.executed_at.unwrap(),
+                l1_tx_hash: batch_info.base.execute_tx_hash.unwrap(),
+                happened_at: batch_info.base.executed_at.unwrap(),
             });
             vlog::info!("Batch {}: executed", batch_info.l1_batch_number);
             metrics::gauge!("external_node.fetcher.l1_batch", batch_info.l1_batch_number.0 as f64, "status" => "executed");
@@ -303,7 +303,7 @@ impl BatchStatusUpdater {
                 .eth_sender_dal()
                 .insert_bogus_confirmed_eth_tx(
                     change.number,
-                    AggregatedActionType::CommitBlocks,
+                    AggregatedActionType::Commit,
                     change.l1_tx_hash,
                     change.happened_at,
                 )
@@ -321,7 +321,7 @@ impl BatchStatusUpdater {
                 .eth_sender_dal()
                 .insert_bogus_confirmed_eth_tx(
                     change.number,
-                    AggregatedActionType::PublishProofBlocksOnchain,
+                    AggregatedActionType::PublishProofOnchain,
                     change.l1_tx_hash,
                     change.happened_at,
                 )
@@ -340,7 +340,7 @@ impl BatchStatusUpdater {
                 .eth_sender_dal()
                 .insert_bogus_confirmed_eth_tx(
                     change.number,
-                    AggregatedActionType::ExecuteBlocks,
+                    AggregatedActionType::Execute,
                     change.l1_tx_hash,
                     change.happened_at,
                 )

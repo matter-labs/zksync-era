@@ -6,7 +6,7 @@ use zksync_types::{
     block::BlockGasCount,
     storage_writes_deduplicator::StorageWritesDeduplicator,
     tx::tx_execution_info::{ExecutionMetrics, VmExecutionLogs},
-    Address, L1BatchNumber, MiniblockNumber, Transaction,
+    Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, Transaction,
 };
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
@@ -28,6 +28,7 @@ pub struct UpdatesManager {
     fair_l2_gas_price: u64,
     base_fee_per_gas: u64,
     base_system_contract_hashes: BaseSystemContractsHashes,
+    protocol_version: ProtocolVersionId,
     pub l1_batch: L1BatchUpdates,
     pub miniblock: MiniblockUpdates,
     pub storage_writes_deduplicator: StorageWritesDeduplicator,
@@ -37,6 +38,7 @@ impl UpdatesManager {
     pub(crate) fn new(
         block_context: &BlockContextMode,
         base_system_contract_hashes: BaseSystemContractsHashes,
+        protocol_version: ProtocolVersionId,
     ) -> Self {
         let batch_timestamp = block_context.timestamp();
         let context = block_context.inner_block_context().context;
@@ -45,6 +47,7 @@ impl UpdatesManager {
             l1_gas_price: context.l1_gas_price,
             fair_l2_gas_price: context.fair_l2_gas_price,
             base_fee_per_gas: block_context.inner_block_context().base_fee,
+            protocol_version,
             base_system_contract_hashes,
             l1_batch: L1BatchUpdates::new(),
             miniblock: MiniblockUpdates::new(batch_timestamp),
@@ -83,8 +86,13 @@ impl UpdatesManager {
             fair_l2_gas_price: self.fair_l2_gas_price,
             base_fee_per_gas: self.base_fee_per_gas,
             base_system_contracts_hashes: self.base_system_contract_hashes,
+            protocol_version: self.protocol_version,
             l2_erc20_bridge_addr,
         }
+    }
+
+    pub(crate) fn protocol_version(&self) -> ProtocolVersionId {
+        self.protocol_version
     }
 
     pub(crate) fn extend_from_executed_transaction(
@@ -151,6 +159,7 @@ pub(crate) struct MiniblockSealCommand {
     pub fair_l2_gas_price: u64,
     pub base_fee_per_gas: u64,
     pub base_system_contracts_hashes: BaseSystemContractsHashes,
+    pub protocol_version: ProtocolVersionId,
     pub l2_erc20_bridge_addr: Address,
 }
 

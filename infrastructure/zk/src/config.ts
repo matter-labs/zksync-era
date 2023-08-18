@@ -26,7 +26,9 @@ const CONFIG_FILES = [
     'house_keeper.toml',
     'fri_prover.toml',
     'fri_witness_generator.toml',
-    'fri_prover_group.toml'
+    'fri_prover_group.toml',
+    'proof_data_handler.toml',
+    'fri_witness_vector_generator.toml'
 ];
 
 function loadConfigFile(path: string) {
@@ -112,7 +114,7 @@ export function compileConfig(environment?: string) {
 
     const outputFileName = `etc/env/${environment}.env`;
     fs.writeFileSync(outputFileName, outputFileContents);
-    console.log('Configs compiled');
+    console.log(`Configs compiled for ${environment}`);
 }
 
 export const command = new Command('config').description('config management');

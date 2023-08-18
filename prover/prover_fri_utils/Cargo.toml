@@ -1,0 +1,17 @@
+[package]
+name = "zksync_prover_fri_utils"
+version = "1.0.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+zksync_object_store = { path = "../../core/lib/object_store", version = "1.0" }
+zksync_config = { path = "../../core/lib/config", version = "1.0" }
+zksync_types = { path = "../../core/lib/types", version = "1.0" }
+zksync_prover_fri_types = { path = "../prover_fri_types", version = "1.0" }
+zksync_dal = { path = "../../core/lib/dal", version = "1.0" }
+vlog = { path = "../../core/lib/vlog", version = "1.0" }
+
+serde = { version = "1.0", features = ["derive"] }
+metrics = "0.20.0"

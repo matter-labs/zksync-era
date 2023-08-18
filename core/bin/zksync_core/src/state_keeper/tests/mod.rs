@@ -16,8 +16,10 @@ use vm::{
 use zksync_config::{configs::chain::StateKeeperConfig, constants::ZKPORTER_IS_AVAILABLE};
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes};
 use zksync_types::{
+    aggregated_operations::AggregatedActionType,
     block::BlockGasCount,
-    commitment::{BlockMetaParameters, BlockMetadata},
+    block::MiniblockReexecuteData,
+    commitment::{L1BatchMetaParameters, L1BatchMetadata},
     fee::Fee,
     l2::L2Tx,
     transaction_request::PaymasterParams,
@@ -25,8 +27,8 @@ use zksync_types::{
     vm_trace::{VmExecutionTrace, VmTrace},
     zk_evm::aux_structures::{LogQuery, Timestamp},
     zk_evm::block_properties::BlockProperties,
-    Address, L2ChainId, MiniblockNumber, Nonce, StorageLogQuery, StorageLogQueryType, Transaction,
-    H256, U256,
+    Address, L2ChainId, MiniblockNumber, Nonce, ProtocolVersionId, StorageLogQuery,
+    StorageLogQueryType, Transaction, H256, U256,
 };
 use zksync_utils::h256_to_u256;
 
@@ -34,9 +36,7 @@ use self::tester::{
     bootloader_tip_out_of_gas, pending_batch_data, random_tx, rejected_exec, successful_exec,
     successful_exec_with_metrics, TestScenario,
 };
-use crate::gas_tracker::constants::{
-    BLOCK_COMMIT_BASE_COST, BLOCK_EXECUTE_BASE_COST, BLOCK_PROVE_BASE_COST,
-};
+use crate::gas_tracker::l1_batch_base_cost;
 use crate::state_keeper::{
     keeper::POLL_WAIT_DURATION,
     seal_criteria::{
@@ -59,8 +59,8 @@ pub(super) fn default_block_properties() -> BlockProperties {
     }
 }
 
-pub(super) fn create_block_metadata(number: u32) -> BlockMetadata {
-    BlockMetadata {
+pub(super) fn create_l1_batch_metadata(number: u32) -> L1BatchMetadata {
+    L1BatchMetadata {
         root_hash: H256::from_low_u64_be(number.into()),
         rollup_last_leaf_index: u64::from(number) + 20,
         merkle_root_hash: H256::from_low_u64_be(number.into()),
@@ -69,7 +69,7 @@ pub(super) fn create_block_metadata(number: u32) -> BlockMetadata {
         commitment: H256::from_low_u64_be(number.into()),
         l2_l1_messages_compressed: vec![],
         l2_l1_merkle_root: H256::from_low_u64_be(number.into()),
-        block_meta_params: BlockMetaParameters {
+        block_meta_params: L1BatchMetaParameters {
             zkporter_is_available: ZKPORTER_IS_AVAILABLE,
             bootloader_code_hash: BASE_SYSTEM_CONTRACTS.bootloader.hash,
             default_aa_code_hash: BASE_SYSTEM_CONTRACTS.default_aa.hash,
@@ -121,7 +121,11 @@ pub(super) fn default_block_context() -> DerivedBlockContext {
 
 pub(super) fn create_updates_manager() -> UpdatesManager {
     let block_context = BlockContextMode::NewBlock(default_block_context(), 0.into());
-    UpdatesManager::new(&block_context, BaseSystemContractsHashes::default())
+    UpdatesManager::new(
+        &block_context,
+        BaseSystemContractsHashes::default(),
+        ProtocolVersionId::default(),
+    )
 }
 
 pub(super) fn create_l2_transaction(fee_per_gas: u64, gas_per_pubdata: u32) -> L2Tx {
@@ -299,11 +303,11 @@ async fn sealed_by_gas() {
             assert_eq!(
                 updates.l1_batch.l1_gas_count,
                 BlockGasCount {
-                    commit: BLOCK_COMMIT_BASE_COST + 2,
-                    prove: BLOCK_PROVE_BASE_COST,
-                    execute: BLOCK_EXECUTE_BASE_COST,
+                    commit: l1_batch_base_cost(AggregatedActionType::Commit) + 2,
+                    prove: l1_batch_base_cost(AggregatedActionType::PublishProofOnchain),
+                    execute: l1_batch_base_cost(AggregatedActionType::Execute),
                 },
-                "L1 gas used by a batch should consists of gas used by its txs + basic block gas cost"
+                "L1 gas used by a batch should consist of gas used by its txs + basic block gas cost"
             );
         })
         .run(sealer).await;
@@ -498,44 +502,6 @@ async fn bootloader_tip_out_of_gas_flow() {
 }
 
 #[tokio::test]
-async fn bootloader_config_has_been_updated() {
-    let sealer = SealManager::custom(
-        None,
-        vec![SealManager::code_hash_batch_sealer(
-            BaseSystemContractsHashes {
-                bootloader: Default::default(),
-                default_aa: Default::default(),
-            },
-        )],
-        vec![Box::new(|_| false)],
-    );
-
-    let pending_batch =
-        pending_batch_data(vec![(MiniblockNumber(1), vec![random_tx(1), random_tx(2)])]);
-
-    TestScenario::new()
-        .load_pending_batch(pending_batch)
-        .batch_sealed_with("Batch sealed with all 2 tx", |_, updates, _| {
-            assert_eq!(
-                updates.l1_batch.executed_transactions.len(),
-                2,
-                "There should be 2 transactions in the batch"
-            );
-        })
-        .next_tx("Final tx of batch", random_tx(3), successful_exec())
-        .miniblock_sealed("Miniblock with this tx sealed")
-        .batch_sealed_with("Batch sealed with all 1 tx", |_, updates, _| {
-            assert_eq!(
-                updates.l1_batch.executed_transactions.len(),
-                1,
-                "There should be 1 transactions in the batch"
-            );
-        })
-        .run(sealer)
-        .await;
-}
-
-#[tokio::test]
 async fn pending_batch_is_applied() {
     let config = StateKeeperConfig {
         transaction_slots: 3,
@@ -554,8 +520,16 @@ async fn pending_batch_is_applied() {
     );
 
     let pending_batch = pending_batch_data(vec![
-        (MiniblockNumber(1), vec![random_tx(1)]),
-        (MiniblockNumber(2), vec![random_tx(2)]),
+        MiniblockReexecuteData {
+            number: MiniblockNumber(1),
+            timestamp: 1,
+            txs: vec![random_tx(1)],
+        },
+        MiniblockReexecuteData {
+            number: MiniblockNumber(2),
+            timestamp: 2,
+            txs: vec![random_tx(2)],
+        },
     ]);
 
     // We configured state keeper to use different system contract hashes, so it must seal the pending batch immediately.
@@ -644,7 +618,11 @@ async fn miniblock_timestamp_after_pending_batch() {
         })],
     );
 
-    let pending_batch = pending_batch_data(vec![(MiniblockNumber(1), vec![random_tx(1)])]);
+    let pending_batch = pending_batch_data(vec![MiniblockReexecuteData {
+        number: MiniblockNumber(1),
+        timestamp: 1,
+        txs: vec![random_tx(1)],
+    }]);
 
     TestScenario::new()
         .load_pending_batch(pending_batch)
@@ -730,6 +708,52 @@ async fn time_is_monotonic() {
             );
             timestamp_third_miniblock.store(updates.miniblock.timestamp, Ordering::Relaxed);
         })
+        .run(sealer)
+        .await;
+}
+
+#[tokio::test]
+async fn protocol_upgrade() {
+    let config = StateKeeperConfig {
+        transaction_slots: 2,
+        ..Default::default()
+    };
+    let conditional_sealer = Some(ConditionalSealer::with_sealers(
+        config,
+        vec![Box::new(SlotsCriterion)],
+    ));
+    let sealer = SealManager::custom(
+        conditional_sealer,
+        vec![Box::new(|_| false)],
+        vec![Box::new(|updates| {
+            updates.miniblock.executed_transactions.len() == 1
+        })],
+    );
+
+    TestScenario::new()
+        .next_tx("First tx", random_tx(1), successful_exec())
+        .miniblock_sealed("Miniblock 1")
+        .increment_protocol_version("Increment protocol version")
+        .next_tx("Second tx", random_tx(2), successful_exec())
+        .miniblock_sealed("Miniblock 2")
+        .batch_sealed_with("Batch 1", move |_, updates, _| {
+            assert_eq!(
+                updates.protocol_version(),
+                ProtocolVersionId::latest(),
+                "Should close batch with initial protocol version"
+            )
+        })
+        .next_tx("Third tx", random_tx(3), successful_exec())
+        .miniblock_sealed_with("Miniblock 3", move |updates| {
+            assert_eq!(
+                updates.protocol_version(),
+                ProtocolVersionId::next(),
+                "Should open batch with current protocol version"
+            )
+        })
+        .next_tx("Fourth tx", random_tx(4), successful_exec())
+        .miniblock_sealed("Miniblock 4")
+        .batch_sealed("Batch 2")
         .run(sealer)
         .await;
 }

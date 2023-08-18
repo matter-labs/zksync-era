@@ -44,12 +44,24 @@
 mod consistency;
 pub mod domain;
 mod errors;
+mod getters;
 mod hasher;
 mod metrics;
 mod pruning;
 mod storage;
 mod types;
 mod utils;
+
+/// Unstable types that should not be used unless you know what you're doing (e.g., implementing
+/// `Database` trait for a custom type). There are no guarantees whatsoever that APIs / structure of
+/// these types will remain stable.
+#[doc(hidden)]
+pub mod unstable {
+    pub use crate::{
+        errors::DeserializeError,
+        types::{Manifest, Node, NodeKey, Root},
+    };
+}
 
 pub use crate::{
     hasher::HashTree,
@@ -59,12 +71,12 @@ pub use crate::{
         RocksDBWrapper,
     },
     types::{
-        BlockOutput, BlockOutputWithProofs, Key, Root, TreeInstruction, TreeLogEntry,
+        BlockOutput, BlockOutputWithProofs, Key, TreeInstruction, TreeLogEntry,
         TreeLogEntryWithProof, ValueHash,
     },
 };
 
-use crate::{metrics::describe_metrics, storage::Storage};
+use crate::{metrics::describe_metrics, storage::Storage, types::Root};
 use zksync_crypto::hasher::blake2::Blake2Hasher;
 
 /// Binary Merkle tree implemented using AR16MT from Diem [Jellyfish Merkle tree] white paper.

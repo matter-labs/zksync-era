@@ -8,19 +8,19 @@ mod serialization;
 #[cfg(test)]
 mod tests;
 
+pub(crate) use self::patch::{LoadAncestorsResult, WorkingPatchSet};
 pub use self::{
     database::{Database, NodeKeys, Patched, PruneDatabase, PrunePatchSet},
     patch::PatchSet,
     rocksdb::{MerkleTreeColumnFamily, RocksDBWrapper},
 };
 
-use self::patch::WorkingPatchSet;
 use crate::{
     hasher::HashTree,
     metrics::{BlockTimings, LeafCountMetric, Timing, TreeUpdaterMetrics},
     types::{
         BlockOutput, ChildRef, InternalNode, Key, LeafNode, Manifest, Nibbles, Node, Root,
-        TreeLogEntry, TreeTags, ValueHash, KEY_SIZE,
+        TreeLogEntry, TreeTags, ValueHash,
     },
     utils::increment_counter,
 };
@@ -38,10 +38,6 @@ impl TreeUpdater {
             metrics: TreeUpdaterMetrics::default(),
             patch_set: WorkingPatchSet::new(version, root),
         }
-    }
-
-    fn root_node_mut(&mut self) -> Option<&mut Node> {
-        self.patch_set.get_mut(&Nibbles::EMPTY)
     }
 
     fn set_root_node(&mut self, node: Node) {
@@ -78,9 +74,6 @@ impl TreeUpdater {
     ///
     /// # Implementation notes
     ///
-    /// This method works by traversing the tree level by level. It uses [`Database::tree_nodes()`]
-    /// (translating to multi-get in RocksDB) for each level to expedite node loading.
-    ///
     /// It may seem that the loaded leaf nodes may just increase the patch size. However,
     /// each leaf node will actually be modified by [`Self::insert()`], either by changing
     /// its `value_hash` (on full key match), or by moving the leaf node down the tree
@@ -90,71 +83,13 @@ impl TreeUpdater {
         sorted_keys: &SortedKeys,
         db: &DB,
     ) -> Vec<Nibbles> {
-        let Some(Node::Internal(_)) = self.root_node_mut() else {
-            return vec![Nibbles::EMPTY; sorted_keys.0.len()];
-        };
-        let patch_set = &mut self.patch_set;
+        let LoadAncestorsResult {
+            longest_prefixes,
+            db_reads,
+        } = self.patch_set.load_ancestors(sorted_keys, db);
 
-        // Longest prefix for each key in `key_value_pairs` (i.e., what we'll return from
-        // this method). `None` indicates that the longest prefix for a key is not determined yet.
-        let mut longest_prefixes = vec![None; sorted_keys.0.len()];
-        // Previous encountered when iterating by `sorted_keys` below.
-        let mut prev_nibbles = None;
-        for nibble_count in 1.. {
-            // Extract `nibble_count` nibbles from each key for which we haven't found the parent
-            // yet. Note that nibbles in `requested_keys` are sorted.
-            let requested_keys = sorted_keys.0.iter().filter_map(|(idx, key)| {
-                if longest_prefixes[*idx].is_some() {
-                    return None;
-                }
-                if nibble_count > 2 * KEY_SIZE {
-                    // We have traversed to the final tree level. There's nothing to load;
-                    // we just need to record the longest prefix as the full key.
-                    longest_prefixes[*idx] = Some(Nibbles::new(key, 2 * KEY_SIZE));
-                    return None;
-                }
-
-                let nibbles = Nibbles::new(key, nibble_count);
-                let (this_parent_nibbles, last_nibble) = nibbles.split_last().unwrap();
-                // ^ `unwrap()` is safe by construction; `nibble_count` is positive
-                let this_ref = patch_set.child_ref(&this_parent_nibbles, last_nibble);
-                let Some(this_ref) = this_ref else {
-                    longest_prefixes[*idx] = Some(this_parent_nibbles);
-                    return None;
-                };
-
-                // Deduplicate by `nibbles`. We do it at the end to properly
-                // assign `parent_nibbles` for all keys, and before the version is updated
-                // for `ChildRef`s, in order to update it only once.
-                if prev_nibbles == Some(nibbles) {
-                    return None;
-                }
-                prev_nibbles = Some(nibbles);
-
-                Some((nibbles.with_version(this_ref.version), this_ref.is_leaf))
-            });
-            let requested_keys: Vec<_> = requested_keys.collect();
-
-            if requested_keys.is_empty() {
-                break;
-            }
-            let new_nodes = db.tree_nodes(&requested_keys);
-            self.metrics.db_reads += new_nodes.len() as u64;
-
-            // Since we load nodes level by level, we can update `patch_set` more efficiently
-            // by pushing entire `HashMap`s into `changes_by_nibble_count`.
-            let level = requested_keys
-                .iter()
-                .zip(new_nodes)
-                .map(|((key, _), node)| {
-                    (key, node.unwrap())
-                    // ^ `unwrap()` is safe: all requested nodes are referenced by their parents
-                });
-            patch_set.push_level_from_db(level);
-        }
-
-        // All parents must be set at this point.
-        longest_prefixes.into_iter().map(Option::unwrap).collect()
+        self.metrics.db_reads += db_reads;
+        longest_prefixes
     }
 
     fn traverse(&self, key: Key, parent_nibbles: &Nibbles) -> TraverseOutcome {
@@ -376,10 +311,10 @@ impl<'a, DB: Database + ?Sized> Storage<'a, DB> {
 
 /// Sorted [`Key`]s together with their indices in the block.
 #[derive(Debug)]
-struct SortedKeys(Vec<(usize, Key)>);
+pub(crate) struct SortedKeys(Vec<(usize, Key)>);
 
 impl SortedKeys {
-    fn new(keys: impl Iterator<Item = Key>) -> Self {
+    pub fn new(keys: impl Iterator<Item = Key>) -> Self {
         let mut keys: Vec<_> = keys.enumerate().collect();
         keys.sort_unstable_by_key(|(_, key)| *key);
         Self(keys)

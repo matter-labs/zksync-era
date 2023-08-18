@@ -6,7 +6,7 @@ import * as zksync from 'zksync-web3';
 import { types } from 'zksync-web3';
 import { ethers, Event } from 'ethers';
 import { serialize } from '@ethersproject/transactions';
-import { deployContract, getTestContract, waitForNewL1Batch } from '../../src/helpers';
+import { deployContract, getTestContract, waitForNewL1Batch, anyTransaction } from '../../src/helpers';
 import { shouldOnlyTakeFee } from '../../src/modifiers/balance-checker';
 import fetch, { RequestInit } from 'node-fetch';
 import { EIP712_TX_TYPE, PRIORITY_OPERATION_L2_TX_TYPE } from 'zksync-web3/build/src/utils';
@@ -732,6 +732,50 @@ describe('web3 API compatibility tests', () => {
                 blockHash: latestBlock.hash
             })
         ).rejects.toThrow(`invalid filter: if blockHash is supplied fromBlock and toBlock must not be`);
+    });
+
+    test('Should check eth_feeHistory', async () => {
+        const receipt = await anyTransaction(alice);
+        const response = await alice.provider.send('eth_feeHistory', [
+            '0x2',
+            ethers.utils.hexlify(receipt.blockNumber),
+            []
+        ]);
+
+        expect(ethers.BigNumber.from(response.oldestBlock).toNumber()).toEqual(receipt.blockNumber - 1);
+
+        expect(response.baseFeePerGas).toHaveLength(3);
+        for (let i = 0; i < 2; i += 1) {
+            const expectedBaseFee = (await alice.provider.getBlock(receipt.blockNumber - 1 + i)).baseFeePerGas;
+            expect(ethers.BigNumber.from(response.baseFeePerGas[i])).toEqual(expectedBaseFee);
+        }
+    });
+
+    test('Should check zks_getProtocolVersion endpoint', async () => {
+        const latestProtocolVersion = await alice.provider.send('zks_getProtocolVersion', []);
+        let expectedSysContractsHashes = {
+            bootloader: expect.stringMatching(HEX_VALUE_REGEX),
+            default_aa: expect.stringMatching(HEX_VALUE_REGEX)
+        };
+        let expectedProtocolVersion = {
+            version_id: expect.any(Number),
+            base_system_contracts: expectedSysContractsHashes,
+            verification_keys_hashes: {
+                params: {
+                    recursion_circuits_set_vks_hash: expect.stringMatching(HEX_VALUE_REGEX),
+                    recursion_leaf_level_vk_hash: expect.stringMatching(HEX_VALUE_REGEX),
+                    recursion_node_level_vk_hash: expect.stringMatching(HEX_VALUE_REGEX)
+                },
+                recursion_scheduler_level_vk_hash: expect.stringMatching(HEX_VALUE_REGEX)
+            },
+            timestamp: expect.any(Number)
+        };
+        expect(latestProtocolVersion).toMatchObject(expectedProtocolVersion);
+
+        const exactProtocolVersion = await alice.provider.send('zks_getProtocolVersion', [
+            latestProtocolVersion.version_id
+        ]);
+        expect(exactProtocolVersion).toMatchObject(expectedProtocolVersion);
     });
 
     afterAll(async () => {

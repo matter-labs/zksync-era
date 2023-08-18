@@ -22,6 +22,8 @@ pub enum SubmitTxError {
     Unexecutable(String),
     #[error("too many transactions")]
     RateLimitExceeded,
+    #[error("server shutting down")]
+    ServerShuttingDown,
     #[error("failed to include transaction in the system. reason: {0}")]
     BootloaderFailure(String),
     #[error("failed to validate the transaction. reason: {0}")]
@@ -69,37 +71,36 @@ pub enum SubmitTxError {
 impl SubmitTxError {
     pub fn grafana_error_code(&self) -> &'static str {
         match self {
-            SubmitTxError::NonceIsTooHigh(_, _, _) => "nonce-is-too-high",
-            SubmitTxError::NonceIsTooLow(_, _, _) => "nonce-is-too-low",
-            SubmitTxError::IncorrectTx(_) => "incorrect-tx",
-            SubmitTxError::NotEnoughBalanceForFeeValue(_, _, _) => "not-enough-balance-for-fee",
-            SubmitTxError::ExecutionReverted(_, _) => "execution-reverted",
-            SubmitTxError::GasLimitIsTooBig => "gas-limit-is-too-big",
-            SubmitTxError::Unexecutable(_) => "unexecutable",
-            SubmitTxError::RateLimitExceeded => "rate-limit-exceeded",
-            SubmitTxError::BootloaderFailure(_) => "bootloader-failure",
-            SubmitTxError::ValidationFailed(_) => "validation-failed",
-            SubmitTxError::FailedToChargeFee(_) => "failed-too-charge-fee",
-            SubmitTxError::PaymasterValidationFailed(_) => "failed-paymaster-validation",
-            SubmitTxError::PrePaymasterPreparationFailed(_) => "failed-prepaymaster-preparation",
-            SubmitTxError::FromIsNotAnAccount => "from-is-not-an-account",
-            SubmitTxError::MaxFeePerGasTooLow => "max-fee-per-gas-too-low",
-            SubmitTxError::MaxPriorityFeeGreaterThanMaxFee => {
-                "max-priority-fee-greater-than-max-fee"
-            }
-            SubmitTxError::UnexpectedVMBehavior(_) => "unexpected-vm-behavior",
-            SubmitTxError::UnrealisticPubdataPriceLimit => "unrealistic-pubdata-price-limit",
-            SubmitTxError::TooManyFactoryDependencies(_, _) => "too-many-factory-dependencies",
-            SubmitTxError::FeePerGasTooHigh => "gas-price-limit-too-high",
-            SubmitTxError::FeePerPubdataByteTooHigh => "pubdata-price-limit-too-high",
-            SubmitTxError::InsufficientFundsForTransfer => "insufficient-funds-for-transfer",
-            SubmitTxError::IntrinsicGas => "intrinsic-gas",
-            SubmitTxError::ProxyError(_) => "proxy-error",
+            Self::NonceIsTooHigh(_, _, _) => "nonce-is-too-high",
+            Self::NonceIsTooLow(_, _, _) => "nonce-is-too-low",
+            Self::IncorrectTx(_) => "incorrect-tx",
+            Self::NotEnoughBalanceForFeeValue(_, _, _) => "not-enough-balance-for-fee",
+            Self::ExecutionReverted(_, _) => "execution-reverted",
+            Self::GasLimitIsTooBig => "gas-limit-is-too-big",
+            Self::Unexecutable(_) => "unexecutable",
+            Self::RateLimitExceeded => "rate-limit-exceeded",
+            Self::ServerShuttingDown => "shutting-down",
+            Self::BootloaderFailure(_) => "bootloader-failure",
+            Self::ValidationFailed(_) => "validation-failed",
+            Self::FailedToChargeFee(_) => "failed-too-charge-fee",
+            Self::PaymasterValidationFailed(_) => "failed-paymaster-validation",
+            Self::PrePaymasterPreparationFailed(_) => "failed-prepaymaster-preparation",
+            Self::FromIsNotAnAccount => "from-is-not-an-account",
+            Self::MaxFeePerGasTooLow => "max-fee-per-gas-too-low",
+            Self::MaxPriorityFeeGreaterThanMaxFee => "max-priority-fee-greater-than-max-fee",
+            Self::UnexpectedVMBehavior(_) => "unexpected-vm-behavior",
+            Self::UnrealisticPubdataPriceLimit => "unrealistic-pubdata-price-limit",
+            Self::TooManyFactoryDependencies(_, _) => "too-many-factory-dependencies",
+            Self::FeePerGasTooHigh => "gas-price-limit-too-high",
+            Self::FeePerPubdataByteTooHigh => "pubdata-price-limit-too-high",
+            Self::InsufficientFundsForTransfer => "insufficient-funds-for-transfer",
+            Self::IntrinsicGas => "intrinsic-gas",
+            Self::ProxyError(_) => "proxy-error",
         }
     }
 
     pub fn data(&self) -> Vec<u8> {
-        if let SubmitTxError::ExecutionReverted(_, data) = self {
+        if let Self::ExecutionReverted(_, data) = self {
             data.clone()
         } else {
             Vec::new()
@@ -110,35 +111,29 @@ impl SubmitTxError {
 impl From<SandboxExecutionError> for SubmitTxError {
     fn from(err: SandboxExecutionError) -> SubmitTxError {
         match err {
-            SandboxExecutionError::Revert(reason, data) => {
-                SubmitTxError::ExecutionReverted(reason, data)
-            }
-            SandboxExecutionError::BootloaderFailure(reason) => {
-                SubmitTxError::BootloaderFailure(reason)
-            }
+            SandboxExecutionError::Revert(reason, data) => Self::ExecutionReverted(reason, data),
+            SandboxExecutionError::BootloaderFailure(reason) => Self::BootloaderFailure(reason),
             SandboxExecutionError::AccountValidationFailed(reason) => {
-                SubmitTxError::ValidationFailed(reason)
+                Self::ValidationFailed(reason)
             }
             SandboxExecutionError::PaymasterValidationFailed(reason) => {
-                SubmitTxError::PaymasterValidationFailed(reason)
+                Self::PaymasterValidationFailed(reason)
             }
             SandboxExecutionError::PrePaymasterPreparationFailed(reason) => {
-                SubmitTxError::PrePaymasterPreparationFailed(reason)
+                Self::PrePaymasterPreparationFailed(reason)
             }
-            SandboxExecutionError::FailedToChargeFee(reason) => {
-                SubmitTxError::FailedToChargeFee(reason)
-            }
-            SandboxExecutionError::FromIsNotAnAccount => SubmitTxError::FromIsNotAnAccount,
+            SandboxExecutionError::FailedToChargeFee(reason) => Self::FailedToChargeFee(reason),
+            SandboxExecutionError::FromIsNotAnAccount => Self::FromIsNotAnAccount,
             SandboxExecutionError::InnerTxError => {
-                SubmitTxError::ExecutionReverted("Bootloader-based tx failed".to_owned(), vec![])
+                Self::ExecutionReverted("Bootloader-based tx failed".to_owned(), vec![])
             }
             SandboxExecutionError::UnexpectedVMBehavior(reason) => {
-                SubmitTxError::UnexpectedVMBehavior(reason)
+                Self::UnexpectedVMBehavior(reason)
             }
             SandboxExecutionError::FailedToPayForTransaction(reason) => {
-                SubmitTxError::FailedToChargeFee(reason)
+                Self::FailedToChargeFee(reason)
             }
-            SandboxExecutionError::Unexecutable(reason) => SubmitTxError::Unexecutable(reason),
+            SandboxExecutionError::Unexecutable(reason) => Self::Unexecutable(reason),
         }
     }
 }

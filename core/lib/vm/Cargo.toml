@@ -11,13 +11,12 @@ categories = ["cryptography"]
 
 [dependencies]
 zkevm-assembly = { git = "https://github.com/matter-labs/era-zkEVM-assembly.git", branch = "v1.3.2" }
-zk_evm = { git = "https://github.com/matter-labs/era-zk_evm.git", branch = "v1.3.3" }
+zk_evm = { git = "https://github.com/matter-labs/erazk_evm.git", branch = "v1.3.3" }
 
 zksync_config = { path = "../config", version = "1.0" }
 zksync_types = { path = "../types", version = "1.0" }
 zksync_utils = { path = "../utils", version = "1.0" }
-zksync_state = {path = "../state", version = "1.0" }
-zksync_eth_signer = {path = "../eth_signer", version = "1.0"}
+zksync_state = { path = "../state", version = "1.0" }
 
 zksync_contracts = { path = "../contracts" }
 vlog = { path = "../vlog", version = "1.0" }
@@ -26,9 +25,10 @@ anyhow = "1.0"
 hex = "0.4"
 itertools = "0.10"
 metrics = "0.20"
-ethabi = "16.0.0"
+ethabi = "18.0.0"
 once_cell = "1.7"
 thiserror = "1.0"
 
 [dev-dependencies]
+zksync_eth_signer = { path = "../eth_signer", version = "1.0" }
 tokio = { version = "1", features = ["time"] }

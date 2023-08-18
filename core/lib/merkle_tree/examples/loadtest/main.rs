@@ -16,11 +16,13 @@ use zksync_crypto::hasher::blake2::Blake2Hasher;
 use zksync_merkle_tree::{
     Database, HashTree, MerkleTree, MerkleTreePruner, PatchSet, RocksDBWrapper, TreeInstruction,
 };
+use zksync_storage::RocksDB;
 use zksync_types::{AccountTreeId, Address, StorageKey, H256, U256};
 
+mod batch;
 mod recorder;
 
-use crate::recorder::PrintingRecorder;
+use crate::{batch::WithBatching, recorder::PrintingRecorder};
 
 /// CLI for load-testing for the Merkle tree implementation.
 #[derive(Debug, Parser)]
@@ -47,6 +49,12 @@ struct Cli {
     /// Perform testing on in-memory DB rather than RocksDB (i.e., with focus on hashing logic).
     #[arg(long = "in-memory", short = 'M')]
     in_memory: bool,
+    /// Size of batches used.
+    #[arg(long = "batch")]
+    batch_size: Option<usize>,
+    /// Block cache capacity for RocksDB in bytes.
+    #[arg(long = "block-cache", conflicts_with = "in_memory")]
+    block_cache: Option<usize>,
     /// Chunk size for RocksDB multi-get operations.
     #[arg(long = "chunk-size", conflicts_with = "in_memory")]
     chunk_size: Option<usize>,
@@ -66,7 +74,7 @@ impl Cli {
         let (mut mock_db, mut rocksdb);
         let mut _temp_dir = None;
         let mut pruner_handles = None;
-        let db: &mut dyn Database = if self.in_memory {
+        let mut db: &mut dyn Database = if self.in_memory {
             mock_db = PatchSet::default();
             &mut mock_db
         } else {
@@ -75,7 +83,12 @@ impl Cli {
                 "Created temp dir for RocksDB: {}",
                 dir.path().to_string_lossy()
             );
-            rocksdb = RocksDBWrapper::new(&dir);
+            rocksdb = if let Some(block_cache_capacity) = self.block_cache {
+                let db = RocksDB::with_cache(&dir, true, Some(block_cache_capacity));
+                RocksDBWrapper::from(db)
+            } else {
+                RocksDBWrapper::new(&dir)
+            };
             if let Some(chunk_size) = self.chunk_size {
                 rocksdb.set_multi_get_chunk_size(chunk_size);
             }
@@ -89,6 +102,12 @@ impl Cli {
             _temp_dir = Some(dir);
             &mut rocksdb
         };
+
+        let mut batching_db;
+        if let Some(batch_size) = self.batch_size {
+            batching_db = WithBatching::new(db, batch_size);
+            db = &mut batching_db;
+        }
 
         let hasher: &dyn HashTree = if self.no_hashing { &() } else { &Blake2Hasher };
         let mut rng = StdRng::seed_from_u64(self.rng_seed);

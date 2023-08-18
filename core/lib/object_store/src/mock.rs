@@ -40,7 +40,7 @@ impl ObjectStore for MockStore {
     async fn remove_raw(&self, bucket: Bucket, key: &str) -> Result<(), ObjectStoreError> {
         let mut lock = self.inner.lock().await;
         let Some(bucket_map) = lock.get_mut(&bucket) else {
-            return Ok(())
+            return Ok(());
         };
         bucket_map.remove(key);
         Ok(())

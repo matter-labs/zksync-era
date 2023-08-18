@@ -1,16 +1,15 @@
-use std::time::Instant;
-
 use sqlx::Row;
 
-use crate::models::storage_block::web3_block_number_to_sql;
 use zksync_types::{
     api::{GetLogsFilter, Log},
-    MiniblockNumber,
+    Address, MiniblockNumber, H256,
 };
 
-use crate::models::storage_event::StorageWeb3Log;
-use crate::SqlxError;
-use crate::StorageProcessor;
+use crate::{
+    instrument::InstrumentExt,
+    models::{storage_block::web3_block_number_to_sql, storage_event::StorageWeb3Log},
+    SqlxError, StorageProcessor,
+};
 
 #[derive(Debug)]
 pub struct EventsWeb3Dal<'a, 'c> {
@@ -26,7 +25,6 @@ impl EventsWeb3Dal<'_, '_> {
         offset: usize,
     ) -> Result<Option<MiniblockNumber>, SqlxError> {
         {
-            let started_at = Instant::now();
             let (where_sql, arg_index) = self.build_get_logs_where_clause(&filter);
 
             let query = format!(
@@ -43,23 +41,23 @@ impl EventsWeb3Dal<'_, '_> {
             let mut query = sqlx::query(&query);
 
             if !filter.addresses.is_empty() {
-                let addresses: Vec<_> = filter
-                    .addresses
-                    .into_iter()
-                    .map(|address| address.0.to_vec())
-                    .collect();
+                let addresses: Vec<_> = filter.addresses.iter().map(Address::as_bytes).collect();
                 query = query.bind(addresses);
             }
-            for (_, topics) in filter.topics {
-                let topics: Vec<_> = topics.into_iter().map(|topic| topic.0.to_vec()).collect();
+            for (_, topics) in &filter.topics {
+                let topics: Vec<_> = topics.iter().map(H256::as_bytes).collect();
                 query = query.bind(topics);
             }
             query = query.bind(offset as i32);
-            let log = query.fetch_optional(self.storage.conn()).await?;
+            let log = query
+                .instrument("get_log_block_number")
+                .report_latency()
+                .with_arg("filter", &filter)
+                .with_arg("offset", &offset)
+                .fetch_optional(self.storage.conn())
+                .await?;
 
-            metrics::histogram!("dal.request", started_at.elapsed(), "method" => "get_log_block_number");
-
-            Ok(log.map(|row| MiniblockNumber(row.get::<i64, &str>("miniblock_number") as u32)))
+            Ok(log.map(|row| MiniblockNumber(row.get::<i64, _>("miniblock_number") as u32)))
         }
     }
 
@@ -71,7 +69,6 @@ impl EventsWeb3Dal<'_, '_> {
         limit: usize,
     ) -> Result<Vec<Log>, SqlxError> {
         {
-            let started_at = Instant::now();
             let (where_sql, arg_index) = self.build_get_logs_where_clause(&filter);
 
             let query = format!(
@@ -96,22 +93,23 @@ impl EventsWeb3Dal<'_, '_> {
 
             let mut query = sqlx::query_as(&query);
             if !filter.addresses.is_empty() {
-                let addresses: Vec<_> = filter
-                    .addresses
-                    .into_iter()
-                    .map(|address| address.0.to_vec())
-                    .collect();
+                let addresses: Vec<_> = filter.addresses.iter().map(Address::as_bytes).collect();
                 query = query.bind(addresses);
             }
-            for (_, topics) in filter.topics {
-                let topics: Vec<_> = topics.into_iter().map(|topic| topic.0.to_vec()).collect();
+            for (_, topics) in &filter.topics {
+                let topics: Vec<_> = topics.iter().map(H256::as_bytes).collect();
                 query = query.bind(topics);
             }
             query = query.bind(limit as i32);
 
-            let db_logs: Vec<StorageWeb3Log> = query.fetch_all(self.storage.conn()).await?;
+            let db_logs: Vec<StorageWeb3Log> = query
+                .instrument("get_logs")
+                .report_latency()
+                .with_arg("filter", &filter)
+                .with_arg("limit", &limit)
+                .fetch_all(self.storage.conn())
+                .await?;
             let logs = db_logs.into_iter().map(Into::into).collect();
-            metrics::histogram!("dal.request", started_at.elapsed(), "method" => "get_logs");
             Ok(logs)
         }
     }

@@ -119,6 +119,12 @@ impl FriProverGroupConfig {
         }
     }
 
+    pub fn get_all_circuit_ids(&self) -> Vec<CircuitIdRoundTuple> {
+        (0..13)
+            .filter_map(|group_id| self.get_circuit_ids_for_group_id(group_id))
+            .flatten()
+            .collect()
+    }
     /// check all_circuit ids present exactly once
     /// and For each aggregation round, check that the circuit ids are in the correct range.
     /// For example, in aggregation round 0, the circuit ids should be 1 to 13.

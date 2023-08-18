@@ -49,13 +49,14 @@ impl EthSubscribe {
         }
     }
 
+    /// Assigns ID for the subscriber if the connection is open, returns error otherwise.
     fn assign_id(
         subscriber: typed::Subscriber<PubSubResult>,
-    ) -> (typed::Sink<PubSubResult>, SubscriptionId) {
+    ) -> Result<(typed::Sink<PubSubResult>, SubscriptionId), ()> {
         let id = H128::random();
         let sub_id = SubscriptionId::String(format!("0x{}", hex::encode(id.0)));
-        let sink = subscriber.assign_id(sub_id.clone()).unwrap();
-        (sink, sub_id)
+        let sink = subscriber.assign_id(sub_id.clone())?;
+        Ok((sink, sub_id))
     }
 
     fn reject(subscriber: typed::Subscriber<PubSubResult>) {
@@ -78,13 +79,17 @@ impl EthSubscribe {
         let sub_type = match sub_type.as_str() {
             "newHeads" => {
                 let mut block_subs = self.active_block_subs.write().await;
-                let (sink, id) = Self::assign_id(subscriber);
+                let Ok((sink, id)) = Self::assign_id(subscriber) else {
+                    return;
+                };
                 block_subs.insert(id, sink);
                 Some(SubscriptionType::Blocks)
             }
             "newPendingTransactions" => {
                 let mut tx_subs = self.active_tx_subs.write().await;
-                let (sink, id) = Self::assign_id(subscriber);
+                let Ok((sink, id)) = Self::assign_id(subscriber) else {
+                    return;
+                };
                 tx_subs.insert(id, sink);
                 Some(SubscriptionType::Txs)
             }
@@ -104,7 +109,9 @@ impl EthSubscribe {
                             None
                         } else {
                             let mut log_subs = self.active_log_subs.write().await;
-                            let (sink, id) = Self::assign_id(subscriber);
+                            let Ok((sink, id)) = Self::assign_id(subscriber) else {
+                                return;
+                            };
                             log_subs.insert(id, (sink, filter));
                             Some(SubscriptionType::Logs)
                         }
@@ -116,7 +123,9 @@ impl EthSubscribe {
                 }
             }
             "syncing" => {
-                let (sink, _) = Self::assign_id(subscriber);
+                let Ok((sink, _id)) = Self::assign_id(subscriber) else {
+                    return;
+                };
                 let _ = sink.notify(Ok(PubSubResult::Syncing(false)));
                 None
             }

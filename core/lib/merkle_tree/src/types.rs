@@ -271,7 +271,7 @@ impl NodeKey {
         Nibbles::from_parts(nibbles, nibble_count).with_version(version)
     }
 
-    pub fn is_empty(&self) -> bool {
+    pub(crate) fn is_empty(&self) -> bool {
         self.nibbles.nibble_count == 0
     }
 
@@ -315,6 +315,22 @@ impl LeafNode {
             full_key,
             value_hash,
             leaf_index,
+        }
+    }
+}
+
+/// Data of a leaf node of the tree.
+#[derive(Debug, Clone, Copy)]
+pub struct LeafData {
+    pub value_hash: ValueHash,
+    pub leaf_index: u64,
+}
+
+impl From<LeafNode> for LeafData {
+    fn from(leaf: LeafNode) -> Self {
+        Self {
+            value_hash: leaf.value_hash,
+            leaf_index: leaf.leaf_index,
         }
     }
 }
@@ -436,10 +452,13 @@ impl InternalNode {
     }
 }
 
+/// Tree node (either a leaf or an internal node).
 #[derive(Debug, Clone)]
 #[cfg_attr(test, derive(PartialEq))]
 pub enum Node {
+    /// Internal node.
     Internal(InternalNode),
+    /// Tree leaf.
     Leaf(LeafNode),
 }
 

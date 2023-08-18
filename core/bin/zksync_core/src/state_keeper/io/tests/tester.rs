@@ -9,11 +9,13 @@ use zksync_dal::ConnectionPool;
 use zksync_eth_client::clients::mock::MockEthereum;
 use zksync_types::{
     block::{L1BatchHeader, MiniblockHeader},
-    Address, L1BatchNumber, L2ChainId, MiniblockNumber, PriorityOpId, H256,
+    protocol_version::L1VerifierConfig,
+    system_contracts::get_system_smart_contracts,
+    Address, L1BatchNumber, L2ChainId, MiniblockNumber, PriorityOpId, ProtocolVersionId, H256,
 };
 
 use crate::{
-    genesis::create_genesis_block,
+    genesis::create_genesis_l1_batch,
     l1_gas_price::GasAdjuster,
     state_keeper::{io::MiniblockSealer, tests::create_transaction, MempoolGuard, MempoolIO},
 };
@@ -98,11 +100,14 @@ impl Tester {
     pub(super) async fn genesis(&self, pool: &ConnectionPool) {
         let mut storage = pool.access_storage_tagged("state_keeper").await;
         if storage.blocks_dal().is_genesis_needed().await {
-            create_genesis_block(
+            create_genesis_l1_batch(
                 &mut storage,
                 Address::repeat_byte(0x01),
                 L2ChainId(270),
-                self.base_system_contracts.clone(),
+                &self.base_system_contracts,
+                &get_system_smart_contracts(),
+                L1VerifierConfig::default(),
+                Address::zero(),
             )
             .await;
         }
@@ -129,6 +134,7 @@ impl Tester {
                 l1_gas_price,
                 l2_fair_gas_price,
                 base_system_contracts_hashes: self.base_system_contracts.hashes(),
+                protocol_version: Some(ProtocolVersionId::latest()),
             })
             .await;
     }
@@ -139,13 +145,14 @@ impl Tester {
             self.current_timestamp,
             Address::default(),
             self.base_system_contracts.hashes(),
+            Default::default(),
         );
         batch_header.is_finished = true;
 
         let mut storage = pool.access_storage_tagged("state_keeper").await;
         storage
             .blocks_dal()
-            .insert_l1_batch(&batch_header, Default::default())
+            .insert_l1_batch(&batch_header, &[], Default::default())
             .await;
         storage
             .blocks_dal()

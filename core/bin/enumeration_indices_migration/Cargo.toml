@@ -1,0 +1,12 @@
+[package]
+name = "enumeration_indices_migration"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+tokio = { version = "1" }
+zksync_dal = { path = "../../lib/dal", version = "1.0" }
+zksync_core = { path = "../../bin/zksync_core", version = "1.0" }
+vlog = { path = "../../lib/vlog", version = "1.0" }

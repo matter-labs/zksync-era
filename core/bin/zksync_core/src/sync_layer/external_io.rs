@@ -6,8 +6,8 @@ use async_trait::async_trait;
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes, SystemContractCode};
 use zksync_dal::ConnectionPool;
 use zksync_types::{
-    ethabi::Address, l1::L1Tx, l2::L2Tx, L1BatchNumber, L1BlockNumber, MiniblockNumber,
-    Transaction, H256, U256,
+    ethabi::Address, l1::L1Tx, l2::L2Tx, protocol_version::ProtocolUpgradeTx, L1BatchNumber,
+    L1BlockNumber, MiniblockNumber, ProtocolVersionId, Transaction, H256, U256,
 };
 use zksync_utils::{be_words_to_bytes, bytes_to_be_words};
 
@@ -97,13 +97,13 @@ impl ExternalIO {
         l2_erc20_bridge_addr: Address,
     ) -> Self {
         let mut storage = pool.access_storage_tagged("sync_layer").await;
-        let last_sealed_block_header = storage.blocks_dal().get_newest_block_header().await;
+        let last_sealed_l1_batch_header = storage.blocks_dal().get_newest_l1_batch_header().await;
         let last_miniblock_number = storage.blocks_dal().get_sealed_miniblock_number().await;
         drop(storage);
 
         vlog::info!(
             "Initialized the ExternalIO: current L1 batch number {}, current miniblock number {}",
-            last_sealed_block_header.number + 1,
+            last_sealed_l1_batch_header.number + 1,
             last_miniblock_number + 1,
         );
 
@@ -111,7 +111,7 @@ impl ExternalIO {
 
         Self {
             pool,
-            current_l1_batch_number: last_sealed_block_header.number + 1,
+            current_l1_batch_number: last_sealed_l1_batch_header.number + 1,
             current_miniblock_number: last_miniblock_number + 1,
             actions,
             sync_state,
@@ -184,7 +184,7 @@ impl StateKeeperIO for ExternalIO {
 
         let fee_account = storage
             .blocks_dal()
-            .get_block_header(self.current_l1_batch_number - 1)
+            .get_l1_batch_header(self.current_l1_batch_number - 1)
             .await
             .unwrap_or_else(|| {
                 panic!(
@@ -211,6 +211,7 @@ impl StateKeeperIO for ExternalIO {
                             default_aa,
                         },
                     operator_address,
+                    protocol_version,
                 }) => {
                     assert_eq!(
                         number, self.current_l1_batch_number,
@@ -233,6 +234,7 @@ impl StateKeeperIO for ExternalIO {
                         l1_gas_price,
                         l2_fair_gas_price,
                         base_system_contracts,
+                        protocol_version.unwrap_or_default(),
                     ));
                 }
                 Some(other) => {
@@ -246,7 +248,11 @@ impl StateKeeperIO for ExternalIO {
         None
     }
 
-    async fn wait_for_new_miniblock_params(&mut self, max_wait: Duration) -> Option<u64> {
+    async fn wait_for_new_miniblock_params(
+        &mut self,
+        max_wait: Duration,
+        _prev_miniblock_timestamp: u64,
+    ) -> Option<u64> {
         // Wait for the next miniblock to appear in the queue.
         let actions = &self.actions;
         for _ in 0..poll_iters(POLL_INTERVAL, max_wait) {
@@ -293,7 +299,9 @@ impl StateKeeperIO for ExternalIO {
             // Whatever item it is, we don't have to poll anymore and may exit, thus double option use.
             match actions.peek_action() {
                 Some(SyncAction::Tx(_)) => {
-                    let SyncAction::Tx(tx) = actions.pop_action().unwrap() else { unreachable!() };
+                    let SyncAction::Tx(tx) = actions.pop_action().unwrap() else {
+                        unreachable!()
+                    };
                     return Some(*tx);
                 }
                 _ => {
@@ -307,14 +315,15 @@ impl StateKeeperIO for ExternalIO {
 
     async fn rollback(&mut self, tx: Transaction) {
         // We are replaying the already sealed batches so no rollbacks are expected to occur.
-        panic!("Rollback requested: {:?}", tx);
+        panic!("Rollback requested. Transaction hash: {:?}", tx.hash());
     }
 
     async fn reject(&mut self, tx: &Transaction, error: &str) {
         // We are replaying the already executed transactions so no rejections are expected to occur.
         panic!(
-            "Reject requested because of the following error: {}.\n Transaction is: {:?}",
-            error, tx
+            "Reject requested because of the following error: {}.\n Transaction hash is: {:?}",
+            error,
+            tx.hash()
         );
     }
 
@@ -409,5 +418,21 @@ impl StateKeeperIO for ExternalIO {
 
         self.current_miniblock_number += 1; // Due to fictive miniblock being sealed.
         self.current_l1_batch_number += 1;
+    }
+
+    async fn load_previous_batch_version_id(&mut self) -> Option<ProtocolVersionId> {
+        let mut storage = self.pool.access_storage().await;
+        storage
+            .blocks_dal()
+            .get_batch_protocol_version_id(self.current_l1_batch_number - 1)
+            .await
+    }
+
+    async fn load_upgrade_tx(
+        &mut self,
+        _version_id: ProtocolVersionId,
+    ) -> Option<ProtocolUpgradeTx> {
+        // External node will fetch upgrade tx from the main node.
+        None
     }
 }

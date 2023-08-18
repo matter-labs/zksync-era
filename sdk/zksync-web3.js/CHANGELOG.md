@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.15.4](https://github.com/matter-labs/zksync-2-dev/compare/zksync-web3-v0.15.3...zksync-web3-v0.15.4) (2023-07-25)
+
+
+### Bug Fixes
+
+* **sdk:** allow null for txIndexInL1Batch in formatter ([#2232](https://github.com/matter-labs/zksync-2-dev/issues/2232)) ([474740a](https://github.com/matter-labs/zksync-2-dev/commit/474740a7f9ca648869fd8f82cc4da0fcefd9cbf7))
+
+## [0.15.3](https://github.com/matter-labs/zksync-2-dev/compare/zksync-web3-v0.15.2...zksync-web3-v0.15.3) (2023-07-25)
+
+
+### Bug Fixes
+
+* **sdk:** Fix getting receipt for transactions rejected in statekeeper ([#2071](https://github.com/matter-labs/zksync-2-dev/issues/2071)) ([c97e494](https://github.com/matter-labs/zksync-2-dev/commit/c97e494c1ef7f58fe8632a3ebf943d775b1703cb))
+* **sdk:** make new fields optional in SDK ([#2226](https://github.com/matter-labs/zksync-2-dev/issues/2226)) ([9a3b530](https://github.com/matter-labs/zksync-2-dev/commit/9a3b5307a5593664cfaa510f3511751125edb96e))
+
 ## [0.15.2](https://github.com/matter-labs/zksync-2-dev/compare/zksync-web3-v0.15.1...zksync-web3-v0.15.2) (2023-07-06)
 
 
