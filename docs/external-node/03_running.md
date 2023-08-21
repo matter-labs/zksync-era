@@ -22,7 +22,7 @@ namespace. If you want to clear some space and aren't using the `debug` namespac
 
 - clear it with a simple query `DELETE FROM call_traces;`
 - leave the `debug` namespace disabled via the `EN_API_NAMESPACES` env var as described in the
-  [example config](docs/external-node/prepared_configs/mainnet-config.env).
+  [example config](prepared_configs/mainnet-config.env).
 
 ## Infrastructure
 

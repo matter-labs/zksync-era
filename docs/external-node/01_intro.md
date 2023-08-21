@@ -126,7 +126,7 @@ The `debug` namespace gives access to several non-standard RPC methods, which wi
 calls and transactions.
 
 This namespace is disabled by default and can be configured via setting `EN_API_NAMESPACES` as described in the
-[example config](docs/external-node/prepared_configs/mainnet-config.env).
+[example config](prepared_configs/mainnet-config.env).
 
 Available methods:
 
