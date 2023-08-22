@@ -67,7 +67,8 @@ async fn build_state_keeper(
     let max_allowed_l2_tx_gas_limit = u32::MAX.into();
     let validation_computational_gas_limit = u32::MAX;
     // We only need call traces on the external node if the `debug_` namespace is enabled.
-    let save_call_traces = config.optional.api_namespaces().contains(&Namespace::Debug);
+    let save_call_traces = config.optional.api_namespaces().contains(&Namespace::Debug)
+        || config.optional.api_namespaces().contains(&Namespace::Trace);
 
     // Only supply MultiVM config if the corresponding feature is enabled.
     let multivm_config = use_multivm.then(|| {

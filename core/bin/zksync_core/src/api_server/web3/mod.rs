@@ -23,7 +23,7 @@ use zksync_web3_decl::{
     },
     namespaces::{
         DebugNamespaceServer, EnNamespaceServer, EthNamespaceServer, NetNamespaceServer,
-        Web3NamespaceServer, ZksNamespaceServer,
+        TraceNamespaceServer, Web3NamespaceServer, ZksNamespaceServer,
     },
 };
 
@@ -45,13 +45,13 @@ use self::backend_jsonrpc::{
     error::internal_error,
     namespaces::{
         debug::DebugNamespaceT, en::EnNamespaceT, eth::EthNamespaceT, net::NetNamespaceT,
-        web3::Web3NamespaceT, zks::ZksNamespaceT,
+        trace::TraceNamespaceT, web3::Web3NamespaceT, zks::ZksNamespaceT,
     },
     pub_sub::Web3PubSub,
 };
 use self::namespaces::{
-    DebugNamespace, EnNamespace, EthNamespace, EthSubscribe, NetNamespace, Web3Namespace,
-    ZksNamespace,
+    DebugNamespace, EnNamespace, EthNamespace, EthSubscribe, NetNamespace, TraceNamespace,
+    Web3Namespace, ZksNamespace,
 };
 use self::pubsub_notifier::{notify_blocks, notify_logs, notify_txs};
 use self::state::{Filters, InternalApiConfig, RpcState};
@@ -81,6 +81,7 @@ pub enum Namespace {
     Zks,
     En,
     Pubsub,
+    Trace,
 }
 
 impl Namespace {
@@ -92,6 +93,7 @@ impl Namespace {
         Namespace::Zks,
         Namespace::En,
         Namespace::Pubsub,
+        Namespace::Trace,
     ];
 
     pub const NON_DEBUG: &'static [Namespace] = &[
@@ -269,6 +271,10 @@ impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
         if namespaces.contains(&Namespace::En) {
             rpc.merge(EnNamespace::new(rpc_app.clone()).into_rpc())
                 .expect("Can't merge en namespace");
+        }
+        if namespaces.contains(&Namespace::Trace) {
+            rpc.merge(TraceNamespace::new(rpc_app.clone()).into_rpc())
+                .expect("Can't merge trace namespace");
         }
         if namespaces.contains(&Namespace::Debug) {
             let hashes = BaseSystemContractsHashes {
@@ -460,6 +466,9 @@ impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
         }
         if namespaces.contains(&Namespace::Net) {
             io.extend_with(NetNamespace::new(zksync_network_id).to_delegate());
+        }
+        if namespaces.contains(&Namespace::Trace) {
+            io.extend_with(TraceNamespace::new(rpc_state.clone()).to_delegate());
         }
         if namespaces.contains(&Namespace::Debug) {
             let hashes = BaseSystemContractsHashes {

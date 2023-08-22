@@ -11,6 +11,7 @@ mod en;
 mod eth;
 mod eth_subscribe;
 mod net;
+mod trace;
 mod web3;
 mod zks;
 
@@ -20,6 +21,7 @@ pub use self::{
     eth::EthNamespace,
     eth_subscribe::{EthSubscribe, SubscriptionMap},
     net::NetNamespace,
+    trace::TraceNamespace,
     web3::Web3Namespace,
     zks::ZksNamespace,
 };
