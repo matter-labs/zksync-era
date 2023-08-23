@@ -14,7 +14,7 @@ use crate::models::{
         StorageTransactionDetails,
     },
 };
-use crate::{SqlxError, StorageProcessor};
+use crate::{instrument::InstrumentExt, SqlxError, StorageProcessor};
 
 #[derive(Debug)]
 pub struct TransactionsWeb3Dal<'a, 'c> {
@@ -59,9 +59,11 @@ impl TransactionsWeb3Dal<'_, '_> {
                 WHERE transactions.hash = $2
                 "#,
                 ACCOUNT_CODE_STORAGE_ADDRESS.as_bytes(),
-                hash.0.to_vec(),
+                hash.as_bytes(),
                 FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH.as_bytes()
             )
+            .instrument("get_transaction_receipt")
+            .with_arg("hash", &hash)
             .fetch_optional(self.storage.conn())
             .await?
             .map(|db_row| {
@@ -74,13 +76,11 @@ impl TransactionsWeb3Dal<'_, '_> {
                 let tx_type = db_row.tx_format.map(U64::from).unwrap_or_default();
                 let transaction_index = db_row.index_in_block.map(U64::from).unwrap_or_default();
 
+                let block_hash = db_row.block_hash.map(|bytes| H256::from_slice(&bytes));
                 api::TransactionReceipt {
                     transaction_hash: H256::from_slice(&db_row.tx_hash),
                     transaction_index,
-                    block_hash: db_row
-                        .block_hash
-                        .clone()
-                        .map(|bytes| H256::from_slice(&bytes)),
+                    block_hash,
                     block_number: db_row.block_number.map(U64::from),
                     l1_batch_tx_index: db_row.l1_batch_tx_index.map(U64::from),
                     l1_batch_number: db_row.l1_batch_number.map(U64::from),
@@ -114,7 +114,7 @@ impl TransactionsWeb3Dal<'_, '_> {
                     logs: vec![],
                     l2_to_l1_logs: vec![],
                     status,
-                    root: db_row.block_hash.map(|bytes| H256::from_slice(&bytes)),
+                    root: block_hash,
                     logs_bloom: Default::default(),
                     // Even though the Rust SDK recommends us to supply "None" for legacy transactions
                     // we always supply some number anyway to have the same behaviour as most popular RPCs
@@ -137,6 +137,8 @@ impl TransactionsWeb3Dal<'_, '_> {
                         "#,
                         hash.as_bytes()
                     )
+                    .instrument("get_transaction_receipt_events")
+                    .with_arg("hash", &hash)
                     .fetch_all(self.storage.conn())
                     .await?
                     .into_iter()
@@ -219,9 +221,15 @@ impl TransactionsWeb3Dal<'_, '_> {
             let storage_tx_details: Option<StorageTransactionDetails> = sqlx::query_as!(
                 StorageTransactionDetails,
                 r#"
-                    SELECT transactions.*,
-                        miniblocks.timestamp as "miniblock_timestamp?",
-                        miniblocks.hash as "block_hash?",
+                    SELECT transactions.is_priority,
+                        transactions.initiator_address,
+                        transactions.gas_limit,
+                        transactions.gas_per_pubdata_limit,
+                        transactions.received_at,
+                        transactions.miniblock_number,
+                        transactions.error,
+                        transactions.effective_gas_price,
+                        transactions.refunded_gas,
                         commit_tx.tx_hash as "eth_commit_tx_hash?",
                         prove_tx.tx_hash as "eth_prove_tx_hash?",
                         execute_tx.tx_hash as "eth_execute_tx_hash?"
@@ -235,6 +243,8 @@ impl TransactionsWeb3Dal<'_, '_> {
                 "#,
                 hash.as_bytes()
             )
+            .instrument("get_transaction_details")
+            .with_arg("hash", &hash)
             .fetch_optional(self.storage.conn())
             .await?;
 
@@ -344,7 +354,7 @@ impl TransactionsWeb3Dal<'_, '_> {
 #[cfg(test)]
 mod tests {
     use db_test_macro::db_test;
-    use zksync_types::{fee::TransactionExecutionMetrics, l2::L2Tx};
+    use zksync_types::{fee::TransactionExecutionMetrics, l2::L2Tx, ProtocolVersion};
     use zksync_utils::miniblock_hash;
 
     use super::*;
@@ -376,6 +386,9 @@ mod tests {
     #[db_test(dal_crate)]
     async fn getting_transaction(connection_pool: ConnectionPool) {
         let mut conn = connection_pool.access_test_storage().await;
+        conn.protocol_versions_dal()
+            .save_protocol_version(ProtocolVersion::default())
+            .await;
         let tx = mock_l2_transaction();
         let tx_hash = tx.hash();
         prepare_transaction(&mut conn, tx).await;
@@ -433,6 +446,9 @@ mod tests {
     #[db_test(dal_crate)]
     async fn getting_miniblock_transactions(connection_pool: ConnectionPool) {
         let mut conn = connection_pool.access_test_storage().await;
+        conn.protocol_versions_dal()
+            .save_protocol_version(ProtocolVersion::default())
+            .await;
         let tx = mock_l2_transaction();
         let tx_hash = tx.hash();
         prepare_transaction(&mut conn, tx).await;

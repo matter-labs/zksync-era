@@ -1,34 +1,4 @@
-use itertools::Itertools;
-
 use std::time::Instant;
-
-use zksync_types::{
-    api::{
-        BlockId, BlockNumber, GetLogsFilter, Transaction, TransactionId, TransactionReceipt,
-        TransactionVariant,
-    },
-    l2::{L2Tx, TransactionType},
-    transaction_request::{l2_tx_from_call_req, CallRequest},
-    utils::decompose_full_nonce,
-    web3::types::{SyncInfo, SyncState},
-    AccountTreeId, Bytes, MiniblockNumber, StorageKey, H256, L2_ETH_TOKEN_ADDRESS,
-    MAX_GAS_PER_PUBDATA_BYTE, U256,
-};
-use zksync_utils::u256_to_h256;
-use zksync_web3_decl::{
-    error::Web3Error,
-    types::{Address, Block, Filter, FilterChanges, Log, TypedFilter, U64},
-};
-#[cfg(feature = "openzeppelin_tests")]
-use {
-    zksync_eth_signer::EthereumSigner,
-    zksync_types::{
-        api::TransactionRequest, storage::CONTRACT_DEPLOYER_ADDRESS,
-        transaction_request::Eip712Meta, web3::contract::tokens::Tokenizable, Eip712Domain,
-        EIP_712_TX_TYPE,
-    },
-    zksync_utils::bytecode::hash_bytecode,
-};
 
 use crate::{
     api_server::{
@@ -36,6 +6,24 @@ use crate::{
         web3::{backend_jsonrpc::error::internal_error, resolve_block, state::RpcState},
     },
     l1_gas_price::L1GasPriceProvider,
+};
+use zksync_types::{
+    api::{
+        BlockId, BlockNumber, GetLogsFilter, Transaction, TransactionId, TransactionReceipt,
+        TransactionVariant,
+    },
+    l2::{L2Tx, TransactionType},
+    transaction_request::CallRequest,
+    utils::decompose_full_nonce,
+    web3,
+    web3::types::{FeeHistory, SyncInfo, SyncState},
+    AccountTreeId, Bytes, MiniblockNumber, StorageKey, H256, L2_ETH_TOKEN_ADDRESS,
+    MAX_GAS_PER_PUBDATA_BYTE, U256,
+};
+use zksync_utils::u256_to_h256;
+use zksync_web3_decl::{
+    error::Web3Error,
+    types::{Address, Block, Filter, FilterChanges, Log, TypedFilter, U64},
 };
 
 pub const EVENT_TOPIC_NUMBER_LIMIT: usize = 4;
@@ -79,15 +67,16 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
         block_number
     }
 
-    #[tracing::instrument(skip(self, request, block))]
+    #[tracing::instrument(skip(self, request, block_id))]
     pub async fn call_impl(
         &self,
         request: CallRequest,
-        block: Option<BlockId>,
+        block_id: Option<BlockId>,
     ) -> Result<Bytes, Web3Error> {
+        const METHOD_NAME: &str = "call";
         let start = Instant::now();
 
-        let block = block.unwrap_or(BlockId::Number(BlockNumber::Pending));
+        let block = block_id.unwrap_or(BlockId::Number(BlockNumber::Pending));
         let mut connection = self
             .state
             .connection_pool
@@ -99,33 +88,14 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
             .ok_or(Web3Error::NoBlock)?;
         drop(connection);
 
-        let mut request_with_set_nonce = request.clone();
-        self.state
-            .set_nonce_for_call_request(&mut request_with_set_nonce)
-            .await?;
-
-        #[cfg(not(feature = "openzeppelin_tests"))]
-        let tx = l2_tx_from_call_req(request, self.state.api_config.max_tx_size)?;
-        #[cfg(feature = "openzeppelin_tests")]
-        let tx: L2Tx = self
-            .convert_evm_like_deploy_requests(tx_req_from_call_req(
-                request,
-                self.state.api_config.max_tx_size,
-            )?)?
-            .try_into()?;
+        let tx = L2Tx::from_request(request.into(), self.state.api_config.max_tx_size)?;
 
         let call_result = self.state.tx_sender.eth_call(block_args, tx).await;
-        let mut res_bytes = call_result
+        let res_bytes = call_result
             .map_err(|err| Web3Error::SubmitTransactionError(err.to_string(), err.data()))?;
 
-        if cfg!(feature = "openzeppelin_tests")
-            && res_bytes.len() >= 100
-            && hex::encode(&res_bytes[96..100]).as_str() == "08c379a0"
-        {
-            res_bytes = res_bytes[96..].to_vec();
-        }
+        metrics::histogram!("api.web3.call", start.elapsed(), "method" => METHOD_NAME, "block_id" => block.extract_block_tag());
 
-        metrics::histogram!("api.web3.call", start.elapsed(), "method" => "call");
         Ok(res_bytes.into())
     }
 
@@ -152,19 +122,10 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
             .eip712_meta
             .is_some();
 
-        #[cfg(not(feature = "openzeppelin_tests"))]
-        let mut tx: L2Tx = l2_tx_from_call_req(
-            request_with_gas_per_pubdata_overridden,
+        let mut tx: L2Tx = L2Tx::from_request(
+            request_with_gas_per_pubdata_overridden.into(),
             self.state.api_config.max_tx_size,
         )?;
-
-        #[cfg(feature = "openzeppelin_tests")]
-        let mut tx: L2Tx = self
-            .convert_evm_like_deploy_requests(tx_req_from_call_req(
-                request_with_gas_per_pubdata_overridden,
-                self.state.api_config.max_tx_size,
-            )?)?
-            .try_into()?;
 
         // The user may not include the proper transaction type during the estimation of
         // the gas fee. However, it is needed for the bootloader checks to pass properly.
@@ -200,7 +161,9 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
 
         let start = Instant::now();
         let price = self.state.tx_sender.gas_price();
+
         metrics::histogram!("api.web3.call", start.elapsed(), "method" => METHOD_NAME);
+
         Ok(price.into())
     }
 
@@ -208,7 +171,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
     pub async fn get_balance_impl(
         &self,
         address: Address,
-        block: Option<BlockId>,
+        block_id: Option<BlockId>,
     ) -> Result<U256, Web3Error> {
         const METHOD_NAME: &str = "get_balance";
 
@@ -218,7 +181,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
             .connection_pool
             .access_storage_tagged("api")
             .await;
-        let block = block.unwrap_or(BlockId::Number(BlockNumber::Pending));
+        let block = block_id.unwrap_or(BlockId::Number(BlockNumber::Pending));
         let block_number = resolve_block(&mut connection, block, METHOD_NAME).await?;
         let balance = connection
             .storage_web3_dal()
@@ -229,7 +192,9 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
             )
             .await
             .map_err(|err| internal_error(METHOD_NAME, err))?;
-        metrics::histogram!("api.web3.call", start.elapsed(), "method" => METHOD_NAME);
+
+        metrics::histogram!("api.web3.call", start.elapsed(), "method" => METHOD_NAME, "block_id" => block.extract_block_tag());
+
         Ok(balance)
     }
 
@@ -281,7 +246,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
     #[tracing::instrument(skip(self))]
     pub async fn get_block_impl(
         &self,
-        block: BlockId,
+        block_id: BlockId,
         full_transactions: bool,
     ) -> Result<Option<Block<TransactionVariant>>, Web3Error> {
         let start = Instant::now();
@@ -297,18 +262,23 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
             .access_storage_tagged("api")
             .await
             .blocks_web3_dal()
-            .get_block_by_web3_block_id(block, full_transactions, self.state.api_config.l2_chain_id)
+            .get_block_by_web3_block_id(
+                block_id,
+                full_transactions,
+                self.state.api_config.l2_chain_id,
+            )
             .await
             .map_err(|err| internal_error(method_name, err));
 
-        metrics::histogram!("api.web3.call", start.elapsed(), "method" => method_name);
+        metrics::histogram!("api.web3.call", start.elapsed(), "method" => method_name, "block_id" => block_id.extract_block_tag());
+
         block
     }
 
     #[tracing::instrument(skip(self))]
     pub async fn get_block_transaction_count_impl(
         &self,
-        block: BlockId,
+        block_id: BlockId,
     ) -> Result<Option<U256>, Web3Error> {
         const METHOD_NAME: &str = "get_block_transaction_count";
 
@@ -319,11 +289,12 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
             .access_storage_tagged("api")
             .await
             .blocks_web3_dal()
-            .get_block_tx_count(block)
+            .get_block_tx_count(block_id)
             .await
             .map_err(|err| internal_error(METHOD_NAME, err));
 
-        metrics::histogram!("api.web3.call", start.elapsed(), "method" => METHOD_NAME);
+        metrics::histogram!("api.web3.call", start.elapsed(), "method" => METHOD_NAME, "block_id" => block_id.extract_block_tag());
+
         tx_count
     }
 
@@ -331,7 +302,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
     pub async fn get_code_impl(
         &self,
         address: Address,
-        block: Option<BlockId>,
+        block_id: Option<BlockId>,
     ) -> Result<Bytes, Web3Error> {
         const METHOD_NAME: &str = "get_code";
 
@@ -341,7 +312,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
             .connection_pool
             .access_storage_tagged("api")
             .await;
-        let block = block.unwrap_or(BlockId::Number(BlockNumber::Pending));
+        let block = block_id.unwrap_or(BlockId::Number(BlockNumber::Pending));
         let block_number = resolve_block(&mut connection, block, METHOD_NAME).await?;
         let contract_code = connection
             .storage_web3_dal()
@@ -349,7 +320,8 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
             .await
             .map_err(|err| internal_error(METHOD_NAME, err))?;
 
-        metrics::histogram!("api.web3.call", start.elapsed(), "method" => METHOD_NAME);
+        metrics::histogram!("api.web3.call", start.elapsed(), "method" => METHOD_NAME, "block_id" => block.extract_block_tag());
+
         Ok(contract_code.unwrap_or_default().into())
     }
 
@@ -363,12 +335,12 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
         &self,
         address: Address,
         idx: U256,
-        block: Option<BlockId>,
+        block_id: Option<BlockId>,
     ) -> Result<H256, Web3Error> {
         const METHOD_NAME: &str = "get_storage_at";
 
         let start = Instant::now();
-        let block = block.unwrap_or(BlockId::Number(BlockNumber::Pending));
+        let block = block_id.unwrap_or(BlockId::Number(BlockNumber::Pending));
         let storage_key = StorageKey::new(AccountTreeId::new(address), u256_to_h256(idx));
         let mut connection = self
             .state
@@ -382,7 +354,8 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
             .await
             .map_err(|err| internal_error(METHOD_NAME, err))?;
 
-        metrics::histogram!("api.web3.call", start.elapsed(), "method" => METHOD_NAME);
+        metrics::histogram!("api.web3.call", start.elapsed(), "method" => METHOD_NAME, "block_id" => block.extract_block_tag());
+
         Ok(value)
     }
 
@@ -391,15 +364,16 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
     pub async fn get_transaction_count_impl(
         &self,
         address: Address,
-        block: Option<BlockId>,
+        block_id: Option<BlockId>,
     ) -> Result<U256, Web3Error> {
         let start = Instant::now();
-        let block = block.unwrap_or(BlockId::Number(BlockNumber::Pending));
+        let block = block_id.unwrap_or(BlockId::Number(BlockNumber::Pending));
 
         let method_name = match block {
             BlockId::Number(BlockNumber::Pending) => "get_pending_transaction_count",
             _ => "get_historical_transaction_count",
         };
+
         let mut connection = self
             .state
             .connection_pool
@@ -424,7 +398,8 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
 
         let account_nonce = full_nonce.map(|nonce| decompose_full_nonce(nonce).0);
 
-        metrics::histogram!("api.web3.call", start.elapsed(), "method" => method_name);
+        metrics::histogram!("api.web3.call", start.elapsed(), "method" => method_name, "block_id" => block.extract_block_tag());
+
         account_nonce
     }
 
@@ -657,7 +632,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
 
     #[tracing::instrument(skip(self))]
     pub fn accounts_impl(&self) -> Vec<Address> {
-        self.state.accounts.keys().cloned().sorted().collect()
+        Vec::new()
     }
 
     #[tracing::instrument(skip(self))]
@@ -677,6 +652,58 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
             // If there is no sync state, then the node is the main node and it's always synced.
             SyncState::NotSyncing
         }
+    }
+
+    #[tracing::instrument(skip(self))]
+    pub async fn fee_history_impl(
+        &self,
+        block_count: U64,
+        newest_block: BlockNumber,
+        _reward_percentiles: Vec<f32>,
+    ) -> Result<FeeHistory, Web3Error> {
+        const METHOD_NAME: &str = "fee_history";
+
+        let start = Instant::now();
+
+        // Limit `block_count`.
+        let block_count = block_count
+            .as_u64()
+            .min(self.state.api_config.fee_history_limit)
+            .max(1);
+
+        let mut connection = self
+            .state
+            .connection_pool
+            .access_storage_tagged("api")
+            .await;
+        let newest_miniblock =
+            resolve_block(&mut connection, BlockId::Number(newest_block), METHOD_NAME).await?;
+
+        let mut base_fee_per_gas = connection
+            .blocks_web3_dal()
+            .get_fee_history(newest_miniblock, block_count)
+            .await
+            .map_err(|err| internal_error(METHOD_NAME, err))?;
+        // DAL method returns fees in DESC order while we need ASC.
+        base_fee_per_gas.reverse();
+
+        let oldest_block = newest_miniblock.0 + 1 - base_fee_per_gas.len() as u32;
+        // We do not store gas used ratio for blocks, returns array of zeroes as a placeholder.
+        let gas_used_ratio = vec![0.0; base_fee_per_gas.len()];
+        // Effective priority gas price is currently 0, returns `reward: null` as a placeholder.
+        let reward = None;
+
+        // `base_fee_per_gas` for next miniblock cannot be calculated, appending last fee as a placeholder.
+        base_fee_per_gas.push(*base_fee_per_gas.last().unwrap());
+
+        metrics::histogram!("api.web3.call", start.elapsed(), "method" => METHOD_NAME, "block_id" => newest_block.to_string());
+
+        Ok(FeeHistory {
+            oldest_block: web3::types::BlockNumber::Number(oldest_block.into()),
+            base_fee_per_gas,
+            gas_used_ratio,
+            reward,
+        })
     }
 
     #[tracing::instrument(skip(self, typed_filter))]
@@ -794,129 +821,6 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
         };
 
         Ok(res)
-    }
-
-    #[cfg(feature = "openzeppelin_tests")]
-    pub fn send_transaction_impl(
-        &self,
-        transaction_request: zksync_types::web3::types::TransactionRequest,
-    ) -> Result<H256, Web3Error> {
-        let nonce = if let Some(nonce) = transaction_request.nonce {
-            nonce
-        } else {
-            self.state
-                .connection_pool
-                .access_storage_tagged("api")
-                .await
-                .transactions_web3_dal()
-                .next_nonce_by_initiator_account(transaction_request.from)
-                .map_err(|err| internal_error("send_transaction", err))?
-        };
-        let mut eip712_meta = Eip712Meta::default();
-        eip712_meta.gas_per_pubdata = U256::from(MAX_GAS_PER_PUBDATA_BYTE);
-        let fair_l2_gas_price = self.state.tx_sender.0.state_keeper_config.fair_l2_gas_price;
-        let transaction_request = TransactionRequest {
-            nonce,
-            from: Some(transaction_request.from),
-            to: transaction_request.to,
-            value: transaction_request.value.unwrap_or(U256::from(0)),
-            gas_price: U256::from(fair_l2_gas_price),
-            gas: transaction_request.gas.unwrap(),
-            max_priority_fee_per_gas: Some(U256::from(fair_l2_gas_price)),
-            input: transaction_request.data.unwrap_or_default(),
-            v: None,
-            r: None,
-            s: None,
-            raw: None,
-            transaction_type: Some(EIP_712_TX_TYPE.into()),
-            access_list: None,
-            eip712_meta: Some(eip712_meta),
-            chain_id: None,
-        };
-        let transaction_request = self.convert_evm_like_deploy_requests(transaction_request)?;
-
-        let bytes = if let Some(signer) = transaction_request
-            .from
-            .and_then(|from| self.state.accounts.get(&from).cloned())
-        {
-            let chain_id = self.state.api_config.l2_chain_id;
-            let domain = Eip712Domain::new(chain_id);
-            let signature = signer
-                .sign_typed_data(&domain, &transaction_request)
-                .await
-                .map_err(|err| internal_error("send_transaction", err))?;
-
-            let encoded_tx = transaction_request.get_signed_bytes(&signature, chain_id);
-            Bytes(encoded_tx)
-        } else {
-            return Err(internal_error("send_transaction", "Account not found"));
-        };
-
-        self.send_raw_transaction_impl(bytes)
-    }
-
-    #[cfg(feature = "openzeppelin_tests")]
-    /// Converts EVM-like transaction requests of deploying contracts to zkEVM format.
-    /// These feature is needed to run openzeppelin tests
-    /// because they use `truffle` which uses `web3.js` to generate transaction requests.
-    /// Note, that we can remove this method when ZkSync support
-    /// will be added for `truffle`.
-    fn convert_evm_like_deploy_requests(
-        &self,
-        mut transaction_request: TransactionRequest,
-    ) -> Result<TransactionRequest, Web3Error> {
-        if transaction_request.to.unwrap_or(Address::zero()) == Address::zero() {
-            transaction_request.to = Some(CONTRACT_DEPLOYER_ADDRESS);
-            transaction_request.transaction_type = Some(EIP_712_TX_TYPE.into());
-
-            const BYTECODE_CHUNK_LEN: usize = 32;
-
-            let data = transaction_request.input.0;
-            let (bytecode, constructor_calldata) =
-                data.split_at(data.len() / BYTECODE_CHUNK_LEN * BYTECODE_CHUNK_LEN);
-            let mut bytecode = bytecode.to_vec();
-            let mut constructor_calldata = constructor_calldata.to_vec();
-            let lock = self.state.known_bytecodes.read().unwrap();
-            while !lock.contains(&bytecode) {
-                if bytecode.len() < BYTECODE_CHUNK_LEN {
-                    return Err(internal_error(
-                        "convert_evm_like_deploy_requests",
-                        "Bytecode not found",
-                    ));
-                }
-                let (new_bytecode, new_constructor_part) =
-                    bytecode.split_at(bytecode.len() - BYTECODE_CHUNK_LEN);
-                constructor_calldata = new_constructor_part
-                    .iter()
-                    .chain(constructor_calldata.iter())
-                    .cloned()
-                    .collect();
-                bytecode = new_bytecode.to_vec();
-            }
-            drop(lock);
-
-            let mut eip712_meta = Eip712Meta::default();
-            eip712_meta.gas_per_pubdata = U256::from(MAX_GAS_PER_PUBDATA_BYTE);
-            eip712_meta.factory_deps = Some(vec![bytecode.clone()]);
-            transaction_request.eip712_meta = Some(eip712_meta);
-
-            let salt = H256::zero();
-            let bytecode_hash = hash_bytecode(&bytecode);
-
-            let deployer = zksync_contracts::deployer_contract();
-            transaction_request.input = Bytes(
-                deployer
-                    .function("create")
-                    .unwrap()
-                    .encode_input(&[
-                        salt.into_token(),
-                        bytecode_hash.into_token(),
-                        constructor_calldata.into_token(),
-                    ])
-                    .unwrap(),
-            );
-        }
-        Ok(transaction_request)
     }
 }
 

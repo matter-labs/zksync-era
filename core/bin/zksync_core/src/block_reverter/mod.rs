@@ -5,7 +5,7 @@ use tokio::time::sleep;
 use std::path::Path;
 use std::time::Duration;
 
-use zksync_config::{ContractsConfig, DBConfig, ETHSenderConfig};
+use zksync_config::{ContractsConfig, ETHSenderConfig};
 use zksync_contracts::zksync_contract;
 use zksync_dal::ConnectionPool;
 use zksync_merkle_tree::domain::ZkSyncTree;
@@ -88,7 +88,8 @@ impl BlockReverterEthConfig {
 /// - State of the Ethereum contract (if the block was committed)
 #[derive(Debug)]
 pub struct BlockReverter {
-    db_config: DBConfig,
+    state_keeper_cache_path: String,
+    merkle_tree_path: String,
     eth_config: Option<BlockReverterEthConfig>,
     connection_pool: ConnectionPool,
     executed_batches_revert_mode: L1ExecutedBatchesRevert,
@@ -96,14 +97,16 @@ pub struct BlockReverter {
 
 impl BlockReverter {
     pub fn new(
-        db_config: DBConfig,
+        state_keeper_cache_path: String,
+        merkle_tree_path: String,
         eth_config: Option<BlockReverterEthConfig>,
         connection_pool: ConnectionPool,
         executed_batches_revert_mode: L1ExecutedBatchesRevert,
     ) -> Self {
         Self {
+            state_keeper_cache_path,
+            merkle_tree_path,
             eth_config,
-            db_config,
             connection_pool,
             executed_batches_revert_mode,
         }
@@ -126,12 +129,12 @@ impl BlockReverter {
             let mut storage = self.connection_pool.access_storage().await;
             let last_executed_l1_batch = storage
                 .blocks_dal()
-                .get_number_of_last_block_executed_on_eth()
+                .get_number_of_last_l1_batch_executed_on_eth()
                 .await
-                .expect("failed to get last executed L1 block");
+                .expect("failed to get last executed L1 batch");
             assert!(
                 last_l1_batch_to_keep >= last_executed_l1_batch,
-                "Attempt to revert already executed blocks"
+                "Attempt to revert already executed L1 batches"
             );
         }
 
@@ -155,27 +158,26 @@ impl BlockReverter {
                 .access_storage()
                 .await
                 .blocks_dal()
-                .get_block_state_root(last_l1_batch_to_keep)
+                .get_l1_batch_state_root(last_l1_batch_to_keep)
                 .await
-                .expect("failed to fetch root hash for target block");
+                .expect("failed to fetch root hash for target L1 batch");
 
             // Rolling back Merkle tree
-            let new_lightweight_tree_path = &self.db_config.new_merkle_tree_ssd_path;
-            if Path::new(new_lightweight_tree_path).exists() {
-                vlog::info!("Rolling back new lightweight tree...");
+            if Path::new(&self.merkle_tree_path).exists() {
+                vlog::info!("Rolling back Merkle tree...");
                 Self::rollback_new_tree(
                     last_l1_batch_to_keep,
-                    new_lightweight_tree_path,
+                    &self.merkle_tree_path,
                     storage_root_hash,
                 );
             } else {
-                vlog::info!("New lightweight tree not found; skipping");
+                vlog::info!("Merkle tree not found; skipping");
             }
         }
 
         if rollback_sk_cache {
             assert!(
-                Path::new(self.db_config.state_keeper_db_path()).exists(),
+                Path::new(&self.state_keeper_cache_path).exists(),
                 "Path with state keeper cache DB doesn't exist"
             );
             self.rollback_state_keeper_cache(last_l1_batch_to_keep)
@@ -185,14 +187,14 @@ impl BlockReverter {
 
     fn rollback_new_tree(
         last_l1_batch_to_keep: L1BatchNumber,
-        path: impl AsRef<Path>,
+        path: &str,
         storage_root_hash: H256,
     ) {
         let db = RocksDB::new(path, true);
         let mut tree = ZkSyncTree::new_lightweight(db);
 
-        if tree.block_number() <= last_l1_batch_to_keep.0 {
-            vlog::info!("Tree is behind the block to revert to; skipping");
+        if tree.next_l1_batch_number() <= last_l1_batch_to_keep {
+            vlog::info!("Tree is behind the L1 batch to revert to; skipping");
             return;
         }
         tree.revert_logs(last_l1_batch_to_keep);
@@ -206,8 +208,7 @@ impl BlockReverter {
     /// Reverts blocks in the state keeper cache.
     async fn rollback_state_keeper_cache(&self, last_l1_batch_to_keep: L1BatchNumber) {
         vlog::info!("opening DB with state keeper cache...");
-        let path = self.db_config.state_keeper_db_path().as_ref();
-        let mut sk_cache = RocksdbStorage::new(path);
+        let mut sk_cache = RocksdbStorage::new(self.state_keeper_cache_path.as_ref());
 
         if sk_cache.l1_batch_number() > last_l1_batch_to_keep + 1 {
             let mut storage = self.connection_pool.access_storage().await;
@@ -343,9 +344,9 @@ impl BlockReverter {
 
     async fn get_l1_batch_number_from_contract(&self, op: AggregatedActionType) -> L1BatchNumber {
         let function_name = match op {
-            AggregatedActionType::CommitBlocks => "getTotalBlocksCommitted",
-            AggregatedActionType::PublishProofBlocksOnchain => "getTotalBlocksVerified",
-            AggregatedActionType::ExecuteBlocks => "getTotalBlocksExecuted",
+            AggregatedActionType::Commit => "getTotalBlocksCommitted",
+            AggregatedActionType::PublishProofOnchain => "getTotalBlocksVerified",
+            AggregatedActionType::Execute => "getTotalBlocksExecuted",
         };
         let eth_config = self
             .eth_config
@@ -370,19 +371,17 @@ impl BlockReverter {
     /// Returns suggested values for rollback.
     pub async fn suggested_values(&self) -> SuggestedRollbackValues {
         let last_committed_l1_batch_number = self
-            .get_l1_batch_number_from_contract(AggregatedActionType::CommitBlocks)
+            .get_l1_batch_number_from_contract(AggregatedActionType::Commit)
             .await;
         let last_verified_l1_batch_number = self
-            .get_l1_batch_number_from_contract(AggregatedActionType::PublishProofBlocksOnchain)
+            .get_l1_batch_number_from_contract(AggregatedActionType::PublishProofOnchain)
             .await;
         let last_executed_l1_batch_number = self
-            .get_l1_batch_number_from_contract(AggregatedActionType::ExecuteBlocks)
+            .get_l1_batch_number_from_contract(AggregatedActionType::Execute)
             .await;
         vlog::info!(
-            "Last L1 batch numbers on contract: committed {}, verified {}, executed {}",
-            last_committed_l1_batch_number,
-            last_verified_l1_batch_number,
-            last_executed_l1_batch_number
+            "Last L1 batch numbers on contract: committed {last_committed_l1_batch_number}, \
+             verified {last_verified_l1_batch_number}, executed {last_executed_l1_batch_number}"
         );
 
         let eth_config = self

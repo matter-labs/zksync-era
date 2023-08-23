@@ -25,9 +25,9 @@ pub struct WithdrawBuilder<'a, S: EthereumSigner, P> {
 }
 
 impl<'a, S, P> WithdrawBuilder<'a, S, P>
-    where
-        S: EthereumSigner,
-        P: ZksNamespaceClient + EthNamespaceClient + Sync,
+where
+    S: EthereumSigner,
+    P: ZksNamespaceClient + EthNamespaceClient + Sync,
 {
     /// Initializes a withdraw transaction building process.
     pub fn new(wallet: &'a Wallet<S, P>) -> Self {
@@ -55,6 +55,8 @@ impl<'a, S, P> WithdrawBuilder<'a, S, P>
             .ok_or_else(|| ClientError::MissingRequiredField("amount".into()))?;
 
         let (contract_address, calldata, value) = if token == ETHEREUM_ADDRESS {
+            // TODO (SMA-1608): Do not implement the ABI manually, introduce ABI files with an update script similarly to
+            //  how it's done for L1 part of SDK.
             let calldata_params = vec![ethabi::ParamType::Address];
             let mut calldata = ethabi::short_signature("withdraw", &calldata_params).to_vec();
             calldata.append(&mut ethabi::encode(&[ethabi::Token::Address(to)]));
@@ -73,6 +75,8 @@ impl<'a, S, P> WithdrawBuilder<'a, S, P>
                 default_bridges.l2_erc20_default_bridge
             };
 
+            // TODO (SMA-1608): Do not implement the ABI manually, introduce ABI files with an update script similarly to
+            //  how it's done for L1 part of SDK.
             let calldata_params = vec![
                 ethabi::ParamType::Address,
                 ethabi::ParamType::Address,

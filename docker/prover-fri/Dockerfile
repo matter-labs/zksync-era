@@ -2,7 +2,7 @@
 # Not expected to work locally
 
 # syntax=docker/dockerfile:experimental
-FROM debian:buster-slim as builder
+FROM debian:bookworm-slim as builder
 
 ARG DEBIAN_FRONTEND=noninteractive
 
@@ -23,7 +23,7 @@ COPY . .
 
 RUN CARGO_HOME=./cargo cargo build --release
 
-FROM debian:buster-slim
+FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y curl libpq5 ca-certificates && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /usr/src/zksync/target/release/zksync_prover_fri /usr/bin/

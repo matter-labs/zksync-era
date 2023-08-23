@@ -3,7 +3,7 @@ use async_trait::async_trait;
 use zksync_dal::ConnectionPool;
 use zksync_utils::time::seconds_since_epoch;
 
-use crate::house_keeper::periodic_job::PeriodicJob;
+use zksync_prover_utils::periodic_job::PeriodicJob;
 
 #[derive(Debug)]
 pub struct L1BatchMetricsReporter {
@@ -23,12 +23,12 @@ impl L1BatchMetricsReporter {
         let mut conn = self.connection_pool.access_storage().await;
         let mut block_metrics = vec![
             (
-                conn.blocks_dal().get_sealed_block_number().await,
+                conn.blocks_dal().get_sealed_l1_batch_number().await,
                 "sealed".to_string(),
             ),
             (
                 conn.blocks_dal()
-                    .get_last_block_number_with_metadata()
+                    .get_last_l1_batch_number_with_metadata()
                     .await,
                 "metadata_calculated".to_string(),
             ),
@@ -42,18 +42,18 @@ impl L1BatchMetricsReporter {
 
         let eth_stats = conn.eth_sender_dal().get_eth_l1_batches().await;
         for (tx_type, l1_batch) in eth_stats.saved {
-            block_metrics.push((l1_batch, format!("l1_saved_{:?}", tx_type)))
+            block_metrics.push((l1_batch, format!("l1_saved_{}", tx_type.as_str())))
         }
 
         for (tx_type, l1_batch) in eth_stats.mined {
-            block_metrics.push((l1_batch, format!("l1_mined_{:?}", tx_type)))
+            block_metrics.push((l1_batch, format!("l1_mined_{}", tx_type.as_str())))
         }
 
         for (l1_batch_number, stage) in block_metrics {
             metrics::gauge!(
                 "server.block_number",
                 l1_batch_number.0 as f64,
-                "stage" =>  stage
+                "stage" => stage
             );
         }
 

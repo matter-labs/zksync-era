@@ -1,7 +1,7 @@
 #![allow(clippy::derive_partial_eq_without_eq)]
 
 mod bootloader_state;
-mod errors;
+pub mod errors;
 pub mod event_sink;
 mod events;
 mod history_recorder;

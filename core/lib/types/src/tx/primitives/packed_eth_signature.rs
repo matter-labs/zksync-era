@@ -1,6 +1,7 @@
 use crate::tx::primitives::eip712_signature::typed_structure::{
     EIP712TypedStructure, Eip712Domain,
 };
+use ethereum_types_old::H256 as ParityCryptoH256;
 use parity_crypto::{
     publickey::{
         public_to_address, recover, sign, Error as ParityCryptoError, KeyPair,
@@ -64,8 +65,11 @@ impl PackedEthSignature {
         private_key: &H256,
         signed_bytes: &H256,
     ) -> Result<PackedEthSignature, ParityCryptoError> {
-        let secret_key = (*private_key).into();
-        let signature = sign(&secret_key, signed_bytes)?;
+        let private_key = ParityCryptoH256::from_slice(&private_key.0);
+        let signed_bytes = ParityCryptoH256::from_slice(&signed_bytes.0);
+
+        let secret_key = private_key.into();
+        let signature = sign(&secret_key, &signed_bytes)?;
         Ok(PackedEthSignature(signature))
     }
 
@@ -76,8 +80,10 @@ impl PackedEthSignature {
         domain: &Eip712Domain,
         typed_struct: &impl EIP712TypedStructure,
     ) -> Result<PackedEthSignature, ParityCryptoError> {
-        let secret_key = (*private_key).into();
-        let signed_bytes = Self::typed_data_to_signed_bytes(domain, typed_struct);
+        let private_key = ParityCryptoH256::from_slice(&private_key.0);
+        let secret_key = private_key.into();
+        let signed_bytes =
+            ParityCryptoH256::from(Self::typed_data_to_signed_bytes(domain, typed_struct).0);
         let signature = sign(&secret_key, &signed_bytes)?;
         Ok(PackedEthSignature(signature))
     }
@@ -104,17 +110,23 @@ impl PackedEthSignature {
         &self,
         signed_bytes: &H256,
     ) -> Result<Address, ParityCryptoError> {
-        let public_key = recover(&self.0, signed_bytes)?;
-        Ok(public_to_address(&public_key))
+        let signed_bytes = ParityCryptoH256::from_slice(&signed_bytes.0);
+        let public_key = recover(&self.0, &signed_bytes)?;
+        let address = public_to_address(&public_key);
+        Ok(Address::from(address.0))
     }
 
     /// Get Ethereum address from private key.
     pub fn address_from_private_key(private_key: &H256) -> Result<Address, ParityCryptoError> {
-        Ok(KeyPair::from_secret((*private_key).into())?.address())
+        let private_key = ParityCryptoH256::from_slice(&private_key.0);
+        let address = KeyPair::from_secret(private_key.into())?.address();
+        Ok(Address::from(address.0))
     }
 
     pub fn from_rsv(r: &H256, s: &H256, v: u8) -> Self {
-        PackedEthSignature(ETHSignature::from_rsv(r, s, v))
+        let r = ParityCryptoH256::from_slice(&r.0);
+        let s = ParityCryptoH256::from_slice(&s.0);
+        PackedEthSignature(ETHSignature::from_rsv(&r, &s, v))
     }
 
     pub fn r(&self) -> &[u8] {

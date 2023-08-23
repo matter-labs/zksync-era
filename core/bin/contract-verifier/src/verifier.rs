@@ -13,7 +13,7 @@ use zksync_config::ContractVerifierConfig;
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_queued_job_processor::{async_trait, JobProcessor};
 use zksync_types::{
-    explorer_api::{
+    contract_verification_api::{
         CompilationArtifacts, CompilerType, DeployContractCalldata, SourceCodeData,
         VerificationInfo, VerificationRequest,
     },
@@ -59,7 +59,6 @@ impl ContractVerifier {
 
         // Bytecode should be present because it is checked when accepting request.
         let (deployed_bytecode, creation_tx_calldata) = storage
-            .explorer()
             .contract_verification_dal()
             .get_contract_info_for_verification(request.req.contract_address).await
             .unwrap()
@@ -241,13 +240,14 @@ impl ContractVerifier {
             .await
             .map_err(|_| ContractVerifierError::CompilationTimeout)??;
 
+        let file_name = format!("{contract_name}.vy");
         let object = output
             .as_object()
             .cloned()
             .ok_or(ContractVerifierError::InternalError)?;
         for (path, artifact) in object {
             let path = Path::new(&path);
-            if path.file_name().unwrap().to_str().unwrap() == contract_name.as_str() {
+            if path.file_name().unwrap().to_str().unwrap() == file_name {
                 let bytecode_str = artifact["bytecode"]
                     .as_str()
                     .ok_or(ContractVerifierError::InternalError)?;
@@ -420,7 +420,6 @@ impl ContractVerifier {
         match verification_result {
             Ok(info) => {
                 storage
-                    .explorer()
                     .contract_verification_dal()
                     .save_verification_info(info)
                     .await
@@ -436,7 +435,6 @@ impl ContractVerifier {
                     _ => serde_json::Value::Array(Vec::new()),
                 };
                 storage
-                    .explorer()
                     .contract_verification_dal()
                     .save_verification_error(request_id, error_message, compilation_errors, None)
                     .await
@@ -466,7 +464,6 @@ impl JobProcessor for ContractVerifier {
         // `compilation_timeout` + `non_compilation_time_overhead` (which is significantly less than `compilation_timeout`),
         // we re-pick up jobs that are being executed for a bit more than `compilation_timeout`.
         let job = connection
-            .explorer()
             .contract_verification_dal()
             .get_next_queued_verification_request(self.config.compilation_timeout() + TIME_OVERHEAD)
             .await
@@ -479,7 +476,6 @@ impl JobProcessor for ContractVerifier {
         let mut connection = self.connection_pool.access_storage().await;
 
         connection
-            .explorer()
             .contract_verification_dal()
             .save_verification_error(
                 job_id,

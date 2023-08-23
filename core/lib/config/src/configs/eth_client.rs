@@ -28,7 +28,9 @@ impl ETHClientConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::configs::test_utils::set_env;
+    use crate::configs::test_utils::EnvMutex;
+
+    static MUTEX: EnvMutex = EnvMutex::new();
 
     fn expected_config() -> ETHClientConfig {
         ETHClientConfig {
@@ -39,11 +41,12 @@ mod tests {
 
     #[test]
     fn from_env() {
+        let mut lock = MUTEX.lock();
         let config = r#"
-ETH_CLIENT_CHAIN_ID="9"
-ETH_CLIENT_WEB3_URL="http://127.0.0.1:8545"
+            ETH_CLIENT_CHAIN_ID="9"
+            ETH_CLIENT_WEB3_URL="http://127.0.0.1:8545"
         "#;
-        set_env(config);
+        lock.set_env(config);
 
         let actual = ETHClientConfig::from_env();
         assert_eq!(actual, expected_config());

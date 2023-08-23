@@ -6,17 +6,17 @@ use tokio::{
 
 use std::{collections::HashSet, fmt, time::Instant};
 
+use multivm::{
+    init_vm, init_vm_with_gas_limit, BlockProperties, OracleTools, VmInstance, VmVersion,
+};
 use vm::{
     vm::{VmPartialExecutionResult, VmTxExecutionResult},
-    vm_with_bootloader::{
-        init_vm, init_vm_with_gas_limit, push_transaction_to_bootloader_memory, BootloaderJobType,
-        TxExecutionMode,
-    },
-    HistoryEnabled, HistoryMode, TxRevertReason, VmBlockResult, VmInstance,
+    vm_with_bootloader::{BootloaderJobType, TxExecutionMode},
+    TxRevertReason, VmBlockResult,
 };
 use zksync_dal::ConnectionPool;
 use zksync_state::{RocksdbStorage, StorageView};
-use zksync_types::{tx::ExecutionMetrics, Transaction, U256};
+use zksync_types::{tx::ExecutionMetrics, L1BatchNumber, Transaction, U256};
 use zksync_utils::bytecode::{hash_bytecode, CompressedBytecodeInfo};
 
 #[cfg(test)]
@@ -59,6 +59,65 @@ impl TxExecutionResult {
     }
 }
 
+/// Configuration for the MultiVM.
+/// Currently, represents an ordered sequence of (min_batch_number, vm_version) entries,
+/// which will be scanned by the MultiVM on each batch.
+#[derive(Debug, Clone)]
+pub struct MultiVMConfig {
+    versions: Vec<(L1BatchNumber, VmVersion)>,
+}
+
+impl MultiVMConfig {
+    /// Creates a new MultiVM config from the provided sequence of (min_batch_number, vm_version) entries.
+    ///
+    /// ## Panics
+    ///
+    /// Panics if the provided sequence is not ordered by the batch number, if it's empty or if the first entry
+    /// doesn't correspond to the batch #1.
+    pub fn new(versions: Vec<(L1BatchNumber, VmVersion)>) -> Self {
+        // Must-haves: config is not empty, we start from the first batch, config is ordered.
+        assert!(!versions.is_empty());
+        assert_eq!(versions[0].0 .0, 1);
+        assert!(versions.windows(2).all(|w| w[0].0 < w[1].0));
+
+        Self { versions }
+    }
+
+    /// Finds the appropriate VM version for the provided batch number.
+    pub fn version_for(&self, batch_number: L1BatchNumber) -> VmVersion {
+        debug_assert!(
+            batch_number != L1BatchNumber(0),
+            "Genesis block doesn't need to be actually executed"
+        );
+        // Find the latest version which is not greater than the provided batch number.
+        let (_, version) = *self
+            .versions
+            .iter()
+            .rev()
+            .find(|(version_start, _)| batch_number >= *version_start)
+            .expect("At least one version must match");
+        version
+    }
+
+    /// Returns the config for mainnet.
+    /// This method is WIP, and returned config is not guaranteed to be full or correct.
+    pub fn mainnet_config_wip() -> Self {
+        Self::new(vec![
+            (L1BatchNumber(1), VmVersion::M5WithoutRefunds),
+            (L1BatchNumber(292), VmVersion::M5WithRefunds),
+            (L1BatchNumber(360), VmVersion::M6Initial),
+            (L1BatchNumber(390), VmVersion::M6BugWithCompressionFixed),
+            (L1BatchNumber(49508), VmVersion::Vm1_3_2),
+        ])
+    }
+
+    /// Returns the config for testnet.
+    /// This method is WIP, and returned config is not guaranteed to be full or correct.
+    pub fn testnet_config_wip() -> Self {
+        Self::new(vec![(L1BatchNumber(1), VmVersion::M5WithoutRefunds)])
+    }
+}
+
 /// An abstraction that allows us to create different kinds of batch executors.
 /// The only requirement is to return a [`BatchExecutorHandle`], which does its work
 /// by communicating with the externally initialized thread.
@@ -76,6 +135,7 @@ pub struct MainBatchExecutorBuilder {
     save_call_traces: bool,
     max_allowed_tx_gas_limit: U256,
     validation_computational_gas_limit: u32,
+    multivm_config: Option<MultiVMConfig>,
 }
 
 impl MainBatchExecutorBuilder {
@@ -85,6 +145,7 @@ impl MainBatchExecutorBuilder {
         max_allowed_tx_gas_limit: U256,
         save_call_traces: bool,
         validation_computational_gas_limit: u32,
+        multivm_config: Option<MultiVMConfig>,
     ) -> Self {
         Self {
             state_keeper_db_path,
@@ -92,6 +153,7 @@ impl MainBatchExecutorBuilder {
             save_call_traces,
             max_allowed_tx_gas_limit,
             validation_computational_gas_limit,
+            multivm_config,
         }
     }
 }
@@ -104,13 +166,19 @@ impl L1BatchExecutorBuilder for MainBatchExecutorBuilder {
         secondary_storage.update_from_postgres(&mut conn).await;
         drop(conn);
 
+        let batch_number = l1_batch_params
+            .context_mode
+            .inner_block_context()
+            .context
+            .block_number;
+        let vm_version = self
+            .multivm_config
+            .as_ref()
+            .map(|config| config.version_for(L1BatchNumber(batch_number)))
+            .unwrap_or(VmVersion::latest());
+
         vlog::info!(
-            "Secondary storage for batch {} initialized, size is {}",
-            l1_batch_params
-                .context_mode
-                .inner_block_context()
-                .context
-                .block_number,
+            "Secondary storage for batch {batch_number} initialized, size is {}",
             secondary_storage.estimated_map_size()
         );
         metrics::gauge!(
@@ -118,6 +186,7 @@ impl L1BatchExecutorBuilder for MainBatchExecutorBuilder {
             secondary_storage.estimated_map_size() as f64,
         );
         BatchExecutorHandle::new(
+            vm_version,
             self.save_call_traces,
             self.max_allowed_tx_gas_limit,
             self.validation_computational_gas_limit,
@@ -139,6 +208,7 @@ pub struct BatchExecutorHandle {
 
 impl BatchExecutorHandle {
     pub(super) fn new(
+        vm_version: VmVersion,
         save_call_traces: bool,
         max_allowed_tx_gas_limit: U256,
         validation_computational_gas_limit: u32,
@@ -150,6 +220,7 @@ impl BatchExecutorHandle {
         // until a previous command is processed), capacity 1 is enough for the commands channel.
         let (commands_sender, commands_receiver) = mpsc::channel(1);
         let executor = BatchExecutor {
+            vm_version,
             save_call_traces,
             max_allowed_tx_gas_limit,
             validation_computational_gas_limit,
@@ -248,6 +319,7 @@ pub(super) enum Command {
 /// be constructed.
 #[derive(Debug)]
 pub(super) struct BatchExecutor {
+    vm_version: VmVersion,
     save_call_traces: bool,
     max_allowed_tx_gas_limit: U256,
     validation_computational_gas_limit: u32,
@@ -267,20 +339,26 @@ impl BatchExecutor {
         );
 
         let mut storage_view = StorageView::new(&secondary_storage);
-        let mut oracle_tools = vm::OracleTools::new(&mut storage_view, HistoryEnabled);
+        let mut oracle_tools = OracleTools::new(self.vm_version, &mut storage_view);
+        let block_properties = BlockProperties::new(
+            self.vm_version,
+            l1_batch_params.properties.default_aa_code_hash,
+        );
         let mut vm = match self.vm_gas_limit {
             Some(vm_gas_limit) => init_vm_with_gas_limit(
+                self.vm_version,
                 &mut oracle_tools,
                 l1_batch_params.context_mode,
-                &l1_batch_params.properties,
+                &block_properties,
                 TxExecutionMode::VerifyExecute,
                 &l1_batch_params.base_system_contracts,
                 vm_gas_limit,
             ),
             None => init_vm(
+                self.vm_version,
                 &mut oracle_tools,
                 l1_batch_params.context_mode,
-                &l1_batch_params.properties,
+                &block_properties,
                 TxExecutionMode::VerifyExecute,
                 &l1_batch_params.base_system_contracts,
             ),
@@ -321,11 +399,7 @@ impl BatchExecutor {
         vlog::info!("State keeper exited with an unfinished batch");
     }
 
-    fn execute_tx(
-        &self,
-        tx: &Transaction,
-        vm: &mut VmInstance<'_, HistoryEnabled>,
-    ) -> TxExecutionResult {
+    fn execute_tx(&self, tx: &Transaction, vm: &mut VmInstance<'_>) -> TxExecutionResult {
         let gas_consumed_before_tx = vm.gas_consumed();
 
         // Save pre-`execute_next_tx` VM snapshot.
@@ -391,9 +465,9 @@ impl BatchExecutor {
         }
     }
 
-    fn rollback_last_tx(&self, vm: &mut VmInstance<'_, HistoryEnabled>) {
+    fn rollback_last_tx(&self, vm: &mut VmInstance<'_>) {
         let stage_started_at = Instant::now();
-        vm.rollback_to_latest_snapshot_popping();
+        vm.rollback_to_snapshot_popping();
         metrics::histogram!(
             "server.state_keeper.tx_execution_time",
             stage_started_at.elapsed(),
@@ -401,7 +475,7 @@ impl BatchExecutor {
         );
     }
 
-    fn finish_batch<H: HistoryMode>(&self, vm: &mut VmInstance<'_, H>) -> VmBlockResult {
+    fn finish_batch(&self, vm: &mut VmInstance<'_>) -> VmBlockResult {
         vm.execute_till_block_end(BootloaderJobType::BlockPostprocessing)
     }
 
@@ -412,7 +486,7 @@ impl BatchExecutor {
     fn execute_tx_in_vm(
         &self,
         tx: &Transaction,
-        vm: &mut VmInstance<'_, HistoryEnabled>,
+        vm: &mut VmInstance<'_>,
     ) -> Result<(VmTxExecutionResult, Vec<CompressedBytecodeInfo>), TxRevertReason> {
         // Note, that the space where we can put the calldata for compressing transactions
         // is limited and the transactions do not pay for taking it.
@@ -432,13 +506,11 @@ impl BatchExecutor {
         } else {
             // Deduplicate and filter factory deps preserving original order.
             let deps = tx.execute.factory_deps.as_deref().unwrap_or_default();
-            let storage_ptr = vm.state.storage.storage.get_ptr();
-            let mut storage_ptr = storage_ptr.borrow_mut();
             let mut deps_hashes = HashSet::with_capacity(deps.len());
             let filtered_deps = deps.iter().filter_map(|bytecode| {
                 let bytecode_hash = hash_bytecode(bytecode);
-                let is_known = !deps_hashes.insert(bytecode_hash)
-                    || storage_ptr.is_bytecode_known(&bytecode_hash);
+                let is_known =
+                    !deps_hashes.insert(bytecode_hash) || vm.is_bytecode_known(&bytecode_hash);
                 if is_known {
                     None
                 } else {
@@ -448,8 +520,7 @@ impl BatchExecutor {
             filtered_deps.collect()
         };
 
-        push_transaction_to_bootloader_memory(
-            vm,
+        vm.push_transaction_to_bootloader_memory(
             tx,
             TxExecutionMode::VerifyExecute,
             Some(compressed_bytecodes.clone()),
@@ -460,18 +531,15 @@ impl BatchExecutor {
         )?;
 
         let at_least_one_unpublished = {
-            let storage_ptr = vm.state.storage.storage.get_ptr();
-            let mut storage_ptr = storage_ptr.borrow_mut();
             compressed_bytecodes
                 .iter()
-                .any(|info| !storage_ptr.is_bytecode_known(&hash_bytecode(&info.original)))
+                .any(|info| !vm.is_bytecode_known(&hash_bytecode(&info.original)))
         };
 
         if at_least_one_unpublished {
             // Rolling back and trying to execute one more time.
-            vm.rollback_to_latest_snapshot_popping();
-            push_transaction_to_bootloader_memory(
-                vm,
+            vm.rollback_to_snapshot_popping();
+            vm.push_transaction_to_bootloader_memory(
                 tx,
                 TxExecutionMode::VerifyExecute,
                 Some(vec![]),
@@ -491,7 +559,7 @@ impl BatchExecutor {
 
     fn dryrun_block_tip(
         &self,
-        vm: &mut VmInstance<'_, HistoryEnabled>,
+        vm: &mut VmInstance<'_>,
     ) -> Result<(VmPartialExecutionResult, ExecutionMetricsForCriteria), TxRevertReason> {
         let stage_started_at = Instant::now();
         let gas_consumed_before = vm.gas_consumed();
@@ -512,7 +580,7 @@ impl BatchExecutor {
         };
 
         // Rollback to the pre-`execute_till_block_end` state.
-        vm.rollback_to_latest_snapshot_popping();
+        vm.rollback_to_snapshot_popping();
 
         metrics::histogram!(
             "server.state_keeper.tx_execution_time",
@@ -523,8 +591,8 @@ impl BatchExecutor {
         result
     }
 
-    fn get_execution_metrics<H: HistoryMode>(
-        vm: &VmInstance<'_, H>,
+    fn get_execution_metrics(
+        vm: &VmInstance<'_>,
         tx: Option<&Transaction>,
         execution_result: &VmPartialExecutionResult,
         gas_consumed_before: u32,

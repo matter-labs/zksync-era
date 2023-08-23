@@ -5,8 +5,9 @@ use jsonrpc_core::{BoxFuture, Result};
 use jsonrpc_derive::rpc;
 
 use zksync_types::{
-    api::{BlockId, BlockNumber, DebugCall, ResultDebugCall, TracerConfig, H256},
+    api::{BlockId, BlockNumber, DebugCall, ResultDebugCall, TracerConfig},
     transaction_request::CallRequest,
+    H256,
 };
 
 #[rpc]

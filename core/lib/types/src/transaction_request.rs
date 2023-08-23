@@ -537,7 +537,6 @@ impl TransactionRequest {
     pub fn from_bytes(
         bytes: &[u8],
         chain_id: u16,
-        max_tx_size: usize,
     ) -> Result<(Self, H256), SerializationTransactionError> {
         let rlp;
         let mut tx = match bytes.first() {
@@ -653,8 +652,6 @@ impl TransactionRequest {
             H256(keccak256(bytes))
         };
 
-        check_tx_data(&tx, max_tx_size)?;
-
         Ok((tx, hash))
     }
 
@@ -738,26 +735,24 @@ impl TransactionRequest {
     }
 }
 
-impl TryFrom<TransactionRequest> for L2Tx {
-    type Error = SerializationTransactionError;
-
-    fn try_from(value: TransactionRequest) -> Result<Self, Self::Error> {
+impl L2Tx {
+    pub fn from_request(
+        value: TransactionRequest,
+        max_tx_size: usize,
+    ) -> Result<Self, SerializationTransactionError> {
         let fee = value.get_fee_data_checked()?;
         let nonce = value.get_nonce_checked()?;
-        // Attempt to decode factory deps.
-        let factory_deps = value
+
+        let raw_signature = value.get_signature().unwrap_or_default();
+        // Destruct `eip712_meta` in one go to avoid cloning.
+        let (factory_deps, paymaster_params) = value
             .eip712_meta
-            .as_ref()
-            .and_then(|meta| meta.factory_deps.clone());
+            .map(|eip712_meta| (eip712_meta.factory_deps, eip712_meta.paymaster_params))
+            .unwrap_or_default();
+
         if let Some(deps) = factory_deps.as_ref() {
             validate_factory_deps(deps)?;
         }
-
-        let paymaster_params = value
-            .eip712_meta
-            .as_ref()
-            .and_then(|meta| meta.paymaster_params.clone())
-            .unwrap_or_default();
 
         let mut tx = L2Tx::new(
             value
@@ -769,7 +764,7 @@ impl TryFrom<TransactionRequest> for L2Tx {
             value.from.unwrap_or_default(),
             value.value,
             factory_deps,
-            paymaster_params,
+            paymaster_params.unwrap_or_default(),
         );
 
         tx.common_data.transaction_type = match value.transaction_type.map(|t| t.as_u64() as u8) {
@@ -779,8 +774,23 @@ impl TryFrom<TransactionRequest> for L2Tx {
             _ => TransactionType::LegacyTransaction,
         };
         // For fee calculation we use the same structure, as a result, signature may not be provided
-        tx.set_raw_signature(value.get_signature().unwrap_or_default());
+        tx.set_raw_signature(raw_signature);
+
+        tx.check_encoded_size(max_tx_size)?;
         Ok(tx)
+    }
+
+    /// Ensures that encoded transaction size is not greater than `max_tx_size`.
+    fn check_encoded_size(&self, max_tx_size: usize) -> Result<(), SerializationTransactionError> {
+        // since abi_encoding_len returns 32-byte words multiplication on 32 is needed
+        let tx_size = self.abi_encoding_len() * 32;
+        if tx_size > max_tx_size {
+            return Err(SerializationTransactionError::OversizedData(
+                max_tx_size,
+                tx_size,
+            ));
+        };
+        Ok(())
     }
 }
 
@@ -811,43 +821,29 @@ impl From<L2Tx> for CallRequest {
     }
 }
 
-pub fn tx_req_from_call_req(
-    call_request: CallRequest,
-    max_tx_size: usize,
-) -> Result<TransactionRequest, SerializationTransactionError> {
-    let calldata = call_request.data.unwrap_or_default();
-
-    let transaction_request = TransactionRequest {
-        nonce: call_request.nonce.unwrap_or_default(),
-        from: call_request.from,
-        to: call_request.to,
-        value: call_request.value.unwrap_or_default(),
-        gas_price: call_request.gas_price.unwrap_or_default(),
-        gas: call_request.gas.unwrap_or_default(),
-        input: calldata,
-        transaction_type: call_request.transaction_type,
-        access_list: call_request.access_list,
-        eip712_meta: call_request.eip712_meta,
-        ..Default::default()
-    };
-    check_tx_data(&transaction_request, max_tx_size)?;
-    Ok(transaction_request)
-}
-
-pub fn l2_tx_from_call_req(
-    call_request: CallRequest,
-    max_tx_size: usize,
-) -> Result<L2Tx, SerializationTransactionError> {
-    let tx_request: TransactionRequest = tx_req_from_call_req(call_request, max_tx_size)?;
-    let l2_tx = tx_request.try_into()?;
-    Ok(l2_tx)
+impl From<CallRequest> for TransactionRequest {
+    fn from(call_request: CallRequest) -> Self {
+        TransactionRequest {
+            nonce: call_request.nonce.unwrap_or_default(),
+            from: call_request.from,
+            to: call_request.to,
+            value: call_request.value.unwrap_or_default(),
+            gas_price: call_request.gas_price.unwrap_or_default(),
+            gas: call_request.gas.unwrap_or_default(),
+            input: call_request.data.unwrap_or_default(),
+            transaction_type: call_request.transaction_type,
+            access_list: call_request.access_list,
+            eip712_meta: call_request.eip712_meta,
+            ..Default::default()
+        }
+    }
 }
 
 impl TryFrom<CallRequest> for L1Tx {
     type Error = SerializationTransactionError;
     fn try_from(tx: CallRequest) -> Result<Self, Self::Error> {
         // L1 transactions have no limitations on the transaction size.
-        let tx: L2Tx = l2_tx_from_call_req(tx, USED_BOOTLOADER_MEMORY_BYTES)?;
+        let tx: L2Tx = L2Tx::from_request(tx.into(), USED_BOOTLOADER_MEMORY_BYTES)?;
 
         // Note, that while the user has theoretically provided the fee for ETH on L1,
         // the payment to the operator as well as refunds happen on L2 and so all the ETH
@@ -908,22 +904,6 @@ pub fn validate_factory_deps(
     Ok(())
 }
 
-fn check_tx_data(
-    tx_request: &TransactionRequest,
-    max_tx_size: usize,
-) -> Result<(), SerializationTransactionError> {
-    let l2_tx: L2Tx = tx_request.clone().try_into()?;
-    // since abi_encoding_len returns 32-byte words multiplication on 32 is needed
-    let tx_size = l2_tx.abi_encoding_len() * 32;
-    if tx_size > max_tx_size {
-        return Err(SerializationTransactionError::OversizedData(
-            max_tx_size,
-            tx_size,
-        ));
-    };
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -936,7 +916,6 @@ mod tests {
 
     #[tokio::test]
     async fn decode_real_tx() {
-        let random_tx_max_size = 1_000_000; // bytes
         let accounts = crate::web3::api::Accounts::new(TestTransport::default());
 
         let pk = hex::decode("4c0883a69102937d6231471b5dbb6204fe5129617082792ae468d01a3f362318")
@@ -958,12 +937,8 @@ mod tests {
             access_list: None,
         };
         let signed_tx = accounts.sign_transaction(tx.clone(), &key).await.unwrap();
-        let (tx2, _) = TransactionRequest::from_bytes(
-            signed_tx.raw_transaction.0.as_slice(),
-            270,
-            random_tx_max_size,
-        )
-        .unwrap();
+        let (tx2, _) =
+            TransactionRequest::from_bytes(signed_tx.raw_transaction.0.as_slice(), 270).unwrap();
         assert_eq!(tx.gas, tx2.gas);
         assert_eq!(tx.gas_price.unwrap(), tx2.gas_price);
         assert_eq!(tx.nonce.unwrap(), tx2.nonce);
@@ -974,7 +949,6 @@ mod tests {
 
     #[test]
     fn decode_rlp() {
-        let random_tx_max_size = 1_000_000; // bytes
         let private_key = H256::random();
         let address = PackedEthSignature::address_from_private_key(&private_key).unwrap();
 
@@ -997,7 +971,7 @@ mod tests {
         let mut rlp = RlpStream::new();
         tx.rlp(&mut rlp, 270, Some(&signature));
         let data = rlp.out().to_vec();
-        let (tx2, _) = TransactionRequest::from_bytes(&data, 270, random_tx_max_size).unwrap();
+        let (tx2, _) = TransactionRequest::from_bytes(&data, 270).unwrap();
         assert_eq!(tx.gas, tx2.gas);
         assert_eq!(tx.gas_price, tx2.gas_price);
         assert_eq!(tx.nonce, tx2.nonce);
@@ -1014,7 +988,6 @@ mod tests {
 
     #[test]
     fn decode_eip712_with_meta() {
-        let random_tx_max_size = 1_000_000; // bytes
         let private_key = H256::random();
         let address = PackedEthSignature::address_from_private_key(&private_key).unwrap();
 
@@ -1054,14 +1027,13 @@ mod tests {
         tx.r = Some(U256::from_big_endian(signature.r()));
         tx.s = Some(U256::from_big_endian(signature.s()));
 
-        let (tx2, _) = TransactionRequest::from_bytes(&data, 270, random_tx_max_size).unwrap();
+        let (tx2, _) = TransactionRequest::from_bytes(&data, 270).unwrap();
 
         assert_eq!(tx, tx2);
     }
 
     #[test]
     fn check_recovered_public_key_eip712() {
-        let random_tx_max_size = 1_000_000; // bytes
         let private_key = H256::random();
         let address = PackedEthSignature::address_from_private_key(&private_key).unwrap();
 
@@ -1091,15 +1063,13 @@ mod tests {
 
         let encoded_tx = transaction_request.get_signed_bytes(&signature, L2ChainId(270));
 
-        let (decoded_tx, _) =
-            TransactionRequest::from_bytes(encoded_tx.as_slice(), 270, random_tx_max_size).unwrap();
+        let (decoded_tx, _) = TransactionRequest::from_bytes(encoded_tx.as_slice(), 270).unwrap();
         let recovered_signer = decoded_tx.from.unwrap();
         assert_eq!(address, recovered_signer);
     }
 
     #[test]
     fn check_recovered_public_key_eip712_with_wrong_chain_id() {
-        let random_tx_max_size = 1_000_000; // bytes
         let private_key = H256::random();
         let address = PackedEthSignature::address_from_private_key(&private_key).unwrap();
 
@@ -1132,8 +1102,7 @@ mod tests {
 
         let encoded_tx = transaction_request.get_signed_bytes(&signature, L2ChainId(270));
 
-        let decoded_tx =
-            TransactionRequest::from_bytes(encoded_tx.as_slice(), 272, random_tx_max_size);
+        let decoded_tx = TransactionRequest::from_bytes(encoded_tx.as_slice(), 272);
         assert_eq!(
             decoded_tx,
             Err(SerializationTransactionError::WrongChainId(Some(270)))
@@ -1142,7 +1111,6 @@ mod tests {
 
     #[test]
     fn check_recovered_public_key_eip1559() {
-        let random_tx_max_size = 1_000_000; // bytes
         let private_key = H256::random();
         let address = PackedEthSignature::address_from_private_key(&private_key).unwrap();
 
@@ -1174,15 +1142,13 @@ mod tests {
         let mut data = rlp.out().to_vec();
         data.insert(0, EIP_1559_TX_TYPE);
 
-        let (decoded_tx, _) =
-            TransactionRequest::from_bytes(data.as_slice(), 270, random_tx_max_size).unwrap();
+        let (decoded_tx, _) = TransactionRequest::from_bytes(data.as_slice(), 270).unwrap();
         let recovered_signer = decoded_tx.from.unwrap();
         assert_eq!(address, recovered_signer);
     }
 
     #[test]
     fn check_recovered_public_key_eip1559_with_wrong_chain_id() {
-        let random_tx_max_size = 1_000_000; // bytes
         let private_key = H256::random();
         let address = PackedEthSignature::address_from_private_key(&private_key).unwrap();
 
@@ -1213,7 +1179,7 @@ mod tests {
         let mut data = rlp.out().to_vec();
         data.insert(0, EIP_1559_TX_TYPE);
 
-        let decoded_tx = TransactionRequest::from_bytes(data.as_slice(), 270, random_tx_max_size);
+        let decoded_tx = TransactionRequest::from_bytes(data.as_slice(), 270);
         assert_eq!(
             decoded_tx,
             Err(SerializationTransactionError::WrongChainId(Some(272)))
@@ -1222,7 +1188,6 @@ mod tests {
 
     #[test]
     fn check_decode_eip1559_with_access_list() {
-        let random_tx_max_size = 1_000_000; // bytes
         let private_key = H256::random();
         let address = PackedEthSignature::address_from_private_key(&private_key).unwrap();
 
@@ -1254,7 +1219,7 @@ mod tests {
         let mut data = rlp.out().to_vec();
         data.insert(0, EIP_1559_TX_TYPE);
 
-        let res = TransactionRequest::from_bytes(data.as_slice(), 270, random_tx_max_size);
+        let res = TransactionRequest::from_bytes(data.as_slice(), 270);
         assert_eq!(
             res,
             Err(SerializationTransactionError::AccessListsNotSupported)
@@ -1263,7 +1228,6 @@ mod tests {
 
     #[test]
     fn check_failed_to_decode_eip2930() {
-        let random_tx_max_size = 1_000_000; // bytes
         let private_key = H256::random();
         let address = PackedEthSignature::address_from_private_key(&private_key).unwrap();
 
@@ -1292,7 +1256,7 @@ mod tests {
         let mut data = rlp.out().to_vec();
         data.insert(0, EIP_2930_TX_TYPE);
 
-        let res = TransactionRequest::from_bytes(data.as_slice(), 270, random_tx_max_size);
+        let res = TransactionRequest::from_bytes(data.as_slice(), 270);
         assert_eq!(
             res,
             Err(SerializationTransactionError::AccessListsNotSupported)
@@ -1308,7 +1272,8 @@ mod tests {
             value: U256::zero(),
             ..Default::default()
         };
-        let execute_tx1: Result<L2Tx, SerializationTransactionError> = tx1.try_into();
+        let execute_tx1: Result<L2Tx, SerializationTransactionError> =
+            L2Tx::from_request(tx1, usize::MAX);
         assert!(execute_tx1.is_ok());
 
         let tx2 = TransactionRequest {
@@ -1318,7 +1283,8 @@ mod tests {
             value: U256::zero(),
             ..Default::default()
         };
-        let execute_tx2: Result<L2Tx, SerializationTransactionError> = tx2.try_into();
+        let execute_tx2: Result<L2Tx, SerializationTransactionError> =
+            L2Tx::from_request(tx2, usize::MAX);
         assert_eq!(
             execute_tx2.unwrap_err(),
             SerializationTransactionError::TooBigNonce
@@ -1334,7 +1300,8 @@ mod tests {
             gas_price: U256::MAX,
             ..Default::default()
         };
-        let execute_tx1: Result<L2Tx, SerializationTransactionError> = tx1.try_into();
+        let execute_tx1: Result<L2Tx, SerializationTransactionError> =
+            L2Tx::from_request(tx1, usize::MAX);
         assert_eq!(
             execute_tx1.unwrap_err(),
             SerializationTransactionError::TooHighGas(
@@ -1349,7 +1316,8 @@ mod tests {
             max_priority_fee_per_gas: Some(U256::MAX),
             ..Default::default()
         };
-        let execute_tx2: Result<L2Tx, SerializationTransactionError> = tx2.try_into();
+        let execute_tx2: Result<L2Tx, SerializationTransactionError> =
+            L2Tx::from_request(tx2, usize::MAX);
         assert_eq!(
             execute_tx2.unwrap_err(),
             SerializationTransactionError::TooHighGas(
@@ -1368,7 +1336,8 @@ mod tests {
             ..Default::default()
         };
 
-        let execute_tx3: Result<L2Tx, SerializationTransactionError> = tx3.try_into();
+        let execute_tx3: Result<L2Tx, SerializationTransactionError> =
+            L2Tx::from_request(tx3, usize::MAX);
         assert_eq!(
             execute_tx3.unwrap_err(),
             SerializationTransactionError::TooHighGas(
@@ -1420,8 +1389,9 @@ mod tests {
         tx.v = Some(U64::from(signature.v()));
         tx.r = Some(U256::from_big_endian(signature.r()));
         tx.s = Some(U256::from_big_endian(signature.s()));
+        let request = TransactionRequest::from_bytes(data.as_slice(), 270).unwrap();
         assert!(matches!(
-            TransactionRequest::from_bytes(data.as_slice(), 270, random_tx_max_size),
+            L2Tx::from_request(request.0, random_tx_max_size),
             Err(SerializationTransactionError::OversizedData(_, _))
         ))
     }
@@ -1446,7 +1416,7 @@ mod tests {
         };
 
         let try_to_l2_tx: Result<L2Tx, SerializationTransactionError> =
-            l2_tx_from_call_req(call_request, random_tx_max_size);
+            L2Tx::from_request(call_request.into(), random_tx_max_size);
 
         assert!(matches!(
             try_to_l2_tx,
@@ -1470,18 +1440,21 @@ mod tests {
             access_list: None,
             eip712_meta: None,
         };
-        let tx_request = tx_req_from_call_req(
-            call_request_with_nonce.clone(),
+        let l2_tx = L2Tx::from_request(
+            call_request_with_nonce.clone().into(),
             USED_BOOTLOADER_MEMORY_BYTES,
         )
         .unwrap();
-        assert_eq!(tx_request.nonce, U256::from(123u32));
+        assert_eq!(l2_tx.nonce(), Nonce(123u32));
 
         let mut call_request_without_nonce = call_request_with_nonce;
         call_request_without_nonce.nonce = None;
 
-        let tx_request =
-            tx_req_from_call_req(call_request_without_nonce, USED_BOOTLOADER_MEMORY_BYTES).unwrap();
-        assert_eq!(tx_request.nonce, U256::from(0u32));
+        let l2_tx = L2Tx::from_request(
+            call_request_without_nonce.into(),
+            USED_BOOTLOADER_MEMORY_BYTES,
+        )
+        .unwrap();
+        assert_eq!(l2_tx.nonce(), Nonce(0u32));
     }
 }

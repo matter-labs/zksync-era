@@ -63,6 +63,7 @@ impl TxExecutionArgs {
         let added_balance = match &tx.common_data {
             ExecuteTransactionCommon::L2(data) => data.fee.gas_limit * data.fee.max_fee_per_gas,
             ExecuteTransactionCommon::L1(_) => U256::zero(),
+            ExecuteTransactionCommon::ProtocolUpgrade(_) => U256::zero(),
         };
 
         Self {
@@ -76,9 +77,8 @@ impl TxExecutionArgs {
     }
 }
 
-#[allow(clippy::too_many_arguments)]
 pub(crate) async fn execute_tx_eth_call(
-    vm_permit: &VmPermit<'_>, // Proof that permit was acquired.
+    vm_permit: VmPermit,
     shared_args: TxSharedArgs,
     connection_pool: ConnectionPool,
     mut tx: L2Tx,
@@ -112,7 +112,7 @@ pub(crate) async fn execute_tx_eth_call(
 
 #[tracing::instrument(skip_all)]
 pub(crate) async fn execute_tx_with_pending_state(
-    vm_permit: &VmPermit<'_>, // Proof that permit was acquired.
+    vm_permit: VmPermit,
     mut shared_args: TxSharedArgs,
     execution_args: TxExecutionArgs,
     connection_pool: ConnectionPool,
@@ -148,7 +148,7 @@ pub(crate) async fn execute_tx_with_pending_state(
 #[allow(clippy::too_many_arguments)]
 #[tracing::instrument(skip_all)]
 async fn execute_tx_in_sandbox(
-    vm_permit: &VmPermit<'_>,
+    vm_permit: VmPermit,
     shared_args: TxSharedArgs,
     execution_args: TxExecutionArgs,
     connection_pool: ConnectionPool,
@@ -167,14 +167,13 @@ async fn execute_tx_in_sandbox(
         .as_ref()
         .map_or(0, |deps| deps.len() as u16);
 
-    let rt_handle = vm_permit.rt_handle();
     let moved_cache = mem::take(storage_read_cache);
     let (execution_result, moved_cache) = tokio::task::spawn_blocking(move || {
         let span = span!(Level::DEBUG, "execute_in_sandbox").entered();
         let execution_mode = execution_args.execution_mode;
         let result = apply::apply_vm_in_sandbox(
-            rt_handle,
-            &shared_args,
+            vm_permit,
+            shared_args,
             &execution_args,
             &connection_pool,
             tx,

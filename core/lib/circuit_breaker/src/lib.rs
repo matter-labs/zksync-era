@@ -7,12 +7,10 @@ use tokio::sync::watch;
 use zksync_config::configs::chain::CircuitBreakerConfig;
 
 use crate::facet_selectors::MismatchedFacetSelectorsError;
-use crate::vks::VerifierError;
 
 pub mod facet_selectors;
 pub mod l1_txs;
 pub mod utils;
-pub mod vks;
 
 #[cfg(test)]
 mod tests;
@@ -21,8 +19,6 @@ mod tests;
 pub enum CircuitBreakerError {
     #[error("System has failed L1 transaction")]
     FailedL1Transaction,
-    #[error("Verifier error: {0}")]
-    Verifier(VerifierError),
     #[error("Mismatched facet selectors: {0}")]
     MismatchedFacetSelectors(MismatchedFacetSelectorsError),
 }

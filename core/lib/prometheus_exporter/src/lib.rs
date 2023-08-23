@@ -37,7 +37,7 @@ pub fn run_prometheus_exporter(
     let zero_to_one_buckets = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9];
 
     let around_one_buckets = [
-        0.1, 0.25, 0.5, 0.75, 1., 1.5, 2., 3., 4., 5., 10., 20., 50., 100., 1000.,
+        0.01, 0.03, 0.1, 0.3, 0.5, 0.75, 1., 1.5, 3., 5., 10., 20., 50.,
     ];
 
     let builder = if let Some((pushgateway_url, push_interval)) = pushgateway_config {

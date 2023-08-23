@@ -12,49 +12,69 @@ use tokio::{sync::watch, task::JoinHandle};
 
 // Workspace deps
 use zksync_config::constants::PRIORITY_EXPIRATION;
+use zksync_config::ETHWatchConfig;
+use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_types::{
-    l1::L1Tx, web3::types::BlockNumber as Web3BlockNumber, L1BlockNumber, PriorityOpId, H160,
+    web3::types::BlockNumber as Web3BlockNumber, Address, PriorityOpId, ProtocolVersionId,
 };
 
 // Local deps
-use self::client::{Error, EthClient};
-
-use zksync_config::ETHWatchConfig;
-
-use crate::eth_watch::client::{EthHttpQueryClient, RETRY_LIMIT};
-use zksync_dal::{ConnectionPool, StorageProcessor};
+use self::client::{Error, EthClient, EthHttpQueryClient};
+use crate::eth_watch::client::RETRY_LIMIT;
+use event_processors::{
+    priority_ops::PriorityOpsEventProcessor, upgrades::UpgradesEventProcessor, EventProcessor,
+};
 use zksync_eth_client::EthInterface;
 
 mod client;
+mod event_processors;
 
 #[cfg(test)]
 mod tests;
 
 #[derive(Debug)]
 struct EthWatchState {
+    last_seen_version_id: ProtocolVersionId,
     next_expected_priority_id: PriorityOpId,
     last_processed_ethereum_block: u64,
 }
 
 #[derive(Debug)]
-pub struct EthWatch<W: EthClient> {
+pub struct EthWatch<W: EthClient + Sync> {
     client: W,
     poll_interval: Duration,
+    event_processors: Vec<Box<dyn EventProcessor<W>>>,
 
-    state: EthWatchState,
+    last_processed_ethereum_block: u64,
 }
 
-impl<W: EthClient> EthWatch<W> {
-    pub async fn new(client: W, pool: &ConnectionPool, poll_interval: Duration) -> Self {
+impl<W: EthClient + Sync> EthWatch<W> {
+    pub async fn new(mut client: W, pool: &ConnectionPool, poll_interval: Duration) -> Self {
         let mut storage = pool.access_storage_tagged("eth_watch").await;
 
         let state = Self::initialize_state(&client, &mut storage).await;
 
         vlog::info!("initialized state: {:?}", state);
+
+        let priority_ops_processor =
+            PriorityOpsEventProcessor::new(state.next_expected_priority_id);
+        let upgrades_processor = UpgradesEventProcessor::new(state.last_seen_version_id);
+        let event_processors: Vec<Box<dyn EventProcessor<W>>> = vec![
+            Box::new(priority_ops_processor),
+            Box::new(upgrades_processor),
+        ];
+
+        let topics = event_processors
+            .iter()
+            .map(|p| p.relevant_topic())
+            .collect();
+        client.set_topics(topics);
+
         Self {
             client,
             poll_interval,
-            state,
+            event_processors,
+            last_processed_ethereum_block: state.last_processed_ethereum_block,
         }
     }
 
@@ -64,6 +84,12 @@ impl<W: EthClient> EthWatch<W> {
             .last_priority_id()
             .await
             .map_or(PriorityOpId(0), |e| e + 1);
+
+        let last_seen_version_id = storage
+            .protocol_versions_dal()
+            .last_version_id()
+            .await
+            .expect("Expected at least one (genesis) version to be present in DB");
 
         let last_processed_ethereum_block = match storage
             .transactions_dal()
@@ -83,6 +109,7 @@ impl<W: EthClient> EthWatch<W> {
 
         EthWatchState {
             next_expected_priority_id,
+            last_seen_version_id,
             last_processed_ethereum_block,
         }
     }
@@ -104,103 +131,48 @@ impl<W: EthClient> EthWatch<W> {
                 // This is an error because otherwise we could potentially miss a priority operation
                 // thus entering priority mode, which is not desired.
                 vlog::error!("Failed to process new blocks {}", error);
-                self.state = Self::initialize_state(&self.client, &mut storage).await;
+                self.last_processed_ethereum_block =
+                    Self::initialize_state(&self.client, &mut storage)
+                        .await
+                        .last_processed_ethereum_block;
             }
         }
     }
 
     #[tracing::instrument(skip(self, storage))]
     async fn loop_iteration(&mut self, storage: &mut StorageProcessor<'_>) -> Result<(), Error> {
-        let mut stage_start = Instant::now();
+        let stage_start = Instant::now();
         let to_block = self.client.finalized_block_number().await?;
 
-        if to_block <= self.state.last_processed_ethereum_block {
+        if to_block <= self.last_processed_ethereum_block {
             return Ok(());
         }
 
-        let new_ops = self
-            .get_new_priority_ops(self.state.last_processed_ethereum_block, to_block)
-            .await?;
-
-        self.state.last_processed_ethereum_block = to_block;
-
-        metrics::histogram!("eth_watcher.poll_eth_node", stage_start.elapsed(), "stage" => "request");
-        if !new_ops.is_empty() {
-            let first = &new_ops[0].1;
-            let last = &new_ops[new_ops.len() - 1].1;
-            assert_eq!(
-                first.serial_id(),
-                self.state.next_expected_priority_id,
-                "priority transaction serial id mismatch"
-            );
-            self.state.next_expected_priority_id = last.serial_id().next();
-            stage_start = Instant::now();
-            metrics::counter!(
-                "server.processed_txs",
-                new_ops.len() as u64,
-                "stage" => "mempool_added"
-            );
-            metrics::counter!(
-                "server.processed_l1_txs",
-                new_ops.len() as u64,
-                "stage" => "mempool_added"
-            );
-            for (eth_block, new_op) in new_ops {
-                storage
-                    .transactions_dal()
-                    .insert_transaction_l1(new_op, eth_block)
-                    .await;
-            }
-            metrics::histogram!("eth_watcher.poll_eth_node", stage_start.elapsed(), "stage" => "persist");
-        }
-        Ok(())
-    }
-
-    async fn get_new_priority_ops(
-        &self,
-        from_block: u64,
-        to_block: u64,
-    ) -> Result<Vec<(L1BlockNumber, L1Tx)>, Error> {
-        let priority_ops: Vec<L1Tx> = self
+        let events = self
             .client
-            .get_priority_op_events(
-                Web3BlockNumber::Number(from_block.into()),
+            .get_events(
+                Web3BlockNumber::Number(self.last_processed_ethereum_block.into()),
                 Web3BlockNumber::Number(to_block.into()),
                 RETRY_LIMIT,
             )
-            .await?
-            .into_iter()
-            .collect::<Vec<_>>();
+            .await?;
+        metrics::histogram!("eth_watcher.poll_eth_node", stage_start.elapsed(), "stage" => "request");
 
-        if !priority_ops.is_empty() {
-            let first = &priority_ops[0];
-            let last = &priority_ops[priority_ops.len() - 1];
-            vlog::debug!(
-                "Received priority requests with serial ids: {} (block {}) - {} (block {})",
-                first.serial_id(),
-                first.eth_block(),
-                last.serial_id(),
-                last.eth_block(),
-            );
-            assert_eq!(
-                last.serial_id().0 - first.serial_id().0 + 1,
-                priority_ops.len() as u64,
-                "there is a gap in priority ops received"
-            )
+        for processor in self.event_processors.iter_mut() {
+            processor
+                .process_events(storage, &self.client, events.clone())
+                .await?;
         }
 
-        Ok(priority_ops
-            .into_iter()
-            .skip_while(|tx| tx.serial_id() < self.state.next_expected_priority_id)
-            .map(|tx| (L1BlockNumber(tx.eth_block() as u32), tx))
-            .collect())
+        self.last_processed_ethereum_block = to_block;
+        Ok(())
     }
 }
 
 pub async fn start_eth_watch<E: EthInterface + Send + Sync + 'static>(
     pool: ConnectionPool,
     eth_gateway: E,
-    diamond_proxy_addr: H160,
+    diamond_proxy_addr: Address,
     stop_receiver: watch::Receiver<bool>,
 ) -> JoinHandle<()> {
     let eth_watch = ETHWatchConfig::from_env();

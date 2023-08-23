@@ -4,7 +4,7 @@ use zksync_types::{
         TransactionReceipt, TransactionVariant,
     },
     transaction_request::CallRequest,
-    web3::types::{Index, SyncState},
+    web3::types::{FeeHistory, Index, SyncState},
     Address, Bytes, H256, U256, U64,
 };
 use zksync_web3_decl::{
@@ -226,5 +226,16 @@ impl<G: L1GasPriceProvider + Send + Sync + 'static> EthNamespaceServer for EthNa
 
     async fn mining(&self) -> RpcResult<bool> {
         Ok(self.mining_impl())
+    }
+
+    async fn fee_history(
+        &self,
+        block_count: U64,
+        newest_block: BlockNumber,
+        reward_percentiles: Vec<f32>,
+    ) -> RpcResult<FeeHistory> {
+        self.fee_history_impl(block_count, newest_block, reward_percentiles)
+            .await
+            .map_err(into_jsrpc_error)
     }
 }

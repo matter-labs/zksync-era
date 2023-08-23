@@ -34,7 +34,7 @@ impl MainNodeFetcher {
         stop_receiver: Receiver<bool>,
     ) -> Self {
         let mut storage = pool.access_storage_tagged("sync_layer").await;
-        let last_sealed_block_header = storage.blocks_dal().get_newest_block_header().await;
+        let last_sealed_l1_batch_header = storage.blocks_dal().get_newest_l1_batch_header().await;
         let last_miniblock_number = storage.blocks_dal().get_sealed_miniblock_number().await;
 
         // It's important to know whether we have opened a new batch already or just sealed the previous one.
@@ -46,10 +46,10 @@ impl MainNodeFetcher {
         // Decide whether the next batch should be explicitly opened or not.
         let current_l1_batch = if was_new_batch_open {
             // No `OpenBatch` action needed.
-            last_sealed_block_header.number + 1
+            last_sealed_l1_batch_header.number + 1
         } else {
             // We need to open the next batch.
-            last_sealed_block_header.number
+            last_sealed_l1_batch_header.number
         };
 
         let client = CachedMainNodeClient::build_client(main_node_url);
@@ -133,13 +133,9 @@ impl MainNodeFetcher {
         let start = Instant::now();
 
         let request_start = Instant::now();
-        let Some(block) = self
-                .client
-                .sync_l2_block(self.current_miniblock)
-                .await?
-            else {
-                return Ok(false);
-            };
+        let Some(block) = self.client.sync_l2_block(self.current_miniblock).await? else {
+            return Ok(false);
+        };
         metrics::histogram!(
             "external_node.fetcher.requests",
             request_start.elapsed(),
@@ -168,6 +164,7 @@ impl MainNodeFetcher {
                 l2_fair_gas_price: block.l2_fair_gas_price,
                 base_system_contracts_hashes: block.base_system_contracts_hashes,
                 operator_address: block.operator_address,
+                protocol_version: None,
             });
             metrics::gauge!("external_node.fetcher.l1_batch", block.l1_batch_number.0 as f64, "status" => "open");
             self.current_l1_batch += 1;

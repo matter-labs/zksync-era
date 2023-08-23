@@ -1,13 +1,14 @@
 use serde::{Deserialize, Serialize};
-use std::fmt::{Debug, Formatter};
-use std::ops::{Add, AddAssign};
+
+use std::{fmt, ops};
+
 use zksync_basic_types::{H2048, H256, U256};
 use zksync_contracts::BaseSystemContractsHashes;
 
 use crate::{
     l2_to_l1_log::L2ToL1Log, priority_op_onchain_data::PriorityOpOnchainData,
-    pubdata_packing::pack_storage_log, web3::signing::keccak256, AccountTreeId, Address,
-    L1BatchNumber, MiniblockNumber, StorageKey, StorageLogKind, WitnessStorageLog,
+    web3::signing::keccak256, AccountTreeId, Address, L1BatchNumber, MiniblockNumber,
+    ProtocolVersionId, Transaction,
 };
 
 /// Represents a successfully deployed smart contract.
@@ -41,16 +42,14 @@ pub struct L1BatchHeader {
     pub l1_tx_count: u16,
     /// Total number of processed txs that was requested offchain
     pub l2_tx_count: u16,
-    /// The data of the processed priority operations hash which must be sent to the smart contract
+    /// The data of the processed priority operations hash which must be sent to the smart contract.
     pub priority_ops_onchain_data: Vec<PriorityOpOnchainData>,
-    /// all L2 -> L1 logs in the block
+    /// All L2 -> L1 logs in the block.
     pub l2_to_l1_logs: Vec<L2ToL1Log>,
-    /// preimages of the hashes that were sent as value of L2 logs by special system L2 contract
+    /// Preimages of the hashes that were sent as value of L2 logs by special system L2 contract.
     pub l2_to_l1_messages: Vec<Vec<u8>>,
     /// Bloom filter for the event logs in the block.
     pub bloom: H2048,
-    /// Initial value of the bootloader's heap
-    pub initial_bootloader_contents: Vec<(usize, U256)>,
     /// Hashes of contracts used this block
     pub used_contract_hashes: Vec<U256>,
     /// The EIP1559 base_fee used in this block.
@@ -60,6 +59,8 @@ pub struct L1BatchHeader {
     /// The L2 gas price that the operator agrees on.
     pub l2_fair_gas_price: u64,
     pub base_system_contracts_hashes: BaseSystemContractsHashes,
+    /// Version of protocol used for the L1 batch.
+    pub protocol_version: Option<ProtocolVersionId>,
 }
 
 /// Holder for the miniblock metadata that is not available from transactions themselves.
@@ -75,6 +76,15 @@ pub struct MiniblockHeader {
     pub l1_gas_price: u64, // L1 gas price assumed in the corresponding batch
     pub l2_fair_gas_price: u64, // L2 gas price assumed in the corresponding batch
     pub base_system_contracts_hashes: BaseSystemContractsHashes,
+    pub protocol_version: Option<ProtocolVersionId>,
+}
+
+/// Data needed to re-execute miniblock.
+#[derive(Debug)]
+pub struct MiniblockReexecuteData {
+    pub number: MiniblockNumber,
+    pub timestamp: u64,
+    pub txs: Vec<Transaction>,
 }
 
 impl L1BatchHeader {
@@ -83,6 +93,7 @@ impl L1BatchHeader {
         timestamp: u64,
         fee_account_address: Address,
         base_system_contracts_hashes: BaseSystemContractsHashes,
+        protocol_version: ProtocolVersionId,
     ) -> L1BatchHeader {
         Self {
             number,
@@ -95,12 +106,12 @@ impl L1BatchHeader {
             l2_to_l1_logs: vec![],
             l2_to_l1_messages: vec![],
             bloom: H2048::default(),
-            initial_bootloader_contents: vec![],
             used_contract_hashes: vec![],
             base_fee_per_gas: 0,
             l1_gas_price: 0,
             l2_fair_gas_price: 0,
             base_system_contracts_hashes,
+            protocol_version: Some(protocol_version),
         }
     }
 
@@ -123,28 +134,6 @@ impl L1BatchHeader {
     }
 }
 
-/// Utility structure that holds the block header together with its logs required to generate the witness
-#[derive(Debug)]
-pub struct WitnessBlockWithLogs {
-    pub header: L1BatchHeader,
-    pub storage_logs: Vec<WitnessStorageLog>,
-}
-
-impl WitnessBlockWithLogs {
-    /// Packs the logs into the byte sequence.
-    /// Used for the onchain data availability.
-    pub fn compress_logs<F>(&self, hash_fn: F) -> Vec<u8>
-    where
-        F: Fn(&StorageKey) -> Vec<u8> + Copy,
-    {
-        self.storage_logs
-            .iter()
-            .filter(|log| log.storage_log.kind == StorageLogKind::Write)
-            .flat_map(|l| pack_storage_log(&l.storage_log, hash_fn))
-            .collect()
-    }
-}
-
 #[derive(Clone, Copy, Eq, PartialEq, Default)]
 pub struct BlockGasCount {
     pub commit: u32,
@@ -152,36 +141,40 @@ pub struct BlockGasCount {
     pub execute: u32,
 }
 
-impl Debug for BlockGasCount {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "c:{}/p:{}/e:{}", self.commit, self.prove, self.execute)?;
-        Ok(())
+impl fmt::Debug for BlockGasCount {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            formatter,
+            "c:{}/p:{}/e:{}",
+            self.commit, self.prove, self.execute
+        )
     }
 }
 
 impl BlockGasCount {
-    pub fn has_greater_than(&self, bound: u32) -> bool {
+    pub fn any_field_greater_than(&self, bound: u32) -> bool {
         self.commit > bound || self.prove > bound || self.execute > bound
     }
 }
 
-impl AddAssign for BlockGasCount {
-    fn add_assign(&mut self, other: Self) {
-        *self = Self {
-            commit: self.commit + other.commit,
-            prove: self.prove + other.prove,
-            execute: self.execute + other.execute,
-        };
-    }
-}
+impl ops::Add for BlockGasCount {
+    type Output = Self;
 
-impl Add for BlockGasCount {
-    type Output = BlockGasCount;
     fn add(self, rhs: Self) -> Self::Output {
         Self {
             commit: self.commit + rhs.commit,
             prove: self.prove + rhs.prove,
             execute: self.execute + rhs.execute,
         }
+    }
+}
+
+impl ops::AddAssign for BlockGasCount {
+    fn add_assign(&mut self, other: Self) {
+        *self = Self {
+            commit: self.commit + other.commit,
+            prove: self.prove + other.prove,
+            execute: self.execute + other.execute,
+        };
     }
 }

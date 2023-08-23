@@ -1,46 +1,44 @@
 //! This module predicts L1 gas cost for the Commit/PublishProof/Execute operations.
 
+use std::collections::HashMap;
+
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
-    block::BlockGasCount,
-    commitment::BlockWithMetadata,
+    block::{BlockGasCount, L1BatchHeader},
+    commitment::{L1BatchMetadata, L1BatchWithMetadata},
     tx::tx_execution_info::{DeduplicatedWritesMetrics, ExecutionMetrics},
-    ExecuteTransactionCommon, Transaction,
+    ExecuteTransactionCommon, Transaction, H256,
 };
 
+mod constants;
+
 use self::constants::*;
-pub mod constants;
 
-pub fn agg_block_base_cost(op: AggregatedActionType) -> u32 {
+pub fn agg_l1_batch_base_cost(op: AggregatedActionType) -> u32 {
     match op {
-        AggregatedActionType::CommitBlocks => AGGR_BLOCK_COMMIT_BASE_COST,
-        AggregatedActionType::PublishProofBlocksOnchain => AGGR_BLOCK_PROVE_BASE_COST,
-        AggregatedActionType::ExecuteBlocks => AGGR_BLOCK_EXECUTE_BASE_COST,
+        AggregatedActionType::Commit => AGGR_L1_BATCH_COMMIT_BASE_COST,
+        AggregatedActionType::PublishProofOnchain => AGGR_L1_BATCH_PROVE_BASE_COST,
+        AggregatedActionType::Execute => AGGR_L1_BATCH_EXECUTE_BASE_COST,
     }
 }
 
-pub fn block_base_cost(op: AggregatedActionType) -> u32 {
+pub fn l1_batch_base_cost(op: AggregatedActionType) -> u32 {
     match op {
-        AggregatedActionType::CommitBlocks => BLOCK_COMMIT_BASE_COST,
-        AggregatedActionType::PublishProofBlocksOnchain => BLOCK_PROVE_BASE_COST,
-        AggregatedActionType::ExecuteBlocks => BLOCK_EXECUTE_BASE_COST,
+        AggregatedActionType::Commit => L1_BATCH_COMMIT_BASE_COST,
+        AggregatedActionType::PublishProofOnchain => L1_BATCH_PROVE_BASE_COST,
+        AggregatedActionType::Execute => L1_BATCH_EXECUTE_BASE_COST,
     }
 }
 
-pub trait GasCost {
-    fn base_cost(&self, op: AggregatedActionType) -> u32;
-}
-
-impl GasCost for Transaction {
-    fn base_cost(&self, op: AggregatedActionType) -> u32 {
-        match op {
-            AggregatedActionType::CommitBlocks => EXECUTE_COMMIT_COST,
-            AggregatedActionType::PublishProofBlocksOnchain => 0,
-            AggregatedActionType::ExecuteBlocks => match self.common_data {
-                ExecuteTransactionCommon::L2(_) => EXECUTE_EXECUTE_COST,
-                ExecuteTransactionCommon::L1(_) => L1_OPERATION_EXECUTE_COST,
-            },
-        }
+fn base_tx_cost(tx: &Transaction, op: AggregatedActionType) -> u32 {
+    match op {
+        AggregatedActionType::Commit => EXECUTE_COMMIT_COST,
+        AggregatedActionType::PublishProofOnchain => 0,
+        AggregatedActionType::Execute => match tx.common_data {
+            ExecuteTransactionCommon::L1(_) => L1_OPERATION_EXECUTE_COST,
+            ExecuteTransactionCommon::L2(_) => EXECUTE_EXECUTE_COST,
+            ExecuteTransactionCommon::ProtocolUpgrade(_) => EXECUTE_EXECUTE_COST,
+        },
     }
 }
 
@@ -54,9 +52,9 @@ fn additional_writes_commit_cost(writes_metrics: &DeduplicatedWritesMetrics) -> 
 
 pub fn new_block_gas_count() -> BlockGasCount {
     BlockGasCount {
-        commit: block_base_cost(AggregatedActionType::CommitBlocks),
-        prove: block_base_cost(AggregatedActionType::PublishProofBlocksOnchain),
-        execute: block_base_cost(AggregatedActionType::ExecuteBlocks),
+        commit: l1_batch_base_cost(AggregatedActionType::Commit),
+        prove: l1_batch_base_cost(AggregatedActionType::PublishProofOnchain),
+        execute: l1_batch_base_cost(AggregatedActionType::Execute),
     }
 }
 
@@ -64,12 +62,12 @@ pub fn gas_count_from_tx_and_metrics(
     tx: &Transaction,
     execution_metrics: &ExecutionMetrics,
 ) -> BlockGasCount {
-    let commit = tx.base_cost(AggregatedActionType::CommitBlocks)
+    let commit = base_tx_cost(tx, AggregatedActionType::Commit)
         + additional_pubdata_commit_cost(execution_metrics);
     BlockGasCount {
         commit,
-        prove: tx.base_cost(AggregatedActionType::PublishProofBlocksOnchain),
-        execute: tx.base_cost(AggregatedActionType::ExecuteBlocks),
+        prove: base_tx_cost(tx, AggregatedActionType::PublishProofOnchain),
+        execute: base_tx_cost(tx, AggregatedActionType::Execute),
     }
 }
 
@@ -89,22 +87,27 @@ pub fn gas_count_from_writes(writes_metrics: &DeduplicatedWritesMetrics) -> Bloc
     }
 }
 
-pub fn commit_gas_count_for_block(block: &BlockWithMetadata) -> u32 {
-    let base_cost = block_base_cost(AggregatedActionType::CommitBlocks);
-    let additional_calldata_bytes = block.metadata.initial_writes_compressed.len() as u32
-        + block.metadata.repeated_writes_compressed.len() as u32
-        + block.metadata.l2_l1_messages_compressed.len() as u32
-        + block
-            .header
-            .l2_to_l1_messages
-            .iter()
-            .map(|message| message.len() as u32)
-            .sum::<u32>()
-        + block
-            .factory_deps
-            .iter()
-            .map(|factory_dep| factory_dep.len() as u32)
-            .sum::<u32>();
+pub(crate) fn commit_gas_count_for_l1_batch(
+    header: &L1BatchHeader,
+    unsorted_factory_deps: &HashMap<H256, Vec<u8>>,
+    metadata: &L1BatchMetadata,
+) -> u32 {
+    let base_cost = l1_batch_base_cost(AggregatedActionType::Commit);
+    let total_messages_len: u32 = header
+        .l2_to_l1_messages
+        .iter()
+        .map(|message| message.len() as u32)
+        .sum();
+    let sorted_factory_deps =
+        L1BatchWithMetadata::factory_deps_in_appearance_order(header, unsorted_factory_deps);
+    let total_factory_deps_len: u32 = sorted_factory_deps
+        .map(|factory_dep| factory_dep.len() as u32)
+        .sum();
+    let additional_calldata_bytes = metadata.initial_writes_compressed.len() as u32
+        + metadata.repeated_writes_compressed.len() as u32
+        + metadata.l2_l1_messages_compressed.len() as u32
+        + total_messages_len
+        + total_factory_deps_len;
     let additional_cost = additional_calldata_bytes * GAS_PER_BYTE;
     base_cost + additional_cost
 }

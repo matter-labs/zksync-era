@@ -15,7 +15,7 @@ use super::{
 impl TxSharedArgs {
     pub async fn validate_tx_with_pending_state(
         mut self,
-        vm_permit: &VmPermit<'_>, // Proof that permit was acquired.
+        vm_permit: VmPermit,
         connection_pool: ConnectionPool,
         tx: L2Tx,
         computational_gas_limit: u32,
@@ -26,7 +26,7 @@ impl TxSharedArgs {
         self.adjust_l1_gas_price(tx.common_data.fee.gas_per_pubdata_limit);
         self.validate_tx_in_sandbox(
             connection_pool,
-            vm_permit.rt_handle(),
+            vm_permit,
             tx,
             block_args,
             computational_gas_limit,
@@ -47,7 +47,7 @@ impl TxSharedArgs {
     async fn validate_tx_in_sandbox(
         self,
         connection_pool: ConnectionPool,
-        rt_handle: tokio::runtime::Handle,
+        vm_permit: VmPermit,
         tx: L2Tx,
         block_args: BlockArgs,
         computational_gas_limit: u32,
@@ -64,8 +64,8 @@ impl TxSharedArgs {
         let (validation_result, _) = tokio::task::spawn_blocking(move || {
             let span = tracing::debug_span!("validate_in_sandbox").entered();
             let result = apply::apply_vm_in_sandbox(
-                rt_handle,
-                &self,
+                vm_permit,
+                self,
                 &execution_args,
                 &connection_pool,
                 tx,

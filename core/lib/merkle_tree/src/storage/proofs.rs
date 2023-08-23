@@ -159,7 +159,9 @@ impl TreeUpdater {
             }
 
             let parent = self.patch_set.get_mut(&parent_nibbles);
-            let Some(Node::Internal(parent)) = parent else { unreachable!() };
+            let Some(Node::Internal(parent)) = parent else {
+                unreachable!()
+            };
             let parent_level = parent_nibbles.nibble_count() * 4;
             let mut updater = parent.updater(hasher, parent_level, last_nibble);
             node_hash = updater.update_child_hash(node_hash);
@@ -223,7 +225,9 @@ impl TreeUpdater {
             }
 
             let parent = self.patch_set.get_mut_without_updating(&parent_nibbles);
-            let Some(Node::Internal(parent)) = parent else { unreachable!() };
+            let Some(Node::Internal(parent)) = parent else {
+                unreachable!()
+            };
             let parent_level = parent_nibbles.nibble_count() * 4;
             parent
                 .updater(hasher, parent_level, last_nibble)

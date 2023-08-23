@@ -75,6 +75,8 @@ library RLPEncoder {
 	/// @notice Uses little endian ordering (The least significant byte has index `0`).
 	/// NOTE: returns `0` for `0`
 	function _highestByteSet(uint256 _number) private pure returns (uint256 hbs) {
+		//
+		//
 		if (_number >= 2**128) {
 			_number >>= 128;
 			hbs += 16;

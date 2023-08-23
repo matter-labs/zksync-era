@@ -5,7 +5,7 @@ use std::{
 };
 
 use zksync_contracts::BaseSystemContractsHashes;
-use zksync_types::{Address, L1BatchNumber, MiniblockNumber, Transaction};
+use zksync_types::{Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, Transaction};
 
 /// Action queue is used to communicate between the fetcher and the rest of the external node
 /// by collecting the fetched data in memory until it gets processed by the different entities.
@@ -130,6 +130,7 @@ pub(crate) enum SyncAction {
         l2_fair_gas_price: u64,
         base_system_contracts_hashes: BaseSystemContractsHashes,
         operator_address: Address,
+        protocol_version: Option<ProtocolVersionId>,
     },
     Miniblock {
         number: MiniblockNumber,
@@ -165,6 +166,7 @@ mod tests {
             l2_fair_gas_price: 1,
             base_system_contracts_hashes: BaseSystemContractsHashes::default(),
             operator_address: Default::default(),
+            protocol_version: Some(ProtocolVersionId::latest()),
         }
     }
 
@@ -262,7 +264,10 @@ mod tests {
         ];
         for (idx, (sequence, expected_err)) in test_vector.into_iter().enumerate() {
             let Err(err) = ActionQueue::check_action_sequence(&sequence) else {
-                panic!("Invalid sequence passed the test. Sequence #{}, expected error: {}", idx, expected_err);
+                panic!(
+                    "Invalid sequence passed the test. Sequence #{}, expected error: {}",
+                    idx, expected_err
+                );
             };
             assert!(
                 err.starts_with(expected_err),

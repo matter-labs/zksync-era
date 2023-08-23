@@ -1,7 +1,9 @@
 use zk_evm::zkevm_opcode_defs::system_params::MAX_TX_ERGS_LIMIT;
 use zksync_types::ethabi::{encode, Address, Token};
 use zksync_types::fee::encoding_len;
-use zksync_types::{l2::TransactionType, ExecuteTransactionCommon, Transaction, U256};
+use zksync_types::{
+    l1::is_l1_tx_type, l2::TransactionType, ExecuteTransactionCommon, Transaction, U256,
+};
 use zksync_types::{MAX_L2_TX_GAS_LIMIT, MAX_TXS_IN_BLOCK};
 use zksync_utils::{address_to_h256, ceil_div_u256};
 use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256};
@@ -9,8 +11,6 @@ use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256};
 use crate::vm_with_bootloader::{
     BLOCK_OVERHEAD_GAS, BLOCK_OVERHEAD_PUBDATA, BOOTLOADER_TX_ENCODING_SPACE,
 };
-
-pub(crate) const L1_TX_TYPE: u8 = 255;
 
 // This structure represents the data that is used by
 // the Bootloader to describe the transaction.
@@ -82,7 +82,7 @@ impl From<Transaction> for TransactionData {
             ExecuteTransactionCommon::L1(common_data) => {
                 let refund_recipient = h256_to_u256(address_to_h256(&common_data.refund_recipient));
                 TransactionData {
-                    tx_type: L1_TX_TYPE,
+                    tx_type: common_data.tx_format() as u8,
                     from: common_data.sender,
                     to: execute_tx.execute.contract_address,
                     gas_limit: common_data.gas_limit,
@@ -93,6 +93,35 @@ impl From<Transaction> for TransactionData {
                     max_priority_fee_per_gas: U256::zero(),
                     paymaster: Address::default(),
                     nonce: U256::from(common_data.serial_id.0), // priority op ID
+                    value: execute_tx.execute.value,
+                    reserved: [
+                        common_data.to_mint,
+                        refund_recipient,
+                        U256::zero(),
+                        U256::zero(),
+                    ],
+                    data: execute_tx.execute.calldata,
+                    // The signature isn't checked for L1 transactions so we don't care
+                    signature: vec![],
+                    factory_deps: execute_tx.execute.factory_deps.unwrap_or_default(),
+                    paymaster_input: vec![],
+                    reserved_dynamic: vec![],
+                }
+            }
+            ExecuteTransactionCommon::ProtocolUpgrade(common_data) => {
+                let refund_recipient = h256_to_u256(address_to_h256(&common_data.refund_recipient));
+                TransactionData {
+                    tx_type: common_data.tx_format() as u8,
+                    from: common_data.sender,
+                    to: execute_tx.execute.contract_address,
+                    gas_limit: common_data.gas_limit,
+                    pubdata_price_limit: common_data.gas_per_pubdata_limit,
+                    // It doesn't matter what we put here, since
+                    // the bootloader does not charge anything
+                    max_fee_per_gas: common_data.max_fee_per_gas,
+                    max_priority_fee_per_gas: U256::zero(),
+                    paymaster: Address::default(),
+                    nonce: U256::from(common_data.upgrade_id as u16),
                     value: execute_tx.execute.value,
                     reserved: [
                         common_data.to_mint,
@@ -162,7 +191,7 @@ impl TransactionData {
     pub(crate) fn effective_gas_price_per_pubdata(&self, block_gas_price_per_pubdata: u32) -> u32 {
         // It is enforced by the protocol that the L1 transactions always pay the exact amount of gas per pubdata
         // as was supplied in the transaction.
-        if self.tx_type == L1_TX_TYPE {
+        if is_l1_tx_type(self.tx_type) {
             self.pubdata_price_limit.as_u32()
         } else {
             block_gas_price_per_pubdata
@@ -225,7 +254,7 @@ impl TransactionData {
     pub(crate) fn canonical_l1_tx_hash(&self) -> zksync_types::H256 {
         use zksync_types::web3::signing::keccak256;
 
-        if self.tx_type != L1_TX_TYPE {
+        if !is_l1_tx_type(self.tx_type) {
             panic!("Trying to get L1 tx hash for non-L1 tx");
         }
 
@@ -267,6 +296,12 @@ pub fn derive_overhead(
 
     // We use "ceil" here for formal reasons to allow easier approach for calculating the overhead in O(1)
     // let max_pubdata_in_tx = ceil_div_u256(gas_limit, gas_price_per_pubdata);
+
+    // The maximal potential overhead from pubdata
+    // let pubdata_overhead = ceil_div_u256(
+    //     max_pubdata_in_tx * max_block_overhead,
+    //     MAX_PUBDATA_PER_BLOCK.into(),
+    // );
 
     vec![
         (coeficients.ergs_limit_overhead_coeficient
@@ -330,7 +365,7 @@ impl OverheadCoeficients {
     }
 
     pub fn from_tx_type(tx_type: u8) -> Self {
-        if tx_type == L1_TX_TYPE {
+        if is_l1_tx_type(tx_type) {
             Self::new_l1()
         } else {
             Self::new_l2()
@@ -395,7 +430,7 @@ pub fn get_amortized_overhead(
             as u32
     };
 
-    // since the pubdata is not published. If decided to use the pubdata overhead, it needs to be updated.
+    // since the pubdat is not published. If decided to use the pubdata overhead, it needs to be updated.
     // 3. ceil(O3 * overhead_for_block_gas) >= overhead_gas
     // O3 = max_pubdata_in_tx / MAX_PUBDATA_PER_BLOCK = ceil(gas_limit / gas_per_pubdata_byte_limit) / MAX_PUBDATA_PER_BLOCK
     // >= (gas_limit / (gas_per_pubdata_byte_limit * MAX_PUBDATA_PER_BLOCK). Throwing off the `ceil`, while may provide marginally lower

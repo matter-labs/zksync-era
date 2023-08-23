@@ -2,6 +2,7 @@
 
 use zksync_types::{
     proofs::{AggregationRound, PrepareBasicCircuitsJob},
+    prover_server_api::RawProof,
     zkevm_test_harness::{
         abstract_zksync_circuit::concrete_circuits::ZkSyncCircuit,
         bellman::bn256::Bn256,
@@ -184,6 +185,17 @@ impl StoredObject for ZkSyncCircuit<Bn256, VmWitnessOracle<Bn256>> {
             aggregation_round,
         } = key;
         format!("{block_number}_{sequence_number}_{circuit_type}_{aggregation_round:?}.bin")
+    }
+
+    serialize_using_bincode!();
+}
+
+impl StoredObject for RawProof {
+    const BUCKET: Bucket = Bucket::ProofsFri;
+    type Key<'a> = L1BatchNumber;
+
+    fn encode_key(key: Self::Key<'_>) -> String {
+        format!("proof_fri_{key}.bin")
     }
 
     serialize_using_bincode!();

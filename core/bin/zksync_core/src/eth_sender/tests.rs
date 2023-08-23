@@ -1,25 +1,28 @@
+use assert_matches::assert_matches;
 use std::sync::{atomic::Ordering, Arc};
 
 use db_test_macro::db_test;
 use zksync_config::{
     configs::eth_sender::{ProofSendingMode, SenderConfig},
-    ETHSenderConfig, GasAdjusterConfig,
+    ContractsConfig, ETHSenderConfig, GasAdjusterConfig,
 };
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_eth_client::{clients::mock::MockEthereum, EthInterface};
 use zksync_types::{
     aggregated_operations::{
-        AggregatedOperation, BlocksCommitOperation, BlocksExecuteOperation, BlocksProofOperation,
+        AggregatedOperation, L1BatchCommitOperation, L1BatchExecuteOperation, L1BatchProofOperation,
     },
     block::L1BatchHeader,
-    commitment::{BlockMetaParameters, BlockMetadata, BlockWithMetadata},
+    commitment::{L1BatchMetaParameters, L1BatchMetadata, L1BatchWithMetadata},
+    ethabi::Token,
     helpers::unix_timestamp_ms,
-    Address, L1BatchNumber, L1BlockNumber, H256,
+    web3::contract::Error,
+    Address, L1BatchNumber, L1BlockNumber, ProtocolVersionId, H256,
 };
 
 use crate::eth_sender::{
-    eth_tx_manager::L1BlockNumbers, Aggregator, EthTxAggregator, EthTxManager,
+    eth_tx_manager::L1BlockNumbers, Aggregator, ETHSenderError, EthTxAggregator, EthTxManager,
 };
 use crate::l1_gas_price::GasAdjuster;
 
@@ -27,7 +30,7 @@ use crate::l1_gas_price::GasAdjuster;
 type MockEthTxManager = EthTxManager<Arc<MockEthereum>, GasAdjuster<Arc<MockEthereum>>>;
 
 const DUMMY_OPERATION: AggregatedOperation =
-    AggregatedOperation::ExecuteBlocks(BlocksExecuteOperation { blocks: vec![] });
+    AggregatedOperation::Execute(L1BatchExecuteOperation { l1_batches: vec![] });
 
 #[derive(Debug)]
 struct EthSenderTester {
@@ -48,6 +51,7 @@ impl EthSenderTester {
         non_ordering_confirmations: bool,
     ) -> Self {
         let eth_sender_config = ETHSenderConfig::from_env();
+        let contracts_config = ContractsConfig::from_env();
         let aggregator_config = SenderConfig {
             aggregated_proof_sizes: vec![1],
             ..eth_sender_config.sender.clone()
@@ -61,7 +65,8 @@ impl EthSenderTester {
                         .chain(history)
                         .collect(),
                 )
-                .with_non_ordering_confirmation(non_ordering_confirmations),
+                .with_non_ordering_confirmation(non_ordering_confirmations)
+                .with_multicall_address(contracts_config.l1_multicall3_addr),
         );
         gateway
             .block_number
@@ -89,6 +94,8 @@ impl EthSenderTester {
             // Aggregator - unused
             Aggregator::new(aggregator_config.clone()),
             // zkSync contract address
+            Address::random(),
+            contracts_config.l1_multicall3_addr,
             Address::random(),
             0,
         );
@@ -435,27 +442,31 @@ async fn failed_eth_tx(connection_pool: ConnectionPool) {
         .unwrap();
 }
 
-fn block_metadata(header: &L1BatchHeader) -> BlockWithMetadata {
-    BlockWithMetadata {
-        header: header.clone(),
-        metadata: BlockMetadata {
-            root_hash: Default::default(),
-            rollup_last_leaf_index: 0,
-            merkle_root_hash: Default::default(),
-            initial_writes_compressed: vec![],
-            repeated_writes_compressed: vec![],
-            commitment: Default::default(),
-            l2_l1_messages_compressed: vec![],
-            l2_l1_merkle_root: Default::default(),
-            block_meta_params: BlockMetaParameters {
-                zkporter_is_available: false,
-                bootloader_code_hash: Default::default(),
-                default_aa_code_hash: Default::default(),
-            },
-            aux_data_hash: Default::default(),
-            meta_parameters_hash: Default::default(),
-            pass_through_data_hash: Default::default(),
+fn default_l1_batch_metadata() -> L1BatchMetadata {
+    L1BatchMetadata {
+        root_hash: Default::default(),
+        rollup_last_leaf_index: 0,
+        merkle_root_hash: Default::default(),
+        initial_writes_compressed: vec![],
+        repeated_writes_compressed: vec![],
+        commitment: Default::default(),
+        l2_l1_messages_compressed: vec![],
+        l2_l1_merkle_root: Default::default(),
+        block_meta_params: L1BatchMetaParameters {
+            zkporter_is_available: false,
+            bootloader_code_hash: Default::default(),
+            default_aa_code_hash: Default::default(),
         },
+        aux_data_hash: Default::default(),
+        meta_parameters_hash: Default::default(),
+        pass_through_data_hash: Default::default(),
+    }
+}
+
+fn l1_batch_with_metadata(header: L1BatchHeader) -> L1BatchWithMetadata {
+    L1BatchWithMetadata {
+        header,
+        metadata: default_l1_batch_metadata(),
         factory_deps: vec![],
     }
 }
@@ -463,211 +474,395 @@ fn block_metadata(header: &L1BatchHeader) -> BlockWithMetadata {
 #[db_test]
 async fn correct_order_for_confirmations(connection_pool: ConnectionPool) -> anyhow::Result<()> {
     let mut tester = EthSenderTester::new(connection_pool, vec![100; 100], true).await;
-    let zero_block = insert_block(&mut tester, L1BatchNumber(0)).await;
-    let first_block = insert_block(&mut tester, L1BatchNumber(1)).await;
-    let second_block = insert_block(&mut tester, L1BatchNumber(2)).await;
-    commit_block(&mut tester, zero_block.clone(), first_block.clone(), true).await;
-    proof_block(&mut tester, zero_block.clone(), first_block.clone(), true).await;
-    execute_blocks(&mut tester, vec![first_block.clone()], true).await;
-    commit_block(&mut tester, first_block.clone(), second_block.clone(), true).await;
-    proof_block(&mut tester, first_block.clone(), second_block.clone(), true).await;
+    insert_genesis_protocol_version(&tester).await;
+    let genesis_l1_batch = insert_l1_batch(&mut tester, L1BatchNumber(0)).await;
+    let first_l1_batch = insert_l1_batch(&mut tester, L1BatchNumber(1)).await;
+    let second_l1_batch = insert_l1_batch(&mut tester, L1BatchNumber(2)).await;
 
-    let blocks = tester
+    commit_l1_batch(
+        &mut tester,
+        genesis_l1_batch.clone(),
+        first_l1_batch.clone(),
+        true,
+    )
+    .await;
+    prove_l1_batch(
+        &mut tester,
+        genesis_l1_batch.clone(),
+        first_l1_batch.clone(),
+        true,
+    )
+    .await;
+    execute_l1_batches(&mut tester, vec![first_l1_batch.clone()], true).await;
+    commit_l1_batch(
+        &mut tester,
+        first_l1_batch.clone(),
+        second_l1_batch.clone(),
+        true,
+    )
+    .await;
+    prove_l1_batch(
+        &mut tester,
+        first_l1_batch.clone(),
+        second_l1_batch.clone(),
+        true,
+    )
+    .await;
+
+    let l1_batches = tester
         .storage()
         .await
         .blocks_dal()
-        .get_ready_for_execute_blocks(45, None)
+        .get_ready_for_execute_l1_batches(45, None)
         .await;
-    assert_eq!(blocks.len(), 1);
-    assert_eq!(blocks[0].header.number.0, 2);
+    assert_eq!(l1_batches.len(), 1);
+    assert_eq!(l1_batches[0].header.number.0, 2);
 
-    execute_blocks(&mut tester, vec![second_block.clone()], true).await;
-    let blocks = tester
+    execute_l1_batches(&mut tester, vec![second_l1_batch.clone()], true).await;
+    let l1_batches = tester
         .storage()
         .await
         .blocks_dal()
-        .get_ready_for_execute_blocks(45, None)
+        .get_ready_for_execute_l1_batches(45, None)
         .await;
-    assert_eq!(blocks.len(), 0);
+    assert_eq!(l1_batches.len(), 0);
     Ok(())
 }
 
 #[db_test]
-async fn skipped_block_at_the_start(connection_pool: ConnectionPool) -> anyhow::Result<()> {
+async fn skipped_l1_batch_at_the_start(connection_pool: ConnectionPool) -> anyhow::Result<()> {
     let mut tester = EthSenderTester::new(connection_pool, vec![100; 100], true).await;
-    let zero_block = insert_block(&mut tester, L1BatchNumber(0)).await;
-    let first_block = insert_block(&mut tester, L1BatchNumber(1)).await;
-    let second_block = insert_block(&mut tester, L1BatchNumber(2)).await;
-    commit_block(&mut tester, zero_block.clone(), first_block.clone(), true).await;
-    proof_block(&mut tester, zero_block.clone(), first_block.clone(), true).await;
-    execute_blocks(&mut tester, vec![first_block.clone()], true).await;
-    commit_block(&mut tester, first_block.clone(), second_block.clone(), true).await;
-    proof_block(&mut tester, first_block.clone(), second_block.clone(), true).await;
-    execute_blocks(&mut tester, vec![second_block.clone()], true).await;
+    insert_genesis_protocol_version(&tester).await;
+    let genesis_l1_batch = insert_l1_batch(&mut tester, L1BatchNumber(0)).await;
+    let first_l1_batch = insert_l1_batch(&mut tester, L1BatchNumber(1)).await;
+    let second_l1_batch = insert_l1_batch(&mut tester, L1BatchNumber(2)).await;
 
-    let third_block = insert_block(&mut tester, L1BatchNumber(3)).await;
-    let fourth_block = insert_block(&mut tester, L1BatchNumber(4)).await;
-    // DO NOT CONFIRM THIRD BLOCK
-    let third_block_commit_tx_hash = commit_block(
+    commit_l1_batch(
         &mut tester,
-        second_block.clone(),
-        third_block.clone(),
+        genesis_l1_batch.clone(),
+        first_l1_batch.clone(),
+        true,
+    )
+    .await;
+    prove_l1_batch(
+        &mut tester,
+        genesis_l1_batch.clone(),
+        first_l1_batch.clone(),
+        true,
+    )
+    .await;
+    execute_l1_batches(&mut tester, vec![first_l1_batch.clone()], true).await;
+    commit_l1_batch(
+        &mut tester,
+        first_l1_batch.clone(),
+        second_l1_batch.clone(),
+        true,
+    )
+    .await;
+    prove_l1_batch(
+        &mut tester,
+        first_l1_batch.clone(),
+        second_l1_batch.clone(),
+        true,
+    )
+    .await;
+    execute_l1_batches(&mut tester, vec![second_l1_batch.clone()], true).await;
+
+    let third_l1_batch = insert_l1_batch(&mut tester, L1BatchNumber(3)).await;
+    let fourth_l1_batch = insert_l1_batch(&mut tester, L1BatchNumber(4)).await;
+    // DO NOT CONFIRM THIRD BLOCK
+    let third_l1_batch_commit_tx_hash = commit_l1_batch(
+        &mut tester,
+        second_l1_batch.clone(),
+        third_l1_batch.clone(),
         false,
     )
     .await;
 
-    proof_block(&mut tester, second_block.clone(), third_block.clone(), true).await;
-    commit_block(&mut tester, third_block.clone(), fourth_block.clone(), true).await;
-    proof_block(&mut tester, third_block.clone(), fourth_block.clone(), true).await;
-    let blocks = tester
+    prove_l1_batch(
+        &mut tester,
+        second_l1_batch.clone(),
+        third_l1_batch.clone(),
+        true,
+    )
+    .await;
+    commit_l1_batch(
+        &mut tester,
+        third_l1_batch.clone(),
+        fourth_l1_batch.clone(),
+        true,
+    )
+    .await;
+    prove_l1_batch(
+        &mut tester,
+        third_l1_batch.clone(),
+        fourth_l1_batch.clone(),
+        true,
+    )
+    .await;
+    let l1_batches = tester
         .storage()
         .await
         .blocks_dal()
-        .get_ready_for_execute_blocks(45, Some(unix_timestamp_ms()))
+        .get_ready_for_execute_l1_batches(45, Some(unix_timestamp_ms()))
         .await;
-    assert_eq!(blocks.len(), 2);
+    assert_eq!(l1_batches.len(), 2);
 
-    confirm_tx(&mut tester, third_block_commit_tx_hash).await;
-    let blocks = tester
+    confirm_tx(&mut tester, third_l1_batch_commit_tx_hash).await;
+    let l1_batches = tester
         .storage()
         .await
         .blocks_dal()
-        .get_ready_for_execute_blocks(45, Some(unix_timestamp_ms()))
+        .get_ready_for_execute_l1_batches(45, Some(unix_timestamp_ms()))
         .await;
-    assert_eq!(blocks.len(), 2);
+    assert_eq!(l1_batches.len(), 2);
     Ok(())
 }
 
 #[db_test]
-async fn skipped_block_in_the_middle(connection_pool: ConnectionPool) -> anyhow::Result<()> {
+async fn skipped_l1_batch_in_the_middle(connection_pool: ConnectionPool) -> anyhow::Result<()> {
     let mut tester = EthSenderTester::new(connection_pool, vec![100; 100], true).await;
-    let zero_block = insert_block(&mut tester, L1BatchNumber(0)).await;
-    let first_block = insert_block(&mut tester, L1BatchNumber(1)).await;
-    let second_block = insert_block(&mut tester, L1BatchNumber(2)).await;
-    commit_block(&mut tester, zero_block.clone(), first_block.clone(), true).await;
-    proof_block(&mut tester, zero_block.clone(), first_block.clone(), true).await;
-    execute_blocks(&mut tester, vec![first_block.clone()], true).await;
-    commit_block(&mut tester, first_block.clone(), second_block.clone(), true).await;
-    proof_block(&mut tester, first_block.clone(), second_block.clone(), true).await;
-
-    let third_block = insert_block(&mut tester, L1BatchNumber(3)).await;
-    let fourth_block = insert_block(&mut tester, L1BatchNumber(4)).await;
-    // DO NOT CONFIRM THIRD BLOCK
-    let third_block_commit_tx_hash = commit_block(
+    insert_genesis_protocol_version(&tester).await;
+    let genesis_l1_batch = insert_l1_batch(&mut tester, L1BatchNumber(0)).await;
+    let first_l1_batch = insert_l1_batch(&mut tester, L1BatchNumber(1)).await;
+    let second_l1_batch = insert_l1_batch(&mut tester, L1BatchNumber(2)).await;
+    commit_l1_batch(
         &mut tester,
-        second_block.clone(),
-        third_block.clone(),
+        genesis_l1_batch.clone(),
+        first_l1_batch.clone(),
+        true,
+    )
+    .await;
+    prove_l1_batch(&mut tester, genesis_l1_batch, first_l1_batch.clone(), true).await;
+    execute_l1_batches(&mut tester, vec![first_l1_batch.clone()], true).await;
+    commit_l1_batch(
+        &mut tester,
+        first_l1_batch.clone(),
+        second_l1_batch.clone(),
+        true,
+    )
+    .await;
+    prove_l1_batch(
+        &mut tester,
+        first_l1_batch.clone(),
+        second_l1_batch.clone(),
+        true,
+    )
+    .await;
+
+    let third_l1_batch = insert_l1_batch(&mut tester, L1BatchNumber(3)).await;
+    let fourth_l1_batch = insert_l1_batch(&mut tester, L1BatchNumber(4)).await;
+    // DO NOT CONFIRM THIRD BLOCK
+    let third_l1_batch_commit_tx_hash = commit_l1_batch(
+        &mut tester,
+        second_l1_batch.clone(),
+        third_l1_batch.clone(),
         false,
     )
     .await;
 
-    proof_block(&mut tester, second_block.clone(), third_block.clone(), true).await;
-    commit_block(&mut tester, third_block.clone(), fourth_block.clone(), true).await;
-    proof_block(&mut tester, third_block.clone(), fourth_block.clone(), true).await;
-    let blocks = tester
+    prove_l1_batch(
+        &mut tester,
+        second_l1_batch.clone(),
+        third_l1_batch.clone(),
+        true,
+    )
+    .await;
+    commit_l1_batch(
+        &mut tester,
+        third_l1_batch.clone(),
+        fourth_l1_batch.clone(),
+        true,
+    )
+    .await;
+    prove_l1_batch(
+        &mut tester,
+        third_l1_batch.clone(),
+        fourth_l1_batch.clone(),
+        true,
+    )
+    .await;
+    let l1_batches = tester
         .storage()
         .await
         .blocks_dal()
-        .get_ready_for_execute_blocks(45, None)
+        .get_ready_for_execute_l1_batches(45, None)
         .await;
-    // We should return all block including third block
-    assert_eq!(blocks.len(), 3);
-    assert_eq!(blocks[0].header.number.0, 2);
+    // We should return all L1 batches including the third one
+    assert_eq!(l1_batches.len(), 3);
+    assert_eq!(l1_batches[0].header.number.0, 2);
 
-    confirm_tx(&mut tester, third_block_commit_tx_hash).await;
-    let blocks = tester
+    confirm_tx(&mut tester, third_l1_batch_commit_tx_hash).await;
+    let l1_batches = tester
         .storage()
         .await
         .blocks_dal()
-        .get_ready_for_execute_blocks(45, None)
+        .get_ready_for_execute_l1_batches(45, None)
         .await;
-    assert_eq!(blocks.len(), 3);
+    assert_eq!(l1_batches.len(), 3);
     Ok(())
 }
 
-async fn insert_block(tester: &mut EthSenderTester, number: L1BatchNumber) -> L1BatchHeader {
-    let mut block = L1BatchHeader::new(
+#[db_test]
+async fn test_parse_multicall_data(connection_pool: ConnectionPool) {
+    let tester = EthSenderTester::new(connection_pool, vec![100; 100], false).await;
+
+    let original_correct_form_data = Token::Array(vec![
+        Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![1u8; 32])]),
+        Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![2u8; 32])]),
+        Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![3u8; 96])]),
+        Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![4u8; 32])]),
+        Token::Tuple(vec![
+            Token::Bool(true),
+            Token::Bytes(
+                H256::from_low_u64_be(ProtocolVersionId::default() as u64)
+                    .0
+                    .to_vec(),
+            ),
+        ]),
+    ]);
+
+    assert!(tester
+        .aggregator
+        .parse_multicall_data(original_correct_form_data)
+        .is_ok());
+
+    let original_wrong_form_data = vec![
+        // should contain 5 tuples
+        Token::Array(vec![]),
+        Token::Array(vec![
+            Token::Tuple(vec![]),
+            Token::Tuple(vec![]),
+            Token::Tuple(vec![]),
+        ]),
+        Token::Array(vec![Token::Tuple(vec![
+            Token::Bool(true),
+            Token::Bytes(vec![
+                30, 72, 156, 45, 219, 103, 54, 150, 36, 37, 58, 97, 81, 255, 186, 33, 35, 20, 195,
+                77, 19, 182, 23, 65, 145, 9, 223, 123, 242, 64, 125, 149,
+            ]),
+        ])]),
+        // should contain 2 tokens in the tuple
+        Token::Array(vec![
+            Token::Tuple(vec![
+                Token::Bool(true),
+                Token::Bytes(vec![
+                    30, 72, 156, 45, 219, 103, 54, 150, 36, 37, 58, 97, 81, 255, 186, 33, 35, 20,
+                    195, 77, 19, 182, 23, 65, 145, 9, 223, 123, 242, 64, 125, 149,
+                ]),
+                Token::Bytes(vec![]),
+            ]),
+            Token::Tuple(vec![
+                Token::Bool(true),
+                Token::Bytes(vec![
+                    40, 72, 156, 45, 219, 103, 54, 150, 36, 37, 58, 97, 81, 255, 186, 33, 35, 20,
+                    195, 77, 19, 182, 23, 65, 145, 9, 223, 123, 242, 64, 225, 149,
+                ]),
+            ]),
+            Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![3u8; 96])]),
+            Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![4u8; 20])]),
+            Token::Tuple(vec![
+                Token::Bool(true),
+                Token::Bytes(
+                    H256::from_low_u64_be(ProtocolVersionId::default() as u64)
+                        .0
+                        .to_vec(),
+                ),
+            ]),
+        ]),
+    ];
+
+    for wrong_data_instance in original_wrong_form_data {
+        assert_matches!(
+            tester
+                .aggregator
+                .parse_multicall_data(wrong_data_instance.clone()),
+            Err(ETHSenderError::ParseError(Error::InvalidOutputType(_)))
+        );
+    }
+}
+
+#[db_test]
+async fn get_multicall_data(connection_pool: ConnectionPool) {
+    let mut tester = EthSenderTester::new(connection_pool, vec![100; 100], false).await;
+    let multicall_data = tester.aggregator.get_multicall_data(&tester.gateway).await;
+    assert!(multicall_data.is_ok());
+}
+
+async fn insert_genesis_protocol_version(tester: &EthSenderTester) {
+    tester
+        .storage()
+        .await
+        .protocol_versions_dal()
+        .save_protocol_version(Default::default())
+        .await;
+}
+
+async fn insert_l1_batch(tester: &mut EthSenderTester, number: L1BatchNumber) -> L1BatchHeader {
+    let mut header = L1BatchHeader::new(
         number,
         0,
         Address::zero(),
-        BaseSystemContractsHashes {
-            bootloader: Default::default(),
-            default_aa: Default::default(),
-        },
+        BaseSystemContractsHashes::default(),
+        Default::default(),
     );
-    block.is_finished = true;
-    // save block to the database
+    header.is_finished = true;
+
+    // Save L1 batch to the database
     tester
         .storage()
         .await
         .blocks_dal()
-        .insert_l1_batch(&block, Default::default())
+        .insert_l1_batch(&header, &[], Default::default())
         .await;
     tester
         .storage()
         .await
         .blocks_dal()
-        .save_blocks_metadata(
-            block.number,
-            &BlockMetadata {
-                root_hash: Default::default(),
-                rollup_last_leaf_index: 0,
-                merkle_root_hash: Default::default(),
-                initial_writes_compressed: vec![],
-                repeated_writes_compressed: vec![],
-                commitment: Default::default(),
-                l2_l1_messages_compressed: vec![],
-                l2_l1_merkle_root: Default::default(),
-                block_meta_params: BlockMetaParameters {
-                    zkporter_is_available: false,
-                    bootloader_code_hash: Default::default(),
-                    default_aa_code_hash: Default::default(),
-                },
-                aux_data_hash: Default::default(),
-                meta_parameters_hash: Default::default(),
-                pass_through_data_hash: Default::default(),
-            },
+        .save_l1_batch_metadata(
+            header.number,
+            &default_l1_batch_metadata(),
             Default::default(),
         )
         .await;
-    block
+    header
 }
 
-async fn execute_blocks(
+async fn execute_l1_batches(
     tester: &mut EthSenderTester,
-    blocks: Vec<L1BatchHeader>,
+    l1_batches: Vec<L1BatchHeader>,
     confirm: bool,
 ) -> H256 {
-    let operation = AggregatedOperation::ExecuteBlocks(BlocksExecuteOperation {
-        blocks: blocks.iter().map(block_metadata).collect(),
+    let operation = AggregatedOperation::Execute(L1BatchExecuteOperation {
+        l1_batches: l1_batches.into_iter().map(l1_batch_with_metadata).collect(),
     });
     send_operation(tester, operation, confirm).await
 }
 
-async fn proof_block(
+async fn prove_l1_batch(
     tester: &mut EthSenderTester,
-    last_committed_block: L1BatchHeader,
-    block: L1BatchHeader,
+    last_committed_l1_batch: L1BatchHeader,
+    l1_batch: L1BatchHeader,
     confirm: bool,
 ) -> H256 {
-    let operation = AggregatedOperation::PublishProofBlocksOnchain(BlocksProofOperation {
-        prev_block: block_metadata(&last_committed_block),
-        blocks: vec![block_metadata(&block)],
+    let operation = AggregatedOperation::PublishProofOnchain(L1BatchProofOperation {
+        prev_l1_batch: l1_batch_with_metadata(last_committed_l1_batch),
+        l1_batches: vec![l1_batch_with_metadata(l1_batch)],
         proofs: vec![],
         should_verify: false,
     });
     send_operation(tester, operation, confirm).await
 }
 
-async fn commit_block(
+async fn commit_l1_batch(
     tester: &mut EthSenderTester,
-    last_committed_block: L1BatchHeader,
-    block: L1BatchHeader,
+    last_committed_l1_batch: L1BatchHeader,
+    l1_batch: L1BatchHeader,
     confirm: bool,
 ) -> H256 {
-    let operation = AggregatedOperation::CommitBlocks(BlocksCommitOperation {
-        last_committed_block: block_metadata(&last_committed_block),
-        blocks: vec![block_metadata(&block)],
+    let operation = AggregatedOperation::Commit(L1BatchCommitOperation {
+        last_committed_l1_batch: l1_batch_with_metadata(last_committed_l1_batch),
+        l1_batches: vec![l1_batch_with_metadata(l1_batch)],
     });
     send_operation(tester, operation, confirm).await
 }

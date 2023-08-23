@@ -26,13 +26,14 @@ use zksync_types::{
     },
     zk_evm::aux_structures::LogQuery,
     zkevm_test_harness::witness::sort_storage_access::sort_storage_access_queries,
-    Address, ExecuteTransactionCommon, L1BatchNumber, MiniblockNumber, StorageKey, StorageLog,
-    StorageLogQuery, StorageValue, Transaction, VmEvent, H256, U256,
+    AccountTreeId, Address, ExecuteTransactionCommon, L1BatchNumber, MiniblockNumber, StorageKey,
+    StorageLog, StorageLogQuery, StorageValue, Transaction, VmEvent, H256, U256,
 };
-use zksync_utils::{miniblock_hash, time::millis_since_epoch};
+use zksync_utils::{miniblock_hash, time::millis_since_epoch, u256_to_h256};
 
 use crate::state_keeper::{
     extractors,
+    io::common::set_missing_initial_writes_indices,
     updates::{L1BatchUpdates, MiniblockSealCommand, UpdatesManager},
 };
 
@@ -194,7 +195,6 @@ impl UpdatesManager {
             extractors::display_timestamp(prev_timestamp),
             extractors::display_timestamp(timestamp)
         );
-        let block_context_properties = BlockContextMode::NewBlock(block_context, prev_hash);
 
         let l1_batch = L1BatchHeader {
             number: current_l1_batch_number,
@@ -207,20 +207,25 @@ impl UpdatesManager {
             l2_to_l1_logs: full_result.l2_to_l1_logs,
             l2_to_l1_messages: extract_long_l2_to_l1_messages(&full_result.events),
             bloom: Default::default(),
-            initial_bootloader_contents: Self::initial_bootloader_memory(
-                &self.l1_batch,
-                block_context_properties,
-            ),
             used_contract_hashes: full_result.used_contract_hashes,
             base_fee_per_gas: block_context.base_fee,
             l1_gas_price: self.l1_gas_price(),
             l2_fair_gas_price: self.fair_l2_gas_price(),
             base_system_contracts_hashes: self.base_system_contract_hashes(),
+            protocol_version: Some(self.protocol_version()),
         };
+
+        let block_context_properties = BlockContextMode::NewBlock(block_context, prev_hash);
+        let initial_bootloader_contents =
+            Self::initial_bootloader_memory(&self.l1_batch, block_context_properties);
 
         transaction
             .blocks_dal()
-            .insert_l1_batch(&l1_batch, self.l1_batch.l1_gas_count)
+            .insert_l1_batch(
+                &l1_batch,
+                &initial_bootloader_contents,
+                self.l1_batch.l1_gas_count,
+            )
             .await;
         progress.end_stage("insert_l1_batch_header", None);
 
@@ -248,9 +253,36 @@ impl UpdatesManager {
             .await;
         progress.end_stage("insert_protective_reads", Some(protective_reads.len()));
 
+        let deduplicated_writes_hashed_keys: Vec<_> = deduplicated_writes
+            .iter()
+            .map(|log| {
+                H256(StorageKey::raw_hashed_key(
+                    &log.address,
+                    &u256_to_h256(log.key),
+                ))
+            })
+            .collect();
+        let non_initial_writes = transaction
+            .storage_logs_dedup_dal()
+            .filter_written_slots(&deduplicated_writes_hashed_keys)
+            .await;
+        progress.end_stage("filter_written_slots", Some(deduplicated_writes.len()));
+
+        let written_storage_keys: Vec<_> = deduplicated_writes
+            .iter()
+            .filter_map(|log| {
+                let key = StorageKey::new(AccountTreeId::new(log.address), u256_to_h256(log.key));
+                (!non_initial_writes.contains(&key.hashed_key())).then_some(key)
+            })
+            .collect();
+
+        // One-time migration completion for initial writes' indices.
+        set_missing_initial_writes_indices(&mut transaction).await;
+        progress.end_stage("set_missing_initial_writes_indices", None);
+
         transaction
             .storage_logs_dedup_dal()
-            .insert_initial_writes(current_l1_batch_number, &deduplicated_writes)
+            .insert_initial_writes(current_l1_batch_number, &written_storage_keys)
             .await;
         progress.end_stage("insert_initial_writes", Some(deduplicated_writes.len()));
 
@@ -337,7 +369,7 @@ impl UpdatesManager {
             started_at.elapsed(),
         );
         vlog::debug!(
-            "sealed l1 batch {current_l1_batch_number} in {:?}",
+            "Sealed L1 batch {current_l1_batch_number} in {:?}",
             started_at.elapsed()
         );
     }
@@ -387,6 +419,7 @@ impl MiniblockSealCommand {
             l1_gas_price: self.l1_gas_price,
             l2_fair_gas_price: self.fair_l2_gas_price,
             base_system_contracts_hashes: self.base_system_contracts_hashes,
+            protocol_version: Some(self.protocol_version),
         };
 
         transaction
@@ -529,6 +562,8 @@ impl MiniblockSealCommand {
         for (key, (_, value)) in unique_updates {
             if *key.account().address() == ACCOUNT_CODE_STORAGE_ADDRESS {
                 let bytecode_hash = *value;
+                //  For now, we expected that if the `bytecode_hash` is zero, the contract was not deployed
+                //  in the first place, so we don't do anything
                 if bytecode_hash != H256::zero() {
                     count += 1;
                 }
@@ -601,7 +636,7 @@ impl MiniblockSealCommand {
         );
 
         vlog::debug!(
-            "sealed miniblock {miniblock_number} in {:?}",
+            "Sealed miniblock {miniblock_number} in {:?}",
             started_at.elapsed()
         );
     }

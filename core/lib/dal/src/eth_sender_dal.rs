@@ -63,9 +63,9 @@ impl EthSenderDal<'_, '_> {
                 for record in records {
                     let batch_number = L1BatchNumber(record.get::<i64, &str>("number") as u32);
                     let aggregation_action = match tx_type {
-                        "execute_tx" => AggregatedActionType::ExecuteBlocks,
-                        "commit_tx" => AggregatedActionType::CommitBlocks,
-                        "prove_tx" => AggregatedActionType::PublishProofBlocksOnchain,
+                        "execute_tx" => AggregatedActionType::Execute,
+                        "commit_tx" => AggregatedActionType::Commit,
+                        "prove_tx" => AggregatedActionType::PublishProofOnchain,
                         _ => unreachable!(),
                     };
                     if record.get::<bool, &str>("confirmed") {
@@ -357,7 +357,7 @@ impl EthSenderDal<'_, '_> {
             super::BlocksDal {
                 storage: &mut transaction,
             }
-            .set_eth_tx_id(l1_batch, l1_batch, eth_tx_id as u32, tx_type)
+            .set_eth_tx_id(l1_batch..=l1_batch, eth_tx_id as u32, tx_type)
             .await;
 
             transaction.commit().await;

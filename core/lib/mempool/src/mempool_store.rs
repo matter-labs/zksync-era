@@ -79,6 +79,9 @@ impl MempoolStore {
                         &initial_nonces,
                     );
                 }
+                ExecuteTransactionCommon::ProtocolUpgrade(_) => {
+                    panic!("Protocol upgrade tx is not supposed to be inserted into mempool");
+                }
             }
         }
         self.collect_stats();
@@ -188,6 +191,9 @@ impl MempoolStore {
                 {
                     self.l2_priority_queue.remove(&score);
                 }
+            }
+            ExecuteTransactionCommon::ProtocolUpgrade(_) => {
+                panic!("Protocol upgrade tx is not supposed to be in mempool");
             }
         }
     }

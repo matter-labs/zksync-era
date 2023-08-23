@@ -69,6 +69,8 @@ describe('Block reverting test', function () {
 
         // Set 1000 seconds deadline for `ExecuteBlocks` operation.
         process.env.CHAIN_STATE_KEEPER_AGGREGATED_BLOCK_EXECUTE_DEADLINE = '1000';
+        // Set lightweight mode for the Merkle tree.
+        process.env.DATABASE_MERKLE_TREE_MODE = 'lightweight';
 
         // Run server in background.
         const components = 'api,tree,eth,data_fetcher,state_keeper';
@@ -167,7 +169,7 @@ describe('Block reverting test', function () {
         process.env.CHAIN_STATE_KEEPER_AGGREGATED_BLOCK_EXECUTE_DEADLINE = '1';
 
         // Run server.
-        utils.background(`zk server --components api,tree_lightweight,eth,data_fetcher,state_keeper`);
+        utils.background('zk server --components api,tree,eth,data_fetcher,state_keeper');
         await utils.sleep(10);
 
         const balanceBefore = await alice.getBalance();

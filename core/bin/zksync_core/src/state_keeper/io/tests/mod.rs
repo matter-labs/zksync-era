@@ -9,16 +9,16 @@ use zksync_dal::ConnectionPool;
 use zksync_mempool::L2TxFilter;
 use zksync_types::{
     block::BlockGasCount, tx::ExecutionMetrics, AccountTreeId, Address, L1BatchNumber,
-    MiniblockNumber, StorageKey, VmEvent, H256, U256,
+    MiniblockNumber, ProtocolVersionId, StorageKey, StorageLog, VmEvent, H256, U256,
 };
-use zksync_utils::time::millis_since_epoch;
+use zksync_utils::time::seconds_since_epoch;
 
 use crate::state_keeper::{
-    io::{MiniblockSealer, StateKeeperIO},
+    io::{common::set_missing_initial_writes_indices, MiniblockSealer, StateKeeperIO},
     mempool_actor::l2_tx_filter,
     tests::{
-        create_block_metadata, create_execution_result, create_transaction, create_updates_manager,
-        default_block_context, default_vm_block_result, Query,
+        create_execution_result, create_l1_batch_metadata, create_transaction,
+        create_updates_manager, default_block_context, default_vm_block_result, Query,
     },
     updates::{MiniblockSealCommand, MiniblockUpdates, UpdatesManager},
 };
@@ -122,17 +122,21 @@ async fn test_filter_with_no_pending_batch(connection_pool: ConnectionPool) {
     assert_eq!(mempool.filter(), &want_filter);
 }
 
-async fn test_l1_batch_timestamps_are_distinct(
+async fn test_timestamps_are_distinct(
     connection_pool: ConnectionPool,
-    prev_l1_batch_timestamp: u64,
+    prev_miniblock_timestamp: u64,
+    delay_prev_miniblock_compared_to_batch: bool,
 ) {
     let mut tester = Tester::new();
     tester.genesis(&connection_pool).await;
 
-    tester.set_timestamp(prev_l1_batch_timestamp);
+    tester.set_timestamp(prev_miniblock_timestamp);
     tester
         .insert_miniblock(&connection_pool, 1, 5, 55, 555)
         .await;
+    if delay_prev_miniblock_compared_to_batch {
+        tester.set_timestamp(prev_miniblock_timestamp - 1);
+    }
     tester.insert_sealed_batch(&connection_pool, 1).await;
 
     let (mut mempool, mut guard) = tester.create_test_mempool_io(connection_pool, 1).await;
@@ -147,19 +151,33 @@ async fn test_l1_batch_timestamps_are_distinct(
         .wait_for_new_batch_params(Duration::from_secs(10))
         .await
         .expect("No batch params in the test mempool");
-    assert!(batch_params.context_mode.timestamp() > prev_l1_batch_timestamp);
+    assert!(batch_params.context_mode.timestamp() > prev_miniblock_timestamp);
 }
 
 #[db_test]
 async fn l1_batch_timestamp_basics(connection_pool: ConnectionPool) {
-    let current_timestamp = (millis_since_epoch() / 1_000) as u64;
-    test_l1_batch_timestamps_are_distinct(connection_pool, current_timestamp).await;
+    let current_timestamp = seconds_since_epoch();
+    test_timestamps_are_distinct(connection_pool, current_timestamp, false).await;
 }
 
 #[db_test]
 async fn l1_batch_timestamp_with_clock_skew(connection_pool: ConnectionPool) {
-    let current_timestamp = (millis_since_epoch() / 1_000) as u64;
-    test_l1_batch_timestamps_are_distinct(connection_pool, current_timestamp + 2).await;
+    let current_timestamp = seconds_since_epoch();
+    test_timestamps_are_distinct(connection_pool, current_timestamp + 2, false).await;
+}
+
+#[db_test]
+async fn l1_batch_timestamp_respects_prev_miniblock(connection_pool: ConnectionPool) {
+    let current_timestamp = seconds_since_epoch();
+    test_timestamps_are_distinct(connection_pool, current_timestamp, true).await;
+}
+
+#[db_test]
+async fn l1_batch_timestamp_respects_prev_miniblock_with_clock_skew(
+    connection_pool: ConnectionPool,
+) {
+    let current_timestamp = seconds_since_epoch();
+    test_timestamps_are_distinct(connection_pool, current_timestamp + 2, true).await;
 }
 
 #[db_test]
@@ -215,9 +233,13 @@ async fn processing_storage_logs_when_sealing_miniblock(connection_pool: Connect
         fair_l2_gas_price: 100,
         base_fee_per_gas: 10,
         base_system_contracts_hashes: BaseSystemContractsHashes::default(),
+        protocol_version: ProtocolVersionId::default(),
         l2_erc20_bridge_addr: Address::default(),
     };
     let mut conn = connection_pool.access_storage_tagged("state_keeper").await;
+    conn.protocol_versions_dal()
+        .save_protocol_version(Default::default())
+        .await;
     seal_command.seal(&mut conn).await;
 
     // Manually mark the miniblock as executed so that getting touched slots from it works
@@ -280,9 +302,13 @@ async fn processing_events_when_sealing_miniblock(pool: ConnectionPool) {
         fair_l2_gas_price: 100,
         base_fee_per_gas: 10,
         base_system_contracts_hashes: BaseSystemContractsHashes::default(),
+        protocol_version: ProtocolVersionId::default(),
         l2_erc20_bridge_addr: Address::default(),
     };
     let mut conn = pool.access_storage_tagged("state_keeper").await;
+    conn.protocol_versions_dal()
+        .save_protocol_version(Default::default())
+        .await;
     seal_command.seal(&mut conn).await;
 
     let logs = conn
@@ -308,9 +334,9 @@ async fn test_miniblock_and_l1_batch_processing(
     tester.genesis(&pool).await;
     let mut conn = pool.access_storage_tagged("state_keeper").await;
     // Save metadata for the genesis L1 batch so that we don't hang in `seal_l1_batch`.
-    let block_metadata = create_block_metadata(0);
+    let metadata = create_l1_batch_metadata(0);
     conn.blocks_dal()
-        .save_blocks_metadata(L1BatchNumber(0), &block_metadata, H256::zero())
+        .save_l1_batch_metadata(L1BatchNumber(0), &metadata, H256::zero())
         .await;
     drop(conn);
 
@@ -321,8 +347,11 @@ async fn test_miniblock_and_l1_batch_processing(
     let mut block_context = default_block_context();
     block_context.context.block_timestamp = 100; // change timestamp to pass monotonicity check
     let block_context_mode = BlockContextMode::NewBlock(block_context, 0.into());
-    let mut updates =
-        UpdatesManager::new(&block_context_mode, BaseSystemContractsHashes::default());
+    let mut updates = UpdatesManager::new(
+        &block_context_mode,
+        BaseSystemContractsHashes::default(),
+        ProtocolVersionId::default(),
+    );
 
     let tx = create_transaction(10, 100);
     updates.extend_from_executed_transaction(
@@ -348,7 +377,7 @@ async fn test_miniblock_and_l1_batch_processing(
     );
     let l1_batch_header = conn
         .blocks_dal()
-        .get_block_header(L1BatchNumber(1))
+        .get_l1_batch_header(L1BatchNumber(1))
         .await
         .unwrap();
     assert_eq!(l1_batch_header.l2_tx_count, 1);
@@ -440,4 +469,137 @@ async fn miniblock_sealer_handle_parallel_processing(pool: ConnectionPool) {
     }
 
     sealer_handle.wait_for_all_commands().await;
+}
+
+#[db_test]
+async fn initial_writes_index_migration(pool: ConnectionPool) {
+    let tester = Tester::new();
+
+    // Genesis is needed for proper mempool initialization.
+    tester.genesis(&pool).await;
+    let (last_index, _) = {
+        let mut storage = pool.access_storage().await;
+        storage
+            .storage_logs_dedup_dal()
+            .max_set_enumeration_index()
+            .await
+            .unwrap()
+    };
+
+    tester.insert_miniblock(&pool, 1, 100, 100, 100).await;
+    tester.insert_sealed_batch(&pool, 1).await;
+    let keys1: Vec<_> = vec![2u64, 3, 5, 7]
+        .into_iter()
+        .map(|k| {
+            StorageKey::new(
+                AccountTreeId::new(Address::from_low_u64_be(1)),
+                H256::from_low_u64_be(k),
+            )
+        })
+        .collect();
+    let storage_logs: Vec<_> = keys1
+        .iter()
+        .map(|k| StorageLog::new_write_log(*k, H256::random()))
+        .collect();
+    {
+        let mut storage = pool.access_storage().await;
+        storage
+            .storage_logs_dal()
+            .insert_storage_logs(1u32.into(), &[(H256::zero(), storage_logs)])
+            .await;
+        storage
+            .storage_logs_dedup_dal()
+            .insert_initial_writes(1u32.into(), &keys1)
+            .await;
+    }
+
+    tester.insert_miniblock(&pool, 2, 100, 100, 100).await;
+    tester.insert_sealed_batch(&pool, 2).await;
+    let keys2: Vec<_> = vec![1u64, 4, 6, 8]
+        .into_iter()
+        .map(|k| {
+            StorageKey::new(
+                AccountTreeId::new(Address::from_low_u64_be(1)),
+                H256::from_low_u64_be(k),
+            )
+        })
+        .collect();
+    let storage_logs: Vec<_> = keys2
+        .iter()
+        .map(|k| StorageLog::new_write_log(*k, H256::random()))
+        .collect();
+    {
+        let mut storage = pool.access_storage().await;
+        storage
+            .storage_logs_dal()
+            .insert_storage_logs(2u32.into(), &[(H256::zero(), storage_logs)])
+            .await;
+        storage
+            .storage_logs_dedup_dal()
+            .insert_initial_writes(2u32.into(), &keys2)
+            .await;
+    }
+
+    let expected: Vec<_> = keys1
+        .iter()
+        .chain(&keys2)
+        .enumerate()
+        .map(|(i, k)| (k.hashed_key(), i as u64 + last_index + 1))
+        .collect();
+    let actual = {
+        let mut storage = pool.access_storage().await;
+        let iw1 = storage
+            .storage_logs_dedup_dal()
+            .initial_writes_for_batch(1u32.into())
+            .await;
+        let iw2 = storage
+            .storage_logs_dedup_dal()
+            .initial_writes_for_batch(2u32.into())
+            .await;
+
+        iw1.into_iter()
+            .chain(iw2)
+            .map(|(key, index)| (key, index.unwrap()))
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(expected, actual);
+
+    {
+        let mut storage = pool.access_storage().await;
+        storage.storage_logs_dedup_dal().reset_indices().await;
+        set_missing_initial_writes_indices(&mut storage).await;
+    };
+    let actual = {
+        let mut storage = pool.access_storage().await;
+        let iw1 = storage
+            .storage_logs_dedup_dal()
+            .initial_writes_for_batch(1u32.into())
+            .await;
+        let iw2 = storage
+            .storage_logs_dedup_dal()
+            .initial_writes_for_batch(2u32.into())
+            .await;
+
+        iw1.into_iter()
+            .chain(iw2)
+            .map(|(key, index)| (key, index.unwrap()))
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(expected, actual);
+}
+
+/// Ensure that subsequent miniblocks that belong to the same L1 batch have different timestamps
+#[db_test]
+async fn different_timestamp_for_miniblocks_in_same_batch(connection_pool: ConnectionPool) {
+    let tester = Tester::new();
+
+    // Genesis is needed for proper mempool initialization.
+    tester.genesis(&connection_pool).await;
+    let (mut mempool, _) = tester.create_test_mempool_io(connection_pool, 1).await;
+    let current_timestamp = seconds_since_epoch();
+    let next_timestamp = mempool
+        .wait_for_new_miniblock_params(Duration::from_secs(10), current_timestamp)
+        .await
+        .unwrap();
+    assert!(next_timestamp > current_timestamp);
 }

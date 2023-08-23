@@ -20,3 +20,5 @@ regex = "1.7.2"
 tokio = "1.27.0"
 futures = { version = "0.3", features = ["compat"] }
 ctrlc = { version = "3.1", features = ["termination"] }
+toml_edit = "0.14.4"
+async-trait = "0.1"

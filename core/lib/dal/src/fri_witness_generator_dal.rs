@@ -1,15 +1,20 @@
 use sqlx::Row;
-use std::collections::HashMap;
-use std::time::{Duration, Instant};
 
-use zksync_types::proofs::{
-    AggregationRound, JobCountStatistics, LeafAggregationJobMetadata, NodeAggregationJobMetadata,
-    StuckJobs,
+use std::{collections::HashMap, time::Duration};
+
+use zksync_types::{
+    proofs::{
+        AggregationRound, JobCountStatistics, LeafAggregationJobMetadata,
+        NodeAggregationJobMetadata, StuckJobs,
+    },
+    L1BatchNumber,
 };
-use zksync_types::L1BatchNumber;
 
-use crate::time_utils::{duration_to_naive_time, pg_interval_from_duration};
-use crate::StorageProcessor;
+use crate::{
+    instrument::MethodLatency,
+    time_utils::{duration_to_naive_time, pg_interval_from_duration},
+    StorageProcessor,
+};
 
 #[derive(Debug)]
 pub struct FriWitnessGeneratorDal<'a, 'c> {
@@ -191,7 +196,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
         base_layer_to_recursive_layer_circuit_id: fn(u8) -> u8,
     ) {
         {
-            let started_at = Instant::now();
+            let latency = MethodLatency::new("create_aggregation_jobs_fri");
             for (circuit_id, closed_form_inputs_url, number_of_basic_circuits) in
                 closed_form_inputs_and_urls
             {
@@ -208,9 +213,10 @@ impl FriWitnessGeneratorDal<'_, '_> {
                     closed_form_inputs_url,
                     *number_of_basic_circuits as i32,
                 )
-                    .execute(self.storage.conn())
-                    .await
-                    .unwrap();
+                .execute(self.storage.conn())
+                .await
+                .unwrap();
+
                 self.insert_node_aggregation_jobs(
                     block_number,
                     base_layer_to_recursive_layer_circuit_id(*circuit_id),
@@ -229,12 +235,12 @@ impl FriWitnessGeneratorDal<'_, '_> {
                     ON CONFLICT(l1_batch_number)
                     DO UPDATE SET updated_at=now()
                     ",
-                    block_number.0 as i64,
-                    scheduler_partial_input_blob_url,
-                )
-                .execute(self.storage.conn())
-                .await
-                .unwrap();
+                block_number.0 as i64,
+                scheduler_partial_input_blob_url,
+            )
+            .execute(self.storage.conn())
+            .await
+            .unwrap();
 
             sqlx::query!(
                 "
@@ -250,7 +256,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             .await
             .unwrap();
 
-            metrics::histogram!("dal.request", started_at.elapsed(), "method" => "create_aggregation_jobs_fri");
+            drop(latency);
         }
     }
 
@@ -275,6 +281,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
         .fetch_optional(self.storage.conn())
         .await
         .unwrap()?;
+
         let block_number = L1BatchNumber(row.l1_batch_number as u32);
         let proof_job_ids = self
             .prover_job_ids_for(
@@ -340,13 +347,13 @@ impl FriWitnessGeneratorDal<'_, '_> {
                        HAVING COUNT(*) = lawj.number_of_basic_circuits)
                 RETURNING l1_batch_number, circuit_id;
             "#,
-            )
-            .fetch_all(self.storage.conn())
-            .await
-            .unwrap()
-            .into_iter()
-            .map(|row| (row.l1_batch_number, row.circuit_id as u8))
-            .collect()
+        )
+        .fetch_all(self.storage.conn())
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|row| (row.l1_batch_number, row.circuit_id as u8))
+        .collect()
     }
 
     pub async fn update_node_aggregation_jobs_url(
@@ -493,13 +500,13 @@ impl FriWitnessGeneratorDal<'_, '_> {
                        HAVING COUNT(*) = nawj.number_of_dependent_jobs)
                 RETURNING l1_batch_number, circuit_id, depth;
             "#,
-            )
-            .fetch_all(self.storage.conn())
-            .await
-            .unwrap()
-            .into_iter()
-            .map(|row| (row.l1_batch_number, row.circuit_id as u8, row.depth as u16))
-            .collect()
+        )
+        .fetch_all(self.storage.conn())
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|row| (row.l1_batch_number, row.circuit_id as u8, row.depth as u16))
+        .collect()
     }
 
     pub async fn move_depth_non_zero_node_aggregation_jobs(&mut self) -> Vec<(i64, u8, u16)> {
@@ -521,13 +528,13 @@ impl FriWitnessGeneratorDal<'_, '_> {
                        HAVING COUNT(*) = nawj.number_of_dependent_jobs)
                 RETURNING l1_batch_number, circuit_id, depth;
             "#,
-            )
-            .fetch_all(self.storage.conn())
-            .await
-            .unwrap()
-            .into_iter()
-            .map(|row| (row.l1_batch_number, row.circuit_id as u8, row.depth as u16))
-            .collect()
+        )
+        .fetch_all(self.storage.conn())
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|row| (row.l1_batch_number, row.circuit_id as u8, row.depth as u16))
+        .collect()
     }
 
     pub async fn requeue_stuck_leaf_aggregations_jobs(
@@ -546,13 +553,13 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 ",
                 &processing_timeout,
                 max_attempts as i32,
-            )
-            .fetch_all(self.storage.conn())
-            .await
-            .unwrap()
-            .into_iter()
-            .map(|row| StuckJobs { id: row.id as u64, status: row.status, attempts: row.attempts as u64 })
-            .collect()
+        )
+        .fetch_all(self.storage.conn())
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|row| StuckJobs { id: row.id as u64, status: row.status, attempts: row.attempts as u64 })
+        .collect()
     }
 
     pub async fn requeue_stuck_node_aggregations_jobs(
@@ -571,13 +578,13 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 ",
                 &processing_timeout,
                 max_attempts as i32,
-            )
-            .fetch_all(self.storage.conn())
-            .await
-            .unwrap()
-            .into_iter()
-            .map(|row| StuckJobs { id: row.id as u64, status: row.status, attempts: row.attempts as u64 })
-            .collect()
+        )
+        .fetch_all(self.storage.conn())
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|row| StuckJobs { id: row.id as u64, status: row.status, attempts: row.attempts as u64 })
+        .collect()
     }
 
     pub async fn mark_scheduler_jobs_as_queued(&mut self, l1_batch_number: i64) {
@@ -612,13 +619,13 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 ",
                 &processing_timeout,
                 max_attempts as i32,
-            )
-            .fetch_all(self.storage.conn())
-            .await
-            .unwrap()
-            .into_iter()
-            .map(|row| StuckJobs { id: row.l1_batch_number as u64, status: row.status, attempts: row.attempts as u64 })
-            .collect()
+        )
+        .fetch_all(self.storage.conn())
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|row| StuckJobs { id: row.l1_batch_number as u64, status: row.status, attempts: row.attempts as u64 })
+        .collect()
     }
 
     pub async fn get_next_scheduler_witness_job(&mut self) -> Option<L1BatchNumber> {

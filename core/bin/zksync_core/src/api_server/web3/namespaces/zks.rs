@@ -5,19 +5,20 @@ use bigdecimal::{BigDecimal, Zero};
 
 use zksync_mini_merkle_tree::MiniMerkleTree;
 
-#[cfg(feature = "openzeppelin_tests")]
-use zksync_types::Bytes;
+use zksync_types::l2::L2Tx;
 use zksync_types::{
-    api::{BridgeAddresses, GetLogsFilter, L2ToL1LogProof, TransactionDetails, U64},
+    api::{
+        BlockDetails, BridgeAddresses, GetLogsFilter, L1BatchDetails, L2ToL1LogProof,
+        ProtocolVersion, TransactionDetails,
+    },
     commitment::SerializeCommitment,
-    explorer_api::{BlockDetails, L1BatchDetails},
     fee::Fee,
     l1::L1Tx,
     l2_to_l1_log::L2ToL1Log,
     tokens::ETHEREUM_ADDRESS,
-    transaction_request::{l2_tx_from_call_req, CallRequest},
+    transaction_request::CallRequest,
     L1BatchNumber, MiniblockNumber, Transaction, L1_MESSENGER_ADDRESS, L2_ETH_TOKEN_ADDRESS,
-    MAX_GAS_PER_PUBDATA_BYTE, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256,
+    MAX_GAS_PER_PUBDATA_BYTE, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256, U64,
 };
 use zksync_utils::address_to_h256;
 use zksync_web3_decl::{
@@ -61,8 +62,8 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
             eip712_meta.gas_per_pubdata = MAX_GAS_PER_PUBDATA_BYTE.into();
         }
 
-        let mut tx = l2_tx_from_call_req(
-            request_with_gas_per_pubdata_overridden,
+        let mut tx = L2Tx::from_request(
+            request_with_gas_per_pubdata_overridden.into(),
             self.state.api_config.max_tx_size,
         )?;
 
@@ -214,17 +215,16 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
             .connection_pool
             .access_storage_tagged("api")
             .await
-            .explorer()
             .accounts_dal()
             .get_balances_for_address(address)
             .await
             .map_err(|err| internal_error(METHOD_NAME, err))?
             .into_iter()
-            .map(|(address, balance_item)| {
+            .map(|(address, balance)| {
                 if address == L2_ETH_TOKEN_ADDRESS {
-                    (ETHEREUM_ADDRESS, balance_item.balance)
+                    (ETHEREUM_ADDRESS, balance)
                 } else {
-                    (address, balance_item.balance)
+                    (address, balance)
                 }
             })
             .collect();
@@ -265,13 +265,13 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
             .map_err(|err| internal_error(METHOD_NAME, err))?
             .expect("L1 batch should contain at least one miniblock");
 
-        let all_l1_logs_in_block = storage
+        let all_l1_logs_in_batch = storage
             .blocks_web3_dal()
             .get_l2_to_l1_logs(l1_batch_number)
             .await
             .map_err(|err| internal_error(METHOD_NAME, err))?;
 
-        // Position of l1 log in block relative to logs with identical data
+        // Position of l1 log in L1 batch relative to logs with identical data
         let l1_log_relative_position = if let Some(l2_log_position) = l2_log_position {
             let pos = storage
                 .events_web3_dal()
@@ -301,7 +301,7 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
             0
         };
 
-        let l1_log_index = match all_l1_logs_in_block
+        let l1_log_index = match all_l1_logs_in_batch
             .iter()
             .enumerate()
             .filter(|(_, log)| {
@@ -317,8 +317,8 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
             }
         };
 
-        let merkle_tree_leaves = all_l1_logs_in_block.iter().map(L2ToL1Log::to_bytes);
-        let (root, proof) = MiniMerkleTree::new(merkle_tree_leaves, L2ToL1Log::LIMIT_PER_BLOCK)
+        let merkle_tree_leaves = all_l1_logs_in_batch.iter().map(L2ToL1Log::to_bytes);
+        let (root, proof) = MiniMerkleTree::new(merkle_tree_leaves, L2ToL1Log::LIMIT_PER_L1_BATCH)
             .merkle_root_and_path(l1_log_index);
         let msg_proof = L2ToL1LogProof {
             proof,
@@ -353,13 +353,13 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
             None => return Ok(None),
         };
 
-        let all_l1_logs_in_block = storage
+        let all_l1_logs_in_batch = storage
             .blocks_web3_dal()
             .get_l2_to_l1_logs(l1_batch_number)
             .await
             .map_err(|err| internal_error(METHOD_NAME, err))?;
 
-        let l1_log_index = match all_l1_logs_in_block
+        let l1_log_index = match all_l1_logs_in_batch
             .iter()
             .enumerate()
             .filter(|(_, log)| log.tx_number_in_block == l1_batch_tx_index)
@@ -371,8 +371,8 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
             }
         };
 
-        let merkle_tree_leaves = all_l1_logs_in_block.iter().map(L2ToL1Log::to_bytes);
-        let (root, proof) = MiniMerkleTree::new(merkle_tree_leaves, L2ToL1Log::LIMIT_PER_BLOCK)
+        let merkle_tree_leaves = all_l1_logs_in_batch.iter().map(L2ToL1Log::to_bytes);
+        let (root, proof) = MiniMerkleTree::new(merkle_tree_leaves, L2ToL1Log::LIMIT_PER_L1_BATCH)
             .merkle_root_and_path(l1_log_index);
         let msg_proof = L2ToL1LogProof {
             proof,
@@ -440,8 +440,7 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
             .connection_pool
             .access_storage_tagged("api")
             .await
-            .explorer()
-            .blocks_dal()
+            .blocks_web3_dal()
             .get_block_details(
                 block_number,
                 self.state.tx_sender.0.sender_config.fee_account_addr,
@@ -522,8 +521,7 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
             .connection_pool
             .access_storage_tagged("api")
             .await
-            .explorer()
-            .blocks_dal()
+            .blocks_web3_dal()
             .get_l1_batch_details(batch_number)
             .await
             .map_err(|err| internal_error(METHOD_NAME, err));
@@ -566,11 +564,36 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
         gas_price.into()
     }
 
-    #[cfg(feature = "openzeppelin_tests")]
-    /// Saves contract bytecode to memory.
-    pub fn set_known_bytecode_impl(&self, bytecode: Bytes) -> bool {
-        let mut lock = self.state.known_bytecodes.write().unwrap();
-        lock.insert(bytecode.0.clone());
-        true
+    #[tracing::instrument(skip(self))]
+    pub async fn get_protocol_version_impl(
+        &self,
+        version_id: Option<u16>,
+    ) -> Option<ProtocolVersion> {
+        let start = Instant::now();
+        const METHOD_NAME: &str = "get_protocol_version";
+
+        let protocol_version = match version_id {
+            Some(id) => {
+                self.state
+                    .connection_pool
+                    .access_storage()
+                    .await
+                    .protocol_versions_web3_dal()
+                    .get_protocol_version_by_id(id)
+                    .await
+            }
+            None => Some(
+                self.state
+                    .connection_pool
+                    .access_storage()
+                    .await
+                    .protocol_versions_web3_dal()
+                    .get_latest_protocol_version()
+                    .await,
+            ),
+        };
+        metrics::histogram!("api.web3.call", start.elapsed(), "method" => METHOD_NAME);
+
+        protocol_version
     }
 }

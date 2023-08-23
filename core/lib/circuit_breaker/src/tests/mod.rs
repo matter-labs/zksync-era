@@ -249,28 +249,6 @@ impl BoundEthInterface for ETHDirectClientMock {
 }
 
 #[tokio::test]
-async fn retries_for_contract_vk() {
-    let eth_client = ETHDirectClientMock::new();
-    let result: Result<Token, Error> = eth_client
-        .call_main_contract_function("facets", (), None, Default::default(), None)
-        .await;
-
-    assert_matches!(
-        result,
-        Err(Error::EthereumGateway(web3::error::Error::Transport(
-            TransportError::Code(503),
-        )))
-    );
-
-    let contracts = ContractsConfig::from_env();
-    let config = get_test_circuit_breaker_config();
-    let vks_checker =
-        crate::vks::VksChecker::new(&config, eth_client, contracts.diamond_proxy_addr);
-
-    assert_matches!(vks_checker.get_vk_token_with_retries().await, Ok(_));
-}
-
-#[tokio::test]
 async fn retries_for_facet_selectors() {
     let eth_client = ETHDirectClientMock::new();
 

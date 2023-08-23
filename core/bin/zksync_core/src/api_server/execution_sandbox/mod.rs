@@ -1,11 +1,15 @@
-use std::time::{Duration, Instant};
+use tokio::runtime::Handle;
 
-use tokio::runtime::{Handle, Runtime};
+use std::{
+    sync::Arc,
+    time::{Duration, Instant},
+};
+
 use vm::vm_with_bootloader::derive_base_fee_and_gas_per_pubdata;
 use zksync_config::constants::PUBLISH_BYTECODE_OVERHEAD;
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{ConnectionPool, SqlxError, StorageProcessor};
-use zksync_state::{FactoryDepsCache, PostgresStorage, ReadStorage, StorageView};
+use zksync_state::{PostgresStorage, PostgresStorageCaches, ReadStorage, StorageView};
 use zksync_types::{api, AccountTreeId, MiniblockNumber, U256};
 use zksync_utils::bytecode::{compress_bytecode, hash_bytecode};
 
@@ -22,18 +26,58 @@ pub(super) use self::{
 };
 
 /// Permit to invoke VM code.
+///
 /// Any publicly-facing method that invokes VM is expected to accept a reference to this structure,
 /// as a proof that the caller obtained a token from `VmConcurrencyLimiter`,
-#[derive(Debug)]
-pub struct VmPermit<'a> {
-    _permit: tokio::sync::SemaphorePermit<'a>,
+#[derive(Debug, Clone)]
+pub struct VmPermit {
     /// A handle to the runtime that is used to query the VM storage.
     rt_handle: Handle,
+    _permit: Arc<tokio::sync::OwnedSemaphorePermit>,
 }
 
-impl<'a> VmPermit<'a> {
-    fn rt_handle(&self) -> Handle {
-        self.rt_handle.clone()
+impl VmPermit {
+    fn rt_handle(&self) -> &Handle {
+        &self.rt_handle
+    }
+}
+
+/// Barrier-like synchronization primitive allowing to close a [`VmConcurrencyLimiter`] it's attached to
+/// so that it doesn't issue new permits, and to wait for all permits to drop.
+#[derive(Debug, Clone)]
+pub struct VmConcurrencyBarrier {
+    limiter: Arc<tokio::sync::Semaphore>,
+    max_concurrency: usize,
+}
+
+impl VmConcurrencyBarrier {
+    /// Shuts down the related VM concurrency limiter so that it won't issue new permits.
+    pub fn close(&self) {
+        self.limiter.close();
+        vlog::info!("VM concurrency limiter closed");
+    }
+
+    /// Waits until all permits issued by the VM concurrency limiter are dropped.
+    pub async fn wait_until_stopped(self) {
+        const POLL_INTERVAL: Duration = Duration::from_millis(50);
+
+        assert!(
+            self.limiter.is_closed(),
+            "Cannot wait on non-closed VM concurrency limiter"
+        );
+
+        loop {
+            let current_permits = self.limiter.available_permits();
+            vlog::debug!(
+                "Waiting until all VM permits are dropped; currently remaining: {} / {}",
+                self.max_concurrency - current_permits,
+                self.max_concurrency
+            );
+            if current_permits == self.max_concurrency {
+                return;
+            }
+            tokio::time::sleep(POLL_INTERVAL).await;
+        }
     }
 }
 
@@ -49,55 +93,32 @@ impl<'a> VmPermit<'a> {
 #[derive(Debug)]
 pub struct VmConcurrencyLimiter {
     /// Semaphore that limits the number of concurrent VM executions.
-    limiter: tokio::sync::Semaphore,
-    /// A dedicated runtime used to query the VM storage in the API.
-    vm_runtime: RuntimeAccess,
-}
-
-/// Either a dedicated runtime, or a handle to the externally creatd runtime.
-#[derive(Debug)]
-enum RuntimeAccess {
-    Owned(Runtime),
-    Handle(Handle),
-}
-
-impl RuntimeAccess {
-    fn handle(&self) -> Handle {
-        match self {
-            RuntimeAccess::Owned(rt) => rt.handle().clone(),
-            RuntimeAccess::Handle(handle) => handle.clone(),
-        }
-    }
+    limiter: Arc<tokio::sync::Semaphore>,
+    rt_handle: Handle,
 }
 
 impl VmConcurrencyLimiter {
-    pub fn new(max_concurrency: Option<usize>) -> Self {
-        if let Some(max_concurrency) = max_concurrency {
-            vlog::info!("Initializing the VM concurrency limiter with a separate runtime. Max concurrency: {:?}", max_concurrency);
-            let vm_runtime = tokio::runtime::Builder::new_multi_thread()
-                .enable_all()
-                .build()
-                .expect("Failed to initialize VM runtime");
-            Self {
-                limiter: tokio::sync::Semaphore::new(max_concurrency),
-                vm_runtime: RuntimeAccess::Owned(vm_runtime),
-            }
-        } else {
-            // Default concurrency is chosen to be beyond the number of connections in the pool /
-            // amount of blocking threads in the tokio threadpool.
-            // The real "concurrency limiter" will be represented by the lesser of these values.
-            const DEFAULT_CONCURRENCY_LIMIT: usize = 2048;
-            vlog::info!("Initializing the VM concurrency limiter with the default runtime");
-            Self {
-                limiter: tokio::sync::Semaphore::new(DEFAULT_CONCURRENCY_LIMIT),
-                vm_runtime: RuntimeAccess::Handle(tokio::runtime::Handle::current()),
-            }
-        }
+    /// Creates a limiter together with a barrier allowing to control its shutdown.
+    pub fn new(max_concurrency: usize) -> (Self, VmConcurrencyBarrier) {
+        vlog::info!(
+            "Initializing the VM concurrency limiter with max concurrency {max_concurrency}"
+        );
+        let limiter = Arc::new(tokio::sync::Semaphore::new(max_concurrency));
+
+        let this = Self {
+            limiter: Arc::clone(&limiter),
+            rt_handle: Handle::current(),
+        };
+        let barrier = VmConcurrencyBarrier {
+            limiter,
+            max_concurrency,
+        };
+        (this, barrier)
     }
 
     /// Waits until there is a free slot in the concurrency limiter.
     /// Returns a permit that should be dropped when the VM execution is finished.
-    pub async fn acquire(&self) -> VmPermit<'_> {
+    pub async fn acquire(&self) -> Option<VmPermit> {
         let available_permits = self.limiter.available_permits();
         metrics::histogram!(
             "api.web3.sandbox.semaphore.permits",
@@ -105,11 +126,7 @@ impl VmConcurrencyLimiter {
         );
 
         let start = Instant::now();
-        let permit = self
-            .limiter
-            .acquire()
-            .await
-            .expect("Semaphore is never closed");
+        let permit = Arc::clone(&self.limiter).acquire_owned().await.ok()?;
         let elapsed = start.elapsed();
         // We don't want to emit too many logs.
         if elapsed > Duration::from_millis(10) {
@@ -118,10 +135,10 @@ impl VmConcurrencyLimiter {
             );
         }
         metrics::histogram!("api.web3.sandbox", elapsed, "stage" => "vm_concurrency_limiter_acquire");
-        VmPermit {
-            _permit: permit,
-            rt_handle: self.vm_runtime.handle(),
-        }
+        Some(VmPermit {
+            rt_handle: self.rt_handle.clone(),
+            _permit: Arc::new(permit),
+        })
     }
 }
 
@@ -162,9 +179,10 @@ async fn get_pending_state(
 
 /// Returns the number of the pubdata that the transaction will spend on factory deps.
 pub(super) async fn get_pubdata_for_factory_deps(
+    _vm_permit: &VmPermit,
     connection_pool: &ConnectionPool,
     factory_deps: &[Vec<u8>],
-    factory_deps_cache: FactoryDepsCache,
+    storage_caches: PostgresStorageCaches,
 ) -> u32 {
     if factory_deps.is_empty() {
         return 0; // Shortcut for the common case allowing to not acquire DB connections etc.
@@ -180,7 +198,7 @@ pub(super) async fn get_pubdata_for_factory_deps(
     tokio::task::spawn_blocking(move || {
         let connection = rt_handle.block_on(connection_pool.access_storage_tagged("api"));
         let storage = PostgresStorage::new(rt_handle, connection, block_number, false)
-            .with_factory_deps_cache(factory_deps_cache);
+            .with_caches(storage_caches);
         let mut storage_view = StorageView::new(storage);
 
         let effective_lengths = factory_deps.iter().map(|bytecode| {
@@ -208,7 +226,7 @@ pub(crate) struct TxSharedArgs {
     pub l1_gas_price: u64,
     pub fair_l2_gas_price: u64,
     pub base_system_contracts: BaseSystemContracts,
-    pub factory_deps_cache: FactoryDepsCache,
+    pub caches: PostgresStorageCaches,
 }
 
 /// Information about a block provided to VM.
@@ -238,7 +256,9 @@ impl BlockArgs {
             .blocks_web3_dal()
             .resolve_block_id(block_id)
             .await?;
-        let Some(resolved_block_number) = resolved_block_number else { return Ok(None) };
+        let Some(resolved_block_number) = resolved_block_number else {
+            return Ok(None);
+        };
 
         let block_timestamp_s = connection
             .blocks_web3_dal()

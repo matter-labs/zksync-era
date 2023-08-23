@@ -28,7 +28,7 @@ use zksync_types::{
         witness::oracle::VmWitnessOracle,
         SchedulerCircuitInstanceWitness,
     },
-    Address, L1BatchNumber, U256,
+    Address, L1BatchNumber, ProtocolVersionId, U256,
 };
 use zksync_utils::{bytes_to_chunks, h256_to_u256, u256_to_h256};
 
@@ -61,6 +61,7 @@ pub struct BasicWitnessGeneratorJob {
 pub struct BasicWitnessGenerator {
     config: WitnessGeneratorConfig,
     object_store: Arc<dyn ObjectStore>,
+    protocol_versions: Vec<ProtocolVersionId>,
     connection_pool: ConnectionPool,
     prover_connection_pool: ConnectionPool,
 }
@@ -69,12 +70,14 @@ impl BasicWitnessGenerator {
     pub async fn new(
         config: WitnessGeneratorConfig,
         store_factory: &ObjectStoreFactory,
+        protocol_versions: Vec<ProtocolVersionId>,
         connection_pool: ConnectionPool,
         prover_connection_pool: ConnectionPool,
     ) -> Self {
         Self {
             config,
             object_store: store_factory.create_store().await.into(),
+            protocol_versions,
             connection_pool,
             prover_connection_pool,
         }
@@ -156,6 +159,7 @@ impl JobProcessor for BasicWitnessGenerator {
                 self.config.witness_generation_timeout(),
                 self.config.max_attempts,
                 last_l1_batch_to_process,
+                &self.protocol_versions,
             )
             .await
         {
@@ -261,7 +265,16 @@ async fn update_database(
 ) {
     let mut prover_connection = prover_connection_pool.access_storage().await;
     let mut transaction = prover_connection.start_transaction().await;
-
+    let protocol_version = transaction
+        .witness_generator_dal()
+        .protocol_version_for_l1_batch(block_number)
+        .await
+        .unwrap_or_else(|| {
+            panic!(
+                "No system version exist for l1 batch {} for basic circuits",
+                block_number.0
+            )
+        });
     transaction
         .witness_generator_dal()
         .create_aggregation_jobs(
@@ -270,6 +283,7 @@ async fn update_database(
             &blob_urls.basic_circuits_inputs_url,
             blob_urls.circuit_types_and_urls.len(),
             &blob_urls.scheduler_witness_url,
+            protocol_version,
         )
         .await;
     transaction
@@ -278,6 +292,7 @@ async fn update_database(
             block_number,
             blob_urls.circuit_types_and_urls,
             AggregationRound::BasicCircuits,
+            protocol_version,
         )
         .await;
     transaction
@@ -338,31 +353,36 @@ async fn save_artifacts(
 pub async fn build_basic_circuits_witness_generator_input(
     connection_pool: ConnectionPool,
     witness_merkle_input: PrepareBasicCircuitsJob,
-    block_number: L1BatchNumber,
+    l1_batch_number: L1BatchNumber,
 ) -> BasicCircuitWitnessGeneratorInput {
     let mut connection = connection_pool.access_storage().await;
     let block_header = connection
         .blocks_dal()
-        .get_block_header(block_number)
+        .get_l1_batch_header(l1_batch_number)
         .await
         .unwrap();
-    let previous_block_header = connection
+    let initial_heap_content = connection
         .blocks_dal()
-        .get_block_header(block_number - 1)
+        .get_initial_bootloader_heap(l1_batch_number)
+        .await
+        .unwrap();
+    let (_, previous_block_timestamp) = connection
+        .blocks_dal()
+        .get_l1_batch_state_root_and_timestamp(l1_batch_number - 1)
         .await
         .unwrap();
     let previous_block_hash = connection
         .blocks_dal()
-        .get_block_state_root(block_number - 1)
+        .get_l1_batch_state_root(l1_batch_number - 1)
         .await
         .expect("cannot generate witness before the root hash is computed");
     BasicCircuitWitnessGeneratorInput {
-        block_number,
-        previous_block_timestamp: previous_block_header.timestamp,
+        block_number: l1_batch_number,
+        previous_block_timestamp,
         previous_block_hash,
         block_timestamp: block_header.timestamp,
         used_bytecodes_hashes: block_header.used_contract_hashes,
-        initial_heap_content: block_header.initial_bootloader_contents,
+        initial_heap_content,
         merkle_paths_input: witness_merkle_input,
     }
 }
@@ -380,7 +400,7 @@ pub async fn generate_witness(
     let mut connection = connection_pool.access_storage().await;
     let header = connection
         .blocks_dal()
-        .get_block_header(input.block_number)
+        .get_l1_batch_header(input.block_number)
         .await
         .unwrap();
     let bootloader_code_bytes = connection

@@ -1,12 +1,10 @@
-use std::time::Instant;
+use zksync_types::{api::en::SyncBlock, Address, MiniblockNumber, Transaction};
 
-use crate::models::storage_sync::StorageSyncBlock;
-use crate::models::storage_transaction::StorageTransaction;
-use crate::SqlxError;
-use crate::StorageProcessor;
-use zksync_types::api::en::SyncBlock;
-use zksync_types::MiniblockNumber;
-use zksync_types::{Address, Transaction};
+use crate::{
+    instrument::{InstrumentExt, MethodLatency},
+    models::{storage_sync::StorageSyncBlock, storage_transaction::StorageTransaction},
+    SqlxError, StorageProcessor,
+};
 
 /// DAL subset dedicated to the EN synchronization.
 #[derive(Debug)]
@@ -21,8 +19,8 @@ impl SyncDal<'_, '_> {
         current_operator_address: Address,
         include_transactions: bool,
     ) -> Result<Option<SyncBlock>, SqlxError> {
-        let started_at = Instant::now();
-        let storage_block_details: Option<StorageSyncBlock> = sqlx::query_as!(
+        let latency = MethodLatency::new("sync_dal_sync_block");
+        let storage_block_details = sqlx::query_as!(
             StorageSyncBlock,
             r#"
                 SELECT miniblocks.number,
@@ -50,6 +48,8 @@ impl SyncDal<'_, '_> {
             "#,
             block_number.0 as i64
         )
+        .instrument("sync_dal_sync_block.block")
+        .with_arg("block_number", &block_number)
         .fetch_optional(self.storage.conn())
         .await?;
 
@@ -60,6 +60,8 @@ impl SyncDal<'_, '_> {
                     r#"SELECT * FROM transactions WHERE miniblock_number = $1 ORDER BY index_in_block"#,
                     block_number.0 as i64
                 )
+                .instrument("sync_dal_sync_block.transactions")
+                .with_arg("block_number", &block_number)
                 .fetch_all(self.storage.conn())
                 .await?
                 .into_iter()
@@ -74,7 +76,7 @@ impl SyncDal<'_, '_> {
             None
         };
 
-        metrics::histogram!("dal.request", started_at.elapsed(), "method" => "sync_dal_sync_block");
+        drop(latency);
         Ok(res)
     }
 }

@@ -108,7 +108,8 @@ async fn rollback(connection_pool: ConnectionPool) {
             tx_metrics: tx_metrics_new,
             ..
         },
-    ) = (res_old, res_new) else {
+    ) = (res_old, res_new)
+    else {
         unreachable!();
     };
 
@@ -161,7 +162,8 @@ async fn too_big_gas_limit(connection_pool: ConnectionPool) {
             rejection_reason: rejection_reason_new,
             ..
         },
-    ) = (res_old, res_new) else {
+    ) = (res_old, res_new)
+    else {
         unreachable!();
     };
     assert_eq!(

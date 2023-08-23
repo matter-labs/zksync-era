@@ -66,7 +66,9 @@ impl FetcherConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::configs::test_utils::set_env;
+    use crate::configs::test_utils::EnvMutex;
+
+    static MUTEX: EnvMutex = EnvMutex::new();
 
     fn expected_config() -> FetcherConfig {
         FetcherConfig {
@@ -90,18 +92,19 @@ mod tests {
 
     #[test]
     fn from_env() {
+        let mut lock = MUTEX.lock();
         let config = r#"
-FETCHER_TOKEN_LIST_SOURCE="OneInch"
-FETCHER_TOKEN_LIST_URL="http://127.0.0.1:1020"
-FETCHER_TOKEN_LIST_FETCHING_INTERVAL="10"
-FETCHER_TOKEN_PRICE_SOURCE="CoinGecko"
-FETCHER_TOKEN_PRICE_URL="http://127.0.0.1:9876"
-FETCHER_TOKEN_PRICE_FETCHING_INTERVAL="7"
-FETCHER_TOKEN_TRADING_VOLUME_SOURCE="Uniswap"
-FETCHER_TOKEN_TRADING_VOLUME_URL="http://127.0.0.1:9975/graphql"
-FETCHER_TOKEN_TRADING_VOLUME_FETCHING_INTERVAL="5"
+            FETCHER_TOKEN_LIST_SOURCE="OneInch"
+            FETCHER_TOKEN_LIST_URL="http://127.0.0.1:1020"
+            FETCHER_TOKEN_LIST_FETCHING_INTERVAL="10"
+            FETCHER_TOKEN_PRICE_SOURCE="CoinGecko"
+            FETCHER_TOKEN_PRICE_URL="http://127.0.0.1:9876"
+            FETCHER_TOKEN_PRICE_FETCHING_INTERVAL="7"
+            FETCHER_TOKEN_TRADING_VOLUME_SOURCE="Uniswap"
+            FETCHER_TOKEN_TRADING_VOLUME_URL="http://127.0.0.1:9975/graphql"
+            FETCHER_TOKEN_TRADING_VOLUME_FETCHING_INTERVAL="5"
         "#;
-        set_env(config);
+        lock.set_env(config);
 
         let actual = FetcherConfig::from_env();
         assert_eq!(actual, expected_config());

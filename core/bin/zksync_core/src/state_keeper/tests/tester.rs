@@ -3,6 +3,7 @@ use tokio::sync::{mpsc, watch};
 
 use std::{
     collections::{HashMap, HashSet, VecDeque},
+    convert::TryInto,
     sync::{Arc, RwLock},
     time::{Duration, Instant},
 };
@@ -13,8 +14,9 @@ use vm::{
     VmBlockResult,
 };
 use zksync_types::{
-    tx::tx_execution_info::TxExecutionStatus, Address, L1BatchNumber, MiniblockNumber, Transaction,
-    H256, U256,
+    block::MiniblockReexecuteData, protocol_version::ProtocolUpgradeTx,
+    tx::tx_execution_info::TxExecutionStatus, Address, L1BatchNumber, MiniblockNumber,
+    ProtocolVersionId, Transaction, H256, U256,
 };
 
 use crate::state_keeper::{
@@ -70,6 +72,13 @@ impl TestScenario {
     pub(crate) fn no_txs_until_next_action(mut self, description: &'static str) -> Self {
         self.actions
             .push_back(ScenarioItem::NoTxsUntilNextAction(description));
+        self
+    }
+
+    /// Increments protocol version returned by IO.
+    pub(crate) fn increment_protocol_version(mut self, description: &'static str) -> Self {
+        self.actions
+            .push_back(ScenarioItem::IncrementProtocolVersion(description));
         self
     }
 
@@ -267,7 +276,7 @@ pub(crate) fn bootloader_tip_out_of_gas() -> TxExecutionResult {
 
 /// Creates a mock `PendingBatchData` object containing the provided sequence of miniblocks.
 pub(crate) fn pending_batch_data(
-    txs: Vec<(MiniblockNumber, Vec<Transaction>)>,
+    pending_miniblocks: Vec<MiniblockReexecuteData>,
 ) -> PendingBatchData {
     let block_properties = default_block_properties();
 
@@ -287,15 +296,21 @@ pub(crate) fn pending_batch_data(
         context_mode: BlockContextMode::NewBlock(derived_context, Default::default()),
         properties: block_properties,
         base_system_contracts: BASE_SYSTEM_CONTRACTS.clone(),
+        protocol_version: ProtocolVersionId::latest(),
     };
 
-    PendingBatchData { params, txs }
+    PendingBatchData {
+        params,
+        pending_miniblocks,
+    }
 }
 
 #[allow(clippy::type_complexity, clippy::large_enum_variant)] // It's OK for tests.
 enum ScenarioItem {
     /// Configures scenario to repeatedly return `None` to tx requests until the next action from the scenario happens.
     NoTxsUntilNextAction(&'static str),
+    /// Increments protocol version in IO state.
+    IncrementProtocolVersion(&'static str),
     Tx(&'static str, Transaction, TxExecutionResult),
     Rollback(&'static str, Transaction),
     Reject(&'static str, Transaction, Option<String>),
@@ -315,6 +330,10 @@ impl std::fmt::Debug for ScenarioItem {
             Self::NoTxsUntilNextAction(descr) => {
                 f.debug_tuple("NoTxsUntilNextAction").field(descr).finish()
             }
+            Self::IncrementProtocolVersion(descr) => f
+                .debug_tuple("IncrementProtocolVersion")
+                .field(descr)
+                .finish(),
             Self::Tx(descr, tx, result) => f
                 .debug_tuple("Tx")
                 .field(descr)
@@ -356,7 +375,11 @@ impl TestBatchExecutorBuilder {
         // Insert data about the pending batch, if it exists.
         // All the txs from the pending batch must succeed.
         if let Some(pending_batch) = &scenario.pending_batch {
-            for tx in pending_batch.txs.iter().flat_map(|(_, txs)| txs) {
+            for tx in pending_batch
+                .pending_miniblocks
+                .iter()
+                .flat_map(|miniblock| &miniblock.txs)
+            {
                 batch_txs.insert(tx.hash(), vec![successful_exec()].into());
             }
         }
@@ -500,6 +523,8 @@ pub(crate) struct TestIO {
     /// Internal flag that is being set if scenario was configured to return `None` to all the transaction
     /// requests until some other action happens.
     skipping_txs: bool,
+    protocol_version: ProtocolVersionId,
+    previous_batch_protocol_version: ProtocolVersionId,
 }
 
 impl TestIO {
@@ -514,6 +539,8 @@ impl TestIO {
             fee_account: FEE_ACCOUNT,
             scenario,
             skipping_txs: false,
+            protocol_version: ProtocolVersionId::latest(),
+            previous_batch_protocol_version: ProtocolVersionId::latest(),
         }
     }
 
@@ -528,6 +555,14 @@ impl TestIO {
         let action = self.scenario.actions.pop_front().unwrap();
         if matches!(action, ScenarioItem::NoTxsUntilNextAction(_)) {
             self.skipping_txs = true;
+            // This is a mock item, so pop an actual one for the IO to process.
+            return self.pop_next_item(request);
+        }
+
+        if matches!(action, ScenarioItem::IncrementProtocolVersion(_)) {
+            self.protocol_version = (self.protocol_version as u16 + 1)
+                .try_into()
+                .expect("Cannot increment latest version");
             // This is a mock item, so pop an actual one for the IO to process.
             return self.pop_next_item(request);
         }
@@ -574,10 +609,15 @@ impl StateKeeperIO for TestIO {
             context_mode: BlockContextMode::NewBlock(derived_context, previous_block_hash),
             properties: block_properties,
             base_system_contracts: BASE_SYSTEM_CONTRACTS.clone(),
+            protocol_version: self.protocol_version,
         })
     }
 
-    async fn wait_for_new_miniblock_params(&mut self, _max_wait: Duration) -> Option<u64> {
+    async fn wait_for_new_miniblock_params(
+        &mut self,
+        _max_wait: Duration,
+        _prev_miniblock_timestamp: u64,
+    ) -> Option<u64> {
         Some(self.timestamp)
     }
 
@@ -658,7 +698,19 @@ impl StateKeeperIO for TestIO {
 
         self.miniblock_number += 1; // Seal the fictive miniblock.
         self.batch_number += 1;
+        self.previous_batch_protocol_version = self.protocol_version;
         self.timestamp += 1;
         self.skipping_txs = false;
+    }
+
+    async fn load_previous_batch_version_id(&mut self) -> Option<ProtocolVersionId> {
+        Some(self.previous_batch_protocol_version)
+    }
+
+    async fn load_upgrade_tx(
+        &mut self,
+        _version_id: ProtocolVersionId,
+    ) -> Option<ProtocolUpgradeTx> {
+        None
     }
 }

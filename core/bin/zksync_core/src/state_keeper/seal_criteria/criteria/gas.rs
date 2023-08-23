@@ -26,14 +26,14 @@ impl SealCriterion for GasCriterion {
         let block_bound =
             (config.max_single_tx_gas as f64 * config.close_block_at_gas_percentage).round() as u32;
 
-        if (tx_data.gas_count + new_block_gas_count()).has_greater_than(tx_bound) {
+        if (tx_data.gas_count + new_block_gas_count()).any_field_greater_than(tx_bound) {
             SealResolution::Unexecutable("Transaction requires too much gas".into())
         } else if block_data
             .gas_count
-            .has_greater_than(config.max_single_tx_gas)
+            .any_field_greater_than(config.max_single_tx_gas)
         {
             SealResolution::ExcludeAndSeal
-        } else if block_data.gas_count.has_greater_than(block_bound) {
+        } else if block_data.gas_count.any_field_greater_than(block_bound) {
             SealResolution::IncludeAndSeal
         } else {
             SealResolution::NoSeal

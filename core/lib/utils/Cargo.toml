@@ -15,7 +15,7 @@ vlog = { path = "../../lib/vlog", version = "1.0" }
 zk_evm = {git = "https://github.com/matter-labs/era-zk_evm.git", branch = "v1.3.3"}
 
 num = { version = "0.3.1", features = ["serde"] }
-bigdecimal = { version = "=0.2.0", features = ["serde"]}
+bigdecimal = { version = "0.2.2", features = ["serde"]}
 serde = { version = "1.0", features = ["derive"] }
 tokio = { version = "1", features = ["time"] }
 anyhow = "1.0"

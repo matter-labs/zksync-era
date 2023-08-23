@@ -1,6 +1,7 @@
 use zksync_basic_types::{AccountTreeId, Address, U256};
 use zksync_config::constants::{
-    BOOTLOADER_UTILITIES_ADDRESS, BYTECODE_COMPRESSOR_ADDRESS, EVENT_WRITER_ADDRESS,
+    BOOTLOADER_UTILITIES_ADDRESS, BYTECODE_COMPRESSOR_ADDRESS, COMPLEX_UPGRADER_ADDRESS,
+    EVENT_WRITER_ADDRESS,
 };
 use zksync_contracts::{read_sys_contract_bytecode, ContractLanguage};
 
@@ -111,6 +112,12 @@ static SYSTEM_CONTRACTS: Lazy<Vec<DeployedContract>> = Lazy::new(|| {
             "",
             "BytecodeCompressor",
             BYTECODE_COMPRESSOR_ADDRESS,
+            ContractLanguage::Sol,
+        ),
+        (
+            "",
+            "ComplexUpgrader",
+            COMPLEX_UPGRADER_ADDRESS,
             ContractLanguage::Sol,
         ),
     ]

@@ -8,13 +8,14 @@ use jsonrpc_derive::rpc;
 
 // Workspace uses
 use zksync_types::{
-    api::{BridgeAddresses, L2ToL1LogProof, TransactionDetails},
-    explorer_api::{BlockDetails, L1BatchDetails},
+    api::{
+        BlockDetails, BridgeAddresses, L1BatchDetails, L2ToL1LogProof, ProtocolVersion,
+        TransactionDetails,
+    },
     fee::Fee,
     transaction_request::CallRequest,
-    Address, Bytes, L1BatchNumber, MiniblockNumber, H256, U256, U64,
+    Address, L1BatchNumber, MiniblockNumber, H256, U256, U64,
 };
-use zksync_web3_decl::error::Web3Error;
 use zksync_web3_decl::types::Token;
 
 // Local uses
@@ -81,9 +82,6 @@ pub trait ZksNamespaceT {
     #[rpc(name = "zks_getL1BatchBlockRange")]
     fn get_miniblock_range(&self, batch: L1BatchNumber) -> BoxFuture<Result<Option<(U64, U64)>>>;
 
-    #[rpc(name = "zks_setKnownBytecode")]
-    fn set_known_bytecode(&self, bytecode: Bytes) -> BoxFuture<Result<bool>>;
-
     #[rpc(name = "zks_getTransactionDetails")]
     fn get_transaction_details(&self, hash: H256) -> BoxFuture<Result<Option<TransactionDetails>>>;
 
@@ -104,6 +102,12 @@ pub trait ZksNamespaceT {
 
     #[rpc(name = "zks_getL1GasPrice")]
     fn get_l1_gas_price(&self) -> BoxFuture<Result<U64>>;
+
+    #[rpc(name = "zks_getProtocolVersion")]
+    fn get_protocol_version(
+        &self,
+        version_id: Option<u16>,
+    ) -> BoxFuture<Result<Option<ProtocolVersion>>>;
 }
 
 impl<G: L1GasPriceProvider + Send + Sync + 'static> ZksNamespaceT for ZksNamespace<G> {
@@ -248,18 +252,6 @@ impl<G: L1GasPriceProvider + Send + Sync + 'static> ZksNamespaceT for ZksNamespa
         })
     }
 
-    fn set_known_bytecode(&self, _bytecode: Bytes) -> BoxFuture<Result<bool>> {
-        #[cfg(feature = "openzeppelin_tests")]
-        let self_ = self.clone();
-        Box::pin(async move {
-            #[cfg(feature = "openzeppelin_tests")]
-            return Ok(self_.set_known_bytecode_impl(_bytecode));
-
-            #[cfg(not(feature = "openzeppelin_tests"))]
-            Err(into_jsrpc_error(Web3Error::NotImplemented))
-        })
-    }
-
     fn get_raw_block_transactions(
         &self,
         block_number: MiniblockNumber,
@@ -294,5 +286,13 @@ impl<G: L1GasPriceProvider + Send + Sync + 'static> ZksNamespaceT for ZksNamespa
     fn get_l1_gas_price(&self) -> BoxFuture<Result<U64>> {
         let self_ = self.clone();
         Box::pin(async move { Ok(self_.get_l1_gas_price_impl()) })
+    }
+
+    fn get_protocol_version(
+        &self,
+        version_id: Option<u16>,
+    ) -> BoxFuture<Result<Option<ProtocolVersion>>> {
+        let self_ = self.clone();
+        Box::pin(async move { Ok(self_.get_protocol_version_impl(version_id).await) })
     }
 }

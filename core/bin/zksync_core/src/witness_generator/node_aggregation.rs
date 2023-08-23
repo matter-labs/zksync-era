@@ -25,7 +25,7 @@ use zksync_types::{
         },
         NodeAggregationOutputDataWitness,
     },
-    L1BatchNumber,
+    L1BatchNumber, ProtocolVersionId,
 };
 use zksync_verification_key_server::{
     get_vk_for_circuit_type, get_vks_for_basic_circuits, get_vks_for_commitment,
@@ -55,6 +55,7 @@ pub struct NodeAggregationWitnessGeneratorJob {
 pub struct NodeAggregationWitnessGenerator {
     config: WitnessGeneratorConfig,
     object_store: Box<dyn ObjectStore>,
+    protocol_versions: Vec<ProtocolVersionId>,
     connection_pool: ConnectionPool,
     prover_connection_pool: ConnectionPool,
 }
@@ -63,12 +64,14 @@ impl NodeAggregationWitnessGenerator {
     pub async fn new(
         config: WitnessGeneratorConfig,
         store_factory: &ObjectStoreFactory,
+        protocol_versions: Vec<ProtocolVersionId>,
         connection_pool: ConnectionPool,
         prover_connection_pool: ConnectionPool,
     ) -> Self {
         Self {
             config,
             object_store: store_factory.create_store().await,
+            protocol_versions,
             connection_pool,
             prover_connection_pool,
         }
@@ -108,6 +111,7 @@ impl JobProcessor for NodeAggregationWitnessGenerator {
                 self.config.witness_generation_timeout(),
                 self.config.max_attempts,
                 last_l1_batch_to_process,
+                &self.protocol_versions,
             )
             .await
         {
@@ -285,12 +289,23 @@ async fn update_database(
         .witness_generator_dal()
         .save_node_aggregation_artifacts(block_number, &blob_urls.node_aggregations_url)
         .await;
+    let protocol_version = transaction
+        .witness_generator_dal()
+        .protocol_version_for_l1_batch(block_number)
+        .await
+        .unwrap_or_else(|| {
+            panic!(
+                "No system version exist for l1 batch {} for node agg",
+                block_number.0
+            )
+        });
     transaction
         .prover_dal()
         .insert_prover_jobs(
             block_number,
             blob_urls.circuit_types_and_urls,
             AggregationRound::NodeAggregation,
+            protocol_version,
         )
         .await;
     transaction

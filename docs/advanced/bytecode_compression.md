@@ -2,6 +2,9 @@
 
 ## Overview
 
+As we are a rollup - all the bytecodes that contracts use in our chain must be copied into L1 (so that the chain can be
+reconstructed from L1 if needed).
+
 Given the want/need to cutdown on space used, bytecode is compressed prior to being posted to L1. At a high level
 bytecode is chunked into opcodes (which have a size of 8 bytes), assigned a 2 byte index, and the newly formed byte
 sequence (indexes) are verified and sent to L1. This process is split into 2 different parts: (1)
@@ -9,6 +12,35 @@ sequence (indexes) are verified and sent to L1. This process is split into 2 dif
 handling the compression and (2)
 [the system contract](https://github.com/matter-labs/system-contracts/blob/main/contracts/BytecodeCompressor.sol)
 verifying that the compression is correct before sending to L1.
+
+## Example
+
+Original bytecode
+
+```
+000000000000000A 000000000000000D 000000000000000A 000000000000000C
+000000000000000B 000000000000000B 000000000000000D 000000000000000A
+```
+
+Dictionary would be:
+
+```
+0 -> 0xA (count: 3)
+1 -> 0xD (count: 2, first seen: 1)
+2 -> 0xB (count: 2, first seen: 4)
+3 -> 0xC (count: 1)
+```
+
+Note that '1' maps to '0xD', as it occurs twice, and first occurence is earlier than first occurence of 0xB, that also
+occurs twice.
+
+Compressed bytecode:
+
+```
+0008 0000 000000000000000A 000000000000000D 000000000000000B 000000000000000C
+
+0000 0001 0000 0003 0002 0002 0001 0000
+```
 
 ## Server Side Operator
 

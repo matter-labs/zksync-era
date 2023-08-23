@@ -14,7 +14,7 @@ pub struct ApiConfig {
     /// Configuration options for the Web3 JSON RPC servers.
     pub web3_json_rpc: Web3JsonRpcConfig,
     /// Configuration options for the REST servers.
-    pub explorer: ExplorerApiConfig,
+    pub contract_verification: ContractVerificationApiConfig,
     /// Configuration options for the Prometheus exporter.
     pub prometheus: PrometheusConfig,
     /// Configuration options for the Health check.
@@ -25,7 +25,7 @@ impl ApiConfig {
     pub fn from_env() -> Self {
         Self {
             web3_json_rpc: Web3JsonRpcConfig::from_env(),
-            explorer: ExplorerApiConfig::from_env(),
+            contract_verification: ContractVerificationApiConfig::from_env(),
             prometheus: PrometheusConfig::from_env(),
             healthcheck: HealthCheckConfig::from_env(),
         }
@@ -76,14 +76,25 @@ pub struct Web3JsonRpcConfig {
     /// This option can be tweaked down if the API server is running out of memory.
     /// If not set, the VM concurrency limit will be efficiently disabled.
     pub vm_concurrency_limit: Option<usize>,
-    /// Smart contract cache size in MBs
+    /// Smart contract cache size in MiBs. The default value is 128 MiB.
     pub factory_deps_cache_size_mb: Option<usize>,
+    /// Initial writes cache size in MiBs. The default value is 32 MiB.
+    pub initial_writes_cache_size_mb: Option<usize>,
+    /// Latest values cache size in MiBs. The default value is 128 MiB. If set to 0, the latest
+    /// values cache will be disabled.
+    pub latest_values_cache_size_mb: Option<usize>,
     /// Override value for the amount of threads used for HTTP RPC server.
     /// If not set, the value from `threads_per_server` is used.
     pub http_threads: Option<u32>,
     /// Override value for the amount of threads used for WebSocket RPC server.
     /// If not set, the value from `threads_per_server` is used.
     pub ws_threads: Option<u32>,
+    /// Limit for fee history block range.
+    pub fee_history_limit: Option<u64>,
+    /// Maximum number of requests in a single batch JSON RPC request. Default is 500.
+    pub max_batch_request_size: Option<usize>,
+    /// Maximum response body size in MiBs. Default is 10 MiB.
+    pub max_response_body_size_mb: Option<usize>,
 }
 
 impl Web3JsonRpcConfig {
@@ -123,9 +134,26 @@ impl Web3JsonRpcConfig {
         self.account_pks.clone().unwrap_or_default()
     }
 
-    pub fn factory_deps_cache_size_mb(&self) -> usize {
-        // 128MB is the default smart contract code cache size.
-        self.factory_deps_cache_size_mb.unwrap_or(128)
+    pub fn vm_concurrency_limit(&self) -> usize {
+        // The default limit is large so that it does not create a bottleneck on its own.
+        // VM execution can still be limited by Tokio runtime parallelism and/or the number
+        // of DB connections in a pool.
+        self.vm_concurrency_limit.unwrap_or(2_048)
+    }
+
+    /// Returns the size of factory dependencies cache in bytes.
+    pub fn factory_deps_cache_size(&self) -> usize {
+        self.factory_deps_cache_size_mb.unwrap_or(128) * super::BYTES_IN_MEGABYTE
+    }
+
+    /// Returns the size of initial writes cache in bytes.
+    pub fn initial_writes_cache_size(&self) -> usize {
+        self.initial_writes_cache_size_mb.unwrap_or(32) * super::BYTES_IN_MEGABYTE
+    }
+
+    /// Returns the size of latest values cache in bytes.
+    pub fn latest_values_cache_size(&self) -> usize {
+        self.latest_values_cache_size_mb.unwrap_or(128) * super::BYTES_IN_MEGABYTE
     }
 
     pub fn http_server_threads(&self) -> usize {
@@ -134,6 +162,19 @@ impl Web3JsonRpcConfig {
 
     pub fn ws_server_threads(&self) -> usize {
         self.ws_threads.unwrap_or(self.threads_per_server) as usize
+    }
+
+    pub fn fee_history_limit(&self) -> u64 {
+        self.fee_history_limit.unwrap_or(1024)
+    }
+
+    pub fn max_batch_request_size(&self) -> usize {
+        // The default limit is chosen to be reasonably permissive.
+        self.max_batch_request_size.unwrap_or(500)
+    }
+
+    pub fn max_response_body_size(&self) -> usize {
+        self.max_response_body_size_mb.unwrap_or(10) * super::BYTES_IN_MEGABYTE
     }
 }
 
@@ -154,49 +195,33 @@ impl HealthCheckConfig {
 }
 
 #[derive(Debug, Deserialize, Clone, PartialEq)]
-pub struct ExplorerApiConfig {
+pub struct ContractVerificationApiConfig {
     /// Port to which the REST server is listening.
     pub port: u16,
     /// URL to access REST server.
     pub url: String,
-    /// Interval between polling db for network stats (in ms).
-    pub network_stats_polling_interval: Option<u64>,
-    /// Max possible limit of entities to be requested once.
-    pub req_entities_limit: Option<u32>,
-    /// Max possible value of (offset + limit) in pagination endpoints.
-    pub offset_limit: Option<u32>,
     /// number of threads per server
     pub threads_per_server: u32,
 }
 
-impl ExplorerApiConfig {
+impl ContractVerificationApiConfig {
     pub fn bind_addr(&self) -> SocketAddr {
         SocketAddr::new("0.0.0.0".parse().unwrap(), self.port)
     }
 
-    pub fn network_stats_interval(&self) -> Duration {
-        Duration::from_millis(self.network_stats_polling_interval.unwrap_or(1000))
-    }
-
-    pub fn req_entities_limit(&self) -> usize {
-        self.req_entities_limit.unwrap_or(100) as usize
-    }
-
-    pub fn offset_limit(&self) -> usize {
-        self.offset_limit.unwrap_or(10000) as usize
-    }
-
     pub fn from_env() -> Self {
-        envy_load("explorer", "API_EXPLORER_")
+        envy_load("contract_verification", "API_CONTRACT_VERIFICATION_")
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::configs::test_utils::set_env;
     use std::net::IpAddr;
-    use std::str::FromStr;
+
+    use super::*;
+    use crate::configs::test_utils::{hash, EnvMutex};
+
+    static MUTEX: EnvMutex = EnvMutex::new();
 
     fn expected_config() -> ApiConfig {
         ApiConfig {
@@ -214,14 +239,8 @@ mod tests {
                 transactions_per_sec_limit: Some(1000),
                 request_timeout: Some(10),
                 account_pks: Some(vec![
-                    H256::from_str(
-                        "0x0000000000000000000000000000000000000000000000000000000000000001",
-                    )
-                    .unwrap(),
-                    H256::from_str(
-                        "0x0000000000000000000000000000000000000000000000000000000000000002",
-                    )
-                    .unwrap(),
+                    hash("0x0000000000000000000000000000000000000000000000000000000000000001"),
+                    hash("0x0000000000000000000000000000000000000000000000000000000000000002"),
                 ]),
                 estimate_gas_scale_factor: 1.0f64,
                 gas_price_scale_factor: 1.2,
@@ -230,15 +249,17 @@ mod tests {
                 vm_execution_cache_misses_limit: None,
                 vm_concurrency_limit: Some(512),
                 factory_deps_cache_size_mb: Some(128),
+                initial_writes_cache_size_mb: Some(32),
+                latest_values_cache_size_mb: Some(256),
                 http_threads: Some(128),
                 ws_threads: Some(256),
+                fee_history_limit: Some(100),
+                max_batch_request_size: Some(200),
+                max_response_body_size_mb: Some(10),
             },
-            explorer: ExplorerApiConfig {
+            contract_verification: ContractVerificationApiConfig {
                 port: 3070,
                 url: "http://127.0.0.1:3070".into(),
-                network_stats_polling_interval: Some(1000),
-                req_entities_limit: Some(100),
-                offset_limit: Some(10000),
                 threads_per_server: 128,
             },
             prometheus: PrometheusConfig {
@@ -252,40 +273,43 @@ mod tests {
 
     #[test]
     fn from_env() {
+        let mut lock = MUTEX.lock();
         let config = r#"
-API_WEB3_JSON_RPC_HTTP_PORT="3050"
-API_WEB3_JSON_RPC_HTTP_URL="http://127.0.0.1:3050"
-API_WEB3_JSON_RPC_WS_PORT="3051"
-API_WEB3_JSON_RPC_WS_URL="ws://127.0.0.1:3051"
-API_WEB3_JSON_RPC_REQ_ENTITIES_LIMIT=10000
-API_WEB3_JSON_RPC_FILTERS_LIMIT=10000
-API_WEB3_JSON_RPC_SUBSCRIPTIONS_LIMIT=10000
-API_WEB3_JSON_RPC_PUBSUB_POLLING_INTERVAL=200
-API_WEB3_JSON_RPC_THREADS_PER_SERVER=128
-API_WEB3_JSON_RPC_MAX_NONCE_AHEAD=5
-API_WEB3_JSON_RPC_GAS_PRICE_SCALE_FACTOR=1.2
-API_WEB3_JSON_RPC_TRANSACTIONS_PER_SEC_LIMIT=1000
-API_WEB3_JSON_RPC_REQUEST_TIMEOUT=10
-API_WEB3_JSON_RPC_ACCOUNT_PKS=0x0000000000000000000000000000000000000000000000000000000000000001,0x0000000000000000000000000000000000000000000000000000000000000002
-API_WEB3_JSON_RPC_ESTIMATE_GAS_SCALE_FACTOR=1.0
-API_WEB3_JSON_RPC_ESTIMATE_GAS_ACCEPTABLE_OVERESTIMATION=1000
-API_WEB3_JSON_RPC_MAX_TX_SIZE=1000000
-API_WEB3_JSON_RPC_VM_CONCURRENCY_LIMIT=512
-API_WEB3_JSON_RPC_FACTORY_DEPS_CACHE_SIZE_MB=128
-API_WEB3_JSON_RPC_HTTP_THREADS=128
-API_WEB3_JSON_RPC_WS_THREADS=256
-API_EXPLORER_PORT="3070"
-API_EXPLORER_URL="http://127.0.0.1:3070"
-API_EXPLORER_NETWORK_STATS_POLLING_INTERVAL="1000"
-API_EXPLORER_REQ_ENTITIES_LIMIT=100
-API_EXPLORER_OFFSET_LIMIT=10000
-API_EXPLORER_THREADS_PER_SERVER=128
-API_PROMETHEUS_LISTENER_PORT="3312"
-API_PROMETHEUS_PUSHGATEWAY_URL="http://127.0.0.1:9091"
-API_PROMETHEUS_PUSH_INTERVAL_MS=100
-API_HEALTHCHECK_PORT=8081
+            API_WEB3_JSON_RPC_HTTP_PORT="3050"
+            API_WEB3_JSON_RPC_HTTP_URL="http://127.0.0.1:3050"
+            API_WEB3_JSON_RPC_WS_PORT="3051"
+            API_WEB3_JSON_RPC_WS_URL="ws://127.0.0.1:3051"
+            API_WEB3_JSON_RPC_REQ_ENTITIES_LIMIT=10000
+            API_WEB3_JSON_RPC_FILTERS_LIMIT=10000
+            API_WEB3_JSON_RPC_SUBSCRIPTIONS_LIMIT=10000
+            API_WEB3_JSON_RPC_PUBSUB_POLLING_INTERVAL=200
+            API_WEB3_JSON_RPC_THREADS_PER_SERVER=128
+            API_WEB3_JSON_RPC_MAX_NONCE_AHEAD=5
+            API_WEB3_JSON_RPC_GAS_PRICE_SCALE_FACTOR=1.2
+            API_WEB3_JSON_RPC_TRANSACTIONS_PER_SEC_LIMIT=1000
+            API_WEB3_JSON_RPC_REQUEST_TIMEOUT=10
+            API_WEB3_JSON_RPC_ACCOUNT_PKS=0x0000000000000000000000000000000000000000000000000000000000000001,0x0000000000000000000000000000000000000000000000000000000000000002
+            API_WEB3_JSON_RPC_ESTIMATE_GAS_SCALE_FACTOR=1.0
+            API_WEB3_JSON_RPC_ESTIMATE_GAS_ACCEPTABLE_OVERESTIMATION=1000
+            API_WEB3_JSON_RPC_MAX_TX_SIZE=1000000
+            API_WEB3_JSON_RPC_VM_CONCURRENCY_LIMIT=512
+            API_WEB3_JSON_RPC_FACTORY_DEPS_CACHE_SIZE_MB=128
+            API_WEB3_JSON_RPC_INITIAL_WRITES_CACHE_SIZE_MB=32
+            API_WEB3_JSON_RPC_LATEST_VALUES_CACHE_SIZE_MB=256
+            API_WEB3_JSON_RPC_HTTP_THREADS=128
+            API_WEB3_JSON_RPC_WS_THREADS=256
+            API_WEB3_JSON_RPC_FEE_HISTORY_LIMIT=100
+            API_WEB3_JSON_RPC_MAX_BATCH_REQUEST_SIZE=200
+            API_CONTRACT_VERIFICATION_PORT="3070"
+            API_CONTRACT_VERIFICATION_URL="http://127.0.0.1:3070"
+            API_CONTRACT_VERIFICATION_THREADS_PER_SERVER=128
+            API_WEB3_JSON_RPC_MAX_RESPONSE_BODY_SIZE_MB=10
+            API_PROMETHEUS_LISTENER_PORT="3312"
+            API_PROMETHEUS_PUSHGATEWAY_URL="http://127.0.0.1:9091"
+            API_PROMETHEUS_PUSH_INTERVAL_MS=100
+            API_HEALTHCHECK_PORT=8081
         "#;
-        set_env(config);
+        lock.set_env(config);
 
         let actual = ApiConfig::from_env();
         assert_eq!(actual, expected_config());
@@ -302,8 +326,8 @@ API_HEALTHCHECK_PORT=8081
             Duration::from_millis(200)
         );
         assert_eq!(
-            config.explorer.bind_addr(),
-            SocketAddr::new(bind_broadcast_addr, config.explorer.port)
+            config.contract_verification.bind_addr(),
+            SocketAddr::new(bind_broadcast_addr, config.contract_verification.port)
         );
     }
 }

@@ -21,7 +21,10 @@ mod types;
 pub(crate) mod updates;
 
 pub use self::{
-    batch_executor::MainBatchExecutorBuilder, keeper::ZkSyncStateKeeper, seal_criteria::SealManager,
+    batch_executor::{L1BatchExecutorBuilder, MainBatchExecutorBuilder, MultiVMConfig},
+    io::common::set_missing_initial_writes_indices,
+    keeper::ZkSyncStateKeeper,
+    seal_criteria::SealManager,
 };
 pub(crate) use self::{io::MiniblockSealer, mempool_actor::MempoolFetcher, types::MempoolGuard};
 
@@ -56,6 +59,7 @@ where
         state_keeper_config.max_allowed_l2_tx_gas_limit.into(),
         state_keeper_config.save_call_traces,
         state_keeper_config.validation_computational_gas_limit,
+        None, // MultiVM is not used on the main node, we always use the latest version.
     );
 
     let io = MempoolIO::new(

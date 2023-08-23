@@ -2,7 +2,6 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as ethers from 'ethers';
 import * as zksync from 'zksync-web3';
-import { getTokens } from 'reading-tool';
 import { TestEnvironment } from './types';
 import { Reporter } from './reporter';
 
@@ -68,9 +67,9 @@ export async function loadTestEnvironment(): Promise<TestEnvironment> {
         process.env.ZKSYNC_WEB3_WS_API_URL || process.env.API_WEB3_JSON_RPC_WS_URL,
         'WS L2 node URL'
     );
-    const explorerUrl = process.env.ZKSYNC_ENV!.startsWith('ext-node')
-        ? ''
-        : ensureVariable(process.env.API_EXPLORER_URL, 'Explorer API');
+    const contractVerificationUrl = process.env.ZKSYNC_ENV!.startsWith('ext-node')
+        ? process.env.API_CONTRACT_VERIFICATION_URL!
+        : ensureVariable(process.env.API_CONTRACT_VERIFICATION_URL, 'Contract verification API');
 
     const tokens = getTokens(process.env.CHAIN_ETH_NETWORK || 'localhost');
     // wBTC is chosen because it has decimals different from ETH (8 instead of 18).
@@ -101,7 +100,7 @@ export async function loadTestEnvironment(): Promise<TestEnvironment> {
         l2NodeUrl,
         l1NodeUrl,
         wsL2NodeUrl,
-        explorerUrl,
+        contractVerificationUrl,
         erc20Token: {
             name: token.name,
             symbol: token.symbol,
@@ -127,4 +126,20 @@ function ensureVariable(value: string | undefined, variableName: string): string
         throw new Error(`${variableName} is not defined in the env`);
     }
     return value;
+}
+
+type L1Token = {
+    name: string;
+    symbol: string;
+    decimals: number;
+    address: string;
+};
+
+function getTokens(network: string): L1Token[] {
+    const configPath = `${process.env.ZKSYNC_HOME}/etc/tokens/${network}.json`;
+    return JSON.parse(
+        fs.readFileSync(configPath, {
+            encoding: 'utf-8'
+        })
+    );
 }

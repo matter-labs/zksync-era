@@ -1,5 +1,8 @@
-use sqlx::types::chrono::{DateTime, Utc};
-use sqlx::types::{chrono::NaiveDateTime, BigDecimal};
+use sqlx::types::{
+    chrono::{DateTime, NaiveDateTime, Utc},
+    BigDecimal,
+};
+
 use zksync_types::tokens::{TokenMarketVolume, TokenMetadata, TokenPrice};
 use zksync_utils::big_decimal_to_ratio;
 

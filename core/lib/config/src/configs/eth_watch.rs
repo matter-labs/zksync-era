@@ -30,7 +30,9 @@ impl ETHWatchConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::configs::test_utils::set_env;
+    use crate::configs::test_utils::EnvMutex;
+
+    static MUTEX: EnvMutex = EnvMutex::new();
 
     fn expected_config() -> ETHWatchConfig {
         ETHWatchConfig {
@@ -41,11 +43,12 @@ mod tests {
 
     #[test]
     fn from_env() {
+        let mut lock = MUTEX.lock();
         let config = r#"
-ETH_WATCH_CONFIRMATIONS_FOR_ETH_EVENT="0"
-ETH_WATCH_ETH_NODE_POLL_INTERVAL="300"
+            ETH_WATCH_CONFIRMATIONS_FOR_ETH_EVENT="0"
+            ETH_WATCH_ETH_NODE_POLL_INTERVAL="300"
         "#;
-        set_env(config);
+        lock.set_env(config);
 
         let actual = ETHWatchConfig::from_env();
         assert_eq!(actual, expected_config());
@@ -55,7 +58,6 @@ ETH_WATCH_ETH_NODE_POLL_INTERVAL="300"
     #[test]
     fn methods() {
         let config = expected_config();
-
         assert_eq!(
             config.poll_interval(),
             Duration::from_millis(config.eth_node_poll_interval)

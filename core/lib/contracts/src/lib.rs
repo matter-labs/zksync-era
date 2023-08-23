@@ -20,6 +20,8 @@ pub enum ContractLanguage {
 
 const ZKSYNC_CONTRACT_FILE: &str =
     "contracts/ethereum/artifacts/cache/solpp-generated-contracts/zksync/interfaces/IZkSync.sol/IZkSync.json";
+const MULTICALL3_CONTRACT_FILE: &str =
+    "contracts/ethereum/artifacts/cache/solpp-generated-contracts/dev-contracts/Multicall3.sol/Multicall3.json";
 const VERIFIER_CONTRACT_FILE: &str =
     "contracts/ethereum/artifacts/cache/solpp-generated-contracts/zksync/Verifier.sol/Verifier.json";
 const IERC20_CONTRACT_FILE: &str =
@@ -63,6 +65,10 @@ pub fn read_contract_abi(path: impl AsRef<Path>) -> String {
 
 pub fn zksync_contract() -> Contract {
     load_contract(ZKSYNC_CONTRACT_FILE)
+}
+
+pub fn multicall_contract() -> Contract {
+    load_contract(MULTICALL3_CONTRACT_FILE)
 }
 
 pub fn erc20_contract() -> Contract {
@@ -196,7 +202,6 @@ pub fn read_zbin_bytecode(zbin_path: impl AsRef<Path>) -> Vec<u8> {
     fs::read(&bytecode_path)
         .unwrap_or_else(|err| panic!("Can't read .zbin bytecode at {:?}: {}", bytecode_path, err))
 }
-
 /// Hash of code and code which consists of 32 bytes words
 #[derive(Debug, Clone)]
 pub struct SystemContractCode {
@@ -271,9 +276,15 @@ impl BaseSystemContracts {
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
     }
 
-    /// BaseSystemContracts with playground bootloader -  used for handling 'eth_calls'.
+    /// BaseSystemContracts with playground bootloader - used for handling 'eth_calls'.
     pub fn playground() -> Self {
         let bootloader_bytecode = read_playground_block_bootloader_bytecode();
+        BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
+    }
+
+    /// BaseSystemContracts with playground bootloader - used for handling 'eth_calls'.
+    pub fn estimate_gas() -> Self {
+        let bootloader_bytecode = read_bootloader_code("fee_estimate");
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
     }
 

@@ -32,7 +32,9 @@ impl ContractVerifierConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::configs::test_utils::set_env;
+    use crate::configs::test_utils::EnvMutex;
+
+    static MUTEX: EnvMutex = EnvMutex::new();
 
     fn expected_config() -> ContractVerifierConfig {
         ContractVerifierConfig {
@@ -44,12 +46,13 @@ mod tests {
 
     #[test]
     fn from_env() {
+        let mut lock = MUTEX.lock();
         let config = r#"
             CONTRACT_VERIFIER_COMPILATION_TIMEOUT=30
             CONTRACT_VERIFIER_POLLING_INTERVAL=1000
             CONTRACT_VERIFIER_PROMETHEUS_PORT=3314
         "#;
-        set_env(config);
+        lock.set_env(config);
 
         let actual = ContractVerifierConfig::from_env();
         assert_eq!(actual, expected_config());

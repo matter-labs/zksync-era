@@ -10,18 +10,23 @@ use sqlx::pool::PoolConnection;
 pub use sqlx::types::BigDecimal;
 
 // Local imports
+use crate::accounts_dal::AccountsDal;
 use crate::blocks_dal::BlocksDal;
 use crate::blocks_web3_dal::BlocksWeb3Dal;
 pub use crate::connection::ConnectionPool;
 use crate::connection::{holder::ConnectionHolder, test_pool::TestPoolLock};
+use crate::contract_verification_dal::ContractVerificationDal;
 use crate::eth_sender_dal::EthSenderDal;
 use crate::events_dal::EventsDal;
 use crate::events_web3_dal::EventsWeb3Dal;
-use crate::explorer::ExplorerIntermediary;
+use crate::fri_gpu_prover_queue_dal::FriGpuProverQueueDal;
 use crate::fri_prover_dal::FriProverDal;
 use crate::fri_scheduler_dependency_tracker_dal::FriSchedulerDependencyTrackerDal;
 use crate::fri_witness_generator_dal::FriWitnessGeneratorDal;
 use crate::gpu_prover_queue_dal::GpuProverQueueDal;
+use crate::proof_generation_dal::ProofGenerationDal;
+use crate::protocol_versions_dal::ProtocolVersionsDal;
+use crate::protocol_versions_web3_dal::ProtocolVersionsWeb3Dal;
 use crate::prover_dal::ProverDal;
 use crate::storage_dal::StorageDal;
 use crate::storage_logs_dal::StorageLogsDal;
@@ -36,19 +41,25 @@ use crate::witness_generator_dal::WitnessGeneratorDal;
 
 #[macro_use]
 mod macro_utils;
+pub mod accounts_dal;
 pub mod blocks_dal;
 pub mod blocks_web3_dal;
 pub mod connection;
+pub mod contract_verification_dal;
 pub mod eth_sender_dal;
 pub mod events_dal;
 pub mod events_web3_dal;
-pub mod explorer;
+pub mod fri_gpu_prover_queue_dal;
 pub mod fri_prover_dal;
 pub mod fri_scheduler_dependency_tracker_dal;
 pub mod fri_witness_generator_dal;
 pub mod gpu_prover_queue_dal;
 pub mod healthcheck;
+mod instrument;
 mod models;
+pub mod proof_generation_dal;
+pub mod protocol_versions_dal;
+pub mod protocol_versions_web3_dal;
 pub mod prover_dal;
 pub mod storage_dal;
 pub mod storage_logs_dal;
@@ -171,6 +182,10 @@ impl<'a> StorageProcessor<'a> {
         TransactionsWeb3Dal { storage: self }
     }
 
+    pub fn accounts_dal(&mut self) -> AccountsDal<'_, 'a> {
+        AccountsDal { storage: self }
+    }
+
     pub fn blocks_dal(&mut self) -> BlocksDal<'_, 'a> {
         BlocksDal { storage: self }
     }
@@ -223,12 +238,20 @@ impl<'a> StorageProcessor<'a> {
         WitnessGeneratorDal { storage: self }
     }
 
-    pub fn explorer(&mut self) -> ExplorerIntermediary<'_, 'a> {
-        ExplorerIntermediary { storage: self }
+    pub fn contract_verification_dal(&mut self) -> ContractVerificationDal<'_, 'a> {
+        ContractVerificationDal { storage: self }
     }
 
     pub fn gpu_prover_queue_dal(&mut self) -> GpuProverQueueDal<'_, 'a> {
         GpuProverQueueDal { storage: self }
+    }
+
+    pub fn protocol_versions_dal(&mut self) -> ProtocolVersionsDal<'_, 'a> {
+        ProtocolVersionsDal { storage: self }
+    }
+
+    pub fn protocol_versions_web3_dal(&mut self) -> ProtocolVersionsWeb3Dal<'_, 'a> {
+        ProtocolVersionsWeb3Dal { storage: self }
     }
 
     pub fn fri_witness_generator_dal(&mut self) -> FriWitnessGeneratorDal<'_, 'a> {
@@ -247,5 +270,13 @@ impl<'a> StorageProcessor<'a> {
         &mut self,
     ) -> FriSchedulerDependencyTrackerDal<'_, 'a> {
         FriSchedulerDependencyTrackerDal { storage: self }
+    }
+
+    pub fn proof_generation_dal(&mut self) -> ProofGenerationDal<'_, 'a> {
+        ProofGenerationDal { storage: self }
+    }
+
+    pub fn fri_gpu_prover_queue_dal(&mut self) -> FriGpuProverQueueDal<'_, 'a> {
+        FriGpuProverQueueDal { storage: self }
     }
 }

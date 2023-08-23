@@ -42,9 +42,10 @@ impl FriWitnessGeneratorConfig {
 
 #[cfg(test)]
 mod tests {
-    use crate::configs::test_utils::set_env;
-
     use super::*;
+    use crate::configs::test_utils::EnvMutex;
+
+    static MUTEX: EnvMutex = EnvMutex::new();
 
     fn expected_config() -> FriWitnessGeneratorConfig {
         FriWitnessGeneratorConfig {
@@ -59,14 +60,16 @@ mod tests {
 
     #[test]
     fn from_env() {
+        let mut lock = MUTEX.lock();
         let config = r#"
-        FRI_WITNESS_GENERATION_TIMEOUT_IN_SECS=900
-        FRI_WITNESS_MAX_ATTEMPTS=4
-        FRI_WITNESS_DUMP_ARGUMENTS_FOR_BLOCKS="2,3"
-        FRI_WITNESS_BLOCKS_PROVING_PERCENTAGE="30"
-        FRI_WITNESS_FORCE_PROCESS_BLOCK="1"
+            FRI_WITNESS_GENERATION_TIMEOUT_IN_SECS=900
+            FRI_WITNESS_MAX_ATTEMPTS=4
+            FRI_WITNESS_DUMP_ARGUMENTS_FOR_BLOCKS="2,3"
+            FRI_WITNESS_BLOCKS_PROVING_PERCENTAGE="30"
+            FRI_WITNESS_FORCE_PROCESS_BLOCK="1"
         "#;
-        set_env(config);
+        lock.set_env(config);
+
         let actual = FriWitnessGeneratorConfig::from_env();
         assert_eq!(actual, expected_config());
     }

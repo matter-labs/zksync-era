@@ -29,4 +29,5 @@ make_functions_and_main!(
     finish_eventful_frames,
     write_and_decode,
     event_spam,
+    slot_hash_collision,
 );

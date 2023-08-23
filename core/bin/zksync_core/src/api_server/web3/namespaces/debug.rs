@@ -4,10 +4,11 @@ use zksync_contracts::{
     BaseSystemContracts, BaseSystemContractsHashes, PLAYGROUND_BLOCK_BOOTLOADER_CODE,
 };
 use zksync_dal::ConnectionPool;
-use zksync_state::FactoryDepsCache;
+use zksync_state::PostgresStorageCaches;
 use zksync_types::{
     api::{BlockId, BlockNumber, DebugCall, ResultDebugCall, TracerConfig},
-    transaction_request::{l2_tx_from_call_req, CallRequest},
+    l2::L2Tx,
+    transaction_request::CallRequest,
     vm_trace::{Call, VmTrace},
     AccountTreeId, H256, USED_BOOTLOADER_MEMORY_BYTES,
 };
@@ -26,7 +27,7 @@ pub struct DebugNamespace {
     base_system_contracts: BaseSystemContracts,
     vm_execution_cache_misses_limit: Option<usize>,
     vm_concurrency_limiter: Arc<VmConcurrencyLimiter>,
-    factory_deps_cache: FactoryDepsCache,
+    storage_caches: PostgresStorageCaches,
 }
 
 impl DebugNamespace {
@@ -36,7 +37,7 @@ impl DebugNamespace {
         fair_l2_gas_price: u64,
         vm_execution_cache_misses_limit: Option<usize>,
         vm_concurrency_limiter: Arc<VmConcurrencyLimiter>,
-        factory_deps_cache: FactoryDepsCache,
+        storage_caches: PostgresStorageCaches,
     ) -> Self {
         let mut storage = connection_pool.access_storage_tagged("api").await;
 
@@ -57,27 +58,30 @@ impl DebugNamespace {
             base_system_contracts,
             vm_execution_cache_misses_limit,
             vm_concurrency_limiter,
-            factory_deps_cache,
+            storage_caches,
         }
     }
 
     #[tracing::instrument(skip(self))]
     pub async fn debug_trace_block_impl(
         &self,
-        block: BlockId,
+        block_id: BlockId,
         options: Option<TracerConfig>,
     ) -> Result<Vec<ResultDebugCall>, Web3Error> {
         const METHOD_NAME: &str = "debug_trace_block";
 
+        let start = Instant::now();
         let only_top_call = options
             .map(|options| options.tracer_config.only_top_call)
             .unwrap_or(false);
         let mut connection = self.connection_pool.access_storage_tagged("api").await;
-        let block_number = resolve_block(&mut connection, block, METHOD_NAME).await?;
+        let block_number = resolve_block(&mut connection, block_id, METHOD_NAME).await?;
         let call_trace = connection
             .blocks_web3_dal()
             .get_trace_for_miniblock(block_number)
             .await;
+
+        metrics::histogram!("api.web3.call", start.elapsed(), "method" => METHOD_NAME, "block_id" => block_id.extract_block_tag());
 
         Ok(call_trace
             .into_iter()
@@ -116,19 +120,20 @@ impl DebugNamespace {
         })
     }
 
-    #[tracing::instrument(skip(self, request, block))]
+    #[tracing::instrument(skip(self, request, block_id))]
     pub async fn debug_trace_call_impl(
         &self,
         request: CallRequest,
-        block: Option<BlockId>,
+        block_id: Option<BlockId>,
         options: Option<TracerConfig>,
     ) -> Result<DebugCall, Web3Error> {
+        const METHOD_NAME: &str = "debug_trace_call";
         let start = Instant::now();
         let only_top_call = options
             .map(|options| options.tracer_config.only_top_call)
             .unwrap_or(false);
 
-        let block = block.unwrap_or(BlockId::Number(BlockNumber::Pending));
+        let block = block_id.unwrap_or(BlockId::Number(BlockNumber::Pending));
         let mut connection = self.connection_pool.access_storage_tagged("api").await;
         let block_args = BlockArgs::new(&mut connection, block)
             .await
@@ -136,13 +141,15 @@ impl DebugNamespace {
             .ok_or(Web3Error::NoBlock)?;
         drop(connection);
 
-        let tx = l2_tx_from_call_req(request, USED_BOOTLOADER_MEMORY_BYTES)?;
+        let tx = L2Tx::from_request(request.into(), USED_BOOTLOADER_MEMORY_BYTES)?;
 
         let shared_args = self.shared_args();
         let vm_permit = self.vm_concurrency_limiter.acquire().await;
+        let vm_permit = vm_permit.ok_or(Web3Error::InternalError)?;
+
         // We don't need properly trace if we only need top call
         let result = execute_tx_eth_call(
-            &vm_permit,
+            vm_permit,
             shared_args,
             self.connection_pool.clone(),
             tx.clone(),
@@ -155,7 +162,6 @@ impl DebugNamespace {
             let submit_tx_error = SubmitTxError::from(err);
             Web3Error::SubmitTransactionError(submit_tx_error.to_string(), submit_tx_error.data())
         })?;
-        drop(vm_permit); // Unblock other VMs to enter.
 
         let (output, revert_reason) = match result.revert_reason {
             Some(result) => (vec![], Some(result.revert_reason.to_string())),
@@ -178,7 +184,8 @@ impl DebugNamespace {
             trace,
         );
 
-        metrics::histogram!("api.web3.call", start.elapsed(), "method" => "debug_trace_call");
+        metrics::histogram!("api.web3.call", start.elapsed(), "method" => METHOD_NAME, "block_id" => block.extract_block_tag());
+
         Ok(call.into())
     }
 
@@ -188,7 +195,7 @@ impl DebugNamespace {
             l1_gas_price: 100_000,
             fair_l2_gas_price: self.fair_l2_gas_price,
             base_system_contracts: self.base_system_contracts.clone(),
-            factory_deps_cache: self.factory_deps_cache.clone(),
+            caches: self.storage_caches.clone(),
         }
     }
 }

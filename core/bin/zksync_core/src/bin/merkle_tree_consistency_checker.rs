@@ -1,10 +1,11 @@
 use clap::Parser;
 
-use std::{num::NonZeroU32, time::Instant};
+use std::time::Instant;
 
 use zksync_config::DBConfig;
 use zksync_merkle_tree::domain::ZkSyncTree;
 use zksync_storage::RocksDB;
+use zksync_types::L1BatchNumber;
 
 #[derive(Debug, Parser)]
 #[command(
@@ -14,28 +15,34 @@ use zksync_storage::RocksDB;
     long_about = None
 )]
 struct Cli {
-    /// Specifies the version of the tree to be checked, expressed as a non-zero number
-    /// of blocks applied to it. By default, the latest tree version is checked.
-    #[arg(long = "blocks")]
-    blocks: Option<NonZeroU32>,
+    /// Specifies the version of the tree to be checked, expressed as a 0-based L1 batch number
+    /// applied to it last. If not specified, the latest tree version is checked.
+    #[arg(long = "l1-batch")]
+    l1_batch: Option<u32>,
 }
 
 impl Cli {
     fn run(self, config: &DBConfig) {
-        let db_path = &config.new_merkle_tree_ssd_path;
+        let db_path = &config.merkle_tree.path;
         vlog::info!("Verifying consistency of Merkle tree at {db_path}");
         let start = Instant::now();
         let db = RocksDB::new(db_path, true);
         let tree = ZkSyncTree::new_lightweight(db);
 
-        let block_number = self.blocks.or_else(|| NonZeroU32::new(tree.block_number()));
-        if let Some(block_number) = block_number {
-            vlog::info!("Block number to check: {block_number}");
-            tree.verify_consistency(block_number);
-            vlog::info!("Merkle tree verified in {:?}", start.elapsed());
+        let l1_batch_number = if let Some(number) = self.l1_batch {
+            L1BatchNumber(number)
         } else {
-            vlog::info!("Merkle tree is empty, skipping");
-        }
+            let next_number = tree.next_l1_batch_number();
+            if next_number == L1BatchNumber(0) {
+                vlog::info!("Merkle tree is empty, skipping");
+                return;
+            }
+            next_number - 1
+        };
+
+        vlog::info!("L1 batch number to check: {l1_batch_number}");
+        tree.verify_consistency(l1_batch_number);
+        vlog::info!("Merkle tree verified in {:?}", start.elapsed());
     }
 }
 

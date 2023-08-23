@@ -7,9 +7,7 @@ members = [
     # Server
     "core/bin/zksync_core",
     "core/bin/external_node",
-    "core/bin/admin-tools",
     "core/bin/system-constants-generator",
-    "core/bin/test_node",
     "core/tests/cross_external_nodes_checker",
     # Contract verifier
     "core/bin/contract-verifier",
@@ -20,7 +18,7 @@ members = [
     #"core/bin/witness_generator",
     # circuit synthesizer: its commented as it cannot be built with stable rust.
     # "core/bin/circuit_synthesizer",
-    "core/bin/l1_tx_effective_gas_price_migration",
+    "core/bin/enumeration_indices_migration",
     # Libraries
     "core/lib/basic_types",
     "core/lib/config",
@@ -44,7 +42,12 @@ members = [
     "core/lib/utils",
     "core/lib/vlog",
     "core/lib/vm",
+    "core/lib/multivm",
     "core/lib/web3_decl",
+
+    # MultiVM dependencies
+    "core/multivm_deps/vm_m5",
+    "core/multivm_deps/vm_m6",
 
     # Test infrastructure
     "core/tests/loadnext",
@@ -56,7 +59,7 @@ members = [
 ]
 resolver = "2"
 
-exclude = [ "core/bin/prover", "core/bin/circuit_synthesizer", "core/bin/setup_key_generator_and_server", "core/bin/witness_generator", "core/bin/vk_setup_data_generator_server_fri", "core/bin/prover_fri"]
+exclude = []
 
 # for `perf` profiling
 [profile.perf]

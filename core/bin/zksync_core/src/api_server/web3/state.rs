@@ -1,7 +1,4 @@
 use std::collections::HashMap;
-#[cfg(feature = "openzeppelin_tests")]
-use std::collections::HashSet;
-use std::convert::TryInto;
 use std::sync::Arc;
 
 use tokio::sync::RwLock;
@@ -12,7 +9,6 @@ use crate::api_server::web3::{backend_jsonrpc::error::internal_error, resolve_bl
 use crate::sync_layer::SyncState;
 
 use zksync_dal::ConnectionPool;
-use zksync_eth_signer::PrivateKeySigner;
 
 use zksync_types::{
     api, l2::L2Tx, transaction_request::CallRequest, Address, L1ChainId, L2ChainId,
@@ -38,6 +34,7 @@ pub struct InternalApiConfig {
     pub diamond_proxy_addr: Address,
     pub l2_testnet_paymaster_addr: Option<Address>,
     pub req_entities_limit: usize,
+    pub fee_history_limit: u64,
 }
 
 impl InternalApiConfig {
@@ -62,6 +59,7 @@ impl InternalApiConfig {
             diamond_proxy_addr: contracts_config.diamond_proxy_addr,
             l2_testnet_paymaster_addr: contracts_config.l2_testnet_paymaster_addr,
             req_entities_limit: web3_config.req_entities_limit(),
+            fee_history_limit: web3_config.fee_history_limit(),
         }
     }
 }
@@ -74,9 +72,6 @@ pub struct RpcState<E> {
     pub tx_sender: TxSender<E>,
     pub sync_state: Option<SyncState>,
     pub(super) api_config: InternalApiConfig,
-    pub accounts: HashMap<Address, PrivateKeySigner>,
-    #[cfg(feature = "openzeppelin_tests")]
-    pub known_bytecodes: Arc<RwLock<HashSet<Vec<u8>>>>,
 }
 
 // Custom implementation is required due to generic param:
@@ -90,9 +85,6 @@ impl<E> Clone for RpcState<E> {
             tx_sender: self.tx_sender.clone(),
             sync_state: self.sync_state.clone(),
             api_config: self.api_config.clone(),
-            accounts: self.accounts.clone(),
-            #[cfg(feature = "openzeppelin_tests")]
-            known_bytecodes: self.known_bytecodes.clone(),
         }
     }
 }
@@ -100,10 +92,12 @@ impl<E> Clone for RpcState<E> {
 impl<E> RpcState<E> {
     pub fn parse_transaction_bytes(&self, bytes: &[u8]) -> Result<(L2Tx, H256), Web3Error> {
         let chain_id = self.api_config.l2_chain_id;
-        let (tx_request, hash) =
-            api::TransactionRequest::from_bytes(bytes, chain_id.0, self.api_config.max_tx_size)?;
+        let (tx_request, hash) = api::TransactionRequest::from_bytes(bytes, chain_id.0)?;
 
-        Ok((tx_request.try_into()?, hash))
+        Ok((
+            L2Tx::from_request(tx_request, self.api_config.max_tx_size)?,
+            hash,
+        ))
     }
 
     pub fn u64_to_block_number(n: U64) -> MiniblockNumber {

@@ -5,7 +5,7 @@
 //! values to check the local zkSync deployment.
 
 use loadnext::{
-    command::{ExplorerApiRequestType, TxType},
+    command::TxType,
     config::{ExecutionConfig, LoadtestConfig},
     executor::Executor,
     report_collector::LoadtestResult,
@@ -25,15 +25,10 @@ async fn main() -> anyhow::Result<()> {
     let prometheus_config: Option<PrometheusConfig> = envy::prefixed("PROMETHEUS_").from_env().ok();
 
     TxType::initialize_weights(&execution_config.transaction_weights);
-    ExplorerApiRequestType::initialize_weights(&execution_config.explorer_api_config_weights);
 
     vlog::info!(
         "Run with tx weights: {:?}",
         execution_config.transaction_weights
-    );
-    vlog::info!(
-        "Run explorer api weights: {:?}",
-        execution_config.explorer_api_config_weights
     );
     let mut executor = Executor::new(config, execution_config).await?;
 

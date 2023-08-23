@@ -2,7 +2,7 @@
 # Not expected to work locally
 
 # syntax=docker/dockerfile:experimental
-FROM rust:1.67-buster as builder
+FROM rust:1.67-bookworm as builder
 RUN apt-get update && apt-get install -y clang && rm -rf /var/lib/apt/lists/*
 WORKDIR /usr/src/zksync
 COPY . .
@@ -10,7 +10,7 @@ COPY . .
 RUN CARGO_HOME=./cargo cargo build --release
 RUN CARGO_HOME=./cargo cargo install sqlx-cli --version 0.5.13
 
-FROM debian:buster-slim
+FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y curl libpq5 ca-certificates && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /usr/src/zksync/target/release/zksync_external_node /usr/bin

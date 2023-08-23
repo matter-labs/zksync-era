@@ -3,7 +3,7 @@ use zksync_config::configs::ProverGroupConfig;
 use zksync_dal::ConnectionPool;
 use zksync_prover_utils::circuit_name_to_numeric_index;
 
-use crate::house_keeper::periodic_job::PeriodicJob;
+use zksync_prover_utils::periodic_job::PeriodicJob;
 
 #[derive(Debug)]
 pub struct ProverStatsReporter {

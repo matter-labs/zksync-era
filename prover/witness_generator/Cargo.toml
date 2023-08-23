@@ -1,0 +1,43 @@
+[package]
+name = "zksync_witness_generator"
+version = "1.0.0"
+edition = "2018"
+authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
+homepage = "https://zksync.io/"
+repository = "https://github.com/matter-labs/zksync-era"
+license = "MIT OR Apache-2.0"
+keywords = ["blockchain", "zksync"]
+categories = ["cryptography"]
+publish = false # We don't want to publish our binaries.
+
+[dependencies]
+zksync_dal = { path = "../../core/lib/dal", version = "1.0" }
+zksync_config = { path = "../../core/lib/config", version = "1.0" }
+prometheus_exporter = { path = "../../core/lib/prometheus_exporter", version = "1.0" }
+vlog = { path = "../../core/lib/vlog", version = "1.0" }
+zksync_queued_job_processor = { path = "../../core/lib/queued_job_processor", version = "1.0" }
+vm = { path = "../../core/lib/vm", version = "0.1.0" }
+zksync_object_store = { path = "../../core/lib/object_store", version = "1.0" }
+zksync_types = { path = "../../core/lib/types", version = "1.0" }
+zksync_state = { path = "../../core/lib/state", version = "1.0" }
+zksync_utils = { path = "../../core/lib/utils", version = "1.0" }
+vk_setup_data_generator_server_fri = { path = "../vk_setup_data_generator_server_fri", version = "1.0" }
+zksync_prover_utils = { path = "../../core/lib/prover_utils", version = "1.0" }
+zksync_prover_fri_types = { path = "../prover_fri_types", version = "1.0" }
+zksync_prover_fri_utils = { path = "../prover_fri_utils", version = "1.0" }
+
+zkevm_test_harness = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.4.0" }
+circuit_definitions = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.4.0", features = ["log_tracing"]}
+zk_evm = { git = "https://github.com/matter-labs/era-zk_evm.git", branch = "v1.4.0" }
+
+tokio = { version = "1", features = ["time"] }
+futures = { version = "0.3", features = ["compat"] }
+metrics = "0.20"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+async-trait = "0.1"
+bincode = "1"
+rand = "0.8"
+hex = "0.4"
+structopt = "0.3.26"
+ctrlc = { version = "3.1", features = ["termination"] }

@@ -75,9 +75,10 @@ async fn main() -> anyhow::Result<()> {
     let contracts = ContractsConfig::from_env();
     let config = BlockReverterEthConfig::new(eth_sender, contracts, eth_client.web3_url.clone());
 
-    let connection_pool = ConnectionPool::new(None, DbVariant::Master).await;
+    let connection_pool = ConnectionPool::builder(DbVariant::Master).build().await;
     let block_reverter = BlockReverter::new(
-        db_config,
+        db_config.state_keeper_db_path,
+        db_config.merkle_tree.path,
         Some(config),
         connection_pool,
         L1ExecutedBatchesRevert::Disallowed,

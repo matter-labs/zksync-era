@@ -21,15 +21,16 @@ mod cache;
 mod in_memory;
 mod postgres;
 mod rocksdb;
+mod shadow_storage;
 mod storage_view;
 #[cfg(test)]
 mod test_utils;
 
 pub use self::{
     in_memory::InMemoryStorage,
-    postgres::FactoryDepsCache,
-    postgres::PostgresStorage,
+    postgres::{PostgresStorage, PostgresStorageCaches},
     rocksdb::RocksdbStorage,
+    shadow_storage::ShadowStorage,
     storage_view::{StorageView, StorageViewMetrics},
 };
 

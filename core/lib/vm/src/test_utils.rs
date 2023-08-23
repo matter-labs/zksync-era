@@ -31,6 +31,7 @@ use crate::{
         AppDataFrameManagerWithHistory, HistoryEnabled, HistoryMode, HistoryRecorder,
     },
     memory::SimpleMemory,
+    vm::ZkSyncVmState,
     VmInstance,
 };
 
@@ -328,4 +329,19 @@ pub fn get_create_zksync_address(sender_address: Address, sender_nonce: Nonce) -
     let hash = keccak256(&digest);
 
     h256_to_account_address(&H256(hash))
+}
+
+pub fn verify_required_storage<H: HistoryMode>(
+    state: &ZkSyncVmState<'_, H>,
+    required_values: Vec<(H256, StorageKey)>,
+) {
+    for (required_value, key) in required_values {
+        let current_value = state.storage.storage.read_from_storage(&key);
+
+        assert_eq!(
+            u256_to_h256(current_value),
+            required_value,
+            "Invalid value at key {key:?}"
+        );
+    }
 }

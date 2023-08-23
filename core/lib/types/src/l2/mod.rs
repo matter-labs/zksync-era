@@ -8,7 +8,7 @@ use crate::{
     api, tx::primitives::PackedEthSignature, tx::Execute, web3::types::U64, Address, Bytes,
     EIP712TypedStructure, Eip712Domain, ExecuteTransactionCommon, InputData, L2ChainId, Nonce,
     StructBuilder, Transaction, EIP_1559_TX_TYPE, EIP_712_TX_TYPE, H256,
-    PRIORITY_OPERATION_L2_TX_TYPE, U256,
+    PRIORITY_OPERATION_L2_TX_TYPE, PROTOCOL_UPGRADE_TX_TYPE, U256,
 };
 
 use serde::{Deserialize, Serialize};
@@ -30,6 +30,7 @@ pub enum TransactionType {
     // Eip 712 transaction with additional fields specified for zksync
     EIP712Transaction = EIP_712_TX_TYPE as u32,
     PriorityOpTransaction = PRIORITY_OPERATION_L2_TX_TYPE as u32,
+    ProtocolUpgradeTransaction = PROTOCOL_UPGRADE_TX_TYPE as u32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -375,7 +376,7 @@ impl From<L2Tx> for api::Transaction {
 }
 
 impl TryFrom<Transaction> for L2Tx {
-    type Error = ();
+    type Error = &'static str;
 
     fn try_from(value: Transaction) -> Result<Self, Self::Error> {
         let Transaction {
@@ -384,12 +385,15 @@ impl TryFrom<Transaction> for L2Tx {
             received_timestamp_ms,
         } = value;
         match common_data {
-            ExecuteTransactionCommon::L1(_) => Err(()),
+            ExecuteTransactionCommon::L1(_) => Err("Cannot convert L1Tx to L2Tx"),
             ExecuteTransactionCommon::L2(common_data) => Ok(L2Tx {
                 execute,
                 common_data,
                 received_timestamp_ms,
             }),
+            ExecuteTransactionCommon::ProtocolUpgrade(_) => {
+                Err("Cannot convert ProtocolUpgradeTx to L2Tx")
+            }
         }
     }
 }

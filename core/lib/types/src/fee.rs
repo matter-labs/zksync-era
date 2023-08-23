@@ -63,7 +63,7 @@ pub fn encoding_len(
     const BASE_LEN: usize = 1 + 19 + 5;
 
     // All of the fields are encoded as `bytes`, so their encoding takes ceil(len, 32) slots.
-    // Factory deps are encoded as an array of bytes32.
+    // For factory deps we only provide hashes, which are encoded as an array of bytes32.
     let dynamic_len = ceil_div(data_len, 32)
         + ceil_div(signature_len, 32)
         + ceil_div(paymaster_input_len, 32)

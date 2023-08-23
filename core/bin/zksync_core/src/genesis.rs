@@ -3,35 +3,33 @@
 //! setups the required databases, and outputs the data required to initialize a smart contract.
 
 use vm::zk_evm::aux_structures::{LogQuery, Timestamp};
-use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes};
+use zksync_contracts::BaseSystemContracts;
 use zksync_dal::StorageProcessor;
 use zksync_merkle_tree::domain::ZkSyncTree;
 use zksync_types::{
     block::DeployedContract,
     block::{BlockGasCount, L1BatchHeader, MiniblockHeader},
-    commitment::{BlockCommitment, BlockMetadata},
+    commitment::{L1BatchCommitment, L1BatchMetadata},
     get_code_key, get_system_context_init_logs,
-    system_contracts::get_system_smart_contracts,
+    protocol_version::{L1VerifierConfig, ProtocolVersion},
     tokens::{TokenInfo, TokenMetadata, ETHEREUM_ADDRESS},
     zkevm_test_harness::witness::sort_storage_access::sort_storage_access_queries,
-    Address, L1BatchNumber, L2ChainId, MiniblockNumber, StorageLog, StorageLogKind, H256,
+    AccountTreeId, Address, L1BatchNumber, L2ChainId, MiniblockNumber, ProtocolVersionId,
+    StorageKey, StorageLog, StorageLogKind, H256,
 };
-use zksync_utils::{be_words_to_bytes, bytecode::hash_bytecode, h256_to_u256, miniblock_hash};
-use zksync_web3_decl::{jsonrpsee::http_client::HttpClientBuilder, namespaces::ZksNamespaceClient};
+use zksync_utils::{
+    be_words_to_bytes, bytecode::hash_bytecode, h256_to_u256, miniblock_hash, u256_to_h256,
+};
 
-use crate::{
-    metadata_calculator::get_logs_for_l1_batch, sync_layer::genesis::fetch_base_system_contracts,
-};
+use crate::metadata_calculator::L1BatchWithLogs;
 
 #[derive(Debug, Clone)]
-pub enum GenesisParams {
-    MainNode {
-        first_validator: Address,
-    },
-    ExternalNode {
-        main_node_url: String,
-        base_system_contracts_hashes: BaseSystemContractsHashes,
-    },
+pub struct GenesisParams {
+    pub first_validator: Address,
+    pub base_system_contracts: BaseSystemContracts,
+    pub system_contracts: Vec<DeployedContract>,
+    pub first_verifier_address: Address,
+    pub first_l1_verifier_config: L1VerifierConfig,
 }
 
 pub async fn ensure_genesis_state(
@@ -46,65 +44,41 @@ pub async fn ensure_genesis_state(
         vlog::debug!("genesis is not needed!");
         return transaction
             .blocks_dal()
-            .get_block_state_root(L1BatchNumber(0))
+            .get_l1_batch_state_root(L1BatchNumber(0))
             .await
             .expect("genesis block hash is empty");
     }
 
     vlog::info!("running regenesis");
-
-    // If running main node, load base system contracts from disk.
-    // If running external node, request contracts and first validator address from the main node.
-    let (base_system_contracts, first_validator_address) = match genesis_params {
-        GenesisParams::ExternalNode {
-            main_node_url,
-            base_system_contracts_hashes,
-        } => {
-            if main_node_url.contains("mainnet") || main_node_url.contains("testnet") {
-                panic!("EN is still WIP. Can't run genesis for mainnet/testnet");
-            }
-
-            // These have to be *initial* base contract hashes of main node
-            // (those that were used during genesis), not necessarily the current ones.
-            let contracts =
-                fetch_base_system_contracts(main_node_url, *base_system_contracts_hashes)
-                    .await
-                    .expect("Failed to fetch base system contracts from main node");
-
-            let client = HttpClientBuilder::default().build(main_node_url).unwrap();
-            let first_validator = client
-                .get_block_details(MiniblockNumber(0))
-                .await
-                .ok()
-                .flatten()
-                .expect("Failed to fetch genesis miniblock")
-                .operator_address;
-
-            (contracts, first_validator)
-        }
-        GenesisParams::MainNode { first_validator } => {
-            (BaseSystemContracts::load_from_disk(), *first_validator)
-        }
-    };
+    let GenesisParams {
+        first_validator,
+        base_system_contracts,
+        system_contracts,
+        first_verifier_address,
+        first_l1_verifier_config,
+    } = genesis_params;
 
     let base_system_contracts_hashes = base_system_contracts.hashes();
 
-    create_genesis_block(
+    create_genesis_l1_batch(
         &mut transaction,
-        first_validator_address,
+        *first_validator,
         zksync_chain_id,
         base_system_contracts,
+        system_contracts,
+        *first_l1_verifier_config,
+        *first_verifier_address,
     )
     .await;
     vlog::info!("chain_schema_genesis is complete");
 
-    let storage_logs = get_logs_for_l1_batch(&mut transaction, L1BatchNumber(0)).await;
+    let storage_logs = L1BatchWithLogs::new(&mut transaction, L1BatchNumber(0)).await;
     let storage_logs = storage_logs.unwrap().storage_logs;
     let metadata = ZkSyncTree::process_genesis_batch(&storage_logs);
     let genesis_root_hash = metadata.root_hash;
     let rollup_last_leaf_index = metadata.leaf_count + 1;
 
-    let block_commitment = BlockCommitment::new(
+    let block_commitment = L1BatchCommitment::new(
         vec![],
         rollup_last_leaf_index,
         genesis_root_hash,
@@ -114,7 +88,7 @@ pub async fn ensure_genesis_state(
         base_system_contracts_hashes.default_aa,
     );
 
-    save_genesis_block_metadata(
+    save_genesis_l1_batch_metadata(
         &mut transaction,
         &block_commitment,
         genesis_root_hash,
@@ -155,9 +129,9 @@ pub async fn ensure_genesis_state(
 // because in this case we will have to worry about protecting it.
 async fn insert_base_system_contracts_to_factory_deps(
     storage: &mut StorageProcessor<'_>,
-    contracts: BaseSystemContracts,
+    contracts: &BaseSystemContracts,
 ) {
-    let factory_deps = [contracts.bootloader, contracts.default_aa]
+    let factory_deps = [&contracts.bootloader, &contracts.default_aa]
         .iter()
         .map(|c| (c.hash, be_words_to_bytes(&c.code)))
         .collect();
@@ -170,14 +144,13 @@ async fn insert_base_system_contracts_to_factory_deps(
 
 async fn insert_system_contracts(
     storage: &mut StorageProcessor<'_>,
-    contracts: Vec<DeployedContract>,
+    contracts: &[DeployedContract],
     chain_id: L2ChainId,
 ) {
     let system_context_init_logs = (H256::default(), get_system_context_init_logs(chain_id));
 
     let storage_logs: Vec<(H256, Vec<StorageLog>)> = contracts
-        .clone()
-        .into_iter()
+        .iter()
         .map(|contract| {
             let hash = hash_bytecode(&contract.bytecode);
             let code_key = get_code_key(contract.account_id.address());
@@ -236,9 +209,14 @@ async fn insert_system_contracts(
         .storage_logs_dedup_dal()
         .insert_protective_reads(L1BatchNumber(0), &protective_reads)
         .await;
+
+    let written_storage_keys: Vec<_> = deduplicated_writes
+        .iter()
+        .map(|log| StorageKey::new(AccountTreeId::new(log.address), u256_to_h256(log.key)))
+        .collect();
     transaction
         .storage_logs_dedup_dal()
-        .insert_initial_writes(L1BatchNumber(0), &deduplicated_writes)
+        .insert_initial_writes(L1BatchNumber(0), &written_storage_keys)
         .await;
 
     transaction
@@ -247,8 +225,8 @@ async fn insert_system_contracts(
         .await;
 
     let factory_deps = contracts
-        .into_iter()
-        .map(|c| (hash_bytecode(&c.bytecode), c.bytecode))
+        .iter()
+        .map(|c| (hash_bytecode(&c.bytecode), c.bytecode.clone()))
         .collect();
     transaction
         .storage_dal()
@@ -258,21 +236,34 @@ async fn insert_system_contracts(
     transaction.commit().await;
 }
 
-pub(crate) async fn create_genesis_block(
+pub(crate) async fn create_genesis_l1_batch(
     storage: &mut StorageProcessor<'_>,
     first_validator_address: Address,
     chain_id: L2ChainId,
-    base_system_contracts: BaseSystemContracts,
+    base_system_contracts: &BaseSystemContracts,
+    system_contracts: &[DeployedContract],
+    l1_verifier_config: L1VerifierConfig,
+    verifier_address: Address,
 ) {
-    let mut zero_block_header = L1BatchHeader::new(
+    let version = ProtocolVersion {
+        id: ProtocolVersionId::latest(),
+        timestamp: 0,
+        l1_verifier_config,
+        base_system_contracts_hashes: base_system_contracts.hashes(),
+        verifier_address,
+        tx: None,
+    };
+
+    let mut genesis_l1_batch_header = L1BatchHeader::new(
         L1BatchNumber(0),
         0,
         first_validator_address,
         base_system_contracts.hashes(),
+        ProtocolVersionId::latest(),
     );
-    zero_block_header.is_finished = true;
+    genesis_l1_batch_header.is_finished = true;
 
-    let zero_miniblock_header = MiniblockHeader {
+    let genesis_miniblock_header = MiniblockHeader {
         number: MiniblockNumber(0),
         timestamp: 0,
         hash: miniblock_hash(MiniblockNumber(0)),
@@ -282,17 +273,22 @@ pub(crate) async fn create_genesis_block(
         l1_gas_price: 0,
         l2_fair_gas_price: 0,
         base_system_contracts_hashes: base_system_contracts.hashes(),
+        protocol_version: Some(ProtocolVersionId::latest()),
     };
 
     let mut transaction = storage.start_transaction().await;
 
     transaction
-        .blocks_dal()
-        .insert_l1_batch(&zero_block_header, BlockGasCount::default())
+        .protocol_versions_dal()
+        .save_protocol_version(version)
         .await;
     transaction
         .blocks_dal()
-        .insert_miniblock(&zero_miniblock_header)
+        .insert_l1_batch(&genesis_l1_batch_header, &[], BlockGasCount::default())
+        .await;
+    transaction
+        .blocks_dal()
+        .insert_miniblock(&genesis_miniblock_header)
         .await;
     transaction
         .blocks_dal()
@@ -300,9 +296,7 @@ pub(crate) async fn create_genesis_block(
         .await;
 
     insert_base_system_contracts_to_factory_deps(&mut transaction, base_system_contracts).await;
-
-    let contracts = get_system_smart_contracts();
-    insert_system_contracts(&mut transaction, contracts, chain_id).await;
+    insert_system_contracts(&mut transaction, system_contracts, chain_id).await;
 
     add_eth_token(&mut transaction).await;
 
@@ -334,31 +328,31 @@ pub(crate) async fn add_eth_token(storage: &mut StorageProcessor<'_>) {
     transaction.commit().await;
 }
 
-pub(crate) async fn save_genesis_block_metadata(
+pub(crate) async fn save_genesis_l1_batch_metadata(
     storage: &mut StorageProcessor<'_>,
-    block_commitment: &BlockCommitment,
+    commitment: &L1BatchCommitment,
     genesis_root_hash: H256,
     rollup_last_leaf_index: u64,
 ) {
-    let block_commitment_hash = block_commitment.hash();
+    let commitment_hash = commitment.hash();
 
-    let metadata = BlockMetadata {
+    let metadata = L1BatchMetadata {
         root_hash: genesis_root_hash,
         rollup_last_leaf_index,
         merkle_root_hash: genesis_root_hash,
         initial_writes_compressed: vec![],
         repeated_writes_compressed: vec![],
-        commitment: block_commitment_hash.commitment,
+        commitment: commitment_hash.commitment,
         l2_l1_messages_compressed: vec![],
         l2_l1_merkle_root: Default::default(),
-        block_meta_params: block_commitment.meta_parameters(),
-        aux_data_hash: block_commitment_hash.aux_output,
-        meta_parameters_hash: block_commitment_hash.meta_parameters,
-        pass_through_data_hash: block_commitment_hash.pass_through_data,
+        block_meta_params: commitment.meta_parameters(),
+        aux_data_hash: commitment_hash.aux_output,
+        meta_parameters_hash: commitment_hash.meta_parameters,
+        pass_through_data_hash: commitment_hash.pass_through_data,
     };
     storage
         .blocks_dal()
-        .save_block_metadata(L1BatchNumber(0), &metadata)
+        .save_genesis_l1_batch_metadata(&metadata)
         .await;
 }
 
@@ -366,6 +360,7 @@ pub(crate) async fn save_genesis_block_metadata(
 mod tests {
     use db_test_macro::db_test;
     use zksync_dal::ConnectionPool;
+    use zksync_types::system_contracts::get_system_smart_contracts;
 
     use super::*;
 
@@ -374,13 +369,20 @@ mod tests {
         let mut conn = pool.access_storage().await;
         conn.blocks_dal().delete_genesis().await;
 
-        let params = GenesisParams::MainNode {
+        let params = GenesisParams {
             first_validator: Address::random(),
+            base_system_contracts: BaseSystemContracts::load_from_disk(),
+            system_contracts: get_system_smart_contracts(),
+            first_l1_verifier_config: L1VerifierConfig::default(),
+            first_verifier_address: Address::random(),
         };
         ensure_genesis_state(&mut conn, L2ChainId(270), &params).await;
 
         assert!(!conn.blocks_dal().is_genesis_needed().await);
-        let metadata = conn.blocks_dal().get_block_metadata(L1BatchNumber(0)).await;
+        let metadata = conn
+            .blocks_dal()
+            .get_l1_batch_metadata(L1BatchNumber(0))
+            .await;
         let root_hash = metadata.unwrap().metadata.root_hash;
         assert_ne!(root_hash, H256::zero());
 

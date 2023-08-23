@@ -109,6 +109,7 @@ impl From<DeserializeErrorKind> for DeserializeError {
 
 impl DeserializeError {
     /// Appends a context to this error.
+    #[must_use]
     pub fn with_context(mut self, context: ErrorContext) -> Self {
         self.contexts.push(context);
         self

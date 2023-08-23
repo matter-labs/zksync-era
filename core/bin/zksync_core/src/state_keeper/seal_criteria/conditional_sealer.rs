@@ -53,7 +53,7 @@ impl ConditionalSealer {
         block_data: &SealData,
         tx_data: &SealData,
     ) -> SealResolution {
-        vlog::debug!(
+        vlog::trace!(
             "Determining seal resolution for L1 batch #{l1_batch_number} with {tx_count} transactions \
              and metrics {:?}",
             block_data.execution_metrics

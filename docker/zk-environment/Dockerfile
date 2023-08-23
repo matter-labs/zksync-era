@@ -24,14 +24,18 @@ RUN apt-get update && apt-get install -y \
     ca-certificates \
     gnupg2
 
-# Install dependencies for RocksDB
-RUN apt-get install -y \
-    curl \
-    gnutls-bin git \
-    build-essential \
-    clang-7 \
-    lldb-7 \
-    lld-7
+# Install dependencies for RocksDB. `liburing` is not available for Ubuntu 20.04,
+# so we use a PPA with the backport
+RUN add-apt-repository ppa:savoury1/virtualisation && \
+    apt-get update && \
+    apt-get install -y \
+        curl \
+        gnutls-bin git \
+        build-essential \
+        clang-7 \
+        lldb-7 \
+        lld-7 \
+        liburing-dev
 
 # Install docker engine
 RUN curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
@@ -67,13 +71,13 @@ RUN cargo install --version=0.5.6 sqlx-cli
 RUN cargo install cargo-tarpaulin
 
 # Copy compiler (both solc and zksolc) binaries
-# Obtain `solc` 0.8.12.
-RUN wget https://github.com/ethereum/solc-bin/raw/gh-pages/linux-amd64/solc-linux-amd64-v0.8.12%2Bcommit.f00d7308 \
-    && mv solc-linux-amd64-v0.8.12+commit.f00d7308 /usr/bin/solc \
+# Obtain `solc` 0.8.20.
+RUN wget https://github.com/ethereum/solc-bin/raw/gh-pages/linux-amd64/solc-linux-amd64-v0.8.20%2Bcommit.a1b79de6 \
+    && mv solc-linux-amd64-v0.8.20+commit.a1b79de6 /usr/bin/solc \
     && chmod +x /usr/bin/solc
-# Obtain `zksolc` 1.1.5.
-RUN wget https://github.com/matter-labs/zksolc-bin/raw/main/linux-amd64/zksolc-linux-amd64-musl-v1.1.6 \
-    && mv zksolc-linux-amd64-musl-v1.1.6 /usr/bin/zksolc \
+# Obtain `zksolc` 1.3.13.
+RUN wget https://github.com/matter-labs/zksolc-bin/raw/main/linux-amd64/zksolc-linux-amd64-musl-v1.3.13 \
+    && mv zksolc-linux-amd64-musl-v1.3.13 /usr/bin/zksolc \
     && chmod +x /usr/bin/zksolc
 
 # Setup the environment

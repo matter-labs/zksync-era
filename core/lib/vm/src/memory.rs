@@ -11,10 +11,21 @@ use crate::history_recorder::{
 use crate::oracles::OracleWithHistory;
 use crate::utils::{aux_heap_page_from_base, heap_page_from_base, stack_page_from_base};
 
-#[derive(Debug, Clone, PartialEq, Default)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct SimpleMemory<H: HistoryMode> {
     pub memory: MemoryWithHistory<H>,
     pub observable_pages: IntFrameManagerWithHistory<u32, H>,
+}
+
+impl<H: HistoryMode> Default for SimpleMemory<H> {
+    fn default() -> Self {
+        let mut memory: MemoryWithHistory<H> = Default::default();
+        memory.mutate_history(|_, h| h.reserve(607));
+        Self {
+            memory,
+            observable_pages: Default::default(),
+        }
+    }
 }
 
 impl OracleWithHistory for SimpleMemory<HistoryEnabled> {
@@ -107,13 +118,7 @@ impl<H: HistoryMode> SimpleMemory<H> {
 
     pub fn get_size(&self) -> usize {
         // Hashmap memory overhead is neglected.
-        let memory_size = self
-            .memory
-            .inner()
-            .memory
-            .iter()
-            .map(|page| page.len() * std::mem::size_of::<(usize, PrimitiveValue)>())
-            .sum::<usize>();
+        let memory_size = self.memory.inner().get_size();
         let observable_pages_size = self.observable_pages.inner().get_size();
 
         memory_size + observable_pages_size

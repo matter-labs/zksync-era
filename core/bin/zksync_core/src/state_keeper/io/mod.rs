@@ -11,7 +11,10 @@ use vm::zk_evm::block_properties::BlockProperties;
 use vm::VmBlockResult;
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::ConnectionPool;
-use zksync_types::{L1BatchNumber, MiniblockNumber, Transaction};
+use zksync_types::{
+    block::MiniblockReexecuteData, protocol_version::ProtocolUpgradeTx, L1BatchNumber,
+    MiniblockNumber, ProtocolVersionId, Transaction,
+};
 
 pub(crate) mod common;
 pub(crate) mod mempool;
@@ -32,6 +35,7 @@ pub struct L1BatchParams {
     pub context_mode: BlockContextMode,
     pub properties: BlockProperties,
     pub base_system_contracts: BaseSystemContracts,
+    pub protocol_version: ProtocolVersionId,
 }
 
 /// Contains information about the un-synced execution state:
@@ -48,7 +52,7 @@ pub struct PendingBatchData {
     /// (e.g. timestamp) are the same, so transaction would have the same result after re-execution.
     pub(crate) params: L1BatchParams,
     /// List of miniblocks and corresponding transactions that were executed within batch.
-    pub(crate) txs: Vec<(MiniblockNumber, Vec<Transaction>)>,
+    pub(crate) pending_miniblocks: Vec<MiniblockReexecuteData>,
 }
 
 /// `StateKeeperIO` provides the interactive layer for the state keeper:
@@ -68,7 +72,11 @@ pub trait StateKeeperIO: 'static + Send {
     async fn wait_for_new_batch_params(&mut self, max_wait: Duration) -> Option<L1BatchParams>;
     /// Blocks for up to `max_wait` until the parameters for the next miniblock are available.
     /// Right now it's only a timestamp.
-    async fn wait_for_new_miniblock_params(&mut self, max_wait: Duration) -> Option<u64>;
+    async fn wait_for_new_miniblock_params(
+        &mut self,
+        max_wait: Duration,
+        prev_miniblock_timestamp: u64,
+    ) -> Option<u64>;
     /// Blocks for up to `max_wait` until the next transaction is available for execution.
     /// Returns `None` if no transaction became available until the timeout.
     async fn wait_for_next_tx(&mut self, max_wait: Duration) -> Option<Transaction>;
@@ -86,6 +94,11 @@ pub trait StateKeeperIO: 'static + Send {
         updates_manager: UpdatesManager,
         block_context: DerivedBlockContext,
     );
+    /// Loads protocol version of the previous l1 batch.
+    async fn load_previous_batch_version_id(&mut self) -> Option<ProtocolVersionId>;
+    /// Loads protocol upgrade tx for given version.
+    async fn load_upgrade_tx(&mut self, version_id: ProtocolVersionId)
+        -> Option<ProtocolUpgradeTx>;
 }
 
 impl fmt::Debug for dyn StateKeeperIO {

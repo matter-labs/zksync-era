@@ -1,15 +1,17 @@
 use rocksdb::{
-    properties, BlockBasedOptions, ColumnFamily, ColumnFamilyDescriptor, DBIterator, IteratorMode,
-    Options, ReadOptions, WriteOptions, DB,
+    properties, BlockBasedOptions, Cache, ColumnFamily, ColumnFamilyDescriptor, DBPinnableSlice,
+    IteratorMode, Options, PrefixRange, ReadOptions, WriteOptions, DB,
 };
 
-use std::collections::HashSet;
-use std::fmt;
-use std::marker::PhantomData;
-use std::ops;
-use std::path::Path;
-use std::sync::{Condvar, Mutex, MutexGuard, PoisonError};
-use std::time::{Duration, Instant};
+use std::{
+    collections::HashSet,
+    fmt,
+    marker::PhantomData,
+    ops,
+    path::Path,
+    sync::{Condvar, Mutex, MutexGuard, PoisonError},
+    time::{Duration, Instant},
+};
 
 use crate::metrics::{describe_metrics, RocksDBSizeStats, WriteMetrics};
 
@@ -60,6 +62,26 @@ impl<CF: NamedColumnFamily> WriteBatch<'_, CF> {
     }
 }
 
+struct RocksDBCaches {
+    /// LRU block cache shared among all column families.
+    shared: Option<Cache>,
+}
+
+impl fmt::Debug for RocksDBCaches {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("RocksDBCaches")
+            .finish_non_exhaustive()
+    }
+}
+
+impl RocksDBCaches {
+    fn new(capacity: Option<usize>) -> Self {
+        let shared = capacity.map(Cache::new_lru_cache);
+        Self { shared }
+    }
+}
+
 /// Thin wrapper around a RocksDB instance.
 #[derive(Debug)]
 pub struct RocksDB<CF> {
@@ -68,15 +90,27 @@ pub struct RocksDB<CF> {
     sizes_reported_at: Mutex<Option<Instant>>,
     _registry_entry: RegistryEntry,
     _cf: PhantomData<CF>,
+    // Importantly, `Cache`s must be dropped after `DB`, so we place them as the last field
+    // (fields in a struct are dropped in the declaration order).
+    _caches: RocksDBCaches,
 }
 
 impl<CF: NamedColumnFamily> RocksDB<CF> {
     const SIZE_REPORT_INTERVAL: Duration = Duration::from_secs(1);
 
     pub fn new<P: AsRef<Path>>(path: P, tune_options: bool) -> Self {
+        Self::with_cache(path, tune_options, None)
+    }
+
+    pub fn with_cache<P: AsRef<Path>>(
+        path: P,
+        tune_options: bool,
+        block_cache_capacity: Option<usize>,
+    ) -> Self {
         describe_metrics();
 
-        let options = Self::rocksdb_options(tune_options);
+        let caches = RocksDBCaches::new(block_cache_capacity);
+        let options = Self::rocksdb_options(tune_options, None);
         let existing_cfs = DB::list_cf(&options, path.as_ref()).unwrap_or_else(|err| {
             vlog::warn!(
                 "Failed getting column families for RocksDB `{}` at `{}`, assuming CFs are empty; {err}",
@@ -109,7 +143,15 @@ impl<CF: NamedColumnFamily> RocksDB<CF> {
 
         // Open obsolete CFs as well; RocksDB initialization will panic otherwise.
         let cfs = cf_names.into_iter().chain(obsolete_cfs).map(|cf_name| {
-            ColumnFamilyDescriptor::new(cf_name, Self::rocksdb_options(tune_options))
+            let mut block_based_options = BlockBasedOptions::default();
+            if tune_options {
+                block_based_options.set_bloom_filter(10.0, false);
+            }
+            if let Some(cache) = &caches.shared {
+                block_based_options.set_block_cache(cache);
+            }
+            let cf_options = Self::rocksdb_options(tune_options, Some(block_based_options));
+            ColumnFamilyDescriptor::new(cf_name, cf_options)
         });
         let db = DB::open_cf_descriptors(&options, path, cfs).expect("failed to init rocksdb");
 
@@ -119,6 +161,7 @@ impl<CF: NamedColumnFamily> RocksDB<CF> {
             sizes_reported_at: Mutex::new(None),
             _registry_entry: RegistryEntry::new(),
             _cf: PhantomData,
+            _caches: caches,
         }
     }
 
@@ -130,14 +173,17 @@ impl<CF: NamedColumnFamily> RocksDB<CF> {
         self
     }
 
-    fn rocksdb_options(tune_options: bool) -> Options {
+    fn rocksdb_options(
+        tune_options: bool,
+        block_based_options: Option<BlockBasedOptions>,
+    ) -> Options {
         let mut options = Options::default();
         options.create_missing_column_families(true);
         options.create_if_missing(true);
         if tune_options {
             options.increase_parallelism(num_cpus::get() as i32);
-            let mut block_based_options = BlockBasedOptions::default();
-            block_based_options.set_bloom_filter(10.0, false);
+        }
+        if let Some(block_based_options) = block_based_options {
             options.set_block_based_table_factory(&block_based_options);
         }
         options
@@ -169,11 +215,21 @@ impl<CF: NamedColumnFamily> RocksDB<CF> {
             .db
             .property_int_value_cf(cf, properties::SIZE_ALL_MEM_TABLES)
             .expect(ERROR_MSG)?;
+        let block_cache_size = self
+            .db
+            .property_int_value_cf(cf, properties::BLOCK_CACHE_USAGE)
+            .expect(ERROR_MSG)?;
+        let index_and_filters_size = self
+            .db
+            .property_int_value_cf(cf, properties::ESTIMATE_TABLE_READERS_MEM)
+            .expect(ERROR_MSG)?;
 
         Some(RocksDBSizeStats {
             estimated_live_data_size,
             total_sst_file_size,
             total_mem_table_size,
+            block_cache_size,
+            index_and_filters_size,
         })
     }
 
@@ -185,18 +241,13 @@ impl<CF: NamedColumnFamily> RocksDB<CF> {
         self.db.multi_get(keys)
     }
 
-    pub fn multi_get_cf<K, I>(
+    pub fn multi_get_cf(
         &self,
         cf: CF,
-        keys: I,
-    ) -> Vec<Result<Option<Vec<u8>>, rocksdb::Error>>
-    where
-        K: AsRef<[u8]>,
-        I: IntoIterator<Item = K>,
-    {
+        keys: impl Iterator<Item = Vec<u8>>,
+    ) -> Vec<Result<Option<DBPinnableSlice<'_>>, rocksdb::Error>> {
         let cf = self.column_family(cf);
-        let keys = keys.into_iter().map(|key| (cf, key));
-        self.db.multi_get_cf(keys)
+        self.db.batched_multi_get_cf(cf, keys, false)
     }
 
     pub fn new_write_batch(&self) -> WriteBatch<'_, CF> {
@@ -257,19 +308,29 @@ impl<CF: NamedColumnFamily> RocksDB<CF> {
 
     /// Iterates over key-value pairs in the specified column family `cf` in the lexical
     /// key order. The keys are filtered so that they start from the specified `prefix`.
-    pub fn prefix_iterator_cf(&self, cf: CF, prefix: &[u8]) -> DBIterator<'_> {
+    pub fn prefix_iterator_cf(
+        &self,
+        cf: CF,
+        prefix: &[u8],
+    ) -> impl Iterator<Item = (Box<[u8]>, Box<[u8]>)> + '_ {
         let cf = self.column_family(cf);
         let mut options = ReadOptions::default();
-        options.set_iterate_lower_bound(prefix);
-        if let Some(next_prefix) = next_prefix(prefix) {
-            options.set_iterate_upper_bound(next_prefix);
-        }
-        self.db.iterator_cf_opt(cf, options, IteratorMode::Start)
+        options.set_iterate_range(PrefixRange(prefix));
+        self.db
+            .iterator_cf_opt(cf, options, IteratorMode::Start)
+            .map(Result::unwrap)
+            .fuse()
+        // ^ The rocksdb docs say that a raw iterator (which is used by the returned ordinary iterator)
+        // can become invalid "when it reaches the end of its defined range, or when it encounters an error."
+        // We panic on RocksDB errors elsewhere and fuse it to prevent polling after the end of the range.
+        // Thus, `unwrap()` should be safe.
     }
 }
 
 impl RocksDB<()> {
     /// Awaits termination of all running rocksdb instances.
+    ///
+    /// This method is blocking and should be wrapped in `spawn_blocking(_)` if run in the async context.
     pub fn await_rocksdb_termination() {
         let (lock, cvar) = &ROCKSDB_INSTANCE_COUNTER;
         let mut num_instances = lock.lock().unwrap();
@@ -313,34 +374,11 @@ impl Drop for RegistryEntry {
     }
 }
 
-fn next_prefix(prefix: &[u8]) -> Option<Vec<u8>> {
-    let non_max_byte_idx = prefix
-        .iter()
-        .enumerate()
-        .rev()
-        .find_map(|(idx, &byte)| (byte != u8::MAX).then_some(idx))?;
-    // ^ If the prefix contains only `0xff` bytes, there is no larger prefix.
-    let mut next_prefix = prefix[..=non_max_byte_idx].to_vec();
-    *next_prefix.last_mut().unwrap() += 1;
-    Some(next_prefix)
-}
-
 #[cfg(test)]
 mod tests {
     use tempfile::TempDir;
 
     use super::*;
-
-    #[test]
-    fn next_prefix_is_correct() {
-        assert_eq!(next_prefix(&[]), None);
-        assert_eq!(next_prefix(&[0xff]), None);
-        assert_eq!(next_prefix(&[0xff; 5]), None);
-
-        assert_eq!(next_prefix(&[0]).unwrap(), [1]);
-        assert_eq!(next_prefix(&[0, 1, 2, 3]).unwrap(), [0, 1, 2, 4]);
-        assert_eq!(next_prefix(&[0, 1, 2, 0xff, 0xff]).unwrap(), [0, 1, 3]);
-    }
 
     #[derive(Debug, Clone, Copy)]
     enum OldColumnFamilies {

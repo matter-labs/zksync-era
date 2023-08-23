@@ -3,13 +3,17 @@ use clap::Parser;
 use std::{env, str::FromStr, time::Duration};
 use zksync_config::configs::chain::NetworkConfig;
 
-use zksync_config::ETHSenderConfig;
+use zksync_config::{ContractsConfig, ETHSenderConfig};
 use zksync_core::{
     genesis_init, initialize_components, is_genesis_needed, setup_sigint_handler, Component,
     Components,
 };
 use zksync_storage::RocksDB;
 use zksync_utils::wait_for_tasks::wait_for_tasks;
+
+#[cfg(not(target_env = "msvc"))]
+#[global_allocator]
+static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 
 #[derive(Debug, Parser)]
 #[structopt(author = "Matter Labs", version, about = "zkSync operator node", long_about = None)]
@@ -53,7 +57,8 @@ async fn main() -> anyhow::Result<()> {
     if opt.genesis || is_genesis_needed().await {
         let network = NetworkConfig::from_env();
         let eth_sender = ETHSenderConfig::from_env();
-        genesis_init(&eth_sender, &network).await;
+        let contracts = ContractsConfig::from_env();
+        genesis_init(&eth_sender, &network, &contracts).await;
         if opt.genesis {
             return Ok(());
         }
@@ -105,9 +110,12 @@ async fn main() -> anyhow::Result<()> {
                 vlog::warn!("Circuit breaker received, shutting down. Reason: {}", error_msg);
             }
         },
-    };
+    }
+
     stop_sender.send(true).ok();
-    RocksDB::await_rocksdb_termination();
+    tokio::task::spawn_blocking(RocksDB::await_rocksdb_termination)
+        .await
+        .unwrap();
     // Sleep for some time to let some components gracefully stop.
     tokio::time::sleep(Duration::from_secs(5)).await;
     health_check_handle.stop().await;

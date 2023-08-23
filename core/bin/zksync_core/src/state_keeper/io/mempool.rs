@@ -12,10 +12,12 @@ use vm::{
     VmBlockResult,
 };
 use zksync_config::configs::chain::StateKeeperConfig;
-use zksync_contracts::BaseSystemContracts;
 use zksync_dal::ConnectionPool;
 use zksync_mempool::L2TxFilter;
-use zksync_types::{Address, L1BatchNumber, MiniblockNumber, Transaction, U256};
+use zksync_types::{
+    protocol_version::ProtocolUpgradeTx, Address, L1BatchNumber, MiniblockNumber,
+    ProtocolVersionId, Transaction, U256,
+};
 use zksync_utils::time::millis_since_epoch;
 
 use crate::{
@@ -49,7 +51,6 @@ pub(crate) struct MempoolIO<G> {
     delay_interval: Duration,
     // Used to keep track of gas prices to set accepted price per pubdata byte in blocks.
     l1_gas_price_provider: Arc<G>,
-    base_system_contracts: BaseSystemContracts,
     l2_erc20_bridge_addr: Address,
 }
 
@@ -66,9 +67,11 @@ impl<G: L1GasPriceProvider + 'static + Send + Sync> StateKeeperIO for MempoolIO<
     async fn load_pending_batch(&mut self) -> Option<PendingBatchData> {
         let mut storage = self.pool.access_storage_tagged("state_keeper").await;
 
-        let PendingBatchData { params, txs } =
-            load_pending_batch(&mut storage, self.current_l1_batch_number, self.fee_account)
-                .await?;
+        let PendingBatchData {
+            params,
+            pending_miniblocks,
+        } = load_pending_batch(&mut storage, self.current_l1_batch_number, self.fee_account)
+            .await?;
         // Initialize the filter for the transactions that come after the pending batch.
         // We use values from the pending block to match the filter with one used before the restart.
         let context = params.context_mode.inner_block_context().context;
@@ -80,7 +83,10 @@ impl<G: L1GasPriceProvider + 'static + Send + Sync> StateKeeperIO for MempoolIO<
             gas_per_pubdata: gas_per_pubdata as u32,
         };
 
-        Some(PendingBatchData { params, txs })
+        Some(PendingBatchData {
+            params,
+            pending_miniblocks,
+        })
     }
 
     async fn wait_for_new_batch_params(&mut self, max_wait: Duration) -> Option<L1BatchParams> {
@@ -98,12 +104,15 @@ impl<G: L1GasPriceProvider + 'static + Send + Sync> StateKeeperIO for MempoolIO<
                 continue;
             }
 
-            let (prev_hash, prev_timestamp) = self.load_previous_l1_batch_params().await;
-            // We cannot create two L1 batches with the same timestamp (forbidden by the bootloader).
-            // Hence, we wait until the current timestamp is larger. We can use `timeout_at`
-            // since `sleep_past` is cancel-safe; it only uses `sleep()` async calls.
-            let current_timestamp =
-                tokio::time::timeout_at(deadline.into(), sleep_past(prev_timestamp));
+            let prev_l1_batch_hash = self.load_previous_l1_batch_hash().await;
+            let prev_miniblock_timestamp = self.load_previous_miniblock_timestamp().await;
+            // We cannot create two L1 batches or miniblocks with the same timestamp (forbidden by the bootloader).
+            // Hence, we wait until the current timestamp is larger than the timestamp of the previous miniblock.
+            // We can use `timeout_at` since `sleep_past` is cancel-safe; it only uses `sleep()` async calls.
+            let current_timestamp = tokio::time::timeout_at(
+                deadline.into(),
+                sleep_past(prev_miniblock_timestamp, self.current_miniblock_number),
+            );
             let current_timestamp = current_timestamp.await.ok()?;
 
             vlog::info!(
@@ -112,22 +121,37 @@ impl<G: L1GasPriceProvider + 'static + Send + Sync> StateKeeperIO for MempoolIO<
                 self.filter.l1_gas_price,
                 self.fair_l2_gas_price
             );
+            let mut storage = self.pool.access_storage().await;
+            let (base_system_contracts, protocol_version) = storage
+                .protocol_versions_dal()
+                .base_system_contracts_by_timestamp(current_timestamp)
+                .await;
             return Some(l1_batch_params(
                 self.current_l1_batch_number,
                 self.fee_account,
                 current_timestamp,
-                prev_hash,
+                prev_l1_batch_hash,
                 self.filter.l1_gas_price,
                 self.fair_l2_gas_price,
-                self.base_system_contracts.clone(),
+                base_system_contracts,
+                protocol_version,
             ));
         }
         None
     }
 
-    async fn wait_for_new_miniblock_params(&mut self, _max_wait: Duration) -> Option<u64> {
-        let new_miniblock_timestamp = (millis_since_epoch() / 1000) as u64;
-        Some(new_miniblock_timestamp)
+    async fn wait_for_new_miniblock_params(
+        &mut self,
+        max_wait: Duration,
+        prev_miniblock_timestamp: u64,
+    ) -> Option<u64> {
+        // We must provide different timestamps for each miniblock.
+        // If miniblock sealing interval is greater than 1 second then `sleep_past` won't actually sleep.
+        let current_timestamp = tokio::time::timeout(
+            max_wait,
+            sleep_past(prev_miniblock_timestamp, self.current_miniblock_number),
+        );
+        current_timestamp.await.ok()
     }
 
     async fn wait_for_next_tx(&mut self, max_wait: Duration) -> Option<Transaction> {
@@ -220,19 +244,38 @@ impl<G: L1GasPriceProvider + 'static + Send + Sync> StateKeeperIO for MempoolIO<
         self.current_miniblock_number += 1; // Due to fictive miniblock being sealed.
         self.current_l1_batch_number += 1;
     }
+
+    async fn load_previous_batch_version_id(&mut self) -> Option<ProtocolVersionId> {
+        let mut storage = self.pool.access_storage().await;
+        storage
+            .blocks_dal()
+            .get_batch_protocol_version_id(self.current_l1_batch_number - 1)
+            .await
+    }
+
+    async fn load_upgrade_tx(
+        &mut self,
+        version_id: ProtocolVersionId,
+    ) -> Option<ProtocolUpgradeTx> {
+        let mut storage = self.pool.access_storage().await;
+        storage
+            .protocol_versions_dal()
+            .get_protocol_upgrade_tx(version_id)
+            .await
+    }
 }
 
 /// Sleeps until the current timestamp is larger than the provided `timestamp`.
 ///
 /// Returns the current timestamp after the sleep. It is guaranteed to be larger than `timestamp`.
-async fn sleep_past(timestamp: u64) -> u64 {
+async fn sleep_past(timestamp: u64, miniblock: MiniblockNumber) -> u64 {
     let mut current_timestamp_millis = millis_since_epoch();
     let mut current_timestamp = (current_timestamp_millis / 1_000) as u64;
     match timestamp.cmp(&current_timestamp) {
         cmp::Ordering::Less => return current_timestamp,
         cmp::Ordering::Equal => {
             vlog::info!(
-                "Current timestamp {} is equal to previous L1 batch timestamp; waiting until \
+                "Current timestamp {} for miniblock #{miniblock} is equal to previous miniblock timestamp; waiting until \
                  timestamp increases",
                 extractors::display_timestamp(current_timestamp)
             );
@@ -242,7 +285,7 @@ async fn sleep_past(timestamp: u64) -> u64 {
             // system time, or if it is buggy. Thus, a one-time error could require no actions if L1 batches
             // are expected to be generated frequently.
             vlog::error!(
-                "Previous L1 batch timestamp {} is larger than the current timestamp {}",
+                "Previous miniblock timestamp {} is larger than the current timestamp {} for miniblock #{miniblock}",
                 extractors::display_timestamp(timestamp),
                 extractors::display_timestamp(current_timestamp)
             );
@@ -280,12 +323,8 @@ impl<G: L1GasPriceProvider> MempoolIO<G> {
         l2_erc20_bridge_addr: Address,
     ) -> Self {
         let mut storage = pool.access_storage_tagged("state_keeper").await;
-        let last_sealed_block_header = storage.blocks_dal().get_newest_block_header().await;
+        let last_sealed_l1_batch_header = storage.blocks_dal().get_newest_l1_batch_header().await;
         let last_miniblock_number = storage.blocks_dal().get_sealed_miniblock_number().await;
-        let base_system_contracts = storage
-            .storage_dal()
-            .get_base_system_contracts(config.bootloader_hash, config.default_aa_hash)
-            .await;
         drop(storage);
 
         Self {
@@ -293,24 +332,26 @@ impl<G: L1GasPriceProvider> MempoolIO<G> {
             pool,
             filter: L2TxFilter::default(),
             // ^ Will be initialized properly on the first newly opened batch
-            current_l1_batch_number: last_sealed_block_header.number + 1,
+            current_l1_batch_number: last_sealed_l1_batch_header.number + 1,
             miniblock_sealer_handle,
             current_miniblock_number: last_miniblock_number + 1,
             fee_account: config.fee_account_addr,
             fair_l2_gas_price: config.fair_l2_gas_price,
             delay_interval,
             l1_gas_price_provider,
-            base_system_contracts,
             l2_erc20_bridge_addr,
         }
     }
 
-    async fn load_previous_l1_batch_params(&self) -> (U256, u64) {
-        vlog::info!("Getting previous L1 batch hash");
+    async fn load_previous_l1_batch_hash(&self) -> U256 {
+        vlog::info!(
+            "Getting previous L1 batch hash for L1 batch #{}",
+            self.current_l1_batch_number
+        );
         let stage_started_at: Instant = Instant::now();
 
         let mut storage = self.pool.access_storage_tagged("state_keeper").await;
-        let (batch_hash, batch_timestamp) =
+        let (batch_hash, _) =
             extractors::wait_for_prev_l1_batch_params(&mut storage, self.current_l1_batch_number)
                 .await;
 
@@ -319,10 +360,27 @@ impl<G: L1GasPriceProvider> MempoolIO<G> {
             stage_started_at.elapsed()
         );
         vlog::info!(
-            "Got previous L1 batch hash: {batch_hash} and timestamp: {}",
-            extractors::display_timestamp(batch_timestamp)
+            "Got previous L1 batch hash: {batch_hash:0>64x} for L1 batch #{}",
+            self.current_l1_batch_number
         );
-        (batch_hash, batch_timestamp)
+        batch_hash
+    }
+
+    async fn load_previous_miniblock_timestamp(&self) -> u64 {
+        let stage_started_at: Instant = Instant::now();
+
+        let mut storage = self.pool.access_storage_tagged("state_keeper").await;
+        let miniblock_timestamp = storage
+            .blocks_dal()
+            .get_miniblock_timestamp(self.current_miniblock_number - 1)
+            .await
+            .expect("Previous miniblock must be sealed and header saved to DB");
+
+        metrics::histogram!(
+            "server.state_keeper.get_prev_miniblock_timestamp",
+            stage_started_at.elapsed()
+        );
+        miniblock_timestamp
     }
 }
 
@@ -348,29 +406,39 @@ mod tests {
         let past_timestamps = [0, 1_000, 1_000_000_000, seconds_since_epoch() - 10];
         for timestamp in past_timestamps {
             let deadline = Instant::now() + Duration::from_secs(1);
-            timeout_at(deadline.into(), sleep_past(timestamp))
+            timeout_at(deadline.into(), sleep_past(timestamp, MiniblockNumber(1)))
                 .await
                 .unwrap();
         }
 
         let current_timestamp = seconds_since_epoch();
         let deadline = Instant::now() + Duration::from_secs(2);
-        let ts = timeout_at(deadline.into(), sleep_past(current_timestamp))
-            .await
-            .unwrap();
+        let ts = timeout_at(
+            deadline.into(),
+            sleep_past(current_timestamp, MiniblockNumber(1)),
+        )
+        .await
+        .unwrap();
         assert!(ts > current_timestamp);
 
         let future_timestamp = seconds_since_epoch() + 1;
         let deadline = Instant::now() + Duration::from_secs(3);
-        let ts = timeout_at(deadline.into(), sleep_past(future_timestamp))
-            .await
-            .unwrap();
+        let ts = timeout_at(
+            deadline.into(),
+            sleep_past(future_timestamp, MiniblockNumber(1)),
+        )
+        .await
+        .unwrap();
         assert!(ts > future_timestamp);
 
         let future_timestamp = seconds_since_epoch() + 1;
         let deadline = Instant::now() + Duration::from_millis(100);
         // ^ This deadline is too small (we need at least 1_000ms)
-        let result = timeout_at(deadline.into(), sleep_past(future_timestamp)).await;
+        let result = timeout_at(
+            deadline.into(),
+            sleep_past(future_timestamp, MiniblockNumber(1)),
+        )
+        .await;
         assert!(result.is_err());
     }
 }

@@ -20,7 +20,7 @@ use vm::{
     HistoryDisabled, VmInstance,
 };
 use zksync_config::constants::ZKPORTER_IS_AVAILABLE;
-use zksync_dal::{ConnectionPool, StorageProcessor};
+use zksync_dal::{ConnectionPool, SqlxError, StorageProcessor};
 use zksync_state::{PostgresStorage, ReadStorage, StorageView, WriteStorage};
 use zksync_types::{
     api, get_nonce_key,
@@ -29,12 +29,12 @@ use zksync_types::{
 };
 use zksync_utils::{h256_to_u256, time::seconds_since_epoch, u256_to_h256};
 
-use super::{vm_metrics, BlockArgs, TxExecutionArgs, TxSharedArgs};
+use super::{vm_metrics, BlockArgs, TxExecutionArgs, TxSharedArgs, VmPermit};
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn apply_vm_in_sandbox<T>(
-    rt_handle: tokio::runtime::Handle,
-    shared_args: &TxSharedArgs,
+    vm_permit: VmPermit,
+    shared_args: TxSharedArgs,
     execution_args: &TxExecutionArgs,
     connection_pool: &ConnectionPool,
     tx: Transaction,
@@ -45,6 +45,7 @@ pub(super) fn apply_vm_in_sandbox<T>(
     let stage_started_at = Instant::now();
     let span = tracing::debug_span!("initialization").entered();
 
+    let rt_handle = vm_permit.rt_handle();
     let mut connection = rt_handle.block_on(connection_pool.access_storage_tagged("api"));
     let connection_acquire_time = stage_started_at.elapsed();
     // We don't want to emit too many logs.
@@ -56,8 +57,9 @@ pub(super) fn apply_vm_in_sandbox<T>(
     }
 
     let resolve_started_at = Instant::now();
-    let (state_block_number, vm_block_number) =
-        rt_handle.block_on(block_args.resolve_block_numbers(&mut connection));
+    let (state_block_number, vm_block_number) = rt_handle
+        .block_on(block_args.resolve_block_numbers(&mut connection))
+        .expect("Failed resolving block numbers");
     let resolve_time = resolve_started_at.elapsed();
     // We don't want to emit too many logs.
     if resolve_time > Duration::from_millis(10) {
@@ -67,10 +69,15 @@ pub(super) fn apply_vm_in_sandbox<T>(
         );
     }
 
+    if block_args.resolves_to_latest_sealed_miniblock() {
+        shared_args
+            .caches
+            .schedule_values_update(state_block_number);
+    }
     let block_timestamp = block_args.block_timestamp_seconds();
 
-    let storage = PostgresStorage::new(rt_handle, connection, state_block_number, false)
-        .with_factory_deps_cache(shared_args.factory_deps_cache.clone());
+    let storage = PostgresStorage::new(rt_handle.clone(), connection, state_block_number, false)
+        .with_caches(shared_args.caches);
     // Moving `storage_read_cache` to `storage_view`. It will be moved back once execution is finished and `storage_view` is not needed.
     let mut storage_view = StorageView::new_with_read_keys(storage, storage_read_cache);
 
@@ -99,7 +106,7 @@ pub(super) fn apply_vm_in_sandbox<T>(
         default_aa_code_hash: h256_to_u256(shared_args.base_system_contracts.default_aa.hash),
         zkporter_is_available: ZKPORTER_IS_AVAILABLE,
     };
-    let &TxSharedArgs {
+    let TxSharedArgs {
         l1_gas_price,
         fair_l2_gas_price,
         ..
@@ -150,6 +157,7 @@ pub(super) fn apply_vm_in_sandbox<T>(
         vm_execution_took,
         storage_view.metrics(),
     );
+    drop(vm_permit); // Ensure that the permit lives until this point
 
     // Move `read_storage_keys` from `storage_view` back to cache.
     (result, storage_view.into_read_storage_keys())
@@ -163,30 +171,37 @@ impl BlockArgs {
         )
     }
 
+    fn resolves_to_latest_sealed_miniblock(&self) -> bool {
+        matches!(
+            self.block_id,
+            api::BlockId::Number(
+                api::BlockNumber::Pending | api::BlockNumber::Latest | api::BlockNumber::Committed
+            )
+        )
+    }
+
     async fn resolve_block_numbers(
         &self,
         connection: &mut StorageProcessor<'_>,
-    ) -> (MiniblockNumber, L1BatchNumber) {
-        if self.is_pending_miniblock() {
+    ) -> Result<(MiniblockNumber, L1BatchNumber), SqlxError> {
+        Ok(if self.is_pending_miniblock() {
             let sealed_l1_batch_number = connection
                 .blocks_web3_dal()
                 .get_sealed_l1_batch_number()
-                .await
-                .unwrap();
+                .await?;
             let sealed_miniblock_number = connection
                 .blocks_web3_dal()
                 .get_sealed_miniblock_number()
-                .await
-                .unwrap();
+                .await?;
             (sealed_miniblock_number, sealed_l1_batch_number + 1)
         } else {
             let l1_batch_number = connection
                 .storage_web3_dal()
-                .get_provisional_l1_batch_number_of_miniblock_unchecked(self.resolved_block_number)
-                .await
-                .unwrap();
+                .resolve_l1_batch_number_of_miniblock(self.resolved_block_number)
+                .await?
+                .expected_l1_batch();
             (self.resolved_block_number, l1_batch_number)
-        }
+        })
     }
 
     fn block_timestamp_seconds(&self) -> u64 {
