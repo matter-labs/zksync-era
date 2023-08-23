@@ -37,6 +37,7 @@ pub mod fee;
 pub mod l1;
 pub mod l2;
 pub mod l2_to_l1_log;
+pub mod multicall;
 pub mod priority_op_onchain_data;
 pub mod protocol_version;
 pub mod storage;

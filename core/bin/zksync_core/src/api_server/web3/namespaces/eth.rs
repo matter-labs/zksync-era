@@ -13,6 +13,7 @@ use zksync_types::{
         TransactionVariant,
     },
     l2::{L2Tx, TransactionType},
+    multicall::{CallResult, MultiCallResp, MultiCallStats, MulticallErrCode},
     transaction_request::CallRequest,
     utils::decompose_full_nonce,
     web3,
@@ -97,6 +98,115 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
         metrics::histogram!("api.web3.call", start.elapsed(), "method" => METHOD_NAME, "block_id" => block.extract_block_tag());
 
         Ok(res_bytes.into())
+    }
+
+    async fn call_once(
+        &self,
+        request: CallRequest,
+        block_args: BlockArgs,
+    ) -> Result<CallResult, Web3Error> {
+        const METHOD_NAME: &str = "eth_multiCall";
+        let start = Instant::now();
+        let tx = L2Tx::from_request(request.into(), self.state.api_config.max_tx_size)?;
+        let call_result = self.state.tx_sender.eth_call(block_args, tx).await;
+        let time_cost = start.elapsed().as_secs_f64();
+        match call_result {
+            Ok(call_result) => Ok(CallResult {
+                code: 0,
+                err: "".to_string(),
+                result: Bytes::from(call_result),
+                gas_used: 0,
+                time_cost,
+            }),
+            Err(err) => {
+                let err_msg = err.to_string();
+                Ok(CallResult {
+                    code: MulticallErrCode::CallFail as i32,
+                    err: err_msg,
+                    result: Bytes::default(),
+                    gas_used: 0,
+                    time_cost,
+                })
+            }
+        }
+    }
+
+    #[tracing::instrument(skip(self, requests, block))]
+    pub async fn multicall_impl(
+        &self,
+        requests: Vec<CallRequest>,
+        block: Option<BlockId>,
+        fast_fail: Option<bool>,
+    ) -> Result<MultiCallResp, Web3Error> {
+        const METHOD_NAME: &str = "eth_multiCall";
+        let start = Instant::now();
+        let fast_fail = fast_fail.unwrap_or(true);
+
+        let block = block.unwrap_or(BlockId::Number(BlockNumber::Pending));
+        let mut connection = self
+            .state
+            .connection_pool
+            .access_storage_tagged("api")
+            .await;
+        let block_number = resolve_block(&mut connection, block, METHOD_NAME).await?;
+        let block_args = BlockArgs::new(&mut connection, block)
+            .await
+            .map_err(|err| internal_error(METHOD_NAME, err))?
+            .ok_or(Web3Error::NoBlock)?;
+        drop(connection);
+
+        let mut requests_with_set_nonce = requests.clone();
+        for request in requests_with_set_nonce.iter_mut() {
+            self.state
+                .set_nonce_for_call_request(request)
+                .await
+                .map_err(|err| internal_error(METHOD_NAME, err))?;
+        }
+
+        let mut results: Vec<CallResult> = Vec::new();
+        let stats = MultiCallStats {
+            block_num: block_number.0 as i64,
+            block_time: block_args.get_block_timestamp() as i64,
+            success: true,
+        };
+        let mut failed_once = false;
+        for request in requests.into_iter() {
+            if failed_once && fast_fail {
+                let last = results.last().unwrap();
+                results.push(CallResult {
+                    code: MulticallErrCode::FastFail as i32,
+                    err: last.err.clone(),
+                    result: Bytes::default(),
+                    gas_used: 0,
+                    time_cost: 0.0,
+                });
+                continue;
+            }
+            let call_result = self.call_once(request, block_args.clone()).await;
+            match call_result {
+                Ok(call_result) => {
+                    if call_result.code != 0 && fast_fail {
+                        failed_once = true;
+                    }
+                    results.push(call_result);
+                }
+                Err(err) => {
+                    if fast_fail {
+                        failed_once = true;
+                    }
+                    results.push(CallResult {
+                        code: MulticallErrCode::CallFail as i32,
+                        err: err.to_string(),
+                        result: Bytes::default(),
+                        gas_used: 0,
+                        time_cost: 0.0,
+                    });
+                }
+            }
+        }
+        let resp = MultiCallResp { results, stats };
+        metrics::histogram!("api.web3.call", start.elapsed(), "method" => "multiCall");
+        Ok(resp)
     }
 
     #[tracing::instrument(skip(self, request, _block))]

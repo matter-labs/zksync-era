@@ -10,6 +10,7 @@ use zksync_types::{
         BlockId, BlockIdVariant, BlockNumber, Transaction, TransactionId, TransactionReceipt,
         TransactionVariant,
     },
+    multicall::MultiCallResp,
     transaction_request::CallRequest,
     web3::types::{FeeHistory, Index, SyncState},
     Address, Bytes, H256, U256, U64,
@@ -30,6 +31,14 @@ pub trait EthNamespaceT {
 
     #[rpc(name = "eth_call")]
     fn call(&self, req: CallRequest, block: Option<BlockIdVariant>) -> BoxFuture<Result<Bytes>>;
+
+    #[rpc(name = "eth_multiCall")]
+    fn multicall(
+        &self,
+        reqs: Vec<CallRequest>,
+        block: Option<BlockIdVariant>,
+        fast_fail: Option<bool>,
+    ) -> BoxFuture<Result<MultiCallResp>>;
 
     #[rpc(name = "eth_estimateGas")]
     fn estimate_gas(
@@ -197,6 +206,21 @@ impl<G: L1GasPriceProvider + Send + Sync + 'static> EthNamespaceT for EthNamespa
         Box::pin(async move {
             self_
                 .call_impl(req, block.map(Into::into))
+                .await
+                .map_err(into_jsrpc_error)
+        })
+    }
+
+    fn multicall(
+        &self,
+        reqs: Vec<CallRequest>,
+        block: Option<BlockIdVariant>,
+        fast_fail: Option<bool>,
+    ) -> BoxFuture<Result<MultiCallResp>> {
+        let self_ = self.clone();
+        Box::pin(async move {
+            self_
+                .multicall_impl(reqs, block.map(Into::into), fast_fail)
                 .await
                 .map_err(into_jsrpc_error)
         })

@@ -270,4 +270,8 @@ impl BlockArgs {
             block_timestamp_s,
         }))
     }
+
+    pub fn get_block_timestamp(&self) -> u64 {
+        self.block_timestamp_s.unwrap_or_default()
+    }
 }
