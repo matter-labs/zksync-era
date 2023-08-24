@@ -11,7 +11,6 @@ use zksync_types::l2_to_l1_log::L2ToL1Log;
 use zksync_types::tx::tx_execution_info::{TxExecutionStatus, VmExecutionLogs};
 use zksync_types::vm_trace::VmExecutionTrace;
 use zksync_types::{L1BatchNumber, StorageLogQuery, VmEvent, U256};
-use zksync_utils::bytes_to_be_words;
 
 use crate::bootloader_state::BootloaderState;
 use crate::errors::{TxRevertReason, VmRevertReason, VmRevertReasonParsingResult};
@@ -35,7 +34,6 @@ use crate::vm_with_bootloader::{
     BootloaderJobType, DerivedBlockContext, TxExecutionMode, BOOTLOADER_HEAP_PAGE,
     OPERATOR_REFUNDS_OFFSET,
 };
-use crate::Word;
 
 pub type ZkSyncVmState<'a> = VmState<
     'a,
@@ -99,7 +97,7 @@ pub struct VmExecutionResult {
     pub storage_log_queries: Vec<StorageLogQuery>,
     pub used_contract_hashes: Vec<U256>,
     pub l2_to_l1_logs: Vec<L2ToL1Log>,
-    pub return_data: Vec<Word>,
+    pub return_data: Vec<u8>,
 
     /// Value denoting the amount of gas spent withing VM invocation.
     /// Note that return value represents the difference between the amount of gas
@@ -219,10 +217,7 @@ fn vm_may_have_ended(vm: &VmInstance, gas_before: u32) -> Option<VmExecutionResu
     let gas_used = gas_before - vm.gas_remaining();
 
     match basic_execution_result {
-        NewVmExecutionResult::Ok(mut data) => {
-            while data.len() % 32 != 0 {
-                data.push(0)
-            }
+        NewVmExecutionResult::Ok(data) => {
             Some(VmExecutionResult {
                 // The correct `events` value for this field should be set separately
                 // later on based on the information inside the event_sink oracle.
@@ -230,7 +225,7 @@ fn vm_may_have_ended(vm: &VmInstance, gas_before: u32) -> Option<VmExecutionResu
                 storage_log_queries: vm.get_final_log_queries(),
                 used_contract_hashes: vm.get_used_contracts(),
                 l2_to_l1_logs: vec![],
-                return_data: bytes_to_be_words(data),
+                return_data: data,
                 gas_used,
                 contracts_used: vm
                     .state
