@@ -420,16 +420,13 @@ impl<'a> ValidationTracer<'a> {
                     }
                 }
             }
-            Opcode::Context(context) => {
-                match context {
-                    ContextOpcode::Meta => {
-                        return Err(ViolatedValidationRule::TouchedUnallowedContext);
-                    }
-                    ContextOpcode::ErgsLeft => {
-                    }
-                    _ => {}
+            Opcode::Context(context) => match context {
+                ContextOpcode::Meta => {
+                    return Err(ViolatedValidationRule::TouchedUnallowedContext);
                 }
-            }
+                ContextOpcode::ErgsLeft => {}
+                _ => {}
+            },
             Opcode::Log(LogOpcode::StorageRead) => {
                 let key = data.src0_value.value;
                 let this_address = state.vm_local_state.callstack.current.this_address;

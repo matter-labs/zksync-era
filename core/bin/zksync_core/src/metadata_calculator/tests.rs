@@ -53,7 +53,6 @@ async fn genesis_creation(pool: ConnectionPool, prover_pool: ConnectionPool) {
     );
 }
 
-
 #[db_test]
 async fn basic_workflow(pool: ConnectionPool, prover_pool: ConnectionPool) {
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");

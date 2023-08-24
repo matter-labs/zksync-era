@@ -58,9 +58,7 @@ impl<'a> VmInstance<'a> {
 
     pub fn is_bytecode_known(&self, bytecode_hash: &zksync_types::H256) -> bool {
         match self {
-            VmInstance::VmM5(_) => {
-                false
-            }
+            VmInstance::VmM5(_) => false,
             VmInstance::VmM6(vm) => vm
                 .state
                 .storage

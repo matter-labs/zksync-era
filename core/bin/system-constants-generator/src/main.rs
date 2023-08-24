@@ -127,13 +127,7 @@ fn generate_rust_fee_constants(intrinsic_gas_constants: &IntrinsicSystemGasConst
 
     scope.import("super", "IntrinsicSystemGasConstants");
 
-    scope.raw(
-        vec![
-            "H",
-            "A",
-        ]
-        .join("\n"),
-    );
+    scope.raw(vec!["H", "A"].join("\n"));
 
     let get_intrinsic_constants_fn = scope.new_fn("get_intrinsic_constants");
     get_intrinsic_constants_fn.vis("pub const");

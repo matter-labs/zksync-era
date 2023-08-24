@@ -165,10 +165,7 @@ impl DebugNamespace {
 
         let (output, revert_reason) = match result.revert_reason {
             Some(result) => (vec![], Some(result.revert_reason.to_string())),
-            None => (
-                result.return_data,
-                None,
-            ),
+            None => (result.return_data, None),
         };
         let trace = match result.trace {
             VmTrace::CallTrace(trace) => trace,

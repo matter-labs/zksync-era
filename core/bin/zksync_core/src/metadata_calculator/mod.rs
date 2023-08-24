@@ -100,7 +100,6 @@ pub struct MetadataCalculator {
 impl MetadataCalculator {
     /// Creates a calculator with the specified `config`.
     pub async fn new(config: &MetadataCalculatorConfig<'_>) -> Self {
-
         let mode = config.mode.to_mode();
         let object_store = match config.mode {
             MetadataCalculatorModeConfig::Full { store_factory } => {

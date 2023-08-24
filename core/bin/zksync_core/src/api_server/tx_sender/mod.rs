@@ -834,8 +834,7 @@ impl<G: L1GasPriceProvider> TxSender<G> {
 
         Ok(match result.revert_reason {
             Some(result) => result.original_data,
-            None => result
-                .return_data
+            None => result.return_data,
         })
     }
 
