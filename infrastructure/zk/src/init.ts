@@ -1,6 +1,5 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
-import fs from 'fs';
 import * as utils from './utils';
 
 import * as server from './server';
@@ -19,7 +18,6 @@ const success = chalk.green;
 const timestamp = chalk.grey;
 
 export async function init(skipSubmodulesCheckout: boolean) {
-    await announced('Creating docker volumes', createVolumes());
     if (!process.env.CI) {
         await announced('Pulling images', docker.pull());
         await announced('Checking environment', checkEnv());
@@ -98,11 +96,6 @@ export async function announced(fn: string, promise: Promise<void> | void) {
     const successLine = `${success('✔')} ${fn} done`;
     const timestampLine = timestamp(`(${time}ms)`);
     console.log(`${successLine} ${timestampLine}`);
-}
-
-function createVolumes() {
-    fs.mkdirSync(`${process.env.ZKSYNC_HOME}/volumes/geth`, { recursive: true });
-    fs.mkdirSync(`${process.env.ZKSYNC_HOME}/volumes/postgres`, { recursive: true });
 }
 
 export async function submoduleUpdate() {
