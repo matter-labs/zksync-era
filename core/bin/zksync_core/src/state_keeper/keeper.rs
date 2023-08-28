@@ -457,7 +457,8 @@ impl ZkSyncStateKeeper {
                     tx_metrics,
                     compressed_bytecodes,
                     ..
-                } = exec_result else {
+                } = exec_result
+                else {
                     panic!(
                         "Tx inclusion seal resolution must be a result of a successful tx execution",
                     );
