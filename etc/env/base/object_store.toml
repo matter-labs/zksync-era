@@ -3,6 +3,7 @@ bucket_base_url="base_url"
 mode="FileBacked"
 file_backed_base_path="artifacts"
 gcs_credential_file_path="/path/to/gcs_credentials.json"
+s3_endpoint_url="url"
 max_retries=5
 
 [public_object_store]
@@ -10,4 +11,5 @@ bucket_base_url="public_base_url"
 mode="FileBacked"
 file_backed_base_path="artifacts"
 gcs_credential_file_path="/path/to/gcs_credentials.json"
+s3_endpoint_url="url"
 max_retries=5

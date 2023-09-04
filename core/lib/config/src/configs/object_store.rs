@@ -7,6 +7,7 @@ pub enum ObjectStoreMode {
     GCS,
     GCSWithCredentialFile,
     FileBacked,
+    S3,
 }
 
 /// Configuration for the object store
@@ -16,6 +17,7 @@ pub struct ObjectStoreConfig {
     pub mode: ObjectStoreMode,
     pub file_backed_base_path: String,
     pub gcs_credential_file_path: String,
+    pub s3_endpoint_url: String,
     pub max_retries: u16,
 }
 
@@ -42,6 +44,7 @@ mod tests {
             mode: ObjectStoreMode::FileBacked,
             file_backed_base_path: "artifacts".to_string(),
             gcs_credential_file_path: "/path/to/credentials.json".to_string(),
+            s3_endpoint_url: "url".to_string(),
             max_retries: 5,
         }
     }
@@ -54,6 +57,7 @@ mod tests {
             OBJECT_STORE_MODE="FileBacked"
             OBJECT_STORE_FILE_BACKED_BASE_PATH="artifacts"
             OBJECT_STORE_GCS_CREDENTIAL_FILE_PATH="/path/to/credentials.json"
+            OBJECT_STORE_S3_ENDPOINT_URL="url"
             OBJECT_STORE_MAX_RETRIES="5"
         "#;
         lock.set_env(config);
@@ -69,6 +73,7 @@ mod tests {
             PUBLIC_OBJECT_STORE_MODE="FileBacked"
             PUBLIC_OBJECT_STORE_FILE_BACKED_BASE_PATH="artifacts"
             PUBLIC_OBJECT_STORE_GCS_CREDENTIAL_FILE_PATH="/path/to/credentials.json"
+            PUBLIC_OBJECT_STORE_S3_ENDPOINT_URL="url"
             PUBLIC_OBJECT_STORE_MAX_RETRIES="5"
         "#;
         lock.set_env(config);
