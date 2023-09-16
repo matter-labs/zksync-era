@@ -10,7 +10,7 @@ function createVolumes() {
 
 export async function up() {
     createVolumes();
-    await utils.spawn('docker-compose up -d geth postgres');
+    await utils.spawn('docker compose up -d geth postgres');
 }
 
 export const command = new Command('up').description('start development containers').action(up);

@@ -104,7 +104,7 @@ export async function submoduleUpdate() {
 }
 
 async function checkEnv() {
-    const tools = ['node', 'yarn', 'docker', 'docker-compose', 'cargo'];
+    const tools = ['node', 'yarn', 'docker', 'docker compose', 'cargo'];
     for (const tool of tools) {
         await utils.exec(`which ${tool}`);
     }
