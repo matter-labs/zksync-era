@@ -6278,7 +6278,7 @@ dependencies = [
  "sha2 0.10.6",
  "sha3 0.10.6",
  "smallvec",
- "zk_evm 1.3.3",
+ "zk_evm 1.3.3 (git+https://github.com/matter-labs/era-zk_evm.git?branch=v1.3.3)",
  "zkevm_opcode_defs 1.3.2",
 ]
 
@@ -7052,7 +7052,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "vlog",
- "zk_evm 1.3.3",
+ "zk_evm 1.3.3 (git+https://github.com/matter-labs/era-zk_evm.git?tag=v1.3.3-rc0)",
  "zkevm-assembly 1.3.2",
  "zksync_config",
  "zksync_contracts",
@@ -7081,7 +7081,7 @@ dependencies = [
  "once_cell",
  "ouroboros",
  "vm",
- "zk_evm 1.3.3",
+ "zk_evm 1.3.3 (git+https://github.com/matter-labs/era-zk_evm.git?tag=v1.3.3-rc0)",
  "zksync_config",
  "zksync_contracts",
  "zksync_state",
@@ -7621,6 +7621,21 @@ dependencies = [
 [[package]]
 name = "zk_evm"
 version = "1.3.3"
+source = "git+https://github.com/matter-labs/era-zk_evm.git?tag=v1.3.3-rc0#c08a8581421d2a0cf1fc8cbbdcd06c00da01fe0e"
+dependencies = [
+ "anyhow",
+ "lazy_static",
+ "num 0.4.0",
+ "serde",
+ "serde_json",
+ "static_assertions",
+ "zk_evm_abstractions",
+ "zkevm_opcode_defs 1.3.2",
+]
+
+[[package]]
+name = "zk_evm"
+version = "1.3.3"
 source = "git+https://github.com/matter-labs/era-zk_evm.git?branch=v1.3.3#c08a8581421d2a0cf1fc8cbbdcd06c00da01fe0e"
 dependencies = [
  "anyhow",
@@ -7710,7 +7725,7 @@ dependencies = [
 [[package]]
 name = "zkevm_test_harness"
 version = "1.3.3"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.3.3#6453eab3c9c8915f588ff4eceb48d7be9a695ecb"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?tag=v1.3.3-rc1#d819aa6cdf7928886680a975ceefbb010694414c"
 dependencies = [
  "bincode",
  "circuit_testing",
@@ -7730,7 +7745,7 @@ dependencies = [
  "sync_vm",
  "test-log",
  "tracing",
- "zk_evm 1.3.3",
+ "zk_evm 1.3.3 (git+https://github.com/matter-labs/era-zk_evm.git?tag=v1.3.3-rc0)",
  "zkevm-assembly 1.3.2",
 ]
 
@@ -8158,7 +8173,7 @@ dependencies = [
  "strum",
  "thiserror",
  "tokio",
- "zk_evm 1.3.3",
+ "zk_evm 1.3.3 (git+https://github.com/matter-labs/era-zk_evm.git?tag=v1.3.3-rc0)",
  "zkevm_test_harness",
  "zksync_basic_types",
  "zksync_config",
@@ -8185,7 +8200,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "vlog",
- "zk_evm 1.3.3",
+ "zk_evm 1.3.3 (git+https://github.com/matter-labs/era-zk_evm.git?tag=v1.3.3-rc0)",
  "zksync_basic_types",
 ]
 
