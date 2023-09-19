@@ -25,7 +25,7 @@ zksync_config = { path = "../../core/lib/config", version = "1.0" }
 circuit_testing = {git = "https://github.com/matter-labs/era-circuit_testing.git", branch = "main"}
 api = { git = "https://github.com/matter-labs/era-heavy-ops-service.git", branch = "v1.3.3", features=["gpu"], default-features=false}
 prover-service = { git = "https://github.com/matter-labs/era-heavy-ops-service.git", branch = "v1.3.3", features=["gpu"], default-features=false}
-zkevm_test_harness = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.3.3"}
+zkevm_test_harness = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", tag = "v1.3.3-rc1"}
 
 
 structopt = "0.3.26"

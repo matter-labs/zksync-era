@@ -12,7 +12,7 @@ categories = ["cryptography"]
 [dependencies]
 zksync_basic_types = { path = "../../lib/basic_types", version = "1.0" }
 vlog = { path = "../../lib/vlog", version = "1.0" }
-zk_evm = {git = "https://github.com/matter-labs/era-zk_evm.git", branch = "v1.3.3"}
+zk_evm = {git = "https://github.com/matter-labs/era-zk_evm.git", tag = "v1.3.3-rc0"}
 
 num = { version = "0.3.1", features = ["serde"] }
 bigdecimal = { version = "0.2.2", features = ["serde"]}

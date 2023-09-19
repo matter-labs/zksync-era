@@ -20,7 +20,7 @@ prometheus_exporter = { path = "../../core/lib/prometheus_exporter", version = "
 zksync_prover_utils = { path = "../../core/lib/prover_utils", version = "1.0" }
 zksync_verification_key_generator_and_server = { path = "../../core/bin/verification_key_generator_and_server", version = "1.0" }
 
-zkevm_test_harness = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.3.3"}
+zkevm_test_harness = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", tag = "v1.3.3-rc1"}
 
 prover-service = { git = "https://github.com/matter-labs/era-heavy-ops-service.git", branch = "v1.3.2", features=["legacy"], default-features=false}
 

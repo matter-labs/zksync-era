@@ -1622,7 +1622,7 @@ dependencies = [
 [[package]]
 name = "cs_derive"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-sync_vm.git?branch=v1.3.3#22d9d3a2018df8d4ac4bc0b0ada61c191d0cee30"
+source = "git+https://github.com/matter-labs/era-sync_vm.git?tag=v1.3.3-rc0#23beb8f268427508aefc916cff0d42a36b877586"
 dependencies = [
  "proc-macro-error",
  "proc-macro2 1.0.66",
@@ -6259,7 +6259,7 @@ dependencies = [
 [[package]]
 name = "sync_vm"
 version = "1.3.3"
-source = "git+https://github.com/matter-labs/era-sync_vm.git?branch=v1.3.3#22d9d3a2018df8d4ac4bc0b0ada61c191d0cee30"
+source = "git+https://github.com/matter-labs/era-sync_vm.git?tag=v1.3.3-rc0#23beb8f268427508aefc916cff0d42a36b877586"
 dependencies = [
  "arrayvec 0.7.3",
  "cs_derive",
@@ -7621,7 +7621,7 @@ dependencies = [
 [[package]]
 name = "zk_evm"
 version = "1.3.3"
-source = "git+https://github.com/matter-labs/era-zk_evm.git?branch=v1.3.3#c08a8581421d2a0cf1fc8cbbdcd06c00da01fe0e"
+source = "git+https://github.com/matter-labs/era-zk_evm.git?tag=v1.3.3-rc0#c08a8581421d2a0cf1fc8cbbdcd06c00da01fe0e"
 dependencies = [
  "anyhow",
  "lazy_static",
@@ -7710,7 +7710,7 @@ dependencies = [
 [[package]]
 name = "zkevm_test_harness"
 version = "1.3.3"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.3.3#6453eab3c9c8915f588ff4eceb48d7be9a695ecb"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?tag=v1.3.3-rc1#46391e83330c77f6d79ff7c5fc19bae3d5b3ab82"
 dependencies = [
  "bincode",
  "circuit_testing",
