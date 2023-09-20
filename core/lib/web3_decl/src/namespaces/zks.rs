@@ -13,7 +13,7 @@ use zksync_types::{
     Address, L1BatchNumber, MiniblockNumber, H256, U256, U64,
 };
 
-use crate::types::Token;
+use crate::types::{Filter, Log, Token};
 
 #[cfg_attr(
     all(feature = "client", feature = "server"),
@@ -107,4 +107,7 @@ pub trait ZksNamespace {
         &self,
         version_id: Option<u16>,
     ) -> RpcResult<Option<ProtocolVersion>>;
+
+    #[method(name = "getLogsWithVirtualBlocks")]
+    async fn get_logs_with_virtual_blocks(&self, filter: Filter) -> RpcResult<Vec<Log>>;
 }

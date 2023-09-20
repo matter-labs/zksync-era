@@ -34,6 +34,7 @@ use zksync_prover_fri_types::circuit_definitions::{
 use itertools::Itertools;
 use std::collections::{HashMap, VecDeque};
 use std::fs;
+use zksync_prover_fri_types::circuit_definitions::circuit_definitions::recursion_layer::ZkSyncRecursionLayerProof;
 use zkevm_test_harness::compute_setups::{
     generate_base_layer_vks_and_proofs, generate_recursive_layer_vks_and_proofs,
 };
@@ -50,7 +51,7 @@ use zkevm_test_harness::witness::full_block_artifact::{
 use zkevm_test_harness::witness::recursive_aggregation::compute_leaf_params;
 use zkevm_test_harness::witness::tree::{BinarySparseStorageTree, ZKSyncTestingTree};
 
-use crate::in_memory_setup_data_source::InMemoryDataSource;
+use zkevm_test_harness::in_memory_data_source::InMemoryDataSource;
 
 pub const CYCLE_LIMIT: usize = 20000;
 
@@ -78,6 +79,13 @@ pub fn get_basic_circuits(
         .into_iter()
         .dedup_by(|a, b| a.numeric_circuit_type() == b.numeric_circuit_type())
         .collect()
+}
+
+pub fn get_scheduler_proof_for_snark_vk_generation() -> ZkSyncRecursionLayerProof {
+    let path = format!("{}/scheduler_proof.bin", get_base_path());
+    let proof_serialized = std::fs::read(path).expect("Failed to read proof from file");
+    bincode::deserialize::<ZkSyncRecursionLayerProof>(&proof_serialized)
+        .expect("Failed to deserialize proof")
 }
 
 pub fn get_leaf_circuits() -> Vec<ZkSyncRecursiveLayerCircuit> {

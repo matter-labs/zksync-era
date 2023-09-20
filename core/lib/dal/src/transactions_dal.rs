@@ -356,7 +356,7 @@ impl TransactionsDal<'_, '_> {
                     panic!("{}", err);
                 }
             };
-            vlog::debug!(
+            tracing::debug!(
                 "{:?} l2 transaction {:?} to DB. init_acc {:?} nonce {:?} returned option {:?}",
                 l2_tx_insertion_result,
                 tx_hash,
@@ -997,8 +997,8 @@ impl TransactionsDal<'_, '_> {
 
         let from_miniblock = transactions_by_miniblock.first().unwrap().0;
         let to_miniblock = transactions_by_miniblock.last().unwrap().0;
-        let timestamps = sqlx::query!(
-            "SELECT timestamp FROM miniblocks WHERE number BETWEEN $1 AND $2 ORDER BY number",
+        let miniblock_data = sqlx::query!(
+            "SELECT timestamp, virtual_blocks FROM miniblocks WHERE number BETWEEN $1 AND $2 ORDER BY number",
             from_miniblock.0 as i64,
             to_miniblock.0 as i64,
         )
@@ -1006,14 +1006,41 @@ impl TransactionsDal<'_, '_> {
         .await
         .unwrap();
 
+        let prev_hashes = sqlx::query!(
+            "SELECT hash FROM miniblocks \
+            WHERE number BETWEEN $1 AND $2 \
+            ORDER BY number",
+            from_miniblock.0 as i64 - 1,
+            to_miniblock.0 as i64 - 1,
+        )
+        .fetch_all(self.storage.conn())
+        .await
+        .unwrap();
+
+        assert_eq!(
+            miniblock_data.len(),
+            transactions_by_miniblock.len(),
+            "Not enough miniblock data retrieved"
+        );
+        assert_eq!(
+            prev_hashes.len(),
+            transactions_by_miniblock.len(),
+            "Not enough previous hashes retrieved"
+        );
+
         transactions_by_miniblock
             .into_iter()
-            .zip(timestamps)
-            .map(|((number, txs), row)| MiniblockReexecuteData {
-                number,
-                timestamp: row.timestamp as u64,
-                txs,
-            })
+            .zip(miniblock_data)
+            .zip(prev_hashes)
+            .map(
+                |(((number, txs), miniblock_data_row), prev_hash_row)| MiniblockReexecuteData {
+                    number,
+                    timestamp: miniblock_data_row.timestamp as u64,
+                    prev_block_hash: H256::from_slice(&prev_hash_row.hash),
+                    virtual_blocks: miniblock_data_row.virtual_blocks as u32,
+                    txs,
+                },
+            )
             .collect()
     }
 

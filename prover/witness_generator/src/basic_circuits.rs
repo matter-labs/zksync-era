@@ -1,10 +1,6 @@
 use std::hash::Hash;
 use std::sync::Arc;
-use std::{
-    collections::{hash_map::DefaultHasher, HashMap, HashSet},
-    hash::Hasher,
-    time::Instant,
-};
+use std::{collections::{hash_map::DefaultHasher, HashMap, HashSet}, hash::Hasher, time::Instant};
 
 use async_trait::async_trait;
 use zksync_prover_fri_types::circuit_definitions::ZkSyncDefaultRoundFunction;
@@ -20,8 +16,9 @@ use zkevm_test_harness::witness::full_block_artifact::{
 };
 use zksync_prover_fri_types::circuit_definitions::zkevm_circuits::scheduler::block_header::BlockAuxilaryOutputWitness;
 use zksync_prover_fri_types::circuit_definitions::zkevm_circuits::scheduler::input::SchedulerCircuitInstanceWitness;
+use zksync_prover_fri_types::{AuxOutputWitnessWrapper, get_current_pod_name};
 
-use vm::{HistoryDisabled, StorageOracle, MAX_CYCLES_FOR_TX};
+use vm::{constants::MAX_CYCLES_FOR_TX, HistoryDisabled, StorageOracle};
 use zksync_config::configs::FriWitnessGeneratorConfig;
 use zksync_dal::fri_witness_generator_dal::FriWitnessJobStatus;
 use zksync_dal::ConnectionPool;
@@ -32,6 +29,7 @@ use zksync_prover_fri_utils::get_recursive_layer_circuit_id_for_base_layer;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_state::{PostgresStorage, StorageView};
 use zksync_types::proofs::AggregationRound;
+use zksync_types::protocol_version::FriProtocolVersionId;
 use zksync_types::{
     proofs::{BasicCircuitWitnessGeneratorInput, PrepareBasicCircuitsJob},
     Address, L1BatchNumber, BOOTLOADER_ADDRESS, H256, U256,
@@ -40,8 +38,8 @@ use zksync_utils::{bytes_to_chunks, h256_to_u256, u256_to_h256};
 
 use crate::precalculated_merkle_paths_provider::PrecalculatedMerklePathsProvider;
 use crate::utils::{
-    expand_bootloader_contents, save_base_prover_input_artifacts, AuxOutputWitnessWrapper,
-    ClosedFormInputWrapper, SchedulerPartialInputWrapper,
+    expand_bootloader_contents, save_base_prover_input_artifacts, ClosedFormInputWrapper,
+    SchedulerPartialInputWrapper,
 };
 
 pub struct BasicCircuitArtifacts {
@@ -77,6 +75,7 @@ pub struct BasicWitnessGenerator {
     public_blob_store: Box<dyn ObjectStore>,
     connection_pool: ConnectionPool,
     prover_connection_pool: ConnectionPool,
+    protocol_versions: Vec<FriProtocolVersionId>,
 }
 
 impl BasicWitnessGenerator {
@@ -86,6 +85,7 @@ impl BasicWitnessGenerator {
         public_blob_store: Box<dyn ObjectStore>,
         connection_pool: ConnectionPool,
         prover_connection_pool: ConnectionPool,
+        protocol_versions: Vec<FriProtocolVersionId>,
     ) -> Self {
         Self {
             config: Arc::new(config),
@@ -93,6 +93,7 @@ impl BasicWitnessGenerator {
             public_blob_store,
             connection_pool,
             prover_connection_pool,
+            protocol_versions,
         }
     }
 
@@ -116,23 +117,29 @@ impl BasicWitnessGenerator {
             // In this case job should be skipped.
             if threshold > blocks_proving_percentage && !shall_force_process_block {
                 metrics::counter!("server.witness_generator_fri.skipped_blocks", 1);
-                vlog::info!(
+                tracing::info!(
                     "Skipping witness generation for block {}, blocks_proving_percentage: {}",
                     block_number.0,
                     blocks_proving_percentage
                 );
 
                 let mut prover_storage = prover_connection_pool.access_storage().await;
-                prover_storage
+                let mut transaction = prover_storage.start_transaction().await;
+                transaction
+                    .fri_proof_compressor_dal()
+                    .skip_proof_compression_job(block_number)
+                    .await;
+                transaction
                     .fri_witness_generator_dal()
                     .mark_witness_job(FriWitnessJobStatus::Skipped, block_number)
                     .await;
+                transaction.commit().await;
                 return None;
             }
         }
 
         metrics::counter!("server.witness_generator_fri.sampled_blocks", 1);
-        vlog::info!(
+        tracing::info!(
             "Starting witness generation of type {:?} for block {}",
             AggregationRound::BasicCircuits,
             block_number.0
@@ -164,14 +171,14 @@ impl JobProcessor for BasicWitnessGenerator {
     async fn get_next_job(&self) -> Option<(Self::JobId, Self::Job)> {
         let mut prover_connection = self.prover_connection_pool.access_storage().await;
         let last_l1_batch_to_process = self.config.last_l1_batch_to_process();
-
+        let pod_name = get_current_pod_name();
         match prover_connection
             .fri_witness_generator_dal()
-            .get_next_basic_circuit_witness_job(last_l1_batch_to_process)
+            .get_next_basic_circuit_witness_job(last_l1_batch_to_process, &self.protocol_versions, &pod_name)
             .await
         {
             Some(block_number) => {
-                vlog::info!(
+                tracing::info!(
                     "Processing FRI basic witness-gen for block {}",
                     block_number
                 );
@@ -265,7 +272,7 @@ async fn process_basic_circuits_job(
         started_at.elapsed(),
         "aggregation_round" => format!("{:?}", AggregationRound::BasicCircuits),
     );
-    vlog::info!(
+    tracing::info!(
         "Witness generation for block {} is complete in {:?}",
         block_number.0,
         started_at.elapsed()
@@ -287,7 +294,10 @@ async fn update_database(
     blob_urls: BlobUrls,
 ) {
     let mut prover_connection = prover_connection_pool.access_storage().await;
-
+    let protocol_version_id = prover_connection
+        .fri_witness_generator_dal()
+        .protocol_version_for_l1_batch(block_number)
+        .await;
     prover_connection
         .fri_prover_jobs_dal()
         .insert_prover_jobs(
@@ -295,6 +305,7 @@ async fn update_database(
             blob_urls.circuit_ids_and_urls,
             AggregationRound::BasicCircuits,
             0,
+            protocol_version_id,
         )
         .await;
     prover_connection
@@ -304,6 +315,7 @@ async fn update_database(
             &blob_urls.closed_form_inputs_and_urls,
             &blob_urls.scheduler_witness_url,
             get_recursive_layer_circuit_id_for_base_layer,
+            protocol_version_id,
         )
         .await;
     prover_connection
@@ -516,7 +528,7 @@ async fn generate_witness(
     let geometry_config = get_geometry_config();
     let mut hasher = DefaultHasher::new();
     geometry_config.hash(&mut hasher);
-    vlog::info!(
+    tracing::info!(
         "generating witness for block {} using geometry config hash: {}",
         input.block_number.0,
         hasher.finish()
@@ -550,9 +562,9 @@ async fn generate_witness(
     tokio::task::spawn_blocking(move || {
         let connection = rt_handle.block_on(connection_pool.access_storage());
         let storage = PostgresStorage::new(rt_handle, connection, last_miniblock_number, true);
-        let storage_view = &mut StorageView::new(storage);
-        let storage_oracle: StorageOracle<HistoryDisabled> =
-            StorageOracle::new(storage_view.as_ptr());
+        let storage_view = StorageView::new(storage).to_rc_ptr();
+        let storage_oracle: StorageOracle<StorageView<PostgresStorage<'_>>, HistoryDisabled> =
+            StorageOracle::new(storage_view.clone());
         zkevm_test_harness::external_calls::run_with_fixed_params(
             Address::zero(),
             BOOTLOADER_ADDRESS,

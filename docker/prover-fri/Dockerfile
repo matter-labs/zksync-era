@@ -26,5 +26,9 @@ RUN CARGO_HOME=./cargo cargo build --release
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y curl libpq5 ca-certificates && rm -rf /var/lib/apt/lists/*
 
+# copy VK required for protocol version
+COPY prover/vk_setup_data_generator_server_fri/data/ /prover/vk_setup_data_generator_server_fri/data/
+
+
 COPY --from=builder /usr/src/zksync/target/release/zksync_prover_fri /usr/bin/
 ENTRYPOINT ["zksync_prover_fri"]

@@ -1,6 +1,8 @@
-use zksync_config::configs::eth_sender::{ProofSendingMode, SenderConfig};
+use zksync_config::configs::eth_sender::{ProofLoadingMode, ProofSendingMode, SenderConfig};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::StorageProcessor;
+use zksync_object_store::ObjectStore;
+use zksync_prover_utils::gcs_proof_fetcher::load_wrapped_fri_proofs_for_range;
 use zksync_types::{
     aggregated_operations::{
         AggregatedActionType, AggregatedOperation, L1BatchCommitOperation, L1BatchExecuteOperation,
@@ -23,10 +25,11 @@ pub struct Aggregator {
     proof_criteria: Vec<Box<dyn L1BatchPublishCriterion>>,
     execute_criteria: Vec<Box<dyn L1BatchPublishCriterion>>,
     config: SenderConfig,
+    blob_store: Box<dyn ObjectStore>,
 }
 
 impl Aggregator {
-    pub fn new(config: SenderConfig) -> Self {
+    pub fn new(config: SenderConfig, blob_store: Box<dyn ObjectStore>) -> Self {
         Self {
             commit_criteria: vec![
                 Box::from(NumberCriterion {
@@ -81,6 +84,7 @@ impl Aggregator {
                 }),
             ],
             config,
+            blob_store,
         }
     }
 
@@ -199,12 +203,15 @@ impl Aggregator {
         storage: &mut StorageProcessor<'_>,
         prover_storage: &mut StorageProcessor<'_>,
         l1_verifier_config: L1VerifierConfig,
+        proof_loading_mode: &ProofLoadingMode,
+        blob_store: &dyn ObjectStore,
     ) -> Option<L1BatchProofOperation> {
         let previous_proven_batch_number =
             storage.blocks_dal().get_last_l1_batch_with_prove_tx().await;
+        let batch_to_prove = previous_proven_batch_number + 1;
         if let Some(version_id) = storage
             .blocks_dal()
-            .get_batch_protocol_version_id(previous_proven_batch_number + 1)
+            .get_batch_protocol_version_id(batch_to_prove)
             .await
         {
             let verifier_config_for_next_batch = storage
@@ -216,13 +223,17 @@ impl Aggregator {
                 return None;
             }
         }
-        let proofs = prover_storage
-            .prover_dal()
-            .get_final_proofs_for_blocks(
-                previous_proven_batch_number + 1,
-                previous_proven_batch_number + 1,
-            )
-            .await;
+        let proofs = match proof_loading_mode {
+            ProofLoadingMode::OldProofFromDb => {
+                prover_storage
+                    .prover_dal()
+                    .get_final_proofs_for_blocks(batch_to_prove, batch_to_prove)
+                    .await
+            }
+            ProofLoadingMode::FriProofFromGcs => {
+                load_wrapped_fri_proofs_for_range(batch_to_prove, batch_to_prove, blob_store).await
+            }
+        };
         if proofs.is_empty() {
             // The proof for the next L1 batch is not generated yet
             return None;
@@ -297,7 +308,14 @@ impl Aggregator {
     ) -> Option<L1BatchProofOperation> {
         match self.config.proof_sending_mode {
             ProofSendingMode::OnlyRealProofs => {
-                Self::load_real_proof_operation(storage, prover_storage, l1_verifier_config).await
+                Self::load_real_proof_operation(
+                    storage,
+                    prover_storage,
+                    l1_verifier_config,
+                    &self.config.proof_loading_mode,
+                    &*self.blob_store,
+                )
+                .await
             }
 
             ProofSendingMode::SkipEveryProof => {
@@ -315,9 +333,14 @@ impl Aggregator {
 
             ProofSendingMode::OnlySampledProofs => {
                 // if there is a sampled proof then send it, otherwise check for skipped ones.
-                if let Some(op) =
-                    Self::load_real_proof_operation(storage, prover_storage, l1_verifier_config)
-                        .await
+                if let Some(op) = Self::load_real_proof_operation(
+                    storage,
+                    prover_storage,
+                    l1_verifier_config,
+                    &self.config.proof_loading_mode,
+                    &*self.blob_store,
+                )
+                .await
                 {
                     Some(op)
                 } else {

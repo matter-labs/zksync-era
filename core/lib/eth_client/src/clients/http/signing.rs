@@ -55,7 +55,7 @@ impl PKSigningClient {
         let operator_address = PackedEthSignature::address_from_private_key(&operator_private_key)
             .expect("Failed to get address from private key");
 
-        vlog::info!("Operator address: {:?}", operator_address);
+        tracing::info!("Operator address: {:?}", operator_address);
 
         SigningClient::new(
             transport,
@@ -281,7 +281,7 @@ impl<S: EthereumSigner> BoundEthInterface for SigningClient<S> {
             // Verbosity level is set to `error`, since we expect all the transactions to have
             // a set limit, but don't want to crаsh the application if for some reason in some
             // place limit was not set.
-            vlog::error!(
+            tracing::error!(
                 "No gas limit was set for transaction, using the default limit: {}",
                 FALLBACK_GAS_LIMIT
             );

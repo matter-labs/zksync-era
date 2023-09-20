@@ -12,7 +12,7 @@ use std::ops;
 pub(crate) async fn prepare_postgres(conn: &mut StorageProcessor<'_>) {
     if conn.blocks_dal().is_genesis_needed().await {
         conn.protocol_versions_dal()
-            .save_protocol_version(ProtocolVersion::default())
+            .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;
         // The created genesis block is likely to be invalid, but since it's not committed,
         // we don't really care.
@@ -74,6 +74,7 @@ pub(crate) async fn create_miniblock(
         l2_fair_gas_price: 0,
         base_system_contracts_hashes: Default::default(),
         protocol_version: Some(Default::default()),
+        virtual_blocks: 0,
     };
 
     conn.blocks_dal().insert_miniblock(&miniblock_header).await;

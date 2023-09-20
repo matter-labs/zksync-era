@@ -148,7 +148,7 @@ impl<'a> InstrumentedData<'a> {
         let output = match output {
             Ok(output) => output,
             Err(_) => {
-                vlog::warn!(
+                tracing::warn!(
                     "Query {name}{args} called at {file}:{line} is executing for more than {SLOW_QUERY_TIMEOUT:?}",
                     file = location.file(),
                     line = location.line()
@@ -165,14 +165,14 @@ impl<'a> InstrumentedData<'a> {
         }
 
         if let Err(err) = &output {
-            vlog::warn!(
+            tracing::warn!(
                 "Query {name}{args} called at {file}:{line} has resulted in error: {err}",
                 file = location.file(),
                 line = location.line()
             );
             metrics::increment_counter!("dal.request.error", "method" => name);
         } else if is_slow {
-            vlog::info!(
+            tracing::info!(
                 "Slow query {name}{args} called at {file}:{line} has finished after {elapsed:?}",
                 file = location.file(),
                 line = location.line()

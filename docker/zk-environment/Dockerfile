@@ -1,4 +1,4 @@
-FROM ubuntu:20.04 as base
+FROM ubuntu:20.04@sha256:3246518d9735254519e1b2ff35f95686e4a5011c90c85344c1f38df7bae9dd37 as base
 
 WORKDIR /usr/src/zksync
 ENV DEBIAN_FRONTEND noninteractive
@@ -22,7 +22,10 @@ RUN apt-get update && apt-get install -y \
     wget \
     vim \
     ca-certificates \
-    gnupg2
+    gnupg2 \
+    postgresql-client \
+    wget \
+    bzip2
 
 # Install dependencies for RocksDB. `liburing` is not available for Ubuntu 20.04,
 # so we use a PPA with the backport
@@ -46,7 +49,7 @@ RUN apt update; apt install -y docker-ce-cli
 RUN git config --global http.postBuffer 1048576000
 
 # Install node and yarn
-RUN curl -sL https://deb.nodesource.com/setup_14.x | bash -
+RUN curl -sL https://deb.nodesource.com/setup_18.x | bash -
 RUN apt-get install -y nodejs
 RUN npm install -g yarn
 
@@ -69,6 +72,7 @@ RUN rustup install nightly-2023-05-31
 RUN rustup default stable
 RUN cargo install --version=0.5.6 sqlx-cli
 RUN cargo install cargo-tarpaulin
+RUN cargo install cargo-nextest
 
 # Copy compiler (both solc and zksolc) binaries
 # Obtain `solc` 0.8.20.
@@ -79,6 +83,15 @@ RUN wget https://github.com/ethereum/solc-bin/raw/gh-pages/linux-amd64/solc-linu
 RUN wget https://github.com/matter-labs/zksolc-bin/raw/main/linux-amd64/zksolc-linux-amd64-musl-v1.3.13 \
     && mv zksolc-linux-amd64-musl-v1.3.13 /usr/bin/zksolc \
     && chmod +x /usr/bin/zksolc
+
+# Somehow it is installed with some other packages
+RUN apt-get remove valgrind -y
+
+# We need valgrind 3.20, which is unavailable in repos or ppa, so we will build it from source
+RUN wget https://sourceware.org/pub/valgrind/valgrind-3.20.0.tar.bz2 && \
+    tar -xf valgrind-3.20.0.tar.bz2 && \
+    cd valgrind-3.20.0 && ./configure && make && make install && \
+    cd ../ && rm -rf valgrind-3.20.0.tar.bz2 && rm -rf valgrind-3.20.0
 
 # Setup the environment
 ENV ZKSYNC_HOME=/usr/src/zksync

@@ -19,7 +19,7 @@ pub async fn track_eth_tx_metrics(
 
     // This should be only the case when some blocks were reverted.
     if l1_batch_headers.is_empty() {
-        vlog::warn!("No L1 batches were found for eth_tx with id = {}", tx.id);
+        tracing::warn!("No L1 batches were found for eth_tx with id = {}", tx.id);
         return;
     }
 

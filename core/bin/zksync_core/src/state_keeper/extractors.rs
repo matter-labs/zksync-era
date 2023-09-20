@@ -8,9 +8,8 @@ use std::{
     time::{Duration, Instant},
 };
 
-use vm::transaction_data::TransactionData;
 use zksync_dal::StorageProcessor;
-use zksync_types::{L1BatchNumber, Transaction, U256};
+use zksync_types::{L1BatchNumber, U256};
 use zksync_utils::h256_to_u256;
 
 /// Displays a Unix timestamp (seconds since epoch) in human-readable form. Useful for logging.
@@ -64,7 +63,7 @@ async fn wait_for_l1_batch_params_unchecked(
             .get_l1_batch_state_root_and_timestamp(number)
             .await;
         if let Some((root_hash, timestamp)) = data {
-            vlog::trace!(
+            tracing::trace!(
                 "Waiting for hash of L1 batch #{number} took {:?}",
                 stage_started_at.elapsed()
             );
@@ -73,10 +72,4 @@ async fn wait_for_l1_batch_params_unchecked(
 
         tokio::time::sleep(SAFE_STATE_ROOT_INTERVAL).await;
     }
-}
-
-/// Returns size in VM words of an encoded transaction.
-pub(super) fn encoded_transaction_size(tx: Transaction) -> usize {
-    let tx_data: TransactionData = tx.into();
-    tx_data.into_tokens().len()
 }

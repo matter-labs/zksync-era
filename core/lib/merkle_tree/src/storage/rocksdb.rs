@@ -6,7 +6,7 @@ use std::{path::Path, sync::Arc};
 
 use crate::{
     errors::{DeserializeError, ErrorContext},
-    metrics::ApplyPatchMetrics,
+    metrics::ApplyPatchStats,
     storage::{
         database::{PruneDatabase, PrunePatchSet},
         Database, NodeKeys, PatchSet,
@@ -77,6 +77,9 @@ impl RocksDBWrapper {
     /// the `io-uring` feature of `rocksdb` crate and is only available on Linux.
     /// Thus, setting this value to around `100..1_000` can still lead to substantial
     /// performance boost (order of 2x) in some environments.
+    ///
+    /// [RocksDB docs]: https://github.com/facebook/rocksdb/wiki/MultiGet-Performance
+    // TODO (BFT-153): Benchmark multi-get performance to find out optimal value
     pub fn set_multi_get_chunk_size(&mut self, chunk_size: usize) {
         self.multi_get_chunk_size = chunk_size;
     }
@@ -187,7 +190,7 @@ impl Database for RocksDBWrapper {
         let mut node_bytes = Vec::with_capacity(128);
         // ^ 128 looks somewhat reasonable as node capacity
 
-        let mut metrics = ApplyPatchMetrics::new(patch.copied_hashes_count());
+        let mut metrics = ApplyPatchStats::new(patch.copied_hashes_count());
 
         patch.manifest.serialize(&mut node_bytes);
         write_batch.put_cf(tree_cf, Self::MANIFEST_KEY, &node_bytes);

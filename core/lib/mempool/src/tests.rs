@@ -407,6 +407,7 @@ fn gen_l1_tx(priority_id: PriorityOpId) -> Transaction {
         common_data: ExecuteTransactionCommon::L1(op_data),
         execute,
         received_timestamp_ms: 0,
+        raw_bytes: None,
     }
 }
 

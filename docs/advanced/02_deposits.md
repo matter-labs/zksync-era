@@ -60,12 +60,10 @@ and now let's bridge it over to L2.
 We'll use the zksync-cli from: <https://github.com/matter-labs/zksync-cli> and then run:
 
 ```shell
-npm i
-npm run build
-npm exec zksync-cli deposit --l1-rpc-url=http://localhost:8545 --l2-rpc-url=http://localhost:3050
-# Address to deposit funds to: 0x618263CE921F7dd5F4f40C29f6c524Aaf97b9bbd
-# Amount in ETH: 3
+npx zksync-cli deposit --chain=local-dockerized
+# Amount of ETH to deposit: 3
 # Private key of the sender: 0x5090c024edb3bdf4ce2ebc2da96bedee925d9d77d729687e5e2d56382cf0a5a6
+# Recipient address on L2: 0x618263CE921F7dd5F4f40C29f6c524Aaf97b9bbd
 ```
 
 If everything goes well, you should be able to see 3 tokens transferred:

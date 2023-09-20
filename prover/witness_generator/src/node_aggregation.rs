@@ -21,9 +21,10 @@ use crate::utils::{
 };
 use zksync_dal::ConnectionPool;
 use zksync_object_store::{AggregationsKey, ObjectStore, ObjectStoreFactory};
-use zksync_prover_fri_types::FriProofWrapper;
+use zksync_prover_fri_types::{FriProofWrapper, get_current_pod_name};
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::proofs::NodeAggregationJobMetadata;
+use zksync_types::protocol_version::FriProtocolVersionId;
 use zksync_types::{proofs::AggregationRound, L1BatchNumber};
 
 pub struct NodeAggregationArtifacts {
@@ -63,16 +64,19 @@ pub struct NodeAggregationWitnessGeneratorJob {
 pub struct NodeAggregationWitnessGenerator {
     object_store: Box<dyn ObjectStore>,
     prover_connection_pool: ConnectionPool,
+    protocol_versions: Vec<FriProtocolVersionId>,
 }
 
 impl NodeAggregationWitnessGenerator {
     pub async fn new(
         store_factory: &ObjectStoreFactory,
         prover_connection_pool: ConnectionPool,
+        protocol_versions: Vec<FriProtocolVersionId>,
     ) -> Self {
         Self {
             object_store: store_factory.create_store().await,
             prover_connection_pool,
+            protocol_versions,
         }
     }
 
@@ -81,7 +85,7 @@ impl NodeAggregationWitnessGenerator {
         started_at: Instant,
     ) -> NodeAggregationArtifacts {
         let node_vk_commitment = compute_node_vk_commitment(job.node_vk.clone());
-        vlog::info!(
+        tracing::info!(
             "Starting witness generation of type {:?} for block {} circuit id {} depth {}",
             AggregationRound::NodeAggregation,
             job.block_number.0,
@@ -104,7 +108,7 @@ impl NodeAggregationWitnessGenerator {
                     started_at.elapsed(),
                     "aggregation_round" => format!("{:?}", AggregationRound::NodeAggregation),
         );
-        vlog::info!(
+        tracing::info!(
         "Node witness generation for block {} with circuit id {} at depth {} with {} next_aggregations jobs completed in {:?}.",
         job.block_number.0,
         job.circuit_id,
@@ -132,11 +136,12 @@ impl JobProcessor for NodeAggregationWitnessGenerator {
 
     async fn get_next_job(&self) -> Option<(Self::JobId, Self::Job)> {
         let mut prover_connection = self.prover_connection_pool.access_storage().await;
+        let pod_name = get_current_pod_name();
         let metadata = prover_connection
             .fri_witness_generator_dal()
-            .get_next_node_aggregation_job()
+            .get_next_node_aggregation_job(&self.protocol_versions, &pod_name)
             .await?;
-        vlog::info!("Processing node aggregation job {:?}", metadata.id);
+        tracing::info!("Processing node aggregation job {:?}", metadata.id);
         Some((
             metadata.id,
             prepare_job(metadata, &*self.object_store).await,
@@ -248,6 +253,10 @@ async fn update_database(
     let mut prover_connection = prover_connection_pool.access_storage().await;
     let mut transaction = prover_connection.start_transaction().await;
     let dependent_jobs = blob_urls.circuit_ids_and_urls.len();
+    let protocol_version_id = transaction
+        .fri_witness_generator_dal()
+        .protocol_version_for_l1_batch(block_number)
+        .await;
     match shall_continue_node_aggregations {
         true => {
             transaction
@@ -257,6 +266,7 @@ async fn update_database(
                     blob_urls.circuit_ids_and_urls,
                     AggregationRound::NodeAggregation,
                     depth,
+                    protocol_version_id,
                 )
                 .await;
             transaction
@@ -267,6 +277,7 @@ async fn update_database(
                     Some(dependent_jobs as i32),
                     depth,
                     &blob_urls.node_aggregations_url,
+                    protocol_version_id,
                 )
                 .await;
         }
@@ -282,6 +293,7 @@ async fn update_database(
                     AggregationRound::NodeAggregation,
                     &blob_url,
                     true,
+                    protocol_version_id,
                 )
                 .await
         }

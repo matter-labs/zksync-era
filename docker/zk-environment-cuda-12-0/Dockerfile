@@ -22,7 +22,8 @@ RUN apt-get update && apt-get install -y \
     wget \
     vim \
     ca-certificates \
-    gnupg2
+    gnupg2 \
+    postgresql-client
 
 # Install dependencies for RocksDB. `liburing` is not available for Ubuntu 20.04,
 # so we use a PPA with the backport
@@ -46,7 +47,7 @@ RUN apt update; apt install -y docker-ce-cli
 RUN git config --global http.postBuffer 1048576000
 
 # Install node and yarn
-RUN curl -sL https://deb.nodesource.com/setup_14.x | bash -
+RUN curl -sL https://deb.nodesource.com/setup_18.x | bash -
 RUN apt-get install -y nodejs
 RUN npm install -g yarn
 
@@ -69,6 +70,7 @@ RUN rustup install nightly-2023-05-31
 RUN rustup default stable
 RUN cargo install --version=0.5.6 sqlx-cli
 RUN cargo install cargo-tarpaulin
+RUN cargo install cargo-nextest
 
 # Copy compiler (both solc and zksolc) binaries
 # Obtain `solc` 0.8.20.

@@ -11,7 +11,7 @@ use zksync_prover_fri_types::circuit_definitions::circuit_definitions::base_laye
 };
 use zksync_prover_fri_types::circuit_definitions::circuit_definitions::recursion_layer::ZkSyncRecursiveLayerCircuit;
 use zksync_prover_fri_types::circuit_definitions::encodings::recursion_request::RecursionQueueSimulator;
-use zksync_prover_fri_types::FriProofWrapper;
+use zksync_prover_fri_types::{FriProofWrapper, get_current_pod_name};
 use zksync_prover_fri_utils::get_recursive_layer_circuit_id_for_base_layer;
 use zksync_vk_setup_data_server_fri::{
     get_base_layer_vk_for_circuit_type, get_recursive_layer_vk_for_circuit_type,
@@ -27,6 +27,7 @@ use zksync_object_store::{ClosedFormInputKey, ObjectStore, ObjectStoreFactory};
 use zksync_prover_fri_types::circuit_definitions::zkevm_circuits::recursion::leaf_layer::input::RecursionLeafParametersWitness;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::proofs::{AggregationRound, LeafAggregationJobMetadata};
+use zksync_types::protocol_version::FriProtocolVersionId;
 use zksync_types::L1BatchNumber;
 
 pub struct LeafAggregationArtifacts {
@@ -62,6 +63,7 @@ pub struct LeafAggregationWitnessGenerator {
     config: FriWitnessGeneratorConfig,
     object_store: Box<dyn ObjectStore>,
     prover_connection_pool: ConnectionPool,
+    protocol_versions: Vec<FriProtocolVersionId>,
 }
 
 impl LeafAggregationWitnessGenerator {
@@ -69,11 +71,13 @@ impl LeafAggregationWitnessGenerator {
         config: FriWitnessGeneratorConfig,
         store_factory: &ObjectStoreFactory,
         prover_connection_pool: ConnectionPool,
+        protocol_versions: Vec<FriProtocolVersionId>,
     ) -> Self {
         Self {
             config,
             object_store: store_factory.create_store().await,
             prover_connection_pool,
+            protocol_versions,
         }
     }
 
@@ -81,7 +85,7 @@ impl LeafAggregationWitnessGenerator {
         leaf_job: LeafAggregationWitnessGeneratorJob,
         started_at: Instant,
     ) -> LeafAggregationArtifacts {
-        vlog::info!(
+        tracing::info!(
             "Starting witness generation of type {:?} for block {} with circuit {}",
             AggregationRound::LeafAggregation,
             leaf_job.block_number.0,
@@ -101,11 +105,12 @@ impl JobProcessor for LeafAggregationWitnessGenerator {
 
     async fn get_next_job(&self) -> Option<(Self::JobId, Self::Job)> {
         let mut prover_connection = self.prover_connection_pool.access_storage().await;
+        let pod_name = get_current_pod_name();
         let metadata = prover_connection
             .fri_witness_generator_dal()
-            .get_next_leaf_aggregation_job()
+            .get_next_leaf_aggregation_job(&self.protocol_versions, &pod_name)
             .await?;
-        vlog::info!("Processing node aggregation job {:?}", metadata.id);
+        tracing::info!("Processing leaf aggregation job {:?}", metadata.id);
         Some((
             metadata.id,
             prepare_leaf_aggregation_job(metadata, &*self.object_store).await,
@@ -211,7 +216,7 @@ pub fn process_leaf_aggregation_job(
         started_at.elapsed(),
         "aggregation_round" => format!("{:?}", AggregationRound::LeafAggregation),
     );
-    vlog::info!(
+    tracing::info!(
         "Leaf witness generation for block {} with circuit id {}: is complete in {:?}.",
         job.block_number.0,
         circuit_id,
@@ -237,6 +242,10 @@ async fn update_database(
     let mut prover_connection = prover_connection_pool.access_storage().await;
     let mut transaction = prover_connection.start_transaction().await;
     let number_of_dependent_jobs = blob_urls.circuit_ids_and_urls.len();
+    let protocol_version_id = transaction
+        .fri_witness_generator_dal()
+        .protocol_version_for_l1_batch(block_number)
+        .await;
     transaction
         .fri_prover_jobs_dal()
         .insert_prover_jobs(
@@ -244,6 +253,7 @@ async fn update_database(
             blob_urls.circuit_ids_and_urls,
             AggregationRound::LeafAggregation,
             0,
+            protocol_version_id,
         )
         .await;
     transaction

@@ -1,10 +1,11 @@
 use anyhow::Context;
+use clap::Parser;
 use tokio::{sync::watch, task, time::sleep};
 
 use std::{sync::Arc, time::Duration};
 
-use prometheus_exporter::run_prometheus_exporter;
-use zksync_basic_types::Address;
+use prometheus_exporter::PrometheusExporterConfig;
+use zksync_basic_types::{Address, L2ChainId};
 use zksync_core::{
     api_server::{
         execution_sandbox::VmConcurrencyLimiter,
@@ -21,8 +22,7 @@ use zksync_core::{
     reorg_detector::ReorgDetector,
     setup_sigint_handler,
     state_keeper::{
-        L1BatchExecutorBuilder, MainBatchExecutorBuilder, MultiVMConfig, SealManager,
-        ZkSyncStateKeeper,
+        L1BatchExecutorBuilder, MainBatchExecutorBuilder, SealManager, ZkSyncStateKeeper,
     },
     sync_layer::{
         batch_status_updater::BatchStatusUpdater, external_io::ExternalIO,
@@ -50,7 +50,7 @@ async fn build_state_keeper(
     sync_state: SyncState,
     l2_erc20_bridge_addr: Address,
     stop_receiver: watch::Receiver<bool>,
-    use_multivm: bool,
+    chain_id: L2ChainId,
 ) -> ZkSyncStateKeeper {
     let en_sealer = ExternalNodeSealer::new(action_queue.clone());
     let main_node_url = config.required.main_node_url().unwrap();
@@ -69,28 +69,13 @@ async fn build_state_keeper(
     // We only need call traces on the external node if the `debug_` namespace is enabled.
     let save_call_traces = config.optional.api_namespaces().contains(&Namespace::Debug);
 
-    // Only supply MultiVM config if the corresponding feature is enabled.
-    let multivm_config = use_multivm.then(|| {
-        vlog::error!(
-            "Using experimental MultiVM support! The feature is not ready, use at your own risk!"
-        );
-        if main_node_url.contains("mainnet") {
-            MultiVMConfig::mainnet_config_wip()
-        } else if main_node_url.contains("testnet") {
-            MultiVMConfig::testnet_config_wip()
-        } else {
-            panic!("MultiVM can only be configured for mainnet/testnet now")
-        }
-    });
-
     let batch_executor_base: Box<dyn L1BatchExecutorBuilder> =
         Box::new(MainBatchExecutorBuilder::new(
             state_keeper_db_path,
             connection_pool.clone(),
             max_allowed_l2_tx_gas_limit,
             save_call_traces,
-            validation_computational_gas_limit,
-            multivm_config,
+            false,
         ));
 
     let io = Box::new(
@@ -100,9 +85,13 @@ async fn build_state_keeper(
             sync_state,
             main_node_url,
             l2_erc20_bridge_addr,
+            validation_computational_gas_limit,
+            chain_id,
         )
         .await,
     );
+
+    io.recalculate_miniblock_hashes().await;
 
     ZkSyncStateKeeper::new(stop_receiver, io, batch_executor_base, sealer)
 }
@@ -134,7 +123,7 @@ async fn init_tasks(
         sync_state.clone(),
         config.remote.l2_erc20_bridge_addr,
         stop_receiver.clone(),
-        config.optional.experimental_multivm_support,
+        config.remote.l2_chain_id,
     )
     .await;
 
@@ -164,7 +153,7 @@ async fn init_tasks(
             .required
             .eth_client_url()
             .expect("L1 client URL is incorrect"),
-        10,
+        10, // TODO (BFT-97): Make it a part of a proper EN config
         singleton_pool_builder.build().await,
     );
 
@@ -174,6 +163,7 @@ async fn init_tasks(
     // Run the components.
     let tree_stop_receiver = stop_receiver.clone();
     let tree_pool = singleton_pool_builder.build().await;
+    // todo: PLA-335
     let prover_tree_pool = ConnectionPool::singleton(DbVariant::Prover).build().await;
     let tree_handle =
         task::spawn(metadata_calculator.run(tree_pool, prover_tree_pool, tree_stop_receiver));
@@ -181,6 +171,7 @@ async fn init_tasks(
     let consistency_checker_handle = if !config.optional.experimental_multivm_support {
         Some(tokio::spawn(consistency_checker.run(stop_receiver.clone())))
     } else {
+        // TODO (BFT-264): Current behavior of consistency checker makes development of MultiVM harder.
         None
     };
 
@@ -219,7 +210,7 @@ async fn init_tasks(
             .build(
                 gas_adjuster,
                 Arc::new(vm_concurrency_limiter),
-                ApiContracts::load_from_disk(),
+                ApiContracts::load_from_disk(), // TODO (BFT-138): Allow to dynamically reload API contracts
                 storage_caches,
             )
             .await;
@@ -262,8 +253,8 @@ async fn init_tasks(
         healthchecks,
     );
     if let Some(port) = config.optional.prometheus_port {
-        let prometheus_task = run_prometheus_exporter(port, None);
-        task_handles.push(prometheus_task);
+        let prometheus_task = PrometheusExporterConfig::pull(port).run(stop_receiver.clone());
+        task_handles.push(tokio::spawn(prometheus_task));
     }
 
     task_handles.extend(http_api_handle);
@@ -295,12 +286,41 @@ async fn shutdown_components(
     healthcheck_handle.stop().await;
 }
 
+#[derive(Debug, Parser)]
+#[structopt(author = "Matter Labs", version)]
+struct Cli {
+    #[arg(long)]
+    revert_pending_l1_batch: bool,
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     // Initial setup.
+    let opt = Cli::parse();
 
-    vlog::init();
-    let _sentry_guard = vlog::init_sentry();
+    #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
+    let log_format = vlog::log_format_from_env();
+    #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
+    let sentry_url = vlog::sentry_url_from_env();
+    #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
+    let environment = vlog::environment_from_env();
+
+    let mut builder = vlog::ObservabilityBuilder::new().with_log_format(log_format);
+    if let Some(sentry_url) = &sentry_url {
+        builder = builder
+            .with_sentry_url(sentry_url)
+            .expect("Invalid Sentry URL")
+            .with_sentry_environment(environment);
+    }
+    let _guard = builder.build();
+
+    // Report whether sentry is running after the logging subsystem was initialized.
+    if let Some(sentry_url) = sentry_url {
+        tracing::info!("Sentry configured with URL: {sentry_url}");
+    } else {
+        tracing::info!("No sentry URL was provided");
+    }
+
     let config = ExternalNodeConfig::collect()
         .await
         .expect("Failed to load external node config");
@@ -310,12 +330,37 @@ async fn main() -> anyhow::Result<()> {
         .expect("Main node URL is incorrect");
 
     let connection_pool = ConnectionPool::builder(DbVariant::Master).build().await;
+
+    if opt.revert_pending_l1_batch {
+        tracing::info!("Rolling pending L1 batch back..");
+        let reverter = BlockReverter::new(
+            config.required.state_cache_path,
+            config.required.merkle_tree_path,
+            None,
+            connection_pool.clone(),
+            L1ExecutedBatchesRevert::Allowed,
+        );
+
+        let mut connection = connection_pool.access_storage().await;
+        let sealed_l1_batch_number = connection.blocks_dal().get_sealed_l1_batch_number().await;
+        drop(connection);
+
+        tracing::info!("Rolling back to l1 batch number {sealed_l1_batch_number}");
+        reverter
+            .rollback_db(sealed_l1_batch_number, BlockReverterFlags::all())
+            .await;
+        tracing::info!(
+            "Rollback successfully completed, the node has to restart to continue working"
+        );
+        return Ok(());
+    }
+
     let sigint_receiver = setup_sigint_handler();
 
-    vlog::warn!("The external node is in the alpha phase, and should be used with caution.");
+    tracing::warn!("The external node is in the alpha phase, and should be used with caution.");
 
-    vlog::info!("Started the external node");
-    vlog::info!("Main node URL is: {}", main_node_url);
+    tracing::info!("Started the external node");
+    tracing::info!("Main node URL is: {}", main_node_url);
 
     // Make sure that genesis is performed.
     perform_genesis_if_needed(
@@ -338,11 +383,11 @@ async fn main() -> anyhow::Result<()> {
     tokio::select! {
         _ = wait_for_tasks(task_handles, particular_crypto_alerts, graceful_shutdown, tasks_allowed_to_finish) => {},
         _ = sigint_receiver => {
-            vlog::info!("Stop signal received, shutting down");
+            tracing::info!("Stop signal received, shutting down");
         },
         last_correct_batch = reorg_detector_handle => {
             if let Ok(last_correct_batch) = last_correct_batch {
-                vlog::info!("Performing rollback to block {}", last_correct_batch);
+                tracing::info!("Performing rollback to block {}", last_correct_batch);
                 shutdown_components(stop_sender, health_check_handle).await;
                 let reverter = BlockReverter::new(
                     config.required.state_cache_path,
@@ -354,10 +399,10 @@ async fn main() -> anyhow::Result<()> {
                 reverter
                     .rollback_db(last_correct_batch, BlockReverterFlags::all())
                     .await;
-                vlog::info!("Rollback successfully completed, the node has to restart to continue working");
+                tracing::info!("Rollback successfully completed, the node has to restart to continue working");
                 return Ok(());
             } else {
-                vlog::error!("Reorg detector actor failed");
+                tracing::error!("Reorg detector actor failed");
             }
         }
     }

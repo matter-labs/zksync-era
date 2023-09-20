@@ -25,6 +25,7 @@ use zksync_object_store::ObjectStore;
 use zksync_prover_fri_types::{CircuitWrapper, FriProofWrapper, ProverJob, ProverServiceDataKey};
 use zksync_prover_fri_utils::fetch_next_circuit;
 use zksync_queued_job_processor::{async_trait, JobProcessor};
+use zksync_types::protocol_version::L1VerifierConfig;
 use zksync_vk_setup_data_server_fri::{
     get_cpu_setup_data_for_circuit_type, GoldilocksProverSetupData,
 };
@@ -45,6 +46,7 @@ pub struct Prover {
     // Only pick jobs for the configured circuit id and aggregation rounds.
     // Empty means all jobs are picked.
     circuit_ids_for_round_to_be_proven: Vec<CircuitIdRoundTuple>,
+    vk_commitments: L1VerifierConfig,
 }
 
 impl Prover {
@@ -55,6 +57,7 @@ impl Prover {
         prover_connection_pool: ConnectionPool,
         setup_load_mode: SetupLoadMode,
         circuit_ids_for_round_to_be_proven: Vec<CircuitIdRoundTuple>,
+        vk_commitments: L1VerifierConfig,
     ) -> Self {
         Prover {
             blob_store,
@@ -63,6 +66,7 @@ impl Prover {
             prover_connection_pool,
             setup_load_mode,
             circuit_ids_for_round_to_be_proven,
+            vk_commitments,
         }
     }
 
@@ -183,11 +187,11 @@ impl JobProcessor for Prover {
 
     async fn get_next_job(&self) -> Option<(Self::JobId, Self::Job)> {
         let mut storage = self.prover_connection_pool.access_storage().await;
-        let mut fri_prover_dal = storage.fri_prover_jobs_dal();
         let prover_job = fetch_next_circuit(
-            &mut fri_prover_dal,
+            &mut storage,
             &*self.blob_store,
             &self.circuit_ids_for_round_to_be_proven,
+            &self.vk_commitments,
         )
         .await?;
         Some((prover_job.job_id, prover_job))
@@ -240,7 +244,7 @@ pub fn load_setup_data_cache(config: &FriProverConfig) -> SetupLoadMode {
         zksync_config::configs::fri_prover::SetupLoadMode::FromDisk => SetupLoadMode::FromDisk,
         zksync_config::configs::fri_prover::SetupLoadMode::FromMemory => {
             let mut cache = HashMap::new();
-            vlog::info!(
+            tracing::info!(
                 "Loading setup data cache for group {}",
                 &config.specialized_group_id
             );
@@ -249,7 +253,7 @@ pub fn load_setup_data_cache(config: &FriProverConfig) -> SetupLoadMode {
                 .expect(
                     "At least one circuit should be configured for group when running in FromMemory mode",
                 );
-            vlog::info!(
+            tracing::info!(
                 "for group {} configured setup metadata are {:?}",
                 &config.specialized_group_id,
                 prover_setup_metadata_list

@@ -28,7 +28,9 @@ const CONFIG_FILES = [
     'fri_witness_generator.toml',
     'fri_prover_group.toml',
     'proof_data_handler.toml',
-    'fri_witness_vector_generator.toml'
+    'fri_witness_vector_generator.toml',
+    'fri_prover_gateway.toml',
+    'fri_proof_compressor.toml'
 ];
 
 function loadConfigFile(path: string) {
@@ -60,7 +62,7 @@ export function collectVariables(config: any, prefix: string = ''): Map<string, 
                 } else {
                     // It's a plain array, so join the elements into a string.
                     const variableName = `${prefix}${keyUppercase}`;
-                    variables.set(variableName, config[key].join(','));
+                    variables.set(variableName, `"${config[key].join(',')}"`);
                 }
             } else {
                 // It's a map object: parse it recursively.

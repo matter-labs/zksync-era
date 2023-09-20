@@ -20,7 +20,6 @@ EXPOSE 3030
 COPY --from=builder /usr/src/zksync/target/release/zksync_server /usr/bin
 COPY --from=builder /usr/src/zksync/target/release/block_reverter /usr/bin
 COPY --from=builder /usr/src/zksync/target/release/merkle_tree_consistency_checker /usr/bin
-COPY --from=builder /usr/src/zksync/target/release/slot_index_consistency_checker /usr/bin
 COPY --from=builder /usr/src/zksync/target/release/rocksdb_util /usr/bin
 COPY etc/system-contracts/bootloader/build/artifacts/ /etc/system-contracts/bootloader/build/artifacts/
 COPY etc/system-contracts/contracts/artifacts/ /etc/system-contracts/contracts/artifacts/
@@ -30,6 +29,7 @@ COPY contracts/ethereum/artifacts/ /contracts/ethereum/artifacts/
 COPY contracts/zksync/artifacts-zk/ /contracts/zksync/artifacts-zk/
 COPY etc/tokens/ /etc/tokens/
 COPY etc/ERC20/ /etc/ERC20/
+COPY etc/multivm_bootloaders/ /etc/multivm_bootloaders/
 COPY core/bin/verification_key_generator_and_server/data/ /core/bin/verification_key_generator_and_server/data/
 
 ENTRYPOINT ["zksync_server"]

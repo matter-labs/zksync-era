@@ -35,6 +35,78 @@ impl BlocksDal<'_, '_> {
         count == 0
     }
 
+    pub async fn get_miniblock_hashes_from_date(
+        &mut self,
+        timestamp: u64,
+        limit: u32,
+        version: ProtocolVersionId,
+    ) -> Vec<(MiniblockNumber, H256)> {
+        let number = sqlx::query!(
+            "SELECT number from miniblocks where timestamp > $1 ORDER BY number ASC LIMIT 1",
+            timestamp as i64
+        )
+        .fetch_one(self.storage.conn())
+        .await
+        .unwrap()
+        .number;
+        self.storage
+            .blocks_dal()
+            .get_miniblocks_since_block(number, limit, version)
+            .await
+    }
+
+    pub async fn get_last_miniblocks_for_version(
+        &mut self,
+        limit: u32,
+        version: ProtocolVersionId,
+    ) -> Vec<(MiniblockNumber, H256)> {
+        let minibloks = sqlx::query!(
+            "SELECT number, hash FROM miniblocks WHERE protocol_version = $1 ORDER BY number DESC LIMIT $2",
+            version as i32,
+            limit as i32
+        )
+            .fetch_all(self.storage.conn())
+            .await
+            .unwrap()
+            .iter()
+            .map(|block| {
+                (
+                    MiniblockNumber(block.number as u32),
+                    H256::from_slice(&block.hash),
+                )
+            })
+            .collect();
+
+        minibloks
+    }
+
+    pub async fn get_miniblocks_since_block(
+        &mut self,
+        number: i64,
+        limit: u32,
+        version: ProtocolVersionId,
+    ) -> Vec<(MiniblockNumber, H256)> {
+        let minibloks = sqlx::query!(
+            "SELECT number, hash FROM miniblocks WHERE number >= $1 and protocol_version = $2 ORDER BY number LIMIT $3",
+            number,
+            version as i32,
+            limit as i32
+        )
+        .fetch_all(self.storage.conn())
+        .await
+        .unwrap()
+        .iter()
+        .map(|block| {
+            (
+                MiniblockNumber(block.number as u32),
+                H256::from_slice(&block.hash),
+            )
+        })
+        .collect();
+
+        minibloks
+    }
+
     pub async fn get_sealed_l1_batch_number(&mut self) -> L1BatchNumber {
         let number = sqlx::query!(
             "SELECT MAX(number) as \"number\" FROM l1_batches WHERE is_finished = TRUE"
@@ -286,8 +358,8 @@ impl BlocksDal<'_, '_> {
                 number, timestamp, hash, l1_tx_count, l2_tx_count, \
                 base_fee_per_gas, l1_gas_price, l2_fair_gas_price, gas_per_pubdata_limit, \
                 bootloader_code_hash, default_aa_code_hash, protocol_version, \
-                created_at, updated_at \
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, now(), now())",
+                virtual_blocks, created_at, updated_at \
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, now(), now())",
             miniblock_header.number.0 as i64,
             miniblock_header.timestamp as i64,
             miniblock_header.hash.as_bytes(),
@@ -306,6 +378,28 @@ impl BlocksDal<'_, '_> {
                 .default_aa
                 .as_bytes(),
             miniblock_header.protocol_version.map(|v| v as i32),
+            miniblock_header.virtual_blocks as i64,
+        )
+        .execute(self.storage.conn())
+        .await
+        .unwrap();
+    }
+
+    pub async fn update_hashes(&mut self, number_and_hashes: &[(MiniblockNumber, H256)]) {
+        let mut numbers = vec![];
+        let mut hashes = vec![];
+        for (number, hash) in number_and_hashes {
+            numbers.push(number.0 as i64);
+            hashes.push(hash.as_bytes().to_vec());
+        }
+
+        sqlx::query!(
+            "UPDATE miniblocks SET hash = u.hash   \
+            FROM UNNEST($1::bigint[], $2::bytea[]) AS u(number, hash) \
+            WHERE miniblocks.number = u.number
+        ",
+            &numbers,
+            &hashes
         )
         .execute(self.storage.conn())
         .await
@@ -317,7 +411,8 @@ impl BlocksDal<'_, '_> {
             StorageMiniblockHeader,
             "SELECT number, timestamp, hash, l1_tx_count, l2_tx_count, \
                 base_fee_per_gas, l1_gas_price, l2_fair_gas_price, \
-                bootloader_code_hash, default_aa_code_hash, protocol_version \
+                bootloader_code_hash, default_aa_code_hash, protocol_version, \
+                virtual_blocks
             FROM miniblocks \
             ORDER BY number DESC \
             LIMIT 1",
@@ -336,7 +431,8 @@ impl BlocksDal<'_, '_> {
             StorageMiniblockHeader,
             "SELECT number, timestamp, hash, l1_tx_count, l2_tx_count, \
                 base_fee_per_gas, l1_gas_price, l2_fair_gas_price, \
-                bootloader_code_hash, default_aa_code_hash, protocol_version \
+                bootloader_code_hash, default_aa_code_hash, protocol_version, \
+                virtual_blocks
             FROM miniblocks \
             WHERE number = $1",
             miniblock_number.0 as i64,
@@ -431,7 +527,7 @@ impl BlocksDal<'_, '_> {
         .unwrap();
 
         if update_result.rows_affected() == 0 {
-            vlog::debug!(
+            tracing::debug!(
                 "L1 batch {} info wasn't updated. Details: root_hash: {:?}, merkle_root_hash: {:?}, \
                  parent_hash: {:?}, commitment: {:?}, l2_l1_merkle_root: {:?}",
                 number.0 as i64,
@@ -1112,16 +1208,28 @@ impl BlocksDal<'_, '_> {
         &mut self,
         l1_batch_number: L1BatchNumber,
     ) -> Option<ProtocolVersionId> {
-        {
-            let row = sqlx::query!(
-                "SELECT protocol_version FROM l1_batches WHERE number = $1",
-                l1_batch_number.0 as i64
-            )
-            .fetch_optional(self.storage.conn())
-            .await
-            .unwrap()?;
-            row.protocol_version.map(|v| (v as u16).try_into().unwrap())
-        }
+        let row = sqlx::query!(
+            "SELECT protocol_version FROM l1_batches WHERE number = $1",
+            l1_batch_number.0 as i64
+        )
+        .fetch_optional(self.storage.conn())
+        .await
+        .unwrap()?;
+        row.protocol_version.map(|v| (v as u16).try_into().unwrap())
+    }
+
+    pub async fn get_miniblock_protocol_version_id(
+        &mut self,
+        miniblock_number: MiniblockNumber,
+    ) -> Option<ProtocolVersionId> {
+        let row = sqlx::query!(
+            "SELECT protocol_version FROM miniblocks WHERE number = $1",
+            miniblock_number.0 as i64
+        )
+        .fetch_optional(self.storage.conn())
+        .await
+        .unwrap()?;
+        row.protocol_version.map(|v| (v as u16).try_into().unwrap())
     }
 
     pub async fn get_miniblock_timestamp(
@@ -1136,6 +1244,17 @@ impl BlocksDal<'_, '_> {
         .await
         .unwrap()
         .map(|row| row.timestamp as u64)
+    }
+
+    pub async fn set_protocol_version_for_pending_miniblocks(&mut self, id: ProtocolVersionId) {
+        sqlx::query!(
+            "UPDATE miniblocks SET protocol_version = $1 \
+            WHERE l1_batch_number IS NULL",
+            id as i32,
+        )
+        .execute(self.storage.conn())
+        .await
+        .unwrap();
     }
 }
 
@@ -1174,7 +1293,7 @@ mod tests {
         let mut conn = pool.access_storage().await;
         conn.blocks_dal().delete_l1_batches(L1BatchNumber(0)).await;
         conn.protocol_versions_dal()
-            .save_protocol_version(ProtocolVersion::default())
+            .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;
 
         let mut header = L1BatchHeader::new(
@@ -1228,7 +1347,7 @@ mod tests {
         let mut conn = pool.access_storage().await;
         conn.blocks_dal().delete_l1_batches(L1BatchNumber(0)).await;
         conn.protocol_versions_dal()
-            .save_protocol_version(ProtocolVersion::default())
+            .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;
         let mut header = L1BatchHeader::new(
             L1BatchNumber(1),

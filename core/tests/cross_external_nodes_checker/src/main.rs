@@ -15,13 +15,26 @@ use zksync_utils::wait_for_tasks::wait_for_tasks;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    vlog::init();
-    let _sentry_guard = vlog::init_sentry();
+    #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
+    let log_format = vlog::log_format_from_env();
+    #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
+    let sentry_url = vlog::sentry_url_from_env();
+    #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
+    let environment = vlog::environment_from_env();
 
-    vlog::info!("Started the Cross Node Checker");
+    let mut builder = vlog::ObservabilityBuilder::new().with_log_format(log_format);
+    if let Some(sentry_url) = sentry_url {
+        builder = builder
+            .with_sentry_url(&sentry_url)
+            .expect("Invalid Sentry URL")
+            .with_sentry_environment(environment);
+    }
+    let _guard = builder.build();
+
+    tracing::info!("Started the Cross Node Checker");
 
     let config = CheckerConfig::from_env();
-    vlog::info!("Loaded the checker config: {:?}", config);
+    tracing::info!("Loaded the checker config: {:?}", config);
 
     let mut join_handles = Vec::new();
     let sigint_receiver = setup_sigint_handler();
@@ -47,7 +60,7 @@ async fn main() -> anyhow::Result<()> {
         _ = wait_for_tasks(join_handles, None, None::<futures::future::Ready<()>>, false) => {},
         _ = sigint_receiver => {
             let _ = stop_sender.send(true);
-            vlog::info!("Stop signal received, shutting down the cross EN Checker");
+            tracing::info!("Stop signal received, shutting down the cross EN Checker");
         },
     }
 

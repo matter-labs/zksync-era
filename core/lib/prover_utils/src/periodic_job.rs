@@ -14,7 +14,7 @@ pub trait PeriodicJob: Sync + Send {
     where
         Self: Sized,
     {
-        vlog::info!(
+        tracing::info!(
             "Starting periodic job: {} with frequency: {} ms",
             Self::SERVICE_NAME,
             self.polling_interval_ms()

@@ -9,28 +9,26 @@ use std::{
 };
 
 use vm::{
-    vm::{VmPartialExecutionResult, VmTxExecutionResult},
-    vm_with_bootloader::{BlockContext, BlockContextMode, DerivedBlockContext},
-    VmBlockResult, VmExecutionResult,
+    constants::BLOCK_GAS_LIMIT, CurrentExecutionState, ExecutionResult, FinishedL1Batch,
+    L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionResultAndLogs,
+    VmExecutionStatistics,
 };
 use zksync_config::{configs::chain::StateKeeperConfig, constants::ZKPORTER_IS_AVAILABLE};
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes};
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
+    block::legacy_miniblock_hash,
+    block::miniblock_hash,
     block::BlockGasCount,
     block::MiniblockReexecuteData,
     commitment::{L1BatchMetaParameters, L1BatchMetadata},
     fee::Fee,
     l2::L2Tx,
     transaction_request::PaymasterParams,
-    tx::tx_execution_info::{TxExecutionStatus, VmExecutionLogs},
-    vm_trace::{VmExecutionTrace, VmTrace},
-    zk_evm::aux_structures::{LogQuery, Timestamp},
-    zk_evm::block_properties::BlockProperties,
-    Address, L2ChainId, MiniblockNumber, Nonce, ProtocolVersionId, StorageLogQuery,
-    StorageLogQueryType, Transaction, H256, U256,
+    tx::tx_execution_info::VmExecutionLogs,
+    Address, L1BatchNumber, L2ChainId, LogQuery, MiniblockNumber, Nonce, ProtocolVersionId,
+    StorageLogQuery, StorageLogQueryType, Timestamp, Transaction, H256, U256,
 };
-use zksync_utils::h256_to_u256;
 
 use self::tester::{
     bootloader_tip_out_of_gas, pending_batch_data, random_tx, rejected_exec, successful_exec,
@@ -52,10 +50,37 @@ mod tester;
 pub(super) static BASE_SYSTEM_CONTRACTS: Lazy<BaseSystemContracts> =
     Lazy::new(BaseSystemContracts::load_from_disk);
 
-pub(super) fn default_block_properties() -> BlockProperties {
-    BlockProperties {
-        default_aa_code_hash: h256_to_u256(BASE_SYSTEM_CONTRACTS.default_aa.hash),
-        zkporter_is_available: ZKPORTER_IS_AVAILABLE,
+pub(super) fn default_system_env() -> SystemEnv {
+    SystemEnv {
+        zk_porter_available: ZKPORTER_IS_AVAILABLE,
+        version: ProtocolVersionId::latest(),
+        base_system_smart_contracts: BASE_SYSTEM_CONTRACTS.clone(),
+        gas_limit: BLOCK_GAS_LIMIT,
+        execution_mode: TxExecutionMode::VerifyExecute,
+        default_validation_computational_gas_limit: BLOCK_GAS_LIMIT,
+        chain_id: L2ChainId(270),
+    }
+}
+
+pub(super) fn default_l1_batch_env(
+    number: u32,
+    timestamp: u64,
+    fee_account: Address,
+) -> L1BatchEnv {
+    L1BatchEnv {
+        previous_batch_hash: None,
+        number: L1BatchNumber(number),
+        timestamp,
+        l1_gas_price: 1,
+        fair_l2_gas_price: 1,
+        fee_account,
+        enforced_base_fee: None,
+        first_l2_block: L2BlockEnv {
+            number,
+            timestamp,
+            prev_block_hash: legacy_miniblock_hash(MiniblockNumber(number - 1)),
+            max_virtual_blocks_to_create: 1,
+        },
     }
 }
 
@@ -80,51 +105,32 @@ pub(super) fn create_l1_batch_metadata(number: u32) -> L1BatchMetadata {
     }
 }
 
-pub(super) fn default_vm_block_result() -> VmBlockResult {
-    VmBlockResult {
-        full_result: VmExecutionResult {
+pub(super) fn default_vm_block_result() -> FinishedL1Batch {
+    FinishedL1Batch {
+        block_tip_execution_result: VmExecutionResultAndLogs {
+            result: ExecutionResult::Success { output: vec![] },
+            logs: Default::default(),
+            statistics: Default::default(),
+            refunds: Default::default(),
+        },
+        final_execution_state: CurrentExecutionState {
             events: vec![],
             storage_log_queries: vec![],
             used_contract_hashes: vec![],
             l2_to_l1_logs: vec![],
-            return_data: vec![],
-            gas_used: 0,
-            contracts_used: 0,
-            revert_reason: None,
-            trace: VmTrace::ExecutionTrace(VmExecutionTrace::default()),
             total_log_queries: 0,
             cycles_used: 0,
-            computational_gas_used: 0,
         },
-        block_tip_result: VmPartialExecutionResult {
-            logs: VmExecutionLogs::default(),
-            revert_reason: None,
-            contracts_used: 0,
-            cycles_used: 0,
-            computational_gas_used: 0,
-        },
-    }
-}
-
-pub(super) fn default_block_context() -> DerivedBlockContext {
-    DerivedBlockContext {
-        context: BlockContext {
-            block_number: 0,
-            block_timestamp: 0,
-            l1_gas_price: 0,
-            fair_l2_gas_price: 0,
-            operator_address: Address::default(),
-        },
-        base_fee: 0,
+        final_bootloader_memory: Some(vec![]),
     }
 }
 
 pub(super) fn create_updates_manager() -> UpdatesManager {
-    let block_context = BlockContextMode::NewBlock(default_block_context(), 0.into());
+    let l1_batch_env = default_l1_batch_env(1, 1, Address::default());
     UpdatesManager::new(
-        &block_context,
+        l1_batch_env,
         BaseSystemContractsHashes::default(),
-        ProtocolVersionId::default(),
+        ProtocolVersionId::latest(),
     )
 }
 
@@ -161,30 +167,29 @@ pub(super) fn create_transaction(fee_per_gas: u64, gas_per_pubdata: u32) -> Tran
 pub(super) fn create_execution_result(
     tx_number_in_block: u16,
     storage_logs: impl IntoIterator<Item = (U256, Query)>,
-) -> VmTxExecutionResult {
+) -> VmExecutionResultAndLogs {
     let storage_logs: Vec<_> = storage_logs
         .into_iter()
         .map(|(key, query)| query.into_log(key, tx_number_in_block))
         .collect();
 
-    let logs = VmExecutionLogs {
-        total_log_queries_count: storage_logs.len() + 2,
-        storage_logs,
-        events: vec![],
-        l2_to_l1_logs: vec![],
-    };
-    VmTxExecutionResult {
-        status: TxExecutionStatus::Success,
-        result: VmPartialExecutionResult {
-            logs,
-            revert_reason: None,
+    let total_log_queries = storage_logs.len() + 2;
+    VmExecutionResultAndLogs {
+        result: ExecutionResult::Success { output: vec![] },
+        logs: VmExecutionLogs {
+            events: vec![],
+            l2_to_l1_logs: vec![],
+            storage_logs,
+            total_log_queries_count: total_log_queries,
+        },
+        statistics: VmExecutionStatistics {
             contracts_used: 0,
             cycles_used: 0,
+            gas_used: 0,
             computational_gas_used: 0,
+            total_log_queries,
         },
-        call_traces: vec![],
-        gas_refunded: 0,
-        operator_suggested_refund: 0,
+        refunds: Default::default(),
     }
 }
 
@@ -523,11 +528,15 @@ async fn pending_batch_is_applied() {
         MiniblockReexecuteData {
             number: MiniblockNumber(1),
             timestamp: 1,
+            prev_block_hash: miniblock_hash(MiniblockNumber(0), 0, H256::zero(), H256::zero()),
+            virtual_blocks: 1,
             txs: vec![random_tx(1)],
         },
         MiniblockReexecuteData {
             number: MiniblockNumber(2),
             timestamp: 2,
+            prev_block_hash: miniblock_hash(MiniblockNumber(1), 1, H256::zero(), H256::zero()),
+            virtual_blocks: 1,
             txs: vec![random_tx(2)],
         },
     ]);
@@ -621,6 +630,8 @@ async fn miniblock_timestamp_after_pending_batch() {
     let pending_batch = pending_batch_data(vec![MiniblockReexecuteData {
         number: MiniblockNumber(1),
         timestamp: 1,
+        prev_block_hash: miniblock_hash(MiniblockNumber(0), 0, H256::zero(), H256::zero()),
+        virtual_blocks: 1,
         txs: vec![random_tx(1)],
     }]);
 

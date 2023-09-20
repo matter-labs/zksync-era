@@ -107,7 +107,7 @@ fn generate_cpu_recursive_layer_setup_data(
     circuit: ZkSyncRecursiveLayerCircuit,
 ) -> GoldilocksProverSetupData {
     let circuit_type = circuit.numeric_circuit_type();
-    vlog::info!(
+    tracing::info!(
         "starting setup data generator for recursive layer circuit: {}.",
         circuit_type
     );

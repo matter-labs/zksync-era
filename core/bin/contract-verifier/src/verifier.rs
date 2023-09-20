@@ -63,7 +63,7 @@ impl ContractVerifier {
             .get_contract_info_for_verification(request.req.contract_address).await
             .unwrap()
             .ok_or_else(|| {
-                vlog::warn!("Contract is missing in DB for already accepted verification request. Contract address: {:#?}", request.req.contract_address);
+                tracing::warn!("Contract is missing in DB for already accepted verification request. Contract address: {:#?}", request.req.contract_address);
                 ContractVerifierError::InternalError
             })?;
         let constructor_args = Self::decode_constructor_arguments_from_calldata(
@@ -173,7 +173,7 @@ impl ContractVerifier {
                 let bytecode = hex::decode(bytecode_str).unwrap();
                 let abi = contract["abi"].clone();
                 if !abi.is_array() {
-                    vlog::error!(
+                    tracing::error!(
                         "zksolc returned unexpected value for ABI: {}",
                         serde_json::to_string_pretty(&abi).unwrap()
                     );
@@ -424,7 +424,7 @@ impl ContractVerifier {
                     .save_verification_info(info)
                     .await
                     .unwrap();
-                vlog::info!("Successfully processed request with id = {}", request_id);
+                tracing::info!("Successfully processed request with id = {}", request_id);
             }
             Err(error) => {
                 let error_message = error.to_string();
@@ -439,7 +439,7 @@ impl ContractVerifier {
                     .save_verification_error(request_id, error_message, compilation_errors, None)
                     .await
                     .unwrap();
-                vlog::info!("Request with id = {} was failed", request_id);
+                tracing::info!("Request with id = {} was failed", request_id);
             }
         }
     }
@@ -495,7 +495,7 @@ impl JobProcessor for ContractVerifier {
     ) -> tokio::task::JoinHandle<()> {
         let connection_pool = self.connection_pool.clone();
         tokio::task::spawn(async move {
-            vlog::info!("Started to process request with id = {}", job.id);
+            tracing::info!("Started to process request with id = {}", job.id);
 
             let config: ContractVerifierConfig = ContractVerifierConfig::from_env();
             let mut connection = connection_pool.access_storage().await;

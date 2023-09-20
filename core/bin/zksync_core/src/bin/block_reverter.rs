@@ -56,6 +56,9 @@ enum Command {
         /// Flag that specifies if RocksDB with state keeper cache should be rolled back.
         #[arg(long)]
         rollback_sk_cache: bool,
+        /// Flag that allows to revert already executed blocks, it's ultra dangerous and required only for fixing external nodes
+        #[arg(long)]
+        allow_executed_block_reversion: bool,
     },
 
     /// Clears failed L1 transactions.
@@ -65,8 +68,22 @@ enum Command {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    vlog::init();
-    let _sentry_guard = vlog::init_sentry();
+    #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
+    let log_format = vlog::log_format_from_env();
+    #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
+    let sentry_url = vlog::sentry_url_from_env();
+    #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
+    let environment = vlog::environment_from_env();
+
+    let mut builder = vlog::ObservabilityBuilder::new().with_log_format(log_format);
+    if let Some(sentry_url) = sentry_url {
+        builder = builder
+            .with_sentry_url(&sentry_url)
+            .expect("Invalid Sentry URL")
+            .with_sentry_environment(environment);
+    }
+    let _guard = builder.build();
+
     let eth_sender = ETHSenderConfig::from_env();
     let db_config = DBConfig::from_env();
     let eth_client = ETHClientConfig::from_env();
@@ -76,7 +93,7 @@ async fn main() -> anyhow::Result<()> {
     let config = BlockReverterEthConfig::new(eth_sender, contracts, eth_client.web3_url.clone());
 
     let connection_pool = ConnectionPool::builder(DbVariant::Master).build().await;
-    let block_reverter = BlockReverter::new(
+    let mut block_reverter = BlockReverter::new(
         db_config.state_keeper_db_path,
         db_config.merkle_tree.path,
         Some(config),
@@ -113,6 +130,7 @@ async fn main() -> anyhow::Result<()> {
             rollback_postgres,
             rollback_tree,
             rollback_sk_cache,
+            allow_executed_block_reversion,
         } => {
             if !rollback_tree && rollback_postgres {
                 println!("You want to rollback Postgres DB without rolling back tree.");
@@ -127,6 +145,21 @@ async fn main() -> anyhow::Result<()> {
                 if input[0] != b'y' && input[0] != b'Y' {
                     std::process::exit(0);
                 }
+            }
+
+            if allow_executed_block_reversion {
+                println!("You want to revert already executed blocks. It's impossible to restore them for the main node");
+                println!("Make sure you are doing it ONLY for external node");
+                println!("Are you sure? Print y/n");
+
+                let mut input = [0u8];
+                io::stdin().read_exact(&mut input).await.unwrap();
+                if input[0] != b'y' && input[0] != b'Y' {
+                    std::process::exit(0);
+                }
+                block_reverter.change_rollback_executed_l1_batches_allowance(
+                    L1ExecutedBatchesRevert::Allowed,
+                );
             }
 
             let mut flags = BlockReverterFlags::empty();

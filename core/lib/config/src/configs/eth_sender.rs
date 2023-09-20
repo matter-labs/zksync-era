@@ -32,6 +32,12 @@ pub enum ProofSendingMode {
     SkipEveryProof,
 }
 
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq)]
+pub enum ProofLoadingMode {
+    OldProofFromDb,
+    FriProofFromGcs,
+}
+
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct SenderConfig {
     pub aggregated_proof_sizes: Vec<usize>,
@@ -62,6 +68,9 @@ pub struct SenderConfig {
     pub l1_batch_min_age_before_execute_seconds: Option<u64>,
     // Max acceptable fee for sending tx it acts as a safeguard to prevent sending tx with very high fees.
     pub max_acceptable_priority_fee_in_gwei: u64,
+
+    /// The mode in which proofs are loaded, either from DB/GCS for FRI/Old proof.
+    pub proof_loading_mode: ProofLoadingMode,
 }
 
 impl SenderConfig {
@@ -148,6 +157,7 @@ mod tests {
                 proof_sending_mode: ProofSendingMode::SkipEveryProof,
                 l1_batch_min_age_before_execute_seconds: Some(1000),
                 max_acceptable_priority_fee_in_gwei: 100_000_000_000,
+                proof_loading_mode: ProofLoadingMode::OldProofFromDb,
             },
             gas_adjuster: GasAdjusterConfig {
                 default_priority_fee_per_gas: 20000000000,
@@ -191,6 +201,7 @@ mod tests {
             ETH_SENDER_SENDER_MAX_ETH_TX_DATA_SIZE="120000"
             ETH_SENDER_SENDER_L1_BATCH_MIN_AGE_BEFORE_EXECUTE_SECONDS="1000"
             ETH_SENDER_SENDER_MAX_ACCEPTABLE_PRIORITY_FEE_IN_GWEI="100000000000"
+            ETH_SENDER_SENDER_PROOF_LOADING_MODE="OldProofFromDb"
         "#;
         lock.set_env(config);
 

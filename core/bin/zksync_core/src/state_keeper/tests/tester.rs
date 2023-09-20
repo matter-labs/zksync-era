@@ -9,23 +9,21 @@ use std::{
 };
 
 use vm::{
-    vm::{VmPartialExecutionResult, VmTxExecutionResult},
-    vm_with_bootloader::{BlockContext, BlockContextMode, DerivedBlockContext},
-    VmBlockResult,
+    constants::BLOCK_GAS_LIMIT, ExecutionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv,
+    SystemEnv, TxExecutionMode, VmExecutionResultAndLogs,
 };
 use zksync_types::{
     block::MiniblockReexecuteData, protocol_version::ProtocolUpgradeTx,
-    tx::tx_execution_info::TxExecutionStatus, Address, L1BatchNumber, MiniblockNumber,
-    ProtocolVersionId, Transaction, H256, U256,
+    witness_block_state::WitnessBlockState, Address, L1BatchNumber, L2ChainId, MiniblockNumber,
+    ProtocolVersionId, Transaction, H256,
 };
 
 use crate::state_keeper::{
     batch_executor::{BatchExecutorHandle, Command, L1BatchExecutorBuilder, TxExecutionResult},
-    io::{L1BatchParams, PendingBatchData, StateKeeperIO},
+    io::{MiniblockParams, PendingBatchData, StateKeeperIO},
     seal_criteria::SealManager,
     tests::{
-        create_l2_transaction, default_block_properties, default_vm_block_result,
-        BASE_SYSTEM_CONTRACTS,
+        create_l2_transaction, default_l1_batch_env, default_vm_block_result, BASE_SYSTEM_CONTRACTS,
     },
     types::ExecutionMetricsForCriteria,
     updates::UpdatesManager,
@@ -148,7 +146,7 @@ impl TestScenario {
     /// Accepts a function that would be given access to the received batch seal params, which can implement
     /// additional assertions on the sealed batch.
     pub(crate) fn batch_sealed_with<
-        F: FnOnce(&VmBlockResult, &UpdatesManager, &BlockContext) + Send + 'static,
+        F: FnOnce(&VmExecutionResultAndLogs, &UpdatesManager, &L1BatchEnv) + Send + 'static,
     >(
         mut self,
         description: &'static str,
@@ -206,25 +204,14 @@ pub(crate) fn random_tx(tx_number: u64) -> Transaction {
     tx.into()
 }
 
-fn partial_execution_result() -> VmPartialExecutionResult {
-    VmPartialExecutionResult {
-        logs: Default::default(),
-        revert_reason: Default::default(),
-        contracts_used: Default::default(),
-        cycles_used: Default::default(),
-        computational_gas_used: Default::default(),
-    }
-}
-
 /// Creates a `TxExecutionResult` object denoting a successful tx execution.
 pub(crate) fn successful_exec() -> TxExecutionResult {
     TxExecutionResult::Success {
-        tx_result: Box::new(VmTxExecutionResult {
-            status: TxExecutionStatus::Success,
-            result: partial_execution_result(),
-            call_traces: vec![],
-            gas_refunded: 0,
-            operator_suggested_refund: 0,
+        tx_result: Box::new(VmExecutionResultAndLogs {
+            result: ExecutionResult::Success { output: vec![] },
+            logs: Default::default(),
+            statistics: Default::default(),
+            refunds: Default::default(),
         }),
         tx_metrics: ExecutionMetricsForCriteria {
             l1_gas: Default::default(),
@@ -234,8 +221,14 @@ pub(crate) fn successful_exec() -> TxExecutionResult {
             l1_gas: Default::default(),
             execution_metrics: Default::default(),
         },
-        bootloader_dry_run_result: Box::new(partial_execution_result()),
+        bootloader_dry_run_result: Box::new(VmExecutionResultAndLogs {
+            result: ExecutionResult::Success { output: vec![] },
+            logs: Default::default(),
+            statistics: Default::default(),
+            refunds: Default::default(),
+        }),
         compressed_bytecodes: vec![],
+        call_tracer_result: vec![],
     }
 }
 
@@ -244,27 +237,32 @@ pub(crate) fn successful_exec_with_metrics(
     tx_metrics: ExecutionMetricsForCriteria,
 ) -> TxExecutionResult {
     TxExecutionResult::Success {
-        tx_result: Box::new(VmTxExecutionResult {
-            status: TxExecutionStatus::Success,
-            result: partial_execution_result(),
-            call_traces: vec![],
-            gas_refunded: 0,
-            operator_suggested_refund: 0,
+        tx_result: Box::new(VmExecutionResultAndLogs {
+            result: ExecutionResult::Success { output: vec![] },
+            logs: Default::default(),
+            statistics: Default::default(),
+            refunds: Default::default(),
         }),
         tx_metrics,
         bootloader_dry_run_metrics: ExecutionMetricsForCriteria {
             l1_gas: Default::default(),
             execution_metrics: Default::default(),
         },
-        bootloader_dry_run_result: Box::new(partial_execution_result()),
+        bootloader_dry_run_result: Box::new(VmExecutionResultAndLogs {
+            result: ExecutionResult::Success { output: vec![] },
+            logs: Default::default(),
+            statistics: Default::default(),
+            refunds: Default::default(),
+        }),
         compressed_bytecodes: vec![],
+        call_tracer_result: vec![],
     }
 }
 
 /// Creates a `TxExecutionResult` object denoting a tx that was rejected.
 pub(crate) fn rejected_exec() -> TxExecutionResult {
     TxExecutionResult::RejectedByVm {
-        rejection_reason: vm::TxRevertReason::InnerTxError,
+        reason: vm::Halt::InnerTxError,
     }
 }
 
@@ -278,29 +276,17 @@ pub(crate) fn bootloader_tip_out_of_gas() -> TxExecutionResult {
 pub(crate) fn pending_batch_data(
     pending_miniblocks: Vec<MiniblockReexecuteData>,
 ) -> PendingBatchData {
-    let block_properties = default_block_properties();
-
-    let context = BlockContext {
-        block_number: 1,
-        block_timestamp: 1,
-        l1_gas_price: 1,
-        fair_l2_gas_price: 1,
-        operator_address: FEE_ACCOUNT,
-    };
-    let derived_context = DerivedBlockContext {
-        context,
-        base_fee: 1,
-    };
-
-    let params = L1BatchParams {
-        context_mode: BlockContextMode::NewBlock(derived_context, Default::default()),
-        properties: block_properties,
-        base_system_contracts: BASE_SYSTEM_CONTRACTS.clone(),
-        protocol_version: ProtocolVersionId::latest(),
-    };
-
     PendingBatchData {
-        params,
+        l1_batch_env: default_l1_batch_env(1, 1, FEE_ACCOUNT),
+        system_env: SystemEnv {
+            zk_porter_available: false,
+            version: ProtocolVersionId::latest(),
+            base_system_smart_contracts: BASE_SYSTEM_CONTRACTS.clone(),
+            gas_limit: BLOCK_GAS_LIMIT,
+            execution_mode: TxExecutionMode::VerifyExecute,
+            default_validation_computational_gas_limit: BLOCK_GAS_LIMIT,
+            chain_id: L2ChainId(270),
+        },
         pending_miniblocks,
     }
 }
@@ -320,7 +306,7 @@ enum ScenarioItem {
     ),
     BatchSeal(
         &'static str,
-        Option<Box<dyn FnOnce(&VmBlockResult, &UpdatesManager, &BlockContext) + Send>>,
+        Option<Box<dyn FnOnce(&VmExecutionResultAndLogs, &UpdatesManager, &L1BatchEnv) + Send>>,
     ),
 }
 
@@ -427,7 +413,11 @@ impl TestBatchExecutorBuilder {
 
 #[async_trait]
 impl L1BatchExecutorBuilder for TestBatchExecutorBuilder {
-    async fn init_batch(&self, _l1batch_params: L1BatchParams) -> BatchExecutorHandle {
+    async fn init_batch(
+        &self,
+        _l1batch_params: L1BatchEnv,
+        _system_env: SystemEnv,
+    ) -> BatchExecutorHandle {
         let (commands_sender, commands_receiver) = mpsc::channel(1);
 
         let executor = TestBatchExecutor::new(
@@ -485,6 +475,9 @@ impl TestBatchExecutor {
                     resp.send(result).unwrap();
                     self.last_tx = tx.hash();
                 }
+                Command::StartNextMiniblock(_, resp) => {
+                    resp.send(()).unwrap();
+                }
                 Command::RollbackLastTx(resp) => {
                     // This is an additional safety check: IO would check that every rollback is included in the
                     // test scenario, but here we want to additionally check that each such request goes to the
@@ -502,7 +495,7 @@ impl TestBatchExecutor {
                 }
                 Command::FinishBatch(resp) => {
                     // Blanket result, it doesn't really matter.
-                    resp.send(default_vm_block_result()).unwrap();
+                    resp.send((default_vm_block_result(), None)).unwrap();
                     return;
                 }
             }
@@ -589,36 +582,49 @@ impl StateKeeperIO for TestIO {
         self.scenario.pending_batch.take()
     }
 
-    async fn wait_for_new_batch_params(&mut self, _max_wait: Duration) -> Option<L1BatchParams> {
-        let block_properties = default_block_properties();
-
-        let previous_block_hash = U256::zero();
-        let context = BlockContext {
-            block_number: self.batch_number.0,
-            block_timestamp: self.timestamp,
-            l1_gas_price: self.l1_gas_price,
-            fair_l2_gas_price: self.fair_l2_gas_price,
-            operator_address: self.fee_account,
+    async fn wait_for_new_batch_params(
+        &mut self,
+        _max_wait: Duration,
+    ) -> Option<(SystemEnv, L1BatchEnv)> {
+        let first_miniblock_info = L2BlockEnv {
+            number: self.miniblock_number.0,
+            timestamp: self.timestamp,
+            prev_block_hash: H256::zero(),
+            max_virtual_blocks_to_create: 1,
         };
-        let derived_context = DerivedBlockContext {
-            context,
-            base_fee: 1,
-        };
-
-        Some(L1BatchParams {
-            context_mode: BlockContextMode::NewBlock(derived_context, previous_block_hash),
-            properties: block_properties,
-            base_system_contracts: BASE_SYSTEM_CONTRACTS.clone(),
-            protocol_version: self.protocol_version,
-        })
+        Some((
+            SystemEnv {
+                zk_porter_available: false,
+                version: self.protocol_version,
+                base_system_smart_contracts: BASE_SYSTEM_CONTRACTS.clone(),
+                gas_limit: BLOCK_GAS_LIMIT,
+                execution_mode: TxExecutionMode::VerifyExecute,
+                default_validation_computational_gas_limit: BLOCK_GAS_LIMIT,
+                chain_id: L2ChainId(270),
+            },
+            L1BatchEnv {
+                previous_batch_hash: Some(H256::zero()),
+                number: self.batch_number,
+                timestamp: self.timestamp,
+                l1_gas_price: self.l1_gas_price,
+                fair_l2_gas_price: self.fair_l2_gas_price,
+                fee_account: self.fee_account,
+                enforced_base_fee: None,
+                first_l2_block: first_miniblock_info,
+            },
+        ))
     }
 
     async fn wait_for_new_miniblock_params(
         &mut self,
         _max_wait: Duration,
         _prev_miniblock_timestamp: u64,
-    ) -> Option<u64> {
-        Some(self.timestamp)
+    ) -> Option<MiniblockParams> {
+        Some(MiniblockParams {
+            timestamp: self.timestamp,
+            // 1 is just a constant used for tests.
+            virtual_blocks: 1,
+        })
     }
 
     async fn wait_for_next_tx(&mut self, max_wait: Duration) -> Option<Transaction> {
@@ -684,16 +690,21 @@ impl StateKeeperIO for TestIO {
 
     async fn seal_l1_batch(
         &mut self,
-        block_result: VmBlockResult,
+        _witness_block_state: Option<WitnessBlockState>,
         updates_manager: UpdatesManager,
-        block_context: DerivedBlockContext,
+        l1_batch_env: &L1BatchEnv,
+        finished_batch: FinishedL1Batch,
     ) {
         let action = self.pop_next_item("seal_l1_batch");
         let ScenarioItem::BatchSeal(_, check_fn) = action else {
             panic!("Unexpected action: {:?}", action);
         };
         if let Some(check_fn) = check_fn {
-            check_fn(&block_result, &updates_manager, &block_context.context);
+            check_fn(
+                &finished_batch.block_tip_execution_result,
+                &updates_manager,
+                l1_batch_env,
+            );
         }
 
         self.miniblock_number += 1; // Seal the fictive miniblock.

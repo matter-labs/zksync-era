@@ -6,6 +6,8 @@ use zk_evm::ethereum_types::Address;
 use zksync_basic_types::{L1BatchNumber, MiniblockNumber, H256};
 use zksync_contracts::BaseSystemContractsHashes;
 
+use crate::ProtocolVersionId;
+
 /// Representation of the L2 block, as needed for the EN synchronization.
 /// This structure has several fields that describe *L1 batch* rather than
 /// *L2 block*, thus they are the same for all the L2 blocks in the batch.
@@ -52,4 +54,10 @@ pub struct SyncBlock {
     /// These are not the API representation of transactions, but rather the actual type used by the server.
     /// May be `None` if transactions were not requested (as opposed to the empty vector).
     pub transactions: Option<Vec<crate::Transaction>>,
+    /// Number of virtual blocks associated with this L2 block.
+    pub virtual_blocks: Option<u32>,
+    /// Hash of the L2 block.
+    pub hash: Option<H256>,
+    /// Version of the protocol used for this block.
+    pub protocol_version: ProtocolVersionId,
 }

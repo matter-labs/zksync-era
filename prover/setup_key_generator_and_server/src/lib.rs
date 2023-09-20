@@ -13,7 +13,7 @@ use zksync_config::ProverConfigs;
 use zksync_types::circuit::{LEAF_SPLITTING_FACTOR, NODE_SPLITTING_FACTOR, SCHEDULER_UPPER_BOUND};
 pub fn get_setup_for_circuit_type(circuit_type: u8) -> Box<dyn Read> {
     let filepath = get_setup_key_file_path(circuit_type);
-    vlog::info!("Fetching setup key from path: {}", filepath);
+    tracing::info!("Fetching setup key from path: {}", filepath);
     let file = File::open(filepath.clone())
         .unwrap_or_else(|_| panic!("Failed reading setup key from path: {}", filepath));
     Box::new(file)

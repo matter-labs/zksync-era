@@ -2,9 +2,11 @@ use std::collections::HashMap;
 
 use crate::ReadStorage;
 use zksync_types::{
-    get_code_key, get_system_context_init_logs, system_contracts::get_system_smart_contracts,
-    L2ChainId, StorageKey, StorageLog, StorageLogKind, StorageValue, H256,
+    get_code_key, get_known_code_key, get_system_context_init_logs,
+    system_contracts::get_system_smart_contracts, L2ChainId, StorageKey, StorageLog,
+    StorageLogKind, StorageValue, H256, U256,
 };
+use zksync_utils::u256_to_h256;
 
 /// Network ID we use by defailt for in memory storage.
 pub const IN_MEMORY_STORAGE_DEFAULT_NETWORK_ID: u16 = 270;
@@ -35,9 +37,16 @@ impl InMemoryStorage {
 
         let state = contracts
             .iter()
-            .map(|contract| {
+            .flat_map(|contract| {
+                let bytecode_hash = bytecode_hasher(&contract.bytecode);
+
                 let deployer_code_key = get_code_key(contract.account_id.address());
-                StorageLog::new_write_log(deployer_code_key, bytecode_hasher(&contract.bytecode))
+                let is_known_code_key = get_known_code_key(&bytecode_hash);
+
+                vec![
+                    StorageLog::new_write_log(deployer_code_key, bytecode_hash),
+                    StorageLog::new_write_log(is_known_code_key, u256_to_h256(U256::one())),
+                ]
             })
             .chain(system_context_init_log)
             .filter_map(|log| (log.kind == StorageLogKind::Write).then_some((log.key, log.value)))

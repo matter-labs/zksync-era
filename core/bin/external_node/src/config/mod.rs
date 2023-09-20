@@ -485,6 +485,7 @@ impl From<ExternalNodeConfig> for TxSenderConfig {
             // and they will be enforced by the main node anyway.
             max_allowed_l2_tx_gas_limit: u32::MAX,
             validation_computational_gas_limit: u32::MAX,
+            chain_id: config.remote.l2_chain_id,
         }
     }
 }

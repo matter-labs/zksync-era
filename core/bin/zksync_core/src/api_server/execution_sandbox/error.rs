@@ -1,6 +1,6 @@
 use thiserror::Error;
 
-use vm::TxRevertReason;
+use vm::{Halt, TxRevertReason};
 
 #[derive(Debug, Error)]
 pub(crate) enum SandboxExecutionError {
@@ -27,57 +27,52 @@ pub(crate) enum SandboxExecutionError {
         that caused this error. Error description: {0}"
     )]
     UnexpectedVMBehavior(String),
-    #[error("Transaction is unexecutable. Reason: {0}")]
-    Unexecutable(String),
+}
+
+impl From<Halt> for SandboxExecutionError {
+    fn from(value: Halt) -> Self {
+        match value {
+            Halt::FailedToChargeFee(reason) => Self::FailedToChargeFee(reason.to_string()),
+            Halt::FromIsNotAnAccount => Self::FromIsNotAnAccount,
+            Halt::InnerTxError => Self::InnerTxError,
+            Halt::Unknown(reason) => Self::BootloaderFailure(reason.to_string()),
+            Halt::ValidationFailed(reason) => Self::AccountValidationFailed(reason.to_string()),
+            Halt::PaymasterValidationFailed(reason) => {
+                Self::PaymasterValidationFailed(reason.to_string())
+            }
+            Halt::PrePaymasterPreparationFailed(reason) => {
+                Self::PrePaymasterPreparationFailed(reason.to_string())
+            }
+            Halt::UnexpectedVMBehavior(reason) => Self::UnexpectedVMBehavior(reason),
+            Halt::BootloaderOutOfGas => {
+                Self::UnexpectedVMBehavior("bootloader is out of gas".to_string())
+            }
+            Halt::NotEnoughGasProvided => Self::UnexpectedVMBehavior(
+                "The bootloader did not contain enough gas to execute the transaction".to_string(),
+            ),
+            revert_reason @ Halt::FailedToMarkFactoryDependencies(_) => {
+                Self::Revert(revert_reason.to_string(), vec![])
+            }
+            Halt::PayForTxFailed(reason) => Self::FailedToPayForTransaction(reason.to_string()),
+            Halt::TooBigGasLimit => Self::Revert(Halt::TooBigGasLimit.to_string(), vec![]),
+            Halt::MissingInvocationLimitReached => Self::InnerTxError,
+            Halt::VMPanic => Self::UnexpectedVMBehavior("VM panic".to_string()),
+            Halt::FailedToSetL2Block(reason) => SandboxExecutionError::Revert(reason, vec![]),
+            Halt::FailedToAppendTransactionToL2Block(reason) => {
+                SandboxExecutionError::Revert(reason, vec![])
+            }
+        }
+    }
 }
 
 impl From<TxRevertReason> for SandboxExecutionError {
     fn from(reason: TxRevertReason) -> Self {
         match reason {
-            TxRevertReason::EthCall(reason) => SandboxExecutionError::Revert(
-                reason.to_user_friendly_string(),
-                reason.encoded_data(),
-            ),
             TxRevertReason::TxReverted(reason) => SandboxExecutionError::Revert(
                 reason.to_user_friendly_string(),
                 reason.encoded_data(),
             ),
-            TxRevertReason::FailedToChargeFee(reason) => {
-                SandboxExecutionError::FailedToChargeFee(reason.to_string())
-            }
-            TxRevertReason::FromIsNotAnAccount => SandboxExecutionError::FromIsNotAnAccount,
-            TxRevertReason::InnerTxError => SandboxExecutionError::InnerTxError,
-            TxRevertReason::Unknown(reason) => {
-                SandboxExecutionError::BootloaderFailure(reason.to_string())
-            }
-            TxRevertReason::ValidationFailed(reason) => {
-                SandboxExecutionError::AccountValidationFailed(reason.to_string())
-            }
-            TxRevertReason::PaymasterValidationFailed(reason) => {
-                SandboxExecutionError::PaymasterValidationFailed(reason.to_string())
-            }
-            TxRevertReason::PrePaymasterPreparationFailed(reason) => {
-                SandboxExecutionError::PrePaymasterPreparationFailed(reason.to_string())
-            }
-            TxRevertReason::UnexpectedVMBehavior(reason) => {
-                SandboxExecutionError::UnexpectedVMBehavior(reason)
-            }
-            TxRevertReason::BootloaderOutOfGas => {
-                SandboxExecutionError::UnexpectedVMBehavior("bootloader is out of gas".to_string())
-            }
-            TxRevertReason::NotEnoughGasProvided => SandboxExecutionError::UnexpectedVMBehavior(
-                "The bootloader did not contain enough gas to execute the transaction".to_string(),
-            ),
-            revert_reason @ TxRevertReason::FailedToMarkFactoryDependencies(_) => {
-                SandboxExecutionError::Revert(revert_reason.to_string(), vec![])
-            }
-            TxRevertReason::PayForTxFailed(reason) => {
-                SandboxExecutionError::FailedToPayForTransaction(reason.to_string())
-            }
-            TxRevertReason::TooBigGasLimit => {
-                SandboxExecutionError::Revert(TxRevertReason::TooBigGasLimit.to_string(), vec![])
-            }
-            TxRevertReason::MissingInvocationLimitReached => SandboxExecutionError::InnerTxError,
+            TxRevertReason::Halt(halt) => SandboxExecutionError::from(halt),
         }
     }
 }

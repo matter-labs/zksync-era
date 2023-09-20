@@ -1,6 +1,7 @@
 //! Testing harness for the IO.
 
 use std::{sync::Arc, time::Duration};
+use vm::constants::BLOCK_GAS_LIMIT;
 
 use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_config::GasAdjusterConfig;
@@ -76,6 +77,8 @@ impl Tester {
             fair_l2_gas_price: self.fair_l2_gas_price(),
             bootloader_hash: base_contract_hashes.bootloader,
             default_aa_hash: base_contract_hashes.default_aa,
+            virtual_blocks_interval: 1,
+            virtual_blocks_per_miniblock: 1,
             ..StateKeeperConfig::default()
         };
         let l2_erc20_bridge_addr = Address::repeat_byte(0x5a); // Isn't relevant.
@@ -87,6 +90,8 @@ impl Tester {
             &config,
             Duration::from_secs(1),
             l2_erc20_bridge_addr,
+            BLOCK_GAS_LIMIT,
+            L2ChainId(270),
         )
         .await;
 
@@ -104,6 +109,7 @@ impl Tester {
                 &mut storage,
                 Address::repeat_byte(0x01),
                 L2ChainId(270),
+                ProtocolVersionId::latest(),
                 &self.base_system_contracts,
                 &get_system_smart_contracts(),
                 L1VerifierConfig::default(),
@@ -135,6 +141,7 @@ impl Tester {
                 l2_fair_gas_price,
                 base_system_contracts_hashes: self.base_system_contracts.hashes(),
                 protocol_version: Some(ProtocolVersionId::latest()),
+                virtual_blocks: 0,
             })
             .await;
     }

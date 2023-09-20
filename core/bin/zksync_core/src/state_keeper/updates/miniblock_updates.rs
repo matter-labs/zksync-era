@@ -1,16 +1,17 @@
 use std::collections::HashMap;
+use vm::{ExecutionResult, L2BlockEnv, TransactionVmExt, VmExecutionResultAndLogs};
 
-use vm::vm::VmTxExecutionResult;
 use zksync_types::{
-    block::BlockGasCount,
+    block::{legacy_miniblock_hash, miniblock_hash, BlockGasCount},
     event::extract_bytecodes_marked_as_known,
     l2_to_l1_log::L2ToL1Log,
-    tx::{tx_execution_info::VmExecutionLogs, ExecutionMetrics, TransactionExecutionResult},
-    StorageLogQuery, Transaction, VmEvent, H256,
+    tx::tx_execution_info::TxExecutionStatus,
+    tx::{ExecutionMetrics, TransactionExecutionResult},
+    vm_trace::Call,
+    MiniblockNumber, ProtocolVersionId, StorageLogQuery, Transaction, VmEvent, H256,
 };
 use zksync_utils::bytecode::{hash_bytecode, CompressedBytecodeInfo};
-
-use crate::state_keeper::extractors;
+use zksync_utils::concat_and_hash;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct MiniblockUpdates {
@@ -24,10 +25,21 @@ pub struct MiniblockUpdates {
     pub block_execution_metrics: ExecutionMetrics,
     pub txs_encoding_size: usize,
     pub timestamp: u64,
+    pub number: u32,
+    pub prev_block_hash: H256,
+    pub txs_rolling_hash: H256,
+    pub virtual_blocks: u32,
+    pub protocol_version: Option<ProtocolVersionId>,
 }
 
 impl MiniblockUpdates {
-    pub(crate) fn new(timestamp: u64) -> Self {
+    pub(crate) fn new(
+        timestamp: u64,
+        number: u32,
+        prev_block_hash: H256,
+        virtual_blocks: u32,
+        protocol_version: Option<ProtocolVersionId>,
+    ) -> Self {
         Self {
             executed_transactions: vec![],
             events: vec![],
@@ -38,26 +50,48 @@ impl MiniblockUpdates {
             block_execution_metrics: ExecutionMetrics::default(),
             txs_encoding_size: 0,
             timestamp,
+            number,
+            prev_block_hash,
+            txs_rolling_hash: H256::zero(),
+            virtual_blocks,
+            protocol_version,
         }
     }
 
-    pub(crate) fn extend_from_fictive_transaction(&mut self, vm_execution_logs: VmExecutionLogs) {
-        self.events.extend(vm_execution_logs.events);
-        self.storage_logs.extend(vm_execution_logs.storage_logs);
-        self.l2_to_l1_logs.extend(vm_execution_logs.l2_to_l1_logs);
+    pub(crate) fn extend_from_fictive_transaction(&mut self, result: VmExecutionResultAndLogs) {
+        self.events.extend(result.logs.events);
+        self.storage_logs.extend(result.logs.storage_logs);
+        self.l2_to_l1_logs.extend(result.logs.l2_to_l1_logs);
     }
 
     pub(crate) fn extend_from_executed_transaction(
         &mut self,
         tx: Transaction,
-        tx_execution_result: VmTxExecutionResult,
+        tx_execution_result: VmExecutionResultAndLogs,
         tx_l1_gas_this_tx: BlockGasCount,
         execution_metrics: ExecutionMetrics,
         compressed_bytecodes: Vec<CompressedBytecodeInfo>,
+        call_traces: Vec<Call>,
     ) {
-        // Get bytecode hashes that were marked as known
         let saved_factory_deps =
-            extract_bytecodes_marked_as_known(&tx_execution_result.result.logs.events);
+            extract_bytecodes_marked_as_known(&tx_execution_result.logs.events);
+        self.events.extend(tx_execution_result.logs.events);
+        self.l2_to_l1_logs
+            .extend(tx_execution_result.logs.l2_to_l1_logs);
+
+        let gas_refunded = tx_execution_result.refunds.gas_refunded;
+        let operator_suggested_refund = tx_execution_result.refunds.operator_suggested_refund;
+        let execution_status = if tx_execution_result.result.is_failed() {
+            TxExecutionStatus::Failure
+        } else {
+            TxExecutionStatus::Success
+        };
+
+        let revert_reason = match &tx_execution_result.result {
+            ExecutionResult::Success { .. } => None,
+            ExecutionResult::Revert { output } => Some(output.to_string()),
+            ExecutionResult::Halt { reason } => Some(reason.to_string()),
+        };
 
         // Get transaction factory deps
         let factory_deps = tx.execute.factory_deps.as_deref().unwrap_or_default();
@@ -79,30 +113,48 @@ impl MiniblockUpdates {
         });
         self.new_factory_deps.extend(known_bytecodes);
 
-        self.events.extend(tx_execution_result.result.logs.events);
-        self.storage_logs
-            .extend(tx_execution_result.result.logs.storage_logs);
-        self.l2_to_l1_logs
-            .extend(tx_execution_result.result.logs.l2_to_l1_logs);
-
         self.l1_gas_count += tx_l1_gas_this_tx;
         self.block_execution_metrics += execution_metrics;
-        self.txs_encoding_size += extractors::encoded_transaction_size(tx.clone());
+        self.txs_encoding_size += tx.bootloader_encoding_size();
+
+        self.storage_logs
+            .extend(tx_execution_result.logs.storage_logs);
+
+        self.txs_rolling_hash = concat_and_hash(self.txs_rolling_hash, tx.hash());
 
         self.executed_transactions.push(TransactionExecutionResult {
             hash: tx.hash(),
             transaction: tx,
             execution_info: execution_metrics,
-            execution_status: tx_execution_result.status,
-            refunded_gas: tx_execution_result.gas_refunded,
-            operator_suggested_refund: tx_execution_result.operator_suggested_refund,
+            execution_status,
+            refunded_gas: gas_refunded,
+            operator_suggested_refund,
             compressed_bytecodes,
-            call_traces: tx_execution_result.call_traces,
-            revert_reason: tx_execution_result
-                .result
-                .revert_reason
-                .map(|reason| reason.to_string()),
+            call_traces,
+            revert_reason,
         });
+    }
+
+    /// Calculates miniblock hash based on the protocol version.
+    pub(crate) fn get_miniblock_hash(&self) -> H256 {
+        match self.protocol_version {
+            Some(id) if id >= ProtocolVersionId::Version13 => miniblock_hash(
+                MiniblockNumber(self.number),
+                self.timestamp,
+                self.prev_block_hash,
+                self.txs_rolling_hash,
+            ),
+            _ => legacy_miniblock_hash(MiniblockNumber(self.number)),
+        }
+    }
+
+    pub(crate) fn get_miniblock_env(&self) -> L2BlockEnv {
+        L2BlockEnv {
+            number: self.number,
+            timestamp: self.timestamp,
+            prev_block_hash: self.prev_block_hash,
+            max_virtual_blocks_to_create: self.virtual_blocks,
+        }
     }
 }
 
@@ -110,18 +162,20 @@ impl MiniblockUpdates {
 mod tests {
     use super::*;
     use crate::state_keeper::tests::{create_execution_result, create_transaction};
+    use vm::TransactionVmExt;
 
     #[test]
     fn apply_empty_l2_tx() {
-        let mut accumulator = MiniblockUpdates::new(0);
+        let mut accumulator =
+            MiniblockUpdates::new(0, 0, H256::random(), 0, Some(ProtocolVersionId::latest()));
         let tx = create_transaction(10, 100);
-        let expected_tx_size = extractors::encoded_transaction_size(tx.clone());
-
+        let bootloader_encoding_size = tx.bootloader_encoding_size();
         accumulator.extend_from_executed_transaction(
             tx,
             create_execution_result(0, []),
             BlockGasCount::default(),
             ExecutionMetrics::default(),
+            vec![],
             vec![],
         );
 
@@ -132,6 +186,6 @@ mod tests {
         assert_eq!(accumulator.l1_gas_count, Default::default());
         assert_eq!(accumulator.new_factory_deps.len(), 0);
         assert_eq!(accumulator.block_execution_metrics.l2_l1_logs, 0);
-        assert_eq!(accumulator.txs_encoding_size, expected_tx_size);
+        assert_eq!(accumulator.txs_encoding_size, bootloader_encoding_size);
     }
 }

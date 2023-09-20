@@ -44,7 +44,7 @@ impl TxProxy {
     pub async fn submit_tx(&self, tx: &L2Tx) -> RpcResult<H256> {
         let input_data = tx.common_data.input_data().expect("raw tx is absent");
         let raw_tx = zksync_types::Bytes(input_data.to_vec());
-        vlog::info!("Proxying tx {}", tx.hash());
+        tracing::info!("Proxying tx {}", tx.hash());
         self.client.send_raw_transaction(raw_tx).await
     }
 

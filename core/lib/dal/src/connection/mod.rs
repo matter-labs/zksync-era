@@ -78,7 +78,7 @@ impl ConnectionPoolBuilder {
             .unwrap_or_else(|err| {
                 panic!("Failed connecting to {:?} database: {}", self.db, err);
             });
-        vlog::info!(
+        tracing::info!(
             "Created pool for {db:?} database with {max_connections} max connections \
              and {statement_timeout:?} statement timeout",
             db = self.db,
@@ -169,7 +169,7 @@ impl ConnectionPool {
             };
 
             Self::report_connection_error(&connection_err);
-            vlog::warn!(
+            tracing::warn!(
                 "Failed to get connection to DB, backing off for {BACKOFF_INTERVAL:?}: {connection_err}"
             );
             tokio::time::sleep(BACKOFF_INTERVAL).await;

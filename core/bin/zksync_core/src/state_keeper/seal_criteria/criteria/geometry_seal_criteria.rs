@@ -1,7 +1,5 @@
 use std::fmt;
-
-// Workspace uses.
-use vm::{zk_evm::zkevm_opcode_defs::system_params::ERGS_PER_CIRCUIT, MAX_CYCLES_FOR_TX};
+use vm::constants::{ERGS_PER_CIRCUIT, MAX_CYCLES_FOR_TX};
 use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_types::{
     circuit::{GEOMETRY_CONFIG, SCHEDULER_UPPER_BOUND},

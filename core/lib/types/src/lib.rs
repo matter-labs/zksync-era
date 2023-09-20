@@ -22,7 +22,13 @@ pub use protocol_version::{ProtocolUpgrade, ProtocolVersion, ProtocolVersionId};
 pub use storage::*;
 pub use tx::primitives::*;
 pub use tx::Execute;
-pub use zk_evm;
+pub use vm_version::VmVersion;
+pub use zk_evm::{
+    aux_structures::{LogQuery, Timestamp},
+    reference_impls::event_sink::EventMessage,
+    zkevm_opcode_defs::FarCallOpcode,
+};
+
 pub use zkevm_test_harness;
 pub use zksync_basic_types::*;
 
@@ -54,6 +60,7 @@ pub mod prover_server_api;
 pub mod transaction_request;
 pub mod utils;
 pub mod vk_transform;
+pub mod vm_version;
 
 /// Denotes the first byte of the special zkSync's EIP-712-signed transaction.
 pub const EIP_712_TX_TYPE: u8 = 0x71;
@@ -78,6 +85,7 @@ pub struct Transaction {
     pub common_data: ExecuteTransactionCommon,
     pub execute: Execute,
     pub received_timestamp_ms: u64,
+    pub raw_bytes: Option<Bytes>,
 }
 
 impl std::fmt::Debug for Transaction {

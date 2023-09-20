@@ -12,6 +12,7 @@ use itertools::Itertools;
 use zk_evm::{
     aux_structures::Timestamp, reference_impls::event_sink::ApplicationData, vm_state::VmLocalState,
 };
+use zksync_contracts::test_contracts::LoadnextContractExecutionParams;
 use zksync_contracts::{deployer_contract, get_loadnext_contract, load_contract};
 use zksync_types::{
     ethabi::{Address, Token},
@@ -22,10 +23,10 @@ use zksync_types::{
     CONTRACT_DEPLOYER_ADDRESS, H256, U256,
 };
 use zksync_utils::{
-    address_to_h256, bytecode::hash_bytecode, h256_to_account_address,
-    test_utils::LoadnextContractExecutionParams, u256_to_h256,
+    address_to_h256, bytecode::hash_bytecode, h256_to_account_address, u256_to_h256,
 };
 
+use crate::storage::Storage;
 /// The tests here help us with the testing the VM
 use crate::{
     event_sink::InMemoryEventSink,
@@ -90,7 +91,7 @@ pub struct VmInstanceInnerState {
     local_state: VmLocalState,
 }
 
-impl<'a> VmInstance<'a> {
+impl<'a, S: Storage> VmInstance<'a, S> {
     /// This method is mostly to be used in tests. It dumps the inner state of all the oracles and the VM itself.
     pub fn dump_inner_state(&self) -> VmInstanceInnerState {
         let event_sink = self.state.event_sink.clone();

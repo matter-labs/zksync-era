@@ -2,6 +2,9 @@
 //! The file with constants related to fees most of which need to be computed
 use super::IntrinsicSystemGasConstants;
 
+// TODO (SMA-1699): Use this method to ensure that the transactions provide enough
+// intrinsic gas on the API level.
+
 pub const fn get_intrinsic_constants() -> IntrinsicSystemGasConstants {
     IntrinsicSystemGasConstants {
         l2_tx_intrinsic_gas: 14070,

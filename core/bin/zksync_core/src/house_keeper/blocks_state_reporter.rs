@@ -49,6 +49,26 @@ impl L1BatchMetricsReporter {
             block_metrics.push((l1_batch, format!("l1_mined_{}", tx_type.as_str())))
         }
 
+        // todo: PLA-335
+        // block_metrics.append(
+        //     &mut conn
+        //         .prover_dal()
+        //         .get_proven_l1_batches()
+        //         .into_iter()
+        //         .map(|(l1_batch_number, stage)| (l1_batch_number, format!("prove_{:?}", stage)))
+        //         .collect(),
+        // );
+
+        // todo: PLA-335
+        // block_metrics.append(
+        //     &mut conn
+        //         .witness_generator_dal()
+        //         .get_witness_generated_l1_batches()
+        //         .into_iter()
+        //         .map(|(l1_batch_number, stage)| (l1_batch_number, format!("wit_gen_{:?}", stage)))
+        //         .collect(),
+        // );
+
         for (l1_batch_number, stage) in block_metrics {
             metrics::gauge!(
                 "server.block_number",

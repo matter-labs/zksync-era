@@ -11,7 +11,7 @@ pub fn send_assembly(
     serialized: &mut Vec<u8>,
     address: &SocketAddress,
 ) -> Result<(Duration, u64), String> {
-    vlog::trace!(
+    tracing::trace!(
         "Sending assembly to {}:{}, job id {{{job_id}}}",
         address.host,
         address.port

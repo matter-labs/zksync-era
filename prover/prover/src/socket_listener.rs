@@ -22,7 +22,7 @@ pub async fn incoming_socket_listener(
     num_gpu: u8,
 ) {
     let listening_address = SocketAddr::new(host, port);
-    vlog::info!(
+    tracing::info!(
         "Starting assembly receiver at host: {}, port: {}",
         host,
         port
@@ -55,7 +55,7 @@ pub async fn incoming_socket_listener(
                 panic!("could not accept connection: {:?}", e);
             }
         };
-        vlog::trace!(
+        tracing::trace!(
             "Received new assembly send connection, waited for {}ms.",
             now.elapsed().as_millis()
         );
@@ -88,7 +88,7 @@ async fn handle_incoming_file(
         .await
         .expect("Failed reading from stream");
     let file_size_in_gb = assembly.len() / (1024 * 1024 * 1024);
-    vlog::trace!(
+    tracing::trace!(
         "Read file of size: {}GB from stream took: {} seconds",
         file_size_in_gb,
         started_at.elapsed().as_secs()

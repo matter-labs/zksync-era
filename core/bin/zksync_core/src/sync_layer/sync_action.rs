@@ -4,11 +4,13 @@ use std::{
     time::Instant,
 };
 
-use zksync_contracts::BaseSystemContractsHashes;
-use zksync_types::{Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, Transaction};
+use zksync_types::{Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, Transaction, H256};
 
 /// Action queue is used to communicate between the fetcher and the rest of the external node
 /// by collecting the fetched data in memory until it gets processed by the different entities.
+///
+/// TODO (BFT-82): This structure right now expects no more than a single consumer. Using `peek/pop` pairs in
+/// two different threads may lead to a race condition.
 #[derive(Debug, Clone, Default)]
 pub struct ActionQueue {
     inner: Arc<RwLock<ActionQueueInner>>,
@@ -35,7 +37,7 @@ impl ActionQueue {
     /// Returns true if the queue has capacity for a new action.
     /// Capacity is limited to avoid memory exhaustion.
     pub(crate) fn has_action_capacity(&self) -> bool {
-        const ACTION_CAPACITY: usize = 32_768;
+        const ACTION_CAPACITY: usize = 32_768; // TODO: Make it configurable.
 
         // Since the capacity is read before the action is pushed,
         // it is possible that the capacity will be exceeded, since the fetcher will
@@ -86,7 +88,7 @@ impl ActionQueue {
                         return Err(format!("Unexpected Tx: {:?}", actions));
                     }
                 }
-                SyncAction::SealMiniblock | SyncAction::SealBatch => {
+                SyncAction::SealMiniblock | SyncAction::SealBatch { .. } => {
                     if !opened || miniblock_sealed {
                         return Err(format!("Unexpected SealMiniblock/SealBatch: {:?}", actions));
                     }
@@ -128,13 +130,16 @@ pub(crate) enum SyncAction {
         timestamp: u64,
         l1_gas_price: u64,
         l2_fair_gas_price: u64,
-        base_system_contracts_hashes: BaseSystemContractsHashes,
         operator_address: Address,
-        protocol_version: Option<ProtocolVersionId>,
+        protocol_version: ProtocolVersionId,
+        // Miniblock number and virtual blocks count.
+        first_miniblock_info: (MiniblockNumber, u32),
+        prev_miniblock_hash: H256,
     },
     Miniblock {
         number: MiniblockNumber,
         timestamp: u64,
+        virtual_blocks: u32,
     },
     Tx(Box<Transaction>),
     /// We need an explicit action for the miniblock sealing, since we fetch the whole miniblocks and already know
@@ -143,7 +148,10 @@ pub(crate) enum SyncAction {
     /// the next one is sealed on the main node.
     SealMiniblock,
     /// Similarly to `SealMiniblock` we must be able to seal the batch even if there is no next miniblock yet.
-    SealBatch,
+    SealBatch {
+        // Virtual blocks count for the fictive miniblock.
+        virtual_blocks: u32,
+    },
 }
 
 impl From<Transaction> for SyncAction {
@@ -164,9 +172,10 @@ mod tests {
             timestamp: 1,
             l1_gas_price: 1,
             l2_fair_gas_price: 1,
-            base_system_contracts_hashes: BaseSystemContractsHashes::default(),
             operator_address: Default::default(),
-            protocol_version: Some(ProtocolVersionId::latest()),
+            protocol_version: ProtocolVersionId::latest(),
+            first_miniblock_info: (1.into(), 1),
+            prev_miniblock_hash: H256::default(),
         }
     }
 
@@ -174,6 +183,7 @@ mod tests {
         SyncAction::Miniblock {
             number: 1.into(),
             timestamp: 1,
+            virtual_blocks: 1,
         }
     }
 
@@ -198,7 +208,7 @@ mod tests {
     }
 
     fn seal_batch() -> SyncAction {
-        SyncAction::SealBatch
+        SyncAction::SealBatch { virtual_blocks: 1 }
     }
 
     #[test]

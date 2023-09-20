@@ -60,7 +60,7 @@ impl TradingVolumeFetcher {
             tokio::time::interval(self.config.token_trading_volume.fetching_interval());
         loop {
             if *stop_receiver.borrow() {
-                vlog::info!("Stop signal received, trading_volume_fetcher is shutting down");
+                tracing::info!("Stop signal received, trading_volume_fetcher is shutting down");
                 break;
             }
 

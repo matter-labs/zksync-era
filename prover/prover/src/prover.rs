@@ -50,7 +50,7 @@ impl ProverReporter {
     ) {
         let circuit_type = self.get_circuit_type(job_id);
         let serialized = bincode::serialize(&proof).expect("Failed to serialize proof");
-        vlog::info!(
+        tracing::info!(
             "Successfully generated proof with id {:?} and type: {} for index: {}. Size: {:?}KB took: {:?}",
             job_id,
             circuit_type,
@@ -83,7 +83,7 @@ impl ProverReporter {
                 .save_proof(job_id, duration, serialized, &self.processed_by)
                 .await;
             if let Err(e) = result {
-                vlog::warn!("panicked inside heavy-ops thread: {e:?}; exiting...");
+                tracing::warn!("panicked inside heavy-ops thread: {e:?}; exiting...");
                 std::process::exit(-1);
             }
             self.get_prover_job_metadata_by_id_and_exit_if_error(&mut transaction, job_id)
@@ -120,14 +120,14 @@ impl ProverReporter {
         let prover_job_metadata = match result {
             Ok(option) => option,
             Err(e) => {
-                vlog::warn!("panicked inside heavy-ops thread: {e:?}; exiting...");
+                tracing::warn!("panicked inside heavy-ops thread: {e:?}; exiting...");
                 std::process::exit(-1);
             }
         };
         match prover_job_metadata {
             Some(val) => val,
             None => {
-                vlog::error!("No job with id: {} exist; exiting...", job_id);
+                tracing::error!("No job with id: {} exist; exiting...", job_id);
                 std::process::exit(-1);
             }
         }
@@ -138,7 +138,7 @@ impl JobReporter for ProverReporter {
     fn send_report(&mut self, report: JobResult) {
         match report {
             Failure(job_id, error) => {
-                vlog::error!(
+                tracing::error!(
                     "Failed to generate proof for id {:?}. error reason; {}",
                     job_id,
                     error
@@ -162,7 +162,7 @@ impl JobReporter for ProverReporter {
                     // A proper fix would be to have the thread signal it was dead or be watched from outside.
                     // Given we want to deprecate old prover, this is the quick and dirty hack I'm not proud of.
                     if let Err(e) = result {
-                        vlog::warn!("panicked inside heavy-ops thread: {e:?}; exiting...");
+                        tracing::warn!("panicked inside heavy-ops thread: {e:?}; exiting...");
                         std::process::exit(-1);
                     }
                 });
@@ -174,7 +174,7 @@ impl JobReporter for ProverReporter {
 
             JobResult::Synthesized(job_id, duration) => {
                 let circuit_type = self.get_circuit_type(job_id);
-                vlog::trace!(
+                tracing::trace!(
                     "Successfully synthesized circuit with id {:?} and type: {}. took: {:?}",
                     job_id,
                     circuit_type,
@@ -189,7 +189,7 @@ impl JobReporter for ProverReporter {
 
             JobResult::AssemblyFinalized(job_id, duration) => {
                 let circuit_type = self.get_circuit_type(job_id);
-                vlog::trace!(
+                tracing::trace!(
                     "Successfully finalized assembly with id {:?} and type: {}. took: {:?}",
                     job_id,
                     circuit_type,
@@ -204,7 +204,7 @@ impl JobReporter for ProverReporter {
 
             JobResult::SetupLoaded(job_id, duration, cache_miss) => {
                 let circuit_type = self.get_circuit_type(job_id);
-                vlog::trace!(
+                tracing::trace!(
                     "Successfully setup loaded with id {:?} and type: {}. \
                      took: {:?} and had cache_miss: {}",
                     job_id,
@@ -226,7 +226,7 @@ impl JobReporter for ProverReporter {
 
             JobResult::AssemblyEncoded(job_id, duration) => {
                 let circuit_type = self.get_circuit_type(job_id);
-                vlog::trace!(
+                tracing::trace!(
                     "Successfully encoded assembly with id {:?} and type: {}. took: {:?}",
                     job_id,
                     circuit_type,
@@ -241,7 +241,7 @@ impl JobReporter for ProverReporter {
 
             JobResult::AssemblyDecoded(job_id, duration) => {
                 let circuit_type = self.get_circuit_type(job_id);
-                vlog::trace!(
+                tracing::trace!(
                     "Successfully decoded assembly with id {:?} and type: {}. took: {:?}",
                     job_id,
                     circuit_type,
@@ -255,7 +255,7 @@ impl JobReporter for ProverReporter {
             }
 
             JobResult::FailureWithDebugging(job_id, circuit_id, assembly, error) => {
-                vlog::trace!(
+                tracing::trace!(
                     "Failed assembly decoding for job-id {} and circuit-type: {}. error: {}",
                     job_id,
                     circuit_id,
@@ -272,7 +272,7 @@ impl JobReporter for ProverReporter {
 
             JobResult::AssemblyTransferred(job_id, duration) => {
                 let circuit_type = self.get_circuit_type(job_id);
-                vlog::trace!(
+                tracing::trace!(
                     "Successfully transferred assembly with id {:?} and type: {}. took: {:?}",
                     job_id,
                     circuit_type,
@@ -286,7 +286,7 @@ impl JobReporter for ProverReporter {
             }
 
             JobResult::ProverWaitedIdle(prover_id, duration) => {
-                vlog::trace!(
+                tracing::trace!(
                     "Prover wait idle time: {:?} for prover-id: {:?}",
                     duration,
                     prover_id
@@ -295,12 +295,12 @@ impl JobReporter for ProverReporter {
             }
 
             JobResult::SetupLoaderWaitedIdle(duration) => {
-                vlog::trace!("Setup load wait idle time: {:?}", duration);
+                tracing::trace!("Setup load wait idle time: {:?}", duration);
                 metrics::histogram!("server.prover.setup_load_wait_wait_idle_time", duration,);
             }
 
             JobResult::SchedulerWaitedIdle(duration) => {
-                vlog::trace!("Scheduler wait idle time: {:?}", duration);
+                tracing::trace!("Scheduler wait idle time: {:?}", duration);
                 metrics::histogram!("server.prover.scheduler_wait_idle_time", duration,);
             }
         }

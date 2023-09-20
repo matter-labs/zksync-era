@@ -38,6 +38,9 @@ impl SyncDal<'_, '_> {
                     miniblocks.l2_fair_gas_price,
                     miniblocks.bootloader_code_hash,
                     miniblocks.default_aa_code_hash,
+                    miniblocks.virtual_blocks,
+                    miniblocks.hash,
+                    miniblocks.protocol_version as "protocol_version!",
                     l1_batches.fee_account_address as "fee_account_address?"
                 FROM miniblocks
                 LEFT JOIN l1_batches ON miniblocks.l1_batch_number = l1_batches.number

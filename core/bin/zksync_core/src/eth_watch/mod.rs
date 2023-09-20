@@ -54,7 +54,7 @@ impl<W: EthClient + Sync> EthWatch<W> {
 
         let state = Self::initialize_state(&client, &mut storage).await;
 
-        vlog::info!("initialized state: {:?}", state);
+        tracing::info!("initialized state: {:?}", state);
 
         let priority_ops_processor =
             PriorityOpsEventProcessor::new(state.next_expected_priority_id);
@@ -118,7 +118,7 @@ impl<W: EthClient + Sync> EthWatch<W> {
         let mut timer = tokio::time::interval(self.poll_interval);
         loop {
             if *stop_receiver.borrow() {
-                vlog::info!("Stop signal received, eth_watch is shutting down");
+                tracing::info!("Stop signal received, eth_watch is shutting down");
                 break;
             }
 
@@ -130,7 +130,7 @@ impl<W: EthClient + Sync> EthWatch<W> {
             if let Err(error) = self.loop_iteration(&mut storage).await {
                 // This is an error because otherwise we could potentially miss a priority operation
                 // thus entering priority mode, which is not desired.
-                vlog::error!("Failed to process new blocks {}", error);
+                tracing::error!("Failed to process new blocks {}", error);
                 self.last_processed_ethereum_block =
                     Self::initialize_state(&self.client, &mut storage)
                         .await

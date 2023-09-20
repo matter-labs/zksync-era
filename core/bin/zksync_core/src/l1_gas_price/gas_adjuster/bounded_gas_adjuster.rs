@@ -31,7 +31,7 @@ impl<G: L1GasPriceProvider> L1GasPriceProvider for BoundedGasAdjuster<G> {
     fn estimate_effective_gas_price(&self) -> u64 {
         let default_gas_price = self.default_gas_adjuster.estimate_effective_gas_price();
         if default_gas_price > self.max_gas_price {
-            vlog::warn!(
+            tracing::warn!(
                 "Effective gas price is too high: {}, using max allowed: {}",
                 default_gas_price,
                 self.max_gas_price

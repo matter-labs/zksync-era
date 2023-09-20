@@ -8,6 +8,7 @@ use prover_service::run_prover::run_prover_with_remote_synthesizer;
 use queues::Buffer;
 use tokio::{sync::oneshot, task::JoinHandle};
 
+use prometheus_exporter::PrometheusExporterConfig;
 use zksync_config::{
     configs::{api::PrometheusConfig, prover_group::ProverGroupConfig, AlertsConfig},
     ApiConfig, ProverConfig, ProverConfigs,
@@ -48,7 +49,7 @@ async fn graceful_shutdown() {
 fn get_ram_per_gpu() -> u64 {
     let device_info = gpu_prover::cuda_bindings::device_info(0).unwrap();
     let ram_in_gb: u64 = device_info.total / (1024 * 1024 * 1024);
-    vlog::info!("Detected RAM per GPU: {:?} GB", ram_in_gb);
+    tracing::info!("Detected RAM per GPU: {:?} GB", ram_in_gb);
     ram_in_gb
 }
 
@@ -57,29 +58,29 @@ fn get_prover_config_for_machine_type() -> (ProverConfig, u8) {
     let actual_num_gpus = match gpu_prover::cuda_bindings::devices() {
         Ok(gpus) => gpus as u8,
         Err(err) => {
-            vlog::error!("unable to get number of GPUs: {err:?}");
+            tracing::error!("unable to get number of GPUs: {err:?}");
             panic!("unable to get number of GPUs: {:?}", err);
         }
     };
-    vlog::info!("detected number of gpus: {}", actual_num_gpus);
+    tracing::info!("detected number of gpus: {}", actual_num_gpus);
     let ram_in_gb = get_ram_per_gpu();
 
     match actual_num_gpus {
         1 => {
-            vlog::info!("Detected machine type with 1 GPU and 80GB RAM");
+            tracing::info!("Detected machine type with 1 GPU and 80GB RAM");
             (prover_configs.one_gpu_eighty_gb_mem, actual_num_gpus)
         }
         2 => {
             if ram_in_gb > 39 {
-                vlog::info!("Detected machine type with 2 GPU and 80GB RAM");
+                tracing::info!("Detected machine type with 2 GPU and 80GB RAM");
                 (prover_configs.two_gpu_eighty_gb_mem, actual_num_gpus)
             } else {
-                vlog::info!("Detected machine type with 2 GPU and 40GB RAM");
+                tracing::info!("Detected machine type with 2 GPU and 40GB RAM");
                 (prover_configs.two_gpu_forty_gb_mem, actual_num_gpus)
             }
         }
         4 => {
-            vlog::info!("Detected machine type with 4 GPU and 80GB RAM");
+            tracing::info!("Detected machine type with 4 GPU and 80GB RAM");
             (prover_configs.four_gpu_eighty_gb_mem, actual_num_gpus)
         }
         _ => panic!("actual_num_gpus: {} not supported yet", actual_num_gpus),
@@ -88,8 +89,23 @@ fn get_prover_config_for_machine_type() -> (ProverConfig, u8) {
 
 #[tokio::main]
 async fn main() {
-    vlog::init();
-    vlog::trace!("starting prover");
+    #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
+    let log_format = vlog::log_format_from_env();
+    #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
+    let sentry_url = vlog::sentry_url_from_env();
+    #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
+    let environment = vlog::environment_from_env();
+
+    let mut builder = vlog::ObservabilityBuilder::new().with_log_format(log_format);
+    if let Some(sentry_url) = sentry_url {
+        builder = builder
+            .with_sentry_url(&sentry_url)
+            .expect("Invalid Sentry URL")
+            .with_sentry_environment(environment);
+    }
+    let _guard = builder.build();
+
+    tracing::trace!("starting prover");
     let (prover_config, num_gpu) = get_prover_config_for_machine_type();
 
     let prometheus_config = PrometheusConfig {
@@ -121,17 +137,15 @@ async fn main() {
     let circuit_ids = ProverGroupConfig::from_env()
         .get_circuit_ids_for_group_id(prover_config.specialized_prover_group_id);
 
-    vlog::info!(
+    tracing::info!(
         "Starting proof generation for circuits: {circuit_ids:?} \
          in region: {region} and zone: {zone} with group-id: {}",
         prover_config.specialized_prover_group_id
     );
     let mut tasks: Vec<JoinHandle<()>> = vec![];
 
-    tasks.push(prometheus_exporter::run_prometheus_exporter(
-        prometheus_config.listener_port,
-        None,
-    ));
+    let exporter_config = PrometheusExporterConfig::pull(prometheus_config.listener_port);
+    tasks.push(tokio::spawn(exporter_config.run(stop_receiver.clone())));
 
     let assembly_queue = Buffer::new(prover_config.assembly_queue_capacity);
     let shared_assembly_queue = Arc::new(Mutex::new(assembly_queue));
@@ -142,7 +156,7 @@ async fn main() {
         host: local_ip,
         port: prover_config.assembly_receiver_port,
     };
-    vlog::info!("local IP address is: {:?}", local_ip);
+    tracing::info!("local IP address is: {:?}", local_ip);
 
     tasks.push(tokio::task::spawn(incoming_socket_listener(
         local_ip,
@@ -185,7 +199,7 @@ async fn main() {
     tokio::select! {
         _ = wait_for_tasks(tasks, particular_crypto_alerts, graceful_shutdown, tasks_allowed_to_finish) => {},
         _ = stop_signal_receiver => {
-            vlog::info!("Stop signal received, shutting down");
+            tracing::info!("Stop signal received, shutting down");
 
             // BEWARE, HERE BE DRAGONS.
             // This is necessary because of blocking prover. See end of functions for more details.

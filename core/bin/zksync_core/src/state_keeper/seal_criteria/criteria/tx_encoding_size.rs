@@ -1,4 +1,4 @@
-use vm::vm_with_bootloader::BOOTLOADER_TX_ENCODING_SPACE;
+use vm::constants::BOOTLOADER_TX_ENCODING_SPACE;
 
 use crate::state_keeper::seal_criteria::{
     SealCriterion, SealData, SealResolution, StateKeeperConfig,

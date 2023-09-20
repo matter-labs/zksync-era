@@ -25,7 +25,7 @@ impl WaitingToQueuedFriWitnessJobMover {
             .await;
         let len = l1_batch_numbers.len();
         for (l1_batch_number, circuit_id) in l1_batch_numbers {
-            vlog::info!(
+            tracing::info!(
                 "Marked fri leaf aggregation job for l1_batch {} and circuit_id {} as queued",
                 l1_batch_number,
                 circuit_id
@@ -59,7 +59,7 @@ impl WaitingToQueuedFriWitnessJobMover {
             .await;
         let len = l1_batch_numbers.len();
         for (l1_batch_number, circuit_id, depth) in l1_batch_numbers {
-            vlog::info!(
+            tracing::info!(
                 "Marked fri node aggregation job for l1_batch {} and circuit_id {} depth {} as queued",
                 l1_batch_number,
                 circuit_id,

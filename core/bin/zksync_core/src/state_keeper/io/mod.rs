@@ -6,11 +6,11 @@ use std::{
     time::{Duration, Instant},
 };
 
-use vm::vm_with_bootloader::{BlockContextMode, DerivedBlockContext};
-use vm::zk_evm::block_properties::BlockProperties;
-use vm::VmBlockResult;
-use zksync_contracts::BaseSystemContracts;
+use vm::FinishedL1Batch;
+use vm::{L1BatchEnv, SystemEnv};
+
 use zksync_dal::ConnectionPool;
+use zksync_types::witness_block_state::WitnessBlockState;
 use zksync_types::{
     block::MiniblockReexecuteData, protocol_version::ProtocolUpgradeTx, L1BatchNumber,
     MiniblockNumber, ProtocolVersionId, Transaction,
@@ -27,17 +27,6 @@ use super::updates::{MiniblockSealCommand, UpdatesManager};
 #[cfg(test)]
 mod tests;
 
-/// System parameters for L1 batch.
-/// It includes system params such as Basic System Contracts and zkPorter configuration
-/// and l1batch-specific parameters like timestamp, number, etc.
-#[derive(Debug, Clone)]
-pub struct L1BatchParams {
-    pub context_mode: BlockContextMode,
-    pub properties: BlockProperties,
-    pub base_system_contracts: BaseSystemContracts,
-    pub protocol_version: ProtocolVersionId,
-}
-
 /// Contains information about the un-synced execution state:
 /// Batch data and transactions that were executed before and are marked as so in the DB,
 /// but aren't a part of a sealed batch.
@@ -50,9 +39,25 @@ pub struct L1BatchParams {
 pub struct PendingBatchData {
     /// Data used to initialize the pending batch. We have to make sure that all the parameters
     /// (e.g. timestamp) are the same, so transaction would have the same result after re-execution.
-    pub(crate) params: L1BatchParams,
+    pub(crate) l1_batch_env: L1BatchEnv,
+    pub(crate) system_env: SystemEnv,
     /// List of miniblocks and corresponding transactions that were executed within batch.
     pub(crate) pending_miniblocks: Vec<MiniblockReexecuteData>,
+}
+
+#[derive(Debug, Copy, Clone, Default)]
+pub struct MiniblockParams {
+    /// The timestamp of the miniblock
+    pub(crate) timestamp: u64,
+    /// The maximal number of virtual blocks that can be created within this miniblock.
+    /// During the migration from displaying users batch.number to L2 block (i.e. miniblock) number in Q3 2023
+    /// in order to make the process smoother for users, we temporarily display the virtual blocks for users.
+    ///
+    /// Virtual blocks start their number with batch number and will increase until they reach the miniblock number.
+    /// Note that it is the *maximal* number of virtual blocks that can be created within this miniblock since
+    /// once the virtual blocks' number reaches the miniblock number, they will never be allowed to exceed those, i.e.
+    /// any "excess" created blocks will be ignored.
+    pub(crate) virtual_blocks: u32,
 }
 
 /// `StateKeeperIO` provides the interactive layer for the state keeper:
@@ -69,14 +74,16 @@ pub trait StateKeeperIO: 'static + Send {
     async fn load_pending_batch(&mut self) -> Option<PendingBatchData>;
     /// Blocks for up to `max_wait` until the parameters for the next L1 batch are available.
     /// Returns the data required to initialize the VM for the next batch.
-    async fn wait_for_new_batch_params(&mut self, max_wait: Duration) -> Option<L1BatchParams>;
+    async fn wait_for_new_batch_params(
+        &mut self,
+        max_wait: Duration,
+    ) -> Option<(SystemEnv, L1BatchEnv)>;
     /// Blocks for up to `max_wait` until the parameters for the next miniblock are available.
-    /// Right now it's only a timestamp.
     async fn wait_for_new_miniblock_params(
         &mut self,
         max_wait: Duration,
         prev_miniblock_timestamp: u64,
-    ) -> Option<u64>;
+    ) -> Option<MiniblockParams>;
     /// Blocks for up to `max_wait` until the next transaction is available for execution.
     /// Returns `None` if no transaction became available until the timeout.
     async fn wait_for_next_tx(&mut self, max_wait: Duration) -> Option<Transaction>;
@@ -90,9 +97,10 @@ pub trait StateKeeperIO: 'static + Send {
     /// Marks the L1 batch as sealed.
     async fn seal_l1_batch(
         &mut self,
-        block_result: VmBlockResult,
+        witness_block_state: Option<WitnessBlockState>,
         updates_manager: UpdatesManager,
-        block_context: DerivedBlockContext,
+        l1_batch_env: &L1BatchEnv,
+        finished_batch: FinishedL1Batch,
     );
     /// Loads protocol version of the previous l1 batch.
     async fn load_previous_batch_version_id(&mut self) -> Option<ProtocolVersionId>;
@@ -136,7 +144,7 @@ impl MiniblockSealerHandle {
     /// enough of them are processed (i.e., there is backpressure).
     pub async fn submit(&mut self, command: MiniblockSealCommand) {
         let miniblock_number = command.miniblock_number;
-        vlog::debug!(
+        tracing::debug!(
             "Enqueuing sealing command for miniblock #{miniblock_number} with #{} txs (L1 batch #{})",
             command.miniblock.executed_transactions.len(),
             command.l1_batch_number
@@ -156,7 +164,7 @@ impl MiniblockSealerHandle {
 
         let elapsed = start.elapsed();
         let queue_capacity = self.commands_sender.capacity();
-        vlog::debug!(
+        tracing::debug!(
             "Enqueued sealing command for miniblock #{miniblock_number} (took {elapsed:?}; \
              available queue capacity: {queue_capacity})"
         );
@@ -178,7 +186,7 @@ impl MiniblockSealerHandle {
 
     /// Waits until all previously submitted commands are fully processed by the sealer.
     pub async fn wait_for_all_commands(&mut self) {
-        vlog::debug!(
+        tracing::debug!(
             "Requested waiting for miniblock seal queue to empty; current available capacity: {}",
             self.commands_sender.capacity()
         );
@@ -190,7 +198,7 @@ impl MiniblockSealerHandle {
         }
 
         let elapsed = start.elapsed();
-        vlog::debug!("Miniblock seal queue is emptied (took {elapsed:?})");
+        tracing::debug!("Miniblock seal queue is emptied (took {elapsed:?})");
 
         // Since this method called from outside is essentially a no-op if `self.is_sync`,
         // we don't report its metrics in this case.
@@ -247,14 +255,14 @@ impl MiniblockSealer {
     /// on a separate Tokio task.
     pub async fn run(mut self) {
         if self.is_sync {
-            vlog::info!("Starting synchronous miniblock sealer");
+            tracing::info!("Starting synchronous miniblock sealer");
         } else if let Some(sender) = self.commands_sender.upgrade() {
-            vlog::info!(
+            tracing::info!(
                 "Starting async miniblock sealer with queue capacity {}",
                 sender.max_capacity()
             );
         } else {
-            vlog::warn!("Miniblock sealer not started, since its handle is already dropped");
+            tracing::warn!("Miniblock sealer not started, since its handle is already dropped");
         }
 
         let mut miniblock_seal_delta: Option<Instant> = None;
@@ -274,13 +282,13 @@ impl MiniblockSealer {
     }
 
     async fn next_command(&mut self) -> Option<Completable<MiniblockSealCommand>> {
-        vlog::debug!("Polling miniblock seal queue for next command");
+        tracing::debug!("Polling miniblock seal queue for next command");
         let start = Instant::now();
         let command = self.commands_receiver.recv().await;
         let elapsed = start.elapsed();
 
         if let Some(completable) = &command {
-            vlog::debug!(
+            tracing::debug!(
                 "Received command to seal miniblock #{} (polling took {elapsed:?})",
                 completable.command.miniblock_number
             );

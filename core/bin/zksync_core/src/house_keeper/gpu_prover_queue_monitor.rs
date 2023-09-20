@@ -42,7 +42,7 @@ impl PeriodicJob for GpuProverQueueMonitor {
         for ((region, zone), num_gpu) in prover_gpu_count_per_region_zone {
             let synthesizers = self.synthesizer_per_gpu as u64 * num_gpu;
             if synthesizers > 0 {
-                vlog::info!(
+                tracing::info!(
                     "Would be spawning {} circuit synthesizers in region {} zone {}",
                     synthesizers,
                     region,

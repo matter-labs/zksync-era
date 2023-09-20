@@ -20,6 +20,8 @@ use crate::eth_sender_dal::EthSenderDal;
 use crate::events_dal::EventsDal;
 use crate::events_web3_dal::EventsWeb3Dal;
 use crate::fri_gpu_prover_queue_dal::FriGpuProverQueueDal;
+use crate::fri_proof_compressor_dal::FriProofCompressorDal;
+use crate::fri_protocol_versions_dal::FriProtocolVersionsDal;
 use crate::fri_prover_dal::FriProverDal;
 use crate::fri_scheduler_dependency_tracker_dal::FriSchedulerDependencyTrackerDal;
 use crate::fri_witness_generator_dal::FriWitnessGeneratorDal;
@@ -50,6 +52,8 @@ pub mod eth_sender_dal;
 pub mod events_dal;
 pub mod events_web3_dal;
 pub mod fri_gpu_prover_queue_dal;
+pub mod fri_proof_compressor_dal;
+pub mod fri_protocol_versions_dal;
 pub mod fri_prover_dal;
 pub mod fri_scheduler_dependency_tracker_dal;
 pub mod fri_witness_generator_dal;
@@ -106,17 +110,19 @@ pub struct StorageProcessor<'a> {
 }
 
 impl<'a> StorageProcessor<'a> {
-    pub async fn establish_connection(connect_to_master: bool) -> StorageProcessor<'static> {
+    pub async fn establish_connection(
+        connect_to_master: bool,
+    ) -> sqlx::Result<StorageProcessor<'static>> {
         let database_url = if connect_to_master {
             get_master_database_url()
         } else {
             get_replica_database_url()
         };
-        let connection = PgConnection::connect(&database_url).await.unwrap();
-        StorageProcessor {
+        let connection = PgConnection::connect(&database_url).await?;
+        Ok(StorageProcessor {
             conn: ConnectionHolder::Direct(connection),
             in_transaction: false,
-        }
+        })
     }
 
     pub async fn start_transaction<'c: 'b, 'b>(&'c mut self) -> StorageProcessor<'b> {
@@ -278,5 +284,13 @@ impl<'a> StorageProcessor<'a> {
 
     pub fn fri_gpu_prover_queue_dal(&mut self) -> FriGpuProverQueueDal<'_, 'a> {
         FriGpuProverQueueDal { storage: self }
+    }
+
+    pub fn fri_protocol_versions_dal(&mut self) -> FriProtocolVersionsDal<'_, 'a> {
+        FriProtocolVersionsDal { storage: self }
+    }
+
+    pub fn fri_proof_compressor_dal(&mut self) -> FriProofCompressorDal<'_, 'a> {
+        FriProofCompressorDal { storage: self }
     }
 }

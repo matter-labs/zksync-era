@@ -1,11 +1,12 @@
-use std::{
-    collections::{HashMap, HashSet},
-    time::Instant,
-};
+use std::{collections::HashSet, time::Instant};
 
-use vm::oracles::tracer::{ValidationError, ValidationTracerParams};
-use vm::vm_with_bootloader::push_transaction_to_bootloader_memory;
+use multivm::MultivmTracer;
+use vm::{
+    ExecutionResult, HistoryDisabled, StorageInvocations, ValidationError, ValidationTracer,
+    ValidationTracerParams,
+};
 use zksync_dal::{ConnectionPool, StorageProcessor};
+
 use zksync_types::{l2::L2Tx, Transaction, TRUSTED_ADDRESS_SLOTS, TRUSTED_TOKEN_SLOTS, U256};
 
 use super::{
@@ -59,9 +60,9 @@ impl TxSharedArgs {
         drop(connection);
 
         let execution_args = TxExecutionArgs::for_validation(&tx);
-        let execution_mode = execution_args.execution_mode;
         let tx: Transaction = tx.into();
-        let (validation_result, _) = tokio::task::spawn_blocking(move || {
+
+        let validation_result = tokio::task::spawn_blocking(move || {
             let span = tracing::debug_span!("validate_in_sandbox").entered();
             let result = apply::apply_vm_in_sandbox(
                 vm_permit,
@@ -70,12 +71,26 @@ impl TxSharedArgs {
                 &connection_pool,
                 tx,
                 block_args,
-                HashMap::new(),
                 |vm, tx| {
                     let stage_started_at = Instant::now();
                     let span = tracing::debug_span!("validation").entered();
-                    push_transaction_to_bootloader_memory(vm, &tx, execution_mode, None);
-                    let result = vm.execute_validation(validation_params);
+                    vm.push_transaction(&tx);
+
+                    let (tracer, validation_result) = ValidationTracer::<HistoryDisabled>::new(
+                        validation_params,
+                    );
+
+                    let result = vm.inspect_next_transaction(vec![
+                        tracer.into_boxed(),
+                        StorageInvocations::new(execution_args.missed_storage_invocation_limit).into_boxed()
+                    ]);
+
+                    let result = match (result.result, validation_result.get()) {
+                        (ExecutionResult::Halt { reason }, _) => Err(ValidationError::FailedTx(reason)),
+                        (_, Some(err)) => Err(ValidationError::ViolatedRule(err.clone())),
+                        (_, None) => Ok(()),
+                    };
+
 
                     metrics::histogram!("api.web3.sandbox", stage_started_at.elapsed(), "stage" => "validation");
                     span.exit();

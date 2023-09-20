@@ -8,34 +8,32 @@ use std::{
     time::{Duration, Instant},
 };
 
-use vm::{
-    vm_with_bootloader::{
-        get_bootloader_memory, BlockContextMode, DerivedBlockContext, TxExecutionMode,
-    },
-    VmBlockResult,
-};
+use vm::{FinishedL1Batch, L1BatchEnv};
+
 use zksync_config::constants::ACCOUNT_CODE_STORAGE_ADDRESS;
 use zksync_dal::StorageProcessor;
+
+use zksync_types::{
+    block::unpack_block_info, CURRENT_VIRTUAL_BLOCK_INFO_POSITION, SYSTEM_CONTEXT_ADDRESS,
+};
 use zksync_types::{
     block::{L1BatchHeader, MiniblockHeader},
     event::{extract_added_tokens, extract_long_l2_to_l1_messages},
     l2_to_l1_log::L2ToL1Log,
+    storage_writes_deduplicator::{ModifiedSlot, StorageWritesDeduplicator},
     tx::{
         tx_execution_info::DeduplicatedWritesMetrics, IncludedTxLocation,
         TransactionExecutionResult,
     },
-    zk_evm::aux_structures::LogQuery,
     zkevm_test_harness::witness::sort_storage_access::sort_storage_access_queries,
-    AccountTreeId, Address, ExecuteTransactionCommon, L1BatchNumber, MiniblockNumber, StorageKey,
-    StorageLog, StorageLogQuery, StorageValue, Transaction, VmEvent, H256, U256,
+    AccountTreeId, Address, ExecuteTransactionCommon, L1BatchNumber, LogQuery, MiniblockNumber,
+    StorageKey, StorageLog, StorageLogQuery, StorageValue, Transaction, VmEvent, H256,
 };
-use zksync_utils::{miniblock_hash, time::millis_since_epoch, u256_to_h256};
+// TODO (SMA-1206): use seconds instead of milliseconds.
+use zksync_utils::{h256_to_u256, time::millis_since_epoch, u256_to_h256};
 
-use crate::state_keeper::{
-    extractors,
-    io::common::set_missing_initial_writes_indices,
-    updates::{L1BatchUpdates, MiniblockSealCommand, UpdatesManager},
-};
+use crate::state_keeper::extractors;
+use crate::state_keeper::updates::{MiniblockSealCommand, UpdatesManager};
 
 #[derive(Debug, Clone, Copy)]
 struct SealProgressMetricNames {
@@ -92,7 +90,9 @@ impl SealProgress {
         let elapsed = self.stage_start.elapsed();
         if elapsed > MIN_STAGE_DURATION_TO_REPORT {
             let target = self.metric_names.target;
-            vlog::debug!("{target} execution stage {stage} took {elapsed:?} with count {count:?}");
+            tracing::debug!(
+                "{target} execution stage {stage} took {elapsed:?} with count {count:?}"
+            );
         }
 
         let (l1_batch_labels, miniblock_labels);
@@ -128,32 +128,20 @@ impl UpdatesManager {
         mut self,
         storage: &mut StorageProcessor<'_>,
         current_miniblock_number: MiniblockNumber,
-        current_l1_batch_number: L1BatchNumber,
-        block_result: VmBlockResult,
-        block_context: DerivedBlockContext,
+        l1_batch_env: &L1BatchEnv,
+        finished_batch: FinishedL1Batch,
         l2_erc20_bridge_addr: Address,
     ) {
         let started_at = Instant::now();
         let mut progress = SealProgress::for_l1_batch();
         let mut transaction = storage.start_transaction().await;
 
-        // The vm execution was paused right after the last transaction was executed.
-        // There is some post-processing work that the VM needs to do before the block is fully processed.
-        let VmBlockResult {
-            full_result,
-            block_tip_result,
-        } = block_result;
-        assert!(
-            full_result.revert_reason.is_none(),
-            "VM must not revert when finalizing block. Revert reason: {:?}",
-            full_result.revert_reason
-        );
         progress.end_stage("vm_finalization", None);
 
-        self.extend_from_fictive_transaction(block_tip_result.logs);
+        self.extend_from_fictive_transaction(finished_batch.block_tip_execution_result);
         // Seal fictive miniblock with last events and storage logs.
         let miniblock_command = self.seal_miniblock_command(
-            current_l1_batch_number,
+            l1_batch_env.number,
             current_miniblock_number,
             l2_erc20_bridge_addr,
         );
@@ -161,7 +149,8 @@ impl UpdatesManager {
         progress.end_stage("fictive_miniblock", None);
 
         let (_, deduped_log_queries) = sort_storage_access_queries(
-            full_result
+            finished_batch
+                .final_execution_state
                 .storage_log_queries
                 .iter()
                 .map(|log| &log.log_query),
@@ -169,55 +158,57 @@ impl UpdatesManager {
         progress.end_stage("log_deduplication", Some(deduped_log_queries.len()));
 
         let (l1_tx_count, l2_tx_count) = l1_l2_tx_count(&self.l1_batch.executed_transactions);
-        let (writes_count, reads_count) =
-            storage_log_query_write_read_counts(&full_result.storage_log_queries);
+        let (writes_count, reads_count) = storage_log_query_write_read_counts(
+            &finished_batch.final_execution_state.storage_log_queries,
+        );
         let (dedup_writes_count, dedup_reads_count) =
             log_query_write_read_counts(deduped_log_queries.iter());
-        vlog::info!(
+
+        tracing::info!(
             "Sealing L1 batch {current_l1_batch_number} with {total_tx_count} \
              ({l2_tx_count} L2 + {l1_tx_count} L1) txs, {l2_to_l1_log_count} l2_l1_logs, \
              {event_count} events, {reads_count} reads ({dedup_reads_count} deduped), \
              {writes_count} writes ({dedup_writes_count} deduped)",
             total_tx_count = l1_tx_count + l2_tx_count,
-            l2_to_l1_log_count = full_result.l2_to_l1_logs.len(),
-            event_count = full_result.events.len()
+            l2_to_l1_log_count = finished_batch.final_execution_state.l2_to_l1_logs.len(),
+            event_count = finished_batch.final_execution_state.events.len(),
+            current_l1_batch_number = l1_batch_env.number
         );
 
-        let (prev_hash, prev_timestamp) =
-            extractors::wait_for_prev_l1_batch_params(&mut transaction, current_l1_batch_number)
-                .await;
-        let timestamp = block_context.context.block_timestamp;
+        let (_prev_hash, prev_timestamp) =
+            extractors::wait_for_prev_l1_batch_params(&mut transaction, l1_batch_env.number).await;
         assert!(
-            prev_timestamp < timestamp,
+            prev_timestamp < l1_batch_env.timestamp,
             "Cannot seal L1 batch #{}: Timestamp of previous L1 batch ({}) >= provisional L1 batch timestamp ({}), \
              meaning that L1 batch will be rejected by the bootloader",
-            current_l1_batch_number,
+            l1_batch_env.number,
             extractors::display_timestamp(prev_timestamp),
-            extractors::display_timestamp(timestamp)
+            extractors::display_timestamp(l1_batch_env.timestamp)
         );
 
         let l1_batch = L1BatchHeader {
-            number: current_l1_batch_number,
+            number: l1_batch_env.number,
             is_finished: true,
-            timestamp,
-            fee_account_address: block_context.context.operator_address,
+            timestamp: l1_batch_env.timestamp,
+            fee_account_address: l1_batch_env.fee_account,
             priority_ops_onchain_data: self.l1_batch.priority_ops_onchain_data.clone(),
             l1_tx_count: l1_tx_count as u16,
             l2_tx_count: l2_tx_count as u16,
-            l2_to_l1_logs: full_result.l2_to_l1_logs,
-            l2_to_l1_messages: extract_long_l2_to_l1_messages(&full_result.events),
+            l2_to_l1_logs: finished_batch.final_execution_state.l2_to_l1_logs,
+            l2_to_l1_messages: extract_long_l2_to_l1_messages(
+                &finished_batch.final_execution_state.events,
+            ),
             bloom: Default::default(),
-            used_contract_hashes: full_result.used_contract_hashes,
-            base_fee_per_gas: block_context.base_fee,
+            used_contract_hashes: finished_batch.final_execution_state.used_contract_hashes,
+            base_fee_per_gas: l1_batch_env.base_fee(),
             l1_gas_price: self.l1_gas_price(),
             l2_fair_gas_price: self.fair_l2_gas_price(),
             base_system_contracts_hashes: self.base_system_contract_hashes(),
             protocol_version: Some(self.protocol_version()),
         };
 
-        let block_context_properties = BlockContextMode::NewBlock(block_context, prev_hash);
         let initial_bootloader_contents =
-            Self::initial_bootloader_memory(&self.l1_batch, block_context_properties);
+            finished_batch.final_bootloader_memory.unwrap_or_default();
 
         transaction
             .blocks_dal()
@@ -231,14 +222,14 @@ impl UpdatesManager {
 
         transaction
             .blocks_dal()
-            .mark_miniblocks_as_executed_in_l1_batch(current_l1_batch_number)
+            .mark_miniblocks_as_executed_in_l1_batch(l1_batch_env.number)
             .await;
         progress.end_stage("set_l1_batch_number_for_miniblocks", None);
 
         transaction
             .transactions_dal()
             .mark_txs_as_executed_in_l1_batch(
-                current_l1_batch_number,
+                l1_batch_env.number,
                 &self.l1_batch.executed_transactions,
             )
             .await;
@@ -249,7 +240,7 @@ impl UpdatesManager {
             .partition(|log_query| log_query.rw_flag);
         transaction
             .storage_logs_dedup_dal()
-            .insert_protective_reads(current_l1_batch_number, &protective_reads)
+            .insert_protective_reads(l1_batch_env.number, &protective_reads)
             .await;
         progress.end_stage("insert_protective_reads", Some(protective_reads.len()));
 
@@ -276,13 +267,9 @@ impl UpdatesManager {
             })
             .collect();
 
-        // One-time migration completion for initial writes' indices.
-        set_missing_initial_writes_indices(&mut transaction).await;
-        progress.end_stage("set_missing_initial_writes_indices", None);
-
         transaction
             .storage_logs_dedup_dal()
-            .insert_initial_writes(current_l1_batch_number, &written_storage_keys)
+            .insert_initial_writes(l1_batch_env.number, &written_storage_keys)
             .await;
         progress.end_stage("insert_initial_writes", Some(deduplicated_writes.len()));
 
@@ -299,41 +286,10 @@ impl UpdatesManager {
 
         self.report_l1_batch_metrics(
             started_at,
-            current_l1_batch_number,
-            timestamp,
+            l1_batch_env.number,
+            l1_batch_env.timestamp,
             &writes_metrics,
         );
-    }
-
-    fn initial_bootloader_memory(
-        updates_accumulator: &L1BatchUpdates,
-        block_context: BlockContextMode,
-    ) -> Vec<(usize, U256)> {
-        let transactions_data = updates_accumulator
-            .executed_transactions
-            .iter()
-            .map(|res| res.transaction.clone().into())
-            .collect();
-
-        let refunds = updates_accumulator
-            .executed_transactions
-            .iter()
-            .map(|res| res.operator_suggested_refund)
-            .collect();
-
-        let compressed_bytecodes = updates_accumulator
-            .executed_transactions
-            .iter()
-            .map(|res| res.compressed_bytecodes.clone())
-            .collect();
-
-        get_bootloader_memory(
-            transactions_data,
-            refunds,
-            compressed_bytecodes,
-            TxExecutionMode::VerifyExecute,
-            block_context,
-        )
     }
 
     fn report_l1_batch_metrics(
@@ -368,7 +324,7 @@ impl UpdatesManager {
             "server.state_keeper.l1_batch.sealed_time",
             started_at.elapsed(),
         );
-        vlog::debug!(
+        tracing::debug!(
             "Sealed L1 batch {current_l1_batch_number} in {:?}",
             started_at.elapsed()
         );
@@ -400,7 +356,7 @@ impl MiniblockSealCommand {
         let (l1_tx_count, l2_tx_count) = l1_l2_tx_count(&self.miniblock.executed_transactions);
         let (writes_count, reads_count) =
             storage_log_query_write_read_counts(&self.miniblock.storage_logs);
-        vlog::info!(
+        tracing::info!(
             "Sealing miniblock {miniblock_number} (L1 batch {l1_batch_number}) \
              with {total_tx_count} ({l2_tx_count} L2 + {l1_tx_count} L1) txs, {event_count} events, \
              {reads_count} reads, {writes_count} writes",
@@ -412,14 +368,15 @@ impl MiniblockSealCommand {
         let miniblock_header = MiniblockHeader {
             number: miniblock_number,
             timestamp: self.miniblock.timestamp,
-            hash: miniblock_hash(miniblock_number),
+            hash: self.miniblock.get_miniblock_hash(),
             l1_tx_count: l1_tx_count as u16,
             l2_tx_count: l2_tx_count as u16,
             base_fee_per_gas: self.base_fee_per_gas,
             l1_gas_price: self.l1_gas_price,
             l2_fair_gas_price: self.fair_l2_gas_price,
             base_system_contracts_hashes: self.base_system_contracts_hashes,
-            protocol_version: Some(self.protocol_version),
+            protocol_version: self.protocol_version,
+            virtual_blocks: self.miniblock.virtual_blocks,
         };
 
         transaction
@@ -441,7 +398,7 @@ impl MiniblockSealCommand {
             Some(self.miniblock.executed_transactions.len()),
         );
 
-        let write_logs = self.extract_write_logs(is_fictive);
+        let write_logs = self.extract_deduplicated_write_logs(is_fictive);
         let write_log_count = write_logs.iter().map(|(_, logs)| logs.len()).sum();
 
         transaction
@@ -502,9 +459,20 @@ impl MiniblockSealCommand {
             .await;
         progress.end_stage("insert_l2_to_l1_logs", Some(l2_to_l1_log_count));
 
+        let current_l2_virtual_block_info = transaction
+            .storage_dal()
+            .get_by_key(&StorageKey::new(
+                AccountTreeId::new(SYSTEM_CONTEXT_ADDRESS),
+                CURRENT_VIRTUAL_BLOCK_INFO_POSITION,
+            ))
+            .await
+            .unwrap_or_default();
+        let (current_l2_virtual_block_number, _) =
+            unpack_block_info(h256_to_u256(current_l2_virtual_block_info));
+
         transaction.commit().await;
         progress.end_stage("commit_miniblock", None);
-        self.report_miniblock_metrics(started_at);
+        self.report_miniblock_metrics(started_at, current_l2_virtual_block_number);
     }
 
     /// Performs several sanity checks to make sure that the miniblock is valid.
@@ -529,25 +497,39 @@ impl MiniblockSealCommand {
         }
     }
 
-    fn extract_write_logs(&self, is_fictive: bool) -> Vec<(H256, Vec<StorageLog>)> {
-        let logs = self.miniblock.storage_logs.iter();
-        let grouped_logs = logs.group_by(|log| log.log_query.tx_number_in_block);
+    fn extract_deduplicated_write_logs(&self, is_fictive: bool) -> Vec<(H256, Vec<StorageLog>)> {
+        let mut storage_writes_deduplicator = StorageWritesDeduplicator::new();
+        storage_writes_deduplicator.apply(
+            self.miniblock
+                .storage_logs
+                .iter()
+                .filter(|log| log.log_query.rw_flag),
+        );
+        let deduplicated_logs = storage_writes_deduplicator.into_modified_key_values();
 
-        let grouped_logs = grouped_logs.into_iter().map(|(tx_index, logs)| {
-            let tx_hash = if is_fictive {
-                assert_eq!(tx_index as usize, self.first_tx_index);
-                H256::zero()
-            } else {
-                self.transaction(tx_index as usize).hash()
-            };
-            let logs = logs.filter_map(|log| {
-                log.log_query
-                    .rw_flag
-                    .then(|| StorageLog::from_log_query(log))
-            });
-            (tx_hash, logs.collect())
-        });
-        grouped_logs.collect()
+        deduplicated_logs
+            .into_iter()
+            .map(|(key, ModifiedSlot { value, tx_index })| (tx_index, (key, value)))
+            .sorted_by_key(|(tx_index, _)| *tx_index)
+            .group_by(|(tx_index, _)| *tx_index)
+            .into_iter()
+            .map(|(tx_index, logs)| {
+                let tx_hash = if is_fictive {
+                    assert_eq!(tx_index as usize, self.first_tx_index);
+                    H256::zero()
+                } else {
+                    self.transaction(tx_index as usize).hash()
+                };
+                (
+                    tx_hash,
+                    logs.into_iter()
+                        .map(|(_, (key, value))| {
+                            StorageLog::new_write_log(key, u256_to_h256(value))
+                        })
+                        .collect(),
+                )
+            })
+            .collect()
     }
 
     fn transaction(&self, index: usize) -> &Transaction {
@@ -562,6 +544,7 @@ impl MiniblockSealCommand {
         for (key, (_, value)) in unique_updates {
             if *key.account().address() == ACCOUNT_CODE_STORAGE_ADDRESS {
                 let bytecode_hash = *value;
+                // TODO(SMA-1554): Support contracts deletion.
                 //  For now, we expected that if the `bytecode_hash` is zero, the contract was not deployed
                 //  in the first place, so we don't do anything
                 if bytecode_hash != H256::zero() {
@@ -611,7 +594,7 @@ impl MiniblockSealCommand {
         })
     }
 
-    fn report_miniblock_metrics(&self, started_at: Instant) {
+    fn report_miniblock_metrics(&self, started_at: Instant, latest_virtual_block_number: u64) {
         let miniblock_number = self.miniblock_number;
 
         metrics::histogram!(
@@ -634,8 +617,13 @@ impl MiniblockSealCommand {
             miniblock_number.0 as f64,
             "stage" => "sealed"
         );
+        metrics::gauge!(
+            "server.miniblock.virtual_block_number",
+            latest_virtual_block_number as f64,
+            "stage" => "sealed"
+        );
 
-        vlog::debug!(
+        tracing::debug!(
             "Sealed miniblock {miniblock_number} in {:?}",
             started_at.elapsed()
         );

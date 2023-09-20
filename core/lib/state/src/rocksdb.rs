@@ -79,7 +79,7 @@ impl RocksdbStorage {
     pub async fn update_from_postgres(&mut self, conn: &mut StorageProcessor<'_>) {
         let stage_started_at: Instant = Instant::now();
         let latest_l1_batch_number = conn.blocks_dal().get_sealed_l1_batch_number().await;
-        vlog::debug!(
+        tracing::debug!(
             "loading storage for l1 batch number {}",
             latest_l1_batch_number.0
         );
@@ -92,14 +92,14 @@ impl RocksdbStorage {
         );
 
         while current_l1_batch_number <= latest_l1_batch_number.0 {
-            vlog::debug!("loading state changes for l1 batch {current_l1_batch_number}");
+            tracing::debug!("loading state changes for l1 batch {current_l1_batch_number}");
             let storage_logs = conn
                 .storage_logs_dal()
                 .get_touched_slots_for_l1_batch(L1BatchNumber(current_l1_batch_number))
                 .await;
             self.process_transaction_logs(&storage_logs);
 
-            vlog::debug!("loading factory deps for l1 batch {current_l1_batch_number}");
+            tracing::debug!("loading factory deps for l1 batch {current_l1_batch_number}");
             let factory_deps = conn
                 .blocks_dal()
                 .get_l1_batch_factory_deps(L1BatchNumber(current_l1_batch_number))
@@ -136,7 +136,7 @@ impl RocksdbStorage {
     }
 
     /// Stores a factory dependency with the specified `hash` and `bytecode`.
-    pub fn store_factory_dep(&mut self, hash: H256, bytecode: Vec<u8>) {
+    fn store_factory_dep(&mut self, hash: H256, bytecode: Vec<u8>) {
         self.pending_patch.factory_deps.insert(hash, bytecode);
     }
 
@@ -150,35 +150,35 @@ impl RocksdbStorage {
         connection: &mut StorageProcessor<'_>,
         last_l1_batch_to_keep: L1BatchNumber,
     ) {
-        vlog::info!("Rolling back state keeper storage to L1 batch #{last_l1_batch_to_keep}...");
+        tracing::info!("Rolling back state keeper storage to L1 batch #{last_l1_batch_to_keep}...");
 
-        vlog::info!("Getting logs that should be applied to rollback state...");
+        tracing::info!("Getting logs that should be applied to rollback state...");
         let stage_start = Instant::now();
         let logs = connection
             .storage_logs_dal()
             .get_storage_logs_for_revert(last_l1_batch_to_keep)
             .await;
-        vlog::info!("Got {} logs, took {:?}", logs.len(), stage_start.elapsed());
+        tracing::info!("Got {} logs, took {:?}", logs.len(), stage_start.elapsed());
 
-        vlog::info!("Getting number of last miniblock for L1 batch #{last_l1_batch_to_keep}...");
+        tracing::info!("Getting number of last miniblock for L1 batch #{last_l1_batch_to_keep}...");
         let stage_start = Instant::now();
         let (_, last_miniblock_to_keep) = connection
             .blocks_dal()
             .get_miniblock_range_of_l1_batch(last_l1_batch_to_keep)
             .await
             .expect("L1 batch should contain at least one miniblock");
-        vlog::info!(
+        tracing::info!(
             "Got miniblock number {last_miniblock_to_keep}, took {:?}",
             stage_start.elapsed()
         );
 
-        vlog::info!("Getting factory deps that need to be removed...");
+        tracing::info!("Getting factory deps that need to be removed...");
         let stage_start = Instant::now();
         let factory_deps = connection
             .storage_dal()
             .get_factory_deps_for_revert(last_miniblock_to_keep)
             .await;
-        vlog::info!(
+        tracing::info!(
             "Got {} factory deps, took {:?}",
             factory_deps.len(),
             stage_start.elapsed()
@@ -263,7 +263,7 @@ impl RocksdbStorage {
     }
 }
 
-impl ReadStorage for &RocksdbStorage {
+impl ReadStorage for RocksdbStorage {
     fn read_value(&mut self, key: &StorageKey) -> StorageValue {
         self.read_value_inner(key).unwrap_or_else(H256::zero)
     }
@@ -273,9 +273,6 @@ impl ReadStorage for &RocksdbStorage {
     }
 
     fn load_factory_dep(&mut self, hash: H256) -> Option<Vec<u8>> {
-        if let Some(value) = self.pending_patch.factory_deps.get(&hash) {
-            return Some(value.clone());
-        }
         let cf = StateKeeperColumnFamily::FactoryDeps;
         self.db
             .get_cf(cf, hash.as_bytes())
@@ -306,7 +303,6 @@ mod tests {
         storage.process_transaction_logs(&storage_logs);
         storage.save(L1BatchNumber(0)).await;
         {
-            let mut storage = &storage;
             for (key, value) in &storage_logs {
                 assert!(!storage.is_write_initial(key));
                 assert_eq!(storage.read_value(key), *value);
@@ -320,7 +316,6 @@ mod tests {
         storage.process_transaction_logs(&storage_logs);
         storage.save(L1BatchNumber(1)).await;
 
-        let mut storage = &storage;
         for (key, value) in &storage_logs {
             assert!(!storage.is_write_initial(key));
             assert_eq!(storage.read_value(key), *value);
@@ -339,7 +334,6 @@ mod tests {
         let mut storage = RocksdbStorage::new(dir.path());
         storage.update_from_postgres(&mut conn).await;
 
-        let mut storage = &storage;
         assert_eq!(storage.l1_batch_number(), L1BatchNumber(2));
         for log in &storage_logs {
             assert_eq!(storage.read_value(&log.key), log.value);
@@ -393,7 +387,6 @@ mod tests {
         // Perform some sanity checks before the revert.
         assert_eq!(storage.l1_batch_number(), L1BatchNumber(3));
         {
-            let mut storage = &storage;
             for log in &inserted_storage_logs {
                 assert_eq!(storage.read_value(&log.key), log.value);
             }
@@ -412,7 +405,6 @@ mod tests {
         storage.rollback(&mut conn, L1BatchNumber(1)).await;
         assert_eq!(storage.l1_batch_number(), L1BatchNumber(2));
         {
-            let mut storage = &storage;
             for log in &inserted_storage_logs {
                 assert_eq!(storage.read_value(&log.key), H256::zero());
             }

@@ -42,7 +42,7 @@ impl ErrorAnalyzer {
 
     pub async fn update(&mut self) {
         if self.error_counter >= self.min_errors_to_report {
-            vlog::error!(
+            tracing::error!(
                 "[{}] A lot of requests to the remote API failed in a row. Current error count: {}",
                 &self.fetcher,
                 self.error_counter
@@ -59,7 +59,7 @@ impl ErrorAnalyzer {
         self.error_counter += 1;
         match error {
             ApiFetchError::RateLimit(time) => {
-                vlog::warn!(
+                tracing::warn!(
                         "[{}] Remote API notified us about rate limiting. Going to wait {} seconds before next loop iteration",
                         fetcher,
                         time.as_secs()
@@ -67,16 +67,16 @@ impl ErrorAnalyzer {
                 self.requested_delay = Some(time);
             }
             ApiFetchError::UnexpectedJsonFormat(err) => {
-                vlog::warn!("[{}] Parse data error: {}", fetcher, err);
+                tracing::warn!("[{}] Parse data error: {}", fetcher, err);
             }
             ApiFetchError::ApiUnavailable(err) => {
-                vlog::warn!("[{}] Remote API is unavailable: {}", fetcher, err);
+                tracing::warn!("[{}] Remote API is unavailable: {}", fetcher, err);
             }
             ApiFetchError::RequestTimeout => {
-                vlog::warn!("[{}] Request for data timed out", fetcher);
+                tracing::warn!("[{}] Request for data timed out", fetcher);
             }
             ApiFetchError::Other(err) => {
-                vlog::warn!("[{}] Unspecified API error: {}", fetcher, err);
+                tracing::warn!("[{}] Unspecified API error: {}", fetcher, err);
             }
         }
     }

@@ -34,7 +34,7 @@ impl ReadStorage for ShadowStorage<'_, '_> {
         let mut metric_value = 0.0;
         if source_value != expected_value {
             metric_value = 1.0;
-            vlog::error!("read_value({:?}) -- l1_batch_number={:?} -- expected source={:?} to be equal to to_check={:?}", key, self.l1_batch_number, source_value, expected_value);
+            tracing::error!("read_value({:?}) -- l1_batch_number={:?} -- expected source={:?} to be equal to to_check={:?}", key, self.l1_batch_number, source_value, expected_value);
         }
         metrics::histogram!("shadow_storage.read_value_mismatch", metric_value);
         source_value
@@ -46,7 +46,7 @@ impl ReadStorage for ShadowStorage<'_, '_> {
         let mut metric_value = 0.0;
         if source_value != expected_value {
             metric_value = 1.0;
-            vlog::error!("is_write_initial({:?}) -- l1_batch_number={:?} -- expected source={:?} to be equal to to_check={:?}", key, self.l1_batch_number, source_value, expected_value);
+            tracing::error!("is_write_initial({:?}) -- l1_batch_number={:?} -- expected source={:?} to be equal to to_check={:?}", key, self.l1_batch_number, source_value, expected_value);
         }
         metrics::histogram!("shadow_storage.is_write_initial_mismatch", metric_value);
         source_value
@@ -58,9 +58,11 @@ impl ReadStorage for ShadowStorage<'_, '_> {
         let mut metric_value = 0.0;
         if source_value != expected_value {
             metric_value = 1.0;
-            vlog::error!("load_factory_dep({:?}) -- l1_batch_number={:?} -- expected source={:?} to be equal to to_check={:?}", hash, self.l1_batch_number, source_value, expected_value);
+            tracing::error!("load_factory_dep({:?}) -- l1_batch_number={:?} -- expected source={:?} to be equal to to_check={:?}", hash, self.l1_batch_number, source_value, expected_value);
         }
         metrics::histogram!("shadow_storage.load_factory_dep_mismatch", metric_value);
         source_value
     }
 }
+
+// TODO: Add unit tests when we swap metrics crate; blocked by: https://linear.app/matterlabs/issue/QIT-3/rework-metrics-approach

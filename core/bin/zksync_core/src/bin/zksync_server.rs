@@ -1,6 +1,7 @@
+use anyhow::Context as _;
 use clap::Parser;
 
-use std::{env, str::FromStr, time::Duration};
+use std::{str::FromStr, time::Duration};
 use zksync_config::configs::chain::NetworkConfig;
 
 use zksync_config::{ContractsConfig, ETHSenderConfig};
@@ -16,7 +17,7 @@ use zksync_utils::wait_for_tasks::wait_for_tasks;
 static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 
 #[derive(Debug, Parser)]
-#[structopt(author = "Matter Labs", version, about = "zkSync operator node", long_about = None)]
+#[command(author = "Matter Labs", version, about = "zkSync operator node", long_about = None)]
 struct Cli {
     /// Generate genesis block for the first contract deployment using temporary DB.
     #[arg(long)]
@@ -51,28 +52,40 @@ impl FromStr for ComponentsToRun {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let opt = Cli::parse();
-    vlog::init();
-    let sentry_guard = vlog::init_sentry();
+
+    #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
+    let log_format = vlog::log_format_from_env();
+    #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
+    let sentry_url = vlog::sentry_url_from_env();
+    #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
+    let environment = vlog::environment_from_env();
+
+    let mut builder = vlog::ObservabilityBuilder::new().with_log_format(log_format);
+    if let Some(sentry_url) = &sentry_url {
+        builder = builder
+            .with_sentry_url(sentry_url)
+            .expect("Invalid Sentry URL")
+            .with_sentry_environment(environment);
+    }
+    let _guard = builder.build();
+
+    // Report whether sentry is running after the logging subsystem was initialized.
+    if let Some(sentry_url) = sentry_url {
+        tracing::info!("Sentry configured with URL: {sentry_url}");
+    } else {
+        tracing::info!("No sentry URL was provided");
+    }
 
     if opt.genesis || is_genesis_needed().await {
         let network = NetworkConfig::from_env();
         let eth_sender = ETHSenderConfig::from_env();
         let contracts = ContractsConfig::from_env();
-        genesis_init(&eth_sender, &network, &contracts).await;
+        genesis_init(&eth_sender, &network, &contracts)
+            .await
+            .context("genesis_init")?;
         if opt.genesis {
             return Ok(());
         }
-    }
-
-    if sentry_guard.is_some() {
-        vlog::info!(
-            "Starting Sentry url: {}, l1_network: {}, l2_network {}",
-            env::var("MISC_SENTRY_URL").unwrap(),
-            env::var("CHAIN_ETH_NETWORK").unwrap(),
-            env::var("CHAIN_ETH_ZKSYNC_NETWORK").unwrap(),
-        );
-    } else {
-        vlog::info!("No sentry url configured");
     }
 
     let components = if opt.rebuild_tree {
@@ -92,9 +105,9 @@ async fn main() -> anyhow::Result<()> {
     let (core_task_handles, stop_sender, cb_receiver, health_check_handle) =
         initialize_components(components, is_only_oneshot_witness_generator_task)
             .await
-            .expect("Unable to start Core actors");
+            .context("Unable to start Core actors")?;
 
-    vlog::info!("Running {} core task handlers", core_task_handles.len());
+    tracing::info!("Running {} core task handlers", core_task_handles.len());
     let sigint_receiver = setup_sigint_handler();
 
     let particular_crypto_alerts = None::<Vec<String>>;
@@ -103,11 +116,13 @@ async fn main() -> anyhow::Result<()> {
     tokio::select! {
         _ = wait_for_tasks(core_task_handles, particular_crypto_alerts, graceful_shutdown, tasks_allowed_to_finish) => {},
         _ = sigint_receiver => {
-            vlog::info!("Stop signal received, shutting down");
+            tracing::info!("Stop signal received, shutting down");
         },
         error = cb_receiver => {
             if let Ok(error_msg) = error {
-                vlog::warn!("Circuit breaker received, shutting down. Reason: {}", error_msg);
+                let err = format!("Circuit breaker received, shutting down. Reason: {}", error_msg);
+                tracing::warn!("{err}");
+                vlog::capture_message(&err, vlog::AlertLevel::Warning);
             }
         },
     }
@@ -119,6 +134,6 @@ async fn main() -> anyhow::Result<()> {
     // Sleep for some time to let some components gracefully stop.
     tokio::time::sleep(Duration::from_secs(5)).await;
     health_check_handle.stop().await;
-    vlog::info!("Stopped");
+    tracing::info!("Stopped");
     Ok(())
 }

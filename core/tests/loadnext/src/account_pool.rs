@@ -120,7 +120,7 @@ impl AccountPool {
         };
 
         let mut rng = LoadtestRng::new_generic(config.seed.clone());
-        vlog::info!("Using RNG with master seed: {}", rng.seed_hex());
+        tracing::info!("Using RNG with master seed: {}", rng.seed_hex());
 
         let group_size = config.accounts_group_size;
         let accounts_amount = config.accounts_amount;

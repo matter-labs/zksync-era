@@ -1,22 +1,42 @@
-use std::collections::HashMap;
-use std::sync::Arc;
-
 use tokio::sync::RwLock;
+use zksync_utils::h256_to_u256;
+
+use std::{
+    collections::HashMap,
+    convert::TryFrom,
+    future::Future,
+    sync::{
+        atomic::{AtomicU32, Ordering},
+        Arc,
+    },
+    time::{Duration, Instant},
+};
+
 use zksync_config::configs::{api::Web3JsonRpcConfig, chain::NetworkConfig, ContractsConfig};
-
-use crate::api_server::tx_sender::TxSender;
-use crate::api_server::web3::{backend_jsonrpc::error::internal_error, resolve_block};
-use crate::sync_layer::SyncState;
-
 use zksync_dal::ConnectionPool;
-
 use zksync_types::{
-    api, l2::L2Tx, transaction_request::CallRequest, Address, L1ChainId, L2ChainId,
-    MiniblockNumber, H256, U256, U64,
+    api::{self, BlockId, BlockNumber, GetLogsFilter},
+    block::unpack_block_upgrade_info,
+    l2::L2Tx,
+    transaction_request::CallRequest,
+    AccountTreeId, Address, L1BatchNumber, L1ChainId, L2ChainId, MiniblockNumber, StorageKey, H256,
+    SYSTEM_CONTEXT_ADDRESS, U256, U64, VIRTUIAL_BLOCK_UPGRADE_INFO_POSITION,
 };
 use zksync_web3_decl::{
     error::Web3Error,
-    types::{Filter, TypedFilter},
+    types::{Filter, Log, TypedFilter},
+};
+
+use crate::{
+    api_server::{
+        execution_sandbox::BlockArgs,
+        tx_sender::TxSender,
+        web3::{
+            backend_jsonrpc::error::internal_error, namespaces::eth::EVENT_TOPIC_NUMBER_LIMIT,
+            resolve_block,
+        },
+    },
+    sync_layer::SyncState,
 };
 
 /// Configuration values for the API.
@@ -64,6 +84,83 @@ impl InternalApiConfig {
     }
 }
 
+/// Thread-safe updatable information about the last sealed miniblock number.
+///
+/// The information may be temporarily outdated and thus should only be used where this is OK
+/// (e.g., for metrics reporting). The value is updated by [`Self::diff()`] and [`Self::diff_with_block_args()`]
+/// and on an interval specified when creating an instance.
+#[derive(Debug, Clone)]
+pub(crate) struct SealedMiniblockNumber(Arc<AtomicU32>);
+
+impl SealedMiniblockNumber {
+    /// Creates a handle to the last sealed miniblock number together with a task that will update
+    /// it on a schedule.
+    pub fn new(
+        connection_pool: ConnectionPool,
+        update_interval: Duration,
+    ) -> (Self, impl Future<Output = ()> + Send) {
+        let this = Self(Arc::default());
+        let number_updater = this.clone();
+        let update_task = async move {
+            loop {
+                if Arc::strong_count(&number_updater.0) == 1 {
+                    // The `sealed_miniblock_number` was dropped; there's no sense continuing updates.
+                    tracing::debug!("Stopping latest sealed miniblock updates");
+                    break;
+                }
+
+                let mut connection = connection_pool.access_storage_tagged("api").await;
+                let last_sealed_miniblock = connection
+                    .blocks_web3_dal()
+                    .get_sealed_miniblock_number()
+                    .await;
+                drop(connection);
+
+                match last_sealed_miniblock {
+                    Ok(number) => {
+                        number_updater.update(number);
+                    }
+                    Err(err) => tracing::warn!(
+                        "Failed fetching latest sealed miniblock to update the watch channel: {err}"
+                    ),
+                }
+                tokio::time::sleep(update_interval).await;
+            }
+        };
+
+        (this, update_task)
+    }
+
+    /// Potentially updates the last sealed miniblock number by comparing it to the provided
+    /// sealed miniblock number (not necessarily the last one).
+    ///
+    /// Returns the last sealed miniblock number after the update.
+    fn update(&self, maybe_newer_miniblock_number: MiniblockNumber) -> MiniblockNumber {
+        let prev_value = self
+            .0
+            .fetch_max(maybe_newer_miniblock_number.0, Ordering::Relaxed);
+        MiniblockNumber(prev_value).max(maybe_newer_miniblock_number)
+    }
+
+    pub fn diff(&self, miniblock_number: MiniblockNumber) -> u32 {
+        let sealed_miniblock_number = self.update(miniblock_number);
+        sealed_miniblock_number.0.saturating_sub(miniblock_number.0)
+    }
+
+    /// Returns the difference between the latest miniblock number and the resolved miniblock number
+    /// from `block_args`.
+    pub fn diff_with_block_args(&self, block_args: &BlockArgs) -> u32 {
+        // We compute the difference in any case, since it may update the stored value.
+        let diff = self.diff(block_args.resolved_block_number());
+
+        if block_args.resolves_to_latest_sealed_miniblock() {
+            0 // Overwrite potentially inaccurate value
+        } else {
+            diff
+        }
+    }
+}
+
 /// Holder for the data required for the API to be functional.
 #[derive(Debug)]
 pub struct RpcState<E> {
@@ -72,6 +169,10 @@ pub struct RpcState<E> {
     pub tx_sender: TxSender<E>,
     pub sync_state: Option<SyncState>,
     pub(super) api_config: InternalApiConfig,
+    pub(super) last_sealed_miniblock: SealedMiniblockNumber,
+    // The flag that enables redirect of eth get logs implementation to
+    // implementation with virtual block translation to miniblocks
+    pub logs_translator_enabled: bool,
 }
 
 // Custom implementation is required due to generic param:
@@ -85,6 +186,8 @@ impl<E> Clone for RpcState<E> {
             tx_sender: self.tx_sender.clone(),
             sync_state: self.sync_state.clone(),
             api_config: self.api_config.clone(),
+            last_sealed_miniblock: self.last_sealed_miniblock.clone(),
+            logs_translator_enabled: self.logs_translator_enabled,
         }
     }
 }
@@ -209,6 +312,206 @@ impl<E> RpcState<E> {
             call_request.nonce = Some(address_historical_nonce);
         }
         Ok(())
+    }
+
+    /// Returns logs for the given filter, taking into account block.number migration with virtual blocks
+    pub async fn translate_get_logs(&self, filter: Filter) -> Result<Vec<Log>, Web3Error> {
+        let start = Instant::now();
+        const METHOD_NAME: &str = "translate_get_logs";
+
+        // no support for block hash filtering
+        if filter.block_hash.is_some() {
+            return Err(Web3Error::InvalidFilterBlockHash);
+        }
+
+        if let Some(topics) = &filter.topics {
+            if topics.len() > EVENT_TOPIC_NUMBER_LIMIT {
+                return Err(Web3Error::TooManyTopics);
+            }
+        }
+
+        let mut conn = self.connection_pool.access_storage_tagged("api").await;
+
+        // get virtual block upgrade info
+        let upgrade_info = conn
+            .storage_dal()
+            .get_by_key(&StorageKey::new(
+                AccountTreeId::new(SYSTEM_CONTEXT_ADDRESS),
+                VIRTUIAL_BLOCK_UPGRADE_INFO_POSITION,
+            ))
+            .await
+            .ok_or_else(|| {
+                internal_error(
+                    METHOD_NAME,
+                    "Failed to get virtual block upgrade info from DB".to_string(),
+                )
+            })?;
+        let (virtual_block_start_batch, virtual_block_finish_l2_block) =
+            unpack_block_upgrade_info(h256_to_u256(upgrade_info));
+        let from_miniblock_number =
+            if let Some(BlockNumber::Number(block_number)) = filter.from_block {
+                self.resolve_miniblock_from_block(
+                    block_number.as_u64(),
+                    true,
+                    virtual_block_start_batch,
+                    virtual_block_finish_l2_block,
+                )
+                .await?
+            } else {
+                let block_number = filter.from_block.unwrap_or(BlockNumber::Latest);
+                let block_id = BlockId::Number(block_number);
+                conn.blocks_web3_dal()
+                    .resolve_block_id(block_id)
+                    .await
+                    .map_err(|err| internal_error(METHOD_NAME, err))?
+                    .unwrap()
+                    .0
+            };
+
+        let to_miniblock_number = if let Some(BlockNumber::Number(block_number)) = filter.to_block {
+            self.resolve_miniblock_from_block(
+                block_number.as_u64(),
+                true,
+                virtual_block_start_batch,
+                virtual_block_finish_l2_block,
+            )
+            .await?
+        } else {
+            let block_number = filter.to_block.unwrap_or(BlockNumber::Latest);
+            let block_id = BlockId::Number(block_number);
+            conn.blocks_web3_dal()
+                .resolve_block_id(block_id)
+                .await
+                .map_err(|err| internal_error(METHOD_NAME, err))?
+                .unwrap()
+                .0
+        };
+
+        // It is considered that all logs of the miniblock where created in the last virtual block
+        // of this miniblock. In this case no logs are created.
+        // When the given virtual block range is a subrange of some miniblock virtual block range.
+        // e.g. given virtual block range is [11, 12] and the miniblock = 5 virtual block range is [10, 14].
+        // Then `to_miniblock_number` will be 4 and `from_miniblock_number` will be 5. 4 < 5.
+        if to_miniblock_number < from_miniblock_number {
+            return Ok(vec![]);
+        }
+
+        let block_filter = Filter {
+            from_block: Some(from_miniblock_number.into()),
+            to_block: Some(to_miniblock_number.into()),
+            ..filter.clone()
+        };
+
+        let result = self
+            .filter_events_changes(
+                block_filter,
+                MiniblockNumber(from_miniblock_number),
+                MiniblockNumber(to_miniblock_number),
+            )
+            .await;
+
+        metrics::histogram!("api.web3.call", start.elapsed(), "method" => METHOD_NAME);
+
+        result
+    }
+
+    async fn resolve_miniblock_from_block(
+        &self,
+        block_number: u64,
+        is_from: bool,
+        virtual_block_start_batch: u64,
+        virtual_block_finish_l2_block: u64,
+    ) -> Result<u32, Web3Error> {
+        const METHOD_NAME: &str = "resolve_miniblock_from_block";
+
+        let mut conn = self.connection_pool.access_storage_tagged("api").await;
+
+        if block_number < virtual_block_start_batch {
+            let l1_batch = L1BatchNumber(block_number as u32);
+            let miniblock_range = conn
+                .blocks_web3_dal()
+                .get_miniblock_range_of_l1_batch(l1_batch)
+                .await
+                .map(|minmax| minmax.map(|(min, max)| (U64::from(min.0), U64::from(max.0))))
+                .map_err(|err| internal_error(METHOD_NAME, err))?;
+
+            match miniblock_range {
+                Some((batch_first_miniblock, batch_last_miniblock)) => {
+                    if is_from {
+                        Ok(batch_first_miniblock.as_u32())
+                    } else {
+                        Ok(batch_last_miniblock.as_u32())
+                    }
+                }
+                _ => Err(Web3Error::NoBlock),
+            }
+        } else if virtual_block_finish_l2_block > 0 && block_number >= virtual_block_finish_l2_block
+        {
+            u32::try_from(block_number).map_err(|_| Web3Error::NoBlock)
+        } else {
+            // we have to deal with virtual blocks here
+            let virtual_block_miniblock = if is_from {
+                conn.blocks_web3_dal()
+                    .get_miniblock_for_virtual_block_from(virtual_block_start_batch, block_number)
+                    .await
+                    .map_err(|err| internal_error(METHOD_NAME, err))?
+            } else {
+                conn.blocks_web3_dal()
+                    .get_miniblock_for_virtual_block_to(virtual_block_start_batch, block_number)
+                    .await
+                    .map_err(|err| internal_error(METHOD_NAME, err))?
+            };
+            virtual_block_miniblock.ok_or(Web3Error::NoBlock)
+        }
+    }
+
+    async fn filter_events_changes(
+        &self,
+        filter: Filter,
+        from_block: MiniblockNumber,
+        to_block: MiniblockNumber,
+    ) -> Result<Vec<Log>, Web3Error> {
+        const METHOD_NAME: &str = "filter_events_changes";
+
+        let addresses: Vec<_> = filter
+            .address
+            .map_or_else(Vec::default, |address| address.0);
+        let topics: Vec<_> = filter
+            .topics
+            .into_iter()
+            .flatten()
+            .enumerate()
+            .filter_map(|(idx, topics)| topics.map(|topics| (idx as u32 + 1, topics.0)))
+            .collect();
+        let get_logs_filter = GetLogsFilter {
+            from_block,
+            to_block: filter.to_block,
+            addresses,
+            topics,
+        };
+
+        let mut storage = self.connection_pool.access_storage_tagged("api").await;
+
+        // Check if there is more than one block in range and there are more than `req_entities_limit` logs that satisfies filter.
+        // In this case we should return error and suggest requesting logs with smaller block range.
+        if from_block != to_block
+            && storage
+                .events_web3_dal()
+                .get_log_block_number(&get_logs_filter, self.api_config.req_entities_limit)
+                .await
+                .map_err(|err| internal_error(METHOD_NAME, err))?
+                .is_some()
+        {
+            return Err(Web3Error::TooManyLogs(self.api_config.req_entities_limit));
+        }
+
+        let logs = storage
+            .events_web3_dal()
+            .get_logs(get_logs_filter, i32::MAX as usize)
+            .await
+            .map_err(|err| internal_error(METHOD_NAME, err))?;
+
+        Ok(logs)
     }
 }
 

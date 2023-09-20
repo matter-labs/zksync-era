@@ -1,6 +1,6 @@
 [package]
 name = "vlog"
-version = "1.0.0"
+version="0.1.0"
 edition = "2018"
 authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
 homepage = "https://zksync.io/"
@@ -12,11 +12,7 @@ publish = false # This is an utility crate, not to be used by libraries.
 
 [dependencies]
 chrono = "0.4"
-tracing = { version = "0.1.26", features = ["log"] }
+tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter", "time", "json"] }
-sentry = "0"
-opentelemetry = { version = "0.17" }
-opentelemetry-otlp = { version = "0.10", features = ["http-proto", "reqwest-blocking-client"] }
-opentelemetry-semantic-conventions = "0.9"
-tracing-opentelemetry = "0.17.2"
+sentry = "0.31"
 serde_json = "1.0"

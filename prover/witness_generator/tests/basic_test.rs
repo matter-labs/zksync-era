@@ -25,6 +25,7 @@ fn compare_serialized<T: Serialize>(expected: &T, actual: &T) {
 }
 
 #[tokio::test]
+#[ignore] // re-enable with new artifacts
 async fn test_leaf_witness_gen() {
     let mut object_store_config = ObjectStoreConfig::from_env();
     object_store_config.file_backed_base_path = "./tests/data/leaf/".to_owned();

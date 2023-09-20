@@ -9,6 +9,7 @@ use zksync_config::{
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_eth_client::{clients::mock::MockEthereum, EthInterface};
+use zksync_object_store::ObjectStoreFactory;
 use zksync_types::{
     aggregated_operations::{
         AggregatedOperation, L1BatchCommitOperation, L1BatchExecuteOperation, L1BatchProofOperation,
@@ -85,6 +86,7 @@ impl EthSenderTester {
             .await
             .unwrap(),
         );
+        let store_factory = ObjectStoreFactory::from_env();
 
         let aggregator = EthTxAggregator::new(
             SenderConfig {
@@ -92,7 +94,10 @@ impl EthSenderTester {
                 ..eth_sender_config.sender.clone()
             },
             // Aggregator - unused
-            Aggregator::new(aggregator_config.clone()),
+            Aggregator::new(
+                aggregator_config.clone(),
+                store_factory.create_store().await,
+            ),
             // zkSync contract address
             Address::random(),
             contracts_config.l1_multicall3_addr,
@@ -794,7 +799,7 @@ async fn insert_genesis_protocol_version(tester: &EthSenderTester) {
         .storage()
         .await
         .protocol_versions_dal()
-        .save_protocol_version(Default::default())
+        .save_protocol_version_with_tx(Default::default())
         .await;
 }
 

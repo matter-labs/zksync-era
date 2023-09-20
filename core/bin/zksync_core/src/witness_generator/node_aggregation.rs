@@ -84,7 +84,7 @@ impl NodeAggregationWitnessGenerator {
         let config: WitnessGeneratorConfig = WitnessGeneratorConfig::from_env();
         let NodeAggregationWitnessGeneratorJob { block_number, job } = node_job;
 
-        vlog::info!(
+        tracing::info!(
             "Starting witness generation of type {:?} for block {}",
             AggregationRound::NodeAggregation,
             block_number.0
@@ -179,7 +179,7 @@ pub fn process_node_aggregation_job(
         &config.key_download_url,
     );
     env::set_var("CRS_FILE", config.initial_setup_key_path);
-    vlog::info!("Keys loaded in {:?}", stage_started_at.elapsed());
+    tracing::info!("Keys loaded in {:?}", stage_started_at.elapsed());
     let stage_started_at = Instant::now();
 
     let verification_keys: HashMap<
@@ -208,13 +208,13 @@ pub fn process_node_aggregation_job(
             node_aggregation_vk,
         ));
 
-    vlog::info!(
+    tracing::info!(
         "commitments: basic set: {:?}, leaf: {:?}, node: {:?}",
         to_hex(&set_committment),
         to_hex(&leaf_aggregation_vk_committment),
         to_hex(&node_aggregation_vk_committment)
     );
-    vlog::info!("Commitments generated in {:?}", stage_started_at.elapsed());
+    tracing::info!("Commitments generated in {:?}", stage_started_at.elapsed());
 
     // fs::write("previous_level_proofs.bincode", bincode::serialize(&job.previous_level_proofs).unwrap()).unwrap();
     // fs::write("leaf_aggregation_vk.bincode", bincode::serialize(&leaf_aggregation_vk).unwrap()).unwrap();
@@ -245,7 +245,7 @@ pub fn process_node_aggregation_job(
             g2_points,
         );
 
-    vlog::info!(
+    tracing::info!(
         "prepare_node_aggregations took {:?}",
         stage_started_at.elapsed()
     );
@@ -261,7 +261,7 @@ pub fn process_node_aggregation_job(
         "prepare_node_aggregations returned more than one node aggregation"
     );
 
-    vlog::info!(
+    tracing::info!(
         "Node witness generation for block {} is complete in {:?}. Number of circuits: {}",
         block_number.0,
         started_at.elapsed(),

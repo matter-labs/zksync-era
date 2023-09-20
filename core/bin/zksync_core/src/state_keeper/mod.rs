@@ -3,11 +3,12 @@ use tokio::sync::watch;
 use std::sync::Arc;
 
 use zksync_config::{
-    configs::chain::{MempoolConfig, StateKeeperConfig},
+    configs::chain::{MempoolConfig, NetworkConfig, StateKeeperConfig},
     constants::MAX_TXS_IN_BLOCK,
     ContractsConfig, DBConfig,
 };
 use zksync_dal::ConnectionPool;
+use zksync_types::L2ChainId;
 
 mod batch_executor;
 pub(crate) mod extractors;
@@ -17,12 +18,11 @@ mod mempool_actor;
 pub(crate) mod seal_criteria;
 #[cfg(test)]
 mod tests;
-mod types;
+pub(crate) mod types;
 pub(crate) mod updates;
 
 pub use self::{
-    batch_executor::{L1BatchExecutorBuilder, MainBatchExecutorBuilder, MultiVMConfig},
-    io::common::set_missing_initial_writes_indices,
+    batch_executor::{L1BatchExecutorBuilder, MainBatchExecutorBuilder},
     keeper::ZkSyncStateKeeper,
     seal_criteria::SealManager,
 };
@@ -36,6 +36,7 @@ pub(crate) async fn create_state_keeper<G>(
     contracts_config: &ContractsConfig,
     state_keeper_config: StateKeeperConfig,
     db_config: &DBConfig,
+    network_config: &NetworkConfig,
     mempool_config: &MempoolConfig,
     pool: ConnectionPool,
     mempool: MempoolGuard,
@@ -58,8 +59,7 @@ where
         pool.clone(),
         state_keeper_config.max_allowed_l2_tx_gas_limit.into(),
         state_keeper_config.save_call_traces,
-        state_keeper_config.validation_computational_gas_limit,
-        None, // MultiVM is not used on the main node, we always use the latest version.
+        state_keeper_config.upload_witness_inputs_to_gcs,
     );
 
     let io = MempoolIO::new(
@@ -70,6 +70,8 @@ where
         &state_keeper_config,
         mempool_config.delay_interval(),
         contracts_config.l2_erc20_bridge_addr,
+        state_keeper_config.validation_computational_gas_limit,
+        L2ChainId(network_config.zksync_network_id),
     )
     .await;
 

@@ -18,7 +18,7 @@ use zksync_prover_fri_types::ProverServiceDataKey;
 use zksync_types::proofs::AggregationRound;
 
 fn main() {
-    vlog::info!("starting vk generator");
+    tracing::info!("starting vk generator");
     generate_basic_circuit_vks();
 }
 

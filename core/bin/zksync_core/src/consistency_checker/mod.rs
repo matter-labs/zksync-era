@@ -63,7 +63,7 @@ impl ConsistencyChecker {
                 )
             });
 
-        vlog::info!(
+        tracing::info!(
             "Checking commit tx {} for batch {}",
             commit_tx_hash,
             batch_number.0
@@ -132,11 +132,11 @@ impl ConsistencyChecker {
             .max(1)
             .into();
 
-        vlog::info!("Starting consistency checker from batch {}", batch_number.0);
+        tracing::info!("Starting consistency checker from batch {}", batch_number.0);
 
         loop {
             if *stop_receiver.borrow() {
-                vlog::info!("Stop signal received, consistency_checker is shutting down");
+                tracing::info!("Stop signal received, consistency_checker is shutting down");
                 break;
             }
 
@@ -159,7 +159,7 @@ impl ConsistencyChecker {
 
             match self.check_commitments(batch_number).await {
                 Ok(true) => {
-                    vlog::info!("Batch {} is consistent with L1", batch_number.0);
+                    tracing::info!("Batch {} is consistent with L1", batch_number.0);
                     metrics::gauge!(
                         "external_node.last_correct_batch",
                         batch_number.0 as f64,
@@ -171,7 +171,7 @@ impl ConsistencyChecker {
                     panic!("Batch {} is inconsistent with L1", batch_number.0);
                 }
                 Err(e) => {
-                    vlog::warn!("Consistency checker error: {}", e);
+                    tracing::warn!("Consistency checker error: {}", e);
                     tokio::time::sleep(SLEEP_DELAY).await;
                 }
             }

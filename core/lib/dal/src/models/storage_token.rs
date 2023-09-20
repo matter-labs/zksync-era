@@ -38,7 +38,7 @@ impl From<StorageTokenPrice> for Option<TokenPrice> {
             }),
             (None, None) => None,
             _ => {
-                vlog::warn!(
+                tracing::warn!(
                     "Found storage token with {:?} `usd_price` and {:?} `usd_price_updated_at`",
                     price.usd_price,
                     price.usd_price_updated_at

@@ -67,7 +67,7 @@ impl CircuitSynthesizer {
             None
         };
 
-        vlog::info!(
+        tracing::info!(
             "Configured for group [{}], circuits: {allowed_circuit_types:?}",
             config.prover_group_id
         );
@@ -96,7 +96,7 @@ impl CircuitSynthesizer {
 
         let circuit_type = numeric_index_to_circuit_name(circuit.numeric_circuit_type()).unwrap();
 
-        vlog::info!(
+        tracing::info!(
             "Finished circuit synthesis for circuit: {circuit_type} took {:?}",
             start_instant.elapsed()
         );
@@ -119,7 +119,7 @@ impl JobProcessor for CircuitSynthesizer {
     const SERVICE_NAME: &'static str = "CircuitSynthesizer";
 
     async fn get_next_job(&self) -> Option<(Self::JobId, Self::Job)> {
-        vlog::trace!(
+        tracing::trace!(
             "Attempting to fetch job types: {:?}",
             self.allowed_circuit_types
         );
@@ -178,7 +178,7 @@ impl JobProcessor for CircuitSynthesizer {
         _started_at: Instant,
         (assembly, circuit_id): Self::JobArtifacts,
     ) {
-        vlog::trace!(
+        tracing::trace!(
             "Finished circuit synthesis for job: {job_id} in region: {}",
             self.region
         );
@@ -187,7 +187,7 @@ impl JobProcessor for CircuitSynthesizer {
         let mut serialized: Vec<u8> = vec![];
         serialize_job(&assembly, job_id as usize, circuit_id, &mut serialized);
 
-        vlog::trace!(
+        tracing::trace!(
             "Serialized circuit assembly for job {job_id} in {:?}",
             now.elapsed()
         );
@@ -226,7 +226,7 @@ impl JobProcessor for CircuitSynthesizer {
                 }
                 // We'll retry with another prover again, no point in dropping the results.
 
-                vlog::warn!(
+                tracing::warn!(
                     "Could not send assembly to {address:?}. Prover group {}, region {}, \
                          circuit id {circuit_id}, send attempt {attempts}.",
                     self.config.prover_group_id,
@@ -237,7 +237,7 @@ impl JobProcessor for CircuitSynthesizer {
                 sleep(self.config.prover_instance_poll_time()).await;
             }
         }
-        vlog::trace!(
+        tracing::trace!(
             "Not able to get any free prover instance for sending assembly for job: {job_id}"
         );
     }
@@ -258,7 +258,7 @@ async fn handle_send_result(
 
             // region: logs
 
-            vlog::trace!(
+            tracing::trace!(
                 "Sent assembly of size: {blob_size_in_gb}GB successfully, took: {elapsed:?} \
                  for job: {job_id} by: {local_ip:?} to: {address:?}"
             );
@@ -278,7 +278,7 @@ async fn handle_send_result(
         }
 
         Err(err) => {
-            vlog::trace!(
+            tracing::trace!(
                 "Failed sending assembly to address: {address:?}, socket not reachable \
                  reason: {err}"
             );

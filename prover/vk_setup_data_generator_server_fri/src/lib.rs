@@ -1,6 +1,7 @@
 #![feature(generic_const_exprs)]
 #![feature(allocator_api)]
 
+use circuit_definitions::circuit_definitions::aux_layer::ZkSyncSnarkWrapperVK;
 use std::fs;
 use std::fs::File;
 use std::io::Read;
@@ -40,9 +41,11 @@ use serde::{Deserialize, Serialize};
 use zkevm_test_harness::prover_utils::create_base_layer_setup_data;
 use zksync_config::configs::FriProverConfig;
 use zksync_types::proofs::AggregationRound;
+use zksync_types::zkevm_test_harness::bellman::bn256::Bn256;
 
-pub mod in_memory_setup_data_source;
+pub mod commitment_utils;
 pub mod utils;
+
 use zksync_prover_fri_types::ProverServiceDataKey;
 #[cfg(feature = "gpu")]
 use {shivini::cs::GpuSetup, std::alloc::Global};
@@ -118,6 +121,7 @@ pub enum ProverServiceDataType {
     VerificationKey,
     SetupData,
     FinalizationHints,
+    SnarkVerificationKey,
 }
 
 pub fn get_base_path() -> String {
@@ -156,6 +160,9 @@ pub fn get_file_path(
         ProverServiceDataType::FinalizationHints => {
             format!("{}/finalization_hints_{}.bin", get_base_path(), name)
         }
+        ProverServiceDataType::SnarkVerificationKey => {
+            format!("{}/snark_verification_{}_key.json", get_base_path(), name)
+        }
     }
 }
 
@@ -164,7 +171,7 @@ pub fn get_base_layer_vk_for_circuit_type(circuit_type: u8) -> ZkSyncBaseLayerVe
         ProverServiceDataKey::new(circuit_type, AggregationRound::BasicCircuits),
         ProverServiceDataType::VerificationKey,
     );
-    vlog::info!("Fetching verification key from path: {}", filepath);
+    tracing::info!("Fetching verification key from path: {}", filepath);
     let text = std::fs::read_to_string(&filepath)
         .unwrap_or_else(|_| panic!("Failed reading verification key from path: {}", filepath));
     serde_json::from_str::<ZkSyncBaseLayerVerificationKey>(&text).unwrap_or_else(|_| {
@@ -183,7 +190,7 @@ pub fn get_recursive_layer_vk_for_circuit_type(
         ProverServiceDataKey::new(circuit_type, round),
         ProverServiceDataType::VerificationKey,
     );
-    vlog::info!("Fetching verification key from path: {}", filepath);
+    tracing::info!("Fetching verification key from path: {}", filepath);
     let text = std::fs::read_to_string(&filepath)
         .unwrap_or_else(|_| panic!("Failed reading verification key from path: {}", filepath));
     serde_json::from_str::<ZkSyncRecursionLayerVerificationKey>(&text).unwrap_or_else(|_| {
@@ -212,7 +219,7 @@ pub fn save_base_layer_vk(vk: ZkSyncBaseLayerVerificationKey) {
         ProverServiceDataKey::new(circuit_type, AggregationRound::BasicCircuits),
         ProverServiceDataType::VerificationKey,
     );
-    vlog::info!("saving basic verification key to: {}", filepath);
+    tracing::info!("saving basic verification key to: {}", filepath);
     std::fs::write(filepath, serde_json::to_string_pretty(&vk).unwrap()).unwrap();
 }
 
@@ -223,8 +230,17 @@ pub fn save_recursive_layer_vk(vk: ZkSyncRecursionLayerVerificationKey) {
         ProverServiceDataKey::new(circuit_type, round),
         ProverServiceDataType::VerificationKey,
     );
-    vlog::info!("saving recursive layer verification key to: {}", filepath);
+    tracing::info!("saving recursive layer verification key to: {}", filepath);
     std::fs::write(filepath, serde_json::to_string_pretty(&vk).unwrap()).unwrap();
+}
+
+pub fn save_snark_vk(vk: ZkSyncSnarkWrapperVK) {
+    let filepath = get_file_path(
+        ProverServiceDataKey::new(vk.numeric_circuit_type(), AggregationRound::Scheduler),
+        ProverServiceDataType::SnarkVerificationKey,
+    );
+    tracing::info!("saving snark verification key to: {}", filepath);
+    fs::write(filepath, serde_json::to_string_pretty(&vk.into_inner()).unwrap()).unwrap();
 }
 
 pub fn get_cpu_setup_data_for_circuit_type<F, P, H>(
@@ -246,7 +262,7 @@ where
             filepath
         )
     });
-    vlog::info!("loading {:?} setup data from path: {}", key, filepath);
+    tracing::info!("loading {:?} setup data from path: {}", key, filepath);
     bincode::deserialize::<ProverSetupData<F, P, H>>(&buffer).unwrap_or_else(|_| {
         panic!(
             "Failed deserializing setup-data at path: {:?} for circuit: {:?}",
@@ -272,7 +288,7 @@ where
             filepath
         )
     });
-    vlog::info!("loading {:?} setup data from path: {}", key, filepath);
+    tracing::info!("loading {:?} setup data from path: {}", key, filepath);
     bincode::deserialize::<GpuProverSetupData<F, H>>(&buffer).unwrap_or_else(|_| {
         panic!(
             "Failed deserializing setup-data at path: {:?} for circuit: {:?}",
@@ -283,7 +299,7 @@ where
 
 pub fn save_setup_data(key: ProverServiceDataKey, serialized_setup_data: &Vec<u8>) {
     let filepath = get_file_path(key.clone(), ProverServiceDataType::SetupData);
-    vlog::info!("saving {:?} setup data to: {}", key, filepath);
+    tracing::info!("saving {:?} setup data to: {}", key, filepath);
     std::fs::write(filepath.clone(), serialized_setup_data)
         .unwrap_or_else(|_| panic!("Failed saving setup-data at path: {:?}", filepath));
 }
@@ -296,7 +312,7 @@ pub fn generate_cpu_base_layer_setup_data(
     >,
 ) -> GoldilocksProverSetupData {
     let circuit_type = circuit.numeric_circuit_type();
-    vlog::info!(
+    tracing::info!(
         "starting setup data generator for base layer circuit: {}.",
         circuit_type
     );
@@ -333,11 +349,16 @@ pub fn generate_cpu_base_layer_setup_data(
 
 pub fn save_finalization_hints(key: ProverServiceDataKey, hint: &FinalizationHintsForProver) {
     let filepath = get_file_path(key.clone(), ProverServiceDataType::FinalizationHints);
-    vlog::info!("saving finalization hints for {:?} to: {}", key, filepath);
+    tracing::info!("saving finalization hints for {:?} to: {}", key, filepath);
     let serialized = bincode::serialize(&hint).expect("Failed to serialize finalization hints");
     fs::write(filepath, serialized).expect("Failed to write finalization hints to file");
 }
 pub fn get_finalization_hints(key: ProverServiceDataKey) -> FinalizationHintsForProver {
+    let mut key = key;
+    // For NodeAggregation round we have only 1 finalization hints for all circuit type.
+    if key.round == AggregationRound::NodeAggregation {
+        key.circuit_id = ZkSyncRecursionLayerStorageType::NodeLayerCircuit as u8;
+    }
     let filepath = get_file_path(key, ProverServiceDataType::FinalizationHints);
     let file = fs::read(filepath).expect("Failed to read finalization hints from file");
     bincode::deserialize::<FinalizationHintsForProver>(&file)

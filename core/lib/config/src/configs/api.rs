@@ -95,6 +95,10 @@ pub struct Web3JsonRpcConfig {
     pub max_batch_request_size: Option<usize>,
     /// Maximum response body size in MiBs. Default is 10 MiB.
     pub max_response_body_size_mb: Option<usize>,
+    /// Maximum number of requests per minute for the WebSocket server.
+    /// The value is per active connection.
+    /// Note: For HTTP, rate limiting is expected to be configured on the infra level.
+    pub websocket_requests_per_minute_limit: Option<u32>,
 }
 
 impl Web3JsonRpcConfig {
@@ -176,6 +180,11 @@ impl Web3JsonRpcConfig {
     pub fn max_response_body_size(&self) -> usize {
         self.max_response_body_size_mb.unwrap_or(10) * super::BYTES_IN_MEGABYTE
     }
+
+    pub fn websocket_requests_per_minute_limit(&self) -> u32 {
+        // The default limit is chosen to be reasonably permissive.
+        self.websocket_requests_per_minute_limit.unwrap_or(6000)
+    }
 }
 
 #[derive(Debug, Deserialize, Clone, PartialEq)]
@@ -256,6 +265,7 @@ mod tests {
                 fee_history_limit: Some(100),
                 max_batch_request_size: Some(200),
                 max_response_body_size_mb: Some(10),
+                websocket_requests_per_minute_limit: Some(10),
             },
             contract_verification: ContractVerificationApiConfig {
                 port: 3070,
@@ -288,7 +298,7 @@ mod tests {
             API_WEB3_JSON_RPC_GAS_PRICE_SCALE_FACTOR=1.2
             API_WEB3_JSON_RPC_TRANSACTIONS_PER_SEC_LIMIT=1000
             API_WEB3_JSON_RPC_REQUEST_TIMEOUT=10
-            API_WEB3_JSON_RPC_ACCOUNT_PKS=0x0000000000000000000000000000000000000000000000000000000000000001,0x0000000000000000000000000000000000000000000000000000000000000002
+            API_WEB3_JSON_RPC_ACCOUNT_PKS="0x0000000000000000000000000000000000000000000000000000000000000001,0x0000000000000000000000000000000000000000000000000000000000000002"
             API_WEB3_JSON_RPC_ESTIMATE_GAS_SCALE_FACTOR=1.0
             API_WEB3_JSON_RPC_ESTIMATE_GAS_ACCEPTABLE_OVERESTIMATION=1000
             API_WEB3_JSON_RPC_MAX_TX_SIZE=1000000
@@ -300,6 +310,7 @@ mod tests {
             API_WEB3_JSON_RPC_WS_THREADS=256
             API_WEB3_JSON_RPC_FEE_HISTORY_LIMIT=100
             API_WEB3_JSON_RPC_MAX_BATCH_REQUEST_SIZE=200
+            API_WEB3_JSON_RPC_WEBSOCKET_REQUESTS_PER_MINUTE_LIMIT=10
             API_CONTRACT_VERIFICATION_PORT="3070"
             API_CONTRACT_VERIFICATION_URL="http://127.0.0.1:3070"
             API_CONTRACT_VERIFICATION_THREADS_PER_SERVER=128

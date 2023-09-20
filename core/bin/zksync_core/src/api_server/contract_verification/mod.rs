@@ -69,7 +69,7 @@ pub fn start_server_thread_detached(
                 actix_rt::spawn(async move {
                     if stop_receiver.changed().await.is_ok() {
                         close_handle.stop(true).await;
-                        vlog::info!(
+                        tracing::info!(
                             "Stop signal received, contract verification API is shutting down"
                         );
                     }

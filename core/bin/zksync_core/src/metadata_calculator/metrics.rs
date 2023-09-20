@@ -99,11 +99,11 @@ impl<S: ReportStage> UpdateTreeLatency<S> {
         metrics::histogram!(S::HISTOGRAM_NAME, elapsed, "stage" => stage);
 
         if let Some(record_count) = record_count {
-            vlog::debug!(
+            tracing::debug!(
                 "Metadata calculator stage `{stage}` with {record_count} records completed in {elapsed:?}"
             );
         } else {
-            vlog::debug!("Metadata calculator stage `{stage}` completed in {elapsed:?}");
+            tracing::debug!("Metadata calculator stage `{stage}` completed in {elapsed:?}");
         }
     }
 }
@@ -154,7 +154,7 @@ impl MetadataCalculator {
 
         let first_batch_number = batch_headers.first().unwrap().number.0;
         let last_batch_number = batch_headers.last().unwrap().number.0;
-        vlog::info!(
+        tracing::info!(
             "L1 batches #{:?} processed in tree",
             first_batch_number..=last_batch_number
         );

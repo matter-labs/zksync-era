@@ -24,7 +24,7 @@ pub async fn notify_blocks(
     let mut timer = interval(polling_interval);
     loop {
         if *stop_receiver.borrow() {
-            vlog::info!("Stop signal received, pubsub_block_notifier is shutting down");
+            tracing::info!("Stop signal received, pubsub_block_notifier is shutting down");
             break;
         }
 
@@ -74,7 +74,7 @@ pub async fn notify_txs(
     let mut timer = interval(polling_interval);
     loop {
         if *stop_receiver.borrow() {
-            vlog::info!("Stop signal received, pubsub_tx_notifier is shutting down");
+            tracing::info!("Stop signal received, pubsub_tx_notifier is shutting down");
             break;
         }
 
@@ -129,7 +129,7 @@ pub async fn notify_logs(
     let mut timer = interval(polling_interval);
     loop {
         if *stop_receiver.borrow() {
-            vlog::info!("Stop signal received, pubsub_logs_notifier is shutting down");
+            tracing::info!("Stop signal received, pubsub_logs_notifier is shutting down");
             break;
         }
 

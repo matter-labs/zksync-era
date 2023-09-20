@@ -1,12 +1,11 @@
-use std::mem;
+use vm::{L1BatchEnv, VmExecutionResultAndLogs};
 
-use vm::{vm::VmTxExecutionResult, vm_with_bootloader::BlockContextMode};
 use zksync_contracts::BaseSystemContractsHashes;
+use zksync_types::vm_trace::Call;
 use zksync_types::{
-    block::BlockGasCount,
-    storage_writes_deduplicator::StorageWritesDeduplicator,
-    tx::tx_execution_info::{ExecutionMetrics, VmExecutionLogs},
-    Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, Transaction,
+    block::BlockGasCount, storage_writes_deduplicator::StorageWritesDeduplicator,
+    tx::tx_execution_info::ExecutionMetrics, Address, L1BatchNumber, MiniblockNumber,
+    ProtocolVersionId, Transaction,
 };
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
@@ -14,6 +13,8 @@ pub mod l1_batch_updates;
 pub mod miniblock_updates;
 
 pub(crate) use self::{l1_batch_updates::L1BatchUpdates, miniblock_updates::MiniblockUpdates};
+
+use super::io::MiniblockParams;
 
 /// Most of the information needed to seal the l1 batch/mini-block is contained within the VM,
 /// things that are not captured there are accumulated externally.
@@ -36,21 +37,25 @@ pub struct UpdatesManager {
 
 impl UpdatesManager {
     pub(crate) fn new(
-        block_context: &BlockContextMode,
+        l1_batch_env: L1BatchEnv,
         base_system_contract_hashes: BaseSystemContractsHashes,
         protocol_version: ProtocolVersionId,
     ) -> Self {
-        let batch_timestamp = block_context.timestamp();
-        let context = block_context.inner_block_context().context;
         Self {
-            batch_timestamp,
-            l1_gas_price: context.l1_gas_price,
-            fair_l2_gas_price: context.fair_l2_gas_price,
-            base_fee_per_gas: block_context.inner_block_context().base_fee,
+            batch_timestamp: l1_batch_env.timestamp,
+            l1_gas_price: l1_batch_env.l1_gas_price,
+            fair_l2_gas_price: l1_batch_env.fair_l2_gas_price,
+            base_fee_per_gas: l1_batch_env.base_fee(),
             protocol_version,
             base_system_contract_hashes,
             l1_batch: L1BatchUpdates::new(),
-            miniblock: MiniblockUpdates::new(batch_timestamp),
+            miniblock: MiniblockUpdates::new(
+                l1_batch_env.first_l2_block.timestamp,
+                l1_batch_env.first_l2_block.number,
+                l1_batch_env.first_l2_block.prev_block_hash,
+                l1_batch_env.first_l2_block.max_virtual_blocks_to_create,
+                Some(protocol_version),
+            ),
             storage_writes_deduplicator: StorageWritesDeduplicator::new(),
         }
     }
@@ -86,7 +91,7 @@ impl UpdatesManager {
             fair_l2_gas_price: self.fair_l2_gas_price,
             base_fee_per_gas: self.base_fee_per_gas,
             base_system_contracts_hashes: self.base_system_contract_hashes,
-            protocol_version: self.protocol_version,
+            protocol_version: Some(self.protocol_version),
             l2_erc20_bridge_addr,
         }
     }
@@ -98,35 +103,41 @@ impl UpdatesManager {
     pub(crate) fn extend_from_executed_transaction(
         &mut self,
         tx: Transaction,
-        tx_execution_result: VmTxExecutionResult,
+        tx_execution_result: VmExecutionResultAndLogs,
         compressed_bytecodes: Vec<CompressedBytecodeInfo>,
         tx_l1_gas_this_tx: BlockGasCount,
         execution_metrics: ExecutionMetrics,
+        call_traces: Vec<Call>,
     ) {
         self.storage_writes_deduplicator
-            .apply(&tx_execution_result.result.logs.storage_logs);
+            .apply(&tx_execution_result.logs.storage_logs);
         self.miniblock.extend_from_executed_transaction(
             tx,
             tx_execution_result,
             tx_l1_gas_this_tx,
             execution_metrics,
             compressed_bytecodes,
+            call_traces,
         );
     }
 
-    pub(crate) fn extend_from_fictive_transaction(&mut self, vm_execution_logs: VmExecutionLogs) {
+    pub(crate) fn extend_from_fictive_transaction(&mut self, result: VmExecutionResultAndLogs) {
         self.storage_writes_deduplicator
-            .apply(&vm_execution_logs.storage_logs);
-        self.miniblock
-            .extend_from_fictive_transaction(vm_execution_logs);
+            .apply(&result.logs.storage_logs);
+        self.miniblock.extend_from_fictive_transaction(result);
     }
 
     /// Pushes a new miniblock with the specified timestamp into this manager. The previously
     /// held miniblock is considered sealed and is used to extend the L1 batch data.
-    pub(crate) fn push_miniblock(&mut self, new_miniblock_timestamp: u64) {
-        let new_miniblock_updates = MiniblockUpdates::new(new_miniblock_timestamp);
-        let old_miniblock_updates = mem::replace(&mut self.miniblock, new_miniblock_updates);
-
+    pub(crate) fn push_miniblock(&mut self, miniblock_params: MiniblockParams) {
+        let new_miniblock_updates = MiniblockUpdates::new(
+            miniblock_params.timestamp,
+            self.miniblock.number + 1,
+            self.miniblock.get_miniblock_hash(),
+            miniblock_params.virtual_blocks,
+            Some(self.protocol_version),
+        );
+        let old_miniblock_updates = std::mem::replace(&mut self.miniblock, new_miniblock_updates);
         self.l1_batch
             .extend_from_sealed_miniblock(old_miniblock_updates);
     }
@@ -159,7 +170,7 @@ pub(crate) struct MiniblockSealCommand {
     pub fair_l2_gas_price: u64,
     pub base_fee_per_gas: u64,
     pub base_system_contracts_hashes: BaseSystemContractsHashes,
-    pub protocol_version: ProtocolVersionId,
+    pub protocol_version: Option<ProtocolVersionId>,
     pub l2_erc20_bridge_addr: Address,
 }
 
@@ -187,6 +198,7 @@ mod tests {
             vec![],
             new_block_gas_count(),
             ExecutionMetrics::default(),
+            vec![],
         );
 
         // Check that only pending state is updated.
@@ -195,7 +207,10 @@ mod tests {
         assert_eq!(updates_manager.l1_batch.executed_transactions.len(), 0);
 
         // Seal miniblock.
-        updates_manager.push_miniblock(2);
+        updates_manager.push_miniblock(MiniblockParams {
+            timestamp: 2,
+            virtual_blocks: 1,
+        });
 
         // Check that L1 batch updates are the same with the pending state
         // and miniblock updates are empty.

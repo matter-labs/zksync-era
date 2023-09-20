@@ -1,5 +1,4 @@
 use std::convert::TryInto;
-
 use std::time::Instant;
 
 use async_trait::async_trait;
@@ -19,9 +18,10 @@ use zksync_vk_setup_data_server_fri::utils::get_leaf_vk_params;
 use crate::utils::{load_proofs_for_job_ids, SchedulerPartialInputWrapper};
 use zksync_dal::ConnectionPool;
 use zksync_object_store::{FriCircuitKey, ObjectStore, ObjectStoreFactory};
-use zksync_prover_fri_types::{CircuitWrapper, FriProofWrapper};
+use zksync_prover_fri_types::{CircuitWrapper, FriProofWrapper, get_current_pod_name};
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::proofs::AggregationRound;
+use zksync_types::protocol_version::FriProtocolVersionId;
 use zksync_types::L1BatchNumber;
 
 pub struct SchedulerArtifacts {
@@ -43,16 +43,19 @@ pub struct SchedulerWitnessGeneratorJob {
 pub struct SchedulerWitnessGenerator {
     object_store: Box<dyn ObjectStore>,
     prover_connection_pool: ConnectionPool,
+    protocol_versions: Vec<FriProtocolVersionId>,
 }
 
 impl SchedulerWitnessGenerator {
     pub async fn new(
         store_factory: &ObjectStoreFactory,
         prover_connection_pool: ConnectionPool,
+        protocol_versions: Vec<FriProtocolVersionId>,
     ) -> Self {
         Self {
             object_store: store_factory.create_store().await,
             prover_connection_pool,
+            protocol_versions,
         }
     }
 
@@ -60,7 +63,7 @@ impl SchedulerWitnessGenerator {
         job: SchedulerWitnessGeneratorJob,
         started_at: Instant,
     ) -> SchedulerArtifacts {
-        vlog::info!(
+        tracing::info!(
             "Starting fri witness generation of type {:?} for block {}",
             AggregationRound::Scheduler,
             job.block_number.0
@@ -84,7 +87,7 @@ impl SchedulerWitnessGenerator {
                     "aggregation_round" => format!("{:?}", AggregationRound::Scheduler),
         );
 
-        vlog::info!(
+        tracing::info!(
             "Scheduler generation for block {} is complete in {:?}",
             job.block_number.0,
             started_at.elapsed()
@@ -106,10 +109,10 @@ impl JobProcessor for SchedulerWitnessGenerator {
 
     async fn get_next_job(&self) -> Option<(Self::JobId, Self::Job)> {
         let mut prover_connection = self.prover_connection_pool.access_storage().await;
-
+        let pod_name = get_current_pod_name();
         let l1_batch_number = prover_connection
             .fri_witness_generator_dal()
-            .get_next_scheduler_witness_job()
+            .get_next_scheduler_witness_job(&self.protocol_versions, &pod_name)
             .await?;
         let proof_job_ids = prover_connection
             .fri_scheduler_dependency_tracker_dal()
@@ -167,6 +170,10 @@ impl JobProcessor for SchedulerWitnessGenerator {
 
         let mut prover_connection = self.prover_connection_pool.access_storage().await;
         let mut transaction = prover_connection.start_transaction().await;
+        let protocol_version_id = transaction
+            .fri_witness_generator_dal()
+            .protocol_version_for_l1_batch(job_id)
+            .await;
         transaction
             .fri_prover_jobs_dal()
             .insert_prover_job(
@@ -177,6 +184,7 @@ impl JobProcessor for SchedulerWitnessGenerator {
                 AggregationRound::Scheduler,
                 &scheduler_circuit_blob_url,
                 false,
+                protocol_version_id,
             )
             .await;
 

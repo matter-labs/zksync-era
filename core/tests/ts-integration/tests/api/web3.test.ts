@@ -442,8 +442,10 @@ describe('web3 API compatibility tests', () => {
         const receipt = await sentTx.wait();
 
         let details = await alice.provider.getTransactionDetails(receipt.transactionHash);
+
         let expectedDetails = {
             fee: expect.stringMatching(HEX_VALUE_REGEX),
+            gasPerPubdata: expect.stringMatching(HEX_VALUE_REGEX),
             initiatorAddress: expect.stringMatching(HEX_VALUE_REGEX),
             isL1Originated: true,
             receivedAt: expect.stringMatching(DATE_REGEX),
@@ -478,6 +480,10 @@ describe('web3 API compatibility tests', () => {
         expect(nextBlock.l1BatchNumber).toEqual(l1BatchNumber + 1);
     });
 
+    // TODO (SMA-1576): This test is flaky. Test logic seems to be correct: we *first*
+    // subscribe for events and then send transactions. However, this test
+    // sometimes fails because one of the events was not received. Probably, there is
+    // some problem in the pub-sub API that should be found & fixed.
     test.skip('Should listen for human-readable events', async () => {
         const contract = await deployContract(alice, contracts.events, []);
 
@@ -776,6 +782,30 @@ describe('web3 API compatibility tests', () => {
             latestProtocolVersion.version_id
         ]);
         expect(exactProtocolVersion).toMatchObject(expectedProtocolVersion);
+    });
+
+    test('Should check zks_getLogsWithVirtualBlocks endpoint', async () => {
+        let logs;
+        logs = await alice.provider.send('zks_getLogsWithVirtualBlocks', [{ fromBlock: '0x0', toBlock: '0x0' }]);
+        expect(logs).toEqual([]);
+
+        logs = await alice.provider.send('zks_getLogsWithVirtualBlocks', [{ fromBlock: '0x1', toBlock: '0x2' }]);
+        expect(logs.length > 0);
+
+        logs = await alice.provider.send('zks_getLogsWithVirtualBlocks', [{ fromBlock: '0x2', toBlock: '0x1' }]);
+        expect(logs).toEqual([]);
+
+        logs = await alice.provider.send('zks_getLogsWithVirtualBlocks', [{ fromBlock: '0x3', toBlock: '0x3' }]);
+        expect(logs.length > 0);
+
+        await expect(
+            alice.provider.send('zks_getLogsWithVirtualBlocks', [{ fromBlock: '0x100000000', toBlock: '0x100000000' }]) // 2^32
+        ).toBeRejected();
+        await expect(
+            alice.provider.send('zks_getLogsWithVirtualBlocks', [
+                { fromBlock: '0x10000000000000000', toBlock: '0x10000000000000000' } // 2^64
+            ])
+        ).toBeRejected();
     });
 
     afterAll(async () => {

@@ -12,6 +12,8 @@ use std::{
 
 use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words};
 
+pub mod test_contracts;
+
 #[derive(Debug)]
 pub enum ContractLanguage {
     Sol,
@@ -175,12 +177,12 @@ pub fn read_bootloader_code(bootloader_type: &str) -> Vec<u8> {
     ))
 }
 
-pub fn read_proved_block_bootloader_bytecode() -> Vec<u8> {
-    read_bootloader_code("proved_block")
+pub fn read_proved_batch_bootloader_bytecode() -> Vec<u8> {
+    read_bootloader_code("proved_batch")
 }
 
-pub fn read_playground_block_bootloader_bytecode() -> Vec<u8> {
-    read_bootloader_code("playground_block")
+pub fn read_playground_batch_bootloader_bytecode() -> Vec<u8> {
+    read_bootloader_code("playground_batch")
 }
 
 pub fn get_loadnext_test_contract_path(file_name: &str, contract_name: &str) -> String {
@@ -229,7 +231,7 @@ impl PartialEq for BaseSystemContracts {
 }
 
 pub static PLAYGROUND_BLOCK_BOOTLOADER_CODE: Lazy<SystemContractCode> = Lazy::new(|| {
-    let bytecode = read_playground_block_bootloader_bytecode();
+    let bytecode = read_playground_batch_bootloader_bytecode();
     let hash = hash_bytecode(&bytecode);
 
     SystemContractCode {
@@ -272,19 +274,57 @@ impl BaseSystemContracts {
     }
     // BaseSystemContracts with proved bootloader - for handling transactions.
     pub fn load_from_disk() -> Self {
-        let bootloader_bytecode = read_proved_block_bootloader_bytecode();
+        let bootloader_bytecode = read_proved_batch_bootloader_bytecode();
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
     }
 
     /// BaseSystemContracts with playground bootloader - used for handling 'eth_calls'.
     pub fn playground() -> Self {
-        let bootloader_bytecode = read_playground_block_bootloader_bytecode();
+        let bootloader_bytecode = read_playground_batch_bootloader_bytecode();
+        BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
+    }
+
+    pub fn playground_pre_virtual_blocks() -> Self {
+        let bootloader_bytecode = read_zbin_bytecode(
+            "etc/multivm_bootloaders/vm_1_3_2/playground_block.yul/playground_block.yul.zbin",
+        );
+        BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
+    }
+
+    pub fn playground_post_virtual_blocks() -> Self {
+        let bootloader_bytecode = read_zbin_bytecode("etc/multivm_bootloaders/vm_virtual_blocks/playground_batch.yul/playground_batch.yul.zbin");
+        BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
+    }
+
+    pub fn playground_post_virtual_blocks_finish_upgrade_fix() -> Self {
+        let bootloader_bytecode = read_zbin_bytecode("etc/multivm_bootloaders/vm_virtual_blocks_finish_upgrade_fix/playground_batch.yul/playground_batch.yul.zbin");
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
     }
 
     /// BaseSystemContracts with playground bootloader - used for handling 'eth_calls'.
     pub fn estimate_gas() -> Self {
         let bootloader_bytecode = read_bootloader_code("fee_estimate");
+        BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
+    }
+
+    pub fn estimate_gas_pre_virtual_blocks() -> Self {
+        let bootloader_bytecode = read_zbin_bytecode(
+            "etc/multivm_bootloaders/vm_1_3_2/fee_estimate.yul/fee_estimate.yul.zbin",
+        );
+        BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
+    }
+
+    pub fn estimate_gas_post_virtual_blocks() -> Self {
+        let bootloader_bytecode = read_zbin_bytecode(
+            "etc/multivm_bootloaders/vm_virtual_blocks/fee_estimate.yul/fee_estimate.yul.zbin",
+        );
+        BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
+    }
+
+    pub fn estimate_gas_post_virtual_blocks_finish_upgrade_fix() -> Self {
+        let bootloader_bytecode = read_zbin_bytecode(
+            "etc/multivm_bootloaders/vm_virtual_blocks_finish_upgrade_fix/fee_estimate.yul/fee_estimate.yul.zbin",
+        );
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
     }
 

@@ -76,7 +76,7 @@ pub use crate::{
     },
 };
 
-use crate::{metrics::describe_metrics, storage::Storage, types::Root};
+use crate::{storage::Storage, types::Root};
 use zksync_crypto::hasher::blake2::Blake2Hasher;
 
 /// Binary Merkle tree implemented using AR16MT from Diem [Jellyfish Merkle tree] white paper.
@@ -143,8 +143,6 @@ impl<'a, DB: Database> MerkleTree<'a, DB> {
     /// Panics if the hasher or basic tree parameters (e.g., the tree depth)
     /// do not match those of the tree loaded from the database.
     pub fn with_hasher(db: DB, hasher: &'a dyn HashTree) -> Self {
-        describe_metrics();
-
         let tags = db.manifest().and_then(|manifest| manifest.tags);
         if let Some(tags) = tags {
             tags.assert_consistency(hasher);

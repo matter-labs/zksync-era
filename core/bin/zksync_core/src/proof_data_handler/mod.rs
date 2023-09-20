@@ -1,16 +1,34 @@
+use crate::proof_data_handler::request_processor::RequestProcessor;
 use axum::extract::Path;
 use axum::{routing::post, Json, Router};
 use std::net::SocketAddr;
 use tokio::sync::watch;
-
-use zksync_config::configs::ProofDataHandlerConfig;
+use zksync_config::{
+    configs::{proof_data_handler::ProtocolVersionLoadingMode, ProofDataHandlerConfig},
+    ContractsConfig,
+};
 use zksync_dal::ConnectionPool;
 use zksync_object_store::ObjectStore;
-use zksync_types::prover_server_api::{ProofGenerationDataRequest, SubmitProofRequest};
-
-use crate::proof_data_handler::request_processor::RequestProcessor;
+use zksync_types::{
+    protocol_version::{L1VerifierConfig, VerifierParams},
+    prover_server_api::{ProofGenerationDataRequest, SubmitProofRequest},
+    H256,
+};
 
 mod request_processor;
+
+fn fri_l1_verifier_config_from_env() -> L1VerifierConfig {
+    let config = ContractsConfig::from_env();
+    L1VerifierConfig {
+        params: VerifierParams {
+            recursion_node_level_vk_hash: config.fri_recursion_node_level_vk_hash,
+            recursion_leaf_level_vk_hash: config.fri_recursion_leaf_level_vk_hash,
+            // The base layer commitment is not used in the FRI prover verification.
+            recursion_circuits_set_vks_hash: H256::zero(),
+        },
+        recursion_scheduler_level_vk_hash: config.fri_recursion_scheduler_level_vk_hash,
+    }
+}
 
 pub(crate) async fn run_server(
     config: ProofDataHandlerConfig,
@@ -19,10 +37,13 @@ pub(crate) async fn run_server(
     mut stop_receiver: watch::Receiver<bool>,
 ) {
     let bind_address = SocketAddr::from(([0, 0, 0, 0], config.http_port));
-    vlog::debug!("Starting proof data handler server on {bind_address}");
-
+    tracing::debug!("Starting proof data handler server on {bind_address}");
+    let l1_verifier_config: Option<L1VerifierConfig> = match config.protocol_version_loading_mode {
+        ProtocolVersionLoadingMode::FromDb => None,
+        ProtocolVersionLoadingMode::FromEnvVar => Some(fri_l1_verifier_config_from_env()),
+    };
     let get_proof_gen_processor =
-        RequestProcessor::new(blob_store, pool, config.proof_generation_timeout());
+        RequestProcessor::new(blob_store, pool, config, l1_verifier_config);
     let submit_proof_processor = get_proof_gen_processor.clone();
     let app = Router::new()
         .route(
@@ -52,11 +73,11 @@ pub(crate) async fn run_server(
         .serve(app.into_make_service())
         .with_graceful_shutdown(async move {
             if stop_receiver.changed().await.is_err() {
-                vlog::warn!("Stop signal sender for proof data handler server was dropped without sending a signal");
+                tracing::warn!("Stop signal sender for proof data handler server was dropped without sending a signal");
             }
-            vlog::info!("Stop signal received, proof data handler server is shutting down");
+            tracing::info!("Stop signal received, proof data handler server is shutting down");
         })
         .await
         .expect("Proof data handler server failed");
-    vlog::info!("Proof data handler server shut down");
+    tracing::info!("Proof data handler server shut down");
 }

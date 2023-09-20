@@ -358,7 +358,8 @@ impl ContractVerificationDal<'_, '_> {
                 INSERT INTO compiler_versions (version, compiler, created_at, updated_at)
                 SELECT u.version, $2, now(), now()
                 FROM UNNEST($1::text[])
-                AS u(version)",
+                AS u(version)
+                ON CONFLICT (version, compiler) DO NOTHING",
                 &versions,
                 &compiler,
             )

@@ -63,7 +63,7 @@ impl RemoteSynthesizer for SynthesizedCircuitProvider {
                             .await
                     });
                 }
-                vlog::trace!(
+                tracing::trace!(
                     "Queue free slot {} for capacity {}",
                     queue_free_slots,
                     assembly_queue.capacity()

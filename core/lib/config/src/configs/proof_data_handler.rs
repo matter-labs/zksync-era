@@ -2,10 +2,18 @@ use super::envy_load;
 use serde::Deserialize;
 use std::time::Duration;
 
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq)]
+pub enum ProtocolVersionLoadingMode {
+    FromDb,
+    FromEnvVar,
+}
+
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct ProofDataHandlerConfig {
     pub http_port: u16,
     pub proof_generation_timeout_in_secs: u16,
+    pub protocol_version_loading_mode: ProtocolVersionLoadingMode,
+    pub fri_protocol_version_id: u16,
 }
 
 impl ProofDataHandlerConfig {
@@ -29,6 +37,8 @@ mod tests {
         ProofDataHandlerConfig {
             http_port: 3320,
             proof_generation_timeout_in_secs: 18000,
+            protocol_version_loading_mode: ProtocolVersionLoadingMode::FromEnvVar,
+            fri_protocol_version_id: 2,
         }
     }
 
@@ -37,6 +47,8 @@ mod tests {
         let config = r#"
             PROOF_DATA_HANDLER_PROOF_GENERATION_TIMEOUT_IN_SECS="18000"
             PROOF_DATA_HANDLER_HTTP_PORT="3320"
+            PROOF_DATA_HANDLER_PROTOCOL_VERSION_LOADING_MODE="FromEnvVar"
+            PROOF_DATA_HANDLER_FRI_PROTOCOL_VERSION_ID="2"
         "#;
         let mut lock = MUTEX.lock();
         lock.set_env(config);

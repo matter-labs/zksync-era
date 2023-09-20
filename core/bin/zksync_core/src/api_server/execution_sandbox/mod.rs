@@ -1,28 +1,28 @@
+use std::sync::Arc;
+use std::time::{Duration, Instant};
 use tokio::runtime::Handle;
 
-use std::{
-    sync::Arc,
-    time::{Duration, Instant},
-};
-
-use vm::vm_with_bootloader::derive_base_fee_and_gas_per_pubdata;
+use vm::utils::fee::derive_base_fee_and_gas_per_pubdata;
 use zksync_config::constants::PUBLISH_BYTECODE_OVERHEAD;
-use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{ConnectionPool, SqlxError, StorageProcessor};
 use zksync_state::{PostgresStorage, PostgresStorageCaches, ReadStorage, StorageView};
-use zksync_types::{api, AccountTreeId, MiniblockNumber, U256};
+use zksync_types::{api, AccountTreeId, L2ChainId, MiniblockNumber, U256};
 use zksync_utils::bytecode::{compress_bytecode, hash_bytecode};
+
+use super::tx_sender::MultiVMBaseSystemContracts;
 
 // Note: keep the modules private, and instead re-export functions that make public interface.
 mod apply;
 mod error;
 mod execute;
+mod tracers;
 mod validate;
 mod vm_metrics;
 
 pub(super) use self::{
     error::SandboxExecutionError,
     execute::{execute_tx_eth_call, execute_tx_with_pending_state, TxExecutionArgs},
+    tracers::ApiTracer,
 };
 
 /// Permit to invoke VM code.
@@ -54,7 +54,7 @@ impl VmConcurrencyBarrier {
     /// Shuts down the related VM concurrency limiter so that it won't issue new permits.
     pub fn close(&self) {
         self.limiter.close();
-        vlog::info!("VM concurrency limiter closed");
+        tracing::info!("VM concurrency limiter closed");
     }
 
     /// Waits until all permits issued by the VM concurrency limiter are dropped.
@@ -68,7 +68,7 @@ impl VmConcurrencyBarrier {
 
         loop {
             let current_permits = self.limiter.available_permits();
-            vlog::debug!(
+            tracing::debug!(
                 "Waiting until all VM permits are dropped; currently remaining: {} / {}",
                 self.max_concurrency - current_permits,
                 self.max_concurrency
@@ -100,7 +100,7 @@ pub struct VmConcurrencyLimiter {
 impl VmConcurrencyLimiter {
     /// Creates a limiter together with a barrier allowing to control its shutdown.
     pub fn new(max_concurrency: usize) -> (Self, VmConcurrencyBarrier) {
-        vlog::info!(
+        tracing::info!(
             "Initializing the VM concurrency limiter with max concurrency {max_concurrency}"
         );
         let limiter = Arc::new(tokio::sync::Semaphore::new(max_concurrency));
@@ -130,7 +130,7 @@ impl VmConcurrencyLimiter {
         let elapsed = start.elapsed();
         // We don't want to emit too many logs.
         if elapsed > Duration::from_millis(10) {
-            vlog::debug!(
+            tracing::debug!(
                 "Permit is obtained. Available permits: {available_permits}. Took {elapsed:?}"
             );
         }
@@ -225,8 +225,10 @@ pub(crate) struct TxSharedArgs {
     pub operator_account: AccountTreeId,
     pub l1_gas_price: u64,
     pub fair_l2_gas_price: u64,
-    pub base_system_contracts: BaseSystemContracts,
+    pub base_system_contracts: MultiVMBaseSystemContracts,
     pub caches: PostgresStorageCaches,
+    pub validation_computational_gas_limit: u32,
+    pub chain_id: L2ChainId,
 }
 
 /// Information about a block provided to VM.
@@ -234,7 +236,7 @@ pub(crate) struct TxSharedArgs {
 pub(crate) struct BlockArgs {
     block_id: api::BlockId,
     resolved_block_number: MiniblockNumber,
-    block_timestamp_s: Option<u64>,
+    l1_batch_timestamp_s: Option<u64>,
 }
 
 impl BlockArgs {
@@ -243,7 +245,7 @@ impl BlockArgs {
         Self {
             block_id,
             resolved_block_number,
-            block_timestamp_s: None,
+            l1_batch_timestamp_s: None,
         }
     }
 
@@ -252,6 +254,10 @@ impl BlockArgs {
         connection: &mut StorageProcessor<'_>,
         block_id: api::BlockId,
     ) -> Result<Option<Self>, SqlxError> {
+        if block_id == api::BlockId::Number(api::BlockNumber::Pending) {
+            return Ok(Some(BlockArgs::pending(connection).await));
+        }
+
         let resolved_block_number = connection
             .blocks_web3_dal()
             .resolve_block_id(block_id)
@@ -260,14 +266,36 @@ impl BlockArgs {
             return Ok(None);
         };
 
-        let block_timestamp_s = connection
+        let l1_batch_number = connection
+            .storage_web3_dal()
+            .resolve_l1_batch_number_of_miniblock(resolved_block_number)
+            .await?
+            .expected_l1_batch();
+        let l1_batch_timestamp_s = connection
             .blocks_web3_dal()
-            .get_block_timestamp(resolved_block_number)
+            .get_expected_l1_batch_timestamp(l1_batch_number)
             .await?;
+        assert!(
+            l1_batch_timestamp_s.is_some(),
+            "Missing batch timestamp for non-pending block"
+        );
         Ok(Some(Self {
             block_id,
             resolved_block_number,
-            block_timestamp_s,
+            l1_batch_timestamp_s,
         }))
+    }
+
+    pub fn resolved_block_number(&self) -> MiniblockNumber {
+        self.resolved_block_number
+    }
+
+    pub fn resolves_to_latest_sealed_miniblock(&self) -> bool {
+        matches!(
+            self.block_id,
+            api::BlockId::Number(
+                api::BlockNumber::Pending | api::BlockNumber::Latest | api::BlockNumber::Committed
+            )
+        )
     }
 }

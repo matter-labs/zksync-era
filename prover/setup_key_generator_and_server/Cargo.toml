@@ -1,6 +1,6 @@
 [package]
 name = "setup_key_generator_and_server"
-version = "1.0.0"
+version = "0.1.0"
 edition = "2018"
 authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
 homepage = "https://zksync.io/"
@@ -18,15 +18,19 @@ name = "zksync_setup_key_generator"
 path = "src/main.rs"
 
 [dependencies]
-zksync_types = {path = "../../core/lib/types", version = "1.0" }
-vlog = { path = "../../core/lib/vlog", version = "1.0" }
-zksync_config = { path = "../../core/lib/config", version = "1.0" }
+zksync_types = { path = "../../core/lib/types" }
+vlog = { path = "../../core/lib/vlog" }
+zksync_config = { path = "../../core/lib/config" }
 
-circuit_testing = {git = "https://github.com/matter-labs/era-circuit_testing.git", branch = "main"}
-api = { git = "https://github.com/matter-labs/era-heavy-ops-service.git", tag = "v1.3.3-rc1", features=["gpu"], default-features=false}
-prover-service = { git = "https://github.com/matter-labs/era-heavy-ops-service.git", tag = "v1.3.3-rc1", features=["gpu"], default-features=false}
-zkevm_test_harness = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", tag = "v1.3.3-rc1"}
+circuit_testing = { git = "https://github.com/matter-labs/circuit_testing.git", branch = "main" }
+api = { git = "https://github.com/matter-labs/heavy-ops-service.git", branch = "v1.3.3", features = [
+    "gpu",
+], default-features = false }
+prover-service = { git = "https://github.com/matter-labs/heavy-ops-service.git", branch = "v1.3.3", features = [
+    "gpu",
+], default-features = false }
+zkevm_test_harness = { git = "https://github.com/matter-labs/zkevm_test_harness.git", branch = "v1.3.3" }
 
-
+tracing = "0.1"
 structopt = "0.3.26"
 itertools = "0.10.5"
