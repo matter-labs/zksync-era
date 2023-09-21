@@ -12,4 +12,4 @@ categories = ["cryptography"]
 [dependencies]
 metrics = "0.21"
 tokio = "1"
-vise-exporter = { git = "https://github.com/mm-zk/vise.git" }
+vise-exporter = { git = "https://github.com/mm-zk/vise.git", rev = "3db900869a4f8720b68a71e3531bf9094d64e9ec" }
