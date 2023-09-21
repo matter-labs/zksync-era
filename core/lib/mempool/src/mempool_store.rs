@@ -55,10 +55,11 @@ impl MempoolStore {
                 common_data,
                 execute,
                 received_timestamp_ms,
+                raw_bytes,
             } = transaction;
             match common_data {
                 ExecuteTransactionCommon::L1(data) => {
-                    vlog::trace!("inserting L1 transaction {}", data.serial_id);
+                    tracing::trace!("inserting L1 transaction {}", data.serial_id);
                     self.l1_transactions.insert(
                         data.serial_id,
                         L1Tx {
@@ -69,12 +70,13 @@ impl MempoolStore {
                     );
                 }
                 ExecuteTransactionCommon::L2(data) => {
-                    vlog::trace!("inserting L2 transaction {}", data.nonce);
+                    tracing::trace!("inserting L2 transaction {}", data.nonce);
                     self.insert_l2_transaction(
                         L2Tx {
                             execute,
                             common_data: data,
                             received_timestamp_ms,
+                            raw_bytes,
                         },
                         &initial_nonces,
                     );

@@ -1,12 +1,5 @@
 use std::time::Instant;
 
-use crate::{
-    api_server::{
-        execution_sandbox::BlockArgs,
-        web3::{backend_jsonrpc::error::internal_error, resolve_block, state::RpcState},
-    },
-    l1_gas_price::L1GasPriceProvider,
-};
 use zksync_types::{
     api::{
         BlockId, BlockNumber, GetLogsFilter, Transaction, TransactionId, TransactionReceipt,
@@ -24,6 +17,15 @@ use zksync_utils::u256_to_h256;
 use zksync_web3_decl::{
     error::Web3Error,
     types::{Address, Block, Filter, FilterChanges, Log, TypedFilter, U64},
+};
+
+use super::report_latency_with_block_id_and_diff;
+use crate::{
+    api_server::{
+        execution_sandbox::BlockArgs,
+        web3::{backend_jsonrpc::error::internal_error, resolve_block, state::RpcState},
+    },
+    l1_gas_price::L1GasPriceProvider,
 };
 
 pub const EVENT_TOPIC_NUMBER_LIMIT: usize = 4;
@@ -94,7 +96,11 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
         let res_bytes = call_result
             .map_err(|err| Web3Error::SubmitTransactionError(err.to_string(), err.data()))?;
 
-        metrics::histogram!("api.web3.call", start.elapsed(), "method" => METHOD_NAME, "block_id" => block.extract_block_tag());
+        let block_diff = self
+            .state
+            .last_sealed_miniblock
+            .diff_with_block_args(&block_args);
+        report_latency_with_block_id_and_diff(METHOD_NAME, start, block, block_diff);
 
         Ok(res_bytes.into())
     }
@@ -192,14 +198,28 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
             )
             .await
             .map_err(|err| internal_error(METHOD_NAME, err))?;
-
-        metrics::histogram!("api.web3.call", start.elapsed(), "method" => METHOD_NAME, "block_id" => block.extract_block_tag());
+        self.report_latency_with_block_id(METHOD_NAME, start, block, block_number);
 
         Ok(balance)
     }
 
+    fn report_latency_with_block_id(
+        &self,
+        method_name: &'static str,
+        start: Instant,
+        block: BlockId,
+        block_number: MiniblockNumber,
+    ) {
+        let block_diff = self.state.last_sealed_miniblock.diff(block_number);
+        report_latency_with_block_id_and_diff(method_name, start, block, block_diff);
+    }
+
     #[tracing::instrument(skip(self, filter))]
     pub async fn get_logs_impl(&self, mut filter: Filter) -> Result<Vec<Log>, Web3Error> {
+        if self.state.logs_translator_enabled {
+            return self.state.translate_get_logs(filter).await;
+        }
+
         let start = Instant::now();
 
         self.state.resolve_filter_block_hash(&mut filter).await?;
@@ -270,8 +290,17 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
             .await
             .map_err(|err| internal_error(method_name, err));
 
-        metrics::histogram!("api.web3.call", start.elapsed(), "method" => method_name, "block_id" => block_id.extract_block_tag());
-
+        if let Ok(Some(block)) = &block {
+            let block_number = MiniblockNumber(block.number.as_u32());
+            self.report_latency_with_block_id(method_name, start, block_id, block_number);
+        } else {
+            metrics::histogram!(
+                "api.web3.call",
+                start.elapsed(),
+                "method" => method_name,
+                "block_id" => block_id.extract_block_tag()
+            );
+        }
         block
     }
 
@@ -293,9 +322,17 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
             .await
             .map_err(|err| internal_error(METHOD_NAME, err));
 
-        metrics::histogram!("api.web3.call", start.elapsed(), "method" => METHOD_NAME, "block_id" => block_id.extract_block_tag());
-
-        tx_count
+        if let Ok(Some((block_number, _))) = &tx_count {
+            self.report_latency_with_block_id(METHOD_NAME, start, block_id, *block_number);
+        } else {
+            metrics::histogram!(
+                "api.web3.call",
+                start.elapsed(),
+                "method" => METHOD_NAME,
+                "block_id" => block_id.extract_block_tag(),
+            );
+        }
+        Ok(tx_count?.map(|(_, count)| count))
     }
 
     #[tracing::instrument(skip(self))]
@@ -320,8 +357,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
             .await
             .map_err(|err| internal_error(METHOD_NAME, err))?;
 
-        metrics::histogram!("api.web3.call", start.elapsed(), "method" => METHOD_NAME, "block_id" => block.extract_block_tag());
-
+        self.report_latency_with_block_id(METHOD_NAME, start, block, block_number);
         Ok(contract_code.unwrap_or_default().into())
     }
 
@@ -354,8 +390,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
             .await
             .map_err(|err| internal_error(METHOD_NAME, err))?;
 
-        metrics::histogram!("api.web3.call", start.elapsed(), "method" => METHOD_NAME, "block_id" => block.extract_block_tag());
-
+        self.report_latency_with_block_id(METHOD_NAME, start, block, block_number);
         Ok(value)
     }
 
@@ -380,26 +415,34 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
             .access_storage_tagged("api")
             .await;
 
-        let full_nonce = match block {
-            BlockId::Number(BlockNumber::Pending) => connection
-                .transactions_web3_dal()
-                .next_nonce_by_initiator_account(address)
-                .await
-                .map_err(|err| internal_error(method_name, err)),
+        let (full_nonce, block_number) = match block {
+            BlockId::Number(BlockNumber::Pending) => {
+                let nonce = connection
+                    .transactions_web3_dal()
+                    .next_nonce_by_initiator_account(address)
+                    .await
+                    .map_err(|err| internal_error(method_name, err));
+                (nonce, None)
+            }
             _ => {
                 let block_number = resolve_block(&mut connection, block, method_name).await?;
-                connection
+                let nonce = connection
                     .storage_web3_dal()
                     .get_address_historical_nonce(address, block_number)
                     .await
-                    .map_err(|err| internal_error(method_name, err))
+                    .map_err(|err| internal_error(method_name, err));
+                (nonce, Some(block_number))
             }
         };
 
+        // TODO (SMA-1612): currently account nonce is returning always, but later we will
+        //  return account nonce for account abstraction and deployment nonce for non account abstraction.
+        //  Strip off deployer nonce part.
         let account_nonce = full_nonce.map(|nonce| decompose_full_nonce(nonce).0);
 
-        metrics::histogram!("api.web3.call", start.elapsed(), "method" => method_name, "block_id" => block.extract_block_tag());
-
+        let block_diff =
+            block_number.map_or(0, |number| self.state.last_sealed_miniblock.diff(number));
+        report_latency_with_block_id_and_diff(method_name, start, block, block_diff);
         account_nonce
     }
 
@@ -606,6 +649,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
 
     #[tracing::instrument(skip(self))]
     pub fn protocol_version(&self) -> String {
+        // TODO (SMA-838): Versioning of our protocol
         PROTOCOL_VERSION.to_string()
     }
 
@@ -617,7 +661,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
 
         let submit_result = self.state.tx_sender.submit_tx(tx).await;
         let submit_result = submit_result.map(|_| hash).map_err(|err| {
-            vlog::debug!("Send raw transaction error: {err}");
+            tracing::debug!("Send raw transaction error: {err}");
             metrics::counter!(
                 "api.submit_tx_error",
                 1,
@@ -659,7 +703,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
         &self,
         block_count: U64,
         newest_block: BlockNumber,
-        _reward_percentiles: Vec<f32>,
+        reward_percentiles: Vec<f32>,
     ) -> Result<FeeHistory, Web3Error> {
         const METHOD_NAME: &str = "fee_history";
 
@@ -690,14 +734,21 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
         let oldest_block = newest_miniblock.0 + 1 - base_fee_per_gas.len() as u32;
         // We do not store gas used ratio for blocks, returns array of zeroes as a placeholder.
         let gas_used_ratio = vec![0.0; base_fee_per_gas.len()];
-        // Effective priority gas price is currently 0, returns `reward: null` as a placeholder.
-        let reward = None;
+        // Effective priority gas price is currently 0.
+        let reward = Some(vec![
+            vec![U256::zero(); reward_percentiles.len()];
+            base_fee_per_gas.len()
+        ]);
 
         // `base_fee_per_gas` for next miniblock cannot be calculated, appending last fee as a placeholder.
         base_fee_per_gas.push(*base_fee_per_gas.last().unwrap());
 
-        metrics::histogram!("api.web3.call", start.elapsed(), "method" => METHOD_NAME, "block_id" => newest_block.to_string());
-
+        self.report_latency_with_block_id(
+            METHOD_NAME,
+            start,
+            BlockId::Number(newest_block),
+            newest_miniblock,
+        );
         Ok(FeeHistory {
             oldest_block: web3::types::BlockNumber::Number(oldest_block.into()),
             base_fee_per_gas,
@@ -790,7 +841,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
                     if let Some(miniblock_number) = storage
                         .events_web3_dal()
                         .get_log_block_number(
-                            get_logs_filter.clone(),
+                            &get_logs_filter,
                             self.state.api_config.req_entities_limit,
                         )
                         .await

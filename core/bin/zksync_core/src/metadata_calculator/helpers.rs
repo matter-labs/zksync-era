@@ -57,7 +57,7 @@ impl AsyncTree {
         multi_get_chunk_size: usize,
         block_cache_capacity: usize,
     ) -> Self {
-        vlog::info!(
+        tracing::info!(
             "Initializing Merkle tree at `{db_path}` with {multi_get_chunk_size} multi-get chunk size, \
              {block_cache_capacity}B block cache",
             db_path = db_path.display()
@@ -179,7 +179,7 @@ impl L1BatchWithLogs {
         storage: &mut StorageProcessor<'_>,
         l1_batch_number: L1BatchNumber,
     ) -> Option<Self> {
-        vlog::debug!("Loading storage logs data for L1 batch #{l1_batch_number}");
+        tracing::debug!("Loading storage logs data for L1 batch #{l1_batch_number}");
         let load_changes_latency = TreeUpdateStage::LoadChanges.start();
 
         let header_latency = LoadChangesStage::L1BatchHeader.start();
@@ -214,7 +214,7 @@ impl L1BatchWithLogs {
             // ^ The tree doesn't use the read value, so we set it to zero.
             storage_logs.insert(storage_key, log);
         }
-        vlog::debug!(
+        tracing::debug!(
             "Made touched slots disjoint with protective reads; remaining touched slots: {}",
             touched_slots.len()
         );
@@ -278,8 +278,8 @@ mod tests {
     use zksync_dal::ConnectionPool;
     use zksync_types::{
         proofs::PrepareBasicCircuitsJob, protocol_version::L1VerifierConfig,
-        system_contracts::get_system_smart_contracts, Address, L2ChainId, StorageKey,
-        StorageLogKind,
+        system_contracts::get_system_smart_contracts, Address, L2ChainId, ProtocolVersionId,
+        StorageKey, StorageLogKind,
     };
 
     use super::*;
@@ -352,6 +352,7 @@ mod tests {
     fn mock_genesis_params() -> GenesisParams {
         GenesisParams {
             first_validator: Address::repeat_byte(0x01),
+            protocol_version: ProtocolVersionId::latest(),
             base_system_contracts: BaseSystemContracts::load_from_disk(),
             system_contracts: get_system_smart_contracts(),
             first_l1_verifier_config: L1VerifierConfig::default(),
@@ -366,7 +367,8 @@ mod tests {
             L2ChainId(270),
             &mock_genesis_params(),
         )
-        .await;
+        .await
+        .unwrap();
         reset_db_state(&pool, 5).await;
 
         let mut storage = pool.access_storage().await;
@@ -385,7 +387,9 @@ mod tests {
     #[db_test]
     async fn loaded_logs_equivalence_with_zero_no_op_logs(pool: ConnectionPool) {
         let mut storage = pool.access_storage().await;
-        ensure_genesis_state(&mut storage, L2ChainId(270), &mock_genesis_params()).await;
+        ensure_genesis_state(&mut storage, L2ChainId(270), &mock_genesis_params())
+            .await
+            .unwrap();
 
         let mut logs = gen_storage_logs(100..200, 2);
         for log in &mut logs[0] {
@@ -461,7 +465,9 @@ mod tests {
     #[db_test]
     async fn loaded_logs_equivalence_with_non_zero_no_op_logs(pool: ConnectionPool) {
         let mut storage = pool.access_storage().await;
-        ensure_genesis_state(&mut storage, L2ChainId(270), &mock_genesis_params()).await;
+        ensure_genesis_state(&mut storage, L2ChainId(270), &mock_genesis_params())
+            .await
+            .unwrap();
 
         let mut logs = gen_storage_logs(100..120, 1);
         // Entire batch of no-op logs (writing previous values).
@@ -506,7 +512,9 @@ mod tests {
     #[db_test]
     async fn loaded_logs_equivalence_with_protective_reads(pool: ConnectionPool) {
         let mut storage = pool.access_storage().await;
-        ensure_genesis_state(&mut storage, L2ChainId(270), &mock_genesis_params()).await;
+        ensure_genesis_state(&mut storage, L2ChainId(270), &mock_genesis_params())
+            .await
+            .unwrap();
 
         let mut logs = gen_storage_logs(100..120, 1);
         let logs_copy = logs[0].clone();

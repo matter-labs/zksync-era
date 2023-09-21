@@ -1,10 +1,9 @@
-use vm::zk_evm::ethereum_types::U256;
 use zksync_object_store::{CircuitKey, ObjectStore};
 use zksync_types::zkevm_test_harness::abstract_zksync_circuit::concrete_circuits::ZkSyncCircuit;
 use zksync_types::zkevm_test_harness::bellman::bn256::Bn256;
 use zksync_types::zkevm_test_harness::witness::oracle::VmWitnessOracle;
-use zksync_types::USED_BOOTLOADER_MEMORY_BYTES;
 use zksync_types::{proofs::AggregationRound, L1BatchNumber};
+use zksync_types::{U256, USED_BOOTLOADER_MEMORY_BYTES};
 
 pub fn expand_bootloader_contents(packed: &[(usize, U256)]) -> Vec<u8> {
     let mut result: Vec<u8> = Vec::new();

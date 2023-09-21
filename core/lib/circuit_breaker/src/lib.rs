@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use anyhow::Context as _;
 use futures::channel::oneshot;
 use thiserror::Error;
 use tokio::sync::watch;
@@ -57,18 +58,19 @@ impl CircuitBreakerChecker {
         self,
         circuit_breaker_sender: oneshot::Sender<CircuitBreakerError>,
         stop_receiver: watch::Receiver<bool>,
-    ) {
+    ) -> anyhow::Result<()> {
         loop {
             if *stop_receiver.borrow() {
                 break;
             }
             if let Err(error) = self.check().await {
-                circuit_breaker_sender
+                return circuit_breaker_sender
                     .send(error)
-                    .expect("failed to send circuit breaker messsage");
-                return;
+                    .ok()
+                    .context("failed to send circuit breaker messsage");
             }
             tokio::time::sleep(self.sync_interval).await;
         }
+        Ok(())
     }
 }

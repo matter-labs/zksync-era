@@ -4,7 +4,7 @@ use zksync_prover_utils::vk_commitment_helper::{
 use zksync_verification_key_server::generate_commitments;
 
 fn main() {
-    vlog::info!("Starting commitment generation!");
+    tracing::info!("Starting commitment generation!");
     read_and_update_contract_toml();
 }
 
@@ -21,7 +21,7 @@ fn read_and_update_contract_toml() {
         get_toml_formatted_value(leaf_aggregation_commitment_hex);
     contract_doc["contracts"]["RECURSION_NODE_LEVEL_VK_HASH"] =
         get_toml_formatted_value(node_aggregation_commitment_hex);
-    vlog::info!("Updated toml content: {:?}", contract_doc.to_string());
+    tracing::info!("Updated toml content: {:?}", contract_doc.to_string());
     write_contract_toml(contract_doc);
 }
 

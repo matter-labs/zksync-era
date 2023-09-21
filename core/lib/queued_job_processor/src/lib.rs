@@ -39,25 +39,29 @@ pub trait JobProcessor: Sync + Send {
     /// To run indefinitely, pass `None`,
     /// To process one job, pass `Some(1)`,
     /// To process a batch, pass `Some(batch_size)`.
-    async fn run(self, stop_receiver: watch::Receiver<bool>, mut iterations_left: Option<usize>)
+    async fn run(
+        self,
+        stop_receiver: watch::Receiver<bool>,
+        mut iterations_left: Option<usize>,
+    ) -> anyhow::Result<()>
     where
         Self: Sized,
     {
         let mut backoff: u64 = Self::POLLING_INTERVAL_MS;
         while iterations_left.map_or(true, |i| i > 0) {
             if *stop_receiver.borrow() {
-                vlog::warn!(
+                tracing::warn!(
                     "Stop signal received, shutting down {} component while waiting for a new job",
                     Self::SERVICE_NAME
                 );
-                return;
+                return Ok(());
             }
             if let Some((job_id, job)) = Self::get_next_job(&self).await {
                 let started_at = Instant::now();
                 backoff = Self::POLLING_INTERVAL_MS;
                 iterations_left = iterations_left.map(|i| i - 1);
 
-                vlog::debug!(
+                tracing::debug!(
                     "Spawning thread processing {:?} job with id {:?}",
                     Self::SERVICE_NAME,
                     job_id
@@ -66,15 +70,16 @@ pub trait JobProcessor: Sync + Send {
 
                 self.wait_for_task(job_id, started_at, task).await
             } else if iterations_left.is_some() {
-                vlog::info!("No more jobs to process. Server can stop now.");
-                return;
+                tracing::info!("No more jobs to process. Server can stop now.");
+                return Ok(());
             } else {
-                vlog::trace!("Backing off for {} ms", backoff);
+                tracing::trace!("Backing off for {} ms", backoff);
                 sleep(Duration::from_millis(backoff)).await;
                 backoff = (backoff * Self::BACKOFF_MULTIPLIER).min(Self::MAX_BACKOFF_MS);
             }
         }
-        vlog::info!("Requested number of jobs is processed. Server can stop now.")
+        tracing::info!("Requested number of jobs is processed. Server can stop now.");
+        Ok(())
     }
 
     /// Polls task handle, saving its outcome.
@@ -85,7 +90,7 @@ pub trait JobProcessor: Sync + Send {
         task: JoinHandle<Self::JobArtifacts>,
     ) {
         loop {
-            vlog::trace!(
+            tracing::trace!(
                 "Polling {} task with id {:?}. Is finished: {}",
                 Self::SERVICE_NAME,
                 job_id,
@@ -95,7 +100,7 @@ pub trait JobProcessor: Sync + Send {
                 let result = task.await;
                 match result {
                     Ok(data) => {
-                        vlog::debug!(
+                        tracing::debug!(
                             "{} Job {:?} finished successfully",
                             Self::SERVICE_NAME,
                             job_id
@@ -104,7 +109,7 @@ pub trait JobProcessor: Sync + Send {
                     }
                     Err(error) => {
                         let error_message = try_extract_panic_message(error);
-                        vlog::error!(
+                        tracing::error!(
                             "Error occurred while processing {} job {:?}: {:?}",
                             Self::SERVICE_NAME,
                             job_id,

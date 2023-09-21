@@ -73,13 +73,13 @@ impl EthTxAggregator {
         prover_pool: ConnectionPool,
         eth_client: E,
         stop_receiver: watch::Receiver<bool>,
-    ) {
+    ) -> anyhow::Result<()> {
         loop {
             let mut storage = pool.access_storage_tagged("eth_sender").await;
             let mut prover_storage = prover_pool.access_storage_tagged("eth_sender").await;
 
             if *stop_receiver.borrow() {
-                vlog::info!("Stop signal received, eth_tx_aggregator is shutting down");
+                tracing::info!("Stop signal received, eth_tx_aggregator is shutting down");
                 break;
             }
 
@@ -89,11 +89,12 @@ impl EthTxAggregator {
             {
                 // Web3 API request failures can cause this,
                 // and anything more important is already properly reported.
-                vlog::warn!("eth_sender error {err:?}");
+                tracing::warn!("eth_sender error {err:?}");
             }
 
             tokio::time::sleep(self.config.aggregate_tx_poll_period()).await;
         }
+        Ok(())
     }
 
     pub(super) async fn get_multicall_data<E: BoundEthInterface>(
@@ -359,7 +360,7 @@ impl EthTxAggregator {
         tx: &EthTx,
     ) {
         let l1_batch_number_range = aggregated_op.l1_batch_range();
-        vlog::info!(
+        tracing::info!(
             "eth_tx with ID {} for op {} was saved for L1 batches {l1_batch_number_range:?}",
             tx.id,
             aggregated_op.get_action_caption()

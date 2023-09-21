@@ -4,7 +4,10 @@ use zksync_types::contract_verification_api::SourceCodeData;
 
 #[tokio::main]
 async fn main() {
-    let pool = ConnectionPool::singleton(DbVariant::Replica).build().await;
+    let pool = ConnectionPool::singleton(DbVariant::Replica)
+        .build()
+        .await
+        .unwrap();
     let mut storage = pool.access_storage().await;
     let reqs = storage
         .contract_verification_dal()

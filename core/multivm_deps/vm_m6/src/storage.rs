@@ -6,7 +6,7 @@ use std::rc::Rc;
 use zksync_state::{ReadStorage, StorageView, WriteStorage};
 use zksync_types::{get_known_code_key, StorageKey, StorageValue, H256};
 
-pub trait Storage: Debug + Sync + Send {
+pub trait Storage: Debug {
     /// Returns a value from a given key. If value never existed, returns 0.
     fn get_value(&mut self, key: &StorageKey) -> StorageValue;
     // Sets the new value under a given key - returns the original value.
@@ -24,7 +24,7 @@ pub trait Storage: Debug + Sync + Send {
 
     /// Returns whether a bytecode hash is "known", i.e. whether
     /// it has been published on L1
-    fn is_bytecode_known(&mut self, bytecode_hash: &H256) -> bool {
+    fn is_bytecode_exists(&mut self, bytecode_hash: &H256) -> bool {
         let code_key = get_known_code_key(bytecode_hash);
         self.get_value(&code_key) != H256::zero()
     }
@@ -32,7 +32,7 @@ pub trait Storage: Debug + Sync + Send {
     fn missed_storage_invocations(&self) -> usize;
 }
 
-impl<S: ReadStorage + Debug + Send + Sync> Storage for StorageView<S> {
+impl<S: ReadStorage + Debug> Storage for StorageView<S> {
     fn get_value(&mut self, key: &StorageKey) -> StorageValue {
         ReadStorage::read_value(self, key)
     }
@@ -59,4 +59,4 @@ impl<S: ReadStorage + Debug + Send + Sync> Storage for StorageView<S> {
     }
 }
 
-pub type StoragePtr<'a> = Rc<RefCell<&'a mut dyn Storage>>;
+pub type StoragePtr<S> = Rc<RefCell<S>>;

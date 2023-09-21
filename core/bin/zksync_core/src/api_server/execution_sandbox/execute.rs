@@ -2,22 +2,18 @@
 
 use tracing::{span, Level};
 
-use std::{collections::HashMap, mem};
-
+use multivm::MultivmTracer;
 use vm::{
-    utils::ETH_CALL_GAS_LIMIT,
-    vm_with_bootloader::{
-        push_transaction_to_bootloader_memory, BootloaderJobType, TxExecutionMode,
-    },
-    VmExecutionResult,
+    constants::ETH_CALL_GAS_LIMIT, StorageInvocations, TxExecutionMode, VmExecutionResultAndLogs,
 };
 use zksync_dal::ConnectionPool;
+
 use zksync_types::{
-    fee::TransactionExecutionMetrics, l2::L2Tx, ExecuteTransactionCommon, Nonce, StorageKey,
-    Transaction, H256, U256,
+    fee::TransactionExecutionMetrics, l2::L2Tx, ExecuteTransactionCommon, Nonce,
+    PackedEthSignature, Transaction, U256,
 };
 
-use super::{apply, error::SandboxExecutionError, vm_metrics, BlockArgs, TxSharedArgs, VmPermit};
+use super::{apply, vm_metrics, ApiTracer, BlockArgs, TxSharedArgs, VmPermit};
 
 #[derive(Debug)]
 pub(crate) struct TxExecutionArgs {
@@ -25,6 +21,7 @@ pub(crate) struct TxExecutionArgs {
     pub enforced_nonce: Option<Nonce>,
     pub added_balance: U256,
     pub enforced_base_fee: Option<u64>,
+    pub missed_storage_invocation_limit: usize,
 }
 
 impl TxExecutionArgs {
@@ -34,6 +31,7 @@ impl TxExecutionArgs {
             enforced_nonce: Some(tx.nonce()),
             added_balance: U256::zero(),
             enforced_base_fee: Some(tx.common_data.fee.max_fee_per_gas.as_u64()),
+            missed_storage_invocation_limit: usize::MAX,
         }
     }
 
@@ -43,12 +41,11 @@ impl TxExecutionArgs {
     ) -> Self {
         let missed_storage_invocation_limit = vm_execution_cache_misses_limit.unwrap_or(usize::MAX);
         Self {
-            execution_mode: TxExecutionMode::EthCall {
-                missed_storage_invocation_limit,
-            },
+            execution_mode: TxExecutionMode::EthCall,
             enforced_nonce: None,
             added_balance: U256::zero(),
             enforced_base_fee: Some(enforced_base_fee),
+            missed_storage_invocation_limit,
         }
     }
 
@@ -67,9 +64,8 @@ impl TxExecutionArgs {
         };
 
         Self {
-            execution_mode: TxExecutionMode::EstimateFee {
-                missed_storage_invocation_limit,
-            },
+            execution_mode: TxExecutionMode::EstimateFee,
+            missed_storage_invocation_limit,
             enforced_nonce: tx.nonce(),
             added_balance,
             enforced_base_fee: Some(base_fee),
@@ -84,11 +80,15 @@ pub(crate) async fn execute_tx_eth_call(
     mut tx: L2Tx,
     block_args: BlockArgs,
     vm_execution_cache_misses_limit: Option<usize>,
-    trace_call: bool,
-) -> Result<VmExecutionResult, SandboxExecutionError> {
+    custom_tracers: Vec<ApiTracer>,
+) -> VmExecutionResultAndLogs {
     let enforced_base_fee = tx.common_data.fee.max_fee_per_gas.as_u64();
     let execution_args =
         TxExecutionArgs::for_eth_call(enforced_base_fee, vm_execution_cache_misses_limit);
+
+    if tx.common_data.signature.is_empty() {
+        tx.common_data.signature = PackedEthSignature::default().serialize_packed().into();
+    }
 
     // Protection against infinite-loop eth_calls and alike:
     // limiting the amount of gas the call can use.
@@ -101,9 +101,7 @@ pub(crate) async fn execute_tx_eth_call(
         connection_pool,
         tx.into(),
         block_args,
-        BootloaderJobType::TransactionExecution,
-        trace_call,
-        &mut HashMap::new(),
+        custom_tracers,
     )
     .await;
 
@@ -117,11 +115,7 @@ pub(crate) async fn execute_tx_with_pending_state(
     execution_args: TxExecutionArgs,
     connection_pool: ConnectionPool,
     tx: Transaction,
-    storage_read_cache: &mut HashMap<StorageKey, H256>,
-) -> (
-    Result<VmExecutionResult, SandboxExecutionError>,
-    TransactionExecutionMetrics,
-) {
+) -> (VmExecutionResultAndLogs, TransactionExecutionMetrics) {
     let mut connection = connection_pool.access_storage_tagged("api").await;
     let block_args = BlockArgs::pending(&mut connection).await;
     drop(connection);
@@ -136,9 +130,7 @@ pub(crate) async fn execute_tx_with_pending_state(
         connection_pool,
         tx,
         block_args,
-        BootloaderJobType::TransactionExecution,
-        false,
-        storage_read_cache,
+        vec![],
     )
     .await
 }
@@ -154,23 +146,16 @@ async fn execute_tx_in_sandbox(
     connection_pool: ConnectionPool,
     tx: Transaction,
     block_args: BlockArgs,
-    job_type: BootloaderJobType,
-    trace_call: bool,
-    storage_read_cache: &mut HashMap<StorageKey, H256>,
-) -> (
-    Result<VmExecutionResult, SandboxExecutionError>,
-    TransactionExecutionMetrics,
-) {
+    custom_tracers: Vec<ApiTracer>,
+) -> (VmExecutionResultAndLogs, TransactionExecutionMetrics) {
     let total_factory_deps = tx
         .execute
         .factory_deps
         .as_ref()
         .map_or(0, |deps| deps.len() as u16);
 
-    let moved_cache = mem::take(storage_read_cache);
-    let (execution_result, moved_cache) = tokio::task::spawn_blocking(move || {
+    let execution_result = tokio::task::spawn_blocking(move || {
         let span = span!(Level::DEBUG, "execute_in_sandbox").entered();
-        let execution_mode = execution_args.execution_mode;
         let result = apply::apply_vm_in_sandbox(
             vm_permit,
             shared_args,
@@ -178,15 +163,16 @@ async fn execute_tx_in_sandbox(
             &connection_pool,
             tx,
             block_args,
-            moved_cache,
             |vm, tx| {
-                push_transaction_to_bootloader_memory(vm, &tx, execution_mode, None);
-                let result = if trace_call {
-                    vm.execute_till_block_end_with_call_tracer(job_type)
-                } else {
-                    vm.execute_till_block_end(job_type)
-                };
-                result.full_result
+                vm.push_transaction(&tx);
+                let storage_invocation_tracer =
+                    StorageInvocations::new(execution_args.missed_storage_invocation_limit);
+                let custom_tracers: Vec<_> = custom_tracers
+                    .into_iter()
+                    .map(|tracer| tracer.into_boxed())
+                    .chain(vec![storage_invocation_tracer.into_boxed()])
+                    .collect();
+                vm.inspect_next_transaction(custom_tracers)
             },
         );
         span.exit();
@@ -195,13 +181,7 @@ async fn execute_tx_in_sandbox(
     .await
     .unwrap();
 
-    *storage_read_cache = moved_cache;
-
     let tx_execution_metrics =
         vm_metrics::collect_tx_execution_metrics(total_factory_deps, &execution_result);
-    let result = match execution_result.revert_reason {
-        None => Ok(execution_result),
-        Some(revert) => Err(revert.revert_reason.into()),
-    };
-    (result, tx_execution_metrics)
+    (execution_result, tx_execution_metrics)
 }

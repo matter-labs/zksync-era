@@ -62,13 +62,17 @@ impl TokenListFetcher {
         }
     }
 
-    pub async fn run(mut self, pool: ConnectionPool, stop_receiver: watch::Receiver<bool>) {
+    pub async fn run(
+        mut self,
+        pool: ConnectionPool,
+        stop_receiver: watch::Receiver<bool>,
+    ) -> anyhow::Result<()> {
         let mut fetching_interval =
             tokio::time::interval(self.config.token_list.fetching_interval());
 
         loop {
             if *stop_receiver.borrow() {
-                vlog::info!("Stop signal received, token_list_fetcher is shutting down");
+                tracing::info!("Stop signal received, token_list_fetcher is shutting down");
                 break;
             }
 
@@ -93,6 +97,7 @@ impl TokenListFetcher {
 
             self.update_tokens(&mut storage, token_list).await;
         }
+        Ok(())
     }
 
     async fn fetch_token_list(&self) -> Result<HashMap<Address, TokenMetadata>, ApiFetchError> {

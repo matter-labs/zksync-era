@@ -52,7 +52,7 @@ impl L1BatchPublishCriterion for NumberCriterion {
         let batch_count = last_batch_number - first + 1;
         if batch_count >= self.limit {
             let result = L1BatchNumber(first + self.limit - 1);
-            vlog::debug!(
+            tracing::debug!(
                 "`l1_batch_number` publish criterion (limit={}) triggered for op {} with L1 batch range {:?}",
                 self.limit,
                 self.op,
@@ -109,7 +109,7 @@ impl L1BatchPublishCriterion for TimestampDeadlineCriterion {
                 .unwrap_or(first_l1_batch)
                 .header
                 .number;
-            vlog::debug!(
+            tracing::debug!(
                 "`timestamp` publish criterion triggered for op {} with L1 batch range {:?}",
                 self.op,
                 first_l1_batch.header.number.0..=result.0
@@ -189,7 +189,7 @@ impl L1BatchPublishCriterion for GasCriterion {
 
         if let Some(last_l1_batch) = last_l1_batch {
             let first_l1_batch_number = consecutive_l1_batches.first().unwrap().header.number.0;
-            vlog::debug!(
+            tracing::debug!(
                 "`gas_limit` publish criterion (gas={}) triggered for op {} with L1 batch range {:?}",
                 self.gas_limit - gas_left,
                 self.op,
@@ -240,7 +240,7 @@ impl L1BatchPublishCriterion for DataSizeCriterion {
 
                 let first_l1_batch_number = consecutive_l1_batches.first().unwrap().header.number.0;
                 let output = l1_batch.header.number - 1;
-                vlog::debug!(
+                tracing::debug!(
                     "`data_size` publish criterion (data={}) triggered for op {} with L1 batch range {:?}",
                     self.data_limit - data_size_left,
                     self.op,

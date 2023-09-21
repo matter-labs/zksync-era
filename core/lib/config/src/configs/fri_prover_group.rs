@@ -215,7 +215,7 @@ impl FriProverGroupConfig {
                     assert!(not_in_range.is_empty(), "Aggregation round 1 should only contain circuit IDs 3 to 15. Ids out of range: {:?}", not_in_range);
                 }
                 2 => {
-                    let expected_range = vec![2];
+                    let expected_range = [2];
                     let missing_ids: Vec<_> = expected_range
                         .iter()
                         .filter(|id| !circuit_ids.contains(id))
@@ -240,7 +240,7 @@ impl FriProverGroupConfig {
                     assert!(not_in_range.is_empty(), "Aggregation round 2 should only contain circuit ID 2. Ids out of range: {:?}", not_in_range);
                 }
                 3 => {
-                    let expected_range = vec![1];
+                    let expected_range = [1];
                     let missing_ids: Vec<_> = expected_range
                         .iter()
                         .filter(|id| !circuit_ids.contains(id))

@@ -164,14 +164,14 @@ impl BlockReverter {
 
             // Rolling back Merkle tree
             if Path::new(&self.merkle_tree_path).exists() {
-                vlog::info!("Rolling back Merkle tree...");
+                tracing::info!("Rolling back Merkle tree...");
                 Self::rollback_new_tree(
                     last_l1_batch_to_keep,
                     &self.merkle_tree_path,
                     storage_root_hash,
                 );
             } else {
-                vlog::info!("Merkle tree not found; skipping");
+                tracing::info!("Merkle tree not found; skipping");
             }
         }
 
@@ -194,34 +194,34 @@ impl BlockReverter {
         let mut tree = ZkSyncTree::new_lightweight(db);
 
         if tree.next_l1_batch_number() <= last_l1_batch_to_keep {
-            vlog::info!("Tree is behind the L1 batch to revert to; skipping");
+            tracing::info!("Tree is behind the L1 batch to revert to; skipping");
             return;
         }
         tree.revert_logs(last_l1_batch_to_keep);
 
-        vlog::info!("checking match of the tree root hash and root hash from Postgres...");
+        tracing::info!("checking match of the tree root hash and root hash from Postgres...");
         assert_eq!(tree.root_hash(), storage_root_hash);
-        vlog::info!("saving tree changes to disk...");
+        tracing::info!("saving tree changes to disk...");
         tree.save();
     }
 
     /// Reverts blocks in the state keeper cache.
     async fn rollback_state_keeper_cache(&self, last_l1_batch_to_keep: L1BatchNumber) {
-        vlog::info!("opening DB with state keeper cache...");
+        tracing::info!("opening DB with state keeper cache...");
         let mut sk_cache = RocksdbStorage::new(self.state_keeper_cache_path.as_ref());
 
         if sk_cache.l1_batch_number() > last_l1_batch_to_keep + 1 {
             let mut storage = self.connection_pool.access_storage().await;
-            vlog::info!("rolling back state keeper cache...");
+            tracing::info!("rolling back state keeper cache...");
             sk_cache.rollback(&mut storage, last_l1_batch_to_keep).await;
         } else {
-            vlog::info!("nothing to revert in state keeper cache");
+            tracing::info!("nothing to revert in state keeper cache");
         }
     }
 
     /// Reverts data in the Postgres database.
     async fn rollback_postgres(&self, last_l1_batch_to_keep: L1BatchNumber) {
-        vlog::info!("rolling back postgres data...");
+        tracing::info!("rolling back postgres data...");
         let mut storage = self.connection_pool.access_storage().await;
         let mut transaction = storage.start_transaction().await;
 
@@ -231,47 +231,47 @@ impl BlockReverter {
             .await
             .expect("L1 batch should contain at least one miniblock");
 
-        vlog::info!("rolling back transactions state...");
+        tracing::info!("rolling back transactions state...");
         transaction
             .transactions_dal()
             .reset_transactions_state(last_miniblock_to_keep)
             .await;
-        vlog::info!("rolling back events...");
+        tracing::info!("rolling back events...");
         transaction
             .events_dal()
             .rollback_events(last_miniblock_to_keep)
             .await;
-        vlog::info!("rolling back l2 to l1 logs...");
+        tracing::info!("rolling back l2 to l1 logs...");
         transaction
             .events_dal()
             .rollback_l2_to_l1_logs(last_miniblock_to_keep)
             .await;
-        vlog::info!("rolling back created tokens...");
+        tracing::info!("rolling back created tokens...");
         transaction
             .tokens_dal()
             .rollback_tokens(last_miniblock_to_keep)
             .await;
-        vlog::info!("rolling back factory deps....");
+        tracing::info!("rolling back factory deps....");
         transaction
             .storage_dal()
             .rollback_factory_deps(last_miniblock_to_keep)
             .await;
-        vlog::info!("rolling back storage...");
+        tracing::info!("rolling back storage...");
         transaction
             .storage_logs_dal()
             .rollback_storage(last_miniblock_to_keep)
             .await;
-        vlog::info!("rolling back storage logs...");
+        tracing::info!("rolling back storage logs...");
         transaction
             .storage_logs_dal()
             .rollback_storage_logs(last_miniblock_to_keep)
             .await;
-        vlog::info!("rolling back l1 batches...");
+        tracing::info!("rolling back l1 batches...");
         transaction
             .blocks_dal()
             .delete_l1_batches(last_l1_batch_to_keep)
             .await;
-        vlog::info!("rolling back miniblocks...");
+        tracing::info!("rolling back miniblocks...");
         transaction
             .blocks_dal()
             .delete_miniblocks(last_miniblock_to_keep)
@@ -333,10 +333,10 @@ impl BlockReverter {
         loop {
             if let Some(receipt) = web3.eth().transaction_receipt(hash).await.unwrap() {
                 assert_eq!(receipt.status, Some(1.into()), "revert transaction failed");
-                vlog::info!("revert transaction has completed");
+                tracing::info!("revert transaction has completed");
                 return;
             } else {
-                vlog::info!("waiting for L1 transaction confirmation...");
+                tracing::info!("waiting for L1 transaction confirmation...");
                 sleep(Duration::from_secs(5)).await;
             }
         }
@@ -379,7 +379,7 @@ impl BlockReverter {
         let last_executed_l1_batch_number = self
             .get_l1_batch_number_from_contract(AggregatedActionType::Execute)
             .await;
-        vlog::info!(
+        tracing::info!(
             "Last L1 batch numbers on contract: committed {last_committed_l1_batch_number}, \
              verified {last_verified_l1_batch_number}, executed {last_executed_l1_batch_number}"
         );
@@ -408,13 +408,20 @@ impl BlockReverter {
 
     /// Clears failed L1 transactions
     pub async fn clear_failed_l1_transactions(&self) {
-        vlog::info!("clearing failed L1 transactions...");
+        tracing::info!("clearing failed L1 transactions...");
         self.connection_pool
             .access_storage()
             .await
             .eth_sender_dal()
             .clear_failed_transactions()
             .await;
+    }
+
+    pub fn change_rollback_executed_l1_batches_allowance(
+        &mut self,
+        revert_executed_batches: L1ExecutedBatchesRevert,
+    ) {
+        self.executed_batches_revert_mode = revert_executed_batches
     }
 }
 

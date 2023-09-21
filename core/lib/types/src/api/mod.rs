@@ -537,7 +537,7 @@ pub struct TransactionDetails {
     pub is_l1_originated: bool,
     pub status: TransactionStatus,
     pub fee: U256,
-    pub gas_per_pubdata: Option<U256>,
+    pub gas_per_pubdata: U256,
     pub initiator_address: Address,
     pub received_at: DateTime<Utc>,
     pub eth_commit_tx_hash: Option<H256>,

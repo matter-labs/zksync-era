@@ -79,19 +79,20 @@ impl<E: EthInterface> GasAdjuster<E> {
         Ok(())
     }
 
-    pub async fn run(self: Arc<Self>, stop_receiver: Receiver<bool>) {
+    pub async fn run(self: Arc<Self>, stop_receiver: Receiver<bool>) -> anyhow::Result<()> {
         loop {
             if *stop_receiver.borrow() {
-                vlog::info!("Stop signal received, gas_adjuster is shutting down");
+                tracing::info!("Stop signal received, gas_adjuster is shutting down");
                 break;
             }
 
             if let Err(err) = self.keep_updated().await {
-                vlog::warn!("Cannot add the base fee to gas statistics: {}", err);
+                tracing::warn!("Cannot add the base fee to gas statistics: {}", err);
             }
 
             tokio::time::sleep(self.config.poll_period()).await;
         }
+        Ok(())
     }
 }
 

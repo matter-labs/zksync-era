@@ -62,13 +62,17 @@ impl TokenPriceFetcher {
         }
     }
 
-    pub async fn run(mut self, pool: ConnectionPool, stop_receiver: watch::Receiver<bool>) {
+    pub async fn run(
+        mut self,
+        pool: ConnectionPool,
+        stop_receiver: watch::Receiver<bool>,
+    ) -> anyhow::Result<()> {
         let mut fetching_interval =
             tokio::time::interval(self.config.token_price.fetching_interval());
 
         loop {
             if *stop_receiver.borrow() {
-                vlog::info!("Stop signal received, token_price_fetcher is shutting down");
+                tracing::info!("Stop signal received, token_price_fetcher is shutting down");
                 break;
             }
 
@@ -92,6 +96,7 @@ impl TokenPriceFetcher {
             };
             self.store_token_prices(&mut storage, token_prices).await;
         }
+        Ok(())
     }
 
     async fn fetch_token_price(

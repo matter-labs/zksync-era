@@ -11,6 +11,7 @@
 //! thus now every criterion is independent of the others.
 
 use std::fmt;
+use vm::TransactionVmExt;
 
 use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_types::{
@@ -106,7 +107,7 @@ impl SealData {
         Self {
             execution_metrics,
             gas_count,
-            cumulative_size: extractors::encoded_transaction_size(transaction),
+            cumulative_size: transaction.bootloader_encoding_size(),
             writes_metrics,
         }
     }
@@ -197,7 +198,7 @@ impl SealManager {
 
             if should_seal_timeout {
                 metrics::increment_counter!("server.tx_aggregation.reason", "criterion" => RULE_NAME);
-                vlog::debug!(
+                tracing::debug!(
                     "Decided to seal L1 batch using rule `{RULE_NAME}`; batch timestamp: {}, \
                      commit deadline: {block_commit_deadline_ms}ms",
                     extractors::display_timestamp(manager.batch_timestamp())
@@ -282,6 +283,7 @@ mod tests {
             vec![],
             BlockGasCount::default(),
             ExecutionMetrics::default(),
+            vec![],
         );
     }
 

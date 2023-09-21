@@ -24,7 +24,7 @@ struct Cli {
 impl Cli {
     fn run(self, config: &DBConfig) {
         let db_path = &config.merkle_tree.path;
-        vlog::info!("Verifying consistency of Merkle tree at {db_path}");
+        tracing::info!("Verifying consistency of Merkle tree at {db_path}");
         let start = Instant::now();
         let db = RocksDB::new(db_path, true);
         let tree = ZkSyncTree::new_lightweight(db);
@@ -34,21 +34,35 @@ impl Cli {
         } else {
             let next_number = tree.next_l1_batch_number();
             if next_number == L1BatchNumber(0) {
-                vlog::info!("Merkle tree is empty, skipping");
+                tracing::info!("Merkle tree is empty, skipping");
                 return;
             }
             next_number - 1
         };
 
-        vlog::info!("L1 batch number to check: {l1_batch_number}");
+        tracing::info!("L1 batch number to check: {l1_batch_number}");
         tree.verify_consistency(l1_batch_number);
-        vlog::info!("Merkle tree verified in {:?}", start.elapsed());
+        tracing::info!("Merkle tree verified in {:?}", start.elapsed());
     }
 }
 
 fn main() {
-    vlog::init();
-    let _sentry_guard = vlog::init_sentry();
+    #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
+    let log_format = vlog::log_format_from_env();
+    #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
+    let sentry_url = vlog::sentry_url_from_env();
+    #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
+    let environment = vlog::environment_from_env();
+
+    let mut builder = vlog::ObservabilityBuilder::new().with_log_format(log_format);
+    if let Some(sentry_url) = sentry_url {
+        builder = builder
+            .with_sentry_url(&sentry_url)
+            .expect("Invalid Sentry URL")
+            .with_sentry_environment(environment);
+    }
+    let _guard = builder.build();
+
     let db_config = DBConfig::from_env();
     Cli::parse().run(&db_config);
 }

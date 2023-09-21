@@ -43,7 +43,7 @@ impl PeriodicJob for FriProverJobRetryManager {
             .await;
         let job_len = stuck_jobs.len();
         for stuck_job in stuck_jobs {
-            vlog::info!("re-queuing fri prover job {:?}", stuck_job);
+            tracing::info!("re-queuing fri prover job {:?}", stuck_job);
         }
         metrics::counter!("server.prover_fri.requeued_jobs", job_len as u64);
     }

@@ -100,6 +100,7 @@ pub struct MetadataCalculator {
 impl MetadataCalculator {
     /// Creates a calculator with the specified `config`.
     pub async fn new(config: &MetadataCalculatorConfig<'_>) -> Self {
+        // TODO (SMA-1726): restore the tree from backup if appropriate
 
         let mode = config.mode.to_mode();
         let object_store = match config.mode {
@@ -127,15 +128,16 @@ impl MetadataCalculator {
         pool: ConnectionPool,
         prover_pool: ConnectionPool,
         stop_receiver: watch::Receiver<bool>,
-    ) {
-        let update_task = self.updater.loop_updating_tree(
-            self.delayer,
-            &pool,
-            &prover_pool,
-            stop_receiver,
-            self.health_updater,
-        );
-        update_task.await;
+    ) -> anyhow::Result<()> {
+        self.updater
+            .loop_updating_tree(
+                self.delayer,
+                &pool,
+                &prover_pool,
+                stop_receiver,
+                self.health_updater,
+            )
+            .await
     }
 
     /// This is used to improve L1 gas estimation for the commit operation. The estimations are computed
@@ -176,7 +178,7 @@ impl MetadataCalculator {
             header.base_system_contracts_hashes.default_aa,
         );
         let commitment_hash = commitment.hash();
-        vlog::trace!("L1 batch commitment: {commitment:?}");
+        tracing::trace!("L1 batch commitment: {commitment:?}");
 
         let metadata = L1BatchMetadata {
             root_hash: merkle_root_hash,
@@ -193,7 +195,9 @@ impl MetadataCalculator {
             pass_through_data_hash: commitment_hash.pass_through_data,
         };
 
-        vlog::trace!("L1 batch metadata: {metadata:?}");
+        tracing::trace!("L1 batch metadata: {metadata:?}");
         metadata
     }
+
+    // TODO (SMA-1726): Integrate tree backup mode
 }

@@ -43,17 +43,17 @@ impl MainNodeGasPriceFetcher {
             .expect("Unable to create a main node client")
     }
 
-    pub async fn run(self: Arc<Self>, stop_receiver: Receiver<bool>) {
+    pub async fn run(self: Arc<Self>, stop_receiver: Receiver<bool>) -> anyhow::Result<()> {
         loop {
             if *stop_receiver.borrow() {
-                vlog::info!("Stop signal received, MainNodeGasPriceFetcher is shutting down");
+                tracing::info!("Stop signal received, MainNodeGasPriceFetcher is shutting down");
                 break;
             }
 
             let main_node_gas_price = match self.client.get_l1_gas_price().await {
                 Ok(price) => price,
                 Err(err) => {
-                    vlog::warn!("Unable to get the gas price: {}", err);
+                    tracing::warn!("Unable to get the gas price: {}", err);
                     // A delay to avoid spamming the main node with requests.
                     tokio::time::sleep(SLEEP_INTERVAL).await;
                     continue;
@@ -63,6 +63,7 @@ impl MainNodeGasPriceFetcher {
                 .store(main_node_gas_price.as_u64(), Ordering::Relaxed);
             tokio::time::sleep(SLEEP_INTERVAL).await;
         }
+        Ok(())
     }
 }
 

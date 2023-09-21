@@ -112,7 +112,7 @@ impl<CF: NamedColumnFamily> RocksDB<CF> {
         let caches = RocksDBCaches::new(block_cache_capacity);
         let options = Self::rocksdb_options(tune_options, None);
         let existing_cfs = DB::list_cf(&options, path.as_ref()).unwrap_or_else(|err| {
-            vlog::warn!(
+            tracing::warn!(
                 "Failed getting column families for RocksDB `{}` at `{}`, assuming CFs are empty; {err}",
                 CF::DB_NAME,
                 path.as_ref().display()
@@ -133,7 +133,7 @@ impl<CF: NamedColumnFamily> RocksDB<CF> {
             })
             .collect();
         if !obsolete_cfs.is_empty() {
-            vlog::warn!(
+            tracing::warn!(
                 "RocksDB `{}` at `{}` contains extra column families {obsolete_cfs:?} that are not used \
                  in code",
                 CF::DB_NAME,
@@ -335,13 +335,13 @@ impl RocksDB<()> {
         let (lock, cvar) = &ROCKSDB_INSTANCE_COUNTER;
         let mut num_instances = lock.lock().unwrap();
         while *num_instances != 0 {
-            vlog::info!(
+            tracing::info!(
                 "Waiting for all the RocksDB instances to be dropped, {} remaining",
                 *num_instances
             );
             num_instances = cvar.wait(num_instances).unwrap();
         }
-        vlog::info!("All the RocksDB instances are dropped");
+        tracing::info!("All the RocksDB instances are dropped");
     }
 }
 

@@ -63,7 +63,7 @@ impl ZkSyncTree {
     /// create a persistent tree.
     pub fn process_genesis_batch(storage_logs: &[StorageLog]) -> BlockOutput {
         let kvs = Self::filter_write_logs(storage_logs);
-        vlog::info!(
+        tracing::info!(
             "Creating Merkle tree for genesis batch with {instr_count} writes",
             instr_count = kvs.len()
         );
@@ -71,7 +71,7 @@ impl ZkSyncTree {
         let mut in_memory_tree = MerkleTree::new(PatchSet::default());
         let output = in_memory_tree.extend(kvs);
 
-        vlog::info!(
+        tracing::info!(
             "Processed genesis batch; root hash is {root_hash}, {leaf_count} leaves in total",
             root_hash = output.root_hash,
             leaf_count = output.leaf_count
@@ -183,7 +183,7 @@ impl ZkSyncTree {
         let starting_leaf_count = self.tree.latest_root().leaf_count();
         let starting_root_hash = self.tree.latest_root_hash();
 
-        vlog::info!(
+        tracing::info!(
             "Extending Merkle tree with batch #{l1_batch_number} with {instr_count} ops in full mode",
             instr_count = instructions.len()
         );
@@ -251,7 +251,7 @@ impl ZkSyncTree {
         });
         let (initial_writes, repeated_writes) = Self::extract_writes(logs, kvs);
 
-        vlog::info!(
+        tracing::info!(
             "Processed batch #{l1_batch_number}; root hash is {root_hash}, \
              {leaf_count} leaves in total, \
              {initial_writes} initial writes, {repeated_writes} repeated writes",
@@ -317,7 +317,7 @@ impl ZkSyncTree {
     fn process_l1_batch_lightweight(&mut self, storage_logs: &[StorageLog]) -> TreeMetadata {
         let kvs = Self::filter_write_logs(storage_logs);
         let l1_batch_number = self.next_l1_batch_number();
-        vlog::info!(
+        tracing::info!(
             "Extending Merkle tree with batch #{l1_batch_number} with {kv_count} writes \
              in lightweight mode",
             kv_count = kvs.len()
@@ -331,7 +331,7 @@ impl ZkSyncTree {
         let (initial_writes, repeated_writes) =
             Self::extract_writes(output.logs.into_iter(), kvs.into_iter());
 
-        vlog::info!(
+        tracing::info!(
             "Processed batch #{l1_batch_number}; root hash is {root_hash}, \
              {leaf_count} leaves in total, \
              {initial_writes} initial writes, {repeated_writes} repeated writes",
@@ -374,7 +374,7 @@ impl ZkSyncTree {
     pub fn save(&mut self) {
         let mut l1_batch_numbers = self.tree.db.patched_versions();
         l1_batch_numbers.sort_unstable();
-        vlog::info!("Flushing L1 batches #{l1_batch_numbers:?} to RocksDB");
+        tracing::info!("Flushing L1 batches #{l1_batch_numbers:?} to RocksDB");
         self.tree.db.flush();
     }
 

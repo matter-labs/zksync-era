@@ -44,26 +44,28 @@ impl L1BatchUpdates {
 
 #[cfg(test)]
 mod tests {
+    use zksync_types::{ProtocolVersionId, H256};
+
     use super::*;
     use crate::{
         gas_tracker::new_block_gas_count,
-        state_keeper::{
-            extractors,
-            tests::{create_execution_result, create_transaction},
-        },
+        state_keeper::tests::{create_execution_result, create_transaction},
     };
+    use vm::TransactionVmExt;
 
     #[test]
     fn apply_miniblock_with_empty_tx() {
-        let mut miniblock_accumulator = MiniblockUpdates::new(0);
+        let mut miniblock_accumulator =
+            MiniblockUpdates::new(0, 0, H256::zero(), 1, Some(ProtocolVersionId::latest()));
         let tx = create_transaction(10, 100);
-        let expected_tx_size = extractors::encoded_transaction_size(tx.clone());
+        let expected_tx_size = tx.bootloader_encoding_size();
 
         miniblock_accumulator.extend_from_executed_transaction(
             tx,
             create_execution_result(0, []),
             BlockGasCount::default(),
             ExecutionMetrics::default(),
+            vec![],
             vec![],
         );
 

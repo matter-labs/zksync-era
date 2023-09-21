@@ -4,7 +4,7 @@ use core::fmt::Debug;
 
 use bigdecimal::BigDecimal;
 use num::{rational::Ratio, BigUint};
-use vm::vm_with_bootloader::base_fee_to_gas_per_pubdata;
+use vm::utils::fee::base_fee_to_gas_per_pubdata;
 use zksync_types::Address;
 use zksync_utils::ratio_to_big_decimal_normalized;
 
@@ -73,7 +73,7 @@ impl FeeTicker {
                     .ok_or_else(|| {
                         // It's kinda not OK that we have a price for token, but no metadata.
                         // Not a reason for a panic, but surely highest possible report level.
-                        vlog::error!(
+                        tracing::error!(
                             "Token {:x} has price, but no stored metadata",
                             l2_token_addr
                         );

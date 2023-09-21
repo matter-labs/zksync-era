@@ -2,9 +2,12 @@
 
 This documentation explains the basics of the zkSync Era External Node.
 
-## Alpha phase disclaimer
+## Disclaimers
 
-Warning: the external node is in the alpha phase, and should be used with caution.
+- The external node is in the alpha phase, and should be used with caution.
+- While in alpha, the EN is dependent on a DB snapshot in order to run that is not yet publicly available.
+- The EN is a read-only replica of the main node. We are currently working on decentralizing our infrastructure by
+  creating a consensus node. The EN is not going to be the consensus node.
 
 ## What is the external node
 

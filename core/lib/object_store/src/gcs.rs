@@ -33,7 +33,7 @@ where
         match f().await {
             Ok(result) => return Ok(result),
             Err(err) => {
-                vlog::warn!("Failed gcs request {retries}/{max_retries}, retrying.");
+                tracing::warn!("Failed gcs request {retries}/{max_retries}, retrying.");
                 if retries > max_retries {
                     return Err(err);
                 }
@@ -107,7 +107,7 @@ impl GoogleCloudStorage {
         key: &str,
     ) -> impl Future<Output = Result<(), ObjectStoreError>> + '_ {
         let filename = Self::filename(bucket, key);
-        vlog::trace!(
+        tracing::trace!(
             "Removing data from GCS for key {filename} from bucket {}",
             self.bucket_prefix
         );
@@ -148,7 +148,7 @@ impl ObjectStore for GoogleCloudStorage {
     async fn get_raw(&self, bucket: Bucket, key: &str) -> Result<Vec<u8>, ObjectStoreError> {
         let started_at = Instant::now();
         let filename = Self::filename(bucket.as_str(), key);
-        vlog::trace!(
+        tracing::trace!(
             "Fetching data from GCS for key {filename} from bucket {}",
             self.bucket_prefix
         );
@@ -164,7 +164,7 @@ impl ObjectStore for GoogleCloudStorage {
         })
         .await;
 
-        vlog::trace!(
+        tracing::trace!(
             "Fetched data from GCS for key {key} from bucket {bucket} and it took: {:?}",
             started_at.elapsed()
         );
@@ -184,7 +184,7 @@ impl ObjectStore for GoogleCloudStorage {
     ) -> Result<(), ObjectStoreError> {
         let started_at = Instant::now();
         let filename = Self::filename(bucket.as_str(), key);
-        vlog::trace!(
+        tracing::trace!(
             "Storing data to GCS for key {filename} from bucket {}",
             self.bucket_prefix
         );
@@ -200,7 +200,7 @@ impl ObjectStore for GoogleCloudStorage {
         })
         .await;
 
-        vlog::trace!(
+        tracing::trace!(
             "Stored data to GCS for key {key} from bucket {bucket} and it took: {:?}",
             started_at.elapsed()
         );

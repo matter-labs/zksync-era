@@ -92,17 +92,17 @@ impl BatchStatusUpdater {
         }
     }
 
-    pub async fn run(mut self, stop_receiver: Receiver<bool>) {
+    pub async fn run(mut self, stop_receiver: Receiver<bool>) -> anyhow::Result<()> {
         loop {
             if *stop_receiver.borrow() {
-                vlog::info!("Stop signal received, exiting the batch status updater routine");
-                return;
+                tracing::info!("Stop signal received, exiting the batch status updater routine");
+                return Ok(());
             }
             // Status changes are created externally, so that even if we will receive a network error
             // while requesting the changes, we will be able to process what we already fetched.
             let mut status_changes = StatusChanges::new();
             if let Err(err) = self.get_status_changes(&mut status_changes).await {
-                vlog::warn!("Failed to get status changes from the database: {err}");
+                tracing::warn!("Failed to get status changes from the database: {err}");
             };
 
             if status_changes.is_empty() {
@@ -228,7 +228,7 @@ impl BatchStatusUpdater {
                 l1_tx_hash: batch_info.base.commit_tx_hash.unwrap(),
                 happened_at: batch_info.base.committed_at.unwrap(),
             });
-            vlog::info!("Batch {}: committed", batch_info.l1_batch_number);
+            tracing::info!("Batch {}: committed", batch_info.l1_batch_number);
             metrics::gauge!("external_node.fetcher.l1_batch", batch_info.l1_batch_number.0 as f64, "status" => "committed");
             *last_committed_l1_batch += 1;
         }
@@ -251,7 +251,7 @@ impl BatchStatusUpdater {
                 l1_tx_hash: batch_info.base.prove_tx_hash.unwrap(),
                 happened_at: batch_info.base.proven_at.unwrap(),
             });
-            vlog::info!("Batch {}: proven", batch_info.l1_batch_number);
+            tracing::info!("Batch {}: proven", batch_info.l1_batch_number);
             metrics::gauge!("external_node.fetcher.l1_batch", batch_info.l1_batch_number.0 as f64, "status" => "proven");
             *last_proven_l1_batch += 1;
         }
@@ -274,7 +274,7 @@ impl BatchStatusUpdater {
                 l1_tx_hash: batch_info.base.execute_tx_hash.unwrap(),
                 happened_at: batch_info.base.executed_at.unwrap(),
             });
-            vlog::info!("Batch {}: executed", batch_info.l1_batch_number);
+            tracing::info!("Batch {}: executed", batch_info.l1_batch_number);
             metrics::gauge!("external_node.fetcher.l1_batch", batch_info.l1_batch_number.0 as f64, "status" => "executed");
             *last_executed_l1_batch += 1;
         }
@@ -293,7 +293,7 @@ impl BatchStatusUpdater {
         let mut storage = self.pool.access_storage_tagged("sync_layer").await;
 
         for change in changes.commit.into_iter() {
-            vlog::info!(
+            tracing::info!(
                 "Commit status change: number {}, hash {}, happened at {}",
                 change.number,
                 change.l1_tx_hash,
@@ -311,7 +311,7 @@ impl BatchStatusUpdater {
             self.last_committed_l1_batch = change.number;
         }
         for change in changes.prove.into_iter() {
-            vlog::info!(
+            tracing::info!(
                 "Prove status change: number {}, hash {}, happened at {}",
                 change.number,
                 change.l1_tx_hash,
@@ -329,7 +329,7 @@ impl BatchStatusUpdater {
             self.last_proven_l1_batch = change.number;
         }
         for change in changes.execute.into_iter() {
-            vlog::info!(
+            tracing::info!(
                 "Execute status change: number {}, hash {}, happened at {}",
                 change.number,
                 change.l1_tx_hash,

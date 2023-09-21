@@ -53,7 +53,7 @@ impl ConditionalSealer {
         block_data: &SealData,
         tx_data: &SealData,
     ) -> SealResolution {
-        vlog::trace!(
+        tracing::trace!(
             "Determining seal resolution for L1 batch #{l1_batch_number} with {tx_count} transactions \
              and metrics {:?}",
             block_data.execution_metrics
@@ -72,7 +72,7 @@ impl ConditionalSealer {
                 SealResolution::IncludeAndSeal
                 | SealResolution::ExcludeAndSeal
                 | SealResolution::Unexecutable(_) => {
-                    vlog::debug!(
+                    tracing::debug!(
                         "L1 batch #{l1_batch_number} processed by `{name}` with resolution {seal_resolution:?}",
                         name = sealer.prom_criterion_name()
                     );

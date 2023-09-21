@@ -1,11 +1,8 @@
-use std::time::Instant;
-use std::{collections::HashMap, convert::TryInto};
+use std::{collections::HashMap, convert::TryInto, time::Instant};
 
 use bigdecimal::{BigDecimal, Zero};
 
 use zksync_mini_merkle_tree::MiniMerkleTree;
-
-use zksync_types::l2::L2Tx;
 use zksync_types::{
     api::{
         BlockDetails, BridgeAddresses, GetLogsFilter, L1BatchDetails, L2ToL1LogProof,
@@ -14,6 +11,7 @@ use zksync_types::{
     commitment::SerializeCommitment,
     fee::Fee,
     l1::L1Tx,
+    l2::L2Tx,
     l2_to_l1_log::L2ToL1Log,
     tokens::ETHEREUM_ADDRESS,
     transaction_request::CallRequest,
@@ -23,12 +21,11 @@ use zksync_types::{
 use zksync_utils::address_to_h256;
 use zksync_web3_decl::{
     error::Web3Error,
-    types::{Address, Token, H256},
+    types::{Address, Filter, Log, Token, H256},
 };
 
 use crate::api_server::web3::{backend_jsonrpc::error::internal_error, RpcState};
-use crate::fee_ticker::FeeTicker;
-use crate::fee_ticker::{error::TickerError, TokenPriceRequestType};
+use crate::fee_ticker::{error::TickerError, FeeTicker, TokenPriceRequestType};
 use crate::l1_gas_price::L1GasPriceProvider;
 
 #[derive(Debug)]
@@ -595,5 +592,13 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
         metrics::histogram!("api.web3.call", start.elapsed(), "method" => METHOD_NAME);
 
         protocol_version
+    }
+
+    #[tracing::instrument(skip_all)]
+    pub async fn get_logs_with_virtual_blocks_impl(
+        &self,
+        filter: Filter,
+    ) -> Result<Vec<Log>, Web3Error> {
+        self.state.translate_get_logs(filter).await
     }
 }

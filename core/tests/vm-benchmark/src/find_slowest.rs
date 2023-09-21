@@ -23,7 +23,7 @@ fn main() {
             let tx = get_deploy_tx(code);
 
             let start_time = Instant::now();
-            BenchmarkingVm::new().run_transaction(&tx).unwrap();
+            BenchmarkingVm::new().run_transaction(&tx);
             results.push((start_time.elapsed(), path));
         }
 

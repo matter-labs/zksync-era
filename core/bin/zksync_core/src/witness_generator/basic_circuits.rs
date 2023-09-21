@@ -1,6 +1,7 @@
 use std::collections::hash_map::DefaultHasher;
 use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
+
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -8,19 +9,18 @@ use async_trait::async_trait;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 
-use vm::zk_evm::ethereum_types::H256;
-use vm::HistoryDisabled;
-use vm::{memory::SimpleMemory, StorageOracle, MAX_CYCLES_FOR_TX};
+use vm::{constants::MAX_CYCLES_FOR_TX, HistoryDisabled, SimpleMemory, StorageOracle};
+use zksync_config::configs::witness_generator::BasicWitnessGeneratorDataSource;
 use zksync_config::configs::WitnessGeneratorConfig;
 use zksync_config::constants::BOOTLOADER_ADDRESS;
 use zksync_dal::ConnectionPool;
 use zksync_object_store::{Bucket, ObjectStore, ObjectStoreFactory, StoredObject};
 use zksync_queued_job_processor::JobProcessor;
-use zksync_state::{PostgresStorage, StorageView};
-use zksync_types::zkevm_test_harness::toolset::GeometryConfig;
+use zksync_state::{PostgresStorage, ReadStorage, ShadowStorage, StorageView, WitnessStorage};
 use zksync_types::{
     circuit::GEOMETRY_CONFIG,
     proofs::{AggregationRound, BasicCircuitWitnessGeneratorInput, PrepareBasicCircuitsJob},
+    zkevm_test_harness::toolset::GeometryConfig,
     zkevm_test_harness::{
         abstract_zksync_circuit::concrete_circuits::ZkSyncCircuit,
         bellman::bn256::Bn256,
@@ -28,7 +28,7 @@ use zksync_types::{
         witness::oracle::VmWitnessOracle,
         SchedulerCircuitInstanceWitness,
     },
-    Address, L1BatchNumber, ProtocolVersionId, U256,
+    Address, L1BatchNumber, ProtocolVersionId, H256, U256,
 };
 use zksync_utils::{bytes_to_chunks, h256_to_u256, u256_to_h256};
 
@@ -100,7 +100,7 @@ impl BasicWitnessGenerator {
             // In this case job should be skipped.
             if threshold > blocks_proving_percentage {
                 metrics::counter!("server.witness_generator.skipped_blocks", 1);
-                vlog::info!(
+                tracing::info!(
                     "Skipping witness generation for block {}, blocks_proving_percentage: {}",
                     block_number.0,
                     blocks_proving_percentage
@@ -120,7 +120,7 @@ impl BasicWitnessGenerator {
         }
 
         metrics::counter!("server.witness_generator.sampled_blocks", 1);
-        vlog::info!(
+        tracing::info!(
             "Starting witness generation of type {:?} for block {}",
             AggregationRound::BasicCircuits,
             block_number.0
@@ -242,7 +242,7 @@ pub async fn process_basic_circuits_job(
         generate_witness(object_store, config, connection_pool, witness_gen_input).await;
     let circuits = basic_circuits.clone().into_flattened_set();
 
-    vlog::info!(
+    tracing::info!(
         "Witness generation for block {} is complete in {:?}. Number of circuits: {}",
         block_number.0,
         started_at.elapsed(),
@@ -451,21 +451,58 @@ pub async fn generate_witness(
 
     // The following part is CPU-heavy, so we move it to a separate thread.
     tokio::task::spawn_blocking(move || {
-        let connection = rt_handle.block_on(connection_pool.access_storage());
-        let storage =
-            PostgresStorage::new(rt_handle.clone(), connection, last_miniblock_number, true);
+        // NOTE: this `match` will be moved higher up, as we need to load EVERYTHING from Blob, not just storage
+        // Until we can derive Storage from Merkle Paths, we'll have this version as testing ground.
+        let storage: Box<dyn ReadStorage> = match config.data_source {
+            BasicWitnessGeneratorDataSource::FromPostgres => {
+                let connection = rt_handle.block_on(connection_pool.access_storage());
+                Box::new(PostgresStorage::new(
+                    rt_handle.clone(),
+                    connection,
+                    last_miniblock_number,
+                    true,
+                ))
+            }
+            BasicWitnessGeneratorDataSource::FromPostgresShadowBlob => {
+                let connection = rt_handle.block_on(connection_pool.access_storage());
+                let source_storage = Box::new(PostgresStorage::new(
+                    rt_handle.clone(),
+                    connection,
+                    last_miniblock_number,
+                    true,
+                ));
+                let block_state = input
+                    .merkle_paths_input
+                    .clone()
+                    .into_witness_hash_block_state();
+                let checked_storage = Box::new(WitnessStorage::new(block_state));
+                Box::new(ShadowStorage::new(
+                    source_storage,
+                    checked_storage,
+                    input.block_number,
+                ))
+            }
+            BasicWitnessGeneratorDataSource::FromBlob => {
+                let block_state = input
+                    .merkle_paths_input
+                    .clone()
+                    .into_witness_hash_block_state();
+                Box::new(WitnessStorage::new(block_state))
+            }
+        };
         let mut tree = PrecalculatedMerklePathsProvider::new(
             input.merkle_paths_input,
             input.previous_block_hash.0,
         );
 
-        let storage_view = &mut StorageView::new(storage);
-        let storage_oracle: StorageOracle<HistoryDisabled> =
-            StorageOracle::new(storage_view.as_ptr());
+        let storage_view = StorageView::new(storage);
+        let storage_view = storage_view.to_rc_ptr();
+        let storage_oracle: StorageOracle<StorageView<Box<dyn ReadStorage>>, HistoryDisabled> =
+            StorageOracle::new(storage_view);
         let memory: SimpleMemory<HistoryDisabled> = SimpleMemory::default();
         let mut hasher = DefaultHasher::new();
         GEOMETRY_CONFIG.hash(&mut hasher);
-        vlog::info!(
+        tracing::info!(
             "generating witness for block {} using geometry config hash: {}",
             input.block_number.0,
             hasher.finish()

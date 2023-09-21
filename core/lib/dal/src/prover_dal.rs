@@ -456,7 +456,7 @@ impl ProverDal<'_, '_> {
             .map(|ss| {
                 {
                     // Until statuses are enums
-                    let whitelist = vec!["queued", "in_progress", "successful", "failed"];
+                    let whitelist = ["queued", "in_progress", "successful", "failed"];
                     if !ss.iter().all(|x| whitelist.contains(&x.as_str())) {
                         panic!("Forbidden value in statuses list.")
                     }

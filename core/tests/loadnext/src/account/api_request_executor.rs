@@ -114,7 +114,7 @@ impl AccountLifespan {
                 match result {
                     Ok(()) => ReportLabel::ActionDone,
                     Err(err) => {
-                        vlog::error!("API request failed: {request:?}, reason: {err}");
+                        tracing::error!("API request failed: {request:?}, reason: {err}");
                         ReportLabel::failed(err.to_string())
                     }
                 }

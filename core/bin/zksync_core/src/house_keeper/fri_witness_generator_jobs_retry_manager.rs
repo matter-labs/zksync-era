@@ -37,7 +37,7 @@ impl FriWitnessGeneratorJobRetryManager {
             .await;
         let job_len = stuck_jobs.len();
         for stuck_job in stuck_jobs {
-            vlog::info!("re-queuing fri witness input job {:?}", stuck_job);
+            tracing::info!("re-queuing fri witness input job {:?}", stuck_job);
         }
         metrics::counter!("server.witness_inputs_fri.requeued_jobs", job_len as u64);
     }
@@ -52,7 +52,7 @@ impl FriWitnessGeneratorJobRetryManager {
             .await;
         let job_len = stuck_jobs.len();
         for stuck_job in stuck_jobs {
-            vlog::info!("re-queuing fri witness input job {:?}", stuck_job);
+            tracing::info!("re-queuing fri witness input job {:?}", stuck_job);
         }
         metrics::counter!(
             "server.leaf_aggregations_jobs_fri.requeued_jobs",
@@ -70,7 +70,7 @@ impl FriWitnessGeneratorJobRetryManager {
             .await;
         let job_len = stuck_jobs.len();
         for stuck_job in stuck_jobs {
-            vlog::info!("re-queuing fri witness input job {:?}", stuck_job);
+            tracing::info!("re-queuing fri witness input job {:?}", stuck_job);
         }
         metrics::counter!(
             "server.node_aggregations_jobs_fri.requeued_jobs",
@@ -88,7 +88,7 @@ impl FriWitnessGeneratorJobRetryManager {
             .await;
         let job_len = stuck_jobs.len();
         for stuck_job in stuck_jobs {
-            vlog::info!("re-queuing fri witness input job {:?}", stuck_job);
+            tracing::info!("re-queuing fri witness input job {:?}", stuck_job);
         }
         metrics::counter!("server.scheduler_jobs_fri.requeued_jobs", job_len as u64);
     }

@@ -6,7 +6,7 @@ use zksync_dal::StorageProcessor;
 use zksync_types::{
     api, block::DeployedContract, get_code_key, protocol_version::L1VerifierConfig,
     system_contracts::get_system_smart_contracts, AccountTreeId, Address, L1BatchNumber, L2ChainId,
-    MiniblockNumber, ACCOUNT_CODE_STORAGE_ADDRESS, H256, U64,
+    MiniblockNumber, ProtocolVersionId, ACCOUNT_CODE_STORAGE_ADDRESS, H256, U64,
 };
 use zksync_utils::h256_to_u256;
 use zksync_web3_decl::{
@@ -24,15 +24,15 @@ pub async fn perform_genesis_if_needed(
     // make the node startup slower.
     let genesis_block_hash = if transaction.blocks_dal().is_genesis_needed().await {
         let genesis_params = create_genesis_params(&main_node_url).await?;
-        let genesis_block_hash =
-            ensure_genesis_state(&mut transaction, zksync_chain_id, &genesis_params).await;
-        genesis_block_hash
+        ensure_genesis_state(&mut transaction, zksync_chain_id, &genesis_params)
+            .await
+            .context("ensure_genesis_state")?
     } else {
         transaction
             .blocks_dal()
             .get_l1_batch_state_root(L1BatchNumber(0))
             .await
-            .expect("genesis block hash is empty")
+            .context("genesis block hash is empty")?
     };
 
     validate_genesis_state(&main_node_url, genesis_block_hash).await;
@@ -95,7 +95,7 @@ async fn create_genesis_params(main_node_url: &str) -> anyhow::Result<GenesisPar
         else {
             // It's OK for some of contracts to be absent.
             // If this is a bug, the genesis root hash won't match.
-            vlog::debug!("System contract with address {system_contract_address:?} is absent at genesis state");
+            tracing::debug!("System contract with address {system_contract_address:?} is absent at genesis state");
             continue;
         };
         let contract = DeployedContract::new(AccountTreeId::new(system_contract_address), bytecode);
@@ -106,10 +106,17 @@ async fn create_genesis_params(main_node_url: &str) -> anyhow::Result<GenesisPar
         "No system contracts were fetched: this is a bug"
     );
 
+    let protocol_version = fetch_sync_block_without_transactions(main_node_url, MiniblockNumber(0))
+        .await
+        .context("Failed to fetch sync block from main node")?
+        .context("Genesis miniblock is missing on main node")?
+        .protocol_version;
+
     // Use default L1 verifier config and verifier address for genesis as they are not used by EN.
     let first_l1_verifier_config = L1VerifierConfig::default();
     let first_verifier_address = Address::default();
     Ok(GenesisParams {
+        protocol_version,
         base_system_contracts,
         system_contracts,
         first_validator,
@@ -183,4 +190,24 @@ pub async fn fetch_base_system_contracts(
         bootloader: fetch_system_contract_by_hash(main_node_url, hashes.bootloader).await?,
         default_aa: fetch_system_contract_by_hash(main_node_url, hashes.default_aa).await?,
     })
+}
+
+pub async fn fetch_protocol_version(
+    main_node_url: &str,
+    protocol_version: ProtocolVersionId,
+) -> Result<api::ProtocolVersion, Error> {
+    let client = HttpClientBuilder::default().build(main_node_url).unwrap();
+
+    Ok(client
+        .get_protocol_version(Some(protocol_version as u16))
+        .await?
+        .expect("Protocol version must exist"))
+}
+
+pub async fn fetch_sync_block_without_transactions(
+    main_node_url: &str,
+    miniblock_number: MiniblockNumber,
+) -> Result<Option<api::en::SyncBlock>, Error> {
+    let client = HttpClientBuilder::default().build(main_node_url).unwrap();
+    client.sync_l2_block(miniblock_number, false).await
 }

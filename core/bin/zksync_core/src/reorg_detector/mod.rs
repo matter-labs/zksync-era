@@ -71,6 +71,8 @@ impl ReorgDetector {
 
     /// Localizes a reorg: performs binary search to determine the last non-diverged block.
     async fn detect_reorg(&self, diverged_l1_batch: L1BatchNumber) -> RpcResult<L1BatchNumber> {
+        // TODO (BFT-176, BFT-181): We have to look through the whole history, since batch status updater may mark
+        // a block as executed even if the state diverges for it.
         binary_search_with(1, diverged_l1_batch.0, |number| {
             self.root_hashes_match(L1BatchNumber(number))
         })
@@ -83,8 +85,8 @@ impl ReorgDetector {
             match self.run_inner().await {
                 Ok(l1_batch_number) => return l1_batch_number,
                 Err(err @ RpcError::Transport(_) | err @ RpcError::RequestTimeout) => {
-                    vlog::warn!("Following transport error occurred: {err}");
-                    vlog::info!("Trying again after a delay");
+                    tracing::warn!("Following transport error occurred: {err}");
+                    tracing::info!("Trying again after a delay");
                     tokio::time::sleep(SLEEP_INTERVAL).await;
                 }
                 Err(err) => {
@@ -139,7 +141,7 @@ impl ReorgDetector {
                 .is_legally_ahead_of_main_node(sealed_l1_batch_number)
                 .await?
             {
-                vlog::trace!(
+                tracing::trace!(
                     "Local state was updated ahead of the main node. Waiting for the main node to seal the batch"
                 );
                 tokio::time::sleep(SLEEP_INTERVAL).await;
@@ -147,7 +149,7 @@ impl ReorgDetector {
             }
 
             // At this point we're certain that if we detect a reorg, it's real.
-            vlog::trace!("Checking for reorgs - L1 batch #{sealed_l1_batch_number}");
+            tracing::trace!("Checking for reorgs - L1 batch #{sealed_l1_batch_number}");
             if self.root_hashes_match(sealed_l1_batch_number).await? {
                 metrics::gauge!(
                     "external_node.last_correct_batch",
@@ -156,13 +158,15 @@ impl ReorgDetector {
                 );
                 tokio::time::sleep(SLEEP_INTERVAL).await;
             } else {
-                vlog::warn!(
+                tracing::warn!(
                     "Reorg detected: last state hash doesn't match the state hash from main node \
                      (L1 batch #{sealed_l1_batch_number})"
                 );
-                vlog::info!("Searching for the first diverged batch");
+                tracing::info!("Searching for the first diverged batch");
                 let last_correct_l1_batch = self.detect_reorg(sealed_l1_batch_number).await?;
-                vlog::info!("Reorg localized: last correct L1 batch is #{last_correct_l1_batch}");
+                tracing::info!(
+                    "Reorg localized: last correct L1 batch is #{last_correct_l1_batch}"
+                );
                 return Ok(last_correct_l1_batch);
             }
         }

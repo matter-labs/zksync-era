@@ -63,7 +63,7 @@ impl ConsistencyChecker {
                 )
             });
 
-        vlog::info!(
+        tracing::info!(
             "Checking commit tx {} for batch {}",
             commit_tx_hash,
             batch_number.0
@@ -123,7 +123,10 @@ impl ConsistencyChecker {
             .unwrap_or(L1BatchNumber(0))
     }
 
-    pub async fn run(self, stop_receiver: tokio::sync::watch::Receiver<bool>) {
+    pub async fn run(
+        self,
+        stop_receiver: tokio::sync::watch::Receiver<bool>,
+    ) -> anyhow::Result<()> {
         let mut batch_number: L1BatchNumber = self
             .last_committed_batch()
             .await
@@ -132,11 +135,11 @@ impl ConsistencyChecker {
             .max(1)
             .into();
 
-        vlog::info!("Starting consistency checker from batch {}", batch_number.0);
+        tracing::info!("Starting consistency checker from batch {}", batch_number.0);
 
         loop {
             if *stop_receiver.borrow() {
-                vlog::info!("Stop signal received, consistency_checker is shutting down");
+                tracing::info!("Stop signal received, consistency_checker is shutting down");
                 break;
             }
 
@@ -159,7 +162,7 @@ impl ConsistencyChecker {
 
             match self.check_commitments(batch_number).await {
                 Ok(true) => {
-                    vlog::info!("Batch {} is consistent with L1", batch_number.0);
+                    tracing::info!("Batch {} is consistent with L1", batch_number.0);
                     metrics::gauge!(
                         "external_node.last_correct_batch",
                         batch_number.0 as f64,
@@ -168,13 +171,14 @@ impl ConsistencyChecker {
                     batch_number.0 += 1;
                 }
                 Ok(false) => {
-                    panic!("Batch {} is inconsistent with L1", batch_number.0);
+                    anyhow::bail!("Batch {} is inconsistent with L1", batch_number.0);
                 }
                 Err(e) => {
-                    vlog::warn!("Consistency checker error: {}", e);
+                    tracing::warn!("Consistency checker error: {}", e);
                     tokio::time::sleep(SLEEP_DELAY).await;
                 }
             }
         }
+        Ok(())
     }
 }

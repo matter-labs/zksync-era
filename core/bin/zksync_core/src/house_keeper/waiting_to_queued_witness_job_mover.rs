@@ -31,7 +31,7 @@ impl WaitingToQueuedWitnessJobMover {
             .await;
         let len = l1_batch_numbers.len();
         for l1_batch_number in l1_batch_numbers {
-            vlog::info!(
+            tracing::info!(
                 "Marked leaf aggregation job for l1_batch {} as queued",
                 l1_batch_number
             );
@@ -50,7 +50,7 @@ impl WaitingToQueuedWitnessJobMover {
             .await;
         let len = l1_batch_numbers.len();
         for l1_batch_number in l1_batch_numbers {
-            vlog::info!(
+            tracing::info!(
                 "Marking node aggregation job for l1_batch {} as queued",
                 l1_batch_number
             );
@@ -69,7 +69,7 @@ impl WaitingToQueuedWitnessJobMover {
             .await;
         let len = l1_batch_numbers.len();
         for l1_batch_number in l1_batch_numbers {
-            vlog::info!(
+            tracing::info!(
                 "Marking scheduler aggregation job for l1_batch {} as queued",
                 l1_batch_number
             );

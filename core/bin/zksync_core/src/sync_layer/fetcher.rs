@@ -4,7 +4,7 @@ use tokio::sync::watch::Receiver;
 
 use crate::sync_layer::sync_action::{ActionQueue, SyncAction};
 use zksync_dal::ConnectionPool;
-use zksync_types::{L1BatchNumber, MiniblockNumber};
+use zksync_types::{L1BatchNumber, MiniblockNumber, H256};
 use zksync_web3_decl::jsonrpsee::core::Error as RpcError;
 use zksync_web3_decl::RpcResult;
 
@@ -19,7 +19,6 @@ pub struct MainNodeFetcher {
     client: CachedMainNodeClient,
     current_l1_batch: L1BatchNumber,
     current_miniblock: MiniblockNumber,
-
     actions: ActionQueue,
     sync_state: SyncState,
     stop_receiver: Receiver<bool>,
@@ -58,15 +57,14 @@ impl MainNodeFetcher {
             client,
             current_l1_batch,
             current_miniblock,
-
             actions,
             sync_state,
             stop_receiver,
         }
     }
 
-    pub async fn run(mut self) {
-        vlog::info!(
+    pub async fn run(mut self) -> anyhow::Result<()> {
+        tracing::info!(
             "Starting the fetcher routine. Initial miniblock: {}, initial l1 batch: {}",
             self.current_miniblock,
             self.current_l1_batch
@@ -75,16 +73,16 @@ impl MainNodeFetcher {
         loop {
             match self.run_inner().await {
                 Ok(()) => {
-                    vlog::info!("Stop signal received, exiting the fetcher routine");
-                    return;
+                    tracing::info!("Stop signal received, exiting the fetcher routine");
+                    return Ok(());
                 }
                 Err(err @ RpcError::Transport(_) | err @ RpcError::RequestTimeout) => {
-                    vlog::warn!("Following transport error occurred: {}", err);
-                    vlog::info!("Trying again after a delay");
-                    tokio::time::sleep(RETRY_DELAY_INTERVAL).await;
+                    tracing::warn!("Following transport error occurred: {}", err);
+                    tracing::info!("Trying again after a delay");
+                    tokio::time::sleep(RETRY_DELAY_INTERVAL).await; // TODO (BFT-100): Implement the fibonacci backoff.
                 }
                 Err(err) => {
-                    panic!("Unexpected error in the fetcher: {}", err);
+                    anyhow::bail!("Unexpected error in the fetcher: {}", err);
                 }
             }
         }
@@ -121,7 +119,7 @@ impl MainNodeFetcher {
                 } else {
                     "Local action queue is full, waiting for state keeper to process the queue"
                 };
-                vlog::debug!("{log_message}");
+                tracing::debug!("{log_message}");
                 tokio::time::sleep(DELAY_INTERVAL).await;
             }
         }
@@ -136,6 +134,14 @@ impl MainNodeFetcher {
         let Some(block) = self.client.sync_l2_block(self.current_miniblock).await? else {
             return Ok(false);
         };
+
+        // This will be fetched from cache.
+        let prev_block = self
+            .client
+            .sync_l2_block(self.current_miniblock - 1)
+            .await?
+            .expect("Previous block must exist");
+
         metrics::histogram!(
             "external_node.fetcher.requests",
             request_start.elapsed(),
@@ -151,7 +157,7 @@ impl MainNodeFetcher {
                 "Unexpected batch number in the next received miniblock"
             );
 
-            vlog::info!(
+            tracing::info!(
                 "New batch: {}. Timestamp: {}",
                 block.l1_batch_number,
                 block.timestamp
@@ -162,9 +168,12 @@ impl MainNodeFetcher {
                 timestamp: block.timestamp,
                 l1_gas_price: block.l1_gas_price,
                 l2_fair_gas_price: block.l2_fair_gas_price,
-                base_system_contracts_hashes: block.base_system_contracts_hashes,
                 operator_address: block.operator_address,
-                protocol_version: None,
+                protocol_version: block.protocol_version,
+                // `block.virtual_blocks` can be `None` only for old VM versions where it's not used, so it's fine to provide any number.
+                first_miniblock_info: (block.number, block.virtual_blocks.unwrap_or(0)),
+                // Same for `prev_block.hash` as above.
+                prev_miniblock_hash: prev_block.hash.unwrap_or_else(H256::zero),
             });
             metrics::gauge!("external_node.fetcher.l1_batch", block.l1_batch_number.0 as f64, "status" => "open");
             self.current_l1_batch += 1;
@@ -174,6 +183,8 @@ impl MainNodeFetcher {
             new_actions.push(SyncAction::Miniblock {
                 number: block.number,
                 timestamp: block.timestamp,
+                // `block.virtual_blocks` can be `None` only for old VM versions where it's not used, so it's fine to provide any number.
+                virtual_blocks: block.virtual_blocks.unwrap_or(0),
             });
             metrics::gauge!("external_node.fetcher.miniblock", block.number.0 as f64);
         }
@@ -191,17 +202,22 @@ impl MainNodeFetcher {
         // Last miniblock of the batch is a "fictive" miniblock and would be replicated locally.
         // We don't need to seal it explicitly, so we only put the seal miniblock command if it's not the last miniblock.
         if block.last_in_batch {
-            new_actions.push(SyncAction::SealBatch);
+            new_actions.push(SyncAction::SealBatch {
+                // `block.virtual_blocks` can be `None` only for old VM versions where it's not used, so it's fine to provide any number.
+                virtual_blocks: block.virtual_blocks.unwrap_or(0),
+            });
         } else {
             new_actions.push(SyncAction::SealMiniblock);
         }
 
-        vlog::info!(
+        tracing::info!(
             "New miniblock: {} / {}",
             block.number,
             self.sync_state.get_main_node_block().max(block.number)
         );
-        self.client.forget_miniblock(self.current_miniblock);
+        // Forgetting only the previous one because we still need the current one in cache for the next iteration.
+        self.client
+            .forget_miniblock(MiniblockNumber(self.current_miniblock.0.saturating_sub(1)));
         self.current_miniblock += 1;
         self.actions.push_actions(new_actions);
 

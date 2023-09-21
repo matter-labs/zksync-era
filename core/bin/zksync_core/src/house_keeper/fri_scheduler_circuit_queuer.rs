@@ -28,7 +28,7 @@ impl SchedulerCircuitQueuer {
             conn.fri_witness_generator_dal()
                 .mark_scheduler_jobs_as_queued(l1_batch_number)
                 .await;
-            vlog::info!(
+            tracing::info!(
                 "Marked fri scheduler aggregation job for l1_batch {} as queued",
                 l1_batch_number,
             );

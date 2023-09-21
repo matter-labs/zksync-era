@@ -1,6 +1,6 @@
 [package]
 name = "zksync_circuit_breaker"
-version = "1.0.0"
+version = "0.1.0"
 edition = "2018"
 authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
 homepage = "https://zksync.io/"
@@ -10,15 +10,16 @@ keywords = ["blockchain", "zksync"]
 categories = ["cryptography"]
 
 [dependencies]
-zksync_types = { path = "../types", version = "1.0" }
-zksync_config = { path = "../config", version = "1.0" }
-zksync_contracts = { path = "../contracts", version = "1.0" }
-zksync_dal = { path = "../dal", version = "1.0" }
-zksync_eth_client = { path = "../eth_client", version = "1.0" }
+zksync_types = { path = "../types" }
+zksync_config = { path = "../config" }
+zksync_contracts = { path = "../contracts" }
+zksync_dal = { path = "../dal" }
+zksync_eth_client = { path = "../eth_client" }
 thiserror = "1.0"
 serde_json = "1.0"
 futures = { version = "0.3", features = ["compat"] }
 tokio = { version = "1", features = ["time"] }
+anyhow = "1.0"
 async-trait = "0.1"
 hex = "0.4"
 convert_case = "0.6.0"

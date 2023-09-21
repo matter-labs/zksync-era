@@ -35,6 +35,7 @@ pub struct TransactionData {
     // The factory deps provided with the transaction.
     // Note that *only hashes* of these bytecodes are signed by the user
     // and they are used in the ABI encoding of the struct.
+    // TODO: include this into the tx signature as part of SMA-1010
     pub factory_deps: Vec<Vec<u8>>,
     pub paymaster_input: Vec<u8>,
     pub reserved_dynamic: Vec<u8>,
@@ -164,6 +165,7 @@ impl TransactionData {
 
     pub fn overhead_gas(&self) -> u32 {
         if self.tx_type != L1_TX_TYPE {
+            // TODO (SMA-1715): Make users pay for the block overhead
             return 0;
         }
 
@@ -473,6 +475,7 @@ mod tests {
             // The factory deps provided with the transaction.
             // Note that *only hashes* of these bytecodes are signed by the user
             // and they are used in the ABI encoding of the struct.
+            // TODO: include this into the tx signature as part of SMA-1010
             factory_deps: vec![vec![0u8; 32], vec![1u8; 32]],
             paymaster_input: vec![0u8; 85],
             reserved_dynamic: vec![0u8; 32],

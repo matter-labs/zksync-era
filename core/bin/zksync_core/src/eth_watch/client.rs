@@ -61,7 +61,7 @@ impl<E: EthInterface> EthHttpQueryClient<E> {
         zksync_contract_addr: Address,
         confirmations_for_eth_event: Option<u64>,
     ) -> Self {
-        vlog::debug!("New eth client, contract addr: {:x}", zksync_contract_addr);
+        tracing::debug!("New eth client, contract addr: {:x}", zksync_contract_addr);
         Self {
             client,
             topics: Vec::new(),
@@ -119,7 +119,7 @@ impl<E: EthInterface + Send + Sync + 'static> EthClient for EthHttpQueryClient<E
         // This code is compatible with both Infura and Alchemy API providers.
         // Note: we don't handle rate-limits here - assumption is that we're never going to hit them.
         if let Err(Error::EthClient(EthClientError::EthereumGateway(err))) = &result {
-            vlog::warn!("Provider returned error message: {:?}", err);
+            tracing::warn!("Provider returned error message: {:?}", err);
             let err_message = err.to_string();
             let err_code = if let web3::Error::Rpc(err) = err {
                 Some(err.code.code())
@@ -162,7 +162,7 @@ impl<E: EthInterface + Send + Sync + 'static> EthClient for EthHttpQueryClient<E
                 if from_number >= mid {
                     return Err(Error::InfiniteRecursion);
                 }
-                vlog::warn!(
+                tracing::warn!(
                     "Splitting block range in half: {:?} - {:?} - {:?}",
                     from,
                     mid,
@@ -178,7 +178,7 @@ impl<E: EthInterface + Send + Sync + 'static> EthClient for EthHttpQueryClient<E
                 first_half.append(&mut second_half);
                 result = Ok(first_half);
             } else if should_retry(err_code, err_message) && retries_left > 0 {
-                vlog::warn!("Retrying. Retries left: {:?}", retries_left);
+                tracing::warn!("Retrying. Retries left: {:?}", retries_left);
                 result = self.get_events(from, to, retries_left - 1).await;
             }
         }

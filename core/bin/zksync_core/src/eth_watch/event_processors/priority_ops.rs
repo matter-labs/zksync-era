@@ -50,7 +50,7 @@ impl<W: EthClient + Sync> EventProcessor<W> for PriorityOpsEventProcessor {
 
         let first = &priority_ops[0];
         let last = &priority_ops[priority_ops.len() - 1];
-        vlog::debug!(
+        tracing::debug!(
             "Received priority requests with serial ids: {} (block {}) - {} (block {})",
             first.serial_id(),
             first.eth_block(),

@@ -3,7 +3,7 @@ use std::{
     hash::{BuildHasherDefault, Hash, Hasher},
 };
 
-use crate::storage::StoragePtr;
+use crate::storage::{Storage, StoragePtr};
 
 use zk_evm::{
     aux_structures::Timestamp,
@@ -570,21 +570,21 @@ impl HistoryRecorder<MemoryWrapper> {
 
 #[derive(Debug)]
 
-pub struct StorageWrapper<'a> {
-    storage_ptr: StoragePtr<'a>,
+pub struct StorageWrapper<S> {
+    storage_ptr: StoragePtr<S>,
 }
 
-impl<'a> StorageWrapper<'a> {
-    pub fn new(storage_ptr: StoragePtr<'a>) -> Self {
+impl<S: Storage> StorageWrapper<S> {
+    pub fn new(storage_ptr: StoragePtr<S>) -> Self {
         Self { storage_ptr }
     }
 
-    pub fn get_ptr(&self) -> StoragePtr<'a> {
+    pub fn get_ptr(&self) -> StoragePtr<S> {
         self.storage_ptr.clone()
     }
 
     pub fn read_from_storage(&self, key: &StorageKey) -> U256 {
-        h256_to_u256(self.storage_ptr.borrow_mut().get_value(key))
+        h256_to_u256(self.storage_ptr.as_ref().borrow_mut().get_value(key))
     }
 }
 
@@ -594,7 +594,7 @@ pub struct StorageHistoryRecord {
     pub value: U256,
 }
 
-impl<'a> WithHistory for StorageWrapper<'a> {
+impl<S: Storage> WithHistory for StorageWrapper<S> {
     type HistoryRecord = StorageHistoryRecord;
     type ReturnValue = U256;
 
@@ -617,7 +617,7 @@ impl<'a> WithHistory for StorageWrapper<'a> {
     }
 }
 
-impl<'a> HistoryRecorder<StorageWrapper<'a>> {
+impl<S: Storage> HistoryRecorder<StorageWrapper<S>> {
     pub fn read_from_storage(&self, key: &StorageKey) -> U256 {
         self.inner.read_from_storage(key)
     }
@@ -629,7 +629,7 @@ impl<'a> HistoryRecorder<StorageWrapper<'a>> {
     /// Returns a pointer to the storage.
     /// Note, that any changes done to the storage via this pointer
     /// will NOT be recorded as its history.
-    pub fn get_ptr(&self) -> StoragePtr<'a> {
+    pub fn get_ptr(&self) -> StoragePtr<S> {
         self.inner.get_ptr()
     }
 }

@@ -3,7 +3,7 @@
 use std::{fmt, sync::mpsc, time::Duration};
 
 use crate::{
-    metrics::{PruningStats, PruningTimings, Timing},
+    metrics::{PruningStats, PRUNING_TIMINGS},
     storage::{PruneDatabase, PrunePatchSet},
 };
 
@@ -105,9 +105,9 @@ impl<DB: PruneDatabase> MerkleTreePruner<DB> {
         let target_retained_version = self.target_retained_version()?;
         let min_stale_key_version = self.db.min_stale_key_version()?;
         let stale_key_new_versions = min_stale_key_version..=target_retained_version;
-        vlog::info!("Collecting stale keys with new versions in {stale_key_new_versions:?}");
+        tracing::info!("Collecting stale keys with new versions in {stale_key_new_versions:?}");
 
-        let load_stale_keys = PruningTimings::LoadStaleKeys.start();
+        let load_stale_keys_latency = PRUNING_TIMINGS.load_stale_keys.start();
         let mut pruned_keys = vec![];
         let mut max_stale_key_version = min_stale_key_version;
         for version in stale_key_new_versions {
@@ -117,14 +117,14 @@ impl<DB: PruneDatabase> MerkleTreePruner<DB> {
                 break;
             }
         }
-        load_stale_keys.report();
+        load_stale_keys_latency.observe();
 
         if pruned_keys.is_empty() {
-            vlog::info!("No stale keys to remove; skipping");
+            tracing::info!("No stale keys to remove; skipping");
             return None;
         }
         let deleted_stale_key_versions = min_stale_key_version..(max_stale_key_version + 1);
-        vlog::info!(
+        tracing::info!(
             "Collected {} stale keys with new versions in {deleted_stale_key_versions:?}",
             pruned_keys.len()
         );
@@ -135,15 +135,15 @@ impl<DB: PruneDatabase> MerkleTreePruner<DB> {
             deleted_stale_key_versions: deleted_stale_key_versions.clone(),
         };
         let patch = PrunePatchSet::new(pruned_keys, deleted_stale_key_versions);
-        let apply_patch = PruningTimings::ApplyPatch.start();
+        let apply_patch_latency = PRUNING_TIMINGS.apply_patch.start();
         self.db.prune(patch);
-        apply_patch.report();
+        apply_patch_latency.observe();
         Some(stats)
     }
 
     /// Runs this pruner indefinitely until it is aborted by dropping its handle.
     pub fn run(mut self) {
-        vlog::info!("Started Merkle tree pruner {self:?}");
+        tracing::info!("Started Merkle tree pruner {self:?}");
         loop {
             let timeout = if let Some(stats) = self.run_once() {
                 let has_more_work = stats.has_more_work();
@@ -154,14 +154,14 @@ impl<DB: PruneDatabase> MerkleTreePruner<DB> {
                     self.poll_interval
                 }
             } else {
-                vlog::debug!("No pruning required per specified policies; waiting");
+                tracing::debug!("No pruning required per specified policies; waiting");
                 self.poll_interval
             };
 
             match self.aborted_receiver.recv_timeout(timeout) {
                 Ok(()) => break, // Abort was requested
                 Err(mpsc::RecvTimeoutError::Disconnected) => {
-                    vlog::warn!("Pruner handle is dropped without calling `abort()`; exiting");
+                    tracing::warn!("Pruner handle is dropped without calling `abort()`; exiting");
                     break;
                 }
                 Err(mpsc::RecvTimeoutError::Timeout) => {

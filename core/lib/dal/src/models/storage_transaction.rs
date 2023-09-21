@@ -2,25 +2,25 @@ use std::{convert::TryInto, str::FromStr};
 
 use crate::BigDecimal;
 use bigdecimal::Zero;
-use serde::{Deserialize, Serialize};
-use sqlx::{
-    postgres::PgRow,
-    types::chrono::{DateTime, NaiveDateTime, Utc},
-    Error, FromRow, Row,
-};
 
+use serde::{Deserialize, Serialize};
+use sqlx::postgres::PgRow;
+use sqlx::types::chrono::{DateTime, NaiveDateTime, Utc};
+use sqlx::{Error, FromRow, Row};
+
+use zksync_types::l2::TransactionType;
+use zksync_types::protocol_version::ProtocolUpgradeTxCommonData;
+use zksync_types::transaction_request::PaymasterParams;
+use zksync_types::vm_trace::Call;
+use zksync_types::web3::types::U64;
+use zksync_types::{api, Bytes, ExecuteTransactionCommon};
 use zksync_types::{
-    api::{self, TransactionDetails, TransactionStatus},
+    api::{TransactionDetails, TransactionStatus},
     fee::Fee,
     l1::{OpProcessingType, PriorityQueueType},
-    l2::TransactionType,
-    protocol_version::ProtocolUpgradeTxCommonData,
-    transaction_request::PaymasterParams,
-    vm_trace::Call,
-    web3::types::U64,
-    Address, Execute, ExecuteTransactionCommon, L1TxCommonData, L2ChainId, L2TxCommonData, Nonce,
-    PackedEthSignature, PriorityOpId, Transaction, EIP_1559_TX_TYPE, EIP_2930_TX_TYPE,
-    EIP_712_TX_TYPE, H160, H256, PRIORITY_OPERATION_L2_TX_TYPE, PROTOCOL_UPGRADE_TX_TYPE, U256,
+    Address, Execute, L1TxCommonData, L2ChainId, L2TxCommonData, Nonce, PackedEthSignature,
+    PriorityOpId, Transaction, EIP_1559_TX_TYPE, EIP_2930_TX_TYPE, EIP_712_TX_TYPE, H160, H256,
+    PRIORITY_OPERATION_L2_TX_TYPE, PROTOCOL_UPGRADE_TX_TYPE, U256,
 };
 use zksync_utils::bigdecimal_to_u256;
 
@@ -303,13 +303,16 @@ impl From<StorageTransaction> for Transaction {
                 common_data: ExecuteTransactionCommon::L1(tx.into()),
                 execute,
                 received_timestamp_ms,
+                raw_bytes: None,
             },
             Some(t) if t == PROTOCOL_UPGRADE_TX_TYPE as i32 => Transaction {
                 common_data: ExecuteTransactionCommon::ProtocolUpgrade(tx.into()),
                 execute,
                 received_timestamp_ms,
+                raw_bytes: None,
             },
             _ => Transaction {
+                raw_bytes: tx.input.clone().map(Bytes::from),
                 common_data: ExecuteTransactionCommon::L2(tx.into()),
                 execute,
                 received_timestamp_ms,
@@ -465,7 +468,7 @@ impl From<StorageTransactionDetails> for TransactionDetails {
             is_l1_originated: tx_details.is_priority,
             status,
             fee,
-            gas_per_pubdata: Some(gas_per_pubdata),
+            gas_per_pubdata,
             initiator_address,
             received_at,
             eth_commit_tx_hash,

@@ -51,7 +51,7 @@ pub fn start_server_thread_detached(
     replica_connection_pool: ConnectionPool,
     api_config: ContractVerificationApiConfig,
     mut stop_receiver: watch::Receiver<bool>,
-) -> JoinHandle<()> {
+) -> JoinHandle<anyhow::Result<()>> {
     let (handler, panic_sender) = spawn_panic_handler();
 
     std::thread::Builder::new()
@@ -69,7 +69,7 @@ pub fn start_server_thread_detached(
                 actix_rt::spawn(async move {
                     if stop_receiver.changed().await.is_ok() {
                         close_handle.stop(true).await;
-                        vlog::info!(
+                        tracing::info!(
                             "Stop signal received, contract verification API is shutting down"
                         );
                     }

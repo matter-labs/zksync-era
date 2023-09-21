@@ -6,7 +6,7 @@ use std::collections::{hash_map::Entry, HashMap};
 
 use crate::{
     hasher::HashTree,
-    metrics::HashingMetrics,
+    metrics::HashingStats,
     storage::{proofs::SUBTREE_COUNT, SortedKeys},
     types::{
         ChildRef, InternalNode, Manifest, Nibbles, NibblesBytes, Node, NodeKey, Root, ValueHash,
@@ -21,6 +21,9 @@ use crate::{
 pub struct PatchSet {
     pub(super) manifest: Manifest,
     pub(super) roots: HashMap<u64, Root>,
+    // TODO (BFT-130): investigate most efficient ways to store key-value pairs:
+    //   - `HashMap`s indexed by version
+    //   - Full upper levels (i.e., `Vec<Option<Node>>`)
     pub(super) nodes_by_version: HashMap<u64, HashMap<NodeKey, Node>>,
     pub(super) stale_keys_by_version: HashMap<u64, Vec<NodeKey>>,
 }
@@ -341,10 +344,10 @@ impl WorkingPatchSet {
         manifest: Manifest,
         leaf_count: u64,
         hasher: &dyn HashTree,
-    ) -> (ValueHash, PatchSet, HashingMetrics) {
+    ) -> (ValueHash, PatchSet, HashingStats) {
         self.remove_unchanged_nodes();
         let stale_keys = self.stale_keys();
-        let metrics = HashingMetrics::default();
+        let metrics = HashingStats::default();
 
         let mut changes_by_nibble_count = self.changes_by_nibble_count;
         if changes_by_nibble_count.is_empty() {

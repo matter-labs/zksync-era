@@ -13,6 +13,7 @@ pub fn into_jsrpc_error(err: Web3Error) -> Error {
             | Web3Error::FilterNotFound
             | Web3Error::InvalidFeeParams(_)
             | Web3Error::LogsLimitExceeded(_, _, _)
+            | Web3Error::TooManyLogs(_)
             | Web3Error::InvalidFilterBlockHash => ErrorCode::InvalidParams,
             Web3Error::SubmitTransactionError(_, _) | Web3Error::SerializationError(_) => 3.into(),
             Web3Error::PubSubTimeout => 4.into(),
@@ -32,7 +33,7 @@ pub fn into_jsrpc_error(err: Web3Error) -> Error {
 }
 
 pub fn internal_error(method_name: &str, error: impl ToString) -> Web3Error {
-    vlog::error!(
+    tracing::error!(
         "Internal error in method {}: {}",
         method_name,
         error.to_string(),

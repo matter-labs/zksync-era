@@ -6,12 +6,13 @@ use std::{fs::create_dir_all, io::Cursor, path::Path, time::Duration, time::Inst
 
 use futures::{channel::mpsc, executor::block_on, SinkExt};
 
+pub mod gcs_proof_fetcher;
 pub mod periodic_job;
 pub mod region_fetcher;
 pub mod vk_commitment_helper;
 
 fn download_bytes(key_download_url: &str) -> reqwest::Result<Vec<u8>> {
-    vlog::info!("Downloading initial setup from {:?}", key_download_url);
+    tracing::info!("Downloading initial setup from {:?}", key_download_url);
 
     const DOWNLOAD_TIMEOUT: Duration = Duration::from_secs(120);
     let client = reqwest::blocking::Client::builder()
@@ -32,7 +33,7 @@ fn download_bytes(key_download_url: &str) -> reqwest::Result<Vec<u8>> {
             Err(_) => retry_count += 1,
         }
 
-        vlog::warn!("Failed to download keys. Backing off for 5 second");
+        tracing::warn!("Failed to download keys. Backing off for 5 second");
         std::thread::sleep(Duration::from_secs(5));
     }
 
@@ -44,7 +45,7 @@ fn download_bytes(key_download_url: &str) -> reqwest::Result<Vec<u8>> {
 
 pub fn ensure_initial_setup_keys_present(initial_setup_key_path: &str, key_download_url: &str) {
     if Path::new(initial_setup_key_path).exists() {
-        vlog::info!(
+        tracing::info!(
             "Initial setup already present at {:?}",
             initial_setup_key_path
         );

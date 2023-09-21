@@ -1,3 +1,4 @@
+use anyhow::Context as _;
 use std::sync::Arc;
 use tokio::sync::watch;
 
@@ -89,7 +90,7 @@ where
             match self.get_tx_status(history_item.tx_hash).await {
                 Ok(Some(s)) => return Some(s),
                 Ok(_) => continue,
-                Err(err) => vlog::warn!(
+                Err(err) => tracing::warn!(
                     "Can't check transaction {:?}: {:?}",
                     history_item.tx_hash,
                     err
@@ -112,7 +113,7 @@ where
             let priority_fee_per_gas = self
                 .increase_priority_fee(storage, tx.id, base_fee_per_gas)
                 .await?;
-            vlog::info!(
+            tracing::info!(
                 "Resending operation {} with base fee {:?} and priority fee {:?}",
                 tx.id,
                 base_fee_per_gas,
@@ -157,7 +158,7 @@ where
         if base_fee_per_gas <= next_block_minimal_base_fee.min(previous_base_fee) {
             // If the base fee is lower than the previous used one
             // or is lower than the minimal possible value for the next block, sending is skipped.
-            vlog::info!(
+            tracing::info!(
                 "Skipping gas adjustment for operation {}, \
                  base_fee_per_gas: suggested for resending {:?}, previously sent {:?}, next block minimum {:?}",
                 eth_tx_id,
@@ -214,7 +215,7 @@ where
                 .send_raw_transaction(storage, tx_history_id, signed_tx.raw_tx, current_block)
                 .await
             {
-                vlog::warn!(
+                tracing::warn!(
                     "Error when sending new signed tx for tx {}, base_fee_per_gas {}, priority_fee_per_gas: {}: {}",
                     tx.id,
                     base_fee_per_gas,
@@ -319,7 +320,7 @@ where
             inflight_txs.len() as f64,
         );
 
-        vlog::trace!(
+        tracing::trace!(
             "Going through not confirmed txs. \
              Block numbers: latest {}, finalized {}, \
              operator's nonce: latest {}, finalized {}",
@@ -331,7 +332,7 @@ where
 
         // Not confirmed transactions, ordered by nonce
         for tx in inflight_txs {
-            vlog::trace!("Checking tx id: {}", tx.id,);
+            tracing::trace!("Checking tx id: {}", tx.id,);
 
             // If the `operator_nonce.latest` <= `tx.nonce`, this means
             // that `tx` is not mined and we should resend it.
@@ -354,7 +355,7 @@ where
                 continue;
             }
 
-            vlog::trace!(
+            tracing::trace!(
                 "Sender's nonce on finalized block is greater than current tx's nonce. \
                  Checking transaction with id {}. Tx nonce is equal to {}",
                 tx.id,
@@ -371,7 +372,7 @@ where
                     // This is an error because such a big reorg may cause transactions that were
                     // previously recorded as confirmed to become pending again and we have to
                     // make sure it's not the case - otherwise eth_sender may not work properly.
-                    vlog::error!(
+                    tracing::error!(
                         "Possible block reorgs: finalized nonce increase detected, but no tx receipt found for tx {:?}",
                         &tx
                     );
@@ -392,6 +393,7 @@ where
                 tx.raw_tx.clone(),
                 tx.contract_address,
                 Options::with(|opt| {
+                    // TODO Calculate gas for every operation SMA-1436
                     opt.gas = Some(self.config.max_aggregated_tx_gas.into());
                     opt.max_fee_per_gas = Some(U256::from(base_fee_per_gas + priority_fee_per_gas));
                     opt.max_priority_fee_per_gas = Some(U256::from(priority_fee_per_gas));
@@ -415,7 +417,7 @@ where
             let tx_status = self.get_tx_status(tx.tx_hash).await;
 
             if let Ok(Some(tx_status)) = tx_status {
-                vlog::info!("The tx {:?} has been already sent", tx.tx_hash);
+                tracing::info!("The tx {:?} has been already sent", tx.tx_hash);
                 storage
                     .eth_sender_dal()
                     .set_sent_at_block(tx.id, tx_status.receipt.block_number.unwrap().as_u32())
@@ -438,7 +440,7 @@ where
                 )
                 .await
             {
-                vlog::warn!("Error {:?} in sending tx {:?}", error, &tx);
+                tracing::warn!("Error {:?} in sending tx {:?}", error, &tx);
             }
         }
     }
@@ -458,7 +460,7 @@ where
                 self.fail_tx(storage, tx, tx_status).await;
             }
         } else {
-            vlog::debug!(
+            tracing::debug!(
                 "Transaction {} with id {} is not yet finalized: block in receipt {receipt_block_number}, finalized block {finalized_block}",
                 tx_status.tx_hash,
                 tx.id,
@@ -484,7 +486,7 @@ where
                 "Tx is already failed, it's safe to fail here and apply the status on the next run",
             );
 
-        vlog::error!(
+        tracing::error!(
             "Eth tx failed {:?}, {:?}, failure reason {:?}",
             tx,
             tx_status.receipt,
@@ -513,7 +515,7 @@ where
         track_eth_tx_metrics(storage, "mined", tx).await;
 
         if gas_used > U256::from(tx.predicted_gas_cost) {
-            vlog::error!(
+            tracing::error!(
                 "Predicted gas {} lower than used gas {} for tx {:?} {}",
                 tx.predicted_gas_cost,
                 gas_used,
@@ -521,7 +523,7 @@ where
                 tx.id
             );
         }
-        vlog::info!(
+        tracing::info!(
             "eth_tx {} with hash {:?} for {} is confirmed. Gas spent: {:?}",
             tx.id,
             tx_hash,
@@ -551,9 +553,16 @@ where
         );
     }
 
-    pub async fn run(mut self, pool: ConnectionPool, stop_receiver: watch::Receiver<bool>) {
+    pub async fn run(
+        mut self,
+        pool: ConnectionPool,
+        stop_receiver: watch::Receiver<bool>,
+    ) -> anyhow::Result<()> {
         {
-            let l1_block_numbers = self.get_l1_block_numbers().await.unwrap();
+            let l1_block_numbers = self
+                .get_l1_block_numbers()
+                .await
+                .context("get_l1_block_numbers()")?;
             let mut storage = pool.access_storage_tagged("eth_sender").await;
             self.send_unsent_txs(&mut storage, l1_block_numbers).await;
         }
@@ -565,7 +574,7 @@ where
             let mut storage = pool.access_storage_tagged("eth_sender").await;
 
             if *stop_receiver.borrow() {
-                vlog::info!("Stop signal received, eth_tx_manager is shutting down");
+                tracing::info!("Stop signal received, eth_tx_manager is shutting down");
                 break;
             }
 
@@ -574,12 +583,13 @@ where
                 Err(e) => {
                     // Web3 API request failures can cause this,
                     // and anything more important is already properly reported.
-                    vlog::warn!("eth_sender error {:?}", e);
+                    tracing::warn!("eth_sender error {:?}", e);
                 }
             }
 
             tokio::time::sleep(self.config.tx_poll_period()).await;
         }
+        Ok(())
     }
 
     async fn send_new_eth_txs(

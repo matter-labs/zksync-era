@@ -1,4 +1,5 @@
 use sqlx::types::chrono::Utc;
+use sqlx::Row;
 
 use std::{collections::HashMap, time::Instant};
 
@@ -73,13 +74,15 @@ impl StorageLogsDal<'_, '_> {
         logs: &[(H256, Vec<StorageLog>)],
     ) {
         let operation_number = sqlx::query!(
-            "SELECT COUNT(*) as \"count!\" FROM storage_logs WHERE miniblock_number = $1",
+            "SELECT MAX(operation_number) as \"max?\" FROM storage_logs WHERE miniblock_number = $1",
             block_number.0 as i64
         )
         .fetch_one(self.storage.conn())
         .await
         .unwrap()
-        .count as u32;
+        .max
+        .map(|max| max as u32 + 1)
+        .unwrap_or(0);
 
         self.insert_storage_logs_inner(block_number, logs, operation_number)
             .await;
@@ -91,7 +94,7 @@ impl StorageLogsDal<'_, '_> {
         let modified_keys = self
             .modified_keys_since_miniblock(last_miniblock_to_keep)
             .await;
-        vlog::info!(
+        tracing::info!(
             "Loaded {} keys changed after miniblock #{last_miniblock_to_keep} in {:?}",
             modified_keys.len(),
             stage_start.elapsed()
@@ -101,7 +104,7 @@ impl StorageLogsDal<'_, '_> {
         let prev_values = self
             .get_storage_values(&modified_keys, last_miniblock_to_keep)
             .await;
-        vlog::info!(
+        tracing::info!(
             "Loaded previous storage values for modified keys in {:?}",
             stage_start.elapsed()
         );
@@ -118,7 +121,7 @@ impl StorageLogsDal<'_, '_> {
                 keys_to_delete.push(key.as_bytes());
             }
         }
-        vlog::info!(
+        tracing::info!(
             "Created revert plan (keys to update: {}, to delete: {}) in {:?}",
             keys_to_update.len(),
             keys_to_delete.len(),
@@ -133,7 +136,7 @@ impl StorageLogsDal<'_, '_> {
         .execute(self.storage.conn())
         .await
         .unwrap();
-        vlog::info!(
+        tracing::info!(
             "Removed {} keys in {:?}",
             keys_to_delete.len(),
             stage_start.elapsed()
@@ -150,7 +153,7 @@ impl StorageLogsDal<'_, '_> {
         .execute(self.storage.conn())
         .await
         .unwrap();
-        vlog::info!(
+        tracing::info!(
             "Updated {} keys to previous values in {:?}",
             keys_to_update.len(),
             stage_start.elapsed()
@@ -254,7 +257,7 @@ impl StorageLogsDal<'_, '_> {
         let stage_start = Instant::now();
         let mut modified_keys = self.modified_keys_since_miniblock(last_miniblock).await;
         let modified_keys_count = modified_keys.len();
-        vlog::info!(
+        tracing::info!(
             "Fetched {modified_keys_count} keys changed after miniblock #{last_miniblock} in {:?}",
             stage_start.elapsed()
         );
@@ -265,7 +268,7 @@ impl StorageLogsDal<'_, '_> {
         // the incorrect state after revert.
         let stage_start = Instant::now();
         let l1_batch_by_key = self.get_l1_batches_for_initial_writes(&modified_keys).await;
-        vlog::info!(
+        tracing::info!(
             "Loaded initial write info for modified keys in {:?}",
             stage_start.elapsed()
         );
@@ -286,13 +289,13 @@ impl StorageLogsDal<'_, '_> {
                 Some(_) => true,
             }
         });
-        vlog::info!(
+        tracing::info!(
             "Filtered modified keys per initial writes in {:?}",
             stage_start.elapsed()
         );
 
         let deduped_count = modified_keys_count - l1_batch_by_key.len();
-        vlog::info!(
+        tracing::info!(
             "Keys to update: {update_count}, to delete: {delete_count}; {deduped_count} modified keys \
              are deduped and will be ignored",
             update_count = modified_keys.len(),
@@ -303,7 +306,7 @@ impl StorageLogsDal<'_, '_> {
         let prev_values_for_updated_keys = self
             .get_storage_values(&modified_keys, last_miniblock)
             .await;
-        vlog::info!(
+        tracing::info!(
             "Loaded previous values for {} keys in {:?}",
             prev_values_for_updated_keys.len(),
             stage_start.elapsed()
@@ -371,7 +374,7 @@ impl StorageLogsDal<'_, '_> {
     }
 
     /// Returns current values for the specified keys at the specified `miniblock_number`.
-    async fn get_storage_values(
+    pub async fn get_storage_values(
         &mut self,
         hashed_keys: &[H256],
         miniblock_number: MiniblockNumber,
@@ -426,6 +429,90 @@ impl StorageLogsDal<'_, '_> {
         })
         .collect()
     }
+
+    pub async fn get_miniblock_storage_logs(
+        &mut self,
+        miniblock_number: MiniblockNumber,
+    ) -> Vec<(H256, H256, u32)> {
+        self.get_miniblock_storage_logs_from_table(miniblock_number, "storage_logs")
+            .await
+    }
+
+    pub async fn retain_storage_logs(
+        &mut self,
+        miniblock_number: MiniblockNumber,
+        operation_numbers: &[i32],
+    ) {
+        sqlx::query!(
+            "DELETE FROM storage_logs \
+            WHERE miniblock_number = $1 AND operation_number != ALL($2)",
+            miniblock_number.0 as i64,
+            &operation_numbers
+        )
+        .execute(self.storage.conn())
+        .await
+        .unwrap();
+    }
+
+    /// Loads (hashed_key, value, operation_number) tuples for given miniblock_number.
+    /// Uses provided DB table.
+    /// Shouldn't be used in production.
+    pub async fn get_miniblock_storage_logs_from_table(
+        &mut self,
+        miniblock_number: MiniblockNumber,
+        table_name: &str,
+    ) -> Vec<(H256, H256, u32)> {
+        sqlx::query(&format!(
+            "SELECT hashed_key, value, operation_number FROM {table_name} \
+            WHERE miniblock_number = $1 \
+            ORDER BY operation_number"
+        ))
+        .bind(miniblock_number.0 as i64)
+        .fetch_all(self.storage.conn())
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|row| {
+            let hashed_key = H256::from_slice(row.get("hashed_key"));
+            let value = H256::from_slice(row.get("value"));
+            let operation_number: u32 = row.get::<i32, &str>("operation_number") as u32;
+            (hashed_key, value, operation_number)
+        })
+        .collect()
+    }
+
+    /// Loads value for given hashed_key at given miniblock_number.
+    /// Uses provided DB table.
+    /// Shouldn't be used in production.
+    pub async fn get_storage_value_from_table(
+        &mut self,
+        hashed_key: H256,
+        miniblock_number: MiniblockNumber,
+        table_name: &str,
+    ) -> H256 {
+        let query_str = format!(
+            "SELECT value FROM {table_name} \
+                WHERE hashed_key = $1 AND miniblock_number <= $2 \
+                ORDER BY miniblock_number DESC, operation_number DESC LIMIT 1",
+        );
+        sqlx::query(&query_str)
+            .bind(hashed_key.as_bytes())
+            .bind(miniblock_number.0 as i64)
+            .fetch_optional(self.storage.conn())
+            .await
+            .unwrap()
+            .map(|row| H256::from_slice(row.get("value")))
+            .unwrap_or_else(H256::zero)
+    }
+
+    /// Vacuums `storage_logs` table.
+    /// Shouldn't be used in production.
+    pub async fn vacuum_storage_logs(&mut self) {
+        sqlx::query!("VACUUM storage_logs")
+            .execute(self.storage.conn())
+            .await
+            .unwrap();
+    }
 }
 
 #[cfg(test)]
@@ -474,7 +561,7 @@ mod tests {
             .await;
         conn.blocks_dal().delete_l1_batches(L1BatchNumber(0)).await;
         conn.protocol_versions_dal()
-            .save_protocol_version(ProtocolVersion::default())
+            .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;
 
         let account = AccountTreeId::new(Address::repeat_byte(1));
@@ -562,7 +649,7 @@ mod tests {
             .await;
         conn.blocks_dal().delete_l1_batches(L1BatchNumber(0)).await;
         conn.protocol_versions_dal()
-            .save_protocol_version(ProtocolVersion::default())
+            .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;
 
         let account = AccountTreeId::new(Address::repeat_byte(1));
@@ -613,7 +700,7 @@ mod tests {
             .await;
         conn.blocks_dal().delete_l1_batches(L1BatchNumber(0)).await;
         conn.protocol_versions_dal()
-            .save_protocol_version(ProtocolVersion::default())
+            .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;
 
         let account = AccountTreeId::new(Address::repeat_byte(1));

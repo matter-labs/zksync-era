@@ -71,7 +71,7 @@ impl SchedulerWitnessGenerator {
     ) -> SchedulerArtifacts {
         let SchedulerWitnessGeneratorJob { block_number, job } = scheduler_job;
 
-        vlog::info!(
+        tracing::info!(
             "Starting witness generation of type {:?} for block {}",
             AggregationRound::Scheduler,
             block_number.0
@@ -196,7 +196,7 @@ pub fn process_scheduler_job(
             verification_keys,
         ));
 
-    vlog::info!(
+    tracing::info!(
         "Verification keys loaded in {:?}",
         stage_started_at.elapsed()
     );
@@ -215,7 +215,7 @@ pub fn process_scheduler_job(
             node_aggregation_vk.clone(),
         ));
 
-    vlog::info!("Commitments generated in {:?}", stage_started_at.elapsed());
+    tracing::info!("Commitments generated in {:?}", stage_started_at.elapsed());
     let stage_started_at = Instant::now();
 
     let (scheduler_circuit, final_aggregation_result) =
@@ -233,12 +233,12 @@ pub fn process_scheduler_job(
             g2_points,
         );
 
-    vlog::info!(
+    tracing::info!(
         "prepare_scheduler_circuit took {:?}",
         stage_started_at.elapsed()
     );
 
-    vlog::info!(
+    tracing::info!(
         "Scheduler generation for block {} is complete in {:?}",
         block_number.0,
         started_at.elapsed()

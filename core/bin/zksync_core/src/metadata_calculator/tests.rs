@@ -13,14 +13,14 @@ use zksync_health_check::{CheckHealth, HealthStatus};
 use zksync_merkle_tree::domain::ZkSyncTree;
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_types::{
-    block::{BlockGasCount, L1BatchHeader, MiniblockHeader},
+    block::{miniblock_hash, BlockGasCount, L1BatchHeader, MiniblockHeader},
     proofs::PrepareBasicCircuitsJob,
     protocol_version::L1VerifierConfig,
     system_contracts::get_system_smart_contracts,
-    AccountTreeId, Address, L1BatchNumber, L2ChainId, MiniblockNumber, StorageKey, StorageLog,
-    H256,
+    AccountTreeId, Address, L1BatchNumber, L2ChainId, MiniblockNumber, ProtocolVersionId,
+    StorageKey, StorageLog, H256,
 };
-use zksync_utils::{miniblock_hash, u32_to_h256};
+use zksync_utils::u32_to_h256;
 
 use super::{
     L1BatchWithLogs, MetadataCalculator, MetadataCalculatorConfig, MetadataCalculatorModeConfig,
@@ -53,6 +53,7 @@ async fn genesis_creation(pool: ConnectionPool, prover_pool: ConnectionPool) {
     );
 }
 
+// TODO (SMA-1726): Restore tests for tree backup mode
 
 #[db_test]
 async fn basic_workflow(pool: ConnectionPool, prover_pool: ConnectionPool) {
@@ -127,6 +128,7 @@ async fn status_receiver_has_correct_states(pool: ConnectionPool, prover_pool: C
     tokio::time::timeout(RUN_TIMEOUT, calculator_handle)
         .await
         .expect("timed out waiting for calculator")
+        .unwrap()
         .unwrap();
     assert_eq!(
         tree_health_check.check_health().await.status(),
@@ -215,6 +217,7 @@ async fn running_metadata_calculator_with_additional_blocks(
     tokio::time::timeout(RUN_TIMEOUT, calculator_handle)
         .await
         .expect("timed out waiting for calculator")
+        .unwrap()
         .unwrap();
 
     // Switch to the full tree. It should pick up from the same spot and result in the same tree root hash.
@@ -245,6 +248,7 @@ async fn shutting_down_calculator(pool: ConnectionPool, prover_pool: ConnectionP
     stop_sx.send_replace(true);
     run_with_timeout(RUN_TIMEOUT, calculator_task)
         .await
+        .unwrap()
         .unwrap();
 }
 
@@ -320,6 +324,7 @@ async fn test_postgres_backup_recovery(
     tokio::time::timeout(RUN_TIMEOUT, calculator_handle)
         .await
         .expect("timed out waiting for calculator")
+        .unwrap()
         .unwrap();
 }
 
@@ -386,6 +391,7 @@ async fn setup_calculator_with_options(
     let mut storage = pool.access_storage().await;
     if storage.blocks_dal().is_genesis_needed().await {
         let chain_id = L2ChainId(270);
+        let protocol_version = ProtocolVersionId::latest();
         let base_system_contracts = BaseSystemContracts::load_from_disk();
         let system_contracts = get_system_smart_contracts();
         let first_validator = Address::repeat_byte(0x01);
@@ -396,13 +402,15 @@ async fn setup_calculator_with_options(
             chain_id,
             &GenesisParams {
                 first_validator,
+                protocol_version,
                 base_system_contracts,
                 system_contracts,
                 first_l1_verifier_config,
                 first_verifier_address,
             },
         )
-        .await;
+        .await
+        .unwrap();
     }
     metadata_calculator
 }
@@ -430,7 +438,9 @@ async fn run_calculator(
         root_hash
     });
 
-    run_with_timeout(RUN_TIMEOUT, calculator.run(pool, prover_pool, stop_rx)).await;
+    run_with_timeout(RUN_TIMEOUT, calculator.run(pool, prover_pool, stop_rx))
+        .await
+        .unwrap();
     delayer_handle.await.unwrap()
 }
 
@@ -477,7 +487,12 @@ pub(super) async fn extend_db_state(
         let miniblock_header = MiniblockHeader {
             number: miniblock_number,
             timestamp: header.timestamp,
-            hash: miniblock_hash(miniblock_number),
+            hash: miniblock_hash(
+                miniblock_number,
+                header.timestamp,
+                H256::zero(),
+                H256::zero(),
+            ),
             l1_tx_count: header.l1_tx_count,
             l2_tx_count: header.l2_tx_count,
             base_fee_per_gas: header.base_fee_per_gas,
@@ -485,6 +500,7 @@ pub(super) async fn extend_db_state(
             l2_fair_gas_price: 0,
             base_system_contracts_hashes: base_system_contracts.hashes(),
             protocol_version: Some(Default::default()),
+            virtual_blocks: 0,
         };
 
         storage
@@ -603,6 +619,7 @@ async fn deduplication_works_as_expected(pool: ConnectionPool) {
     let mut storage = pool.access_storage().await;
 
     let first_validator = Address::repeat_byte(0x01);
+    let protocol_version = ProtocolVersionId::latest();
     let base_system_contracts = BaseSystemContracts::load_from_disk();
     let system_contracts = get_system_smart_contracts();
     let first_l1_verifier_config = L1VerifierConfig::default();
@@ -611,6 +628,7 @@ async fn deduplication_works_as_expected(pool: ConnectionPool) {
         &mut storage,
         L2ChainId(270),
         &GenesisParams {
+            protocol_version,
             first_validator,
             base_system_contracts,
             system_contracts,
@@ -618,7 +636,8 @@ async fn deduplication_works_as_expected(pool: ConnectionPool) {
             first_verifier_address,
         },
     )
-    .await;
+    .await
+    .unwrap();
 
     let logs = gen_storage_logs(100..120, 1).pop().unwrap();
     let hashed_keys: Vec<_> = logs.iter().map(|log| log.key.hashed_key()).collect();

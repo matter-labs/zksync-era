@@ -26,13 +26,13 @@ async fn run_server(
     for check in &health_checks {
         let health_check_name = check.name();
         if !health_check_names.insert(health_check_name) {
-            vlog::warn!(
+            tracing::warn!(
                 "Health check with name `{health_check_name}` is defined multiple times; only the last mention \
                  will be present in `/health` endpoint output"
             );
         }
     }
-    vlog::debug!(
+    tracing::debug!(
         "Starting healthcheck server with checks {health_check_names:?} on {bind_address}"
     );
 
@@ -45,13 +45,13 @@ async fn run_server(
         .serve(app.into_make_service())
         .with_graceful_shutdown(async move {
             if stop_receiver.changed().await.is_err() {
-                vlog::warn!("Stop signal sender for healthcheck server was dropped without sending a signal");
+                tracing::warn!("Stop signal sender for healthcheck server was dropped without sending a signal");
             }
-            vlog::info!("Stop signal received, healthcheck server is shutting down");
+            tracing::info!("Stop signal received, healthcheck server is shutting down");
         })
         .await
         .expect("Healthcheck server failed");
-    vlog::info!("Healthcheck server shut down");
+    tracing::info!("Healthcheck server shut down");
 }
 
 #[derive(Debug)]
@@ -84,7 +84,7 @@ impl HealthCheckHandle {
             // Propagate potential panics from the server task.
             server_result.unwrap();
         } else {
-            vlog::debug!("Timed out {GRACEFUL_SHUTDOWN_WAIT:?} waiting for healthcheck server to gracefully shut down");
+            tracing::debug!("Timed out {GRACEFUL_SHUTDOWN_WAIT:?} waiting for healthcheck server to gracefully shut down");
         }
     }
 }

@@ -256,6 +256,7 @@ impl NodeKey {
         }
     }
 
+    // TODO (BFT-239): Add a fallible version for verifying consistency
     pub(crate) fn from_db_key(bytes: &[u8]) -> Self {
         assert!(bytes.len() >= 9, "`NodeKey` is too short");
 

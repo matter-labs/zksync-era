@@ -78,7 +78,7 @@ impl GcsBlobCleaner {
         blob_urls: Vec<(i64, S)>,
     ) -> Vec<i64> {
         if !blob_urls.is_empty() {
-            vlog::info!("Found {} {bucket} for cleaning blobs", blob_urls.len());
+            tracing::info!("Found {} {bucket} for cleaning blobs", blob_urls.len());
         }
 
         for (_, url) in &blob_urls {

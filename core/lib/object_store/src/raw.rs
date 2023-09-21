@@ -167,6 +167,12 @@ impl ObjectStoreFactory {
         Self::new(config)
     }
 
+    /// Creates an object store factory with the prover configuration taken from the environment.
+    pub fn prover_from_env() -> Self {
+        let config = ObjectStoreConfig::prover_from_env();
+        Self::new(config)
+    }
+
     /// Creates an object store factory with a mock in-memory store.
     /// All calls to [`Self::create_store()`] will return the same store; thus, the testing code
     /// can use [`ObjectStore`] methods for assertions.
@@ -191,7 +197,9 @@ impl ObjectStoreFactory {
         };
         match config.mode {
             ObjectStoreMode::GCS => {
-                vlog::trace!("Initialized GoogleCloudStorage Object store without credential file");
+                tracing::trace!(
+                    "Initialized GoogleCloudStorage Object store without credential file"
+                );
                 let store = GoogleCloudStorage::new(
                     gcs_credential_file_path,
                     config.bucket_base_url.clone(),
@@ -201,7 +209,7 @@ impl ObjectStoreFactory {
                 Box::new(store)
             }
             ObjectStoreMode::GCSWithCredentialFile => {
-                vlog::trace!("Initialized GoogleCloudStorage Object store with credential file");
+                tracing::trace!("Initialized GoogleCloudStorage Object store with credential file");
                 let store = GoogleCloudStorage::new(
                     gcs_credential_file_path,
                     config.bucket_base_url.clone(),
@@ -211,7 +219,7 @@ impl ObjectStoreFactory {
                 Box::new(store)
             }
             ObjectStoreMode::FileBacked => {
-                vlog::trace!("Initialized FileBacked Object store");
+                tracing::trace!("Initialized FileBacked Object store");
                 let store = FileBackedObjectStore::new(config.file_backed_base_path.clone()).await;
                 Box::new(store)
             }

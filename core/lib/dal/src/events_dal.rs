@@ -217,7 +217,7 @@ mod tests {
             .delete_miniblocks(MiniblockNumber(0))
             .await;
         conn.protocol_versions_dal()
-            .save_protocol_version(ProtocolVersion::default())
+            .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;
         conn.blocks_dal()
             .insert_miniblock(&create_miniblock_header(1))
@@ -292,7 +292,7 @@ mod tests {
             .delete_miniblocks(MiniblockNumber(0))
             .await;
         conn.protocol_versions_dal()
-            .save_protocol_version(ProtocolVersion::default())
+            .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;
         conn.blocks_dal()
             .insert_miniblock(&create_miniblock_header(1))

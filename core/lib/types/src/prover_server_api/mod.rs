@@ -1,14 +1,17 @@
-use crate::proofs::PrepareBasicCircuitsJob;
 use serde::{Deserialize, Serialize};
-use serde_with::base64::Base64;
-use serde_with::serde_as;
 
 use zksync_basic_types::L1BatchNumber;
+
+use crate::aggregated_operations::L1BatchProofForL1;
+use crate::proofs::PrepareBasicCircuitsJob;
+use crate::protocol_version::{FriProtocolVersionId, L1VerifierConfig};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ProofGenerationData {
     pub l1_batch_number: L1BatchNumber,
     pub data: PrepareBasicCircuitsJob,
+    pub fri_protocol_version_id: FriProtocolVersionId,
+    pub l1_verifier_config: L1VerifierConfig,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -21,17 +24,10 @@ pub enum ProofGenerationDataResponse {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct SubmitProofRequest {
-    // we have to use the RawProof until the SNARK Proof wrapper is implemented
-    // https://linear.app/matterlabs/issue/CRY-1/implement-snark-wrapper-for-boojum
-    pub proof: RawProof,
-}
-
-#[serde_as]
-#[derive(Debug, Serialize, Deserialize)]
-pub struct RawProof {
-    #[serde_as(as = "Base64")]
-    pub proof: Vec<u8>,
+pub enum SubmitProofRequest {
+    Proof(Box<L1BatchProofForL1>),
+    // The proof generation was skipped due to sampling
+    SkippedProofGeneration,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

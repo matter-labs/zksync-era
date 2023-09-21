@@ -4,7 +4,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use std::time::Instant;
 use tokio::sync::watch;
-use vm::vm_with_bootloader::derive_base_fee_and_gas_per_pubdata;
+use vm::utils::fee::derive_base_fee_and_gas_per_pubdata;
 use zksync_config::configs::chain::MempoolConfig;
 
 use zksync_dal::ConnectionPool;
@@ -57,7 +57,7 @@ impl<G: L1GasPriceProvider> MempoolFetcher<G> {
         stuck_tx_timeout: Duration,
         fair_l2_gas_price: u64,
         stop_receiver: watch::Receiver<bool>,
-    ) {
+    ) -> anyhow::Result<()> {
         {
             let mut storage = pool.access_storage_tagged("state_keeper").await;
             if remove_stuck_txs {
@@ -65,14 +65,14 @@ impl<G: L1GasPriceProvider> MempoolFetcher<G> {
                     .transactions_dal()
                     .remove_stuck_txs(stuck_tx_timeout)
                     .await;
-                vlog::info!("Number of stuck txs was removed: {}", removed_txs);
+                tracing::info!("Number of stuck txs was removed: {}", removed_txs);
             }
             storage.transactions_dal().reset_mempool().await;
         }
 
         loop {
             if *stop_receiver.borrow() {
-                vlog::info!("Stop signal received, mempool is shutting down");
+                tracing::info!("Stop signal received, mempool is shutting down");
                 break;
             }
             let started_at = Instant::now();
@@ -97,5 +97,6 @@ impl<G: L1GasPriceProvider> MempoolFetcher<G> {
                 tokio::time::sleep(self.sync_interval).await;
             }
         }
+        Ok(())
     }
 }

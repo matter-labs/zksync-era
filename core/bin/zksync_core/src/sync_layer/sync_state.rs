@@ -38,9 +38,11 @@ impl SyncState {
         let mut inner = self.inner.write().unwrap();
         if let Some(local_block) = inner.local_block {
             if block.0 < local_block.0 {
-                panic!(
+                // Probably it's fine -- will be checked by the reorg detector.
+                tracing::warn!(
                     "main_node_block({}) is less than local_block({})",
-                    block, local_block
+                    block,
+                    local_block
                 );
             }
         }
@@ -53,7 +55,7 @@ impl SyncState {
         if let Some(main_node_block) = inner.main_node_block {
             if block.0 > main_node_block.0 {
                 // Probably it's fine -- will be checked by the reorg detector.
-                vlog::info!(
+                tracing::warn!(
                     "local_block({}) is greater than main_node_block({})",
                     block,
                     main_node_block
@@ -140,11 +142,14 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "main_node_block(1) is less than local_block(2)")]
-    fn test_sync_state_panic_on_main_node_block() {
+    fn test_sync_state_doesnt_panic_on_main_node_block() {
         let sync_state = SyncState::new();
 
         sync_state.set_local_block(MiniblockNumber(2));
         sync_state.set_main_node_block(MiniblockNumber(1));
+        // ^ should not panic, as we defer the situation to the reorg detector.
+
+        // At the same time, we should consider ourselves synced unless `ReorgDetector` tells us otherwise.
+        assert!(sync_state.is_synced());
     }
 }

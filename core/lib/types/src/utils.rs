@@ -95,12 +95,12 @@ mod tests {
     #[test]
     fn test_storage_key_for_eth_token() {
         let contract = AccountTreeId::new(Address::zero());
-        let addresses = vec![
+        let addresses = [
             "0x1dfe8ea5e8de74634db78d9f8d41a1c832ab91e8",
             "0xde03a0b5963f75f1c8485b355ff6d30f3093bde7",
             "0x2c9fc71c164f7332f368da477256e1b049575979",
         ];
-        let hashes = vec![
+        let hashes = [
             "0xd8f16e1d7fe824994134861c968a8f276930db7daf6ba4dd083567259d3ff857",
             "0x4e08bf0f8822508eed9a1fb7d98cf6067ab156c74e9ebdda0924bef229d71995",
             "0xb6ef92f5b364b6e13f237aef1213b68f53f91ac35dcea0ad60e103b5245fd85c",

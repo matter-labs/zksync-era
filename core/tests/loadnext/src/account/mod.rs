@@ -8,8 +8,9 @@ use tokio::sync::RwLock;
 
 use zksync::{error::ClientError, operations::SyncTransactionHandle, HttpClient};
 use zksync_types::{api::TransactionReceipt, Address, Nonce, H256, U256, U64};
-use zksync_utils::test_utils::LoadnextContractExecutionParams;
 use zksync_web3_decl::jsonrpsee::core::Error as CoreError;
+
+use zksync_contracts::test_contracts::LoadnextContractExecutionParams;
 
 use crate::utils::format_gwei;
 use crate::{
@@ -106,13 +107,13 @@ impl AccountLifespan {
 
         tokio::select! {
             result = tx_execution_task => {
-                vlog::trace!("Transaction execution task finished with {result:?}");
+                tracing::trace!("Transaction execution task finished with {result:?}");
             },
             result = api_requests_task => {
-                vlog::trace!("API requests task finished with {result:?}");
+                tracing::trace!("API requests task finished with {result:?}");
             },
             result = self.run_pubsub_task(limiters) => {
-                vlog::trace!("PubSub task finished with {result:?}");
+                tracing::trace!("PubSub task finished with {result:?}");
             },
             () = tokio::time::sleep(duration) => {}
         }
@@ -168,7 +169,7 @@ impl AccountLifespan {
         // Due to natural sleep for sending tx, usually more than 1 tx can be already
         // processed and have a receipt
         let start = Instant::now();
-        vlog::trace!(
+        tracing::trace!(
             "Account {:?}: check_inflight_txs len {:?}",
             self.wallet.wallet.address(),
             self.inflight_txs.len()
@@ -186,7 +187,7 @@ impl AccountLifespan {
                     let effective_gas_price = transaction_receipt
                         .effective_gas_price
                         .unwrap_or(U256::zero());
-                    vlog::debug!(
+                    tracing::debug!(
                         "Account {:?}: tx included. Total fee: {}, gas used: {gas_used}gas, \
                          gas price: {effective_gas_price} WEI. Latency {:?} at attempt {:?}",
                         self.wallet.wallet.address(),
@@ -198,7 +199,7 @@ impl AccountLifespan {
                         .await?;
                 }
                 other => {
-                    vlog::trace!(
+                    tracing::trace!(
                         "Account {:?}: check_inflight_txs tx not yet included: {other:?}",
                         self.wallet.wallet.address()
                     );
@@ -207,7 +208,7 @@ impl AccountLifespan {
                 }
             }
         }
-        vlog::trace!(
+        tracing::trace!(
             "Account {:?}: check_inflight_txs complete {:?}",
             self.wallet.wallet.address(),
             start.elapsed()
@@ -265,7 +266,7 @@ impl AccountLifespan {
                 Ok(result) => result,
                 Err(err) if Self::should_retry(&err) => {
                     if attempt < MAX_RETRIES {
-                        vlog::warn!("Error while sending tx: {err}. Retrying...");
+                        tracing::warn!("Error while sending tx: {err}. Retrying...");
                         // Retry operation.
                         attempt += 1;
                         continue;
@@ -327,7 +328,7 @@ impl AccountLifespan {
         command: TxCommand,
     ) -> Result<(), Aborted> {
         if let ReportLabel::ActionFailed { error } = &label {
-            vlog::error!(
+            tracing::error!(
                 "Command failed: from {:?}, {command:#?} ({error})",
                 self.wallet.wallet.address()
             )

@@ -55,7 +55,7 @@ impl FriWitnessGeneratorStatsReporter {
 
 fn emit_metrics_for_round(round: AggregationRound, stats: JobCountStatistics) {
     if stats.queued > 0 || stats.in_progress > 0 {
-        vlog::trace!(
+        tracing::trace!(
             "Found {} free and {} in progress {:?} FRI witness generators jobs",
             stats.queued,
             stats.in_progress,
@@ -93,7 +93,7 @@ impl PeriodicJob for FriWitnessGeneratorStatsReporter {
         }
 
         if aggregated.queued > 0 {
-            vlog::trace!(
+            tracing::trace!(
                 "Found {} free {} in progress witness generators jobs",
                 aggregated.queued,
                 aggregated.in_progress

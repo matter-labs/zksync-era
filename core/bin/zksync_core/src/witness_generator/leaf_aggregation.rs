@@ -76,7 +76,7 @@ impl LeafAggregationWitnessGenerator {
     ) -> LeafAggregationArtifacts {
         let LeafAggregationWitnessGeneratorJob { block_number, job } = leaf_job;
 
-        vlog::info!(
+        tracing::info!(
             "Starting witness generation of type {:?} for block {}",
             AggregationRound::LeafAggregation,
             block_number.0
@@ -179,7 +179,7 @@ pub fn process_leaf_aggregation_job(
         VerificationKey<Bn256, ZkSyncCircuit<Bn256, VmWitnessOracle<Bn256>>>,
     > = get_vks_for_basic_circuits();
 
-    vlog::info!(
+    tracing::info!(
         "Verification keys loaded in {:?}",
         stage_started_at.elapsed()
     );
@@ -194,7 +194,7 @@ pub fn process_leaf_aggregation_job(
             verification_keys,
         ));
 
-    vlog::info!("Commitments generated in {:?}", stage_started_at.elapsed());
+    tracing::info!("Commitments generated in {:?}", stage_started_at.elapsed());
 
     let stage_started_at = Instant::now();
 
@@ -210,11 +210,11 @@ pub fn process_leaf_aggregation_job(
             g2_points,
         );
 
-    vlog::info!(
+    tracing::info!(
         "prepare_leaf_aggregations took {:?}",
         stage_started_at.elapsed()
     );
-    vlog::info!(
+    tracing::info!(
         "Leaf witness generation for block {} is complete in {:?}. Number of circuits: {}",
         block_number.0,
         started_at.elapsed(),

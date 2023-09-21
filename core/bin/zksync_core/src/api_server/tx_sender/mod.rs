@@ -9,15 +9,19 @@ use governor::{
 };
 
 // Built-in uses
-use std::{cmp, collections::HashMap, num::NonZeroU32, sync::Arc, time::Instant};
+use std::{cmp, num::NonZeroU32, sync::Arc, time::Instant};
 
 // Workspace uses
+
 use vm::{
-    transaction_data::{derive_overhead, OverheadCoeficients},
-    vm_with_bootloader::derive_base_fee_and_gas_per_pubdata,
-    zk_evm::zkevm_opcode_defs::system_params::MAX_PUBDATA_PER_BLOCK,
-    VmExecutionResult,
+    constants::{BLOCK_GAS_LIMIT, MAX_PUBDATA_PER_BLOCK},
+    utils::{
+        fee::derive_base_fee_and_gas_per_pubdata,
+        overhead::{derive_overhead, OverheadCoeficients},
+    },
+    VmExecutionResultAndLogs,
 };
+
 use zksync_config::configs::{api::Web3JsonRpcConfig, chain::StateKeeperConfig};
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool};
@@ -28,28 +32,68 @@ use zksync_types::{
     l2::error::TxCheckError::TxDuplication,
     l2::L2Tx,
     utils::storage_key_for_eth_balance,
-    AccountTreeId, Address, ExecuteTransactionCommon, Nonce, StorageKey, Transaction, H160, H256,
-    MAX_GAS_PER_PUBDATA_BYTE, MAX_L2_TX_GAS_LIMIT, MAX_NEW_FACTORY_DEPS, U256,
+    AccountTreeId, Address, ExecuteTransactionCommon, L2ChainId, Nonce, PackedEthSignature,
+    ProtocolVersionId, Transaction, H160, H256, MAX_GAS_PER_PUBDATA_BYTE, MAX_L2_TX_GAS_LIMIT,
+    MAX_NEW_FACTORY_DEPS, U256,
 };
+
 use zksync_utils::h256_to_u256;
 
 // Local uses
-use crate::api_server::execution_sandbox::{
-    adjust_l1_gas_price_for_tx, execute_tx_eth_call, execute_tx_with_pending_state,
-    get_pubdata_for_factory_deps, BlockArgs, SandboxExecutionError, TxExecutionArgs, TxSharedArgs,
-    VmConcurrencyLimiter, VmPermit,
+use crate::api_server::{
+    execution_sandbox::{
+        adjust_l1_gas_price_for_tx, execute_tx_eth_call, execute_tx_with_pending_state,
+        get_pubdata_for_factory_deps, BlockArgs, TxExecutionArgs, TxSharedArgs,
+        VmConcurrencyLimiter, VmPermit,
+    },
+    tx_sender::result::ApiCallResult,
 };
+
 use crate::l1_gas_price::L1GasPriceProvider;
 use crate::state_keeper::seal_criteria::{ConditionalSealer, SealData};
 
-mod error;
 mod proxy;
+mod result;
 
-pub(super) use self::{error::SubmitTxError, proxy::TxProxy};
+pub(super) use self::{proxy::TxProxy, result::SubmitTxError};
 
 /// Type alias for the rate limiter implementation.
 type TxSenderRateLimiter =
     RateLimiter<NotKeyed, InMemoryState, MonotonicClock, NoOpMiddleware<Instant>>;
+
+#[derive(Debug, Clone)]
+pub struct MultiVMBaseSystemContracts {
+    /// Contracts to be used for pre-virtual-blocks protocol versions.
+    pub(crate) pre_virtual_blocks: BaseSystemContracts,
+    /// Contracts to be used for post-virtual-blocks protocol versions.
+    pub(crate) post_virtual_blocks: BaseSystemContracts,
+    /// Contracts to be used for protocol versions after virtual block upgrade fix.
+    pub(crate) post_virtual_blocks_finish_upgrade_fix: BaseSystemContracts,
+}
+
+impl MultiVMBaseSystemContracts {
+    pub fn get_by_protocol_version(self, version: ProtocolVersionId) -> BaseSystemContracts {
+        match version {
+            ProtocolVersionId::Version0
+            | ProtocolVersionId::Version1
+            | ProtocolVersionId::Version2
+            | ProtocolVersionId::Version3
+            | ProtocolVersionId::Version4
+            | ProtocolVersionId::Version5
+            | ProtocolVersionId::Version6
+            | ProtocolVersionId::Version7
+            | ProtocolVersionId::Version8
+            | ProtocolVersionId::Version9
+            | ProtocolVersionId::Version10
+            | ProtocolVersionId::Version11
+            | ProtocolVersionId::Version12 => self.pre_virtual_blocks,
+            ProtocolVersionId::Version13 => self.post_virtual_blocks,
+            ProtocolVersionId::Version14
+            | ProtocolVersionId::Version15
+            | ProtocolVersionId::Version16 => self.post_virtual_blocks_finish_upgrade_fix,
+        }
+    }
+}
 
 /// Smart contracts to be used in the API sandbox requests, e.g. for estimating gas and
 /// performing `eth_call` requests.
@@ -58,11 +102,11 @@ pub struct ApiContracts {
     /// Contracts to be used when estimating gas.
     /// These contracts (mainly, bootloader) normally should be tuned to provide accurate
     /// execution metrics.
-    estimate_gas: BaseSystemContracts,
+    pub(crate) estimate_gas: MultiVMBaseSystemContracts,
     /// Contracts to be used when performing `eth_call` requests.
     /// These contracts (mainly, bootloader) normally should be tuned to provide better UX
     /// exeprience (e.g. revert messages).
-    eth_call: BaseSystemContracts,
+    pub(crate) eth_call: MultiVMBaseSystemContracts,
 }
 
 impl ApiContracts {
@@ -71,8 +115,18 @@ impl ApiContracts {
     /// given that there is no way to fetch "playground" contracts from the main node.
     pub fn load_from_disk() -> Self {
         Self {
-            estimate_gas: BaseSystemContracts::estimate_gas(),
-            eth_call: BaseSystemContracts::playground(),
+            estimate_gas: MultiVMBaseSystemContracts {
+                pre_virtual_blocks: BaseSystemContracts::estimate_gas_pre_virtual_blocks(),
+                post_virtual_blocks: BaseSystemContracts::estimate_gas_post_virtual_blocks(),
+                post_virtual_blocks_finish_upgrade_fix:
+                    BaseSystemContracts::estimate_gas_post_virtual_blocks_finish_upgrade_fix(),
+            },
+            eth_call: MultiVMBaseSystemContracts {
+                pre_virtual_blocks: BaseSystemContracts::playground_pre_virtual_blocks(),
+                post_virtual_blocks: BaseSystemContracts::playground_post_virtual_blocks(),
+                post_virtual_blocks_finish_upgrade_fix:
+                    BaseSystemContracts::playground_post_virtual_blocks_finish_upgrade_fix(),
+            },
         }
     }
 }
@@ -175,12 +229,14 @@ pub struct TxSenderConfig {
     pub validation_computational_gas_limit: u32,
     pub default_aa: H256,
     pub bootloader: H256,
+    pub chain_id: L2ChainId,
 }
 
 impl TxSenderConfig {
     pub fn new(
         state_keeper_config: &StateKeeperConfig,
         web3_json_config: &Web3JsonRpcConfig,
+        chain_id: L2ChainId,
     ) -> Self {
         Self {
             fee_account_addr: state_keeper_config.fee_account_addr,
@@ -193,6 +249,7 @@ impl TxSenderConfig {
                 .validation_computational_gas_limit,
             default_aa: state_keeper_config.default_aa_hash,
             bootloader: state_keeper_config.bootloader_hash,
+            chain_id,
         }
     }
 }
@@ -223,7 +280,7 @@ pub struct TxSender<G>(pub(super) Arc<TxSenderInner<G>>);
 // Custom implementation is required due to generic param:
 // Even though it's under `Arc`, compiler doesn't generate the `Clone` implementation unless
 // an unnecessary bound is added.
-impl<E> Clone for TxSender<E> {
+impl<G> Clone for TxSender<G> {
     fn clone(&self) -> Self {
         Self(self.0.clone())
     }
@@ -267,11 +324,10 @@ impl<G: L1GasPriceProvider> TxSender<G> {
             TxExecutionArgs::for_validation(&tx),
             self.0.replica_connection_pool.clone(),
             tx.clone().into(),
-            &mut HashMap::new(),
         )
         .await;
 
-        vlog::info!(
+        tracing::info!(
             "Submit tx {:?} with execution metrics {:?}",
             tx.hash(),
             tx_metrics
@@ -372,6 +428,11 @@ impl<G: L1GasPriceProvider> TxSender<G> {
             fair_l2_gas_price: self.0.sender_config.fair_l2_gas_price,
             base_system_contracts: self.0.api_contracts.eth_call.clone(),
             caches: self.storage_caches(),
+            validation_computational_gas_limit: self
+                .0
+                .sender_config
+                .validation_computational_gas_limit,
+            chain_id: self.0.sender_config.chain_id,
         }
     }
 
@@ -383,8 +444,10 @@ impl<G: L1GasPriceProvider> TxSender<G> {
             return Err(SubmitTxError::GasLimitIsTooBig);
         }
 
+        // TODO (SMA-1715): do not subsidize the overhead for the transaction
+
         if tx.common_data.fee.gas_limit > self.0.sender_config.max_allowed_l2_tx_gas_limit.into() {
-            vlog::info!(
+            tracing::info!(
                 "Submitted Tx is Unexecutable {:?} because of GasLimitIsTooBig {}",
                 tx.hash(),
                 tx.common_data.fee.gas_limit,
@@ -392,7 +455,7 @@ impl<G: L1GasPriceProvider> TxSender<G> {
             return Err(SubmitTxError::GasLimitIsTooBig);
         }
         if tx.common_data.fee.max_fee_per_gas < self.0.sender_config.fair_l2_gas_price.into() {
-            vlog::info!(
+            tracing::info!(
                 "Submitted Tx is Unexecutable {:?} because of MaxFeePerGasTooLow {}",
                 tx.hash(),
                 tx.common_data.fee.max_fee_per_gas
@@ -400,7 +463,7 @@ impl<G: L1GasPriceProvider> TxSender<G> {
             return Err(SubmitTxError::MaxFeePerGasTooLow);
         }
         if tx.common_data.fee.max_fee_per_gas < tx.common_data.fee.max_priority_fee_per_gas {
-            vlog::info!(
+            tracing::info!(
                 "Submitted Tx is Unexecutable {:?} because of MaxPriorityFeeGreaterThanMaxFee {}",
                 tx.hash(),
                 tx.common_data.fee.max_fee_per_gas
@@ -541,8 +604,7 @@ impl<G: L1GasPriceProvider> TxSender<G> {
         tx_gas_limit: u32,
         l1_gas_price: u64,
         base_fee: u64,
-        storage_read_cache: &mut HashMap<StorageKey, H256>,
-    ) -> Result<VmExecutionResult, SandboxExecutionError> {
+    ) -> (VmExecutionResultAndLogs, TransactionExecutionMetrics) {
         let gas_limit_with_overhead = tx_gas_limit
             + derive_overhead(
                 tx_gas_limit,
@@ -581,26 +643,23 @@ impl<G: L1GasPriceProvider> TxSender<G> {
             execution_args,
             self.0.replica_connection_pool.clone(),
             tx.clone(),
-            storage_read_cache,
         )
         .await;
 
-        if let Err(err) = self.ensure_tx_executable(tx, &tx_metrics, false) {
-            let SubmitTxError::Unexecutable(message) = err else {
-                unreachable!()
-            };
-            return Err(SandboxExecutionError::Unexecutable(message));
-        }
-        exec_result
+        (exec_result, tx_metrics)
     }
 
     fn shared_args_for_gas_estimate(&self, l1_gas_price: u64) -> TxSharedArgs {
+        let config = &self.0.sender_config;
         TxSharedArgs {
-            operator_account: AccountTreeId::new(self.0.sender_config.fee_account_addr),
+            operator_account: AccountTreeId::new(config.fee_account_addr),
             l1_gas_price,
-            fair_l2_gas_price: self.0.sender_config.fair_l2_gas_price,
+            fair_l2_gas_price: config.fair_l2_gas_price,
+            // We want to bypass the computation gas limit check for gas estimation
+            validation_computational_gas_limit: BLOCK_GAS_LIMIT,
             base_system_contracts: self.0.api_contracts.estimate_gas.clone(),
             caches: self.storage_caches(),
+            chain_id: config.chain_id,
         }
     }
 
@@ -660,7 +719,7 @@ impl<G: L1GasPriceProvider> TxSender<G> {
             && account_code_hash == H256::zero()
             && tx.execute.value > self.get_balance(&tx.initiator_account()).await
         {
-            vlog::info!(
+            tracing::info!(
                 "fee estimation failed on validation step.
                 account: {} does not have enough funds for for transferring tx.value: {}.",
                 &tx.initiator_account(),
@@ -672,8 +731,7 @@ impl<G: L1GasPriceProvider> TxSender<G> {
         // For L2 transactions we need a properly formatted signature
         if let ExecuteTransactionCommon::L2(l2_common_data) = &mut tx.common_data {
             if l2_common_data.signature.is_empty() {
-                l2_common_data.signature = vec![0u8; 65];
-                l2_common_data.signature[64] = 27;
+                l2_common_data.signature = PackedEthSignature::default().serialize_packed().into();
             }
 
             l2_common_data.fee.gas_per_pubdata_limit = MAX_GAS_PER_PUBDATA_BYTE.into();
@@ -705,9 +763,6 @@ impl<G: L1GasPriceProvider> TxSender<G> {
             pubdata_for_factory_deps * (gas_per_pubdata_byte as u32)
         };
 
-        // Rolling cache with storage values that were read from the DB.
-        let mut storage_read_cache = HashMap::new();
-
         // We are using binary search to find the minimal values of gas_limit under which
         // the transaction succeedes
         let mut lower_bound = 0;
@@ -717,7 +772,7 @@ impl<G: L1GasPriceProvider> TxSender<G> {
             tx.initiator_account(),
             tx.nonce().unwrap_or(Nonce(0))
         );
-        vlog::trace!(
+        tracing::trace!(
             "fee estimation tx {:?}: preparation took {:?}, starting binary search",
             tx_id,
             estimation_started_at.elapsed(),
@@ -731,7 +786,7 @@ impl<G: L1GasPriceProvider> TxSender<G> {
             // gas limit will make the transaction successful
             let iteration_started_at = Instant::now();
             let try_gas_limit = gas_for_bytecodes_pubdata + mid;
-            let result = self
+            let (result, _execution_metrics) = self
                 .estimate_gas_step(
                     vm_permit.clone(),
                     tx.clone(),
@@ -739,16 +794,16 @@ impl<G: L1GasPriceProvider> TxSender<G> {
                     try_gas_limit,
                     l1_gas_price,
                     base_fee,
-                    &mut storage_read_cache,
                 )
                 .await;
-            if result.is_err() {
+
+            if result.result.is_failed() {
                 lower_bound = mid + 1;
             } else {
                 upper_bound = mid;
             }
 
-            vlog::trace!(
+            tracing::trace!(
                 "fee estimation tx {:?}: iteration {} took {:?}. lower_bound: {}, upper_bound: {}",
                 tx_id,
                 number_of_iterations,
@@ -769,7 +824,7 @@ impl<G: L1GasPriceProvider> TxSender<G> {
         );
 
         let suggested_gas_limit = tx_body_gas_limit + gas_for_bytecodes_pubdata;
-        let result = self
+        let (result, tx_metrics) = self
             .estimate_gas_step(
                 vm_permit,
                 tx.clone(),
@@ -777,39 +832,36 @@ impl<G: L1GasPriceProvider> TxSender<G> {
                 suggested_gas_limit,
                 l1_gas_price,
                 base_fee,
-                &mut storage_read_cache,
             )
             .await;
 
-        match result {
-            Err(err) => Err(err.into()),
-            Ok(_) => {
-                let overhead = derive_overhead(
-                    suggested_gas_limit,
-                    gas_per_pubdata_byte as u32,
-                    tx.encoding_len(),
-                    OverheadCoeficients::from_tx_type(tx.tx_format() as u8),
-                );
+        result.into_api_call_result()?;
+        self.ensure_tx_executable(tx.clone(), &tx_metrics, false)?;
 
-                let full_gas_limit =
-                    match tx_body_gas_limit.overflowing_add(gas_for_bytecodes_pubdata + overhead) {
-                        (value, false) => value,
-                        (_, true) => {
-                            return Err(SubmitTxError::ExecutionReverted(
-                                "exceeds block gas limit".to_string(),
-                                vec![],
-                            ));
-                        }
-                    };
+        let overhead = derive_overhead(
+            suggested_gas_limit,
+            gas_per_pubdata_byte as u32,
+            tx.encoding_len(),
+            OverheadCoeficients::from_tx_type(tx.tx_format() as u8),
+        );
 
-                Ok(Fee {
-                    max_fee_per_gas: base_fee.into(),
-                    max_priority_fee_per_gas: 0u32.into(),
-                    gas_limit: full_gas_limit.into(),
-                    gas_per_pubdata_limit: gas_per_pubdata_byte.into(),
-                })
-            }
-        }
+        let full_gas_limit =
+            match tx_body_gas_limit.overflowing_add(gas_for_bytecodes_pubdata + overhead) {
+                (value, false) => value,
+                (_, true) => {
+                    return Err(SubmitTxError::ExecutionReverted(
+                        "exceeds block gas limit".to_string(),
+                        vec![],
+                    ));
+                }
+            };
+
+        Ok(Fee {
+            max_fee_per_gas: base_fee.into(),
+            max_priority_fee_per_gas: 0u32.into(),
+            gas_limit: full_gas_limit.into(),
+            gas_per_pubdata_limit: gas_per_pubdata_byte.into(),
+        })
     }
 
     pub(super) async fn eth_call(
@@ -821,25 +873,17 @@ impl<G: L1GasPriceProvider> TxSender<G> {
         let vm_permit = vm_permit.ok_or(SubmitTxError::ServerShuttingDown)?;
 
         let vm_execution_cache_misses_limit = self.0.sender_config.vm_execution_cache_misses_limit;
-        let result = execute_tx_eth_call(
+        execute_tx_eth_call(
             vm_permit,
             self.shared_args(),
             self.0.replica_connection_pool.clone(),
             tx,
             block_args,
             vm_execution_cache_misses_limit,
-            false,
+            vec![],
         )
-        .await?;
-
-        Ok(match result.revert_reason {
-            Some(result) => result.original_data,
-            None => result
-                .return_data
-                .into_iter()
-                .flat_map(<[u8; 32]>::from)
-                .collect(),
-        })
+        .await
+        .into_api_call_result()
     }
 
     pub fn gas_price(&self) -> u64 {
@@ -879,7 +923,7 @@ impl<G: L1GasPriceProvider> TxSender<G> {
                 "Tx is Unexecutable because of {reason}; inputs for decision: {seal_data:?}"
             );
             if log_message {
-                vlog::info!("{tx_hash:#?} {message}");
+                tracing::info!("{tx_hash:#?} {message}");
             }
             return Err(SubmitTxError::Unexecutable(message));
         }

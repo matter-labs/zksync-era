@@ -1,5 +1,5 @@
 //! Tree updater trait and its implementations.
-
+use anyhow::Context as _;
 use futures::{future, FutureExt};
 use tokio::sync::watch;
 
@@ -78,7 +78,7 @@ impl TreeUpdater {
                 .unwrap();
             save_witnesses_latency.report();
 
-            vlog::info!(
+            tracing::info!(
                 "Saved witnesses for L1 batch #{l1_batch_number} to object storage at `{object_key}`"
             );
             Some(object_key)
@@ -107,7 +107,7 @@ impl TreeUpdater {
         l1_batch_numbers: ops::RangeInclusive<u32>,
     ) -> L1BatchNumber {
         let start = Instant::now();
-        vlog::info!("Processing L1 batches #{l1_batch_numbers:?}");
+        tracing::info!("Processing L1 batches #{l1_batch_numbers:?}");
         let first_l1_batch_number = L1BatchNumber(*l1_batch_numbers.start());
         let last_l1_batch_number = L1BatchNumber(*l1_batch_numbers.end());
         let mut l1_batch_data = L1BatchWithLogs::new(storage, first_l1_batch_number).await;
@@ -156,17 +156,38 @@ impl TreeUpdater {
             // right away without having to implement dedicated code.
 
             if let Some(object_key) = &object_key {
+                let protocol_version_id = storage
+                    .blocks_dal()
+                    .get_batch_protocol_version_id(l1_batch_number)
+                    .await;
+                if let Some(id) = protocol_version_id {
+                    if !prover_storage
+                        .protocol_versions_dal()
+                        .prover_protocol_version_exists(id)
+                        .await
+                    {
+                        let protocol_version = storage
+                            .protocol_versions_dal()
+                            .get_protocol_version(id)
+                            .await
+                            .unwrap();
+                        prover_storage
+                            .protocol_versions_dal()
+                            .save_prover_protocol_version(protocol_version)
+                            .await;
+                    }
+                }
                 prover_storage
                     .witness_generator_dal()
-                    .save_witness_inputs(l1_batch_number, object_key)
+                    .save_witness_inputs(l1_batch_number, object_key, protocol_version_id)
                     .await;
-                prover_storage
-                    .fri_witness_generator_dal()
-                    .save_witness_inputs(l1_batch_number, object_key)
+                storage
+                    .proof_generation_dal()
+                    .insert_proof_generation_details(l1_batch_number, object_key)
                     .await;
             }
             save_postgres_latency.report();
-            vlog::info!("Updated metadata for L1 batch #{l1_batch_number} in Postgres");
+            tracing::info!("Updated metadata for L1 batch #{l1_batch_number} in Postgres");
 
             previous_root_hash = metadata.merkle_root_hash;
             updated_headers.push(header);
@@ -193,11 +214,11 @@ impl TreeUpdater {
         let last_requested_l1_batch = last_requested_l1_batch.min(last_sealed_l1_batch.0);
         let l1_batch_numbers = next_l1_batch_to_seal.0..=last_requested_l1_batch;
         if l1_batch_numbers.is_empty() {
-            vlog::trace!(
+            tracing::trace!(
                 "No L1 batches to seal: batch numbers range to be loaded {l1_batch_numbers:?} is empty"
             );
         } else {
-            vlog::info!("Updating Merkle tree with L1 batches #{l1_batch_numbers:?}");
+            tracing::info!("Updating Merkle tree with L1 batches #{l1_batch_numbers:?}");
             *next_l1_batch_to_seal = self
                 .process_multiple_batches(&mut storage, &mut prover_storage, l1_batch_numbers)
                 .await;
@@ -212,15 +233,15 @@ impl TreeUpdater {
         prover_pool: &ConnectionPool,
         mut stop_receiver: watch::Receiver<bool>,
         health_updater: HealthUpdater,
-    ) {
+    ) -> anyhow::Result<()> {
         let mut storage = pool.access_storage_tagged("metadata_calculator").await;
 
         // Ensure genesis creation
         let tree = &mut self.tree;
         if tree.is_empty() {
-            let Some(logs) = L1BatchWithLogs::new(&mut storage, L1BatchNumber(0)).await else {
-                panic!("Missing storage logs for the genesis L1 batch");
-            };
+            let logs = L1BatchWithLogs::new(&mut storage, L1BatchNumber(0))
+                .await
+                .context("Missing storage logs for the genesis L1 batch")?;
             tree.process_l1_batch(logs.storage_logs).await;
             tree.save().await;
         }
@@ -233,7 +254,7 @@ impl TreeUpdater {
             .await;
         drop(storage);
 
-        vlog::info!(
+        tracing::info!(
             "Initialized metadata calculator with {max_batches_per_iter} max L1 batches per iteration. \
              Next L1 batch for Merkle tree: {next_l1_batch_to_seal}, current Postgres L1 batch: {current_db_batch}, \
              last L1 batch with metadata: {last_l1_batch_with_metadata}",
@@ -252,11 +273,11 @@ impl TreeUpdater {
         if next_l1_batch_to_seal > last_l1_batch_with_metadata + 1 {
             // Check stop signal before proceeding with a potentially time-consuming operation.
             if *stop_receiver.borrow_and_update() {
-                vlog::info!("Stop signal received, metadata_calculator is shutting down");
-                return;
+                tracing::info!("Stop signal received, metadata_calculator is shutting down");
+                return Ok(());
             }
 
-            vlog::warn!(
+            tracing::warn!(
                 "Next L1 batch of the tree ({next_l1_batch_to_seal}) is greater than last L1 batch with metadata in Postgres \
                  ({last_l1_batch_with_metadata}); this may be a result of restoring Postgres from a snapshot. \
                  Truncating Merkle tree versions so that this mismatch is fixed..."
@@ -264,7 +285,7 @@ impl TreeUpdater {
             tree.revert_logs(last_l1_batch_with_metadata);
             tree.save().await;
             next_l1_batch_to_seal = tree.next_l1_batch_number();
-            vlog::info!("Truncated Merkle tree to L1 batch #{next_l1_batch_to_seal}");
+            tracing::info!("Truncated Merkle tree to L1 batch #{next_l1_batch_to_seal}");
 
             let health = TreeHealthCheckDetails {
                 mode: self.mode,
@@ -275,7 +296,7 @@ impl TreeUpdater {
 
         loop {
             if *stop_receiver.borrow_and_update() {
-                vlog::info!("Stop signal received, metadata_calculator is shutting down");
+                tracing::info!("Stop signal received, metadata_calculator is shutting down");
                 break;
             }
             let storage = pool.access_storage_tagged("metadata_calculator").await;
@@ -287,7 +308,7 @@ impl TreeUpdater {
             self.step(storage, prover_storage, &mut next_l1_batch_to_seal)
                 .await;
             let delay = if snapshot == *next_l1_batch_to_seal {
-                vlog::trace!(
+                tracing::trace!(
                     "Metadata calculator (next L1 batch: #{next_l1_batch_to_seal}) \
                      didn't make any progress; delaying it using {delayer:?}"
                 );
@@ -299,7 +320,7 @@ impl TreeUpdater {
                 };
                 health_updater.update(health.into());
 
-                vlog::trace!(
+                tracing::trace!(
                     "Metadata calculator (next L1 batch: #{next_l1_batch_to_seal}) made progress from #{snapshot}"
                 );
                 future::ready(()).right_future()
@@ -309,13 +330,14 @@ impl TreeUpdater {
             // and the stop receiver still allows to be more responsive during shutdown.
             tokio::select! {
                 _ = stop_receiver.changed() => {
-                    vlog::info!("Stop signal received, metadata_calculator is shutting down");
+                    tracing::info!("Stop signal received, metadata_calculator is shutting down");
                     break;
                 }
                 () = delay => { /* The delay has passed */ }
             }
         }
         drop(health_updater); // Explicitly mark where the updater should be dropped
+        Ok(())
     }
 
     async fn check_initial_writes_consistency(
@@ -323,22 +345,18 @@ impl TreeUpdater {
         l1_batch_number: L1BatchNumber,
         tree_initial_writes: &[InitialStorageWrite],
     ) {
-        let pg_initial_writes: Vec<_> = connection
+        let pg_initial_writes = connection
             .storage_logs_dedup_dal()
             .initial_writes_for_batch(l1_batch_number)
             .await;
 
-        let pg_initial_writes: Option<Vec<_>> = pg_initial_writes
+        let pg_initial_writes: Vec<_> = pg_initial_writes
             .into_iter()
             .map(|(key, index)| {
                 let key = U256::from_little_endian(key.as_bytes());
-                Some((key, index?))
+                (key, index)
             })
             .collect();
-        let Some(pg_initial_writes) = pg_initial_writes else {
-            vlog::info!("Skipping indices consistency check as they are missing in Postgres for L1 batch {l1_batch_number}");
-            return;
-        };
 
         let tree_initial_writes: Vec<_> = tree_initial_writes
             .iter()

@@ -1,6 +1,6 @@
 [package]
 name = "zksync_storage"
-version = "1.0.0"
+version = "0.1.0"
 edition = "2021"
 authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
 homepage = "https://zksync.io/"
@@ -10,11 +10,12 @@ keywords = ["blockchain", "zksync"]
 categories = ["cryptography"]
 
 [dependencies]
-vlog = { path = "../../lib/vlog", version = "1.0" }
-
-metrics = "0.20"
+metrics = "0.21"
 num_cpus = "1.13"
-rocksdb = { version = "0.21.0", default-features = false, features = ["snappy"] }
+rocksdb = { version = "0.21.0", default-features = false, features = [
+    "snappy",
+] }
+tracing = "0.1"
 
 [dev-dependencies]
 tempfile = "3.0.2"

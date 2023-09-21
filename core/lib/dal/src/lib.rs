@@ -6,6 +6,7 @@ use std::env;
 pub use sqlx::Error as SqlxError;
 use sqlx::{postgres::Postgres, Connection, PgConnection, Transaction};
 // External imports
+use anyhow::Context as _;
 use sqlx::pool::PoolConnection;
 pub use sqlx::types::BigDecimal;
 
@@ -20,6 +21,8 @@ use crate::eth_sender_dal::EthSenderDal;
 use crate::events_dal::EventsDal;
 use crate::events_web3_dal::EventsWeb3Dal;
 use crate::fri_gpu_prover_queue_dal::FriGpuProverQueueDal;
+use crate::fri_proof_compressor_dal::FriProofCompressorDal;
+use crate::fri_protocol_versions_dal::FriProtocolVersionsDal;
 use crate::fri_prover_dal::FriProverDal;
 use crate::fri_scheduler_dependency_tracker_dal::FriSchedulerDependencyTrackerDal;
 use crate::fri_witness_generator_dal::FriWitnessGeneratorDal;
@@ -50,6 +53,8 @@ pub mod eth_sender_dal;
 pub mod events_dal;
 pub mod events_web3_dal;
 pub mod fri_gpu_prover_queue_dal;
+pub mod fri_proof_compressor_dal;
+pub mod fri_protocol_versions_dal;
 pub mod fri_prover_dal;
 pub mod fri_scheduler_dependency_tracker_dal;
 pub mod fri_witness_generator_dal;
@@ -77,23 +82,29 @@ pub mod witness_generator_dal;
 mod tests;
 
 /// Obtains the master database URL from the environment variable.
-pub fn get_master_database_url() -> String {
-    env::var("DATABASE_URL").expect("DATABASE_URL must be set")
+pub fn get_master_database_url() -> anyhow::Result<String> {
+    env::var("DATABASE_URL").context("DATABASE_URL must be set")
 }
 
 /// Obtains the master prover database URL from the environment variable.
-pub fn get_prover_database_url() -> String {
-    env::var("DATABASE_PROVER_URL").unwrap_or_else(|_| get_master_database_url())
+pub fn get_prover_database_url() -> anyhow::Result<String> {
+    match env::var("DATABASE_PROVER_URL") {
+        Ok(url) => Ok(url),
+        Err(_) => get_master_database_url(),
+    }
 }
 
 /// Obtains the replica database URL from the environment variable.
-pub fn get_replica_database_url() -> String {
-    env::var("DATABASE_REPLICA_URL").unwrap_or_else(|_| get_master_database_url())
+pub fn get_replica_database_url() -> anyhow::Result<String> {
+    match env::var("DATABASE_REPLICA_URL") {
+        Ok(url) => Ok(url),
+        Err(_) => get_master_database_url(),
+    }
 }
 
 /// Obtains the test database URL from the environment variable.
-pub fn get_test_database_url() -> String {
-    env::var("TEST_DATABASE_URL").expect("TEST_DATABASE_URL must be set")
+pub fn get_test_database_url() -> anyhow::Result<String> {
+    env::var("TEST_DATABASE_URL").context("TEST_DATABASE_URL must be set")
 }
 
 /// Storage processor is the main storage interaction point.
@@ -106,17 +117,21 @@ pub struct StorageProcessor<'a> {
 }
 
 impl<'a> StorageProcessor<'a> {
-    pub async fn establish_connection(connect_to_master: bool) -> StorageProcessor<'static> {
+    pub async fn establish_connection(
+        connect_to_master: bool,
+    ) -> anyhow::Result<StorageProcessor<'static>> {
         let database_url = if connect_to_master {
-            get_master_database_url()
+            get_master_database_url()?
         } else {
-            get_replica_database_url()
+            get_replica_database_url()?
         };
-        let connection = PgConnection::connect(&database_url).await.unwrap();
-        StorageProcessor {
+        let connection = PgConnection::connect(&database_url)
+            .await
+            .context("PgConnectio::connect()")?;
+        Ok(StorageProcessor {
             conn: ConnectionHolder::Direct(connection),
             in_transaction: false,
-        }
+        })
     }
 
     pub async fn start_transaction<'c: 'b, 'b>(&'c mut self) -> StorageProcessor<'b> {
@@ -278,5 +293,13 @@ impl<'a> StorageProcessor<'a> {
 
     pub fn fri_gpu_prover_queue_dal(&mut self) -> FriGpuProverQueueDal<'_, 'a> {
         FriGpuProverQueueDal { storage: self }
+    }
+
+    pub fn fri_protocol_versions_dal(&mut self) -> FriProtocolVersionsDal<'_, 'a> {
+        FriProtocolVersionsDal { storage: self }
+    }
+
+    pub fn fri_proof_compressor_dal(&mut self) -> FriProofCompressorDal<'_, 'a> {
+        FriProofCompressorDal { storage: self }
     }
 }
