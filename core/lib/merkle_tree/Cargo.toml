@@ -10,7 +10,7 @@ keywords = ["blockchain", "zksync"]
 categories = ["cryptography"]
 
 [dependencies]
-vise = { git = "https://github.com/matter-labs/vise.git", version = "0.1.0", rev = "856eedd0a36a2ff2c8d965b0f0186d4bb8465d8c" }
+vise = { git = "https://github.com/mm-zk/vise.git" }
 zksync_types = { path = "../types" }
 zksync_crypto = { path = "../crypto" }
 zksync_storage = { path = "../storage", default-features = false }
