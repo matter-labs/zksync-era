@@ -55,7 +55,11 @@ impl TradingVolumeFetcher {
         }
     }
 
-    pub async fn run(mut self, pool: ConnectionPool, stop_receiver: watch::Receiver<bool>) {
+    pub async fn run(
+        mut self,
+        pool: ConnectionPool,
+        stop_receiver: watch::Receiver<bool>,
+    ) -> anyhow::Result<()> {
         let mut fetching_interval =
             tokio::time::interval(self.config.token_trading_volume.fetching_interval());
         loop {
@@ -84,6 +88,7 @@ impl TradingVolumeFetcher {
             self.store_market_volumes(&mut storage, trading_volumes)
                 .await;
         }
+        Ok(())
     }
 
     async fn fetch_trading_volumes(

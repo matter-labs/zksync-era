@@ -51,7 +51,7 @@ pub fn start_server_thread_detached(
     replica_connection_pool: ConnectionPool,
     api_config: ContractVerificationApiConfig,
     mut stop_receiver: watch::Receiver<bool>,
-) -> JoinHandle<()> {
+) -> JoinHandle<anyhow::Result<()>> {
     let (handler, panic_sender) = spawn_panic_handler();
 
     std::thread::Builder::new()

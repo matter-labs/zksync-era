@@ -11,6 +11,7 @@ categories = ["cryptography"]
 
 
 [dependencies]
+anyhow = "1.0"
 async-trait = "0.1"
 tokio = { version = "1", features = ["time"] }
 tracing = "0.1"

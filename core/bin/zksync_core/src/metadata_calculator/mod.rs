@@ -128,15 +128,16 @@ impl MetadataCalculator {
         pool: ConnectionPool,
         prover_pool: ConnectionPool,
         stop_receiver: watch::Receiver<bool>,
-    ) {
-        let update_task = self.updater.loop_updating_tree(
-            self.delayer,
-            &pool,
-            &prover_pool,
-            stop_receiver,
-            self.health_updater,
-        );
-        update_task.await;
+    ) -> anyhow::Result<()> {
+        self.updater
+            .loop_updating_tree(
+                self.delayer,
+                &pool,
+                &prover_pool,
+                stop_receiver,
+                self.health_updater,
+            )
+            .await
     }
 
     /// This is used to improve L1 gas estimation for the commit operation. The estimations are computed

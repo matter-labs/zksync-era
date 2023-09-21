@@ -213,7 +213,9 @@ impl<H: HistoryMode> CallTracer<H> {
         memory: &SimpleMemory<H>,
         ret_opcode: RetOpcode,
     ) {
-        let Some(mut current_call) = self.stack.pop() else {return};
+        let Some(mut current_call) = self.stack.pop() else {
+            return;
+        };
 
         if current_call.near_calls_after > 0 {
             current_call.near_calls_after -= 1;

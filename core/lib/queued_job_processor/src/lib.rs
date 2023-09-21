@@ -39,7 +39,11 @@ pub trait JobProcessor: Sync + Send {
     /// To run indefinitely, pass `None`,
     /// To process one job, pass `Some(1)`,
     /// To process a batch, pass `Some(batch_size)`.
-    async fn run(self, stop_receiver: watch::Receiver<bool>, mut iterations_left: Option<usize>)
+    async fn run(
+        self,
+        stop_receiver: watch::Receiver<bool>,
+        mut iterations_left: Option<usize>,
+    ) -> anyhow::Result<()>
     where
         Self: Sized,
     {
@@ -50,7 +54,7 @@ pub trait JobProcessor: Sync + Send {
                     "Stop signal received, shutting down {} component while waiting for a new job",
                     Self::SERVICE_NAME
                 );
-                return;
+                return Ok(());
             }
             if let Some((job_id, job)) = Self::get_next_job(&self).await {
                 let started_at = Instant::now();
@@ -67,14 +71,15 @@ pub trait JobProcessor: Sync + Send {
                 self.wait_for_task(job_id, started_at, task).await
             } else if iterations_left.is_some() {
                 tracing::info!("No more jobs to process. Server can stop now.");
-                return;
+                return Ok(());
             } else {
                 tracing::trace!("Backing off for {} ms", backoff);
                 sleep(Duration::from_millis(backoff)).await;
                 backoff = (backoff * Self::BACKOFF_MULTIPLIER).min(Self::MAX_BACKOFF_MS);
             }
         }
-        tracing::info!("Requested number of jobs is processed. Server can stop now.")
+        tracing::info!("Requested number of jobs is processed. Server can stop now.");
+        Ok(())
     }
 
     /// Polls task handle, saving its outcome.

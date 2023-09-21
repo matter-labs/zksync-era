@@ -130,7 +130,10 @@ async fn main() {
         listener_port: verifier_config.prometheus_port,
         ..ApiConfig::from_env().prometheus
     };
-    let pool = ConnectionPool::singleton(DbVariant::Master).build().await;
+    let pool = ConnectionPool::singleton(DbVariant::Master)
+        .build()
+        .await
+        .unwrap();
 
     #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
     let log_format = vlog::log_format_from_env();

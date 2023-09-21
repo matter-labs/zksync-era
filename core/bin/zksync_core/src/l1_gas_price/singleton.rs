@@ -39,9 +39,10 @@ impl GasAdjusterSingleton {
         Arc::new(BoundedGasAdjuster::new(config.max_l1_gas_price(), adjuster))
     }
 
-    pub fn run_if_initialized(self, stop_signal: watch::Receiver<bool>) -> Option<JoinHandle<()>> {
-        self.0
-            .get()
-            .map(|adjuster| tokio::spawn(adjuster.clone().run(stop_signal)))
+    pub fn run_if_initialized(
+        self,
+        stop_signal: watch::Receiver<bool>,
+    ) -> Option<JoinHandle<anyhow::Result<()>>> {
+        Some(tokio::spawn(self.0.get()?.clone().run(stop_signal)))
     }
 }

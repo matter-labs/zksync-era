@@ -79,7 +79,7 @@ impl<E: EthInterface> GasAdjuster<E> {
         Ok(())
     }
 
-    pub async fn run(self: Arc<Self>, stop_receiver: Receiver<bool>) {
+    pub async fn run(self: Arc<Self>, stop_receiver: Receiver<bool>) -> anyhow::Result<()> {
         loop {
             if *stop_receiver.borrow() {
                 tracing::info!("Stop signal received, gas_adjuster is shutting down");
@@ -92,6 +92,7 @@ impl<E: EthInterface> GasAdjuster<E> {
 
             tokio::time::sleep(self.config.poll_period()).await;
         }
+        Ok(())
     }
 }
 

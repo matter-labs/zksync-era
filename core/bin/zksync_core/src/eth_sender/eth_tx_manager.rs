@@ -1,3 +1,4 @@
+use anyhow::Context as _;
 use std::sync::Arc;
 use tokio::sync::watch;
 
@@ -552,9 +553,16 @@ where
         );
     }
 
-    pub async fn run(mut self, pool: ConnectionPool, stop_receiver: watch::Receiver<bool>) {
+    pub async fn run(
+        mut self,
+        pool: ConnectionPool,
+        stop_receiver: watch::Receiver<bool>,
+    ) -> anyhow::Result<()> {
         {
-            let l1_block_numbers = self.get_l1_block_numbers().await.unwrap();
+            let l1_block_numbers = self
+                .get_l1_block_numbers()
+                .await
+                .context("get_l1_block_numbers()")?;
             let mut storage = pool.access_storage_tagged("eth_sender").await;
             self.send_unsent_txs(&mut storage, l1_block_numbers).await;
         }
@@ -581,6 +589,7 @@ where
 
             tokio::time::sleep(self.config.tx_poll_period()).await;
         }
+        Ok(())
     }
 
     async fn send_new_eth_txs(

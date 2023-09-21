@@ -1,5 +1,5 @@
 //! Tree updater trait and its implementations.
-
+use anyhow::Context as _;
 use futures::{future, FutureExt};
 use tokio::sync::watch;
 
@@ -233,15 +233,15 @@ impl TreeUpdater {
         prover_pool: &ConnectionPool,
         mut stop_receiver: watch::Receiver<bool>,
         health_updater: HealthUpdater,
-    ) {
+    ) -> anyhow::Result<()> {
         let mut storage = pool.access_storage_tagged("metadata_calculator").await;
 
         // Ensure genesis creation
         let tree = &mut self.tree;
         if tree.is_empty() {
-            let Some(logs) = L1BatchWithLogs::new(&mut storage, L1BatchNumber(0)).await else {
-                panic!("Missing storage logs for the genesis L1 batch");
-            };
+            let logs = L1BatchWithLogs::new(&mut storage, L1BatchNumber(0))
+                .await
+                .context("Missing storage logs for the genesis L1 batch")?;
             tree.process_l1_batch(logs.storage_logs).await;
             tree.save().await;
         }
@@ -274,7 +274,7 @@ impl TreeUpdater {
             // Check stop signal before proceeding with a potentially time-consuming operation.
             if *stop_receiver.borrow_and_update() {
                 tracing::info!("Stop signal received, metadata_calculator is shutting down");
-                return;
+                return Ok(());
             }
 
             tracing::warn!(
@@ -337,6 +337,7 @@ impl TreeUpdater {
             }
         }
         drop(health_updater); // Explicitly mark where the updater should be dropped
+        Ok(())
     }
 
     async fn check_initial_writes_consistency(

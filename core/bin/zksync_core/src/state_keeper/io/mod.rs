@@ -253,7 +253,7 @@ impl MiniblockSealer {
 
     /// Seals miniblocks as they are received from the [`MiniblockSealerHandle`]. This should be run
     /// on a separate Tokio task.
-    pub async fn run(mut self) {
+    pub async fn run(mut self) -> anyhow::Result<()> {
         if self.is_sync {
             tracing::info!("Starting synchronous miniblock sealer");
         } else if let Some(sender) = self.commands_sender.upgrade() {
@@ -279,6 +279,7 @@ impl MiniblockSealer {
             completable.completion_sender.send(()).ok();
             // ^ We don't care whether anyone listens to the processing progress
         }
+        Ok(())
     }
 
     async fn next_command(&mut self) -> Option<Completable<MiniblockSealCommand>> {

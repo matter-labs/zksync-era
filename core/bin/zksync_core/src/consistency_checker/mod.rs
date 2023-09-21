@@ -123,7 +123,10 @@ impl ConsistencyChecker {
             .unwrap_or(L1BatchNumber(0))
     }
 
-    pub async fn run(self, stop_receiver: tokio::sync::watch::Receiver<bool>) {
+    pub async fn run(
+        self,
+        stop_receiver: tokio::sync::watch::Receiver<bool>,
+    ) -> anyhow::Result<()> {
         let mut batch_number: L1BatchNumber = self
             .last_committed_batch()
             .await
@@ -168,7 +171,7 @@ impl ConsistencyChecker {
                     batch_number.0 += 1;
                 }
                 Ok(false) => {
-                    panic!("Batch {} is inconsistent with L1", batch_number.0);
+                    anyhow::bail!("Batch {} is inconsistent with L1", batch_number.0);
                 }
                 Err(e) => {
                     tracing::warn!("Consistency checker error: {}", e);
@@ -176,5 +179,6 @@ impl ConsistencyChecker {
                 }
             }
         }
+        Ok(())
     }
 }

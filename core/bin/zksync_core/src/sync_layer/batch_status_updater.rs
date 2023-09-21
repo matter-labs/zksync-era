@@ -92,11 +92,11 @@ impl BatchStatusUpdater {
         }
     }
 
-    pub async fn run(mut self, stop_receiver: Receiver<bool>) {
+    pub async fn run(mut self, stop_receiver: Receiver<bool>) -> anyhow::Result<()> {
         loop {
             if *stop_receiver.borrow() {
                 tracing::info!("Stop signal received, exiting the batch status updater routine");
-                return;
+                return Ok(());
             }
             // Status changes are created externally, so that even if we will receive a network error
             // while requesting the changes, we will be able to process what we already fetched.

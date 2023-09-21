@@ -1,3 +1,4 @@
+use anyhow::Context as _;
 use tokio::sync::watch;
 use vise_exporter::{
     metrics_exporter_prometheus::{Matcher, PrometheusBuilder},
@@ -131,15 +132,22 @@ impl PrometheusExporterConfig {
     }
 
     /// Runs the exporter. This future should be spawned in a separate Tokio task.
-    pub async fn run(self, stop_receiver: watch::Receiver<bool>) {
+    pub async fn run(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         if self.use_new_facade {
-            self.run_with_new_facade(stop_receiver).await;
+            self.run_with_new_facade(stop_receiver)
+                .await
+                .context("run_with_new_facade()")
         } else {
-            self.run_without_new_facade().await;
+            self.run_without_new_facade()
+                .await
+                .context("run_without_new_facade()")
         }
     }
 
-    async fn run_with_new_facade(self, mut stop_receiver: watch::Receiver<bool>) {
+    async fn run_with_new_facade(
+        self,
+        mut stop_receiver: watch::Receiver<bool>,
+    ) -> anyhow::Result<()> {
         let metrics_exporter = MetricsExporter::default()
             .with_legacy_exporter(configure_legacy_exporter)
             .with_graceful_shutdown(async move {
@@ -157,13 +165,14 @@ impl PrometheusExporterConfig {
             } => {
                 let endpoint = gateway_uri
                     .parse()
-                    .expect("Failed parsing Prometheus push gateway endpoint");
+                    .context("Failed parsing Prometheus push gateway endpoint")?;
                 metrics_exporter.push_to_gateway(endpoint, interval).await
             }
         }
+        Ok(())
     }
 
-    async fn run_without_new_facade(self) {
+    async fn run_without_new_facade(self) -> anyhow::Result<()> {
         let builder = match self.transport {
             PrometheusTransport::Pull { port } => {
                 let prom_bind_address = (Ipv4Addr::UNSPECIFIED, port);
@@ -174,11 +183,12 @@ impl PrometheusExporterConfig {
                 interval,
             } => PrometheusBuilder::new()
                 .with_push_gateway(gateway_uri, interval, None, None)
-                .unwrap(),
+                .context("PrometheusBuilder::with_push_gateway()")?,
         };
         let builder = configure_legacy_exporter(builder);
-        let (recorder, exporter) = builder.build().unwrap();
-        metrics::set_boxed_recorder(Box::new(recorder)).expect("failed to set metrics recorder");
-        exporter.await.expect("Prometheus exporter failed");
+        let (recorder, exporter) = builder.build().context("PrometheusBuilder::build()")?;
+        metrics::set_boxed_recorder(Box::new(recorder))
+            .context("failed to set metrics recorder")?;
+        exporter.await.context("Prometheus exporter failed")
     }
 }

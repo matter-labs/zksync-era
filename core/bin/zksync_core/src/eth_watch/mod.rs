@@ -114,7 +114,11 @@ impl<W: EthClient + Sync> EthWatch<W> {
         }
     }
 
-    pub async fn run(&mut self, pool: ConnectionPool, stop_receiver: watch::Receiver<bool>) {
+    pub async fn run(
+        &mut self,
+        pool: ConnectionPool,
+        stop_receiver: watch::Receiver<bool>,
+    ) -> anyhow::Result<()> {
         let mut timer = tokio::time::interval(self.poll_interval);
         loop {
             if *stop_receiver.borrow() {
@@ -137,6 +141,7 @@ impl<W: EthClient + Sync> EthWatch<W> {
                         .last_processed_ethereum_block;
             }
         }
+        Ok(())
     }
 
     #[tracing::instrument(skip(self, storage))]
@@ -174,7 +179,7 @@ pub async fn start_eth_watch<E: EthInterface + Send + Sync + 'static>(
     eth_gateway: E,
     diamond_proxy_addr: Address,
     stop_receiver: watch::Receiver<bool>,
-) -> JoinHandle<()> {
+) -> JoinHandle<anyhow::Result<()>> {
     let eth_watch = ETHWatchConfig::from_env();
     let eth_client = EthHttpQueryClient::new(
         eth_gateway,
@@ -184,7 +189,5 @@ pub async fn start_eth_watch<E: EthInterface + Send + Sync + 'static>(
 
     let mut eth_watch = EthWatch::new(eth_client, &pool, eth_watch.poll_interval()).await;
 
-    tokio::spawn(async move {
-        eth_watch.run(pool, stop_receiver).await;
-    })
+    tokio::spawn(async move { eth_watch.run(pool, stop_receiver).await })
 }

@@ -114,7 +114,7 @@ impl Checker {
         (main_node_client, instance_clients)
     }
 
-    pub async fn run(mut self, stop_receiver: Receiver<bool>) {
+    pub async fn run(mut self, stop_receiver: Receiver<bool>) -> anyhow::Result<()> {
         match self.mode {
             RpcMode::Triggered => {
                 tracing::info!("Starting Checker in Triggered mode");
@@ -132,6 +132,7 @@ impl Checker {
                 }
             }
         }
+        Ok(())
     }
 
     // For each instance, spawn a task that will continuously poll the instance for new miniblocks
@@ -265,6 +266,7 @@ impl Checker {
                         );
                     }
                 }
+                Ok(())
             });
             join_handles.push(handle);
         }

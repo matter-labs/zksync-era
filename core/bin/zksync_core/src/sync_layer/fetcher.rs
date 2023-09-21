@@ -63,7 +63,7 @@ impl MainNodeFetcher {
         }
     }
 
-    pub async fn run(mut self) {
+    pub async fn run(mut self) -> anyhow::Result<()> {
         tracing::info!(
             "Starting the fetcher routine. Initial miniblock: {}, initial l1 batch: {}",
             self.current_miniblock,
@@ -74,7 +74,7 @@ impl MainNodeFetcher {
             match self.run_inner().await {
                 Ok(()) => {
                     tracing::info!("Stop signal received, exiting the fetcher routine");
-                    return;
+                    return Ok(());
                 }
                 Err(err @ RpcError::Transport(_) | err @ RpcError::RequestTimeout) => {
                     tracing::warn!("Following transport error occurred: {}", err);
@@ -82,7 +82,7 @@ impl MainNodeFetcher {
                     tokio::time::sleep(RETRY_DELAY_INTERVAL).await; // TODO (BFT-100): Implement the fibonacci backoff.
                 }
                 Err(err) => {
-                    panic!("Unexpected error in the fetcher: {}", err);
+                    anyhow::bail!("Unexpected error in the fetcher: {}", err);
                 }
             }
         }

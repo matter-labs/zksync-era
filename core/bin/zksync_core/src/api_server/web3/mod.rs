@@ -1,4 +1,5 @@
 // External uses
+use anyhow::Context as _;
 use futures::future;
 use jsonrpc_core::MetaIoHandler;
 use jsonrpc_http_server::hyper;
@@ -312,7 +313,10 @@ impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
     pub async fn build(
         mut self,
         stop_receiver: watch::Receiver<bool>,
-    ) -> (Vec<tokio::task::JoinHandle<()>>, ReactiveHealthCheck) {
+    ) -> (
+        Vec<tokio::task::JoinHandle<anyhow::Result<()>>>,
+        ReactiveHealthCheck,
+    ) {
         if self.filters_limit.is_none() {
             tracing::warn!("Filters limit is not set - unlimited filters are allowed");
         }
@@ -391,7 +395,7 @@ impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
         addr: SocketAddr,
         mut stop_receiver: watch::Receiver<bool>,
         health_updater: HealthUpdater,
-    ) -> tokio::task::JoinHandle<()> {
+    ) -> tokio::task::JoinHandle<anyhow::Result<()>> {
         if self.batch_request_size_limit.is_some() {
             tracing::info!("`batch_request_size_limit` is not supported for HTTP `jsonrpc` backend, this value is ignored");
         }
@@ -414,7 +418,7 @@ impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
                 .threads(1)
                 .event_loop_executor(runtime.handle().clone())
                 .start_http(&addr)
-                .unwrap();
+                .context("jsonrpc_http::Server::start_http")?;
 
             let close_handle = server.close_handle();
             let closing_vm_barrier = vm_barrier.clone();
@@ -432,6 +436,7 @@ impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
             tracing::info!("HTTP JSON-RPC server stopped");
             runtime.block_on(Self::wait_for_vm(vm_barrier, "HTTP"));
             runtime.shutdown_timeout(GRACEFUL_SHUTDOWN_TIMEOUT);
+            Ok(())
         })
     }
 
@@ -482,7 +487,7 @@ impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
         addr: SocketAddr,
         mut stop_receiver: watch::Receiver<bool>,
         health_updater: HealthUpdater,
-    ) -> Vec<tokio::task::JoinHandle<()>> {
+    ) -> Vec<tokio::task::JoinHandle<anyhow::Result<()>>> {
         if self.response_body_size_limit.is_some() {
             tracing::info!("`response_body_size_limit` is not supported for `jsonrpc` backend, this value is ignored");
         }
@@ -496,7 +501,7 @@ impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
             .thread_name("jsonrpc-ws-worker")
             .worker_threads(self.threads.unwrap())
             .build()
-            .unwrap();
+            .unwrap(); // Constructing a runtime should always succeed.
         let max_connections = self.subscriptions_limit.unwrap_or(usize::MAX);
         let vm_barrier = self.vm_barrier.take().unwrap();
 
@@ -549,7 +554,7 @@ impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
             .max_connections(max_connections)
             .session_stats(TrackOpenWsConnections)
             .start(&addr)
-            .unwrap();
+            .context("jsonrpc_ws_server::Server::start()")?;
 
             let close_handle = server.close_handle();
             let closing_vm_barrier = vm_barrier.clone();
@@ -567,6 +572,7 @@ impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
             tracing::info!("WS JSON-RPC server stopped");
             runtime.block_on(Self::wait_for_vm(vm_barrier, "WS"));
             runtime.shutdown_timeout(GRACEFUL_SHUTDOWN_TIMEOUT);
+            Ok(())
         });
 
         notify_handles.push(server_handle);
@@ -578,7 +584,7 @@ impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
         transport: ApiTransport,
         stop_receiver: watch::Receiver<bool>,
         health_updater: HealthUpdater,
-    ) -> tokio::task::JoinHandle<()> {
+    ) -> tokio::task::JoinHandle<anyhow::Result<()>> {
         if matches!(transport, ApiTransport::WebSocket(_)) {
             // TODO (SMA-1588): Implement `eth_subscribe` method for `jsonrpsee`.
             tracing::warn!(
@@ -615,7 +621,7 @@ impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
 
         // Start the server in a separate tokio runtime from a dedicated thread.
         tokio::task::spawn_blocking(move || {
-            runtime.block_on(Self::run_jsonrpsee_server(
+            let res = runtime.block_on(Self::run_jsonrpsee_server(
                 rpc,
                 transport,
                 stop_receiver,
@@ -625,6 +631,7 @@ impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
                 response_body_size_limit,
             ));
             runtime.shutdown_timeout(GRACEFUL_SHUTDOWN_TIMEOUT);
+            res
         })
     }
 
@@ -637,7 +644,7 @@ impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
         vm_barrier: VmConcurrencyBarrier,
         batch_request_config: BatchRequestConfig,
         response_body_size_limit: u32,
-    ) {
+    ) -> anyhow::Result<()> {
         let (transport_str, is_http, addr) = match transport {
             ApiTransport::Http(addr) => ("HTTP", true, addr),
             ApiTransport::WebSocket(addr) => ("WS", false, addr),
@@ -675,9 +682,7 @@ impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
             .max_response_body_size(response_body_size_limit)
             .build(addr)
             .await
-            .unwrap_or_else(|err| {
-                panic!("Failed building {} JSON-RPC server: {}", transport_str, err);
-            });
+            .with_context(|| format!("Failed building {transport_str} JSON-RPC server"))?;
         let server_handle = server.start(rpc);
 
         let close_handle = server_handle.clone();
@@ -697,6 +702,7 @@ impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
         drop(health_updater);
         tracing::info!("{transport_str} JSON-RPC server stopped");
         Self::wait_for_vm(vm_barrier, transport_str).await;
+        Ok(())
     }
 }
 

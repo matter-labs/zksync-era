@@ -50,13 +50,13 @@ impl ConnectionPoolBuilder {
     }
 
     /// Builds a connection pool from this builder.
-    pub async fn build(&self) -> ConnectionPool {
+    pub async fn build(&self) -> anyhow::Result<ConnectionPool> {
         let database_url = match self.db {
-            DbVariant::Master => get_master_database_url(),
-            DbVariant::Replica => get_replica_database_url(),
-            DbVariant::Prover => get_prover_database_url(),
+            DbVariant::Master => get_master_database_url()?,
+            DbVariant::Replica => get_replica_database_url()?,
+            DbVariant::Prover => get_prover_database_url()?,
         };
-        self.build_inner(&database_url).await
+        Ok(self.build_inner(&database_url).await)
     }
 
     pub async fn build_inner(&self, database_url: &str) -> ConnectionPool {
@@ -216,7 +216,7 @@ mod tests {
     async fn setting_statement_timeout() {
         // We cannot use an ordinary test pool here because it isn't created using `ConnectionPoolBuilder`.
         // Since we don't need to mutate the DB for the test, using a real DB connection is OK.
-        let database_url = get_test_database_url();
+        let database_url = get_test_database_url().unwrap();
         let pool = ConnectionPool::builder(DbVariant::Master)
             .set_statement_timeout(Some(Duration::from_secs(1)))
             .build_inner(&database_url)

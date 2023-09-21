@@ -282,7 +282,7 @@ impl PostgresStorageCaches {
         capacity: u64,
         connection_pool: ConnectionPool,
         rt_handle: Handle,
-    ) -> impl FnOnce() + Send {
+    ) -> impl FnOnce() -> anyhow::Result<()> + Send {
         assert!(
             capacity > 0,
             "Storage values cache capacity must be positive"
@@ -311,6 +311,7 @@ impl PostgresStorageCaches {
                 values_cache.update(current_miniblock, to_miniblock, &rt_handle, &mut connection);
                 current_miniblock = to_miniblock;
             }
+            Ok(())
         }
     }
 

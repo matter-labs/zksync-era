@@ -1,3 +1,4 @@
+use anyhow::Context as _;
 use clap::{Parser, Subcommand};
 use tokio::io::{self, AsyncReadExt};
 
@@ -92,7 +93,10 @@ async fn main() -> anyhow::Result<()> {
     let contracts = ContractsConfig::from_env();
     let config = BlockReverterEthConfig::new(eth_sender, contracts, eth_client.web3_url.clone());
 
-    let connection_pool = ConnectionPool::builder(DbVariant::Master).build().await;
+    let connection_pool = ConnectionPool::builder(DbVariant::Master)
+        .build()
+        .await
+        .context("failed to build a connection pool")?;
     let mut block_reverter = BlockReverter::new(
         db_config.state_keeper_db_path,
         db_config.merkle_tree.path,

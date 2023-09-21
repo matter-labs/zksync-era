@@ -128,6 +128,7 @@ async fn status_receiver_has_correct_states(pool: ConnectionPool, prover_pool: C
     tokio::time::timeout(RUN_TIMEOUT, calculator_handle)
         .await
         .expect("timed out waiting for calculator")
+        .unwrap()
         .unwrap();
     assert_eq!(
         tree_health_check.check_health().await.status(),
@@ -216,6 +217,7 @@ async fn running_metadata_calculator_with_additional_blocks(
     tokio::time::timeout(RUN_TIMEOUT, calculator_handle)
         .await
         .expect("timed out waiting for calculator")
+        .unwrap()
         .unwrap();
 
     // Switch to the full tree. It should pick up from the same spot and result in the same tree root hash.
@@ -246,6 +248,7 @@ async fn shutting_down_calculator(pool: ConnectionPool, prover_pool: ConnectionP
     stop_sx.send_replace(true);
     run_with_timeout(RUN_TIMEOUT, calculator_task)
         .await
+        .unwrap()
         .unwrap();
 }
 
@@ -321,6 +324,7 @@ async fn test_postgres_backup_recovery(
     tokio::time::timeout(RUN_TIMEOUT, calculator_handle)
         .await
         .expect("timed out waiting for calculator")
+        .unwrap()
         .unwrap();
 }
 
@@ -434,7 +438,9 @@ async fn run_calculator(
         root_hash
     });
 
-    run_with_timeout(RUN_TIMEOUT, calculator.run(pool, prover_pool, stop_rx)).await;
+    run_with_timeout(RUN_TIMEOUT, calculator.run(pool, prover_pool, stop_rx))
+        .await
+        .unwrap();
     delayer_handle.await.unwrap()
 }
 

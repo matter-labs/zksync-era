@@ -24,7 +24,7 @@ pub fn run_data_fetchers(
     network: zksync_types::network::Network,
     pool: ConnectionPool,
     stop_receiver: watch::Receiver<bool>,
-) -> Vec<JoinHandle<()>> {
+) -> Vec<JoinHandle<anyhow::Result<()>>> {
     let list_fetcher = token_list::TokenListFetcher::new(config.clone(), network);
     let price_fetcher = token_price::TokenPriceFetcher::new(config.clone());
     let volume_fetcher = token_trading_volume::TradingVolumeFetcher::new(config.clone());

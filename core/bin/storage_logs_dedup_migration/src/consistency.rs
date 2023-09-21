@@ -24,7 +24,10 @@ struct Cli {
 #[tokio::main]
 async fn main() {
     let opt = Cli::parse();
-    let pool = ConnectionPool::singleton(DbVariant::Replica).build().await;
+    let pool = ConnectionPool::singleton(DbVariant::Replica)
+        .build()
+        .await
+        .unwrap();
     let mut connection = pool.access_storage().await;
 
     println!(

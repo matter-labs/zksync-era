@@ -1,3 +1,4 @@
+use anyhow::Context as _;
 use jsonrpc_pubsub::typed;
 use tokio::sync::watch;
 use tokio::time::{interval, Duration, Instant};
@@ -13,14 +14,14 @@ pub async fn notify_blocks(
     connection_pool: ConnectionPool,
     polling_interval: Duration,
     stop_receiver: watch::Receiver<bool>,
-) {
+) -> anyhow::Result<()> {
     let mut last_block_number = connection_pool
         .access_storage_tagged("api")
         .await
         .blocks_web3_dal()
         .get_sealed_miniblock_number()
         .await
-        .unwrap();
+        .context("get_sealed_miniblock_number()")?;
     let mut timer = interval(polling_interval);
     loop {
         if *stop_receiver.borrow() {
@@ -37,7 +38,7 @@ pub async fn notify_blocks(
             .blocks_web3_dal()
             .get_block_headers_after(last_block_number)
             .await
-            .unwrap();
+            .with_context(|| format!("get_block_headers_after({last_block_number})"))?;
         metrics::histogram!("api.web3.pubsub.db_poll_latency", start.elapsed(), "subscription_type" => "blocks");
         if !new_blocks.is_empty() {
             last_block_number =
@@ -62,6 +63,7 @@ pub async fn notify_blocks(
             metrics::histogram!("api.web3.pubsub.notify_subscribers_latency", start.elapsed(), "subscription_type" => "blocks");
         }
     }
+    Ok(())
 }
 
 pub async fn notify_txs(
@@ -69,7 +71,7 @@ pub async fn notify_txs(
     connection_pool: ConnectionPool,
     polling_interval: Duration,
     stop_receiver: watch::Receiver<bool>,
-) {
+) -> anyhow::Result<()> {
     let mut last_time = chrono::Utc::now().naive_utc();
     let mut timer = interval(polling_interval);
     loop {
@@ -87,7 +89,7 @@ pub async fn notify_txs(
             .transactions_web3_dal()
             .get_pending_txs_hashes_after(last_time, None)
             .await
-            .unwrap();
+            .context("get_pending_txs_hashes_after()")?;
         metrics::histogram!("api.web3.pubsub.db_poll_latency", start.elapsed(), "subscription_type" => "txs");
         if let Some(new_last_time) = new_last_time {
             last_time = new_last_time;
@@ -111,6 +113,7 @@ pub async fn notify_txs(
             metrics::histogram!("api.web3.pubsub.notify_subscribers_latency", start.elapsed(), "subscription_type" => "txs");
         }
     }
+    Ok(())
 }
 
 pub async fn notify_logs(
@@ -118,14 +121,14 @@ pub async fn notify_logs(
     connection_pool: ConnectionPool,
     polling_interval: Duration,
     stop_receiver: watch::Receiver<bool>,
-) {
+) -> anyhow::Result<()> {
     let mut last_block_number = connection_pool
         .access_storage_tagged("api")
         .await
         .blocks_web3_dal()
         .get_sealed_miniblock_number()
         .await
-        .unwrap();
+        .context("get_sealed_miniblock_number()")?;
     let mut timer = interval(polling_interval);
     loop {
         if *stop_receiver.borrow() {
@@ -142,7 +145,7 @@ pub async fn notify_logs(
             .events_web3_dal()
             .get_all_logs(last_block_number)
             .await
-            .unwrap();
+            .context("events_web3_dal().get_all_logs()")?;
         metrics::histogram!("api.web3.pubsub.db_poll_latency", start.elapsed(), "subscription_type" => "logs");
         if !new_logs.is_empty() {
             last_block_number =
@@ -170,4 +173,5 @@ pub async fn notify_logs(
             metrics::histogram!("api.web3.pubsub.notify_subscribers_latency", start.elapsed(), "subscription_type" => "logs");
         }
     }
+    Ok(())
 }

@@ -185,7 +185,8 @@ impl TestScenario {
             if sk_thread.is_finished() {
                 sk_thread
                     .await
-                    .unwrap_or_else(|_| panic!("State keeper thread panicked"));
+                    .unwrap_or_else(|_| panic!("State keeper thread panicked"))
+                    .unwrap();
                 return;
             }
             tokio::time::sleep(poll_interval).await;

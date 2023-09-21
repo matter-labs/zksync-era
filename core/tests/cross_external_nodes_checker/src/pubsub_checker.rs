@@ -3,6 +3,7 @@ use crate::{
     divergence::{Divergence, DivergenceDetails},
     helpers::{compare_json, ExponentialBackoff},
 };
+use anyhow::Context as _;
 use std::{
     collections::HashMap,
     sync::Arc,
@@ -58,7 +59,7 @@ impl PubSubChecker {
         }
     }
 
-    pub async fn run(&self, mut stop_receiver: Receiver<bool>) {
+    pub async fn run(&self, mut stop_receiver: Receiver<bool>) -> anyhow::Result<()> {
         tracing::info!("Started pubsub checker");
 
         let mut join_handles = Vec::new();
@@ -70,6 +71,7 @@ impl PubSubChecker {
             if let Err(e) = this.subscribe_main(main_stop_receiver).await {
                 tracing::error!("Error in main node subscription task: {}", e);
             }
+            Ok(())
         });
         join_handles.push(handle);
 
@@ -80,9 +82,9 @@ impl PubSubChecker {
             let url = instance_url.clone();
             let handle = spawn(async move {
                 tracing::info!("Started a task to subscribe to instance {}", url);
-                if let Err(e) = this.subscribe_instance(&url, instance_stop_receiver).await {
-                    tracing::error!("Error in instance {} subscription task: {}", url, e);
-                }
+                this.subscribe_instance(&url, instance_stop_receiver)
+                    .await
+                    .with_context(|| format!("Error in instance {} subscription task", url))
             });
             join_handles.push(handle);
         }
@@ -93,6 +95,7 @@ impl PubSubChecker {
                 tracing::info!("Stop signal received, shutting down pubsub checker");
             },
         }
+        Ok(())
     }
 
     // Setup a client for the main node, subscribe, and insert incoming pubsub results into the shared hashmap.
@@ -252,11 +255,10 @@ impl PubSubChecker {
     }
 
     async fn setup_client(&self, url: &str) -> WsClient {
-        let client = WsClientBuilder::default()
+        WsClientBuilder::default()
             .build(url)
             .await
-            .expect("Failed to create a WS client");
-        client
+            .expect("Failed to create a WS client")
     }
 
     // Extract the block header and block number from the pubsub result that is expected to be a header.

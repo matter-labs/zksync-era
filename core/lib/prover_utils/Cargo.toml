@@ -15,6 +15,7 @@ zksync_utils = { path = "../../lib/utils" }
 zksync_types = { path = "../../lib/types" }
 zksync_object_store = { path = "../../lib/object_store" }
 
+anyhow = "1.0"
 metrics = "0.21"
 reqwest = { version = "0.11", features = ["blocking"] }
 regex = "1.7.2"

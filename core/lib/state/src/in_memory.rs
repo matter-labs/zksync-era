@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::ReadStorage;
 use zksync_types::{
-    get_code_key, get_known_code_key, get_system_context_init_logs,
+    block::DeployedContract, get_code_key, get_known_code_key, get_system_context_init_logs,
     system_contracts::get_system_smart_contracts, L2ChainId, StorageKey, StorageLog,
     StorageLogKind, StorageValue, H256, U256,
 };
@@ -32,7 +32,19 @@ impl InMemoryStorage {
         chain_id: L2ChainId,
         bytecode_hasher: impl Fn(&[u8]) -> H256,
     ) -> Self {
-        let contracts = get_system_smart_contracts();
+        Self::with_custom_system_contracts_and_chain_id(
+            chain_id,
+            bytecode_hasher,
+            get_system_smart_contracts(),
+        )
+    }
+
+    /// Constructs a storage that contains custom system contracts (provided in a vector).
+    pub fn with_custom_system_contracts_and_chain_id(
+        chain_id: L2ChainId,
+        bytecode_hasher: impl Fn(&[u8]) -> H256,
+        contracts: Vec<DeployedContract>,
+    ) -> Self {
         let system_context_init_log = get_system_context_init_logs(chain_id);
 
         let state = contracts

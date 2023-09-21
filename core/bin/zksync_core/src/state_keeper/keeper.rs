@@ -62,14 +62,15 @@ impl ZkSyncStateKeeper {
         }
     }
 
-    pub async fn run(mut self) {
+    pub async fn run(mut self) -> anyhow::Result<()> {
         match self.run_inner().await {
             Ok(()) => {
                 // Normally, state keeper can only exit its routine if the task was cancelled.
-                panic!("State keeper exited the main loop")
+                anyhow::bail!("State keeper exited the main loop");
             }
             Err(Canceled) => {
                 tracing::info!("Stop signal received, state keeper is shutting down");
+                Ok(())
             }
         }
     }

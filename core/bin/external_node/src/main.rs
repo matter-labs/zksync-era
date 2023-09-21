@@ -99,11 +99,11 @@ async fn build_state_keeper(
 async fn init_tasks(
     config: ExternalNodeConfig,
     connection_pool: ConnectionPool,
-) -> (
-    Vec<task::JoinHandle<()>>,
+) -> anyhow::Result<(
+    Vec<task::JoinHandle<anyhow::Result<()>>>,
     watch::Sender<bool>,
     HealthCheckHandle,
-) {
+)> {
     let main_node_url = config
         .required
         .main_node_url()
@@ -129,7 +129,10 @@ async fn init_tasks(
 
     let singleton_pool_builder = ConnectionPool::singleton(DbVariant::Master);
     let fetcher = MainNodeFetcher::new(
-        singleton_pool_builder.build().await,
+        singleton_pool_builder
+            .build()
+            .await
+            .context("failed to build a connection pool for MainNodeFetcher")?,
         &main_node_url,
         action_queue.clone(),
         sync_state.clone(),
@@ -152,19 +155,34 @@ async fn init_tasks(
         &config
             .required
             .eth_client_url()
-            .expect("L1 client URL is incorrect"),
+            .context("L1 client URL is incorrect")?,
         10, // TODO (BFT-97): Make it a part of a proper EN config
-        singleton_pool_builder.build().await,
+        singleton_pool_builder
+            .build()
+            .await
+            .context("failed to build connection pool for ConsistencyChecker")?,
     );
 
-    let batch_status_updater =
-        BatchStatusUpdater::new(&main_node_url, singleton_pool_builder.build().await).await;
+    let batch_status_updater = BatchStatusUpdater::new(
+        &main_node_url,
+        singleton_pool_builder
+            .build()
+            .await
+            .context("failed to build a connection pool for BatchStatusUpdater")?,
+    )
+    .await;
 
     // Run the components.
     let tree_stop_receiver = stop_receiver.clone();
-    let tree_pool = singleton_pool_builder.build().await;
+    let tree_pool = singleton_pool_builder
+        .build()
+        .await
+        .context("failed to build a tree_pool")?;
     // todo: PLA-335
-    let prover_tree_pool = ConnectionPool::singleton(DbVariant::Prover).build().await;
+    let prover_tree_pool = ConnectionPool::singleton(DbVariant::Prover)
+        .build()
+        .await
+        .context("failed to build a prover_tree_pool")?;
     let tree_handle =
         task::spawn(metadata_calculator.run(tree_pool, prover_tree_pool, tree_stop_receiver));
 
@@ -270,7 +288,7 @@ async fn init_tasks(
         task_handles.push(consistency_checker);
     }
 
-    (task_handles, stop_sender, healthcheck_handle)
+    Ok((task_handles, stop_sender, healthcheck_handle))
 }
 
 async fn shutdown_components(
@@ -323,13 +341,16 @@ async fn main() -> anyhow::Result<()> {
 
     let config = ExternalNodeConfig::collect()
         .await
-        .expect("Failed to load external node config");
+        .context("Failed to load external node config")?;
     let main_node_url = config
         .required
         .main_node_url()
-        .expect("Main node URL is incorrect");
+        .context("Main node URL is incorrect")?;
 
-    let connection_pool = ConnectionPool::builder(DbVariant::Master).build().await;
+    let connection_pool = ConnectionPool::builder(DbVariant::Master)
+        .build()
+        .await
+        .context("failed to build a connection_pool")?;
 
     if opt.revert_pending_l1_batch {
         tracing::info!("Rolling pending L1 batch back..");
@@ -372,7 +393,9 @@ async fn main() -> anyhow::Result<()> {
     .context("Performing genesis failed")?;
 
     let (task_handles, stop_sender, health_check_handle) =
-        init_tasks(config.clone(), connection_pool.clone()).await;
+        init_tasks(config.clone(), connection_pool.clone())
+            .await
+            .context("init_tasks")?;
 
     let reorg_detector = ReorgDetector::new(&main_node_url, connection_pool.clone());
     let reorg_detector_handle = tokio::spawn(reorg_detector.run());

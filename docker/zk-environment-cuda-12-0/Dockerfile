@@ -30,13 +30,13 @@ RUN apt-get update && apt-get install -y \
 RUN add-apt-repository ppa:savoury1/virtualisation && \
     apt-get update && \
     apt-get install -y \
-        curl \
-        gnutls-bin git \
-        build-essential \
-        clang-7 \
-        lldb-7 \
-        lld-7 \
-        liburing-dev
+    curl \
+    gnutls-bin git \
+    build-essential \
+    clang-7 \
+    lldb-7 \
+    lld-7 \
+    liburing-dev
 
 # Install docker engine
 RUN curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
@@ -66,7 +66,7 @@ RUN echo "deb http://packages.cloud.google.com/apt cloud-sdk main" > /etc/apt/so
     gcloud config set metrics/environment github_docker_image
 
 RUN curl https://sh.rustup.rs -sSf | bash -s -- -y
-RUN rustup install nightly-2023-05-31
+RUN rustup install nightly-2023-07-21
 RUN rustup default stable
 RUN cargo install --version=0.5.6 sqlx-cli
 RUN cargo install cargo-tarpaulin
@@ -112,22 +112,22 @@ ENV NV_CUDA_COMPAT_PACKAGE cuda-compat-12-0
 
 # curl purging is removed, it's required in next steps
 RUN apt-get update && apt-get install -y --no-install-recommends \
-  gnupg2 curl ca-certificates && \
-  curl -fsSL https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/${NVARCH}/3bf863cc.pub | apt-key add - && \
-  echo "deb https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/${NVARCH} /" > /etc/apt/sources.list.d/cuda.list && \
-  rm -rf /var/lib/apt/lists/*
+    gnupg2 curl ca-certificates && \
+    curl -fsSL https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/${NVARCH}/3bf863cc.pub | apt-key add - && \
+    echo "deb https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/${NVARCH} /" > /etc/apt/sources.list.d/cuda.list && \
+    rm -rf /var/lib/apt/lists/*
 
 ENV CUDA_VERSION 12.0.0
 
 # For libraries in the cuda-compat-* package: https://docs.nvidia.com/cuda/eula/index.html#attachment-a
 RUN apt-get update && apt-get install -y --no-install-recommends \
-  cuda-cudart-12-0=${NV_CUDA_CUDART_VERSION} \
-  ${NV_CUDA_COMPAT_PACKAGE} \
-  && rm -rf /var/lib/apt/lists/*
+    cuda-cudart-12-0=${NV_CUDA_CUDART_VERSION} \
+    ${NV_CUDA_COMPAT_PACKAGE} \
+    && rm -rf /var/lib/apt/lists/*
 
 # Required for nvidia-docker v1
 RUN echo "/usr/local/nvidia/lib" >> /etc/ld.so.conf.d/nvidia.conf \
-  && echo "/usr/local/nvidia/lib64" >> /etc/ld.so.conf.d/nvidia.conf
+    && echo "/usr/local/nvidia/lib64" >> /etc/ld.so.conf.d/nvidia.conf
 
 ENV PATH /usr/local/nvidia/bin:/usr/local/cuda/bin:${PATH}
 ENV LD_LIBRARY_PATH /usr/local/nvidia/lib:/usr/local/nvidia/lib64
@@ -167,13 +167,13 @@ ENV NCCL_VERSION 2.17.1-1
 ENV NV_LIBNCCL_PACKAGE ${NV_LIBNCCL_PACKAGE_NAME}=${NV_LIBNCCL_PACKAGE_VERSION}+cuda12.0
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-  cuda-libraries-12-0=${NV_CUDA_LIB_VERSION} \
-  ${NV_LIBNPP_PACKAGE} \
-  cuda-nvtx-12-0=${NV_NVTX_VERSION} \
-  libcusparse-12-0=${NV_LIBCUSPARSE_VERSION} \
-  ${NV_LIBCUBLAS_PACKAGE} \
-  ${NV_LIBNCCL_PACKAGE} \
-  && rm -rf /var/lib/apt/lists/*
+    cuda-libraries-12-0=${NV_CUDA_LIB_VERSION} \
+    ${NV_LIBNPP_PACKAGE} \
+    cuda-nvtx-12-0=${NV_NVTX_VERSION} \
+    libcusparse-12-0=${NV_LIBCUSPARSE_VERSION} \
+    ${NV_LIBCUBLAS_PACKAGE} \
+    ${NV_LIBNCCL_PACKAGE} \
+    && rm -rf /var/lib/apt/lists/*
 
 # Keep apt from auto upgrading the cublas and nccl packages. See https://gitlab.com/nvidia/container-images/cuda/-/issues/88
 RUN apt-mark hold ${NV_LIBCUBLAS_PACKAGE_NAME} ${NV_LIBNCCL_PACKAGE_NAME}
@@ -222,19 +222,19 @@ ENV NCCL_VERSION 2.17.1-1
 ENV NV_LIBNCCL_DEV_PACKAGE ${NV_LIBNCCL_DEV_PACKAGE_NAME}=${NV_LIBNCCL_DEV_PACKAGE_VERSION}+cuda12.0
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-  libtinfo5 libncursesw5 \
-  cuda-cudart-dev-12-0=${NV_CUDA_CUDART_DEV_VERSION} \
-  cuda-command-line-tools-12-0=${NV_CUDA_LIB_VERSION} \
-  cuda-minimal-build-12-0=${NV_CUDA_LIB_VERSION} \
-  cuda-libraries-dev-12-0=${NV_CUDA_LIB_VERSION} \
-  cuda-nvml-dev-12-0=${NV_NVML_DEV_VERSION} \
-  ${NV_NVPROF_DEV_PACKAGE} \
-  ${NV_LIBNPP_DEV_PACKAGE} \
-  libcusparse-dev-12-0=${NV_LIBCUSPARSE_DEV_VERSION} \
-  ${NV_LIBCUBLAS_DEV_PACKAGE} \
-  ${NV_LIBNCCL_DEV_PACKAGE} \
-  ${NV_CUDA_NSIGHT_COMPUTE_DEV_PACKAGE} \
-  && rm -rf /var/lib/apt/lists/*
+    libtinfo5 libncursesw5 \
+    cuda-cudart-dev-12-0=${NV_CUDA_CUDART_DEV_VERSION} \
+    cuda-command-line-tools-12-0=${NV_CUDA_LIB_VERSION} \
+    cuda-minimal-build-12-0=${NV_CUDA_LIB_VERSION} \
+    cuda-libraries-dev-12-0=${NV_CUDA_LIB_VERSION} \
+    cuda-nvml-dev-12-0=${NV_NVML_DEV_VERSION} \
+    ${NV_NVPROF_DEV_PACKAGE} \
+    ${NV_LIBNPP_DEV_PACKAGE} \
+    libcusparse-dev-12-0=${NV_LIBCUSPARSE_DEV_VERSION} \
+    ${NV_LIBCUBLAS_DEV_PACKAGE} \
+    ${NV_LIBNCCL_DEV_PACKAGE} \
+    ${NV_CUDA_NSIGHT_COMPUTE_DEV_PACKAGE} \
+    && rm -rf /var/lib/apt/lists/*
 
 # Keep apt from auto upgrading the cublas and nccl packages. See https://gitlab.com/nvidia/container-images/cuda/-/issues/88
 RUN apt-mark hold ${NV_LIBCUBLAS_DEV_PACKAGE_NAME} ${NV_LIBNCCL_DEV_PACKAGE_NAME}

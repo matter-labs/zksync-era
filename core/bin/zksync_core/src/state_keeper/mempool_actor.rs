@@ -57,7 +57,7 @@ impl<G: L1GasPriceProvider> MempoolFetcher<G> {
         stuck_tx_timeout: Duration,
         fair_l2_gas_price: u64,
         stop_receiver: watch::Receiver<bool>,
-    ) {
+    ) -> anyhow::Result<()> {
         {
             let mut storage = pool.access_storage_tagged("state_keeper").await;
             if remove_stuck_txs {
@@ -97,5 +97,6 @@ impl<G: L1GasPriceProvider> MempoolFetcher<G> {
                 tokio::time::sleep(self.sync_interval).await;
             }
         }
+        Ok(())
     }
 }

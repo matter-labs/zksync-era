@@ -76,9 +76,7 @@ fn test_nonce_holder() {
                     msg,
                     data: vec![],
                 }));
-            let ExecutionResult::Halt {
-               reason
-            } = result.result else {
+            let ExecutionResult::Halt { reason } = result.result else {
                 panic!("Expected revert, got {:?}", result.result);
             };
             assert_eq!(

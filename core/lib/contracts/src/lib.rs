@@ -1,3 +1,7 @@
+//! Set of utility functions to read contracts both in Yul and Sol format.
+//!
+//! Careful: some of the methods are reading the contracts based on the ZKSYNC_HOME environment variable.
+
 #![allow(clippy::derive_partial_eq_without_eq)]
 use ethabi::{
     ethereum_types::{H256, U256},
@@ -7,14 +11,14 @@ use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use std::{
     fs::{self, File},
-    path::Path,
+    path::{Path, PathBuf},
 };
 
 use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words};
 
 pub mod test_contracts;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ContractLanguage {
     Sol,
     Yul,
@@ -134,9 +138,14 @@ pub fn known_codes_contract() -> Contract {
     load_sys_contract("KnownCodesStorage")
 }
 
-pub fn read_bytecode(path: impl AsRef<Path>) -> Vec<u8> {
+/// Reads bytecode from the path RELATIVE to the ZKSYNC_HOME environment variable.
+pub fn read_bytecode(relative_path: impl AsRef<Path>) -> Vec<u8> {
     let zksync_home = std::env::var("ZKSYNC_HOME").unwrap_or_else(|_| ".".into());
-    let artifact_path = Path::new(&zksync_home).join(path);
+    let artifact_path = Path::new(&zksync_home).join(relative_path);
+    read_bytecode_from_path(artifact_path)
+}
+/// Reads bytecode from a given path.
+pub fn read_bytecode_from_path(artifact_path: PathBuf) -> Vec<u8> {
     let artifact = read_file_to_json_value(artifact_path.clone());
 
     let bytecode = artifact["bytecode"]
@@ -154,18 +163,44 @@ pub fn default_erc20_bytecode() -> Vec<u8> {
 }
 
 pub fn read_sys_contract_bytecode(directory: &str, name: &str, lang: ContractLanguage) -> Vec<u8> {
-    match lang {
-        ContractLanguage::Sol => {
-            read_bytecode(format!(
-                "etc/system-contracts/artifacts-zk/cache-zk/solpp-generated-contracts/{0}{1}.sol/{1}.json",
+    DEFAULT_SYSTEM_CONTRACTS_REPO.read_sys_contract_bytecode(directory, name, lang)
+}
+
+pub static DEFAULT_SYSTEM_CONTRACTS_REPO: Lazy<SystemContractsRepo> =
+    Lazy::new(SystemContractsRepo::from_env);
+
+/// Structure representing a system contract repository - that allows
+/// fetching contracts that are located there.
+/// As most of the static methods in this file, is loading data based on ZKSYNC_HOME environment variable.
+pub struct SystemContractsRepo {
+    // Path to the root of the system contracts repo.
+    pub root: PathBuf,
+}
+
+impl SystemContractsRepo {
+    /// Returns the default system contracts repo with directory based on the ZKSYNC_HOME environment variable.
+    pub fn from_env() -> Self {
+        let zksync_home = std::env::var("ZKSYNC_HOME").expect("ZKSYNC_HOME env variable not set.");
+        let zksync_home = PathBuf::from(zksync_home);
+        SystemContractsRepo {
+            root: zksync_home.join("etc/system-contracts"),
+        }
+    }
+    pub fn read_sys_contract_bytecode(
+        &self,
+        directory: &str,
+        name: &str,
+        lang: ContractLanguage,
+    ) -> Vec<u8> {
+        match lang {
+            ContractLanguage::Sol => read_bytecode_from_path(self.root.join(format!(
+                "artifacts-zk/cache-zk/solpp-generated-contracts/{0}{1}.sol/{1}.json",
                 directory, name
-            ))
-        },
-        ContractLanguage::Yul => {
-            read_zbin_bytecode(format!(
-                "etc/system-contracts/contracts/{0}artifacts/{1}.yul/{1}.yul.zbin",
+            ))),
+            ContractLanguage::Yul => read_zbin_bytecode_from_path(self.root.join(format!(
+                "contracts/{0}artifacts/{1}.yul/{1}.yul.zbin",
                 directory, name
-            ))
+            ))),
         }
     }
 }
@@ -198,9 +233,16 @@ pub fn get_loadnext_test_contract_bytecode(file_name: &str, contract_name: &str)
         file_name, contract_name
     )
 }
-pub fn read_zbin_bytecode(zbin_path: impl AsRef<Path>) -> Vec<u8> {
+
+/// Reads zbin bytecode from a given path, relative to ZKSYNC_HOME.
+pub fn read_zbin_bytecode(relative_zbin_path: impl AsRef<Path>) -> Vec<u8> {
     let zksync_home = std::env::var("ZKSYNC_HOME").unwrap_or_else(|_| ".".into());
-    let bytecode_path = Path::new(&zksync_home).join(zbin_path);
+    let bytecode_path = Path::new(&zksync_home).join(relative_zbin_path);
+    read_zbin_bytecode_from_path(bytecode_path)
+}
+
+/// Reads zbin bytecode from a given path.
+pub fn read_zbin_bytecode_from_path(bytecode_path: PathBuf) -> Vec<u8> {
     fs::read(&bytecode_path)
         .unwrap_or_else(|err| panic!("Can't read .zbin bytecode at {:?}: {}", bytecode_path, err))
 }

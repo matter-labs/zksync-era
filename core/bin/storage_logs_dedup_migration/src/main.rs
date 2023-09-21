@@ -46,7 +46,10 @@ impl StateCache {
 #[tokio::main]
 async fn main() {
     let opt = Cli::parse();
-    let pool = ConnectionPool::singleton(DbVariant::Master).build().await;
+    let pool = ConnectionPool::singleton(DbVariant::Master)
+        .build()
+        .await
+        .unwrap();
     let mut connection = pool.access_storage().await;
 
     let sealed_miniblock = connection.blocks_dal().get_sealed_miniblock_number().await;
