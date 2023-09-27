@@ -10,6 +10,7 @@ keywords = ["blockchain", "zksync"]
 categories = ["cryptography"]
 
 [dependencies]
+vise = { git = "https://github.com/matter-labs/vise.git", version = "0.1.0", rev = "9d097ab747b037b6e62504df1db5b975425b6bdd" }
 zksync_utils = { path = "../utils" }
 zksync_config = { path = "../config" }
 zksync_contracts = { path = "../contracts" }
@@ -19,7 +20,6 @@ zksync_health_check = { path = "../health_check" }
 itertools = "0.10.1"
 thiserror = "1.0"
 anyhow = "1.0"
-metrics = "0.21"
 tokio = { version = "1", features = ["full"] }
 sqlx = { version = "0.5.13", default-features = false, features = [
     "runtime-tokio-native-tls",

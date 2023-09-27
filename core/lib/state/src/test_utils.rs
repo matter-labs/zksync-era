@@ -10,7 +10,7 @@ use zksync_types::{
 use std::ops;
 
 pub(crate) async fn prepare_postgres(conn: &mut StorageProcessor<'_>) {
-    if conn.blocks_dal().is_genesis_needed().await {
+    if conn.blocks_dal().is_genesis_needed().await.unwrap() {
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;
@@ -26,8 +26,12 @@ pub(crate) async fn prepare_postgres(conn: &mut StorageProcessor<'_>) {
         .await;
     conn.blocks_dal()
         .delete_miniblocks(MiniblockNumber(0))
-        .await;
-    conn.blocks_dal().delete_l1_batches(L1BatchNumber(0)).await;
+        .await
+        .unwrap();
+    conn.blocks_dal()
+        .delete_l1_batches(L1BatchNumber(0))
+        .await
+        .unwrap();
 }
 
 pub(crate) fn gen_storage_logs(indices: ops::Range<u64>) -> Vec<StorageLog> {
@@ -77,7 +81,10 @@ pub(crate) async fn create_miniblock(
         virtual_blocks: 0,
     };
 
-    conn.blocks_dal().insert_miniblock(&miniblock_header).await;
+    conn.blocks_dal()
+        .insert_miniblock(&miniblock_header)
+        .await
+        .unwrap();
     conn.storage_logs_dal()
         .insert_storage_logs(miniblock_number, &[(H256::zero(), block_logs)])
         .await;
@@ -100,10 +107,12 @@ pub(crate) async fn create_l1_batch(
     header.is_finished = true;
     conn.blocks_dal()
         .insert_l1_batch(&header, &[], BlockGasCount::default())
-        .await;
+        .await
+        .unwrap();
     conn.blocks_dal()
         .mark_miniblocks_as_executed_in_l1_batch(l1_batch_number)
-        .await;
+        .await
+        .unwrap();
 
     let mut written_keys: Vec<_> = logs_for_initial_writes.iter().map(|log| log.key).collect();
     written_keys.sort_unstable();

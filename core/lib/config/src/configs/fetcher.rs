@@ -51,15 +51,15 @@ pub struct FetcherConfig {
 }
 
 impl FetcherConfig {
-    pub fn from_env() -> Self {
-        Self {
-            token_list: envy_load("token_list", "FETCHER_TOKEN_LIST_"),
-            token_price: envy_load("token_price", "FETCHER_TOKEN_PRICE_"),
+    pub fn from_env() -> anyhow::Result<Self> {
+        Ok(Self {
+            token_list: envy_load("token_list", "FETCHER_TOKEN_LIST_")?,
+            token_price: envy_load("token_price", "FETCHER_TOKEN_PRICE_")?,
             token_trading_volume: envy_load(
                 "token_trading_volume",
                 "FETCHER_TOKEN_TRADING_VOLUME_",
-            ),
-        }
+            )?,
+        })
     }
 }
 
@@ -106,7 +106,7 @@ mod tests {
         "#;
         lock.set_env(config);
 
-        let actual = FetcherConfig::from_env();
+        let actual = FetcherConfig::from_env().unwrap();
         assert_eq!(actual, expected_config());
     }
 }

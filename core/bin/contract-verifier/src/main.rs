@@ -1,5 +1,6 @@
 use std::cell::RefCell;
 
+use anyhow::Context as _;
 use prometheus_exporter::PrometheusExporterConfig;
 use zksync_config::{configs::PrometheusConfig, ApiConfig, ContractVerifierConfig};
 use zksync_dal::ConnectionPool;
@@ -17,8 +18,8 @@ pub mod zksolc_utils;
 pub mod zkvyper_utils;
 
 async fn update_compiler_versions(connection_pool: &ConnectionPool) {
-    let mut storage = connection_pool.access_storage().await;
-    let mut transaction = storage.start_transaction().await;
+    let mut storage = connection_pool.access_storage().await.unwrap();
+    let mut transaction = storage.start_transaction().await.unwrap();
 
     let zksync_home = std::env::var("ZKSYNC_HOME").unwrap_or_else(|_| ".".into());
 
@@ -107,7 +108,7 @@ async fn update_compiler_versions(connection_pool: &ConnectionPool) {
         .await
         .unwrap();
 
-    transaction.commit().await;
+    transaction.commit().await.unwrap();
 }
 
 use structopt::StructOpt;
@@ -122,13 +123,13 @@ struct Opt {
 }
 
 #[tokio::main]
-async fn main() {
+async fn main() -> anyhow::Result<()> {
     let opt = Opt::from_args();
 
-    let verifier_config = ContractVerifierConfig::from_env();
+    let verifier_config = ContractVerifierConfig::from_env().context("ContractVerifierConfig")?;
     let prometheus_config = PrometheusConfig {
         listener_port: verifier_config.prometheus_port,
-        ..ApiConfig::from_env().prometheus
+        ..ApiConfig::from_env().context("ApiConfig")?.prometheus
     };
     let pool = ConnectionPool::singleton(DbVariant::Master)
         .build()
@@ -195,4 +196,5 @@ async fn main() {
 
     // Sleep for some time to let verifier gracefully stop.
     tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+    Ok(())
 }

@@ -15,7 +15,8 @@ use zk_evm::zkevm_opcode_defs::{
 };
 use zksync_config::constants::BOOTLOADER_ADDRESS;
 use zksync_state::{StoragePtr, WriteStorage};
-use zksync_types::{zkevm_test_harness::INITIAL_MONOTONIC_CYCLE_COUNTER, Address};
+use zksync_types::block::legacy_miniblock_hash;
+use zksync_types::{zkevm_test_harness::INITIAL_MONOTONIC_CYCLE_COUNTER, Address, MiniblockNumber};
 use zksync_utils::h256_to_u256;
 
 use crate::bootloader_state::BootloaderState;
@@ -27,6 +28,7 @@ use crate::old_vm::{
 };
 use crate::types::inputs::{L1BatchEnv, SystemEnv};
 use crate::utils::l2_blocks::{assert_next_block, load_last_l2_block};
+use crate::L2Block;
 
 pub type ZkSyncVmState<S, H> = VmState<
     StorageOracle<S, H>,
@@ -57,7 +59,18 @@ pub(crate) fn new_vm_state<S: WriteStorage, H: HistoryMode>(
     system_env: &SystemEnv,
     l1_batch_env: &L1BatchEnv,
 ) -> (ZkSyncVmState<S, H>, BootloaderState) {
-    let last_l2_block = load_last_l2_block(storage.clone());
+    let last_l2_block = if let Some(last_l2_block) = load_last_l2_block(storage.clone()) {
+        last_l2_block
+    } else {
+        // This is the scenario of either the first L2 block ever or
+        // the first block after the upgrade for support of L2 blocks.
+        L2Block {
+            number: l1_batch_env.first_l2_block.number.saturating_sub(1),
+            timestamp: 0,
+            hash: legacy_miniblock_hash(MiniblockNumber(l1_batch_env.first_l2_block.number) - 1),
+        }
+    };
+
     assert_next_block(&last_l2_block, &l1_batch_env.first_l2_block);
     let first_l2_block = l1_batch_env.first_l2_block;
     let storage_oracle: StorageOracle<S, H> = StorageOracle::new(storage.clone());

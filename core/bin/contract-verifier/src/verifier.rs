@@ -3,6 +3,7 @@ use std::env;
 use std::path::Path;
 use std::time::{Duration, Instant};
 
+use anyhow::Context as _;
 use chrono::Utc;
 use ethabi::{Contract, Token};
 use lazy_static::lazy_static;
@@ -454,8 +455,8 @@ impl JobProcessor for ContractVerifier {
     const SERVICE_NAME: &'static str = "contract_verifier";
     const BACKOFF_MULTIPLIER: u64 = 1;
 
-    async fn get_next_job(&self) -> Option<(Self::JobId, Self::Job)> {
-        let mut connection = self.connection_pool.access_storage().await;
+    async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, Self::Job)>> {
+        let mut connection = self.connection_pool.access_storage().await.unwrap();
 
         // Time overhead for all operations except for compilation.
         const TIME_OVERHEAD: Duration = Duration::from_secs(10);
@@ -467,13 +468,13 @@ impl JobProcessor for ContractVerifier {
             .contract_verification_dal()
             .get_next_queued_verification_request(self.config.compilation_timeout() + TIME_OVERHEAD)
             .await
-            .unwrap();
+            .context("get_next_queued_verification_request()")?;
 
-        job.map(|job| (job.id, job))
+        Ok(job.map(|job| (job.id, job)))
     }
 
     async fn save_failure(&self, job_id: usize, _started_at: Instant, error: String) {
-        let mut connection = self.connection_pool.access_storage().await;
+        let mut connection = self.connection_pool.access_storage().await.unwrap();
 
         connection
             .contract_verification_dal()
@@ -492,13 +493,14 @@ impl JobProcessor for ContractVerifier {
         &self,
         job: VerificationRequest,
         started_at: Instant,
-    ) -> tokio::task::JoinHandle<()> {
+    ) -> tokio::task::JoinHandle<anyhow::Result<()>> {
         let connection_pool = self.connection_pool.clone();
         tokio::task::spawn(async move {
             tracing::info!("Started to process request with id = {}", job.id);
 
-            let config: ContractVerifierConfig = ContractVerifierConfig::from_env();
-            let mut connection = connection_pool.access_storage().await;
+            let config: ContractVerifierConfig =
+                ContractVerifierConfig::from_env().context("ContractVerifierConfig")?;
+            let mut connection = connection_pool.access_storage().await.unwrap();
 
             let job_id = job.id;
             let verification_result = Self::verify(&mut connection, job, config).await;
@@ -508,10 +510,17 @@ impl JobProcessor for ContractVerifier {
                 "api.contract_verifier.request_processing_time",
                 started_at.elapsed()
             );
+            Ok(())
         })
     }
 
-    async fn save_result(&self, _: Self::JobId, _: Instant, _: Self::JobArtifacts) {
+    async fn save_result(
+        &self,
+        _: Self::JobId,
+        _: Instant,
+        _: Self::JobArtifacts,
+    ) -> anyhow::Result<()> {
         // Do nothing
+        Ok(())
     }
 }

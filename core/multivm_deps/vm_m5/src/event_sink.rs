@@ -82,7 +82,7 @@ impl InMemoryEventSink {
         }
 
         // naturally sorted by timestamp
-        let mut keys: Vec<_> = tmp.keys().into_iter().cloned().collect();
+        let mut keys: Vec<_> = tmp.keys().cloned().collect();
         keys.sort_unstable();
 
         let mut events = vec![];
@@ -150,7 +150,7 @@ impl EventSink for InMemoryEventSink {
             for query in forward {
                 self.frames_stack.push_forward(query, timestamp);
             }
-            for query in rollbacks.into_iter().rev().into_iter().filter(|q| {
+            for query in rollbacks.into_iter().rev().filter(|q| {
                 // As of now, the bootloader only emits debug logs
                 // for events, so we keep them here for now.
                 // They will be cleared on the server level.
