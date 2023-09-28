@@ -1,0 +1,79 @@
+all-features = false
+no-default-features = false
+
+[advisories]
+vulnerability = "deny"
+unmaintained = "warn"
+yanked = "warn"
+notice = "warn"
+ignore = [
+    #"RUSTSEC-0000-0000",
+]
+
+[licenses]
+unlicensed = "deny"
+allow = [
+    #"Apache-2.0 WITH LLVM-exception",
+    "MIT",
+    "Apache-2.0",
+    "ISC",
+    "Unlicense",
+    "MPL-2.0",
+    "Unicode-DFS-2016",
+    "CC0-1.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "Zlib",
+]
+deny = [
+    #"Nokia",
+]
+copyleft = "warn"
+allow-osi-fsf-free = "neither"
+default = "deny"
+confidence-threshold = 0.8
+exceptions = [
+    # Each entry is the crate and version constraint, and its specific allow
+    # list
+    #{ allow = ["Zlib"], name = "adler32", version = "*" },
+]
+
+unused-allowed-license = "allow"
+
+[licenses.private]
+ignore = false
+registries = [
+    #"https://sekretz.com/registry
+]
+
+[bans]
+multiple-versions = "warn"
+wildcards = "allow"
+highlight = "all"
+workspace-default-features = "allow"
+external-default-features = "allow"
+allow = [
+    #{ name = "ansi_term", version = "=0.11.0" },
+]
+# List of crates to deny
+deny = [
+    # Each entry the name of a crate and a version range. If version is
+    # not specified, all versions will be matched.
+    #{ name = "ansi_term", version = "=0.11.0" },
+]
+
+skip = [
+    #{ name = "ansi_term", version = "=0.11.0" },
+]
+skip-tree = [
+    #{ name = "ansi_term", version = "=0.11.0", depth = 20 },
+]
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "allow"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []
+
+[sources.allow-org]
+#github = ["matter-labs"]
