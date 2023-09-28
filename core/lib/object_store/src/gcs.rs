@@ -14,16 +14,16 @@ use google_cloud_storage::{
 };
 use http::StatusCode;
 
-use std::{
-    fmt,
-    future::Future,
-    time::{Duration, Instant},
-};
+use std::{fmt, future::Future, time::Duration};
 
-use crate::raw::{Bucket, ObjectStore, ObjectStoreError};
+use crate::{
+    metrics::GCS_METRICS,
+    raw::{Bucket, ObjectStore, ObjectStoreError},
+};
 
 async fn retry<T, E, Fut, F>(max_retries: u16, mut f: F) -> Result<T, E>
 where
+    E: fmt::Display,
     Fut: Future<Output = Result<T, E>>,
     F: FnMut() -> Fut,
 {
@@ -33,7 +33,7 @@ where
         match f().await {
             Ok(result) => return Ok(result),
             Err(err) => {
-                tracing::warn!("Failed gcs request {retries}/{max_retries}, retrying.");
+                tracing::warn!(%err, "Failed GCS request {retries}/{max_retries}, retrying.");
                 if retries > max_retries {
                     return Err(err);
                 }
@@ -57,7 +57,7 @@ impl fmt::Debug for GoogleCloudStorage {
             .debug_struct("GoogleCloudStorage")
             .field("bucket_prefix", &self.bucket_prefix)
             .field("max_retries", &self.max_retries)
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 
@@ -146,7 +146,7 @@ impl From<HttpError> for ObjectStoreError {
 #[async_trait]
 impl ObjectStore for GoogleCloudStorage {
     async fn get_raw(&self, bucket: Bucket, key: &str) -> Result<Vec<u8>, ObjectStoreError> {
-        let started_at = Instant::now();
+        let fetch_latency = GCS_METRICS.start_fetch(bucket);
         let filename = Self::filename(bucket.as_str(), key);
         tracing::trace!(
             "Fetching data from GCS for key {filename} from bucket {}",
@@ -164,14 +164,9 @@ impl ObjectStore for GoogleCloudStorage {
         })
         .await;
 
+        let elapsed = fetch_latency.observe();
         tracing::trace!(
-            "Fetched data from GCS for key {key} from bucket {bucket} and it took: {:?}",
-            started_at.elapsed()
-        );
-        metrics::histogram!(
-            "server.object_store.fetching_time",
-            started_at.elapsed(),
-            "bucket" => bucket.as_str()
+            "Fetched data from GCS for key {key} from bucket {bucket} and it took: {elapsed:?}"
         );
         blob.map_err(ObjectStoreError::from)
     }
@@ -182,7 +177,7 @@ impl ObjectStore for GoogleCloudStorage {
         key: &str,
         value: Vec<u8>,
     ) -> Result<(), ObjectStoreError> {
-        let started_at = Instant::now();
+        let store_latency = GCS_METRICS.start_store(bucket);
         let filename = Self::filename(bucket.as_str(), key);
         tracing::trace!(
             "Storing data to GCS for key {filename} from bucket {}",
@@ -200,14 +195,9 @@ impl ObjectStore for GoogleCloudStorage {
         })
         .await;
 
+        let elapsed = store_latency.observe();
         tracing::trace!(
-            "Stored data to GCS for key {key} from bucket {bucket} and it took: {:?}",
-            started_at.elapsed()
-        );
-        metrics::histogram!(
-            "server.object_store.storing_time",
-            started_at.elapsed(),
-            "bucket" => bucket.as_str()
+            "Stored data to GCS for key {key} from bucket {bucket} and it took: {elapsed:?}"
         );
         object.map(drop).map_err(ObjectStoreError::from)
     }
@@ -225,14 +215,14 @@ mod test {
 
     #[tokio::test]
     async fn test_retry_success_immediate() {
-        let result = retry(2, || async { Ok::<_, ()>(42) }).await;
+        let result = retry(2, || async { Ok::<_, &'static str>(42) }).await;
         assert_eq!(result, Ok(42));
     }
 
     #[tokio::test]
     async fn test_retry_failure_exhausted() {
-        let result = retry(2, || async { Err::<i32, _>(()) }).await;
-        assert_eq!(result, Err(()));
+        let result = retry(2, || async { Err::<i32, _>("oops") }).await;
+        assert_eq!(result, Err("oops"));
     }
 
     async fn retry_success_after_n_retries(n: u16) -> Result<u32, String> {
@@ -242,7 +232,7 @@ mod test {
             if retries + 1 == n {
                 Ok(42)
             } else {
-                Err(())
+                Err("oops")
             }
         })
         .await;

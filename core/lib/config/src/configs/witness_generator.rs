@@ -38,7 +38,7 @@ pub struct WitnessGeneratorConfig {
 }
 
 impl WitnessGeneratorConfig {
-    pub fn from_env() -> Self {
+    pub fn from_env() -> anyhow::Result<Self> {
         envy_load("witness", "WITNESS_")
     }
 
@@ -85,7 +85,7 @@ mod tests {
         "#;
         lock.set_env(config);
 
-        let actual = WitnessGeneratorConfig::from_env();
+        let actual = WitnessGeneratorConfig::from_env().unwrap();
         assert_eq!(actual, expected_config());
     }
 }

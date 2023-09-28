@@ -52,7 +52,7 @@ fn test_get_used_contracts() {
     // create push and execute some non-empty factory deps transaction that fails
     // (known_bytecodes will be updated but we expect get_used_contracts() to not be updated)
 
-    let calldata = vec![1, 2, 3];
+    let calldata = [1, 2, 3];
     let big_calldata: Vec<u8> = calldata
         .iter()
         .cycle()

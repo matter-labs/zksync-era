@@ -138,6 +138,7 @@ impl ZkSyncTree {
     }
 
     /// Returns the next L1 batch number that should be processed by the tree.
+    #[allow(clippy::missing_panics_doc)]
     pub fn next_l1_batch_number(&self) -> L1BatchNumber {
         let number = self.tree.latest_version().map_or(0, |version| {
             u32::try_from(version + 1).expect("integer overflow for L1 batch number")

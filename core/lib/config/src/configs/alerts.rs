@@ -12,7 +12,7 @@ pub struct AlertsConfig {
 }
 
 impl AlertsConfig {
-    pub fn from_env() -> Self {
+    pub fn from_env() -> anyhow::Result<Self> {
         envy_load("sporadic_crypto_errors_substrs", "ALERTS_")
     }
 }
@@ -42,6 +42,6 @@ mod tests {
         "#;
         lock.set_env(config);
 
-        assert_eq!(AlertsConfig::from_env(), expected_config());
+        assert_eq!(AlertsConfig::from_env().unwrap(), expected_config());
     }
 }

@@ -227,7 +227,7 @@ impl EthSenderDal<'_, '_> {
 
     pub async fn confirm_tx(&mut self, tx_hash: H256, gas_used: U256) {
         {
-            let mut transaction = self.storage.start_transaction().await;
+            let mut transaction = self.storage.start_transaction().await.unwrap();
             let gas_used = i64::try_from(gas_used).expect("Can't convert U256 to i64");
             let tx_hash = format!("{:#x}", tx_hash);
             let ids = sqlx::query!(
@@ -253,7 +253,7 @@ impl EthSenderDal<'_, '_> {
             .await
             .unwrap();
 
-            transaction.commit().await;
+            transaction.commit().await.unwrap();
         }
     }
 
@@ -294,7 +294,7 @@ impl EthSenderDal<'_, '_> {
         confirmed_at: DateTime<Utc>,
     ) {
         {
-            let mut transaction = self.storage.start_transaction().await;
+            let mut transaction = self.storage.start_transaction().await.unwrap();
             let tx_hash = format!("{:#x}", tx_hash);
 
             let eth_tx_id = sqlx::query_scalar!(
@@ -358,9 +358,10 @@ impl EthSenderDal<'_, '_> {
                 storage: &mut transaction,
             }
             .set_eth_tx_id(l1_batch..=l1_batch, eth_tx_id as u32, tx_type)
-            .await;
+            .await
+            .unwrap();
 
-            transaction.commit().await;
+            transaction.commit().await.unwrap();
         }
     }
 

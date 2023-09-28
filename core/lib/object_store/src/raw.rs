@@ -1,3 +1,4 @@
+use anyhow::Context as _;
 use async_trait::async_trait;
 
 use std::{error, fmt, sync::Arc};
@@ -162,15 +163,25 @@ impl ObjectStoreFactory {
     }
 
     /// Creates an object store factory with the configuration taken from the environment.
-    pub fn from_env() -> Self {
-        let config = ObjectStoreConfig::from_env();
-        Self::new(config)
+    ///
+    /// # Errors
+    ///
+    /// Invalid or missing configuration.
+    pub fn from_env() -> anyhow::Result<Self> {
+        Ok(Self::new(
+            ObjectStoreConfig::from_env().context("ObjectStoreConfig::from_env()")?,
+        ))
     }
 
     /// Creates an object store factory with the prover configuration taken from the environment.
-    pub fn prover_from_env() -> Self {
-        let config = ObjectStoreConfig::prover_from_env();
-        Self::new(config)
+    ///
+    /// # Errors
+    ///
+    /// Invalid or missing configuration.
+    pub fn prover_from_env() -> anyhow::Result<Self> {
+        Ok(Self::new(
+            ObjectStoreConfig::prover_from_env().context("ObjectStoreConfig::prover_from_env()")?,
+        ))
     }
 
     /// Creates an object store factory with a mock in-memory store.

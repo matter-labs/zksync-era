@@ -1,6 +1,7 @@
 use std::fmt::Debug;
 use std::time::{Duration, Instant};
 
+use anyhow::Context as _;
 pub use async_trait::async_trait;
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
@@ -22,7 +23,7 @@ pub trait JobProcessor: Sync + Send {
     /// Returns None when there is no pending job
     /// Otherwise, returns Some(job_id, job)
     /// Note: must be concurrency-safe - that is, one job must not be returned in two parallel processes
-    async fn get_next_job(&self) -> Option<(Self::JobId, Self::Job)>;
+    async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, Self::Job)>>;
 
     /// Invoked when `process_job` panics
     /// Should mark the job as failed
@@ -33,7 +34,7 @@ pub trait JobProcessor: Sync + Send {
         &self,
         job: Self::Job,
         started_at: Instant,
-    ) -> JoinHandle<Self::JobArtifacts>;
+    ) -> JoinHandle<anyhow::Result<Self::JobArtifacts>>;
 
     /// `iterations_left`:
     /// To run indefinitely, pass `None`,
@@ -56,7 +57,9 @@ pub trait JobProcessor: Sync + Send {
                 );
                 return Ok(());
             }
-            if let Some((job_id, job)) = Self::get_next_job(&self).await {
+            if let Some((job_id, job)) =
+                Self::get_next_job(&self).await.context("get_next_job()")?
+            {
                 let started_at = Instant::now();
                 backoff = Self::POLLING_INTERVAL_MS;
                 iterations_left = iterations_left.map(|i| i - 1);
@@ -68,7 +71,9 @@ pub trait JobProcessor: Sync + Send {
                 );
                 let task = self.process_job(job, started_at).await;
 
-                self.wait_for_task(job_id, started_at, task).await
+                self.wait_for_task(job_id, started_at, task)
+                    .await
+                    .context("wait_for_task")?;
             } else if iterations_left.is_some() {
                 tracing::info!("No more jobs to process. Server can stop now.");
                 return Ok(());
@@ -87,9 +92,9 @@ pub trait JobProcessor: Sync + Send {
         &self,
         job_id: Self::JobId,
         started_at: Instant,
-        task: JoinHandle<Self::JobArtifacts>,
-    ) {
-        loop {
+        task: JoinHandle<anyhow::Result<Self::JobArtifacts>>,
+    ) -> anyhow::Result<()> {
+        let result = loop {
             tracing::trace!(
                 "Polling {} task with id {:?}. Is finished: {}",
                 Self::SERVICE_NAME,
@@ -97,31 +102,33 @@ pub trait JobProcessor: Sync + Send {
                 task.is_finished()
             );
             if task.is_finished() {
-                let result = task.await;
-                match result {
-                    Ok(data) => {
-                        tracing::debug!(
-                            "{} Job {:?} finished successfully",
-                            Self::SERVICE_NAME,
-                            job_id
-                        );
-                        self.save_result(job_id, started_at, data).await;
-                    }
-                    Err(error) => {
-                        let error_message = try_extract_panic_message(error);
-                        tracing::error!(
-                            "Error occurred while processing {} job {:?}: {:?}",
-                            Self::SERVICE_NAME,
-                            job_id,
-                            error_message
-                        );
-                        self.save_failure(job_id, started_at, error_message).await;
-                    }
-                }
-                break;
+                break task.await;
             }
             sleep(Duration::from_millis(Self::POLLING_INTERVAL_MS)).await;
-        }
+        };
+        let error_message = match result {
+            Ok(Ok(data)) => {
+                tracing::debug!(
+                    "{} Job {:?} finished successfully",
+                    Self::SERVICE_NAME,
+                    job_id
+                );
+                return self
+                    .save_result(job_id, started_at, data)
+                    .await
+                    .context("save_result()");
+            }
+            Ok(Err(error)) => error.to_string(),
+            Err(error) => try_extract_panic_message(error),
+        };
+        tracing::error!(
+            "Error occurred while processing {} job {:?}: {:?}",
+            Self::SERVICE_NAME,
+            job_id,
+            error_message
+        );
+        self.save_failure(job_id, started_at, error_message).await;
+        Ok(())
     }
 
     /// Invoked when `process_job` doesn't panic
@@ -130,5 +137,5 @@ pub trait JobProcessor: Sync + Send {
         job_id: Self::JobId,
         started_at: Instant,
         artifacts: Self::JobArtifacts,
-    );
+    ) -> anyhow::Result<()>;
 }

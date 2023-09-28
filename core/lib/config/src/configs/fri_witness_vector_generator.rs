@@ -25,7 +25,7 @@ pub struct FriWitnessVectorGeneratorConfig {
 }
 
 impl FriWitnessVectorGeneratorConfig {
-    pub fn from_env() -> Self {
+    pub fn from_env() -> anyhow::Result<Self> {
         envy_load(
             "fri_witness_vector_generator",
             "FRI_WITNESS_VECTOR_GENERATOR_",
@@ -78,7 +78,7 @@ mod tests {
         "#;
         lock.set_env(config);
 
-        let actual = FriWitnessVectorGeneratorConfig::from_env();
+        let actual = FriWitnessVectorGeneratorConfig::from_env().unwrap();
         assert_eq!(actual, expected_config());
     }
 }

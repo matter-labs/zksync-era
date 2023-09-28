@@ -50,7 +50,7 @@ impl ProtocolVersionsDal<'_, '_> {
     pub async fn save_protocol_version_with_tx(&mut self, version: ProtocolVersion) {
         let tx_hash = version.tx.as_ref().map(|tx| tx.common_data.hash());
 
-        let mut db_transaction = self.storage.start_transaction().await;
+        let mut db_transaction = self.storage.start_transaction().await.unwrap();
         if let Some(tx) = version.tx {
             db_transaction
                 .transactions_dal()
@@ -70,7 +70,7 @@ impl ProtocolVersionsDal<'_, '_> {
             )
             .await;
 
-        db_transaction.commit().await;
+        db_transaction.commit().await.unwrap();
     }
 
     pub async fn save_prover_protocol_version(&mut self, version: ProtocolVersion) {

@@ -12,4 +12,3 @@ categories = ["cryptography"]
 [dependencies]
 zksync_types = { path = "../types" }
 tracing = "0.1"
-metrics = "0.21"
