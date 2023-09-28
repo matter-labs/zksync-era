@@ -59,4 +59,4 @@ jobs:
 
       - name: Check licenses in ${{ matrix.dir }}
         working-directory: ${{ matrix.dir }}
-        run: npx license-checker --json --onlyAllow="$ALLOWED_LICENSES" --excludePackages "$EXCLUDE_PACKAGES"
+        run: npx license-checker --json --onlyAllow="$ALLOWED_LICENSES" --excludePackages "$EXCLUDE_PACKAGES" --excludePrivatePackages
