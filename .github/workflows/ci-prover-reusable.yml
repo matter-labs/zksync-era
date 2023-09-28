@@ -23,7 +23,7 @@ jobs:
           node-version: '18.18.0'
 
       - name: Install Rust nightly-2023-07-21
-      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           toolchain: nightly-2023-07-21
 
