@@ -10,3 +10,4 @@ specialized_group_id=100
 witness_vector_generator_thread_count=5
 queue_capacity=10
 witness_vector_receiver_port=4000
+shall_save_to_public_bucket=true

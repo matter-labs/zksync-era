@@ -217,7 +217,7 @@ mod tests {
 
     #[db_test(dal_crate)]
     async fn applying_storage_logs(pool: ConnectionPool) {
-        let mut conn = pool.access_storage().await;
+        let mut conn = pool.access_storage().await.unwrap();
 
         let account = AccountTreeId::new(Address::repeat_byte(1));
         let first_key = StorageKey::new(account, H256::zero());

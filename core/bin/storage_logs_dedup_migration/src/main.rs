@@ -50,9 +50,13 @@ async fn main() {
         .build()
         .await
         .unwrap();
-    let mut connection = pool.access_storage().await;
+    let mut connection = pool.access_storage().await.unwrap();
 
-    let sealed_miniblock = connection.blocks_dal().get_sealed_miniblock_number().await;
+    let sealed_miniblock = connection
+        .blocks_dal()
+        .get_sealed_miniblock_number()
+        .await
+        .unwrap();
     println!(
         "Migration started for miniblock range {}..={}",
         opt.start_from_miniblock, sealed_miniblock

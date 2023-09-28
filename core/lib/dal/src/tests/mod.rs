@@ -212,7 +212,8 @@ async fn remove_stuck_txs(connection_pool: ConnectionPool) {
     let storage = transactions_dal.storage;
     BlocksDal { storage }
         .insert_miniblock(&create_miniblock_header(1))
-        .await;
+        .await
+        .unwrap();
 
     let mut transactions_dal = TransactionsDal { storage };
     transactions_dal
@@ -290,7 +291,8 @@ async fn test_duplicate_insert_prover_jobs(connection_pool: ConnectionPool) {
     storage
         .blocks_dal()
         .insert_l1_batch(&header, &[], Default::default())
-        .await;
+        .await
+        .unwrap();
 
     let mut prover_dal = ProverDal { storage };
     let circuits = create_circuits();
@@ -351,7 +353,8 @@ async fn test_requeue_prover_jobs(connection_pool: ConnectionPool) {
     storage
         .blocks_dal()
         .insert_l1_batch(&header, &[], Default::default())
-        .await;
+        .await
+        .unwrap();
 
     let mut prover_dal = ProverDal { storage };
     let circuits = create_circuits();
@@ -413,7 +416,8 @@ async fn test_move_leaf_aggregation_jobs_from_waiting_to_queued(connection_pool:
     storage
         .blocks_dal()
         .insert_l1_batch(&header, &[], Default::default())
-        .await;
+        .await
+        .unwrap();
 
     let mut prover_dal = ProverDal { storage };
     let circuits = create_circuits();
@@ -492,7 +496,8 @@ async fn test_move_node_aggregation_jobs_from_waiting_to_queued(connection_pool:
     storage
         .blocks_dal()
         .insert_l1_batch(&header, &[], Default::default())
-        .await;
+        .await
+        .unwrap();
 
     let mut prover_dal = ProverDal { storage };
     let circuits = create_circuits();
@@ -578,7 +583,8 @@ async fn test_move_scheduler_jobs_from_waiting_to_queued(connection_pool: Connec
     storage
         .blocks_dal()
         .insert_l1_batch(&header, &[], Default::default())
-        .await;
+        .await
+        .unwrap();
 
     let mut prover_dal = ProverDal { storage };
     let circuits = vec![(

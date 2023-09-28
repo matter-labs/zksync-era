@@ -17,7 +17,7 @@ pub struct ProofDataHandlerConfig {
 }
 
 impl ProofDataHandlerConfig {
-    pub fn from_env() -> Self {
+    pub fn from_env() -> anyhow::Result<Self> {
         envy_load("proof_data_handler", "PROOF_DATA_HANDLER_")
     }
 
@@ -52,7 +52,7 @@ mod tests {
         "#;
         let mut lock = MUTEX.lock();
         lock.set_env(config);
-        let actual = ProofDataHandlerConfig::from_env();
+        let actual = ProofDataHandlerConfig::from_env().unwrap();
         assert_eq!(actual, expected_config());
     }
 }

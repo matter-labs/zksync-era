@@ -36,6 +36,7 @@ use crate::storage_logs_dal::StorageLogsDal;
 use crate::storage_logs_dedup_dal::StorageLogsDedupDal;
 use crate::storage_web3_dal::StorageWeb3Dal;
 use crate::sync_dal::SyncDal;
+use crate::system_dal::SystemDal;
 use crate::tokens_dal::TokensDal;
 use crate::tokens_web3_dal::TokensWeb3Dal;
 use crate::transactions_dal::TransactionsDal;
@@ -61,6 +62,7 @@ pub mod fri_witness_generator_dal;
 pub mod gpu_prover_queue_dal;
 pub mod healthcheck;
 mod instrument;
+mod metrics;
 mod models;
 pub mod proof_generation_dal;
 pub mod protocol_versions_dal;
@@ -71,6 +73,7 @@ pub mod storage_logs_dal;
 pub mod storage_logs_dedup_dal;
 pub mod storage_web3_dal;
 pub mod sync_dal;
+pub mod system_dal;
 pub mod time_utils;
 pub mod tokens_dal;
 pub mod tokens_web3_dal;
@@ -134,13 +137,11 @@ impl<'a> StorageProcessor<'a> {
         })
     }
 
-    pub async fn start_transaction<'c: 'b, 'b>(&'c mut self) -> StorageProcessor<'b> {
-        let transaction = self.conn().begin().await.unwrap();
-
+    pub async fn start_transaction<'c: 'b, 'b>(&'c mut self) -> sqlx::Result<StorageProcessor<'b>> {
+        let transaction = self.conn().begin().await?;
         let mut processor = StorageProcessor::from_transaction(transaction);
         processor.in_transaction = true;
-
-        processor
+        Ok(processor)
     }
 
     /// Checks if the `StorageProcessor` is currently within database transaction.
@@ -162,9 +163,9 @@ impl<'a> StorageProcessor<'a> {
         }
     }
 
-    pub async fn commit(self) {
+    pub async fn commit(self) -> sqlx::Result<()> {
         if let ConnectionHolder::Transaction(transaction) = self.conn {
-            transaction.commit().await.unwrap();
+            transaction.commit().await
         } else {
             panic!("StorageProcessor::commit can only be invoked after calling StorageProcessor::begin_transaction");
         }
@@ -301,5 +302,9 @@ impl<'a> StorageProcessor<'a> {
 
     pub fn fri_proof_compressor_dal(&mut self) -> FriProofCompressorDal<'_, 'a> {
         FriProofCompressorDal { storage: self }
+    }
+
+    pub fn system_dal(&mut self) -> SystemDal<'_, 'a> {
+        SystemDal { storage: self }
     }
 }

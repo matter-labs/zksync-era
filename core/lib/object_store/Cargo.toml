@@ -10,15 +10,16 @@ keywords = ["blockchain", "zksync"]
 categories = ["cryptography"]
 
 [dependencies]
+vise = { git = "https://github.com/matter-labs/vise.git", version = "0.1.0", rev = "9d097ab747b037b6e62504df1db5b975425b6bdd" }
 zksync_config = { path = "../config" }
 zksync_types = { path = "../types" }
 
+anyhow = "1.0"
 async-trait = "0.1"
 bincode = "1"
 google-cloud-storage = "0.12.0"
 google-cloud-auth = "0.11.0"
 http = "0.2.9"
-metrics = "0.21"
 tokio = { version = "1.21.2", features = ["full"] }
 tracing = "0.1"
 

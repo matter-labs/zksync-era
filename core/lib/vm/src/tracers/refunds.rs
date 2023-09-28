@@ -1,3 +1,5 @@
+use vise::{Buckets, EncodeLabelSet, EncodeLabelValue, Family, Histogram, Metrics};
+
 use std::collections::HashMap;
 
 use zk_evm::{
@@ -5,7 +7,6 @@ use zk_evm::{
     tracing::{BeforeExecutionData, VmLocalStateData},
     vm_state::VmLocalState,
 };
-
 use zksync_config::constants::{PUBLISH_BYTECODE_OVERHEAD, SYSTEM_CONTEXT_ADDRESS};
 use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::{
@@ -132,6 +133,10 @@ impl RefundsTracer {
 
         ceil_div_u256(refund_eth, effective_gas_price.into()).as_u32()
     }
+
+    pub(crate) fn gas_spent_on_pubdata(&self, vm_local_state: &VmLocalState) -> u32 {
+        self.gas_spent_on_bytecodes_and_long_messages + vm_local_state.spent_pubdata_counter
+    }
 }
 
 impl<S, H: HistoryMode> DynTracer<S, H> for RefundsTracer {
@@ -156,12 +161,6 @@ impl<S, H: HistoryMode> DynTracer<S, H> for RefundsTracer {
     }
 }
 
-impl RefundsTracer {
-    pub(crate) fn gas_spent_on_pubdata(&self, vm_local_state: &VmLocalState) -> u32 {
-        self.gas_spent_on_bytecodes_and_long_messages + vm_local_state.spent_pubdata_counter
-    }
-}
-
 impl<H: HistoryMode> ExecutionEndTracer<H> for RefundsTracer {}
 
 impl<S: WriteStorage, H: HistoryMode> ExecutionProcessing<S, H> for RefundsTracer {
@@ -180,6 +179,29 @@ impl<S: WriteStorage, H: HistoryMode> ExecutionProcessing<S, H> for RefundsTrace
         state: &mut ZkSyncVmState<S, H>,
         bootloader_state: &mut BootloaderState,
     ) {
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
+        #[metrics(label = "type", rename_all = "snake_case")]
+        enum RefundType {
+            Bootloader,
+            Operator,
+        }
+
+        const PERCENT_BUCKETS: Buckets = Buckets::values(&[
+            5.0, 10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0, 90.0, 100.0, 120.0,
+        ]);
+
+        #[derive(Debug, Metrics)]
+        #[metrics(prefix = "vm")]
+        struct RefundMetrics {
+            #[metrics(buckets = PERCENT_BUCKETS)]
+            refund: Family<RefundType, Histogram<f64>>,
+            #[metrics(buckets = PERCENT_BUCKETS)]
+            refund_diff: Histogram<f64>,
+        }
+
+        #[vise::register]
+        static METRICS: vise::Global<RefundMetrics> = vise::Global::new();
+
         // This means that the bootloader has informed the system (usually via VMHooks) - that some gas
         // should be refunded back (see askOperatorForRefund in bootloader.yul for details).
         if let Some(bootloader_refund) = self.requested_refund() {
@@ -216,10 +238,9 @@ impl<S: WriteStorage, H: HistoryMode> ExecutionProcessing<S, H> for RefundsTrace
 
             if tx_body_refund < bootloader_refund {
                 tracing::error!(
-                        "Suggested tx body refund is less than bootloader refund. Tx body refund: {}, bootloader refund: {}",
-                        tx_body_refund,
-                        bootloader_refund
-                    );
+                    "Suggested tx body refund is less than bootloader refund. Tx body refund: {tx_body_refund}, \
+                     bootloader refund: {bootloader_refund}"
+                );
             }
 
             let refund_to_propose = tx_body_refund + self.block_overhead_refund();
@@ -239,25 +260,24 @@ impl<S: WriteStorage, H: HistoryMode> ExecutionProcessing<S, H> for RefundsTrace
 
             if tx_gas_limit < bootloader_refund {
                 tracing::error!(
-                        "Tx gas limit is less than bootloader refund. Tx gas limit: {}, bootloader refund: {}",
-                        tx_gas_limit,
-                        bootloader_refund
-                    );
+                    "Tx gas limit is less than bootloader refund. Tx gas limit: {tx_gas_limit}, \
+                    bootloader refund: {bootloader_refund}"
+                );
             }
             if tx_gas_limit < refund_to_propose {
                 tracing::error!(
-                        "Tx gas limit is less than operator refund. Tx gas limit: {}, operator refund: {}",
-                        tx_gas_limit,
-                        refund_to_propose
-                    );
+                    "Tx gas limit is less than operator refund. Tx gas limit: {tx_gas_limit}, \
+                     operator refund: {refund_to_propose}"
+                );
             }
 
-            metrics::histogram!("vm.refund", bootloader_refund as f64 / tx_gas_limit as f64 * 100.0, "type" => "bootloader");
-            metrics::histogram!("vm.refund", refund_to_propose as f64 / tx_gas_limit as f64 * 100.0, "type" => "operator");
-            metrics::histogram!(
-                "vm.refund.diff",
-                (refund_to_propose as f64 - bootloader_refund as f64) / tx_gas_limit as f64 * 100.0
-            );
+            METRICS.refund[&RefundType::Bootloader]
+                .observe(bootloader_refund as f64 / tx_gas_limit as f64 * 100.0);
+            METRICS.refund[&RefundType::Operator]
+                .observe(refund_to_propose as f64 / tx_gas_limit as f64 * 100.0);
+            let refund_diff =
+                (refund_to_propose as f64 - bootloader_refund as f64) / tx_gas_limit as f64 * 100.0;
+            METRICS.refund_diff.observe(refund_diff);
         }
     }
 }

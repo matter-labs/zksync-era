@@ -15,7 +15,7 @@ pub struct PrometheusConfig {
 }
 
 impl PrometheusConfig {
-    pub fn from_env() -> Self {
+    pub fn from_env() -> anyhow::Result<Self> {
         envy_load("prometheus", "API_PROMETHEUS_")
     }
 

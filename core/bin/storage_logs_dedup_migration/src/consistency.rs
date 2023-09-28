@@ -28,7 +28,7 @@ async fn main() {
         .build()
         .await
         .unwrap();
-    let mut connection = pool.access_storage().await;
+    let mut connection = pool.access_storage().await.unwrap();
 
     println!(
         "Consistency check started for miniblock range {}..={}",

@@ -1,9 +1,7 @@
 use anyhow::Context as _;
+use metrics_exporter_prometheus::{Matcher, PrometheusBuilder};
 use tokio::sync::watch;
-use vise_exporter::{
-    metrics_exporter_prometheus::{Matcher, PrometheusBuilder},
-    MetricsExporter,
-};
+use vise_exporter::MetricsExporter;
 
 use std::{net::Ipv4Addr, time::Duration};
 
@@ -107,7 +105,7 @@ impl PrometheusExporterConfig {
     pub const fn pull(port: u16) -> Self {
         Self {
             transport: PrometheusTransport::Pull { port },
-            use_new_facade: false,
+            use_new_facade: true,
         }
     }
 
@@ -118,15 +116,15 @@ impl PrometheusExporterConfig {
                 gateway_uri,
                 interval,
             },
-            use_new_facade: false,
+            use_new_facade: true,
         }
     }
 
-    /// Enables the new metrics façade (`vise`), which is off by default.
+    /// Disables the new metrics façade (`vise`), which is on by default.
     #[must_use]
-    pub fn with_new_facade(self) -> Self {
+    pub fn without_new_facade(self) -> Self {
         Self {
-            use_new_facade: true,
+            use_new_facade: false,
             transport: self.transport,
         }
     }

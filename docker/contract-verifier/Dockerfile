@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:experimental
-FROM rust:1.67-bookworm as builder
+FROM rust:1.72-bookworm as builder
 RUN apt-get update && apt-get install -y clang && rm -rf /var/lib/apt/lists/*
 WORKDIR /usr/src/zksync
 COPY . .

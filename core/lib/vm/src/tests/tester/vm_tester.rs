@@ -18,7 +18,7 @@ use crate::tests::tester::TxType;
 use crate::tests::utils::read_test_contract;
 use crate::types::inputs::system_env::TxExecutionMode;
 use crate::utils::l2_blocks::load_last_l2_block;
-use crate::{HistoryMode, L1BatchEnv, L2BlockEnv, SystemEnv, Vm, VmExecutionMode};
+use crate::{HistoryMode, L1BatchEnv, L2Block, L2BlockEnv, SystemEnv, Vm, VmExecutionMode};
 
 pub(crate) type InMemoryStorageView = StorageView<InMemoryStorage>;
 
@@ -74,7 +74,11 @@ impl<H: HistoryMode> VmTester<H> {
 
         let mut l1_batch = self.vm.batch_env.clone();
         if use_latest_l2_block {
-            let last_l2_block = load_last_l2_block(self.storage.clone());
+            let last_l2_block = load_last_l2_block(self.storage.clone()).unwrap_or(L2Block {
+                number: 0,
+                timestamp: 0,
+                hash: legacy_miniblock_hash(MiniblockNumber(0)),
+            });
             l1_batch.first_l2_block = L2BlockEnv {
                 number: last_l2_block.number + 1,
                 timestamp: std::cmp::max(last_l2_block.timestamp + 1, l1_batch.timestamp),

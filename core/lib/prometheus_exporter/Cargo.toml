@@ -12,5 +12,11 @@ categories = ["cryptography"]
 [dependencies]
 anyhow = "1.0"
 metrics = "0.21"
+metrics-exporter-prometheus = "0.12"
 tokio = "1"
-vise-exporter = { git = "https://github.com/matter-labs/vise.git", version = "0.1.0", rev = "856eedd0a36a2ff2c8d965b0f0186d4bb8465d8c" }
+
+[dependencies.vise-exporter]
+git = "https://github.com/matter-labs/vise.git"
+version = "0.1.0"
+rev = "9d097ab747b037b6e62504df1db5b975425b6bdd"
+features = ["legacy"]
