@@ -1,0 +1,87 @@
+name: Build Image from tag
+on:
+  push:
+    tags:
+      - core-v**
+      - prover-v**
+
+concurrency: docker-build
+
+jobs:
+  setup:
+    name: Setup
+    runs-on: [k8s, stage]
+    outputs:
+      image_tag_suffix: ${{ steps.set.outputs.image_tag_suffix }}
+    steps:
+      - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
+        with:
+          submodules: "recursive"
+
+      - name: Generate output with git tag
+        id: set
+        run: |
+          git_tag="${GITHUB_REF#refs/*/}"
+          version=$(cut -d "-" -f2 <<< ${git_tag})
+          echo "image_tag_suffix=${version}" >> $GITHUB_OUTPUT
+
+  build-push-core-images:
+    name: Build and push image
+    needs: [setup]
+    uses: ./.github/workflows/build-core-template.yml
+    if: contains(github.ref_name, 'core')
+    secrets:
+      DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+    with:
+      image_tag: ${{ needs.setup.outputs.image_tag }}
+      image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
+
+  build-push-prover-images:
+    name: Build and push image
+    needs: [setup]
+    uses: ./.github/workflows/build-prover-template.yml
+    if: contains(github.ref_name, 'prover')
+    with:
+      image_tag: ${{ needs.setup.outputs.image_tag }}
+      image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
+      ERA_BELLMAN_CUDA_RELEASE: ${{ vars.ERA_BELLMAN_CUDA_RELEASE }}
+    secrets:
+      DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+
+  build-gar-prover:
+    name: Build GAR prover
+    needs: [setup, build-push-prover-images]
+    uses: ./.github/workflows/build-gar-reusable.yml
+    if: contains(github.ref_name, 'prover')
+    with:
+      setup_keys_id: 4989f12
+      image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
+      push_asia: true
+
+  build-gar-prover-fri-gpu:
+    name: Build GAR prover FRI GPU
+    needs: [setup, build-push-prover-images]
+    uses: ./.github/workflows/build-prover-fri-gpu-gar.yml
+    if: contains(github.ref_name, 'prover')
+    with:
+      setup_keys_id: 2d33a27-gpu
+      image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
+
+  notify:
+    if: always() && !cancelled()
+    name: Notify on failures
+    runs-on: ubuntu-latest
+    needs: [setup, build-push-prover-images, build-push-core-images, build-gar-prover]
+    steps:
+      - uses: technote-space/workflow-conclusion-action@45ce8e0eb155657ab8ccf346ade734257fd196a5 # v3
+      - name: Notify to Mattermost (on incidents)
+        uses: tferreira/matterfy@releases/v1
+        if: ${{ env.WORKFLOW_CONCLUSION == 'failure' }}
+        with:
+          type: failure
+          job_name: "*Build image failed*"
+          icon_emoji: octocat
+          channel: "ci-notifications"
+          url: ${{ secrets.MATTERMOST_WEBHOOK }}

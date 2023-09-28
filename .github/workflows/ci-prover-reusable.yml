@@ -11,7 +11,7 @@ jobs:
         run: |
           sudo apt update && sudo apt install -y \
             pkg-config libclang-dev build-essential lldb lld \
-            clang openssl libssl-dev gcc g++ pkg-config libclang-dev curl wget 
+            clang openssl libssl-dev gcc g++ pkg-config libclang-dev curl wget
 
       - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
         with:
@@ -23,10 +23,9 @@ jobs:
           node-version: '18.18.0'
 
       - name: Install Rust nightly-2023-07-21
-        uses: actions-rs/toolchain@v1
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           toolchain: nightly-2023-07-21
-          override: true
 
       - name: Setup environment
         run: |
