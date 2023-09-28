@@ -42,6 +42,6 @@ jobs:
       - name: Upload to codecov.io
         uses: codecov/codecov-action@d9f34f8cd5cb3b3eb79b3e4b5dae3a16df499a70 # v3
         with:
-          token: ${{secrets.CODECOV_TOKEN}}
+          token: ${{ secrets.CODECOV_TOKEN }}
           files: "!target/sqlx"
           fail_ci_if_error: true
