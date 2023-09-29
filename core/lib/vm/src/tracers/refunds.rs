@@ -81,6 +81,13 @@ impl RefundsTracer {
         0
     }
 
+    pub(crate) fn get_refunds(&self) -> Refunds {
+        Refunds {
+            gas_refunded: self.refund_gas,
+            operator_suggested_refund: self.operator_refund.unwrap_or_default(),
+        }
+    }
+
     pub(crate) fn tx_body_refund(
         &self,
         bootloader_refund: u32,
@@ -147,6 +154,7 @@ impl<S, H: HistoryMode> DynTracer<S, H> for RefundsTracer {
         memory: &SimpleMemory<H>,
         _storage: StoragePtr<S>,
     ) {
+        self.timestamp_before_cycle = Timestamp(state.vm_local_state.timestamp);
         let hook = VmHook::from_opcode_memory(&state, &data);
         match hook {
             VmHook::NotifyAboutRefund => self.refund_gas = get_vm_hook_params(memory)[0].as_u32(),
@@ -168,10 +176,6 @@ impl<S: WriteStorage, H: HistoryMode> ExecutionProcessing<S, H> for RefundsTrace
         self.timestamp_initial = Timestamp(state.local_state.timestamp);
         self.gas_remaining_before = state.local_state.callstack.current.ergs_remaining;
         self.spent_pubdata_counter_before = state.local_state.spent_pubdata_counter;
-    }
-
-    fn before_cycle(&mut self, state: &mut ZkSyncVmState<S, H>) {
-        self.timestamp_before_cycle = Timestamp(state.local_state.timestamp);
     }
 
     fn after_cycle(
@@ -386,9 +390,6 @@ fn pubdata_published_for_writes<S: WriteStorage, H: HistoryMode>(
 
 impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for RefundsTracer {
     fn save_results(&mut self, result: &mut VmExecutionResultAndLogs) {
-        result.refunds = Refunds {
-            gas_refunded: self.refund_gas,
-            operator_suggested_refund: self.operator_refund.unwrap_or_default(),
-        }
+        result.refunds = self.get_refunds();
     }
 }
