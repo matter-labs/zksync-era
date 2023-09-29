@@ -15,6 +15,7 @@ pub(crate) mod extractors;
 pub(crate) mod io;
 mod keeper;
 mod mempool_actor;
+pub(crate) mod metrics;
 pub(crate) mod seal_criteria;
 #[cfg(test)]
 mod tests;

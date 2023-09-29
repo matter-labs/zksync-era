@@ -7753,6 +7753,7 @@ dependencies = [
  "tower",
  "tower-http",
  "tracing",
+ "vise",
  "vlog",
  "vm",
  "zksync_circuit_breaker",

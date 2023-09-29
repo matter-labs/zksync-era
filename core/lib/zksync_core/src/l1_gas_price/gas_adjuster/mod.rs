@@ -1,18 +1,22 @@
 //! This module determines the fees to pay in txs containing blocks submitted to the L1.
 
-// Built-in deps
-use std::collections::VecDeque;
-use std::sync::{Arc, RwLock};
-use tokio::sync::watch::Receiver;
+use tokio::sync::watch;
+
+use std::{
+    collections::VecDeque,
+    sync::{Arc, RwLock},
+};
 
 use zksync_config::GasAdjusterConfig;
 use zksync_eth_client::{types::Error, EthInterface};
 
-use super::{L1GasPriceProvider, L1TxParamsProvider};
-
 pub mod bounded_gas_adjuster;
+mod metrics;
 #[cfg(test)]
 mod tests;
+
+use self::metrics::METRICS;
+use super::{L1GasPriceProvider, L1TxParamsProvider};
 
 /// This component keeps track of the median base_fee from the last `max_base_fee_samples` blocks.
 /// It is used to adjust the base_fee of transactions sent to L1.
@@ -69,17 +73,15 @@ impl<E: EthInterface> GasAdjuster<E> {
                 )
                 .await?;
 
-            metrics::gauge!(
-                "server.gas_adjuster.current_base_fee_per_gas",
-                *history.last().unwrap() as f64
-            );
-
+            METRICS
+                .current_base_fee_per_gas
+                .set(*history.last().unwrap());
             self.statistics.add_samples(&history);
         }
         Ok(())
     }
 
-    pub async fn run(self: Arc<Self>, stop_receiver: Receiver<bool>) -> anyhow::Result<()> {
+    pub async fn run(self: Arc<Self>, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         loop {
             if *stop_receiver.borrow() {
                 tracing::info!("Stop signal received, gas_adjuster is shutting down");
@@ -126,9 +128,7 @@ impl<E: EthInterface> L1TxParamsProvider for GasAdjuster<E> {
         // let scale_factor = a + b * time_in_mempool as f64;
         let scale_factor = a * b.powf(time_in_mempool as f64);
         let median = self.statistics.median();
-
-        metrics::gauge!("server.gas_adjuster.median_base_fee_per_gas", median as f64);
-
+        METRICS.median_base_fee_per_gas.set(median);
         let new_fee = median as f64 * scale_factor;
         new_fee as u64
     }

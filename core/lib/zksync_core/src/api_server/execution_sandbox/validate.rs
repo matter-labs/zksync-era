@@ -1,4 +1,4 @@
-use std::{collections::HashSet, time::Instant};
+use std::collections::HashSet;
 
 use multivm::MultivmTracer;
 use vm::{
@@ -6,11 +6,12 @@ use vm::{
     ValidationTracerParams,
 };
 use zksync_dal::{ConnectionPool, StorageProcessor};
-
 use zksync_types::{l2::L2Tx, Transaction, TRUSTED_ADDRESS_SLOTS, TRUSTED_TOKEN_SLOTS, U256};
 
 use super::{
-    adjust_l1_gas_price_for_tx, apply, BlockArgs, TxExecutionArgs, TxSharedArgs, VmPermit,
+    adjust_l1_gas_price_for_tx, apply,
+    vm_metrics::{SandboxStage, EXECUTION_METRICS, SANDBOX_METRICS},
+    BlockArgs, TxExecutionArgs, TxSharedArgs, VmPermit,
 };
 
 impl TxSharedArgs {
@@ -53,7 +54,7 @@ impl TxSharedArgs {
         block_args: BlockArgs,
         computational_gas_limit: u32,
     ) -> Result<(), ValidationError> {
-        let stage_started_at = Instant::now();
+        let stage_latency = SANDBOX_METRICS.sandbox[&SandboxStage::ValidateInSandbox].start();
         let mut connection = connection_pool.access_storage_tagged("api").await.unwrap();
         let validation_params =
             get_validation_params(&mut connection, &tx, computational_gas_limit).await;
@@ -72,36 +73,39 @@ impl TxSharedArgs {
                 tx,
                 block_args,
                 |vm, tx| {
-                    let stage_started_at = Instant::now();
+                    let stage_latency = SANDBOX_METRICS.sandbox[&SandboxStage::Validation].start();
                     let span = tracing::debug_span!("validation").entered();
                     vm.push_transaction(&tx);
 
-                    let (tracer, validation_result) = ValidationTracer::<HistoryDisabled>::new(
-                        validation_params,
-                    );
+                    let (tracer, validation_result) =
+                        ValidationTracer::<HistoryDisabled>::new(validation_params);
 
                     let result = vm.inspect_next_transaction(vec![
                         tracer.into_boxed(),
-                        StorageInvocations::new(execution_args.missed_storage_invocation_limit).into_boxed()
+                        StorageInvocations::new(execution_args.missed_storage_invocation_limit)
+                            .into_boxed(),
                     ]);
 
                     let result = match (result.result, validation_result.get()) {
-                        (ExecutionResult::Halt { reason }, _) => Err(ValidationError::FailedTx(reason)),
+                        (ExecutionResult::Halt { reason }, _) => {
+                            Err(ValidationError::FailedTx(reason))
+                        }
                         (_, Some(err)) => Err(ValidationError::ViolatedRule(err.clone())),
                         (_, None) => Ok(()),
                     };
 
-
-                    metrics::histogram!("api.web3.sandbox", stage_started_at.elapsed(), "stage" => "validation");
+                    stage_latency.observe();
                     span.exit();
                     result
                 },
             );
             span.exit();
             result
-        }).await.unwrap();
+        })
+        .await
+        .unwrap();
 
-        metrics::histogram!("server.api.validation_sandbox", stage_started_at.elapsed(), "stage" => "validate_in_sandbox");
+        stage_latency.observe(); // FIXME: renamed from `server.api.validation_sandbox`
         validation_result
     }
 }
@@ -114,14 +118,14 @@ async fn get_validation_params(
     tx: &L2Tx,
     computational_gas_limit: u32,
 ) -> ValidationTracerParams {
-    let start_time = Instant::now();
+    let method_latency = EXECUTION_METRICS.get_validation_params.start();
     let user_address = tx.common_data.initiator_address;
     let paymaster_address = tx.common_data.paymaster_params.paymaster;
 
     // This method assumes that the number of tokens is relatively low. When it grows
     // we may need to introduce some kind of caching.
     let all_tokens = connection.tokens_dal().get_all_l2_token_addresses().await;
-    metrics::gauge!("api.execution.tokens.amount", all_tokens.len() as f64);
+    EXECUTION_METRICS.tokens_amount.set(all_tokens.len());
 
     let span = tracing::debug_span!("compute_trusted_slots_for_validation").entered();
     let trusted_slots: HashSet<_> = all_tokens
@@ -138,14 +142,12 @@ async fn get_validation_params(
         .into_iter()
         .flat_map(|token| TRUSTED_ADDRESS_SLOTS.iter().map(move |&slot| (token, slot)))
         .collect();
-
-    metrics::gauge!(
-        "api.execution.trusted_address_slots.amount",
-        trusted_address_slots.len() as f64
-    );
+    EXECUTION_METRICS
+        .trusted_address_slots_amount
+        .set(trusted_address_slots.len());
     span.exit();
 
-    metrics::histogram!("api.execution.get_validation_params", start_time.elapsed());
+    method_latency.observe();
     ValidationTracerParams {
         user_address,
         paymaster_address,

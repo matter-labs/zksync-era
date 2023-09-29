@@ -4,9 +4,11 @@ use chrono::Utc;
 use std::fmt;
 
 use zksync_dal::StorageProcessor;
-use zksync_types::commitment::L1BatchWithMetadata;
-use zksync_types::{aggregated_operations::AggregatedActionType, L1BatchNumber};
+use zksync_types::{
+    aggregated_operations::AggregatedActionType, commitment::L1BatchWithMetadata, L1BatchNumber,
+};
 
+use super::metrics::METRICS;
 use crate::gas_tracker::agg_l1_batch_base_cost;
 
 #[async_trait]
@@ -58,12 +60,7 @@ impl L1BatchPublishCriterion for NumberCriterion {
                 self.op,
                 first..=result.0
             );
-            metrics::counter!(
-                "server.eth_sender.block_aggregation_reason",
-                1,
-                "type" => "number",
-                "op" => self.op.as_str()
-            );
+            METRICS.block_aggregation_reason[&(self.op, "number").into()].inc();
             Some(result)
         } else {
             None
@@ -114,12 +111,7 @@ impl L1BatchPublishCriterion for TimestampDeadlineCriterion {
                 self.op,
                 first_l1_batch.header.number.0..=result.0
             );
-            metrics::counter!(
-                "server.eth_sender.block_aggregation_reason",
-                1,
-                "type" => "timestamp",
-                "op" => self.op.as_str()
-            );
+            METRICS.block_aggregation_reason[&(self.op, "timestamp").into()].inc();
             Some(result)
         } else {
             None
@@ -196,12 +188,7 @@ impl L1BatchPublishCriterion for GasCriterion {
                 self.op,
                 first_l1_batch_number..=last_l1_batch.0
             );
-            metrics::counter!(
-                "server.eth_sender.block_aggregation_reason",
-                1,
-                "type" => "gas",
-                "op" => self.op.as_str()
-            );
+            METRICS.block_aggregation_reason[&(self.op, "gas").into()].inc();
         }
         last_l1_batch
     }
@@ -247,12 +234,7 @@ impl L1BatchPublishCriterion for DataSizeCriterion {
                     self.op,
                     first_l1_batch_number..=output.0
                 );
-                metrics::counter!(
-                    "server.eth_sender.block_aggregation_reason",
-                    1,
-                    "type" => "data_size",
-                    "op" => self.op.as_str()
-                );
+                METRICS.block_aggregation_reason[&(self.op, "data_size").into()].inc();
                 return Some(output);
             }
             data_size_left -= l1_batch.l1_commit_data_size();

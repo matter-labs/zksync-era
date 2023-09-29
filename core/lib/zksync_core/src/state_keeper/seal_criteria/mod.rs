@@ -11,8 +11,8 @@
 //! thus now every criterion is independent of the others.
 
 use std::fmt;
-use vm::TransactionVmExt;
 
+use vm::TransactionVmExt;
 use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_types::{
     block::BlockGasCount,
@@ -26,7 +26,7 @@ mod conditional_sealer;
 pub(super) mod criteria;
 
 pub(crate) use self::conditional_sealer::ConditionalSealer;
-use super::{extractors, updates::UpdatesManager};
+use super::{extractors, metrics::AGGREGATION_METRICS, updates::UpdatesManager};
 use crate::gas_tracker::{gas_count_from_tx_and_metrics, gas_count_from_writes};
 
 /// Reported decision regarding block sealing.
@@ -70,16 +70,6 @@ impl SealResolution {
     /// Returns `true` if L1 batch should be sealed according to this resolution.
     pub fn should_seal(&self) -> bool {
         matches!(self, Self::IncludeAndSeal | Self::ExcludeAndSeal)
-    }
-
-    /// Name of this resolution usable as a metric label.
-    pub fn name(&self) -> &'static str {
-        match self {
-            Self::NoSeal => "no_seal",
-            Self::IncludeAndSeal => "include_and_seal",
-            Self::ExcludeAndSeal => "exclude_and_seal",
-            Self::Unexecutable(_) => "unexecutable",
-        }
     }
 }
 
@@ -197,7 +187,7 @@ impl SealManager {
                 millis_since(manager.batch_timestamp()) > block_commit_deadline_ms;
 
             if should_seal_timeout {
-                metrics::increment_counter!("server.tx_aggregation.reason", "criterion" => RULE_NAME);
+                AGGREGATION_METRICS.inc_criterion(RULE_NAME);
                 tracing::debug!(
                     "Decided to seal L1 batch using rule `{RULE_NAME}`; batch timestamp: {}, \
                      commit deadline: {block_commit_deadline_ms}ms",
