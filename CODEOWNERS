@@ -3,3 +3,4 @@
 **/CHANGELOG.md @RomanBrodetski @perekopskiy @Deniallugo @popzxc
 CODEOWNERS @RomanBrodetski @perekopskiy @Deniallugo @popzxc
 .github/workflows/** @matter-labs/devops
+README.md @yorik
