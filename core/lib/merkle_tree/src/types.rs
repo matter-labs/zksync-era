@@ -320,19 +320,51 @@ impl LeafNode {
     }
 }
 
-/// Data of a leaf node of the tree.
+/// Entry in a Merkle tree associated with a key.
 #[derive(Debug, Clone, Copy)]
-pub struct LeafData {
+pub struct TreeEntry<P = ()> {
+    /// Value associated with the key.
     pub value_hash: ValueHash,
+    /// Enumeration index of the key.
     pub leaf_index: u64,
+    /// Proof of the value authenticity.
+    ///
+    /// If specified, a proof is the Merkle path consisting of up to 256 hashes
+    /// ordered starting the bottommost level of the tree (one with leaves) and ending before
+    /// the root level.
+    ///
+    /// If the path is not full (contains <256 hashes), it means that the hashes at the beginning
+    /// corresponding to the empty subtrees are skipped. This allows compacting the proof ~10x.
+    pub merkle_path: P,
 }
 
-impl From<LeafNode> for LeafData {
+/// Entry in a Merkle tree together with a proof of authenticity.
+pub type TreeEntryWithProof = TreeEntry<Vec<ValueHash>>;
+
+impl From<LeafNode> for TreeEntry {
     fn from(leaf: LeafNode) -> Self {
         Self {
             value_hash: leaf.value_hash,
             leaf_index: leaf.leaf_index,
+            merkle_path: (),
         }
+    }
+}
+
+impl TreeEntry {
+    pub(crate) fn empty() -> Self {
+        Self {
+            value_hash: ValueHash::zero(),
+            leaf_index: 0,
+            merkle_path: (),
+        }
+    }
+}
+
+impl<P> TreeEntry<P> {
+    /// Returns `true` iff this entry encodes lack of a value.
+    pub fn is_empty(&self) -> bool {
+        self.leaf_index == 0 && self.value_hash.is_zero()
     }
 }
 
@@ -612,7 +644,7 @@ impl BlockOutputWithProofs {
 pub struct TreeLogEntryWithProof<P = Vec<ValueHash>> {
     /// Log entry about an atomic operation on the tree.
     pub base: TreeLogEntry,
-    /// Merkle path to prove the log authenticity. The path consists of up to 256 hashes
+    /// Merkle path to prove log authenticity. The path consists of up to 256 hashes
     /// ordered starting the bottommost level of the tree (one with leaves) and ending before
     /// the root level.
     ///

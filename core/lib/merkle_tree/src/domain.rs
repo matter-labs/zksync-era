@@ -4,7 +4,7 @@ use rayon::{ThreadPool, ThreadPoolBuilder};
 
 use crate::{
     storage::{MerkleTreeColumnFamily, PatchSet, Patched, RocksDBWrapper},
-    types::{Key, LeafData, Root, TreeInstruction, TreeLogEntry, ValueHash, TREE_DEPTH},
+    types::{Key, Root, TreeInstruction, TreeLogEntry, ValueHash, TREE_DEPTH},
     BlockOutput, HashTree, MerkleTree,
 };
 use zksync_crypto::hasher::blake2::Blake2Hasher;
@@ -157,17 +157,6 @@ impl ZkSyncTree {
         self.tree.verify_consistency(version).unwrap_or_else(|err| {
             panic!("Tree at version {version} is inconsistent: {err}");
         });
-    }
-
-    /// Reads leaf nodes with the specified keys from the tree storage. The nodes
-    /// are returned in a `Vec` in the same order as requested.
-    pub fn read_leaves(
-        &self,
-        l1_batch_number: L1BatchNumber,
-        leaf_keys: &[Key],
-    ) -> Vec<Option<LeafData>> {
-        let version = u64::from(l1_batch_number.0);
-        self.tree.read_leaves(version, leaf_keys)
     }
 
     /// Processes an iterator of storage logs comprising a single L1 batch.

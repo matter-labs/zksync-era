@@ -135,6 +135,35 @@ impl fmt::Display for DeserializeError {
 
 impl error::Error for DeserializeError {}
 
+/// Error accessing a specific tree version.
+#[derive(Debug)]
+pub struct NoVersionError {
+    pub(crate) missing_version: u64,
+    pub(crate) version_count: u64,
+}
+
+impl fmt::Display for NoVersionError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let &Self {
+            missing_version,
+            version_count,
+        } = self;
+        if missing_version >= version_count {
+            write!(
+                formatter,
+                "Version {missing_version} does not exist in Merkle tree"
+            )
+        } else {
+            write!(
+                formatter,
+                "Version {missing_version} was pruned from Merkle tree"
+            )
+        }
+    }
+}
+
+impl error::Error for NoVersionError {}
+
 #[cfg(test)]
 mod tests {
     use super::*;
