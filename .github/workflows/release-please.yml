@@ -24,4 +24,4 @@ jobs:
         uses: matter-labs/format-release-please-for-slack-action@69e6fe9e4ec531b7b5fb0d826f73c190db83cf42 # v2.1.0
         with:
           release-please-output: ${{ toJSON(steps.release.outputs) }}
-          slack-webhook-url: ${{ secrets.MATTERMOST_WEBHOOK_RELEASES }}
+          slack-webhook-url: ${{ secrets.SLACK_WEBHOOK_RELEASES }}
