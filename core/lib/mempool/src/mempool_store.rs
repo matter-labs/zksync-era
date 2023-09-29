@@ -1,24 +1,12 @@
-use std::collections::{hash_map, BTreeSet, HashMap, HashSet};
-
 use crate::types::{AccountTransactions, L2TxFilter, MempoolScore};
+use std::collections::hash_map::Entry;
+use std::collections::{BTreeSet, HashMap, HashSet};
+
 use zksync_types::{
     l1::L1Tx, l2::L2Tx, Address, ExecuteTransactionCommon, Nonce, PriorityOpId, Transaction,
 };
 
-#[derive(Debug)]
-pub struct MempoolInfo {
-    pub stashed_accounts: Vec<Address>,
-    pub purged_accounts: Vec<Address>,
-}
-
-#[derive(Debug)]
-pub struct MempoolStats {
-    pub l1_transaction_count: usize,
-    pub l2_transaction_count: u64,
-    pub l2_priority_queue_size: usize,
-}
-
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct MempoolStore {
     /// Pending L1 transactions
     l1_transactions: HashMap<PriorityOpId, L1Tx>,
@@ -29,9 +17,15 @@ pub struct MempoolStore {
     /// Next priority operation
     next_priority_id: PriorityOpId,
     stashed_accounts: Vec<Address>,
-    /// Number of l2 transactions in the mempool.
+    /// number of l2 transactions in the mempool
     size: u64,
     capacity: u64,
+}
+
+#[derive(Debug)]
+pub struct MempoolInfo {
+    pub stashed_accounts: Vec<Address>,
+    pub purged_accounts: Vec<Address>,
 }
 
 impl MempoolStore {
@@ -61,11 +55,10 @@ impl MempoolStore {
                 common_data,
                 execute,
                 received_timestamp_ms,
-                raw_bytes,
             } = transaction;
             match common_data {
                 ExecuteTransactionCommon::L1(data) => {
-                    tracing::trace!("inserting L1 transaction {}", data.serial_id);
+                    vlog::trace!("inserting L1 transaction {}", data.serial_id);
                     self.l1_transactions.insert(
                         data.serial_id,
                         L1Tx {
@@ -76,22 +69,19 @@ impl MempoolStore {
                     );
                 }
                 ExecuteTransactionCommon::L2(data) => {
-                    tracing::trace!("inserting L2 transaction {}", data.nonce);
+                    vlog::trace!("inserting L2 transaction {}", data.nonce);
                     self.insert_l2_transaction(
                         L2Tx {
                             execute,
                             common_data: data,
                             received_timestamp_ms,
-                            raw_bytes,
                         },
                         &initial_nonces,
                     );
                 }
-                ExecuteTransactionCommon::ProtocolUpgrade(_) => {
-                    panic!("Protocol upgrade tx is not supposed to be inserted into mempool");
-                }
             }
         }
+        self.collect_stats();
     }
 
     fn insert_l2_transaction(
@@ -102,8 +92,8 @@ impl MempoolStore {
         let account = transaction.initiator_account();
 
         let metadata = match self.l2_transactions_per_account.entry(account) {
-            hash_map::Entry::Occupied(mut txs) => txs.get_mut().insert(transaction),
-            hash_map::Entry::Vacant(entry) => {
+            Entry::Occupied(mut txs) => txs.get_mut().insert(transaction),
+            Entry::Vacant(entry) => {
                 let account_nonce = initial_nonces.get(&account).cloned().unwrap_or(Nonce(0));
                 entry
                     .insert(AccountTransactions::new(account_nonce))
@@ -175,6 +165,7 @@ impl MempoolStore {
             .size
             .checked_sub((removed + 1) as u64)
             .expect("mempool size can't be negative");
+        self.collect_stats();
         Some(transaction.into())
     }
 
@@ -198,9 +189,6 @@ impl MempoolStore {
                     self.l2_priority_queue.remove(&score);
                 }
             }
-            ExecuteTransactionCommon::ProtocolUpgrade(_) => {
-                panic!("Protocol upgrade tx is not supposed to be in mempool");
-            }
         }
     }
 
@@ -211,12 +199,21 @@ impl MempoolStore {
         }
     }
 
-    pub fn stats(&self) -> MempoolStats {
-        MempoolStats {
-            l1_transaction_count: self.l1_transactions.len(),
-            l2_transaction_count: self.size,
-            l2_priority_queue_size: self.l2_priority_queue.len(),
-        }
+    fn collect_stats(&self) {
+        metrics::gauge!(
+            "server.state_keeper.mempool_l1_size",
+            self.l1_transactions.len() as f64
+        );
+        metrics::gauge!("server.state_keeper.mempool_l2_size", self.size as f64);
+        metrics::gauge!(
+            "server.state_keeper.mempool_l2_priority_queue_size",
+            self.l2_priority_queue.len() as f64
+        );
+    }
+
+    #[cfg(test)]
+    pub fn size(&self) -> u64 {
+        self.size
     }
 
     fn gc(&mut self) -> Vec<Address> {

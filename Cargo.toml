@@ -1,18 +1,27 @@
 [workspace]
 members = [
-    # Binaries
-    "core/bin/block_reverter",
-    "core/bin/contract-verifier",
+    # Prover
+    #    We don't include `prove` image here since it cannot be built with stable rust
+    #    and we don't want to use nightly for the whole workspace
+    # "core/bin/prover",
+    # Server
+    "core/bin/zksync_core",
     "core/bin/external_node",
-    "core/bin/merkle_tree_consistency_checker",
-    "core/bin/rocksdb_util",
-    "core/bin/storage_logs_dedup_migration",
-    # "core/bin/system-constants-generator",
+    "core/bin/admin-tools",
+    "core/bin/system-constants-generator",
+    "core/bin/test_node",
+    "core/tests/cross_external_nodes_checker",
+    # Contract verifier
+    "core/bin/contract-verifier",
+    # Setup key generator and server: its commented as it cannot be built with stable rust.
+    # "core/bin/setup_key_generator_and_server",
+    # Verification key generator and server
     "core/bin/verification_key_generator_and_server",
-    "core/bin/verified_sources_fetcher",
-    "core/bin/zksync_server",
+    #"core/bin/witness_generator",
+    # circuit synthesizer: its commented as it cannot be built with stable rust.
+    # "core/bin/circuit_synthesizer",
+    "core/bin/enumeration_indices_migration",
     # Libraries
-    "core/lib/zksync_core",
     "core/lib/basic_types",
     "core/lib/config",
     "core/lib/contracts",
@@ -24,8 +33,8 @@ members = [
     "core/lib/eth_signer",
     "core/lib/mempool",
     "core/lib/merkle_tree",
-    "core/lib/mini_merkle_tree",
     "core/lib/object_store",
+    "core/lib/mini_merkle_tree",
     "core/lib/prometheus_exporter",
     "core/lib/queued_job_processor",
     "core/lib/state",
@@ -34,17 +43,15 @@ members = [
     "core/lib/prover_utils",
     "core/lib/utils",
     "core/lib/vlog",
-    "core/lib/multivm",
     "core/lib/vm",
+    "core/lib/multivm",
     "core/lib/web3_decl",
-    "core/lib/test_account",
 
     # MultiVM dependencies
     "core/multivm_deps/vm_m5",
     "core/multivm_deps/vm_m6",
 
     # Test infrastructure
-    "core/tests/cross_external_nodes_checker",
     "core/tests/loadnext",
     "core/tests/vm-benchmark",
     "core/tests/vm-benchmark/harness",

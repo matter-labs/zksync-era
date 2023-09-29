@@ -7,11 +7,11 @@ use zk_evm::witness_trace::DummyTracer;
 use zk_evm::zkevm_opcode_defs::decoding::{AllowedPcOrImm, EncodingModeProduction, VmEncodingMode};
 use zk_evm::zkevm_opcode_defs::definitions::RET_IMPLICIT_RETURNDATA_PARAMS_REGISTER;
 use zksync_config::constants::MAX_TXS_IN_BLOCK;
-
 use zksync_types::l2_to_l1_log::L2ToL1Log;
 use zksync_types::tx::tx_execution_info::{TxExecutionStatus, VmExecutionLogs};
 use zksync_types::vm_trace::VmExecutionTrace;
 use zksync_types::{L1BatchNumber, StorageLogQuery, VmEvent, U256};
+use zksync_utils::bytes_to_be_words;
 
 use crate::bootloader_state::BootloaderState;
 use crate::errors::{TxRevertReason, VmRevertReason, VmRevertReasonParsingResult};
@@ -27,7 +27,6 @@ use crate::oracles::tracer::{
     TransactionResultTracer, ValidationError, ValidationTracer, ValidationTracerParams,
 };
 use crate::oracles::OracleWithHistory;
-use crate::storage::Storage;
 use crate::utils::{
     collect_log_queries_after_timestamp, collect_storage_log_queries_after_timestamp,
     dump_memory_page_using_primitive_value, precompile_calls_count_after_timestamp,
@@ -36,14 +35,15 @@ use crate::vm_with_bootloader::{
     BootloaderJobType, DerivedBlockContext, TxExecutionMode, BOOTLOADER_HEAP_PAGE,
     OPERATOR_REFUNDS_OFFSET,
 };
+use crate::Word;
 
-pub type ZkSyncVmState<'a, S> = VmState<
+pub type ZkSyncVmState<'a> = VmState<
     'a,
-    StorageOracle<S>,
+    StorageOracle<'a>,
     SimpleMemory,
     InMemoryEventSink,
     PrecompilesProcessorWithHistory<false>,
-    DecommitterOracle<S, false>,
+    DecommitterOracle<'a, false>,
     DummyTracer,
 >;
 
@@ -70,7 +70,7 @@ pub(crate) fn get_vm_hook_params(memory: &SimpleMemory) -> Vec<U256> {
 /// E.g., initially they were completely disabled.
 ///
 /// This enum allows to execute blocks with the same VM but different support for refunds.
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub enum MultiVMSubversion {
     /// Initial VM M5 version, refunds are fully disabled.
     V1,
@@ -79,9 +79,9 @@ pub enum MultiVMSubversion {
 }
 
 #[derive(Debug)]
-pub struct VmInstance<'a, S: Storage> {
+pub struct VmInstance<'a> {
     pub gas_limit: u32,
-    pub state: ZkSyncVmState<'a, S>,
+    pub state: ZkSyncVmState<'a>,
     pub execution_mode: TxExecutionMode,
     pub block_context: DerivedBlockContext,
     pub(crate) bootloader_state: BootloaderState,
@@ -99,7 +99,7 @@ pub struct VmExecutionResult {
     pub storage_log_queries: Vec<StorageLogQuery>,
     pub used_contract_hashes: Vec<U256>,
     pub l2_to_l1_logs: Vec<L2ToL1Log>,
-    pub return_data: Vec<u8>,
+    pub return_data: Vec<Word>,
 
     /// Value denoting the amount of gas spent withing VM invocation.
     /// Note that return value represents the difference between the amount of gas
@@ -167,13 +167,13 @@ pub enum VmExecutionStopReason {
 
 use crate::utils::VmExecutionResult as NewVmExecutionResult;
 
-fn vm_may_have_ended_inner<const B: bool, S: Storage>(
+fn vm_may_have_ended_inner<const B: bool>(
     vm: &VmState<
-        StorageOracle<S>,
+        StorageOracle,
         SimpleMemory,
         InMemoryEventSink,
         PrecompilesProcessorWithHistory<B>,
-        DecommitterOracle<S, B>,
+        DecommitterOracle<B>,
         DummyTracer,
     >,
 ) -> Option<NewVmExecutionResult> {
@@ -213,13 +213,16 @@ fn vm_may_have_ended_inner<const B: bool, S: Storage>(
 //
 // `gas_before` argument is used to calculate the amount of gas spent by transaction.
 // It is required because the same VM instance is continuously used to apply several transactions.
-fn vm_may_have_ended<S: Storage>(vm: &VmInstance<S>, gas_before: u32) -> Option<VmExecutionResult> {
+fn vm_may_have_ended(vm: &VmInstance, gas_before: u32) -> Option<VmExecutionResult> {
     let basic_execution_result = vm_may_have_ended_inner(&vm.state)?;
 
     let gas_used = gas_before - vm.gas_remaining();
 
     match basic_execution_result {
-        NewVmExecutionResult::Ok(data) => {
+        NewVmExecutionResult::Ok(mut data) => {
+            while data.len() % 32 != 0 {
+                data.push(0)
+            }
             Some(VmExecutionResult {
                 // The correct `events` value for this field should be set separately
                 // later on based on the information inside the event_sink oracle.
@@ -227,7 +230,7 @@ fn vm_may_have_ended<S: Storage>(vm: &VmInstance<S>, gas_before: u32) -> Option<
                 storage_log_queries: vm.get_final_log_queries(),
                 used_contract_hashes: vm.get_used_contracts(),
                 l2_to_l1_logs: vec![],
-                return_data: data,
+                return_data: bytes_to_be_words(data),
                 gas_used,
                 contracts_used: vm
                     .state
@@ -253,7 +256,7 @@ fn vm_may_have_ended<S: Storage>(vm: &VmInstance<S>, gas_before: u32) -> Option<
                 revert_reason.revert_reason,
                 TxRevertReason::UnexpectedVMBehavior(_)
             ) {
-                tracing::error!(
+                vlog::error!(
                     "Observed error that should never happen: {:?}. Full VM data: {:?}",
                     revert_reason,
                     vm
@@ -319,7 +322,7 @@ pub struct VmSnapshot {
     bootloader_state: BootloaderState,
 }
 
-impl<'a, S: Storage> VmInstance<'a, S> {
+impl<'a> VmInstance<'a> {
     fn has_ended(&self) -> bool {
         match vm_may_have_ended_inner(&self.state) {
             None | Some(NewVmExecutionResult::MostLikelyDidNotFinish(_, _)) => false,
@@ -348,7 +351,7 @@ impl<'a, S: Storage> VmInstance<'a, S> {
                     revert_reason.revert_reason,
                     TxRevertReason::UnexpectedVMBehavior(_)
                 ) {
-                    tracing::error!(
+                    vlog::error!(
                         "Observed error that should never happen: {:?}. Full VM data: {:?}",
                         revert_reason,
                         self
@@ -386,21 +389,21 @@ impl<'a, S: Storage> VmInstance<'a, S> {
 
         let timestamp = Timestamp(local_state.timestamp);
 
-        tracing::trace!("Rolling back decomitter");
+        vlog::trace!("Rolling back decomitter");
         self.state
             .decommittment_processor
             .rollback_to_timestamp(timestamp);
 
-        tracing::trace!("Rolling back event_sink");
+        vlog::trace!("Rolling back event_sink");
         self.state.event_sink.rollback_to_timestamp(timestamp);
 
-        tracing::trace!("Rolling back storage");
+        vlog::trace!("Rolling back storage");
         self.state.storage.rollback_to_timestamp(timestamp);
 
-        tracing::trace!("Rolling back memory");
+        vlog::trace!("Rolling back memory");
         self.state.memory.rollback_to_timestamp(timestamp);
 
-        tracing::trace!("Rolling back precompiles_processor");
+        vlog::trace!("Rolling back precompiles_processor");
         self.state
             .precompiles_processor
             .rollback_to_timestamp(timestamp);
@@ -459,7 +462,11 @@ impl<'a, S: Storage> VmInstance<'a, S> {
             events,
             l1_messages
                 .into_iter()
-                .map(|log| L2ToL1Log::from(GlueInto::<zksync_types::EventMessage>::glue_into(log)))
+                .map(|log| {
+                    L2ToL1Log::from(GlueInto::<
+                        zksync_types::zk_evm::reference_impls::event_sink::EventMessage,
+                    >::glue_into(log))
+                })
                 .collect(),
         )
     }
@@ -561,7 +568,7 @@ impl<'a, S: Storage> VmInstance<'a, S> {
                         );
 
                         if tx_body_refund < bootloader_refund {
-                            tracing::error!(
+                            vlog::error!(
                         "Suggested tx body refund is less than bootloader refund. Tx body refund: {}, bootloader refund: {}",
                         tx_body_refund,
                         bootloader_refund
@@ -743,7 +750,9 @@ impl<'a, S: Storage> VmInstance<'a, S> {
                 full_result.l2_to_l1_logs = l1_messages
                     .into_iter()
                     .map(|log| {
-                        L2ToL1Log::from(GlueInto::<zksync_types::EventMessage>::glue_into(log))
+                        L2ToL1Log::from(GlueInto::<
+                            zksync_types::zk_evm::reference_impls::event_sink::EventMessage,
+                        >::glue_into(log))
                     })
                     .collect();
                 VmBlockResult {
@@ -858,7 +867,7 @@ impl<'a, S: Storage> VmInstance<'a, S> {
 
 // Reads the bootloader memory and checks whether the execution step of the transaction
 // has failed.
-pub(crate) fn tx_has_failed<S: Storage>(state: &ZkSyncVmState<'_, S>, tx_id: u32) -> bool {
+pub(crate) fn tx_has_failed(state: &ZkSyncVmState<'_>, tx_id: u32) -> bool {
     let mem_slot = RESULT_SUCCESS_FIRST_SLOT + tx_id;
     let mem_value = state
         .memory

@@ -20,6 +20,7 @@
                 postgresql
                 python3
                 solc
+                zlib
             ];
 
             # for RocksDB and other Rust bindgen libraries
@@ -33,7 +34,7 @@
 
             # hardhat solc requires ld-linux
             # Nixos has to fake it with nix-ld
-            NIX_LD_LIBRARY_PATH = lib.makeLibraryPath [];
+            NIX_LD_LIBRARY_PATH = lib.makeLibraryPath [zlib];
             NIX_LD = builtins.readFile "${stdenv.cc}/nix-support/dynamic-linker";
         };
     };

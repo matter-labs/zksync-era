@@ -1,6 +1,5 @@
 use std::convert::{TryFrom, TryInto};
 use std::fmt::Debug;
-use std::net::IpAddr;
 use std::ops::Add;
 use std::str::FromStr;
 
@@ -20,7 +19,6 @@ use zkevm_test_harness::{
     SchedulerCircuitInstanceWitness,
 };
 
-use crate::witness_block_state::WitnessHashBlockState;
 use zksync_basic_types::{L1BatchNumber, H256, U256};
 
 const HASH_LEN: usize = H256::len_bytes();
@@ -58,11 +56,6 @@ impl StorageLogMetadata {
             );
         })
     }
-
-    fn first_time_touching_empty_storage(&self) -> bool {
-        self.value_written == self.value_read
-            && H256::from_slice(&self.value_read) == H256::default()
-    }
 }
 
 #[derive(Clone)]
@@ -73,7 +66,7 @@ pub struct WitnessGeneratorJobMetadata {
 
 /// Represents the sequential number of the proof aggregation round.
 /// Mostly used to be stored in `aggregation_round` column  in `prover_jobs` table
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum AggregationRound {
     BasicCircuits = 0,
     LeafAggregation = 1,
@@ -215,25 +208,6 @@ impl PrepareBasicCircuitsJob {
             }
         }
         merkle_paths.into_iter()
-    }
-
-    /// Converts this job into WitnessHashBlockState -- Witness Storage input for Witness Generation
-    pub fn into_witness_hash_block_state(self) -> WitnessHashBlockState {
-        let mut block_state = WitnessHashBlockState::default();
-        for storage_log_metadata in self.into_merkle_paths() {
-            let hash = storage_log_metadata.leaf_hashed_key;
-            if (storage_log_metadata.is_write && storage_log_metadata.first_write)
-                || storage_log_metadata.first_time_touching_empty_storage()
-            {
-                block_state.is_write_initial.insert(hash, true);
-            } else {
-                block_state.is_write_initial.insert(hash, false);
-            }
-            block_state
-                .read_storage_key
-                .insert(hash, storage_log_metadata.value_read.into());
-        }
-        block_state
     }
 }
 
@@ -454,24 +428,6 @@ pub struct StuckJobs {
     pub attempts: u64,
 }
 
-#[derive(Debug, Clone)]
-pub struct SocketAddress {
-    pub host: IpAddr,
-    pub port: u16,
-}
-
-#[derive(Debug)]
-pub enum GpuProverInstanceStatus {
-    // The instance is available for processing.
-    Available,
-    // The instance is running at full capacity.
-    Full,
-    // The instance is reserved by an synthesizer.
-    Reserved,
-    // The instance is not alive anymore.
-    Dead,
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -509,87 +465,5 @@ mod tests {
 
         let logs_from_job: Vec<_> = job.into_merkle_paths().collect();
         assert_eq!(logs_from_job, logs);
-    }
-
-    fn get_arr_with_last_byte(val: u8) -> [u8; 32] {
-        let mut arr = [0; 32];
-        arr[31] = val;
-        arr
-    }
-
-    #[test]
-    fn into_witness_hash_block_state_full_conversion() {
-        use std::collections::HashMap;
-
-        let witness_hash_block_state = WitnessHashBlockState {
-            // Note that the commented out values are not derived from
-            is_write_initial: HashMap::from([
-                (U256([0, 0, 0, 1]), false), // is_write: false; first_write: false; read != write
-                (U256([0, 0, 0, 2]), false), // is_write: true;  first_write: false; read != write
-                (U256([0, 0, 0, 3]), false), // is_write: false; first_write: true;  read != write
-                (U256([0, 0, 0, 4]), true),  // is_write: true;  first_write: true;  read != write
-                (U256([0, 0, 0, 5]), false), // is_write: false; first_write: false; read == write != 0x00..00
-                (U256([0, 0, 0, 6]), false), // is_write: true;  first_write: false; read == write != 0x00..00
-                (U256([0, 0, 0, 7]), false), // is_write: false; first_write: true;  read == write != 0x00..00
-                (U256([0, 0, 0, 8]), true), // is_write: true;  first_write: true;  read == write != 0x00..00
-                (U256([0, 0, 0, 9]), true), // is_write: false; first_write: false; read == write == 0x00..00
-                (U256([0, 0, 0, 10]), true), // is_write: true;  first_write: false; read == write == 0x00..00
-                (U256([0, 0, 0, 11]), true), // is_write: false; first_write: true;  read == write == 0x00..00
-                (U256([0, 0, 0, 12]), true), // is_write: true;  first_write: true;  read == write == 0x00..00
-            ]),
-            read_storage_key: HashMap::from([
-                (U256([0, 0, 0, 1]), H256(get_arr_with_last_byte(0))),
-                (U256([0, 0, 0, 2]), H256(get_arr_with_last_byte(0))),
-                (U256([0, 0, 0, 3]), H256(get_arr_with_last_byte(1))),
-                (U256([0, 0, 0, 4]), H256(get_arr_with_last_byte(1))),
-                (U256([0, 0, 0, 5]), H256(get_arr_with_last_byte(1))),
-                (U256([0, 0, 0, 6]), H256(get_arr_with_last_byte(2))),
-                (U256([0, 0, 0, 7]), H256(get_arr_with_last_byte(3))),
-                (U256([0, 0, 0, 8]), H256(get_arr_with_last_byte(4))),
-                (U256([0, 0, 0, 9]), H256(get_arr_with_last_byte(0))),
-                (U256([0, 0, 0, 10]), H256(get_arr_with_last_byte(0))),
-                (U256([0, 0, 0, 11]), H256(get_arr_with_last_byte(0))),
-                (U256([0, 0, 0, 12]), H256(get_arr_with_last_byte(0))),
-            ]),
-        };
-
-        let storage_log_input = [
-            (false, false, 1, 1, 0),
-            (true, false, 2, 1, 0),
-            (false, true, 3, 0, 1),
-            (true, true, 4, 0, 1),
-            (false, false, 5, 1, 1),
-            (true, false, 6, 2, 2),
-            (false, true, 7, 3, 3),
-            (true, true, 8, 4, 4),
-            (false, false, 9, 0, 0),
-            (true, false, 10, 0, 0),
-            (false, true, 11, 0, 0),
-            (true, true, 12, 0, 0),
-        ];
-
-        let storage_logs = storage_log_input.map(
-            |(is_write, first_write, leaf_id, written_last_byte, read_last_byte)| {
-                StorageLogMetadata {
-                    root_hash: get_arr_with_last_byte(0),
-                    is_write,
-                    first_write,
-                    merkle_paths: vec![],
-                    leaf_hashed_key: U256([0, 0, 0, leaf_id]),
-                    leaf_enumeration_index: 0,
-                    value_written: get_arr_with_last_byte(written_last_byte),
-                    value_read: get_arr_with_last_byte(read_last_byte),
-                }
-            },
-        );
-        let mut job = PrepareBasicCircuitsJob::new(4);
-        job.reserve(storage_logs.len());
-        for log in &storage_logs {
-            job.push_merkle_path(log.clone());
-        }
-        assert_eq!(
-            job.into_witness_hash_block_state(),
-            witness_hash_block_state
-        );
     }
 }

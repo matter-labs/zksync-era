@@ -59,7 +59,6 @@ impl<E: EthInterface + std::fmt::Debug> FacetSelectorsChecker<E> {
                 let contract = zksync_contracts::load_contract(
                     format!("{0}/{1}.sol/{1}Facet.json", path_str, facet_name).as_str(),
                 );
-                // Filter out `getName` function. Because it's a part of the common interface and it could messed up the selectors
                 let selectors = contract
                     .functions
                     .into_values()

@@ -10,6 +10,7 @@ pub struct OperationResultsCollector {
     pub(super) tx_results: ResultCollector,
     api_requests_results: ResultCollector,
     subscriptions_results: ResultCollector,
+    explorer_api_requests_results: ResultCollector,
     loadtest_duration: Duration,
 }
 
@@ -68,6 +69,7 @@ impl OperationResultsCollector {
             ActionType::Tx(_) => self.tx_results.add_status(status),
             ActionType::Api(_) => self.api_requests_results.add_status(status),
             ActionType::Subscription(_) => self.subscriptions_results.add_status(status),
+            ActionType::ExplorerApi(_) => self.explorer_api_requests_results.add_status(status),
             ActionType::InitComplete => {}
         }
     }
@@ -81,15 +83,16 @@ impl OperationResultsCollector {
     }
 
     pub fn report(&self, actual_duration: Duration) {
-        tracing::info!(
+        vlog::info!(
             "Ran loadtest for {actual_duration:?} (requested duration: {:?}). \
              TPS: {} (with requested duration: {})",
             self.loadtest_duration,
             self.tps(actual_duration),
             self.nominal_tps()
         );
-        tracing::info!("Transaction execution stats: {}", self.tx_results);
-        tracing::info!("API requests stats: {}", self.api_requests_results);
-        tracing::info!("Subscriptions stats: {}", self.subscriptions_results);
+        vlog::info!("Transaction execution stats: {}", self.tx_results);
+        vlog::info!("API requests stats: {}", self.api_requests_results);
+        vlog::info!("Subscriptions stats: {}", self.subscriptions_results);
+        vlog::info!("Explorer api stats: {}", self.explorer_api_requests_results);
     }
 }

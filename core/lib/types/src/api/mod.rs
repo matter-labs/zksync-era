@@ -1,20 +1,18 @@
-use chrono::{DateTime, Utc};
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use strum::Display;
 
-use zksync_basic_types::{
-    web3::types::{Bytes, H160, H256, H64, U256, U64},
-    L1BatchNumber,
-};
-use zksync_contracts::BaseSystemContractsHashes;
-
-use crate::protocol_version::L1VerifierConfig;
+use crate::explorer_api::TransactionStatus;
 pub use crate::transaction_request::{
     Eip712Meta, SerializationTransactionError, TransactionRequest,
 };
 use crate::vm_trace::{Call, CallType};
 use crate::web3::types::{AccessList, Index, H2048};
-use crate::{Address, MiniblockNumber, ProtocolVersionId};
+use crate::{Address, MiniblockNumber};
+use chrono::{DateTime, Utc};
+pub use zksync_basic_types::web3::{
+    self, ethabi,
+    types::{Bytes, Work, H160, H256, H64, U256, U64},
+};
 
 pub mod en;
 
@@ -522,22 +520,14 @@ pub struct Transaction {
     pub l1_batch_tx_index: Option<U64>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum TransactionStatus {
-    Pending,
-    Included,
-    Verified,
-    Failed,
-}
-
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct TransactionDetails {
     pub is_l1_originated: bool,
     pub status: TransactionStatus,
     pub fee: U256,
-    pub gas_per_pubdata: U256,
+    // TODO (PLA-393): make it non-optional once it's deployed.
+    pub gas_per_pubdata: Option<U256>,
     pub initiator_address: Address,
     pub received_at: DateTime<Utc>,
     pub eth_commit_tx_hash: Option<H256>,
@@ -607,20 +597,6 @@ impl From<Call> for DebugCall {
     }
 }
 
-#[derive(Default, Serialize, Deserialize, Clone, Debug)]
-pub struct ProtocolVersion {
-    /// Protocol version ID
-    pub version_id: u16,
-    /// Timestamp at which upgrade should be performed
-    pub timestamp: u64,
-    /// Verifier configuration
-    pub verification_keys_hashes: L1VerifierConfig,
-    /// Hashes of base system contracts (bootloader and default account)
-    pub base_system_contracts: BaseSystemContractsHashes,
-    /// L2 Upgrade transaction hash
-    pub l2_system_upgrade_tx_hash: Option<H256>,
-}
-
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub enum SupportedTracers {
@@ -638,49 +614,4 @@ pub struct CallTracerConfig {
 pub struct TracerConfig {
     pub tracer: SupportedTracers,
     pub tracer_config: CallTracerConfig,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum BlockStatus {
-    Sealed,
-    Verified,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct BlockDetailsBase {
-    pub timestamp: u64,
-    pub l1_tx_count: usize,
-    pub l2_tx_count: usize,
-    pub root_hash: Option<H256>,
-    pub status: BlockStatus,
-    pub commit_tx_hash: Option<H256>,
-    pub committed_at: Option<DateTime<Utc>>,
-    pub prove_tx_hash: Option<H256>,
-    pub proven_at: Option<DateTime<Utc>>,
-    pub execute_tx_hash: Option<H256>,
-    pub executed_at: Option<DateTime<Utc>>,
-    pub l1_gas_price: u64,
-    pub l2_fair_gas_price: u64,
-    pub base_system_contracts_hashes: BaseSystemContractsHashes,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct BlockDetails {
-    pub number: MiniblockNumber,
-    pub l1_batch_number: L1BatchNumber,
-    #[serde(flatten)]
-    pub base: BlockDetailsBase,
-    pub operator_address: Address,
-    pub protocol_version: Option<ProtocolVersionId>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct L1BatchDetails {
-    pub number: L1BatchNumber,
-    #[serde(flatten)]
-    pub base: BlockDetailsBase,
 }

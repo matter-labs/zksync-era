@@ -1,17 +1,16 @@
 use anyhow::Context;
-use clap::Parser;
 use tokio::{sync::watch, task, time::sleep};
 
 use std::{sync::Arc, time::Duration};
 
-use prometheus_exporter::PrometheusExporterConfig;
-use zksync_basic_types::{Address, L2ChainId};
+use prometheus_exporter::run_prometheus_exporter;
+use zksync_basic_types::Address;
 use zksync_core::{
     api_server::{
         execution_sandbox::VmConcurrencyLimiter,
         healthcheck::HealthCheckHandle,
         tx_sender::{ApiContracts, TxSenderBuilder},
-        web3::{ApiBuilder, Namespace},
+        web3::ApiBuilder,
     },
     block_reverter::{BlockReverter, BlockReverterFlags, L1ExecutedBatchesRevert},
     consistency_checker::ConsistencyChecker,
@@ -22,7 +21,8 @@ use zksync_core::{
     reorg_detector::ReorgDetector,
     setup_sigint_handler,
     state_keeper::{
-        L1BatchExecutorBuilder, MainBatchExecutorBuilder, SealManager, ZkSyncStateKeeper,
+        L1BatchExecutorBuilder, MainBatchExecutorBuilder, MultiVMConfig, SealManager,
+        ZkSyncStateKeeper,
     },
     sync_layer::{
         batch_status_updater::BatchStatusUpdater, external_io::ExternalIO,
@@ -45,15 +45,14 @@ use crate::config::ExternalNodeConfig;
 async fn build_state_keeper(
     action_queue: ActionQueue,
     state_keeper_db_path: String,
-    config: &ExternalNodeConfig,
+    main_node_url: String,
     connection_pool: ConnectionPool,
     sync_state: SyncState,
     l2_erc20_bridge_addr: Address,
     stop_receiver: watch::Receiver<bool>,
-    chain_id: L2ChainId,
+    use_multivm: bool,
 ) -> ZkSyncStateKeeper {
     let en_sealer = ExternalNodeSealer::new(action_queue.clone());
-    let main_node_url = config.required.main_node_url().unwrap();
     let sealer = SealManager::custom(
         None,
         vec![en_sealer.clone().into_unconditional_batch_seal_criterion()],
@@ -66,8 +65,23 @@ async fn build_state_keeper(
     // node has already executed the transaction, then the external node must execute it too.
     let max_allowed_l2_tx_gas_limit = u32::MAX.into();
     let validation_computational_gas_limit = u32::MAX;
-    // We only need call traces on the external node if the `debug_` namespace is enabled.
-    let save_call_traces = config.optional.api_namespaces().contains(&Namespace::Debug);
+    // We don't need call traces on the external node.
+    let save_call_traces = false;
+
+    // Only supply MultiVM config if the corresponding feature is enabled.
+    let multivm_config = use_multivm.then(|| {
+        vlog::error!(
+            "Using experimental MultiVM support! The feature is not ready, use at your own risk!"
+        );
+        // TODO: Convenience measure to test different env.
+        if main_node_url.contains("mainnet") {
+            MultiVMConfig::mainnet_config_wip()
+        } else if main_node_url.contains("testnet") {
+            MultiVMConfig::testnet_config_wip()
+        } else {
+            panic!("MultiVM can only be configured for mainnet/testnet now")
+        }
+    });
 
     let batch_executor_base: Box<dyn L1BatchExecutorBuilder> =
         Box::new(MainBatchExecutorBuilder::new(
@@ -75,7 +89,8 @@ async fn build_state_keeper(
             connection_pool.clone(),
             max_allowed_l2_tx_gas_limit,
             save_call_traces,
-            false,
+            validation_computational_gas_limit,
+            multivm_config,
         ));
 
     let io = Box::new(
@@ -85,13 +100,9 @@ async fn build_state_keeper(
             sync_state,
             main_node_url,
             l2_erc20_bridge_addr,
-            validation_computational_gas_limit,
-            chain_id,
         )
         .await,
     );
-
-    io.recalculate_miniblock_hashes().await;
 
     ZkSyncStateKeeper::new(stop_receiver, io, batch_executor_base, sealer)
 }
@@ -99,11 +110,11 @@ async fn build_state_keeper(
 async fn init_tasks(
     config: ExternalNodeConfig,
     connection_pool: ConnectionPool,
-) -> anyhow::Result<(
-    Vec<task::JoinHandle<anyhow::Result<()>>>,
+) -> (
+    Vec<task::JoinHandle<()>>,
     watch::Sender<bool>,
     HealthCheckHandle,
-)> {
+) {
     let main_node_url = config
         .required
         .main_node_url()
@@ -118,21 +129,16 @@ async fn init_tasks(
     let state_keeper = build_state_keeper(
         action_queue.clone(),
         config.required.state_cache_path.clone(),
-        &config,
+        main_node_url.to_string(),
         connection_pool.clone(),
         sync_state.clone(),
         config.remote.l2_erc20_bridge_addr,
         stop_receiver.clone(),
-        config.remote.l2_chain_id,
+        config.optional.experimental_multivm_support(),
     )
     .await;
-
-    let singleton_pool_builder = ConnectionPool::singleton(DbVariant::Master);
     let fetcher = MainNodeFetcher::new(
-        singleton_pool_builder
-            .build()
-            .await
-            .context("failed to build a connection pool for MainNodeFetcher")?,
+        ConnectionPool::new(Some(1), DbVariant::Master).await,
         &main_node_url,
         action_queue.clone(),
         sync_state.clone(),
@@ -141,12 +147,11 @@ async fn init_tasks(
     .await;
 
     let metadata_calculator = MetadataCalculator::new(&MetadataCalculatorConfig {
-        db_path: &config.required.merkle_tree_path,
         mode: MetadataCalculatorModeConfig::Lightweight,
-        delay_interval: config.optional.metadata_calculator_delay(),
-        max_l1_batches_per_iter: config.optional.max_l1_batches_per_tree_iter,
-        multi_get_chunk_size: config.optional.merkle_tree_multi_get_chunk_size,
+        db_path: &config.required.merkle_tree_path,
         block_cache_capacity: config.optional.merkle_tree_block_cache_size(),
+        delay_interval: config.optional.metadata_calculator_delay(),
+        max_l1_batches_per_iter: config.optional.max_l1_batches_per_tree_iter(),
     })
     .await;
     healthchecks.push(Box::new(metadata_calculator.tree_health_check()));
@@ -155,38 +160,26 @@ async fn init_tasks(
         &config
             .required
             .eth_client_url()
-            .context("L1 client URL is incorrect")?,
+            .expect("L1 client URL is incorrect"),
         10, // TODO (BFT-97): Make it a part of a proper EN config
-        singleton_pool_builder
-            .build()
-            .await
-            .context("failed to build connection pool for ConsistencyChecker")?,
+        ConnectionPool::new(Some(1), DbVariant::Master).await,
     );
 
     let batch_status_updater = BatchStatusUpdater::new(
         &main_node_url,
-        singleton_pool_builder
-            .build()
-            .await
-            .context("failed to build a connection pool for BatchStatusUpdater")?,
+        ConnectionPool::new(Some(1), DbVariant::Master).await,
     )
     .await;
 
     // Run the components.
     let tree_stop_receiver = stop_receiver.clone();
-    let tree_pool = singleton_pool_builder
-        .build()
-        .await
-        .context("failed to build a tree_pool")?;
+    let tree_pool = ConnectionPool::new(Some(1), DbVariant::Master).await;
     // todo: PLA-335
-    let prover_tree_pool = ConnectionPool::singleton(DbVariant::Prover)
-        .build()
-        .await
-        .context("failed to build a prover_tree_pool")?;
+    let prover_tree_pool = ConnectionPool::new(Some(1), DbVariant::Prover).await;
     let tree_handle =
         task::spawn(metadata_calculator.run(tree_pool, prover_tree_pool, tree_stop_receiver));
 
-    let consistency_checker_handle = if !config.optional.experimental_multivm_support {
+    let consistency_checker_handle = if !config.optional.experimental_multivm_support() {
         Some(tokio::spawn(consistency_checker.run(stop_receiver.clone())))
     } else {
         // TODO (BFT-264): Current behavior of consistency checker makes development of MultiVM harder.
@@ -209,7 +202,7 @@ async fn init_tasks(
             tx_sender_builder = tx_sender_builder.with_rate_limiter(tps_limit);
         };
 
-        let max_concurrency = config.optional.vm_concurrency_limit;
+        let max_concurrency = config.optional.vm_concurrency_limit();
         let (vm_concurrency_limiter, vm_barrier) = VmConcurrencyLimiter::new(max_concurrency);
         let mut storage_caches = PostgresStorageCaches::new(
             config.optional.factory_deps_cache_size() as u64,
@@ -238,41 +231,41 @@ async fn init_tasks(
     let (http_api_handle, http_api_healthcheck) =
         ApiBuilder::jsonrpc_backend(config.clone().into(), connection_pool.clone())
             .http(config.required.http_port)
-            .with_filter_limit(config.optional.filters_limit)
-            .with_batch_request_size_limit(config.optional.max_batch_request_size)
+            .with_filter_limit(config.optional.filters_limit())
+            .with_batch_request_size_limit(config.optional.max_batch_request_size())
             .with_response_body_size_limit(config.optional.max_response_body_size())
             .with_threads(config.required.threads_per_server)
             .with_tx_sender(tx_sender.clone(), vm_barrier.clone())
             .with_sync_state(sync_state.clone())
-            .enable_api_namespaces(config.optional.api_namespaces())
             .build(stop_receiver.clone())
             .await;
 
     let (mut task_handles, ws_api_healthcheck) =
-        ApiBuilder::jsonrpc_backend(config.clone().into(), connection_pool.clone())
+        ApiBuilder::jsonrpc_backend(config.clone().into(), connection_pool)
             .ws(config.required.ws_port)
-            .with_filter_limit(config.optional.filters_limit)
-            .with_subscriptions_limit(config.optional.subscriptions_limit)
-            .with_batch_request_size_limit(config.optional.max_batch_request_size)
+            .with_filter_limit(config.optional.filters_limit())
+            .with_subscriptions_limit(config.optional.subscriptions_limit())
+            .with_batch_request_size_limit(config.optional.max_batch_request_size())
             .with_response_body_size_limit(config.optional.max_response_body_size())
             .with_polling_interval(config.optional.polling_interval())
             .with_threads(config.required.threads_per_server)
             .with_tx_sender(tx_sender, vm_barrier)
             .with_sync_state(sync_state)
-            .enable_api_namespaces(config.optional.api_namespaces())
             .build(stop_receiver.clone())
             .await;
 
     healthchecks.push(Box::new(ws_api_healthcheck));
     healthchecks.push(Box::new(http_api_healthcheck));
-    healthchecks.push(Box::new(ConnectionPoolHealthCheck::new(connection_pool)));
+    healthchecks.push(Box::new(ConnectionPoolHealthCheck::new(
+        ConnectionPool::new(Some(1), DbVariant::Master).await,
+    )));
     let healthcheck_handle = HealthCheckHandle::spawn_server(
         ([0, 0, 0, 0], config.required.healthcheck_port).into(),
         healthchecks,
     );
     if let Some(port) = config.optional.prometheus_port {
-        let prometheus_task = PrometheusExporterConfig::pull(port).run(stop_receiver.clone());
-        task_handles.push(tokio::spawn(prometheus_task));
+        let prometheus_task = run_prometheus_exporter(port, None);
+        task_handles.push(prometheus_task);
     }
 
     task_handles.extend(http_api_handle);
@@ -288,7 +281,7 @@ async fn init_tasks(
         task_handles.push(consistency_checker);
     }
 
-    Ok((task_handles, stop_sender, healthcheck_handle))
+    (task_handles, stop_sender, healthcheck_handle)
 }
 
 async fn shutdown_components(
@@ -304,92 +297,31 @@ async fn shutdown_components(
     healthcheck_handle.stop().await;
 }
 
-#[derive(Debug, Parser)]
-#[structopt(author = "Matter Labs", version)]
-struct Cli {
-    #[arg(long)]
-    revert_pending_l1_batch: bool,
-}
-
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     // Initial setup.
-    let opt = Cli::parse();
 
-    #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
-    let log_format = vlog::log_format_from_env();
-    #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
-    let sentry_url = vlog::sentry_url_from_env();
-    #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
-    let environment = vlog::environment_from_env();
-
-    let mut builder = vlog::ObservabilityBuilder::new().with_log_format(log_format);
-    if let Some(sentry_url) = &sentry_url {
-        builder = builder
-            .with_sentry_url(sentry_url)
-            .expect("Invalid Sentry URL")
-            .with_sentry_environment(environment);
-    }
-    let _guard = builder.build();
-
-    // Report whether sentry is running after the logging subsystem was initialized.
-    if let Some(sentry_url) = sentry_url {
-        tracing::info!("Sentry configured with URL: {sentry_url}");
-    } else {
-        tracing::info!("No sentry URL was provided");
-    }
-
+    vlog::init();
+    let _sentry_guard = vlog::init_sentry();
     let config = ExternalNodeConfig::collect()
         .await
-        .context("Failed to load external node config")?;
+        .expect("Failed to load external node config");
     let main_node_url = config
         .required
         .main_node_url()
-        .context("Main node URL is incorrect")?;
+        .expect("Main node URL is incorrect");
 
-    let connection_pool = ConnectionPool::builder(DbVariant::Master)
-        .build()
-        .await
-        .context("failed to build a connection_pool")?;
-
-    if opt.revert_pending_l1_batch {
-        tracing::info!("Rolling pending L1 batch back..");
-        let reverter = BlockReverter::new(
-            config.required.state_cache_path,
-            config.required.merkle_tree_path,
-            None,
-            connection_pool.clone(),
-            L1ExecutedBatchesRevert::Allowed,
-        );
-
-        let mut connection = connection_pool.access_storage().await.unwrap();
-        let sealed_l1_batch_number = connection
-            .blocks_dal()
-            .get_sealed_l1_batch_number()
-            .await
-            .unwrap();
-        drop(connection);
-
-        tracing::info!("Rolling back to l1 batch number {sealed_l1_batch_number}");
-        reverter
-            .rollback_db(sealed_l1_batch_number, BlockReverterFlags::all())
-            .await;
-        tracing::info!(
-            "Rollback successfully completed, the node has to restart to continue working"
-        );
-        return Ok(());
-    }
-
+    let connection_pool = ConnectionPool::new(None, DbVariant::Master).await;
     let sigint_receiver = setup_sigint_handler();
 
-    tracing::warn!("The external node is in the alpha phase, and should be used with caution.");
+    vlog::warn!("The external node is in the alpha phase, and should be used with caution.");
 
-    tracing::info!("Started the external node");
-    tracing::info!("Main node URL is: {}", main_node_url);
+    vlog::info!("Started the external node");
+    vlog::info!("Main node URL is: {}", main_node_url);
 
     // Make sure that genesis is performed.
     perform_genesis_if_needed(
-        &mut connection_pool.access_storage().await.unwrap(),
+        &mut connection_pool.access_storage().await,
         config.remote.l2_chain_id,
         main_node_url.clone(),
     )
@@ -397,9 +329,7 @@ async fn main() -> anyhow::Result<()> {
     .context("Performing genesis failed")?;
 
     let (task_handles, stop_sender, health_check_handle) =
-        init_tasks(config.clone(), connection_pool.clone())
-            .await
-            .context("init_tasks")?;
+        init_tasks(config.clone(), connection_pool.clone()).await;
 
     let reorg_detector = ReorgDetector::new(&main_node_url, connection_pool.clone());
     let reorg_detector_handle = tokio::spawn(reorg_detector.run());
@@ -410,11 +340,11 @@ async fn main() -> anyhow::Result<()> {
     tokio::select! {
         _ = wait_for_tasks(task_handles, particular_crypto_alerts, graceful_shutdown, tasks_allowed_to_finish) => {},
         _ = sigint_receiver => {
-            tracing::info!("Stop signal received, shutting down");
+            vlog::info!("Stop signal received, shutting down");
         },
         last_correct_batch = reorg_detector_handle => {
             if let Ok(last_correct_batch) = last_correct_batch {
-                tracing::info!("Performing rollback to block {}", last_correct_batch);
+                vlog::info!("Performing rollback to block {}", last_correct_batch);
                 shutdown_components(stop_sender, health_check_handle).await;
                 let reverter = BlockReverter::new(
                     config.required.state_cache_path,
@@ -426,10 +356,10 @@ async fn main() -> anyhow::Result<()> {
                 reverter
                     .rollback_db(last_correct_batch, BlockReverterFlags::all())
                     .await;
-                tracing::info!("Rollback successfully completed, the node has to restart to continue working");
+                vlog::info!("Rollback successfully completed, the node has to restart to continue working");
                 return Ok(());
             } else {
-                tracing::error!("Reorg detector actor failed");
+                vlog::error!("Reorg detector actor failed");
             }
         }
     }

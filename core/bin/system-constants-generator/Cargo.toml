@@ -11,11 +11,11 @@ description = "Tool for generating JSON files with the system constants for L1/L
 publish = false # We don't want to publish our binaries.
 
 [dependencies]
-zksync_state = { path = "../../lib/state" }
-zksync_types = { path = "../../lib/types" }
-zksync_utils = { path = "../../lib/utils" }
-zksync_contracts = { path = "../../lib/contracts" }
-vm = { path = "../../lib/vm" }
+zksync_state = { path = "../../lib/state", version = "1.0" }
+zksync_types = { path = "../../lib/types", version = "1.0" }
+zksync_utils = { path = "../../lib/utils", version = "1.0" }
+zksync_contracts = {path = "../../lib/contracts", version = "1.0" }
+vm = {path = "../../lib/vm", version="0.1.0" }
 
 codegen = "0.2.0"
 

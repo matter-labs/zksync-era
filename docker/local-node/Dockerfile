@@ -11,8 +11,8 @@ RUN apt-get update; apt-get install -y make bash git openssl libssl-dev gcc g++ 
 RUN apt-get install -y libpq5 ca-certificates postgresql-client && rm -rf /var/lib/apt/lists/*
 
 # Install node and yarn
-RUN curl -sL https://deb.nodesource.com/setup_18.x | bash -
-RUN apt-get install -y nodejs npm
+RUN curl -sL https://deb.nodesource.com/setup_14.x | bash -
+RUN apt-get install -y nodejs
 RUN npm install -g yarn
 
 # Copy compiler (both solc and zksolc) binaries

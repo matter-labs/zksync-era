@@ -6,7 +6,6 @@ use crate::{
 };
 use once_cell::sync::Lazy;
 
-use crate::storage::Storage;
 use zk_evm::block_properties::BlockProperties;
 use zk_evm::{
     aux_structures::{LogQuery, MemoryPage, Timestamp},
@@ -262,12 +261,8 @@ pub fn read_bootloader_test_code(test: &str) -> Vec<u8> {
     ))
 }
 
-pub(crate) fn calculate_computational_gas_used<
-    S: Storage,
-    T: PubdataSpentTracer<H>,
-    H: HistoryMode,
->(
-    vm: &VmInstance<'_, S, H>,
+pub(crate) fn calculate_computational_gas_used<T: PubdataSpentTracer<H>, H: HistoryMode>(
+    vm: &VmInstance<'_, H>,
     tracer: &T,
     gas_remaining_before: u32,
     spent_pubdata_counter_before: u32,
@@ -280,7 +275,7 @@ pub(crate) fn calculate_computational_gas_used<
     total_gas_used
         .checked_sub(gas_used_on_pubdata)
         .unwrap_or_else(|| {
-            tracing::error!(
+            vlog::error!(
                 "Gas used on pubdata is greater than total gas used. On pubdata: {}, total: {}",
                 gas_used_on_pubdata,
                 total_gas_used

@@ -1,9 +1,11 @@
 use crate::commitment::SerializeCommitment;
+use crate::event::{extract_long_l2_to_l1_messages, extract_published_bytecodes};
 use crate::fee::TransactionExecutionMetrics;
 use crate::l2_to_l1_log::L2ToL1Log;
 use crate::writes::{InitialStorageWrite, RepeatedStorageWrite};
-use crate::{StorageLogQuery, VmEvent};
+use crate::{StorageLogQuery, VmEvent, PUBLISH_BYTECODE_OVERHEAD};
 use std::ops::{Add, AddAssign};
+use zksync_utils::bytecode::bytecode_len_in_bytes;
 
 /// Events/storage logs/l2->l1 logs created within transaction execution.
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -11,7 +13,6 @@ pub struct VmExecutionLogs {
     pub storage_logs: Vec<StorageLogQuery>,
     pub events: Vec<VmEvent>,
     pub l2_to_l1_logs: Vec<L2ToL1Log>,
-    // This field moved to statistics, but we need to keep it for backward compatibility
     pub total_log_queries_count: usize,
 }
 
@@ -87,6 +88,45 @@ impl ExecutionMetrics {
         self.l2_l1_logs * L2ToL1Log::SERIALIZED_SIZE
             + self.l2_l1_long_messages
             + self.published_bytecode_bytes
+    }
+
+    pub fn new(
+        logs: &VmExecutionLogs,
+        gas_used: usize,
+        contracts_deployed: u16,
+        contracts_used: usize,
+        cycles_used: u32,
+        computational_gas_used: u32,
+    ) -> Self {
+        // We published the data as ABI-encoded `bytes`, so the total length is:
+        // - message length in bytes, rounded up to a multiple of 32
+        // - 32 bytes of encoded offset
+        // - 32 bytes of encoded length
+        let l2_l1_long_messages = extract_long_l2_to_l1_messages(&logs.events)
+            .iter()
+            .map(|event| (event.len() + 31) / 32 * 32 + 64)
+            .sum();
+
+        let published_bytecode_bytes = extract_published_bytecodes(&logs.events)
+            .iter()
+            .map(|bytecodehash| {
+                bytecode_len_in_bytes(*bytecodehash) + PUBLISH_BYTECODE_OVERHEAD as usize
+            })
+            .sum();
+
+        ExecutionMetrics {
+            gas_used,
+            published_bytecode_bytes,
+            l2_l1_long_messages,
+            l2_l1_logs: logs.l2_to_l1_logs.len(),
+            contracts_used,
+            contracts_deployed,
+            vm_events: logs.events.len(),
+            storage_logs: logs.storage_logs.len(),
+            total_log_queries: logs.total_log_queries_count,
+            cycles_used,
+            computational_gas_used,
+        }
     }
 }
 

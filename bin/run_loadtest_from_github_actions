@@ -17,5 +17,16 @@ export CONTRACT_EXECUTION_PARAMS_HASHES=${execution_params[3]}
 export CONTRACT_EXECUTION_PARAMS_RECURSIVE_CALLS=${execution_params[4]}
 export CONTRACT_EXECUTION_PARAMS_DEPLOYS=${execution_params[5]}
 
+read -ra execution_params <<<"$EXPLORER_API_REQUESTS_WEIGHTS" #reading $EXPLORER_API_REQUESTS_WEIGHTS as an array as tokens separated by IFS
+export  EXPLORER_API_REQUESTS_WEIGHTS_NETWORK_STATS=${execution_params[0]}
+export  EXPLORER_API_REQUESTS_WEIGHTS_BLOCKS=${execution_params[1]}
+export  EXPLORER_API_REQUESTS_WEIGHTS_BLOCK=${execution_params[2]}
+export  EXPLORER_API_REQUESTS_WEIGHTS_TRANSACTIONS=${execution_params[3]}
+export  EXPLORER_API_REQUESTS_WEIGHTS_ACCOUNT=${execution_params[4]}
+export  EXPLORER_API_REQUESTS_WEIGHTS_TOKEN=${execution_params[5]}
+export  EXPLORER_API_REQUESTS_WEIGHTS_CONTRACT=${execution_params[6]}
+export  EXPLORER_API_REQUESTS_WEIGHTS_TRANSACTION=${execution_params[7]}
+export  EXPLORER_API_REQUESTS_WEIGHTS_ACCOUNT_TRANSACTIONS=${execution_params[8]}
+
 # Run the test
 cargo run --bin loadnext

@@ -1,4 +1,3 @@
-use anyhow::Context as _;
 use std::{env, time::Duration};
 
 use prover_service::JobResult::{Failure, ProofGenerated};
@@ -8,9 +7,9 @@ use zkevm_test_harness::abstract_zksync_circuit::concrete_circuits::ZkSyncProof;
 use zkevm_test_harness::pairing::bn256::Bn256;
 
 use zksync_config::ProverConfig;
-use zksync_dal::StorageProcessor;
 use zksync_dal::{connection::DbVariant, ConnectionPool};
 use zksync_object_store::{Bucket, ObjectStore, ObjectStoreFactory};
+use zksync_dal::StorageProcessor;
 use zksync_types::proofs::ProverJobMetadata;
 
 #[derive(Debug)]
@@ -31,16 +30,15 @@ impl ProverReporter {
         config: ProverConfig,
         store_factory: &ObjectStoreFactory,
         rt_handle: Handle,
-    ) -> anyhow::Result<Self> {
-        let pool = rt_handle.block_on(ConnectionPool::singleton(DbVariant::Prover).build())
-            .context("failed to build a connection pool")?;
-        Ok(Self {
+    ) -> Self {
+        let pool = rt_handle.block_on(ConnectionPool::new(Some(1), DbVariant::Prover));
+        Self {
             pool,
             config,
             processed_by: env::var("POD_NAME").unwrap_or("Unknown".to_string()),
             object_store: rt_handle.block_on(store_factory.create_store()),
             rt_handle,
-        })
+        }
     }
 
     fn handle_successful_proof_generation(
@@ -52,7 +50,7 @@ impl ProverReporter {
     ) {
         let circuit_type = self.get_circuit_type(job_id);
         let serialized = bincode::serialize(&proof).expect("Failed to serialize proof");
-        tracing::info!(
+        vlog::info!(
             "Successfully generated proof with id {:?} and type: {} for index: {}. Size: {:?}KB took: {:?}",
             job_id,
             circuit_type,
@@ -67,47 +65,26 @@ impl ProverReporter {
         );
         let job_id = job_id as u32;
         self.rt_handle.block_on(async {
-            let mut connection = self.pool.access_storage().await.unwrap();
-            let mut transaction = connection.start_transaction().await.unwrap();
-
-            // BEWARE, HERE BE DRAGONS.
-            // `send_report` method is called in an operating system thread,
-            // which is in charge of saving proof output (ok, errored, etc.).
-            // The code that calls it is in a thread that does not check it's status.
-            // If the thread panics, proofs will be generated, but their status won't be saved.
-            // So a prover will work like this:
-            // Pick task, execute task, prepare task to be saved, be restarted as nothing happens.
-            // The error prevents the "fake" work by killing the prover, which causes it to restart.
-            // A proper fix would be to have the thread signal it was dead or be watched from outside.
-            // Given we want to deprecate old prover, this is the quick and dirty hack I'm not proud of.
-            let result = transaction
+            let mut connection = self.pool.access_storage().await;
+            let mut transaction = connection.start_transaction().await;
+            transaction
                 .prover_dal()
                 .save_proof(job_id, duration, serialized, &self.processed_by)
                 .await;
-            if let Err(e) = result {
-                tracing::warn!("panicked inside heavy-ops thread: {e:?}; exiting...");
-                std::process::exit(-1);
-            }
-            self.get_prover_job_metadata_by_id_and_exit_if_error(&mut transaction, job_id)
-                .await;
-            transaction.commit().await.unwrap();
+            self.get_prover_job_metadata_by_id_and_exit_if_error(&mut transaction, job_id).await;
+            transaction.commit().await;
         });
     }
 
     fn get_circuit_type(&self, job_id: usize) -> String {
         let prover_job_metadata = self.rt_handle.block_on(async {
-            let mut connection = self.pool.access_storage().await.unwrap();
-            self.get_prover_job_metadata_by_id_and_exit_if_error(&mut connection, job_id as u32)
-                .await
+            let mut connection = self.pool.access_storage().await;
+            self.get_prover_job_metadata_by_id_and_exit_if_error(&mut connection, job_id as u32).await
         });
         prover_job_metadata.circuit_type
     }
 
-    async fn get_prover_job_metadata_by_id_and_exit_if_error(
-        &self,
-        connection: &mut StorageProcessor<'_>,
-        job_id: u32,
-    ) -> ProverJobMetadata {
+    async fn get_prover_job_metadata_by_id_and_exit_if_error(&self, connection: &mut StorageProcessor<'_>, job_id: u32) -> ProverJobMetadata {
         // BEWARE, HERE BE DRAGONS.
         // `send_report` method is called in an operating system thread,
         // which is in charge of saving proof output (ok, errored, etc.).
@@ -118,18 +95,23 @@ impl ProverReporter {
         // The error prevents the "fake" work by killing the prover, which causes it to restart.
         // A proper fix would be to have the thread signal it was dead or be watched from outside.
         // Given we want to deprecate old prover, this is the quick and dirty hack I'm not proud of.
-        let result = connection.prover_dal().get_prover_job_by_id(job_id).await;
+        let result = connection
+            .prover_dal()
+            .get_prover_job_by_id(job_id)
+            .await;
         let prover_job_metadata = match result {
-            Ok(option) => option,
+            Ok(option) => {
+                option
+            },
             Err(e) => {
-                tracing::warn!("panicked inside heavy-ops thread: {e:?}; exiting...");
+                vlog::warn!("panicked inside heavy-ops thread: {e:?}; exiting...");
                 std::process::exit(-1);
             }
         };
         match prover_job_metadata {
             Some(val) => val,
             None => {
-                tracing::error!("No job with id: {} exist; exiting...", job_id);
+                vlog::error!("No job with id: {} exist; exiting...", job_id);
                 std::process::exit(-1);
             }
         }
@@ -140,15 +122,15 @@ impl JobReporter for ProverReporter {
     fn send_report(&mut self, report: JobResult) {
         match report {
             Failure(job_id, error) => {
-                tracing::error!(
+                vlog::error!(
                     "Failed to generate proof for id {:?}. error reason; {}",
                     job_id,
                     error
                 );
                 self.rt_handle.block_on(async {
-                    let result = self
-                        .pool
-                        .access_storage().await.unwrap()
+                    let result = self.pool
+                        .access_storage()
+                        .await
                         .prover_dal()
                         .save_proof_error(job_id as u32, error, self.config.max_attempts)
                         .await;
@@ -163,7 +145,7 @@ impl JobReporter for ProverReporter {
                     // A proper fix would be to have the thread signal it was dead or be watched from outside.
                     // Given we want to deprecate old prover, this is the quick and dirty hack I'm not proud of.
                     if let Err(e) = result {
-                        tracing::warn!("panicked inside heavy-ops thread: {e:?}; exiting...");
+                        vlog::warn!("panicked inside heavy-ops thread: {e:?}; exiting...");
                         std::process::exit(-1);
                     }
                 });
@@ -175,7 +157,7 @@ impl JobReporter for ProverReporter {
 
             JobResult::Synthesized(job_id, duration) => {
                 let circuit_type = self.get_circuit_type(job_id);
-                tracing::trace!(
+                vlog::trace!(
                     "Successfully synthesized circuit with id {:?} and type: {}. took: {:?}",
                     job_id,
                     circuit_type,
@@ -190,7 +172,7 @@ impl JobReporter for ProverReporter {
 
             JobResult::AssemblyFinalized(job_id, duration) => {
                 let circuit_type = self.get_circuit_type(job_id);
-                tracing::trace!(
+                vlog::trace!(
                     "Successfully finalized assembly with id {:?} and type: {}. took: {:?}",
                     job_id,
                     circuit_type,
@@ -205,7 +187,7 @@ impl JobReporter for ProverReporter {
 
             JobResult::SetupLoaded(job_id, duration, cache_miss) => {
                 let circuit_type = self.get_circuit_type(job_id);
-                tracing::trace!(
+                vlog::trace!(
                     "Successfully setup loaded with id {:?} and type: {}. \
                      took: {:?} and had cache_miss: {}",
                     job_id,
@@ -227,7 +209,7 @@ impl JobReporter for ProverReporter {
 
             JobResult::AssemblyEncoded(job_id, duration) => {
                 let circuit_type = self.get_circuit_type(job_id);
-                tracing::trace!(
+                vlog::trace!(
                     "Successfully encoded assembly with id {:?} and type: {}. took: {:?}",
                     job_id,
                     circuit_type,
@@ -242,7 +224,7 @@ impl JobReporter for ProverReporter {
 
             JobResult::AssemblyDecoded(job_id, duration) => {
                 let circuit_type = self.get_circuit_type(job_id);
-                tracing::trace!(
+                vlog::trace!(
                     "Successfully decoded assembly with id {:?} and type: {}. took: {:?}",
                     job_id,
                     circuit_type,
@@ -256,7 +238,7 @@ impl JobReporter for ProverReporter {
             }
 
             JobResult::FailureWithDebugging(job_id, circuit_id, assembly, error) => {
-                tracing::trace!(
+                vlog::trace!(
                     "Failed assembly decoding for job-id {} and circuit-type: {}. error: {}",
                     job_id,
                     circuit_id,
@@ -273,7 +255,7 @@ impl JobReporter for ProverReporter {
 
             JobResult::AssemblyTransferred(job_id, duration) => {
                 let circuit_type = self.get_circuit_type(job_id);
-                tracing::trace!(
+                vlog::trace!(
                     "Successfully transferred assembly with id {:?} and type: {}. took: {:?}",
                     job_id,
                     circuit_type,
@@ -287,7 +269,7 @@ impl JobReporter for ProverReporter {
             }
 
             JobResult::ProverWaitedIdle(prover_id, duration) => {
-                tracing::trace!(
+                vlog::trace!(
                     "Prover wait idle time: {:?} for prover-id: {:?}",
                     duration,
                     prover_id
@@ -296,12 +278,12 @@ impl JobReporter for ProverReporter {
             }
 
             JobResult::SetupLoaderWaitedIdle(duration) => {
-                tracing::trace!("Setup load wait idle time: {:?}", duration);
+                vlog::trace!("Setup load wait idle time: {:?}", duration);
                 metrics::histogram!("server.prover.setup_load_wait_wait_idle_time", duration,);
             }
 
             JobResult::SchedulerWaitedIdle(duration) => {
-                tracing::trace!("Scheduler wait idle time: {:?}", duration);
+                vlog::trace!("Scheduler wait idle time: {:?}", duration);
                 metrics::histogram!("server.prover.scheduler_wait_idle_time", duration,);
             }
         }

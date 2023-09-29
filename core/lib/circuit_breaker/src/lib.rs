@@ -1,6 +1,5 @@
 use std::time::Duration;
 
-use anyhow::Context as _;
 use futures::channel::oneshot;
 use thiserror::Error;
 use tokio::sync::watch;
@@ -8,11 +7,12 @@ use tokio::sync::watch;
 use zksync_config::configs::chain::CircuitBreakerConfig;
 
 use crate::facet_selectors::MismatchedFacetSelectorsError;
+use crate::vks::VerifierError;
 
 pub mod facet_selectors;
 pub mod l1_txs;
-pub mod replication_lag;
 pub mod utils;
+pub mod vks;
 
 #[cfg(test)]
 mod tests;
@@ -21,10 +21,10 @@ mod tests;
 pub enum CircuitBreakerError {
     #[error("System has failed L1 transaction")]
     FailedL1Transaction,
+    #[error("Verifier error: {0}")]
+    Verifier(VerifierError),
     #[error("Mismatched facet selectors: {0}")]
     MismatchedFacetSelectors(MismatchedFacetSelectorsError),
-    #[error("Replication lag ({0:?}) is above the threshold ({1:?})")]
-    ReplicationLag(u32, u32),
 }
 
 /// Checks circuit breakers
@@ -61,20 +61,18 @@ impl CircuitBreakerChecker {
         self,
         circuit_breaker_sender: oneshot::Sender<CircuitBreakerError>,
         stop_receiver: watch::Receiver<bool>,
-    ) -> anyhow::Result<()> {
-        tracing::info!("running circuit breaker checker...");
+    ) {
         loop {
             if *stop_receiver.borrow() {
                 break;
             }
             if let Err(error) = self.check().await {
-                return circuit_breaker_sender
+                circuit_breaker_sender
                     .send(error)
-                    .ok()
-                    .context("failed to send circuit breaker messsage");
+                    .expect("failed to send circuit breaker messsage");
+                return;
             }
             tokio::time::sleep(self.sync_interval).await;
         }
-        Ok(())
     }
 }

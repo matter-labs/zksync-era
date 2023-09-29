@@ -5,7 +5,9 @@ use zksync_types::Address;
 use crate::account::ExecutionType;
 use crate::{
     all::All,
-    command::{ApiRequest, ApiRequestType, SubscriptionType, TxCommand, TxType},
+    command::{
+        ApiRequest, ApiRequestType, ExplorerApiRequestType, SubscriptionType, TxCommand, TxType,
+    },
 };
 
 /// Report for any operation done by loadtest.
@@ -187,7 +189,14 @@ pub enum ActionType {
     InitComplete,
     Tx(TxActionType),
     Api(ApiActionType),
+    ExplorerApi(ExplorerApiRequestType),
     Subscription(SubscriptionType),
+}
+
+impl From<ExplorerApiRequestType> for ActionType {
+    fn from(action: ExplorerApiRequestType) -> Self {
+        Self::ExplorerApi(action)
+    }
 }
 
 impl From<TxActionType> for ActionType {

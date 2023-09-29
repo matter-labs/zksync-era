@@ -182,6 +182,25 @@
         {
           "indexed": true,
           "internalType": "address",
+          "name": "oldAllowList",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "newAllowList",
+          "type": "address"
+        }
+      ],
+      "name": "NewAllowList",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
           "name": "oldGovernor",
           "type": "address"
         },
@@ -193,6 +212,44 @@
         }
       ],
       "name": "NewGovernor",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "bytes32",
+          "name": "previousBytecodeHash",
+          "type": "bytes32"
+        },
+        {
+          "indexed": true,
+          "internalType": "bytes32",
+          "name": "newBytecodeHash",
+          "type": "bytes32"
+        }
+      ],
+      "name": "NewL2BootloaderBytecodeHash",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "bytes32",
+          "name": "previousBytecodeHash",
+          "type": "bytes32"
+        },
+        {
+          "indexed": true,
+          "internalType": "bytes32",
+          "name": "newBytecodeHash",
+          "type": "bytes32"
+        }
+      ],
+      "name": "NewL2DefaultAccountBytecodeHash",
       "type": "event"
     },
     {
@@ -350,6 +407,78 @@
         }
       ],
       "name": "NewPriorityTxMaxGasLimit",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "oldVerifier",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "newVerifier",
+          "type": "address"
+        }
+      ],
+      "name": "NewVerifier",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "components": [
+            {
+              "internalType": "bytes32",
+              "name": "recursionNodeLevelVkHash",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "recursionLeafLevelVkHash",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "recursionCircuitsSetVksHash",
+              "type": "bytes32"
+            }
+          ],
+          "indexed": false,
+          "internalType": "struct VerifierParams",
+          "name": "oldVerifierParams",
+          "type": "tuple"
+        },
+        {
+          "components": [
+            {
+              "internalType": "bytes32",
+              "name": "recursionNodeLevelVkHash",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "recursionLeafLevelVkHash",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "recursionCircuitsSetVksHash",
+              "type": "bytes32"
+            }
+          ],
+          "indexed": false,
+          "internalType": "struct VerifierParams",
+          "name": "newVerifierParams",
+          "type": "tuple"
+        }
+      ],
+      "name": "NewVerifierParams",
       "type": "event"
     },
     {
@@ -982,19 +1111,6 @@
     {
       "inputs": [],
       "name": "getProposedUpgradeTimestamp",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "getProtocolVersion",
       "outputs": [
         {
           "internalType": "uint256",
@@ -1744,6 +1860,45 @@
     {
       "inputs": [
         {
+          "internalType": "contract IAllowList",
+          "name": "_newAllowList",
+          "type": "address"
+        }
+      ],
+      "name": "setAllowList",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes32",
+          "name": "_l2BootloaderBytecodeHash",
+          "type": "bytes32"
+        }
+      ],
+      "name": "setL2BootloaderBytecodeHash",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes32",
+          "name": "_l2DefaultAccountBytecodeHash",
+          "type": "bytes32"
+        }
+      ],
+      "name": "setL2DefaultAccountBytecodeHash",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
           "internalType": "address",
           "name": "_newPendingGovernor",
           "type": "address"
@@ -1794,6 +1949,49 @@
         }
       ],
       "name": "setValidator",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "contract Verifier",
+          "name": "_newVerifier",
+          "type": "address"
+        }
+      ],
+      "name": "setVerifier",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "components": [
+            {
+              "internalType": "bytes32",
+              "name": "recursionNodeLevelVkHash",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "recursionLeafLevelVkHash",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "recursionCircuitsSetVksHash",
+              "type": "bytes32"
+            }
+          ],
+          "internalType": "struct VerifierParams",
+          "name": "_newVerifierParams",
+          "type": "tuple"
+        }
+      ],
+      "name": "setVerifierParams",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"

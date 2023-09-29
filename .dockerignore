@@ -36,7 +36,6 @@ contracts/.git
 !etc/system-contracts/contracts/artifacts
 !etc/system-contracts/contracts/precompiles/artifacts
 !etc/system-contracts/artifacts-zk
-!etc/multivm_bootloaders
 !cargo
 !bellman-cuda
 !core/bin/verification_key_generator_and_server/data/

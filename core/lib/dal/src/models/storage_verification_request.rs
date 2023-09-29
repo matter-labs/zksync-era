@@ -1,4 +1,4 @@
-use zksync_types::contract_verification_api::{
+use zksync_types::explorer_api::{
     CompilerType, CompilerVersions, SourceCodeData, VerificationIncomingRequest,
     VerificationRequest,
 };

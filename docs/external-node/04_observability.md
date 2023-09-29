@@ -16,11 +16,8 @@ By default, latency histograms are distributed in the following buckets (in seco
 
 ## Metrics
 
-EN exposes a lot of metrics, a significant amount of which aren't interesting outside the development flow. This
+EN exposes a lot of metrics, a significant amount of which aren't interesting outside of the development flow. This
 section's purpose is to highlight metrics that may be worth observing in the external setup.
-
-If you are not planning to scrape Prometheus metrics, please unset `EN_PROMETHEUS_PORT` environment variable to prevent
-memory leaking.
 
 | Metric name                                    | Type      | Labels                                | Description                                                        |
 | ---------------------------------------------- | --------- | ------------------------------------- | ------------------------------------------------------------------ |

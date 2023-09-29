@@ -266,7 +266,6 @@ pub(super) fn execute_user_txs_in_test_gas_vm(
         &GAS_TEST_SYSTEM_CONTRACTS,
         TxExecutionMode::VerifyExecute,
     );
-    vm.start_next_l2_block(vm.get_current_l2_block_info().dummy_next_block_info());
 
     let mut total_gas_refunded = 0;
     for tx in txs {
@@ -306,7 +305,6 @@ pub(super) fn execute_user_txs_in_test_gas_vm(
         result.full_result.contracts_used,
         result.full_result.cycles_used,
         result.full_result.computational_gas_used,
-        result.full_result.total_log_queries,
     );
 
     VmSpentResourcesResult {

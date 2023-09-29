@@ -17,7 +17,7 @@ pub struct ETHWatchConfig {
 }
 
 impl ETHWatchConfig {
-    pub fn from_env() -> anyhow::Result<Self> {
+    pub fn from_env() -> Self {
         envy_load("eth_watch", "ETH_WATCH_")
     }
 
@@ -50,7 +50,7 @@ mod tests {
         "#;
         lock.set_env(config);
 
-        let actual = ETHWatchConfig::from_env().unwrap();
+        let actual = ETHWatchConfig::from_env();
         assert_eq!(actual, expected_config());
     }
 

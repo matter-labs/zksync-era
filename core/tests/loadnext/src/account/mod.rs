@@ -7,14 +7,16 @@ use std::{
 use tokio::sync::RwLock;
 
 use zksync::{error::ClientError, operations::SyncTransactionHandle, HttpClient};
-use zksync_types::{api::TransactionReceipt, Address, Nonce, H256, U256, U64};
+use zksync_types::{
+    api::{TransactionReceipt, U64},
+    Address, Nonce, H256, U256,
+};
+use zksync_utils::test_utils::LoadnextContractExecutionParams;
 use zksync_web3_decl::jsonrpsee::core::Error as CoreError;
-
-use zksync_contracts::test_contracts::LoadnextContractExecutionParams;
 
 use crate::utils::format_gwei;
 use crate::{
-    account::tx_command_executor::SubmitResult,
+    account::{explorer_api_executor::ExplorerApiClient, tx_command_executor::SubmitResult},
     account_pool::{AddressPool, TestWallet},
     command::{ExpectedOutcome, IncorrectnessModifier, TxCommand, TxType},
     config::{LoadtestConfig, RequestLimiters},
@@ -23,6 +25,7 @@ use crate::{
 };
 
 mod api_request_executor;
+mod explorer_api_executor;
 mod pubsub_executor;
 mod tx_command_executor;
 
@@ -55,6 +58,8 @@ struct InflightTx {
 pub struct AccountLifespan {
     /// Wallet used to perform the test.
     pub wallet: TestWallet,
+    /// Client for explorer api
+    pub explorer_client: ExplorerApiClient,
     config: LoadtestConfig,
     contract_execution_params: LoadnextContractExecutionParams,
     /// Pool of account addresses, used to generate commands.
@@ -85,8 +90,11 @@ impl AccountLifespan {
         main_l2_token: Address,
         paymaster_address: Address,
     ) -> Self {
+        let explorer_client = ExplorerApiClient::new(config.l2_explorer_api_address.clone());
+
         Self {
             wallet: test_account,
+            explorer_client,
             config: config.clone(),
             contract_execution_params,
             addresses,
@@ -94,6 +102,7 @@ impl AccountLifespan {
             main_l1_token: config.main_token,
             main_l2_token,
             paymaster_address,
+
             report_sink,
             inflight_txs: Default::default(),
             current_nonce: None,
@@ -104,16 +113,20 @@ impl AccountLifespan {
         let duration = self.config.duration();
         let tx_execution_task = self.clone().run_tx_execution();
         let api_requests_task = self.clone().run_api_requests_task(limiters);
+        let api_explorer_requests_task = self.clone().run_explorer_api_requests_task(limiters);
 
         tokio::select! {
             result = tx_execution_task => {
-                tracing::trace!("Transaction execution task finished with {result:?}");
+                vlog::trace!("Transaction execution task finished with {result:?}");
             },
             result = api_requests_task => {
-                tracing::trace!("API requests task finished with {result:?}");
+                vlog::trace!("API requests task finished with {result:?}");
+            },
+            result = api_explorer_requests_task => {
+                vlog::trace!("Explorer API requests task finished with {result:?}");
             },
             result = self.run_pubsub_task(limiters) => {
-                tracing::trace!("PubSub task finished with {result:?}");
+                vlog::trace!("PubSub task finished with {result:?}");
             },
             () = tokio::time::sleep(duration) => {}
         }
@@ -169,7 +182,7 @@ impl AccountLifespan {
         // Due to natural sleep for sending tx, usually more than 1 tx can be already
         // processed and have a receipt
         let start = Instant::now();
-        tracing::trace!(
+        vlog::trace!(
             "Account {:?}: check_inflight_txs len {:?}",
             self.wallet.wallet.address(),
             self.inflight_txs.len()
@@ -187,7 +200,7 @@ impl AccountLifespan {
                     let effective_gas_price = transaction_receipt
                         .effective_gas_price
                         .unwrap_or(U256::zero());
-                    tracing::debug!(
+                    vlog::debug!(
                         "Account {:?}: tx included. Total fee: {}, gas used: {gas_used}gas, \
                          gas price: {effective_gas_price} WEI. Latency {:?} at attempt {:?}",
                         self.wallet.wallet.address(),
@@ -199,7 +212,7 @@ impl AccountLifespan {
                         .await?;
                 }
                 other => {
-                    tracing::trace!(
+                    vlog::trace!(
                         "Account {:?}: check_inflight_txs tx not yet included: {other:?}",
                         self.wallet.wallet.address()
                     );
@@ -208,7 +221,7 @@ impl AccountLifespan {
                 }
             }
         }
-        tracing::trace!(
+        vlog::trace!(
             "Account {:?}: check_inflight_txs complete {:?}",
             self.wallet.wallet.address(),
             start.elapsed()
@@ -266,7 +279,7 @@ impl AccountLifespan {
                 Ok(result) => result,
                 Err(err) if Self::should_retry(&err) => {
                     if attempt < MAX_RETRIES {
-                        tracing::warn!("Error while sending tx: {err}. Retrying...");
+                        vlog::warn!("Error while sending tx: {err}. Retrying...");
                         // Retry operation.
                         attempt += 1;
                         continue;
@@ -328,7 +341,7 @@ impl AccountLifespan {
         command: TxCommand,
     ) -> Result<(), Aborted> {
         if let ReportLabel::ActionFailed { error } = &label {
-            tracing::error!(
+            vlog::error!(
                 "Command failed: from {:?}, {command:#?} ({error})",
                 self.wallet.wallet.address()
             )

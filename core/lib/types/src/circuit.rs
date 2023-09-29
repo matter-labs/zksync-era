@@ -9,6 +9,5 @@ pub const SCHEDULER_UPPER_BOUND: u32 = (LEAF_SPLITTING_FACTOR * NODE_SPLITTING_F
 
 pub const LEAF_CIRCUIT_INDEX: u8 = 2;
 pub const NODE_CIRCUIT_INDEX: u8 = 1;
-pub const SCHEDULER_CIRCUIT_INDEX: u8 = 0;
 
 pub const GEOMETRY_CONFIG: GeometryConfig = get_geometry_config();

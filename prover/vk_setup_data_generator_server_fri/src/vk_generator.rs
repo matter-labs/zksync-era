@@ -1,55 +1,40 @@
-use anyhow::Context as _;
+use circuit_definitions::boojum::worker::Worker;
+use circuit_definitions::circuit_definitions::base_layer::ZkSyncBaseLayerVerificationKey;
+use circuit_definitions::{BASE_LAYER_CAP_SIZE, BASE_LAYER_FRI_LDE_FACTOR};
 use zkevm_test_harness::geometry_config::get_geometry_config;
 use zkevm_test_harness::prover_utils::{
     create_base_layer_setup_data, create_recursive_layer_setup_data,
 };
-use zksync_prover_fri_types::circuit_definitions::boojum::worker::Worker;
-use zksync_prover_fri_types::circuit_definitions::circuit_definitions::base_layer::ZkSyncBaseLayerVerificationKey;
-use zksync_prover_fri_types::circuit_definitions::{
-    BASE_LAYER_CAP_SIZE, BASE_LAYER_FRI_LDE_FACTOR,
-};
 use zksync_vk_setup_data_server_fri::utils::{get_basic_circuits, get_leaf_circuits, CYCLE_LIMIT};
-use zksync_vk_setup_data_server_fri::{
-    get_round_for_recursive_circuit_type, save_base_layer_vk, save_finalization_hints,
-    save_recursive_layer_vk,
-};
+use zksync_vk_setup_data_server_fri::{save_base_layer_vk, save_recursive_layer_vk};
 
-use zksync_prover_fri_types::circuit_definitions::circuit_definitions::recursion_layer::ZkSyncRecursionLayerVerificationKey;
-use zksync_prover_fri_types::ProverServiceDataKey;
-use zksync_types::proofs::AggregationRound;
+use circuit_definitions::circuit_definitions::recursion_layer::ZkSyncRecursionLayerVerificationKey;
 
-#[allow(dead_code)]
-fn main() -> anyhow::Result<()> {
-    tracing::info!("starting vk generator");
-    generate_basic_circuit_vks().context("generate_basic_circuit_vks()")
+fn main() {
+    vlog::info!("starting vk generator");
+    generate_basic_circuit_vks();
 }
 
-pub fn generate_basic_circuit_vks() -> anyhow::Result<()> {
+pub fn generate_basic_circuit_vks() {
     let worker = Worker::new();
-    for circuit in get_basic_circuits(CYCLE_LIMIT, get_geometry_config()).context("get_basic_circuits()")? {
+    for circuit in get_basic_circuits(CYCLE_LIMIT, get_geometry_config()) {
         let circuit_type = circuit.numeric_circuit_type();
-        let (_, _, vk, _, _, _, finalization_hint) = create_base_layer_setup_data(
+        let (_, _, vk, _, _, _, _) = create_base_layer_setup_data(
             circuit.clone(),
             &worker,
             BASE_LAYER_FRI_LDE_FACTOR,
             BASE_LAYER_CAP_SIZE,
         );
         let typed_vk = ZkSyncBaseLayerVerificationKey::from_inner(circuit_type, vk);
-        save_base_layer_vk(typed_vk)
-            .context("save_base_layer_vk()")?;
-        let key = ProverServiceDataKey::new(circuit_type, AggregationRound::BasicCircuits);
-        save_finalization_hints(key, &finalization_hint)
-            .context("save_finalization_hints()")?;
+        save_base_layer_vk(typed_vk);
     }
-    Ok(())
 }
 
-#[allow(dead_code)]
-pub fn generate_leaf_layer_vks() -> anyhow::Result<()> {
+pub fn generate_leaf_layer_vks() {
     let worker = Worker::new();
-    for circuit in get_leaf_circuits().context("get_leaf_circuits()")? {
+    for circuit in get_leaf_circuits() {
         let circuit_type = circuit.numeric_circuit_type();
-        let (_setup_base, _setup, vk, _setup_tree, _vars_hint, _wits_hint, finalization_hint) =
+        let (_setup_base, _setup, vk, _setup_tree, _vars_hint, _wits_hint, _finalization_hint) =
             create_recursive_layer_setup_data(
                 circuit.clone(),
                 &worker,
@@ -58,14 +43,6 @@ pub fn generate_leaf_layer_vks() -> anyhow::Result<()> {
             );
 
         let typed_vk = ZkSyncRecursionLayerVerificationKey::from_inner(circuit_type, vk.clone());
-        save_recursive_layer_vk(typed_vk)
-            .context("save_recursive_layer_vk()")?;
-        let key = ProverServiceDataKey::new(
-            circuit_type,
-            get_round_for_recursive_circuit_type(circuit_type),
-        );
-        save_finalization_hints(key, &finalization_hint)
-            .context("save_finalization_hints()")?;
+        save_recursive_layer_vk(typed_vk);
     }
-    Ok(())
 }

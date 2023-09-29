@@ -1,10 +1,13 @@
-use async_trait::async_trait;
+use std::sync::Arc;
+use std::{fmt, time::Instant};
 
-use std::{fmt, sync::Arc};
+use async_trait::async_trait;
 
 use zksync_config::{ContractsConfig, ETHClientConfig, ETHSenderConfig};
 use zksync_contracts::zksync_contract;
-use zksync_eth_signer::{raw_ethereum_tx::TransactionParameters, EthereumSigner, PrivateKeySigner};
+use zksync_eth_signer::PrivateKeySigner;
+use zksync_eth_signer::{raw_ethereum_tx::TransactionParameters, EthereumSigner};
+use zksync_types::web3::types::Block;
 use zksync_types::web3::{
     self,
     contract::{
@@ -14,13 +17,14 @@ use zksync_types::web3::{
     ethabi,
     transports::Http,
     types::{
-        Address, Block, BlockId, BlockNumber, Filter, Log, Transaction, TransactionReceipt, H160,
-        H256, U256, U64,
+        Address, BlockId, BlockNumber, Filter, Log, Transaction, TransactionReceipt, H160, H256,
+        U256, U64,
     },
 };
 use zksync_types::{L1ChainId, PackedEthSignature, EIP_1559_TX_TYPE};
 
-use super::{query::QueryClient, Method, LATENCIES};
+// Loal uses
+use super::query::QueryClient;
 use crate::{
     types::{Error, ExecutedTxStatus, FailureInfo, SignedCallResult},
     BoundEthInterface, EthInterface,
@@ -51,7 +55,7 @@ impl PKSigningClient {
         let operator_address = PackedEthSignature::address_from_private_key(&operator_private_key)
             .expect("Failed to get address from private key");
 
-        tracing::info!("Operator address: {:?}", operator_address);
+        vlog::info!("Operator address: {:?}", operator_address);
 
         SigningClient::new(
             transport,
@@ -245,14 +249,15 @@ impl<S: EthereumSigner> BoundEthInterface for SigningClient<S> {
         options: Options,
         component: &'static str,
     ) -> Result<SignedCallResult, Error> {
-        let latency = LATENCIES.direct[&Method::SignPreparedTx].start();
-        // Fetch current max priority fee per gas
+        let start = Instant::now();
+
+        // fetch current max priority fee per gas
         let max_priority_fee_per_gas = match options.max_priority_fee_per_gas {
             Some(max_priority_fee_per_gas) => max_priority_fee_per_gas,
             None => self.inner.default_priority_fee_per_gas,
         };
 
-        // Fetch current base fee and add max_priority_fee_per_gas
+        // fetch current base fee and add max_priority_fee_per_gas
         let max_fee_per_gas = match options.max_fee_per_gas {
             Some(max_fee_per_gas) => max_fee_per_gas,
             None => {
@@ -276,7 +281,7 @@ impl<S: EthereumSigner> BoundEthInterface for SigningClient<S> {
             // Verbosity level is set to `error`, since we expect all the transactions to have
             // a set limit, but don't want to crаsh the application if for some reason in some
             // place limit was not set.
-            tracing::error!(
+            vlog::error!(
                 "No gas limit was set for transaction, using the default limit: {}",
                 FALLBACK_GAS_LIMIT
             );
@@ -299,8 +304,12 @@ impl<S: EthereumSigner> BoundEthInterface for SigningClient<S> {
         };
 
         let signed_tx = self.inner.eth_signer.sign_transaction(tx).await?;
-        let hash = web3::signing::keccak256(&signed_tx).into();
-        latency.observe();
+        let hash = zksync_types::web3::signing::keccak256(&signed_tx).into();
+
+        metrics::histogram!(
+            "eth_client.direct.sign_prepared_tx_for_addr",
+            start.elapsed()
+        );
         Ok(SignedCallResult {
             raw_tx: signed_tx,
             max_priority_fee_per_gas,
@@ -316,7 +325,7 @@ impl<S: EthereumSigner> BoundEthInterface for SigningClient<S> {
         address: Address,
         erc20_abi: ethabi::Contract,
     ) -> Result<U256, Error> {
-        let latency = LATENCIES.direct[&Method::Allowance].start();
+        let start = Instant::now();
         let res = self
             .call_contract_function(
                 "allowance",
@@ -328,7 +337,7 @@ impl<S: EthereumSigner> BoundEthInterface for SigningClient<S> {
                 erc20_abi,
             )
             .await?;
-        latency.observe();
+        metrics::histogram!("eth_client.direct.allowance", start.elapsed());
         Ok(res)
     }
 }

@@ -55,14 +55,6 @@ fair_l2_gas_price=250000000
 validation_computational_gas_limit=300000
 save_call_traces=true
 
-virtual_blocks_interval=1
-virtual_blocks_per_miniblock=1
-
-# WARNING! This slows down the statekeeper, forcing mempool to upload to GCS
-# It is meant as a validation flag to be used in STAGING only.
-# This variable should not be set to true in any customer facing environment.
-upload_witness_inputs_to_gcs=false
-
 [chain.operations_manager]
 # Sleep time when there is no new input data
 delay_interval=100

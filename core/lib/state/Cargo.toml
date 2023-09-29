@@ -1,6 +1,6 @@
 [package]
 name = "zksync_state"
-version = "0.1.0"
+version = "1.0.0"
 edition = "2021"
 authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
 homepage = "https://zksync.io/"
@@ -10,19 +10,16 @@ keywords = ["blockchain", "zksync"]
 categories = ["cryptography"]
 
 [dependencies]
-vise = { git = "https://github.com/matter-labs/vise.git", version = "0.1.0", rev = "9d097ab747b037b6e62504df1db5b975425b6bdd" }
-zksync_dal = { path = "../dal" }
-zksync_types = { path = "../types" }
-zksync_utils = { path = "../utils" }
-zksync_storage = { path = "../storage" }
+zksync_dal = { path = "../dal", version = "1.0" }
+zksync_types = { path = "../types", version = "1.0" }
+zksync_storage = { path = "../storage", version = "1.0" }
+vlog = { path = "../../lib/vlog", version = "1.0" }
 
-anyhow = "1.0"
+metrics = "0.20"
 mini-moka = "0.10.0"
 tokio = { version = "1", features = ["rt"] }
-tracing = "0.1"
 
 [dev-dependencies]
 db_test_macro = { path = "../db_test_macro" }
 
-rand = "0.8.5"
 tempfile = "3.0.2"

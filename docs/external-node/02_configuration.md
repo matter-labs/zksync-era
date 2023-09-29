@@ -9,9 +9,9 @@ files as a starting point and modify only the necessary sections.
 
 The EN uses two databases: PostgreSQL and RocksDB.
 
-PostgreSQL serves as the main source of truth in the EN, so all the API requests fetch the state from there. The
-PostgreSQL connection is configured by the `DATABASE_URL`. Additionally, the `DATABASE_POOL_SIZE` variable defines the
-size of the connection pool.
+PostgreSQL serves as the main source of truth in the EN, so all the API requests fetch the state from there. PostgreSQL
+connection is configured by the `DATABASE_URL`. Additionally, the `DATABASE_POOL_SIZE` variable defines the size of the
+connection pool.
 
 RocksDB is used in components where IO is a bottleneck, such as the State Keeper and the Merkle tree. If possible, it is
 recommended to use an NVME SSD for RocksDB. RocksDB requires two variables to be set: `EN_STATE_CACHE_PATH` and
@@ -33,28 +33,16 @@ The dockerized version of the server exposes the following ports:
 - HTTP JSON-RPC: 3060
 - WebSocket JSON-RPC: 3061
 - Prometheus listener: 3322
-- Healthcheck server: 3081
+- Healtcheck server: 3081
 
 While the configuration variables for them exist, you are not expected to change them unless you want to use the EN
 outside of provided docker environment (not supported at the time of writing).
-
-**NOTE**: if the Prometheus port is configured, it must be [scraped](https://prometheus.io/docs/introduction/overview/)
-periodically to avoid a memory leak due to a
-[bug in an external metrics library](https://github.com/metrics-rs/metrics/issues/245). If you are not intending to use
-the metrics, leave this port not configured, and the metrics won't be collected.
 
 ## API limits
 
 There are variables that allow you to fine-tune the limits of the RPC servers, such as limits on the number of returned
 entries or the limit for the accepted transaction size. Provided files contain sane defaults that are recommended for
 use, but these can be edited, e.g. to make the EN more/less restrictive.
-
-## JSON-RPC API namespaces
-
-There are 7 total supported API namespaces: `eth`, `net`, `web3`, `debug` - standard ones; `zks` - rollup-specific one;
-`pubsub` - a.k.a. `eth_subscribe`; `en` - used by external nodes while syncing. You can configure what namespaces you
-want to enable using `EN_API_NAMESPACES` and specifying namespace names in a comma-separated list. By default, all but
-the `debug` namespace are enabled.
 
 ## Logging and observability
 

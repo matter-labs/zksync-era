@@ -1,4 +1,4 @@
-use std::ops;
+use std::{ops, time::Instant};
 
 use zksync_types::{
     get_code_key, get_nonce_key,
@@ -8,10 +8,7 @@ use zksync_types::{
 };
 use zksync_utils::h256_to_u256;
 
-use crate::{
-    instrument::InstrumentExt, models::storage_block::ResolvedL1BatchForMiniblock, SqlxError,
-    StorageProcessor,
-};
+use crate::{models::storage_block::ResolvedL1BatchForMiniblock, SqlxError, StorageProcessor};
 
 #[derive(Debug)]
 pub struct StorageWeb3Dal<'a, 'c> {
@@ -53,12 +50,12 @@ impl StorageWeb3Dal<'_, '_> {
         block_number: MiniblockNumber,
     ) -> Result<H256, SqlxError> {
         {
+            let started_at = Instant::now();
             // We need to proper distinguish if the value is zero or None
             // for the VM to correctly determine initial writes.
             // So, we accept that the value is None if it's zero and it wasn't initially written at the moment.
             let hashed_key = key.hashed_key();
-
-            sqlx::query!(
+            let result = sqlx::query!(
                 r#"
                 SELECT value
                 FROM storage_logs
@@ -69,16 +66,16 @@ impl StorageWeb3Dal<'_, '_> {
                 hashed_key.as_bytes(),
                 block_number.0 as i64
             )
-            .instrument("get_historical_value_unchecked")
-            .report_latency()
-            .with_arg("key", &hashed_key)
             .fetch_optional(self.storage.conn())
             .await
             .map(|option_row| {
                 option_row
                     .map(|row| H256::from_slice(&row.value))
                     .unwrap_or_else(H256::zero)
-            })
+            });
+            metrics::histogram!("dal.request", started_at.elapsed(), "method" => "get_historical_value_unchecked");
+
+            result
         }
     }
 
@@ -108,18 +105,21 @@ impl StorageWeb3Dal<'_, '_> {
         &mut self,
         key: &StorageKey,
     ) -> Result<Option<L1BatchNumber>, SqlxError> {
+        let started_at = Instant::now();
         let hashed_key = key.hashed_key();
         let row = sqlx::query!(
             "SELECT l1_batch_number FROM initial_writes WHERE hashed_key = $1",
             hashed_key.as_bytes(),
         )
-        .instrument("get_l1_batch_number_for_initial_write")
-        .report_latency()
-        .with_arg("key", &hashed_key)
         .fetch_optional(self.storage.conn())
         .await?;
 
         let l1_batch_number = row.map(|record| L1BatchNumber(record.l1_batch_number as u32));
+        metrics::histogram!(
+            "dal.request",
+            started_at.elapsed(),
+            "method" => "get_l1_batch_number_for_initial_write"
+        );
         Ok(l1_batch_number)
     }
 

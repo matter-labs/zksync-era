@@ -13,6 +13,6 @@ fn main() {
 
     for _ in 0..100 {
         let mut vm = BenchmarkingVm::new();
-        vm.run_transaction(&tx);
+        vm.run_transaction(&tx).unwrap();
     }
 }

@@ -11,6 +11,7 @@ use zksync_types::l2_to_l1_log::L2ToL1Log;
 use zksync_types::tx::tx_execution_info::{TxExecutionStatus, VmExecutionLogs};
 use zksync_types::vm_trace::{Call, VmExecutionTrace, VmTrace};
 use zksync_types::{L1BatchNumber, StorageLogQuery, VmEvent, U256};
+use zksync_utils::bytes_to_be_words;
 
 use crate::bootloader_state::BootloaderState;
 use crate::errors::{TxRevertReason, VmRevertReason, VmRevertReasonParsingResult};
@@ -28,7 +29,6 @@ use crate::oracles::tracer::{
     ValidationTracerParams,
 };
 use crate::oracles::OracleWithHistory;
-use crate::storage::Storage;
 use crate::utils::{
     calculate_computational_gas_used, collect_log_queries_after_timestamp,
     collect_storage_log_queries_after_timestamp, dump_memory_page_using_primitive_value,
@@ -38,14 +38,15 @@ use crate::vm_with_bootloader::{
     BootloaderJobType, DerivedBlockContext, TxExecutionMode, BOOTLOADER_HEAP_PAGE,
     OPERATOR_REFUNDS_OFFSET,
 };
+use crate::Word;
 
-pub type ZkSyncVmState<'a, S, H> = VmState<
+pub type ZkSyncVmState<'a, H> = VmState<
     'a,
-    StorageOracle<S, H>,
+    StorageOracle<'a, H>,
     SimpleMemory<H>,
     InMemoryEventSink<H>,
     PrecompilesProcessorWithHistory<false, H>,
-    DecommitterOracle<false, S, H>,
+    DecommitterOracle<'a, false, H>,
     DummyTracer,
 >;
 
@@ -72,7 +73,7 @@ pub(crate) fn get_vm_hook_params<H: HistoryMode>(memory: &SimpleMemory<H>) -> Ve
 /// E.g., initially they were completely disabled.
 ///
 /// This enum allows to execute blocks with the same VM but different support for refunds.
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub enum MultiVMSubversion {
     /// Initial VM M6 version.
     V1,
@@ -81,9 +82,9 @@ pub enum MultiVMSubversion {
 }
 
 #[derive(Debug)]
-pub struct VmInstance<'a, S: Storage, H: HistoryMode> {
+pub struct VmInstance<'a, H: HistoryMode> {
     pub gas_limit: u32,
-    pub state: ZkSyncVmState<'a, S, H>,
+    pub state: ZkSyncVmState<'a, H>,
     pub execution_mode: TxExecutionMode,
     pub block_context: DerivedBlockContext,
     pub(crate) bootloader_state: BootloaderState,
@@ -99,7 +100,7 @@ pub struct VmExecutionResult {
     pub storage_log_queries: Vec<StorageLogQuery>,
     pub used_contract_hashes: Vec<U256>,
     pub l2_to_l1_logs: Vec<L2ToL1Log>,
-    pub return_data: Vec<u8>,
+    pub return_data: Vec<Word>,
 
     /// Value denoting the amount of gas spent withing VM invocation.
     /// Note that return value represents the difference between the amount of gas
@@ -171,9 +172,7 @@ pub enum VmExecutionStopReason {
 
 use crate::utils::VmExecutionResult as NewVmExecutionResult;
 
-fn vm_may_have_ended_inner<H: HistoryMode, S: Storage>(
-    vm: &ZkSyncVmState<S, H>,
-) -> Option<NewVmExecutionResult> {
+fn vm_may_have_ended_inner<H: HistoryMode>(vm: &ZkSyncVmState<H>) -> Option<NewVmExecutionResult> {
     let execution_has_ended = vm.execution_has_ended();
 
     let r1 = vm.local_state.registers[RET_IMPLICIT_RETURNDATA_PARAMS_REGISTER as usize];
@@ -210,8 +209,8 @@ fn vm_may_have_ended_inner<H: HistoryMode, S: Storage>(
 //
 // `gas_before` argument is used to calculate the amount of gas spent by transaction.
 // It is required because the same VM instance is continuously used to apply several transactions.
-fn vm_may_have_ended<H: HistoryMode, S: Storage>(
-    vm: &VmInstance<S, H>,
+fn vm_may_have_ended<H: HistoryMode>(
+    vm: &VmInstance<H>,
     gas_before: u32,
 ) -> Option<VmExecutionResult> {
     let basic_execution_result = vm_may_have_ended_inner(&vm.state)?;
@@ -221,7 +220,10 @@ fn vm_may_have_ended<H: HistoryMode, S: Storage>(
         .expect("underflow");
 
     match basic_execution_result {
-        NewVmExecutionResult::Ok(data) => {
+        NewVmExecutionResult::Ok(mut data) => {
+            while data.len() % 32 != 0 {
+                data.push(0)
+            }
             Some(VmExecutionResult {
                 // The correct `events` value for this field should be set separately
                 // later on based on the information inside the event_sink oracle.
@@ -229,7 +231,7 @@ fn vm_may_have_ended<H: HistoryMode, S: Storage>(
                 storage_log_queries: vm.get_final_log_queries(),
                 used_contract_hashes: vm.get_used_contracts(),
                 l2_to_l1_logs: vec![],
-                return_data: data,
+                return_data: bytes_to_be_words(data),
                 gas_used,
                 // The correct `computational_gas_used` value for this field should be set separately later.
                 computational_gas_used: 0,
@@ -257,7 +259,7 @@ fn vm_may_have_ended<H: HistoryMode, S: Storage>(
                 revert_reason.revert_reason,
                 TxRevertReason::UnexpectedVMBehavior(_)
             ) {
-                tracing::error!(
+                vlog::error!(
                     "Observed error that should never happen: {:?}. Full VM data: {:?}",
                     revert_reason,
                     vm
@@ -327,7 +329,7 @@ pub struct VmSnapshot {
     bootloader_state: BootloaderState,
 }
 
-impl<H: HistoryMode, S: Storage> VmInstance<'_, S, H> {
+impl<H: HistoryMode> VmInstance<'_, H> {
     fn has_ended(&self) -> bool {
         match vm_may_have_ended_inner(&self.state) {
             None | Some(NewVmExecutionResult::MostLikelyDidNotFinish(_, _)) => false,
@@ -356,7 +358,7 @@ impl<H: HistoryMode, S: Storage> VmInstance<'_, S, H> {
                     revert_reason.revert_reason,
                     TxRevertReason::UnexpectedVMBehavior(_)
                 ) {
-                    tracing::error!(
+                    vlog::error!(
                         "Observed error that should never happen: {:?}. Full VM data: {:?}",
                         revert_reason,
                         self
@@ -418,7 +420,11 @@ impl<H: HistoryMode, S: Storage> VmInstance<'_, S, H> {
             events,
             l1_messages
                 .into_iter()
-                .map(|log| L2ToL1Log::from(GlueInto::<zksync_types::EventMessage>::glue_into(log)))
+                .map(|log| {
+                    L2ToL1Log::from(GlueInto::<
+                        zksync_types::zk_evm::reference_impls::event_sink::EventMessage,
+                    >::glue_into(log))
+                })
                 .collect(),
         )
     }
@@ -501,7 +507,7 @@ impl<H: HistoryMode, S: Storage> VmInstance<'_, S, H> {
                     self.tx_body_refund(timestamp_initial, bootloader_refund, gas_spent_on_pubdata);
 
                 if tx_body_refund < bootloader_refund {
-                    tracing::error!(
+                    vlog::error!(
                         "Suggested tx body refund is less than bootloader refund. Tx body refund: {}, bootloader refund: {}",
                         tx_body_refund,
                         bootloader_refund
@@ -534,19 +540,27 @@ impl<H: HistoryMode, S: Storage> VmInstance<'_, S, H> {
                 let tx_gas_limit = self.get_tx_gas_limit(current_tx_index);
 
                 if tx_gas_limit < bootloader_refund {
-                    tracing::error!(
+                    vlog::error!(
                         "Tx gas limit is less than bootloader refund. Tx gas limit: {}, bootloader refund: {}",
                         tx_gas_limit,
                         bootloader_refund
                     );
                 }
                 if tx_gas_limit < refund_to_propose {
-                    tracing::error!(
+                    vlog::error!(
                         "Tx gas limit is less than operator refund. Tx gas limit: {}, operator refund: {}",
                         tx_gas_limit,
                         refund_to_propose
                     );
                 }
+
+                metrics::histogram!("vm.refund", bootloader_refund as f64 / tx_gas_limit as f64 * 100.0, "type" => "bootloader");
+                metrics::histogram!("vm.refund", refund_to_propose as f64 / tx_gas_limit as f64 * 100.0, "type" => "operator");
+                metrics::histogram!(
+                    "vm.refund.diff",
+                    (refund_to_propose as f64 - bootloader_refund as f64) / tx_gas_limit as f64
+                        * 100.0
+                );
             }
 
             tracer.set_missed_storage_invocations(
@@ -770,7 +784,9 @@ impl<H: HistoryMode, S: Storage> VmInstance<'_, S, H> {
                 full_result.l2_to_l1_logs = l1_messages
                     .into_iter()
                     .map(|log| {
-                        L2ToL1Log::from(GlueInto::<zksync_types::EventMessage>::glue_into(log))
+                        L2ToL1Log::from(GlueInto::<
+                            zksync_types::zk_evm::reference_impls::event_sink::EventMessage,
+                        >::glue_into(log))
                     })
                     .collect();
                 full_result.computational_gas_used = block_tip_result.computational_gas_used;
@@ -780,6 +796,8 @@ impl<H: HistoryMode, S: Storage> VmInstance<'_, S, H> {
                 }
             }
             VmExecutionStopReason::TracerRequestedStop => {
+                metrics::increment_counter!("runtime_context.execution.dropped");
+
                 if tx_result_tracer.is_limit_reached() {
                     VmBlockResult {
                         // Normally tracer should never stop, but if it's transaction call and it consumes
@@ -867,7 +885,7 @@ impl<H: HistoryMode, S: Storage> VmInstance<'_, S, H> {
         &mut self,
         validation_params: ValidationTracerParams,
     ) -> Result<(), ValidationError> {
-        let mut validation_tracer: ValidationTracer<S, H> = ValidationTracer::new(
+        let mut validation_tracer: ValidationTracer<H> = ValidationTracer::new(
             self.state.storage.storage.inner().get_ptr(),
             validation_params,
         );
@@ -924,7 +942,7 @@ impl<H: HistoryMode, S: Storage> VmInstance<'_, S, H> {
     }
 }
 
-impl<S: Storage> VmInstance<'_, S, HistoryEnabled> {
+impl VmInstance<'_, HistoryEnabled> {
     /// Saves the snapshot of the current state of the VM that can be used
     /// to roll back its state later on.
     pub fn save_current_vm_as_snapshot(&mut self) {
@@ -947,21 +965,21 @@ impl<S: Storage> VmInstance<'_, S, HistoryEnabled> {
 
         let timestamp = Timestamp(local_state.timestamp);
 
-        tracing::trace!("Rolling back decomitter");
+        vlog::trace!("Rolling back decomitter");
         self.state
             .decommittment_processor
             .rollback_to_timestamp(timestamp);
 
-        tracing::trace!("Rolling back event_sink");
+        vlog::trace!("Rolling back event_sink");
         self.state.event_sink.rollback_to_timestamp(timestamp);
 
-        tracing::trace!("Rolling back storage");
+        vlog::trace!("Rolling back storage");
         self.state.storage.rollback_to_timestamp(timestamp);
 
-        tracing::trace!("Rolling back memory");
+        vlog::trace!("Rolling back memory");
         self.state.memory.rollback_to_timestamp(timestamp);
 
-        tracing::trace!("Rolling back precompiles_processor");
+        vlog::trace!("Rolling back precompiles_processor");
         self.state
             .precompiles_processor
             .rollback_to_timestamp(timestamp);
@@ -985,10 +1003,7 @@ impl<S: Storage> VmInstance<'_, S, HistoryEnabled> {
 
 // Reads the bootloader memory and checks whether the execution step of the transaction
 // has failed.
-pub(crate) fn tx_has_failed<H: HistoryMode, S: Storage>(
-    state: &ZkSyncVmState<'_, S, H>,
-    tx_id: u32,
-) -> bool {
+pub(crate) fn tx_has_failed<H: HistoryMode>(state: &ZkSyncVmState<'_, H>, tx_id: u32) -> bool {
     let mem_slot = RESULT_SUCCESS_FIRST_SLOT + tx_id;
     let mem_value = state
         .memory

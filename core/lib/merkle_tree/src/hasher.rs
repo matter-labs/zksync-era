@@ -5,7 +5,7 @@ use once_cell::sync::Lazy;
 use std::{fmt, iter, slice};
 
 use crate::{
-    metrics::HashingStats,
+    metrics::HashingMetrics,
     types::{
         BlockOutputWithProofs, ChildRef, InternalNode, Key, LeafNode, Node, TreeInstruction,
         TreeLogEntry, ValueHash, TREE_DEPTH,
@@ -55,7 +55,7 @@ impl dyn HashTree + '_ {
         hash
     }
 
-    pub(crate) fn with_stats<'a>(&'a self, stats: &'a HashingStats) -> HasherWithStats<'a> {
+    pub(crate) fn with_stats<'a>(&'a self, stats: &'a HashingMetrics) -> HasherWithStats<'a> {
         HasherWithStats {
             shared_metrics: Some(stats),
             ..HasherWithStats::from(self)
@@ -129,7 +129,7 @@ fn compute_empty_tree_hashes() -> Vec<ValueHash> {
 #[derive(Debug)]
 pub(crate) struct HasherWithStats<'a> {
     inner: &'a dyn HashTree,
-    shared_metrics: Option<&'a HashingStats>,
+    shared_metrics: Option<&'a HashingMetrics>,
     local_hashed_bytes: u64,
 }
 
@@ -524,7 +524,7 @@ mod tests {
         let key = key.hashed_key_u256();
         let leaf = LeafNode::new(key, H256([1; 32]), 1);
 
-        let stats = HashingStats::default();
+        let stats = HashingMetrics::default();
         let mut hasher = (&Blake2Hasher as &dyn HashTree).with_stats(&stats);
         let leaf_hash = leaf.hash(&mut hasher, 0);
         assert_eq!(leaf_hash, EXPECTED_HASH);

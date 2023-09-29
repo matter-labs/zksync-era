@@ -20,16 +20,12 @@ pub struct ObjectStoreConfig {
 }
 
 impl ObjectStoreConfig {
-    pub fn from_env() -> anyhow::Result<Self> {
+    pub fn from_env() -> Self {
         envy_load("object_store", "OBJECT_STORE_")
     }
 
-    pub fn public_from_env() -> anyhow::Result<Self> {
+    pub fn public_from_env() -> Self {
         envy_load("public_object_store", "PUBLIC_OBJECT_STORE_")
-    }
-
-    pub fn prover_from_env() -> anyhow::Result<Self> {
-        envy_load("prover_object_store", "PROVER_OBJECT_STORE_")
     }
 }
 
@@ -61,7 +57,7 @@ mod tests {
             OBJECT_STORE_MAX_RETRIES="5"
         "#;
         lock.set_env(config);
-        let actual = ObjectStoreConfig::from_env().unwrap();
+        let actual = ObjectStoreConfig::from_env();
         assert_eq!(actual, expected_config("/base/url"));
     }
 
@@ -76,22 +72,7 @@ mod tests {
             PUBLIC_OBJECT_STORE_MAX_RETRIES="5"
         "#;
         lock.set_env(config);
-        let actual = ObjectStoreConfig::public_from_env().unwrap();
+        let actual = ObjectStoreConfig::public_from_env();
         assert_eq!(actual, expected_config("/public_base_url"));
-    }
-
-    #[test]
-    fn prover_bucket_config_from_env() {
-        let mut lock = MUTEX.lock();
-        let config = r#"
-            PROVER_OBJECT_STORE_BUCKET_BASE_URL="/prover_base_url"
-            PROVER_OBJECT_STORE_MODE="FileBacked"
-            PROVER_OBJECT_STORE_FILE_BACKED_BASE_PATH="artifacts"
-            PROVER_OBJECT_STORE_GCS_CREDENTIAL_FILE_PATH="/path/to/credentials.json"
-            PROVER_OBJECT_STORE_MAX_RETRIES="5"
-        "#;
-        lock.set_env(config);
-        let actual = ObjectStoreConfig::prover_from_env().unwrap();
-        assert_eq!(actual, expected_config("/prover_base_url"));
     }
 }

@@ -62,7 +62,7 @@ export async function initializeWethToken(args: any[] = []) {
     );
 }
 
-export async function deployL2(args: any[] = [], includePaymaster?: boolean, includeWETH?: boolean) {
+export async function deployL2(args: any[] = [], includePaymaster?: boolean) {
     await utils.confirmAction();
 
     const isLocalSetup = process.env.ZKSYNC_LOCAL_SETUP;
@@ -81,25 +81,18 @@ export async function deployL2(args: any[] = [], includePaymaster?: boolean, inc
         await utils.spawn(`${baseCommandL2} deploy-testnet-paymaster ${args.join(' ')} | tee -a deployL2.log`);
     }
 
-    if (includeWETH) {
-        await utils.spawn(`${baseCommandL2} deploy-l2-weth ${args.join(' ')} | tee -a deployL2.log`);
-    }
-
-    await utils.spawn(`${baseCommandL2} deploy-force-deploy-upgrader ${args.join(' ')} | tee -a deployL2.log`);
+    await utils.spawn(`${baseCommandL2} deploy-l2-weth ${args.join(' ')} | tee -a deployL2.log`);
 
     const l2DeployLog = fs.readFileSync('deployL2.log').toString();
     const l2DeploymentEnvVars = [
         'CONTRACTS_L2_ERC20_BRIDGE_ADDR',
         'CONTRACTS_L2_TESTNET_PAYMASTER_ADDR',
         'CONTRACTS_L2_WETH_TOKEN_IMPL_ADDR',
-        'CONTRACTS_L2_WETH_TOKEN_PROXY_ADDR',
-        'CONTRACTS_L2_DEFAULT_UPGRADE_ADDR'
+        'CONTRACTS_L2_WETH_TOKEN_PROXY_ADDR'
     ];
     updateContractsEnv(l2DeployLog, l2DeploymentEnvVars);
 
-    if (includeWETH) {
-        await utils.spawn(`${baseCommandL1} initialize-weth-bridges ${args.join(' ')} | tee -a deployL1.log`);
-    }
+    await utils.spawn(`${baseCommandL1} initialize-weth-bridges ${args.join(' ')} | tee -a deployL1.log`);
 
     const l1DeployLog = fs.readFileSync('deployL1.log').toString();
     const l1DeploymentEnvVars = ['CONTRACTS_L2_WETH_BRIDGE_ADDR'];
@@ -116,10 +109,8 @@ export async function deployL1(args: any[]) {
     await utils.spawn(`${baseCommand} deploy-no-build ${args.join(' ')} | tee deployL1.log`);
     const deployLog = fs.readFileSync('deployL1.log').toString();
     const envVars = [
-        'CONTRACTS_CREATE2_FACTORY_ADDR',
         'CONTRACTS_DIAMOND_CUT_FACET_ADDR',
         'CONTRACTS_DIAMOND_UPGRADE_INIT_ADDR',
-        'CONTRACTS_DEFAULT_UPGRADE_ADDR',
         'CONTRACTS_GOVERNANCE_FACET_ADDR',
         'CONTRACTS_MAILBOX_FACET_ADDR',
         'CONTRACTS_EXECUTOR_FACET_ADDR',
@@ -146,10 +137,6 @@ export async function deployL1(args: any[]) {
 export async function redeployL1(args: any[]) {
     await deployL1(args);
     await verifyL1Contracts();
-}
-
-export async function deployVerifier(args: any[]) {
-    await deployL1([...args, '--only-verifier']);
 }
 
 export const command = new Command('contract').description('contract management');

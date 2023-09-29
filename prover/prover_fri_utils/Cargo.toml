@@ -1,17 +1,13 @@
 [package]
 name = "zksync_prover_fri_utils"
-version = "0.1.0"
+version = "1.0.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-zksync_object_store = { path = "../../core/lib/object_store" }
-zksync_config = { path = "../../core/lib/config" }
-zksync_types = { path = "../../core/lib/types" }
-zksync_prover_fri_types = { path = "../prover_fri_types" }
-zksync_dal = { path = "../../core/lib/dal" }
+zksync_object_store = { path = "../../core/lib/object_store", version = "1.0" }
 
-tracing = "0.1"
+circuit_definitions = { git = "https://github.com/matter-labs/zkevm_test_harness.git", branch = "v1.4.0", features = ["log_tracing"]}
+
 serde = { version = "1.0", features = ["derive"] }
-metrics = "0.21"

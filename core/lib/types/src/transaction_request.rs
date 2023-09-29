@@ -6,10 +6,9 @@ use rlp::{DecoderError, Rlp, RlpStream};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use zksync_basic_types::H256;
-
 use zksync_config::constants::{MAX_GAS_PER_PUBDATA_BYTE, USED_BOOTLOADER_MEMORY_BYTES};
 use zksync_utils::bytecode::{hash_bytecode, validate_bytecode, InvalidBytecodeError};
-use zksync_utils::{concat_and_hash, u256_to_h256};
+use zksync_utils::u256_to_h256;
 
 // Local uses
 use super::{EIP_1559_TX_TYPE, EIP_2930_TX_TYPE, EIP_712_TX_TYPE};
@@ -19,7 +18,7 @@ use crate::{
     l2::{L2Tx, TransactionType},
     web3::{signing::keccak256, types::AccessList},
     Address, Bytes, EIP712TypedStructure, Eip712Domain, L1TxCommonData, L2ChainId, Nonce,
-    PackedEthSignature, StructBuilder, LEGACY_TX_TYPE, U256, U64,
+    PackedEthSignature, StructBuilder, U256, U64,
 };
 
 /// Call contract request (eth_call / eth_estimateGas)
@@ -377,8 +376,17 @@ impl TransactionRequest {
             .unwrap_or_default()
     }
 
-    // returns packed eth signature if it is present
-    fn get_packed_signature(&self) -> Result<PackedEthSignature, SerializationTransactionError> {
+    pub fn get_signature(&self) -> Result<Vec<u8>, SerializationTransactionError> {
+        let custom_signature = self.get_custom_signature();
+        if let Some(custom_sig) = custom_signature {
+            // TODO (SMA-1584): Support empty signatures for accounts.
+            if !custom_sig.is_empty() {
+                // There was a custom signature supplied, it overrides
+                // the v/r/s signature
+                return Ok(custom_sig);
+            }
+        }
+
         let packed_v = self
             .v
             .ok_or(SerializationTransactionError::IncompleteSignature)?
@@ -405,22 +413,6 @@ impl TransactionRequest {
             v,
         );
 
-        Ok(packed_eth_signature)
-    }
-
-    pub fn get_signature(&self) -> Result<Vec<u8>, SerializationTransactionError> {
-        let custom_signature = self.get_custom_signature();
-        if let Some(custom_sig) = custom_signature {
-            // TODO (SMA-1584): Support empty signatures for accounts.
-            if !custom_sig.is_empty() {
-                // There was a custom signature supplied, it overrides
-                // the v/r/s signature
-                return Ok(custom_sig);
-            }
-        }
-
-        let packed_eth_signature = self.get_packed_signature()?;
-
         Ok(packed_eth_signature.serialize_packed().to_vec())
     }
 
@@ -432,10 +424,6 @@ impl TransactionRequest {
             data.insert(0, tx_type.as_u64() as u8);
         }
         data
-    }
-
-    pub fn is_legacy_tx(&self) -> bool {
-        self.transaction_type.is_none() || self.transaction_type == Some(LEGACY_TX_TYPE.into())
     }
 
     pub fn rlp(&self, rlp: &mut RlpStream, chain_id: u16, signature: Option<&PackedEthSignature>) {
@@ -477,14 +465,6 @@ impl TransactionRequest {
                 rlp.append(&self.value);
                 rlp.append(&self.input.0);
             }
-            Some(x) if x == LEGACY_TX_TYPE.into() => {
-                rlp.append(&self.nonce);
-                rlp.append(&self.gas_price);
-                rlp.append(&self.gas);
-                rlp_opt(rlp, &self.to);
-                rlp.append(&self.value);
-                rlp.append(&self.input.0);
-            }
             // Legacy (None)
             None => {
                 rlp.append(&self.nonce);
@@ -498,14 +478,14 @@ impl TransactionRequest {
         }
 
         if let Some(signature) = signature {
-            if self.is_legacy_tx() && chain_id != 0 {
+            if self.is_legacy_tx() {
                 rlp.append(&signature.v_with_chain_id(chain_id));
             } else {
                 rlp.append(&signature.v());
             }
             rlp.append(&U256::from_big_endian(signature.r()));
             rlp.append(&U256::from_big_endian(signature.s()));
-        } else if self.is_legacy_tx() && chain_id != 0 {
+        } else if self.is_legacy_tx() {
             rlp.append(&chain_id);
             rlp.append(&0u8);
             rlp.append(&0u8);
@@ -551,6 +531,10 @@ impl TransactionRequest {
         Some(EIP_712_TX_TYPE.into()) == self.transaction_type
     }
 
+    pub fn is_legacy_tx(&self) -> bool {
+        self.transaction_type.is_none()
+    }
+
     pub fn from_bytes(
         bytes: &[u8],
         chain_id: u16,
@@ -571,7 +555,7 @@ impl TransactionRequest {
                     return Err(SerializationTransactionError::WrongChainId(tx_chain_id));
                 }
                 Self {
-                    chain_id: tx_chain_id,
+                    chain_id: Some(chain_id),
                     v: Some(rlp.val_at(6)?),
                     r: Some(rlp.val_at(7)?),
                     s: Some(rlp.val_at(8)?),
@@ -651,64 +635,42 @@ impl TransactionRequest {
         }
         tx.raw = Some(Bytes(bytes.to_vec()));
 
-        let default_signed_message = tx.get_default_signed_message(tx.chain_id)?;
+        let default_signed_message = tx.get_default_signed_message(chain_id);
 
         tx.from = match tx.from {
             Some(_) => tx.from,
             None => tx.recover_default_signer(default_signed_message).ok(),
         };
 
-        let hash =
-            tx.get_tx_hash_with_signed_message(&default_signed_message, L2ChainId(chain_id))?;
+        let hash = if tx.is_eip712_tx() {
+            let digest = [
+                default_signed_message.as_bytes(),
+                &keccak256(&tx.get_signature()?),
+            ]
+            .concat();
+            H256(keccak256(&digest))
+        } else {
+            H256(keccak256(bytes))
+        };
 
         Ok((tx, hash))
     }
 
-    fn get_default_signed_message(
-        &self,
-        chain_id: Option<u16>,
-    ) -> Result<H256, SerializationTransactionError> {
+    fn get_default_signed_message(&self, chain_id: u16) -> H256 {
         if self.is_eip712_tx() {
-            let tx_chain_id =
-                chain_id.ok_or(SerializationTransactionError::WrongChainId(chain_id))?;
-            Ok(PackedEthSignature::typed_data_to_signed_bytes(
-                &Eip712Domain::new(L2ChainId(tx_chain_id)),
+            PackedEthSignature::typed_data_to_signed_bytes(
+                &Eip712Domain::new(L2ChainId(chain_id)),
                 self,
-            ))
+            )
         } else {
             let mut rlp_stream = RlpStream::new();
-            self.rlp(&mut rlp_stream, chain_id.unwrap_or_default(), None);
+            self.rlp(&mut rlp_stream, chain_id, None);
             let mut data = rlp_stream.out().to_vec();
             if let Some(tx_type) = self.transaction_type {
                 data.insert(0, tx_type.as_u64() as u8);
             }
-            Ok(PackedEthSignature::message_to_signed_bytes(&data))
+            PackedEthSignature::message_to_signed_bytes(&data)
         }
-    }
-
-    fn get_tx_hash_with_signed_message(
-        &self,
-        default_signed_message: &H256,
-        chain_id: L2ChainId,
-    ) -> Result<H256, SerializationTransactionError> {
-        let hash = if self.is_eip712_tx() {
-            concat_and_hash(
-                *default_signed_message,
-                H256(keccak256(&self.get_signature()?)),
-            )
-        } else if let Some(bytes) = &self.raw {
-            H256(keccak256(&bytes.0))
-        } else {
-            let signature = self.get_packed_signature()?;
-            H256(keccak256(&self.get_signed_bytes(&signature, chain_id)))
-        };
-
-        Ok(hash)
-    }
-
-    pub fn get_tx_hash(&self, chain_id: L2ChainId) -> Result<H256, SerializationTransactionError> {
-        let default_signed_message = self.get_default_signed_message(Some(chain_id.0))?;
-        self.get_tx_hash_with_signed_message(&default_signed_message, chain_id)
     }
 
     fn recover_default_signer(
@@ -815,9 +777,6 @@ impl L2Tx {
         // For fee calculation we use the same structure, as a result, signature may not be provided
         tx.set_raw_signature(raw_signature);
 
-        if let Some(raw_bytes) = value.raw {
-            tx.set_raw_bytes(raw_bytes);
-        }
         tx.check_encoded_size(max_tx_size)?;
         Ok(tx)
     }

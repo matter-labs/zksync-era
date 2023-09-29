@@ -1,20 +1,23 @@
-use std::{convert::TryInto, str::FromStr};
+use std::convert::TryInto;
+use std::str::FromStr;
 
 use bigdecimal::{BigDecimal, ToPrimitive};
-use sqlx::{
-    postgres::{PgArguments, Postgres},
-    query::Query,
-    types::chrono::{DateTime, NaiveDateTime, Utc},
-};
+use sqlx::postgres::PgArguments;
+use sqlx::query::Query;
+use sqlx::types::chrono::{DateTime, NaiveDateTime, Utc};
+use sqlx::Postgres;
 use thiserror::Error;
 
 use zksync_contracts::BaseSystemContractsHashes;
+use zksync_types::api;
+use zksync_types::block::MiniblockHeader;
+use zksync_types::commitment::{L1BatchMetaParameters, L1BatchMetadata};
+use zksync_types::explorer_api::{BlockDetails, L1BatchDetails, L1BatchPageItem};
 use zksync_types::{
-    api,
-    block::{L1BatchHeader, MiniblockHeader},
-    commitment::{L1BatchMetaParameters, L1BatchMetadata},
+    block::L1BatchHeader,
+    explorer_api::{BlockPageItem, BlockStatus},
     l2_to_l1_log::L2ToL1Log,
-    Address, L1BatchNumber, MiniblockNumber, H2048, H256,
+    Address, L1BatchNumber, MiniblockNumber, H2048, H256, U256,
 };
 
 #[derive(Debug, Error)]
@@ -23,91 +26,6 @@ pub enum StorageL1BatchConvertError {
     Incomplete,
 }
 
-/// Projection of the `l1_batches` table corresponding to [`L1BatchHeader`].
-#[derive(Debug, Clone, sqlx::FromRow)]
-pub struct StorageL1BatchHeader {
-    pub number: i64,
-    pub timestamp: i64,
-    pub is_finished: bool,
-    pub l1_tx_count: i32,
-    pub l2_tx_count: i32,
-    pub fee_account_address: Vec<u8>,
-    pub l2_to_l1_logs: Vec<Vec<u8>>,
-    pub l2_to_l1_messages: Vec<Vec<u8>>,
-    pub bloom: Vec<u8>,
-    pub priority_ops_onchain_data: Vec<Vec<u8>>,
-    pub used_contract_hashes: serde_json::Value,
-    pub base_fee_per_gas: BigDecimal,
-    pub l1_gas_price: i64,
-    pub l2_fair_gas_price: i64,
-    pub bootloader_code_hash: Option<Vec<u8>>,
-    pub default_aa_code_hash: Option<Vec<u8>>,
-    pub protocol_version: Option<i32>,
-}
-
-impl From<StorageL1BatchHeader> for L1BatchHeader {
-    fn from(l1_batch: StorageL1BatchHeader) -> Self {
-        let priority_ops_onchain_data: Vec<_> = l1_batch
-            .priority_ops_onchain_data
-            .into_iter()
-            .map(|raw_data| raw_data.into())
-            .collect();
-
-        L1BatchHeader {
-            number: L1BatchNumber(l1_batch.number as u32),
-            is_finished: l1_batch.is_finished,
-            timestamp: l1_batch.timestamp as u64,
-            fee_account_address: Address::from_slice(&l1_batch.fee_account_address),
-            priority_ops_onchain_data,
-            l1_tx_count: l1_batch.l1_tx_count as u16,
-            l2_tx_count: l1_batch.l2_tx_count as u16,
-            l2_to_l1_logs: convert_l2_to_l1_logs(l1_batch.l2_to_l1_logs),
-            l2_to_l1_messages: l1_batch.l2_to_l1_messages,
-
-            bloom: H2048::from_slice(&l1_batch.bloom),
-            used_contract_hashes: serde_json::from_value(l1_batch.used_contract_hashes)
-                .expect("invalid value for used_contract_hashes in the DB"),
-            base_fee_per_gas: l1_batch
-                .base_fee_per_gas
-                .to_u64()
-                .expect("base_fee_per_gas should fit in u64"),
-            base_system_contracts_hashes: convert_base_system_contracts_hashes(
-                l1_batch.bootloader_code_hash,
-                l1_batch.default_aa_code_hash,
-            ),
-            l1_gas_price: l1_batch.l1_gas_price as u64,
-            l2_fair_gas_price: l1_batch.l2_fair_gas_price as u64,
-            protocol_version: l1_batch
-                .protocol_version
-                .map(|v| (v as u16).try_into().unwrap()),
-        }
-    }
-}
-
-fn convert_l2_to_l1_logs(raw_logs: Vec<Vec<u8>>) -> Vec<L2ToL1Log> {
-    raw_logs
-        .into_iter()
-        .map(|raw_log| L2ToL1Log::from_slice(&raw_log))
-        .collect()
-}
-
-// TODO (SMA-1635): Make these fields non optional in database
-fn convert_base_system_contracts_hashes(
-    bootloader_code_hash: Option<Vec<u8>>,
-    default_aa_code_hash: Option<Vec<u8>>,
-) -> BaseSystemContractsHashes {
-    BaseSystemContractsHashes {
-        bootloader: bootloader_code_hash
-            .map(|hash| H256::from_slice(&hash))
-            .expect("should not be none"),
-        default_aa: default_aa_code_hash
-            .map(|hash| H256::from_slice(&hash))
-            .expect("should not be none"),
-    }
-}
-
-/// Projection of the `l1_batches` table corresponding to [`L1BatchHeader`] + [`L1BatchMetadata`].
-// TODO(PLA-369): use `#[sqlx(flatten)]` once upgraded to newer `sqlx`
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct StorageL1Batch {
     pub number: i64,
@@ -120,9 +38,13 @@ pub struct StorageL1Batch {
     pub l2_to_l1_logs: Vec<Vec<u8>>,
     pub priority_ops_onchain_data: Vec<Vec<u8>>,
 
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
+
     pub parent_hash: Option<Vec<u8>>,
     pub hash: Option<Vec<u8>>,
     pub merkle_root_hash: Option<Vec<u8>>,
+
     pub commitment: Option<Vec<u8>>,
     pub meta_parameters_hash: Option<Vec<u8>>,
     pub pass_through_data_hash: Option<Vec<u8>>,
@@ -145,13 +67,22 @@ pub struct StorageL1Batch {
     pub eth_commit_tx_id: Option<i32>,
     pub eth_execute_tx_id: Option<i32>,
 
+    pub predicted_commit_gas_cost: i64,
+    pub predicted_prove_gas_cost: i64,
+    pub predicted_execute_gas_cost: i64,
+
+    pub initial_bootloader_heap_content: serde_json::Value,
     pub used_contract_hashes: serde_json::Value,
 
     pub base_fee_per_gas: BigDecimal,
     pub l1_gas_price: i64,
     pub l2_fair_gas_price: i64,
 
-    pub protocol_version: Option<i32>,
+    // These fields are not used, but are present for compatibility reasons
+    pub gas_per_pubdata_byte_in_block: Option<i32>,
+    pub gas_per_pubdata_limit: i64,
+
+    pub skip_proof: bool,
 }
 
 impl From<StorageL1Batch> for L1BatchHeader {
@@ -159,7 +90,13 @@ impl From<StorageL1Batch> for L1BatchHeader {
         let priority_ops_onchain_data: Vec<_> = l1_batch
             .priority_ops_onchain_data
             .into_iter()
-            .map(Vec::into)
+            .map(|raw_data| raw_data.into())
+            .collect();
+
+        let l2_to_l1_logs: Vec<_> = l1_batch
+            .l2_to_l1_logs
+            .into_iter()
+            .map(|raw_log| L2ToL1Log::from_slice(&raw_log))
             .collect();
 
         L1BatchHeader {
@@ -170,25 +107,35 @@ impl From<StorageL1Batch> for L1BatchHeader {
             priority_ops_onchain_data,
             l1_tx_count: l1_batch.l1_tx_count as u16,
             l2_tx_count: l1_batch.l2_tx_count as u16,
-            l2_to_l1_logs: convert_l2_to_l1_logs(l1_batch.l2_to_l1_logs),
+            l2_to_l1_logs,
             l2_to_l1_messages: l1_batch.l2_to_l1_messages,
 
             bloom: H2048::from_slice(&l1_batch.bloom),
-            used_contract_hashes: serde_json::from_value(l1_batch.used_contract_hashes)
-                .expect("invalid value for used_contract_hashes in the DB"),
+            initial_bootloader_contents: serde_json::from_value::<Vec<(usize, U256)>>(
+                l1_batch.initial_bootloader_heap_content,
+            )
+            .expect("invalid value for initial_bootloader_heap_content in the DB"),
+            used_contract_hashes: serde_json::from_value::<Vec<U256>>(
+                l1_batch.used_contract_hashes,
+            )
+            .expect("invalid value for used_contract_hashes in the DB"),
             base_fee_per_gas: l1_batch
                 .base_fee_per_gas
                 .to_u64()
                 .expect("base_fee_per_gas should fit in u64"),
-            base_system_contracts_hashes: convert_base_system_contracts_hashes(
-                l1_batch.bootloader_code_hash,
-                l1_batch.default_aa_code_hash,
-            ),
+            // TODO (SMA-1635): Make these filed non optional in database
+            base_system_contracts_hashes: BaseSystemContractsHashes {
+                bootloader: l1_batch
+                    .bootloader_code_hash
+                    .map(|bootloader_code_hash| H256::from_slice(&bootloader_code_hash))
+                    .expect("should not be none"),
+                default_aa: l1_batch
+                    .default_aa_code_hash
+                    .map(|default_aa_code_hash| H256::from_slice(&default_aa_code_hash))
+                    .expect("should not be none"),
+            },
             l1_gas_price: l1_batch.l1_gas_price as u64,
             l2_fair_gas_price: l1_batch.l2_fair_gas_price as u64,
-            protocol_version: l1_batch
-                .protocol_version
-                .map(|v| (v as u16).try_into().unwrap()),
         }
     }
 }
@@ -258,6 +205,64 @@ impl TryInto<L1BatchMetadata> for StorageL1Batch {
                 ),
             },
         })
+    }
+}
+
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct StorageBlockPageItem {
+    pub number: i64,
+    pub l1_tx_count: i32,
+    pub l2_tx_count: i32,
+    pub hash: Option<Vec<u8>>,
+    pub timestamp: i64,
+}
+
+// At the moment it has the same fields as `StorageBlockPageItem`
+// but there are no guarantees it won't change in the future.
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct StorageL1BatchPageItem {
+    pub number: i64,
+    pub l1_tx_count: i32,
+    pub l2_tx_count: i32,
+    pub hash: Option<Vec<u8>>,
+    pub timestamp: i64,
+}
+
+pub fn block_page_item_from_storage(
+    storage: StorageBlockPageItem,
+    last_verified: MiniblockNumber,
+) -> BlockPageItem {
+    let status = if storage.number > last_verified.0 as i64 {
+        BlockStatus::Sealed
+    } else {
+        BlockStatus::Verified
+    };
+    BlockPageItem {
+        number: MiniblockNumber(storage.number as u32),
+        l1_tx_count: storage.l1_tx_count as usize,
+        l2_tx_count: storage.l2_tx_count as usize,
+        hash: storage.hash.map(|hash| H256::from_slice(&hash)),
+        status,
+        timestamp: storage.timestamp as u64,
+    }
+}
+
+pub fn l1_batch_page_item_from_storage(
+    storage: StorageL1BatchPageItem,
+    last_verified: L1BatchNumber,
+) -> L1BatchPageItem {
+    let status = if storage.number > last_verified.0 as i64 {
+        BlockStatus::Sealed
+    } else {
+        BlockStatus::Verified
+    };
+    L1BatchPageItem {
+        number: L1BatchNumber(storage.number as u32),
+        l1_tx_count: storage.l1_tx_count as usize,
+        l2_tx_count: storage.l2_tx_count as usize,
+        root_hash: storage.hash.map(|hash| H256::from_slice(&hash)),
+        status,
+        timestamp: storage.timestamp as u64,
     }
 }
 
@@ -340,18 +345,18 @@ pub struct StorageBlockDetails {
     pub bootloader_code_hash: Option<Vec<u8>>,
     pub default_aa_code_hash: Option<Vec<u8>>,
     pub fee_account_address: Option<Vec<u8>>, // May be None if the block is not yet sealed
-    pub protocol_version: Option<i32>,
 }
 
 impl StorageBlockDetails {
-    pub(crate) fn into_block_details(self, current_operator_address: Address) -> api::BlockDetails {
+    pub(crate) fn into_block_details(self, current_operator_address: Address) -> BlockDetails {
         let status = if self.number == 0 || self.execute_tx_hash.is_some() {
-            api::BlockStatus::Verified
+            BlockStatus::Verified
         } else {
-            api::BlockStatus::Sealed
+            BlockStatus::Sealed
         };
-
-        let base = api::BlockDetailsBase {
+        BlockDetails {
+            number: MiniblockNumber(self.number as u32),
+            l1_batch_number: L1BatchNumber(self.l1_batch_number as u32),
             timestamp: self.timestamp as u64,
             l1_tx_count: self.l1_tx_count as usize,
             l2_tx_count: self.l2_tx_count as usize,
@@ -363,39 +368,38 @@ impl StorageBlockDetails {
                 .map(|hash| H256::from_str(hash).expect("Incorrect commit_tx hash")),
             committed_at: self
                 .committed_at
-                .map(|committed_at| DateTime::from_naive_utc_and_offset(committed_at, Utc)),
+                .map(|committed_at| DateTime::<Utc>::from_utc(committed_at, Utc)),
             prove_tx_hash: self
                 .prove_tx_hash
                 .as_deref()
                 .map(|hash| H256::from_str(hash).expect("Incorrect prove_tx hash")),
             proven_at: self
                 .proven_at
-                .map(|proven_at| DateTime::<Utc>::from_naive_utc_and_offset(proven_at, Utc)),
+                .map(|proven_at| DateTime::<Utc>::from_utc(proven_at, Utc)),
             execute_tx_hash: self
                 .execute_tx_hash
                 .as_deref()
                 .map(|hash| H256::from_str(hash).expect("Incorrect execute_tx hash")),
             executed_at: self
                 .executed_at
-                .map(|executed_at| DateTime::<Utc>::from_naive_utc_and_offset(executed_at, Utc)),
+                .map(|executed_at| DateTime::<Utc>::from_utc(executed_at, Utc)),
             l1_gas_price: self.l1_gas_price as u64,
             l2_fair_gas_price: self.l2_fair_gas_price as u64,
-            base_system_contracts_hashes: convert_base_system_contracts_hashes(
-                self.bootloader_code_hash,
-                self.default_aa_code_hash,
-            ),
-        };
-        api::BlockDetails {
-            base,
-            number: MiniblockNumber(self.number as u32),
-            l1_batch_number: L1BatchNumber(self.l1_batch_number as u32),
+            // TODO (SMA-1635): Make these filed non optional in database
+            base_system_contracts_hashes: BaseSystemContractsHashes {
+                bootloader: self
+                    .bootloader_code_hash
+                    .map(|bootloader_code_hash| H256::from_slice(&bootloader_code_hash))
+                    .expect("should not be none"),
+                default_aa: self
+                    .default_aa_code_hash
+                    .map(|default_aa_code_hash| H256::from_slice(&default_aa_code_hash))
+                    .expect("should not be none"),
+            },
             operator_address: self
                 .fee_account_address
                 .map(|fee_account_address| Address::from_slice(&fee_account_address))
                 .unwrap_or(current_operator_address),
-            protocol_version: self
-                .protocol_version
-                .map(|v| (v as u16).try_into().unwrap()),
         }
     }
 }
@@ -419,51 +423,59 @@ pub struct StorageL1BatchDetails {
     pub default_aa_code_hash: Option<Vec<u8>>,
 }
 
-impl From<StorageL1BatchDetails> for api::L1BatchDetails {
-    fn from(details: StorageL1BatchDetails) -> Self {
-        let status = if details.number == 0 || details.execute_tx_hash.is_some() {
-            api::BlockStatus::Verified
+impl From<StorageL1BatchDetails> for L1BatchDetails {
+    fn from(storage_l1_batch_details: StorageL1BatchDetails) -> Self {
+        let status = if storage_l1_batch_details.number == 0
+            || storage_l1_batch_details.execute_tx_hash.is_some()
+        {
+            BlockStatus::Verified
         } else {
-            api::BlockStatus::Sealed
+            BlockStatus::Sealed
         };
-
-        let base = api::BlockDetailsBase {
-            timestamp: details.timestamp as u64,
-            l1_tx_count: details.l1_tx_count as usize,
-            l2_tx_count: details.l2_tx_count as usize,
+        L1BatchDetails {
+            number: L1BatchNumber(storage_l1_batch_details.number as u32),
+            timestamp: storage_l1_batch_details.timestamp as u64,
+            l1_tx_count: storage_l1_batch_details.l1_tx_count as usize,
+            l2_tx_count: storage_l1_batch_details.l2_tx_count as usize,
             status,
-            root_hash: details.root_hash.as_deref().map(H256::from_slice),
-            commit_tx_hash: details
+            root_hash: storage_l1_batch_details
+                .root_hash
+                .as_deref()
+                .map(H256::from_slice),
+            commit_tx_hash: storage_l1_batch_details
                 .commit_tx_hash
                 .as_deref()
                 .map(|hash| H256::from_str(hash).expect("Incorrect commit_tx hash")),
-            committed_at: details
+            committed_at: storage_l1_batch_details
                 .committed_at
-                .map(|committed_at| DateTime::<Utc>::from_naive_utc_and_offset(committed_at, Utc)),
-            prove_tx_hash: details
+                .map(|committed_at| DateTime::<Utc>::from_utc(committed_at, Utc)),
+            prove_tx_hash: storage_l1_batch_details
                 .prove_tx_hash
                 .as_deref()
                 .map(|hash| H256::from_str(hash).expect("Incorrect prove_tx hash")),
-            proven_at: details
+            proven_at: storage_l1_batch_details
                 .proven_at
-                .map(|proven_at| DateTime::<Utc>::from_naive_utc_and_offset(proven_at, Utc)),
-            execute_tx_hash: details
+                .map(|proven_at| DateTime::<Utc>::from_utc(proven_at, Utc)),
+            execute_tx_hash: storage_l1_batch_details
                 .execute_tx_hash
                 .as_deref()
                 .map(|hash| H256::from_str(hash).expect("Incorrect execute_tx hash")),
-            executed_at: details
+            executed_at: storage_l1_batch_details
                 .executed_at
-                .map(|executed_at| DateTime::<Utc>::from_naive_utc_and_offset(executed_at, Utc)),
-            l1_gas_price: details.l1_gas_price as u64,
-            l2_fair_gas_price: details.l2_fair_gas_price as u64,
-            base_system_contracts_hashes: convert_base_system_contracts_hashes(
-                details.bootloader_code_hash,
-                details.default_aa_code_hash,
-            ),
-        };
-        api::L1BatchDetails {
-            base,
-            number: L1BatchNumber(details.number as u32),
+                .map(|executed_at| DateTime::<Utc>::from_utc(executed_at, Utc)),
+            l1_gas_price: storage_l1_batch_details.l1_gas_price as u64,
+            l2_fair_gas_price: storage_l1_batch_details.l2_fair_gas_price as u64,
+            // TODO (SMA-1635): Make these filed non optional in database
+            base_system_contracts_hashes: BaseSystemContractsHashes {
+                bootloader: storage_l1_batch_details
+                    .bootloader_code_hash
+                    .map(|bootloader_code_hash| H256::from_slice(&bootloader_code_hash))
+                    .expect("should not be none"),
+                default_aa: storage_l1_batch_details
+                    .default_aa_code_hash
+                    .map(|default_aa_code_hash| H256::from_slice(&default_aa_code_hash))
+                    .expect("should not be none"),
+            },
         }
     }
 }
@@ -481,13 +493,6 @@ pub struct StorageMiniblockHeader {
     // L2 gas price assumed in the corresponding batch
     pub bootloader_code_hash: Option<Vec<u8>>,
     pub default_aa_code_hash: Option<Vec<u8>>,
-    pub protocol_version: Option<i32>,
-
-    // The maximal number of virtual blocks that can be created with this miniblock.
-    // If this value is greater than zero, then at least 1 will be created, but no more than
-    // min(virtual_blocks, miniblock_number - virtual_block_number), i.e. making sure that virtual blocks
-    // never go beyond the miniblock they are based on.
-    pub virtual_blocks: i64,
 }
 
 impl From<StorageMiniblockHeader> for MiniblockHeader {
@@ -501,12 +506,17 @@ impl From<StorageMiniblockHeader> for MiniblockHeader {
             base_fee_per_gas: row.base_fee_per_gas.to_u64().unwrap(),
             l1_gas_price: row.l1_gas_price as u64,
             l2_fair_gas_price: row.l2_fair_gas_price as u64,
-            base_system_contracts_hashes: convert_base_system_contracts_hashes(
-                row.bootloader_code_hash,
-                row.default_aa_code_hash,
-            ),
-            protocol_version: row.protocol_version.map(|v| (v as u16).try_into().unwrap()),
-            virtual_blocks: row.virtual_blocks as u32,
+            // TODO (SMA-1635): Make these filed non optional in database
+            base_system_contracts_hashes: BaseSystemContractsHashes {
+                bootloader: row
+                    .bootloader_code_hash
+                    .map(|bootloader_code_hash| H256::from_slice(&bootloader_code_hash))
+                    .expect("should not be none"),
+                default_aa: row
+                    .default_aa_code_hash
+                    .map(|default_aa_code_hash| H256::from_slice(&default_aa_code_hash))
+                    .expect("should not be none"),
+            },
         }
     }
 }

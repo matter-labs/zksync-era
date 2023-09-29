@@ -1,8 +1,0 @@
-[fri_witness_vector_generator]
-prover_instance_wait_timeout_in_secs=200
-prover_instance_poll_time_in_milli_secs=250
-prometheus_listener_port=3314
-prometheus_pushgateway_url="http://127.0.0.1:9091"
-prometheus_push_interval_ms=100
-specialized_group_id=100
-max_prover_reservation_duration_in_secs=1000

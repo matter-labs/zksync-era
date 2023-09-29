@@ -15,7 +15,7 @@ fn main() {
     } else {
         (3..17).collect()
     };
-    tracing::info!("Starting verification key generation!");
+    vlog::info!("Starting verification key generation!");
     get_circuits_for_vk()
         .into_iter()
         .filter(|c| circuit_types.contains(&c.numeric_circuit_type()))
@@ -23,7 +23,7 @@ fn main() {
 }
 
 fn get_and_ensure_valid_circuit_type(circuit_type: String) -> u8 {
-    tracing::info!("Received circuit_type: {:?}", circuit_type);
+    vlog::info!("Received circuit_type: {:?}", circuit_type);
     circuit_type
         .parse::<u8>()
         .expect("Please specify a circuit type in range [1, 17]")
@@ -37,7 +37,7 @@ fn generate_verification_key(circuit: ZkSyncCircuit<Bn256, VmWitnessOracle<Bn256
     >(circuit.clone(), 26)
     .unwrap();
     save_vk_for_circuit_type(circuit.numeric_circuit_type(), res);
-    tracing::info!(
+    vlog::info!(
         "Finished VK generation for circuit {:?} (id {:?})",
         circuit.short_description(),
         circuit.numeric_circuit_type()

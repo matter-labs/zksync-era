@@ -14,8 +14,7 @@
       "infrastructure/local-setup-preparation",
       "core/tests/revert-test",
       "core/tests/upgrade-test",
-      "core/tests/ts-integration",
-      "infrastructure/protocol-upgrade"
+      "core/tests/ts-integration"
     ],
     "nohoist": [
       "**/@types/jest",

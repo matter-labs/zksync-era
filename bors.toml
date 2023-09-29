@@ -1,0 +1,21 @@
+# Set bors's timeout to 4 hours
+# https://ddg.gg/?q=4+hours+in+seconds
+timeout-sec = 14400
+
+# If expected statuses are not specified explicitly, bors tries to "guess" and apperently does it wrong sometimes
+status = [
+  "integration",
+  "loadtest",
+  "lint",
+  "unit-tests",
+  "Build images / Build and Push Docker Images (circuit-synthesizer)",
+  "Build images / Build and Push Docker Images (contract-verifier)",
+  "Build images / Build and Push Docker Images (external-node)",
+  "Build images / Build and Push Docker Images (prover-fri)",
+  "Build images / Build and Push Docker Images (prover-v2)",
+  "Build images / Build and Push Docker Images (server-v2)",
+  "Build images / Build and Push Docker Images (witness-generator)",
+  "Build images / Build and Push Docker Images (cross-external-nodes-checker)",
+]
+
+use_squash_merge = true

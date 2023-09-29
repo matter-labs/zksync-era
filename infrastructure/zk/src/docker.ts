@@ -14,19 +14,11 @@ const IMAGES = [
     'circuit-synthesizer',
     'witness-generator',
     'prover-fri',
-    'prover-gpu-fri',
-    'witness-vector-generator',
-    'prover-fri-gateway',
-    'proof-fri-compressor'
+    'prover-gpu-fri'
 ];
 const UNIX_TIMESTAMP = Date.now();
 
-async function dockerCommand(
-    command: 'push' | 'build',
-    image: string,
-    customTag?: string,
-    publishPublic: boolean = false
-) {
+async function dockerCommand(command: 'push' | 'build', image: string, customTag?: string) {
     // Generating all tags for containers. We need 2 tags here: SHA and SHA+TS
     const { stdout: COMMIT_SHORT_SHA }: { stdout: string } = await utils.exec('git rev-parse --short HEAD');
     const imageTagShaTS: string = process.env.IMAGE_TAG_SUFFIX
@@ -35,8 +27,8 @@ async function dockerCommand(
 
     // we want alternative flow for rust image
     if (image == 'rust') {
-        await dockerCommand(command, 'server-v2', customTag, publishPublic);
-        await dockerCommand(command, 'prover', customTag, publishPublic);
+        await dockerCommand(command, 'server-v2', customTag);
+        await dockerCommand(command, 'prover', customTag);
         return;
     }
     if (!IMAGES.includes(image)) {
@@ -48,6 +40,7 @@ async function dockerCommand(
     }
 
     const tagList = customTag ? [customTag] : defaultTagList(image, COMMIT_SHORT_SHA.trim(), imageTagShaTS);
+
     // Main build\push flow
     // COMMIT_SHORT_SHA returns with newline, so we need to trim it
     switch (command) {
@@ -55,7 +48,7 @@ async function dockerCommand(
             await _build(image, tagList);
             break;
         case 'push':
-            await _push(image, tagList, publishPublic);
+            await _push(image, tagList);
             break;
         default:
             console.log(`Unknown command for docker ${command}.`);
@@ -74,13 +67,10 @@ function defaultTagList(image: string, imageTagSha: string, imageTagShaTS: strin
         'circuit-synthesizer',
         'witness-generator',
         'prover-fri',
-        'prover-gpu-fri',
-        'witness-vector-generator',
-        'prover-fri-gateway',
-        'proof-fri-compressor'
+        'prover-gpu-fri'
     ].includes(image)
-        ? ['latest', 'latest2.0', `2.0-${imageTagSha}`, `${imageTagSha}`, `2.0-${imageTagShaTS}`, `${imageTagShaTS}`]
-        : [`latest2.0`, 'latest'];
+        ? ['latest2.0', `2.0-${imageTagSha}`, `2.0-${imageTagShaTS}`]
+        : [`latest2.0`];
 
     return tagList;
 }
@@ -104,7 +94,7 @@ async function _build(image: string, tagList: string[]) {
     await utils.spawn(`DOCKER_BUILDKIT=1 docker build ${tagsToBuild} -f ./docker/${imagePath}/Dockerfile .`);
 }
 
-async function _push(image: string, tagList: string[], publishPublic: boolean = false) {
+async function _push(image: string, tagList: string[]) {
     // For development purposes, we want to use `2.0` tags for 2.0 images, just to not interfere with 1.x
 
     for (const tag of tagList) {
@@ -120,9 +110,6 @@ async function _push(image: string, tagList: string[], publishPublic: boolean = 
             );
             await utils.spawn(`docker push asia-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${image}:${tag}`);
         }
-        if (image == 'external-node' && publishPublic) {
-            await utils.spawn(`docker push matterlabs/${image}-public:${tag}`);
-        }
     }
 }
 
@@ -131,8 +118,8 @@ export async function build(image: string, cmd: Command) {
 }
 
 export async function push(image: string, cmd: Command) {
-    await dockerCommand('build', image, cmd.customTag, cmd.public);
-    await dockerCommand('push', image, cmd.customTag, cmd.public);
+    await dockerCommand('build', image, cmd.customTag);
+    await dockerCommand('push', image, cmd.customTag);
 }
 
 export async function restart(container: string) {
@@ -153,7 +140,6 @@ command
 command
     .command('push <image>')
     .option('--custom-tag <value>', 'Custom tag for image')
-    .option('--public', 'Publish image to the public repo')
     .description('build and push docker image')
     .action(push);
 command.command('pull').description('pull all containers').action(pull);

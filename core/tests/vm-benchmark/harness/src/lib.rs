@@ -1,22 +1,18 @@
-use once_cell::sync::Lazy;
-use std::{cell::RefCell, rc::Rc};
-use vm::{
-    constants::BLOCK_GAS_LIMIT, HistoryEnabled, L2BlockEnv, TxExecutionMode, Vm, VmExecutionMode,
-    VmExecutionResultAndLogs,
-};
+use once_cell::sync::{Lazy, OnceCell};
+use ouroboros::self_referencing;
+use vm::vm_with_bootloader::DerivedBlockContext;
+use vm::vm_with_bootloader::TxExecutionMode::VerifyExecute;
+use vm::vm_with_bootloader::{push_transaction_to_bootloader_memory, BlockContextMode};
+use vm::{HistoryEnabled, OracleTools, VmInstance};
+use zk_evm::block_properties::BlockProperties;
 use zksync_config::constants::ethereum::MAX_GAS_PER_PUBDATA_BYTE;
-use zksync_contracts::{deployer_contract, BaseSystemContracts};
+use zksync_contracts::deployer_contract;
 use zksync_state::{InMemoryStorage, StorageView};
-use zksync_types::{
-    block::legacy_miniblock_hash,
-    ethabi::{encode, Token},
-    fee::Fee,
-    helpers::unix_timestamp_ms,
-    l2::L2Tx,
-    utils::storage_key_for_eth_balance,
-    Address, L1BatchNumber, L2ChainId, MiniblockNumber, Nonce, PackedEthSignature,
-    ProtocolVersionId, Transaction, CONTRACT_DEPLOYER_ADDRESS, H256, U256,
-};
+use zksync_types::ethabi::{encode, Token};
+use zksync_types::l2::L2Tx;
+use zksync_types::utils::storage_key_for_eth_balance;
+use zksync_types::{fee::Fee, Nonce, Transaction, H256, U256};
+use zksync_types::{L2ChainId, PackedEthSignature, CONTRACT_DEPLOYER_ADDRESS};
 use zksync_utils::bytecode::hash_bytecode;
 
 /// Bytecodes have consist of an odd number of 32 byte words
@@ -43,9 +39,6 @@ static STORAGE: Lazy<InMemoryStorage> = Lazy::new(|| {
 
     storage
 });
-
-static SYSTEM_CONTRACTS: Lazy<BaseSystemContracts> = Lazy::new(BaseSystemContracts::load_from_disk);
-
 static CREATE_FUNCTION_SIGNATURE: Lazy<[u8; 4]> = Lazy::new(|| {
     deployer_contract()
         .function("create")
@@ -53,47 +46,56 @@ static CREATE_FUNCTION_SIGNATURE: Lazy<[u8; 4]> = Lazy::new(|| {
         .short_signature()
 });
 const PRIVATE_KEY: H256 = H256([42; 32]);
+static BLOCK_PROPERTIES: OnceCell<BlockProperties> = OnceCell::new();
 
-pub struct BenchmarkingVm(Vm<StorageView<&'static InMemoryStorage>, HistoryEnabled>);
+pub struct BenchmarkingVm<'a>(BenchmarkingVmInner<'a>);
 
-impl BenchmarkingVm {
+#[self_referencing]
+struct BenchmarkingVmInner<'a> {
+    storage_view: StorageView<&'a InMemoryStorage>,
+    #[borrows(mut storage_view)]
+    oracle_tools: OracleTools<'this, false, HistoryEnabled>,
+    #[borrows(mut oracle_tools)]
+    #[not_covariant]
+    vm: Box<VmInstance<'this, HistoryEnabled>>,
+}
+
+impl BenchmarkingVm<'_> {
     #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
-        let timestamp = unix_timestamp_ms();
+        let (block_context, block_properties) = vm::utils::create_test_block_params();
+        let block_context = block_context.into();
 
-        Self(Vm::new(
-            vm::L1BatchEnv {
-                previous_batch_hash: None,
-                number: L1BatchNumber(1),
-                timestamp,
-                l1_gas_price: 50_000_000_000,   // 50 gwei
-                fair_l2_gas_price: 250_000_000, // 0.25 gwei
-                fee_account: Address::random(),
-                enforced_base_fee: None,
-                first_l2_block: L2BlockEnv {
-                    number: 1,
-                    timestamp,
-                    prev_block_hash: legacy_miniblock_hash(MiniblockNumber(0)),
-                    max_virtual_blocks_to_create: 100,
+        let block_properties = BLOCK_PROPERTIES.get_or_init(|| block_properties);
+
+        Self(
+            BenchmarkingVmInnerBuilder {
+                storage_view: StorageView::new(&*STORAGE),
+                oracle_tools_builder: |storage_view| {
+                    vm::OracleTools::new(storage_view, HistoryEnabled)
                 },
-            },
-            vm::SystemEnv {
-                zk_porter_available: false,
-                version: ProtocolVersionId::latest(),
-                base_system_smart_contracts: SYSTEM_CONTRACTS.clone(),
-                gas_limit: BLOCK_GAS_LIMIT,
-                execution_mode: TxExecutionMode::VerifyExecute,
-                default_validation_computational_gas_limit: BLOCK_GAS_LIMIT,
-                chain_id: L2ChainId(270),
-            },
-            Rc::new(RefCell::new(StorageView::new(&*STORAGE))),
-            HistoryEnabled,
-        ))
+                vm_builder: |oracle_tools| {
+                    vm::vm_with_bootloader::init_vm(
+                        oracle_tools,
+                        BlockContextMode::NewBlock(block_context, Default::default()),
+                        block_properties,
+                        VerifyExecute,
+                        &vm::utils::BASE_SYSTEM_CONTRACTS,
+                    )
+                },
+            }
+            .build(),
+        )
     }
 
-    pub fn run_transaction(&mut self, tx: &Transaction) -> VmExecutionResultAndLogs {
-        self.0.push_transaction(tx.clone());
-        self.0.execute(VmExecutionMode::OneTx)
+    pub fn run_transaction(
+        &mut self,
+        tx: &Transaction,
+    ) -> Result<vm::vm::VmTxExecutionResult, vm::TxRevertReason> {
+        self.0.with_vm_mut(|vm| {
+            push_transaction_to_bootloader_memory(vm, tx, VerifyExecute, None);
+            vm.execute_next_tx(u32::MAX, false)
+        })
     }
 }
 
@@ -109,13 +111,16 @@ pub fn get_deploy_tx(code: &[u8]) -> Transaction {
         .chain(encode(&params))
         .collect();
 
+    let (block_context, _) = vm::utils::create_test_block_params();
+    let block_context: DerivedBlockContext = block_context.into();
+
     let mut signed = L2Tx::new_signed(
         CONTRACT_DEPLOYER_ADDRESS,
         calldata,
         Nonce(0),
         Fee {
             gas_limit: U256::from(10000000u32),
-            max_fee_per_gas: U256::from(250_000_000),
+            max_fee_per_gas: U256::from(block_context.base_fee),
             max_priority_fee_per_gas: U256::from(0),
             gas_per_pubdata_limit: U256::from(MAX_GAS_PER_PUBDATA_BYTE),
         },
@@ -134,8 +139,10 @@ pub fn get_deploy_tx(code: &[u8]) -> Transaction {
 
 #[cfg(test)]
 mod tests {
-    use crate::*;
     use zksync_contracts::read_bytecode;
+    use zksync_types::tx::tx_execution_info::TxExecutionStatus::Success;
+
+    use crate::*;
 
     #[test]
     fn can_deploy_contract() {
@@ -145,6 +152,9 @@ mod tests {
         let mut vm = BenchmarkingVm::new();
         let res = vm.run_transaction(&get_deploy_tx(&test_contract));
 
-        assert!(matches!(res.result, vm::ExecutionResult::Success { .. }));
+        match res {
+            Ok(x) => assert_eq!(x.status, Success),
+            Err(_) => panic!("should succeed"),
+        }
     }
 }

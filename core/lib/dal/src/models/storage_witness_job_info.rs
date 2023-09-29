@@ -1,6 +1,7 @@
-use sqlx::types::chrono::{DateTime, NaiveDateTime, NaiveTime, Utc};
+use sqlx::types::chrono::{DateTime, Utc};
 use std::convert::TryFrom;
 use std::str::FromStr;
+use vlog::__chrono::{NaiveDateTime, NaiveTime};
 use zksync_types::proofs::{
     AggregationRound, JobPosition, WitnessJobInfo, WitnessJobStatus, WitnessJobStatusFailed,
     WitnessJobStatusSuccessful,
@@ -23,7 +24,7 @@ pub struct StorageWitnessJobInfo {
 impl From<StorageWitnessJobInfo> for WitnessJobInfo {
     fn from(x: StorageWitnessJobInfo) -> Self {
         fn nt2d(nt: NaiveDateTime) -> DateTime<Utc> {
-            DateTime::from_naive_utc_and_offset(nt, Utc)
+            DateTime::from_utc(nt, Utc)
         }
 
         let status =

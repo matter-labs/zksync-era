@@ -1,13 +1,13 @@
-use std::cell::RefCell;
-use std::rc::Rc;
 use std::{
+    cell::RefCell,
     collections::HashMap,
     fmt, mem,
+    rc::Rc,
     time::{Duration, Instant},
 };
 
-use crate::{ReadStorage, WriteStorage};
-use zksync_types::{witness_block_state::WitnessBlockState, StorageKey, StorageValue, H256};
+use crate::{ReadStorage, StoragePtr, WriteStorage};
+use zksync_types::{StorageKey, StorageValue, H256};
 
 /// Metrics for [`StorageView`].
 #[derive(Debug, Default, Clone, Copy)]
@@ -51,37 +51,6 @@ pub struct StorageView<S> {
     metrics: StorageViewMetrics,
 }
 
-impl<S> StorageView<S> {
-    /// Returns the block's start state using StorageView's in-memory cache for the run
-    pub fn witness_block_state(&self) -> WitnessBlockState {
-        WitnessBlockState {
-            read_storage_key: self.read_storage_keys.clone(),
-            is_write_initial: self.initial_writes_cache.clone(),
-        }
-    }
-}
-
-impl<S> ReadStorage for Box<S>
-where
-    S: ReadStorage + ?Sized,
-{
-    fn read_value(&mut self, key: &StorageKey) -> StorageValue {
-        (**self).read_value(key)
-    }
-
-    fn is_write_initial(&mut self, key: &StorageKey) -> bool {
-        (**self).is_write_initial(key)
-    }
-
-    fn load_factory_dep(&mut self, hash: H256) -> Option<Vec<u8>> {
-        (**self).load_factory_dep(hash)
-    }
-
-    fn is_bytecode_known(&mut self, bytecode_hash: &H256) -> bool {
-        (**self).is_bytecode_known(bytecode_hash)
-    }
-}
-
 impl<S: ReadStorage + fmt::Debug> StorageView<S> {
     /// Creates a new storage view based on the underlying storage.
     pub fn new(storage_handle: S) -> Self {
@@ -92,6 +61,22 @@ impl<S: ReadStorage + fmt::Debug> StorageView<S> {
             initial_writes_cache: HashMap::new(),
             metrics: StorageViewMetrics::default(),
         }
+    }
+
+    /// Creates a storage view with the pre-filled cache of keys read from the storage.
+    pub fn new_with_read_keys(
+        storage_handle: S,
+        read_storage_keys: HashMap<StorageKey, StorageValue>,
+    ) -> Self {
+        Self {
+            read_storage_keys,
+            ..Self::new(storage_handle)
+        }
+    }
+
+    /// Returns a cloneable reference to this storage view.
+    pub fn as_ptr(&mut self) -> StoragePtr<'_> {
+        Rc::new(RefCell::new(self))
     }
 
     fn get_value_no_log(&mut self, key: &StorageKey) -> StorageValue {
@@ -124,9 +109,10 @@ impl<S: ReadStorage + fmt::Debug> StorageView<S> {
         }
     }
 
-    /// Make a Rc RefCell ptr to the storage
-    pub fn to_rc_ptr(self) -> Rc<RefCell<Self>> {
-        Rc::new(RefCell::new(self))
+    /// Unwraps this view, retrieving the read cache. This should be used in tandem with
+    /// [`Self::new_with_read_keys()`] to share the read cache across multiple views.
+    pub fn into_read_storage_keys(self) -> HashMap<StorageKey, StorageValue> {
+        self.read_storage_keys
     }
 }
 
@@ -136,7 +122,7 @@ impl<S: ReadStorage + fmt::Debug> ReadStorage for StorageView<S> {
         self.metrics.get_value_storage_invocations += 1;
         let value = self.get_value_no_log(key);
 
-        tracing::trace!(
+        vlog::trace!(
             "read value {:?} {:?} ({:?}/{:?})",
             key.hashed_key().0,
             value.0,
@@ -171,7 +157,7 @@ impl<S: ReadStorage + fmt::Debug> WriteStorage for StorageView<S> {
         self.metrics.set_value_storage_invocations += 1;
         let original = self.get_value_no_log(&key);
 
-        tracing::trace!(
+        vlog::trace!(
             "write value {:?} value: {:?} original value: {:?} ({:?}/{:?})",
             key.hashed_key().0,
             value,

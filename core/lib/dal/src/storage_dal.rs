@@ -1,12 +1,14 @@
 use itertools::Itertools;
 
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    time::Instant,
+};
 
+use crate::StorageProcessor;
 use zksync_contracts::{BaseSystemContracts, SystemContractCode};
 use zksync_types::{MiniblockNumber, StorageKey, StorageLog, StorageValue, H256, U256};
 use zksync_utils::{bytes_to_be_words, bytes_to_chunks};
-
-use crate::{instrument::InstrumentExt, StorageProcessor};
 
 #[derive(Debug)]
 pub struct StorageDal<'a, 'c> {
@@ -181,19 +183,19 @@ impl StorageDal<'_, '_> {
 
     /// Gets the current storage value at the specified `key`.
     pub async fn get_by_key(&mut self, key: &StorageKey) -> Option<H256> {
+        let started_at = Instant::now();
         let hashed_key = key.hashed_key();
-
-        sqlx::query!(
+        let result = sqlx::query!(
             "SELECT value FROM storage WHERE hashed_key = $1",
             hashed_key.as_bytes()
         )
-        .instrument("get_by_key")
-        .report_latency()
-        .with_arg("key", &hashed_key)
         .fetch_optional(self.storage.conn())
         .await
         .unwrap()
-        .map(|row| H256::from_slice(&row.value))
+        .map(|row| H256::from_slice(&row.value));
+
+        metrics::histogram!("dal.request", started_at.elapsed(), "method" => "get_by_key");
+        result
     }
 
     /// Removes all factory deps with a miniblock number strictly greater than the specified `block_number`.
@@ -217,7 +219,7 @@ mod tests {
 
     #[db_test(dal_crate)]
     async fn applying_storage_logs(pool: ConnectionPool) {
-        let mut conn = pool.access_storage().await.unwrap();
+        let mut conn = pool.access_storage().await;
 
         let account = AccountTreeId::new(Address::repeat_byte(1));
         let first_key = StorageKey::new(account, H256::zero());

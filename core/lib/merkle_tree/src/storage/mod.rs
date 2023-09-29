@@ -17,7 +17,7 @@ pub use self::{
 
 use crate::{
     hasher::HashTree,
-    metrics::{TreeUpdaterStats, BLOCK_TIMINGS, GENERAL_METRICS},
+    metrics::{BlockTimings, LeafCountMetric, Timing, TreeUpdaterMetrics},
     types::{
         BlockOutput, ChildRef, InternalNode, Key, LeafNode, Manifest, Nibbles, Node, Root,
         TreeLogEntry, TreeTags, ValueHash,
@@ -28,14 +28,14 @@ use crate::{
 /// Mutable storage encapsulating AR16MT update logic.
 #[derive(Debug)]
 struct TreeUpdater {
-    metrics: TreeUpdaterStats,
+    metrics: TreeUpdaterMetrics,
     patch_set: WorkingPatchSet,
 }
 
 impl TreeUpdater {
     fn new(version: u64, root: Root) -> Self {
         Self {
-            metrics: TreeUpdaterStats::default(),
+            metrics: TreeUpdaterMetrics::default(),
             patch_set: WorkingPatchSet::new(version, root),
         }
     }
@@ -268,12 +268,12 @@ impl<'a, DB: Database + ?Sized> Storage<'a, DB> {
     /// Extends the Merkle tree in the lightweight operation mode, without intermediate hash
     /// computations.
     pub fn extend(mut self, key_value_pairs: Vec<(Key, ValueHash)>) -> (BlockOutput, PatchSet) {
-        let load_nodes_latency = BLOCK_TIMINGS.load_nodes.start();
+        let load_nodes = BlockTimings::LoadNodes.start();
         let sorted_keys = SortedKeys::new(key_value_pairs.iter().map(|(key, _)| *key));
         let parent_nibbles = self.updater.load_ancestors(&sorted_keys, self.db);
-        load_nodes_latency.observe();
+        load_nodes.report();
 
-        let extend_patch_latency = BLOCK_TIMINGS.extend_patch.start();
+        let extend_patch = BlockTimings::ExtendPatch.start();
         let mut logs = Vec::with_capacity(key_value_pairs.len());
         for ((key, value_hash), parent_nibbles) in key_value_pairs.into_iter().zip(parent_nibbles) {
             let (log, _) = self.updater.insert(key, value_hash, &parent_nibbles, || {
@@ -281,7 +281,7 @@ impl<'a, DB: Database + ?Sized> Storage<'a, DB> {
             });
             logs.push(log);
         }
-        extend_patch_latency.observe();
+        extend_patch.report();
 
         let leaf_count = self.leaf_count;
         let (root_hash, patch) = self.finalize();
@@ -296,13 +296,13 @@ impl<'a, DB: Database + ?Sized> Storage<'a, DB> {
     fn finalize(self) -> (ValueHash, PatchSet) {
         self.updater.metrics.report();
 
-        let finalize_patch = BLOCK_TIMINGS.finalize_patch.start();
+        let finalize_patch = BlockTimings::FinalizePatch.start();
         let (root_hash, patch, stats) =
             self.updater
                 .patch_set
                 .finalize(self.manifest, self.leaf_count, self.hasher);
-        GENERAL_METRICS.leaf_count.set(self.leaf_count);
-        finalize_patch.observe();
+        finalize_patch.report();
+        LeafCountMetric(self.leaf_count).report();
         stats.report();
 
         (root_hash, patch)

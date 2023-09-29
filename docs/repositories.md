@@ -11,11 +11,11 @@
 
 ### Contracts
 
-| Public repository                                                           | Description                                                                           |
-| --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| [era-contracts](https://github.com/matter-labs/era-contracts)               | L1 & L2 contracts, that are used to manage bridges and communication between L1 & L2. |
-| [era-system-contracts](https://github.com/matter-labs/era-system-contracts) | Privileged contracts that are running on L2 (like Bootloader oc ContractDeployer)     |
-| [v2-testnet-contracts](https://github.com/matter-labs/v2-testnet-contracts) |                                                                                       |
+| Internal repository                                                 | Public repository                                                           | Description                                                                           |
+| ------------------------------------------------------------------- | --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| [contracts](https://github.com/matter-labs/contracts)               | [era-contracts](https://github.com/matter-labs/era-contracts)               | L1 & L2 contracts, that are used to manage bridges and communication between L1 & L2. |
+| [system-contracts](https://github.com/matter-labs/system-contracts) | [era-system-contracts](https://github.com/matter-labs/era-system-contracts) | Privileged contracts that are running on L2 (like Bootloader oc ContractDeployer)     |
+|                                                                     | [v2-testnet-contracts](https://github.com/matter-labs/zksync-2-dev)         |                                                                                       |
 
 ### Compiler
 

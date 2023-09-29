@@ -1,87 +1,101 @@
 use super::GlueInto;
-use crate::glue::history_mode::HistoryMode;
-use crate::vm_instance::{VmInstanceData, VmInstanceVersion};
-use crate::VmInstance;
-use vm_latest::{L1BatchEnv, SystemEnv};
-use zksync_state::ReadStorage;
-use zksync_utils::h256_to_u256;
+use crate::VmVersion;
 
-impl<'a, S: ReadStorage, H: HistoryMode> VmInstance<'a, S, H> {
-    pub fn new(
-        l1_batch_env: L1BatchEnv,
-        system_env: SystemEnv,
-        initial_version: &'a mut VmInstanceData<S, H>,
-    ) -> Self {
-        match initial_version {
-            VmInstanceData::M5(data) => {
-                let inner_vm = vm_m5::vm_with_bootloader::init_vm_with_gas_limit(
-                    data.sub_version,
-                    data.oracle_tools.m5(),
-                    l1_batch_env.glue_into(),
-                    data.block_properties.m5(),
-                    system_env.execution_mode.glue_into(),
-                    &system_env.base_system_smart_contracts.clone().glue_into(),
-                    system_env.gas_limit,
-                );
-                VmInstance {
-                    vm: VmInstanceVersion::VmM5(inner_vm),
-                    system_env,
-                    last_tx_compressed_bytecodes: vec![],
-                }
-            }
-            VmInstanceData::M6(data) => {
-                let inner_vm = vm_m6::vm_with_bootloader::init_vm_with_gas_limit(
-                    data.sub_version,
-                    data.oracle_tools.m6(),
-                    l1_batch_env.glue_into(),
-                    data.block_properties.m6(),
-                    system_env.execution_mode.glue_into(),
-                    &system_env.base_system_smart_contracts.clone().glue_into(),
-                    system_env.gas_limit,
-                );
-                VmInstance {
-                    vm: VmInstanceVersion::VmM6(inner_vm),
-                    system_env,
-                    last_tx_compressed_bytecodes: vec![],
-                }
-            }
+pub fn init_vm<'a>(
+    version: VmVersion,
+    oracle_tools: &'a mut crate::glue::oracle_tools::OracleTools<'a>,
+    block_context: vm_vm1_3_2::vm_with_bootloader::BlockContextMode,
+    block_properties: &'a crate::glue::block_properties::BlockProperties,
+    execution_mode: vm_vm1_3_2::vm_with_bootloader::TxExecutionMode,
+    base_system_contracts: &zksync_contracts::BaseSystemContracts,
+) -> crate::VmInstance<'a> {
+    let gas_limit = match version {
+        VmVersion::M5WithoutRefunds => vm_m5::utils::BLOCK_GAS_LIMIT,
+        VmVersion::M5WithRefunds => vm_m5::utils::BLOCK_GAS_LIMIT,
+        VmVersion::M6Initial => vm_m6::utils::BLOCK_GAS_LIMIT,
+        VmVersion::M6BugWithCompressionFixed => vm_m6::utils::BLOCK_GAS_LIMIT,
+        VmVersion::Vm1_3_2 => vm_vm1_3_2::utils::BLOCK_GAS_LIMIT,
+    };
 
-            VmInstanceData::Vm1_3_2(data) => {
-                let oracle_tools = vm_1_3_2::OracleTools::new(data.storage_view.clone());
-                let block_properties = vm_1_3_2::BlockProperties {
-                    default_aa_code_hash: h256_to_u256(
-                        system_env.base_system_smart_contracts.default_aa.hash,
-                    ),
-                    zkporter_is_available: false,
-                };
-                let inner_vm = vm_1_3_2::vm_with_bootloader::init_vm_with_gas_limit(
-                    oracle_tools,
-                    l1_batch_env.glue_into(),
-                    block_properties,
-                    system_env.execution_mode.glue_into(),
-                    &system_env.base_system_smart_contracts.clone().glue_into(),
-                    system_env.gas_limit,
-                );
-                VmInstance {
-                    vm: VmInstanceVersion::Vm1_3_2(inner_vm),
-                    system_env,
-                    last_tx_compressed_bytecodes: vec![],
-                }
-            }
-            VmInstanceData::VmVirtualBlocks(data) => {
-                let vm = vm_latest::Vm::new(
-                    l1_batch_env.glue_into(),
-                    system_env.clone(),
-                    data.storage_view.clone(),
-                    H::VmVirtualBlocksMode::default(),
-                );
-                let vm = VmInstanceVersion::VmVirtualBlocks(Box::new(vm));
-                Self {
-                    vm,
-                    system_env,
-                    last_tx_compressed_bytecodes: vec![],
-                }
-            }
+    init_vm_with_gas_limit(
+        version,
+        oracle_tools,
+        block_context,
+        block_properties,
+        execution_mode,
+        base_system_contracts,
+        gas_limit,
+    )
+}
+
+pub fn init_vm_with_gas_limit<'a>(
+    version: VmVersion,
+    oracle_tools: &'a mut crate::glue::oracle_tools::OracleTools<'a>,
+    block_context: vm_vm1_3_2::vm_with_bootloader::BlockContextMode,
+    block_properties: &'a crate::glue::block_properties::BlockProperties,
+    execution_mode: vm_vm1_3_2::vm_with_bootloader::TxExecutionMode,
+    base_system_contracts: &zksync_contracts::BaseSystemContracts,
+    gas_limit: u32,
+) -> crate::VmInstance<'a> {
+    match version {
+        VmVersion::M5WithoutRefunds => {
+            let inner_vm = vm_m5::vm_with_bootloader::init_vm_with_gas_limit(
+                vm_m5::vm::MultiVMSubversion::V1,
+                oracle_tools.m5(),
+                block_context.glue_into(),
+                block_properties.m5(),
+                execution_mode.glue_into(),
+                &base_system_contracts.clone().glue_into(),
+                gas_limit,
+            );
+            crate::VmInstance::VmM5(inner_vm)
+        }
+        VmVersion::M5WithRefunds => {
+            let inner_vm = vm_m5::vm_with_bootloader::init_vm_with_gas_limit(
+                vm_m5::vm::MultiVMSubversion::V2,
+                oracle_tools.m5(),
+                block_context.glue_into(),
+                block_properties.m5(),
+                execution_mode.glue_into(),
+                &base_system_contracts.clone().glue_into(),
+                gas_limit,
+            );
+            crate::VmInstance::VmM5(inner_vm)
+        }
+        VmVersion::M6Initial => {
+            let inner_vm = vm_m6::vm_with_bootloader::init_vm_with_gas_limit(
+                vm_m6::vm::MultiVMSubversion::V1,
+                oracle_tools.m6(),
+                block_context.glue_into(),
+                block_properties.m6(),
+                execution_mode.glue_into(),
+                &base_system_contracts.clone().glue_into(),
+                gas_limit,
+            );
+            crate::VmInstance::VmM6(inner_vm)
+        }
+        VmVersion::M6BugWithCompressionFixed => {
+            let inner_vm = vm_m6::vm_with_bootloader::init_vm_with_gas_limit(
+                vm_m6::vm::MultiVMSubversion::V2,
+                oracle_tools.m6(),
+                block_context.glue_into(),
+                block_properties.m6(),
+                execution_mode.glue_into(),
+                &base_system_contracts.clone().glue_into(),
+                gas_limit,
+            );
+            crate::VmInstance::VmM6(inner_vm)
+        }
+        VmVersion::Vm1_3_2 => {
+            let inner_vm = vm_vm1_3_2::vm_with_bootloader::init_vm_with_gas_limit(
+                oracle_tools.vm1_3_2(),
+                block_context.glue_into(),
+                block_properties.vm1_3_2(),
+                execution_mode.glue_into(),
+                &base_system_contracts.clone().glue_into(),
+                gas_limit,
+            );
+            crate::VmInstance::Vm1_3_2(inner_vm)
         }
     }
 }

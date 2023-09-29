@@ -2,7 +2,6 @@ use codegen::serialize_proof;
 
 use std::{fmt, ops, str::FromStr};
 
-use serde::{Deserialize, Serialize};
 use zkevm_test_harness::abstract_zksync_circuit::concrete_circuits::ZkSyncCircuit;
 use zkevm_test_harness::bellman::bn256::Bn256;
 use zkevm_test_harness::bellman::plonk::better_better_cs::proof::Proof;
@@ -54,7 +53,7 @@ pub struct L1BatchCreateProofOperation {
     pub proofs_to_pad: usize,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone)]
 pub struct L1BatchProofForL1 {
     pub aggregation_result_coords: [[u8; 32]; 4],
     pub scheduler_proof: Proof<Bn256, ZkSyncCircuit<Bn256, VmWitnessOracle<Bn256>>>,

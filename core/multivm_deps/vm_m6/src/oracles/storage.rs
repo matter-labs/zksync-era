@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::glue::GlueInto;
-use crate::storage::{Storage, StoragePtr};
+use crate::storage::StoragePtr;
 
 use crate::history_recorder::{
     AppDataFrameManagerWithHistory, HashMapHistoryEvent, HistoryEnabled, HistoryMode,
@@ -34,11 +34,11 @@ pub fn storage_key_of_log(query: &LogQuery) -> StorageKey {
 }
 
 #[derive(Debug)]
-pub struct StorageOracle<S: Storage, H: HistoryMode> {
+pub struct StorageOracle<'a, H: HistoryMode> {
     // Access to the persistent storage. Please note that it
     // is used only for read access. All the actual writes happen
     // after the execution ended.
-    pub storage: HistoryRecorder<StorageWrapper<S>, H>,
+    pub storage: HistoryRecorder<StorageWrapper<'a>, H>,
 
     pub frames_stack: AppDataFrameManagerWithHistory<StorageLogQuery, H>,
 
@@ -49,7 +49,7 @@ pub struct StorageOracle<S: Storage, H: HistoryMode> {
     pub paid_changes: HistoryRecorder<HashMap<StorageKey, u32>, HistoryEnabled>,
 }
 
-impl<S: Storage> OracleWithHistory for StorageOracle<S, HistoryEnabled> {
+impl OracleWithHistory for StorageOracle<'_, HistoryEnabled> {
     fn rollback_to_timestamp(&mut self, timestamp: Timestamp) {
         self.frames_stack.rollback_to_timestamp(timestamp);
         self.storage.rollback_to_timestamp(timestamp);
@@ -57,8 +57,8 @@ impl<S: Storage> OracleWithHistory for StorageOracle<S, HistoryEnabled> {
     }
 }
 
-impl<S: Storage, H: HistoryMode> StorageOracle<S, H> {
-    pub fn new(storage: StoragePtr<S>) -> Self {
+impl<'a, H: HistoryMode> StorageOracle<'a, H> {
+    pub fn new(storage: StoragePtr<'a>) -> Self {
         Self {
             storage: HistoryRecorder::from_inner(StorageWrapper::new(storage)),
             frames_stack: Default::default(),
@@ -174,7 +174,7 @@ impl<S: Storage, H: HistoryMode> StorageOracle<S, H> {
 
     pub fn get_history_size(&self) -> usize {
         let storage_size = self.storage.borrow_history(|h| h.len(), 0)
-            * std::mem::size_of::<<StorageWrapper<S> as WithHistory>::HistoryRecord>();
+            * std::mem::size_of::<<StorageWrapper as WithHistory>::HistoryRecord>();
         let frames_stack_size = self.frames_stack.get_history_size();
         let paid_changes_size = self.paid_changes.borrow_history(|h| h.len(), 0)
             * std::mem::size_of::<<HashMap<StorageKey, u32> as WithHistory>::HistoryRecord>();
@@ -182,7 +182,7 @@ impl<S: Storage, H: HistoryMode> StorageOracle<S, H> {
     }
 }
 
-impl<S: Storage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
+impl<H: HistoryMode> VmStorageOracle for StorageOracle<'_, H> {
     // Perform a storage read/write access by taking an partially filled query
     // and returning filled query and cold/warm marker for pricing purposes
     fn execute_partial_query(
@@ -190,7 +190,7 @@ impl<S: Storage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
         _monotonic_cycle_counter: u32,
         query: LogQuery,
     ) -> LogQuery {
-        // tracing::trace!(
+        // vlog::trace!(
         //     "execute partial query cyc {:?} addr {:?} key {:?}, rw {:?}, wr {:?}, tx {:?}",
         //     _monotonic_cycle_counter,
         //     query.address,
@@ -256,7 +256,7 @@ impl<S: Storage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
                 let read_value = match query.log_type {
                     StorageLogQueryType::Read => {
                         // Having Read logs in rollback is not possible
-                        tracing::warn!("Read log in rollback queue {:?}", query);
+                        vlog::warn!("Read log in rollback queue {:?}", query);
                         continue;
                     }
                     StorageLogQueryType::InitialWrite | StorageLogQueryType::RepeatedWrite => {

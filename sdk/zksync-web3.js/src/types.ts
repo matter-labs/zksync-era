@@ -191,10 +191,6 @@ export interface BatchDetails {
     executedAt?: Date;
     l1GasPrice: number;
     l2FairGasPrice: number;
-    baseSystemContractsHashes: {
-        bootloader: string;
-        defaultAa: string;
-    };
 }
 
 export interface BlockDetails {
@@ -211,17 +207,13 @@ export interface BlockDetails {
     provenAt?: Date;
     executeTxHash?: string;
     executedAt?: Date;
-    baseSystemContractsHashes: {
-        bootloader: string;
-        defaultAa: string;
-    };
 }
 
 export interface TransactionDetails {
     isL1Originated: boolean;
     status: string;
     fee: BigNumberish;
-    gasPerPubdata: BigNumberish;
+    gasPerPubdata?: BigNumberish;
     initiatorAddress: Address;
     receivedAt: Date;
     ethCommitTxHash?: string;

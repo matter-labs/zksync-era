@@ -93,8 +93,6 @@ interface IContractDeployer {
         bytes32 bytecodeHash;
         // The address on which to deploy the bytecodehash to
         address newAddress;
-        // Whether to call the constructor or not
-        bool callConstructor;
         // The value with which to initialize a contract
         uint256 value;
         // The constructor calldata

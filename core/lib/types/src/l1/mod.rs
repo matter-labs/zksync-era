@@ -5,7 +5,7 @@ use std::convert::TryFrom;
 
 use zksync_basic_types::{
     ethabi::{decode, ParamType, Token},
-    Address, L1BlockNumber, Log, PriorityOpId, H160, H256, U256,
+    Address, Log, PriorityOpId, H160, H256, U256,
 };
 use zksync_utils::u256_to_account_address;
 
@@ -15,7 +15,7 @@ use crate::{
     l2::TransactionType,
     priority_op_onchain_data::{PriorityOpOnchainData, PriorityOpOnchainMetadata},
     tx::Execute,
-    ExecuteTransactionCommon, PRIORITY_OPERATION_L2_TX_TYPE, PROTOCOL_UPGRADE_TX_TYPE,
+    ExecuteTransactionCommon,
 };
 
 use super::Transaction;
@@ -67,10 +67,6 @@ impl TryFrom<u8> for PriorityQueueType {
             _ => Err(()),
         }
     }
-}
-
-pub fn is_l1_tx_type(tx_type: u8) -> bool {
-    tx_type == PRIORITY_OPERATION_L2_TX_TYPE || tx_type == PROTOCOL_UPGRADE_TX_TYPE
 }
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
@@ -151,20 +147,18 @@ impl From<L1Tx> for Transaction {
             common_data: ExecuteTransactionCommon::L1(common_data),
             execute,
             received_timestamp_ms,
-            raw_bytes: None,
         }
     }
 }
 
 impl TryFrom<Transaction> for L1Tx {
-    type Error = &'static str;
+    type Error = ();
 
     fn try_from(value: Transaction) -> Result<Self, Self::Error> {
         let Transaction {
             common_data,
             execute,
             received_timestamp_ms,
-            ..
         } = value;
         match common_data {
             ExecuteTransactionCommon::L1(common_data) => Ok(L1Tx {
@@ -172,10 +166,7 @@ impl TryFrom<Transaction> for L1Tx {
                 common_data,
                 received_timestamp_ms,
             }),
-            ExecuteTransactionCommon::L2(_) => Err("Cannot convert L2Tx to L1Tx"),
-            ExecuteTransactionCommon::ProtocolUpgrade(_) => {
-                Err("Cannot convert ProtocolUpgradeTx to L1Tx")
-            }
+            ExecuteTransactionCommon::L2(_) => Err(()),
         }
     }
 }
@@ -185,8 +176,8 @@ impl L1Tx {
         self.common_data.serial_id
     }
 
-    pub fn eth_block(&self) -> L1BlockNumber {
-        L1BlockNumber(self.common_data.eth_block as u32)
+    pub fn eth_block(&self) -> u64 {
+        self.common_data.eth_block
     }
 
     pub fn hash(&self) -> H256 {
@@ -259,7 +250,7 @@ impl TryFrom<Log> for L1Tx {
         assert_eq!(transaction.len(), 16);
 
         let tx_type = transaction.remove(0).into_uint().unwrap();
-        assert_eq!(tx_type.clone(), U256::from(PRIORITY_OPERATION_L2_TX_TYPE));
+        assert_eq!(tx_type.clone(), U256::from(255u8)); // L1TxType
 
         let sender = transaction.remove(0).into_address().unwrap();
         let contract_address = transaction.remove(0).into_address().unwrap();

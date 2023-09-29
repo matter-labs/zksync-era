@@ -1,4 +1,3 @@
-use std::fmt::Debug;
 use std::{
     collections::HashSet,
     fmt::{self, Display},
@@ -13,7 +12,6 @@ use crate::{
     vm_with_bootloader::BOOTLOADER_HEAP_PAGE,
 };
 // use zk_evm::testing::memory::SimpleMemory;
-use crate::storage::Storage;
 use zk_evm::{
     abstractions::{
         AfterDecodingData, AfterExecutionData, BeforeExecutionData, Tracer, VmLocalStateData,
@@ -26,7 +24,6 @@ use zk_evm::{
         LogOpcode, Opcode, RetOpcode, UMAOpcode,
     },
 };
-
 use zksync_types::{
     get_code_key, web3::signing::keccak256, AccountTreeId, Address, StorageKey,
     ACCOUNT_CODE_STORAGE_ADDRESS, BOOTLOADER_ADDRESS, CONTRACT_DEPLOYER_ADDRESS, H256,
@@ -185,7 +182,7 @@ fn touches_allowed_context(address: Address, key: U256) -> bool {
     key == U256::from(0u32)
 }
 
-fn is_constant_code_hash<S: Storage>(address: Address, key: U256, storage: StoragePtr<S>) -> bool {
+fn is_constant_code_hash(address: Address, key: U256, storage: StoragePtr<'_>) -> bool {
     if address != ACCOUNT_CODE_STORAGE_ADDRESS {
         // Not a code hash
         return false;
@@ -209,9 +206,9 @@ fn valid_eth_token_call(address: Address, msg_sender: Address) -> bool {
 /// Tracer that is used to ensure that the validation adheres to all the rules
 /// to prevent DDoS attacks on the server.
 #[derive(Clone)]
-pub struct ValidationTracer<S> {
+pub struct ValidationTracer<'a> {
     // A copy of it should be used in the Storage oracle
-    pub storage: StoragePtr<S>,
+    pub storage: StoragePtr<'a>,
     pub validation_mode: ValidationTracerMode,
     pub auxilary_allowed_slots: HashSet<H256>,
     pub validation_error: Option<ViolatedValidationRule>,
@@ -224,7 +221,7 @@ pub struct ValidationTracer<S> {
     trusted_address_slots: HashSet<(Address, U256)>,
 }
 
-impl<S> fmt::Debug for ValidationTracer<S> {
+impl fmt::Debug for ValidationTracer<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ValidationTracer")
             .field("storage", &"StoragePtr")
@@ -263,8 +260,8 @@ pub struct NewTrustedValidationItems {
 
 type ValidationRoundResult = Result<NewTrustedValidationItems, ViolatedValidationRule>;
 
-impl<S: Storage> ValidationTracer<S> {
-    pub fn new(storage: StoragePtr<S>, params: ValidationTracerParams) -> Self {
+impl<'a> ValidationTracer<'a> {
+    pub fn new(storage: StoragePtr<'a>, params: ValidationTracerParams) -> Self {
         ValidationTracer {
             storage,
             validation_error: None,
@@ -465,7 +462,7 @@ impl<S: Storage> ValidationTracer<S> {
     }
 }
 
-impl<S: Storage> Tracer for ValidationTracer<S> {
+impl Tracer for ValidationTracer<'_> {
     const CALL_BEFORE_EXECUTION: bool = true;
 
     type SupportedMemory = SimpleMemory;
@@ -540,14 +537,14 @@ fn get_calldata_page_via_abi(far_call_abi: &FarCallABI, base_page: MemoryPage) -
     }
 }
 
-impl<S: Storage> ExecutionEndTracer for ValidationTracer<S> {
+impl ExecutionEndTracer for ValidationTracer<'_> {
     fn should_stop_execution(&self) -> bool {
         self.should_stop_execution || self.validation_error.is_some()
     }
 }
 
-impl<S: Storage> PendingRefundTracer for ValidationTracer<S> {}
-impl<S: Storage> PubdataSpentTracer for ValidationTracer<S> {}
+impl PendingRefundTracer for ValidationTracer<'_> {}
+impl PubdataSpentTracer for ValidationTracer<'_> {}
 
 /// Allows any opcodes, but tells the VM to end the execution once the tx is over.
 #[derive(Debug, Clone, Default)]
@@ -850,5 +847,5 @@ fn print_debug_if_needed(hook: &VmHook, state: &VmLocalStateData<'_>, memory: &S
         _ => return,
     };
 
-    tracing::trace!("{}", log);
+    vlog::trace!("{}", log);
 }

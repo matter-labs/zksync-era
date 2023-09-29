@@ -15,12 +15,12 @@ export interface ForceDeployment {
     bytecodeHash: BytesLike;
     // The address on which to deploy the bytecodehash to
     newAddress: string;
-    // Whether to call the constructor
-    callConstructor: boolean;
     // The value with which to initialize a contract
     value: BigNumber;
     // The constructor calldata
     input: BytesLike;
+    // Whether to call the constructor
+    callConstructor: boolean;
 }
 
 // A minimized copy of the `diamondCut` function used in L1 contracts

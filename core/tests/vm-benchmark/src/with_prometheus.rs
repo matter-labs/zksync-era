@@ -9,7 +9,7 @@ pub fn with_prometheus<F: FnOnce()>(f: F) {
 
     tokio::runtime::Runtime::new().unwrap().block_on(async {
         PrometheusBuilder::new()
-            .with_push_gateway(endpoint, Duration::from_millis(100), None, None)
+            .with_push_gateway(endpoint, Duration::from_millis(100))
             .unwrap()
             .install()
             .unwrap();

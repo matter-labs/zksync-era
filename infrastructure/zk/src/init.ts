@@ -1,5 +1,6 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
+import fs from 'fs';
 import * as utils from './utils';
 
 import * as server from './server';
@@ -18,6 +19,7 @@ const success = chalk.green;
 const timestamp = chalk.grey;
 
 export async function init(skipSubmodulesCheckout: boolean) {
+    await announced('Creating docker volumes', createVolumes());
     if (!process.env.CI) {
         await announced('Pulling images', docker.pull());
         await announced('Checking environment', checkEnv());
@@ -36,13 +38,11 @@ export async function init(skipSubmodulesCheckout: boolean) {
     await announced('Clean backups', clean('backups'));
     await announced('Building contracts', contract.build());
     await announced('Deploying localhost ERC20 tokens', run.deployERC20('dev'));
-    await announced('Deploying L1 verifier', contract.deployVerifier([]));
-    await announced('Reloading env', env.reload());
     await announced('Running server genesis setup', server.genesisFromSources());
     await announced('Deploying L1 contracts', contract.redeployL1([]));
     await announced('Initializing validator', contract.initializeValidator());
     await announced('Initialize L1 allow list', contract.initializeL1AllowList());
-    await announced('Deploying L2 contracts', contract.deployL2([], true, true));
+    await announced('Deploying L2 contracts', contract.deployL2([], true));
     await announced('Initializing L2 WETH token', contract.initializeWethToken());
 }
 
@@ -57,13 +57,11 @@ export async function reinit() {
     await announced('Clean rocksdb', clean('db'));
     await announced('Clean backups', clean('backups'));
     await announced('Building contracts', contract.build());
-    await announced('Deploying L1 verifier', contract.deployVerifier([]));
-    await announced('Reloading env', env.reload());
     await announced('Running server genesis setup', server.genesisFromSources());
     await announced('Deploying L1 contracts', contract.redeployL1([]));
     await announced('Initializing validator', contract.initializeValidator());
     await announced('Initializing L1 Allow list', contract.initializeL1AllowList());
-    await announced('Deploying L2 contracts', contract.deployL2([], true, true));
+    await announced('Deploying L2 contracts', contract.deployL2([], true));
     await announced('Initializing L2 WETH token', contract.initializeWethToken());
 }
 
@@ -71,13 +69,12 @@ export async function reinit() {
 export async function lightweightInit() {
     await announced('Clean rocksdb', clean('db'));
     await announced('Clean backups', clean('backups'));
-    await announced('Deploying L1 verifier', contract.deployVerifier([]));
-    await announced('Reloading env', env.reload());
     await announced('Running server genesis setup', server.genesisFromBinary());
     await announced('Deploying L1 contracts', contract.redeployL1([]));
     await announced('Initializing validator', contract.initializeValidator());
     await announced('Initializing L1 Allow list', contract.initializeL1AllowList());
-    await announced('Deploying L2 contracts', contract.deployL2([], true, false));
+    await announced('Deploying L2 contracts', contract.deployL2([], true));
+    await announced('Initializing L2 WETH token', contract.initializeWethToken());
 }
 
 // Wrapper that writes an announcement and completion notes for each executed task.
@@ -95,6 +92,11 @@ export async function announced(fn: string, promise: Promise<void> | void) {
     const successLine = `${success('✔')} ${fn} done`;
     const timestampLine = timestamp(`(${time}ms)`);
     console.log(`${successLine} ${timestampLine}`);
+}
+
+function createVolumes() {
+    fs.mkdirSync(`${process.env.ZKSYNC_HOME}/volumes/geth`, { recursive: true });
+    fs.mkdirSync(`${process.env.ZKSYNC_HOME}/volumes/postgres`, { recursive: true });
 }
 
 export async function submoduleUpdate() {

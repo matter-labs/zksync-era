@@ -2,12 +2,9 @@
 
 This documentation explains the basics of the zkSync Era External Node.
 
-## Disclaimers
+## Alpha phase disclaimer
 
-- The external node is in the alpha phase, and should be used with caution.
-- While in alpha, the EN is dependent on a DB snapshot in order to run that is not yet publicly available.
-- The EN is a read-only replica of the main node. We are currently working on decentralizing our infrastructure by
-  creating a consensus node. The EN is not going to be the consensus node.
+Warning: the external node is in the alpha phase, and should be used with caution.
 
 ## What is the external node
 
@@ -123,23 +120,6 @@ Available methods:
 | -------------------- | ----- |
 | `web3_clientVersion` |       |
 
-### `debug` namespace
-
-The `debug` namespace gives access to several non-standard RPC methods, which will allow developers to inspect and debug
-calls and transactions.
-
-This namespace is disabled by default and can be configured via setting `EN_API_NAMESPACES` as described in the
-[example config](prepared_configs/mainnet-config.env).
-
-Available methods:
-
-| Method                     | Notes |
-| -------------------------- | ----- |
-| `debug_traceBlockByNumber` |       |
-| `debug_traceBlockByHash`   |       |
-| `debug_traceCall`          |       |
-| `debug_traceTransaction`   |       |
-
 ### `zks` namespace
 
 This namespace contains rollup-specific extensions to the Web3 API. Note that _only methods_ specified in the
@@ -149,8 +129,3 @@ methods come without any kind of stability guarantees and can be changed or remo
 Always refer to the documentation linked above to see the list of stabilized methods in this namespace.
 
 [zks_docs]: https://era.zksync.io/docs/api/api.html#zksync-specific-json-rpc-methods
-
-### `en` namespace
-
-This namespace contains methods that external nodes call on the main node while syncing. If this namespace is enabled,
-other ENs can sync from this node.

@@ -1,4 +1,4 @@
-use crate::web3::signing::keccak256;
+use parity_crypto::Keccak256;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -126,7 +126,7 @@ pub trait EIP712TypedStructure: Serialize {
         // hashStruct(s : 𝕊) = keccak256(keccak256(encodeType(typeOf(s))) ‖ encodeData(s)).
         let type_hash = {
             let encode_type = self.encode_type();
-            keccak256(encode_type.as_bytes())
+            encode_type.keccak256()
         };
         let encode_data = self.encode_data();
 
@@ -136,7 +136,7 @@ pub trait EIP712TypedStructure: Serialize {
             bytes.extend_from_slice(data.as_bytes());
         }
 
-        keccak256(&bytes).into()
+        bytes.keccak256().into()
     }
 
     fn get_json_types(&self) -> Vec<Value> {

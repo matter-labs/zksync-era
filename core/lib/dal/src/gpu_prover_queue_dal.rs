@@ -1,13 +1,31 @@
+use std::net::IpAddr;
 use std::time::Duration;
 
 use crate::time_utils::pg_interval_from_duration;
 use crate::StorageProcessor;
 use std::collections::HashMap;
-use zksync_types::proofs::{GpuProverInstanceStatus, SocketAddress};
 
 #[derive(Debug)]
 pub struct GpuProverQueueDal<'a, 'c> {
     pub(crate) storage: &'a mut StorageProcessor<'c>,
+}
+
+#[derive(Debug, Clone)]
+pub struct SocketAddress {
+    pub host: IpAddr,
+    pub port: u16,
+}
+
+#[derive(Debug)]
+pub enum GpuProverInstanceStatus {
+    // The instance is available for processing.
+    Available,
+    // The instance is running at full capacity.
+    Full,
+    // The instance is reserved by an synthesizer.
+    Reserved,
+    // The instance is not alive anymore.
+    Dead,
 }
 
 impl GpuProverQueueDal<'_, '_> {

@@ -3,7 +3,6 @@ import { Tester } from './tester';
 import * as zkweb3 from 'zksync-web3';
 import { BigNumber, Contract, ethers } from 'ethers';
 import { expect } from 'chai';
-import fs from 'fs';
 
 // Parses output of "print-suggested-values" command of the revert block tool.
 function parseSuggestedValues(suggestedValuesString: string) {
@@ -46,9 +45,9 @@ async function killServerAndWaitForShutdown(tester: Tester) {
     throw new Error("Server didn't stop after a kill request");
 }
 
-function ignoreError(_err: any, context?: string) {
+function ignoreError(err: any, context?: string) {
     const message = context ? `Error ignored (context: ${context}).` : 'Error ignored.';
-    console.info(message);
+    console.info(message, err);
 }
 
 const depositAmount = ethers.utils.parseEther('0.001');
@@ -58,12 +57,10 @@ describe('Block reverting test', function () {
     let alice: zkweb3.Wallet;
     let mainContract: Contract;
     let blocksCommittedBeforeRevert: number;
-    let logs: fs.WriteStream;
 
     before('create test wallet', async () => {
         tester = await Tester.init(process.env.CHAIN_ETH_NETWORK || 'localhost');
         alice = tester.emptyWallet();
-        logs = fs.createWriteStream('revert.log', { flags: 'a' });
     });
 
     step('run server and execute some transactions', async () => {
@@ -77,7 +74,7 @@ describe('Block reverting test', function () {
 
         // Run server in background.
         const components = 'api,tree,eth,data_fetcher,state_keeper';
-        utils.background(`zk server --components ${components}`, [null, logs, logs]);
+        utils.background(`zk server --components ${components}`);
         // Server may need some time to recompile if it's a cold run, so wait for it.
         let iter = 0;
         while (iter < 30 && !mainContract) {
@@ -172,7 +169,7 @@ describe('Block reverting test', function () {
         process.env.CHAIN_STATE_KEEPER_AGGREGATED_BLOCK_EXECUTE_DEADLINE = '1';
 
         // Run server.
-        utils.background('zk server --components api,tree,eth,data_fetcher,state_keeper', [null, logs, logs]);
+        utils.background('zk server --components api,tree,eth,data_fetcher,state_keeper');
         await utils.sleep(10);
 
         const balanceBefore = await alice.getBalance();
@@ -200,7 +197,7 @@ describe('Block reverting test', function () {
         await killServerAndWaitForShutdown(tester);
 
         // Run again.
-        utils.background(`zk server --components=api,tree,eth,data_fetcher,state_keeper`, [null, logs, logs]);
+        utils.background(`zk server --components=api,tree,eth,data_fetcher,state_keeper`);
         await utils.sleep(10);
 
         // Trying to send a transaction from the same address again

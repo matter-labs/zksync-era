@@ -175,11 +175,6 @@ impl<DB: Database> Patched<DB> {
             .map_or_else(Vec::new, |patch| patch.roots.keys().copied().collect())
     }
 
-    /// Provides access to the wrapped DB. Should not be used to mutate DB data.
-    pub(crate) fn inner_mut(&mut self) -> &mut DB {
-        &mut self.inner
-    }
-
     /// Flushes changes from RAM to the wrapped database.
     pub fn flush(&mut self) {
         if let Some(patch) = self.patch.take() {

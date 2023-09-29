@@ -22,11 +22,5 @@
     "symbol": "DAI",
     "decimals": 18,
     "address": "0x5C221E77624690fff6dd741493D735a17716c26B"
-  },
-  {
-    "name": "Wrapped Ether",
-    "symbol": "WETH",
-    "decimals": 18,
-    "address": "0xB4FBF271143F4FBf7B91A5ded31805e42b2208d6"
   }
 ]

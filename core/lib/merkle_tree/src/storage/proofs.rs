@@ -62,7 +62,7 @@ use rayon::prelude::*;
 
 use crate::{
     hasher::{HasherWithStats, MerklePath},
-    metrics::{HashingStats, TreeUpdaterStats, BLOCK_TIMINGS, GENERAL_METRICS},
+    metrics::{BlockTimings, HashingMetrics, LeafCountMetric, Timing, TreeUpdaterMetrics},
     storage::{Database, NewLeafData, PatchSet, SortedKeys, Storage, TraverseOutcome, TreeUpdater},
     types::{
         BlockOutputWithProofs, InternalNode, Key, Nibbles, Node, TreeInstruction, TreeLogEntry,
@@ -239,7 +239,7 @@ impl TreeUpdater {
 
     fn split(self) -> [Self; SUBTREE_COUNT] {
         self.patch_set.split().map(|patch_set| Self {
-            metrics: TreeUpdaterStats::default(),
+            metrics: TreeUpdaterMetrics::default(),
             patch_set,
         })
     }
@@ -304,10 +304,10 @@ impl<'a, DB: Database + ?Sized> Storage<'a, DB> {
         mut self,
         instructions: Vec<(Key, TreeInstruction)>,
     ) -> (BlockOutputWithProofs, PatchSet) {
-        let load_nodes_latency = BLOCK_TIMINGS.load_nodes.start();
+        let load_nodes = BlockTimings::LoadNodes.start();
         let sorted_keys = SortedKeys::new(instructions.iter().map(|(key, _)| *key));
         let parent_nibbles = self.updater.load_ancestors(&sorted_keys, self.db);
-        load_nodes_latency.observe();
+        load_nodes.report();
 
         let leaf_indices = self.compute_leaf_indices(&instructions, sorted_keys, &parent_nibbles);
         let instruction_parts =
@@ -316,9 +316,9 @@ impl<'a, DB: Database + ?Sized> Storage<'a, DB> {
         let initial_metrics = self.updater.metrics;
         let storage_parts = self.updater.split();
 
-        let hashing_stats = HashingStats::default();
+        let hashing_stats = HashingMetrics::default();
 
-        let extend_patch_latency = BLOCK_TIMINGS.extend_patch.start();
+        let extend_patch = BlockTimings::ExtendPatch.start();
         // `into_par_iter()` below uses `rayon` to parallelize tree traversal and proof generation.
         let (storage_parts, logs): (Vec<_>, Vec<_>) = storage_parts
             .into_par_iter()
@@ -333,9 +333,9 @@ impl<'a, DB: Database + ?Sized> Storage<'a, DB> {
                 },
             )
             .unzip();
-        extend_patch_latency.observe();
+        extend_patch.report();
 
-        let finalize_patch_latency = BLOCK_TIMINGS.finalize_patch.start();
+        let finalize_patch = BlockTimings::FinalizePatch.start();
         self.updater = storage_parts
             .into_iter()
             .reduce(TreeUpdater::merge)
@@ -346,7 +346,7 @@ impl<'a, DB: Database + ?Sized> Storage<'a, DB> {
         let logs = merge_by_index(logs);
         let mut hasher = self.hasher.with_stats(&hashing_stats);
         let output_with_proofs = self.finalize_with_proofs(&mut hasher, initial_root, logs);
-        finalize_patch_latency.observe();
+        finalize_patch.report();
         drop(hasher);
         hashing_stats.report();
 
@@ -402,7 +402,7 @@ impl<'a, DB: Database + ?Sized> Storage<'a, DB> {
             logs,
             leaf_count: self.leaf_count,
         };
-        GENERAL_METRICS.leaf_count.set(self.leaf_count);
+        LeafCountMetric(self.leaf_count).report();
 
         (block_output, patch)
     }

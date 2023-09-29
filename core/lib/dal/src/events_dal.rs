@@ -197,7 +197,7 @@ mod tests {
     use super::*;
     use crate::{tests::create_miniblock_header, ConnectionPool};
     use db_test_macro::db_test;
-    use zksync_types::{Address, L1BatchNumber, ProtocolVersion};
+    use zksync_types::{Address, L1BatchNumber};
 
     fn create_vm_event(index: u8, topic_count: u8) -> VmEvent {
         assert!(topic_count <= 4);
@@ -211,19 +211,14 @@ mod tests {
 
     #[db_test(dal_crate)]
     async fn storing_events(pool: ConnectionPool) {
-        let mut conn = pool.access_storage().await.unwrap();
+        let mut conn = pool.access_storage().await;
         conn.events_dal().rollback_events(MiniblockNumber(0)).await;
         conn.blocks_dal()
             .delete_miniblocks(MiniblockNumber(0))
-            .await
-            .unwrap();
-        conn.protocol_versions_dal()
-            .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;
         conn.blocks_dal()
             .insert_miniblock(&create_miniblock_header(1))
-            .await
-            .unwrap();
+            .await;
 
         let first_location = IncludedTxLocation {
             tx_hash: H256([1; 32]),
@@ -286,21 +281,16 @@ mod tests {
 
     #[db_test(dal_crate)]
     async fn storing_l2_to_l1_logs(pool: ConnectionPool) {
-        let mut conn = pool.access_storage().await.unwrap();
+        let mut conn = pool.access_storage().await;
         conn.events_dal()
             .rollback_l2_to_l1_logs(MiniblockNumber(0))
             .await;
         conn.blocks_dal()
             .delete_miniblocks(MiniblockNumber(0))
-            .await
-            .unwrap();
-        conn.protocol_versions_dal()
-            .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;
         conn.blocks_dal()
             .insert_miniblock(&create_miniblock_header(1))
-            .await
-            .unwrap();
+            .await;
 
         let first_location = IncludedTxLocation {
             tx_hash: H256([1; 32]),

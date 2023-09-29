@@ -26,7 +26,7 @@ pub struct ProverGroupConfig {
 }
 
 impl ProverGroupConfig {
-    pub fn from_env() -> anyhow::Result<Self> {
+    pub fn from_env() -> Self {
         envy_load("prover_group", "PROVER_GROUP_")
     }
 
@@ -120,7 +120,7 @@ mod tests {
     fn from_env() {
         let mut lock = MUTEX.lock();
         lock.set_env(CONFIG);
-        let actual = ProverGroupConfig::from_env().unwrap();
+        let actual = ProverGroupConfig::from_env();
         assert_eq!(actual, expected_config());
     }
 
