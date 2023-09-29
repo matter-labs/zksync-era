@@ -1,5 +1,336 @@
 # Changelog
 
+## [15.0.1](https://github.com/matter-labs/zksync-2-dev/compare/core-v15.0.0...core-v15.0.1) (2023-09-27)
+
+
+### Bug Fixes
+
+* **vm:** Fix divergency of hashes for l2 block ([#2662](https://github.com/matter-labs/zksync-2-dev/issues/2662)) ([fb2e2ff](https://github.com/matter-labs/zksync-2-dev/commit/fb2e2ff5a79b7bbc8a1467f174fd6d26c3d11d36))
+
+## [15.0.0](https://github.com/matter-labs/zksync-2-dev/compare/core-v9.0.0...core-v15.0.0) (2023-09-26)
+
+
+### Features
+
+* Add replication lag checker to circuit breaker component ([#2620](https://github.com/matter-labs/zksync-2-dev/issues/2620)) ([a2b3395](https://github.com/matter-labs/zksync-2-dev/commit/a2b33950d884cbca1b1f7cc7b5a43ac3e38112dd))
+* Rewrite libraries to use `vise` metrics ([#2616](https://github.com/matter-labs/zksync-2-dev/issues/2616)) ([d8cdbe9](https://github.com/matter-labs/zksync-2-dev/commit/d8cdbe9ad8ce40f55bbd8c788f3ca055a33989e6))
+
+
+### Bug Fixes
+
+* **crypto:** update compressor to pass universal setup file ([#2610](https://github.com/matter-labs/zksync-2-dev/issues/2610)) ([39ea81c](https://github.com/matter-labs/zksync-2-dev/commit/39ea81c360026d58222826d8d97bf909ff2c6326))
+* **prover-fri:** move saving to GCS behind flag ([#2627](https://github.com/matter-labs/zksync-2-dev/issues/2627)) ([ed49420](https://github.com/matter-labs/zksync-2-dev/commit/ed49420fb782856541c632e64466ff4da8e05e81))
+* **tracer:** Fixed a bug in calltracer that resulted in empty traces ([#2636](https://github.com/matter-labs/zksync-2-dev/issues/2636)) ([7983edc](https://github.com/matter-labs/zksync-2-dev/commit/7983edc9f65b1accf960c71d1d99033f3ba0e111))
+* **vm:** next block assertion for the very first miniblock after upgrade ([#2655](https://github.com/matter-labs/zksync-2-dev/issues/2655)) ([7c00107](https://github.com/matter-labs/zksync-2-dev/commit/7c00107c0eb87092c1a5bab66b004c61d6917ac9))
+
+## [9.0.0](https://github.com/matter-labs/zksync-2-dev/compare/core-v8.7.0...core-v9.0.0) (2023-09-21)
+
+
+### ⚠ BREAKING CHANGES
+
+* update verification keys, protocol version 15 ([#2602](https://github.com/matter-labs/zksync-2-dev/issues/2602))
+
+### Features
+
+* **contracts:** Allow reading contracts code from other directories ([#2613](https://github.com/matter-labs/zksync-2-dev/issues/2613)) ([1481eb8](https://github.com/matter-labs/zksync-2-dev/commit/1481eb84cbac891586a41d6d9739ae343e3c1bb8))
+* make data returned from the VM to have arbitrary length ([#2479](https://github.com/matter-labs/zksync-2-dev/issues/2479)) ([9251690](https://github.com/matter-labs/zksync-2-dev/commit/92516901cb2db61987554ddf0f8e080a15e7e72e))
+* **prover-fri:** added picked-by column in prover fri related tables ([#2600](https://github.com/matter-labs/zksync-2-dev/issues/2600)) ([9e604ab](https://github.com/matter-labs/zksync-2-dev/commit/9e604abf3bae11b6f583f2abd39c07a85dc20f0a))
+* update verification keys, protocol version 15 ([#2602](https://github.com/matter-labs/zksync-2-dev/issues/2602)) ([2fff59b](https://github.com/matter-labs/zksync-2-dev/commit/2fff59bab00849996864b68e932739135337ebd7))
+* **vlog:** Rework the observability configuration subsystem ([#2608](https://github.com/matter-labs/zksync-2-dev/issues/2608)) ([377f0c5](https://github.com/matter-labs/zksync-2-dev/commit/377f0c5f734c979bc990b429dff0971466872e71))
+* **vm:** Multivm tracer support ([#2601](https://github.com/matter-labs/zksync-2-dev/issues/2601)) ([4a7467b](https://github.com/matter-labs/zksync-2-dev/commit/4a7467b1b1556bfd795792dbe280bcf28c93a58f))
+
+## [8.7.0](https://github.com/matter-labs/zksync-2-dev/compare/core-v8.6.0...core-v8.7.0) (2023-09-19)
+
+
+### Features
+
+* Rework metrics approach ([#2387](https://github.com/matter-labs/zksync-2-dev/issues/2387)) ([4855546](https://github.com/matter-labs/zksync-2-dev/commit/48555465d32f8524f6cf488859e8ae8259ecf5da))
+
+
+### Bug Fixes
+
+* **db:** Vacuum `storage_logs` table along with removing duplicate rows ([#2583](https://github.com/matter-labs/zksync-2-dev/issues/2583)) ([84f472d](https://github.com/matter-labs/zksync-2-dev/commit/84f472deb14a92bd2b90f8160c9316d21b646ff4))
+* **prover_fri:** drop not null constraint from proof_compression_jobs_fri fri_proof_blob_url column ([#2590](https://github.com/matter-labs/zksync-2-dev/issues/2590)) ([5e41fee](https://github.com/matter-labs/zksync-2-dev/commit/5e41fee69c869c53d999c3ee53e3e7dd6735e603))
+* **state-keeper:** deduplication logic ([#2597](https://github.com/matter-labs/zksync-2-dev/issues/2597)) ([7122a2b](https://github.com/matter-labs/zksync-2-dev/commit/7122a2b0cc33a96a4c117186437db8e290388356))
+* **storage:** Ignore non-committed factory deps in RocksDB ([#2585](https://github.com/matter-labs/zksync-2-dev/issues/2585)) ([b3da824](https://github.com/matter-labs/zksync-2-dev/commit/b3da82483639728bd899fb9388b9b2868cb28159))
+* **vm:** Handle near call gas correctly ([#2587](https://github.com/matter-labs/zksync-2-dev/issues/2587)) ([c925259](https://github.com/matter-labs/zksync-2-dev/commit/c9252597ce330d0c982365bb703c373191d03506))
+
+## [8.6.0](https://github.com/matter-labs/zksync-2-dev/compare/core-v8.5.0...core-v8.6.0) (2023-09-15)
+
+
+### Features
+
+* **prover-fri:** insert missing protocol version in FRI witness-gen table ([#2577](https://github.com/matter-labs/zksync-2-dev/issues/2577)) ([b9af6a5](https://github.com/matter-labs/zksync-2-dev/commit/b9af6a5784b0e6538bd542830593d16f3caf5fe5))
+* **prover-server-api:** Add SkippedProofGeneration in SubmitProofRequest ([#2575](https://github.com/matter-labs/zksync-2-dev/issues/2575)) ([9c2653e](https://github.com/matter-labs/zksync-2-dev/commit/9c2653e5bc0e56b2906e9d25be3cb2887ad7d35d))
+
+## [8.5.0](https://github.com/matter-labs/zksync-2-dev/compare/core-v8.4.0...core-v8.5.0) (2023-09-15)
+
+
+### Features
+
+* **API:** enable request translator for ws api ([#2568](https://github.com/matter-labs/zksync-2-dev/issues/2568)) ([ccb6cad](https://github.com/matter-labs/zksync-2-dev/commit/ccb6cad57c9ba0ca58114701c256dbc44a457459))
+* Use tracing directly instead of vlog macros ([#2566](https://github.com/matter-labs/zksync-2-dev/issues/2566)) ([53d53af](https://github.com/matter-labs/zksync-2-dev/commit/53d53afc9157214fb911aa0934a97f8b5103e1ec))
+* **witness-generator:** Get wit inputs from MerklePath instead of SK ([#2559](https://github.com/matter-labs/zksync-2-dev/issues/2559)) ([da1c2fa](https://github.com/matter-labs/zksync-2-dev/commit/da1c2fa2b043bc4e31075a0454dc0e09937c93ad))
+
+
+### Bug Fixes
+
+* Do not automatically emit sentry events on vlog::error ([#2560](https://github.com/matter-labs/zksync-2-dev/issues/2560)) ([aebcd86](https://github.com/matter-labs/zksync-2-dev/commit/aebcd8634a0984aaf357b03d925932807848b6b8))
+* filter_near_call performance ([#2523](https://github.com/matter-labs/zksync-2-dev/issues/2523)) ([eccb06b](https://github.com/matter-labs/zksync-2-dev/commit/eccb06b649621b6866476c6c5a95545e3359d79b))
+
+## [8.4.0](https://github.com/matter-labs/zksync-2-dev/compare/core-v8.3.1...core-v8.4.0) (2023-09-14)
+
+
+### Features
+
+* **API:** new translator for virtual blocks for zks_getLogs endpoint ([#2505](https://github.com/matter-labs/zksync-2-dev/issues/2505)) ([35b0553](https://github.com/matter-labs/zksync-2-dev/commit/35b05537dc8fecf11be477bd156da332d75b1320))
+* **contract-verifier:** Add zkvyper v1.3.10 ([#2554](https://github.com/matter-labs/zksync-2-dev/issues/2554)) ([711c5db](https://github.com/matter-labs/zksync-2-dev/commit/711c5db4bd48e9b4b166256e8c9554ef0e54fad8))
+* **contract-verifier:** Support verification for zksolc v1.3.14  ([#2546](https://github.com/matter-labs/zksync-2-dev/issues/2546)) ([adea3ef](https://github.com/matter-labs/zksync-2-dev/commit/adea3efd39099ef9599e24d47de6c7cffe6b0287))
+* Decrease crate versions back to 0.1.0 ([#2528](https://github.com/matter-labs/zksync-2-dev/issues/2528)) ([adb7614](https://github.com/matter-labs/zksync-2-dev/commit/adb76142882dde197cd64b1aaaffb01906427054))
+* **prover-fri:** Restrict prover to pick jobs for which they have vk's ([#2541](https://github.com/matter-labs/zksync-2-dev/issues/2541)) ([cedba03](https://github.com/matter-labs/zksync-2-dev/commit/cedba03ea66fc0da479e60d5ca30d8f67e32358a))
+* **vm:** Make execute interface more obvious ([#2536](https://github.com/matter-labs/zksync-2-dev/issues/2536)) ([4cb18cb](https://github.com/matter-labs/zksync-2-dev/commit/4cb18cb06e87628ad122fc9857c789d1411a7f77))
+
+
+### Bug Fixes
+
+* **multi_vm:** Fix executing eth_call for old vm version ([#2558](https://github.com/matter-labs/zksync-2-dev/issues/2558)) ([0f3b990](https://github.com/matter-labs/zksync-2-dev/commit/0f3b990735caab8c905a9b51256608f4f7614ff1))
+* **vm:** Add trait for convinient usage of tracers ([#2550](https://github.com/matter-labs/zksync-2-dev/issues/2550)) ([bc2ed11](https://github.com/matter-labs/zksync-2-dev/commit/bc2ed1188cf545cfae1266302f1d5c2ef1feab0f))
+
+
+### Performance Improvements
+
+* **state-keeper:** only persist unique storage logs per miniblock ([#1793](https://github.com/matter-labs/zksync-2-dev/issues/1793)) ([d0ef78b](https://github.com/matter-labs/zksync-2-dev/commit/d0ef78b294c4e29692170c9b244414c7a5b9aa6c))
+
+## [8.3.1](https://github.com/matter-labs/zksync-2-dev/compare/core-v8.3.0...core-v8.3.1) (2023-09-12)
+
+
+### Bug Fixes
+
+* **house-keeper:** remove extra ! from status column ([#2539](https://github.com/matter-labs/zksync-2-dev/issues/2539)) ([583dadb](https://github.com/matter-labs/zksync-2-dev/commit/583dadb91885e664b79b299fc2cd84d5077cc2cd))
+
+## [8.3.0](https://github.com/matter-labs/zksync-2-dev/compare/core-v8.2.1...core-v8.3.0) (2023-09-11)
+
+
+### Features
+
+* **api:** Report some metrics more often ([#2519](https://github.com/matter-labs/zksync-2-dev/issues/2519)) ([eede188](https://github.com/matter-labs/zksync-2-dev/commit/eede188f6160fa383496c7c8ae8409c68bc54114))
+* **housekeeper:** add proof compressor retry and queued jobs reporting ([#2526](https://github.com/matter-labs/zksync-2-dev/issues/2526)) ([4321545](https://github.com/matter-labs/zksync-2-dev/commit/432154527dc85a17fc83c9e866b772a8d6f47673))
+* **metrics:** add more metrics to dry run ([#2529](https://github.com/matter-labs/zksync-2-dev/issues/2529)) ([0abdbb8](https://github.com/matter-labs/zksync-2-dev/commit/0abdbb8bd3229d2907f1f82493b2cf8e7a6a3254))
+* **vm:** New vm intregration ([#2198](https://github.com/matter-labs/zksync-2-dev/issues/2198)) ([f5e7e7a](https://github.com/matter-labs/zksync-2-dev/commit/f5e7e7a6fa81ab46289016f57a6123ffec83bcf6))
+
+
+### Bug Fixes
+
+* **vm:** Add bootloader tip execution mode ([#2535](https://github.com/matter-labs/zksync-2-dev/issues/2535)) ([2d64a3a](https://github.com/matter-labs/zksync-2-dev/commit/2d64a3a0947d131a4f9baf57afd1e26bccbc7b81))
+
+
+### Performance Improvements
+
+* **db:** Support previous blocks in VM values cache ([#2474](https://github.com/matter-labs/zksync-2-dev/issues/2474)) ([5eb32c5](https://github.com/matter-labs/zksync-2-dev/commit/5eb32c588b4ae1c85ef8fc95f70e03921eb19625))
+
+## [8.2.1](https://github.com/matter-labs/zksync-2-dev/compare/core-v8.2.0...core-v8.2.1) (2023-09-07)
+
+
+### Bug Fixes
+
+* **api:** miniblock_hash loading ([#2513](https://github.com/matter-labs/zksync-2-dev/issues/2513)) ([c553dae](https://github.com/matter-labs/zksync-2-dev/commit/c553daeca49a943a323cefa2017808e6c06728e9))
+
+## [8.2.0](https://github.com/matter-labs/zksync-2-dev/compare/core-v8.1.1...core-v8.2.0) (2023-09-06)
+
+
+### Features
+
+* **prover-fri-compressor:** Create a dedicated component for FRI proof conversion ([#2501](https://github.com/matter-labs/zksync-2-dev/issues/2501)) ([cd43aa7](https://github.com/matter-labs/zksync-2-dev/commit/cd43aa73095bf97b54c9fbcc9934128cc29506c2))
+* **prover-fri:** use separate object store config for FRI prover components ([#2494](https://github.com/matter-labs/zksync-2-dev/issues/2494)) ([7f2537f](https://github.com/matter-labs/zksync-2-dev/commit/7f2537fc987c55b6efec925506478d665d20c0c4))
+* **witness-generator:** Add Witness Storage, later used in Wit Gen ([#2509](https://github.com/matter-labs/zksync-2-dev/issues/2509)) ([c78ddf3](https://github.com/matter-labs/zksync-2-dev/commit/c78ddf33e7de929fd369472e8892a2a83f2b0ac2))
+* **witness-generator:** Basic Wit Gen uses multiple Storage backends ([#2510](https://github.com/matter-labs/zksync-2-dev/issues/2510)) ([1dc1f1c](https://github.com/matter-labs/zksync-2-dev/commit/1dc1f1c4e65f0f49c63a654c64596dc085911791))
+
+
+### Bug Fixes
+
+* **api:** Use multivm bootloader in debug ([#2504](https://github.com/matter-labs/zksync-2-dev/issues/2504)) ([ae2a357](https://github.com/matter-labs/zksync-2-dev/commit/ae2a357f38a57498ef527f2ccbce1d32b9b3f7b5))
+* **witnes-gen:** Fix getting bootloader memory ([#2507](https://github.com/matter-labs/zksync-2-dev/issues/2507)) ([bb8f894](https://github.com/matter-labs/zksync-2-dev/commit/bb8f89472432e9b11c538881f27dda8afdf46a4f))
+* **witness-generator:** Add Data Source config for Basic Witness Gens ([#2502](https://github.com/matter-labs/zksync-2-dev/issues/2502)) ([9126597](https://github.com/matter-labs/zksync-2-dev/commit/91265973d0eabb34e056277cd2aa730c05a9c06f))
+
+## [8.1.1](https://github.com/matter-labs/zksync-2-dev/compare/core-v8.1.0...core-v8.1.1) (2023-09-06)
+
+
+### Performance Improvements
+
+* **db:** Add `miniblocks_pending_batch` DB index ([#2496](https://github.com/matter-labs/zksync-2-dev/issues/2496)) ([dc20057](https://github.com/matter-labs/zksync-2-dev/commit/dc200570f62bb52de5fa798a353f08fae0a3fc71))
+
+## [8.1.0](https://github.com/matter-labs/zksync-2-dev/compare/core-v8.0.0...core-v8.1.0) (2023-09-05)
+
+
+### Features
+
+* **genesis:** make it possible to create genesis block with given protocol version ([#2471](https://github.com/matter-labs/zksync-2-dev/issues/2471)) ([430de1f](https://github.com/matter-labs/zksync-2-dev/commit/430de1f4ed59e9bc1eeb029dacdf88684c34a1ad))
+
+
+### Bug Fixes
+
+* **api:** Zeroes in eth_feeHistory ([#2490](https://github.com/matter-labs/zksync-2-dev/issues/2490)) ([67cd433](https://github.com/matter-labs/zksync-2-dev/commit/67cd433f57e01fdf94da7461c6b76a6948815212))
+* **db:** Fix `get_expected_l1_batch_timestamp` query ([#2492](https://github.com/matter-labs/zksync-2-dev/issues/2492)) ([660ae98](https://github.com/matter-labs/zksync-2-dev/commit/660ae98d34b48f8c97c50c8c7988049e50d90297))
+
+## [8.0.0](https://github.com/matter-labs/zksync-2-dev/compare/core-v7.2.0...core-v8.0.0) (2023-09-05)
+
+
+### ⚠ BREAKING CHANGES
+
+* Fix a bug for the ending of the upgrade ([#2478](https://github.com/matter-labs/zksync-2-dev/issues/2478))
+
+### Features
+
+* **prover-fri:** Add protocol version for FRI prover related tables ([#2458](https://github.com/matter-labs/zksync-2-dev/issues/2458)) ([784a52b](https://github.com/matter-labs/zksync-2-dev/commit/784a52bc2d2fa784fe82cc10df1d39895255ade5))
+
+
+### Bug Fixes
+
+* **api:** Use MultiVM in API ([#2476](https://github.com/matter-labs/zksync-2-dev/issues/2476)) ([683582d](https://github.com/matter-labs/zksync-2-dev/commit/683582dab2fb26d09a5e183ac9e4d0d9e61286e4))
+* Fix a bug for the ending of the upgrade ([#2478](https://github.com/matter-labs/zksync-2-dev/issues/2478)) ([5fbad97](https://github.com/matter-labs/zksync-2-dev/commit/5fbad971af10240feaa8da3062dcf7c98aca3f02))
+
+## [7.2.0](https://github.com/matter-labs/zksync-2-dev/compare/core-v7.1.0...core-v7.2.0) (2023-09-01)
+
+
+### Features
+
+* **api:** Implement rate-limiting for WebSocket jsonrpc backend ([#2468](https://github.com/matter-labs/zksync-2-dev/issues/2468)) ([db86c11](https://github.com/matter-labs/zksync-2-dev/commit/db86c11caf1c63de6fa6be5031636d95125fa6c9))
+* **api:** make gas per pubdata field  to be not optional in SDK and API for transaction details endpoint ([#2431](https://github.com/matter-labs/zksync-2-dev/issues/2431)) ([4c3636a](https://github.com/matter-labs/zksync-2-dev/commit/4c3636a33af345046d5a78ee8b65b1a4d1066e98))
+
+
+### Bug Fixes
+
+* debug and fix local node setup ([#2408](https://github.com/matter-labs/zksync-2-dev/issues/2408)) ([4f3a9e6](https://github.com/matter-labs/zksync-2-dev/commit/4f3a9e695c868a181c7ecd1dbbd647b1a2a74a4f))
+
+## [7.1.0](https://github.com/matter-labs/zksync-2-dev/compare/core-v7.0.0...core-v7.1.0) (2023-09-01)
+
+
+### Features
+
+* **api:** Support batch request size limiting in jsonrpc ([#2461](https://github.com/matter-labs/zksync-2-dev/issues/2461)) ([287d360](https://github.com/matter-labs/zksync-2-dev/commit/287d360d03914adf3e15c115470709abadf4585c))
+* **prover-gateway:** integrate snark wrapper to transform FRI proof to old ([#2413](https://github.com/matter-labs/zksync-2-dev/issues/2413)) ([60bb26b](https://github.com/matter-labs/zksync-2-dev/commit/60bb26bdc31f13f2b9253b245e848951e8e6e501))
+* **witness_generator:** Add flagged upload path on state keeper ([#2448](https://github.com/matter-labs/zksync-2-dev/issues/2448)) ([10b78cb](https://github.com/matter-labs/zksync-2-dev/commit/10b78cb6b31e2bfe6c84d6cb76f3228003e44ae7))
+
+
+### Bug Fixes
+
+* **en:** Set correct hashes for old blocks ([#2463](https://github.com/matter-labs/zksync-2-dev/issues/2463)) ([aa5d0b1](https://github.com/matter-labs/zksync-2-dev/commit/aa5d0b126b8e68a8f4e8da874611165acf145a73))
+* **en:** Set correct version for upgrade  ([#2464](https://github.com/matter-labs/zksync-2-dev/issues/2464)) ([44e5f32](https://github.com/matter-labs/zksync-2-dev/commit/44e5f32b910917f1661fbd0139f2ba35cbc9eca0))
+* **state-keeper:** Calculate miniblock hash based on protocol version ([#2462](https://github.com/matter-labs/zksync-2-dev/issues/2462)) ([01bee1d](https://github.com/matter-labs/zksync-2-dev/commit/01bee1dcd1c398374253bb8b40ab9385d9fd8547))
+
+## [7.0.0](https://github.com/matter-labs/zksync-2-dev/compare/core-v6.2.0...core-v7.0.0) (2023-08-30)
+
+
+### ⚠ BREAKING CHANGES
+
+* **vm:** replace L1 batch number and timestamp with  miniblock number and timestamp ([#1975](https://github.com/matter-labs/zksync-2-dev/issues/1975))
+
+### Features
+
+* **prover-server-split:** insert batches to be proven on proof_generation_details table ([#2417](https://github.com/matter-labs/zksync-2-dev/issues/2417)) ([504c37f](https://github.com/matter-labs/zksync-2-dev/commit/504c37fc3aeab951b335b574508289fef33e1700))
+* **vm:** replace L1 batch number and timestamp with  miniblock number and timestamp ([#1975](https://github.com/matter-labs/zksync-2-dev/issues/1975)) ([6814c7e](https://github.com/matter-labs/zksync-2-dev/commit/6814c7eafa0c6f29607e81acfffc70ac1fa5fa96))
+* **witness_generator:** Add upload_witness_inputs_to_gcs flag ([#2444](https://github.com/matter-labs/zksync-2-dev/issues/2444)) ([9f0b87e](https://github.com/matter-labs/zksync-2-dev/commit/9f0b87ef1b33defa71ef98ff2cd5fb66f6537837))
+
+
+### Bug Fixes
+
+* **api:** fix eth_call for old blocks ([#2440](https://github.com/matter-labs/zksync-2-dev/issues/2440)) ([19bba44](https://github.com/matter-labs/zksync-2-dev/commit/19bba4413f8f4197e2178e409106eecf12089d08))
+* **en:** Allow executed batch reversion ([#2442](https://github.com/matter-labs/zksync-2-dev/issues/2442)) ([a47b72d](https://github.com/matter-labs/zksync-2-dev/commit/a47b72db82527409e224467bfb07ca642426385f))
+* **en:** Insert protocol version for pending batch ([#2450](https://github.com/matter-labs/zksync-2-dev/issues/2450)) ([dd0792e](https://github.com/matter-labs/zksync-2-dev/commit/dd0792ea200f255c9f9f3e55924cb7caf0452b89))
+* **en:** Set protocol version for pending blocks in EN ([#2443](https://github.com/matter-labs/zksync-2-dev/issues/2443)) ([7464395](https://github.com/matter-labs/zksync-2-dev/commit/746439527be10ad513607094953ba7523316b843))
+
+## [6.2.0](https://github.com/matter-labs/zksync-2-dev/compare/core-v6.1.0...core-v6.2.0) (2023-08-28)
+
+
+### Features
+
+* **hyperchain:** hyperchain script ([#2410](https://github.com/matter-labs/zksync-2-dev/issues/2410)) ([52b63d3](https://github.com/matter-labs/zksync-2-dev/commit/52b63d348f634a4434d21aa2b1955e55859556d6))
+
+
+### Bug Fixes
+
+* **api:** Revert `ProtocolVersionId` serialization ([#2425](https://github.com/matter-labs/zksync-2-dev/issues/2425)) ([e2eee91](https://github.com/matter-labs/zksync-2-dev/commit/e2eee9121961fae234e8228c35ef4265b1328cf1))
+* **db:** Fix prover_jobs indices ([#2416](https://github.com/matter-labs/zksync-2-dev/issues/2416)) ([4104e7e](https://github.com/matter-labs/zksync-2-dev/commit/4104e7e1e3bd5dfc3c46827e45527dc9a40b7757))
+
+## [6.1.0](https://github.com/matter-labs/zksync-2-dev/compare/core-v6.0.0...core-v6.1.0) (2023-08-25)
+
+
+### Features
+
+* Add logging for health check changes ([#2401](https://github.com/matter-labs/zksync-2-dev/issues/2401)) ([3be83e5](https://github.com/matter-labs/zksync-2-dev/commit/3be83e5481f12745579a1d7e6c42d2fa27a0a566))
+* **api:** Measure difference from last miniblock for JSON-RPC APIs ([#2370](https://github.com/matter-labs/zksync-2-dev/issues/2370)) ([c706927](https://github.com/matter-labs/zksync-2-dev/commit/c706927d233935c20ac074968a82b10449eb4dff))
+* **eth-sender:** add support for loading new proofs from GCS ([#2392](https://github.com/matter-labs/zksync-2-dev/issues/2392)) ([54f6f53](https://github.com/matter-labs/zksync-2-dev/commit/54f6f53953ddd20c19a8d6de092700de2835ad33))
+* glue VM version, protocol version and EN ([#2411](https://github.com/matter-labs/zksync-2-dev/issues/2411)) ([c3768fc](https://github.com/matter-labs/zksync-2-dev/commit/c3768fc028afbd4b0ed8d005430a0d3a1ede72c1))
+* **prover-server-split:** consume API for fetching proof gen data and submitting proofs ([#2365](https://github.com/matter-labs/zksync-2-dev/issues/2365)) ([6e99471](https://github.com/matter-labs/zksync-2-dev/commit/6e994717086941fd2538fced7c32b4bb5eeb4eac))
+
+
+### Bug Fixes
+
+* **contract-verifier:** No panic when 2 parallel cvs insert same key ([#2396](https://github.com/matter-labs/zksync-2-dev/issues/2396)) ([f0d9081](https://github.com/matter-labs/zksync-2-dev/commit/f0d90815cc2a27b27f84c0aa434a16fff59f356f))
+* **en:** do not save protocol version for miniblocks/batches in EN ([#2403](https://github.com/matter-labs/zksync-2-dev/issues/2403)) ([75bd867](https://github.com/matter-labs/zksync-2-dev/commit/75bd867079830d4519c1e20c4a53af749ecc325d))
+* **en:** Save system tx to en ([#2402](https://github.com/matter-labs/zksync-2-dev/issues/2402)) ([0bb50a5](https://github.com/matter-labs/zksync-2-dev/commit/0bb50a5b31d5e0960ed3dec84b21170d6ccfddad))
+* save protocol versions in prover DB ([#2384](https://github.com/matter-labs/zksync-2-dev/issues/2384)) ([0fc2195](https://github.com/matter-labs/zksync-2-dev/commit/0fc21952e630f56df582b79e071998564132f67f))
+
+## [6.0.0](https://github.com/matter-labs/zksync-2-dev/compare/core-v5.28.1...core-v6.0.0) (2023-08-18)
+
+
+### ⚠ BREAKING CHANGES
+
+* new upgrade system ([#1784](https://github.com/matter-labs/zksync-2-dev/issues/1784))
+
+### Features
+
+* Add shadow_storage to enable shadow state read ([#2366](https://github.com/matter-labs/zksync-2-dev/issues/2366)) ([3269d82](https://github.com/matter-labs/zksync-2-dev/commit/3269d82de20b205feec4e4056dad51cd28e14f8f))
+* **db:** Instrument key queries in DAL ([#2318](https://github.com/matter-labs/zksync-2-dev/issues/2318)) ([eb08ed6](https://github.com/matter-labs/zksync-2-dev/commit/eb08ed69db8655dd4e0d485597568c6e4e01e5bf))
+* new upgrade system ([#1784](https://github.com/matter-labs/zksync-2-dev/issues/1784)) ([469a4c3](https://github.com/matter-labs/zksync-2-dev/commit/469a4c332a4f02b5a642b2951fd00228c9317f59))
+* **prover-fri:** Add socket listener to receive witness vector over network ([#2367](https://github.com/matter-labs/zksync-2-dev/issues/2367)) ([19c9d89](https://github.com/matter-labs/zksync-2-dev/commit/19c9d89613a5d3ab5e55d9224a512a8952aa3689))
+* **prover-server-split:** expose API from server for requesting proof gen data and submitting proof ([#2292](https://github.com/matter-labs/zksync-2-dev/issues/2292)) ([401d0ab](https://github.com/matter-labs/zksync-2-dev/commit/401d0ab51bfce89203fd82b5f8d1a6865f6d19b0))
+* **witness-vector-generator:** Perform circuit synthesis on external machine ([#2351](https://github.com/matter-labs/zksync-2-dev/issues/2351)) ([6839f3f](https://github.com/matter-labs/zksync-2-dev/commit/6839f3fbfe472fb2fd492a9648bb97d1654bbb3b))
+
+
+### Bug Fixes
+
+* Return old paths for contract-verification API ([#2356](https://github.com/matter-labs/zksync-2-dev/issues/2356)) ([605a3ac](https://github.com/matter-labs/zksync-2-dev/commit/605a3ac0951241a892ee8f0832b69336299da6c6))
+
+
+### Performance Improvements
+
+* **db:** Optimize loading L1 batch header ([#2343](https://github.com/matter-labs/zksync-2-dev/issues/2343)) ([1274469](https://github.com/matter-labs/zksync-2-dev/commit/1274469b0618582d2027bc7b8dbda779486a553d))
+
+## [5.28.1](https://github.com/matter-labs/zksync-2-dev/compare/core-v5.28.0...core-v5.28.1) (2023-08-10)
+
+
+### Bug Fixes
+
+* **api:** fix typo when setting `max_response_body_size` ([#2341](https://github.com/matter-labs/zksync-2-dev/issues/2341)) ([540da7f](https://github.com/matter-labs/zksync-2-dev/commit/540da7f16e745e0288a8877891c1f80d6d62bc00))
+
+## [5.28.0](https://github.com/matter-labs/zksync-2-dev/compare/core-v5.27.0...core-v5.28.0) (2023-08-10)
+
+
+### Features
+
+* **api:** add `max_response_body_size` to config ([#2294](https://github.com/matter-labs/zksync-2-dev/issues/2294)) ([a29a71a](https://github.com/matter-labs/zksync-2-dev/commit/a29a71a81f04672c8dbae7e9aac760b70dbca8f0))
+* **db:** Configure statement timeout for Postgres ([#2317](https://github.com/matter-labs/zksync-2-dev/issues/2317)) ([afdbb6b](https://github.com/matter-labs/zksync-2-dev/commit/afdbb6b94d9e43b9659ff5d3428f2d9a7827b29f))
+* **en:** Add support for debug namespace in EN ([#2295](https://github.com/matter-labs/zksync-2-dev/issues/2295)) ([ebcc6e9](https://github.com/matter-labs/zksync-2-dev/commit/ebcc6e9ac387b85e44795f6d35edb4b0a6175de2))
+* **house-keeper:** refactor periodic job to be reusable by adding in lib ([#2333](https://github.com/matter-labs/zksync-2-dev/issues/2333)) ([ad72a16](https://github.com/matter-labs/zksync-2-dev/commit/ad72a1691b661b2b4eeaefd29375a8987b485715))
+* **hyperchain:** hyperchain wizard ([#2259](https://github.com/matter-labs/zksync-2-dev/issues/2259)) ([34c5b54](https://github.com/matter-labs/zksync-2-dev/commit/34c5b542d6436930a6068c4d08562804205154a9))
+* **prover-fri:** Add concurrent circuit synthesis for FRI GPU prover ([#2326](https://github.com/matter-labs/zksync-2-dev/issues/2326)) ([aef3491](https://github.com/matter-labs/zksync-2-dev/commit/aef3491cd6af01840dd4fe5b7e530028916ffa8f))
+* **state-keeper:** enforce different timestamps for miniblocks ([#2280](https://github.com/matter-labs/zksync-2-dev/issues/2280)) ([f87944e](https://github.com/matter-labs/zksync-2-dev/commit/f87944e72526112454934a61c71475b5a6fde22e))
+
+
+### Bug Fixes
+
+* **db:** Fix storage caches initialization ([#2339](https://github.com/matter-labs/zksync-2-dev/issues/2339)) ([ec8c822](https://github.com/matter-labs/zksync-2-dev/commit/ec8c8229ecd9f2a0f96f15a03929ede5453b6b09))
+* **prover:** Kill prover process for edge-case in crypto thread code ([#2334](https://github.com/matter-labs/zksync-2-dev/issues/2334)) ([f2b5e1a](https://github.com/matter-labs/zksync-2-dev/commit/f2b5e1a2fcbe3053e372f15992e592bc0c32a88f))
+* **state-keeper:** Order by number in `SELECT timestamp ...` query ([#2331](https://github.com/matter-labs/zksync-2-dev/issues/2331)) ([513e36e](https://github.com/matter-labs/zksync-2-dev/commit/513e36ec6aace545004b964861d080b308e7a98b))
+
+
+### Performance Improvements
+
+* **merkle tree:** Allow configuring multi-get chunk size ([#2332](https://github.com/matter-labs/zksync-2-dev/issues/2332)) ([0633911](https://github.com/matter-labs/zksync-2-dev/commit/06339117a36060bb31b6afb3933e12625c943e0b))
+* **merkle tree:** Parallelize loading data and updating tree ([#2327](https://github.com/matter-labs/zksync-2-dev/issues/2327)) ([1edd6ee](https://github.com/matter-labs/zksync-2-dev/commit/1edd6eee62b112d3f3d1b790df01acd04be1eeef))
+* **merkle tree:** Use batched multi-get for RocksDB ([#2304](https://github.com/matter-labs/zksync-2-dev/issues/2304)) ([df22946](https://github.com/matter-labs/zksync-2-dev/commit/df22946743ac56dbe86c5875a1e35345bfcd1f09))
+
 ## [5.27.0](https://github.com/matter-labs/zksync-2-dev/compare/core-v5.26.0...core-v5.27.0) (2023-08-04)
 
 

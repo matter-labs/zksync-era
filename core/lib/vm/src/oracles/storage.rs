@@ -1,9 +1,12 @@
 use std::collections::HashMap;
 
-use crate::history_recorder::{
-    AppDataFrameManagerWithHistory, HashMapHistoryEvent, HistoryEnabled, HistoryMode,
-    HistoryRecorder, StorageWrapper, WithHistory,
+use crate::implement_rollback;
+use crate::rollback::snapshotted::Snapshotted;
+use crate::rollback::{
+    history_recorder::{HashMapHistoryEvent, HistoryRecorder, StorageWrapper},
+    reversable_log::ReversableLog,
 };
+use crate::rollback::{LayeredRollback, Rollback};
 
 use zk_evm::abstractions::RefundedAmounts;
 use zk_evm::zkevm_opcode_defs::system_params::INITIAL_STORAGE_WRITE_PUBDATA_BYTES;
@@ -11,7 +14,8 @@ use zk_evm::{
     abstractions::{RefundType, Storage as VmStorageOracle},
     aux_structures::{LogQuery, Timestamp},
 };
-use zksync_state::StoragePtr;
+
+use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::utils::storage_key_for_eth_balance;
 use zksync_types::{
     AccountTreeId, Address, StorageKey, StorageLogQuery, StorageLogQueryType, BOOTLOADER_ADDRESS,
@@ -19,84 +23,127 @@ use zksync_types::{
 };
 use zksync_utils::u256_to_h256;
 
-use super::OracleWithHistory;
-
 // While the storage does not support different shards, it was decided to write the
 // code of the StorageOracle with the shard parameters in mind.
-pub fn triplet_to_storage_key(_shard_id: u8, address: Address, key: U256) -> StorageKey {
+pub(crate) fn triplet_to_storage_key(_shard_id: u8, address: Address, key: U256) -> StorageKey {
     StorageKey::new(AccountTreeId::new(address), u256_to_h256(key))
 }
 
-pub fn storage_key_of_log(query: &LogQuery) -> StorageKey {
+pub(crate) fn storage_key_of_log(query: &LogQuery) -> StorageKey {
     triplet_to_storage_key(query.shard_id, query.address, query.key)
 }
 
 #[derive(Debug)]
-pub struct StorageOracle<'a, H: HistoryMode> {
+pub struct StorageOracle<S: WriteStorage>(LayeredRollback<StorageOracleInternals<S>>);
+
+impl<S: WriteStorage> StorageOracle<S> {
+    pub fn new(storage: StoragePtr<S>) -> Self {
+        StorageOracle(LayeredRollback::new(StorageOracleInternals {
+            storage: HistoryRecorder::from_inner(StorageWrapper::new(storage)),
+            storage_logs: Default::default(),
+            paid_changes: Default::default(),
+            bytes_paid: Default::default(),
+        }))
+    }
+
+    pub(crate) fn bytes_paid(&self) -> u32 {
+        self.0.inner.bytes_paid.value
+    }
+
+    pub(crate) fn get_ptr(&self) -> std::rc::Rc<std::cell::RefCell<S>> {
+        self.0.inner.storage.get_ptr()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn storage_logs(&self) -> ReversableLog<Box<StorageLogQuery>> {
+        self.0.inner.storage_logs.clone()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn read_from_storage(&self, key: &StorageKey) -> U256 {
+        self.0.inner.storage.read_from_storage(key)
+    }
+
+    /// Returns storage log queries where `log.log_query.timestamp >= from_timestamp`.
+    pub(crate) fn storage_log_queries_after_timestamp(
+        &self,
+        from_timestamp: Timestamp,
+    ) -> &[Box<StorageLogQuery>] {
+        let logs = self.0.inner.storage_logs.events();
+
+        // Select all of the last elements where l.log_query.timestamp >= from_timestamp.
+        // Note, that using binary search here is dangerous, because the logs are not sorted by timestamp.
+        logs.rsplit(|l| l.log_query.timestamp < from_timestamp)
+            .next()
+            .unwrap_or(&[])
+    }
+
+    pub(crate) fn get_final_log_queries(&self) -> Vec<StorageLogQuery> {
+        self.0
+            .inner
+            .storage_logs
+            .events()
+            .iter()
+            .map(|x| **x)
+            .collect()
+    }
+}
+
+impl<S: WriteStorage> Rollback for StorageOracle<S> {
+    fn snapshot(&mut self) {
+        self.0.snapshot()
+    }
+    fn rollback(&mut self) {
+        self.0.rollback()
+    }
+    fn forget_snapshot(&mut self) {
+        self.0.forget_snapshot()
+    }
+}
+
+#[derive(Debug)]
+struct StorageOracleInternals<S: WriteStorage> {
     // Access to the persistent storage. Please note that it
     // is used only for read access. All the actual writes happen
     // after the execution ended.
-    pub storage: HistoryRecorder<StorageWrapper<'a>, H>,
+    pub(crate) storage: HistoryRecorder<StorageWrapper<S>>,
 
-    pub frames_stack: AppDataFrameManagerWithHistory<Box<StorageLogQuery>, H>,
+    pub(crate) storage_logs: ReversableLog<Box<StorageLogQuery>>,
 
     // The changes that have been paid for in previous transactions.
     // It is a mapping from storage key to the number of *bytes* that was paid by the user
     // to cover this slot.
-    // `paid_changes` history is necessary
-    pub paid_changes: HistoryRecorder<HashMap<StorageKey, u32>, HistoryEnabled>,
+    pub(crate) paid_changes: HistoryRecorder<HashMap<StorageKey, u32>>,
+    pub(crate) bytes_paid: Snapshotted<u32>,
 }
 
-impl OracleWithHistory for StorageOracle<'_, HistoryEnabled> {
-    fn rollback_to_timestamp(&mut self, timestamp: Timestamp) {
-        self.frames_stack.rollback_to_timestamp(timestamp);
-        self.storage.rollback_to_timestamp(timestamp);
-        self.paid_changes.rollback_to_timestamp(timestamp);
-    }
+impl<S: WriteStorage> Rollback for StorageOracleInternals<S> {
+    implement_rollback! {storage, storage_logs, paid_changes, bytes_paid}
 }
 
-impl<'a, H: HistoryMode> StorageOracle<'a, H> {
-    pub fn new(storage: StoragePtr<'a>) -> Self {
-        Self {
-            storage: HistoryRecorder::from_inner(StorageWrapper::new(storage)),
-            frames_stack: Default::default(),
-            paid_changes: Default::default(),
-        }
-    }
-
-    pub fn delete_history(&mut self) {
-        self.frames_stack.delete_history();
-        self.storage.delete_history();
-        self.paid_changes.delete_history();
-    }
-
+impl<S: WriteStorage> StorageOracleInternals<S> {
     fn is_storage_key_free(&self, key: &StorageKey) -> bool {
         key.address() == &zksync_config::constants::SYSTEM_CONTEXT_ADDRESS
             || *key == storage_key_for_eth_balance(&BOOTLOADER_ADDRESS)
     }
 
-    pub fn read_value(&mut self, mut query: LogQuery) -> LogQuery {
+    fn read_value(&mut self, mut query: LogQuery) -> LogQuery {
         let key = triplet_to_storage_key(query.shard_id, query.address, query.key);
         let current_value = self.storage.read_from_storage(&key);
 
         query.read_value = current_value;
 
-        self.frames_stack.push_forward(
-            Box::new(StorageLogQuery {
-                log_query: query,
-                log_type: StorageLogQueryType::Read,
-            }),
-            query.timestamp,
-        );
+        self.storage_logs.record(Box::new(StorageLogQuery {
+            log_query: query,
+            log_type: StorageLogQueryType::Read,
+        }));
 
         query
     }
 
-    pub fn write_value(&mut self, mut query: LogQuery) -> LogQuery {
+    fn write_value(&mut self, mut query: LogQuery) -> LogQuery {
         let key = triplet_to_storage_key(query.shard_id, query.address, query.key);
-        let current_value =
-            self.storage
-                .write_to_storage(key, query.written_value, query.timestamp);
+        let current_value = self.storage.write_to_storage(key, query.written_value);
 
         let is_initial_write = self.storage.get_ptr().borrow_mut().is_write_initial(&key);
         let log_query_type = if is_initial_write {
@@ -107,16 +154,10 @@ impl<'a, H: HistoryMode> StorageOracle<'a, H> {
 
         query.read_value = current_value;
 
-        let mut storage_log_query = StorageLogQuery {
+        self.storage_logs.record(Box::new(StorageLogQuery {
             log_query: query,
             log_type: log_query_type,
-        };
-        self.frames_stack
-            .push_forward(Box::new(storage_log_query), query.timestamp);
-        storage_log_query.log_query.rollback = true;
-        self.frames_stack
-            .push_rollback(Box::new(storage_log_query), query.timestamp);
-        storage_log_query.log_query.rollback = false;
+        }));
 
         query
     }
@@ -130,7 +171,7 @@ impl<'a, H: HistoryMode> StorageOracle<'a, H> {
             .unwrap_or_default()
     }
 
-    pub(crate) fn base_price_for_write(&self, query: &LogQuery) -> u32 {
+    fn base_price_for_write(&self, query: &LogQuery) -> u32 {
         let storage_key = storage_key_of_log(query);
 
         if self.is_storage_key_free(&storage_key) {
@@ -162,55 +203,9 @@ impl<'a, H: HistoryMode> StorageOracle<'a, H> {
             base_cost - already_paid
         }
     }
-
-    /// Returns storage log queries from current frame where `log.log_query.timestamp >= from_timestamp`.
-    pub fn storage_log_queries_after_timestamp(
-        &self,
-        from_timestamp: Timestamp,
-    ) -> &[Box<StorageLogQuery>] {
-        let logs = self.frames_stack.forward().current_frame();
-
-        // Select all of the last elements where l.log_query.timestamp >= from_timestamp.
-        // Note, that using binary search here is dangerous, because the logs are not sorted by timestamp.
-        logs.rsplit(|l| l.log_query.timestamp < from_timestamp)
-            .next()
-            .unwrap_or(&[])
-    }
-
-    pub fn get_final_log_queries(&self) -> Vec<StorageLogQuery> {
-        assert_eq!(
-            self.frames_stack.len(),
-            1,
-            "VM finished execution in unexpected state"
-        );
-
-        self.frames_stack
-            .forward()
-            .current_frame()
-            .iter()
-            .map(|x| **x)
-            .collect()
-    }
-
-    pub fn get_size(&self) -> usize {
-        let frames_stack_size = self.frames_stack.get_size();
-        let paid_changes_size =
-            self.paid_changes.inner().len() * std::mem::size_of::<(StorageKey, u32)>();
-
-        frames_stack_size + paid_changes_size
-    }
-
-    pub fn get_history_size(&self) -> usize {
-        let storage_size = self.storage.borrow_history(|h| h.len(), 0)
-            * std::mem::size_of::<<StorageWrapper as WithHistory>::HistoryRecord>();
-        let frames_stack_size = self.frames_stack.get_history_size();
-        let paid_changes_size = self.paid_changes.borrow_history(|h| h.len(), 0)
-            * std::mem::size_of::<<HashMap<StorageKey, u32> as WithHistory>::HistoryRecord>();
-        storage_size + frames_stack_size + paid_changes_size
-    }
 }
 
-impl<H: HistoryMode> VmStorageOracle for StorageOracle<'_, H> {
+impl<S: WriteStorage> VmStorageOracle for StorageOracle<S> {
     // Perform a storage read/write access by taking an partially filled query
     // and returning filled query and cold/warm marker for pricing purposes
     fn execute_partial_query(
@@ -218,7 +213,7 @@ impl<H: HistoryMode> VmStorageOracle for StorageOracle<'_, H> {
         _monotonic_cycle_counter: u32,
         query: LogQuery,
     ) -> LogQuery {
-        // vlog::trace!(
+        // tracing::trace!(
         //     "execute partial query cyc {:?} addr {:?} key {:?}, rw {:?}, wr {:?}, tx {:?}",
         //     _monotonic_cycle_counter,
         //     query.address,
@@ -233,21 +228,22 @@ impl<H: HistoryMode> VmStorageOracle for StorageOracle<'_, H> {
             let storage_key = storage_key_of_log(&query);
 
             // It is considered that the user has paid for the whole base price for the writes
-            let to_pay_by_user = self.base_price_for_write(&query);
-            let prepaid = self.prepaid_for_write(&storage_key);
+            let to_pay_by_user = self.0.inner.base_price_for_write(&query);
+            let prepaid = self.0.inner.prepaid_for_write(&storage_key);
 
             if to_pay_by_user > prepaid {
-                self.paid_changes.apply_historic_record(
-                    HashMapHistoryEvent {
+                self.0
+                    .inner
+                    .paid_changes
+                    .apply_historic_record(HashMapHistoryEvent {
                         key: storage_key,
                         value: Some(to_pay_by_user),
-                    },
-                    query.timestamp,
-                );
+                    });
+                self.0.inner.bytes_paid.value += to_pay_by_user - prepaid;
             }
-            self.write_value(query)
+            self.0.inner.write_value(query)
         } else {
-            self.read_value(query)
+            self.0.inner.read_value(query)
         }
     }
 
@@ -259,7 +255,7 @@ impl<H: HistoryMode> VmStorageOracle for StorageOracle<'_, H> {
         _monotonic_cycle_counter: u32,
         partial_query: &LogQuery,
     ) -> RefundType {
-        let price_to_pay = self.value_update_price(partial_query);
+        let price_to_pay = self.0.inner.value_update_price(partial_query);
 
         RefundType::RepeatedWrite(RefundedAmounts {
             ergs: 0,
@@ -269,52 +265,18 @@ impl<H: HistoryMode> VmStorageOracle for StorageOracle<'_, H> {
     }
 
     // Indicate a start of execution frame for rollback purposes
-    fn start_frame(&mut self, timestamp: Timestamp) {
-        self.frames_stack.push_frame(timestamp);
+    fn start_frame(&mut self, _: Timestamp) {
+        self.0.internal_snapshot();
     }
 
     // Indicate that execution frame went out from the scope, so we can
     // log the history and either rollback immediately or keep records to rollback later
-    fn finish_frame(&mut self, timestamp: Timestamp, panicked: bool) {
-        // If we panic then we append forward and rollbacks to the forward of parent,
-        // otherwise we place rollbacks of child before rollbacks of the parent
+    fn finish_frame(&mut self, _: Timestamp, panicked: bool) {
         if panicked {
-            // perform actual rollback
-            for query in self.frames_stack.rollback().current_frame().iter().rev() {
-                let read_value = match query.log_type {
-                    StorageLogQueryType::Read => {
-                        // Having Read logs in rollback is not possible
-                        vlog::warn!("Read log in rollback queue {:?}", query);
-                        continue;
-                    }
-                    StorageLogQueryType::InitialWrite | StorageLogQueryType::RepeatedWrite => {
-                        query.log_query.read_value
-                    }
-                };
-
-                let LogQuery { written_value, .. } = query.log_query;
-                let key = triplet_to_storage_key(
-                    query.log_query.shard_id,
-                    query.log_query.address,
-                    query.log_query.key,
-                );
-                let current_value = self.storage.write_to_storage(
-                    key,
-                    // NOTE, that since it is a rollback query,
-                    // the `read_value` is being set
-                    read_value, timestamp,
-                );
-
-                // Additional validation that the current value was correct
-                // Unwrap is safe because the return value from write_inner is the previous value in this leaf.
-                // It is impossible to set leaf value to `None`
-                assert_eq!(current_value, written_value);
-            }
-
-            self.frames_stack
-                .move_rollback_to_forward(|_| true, timestamp);
+            self.0.internal_rollback();
+        } else {
+            self.0.internal_forget_snapshot();
         }
-        self.frames_stack.merge_frame(timestamp);
     }
 }
 

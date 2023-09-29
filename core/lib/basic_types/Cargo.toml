@@ -1,6 +1,6 @@
 [package]
 name = "zksync_basic_types"
-version = "1.0.0"
+version="0.1.0"
 edition = "2018"
 authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
 homepage = "https://zksync.io/"

@@ -3,6 +3,7 @@ use std::env;
 use std::path::Path;
 use std::time::{Duration, Instant};
 
+use anyhow::Context as _;
 use chrono::Utc;
 use ethabi::{Contract, Token};
 use lazy_static::lazy_static;
@@ -13,7 +14,7 @@ use zksync_config::ContractVerifierConfig;
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_queued_job_processor::{async_trait, JobProcessor};
 use zksync_types::{
-    explorer_api::{
+    contract_verification_api::{
         CompilationArtifacts, CompilerType, DeployContractCalldata, SourceCodeData,
         VerificationInfo, VerificationRequest,
     },
@@ -59,12 +60,11 @@ impl ContractVerifier {
 
         // Bytecode should be present because it is checked when accepting request.
         let (deployed_bytecode, creation_tx_calldata) = storage
-            .explorer()
             .contract_verification_dal()
             .get_contract_info_for_verification(request.req.contract_address).await
             .unwrap()
             .ok_or_else(|| {
-                vlog::warn!("Contract is missing in DB for already accepted verification request. Contract address: {:#?}", request.req.contract_address);
+                tracing::warn!("Contract is missing in DB for already accepted verification request. Contract address: {:#?}", request.req.contract_address);
                 ContractVerifierError::InternalError
             })?;
         let constructor_args = Self::decode_constructor_arguments_from_calldata(
@@ -174,7 +174,7 @@ impl ContractVerifier {
                 let bytecode = hex::decode(bytecode_str).unwrap();
                 let abi = contract["abi"].clone();
                 if !abi.is_array() {
-                    vlog::error!(
+                    tracing::error!(
                         "zksolc returned unexpected value for ABI: {}",
                         serde_json::to_string_pretty(&abi).unwrap()
                     );
@@ -421,12 +421,11 @@ impl ContractVerifier {
         match verification_result {
             Ok(info) => {
                 storage
-                    .explorer()
                     .contract_verification_dal()
                     .save_verification_info(info)
                     .await
                     .unwrap();
-                vlog::info!("Successfully processed request with id = {}", request_id);
+                tracing::info!("Successfully processed request with id = {}", request_id);
             }
             Err(error) => {
                 let error_message = error.to_string();
@@ -437,12 +436,11 @@ impl ContractVerifier {
                     _ => serde_json::Value::Array(Vec::new()),
                 };
                 storage
-                    .explorer()
                     .contract_verification_dal()
                     .save_verification_error(request_id, error_message, compilation_errors, None)
                     .await
                     .unwrap();
-                vlog::info!("Request with id = {} was failed", request_id);
+                tracing::info!("Request with id = {} was failed", request_id);
             }
         }
     }
@@ -457,8 +455,8 @@ impl JobProcessor for ContractVerifier {
     const SERVICE_NAME: &'static str = "contract_verifier";
     const BACKOFF_MULTIPLIER: u64 = 1;
 
-    async fn get_next_job(&self) -> Option<(Self::JobId, Self::Job)> {
-        let mut connection = self.connection_pool.access_storage().await;
+    async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, Self::Job)>> {
+        let mut connection = self.connection_pool.access_storage().await.unwrap();
 
         // Time overhead for all operations except for compilation.
         const TIME_OVERHEAD: Duration = Duration::from_secs(10);
@@ -467,20 +465,18 @@ impl JobProcessor for ContractVerifier {
         // `compilation_timeout` + `non_compilation_time_overhead` (which is significantly less than `compilation_timeout`),
         // we re-pick up jobs that are being executed for a bit more than `compilation_timeout`.
         let job = connection
-            .explorer()
             .contract_verification_dal()
             .get_next_queued_verification_request(self.config.compilation_timeout() + TIME_OVERHEAD)
             .await
-            .unwrap();
+            .context("get_next_queued_verification_request()")?;
 
-        job.map(|job| (job.id, job))
+        Ok(job.map(|job| (job.id, job)))
     }
 
     async fn save_failure(&self, job_id: usize, _started_at: Instant, error: String) {
-        let mut connection = self.connection_pool.access_storage().await;
+        let mut connection = self.connection_pool.access_storage().await.unwrap();
 
         connection
-            .explorer()
             .contract_verification_dal()
             .save_verification_error(
                 job_id,
@@ -497,13 +493,14 @@ impl JobProcessor for ContractVerifier {
         &self,
         job: VerificationRequest,
         started_at: Instant,
-    ) -> tokio::task::JoinHandle<()> {
+    ) -> tokio::task::JoinHandle<anyhow::Result<()>> {
         let connection_pool = self.connection_pool.clone();
         tokio::task::spawn(async move {
-            vlog::info!("Started to process request with id = {}", job.id);
+            tracing::info!("Started to process request with id = {}", job.id);
 
-            let config: ContractVerifierConfig = ContractVerifierConfig::from_env();
-            let mut connection = connection_pool.access_storage().await;
+            let config: ContractVerifierConfig =
+                ContractVerifierConfig::from_env().context("ContractVerifierConfig")?;
+            let mut connection = connection_pool.access_storage().await.unwrap();
 
             let job_id = job.id;
             let verification_result = Self::verify(&mut connection, job, config).await;
@@ -513,10 +510,17 @@ impl JobProcessor for ContractVerifier {
                 "api.contract_verifier.request_processing_time",
                 started_at.elapsed()
             );
+            Ok(())
         })
     }
 
-    async fn save_result(&self, _: Self::JobId, _: Instant, _: Self::JobArtifacts) {
+    async fn save_result(
+        &self,
+        _: Self::JobId,
+        _: Instant,
+        _: Self::JobArtifacts,
+    ) -> anyhow::Result<()> {
         // Do nothing
+        Ok(())
     }
 }

@@ -40,18 +40,30 @@ impl PackedEthSignature {
         self.0.clone().into_electrum()
     }
 
-    pub fn deserialize_packed(bytes: &[u8]) -> Result<Self, DeserializeError> {
+    fn deserialize_signature(bytes: &[u8]) -> Result<[u8; 65], DeserializeError> {
         if bytes.len() != 65 {
             return Err(DeserializeError::IncorrectSignatureLength);
         }
+
         let mut bytes_array = [0u8; 65];
         bytes_array.copy_from_slice(bytes);
+        Ok(bytes_array)
+    }
 
-        if bytes_array[64] >= 27 {
-            bytes_array[64] -= 27;
+    pub fn deserialize_packed(bytes: &[u8]) -> Result<Self, DeserializeError> {
+        let mut signature = Self::deserialize_signature(bytes)?;
+        if signature[64] >= 27 {
+            signature[64] -= 27;
         }
 
-        Ok(PackedEthSignature(ETHSignature::from(bytes_array)))
+        Ok(PackedEthSignature(ETHSignature::from(signature)))
+    }
+
+    /// Unlike the `deserialize_packed` packed signature, this method does not make sure that the `v` value is in the range [0, 3].
+    /// This one should be generally avoided and be used only in places where preservation of the original `v` is important.
+    pub fn deserialize_packed_no_v_check(bytes: &[u8]) -> Result<Self, DeserializeError> {
+        let signature = Self::deserialize_signature(bytes)?;
+        Ok(PackedEthSignature(ETHSignature::from(signature)))
     }
 
     /// Signs message using ethereum private key, results are identical to signature created

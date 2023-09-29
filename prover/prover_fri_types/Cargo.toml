@@ -1,0 +1,15 @@
+[package]
+name = "zksync_prover_fri_types"
+version = "0.1.0"
+edition = "2021"
+
+
+[dependencies]
+zksync_object_store = { path = "../../core/lib/object_store" }
+zksync_types = { path = "../../core/lib/types" }
+
+circuit_definitions = { git = "https://github.com/matter-labs/zkevm_test_harness.git", branch = "v1.4.0", features = [
+    "log_tracing",
+] }
+
+serde = { version = "1.0", features = ["derive"] }

@@ -1,7 +1,7 @@
 use crate::tx::primitives::eip712_signature::typed_structure::{
     EncodedStructureMember, StructMember,
 };
-use parity_crypto::Keccak256;
+use crate::web3::signing::keccak256;
 use zksync_basic_types::{Address, H256, U256};
 
 impl StructMember for String {
@@ -13,7 +13,7 @@ impl StructMember for String {
     }
 
     fn encode_member_data(&self) -> H256 {
-        self.keccak256().into()
+        keccak256(self.as_bytes()).into()
     }
 }
 
@@ -39,7 +39,7 @@ impl StructMember for &[u8] {
     }
 
     fn encode_member_data(&self) -> H256 {
-        self.keccak256().into()
+        keccak256(self).into()
     }
 }
 
@@ -56,7 +56,7 @@ impl StructMember for &[H256] {
             .iter()
             .flat_map(|hash| hash.as_bytes().to_vec())
             .collect();
-        bytes.keccak256().into()
+        keccak256(&bytes).into()
     }
 }
 

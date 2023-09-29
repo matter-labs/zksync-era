@@ -1,6 +1,6 @@
 [package]
 name = "zksync_prover"
-version = "1.0.0"
+version = "0.1.0"
 edition = "2018"
 authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
 homepage = "https://zksync.io/"
@@ -11,26 +11,30 @@ categories = ["cryptography"]
 publish = false # We don't want to publish our binaries.
 
 [dependencies]
-zksync_dal = { path = "../../core/lib/dal", version = "1.0" }
-zksync_config = { path = "../../core/lib/config", version = "1.0" }
-zksync_utils = {path = "../../core/lib/utils", version = "1.0" }
-zksync_prover_utils = {path = "../../core/lib/prover_utils", version = "1.0" }
-zksync_circuit_breaker = {path = "../../core/lib/circuit_breaker", version = "1.0" }
-zksync_eth_client = {path = "../../core/lib/eth_client", version = "1.0" }
-zksync_types = { path = "../../core/lib/types", version = "1.0" }
-prometheus_exporter = { path = "../../core/lib/prometheus_exporter", version = "1.0" }
-vlog = { path = "../../core/lib/vlog", version = "1.0" }
-zksync_verification_key_generator_and_server = { path = "../../core/bin/verification_key_generator_and_server", version = "1.0" }
-zksync_object_store = { path = "../../core/lib/object_store", version = "1.0" }
-setup_key_generator_and_server = { path = "../setup_key_generator_and_server", version = "1.0" }
+zksync_dal = { path = "../../core/lib/dal" }
+zksync_config = { path = "../../core/lib/config" }
+zksync_utils = { path = "../../core/lib/utils" }
+zksync_prover_utils = { path = "../../core/lib/prover_utils" }
+zksync_circuit_breaker = { path = "../../core/lib/circuit_breaker" }
+zksync_eth_client = { path = "../../core/lib/eth_client" }
+zksync_types = { path = "../../core/lib/types" }
+prometheus_exporter = { path = "../../core/lib/prometheus_exporter" }
+vlog = { path = "../../core/lib/vlog" }
+zksync_verification_key_generator_and_server = { path = "../../core/bin/verification_key_generator_and_server" }
+zksync_object_store = { path = "../../core/lib/object_store" }
+setup_key_generator_and_server = { path = "../setup_key_generator_and_server" }
 
+api = { git = "https://github.com/matter-labs/heavy-ops-service.git", branch = "v1.3.3", features = [
+    "gpu",
+], default-features = false }
+prover-service = { git = "https://github.com/matter-labs/heavy-ops-service.git", branch = "v1.3.3", features = [
+    "gpu",
+], default-features = false }
 
-api = { git = "https://github.com/matter-labs/heavy-ops-service.git", branch = "v1.3.3", features=["gpu"], default-features=false}
-prover-service = { git = "https://github.com/matter-labs/heavy-ops-service.git", branch = "v1.3.3", features=["gpu"], default-features=false}
+zkevm_test_harness = { git = "https://github.com/matter-labs/zkevm_test_harness.git", branch = "v1.3.3" }
 
-zkevm_test_harness = { git = "https://github.com/matter-labs/zkevm_test_harness.git", branch = "v1.3.3"}
-
-
+anyhow = "1.0"
+tracing = "0.1"
 tokio = { version = "1", features = ["time"] }
 futures = { version = "0.3", features = ["compat"] }
 ctrlc = { version = "3.1", features = ["termination"] }
@@ -38,7 +42,7 @@ thiserror = "1.0"
 chrono = "0.4"
 serde_json = "1.0"
 ethabi = "18.0.0"
-metrics = "0.20"
+metrics = "0.21"
 hex = "0.4"
 serde = { version = "1.0", features = ["derive"] }
 bincode = "1.3.2"

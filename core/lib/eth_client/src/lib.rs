@@ -34,8 +34,8 @@ use zksync_types::{
 ///
 /// Most of the trait methods support the `component` parameter. This parameter is used to
 /// describe the caller of the method. It may be useful to find the component that makes an
-/// unnecessary high amount of Web3 calls. Implementations are advices to count invokations
-/// per component and expose them to prometheus, e.g. via `metrics` crate.
+/// unnecessary high amount of Web3 calls. Implementations are advices to count invocations
+/// per component and expose them to Prometheus.
 #[async_trait]
 pub trait EthInterface: Sync + Send {
     /// Returns the nonce of the provided account at the specified block.

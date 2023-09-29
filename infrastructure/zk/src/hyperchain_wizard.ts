@@ -12,15 +12,35 @@ import { clean } from './clean';
 import * as env from './env';
 import { compileConfig } from './config';
 import * as fs from 'fs';
+import fetch from 'node-fetch';
+import { up } from './up';
 
 const title = chalk.blueBright;
 const warning = chalk.yellowBright;
 const error = chalk.redBright;
 const announce = chalk.yellow;
 
+enum BaseNetwork {
+    LOCALHOST = 'localhost (matterlabs/geth)',
+    LOCALHOST_CUSTOM = 'localhost (custom)',
+    SEPOLIA = 'sepolia',
+    GOERLI = 'goerli',
+    MAINNET = 'mainnet'
+}
+
+interface BasePromptOptions {
+    name: string | (() => string);
+    type: string | (() => string);
+    message: string | (() => string) | (() => Promise<string>);
+    initial?: any;
+    required?: boolean;
+    choices?: string[];
+    skip?: ((state: object) => boolean | Promise<boolean>) | boolean;
+}
+
 // An init command that allows configuring and spinning up a new Hyperchain network
 async function initHyperchain() {
-    await announced('Initializng Hyperchain creation', setupConfiguration());
+    await announced('Initializing Hyperchain creation', setupConfiguration());
 
     await announced('Drop postgres db', db.drop());
     await announced('Setup postgres db', db.setup());
@@ -29,6 +49,7 @@ async function initHyperchain() {
     await announced('Building L1 and L2 contracts', contract.build());
 
     await announced('Deploy test tokens', initializeTestERC20s());
+    await announced('Deploying L1 verifier', contract.deployVerifier([]));
     await announced('Running server genesis setup', server.genesisFromSources());
 
     const deployerPrivateKey = process.env.DEPLOYER_PRIVATE_KEY;
@@ -49,12 +70,14 @@ async function initHyperchain() {
     env.mergeInitToEnv();
 
     console.log(announce(`\nYour Hyperchain configuration is available at ${process.env.ENV_FILE}\n`));
+
+    await announced('Start server', startServer());
 }
 
 async function setupConfiguration() {
     const CONFIGURE = 'Configure new chain';
     const USE_EXISTING = 'Use existing configuration';
-    const questions = [
+    const questions: BasePromptOptions[] = [
         {
             message: 'Do you want to configure a new chain or use an existing configuration?',
             name: 'config',
@@ -68,10 +91,6 @@ async function setupConfiguration() {
     if (results.config === CONFIGURE) {
         await announced('Setting Hyperchain metadata', setHyperchainMetadata());
         await announced('Validating information and balances to deploy Hyperchain', checkReadinessToDeploy());
-        await announced('Checkout system-contracts submodule', submoduleUpdate());
-        await announced('Compiling system contracts', compiler.compileSystemContracts());
-        await announced('Compiling JS packages', run.yarn());
-        await announced('Compile l2 contracts', compiler.compileAll());
     } else {
         const envs = env.getAvailableEnvsFromFiles();
 
@@ -87,13 +106,23 @@ async function setupConfiguration() {
         const envResults: any = await enquirer.prompt(envQuestions);
         env.set(envResults.env);
     }
+    await announced('Checkout system-contracts submodule', submoduleUpdate());
+    await announced('Compiling JS packages', run.yarn());
+    await announced('Compiling system contracts', compiler.compileSystemContracts());
+    await announced('Compile l2 contracts', compiler.compileAll());
 }
 
 async function setHyperchainMetadata() {
-    const BASE_NETWORKS = ['localhost', 'sepolia', 'goerli', 'mainnet'];
+    const BASE_NETWORKS = [
+        BaseNetwork.LOCALHOST,
+        BaseNetwork.LOCALHOST_CUSTOM,
+        BaseNetwork.SEPOLIA,
+        BaseNetwork.GOERLI,
+        BaseNetwork.MAINNET
+    ];
     const GENERATE_KEYS = 'Generate keys';
     const INSERT_KEYS = 'Insert keys';
-    const questions = [
+    const questions: BasePromptOptions[] = [
         {
             message: 'What is your hyperchain name?',
             name: 'chainName',
@@ -109,63 +138,105 @@ async function setHyperchainMetadata() {
             name: 'l1Chain',
             type: 'select',
             choices: BASE_NETWORKS
-        },
-        {
-            message: 'What is the RPC url for the L1 Network?',
-            name: 'l1Rpc',
-            type: 'input'
-        },
-        {
-            message:
-                'Do you want to generate new addresses/keys for the Deployer, Governor and ETh Operator, or insert your own keys?',
-            name: 'generateKeys',
-            type: 'select',
-            choices: [GENERATE_KEYS, INSERT_KEYS]
         }
     ];
 
     const results: any = await enquirer.prompt(questions);
 
     let deployer, governor, ethOperator, feeReceiver: ethers.Wallet | undefined;
-    let feeReceiverAddress;
+    let feeReceiverAddress, l1Rpc, l1Id;
 
-    if (results.generateKeys === GENERATE_KEYS) {
-        deployer = ethers.Wallet.createRandom();
-        governor = ethers.Wallet.createRandom();
-        ethOperator = ethers.Wallet.createRandom();
-        feeReceiver = ethers.Wallet.createRandom();
-        feeReceiverAddress = feeReceiver.address;
-    } else {
-        const keyQuestions = [
+    if (results.l1Chain !== BaseNetwork.LOCALHOST) {
+        const rpcQuestions: BasePromptOptions[] = [
             {
-                message: 'Private key of the L1 Deployer (the one that deploys the contracts)',
-                name: 'deployerKey',
-                type: 'password'
-            },
-            {
-                message: 'Private key of the L1 Governor (the one that can upgrade the contracts)',
-                name: 'governorKey',
-                type: 'password'
-            },
-            {
-                message: 'Private key of the L1 ETH Operator (the one that rolls up the batches)',
-                name: 'ethOperator',
-                type: 'password'
-            },
-            {
-                message: 'Address of L2 fee receiver (the one that collects fees)',
-                name: 'feeReceiver',
+                message: 'What is the RPC url for the L1 Network?',
+                name: 'l1Rpc',
                 type: 'input'
             }
         ];
 
-        const keyResults: any = await enquirer.prompt(keyQuestions);
+        if (results.l1Chain === BaseNetwork.LOCALHOST_CUSTOM) {
+            rpcQuestions.push({
+                message: 'What is netowrk id of your L1 Network?',
+                name: 'l1NetworkId',
+                type: 'input'
+            });
+        }
 
-        deployer = new ethers.Wallet(keyResults.deployerKey);
-        governor = new ethers.Wallet(keyResults.governorKey);
-        ethOperator = new ethers.Wallet(keyResults.ethOperator);
+        rpcQuestions.push({
+            message:
+                'Do you want to generate new addresses/keys for the Deployer, Governor and ETh Operator, or insert your own keys?',
+            name: 'generateKeys',
+            type: 'select',
+            choices: [GENERATE_KEYS, INSERT_KEYS]
+        });
+
+        const rpcResults: any = await enquirer.prompt(questions);
+
+        l1Rpc = rpcResults.l1Rpc;
+
+        if (results.l1Chain === BaseNetwork.LOCALHOST_CUSTOM) {
+            l1Id = rpcResults.l1NetworkId;
+        } else {
+            l1Id = getL1Id(results.l1Chain);
+        }
+
+        if (rpcResults.generateKeys === GENERATE_KEYS) {
+            deployer = ethers.Wallet.createRandom();
+            governor = ethers.Wallet.createRandom();
+            ethOperator = ethers.Wallet.createRandom();
+            feeReceiver = ethers.Wallet.createRandom();
+            feeReceiverAddress = feeReceiver.address;
+        } else {
+            const keyQuestions: BasePromptOptions[] = [
+                {
+                    message: 'Private key of the L1 Deployer (the one that deploys the contracts)',
+                    name: 'deployerKey',
+                    type: 'password'
+                },
+                {
+                    message: 'Private key of the L1 Governor (the one that can upgrade the contracts)',
+                    name: 'governorKey',
+                    type: 'password'
+                },
+                {
+                    message: 'Private key of the L1 ETH Operator (the one that rolls up the batches)',
+                    name: 'ethOperator',
+                    type: 'password'
+                },
+                {
+                    message: 'Address of L2 fee receiver (the one that collects fees)',
+                    name: 'feeReceiver',
+                    type: 'input'
+                }
+            ];
+
+            const keyResults: any = await enquirer.prompt(keyQuestions);
+
+            deployer = new ethers.Wallet(keyResults.deployerKey);
+            governor = new ethers.Wallet(keyResults.governorKey);
+            ethOperator = new ethers.Wallet(keyResults.ethOperator);
+            feeReceiver = undefined;
+            feeReceiverAddress = keyResults.feeReceiver;
+        }
+    } else {
+        l1Rpc = 'http://localhost:8545';
+        l1Id = 9;
+
+        const richWalletsRaw = await fetch(
+            'https://raw.githubusercontent.com/matter-labs/local-setup/main/rich-wallets.json'
+        );
+
+        const richWallets = await richWalletsRaw.json();
+
+        deployer = new ethers.Wallet(richWallets[0].privateKey);
+        governor = new ethers.Wallet(richWallets[1].privateKey);
+        ethOperator = new ethers.Wallet(richWallets[2].privateKey);
         feeReceiver = undefined;
-        feeReceiverAddress = keyResults.feeReceiver;
+        feeReceiverAddress = richWallets[3].address;
+
+        await up();
+        await announced('Ensuring databases are up', db.wait());
     }
 
     console.log('\n');
@@ -181,32 +252,34 @@ async function setHyperchainMetadata() {
         )
     );
 
-    const verifyQuestions = [
-        {
-            message: 'Do You want to verify your L1 contracts? You will need a etherscan API key for it.',
-            name: 'verify',
-            type: 'confirm'
-        }
-    ];
+    if (governor.address == deployer.address) {
+        throw Error(error('Governor and Deployer cannot be the same'));
+    }
 
-    const verifyResults: any = await enquirer.prompt(verifyQuestions);
-
-    if (verifyResults.verify) {
-        const etherscanQuestions = [
+    if (results.l1Chain !== BaseNetwork.LOCALHOST_CUSTOM && results.l1Chain !== BaseNetwork.LOCALHOST) {
+        const verifyQuestions: BasePromptOptions[] = [
             {
-                message: 'Please provide your Etherscan API Key.',
-                name: 'etherscanKey',
-                type: 'input'
+                message: 'Do You want to verify your L1 contracts? You will need a etherscan API key for it.',
+                name: 'verify',
+                type: 'confirm'
             }
         ];
 
-        const etherscanResults: any = await enquirer.prompt(etherscanQuestions);
+        const verifyResults: any = await enquirer.prompt(verifyQuestions);
 
-        wrapEnvModify('MISC_ETHERSCAN_API_KEY', etherscanResults.etherscanKey);
-    }
+        if (verifyResults.verify) {
+            const etherscanQuestions = [
+                {
+                    message: 'Please provide your Etherscan API Key.',
+                    name: 'etherscanKey',
+                    type: 'input'
+                }
+            ];
 
-    if (governor.address == deployer.address) {
-        throw Error(error('Governor and Deployer cannot be the same'));
+            const etherscanResults: any = await enquirer.prompt(etherscanQuestions);
+
+            wrapEnvModify('MISC_ETHERSCAN_API_KEY', etherscanResults.etherscanKey);
+        }
     }
 
     const environment = getEnv(results.chainName);
@@ -214,11 +287,9 @@ async function setHyperchainMetadata() {
     await compileConfig(environment);
     env.set(environment);
 
-    const ethChainId = getL1Id(results.l1Chain);
-
-    wrapEnvModify('ETH_CLIENT_CHAIN_ID', ethChainId.toString());
-    wrapEnvModify('ETH_CLIENT_WEB3_URL', results.l1Rpc);
-    wrapEnvModify('CHAIN_ETH_NETWORK', results.l1Chain);
+    wrapEnvModify('ETH_CLIENT_CHAIN_ID', l1Id.toString());
+    wrapEnvModify('ETH_CLIENT_WEB3_URL', l1Rpc);
+    wrapEnvModify('CHAIN_ETH_NETWORK', getL1Name(results.l1Chain));
     wrapEnvModify('CHAIN_ETH_ZKSYNC_NETWORK', results.chainName);
     wrapEnvModify('CHAIN_ETH_ZKSYNC_NETWORK_ID', results.chainId);
     wrapEnvModify('ETH_SENDER_SENDER_OPERATOR_PRIVATE_KEY', ethOperator.privateKey);
@@ -246,7 +317,7 @@ function printAddressInfo(name: string, address: string) {
 }
 
 async function initializeTestERC20s() {
-    const questions = [
+    const questions: BasePromptOptions[] = [
         {
             message: 'Do you want to deploy some test ERC20s to your Hyperchain (only use on testing scenarios)?',
             name: 'deployERC20s',
@@ -260,7 +331,12 @@ async function initializeTestERC20s() {
         const privateKey = process.env.DEPLOYER_PRIVATE_KEY;
         await announced(
             'Deploying localhost ERC20 tokens',
-            run.deployERC20('dev', '', '', '', ['--private-key', privateKey, '--envFile', process.env.ZKSYNC_ENV!])
+            run.deployERC20('dev', '', '', '', [
+                '--private-key',
+                privateKey,
+                '--envFile',
+                process.env.CHAIN_ETH_NETWORK!
+            ])
         );
         console.log(
             warning(
@@ -273,7 +349,7 @@ async function initializeTestERC20s() {
 }
 
 async function initializeWethTokenForHyperchain() {
-    const questions = [
+    const questions: BasePromptOptions[] = [
         {
             message: 'Do you want to deploy a Wrapped ETH Bridge?',
             name: 'deployWeth',
@@ -284,7 +360,7 @@ async function initializeWethTokenForHyperchain() {
     const results: any = await enquirer.prompt(questions);
 
     if (results.deployWeth) {
-        const tokens = getTokens(process.env.ZKSYNC_ENV!);
+        const tokens = getTokens(process.env.CHAIN_ETH_NETWORK!);
 
         let baseWethToken = tokens.find((token: { symbol: string }) => token.symbol == 'WETH')?.address;
 
@@ -324,6 +400,45 @@ async function initializeWethTokenForHyperchain() {
             contract.initializeWethToken(['--private-key', governorPrivateKey])
         );
     }
+}
+
+async function startServer() {
+    const YES_DEFAULT = 'Yes (default components)';
+    const YES_CUSTOM = 'Yes (custom components)';
+    const NO = 'Not right now';
+
+    const questions: BasePromptOptions[] = [
+        {
+            message: 'Do you want to start your Hyperchain server now?',
+            name: 'start',
+            type: 'select',
+            choices: [YES_DEFAULT, YES_CUSTOM, NO]
+        }
+    ];
+
+    const results: any = await enquirer.prompt(questions);
+
+    let components: string[] = [];
+    const defaultChoices = ['http_api', 'eth', 'data_fetcher', 'state_keeper', 'housekeeper', 'tree_lightweight'];
+
+    if (results.start === NO) {
+        return;
+    } else if (results.start === YES_CUSTOM) {
+        const componentQuestions: BasePromptOptions[] = [
+            {
+                message: 'Please select the desired components',
+                name: 'components',
+                type: 'multiselect',
+                choices: ['api', 'ws_api', ...defaultChoices, 'tree'].sort()
+            }
+        ];
+
+        components = ((await enquirer.prompt(componentQuestions)) as any).components;
+    } else {
+        components = defaultChoices;
+    }
+
+    await server.server(false, false, components.join(','));
 }
 
 // The current env.modify requires to write down the variable name twice. This wraps it so the caller only writes the name and the value
@@ -389,18 +504,28 @@ async function checkBalance(wallet: ethers.Wallet, expectedBalance: BigNumber): 
     return true;
 }
 
-function getL1Id(chainName: string) {
-    switch (chainName) {
-        case 'localhost':
+function getL1Id(baseChain: BaseNetwork) {
+    switch (baseChain) {
+        case BaseNetwork.LOCALHOST:
             return 9;
-        case 'sepolia':
+        case BaseNetwork.SEPOLIA:
             return 11155111;
-        case 'goerli':
+        case BaseNetwork.GOERLI:
             return 5;
-        case 'mainnet':
+        case BaseNetwork.MAINNET:
             return 1;
         default:
             throw Error('Unknown base layer chain');
+    }
+}
+
+function getL1Name(baseChain: BaseNetwork) {
+    switch (baseChain) {
+        case BaseNetwork.LOCALHOST:
+        case BaseNetwork.LOCALHOST_CUSTOM:
+            return 'localhost';
+        default:
+            return baseChain;
     }
 }
 
@@ -435,6 +560,6 @@ export function getTokens(network: string): L1Token[] {
     }
 }
 
-export const initHyperchainCommand = new Command('initHyperchain')
+export const initHyperchainCommand = new Command('init-hyperchain')
     .description('Initializes a new hyperchain network')
     .action(initHyperchain);

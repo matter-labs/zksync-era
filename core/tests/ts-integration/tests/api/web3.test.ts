@@ -442,8 +442,10 @@ describe('web3 API compatibility tests', () => {
         const receipt = await sentTx.wait();
 
         let details = await alice.provider.getTransactionDetails(receipt.transactionHash);
+
         let expectedDetails = {
             fee: expect.stringMatching(HEX_VALUE_REGEX),
+            gasPerPubdata: expect.stringMatching(HEX_VALUE_REGEX),
             initiatorAddress: expect.stringMatching(HEX_VALUE_REGEX),
             isL1Originated: true,
             receivedAt: expect.stringMatching(DATE_REGEX),
@@ -753,6 +755,57 @@ describe('web3 API compatibility tests', () => {
             const expectedBaseFee = (await alice.provider.getBlock(receipt.blockNumber - 1 + i)).baseFeePerGas;
             expect(ethers.BigNumber.from(response.baseFeePerGas[i])).toEqual(expectedBaseFee);
         }
+    });
+
+    test('Should check zks_getProtocolVersion endpoint', async () => {
+        const latestProtocolVersion = await alice.provider.send('zks_getProtocolVersion', []);
+        let expectedSysContractsHashes = {
+            bootloader: expect.stringMatching(HEX_VALUE_REGEX),
+            default_aa: expect.stringMatching(HEX_VALUE_REGEX)
+        };
+        let expectedProtocolVersion = {
+            version_id: expect.any(Number),
+            base_system_contracts: expectedSysContractsHashes,
+            verification_keys_hashes: {
+                params: {
+                    recursion_circuits_set_vks_hash: expect.stringMatching(HEX_VALUE_REGEX),
+                    recursion_leaf_level_vk_hash: expect.stringMatching(HEX_VALUE_REGEX),
+                    recursion_node_level_vk_hash: expect.stringMatching(HEX_VALUE_REGEX)
+                },
+                recursion_scheduler_level_vk_hash: expect.stringMatching(HEX_VALUE_REGEX)
+            },
+            timestamp: expect.any(Number)
+        };
+        expect(latestProtocolVersion).toMatchObject(expectedProtocolVersion);
+
+        const exactProtocolVersion = await alice.provider.send('zks_getProtocolVersion', [
+            latestProtocolVersion.version_id
+        ]);
+        expect(exactProtocolVersion).toMatchObject(expectedProtocolVersion);
+    });
+
+    test('Should check zks_getLogsWithVirtualBlocks endpoint', async () => {
+        let logs;
+        logs = await alice.provider.send('zks_getLogsWithVirtualBlocks', [{ fromBlock: '0x0', toBlock: '0x0' }]);
+        expect(logs).toEqual([]);
+
+        logs = await alice.provider.send('zks_getLogsWithVirtualBlocks', [{ fromBlock: '0x1', toBlock: '0x2' }]);
+        expect(logs.length > 0);
+
+        logs = await alice.provider.send('zks_getLogsWithVirtualBlocks', [{ fromBlock: '0x2', toBlock: '0x1' }]);
+        expect(logs).toEqual([]);
+
+        logs = await alice.provider.send('zks_getLogsWithVirtualBlocks', [{ fromBlock: '0x3', toBlock: '0x3' }]);
+        expect(logs.length > 0);
+
+        await expect(
+            alice.provider.send('zks_getLogsWithVirtualBlocks', [{ fromBlock: '0x100000000', toBlock: '0x100000000' }]) // 2^32
+        ).toBeRejected();
+        await expect(
+            alice.provider.send('zks_getLogsWithVirtualBlocks', [
+                { fromBlock: '0x10000000000000000', toBlock: '0x10000000000000000' } // 2^64
+            ])
+        ).toBeRejected();
     });
 
     afterAll(async () => {

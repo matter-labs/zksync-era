@@ -119,6 +119,12 @@ impl FriProverGroupConfig {
         }
     }
 
+    pub fn get_all_circuit_ids(&self) -> Vec<CircuitIdRoundTuple> {
+        (0..13)
+            .filter_map(|group_id| self.get_circuit_ids_for_group_id(group_id))
+            .flatten()
+            .collect()
+    }
     /// check all_circuit ids present exactly once
     /// and For each aggregation round, check that the circuit ids are in the correct range.
     /// For example, in aggregation round 0, the circuit ids should be 1 to 13.
@@ -209,7 +215,7 @@ impl FriProverGroupConfig {
                     assert!(not_in_range.is_empty(), "Aggregation round 1 should only contain circuit IDs 3 to 15. Ids out of range: {:?}", not_in_range);
                 }
                 2 => {
-                    let expected_range = vec![2];
+                    let expected_range = [2];
                     let missing_ids: Vec<_> = expected_range
                         .iter()
                         .filter(|id| !circuit_ids.contains(id))
@@ -234,7 +240,7 @@ impl FriProverGroupConfig {
                     assert!(not_in_range.is_empty(), "Aggregation round 2 should only contain circuit ID 2. Ids out of range: {:?}", not_in_range);
                 }
                 3 => {
-                    let expected_range = vec![1];
+                    let expected_range = [1];
                     let missing_ids: Vec<_> = expected_range
                         .iter()
                         .filter(|id| !circuit_ids.contains(id))

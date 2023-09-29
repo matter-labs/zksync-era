@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::history_recorder::{HistoryEnabled, HistoryMode, HistoryRecorder, WithHistory};
-use crate::storage::StoragePtr;
+use crate::storage::{Storage, StoragePtr};
 
 use zk_evm::abstractions::MemoryType;
 use zk_evm::aux_structures::Timestamp;
@@ -18,9 +18,9 @@ use super::OracleWithHistory;
 /// The main job of the DecommiterOracle is to implement the DecommittmentProcessor trait - that is
 /// used by the VM to 'load' bytecodes into memory.
 #[derive(Debug)]
-pub struct DecommitterOracle<'a, const B: bool, H: HistoryMode> {
+pub struct DecommitterOracle<const B: bool, S: Storage, H: HistoryMode> {
     /// Pointer that enables to read contract bytecodes from the database.
-    storage: StoragePtr<'a>,
+    storage: StoragePtr<S>,
     /// The cache of bytecodes that the bootloader "knows", but that are not necessarily in the database.
     /// And it is also used as a database cache.
     pub known_bytecodes: HistoryRecorder<HashMap<U256, Vec<U256>>, H>,
@@ -32,8 +32,8 @@ pub struct DecommitterOracle<'a, const B: bool, H: HistoryMode> {
     decommitment_requests: HistoryRecorder<Vec<()>, H>,
 }
 
-impl<'a, const B: bool, H: HistoryMode> DecommitterOracle<'a, B, H> {
-    pub fn new(storage: StoragePtr<'a>) -> Self {
+impl<S: Storage, const B: bool, H: HistoryMode> DecommitterOracle<B, S, H> {
+    pub fn new(storage: StoragePtr<S>) -> Self {
         Self {
             storage,
             known_bytecodes: Default::default(),
@@ -99,7 +99,7 @@ impl<'a, const B: bool, H: HistoryMode> DecommitterOracle<'a, B, H> {
     }
 
     /// Returns the storage handle. Used only in tests.
-    pub fn get_storage(&self) -> StoragePtr<'a> {
+    pub fn get_storage(&self) -> StoragePtr<S> {
         self.storage.clone()
     }
 
@@ -149,7 +149,7 @@ impl<'a, const B: bool, H: HistoryMode> DecommitterOracle<'a, B, H> {
     }
 }
 
-impl<'a, const B: bool> OracleWithHistory for DecommitterOracle<'a, B, HistoryEnabled> {
+impl<S: Storage, const B: bool> OracleWithHistory for DecommitterOracle<B, S, HistoryEnabled> {
     fn rollback_to_timestamp(&mut self, timestamp: Timestamp) {
         self.decommitted_code_hashes
             .rollback_to_timestamp(timestamp);
@@ -158,7 +158,9 @@ impl<'a, const B: bool> OracleWithHistory for DecommitterOracle<'a, B, HistoryEn
     }
 }
 
-impl<'a, const B: bool, H: HistoryMode> DecommittmentProcessor for DecommitterOracle<'a, B, H> {
+impl<S: Storage, const B: bool, H: HistoryMode> DecommittmentProcessor
+    for DecommitterOracle<B, S, H>
+{
     /// Loads a given bytecode hash into memory (see trait description for more details).
     fn decommit_into_memory<M: Memory>(
         &mut self,

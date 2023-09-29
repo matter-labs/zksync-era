@@ -26,11 +26,18 @@ pub struct ContractsConfig {
     pub l2_weth_bridge_addr: Option<Address>,
     pub l1_allow_list_addr: Address,
     pub l2_testnet_paymaster_addr: Option<Address>,
+    pub recursion_scheduler_level_vk_hash: H256,
+    pub recursion_node_level_vk_hash: H256,
+    pub recursion_leaf_level_vk_hash: H256,
+    pub recursion_circuits_set_vks_hash: H256,
     pub l1_multicall3_addr: Address,
+    pub fri_recursion_scheduler_level_vk_hash: H256,
+    pub fri_recursion_node_level_vk_hash: H256,
+    pub fri_recursion_leaf_level_vk_hash: H256,
 }
 
 impl ContractsConfig {
-    pub fn from_env() -> Self {
+    pub fn from_env() -> anyhow::Result<Self> {
         envy_load("contracts", "CONTRACTS_")
     }
 }
@@ -64,7 +71,28 @@ mod tests {
             l1_weth_bridge_proxy_addr: Some(addr("8656770FA78c830456B00B4fFCeE6b1De0e1b888")),
             l2_weth_bridge_addr: Some(addr("8656770FA78c830456B00B4fFCeE6b1De0e1b888")),
             l2_testnet_paymaster_addr: Some(addr("FC073319977e314F251EAE6ae6bE76B0B3BAeeCF")),
+            recursion_scheduler_level_vk_hash: hash(
+                "0x1186ec268d49f1905f8d9c1e9d39fc33e98c74f91d91a21b8f7ef78bd09a8db8",
+            ),
+            recursion_node_level_vk_hash: hash(
+                "0x1186ec268d49f1905f8d9c1e9d39fc33e98c74f91d91a21b8f7ef78bd09a8db8",
+            ),
+            recursion_leaf_level_vk_hash: hash(
+                "0x101e08b00193e529145ee09823378ef51a3bc8966504064f1f6ba3f1ba863210",
+            ),
+            recursion_circuits_set_vks_hash: hash(
+                "0x142a364ef2073132eaf07aa7f3d8495065be5b92a2dc14fda09b4216affed9c0",
+            ),
             l1_multicall3_addr: addr("0xcA11bde05977b3631167028862bE2a173976CA11"),
+            fri_recursion_scheduler_level_vk_hash: hash(
+                "0x201d4c7d8e781d51a3bbd451a43a8f45240bb765b565ae6ce69192d918c3563d",
+            ),
+            fri_recursion_node_level_vk_hash: hash(
+                "0x5a3ef282b21e12fe1f4438e5bb158fc5060b160559c5158c6389d62d9fe3d080",
+            ),
+            fri_recursion_leaf_level_vk_hash: hash(
+                "0x72167c43a46cf38875b267d67716edc4563861364a3c03ab7aee73498421e828",
+            ),
         }
     }
 
@@ -90,11 +118,19 @@ CONTRACTS_L2_ERC20_BRIDGE_ADDR="0x8656770FA78c830456B00B4fFCeE6b1De0e1b888"
 CONTRACTS_L1_WETH_BRIDGE_PROXY_ADDR="0x8656770FA78c830456B00B4fFCeE6b1De0e1b888"
 CONTRACTS_L2_WETH_BRIDGE_ADDR="0x8656770FA78c830456B00B4fFCeE6b1De0e1b888"
 CONTRACTS_L2_TESTNET_PAYMASTER_ADDR="FC073319977e314F251EAE6ae6bE76B0B3BAeeCF"
+CONTRACTS_RECURSION_SCHEDULER_LEVEL_VK_HASH="0x1186ec268d49f1905f8d9c1e9d39fc33e98c74f91d91a21b8f7ef78bd09a8db8"
+CONTRACTS_RECURSION_NODE_LEVEL_VK_HASH="0x1186ec268d49f1905f8d9c1e9d39fc33e98c74f91d91a21b8f7ef78bd09a8db8"
+CONTRACTS_RECURSION_LEAF_LEVEL_VK_HASH="0x101e08b00193e529145ee09823378ef51a3bc8966504064f1f6ba3f1ba863210"
+CONTRACTS_RECURSION_CIRCUITS_SET_VKS_HASH="0x142a364ef2073132eaf07aa7f3d8495065be5b92a2dc14fda09b4216affed9c0"
 CONTRACTS_L1_MULTICALL3_ADDR="0xcA11bde05977b3631167028862bE2a173976CA11"
+CONTRACTS_FRI_RECURSION_SCHEDULER_LEVEL_VK_HASH="0x201d4c7d8e781d51a3bbd451a43a8f45240bb765b565ae6ce69192d918c3563d"
+CONTRACTS_FRI_RECURSION_NODE_LEVEL_VK_HASH="0x5a3ef282b21e12fe1f4438e5bb158fc5060b160559c5158c6389d62d9fe3d080"
+CONTRACTS_FRI_RECURSION_LEAF_LEVEL_VK_HASH="0x72167c43a46cf38875b267d67716edc4563861364a3c03ab7aee73498421e828"
+
         "#;
         lock.set_env(config);
 
-        let actual = ContractsConfig::from_env();
+        let actual = ContractsConfig::from_env().unwrap();
         assert_eq!(actual, expected_config());
     }
 }

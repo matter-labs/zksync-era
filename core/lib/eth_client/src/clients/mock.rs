@@ -4,19 +4,18 @@ use async_trait::async_trait;
 use jsonrpc_core::types::error::Error as RpcError;
 use std::collections::{BTreeMap, HashMap};
 use std::sync::RwLock;
-use zksync_types::ethabi::Token;
-use zksync_types::web3::contract::tokens::Detokenize;
-use zksync_types::web3::types::{Block, BlockId, Filter, Log, Transaction};
-use zksync_types::web3::{
-    contract::tokens::Tokenize,
-    contract::Options,
-    ethabi,
-    types::{BlockNumber, U64},
-    Error as Web3Error,
+use zksync_types::{
+    web3::{
+        contract::{
+            tokens::{Detokenize, Tokenize},
+            Options,
+        },
+        ethabi::{self, Token},
+        types::{Block, BlockId, BlockNumber, Filter, Log, Transaction, TransactionReceipt, U64},
+        Error as Web3Error,
+    },
+    Address, L1ChainId, ProtocolVersionId, H160, H256, U256,
 };
-use zksync_types::{Address, L1ChainId};
-
-use zksync_types::{web3::types::TransactionReceipt, H160, H256, U256};
 
 use crate::{
     types::{Error, ExecutedTxStatus, FailureInfo, SignedCallResult},
@@ -295,19 +294,17 @@ impl EthInterface for MockEthereum {
     {
         if contract_address == self.multicall_address {
             let token = Token::Array(vec![
+                Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![1u8; 32])]),
+                Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![2u8; 32])]),
+                Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![3u8; 96])]),
+                Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![4u8; 32])]),
                 Token::Tuple(vec![
                     Token::Bool(true),
-                    Token::Bytes(vec![
-                        30, 72, 156, 45, 219, 103, 54, 150, 36, 37, 58, 97, 81, 255, 186, 33, 35,
-                        20, 195, 77, 19, 182, 23, 65, 145, 9, 223, 123, 242, 64, 125, 149,
-                    ]),
-                ]),
-                Token::Tuple(vec![
-                    Token::Bool(true),
-                    Token::Bytes(vec![
-                        40, 72, 156, 45, 219, 103, 54, 150, 36, 37, 58, 97, 81, 255, 186, 33, 35,
-                        20, 195, 77, 19, 182, 23, 65, 145, 9, 223, 123, 242, 64, 225, 149,
-                    ]),
+                    Token::Bytes(
+                        H256::from_low_u64_be(ProtocolVersionId::default() as u64)
+                            .0
+                            .to_vec(),
+                    ),
                 ]),
             ]);
             return Ok(R::from_tokens(vec![token]).unwrap());

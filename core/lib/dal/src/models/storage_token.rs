@@ -1,5 +1,8 @@
-use sqlx::types::chrono::{DateTime, Utc};
-use sqlx::types::{chrono::NaiveDateTime, BigDecimal};
+use sqlx::types::{
+    chrono::{DateTime, NaiveDateTime, Utc},
+    BigDecimal,
+};
+
 use zksync_types::tokens::{TokenMarketVolume, TokenMetadata, TokenPrice};
 use zksync_utils::big_decimal_to_ratio;
 
@@ -35,7 +38,7 @@ impl From<StorageTokenPrice> for Option<TokenPrice> {
             }),
             (None, None) => None,
             _ => {
-                vlog::warn!(
+                tracing::warn!(
                     "Found storage token with {:?} `usd_price` and {:?} `usd_price_updated_at`",
                     price.usd_price,
                     price.usd_price_updated_at

@@ -26,7 +26,7 @@ pub struct CircuitSynthesizerConfig {
 }
 
 impl CircuitSynthesizerConfig {
-    pub fn from_env() -> Self {
+    pub fn from_env() -> anyhow::Result<Self> {
         envy_load("circuit_synthesizer", "CIRCUIT_SYNTHESIZER_")
     }
 
@@ -84,7 +84,7 @@ mod tests {
         "#;
         lock.set_env(config);
 
-        let actual = CircuitSynthesizerConfig::from_env();
+        let actual = CircuitSynthesizerConfig::from_env().unwrap();
         assert_eq!(actual, expected_config());
     }
 }

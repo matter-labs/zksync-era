@@ -1,5 +1,7 @@
 use std::cell::RefCell;
 
+use anyhow::Context as _;
+use prometheus_exporter::PrometheusExporterConfig;
 use zksync_config::{configs::PrometheusConfig, ApiConfig, ContractVerifierConfig};
 use zksync_dal::ConnectionPool;
 use zksync_queued_job_processor::JobProcessor;
@@ -16,8 +18,8 @@ pub mod zksolc_utils;
 pub mod zkvyper_utils;
 
 async fn update_compiler_versions(connection_pool: &ConnectionPool) {
-    let mut storage = connection_pool.access_storage().await;
-    let mut transaction = storage.start_transaction().await;
+    let mut storage = connection_pool.access_storage().await.unwrap();
+    let mut transaction = storage.start_transaction().await.unwrap();
 
     let zksync_home = std::env::var("ZKSYNC_HOME").unwrap_or_else(|_| ".".into());
 
@@ -37,7 +39,6 @@ async fn update_compiler_versions(connection_pool: &ConnectionPool) {
         })
         .collect();
     transaction
-        .explorer()
         .contract_verification_dal()
         .set_zksolc_versions(zksolc_versions)
         .await
@@ -59,7 +60,6 @@ async fn update_compiler_versions(connection_pool: &ConnectionPool) {
         })
         .collect();
     transaction
-        .explorer()
         .contract_verification_dal()
         .set_solc_versions(solc_versions)
         .await
@@ -81,7 +81,6 @@ async fn update_compiler_versions(connection_pool: &ConnectionPool) {
         })
         .collect();
     transaction
-        .explorer()
         .contract_verification_dal()
         .set_zkvyper_versions(zkvyper_versions)
         .await
@@ -104,13 +103,12 @@ async fn update_compiler_versions(connection_pool: &ConnectionPool) {
         .collect();
 
     transaction
-        .explorer()
         .contract_verification_dal()
         .set_vyper_versions(vyper_versions)
         .await
         .unwrap();
 
-    transaction.commit().await;
+    transaction.commit().await.unwrap();
 }
 
 use structopt::StructOpt;
@@ -125,24 +123,40 @@ struct Opt {
 }
 
 #[tokio::main]
-async fn main() {
+async fn main() -> anyhow::Result<()> {
     let opt = Opt::from_args();
 
-    let verifier_config = ContractVerifierConfig::from_env();
+    let verifier_config = ContractVerifierConfig::from_env().context("ContractVerifierConfig")?;
     let prometheus_config = PrometheusConfig {
         listener_port: verifier_config.prometheus_port,
-        ..ApiConfig::from_env().prometheus
+        ..ApiConfig::from_env().context("ApiConfig")?.prometheus
     };
-    let pool = ConnectionPool::new(Some(1), DbVariant::Master).await;
+    let pool = ConnectionPool::singleton(DbVariant::Master)
+        .build()
+        .await
+        .unwrap();
 
-    vlog::init();
-    let sentry_guard = vlog::init_sentry();
-    match sentry_guard {
-        Some(_) => vlog::info!(
-            "Starting Sentry url: {}",
-            std::env::var("MISC_SENTRY_URL").unwrap(),
-        ),
-        None => vlog::info!("No sentry url configured"),
+    #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
+    let log_format = vlog::log_format_from_env();
+    #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
+    let sentry_url = vlog::sentry_url_from_env();
+    #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
+    let environment = vlog::environment_from_env();
+
+    let mut builder = vlog::ObservabilityBuilder::new().with_log_format(log_format);
+    if let Some(sentry_url) = &sentry_url {
+        builder = builder
+            .with_sentry_url(sentry_url)
+            .expect("Invalid Sentry URL")
+            .with_sentry_environment(environment);
+    }
+    let _guard = builder.build();
+
+    // Report whether sentry is running after the logging subsystem was initialized.
+    if let Some(sentry_url) = sentry_url {
+        tracing::info!("Sentry configured with URL: {sentry_url}");
+    } else {
+        tracing::info!("No sentry URL was provided");
     }
 
     let (stop_sender, stop_receiver) = watch::channel(false);
@@ -163,8 +177,10 @@ async fn main() {
         // todo PLA-335: Leftovers after the prover DB split.
         // The prover connection pool is not used by the contract verifier, but we need to pass it
         // since `JobProcessor` trait requires it.
-        tokio::spawn(contract_verifier.run(stop_receiver, opt.jobs_number)),
-        prometheus_exporter::run_prometheus_exporter(prometheus_config.listener_port, None),
+        tokio::spawn(contract_verifier.run(stop_receiver.clone(), opt.jobs_number)),
+        tokio::spawn(
+            PrometheusExporterConfig::pull(prometheus_config.listener_port).run(stop_receiver),
+        ),
     ];
 
     let particular_crypto_alerts = None;
@@ -173,11 +189,12 @@ async fn main() {
     tokio::select! {
         _ = wait_for_tasks(tasks, particular_crypto_alerts, graceful_shutdown, tasks_allowed_to_finish) => {},
         _ = stop_signal_receiver.next() => {
-            vlog::info!("Stop signal received, shutting down");
+            tracing::info!("Stop signal received, shutting down");
         },
     };
     let _ = stop_sender.send(true);
 
     // Sleep for some time to let verifier gracefully stop.
     tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+    Ok(())
 }

@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use zksync_utils::ZeroPrefixHexSerde;
 
 /// `Execute` transaction executes a previously deployed smart contract in the L2 rollup.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Execute {
     pub contract_address: Address,

@@ -5,7 +5,7 @@ zksync_action="dont_ask"
 
 # Needed to run integration tests.
 l1_rpc_address = "http://geth:8545"
-api_explorer_url="http://127.0.0.1:3070"
+api_contract_verification_url="http://127.0.0.1:3070"
 
 [en]
 http_port = 3060
@@ -25,10 +25,7 @@ max_l1_batches_per_tree_iter = 20
 main_node_url = "http://127.0.0.1:3050"
 eth_client_url = "http://geth:8545"
 
-fee_account_addr = "0xde03a0B5963f75f1C8485B355fF6D30f3093BDE7"
-max_allowed_l2_tx_gas_limit = 4000000000
-fair_l2_gas_price = 250000000
-validation_computational_gas_limit = 300000
+api_namespaces = ["eth", "web3", "net", "pubsub", "zks", "en", "debug"]
 
 # Note:
 # `bootloader_hash` and `default_aa_hash` are overridden from the `.init.env` values by `zk` tool.

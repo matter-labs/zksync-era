@@ -1,11 +1,16 @@
 [database]
 # Path to the directory that contains RocksDB with VM state cache.
 state_keeper_db_path="./db/main/state_keeper"
-# Path to the directory that contains RocksDB with Merkle tree.
-merkle_tree_path="./db/main/tree"
-# Path to the directory that contains RocksDB backups for Merkle tree.
-merkle_tree_backup_path="./db/main/backups"
 backup_count=5
 backup_interval_ms=60000
 # Amount of open connections to the database.
 pool_size=50
+# Postgres statement timeout. Applies only to the replica connection pool
+# used by the API servers.
+statement_timeout_sec=300
+
+[database.merkle_tree]
+# Path to the directory that contains RocksDB with Merkle tree.
+path="./db/main/tree"
+# Path to the directory that contains RocksDB backups for Merkle tree.
+backup_path="./db/main/backups"

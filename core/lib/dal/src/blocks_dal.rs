@@ -2,9 +2,9 @@ use std::{
     collections::HashMap,
     convert::{Into, TryInto},
     ops,
-    time::Instant,
 };
 
+use anyhow::Context as _;
 use bigdecimal::{BigDecimal, FromPrimitive, ToPrimitive};
 use sqlx::Row;
 
@@ -12,11 +12,12 @@ use zksync_types::{
     aggregated_operations::AggregatedActionType,
     block::{BlockGasCount, L1BatchHeader, MiniblockHeader},
     commitment::{L1BatchMetadata, L1BatchWithMetadata},
-    L1BatchNumber, MiniblockNumber, H256, MAX_GAS_PER_PUBDATA_BYTE,
+    L1BatchNumber, MiniblockNumber, ProtocolVersionId, H256, MAX_GAS_PER_PUBDATA_BYTE, U256,
 };
 
 use crate::{
-    models::storage_block::{StorageL1Batch, StorageMiniblockHeader},
+    instrument::InstrumentExt,
+    models::storage_block::{StorageL1Batch, StorageL1BatchHeader, StorageMiniblockHeader},
     StorageProcessor,
 };
 
@@ -26,84 +27,215 @@ pub struct BlocksDal<'a, 'c> {
 }
 
 impl BlocksDal<'_, '_> {
-    pub async fn is_genesis_needed(&mut self) -> bool {
+    pub async fn is_genesis_needed(&mut self) -> sqlx::Result<bool> {
         let count = sqlx::query!("SELECT COUNT(*) as \"count!\" FROM l1_batches")
             .fetch_one(self.storage.conn())
-            .await
-            .unwrap()
+            .await?
             .count;
-        count == 0
+        Ok(count == 0)
     }
 
-    pub async fn get_sealed_l1_batch_number(&mut self) -> L1BatchNumber {
-        let started_at = Instant::now();
+    pub async fn get_miniblock_hashes_from_date(
+        &mut self,
+        timestamp: u64,
+        limit: u32,
+        version: ProtocolVersionId,
+    ) -> sqlx::Result<Vec<(MiniblockNumber, H256)>> {
+        let number = sqlx::query!(
+            "SELECT number from miniblocks where timestamp > $1 ORDER BY number ASC LIMIT 1",
+            timestamp as i64
+        )
+        .fetch_one(self.storage.conn())
+        .await?
+        .number;
+        self.storage
+            .blocks_dal()
+            .get_miniblocks_since_block(number, limit, version)
+            .await
+    }
+
+    pub async fn get_last_miniblocks_for_version(
+        &mut self,
+        limit: u32,
+        version: ProtocolVersionId,
+    ) -> sqlx::Result<Vec<(MiniblockNumber, H256)>> {
+        let minibloks = sqlx::query!(
+            "SELECT number, hash FROM miniblocks WHERE protocol_version = $1 ORDER BY number DESC LIMIT $2",
+            version as i32,
+            limit as i32
+        )
+            .fetch_all(self.storage.conn())
+            .await?
+            .iter()
+            .map(|block| {
+                (
+                    MiniblockNumber(block.number as u32),
+                    H256::from_slice(&block.hash),
+                )
+            })
+            .collect();
+
+        Ok(minibloks)
+    }
+
+    pub async fn get_miniblocks_since_block(
+        &mut self,
+        number: i64,
+        limit: u32,
+        version: ProtocolVersionId,
+    ) -> sqlx::Result<Vec<(MiniblockNumber, H256)>> {
+        let minibloks = sqlx::query!(
+            "SELECT number, hash FROM miniblocks WHERE number >= $1 and protocol_version = $2 ORDER BY number LIMIT $3",
+            number,
+            version as i32,
+            limit as i32
+        )
+        .fetch_all(self.storage.conn())
+        .await?
+        .iter()
+        .map(|block| {
+            (
+                MiniblockNumber(block.number as u32),
+                H256::from_slice(&block.hash),
+            )
+        })
+        .collect();
+
+        Ok(minibloks)
+    }
+
+    pub async fn get_sealed_l1_batch_number(&mut self) -> anyhow::Result<L1BatchNumber> {
         let number = sqlx::query!(
             "SELECT MAX(number) as \"number\" FROM l1_batches WHERE is_finished = TRUE"
         )
+        .instrument("get_sealed_block_number")
+        .report_latency()
         .fetch_one(self.storage.conn())
-        .await
-        .unwrap()
+        .await?
         .number
-        .expect("DAL invocation before genesis");
+        .context("DAL invocation before genesis")?;
 
-        metrics::histogram!("dal.request", started_at.elapsed(), "method" => "get_sealed_block_number");
-        L1BatchNumber(number as u32)
+        Ok(L1BatchNumber(number as u32))
     }
 
-    pub async fn get_sealed_miniblock_number(&mut self) -> MiniblockNumber {
-        let started_at = Instant::now();
+    pub async fn get_sealed_miniblock_number(&mut self) -> sqlx::Result<MiniblockNumber> {
         let number: i64 = sqlx::query!("SELECT MAX(number) as \"number\" FROM miniblocks")
+            .instrument("get_sealed_miniblock_number")
+            .report_latency()
             .fetch_one(self.storage.conn())
-            .await
-            .unwrap()
+            .await?
             .number
             .unwrap_or(0);
-
-        metrics::histogram!("dal.request", started_at.elapsed(), "method" => "get_sealed_miniblock_number");
-        MiniblockNumber(number as u32)
+        Ok(MiniblockNumber(number as u32))
     }
 
-    pub async fn get_last_l1_batch_number_with_metadata(&mut self) -> L1BatchNumber {
-        let started_at = Instant::now();
+    pub async fn get_last_l1_batch_number_with_metadata(
+        &mut self,
+    ) -> anyhow::Result<L1BatchNumber> {
         let number: i64 =
             sqlx::query!("SELECT MAX(number) as \"number\" FROM l1_batches WHERE hash IS NOT NULL")
+                .instrument("get_last_block_number_with_metadata")
+                .report_latency()
                 .fetch_one(self.storage.conn())
-                .await
-                .unwrap()
+                .await?
                 .number
-                .expect("DAL invocation before genesis");
-
-        metrics::histogram!("dal.request", started_at.elapsed(), "method" => "get_last_block_number_with_metadata");
-        L1BatchNumber(number as u32)
+                .context("DAL invocation before genesis")?;
+        Ok(L1BatchNumber(number as u32))
     }
 
-    pub async fn get_l1_batches_for_eth_tx_id(&mut self, eth_tx_id: u32) -> Vec<L1BatchHeader> {
-        let blocks = sqlx::query_as!(
-            StorageL1Batch,
-            "SELECT * FROM l1_batches \
-            WHERE eth_commit_tx_id = $1 OR eth_prove_tx_id = $1 OR eth_execute_tx_id = $1",
+    pub async fn get_l1_batches_for_eth_tx_id(
+        &mut self,
+        eth_tx_id: u32,
+    ) -> sqlx::Result<Vec<L1BatchHeader>> {
+        let l1_batches = sqlx::query_as!(
+            StorageL1BatchHeader,
+            "SELECT number, l1_tx_count, l2_tx_count, \
+                timestamp, is_finished, fee_account_address, l2_to_l1_logs, l2_to_l1_messages, \
+                bloom, priority_ops_onchain_data, \
+                used_contract_hashes, base_fee_per_gas, l1_gas_price, \
+                l2_fair_gas_price, bootloader_code_hash, default_aa_code_hash, protocol_version \
+            FROM l1_batches \
+            WHERE eth_commit_tx_id = $1 \
+                OR eth_prove_tx_id = $1 \
+                OR eth_execute_tx_id = $1",
             eth_tx_id as i32
         )
+        .instrument("get_l1_batches_for_eth_tx_id")
+        .with_arg("eth_tx_id", &eth_tx_id)
         .fetch_all(self.storage.conn())
-        .await
-        .unwrap();
+        .await?;
 
-        blocks.into_iter().map(Into::into).collect()
+        Ok(l1_batches.into_iter().map(Into::into).collect())
     }
 
-    pub async fn get_storage_l1_batch(&mut self, number: L1BatchNumber) -> Option<StorageL1Batch> {
+    pub async fn get_storage_l1_batch(
+        &mut self,
+        number: L1BatchNumber,
+    ) -> sqlx::Result<Option<StorageL1Batch>> {
         sqlx::query_as!(
             StorageL1Batch,
-            "SELECT * FROM l1_batches WHERE number = $1",
+            "SELECT number, timestamp, is_finished, l1_tx_count, l2_tx_count, fee_account_address, \
+                bloom, priority_ops_onchain_data, hash, parent_hash, commitment, compressed_write_logs, \
+                compressed_contracts, eth_prove_tx_id, eth_commit_tx_id, eth_execute_tx_id, \
+                merkle_root_hash, l2_to_l1_logs, l2_to_l1_messages, \
+                used_contract_hashes, compressed_initial_writes, compressed_repeated_writes, \
+                l2_l1_compressed_messages, l2_l1_merkle_root, l1_gas_price, l2_fair_gas_price, \
+                rollup_last_leaf_index, zkporter_is_available, bootloader_code_hash, \
+                default_aa_code_hash, base_fee_per_gas, aux_data_hash, pass_through_data_hash, \
+                meta_parameters_hash, protocol_version \
+            FROM l1_batches \
+            WHERE number = $1",
             number.0 as i64
         )
+        .instrument("get_storage_l1_batch")
+        .with_arg("number", &number)
         .fetch_optional(self.storage.conn())
         .await
-        .unwrap()
     }
 
-    pub async fn get_l1_batch_header(&mut self, number: L1BatchNumber) -> Option<L1BatchHeader> {
-        self.get_storage_l1_batch(number).await.map(Into::into)
+    pub async fn get_l1_batch_header(
+        &mut self,
+        number: L1BatchNumber,
+    ) -> sqlx::Result<Option<L1BatchHeader>> {
+        Ok(sqlx::query_as!(
+            StorageL1BatchHeader,
+            "SELECT number, l1_tx_count, l2_tx_count, \
+                timestamp, is_finished, fee_account_address, l2_to_l1_logs, l2_to_l1_messages, \
+                bloom, priority_ops_onchain_data, \
+                used_contract_hashes, base_fee_per_gas, l1_gas_price, \
+                l2_fair_gas_price, bootloader_code_hash, default_aa_code_hash, protocol_version \
+            FROM l1_batches \
+            WHERE number = $1",
+            number.0 as i64
+        )
+        .instrument("get_l1_batch_header")
+        .with_arg("number", &number)
+        .fetch_optional(self.storage.conn())
+        .await?
+        .map(Into::into))
+    }
+
+    /// Returns initial bootloader heap content for the specified L1 batch.
+    pub async fn get_initial_bootloader_heap(
+        &mut self,
+        number: L1BatchNumber,
+    ) -> anyhow::Result<Option<Vec<(usize, U256)>>> {
+        let Some(row) = sqlx::query!(
+            "SELECT initial_bootloader_heap_content FROM l1_batches WHERE number = $1",
+            number.0 as i64
+        )
+        .instrument("get_initial_bootloader_heap")
+        .report_latency()
+        .with_arg("number", &number)
+        .fetch_optional(self.storage.conn())
+        .await?
+        else {
+            return Ok(None);
+        };
+
+        let heap = serde_json::from_value(row.initial_bootloader_heap_content)
+            .context("invalid value for initial_bootloader_heap_content in the DB")?;
+        Ok(Some(heap))
     }
 
     pub async fn set_eth_tx_id(
@@ -111,7 +243,7 @@ impl BlocksDal<'_, '_> {
         number_range: ops::RangeInclusive<L1BatchNumber>,
         eth_tx_id: u32,
         aggregation_type: AggregatedActionType,
-    ) {
+    ) -> sqlx::Result<()> {
         match aggregation_type {
             AggregatedActionType::Commit => {
                 sqlx::query!(
@@ -123,8 +255,7 @@ impl BlocksDal<'_, '_> {
                     number_range.end().0 as i64
                 )
                 .execute(self.storage.conn())
-                .await
-                .unwrap();
+                .await?;
             }
             AggregatedActionType::PublishProofOnchain => {
                 sqlx::query!(
@@ -136,8 +267,7 @@ impl BlocksDal<'_, '_> {
                     number_range.end().0 as i64
                 )
                 .execute(self.storage.conn())
-                .await
-                .unwrap();
+                .await?;
             }
             AggregatedActionType::Execute => {
                 sqlx::query!(
@@ -149,17 +279,18 @@ impl BlocksDal<'_, '_> {
                     number_range.end().0 as i64
                 )
                 .execute(self.storage.conn())
-                .await
-                .unwrap();
+                .await?;
             }
         }
+        Ok(())
     }
 
     pub async fn insert_l1_batch(
         &mut self,
         header: &L1BatchHeader,
+        initial_bootloader_contents: &[(usize, U256)],
         predicted_block_gas: BlockGasCount,
-    ) {
+    ) -> anyhow::Result<()> {
         let priority_onchain_data: Vec<Vec<u8>> = header
             .priority_ops_onchain_data
             .iter()
@@ -171,12 +302,14 @@ impl BlocksDal<'_, '_> {
             .map(|log| log.to_bytes().to_vec())
             .collect();
 
-        let initial_bootloader_contents = serde_json::to_value(&header.initial_bootloader_contents)
+        // Serialization should always succeed.
+        let initial_bootloader_contents = serde_json::to_value(initial_bootloader_contents)
             .expect("failed to serialize initial_bootloader_contents to JSON value");
+        // Serialization should always succeed.
         let used_contract_hashes = serde_json::to_value(&header.used_contract_hashes)
             .expect("failed to serialize used_contract_hashes to JSON value");
         let base_fee_per_gas = BigDecimal::from_u64(header.base_fee_per_gas)
-            .expect("block.base_fee_per_gas should fit in u64");
+            .context("block.base_fee_per_gas should fit in u64")?;
 
         sqlx::query!(
             "INSERT INTO l1_batches (\
@@ -185,9 +318,9 @@ impl BlocksDal<'_, '_> {
                 bloom, priority_ops_onchain_data, \
                 predicted_commit_gas_cost, predicted_prove_gas_cost, predicted_execute_gas_cost, \
                 initial_bootloader_heap_content, used_contract_hashes, base_fee_per_gas, \
-                l1_gas_price, l2_fair_gas_price, bootloader_code_hash, default_aa_code_hash, \
-                created_at, updated_at\
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, now(), now())",
+                l1_gas_price, l2_fair_gas_price, bootloader_code_hash, default_aa_code_hash, protocol_version, \
+                created_at, updated_at \
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, now(), now())",
             header.number.0 as i64,
             header.l1_tx_count as i32,
             header.l2_tx_count as i32,
@@ -213,24 +346,27 @@ impl BlocksDal<'_, '_> {
             header
                 .base_system_contracts_hashes
                 .default_aa
-                .as_bytes()
+                .as_bytes(),
+            header.protocol_version.map(|v| v as i32),
         )
         .execute(self.storage.conn())
-        .await
-        .unwrap();
+        .await?;
+        Ok(())
     }
 
-    pub async fn insert_miniblock(&mut self, miniblock_header: &MiniblockHeader) {
+    pub async fn insert_miniblock(
+        &mut self,
+        miniblock_header: &MiniblockHeader,
+    ) -> anyhow::Result<()> {
         let base_fee_per_gas = BigDecimal::from_u64(miniblock_header.base_fee_per_gas)
-            .expect("base_fee_per_gas should fit in u64");
-
+            .context("base_fee_per_gas should fit in u64")?;
         sqlx::query!(
-            "INSERT INTO miniblocks (\
+            "INSERT INTO miniblocks ( \
                 number, timestamp, hash, l1_tx_count, l2_tx_count, \
                 base_fee_per_gas, l1_gas_price, l2_fair_gas_price, gas_per_pubdata_limit, \
-                bootloader_code_hash, default_aa_code_hash, \
-                created_at, updated_at\
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, now(), now())",
+                bootloader_code_hash, default_aa_code_hash, protocol_version, \
+                virtual_blocks, created_at, updated_at \
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, now(), now())",
             miniblock_header.number.0 as i64,
             miniblock_header.timestamp as i64,
             miniblock_header.hash.as_bytes(),
@@ -248,51 +384,79 @@ impl BlocksDal<'_, '_> {
                 .base_system_contracts_hashes
                 .default_aa
                 .as_bytes(),
+            miniblock_header.protocol_version.map(|v| v as i32),
+            miniblock_header.virtual_blocks as i64,
         )
         .execute(self.storage.conn())
-        .await
-        .unwrap();
+        .await?;
+        Ok(())
     }
 
-    pub async fn get_last_sealed_miniblock_header(&mut self) -> Option<MiniblockHeader> {
-        sqlx::query_as!(
+    pub async fn update_hashes(
+        &mut self,
+        number_and_hashes: &[(MiniblockNumber, H256)],
+    ) -> sqlx::Result<()> {
+        let mut numbers = vec![];
+        let mut hashes = vec![];
+        for (number, hash) in number_and_hashes {
+            numbers.push(number.0 as i64);
+            hashes.push(hash.as_bytes().to_vec());
+        }
+
+        sqlx::query!(
+            "UPDATE miniblocks SET hash = u.hash   \
+            FROM UNNEST($1::bigint[], $2::bytea[]) AS u(number, hash) \
+            WHERE miniblocks.number = u.number
+        ",
+            &numbers,
+            &hashes
+        )
+        .execute(self.storage.conn())
+        .await?;
+        Ok(())
+    }
+
+    pub async fn get_last_sealed_miniblock_header(
+        &mut self,
+    ) -> sqlx::Result<Option<MiniblockHeader>> {
+        Ok(sqlx::query_as!(
             StorageMiniblockHeader,
             "SELECT number, timestamp, hash, l1_tx_count, l2_tx_count, \
                 base_fee_per_gas, l1_gas_price, l2_fair_gas_price, \
-                bootloader_code_hash, default_aa_code_hash \
+                bootloader_code_hash, default_aa_code_hash, protocol_version, \
+                virtual_blocks
             FROM miniblocks \
             ORDER BY number DESC \
             LIMIT 1",
         )
         .fetch_optional(self.storage.conn())
-        .await
-        .unwrap()
-        .map(Into::into)
+        .await?
+        .map(Into::into))
     }
 
     pub async fn get_miniblock_header(
         &mut self,
         miniblock_number: MiniblockNumber,
-    ) -> Option<MiniblockHeader> {
-        sqlx::query_as!(
+    ) -> sqlx::Result<Option<MiniblockHeader>> {
+        Ok(sqlx::query_as!(
             StorageMiniblockHeader,
             "SELECT number, timestamp, hash, l1_tx_count, l2_tx_count, \
                 base_fee_per_gas, l1_gas_price, l2_fair_gas_price, \
-                bootloader_code_hash, default_aa_code_hash \
+                bootloader_code_hash, default_aa_code_hash, protocol_version, \
+                virtual_blocks
             FROM miniblocks \
             WHERE number = $1",
             miniblock_number.0 as i64,
         )
         .fetch_optional(self.storage.conn())
-        .await
-        .unwrap()
-        .map(Into::into)
+        .await?
+        .map(Into::into))
     }
 
     pub async fn mark_miniblocks_as_executed_in_l1_batch(
         &mut self,
         l1_batch_number: L1BatchNumber,
-    ) {
+    ) -> sqlx::Result<()> {
         sqlx::query!(
             "UPDATE miniblocks \
             SET l1_batch_number = $1 \
@@ -300,11 +464,14 @@ impl BlocksDal<'_, '_> {
             l1_batch_number.0 as i32,
         )
         .execute(self.storage.conn())
-        .await
-        .unwrap();
+        .await?;
+        Ok(())
     }
 
-    pub async fn save_genesis_l1_batch_metadata(&mut self, metadata: &L1BatchMetadata) {
+    pub async fn save_genesis_l1_batch_metadata(
+        &mut self,
+        metadata: &L1BatchMetadata,
+    ) -> sqlx::Result<()> {
         sqlx::query!(
             "UPDATE l1_batches \
             SET hash = $1, merkle_root_hash = $2, commitment = $3, default_aa_code_hash = $4, \
@@ -331,8 +498,8 @@ impl BlocksDal<'_, '_> {
             0,
         )
         .execute(self.storage.conn())
-        .await
-        .unwrap();
+        .await?;
+        Ok(())
     }
 
     pub async fn save_l1_batch_metadata(
@@ -340,8 +507,7 @@ impl BlocksDal<'_, '_> {
         number: L1BatchNumber,
         metadata: &L1BatchMetadata,
         previous_root_hash: H256,
-    ) {
-        let started_at = Instant::now();
+    ) -> anyhow::Result<()> {
         let update_result = sqlx::query!(
             "UPDATE l1_batches \
             SET hash = $1, merkle_root_hash = $2, commitment = $3, \
@@ -366,12 +532,14 @@ impl BlocksDal<'_, '_> {
             metadata.meta_parameters_hash.as_bytes(),
             number.0 as i64,
         )
+        .instrument("save_blocks_metadata")
+        .with_arg("number", &number)
+        .report_latency()
         .execute(self.storage.conn())
-        .await
-        .unwrap();
+        .await?;
 
         if update_result.rows_affected() == 0 {
-            vlog::debug!(
+            tracing::debug!(
                 "L1 batch {} info wasn't updated. Details: root_hash: {:?}, merkle_root_hash: {:?}, \
                  parent_hash: {:?}, commitment: {:?}, l2_l1_merkle_root: {:?}",
                 number.0 as i64,
@@ -394,13 +562,14 @@ impl BlocksDal<'_, '_> {
                 previous_root_hash.as_bytes(),
                 metadata.l2_l1_merkle_root.as_bytes(),
             )
+            .instrument("get_matching_blocks_metadata")
+            .with_arg("number", &number)
+            .report_latency()
             .fetch_one(self.storage.conn())
-            .await
-            .unwrap()
+            .await?
             .count;
 
-            assert!(
-                matched == 1,
+            anyhow::ensure!(matched == 1,
                 "Root hash verification failed. Hashes for L1 batch #{} do not match the expected values \
                  (expected state hash: {:?}, L2 to L1 logs hash: {:?})",
                 number,
@@ -408,29 +577,47 @@ impl BlocksDal<'_, '_> {
                 metadata.l2_l1_merkle_root
             );
         }
-        metrics::histogram!("dal.request", started_at.elapsed(), "method" => "save_blocks_metadata");
+        Ok(())
     }
 
-    pub async fn get_last_committed_to_eth_l1_batch(&mut self) -> Option<L1BatchWithMetadata> {
+    pub async fn get_last_committed_to_eth_l1_batch(
+        &mut self,
+    ) -> anyhow::Result<Option<L1BatchWithMetadata>> {
         // We can get 0 block for the first transaction
         let block = sqlx::query_as!(
             StorageL1Batch,
-            "SELECT * FROM l1_batches \
+            "SELECT number, timestamp, is_finished, l1_tx_count, l2_tx_count, fee_account_address, \
+                bloom, priority_ops_onchain_data, hash, parent_hash, commitment, compressed_write_logs, \
+                compressed_contracts, eth_prove_tx_id, eth_commit_tx_id, eth_execute_tx_id, \
+                merkle_root_hash, l2_to_l1_logs, l2_to_l1_messages, \
+                used_contract_hashes, compressed_initial_writes, compressed_repeated_writes, \
+                l2_l1_compressed_messages, l2_l1_merkle_root, l1_gas_price, l2_fair_gas_price, \
+                rollup_last_leaf_index, zkporter_is_available, bootloader_code_hash, \
+                default_aa_code_hash, base_fee_per_gas, aux_data_hash, pass_through_data_hash, \
+                meta_parameters_hash, protocol_version \
+            FROM l1_batches \
             WHERE number = 0 OR eth_commit_tx_id IS NOT NULL AND commitment IS NOT NULL \
-            ORDER BY number DESC LIMIT 1",
+            ORDER BY number DESC \
+            LIMIT 1",
         )
+        .instrument("get_last_committed_to_eth_l1_batch")
         .fetch_one(self.storage.conn())
-        .await
-        .unwrap();
+        .await?;
         // genesis block is first generated without commitment, we should wait for the tree to set it.
-        block.commitment.as_ref()?;
+        if block.commitment.is_none() {
+            return Ok(None);
+        }
 
-        self.get_l1_batch_with_metadata(block).await
+        self.get_l1_batch_with_metadata(block)
+            .await
+            .context("get_l1_batch_with_metadata()")
     }
 
     /// Returns the number of the last L1 batch for which an Ethereum commit tx was sent and confirmed.
-    pub async fn get_number_of_last_l1_batch_committed_on_eth(&mut self) -> Option<L1BatchNumber> {
-        sqlx::query!(
+    pub async fn get_number_of_last_l1_batch_committed_on_eth(
+        &mut self,
+    ) -> Result<Option<L1BatchNumber>, sqlx::Error> {
+        Ok(sqlx::query!(
             "SELECT number FROM l1_batches \
             LEFT JOIN eth_txs_history AS commit_tx \
                 ON (l1_batches.eth_commit_tx_id = commit_tx.eth_tx_id) \
@@ -438,28 +625,28 @@ impl BlocksDal<'_, '_> {
             ORDER BY number DESC LIMIT 1"
         )
         .fetch_optional(self.storage.conn())
-        .await
-        .unwrap()
-        .map(|row| L1BatchNumber(row.number as u32))
+        .await?
+        .map(|row| L1BatchNumber(row.number as u32)))
     }
 
     /// Returns the number of the last L1 batch for which an Ethereum prove tx exists in the database.
-    pub async fn get_last_l1_batch_with_prove_tx(&mut self) -> L1BatchNumber {
+    pub async fn get_last_l1_batch_with_prove_tx(&mut self) -> sqlx::Result<L1BatchNumber> {
         let row = sqlx::query!(
             "SELECT COALESCE(MAX(number), 0) AS \"number!\" \
             FROM l1_batches \
             WHERE eth_prove_tx_id IS NOT NULL"
         )
         .fetch_one(self.storage.conn())
-        .await
-        .unwrap();
+        .await?;
 
-        L1BatchNumber(row.number as u32)
+        Ok(L1BatchNumber(row.number as u32))
     }
 
     /// Returns the number of the last L1 batch for which an Ethereum prove tx was sent and confirmed.
-    pub async fn get_number_of_last_l1_batch_proven_on_eth(&mut self) -> Option<L1BatchNumber> {
-        sqlx::query!(
+    pub async fn get_number_of_last_l1_batch_proven_on_eth(
+        &mut self,
+    ) -> sqlx::Result<Option<L1BatchNumber>> {
+        Ok(sqlx::query!(
             "SELECT number FROM l1_batches \
             LEFT JOIN eth_txs_history AS prove_tx \
                 ON (l1_batches.eth_prove_tx_id = prove_tx.eth_tx_id) \
@@ -467,14 +654,15 @@ impl BlocksDal<'_, '_> {
             ORDER BY number DESC LIMIT 1"
         )
         .fetch_optional(self.storage.conn())
-        .await
-        .unwrap()
-        .map(|record| L1BatchNumber(record.number as u32))
+        .await?
+        .map(|record| L1BatchNumber(record.number as u32)))
     }
 
     /// Returns the number of the last L1 batch for which an Ethereum execute tx was sent and confirmed.
-    pub async fn get_number_of_last_l1_batch_executed_on_eth(&mut self) -> Option<L1BatchNumber> {
-        sqlx::query!(
+    pub async fn get_number_of_last_l1_batch_executed_on_eth(
+        &mut self,
+    ) -> sqlx::Result<Option<L1BatchNumber>> {
+        Ok(sqlx::query!(
             "SELECT number FROM l1_batches \
             LEFT JOIN eth_txs_history as execute_tx \
                 ON (l1_batches.eth_execute_tx_id = execute_tx.eth_tx_id) \
@@ -482,77 +670,92 @@ impl BlocksDal<'_, '_> {
             ORDER BY number DESC LIMIT 1"
         )
         .fetch_optional(self.storage.conn())
-        .await
-        .unwrap()
-        .map(|row| L1BatchNumber(row.number as u32))
+        .await?
+        .map(|row| L1BatchNumber(row.number as u32)))
     }
 
     /// This method returns batches that are confirmed on L1. That is, it doesn't wait for the proofs to be generated.
     pub async fn get_ready_for_dummy_proof_l1_batches(
         &mut self,
         limit: usize,
-    ) -> Vec<L1BatchWithMetadata> {
+    ) -> anyhow::Result<Vec<L1BatchWithMetadata>> {
         let raw_batches = sqlx::query_as!(
             StorageL1Batch,
-            "SELECT * FROM l1_batches \
+            "SELECT number, timestamp, is_finished, l1_tx_count, l2_tx_count, fee_account_address, \
+                bloom, priority_ops_onchain_data, hash, parent_hash, commitment, compressed_write_logs, \
+                compressed_contracts, eth_prove_tx_id, eth_commit_tx_id, eth_execute_tx_id, \
+                merkle_root_hash, l2_to_l1_logs, l2_to_l1_messages, \
+                used_contract_hashes, compressed_initial_writes, compressed_repeated_writes, \
+                l2_l1_compressed_messages, l2_l1_merkle_root, l1_gas_price, l2_fair_gas_price, \
+                rollup_last_leaf_index, zkporter_is_available, bootloader_code_hash, \
+                default_aa_code_hash, base_fee_per_gas, aux_data_hash, pass_through_data_hash, \
+                meta_parameters_hash, protocol_version \
+            FROM l1_batches \
             WHERE eth_commit_tx_id IS NOT NULL AND eth_prove_tx_id IS NULL \
             ORDER BY number LIMIT $1",
             limit as i32
         )
+        .instrument("get_ready_for_dummy_proof_l1_batches")
+        .with_arg("limit", &limit)
         .fetch_all(self.storage.conn())
-        .await
-        .unwrap();
+        .await?;
 
-        self.map_l1_batches(raw_batches).await
+        self.map_l1_batches(raw_batches)
+            .await
+            .context("map_l1_batches()")
     }
 
     async fn map_l1_batches(
         &mut self,
         raw_batches: Vec<StorageL1Batch>,
-    ) -> Vec<L1BatchWithMetadata> {
+    ) -> anyhow::Result<Vec<L1BatchWithMetadata>> {
         let mut l1_batches = Vec::with_capacity(raw_batches.len());
         for raw_batch in raw_batches {
             let block = self
                 .get_l1_batch_with_metadata(raw_batch)
                 .await
-                .expect("Block should be complete");
+                .context("get_l1_batch_with_metadata()")?
+                .context("Block should be complete")?;
             l1_batches.push(block);
         }
-        l1_batches
+        Ok(l1_batches)
     }
 
-    pub async fn set_skip_proof_for_l1_batch(&mut self, l1_batch_number: L1BatchNumber) {
+    pub async fn set_skip_proof_for_l1_batch(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+    ) -> sqlx::Result<()> {
         sqlx::query!(
             "UPDATE l1_batches SET skip_proof = TRUE WHERE number = $1",
             l1_batch_number.0 as i64
         )
         .execute(self.storage.conn())
-        .await
-        .unwrap();
+        .await?;
+        Ok(())
     }
 
     /// This method returns batches that are committed on L1 and witness jobs for them are skipped.
     pub async fn get_skipped_for_proof_l1_batches(
         &mut self,
         limit: usize,
-    ) -> Vec<L1BatchWithMetadata> {
-        let last_proved_block_number = self.get_last_l1_batch_with_prove_tx().await;
+    ) -> anyhow::Result<Vec<L1BatchWithMetadata>> {
+        let last_proved_block_number = self
+            .get_last_l1_batch_with_prove_tx()
+            .await
+            .context("get_last_l1_batch_with_prove_tx()")?;
         // Witness jobs can be processed out of order, so `WHERE l1_batches.number - row_number = $1`
         // is used to avoid having gaps in the list of blocks to send dummy proofs for.
-        // We need to manually list all the columns in `l1_batches` table here - we cannot use `*`
-        // because there is one extra column (`row_number`).
         let raw_batches = sqlx::query_as!(
             StorageL1Batch,
             "SELECT number, timestamp, is_finished, l1_tx_count, l2_tx_count, fee_account_address, \
                 bloom, priority_ops_onchain_data, hash, parent_hash, commitment, compressed_write_logs, \
-                compressed_contracts, eth_prove_tx_id, eth_commit_tx_id, eth_execute_tx_id, created_at, \
-                updated_at, merkle_root_hash, l2_to_l1_logs, l2_to_l1_messages, predicted_commit_gas_cost, \
-                predicted_prove_gas_cost, predicted_execute_gas_cost, initial_bootloader_heap_content, \
+                compressed_contracts, eth_prove_tx_id, eth_commit_tx_id, eth_execute_tx_id, \
+                merkle_root_hash, l2_to_l1_logs, l2_to_l1_messages, \
                 used_contract_hashes, compressed_initial_writes, compressed_repeated_writes, \
                 l2_l1_compressed_messages, l2_l1_merkle_root, l1_gas_price, l2_fair_gas_price, \
                 rollup_last_leaf_index, zkporter_is_available, bootloader_code_hash, \
                 default_aa_code_hash, base_fee_per_gas, aux_data_hash, pass_through_data_hash, \
-                meta_parameters_hash, skip_proof, gas_per_pubdata_byte_in_block, gas_per_pubdata_limit \
+                meta_parameters_hash, protocol_version \
             FROM \
             (SELECT l1_batches.*, row_number() OVER (ORDER BY number ASC) AS row_number \
                 FROM l1_batches \
@@ -565,29 +768,42 @@ impl BlocksDal<'_, '_> {
             last_proved_block_number.0 as i32,
             limit as i32
         )
+        .instrument("get_skipped_for_proof_l1_batches")
+        .with_arg("limit", &limit)
         .fetch_all(self.storage.conn())
-        .await
-        .unwrap();
+        .await?;
 
-        self.map_l1_batches(raw_batches).await
+        self.map_l1_batches(raw_batches)
+            .await
+            .context("map_l1_batches()")
     }
 
     pub async fn get_ready_for_execute_l1_batches(
         &mut self,
         limit: usize,
         max_l1_batch_timestamp_millis: Option<u64>,
-    ) -> Vec<L1BatchWithMetadata> {
+    ) -> anyhow::Result<Vec<L1BatchWithMetadata>> {
         let raw_batches = match max_l1_batch_timestamp_millis {
             None => sqlx::query_as!(
                 StorageL1Batch,
-                "SELECT * FROM l1_batches \
+                "SELECT number, timestamp, is_finished, l1_tx_count, l2_tx_count, fee_account_address, \
+                    bloom, priority_ops_onchain_data, hash, parent_hash, commitment, compressed_write_logs, \
+                    compressed_contracts, eth_prove_tx_id, eth_commit_tx_id, eth_execute_tx_id, \
+                    merkle_root_hash, l2_to_l1_logs, l2_to_l1_messages, \
+                    used_contract_hashes, compressed_initial_writes, compressed_repeated_writes, \
+                    l2_l1_compressed_messages, l2_l1_merkle_root, l1_gas_price, l2_fair_gas_price, \
+                    rollup_last_leaf_index, zkporter_is_available, bootloader_code_hash, \
+                    default_aa_code_hash, base_fee_per_gas, aux_data_hash, pass_through_data_hash, \
+                    meta_parameters_hash, protocol_version \
+                FROM l1_batches \
                 WHERE eth_prove_tx_id IS NOT NULL AND eth_execute_tx_id IS NULL \
                 ORDER BY number LIMIT $1",
                 limit as i32,
             )
+            .instrument("get_ready_for_execute_l1_batches/no_max_timestamp")
+            .with_arg("limit", &limit)
             .fetch_all(self.storage.conn())
-            .await
-            .unwrap(),
+            .await?,
 
             Some(max_l1_batch_timestamp_millis) => {
                 // Do not lose the precision here, otherwise we can skip some L1 batches.
@@ -595,17 +811,20 @@ impl BlocksDal<'_, '_> {
                 let max_l1_batch_timestamp_seconds = max_l1_batch_timestamp_millis as f64 / 1_000.0;
                 self.raw_ready_for_execute_l1_batches(max_l1_batch_timestamp_seconds, limit)
                     .await
+                    .context("raw_ready_for_execute_l1_batches()")?
             }
         };
 
-        self.map_l1_batches(raw_batches).await
+        self.map_l1_batches(raw_batches)
+            .await
+            .context("map_l1_batches()")
     }
 
     async fn raw_ready_for_execute_l1_batches(
         &mut self,
         max_l1_batch_timestamp_seconds: f64,
         limit: usize,
-    ) -> Vec<StorageL1Batch> {
+    ) -> anyhow::Result<Vec<StorageL1Batch>> {
         // We need to find the first L1 batch that is supposed to be executed.
         // Here we ignore the time delay, so we just take the first L1 batch that is ready for execution.
         let row = sqlx::query!(
@@ -614,16 +833,15 @@ impl BlocksDal<'_, '_> {
             ORDER BY number LIMIT 1"
         )
         .fetch_optional(self.storage.conn())
-        .await
-        .unwrap();
+        .await?;
 
-        let Some(row) = row else { return vec![] };
+        let Some(row) = row else { return Ok(vec![]) };
         let expected_started_point = row.number;
 
         // After Postgres 12->14 upgrade this field is now f64
         let max_l1_batch_timestamp_seconds_bd =
             BigDecimal::from_f64(max_l1_batch_timestamp_seconds)
-                .expect("Failed to convert f64 to BigDecimal");
+                .context("Failed to convert f64 to BigDecimal")?;
 
         // Find the last L1 batch that is ready for execution.
         let row = sqlx::query!(
@@ -637,28 +855,38 @@ impl BlocksDal<'_, '_> {
             max_l1_batch_timestamp_seconds_bd,
         )
         .fetch_one(self.storage.conn())
-        .await
-        .unwrap();
+        .await?;
 
-        if let Some(max_ready_to_send_block) = row.max {
+        Ok(if let Some(max_ready_to_send_block) = row.max {
             // If we found at least one ready to execute batch then we can simply return all blocks between
             // the expected started point and the max ready to send block because we send them to the L1 sequentially.
             assert!(max_ready_to_send_block >= expected_started_point);
             sqlx::query_as!(
                 StorageL1Batch,
-                "SELECT * FROM l1_batches \
+                "SELECT number, timestamp, is_finished, l1_tx_count, l2_tx_count, fee_account_address, \
+                    bloom, priority_ops_onchain_data, hash, parent_hash, commitment, compressed_write_logs, \
+                    compressed_contracts, eth_prove_tx_id, eth_commit_tx_id, eth_execute_tx_id, \
+                    merkle_root_hash, l2_to_l1_logs, l2_to_l1_messages, \
+                    used_contract_hashes, compressed_initial_writes, compressed_repeated_writes, \
+                    l2_l1_compressed_messages, l2_l1_merkle_root, l1_gas_price, l2_fair_gas_price, \
+                    rollup_last_leaf_index, zkporter_is_available, bootloader_code_hash, \
+                    default_aa_code_hash, base_fee_per_gas, aux_data_hash, pass_through_data_hash, \
+                    meta_parameters_hash, protocol_version \
+                FROM l1_batches \
                 WHERE number BETWEEN $1 AND $2 \
                 ORDER BY number LIMIT $3",
                 expected_started_point as i32,
                 max_ready_to_send_block,
                 limit as i32,
             )
+            .instrument("get_ready_for_execute_l1_batches")
+            .with_arg("numbers", &(expected_started_point..=max_ready_to_send_block))
+            .with_arg("limit", &limit)
             .fetch_all(self.storage.conn())
-            .await
-            .unwrap()
+            .await?
         } else {
             vec![]
-        }
+        })
     }
 
     pub async fn get_ready_for_commit_l1_batches(
@@ -666,145 +894,187 @@ impl BlocksDal<'_, '_> {
         limit: usize,
         bootloader_hash: H256,
         default_aa_hash: H256,
-    ) -> Vec<L1BatchWithMetadata> {
+        protocol_version_id: ProtocolVersionId,
+    ) -> anyhow::Result<Vec<L1BatchWithMetadata>> {
         let raw_batches = sqlx::query_as!(
             StorageL1Batch,
-            "SELECT * FROM l1_batches \
+            "SELECT number, l1_batches.timestamp, is_finished, l1_tx_count, l2_tx_count, fee_account_address, \
+                bloom, priority_ops_onchain_data, hash, parent_hash, commitment, compressed_write_logs, \
+                compressed_contracts, eth_prove_tx_id, eth_commit_tx_id, eth_execute_tx_id, \
+                merkle_root_hash, l2_to_l1_logs, l2_to_l1_messages, \
+                used_contract_hashes, compressed_initial_writes, compressed_repeated_writes, \
+                l2_l1_compressed_messages, l2_l1_merkle_root, l1_gas_price, l2_fair_gas_price, \
+                rollup_last_leaf_index, zkporter_is_available, l1_batches.bootloader_code_hash, \
+                l1_batches.default_aa_code_hash, base_fee_per_gas, aux_data_hash, pass_through_data_hash, \
+                meta_parameters_hash, protocol_version \
+            FROM l1_batches \
+            JOIN protocol_versions ON protocol_versions.id = l1_batches.protocol_version \
             WHERE eth_commit_tx_id IS NULL \
                 AND number != 0 \
-                AND bootloader_code_hash = $1 AND default_aa_code_hash = $2 \
+                AND protocol_versions.bootloader_code_hash = $1 AND protocol_versions.default_account_code_hash = $2 \
                 AND commitment IS NOT NULL \
-            ORDER BY number LIMIT $3",
+                AND (protocol_versions.id = $3 OR protocol_versions.upgrade_tx_hash IS NULL) \
+            ORDER BY number LIMIT $4",
             bootloader_hash.as_bytes(),
             default_aa_hash.as_bytes(),
+            protocol_version_id as i32,
             limit as i64,
         )
+        .instrument("get_ready_for_commit_l1_batches")
+        .with_arg("limit", &limit)
+        .with_arg("bootloader_hash", &bootloader_hash)
+        .with_arg("default_aa_hash", &default_aa_hash)
+        .with_arg("protocol_version_id", &protocol_version_id)
         .fetch_all(self.storage.conn())
-        .await
-        .unwrap();
+        .await?;
 
-        self.map_l1_batches(raw_batches).await
+        self.map_l1_batches(raw_batches)
+            .await
+            .context("map_l1_batches()")
     }
 
-    pub async fn get_l1_batch_state_root(&mut self, number: L1BatchNumber) -> Option<H256> {
-        sqlx::query!(
+    pub async fn get_l1_batch_state_root(
+        &mut self,
+        number: L1BatchNumber,
+    ) -> sqlx::Result<Option<H256>> {
+        Ok(sqlx::query!(
             "SELECT hash FROM l1_batches WHERE number = $1",
             number.0 as i64
         )
         .fetch_optional(self.storage.conn())
-        .await
-        .unwrap()
+        .await?
         .and_then(|row| row.hash)
-        .map(|hash| H256::from_slice(&hash))
+        .map(|hash| H256::from_slice(&hash)))
     }
 
     pub async fn get_l1_batch_state_root_and_timestamp(
         &mut self,
         number: L1BatchNumber,
-    ) -> Option<(H256, u64)> {
-        let row = sqlx::query!(
+    ) -> Result<Option<(H256, u64)>, sqlx::Error> {
+        let Some(row) = sqlx::query!(
             "SELECT timestamp, hash FROM l1_batches WHERE number = $1",
             number.0 as i64
         )
         .fetch_optional(self.storage.conn())
-        .await
-        .unwrap()?;
-
-        Some((H256::from_slice(&row.hash?), row.timestamp as u64))
+        .await?
+        else {
+            return Ok(None);
+        };
+        let Some(hash) = row.hash else {
+            return Ok(None);
+        };
+        Ok(Some((H256::from_slice(&hash), row.timestamp as u64)))
     }
 
-    pub async fn get_newest_l1_batch_header(&mut self) -> L1BatchHeader {
-        let last_block = sqlx::query_as!(
-            StorageL1Batch,
-            "SELECT * FROM l1_batches ORDER BY number DESC LIMIT 1"
+    pub async fn get_newest_l1_batch_header(&mut self) -> sqlx::Result<L1BatchHeader> {
+        let last_l1_batch = sqlx::query_as!(
+            StorageL1BatchHeader,
+            "SELECT number, l1_tx_count, l2_tx_count, \
+                timestamp, is_finished, fee_account_address, l2_to_l1_logs, l2_to_l1_messages, \
+                bloom, priority_ops_onchain_data, \
+                used_contract_hashes, base_fee_per_gas, l1_gas_price, \
+                l2_fair_gas_price, bootloader_code_hash, default_aa_code_hash, protocol_version \
+            FROM l1_batches \
+            ORDER BY number DESC \
+            LIMIT 1"
         )
+        .instrument("get_newest_l1_batch_header")
         .fetch_one(self.storage.conn())
-        .await
-        .unwrap();
+        .await?;
 
-        last_block.into()
+        Ok(last_l1_batch.into())
     }
 
     pub async fn get_l1_batch_metadata(
         &mut self,
         number: L1BatchNumber,
-    ) -> Option<L1BatchWithMetadata> {
-        let l1_batch: Option<StorageL1Batch> = sqlx::query_as!(
-            StorageL1Batch,
-            "SELECT * FROM l1_batches WHERE number = $1",
-            number.0 as i64
-        )
-        .fetch_optional(self.storage.conn())
-        .await
-        .unwrap();
-
-        if let Some(batch) = l1_batch {
-            self.get_l1_batch_with_metadata(batch).await
-        } else {
-            None
-        }
+    ) -> anyhow::Result<Option<L1BatchWithMetadata>> {
+        let Some(l1_batch) = self
+            .get_storage_l1_batch(number)
+            .await
+            .context("get_storage_l1_batch()")?
+        else {
+            return Ok(None);
+        };
+        self.get_l1_batch_with_metadata(l1_batch)
+            .await
+            .context("get_l1_batch_with_metadata")
     }
 
     pub async fn get_l1_batch_with_metadata(
         &mut self,
         storage_batch: StorageL1Batch,
-    ) -> Option<L1BatchWithMetadata> {
+    ) -> anyhow::Result<Option<L1BatchWithMetadata>> {
         let unsorted_factory_deps = self
             .get_l1_batch_factory_deps(L1BatchNumber(storage_batch.number as u32))
-            .await;
+            .await
+            .context("get_l1_batch_factory_deps()")?;
         let header = storage_batch.clone().into();
-        let metadata = storage_batch.try_into().ok()?;
+        let Ok(metadata) = storage_batch.try_into() else {
+            return Ok(None);
+        };
 
-        Some(L1BatchWithMetadata::new(
+        Ok(Some(L1BatchWithMetadata::new(
             header,
             metadata,
             unsorted_factory_deps,
-        ))
+        )))
     }
 
     pub async fn get_l1_batch_factory_deps(
         &mut self,
         l1_batch_number: L1BatchNumber,
-    ) -> HashMap<H256, Vec<u8>> {
-        sqlx::query!(
+    ) -> sqlx::Result<HashMap<H256, Vec<u8>>> {
+        Ok(sqlx::query!(
             "SELECT bytecode_hash, bytecode FROM factory_deps \
             INNER JOIN miniblocks ON miniblocks.number = factory_deps.miniblock_number \
             WHERE miniblocks.l1_batch_number = $1",
             l1_batch_number.0 as i64
         )
         .fetch_all(self.storage.conn())
-        .await
-        .unwrap()
+        .await?
         .into_iter()
         .map(|row| (H256::from_slice(&row.bytecode_hash), row.bytecode))
-        .collect()
+        .collect())
     }
 
     /// Deletes all L1 batches from the storage so that the specified batch number is the last one left.
-    pub async fn delete_l1_batches(&mut self, last_batch_to_keep: L1BatchNumber) {
-        self.delete_l1_batches_inner(Some(last_batch_to_keep)).await;
+    pub async fn delete_l1_batches(
+        &mut self,
+        last_batch_to_keep: L1BatchNumber,
+    ) -> sqlx::Result<()> {
+        self.delete_l1_batches_inner(Some(last_batch_to_keep)).await
     }
 
-    async fn delete_l1_batches_inner(&mut self, last_batch_to_keep: Option<L1BatchNumber>) {
+    async fn delete_l1_batches_inner(
+        &mut self,
+        last_batch_to_keep: Option<L1BatchNumber>,
+    ) -> sqlx::Result<()> {
         let block_number = last_batch_to_keep.map_or(-1, |number| number.0 as i64);
         sqlx::query!("DELETE FROM l1_batches WHERE number > $1", block_number)
             .execute(self.storage.conn())
-            .await
-            .unwrap();
+            .await?;
+        Ok(())
     }
 
     /// Deletes all miniblocks from the storage so that the specified miniblock number is the last one left.
-    pub async fn delete_miniblocks(&mut self, last_miniblock_to_keep: MiniblockNumber) {
+    pub async fn delete_miniblocks(
+        &mut self,
+        last_miniblock_to_keep: MiniblockNumber,
+    ) -> sqlx::Result<()> {
         self.delete_miniblocks_inner(Some(last_miniblock_to_keep))
             .await
     }
 
-    async fn delete_miniblocks_inner(&mut self, last_miniblock_to_keep: Option<MiniblockNumber>) {
+    async fn delete_miniblocks_inner(
+        &mut self,
+        last_miniblock_to_keep: Option<MiniblockNumber>,
+    ) -> sqlx::Result<()> {
         let block_number = last_miniblock_to_keep.map_or(-1, |number| number.0 as i64);
         sqlx::query!("DELETE FROM miniblocks WHERE number > $1", block_number)
             .execute(self.storage.conn())
-            .await
-            .unwrap();
+            .await?;
+        Ok(())
     }
 
     /// Returns sum of predicted gas costs on the given L1 batch range.
@@ -813,7 +1083,7 @@ impl BlocksDal<'_, '_> {
         &mut self,
         number_range: ops::RangeInclusive<L1BatchNumber>,
         op_type: AggregatedActionType,
-    ) -> u32 {
+    ) -> anyhow::Result<u32> {
         let column_name = match op_type {
             AggregatedActionType::Commit => "predicted_commit_gas_cost",
             AggregatedActionType::PublishProofOnchain => "predicted_prove_gas_cost",
@@ -827,18 +1097,17 @@ impl BlocksDal<'_, '_> {
             .bind(number_range.start().0 as i64)
             .bind(number_range.end().0 as i64)
             .fetch_one(self.storage.conn())
-            .await
-            .unwrap()
+            .await?
             .get::<BigDecimal, &str>("sum")
             .to_u32()
-            .expect("Sum of predicted gas costs should fit into u32")
+            .context("Sum of predicted gas costs should fit into u32")
     }
 
     pub async fn update_predicted_l1_batch_commit_gas(
         &mut self,
         number: L1BatchNumber,
         predicted_gas_cost: u32,
-    ) {
+    ) -> sqlx::Result<()> {
         sqlx::query!(
             "UPDATE l1_batches \
             SET predicted_commit_gas_cost = $2, updated_at = now() \
@@ -847,14 +1116,14 @@ impl BlocksDal<'_, '_> {
             predicted_gas_cost as i64
         )
         .execute(self.storage.conn())
-        .await
-        .unwrap();
+        .await?;
+        Ok(())
     }
 
     pub async fn get_miniblock_range_of_l1_batch(
         &mut self,
         l1_batch_number: L1BatchNumber,
-    ) -> Option<(MiniblockNumber, MiniblockNumber)> {
+    ) -> sqlx::Result<Option<(MiniblockNumber, MiniblockNumber)>> {
         let row = sqlx::query!(
             "SELECT MIN(miniblocks.number) as \"min?\", MAX(miniblocks.number) as \"max?\" \
             FROM miniblocks \
@@ -862,44 +1131,48 @@ impl BlocksDal<'_, '_> {
             l1_batch_number.0 as i64
         )
         .fetch_one(self.storage.conn())
-        .await
-        .unwrap();
-
-        Some((
-            MiniblockNumber(row.min? as u32),
-            MiniblockNumber(row.max? as u32),
-        ))
+        .await?;
+        let Some(min) = row.min else { return Ok(None) };
+        let Some(max) = row.max else { return Ok(None) };
+        Ok(Some((
+            MiniblockNumber(min as u32),
+            MiniblockNumber(max as u32),
+        )))
     }
 
     /// Returns `true` if there exists a non-sealed batch (i.e. there is one+ stored miniblock that isn't assigned
     /// to any batch yet).
-    pub async fn pending_batch_exists(&mut self) -> bool {
+    pub async fn pending_batch_exists(&mut self) -> sqlx::Result<bool> {
         let count = sqlx::query_scalar!(
             "SELECT COUNT(miniblocks.number) FROM miniblocks WHERE l1_batch_number IS NULL"
         )
         .fetch_one(self.storage.conn())
-        .await
-        .unwrap()
+        .await?
         .unwrap_or(0);
 
-        count != 0
+        Ok(count != 0)
     }
 
-    pub async fn get_last_l1_batch_number_with_witness_inputs(&mut self) -> L1BatchNumber {
+    pub async fn get_last_l1_batch_number_with_witness_inputs(
+        &mut self,
+    ) -> sqlx::Result<L1BatchNumber> {
         let row = sqlx::query!(
             "SELECT MAX(l1_batch_number) FROM witness_inputs \
             WHERE merkel_tree_paths_blob_url IS NOT NULL",
         )
         .fetch_one(self.storage.conn())
-        .await
-        .unwrap();
+        .await?;
 
-        row.max
+        Ok(row
+            .max
             .map(|l1_batch_number| L1BatchNumber(l1_batch_number as u32))
-            .unwrap_or_default()
+            .unwrap_or_default())
     }
 
-    pub async fn get_l1_batches_with_blobs_in_db(&mut self, limit: u8) -> Vec<L1BatchNumber> {
+    pub async fn get_l1_batches_with_blobs_in_db(
+        &mut self,
+        limit: u8,
+    ) -> sqlx::Result<Vec<L1BatchNumber>> {
         let rows = sqlx::query!(
             "SELECT l1_batch_number FROM witness_inputs \
             WHERE length(merkle_tree_paths) <> 0 \
@@ -908,18 +1181,18 @@ impl BlocksDal<'_, '_> {
             limit as i32
         )
         .fetch_all(self.storage.conn())
-        .await
-        .unwrap();
+        .await?;
 
-        rows.into_iter()
+        Ok(rows
+            .into_iter()
             .map(|row| L1BatchNumber(row.l1_batch_number as u32))
-            .collect()
+            .collect())
     }
 
     pub async fn get_merkle_tree_paths_blob_urls_to_be_cleaned(
         &mut self,
         limit: u8,
-    ) -> Vec<(i64, String)> {
+    ) -> Result<Vec<(i64, String)>, sqlx::Error> {
         let rows = sqlx::query!(
             "SELECT l1_batch_number, merkel_tree_paths_blob_url \
             FROM witness_inputs \
@@ -930,15 +1203,18 @@ impl BlocksDal<'_, '_> {
             limit as i32
         )
         .fetch_all(self.storage.conn())
-        .await
-        .unwrap();
+        .await?;
 
-        rows.into_iter()
+        Ok(rows
+            .into_iter()
             .map(|row| (row.l1_batch_number, row.merkel_tree_paths_blob_url.unwrap()))
-            .collect()
+            .collect())
     }
 
-    pub async fn mark_gcs_blobs_as_cleaned(&mut self, l1_batch_numbers: &[i64]) {
+    pub async fn mark_gcs_blobs_as_cleaned(
+        &mut self,
+        l1_batch_numbers: &[i64],
+    ) -> Result<(), sqlx::Error> {
         sqlx::query!(
             "UPDATE witness_inputs \
             SET is_blob_cleaned = TRUE \
@@ -946,81 +1222,138 @@ impl BlocksDal<'_, '_> {
             l1_batch_numbers
         )
         .execute(self.storage.conn())
-        .await
-        .unwrap();
+        .await?;
+        Ok(())
     }
 
     // methods used for measuring Eth tx stage transition latencies
     // and emitting metrics base on these measured data
-    pub async fn oldest_uncommitted_batch_timestamp(&mut self) -> Option<u64> {
-        sqlx::query!(
+    pub async fn oldest_uncommitted_batch_timestamp(&mut self) -> sqlx::Result<Option<u64>> {
+        Ok(sqlx::query!(
             "SELECT timestamp FROM l1_batches \
             WHERE eth_commit_tx_id IS NULL AND number > 0 \
             ORDER BY number LIMIT 1",
         )
         .fetch_optional(self.storage.conn())
-        .await
-        .unwrap()
-        .map(|row| row.timestamp as u64)
+        .await?
+        .map(|row| row.timestamp as u64))
     }
 
-    pub async fn oldest_unproved_batch_timestamp(&mut self) -> Option<u64> {
-        sqlx::query!(
+    pub async fn oldest_unproved_batch_timestamp(&mut self) -> sqlx::Result<Option<u64>> {
+        Ok(sqlx::query!(
             "SELECT timestamp FROM l1_batches \
             WHERE eth_prove_tx_id IS NULL AND number > 0 \
             ORDER BY number LIMIT 1",
         )
         .fetch_optional(self.storage.conn())
-        .await
-        .unwrap()
-        .map(|row| row.timestamp as u64)
+        .await?
+        .map(|row| row.timestamp as u64))
     }
 
-    pub async fn oldest_unexecuted_batch_timestamp(&mut self) -> Option<u64> {
-        sqlx::query!(
+    pub async fn oldest_unexecuted_batch_timestamp(&mut self) -> Result<Option<u64>, sqlx::Error> {
+        Ok(sqlx::query!(
             "SELECT timestamp FROM l1_batches \
             WHERE eth_execute_tx_id IS NULL AND number > 0 \
             ORDER BY number LIMIT 1",
         )
         .fetch_optional(self.storage.conn())
-        .await
-        .unwrap()
-        .map(|row| row.timestamp as u64)
+        .await?
+        .map(|row| row.timestamp as u64))
+    }
+
+    pub async fn get_batch_protocol_version_id(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+    ) -> anyhow::Result<Option<ProtocolVersionId>> {
+        let Some(row) = sqlx::query!(
+            "SELECT protocol_version FROM l1_batches WHERE number = $1",
+            l1_batch_number.0 as i64
+        )
+        .fetch_optional(self.storage.conn())
+        .await?
+        else {
+            return Ok(None);
+        };
+        let Some(v) = row.protocol_version else {
+            return Ok(None);
+        };
+        Ok(Some((v as u16).try_into()?))
+    }
+
+    pub async fn get_miniblock_protocol_version_id(
+        &mut self,
+        miniblock_number: MiniblockNumber,
+    ) -> anyhow::Result<Option<ProtocolVersionId>> {
+        let Some(row) = sqlx::query!(
+            "SELECT protocol_version FROM miniblocks WHERE number = $1",
+            miniblock_number.0 as i64
+        )
+        .fetch_optional(self.storage.conn())
+        .await?
+        else {
+            return Ok(None);
+        };
+        let Some(v) = row.protocol_version else {
+            return Ok(None);
+        };
+        Ok(Some((v as u16).try_into()?))
     }
 
     pub async fn get_miniblock_timestamp(
         &mut self,
         miniblock_number: MiniblockNumber,
-    ) -> Option<u64> {
-        sqlx::query!(
+    ) -> sqlx::Result<Option<u64>> {
+        Ok(sqlx::query!(
             "SELECT timestamp FROM miniblocks WHERE number = $1",
             miniblock_number.0 as i64,
         )
         .fetch_optional(self.storage.conn())
-        .await
-        .unwrap()
-        .map(|row| row.timestamp as u64)
+        .await?
+        .map(|row| row.timestamp as u64))
+    }
+
+    pub async fn set_protocol_version_for_pending_miniblocks(
+        &mut self,
+        id: ProtocolVersionId,
+    ) -> sqlx::Result<()> {
+        sqlx::query!(
+            "UPDATE miniblocks SET protocol_version = $1 \
+            WHERE l1_batch_number IS NULL",
+            id as i32,
+        )
+        .execute(self.storage.conn())
+        .await?;
+        Ok(())
     }
 }
 
 /// These functions should only be used for tests.
 impl BlocksDal<'_, '_> {
     // The actual l1 batch hash is only set by the metadata calculator.
-    pub async fn set_l1_batch_hash(&mut self, batch_num: L1BatchNumber, hash: H256) {
+    pub async fn set_l1_batch_hash(
+        &mut self,
+        batch_num: L1BatchNumber,
+        hash: H256,
+    ) -> sqlx::Result<()> {
         sqlx::query!(
             "UPDATE l1_batches SET hash = $1 WHERE number = $2",
             hash.as_bytes(),
             batch_num.0 as i64
         )
         .execute(self.storage.conn())
-        .await
-        .unwrap();
+        .await?;
+        Ok(())
     }
 
     /// Deletes all miniblocks and L1 batches, including the genesis ones. Should only be used in tests.
-    pub async fn delete_genesis(&mut self) {
-        self.delete_miniblocks_inner(None).await;
-        self.delete_l1_batches_inner(None).await;
+    pub async fn delete_genesis(&mut self) -> anyhow::Result<()> {
+        self.delete_miniblocks_inner(None)
+            .await
+            .context("delete_miniblocks_inner()")?;
+        self.delete_l1_batches_inner(None)
+            .await
+            .context("delete_l1_batches_inner()")?;
+        Ok(())
     }
 }
 
@@ -1028,21 +1361,87 @@ impl BlocksDal<'_, '_> {
 mod tests {
     use db_test_macro::db_test;
     use zksync_contracts::BaseSystemContractsHashes;
-    use zksync_types::Address;
+    use zksync_types::{l2_to_l1_log::L2ToL1Log, Address, ProtocolVersion, ProtocolVersionId};
 
     use super::*;
     use crate::ConnectionPool;
 
     #[db_test(dal_crate)]
-    async fn getting_predicted_gas(pool: ConnectionPool) {
-        let mut conn = pool.access_storage().await;
-        conn.blocks_dal().delete_l1_batches(L1BatchNumber(0)).await;
+    async fn loading_l1_batch_header(pool: ConnectionPool) {
+        let mut conn = pool.access_storage().await.unwrap();
+        conn.blocks_dal()
+            .delete_l1_batches(L1BatchNumber(0))
+            .await
+            .unwrap();
+        conn.protocol_versions_dal()
+            .save_protocol_version_with_tx(ProtocolVersion::default())
+            .await;
 
         let mut header = L1BatchHeader::new(
             L1BatchNumber(1),
             100,
             Address::default(),
+            BaseSystemContractsHashes {
+                bootloader: H256::repeat_byte(1),
+                default_aa: H256::repeat_byte(42),
+            },
+            ProtocolVersionId::latest(),
+        );
+        header.l1_tx_count = 3;
+        header.l2_tx_count = 5;
+        header.l2_to_l1_logs.push(L2ToL1Log {
+            shard_id: 0,
+            is_service: false,
+            tx_number_in_block: 2,
+            sender: Address::repeat_byte(2),
+            key: H256::repeat_byte(3),
+            value: H256::zero(),
+        });
+        header.l2_to_l1_messages.push(vec![22; 22]);
+        header.l2_to_l1_messages.push(vec![33; 33]);
+
+        conn.blocks_dal()
+            .insert_l1_batch(&header, &[], BlockGasCount::default())
+            .await
+            .unwrap();
+
+        let loaded_header = conn
+            .blocks_dal()
+            .get_l1_batch_header(L1BatchNumber(1))
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(loaded_header.number, header.number);
+        assert_eq!(loaded_header.timestamp, header.timestamp);
+        assert_eq!(loaded_header.l1_tx_count, header.l1_tx_count);
+        assert_eq!(loaded_header.l2_tx_count, header.l2_tx_count);
+        assert_eq!(loaded_header.l2_to_l1_logs, header.l2_to_l1_logs);
+        assert_eq!(loaded_header.l2_to_l1_messages, header.l2_to_l1_messages);
+
+        assert!(conn
+            .blocks_dal()
+            .get_l1_batch_header(L1BatchNumber(2))
+            .await
+            .unwrap()
+            .is_none());
+    }
+
+    #[db_test(dal_crate)]
+    async fn getting_predicted_gas(pool: ConnectionPool) {
+        let mut conn = pool.access_storage().await.unwrap();
+        conn.blocks_dal()
+            .delete_l1_batches(L1BatchNumber(0))
+            .await
+            .unwrap();
+        conn.protocol_versions_dal()
+            .save_protocol_version_with_tx(ProtocolVersion::default())
+            .await;
+        let mut header = L1BatchHeader::new(
+            L1BatchNumber(1),
+            100,
+            Address::default(),
             BaseSystemContractsHashes::default(),
+            ProtocolVersionId::default(),
         );
         let mut predicted_gas = BlockGasCount {
             commit: 2,
@@ -1050,15 +1449,17 @@ mod tests {
             execute: 10,
         };
         conn.blocks_dal()
-            .insert_l1_batch(&header, predicted_gas)
-            .await;
+            .insert_l1_batch(&header, &[], predicted_gas)
+            .await
+            .unwrap();
 
         header.number = L1BatchNumber(2);
         header.timestamp += 100;
         predicted_gas += predicted_gas;
         conn.blocks_dal()
-            .insert_l1_batch(&header, predicted_gas)
-            .await;
+            .insert_l1_batch(&header, &[], predicted_gas)
+            .await
+            .unwrap();
 
         let action_types_and_predicted_gas = [
             (AggregatedActionType::Execute, 10),
@@ -1069,19 +1470,22 @@ mod tests {
             let gas = conn
                 .blocks_dal()
                 .get_l1_batches_predicted_gas(L1BatchNumber(1)..=L1BatchNumber(1), action_type)
-                .await;
+                .await
+                .unwrap();
             assert_eq!(gas, expected_gas);
 
             let gas = conn
                 .blocks_dal()
                 .get_l1_batches_predicted_gas(L1BatchNumber(2)..=L1BatchNumber(2), action_type)
-                .await;
+                .await
+                .unwrap();
             assert_eq!(gas, 2 * expected_gas);
 
             let gas = conn
                 .blocks_dal()
                 .get_l1_batches_predicted_gas(L1BatchNumber(1)..=L1BatchNumber(2), action_type)
-                .await;
+                .await
+                .unwrap();
             assert_eq!(gas, 3 * expected_gas);
         }
     }

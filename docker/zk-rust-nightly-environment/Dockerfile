@@ -1,4 +1,4 @@
-FROM debian:buster-slim
+FROM debian:bookworm-slim
 
 ARG DEBIAN_FRONTEND=noninteractive
 
@@ -10,9 +10,8 @@ ENV RUSTUP_HOME=/usr/local/rustup \
 
 # Setup rust nightly
 RUN curl https://sh.rustup.rs -sSf | bash -s -- -y && \
-    rustup install nightly-2023-05-31 && \
-    rustup default nightly-2023-05-31
-
+    rustup install nightly-2023-07-21 && \
+    rustup default nightly-2023-07-21
 
 # Setup cmake
 RUN curl -Lo cmake-3.24.2-linux-x86_64.sh https://github.com/Kitware/CMake/releases/download/v3.24.2/cmake-3.24.2-linux-x86_64.sh && \

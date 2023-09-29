@@ -2,7 +2,7 @@
 # Not expected to work locally
 
 # syntax=docker/dockerfile:experimental
-FROM debian:buster-slim as builder
+FROM debian:bookworm-slim as builder
 
 ARG DEBIAN_FRONTEND=noninteractive
 
@@ -15,16 +15,20 @@ ENV RUSTUP_HOME=/usr/local/rustup \
     PATH=/usr/local/cargo/bin:$PATH
 
 RUN curl https://sh.rustup.rs -sSf | bash -s -- -y && \
-    rustup install nightly-2023-05-31 && \
-    rustup default nightly-2023-05-31
+    rustup install nightly-2023-07-21 && \
+    rustup default nightly-2023-07-21
 
 WORKDIR /usr/src/zksync
 COPY . .
 
 RUN CARGO_HOME=./cargo cargo build --release
 
-FROM debian:buster-slim
+FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y curl libpq5 ca-certificates && rm -rf /var/lib/apt/lists/*
+
+# copy VK required for protocol version
+COPY prover/vk_setup_data_generator_server_fri/data/ /prover/vk_setup_data_generator_server_fri/data/
+
 
 COPY --from=builder /usr/src/zksync/target/release/zksync_prover_fri /usr/bin/
 ENTRYPOINT ["zksync_prover_fri"]

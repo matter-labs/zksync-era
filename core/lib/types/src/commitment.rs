@@ -80,36 +80,33 @@ impl L1BatchWithMetadata {
         unsorted_factory_deps: HashMap<H256, Vec<u8>>,
     ) -> Self {
         Self {
-            factory_deps: Self::factory_deps_in_appearance_order(&header, &unsorted_factory_deps),
+            factory_deps: Self::factory_deps_in_appearance_order(&header, &unsorted_factory_deps)
+                .map(<[u8]>::to_vec)
+                .collect(),
             header,
             metadata,
         }
     }
 
-    /// Creates an array of factory deps in the order in which they appeared in this L1 batch.
-    fn factory_deps_in_appearance_order(
-        header: &L1BatchHeader,
-        unsorted_factory_deps: &HashMap<H256, Vec<u8>>,
-    ) -> Vec<Vec<u8>> {
-        let mut result = Vec::with_capacity(unsorted_factory_deps.len());
-
-        for log in &header.l2_to_l1_logs {
+    /// Iterates over factory deps in the order in which they appeared in this L1 batch.
+    pub fn factory_deps_in_appearance_order<'a>(
+        header: &'a L1BatchHeader,
+        unsorted_factory_deps: &'a HashMap<H256, Vec<u8>>,
+    ) -> impl Iterator<Item = &'a [u8]> + 'a {
+        header.l2_to_l1_logs.iter().filter_map(move |log| {
             if log.sender == KNOWN_CODES_STORAGE_ADDRESS {
-                let bytecode = unsorted_factory_deps
-                    .get(&log.key)
-                    .cloned()
-                    .unwrap_or_else(|| {
-                        panic!(
-                            "Failed to get bytecode that was marked as known: bytecode_hash {:?}, \
+                let bytecode = unsorted_factory_deps.get(&log.key).unwrap_or_else(|| {
+                    panic!(
+                        "Failed to get bytecode that was marked as known: bytecode_hash {:?}, \
                              L1 batch number {:?}",
-                            log.key, header.number
-                        );
-                    });
-                result.push(bytecode);
+                        log.key, header.number
+                    );
+                });
+                Some(bytecode.as_slice())
+            } else {
+                None
             }
-        }
-
-        result
+        })
     }
 
     pub fn l1_header_data(&self) -> Token {

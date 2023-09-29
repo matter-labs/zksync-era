@@ -109,6 +109,9 @@ impl From<Transaction> for TransactionData {
                     reserved_dynamic: vec![],
                 }
             }
+            ExecuteTransactionCommon::ProtocolUpgrade(_) => {
+                panic!("Protocol upgrade transactions are not supported in vm_m5")
+            }
         }
     }
 }

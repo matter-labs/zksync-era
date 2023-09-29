@@ -1,12 +1,14 @@
+use crate::storage::Storage;
 use crate::vm_with_bootloader::{
     eth_price_per_pubdata_byte, BOOTLOADER_HEAP_PAGE, TX_GAS_LIMIT_OFFSET,
 };
 use crate::VmInstance;
 use zk_evm::aux_structures::Timestamp;
+
 use zksync_types::U256;
 use zksync_utils::ceil_div_u256;
 
-impl<'a> VmInstance<'a> {
+impl<'a, S: Storage> VmInstance<'a, S> {
     pub(crate) fn tx_body_refund(
         &self,
         from_timestamp: Timestamp,
@@ -20,7 +22,7 @@ impl<'a> VmInstance<'a> {
         let gas_spent_on_computation = total_gas_spent
             .checked_sub(gas_spent_on_pubdata)
             .unwrap_or_else(|| {
-                vlog::error!(
+                tracing::error!(
                     "Gas spent on pubdata is greater than total gas spent. On pubdata: {}, total: {}",
                     gas_spent_on_pubdata,
                     total_gas_spent
@@ -51,7 +53,7 @@ impl<'a> VmInstance<'a> {
             + U256::from(pubdata_published) * eth_price_per_pubdata_byte_for_calculation;
         let pre_paid_eth = U256::from(tx_gas_limit) * U256::from(effective_gas_price);
         let refund_eth = pre_paid_eth.checked_sub(fair_fee_eth).unwrap_or_else(|| {
-            vlog::error!(
+            tracing::error!(
                 "Fair fee is greater than pre paid. Fair fee: {} wei, pre paid: {} wei",
                 fair_fee_eth,
                 pre_paid_eth
@@ -78,7 +80,7 @@ impl<'a> VmInstance<'a> {
         //
         // let total_gas_spent = gas_remaining_before - self.gas_remaining();
         // let gas_spent_on_computation = total_gas_spent.checked_sub(gas_spent_on_pubdata).unwrap_or_else(|| {
-        //     vlog::error!("Gas spent on pubdata is greater than total gas spent. On pubdata: {}, total: {}", gas_spent_on_pubdata, total_gas_spent);
+        //     tracing::error!("Gas spent on pubdata is greater than total gas spent. On pubdata: {}, total: {}", gas_spent_on_pubdata, total_gas_spent);
         //     0
         // });
         // let (_, l2_to_l1_logs) = self.collect_events_and_l1_logs_after_timestamp(from_timestamp);
@@ -111,7 +113,7 @@ impl<'a> VmInstance<'a> {
         //     // This should never happen but potential mistakes at the early stage should not bring the server down.
         //     // TODO (SMA-1700): log addition information (e.g overhead for each of criteria: pubdata, single-instance circuits capacity etc)
         //     //   to make debugging easier.
-        //     vlog::error!(
+        //     tracing::error!(
         //         "Actual overhead is greater than predefined one, actual: {}, predefined: {}",
         //         actual_overhead,
         //         predefined_overhead

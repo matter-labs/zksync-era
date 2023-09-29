@@ -1,4 +1,5 @@
 /// External uses
+use anyhow::Context as _;
 use serde::Deserialize;
 /// Built-in uses
 use std::time::Duration;
@@ -24,15 +25,16 @@ pub struct ChainConfig {
 }
 
 impl ChainConfig {
-    pub fn from_env() -> Self {
-        Self {
+    pub fn from_env() -> anyhow::Result<Self> {
+        Ok(Self {
             // TODO rename `eth` to `network`
-            network: NetworkConfig::from_env(),
-            state_keeper: StateKeeperConfig::from_env(),
-            operations_manager: OperationsManagerConfig::from_env(),
-            mempool: MempoolConfig::from_env(),
-            circuit_breaker: CircuitBreakerConfig::from_env(),
-        }
+            network: NetworkConfig::from_env().context("NetworkConfig")?,
+            state_keeper: StateKeeperConfig::from_env().context("StateKeeperConfig")?,
+            operations_manager: OperationsManagerConfig::from_env()
+                .context("OperationsManagerConfig")?,
+            mempool: MempoolConfig::from_env().context("MempoolConfig")?,
+            circuit_breaker: CircuitBreakerConfig::from_env().context("CircuitBreakerConfig")?,
+        })
     }
 }
 
@@ -49,7 +51,7 @@ pub struct NetworkConfig {
 }
 
 impl NetworkConfig {
-    pub fn from_env() -> Self {
+    pub fn from_env() -> anyhow::Result<Self> {
         envy_load("network", "CHAIN_ETH_")
     }
 }
@@ -100,10 +102,17 @@ pub struct StateKeeperConfig {
     /// Max number of computational gas that validation step is allowed to take.
     pub validation_computational_gas_limit: u32,
     pub save_call_traces: bool,
+
+    pub virtual_blocks_interval: u32,
+    pub virtual_blocks_per_miniblock: u32,
+
+    /// Flag which will enable storage to cache witness_inputs during State Keeper's run.
+    /// NOTE: This will slow down StateKeeper, to be used in non-production environments!
+    pub upload_witness_inputs_to_gcs: bool,
 }
 
 impl StateKeeperConfig {
-    pub fn from_env() -> Self {
+    pub fn from_env() -> anyhow::Result<Self> {
         envy_load("state_keeper", "CHAIN_STATE_KEEPER_")
     }
 
@@ -122,7 +131,7 @@ pub struct OperationsManagerConfig {
 }
 
 impl OperationsManagerConfig {
-    pub fn from_env() -> Self {
+    pub fn from_env() -> anyhow::Result<Self> {
         envy_load("operations_manager", "CHAIN_OPERATIONS_MANAGER_")
     }
 
@@ -136,10 +145,11 @@ pub struct CircuitBreakerConfig {
     pub sync_interval_ms: u64,
     pub http_req_max_retry_number: usize,
     pub http_req_retry_interval_sec: u8,
+    pub replication_lag_limit_sec: Option<u32>,
 }
 
 impl CircuitBreakerConfig {
-    pub fn from_env() -> Self {
+    pub fn from_env() -> anyhow::Result<Self> {
         envy_load("circuit_breaker", "CHAIN_CIRCUIT_BREAKER_")
     }
 
@@ -175,7 +185,7 @@ impl MempoolConfig {
         Duration::from_millis(self.delay_interval)
     }
 
-    pub fn from_env() -> Self {
+    pub fn from_env() -> anyhow::Result<Self> {
         envy_load("mempool", "CHAIN_MEMPOOL_")
     }
 }
@@ -213,6 +223,9 @@ mod tests {
                 default_aa_hash: H256::from(&[254; 32]),
                 validation_computational_gas_limit: 10_000_000,
                 save_call_traces: false,
+                virtual_blocks_interval: 1,
+                virtual_blocks_per_miniblock: 1,
+                upload_witness_inputs_to_gcs: false,
             },
             operations_manager: OperationsManagerConfig {
                 delay_interval: 100,
@@ -229,6 +242,7 @@ mod tests {
                 sync_interval_ms: 1000,
                 http_req_max_retry_number: 5,
                 http_req_retry_interval_sec: 2,
+                replication_lag_limit_sec: Some(10),
             },
         }
     }
@@ -258,6 +272,7 @@ mod tests {
             CHAIN_STATE_KEEPER_DEFAULT_AA_HASH="0xfefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefe"
             CHAIN_STATE_KEEPER_VALIDATION_COMPUTATIONAL_GAS_LIMIT="10000000"
             CHAIN_STATE_KEEPER_SAVE_CALL_TRACES="false"
+            CHAIN_STATE_KEEPER_UPLOAD_WITNESS_INPUTS_TO_GCS="false"
             CHAIN_OPERATIONS_MANAGER_DELAY_INTERVAL="100"
             CHAIN_MEMPOOL_SYNC_INTERVAL_MS="10"
             CHAIN_MEMPOOL_SYNC_BATCH_SIZE="1000"
@@ -268,10 +283,11 @@ mod tests {
             CHAIN_CIRCUIT_BREAKER_SYNC_INTERVAL_MS="1000"
             CHAIN_CIRCUIT_BREAKER_HTTP_REQ_MAX_RETRY_NUMBER="5"
             CHAIN_CIRCUIT_BREAKER_HTTP_REQ_RETRY_INTERVAL_SEC="2"
+            CHAIN_CIRCUIT_BREAKER_REPLICATION_LAG_LIMIT_SEC="10"
         "#;
         lock.set_env(config);
 
-        let actual = ChainConfig::from_env();
+        let actual = ChainConfig::from_env().unwrap();
         assert_eq!(actual, expected_config());
     }
 }

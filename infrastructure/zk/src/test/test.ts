@@ -1,3 +1,4 @@
+import chalk from 'chalk';
 import { Command } from 'commander';
 import * as utils from '../utils';
 
@@ -20,7 +21,18 @@ export async function js() {
 export async function rust(options: string[]) {
     await db.resetTest();
 
-    let cmd = `cargo test --release ${options.join(' ')}`;
+    let result = await utils.exec('cargo install --list');
+    let test_runner = 'cargo nextest run';
+    if (!result.stdout.includes('cargo-nextest')) {
+        console.warn(
+            chalk.bold.red(
+                `cargo-nextest is missing, please run "cargo install cargo-nextest". Falling back to "cargo test".`
+            )
+        );
+        test_runner = 'cargo test';
+    }
+
+    let cmd = `${test_runner} --release ${options.join(' ')}`;
     console.log(`running unit tests with '${cmd}'`);
 
     await utils.spawn(cmd);

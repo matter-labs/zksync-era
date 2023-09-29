@@ -30,7 +30,8 @@ export const command = new Command('clean')
         }
 
         if (cmd.all || cmd.artifacts) {
-            clean(`artifacts`);
+            clean('core/tests/ts-integration/artifacts-zk');
+            clean('core/tests/ts-integration/cache-zk');
         }
 
         if (cmd.all || cmd.database) {

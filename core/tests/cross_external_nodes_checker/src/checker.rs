@@ -1,13 +1,17 @@
-use crate::config::{CheckerConfig, RpcMode};
 use std::{
     cmp::Ordering::{Equal, Greater, Less},
     collections::HashMap,
     fmt::Debug,
     time::Duration,
 };
+
+use serde_json::Value;
+use tokio::{sync::watch::Receiver, time::sleep};
+
 use zksync_types::{
-    api::BlockNumber, explorer_api::BlockDetails, web3::types::U64, L1BatchNumber, MiniblockNumber,
-    H256,
+    api::{BlockDetails, BlockNumber, L1BatchDetails},
+    web3::types::U64,
+    L1BatchNumber, MiniblockNumber, H256,
 };
 use zksync_utils::wait_for_tasks::wait_for_tasks;
 use zksync_web3_decl::{
@@ -15,16 +19,14 @@ use zksync_web3_decl::{
     jsonrpsee::http_client::{HttpClient, HttpClientBuilder},
     namespaces::{EnNamespaceClient, EthNamespaceClient, ZksNamespaceClient},
     types::FilterBuilder,
+    RpcResult,
 };
 
+use crate::config::{CheckerConfig, RpcMode};
 use crate::{
     divergence::{Divergence, DivergenceDetails},
     helpers::compare_json,
 };
-use serde_json::Value;
-use tokio::{sync::watch::Receiver, time::sleep};
-use zksync_types::explorer_api::L1BatchDetails;
-use zksync_web3_decl::RpcResult;
 
 #[derive(Debug, Clone)]
 pub struct Checker {
@@ -112,24 +114,25 @@ impl Checker {
         (main_node_client, instance_clients)
     }
 
-    pub async fn run(mut self, stop_receiver: Receiver<bool>) {
+    pub async fn run(mut self, stop_receiver: Receiver<bool>) -> anyhow::Result<()> {
         match self.mode {
             RpcMode::Triggered => {
-                vlog::info!("Starting Checker in Triggered mode");
+                tracing::info!("Starting Checker in Triggered mode");
                 if let Err(e) = self.run_triggered().await {
                     self.log_divergences();
-                    vlog::error!("Error running in Triggered mode: {:?}", e);
+                    tracing::error!("Error running in Triggered mode: {:?}", e);
                 }
                 // Ensure CI will fail if any divergences were found.
                 assert!(self.divergences.is_empty(), "Divergences found");
             }
             RpcMode::Continuous => {
-                vlog::info!("Starting Checker in Continuous mode");
+                tracing::info!("Starting Checker in Continuous mode");
                 if let Err(e) = self.run_continuous(stop_receiver).await {
-                    vlog::error!("Error running in Continuous mode: {:?}", e);
+                    tracing::error!("Error running in Continuous mode: {:?}", e);
                 }
             }
         }
+        Ok(())
     }
 
     // For each instance, spawn a task that will continuously poll the instance for new miniblocks
@@ -146,9 +149,9 @@ impl Checker {
             let mut checker = self.clone();
 
             let handle = tokio::spawn(async move {
-                vlog::info!("Started a task to check instance {}", instance_client.url);
+                tracing::info!("Started a task to check instance {}", instance_client.url);
                 if let Err(e) = checker.run_node_level_checkers(&instance_client).await {
-                    vlog::error!("Error checking instance {}: {:?}", instance_client.url, e);
+                    tracing::error!("Error checking instance {}: {:?}", instance_client.url, e);
                 };
                 let mut next_block_to_check = checker.start_miniblock.unwrap_or(MiniblockNumber(0));
 
@@ -157,7 +160,7 @@ impl Checker {
                 // - Run the checkers through the blocks.
                 // - Maybe check batches.
                 loop {
-                    vlog::debug!(
+                    tracing::debug!(
                         "entered loop to check miniblock #({}) for instance: {}",
                         next_block_to_check,
                         instance_client.url
@@ -174,7 +177,7 @@ impl Checker {
                     {
                         Ok(Some(miniblock)) => miniblock,
                         Ok(None) => {
-                            vlog::debug!(
+                            tracing::debug!(
                                 "No miniblock found for miniblock #({}). Sleeping for {} seconds",
                                 next_block_to_check,
                                 checker.instance_poll_period
@@ -185,7 +188,7 @@ impl Checker {
                             continue;
                         }
                         Err(e) => {
-                            vlog::error!(
+                            tracing::error!(
                                 "Error getting miniblock #({}) from instance: {}: {:?}",
                                 next_block_to_check,
                                 instance_client.url,
@@ -201,14 +204,14 @@ impl Checker {
                     {
                         Ok(Some(miniblock)) => miniblock,
                         Ok(None) => {
-                            vlog::error!(
+                            tracing::error!(
                                 "Miniblock #({}), which exists in external node instance {}, was not found in the main node",
                                 next_block_to_check, instance_client.url
                             );
                             break;
                         }
                         Err(e) => {
-                            vlog::error!("Error getting miniblock from main node while checking instance {}: {:?}", instance_client.url, e);
+                            tracing::error!("Error getting miniblock from main node while checking instance {}: {:?}", instance_client.url, e);
                             break;
                         }
                     };
@@ -219,7 +222,7 @@ impl Checker {
                     {
                         Ok(tx_map) => tx_map,
                         Err(e) => {
-                            vlog::error!("Error creating tx map for main node miniblock while checking instance {}: {}", instance_client.url, e);
+                            tracing::error!("Error creating tx map for main node miniblock while checking instance {}: {}", instance_client.url, e);
                             break;
                         }
                     };
@@ -234,14 +237,14 @@ impl Checker {
                         .await
                     {
                         Ok(_) => {
-                            vlog::info!(
+                            tracing::info!(
                                 "successfully checked miniblock #({}) for instance: {}",
                                 next_block_to_check,
                                 instance_client.url
                             );
                         }
                         Err(e) => {
-                            vlog::error!(
+                            tracing::error!(
                                 "Error checking miniblock #({}) for instance {}: {:?}. Skipping this miniblock",
                                 next_block_to_check,
                                 instance_client.url,
@@ -255,7 +258,7 @@ impl Checker {
                         .maybe_check_batches(&instance_client, instance_miniblock.l1_batch_number)
                         .await
                     {
-                        vlog::error!(
+                        tracing::error!(
                             "Error comparing batch {} for instance {}: {:?}",
                             instance_miniblock.l1_batch_number,
                             instance_client.url,
@@ -263,6 +266,7 @@ impl Checker {
                         );
                     }
                 }
+                Ok(())
             });
             join_handles.push(handle);
         }
@@ -271,7 +275,7 @@ impl Checker {
         tokio::select! {
             _ = wait_for_tasks(join_handles, None, None::<futures::future::Ready<()>>, false) => {},
             _ = stop_receiver.changed() => {
-                vlog::info!("Stop signal received, shutting down");
+                tracing::info!("Stop signal received, shutting down");
             },
         }
 
@@ -317,7 +321,7 @@ impl Checker {
                     Some(miniblock) => miniblock,
                     None => {
                         // TODO(BFT-165): Implement Miniblock Existence Checker
-                        vlog::warn!(
+                        tracing::warn!(
                             "No miniblock found for miniblock #({}) in instance {}. skipping checking it for now.",
                             miniblock_num_to_check,
                             instance_client.url
@@ -337,7 +341,7 @@ impl Checker {
                 self.maybe_check_batches(&instance_client, main_node_miniblock.l1_batch_number)
                     .await?;
 
-                vlog::info!(
+                tracing::info!(
                     "successfully checked miniblock #({}) for instance: {}",
                     miniblock_num_to_check,
                     instance_client.url
@@ -359,7 +363,7 @@ impl Checker {
             .next_batch_to_check
             .get(instance_client.url.as_str())
             .expect("All instance URLs must exists in next_batch_to_check");
-        vlog::debug!("Maybe checking batch {}", miniblock_batch_number);
+        tracing::debug!("Maybe checking batch {}", miniblock_batch_number);
 
         // We should check batches only the first time we encounter them per instance
         // (i.e., next_instance_batch_to_check == miniblock_batch_number)
@@ -408,7 +412,7 @@ impl Checker {
             Some(batch) => batch,
             None => {
                 // TODO(BFT-165): Implement batch existence checker.
-                vlog::warn!(
+                tracing::warn!(
                     "No batch found for batch #({}) in instance {}. skipping checking it for now.",
                     miniblock_batch_number,
                     instance_client.url
@@ -473,11 +477,11 @@ impl Checker {
                     .entry(url.to_string())
                     .or_insert_with(Vec::new);
                 divergences.push(divergence.clone());
-                vlog::error!("{}", divergence);
+                tracing::error!("{}", divergence);
             }
             RpcMode::Continuous => {
                 // Simply log for now. TODO(BFT-177): Add grafana metrics.
-                vlog::error!("{}", divergence);
+                tracing::error!("{}", divergence);
             }
         }
     }
@@ -507,13 +511,13 @@ impl Checker {
 
     fn log_divergences(&mut self) {
         if self.divergences.is_empty() {
-            vlog::info!("No divergences found");
+            tracing::info!("No divergences found");
             return;
         }
         for (url, divergences) in &self.divergences {
-            vlog::error!("Divergences found for URL: {}", url);
+            tracing::error!("Divergences found for URL: {}", url);
             for divergence in divergences {
-                vlog::error!("{}", divergence);
+                tracing::error!("{}", divergence);
             }
         }
     }
@@ -527,7 +531,7 @@ impl Checker {
         instance_batch: L1BatchDetails,
         instance_url: &str,
     ) {
-        vlog::debug!(
+        tracing::debug!(
             "Checking batch details for batch #({})",
             main_node_batch.number
         );
@@ -553,7 +557,7 @@ impl Checker {
         main_node_miniblock: &BlockDetails,
         instance_miniblock: &BlockDetails,
     ) {
-        vlog::debug!(
+        tracing::debug!(
             "Checking miniblock details for miniblock #({})",
             main_node_miniblock.number
         );
@@ -585,7 +589,7 @@ impl Checker {
             .create_tx_map(&instance_client.client, instance_miniblock.number)
             .await?;
 
-        vlog::debug!(
+        tracing::debug!(
             "Checking transactions for miniblock #({}) that has {} transactions",
             instance_miniblock.number,
             instance_tx_map.len(),
@@ -641,7 +645,7 @@ impl Checker {
                             miniblock_number: Some(instance_miniblock.number),
                         }),
                     );
-                    vlog::debug!(
+                    tracing::debug!(
                         "Added divergence for a tx that is in main node but not in instance: {:?}",
                         tx_hash
                     );
@@ -661,7 +665,7 @@ impl Checker {
                     miniblock_number: Some(instance_miniblock.number),
                 }),
             );
-            vlog::debug!(
+            tracing::debug!(
                 "Added divergence for a tx that is in instance but not in main node: {:?}",
                 tx_hash
             );
@@ -676,7 +680,7 @@ impl Checker {
         tx_hash: &H256,
         miniblock_number: MiniblockNumber,
     ) -> RpcResult<()> {
-        vlog::debug!(
+        tracing::debug!(
             "Checking receipts for a tx in miniblock {}",
             miniblock_number
         );
@@ -714,7 +718,7 @@ impl Checker {
         tx_hash: &H256,
         miniblock_number: MiniblockNumber,
     ) -> RpcResult<()> {
-        vlog::debug!(
+        tracing::debug!(
             "Checking transaction details for a tx in miniblock {}",
             miniblock_number
         );
@@ -757,10 +761,10 @@ impl Checker {
         let to_block = current_miniblock_block_num.0;
 
         if from_block < Some(0) || to_block % self.log_check_interval != 0 {
-            vlog::debug!("Skipping log check for miniblock {}", to_block);
+            tracing::debug!("Skipping log check for miniblock {}", to_block);
             return Ok(());
         }
-        vlog::debug!(
+        tracing::debug!(
             "Checking logs for miniblocks {}-{}",
             from_block.unwrap(),
             to_block - 1
@@ -775,7 +779,7 @@ impl Checker {
             Ok(logs) => logs,
             Err(e) => {
                 // TODO(BFT-192): Be more specific with checking logs
-                vlog::error!("Failed to get logs from main node: {}", e);
+                tracing::error!("Failed to get logs from main node: {}", e);
                 return Ok(());
             }
         };
@@ -783,7 +787,7 @@ impl Checker {
             Ok(logs) => logs,
             Err(e) => {
                 // TODO(BFT-192): Be more specific with checking logs
-                vlog::error!("Failed to get logs from instance: {}", e);
+                tracing::error!("Failed to get logs from instance: {}", e);
                 return Ok(());
             }
         };

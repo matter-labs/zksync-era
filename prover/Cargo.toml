@@ -2,6 +2,7 @@
 members = [
     # lib
     "prover_fri_utils",
+    "prover_fri_types",
 
     # binaries
     "prover",
@@ -9,7 +10,10 @@ members = [
     "setup_key_generator_and_server",
     "witness_generator",
     "vk_setup_data_generator_server_fri",
-    "prover_fri"
+    "prover_fri",
+    "witness_vector_generator",
+    "prover_fri_gateway",
+    "proof_fri_compressor",
 ]
 
 resolver = "2"
