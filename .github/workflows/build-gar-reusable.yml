@@ -24,7 +24,6 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # https://github.com/matter-labs/gitops-kubernetes/blob/main/apps/base/zksync-v2-config/zksync-v2-config.yaml#L385
         setup_keys:
           [
             { prover_id: "0", keys_ids: "0,18" },
