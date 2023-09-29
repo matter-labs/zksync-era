@@ -23,7 +23,8 @@ pub enum ContractLanguage {
     Sol,
     Yul,
 }
-
+const GOVERNANCE_CONTRACT_FILE: &str =
+    "contracts/ethereum/artifacts/cache/solpp-generated-contracts/governance/IGovernance.sol/IGovernance.json";
 const ZKSYNC_CONTRACT_FILE: &str =
     "contracts/ethereum/artifacts/cache/solpp-generated-contracts/zksync/interfaces/IZkSync.sol/IZkSync.json";
 const MULTICALL3_CONTRACT_FILE: &str =
@@ -67,6 +68,10 @@ pub fn read_contract_abi(path: impl AsRef<Path>) -> String {
         .as_str()
         .expect("Failed to parse abi")
         .to_string()
+}
+
+pub fn governance_contract() -> Contract {
+    load_contract(GOVERNANCE_CONTRACT_FILE)
 }
 
 pub fn zksync_contract() -> Contract {

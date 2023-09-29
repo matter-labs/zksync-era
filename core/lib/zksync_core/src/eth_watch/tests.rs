@@ -5,7 +5,7 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 
 use db_test_macro::db_test;
-use zksync_contracts::zksync_contract;
+use zksync_contracts::{governance_contract, zksync_contract};
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_types::protocol_version::{ProtocolUpgradeTx, ProtocolUpgradeTxCommonData};
 use zksync_types::web3::types::{Address, BlockNumber};
@@ -190,6 +190,7 @@ async fn test_normal_operation_l1_txs(connection_pool: ConnectionPool) {
 
     let mut client = FakeEthClient::new();
     let mut watcher = EthWatch::new(
+        Address::default(),
         client.clone(),
         &connection_pool,
         std::time::Duration::from_nanos(1),
@@ -235,6 +236,7 @@ async fn test_normal_operation_upgrades(connection_pool: ConnectionPool) {
 
     let mut client = FakeEthClient::new();
     let mut watcher = EthWatch::new(
+        Address::default(),
         client.clone(),
         &connection_pool,
         std::time::Duration::from_nanos(1),
@@ -293,6 +295,7 @@ async fn test_gap_in_upgrades(connection_pool: ConnectionPool) {
 
     let mut client = FakeEthClient::new();
     let mut watcher = EthWatch::new(
+        Address::default(),
         client.clone(),
         &connection_pool,
         std::time::Duration::from_nanos(1),
@@ -330,6 +333,7 @@ async fn test_gap_in_single_batch(connection_pool: ConnectionPool) {
 
     let mut client = FakeEthClient::new();
     let mut watcher = EthWatch::new(
+        Address::default(),
         client.clone(),
         &connection_pool,
         std::time::Duration::from_nanos(1),
@@ -357,6 +361,7 @@ async fn test_gap_between_batches(connection_pool: ConnectionPool) {
 
     let mut client = FakeEthClient::new();
     let mut watcher = EthWatch::new(
+        Address::default(),
         client.clone(),
         &connection_pool,
         std::time::Duration::from_nanos(1),
@@ -389,6 +394,7 @@ async fn test_overlapping_batches(connection_pool: ConnectionPool) {
 
     let mut client = FakeEthClient::new();
     let mut watcher = EthWatch::new(
+        Address::default(),
         client.clone(),
         &connection_pool,
         std::time::Duration::from_nanos(1),
@@ -592,7 +598,7 @@ fn upgrade_into_log(upgrade: ProtocolUpgrade, eth_block: u64) -> Log {
         Token::Address(Default::default()),
     ]);
 
-    let final_token = Token::Tuple(vec![
+    let diamond_cut = Token::Tuple(vec![
         Token::Array(vec![]),
         Token::Address(Default::default()),
         Token::Bytes(
@@ -603,14 +609,31 @@ fn upgrade_into_log(upgrade: ProtocolUpgrade, eth_block: u64) -> Log {
         ),
     ]);
 
-    let data = encode(&[final_token, Token::FixedBytes(vec![0u8; 32])]);
+    let diamond_upgrade_calldata = vec![0u8; 4]
+        .into_iter()
+        .chain(encode(&[diamond_cut]))
+        .collect();
+    let governance_call = Token::Tuple(vec![
+        Token::Address(Default::default()),
+        Token::Uint(U256::default()),
+        Token::Bytes(diamond_upgrade_calldata),
+    ]);
+    let governance_operation = Token::Tuple(vec![
+        Token::Array(vec![governance_call]),
+        Token::FixedBytes(vec![0u8; 32]),
+        Token::FixedBytes(vec![0u8; 32]),
+    ]);
+    let final_data = encode(&[Token::FixedBytes(vec![0u8; 32]), governance_operation]);
     Log {
         address: Address::repeat_byte(0x1),
-        topics: vec![zksync_contract()
-            .event("ProposeTransparentUpgrade")
-            .expect("ProposeTransparentUpgrade event is missing in abi")
-            .signature()],
-        data: data.into(),
+        topics: vec![
+            governance_contract()
+                .event("TransparentOperationScheduled")
+                .expect("TransparentOperationScheduled event is missing in abi")
+                .signature(),
+            Default::default(),
+        ],
+        data: final_data.into(),
         block_hash: Some(H256::repeat_byte(0x11)),
         block_number: Some(eth_block.into()),
         transaction_hash: Some(H256::random()),

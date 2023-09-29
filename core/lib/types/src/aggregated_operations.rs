@@ -97,7 +97,7 @@ impl L1BatchProofOperation {
                 scheduler_proof,
             } = self.proofs.first().unwrap();
 
-            let (_, proof) = serialize_proof(scheduler_proof);
+            let (_inputs, proof) = serialize_proof(scheduler_proof);
 
             let proof_input = Token::Tuple(vec![
                 Token::Array(

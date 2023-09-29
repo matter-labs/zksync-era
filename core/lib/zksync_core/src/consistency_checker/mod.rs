@@ -95,7 +95,7 @@ impl ConsistencyChecker {
 
         let commitments = self
             .contract
-            .function("commitBlocks")
+            .function("commitBatches")
             .unwrap()
             .decode_input(&commit_tx.input.0[4..])
             .unwrap()
@@ -108,7 +108,7 @@ impl ConsistencyChecker {
         // the one that corresponds to the batch we're checking.
         let first_batch_number = match &commitments[0] {
             ethabi::Token::Tuple(tuple) => tuple[0].clone().into_uint().unwrap().as_usize(),
-            _ => panic!("ABI does not match the commitBlocks() function on the zkSync contract"),
+            _ => panic!("ABI does not match the commitBatches() function on the zkSync contract"),
         };
         let commitment = &commitments[batch_number.0 as usize - first_batch_number];
 

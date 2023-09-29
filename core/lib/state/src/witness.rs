@@ -37,4 +37,9 @@ impl ReadStorage for WitnessStorage {
     fn load_factory_dep(&mut self, _hash: H256) -> Option<Vec<u8>> {
         None
     }
+
+    fn get_enumeration_index(&mut self, _key: &StorageKey) -> Option<u64> {
+        metrics::histogram!("witness_storage.unexpected_get_enumeration_index_call", 1.0);
+        None
+    }
 }

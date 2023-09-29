@@ -1,7 +1,6 @@
 #![deny(unreachable_pub)]
 #![deny(unused_crate_dependencies)]
 #![warn(unused_extern_crates)]
-#![warn(unused_imports)]
 
 pub use old_vm::{
     history_recorder::{HistoryDisabled, HistoryEnabled, HistoryMode},
@@ -26,7 +25,7 @@ pub use types::{
     internals::ZkSyncVmState,
     outputs::{
         BootloaderMemory, CurrentExecutionState, ExecutionResult, FinishedL1Batch, L2Block,
-        Refunds, VmExecutionResultAndLogs, VmExecutionStatistics, VmMemoryMetrics,
+        Refunds, VmExecutionLogs, VmExecutionResultAndLogs, VmExecutionStatistics, VmMemoryMetrics,
     },
 };
 pub use utils::transaction_encoding::TransactionVmExt;

@@ -23,7 +23,9 @@ use crate::tracers::utils::{
 };
 use crate::tracers::ResultTracer;
 use crate::types::internals::ZkSyncVmState;
-use crate::{VmExecutionMode, VmExecutionStopReason};
+use crate::VmExecutionStopReason;
+
+use crate::VmExecutionMode;
 
 /// Default tracer for the VM. It manages the other tracers execution and stop the vm when needed.
 pub(crate) struct DefaultExecutionTracer<S, H: HistoryMode> {
@@ -232,6 +234,7 @@ impl<S: WriteStorage, H: HistoryMode> ExecutionProcessing<S, H> for DefaultExecu
         for processor in self.custom_tracers.iter_mut() {
             processor.after_cycle(state, bootloader_state);
         }
+
         if self.final_batch_info_requested {
             self.set_fictive_l2_block(state, bootloader_state)
         }

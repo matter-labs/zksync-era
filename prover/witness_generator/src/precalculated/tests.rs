@@ -61,7 +61,7 @@ const fn generate_storage_log_metadata(
     merkle_path: &[u8],
     is_write: bool,
     first_write: bool,
-    leaf_enumeration_index: u64,
+    leaf_enumeration_index u64,
 ) -> (StorageLogMetadata, [u8; 32]) {
     let log = StorageLogMetadata {
         root_hash: Hex.decode(root_hash),

@@ -465,6 +465,7 @@ fn default_l1_batch_metadata() -> L1BatchMetadata {
         aux_data_hash: Default::default(),
         meta_parameters_hash: Default::default(),
         pass_through_data_hash: Default::default(),
+        state_diffs_compressed: vec![],
     }
 }
 

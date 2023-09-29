@@ -33,6 +33,17 @@ impl L2ToL1Log {
         self.serialize_commitment(&mut buffer);
         buffer
     }
+
+    pub fn packed_encoding(&self) -> Vec<u8> {
+        let mut res = vec![];
+        res.extend_from_slice(&self.shard_id.to_be_bytes());
+        res.extend_from_slice(&(self.is_service as u8).to_be_bytes());
+        res.extend_from_slice(&self.tx_number_in_block.to_be_bytes());
+        res.extend_from_slice(self.sender.as_bytes());
+        res.extend(self.key.as_bytes());
+        res.extend(self.value.as_bytes());
+        res
+    }
 }
 
 impl From<EventMessage> for L2ToL1Log {

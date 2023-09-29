@@ -1,13 +1,15 @@
 use crate::{
     ethabi,
+    l2_to_l1_log::L2ToL1Log,
     tokens::{TokenInfo, TokenMetadata},
     Address, L1BatchNumber, CONTRACT_DEPLOYER_ADDRESS, H256, KNOWN_CODES_STORAGE_ADDRESS,
-    L1_MESSENGER_ADDRESS,
+    L1_MESSENGER_ADDRESS, U256,
 };
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
-use zksync_utils::h256_to_account_address;
+use zksync_basic_types::ethabi::Token;
+use zksync_utils::{h256_to_account_address, u256_to_bytes_be, u256_to_h256};
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct VmEvent {
@@ -50,6 +52,75 @@ static L1_MESSAGE_EVENT_SIGNATURE: Lazy<H256> = Lazy::new(|| {
         ],
     )
 });
+
+// struct L2ToL1Log {
+//     uint8 l2ShardId;
+//     bool isService;
+//     uint16 txNumberInBlock;
+//     address sender;
+//     bytes32 key;
+//     bytes32 value;
+// }
+static L1_MESSENGER_L2_TO_L1_LOG_EVENT_SIGNATURE: Lazy<H256> = Lazy::new(|| {
+    ethabi::long_signature(
+        "L2ToL1LogSent",
+        &[ethabi::ParamType::Tuple(vec![
+            ethabi::ParamType::Uint(8),
+            ethabi::ParamType::Bool,
+            ethabi::ParamType::Uint(16),
+            ethabi::ParamType::Address,
+            ethabi::ParamType::FixedBytes(32),
+            ethabi::ParamType::FixedBytes(32),
+        ])],
+    )
+});
+
+#[derive(Debug, Default, Clone)]
+pub struct L1MessengerL2ToL1Log {
+    l2_shard_id: u8,
+    is_service: bool,
+    tx_number_in_block: u16,
+    sender: Address,
+    key: U256,
+    value: U256,
+}
+
+impl L1MessengerL2ToL1Log {
+    pub fn packed_encoding(&self) -> Vec<u8> {
+        let mut res = vec![];
+        res.extend_from_slice(&self.l2_shard_id.to_be_bytes());
+        res.extend_from_slice(&(self.is_service as u8).to_be_bytes());
+        res.extend_from_slice(&self.tx_number_in_block.to_be_bytes());
+        res.extend_from_slice(self.sender.as_bytes());
+        res.extend(u256_to_bytes_be(&self.key));
+        res.extend(u256_to_bytes_be(&self.value));
+        res
+    }
+}
+
+impl Into<L2ToL1Log> for L1MessengerL2ToL1Log {
+    fn into(self) -> L2ToL1Log {
+        L2ToL1Log {
+            shard_id: self.l2_shard_id,
+            is_service: self.is_service,
+            tx_number_in_block: self.tx_number_in_block,
+            sender: self.sender,
+            key: u256_to_h256(self.key),
+            value: u256_to_h256(self.value),
+        }
+    }
+}
+
+static L1_MESSENGER_BYTECODE_PUBLICATION_EVENT_SIGNATURE: Lazy<H256> = Lazy::new(|| {
+    ethabi::long_signature(
+        "BytecodeL1PublicationRequested",
+        &[ethabi::ParamType::FixedBytes(32)],
+    )
+});
+
+pub struct L1MessengerBytecodePublicationRequest {
+    pub bytecode_hash: H256,
+}
 
 static BRIDGE_INITIALIZATION_SIGNATURE_OLD: Lazy<H256> = Lazy::new(|| {
     ethabi::long_signature(
@@ -148,7 +219,7 @@ pub fn extract_long_l2_to_l1_messages(all_generated_events: &[VmEvent]) -> Vec<V
     all_generated_events
         .iter()
         .filter(|event| {
-            // Filter events from the deployer contract that match the expected signature.
+            // Filter events from the l1 messenger contract that match the expected signature.
             event.address == L1_MESSENGER_ADDRESS
                 && event.indexed_topics.len() == 3
                 && event.indexed_topics[0] == *L1_MESSAGE_EVENT_SIGNATURE
@@ -159,6 +230,83 @@ pub fn extract_long_l2_to_l1_messages(all_generated_events: &[VmEvent]) -> Vec<V
             // The `Token` does not implement `Copy` trait, so I had to do it like that:
             let bytes_token = decoded_tokens.into_iter().next().unwrap();
             bytes_token.into_bytes().unwrap()
+        })
+        .collect()
+}
+
+// Extracts all the L2ToL1Logs that were emitted
+// by the L1Messenger contract
+pub fn extract_l2tol1logs_from_l1_messenger(
+    all_generated_events: &[VmEvent],
+) -> Vec<L1MessengerL2ToL1Log> {
+    all_generated_events
+        .iter()
+        .filter(|event| {
+            // Filter events from the l1 messenger contract that match the expected signature.
+            event.address == L1_MESSENGER_ADDRESS
+                && !event.indexed_topics.is_empty()
+                && event.indexed_topics[0] == *L1_MESSENGER_L2_TO_L1_LOG_EVENT_SIGNATURE
+        })
+        .map(|event| {
+            let tuple = ethabi::decode(
+                &[ethabi::ParamType::Tuple(vec![
+                    ethabi::ParamType::Uint(8),
+                    ethabi::ParamType::Bool,
+                    ethabi::ParamType::Uint(16),
+                    ethabi::ParamType::Address,
+                    ethabi::ParamType::FixedBytes(32),
+                    ethabi::ParamType::FixedBytes(32),
+                ])],
+                &event.value,
+            )
+            .expect("Failed to decode L2ToL1LogSent message")
+            .first()
+            .unwrap()
+            .clone();
+            let Token::Tuple(tokens) = tuple else {
+                unreachable!("Tuple was expected, got: {}", tuple);
+            };
+            let [
+                Token::Uint(shard_id),
+                Token::Bool(is_service),
+                Token::Uint(tx_number_in_block),
+                Token::Address(sender),
+                Token::FixedBytes(key_bytes),
+                Token::FixedBytes(value_bytes),
+            ] = tokens.as_slice() else {
+                unreachable!("Invalid tuple types");
+            };
+            L1MessengerL2ToL1Log {
+                l2_shard_id: shard_id.low_u64() as u8,
+                is_service: *is_service,
+                tx_number_in_block: tx_number_in_block.low_u64() as u16,
+                sender: *sender,
+                key: U256::from_big_endian(key_bytes),
+                value: U256::from_big_endian(value_bytes),
+            }
+        })
+        .collect()
+}
+
+// Extracts all the bytecode publication requests
+// that were emitted by the L1Messenger contract
+pub fn extract_bytecode_publication_requests_from_l1_messenger(
+    all_generated_events: &[VmEvent],
+) -> Vec<L1MessengerBytecodePublicationRequest> {
+    all_generated_events
+        .iter()
+        .filter(|event| {
+            // Filter events from the l1 messenger contract that match the expected signature.
+            event.address == L1_MESSENGER_ADDRESS
+                && !event.indexed_topics.is_empty()
+                && event.indexed_topics[0] == *L1_MESSENGER_BYTECODE_PUBLICATION_EVENT_SIGNATURE
+        })
+        .map(|event| {
+            let mut tokens = ethabi::decode(&[ethabi::ParamType::FixedBytes(32)], &event.value)
+                .expect("Failed to decode BytecodeL1PublicationRequested message");
+            L1MessengerBytecodePublicationRequest {
+                bytecode_hash: H256::from_slice(&tokens.remove(0).into_fixed_bytes().unwrap()),
+            }
         })
         .collect()
 }

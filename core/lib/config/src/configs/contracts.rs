@@ -8,10 +8,10 @@ use super::envy_load;
 /// Data about deployed contracts.
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct ContractsConfig {
+    pub governance_addr: Address,
     pub mailbox_facet_addr: Address,
     pub executor_facet_addr: Address,
-    pub governance_facet_addr: Address,
-    pub diamond_cut_facet_addr: Address,
+    pub admin_facet_addr: Address,
     pub getters_facet_addr: Address,
     pub verifier_addr: Address,
     pub diamond_init_addr: Address,
@@ -51,10 +51,10 @@ mod tests {
 
     fn expected_config() -> ContractsConfig {
         ContractsConfig {
+            governance_addr: addr("d8dA6BF26964aF9D7eEd9e03E53415D37aA96045"),
             mailbox_facet_addr: addr("0f6Fa881EF414Fc6E818180657c2d5CD7Ac6cCAd"),
             executor_facet_addr: addr("18B631537801963A964211C0E86645c1aBfbB2d3"),
-            governance_facet_addr: addr("1e12b20BE86bEc3A0aC95aA52ade345cB9AE7a32"),
-            diamond_cut_facet_addr: addr("8656770FA78c830456B00B4fFCeE6b1De0e1b888"),
+            admin_facet_addr: addr("1e12b20BE86bEc3A0aC95aA52ade345cB9AE7a32"),
             getters_facet_addr: addr("8656770FA78c830456B00B4fFCeE6b1De0e1b888"),
             verifier_addr: addr("34782eE00206EAB6478F2692caa800e4A581687b"),
             diamond_init_addr: addr("FFC35A5e767BE36057c34586303498e3de7C62Ba"),
@@ -100,10 +100,10 @@ mod tests {
     fn from_env() {
         let mut lock = MUTEX.lock();
         let config = r#"
+CONTRACTS_GOVERNANCE_ADDR="0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045"
 CONTRACTS_MAILBOX_FACET_ADDR="0x0f6Fa881EF414Fc6E818180657c2d5CD7Ac6cCAd"
 CONTRACTS_EXECUTOR_FACET_ADDR="0x18B631537801963A964211C0E86645c1aBfbB2d3"
-CONTRACTS_GOVERNANCE_FACET_ADDR="0x1e12b20BE86bEc3A0aC95aA52ade345cB9AE7a32"
-CONTRACTS_DIAMOND_CUT_FACET_ADDR="0x8656770FA78c830456B00B4fFCeE6b1De0e1b888"
+CONTRACTS_ADMIN_FACET_ADDR="0x1e12b20BE86bEc3A0aC95aA52ade345cB9AE7a32"
 CONTRACTS_GETTERS_FACET_ADDR="0x8656770FA78c830456B00B4fFCeE6b1De0e1b888"
 CONTRACTS_VERIFIER_ADDR="0x34782eE00206EAB6478F2692caa800e4A581687b"
 CONTRACTS_DIAMOND_INIT_ADDR="0xFFC35A5e767BE36057c34586303498e3de7C62Ba"

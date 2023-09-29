@@ -303,20 +303,39 @@ impl EthTxAggregator {
         eth_client: &E,
         verifier_address: Address,
     ) -> Result<H256, ETHSenderError> {
-        let token: Token = eth_client
-            .call_contract_function(
-                &self.functions.get_verification_key.name,
-                (),
-                None,
-                Default::default(),
-                None,
-                verifier_address,
-                self.functions.verifier_contract.clone(),
-            )
-            .await?;
-        let recursion_scheduler_level_vk_hash = l1_vk_commitment(token);
-
-        Ok(recursion_scheduler_level_vk_hash)
+        // This is here for backward compatibility with the old verifier:
+        // Legacy verifier returns the full verification key;
+        // New verifier returns the hash of the verification key
+        if let Some(get_vk) = &self.functions.get_verification_key {
+            tracing::debug!("Calling get_verification_key");
+            let vk = eth_client
+                .call_contract_function(
+                    &get_vk.name,
+                    (),
+                    None,
+                    Default::default(),
+                    None,
+                    verifier_address,
+                    self.functions.verifier_contract.clone(),
+                )
+                .await?;
+            Ok(l1_vk_commitment(vk))
+        } else {
+            let get_vk_hash = self.functions.verification_key_hash.as_ref();
+            tracing::debug!("Calling verificationKeyHash");
+            let vk_hash = eth_client
+                .call_contract_function(
+                    &get_vk_hash.unwrap().name,
+                    (),
+                    None,
+                    Default::default(),
+                    None,
+                    verifier_address,
+                    self.functions.verifier_contract.clone(),
+                )
+                .await?;
+            Ok(vk_hash)
+        }
     }
 
     #[tracing::instrument(skip(self, storage, eth_client))]
@@ -331,11 +350,19 @@ impl EthTxAggregator {
             verifier_params,
             verifier_address,
             protocol_version_id,
-        } = self.get_multicall_data(eth_client).await?;
+        } = self.get_multicall_data(eth_client).await.map_err(|err| {
+            tracing::error!("Failed to get multicall data");
+            err
+        })?;
 
         let recursion_scheduler_level_vk_hash = self
             .get_recursion_scheduler_level_vk_hash(eth_client, verifier_address)
-            .await?;
+            .await
+            .map_err(|err| {
+                tracing::error!("Failed to get VK hash from the Verifier");
+                err
+            })?;
+
         let l1_verifier_config = L1VerifierConfig {
             params: verifier_params,
             recursion_scheduler_level_vk_hash,

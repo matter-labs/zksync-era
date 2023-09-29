@@ -1,9 +1,9 @@
 use crate::glue::{GlueFrom, GlueInto};
+use vm_latest::VmExecutionLogs;
 use vm_latest::{
     CurrentExecutionState, ExecutionResult, Refunds, VmExecutionResultAndLogs,
     VmExecutionStatistics,
 };
-use zksync_types::tx::tx_execution_info::VmExecutionLogs;
 
 // Note: In version after vm VmVirtualBlocks the bootloader memory knowledge is encapsulated into the VM.
 // But before it was a part of a public API.
@@ -17,7 +17,8 @@ impl GlueFrom<vm_m5::vm::VmBlockResult> for vm_latest::FinishedL1Batch {
                 result: value.block_tip_result.revert_reason.glue_into(),
                 logs: VmExecutionLogs {
                     events: value.block_tip_result.logs.events.clone(),
-                    l2_to_l1_logs: value.block_tip_result.logs.l2_to_l1_logs.clone(),
+                    user_l2_to_l1_logs: value.block_tip_result.logs.l2_to_l1_logs.clone(),
+                    system_l2_to_l1_logs: vec![],
                     storage_logs: value.block_tip_result.logs.storage_logs.clone(),
                     total_log_queries_count: value.block_tip_result.logs.total_log_queries_count,
                 },
@@ -34,9 +35,11 @@ impl GlueFrom<vm_m5::vm::VmBlockResult> for vm_latest::FinishedL1Batch {
                 events: value.full_result.events,
                 storage_log_queries: value.full_result.storage_log_queries,
                 used_contract_hashes: value.full_result.used_contract_hashes,
-                l2_to_l1_logs: value.full_result.l2_to_l1_logs,
+                user_l2_to_l1_logs: value.full_result.l2_to_l1_logs,
+                system_logs: vec![],
                 total_log_queries: value.full_result.total_log_queries,
                 cycles_used: value.full_result.cycles_used,
+                deduplicated_events_logs: vec![],
             },
             final_bootloader_memory: None,
         }
@@ -50,7 +53,8 @@ impl GlueFrom<vm_m6::vm::VmBlockResult> for vm_latest::FinishedL1Batch {
                 result: value.block_tip_result.revert_reason.glue_into(),
                 logs: VmExecutionLogs {
                     events: value.block_tip_result.logs.events,
-                    l2_to_l1_logs: value.block_tip_result.logs.l2_to_l1_logs,
+                    user_l2_to_l1_logs: value.block_tip_result.logs.l2_to_l1_logs,
+                    system_l2_to_l1_logs: vec![],
                     storage_logs: value.block_tip_result.logs.storage_logs,
                     total_log_queries_count: value.block_tip_result.logs.total_log_queries_count,
                 },
@@ -67,9 +71,11 @@ impl GlueFrom<vm_m6::vm::VmBlockResult> for vm_latest::FinishedL1Batch {
                 events: value.full_result.events,
                 storage_log_queries: value.full_result.storage_log_queries,
                 used_contract_hashes: value.full_result.used_contract_hashes,
-                l2_to_l1_logs: value.full_result.l2_to_l1_logs,
+                user_l2_to_l1_logs: value.full_result.l2_to_l1_logs,
+                system_logs: vec![],
                 total_log_queries: value.full_result.total_log_queries,
                 cycles_used: value.full_result.cycles_used,
+                deduplicated_events_logs: vec![],
             },
             final_bootloader_memory: None,
         }
@@ -83,7 +89,8 @@ impl GlueFrom<vm_1_3_2::vm::VmBlockResult> for vm_latest::FinishedL1Batch {
                 result: value.block_tip_result.revert_reason.glue_into(),
                 logs: VmExecutionLogs {
                     events: value.block_tip_result.logs.events,
-                    l2_to_l1_logs: value.block_tip_result.logs.l2_to_l1_logs,
+                    user_l2_to_l1_logs: value.block_tip_result.logs.l2_to_l1_logs,
+                    system_l2_to_l1_logs: vec![],
                     storage_logs: value.block_tip_result.logs.storage_logs,
                     total_log_queries_count: value.block_tip_result.logs.total_log_queries_count,
                 },
@@ -100,9 +107,11 @@ impl GlueFrom<vm_1_3_2::vm::VmBlockResult> for vm_latest::FinishedL1Batch {
                 events: value.full_result.events,
                 storage_log_queries: value.full_result.storage_log_queries,
                 used_contract_hashes: value.full_result.used_contract_hashes,
-                l2_to_l1_logs: value.full_result.l2_to_l1_logs,
+                user_l2_to_l1_logs: value.full_result.l2_to_l1_logs,
+                system_logs: vec![],
                 total_log_queries: value.full_result.total_log_queries,
                 cycles_used: value.full_result.cycles_used,
+                deduplicated_events_logs: vec![],
             },
             final_bootloader_memory: None,
         }
@@ -125,7 +134,8 @@ impl GlueFrom<vm_1_3_2::vm::VmBlockResult> for vm_latest::VmExecutionResultAndLo
             result,
             logs: VmExecutionLogs {
                 events: value.full_result.events,
-                l2_to_l1_logs: value.full_result.l2_to_l1_logs,
+                user_l2_to_l1_logs: value.full_result.l2_to_l1_logs,
+                system_l2_to_l1_logs: vec![],
                 storage_logs: value.full_result.storage_log_queries,
                 total_log_queries_count: value.full_result.total_log_queries,
             },
@@ -157,7 +167,8 @@ impl GlueFrom<vm_m5::vm::VmBlockResult> for vm_latest::VmExecutionResultAndLogs 
             result,
             logs: VmExecutionLogs {
                 events: value.full_result.events,
-                l2_to_l1_logs: value.full_result.l2_to_l1_logs,
+                user_l2_to_l1_logs: value.full_result.l2_to_l1_logs,
+                system_l2_to_l1_logs: vec![],
                 storage_logs: value.full_result.storage_log_queries,
                 total_log_queries_count: value.full_result.total_log_queries,
             },
@@ -189,7 +200,8 @@ impl GlueFrom<vm_m6::vm::VmBlockResult> for vm_latest::VmExecutionResultAndLogs 
             result,
             logs: VmExecutionLogs {
                 events: value.full_result.events,
-                l2_to_l1_logs: value.full_result.l2_to_l1_logs,
+                user_l2_to_l1_logs: value.full_result.l2_to_l1_logs,
+                system_l2_to_l1_logs: vec![],
                 storage_logs: value.full_result.storage_log_queries,
                 total_log_queries_count: value.full_result.total_log_queries,
             },

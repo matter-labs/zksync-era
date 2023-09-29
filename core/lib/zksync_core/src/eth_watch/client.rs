@@ -51,6 +51,7 @@ pub struct EthHttpQueryClient<E> {
     client: E,
     topics: Vec<H256>,
     zksync_contract_addr: Address,
+    governance_address: Address,
     verifier_contract_abi: Contract,
     confirmations_for_eth_event: Option<u64>,
 }
@@ -59,13 +60,19 @@ impl<E: EthInterface> EthHttpQueryClient<E> {
     pub fn new(
         client: E,
         zksync_contract_addr: Address,
+        governance_address: Address,
         confirmations_for_eth_event: Option<u64>,
     ) -> Self {
-        tracing::debug!("New eth client, contract addr: {:x}", zksync_contract_addr);
+        tracing::debug!(
+            "New eth client, zkSync addr: {:x}, governance addr: {:x}",
+            zksync_contract_addr,
+            governance_address
+        );
         Self {
             client,
             topics: Vec::new(),
             zksync_contract_addr,
+            governance_address,
             verifier_contract_abi: verifier_contract(),
             confirmations_for_eth_event,
         }
@@ -78,7 +85,7 @@ impl<E: EthInterface> EthHttpQueryClient<E> {
         topics: Vec<H256>,
     ) -> Result<Vec<Log>, Error> {
         let filter = FilterBuilder::default()
-            .address(vec![self.zksync_contract_addr])
+            .address(vec![self.zksync_contract_addr, self.governance_address])
             .from_block(from)
             .to_block(to)
             .topics(Some(topics), None, None, None)
@@ -91,10 +98,14 @@ impl<E: EthInterface> EthHttpQueryClient<E> {
 #[async_trait::async_trait]
 impl<E: EthInterface + Send + Sync + 'static> EthClient for EthHttpQueryClient<E> {
     async fn scheduler_vk_hash(&self, verifier_address: Address) -> Result<H256, Error> {
-        let vk_token: Token = self
+        // This is here for backward compatibility with the old verifier:
+        // Legacy verifier returns the full verification key;
+        // New verifier returns the hash of the verification key
+
+        let vk_hash = self
             .client
             .call_contract_function(
-                "get_verification_key",
+                "verificationKeyHash",
                 (),
                 None,
                 Default::default(),
@@ -102,8 +113,25 @@ impl<E: EthInterface + Send + Sync + 'static> EthClient for EthHttpQueryClient<E
                 verifier_address,
                 self.verifier_contract_abi.clone(),
             )
-            .await?;
-        Ok(l1_vk_commitment(vk_token))
+            .await;
+
+        if let Ok(Token::FixedBytes(vk_hash)) = vk_hash {
+            Ok(H256::from_slice(&vk_hash))
+        } else {
+            let vk = self
+                .client
+                .call_contract_function(
+                    "get_verification_key",
+                    (),
+                    None,
+                    Default::default(),
+                    None,
+                    verifier_address,
+                    self.verifier_contract_abi.clone(),
+                )
+                .await?;
+            Ok(l1_vk_commitment(vk))
+        }
     }
 
     async fn get_events(

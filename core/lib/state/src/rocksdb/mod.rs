@@ -40,17 +40,24 @@ enum StateKeeperColumnFamily {
     State,
     Contracts,
     FactoryDeps,
+    EnumIndices,
 }
 
 impl NamedColumnFamily for StateKeeperColumnFamily {
     const DB_NAME: &'static str = "state_keeper";
-    const ALL: &'static [Self] = &[Self::State, Self::Contracts, Self::FactoryDeps];
+    const ALL: &'static [Self] = &[
+        Self::State,
+        Self::Contracts,
+        Self::FactoryDeps,
+        Self::EnumIndices,
+    ];
 
     fn name(&self) -> &'static str {
         match self {
             Self::State => "state",
             Self::Contracts => "contracts",
             Self::FactoryDeps => "factory_deps",
+            Self::EnumIndices => "enum_indices",
         }
     }
 }
@@ -110,7 +117,7 @@ impl RocksdbStorage {
                 .await;
             self.process_transaction_logs(&storage_logs);
 
-            tracing::debug!("loading factory deps for l1 batch {current_l1_batch_number}");
+            tracing::debug!("Loading factory deps for l1 batch {current_l1_batch_number}");
             let factory_deps = conn
                 .blocks_dal()
                 .get_l1_batch_factory_deps(L1BatchNumber(current_l1_batch_number))
@@ -118,6 +125,19 @@ impl RocksdbStorage {
                 .unwrap();
             for (hash, bytecode) in factory_deps {
                 self.store_factory_dep(hash, bytecode);
+            }
+
+            tracing::debug!("Loading enumeration indexes for l1 batch {current_l1_batch_number}");
+            let enum_indices: HashMap<H256, u64> = conn
+                .storage_logs_dedup_dal()
+                .initial_writes_for_batch(L1BatchNumber(current_l1_batch_number))
+                .await
+                .into_iter()
+                .collect();
+            for (key, _) in storage_logs {
+                if let Some(index) = enum_indices.get(&key.hashed_key()) {
+                    self.store_enumeration_index(key, *index)
+                }
             }
 
             current_l1_batch_number += 1;
@@ -153,6 +173,13 @@ impl RocksdbStorage {
     /// Stores a factory dependency with the specified `hash` and `bytecode`.
     fn store_factory_dep(&mut self, hash: H256, bytecode: Vec<u8>) {
         self.pending_patch.factory_deps.insert(hash, bytecode);
+    }
+
+    /// Stores a `enumeration_index ` for the specified `key`.
+    fn store_enumeration_index(&mut self, key: StorageKey, enumeration_index: u64) {
+        self.pending_patch
+            .enum_indices
+            .insert(key, enumeration_index);
     }
 
     /// Rolls back the state to a previous L1 batch number.
@@ -204,23 +231,29 @@ impl RocksdbStorage {
         tokio::task::spawn_blocking(move || {
             let mut batch = db.new_write_batch();
 
-            let cf = StateKeeperColumnFamily::State;
             for (key, maybe_value) in logs {
                 if let Some(prev_value) = maybe_value {
-                    batch.put_cf(cf, key.as_bytes(), prev_value.as_bytes());
+                    batch.put_cf(
+                        StateKeeperColumnFamily::State,
+                        key.as_bytes(),
+                        prev_value.as_bytes(),
+                    );
                 } else {
-                    batch.delete_cf(cf, key.as_bytes());
+                    batch.delete_cf(StateKeeperColumnFamily::State, key.as_bytes());
+                    batch.delete_cf(StateKeeperColumnFamily::EnumIndices, key.as_bytes());
                 }
             }
             batch.put_cf(
-                cf,
+                StateKeeperColumnFamily::State,
                 Self::BLOCK_NUMBER_KEY,
                 &serialize_block_number(last_l1_batch_to_keep.0 + 1),
             );
 
-            let cf = StateKeeperColumnFamily::FactoryDeps;
             for factory_dep_hash in &factory_deps {
-                batch.delete_cf(cf, factory_dep_hash.as_bytes());
+                batch.delete_cf(
+                    StateKeeperColumnFamily::FactoryDeps,
+                    factory_dep_hash.as_bytes(),
+                );
             }
 
             db.write(batch)
@@ -251,6 +284,16 @@ impl RocksdbStorage {
             for (hash, value) in pending_patch.factory_deps {
                 batch.put_cf(cf, &hash.to_fixed_bytes(), value.as_ref());
             }
+
+            let cf = StateKeeperColumnFamily::EnumIndices;
+            for (key, enumeration_index) in pending_patch.enum_indices {
+                batch.put_cf(
+                    cf,
+                    &Self::serialize_state_key(&key),
+                    &enumeration_index.to_be_bytes(),
+                );
+            }
+
             db.write(batch)
                 .expect("failed to save state data into rocksdb");
         });
@@ -296,11 +339,26 @@ impl ReadStorage for RocksdbStorage {
             .get_cf(cf, hash.as_bytes())
             .expect("failed to read RocksDB state value")
     }
+
+    fn get_enumeration_index(&mut self, key: &StorageKey) -> Option<u64> {
+        let cf = StateKeeperColumnFamily::EnumIndices;
+        self.db
+            .get_cf(cf, &Self::serialize_state_key(key))
+            .expect("failed to read rocksdb state value")
+            .map(|value| {
+                u64::from_be_bytes(
+                    value
+                        .try_into()
+                        .expect("Cannot convert bytes to enum index"),
+                )
+            })
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use db_test_macro::db_test;
+    use itertools::Itertools;
     use tempfile::TempDir;
 
     use super::*;
@@ -375,6 +433,12 @@ mod tests {
     async fn rocksdb_storage_revert(pool: ConnectionPool) {
         let mut conn = pool.access_storage().await.unwrap();
         prepare_postgres(&mut conn).await;
+
+        let number_of_genesis_logs = conn
+            .storage_logs_dedup_dal()
+            .initial_writes_for_batch(L1BatchNumber(0))
+            .await
+            .len() as u64;
         let storage_logs = gen_storage_logs(20..40);
         create_miniblock(&mut conn, MiniblockNumber(1), storage_logs[..10].to_vec()).await;
         insert_factory_deps(&mut conn, MiniblockNumber(1), 0..1).await;
@@ -418,6 +482,17 @@ mod tests {
                     [i; 64]
                 );
             }
+
+            let expected_indices: Vec<_> = storage_logs
+                .iter()
+                .sorted_by_key(|log| log.key)
+                .chain(inserted_storage_logs.iter().sorted_by_key(|log| log.key))
+                .enumerate()
+                .map(|(index, log)| (log.key, index as u64 + number_of_genesis_logs + 1))
+                .collect();
+            for (key, index) in expected_indices {
+                assert_eq!(storage.get_enumeration_index(&key), Some(index));
+            }
         }
 
         storage.rollback(&mut conn, L1BatchNumber(1)).await;
@@ -438,6 +513,16 @@ mod tests {
             }
             for i in 3..5 {
                 assert!(storage.load_factory_dep(H256::repeat_byte(i)).is_none());
+            }
+            let expected_indices: Vec<_> = storage_logs
+                .iter()
+                .sorted_by_key(|log| log.key)
+                .enumerate()
+                .map(|(index, log)| (log.key, Some(index as u64 + number_of_genesis_logs + 1)))
+                .chain(inserted_storage_logs.iter().map(|log| (log.key, None)))
+                .collect();
+            for (key, index) in expected_indices {
+                assert_eq!(storage.get_enumeration_index(&key), index);
             }
         }
     }

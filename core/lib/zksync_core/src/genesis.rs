@@ -91,6 +91,10 @@ pub async fn ensure_genesis_state(
         vec![],
         base_system_contracts_hashes.bootloader,
         base_system_contracts_hashes.default_aa,
+        vec![],
+        vec![],
+        H256::zero(),
+        H256::zero(),
     );
 
     save_genesis_l1_batch_metadata(
@@ -107,7 +111,7 @@ pub async fn ensure_genesis_state(
     // We need to `println` this value because it will be used to initialize the smart contract.
     println!("CONTRACTS_GENESIS_ROOT={:?}", genesis_root_hash);
     println!(
-        "CONTRACTS_GENESIS_BLOCK_COMMITMENT={:?}",
+        "CONTRACTS_GENESIS_BATCH_COMMITMENT={:?}",
         block_commitment.hash().commitment
     );
     println!(
@@ -360,6 +364,7 @@ pub(crate) async fn save_genesis_l1_batch_metadata(
         aux_data_hash: commitment_hash.aux_output,
         meta_parameters_hash: commitment_hash.meta_parameters,
         pass_through_data_hash: commitment_hash.pass_through_data,
+        state_diffs_compressed: vec![],
     };
     storage
         .blocks_dal()

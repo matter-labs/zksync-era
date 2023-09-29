@@ -60,8 +60,16 @@ pub struct L1BatchHeader {
     /// The L2 gas price that the operator agrees on.
     pub l2_fair_gas_price: u64,
     pub base_system_contracts_hashes: BaseSystemContractsHashes,
+    /// System logs are those emitted as part of the Vm excecution.
+    pub system_logs: Vec<L2ToL1Log>,
     /// Version of protocol used for the L1 batch.
     pub protocol_version: Option<ProtocolVersionId>,
+    /// The commitment to the final events queue state after the batch is committed.
+    /// Practically, it is a commitment to all events that happened on L2 during the batch execution.
+    pub events_queue_commitment: Option<H256>,
+    /// The commitment to the initial heap content of the bootloader. Practically it serves as a
+    /// commitment to the transactions in the batch.
+    pub bootloader_initial_content_commitment: Option<H256>,
 }
 
 /// Holder for the miniblock metadata that is not available from transactions themselves.
@@ -116,7 +124,10 @@ impl L1BatchHeader {
             l1_gas_price: 0,
             l2_fair_gas_price: 0,
             base_system_contracts_hashes,
+            system_logs: vec![],
             protocol_version: Some(protocol_version),
+            events_queue_commitment: Some(H256::zero()),
+            bootloader_initial_content_commitment: Some(H256::zero()),
         }
     }
 

@@ -2,18 +2,7 @@ use crate::commitment::SerializeCommitment;
 use crate::fee::TransactionExecutionMetrics;
 use crate::l2_to_l1_log::L2ToL1Log;
 use crate::writes::{InitialStorageWrite, RepeatedStorageWrite};
-use crate::{StorageLogQuery, VmEvent};
 use std::ops::{Add, AddAssign};
-
-/// Events/storage logs/l2->l1 logs created within transaction execution.
-#[derive(Debug, Clone, Default, PartialEq)]
-pub struct VmExecutionLogs {
-    pub storage_logs: Vec<StorageLogQuery>,
-    pub events: Vec<VmEvent>,
-    pub l2_to_l1_logs: Vec<L2ToL1Log>,
-    // This field moved to statistics, but we need to keep it for backward compatibility
-    pub total_log_queries_count: usize,
-}
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum TxExecutionStatus {
@@ -56,7 +45,7 @@ pub struct ExecutionMetrics {
     pub gas_used: usize,
     pub published_bytecode_bytes: usize,
     pub l2_l1_long_messages: usize,
-    pub l2_l1_logs: usize,
+    pub l2_to_l1_logs: usize,
     pub contracts_used: usize,
     pub contracts_deployed: u16,
     pub vm_events: usize,
@@ -71,7 +60,7 @@ impl ExecutionMetrics {
         Self {
             published_bytecode_bytes: tx_metrics.published_bytecode_bytes,
             l2_l1_long_messages: tx_metrics.l2_l1_long_messages,
-            l2_l1_logs: tx_metrics.l2_l1_logs,
+            l2_to_l1_logs: tx_metrics.l2_l1_logs,
             contracts_deployed: tx_metrics.contracts_deployed,
             contracts_used: tx_metrics.contracts_used,
             gas_used: tx_metrics.gas_used,
@@ -84,9 +73,12 @@ impl ExecutionMetrics {
     }
 
     pub fn size(&self) -> usize {
-        self.l2_l1_logs * L2ToL1Log::SERIALIZED_SIZE
+        self.l2_to_l1_logs * L2ToL1Log::SERIALIZED_SIZE
             + self.l2_l1_long_messages
             + self.published_bytecode_bytes
+            // TODO: refactor this constant
+            // It represents the need to store the length's of messages as well as bytecodes
+            + self.l2_to_l1_logs * 4
     }
 }
 
@@ -100,7 +92,7 @@ impl Add for ExecutionMetrics {
             contracts_deployed: self.contracts_deployed + other.contracts_deployed,
             contracts_used: self.contracts_used + other.contracts_used,
             l2_l1_long_messages: self.l2_l1_long_messages + other.l2_l1_long_messages,
-            l2_l1_logs: self.l2_l1_logs + other.l2_l1_logs,
+            l2_to_l1_logs: self.l2_to_l1_logs + other.l2_to_l1_logs,
             gas_used: self.gas_used + other.gas_used,
             vm_events: self.vm_events + other.vm_events,
             storage_logs: self.storage_logs + other.storage_logs,

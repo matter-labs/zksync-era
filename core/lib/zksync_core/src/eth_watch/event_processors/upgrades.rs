@@ -4,24 +4,29 @@ use crate::eth_watch::{
 };
 use std::convert::TryFrom;
 use std::time::Instant;
-use zksync_contracts::zksync_contract;
+use zksync_contracts::governance_contract;
 use zksync_dal::StorageProcessor;
-use zksync_types::{web3::types::Log, ProtocolUpgrade, ProtocolVersionId, H256};
+use zksync_types::{
+    protocol_version::GovernanceOperation, web3::types::Log, Address, ProtocolUpgrade,
+    ProtocolVersionId, H256,
+};
 
 /// Responsible for saving new protocol upgrade proposals to the database.
 #[derive(Debug)]
 pub struct UpgradesEventProcessor {
+    diamond_proxy_address: Address,
     last_seen_version_id: ProtocolVersionId,
     upgrade_proposal_signature: H256,
 }
 
 impl UpgradesEventProcessor {
-    pub fn new(last_seen_version_id: ProtocolVersionId) -> Self {
+    pub fn new(diamond_proxy_address: Address, last_seen_version_id: ProtocolVersionId) -> Self {
         Self {
+            diamond_proxy_address,
             last_seen_version_id,
-            upgrade_proposal_signature: zksync_contract()
-                .event("ProposeTransparentUpgrade")
-                .expect("ProposeTransparentUpgrade event is missing in abi")
+            upgrade_proposal_signature: governance_contract()
+                .event("TransparentOperationScheduled")
+                .expect("TransparentOperationScheduled event is missing in abi")
                 .signature(),
         }
     }
@@ -40,15 +45,24 @@ impl<W: EthClient + Sync> EventProcessor<W> for UpgradesEventProcessor {
             .into_iter()
             .filter(|event| event.topics[0] == self.upgrade_proposal_signature)
         {
-            let upgrade = ProtocolUpgrade::try_from(event)
+            let governance_operation = GovernanceOperation::try_from(event)
                 .map_err(|err| Error::LogParse(format!("{:?}", err)))?;
-            // Scheduler VK is not present in proposal event. It is hardcoded in verifier contract.
-            let scheduler_vk_hash = if let Some(address) = upgrade.verifier_address {
-                Some(client.scheduler_vk_hash(address).await?)
-            } else {
-                None
-            };
-            upgrades.push((upgrade, scheduler_vk_hash));
+            // Some calls can target other contracts than Diamond proxy, skip them.
+            for call in governance_operation
+                .calls
+                .into_iter()
+                .filter(|call| call.target == self.diamond_proxy_address)
+            {
+                let upgrade = ProtocolUpgrade::try_from(call)
+                    .map_err(|err| Error::LogParse(format!("{:?}", err)))?;
+                // Scheduler VK is not present in proposal event. It is hardcoded in verifier contract.
+                let scheduler_vk_hash = if let Some(address) = upgrade.verifier_address {
+                    Some(client.scheduler_vk_hash(address).await?)
+                } else {
+                    None
+                };
+                upgrades.push((upgrade, scheduler_vk_hash));
+            }
         }
 
         if upgrades.is_empty() {

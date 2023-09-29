@@ -7,7 +7,7 @@
 
 use once_cell::sync::Lazy;
 
-use std::{fmt, iter};
+use std::{fmt, iter, str::FromStr};
 
 #[cfg(test)]
 mod tests;
@@ -15,8 +15,8 @@ mod tests;
 use zksync_basic_types::H256;
 use zksync_crypto::hasher::{keccak::KeccakHasher, Hasher};
 
-/// Maximum supported depth of Merkle trees. 10 means that the tree must have <=1,024 leaves.
-const MAX_TREE_DEPTH: usize = 10;
+/// Maximum supported depth of Merkle trees. 11 means that the tree must have <=2048 leaves.
+const MAX_TREE_DEPTH: usize = 11;
 
 /// In-memory Merkle tree of bounded depth (no more than 10).
 ///
@@ -88,8 +88,8 @@ impl<'a, const LEAF_SIZE: usize> MiniMerkleTree<'a, LEAF_SIZE> {
     /// Returns the root hash of this tree.
     pub fn merkle_root(self) -> H256 {
         if self.hashes.is_empty() {
-            // TODO (SMA-184): change constant to the real root hash of empty merkle tree.
-            H256::zero()
+            H256::from_str("fef7bd9f889811e59e4076a0174087135f080177302763019adaf531257e3a87")
+                .unwrap()
         } else {
             self.compute_merkle_root_and_path(0, None)
         }

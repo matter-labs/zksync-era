@@ -5,7 +5,7 @@ use zksync_types::proofs::AggregationRound;
 // use crate::witness_generator::basic_circuits;
 
 mod precalculated_merkle_paths_provider;
-mod utils;
+pub(crate) mod utils;
 
 pub mod basic_circuits;
 pub mod leaf_aggregation;

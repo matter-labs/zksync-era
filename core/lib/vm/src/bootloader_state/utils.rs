@@ -5,9 +5,11 @@ use zksync_utils::{bytes_to_be_words, h256_to_u256};
 use crate::bootloader_state::l2_block::BootloaderL2Block;
 use crate::constants::{
     BOOTLOADER_TX_DESCRIPTION_OFFSET, BOOTLOADER_TX_DESCRIPTION_SIZE, COMPRESSED_BYTECODES_OFFSET,
-    OPERATOR_REFUNDS_OFFSET, TX_DESCRIPTION_OFFSET, TX_OPERATOR_L2_BLOCK_INFO_OFFSET,
-    TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO, TX_OVERHEAD_OFFSET, TX_TRUSTED_GAS_LIMIT_OFFSET,
+    OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_OFFSET, OPERATOR_REFUNDS_OFFSET, TX_DESCRIPTION_OFFSET,
+    TX_OPERATOR_L2_BLOCK_INFO_OFFSET, TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO, TX_OVERHEAD_OFFSET,
+    TX_TRUSTED_GAS_LIMIT_OFFSET,
 };
+use crate::types::outputs::PubdataInput;
 use crate::{BootloaderMemory, TxExecutionMode};
 
 use super::tx::BootloaderTx;
@@ -108,6 +110,24 @@ pub(crate) fn apply_l2_block(
             bootloader_l2_block.max_virtual_blocks_to_create.into(),
         ),
     ])
+}
+
+pub(crate) fn apply_pubdata_to_memory(
+    memory: &mut BootloaderMemory,
+    pubdata_information: PubdataInput,
+) {
+    let l1_messenger_pubdata_start_slot = OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_OFFSET + 2;
+
+    pubdata_information
+        .build_pubdata()
+        .chunks(32)
+        .enumerate()
+        .for_each(|(slot_offset, value)| {
+            memory.push((
+                l1_messenger_pubdata_start_slot + slot_offset,
+                U256::from(value),
+            ))
+        });
 }
 
 /// Forms a word that contains meta information for the transaction execution.

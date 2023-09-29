@@ -308,6 +308,7 @@ pub async fn initialize_components(
         CircuitBreakerConfig::from_env().context("CircuitBreakerConfig::from_env()")?;
 
     let main_zksync_contract_address = contracts_config.diamond_proxy_addr;
+    let governance_contract_address = contracts_config.governance_addr;
     let circuit_breaker_checker = CircuitBreakerChecker::new(
         circuit_breakers_for_components(
             &components,
@@ -497,6 +498,7 @@ pub async fn initialize_components(
                 eth_watch_pool,
                 query_client.clone(),
                 main_zksync_contract_address,
+                governance_contract_address,
                 stop_receiver.clone(),
             )
             .await

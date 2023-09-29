@@ -9,7 +9,7 @@ use zk_evm::zkevm_opcode_defs::definitions::RET_IMPLICIT_RETURNDATA_PARAMS_REGIS
 use zksync_config::constants::MAX_TXS_IN_BLOCK;
 use zksync_state::WriteStorage;
 use zksync_types::l2_to_l1_log::L2ToL1Log;
-use zksync_types::tx::tx_execution_info::{TxExecutionStatus, VmExecutionLogs};
+use zksync_types::tx::tx_execution_info::TxExecutionStatus;
 use zksync_types::vm_trace::{Call, VmExecutionTrace, VmTrace};
 use zksync_types::{L1BatchNumber, StorageLogQuery, VmEvent, U256};
 
@@ -18,6 +18,7 @@ use crate::errors::{TxRevertReason, VmRevertReason, VmRevertReasonParsingResult}
 use crate::event_sink::InMemoryEventSink;
 use crate::events::merge_events;
 use crate::history_recorder::{HistoryEnabled, HistoryMode};
+use crate::legacy_types::VmExecutionLogs;
 use crate::memory::SimpleMemory;
 use crate::oracles::decommitter::DecommitterOracle;
 use crate::oracles::precompile::PrecompilesProcessorWithHistory;

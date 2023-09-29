@@ -616,7 +616,7 @@
           "type": "tuple[]"
         }
       ],
-      "name": "commitBlocks",
+      "name": "commitBatches",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"
@@ -671,7 +671,7 @@
           "type": "tuple[]"
         }
       ],
-      "name": "executeBlocks",
+      "name": "executeBatches",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"
@@ -1500,7 +1500,7 @@
           "type": "tuple"
         }
       ],
-      "name": "proveBlocks",
+      "name": "proveBatches",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"

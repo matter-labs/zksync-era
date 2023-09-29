@@ -295,7 +295,7 @@ pub(super) fn execute_user_txs_in_test_gas_vm(
     let execution_logs = VmExecutionLogs {
         storage_logs: result.full_result.storage_log_queries,
         events: result.full_result.events,
-        l2_to_l1_logs: result.full_result.l2_to_l1_logs,
+        l2_to_l1_logs: result.full_result.system_logs,
         total_log_queries_count: result.full_result.total_log_queries,
     };
 

@@ -6,6 +6,9 @@ use std::sync::Arc;
 use zksync_config::configs::{
     proof_data_handler::ProtocolVersionLoadingMode, ProofDataHandlerConfig,
 };
+use zksync_types::commitment::serialize_commitments;
+use zksync_types::web3::signing::keccak256;
+use zksync_utils::u256_to_h256;
 
 use zksync_dal::{ConnectionPool, SqlxError};
 use zksync_object_store::{ObjectStore, ObjectStoreError};
@@ -16,7 +19,7 @@ use zksync_types::{
         ProofGenerationData, ProofGenerationDataRequest, ProofGenerationDataResponse,
         SubmitProofRequest, SubmitProofResponse,
     },
-    L1BatchNumber,
+    L1BatchNumber, H256,
 };
 
 #[derive(Clone)]
@@ -140,7 +143,49 @@ impl RequestProcessor {
                     .await
                     .map_err(RequestProcessorError::ObjectStore)?;
 
+                let system_logs_hash_from_prover =
+                    H256::from_slice(&proof.aggregation_result_coords[0]);
+                let state_diff_hash_from_prover =
+                    H256::from_slice(&proof.aggregation_result_coords[1]);
+                let bootloader_heap_initial_content_from_prover =
+                    H256::from_slice(&proof.aggregation_result_coords[2]);
+                let events_queue_state_from_prover =
+                    H256::from_slice(&proof.aggregation_result_coords[3]);
+
                 let mut storage = self.pool.access_storage().await.unwrap();
+
+                let header = storage
+                    .blocks_dal()
+                    .get_l1_batch_header(l1_batch_number)
+                    .await
+                    .unwrap()
+                    .expect("Proved block without a header");
+                let events_queue_state = header
+                    .events_queue_commitment
+                    .expect("No events_queue_commitment");
+                let bootloader_heap_initial_content = header
+                    .bootloader_initial_content_commitment
+                    .expect("No bootloader_initial_content_commitment");
+                let system_logs = serialize_commitments(&header.system_logs);
+                let system_logs_hash = H256(keccak256(&system_logs));
+
+                let state_diff_hash = header
+                    .system_logs
+                    .into_iter()
+                    .find(|elem| elem.key == u256_to_h256(2.into()))
+                    .expect("No state diff hash key")
+                    .value;
+
+                if events_queue_state != events_queue_state_from_prover
+                    || bootloader_heap_initial_content
+                        != bootloader_heap_initial_content_from_prover
+                    || state_diff_hash != state_diff_hash_from_prover
+                    || system_logs_hash != system_logs_hash_from_prover
+                {
+                    let server_values = format!("{system_logs_hash} {state_diff_hash} {events_queue_state} {bootloader_heap_initial_content}");
+                    let prover_values = format!("{system_logs_hash_from_prover} {state_diff_hash_from_prover} {events_queue_state_from_prover} {bootloader_heap_initial_content_from_prover}");
+                    tracing::error!("Auxilary output doesn't match, server values: {server_values} prover values: {prover_values}");
+                }
                 storage
                     .proof_generation_dal()
                     .save_proof_artifacts_metadata(l1_batch_number, &blob_url)

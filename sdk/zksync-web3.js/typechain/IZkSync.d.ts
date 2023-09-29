@@ -25,8 +25,8 @@ interface IZkSyncInterface extends ethers.utils.Interface {
   functions: {
     "acceptGovernor()": FunctionFragment;
     "cancelUpgradeProposal(bytes32)": FunctionFragment;
-    "commitBlocks(tuple,tuple[])": FunctionFragment;
-    "executeBlocks(tuple[])": FunctionFragment;
+    "commitBatches(tuple,tuple[])": FunctionFragment;
+    "executeBatches(tuple[])": FunctionFragment;
     "executeUpgrade(tuple,bytes32)": FunctionFragment;
     "facetAddress(bytes4)": FunctionFragment;
     "facetAddresses()": FunctionFragment;
@@ -63,7 +63,7 @@ interface IZkSyncInterface extends ethers.utils.Interface {
     "priorityQueueFrontOperation()": FunctionFragment;
     "proposeShadowUpgrade(bytes32,uint40)": FunctionFragment;
     "proposeTransparentUpgrade(tuple,uint40)": FunctionFragment;
-    "proveBlocks(tuple,tuple[],tuple)": FunctionFragment;
+    "proveBatchess(tuple,tuple[],tuple)": FunctionFragment;
     "proveL1ToL2TransactionStatus(bytes32,uint256,uint256,uint16,bytes32[],uint8)": FunctionFragment;
     "proveL2LogInclusion(uint256,uint256,tuple,bytes32[])": FunctionFragment;
     "proveL2MessageInclusion(uint256,uint256,tuple,bytes32[])": FunctionFragment;
@@ -92,7 +92,7 @@ interface IZkSyncInterface extends ethers.utils.Interface {
     values: [BytesLike]
   ): string;
   encodeFunctionData(
-    functionFragment: "commitBlocks",
+    functionFragment: "commitBatches",
     values: [
       {
         blockNumber: BigNumberish;
@@ -121,7 +121,7 @@ interface IZkSyncInterface extends ethers.utils.Interface {
     ]
   ): string;
   encodeFunctionData(
-    functionFragment: "executeBlocks",
+    functionFragment: "executeBatches",
     values: [
       {
         blockNumber: BigNumberish;
@@ -298,7 +298,7 @@ interface IZkSyncInterface extends ethers.utils.Interface {
     ]
   ): string;
   encodeFunctionData(
-    functionFragment: "proveBlocks",
+    functionFragment: "proveBatchess",
     values: [
       {
         blockNumber: BigNumberish;
@@ -452,11 +452,11 @@ interface IZkSyncInterface extends ethers.utils.Interface {
     data: BytesLike
   ): Result;
   decodeFunctionResult(
-    functionFragment: "commitBlocks",
+    functionFragment: "commitBatches",
     data: BytesLike
   ): Result;
   decodeFunctionResult(
-    functionFragment: "executeBlocks",
+    functionFragment: "executeBatches",
     data: BytesLike
   ): Result;
   decodeFunctionResult(
@@ -601,7 +601,7 @@ interface IZkSyncInterface extends ethers.utils.Interface {
     data: BytesLike
   ): Result;
   decodeFunctionResult(
-    functionFragment: "proveBlocks",
+    functionFragment: "proveBatchess",
     data: BytesLike
   ): Result;
   decodeFunctionResult(
@@ -758,7 +758,7 @@ export class IZkSync extends Contract {
       overrides?: Overrides
     ): Promise<ContractTransaction>;
 
-    commitBlocks(
+    commitBatches(
       _lastCommittedBlockData: {
         blockNumber: BigNumberish;
         blockHash: BytesLike;
@@ -786,7 +786,7 @@ export class IZkSync extends Contract {
       overrides?: Overrides
     ): Promise<ContractTransaction>;
 
-    "commitBlocks((uint64,bytes32,uint64,uint256,bytes32,bytes32,uint256,bytes32),tuple[])"(
+    "commitBatches((uint64,bytes32,uint64,uint256,bytes32,bytes32,uint256,bytes32),tuple[])"(
       _lastCommittedBlockData: {
         blockNumber: BigNumberish;
         blockHash: BytesLike;
@@ -814,7 +814,7 @@ export class IZkSync extends Contract {
       overrides?: Overrides
     ): Promise<ContractTransaction>;
 
-    executeBlocks(
+    executeBatches(
       _blocksData: {
         blockNumber: BigNumberish;
         blockHash: BytesLike;
@@ -828,7 +828,7 @@ export class IZkSync extends Contract {
       overrides?: Overrides
     ): Promise<ContractTransaction>;
 
-    "executeBlocks(tuple[])"(
+    "executeBatches(tuple[])"(
       _blocksData: {
         blockNumber: BigNumberish;
         blockHash: BytesLike;
@@ -1274,7 +1274,7 @@ export class IZkSync extends Contract {
       overrides?: Overrides
     ): Promise<ContractTransaction>;
 
-    proveBlocks(
+    proveBatchess(
       _prevBlock: {
         blockNumber: BigNumberish;
         blockHash: BytesLike;
@@ -1302,7 +1302,7 @@ export class IZkSync extends Contract {
       overrides?: Overrides
     ): Promise<ContractTransaction>;
 
-    "proveBlocks((uint64,bytes32,uint64,uint256,bytes32,bytes32,uint256,bytes32),tuple[],(uint256[],uint256[]))"(
+    "proveBatchess((uint64,bytes32,uint64,uint256,bytes32,bytes32,uint256,bytes32),tuple[],(uint256[],uint256[]))"(
       _prevBlock: {
         blockNumber: BigNumberish;
         blockHash: BytesLike;
@@ -1617,7 +1617,7 @@ export class IZkSync extends Contract {
     overrides?: Overrides
   ): Promise<ContractTransaction>;
 
-  commitBlocks(
+  commitBatches(
     _lastCommittedBlockData: {
       blockNumber: BigNumberish;
       blockHash: BytesLike;
@@ -1645,7 +1645,7 @@ export class IZkSync extends Contract {
     overrides?: Overrides
   ): Promise<ContractTransaction>;
 
-  "commitBlocks((uint64,bytes32,uint64,uint256,bytes32,bytes32,uint256,bytes32),tuple[])"(
+  "commitBatches((uint64,bytes32,uint64,uint256,bytes32,bytes32,uint256,bytes32),tuple[])"(
     _lastCommittedBlockData: {
       blockNumber: BigNumberish;
       blockHash: BytesLike;
@@ -1673,7 +1673,7 @@ export class IZkSync extends Contract {
     overrides?: Overrides
   ): Promise<ContractTransaction>;
 
-  executeBlocks(
+  executeBatches(
     _blocksData: {
       blockNumber: BigNumberish;
       blockHash: BytesLike;
@@ -1687,7 +1687,7 @@ export class IZkSync extends Contract {
     overrides?: Overrides
   ): Promise<ContractTransaction>;
 
-  "executeBlocks(tuple[])"(
+  "executeBatches(tuple[])"(
     _blocksData: {
       blockNumber: BigNumberish;
       blockHash: BytesLike;
@@ -2013,7 +2013,7 @@ export class IZkSync extends Contract {
     overrides?: Overrides
   ): Promise<ContractTransaction>;
 
-  proveBlocks(
+  proveBatchess(
     _prevBlock: {
       blockNumber: BigNumberish;
       blockHash: BytesLike;
@@ -2041,7 +2041,7 @@ export class IZkSync extends Contract {
     overrides?: Overrides
   ): Promise<ContractTransaction>;
 
-  "proveBlocks((uint64,bytes32,uint64,uint256,bytes32,bytes32,uint256,bytes32),tuple[],(uint256[],uint256[]))"(
+  "proveBatchess((uint64,bytes32,uint64,uint256,bytes32,bytes32,uint256,bytes32),tuple[],(uint256[],uint256[]))"(
     _prevBlock: {
       blockNumber: BigNumberish;
       blockHash: BytesLike;
@@ -2336,7 +2336,7 @@ export class IZkSync extends Contract {
       overrides?: CallOverrides
     ): Promise<void>;
 
-    commitBlocks(
+    commitBatches(
       _lastCommittedBlockData: {
         blockNumber: BigNumberish;
         blockHash: BytesLike;
@@ -2364,7 +2364,7 @@ export class IZkSync extends Contract {
       overrides?: CallOverrides
     ): Promise<void>;
 
-    "commitBlocks((uint64,bytes32,uint64,uint256,bytes32,bytes32,uint256,bytes32),tuple[])"(
+    "commitBatches((uint64,bytes32,uint64,uint256,bytes32,bytes32,uint256,bytes32),tuple[])"(
       _lastCommittedBlockData: {
         blockNumber: BigNumberish;
         blockHash: BytesLike;
@@ -2392,7 +2392,7 @@ export class IZkSync extends Contract {
       overrides?: CallOverrides
     ): Promise<void>;
 
-    executeBlocks(
+    executeBatches(
       _blocksData: {
         blockNumber: BigNumberish;
         blockHash: BytesLike;
@@ -2406,7 +2406,7 @@ export class IZkSync extends Contract {
       overrides?: CallOverrides
     ): Promise<void>;
 
-    "executeBlocks(tuple[])"(
+    "executeBatches(tuple[])"(
       _blocksData: {
         blockNumber: BigNumberish;
         blockHash: BytesLike;
@@ -2739,7 +2739,7 @@ export class IZkSync extends Contract {
       overrides?: CallOverrides
     ): Promise<void>;
 
-    proveBlocks(
+    proveBatchess(
       _prevBlock: {
         blockNumber: BigNumberish;
         blockHash: BytesLike;
@@ -2767,7 +2767,7 @@ export class IZkSync extends Contract {
       overrides?: CallOverrides
     ): Promise<void>;
 
-    "proveBlocks((uint64,bytes32,uint64,uint256,bytes32,bytes32,uint256,bytes32),tuple[],(uint256[],uint256[]))"(
+    "proveBatchess((uint64,bytes32,uint64,uint256,bytes32,bytes32,uint256,bytes32),tuple[],(uint256[],uint256[]))"(
       _prevBlock: {
         blockNumber: BigNumberish;
         blockHash: BytesLike;
@@ -3168,7 +3168,7 @@ export class IZkSync extends Contract {
       overrides?: Overrides
     ): Promise<BigNumber>;
 
-    commitBlocks(
+    commitBatches(
       _lastCommittedBlockData: {
         blockNumber: BigNumberish;
         blockHash: BytesLike;
@@ -3196,7 +3196,7 @@ export class IZkSync extends Contract {
       overrides?: Overrides
     ): Promise<BigNumber>;
 
-    "commitBlocks((uint64,bytes32,uint64,uint256,bytes32,bytes32,uint256,bytes32),tuple[])"(
+    "commitBatches((uint64,bytes32,uint64,uint256,bytes32,bytes32,uint256,bytes32),tuple[])"(
       _lastCommittedBlockData: {
         blockNumber: BigNumberish;
         blockHash: BytesLike;
@@ -3224,7 +3224,7 @@ export class IZkSync extends Contract {
       overrides?: Overrides
     ): Promise<BigNumber>;
 
-    executeBlocks(
+    executeBatches(
       _blocksData: {
         blockNumber: BigNumberish;
         blockHash: BytesLike;
@@ -3238,7 +3238,7 @@ export class IZkSync extends Contract {
       overrides?: Overrides
     ): Promise<BigNumber>;
 
-    "executeBlocks(tuple[])"(
+    "executeBatches(tuple[])"(
       _blocksData: {
         blockNumber: BigNumberish;
         blockHash: BytesLike;
@@ -3540,7 +3540,7 @@ export class IZkSync extends Contract {
       overrides?: Overrides
     ): Promise<BigNumber>;
 
-    proveBlocks(
+    proveBatchess(
       _prevBlock: {
         blockNumber: BigNumberish;
         blockHash: BytesLike;
@@ -3568,7 +3568,7 @@ export class IZkSync extends Contract {
       overrides?: Overrides
     ): Promise<BigNumber>;
 
-    "proveBlocks((uint64,bytes32,uint64,uint256,bytes32,bytes32,uint256,bytes32),tuple[],(uint256[],uint256[]))"(
+    "proveBatchess((uint64,bytes32,uint64,uint256,bytes32,bytes32,uint256,bytes32),tuple[],(uint256[],uint256[]))"(
       _prevBlock: {
         blockNumber: BigNumberish;
         blockHash: BytesLike;
@@ -3864,7 +3864,7 @@ export class IZkSync extends Contract {
       overrides?: Overrides
     ): Promise<PopulatedTransaction>;
 
-    commitBlocks(
+    commitBatches(
       _lastCommittedBlockData: {
         blockNumber: BigNumberish;
         blockHash: BytesLike;
@@ -3892,7 +3892,7 @@ export class IZkSync extends Contract {
       overrides?: Overrides
     ): Promise<PopulatedTransaction>;
 
-    "commitBlocks((uint64,bytes32,uint64,uint256,bytes32,bytes32,uint256,bytes32),tuple[])"(
+    "commitBatches((uint64,bytes32,uint64,uint256,bytes32,bytes32,uint256,bytes32),tuple[])"(
       _lastCommittedBlockData: {
         blockNumber: BigNumberish;
         blockHash: BytesLike;
@@ -3920,7 +3920,7 @@ export class IZkSync extends Contract {
       overrides?: Overrides
     ): Promise<PopulatedTransaction>;
 
-    executeBlocks(
+    executeBatches(
       _blocksData: {
         blockNumber: BigNumberish;
         blockHash: BytesLike;
@@ -3934,7 +3934,7 @@ export class IZkSync extends Contract {
       overrides?: Overrides
     ): Promise<PopulatedTransaction>;
 
-    "executeBlocks(tuple[])"(
+    "executeBatches(tuple[])"(
       _blocksData: {
         blockNumber: BigNumberish;
         blockHash: BytesLike;
@@ -4296,7 +4296,7 @@ export class IZkSync extends Contract {
       overrides?: Overrides
     ): Promise<PopulatedTransaction>;
 
-    proveBlocks(
+    proveBatchess(
       _prevBlock: {
         blockNumber: BigNumberish;
         blockHash: BytesLike;
@@ -4324,7 +4324,7 @@ export class IZkSync extends Contract {
       overrides?: Overrides
     ): Promise<PopulatedTransaction>;
 
-    "proveBlocks((uint64,bytes32,uint64,uint256,bytes32,bytes32,uint256,bytes32),tuple[],(uint256[],uint256[]))"(
+    "proveBatchess((uint64,bytes32,uint64,uint256,bytes32,bytes32,uint256,bytes32),tuple[],(uint256[],uint256[]))"(
       _prevBlock: {
         blockNumber: BigNumberish;
         blockHash: BytesLike;

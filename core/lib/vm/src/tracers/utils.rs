@@ -34,6 +34,8 @@ pub(crate) enum VmHook {
     NotifyAboutRefund,
     ExecutionResult,
     FinalBatchInfo,
+    // Hook used to signal that the final pubdata for a batch is requested.
+    PubdataRequested,
 }
 
 impl VmHook {
@@ -72,6 +74,7 @@ impl VmHook {
             9 => Self::NotifyAboutRefund,
             10 => Self::ExecutionResult,
             11 => Self::FinalBatchInfo,
+            12 => Self::PubdataRequested,
             _ => panic!("Unkown hook"),
         }
     }

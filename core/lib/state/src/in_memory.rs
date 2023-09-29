@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 use crate::ReadStorage;
 use zksync_types::{
@@ -16,6 +16,7 @@ pub const IN_MEMORY_STORAGE_DEFAULT_NETWORK_ID: u16 = 270;
 pub struct InMemoryStorage {
     pub(crate) state: HashMap<StorageKey, StorageValue>,
     pub(crate) factory_deps: HashMap<H256, Vec<u8>>,
+    pub(crate) enum_indices: HashMap<StorageKey, u64>,
 }
 
 impl InMemoryStorage {
@@ -47,7 +48,7 @@ impl InMemoryStorage {
     ) -> Self {
         let system_context_init_log = get_system_context_init_logs(chain_id);
 
-        let state = contracts
+        let state: BTreeMap<_, _> = contracts
             .iter()
             .flat_map(|contract| {
                 let bytecode_hash = bytecode_hasher(&contract.bytecode);
@@ -63,20 +64,32 @@ impl InMemoryStorage {
             .chain(system_context_init_log)
             .filter_map(|log| (log.kind == StorageLogKind::Write).then_some((log.key, log.value)))
             .collect();
+        let enum_indices = state
+            .keys()
+            .enumerate()
+            .map(|(index, key)| (*key, index as u64 + 1))
+            .collect();
 
         let factory_deps = contracts
             .into_iter()
             .map(|contract| (bytecode_hasher(&contract.bytecode), contract.bytecode))
             .collect();
+
         Self {
-            state,
+            state: state.into_iter().collect(),
             factory_deps,
+            enum_indices,
         }
     }
 
     /// Sets the storage `value` at the specified `key`.
     pub fn set_value(&mut self, key: StorageKey, value: StorageValue) {
         self.state.insert(key, value);
+    }
+
+    /// Sets the given `enumeration_index ` for the specified `key`.
+    pub fn set_enumeration_index(&mut self, key: StorageKey, enumeration_index: u64) {
+        self.enum_indices.insert(key, enumeration_index);
     }
 
     /// Stores a factory dependency with the specified `hash` and `bytecode`.
@@ -97,6 +110,10 @@ impl ReadStorage for &InMemoryStorage {
     fn load_factory_dep(&mut self, hash: H256) -> Option<Vec<u8>> {
         self.factory_deps.get(&hash).cloned()
     }
+
+    fn get_enumeration_index(&mut self, key: &StorageKey) -> Option<u64> {
+        self.enum_indices.get(&key).copied()
+    }
 }
 
 impl ReadStorage for InMemoryStorage {
@@ -110,5 +127,9 @@ impl ReadStorage for InMemoryStorage {
 
     fn load_factory_dep(&mut self, hash: H256) -> Option<Vec<u8>> {
         (&*self).load_factory_dep(hash)
+    }
+
+    fn get_enumeration_index(&mut self, key: &StorageKey) -> Option<u64> {
+        (&*self).get_enumeration_index(key)
     }
 }
