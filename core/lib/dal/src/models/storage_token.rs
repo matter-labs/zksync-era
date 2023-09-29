@@ -34,11 +34,11 @@ impl From<StorageTokenPrice> for Option<TokenPrice> {
         match (&price.usd_price, price.usd_price_updated_at) {
             (Some(usd_price), Some(updated_at)) => Some(TokenPrice {
                 usd_price: big_decimal_to_ratio(usd_price).unwrap(),
-                last_updated: DateTime::<Utc>::from_naive_utc_and_offset(updated_at, Utc),
+                last_updated: DateTime::<Utc>::from_utc(updated_at, Utc),
             }),
             (None, None) => None,
             _ => {
-                tracing::warn!(
+                vlog::warn!(
                     "Found storage token with {:?} `usd_price` and {:?} `usd_price_updated_at`",
                     price.usd_price,
                     price.usd_price_updated_at
@@ -62,7 +62,7 @@ impl From<StorageTokenMarketVolume> for Option<TokenMarketVolume> {
             .as_ref()
             .map(|volume| TokenMarketVolume {
                 market_volume: big_decimal_to_ratio(volume).unwrap(),
-                last_updated: DateTime::<Utc>::from_naive_utc_and_offset(
+                last_updated: DateTime::<Utc>::from_utc(
                     market_volume
                         .market_volume_updated_at
                         .expect("If `market_volume` is Some then `updated_at` must be Some"),

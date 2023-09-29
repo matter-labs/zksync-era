@@ -27,7 +27,7 @@ fn compare_serialized<T: Serialize>(expected: &T, actual: &T) {
 #[tokio::test]
 #[ignore] // re-enable with new artifacts
 async fn test_leaf_witness_gen() {
-    let mut object_store_config = ObjectStoreConfig::from_env().unwrap();
+    let mut object_store_config = ObjectStoreConfig::from_env();
     object_store_config.file_backed_base_path = "./tests/data/leaf/".to_owned();
     let object_store = ObjectStoreFactory::new(object_store_config)
         .create_store()
@@ -51,7 +51,7 @@ async fn test_leaf_witness_gen() {
         prover_job_ids_for_proofs: vec![4639043, 4639044, 4639045],
     };
 
-    let job = prepare_leaf_aggregation_job(leaf_aggregation_job_metadata, &*object_store).await.unwrap();
+    let job = prepare_leaf_aggregation_job(leaf_aggregation_job_metadata, &*object_store).await;
 
     let artifacts = LeafAggregationWitnessGenerator::process_job_sync(job, Instant::now());
     let aggregations = AggregationWrapper(artifacts.aggregations);
@@ -61,7 +61,7 @@ async fn test_leaf_witness_gen() {
 #[tokio::test]
 #[ignore] // re-enable with new artifacts
 async fn test_node_witness_gen() {
-    let mut object_store_config = ObjectStoreConfig::from_env().unwrap();
+    let mut object_store_config = ObjectStoreConfig::from_env();
     object_store_config.file_backed_base_path = "./tests/data/node/".to_owned();
     let object_store = ObjectStoreFactory::new(object_store_config)
         .create_store()
@@ -86,7 +86,7 @@ async fn test_node_witness_gen() {
         prover_job_ids_for_proofs: vec![5211320],
     };
 
-    let job = node_aggregation::prepare_job(node_aggregation_job_metadata, &*object_store).await.unwrap();
+    let job = node_aggregation::prepare_job(node_aggregation_job_metadata, &*object_store).await;
 
     let artifacts = NodeAggregationWitnessGenerator::process_job_sync(job, Instant::now());
     let aggregations = AggregationWrapper(artifacts.next_aggregations);
@@ -96,7 +96,7 @@ async fn test_node_witness_gen() {
 #[tokio::test]
 #[ignore] // re-enable with new artifacts
 async fn test_scheduler_witness_gen() {
-    let mut object_store_config = ObjectStoreConfig::from_env().unwrap();
+    let mut object_store_config = ObjectStoreConfig::from_env();
     object_store_config.file_backed_base_path = "./tests/data/scheduler/".to_owned();
     let object_store = ObjectStoreFactory::new(object_store_config)
         .create_store()
@@ -118,7 +118,7 @@ async fn test_scheduler_witness_gen() {
         5627093, 5627094, 5629097,
     ];
 
-    let job = scheduler::prepare_job(block_number, proof_job_ids, &*object_store).await.unwrap();
+    let job = scheduler::prepare_job(block_number, proof_job_ids, &*object_store).await;
 
     let artifacts = SchedulerWitnessGenerator::process_job_sync(job, Instant::now());
     let circuit = CircuitWrapper::Recursive(artifacts.scheduler_circuit);

@@ -96,7 +96,7 @@ impl<H: HistoryMode> ValidationTracer<H> {
             }
             Err(err) => {
                 if self.result.get().is_some() {
-                    tracing::trace!("Validation error is already set, skipping");
+                    vlog::trace!("Validation error is already set, skipping");
                     return;
                 }
                 self.result.set(err).expect("Result should be empty");

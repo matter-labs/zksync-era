@@ -6,7 +6,7 @@ use std::collections::{hash_map::Entry, HashMap};
 
 use crate::{
     hasher::HashTree,
-    metrics::HashingStats,
+    metrics::HashingMetrics,
     storage::{proofs::SUBTREE_COUNT, SortedKeys},
     types::{
         ChildRef, InternalNode, Manifest, Nibbles, NibblesBytes, Node, NodeKey, Root, ValueHash,
@@ -344,10 +344,10 @@ impl WorkingPatchSet {
         manifest: Manifest,
         leaf_count: u64,
         hasher: &dyn HashTree,
-    ) -> (ValueHash, PatchSet, HashingStats) {
+    ) -> (ValueHash, PatchSet, HashingMetrics) {
         self.remove_unchanged_nodes();
         let stale_keys = self.stale_keys();
-        let metrics = HashingStats::default();
+        let metrics = HashingMetrics::default();
 
         let mut changes_by_nibble_count = self.changes_by_nibble_count;
         if changes_by_nibble_count.is_empty() {

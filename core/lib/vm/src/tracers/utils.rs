@@ -151,7 +151,7 @@ pub(crate) fn print_debug_if_needed<H: HistoryMode>(
         _ => return,
     };
 
-    tracing::trace!("{}", log);
+    vlog::trace!("{}", log);
 }
 
 pub(crate) fn computational_gas_price(

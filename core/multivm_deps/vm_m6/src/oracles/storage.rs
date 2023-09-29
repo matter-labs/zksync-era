@@ -190,7 +190,7 @@ impl<S: Storage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
         _monotonic_cycle_counter: u32,
         query: LogQuery,
     ) -> LogQuery {
-        // tracing::trace!(
+        // vlog::trace!(
         //     "execute partial query cyc {:?} addr {:?} key {:?}, rw {:?}, wr {:?}, tx {:?}",
         //     _monotonic_cycle_counter,
         //     query.address,
@@ -256,7 +256,7 @@ impl<S: Storage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
                 let read_value = match query.log_type {
                     StorageLogQueryType::Read => {
                         // Having Read logs in rollback is not possible
-                        tracing::warn!("Read log in rollback queue {:?}", query);
+                        vlog::warn!("Read log in rollback queue {:?}", query);
                         continue;
                     }
                     StorageLogQueryType::InitialWrite | StorageLogQueryType::RepeatedWrite => {

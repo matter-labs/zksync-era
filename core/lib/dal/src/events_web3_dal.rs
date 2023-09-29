@@ -21,11 +21,11 @@ impl EventsWeb3Dal<'_, '_> {
     /// Used to determine if there is more than `offset` logs that satisfies filter.
     pub async fn get_log_block_number(
         &mut self,
-        filter: &GetLogsFilter,
+        filter: GetLogsFilter,
         offset: usize,
     ) -> Result<Option<MiniblockNumber>, SqlxError> {
         {
-            let (where_sql, arg_index) = self.build_get_logs_where_clause(filter);
+            let (where_sql, arg_index) = self.build_get_logs_where_clause(&filter);
 
             let query = format!(
                 r#"
@@ -52,7 +52,7 @@ impl EventsWeb3Dal<'_, '_> {
             let log = query
                 .instrument("get_log_block_number")
                 .report_latency()
-                .with_arg("filter", filter)
+                .with_arg("filter", &filter)
                 .with_arg("offset", &offset)
                 .fetch_optional(self.storage.conn())
                 .await?;

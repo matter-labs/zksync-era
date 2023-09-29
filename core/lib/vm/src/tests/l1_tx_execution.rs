@@ -8,7 +8,7 @@ use crate::tests::tester::{TxType, VmTesterBuilder};
 use crate::tests::utils::{read_test_contract, verify_required_storage, BASE_SYSTEM_CONTRACTS};
 use crate::types::inputs::system_env::TxExecutionMode;
 use crate::types::internals::TransactionData;
-use crate::{HistoryEnabled, VmExecutionMode};
+use crate::HistoryEnabled;
 
 #[test]
 fn test_l1_tx_execution() {
@@ -47,7 +47,7 @@ fn test_l1_tx_execution() {
 
     vm.vm.push_transaction(deploy_tx.tx.clone());
 
-    let res = vm.vm.execute(VmExecutionMode::OneTx);
+    let res = vm.vm.execute_next_transaction();
 
     // The code hash of the deployed contract should be marked as republished.
     let known_codes_key = get_known_code_key(&deploy_tx.bytecode_hash);
@@ -73,7 +73,7 @@ fn test_l1_tx_execution() {
         TxType::L1 { serial_id: 0 },
     );
     vm.vm.push_transaction(tx);
-    let res = vm.vm.execute(VmExecutionMode::OneTx);
+    let res = vm.vm.execute_next_transaction();
     let storage_logs = res.logs.storage_logs;
     let res = StorageWritesDeduplicator::apply_on_empty_state(&storage_logs);
 
@@ -88,7 +88,7 @@ fn test_l1_tx_execution() {
         TxType::L1 { serial_id: 0 },
     );
     vm.vm.push_transaction(tx.clone());
-    let res = vm.vm.execute(VmExecutionMode::OneTx);
+    let res = vm.vm.execute_next_transaction();
     let storage_logs = res.logs.storage_logs;
     let res = StorageWritesDeduplicator::apply_on_empty_state(&storage_logs);
     // We changed one slot inside contract
@@ -99,7 +99,7 @@ fn test_l1_tx_execution() {
     assert_eq!(res.repeated_storage_writes, 0);
 
     vm.vm.push_transaction(tx);
-    let storage_logs = vm.vm.execute(VmExecutionMode::OneTx).logs.storage_logs;
+    let storage_logs = vm.vm.execute_next_transaction().logs.storage_logs;
     let res = StorageWritesDeduplicator::apply_on_empty_state(&storage_logs);
     // We do the same storage write, it will be deduplicated, so still 4 initial write and 0 repeated
     assert_eq!(res.initial_storage_writes - basic_initial_writes, 1);
@@ -113,7 +113,7 @@ fn test_l1_tx_execution() {
         TxType::L1 { serial_id: 1 },
     );
     vm.vm.push_transaction(tx);
-    let result = vm.vm.execute(VmExecutionMode::OneTx);
+    let result = vm.vm.execute_next_transaction();
     // Method is not payable tx should fail
     assert!(result.result.is_failed(), "The transaction should fail");
 

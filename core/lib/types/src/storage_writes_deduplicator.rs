@@ -1,29 +1,12 @@
-use std::collections::HashMap;
-
-use zksync_utils::u256_to_h256;
-
 use crate::tx::tx_execution_info::DeduplicatedWritesMetrics;
 use crate::{AccountTreeId, StorageKey, StorageLogQuery, StorageLogQueryType, U256};
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct ModifiedSlot {
-    /// Value of the slot after modification.
-    pub value: U256,
-    /// Index (in L1 batch) of the transaction that lastly modified the slot.
-    pub tx_index: u16,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-enum UpdateType {
-    Remove(ModifiedSlot),
-    Update(ModifiedSlot),
-    Insert,
-}
+use std::collections::{HashMap, HashSet};
+use zksync_utils::u256_to_h256;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct UpdateItem {
     key: StorageKey,
-    update_type: UpdateType,
+    is_insertion: bool,
     is_write_initial: bool,
 }
 
@@ -31,8 +14,7 @@ struct UpdateItem {
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct StorageWritesDeduplicator {
     initial_values: HashMap<StorageKey, U256>,
-    // stores the mapping of storage-slot key to its values and the tx number in block
-    modified_key_values: HashMap<StorageKey, ModifiedSlot>,
+    modified_keys: HashSet<StorageKey>,
     metrics: DeduplicatedWritesMetrics,
 }
 
@@ -43,10 +25,6 @@ impl StorageWritesDeduplicator {
 
     pub fn metrics(&self) -> DeduplicatedWritesMetrics {
         self.metrics
-    }
-
-    pub fn into_modified_key_values(self) -> HashMap<StorageKey, ModifiedSlot> {
-        self.modified_key_values
     }
 
     /// Applies storage logs to the state.
@@ -92,12 +70,12 @@ impl StorageWritesDeduplicator {
                 .initial_values
                 .entry(key)
                 .or_insert(log.log_query.read_value);
-            let was_key_modified = self.modified_key_values.get(&key).is_some();
-            let modified_value = if log.log_query.rollback {
-                (initial_value != log.log_query.read_value).then_some(log.log_query.read_value)
+
+            let was_key_modified = self.modified_keys.get(&key).is_some();
+            let is_key_modified = if log.log_query.rollback {
+                initial_value != log.log_query.read_value
             } else {
-                (initial_value != log.log_query.written_value)
-                    .then_some(log.log_query.written_value)
+                initial_value != log.log_query.written_value
             };
 
             let is_write_initial = log.log_type == StorageLogQueryType::InitialWrite;
@@ -107,49 +85,22 @@ impl StorageWritesDeduplicator {
                 &mut self.metrics.repeated_storage_writes
             };
 
-            match (was_key_modified, modified_value) {
-                (true, None) => {
-                    let value = self.modified_key_values.remove(&key).unwrap_or_else(|| {
-                        panic!("tried removing key: {:?} before insertion", key)
-                    });
+            match (was_key_modified, is_key_modified) {
+                (true, false) => {
+                    self.modified_keys.remove(&key);
                     *field_to_change -= 1;
                     updates.push(UpdateItem {
                         key,
-                        update_type: UpdateType::Remove(value),
+                        is_insertion: false,
                         is_write_initial,
                     });
                 }
-                (true, Some(new_value)) => {
-                    let old_value = self
-                        .modified_key_values
-                        .insert(
-                            key,
-                            ModifiedSlot {
-                                value: new_value,
-                                tx_index: log.log_query.tx_number_in_block,
-                            },
-                        )
-                        .unwrap_or_else(|| {
-                            panic!("tried removing key: {:?} before insertion", key)
-                        });
-                    updates.push(UpdateItem {
-                        key,
-                        update_type: UpdateType::Update(old_value),
-                        is_write_initial,
-                    })
-                }
-                (false, Some(new_value)) => {
-                    self.modified_key_values.insert(
-                        key,
-                        ModifiedSlot {
-                            value: new_value,
-                            tx_index: log.log_query.tx_number_in_block,
-                        },
-                    );
+                (false, true) => {
+                    self.modified_keys.insert(key);
                     *field_to_change += 1;
                     updates.push(UpdateItem {
                         key,
-                        update_type: UpdateType::Insert,
+                        is_insertion: true,
                         is_write_initial,
                     });
                 }
@@ -167,18 +118,12 @@ impl StorageWritesDeduplicator {
                 &mut self.metrics.repeated_storage_writes
             };
 
-            match item.update_type {
-                UpdateType::Insert => {
-                    self.modified_key_values.remove(&item.key);
-                    *field_to_change -= 1;
-                }
-                UpdateType::Update(value) => {
-                    self.modified_key_values.insert(item.key, value);
-                }
-                UpdateType::Remove(value) => {
-                    self.modified_key_values.insert(item.key, value);
-                    *field_to_change += 1;
-                }
+            if item.is_insertion {
+                self.modified_keys.remove(&item.key);
+                *field_to_change -= 1;
+            } else {
+                self.modified_keys.insert(item.key);
+                *field_to_change += 1;
             }
         }
     }
@@ -186,11 +131,8 @@ impl StorageWritesDeduplicator {
 
 #[cfg(test)]
 mod tests {
-    use zk_evm::aux_structures::{LogQuery, Timestamp};
-
-    use crate::H160;
-
     use super::*;
+    use zk_evm::aux_structures::{LogQuery, Timestamp};
 
     fn storage_log_query(
         key: U256,
@@ -220,16 +162,6 @@ mod tests {
             },
             log_type,
         }
-    }
-
-    fn storage_log_query_with_address(
-        address: H160,
-        key: U256,
-        written_value: U256,
-    ) -> StorageLogQuery {
-        let mut log = storage_log_query(key, 1234u32.into(), written_value, false, false);
-        log.log_query.address = address;
-        log
     }
 
     #[test]
@@ -340,181 +272,5 @@ mod tests {
                 descr
             )
         }
-    }
-
-    fn new_storage_key(address: u64, key: u32) -> StorageKey {
-        StorageKey::new(
-            AccountTreeId::new(H160::from_low_u64_be(address)),
-            u256_to_h256(key.into()),
-        )
-    }
-
-    #[test]
-    fn test_no_duplicate_storage_logs() {
-        let expected = HashMap::from([
-            (
-                new_storage_key(1, 5),
-                ModifiedSlot {
-                    value: 8u32.into(),
-                    tx_index: 0,
-                },
-            ),
-            (
-                new_storage_key(1, 4),
-                ModifiedSlot {
-                    value: 6u32.into(),
-                    tx_index: 0,
-                },
-            ),
-            (
-                new_storage_key(2, 5),
-                ModifiedSlot {
-                    value: 9u32.into(),
-                    tx_index: 0,
-                },
-            ),
-            (
-                new_storage_key(2, 4),
-                ModifiedSlot {
-                    value: 11u32.into(),
-                    tx_index: 0,
-                },
-            ),
-            (
-                new_storage_key(3, 5),
-                ModifiedSlot {
-                    value: 2u32.into(),
-                    tx_index: 0,
-                },
-            ),
-            (
-                new_storage_key(3, 4),
-                ModifiedSlot {
-                    value: 7u32.into(),
-                    tx_index: 0,
-                },
-            ),
-        ]);
-        let mut deduplicator = StorageWritesDeduplicator::new();
-        let logs = [
-            storage_log_query_with_address(H160::from_low_u64_be(1), 5u32.into(), 8u32.into()),
-            storage_log_query_with_address(H160::from_low_u64_be(1), 4u32.into(), 6u32.into()),
-            storage_log_query_with_address(H160::from_low_u64_be(2), 4u32.into(), 11u32.into()),
-            storage_log_query_with_address(H160::from_low_u64_be(2), 5u32.into(), 9u32.into()),
-            storage_log_query_with_address(H160::from_low_u64_be(3), 4u32.into(), 7u32.into()),
-            storage_log_query_with_address(H160::from_low_u64_be(3), 5u32.into(), 2u32.into()),
-        ];
-        deduplicator.apply(&logs);
-        assert_eq!(expected, deduplicator.modified_key_values);
-    }
-
-    #[test]
-    fn test_duplicate_storage_logs_within_same_address() {
-        let expected = HashMap::from([
-            (
-                new_storage_key(1, 5),
-                ModifiedSlot {
-                    value: 6u32.into(),
-                    tx_index: 0,
-                },
-            ),
-            (
-                new_storage_key(2, 4),
-                ModifiedSlot {
-                    value: 11u32.into(),
-                    tx_index: 0,
-                },
-            ),
-            (
-                new_storage_key(3, 6),
-                ModifiedSlot {
-                    value: 7u32.into(),
-                    tx_index: 0,
-                },
-            ),
-        ]);
-        let mut deduplicator = StorageWritesDeduplicator::new();
-        let logs = [
-            storage_log_query_with_address(H160::from_low_u64_be(1), 5u32.into(), 8u32.into()),
-            storage_log_query_with_address(H160::from_low_u64_be(1), 5u32.into(), 6u32.into()),
-            storage_log_query_with_address(H160::from_low_u64_be(2), 4u32.into(), 9u32.into()),
-            storage_log_query_with_address(H160::from_low_u64_be(2), 4u32.into(), 11u32.into()),
-            storage_log_query_with_address(H160::from_low_u64_be(3), 6u32.into(), 2u32.into()),
-            storage_log_query_with_address(H160::from_low_u64_be(3), 6u32.into(), 7u32.into()),
-        ];
-        deduplicator.apply(&logs);
-        assert_eq!(expected, deduplicator.modified_key_values);
-    }
-
-    #[test]
-    fn test_duplicate_all_storage_logs() {
-        let expected = HashMap::from([
-            (
-                new_storage_key(1, 2),
-                ModifiedSlot {
-                    value: 3u32.into(),
-                    tx_index: 0,
-                },
-            ),
-            (
-                new_storage_key(1, 2),
-                ModifiedSlot {
-                    value: 4u32.into(),
-                    tx_index: 0,
-                },
-            ),
-            (
-                new_storage_key(1, 2),
-                ModifiedSlot {
-                    value: 5u32.into(),
-                    tx_index: 0,
-                },
-            ),
-        ]);
-        let mut deduplicator = StorageWritesDeduplicator::new();
-        let logs = [
-            storage_log_query_with_address(H160::from_low_u64_be(1), 2u32.into(), 3u32.into()),
-            storage_log_query_with_address(H160::from_low_u64_be(1), 2u32.into(), 4u32.into()),
-            storage_log_query_with_address(H160::from_low_u64_be(1), 2u32.into(), 5u32.into()),
-        ];
-        deduplicator.apply(&logs);
-        assert_eq!(expected, deduplicator.modified_key_values);
-    }
-
-    #[test]
-    fn test_last_rollback() {
-        let expected = HashMap::from([(
-            new_storage_key(0, 1),
-            ModifiedSlot {
-                value: 2u32.into(),
-                tx_index: 0,
-            },
-        )]);
-        let mut deduplicator = StorageWritesDeduplicator::new();
-        let logs = [
-            storage_log_query(
-                U256::from(1u32),
-                U256::from(1u32),
-                U256::from(2u32),
-                false,
-                false,
-            ),
-            storage_log_query(
-                U256::from(1u32),
-                U256::from(2u32),
-                U256::from(1u32),
-                false,
-                false,
-            ),
-            storage_log_query(
-                U256::from(1u32),
-                U256::from(2u32),
-                U256::from(1u32),
-                true,
-                false,
-            ),
-        ];
-        deduplicator.apply(&logs);
-        assert_eq!(expected, deduplicator.modified_key_values);
     }
 }

@@ -1,6 +1,6 @@
 use crate::glue::GlueFrom;
 
-impl GlueFrom<vm_m5::vm::VmExecutionResult> for vm_latest::CurrentExecutionState {
+impl GlueFrom<vm_m5::vm::VmExecutionResult> for vm_virtual_blocks::CurrentExecutionState {
     fn glue_from(value: vm_m5::vm::VmExecutionResult) -> Self {
         Self {
             events: value.events,
@@ -13,7 +13,7 @@ impl GlueFrom<vm_m5::vm::VmExecutionResult> for vm_latest::CurrentExecutionState
     }
 }
 
-impl GlueFrom<vm_m6::vm::VmExecutionResult> for vm_latest::CurrentExecutionState {
+impl GlueFrom<vm_m6::vm::VmExecutionResult> for vm_virtual_blocks::CurrentExecutionState {
     fn glue_from(value: vm_m6::vm::VmExecutionResult) -> Self {
         Self {
             events: value.events,
@@ -26,7 +26,7 @@ impl GlueFrom<vm_m6::vm::VmExecutionResult> for vm_latest::CurrentExecutionState
     }
 }
 
-impl GlueFrom<vm_1_3_2::VmExecutionResult> for vm_latest::CurrentExecutionState {
+impl GlueFrom<vm_1_3_2::VmExecutionResult> for vm_virtual_blocks::CurrentExecutionState {
     fn glue_from(value: vm_1_3_2::VmExecutionResult) -> Self {
         Self {
             events: value.events,

@@ -22,13 +22,10 @@ pub struct FriProverConfig {
     pub witness_vector_generator_thread_count: Option<usize>,
     pub queue_capacity: usize,
     pub witness_vector_receiver_port: u16,
-
-    // whether to write to public GCS bucket for https://github.com/matter-labs/era-boojum-validator-cli
-    pub shall_save_to_public_bucket: bool,
 }
 
 impl FriProverConfig {
-    pub fn from_env() -> anyhow::Result<Self> {
+    pub fn from_env() -> Self {
         envy_load("fri_prover", "FRI_PROVER_")
     }
 
@@ -57,7 +54,6 @@ mod tests {
             witness_vector_generator_thread_count: Some(5),
             queue_capacity: 10,
             witness_vector_receiver_port: 3316,
-            shall_save_to_public_bucket: true,
         }
     }
 
@@ -76,11 +72,10 @@ mod tests {
             FRI_PROVER_WITNESS_VECTOR_GENERATOR_THREAD_COUNT="5"
             FRI_PROVER_QUEUE_CAPACITY="10"
             FRI_PROVER_WITNESS_VECTOR_RECEIVER_PORT="3316"
-            FRI_PROVER_SHALL_SAVE_TO_PUBLIC_BUCKET=true
         "#;
         lock.set_env(config);
 
-        let actual = FriProverConfig::from_env().unwrap();
+        let actual = FriProverConfig::from_env();
         assert_eq!(actual, expected_config());
     }
 }

@@ -1,7 +1,6 @@
 use crate::glue::{GlueFrom, GlueInto};
-use vm_latest::{
-    CurrentExecutionState, ExecutionResult, Refunds, VmExecutionResultAndLogs,
-    VmExecutionStatistics,
+use vm_virtual_blocks::{
+    CurrentExecutionState, Refunds, VmExecutionResultAndLogs, VmExecutionStatistics,
 };
 use zksync_types::tx::tx_execution_info::VmExecutionLogs;
 
@@ -10,9 +9,9 @@ use zksync_types::tx::tx_execution_info::VmExecutionLogs;
 // Bootloader memory required only for producing witnesses,
 // and server doesn't need to generate witnesses for old blocks
 
-impl GlueFrom<vm_m5::vm::VmBlockResult> for vm_latest::FinishedL1Batch {
+impl GlueFrom<vm_m5::vm::VmBlockResult> for vm_virtual_blocks::FinishedL1Batch {
     fn glue_from(value: vm_m5::vm::VmBlockResult) -> Self {
-        vm_latest::FinishedL1Batch {
+        vm_virtual_blocks::FinishedL1Batch {
             block_tip_execution_result: VmExecutionResultAndLogs {
                 result: value.block_tip_result.revert_reason.glue_into(),
                 logs: VmExecutionLogs {
@@ -43,9 +42,9 @@ impl GlueFrom<vm_m5::vm::VmBlockResult> for vm_latest::FinishedL1Batch {
     }
 }
 
-impl GlueFrom<vm_m6::vm::VmBlockResult> for vm_latest::FinishedL1Batch {
+impl GlueFrom<vm_m6::vm::VmBlockResult> for vm_virtual_blocks::FinishedL1Batch {
     fn glue_from(value: vm_m6::vm::VmBlockResult) -> Self {
-        vm_latest::FinishedL1Batch {
+        vm_virtual_blocks::FinishedL1Batch {
             block_tip_execution_result: VmExecutionResultAndLogs {
                 result: value.block_tip_result.revert_reason.glue_into(),
                 logs: VmExecutionLogs {
@@ -76,9 +75,9 @@ impl GlueFrom<vm_m6::vm::VmBlockResult> for vm_latest::FinishedL1Batch {
     }
 }
 
-impl GlueFrom<vm_1_3_2::vm::VmBlockResult> for vm_latest::FinishedL1Batch {
+impl GlueFrom<vm_1_3_2::vm::VmBlockResult> for vm_virtual_blocks::FinishedL1Batch {
     fn glue_from(value: vm_1_3_2::vm::VmBlockResult) -> Self {
-        vm_latest::FinishedL1Batch {
+        vm_virtual_blocks::FinishedL1Batch {
             block_tip_execution_result: VmExecutionResultAndLogs {
                 result: value.block_tip_result.revert_reason.glue_into(),
                 logs: VmExecutionLogs {
@@ -105,102 +104,6 @@ impl GlueFrom<vm_1_3_2::vm::VmBlockResult> for vm_latest::FinishedL1Batch {
                 cycles_used: value.full_result.cycles_used,
             },
             final_bootloader_memory: None,
-        }
-    }
-}
-
-impl GlueFrom<vm_1_3_2::vm::VmBlockResult> for vm_latest::VmExecutionResultAndLogs {
-    fn glue_from(value: vm_1_3_2::vm::VmBlockResult) -> Self {
-        let mut result = value
-            .full_result
-            .revert_reason
-            .map(|a| a.revert_reason)
-            .glue_into();
-
-        if let ExecutionResult::Success { output } = &mut result {
-            *output = value.full_result.return_data;
-        }
-
-        VmExecutionResultAndLogs {
-            result,
-            logs: VmExecutionLogs {
-                events: value.full_result.events,
-                l2_to_l1_logs: value.full_result.l2_to_l1_logs,
-                storage_logs: value.full_result.storage_log_queries,
-                total_log_queries_count: value.full_result.total_log_queries,
-            },
-            statistics: VmExecutionStatistics {
-                contracts_used: value.full_result.contracts_used,
-                cycles_used: value.full_result.cycles_used,
-                total_log_queries: value.full_result.total_log_queries,
-                computational_gas_used: value.full_result.computational_gas_used,
-                gas_used: value.full_result.gas_used,
-            },
-            refunds: Refunds::default(),
-        }
-    }
-}
-
-impl GlueFrom<vm_m5::vm::VmBlockResult> for vm_latest::VmExecutionResultAndLogs {
-    fn glue_from(value: vm_m5::vm::VmBlockResult) -> Self {
-        let mut result = value
-            .full_result
-            .revert_reason
-            .map(|a| a.revert_reason)
-            .glue_into();
-
-        if let ExecutionResult::Success { output } = &mut result {
-            *output = value.full_result.return_data;
-        }
-
-        VmExecutionResultAndLogs {
-            result,
-            logs: VmExecutionLogs {
-                events: value.full_result.events,
-                l2_to_l1_logs: value.full_result.l2_to_l1_logs,
-                storage_logs: value.full_result.storage_log_queries,
-                total_log_queries_count: value.full_result.total_log_queries,
-            },
-            statistics: VmExecutionStatistics {
-                contracts_used: value.full_result.contracts_used,
-                cycles_used: value.full_result.cycles_used,
-                total_log_queries: value.full_result.total_log_queries,
-                computational_gas_used: 0,
-                gas_used: value.full_result.gas_used,
-            },
-            refunds: Refunds::default(),
-        }
-    }
-}
-
-impl GlueFrom<vm_m6::vm::VmBlockResult> for vm_latest::VmExecutionResultAndLogs {
-    fn glue_from(value: vm_m6::vm::VmBlockResult) -> Self {
-        let mut result = value
-            .full_result
-            .revert_reason
-            .map(|a| a.revert_reason)
-            .glue_into();
-
-        if let ExecutionResult::Success { output } = &mut result {
-            *output = value.full_result.return_data;
-        }
-
-        VmExecutionResultAndLogs {
-            result,
-            logs: VmExecutionLogs {
-                events: value.full_result.events,
-                l2_to_l1_logs: value.full_result.l2_to_l1_logs,
-                storage_logs: value.full_result.storage_log_queries,
-                total_log_queries_count: value.full_result.total_log_queries,
-            },
-            statistics: VmExecutionStatistics {
-                contracts_used: value.full_result.contracts_used,
-                cycles_used: value.full_result.cycles_used,
-                total_log_queries: value.full_result.total_log_queries,
-                computational_gas_used: value.full_result.computational_gas_used,
-                gas_used: value.full_result.gas_used,
-            },
-            refunds: Refunds::default(),
         }
     }
 }

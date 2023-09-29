@@ -35,16 +35,15 @@ pub enum ProtocolVersionId {
     Version13,
     Version14,
     Version15,
-    Version16,
 }
 
 impl ProtocolVersionId {
     pub fn latest() -> Self {
-        Self::Version15
+        Self::Version14
     }
 
     pub fn next() -> Self {
-        Self::Version16
+        Self::Version15
     }
 
     /// Returns VM version to be used by API for this protocol version.
@@ -67,7 +66,6 @@ impl ProtocolVersionId {
             ProtocolVersionId::Version13 => VmVersion::VmVirtualBlocks,
             ProtocolVersionId::Version14 => VmVersion::VmVirtualBlocks,
             ProtocolVersionId::Version15 => VmVersion::VmVirtualBlocks,
-            ProtocolVersionId::Version16 => VmVersion::VmVirtualBlocks,
         }
     }
 }
@@ -506,7 +504,6 @@ impl From<ProtocolUpgradeTx> for Transaction {
             common_data: ExecuteTransactionCommon::ProtocolUpgrade(common_data),
             execute,
             received_timestamp_ms,
-            raw_bytes: None,
         }
     }
 }
@@ -519,7 +516,6 @@ impl TryFrom<Transaction> for ProtocolUpgradeTx {
             common_data,
             execute,
             received_timestamp_ms,
-            ..
         } = value;
         match common_data {
             ExecuteTransactionCommon::L1(_) => Err("Cannot convert L1Tx to ProtocolUpgradeTx"),
@@ -552,7 +548,6 @@ impl From<ProtocolVersionId> for VmVersion {
             ProtocolVersionId::Version13 => VmVersion::VmVirtualBlocks,
             ProtocolVersionId::Version14 => VmVersion::VmVirtualBlocks,
             ProtocolVersionId::Version15 => VmVersion::VmVirtualBlocks,
-            ProtocolVersionId::Version16 => VmVersion::VmVirtualBlocks,
         }
     }
 }

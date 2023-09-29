@@ -1,7 +1,6 @@
 // Built-in uses
 use std::time::Duration;
 // External uses
-use anyhow::Context as _;
 use serde::Deserialize;
 // Workspace uses
 use zksync_basic_types::H256;
@@ -18,11 +17,11 @@ pub struct ETHSenderConfig {
 }
 
 impl ETHSenderConfig {
-    pub fn from_env() -> anyhow::Result<Self> {
-        Ok(Self {
-            sender: SenderConfig::from_env().context("SenderConfig")?,
-            gas_adjuster: GasAdjusterConfig::from_env().context("GasAdjusterConfig")?,
-        })
+    pub fn from_env() -> Self {
+        Self {
+            sender: SenderConfig::from_env(),
+            gas_adjuster: GasAdjusterConfig::from_env(),
+        }
     }
 }
 
@@ -91,7 +90,7 @@ impl SenderConfig {
             .map(|pk| pk.parse().unwrap())
     }
 
-    pub fn from_env() -> anyhow::Result<Self> {
+    pub fn from_env() -> Self {
         envy_load("eth_sender", "ETH_SENDER_SENDER_")
     }
 }
@@ -126,7 +125,7 @@ impl GasAdjusterConfig {
         self.max_l1_gas_price.unwrap_or(u64::MAX)
     }
 
-    pub fn from_env() -> anyhow::Result<Self> {
+    pub fn from_env() -> Self {
         envy_load("eth_sender.gas_adjuster", "ETH_SENDER_GAS_ADJUSTER_")
     }
 }
@@ -206,7 +205,7 @@ mod tests {
         "#;
         lock.set_env(config);
 
-        let actual = ETHSenderConfig::from_env().unwrap();
+        let actual = ETHSenderConfig::from_env();
         assert_eq!(actual, expected_config());
         assert_eq!(
             actual.sender.private_key().unwrap(),

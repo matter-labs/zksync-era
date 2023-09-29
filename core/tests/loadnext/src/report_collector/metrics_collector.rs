@@ -130,11 +130,11 @@ impl MetricsCollector {
     }
 
     pub fn report(&self) {
-        tracing::info!("Action: [10 percentile, 50 percentile, 90 percentile]");
+        vlog::info!("Action: [10 percentile, 50 percentile, 90 percentile]");
         for (action, histogram) in &self.action_stats {
             // Only report data that was actually gathered.
             if !histogram.is_empty() {
-                tracing::info!(
+                vlog::info!(
                     "{action:?}: [>{}ms >{}ms >{}ms]",
                     histogram.percentile(10).0.as_millis(),
                     histogram.percentile(50).0.as_millis(),

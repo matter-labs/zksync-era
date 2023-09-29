@@ -2,7 +2,6 @@ use std::option::Option;
 use std::time::Duration;
 use std::time::Instant;
 
-use anyhow::Context as _;
 use local_ip_address::local_ip;
 use prover_service::prover::{Prover, ProvingAssembly};
 use prover_service::remote_synth::serialize_job;
@@ -24,18 +23,11 @@ use zksync_prover_utils::region_fetcher::{get_region, get_zone};
 use zksync_queued_job_processor::{async_trait, JobProcessor};
 use zksync_types::{protocol_version::L1VerifierConfig, proofs::{GpuProverInstanceStatus, SocketAddress}};
 
-#[derive(thiserror::Error,Debug)]
+#[derive(Debug)]
 pub enum CircuitSynthesizerError {
-    #[error("InvalidaGroupCircuits: {0}")]
     InvalidGroupCircuits(u8),
-    #[error("InvalidCircuitId: {0}")]
     InvalidCircuitId(u8),
-    #[error("InputLoadFailed: {0}")]
     InputLoadFailed(ObjectStoreError),
-    #[error("GetRegionFailed: {0}")]
-    GetRegionFailed(anyhow::Error),
-    #[error("GetZoneFailed: {0}")]
-    GetZoneFailed(anyhow::Error),
 }
 
 pub struct CircuitSynthesizer {
@@ -75,7 +67,7 @@ impl CircuitSynthesizer {
             None
         };
 
-        tracing::info!(
+        vlog::info!(
             "Configured for group [{}], circuits: {allowed_circuit_types:?}",
             config.prover_group_id
         );
@@ -85,8 +77,8 @@ impl CircuitSynthesizer {
             blob_store: store_factory.create_store().await,
             allowed_circuit_types: allowed_circuit_types
                 .map(|x| x.into_iter().map(|x| x.1).collect()),
-            region: get_region().await.map_err(CircuitSynthesizerError::GetRegionFailed)?,
-            zone: get_zone().await.map_err(CircuitSynthesizerError::GetZoneFailed)?,
+            region: get_region().await,
+            zone: get_zone().await,
             vk_commitments,
             prover_connection_pool,
         })
@@ -94,17 +86,17 @@ impl CircuitSynthesizer {
 
     pub fn synthesize(
         circuit: ZkSyncCircuit<Bn256, VmWitnessOracle<Bn256>>,
-    ) -> anyhow::Result<(ProvingAssembly, u8)> {
+    ) -> (ProvingAssembly, u8) {
         let start_instant = Instant::now();
 
         let mut assembly = Prover::new_proving_assembly();
         circuit
             .synthesize(&mut assembly)
-            .context("circuit synthesize failed")?;
+            .expect("circuit synthesize failed");
 
         let circuit_type = numeric_index_to_circuit_name(circuit.numeric_circuit_type()).unwrap();
 
-        tracing::info!(
+        vlog::info!(
             "Finished circuit synthesis for circuit: {circuit_type} took {:?}",
             start_instant.elapsed()
         );
@@ -115,7 +107,7 @@ impl CircuitSynthesizer {
         );
 
         // we don't perform assembly finalization here since it increases the assembly size significantly due to padding.
-        Ok((assembly, circuit.numeric_circuit_type()))
+        (assembly, circuit.numeric_circuit_type())
     }
 }
 
@@ -126,12 +118,12 @@ impl JobProcessor for CircuitSynthesizer {
     type JobArtifacts = (ProvingAssembly, u8);
     const SERVICE_NAME: &'static str = "CircuitSynthesizer";
 
-    async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, Self::Job)>> {
-        tracing::trace!(
+    async fn get_next_job(&self) -> Option<(Self::JobId, Self::Job)> {
+        vlog::trace!(
             "Attempting to fetch job types: {:?}",
             self.allowed_circuit_types
         );
-        let mut storage = self.prover_connection_pool.access_storage().await.unwrap();
+        let mut storage = self.prover_connection_pool.access_storage().await;
         let protocol_versions = storage
             .protocol_versions_dal()
             .protocol_version_for(&self.vk_commitments)
@@ -145,8 +137,7 @@ impl JobProcessor for CircuitSynthesizer {
                     .await
             }
             None => storage.prover_dal().get_next_prover_job(&protocol_versions).await,
-        };
-        let Some(prover_job) = prover_job else { return Ok(None) };
+        }?;
 
         let circuit_key = CircuitKey {
             block_number: prover_job.block_number,
@@ -158,27 +149,26 @@ impl JobProcessor for CircuitSynthesizer {
             .blob_store
             .get(circuit_key)
             .await
-            .map_err(CircuitSynthesizerError::InputLoadFailed)?;
+            .map_err(CircuitSynthesizerError::InputLoadFailed)
+            .unwrap_or_else(|err| panic!("{err:?}"));
 
-        Ok(Some((prover_job.id, input)))
+        Some((prover_job.id, input))
     }
 
     async fn save_failure(&self, job_id: Self::JobId, _started_at: Instant, error: String) {
-        let res = self.prover_connection_pool
-            .access_storage().await.unwrap()
+        self.prover_connection_pool
+            .access_storage()
+            .await
             .prover_dal()
             .save_proof_error(job_id, error, self.config.max_attempts)
             .await;
-        if let Err(err) = res {
-            tracing::error!("save_proof_error(): {err:#}");
-        }
     }
 
     async fn process_job(
         &self,
         job: Self::Job,
         _started_at: Instant,
-    ) -> JoinHandle<anyhow::Result<Self::JobArtifacts>> {
+    ) -> JoinHandle<Self::JobArtifacts> {
         tokio::task::spawn_blocking(move || Self::synthesize(job))
     }
 
@@ -187,8 +177,8 @@ impl JobProcessor for CircuitSynthesizer {
         job_id: Self::JobId,
         _started_at: Instant,
         (assembly, circuit_id): Self::JobArtifacts,
-    ) -> anyhow::Result<()> {
-        tracing::trace!(
+    ) {
+        vlog::trace!(
             "Finished circuit synthesis for job: {job_id} in region: {}",
             self.region
         );
@@ -197,7 +187,7 @@ impl JobProcessor for CircuitSynthesizer {
         let mut serialized: Vec<u8> = vec![];
         serialize_job(&assembly, job_id as usize, circuit_id, &mut serialized);
 
-        tracing::trace!(
+        vlog::trace!(
             "Serialized circuit assembly for job {job_id} in {:?}",
             now.elapsed()
         );
@@ -208,7 +198,8 @@ impl JobProcessor for CircuitSynthesizer {
         while now.elapsed() < self.config.prover_instance_wait_timeout() {
             let prover = self
                 .prover_connection_pool
-                .access_storage().await.unwrap()
+                .access_storage()
+                .await
                 .gpu_prover_queue_dal()
                 .lock_available_prover(
                     self.config.gpu_prover_queue_timeout(),
@@ -227,14 +218,15 @@ impl JobProcessor for CircuitSynthesizer {
                     &self.prover_connection_pool,
                     self.region.clone(),
                     self.zone.clone(),
-                ).await.context("handle_send_result()")?;
+                )
+                    .await;
 
                 if result.is_ok() {
-                    return Ok(());
+                    return;
                 }
                 // We'll retry with another prover again, no point in dropping the results.
 
-                tracing::warn!(
+                vlog::warn!(
                     "Could not send assembly to {address:?}. Prover group {}, region {}, \
                          circuit id {circuit_id}, send attempt {attempts}.",
                     self.config.prover_group_id,
@@ -245,10 +237,9 @@ impl JobProcessor for CircuitSynthesizer {
                 sleep(self.config.prover_instance_poll_time()).await;
             }
         }
-        tracing::trace!(
+        vlog::trace!(
             "Not able to get any free prover instance for sending assembly for job: {job_id}"
         );
-        Ok(())
     }
 }
 
@@ -259,15 +250,15 @@ async fn handle_send_result(
     pool: &ConnectionPool,
     region: String,
     zone: String,
-) -> anyhow::Result<()> {
+) {
     match result {
         Ok((elapsed, len)) => {
-            let local_ip = local_ip().context("Failed obtaining local IP address")?;
+            let local_ip = local_ip().expect("Failed obtaining local IP address");
             let blob_size_in_gb = len / (1024 * 1024 * 1024);
 
             // region: logs
 
-            tracing::trace!(
+            vlog::trace!(
                 "Sent assembly of size: {blob_size_in_gb}GB successfully, took: {elapsed:?} \
                  for job: {job_id} by: {local_ip:?} to: {address:?}"
             );
@@ -279,20 +270,22 @@ async fn handle_send_result(
 
             // endregion
 
-            pool.access_storage().await.unwrap()
+            pool.access_storage()
+                .await
                 .prover_dal()
                 .update_status(job_id, "in_gpu_proof")
                 .await;
         }
 
         Err(err) => {
-            tracing::trace!(
+            vlog::trace!(
                 "Failed sending assembly to address: {address:?}, socket not reachable \
                  reason: {err}"
             );
 
             // mark prover instance in gpu_prover_queue dead
-            pool.access_storage().await.unwrap()
+            pool.access_storage()
+                .await
                 .gpu_prover_queue_dal()
                 .update_prover_instance_status(
                     address.clone(),
@@ -303,11 +296,10 @@ async fn handle_send_result(
                 )
                 .await;
 
-            let prover_config = ProverConfigs::from_env()
-                .context("ProverConfigs::from_env()")?
-                .non_gpu;
+            let prover_config = ProverConfigs::from_env().non_gpu;
             // mark the job as failed
-            let res = pool.access_storage().await.unwrap()
+            pool.access_storage()
+                .await
                 .prover_dal()
                 .save_proof_error(
                     job_id,
@@ -315,10 +307,6 @@ async fn handle_send_result(
                     prover_config.max_attempts,
                 )
                 .await;
-            if let Err(err) = res {
-                tracing::error!("save_proof_error(): {err}");
-            }
         }
     }
-    Ok(())
 }

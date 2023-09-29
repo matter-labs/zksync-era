@@ -1,10 +1,9 @@
-use anyhow::Context as _;
 use reqwest::Client;
 use tokio::{sync::oneshot, sync::watch};
 
 use crate::api_data_fetcher::{PeriodicApiStruct, PROOF_GENERATION_DATA_PATH, SUBMIT_PROOF_PATH};
-use prometheus_exporter::PrometheusExporterConfig;
-use zksync_config::configs::{FriProverGatewayConfig};
+use prometheus_exporter::run_prometheus_exporter;
+use zksync_config::configs::{FriProverGatewayConfig, PrometheusConfig};
 use zksync_dal::connection::DbVariant;
 use zksync_dal::ConnectionPool;
 use zksync_object_store::ObjectStoreFactory;
@@ -16,29 +15,16 @@ mod proof_gen_data_fetcher;
 mod proof_submitter;
 
 #[tokio::main]
-async fn main() -> anyhow::Result<()> {
-    #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
-    let log_format = vlog::log_format_from_env();
-    #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
-    let sentry_url = vlog::sentry_url_from_env();
-    #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
-    let environment = vlog::environment_from_env();
-
-    let mut builder = vlog::ObservabilityBuilder::new().with_log_format(log_format);
-    if let Some(sentry_url) = sentry_url {
-        builder = builder
-            .with_sentry_url(&sentry_url)
-            .context("Invalid Sentry URL")?
-            .with_sentry_environment(environment);
-    }
-    let _guard = builder.build();
-
-    let config = FriProverGatewayConfig::from_env()
-        .context("FriProverGatewayConfig::from_env()")?;
-    let pool = ConnectionPool::builder(DbVariant::Prover).build().await
-        .context("failed to build a connection pool")?;
-    let store_factory = ObjectStoreFactory::prover_from_env()
-        .context("ObjectStoreFactory::prover_from_env()")?;
+async fn main() {
+    vlog::init();
+    let config = FriProverGatewayConfig::from_env();
+    let prometheus_config = PrometheusConfig {
+        listener_port: config.prometheus_listener_port,
+        pushgateway_url: config.prometheus_pushgateway_url.clone(),
+        push_interval_ms: config.prometheus_push_interval_ms,
+    };
+    let pool = ConnectionPool::builder(DbVariant::Prover).build().await;
+    let store_factory = ObjectStoreFactory::prover_from_env();
 
     let proof_submitter = PeriodicApiStruct {
         blob_store: store_factory.create_store().await,
@@ -64,14 +50,12 @@ async fn main() -> anyhow::Result<()> {
             stop_signal_sender.send(()).ok();
         }
     })
-    .context("Error setting Ctrl+C handler")?;
+    .expect("Error setting Ctrl+C handler");
 
-    tracing::info!("Starting Fri Prover Gateway");
+    vlog::info!("Starting Fri Prover Gateway");
 
     let tasks = vec![
-        tokio::spawn(
-            PrometheusExporterConfig::pull(config.prometheus_listener_port).run(stop_receiver.clone()),
-        ),
+        run_prometheus_exporter(prometheus_config.listener_port, None),
         tokio::spawn(
             proof_gen_data_fetcher.run::<ProofGenerationDataRequest>(stop_receiver.clone()),
         ),
@@ -83,9 +67,8 @@ async fn main() -> anyhow::Result<()> {
     tokio::select! {
         _ = wait_for_tasks(tasks, None, graceful_shutdown, tasks_allowed_to_finish) => {},
         _ = stop_signal_receiver => {
-            tracing::info!("Stop signal received, shutting down");
+            vlog::info!("Stop signal received, shutting down");
         }
     };
     stop_sender.send(true).ok();
-    Ok(())
 }

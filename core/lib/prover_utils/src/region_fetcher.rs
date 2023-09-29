@@ -1,4 +1,3 @@
-use anyhow::Context as _;
 use regex::Regex;
 use reqwest::header::{HeaderMap, HeaderValue};
 use reqwest::Method;
@@ -6,44 +5,47 @@ use reqwest::Method;
 use zksync_config::configs::ProverGroupConfig;
 use zksync_utils::http_with_retries::send_request_with_retries;
 
-pub async fn get_region() -> anyhow::Result<String> {
-    let prover_group_config = ProverGroupConfig::from_env().context("ProverGroupConfig")?;
-    if let Some(region) = prover_group_config.region_override {
-        return Ok(region);
+pub async fn get_region() -> String {
+    let prover_group_config = ProverGroupConfig::from_env();
+    match prover_group_config.region_override {
+        Some(region) => region,
+        None => {
+            let url = prover_group_config.region_read_url;
+            fetch_from_url(url).await
+        }
     }
-    let url = prover_group_config.region_read_url;
-    fetch_from_url(url).await.context("fetch_from_url()")
 }
 
-pub async fn get_zone() -> anyhow::Result<String> {
-    let prover_group_config = ProverGroupConfig::from_env().context("ProverGroupConfig")?;
-    if let Some(zone) = prover_group_config.zone_override {
-        return Ok(zone);
+pub async fn get_zone() -> String {
+    let prover_group_config = ProverGroupConfig::from_env();
+    match prover_group_config.zone_override {
+        Some(zone) => zone,
+        None => {
+            let url = prover_group_config.zone_read_url;
+            let data = fetch_from_url(url).await;
+            parse_zone(&data)
+        }
     }
-    let url = prover_group_config.zone_read_url;
-    let data = fetch_from_url(url).await.context("fetch_from_url()")?;
-    parse_zone(&data).context("parse_zone")
 }
 
-async fn fetch_from_url(url: String) -> anyhow::Result<String> {
+async fn fetch_from_url(url: String) -> String {
     let mut headers = HeaderMap::new();
     headers.insert("Metadata-Flavor", HeaderValue::from_static("Google"));
     let response = send_request_with_retries(&url, 5, Method::GET, Some(headers), None).await;
     response
-        .map_err(|err| anyhow::anyhow!("Failed fetching response from url: {url}: {err:?}"))?
+        .unwrap_or_else(|_| panic!("Failed fetching response from url: {}", url))
         .text()
         .await
-        .context("Failed to read response as text")
+        .expect("Failed to read response as text")
 }
 
-fn parse_zone(data: &str) -> anyhow::Result<String> {
-    // Statically provided Regex should always compile.
+fn parse_zone(data: &str) -> String {
     let re = Regex::new(r"^projects/\d+/zones/(\w+-\w+-\w+)$").unwrap();
     if let Some(caps) = re.captures(data) {
         let zone = &caps[1];
-        return Ok(zone.to_string());
+        return zone.to_string();
     }
-    anyhow::bail!("failed to extract zone from: {data}");
+    panic!("failed to extract zone from: {}", data)
 }
 
 #[cfg(test)]
@@ -53,23 +55,24 @@ mod tests {
     #[test]
     fn test_parse_zone() {
         let data = "projects/295056426491/zones/us-central1-a";
-        let zone = parse_zone(data).unwrap();
+        let zone = parse_zone(data);
         assert_eq!(zone, "us-central1-a");
     }
 
     #[test]
+    #[should_panic(expected = "failed to extract zone from: invalid data")]
     fn test_parse_zone_panic() {
         let data = "invalid data";
-        assert!(parse_zone(data).is_err());
+        let _ = parse_zone(data);
     }
 
     #[tokio::test]
     async fn test_get_region_with_override() {
-        assert_eq!("us-central-1", get_region().await.unwrap());
+        assert_eq!("us-central-1", get_region().await);
     }
 
     #[tokio::test]
     async fn test_get_zone_with_override() {
-        assert_eq!("us-central-1-b", get_zone().await.unwrap());
+        assert_eq!("us-central-1-b", get_zone().await);
     }
 }

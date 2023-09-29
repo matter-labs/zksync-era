@@ -85,7 +85,6 @@ pub struct Transaction {
     pub common_data: ExecuteTransactionCommon,
     pub execute: Execute,
     pub received_timestamp_ms: u64,
-    pub raw_bytes: Option<Bytes>,
 }
 
 impl std::fmt::Debug for Transaction {

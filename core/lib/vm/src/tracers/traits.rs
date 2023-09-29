@@ -73,13 +73,3 @@ pub trait VmTracer<S: WriteStorage, H: HistoryMode>:
 {
     fn save_results(&mut self, _result: &mut VmExecutionResultAndLogs) {}
 }
-
-pub trait BoxedTracer<S, H> {
-    fn into_boxed(self) -> Box<dyn VmTracer<S, H>>;
-}
-
-impl<S: WriteStorage, H: HistoryMode, T: VmTracer<S, H> + 'static> BoxedTracer<S, H> for T {
-    fn into_boxed(self) -> Box<dyn VmTracer<S, H>> {
-        Box::new(self)
-    }
-}

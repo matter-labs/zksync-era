@@ -12,7 +12,7 @@ use zksync_utils::h256_to_u256;
 use crate::tests::tester::{TxType, VmTesterBuilder};
 use crate::tests::utils::{read_test_contract, BASE_SYSTEM_CONTRACTS};
 use crate::types::inputs::system_env::TxExecutionMode;
-use crate::{HistoryDisabled, HistoryMode, Vm, VmExecutionMode};
+use crate::{HistoryDisabled, HistoryMode, Vm};
 
 #[test]
 fn test_get_used_contracts() {
@@ -29,7 +29,7 @@ fn test_get_used_contracts() {
     let mut account = Account::random();
     let tx = account.get_deploy_tx(&contract_code, None, TxType::L1 { serial_id: 0 });
     vm.vm.push_transaction(tx.tx.clone());
-    let result = vm.vm.execute(VmExecutionMode::OneTx);
+    let result = vm.vm.execute_next_transaction();
     assert!(!result.result.is_failed());
 
     assert!(vm
@@ -52,7 +52,7 @@ fn test_get_used_contracts() {
     // create push and execute some non-empty factory deps transaction that fails
     // (known_bytecodes will be updated but we expect get_used_contracts() to not be updated)
 
-    let calldata = [1, 2, 3];
+    let calldata = vec![1, 2, 3];
     let big_calldata: Vec<u8> = calldata
         .iter()
         .cycle()
@@ -72,7 +72,7 @@ fn test_get_used_contracts() {
 
     vm.vm.push_transaction(tx2.clone());
 
-    let res2 = vm.vm.execute(VmExecutionMode::OneTx);
+    let res2 = vm.vm.execute_next_transaction();
 
     assert!(res2.result.is_failed());
 

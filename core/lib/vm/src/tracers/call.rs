@@ -1,5 +1,6 @@
 use once_cell::sync::OnceCell;
 use std::marker::PhantomData;
+use std::mem;
 use std::sync::Arc;
 
 use zk_evm::tracing::{AfterExecutionData, VmLocalStateData};
@@ -19,17 +20,18 @@ use crate::old_vm::memory::SimpleMemory;
 use crate::tracers::traits::{DynTracer, ExecutionEndTracer, ExecutionProcessing, VmTracer};
 use crate::types::outputs::VmExecutionResultAndLogs;
 
-#[derive(Debug, Clone)]
+/// Maximum depth of the call stack.
+/// This is used to prevent stack overflow.
+const MAX_DEPTH: u32 = 1000;
+
+/// NOTE Auto implementing clone for this tracer can cause stack overflow.
+/// This is because of the stack field which is a Vec with nested vecs inside.
+/// If you will need to implement clone for this tracer, please consider to not copy the stack field.
+#[derive(Debug)]
 pub struct CallTracer<H: HistoryMode> {
-    stack: Vec<FarcallAndNearCallCount>,
+    stack: Vec<Call>,
     result: Arc<OnceCell<Vec<Call>>>,
     _phantom: PhantomData<fn() -> H>,
-}
-
-#[derive(Debug, Clone)]
-struct FarcallAndNearCallCount {
-    farcall: Call,
-    near_calls_after: usize,
 }
 
 impl<H: HistoryMode> CallTracer<H> {
@@ -50,41 +52,32 @@ impl<S, H: HistoryMode> DynTracer<S, H> for CallTracer<H> {
         memory: &SimpleMemory<H>,
         _storage: StoragePtr<S>,
     ) {
-        match data.opcode.variant.opcode {
-            Opcode::NearCall(_) => {
-                if let Some(last) = self.stack.last_mut() {
-                    last.near_calls_after += 1;
-                }
-            }
-            Opcode::FarCall(far_call) => {
-                // We use parent gas for properly calculating gas used in the trace.
-                let current_ergs = state.vm_local_state.callstack.current.ergs_remaining;
-                let parent_gas = state
-                    .vm_local_state
-                    .callstack
-                    .inner
-                    .last()
-                    .map(|call| call.ergs_remaining + current_ergs)
-                    .unwrap_or(current_ergs);
-
-                let mut current_call = Call {
-                    r#type: CallType::Call(far_call),
-                    gas: 0,
-                    parent_gas,
-                    ..Default::default()
-                };
-
-                self.handle_far_call_op_code(state, data, memory, &mut current_call);
-                self.stack.push(FarcallAndNearCallCount {
-                    farcall: current_call,
-                    near_calls_after: 0,
-                });
-            }
+        let call_type = match data.opcode.variant.opcode {
+            Opcode::NearCall(_) => CallType::NearCall,
+            Opcode::FarCall(far_call) => CallType::Call(far_call),
             Opcode::Ret(ret_code) => {
                 self.handle_ret_op_code(state, data, memory, ret_code);
+                return;
             }
-            _ => {}
+            _ => {
+                return;
+            }
         };
+
+        let mut current_call = Call {
+            r#type: call_type,
+            gas: 0,
+            ..Default::default()
+        };
+        match call_type {
+            CallType::Call(_) | CallType::Create => {
+                self.handle_far_call_op_code(state, data, memory, &mut current_call)
+            }
+            CallType::NearCall => {
+                self.handle_near_call_op_code(state, data, memory, &mut current_call);
+            }
+        }
+        self.stack.push(current_call);
     }
 }
 
@@ -94,18 +87,36 @@ impl<S: WriteStorage, H: HistoryMode> ExecutionProcessing<S, H> for CallTracer<H
 
 impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for CallTracer<H> {
     fn save_results(&mut self, _result: &mut VmExecutionResultAndLogs) {
-        self.result
-            .set(
-                std::mem::take(&mut self.stack)
-                    .into_iter()
-                    .map(|x| x.farcall)
-                    .collect(),
-            )
-            .expect("Result is already set");
+        let calls = self.extract_calls();
+        self.result.set(calls).expect("Result is already set");
     }
 }
 
 impl<H: HistoryMode> CallTracer<H> {
+    /// We use parent gas for propery calculation of gas used in the trace.
+    /// This method updates parent gas for the current call.
+    fn update_parent_gas(&mut self, state: &VmLocalStateData<'_>, current_call: &mut Call) {
+        let current = state.vm_local_state.callstack.current;
+        let parent_gas = state
+            .vm_local_state
+            .callstack
+            .inner
+            .last()
+            .map(|call| call.ergs_remaining + current.ergs_remaining)
+            .unwrap_or(current.ergs_remaining);
+        current_call.parent_gas = parent_gas;
+    }
+
+    fn handle_near_call_op_code(
+        &mut self,
+        state: VmLocalStateData<'_>,
+        _data: AfterExecutionData,
+        _memory: &SimpleMemory<H>,
+        current_call: &mut Call,
+    ) {
+        self.update_parent_gas(&state, current_call);
+    }
+
     fn handle_far_call_op_code(
         &mut self,
         state: VmLocalStateData<'_>,
@@ -113,6 +124,7 @@ impl<H: HistoryMode> CallTracer<H> {
         memory: &SimpleMemory<H>,
         current_call: &mut Call,
     ) {
+        self.update_parent_gas(&state, current_call);
         let current = state.vm_local_state.callstack.current;
         // All calls from the actual users are mimic calls,
         // so we need to check that the previous call was to the deployer.
@@ -213,29 +225,105 @@ impl<H: HistoryMode> CallTracer<H> {
         memory: &SimpleMemory<H>,
         ret_opcode: RetOpcode,
     ) {
-        let Some(mut current_call) = self.stack.pop() else {
-            return;
-        };
+        // It's safe to unwrap here because we are sure that we have at least one call in the stack
+        let mut current_call = self.stack.pop().unwrap();
+        current_call.gas_used =
+            current_call.parent_gas - state.vm_local_state.callstack.current.ergs_remaining;
 
-        if current_call.near_calls_after > 0 {
-            current_call.near_calls_after -= 1;
-            self.stack.push(current_call);
-            return;
+        if current_call.r#type != CallType::NearCall {
+            self.save_output(state, memory, ret_opcode, &mut current_call);
         }
-
-        current_call.farcall.gas_used = current_call
-            .farcall
-            .parent_gas
-            .saturating_sub(state.vm_local_state.callstack.current.ergs_remaining);
-
-        self.save_output(state, memory, ret_opcode, &mut current_call.farcall);
 
         // If there is a parent call, push the current call to it
         // Otherwise, push the current call to the stack, because it's the top level call
         if let Some(parent_call) = self.stack.last_mut() {
-            parent_call.farcall.calls.push(current_call.farcall);
+            parent_call.calls.push(current_call);
         } else {
             self.stack.push(current_call);
         }
+    }
+
+    // Filter all near calls from the call stack
+    // Important that the very first call is near call
+    // And this NearCall includes several Normal or Mimic calls
+    // So we return all childrens of this NearCall
+    fn extract_calls(&mut self) -> Vec<Call> {
+        if let Some(current_call) = self.stack.pop() {
+            filter_near_call(current_call, 0)
+        } else {
+            vec![]
+        }
+    }
+}
+
+// Filter all near calls from the call stack
+// Normally wr are not interested in NearCall, because it's just a wrapper for internal calls
+fn filter_near_call(mut call: Call, depth: u32) -> Vec<Call> {
+    if depth > MAX_DEPTH {
+        return vec![];
+    }
+
+    let mut calls = vec![];
+    let original_calls = std::mem::take(&mut call.calls);
+    for call in original_calls {
+        calls.append(&mut filter_near_call(call, depth + 1));
+    }
+    call.calls = calls;
+
+    if call.r#type == CallType::NearCall {
+        mem::take(&mut call.calls)
+    } else {
+        vec![call]
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::tracers::call::MAX_DEPTH;
+    use zk_evm::zkevm_opcode_defs::FarCallOpcode;
+
+    use super::{filter_near_call, Call, CallType};
+
+    #[test]
+    fn test_filter_near_calls() {
+        let mut call = Call::default();
+        let filtered_call = filter_near_call(call.clone(), 0);
+        assert_eq!(filtered_call.len(), 1);
+
+        let mut near_call = call.clone();
+        near_call.r#type = CallType::NearCall;
+        let filtered_call = filter_near_call(near_call.clone(), 0);
+        assert_eq!(filtered_call.len(), 0);
+
+        call.r#type = CallType::Call(FarCallOpcode::Mimic);
+        call.calls = vec![Call::default(), Call::default(), near_call.clone()];
+        let filtered_call = filter_near_call(call.clone(), 0);
+        assert_eq!(filtered_call.len(), 1);
+        assert_eq!(filtered_call[0].calls.len(), 2);
+
+        let mut near_call = near_call;
+        near_call.calls = vec![Call::default(), Call::default(), near_call.clone()];
+        call.calls = vec![Call::default(), Call::default(), near_call];
+        let filtered_call = filter_near_call(call, 0);
+        assert_eq!(filtered_call.len(), 1);
+        assert_eq!(filtered_call[0].calls.len(), 4);
+    }
+
+    #[test]
+    fn test_maximum_depth() {
+        let mut call = Call::default();
+        let near_call = Call::default();
+        call.calls = vec![near_call];
+        for _ in 0..MAX_DEPTH {
+            let near_call = Call {
+                r#type: CallType::NearCall,
+                calls: vec![call],
+                ..Default::default()
+            };
+            call = near_call;
+        }
+
+        let filtered_call = filter_near_call(call, 0);
+        assert_eq!(filtered_call.len(), 1);
     }
 }

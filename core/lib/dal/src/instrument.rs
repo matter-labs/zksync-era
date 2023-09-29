@@ -6,14 +6,40 @@ use sqlx::{
     FromRow, IntoArguments, Postgres,
 };
 use tokio::time::{Duration, Instant};
+use zksync_types::web3::futures::pin_mut;
 
-use std::{fmt, future::Future, panic::Location};
-
-use crate::metrics::REQUEST_METRICS;
+use std::{fmt, future::Future, panic::Location, thread};
 
 type ThreadSafeDebug<'a> = dyn fmt::Debug + Send + Sync + 'a;
 
 const SLOW_QUERY_TIMEOUT: Duration = Duration::from_millis(100);
+
+/// Reporter of latency for DAL methods consisting of multiple DB queries. If there's a single query,
+/// use `.instrument().report_latency()` on it instead.
+///
+/// Should be created at the start of the relevant method and dropped when the latency needs to be reported.
+#[derive(Debug)]
+pub(crate) struct MethodLatency {
+    name: &'static str,
+    started_at: Instant,
+}
+
+impl MethodLatency {
+    pub fn new(name: &'static str) -> Self {
+        Self {
+            name,
+            started_at: Instant::now(),
+        }
+    }
+}
+
+impl Drop for MethodLatency {
+    fn drop(&mut self) {
+        if !thread::panicking() {
+            metrics::histogram!("dal.request", self.started_at.elapsed(), "method" => self.name);
+        }
+    }
+}
 
 /// Logged arguments for an SQL query.
 #[derive(Debug, Default)]
@@ -114,7 +140,7 @@ impl<'a> InstrumentedData<'a> {
             report_latency,
         } = self;
         let started_at = Instant::now();
-        tokio::pin!(query_future);
+        pin_mut!(query_future);
 
         let mut is_slow = false;
         let output =
@@ -122,12 +148,12 @@ impl<'a> InstrumentedData<'a> {
         let output = match output {
             Ok(output) => output,
             Err(_) => {
-                tracing::warn!(
+                vlog::warn!(
                     "Query {name}{args} called at {file}:{line} is executing for more than {SLOW_QUERY_TIMEOUT:?}",
                     file = location.file(),
                     line = location.line()
                 );
-                REQUEST_METRICS.request_slow[&name].inc();
+                metrics::increment_counter!("dal.request.slow", "method" => name);
                 is_slow = true;
                 query_future.await
             }
@@ -135,18 +161,18 @@ impl<'a> InstrumentedData<'a> {
 
         let elapsed = started_at.elapsed();
         if report_latency {
-            REQUEST_METRICS.request[&name].observe(elapsed);
+            metrics::histogram!("dal.request", elapsed, "method" => name);
         }
 
         if let Err(err) = &output {
-            tracing::warn!(
+            vlog::warn!(
                 "Query {name}{args} called at {file}:{line} has resulted in error: {err}",
                 file = location.file(),
                 line = location.line()
             );
-            REQUEST_METRICS.request_error[&name].inc();
+            metrics::increment_counter!("dal.request.error", "method" => name);
         } else if is_slow {
-            tracing::info!(
+            vlog::info!(
                 "Slow query {name}{args} called at {file}:{line} has finished after {elapsed:?}",
                 file = location.file(),
                 line = location.line()
@@ -251,7 +277,7 @@ mod tests {
     async fn instrumenting_erroneous_query(pool: ConnectionPool) {
         // Add `vlog::init()` here to debug this test
 
-        let mut conn = pool.access_storage().await.unwrap();
+        let mut conn = pool.access_storage().await;
         sqlx::query("WHAT")
             .map(drop)
             .instrument("erroneous")
@@ -266,7 +292,7 @@ mod tests {
     async fn instrumenting_slow_query(pool: ConnectionPool) {
         // Add `vlog::init()` here to debug this test
 
-        let mut conn = pool.access_storage().await.unwrap();
+        let mut conn = pool.access_storage().await;
         sqlx::query("SELECT pg_sleep(1.5)")
             .map(drop)
             .instrument("slow")

@@ -143,13 +143,13 @@ pub struct LoadtestConfig {
 
 fn default_max_inflight_txs() -> usize {
     let result = 5;
-    tracing::info!("Using default MAX_INFLIGHT_TXS: {result}");
+    vlog::info!("Using default MAX_INFLIGHT_TXS: {result}");
     result
 }
 
 fn default_l1_rpc_address() -> String {
     let result = "http://127.0.0.1:8545".to_string();
-    tracing::info!("Using default L1_RPC_ADDRESS: {result}");
+    vlog::info!("Using default L1_RPC_ADDRESS: {result}");
     result
 }
 
@@ -158,25 +158,25 @@ fn default_master_wallet_pk() -> String {
     // Using this key for rinkeby will result in losing rinkeby ETH.
     // Corresponding wallet is 0x36615Cf349d7F6344891B1e7CA7C72883F5dc049
     let result = "7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110".to_string();
-    tracing::info!("Using default MASTER_WALLET_PK: {result}");
+    vlog::info!("Using default MASTER_WALLET_PK: {result}");
     result
 }
 
 fn default_accounts_amount() -> usize {
     let result = 80;
-    tracing::info!("Using default ACCOUNTS_AMOUNT: {result}");
+    vlog::info!("Using default ACCOUNTS_AMOUNT: {result}");
     result
 }
 
 fn default_duration_sec() -> u64 {
     let result = 300;
-    tracing::info!("Using default DURATION_SEC: {result}");
+    vlog::info!("Using default DURATION_SEC: {result}");
     result
 }
 
 fn default_accounts_group_size() -> usize {
     let result = 40;
-    tracing::info!("Using default ACCOUNTS_GROUP_SIZE: {result}");
+    vlog::info!("Using default ACCOUNTS_GROUP_SIZE: {result}");
     result
 }
 
@@ -187,7 +187,7 @@ fn default_main_token() -> H160 {
     // 0xeb8f08a975Ab53E34D8a0330E0D34de942C95926 for rinkeby
     let tokens = read_tokens(Network::Localhost).expect("Failed to parse tokens file");
     let main_token = tokens.first().expect("Loaded tokens list is empty");
-    tracing::info!("Main token: {main_token:?}");
+    vlog::info!("Main token: {main_token:?}");
     main_token.address
 }
 
@@ -198,39 +198,39 @@ fn default_test_contracts_path() -> PathBuf {
         path.join("etc/contracts-test-data")
     };
 
-    tracing::info!("Test contracts path: {}", test_contracts_path.display());
+    vlog::info!("Test contracts path: {}", test_contracts_path.display());
 
     test_contracts_path
 }
 
 fn default_sync_api_requests_limit() -> usize {
     let result = 20;
-    tracing::info!("Using default SYNC_API_REQUESTS_LIMIT: {result}");
+    vlog::info!("Using default SYNC_API_REQUESTS_LIMIT: {result}");
     result
 }
 
 fn default_sync_pubsub_subscriptions_limit() -> usize {
     let result = 150;
-    tracing::info!("Using default SYNC_PUBSUB_SUBSCRIPTIONS_LIMIT: {result}");
+    vlog::info!("Using default SYNC_PUBSUB_SUBSCRIPTIONS_LIMIT: {result}");
     result
 }
 
 fn default_single_subscription_time_secs() -> u64 {
     let result = 30;
-    tracing::info!("Using default SINGLE_SUBSCRIPTION_TIME_SECS: {result}");
+    vlog::info!("Using default SINGLE_SUBSCRIPTION_TIME_SECS: {result}");
     result
 }
 
 fn default_seed() -> Option<String> {
     let result = None;
-    tracing::info!("Using default SEED: {result:?}");
+    vlog::info!("Using default SEED: {result:?}");
     result
 }
 
 fn default_l2_chain_id() -> u16 {
     // 270 for rinkeby
     let result = *L2ChainId::default();
-    tracing::info!("Using default L2_CHAIN_ID: {result}");
+    vlog::info!("Using default L2_CHAIN_ID: {result}");
     result
 }
 
@@ -241,26 +241,26 @@ pub fn get_default_l2_rpc_address() -> String {
 fn default_l2_rpc_address() -> String {
     // https://z2-dev-api.zksync.dev:443 for stage2
     let result = get_default_l2_rpc_address();
-    tracing::info!("Using default L2_RPC_ADDRESS: {result}");
+    vlog::info!("Using default L2_RPC_ADDRESS: {result}");
     result
 }
 
 fn default_l2_ws_rpc_address() -> String {
     // ws://z2-dev-api.zksync.dev:80/ws for stage2
     let result = "ws://127.0.0.1:3051".to_string();
-    tracing::info!("Using default L2_WS_RPC_ADDRESS: {result}");
+    vlog::info!("Using default L2_WS_RPC_ADDRESS: {result}");
     result
 }
 
 fn default_expected_tx_count() -> Option<usize> {
     let result = None;
-    tracing::info!("Using default EXPECTED_TX_COUNT: {result:?}");
+    vlog::info!("Using default EXPECTED_TX_COUNT: {result:?}");
     result
 }
 
 fn default_prometheus_label() -> String {
     let result = "unset".to_string();
-    tracing::info!("Using default PROMETHEUS_LABEL: {result:?}");
+    vlog::info!("Using default PROMETHEUS_LABEL: {result:?}");
     result
 }
 
@@ -325,13 +325,13 @@ impl Default for TransactionWeights {
 
 fn default_transaction_weights() -> TransactionWeights {
     let result = TransactionWeights::default();
-    tracing::info!("Using default TransactionWeights: {result:?}");
+    vlog::info!("Using default TransactionWeights: {result:?}");
     result
 }
 
 fn default_contract_execution_params() -> LoadnextContractExecutionParams {
     let result = LoadnextContractExecutionParams::default();
-    tracing::info!("Using default LoadnextContractExecutionParams: {result:?}");
+    vlog::info!("Using default LoadnextContractExecutionParams: {result:?}");
     result
 }
 

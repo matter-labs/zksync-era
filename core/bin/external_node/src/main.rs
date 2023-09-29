@@ -1,10 +1,9 @@
 use anyhow::Context;
-use clap::Parser;
 use tokio::{sync::watch, task, time::sleep};
 
 use std::{sync::Arc, time::Duration};
 
-use prometheus_exporter::PrometheusExporterConfig;
+use prometheus_exporter::run_prometheus_exporter;
 use zksync_basic_types::{Address, L2ChainId};
 use zksync_core::{
     api_server::{
@@ -99,11 +98,11 @@ async fn build_state_keeper(
 async fn init_tasks(
     config: ExternalNodeConfig,
     connection_pool: ConnectionPool,
-) -> anyhow::Result<(
-    Vec<task::JoinHandle<anyhow::Result<()>>>,
+) -> (
+    Vec<task::JoinHandle<()>>,
     watch::Sender<bool>,
     HealthCheckHandle,
-)> {
+) {
     let main_node_url = config
         .required
         .main_node_url()
@@ -129,10 +128,7 @@ async fn init_tasks(
 
     let singleton_pool_builder = ConnectionPool::singleton(DbVariant::Master);
     let fetcher = MainNodeFetcher::new(
-        singleton_pool_builder
-            .build()
-            .await
-            .context("failed to build a connection pool for MainNodeFetcher")?,
+        singleton_pool_builder.build().await,
         &main_node_url,
         action_queue.clone(),
         sync_state.clone(),
@@ -155,34 +151,19 @@ async fn init_tasks(
         &config
             .required
             .eth_client_url()
-            .context("L1 client URL is incorrect")?,
+            .expect("L1 client URL is incorrect"),
         10, // TODO (BFT-97): Make it a part of a proper EN config
-        singleton_pool_builder
-            .build()
-            .await
-            .context("failed to build connection pool for ConsistencyChecker")?,
+        singleton_pool_builder.build().await,
     );
 
-    let batch_status_updater = BatchStatusUpdater::new(
-        &main_node_url,
-        singleton_pool_builder
-            .build()
-            .await
-            .context("failed to build a connection pool for BatchStatusUpdater")?,
-    )
-    .await;
+    let batch_status_updater =
+        BatchStatusUpdater::new(&main_node_url, singleton_pool_builder.build().await).await;
 
     // Run the components.
     let tree_stop_receiver = stop_receiver.clone();
-    let tree_pool = singleton_pool_builder
-        .build()
-        .await
-        .context("failed to build a tree_pool")?;
+    let tree_pool = singleton_pool_builder.build().await;
     // todo: PLA-335
-    let prover_tree_pool = ConnectionPool::singleton(DbVariant::Prover)
-        .build()
-        .await
-        .context("failed to build a prover_tree_pool")?;
+    let prover_tree_pool = ConnectionPool::singleton(DbVariant::Prover).build().await;
     let tree_handle =
         task::spawn(metadata_calculator.run(tree_pool, prover_tree_pool, tree_stop_receiver));
 
@@ -271,8 +252,8 @@ async fn init_tasks(
         healthchecks,
     );
     if let Some(port) = config.optional.prometheus_port {
-        let prometheus_task = PrometheusExporterConfig::pull(port).run(stop_receiver.clone());
-        task_handles.push(tokio::spawn(prometheus_task));
+        let prometheus_task = run_prometheus_exporter(port, None);
+        task_handles.push(prometheus_task);
     }
 
     task_handles.extend(http_api_handle);
@@ -288,7 +269,7 @@ async fn init_tasks(
         task_handles.push(consistency_checker);
     }
 
-    Ok((task_handles, stop_sender, healthcheck_handle))
+    (task_handles, stop_sender, healthcheck_handle)
 }
 
 async fn shutdown_components(
@@ -304,92 +285,31 @@ async fn shutdown_components(
     healthcheck_handle.stop().await;
 }
 
-#[derive(Debug, Parser)]
-#[structopt(author = "Matter Labs", version)]
-struct Cli {
-    #[arg(long)]
-    revert_pending_l1_batch: bool,
-}
-
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     // Initial setup.
-    let opt = Cli::parse();
 
-    #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
-    let log_format = vlog::log_format_from_env();
-    #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
-    let sentry_url = vlog::sentry_url_from_env();
-    #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
-    let environment = vlog::environment_from_env();
-
-    let mut builder = vlog::ObservabilityBuilder::new().with_log_format(log_format);
-    if let Some(sentry_url) = &sentry_url {
-        builder = builder
-            .with_sentry_url(sentry_url)
-            .expect("Invalid Sentry URL")
-            .with_sentry_environment(environment);
-    }
-    let _guard = builder.build();
-
-    // Report whether sentry is running after the logging subsystem was initialized.
-    if let Some(sentry_url) = sentry_url {
-        tracing::info!("Sentry configured with URL: {sentry_url}");
-    } else {
-        tracing::info!("No sentry URL was provided");
-    }
-
+    vlog::init();
+    let _sentry_guard = vlog::init_sentry();
     let config = ExternalNodeConfig::collect()
         .await
-        .context("Failed to load external node config")?;
+        .expect("Failed to load external node config");
     let main_node_url = config
         .required
         .main_node_url()
-        .context("Main node URL is incorrect")?;
+        .expect("Main node URL is incorrect");
 
-    let connection_pool = ConnectionPool::builder(DbVariant::Master)
-        .build()
-        .await
-        .context("failed to build a connection_pool")?;
-
-    if opt.revert_pending_l1_batch {
-        tracing::info!("Rolling pending L1 batch back..");
-        let reverter = BlockReverter::new(
-            config.required.state_cache_path,
-            config.required.merkle_tree_path,
-            None,
-            connection_pool.clone(),
-            L1ExecutedBatchesRevert::Allowed,
-        );
-
-        let mut connection = connection_pool.access_storage().await.unwrap();
-        let sealed_l1_batch_number = connection
-            .blocks_dal()
-            .get_sealed_l1_batch_number()
-            .await
-            .unwrap();
-        drop(connection);
-
-        tracing::info!("Rolling back to l1 batch number {sealed_l1_batch_number}");
-        reverter
-            .rollback_db(sealed_l1_batch_number, BlockReverterFlags::all())
-            .await;
-        tracing::info!(
-            "Rollback successfully completed, the node has to restart to continue working"
-        );
-        return Ok(());
-    }
-
+    let connection_pool = ConnectionPool::builder(DbVariant::Master).build().await;
     let sigint_receiver = setup_sigint_handler();
 
-    tracing::warn!("The external node is in the alpha phase, and should be used with caution.");
+    vlog::warn!("The external node is in the alpha phase, and should be used with caution.");
 
-    tracing::info!("Started the external node");
-    tracing::info!("Main node URL is: {}", main_node_url);
+    vlog::info!("Started the external node");
+    vlog::info!("Main node URL is: {}", main_node_url);
 
     // Make sure that genesis is performed.
     perform_genesis_if_needed(
-        &mut connection_pool.access_storage().await.unwrap(),
+        &mut connection_pool.access_storage().await,
         config.remote.l2_chain_id,
         main_node_url.clone(),
     )
@@ -397,9 +317,7 @@ async fn main() -> anyhow::Result<()> {
     .context("Performing genesis failed")?;
 
     let (task_handles, stop_sender, health_check_handle) =
-        init_tasks(config.clone(), connection_pool.clone())
-            .await
-            .context("init_tasks")?;
+        init_tasks(config.clone(), connection_pool.clone()).await;
 
     let reorg_detector = ReorgDetector::new(&main_node_url, connection_pool.clone());
     let reorg_detector_handle = tokio::spawn(reorg_detector.run());
@@ -410,11 +328,11 @@ async fn main() -> anyhow::Result<()> {
     tokio::select! {
         _ = wait_for_tasks(task_handles, particular_crypto_alerts, graceful_shutdown, tasks_allowed_to_finish) => {},
         _ = sigint_receiver => {
-            tracing::info!("Stop signal received, shutting down");
+            vlog::info!("Stop signal received, shutting down");
         },
         last_correct_batch = reorg_detector_handle => {
             if let Ok(last_correct_batch) = last_correct_batch {
-                tracing::info!("Performing rollback to block {}", last_correct_batch);
+                vlog::info!("Performing rollback to block {}", last_correct_batch);
                 shutdown_components(stop_sender, health_check_handle).await;
                 let reverter = BlockReverter::new(
                     config.required.state_cache_path,
@@ -426,10 +344,10 @@ async fn main() -> anyhow::Result<()> {
                 reverter
                     .rollback_db(last_correct_batch, BlockReverterFlags::all())
                     .await;
-                tracing::info!("Rollback successfully completed, the node has to restart to continue working");
+                vlog::info!("Rollback successfully completed, the node has to restart to continue working");
                 return Ok(());
             } else {
-                tracing::error!("Reorg detector actor failed");
+                vlog::error!("Reorg detector actor failed");
             }
         }
     }

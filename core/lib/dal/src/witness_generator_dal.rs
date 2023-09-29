@@ -14,8 +14,7 @@ use zksync_types::zkevm_test_harness::witness::oracle::VmWitnessOracle;
 use zksync_types::{L1BatchNumber, ProtocolVersionId};
 
 use crate::{
-    instrument::InstrumentExt,
-    metrics::MethodLatency,
+    instrument::{InstrumentExt, MethodLatency},
     models::storage_witness_job_info::StorageWitnessJobInfo,
     time_utils::{duration_to_naive_time, pg_interval_from_duration},
     StorageProcessor,

@@ -8,8 +8,9 @@ use crate::old_vm::history_recorder::{HistoryEnabled, HistoryMode};
 use crate::bootloader_state::BootloaderState;
 use crate::errors::BytecodeCompressionError;
 use crate::tracers::traits::VmTracer;
+use crate::tracers::ExecutionMode;
 use crate::types::{
-    inputs::{L1BatchEnv, SystemEnv, VmExecutionMode},
+    inputs::{L1BatchEnv, SystemEnv},
     internals::{new_vm_state, VmSnapshot, ZkSyncVmState},
     outputs::{BootloaderMemory, CurrentExecutionState, VmExecutionResultAndLogs},
 };
@@ -50,19 +51,22 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
         self.push_transaction_with_compression(tx, true)
     }
 
-    /// Execute VM with default tracers. The execution mode determines whether the VM will stop and
-    /// how the vm will be processed.
-    pub fn execute(&mut self, execution_mode: VmExecutionMode) -> VmExecutionResultAndLogs {
-        self.inspect(vec![], execution_mode)
+    /// Execute the batch without stops after each tx.
+    /// This method allows to execute the part  of the VM cycle after executing all txs.
+    pub fn execute_the_rest_of_the_batch(&mut self) -> VmExecutionResultAndLogs {
+        self.inspect_the_rest_of_the_batch(vec![])
     }
 
-    /// Execute VM with custom tracers.
-    pub fn inspect(
-        &mut self,
-        tracers: Vec<Box<dyn VmTracer<S, H>>>,
-        execution_mode: VmExecutionMode,
-    ) -> VmExecutionResultAndLogs {
-        self.inspect_inner(tracers, execution_mode)
+    /// Execute only the block tip part of the VM execution and stop before exiting the bootloader frame.
+    pub fn execute_block_tip(&mut self) -> VmExecutionResultAndLogs {
+        let (_stop_reason, result) =
+            self.inspect_and_collect_results(vec![], ExecutionMode::BlockTip, false);
+        result
+    }
+
+    /// Execute next transaction and stop vm right after next transaction execution
+    pub fn execute_next_transaction(&mut self) -> VmExecutionResultAndLogs {
+        self.inspect_next_tx_inner(vec![])
     }
 
     /// Get current state of bootloader memory.
@@ -77,6 +81,14 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
 
     pub fn start_new_l2_block(&mut self, l2_block_env: L2BlockEnv) {
         self.bootloader_state.start_new_l2_block(l2_block_env);
+    }
+
+    /// Execute next transaction with custom tracers
+    pub fn inspect_next_transaction(
+        &mut self,
+        tracers: Vec<Box<dyn VmTracer<S, H>>>,
+    ) -> VmExecutionResultAndLogs {
+        self.inspect_next_tx_inner(tracers)
     }
 
     /// Get current state of virtual machine.
@@ -124,7 +136,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
         with_compression: bool,
     ) -> Result<VmExecutionResultAndLogs, BytecodeCompressionError> {
         self.push_transaction_with_compression(tx, with_compression);
-        let result = self.inspect(tracers, VmExecutionMode::OneTx);
+        let result = self.inspect_next_tx_inner(tracers);
         if self.has_unpublished_bytecodes() {
             Err(BytecodeCompressionError::BytecodeCompressionFailed)
         } else {

@@ -18,18 +18,10 @@ pub struct FriProofCompressorConfig {
     pub generation_timeout_in_secs: u16,
     /// Max attempts for proof compression to be performed
     pub max_attempts: u32,
-
-    /// Path to universal setup key file
-    pub universal_setup_path: String,
-    /// https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2\^26.key
-    pub universal_setup_download_url: String,
-
-    // Whether to verify wrapper proof or not.
-    pub verify_wrapper_proof: bool,
 }
 
 impl FriProofCompressorConfig {
-    pub fn from_env() -> anyhow::Result<Self> {
+    pub fn from_env() -> Self {
         envy_load("fri_proof_compressor", "FRI_PROOF_COMPRESSOR_")
     }
 
@@ -54,11 +46,6 @@ mod tests {
             prometheus_push_interval_ms: Some(100),
             generation_timeout_in_secs: 3000,
             max_attempts: 5,
-            universal_setup_path: "keys/setup/setup_2^26.key".to_string(),
-            universal_setup_download_url:
-                "https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2^26.key"
-                    .to_string(),
-            verify_wrapper_proof: false,
         }
     }
 
@@ -72,13 +59,10 @@ mod tests {
             FRI_PROOF_COMPRESSOR_PROMETHEUS_PUSH_INTERVAL_MS=100
             FRI_PROOF_COMPRESSOR_GENERATION_TIMEOUT_IN_SECS=3000
             FRI_PROOF_COMPRESSOR_MAX_ATTEMPTS=5
-            FRI_PROOF_COMPRESSOR_UNIVERSAL_SETUP_PATH="keys/setup/setup_2^26.key"
-            FRI_PROOF_COMPRESSOR_UNIVERSAL_SETUP_DOWNLOAD_URL="https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2^26.key"
-            FRI_PROOF_COMPRESSOR_VERIFY_WRAPPER_PROOF=false
         "#;
         lock.set_env(config);
 
-        let actual = FriProofCompressorConfig::from_env().unwrap();
+        let actual = FriProofCompressorConfig::from_env();
         assert_eq!(actual, expected_config());
     }
 }

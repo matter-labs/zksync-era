@@ -1,8 +1,7 @@
 use zksync_types::{api::en::SyncBlock, Address, MiniblockNumber, Transaction};
 
 use crate::{
-    instrument::InstrumentExt,
-    metrics::MethodLatency,
+    instrument::{InstrumentExt, MethodLatency},
     models::{storage_sync::StorageSyncBlock, storage_transaction::StorageTransaction},
     SqlxError, StorageProcessor,
 };

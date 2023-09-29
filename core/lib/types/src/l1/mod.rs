@@ -151,7 +151,6 @@ impl From<L1Tx> for Transaction {
             common_data: ExecuteTransactionCommon::L1(common_data),
             execute,
             received_timestamp_ms,
-            raw_bytes: None,
         }
     }
 }
@@ -164,7 +163,6 @@ impl TryFrom<Transaction> for L1Tx {
             common_data,
             execute,
             received_timestamp_ms,
-            ..
         } = value;
         match common_data {
             ExecuteTransactionCommon::L1(common_data) => Ok(L1Tx {

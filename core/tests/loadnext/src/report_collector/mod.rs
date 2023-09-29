@@ -56,9 +56,9 @@ impl Collectors {
 
             let actual_count = self.operation_results.tx_results.successes() as f64;
             let delta = 100.0 * (actual_count - expected_count as f64) / (expected_count as f64);
-            tracing::info!("Expected number of processed txs: {expected_count}");
-            tracing::info!("Actual number of processed txs: {actual_count}");
-            tracing::info!("Delta: {delta:.1}%");
+            vlog::info!("Expected number of processed txs: {expected_count}");
+            vlog::info!("Actual number of processed txs: {actual_count}");
+            vlog::info!("Delta: {delta:.1}%");
 
             (MIN_ACCEPTABLE_DELTA..=MAX_ACCEPTABLE_DELTA).contains(&delta)
         });
@@ -127,11 +127,11 @@ impl ReportCollector {
         let mut start = Instant::now();
 
         while let Some(report) = self.reports_stream.next().await {
-            tracing::trace!("Report: {report:?}");
+            vlog::trace!("Report: {report:?}");
             if matches!(&report.action, ActionType::InitComplete) {
                 assert!(collectors.is_none(), "`InitComplete` report sent twice");
 
-                tracing::info!("Test initialization and warm-up took {:?}", start.elapsed());
+                vlog::info!("Test initialization and warm-up took {:?}", start.elapsed());
                 start = Instant::now();
                 collectors = Some(Collectors::new(self.loadtest_duration));
                 continue;
@@ -152,7 +152,7 @@ impl ReportCollector {
                     let processed_tx_count = collectors.operation_results.tx_results.total();
                     if processed_tx_count % 50 == 0 {
                         let current_test_duration = start.elapsed();
-                        tracing::info!(
+                        vlog::info!(
                             "Processed {processed_tx_count} transactions after initialization, \
                              took {current_test_duration:?} (current TPS: {})",
                             collectors.operation_results.tps(current_test_duration)
@@ -163,9 +163,9 @@ impl ReportCollector {
 
             // Report failure, if it exists.
             if let ReportLabel::ActionFailed { error } = &report.label {
-                tracing::warn!("Operation failed: {error}");
+                vlog::warn!("Operation failed: {error}");
                 if self.fail_fast && matches!(report.action, ActionType::Tx(_)) {
-                    tracing::error!("Test aborted because of an error in transaction processing");
+                    vlog::error!("Test aborted because of an error in transaction processing");
                     if let Some(collectors) = &mut collectors {
                         collectors.is_aborted = true;
                     }
@@ -180,7 +180,7 @@ impl ReportCollector {
             collectors.report(self.prometheus_label);
             collectors.final_resolution(self.expected_tx_count)
         } else {
-            tracing::error!("Test failed before initialization was completed");
+            vlog::error!("Test failed before initialization was completed");
             LoadtestResult::TestFailed
         }
     }

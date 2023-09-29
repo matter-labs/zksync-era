@@ -14,7 +14,7 @@ pub struct FriProverGatewayConfig {
 }
 
 impl FriProverGatewayConfig {
-    pub fn from_env() -> anyhow::Result<Self> {
+    pub fn from_env() -> Self {
         envy_load("fri_prover_gateway", "FRI_PROVER_GATEWAY_")
     }
 
@@ -51,7 +51,7 @@ mod tests {
         "#;
         let mut lock = MUTEX.lock();
         lock.set_env(config);
-        let actual = FriProverGatewayConfig::from_env().unwrap();
+        let actual = FriProverGatewayConfig::from_env();
         assert_eq!(actual, expected_config());
     }
 }

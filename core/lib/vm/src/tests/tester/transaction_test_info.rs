@@ -3,7 +3,7 @@ use zksync_types::{ExecuteTransactionCommon, Transaction};
 use crate::errors::VmRevertReason;
 use crate::tests::tester::vm_tester::VmTester;
 use crate::{
-    CurrentExecutionState, ExecutionResult, Halt, HistoryEnabled, TxRevertReason, VmExecutionMode,
+    CurrentExecutionState, ExecutionResult, Halt, HistoryEnabled, TxRevertReason,
     VmExecutionResultAndLogs,
 };
 
@@ -188,7 +188,7 @@ impl VmTester<HistoryEnabled> {
         for tx_test_info in txs {
             self.execute_tx_and_verify(tx_test_info.clone());
         }
-        self.vm.execute(VmExecutionMode::Batch);
+        self.vm.execute_the_rest_of_the_batch();
         let mut state = self.vm.get_current_execution_state();
         state.used_contract_hashes.sort();
         state
@@ -201,7 +201,7 @@ impl VmTester<HistoryEnabled> {
         let inner_state_before = self.vm.dump_inner_state();
         self.vm.make_snapshot();
         self.vm.push_transaction(tx_test_info.tx.clone());
-        let result = self.vm.execute(VmExecutionMode::OneTx);
+        let result = self.vm.execute_next_transaction();
         tx_test_info.verify_result(&result);
         if tx_test_info.should_rollback() {
             self.vm.rollback_to_the_latest_snapshot();

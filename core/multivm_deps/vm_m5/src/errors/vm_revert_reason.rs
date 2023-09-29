@@ -99,7 +99,7 @@ impl TryFrom<&[u8]> for VmRevertReason {
                     function_selector: function_selector.to_vec(),
                     data: error_data.to_vec(),
                 };
-                tracing::warn!("Unsupported error type: {}", result);
+                vlog::warn!("Unsupported error type: {}", result);
                 Ok(result)
             }
         }

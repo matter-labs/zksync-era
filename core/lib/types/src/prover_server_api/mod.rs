@@ -24,10 +24,8 @@ pub enum ProofGenerationDataResponse {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub enum SubmitProofRequest {
-    Proof(Box<L1BatchProofForL1>),
-    // The proof generation was skipped due to sampling
-    SkippedProofGeneration,
+pub struct SubmitProofRequest {
+    pub proof: L1BatchProofForL1,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

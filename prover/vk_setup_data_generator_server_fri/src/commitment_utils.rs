@@ -1,6 +1,5 @@
 use crate::get_recursive_layer_vk_for_circuit_type;
 use crate::utils::get_leaf_vk_params;
-use anyhow::Context as _;
 use once_cell::sync::Lazy;
 use std::str::FromStr;
 use structopt::lazy_static::lazy_static;
@@ -12,8 +11,7 @@ use zksync_prover_fri_types::circuit_definitions::circuit_definitions::recursion
 use zksync_types::protocol_version::{L1VerifierConfig, VerifierParams};
 use zksync_types::H256;
 lazy_static! {
-    // TODO: do not initialize a static const with data read in runtime.
-    static ref COMMITMENTS: Lazy<L1VerifierConfig> = Lazy::new(|| { circuit_commitments().unwrap() });
+    static ref COMMITMENTS: Lazy<L1VerifierConfig> = Lazy::new(|| { circuit_commitments() });
 }
 
 pub struct VkCommitments {
@@ -22,25 +20,24 @@ pub struct VkCommitments {
     pub scheduler: String,
 }
 
-fn circuit_commitments() -> anyhow::Result<L1VerifierConfig> {
-    let commitments = generate_commitments().context("generate_commitments()")?;
-    Ok(L1VerifierConfig {
+fn circuit_commitments() -> L1VerifierConfig {
+    let commitments = generate_commitments();
+    L1VerifierConfig {
         params: VerifierParams {
             recursion_node_level_vk_hash: H256::from_str(&commitments.node)
-                .context("invalid node commitment")?,
+                .expect("invalid node commitment"),
             recursion_leaf_level_vk_hash: H256::from_str(&commitments.leaf)
-                .context("invalid leaf commitment")?,
+                .expect("invalid leaf commitment"),
             // The base layer commitment is not used in the FRI prover verification.
             recursion_circuits_set_vks_hash: H256::zero(),
         },
         recursion_scheduler_level_vk_hash: H256::from_str(&commitments.scheduler)
-            .context("invalid scheduler commitment")?,
-    })
+            .expect("invalid scheduler commitment"),
+    }
 }
 
-pub fn generate_commitments() -> anyhow::Result<VkCommitments> {
-    let leaf_vk_params = get_leaf_vk_params()
-        .context("get_leaf_vk_params()")?;
+pub fn generate_commitments() -> VkCommitments {
+    let leaf_vk_params = get_leaf_vk_params();
     let leaf_layer_params = leaf_vk_params
         .iter()
         .map(|el| el.1.clone())
@@ -51,12 +48,12 @@ pub fn generate_commitments() -> anyhow::Result<VkCommitments> {
 
     let node_vk = get_recursive_layer_vk_for_circuit_type(
         ZkSyncRecursionLayerStorageType::NodeLayerCircuit as u8,
-    ).context("get_recursive_layer_vk_for_circuit_type(NodeLayerCircuit)")?;
+    );
     let node_vk_commitment = compute_node_vk_commitment(node_vk.clone());
 
     let scheduler_vk = get_recursive_layer_vk_for_circuit_type(
         ZkSyncRecursionLayerStorageType::SchedulerCircuit as u8,
-    ).context("get_recursive_layer_vk_for_circuit_type(SchedulerCircuit)")?;
+    );
     let scheduler_vk_commitment = compute_node_vk_commitment(scheduler_vk.clone());
 
     let hex_concatenator = |hex_array: [GoldilocksField; 4]| {
@@ -71,20 +68,20 @@ pub fn generate_commitments() -> anyhow::Result<VkCommitments> {
     let leaf_aggregation_commitment_hex = hex_concatenator(leaf_vk_commitment);
     let node_aggregation_commitment_hex = hex_concatenator(node_vk_commitment);
     let scheduler_commitment_hex = hex_concatenator(scheduler_vk_commitment);
-    tracing::info!(
+    vlog::info!(
         "leaf aggregation commitment {:?}",
         leaf_aggregation_commitment_hex
     );
-    tracing::info!(
+    vlog::info!(
         "node aggregation commitment {:?}",
         node_aggregation_commitment_hex
     );
-    tracing::info!("scheduler commitment {:?}", scheduler_commitment_hex);
-    Ok(VkCommitments {
+    vlog::info!("scheduler commitment {:?}", scheduler_commitment_hex);
+    VkCommitments {
         leaf: leaf_aggregation_commitment_hex,
         node: node_aggregation_commitment_hex,
         scheduler: scheduler_commitment_hex,
-    })
+    }
 }
 
 pub fn get_cached_commitments() -> L1VerifierConfig {

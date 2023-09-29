@@ -16,7 +16,7 @@ use zksync_types::{
 use crate::tests::tester::{Account, VmTester, VmTesterBuilder};
 use crate::tests::utils::read_many_owners_custom_account_contract;
 use crate::types::inputs::system_env::TxExecutionMode;
-use crate::{HistoryDisabled, VmExecutionMode};
+use crate::HistoryDisabled;
 
 impl VmTester<HistoryDisabled> {
     pub(crate) fn get_eth_balance(&mut self, address: Address) -> U256 {
@@ -72,7 +72,7 @@ async fn test_require_eip712() {
     );
 
     vm.vm.push_transaction(tx);
-    let result = vm.vm.execute(VmExecutionMode::OneTx);
+    let result = vm.vm.execute_next_transaction();
     assert!(!result.result.is_failed());
 
     let private_account_balance = vm.get_eth_balance(private_account.address);
@@ -103,7 +103,7 @@ async fn test_require_eip712() {
     let transaction: Transaction = l2_tx.try_into().unwrap();
 
     vm.vm.push_transaction(transaction);
-    let result = vm.vm.execute(VmExecutionMode::OneTx);
+    let result = vm.vm.execute_next_transaction();
     assert!(!result.result.is_failed());
     assert_eq!(
         vm.get_eth_balance(beneficiary.address),
@@ -149,7 +149,7 @@ async fn test_require_eip712() {
 
     let transaction: Transaction = l2_tx.try_into().unwrap();
     vm.vm.push_transaction(transaction);
-    vm.vm.execute(VmExecutionMode::OneTx);
+    vm.vm.execute_next_transaction();
 
     assert_eq!(
         vm.get_eth_balance(beneficiary.address),

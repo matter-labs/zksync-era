@@ -5,8 +5,8 @@ use zksync_types::l1::is_l1_tx_type;
 use zksync_types::l2::L2Tx;
 use zksync_types::transaction_request::{PaymasterParams, TransactionRequest};
 use zksync_types::{
-    l2::TransactionType, Bytes, Execute, ExecuteTransactionCommon, L2ChainId, L2TxCommonData,
-    Nonce, Transaction, H256, U256,
+    l2::TransactionType, Execute, ExecuteTransactionCommon, L2ChainId, L2TxCommonData, Nonce,
+    Transaction, H256, U256,
 };
 use zksync_utils::address_to_h256;
 use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256};
@@ -40,7 +40,6 @@ pub(crate) struct TransactionData {
     pub(crate) factory_deps: Vec<Vec<u8>>,
     pub(crate) paymaster_input: Vec<u8>,
     pub(crate) reserved_dynamic: Vec<u8>,
-    pub(crate) raw_bytes: Option<Vec<u8>>,
 }
 
 impl From<Transaction> for TransactionData {
@@ -52,8 +51,7 @@ impl From<Transaction> for TransactionData {
                 let should_check_chain_id = if matches!(
                     common_data.transaction_type,
                     TransactionType::LegacyTransaction
-                ) && common_data.extract_chain_id().is_some()
-                {
+                ) {
                     U256([1, 0, 0, 0])
                 } else {
                     U256::zero()
@@ -81,7 +79,6 @@ impl From<Transaction> for TransactionData {
                     factory_deps: execute_tx.execute.factory_deps.unwrap_or_default(),
                     paymaster_input: common_data.paymaster_params.paymaster_input,
                     reserved_dynamic: vec![],
-                    raw_bytes: execute_tx.raw_bytes.map(|a| a.0),
                 }
             }
             ExecuteTransactionCommon::L1(common_data) => {
@@ -111,7 +108,6 @@ impl From<Transaction> for TransactionData {
                     factory_deps: execute_tx.execute.factory_deps.unwrap_or_default(),
                     paymaster_input: vec![],
                     reserved_dynamic: vec![],
-                    raw_bytes: None,
                 }
             }
             ExecuteTransactionCommon::ProtocolUpgrade(common_data) => {
@@ -141,7 +137,6 @@ impl From<Transaction> for TransactionData {
                     factory_deps: execute_tx.execute.factory_deps.unwrap_or_default(),
                     paymaster_input: vec![],
                     reserved_dynamic: vec![],
-                    raw_bytes: None,
                 }
             }
         }
@@ -284,19 +279,18 @@ impl TryInto<L2Tx> for TransactionData {
                 paymaster_input: self.paymaster_input,
             },
         };
-        let factory_deps = (!self.factory_deps.is_empty()).then_some(self.factory_deps);
+
         let execute = Execute {
             contract_address: self.to,
             value: self.value,
             calldata: self.data,
-            factory_deps,
+            factory_deps: Some(self.factory_deps),
         };
 
         Ok(L2Tx {
             execute,
             common_data,
             received_timestamp_ms: 0,
-            raw_bytes: self.raw_bytes.map(Bytes::from),
         })
     }
 }
@@ -332,7 +326,6 @@ mod tests {
             factory_deps: vec![vec![0u8; 32], vec![1u8; 32]],
             paymaster_input: vec![0u8; 85],
             reserved_dynamic: vec![0u8; 32],
-            raw_bytes: None,
         };
 
         let assumed_encoded_len = encoding_len(65, 75, 2, 85, 32);

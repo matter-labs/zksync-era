@@ -29,8 +29,8 @@ pub enum VmRevertReason {
 
 impl VmRevertReason {
     const GENERAL_ERROR_SELECTOR: &'static [u8] = &[0x08, 0xc3, 0x79, 0xa0];
-    fn parse_general_error(raw_bytes: &[u8]) -> Result<Self, VmRevertReasonParsingError> {
-        let bytes = &raw_bytes[4..];
+    fn parse_general_error(original_bytes: &[u8]) -> Result<Self, VmRevertReasonParsingError> {
+        let bytes = &original_bytes[4..];
         if bytes.len() < 32 {
             return Err(VmRevertReasonParsingError::InputIsTooShort(bytes.to_vec()));
         }
@@ -62,7 +62,7 @@ impl VmRevertReason {
         let raw_data = &data[32..32 + string_length];
         Ok(Self::General {
             msg: String::from_utf8_lossy(raw_data).to_string(),
-            data: raw_bytes.to_vec(),
+            data: original_bytes.to_vec(),
         })
     }
 
@@ -111,7 +111,7 @@ impl VmRevertReason {
                     function_selector: function_selector.to_vec(),
                     data: bytes.to_vec(),
                 };
-                tracing::warn!("Unsupported error type: {}", result);
+                vlog::warn!("Unsupported error type: {}", result);
                 Ok(result)
             }
         }

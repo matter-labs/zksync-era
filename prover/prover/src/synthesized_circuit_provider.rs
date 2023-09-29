@@ -51,7 +51,8 @@ impl RemoteSynthesizer for SynthesizedCircuitProvider {
                 if is_full {
                     self.rt_handle.block_on(async {
                         self.pool
-                            .access_storage().await.unwrap()
+                            .access_storage()
+                            .await
                             .gpu_prover_queue_dal()
                             .update_prover_instance_from_full_to_available(
                                 self.address.clone(),
@@ -62,7 +63,7 @@ impl RemoteSynthesizer for SynthesizedCircuitProvider {
                             .await
                     });
                 }
-                tracing::trace!(
+                vlog::trace!(
                     "Queue free slot {} for capacity {}",
                     queue_free_slots,
                     assembly_queue.capacity()

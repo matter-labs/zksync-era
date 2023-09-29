@@ -40,19 +40,19 @@ mod tests {
     proptest! {
         #[test]
         fn test_get_base_layer_vk_for_circuit_type(circuit_id in 1u8..13) {
-            let vk = get_base_layer_vk_for_circuit_type(circuit_id).unwrap();
+            let vk = get_base_layer_vk_for_circuit_type(circuit_id);
             assert_eq!(circuit_id, vk.numeric_circuit_type());
         }
 
         #[test]
         fn test_get_recursive_layer_vk_for_circuit_type(circuit_id in 1u8..15) {
-            let vk = get_recursive_layer_vk_for_circuit_type(circuit_id).unwrap();
+            let vk = get_recursive_layer_vk_for_circuit_type(circuit_id);
             assert_eq!(circuit_id, vk.numeric_circuit_type());
         }
 
         #[test]
         fn test_get_finalization_hints(key in all_possible_prover_service_data_key()) {
-            let result = get_finalization_hints(key).unwrap();
+            let result = get_finalization_hints(key);
 
             assert!(!result.row_finalization_hints.is_empty(), "Row finalization hints should not be empty");
             assert!(!result.public_inputs.is_empty(), "Public inputs should not be empty");
@@ -74,7 +74,7 @@ mod tests {
     #[test]
     fn test_get_file_path() {
         let key = ProverServiceDataKey::new(1, AggregationRound::BasicCircuits);
-        let file_path = get_file_path(key, ProverServiceDataType::VerificationKey).unwrap();
+        let file_path = get_file_path(key, ProverServiceDataType::VerificationKey);
         assert!(!file_path.is_empty(), "File path should not be empty");
     }
 

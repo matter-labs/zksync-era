@@ -1,4 +1,4 @@
-pub(crate) use default_tracers::DefaultExecutionTracer;
+pub(crate) use default_tracers::{DefaultExecutionTracer, ExecutionMode};
 pub(crate) use refunds::RefundsTracer;
 pub(crate) use result_tracer::ResultTracer;
 pub use storage_invocations::StorageInvocations;

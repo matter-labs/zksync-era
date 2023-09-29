@@ -164,7 +164,7 @@ impl HealthUpdater {
     pub fn update(&self, health: Health) -> bool {
         let old_health = self.health_sender.send_replace(health.clone());
         if old_health != health {
-            tracing::debug!("changed health from {:?} to {:?}", old_health, health);
+            vlog::debug!("changed health from {:?} to {:?}", old_health, health);
             return true;
         }
         false

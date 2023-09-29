@@ -13,7 +13,6 @@ pub mod gpu_socket_listener {
     };
 
     use crate::utils::{GpuProverJob, ProvingAssembly, SharedWitnessVectorQueue};
-    use anyhow::Context as _;
     use tokio::sync::watch;
     use tokio::{
         io::copy,
@@ -46,20 +45,21 @@ pub mod gpu_socket_listener {
                 zone,
             }
         }
-        async fn init(&self) -> anyhow::Result<TcpListener> {
+        async fn init(&self) -> TcpListener {
             let listening_address = SocketAddr::new(self.address.host, self.address.port);
-            tracing::info!(
+            vlog::info!(
                 "Starting assembly receiver at host: {}, port: {}",
                 self.address.host,
                 self.address.port
             );
             let listener = TcpListener::bind(listening_address)
                 .await
-                .with_context(|| format!("Failed binding address: {listening_address:?}"))?;
+                .unwrap_or_else(|_| panic!("Failed binding address: {:?}", listening_address));
 
             let _lock = self.queue.lock().await;
             self.pool
-                .access_storage().await.unwrap()
+                .access_storage()
+                .await
                 .fri_gpu_prover_queue_dal()
                 .insert_prover_instance(
                     self.address.clone(),
@@ -67,44 +67,42 @@ pub mod gpu_socket_listener {
                     self.zone.clone(),
                 )
                 .await;
-            Ok(listener)
+            listener
         }
 
-        pub async fn listen_incoming_connections(
-            self,
-            stop_receiver: watch::Receiver<bool>,
-        ) -> anyhow::Result<()> {
-            let listener = self.init().await.context("init()")?;
+        pub async fn listen_incoming_connections(self, stop_receiver: watch::Receiver<bool>) {
+            let listener = self.init().await;
             let mut now = Instant::now();
             loop {
                 if *stop_receiver.borrow() {
-                    tracing::warn!("Stop signal received, shutting down socket listener");
-                    return Ok(());
+                    vlog::warn!("Stop signal received, shutting down socket listener");
+                    return;
                 }
-                let stream = listener
-                    .accept()
-                    .await
-                    .context("could not accept connection")?
-                    .0;
-                tracing::trace!(
+                let stream = match listener.accept().await {
+                    Ok(stream) => stream.0,
+                    Err(e) => {
+                        panic!("could not accept connection: {:?}", e);
+                    }
+                };
+                vlog::trace!(
                     "Received new assembly send connection, waited for {}ms.",
                     now.elapsed().as_millis()
                 );
 
-                self.handle_incoming_file(stream).await.context("handle_incoming_file()")?;
+                self.handle_incoming_file(stream).await;
 
                 now = Instant::now();
             }
         }
 
-        async fn handle_incoming_file(&self, mut stream: TcpStream) -> anyhow::Result<()> {
+        async fn handle_incoming_file(&self, mut stream: TcpStream) {
             let mut assembly: Vec<u8> = vec![];
             let started_at = Instant::now();
             copy(&mut stream, &mut assembly)
                 .await
-                .context("Failed reading from stream")?;
+                .expect("Failed reading from stream");
             let file_size_in_gb = assembly.len() / (1024 * 1024 * 1024);
-            tracing::trace!(
+            vlog::trace!(
                 "Read file of size: {}GB from stream took: {} seconds",
                 file_size_in_gb,
                 started_at.elapsed().as_secs()
@@ -115,12 +113,12 @@ pub mod gpu_socket_listener {
                     "blob_size_in_gb" => file_size_in_gb.to_string(),
             );
             let witness_vector = bincode::deserialize::<WitnessVectorArtifacts>(&assembly)
-                .context("Failed deserializing witness vector")?;
+                .expect("Failed deserializing witness vector");
             let assembly = generate_assembly_for_repeated_proving(
                 witness_vector.prover_job.circuit_wrapper.clone(),
                 witness_vector.prover_job.job_id,
                 witness_vector.prover_job.setup_data_key.circuit_id,
-            ).context("generate_assembly_for_repeated_proving()")?;
+            );
             let gpu_prover_job = GpuProverJob {
                 witness_vector_artifacts: witness_vector,
                 assembly,
@@ -131,7 +129,7 @@ pub mod gpu_socket_listener {
 
             queue
                 .add(gpu_prover_job)
-                .map_err(|err| anyhow::anyhow!("Failed saving witness vector to queue: {err}"))?;
+                .expect("Failed saving witness vector to queue");
             let status = if queue.capacity() == queue.size() {
                 GpuProverInstanceStatus::Full
             } else {
@@ -139,11 +137,11 @@ pub mod gpu_socket_listener {
             };
 
             self.pool
-                .access_storage().await.unwrap()
+                .access_storage()
+                .await
                 .fri_gpu_prover_queue_dal()
                 .update_prover_instance_status(self.address.clone(), status, self.zone.clone())
                 .await;
-            Ok(())
         }
     }
 
@@ -151,7 +149,7 @@ pub mod gpu_socket_listener {
         circuit_wrapper: CircuitWrapper,
         job_id: u32,
         circuit_id: u8,
-    ) -> anyhow::Result<ProvingAssembly> {
+    ) -> ProvingAssembly {
         let started_at = Instant::now();
         let cs = match circuit_wrapper {
             CircuitWrapper::Base(base_circuit) => {
@@ -159,8 +157,7 @@ pub mod gpu_socket_listener {
                     base_circuit.numeric_circuit_type(),
                     AggregationRound::BasicCircuits,
                 );
-                let finalization_hint = get_finalization_hints(key)
-                    .context("get_finalization_hints()")?;
+                let finalization_hint = get_finalization_hints(key);
                 init_base_layer_cs_for_repeated_proving(base_circuit, &finalization_hint)
             }
             CircuitWrapper::Recursive(recursive_circuit) => {
@@ -168,12 +165,11 @@ pub mod gpu_socket_listener {
                     recursive_circuit.numeric_circuit_type(),
                     get_round_for_recursive_circuit_type(recursive_circuit.numeric_circuit_type()),
                 );
-                let finalization_hint = get_finalization_hints(key)
-                    .context("get_finalization_hints()")?;
+                let finalization_hint = get_finalization_hints(key);
                 init_recursive_layer_cs_for_repeated_proving(recursive_circuit, &finalization_hint)
             }
         };
-        tracing::info!(
+        vlog::info!(
             "Successfully generated assembly without witness vector for job: {}, took: {:?}",
             job_id,
             started_at.elapsed()
@@ -183,6 +179,6 @@ pub mod gpu_socket_listener {
                 started_at.elapsed(),
                 "circuit_type" => circuit_id.to_string()
         );
-        Ok(cs)
+        cs
     }
 }

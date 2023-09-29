@@ -25,7 +25,6 @@
 
 mod file;
 mod gcs;
-mod metrics;
 mod mock;
 mod objects;
 mod raw;

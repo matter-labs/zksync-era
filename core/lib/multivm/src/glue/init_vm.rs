@@ -2,7 +2,7 @@ use super::GlueInto;
 use crate::glue::history_mode::HistoryMode;
 use crate::vm_instance::{VmInstanceData, VmInstanceVersion};
 use crate::VmInstance;
-use vm_latest::{L1BatchEnv, SystemEnv};
+use vm_virtual_blocks::{L1BatchEnv, SystemEnv};
 use zksync_state::ReadStorage;
 use zksync_utils::h256_to_u256;
 
@@ -69,7 +69,7 @@ impl<'a, S: ReadStorage, H: HistoryMode> VmInstance<'a, S, H> {
                 }
             }
             VmInstanceData::VmVirtualBlocks(data) => {
-                let vm = vm_latest::Vm::new(
+                let vm = vm_virtual_blocks::Vm::new(
                     l1_batch_env.glue_into(),
                     system_env.clone(),
                     data.storage_view.clone(),

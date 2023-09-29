@@ -4,7 +4,7 @@ use zksync_types::get_nonce_key;
 use crate::tests::tester::{Account, TxType, VmTesterBuilder};
 use crate::tests::utils::read_test_contract;
 use crate::types::inputs::system_env::TxExecutionMode;
-use crate::{HistoryDisabled, VmExecutionMode};
+use crate::HistoryDisabled;
 
 #[test]
 fn test_is_write_initial_behaviour() {
@@ -31,7 +31,7 @@ fn test_is_write_initial_behaviour() {
     let tx = account.get_deploy_tx(&contract_code, None, TxType::L2).tx;
 
     vm.vm.push_transaction(tx);
-    vm.vm.execute(VmExecutionMode::OneTx);
+    vm.vm.execute_next_transaction();
 
     // Check that `is_write_initial` still returns true for the nonce key.
     assert!(vm

@@ -5,7 +5,7 @@ use crate::tests::tester::{Account, VmTesterBuilder};
 use crate::tests::utils::read_nonce_holder_tester;
 use crate::types::inputs::system_env::TxExecutionMode;
 use crate::types::internals::TransactionData;
-use crate::{ExecutionResult, Halt, HistoryEnabled, TxRevertReason, VmExecutionMode};
+use crate::{ExecutionResult, Halt, HistoryEnabled, TxRevertReason};
 
 pub enum NonceHolderTestMode {
     SetValueUnderNonce,
@@ -68,7 +68,7 @@ fn test_nonce_holder() {
 
         transaction_data.signature = vec![test_mode.into()];
         vm.vm.push_raw_transaction(transaction_data, 0, 0, true);
-        let result = vm.vm.execute(VmExecutionMode::OneTx);
+        let result = vm.vm.execute_next_transaction();
 
         if let Some(msg) = error_message {
             let expected_error =
@@ -76,7 +76,9 @@ fn test_nonce_holder() {
                     msg,
                     data: vec![],
                 }));
-            let ExecutionResult::Halt { reason } = result.result else {
+            let ExecutionResult::Halt {
+               reason
+            } = result.result else {
                 panic!("Expected revert, got {:?}", result.result);
             };
             assert_eq!(

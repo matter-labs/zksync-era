@@ -10,24 +10,25 @@ keywords = ["blockchain", "zksync"]
 categories = ["cryptography"]
 
 [dependencies]
-zkevm-assembly = { git = "https://github.com/matter-labs/era-zkEVM-assembly.git", branch = "v1.3.2" }
-zk_evm = { git = "https://github.com/matter-labs/era-zk_evm.git", branch = "v1.3.3" }
+zkevm-assembly = { git = "https://github.com/matter-labs/zkEVM-assembly.git", branch = "v1.3.2" }
+zk_evm = { git = "https://github.com/matter-labs/zk_evm.git", branch = "v1.3.3" }
 
-zksync_config = { path = "../../lib/config" }
-zksync_types = { path = "../../lib/types" }
-zksync_utils = { path = "../../lib/utils" }
-zksync_state = { path = "../../lib/state" }
+zksync_config = { path = "../../lib/config", version = "1.0" }
+zksync_types = { path = "../../lib/types", version = "1.0" }
+zksync_utils = { path = "../../lib/utils", version = "1.0" }
+zksync_state = { path = "../../lib/state", version = "1.0" }
 
 zksync_contracts = { path = "../../lib/contracts" }
+vlog = { path = "../../lib/vlog", version = "1.0" }
 
 anyhow = "1.0"
 hex = "0.4"
 itertools = "0.10"
+metrics = "0.20"
 ethabi = "18.0.0"
 once_cell = "1.7"
 thiserror = "1.0"
-tracing = "0.1"
 
 [dev-dependencies]
-zksync_eth_signer = { path = "../../lib/eth_signer" }
+zksync_eth_signer = { path = "../../lib/eth_signer", version = "1.0" }
 tokio = { version = "1", features = ["time"] }

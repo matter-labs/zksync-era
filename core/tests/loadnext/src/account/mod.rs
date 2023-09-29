@@ -107,13 +107,13 @@ impl AccountLifespan {
 
         tokio::select! {
             result = tx_execution_task => {
-                tracing::trace!("Transaction execution task finished with {result:?}");
+                vlog::trace!("Transaction execution task finished with {result:?}");
             },
             result = api_requests_task => {
-                tracing::trace!("API requests task finished with {result:?}");
+                vlog::trace!("API requests task finished with {result:?}");
             },
             result = self.run_pubsub_task(limiters) => {
-                tracing::trace!("PubSub task finished with {result:?}");
+                vlog::trace!("PubSub task finished with {result:?}");
             },
             () = tokio::time::sleep(duration) => {}
         }
@@ -169,7 +169,7 @@ impl AccountLifespan {
         // Due to natural sleep for sending tx, usually more than 1 tx can be already
         // processed and have a receipt
         let start = Instant::now();
-        tracing::trace!(
+        vlog::trace!(
             "Account {:?}: check_inflight_txs len {:?}",
             self.wallet.wallet.address(),
             self.inflight_txs.len()
@@ -187,7 +187,7 @@ impl AccountLifespan {
                     let effective_gas_price = transaction_receipt
                         .effective_gas_price
                         .unwrap_or(U256::zero());
-                    tracing::debug!(
+                    vlog::debug!(
                         "Account {:?}: tx included. Total fee: {}, gas used: {gas_used}gas, \
                          gas price: {effective_gas_price} WEI. Latency {:?} at attempt {:?}",
                         self.wallet.wallet.address(),
@@ -199,7 +199,7 @@ impl AccountLifespan {
                         .await?;
                 }
                 other => {
-                    tracing::trace!(
+                    vlog::trace!(
                         "Account {:?}: check_inflight_txs tx not yet included: {other:?}",
                         self.wallet.wallet.address()
                     );
@@ -208,7 +208,7 @@ impl AccountLifespan {
                 }
             }
         }
-        tracing::trace!(
+        vlog::trace!(
             "Account {:?}: check_inflight_txs complete {:?}",
             self.wallet.wallet.address(),
             start.elapsed()
@@ -266,7 +266,7 @@ impl AccountLifespan {
                 Ok(result) => result,
                 Err(err) if Self::should_retry(&err) => {
                     if attempt < MAX_RETRIES {
-                        tracing::warn!("Error while sending tx: {err}. Retrying...");
+                        vlog::warn!("Error while sending tx: {err}. Retrying...");
                         // Retry operation.
                         attempt += 1;
                         continue;
@@ -328,7 +328,7 @@ impl AccountLifespan {
         command: TxCommand,
     ) -> Result<(), Aborted> {
         if let ReportLabel::ActionFailed { error } = &label {
-            tracing::error!(
+            vlog::error!(
                 "Command failed: from {:?}, {command:#?} ({error})",
                 self.wallet.wallet.address()
             )

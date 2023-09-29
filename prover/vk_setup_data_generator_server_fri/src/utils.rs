@@ -31,11 +31,9 @@ use zksync_prover_fri_types::circuit_definitions::zkevm_circuits::scheduler::Sch
 use zksync_prover_fri_types::circuit_definitions::{
     base_layer_proof_config, recursion_layer_proof_config, zk_evm, ZkSyncDefaultRoundFunction,
 };
-use anyhow::Context as _;
 use itertools::Itertools;
 use std::collections::{HashMap, VecDeque};
 use std::fs;
-use zksync_prover_fri_types::circuit_definitions::circuit_definitions::recursion_layer::ZkSyncRecursionLayerProof;
 use zkevm_test_harness::compute_setups::{
     generate_base_layer_vks_and_proofs, generate_recursive_layer_vks_and_proofs,
 };
@@ -56,47 +54,39 @@ use zkevm_test_harness::in_memory_data_source::InMemoryDataSource;
 
 pub const CYCLE_LIMIT: usize = 20000;
 
-fn read_witness_artifact(filepath: &str) -> anyhow::Result<TestArtifact> {
+fn read_witness_artifact(filepath: &str) -> TestArtifact {
     let text = fs::read_to_string(filepath)
-        .with_context(|| format!("Failed to read witness artifact from path: {filepath}"))?;
-    serde_json::from_str(text.as_str()).context("serde_json::from_str()")
+        .unwrap_or_else(|_| panic!("Failed to read witness artifact from path: {}", filepath));
+    serde_json::from_str(text.as_str()).unwrap()
 }
 
 pub fn get_basic_circuits(
     cycle_limit: usize,
     geometry: GeometryConfig,
-) -> anyhow::Result<Vec<
+) -> Vec<
     ZkSyncBaseLayerCircuit<
         GoldilocksField,
         VmWitnessOracle<GoldilocksField>,
         ZkSyncDefaultRoundFunction,
-    >>,
+    >,
 > {
     let path = format!("{}/witness_artifacts.json", get_base_path());
-    let test_artifact = read_witness_artifact(&path).context("read_withess_artifact()")?;
+    let test_artifact = read_witness_artifact(&path);
     let (base_layer_circuit, _, _, _) = get_circuits(test_artifact, cycle_limit, geometry);
-    Ok(base_layer_circuit
+    base_layer_circuit
         .into_flattened_set()
         .into_iter()
         .dedup_by(|a, b| a.numeric_circuit_type() == b.numeric_circuit_type())
-        .collect())
+        .collect()
 }
 
-pub fn get_scheduler_proof_for_snark_vk_generation() -> anyhow::Result<ZkSyncRecursionLayerProof> {
-    let path = format!("{}/scheduler_proof.bin", get_base_path());
-    let proof_serialized = std::fs::read(path).context("Failed to read proof from file")?;
-    bincode::deserialize::<ZkSyncRecursionLayerProof>(&proof_serialized)
-        .context("Failed to deserialize proof")
-}
-
-pub fn get_leaf_circuits() -> anyhow::Result<Vec<ZkSyncRecursiveLayerCircuit>> {
+pub fn get_leaf_circuits() -> Vec<ZkSyncRecursiveLayerCircuit> {
     let mut circuits = vec![];
     for base_circuit_type in
         (BaseLayerCircuitType::VM as u8)..=(BaseLayerCircuitType::L1MessagesHasher as u8)
     {
         let input = RecursionLeafInput::placeholder_witness();
-        let vk = get_base_layer_vk_for_circuit_type(base_circuit_type)
-            .with_context(||format!("get_base_layer_vk_for_circuit_type({base_circuit_type})"))?;
+        let vk = get_base_layer_vk_for_circuit_type(base_circuit_type);
 
         let witness = RecursionLeafInstanceWitness {
             input,
@@ -128,15 +118,15 @@ pub fn get_leaf_circuits() -> anyhow::Result<Vec<ZkSyncRecursiveLayerCircuit>> {
         );
         circuits.push(circuit)
     }
-    Ok(circuits)
+    circuits
 }
 
-pub fn get_node_circuit() -> anyhow::Result<ZkSyncRecursiveLayerCircuit> {
+pub fn get_node_circuit() -> ZkSyncRecursiveLayerCircuit {
     let input = RecursionNodeInput::placeholder_witness();
 
     let input_vk = get_recursive_layer_vk_for_circuit_type(
         ZkSyncRecursionLayerStorageType::LeafLayerCircuitForMainVM as u8,
-    ).context("get_recursive_layer_vk_for_circuit_type(LeafLAyerCircyutFromMainVM")?;
+    );
     let witness = RecursionNodeInstanceWitness {
         input,
         vk_witness: input_vk.clone().into_inner(),
@@ -157,17 +147,16 @@ pub fn get_node_circuit() -> anyhow::Result<ZkSyncRecursiveLayerCircuit> {
         transcript_params: (),
         _marker: std::marker::PhantomData,
     };
-    Ok(ZkSyncRecursiveLayerCircuit::NodeLayerCircuit(circuit))
+    ZkSyncRecursiveLayerCircuit::NodeLayerCircuit(circuit)
 }
 
-pub fn get_scheduler_circuit() -> anyhow::Result<ZkSyncRecursiveLayerCircuit> {
+pub fn get_scheduler_circuit() -> ZkSyncRecursiveLayerCircuit {
     let mut scheduler_witness = SchedulerCircuitInstanceWitness::placeholder();
 
     // node VK
     let node_vk = get_recursive_layer_vk_for_circuit_type(
         ZkSyncRecursionLayerStorageType::NodeLayerCircuit as u8,
     )
-    .context("get_recursive_layer_vk_for_circuit_type(NodeLayerCircuit)")?
     .into_inner();
     scheduler_witness.node_layer_vk_witness = node_vk.clone();
 
@@ -183,7 +172,7 @@ pub fn get_scheduler_circuit() -> anyhow::Result<ZkSyncRecursiveLayerCircuit> {
         transcript_params: (),
         _marker: std::marker::PhantomData,
     };
-    Ok(ZkSyncRecursiveLayerCircuit::SchedulerCircuit(scheduler_circuit))
+    ZkSyncRecursiveLayerCircuit::SchedulerCircuit(scheduler_circuit)
 }
 
 #[allow(dead_code)]
@@ -204,7 +193,7 @@ fn get_recursive_layer_proofs() -> Vec<ZkSyncRecursionProof> {
     scheduler_proofs
 }
 
-pub fn get_leaf_vk_params() -> anyhow::Result<Vec<(u8, RecursionLeafParametersWitness<GoldilocksField>)>> {
+pub fn get_leaf_vk_params() -> Vec<(u8, RecursionLeafParametersWitness<GoldilocksField>)> {
     let mut leaf_vk_commits = vec![];
 
     for circuit_type in
@@ -213,14 +202,12 @@ pub fn get_leaf_vk_params() -> anyhow::Result<Vec<(u8, RecursionLeafParametersWi
         let recursive_circuit_type = base_circuit_type_into_recursive_leaf_circuit_type(
             BaseLayerCircuitType::from_numeric_value(circuit_type),
         );
-        let base_vk = get_base_layer_vk_for_circuit_type(circuit_type)
-            .with_context(||format!("get_base_layer_vk_for_circuit_type({circuit_type})"))?;
-        let leaf_vk = get_recursive_layer_vk_for_circuit_type(recursive_circuit_type as u8)
-            .with_context(||format!("get_recursive_layer_vk_for_circuit_type({recursive_circuit_type:?})"))?;
+        let base_vk = get_base_layer_vk_for_circuit_type(circuit_type);
+        let leaf_vk = get_recursive_layer_vk_for_circuit_type(recursive_circuit_type as u8);
         let params = compute_leaf_params(circuit_type, base_vk, leaf_vk);
         leaf_vk_commits.push((circuit_type, params));
     }
-    Ok(leaf_vk_commits)
+    leaf_vk_commits
 }
 
 fn get_circuits(

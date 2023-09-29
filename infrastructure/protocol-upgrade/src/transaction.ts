@@ -84,28 +84,6 @@ export interface ProposedUpgrade {
     newAllowList: string;
 }
 
-function buildNoopL2UpgradeTx(): L2CanonicalTransaction {
-    // L1 contract considers transaction with `txType` = 0 as noop.
-    return {
-        txType: 0,
-        from: ethers.constants.AddressZero,
-        to: ethers.constants.AddressZero,
-        gasLimit: 0,
-        gasPerPubdataByteLimit: 0,
-        maxFeePerGas: 0,
-        maxPriorityFeePerGas: 0,
-        paymaster: 0,
-        nonce: 0,
-        value: 0,
-        reserved: [0, 0, 0, 0],
-        data: '0x',
-        signature: '0x',
-        factoryDeps: [],
-        paymasterInput: '0x',
-        reservedDynamic: '0x'
-    };
-}
-
 export function buildProposeUpgrade(
     upgradeTimestamp: ethers.BigNumber,
     newProtocolVersion: number,
@@ -123,7 +101,6 @@ export function buildProposeUpgrade(
     defaultAccountHash = defaultAccountHash ?? ethers.constants.HashZero;
     l1ContractsUpgradeCalldata = l1ContractsUpgradeCalldata ?? '0x';
     postUpgradeCalldata = postUpgradeCalldata ?? '0x';
-    l2ProtocolUpgradeTx = l2ProtocolUpgradeTx ?? buildNoopL2UpgradeTx();
     return {
         l2ProtocolUpgradeTx,
         bootloaderHash,

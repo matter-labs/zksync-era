@@ -98,9 +98,3 @@ pub(crate) fn read_many_owners_custom_account_contract() -> (Vec<u8>, Contract) 
     let path = "etc/contracts-test-data/artifacts-zk/contracts/custom-account/many-owners-custom-account.sol/ManyOwnersCustomAccount.json";
     (read_bytecode(path), load_contract(path))
 }
-
-pub(crate) fn read_max_depth_contract() -> Vec<u8> {
-    read_zbin_bytecode(
-        "core/tests/ts-integration/contracts/zkasm/artifacts/deep_stak.zkasm/deep_stak.zkasm.zbin",
-    )
-}

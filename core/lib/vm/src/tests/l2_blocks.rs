@@ -9,10 +9,7 @@ use crate::constants::{
 use crate::tests::tester::default_l1_batch;
 use crate::tests::tester::VmTesterBuilder;
 use crate::utils::l2_blocks::get_l2_block_hash_key;
-use crate::{
-    ExecutionResult, Halt, HistoryEnabled, HistoryMode, L2BlockEnv, TxExecutionMode, Vm,
-    VmExecutionMode,
-};
+use crate::{ExecutionResult, Halt, HistoryEnabled, HistoryMode, L2BlockEnv, TxExecutionMode, Vm};
 use zk_evm::aux_structures::Timestamp;
 use zksync_config::constants::{
     CURRENT_VIRTUAL_BLOCK_INFO_POSITION, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE,
@@ -43,7 +40,6 @@ fn get_l1_noop() -> Transaction {
             factory_deps: None,
         },
         received_timestamp_ms: 0,
-        raw_bytes: None,
     }
 }
 
@@ -69,7 +65,7 @@ fn test_l2_block_initialization_timestamp() {
     let l1_tx = get_l1_noop();
 
     vm.vm.push_transaction(l1_tx);
-    let res = vm.vm.execute(VmExecutionMode::OneTx);
+    let res = vm.vm.execute_next_transaction();
 
     assert_eq!(
         res.result,
@@ -104,7 +100,7 @@ fn test_l2_block_initialization_number_non_zero() {
     let timestamp = Timestamp(vm.vm.state.local_state.timestamp);
     set_manual_l2_block_info(&mut vm.vm, 0, first_l2_block, timestamp);
 
-    let res = vm.vm.execute(VmExecutionMode::OneTx);
+    let res = vm.vm.execute_next_transaction();
 
     assert_eq!(
         res.result,
@@ -132,7 +128,7 @@ fn test_same_l2_block(
 
     let l1_tx = get_l1_noop();
     vm.vm.push_transaction(l1_tx.clone());
-    let res = vm.vm.execute(VmExecutionMode::OneTx);
+    let res = vm.vm.execute_next_transaction();
     assert!(!res.result.is_failed());
 
     let mut current_l2_block = vm.vm.batch_env.first_l2_block;
@@ -152,7 +148,7 @@ fn test_same_l2_block(
     let timestamp = Timestamp(vm.vm.state.local_state.timestamp);
     set_manual_l2_block_info(&mut vm.vm, 1, current_l2_block, timestamp);
 
-    let result = vm.vm.execute(VmExecutionMode::OneTx);
+    let result = vm.vm.execute_next_transaction();
 
     if let Some(err) = expected_error {
         assert_eq!(result.result, ExecutionResult::Halt { reason: err });
@@ -209,7 +205,7 @@ fn test_new_l2_block(
 
     // Firstly we execute the first transaction
     vm.vm.push_transaction(l1_tx.clone());
-    vm.vm.execute(VmExecutionMode::OneTx);
+    vm.vm.execute_next_transaction();
 
     let mut second_l2_block = vm.vm.batch_env.first_l2_block;
     second_l2_block.number += 1;
@@ -230,7 +226,7 @@ fn test_new_l2_block(
 
     vm.vm.push_transaction(l1_tx);
 
-    let result = vm.vm.execute(VmExecutionMode::OneTx);
+    let result = vm.vm.execute_next_transaction();
     if let Some(err) = expected_error {
         assert_eq!(result.result, ExecutionResult::Halt { reason: err });
     } else {
@@ -358,7 +354,7 @@ fn test_first_in_batch(
     let timestamp = Timestamp(vm.vm.state.local_state.timestamp);
     set_manual_l2_block_info(&mut vm.vm, 0, proposed_block, timestamp);
 
-    let result = vm.vm.execute(VmExecutionMode::OneTx);
+    let result = vm.vm.execute_next_transaction();
     if let Some(err) = expected_error {
         assert_eq!(result.result, ExecutionResult::Halt { reason: err });
     } else {
@@ -425,9 +421,9 @@ fn test_l2_block_upgrade() {
     let l1_tx = get_l1_noop();
     // Firstly we execute the first transaction
     vm.vm.push_transaction(l1_tx);
-    let result = vm.vm.execute(VmExecutionMode::OneTx);
+    let result = vm.vm.execute_next_transaction();
     assert!(!result.result.is_failed(), "No revert reason expected");
-    let result = vm.vm.execute(VmExecutionMode::Batch);
+    let result = vm.vm.execute_the_rest_of_the_batch();
     assert!(!result.result.is_failed(), "No revert reason expected");
 }
 
@@ -451,7 +447,7 @@ fn test_l2_block_upgrade_ending() {
         .set_value(get_code_key(&SYSTEM_CONTEXT_ADDRESS), H256::default());
 
     vm.vm.push_transaction(l1_tx.clone());
-    let result = vm.vm.execute(VmExecutionMode::OneTx);
+    let result = vm.vm.execute_next_transaction();
 
     assert!(!result.result.is_failed(), "No revert reason expected");
 
@@ -466,9 +462,9 @@ fn test_l2_block_upgrade_ending() {
     assert_eq!(virtual_block_number as u32, l1_batch.first_l2_block.number);
     assert_eq!(virtual_block_timestamp, l1_batch.first_l2_block.timestamp);
     vm.vm.push_transaction(l1_tx);
-    let result = vm.vm.execute(VmExecutionMode::OneTx);
+    let result = vm.vm.execute_next_transaction();
     assert!(!result.result.is_failed(), "No revert reason expected");
-    let result = vm.vm.execute(VmExecutionMode::Batch);
+    let result = vm.vm.execute_the_rest_of_the_batch();
     assert!(!result.result.is_failed(), "No revert reason expected");
 }
 

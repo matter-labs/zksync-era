@@ -1,22 +1,21 @@
+// External imports
 use sqlx::{
     pool::PoolConnection,
     postgres::{PgConnectOptions, PgPool, PgPoolOptions, Postgres},
 };
-
-use anyhow::Context as _;
-use std::time::Duration;
-
+// Built-in deps
+use std::time::{Duration, Instant};
+// Workspace imports
 use zksync_utils::parse_env;
+// Local imports
+use crate::{
+    get_master_database_url, get_prover_database_url, get_replica_database_url, StorageProcessor,
+};
 
 pub mod holder;
 pub mod test_pool;
 
 pub use self::test_pool::TestPool;
-
-use crate::{
-    get_master_database_url, get_prover_database_url, get_replica_database_url,
-    metrics::CONNECTION_METRICS, StorageProcessor,
-};
 
 #[derive(Debug, Clone, Copy)]
 pub enum DbVariant {
@@ -51,13 +50,13 @@ impl ConnectionPoolBuilder {
     }
 
     /// Builds a connection pool from this builder.
-    pub async fn build(&self) -> anyhow::Result<ConnectionPool> {
+    pub async fn build(&self) -> ConnectionPool {
         let database_url = match self.db {
-            DbVariant::Master => get_master_database_url()?,
-            DbVariant::Replica => get_replica_database_url()?,
-            DbVariant::Prover => get_prover_database_url()?,
+            DbVariant::Master => get_master_database_url(),
+            DbVariant::Replica => get_replica_database_url(),
+            DbVariant::Prover => get_prover_database_url(),
         };
-        Ok(self.build_inner(&database_url).await)
+        self.build_inner(&database_url).await
     }
 
     pub async fn build_inner(&self, database_url: &str) -> ConnectionPool {
@@ -79,7 +78,7 @@ impl ConnectionPoolBuilder {
             .unwrap_or_else(|err| {
                 panic!("Failed connecting to {:?} database: {}", self.db, err);
             });
-        tracing::info!(
+        vlog::info!(
             "Created pool for {db:?} database with {max_connections} max connections \
              and {statement_timeout:?} statement timeout",
             db = self.db,
@@ -123,7 +122,7 @@ impl ConnectionPool {
     ///
     /// This method is intended to be used in crucial contexts, where the
     /// database access is must-have (e.g. block committer).
-    pub async fn access_storage(&self) -> anyhow::Result<StorageProcessor<'_>> {
+    pub async fn access_storage(&self) -> StorageProcessor<'_> {
         self.access_storage_inner(None).await
     }
 
@@ -132,45 +131,37 @@ impl ConnectionPool {
     ///
     /// WARN: This method should not be used if it will result in too many time series (e.g.
     /// from witness generators or provers), otherwise Prometheus won't be able to handle it.
-    pub async fn access_storage_tagged(
-        &self,
-        requester: &'static str,
-    ) -> anyhow::Result<StorageProcessor<'_>> {
+    pub async fn access_storage_tagged(&self, requester: &'static str) -> StorageProcessor<'_> {
         self.access_storage_inner(Some(requester)).await
     }
 
-    async fn access_storage_inner(
-        &self,
-        requester: Option<&'static str>,
-    ) -> anyhow::Result<StorageProcessor<'_>> {
-        Ok(match self {
+    async fn access_storage_inner(&self, requester: Option<&'static str>) -> StorageProcessor<'_> {
+        match self {
             ConnectionPool::Real(real_pool) => {
-                let acquire_latency = CONNECTION_METRICS.acquire.start();
-                let conn = Self::acquire_connection_retried(real_pool)
-                    .await
-                    .context("acquire_connection_retried()")?;
-                let elapsed = acquire_latency.observe();
+                let start = Instant::now();
+                let conn = Self::acquire_connection_retried(real_pool).await;
+                metrics::histogram!("sql.connection_acquire", start.elapsed());
                 if let Some(requester) = requester {
-                    CONNECTION_METRICS.acquire_tagged[&requester].observe(elapsed);
+                    metrics::histogram!("sql.connection_acquire.tagged", start.elapsed(), "requester" => requester);
                 }
                 StorageProcessor::from_pool(conn)
             }
             ConnectionPool::Test(test) => test.access_storage().await,
-        })
+        }
     }
 
-    async fn acquire_connection_retried(pool: &PgPool) -> anyhow::Result<PoolConnection<Postgres>> {
+    async fn acquire_connection_retried(pool: &PgPool) -> PoolConnection<Postgres> {
         const DB_CONNECTION_RETRIES: u32 = 3;
         const BACKOFF_INTERVAL: Duration = Duration::from_secs(1);
 
         let mut retry_count = 0;
         while retry_count < DB_CONNECTION_RETRIES {
-            CONNECTION_METRICS.pool_size.observe(pool.size() as usize);
-            CONNECTION_METRICS.pool_idle.observe(pool.num_idle());
+            metrics::histogram!("sql.connection_pool.size", pool.size() as f64);
+            metrics::histogram!("sql.connection_pool.idle", pool.num_idle() as f64);
 
             let connection = pool.acquire().await;
             let connection_err = match connection {
-                Ok(connection) => return Ok(connection),
+                Ok(connection) => return connection,
                 Err(err) => {
                     retry_count += 1;
                     err
@@ -178,24 +169,30 @@ impl ConnectionPool {
             };
 
             Self::report_connection_error(&connection_err);
-            tracing::warn!(
+            vlog::warn!(
                 "Failed to get connection to DB, backing off for {BACKOFF_INTERVAL:?}: {connection_err}"
             );
             tokio::time::sleep(BACKOFF_INTERVAL).await;
         }
 
         // Attempting to get the pooled connection for the last time
-        match pool.acquire().await {
-            Ok(conn) => Ok(conn),
-            Err(err) => {
-                Self::report_connection_error(&err);
-                anyhow::bail!("Run out of retries getting a DB connetion, last error: {err}");
-            }
-        }
+        pool.acquire().await.unwrap_or_else(|connection_err| {
+            Self::report_connection_error(&connection_err);
+            panic!(
+                "Run out of retries getting a DB connection; last error: {}",
+                connection_err
+            );
+        })
     }
 
     fn report_connection_error(err: &sqlx::Error) {
-        CONNECTION_METRICS.pool_acquire_error[&err.into()].inc();
+        let kind = match err {
+            sqlx::Error::PoolTimedOut => "timeout",
+            sqlx::Error::Database(_) => "database",
+            sqlx::Error::Io(_) => "io",
+            _ => "other",
+        };
+        metrics::increment_counter!("sql.connection_pool.acquire_error", "kind" => kind);
     }
 
     pub async fn access_test_storage(&self) -> StorageProcessor<'static> {
@@ -219,14 +216,14 @@ mod tests {
     async fn setting_statement_timeout() {
         // We cannot use an ordinary test pool here because it isn't created using `ConnectionPoolBuilder`.
         // Since we don't need to mutate the DB for the test, using a real DB connection is OK.
-        let database_url = get_test_database_url().unwrap();
+        let database_url = get_test_database_url();
         let pool = ConnectionPool::builder(DbVariant::Master)
             .set_statement_timeout(Some(Duration::from_secs(1)))
             .build_inner(&database_url)
             .await;
 
         // NB. We must not mutate the database below! Doing so may break other tests.
-        let mut conn = pool.access_storage().await.unwrap();
+        let mut conn = pool.access_storage().await;
         let err = sqlx::query("SELECT pg_sleep(2)")
             .map(drop)
             .fetch_optional(conn.conn())

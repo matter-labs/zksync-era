@@ -32,7 +32,7 @@ pub struct StorageProverJobInfo {
 impl From<StorageProverJobInfo> for ProverJobInfo {
     fn from(x: StorageProverJobInfo) -> Self {
         fn nt2d(nt: NaiveDateTime) -> DateTime<Utc> {
-            DateTime::from_naive_utc_and_offset(nt, Utc)
+            DateTime::from_utc(nt, Utc)
         }
 
         let status = match ProverJobStatus::from_str(x.status.as_str())

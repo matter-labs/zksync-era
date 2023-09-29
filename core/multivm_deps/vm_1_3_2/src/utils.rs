@@ -244,7 +244,7 @@ pub(crate) fn calculate_computational_gas_used<
     total_gas_used
         .checked_sub(gas_used_on_pubdata)
         .unwrap_or_else(|| {
-            tracing::error!(
+            vlog::error!(
                 "Gas used on pubdata is greater than total gas used. On pubdata: {}, total: {}",
                 gas_used_on_pubdata,
                 total_gas_used

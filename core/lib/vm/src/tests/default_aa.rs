@@ -7,7 +7,7 @@ use zksync_utils::u256_to_h256;
 use crate::tests::tester::{DeployContractsTx, TxType, VmTesterBuilder};
 use crate::tests::utils::{get_balance, read_test_contract, verify_required_storage};
 use crate::types::inputs::system_env::TxExecutionMode;
-use crate::{HistoryEnabled, VmExecutionMode};
+use crate::HistoryEnabled;
 
 #[test]
 fn test_default_aa_interaction() {
@@ -29,10 +29,10 @@ fn test_default_aa_interaction() {
     let maximal_fee = tx.gas_limit() * vm.vm.batch_env.base_fee();
 
     vm.vm.push_transaction(tx);
-    let result = vm.vm.execute(VmExecutionMode::OneTx);
+    let result = vm.vm.execute_next_transaction();
     assert!(!result.result.is_failed(), "Transaction wasn't successful");
 
-    vm.vm.execute(VmExecutionMode::Batch);
+    vm.vm.execute_the_rest_of_the_batch();
     vm.vm.get_current_execution_state();
 
     // Both deployment and ordinary nonce should be incremented by one.

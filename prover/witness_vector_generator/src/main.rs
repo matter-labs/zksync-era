@@ -1,21 +1,18 @@
 #![feature(generic_const_exprs)]
 
-use anyhow::Context as _;
-use prometheus_exporter::PrometheusExporterConfig;
+use prometheus_exporter::run_prometheus_exporter;
 use structopt::StructOpt;
 use tokio::{sync::oneshot, sync::watch};
 
 use crate::generator::WitnessVectorGenerator;
 use zksync_config::configs::fri_prover_group::FriProverGroupConfig;
-use zksync_config::configs::{FriWitnessVectorGeneratorConfig};
+use zksync_config::configs::{FriWitnessVectorGeneratorConfig, PrometheusConfig};
 use zksync_dal::connection::DbVariant;
 use zksync_dal::ConnectionPool;
 use zksync_object_store::ObjectStoreFactory;
-use zksync_prover_fri_utils::get_all_circuit_id_round_tuples_for;
 use zksync_prover_utils::region_fetcher::get_zone;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_utils::wait_for_tasks::wait_for_tasks;
-use zksync_vk_setup_data_server_fri::commitment_utils::get_cached_commitments;
 
 mod generator;
 
@@ -31,48 +28,28 @@ struct Opt {
 }
 
 #[tokio::main]
-async fn main() -> anyhow::Result<()> {
-    #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
-    let log_format = vlog::log_format_from_env();
-    #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
-    let sentry_url = vlog::sentry_url_from_env();
-    #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
-    let environment = vlog::environment_from_env();
-
-    let mut builder = vlog::ObservabilityBuilder::new().with_log_format(log_format);
-    if let Some(sentry_url) = sentry_url {
-        builder = builder
-            .with_sentry_url(&sentry_url)
-            .context("Invalid Sentry URL")?
-            .with_sentry_environment(environment);
-    }
-    let _guard = builder.build();
-
+async fn main() {
+    vlog::init();
     let opt = Opt::from_args();
-    let config = FriWitnessVectorGeneratorConfig::from_env()
-        .context("FriWitnessVectorGeneratorConfig::from_env()")?;
+    let config = FriWitnessVectorGeneratorConfig::from_env();
     let specialized_group_id = config.specialized_group_id;
-    let exporter_config = PrometheusExporterConfig::pull(config.prometheus_listener_port);
-
-    let pool = ConnectionPool::builder(DbVariant::Prover).build().await
-        .context("failed to build a connection pool")?;
-    let blob_store = ObjectStoreFactory::prover_from_env()
-        .context("ObjectStoreFactor::prover_from_env()")?
-        .create_store().await;
+    let prometheus_config = PrometheusConfig {
+        listener_port: config.prometheus_listener_port,
+        pushgateway_url: config.prometheus_pushgateway_url.clone(),
+        push_interval_ms: config.prometheus_push_interval_ms,
+    };
+    let pool = ConnectionPool::builder(DbVariant::Prover).build().await;
+    let blob_store = ObjectStoreFactory::prover_from_env().create_store().await;
     let circuit_ids_for_round_to_be_proven = FriProverGroupConfig::from_env()
         .get_circuit_ids_for_group_id(specialized_group_id)
         .unwrap_or(vec![]);
-    let circuit_ids_for_round_to_be_proven =
-        get_all_circuit_id_round_tuples_for(circuit_ids_for_round_to_be_proven);
-    let zone = get_zone().await.context("get_zone()")?;
-    let vk_commitments = get_cached_commitments();
+    let zone = get_zone().await;
     let witness_vector_generator = WitnessVectorGenerator::new(
         blob_store,
         pool,
         circuit_ids_for_round_to_be_proven.clone(),
         zone.clone(),
         config,
-        vk_commitments,
     );
 
     let (stop_sender, stop_receiver) = watch::channel(false);
@@ -86,10 +63,10 @@ async fn main() -> anyhow::Result<()> {
     })
     .expect("Error setting Ctrl+C handler");
 
-    tracing::info!("Starting witness vector generation for group: {} with circuits: {:?} in zone: {} with vk_commitments: {:?}", specialized_group_id, circuit_ids_for_round_to_be_proven, zone, vk_commitments);
+    vlog::info!("Starting witness vector generation for group: {} with circuits: {:?} in zone: {}", specialized_group_id, circuit_ids_for_round_to_be_proven, zone);
 
     let tasks = vec![
-        tokio::spawn(exporter_config.run(stop_receiver.clone())),
+        run_prometheus_exporter(prometheus_config.listener_port, None),
         tokio::spawn(witness_vector_generator.run(stop_receiver, opt.number_of_iterations)),
     ];
 
@@ -98,9 +75,8 @@ async fn main() -> anyhow::Result<()> {
     tokio::select! {
         _ = wait_for_tasks(tasks, None, graceful_shutdown, tasks_allowed_to_finish) => {},
         _ = stop_signal_receiver => {
-            tracing::info!("Stop signal received, shutting down");
+            vlog::info!("Stop signal received, shutting down");
         }
     };
     stop_sender.send(true).ok();
-    Ok(())
 }

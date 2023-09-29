@@ -1,4 +1,3 @@
-use anyhow::Context as _;
 use async_trait::async_trait;
 
 use std::{error, fmt, sync::Arc};
@@ -163,25 +162,15 @@ impl ObjectStoreFactory {
     }
 
     /// Creates an object store factory with the configuration taken from the environment.
-    ///
-    /// # Errors
-    ///
-    /// Invalid or missing configuration.
-    pub fn from_env() -> anyhow::Result<Self> {
-        Ok(Self::new(
-            ObjectStoreConfig::from_env().context("ObjectStoreConfig::from_env()")?,
-        ))
+    pub fn from_env() -> Self {
+        let config = ObjectStoreConfig::from_env();
+        Self::new(config)
     }
 
     /// Creates an object store factory with the prover configuration taken from the environment.
-    ///
-    /// # Errors
-    ///
-    /// Invalid or missing configuration.
-    pub fn prover_from_env() -> anyhow::Result<Self> {
-        Ok(Self::new(
-            ObjectStoreConfig::prover_from_env().context("ObjectStoreConfig::prover_from_env()")?,
-        ))
+    pub fn prover_from_env() -> Self {
+        let config = ObjectStoreConfig::prover_from_env();
+        Self::new(config)
     }
 
     /// Creates an object store factory with a mock in-memory store.
@@ -208,9 +197,7 @@ impl ObjectStoreFactory {
         };
         match config.mode {
             ObjectStoreMode::GCS => {
-                tracing::trace!(
-                    "Initialized GoogleCloudStorage Object store without credential file"
-                );
+                vlog::trace!("Initialized GoogleCloudStorage Object store without credential file");
                 let store = GoogleCloudStorage::new(
                     gcs_credential_file_path,
                     config.bucket_base_url.clone(),
@@ -220,7 +207,7 @@ impl ObjectStoreFactory {
                 Box::new(store)
             }
             ObjectStoreMode::GCSWithCredentialFile => {
-                tracing::trace!("Initialized GoogleCloudStorage Object store with credential file");
+                vlog::trace!("Initialized GoogleCloudStorage Object store with credential file");
                 let store = GoogleCloudStorage::new(
                     gcs_credential_file_path,
                     config.bucket_base_url.clone(),
@@ -230,7 +217,7 @@ impl ObjectStoreFactory {
                 Box::new(store)
             }
             ObjectStoreMode::FileBacked => {
-                tracing::trace!("Initialized FileBacked Object store");
+                vlog::trace!("Initialized FileBacked Object store");
                 let store = FileBackedObjectStore::new(config.file_backed_base_path.clone()).await;
                 Box::new(store)
             }

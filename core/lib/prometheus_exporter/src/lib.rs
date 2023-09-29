@@ -1,11 +1,11 @@
-use anyhow::Context as _;
 use metrics_exporter_prometheus::{Matcher, PrometheusBuilder};
-use tokio::sync::watch;
-use vise_exporter::MetricsExporter;
+use std::time::Duration;
+use tokio::task::JoinHandle;
 
-use std::{net::Ipv4Addr, time::Duration};
-
-fn configure_legacy_exporter(builder: PrometheusBuilder) -> PrometheusBuilder {
+pub fn run_prometheus_exporter(
+    port: u16,
+    pushgateway_config: Option<(String, Duration)>,
+) -> JoinHandle<()> {
     // in seconds
     let default_latency_buckets = [0.001, 0.005, 0.025, 0.1, 0.25, 1.0, 5.0, 30.0, 120.0];
     let slow_latency_buckets = [
@@ -43,7 +43,29 @@ fn configure_legacy_exporter(builder: PrometheusBuilder) -> PrometheusBuilder {
     // Buckets for a metric reporting the sizes of the JSON RPC batches sent to the server.
     let batch_size_buckets = [1.0, 2.0, 4.0, 8.0, 16.0, 32.0, 64.0, 128.0, 256.0, 512.0];
 
-    builder
+    let builder = if let Some((pushgateway_url, push_interval)) = pushgateway_config {
+        let job_id = "zksync-pushgateway";
+        let namespace = std::env::var("POD_NAMESPACE").unwrap_or_else(|_| {
+            vlog::warn!("Missing POD_NAMESPACE env");
+            "UNKNOWN_NAMESPACE".to_string()
+        });
+        let pod = std::env::var("POD_NAME").unwrap_or_else(|_| {
+            vlog::warn!("Missing POD_NAME env");
+            "UNKNOWN_POD".to_string()
+        });
+        let endpoint = format!(
+            "{}/metrics/job/{}/namespace/{}/pod/{}",
+            pushgateway_url, job_id, namespace, pod
+        );
+        PrometheusBuilder::new()
+            .with_push_gateway(endpoint.as_str(), push_interval)
+            .unwrap()
+    } else {
+        let addr = ([0, 0, 0, 0], port);
+        PrometheusBuilder::new().with_http_listener(addr)
+    };
+
+    let (recorder, exporter) = builder
         .set_buckets(&default_latency_buckets)
         .unwrap()
         .set_buckets_for_metric(
@@ -80,113 +102,17 @@ fn configure_legacy_exporter(builder: PrometheusBuilder) -> PrometheusBuilder {
             &batch_size_buckets,
         )
         .unwrap()
-}
+        .build()
+        .expect("failed to install Prometheus recorder");
 
-#[derive(Debug)]
-enum PrometheusTransport {
-    Pull {
-        port: u16,
-    },
-    Push {
-        gateway_uri: String,
-        interval: Duration,
-    },
-}
+    metrics::set_boxed_recorder(Box::new(recorder)).expect("failed to set metrics recorder");
 
-/// Configuration of a Prometheus exporter.
-#[derive(Debug)]
-pub struct PrometheusExporterConfig {
-    transport: PrometheusTransport,
-    use_new_facade: bool,
-}
-
-impl PrometheusExporterConfig {
-    /// Creates an exporter that will run an HTTP server on the specified `port`.
-    pub const fn pull(port: u16) -> Self {
-        Self {
-            transport: PrometheusTransport::Pull { port },
-            use_new_facade: true,
-        }
-    }
-
-    /// Creates an exporter that will push metrics to the specified Prometheus gateway endpoint.
-    pub const fn push(gateway_uri: String, interval: Duration) -> Self {
-        Self {
-            transport: PrometheusTransport::Push {
-                gateway_uri,
-                interval,
-            },
-            use_new_facade: true,
-        }
-    }
-
-    /// Disables the new metrics façade (`vise`), which is on by default.
-    #[must_use]
-    pub fn without_new_facade(self) -> Self {
-        Self {
-            use_new_facade: false,
-            transport: self.transport,
-        }
-    }
-
-    /// Runs the exporter. This future should be spawned in a separate Tokio task.
-    pub async fn run(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
-        if self.use_new_facade {
-            self.run_with_new_facade(stop_receiver)
-                .await
-                .context("run_with_new_facade()")
-        } else {
-            self.run_without_new_facade()
-                .await
-                .context("run_without_new_facade()")
-        }
-    }
-
-    async fn run_with_new_facade(
-        self,
-        mut stop_receiver: watch::Receiver<bool>,
-    ) -> anyhow::Result<()> {
-        let metrics_exporter = MetricsExporter::default()
-            .with_legacy_exporter(configure_legacy_exporter)
-            .with_graceful_shutdown(async move {
-                stop_receiver.changed().await.ok();
-            });
-
-        match self.transport {
-            PrometheusTransport::Pull { port } => {
-                let prom_bind_address = (Ipv4Addr::UNSPECIFIED, port).into();
-                metrics_exporter.start(prom_bind_address).await
-            }
-            PrometheusTransport::Push {
-                gateway_uri,
-                interval,
-            } => {
-                let endpoint = gateway_uri
-                    .parse()
-                    .context("Failed parsing Prometheus push gateway endpoint")?;
-                metrics_exporter.push_to_gateway(endpoint, interval).await
+    tokio::spawn(async move {
+        tokio::pin!(exporter);
+        loop {
+            tokio::select! {
+                _ = &mut exporter => {}
             }
         }
-        Ok(())
-    }
-
-    async fn run_without_new_facade(self) -> anyhow::Result<()> {
-        let builder = match self.transport {
-            PrometheusTransport::Pull { port } => {
-                let prom_bind_address = (Ipv4Addr::UNSPECIFIED, port);
-                PrometheusBuilder::new().with_http_listener(prom_bind_address)
-            }
-            PrometheusTransport::Push {
-                gateway_uri,
-                interval,
-            } => PrometheusBuilder::new()
-                .with_push_gateway(gateway_uri, interval, None, None)
-                .context("PrometheusBuilder::with_push_gateway()")?,
-        };
-        let builder = configure_legacy_exporter(builder);
-        let (recorder, exporter) = builder.build().context("PrometheusBuilder::build()")?;
-        metrics::set_boxed_recorder(Box::new(recorder))
-            .context("failed to set metrics recorder")?;
-        exporter.await.context("Prometheus exporter failed")
-    }
+    })
 }

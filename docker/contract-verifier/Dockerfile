@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:experimental
-FROM rust:1.72-bookworm as builder
+FROM rust:1.67-bookworm as builder
 RUN apt-get update && apt-get install -y clang && rm -rf /var/lib/apt/lists/*
 WORKDIR /usr/src/zksync
 COPY . .
@@ -63,20 +63,12 @@ RUN mkdir -p /etc/zksolc-bin/v1.3.13 \
     && wget https://github.com/matter-labs/zksolc-bin/raw/main/linux-amd64/zksolc-linux-amd64-musl-v1.3.13 \
     && mv zksolc-linux-amd64-musl-v1.3.13 /etc/zksolc-bin/v1.3.13/zksolc \
     && chmod +x /etc/zksolc-bin/v1.3.13/zksolc
-RUN mkdir -p /etc/zksolc-bin/v1.3.14 \
-    && wget https://github.com/matter-labs/zksolc-bin/raw/main/linux-amd64/zksolc-linux-amd64-musl-v1.3.14 \
-    && mv zksolc-linux-amd64-musl-v1.3.14 /etc/zksolc-bin/v1.3.14/zksolc \
-    && chmod +x /etc/zksolc-bin/v1.3.14/zksolc
 
 # install zkvyper
 RUN mkdir -p /etc/zkvyper-bin/v1.3.9 \
     && wget https://github.com/matter-labs/zkvyper-bin/raw/main/linux-amd64/zkvyper-linux-amd64-musl-v1.3.9 \
     && mv zkvyper-linux-amd64-musl-v1.3.9 /etc/zkvyper-bin/v1.3.9/zkvyper \
     && chmod +x /etc/zkvyper-bin/v1.3.9/zkvyper
-RUN mkdir -p /etc/zkvyper-bin/v1.3.10 \
-    && wget https://github.com/matter-labs/zkvyper-bin/raw/main/linux-amd64/zkvyper-linux-amd64-musl-v1.3.10 \
-    && mv zkvyper-linux-amd64-musl-v1.3.10 /etc/zkvyper-bin/v1.3.10/zkvyper \
-    && chmod +x /etc/zkvyper-bin/v1.3.10/zkvyper
 
 # install solc
 COPY docker/contract-verifier/install-all-solc.sh install-all-solc.sh

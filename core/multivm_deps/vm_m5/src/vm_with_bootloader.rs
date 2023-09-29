@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, time::Instant};
 
 use zk_evm::{
     abstractions::{MAX_HEAP_PAGE_SIZE_IN_WORDS, MAX_MEMORY_BYTES},
@@ -302,6 +302,8 @@ pub fn init_vm_inner<'a, S: Storage>(
     base_system_contract: &BaseSystemContracts,
     execution_mode: TxExecutionMode,
 ) -> Box<VmInstance<'a, S>> {
+    let start = Instant::now();
+
     oracle_tools.decommittment_processor.populate(
         vec![(
             h256_to_u256(base_system_contract.default_aa.hash),
@@ -326,7 +328,7 @@ pub fn init_vm_inner<'a, S: Storage>(
 
     let state = get_default_local_state(oracle_tools, block_properties, gas_limit);
 
-    Box::new(VmInstance {
+    let vm = Box::new(VmInstance {
         refund_state,
         gas_limit,
         state,
@@ -334,7 +336,10 @@ pub fn init_vm_inner<'a, S: Storage>(
         block_context: block_context.inner_block_context(),
         bootloader_state: BootloaderState::new(),
         snapshots: Vec::new(),
-    })
+    });
+
+    metrics::histogram!("server.vm.init", start.elapsed());
+    vm
 }
 
 fn bootloader_initial_memory(block_properties: &BlockContextMode) -> Vec<(usize, U256)> {

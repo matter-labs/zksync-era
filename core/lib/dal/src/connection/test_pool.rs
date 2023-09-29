@@ -36,7 +36,7 @@ impl fmt::Debug for TestPoolInner {
 
 impl TestPoolInner {
     async fn new() -> Self {
-        let database_url = crate::get_test_database_url().unwrap();
+        let database_url = crate::get_test_database_url();
         let connection = PgConnection::connect(&database_url).await.unwrap();
         let mut connection = Box::pin(connection);
 

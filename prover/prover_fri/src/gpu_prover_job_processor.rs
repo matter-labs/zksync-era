@@ -3,7 +3,6 @@ pub mod gpu_prover {
     use std::collections::HashMap;
     use std::{sync::Arc, time::Instant};
 
-    use anyhow::Context as _;
     use tokio::task::JoinHandle;
     use zksync_prover_fri_types::circuit_definitions::base_layer_proof_config;
     use zksync_prover_fri_types::circuit_definitions::boojum::algebraic_props::round_function::AbsorptionModeOverwrite;
@@ -42,10 +41,9 @@ pub mod gpu_prover {
         FromDisk,
     }
 
-    #[allow(dead_code)]
     pub struct Prover {
         blob_store: Box<dyn ObjectStore>,
-        public_blob_store: Option<Box<dyn ObjectStore>>,
+        public_blob_store: Box<dyn ObjectStore>,
         config: Arc<FriProverConfig>,
         prover_connection_pool: ConnectionPool,
         setup_load_mode: SetupLoadMode,
@@ -59,10 +57,9 @@ pub mod gpu_prover {
     }
 
     impl Prover {
-        #[allow(dead_code)]
         pub fn new(
             blob_store: Box<dyn ObjectStore>,
-            public_blob_store: Option<Box<dyn ObjectStore>>,
+            public_blob_store: Box<dyn ObjectStore>,
             config: FriProverConfig,
             prover_connection_pool: ConnectionPool,
             setup_load_mode: SetupLoadMode,
@@ -86,17 +83,16 @@ pub mod gpu_prover {
             }
         }
 
-        fn get_setup_data(&self, key: ProverServiceDataKey) -> anyhow::Result<Arc<GoldilocksGpuProverSetupData>> {
-            Ok(match &self.setup_load_mode {
+        fn get_setup_data(&self, key: ProverServiceDataKey) -> Arc<GoldilocksGpuProverSetupData> {
+            match &self.setup_load_mode {
                 SetupLoadMode::FromMemory(cache) => cache
                     .get(&key)
-                    .context("Setup data not found in cache")?
+                    .expect("Setup data not found in cache")
                     .clone(),
                 SetupLoadMode::FromDisk => {
                     let started_at = Instant::now();
                     let artifact: GoldilocksGpuProverSetupData =
-                        get_setup_data_for_circuit_type(key.clone())
-                            .context("get_setup_data_for_circuit_type()")?;
+                        get_setup_data_for_circuit_type(key.clone());
                     metrics::histogram!(
                         "prover_fri.prover.gpu_setup_data_load_time",
                         started_at.elapsed(),
@@ -104,7 +100,7 @@ pub mod gpu_prover {
                     );
                     Arc::new(artifact)
                 }
-            })
+            }
         }
 
         pub fn prove(
@@ -151,7 +147,7 @@ pub mod gpu_prover {
             .unwrap_or_else(|_| {
                 panic!("failed generating GPU proof for id: {}", prover_job.job_id)
             });
-            tracing::info!(
+            vlog::info!(
                 "Successfully generated gpu proof for job {} took: {:?}",
                 prover_job.job_id,
                 started_at.elapsed()
@@ -190,15 +186,16 @@ pub mod gpu_prover {
         const MAX_BACKOFF_MS: u64 = 1_000;
         const SERVICE_NAME: &'static str = "FriGpuProver";
 
-        async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, Self::Job)>> {
+        async fn get_next_job(&self) -> Option<(Self::JobId, Self::Job)> {
             let mut queue = self.witness_vector_queue.lock().await;
             let is_full = queue.is_full();
             match queue.remove() {
-                Err(_) => Ok(None),
+                Err(_) => None,
                 Ok(item) => {
                     if is_full {
                         self.prover_connection_pool
-                            .access_storage().await.unwrap()
+                            .access_storage()
+                            .await
                             .fri_gpu_prover_queue_dal()
                             .update_prover_instance_from_full_to_available(
                                 self.address.clone(),
@@ -206,18 +203,19 @@ pub mod gpu_prover {
                             )
                             .await;
                     }
-                    tracing::info!(
+                    vlog::info!(
                         "Started GPU proving for job: {:?}",
                         item.witness_vector_artifacts.prover_job.job_id
                     );
-                    Ok(Some((item.witness_vector_artifacts.prover_job.job_id, item)))
+                    Some((item.witness_vector_artifacts.prover_job.job_id, item))
                 }
             }
         }
 
         async fn save_failure(&self, job_id: Self::JobId, _started_at: Instant, error: String) {
             self.prover_connection_pool
-                .access_storage().await.unwrap()
+                .access_storage()
+                .await
                 .fri_prover_jobs_dal()
                 .save_proof_error(job_id, error)
                 .await;
@@ -227,14 +225,14 @@ pub mod gpu_prover {
             &self,
             job: Self::Job,
             _started_at: Instant,
-        ) -> JoinHandle<anyhow::Result<Self::JobArtifacts>> {
+        ) -> JoinHandle<Self::JobArtifacts> {
             let setup_data = self.get_setup_data(
                 job.witness_vector_artifacts
                     .prover_job
                     .setup_data_key
                     .clone(),
             );
-            tokio::task::spawn_blocking(move || Ok(Self::prove(job, setup_data.context("get_setup_data()")?)))
+            tokio::task::spawn_blocking(move || Self::prove(job, setup_data))
         }
 
         async fn save_result(
@@ -242,53 +240,50 @@ pub mod gpu_prover {
             job_id: Self::JobId,
             started_at: Instant,
             artifacts: Self::JobArtifacts,
-        ) -> anyhow::Result<()> {
+        ) {
             metrics::histogram!(
                 "prover_fri.prover.gpu_total_proving_time",
                 started_at.elapsed(),
             );
-            let mut storage_processor = self.prover_connection_pool.access_storage().await.unwrap();
+            let mut storage_processor = self.prover_connection_pool.access_storage().await;
             save_proof(
                 job_id,
                 started_at,
                 artifacts,
                 &*self.blob_store,
-                self.public_blob_store.as_deref(),
-                self.config.shall_save_to_public_bucket,
+                &*self.public_blob_store,
                 &mut storage_processor,
             )
             .await;
-            Ok(())
         }
     }
 
-    pub fn load_setup_data_cache(config: &FriProverConfig) -> anyhow::Result<SetupLoadMode> {
-        Ok(match config.setup_load_mode {
+    pub fn load_setup_data_cache(config: &FriProverConfig) -> SetupLoadMode {
+        match config.setup_load_mode {
             zksync_config::configs::fri_prover::SetupLoadMode::FromDisk => SetupLoadMode::FromDisk,
             zksync_config::configs::fri_prover::SetupLoadMode::FromMemory => {
                 let mut cache = HashMap::new();
-                tracing::info!(
+                vlog::info!(
                     "Loading setup data cache for group {}",
                     &config.specialized_group_id
                 );
                 let prover_setup_metadata_list = FriProverGroupConfig::from_env()
                     .get_circuit_ids_for_group_id(config.specialized_group_id)
-                    .context(
+                    .expect(
                         "At least one circuit should be configured for group when running in FromMemory mode",
-                    )?;
-                tracing::info!(
+                    );
+                vlog::info!(
                     "for group {} configured setup metadata are {:?}",
                     &config.specialized_group_id,
                     prover_setup_metadata_list
                 );
                 for prover_setup_metadata in prover_setup_metadata_list {
                     let key = setup_metadata_to_setup_data_key(&prover_setup_metadata);
-                    let setup_data = get_setup_data_for_circuit_type(key.clone())
-                        .context("get_setup_data_for_circuit_type()")?;
+                    let setup_data = get_setup_data_for_circuit_type(key.clone());
                     cache.insert(key, Arc::new(setup_data));
                 }
                 SetupLoadMode::FromMemory(cache)
             }
-        })
+        }
     }
 }

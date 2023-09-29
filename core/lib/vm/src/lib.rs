@@ -15,23 +15,20 @@ pub use errors::{
 
 pub use tracers::{
     call::CallTracer,
-    traits::{BoxedTracer, DynTracer, ExecutionEndTracer, ExecutionProcessing, VmTracer},
+    traits::{DynTracer, ExecutionEndTracer, ExecutionProcessing, VmTracer},
     utils::VmExecutionStopReason,
     validation::ViolatedValidationRule,
     StorageInvocations, ValidationError, ValidationTracer, ValidationTracerParams,
 };
 
 pub use types::{
-    inputs::{L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode},
-    internals::ZkSyncVmState,
+    inputs::{L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode},
     outputs::{
         BootloaderMemory, CurrentExecutionState, ExecutionResult, FinishedL1Batch, L2Block,
         Refunds, VmExecutionResultAndLogs, VmExecutionStatistics, VmMemoryMetrics,
     },
 };
 pub use utils::transaction_encoding::TransactionVmExt;
-
-pub use bootloader_state::BootloaderState;
 
 pub use crate::vm::Vm;
 

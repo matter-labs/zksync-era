@@ -19,7 +19,6 @@ import { command as completion } from './completion';
 import { command as config } from './config';
 import { command as clean } from './clean';
 import { command as db } from './database';
-import { command as verifyUpgrade } from './verify-upgrade';
 import * as env from './env';
 
 const COMMANDS = [
@@ -42,7 +41,6 @@ const COMMANDS = [
     config,
     clean,
     compiler,
-    verifyUpgrade,
     env.command,
     completion(program as Command)
 ];

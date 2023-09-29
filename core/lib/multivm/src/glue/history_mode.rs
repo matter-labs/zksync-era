@@ -8,41 +8,41 @@ pub trait HistoryMode:
 {
     type VmM6Mode: vm_m6::HistoryMode;
     type Vm1_3_2Mode: vm_1_3_2::HistoryMode;
-    type VmVirtualBlocksMode: vm_latest::HistoryMode;
+    type VmVirtualBlocksMode: vm_virtual_blocks::HistoryMode;
 }
 
-impl GlueFrom<vm_latest::HistoryEnabled> for vm_m6::HistoryEnabled {
-    fn glue_from(_: vm_latest::HistoryEnabled) -> Self {
+impl GlueFrom<vm_virtual_blocks::HistoryEnabled> for vm_m6::HistoryEnabled {
+    fn glue_from(_: vm_virtual_blocks::HistoryEnabled) -> Self {
         Self
     }
 }
 
-impl GlueFrom<vm_latest::HistoryEnabled> for vm_1_3_2::HistoryEnabled {
-    fn glue_from(_: vm_latest::HistoryEnabled) -> Self {
+impl GlueFrom<vm_virtual_blocks::HistoryEnabled> for vm_1_3_2::HistoryEnabled {
+    fn glue_from(_: vm_virtual_blocks::HistoryEnabled) -> Self {
         Self
     }
 }
 
-impl GlueFrom<vm_latest::HistoryDisabled> for vm_m6::HistoryDisabled {
-    fn glue_from(_: vm_latest::HistoryDisabled) -> Self {
+impl GlueFrom<vm_virtual_blocks::HistoryDisabled> for vm_m6::HistoryDisabled {
+    fn glue_from(_: vm_virtual_blocks::HistoryDisabled) -> Self {
         Self
     }
 }
 
-impl GlueFrom<vm_latest::HistoryDisabled> for vm_1_3_2::HistoryDisabled {
-    fn glue_from(_: vm_latest::HistoryDisabled) -> Self {
+impl GlueFrom<vm_virtual_blocks::HistoryDisabled> for vm_1_3_2::HistoryDisabled {
+    fn glue_from(_: vm_virtual_blocks::HistoryDisabled) -> Self {
         Self
     }
 }
 
-impl HistoryMode for vm_latest::HistoryEnabled {
+impl HistoryMode for vm_virtual_blocks::HistoryEnabled {
     type VmM6Mode = vm_m6::HistoryEnabled;
     type Vm1_3_2Mode = vm_1_3_2::HistoryEnabled;
-    type VmVirtualBlocksMode = vm_latest::HistoryEnabled;
+    type VmVirtualBlocksMode = vm_virtual_blocks::HistoryEnabled;
 }
 
-impl HistoryMode for vm_latest::HistoryDisabled {
+impl HistoryMode for vm_virtual_blocks::HistoryDisabled {
     type VmM6Mode = vm_m6::HistoryDisabled;
     type Vm1_3_2Mode = vm_1_3_2::HistoryDisabled;
-    type VmVirtualBlocksMode = vm_latest::HistoryDisabled;
+    type VmVirtualBlocksMode = vm_virtual_blocks::HistoryDisabled;
 }

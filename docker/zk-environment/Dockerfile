@@ -32,13 +32,13 @@ RUN apt-get update && apt-get install -y \
 RUN add-apt-repository ppa:savoury1/virtualisation && \
     apt-get update && \
     apt-get install -y \
-    curl \
-    gnutls-bin git \
-    build-essential \
-    clang-7 \
-    lldb-7 \
-    lld-7 \
-    liburing-dev
+        curl \
+        gnutls-bin git \
+        build-essential \
+        clang-7 \
+        lldb-7 \
+        lld-7 \
+        liburing-dev
 
 # Install docker engine
 RUN curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
@@ -49,7 +49,7 @@ RUN apt update; apt install -y docker-ce-cli
 RUN git config --global http.postBuffer 1048576000
 
 # Install node and yarn
-RUN curl -sL https://deb.nodesource.com/setup_18.x | bash -
+RUN curl -sL https://deb.nodesource.com/setup_14.x | bash -
 RUN apt-get install -y nodejs
 RUN npm install -g yarn
 
@@ -68,11 +68,10 @@ RUN echo "deb http://packages.cloud.google.com/apt cloud-sdk main" > /etc/apt/so
     gcloud config set metrics/environment github_docker_image
 
 RUN curl https://sh.rustup.rs -sSf | bash -s -- -y
-RUN rustup install nightly-2023-07-21
+RUN rustup install nightly-2023-05-31
 RUN rustup default stable
-RUN cargo install --version=0.5.13 sqlx-cli
+RUN cargo install --version=0.5.6 sqlx-cli
 RUN cargo install cargo-tarpaulin
-RUN cargo install cargo-nextest
 
 # Copy compiler (both solc and zksolc) binaries
 # Obtain `solc` 0.8.20.
@@ -122,20 +121,20 @@ ENV NV_CUDA_CUDART_VERSION 11.8.89-1
 ENV NV_CUDA_COMPAT_PACKAGE cuda-compat-11-8
 
 RUN curl -fsSL https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/${NVARCH}/3bf863cc.pub | apt-key add - && \
-    echo "deb https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/${NVARCH} /" > /etc/apt/sources.list.d/cuda.list
+  echo "deb https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/${NVARCH} /" > /etc/apt/sources.list.d/cuda.list
 
 ENV CUDA_VERSION 11.8.0
 
 # For libraries in the cuda-compat-* package: https://docs.nvidia.com/cuda/eula/index.html#attachment-a
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    cuda-cudart-11-8=${NV_CUDA_CUDART_VERSION} \
-    ${NV_CUDA_COMPAT_PACKAGE} \
-    && ln -s cuda-11.8 /usr/local/cuda && \
-    rm -rf /var/lib/apt/lists/*
+  cuda-cudart-11-8=${NV_CUDA_CUDART_VERSION} \
+  ${NV_CUDA_COMPAT_PACKAGE} \
+  && ln -s cuda-11.8 /usr/local/cuda && \
+  rm -rf /var/lib/apt/lists/*
 
 # Required for nvidia-docker v1
 RUN echo "/usr/local/nvidia/lib" >> /etc/ld.so.conf.d/nvidia.conf \
-    && echo "/usr/local/nvidia/lib64" >> /etc/ld.so.conf.d/nvidia.conf
+  && echo "/usr/local/nvidia/lib64" >> /etc/ld.so.conf.d/nvidia.conf
 
 ENV PATH /usr/local/nvidia/bin:/usr/local/cuda/bin:${PATH}
 ENV LD_LIBRARY_PATH /usr/local/nvidia/lib:/usr/local/nvidia/lib64
@@ -156,12 +155,12 @@ ENV NV_LIBCUBLAS_VERSION 11.11.3.6-1
 ENV NV_LIBCUBLAS_PACKAGE ${NV_LIBCUBLAS_PACKAGE_NAME}=${NV_LIBCUBLAS_VERSION}
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    cuda-libraries-11-8=${NV_CUDA_LIB_VERSION} \
-    ${NV_LIBNPP_PACKAGE} \
-    cuda-nvtx-11-8=${NV_NVTX_VERSION} \
-    libcusparse-11-8=${NV_LIBCUSPARSE_VERSION} \
-    ${NV_LIBCUBLAS_PACKAGE} \
-    && rm -rf /var/lib/apt/lists/*
+  cuda-libraries-11-8=${NV_CUDA_LIB_VERSION} \
+  ${NV_LIBNPP_PACKAGE} \
+  cuda-nvtx-11-8=${NV_NVTX_VERSION} \
+  libcusparse-11-8=${NV_LIBCUSPARSE_VERSION} \
+  ${NV_LIBCUBLAS_PACKAGE} \
+  && rm -rf /var/lib/apt/lists/*
 
 # Keep apt from auto upgrading the cublas and nccl packages. See https://gitlab.com/nvidia/container-images/cuda/-/issues/88
 RUN apt-mark hold ${NV_LIBCUBLAS_PACKAGE_NAME}
@@ -180,16 +179,16 @@ ENV NV_NVPROF_VERSION 11.8.87-1
 ENV NV_NVPROF_DEV_PACKAGE cuda-nvprof-11-8=${NV_NVPROF_VERSION}
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libtinfo5 libncursesw5 \
-    cuda-cudart-dev-11-8=${NV_CUDA_CUDART_DEV_VERSION} \
-    cuda-command-line-tools-11-8=${NV_CUDA_LIB_VERSION} \
-    cuda-minimal-build-11-8=${NV_CUDA_LIB_VERSION} \
-    cuda-libraries-dev-11-8=${NV_CUDA_LIB_VERSION} \
-    cuda-nvml-dev-11-8=${NV_NVML_DEV_VERSION} \
-    ${NV_NVPROF_DEV_PACKAGE} \
-    ${NV_LIBNPP_DEV_PACKAGE} \
-    libcusparse-dev-11-8=${NV_LIBCUSPARSE_DEV_VERSION} \
-    ${NV_LIBCUBLAS_DEV_PACKAGE} \
-    && rm -rf /var/lib/apt/lists/*
+  libtinfo5 libncursesw5 \
+  cuda-cudart-dev-11-8=${NV_CUDA_CUDART_DEV_VERSION} \
+  cuda-command-line-tools-11-8=${NV_CUDA_LIB_VERSION} \
+  cuda-minimal-build-11-8=${NV_CUDA_LIB_VERSION} \
+  cuda-libraries-dev-11-8=${NV_CUDA_LIB_VERSION} \
+  cuda-nvml-dev-11-8=${NV_NVML_DEV_VERSION} \
+  ${NV_NVPROF_DEV_PACKAGE} \
+  ${NV_LIBNPP_DEV_PACKAGE} \
+  libcusparse-dev-11-8=${NV_LIBCUSPARSE_DEV_VERSION} \
+  ${NV_LIBCUBLAS_DEV_PACKAGE} \
+  && rm -rf /var/lib/apt/lists/*
 
 ENV LIBRARY_PATH /usr/local/cuda/lib64/stubs

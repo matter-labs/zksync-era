@@ -1,6 +1,6 @@
 use crate::glue::GlueFrom;
 
-impl GlueFrom<vm_m5::errors::VmRevertReason> for vm_latest::VmRevertReason {
+impl GlueFrom<vm_m5::errors::VmRevertReason> for vm_virtual_blocks::VmRevertReason {
     fn glue_from(value: vm_m5::errors::VmRevertReason) -> Self {
         match value {
             vm_m5::errors::VmRevertReason::General { msg } => Self::General {
@@ -20,7 +20,7 @@ impl GlueFrom<vm_m5::errors::VmRevertReason> for vm_latest::VmRevertReason {
     }
 }
 
-impl GlueFrom<vm_m6::errors::VmRevertReason> for vm_latest::VmRevertReason {
+impl GlueFrom<vm_m6::errors::VmRevertReason> for vm_virtual_blocks::VmRevertReason {
     fn glue_from(value: vm_m6::errors::VmRevertReason) -> Self {
         match value {
             vm_m6::errors::VmRevertReason::General { msg, data } => Self::General { msg, data },
@@ -37,7 +37,7 @@ impl GlueFrom<vm_m6::errors::VmRevertReason> for vm_latest::VmRevertReason {
     }
 }
 
-impl GlueFrom<vm_1_3_2::errors::VmRevertReason> for vm_latest::VmRevertReason {
+impl GlueFrom<vm_1_3_2::errors::VmRevertReason> for vm_virtual_blocks::VmRevertReason {
     fn glue_from(value: vm_1_3_2::errors::VmRevertReason) -> Self {
         match value {
             vm_1_3_2::errors::VmRevertReason::General { msg, data } => Self::General { msg, data },

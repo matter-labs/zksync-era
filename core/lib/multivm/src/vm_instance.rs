@@ -1,7 +1,7 @@
 use std::collections::HashSet;
-use vm_latest::{
-    FinishedL1Batch, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode, VmMemoryMetrics,
-};
+
+use vm_m6::storage::Storage;
+use vm_virtual_blocks::{FinishedL1Batch, L2BlockEnv, SystemEnv, VmMemoryMetrics, VmTracer};
 
 use zksync_state::{ReadStorage, StoragePtr, StorageView};
 use zksync_types::VmVersion;
@@ -9,7 +9,6 @@ use zksync_utils::bytecode::{hash_bytecode, CompressedBytecodeInfo};
 use zksync_utils::h256_to_u256;
 
 use crate::glue::history_mode::HistoryMode;
-use crate::glue::tracer::MultivmTracer;
 use crate::glue::GlueInto;
 use crate::{BlockProperties, OracleTools};
 
@@ -24,7 +23,7 @@ pub(crate) enum VmInstanceVersion<'a, S: ReadStorage, H: HistoryMode> {
     VmM5(Box<vm_m5::VmInstance<'a, StorageView<S>>>),
     VmM6(Box<vm_m6::VmInstance<'a, StorageView<S>, H::VmM6Mode>>),
     Vm1_3_2(Box<vm_1_3_2::VmInstance<StorageView<S>, H::Vm1_3_2Mode>>),
-    VmVirtualBlocks(Box<vm_latest::Vm<StorageView<S>, H::VmVirtualBlocksMode>>),
+    VmVirtualBlocks(Box<vm_virtual_blocks::Vm<StorageView<S>, H::VmVirtualBlocksMode>>),
 }
 
 impl<'a, S: ReadStorage, H: HistoryMode> VmInstance<'a, S, H> {
@@ -79,7 +78,7 @@ impl<'a, S: ReadStorage, H: HistoryMode> VmInstance<'a, S, H> {
                 )
                 .glue_into(),
             VmInstanceVersion::VmVirtualBlocks(vm) => {
-                let result = vm.execute(VmExecutionMode::Batch);
+                let result = vm.execute_the_rest_of_the_batch();
                 let execution_state = vm.get_current_execution_state();
                 let bootloader_memory = vm.get_bootloader_memory();
                 FinishedL1Batch {
@@ -93,61 +92,38 @@ impl<'a, S: ReadStorage, H: HistoryMode> VmInstance<'a, S, H> {
 
     /// Execute the batch without stops after each tx.
     /// This method allows to execute the part  of the VM cycle after executing all txs.
-    pub fn execute_block_tip(&mut self) -> vm_latest::VmExecutionResultAndLogs {
+    pub fn execute_block_tip(&mut self) -> vm_virtual_blocks::VmExecutionResultAndLogs {
         match &mut self.vm {
             VmInstanceVersion::VmM5(vm) => vm.execute_block_tip().glue_into(),
             VmInstanceVersion::VmM6(vm) => vm.execute_block_tip().glue_into(),
             VmInstanceVersion::Vm1_3_2(vm) => vm.execute_block_tip().glue_into(),
-            VmInstanceVersion::VmVirtualBlocks(vm) => vm.execute(VmExecutionMode::Bootloader),
+            VmInstanceVersion::VmVirtualBlocks(vm) => vm.execute_block_tip(),
         }
     }
 
     /// Execute next transaction and stop vm right after next transaction execution
-    pub fn execute_next_transaction(&mut self) -> vm_latest::VmExecutionResultAndLogs {
+    pub fn execute_next_transaction(&mut self) -> vm_virtual_blocks::VmExecutionResultAndLogs {
         match &mut self.vm {
-            VmInstanceVersion::VmM5(vm) => match self.system_env.execution_mode {
-                TxExecutionMode::VerifyExecute => vm.execute_next_tx().glue_into(),
-                TxExecutionMode::EstimateFee | TxExecutionMode::EthCall => vm
-                    .execute_till_block_end(
-                        vm_m5::vm_with_bootloader::BootloaderJobType::TransactionExecution,
-                    )
-                    .glue_into(),
-            },
+            VmInstanceVersion::VmM5(vm) => vm.execute_next_tx().glue_into(),
             VmInstanceVersion::VmM6(vm) => {
-                match self.system_env.execution_mode {
-                    TxExecutionMode::VerifyExecute => {
-                        // Even that call tracer is supported by vm vm1.3.2, we don't use it for multivm
-                        vm.execute_next_tx(
-                            self.system_env.default_validation_computational_gas_limit,
-                            false,
-                        )
-                        .glue_into()
-                    }
-                    TxExecutionMode::EstimateFee | TxExecutionMode::EthCall => vm
-                        .execute_till_block_end(
-                            vm_m6::vm_with_bootloader::BootloaderJobType::TransactionExecution,
-                        )
-                        .glue_into(),
-                }
+                vm
+                    // even that call tracer is supported by vm m6, we don't use it for multivm
+                    .execute_next_tx(
+                        self.system_env.default_validation_computational_gas_limit,
+                        false,
+                    )
+                    .glue_into()
             }
             VmInstanceVersion::Vm1_3_2(vm) => {
-                match self.system_env.execution_mode {
-                    TxExecutionMode::VerifyExecute => {
-                        // Even that call tracer is supported by vm vm1.3.2, we don't use it for multivm
-                        vm.execute_next_tx(
-                            self.system_env.default_validation_computational_gas_limit,
-                            false,
-                        )
-                        .glue_into()
-                    }
-                    TxExecutionMode::EstimateFee | TxExecutionMode::EthCall => vm
-                        .execute_till_block_end(
-                            vm_1_3_2::vm_with_bootloader::BootloaderJobType::TransactionExecution,
-                        )
-                        .glue_into(),
-                }
+                vm
+                    // even that call tracer is supported by vm vm1.3.2, we don't use it for multivm
+                    .execute_next_tx(
+                        self.system_env.default_validation_computational_gas_limit,
+                        false,
+                    )
+                    .glue_into()
             }
-            VmInstanceVersion::VmVirtualBlocks(vm) => vm.execute(VmExecutionMode::OneTx),
+            VmInstanceVersion::VmVirtualBlocks(vm) => vm.execute_next_transaction(),
         }
     }
 
@@ -162,13 +138,10 @@ impl<'a, S: ReadStorage, H: HistoryMode> VmInstance<'a, S, H> {
     /// Execute next transaction with custom tracers
     pub fn inspect_next_transaction(
         &mut self,
-        tracers: Vec<Box<dyn MultivmTracer<StorageView<S>, H::VmVirtualBlocksMode>>>,
-    ) -> vm_latest::VmExecutionResultAndLogs {
+        tracers: Vec<Box<dyn VmTracer<StorageView<S>, H::VmVirtualBlocksMode>>>,
+    ) -> vm_virtual_blocks::VmExecutionResultAndLogs {
         match &mut self.vm {
-            VmInstanceVersion::VmVirtualBlocks(vm) => vm.inspect(
-                tracers.into_iter().map(|tracer| tracer.latest()).collect(),
-                VmExecutionMode::OneTx,
-            ),
+            VmInstanceVersion::VmVirtualBlocks(vm) => vm.inspect_next_transaction(tracers),
             _ => self.execute_next_transaction(),
         }
     }
@@ -178,7 +151,10 @@ impl<'a, S: ReadStorage, H: HistoryMode> VmInstance<'a, S, H> {
         &mut self,
         tx: zksync_types::Transaction,
         with_compression: bool,
-    ) -> Result<vm_latest::VmExecutionResultAndLogs, vm_latest::BytecodeCompressionError> {
+    ) -> Result<
+        vm_virtual_blocks::VmExecutionResultAndLogs,
+        vm_virtual_blocks::BytecodeCompressionError,
+    > {
         match &mut self.vm {
             VmInstanceVersion::VmM5(vm) => {
                 vm_m5::vm_with_bootloader::push_transaction_to_bootloader_memory(
@@ -189,7 +165,6 @@ impl<'a, S: ReadStorage, H: HistoryMode> VmInstance<'a, S, H> {
                 Ok(vm.execute_next_tx().glue_into())
             }
             VmInstanceVersion::VmM6(vm) => {
-                use vm_m6::storage::Storage;
                 let bytecodes = if with_compression {
                     let deps = tx.execute.factory_deps.as_deref().unwrap_or_default();
                     let mut deps_hashes = HashSet::with_capacity(deps.len());
@@ -232,8 +207,8 @@ impl<'a, S: ReadStorage, H: HistoryMode> VmInstance<'a, S, H> {
                     vec![]
                 };
 
-                // Even that call tracer is supported by vm m6, we don't use it for multivm
                 let result = vm
+                    // even that call tracer is supported by vm m6, we don't use it for multivm
                     .execute_next_tx(
                         self.system_env.default_validation_computational_gas_limit,
                         false,
@@ -247,13 +222,12 @@ impl<'a, S: ReadStorage, H: HistoryMode> VmInstance<'a, S, H> {
                         .borrow_mut()
                         .is_bytecode_exists(info)
                 }) {
-                    Err(vm_latest::BytecodeCompressionError::BytecodeCompressionFailed)
+                    Err(vm_virtual_blocks::BytecodeCompressionError::BytecodeCompressionFailed)
                 } else {
                     Ok(result)
                 }
             }
             VmInstanceVersion::Vm1_3_2(vm) => {
-                use vm_m6::storage::Storage;
                 let bytecodes = if with_compression {
                     let deps = tx.execute.factory_deps.as_deref().unwrap_or_default();
                     let mut deps_hashes = HashSet::with_capacity(deps.len());
@@ -296,8 +270,8 @@ impl<'a, S: ReadStorage, H: HistoryMode> VmInstance<'a, S, H> {
                     vec![]
                 };
 
-                // Even that call tracer is supported by vm m6, we don't use it for multivm
                 let result = vm
+                    // even that call tracer is supported by vm m6, we don't use it for multivm
                     .execute_next_tx(
                         self.system_env.default_validation_computational_gas_limit,
                         false,
@@ -311,7 +285,7 @@ impl<'a, S: ReadStorage, H: HistoryMode> VmInstance<'a, S, H> {
                         .borrow_mut()
                         .is_bytecode_exists(info)
                 }) {
-                    Err(vm_latest::BytecodeCompressionError::BytecodeCompressionFailed)
+                    Err(vm_virtual_blocks::BytecodeCompressionError::BytecodeCompressionFailed)
                 } else {
                     Ok(result)
                 }
@@ -325,16 +299,15 @@ impl<'a, S: ReadStorage, H: HistoryMode> VmInstance<'a, S, H> {
     /// Inspect transaction with optional bytecode compression.
     pub fn inspect_transaction_with_bytecode_compression(
         &mut self,
-        tracers: Vec<Box<dyn MultivmTracer<StorageView<S>, H::VmVirtualBlocksMode>>>,
+        tracers: Vec<Box<dyn VmTracer<StorageView<S>, H::VmVirtualBlocksMode>>>,
         tx: zksync_types::Transaction,
         with_compression: bool,
-    ) -> Result<vm_latest::VmExecutionResultAndLogs, vm_latest::BytecodeCompressionError> {
+    ) -> Result<
+        vm_virtual_blocks::VmExecutionResultAndLogs,
+        vm_virtual_blocks::BytecodeCompressionError,
+    > {
         if let VmInstanceVersion::VmVirtualBlocks(vm) = &mut self.vm {
-            vm.inspect_transaction_with_bytecode_compression(
-                tracers.into_iter().map(|tracer| tracer.latest()).collect(),
-                tx,
-                with_compression,
-            )
+            vm.inspect_transaction_with_bytecode_compression(tracers, tx, with_compression)
         } else {
             self.last_tx_compressed_bytecodes = vec![];
             self.execute_transaction_with_bytecode_compression(tx, with_compression)
@@ -434,7 +407,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInstanceData<S, H> {
         })
     }
 
-    fn latest(storage_view: StoragePtr<StorageView<S>>, history_mode: H) -> Self {
+    fn vm_virtual_blocks(storage_view: StoragePtr<StorageView<S>>, history_mode: H) -> Self {
         Self::VmVirtualBlocks(VmVirtualBlocksNecessaryData {
             storage_view,
             history_mode,
@@ -515,12 +488,12 @@ impl<S: ReadStorage, H: HistoryMode> VmInstanceData<S, H> {
                 )
             }
             VmVersion::Vm1_3_2 => VmInstanceData::vm1_3_2(storage_view, history),
-            VmVersion::VmVirtualBlocks => VmInstanceData::latest(storage_view, history),
+            VmVersion::VmVirtualBlocks => VmInstanceData::vm_virtual_blocks(storage_view, history),
         }
     }
 }
 
-impl<S: ReadStorage> VmInstance<'_, S, vm_latest::HistoryEnabled> {
+impl<S: ReadStorage> VmInstance<'_, S, vm_virtual_blocks::HistoryEnabled> {
     pub fn make_snapshot(&mut self) {
         match &mut self.vm {
             VmInstanceVersion::VmM5(vm) => vm.save_current_vm_as_snapshot(),

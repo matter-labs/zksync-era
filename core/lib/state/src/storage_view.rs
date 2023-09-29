@@ -136,7 +136,7 @@ impl<S: ReadStorage + fmt::Debug> ReadStorage for StorageView<S> {
         self.metrics.get_value_storage_invocations += 1;
         let value = self.get_value_no_log(key);
 
-        tracing::trace!(
+        vlog::trace!(
             "read value {:?} {:?} ({:?}/{:?})",
             key.hashed_key().0,
             value.0,
@@ -171,7 +171,7 @@ impl<S: ReadStorage + fmt::Debug> WriteStorage for StorageView<S> {
         self.metrics.set_value_storage_invocations += 1;
         let original = self.get_value_no_log(&key);
 
-        tracing::trace!(
+        vlog::trace!(
             "write value {:?} value: {:?} original value: {:?} ({:?}/{:?})",
             key.hashed_key().0,
             value,

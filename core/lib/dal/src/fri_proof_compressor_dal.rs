@@ -1,6 +1,5 @@
 use sqlx::Row;
 use std::collections::HashMap;
-use std::str::FromStr;
 use std::time::Duration;
 use strum::{Display, EnumString};
 
@@ -16,7 +15,7 @@ pub struct FriProofCompressorDal<'a, 'c> {
 }
 
 #[derive(Debug, EnumString, Display)]
-pub enum ProofCompressionJobStatus {
+enum ProofCompressionJobStatus {
     #[strum(serialize = "queued")]
     Queued,
     #[strum(serialize = "in_progress")]
@@ -27,8 +26,6 @@ pub enum ProofCompressionJobStatus {
     Failed,
     #[strum(serialize = "sent_to_server")]
     SentToServer,
-    #[strum(serialize = "skipped")]
-    Skipped,
 }
 
 impl FriProofCompressorDal<'_, '_> {
@@ -50,28 +47,11 @@ impl FriProofCompressorDal<'_, '_> {
             .unwrap();
     }
 
-    pub async fn skip_proof_compression_job(&mut self, block_number: L1BatchNumber) {
-        sqlx::query!(
-                "INSERT INTO proof_compression_jobs_fri(l1_batch_number, status, created_at, updated_at) \
-                 VALUES ($1, $2, now(), now()) \
-                 ON CONFLICT (l1_batch_number) DO NOTHING",
-                block_number.0 as i64,
-            ProofCompressionJobStatus::Skipped.to_string(),
-            )
-            .fetch_optional(self.storage.conn())
-            .await
-            .unwrap();
-    }
-
-    pub async fn get_next_proof_compression_job(
-        &mut self,
-        picked_by: &str,
-    ) -> Option<L1BatchNumber> {
+    pub async fn get_next_proof_compression_job(&mut self) -> Option<L1BatchNumber> {
         let result: Option<L1BatchNumber> = sqlx::query!(
             "UPDATE proof_compression_jobs_fri \
                 SET status = $1, attempts = attempts + 1, \
-                    updated_at = now(), processing_started_at = now(), \
-                    picked_by = $3 \
+                    updated_at = now(), processing_started_at = now() \
                 WHERE l1_batch_number = ( \
                     SELECT l1_batch_number \
                     FROM proof_compression_jobs_fri \
@@ -84,7 +64,6 @@ impl FriProofCompressorDal<'_, '_> {
                 RETURNING proof_compression_jobs_fri.l1_batch_number",
             ProofCompressionJobStatus::InProgress.to_string(),
             ProofCompressionJobStatus::Queued.to_string(),
-            picked_by,
         )
         .fetch_optional(self.storage.conn())
         .await
@@ -133,28 +112,16 @@ impl FriProofCompressorDal<'_, '_> {
 
     pub async fn get_least_proven_block_number_not_sent_to_server(
         &mut self,
-    ) -> Option<(L1BatchNumber, ProofCompressionJobStatus)> {
-        let row = sqlx::query!(
-            "SELECT l1_batch_number, status \
-            FROM proof_compression_jobs_fri
-            WHERE l1_batch_number = ( \
-                SELECT MIN(l1_batch_number) \
-                FROM proof_compression_jobs_fri \
-                WHERE status = $1 OR status = $2
-            )",
-            ProofCompressionJobStatus::Successful.to_string(),
-            ProofCompressionJobStatus::Skipped.to_string()
+    ) -> Option<L1BatchNumber> {
+        sqlx::query!(
+            "SELECT MIN(l1_batch_number) as l1_batch_number \
+            FROM proof_compression_jobs_fri WHERE status = $1",
+            ProofCompressionJobStatus::Successful.to_string()
         )
         .fetch_optional(self.storage.conn())
         .await
-        .ok()?;
-        match row {
-            Some(row) => Some((
-                L1BatchNumber(row.l1_batch_number as u32),
-                ProofCompressionJobStatus::from_str(&row.status).unwrap(),
-            )),
-            None => None,
-        }
+        .ok()?
+        .and_then(|row| row.l1_batch_number.map(|n| L1BatchNumber(n as u32)))
     }
 
     pub async fn mark_proof_sent_to_server(&mut self, block_number: L1BatchNumber) {
@@ -172,7 +139,7 @@ impl FriProofCompressorDal<'_, '_> {
 
     pub async fn get_jobs_stats(&mut self) -> JobCountStatistics {
         let mut results: HashMap<String, i64> = sqlx::query(
-            "SELECT COUNT(*) as \"count\", status as \"status\" \
+            "SELECT COUNT(*) as \"count!\", status as \"status!\" \
                  FROM proof_compression_jobs_fri \
                  GROUP BY status",
         )

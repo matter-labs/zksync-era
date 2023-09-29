@@ -1,7 +1,7 @@
 use once_cell::sync::Lazy;
 use std::{cell::RefCell, rc::Rc};
 use vm::{
-    constants::BLOCK_GAS_LIMIT, HistoryEnabled, L2BlockEnv, TxExecutionMode, Vm, VmExecutionMode,
+    constants::BLOCK_GAS_LIMIT, HistoryEnabled, L2BlockEnv, TxExecutionMode, Vm,
     VmExecutionResultAndLogs,
 };
 use zksync_config::constants::ethereum::MAX_GAS_PER_PUBDATA_BYTE;
@@ -93,7 +93,7 @@ impl BenchmarkingVm {
 
     pub fn run_transaction(&mut self, tx: &Transaction) -> VmExecutionResultAndLogs {
         self.0.push_transaction(tx.clone());
-        self.0.execute(VmExecutionMode::OneTx)
+        self.0.execute_next_transaction()
     }
 }
 

@@ -22,7 +22,7 @@ pub struct HouseKeeperConfig {
 }
 
 impl HouseKeeperConfig {
-    pub fn from_env() -> anyhow::Result<Self> {
+    pub fn from_env() -> Self {
         envy_load("house_keeper", "HOUSE_KEEPER_")
     }
 }
@@ -74,7 +74,7 @@ mod tests {
         "#;
         lock.set_env(config);
 
-        let actual = HouseKeeperConfig::from_env().unwrap();
+        let actual = HouseKeeperConfig::from_env();
         assert_eq!(actual, expected_config());
     }
 }

@@ -1,5 +1,4 @@
 /// External uses
-use anyhow::Context as _;
 use serde::Deserialize;
 /// Built-in uses
 use std::net::SocketAddr;
@@ -23,14 +22,13 @@ pub struct ApiConfig {
 }
 
 impl ApiConfig {
-    pub fn from_env() -> anyhow::Result<Self> {
-        Ok(Self {
-            web3_json_rpc: Web3JsonRpcConfig::from_env().context("Web3JsonRpcConfig")?,
-            contract_verification: ContractVerificationApiConfig::from_env()
-                .context("ContractVerificationApiConfig")?,
-            prometheus: PrometheusConfig::from_env().context("PrometheusConfig")?,
-            healthcheck: HealthCheckConfig::from_env().context("HealthCheckConfig")?,
-        })
+    pub fn from_env() -> Self {
+        Self {
+            web3_json_rpc: Web3JsonRpcConfig::from_env(),
+            contract_verification: ContractVerificationApiConfig::from_env(),
+            prometheus: PrometheusConfig::from_env(),
+            healthcheck: HealthCheckConfig::from_env(),
+        }
     }
 }
 
@@ -104,7 +102,7 @@ pub struct Web3JsonRpcConfig {
 }
 
 impl Web3JsonRpcConfig {
-    pub fn from_env() -> anyhow::Result<Self> {
+    pub fn from_env() -> Self {
         envy_load("web3_json_rpc", "API_WEB3_JSON_RPC_")
     }
 
@@ -196,7 +194,7 @@ pub struct HealthCheckConfig {
 }
 
 impl HealthCheckConfig {
-    pub fn from_env() -> anyhow::Result<Self> {
+    pub fn from_env() -> Self {
         envy_load("healthcheck", "API_HEALTHCHECK_")
     }
 
@@ -220,7 +218,7 @@ impl ContractVerificationApiConfig {
         SocketAddr::new("0.0.0.0".parse().unwrap(), self.port)
     }
 
-    pub fn from_env() -> anyhow::Result<Self> {
+    pub fn from_env() -> Self {
         envy_load("contract_verification", "API_CONTRACT_VERIFICATION_")
     }
 }
@@ -324,7 +322,7 @@ mod tests {
         "#;
         lock.set_env(config);
 
-        let actual = ApiConfig::from_env().unwrap();
+        let actual = ApiConfig::from_env();
         assert_eq!(actual, expected_config());
     }
 

@@ -1,10 +1,9 @@
-use anyhow::Context as _;
-use prometheus_exporter::PrometheusExporterConfig;
+use prometheus_exporter::run_prometheus_exporter;
 use structopt::StructOpt;
 use tokio::{sync::oneshot, sync::watch};
 
 use zksync_config::configs::{
-    AlertsConfig, CircuitSynthesizerConfig, ProverGroupConfig,
+    AlertsConfig, CircuitSynthesizerConfig, PrometheusConfig, ProverGroupConfig,
 };
 use zksync_dal::connection::DbVariant;
 use zksync_dal::ConnectionPool;
@@ -26,37 +25,25 @@ struct Opt {
 }
 
 #[tokio::main]
-async fn main() -> anyhow::Result<()>{
-    #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
-    let log_format = vlog::log_format_from_env();
-    #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
-    let sentry_url = vlog::sentry_url_from_env();
-    #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
-    let environment = vlog::environment_from_env();
-
-    let mut builder = vlog::ObservabilityBuilder::new().with_log_format(log_format);
-    if let Some(sentry_url) = sentry_url {
-        builder = builder
-            .with_sentry_url(&sentry_url)
-            .context("Invalid Sentry URL")?
-            .with_sentry_environment(environment);
-    }
-    let _guard = builder.build();
-
+async fn main() {
+    vlog::init();
     let opt = Opt::from_args();
-    let config: CircuitSynthesizerConfig = CircuitSynthesizerConfig::from_env()
-        .context("CircuitSynthesizerConfig::from_env()")?;
-    let pool = ConnectionPool::builder(DbVariant::Prover).build().await
-        .context("failed to build a connection pool")?;
+    let config: CircuitSynthesizerConfig = CircuitSynthesizerConfig::from_env();
+    let pool = ConnectionPool::builder(DbVariant::Prover).build().await;
     let vk_commitments = get_cached_commitments();
 
     let circuit_synthesizer = CircuitSynthesizer::new(
         config.clone(),
-        ProverGroupConfig::from_env().context("ProverGroupConfig::from_env()")?,
-        &ObjectStoreFactory::from_env().context("ObjectStoreFactory::from_env()")?,
+        ProverGroupConfig::from_env(),
+        &ObjectStoreFactory::from_env(),
         vk_commitments,
         pool,
-    ).await.map_err(|err|anyhow::anyhow!("Could not initialize synthesizer {err:?}"))?;
+    )
+        .await
+        .unwrap_or_else(|err| {
+            vlog::error!("Could not initialize synthesizer: {err:?}");
+            panic!("Could not initialize synthesizer: {err:?}");
+        });
 
     let (stop_sender, stop_receiver) = watch::channel(false);
 
@@ -66,29 +53,28 @@ async fn main() -> anyhow::Result<()>{
         if let Some(stop_signal_sender) = stop_signal_sender.take() {
             stop_signal_sender.send(()).ok();
         }
-    }).context("Error setting Ctrl+C handler")?;
+    })
+        .expect("Error setting Ctrl+C handler");
 
-    tracing::info!("Starting circuit synthesizer");
-    let prometheus_task = PrometheusExporterConfig::pull(config.prometheus_listener_port)
-        .run(stop_receiver.clone());
+    vlog::info!("Starting circuit synthesizer");
+    let prometheus_config = PrometheusConfig {
+        listener_port: config.prometheus_listener_port,
+        pushgateway_url: config.prometheus_pushgateway_url,
+        push_interval_ms: config.prometheus_push_interval_ms,
+    };
     let tasks = vec![
-        tokio::spawn(prometheus_task),
+        run_prometheus_exporter(prometheus_config.listener_port, None),
         tokio::spawn(circuit_synthesizer.run(stop_receiver, opt.number_of_iterations)),
     ];
 
-    let particular_crypto_alerts = Some(
-        AlertsConfig::from_env()
-            .context("AlertsConfig::from_env()")?
-            .sporadic_crypto_errors_substrs
-    );
+    let particular_crypto_alerts = Some(AlertsConfig::from_env().sporadic_crypto_errors_substrs);
     let graceful_shutdown = None::<futures::future::Ready<()>>;
     let tasks_allowed_to_finish = false;
     tokio::select! {
         _ = wait_for_tasks(tasks, particular_crypto_alerts, graceful_shutdown, tasks_allowed_to_finish) => {},
         _ = stop_signal_receiver => {
-            tracing::info!("Stop signal received, shutting down");
+            vlog::info!("Stop signal received, shutting down");
         }
     };
     stop_sender.send(true).ok();
-    Ok(())
 }

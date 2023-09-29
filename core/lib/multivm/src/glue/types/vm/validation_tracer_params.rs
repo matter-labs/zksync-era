@@ -1,9 +1,9 @@
 use crate::glue::GlueFrom;
 
-impl GlueFrom<vm_latest::oracles::tracer::ValidationTracerParams>
+impl GlueFrom<vm_virtual_blocks::oracles::tracer::ValidationTracerParams>
     for vm_m5::oracles::tracer::ValidationTracerParams
 {
-    fn glue_from(value: vm_latest::oracles::tracer::ValidationTracerParams) -> Self {
+    fn glue_from(value: vm_virtual_blocks::oracles::tracer::ValidationTracerParams) -> Self {
         Self {
             user_address: value.user_address,
             paymaster_address: value.paymaster_address,
@@ -14,10 +14,10 @@ impl GlueFrom<vm_latest::oracles::tracer::ValidationTracerParams>
     }
 }
 
-impl GlueFrom<vm_latest::oracles::tracer::ValidationTracerParams>
+impl GlueFrom<vm_virtual_blocks::oracles::tracer::ValidationTracerParams>
     for vm_m6::oracles::tracer::ValidationTracerParams
 {
-    fn glue_from(value: vm_latest::oracles::tracer::ValidationTracerParams) -> Self {
+    fn glue_from(value: vm_virtual_blocks::oracles::tracer::ValidationTracerParams) -> Self {
         Self {
             user_address: value.user_address,
             paymaster_address: value.paymaster_address,
@@ -29,10 +29,10 @@ impl GlueFrom<vm_latest::oracles::tracer::ValidationTracerParams>
     }
 }
 
-impl GlueFrom<vm_latest::oracles::tracer::ValidationTracerParams>
+impl GlueFrom<vm_virtual_blocks::oracles::tracer::ValidationTracerParams>
     for vm_1_3_2::oracles::tracer::ValidationTracerParams
 {
-    fn glue_from(value: vm_latest::oracles::tracer::ValidationTracerParams) -> Self {
+    fn glue_from(value: vm_virtual_blocks::oracles::tracer::ValidationTracerParams) -> Self {
         Self {
             user_address: value.user_address,
             paymaster_address: value.paymaster_address,

@@ -1,6 +1,6 @@
 [package]
 name = "zksync_contracts"
-version = "0.1.0"
+version = "1.0.0"
 edition = "2018"
 authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
 homepage = "https://zksync.io/"
@@ -10,7 +10,7 @@ keywords = ["blockchain", "zksync"]
 categories = ["cryptography"]
 
 [dependencies]
-zksync_utils = { path = "../utils" }
+zksync_utils = { path = "../utils", version = "1.0" }
 
 ethabi = "18.0.0"
 serde_json = "1.0"

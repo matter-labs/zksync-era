@@ -13,7 +13,7 @@ use zksync_types::protocol_version::ProtocolUpgradeTxCommonData;
 use zksync_types::transaction_request::PaymasterParams;
 use zksync_types::vm_trace::Call;
 use zksync_types::web3::types::U64;
-use zksync_types::{api, Bytes, ExecuteTransactionCommon};
+use zksync_types::{api, ExecuteTransactionCommon};
 use zksync_types::{
     api::{TransactionDetails, TransactionStatus},
     fee::Fee,
@@ -303,16 +303,13 @@ impl From<StorageTransaction> for Transaction {
                 common_data: ExecuteTransactionCommon::L1(tx.into()),
                 execute,
                 received_timestamp_ms,
-                raw_bytes: None,
             },
             Some(t) if t == PROTOCOL_UPGRADE_TX_TYPE as i32 => Transaction {
                 common_data: ExecuteTransactionCommon::ProtocolUpgrade(tx.into()),
                 execute,
                 received_timestamp_ms,
-                raw_bytes: None,
             },
             _ => Transaction {
-                raw_bytes: tx.input.clone().map(Bytes::from),
                 common_data: ExecuteTransactionCommon::L2(tx.into()),
                 execute,
                 received_timestamp_ms,
@@ -452,7 +449,7 @@ impl From<StorageTransactionDetails> for TransactionDetails {
             bigdecimal_to_u256(tx_details.gas_per_pubdata_limit.unwrap_or_default());
 
         let initiator_address = H160::from_slice(tx_details.initiator_address.as_slice());
-        let received_at = DateTime::<Utc>::from_naive_utc_and_offset(tx_details.received_at, Utc);
+        let received_at = DateTime::<Utc>::from_utc(tx_details.received_at, Utc);
 
         let eth_commit_tx_hash = tx_details
             .eth_commit_tx_hash

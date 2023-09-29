@@ -4,7 +4,7 @@ use crate::tracers::traits::{DynTracer, ExecutionEndTracer, ExecutionProcessing,
 use crate::types::internals::ZkSyncVmState;
 use zksync_state::WriteStorage;
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default)]
 pub struct StorageInvocations {
     limit: usize,
     current: usize,

@@ -17,6 +17,7 @@ use crate::old_vm::{
 use crate::tracers::{
     traits::{DynTracer, ExecutionEndTracer, ExecutionProcessing, VmTracer},
     utils::{get_vm_hook_params, read_pointer, VmHook},
+    ExecutionMode,
 };
 use crate::types::{
     internals::ZkSyncVmState,
@@ -24,8 +25,8 @@ use crate::types::{
 };
 
 use crate::constants::{BOOTLOADER_HEAP_PAGE, RESULT_SUCCESS_FIRST_SLOT};
+use crate::VmExecutionStopReason;
 use crate::{Halt, TxRevertReason};
-use crate::{VmExecutionMode, VmExecutionStopReason};
 
 #[derive(Debug, Clone)]
 enum Result {
@@ -39,11 +40,11 @@ enum Result {
 pub(crate) struct ResultTracer {
     result: Option<Result>,
     bootloader_out_of_gas: bool,
-    execution_mode: VmExecutionMode,
+    execution_mode: ExecutionMode,
 }
 
 impl ResultTracer {
-    pub(crate) fn new(execution_mode: VmExecutionMode) -> Self {
+    pub(crate) fn new(execution_mode: ExecutionMode) -> Self {
         Self {
             result: None,
             bootloader_out_of_gas: false,
@@ -122,9 +123,9 @@ impl<S: WriteStorage, H: HistoryMode> ExecutionProcessing<S, H> for ResultTracer
             // otherwise it can be out of gas error
             VmExecutionStopReason::TracerRequestedStop => {
                 match self.execution_mode {
-                    VmExecutionMode::OneTx => self.vm_stopped_execution(state, bootloader_state),
-                    VmExecutionMode::Batch => self.vm_finished_execution(state),
-                    VmExecutionMode::Bootloader => self.vm_finished_execution(state),
+                    ExecutionMode::OneTx => self.vm_stopped_execution(state, bootloader_state),
+                    ExecutionMode::Block => self.vm_finished_execution(state),
+                    ExecutionMode::BlockTip => self.vm_finished_execution(state),
                 };
             }
         }

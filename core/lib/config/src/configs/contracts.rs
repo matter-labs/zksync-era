@@ -37,7 +37,7 @@ pub struct ContractsConfig {
 }
 
 impl ContractsConfig {
-    pub fn from_env() -> anyhow::Result<Self> {
+    pub fn from_env() -> Self {
         envy_load("contracts", "CONTRACTS_")
     }
 }
@@ -130,7 +130,7 @@ CONTRACTS_FRI_RECURSION_LEAF_LEVEL_VK_HASH="0x72167c43a46cf38875b267d67716edc456
         "#;
         lock.set_env(config);
 
-        let actual = ContractsConfig::from_env().unwrap();
+        let actual = ContractsConfig::from_env();
         assert_eq!(actual, expected_config());
     }
 }

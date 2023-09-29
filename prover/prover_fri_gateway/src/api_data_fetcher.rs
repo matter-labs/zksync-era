@@ -32,7 +32,7 @@ impl PeriodicApiStruct {
         Req: Serialize,
         Resp: DeserializeOwned,
     {
-        tracing::info!("Sending request to {}", endpoint);
+        vlog::info!("Sending request to {}", endpoint);
         self.client
             .post(endpoint)
             .json(&request)
@@ -43,12 +43,12 @@ impl PeriodicApiStruct {
             .await
     }
 
-    pub(crate) async fn run<Req>(self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()>
+    pub(crate) async fn run<Req>(self, mut stop_receiver: watch::Receiver<bool>)
     where
         Req: Send,
         Self: PeriodicApi<Req>,
     {
-        tracing::info!(
+        vlog::info!(
             "Starting periodic job: {} with frequency: {:?}",
             Self::SERVICE_NAME,
             self.poll_duration
@@ -56,8 +56,8 @@ impl PeriodicApiStruct {
 
         loop {
             if *stop_receiver.borrow() {
-                tracing::warn!("Stop signal received, shutting down {}", Self::SERVICE_NAME);
-                return Ok(());
+                vlog::warn!("Stop signal received, shutting down {}", Self::SERVICE_NAME);
+                return;
             }
 
             if let Some((job_id, request)) = self.get_next_request().await {
@@ -67,14 +67,14 @@ impl PeriodicApiStruct {
                     }
                     Err(err) => {
                         metrics::counter!("prover_fri.prover_fri_gateway.http_error", 1, "service_name" => Self::SERVICE_NAME);
-                        tracing::error!("HTTP request failed due to error: {}", err);
+                        vlog::error!("HTTP request failed due to error: {}", err);
                     }
                 }
             }
             tokio::select! {
                 _ = stop_receiver.changed() => {
-                    tracing::warn!("Stop signal received, shutting down {}", Self::SERVICE_NAME);
-                    return Ok(());
+                    vlog::warn!("Stop signal received, shutting down {}", Self::SERVICE_NAME);
+                    return;
                 }
                 _ = sleep(self.poll_duration) => {}
             }

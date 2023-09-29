@@ -498,14 +498,14 @@ impl TransactionRequest {
         }
 
         if let Some(signature) = signature {
-            if self.is_legacy_tx() && chain_id != 0 {
+            if self.is_legacy_tx() {
                 rlp.append(&signature.v_with_chain_id(chain_id));
             } else {
                 rlp.append(&signature.v());
             }
             rlp.append(&U256::from_big_endian(signature.r()));
             rlp.append(&U256::from_big_endian(signature.s()));
-        } else if self.is_legacy_tx() && chain_id != 0 {
+        } else if self.is_legacy_tx() {
             rlp.append(&chain_id);
             rlp.append(&0u8);
             rlp.append(&0u8);
@@ -571,7 +571,7 @@ impl TransactionRequest {
                     return Err(SerializationTransactionError::WrongChainId(tx_chain_id));
                 }
                 Self {
-                    chain_id: tx_chain_id,
+                    chain_id: Some(chain_id),
                     v: Some(rlp.val_at(6)?),
                     r: Some(rlp.val_at(7)?),
                     s: Some(rlp.val_at(8)?),
@@ -651,7 +651,7 @@ impl TransactionRequest {
         }
         tx.raw = Some(Bytes(bytes.to_vec()));
 
-        let default_signed_message = tx.get_default_signed_message(tx.chain_id)?;
+        let default_signed_message = tx.get_default_signed_message(chain_id);
 
         tx.from = match tx.from {
             Some(_) => tx.from,
@@ -664,25 +664,20 @@ impl TransactionRequest {
         Ok((tx, hash))
     }
 
-    fn get_default_signed_message(
-        &self,
-        chain_id: Option<u16>,
-    ) -> Result<H256, SerializationTransactionError> {
+    fn get_default_signed_message(&self, chain_id: u16) -> H256 {
         if self.is_eip712_tx() {
-            let tx_chain_id =
-                chain_id.ok_or(SerializationTransactionError::WrongChainId(chain_id))?;
-            Ok(PackedEthSignature::typed_data_to_signed_bytes(
-                &Eip712Domain::new(L2ChainId(tx_chain_id)),
+            PackedEthSignature::typed_data_to_signed_bytes(
+                &Eip712Domain::new(L2ChainId(chain_id)),
                 self,
-            ))
+            )
         } else {
             let mut rlp_stream = RlpStream::new();
-            self.rlp(&mut rlp_stream, chain_id.unwrap_or_default(), None);
+            self.rlp(&mut rlp_stream, chain_id, None);
             let mut data = rlp_stream.out().to_vec();
             if let Some(tx_type) = self.transaction_type {
                 data.insert(0, tx_type.as_u64() as u8);
             }
-            Ok(PackedEthSignature::message_to_signed_bytes(&data))
+            PackedEthSignature::message_to_signed_bytes(&data)
         }
     }
 
@@ -707,7 +702,7 @@ impl TransactionRequest {
     }
 
     pub fn get_tx_hash(&self, chain_id: L2ChainId) -> Result<H256, SerializationTransactionError> {
-        let default_signed_message = self.get_default_signed_message(Some(chain_id.0))?;
+        let default_signed_message = self.get_default_signed_message(chain_id.0);
         self.get_tx_hash_with_signed_message(&default_signed_message, chain_id)
     }
 
@@ -815,9 +810,6 @@ impl L2Tx {
         // For fee calculation we use the same structure, as a result, signature may not be provided
         tx.set_raw_signature(raw_signature);
 
-        if let Some(raw_bytes) = value.raw {
-            tx.set_raw_bytes(raw_bytes);
-        }
         tx.check_encoded_size(max_tx_size)?;
         Ok(tx)
     }

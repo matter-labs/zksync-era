@@ -10,7 +10,7 @@ use crate::LEGACY_TX_TYPE;
 use crate::{
     api, tx::primitives::PackedEthSignature, tx::Execute, web3::types::U64, Address, Bytes,
     EIP712TypedStructure, Eip712Domain, ExecuteTransactionCommon, InputData, L2ChainId, Nonce,
-    StructBuilder, Transaction, EIP_1559_TX_TYPE, EIP_2930_TX_TYPE, EIP_712_TX_TYPE, H256,
+    StructBuilder, Transaction, EIP_1559_TX_TYPE, EIP_712_TX_TYPE, H256,
     PRIORITY_OPERATION_L2_TX_TYPE, PROTOCOL_UPGRADE_TX_TYPE, U256,
 };
 
@@ -92,27 +92,6 @@ impl L2TxCommonData {
     pub fn set_input(&mut self, input: Vec<u8>, hash: H256) {
         self.input = Some(InputData { hash, data: input })
     }
-
-    pub fn extract_chain_id(&self) -> Option<u16> {
-        let bytes = self.input_data()?;
-        let chain_id = match bytes.first() {
-            Some(x) if *x >= 0x80 => {
-                let rlp = Rlp::new(bytes);
-                let v = rlp.val_at(6).ok()?;
-                PackedEthSignature::unpack_v(v).ok()?.1?
-            }
-            Some(x) if *x == EIP_1559_TX_TYPE => {
-                let rlp = Rlp::new(&bytes[1..]);
-                rlp.val_at(0).ok()?
-            }
-            Some(x) if *x == EIP_712_TX_TYPE => {
-                let rlp = Rlp::new(&bytes[1..]);
-                rlp.val_at(10).ok()?
-            }
-            _ => return None,
-        };
-        Some(chain_id)
-    }
 }
 
 impl Default for L2TxCommonData {
@@ -129,12 +108,11 @@ impl Default for L2TxCommonData {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct L2Tx {
     pub execute: Execute,
     pub common_data: L2TxCommonData,
     pub received_timestamp_ms: u64,
-    pub raw_bytes: Option<Bytes>,
 }
 
 impl L2Tx {
@@ -166,7 +144,6 @@ impl L2Tx {
                 paymaster_params,
             },
             received_timestamp_ms: unix_timestamp_ms(),
-            raw_bytes: None,
         }
     }
 
@@ -223,6 +200,27 @@ impl L2Tx {
         self.common_data.set_input(data, hash)
     }
 
+    pub fn extract_chain_id(&self) -> Option<u16> {
+        let bytes = self.common_data.input_data()?;
+        let chain_id = match bytes.first() {
+            Some(x) if *x >= 0x80 => {
+                let rlp = Rlp::new(bytes);
+                let v = rlp.val_at(6).ok()?;
+                PackedEthSignature::unpack_v(v).ok()?.1.unwrap_or(0)
+            }
+            Some(x) if *x == EIP_1559_TX_TYPE => {
+                let rlp = Rlp::new(&bytes[1..]);
+                rlp.val_at(0).ok()?
+            }
+            Some(x) if *x == EIP_712_TX_TYPE => {
+                let rlp = Rlp::new(&bytes[1..]);
+                rlp.val_at(10).ok()?
+            }
+            _ => return None,
+        };
+        Some(chain_id)
+    }
+
     pub fn get_rlp_bytes(&self, chain_id: L2ChainId) -> Bytes {
         let mut rlp_stream = RlpStream::new();
         let tx: TransactionRequest = self.clone().into();
@@ -249,10 +247,6 @@ impl L2Tx {
 
     pub fn set_raw_signature(&mut self, signature: Vec<u8>) {
         self.common_data.signature = signature;
-    }
-
-    pub fn set_raw_bytes(&mut self, bytes: Bytes) {
-        self.raw_bytes = Some(bytes);
     }
 
     pub fn abi_encoding_len(&self) -> usize {
@@ -313,46 +307,33 @@ impl From<L2Tx> for TransactionRequest {
         let tx_type = tx.common_data.transaction_type as u32;
         let (v, r, s) = signature_to_vrs(&tx.common_data.signature, tx_type);
 
-        let mut base_tx_req = TransactionRequest {
+        TransactionRequest {
             nonce: U256::from(tx.common_data.nonce.0),
             from: Some(tx.common_data.initiator_address),
             to: Some(tx.recipient_account()),
             value: tx.execute.value,
             gas_price: tx.common_data.fee.max_fee_per_gas,
-            max_priority_fee_per_gas: None,
+            max_priority_fee_per_gas: Some(tx.common_data.fee.max_priority_fee_per_gas),
             gas: tx.common_data.fee.gas_limit,
             input: Bytes(tx.execute.calldata),
             v,
             r,
             s,
-            raw: tx.raw_bytes,
-            transaction_type: None,
+            raw: None,
+            transaction_type: if tx_type == 0 {
+                None
+            } else {
+                Some(U64::from(tx_type))
+            },
             access_list: None,
-            eip712_meta: None,
-            chain_id: tx.common_data.extract_chain_id().unwrap_or_default().into(),
-        };
-        match tx_type as u8 {
-            LEGACY_TX_TYPE => {}
-
-            EIP_712_TX_TYPE => {
-                base_tx_req.transaction_type = Some(U64::from(tx_type));
-                base_tx_req.max_priority_fee_per_gas =
-                    Some(tx.common_data.fee.max_priority_fee_per_gas);
-                base_tx_req.eip712_meta = Some(api::Eip712Meta {
-                    gas_per_pubdata: tx.common_data.fee.gas_per_pubdata_limit,
-                    factory_deps: tx.execute.factory_deps,
-                    custom_signature: Some(tx.common_data.signature),
-                    paymaster_params: Some(tx.common_data.paymaster_params),
-                });
-            }
-            EIP_1559_TX_TYPE | EIP_2930_TX_TYPE => {
-                base_tx_req.max_priority_fee_per_gas =
-                    Some(tx.common_data.fee.max_priority_fee_per_gas);
-                base_tx_req.transaction_type = Some(U64::from(tx_type));
-            }
-            _ => panic!("Invalid transaction type: {}", tx_type),
+            eip712_meta: Some(api::Eip712Meta {
+                gas_per_pubdata: tx.common_data.fee.gas_per_pubdata_limit,
+                factory_deps: tx.execute.factory_deps,
+                custom_signature: Some(tx.common_data.signature),
+                paymaster_params: Some(tx.common_data.paymaster_params),
+            }),
+            chain_id: None,
         }
-        base_tx_req
     }
 }
 
@@ -362,13 +343,11 @@ impl From<L2Tx> for Transaction {
             execute,
             common_data,
             received_timestamp_ms,
-            raw_bytes,
         } = tx;
         Self {
             common_data: ExecuteTransactionCommon::L2(common_data),
             execute,
             received_timestamp_ms,
-            raw_bytes,
         }
     }
 }
@@ -389,7 +368,7 @@ impl From<L2Tx> for api::Transaction {
 
         Self {
             hash: tx.hash(),
-            chain_id: tx.common_data.extract_chain_id().unwrap_or_default().into(),
+            chain_id: tx.extract_chain_id().unwrap_or_default().into(),
             nonce: U256::from(tx.common_data.nonce.0),
             from: Some(tx.common_data.initiator_address),
             to: Some(tx.recipient_account()),
@@ -420,7 +399,6 @@ impl TryFrom<Transaction> for L2Tx {
             common_data,
             execute,
             received_timestamp_ms,
-            raw_bytes,
         } = value;
         match common_data {
             ExecuteTransactionCommon::L1(_) => Err("Cannot convert L1Tx to L2Tx"),
@@ -428,7 +406,6 @@ impl TryFrom<Transaction> for L2Tx {
                 execute,
                 common_data,
                 received_timestamp_ms,
-                raw_bytes,
             }),
             ExecuteTransactionCommon::ProtocolUpgrade(_) => {
                 Err("Cannot convert ProtocolUpgradeTx to L2Tx")
@@ -491,7 +468,6 @@ mod tests {
                 paymaster_params: PaymasterParams::default(),
             },
             received_timestamp_ms: Default::default(),
-            raw_bytes: None,
         };
 
         let transaction_request: TransactionRequest = tx.into();

@@ -1,6 +1,5 @@
 pub mod queue;
 
-use std::env;
 pub use circuit_definitions;
 
 use circuit_definitions::aux_definitions::witness_oracle::VmWitnessOracle;
@@ -131,9 +130,4 @@ impl StoredObject for AuxOutputWitnessWrapper {
     }
 
     serialize_using_bincode!();
-}
-
-pub fn get_current_pod_name() -> String {
-    env::var("POD_NAME")
-        .unwrap_or("UNKNOWN_POD".to_owned())
 }

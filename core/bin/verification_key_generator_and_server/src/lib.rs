@@ -44,7 +44,7 @@ pub fn get_vk_for_circuit_type(
     circuit_type: u8,
 ) -> VerificationKey<Bn256, ZkSyncCircuit<Bn256, VmWitnessOracle<Bn256>>> {
     let filepath = get_file_path(circuit_type);
-    tracing::info!("Fetching verification key from path: {}", filepath);
+    vlog::info!("Fetching verification key from path: {}", filepath);
     let text = std::fs::read_to_string(&filepath)
         .unwrap_or_else(|_| panic!("Failed reading verification key from path: {}", filepath));
     serde_json::from_str::<VerificationKey<Bn256, ZkSyncCircuit<Bn256, VmWitnessOracle<Bn256>>>>(
@@ -63,7 +63,7 @@ pub fn save_vk_for_circuit_type(
     vk: VerificationKey<Bn256, ZkSyncCircuit<Bn256, VmWitnessOracle<Bn256>>>,
 ) {
     let filepath = get_file_path(circuit_type);
-    tracing::info!("saving verification key to: {}", filepath);
+    vlog::info!("saving verification key to: {}", filepath);
     std::fs::write(filepath, serde_json::to_string_pretty(&vk).unwrap()).unwrap();
 }
 
@@ -150,15 +150,15 @@ pub fn generate_commitments() -> (String, String, String) {
     let basic_circuit_commitment_hex = format!("0x{}", to_hex(&basic_circuit_commitment));
     let leaf_aggregation_commitment_hex = format!("0x{}", to_hex(&leaf_aggregation_vk_commitment));
     let node_aggregation_commitment_hex = format!("0x{}", to_hex(&node_aggregation_vk_commitment));
-    tracing::info!(
+    vlog::info!(
         "basic circuit commitment {:?}",
         basic_circuit_commitment_hex
     );
-    tracing::info!(
+    vlog::info!(
         "leaf aggregation commitment {:?}",
         leaf_aggregation_commitment_hex
     );
-    tracing::info!(
+    vlog::info!(
         "node aggregation commitment {:?}",
         node_aggregation_commitment_hex
     );

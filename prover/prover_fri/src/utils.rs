@@ -56,11 +56,10 @@ pub async fn save_proof(
     started_at: Instant,
     artifacts: ProverArtifacts,
     blob_store: &dyn ObjectStore,
-    public_blob_store: Option<&dyn ObjectStore>,
-    shall_save_to_public_bucket: bool,
+    public_blob_store: &dyn ObjectStore,
     storage_processor: &mut StorageProcessor<'_>,
 ) {
-    tracing::info!(
+    vlog::info!(
         "Successfully proven job: {}, total time taken: {:?}",
         job_id,
         started_at.elapsed()
@@ -73,13 +72,10 @@ pub async fn save_proof(
         FriProofWrapper::Base(base) => (base.numeric_circuit_type(), false),
         FriProofWrapper::Recursive(recursive_circuit) => match recursive_circuit {
             ZkSyncRecursionLayerProof::SchedulerCircuit(_) => {
-                if shall_save_to_public_bucket {
-                    public_blob_store
-                        .expect("public_object_store shall not be empty while running with shall_save_to_public_bucket config")
-                        .put(artifacts.block_number.0, &proof)
-                        .await
-                        .unwrap();
-                }
+                public_blob_store
+                    .put(artifacts.block_number.0, &proof)
+                    .await
+                    .unwrap();
                 (recursive_circuit.numeric_circuit_type(), true)
             }
             _ => (recursive_circuit.numeric_circuit_type(), false),
@@ -94,7 +90,7 @@ pub async fn save_proof(
             "circuit_type" => circuit_type.to_string(),
     );
 
-    let mut transaction = storage_processor.start_transaction().await.unwrap();
+    let mut transaction = storage_processor.start_transaction().await;
     let job_metadata = transaction
         .fri_prover_jobs_dal()
         .save_proof(job_id, started_at.elapsed(), &blob_url)
@@ -115,7 +111,7 @@ pub async fn save_proof(
             )
             .await;
     }
-    transaction.commit().await.unwrap();
+    transaction.commit().await;
 }
 
 pub fn verify_proof(
@@ -144,7 +140,7 @@ pub fn verify_proof(
         let msg = format!(
             "Failed to verify base layer proof for job-id: {job_id} circuit_type {circuit_id}"
         );
-        tracing::error!("{}", msg);
+        vlog::error!("{}", msg);
         panic!("{}", msg);
     }
 }

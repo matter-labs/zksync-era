@@ -353,14 +353,14 @@ impl AccountLifespan {
                 let tx = self
                     .build_execute_loadnext_contract(command, contract_address)
                     .await?;
-                tracing::trace!(
+                vlog::trace!(
                     "Account {:?}: execute_loadnext_contract: tx built in {:?}",
                     self.wallet.wallet.address(),
                     started_at.elapsed()
                 );
                 started_at = Instant::now();
                 let result = self.execute_submit(tx, command.modifier).await;
-                tracing::trace!(
+                vlog::trace!(
                     "Account {:?}: execute_loadnext_contract: tx executed in {:?}",
                     self.wallet.wallet.address(),
                     started_at.elapsed()
@@ -405,7 +405,7 @@ impl AccountLifespan {
                 self.main_l2_token,
             )))
             .await?;
-        tracing::trace!(
+        vlog::trace!(
             "Account {:?}: fee estimated. Max total fee: {}, gas limit: {}gas; Max gas price: {}WEI, \
              Gas per pubdata: {:?}gas",
             self.wallet.wallet.address(),

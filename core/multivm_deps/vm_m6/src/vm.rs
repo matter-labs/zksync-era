@@ -11,6 +11,7 @@ use zksync_types::l2_to_l1_log::L2ToL1Log;
 use zksync_types::tx::tx_execution_info::{TxExecutionStatus, VmExecutionLogs};
 use zksync_types::vm_trace::{Call, VmExecutionTrace, VmTrace};
 use zksync_types::{L1BatchNumber, StorageLogQuery, VmEvent, U256};
+use zksync_utils::bytes_to_be_words;
 
 use crate::bootloader_state::BootloaderState;
 use crate::errors::{TxRevertReason, VmRevertReason, VmRevertReasonParsingResult};
@@ -38,6 +39,7 @@ use crate::vm_with_bootloader::{
     BootloaderJobType, DerivedBlockContext, TxExecutionMode, BOOTLOADER_HEAP_PAGE,
     OPERATOR_REFUNDS_OFFSET,
 };
+use crate::Word;
 
 pub type ZkSyncVmState<'a, S, H> = VmState<
     'a,
@@ -99,7 +101,7 @@ pub struct VmExecutionResult {
     pub storage_log_queries: Vec<StorageLogQuery>,
     pub used_contract_hashes: Vec<U256>,
     pub l2_to_l1_logs: Vec<L2ToL1Log>,
-    pub return_data: Vec<u8>,
+    pub return_data: Vec<Word>,
 
     /// Value denoting the amount of gas spent withing VM invocation.
     /// Note that return value represents the difference between the amount of gas
@@ -221,7 +223,10 @@ fn vm_may_have_ended<H: HistoryMode, S: Storage>(
         .expect("underflow");
 
     match basic_execution_result {
-        NewVmExecutionResult::Ok(data) => {
+        NewVmExecutionResult::Ok(mut data) => {
+            while data.len() % 32 != 0 {
+                data.push(0)
+            }
             Some(VmExecutionResult {
                 // The correct `events` value for this field should be set separately
                 // later on based on the information inside the event_sink oracle.
@@ -229,7 +234,7 @@ fn vm_may_have_ended<H: HistoryMode, S: Storage>(
                 storage_log_queries: vm.get_final_log_queries(),
                 used_contract_hashes: vm.get_used_contracts(),
                 l2_to_l1_logs: vec![],
-                return_data: data,
+                return_data: bytes_to_be_words(data),
                 gas_used,
                 // The correct `computational_gas_used` value for this field should be set separately later.
                 computational_gas_used: 0,
@@ -257,7 +262,7 @@ fn vm_may_have_ended<H: HistoryMode, S: Storage>(
                 revert_reason.revert_reason,
                 TxRevertReason::UnexpectedVMBehavior(_)
             ) {
-                tracing::error!(
+                vlog::error!(
                     "Observed error that should never happen: {:?}. Full VM data: {:?}",
                     revert_reason,
                     vm
@@ -356,7 +361,7 @@ impl<H: HistoryMode, S: Storage> VmInstance<'_, S, H> {
                     revert_reason.revert_reason,
                     TxRevertReason::UnexpectedVMBehavior(_)
                 ) {
-                    tracing::error!(
+                    vlog::error!(
                         "Observed error that should never happen: {:?}. Full VM data: {:?}",
                         revert_reason,
                         self
@@ -501,7 +506,7 @@ impl<H: HistoryMode, S: Storage> VmInstance<'_, S, H> {
                     self.tx_body_refund(timestamp_initial, bootloader_refund, gas_spent_on_pubdata);
 
                 if tx_body_refund < bootloader_refund {
-                    tracing::error!(
+                    vlog::error!(
                         "Suggested tx body refund is less than bootloader refund. Tx body refund: {}, bootloader refund: {}",
                         tx_body_refund,
                         bootloader_refund
@@ -534,19 +539,27 @@ impl<H: HistoryMode, S: Storage> VmInstance<'_, S, H> {
                 let tx_gas_limit = self.get_tx_gas_limit(current_tx_index);
 
                 if tx_gas_limit < bootloader_refund {
-                    tracing::error!(
+                    vlog::error!(
                         "Tx gas limit is less than bootloader refund. Tx gas limit: {}, bootloader refund: {}",
                         tx_gas_limit,
                         bootloader_refund
                     );
                 }
                 if tx_gas_limit < refund_to_propose {
-                    tracing::error!(
+                    vlog::error!(
                         "Tx gas limit is less than operator refund. Tx gas limit: {}, operator refund: {}",
                         tx_gas_limit,
                         refund_to_propose
                     );
                 }
+
+                metrics::histogram!("vm.refund", bootloader_refund as f64 / tx_gas_limit as f64 * 100.0, "type" => "bootloader");
+                metrics::histogram!("vm.refund", refund_to_propose as f64 / tx_gas_limit as f64 * 100.0, "type" => "operator");
+                metrics::histogram!(
+                    "vm.refund.diff",
+                    (refund_to_propose as f64 - bootloader_refund as f64) / tx_gas_limit as f64
+                        * 100.0
+                );
             }
 
             tracer.set_missed_storage_invocations(
@@ -780,6 +793,8 @@ impl<H: HistoryMode, S: Storage> VmInstance<'_, S, H> {
                 }
             }
             VmExecutionStopReason::TracerRequestedStop => {
+                metrics::increment_counter!("runtime_context.execution.dropped");
+
                 if tx_result_tracer.is_limit_reached() {
                     VmBlockResult {
                         // Normally tracer should never stop, but if it's transaction call and it consumes
@@ -947,21 +962,21 @@ impl<S: Storage> VmInstance<'_, S, HistoryEnabled> {
 
         let timestamp = Timestamp(local_state.timestamp);
 
-        tracing::trace!("Rolling back decomitter");
+        vlog::trace!("Rolling back decomitter");
         self.state
             .decommittment_processor
             .rollback_to_timestamp(timestamp);
 
-        tracing::trace!("Rolling back event_sink");
+        vlog::trace!("Rolling back event_sink");
         self.state.event_sink.rollback_to_timestamp(timestamp);
 
-        tracing::trace!("Rolling back storage");
+        vlog::trace!("Rolling back storage");
         self.state.storage.rollback_to_timestamp(timestamp);
 
-        tracing::trace!("Rolling back memory");
+        vlog::trace!("Rolling back memory");
         self.state.memory.rollback_to_timestamp(timestamp);
 
-        tracing::trace!("Rolling back precompiles_processor");
+        vlog::trace!("Rolling back precompiles_processor");
         self.state
             .precompiles_processor
             .rollback_to_timestamp(timestamp);

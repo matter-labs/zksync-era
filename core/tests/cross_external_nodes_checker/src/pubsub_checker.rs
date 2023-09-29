@@ -3,7 +3,6 @@ use crate::{
     divergence::{Divergence, DivergenceDetails},
     helpers::{compare_json, ExponentialBackoff},
 };
-use anyhow::Context as _;
 use std::{
     collections::HashMap,
     sync::Arc,
@@ -59,19 +58,18 @@ impl PubSubChecker {
         }
     }
 
-    pub async fn run(&self, mut stop_receiver: Receiver<bool>) -> anyhow::Result<()> {
-        tracing::info!("Started pubsub checker");
+    pub async fn run(&self, mut stop_receiver: Receiver<bool>) {
+        vlog::info!("Started pubsub checker");
 
         let mut join_handles = Vec::new();
 
         let this = self.clone();
         let main_stop_receiver = stop_receiver.clone();
         let handle = spawn(async move {
-            tracing::info!("Started a task to subscribe to the main node");
+            vlog::info!("Started a task to subscribe to the main node");
             if let Err(e) = this.subscribe_main(main_stop_receiver).await {
-                tracing::error!("Error in main node subscription task: {}", e);
+                vlog::error!("Error in main node subscription task: {}", e);
             }
-            Ok(())
         });
         join_handles.push(handle);
 
@@ -81,10 +79,10 @@ impl PubSubChecker {
             let instance_stop_receiver = stop_receiver.clone();
             let url = instance_url.clone();
             let handle = spawn(async move {
-                tracing::info!("Started a task to subscribe to instance {}", url);
-                this.subscribe_instance(&url, instance_stop_receiver)
-                    .await
-                    .with_context(|| format!("Error in instance {} subscription task", url))
+                vlog::info!("Started a task to subscribe to instance {}", url);
+                if let Err(e) = this.subscribe_instance(&url, instance_stop_receiver).await {
+                    vlog::error!("Error in instance {} subscription task: {}", url, e);
+                }
             });
             join_handles.push(handle);
         }
@@ -92,10 +90,9 @@ impl PubSubChecker {
         select! {
             _ = wait_for_tasks(join_handles, None, None::<futures::future::Ready<()>>, false) => {},
             _ = stop_receiver.changed() => {
-                tracing::info!("Stop signal received, shutting down pubsub checker");
+                vlog::info!("Stop signal received, shutting down pubsub checker");
             },
         }
-        Ok(())
     }
 
     // Setup a client for the main node, subscribe, and insert incoming pubsub results into the shared hashmap.
@@ -129,7 +126,7 @@ impl PubSubChecker {
             // Secure the lock for the map and insert the new header.
             let mut blocks = self.blocks.lock().await;
             blocks.insert(block_number, (block_header, self.instance_urls.len()));
-            tracing::debug!("Inserted block {} to main node map", block_number);
+            vlog::debug!("Inserted block {} to main node map", block_number);
         }
 
         Ok(())
@@ -165,7 +162,7 @@ impl PubSubChecker {
                 )?;
             let pubsub_res = stream_res.ok_or_else(|| anyhow::anyhow!("Stream has ended"))?;
             let (instance_block_header, block_number) = self.extract_block_info(pubsub_res).await?;
-            tracing::debug!("Got block {} from instance {}", block_number, url);
+            vlog::debug!("Got block {} from instance {}", block_number, url);
 
             // Get the main node block header from the map and update its count.
             // This should be retried because the map not having the block the instance does might
@@ -191,7 +188,7 @@ impl PubSubChecker {
                                 } else {
                                     blocks.remove(&block_number);
                                 }
-                                tracing::debug!("Updated blocks map: {:?}", blocks.keys());
+                                vlog::debug!("Updated blocks map: {:?}", blocks.keys());
                                 Some((header, count))
                             }
                             None => None, // Retry
@@ -210,7 +207,7 @@ impl PubSubChecker {
                     // start with block X while instance is looking for block X-1, which will never
                     // be in the map. We don't want to log an error for this case.
                     if start.elapsed() > GRACE_PERIOD {
-                        tracing::error!(
+                        vlog::error!(
                             "block {} has not been found in the main node map for instance {} after {} retries",
                             block_number,
                             url,
@@ -242,12 +239,12 @@ impl PubSubChecker {
         url: &str,
     ) -> bool {
         if *stop_receiver.borrow() {
-            tracing::info!("Stop signal received, shutting down pubsub checker");
+            vlog::info!("Stop signal received, shutting down pubsub checker");
             return true;
         }
         if let Some(duration) = self.subscription_duration {
             if start.elapsed() > duration {
-                tracing::info!("Client {} reached its subscription duration", url);
+                vlog::info!("Client {} reached its subscription duration", url);
                 return true;
             }
         }
@@ -255,10 +252,11 @@ impl PubSubChecker {
     }
 
     async fn setup_client(&self, url: &str) -> WsClient {
-        WsClientBuilder::default()
+        let client = WsClientBuilder::default()
             .build(url)
             .await
-            .expect("Failed to create a WS client")
+            .expect("Failed to create a WS client");
+        client
     }
 
     // Extract the block header and block number from the pubsub result that is expected to be a header.
@@ -285,14 +283,14 @@ impl PubSubChecker {
     ) {
         let header_differences = compare_json(&main_node_header, &instance_header, "".to_string());
         if header_differences.is_empty() {
-            tracing::info!(
+            vlog::info!(
                 "No divergences found in header for block {} for instance {}",
                 instance_header.number.unwrap().as_u64(),
                 instance_url
             );
         }
         for (key, (main_node_val, instance_val)) in header_differences {
-            tracing::error!(
+            vlog::error!(
                 "{}",
                 Divergence::PubSubHeader(DivergenceDetails {
                     en_instance_url: instance_url.to_string(),

@@ -3,7 +3,7 @@ use crate::tests::utils::read_test_contract;
 use crate::types::inputs::system_env::TxExecutionMode;
 
 use crate::types::internals::TransactionData;
-use crate::{HistoryEnabled, VmExecutionMode};
+use crate::HistoryEnabled;
 
 #[test]
 fn test_predetermined_refunded_gas() {
@@ -26,7 +26,7 @@ fn test_predetermined_refunded_gas() {
         address: _,
     } = account.get_deploy_tx(&counter, None, TxType::L2);
     vm.vm.push_transaction(tx.clone());
-    let result = vm.vm.execute(VmExecutionMode::OneTx);
+    let result = vm.vm.execute_next_transaction();
 
     assert!(!result.result.is_failed());
 
@@ -39,7 +39,7 @@ fn test_predetermined_refunded_gas() {
     );
     assert!(result.refunds.gas_refunded > 0, "The final refund is 0");
 
-    let result_without_predefined_refunds = vm.vm.execute(VmExecutionMode::Batch);
+    let result_without_predefined_refunds = vm.vm.execute_the_rest_of_the_batch();
     let mut current_state_without_predefined_refunds = vm.vm.get_current_execution_state();
     assert!(!result_without_predefined_refunds.result.is_failed(),);
 
@@ -61,7 +61,7 @@ fn test_predetermined_refunded_gas() {
     vm.vm
         .push_raw_transaction(tx.clone(), overhead, result.refunds.gas_refunded, true);
 
-    let result_with_predefined_refunds = vm.vm.execute(VmExecutionMode::Batch);
+    let result_with_predefined_refunds = vm.vm.execute_the_rest_of_the_batch();
     let mut current_state_with_predefined_refunds = vm.vm.get_current_execution_state();
 
     assert!(!result_with_predefined_refunds.result.is_failed());
@@ -106,7 +106,7 @@ fn test_predetermined_refunded_gas() {
     let changed_operator_suggested_refund = result.refunds.gas_refunded + 1000;
     vm.vm
         .push_raw_transaction(tx, overhead, changed_operator_suggested_refund, true);
-    let result = vm.vm.execute(VmExecutionMode::Batch);
+    let result = vm.vm.execute_the_rest_of_the_batch();
     let mut current_state_with_changed_predefined_refunds = vm.vm.get_current_execution_state();
 
     assert!(!result.result.is_failed());

@@ -784,30 +784,6 @@ describe('web3 API compatibility tests', () => {
         expect(exactProtocolVersion).toMatchObject(expectedProtocolVersion);
     });
 
-    test('Should check zks_getLogsWithVirtualBlocks endpoint', async () => {
-        let logs;
-        logs = await alice.provider.send('zks_getLogsWithVirtualBlocks', [{ fromBlock: '0x0', toBlock: '0x0' }]);
-        expect(logs).toEqual([]);
-
-        logs = await alice.provider.send('zks_getLogsWithVirtualBlocks', [{ fromBlock: '0x1', toBlock: '0x2' }]);
-        expect(logs.length > 0);
-
-        logs = await alice.provider.send('zks_getLogsWithVirtualBlocks', [{ fromBlock: '0x2', toBlock: '0x1' }]);
-        expect(logs).toEqual([]);
-
-        logs = await alice.provider.send('zks_getLogsWithVirtualBlocks', [{ fromBlock: '0x3', toBlock: '0x3' }]);
-        expect(logs.length > 0);
-
-        await expect(
-            alice.provider.send('zks_getLogsWithVirtualBlocks', [{ fromBlock: '0x100000000', toBlock: '0x100000000' }]) // 2^32
-        ).toBeRejected();
-        await expect(
-            alice.provider.send('zks_getLogsWithVirtualBlocks', [
-                { fromBlock: '0x10000000000000000', toBlock: '0x10000000000000000' } // 2^64
-            ])
-        ).toBeRejected();
-    });
-
     afterAll(async () => {
         await testMaster.deinitialize();
     });

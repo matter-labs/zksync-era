@@ -850,5 +850,5 @@ fn print_debug_if_needed(hook: &VmHook, state: &VmLocalStateData<'_>, memory: &S
         _ => return,
     };
 
-    tracing::trace!("{}", log);
+    vlog::trace!("{}", log);
 }

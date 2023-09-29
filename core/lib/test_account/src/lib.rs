@@ -175,7 +175,6 @@ impl Account {
             }),
             execute,
             received_timestamp_ms: 0,
-            raw_bytes: None,
         }
     }
 

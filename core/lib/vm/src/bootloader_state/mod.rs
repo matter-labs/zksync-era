@@ -5,4 +5,4 @@ mod tx;
 
 pub(crate) mod utils;
 pub(crate) use snapshot::BootloaderStateSnapshot;
-pub use state::BootloaderState;
+pub(crate) use state::BootloaderState;

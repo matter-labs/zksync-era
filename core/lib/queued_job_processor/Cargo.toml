@@ -1,6 +1,6 @@
 [package]
 name = "zksync_queued_job_processor"
-version = "0.1.0"
+version = "1.0.0"
 edition = "2018"
 authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
 homepage = "https://zksync.io/"
@@ -11,9 +11,8 @@ categories = ["cryptography"]
 
 
 [dependencies]
-anyhow = "1.0"
 async-trait = "0.1"
 tokio = { version = "1", features = ["time"] }
-tracing = "0.1"
 
-zksync_utils = { path = "../../lib/utils" }
+zksync_utils = { path = "../../lib/utils", version = "1.0" }
+vlog = { path = "../../lib/vlog", version = "1.0" }

@@ -75,15 +75,15 @@ impl Executor {
     pub async fn start(&mut self) -> LoadtestResult {
         // If the error occurs during the main flow, we will consider it as a test failure.
         self.start_inner().await.unwrap_or_else(|err| {
-            tracing::error!("Loadtest was interrupted by the following error: {err}");
+            vlog::error!("Loadtest was interrupted by the following error: {err}");
             LoadtestResult::TestFailed
         })
     }
 
     /// Inner representation of `start` function which returns a `Result`, so it can conveniently use `?`.
     async fn start_inner(&mut self) -> anyhow::Result<LoadtestResult> {
-        tracing::info!("Initializing accounts");
-        tracing::info!("Running for MASTER {:?}", self.pool.master_wallet.address());
+        vlog::info!("Initializing accounts");
+        vlog::info!("Running for MASTER {:?}", self.pool.master_wallet.address());
         self.check_onchain_balance().await?;
         self.mint().await?;
         self.deposit_to_master().await?;
@@ -96,7 +96,7 @@ impl Executor {
 
     /// Verifies that onchain ETH balance for the main account is sufficient to run the loadtest.
     async fn check_onchain_balance(&mut self) -> anyhow::Result<()> {
-        tracing::info!("Master Account: Checking onchain balance");
+        vlog::info!("Master Account: Checking onchain balance");
         let master_wallet = &mut self.pool.master_wallet;
         let ethereum = master_wallet.ethereum(&self.config.l1_rpc_address).await?;
         let eth_balance = ethereum.balance().await?;
@@ -108,7 +108,7 @@ impl Executor {
                 format_eth(U256::from(MIN_MASTER_ACCOUNT_BALANCE))
             );
         }
-        tracing::info!(
+        vlog::info!(
             "Master Account {} L1 balance is {}",
             self.pool.master_wallet.address(),
             format_eth(eth_balance)
@@ -123,7 +123,7 @@ impl Executor {
 
     /// Mints the ERC-20 token on the main wallet.
     async fn mint(&mut self) -> anyhow::Result<()> {
-        tracing::info!("Master Account: Minting ERC20 token...");
+        vlog::info!("Master Account: Minting ERC20 token...");
         let mint_amount = self.amount_to_deposit() + self.amount_for_l1_distribution();
 
         let master_wallet = &self.pool.master_wallet;
@@ -139,7 +139,7 @@ impl Executor {
 
         // Only send the mint transaction if it's necessary.
         if eth_balance > U256::from(mint_amount) {
-            tracing::info!("There is already enough money on the master balance");
+            vlog::info!("There is already enough money on the master balance");
             return Ok(());
         }
 
@@ -162,7 +162,7 @@ impl Executor {
             Ok(value) => value,
         };
 
-        tracing::info!("Mint tx with hash {mint_tx_hash:?}");
+        vlog::info!("Mint tx with hash {mint_tx_hash:?}");
         let receipt = ethereum.wait_for_tx(mint_tx_hash).await?;
         self.assert_eth_tx_success(&receipt).await;
 
@@ -174,13 +174,13 @@ impl Executor {
             "Minting didn't result in tokens added to balance"
         );
 
-        tracing::info!("Master Account: Minting is OK (balance: {erc20_balance})");
+        vlog::info!("Master Account: Minting is OK (balance: {erc20_balance})");
         Ok(())
     }
 
     /// Deposits the ERC-20 token to main wallet in L2.
     async fn deposit_to_master(&mut self) -> anyhow::Result<()> {
-        tracing::info!("Master Account: Performing an ERC-20 deposit to master");
+        vlog::info!("Master Account: Performing an ERC-20 deposit to master");
 
         let balance = self
             .pool
@@ -190,13 +190,13 @@ impl Executor {
         let necessary_balance =
             U256::from(self.erc20_transfer_amount() * self.config.accounts_amount as u128);
 
-        tracing::info!(
+        vlog::info!(
             "Master account token balance on l2: {balance:?}, necessary balance \
              for initial transfers {necessary_balance:?}"
         );
 
         if balance > necessary_balance {
-            tracing::info!(
+            vlog::info!(
                 "Master account has enough money on l2, nothing to deposit. Current balance \
                  {balance:?}, necessary balance for initial transfers {necessary_balance:?}"
             );
@@ -222,7 +222,7 @@ impl Executor {
             self.assert_eth_tx_success(&receipt).await;
         }
 
-        tracing::info!("Approved ERC20 deposits");
+        vlog::info!("Approved ERC20 deposits");
         let receipt = deposit_with_attempts(
             &ethereum,
             self.pool.master_wallet.address(),
@@ -250,12 +250,12 @@ impl Executor {
             .wait_for_commit()
             .await?;
 
-        tracing::info!("Master Account: ERC-20 deposit is OK");
+        vlog::info!("Master Account: ERC-20 deposit is OK");
         Ok(())
     }
 
     async fn deposit_eth_to_paymaster(&mut self) -> anyhow::Result<()> {
-        tracing::info!("Master Account: Checking paymaster balance");
+        vlog::info!("Master Account: Checking paymaster balance");
         let mut ethereum = self
             .pool
             .master_wallet
@@ -279,7 +279,7 @@ impl Executor {
             .get_balance(paymaster_address, None)
             .await?;
 
-        tracing::info!(
+        vlog::info!(
             "Paymaster balance is {}. Minimum amount {}",
             format_eth(paymaster_balance),
             format_eth(U256::from(MIN_PAYMASTER_BALANCE))
@@ -326,7 +326,7 @@ impl Executor {
             .get_balance(paymaster_address, None)
             .await?;
 
-        tracing::info!(
+        vlog::info!(
             "Paymaster deposit complete. New balance: {}",
             format_eth(paymaster_balance)
         );
@@ -475,7 +475,7 @@ impl Executor {
             }
         }
 
-        tracing::info!("Master account: Wait for ethereum txs confirmations, {eth_txs:?}");
+        vlog::info!("Master account: Wait for ethereum txs confirmations, {eth_txs:?}");
         for eth_tx in eth_txs {
             ethereum.wait_for_tx(eth_tx).await?;
         }
@@ -500,7 +500,7 @@ impl Executor {
     /// - Spawning test account routine futures.
     /// - Completing all the spawned tasks and returning the result to the caller.
     async fn send_initial_transfers(&mut self) -> anyhow::Result<LoadtestResult> {
-        tracing::info!("Master Account: Sending initial transfers");
+        vlog::info!("Master Account: Sending initial transfers");
         // How many times we will resend a batch.
         const MAX_RETRIES: usize = 3;
 
@@ -542,13 +542,13 @@ impl Executor {
             let accounts_to_process = std::cmp::min(accounts_left, max_accounts_per_iter);
 
             if let Err(err) = self.send_initial_transfers_inner(accounts_to_process).await {
-                tracing::warn!("Iteration of the initial funds distribution failed: {err}");
+                vlog::warn!("Iteration of the initial funds distribution failed: {err}");
                 retry_counter += 1;
                 continue;
             }
 
             accounts_processed += accounts_to_process;
-            tracing::info!("[{accounts_processed}/{accounts_amount}] Accounts processed");
+            vlog::info!("[{accounts_processed}/{accounts_amount}] Accounts processed");
 
             retry_counter = 0;
 
@@ -592,11 +592,11 @@ impl Executor {
             self.pool.accounts.is_empty(),
             "Some accounts were not drained"
         );
-        tracing::info!("All the initial transfers are completed");
+        vlog::info!("All the initial transfers are completed");
 
-        tracing::info!("Waiting for the account futures to be completed...");
+        vlog::info!("Waiting for the account futures to be completed...");
         future::try_join_all(account_tasks).await?;
-        tracing::info!("All the spawned tasks are completed");
+        vlog::info!("All the spawned tasks are completed");
 
         Ok(report_collector_future.await?)
     }
@@ -695,7 +695,7 @@ async fn deposit_with_attempts(
             .deposit(token, deposit_amount, to, None, None, Some(options))
             .await?;
 
-        tracing::info!("Deposit with tx_hash {deposit_tx_hash:?}");
+        vlog::info!("Deposit with tx_hash {deposit_tx_hash:?}");
 
         // Wait for the corresponding priority operation to be committed in zkSync.
         match ethereum.wait_for_tx(deposit_tx_hash).await {
@@ -703,7 +703,7 @@ async fn deposit_with_attempts(
                 return Ok(eth_receipt);
             }
             Err(err) => {
-                tracing::error!("Deposit error: {err}");
+                vlog::error!("Deposit error: {err}");
             }
         };
     }
