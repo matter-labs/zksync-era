@@ -65,6 +65,7 @@ impl ProverDal<'_, '_> {
             circuit_type: row.circuit_type,
             aggregation_round: AggregationRound::try_from(row.aggregation_round).unwrap(),
             sequence_number: row.sequence_number as usize,
+            attempts: row.attempts as u32,
         });
         result
     }
@@ -129,6 +130,7 @@ impl ProverDal<'_, '_> {
                 circuit_type: row.circuit_type,
                 aggregation_round: AggregationRound::try_from(row.aggregation_round).unwrap(),
                 sequence_number: row.sequence_number as usize,
+                attempts: row.attempts as u32,
             });
 
             result
@@ -246,7 +248,7 @@ impl ProverDal<'_, '_> {
             sqlx::query!(
                 "
                 UPDATE prover_jobs
-                SET status = 'queued', attempts = attempts + 1, updated_at = now(), processing_started_at = now()
+                SET status = 'queued', updated_at = now(), processing_started_at = now()
                 WHERE (status = 'in_progress' AND  processing_started_at <= now() - $1::interval AND attempts < $2)
                 OR (status = 'in_gpu_proof' AND  processing_started_at <= now() - $1::interval AND attempts < $2)
                 OR (status = 'failed' AND attempts < $2)
@@ -551,6 +553,7 @@ impl ProverDal<'_, '_> {
                 circuit_type: row.circuit_type,
                 aggregation_round: AggregationRound::try_from(row.aggregation_round).unwrap(),
                 sequence_number: row.sequence_number as usize,
+                attempts: row.attempts as u32,
             }))
         }
     }

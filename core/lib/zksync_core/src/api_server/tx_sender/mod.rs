@@ -164,7 +164,7 @@ impl TxSenderBuilder {
     pub fn with_rate_limiter(self, transactions_per_sec: u32) -> Self {
         let rate_limiter = RateLimiter::direct_with_clock(
             Quota::per_second(NonZeroU32::new(transactions_per_sec).unwrap()),
-            &MonotonicClock,
+            &MonotonicClock::default(),
         );
         Self {
             rate_limiter: Some(rate_limiter),

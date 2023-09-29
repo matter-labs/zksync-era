@@ -68,6 +68,7 @@ impl WitnessGeneratorDal<'_, '_> {
             .unwrap()
             .map(|row| WitnessGeneratorJobMetadata {
                 block_number: L1BatchNumber(row.l1_batch_number as u32),
+                attempts: row.attempts as u32,
                 proofs: vec![],
             });
         result
@@ -172,6 +173,7 @@ impl WitnessGeneratorDal<'_, '_> {
             );
             Some(WitnessGeneratorJobMetadata {
                 block_number: l1_batch_number,
+                attempts: row.attempts as u32,
                 proofs: basic_circuits_proofs,
             })
         } else {
@@ -241,6 +243,7 @@ impl WitnessGeneratorDal<'_, '_> {
                 );
                 Some(WitnessGeneratorJobMetadata {
                     block_number: l1_batch_number,
+                    attempts: row.attempts as u32,
                     proofs: leaf_circuits_proofs,
                 })
             } else {
@@ -308,6 +311,7 @@ impl WitnessGeneratorDal<'_, '_> {
                 );
                 Some(WitnessGeneratorJobMetadata {
                     block_number: l1_batch_number,
+                    attempts: row.attempts as u32,
                     proofs: leaf_circuits_proofs,
                 })
             } else {

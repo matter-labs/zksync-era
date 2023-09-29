@@ -229,9 +229,7 @@ impl BlocksDal<'_, '_> {
         .with_arg("number", &number)
         .fetch_optional(self.storage.conn())
         .await?
-        else {
-            return Ok(None);
-        };
+        else { return Ok(None) };
 
         let heap = serde_json::from_value(row.initial_bootloader_heap_content)
             .context("invalid value for initial_bootloader_heap_content in the DB")?;
@@ -957,12 +955,8 @@ impl BlocksDal<'_, '_> {
         )
         .fetch_optional(self.storage.conn())
         .await?
-        else {
-            return Ok(None);
-        };
-        let Some(hash) = row.hash else {
-            return Ok(None);
-        };
+        else { return Ok(None) };
+        let Some(hash) = row.hash else { return Ok(None) };
         Ok(Some((H256::from_slice(&hash), row.timestamp as u64)))
     }
 
@@ -989,13 +983,9 @@ impl BlocksDal<'_, '_> {
         &mut self,
         number: L1BatchNumber,
     ) -> anyhow::Result<Option<L1BatchWithMetadata>> {
-        let Some(l1_batch) = self
-            .get_storage_l1_batch(number)
-            .await
+        let Some(l1_batch) = self.get_storage_l1_batch(number).await
             .context("get_storage_l1_batch()")?
-        else {
-            return Ok(None);
-        };
+        else { return Ok(None) };
         self.get_l1_batch_with_metadata(l1_batch)
             .await
             .context("get_l1_batch_with_metadata")
@@ -1010,9 +1000,7 @@ impl BlocksDal<'_, '_> {
             .await
             .context("get_l1_batch_factory_deps()")?;
         let header = storage_batch.clone().into();
-        let Ok(metadata) = storage_batch.try_into() else {
-            return Ok(None);
-        };
+        let Ok(metadata) = storage_batch.try_into() else { return Ok(None) };
 
         Ok(Some(L1BatchWithMetadata::new(
             header,
@@ -1271,12 +1259,8 @@ impl BlocksDal<'_, '_> {
         )
         .fetch_optional(self.storage.conn())
         .await?
-        else {
-            return Ok(None);
-        };
-        let Some(v) = row.protocol_version else {
-            return Ok(None);
-        };
+        else { return Ok(None) };
+        let Some(v) = row.protocol_version else { return Ok(None) };
         Ok(Some((v as u16).try_into()?))
     }
 
@@ -1290,12 +1274,8 @@ impl BlocksDal<'_, '_> {
         )
         .fetch_optional(self.storage.conn())
         .await?
-        else {
-            return Ok(None);
-        };
-        let Some(v) = row.protocol_version else {
-            return Ok(None);
-        };
+        else { return Ok(None) };
+        let Some(v) = row.protocol_version else { return Ok(None) };
         Ok(Some((v as u16).try_into()?))
     }
 

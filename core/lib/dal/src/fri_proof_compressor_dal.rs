@@ -66,8 +66,8 @@ impl FriProofCompressorDal<'_, '_> {
     pub async fn get_next_proof_compression_job(
         &mut self,
         picked_by: &str,
-    ) -> Option<L1BatchNumber> {
-        let result: Option<L1BatchNumber> = sqlx::query!(
+    ) -> Option<(L1BatchNumber, u32)> {
+        let result = sqlx::query!(
             "UPDATE proof_compression_jobs_fri \
                 SET status = $1, attempts = attempts + 1, \
                     updated_at = now(), processing_started_at = now(), \
@@ -81,7 +81,7 @@ impl FriProofCompressorDal<'_, '_> {
                     FOR UPDATE \
                     SKIP LOCKED \
                 ) \
-                RETURNING proof_compression_jobs_fri.l1_batch_number",
+                RETURNING proof_compression_jobs_fri.l1_batch_number, proof_compression_jobs_fri.attempts",
             ProofCompressionJobStatus::InProgress.to_string(),
             ProofCompressionJobStatus::Queued.to_string(),
             picked_by,
@@ -89,7 +89,7 @@ impl FriProofCompressorDal<'_, '_> {
         .fetch_optional(self.storage.conn())
         .await
         .unwrap()
-        .map(|row| L1BatchNumber(row.l1_batch_number as u32));
+        .map(|row| (L1BatchNumber(row.l1_batch_number as u32), row.attempts as u32));
         result
     }
 
@@ -200,7 +200,7 @@ impl FriProofCompressorDal<'_, '_> {
         {
             sqlx::query!(
                 "UPDATE proof_compression_jobs_fri \
-                SET status = 'queued', attempts = attempts + 1, updated_at = now(), processing_started_at = now() \
+                SET status = 'queued', updated_at = now(), processing_started_at = now() \
                 WHERE (status = 'in_progress' AND  processing_started_at <= now() - $1::interval AND attempts < $2) \
                 OR (status = 'failed' AND attempts < $2) \
                 RETURNING l1_batch_number, status, attempts",

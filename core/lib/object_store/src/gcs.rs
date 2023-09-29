@@ -57,7 +57,7 @@ impl fmt::Debug for GoogleCloudStorage {
             .debug_struct("GoogleCloudStorage")
             .field("bucket_prefix", &self.bucket_prefix)
             .field("max_retries", &self.max_retries)
-            .finish_non_exhaustive()
+            .finish()
     }
 }
 

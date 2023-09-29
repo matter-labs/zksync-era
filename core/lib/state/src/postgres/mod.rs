@@ -343,8 +343,6 @@ pub struct PostgresStorage<'a> {
 
 impl<'a> PostgresStorage<'a> {
     /// Creates a new storage using the specified connection.
-    /// # Panics
-    /// Panics on Postgres errors.
     pub fn new(
         rt_handle: Handle,
         mut connection: StorageProcessor<'a>,

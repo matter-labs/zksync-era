@@ -177,7 +177,7 @@ fn test_filter_renumerate_panic_when_leafs_and_indices_are_of_different_length()
             "72868932BBB002043AF50363EEB65AE172868932BBB002043AF50363EEB65AE1",
         ),
     ];
-    let indices = [
+    let indices = vec![
         string_to_array("5534D106E0B590953AC0FC7D65CA3B2E5534D106E0B590953AC0FC7D65CA3B2E"),
         string_to_array("00309D72EF0AD9786DA9044109E1704B00309D72EF0AD9786DA9044109E1704B"),
     ];
@@ -234,7 +234,7 @@ fn test_filter_renumerate_panic_when_indices_and_pending_leaves_are_of_different
             "72868932BBB002043AF50363EEB65AE172868932BBB002043AF50363EEB65AE1",
         ),
     ];
-    let indices = [
+    let indices = vec![
         string_to_array("5534D106E0B590953AC0FC7D65CA3B2E5534D106E0B590953AC0FC7D65CA3B2E"),
         string_to_array("00309D72EF0AD9786DA9044109E1704B00309D72EF0AD9786DA9044109E1704B"),
         string_to_array("930058748339A83E06F0D1D22937E92A930058748339A83E06F0D1D22937E92A"),

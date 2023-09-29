@@ -258,8 +258,6 @@ impl RocksdbStorage {
     }
 
     /// Returns the last processed l1 batch number + 1
-    /// # Panics
-    /// Panics on RocksDB errors.
     pub fn l1_batch_number(&self) -> L1BatchNumber {
         let cf = StateKeeperColumnFamily::State;
         let block_number = self

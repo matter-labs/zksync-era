@@ -15,5 +15,6 @@ anyhow = "1.0"
 async-trait = "0.1"
 tokio = { version = "1", features = ["time"] }
 tracing = "0.1"
+metrics = "0.21"
 
 zksync_utils = { path = "../../lib/utils" }

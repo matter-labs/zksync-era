@@ -68,6 +68,7 @@ impl StorageLogMetadata {
 #[derive(Clone)]
 pub struct WitnessGeneratorJobMetadata {
     pub block_number: L1BatchNumber,
+    pub attempts: u32,
     pub proofs: Vec<Proof<Bn256, ZkSyncCircuit<Bn256, VmWitnessOracle<Bn256>>>>,
 }
 
@@ -279,6 +280,7 @@ pub struct ProverJobMetadata {
     pub circuit_type: String,
     pub aggregation_round: AggregationRound,
     pub sequence_number: usize,
+    pub attempts: u32,
 }
 
 #[derive(Debug, Clone)]
@@ -290,6 +292,7 @@ pub struct FriProverJobMetadata {
     pub sequence_number: usize,
     pub depth: u16,
     pub is_node_final_proof: bool,
+    pub attempts: u32,
 }
 
 #[derive(Debug, Clone)]
@@ -298,6 +301,7 @@ pub struct LeafAggregationJobMetadata {
     pub block_number: L1BatchNumber,
     pub circuit_id: u8,
     pub prover_job_ids_for_proofs: Vec<u32>,
+    pub attempts: u32,
 }
 
 #[derive(Debug, Clone)]
@@ -307,6 +311,7 @@ pub struct NodeAggregationJobMetadata {
     pub circuit_id: u8,
     pub depth: u16,
     pub prover_job_ids_for_proofs: Vec<u32>,
+    pub attempts: u32,
 }
 
 #[derive(Debug)]

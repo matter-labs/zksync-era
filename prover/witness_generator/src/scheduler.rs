@@ -24,6 +24,7 @@ use zksync_queued_job_processor::JobProcessor;
 use zksync_types::proofs::AggregationRound;
 use zksync_types::protocol_version::FriProtocolVersionId;
 use zksync_types::L1BatchNumber;
+use zksync_config::configs::FriWitnessGeneratorConfig;
 
 pub struct SchedulerArtifacts {
     pub scheduler_circuit: ZkSyncRecursiveLayerCircuit,
@@ -42,6 +43,7 @@ pub struct SchedulerWitnessGeneratorJob {
 
 #[derive(Debug)]
 pub struct SchedulerWitnessGenerator {
+    config: FriWitnessGeneratorConfig,
     object_store: Box<dyn ObjectStore>,
     prover_connection_pool: ConnectionPool,
     protocol_versions: Vec<FriProtocolVersionId>,
@@ -49,11 +51,13 @@ pub struct SchedulerWitnessGenerator {
 
 impl SchedulerWitnessGenerator {
     pub async fn new(
+        config: FriWitnessGeneratorConfig,
         store_factory: &ObjectStoreFactory,
         prover_connection_pool: ConnectionPool,
         protocol_versions: Vec<FriProtocolVersionId>,
     ) -> Self {
         Self {
+            config,
             object_store: store_factory.create_store().await,
             prover_connection_pool,
             protocol_versions,
@@ -108,10 +112,10 @@ impl JobProcessor for SchedulerWitnessGenerator {
 
     const SERVICE_NAME: &'static str = "fri_scheduler_witness_generator";
 
-    async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, Self::Job)>> {
+    async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, u32, Self::Job)>> {
         let mut prover_connection = self.prover_connection_pool.access_storage().await.unwrap();
         let pod_name = get_current_pod_name();
-        let Some(l1_batch_number) = prover_connection
+        let Some((l1_batch_number, attempts)) = prover_connection
             .fri_witness_generator_dal()
             .get_next_scheduler_witness_job(&self.protocol_versions, &pod_name)
             .await
@@ -123,6 +127,7 @@ impl JobProcessor for SchedulerWitnessGenerator {
 
         Ok(Some((
             l1_batch_number,
+            attempts,
             prepare_job(l1_batch_number, proof_job_ids, &*self.object_store).await
                 .context("prepare_job()")?,
         )))
@@ -197,6 +202,10 @@ impl JobProcessor for SchedulerWitnessGenerator {
 
         transaction.commit().await.unwrap();
         Ok(())
+    }
+
+    fn max_attempts(&self) -> u32 {
+        self.config.max_attempts
     }
 }
 

@@ -49,6 +49,7 @@ async fn test_leaf_witness_gen() {
         block_number,
         circuit_id,
         prover_job_ids_for_proofs: vec![4639043, 4639044, 4639045],
+        attempts: 1,
     };
 
     let job = prepare_leaf_aggregation_job(leaf_aggregation_job_metadata, &*object_store).await.unwrap();
@@ -84,6 +85,7 @@ async fn test_node_witness_gen() {
         circuit_id,
         depth: 0,
         prover_job_ids_for_proofs: vec![5211320],
+        attempts: 1,
     };
 
     let job = node_aggregation::prepare_job(node_aggregation_job_metadata, &*object_store).await.unwrap();

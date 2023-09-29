@@ -455,7 +455,7 @@ impl JobProcessor for ContractVerifier {
     const SERVICE_NAME: &'static str = "contract_verifier";
     const BACKOFF_MULTIPLIER: u64 = 1;
 
-    async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, Self::Job)>> {
+    async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, u32, Self::Job)>> {
         let mut connection = self.connection_pool.access_storage().await.unwrap();
 
         // Time overhead for all operations except for compilation.
@@ -470,7 +470,7 @@ impl JobProcessor for ContractVerifier {
             .await
             .context("get_next_queued_verification_request()")?;
 
-        Ok(job.map(|job| (job.id, job)))
+        Ok(job.map(|job| (job.id, 1, job)))
     }
 
     async fn save_failure(&self, job_id: usize, _started_at: Instant, error: String) {
@@ -522,5 +522,9 @@ impl JobProcessor for ContractVerifier {
     ) -> anyhow::Result<()> {
         // Do nothing
         Ok(())
+    }
+
+    fn max_attempts(&self) -> u32 {
+        u32::MAX
     }
 }

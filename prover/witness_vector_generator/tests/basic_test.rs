@@ -19,6 +19,7 @@ fn test_generate_witness_vector() {
         job_id: 1,
         circuit_wrapper,
         setup_data_key: key,
+        attempts: 1,
     };
     let vector = WitnessVectorGenerator::generate_witness_vector(job).unwrap();
     assert!(!vector.witness_vector.all_values.is_empty());

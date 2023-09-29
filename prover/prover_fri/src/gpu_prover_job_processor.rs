@@ -190,7 +190,7 @@ pub mod gpu_prover {
         const MAX_BACKOFF_MS: u64 = 1_000;
         const SERVICE_NAME: &'static str = "FriGpuProver";
 
-        async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, Self::Job)>> {
+        async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, u32, Self::Job)>> {
             let mut queue = self.witness_vector_queue.lock().await;
             let is_full = queue.is_full();
             match queue.remove() {
@@ -210,7 +210,7 @@ pub mod gpu_prover {
                         "Started GPU proving for job: {:?}",
                         item.witness_vector_artifacts.prover_job.job_id
                     );
-                    Ok(Some((item.witness_vector_artifacts.prover_job.job_id, item)))
+                    Ok(Some((item.witness_vector_artifacts.prover_job.job_id, item.witness_vector_artifacts.prover_job.attempts, item)))
                 }
             }
         }
@@ -259,6 +259,10 @@ pub mod gpu_prover {
             )
             .await;
             Ok(())
+        }
+
+        fn max_attempts(&self) -> u32 {
+            self.config.max_attempts
         }
     }
 

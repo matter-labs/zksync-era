@@ -126,7 +126,7 @@ impl JobProcessor for CircuitSynthesizer {
     type JobArtifacts = (ProvingAssembly, u8);
     const SERVICE_NAME: &'static str = "CircuitSynthesizer";
 
-    async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, Self::Job)>> {
+    async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, u32, Self::Job)>> {
         tracing::trace!(
             "Attempting to fetch job types: {:?}",
             self.allowed_circuit_types
@@ -160,7 +160,7 @@ impl JobProcessor for CircuitSynthesizer {
             .await
             .map_err(CircuitSynthesizerError::InputLoadFailed)?;
 
-        Ok(Some((prover_job.id, input)))
+        Ok(Some((prover_job.id, prover_job.attempts, input)))
     }
 
     async fn save_failure(&self, job_id: Self::JobId, _started_at: Instant, error: String) {
@@ -249,6 +249,10 @@ impl JobProcessor for CircuitSynthesizer {
             "Not able to get any free prover instance for sending assembly for job: {job_id}"
         );
         Ok(())
+    }
+
+    fn max_attempts(&self) -> u32 {
+        self.config.max_attempts
     }
 }
 

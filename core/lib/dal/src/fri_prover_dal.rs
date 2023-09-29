@@ -71,7 +71,7 @@ impl FriProverDal<'_, '_> {
                 )
                 RETURNING prover_jobs_fri.id, prover_jobs_fri.l1_batch_number, prover_jobs_fri.circuit_id,
                 prover_jobs_fri.aggregation_round, prover_jobs_fri.sequence_number, prover_jobs_fri.depth,
-                prover_jobs_fri.is_node_final_proof
+                prover_jobs_fri.is_node_final_proof, prover_jobs_fri.attempts
                 ",
             &protocol_versions[..],
             picked_by,
@@ -87,6 +87,7 @@ impl FriProverDal<'_, '_> {
                 sequence_number: row.sequence_number as usize,
                 depth: row.depth as u16,
                 is_node_final_proof: row.is_node_final_proof,
+                attempts: row.attempts as u32,
             })
     }
 
@@ -126,7 +127,7 @@ impl FriProverDal<'_, '_> {
                 )
                 RETURNING prover_jobs_fri.id, prover_jobs_fri.l1_batch_number, prover_jobs_fri.circuit_id,
                 prover_jobs_fri.aggregation_round, prover_jobs_fri.sequence_number, prover_jobs_fri.depth,
-                prover_jobs_fri.is_node_final_proof
+                prover_jobs_fri.is_node_final_proof, prover_jobs_fri.attempts
                 ",
             &circuit_ids[..],
             &aggregation_rounds[..],
@@ -144,6 +145,7 @@ impl FriProverDal<'_, '_> {
                 sequence_number: row.sequence_number as usize,
                 depth: row.depth as u16,
                 is_node_final_proof: row.is_node_final_proof,
+                attempts: row.attempts as u32
             })
     }
 
@@ -177,7 +179,7 @@ impl FriProverDal<'_, '_> {
                 WHERE id = $3
                 RETURNING prover_jobs_fri.id, prover_jobs_fri.l1_batch_number, prover_jobs_fri.circuit_id,
                 prover_jobs_fri.aggregation_round, prover_jobs_fri.sequence_number, prover_jobs_fri.depth,
-                prover_jobs_fri.is_node_final_proof
+                prover_jobs_fri.is_node_final_proof, prover_jobs_fri.attempts
                 ",
             duration_to_naive_time(time_taken),
             blob_url,
@@ -197,6 +199,7 @@ impl FriProverDal<'_, '_> {
                 sequence_number: row.sequence_number as usize,
                 depth: row.depth as u16,
                 is_node_final_proof: row.is_node_final_proof,
+                attempts: row.attempts as u32,
             })
             .unwrap()
     }
@@ -211,7 +214,7 @@ impl FriProverDal<'_, '_> {
             sqlx::query!(
                 "
                 UPDATE prover_jobs_fri
-                SET status = 'queued', attempts = attempts + 1, updated_at = now(), processing_started_at = now()
+                SET status = 'queued', updated_at = now(), processing_started_at = now()
                 WHERE (status = 'in_progress' AND  processing_started_at <= now() - $1::interval AND attempts < $2)
                 OR (status = 'failed' AND attempts < $2)
                 RETURNING id, status, attempts

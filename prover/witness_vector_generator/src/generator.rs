@@ -26,6 +26,7 @@ pub struct WitnessVectorGenerator {
     zone: String,
     config: FriWitnessVectorGeneratorConfig,
     vk_commitments: L1VerifierConfig,
+    max_attempts: u32,
 }
 
 impl WitnessVectorGenerator {
@@ -36,6 +37,7 @@ impl WitnessVectorGenerator {
         zone: String,
         config: FriWitnessVectorGeneratorConfig,
         vk_commitments: L1VerifierConfig,
+        max_attempts: u32,
     ) -> Self {
         Self {
             blob_store,
@@ -44,6 +46,7 @@ impl WitnessVectorGenerator {
             zone,
             config,
             vk_commitments,
+            max_attempts,
         }
     }
 
@@ -69,7 +72,7 @@ impl JobProcessor for WitnessVectorGenerator {
     type JobArtifacts = WitnessVectorArtifacts;
     const SERVICE_NAME: &'static str = "WitnessVectorGenerator";
 
-    async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, Self::Job)>> {
+    async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, u32, Self::Job)>> {
         let mut storage = self.pool.access_storage().await.unwrap();
         let Some(job) = fetch_next_circuit(
             &mut storage,
@@ -78,7 +81,7 @@ impl JobProcessor for WitnessVectorGenerator {
             &self.vk_commitments,
         )
         .await else { return Ok(None) };
-        Ok(Some((job.job_id, job)))
+        Ok(Some((job.job_id, job.attempts, job)))
     }
 
     async fn save_failure(&self, job_id: Self::JobId, _started_at: Instant, error: String) {
@@ -155,6 +158,10 @@ impl JobProcessor for WitnessVectorGenerator {
             "Not able to get any free prover instance for sending witness vector for job: {job_id}"
         );
         Ok(())
+    }
+
+    fn max_attempts(&self) -> u32 {
+        self.max_attempts
     }
 }
 

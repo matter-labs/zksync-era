@@ -76,6 +76,7 @@ pub async fn fetch_next_circuit(
         prover_job.id,
         input,
         setup_data_key,
+        prover_job.attempts,
     ))
 }
 
