@@ -109,7 +109,7 @@ impl SealedMiniblockNumber {
                     break;
                 }
 
-                let mut connection = connection_pool.access_storage_tagged("api").await.unwrap();
+                let mut connection = connection_pool.access_storage_tagged("api").await;
                 let last_sealed_miniblock = connection
                     .blocks_web3_dal()
                     .get_sealed_miniblock_number()
@@ -223,11 +223,7 @@ impl<E> RpcState<E> {
 
         let block_number = block_number.unwrap_or(api::BlockNumber::Latest);
         let block_id = api::BlockId::Number(block_number);
-        let mut conn = self
-            .connection_pool
-            .access_storage_tagged("api")
-            .await
-            .unwrap();
+        let mut conn = self.connection_pool.access_storage_tagged("api").await;
         Ok(conn
             .blocks_web3_dal()
             .resolve_block_id(block_id)
@@ -255,7 +251,6 @@ impl<E> RpcState<E> {
                     .connection_pool
                     .access_storage_tagged("api")
                     .await
-                    .unwrap()
                     .blocks_web3_dal()
                     .resolve_block_id(api::BlockId::Hash(block_hash))
                     .await
@@ -283,7 +278,6 @@ impl<E> RpcState<E> {
             .connection_pool
             .access_storage_tagged("api")
             .await
-            .unwrap()
             .blocks_web3_dal()
             .resolve_block_id(api::BlockId::Number(api::BlockNumber::Pending))
             .await
@@ -308,11 +302,7 @@ impl<E> RpcState<E> {
         if call_request.nonce.is_none() {
             let from = call_request.from.unwrap_or_default();
             let block_id = api::BlockId::Number(api::BlockNumber::Latest);
-            let mut connection = self
-                .connection_pool
-                .access_storage_tagged("api")
-                .await
-                .unwrap();
+            let mut connection = self.connection_pool.access_storage_tagged("api").await;
             let block_number = resolve_block(&mut connection, block_id, METHOD_NAME).await?;
             let address_historical_nonce = connection
                 .storage_web3_dal()
@@ -340,11 +330,7 @@ impl<E> RpcState<E> {
             }
         }
 
-        let mut conn = self
-            .connection_pool
-            .access_storage_tagged("api")
-            .await
-            .unwrap();
+        let mut conn = self.connection_pool.access_storage_tagged("api").await;
 
         // get virtual block upgrade info
         let upgrade_info = conn
@@ -438,11 +424,7 @@ impl<E> RpcState<E> {
     ) -> Result<u32, Web3Error> {
         const METHOD_NAME: &str = "resolve_miniblock_from_block";
 
-        let mut conn = self
-            .connection_pool
-            .access_storage_tagged("api")
-            .await
-            .unwrap();
+        let mut conn = self.connection_pool.access_storage_tagged("api").await;
 
         if block_number < virtual_block_start_batch {
             let l1_batch = L1BatchNumber(block_number as u32);
@@ -508,11 +490,7 @@ impl<E> RpcState<E> {
             topics,
         };
 
-        let mut storage = self
-            .connection_pool
-            .access_storage_tagged("api")
-            .await
-            .unwrap();
+        let mut storage = self.connection_pool.access_storage_tagged("api").await;
 
         // Check if there is more than one block in range and there are more than `req_entities_limit` logs that satisfies filter.
         // In this case we should return error and suggest requesting logs with smaller block range.

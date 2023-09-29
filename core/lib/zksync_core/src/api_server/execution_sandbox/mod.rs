@@ -188,7 +188,7 @@ pub(super) async fn get_pubdata_for_factory_deps(
         return 0; // Shortcut for the common case allowing to not acquire DB connections etc.
     }
 
-    let mut connection = connection_pool.access_storage_tagged("api").await.unwrap();
+    let mut connection = connection_pool.access_storage_tagged("api").await;
     let (_, block_number) = get_pending_state(&mut connection).await;
     drop(connection);
 
@@ -196,9 +196,7 @@ pub(super) async fn get_pubdata_for_factory_deps(
     let connection_pool = connection_pool.clone();
     let factory_deps = factory_deps.to_vec();
     tokio::task::spawn_blocking(move || {
-        let connection = rt_handle
-            .block_on(connection_pool.access_storage_tagged("api"))
-            .unwrap();
+        let connection = rt_handle.block_on(connection_pool.access_storage_tagged("api"));
         let storage = PostgresStorage::new(rt_handle, connection, block_number, false)
             .with_caches(storage_caches);
         let mut storage_view = StorageView::new(storage);

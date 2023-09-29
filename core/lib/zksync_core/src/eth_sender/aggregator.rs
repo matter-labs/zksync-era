@@ -96,11 +96,7 @@ impl Aggregator {
         protocol_version_id: ProtocolVersionId,
         l1_verifier_config: L1VerifierConfig,
     ) -> Option<AggregatedOperation> {
-        let last_sealed_l1_batch_number = storage
-            .blocks_dal()
-            .get_sealed_l1_batch_number()
-            .await
-            .unwrap();
+        let last_sealed_l1_batch_number = storage.blocks_dal().get_sealed_l1_batch_number().await;
         if let Some(op) = self
             .get_execute_operations(
                 storage,
@@ -147,8 +143,7 @@ impl Aggregator {
         let ready_for_execute_batches = storage
             .blocks_dal()
             .get_ready_for_execute_l1_batches(limit, max_l1_batch_timestamp_millis)
-            .await
-            .unwrap();
+            .await;
         let l1_batches = extract_ready_subrange(
             storage,
             &mut self.execute_criteria,
@@ -169,10 +164,7 @@ impl Aggregator {
         protocol_version_id: ProtocolVersionId,
     ) -> Option<L1BatchCommitOperation> {
         let mut blocks_dal = storage.blocks_dal();
-        let last_committed_l1_batch = blocks_dal
-            .get_last_committed_to_eth_l1_batch()
-            .await
-            .unwrap()?;
+        let last_committed_l1_batch = blocks_dal.get_last_committed_to_eth_l1_batch().await?;
         let ready_for_commit_l1_batches = blocks_dal
             .get_ready_for_commit_l1_batches(
                 limit,
@@ -180,8 +172,7 @@ impl Aggregator {
                 base_system_contracts_hashes.default_aa,
                 protocol_version_id,
             )
-            .await
-            .unwrap();
+            .await;
 
         // Check that the L1 batches that are selected are sequential
         ready_for_commit_l1_batches
@@ -215,17 +206,13 @@ impl Aggregator {
         proof_loading_mode: &ProofLoadingMode,
         blob_store: &dyn ObjectStore,
     ) -> Option<L1BatchProofOperation> {
-        let previous_proven_batch_number = storage
-            .blocks_dal()
-            .get_last_l1_batch_with_prove_tx()
-            .await
-            .unwrap();
+        let previous_proven_batch_number =
+            storage.blocks_dal().get_last_l1_batch_with_prove_tx().await;
         let batch_to_prove = previous_proven_batch_number + 1;
         if let Some(version_id) = storage
             .blocks_dal()
             .get_batch_protocol_version_id(batch_to_prove)
             .await
-            .unwrap()
         {
             let verifier_config_for_next_batch = storage
                 .protocol_versions_dal()
@@ -258,7 +245,6 @@ impl Aggregator {
             .blocks_dal()
             .get_l1_batch_metadata(previous_proven_batch_number)
             .await
-            .unwrap()
             .unwrap_or_else(|| {
                 panic!(
                     "L1 batch #{} with submitted proof is not complete in the DB",
@@ -269,7 +255,6 @@ impl Aggregator {
             .blocks_dal()
             .get_l1_batch_metadata(previous_proven_batch_number + 1)
             .await
-            .unwrap()
             .unwrap_or_else(|| {
                 panic!(
                     "L1 batch #{} with generated proof is not complete in the DB",
@@ -303,8 +288,7 @@ impl Aggregator {
         let prev_batch = storage
             .blocks_dal()
             .get_l1_batch_metadata(prev_l1_batch_number)
-            .await
-            .unwrap()?;
+            .await?;
 
         Some(L1BatchProofOperation {
             prev_l1_batch: prev_batch,
@@ -338,8 +322,7 @@ impl Aggregator {
                 let ready_for_proof_l1_batches = storage
                     .blocks_dal()
                     .get_ready_for_dummy_proof_l1_batches(limit)
-                    .await
-                    .unwrap();
+                    .await;
                 self.prepare_dummy_proof_operation(
                     storage,
                     ready_for_proof_l1_batches,
@@ -364,8 +347,7 @@ impl Aggregator {
                     let ready_for_proof_batches = storage
                         .blocks_dal()
                         .get_skipped_for_proof_l1_batches(limit)
-                        .await
-                        .unwrap();
+                        .await;
                     self.prepare_dummy_proof_operation(
                         storage,
                         ready_for_proof_batches,

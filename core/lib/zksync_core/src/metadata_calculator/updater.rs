@@ -149,8 +149,7 @@ impl TreeUpdater {
             storage
                 .blocks_dal()
                 .save_l1_batch_metadata(l1_batch_number, &metadata, previous_root_hash)
-                .await
-                .unwrap();
+                .await;
             // ^ Note that `save_l1_batch_metadata()` will not blindly overwrite changes if L1 batch
             // metadata already exists; instead, it'll check that the old an new metadata match.
             // That is, if we run multiple tree instances, we'll get metadata correspondence
@@ -160,8 +159,7 @@ impl TreeUpdater {
                 let protocol_version_id = storage
                     .blocks_dal()
                     .get_batch_protocol_version_id(l1_batch_number)
-                    .await
-                    .unwrap();
+                    .await;
                 if let Some(id) = protocol_version_id {
                     if !prover_storage
                         .protocol_versions_dal()
@@ -210,11 +208,7 @@ impl TreeUpdater {
         mut prover_storage: StorageProcessor<'_>,
         next_l1_batch_to_seal: &mut L1BatchNumber,
     ) {
-        let last_sealed_l1_batch = storage
-            .blocks_dal()
-            .get_sealed_l1_batch_number()
-            .await
-            .unwrap();
+        let last_sealed_l1_batch = storage.blocks_dal().get_sealed_l1_batch_number().await;
         let last_requested_l1_batch =
             next_l1_batch_to_seal.0 + self.max_l1_batches_per_iter as u32 - 1;
         let last_requested_l1_batch = last_requested_l1_batch.min(last_sealed_l1_batch.0);
@@ -240,10 +234,7 @@ impl TreeUpdater {
         mut stop_receiver: watch::Receiver<bool>,
         health_updater: HealthUpdater,
     ) -> anyhow::Result<()> {
-        let mut storage = pool
-            .access_storage_tagged("metadata_calculator")
-            .await
-            .unwrap();
+        let mut storage = pool.access_storage_tagged("metadata_calculator").await;
 
         // Ensure genesis creation
         let tree = &mut self.tree;
@@ -256,16 +247,11 @@ impl TreeUpdater {
         }
         let mut next_l1_batch_to_seal = tree.next_l1_batch_number();
 
-        let current_db_batch = storage
-            .blocks_dal()
-            .get_sealed_l1_batch_number()
-            .await
-            .unwrap();
+        let current_db_batch = storage.blocks_dal().get_sealed_l1_batch_number().await;
         let last_l1_batch_with_metadata = storage
             .blocks_dal()
             .get_last_l1_batch_number_with_metadata()
-            .await
-            .unwrap();
+            .await;
         drop(storage);
 
         tracing::info!(
@@ -313,14 +299,10 @@ impl TreeUpdater {
                 tracing::info!("Stop signal received, metadata_calculator is shutting down");
                 break;
             }
-            let storage = pool
-                .access_storage_tagged("metadata_calculator")
-                .await
-                .unwrap();
+            let storage = pool.access_storage_tagged("metadata_calculator").await;
             let prover_storage = prover_pool
                 .access_storage_tagged("metadata_calculator")
-                .await
-                .unwrap();
+                .await;
 
             let snapshot = *next_l1_batch_to_seal;
             self.step(storage, prover_storage, &mut next_l1_batch_to_seal)

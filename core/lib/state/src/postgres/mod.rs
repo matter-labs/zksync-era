@@ -298,8 +298,7 @@ impl PostgresStorageCaches {
                     continue;
                 }
                 let mut connection = rt_handle
-                    .block_on(connection_pool.access_storage_tagged("values_cache_updater"))
-                    .unwrap();
+                    .block_on(connection_pool.access_storage_tagged("values_cache_updater"));
                 values_cache.update(current_miniblock, to_miniblock, &rt_handle, &mut connection);
                 current_miniblock = to_miniblock;
             }
@@ -343,8 +342,6 @@ pub struct PostgresStorage<'a> {
 
 impl<'a> PostgresStorage<'a> {
     /// Creates a new storage using the specified connection.
-    /// # Panics
-    /// Panics on Postgres errors.
     pub fn new(
         rt_handle: Handle,
         mut connection: StorageProcessor<'a>,

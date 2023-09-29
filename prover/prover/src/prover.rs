@@ -67,8 +67,8 @@ impl ProverReporter {
         );
         let job_id = job_id as u32;
         self.rt_handle.block_on(async {
-            let mut connection = self.pool.access_storage().await.unwrap();
-            let mut transaction = connection.start_transaction().await.unwrap();
+            let mut connection = self.pool.access_storage().await;
+            let mut transaction = connection.start_transaction().await;
 
             // BEWARE, HERE BE DRAGONS.
             // `send_report` method is called in an operating system thread,
@@ -90,13 +90,13 @@ impl ProverReporter {
             }
             self.get_prover_job_metadata_by_id_and_exit_if_error(&mut transaction, job_id)
                 .await;
-            transaction.commit().await.unwrap();
+            transaction.commit().await;
         });
     }
 
     fn get_circuit_type(&self, job_id: usize) -> String {
         let prover_job_metadata = self.rt_handle.block_on(async {
-            let mut connection = self.pool.access_storage().await.unwrap();
+            let mut connection = self.pool.access_storage().await;
             self.get_prover_job_metadata_by_id_and_exit_if_error(&mut connection, job_id as u32)
                 .await
         });
@@ -148,7 +148,8 @@ impl JobReporter for ProverReporter {
                 self.rt_handle.block_on(async {
                     let result = self
                         .pool
-                        .access_storage().await.unwrap()
+                        .access_storage()
+                        .await
                         .prover_dal()
                         .save_proof_error(job_id as u32, error, self.config.max_attempts)
                         .await;

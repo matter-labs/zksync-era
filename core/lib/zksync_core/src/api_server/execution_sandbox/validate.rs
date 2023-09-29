@@ -21,7 +21,7 @@ impl TxSharedArgs {
         tx: L2Tx,
         computational_gas_limit: u32,
     ) -> Result<(), ValidationError> {
-        let mut connection = connection_pool.access_storage_tagged("api").await.unwrap();
+        let mut connection = connection_pool.access_storage_tagged("api").await;
         let block_args = BlockArgs::pending(&mut connection).await;
         drop(connection);
         self.adjust_l1_gas_price(tx.common_data.fee.gas_per_pubdata_limit);
@@ -54,7 +54,7 @@ impl TxSharedArgs {
         computational_gas_limit: u32,
     ) -> Result<(), ValidationError> {
         let stage_started_at = Instant::now();
-        let mut connection = connection_pool.access_storage_tagged("api").await.unwrap();
+        let mut connection = connection_pool.access_storage_tagged("api").await;
         let validation_params =
             get_validation_params(&mut connection, &tx, computational_gas_limit).await;
         drop(connection);

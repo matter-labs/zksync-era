@@ -251,7 +251,7 @@ mod tests {
     async fn instrumenting_erroneous_query(pool: ConnectionPool) {
         // Add `vlog::init()` here to debug this test
 
-        let mut conn = pool.access_storage().await.unwrap();
+        let mut conn = pool.access_storage().await;
         sqlx::query("WHAT")
             .map(drop)
             .instrument("erroneous")
@@ -266,7 +266,7 @@ mod tests {
     async fn instrumenting_slow_query(pool: ConnectionPool) {
         // Add `vlog::init()` here to debug this test
 
-        let mut conn = pool.access_storage().await.unwrap();
+        let mut conn = pool.access_storage().await;
         sqlx::query("SELECT pg_sleep(1.5)")
             .map(drop)
             .instrument("slow")

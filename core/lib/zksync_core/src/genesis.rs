@@ -39,16 +39,15 @@ pub async fn ensure_genesis_state(
     zksync_chain_id: L2ChainId,
     genesis_params: &GenesisParams,
 ) -> anyhow::Result<H256> {
-    let mut transaction = storage.start_transaction().await.unwrap();
+    let mut transaction = storage.start_transaction().await;
 
     // return if genesis block was already processed
-    if !transaction.blocks_dal().is_genesis_needed().await.unwrap() {
+    if !transaction.blocks_dal().is_genesis_needed().await {
         tracing::debug!("genesis is not needed!");
         return transaction
             .blocks_dal()
             .get_l1_batch_state_root(L1BatchNumber(0))
             .await
-            .unwrap()
             .context("genesis block hash is empty");
     }
 
@@ -102,7 +101,7 @@ pub async fn ensure_genesis_state(
     .await;
     tracing::info!("operations_schema_genesis is complete");
 
-    transaction.commit().await.unwrap();
+    transaction.commit().await;
 
     // We need to `println` this value because it will be used to initialize the smart contract.
     println!("CONTRACTS_GENESIS_ROOT={:?}", genesis_root_hash);
@@ -168,7 +167,7 @@ async fn insert_system_contracts(
         .chain(Some(system_context_init_logs))
         .collect();
 
-    let mut transaction = storage.start_transaction().await.unwrap();
+    let mut transaction = storage.start_transaction().await;
 
     transaction
         .storage_logs_dal()
@@ -238,7 +237,7 @@ async fn insert_system_contracts(
         .insert_factory_deps(MiniblockNumber(0), &factory_deps)
         .await;
 
-    transaction.commit().await.unwrap();
+    transaction.commit().await;
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -284,7 +283,7 @@ pub(crate) async fn create_genesis_l1_batch(
         virtual_blocks: 0,
     };
 
-    let mut transaction = storage.start_transaction().await.unwrap();
+    let mut transaction = storage.start_transaction().await;
 
     transaction
         .protocol_versions_dal()
@@ -293,25 +292,22 @@ pub(crate) async fn create_genesis_l1_batch(
     transaction
         .blocks_dal()
         .insert_l1_batch(&genesis_l1_batch_header, &[], BlockGasCount::default())
-        .await
-        .unwrap();
+        .await;
     transaction
         .blocks_dal()
         .insert_miniblock(&genesis_miniblock_header)
-        .await
-        .unwrap();
+        .await;
     transaction
         .blocks_dal()
         .mark_miniblocks_as_executed_in_l1_batch(L1BatchNumber(0))
-        .await
-        .unwrap();
+        .await;
 
     insert_base_system_contracts_to_factory_deps(&mut transaction, base_system_contracts).await;
     insert_system_contracts(&mut transaction, system_contracts, chain_id).await;
 
     add_eth_token(&mut transaction).await;
 
-    transaction.commit().await.unwrap();
+    transaction.commit().await;
 }
 
 pub(crate) async fn add_eth_token(storage: &mut StorageProcessor<'_>) {
@@ -325,7 +321,7 @@ pub(crate) async fn add_eth_token(storage: &mut StorageProcessor<'_>) {
         },
     };
 
-    let mut transaction = storage.start_transaction().await.unwrap();
+    let mut transaction = storage.start_transaction().await;
 
     transaction
         .tokens_dal()
@@ -336,7 +332,7 @@ pub(crate) async fn add_eth_token(storage: &mut StorageProcessor<'_>) {
         .update_well_known_l1_token(&ETHEREUM_ADDRESS, eth_token.metadata)
         .await;
 
-    transaction.commit().await.unwrap();
+    transaction.commit().await;
 }
 
 pub(crate) async fn save_genesis_l1_batch_metadata(
@@ -364,8 +360,7 @@ pub(crate) async fn save_genesis_l1_batch_metadata(
     storage
         .blocks_dal()
         .save_genesis_l1_batch_metadata(&metadata)
-        .await
-        .unwrap();
+        .await;
 }
 
 #[cfg(test)]
@@ -378,8 +373,8 @@ mod tests {
 
     #[db_test]
     async fn running_genesis(pool: ConnectionPool) {
-        let mut conn = pool.access_storage().await.unwrap();
-        conn.blocks_dal().delete_genesis().await.unwrap();
+        let mut conn = pool.access_storage().await;
+        conn.blocks_dal().delete_genesis().await;
 
         let params = GenesisParams {
             protocol_version: ProtocolVersionId::latest(),
@@ -393,12 +388,11 @@ mod tests {
             .await
             .unwrap();
 
-        assert!(!conn.blocks_dal().is_genesis_needed().await.unwrap());
+        assert!(!conn.blocks_dal().is_genesis_needed().await);
         let metadata = conn
             .blocks_dal()
             .get_l1_batch_metadata(L1BatchNumber(0))
-            .await
-            .unwrap();
+            .await;
         let root_hash = metadata.unwrap().metadata.root_hash;
         assert_ne!(root_hash, H256::zero());
 

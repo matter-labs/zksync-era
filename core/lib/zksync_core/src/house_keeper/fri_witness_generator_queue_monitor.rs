@@ -23,7 +23,7 @@ impl FriWitnessGeneratorStatsReporter {
     }
 
     async fn get_job_statistics(&self) -> HashMap<AggregationRound, JobCountStatistics> {
-        let mut conn = self.pool.access_storage().await.unwrap();
+        let mut conn = self.pool.access_storage().await;
         HashMap::from([
             (
                 AggregationRound::BasicCircuits,

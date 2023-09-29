@@ -149,7 +149,6 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
             .connection_pool
             .access_storage_tagged("api")
             .await
-            .unwrap()
             .tokens_web3_dal()
             .get_well_known_tokens()
             .await
@@ -180,8 +179,7 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
                 .state
                 .connection_pool
                 .access_storage_tagged("api")
-                .await
-                .unwrap();
+                .await;
             let mut tokens_web3_dal = storage.tokens_web3_dal();
             FeeTicker::get_l2_token_price(
                 &mut tokens_web3_dal,
@@ -214,7 +212,6 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
             .connection_pool
             .access_storage_tagged("api")
             .await
-            .unwrap()
             .accounts_dal()
             .get_balances_for_address(address)
             .await
@@ -248,8 +245,7 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
             .state
             .connection_pool
             .access_storage_tagged("api")
-            .await
-            .unwrap();
+            .await;
         let l1_batch_number = match storage
             .blocks_web3_dal()
             .get_l1_batch_number_of_miniblock(block_number)
@@ -343,8 +339,7 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
             .state
             .connection_pool
             .access_storage_tagged("api")
-            .await
-            .unwrap();
+            .await;
         let (l1_batch_number, l1_batch_tx_index) = match storage
             .blocks_web3_dal()
             .get_l1_batch_info_for_tx(tx_hash)
@@ -396,7 +391,6 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
             .connection_pool
             .access_storage_tagged("api")
             .await
-            .unwrap()
             .blocks_web3_dal()
             .get_sealed_l1_batch_number()
             .await
@@ -420,7 +414,6 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
             .connection_pool
             .access_storage_tagged("api")
             .await
-            .unwrap()
             .blocks_web3_dal()
             .get_miniblock_range_of_l1_batch(batch)
             .await
@@ -444,7 +437,6 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
             .connection_pool
             .access_storage_tagged("api")
             .await
-            .unwrap()
             .blocks_web3_dal()
             .get_block_details(
                 block_number,
@@ -470,7 +462,6 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
             .connection_pool
             .access_storage_tagged("api")
             .await
-            .unwrap()
             .transactions_web3_dal()
             .get_raw_miniblock_transactions(block_number)
             .await
@@ -493,7 +484,6 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
             .connection_pool
             .access_storage_tagged("api")
             .await
-            .unwrap()
             .transactions_web3_dal()
             .get_transaction_details(hash)
             .await
@@ -528,7 +518,6 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
             .connection_pool
             .access_storage_tagged("api")
             .await
-            .unwrap()
             .blocks_web3_dal()
             .get_l1_batch_details(batch_number)
             .await
@@ -548,7 +537,6 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
             .connection_pool
             .access_storage_tagged("api")
             .await
-            .unwrap()
             .storage_dal()
             .get_factory_dep(hash)
             .await;
@@ -587,7 +575,6 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
                     .connection_pool
                     .access_storage()
                     .await
-                    .unwrap()
                     .protocol_versions_web3_dal()
                     .get_protocol_version_by_id(id)
                     .await
@@ -597,7 +584,6 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
                     .connection_pool
                     .access_storage()
                     .await
-                    .unwrap()
                     .protocol_versions_web3_dal()
                     .get_latest_protocol_version()
                     .await,

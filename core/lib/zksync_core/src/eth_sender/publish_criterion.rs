@@ -147,7 +147,6 @@ impl GasCriterion {
             .blocks_dal()
             .get_l1_batches_predicted_gas(batch_number..=batch_number, self.op)
             .await
-            .unwrap()
     }
 }
 

@@ -64,24 +64,21 @@ impl BatchStatusUpdater {
             .build(main_node_url)
             .expect("Unable to create a main node client");
 
-        let mut storage = pool.access_storage_tagged("sync_layer").await.unwrap();
+        let mut storage = pool.access_storage_tagged("sync_layer").await;
         let last_executed_l1_batch = storage
             .blocks_dal()
             .get_number_of_last_l1_batch_executed_on_eth()
             .await
-            .unwrap()
             .unwrap_or_default();
         let last_proven_l1_batch = storage
             .blocks_dal()
             .get_number_of_last_l1_batch_proven_on_eth()
             .await
-            .unwrap()
             .unwrap_or_default();
         let last_committed_l1_batch = storage
             .blocks_dal()
             .get_number_of_last_l1_batch_committed_on_eth()
             .await
-            .unwrap()
             .unwrap_or_default();
         drop(storage);
 
@@ -130,11 +127,9 @@ impl BatchStatusUpdater {
             .pool
             .access_storage_tagged("sync_layer")
             .await
-            .unwrap()
             .blocks_dal()
             .get_newest_l1_batch_header()
             .await
-            .unwrap()
             .number;
 
         // We don't want to change the internal state until we actually persist the changes.
@@ -295,7 +290,7 @@ impl BatchStatusUpdater {
     async fn apply_status_changes(&mut self, changes: StatusChanges) {
         let start = Instant::now();
 
-        let mut storage = self.pool.access_storage_tagged("sync_layer").await.unwrap();
+        let mut storage = self.pool.access_storage_tagged("sync_layer").await;
 
         for change in changes.commit.into_iter() {
             tracing::info!(

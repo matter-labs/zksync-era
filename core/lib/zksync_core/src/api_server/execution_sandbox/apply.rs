@@ -42,9 +42,7 @@ pub(super) fn apply_vm_in_sandbox<T>(
     let span = tracing::debug_span!("initialization").entered();
 
     let rt_handle = vm_permit.rt_handle();
-    let mut connection = rt_handle
-        .block_on(connection_pool.access_storage_tagged("api"))
-        .unwrap();
+    let mut connection = rt_handle.block_on(connection_pool.access_storage_tagged("api"));
     let connection_acquire_time = stage_started_at.elapsed();
     // We don't want to emit too many logs.
     if connection_acquire_time > Duration::from_millis(10) {
@@ -314,7 +312,6 @@ impl BlockArgs {
                     .blocks_dal()
                     .get_last_sealed_miniblock_header()
                     .await
-                    .unwrap()
                     .expect("At least one miniblock must exist");
 
                 // Timestamp of the next L1 batch must be greater than the timestamp of the last miniblock.
@@ -351,7 +348,6 @@ impl BlockArgs {
             .blocks_dal()
             .get_miniblock_protocol_version_id(state_l2_block_number)
             .await
-            .unwrap()
             .unwrap_or(ProtocolVersionId::Version9);
         Ok(ResolvedBlockInfo {
             state_l2_block_number,

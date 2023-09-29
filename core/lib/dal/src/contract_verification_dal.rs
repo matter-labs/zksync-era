@@ -140,7 +140,7 @@ impl ContractVerificationDal<'_, '_> {
         verification_info: VerificationInfo,
     ) -> Result<(), SqlxError> {
         {
-            let mut transaction = self.storage.start_transaction().await.unwrap();
+            let mut transaction = self.storage.start_transaction().await;
 
             sqlx::query!(
                 "
@@ -170,7 +170,7 @@ impl ContractVerificationDal<'_, '_> {
             .execute(transaction.conn())
             .await?;
 
-            transaction.commit().await.unwrap();
+            transaction.commit().await;
             Ok(())
         }
     }
@@ -343,7 +343,7 @@ impl ContractVerificationDal<'_, '_> {
         versions: Vec<String>,
     ) -> Result<(), SqlxError> {
         {
-            let mut transaction = self.storage.start_transaction().await.unwrap();
+            let mut transaction = self.storage.start_transaction().await;
             let compiler = format!("{compiler}");
 
             sqlx::query!(
@@ -366,7 +366,7 @@ impl ContractVerificationDal<'_, '_> {
             .execute(transaction.conn())
             .await?;
 
-            transaction.commit().await.unwrap();
+            transaction.commit().await;
             Ok(())
         }
     }

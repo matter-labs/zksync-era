@@ -186,8 +186,7 @@ impl L1BatchWithLogs {
         let header = storage
             .blocks_dal()
             .get_l1_batch_header(l1_batch_number)
-            .await
-            .unwrap()?;
+            .await?;
         header_latency.report();
 
         let protective_reads_latency = LoadChangesStage::ProtectiveReads.start();
@@ -298,8 +297,7 @@ mod tests {
             let header = storage
                 .blocks_dal()
                 .get_l1_batch_header(l1_batch_number)
-                .await
-                .unwrap()?;
+                .await?;
             let protective_reads = storage
                 .storage_logs_dedup_dal()
                 .get_protective_reads_for_l1_batch(l1_batch_number)
@@ -365,7 +363,7 @@ mod tests {
     #[db_test]
     async fn loaded_logs_equivalence_basics(pool: ConnectionPool) {
         ensure_genesis_state(
-            &mut pool.access_storage().await.unwrap(),
+            &mut pool.access_storage().await,
             L2ChainId(270),
             &mock_genesis_params(),
         )
@@ -373,7 +371,7 @@ mod tests {
         .unwrap();
         reset_db_state(&pool, 5).await;
 
-        let mut storage = pool.access_storage().await.unwrap();
+        let mut storage = pool.access_storage().await;
         for l1_batch_number in 0..=5 {
             let l1_batch_number = L1BatchNumber(l1_batch_number);
             let batch_with_logs = L1BatchWithLogs::new(&mut storage, l1_batch_number)
@@ -388,7 +386,7 @@ mod tests {
 
     #[db_test]
     async fn loaded_logs_equivalence_with_zero_no_op_logs(pool: ConnectionPool) {
-        let mut storage = pool.access_storage().await.unwrap();
+        let mut storage = pool.access_storage().await;
         ensure_genesis_state(&mut storage, L2ChainId(270), &mock_genesis_params())
             .await
             .unwrap();
@@ -466,7 +464,7 @@ mod tests {
 
     #[db_test]
     async fn loaded_logs_equivalence_with_non_zero_no_op_logs(pool: ConnectionPool) {
-        let mut storage = pool.access_storage().await.unwrap();
+        let mut storage = pool.access_storage().await;
         ensure_genesis_state(&mut storage, L2ChainId(270), &mock_genesis_params())
             .await
             .unwrap();
@@ -513,7 +511,7 @@ mod tests {
 
     #[db_test]
     async fn loaded_logs_equivalence_with_protective_reads(pool: ConnectionPool) {
-        let mut storage = pool.access_storage().await.unwrap();
+        let mut storage = pool.access_storage().await;
         ensure_genesis_state(&mut storage, L2ChainId(270), &mock_genesis_params())
             .await
             .unwrap();

@@ -362,12 +362,8 @@ async fn main() -> anyhow::Result<()> {
             L1ExecutedBatchesRevert::Allowed,
         );
 
-        let mut connection = connection_pool.access_storage().await.unwrap();
-        let sealed_l1_batch_number = connection
-            .blocks_dal()
-            .get_sealed_l1_batch_number()
-            .await
-            .unwrap();
+        let mut connection = connection_pool.access_storage().await;
+        let sealed_l1_batch_number = connection.blocks_dal().get_sealed_l1_batch_number().await;
         drop(connection);
 
         tracing::info!("Rolling back to l1 batch number {sealed_l1_batch_number}");
@@ -389,7 +385,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Make sure that genesis is performed.
     perform_genesis_if_needed(
-        &mut connection_pool.access_storage().await.unwrap(),
+        &mut connection_pool.access_storage().await,
         config.remote.l2_chain_id,
         main_node_url.clone(),
     )

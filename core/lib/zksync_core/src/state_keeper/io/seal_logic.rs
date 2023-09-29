@@ -134,7 +134,7 @@ impl UpdatesManager {
     ) {
         let started_at = Instant::now();
         let mut progress = SealProgress::for_l1_batch();
-        let mut transaction = storage.start_transaction().await.unwrap();
+        let mut transaction = storage.start_transaction().await;
 
         progress.end_stage("vm_finalization", None);
 
@@ -217,15 +217,13 @@ impl UpdatesManager {
                 &initial_bootloader_contents,
                 self.l1_batch.l1_gas_count,
             )
-            .await
-            .unwrap();
+            .await;
         progress.end_stage("insert_l1_batch_header", None);
 
         transaction
             .blocks_dal()
             .mark_miniblocks_as_executed_in_l1_batch(l1_batch_env.number)
-            .await
-            .unwrap();
+            .await;
         progress.end_stage("set_l1_batch_number_for_miniblocks", None);
 
         transaction
@@ -275,7 +273,7 @@ impl UpdatesManager {
             .await;
         progress.end_stage("insert_initial_writes", Some(deduplicated_writes.len()));
 
-        transaction.commit().await.unwrap();
+        transaction.commit().await;
         progress.end_stage("commit_l1_batch", None);
 
         let writes_metrics = self.storage_writes_deduplicator.metrics();
@@ -366,7 +364,7 @@ impl MiniblockSealCommand {
             event_count = self.miniblock.events.len()
         );
 
-        let mut transaction = storage.start_transaction().await.unwrap();
+        let mut transaction = storage.start_transaction().await;
         let miniblock_header = MiniblockHeader {
             number: miniblock_number,
             timestamp: self.miniblock.timestamp,
@@ -384,8 +382,7 @@ impl MiniblockSealCommand {
         transaction
             .blocks_dal()
             .insert_miniblock(&miniblock_header)
-            .await
-            .unwrap();
+            .await;
         progress.end_stage("insert_miniblock_header", None);
 
         transaction
@@ -473,7 +470,7 @@ impl MiniblockSealCommand {
         let (current_l2_virtual_block_number, _) =
             unpack_block_info(h256_to_u256(current_l2_virtual_block_info));
 
-        transaction.commit().await.unwrap();
+        transaction.commit().await;
         progress.end_stage("commit_miniblock", None);
         self.report_miniblock_metrics(started_at, current_l2_virtual_block_number);
     }

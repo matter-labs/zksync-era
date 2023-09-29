@@ -80,7 +80,7 @@ impl TokenPriceFetcher {
             self.error_handler.update().await;
 
             // We refresh token list in case new tokens were added.
-            let mut storage = pool.access_storage().await.unwrap();
+            let mut storage = pool.access_storage().await;
             let tokens = self.get_tokens(&mut storage).await;
 
             // Vector of received token prices in the format of (`token_addr`, `price_in_usd`, `fetch_timestamp`).

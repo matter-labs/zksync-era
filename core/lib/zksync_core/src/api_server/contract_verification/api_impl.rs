@@ -39,8 +39,7 @@ impl RestApi {
         let mut storage = self_
             .master_connection_pool
             .access_storage_tagged("api")
-            .await
-            .unwrap();
+            .await;
 
         if !storage
             .storage_logs_dal()
@@ -80,7 +79,6 @@ impl RestApi {
             .replica_connection_pool
             .access_storage_tagged("api")
             .await
-            .unwrap()
             .contract_verification_dal()
             .get_verification_request_status(*id)
             .await
@@ -101,7 +99,6 @@ impl RestApi {
             .replica_connection_pool
             .access_storage_tagged("api")
             .await
-            .unwrap()
             .contract_verification_dal()
             .get_zksolc_versions()
             .await
@@ -119,7 +116,6 @@ impl RestApi {
             .replica_connection_pool
             .access_storage_tagged("api")
             .await
-            .unwrap()
             .contract_verification_dal()
             .get_solc_versions()
             .await
@@ -137,7 +133,6 @@ impl RestApi {
             .replica_connection_pool
             .access_storage_tagged("api")
             .await
-            .unwrap()
             .contract_verification_dal()
             .get_zkvyper_versions()
             .await
@@ -155,7 +150,6 @@ impl RestApi {
             .replica_connection_pool
             .access_storage_tagged("api")
             .await
-            .unwrap()
             .contract_verification_dal()
             .get_vyper_versions()
             .await
@@ -176,7 +170,6 @@ impl RestApi {
             .replica_connection_pool
             .access_storage_tagged("api")
             .await
-            .unwrap()
             .contract_verification_dal()
             .get_contract_verification_info(*address)
             .await

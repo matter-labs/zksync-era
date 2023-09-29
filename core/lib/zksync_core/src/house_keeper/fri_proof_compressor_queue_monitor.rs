@@ -23,7 +23,6 @@ impl FriProofCompressorStatsReporter {
     async fn get_job_statistics(pool: &ConnectionPool) -> JobCountStatistics {
         pool.access_storage()
             .await
-            .unwrap()
             .fri_proof_compressor_dal()
             .get_jobs_stats()
             .await

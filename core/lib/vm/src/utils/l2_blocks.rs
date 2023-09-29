@@ -5,7 +5,7 @@ use zksync_config::constants::{
     SYSTEM_CONTEXT_STORED_L2_BLOCK_HASHES,
 };
 use zksync_state::{ReadStorage, StoragePtr};
-use zksync_types::block::unpack_block_info;
+use zksync_types::block::{legacy_miniblock_hash, unpack_block_info};
 use zksync_types::web3::signing::keccak256;
 use zksync_types::{AccountTreeId, MiniblockNumber, StorageKey, H256, U256};
 use zksync_utils::{h256_to_u256, u256_to_h256};
@@ -51,7 +51,7 @@ pub(crate) fn l2_block_hash(
 }
 
 /// Get last saved block from storage
-pub fn load_last_l2_block<S: ReadStorage>(storage: StoragePtr<S>) -> Option<L2Block> {
+pub fn load_last_l2_block<S: ReadStorage>(storage: StoragePtr<S>) -> L2Block {
     // Get block number and timestamp
     let current_l2_block_info_key = StorageKey::new(
         AccountTreeId::new(SYSTEM_CONTEXT_ADDRESS),
@@ -62,8 +62,13 @@ pub fn load_last_l2_block<S: ReadStorage>(storage: StoragePtr<S>) -> Option<L2Bl
     let (block_number, block_timestamp) = unpack_block_info(h256_to_u256(current_l2_block_info));
     let block_number = block_number as u32;
     if block_number == 0 {
-        // The block does not exist yet
-        return None;
+        // The block does not exist yet. This is the scenario of either the first L2 block ever or
+        // the first block after the upgrade for support of L2 blocks.
+        return L2Block {
+            number: block_number,
+            timestamp: block_timestamp,
+            hash: legacy_miniblock_hash(MiniblockNumber(block_number)),
+        };
     }
 
     // Get prev block hash
@@ -85,9 +90,9 @@ pub fn load_last_l2_block<S: ReadStorage>(storage: StoragePtr<S>) -> Option<L2Bl
         current_tx_rolling_hash,
     );
 
-    Some(L2Block {
+    L2Block {
         number: block_number,
         timestamp: block_timestamp,
         hash: current_block_hash,
-    })
+    }
 }

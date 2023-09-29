@@ -30,7 +30,7 @@ impl PeriodicJob for ProverStatsReporter {
     async fn run_routine_task(&mut self) -> anyhow::Result<()> {
         let prover_group_config =
             ProverGroupConfig::from_env().context("ProverGroupConfig::from_env()")?;
-        let mut conn = self.prover_connection_pool.access_storage().await.unwrap();
+        let mut conn = self.prover_connection_pool.access_storage().await;
         let stats = conn.prover_dal().get_prover_jobs_stats_per_circuit().await;
 
         for (circuit_name, stats) in stats.into_iter() {

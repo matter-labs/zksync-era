@@ -112,11 +112,7 @@ impl L1BatchExecutorBuilder for MainBatchExecutorBuilder {
         system_env: SystemEnv,
     ) -> BatchExecutorHandle {
         let mut secondary_storage = RocksdbStorage::new(self.state_keeper_db_path.as_ref());
-        let mut conn = self
-            .pool
-            .access_storage_tagged("state_keeper")
-            .await
-            .unwrap();
+        let mut conn = self.pool.access_storage_tagged("state_keeper").await;
         secondary_storage.update_from_postgres(&mut conn).await;
         drop(conn);
 

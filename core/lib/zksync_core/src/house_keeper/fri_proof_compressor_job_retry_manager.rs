@@ -38,7 +38,6 @@ impl PeriodicJob for FriProofCompressorJobRetryManager {
             .pool
             .access_storage()
             .await
-            .unwrap()
             .fri_proof_compressor_dal()
             .requeue_stuck_jobs(self.processing_timeout, self.max_attempts)
             .await;

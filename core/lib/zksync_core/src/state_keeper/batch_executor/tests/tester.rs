@@ -95,11 +95,7 @@ impl Tester {
         );
 
         let mut secondary_storage = RocksdbStorage::new(self.db_dir.path());
-        let mut conn = self
-            .pool
-            .access_storage_tagged("state_keeper")
-            .await
-            .unwrap();
+        let mut conn = self.pool.access_storage_tagged("state_keeper").await;
         secondary_storage.update_from_postgres(&mut conn).await;
         drop(conn);
 
@@ -135,12 +131,8 @@ impl Tester {
 
     /// Performs the genesis in the storage.
     pub(super) async fn genesis(&self) {
-        let mut storage = self
-            .pool
-            .access_storage_tagged("state_keeper")
-            .await
-            .unwrap();
-        if storage.blocks_dal().is_genesis_needed().await.unwrap() {
+        let mut storage = self.pool.access_storage_tagged("state_keeper").await;
+        if storage.blocks_dal().is_genesis_needed().await {
             create_genesis_l1_batch(
                 &mut storage,
                 self.fee_account,
@@ -158,11 +150,7 @@ impl Tester {
     /// Adds funds for specified account list.
     /// Expects genesis to be performed (i.e. `setup_storage` called beforehand).
     pub(super) async fn fund(&self, addresses: &[Address]) {
-        let mut storage = self
-            .pool
-            .access_storage_tagged("state_keeper")
-            .await
-            .unwrap();
+        let mut storage = self.pool.access_storage_tagged("state_keeper").await;
 
         let eth_amount = U256::from(10u32).pow(U256::from(32)); //10^32 wei
 

@@ -103,8 +103,8 @@ impl Tester {
     }
 
     pub(super) async fn genesis(&self, pool: &ConnectionPool) {
-        let mut storage = pool.access_storage_tagged("state_keeper").await.unwrap();
-        if storage.blocks_dal().is_genesis_needed().await.unwrap() {
+        let mut storage = pool.access_storage_tagged("state_keeper").await;
+        if storage.blocks_dal().is_genesis_needed().await {
             create_genesis_l1_batch(
                 &mut storage,
                 Address::repeat_byte(0x01),
@@ -127,7 +127,7 @@ impl Tester {
         l1_gas_price: u64,
         l2_fair_gas_price: u64,
     ) {
-        let mut storage = pool.access_storage_tagged("state_keeper").await.unwrap();
+        let mut storage = pool.access_storage_tagged("state_keeper").await;
         storage
             .blocks_dal()
             .insert_miniblock(&MiniblockHeader {
@@ -143,8 +143,7 @@ impl Tester {
                 protocol_version: Some(ProtocolVersionId::latest()),
                 virtual_blocks: 0,
             })
-            .await
-            .unwrap();
+            .await;
     }
 
     pub(super) async fn insert_sealed_batch(&self, pool: &ConnectionPool, number: u32) {
@@ -157,22 +156,19 @@ impl Tester {
         );
         batch_header.is_finished = true;
 
-        let mut storage = pool.access_storage_tagged("state_keeper").await.unwrap();
+        let mut storage = pool.access_storage_tagged("state_keeper").await;
         storage
             .blocks_dal()
             .insert_l1_batch(&batch_header, &[], Default::default())
-            .await
-            .unwrap();
+            .await;
         storage
             .blocks_dal()
             .mark_miniblocks_as_executed_in_l1_batch(batch_header.number)
-            .await
-            .unwrap();
+            .await;
         storage
             .blocks_dal()
             .set_l1_batch_hash(batch_header.number, H256::default())
-            .await
-            .unwrap();
+            .await;
     }
 
     pub(super) fn insert_tx(

@@ -89,8 +89,8 @@ impl JobProcessor for SchedulerWitnessGenerator {
     const SERVICE_NAME: &'static str = "scheduler_witness_generator";
 
     async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, Self::Job)>> {
-        let mut connection = self.connection_pool.access_storage().await.unwrap();
-        let mut prover_connection = self.prover_connection_pool.access_storage().await.unwrap();
+        let mut connection = self.connection_pool.access_storage().await;
+        let mut prover_connection = self.prover_connection_pool.access_storage().await;
         let last_l1_batch_to_process = self.config.last_l1_batch_to_process();
 
         match prover_connection
@@ -107,8 +107,7 @@ impl JobProcessor for SchedulerWitnessGenerator {
                 let prev_metadata = connection
                     .blocks_dal()
                     .get_l1_batch_metadata(metadata.block_number - 1)
-                    .await
-                    .unwrap();
+                    .await;
                 let previous_aux_hash = prev_metadata
                     .as_ref()
                     .map_or([0u8; 32], |e| e.metadata.aux_data_hash.0);
@@ -132,7 +131,6 @@ impl JobProcessor for SchedulerWitnessGenerator {
             .prover_connection_pool
             .access_storage()
             .await
-            .unwrap()
             .witness_generator_dal()
             .mark_witness_job_as_failed(
                 AggregationRound::Scheduler,
@@ -146,11 +144,9 @@ impl JobProcessor for SchedulerWitnessGenerator {
             self.connection_pool
                 .access_storage()
                 .await
-                .unwrap()
                 .blocks_dal()
                 .set_skip_proof_for_l1_batch(job_id)
-                .await
-                .unwrap();
+                .await;
         }
     }
 
@@ -263,12 +259,11 @@ pub async fn update_database(
     final_aggregation_result: BlockApplicationWitness<Bn256>,
     circuit_types_and_urls: Vec<(&'static str, String)>,
 ) {
-    let mut connection = connection_pool.access_storage().await.unwrap();
+    let mut connection = connection_pool.access_storage().await;
     let block = connection
         .blocks_dal()
         .get_l1_batch_metadata(block_number)
         .await
-        .unwrap()
         .expect("L1 batch should exist");
 
     assert_eq!(
@@ -291,8 +286,8 @@ pub async fn update_database(
         "Commitment is wrong"
     );
 
-    let mut prover_connection = prover_connection_pool.access_storage().await.unwrap();
-    let mut transaction = prover_connection.start_transaction().await.unwrap();
+    let mut prover_connection = prover_connection_pool.access_storage().await;
+    let mut transaction = prover_connection.start_transaction().await;
     let protocol_version = transaction
         .witness_generator_dal()
         .protocol_version_for_l1_batch(block_number)
@@ -330,7 +325,7 @@ pub async fn update_database(
         )
         .await;
 
-    transaction.commit().await.unwrap();
+    transaction.commit().await;
     track_witness_generation_stage(started_at, AggregationRound::Scheduler);
 }
 

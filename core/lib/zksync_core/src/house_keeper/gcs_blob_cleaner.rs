@@ -63,7 +63,7 @@ impl GcsBlobCleaner {
     }
 
     async fn cleanup_prover_jobs_blobs(&self) {
-        let mut conn = self.pool.access_storage().await.unwrap();
+        let mut conn = self.pool.access_storage().await;
         let blob_urls = conn
             .prover_dal()
             .get_circuit_input_blob_urls_to_be_cleaned(BATCH_CLEANUP_SIZE)
@@ -92,23 +92,21 @@ impl GcsBlobCleaner {
     }
 
     async fn cleanup_witness_inputs_blobs(&self) {
-        let mut conn = self.pool.access_storage().await.unwrap();
+        let mut conn = self.pool.access_storage().await;
         let blob_urls = conn
             .blocks_dal()
             .get_merkle_tree_paths_blob_urls_to_be_cleaned(BATCH_CLEANUP_SIZE)
-            .await
-            .unwrap();
+            .await;
         let l1_batch_numbers = self
             .cleanup_blob_urls(Bucket::WitnessInput, blob_urls)
             .await;
         conn.blocks_dal()
             .mark_gcs_blobs_as_cleaned(&l1_batch_numbers)
-            .await
-            .unwrap();
+            .await;
     }
 
     async fn cleanup_leaf_aggregation_witness_jobs_blobs(&self) {
-        let mut conn = self.pool.access_storage().await.unwrap();
+        let mut conn = self.pool.access_storage().await;
 
         let blob_urls = conn
             .witness_generator_dal()
@@ -123,7 +121,7 @@ impl GcsBlobCleaner {
     }
 
     async fn cleanup_node_aggregation_witness_jobs_blobs(&self) {
-        let mut conn = self.pool.access_storage().await.unwrap();
+        let mut conn = self.pool.access_storage().await;
         let blob_urls = conn
             .witness_generator_dal()
             .get_leaf_layer_subqueues_and_aggregation_outputs_blob_urls_to_be_cleaned(
@@ -139,7 +137,7 @@ impl GcsBlobCleaner {
     }
 
     async fn cleanup_scheduler_witness_jobs_blobs(&self) {
-        let mut conn = self.pool.access_storage().await.unwrap();
+        let mut conn = self.pool.access_storage().await;
         let blob_urls = conn
             .witness_generator_dal()
             .get_scheduler_witness_and_node_aggregations_blob_urls_to_be_cleaned(BATCH_CLEANUP_SIZE)

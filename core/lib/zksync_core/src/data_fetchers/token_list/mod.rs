@@ -91,7 +91,7 @@ impl TokenListFetcher {
             };
 
             // We assume that token metadata does not change, thus we only looking for the new tokens.
-            let mut storage = pool.access_storage().await.unwrap();
+            let mut storage = pool.access_storage().await;
             let unknown_tokens = self.load_unknown_tokens(&mut storage).await;
             token_list.retain(|token, _data| unknown_tokens.contains(token));
 

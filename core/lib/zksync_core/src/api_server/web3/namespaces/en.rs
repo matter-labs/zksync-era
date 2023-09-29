@@ -36,8 +36,7 @@ impl<G: L1GasPriceProvider> EnNamespace<G> {
             .state
             .connection_pool
             .access_storage_tagged("api")
-            .await
-            .unwrap();
+            .await;
         storage
             .sync_dal()
             .sync_block(

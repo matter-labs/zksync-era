@@ -18,7 +18,7 @@ impl SchedulerCircuitQueuer {
     }
 
     pub async fn queue_scheduler_circuit_jobs(&mut self) {
-        let mut conn = self.pool.access_storage().await.unwrap();
+        let mut conn = self.pool.access_storage().await;
         let l1_batch_numbers = conn
             .fri_scheduler_dependency_tracker_dal()
             .get_l1_batches_ready_for_queuing()

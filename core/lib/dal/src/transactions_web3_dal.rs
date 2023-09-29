@@ -367,21 +367,16 @@ mod tests {
     async fn prepare_transaction(conn: &mut StorageProcessor<'_>, tx: L2Tx) {
         conn.blocks_dal()
             .delete_miniblocks(MiniblockNumber(0))
-            .await
-            .unwrap();
+            .await;
         conn.transactions_dal()
             .insert_transaction_l2(tx.clone(), TransactionExecutionMetrics::default())
             .await;
         conn.blocks_dal()
             .insert_miniblock(&create_miniblock_header(0))
-            .await
-            .unwrap();
+            .await;
         let mut miniblock_header = create_miniblock_header(1);
         miniblock_header.l2_tx_count = 1;
-        conn.blocks_dal()
-            .insert_miniblock(&miniblock_header)
-            .await
-            .unwrap();
+        conn.blocks_dal().insert_miniblock(&miniblock_header).await;
 
         let tx_results = [mock_execution_result(tx)];
         conn.transactions_dal()

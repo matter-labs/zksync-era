@@ -20,27 +20,22 @@ impl L1BatchMetricsReporter {
     }
 
     async fn report_metrics(&self) {
-        let mut conn = self.connection_pool.access_storage().await.unwrap();
+        let mut conn = self.connection_pool.access_storage().await;
         let mut block_metrics = vec![
             (
-                conn.blocks_dal()
-                    .get_sealed_l1_batch_number()
-                    .await
-                    .unwrap(),
+                conn.blocks_dal().get_sealed_l1_batch_number().await,
                 "sealed".to_string(),
             ),
             (
                 conn.blocks_dal()
                     .get_last_l1_batch_number_with_metadata()
-                    .await
-                    .unwrap(),
+                    .await,
                 "metadata_calculated".to_string(),
             ),
             (
                 conn.blocks_dal()
                     .get_last_l1_batch_number_with_witness_inputs()
-                    .await
-                    .unwrap(),
+                    .await,
                 "merkle_proof_calculated".to_string(),
             ),
         ];
@@ -82,21 +77,12 @@ impl L1BatchMetricsReporter {
             );
         }
 
-        let oldest_uncommitted_batch_timestamp = conn
-            .blocks_dal()
-            .oldest_uncommitted_batch_timestamp()
-            .await
-            .unwrap();
-        let oldest_unproved_batch_timestamp = conn
-            .blocks_dal()
-            .oldest_unproved_batch_timestamp()
-            .await
-            .unwrap();
-        let oldest_unexecuted_batch_timestamp = conn
-            .blocks_dal()
-            .oldest_unexecuted_batch_timestamp()
-            .await
-            .unwrap();
+        let oldest_uncommitted_batch_timestamp =
+            conn.blocks_dal().oldest_uncommitted_batch_timestamp().await;
+        let oldest_unproved_batch_timestamp =
+            conn.blocks_dal().oldest_unproved_batch_timestamp().await;
+        let oldest_unexecuted_batch_timestamp =
+            conn.blocks_dal().oldest_unexecuted_batch_timestamp().await;
 
         let now = seconds_since_epoch();
 

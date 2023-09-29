@@ -71,7 +71,7 @@ impl TradingVolumeFetcher {
             fetching_interval.tick().await;
             self.error_handler.update().await;
 
-            let mut storage = pool.access_storage().await.unwrap();
+            let mut storage = pool.access_storage().await;
             let known_l1_tokens = self.load_tokens(&mut storage).await;
 
             let trading_volumes = match self.fetch_trading_volumes(&known_l1_tokens).await {

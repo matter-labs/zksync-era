@@ -19,10 +19,10 @@ pub async fn perform_genesis_if_needed(
     zksync_chain_id: L2ChainId,
     main_node_url: String,
 ) -> anyhow::Result<()> {
-    let mut transaction = storage.start_transaction().await.unwrap();
+    let mut transaction = storage.start_transaction().await;
     // We want to check whether the genesis is needed before we create genesis params to not
     // make the node startup slower.
-    let genesis_block_hash = if transaction.blocks_dal().is_genesis_needed().await.unwrap() {
+    let genesis_block_hash = if transaction.blocks_dal().is_genesis_needed().await {
         let genesis_params = create_genesis_params(&main_node_url).await?;
         ensure_genesis_state(&mut transaction, zksync_chain_id, &genesis_params)
             .await
@@ -32,12 +32,11 @@ pub async fn perform_genesis_if_needed(
             .blocks_dal()
             .get_l1_batch_state_root(L1BatchNumber(0))
             .await
-            .unwrap()
             .context("genesis block hash is empty")?
     };
 
     validate_genesis_state(&main_node_url, genesis_block_hash).await;
-    transaction.commit().await.unwrap();
+    transaction.commit().await;
 
     Ok(())
 }

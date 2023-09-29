@@ -17,7 +17,7 @@ pub struct MockPriceFetcher;
 
 impl MockPriceFetcher {
     pub fn new() -> Self {
-        Self
+        Self::default()
     }
 
     pub fn token_price(&self, token: &Address) -> TokenPrice {

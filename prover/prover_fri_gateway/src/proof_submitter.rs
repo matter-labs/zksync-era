@@ -10,7 +10,8 @@ impl PeriodicApiStruct {
     async fn next_submit_proof_request(&self) -> Option<(L1BatchNumber, SubmitProofRequest)> {
         let (l1_batch_number, status) = self
             .pool
-            .access_storage().await.unwrap()
+            .access_storage()
+            .await
             .fri_proof_compressor_dal()
             .get_least_proven_block_number_not_sent_to_server()
             .await?;
@@ -36,7 +37,8 @@ impl PeriodicApiStruct {
 
     async fn save_successful_sent_proof(&self, l1_batch_number: L1BatchNumber) {
         self.pool
-            .access_storage().await.unwrap()
+            .access_storage()
+            .await
             .fri_proof_compressor_dal()
             .mark_proof_sent_to_server(l1_batch_number)
             .await;

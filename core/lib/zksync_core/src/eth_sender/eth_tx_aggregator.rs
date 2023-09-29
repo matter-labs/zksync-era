@@ -75,11 +75,8 @@ impl EthTxAggregator {
         stop_receiver: watch::Receiver<bool>,
     ) -> anyhow::Result<()> {
         loop {
-            let mut storage = pool.access_storage_tagged("eth_sender").await.unwrap();
-            let mut prover_storage = prover_pool
-                .access_storage_tagged("eth_sender")
-                .await
-                .unwrap();
+            let mut storage = pool.access_storage_tagged("eth_sender").await;
+            let mut prover_storage = prover_pool.access_storage_tagged("eth_sender").await;
 
             if *stop_receiver.borrow() {
                 tracing::info!("Stop signal received, eth_tx_aggregator is shutting down");
@@ -421,7 +418,7 @@ impl EthTxAggregator {
         storage: &mut StorageProcessor<'_>,
         aggregated_op: &AggregatedOperation,
     ) -> Result<EthTx, ETHSenderError> {
-        let mut transaction = storage.start_transaction().await.unwrap();
+        let mut transaction = storage.start_transaction().await;
         let nonce = self.get_next_nonce(&mut transaction).await?;
         let calldata = self.encode_aggregated_op(aggregated_op);
         let l1_batch_number_range = aggregated_op.l1_batch_range();
@@ -430,8 +427,7 @@ impl EthTxAggregator {
         let predicted_gas_for_batches = transaction
             .blocks_dal()
             .get_l1_batches_predicted_gas(l1_batch_number_range.clone(), op_type)
-            .await
-            .unwrap();
+            .await;
         let eth_tx_predicted_gas = agg_l1_batch_base_cost(op_type) + predicted_gas_for_batches;
 
         let eth_tx = transaction
@@ -448,9 +444,8 @@ impl EthTxAggregator {
         transaction
             .blocks_dal()
             .set_eth_tx_id(l1_batch_number_range, eth_tx.id, op_type)
-            .await
-            .unwrap();
-        transaction.commit().await.unwrap();
+            .await;
+        transaction.commit().await;
         Ok(eth_tx)
     }
 

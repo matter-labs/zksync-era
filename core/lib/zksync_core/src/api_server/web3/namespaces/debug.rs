@@ -70,11 +70,7 @@ impl DebugNamespace {
         let only_top_call = options
             .map(|options| options.tracer_config.only_top_call)
             .unwrap_or(false);
-        let mut connection = self
-            .connection_pool
-            .access_storage_tagged("api")
-            .await
-            .unwrap();
+        let mut connection = self.connection_pool.access_storage_tagged("api").await;
         let block_number = resolve_block(&mut connection, block_id, METHOD_NAME).await?;
         let call_trace = connection
             .blocks_web3_dal()
@@ -109,7 +105,6 @@ impl DebugNamespace {
             .connection_pool
             .access_storage_tagged("api")
             .await
-            .unwrap()
             .transactions_dal()
             .get_call_trace(tx_hash)
             .await;
@@ -136,11 +131,7 @@ impl DebugNamespace {
             .unwrap_or(false);
 
         let block_id = block_id.unwrap_or(BlockId::Number(BlockNumber::Pending));
-        let mut connection = self
-            .connection_pool
-            .access_storage_tagged("api")
-            .await
-            .unwrap();
+        let mut connection = self.connection_pool.access_storage_tagged("api").await;
         let block_args = BlockArgs::new(&mut connection, block_id)
             .await
             .map_err(|err| internal_error("debug_trace_call", err))?

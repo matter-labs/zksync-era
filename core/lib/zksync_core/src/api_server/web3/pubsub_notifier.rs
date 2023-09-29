@@ -18,7 +18,6 @@ pub async fn notify_blocks(
     let mut last_block_number = connection_pool
         .access_storage_tagged("api")
         .await
-        .unwrap()
         .blocks_web3_dal()
         .get_sealed_miniblock_number()
         .await
@@ -36,7 +35,6 @@ pub async fn notify_blocks(
         let new_blocks = connection_pool
             .access_storage_tagged("api")
             .await
-            .unwrap()
             .blocks_web3_dal()
             .get_block_headers_after(last_block_number)
             .await
@@ -88,7 +86,6 @@ pub async fn notify_txs(
         let (new_txs, new_last_time) = connection_pool
             .access_storage_tagged("api")
             .await
-            .unwrap()
             .transactions_web3_dal()
             .get_pending_txs_hashes_after(last_time, None)
             .await
@@ -128,7 +125,6 @@ pub async fn notify_logs(
     let mut last_block_number = connection_pool
         .access_storage_tagged("api")
         .await
-        .unwrap()
         .blocks_web3_dal()
         .get_sealed_miniblock_number()
         .await
@@ -146,7 +142,6 @@ pub async fn notify_logs(
         let new_logs = connection_pool
             .access_storage_tagged("api")
             .await
-            .unwrap()
             .events_web3_dal()
             .get_all_logs(last_block_number)
             .await

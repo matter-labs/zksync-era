@@ -15,7 +15,6 @@ impl CircuitBreaker for ReplicationLagChecker {
             .pool
             .access_storage()
             .await
-            .unwrap()
             .system_dal()
             .get_replication_lag_sec()
             .await;

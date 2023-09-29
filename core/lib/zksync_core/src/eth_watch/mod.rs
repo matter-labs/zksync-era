@@ -51,7 +51,7 @@ pub struct EthWatch<W: EthClient + Sync> {
 
 impl<W: EthClient + Sync> EthWatch<W> {
     pub async fn new(mut client: W, pool: &ConnectionPool, poll_interval: Duration) -> Self {
-        let mut storage = pool.access_storage_tagged("eth_watch").await.unwrap();
+        let mut storage = pool.access_storage_tagged("eth_watch").await;
 
         let state = Self::initialize_state(&client, &mut storage).await;
 
@@ -131,7 +131,7 @@ impl<W: EthClient + Sync> EthWatch<W> {
 
             metrics::counter!("server.eth_watch.eth_poll", 1);
 
-            let mut storage = pool.access_storage_tagged("eth_watch").await.unwrap();
+            let mut storage = pool.access_storage_tagged("eth_watch").await;
             if let Err(error) = self.loop_iteration(&mut storage).await {
                 // This is an error because otherwise we could potentially miss a priority operation
                 // thus entering priority mode, which is not desired.

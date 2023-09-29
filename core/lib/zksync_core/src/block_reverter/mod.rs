@@ -126,12 +126,11 @@ impl BlockReverter {
             self.executed_batches_revert_mode,
             L1ExecutedBatchesRevert::Disallowed
         ) {
-            let mut storage = self.connection_pool.access_storage().await.unwrap();
+            let mut storage = self.connection_pool.access_storage().await;
             let last_executed_l1_batch = storage
                 .blocks_dal()
                 .get_number_of_last_l1_batch_executed_on_eth()
                 .await
-                .unwrap()
                 .expect("failed to get last executed L1 batch");
             assert!(
                 last_l1_batch_to_keep >= last_executed_l1_batch,
@@ -158,11 +157,9 @@ impl BlockReverter {
                 .connection_pool
                 .access_storage()
                 .await
-                .unwrap()
                 .blocks_dal()
                 .get_l1_batch_state_root(last_l1_batch_to_keep)
                 .await
-                .unwrap()
                 .expect("failed to fetch root hash for target L1 batch");
 
             // Rolling back Merkle tree
@@ -211,7 +208,7 @@ impl BlockReverter {
         let mut sk_cache = RocksdbStorage::new(self.state_keeper_cache_path.as_ref());
 
         if sk_cache.l1_batch_number() > last_l1_batch_to_keep + 1 {
-            let mut storage = self.connection_pool.access_storage().await.unwrap();
+            let mut storage = self.connection_pool.access_storage().await;
             tracing::info!("rolling back state keeper cache...");
             sk_cache.rollback(&mut storage, last_l1_batch_to_keep).await;
         } else {
@@ -222,14 +219,13 @@ impl BlockReverter {
     /// Reverts data in the Postgres database.
     async fn rollback_postgres(&self, last_l1_batch_to_keep: L1BatchNumber) {
         tracing::info!("rolling back postgres data...");
-        let mut storage = self.connection_pool.access_storage().await.unwrap();
-        let mut transaction = storage.start_transaction().await.unwrap();
+        let mut storage = self.connection_pool.access_storage().await;
+        let mut transaction = storage.start_transaction().await;
 
         let (_, last_miniblock_to_keep) = transaction
             .blocks_dal()
             .get_miniblock_range_of_l1_batch(last_l1_batch_to_keep)
             .await
-            .unwrap()
             .expect("L1 batch should contain at least one miniblock");
 
         tracing::info!("rolling back transactions state...");
@@ -271,16 +267,14 @@ impl BlockReverter {
         transaction
             .blocks_dal()
             .delete_l1_batches(last_l1_batch_to_keep)
-            .await
-            .unwrap();
+            .await;
         tracing::info!("rolling back miniblocks...");
         transaction
             .blocks_dal()
             .delete_miniblocks(last_miniblock_to_keep)
-            .await
-            .unwrap();
+            .await;
 
-        transaction.commit().await.unwrap();
+        transaction.commit().await;
     }
 
     /// Sends revert transaction to L1.
@@ -415,7 +409,6 @@ impl BlockReverter {
         self.connection_pool
             .access_storage()
             .await
-            .unwrap()
             .eth_sender_dal()
             .clear_failed_transactions()
             .await;

@@ -269,11 +269,7 @@ impl MiniblockSealer {
         // Commands must be processed sequentially: a later miniblock cannot be saved before
         // an earlier one.
         while let Some(completable) = self.next_command().await {
-            let mut conn = self
-                .pool
-                .access_storage_tagged("state_keeper")
-                .await
-                .unwrap();
+            let mut conn = self.pool.access_storage_tagged("state_keeper").await;
             completable.command.seal(&mut conn).await;
             if let Some(delta) = miniblock_seal_delta {
                 metrics::histogram!("server.state_keeper.miniblock.seal_delta", delta.elapsed());

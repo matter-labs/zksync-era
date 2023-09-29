@@ -1,25 +1,5 @@
 # Changelog
 
-## [7.1.1](https://github.com/matter-labs/zksync-2-dev/compare/prover-v7.1.0...prover-v7.1.1) (2023-09-27)
-
-
-### Bug Fixes
-
-* **crypto:** update harness to fix snark proof verification ([#2659](https://github.com/matter-labs/zksync-2-dev/issues/2659)) ([b48248b](https://github.com/matter-labs/zksync-2-dev/commit/b48248babb6200bb3735715a51a7fac01c5353d3))
-
-## [7.1.0](https://github.com/matter-labs/zksync-2-dev/compare/prover-v7.0.1...prover-v7.1.0) (2023-09-26)
-
-
-### Features
-
-* **proof-compressor:** Add explicit verification for wrapped proofs based on config ([#2650](https://github.com/matter-labs/zksync-2-dev/issues/2650)) ([9b36bf3](https://github.com/matter-labs/zksync-2-dev/commit/9b36bf3ed76f1e5b4bb5ce36ed94392890aa34ba))
-* Rewrite libraries to use `vise` metrics ([#2616](https://github.com/matter-labs/zksync-2-dev/issues/2616)) ([d8cdbe9](https://github.com/matter-labs/zksync-2-dev/commit/d8cdbe9ad8ce40f55bbd8c788f3ca055a33989e6))
-
-
-### Bug Fixes
-
-* **workflow:** update workflow to remove downloaded setup data before creating PR ([#2642](https://github.com/matter-labs/zksync-2-dev/issues/2642)) ([b915f41](https://github.com/matter-labs/zksync-2-dev/commit/b915f4108fea034ae75fa9c6e8068fc2e2a9823e))
-
 ## [7.0.1](https://github.com/matter-labs/zksync-2-dev/compare/prover-v7.0.0...prover-v7.0.1) (2023-09-22)
 
 

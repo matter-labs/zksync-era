@@ -18,8 +18,8 @@ pub mod zksolc_utils;
 pub mod zkvyper_utils;
 
 async fn update_compiler_versions(connection_pool: &ConnectionPool) {
-    let mut storage = connection_pool.access_storage().await.unwrap();
-    let mut transaction = storage.start_transaction().await.unwrap();
+    let mut storage = connection_pool.access_storage().await;
+    let mut transaction = storage.start_transaction().await;
 
     let zksync_home = std::env::var("ZKSYNC_HOME").unwrap_or_else(|_| ".".into());
 
@@ -108,7 +108,7 @@ async fn update_compiler_versions(connection_pool: &ConnectionPool) {
         .await
         .unwrap();
 
-    transaction.commit().await.unwrap();
+    transaction.commit().await;
 }
 
 use structopt::StructOpt;

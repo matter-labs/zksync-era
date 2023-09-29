@@ -109,7 +109,7 @@ impl JobProcessor for NodeAggregationWitnessGenerator {
     const SERVICE_NAME: &'static str = "node_aggregation_witness_generator";
 
     async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, Self::Job)>> {
-        let mut prover_connection = self.prover_connection_pool.access_storage().await.unwrap();
+        let mut prover_connection = self.prover_connection_pool.access_storage().await;
         let last_l1_batch_to_process = self.config.last_l1_batch_to_process();
 
         Ok(
@@ -137,7 +137,6 @@ impl JobProcessor for NodeAggregationWitnessGenerator {
             .prover_connection_pool
             .access_storage()
             .await
-            .unwrap()
             .witness_generator_dal()
             .mark_witness_job_as_failed(
                 AggregationRound::NodeAggregation,
@@ -151,11 +150,9 @@ impl JobProcessor for NodeAggregationWitnessGenerator {
             self.connection_pool
                 .access_storage()
                 .await
-                .unwrap()
                 .blocks_dal()
                 .set_skip_proof_for_l1_batch(job_id)
-                .await
-                .unwrap();
+                .await;
         }
     }
 
@@ -285,8 +282,8 @@ async fn update_database(
     block_number: L1BatchNumber,
     blob_urls: BlobUrls,
 ) {
-    let mut prover_connection = prover_connection_pool.access_storage().await.unwrap();
-    let mut transaction = prover_connection.start_transaction().await.unwrap();
+    let mut prover_connection = prover_connection_pool.access_storage().await;
+    let mut transaction = prover_connection.start_transaction().await;
 
     // inserts artifacts into the scheduler_witness_jobs table
     // and advances it to waiting_for_proofs status
@@ -322,7 +319,7 @@ async fn update_database(
         )
         .await;
 
-    transaction.commit().await.unwrap();
+    transaction.commit().await;
     track_witness_generation_stage(started_at, AggregationRound::NodeAggregation);
 }
 

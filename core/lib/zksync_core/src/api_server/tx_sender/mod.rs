@@ -164,7 +164,7 @@ impl TxSenderBuilder {
     pub fn with_rate_limiter(self, transactions_per_sec: u32) -> Self {
         let rate_limiter = RateLimiter::direct_with_clock(
             Quota::per_second(NonZeroU32::new(transactions_per_sec).unwrap()),
-            &MonotonicClock,
+            &MonotonicClock::default(),
         );
         Self {
             rate_limiter: Some(rate_limiter),
@@ -384,7 +384,6 @@ impl<G: L1GasPriceProvider> TxSender<G> {
             .unwrap() // Checked above
             .access_storage_tagged("api")
             .await
-            .unwrap()
             .transactions_dal()
             .insert_transaction_l2(tx, tx_metrics)
             .await;
@@ -532,8 +531,7 @@ impl<G: L1GasPriceProvider> TxSender<G> {
             .0
             .replica_connection_pool
             .access_storage_tagged("api")
-            .await
-            .unwrap();
+            .await;
 
         let latest_block_number = connection
             .blocks_web3_dal()
@@ -587,7 +585,6 @@ impl<G: L1GasPriceProvider> TxSender<G> {
             .replica_connection_pool
             .access_storage_tagged("api")
             .await
-            .unwrap()
             .storage_dal()
             .get_by_key(&eth_balance_key)
             .await
@@ -713,7 +710,6 @@ impl<G: L1GasPriceProvider> TxSender<G> {
             .replica_connection_pool
             .access_storage_tagged("api")
             .await
-            .unwrap()
             .storage_dal()
             .get_by_key(&hashed_key)
             .await

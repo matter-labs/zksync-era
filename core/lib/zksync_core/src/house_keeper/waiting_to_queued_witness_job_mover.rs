@@ -24,7 +24,7 @@ impl WaitingToQueuedWitnessJobMover {
     }
 
     async fn move_leaf_aggregation_jobs(&mut self) {
-        let mut conn = self.prover_connection_pool.access_storage().await.unwrap();
+        let mut conn = self.prover_connection_pool.access_storage().await;
         let l1_batch_numbers = conn
             .witness_generator_dal()
             .move_leaf_aggregation_jobs_from_waiting_to_queued()
@@ -43,7 +43,7 @@ impl WaitingToQueuedWitnessJobMover {
     }
 
     async fn move_node_aggregation_jobs(&mut self) {
-        let mut conn = self.prover_connection_pool.access_storage().await.unwrap();
+        let mut conn = self.prover_connection_pool.access_storage().await;
         let l1_batch_numbers = conn
             .witness_generator_dal()
             .move_node_aggregation_jobs_from_waiting_to_queued()
@@ -62,7 +62,7 @@ impl WaitingToQueuedWitnessJobMover {
     }
 
     async fn move_scheduler_jobs(&mut self) {
-        let mut conn = self.prover_connection_pool.access_storage().await.unwrap();
+        let mut conn = self.prover_connection_pool.access_storage().await;
         let l1_batch_numbers = conn
             .witness_generator_dal()
             .move_scheduler_jobs_from_waiting_to_queued()

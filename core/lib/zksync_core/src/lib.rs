@@ -150,7 +150,7 @@ pub async fn genesis_init(
 
 pub async fn is_genesis_needed() -> bool {
     let mut storage = StorageProcessor::establish_connection(true).await.unwrap();
-    storage.blocks_dal().is_genesis_needed().await.unwrap()
+    storage.blocks_dal().is_genesis_needed().await
 }
 
 /// Sets up an interrupt handler and returns a future that resolves once an interrupt signal
@@ -656,7 +656,6 @@ async fn add_state_keeper_to_task_futures<E: L1GasPriceProvider + Send + Sync + 
     let next_priority_id = state_keeper_pool
         .access_storage()
         .await
-        .unwrap()
         .transactions_dal()
         .next_priority_id()
         .await;
@@ -809,7 +808,6 @@ async fn add_witness_generator_to_task_futures(
         let protocol_versions = prover_connection_pool
             .access_storage()
             .await
-            .unwrap()
             .protocol_versions_dal()
             .protocol_version_for(&vk_commitments)
             .await;

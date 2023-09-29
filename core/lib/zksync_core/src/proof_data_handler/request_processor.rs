@@ -89,7 +89,6 @@ impl RequestProcessor {
             .pool
             .access_storage()
             .await
-            .unwrap()
             .proof_generation_dal()
             .get_next_block_to_be_proven(self.config.proof_generation_timeout())
             .await
@@ -140,7 +139,7 @@ impl RequestProcessor {
                     .await
                     .map_err(RequestProcessorError::ObjectStore)?;
 
-                let mut storage = self.pool.access_storage().await.unwrap();
+                let mut storage = self.pool.access_storage().await;
                 storage
                     .proof_generation_dal()
                     .save_proof_artifacts_metadata(l1_batch_number, &blob_url)
@@ -151,7 +150,6 @@ impl RequestProcessor {
                 self.pool
                     .access_storage()
                     .await
-                    .unwrap()
                     .proof_generation_dal()
                     .mark_proof_generation_job_as_skipped(l1_batch_number)
                     .await

@@ -46,11 +46,9 @@ impl ReorgDetector {
             .pool
             .access_storage()
             .await
-            .unwrap()
             .blocks_dal()
             .get_l1_batch_state_root(l1_batch_number)
             .await
-            .unwrap()
             .unwrap_or_else(|| {
                 panic!(
                     "Root hash does not exist for local batch #{}",
@@ -134,11 +132,9 @@ impl ReorgDetector {
                 .pool
                 .access_storage()
                 .await
-                .unwrap()
                 .blocks_dal()
                 .get_last_l1_batch_number_with_metadata()
-                .await
-                .unwrap();
+                .await;
 
             // If the main node has to catch up with us, we should not do anything just yet.
             if self

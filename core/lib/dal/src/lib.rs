@@ -137,11 +137,13 @@ impl<'a> StorageProcessor<'a> {
         })
     }
 
-    pub async fn start_transaction<'c: 'b, 'b>(&'c mut self) -> sqlx::Result<StorageProcessor<'b>> {
-        let transaction = self.conn().begin().await?;
+    pub async fn start_transaction<'c: 'b, 'b>(&'c mut self) -> StorageProcessor<'b> {
+        let transaction = self.conn().begin().await.unwrap();
+
         let mut processor = StorageProcessor::from_transaction(transaction);
         processor.in_transaction = true;
-        Ok(processor)
+
+        processor
     }
 
     /// Checks if the `StorageProcessor` is currently within database transaction.
@@ -163,9 +165,9 @@ impl<'a> StorageProcessor<'a> {
         }
     }
 
-    pub async fn commit(self) -> sqlx::Result<()> {
+    pub async fn commit(self) {
         if let ConnectionHolder::Transaction(transaction) = self.conn {
-            transaction.commit().await
+            transaction.commit().await.unwrap();
         } else {
             panic!("StorageProcessor::commit can only be invoked after calling StorageProcessor::begin_transaction");
         }

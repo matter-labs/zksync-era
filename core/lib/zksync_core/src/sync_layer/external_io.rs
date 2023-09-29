@@ -116,17 +116,9 @@ impl ExternalIO {
         validation_computational_gas_limit: u32,
         chain_id: L2ChainId,
     ) -> Self {
-        let mut storage = pool.access_storage_tagged("sync_layer").await.unwrap();
-        let last_sealed_l1_batch_header = storage
-            .blocks_dal()
-            .get_newest_l1_batch_header()
-            .await
-            .unwrap();
-        let last_miniblock_number = storage
-            .blocks_dal()
-            .get_sealed_miniblock_number()
-            .await
-            .unwrap();
+        let mut storage = pool.access_storage_tagged("sync_layer").await;
+        let last_sealed_l1_batch_header = storage.blocks_dal().get_newest_l1_batch_header().await;
+        let last_miniblock_number = storage.blocks_dal().get_sealed_miniblock_number().await;
         drop(storage);
 
         tracing::info!(
@@ -151,12 +143,11 @@ impl ExternalIO {
     }
 
     pub async fn recalculate_miniblock_hashes(&self) {
-        let mut storage = self.pool.access_storage_tagged("sync_layer").await.unwrap();
+        let mut storage = self.pool.access_storage_tagged("sync_layer").await;
         let last_blocks: Vec<_> = storage
             .blocks_dal()
             .get_last_miniblocks_for_version(5, ProtocolVersionId::Version12)
-            .await
-            .unwrap();
+            .await;
 
         // All last miniblocks are good that means we have already applied this migrations
         if last_blocks
@@ -171,8 +162,7 @@ impl ExternalIO {
         let mut miniblock_and_hashes = storage
             .blocks_dal()
             .get_miniblock_hashes_from_date(timestamp, 1000, ProtocolVersionId::Version12)
-            .await
-            .unwrap();
+            .await;
 
         let mut updated_hashes = vec![];
 
@@ -185,11 +175,7 @@ impl ExternalIO {
                 last_miniblock_number = number.0;
             }
             if !updated_hashes.is_empty() {
-                storage
-                    .blocks_dal()
-                    .update_hashes(&updated_hashes)
-                    .await
-                    .unwrap();
+                storage.blocks_dal().update_hashes(&updated_hashes).await;
                 updated_hashes = vec![];
             }
 
@@ -200,8 +186,7 @@ impl ExternalIO {
                     1000,
                     ProtocolVersionId::Version12,
                 )
-                .await
-                .unwrap();
+                .await;
             tracing::info!("Last updated miniblock {}", last_miniblock_number);
         }
 
@@ -209,7 +194,7 @@ impl ExternalIO {
     }
 
     async fn load_previous_l1_batch_hash(&self) -> U256 {
-        let mut storage = self.pool.access_storage_tagged("sync_layer").await.unwrap();
+        let mut storage = self.pool.access_storage_tagged("sync_layer").await;
 
         let stage_started_at: Instant = Instant::now();
         let (hash, _) =
@@ -230,7 +215,6 @@ impl ExternalIO {
             .pool
             .access_storage_tagged("sync_layer")
             .await
-            .unwrap()
             .protocol_versions_dal()
             .load_base_system_contracts_by_version_id(id as u16)
             .await;
@@ -244,7 +228,6 @@ impl ExternalIO {
                 self.pool
                     .access_storage_tagged("sync_layer")
                     .await
-                    .unwrap()
                     .protocol_versions_dal()
                     .save_protocol_version(
                         protocol_version.version_id.try_into().unwrap(),
@@ -278,7 +261,6 @@ impl ExternalIO {
             .pool
             .access_storage_tagged("sync_layer")
             .await
-            .unwrap()
             .storage_dal()
             .get_factory_dep(hash)
             .await;
@@ -297,7 +279,6 @@ impl ExternalIO {
                 self.pool
                     .access_storage_tagged("sync_layer")
                     .await
-                    .unwrap()
                     .storage_dal()
                     .insert_factory_deps(
                         self.current_miniblock_number,
@@ -321,14 +302,13 @@ impl StateKeeperIO for ExternalIO {
     }
 
     async fn load_pending_batch(&mut self) -> Option<PendingBatchData> {
-        let mut storage = self.pool.access_storage_tagged("sync_layer").await.unwrap();
+        let mut storage = self.pool.access_storage_tagged("sync_layer").await;
 
         // TODO (BFT-99): Do not assume that fee account is the same as in previous batch.
         let fee_account = storage
             .blocks_dal()
             .get_l1_batch_header(self.current_l1_batch_number - 1)
             .await
-            .unwrap()
             .unwrap_or_else(|| {
                 panic!(
                     "No block header for batch {}",
@@ -341,15 +321,13 @@ impl StateKeeperIO for ExternalIO {
                 .blocks_dal()
                 .get_miniblock_range_of_l1_batch(self.current_l1_batch_number - 1)
                 .await
-                .unwrap()
                 .unwrap();
             last_miniblock_number_included_in_l1_batch + 1
         };
         let pending_miniblock_header = storage
             .blocks_dal()
             .get_miniblock_header(pending_miniblock_number)
-            .await
-            .unwrap()?;
+            .await?;
 
         if pending_miniblock_header.protocol_version.is_none() {
             // Fetch protocol version ID for pending miniblocks to know which VM to use to reexecute them.
@@ -367,8 +345,7 @@ impl StateKeeperIO for ExternalIO {
             storage
                 .blocks_dal()
                 .set_protocol_version_for_pending_miniblocks(sync_block.protocol_version)
-                .await
-                .unwrap();
+                .await;
         }
 
         load_pending_batch(
@@ -534,8 +511,8 @@ impl StateKeeperIO for ExternalIO {
             ),
         };
 
-        let mut storage = self.pool.access_storage_tagged("sync_layer").await.unwrap();
-        let mut transaction = storage.start_transaction().await.unwrap();
+        let mut storage = self.pool.access_storage_tagged("sync_layer").await;
+        let mut transaction = storage.start_transaction().await;
 
         let start = Instant::now();
         // We don't store the transactions in the database until they're executed to not overcomplicate the state
@@ -578,7 +555,7 @@ impl StateKeeperIO for ExternalIO {
             self.l2_erc20_bridge_addr,
         );
         command.seal(&mut transaction).await;
-        transaction.commit().await.unwrap();
+        transaction.commit().await;
 
         self.sync_state
             .set_local_block(self.current_miniblock_number);
@@ -601,7 +578,7 @@ impl StateKeeperIO for ExternalIO {
             ),
         };
 
-        let mut storage = self.pool.access_storage_tagged("sync_layer").await.unwrap();
+        let mut storage = self.pool.access_storage_tagged("sync_layer").await;
         updates_manager
             .seal_l1_batch(
                 &mut storage,
@@ -627,12 +604,11 @@ impl StateKeeperIO for ExternalIO {
     }
 
     async fn load_previous_batch_version_id(&mut self) -> Option<ProtocolVersionId> {
-        let mut storage = self.pool.access_storage().await.unwrap();
+        let mut storage = self.pool.access_storage().await;
         storage
             .blocks_dal()
             .get_batch_protocol_version_id(self.current_l1_batch_number - 1)
             .await
-            .unwrap()
     }
 
     async fn load_upgrade_tx(

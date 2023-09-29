@@ -28,13 +28,12 @@ impl ConsistencyChecker {
     }
 
     async fn check_commitments(&self, batch_number: L1BatchNumber) -> Result<bool, error::Error> {
-        let mut storage = self.db.access_storage().await.unwrap();
+        let mut storage = self.db.access_storage().await;
 
         let storage_l1_batch = storage
             .blocks_dal()
             .get_storage_l1_batch(batch_number)
             .await
-            .unwrap()
             .unwrap_or_else(|| panic!("L1 batch #{} not found in the database", batch_number));
 
         let commit_tx_id = storage_l1_batch
@@ -46,7 +45,6 @@ impl ConsistencyChecker {
             .blocks_dal()
             .get_l1_batch_with_metadata(storage_l1_batch)
             .await
-            .unwrap()
             .unwrap_or_else(|| {
                 panic!(
                     "Metadata for L1 batch #{} not found in the database",
@@ -119,11 +117,9 @@ impl ConsistencyChecker {
         self.db
             .access_storage()
             .await
-            .unwrap()
             .blocks_dal()
             .get_number_of_last_l1_batch_committed_on_eth()
             .await
-            .unwrap()
             .unwrap_or(L1BatchNumber(0))
     }
 
@@ -151,11 +147,9 @@ impl ConsistencyChecker {
                 .db
                 .access_storage()
                 .await
-                .unwrap()
                 .blocks_dal()
                 .get_l1_batch_metadata(batch_number)
                 .await
-                .unwrap()
                 .is_some();
 
             // The batch might be already committed but not yet processed by the external node's tree

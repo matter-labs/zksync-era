@@ -116,7 +116,7 @@ pub(crate) async fn execute_tx_with_pending_state(
     connection_pool: ConnectionPool,
     tx: Transaction,
 ) -> (VmExecutionResultAndLogs, TransactionExecutionMetrics) {
-    let mut connection = connection_pool.access_storage_tagged("api").await.unwrap();
+    let mut connection = connection_pool.access_storage_tagged("api").await;
     let block_args = BlockArgs::pending(&mut connection).await;
     drop(connection);
     // In order for execution to pass smoothlessly, we need to ensure that block's required gasPerPubdata will be

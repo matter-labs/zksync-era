@@ -107,13 +107,12 @@ impl BasicWitnessGenerator {
                     block_number.0,
                     blocks_proving_percentage
                 );
-                let mut storage = connection_pool.access_storage().await.unwrap();
+                let mut storage = connection_pool.access_storage().await;
                 storage
                     .blocks_dal()
                     .set_skip_proof_for_l1_batch(block_number)
-                    .await
-                    .unwrap();
-                let mut prover_storage = prover_connection_pool.access_storage().await.unwrap();
+                    .await;
+                let mut prover_storage = prover_connection_pool.access_storage().await;
                 prover_storage
                     .witness_generator_dal()
                     .mark_witness_job_as_skipped(block_number, AggregationRound::BasicCircuits)
@@ -153,7 +152,7 @@ impl JobProcessor for BasicWitnessGenerator {
     const SERVICE_NAME: &'static str = "basic_circuit_witness_generator";
 
     async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, Self::Job)>> {
-        let mut prover_connection = self.prover_connection_pool.access_storage().await.unwrap();
+        let mut prover_connection = self.prover_connection_pool.access_storage().await;
         let last_l1_batch_to_process = self.config.last_l1_batch_to_process();
 
         Ok(
@@ -181,7 +180,6 @@ impl JobProcessor for BasicWitnessGenerator {
             .prover_connection_pool
             .access_storage()
             .await
-            .unwrap()
             .witness_generator_dal()
             .mark_witness_job_as_failed(
                 AggregationRound::BasicCircuits,
@@ -195,11 +193,9 @@ impl JobProcessor for BasicWitnessGenerator {
             self.connection_pool
                 .access_storage()
                 .await
-                .unwrap()
                 .blocks_dal()
                 .set_skip_proof_for_l1_batch(job_id)
-                .await
-                .unwrap();
+                .await;
         }
     }
 
@@ -272,8 +268,8 @@ async fn update_database(
     block_number: L1BatchNumber,
     blob_urls: BlobUrls,
 ) {
-    let mut prover_connection = prover_connection_pool.access_storage().await.unwrap();
-    let mut transaction = prover_connection.start_transaction().await.unwrap();
+    let mut prover_connection = prover_connection_pool.access_storage().await;
+    let mut transaction = prover_connection.start_transaction().await;
     let protocol_version = transaction
         .witness_generator_dal()
         .protocol_version_for_l1_batch(block_number)
@@ -313,7 +309,7 @@ async fn update_database(
         )
         .await;
 
-    transaction.commit().await.unwrap();
+    transaction.commit().await;
     track_witness_generation_stage(started_at, AggregationRound::BasicCircuits);
 }
 
@@ -364,30 +360,26 @@ pub async fn build_basic_circuits_witness_generator_input(
     witness_merkle_input: PrepareBasicCircuitsJob,
     l1_batch_number: L1BatchNumber,
 ) -> BasicCircuitWitnessGeneratorInput {
-    let mut connection = connection_pool.access_storage().await.unwrap();
+    let mut connection = connection_pool.access_storage().await;
     let block_header = connection
         .blocks_dal()
         .get_l1_batch_header(l1_batch_number)
         .await
-        .unwrap()
         .unwrap();
     let initial_heap_content = connection
         .blocks_dal()
         .get_initial_bootloader_heap(l1_batch_number)
         .await
-        .unwrap()
         .unwrap();
     let (_, previous_block_timestamp) = connection
         .blocks_dal()
         .get_l1_batch_state_root_and_timestamp(l1_batch_number - 1)
         .await
-        .unwrap()
         .unwrap();
     let previous_block_hash = connection
         .blocks_dal()
         .get_l1_batch_state_root(l1_batch_number - 1)
         .await
-        .unwrap()
         .expect("cannot generate witness before the root hash is computed");
     BasicCircuitWitnessGeneratorInput {
         block_number: l1_batch_number,
@@ -410,12 +402,11 @@ pub async fn generate_witness(
     BlockBasicCircuitsPublicInputs<Bn256>,
     SchedulerCircuitInstanceWitness<Bn256>,
 ) {
-    let mut connection = connection_pool.access_storage().await.unwrap();
+    let mut connection = connection_pool.access_storage().await;
     let header = connection
         .blocks_dal()
         .get_l1_batch_header(input.block_number)
         .await
-        .unwrap()
         .unwrap();
     let bootloader_code_bytes = connection
         .storage_dal()
@@ -458,7 +449,6 @@ pub async fn generate_witness(
         .blocks_dal()
         .get_miniblock_range_of_l1_batch(input.block_number - 1)
         .await
-        .unwrap()
         .expect("L1 batch should contain at least one miniblock");
 
     drop(connection);
@@ -470,9 +460,7 @@ pub async fn generate_witness(
         // Until we can derive Storage from Merkle Paths, we'll have this version as testing ground.
         let storage: Box<dyn ReadStorage> = match config.data_source {
             BasicWitnessGeneratorDataSource::FromPostgres => {
-                let connection = rt_handle
-                    .block_on(connection_pool.access_storage())
-                    .unwrap();
+                let connection = rt_handle.block_on(connection_pool.access_storage());
                 Box::new(PostgresStorage::new(
                     rt_handle.clone(),
                     connection,
@@ -481,9 +469,7 @@ pub async fn generate_witness(
                 ))
             }
             BasicWitnessGeneratorDataSource::FromPostgresShadowBlob => {
-                let connection = rt_handle
-                    .block_on(connection_pool.access_storage())
-                    .unwrap();
+                let connection = rt_handle.block_on(connection_pool.access_storage());
                 let source_storage = Box::new(PostgresStorage::new(
                     rt_handle.clone(),
                     connection,

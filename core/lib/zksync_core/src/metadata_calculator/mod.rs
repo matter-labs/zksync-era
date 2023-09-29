@@ -152,15 +152,13 @@ impl MetadataCalculator {
         let unsorted_factory_deps = storage
             .blocks_dal()
             .get_l1_batch_factory_deps(header.number)
-            .await
-            .unwrap();
+            .await;
         let commit_gas_cost =
             commit_gas_count_for_l1_batch(header, &unsorted_factory_deps, metadata);
         storage
             .blocks_dal()
             .update_predicted_l1_batch_commit_gas(header.number, commit_gas_cost)
-            .await
-            .unwrap();
+            .await;
         reestimate_gas_cost.report();
     }
 

@@ -81,15 +81,13 @@ pub(crate) async fn load_pending_batch(
             .blocks_dal()
             .get_miniblock_range_of_l1_batch(current_l1_batch_number - 1)
             .await
-            .unwrap()
             .unwrap();
         last_miniblock_number_included_in_l1_batch + 1
     };
     let pending_miniblock_header = storage
         .blocks_dal()
         .get_miniblock_header(pending_miniblock_number)
-        .await
-        .unwrap()?;
+        .await?;
 
     tracing::info!("Getting previous batch hash");
     let (previous_l1_batch_hash, _) =
@@ -100,7 +98,6 @@ pub(crate) async fn load_pending_batch(
         .blocks_dal()
         .get_miniblock_header(pending_miniblock_number - 1)
         .await
-        .unwrap()
         .unwrap()
         .hash;
 

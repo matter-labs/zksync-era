@@ -563,7 +563,7 @@ where
                 .get_l1_block_numbers()
                 .await
                 .context("get_l1_block_numbers()")?;
-            let mut storage = pool.access_storage_tagged("eth_sender").await.unwrap();
+            let mut storage = pool.access_storage_tagged("eth_sender").await;
             self.send_unsent_txs(&mut storage, l1_block_numbers).await;
         }
 
@@ -571,7 +571,7 @@ where
         // will never check inflight txs status
         let mut last_known_l1_block = L1BlockNumber(0);
         loop {
-            let mut storage = pool.access_storage_tagged("eth_sender").await.unwrap();
+            let mut storage = pool.access_storage_tagged("eth_sender").await;
 
             if *stop_receiver.borrow() {
                 tracing::info!("Stop signal received, eth_tx_manager is shutting down");

@@ -25,7 +25,7 @@ impl WitnessGeneratorStatsReporter {
     async fn get_job_statistics(
         prover_connection_pool: &ConnectionPool,
     ) -> HashMap<AggregationRound, JobCountStatistics> {
-        let mut conn = prover_connection_pool.access_storage().await.unwrap();
+        let mut conn = prover_connection_pool.access_storage().await;
         HashMap::from([
             (
                 AggregationRound::BasicCircuits,

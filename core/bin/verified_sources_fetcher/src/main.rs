@@ -8,7 +8,7 @@ async fn main() {
         .build()
         .await
         .unwrap();
-    let mut storage = pool.access_storage().await.unwrap();
+    let mut storage = pool.access_storage().await;
     let reqs = storage
         .contract_verification_dal()
         .get_all_successful_requests()

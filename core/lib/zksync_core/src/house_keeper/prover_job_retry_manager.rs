@@ -39,7 +39,6 @@ impl PeriodicJob for ProverJobRetryManager {
             .prover_connection_pool
             .access_storage()
             .await
-            .unwrap()
             .prover_dal()
             .requeue_stuck_jobs(self.processing_timeout, self.max_attempts)
             .await;

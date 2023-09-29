@@ -35,7 +35,6 @@ impl PeriodicJob for GpuProverQueueMonitor {
             .prover_connection_pool
             .access_storage()
             .await
-            .unwrap()
             .gpu_prover_queue_dal()
             .get_prover_gpu_count_per_region_zone()
             .await;

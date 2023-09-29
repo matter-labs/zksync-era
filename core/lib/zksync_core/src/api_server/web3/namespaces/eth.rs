@@ -59,7 +59,6 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
             .connection_pool
             .access_storage_tagged("api")
             .await
-            .unwrap()
             .blocks_web3_dal()
             .get_sealed_miniblock_number()
             .await
@@ -84,8 +83,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
             .state
             .connection_pool
             .access_storage_tagged("api")
-            .await
-            .unwrap();
+            .await;
         let block_args = BlockArgs::new(&mut connection, block)
             .await
             .map_err(|err| internal_error("eth_call", err))?
@@ -188,8 +186,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
             .state
             .connection_pool
             .access_storage_tagged("api")
-            .await
-            .unwrap();
+            .await;
         let block = block_id.unwrap_or(BlockId::Number(BlockNumber::Pending));
         let block_number = resolve_block(&mut connection, block, METHOD_NAME).await?;
         let balance = connection
@@ -284,7 +281,6 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
             .connection_pool
             .access_storage_tagged("api")
             .await
-            .unwrap()
             .blocks_web3_dal()
             .get_block_by_web3_block_id(
                 block_id,
@@ -321,7 +317,6 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
             .connection_pool
             .access_storage_tagged("api")
             .await
-            .unwrap()
             .blocks_web3_dal()
             .get_block_tx_count(block_id)
             .await
@@ -353,8 +348,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
             .state
             .connection_pool
             .access_storage_tagged("api")
-            .await
-            .unwrap();
+            .await;
         let block = block_id.unwrap_or(BlockId::Number(BlockNumber::Pending));
         let block_number = resolve_block(&mut connection, block, METHOD_NAME).await?;
         let contract_code = connection
@@ -388,8 +382,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
             .state
             .connection_pool
             .access_storage_tagged("api")
-            .await
-            .unwrap();
+            .await;
         let block_number = resolve_block(&mut connection, block, METHOD_NAME).await?;
         let value = connection
             .storage_web3_dal()
@@ -420,8 +413,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
             .state
             .connection_pool
             .access_storage_tagged("api")
-            .await
-            .unwrap();
+            .await;
 
         let (full_nonce, block_number) = match block {
             BlockId::Number(BlockNumber::Pending) => {
@@ -467,7 +459,6 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
             .connection_pool
             .access_storage_tagged("api")
             .await
-            .unwrap()
             .transactions_web3_dal()
             .get_transaction(id, self.state.api_config.l2_chain_id)
             .await
@@ -513,7 +504,6 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
             .connection_pool
             .access_storage_tagged("api")
             .await
-            .unwrap()
             .transactions_web3_dal()
             .get_transaction_receipt(hash)
             .await
@@ -558,7 +548,6 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
             .connection_pool
             .access_storage_tagged("api")
             .await
-            .unwrap()
             .blocks_web3_dal()
             .get_sealed_miniblock_number()
             .await
@@ -730,8 +719,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
             .state
             .connection_pool
             .access_storage_tagged("api")
-            .await
-            .unwrap();
+            .await;
         let newest_miniblock =
             resolve_block(&mut connection, BlockId::Number(newest_block), METHOD_NAME).await?;
 
@@ -783,7 +771,6 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
                     .connection_pool
                     .access_storage_tagged("api")
                     .await
-                    .unwrap()
                     .blocks_web3_dal()
                     .get_block_hashes_after(from_block, self.state.api_config.req_entities_limit)
                     .await
@@ -799,7 +786,6 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
                     .connection_pool
                     .access_storage_tagged("api")
                     .await
-                    .unwrap()
                     .transactions_web3_dal()
                     .get_pending_txs_hashes_after(
                         from_timestamp,
@@ -847,8 +833,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
                     .state
                     .connection_pool
                     .access_storage_tagged("api")
-                    .await
-                    .unwrap();
+                    .await;
 
                 // Check if there is more than one block in range and there are more than `req_entities_limit` logs that satisfies filter.
                 // In this case we should return error and suggest requesting logs with smaller block range.

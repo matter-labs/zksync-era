@@ -23,7 +23,7 @@ impl PeriodicJob for FriProverStatsReporter {
     const SERVICE_NAME: &'static str = "FriProverStatsReporter";
 
     async fn run_routine_task(&mut self) -> anyhow::Result<()> {
-        let mut conn = self.prover_connection_pool.access_storage().await.unwrap();
+        let mut conn = self.prover_connection_pool.access_storage().await;
         let stats = conn.fri_prover_jobs_dal().get_prover_jobs_stats().await;
 
         for ((circuit_id, aggregation_round), stats) in stats.into_iter() {

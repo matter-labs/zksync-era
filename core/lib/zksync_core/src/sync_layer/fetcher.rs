@@ -32,21 +32,13 @@ impl MainNodeFetcher {
         sync_state: SyncState,
         stop_receiver: Receiver<bool>,
     ) -> Self {
-        let mut storage = pool.access_storage_tagged("sync_layer").await.unwrap();
-        let last_sealed_l1_batch_header = storage
-            .blocks_dal()
-            .get_newest_l1_batch_header()
-            .await
-            .unwrap();
-        let last_miniblock_number = storage
-            .blocks_dal()
-            .get_sealed_miniblock_number()
-            .await
-            .unwrap();
+        let mut storage = pool.access_storage_tagged("sync_layer").await;
+        let last_sealed_l1_batch_header = storage.blocks_dal().get_newest_l1_batch_header().await;
+        let last_miniblock_number = storage.blocks_dal().get_sealed_miniblock_number().await;
 
         // It's important to know whether we have opened a new batch already or just sealed the previous one.
         // Depending on it, we must either insert `OpenBatch` item into the queue, or not.
-        let was_new_batch_open = storage.blocks_dal().pending_batch_exists().await.unwrap();
+        let was_new_batch_open = storage.blocks_dal().pending_batch_exists().await;
 
         // Miniblocks are always fully processed.
         let current_miniblock = last_miniblock_number + 1;

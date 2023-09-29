@@ -94,7 +94,7 @@ pub async fn save_proof(
             "circuit_type" => circuit_type.to_string(),
     );
 
-    let mut transaction = storage_processor.start_transaction().await.unwrap();
+    let mut transaction = storage_processor.start_transaction().await;
     let job_metadata = transaction
         .fri_prover_jobs_dal()
         .save_proof(job_id, started_at.elapsed(), &blob_url)
@@ -115,7 +115,7 @@ pub async fn save_proof(
             )
             .await;
     }
-    transaction.commit().await.unwrap();
+    transaction.commit().await;
 }
 
 pub fn verify_proof(

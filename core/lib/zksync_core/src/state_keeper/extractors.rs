@@ -61,8 +61,7 @@ async fn wait_for_l1_batch_params_unchecked(
         let data = storage
             .blocks_dal()
             .get_l1_batch_state_root_and_timestamp(number)
-            .await
-            .unwrap();
+            .await;
         if let Some((root_hash, timestamp)) = data {
             tracing::trace!(
                 "Waiting for hash of L1 batch #{number} took {:?}",

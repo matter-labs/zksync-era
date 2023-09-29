@@ -18,7 +18,7 @@ impl WaitingToQueuedFriWitnessJobMover {
     }
 
     async fn move_leaf_aggregation_jobs(&mut self) {
-        let mut conn = self.pool.access_storage().await.unwrap();
+        let mut conn = self.pool.access_storage().await;
         let l1_batch_numbers = conn
             .fri_witness_generator_dal()
             .move_leaf_aggregation_jobs_from_waiting_to_queued()
@@ -40,7 +40,7 @@ impl WaitingToQueuedFriWitnessJobMover {
     pub async fn move_node_aggregation_jobs_from_waiting_to_queued(
         &mut self,
     ) -> Vec<(i64, u8, u16)> {
-        let mut conn = self.pool.access_storage().await.unwrap();
+        let mut conn = self.pool.access_storage().await;
         let mut jobs = conn
             .fri_witness_generator_dal()
             .move_depth_zero_node_aggregation_jobs()

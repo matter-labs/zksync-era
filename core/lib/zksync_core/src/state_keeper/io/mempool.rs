@@ -74,11 +74,7 @@ impl<G: L1GasPriceProvider + 'static + Send + Sync> StateKeeperIO for MempoolIO<
     }
 
     async fn load_pending_batch(&mut self) -> Option<PendingBatchData> {
-        let mut storage = self
-            .pool
-            .access_storage_tagged("state_keeper")
-            .await
-            .unwrap();
+        let mut storage = self.pool.access_storage_tagged("state_keeper").await;
 
         let PendingBatchData {
             l1_batch_env,
@@ -152,7 +148,7 @@ impl<G: L1GasPriceProvider + 'static + Send + Sync> StateKeeperIO for MempoolIO<
                 self.filter.l1_gas_price,
                 self.fair_l2_gas_price
             );
-            let mut storage = self.pool.access_storage().await.unwrap();
+            let mut storage = self.pool.access_storage().await;
             let (base_system_contracts, protocol_version) = storage
                 .protocol_versions_dal()
                 .base_system_contracts_by_timestamp(current_timestamp)
@@ -236,11 +232,7 @@ impl<G: L1GasPriceProvider + 'static + Send + Sync> StateKeeperIO for MempoolIO<
         self.mempool.rollback(rejected);
 
         // Mark tx as rejected in the storage.
-        let mut storage = self
-            .pool
-            .access_storage_tagged("state_keeper")
-            .await
-            .unwrap();
+        let mut storage = self.pool.access_storage_tagged("state_keeper").await;
         metrics::increment_counter!("server.state_keeper.rejected_transactions");
         tracing::warn!(
             "transaction {} is rejected with error {}",
@@ -307,7 +299,7 @@ impl<G: L1GasPriceProvider + 'static + Send + Sync> StateKeeperIO for MempoolIO<
         }
 
         let pool = self.pool.clone();
-        let mut storage = pool.access_storage_tagged("state_keeper").await.unwrap();
+        let mut storage = pool.access_storage_tagged("state_keeper").await;
 
         updates_manager
             .seal_l1_batch(
@@ -324,19 +316,18 @@ impl<G: L1GasPriceProvider + 'static + Send + Sync> StateKeeperIO for MempoolIO<
     }
 
     async fn load_previous_batch_version_id(&mut self) -> Option<ProtocolVersionId> {
-        let mut storage = self.pool.access_storage().await.unwrap();
+        let mut storage = self.pool.access_storage().await;
         storage
             .blocks_dal()
             .get_batch_protocol_version_id(self.current_l1_batch_number - 1)
             .await
-            .unwrap()
     }
 
     async fn load_upgrade_tx(
         &mut self,
         version_id: ProtocolVersionId,
     ) -> Option<ProtocolUpgradeTx> {
-        let mut storage = self.pool.access_storage().await.unwrap();
+        let mut storage = self.pool.access_storage().await;
         storage
             .protocol_versions_dal()
             .get_protocol_upgrade_tx(version_id)
@@ -413,17 +404,9 @@ impl<G: L1GasPriceProvider> MempoolIO<G> {
             "Virtual blocks per miniblock must be positive"
         );
 
-        let mut storage = pool.access_storage_tagged("state_keeper").await.unwrap();
-        let last_sealed_l1_batch_header = storage
-            .blocks_dal()
-            .get_newest_l1_batch_header()
-            .await
-            .unwrap();
-        let last_miniblock_number = storage
-            .blocks_dal()
-            .get_sealed_miniblock_number()
-            .await
-            .unwrap();
+        let mut storage = pool.access_storage_tagged("state_keeper").await;
+        let last_sealed_l1_batch_header = storage.blocks_dal().get_newest_l1_batch_header().await;
+        let last_miniblock_number = storage.blocks_dal().get_sealed_miniblock_number().await;
 
         drop(storage);
 
@@ -454,11 +437,7 @@ impl<G: L1GasPriceProvider> MempoolIO<G> {
         );
         let stage_started_at: Instant = Instant::now();
 
-        let mut storage = self
-            .pool
-            .access_storage_tagged("state_keeper")
-            .await
-            .unwrap();
+        let mut storage = self.pool.access_storage_tagged("state_keeper").await;
         let (batch_hash, _) =
             extractors::wait_for_prev_l1_batch_params(&mut storage, self.current_l1_batch_number)
                 .await;
@@ -477,16 +456,11 @@ impl<G: L1GasPriceProvider> MempoolIO<G> {
     async fn load_previous_miniblock_header(&self) -> MiniblockHeader {
         let stage_started_at: Instant = Instant::now();
 
-        let mut storage = self
-            .pool
-            .access_storage_tagged("state_keeper")
-            .await
-            .unwrap();
+        let mut storage = self.pool.access_storage_tagged("state_keeper").await;
         let miniblock_header = storage
             .blocks_dal()
             .get_miniblock_header(self.current_miniblock_number - 1)
             .await
-            .unwrap()
             .expect("Previous miniblock must be sealed and header saved to DB");
 
         metrics::histogram!(

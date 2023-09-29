@@ -32,7 +32,6 @@ impl FriWitnessGeneratorJobRetryManager {
             .pool
             .access_storage()
             .await
-            .unwrap()
             .fri_witness_generator_dal()
             .requeue_stuck_jobs(self.processing_timeout, self.max_attempts)
             .await;
@@ -48,7 +47,6 @@ impl FriWitnessGeneratorJobRetryManager {
             .pool
             .access_storage()
             .await
-            .unwrap()
             .fri_witness_generator_dal()
             .requeue_stuck_leaf_aggregations_jobs(self.processing_timeout, self.max_attempts)
             .await;
@@ -67,7 +65,6 @@ impl FriWitnessGeneratorJobRetryManager {
             .pool
             .access_storage()
             .await
-            .unwrap()
             .fri_witness_generator_dal()
             .requeue_stuck_node_aggregations_jobs(self.processing_timeout, self.max_attempts)
             .await;
@@ -86,7 +83,6 @@ impl FriWitnessGeneratorJobRetryManager {
             .pool
             .access_storage()
             .await
-            .unwrap()
             .fri_witness_generator_dal()
             .requeue_stuck_scheduler_jobs(self.processing_timeout, self.max_attempts)
             .await;

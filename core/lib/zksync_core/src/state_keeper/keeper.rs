@@ -314,8 +314,7 @@ impl ZkSyncStateKeeper {
                     return Err(anyhow::anyhow!(
                         "Re-executing stored tx failed. Tx: {tx:?}. Err: {:?}",
                         result.err()
-                    )
-                    .into());
+                    ).into());
                 };
 
                 let ExecutionMetricsForCriteria {

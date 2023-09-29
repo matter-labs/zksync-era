@@ -242,10 +242,7 @@ async fn processing_storage_logs_when_sealing_miniblock(connection_pool: Connect
         protocol_version: Some(ProtocolVersionId::latest()),
         l2_erc20_bridge_addr: Address::default(),
     };
-    let mut conn = connection_pool
-        .access_storage_tagged("state_keeper")
-        .await
-        .unwrap();
+    let mut conn = connection_pool.access_storage_tagged("state_keeper").await;
     conn.protocol_versions_dal()
         .save_protocol_version_with_tx(Default::default())
         .await;
@@ -254,8 +251,7 @@ async fn processing_storage_logs_when_sealing_miniblock(connection_pool: Connect
     // Manually mark the miniblock as executed so that getting touched slots from it works
     conn.blocks_dal()
         .mark_miniblocks_as_executed_in_l1_batch(l1_batch_number)
-        .await
-        .unwrap();
+        .await;
     let touched_slots = conn
         .storage_logs_dal()
         .get_touched_slots_for_l1_batch(l1_batch_number)
@@ -317,7 +313,7 @@ async fn processing_events_when_sealing_miniblock(pool: ConnectionPool) {
         protocol_version: Some(ProtocolVersionId::latest()),
         l2_erc20_bridge_addr: Address::default(),
     };
-    let mut conn = pool.access_storage_tagged("state_keeper").await.unwrap();
+    let mut conn = pool.access_storage_tagged("state_keeper").await;
     conn.protocol_versions_dal()
         .save_protocol_version_with_tx(Default::default())
         .await;
@@ -344,13 +340,12 @@ async fn test_miniblock_and_l1_batch_processing(
 
     // Genesis is needed for proper mempool initialization.
     tester.genesis(&pool).await;
-    let mut conn = pool.access_storage_tagged("state_keeper").await.unwrap();
+    let mut conn = pool.access_storage_tagged("state_keeper").await;
     // Save metadata for the genesis L1 batch so that we don't hang in `seal_l1_batch`.
     let metadata = create_l1_batch_metadata(0);
     conn.blocks_dal()
         .save_l1_batch_metadata(L1BatchNumber(0), &metadata, H256::zero())
-        .await
-        .unwrap();
+        .await;
     drop(conn);
 
     let (mut mempool, _) = tester
@@ -388,19 +383,15 @@ async fn test_miniblock_and_l1_batch_processing(
         .unwrap();
 
     // Check that miniblock #1 and L1 batch #1 are persisted.
-    let mut conn = pool.access_storage_tagged("state_keeper").await.unwrap();
+    let mut conn = pool.access_storage_tagged("state_keeper").await;
     assert_eq!(
-        conn.blocks_dal()
-            .get_sealed_miniblock_number()
-            .await
-            .unwrap(),
+        conn.blocks_dal().get_sealed_miniblock_number().await,
         MiniblockNumber(2) // + fictive miniblock
     );
     let l1_batch_header = conn
         .blocks_dal()
         .get_l1_batch_header(L1BatchNumber(1))
         .await
-        .unwrap()
         .unwrap();
     assert_eq!(l1_batch_header.l2_tx_count, 1);
     assert!(l1_batch_header.is_finished);

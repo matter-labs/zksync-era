@@ -47,7 +47,7 @@ rand = "0.8"
 
 tokio = { version = "1", features = ["time"] }
 futures = { version = "0.3", features = ["compat"] }
-chrono = { version = "0.4", features = ["serde"] }
+chrono = { version = "0.4", features = ["serde", "rustc-serialize"] }
 anyhow = "1.0"
 thiserror = "1.0"
 async-trait = "0.1"

@@ -82,13 +82,8 @@ async fn basic_workflow(pool: ConnectionPool, prover_pool: ConnectionPool) {
 }
 
 async fn expected_tree_hash(pool: &ConnectionPool) -> H256 {
-    let mut storage = pool.access_storage().await.unwrap();
-    let sealed_l1_batch_number = storage
-        .blocks_dal()
-        .get_sealed_l1_batch_number()
-        .await
-        .unwrap()
-        .0;
+    let mut storage = pool.access_storage().await;
+    let sealed_l1_batch_number = storage.blocks_dal().get_sealed_l1_batch_number().await.0;
     let mut all_logs = vec![];
     for i in 0..=sealed_l1_batch_number {
         let logs = L1BatchWithLogs::new(&mut storage, L1BatchNumber(i)).await;
@@ -205,7 +200,7 @@ async fn running_metadata_calculator_with_additional_blocks(
 
     // Add some new blocks to the storage.
     let new_logs = gen_storage_logs(100..200, 10);
-    extend_db_state(&mut pool.access_storage().await.unwrap(), new_logs).await;
+    extend_db_state(&mut pool.access_storage().await, new_logs).await;
 
     // Wait until these blocks are processed. The calculator may have spurious delays,
     // thus we wait in a loop.
@@ -270,7 +265,7 @@ async fn test_postgres_backup_recovery(
 
     // Simulate recovery from a DB snapshot in which some newer L1 batches are erased.
     let last_batch_after_recovery = L1BatchNumber(3);
-    let mut storage = pool.access_storage().await.unwrap();
+    let mut storage = pool.access_storage().await;
     let removed_batches = remove_l1_batches(&mut storage, last_batch_after_recovery).await;
 
     if insert_batch_without_metadata {
@@ -283,8 +278,7 @@ async fn test_postgres_backup_recovery(
         storage
             .blocks_dal()
             .insert_l1_batch(batch_without_metadata, &[], BlockGasCount::default())
-            .await
-            .unwrap();
+            .await;
         insert_initial_writes_for_batch(&mut storage, batch_without_metadata.number).await;
     }
     drop(storage);
@@ -303,13 +297,12 @@ async fn test_postgres_backup_recovery(
     assert_eq!(next_l1_batch, last_batch_after_recovery + 1);
 
     // Re-insert L1 batches to the storage after recovery.
-    let mut storage = pool.access_storage().await.unwrap();
+    let mut storage = pool.access_storage().await;
     for batch_header in &removed_batches {
         storage
             .blocks_dal()
             .insert_l1_batch(batch_header, &[], BlockGasCount::default())
-            .await
-            .unwrap();
+            .await;
         insert_initial_writes_for_batch(&mut storage, batch_header.number).await;
         if sleep_between_batches {
             tokio::time::sleep(Duration::from_millis(100)).await;
@@ -395,8 +388,8 @@ async fn setup_calculator_with_options(
         MetadataCalculatorConfig::for_main_node(db_config, operation_config, mode);
     let metadata_calculator = MetadataCalculator::new(&calculator_config).await;
 
-    let mut storage = pool.access_storage().await.unwrap();
-    if storage.blocks_dal().is_genesis_needed().await.unwrap() {
+    let mut storage = pool.access_storage().await;
+    if storage.blocks_dal().is_genesis_needed().await {
         let chain_id = L2ChainId(270);
         let protocol_version = ProtocolVersionId::latest();
         let base_system_contracts = BaseSystemContracts::load_from_disk();
@@ -452,7 +445,7 @@ async fn run_calculator(
 }
 
 pub(super) async fn reset_db_state(pool: &ConnectionPool, num_batches: usize) {
-    let mut storage = pool.access_storage().await.unwrap();
+    let mut storage = pool.access_storage().await;
     // Drops all L1 batches (except the L1 batch with number 0) and their storage logs.
     storage
         .storage_logs_dal()
@@ -461,13 +454,11 @@ pub(super) async fn reset_db_state(pool: &ConnectionPool, num_batches: usize) {
     storage
         .blocks_dal()
         .delete_miniblocks(MiniblockNumber(0))
-        .await
-        .unwrap();
+        .await;
     storage
         .blocks_dal()
         .delete_l1_batches(L1BatchNumber(0))
-        .await
-        .unwrap();
+        .await;
 
     let logs = gen_storage_logs(0..100, num_batches);
     extend_db_state(&mut storage, logs).await;
@@ -477,13 +468,7 @@ pub(super) async fn extend_db_state(
     storage: &mut StorageProcessor<'_>,
     new_logs: impl IntoIterator<Item = Vec<StorageLog>>,
 ) {
-    let next_l1_batch = storage
-        .blocks_dal()
-        .get_sealed_l1_batch_number()
-        .await
-        .unwrap()
-        .0
-        + 1;
+    let next_l1_batch = storage.blocks_dal().get_sealed_l1_batch_number().await.0 + 1;
 
     let base_system_contracts = BaseSystemContracts::load_from_disk();
     for (idx, batch_logs) in (next_l1_batch..).zip(new_logs) {
@@ -521,13 +506,11 @@ pub(super) async fn extend_db_state(
         storage
             .blocks_dal()
             .insert_l1_batch(&header, &[], BlockGasCount::default())
-            .await
-            .unwrap();
+            .await;
         storage
             .blocks_dal()
             .insert_miniblock(&miniblock_header)
-            .await
-            .unwrap();
+            .await;
         storage
             .storage_logs_dal()
             .insert_storage_logs(miniblock_number, &[(H256::zero(), batch_logs)])
@@ -535,8 +518,7 @@ pub(super) async fn extend_db_state(
         storage
             .blocks_dal()
             .mark_miniblocks_as_executed_in_l1_batch(batch_number)
-            .await
-            .unwrap();
+            .await;
         insert_initial_writes_for_batch(storage, batch_number).await;
     }
 }
@@ -613,11 +595,7 @@ async fn remove_l1_batches(
     storage: &mut StorageProcessor<'_>,
     last_l1_batch_to_keep: L1BatchNumber,
 ) -> Vec<L1BatchHeader> {
-    let sealed_l1_batch_number = storage
-        .blocks_dal()
-        .get_sealed_l1_batch_number()
-        .await
-        .unwrap();
+    let sealed_l1_batch_number = storage.blocks_dal().get_sealed_l1_batch_number().await;
     assert!(sealed_l1_batch_number >= last_l1_batch_to_keep);
 
     let mut batch_headers = vec![];
@@ -625,22 +603,20 @@ async fn remove_l1_batches(
         let header = storage
             .blocks_dal()
             .get_l1_batch_header(L1BatchNumber(batch_number))
-            .await
-            .unwrap();
+            .await;
         batch_headers.push(header.unwrap());
     }
 
     storage
         .blocks_dal()
         .delete_l1_batches(last_l1_batch_to_keep)
-        .await
-        .unwrap();
+        .await;
     batch_headers
 }
 
 #[db_test]
 async fn deduplication_works_as_expected(pool: ConnectionPool) {
-    let mut storage = pool.access_storage().await.unwrap();
+    let mut storage = pool.access_storage().await;
 
     let first_validator = Address::repeat_byte(0x01);
     let protocol_version = ProtocolVersionId::latest();

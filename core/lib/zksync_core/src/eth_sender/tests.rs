@@ -519,8 +519,7 @@ async fn correct_order_for_confirmations(connection_pool: ConnectionPool) -> any
         .await
         .blocks_dal()
         .get_ready_for_execute_l1_batches(45, None)
-        .await
-        .unwrap();
+        .await;
     assert_eq!(l1_batches.len(), 1);
     assert_eq!(l1_batches[0].header.number.0, 2);
 
@@ -530,8 +529,7 @@ async fn correct_order_for_confirmations(connection_pool: ConnectionPool) -> any
         .await
         .blocks_dal()
         .get_ready_for_execute_l1_batches(45, None)
-        .await
-        .unwrap();
+        .await;
     assert_eq!(l1_batches.len(), 0);
     Ok(())
 }
@@ -612,8 +610,7 @@ async fn skipped_l1_batch_at_the_start(connection_pool: ConnectionPool) -> anyho
         .await
         .blocks_dal()
         .get_ready_for_execute_l1_batches(45, Some(unix_timestamp_ms()))
-        .await
-        .unwrap();
+        .await;
     assert_eq!(l1_batches.len(), 2);
 
     confirm_tx(&mut tester, third_l1_batch_commit_tx_hash).await;
@@ -622,8 +619,7 @@ async fn skipped_l1_batch_at_the_start(connection_pool: ConnectionPool) -> anyho
         .await
         .blocks_dal()
         .get_ready_for_execute_l1_batches(45, Some(unix_timestamp_ms()))
-        .await
-        .unwrap();
+        .await;
     assert_eq!(l1_batches.len(), 2);
     Ok(())
 }
@@ -696,8 +692,7 @@ async fn skipped_l1_batch_in_the_middle(connection_pool: ConnectionPool) -> anyh
         .await
         .blocks_dal()
         .get_ready_for_execute_l1_batches(45, None)
-        .await
-        .unwrap();
+        .await;
     // We should return all L1 batches including the third one
     assert_eq!(l1_batches.len(), 3);
     assert_eq!(l1_batches[0].header.number.0, 2);
@@ -708,8 +703,7 @@ async fn skipped_l1_batch_in_the_middle(connection_pool: ConnectionPool) -> anyh
         .await
         .blocks_dal()
         .get_ready_for_execute_l1_batches(45, None)
-        .await
-        .unwrap();
+        .await;
     assert_eq!(l1_batches.len(), 3);
     Ok(())
 }
@@ -825,8 +819,7 @@ async fn insert_l1_batch(tester: &mut EthSenderTester, number: L1BatchNumber) ->
         .await
         .blocks_dal()
         .insert_l1_batch(&header, &[], Default::default())
-        .await
-        .unwrap();
+        .await;
     tester
         .storage()
         .await
@@ -836,8 +829,7 @@ async fn insert_l1_batch(tester: &mut EthSenderTester, number: L1BatchNumber) ->
             &default_l1_batch_metadata(),
             Default::default(),
         )
-        .await
-        .unwrap();
+        .await;
     header
 }
 

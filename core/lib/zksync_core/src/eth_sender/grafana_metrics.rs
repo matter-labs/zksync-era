@@ -15,8 +15,7 @@ pub async fn track_eth_tx_metrics(
     let l1_batch_headers = connection
         .blocks_dal()
         .get_l1_batches_for_eth_tx_id(tx.id)
-        .await
-        .unwrap();
+        .await;
 
     // This should be only the case when some blocks were reverted.
     if l1_batch_headers.is_empty() {

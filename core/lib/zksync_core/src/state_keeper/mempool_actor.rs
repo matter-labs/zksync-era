@@ -59,7 +59,7 @@ impl<G: L1GasPriceProvider> MempoolFetcher<G> {
         stop_receiver: watch::Receiver<bool>,
     ) -> anyhow::Result<()> {
         {
-            let mut storage = pool.access_storage_tagged("state_keeper").await.unwrap();
+            let mut storage = pool.access_storage_tagged("state_keeper").await;
             if remove_stuck_txs {
                 let removed_txs = storage
                     .transactions_dal()
@@ -76,7 +76,7 @@ impl<G: L1GasPriceProvider> MempoolFetcher<G> {
                 break;
             }
             let started_at = Instant::now();
-            let mut storage = pool.access_storage_tagged("state_keeper").await.unwrap();
+            let mut storage = pool.access_storage_tagged("state_keeper").await;
             let mempool_info = self.mempool.get_mempool_info();
             let l2_tx_filter = l2_tx_filter(self.l1_gas_price_provider.as_ref(), fair_l2_gas_price);
 

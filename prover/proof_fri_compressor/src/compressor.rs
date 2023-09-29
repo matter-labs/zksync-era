@@ -98,7 +98,7 @@ impl JobProcessor for ProofCompressor {
     const SERVICE_NAME: &'static str = "ProofCompressor";
 
     async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, Self::Job)>> {
-        let mut conn = self.pool.access_storage().await.unwrap();
+        let mut conn = self.pool.access_storage().await;
         let pod_name = get_current_pod_name();
         let Some(l1_batch_number) = conn
             .fri_proof_compressor_dal()
@@ -134,7 +134,8 @@ impl JobProcessor for ProofCompressor {
 
     async fn save_failure(&self, job_id: Self::JobId, _started_at: Instant, error: String) {
         self.pool
-            .access_storage().await.unwrap()
+            .access_storage()
+            .await
             .fri_proof_compressor_dal()
             .mark_proof_compression_job_failed(&error, job_id)
             .await;
@@ -189,7 +190,8 @@ impl JobProcessor for ProofCompressor {
             blob_save_started_at.elapsed(),
         );
         self.pool
-            .access_storage().await.unwrap()
+            .access_storage()
+            .await
             .fri_proof_compressor_dal()
             .mark_proof_compression_job_successful(job_id, started_at.elapsed(), &blob_url)
             .await;
