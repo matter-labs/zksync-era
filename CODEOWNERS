@@ -1,4 +1,6 @@
+* @matter-labs/core
 .github/release-please/** @RomanBrodetski @perekopskiy @Deniallugo @popzxc
 **/CHANGELOG.md @RomanBrodetski @perekopskiy @Deniallugo @popzxc
 CODEOWNERS @RomanBrodetski @perekopskiy @Deniallugo @popzxc
 .github/workflows/** @matter-labs/devops
+README.md @yorik
