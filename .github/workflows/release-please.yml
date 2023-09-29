@@ -24,25 +24,4 @@ jobs:
         uses: matter-labs/format-release-please-for-slack-action@69e6fe9e4ec531b7b5fb0d826f73c190db83cf42 # v2.1.0
         with:
           release-please-output: ${{ toJSON(steps.release.outputs) }}
-          slack-webhook-url: ${{ secrets.MATTERMOST_WEBHOOK_RELEASES }}
-
-  publish-npm:
-    runs-on: ubuntu-latest
-    needs: [release-please]
-    if: ${{ fromJSON(needs.release-please.outputs.release_please_output)['sdk/zksync-web3.js--release_created'] }}
-    steps:
-      - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
-      - uses: actions/setup-node@64ed1c7eab4cce3362f8c340dee64e5eaeef8f7c # v3
-        with:
-          node-version: '18.18.0'
-          registry-url: 'https://registry.npmjs.org'
-
-      - name: Build package and publish
-        working-directory: sdk/zksync-web3.js/
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          npm install
-          npm run build
-          npm publish --tag beta
-
+          slack-webhook-url: ${{ secrets.SLACK_WEBHOOK_RELEASES }}
