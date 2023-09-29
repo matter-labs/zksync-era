@@ -180,7 +180,7 @@ pub struct SystemContractsRepo {
 impl SystemContractsRepo {
     /// Returns the default system contracts repo with directory based on the ZKSYNC_HOME environment variable.
     pub fn from_env() -> Self {
-        let zksync_home = std::env::var("ZKSYNC_HOME").expect("ZKSYNC_HOME env variable not set.");
+        let zksync_home = std::env::var("ZKSYNC_HOME").unwrap_or_else(|_| ".".into());
         let zksync_home = PathBuf::from(zksync_home);
         SystemContractsRepo {
             root: zksync_home.join("etc/system-contracts"),
