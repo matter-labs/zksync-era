@@ -88,7 +88,7 @@ impl JobProcessor for SchedulerWitnessGenerator {
 
     const SERVICE_NAME: &'static str = "scheduler_witness_generator";
 
-    async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, Self::Job)>> {
+    async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, u32, Self::Job)>> {
         let mut connection = self.connection_pool.access_storage().await.unwrap();
         let mut prover_connection = self.prover_connection_pool.access_storage().await.unwrap();
         let last_l1_batch_to_process = self.config.last_l1_batch_to_process();
@@ -114,6 +114,7 @@ impl JobProcessor for SchedulerWitnessGenerator {
                     .map_or([0u8; 32], |e| e.metadata.aux_data_hash.0);
                 let previous_meta_hash =
                     prev_metadata.map_or([0u8; 32], |e| e.metadata.meta_parameters_hash.0);
+                let attempts = metadata.attempts;
                 let job = get_artifacts(
                     metadata,
                     previous_aux_hash,
@@ -121,7 +122,7 @@ impl JobProcessor for SchedulerWitnessGenerator {
                     &*self.object_store,
                 )
                 .await;
-                Ok(Some((job.block_number, job)))
+                Ok(Some((job.block_number, attempts, job)))
             }
             None => Ok(None),
         }
@@ -181,6 +182,10 @@ impl JobProcessor for SchedulerWitnessGenerator {
         )
         .await;
         Ok(())
+    }
+
+    fn max_attempts(&self) -> u32 {
+        self.config.max_attempts
     }
 }
 

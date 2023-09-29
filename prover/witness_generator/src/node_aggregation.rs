@@ -27,6 +27,7 @@ use zksync_queued_job_processor::JobProcessor;
 use zksync_types::proofs::NodeAggregationJobMetadata;
 use zksync_types::protocol_version::FriProtocolVersionId;
 use zksync_types::{proofs::AggregationRound, L1BatchNumber};
+use zksync_config::configs::FriWitnessGeneratorConfig;
 
 pub struct NodeAggregationArtifacts {
     circuit_id: u8,
@@ -63,6 +64,7 @@ pub struct NodeAggregationWitnessGeneratorJob {
 
 #[derive(Debug)]
 pub struct NodeAggregationWitnessGenerator {
+    config: FriWitnessGeneratorConfig,
     object_store: Box<dyn ObjectStore>,
     prover_connection_pool: ConnectionPool,
     protocol_versions: Vec<FriProtocolVersionId>,
@@ -70,11 +72,13 @@ pub struct NodeAggregationWitnessGenerator {
 
 impl NodeAggregationWitnessGenerator {
     pub async fn new(
+        config: FriWitnessGeneratorConfig,
         store_factory: &ObjectStoreFactory,
         prover_connection_pool: ConnectionPool,
         protocol_versions: Vec<FriProtocolVersionId>,
     ) -> Self {
         Self {
+            config,
             object_store: store_factory.create_store().await,
             prover_connection_pool,
             protocol_versions,
@@ -135,7 +139,7 @@ impl JobProcessor for NodeAggregationWitnessGenerator {
 
     const SERVICE_NAME: &'static str = "fri_node_aggregation_witness_generator";
 
-    async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, Self::Job)>> {
+    async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, u32, Self::Job)>> {
         let mut prover_connection = self.prover_connection_pool.access_storage().await.unwrap();
         let pod_name = get_current_pod_name();
         let Some(metadata) = prover_connection
@@ -146,6 +150,7 @@ impl JobProcessor for NodeAggregationWitnessGenerator {
         tracing::info!("Processing node aggregation job {:?}", metadata.id);
         Ok(Some((
             metadata.id,
+            metadata.attempts,
             prepare_job(metadata, &*self.object_store).await
                 .context("prepare_job()")?,
         )))
@@ -191,6 +196,10 @@ impl JobProcessor for NodeAggregationWitnessGenerator {
         )
         .await;
         Ok(())
+    }
+
+    fn max_attempts(&self) -> u32 {
+        self.config.max_attempts
     }
 }
 

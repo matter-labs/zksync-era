@@ -188,7 +188,7 @@ impl JobProcessor for Prover {
     type JobArtifacts = ProverArtifacts;
     const SERVICE_NAME: &'static str = "FriCpuProver";
 
-    async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, Self::Job)>> {
+    async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, u32, Self::Job)>> {
         let mut storage = self.prover_connection_pool.access_storage().await.unwrap();
         let Some(prover_job) = fetch_next_circuit(
             &mut storage,
@@ -197,7 +197,7 @@ impl JobProcessor for Prover {
             &self.vk_commitments,
         )
         .await else { return Ok(None) };
-       Ok(Some((prover_job.job_id, prover_job)))
+       Ok(Some((prover_job.job_id, prover_job.attempts, prover_job)))
     }
 
     async fn save_failure(&self, job_id: Self::JobId, _started_at: Instant, error: String) {
@@ -242,6 +242,10 @@ impl JobProcessor for Prover {
         )
         .await;
         Ok(())
+    }
+
+    fn max_attempts(&self) -> u32 {
+        self.config.max_attempts
     }
 }
 

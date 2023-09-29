@@ -29,6 +29,7 @@ pub struct ProofCompressor {
     pool: ConnectionPool,
     compression_mode: u8,
     verify_wrapper_proof: bool,
+    max_attempts: u32,
 }
 
 impl ProofCompressor {
@@ -37,12 +38,14 @@ impl ProofCompressor {
         pool: ConnectionPool,
         compression_mode: u8,
         verify_wrapper_proof: bool,
+        max_attempts: u32,
     ) -> Self {
         Self {
             blob_store,
             pool,
             compression_mode,
             verify_wrapper_proof,
+            max_attempts,
         }
     }
 
@@ -97,10 +100,10 @@ impl JobProcessor for ProofCompressor {
     type JobArtifacts = Proof<Bn256, ZkSyncCircuit<Bn256, VmWitnessOracle<Bn256>>>;
     const SERVICE_NAME: &'static str = "ProofCompressor";
 
-    async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, Self::Job)>> {
+    async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, u32, Self::Job)>> {
         let mut conn = self.pool.access_storage().await.unwrap();
         let pod_name = get_current_pod_name();
-        let Some(l1_batch_number) = conn
+        let Some((l1_batch_number, attempts)) = conn
             .fri_proof_compressor_dal()
             .get_next_proof_compression_job(&pod_name)
             .await
@@ -129,7 +132,7 @@ impl JobProcessor for ProofCompressor {
             FriProofWrapper::Base(_) => anyhow::bail!("Must be a scheduler proof not base layer"),
             FriProofWrapper::Recursive(proof) => proof,
         };
-        Ok(Some((l1_batch_number, scheduler_proof)))
+        Ok(Some((l1_batch_number, attempts, scheduler_proof)))
     }
 
     async fn save_failure(&self, job_id: Self::JobId, _started_at: Instant, error: String) {
@@ -194,5 +197,9 @@ impl JobProcessor for ProofCompressor {
             .mark_proof_compression_job_successful(job_id, started_at.elapsed(), &blob_url)
             .await;
         Ok(())
+    }
+
+    fn max_attempts(&self) -> u32 {
+        self.max_attempts
     }
 }

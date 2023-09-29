@@ -21,9 +21,9 @@ pub trait JobProcessor: Sync + Send {
     const SERVICE_NAME: &'static str;
 
     /// Returns None when there is no pending job
-    /// Otherwise, returns Some(job_id, job)
+    /// Otherwise, returns Some(job_id, attempts, job)
     /// Note: must be concurrency-safe - that is, one job must not be returned in two parallel processes
-    async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, Self::Job)>>;
+    async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, u32, Self::Job)>>;
 
     /// Invoked when `process_job` panics
     /// Should mark the job as failed
@@ -57,9 +57,14 @@ pub trait JobProcessor: Sync + Send {
                 );
                 return Ok(());
             }
-            if let Some((job_id, job)) =
+            if let Some((job_id, attempts, job)) =
                 Self::get_next_job(&self).await.context("get_next_job()")?
             {
+                metrics::histogram!(format!("{}.job_attempts", Self::SERVICE_NAME), attempts as f64, "job_id" => format!("{job_id:?}"));
+                if attempts == self.max_attempts() {
+                    metrics::counter!(format!("{}.max_attempts_reached", Self::SERVICE_NAME), 1, "job_id" => format!("{job_id:?}"));
+                }
+
                 let started_at = Instant::now();
                 backoff = Self::POLLING_INTERVAL_MS;
                 iterations_left = iterations_left.map(|i| i - 1);
@@ -138,4 +143,6 @@ pub trait JobProcessor: Sync + Send {
         started_at: Instant,
         artifacts: Self::JobArtifacts,
     ) -> anyhow::Result<()>;
+
+    fn max_attempts(&self) -> u32;
 }

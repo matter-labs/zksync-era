@@ -172,7 +172,7 @@ impl JobProcessor for BasicWitnessGenerator {
 
     const SERVICE_NAME: &'static str = "fri_basic_circuit_witness_generator";
 
-    async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, Self::Job)>> {
+    async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, u32, Self::Job)>> {
         let mut prover_connection = self.prover_connection_pool.access_storage().await.unwrap();
         let last_l1_batch_to_process = self.config.last_l1_batch_to_process();
         let pod_name = get_current_pod_name();
@@ -185,7 +185,7 @@ impl JobProcessor for BasicWitnessGenerator {
             )
             .await
         {
-            Some(block_number) => {
+            Some((block_number, attempts)) => {
                 tracing::info!(
                     "Processing FRI basic witness-gen for block {}",
                     block_number
@@ -197,7 +197,7 @@ impl JobProcessor for BasicWitnessGenerator {
                     started_at.elapsed(),
                     "aggregation_round" => format!("{:?}", AggregationRound::BasicCircuits),
                 );
-                Ok(Some((block_number, job)))
+                Ok(Some((block_number, attempts, job)))
             }
             None => Ok(None),
         }
@@ -260,6 +260,10 @@ impl JobProcessor for BasicWitnessGenerator {
                 Ok(())
             }
         }
+    }
+
+    fn max_attempts(&self) -> u32 {
+        self.config.max_attempts
     }
 }
 

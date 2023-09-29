@@ -152,7 +152,7 @@ impl JobProcessor for BasicWitnessGenerator {
 
     const SERVICE_NAME: &'static str = "basic_circuit_witness_generator";
 
-    async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, Self::Job)>> {
+    async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, u32, Self::Job)>> {
         let mut prover_connection = self.prover_connection_pool.access_storage().await.unwrap();
         let last_l1_batch_to_process = self.config.last_l1_batch_to_process();
 
@@ -169,7 +169,7 @@ impl JobProcessor for BasicWitnessGenerator {
             {
                 Some(metadata) => {
                     let job = get_artifacts(metadata.block_number, &self.object_store).await;
-                    Some((job.block_number, job))
+                    Some((job.block_number, metadata.attempts, job))
                 }
                 None => None,
             },
@@ -233,6 +233,10 @@ impl JobProcessor for BasicWitnessGenerator {
             }
         }
         Ok(())
+    }
+
+    fn max_attempts(&self) -> u32 {
+        self.config.max_attempts
     }
 }
 

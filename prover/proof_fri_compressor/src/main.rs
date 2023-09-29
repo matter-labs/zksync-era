@@ -61,6 +61,7 @@ async fn main() -> anyhow::Result<()> {
         pool,
         config.compression_mode,
         config.verify_wrapper_proof,
+        config.max_attempts,
     );
 
     let (stop_sender, stop_receiver) = watch::channel(false);

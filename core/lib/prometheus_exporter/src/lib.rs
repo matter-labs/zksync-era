@@ -40,8 +40,8 @@ fn configure_legacy_exporter(builder: PrometheusBuilder) -> PrometheusBuilder {
         0.01, 0.03, 0.1, 0.3, 0.5, 0.75, 1., 1.5, 3., 5., 10., 20., 50.,
     ];
 
-    // Buckets for a metric reporting the sizes of the JSON RPC batches sent to the server.
-    let batch_size_buckets = [1.0, 2.0, 4.0, 8.0, 16.0, 32.0, 64.0, 128.0, 256.0, 512.0];
+    // Powers of two buckets.
+    let pow_two_buckets = [1.0, 2.0, 4.0, 8.0, 16.0, 32.0, 64.0, 128.0, 256.0, 512.0];
 
     builder
         .set_buckets(&default_latency_buckets)
@@ -77,8 +77,10 @@ fn configure_legacy_exporter(builder: PrometheusBuilder) -> PrometheusBuilder {
         .unwrap()
         .set_buckets_for_metric(
             Matcher::Full("api.jsonrpc_backend.batch.size".to_owned()),
-            &batch_size_buckets,
+            &pow_two_buckets,
         )
+        .unwrap()
+        .set_buckets_for_metric(Matcher::Suffix("job_attempts".to_owned()), &pow_two_buckets)
         .unwrap()
 }
 

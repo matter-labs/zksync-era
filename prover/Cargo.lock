@@ -6833,6 +6833,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
+ "metrics",
  "tokio",
  "tracing",
  "zksync_utils",

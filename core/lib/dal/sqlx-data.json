@@ -670,6 +670,71 @@
     },
     "query": "SELECT number FROM l1_batches LEFT JOIN eth_txs_history AS prove_tx ON (l1_batches.eth_prove_tx_id = prove_tx.eth_tx_id) WHERE prove_tx.confirmed_at IS NOT NULL ORDER BY number DESC LIMIT 1"
   },
+  "1484d751e0ddb057d6b0bdbd3422eb107db8ba58aa224be2bf7a5a40c132373e": {
+    "describe": {
+      "columns": [
+        {
+          "name": "id",
+          "ordinal": 0,
+          "type_info": "Int8"
+        },
+        {
+          "name": "l1_batch_number",
+          "ordinal": 1,
+          "type_info": "Int8"
+        },
+        {
+          "name": "circuit_id",
+          "ordinal": 2,
+          "type_info": "Int2"
+        },
+        {
+          "name": "aggregation_round",
+          "ordinal": 3,
+          "type_info": "Int2"
+        },
+        {
+          "name": "sequence_number",
+          "ordinal": 4,
+          "type_info": "Int4"
+        },
+        {
+          "name": "depth",
+          "ordinal": 5,
+          "type_info": "Int4"
+        },
+        {
+          "name": "is_node_final_proof",
+          "ordinal": 6,
+          "type_info": "Bool"
+        },
+        {
+          "name": "attempts",
+          "ordinal": 7,
+          "type_info": "Int2"
+        }
+      ],
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "parameters": {
+        "Left": [
+          "Int2Array",
+          "Int2Array",
+          "Int4Array",
+          "Text"
+        ]
+      }
+    },
+    "query": "\n                UPDATE prover_jobs_fri\n                SET status = 'in_progress', attempts = attempts + 1,\n                    updated_at = now(), processing_started_at = now(),\n                    picked_by = $4\n                WHERE id = (\n                    SELECT id\n                    FROM prover_jobs_fri\n                    WHERE status = 'queued'\n                    AND (circuit_id, aggregation_round) IN (\n                        SELECT * FROM UNNEST($1::smallint[], $2::smallint[])\n                    )\n                    AND protocol_version = ANY($3)\n                    ORDER BY aggregation_round DESC, l1_batch_number ASC, id ASC\n                    LIMIT 1\n                    FOR UPDATE\n                    SKIP LOCKED\n                )\n                RETURNING prover_jobs_fri.id, prover_jobs_fri.l1_batch_number, prover_jobs_fri.circuit_id,\n                prover_jobs_fri.aggregation_round, prover_jobs_fri.sequence_number, prover_jobs_fri.depth,\n                prover_jobs_fri.is_node_final_proof, prover_jobs_fri.attempts\n                "
+  },
   "15135331e56e3e4e3eeae3aac609d8e8c7146d190dfe26c1a24f92d21cd34858": {
     "describe": {
       "columns": [
@@ -1879,6 +1944,39 @@
       }
     },
     "query": "SELECT number FROM l1_batches LEFT JOIN eth_txs_history as execute_tx ON (l1_batches.eth_execute_tx_id = execute_tx.eth_tx_id) WHERE execute_tx.confirmed_at IS NOT NULL ORDER BY number DESC LIMIT 1"
+  },
+  "2af0eddab563f0800a4762031e8703dbcac11450daacf3439289641b9b179b1c": {
+    "describe": {
+      "columns": [
+        {
+          "name": "id",
+          "ordinal": 0,
+          "type_info": "Int8"
+        },
+        {
+          "name": "status",
+          "ordinal": 1,
+          "type_info": "Text"
+        },
+        {
+          "name": "attempts",
+          "ordinal": 2,
+          "type_info": "Int2"
+        }
+      ],
+      "nullable": [
+        false,
+        false,
+        false
+      ],
+      "parameters": {
+        "Left": [
+          "Interval",
+          "Int2"
+        ]
+      }
+    },
+    "query": "\n                UPDATE node_aggregation_witness_jobs_fri\n                SET status = 'queued', updated_at = now(), processing_started_at = now()\n                WHERE (status = 'in_progress' AND  processing_started_at <= now() - $1::interval AND attempts < $2)\n                OR (status = 'failed' AND attempts < $2)\n                RETURNING id, status, attempts\n                "
   },
   "2b22e7d15adf069c8e68954059b83f71a71350f3325b4280840c4be7e54a319f": {
     "describe": {
@@ -3816,39 +3914,6 @@
     },
     "query": "\n                UPDATE gpu_prover_queue\n                SET instance_status = 'reserved',\n                    updated_at = now(),\n                    processing_started_at = now()\n                WHERE id in (\n                    SELECT id\n                    FROM gpu_prover_queue\n                    WHERE specialized_prover_group_id=$2\n                    AND region=$3\n                    AND zone=$4\n                    AND (\n                        instance_status = 'available'\n                        OR (instance_status = 'reserved' AND  processing_started_at < now() - $1::interval)\n                    )\n                    ORDER BY updated_at ASC\n                    LIMIT 1\n                    FOR UPDATE\n                    SKIP LOCKED\n                )\n                RETURNING gpu_prover_queue.*\n                "
   },
-  "4fca2f4497b3b5040cb8ccefe44a29c2583578942fd7c58e71c0eaeb2d9bec9e": {
-    "describe": {
-      "columns": [
-        {
-          "name": "l1_batch_number",
-          "ordinal": 0,
-          "type_info": "Int8"
-        },
-        {
-          "name": "status",
-          "ordinal": 1,
-          "type_info": "Text"
-        },
-        {
-          "name": "attempts",
-          "ordinal": 2,
-          "type_info": "Int2"
-        }
-      ],
-      "nullable": [
-        false,
-        false,
-        false
-      ],
-      "parameters": {
-        "Left": [
-          "Interval",
-          "Int2"
-        ]
-      }
-    },
-    "query": "UPDATE proof_compression_jobs_fri SET status = 'queued', attempts = attempts + 1, updated_at = now(), processing_started_at = now() WHERE (status = 'in_progress' AND  processing_started_at <= now() - $1::interval AND attempts < $2) OR (status = 'failed' AND attempts < $2) RETURNING l1_batch_number, status, attempts"
-  },
   "5089dfb745ff04a9b071b5785e68194a6f6a7a72754d23a65adc7d6838f7f640": {
     "describe": {
       "columns": [],
@@ -4613,65 +4678,6 @@
     },
     "query": "\n                SELECT status, error, compilation_errors FROM contract_verification_requests\n                WHERE id = $1\n                "
   },
-  "654e133230ee435e95cfda5bc4d72c8dd26412fe9d364e218e95eb4fe64559e9": {
-    "describe": {
-      "columns": [
-        {
-          "name": "id",
-          "ordinal": 0,
-          "type_info": "Int8"
-        },
-        {
-          "name": "l1_batch_number",
-          "ordinal": 1,
-          "type_info": "Int8"
-        },
-        {
-          "name": "circuit_id",
-          "ordinal": 2,
-          "type_info": "Int2"
-        },
-        {
-          "name": "aggregation_round",
-          "ordinal": 3,
-          "type_info": "Int2"
-        },
-        {
-          "name": "sequence_number",
-          "ordinal": 4,
-          "type_info": "Int4"
-        },
-        {
-          "name": "depth",
-          "ordinal": 5,
-          "type_info": "Int4"
-        },
-        {
-          "name": "is_node_final_proof",
-          "ordinal": 6,
-          "type_info": "Bool"
-        }
-      ],
-      "nullable": [
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false
-      ],
-      "parameters": {
-        "Left": [
-          "Int2Array",
-          "Int2Array",
-          "Int4Array",
-          "Text"
-        ]
-      }
-    },
-    "query": "\n                UPDATE prover_jobs_fri\n                SET status = 'in_progress', attempts = attempts + 1,\n                    updated_at = now(), processing_started_at = now(),\n                    picked_by = $4\n                WHERE id = (\n                    SELECT id\n                    FROM prover_jobs_fri\n                    WHERE status = 'queued'\n                    AND (circuit_id, aggregation_round) IN (\n                        SELECT * FROM UNNEST($1::smallint[], $2::smallint[])\n                    )\n                    AND protocol_version = ANY($3)\n                    ORDER BY aggregation_round DESC, l1_batch_number ASC, id ASC\n                    LIMIT 1\n                    FOR UPDATE\n                    SKIP LOCKED\n                )\n                RETURNING prover_jobs_fri.id, prover_jobs_fri.l1_batch_number, prover_jobs_fri.circuit_id,\n                prover_jobs_fri.aggregation_round, prover_jobs_fri.sequence_number, prover_jobs_fri.depth,\n                prover_jobs_fri.is_node_final_proof\n                "
-  },
   "665112c83ed7f126f94d1c47408de3495ee6431970e334d94ae75f853496eb48": {
     "describe": {
       "columns": [],
@@ -4738,63 +4744,38 @@
     },
     "query": "\n                UPDATE leaf_aggregation_witness_jobs\n                SET status='queued'\n                WHERE l1_batch_number IN\n                      (SELECT prover_jobs.l1_batch_number\n                       FROM prover_jobs\n                                JOIN leaf_aggregation_witness_jobs lawj ON prover_jobs.l1_batch_number = lawj.l1_batch_number\n                       WHERE lawj.status = 'waiting_for_proofs'\n                         AND prover_jobs.status = 'successful'\n                         AND prover_jobs.aggregation_round = 0\n                       GROUP BY prover_jobs.l1_batch_number, lawj.number_of_basic_circuits\n                       HAVING COUNT(*) = lawj.number_of_basic_circuits)\n                RETURNING l1_batch_number;\n            "
   },
-  "697835cdd5be1b99a0f332c4c8f3245e317b0282b46e55f15e728a7642382b25": {
+  "6939e766e122458b2ac618d19b2759c4a7298ef72b81e8c3957e0a5cf35c9552": {
     "describe": {
       "columns": [
         {
-          "name": "id",
+          "name": "l1_batch_number",
           "ordinal": 0,
           "type_info": "Int8"
         },
         {
-          "name": "l1_batch_number",
+          "name": "status",
           "ordinal": 1,
-          "type_info": "Int8"
+          "type_info": "Text"
         },
         {
-          "name": "circuit_id",
+          "name": "attempts",
           "ordinal": 2,
           "type_info": "Int2"
-        },
-        {
-          "name": "aggregation_round",
-          "ordinal": 3,
-          "type_info": "Int2"
-        },
-        {
-          "name": "sequence_number",
-          "ordinal": 4,
-          "type_info": "Int4"
-        },
-        {
-          "name": "depth",
-          "ordinal": 5,
-          "type_info": "Int4"
-        },
-        {
-          "name": "is_node_final_proof",
-          "ordinal": 6,
-          "type_info": "Bool"
         }
       ],
       "nullable": [
-        false,
-        false,
-        false,
-        false,
         false,
         false,
         false
       ],
       "parameters": {
         "Left": [
-          "Time",
-          "Text",
-          "Int8"
+          "Interval",
+          "Int2"
         ]
       }
     },
-    "query": "\n                UPDATE prover_jobs_fri\n                SET status = 'successful', updated_at = now(), time_taken = $1, proof_blob_url=$2\n                WHERE id = $3\n                RETURNING prover_jobs_fri.id, prover_jobs_fri.l1_batch_number, prover_jobs_fri.circuit_id,\n                prover_jobs_fri.aggregation_round, prover_jobs_fri.sequence_number, prover_jobs_fri.depth,\n                prover_jobs_fri.is_node_final_proof\n                "
+    "query": "\n                UPDATE witness_inputs_fri\n                SET status = 'queued', updated_at = now(), processing_started_at = now()\n                WHERE (status = 'in_progress' AND  processing_started_at <= now() - $1::interval AND attempts < $2)\n                OR (status = 'in_gpu_proof' AND  processing_started_at <= now() - $1::interval AND attempts < $2)\n                OR (status = 'failed' AND attempts < $2)\n                RETURNING l1_batch_number, status, attempts\n                "
   },
   "6a282084b02cddd8646e984a729b689bdb758e07096fc8cf60f68c6ec5bd6a9c": {
     "describe": {
@@ -4914,6 +4895,70 @@
       }
     },
     "query": "INSERT INTO miniblocks ( number, timestamp, hash, l1_tx_count, l2_tx_count, base_fee_per_gas, l1_gas_price, l2_fair_gas_price, gas_per_pubdata_limit, bootloader_code_hash, default_aa_code_hash, protocol_version, virtual_blocks, created_at, updated_at ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, now(), now())"
+  },
+  "6ca70a786741074cbe26bd667b7524937297a7d052b5206f48f010acc43055fd": {
+    "describe": {
+      "columns": [
+        {
+          "name": "id",
+          "ordinal": 0,
+          "type_info": "Int8"
+        },
+        {
+          "name": "l1_batch_number",
+          "ordinal": 1,
+          "type_info": "Int8"
+        },
+        {
+          "name": "circuit_id",
+          "ordinal": 2,
+          "type_info": "Int2"
+        },
+        {
+          "name": "aggregation_round",
+          "ordinal": 3,
+          "type_info": "Int2"
+        },
+        {
+          "name": "sequence_number",
+          "ordinal": 4,
+          "type_info": "Int4"
+        },
+        {
+          "name": "depth",
+          "ordinal": 5,
+          "type_info": "Int4"
+        },
+        {
+          "name": "is_node_final_proof",
+          "ordinal": 6,
+          "type_info": "Bool"
+        },
+        {
+          "name": "attempts",
+          "ordinal": 7,
+          "type_info": "Int2"
+        }
+      ],
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "parameters": {
+        "Left": [
+          "Time",
+          "Text",
+          "Int8"
+        ]
+      }
+    },
+    "query": "\n                UPDATE prover_jobs_fri\n                SET status = 'successful', updated_at = now(), time_taken = $1, proof_blob_url=$2\n                WHERE id = $3\n                RETURNING prover_jobs_fri.id, prover_jobs_fri.l1_batch_number, prover_jobs_fri.circuit_id,\n                prover_jobs_fri.aggregation_round, prover_jobs_fri.sequence_number, prover_jobs_fri.depth,\n                prover_jobs_fri.is_node_final_proof, prover_jobs_fri.attempts\n                "
   },
   "6ffd22b0590341c38ce3957dccdb5a4edf47fb558bc64e4df08897a0c72dbf23": {
     "describe": {
@@ -5735,6 +5780,102 @@
     },
     "query": "SELECT miniblock_number, log_index_in_miniblock, log_index_in_tx, tx_hash, Null::bytea as \"block_hash\", Null::bigint as \"l1_batch_number?\", shard_id, is_service, tx_index_in_miniblock, tx_index_in_l1_batch, sender, key, value FROM l2_to_l1_logs WHERE tx_hash = $1 ORDER BY log_index_in_tx ASC"
   },
+  "80956cb47e6a9e87b7f5fa6f4198be4bbb7e165538394ed312b81a139756ee65": {
+    "describe": {
+      "columns": [
+        {
+          "name": "id",
+          "ordinal": 0,
+          "type_info": "Int8"
+        },
+        {
+          "name": "status",
+          "ordinal": 1,
+          "type_info": "Text"
+        },
+        {
+          "name": "attempts",
+          "ordinal": 2,
+          "type_info": "Int2"
+        }
+      ],
+      "nullable": [
+        false,
+        false,
+        false
+      ],
+      "parameters": {
+        "Left": [
+          "Interval",
+          "Int2"
+        ]
+      }
+    },
+    "query": "\n                UPDATE prover_jobs_fri\n                SET status = 'queued', updated_at = now(), processing_started_at = now()\n                WHERE (status = 'in_progress' AND  processing_started_at <= now() - $1::interval AND attempts < $2)\n                OR (status = 'failed' AND attempts < $2)\n                RETURNING id, status, attempts\n                "
+  },
+  "817c55bc9476f456f029d3511310a17157874a62ac83803b9c70fce9abc33c87": {
+    "describe": {
+      "columns": [
+        {
+          "name": "id",
+          "ordinal": 0,
+          "type_info": "Int8"
+        },
+        {
+          "name": "l1_batch_number",
+          "ordinal": 1,
+          "type_info": "Int8"
+        },
+        {
+          "name": "circuit_id",
+          "ordinal": 2,
+          "type_info": "Int2"
+        },
+        {
+          "name": "aggregation_round",
+          "ordinal": 3,
+          "type_info": "Int2"
+        },
+        {
+          "name": "sequence_number",
+          "ordinal": 4,
+          "type_info": "Int4"
+        },
+        {
+          "name": "depth",
+          "ordinal": 5,
+          "type_info": "Int4"
+        },
+        {
+          "name": "is_node_final_proof",
+          "ordinal": 6,
+          "type_info": "Bool"
+        },
+        {
+          "name": "attempts",
+          "ordinal": 7,
+          "type_info": "Int2"
+        }
+      ],
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "parameters": {
+        "Left": [
+          "Int4Array",
+          "Text"
+        ]
+      }
+    },
+    "query": "\n                UPDATE prover_jobs_fri\n                SET status = 'in_progress', attempts = attempts + 1,\n                    updated_at = now(), processing_started_at = now(),\n                    picked_by = $2\n                WHERE id = (\n                    SELECT id\n                    FROM prover_jobs_fri\n                    WHERE status = 'queued'\n                    AND protocol_version = ANY($1)\n                    ORDER BY aggregation_round DESC, l1_batch_number ASC, id ASC\n                    LIMIT 1\n                    FOR UPDATE\n                    SKIP LOCKED\n                )\n                RETURNING prover_jobs_fri.id, prover_jobs_fri.l1_batch_number, prover_jobs_fri.circuit_id,\n                prover_jobs_fri.aggregation_round, prover_jobs_fri.sequence_number, prover_jobs_fri.depth,\n                prover_jobs_fri.is_node_final_proof, prover_jobs_fri.attempts\n                "
+  },
   "84703029e09ab1362aa4b4177b38be594d2daf17e69508cae869647028055efb": {
     "describe": {
       "columns": [
@@ -6340,6 +6481,39 @@
       }
     },
     "query": "\n                SELECT value\n                FROM storage_logs\n                WHERE storage_logs.hashed_key = $1 AND storage_logs.miniblock_number <= $2\n                ORDER BY storage_logs.miniblock_number DESC, storage_logs.operation_number DESC\n                LIMIT 1\n                "
+  },
+  "944c38995043e7b11e6633beb68b5479059ff27b26fd2df171a3d9650f070547": {
+    "describe": {
+      "columns": [
+        {
+          "name": "id",
+          "ordinal": 0,
+          "type_info": "Int8"
+        },
+        {
+          "name": "status",
+          "ordinal": 1,
+          "type_info": "Text"
+        },
+        {
+          "name": "attempts",
+          "ordinal": 2,
+          "type_info": "Int2"
+        }
+      ],
+      "nullable": [
+        false,
+        false,
+        false
+      ],
+      "parameters": {
+        "Left": [
+          "Interval",
+          "Int2"
+        ]
+      }
+    },
+    "query": "\n                UPDATE leaf_aggregation_witness_jobs_fri\n                SET status = 'queued', updated_at = now(), processing_started_at = now()\n                WHERE (status = 'in_progress' AND  processing_started_at <= now() - $1::interval AND attempts < $2)\n                OR (status = 'failed' AND attempts < $2)\n                RETURNING id, status, attempts\n                "
   },
   "957ceda740ffb36740acf1e3fbacf76a2ea7422dd9d76a38d745113359e4b7a6": {
     "describe": {
@@ -7012,6 +7186,34 @@
       }
     },
     "query": "INSERT INTO prover_fri_protocol_versions (id, recursion_scheduler_level_vk_hash, recursion_node_level_vk_hash, recursion_leaf_level_vk_hash, recursion_circuits_set_vks_hash, created_at) VALUES ($1, $2, $3, $4, $5, now()) ON CONFLICT(id) DO NOTHING"
+  },
+  "a30b0449613ff74e32a92c877a30ece23316d701e2f0b99cbdab9e9434915412": {
+    "describe": {
+      "columns": [
+        {
+          "name": "l1_batch_number",
+          "ordinal": 0,
+          "type_info": "Int8"
+        },
+        {
+          "name": "attempts",
+          "ordinal": 1,
+          "type_info": "Int2"
+        }
+      ],
+      "nullable": [
+        false,
+        false
+      ],
+      "parameters": {
+        "Left": [
+          "Text",
+          "Text",
+          "Text"
+        ]
+      }
+    },
+    "query": "UPDATE proof_compression_jobs_fri SET status = $1, attempts = attempts + 1, updated_at = now(), processing_started_at = now(), picked_by = $3 WHERE l1_batch_number = ( SELECT l1_batch_number FROM proof_compression_jobs_fri WHERE status = $2 ORDER BY l1_batch_number ASC LIMIT 1 FOR UPDATE SKIP LOCKED ) RETURNING proof_compression_jobs_fri.l1_batch_number, proof_compression_jobs_fri.attempts"
   },
   "a39f760d2cd879a78112e57d8611d7099802b03b7cc4933cafb4c47e133ad543": {
     "describe": {
@@ -7719,6 +7921,39 @@
     },
     "query": "SELECT * FROM eth_txs_history WHERE eth_tx_id = $1 ORDER BY created_at DESC LIMIT 1"
   },
+  "ad495160a947cf1bd7343819e723d18c9332bc95cfc2014ed8d04907eff3896e": {
+    "describe": {
+      "columns": [
+        {
+          "name": "l1_batch_number",
+          "ordinal": 0,
+          "type_info": "Int8"
+        },
+        {
+          "name": "status",
+          "ordinal": 1,
+          "type_info": "Text"
+        },
+        {
+          "name": "attempts",
+          "ordinal": 2,
+          "type_info": "Int2"
+        }
+      ],
+      "nullable": [
+        false,
+        false,
+        false
+      ],
+      "parameters": {
+        "Left": [
+          "Interval",
+          "Int2"
+        ]
+      }
+    },
+    "query": "\n                UPDATE scheduler_witness_jobs_fri\n                SET status = 'queued', updated_at = now(), processing_started_at = now()\n                WHERE (status = 'in_progress' AND  processing_started_at <= now() - $1::interval AND attempts < $2)\n                OR (status = 'failed' AND attempts < $2)\n                RETURNING l1_batch_number, status, attempts\n                "
+  },
   "ad4f74aa6f131df0243f4fa500ade1b98aa335bd71ed417b02361e2c697e60f8": {
     "describe": {
       "columns": [],
@@ -8187,39 +8422,6 @@
     },
     "query": "SELECT id, contract_address, source_code, contract_name, zk_compiler_version, compiler_version, optimization_used,\n                    optimizer_mode, constructor_arguments, is_system\n                FROM contract_verification_requests\n                WHERE status = 'successful'\n                ORDER BY id"
   },
-  "b7ab3aeee71e87c7469428ec411b410d81282ff6fed63fe5cda0e81a330d2ac5": {
-    "describe": {
-      "columns": [
-        {
-          "name": "id",
-          "ordinal": 0,
-          "type_info": "Int8"
-        },
-        {
-          "name": "status",
-          "ordinal": 1,
-          "type_info": "Text"
-        },
-        {
-          "name": "attempts",
-          "ordinal": 2,
-          "type_info": "Int2"
-        }
-      ],
-      "nullable": [
-        false,
-        false,
-        false
-      ],
-      "parameters": {
-        "Left": [
-          "Interval",
-          "Int2"
-        ]
-      }
-    },
-    "query": "\n                UPDATE leaf_aggregation_witness_jobs_fri\n                SET status = 'queued', attempts = attempts + 1, updated_at = now(), processing_started_at = now()\n                WHERE (status = 'in_progress' AND  processing_started_at <= now() - $1::interval AND attempts < $2)\n                OR (status = 'failed' AND attempts < $2)\n                RETURNING id, status, attempts\n                "
-  },
   "b7c3d8606c77f78897763bc8c77b7bc85ce1daf8d079402eb20dfc0a3f164834": {
     "describe": {
       "columns": [
@@ -8444,39 +8646,6 @@
     },
     "query": "SELECT number, timestamp, is_finished, l1_tx_count, l2_tx_count, fee_account_address, bloom, priority_ops_onchain_data, hash, parent_hash, commitment, compressed_write_logs, compressed_contracts, eth_prove_tx_id, eth_commit_tx_id, eth_execute_tx_id, merkle_root_hash, l2_to_l1_logs, l2_to_l1_messages, used_contract_hashes, compressed_initial_writes, compressed_repeated_writes, l2_l1_compressed_messages, l2_l1_merkle_root, l1_gas_price, l2_fair_gas_price, rollup_last_leaf_index, zkporter_is_available, bootloader_code_hash, default_aa_code_hash, base_fee_per_gas, aux_data_hash, pass_through_data_hash, meta_parameters_hash, protocol_version FROM l1_batches WHERE number = $1"
   },
-  "b7d3b30bff2ed9aabcdaed89ebfd1f0303b70c6d5483ff9183475bb232a04f21": {
-    "describe": {
-      "columns": [
-        {
-          "name": "l1_batch_number",
-          "ordinal": 0,
-          "type_info": "Int8"
-        },
-        {
-          "name": "status",
-          "ordinal": 1,
-          "type_info": "Text"
-        },
-        {
-          "name": "attempts",
-          "ordinal": 2,
-          "type_info": "Int2"
-        }
-      ],
-      "nullable": [
-        false,
-        false,
-        false
-      ],
-      "parameters": {
-        "Left": [
-          "Interval",
-          "Int2"
-        ]
-      }
-    },
-    "query": "\n                UPDATE witness_inputs_fri\n                SET status = 'queued', attempts = attempts + 1, updated_at = now(), processing_started_at = now()\n                WHERE (status = 'in_progress' AND  processing_started_at <= now() - $1::interval AND attempts < $2)\n                OR (status = 'in_gpu_proof' AND  processing_started_at <= now() - $1::interval AND attempts < $2)\n                OR (status = 'failed' AND attempts < $2)\n                RETURNING l1_batch_number, status, attempts\n                "
-  },
   "b944df7af612ec911170a43be846eb2f6e27163b0d3983672de2b8d5d60af640": {
     "describe": {
       "columns": [
@@ -8496,28 +8665,6 @@
       }
     },
     "query": "UPDATE proof_generation_details SET status = 'picked_by_prover', updated_at = now(), prover_taken_at = now() WHERE l1_batch_number = ( SELECT l1_batch_number FROM proof_generation_details WHERE status = 'ready_to_be_proven' OR (status = 'picked_by_prover' AND prover_taken_at < now() - $1::interval) ORDER BY l1_batch_number ASC LIMIT 1 FOR UPDATE SKIP LOCKED ) RETURNING proof_generation_details.l1_batch_number"
-  },
-  "bc4433cdfa499830fe6a6a95759c9fbe343ac25b371c7fa980bfd1b0afc86629": {
-    "describe": {
-      "columns": [
-        {
-          "name": "l1_batch_number",
-          "ordinal": 0,
-          "type_info": "Int8"
-        }
-      ],
-      "nullable": [
-        false
-      ],
-      "parameters": {
-        "Left": [
-          "Text",
-          "Text",
-          "Text"
-        ]
-      }
-    },
-    "query": "UPDATE proof_compression_jobs_fri SET status = $1, attempts = attempts + 1, updated_at = now(), processing_started_at = now(), picked_by = $3 WHERE l1_batch_number = ( SELECT l1_batch_number FROM proof_compression_jobs_fri WHERE status = $2 ORDER BY l1_batch_number ASC LIMIT 1 FOR UPDATE SKIP LOCKED ) RETURNING proof_compression_jobs_fri.l1_batch_number"
   },
   "be824de76050461afe29dfd229e524bdf113eab3ca24208782c200531db1c940": {
     "describe": {
@@ -8682,39 +8829,6 @@
     },
     "query": "\n                        INSERT INTO call_traces (tx_hash, call_trace)\n                        SELECT u.tx_hash, u.call_trace\n                        FROM UNNEST($1::bytea[], $2::bytea[])\n                        AS u(tx_hash, call_trace)\n                        "
   },
-  "c49a6925e9462cc85a6e1cc850f2e147e0a5d990efed56f27792698e6cf9ff0c": {
-    "describe": {
-      "columns": [
-        {
-          "name": "l1_batch_number",
-          "ordinal": 0,
-          "type_info": "Int8"
-        },
-        {
-          "name": "status",
-          "ordinal": 1,
-          "type_info": "Text"
-        },
-        {
-          "name": "attempts",
-          "ordinal": 2,
-          "type_info": "Int2"
-        }
-      ],
-      "nullable": [
-        false,
-        false,
-        false
-      ],
-      "parameters": {
-        "Left": [
-          "Interval",
-          "Int2"
-        ]
-      }
-    },
-    "query": "\n                UPDATE scheduler_witness_jobs_fri\n                SET status = 'queued', attempts = attempts + 1, updated_at = now(), processing_started_at = now()\n                WHERE (status = 'in_progress' AND  processing_started_at <= now() - $1::interval AND attempts < $2)\n                OR (status = 'failed' AND attempts < $2)\n                RETURNING l1_batch_number, status, attempts\n                "
-  },
   "c604ee1dd86ac154d67ddb339da5f65ca849887d6a1068623e874f9df00cfdd1": {
     "describe": {
       "columns": [],
@@ -8786,39 +8900,6 @@
       }
     },
     "query": "\n                SELECT \n                    eth_txs_history.id,\n                    eth_txs_history.eth_tx_id,\n                    eth_txs_history.tx_hash,\n                    eth_txs_history.base_fee_per_gas,\n                    eth_txs_history.priority_fee_per_gas,\n                    eth_txs_history.signed_raw_tx,\n                    eth_txs.nonce\n                FROM eth_txs_history \n                JOIN eth_txs ON eth_txs.id = eth_txs_history.eth_tx_id \n                WHERE eth_txs_history.sent_at_block IS NULL AND eth_txs.confirmed_eth_tx_history_id IS NULL\n                ORDER BY eth_txs_history.id DESC"
-  },
-  "c66b0e0867a1a634f984645ca576a6502b51b67aa0be2dae98e0e2adeb450963": {
-    "describe": {
-      "columns": [
-        {
-          "name": "id",
-          "ordinal": 0,
-          "type_info": "Int8"
-        },
-        {
-          "name": "status",
-          "ordinal": 1,
-          "type_info": "Text"
-        },
-        {
-          "name": "attempts",
-          "ordinal": 2,
-          "type_info": "Int4"
-        }
-      ],
-      "nullable": [
-        false,
-        false,
-        false
-      ],
-      "parameters": {
-        "Left": [
-          "Interval",
-          "Int4"
-        ]
-      }
-    },
-    "query": "\n                UPDATE prover_jobs\n                SET status = 'queued', attempts = attempts + 1, updated_at = now(), processing_started_at = now()\n                WHERE (status = 'in_progress' AND  processing_started_at <= now() - $1::interval AND attempts < $2)\n                OR (status = 'in_gpu_proof' AND  processing_started_at <= now() - $1::interval AND attempts < $2)\n                OR (status = 'failed' AND attempts < $2)\n                RETURNING id, status, attempts\n                "
   },
   "c6aadc4ec78e30f5775f7a9f866ad02984b78de3e3d1f34c144a4057ff44ea6a": {
     "describe": {
@@ -9077,63 +9158,6 @@
       }
     },
     "query": "\n                UPDATE gpu_prover_queue\n                SET instance_status = $1, updated_at = now(), queue_free_slots = $4\n                WHERE instance_host = $2::text::inet\n                AND instance_port = $3\n                AND region = $5\n                AND zone = $6\n                "
-  },
-  "d12724ae2bda6214b68e19dc290281907383926abf5ad471eef89529908b2673": {
-    "describe": {
-      "columns": [
-        {
-          "name": "id",
-          "ordinal": 0,
-          "type_info": "Int8"
-        },
-        {
-          "name": "l1_batch_number",
-          "ordinal": 1,
-          "type_info": "Int8"
-        },
-        {
-          "name": "circuit_id",
-          "ordinal": 2,
-          "type_info": "Int2"
-        },
-        {
-          "name": "aggregation_round",
-          "ordinal": 3,
-          "type_info": "Int2"
-        },
-        {
-          "name": "sequence_number",
-          "ordinal": 4,
-          "type_info": "Int4"
-        },
-        {
-          "name": "depth",
-          "ordinal": 5,
-          "type_info": "Int4"
-        },
-        {
-          "name": "is_node_final_proof",
-          "ordinal": 6,
-          "type_info": "Bool"
-        }
-      ],
-      "nullable": [
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false
-      ],
-      "parameters": {
-        "Left": [
-          "Int4Array",
-          "Text"
-        ]
-      }
-    },
-    "query": "\n                UPDATE prover_jobs_fri\n                SET status = 'in_progress', attempts = attempts + 1,\n                    updated_at = now(), processing_started_at = now(),\n                    picked_by = $2\n                WHERE id = (\n                    SELECT id\n                    FROM prover_jobs_fri\n                    WHERE status = 'queued'\n                    AND protocol_version = ANY($1)\n                    ORDER BY aggregation_round DESC, l1_batch_number ASC, id ASC\n                    LIMIT 1\n                    FOR UPDATE\n                    SKIP LOCKED\n                )\n                RETURNING prover_jobs_fri.id, prover_jobs_fri.l1_batch_number, prover_jobs_fri.circuit_id,\n                prover_jobs_fri.aggregation_round, prover_jobs_fri.sequence_number, prover_jobs_fri.depth,\n                prover_jobs_fri.is_node_final_proof\n                "
   },
   "d5dea31f2a325bb44e8ef2cbbabbeb73fd6996a3e6cb99d62c6b97a4aa49c1ca": {
     "describe": {
@@ -9474,39 +9498,6 @@
     },
     "query": "SELECT COUNT(miniblocks.number) FROM miniblocks WHERE l1_batch_number IS NULL"
   },
-  "dc751a25528a272bac17416f782fce3d0aee44b1ae25be0220718b356fda02e8": {
-    "describe": {
-      "columns": [
-        {
-          "name": "id",
-          "ordinal": 0,
-          "type_info": "Int8"
-        },
-        {
-          "name": "status",
-          "ordinal": 1,
-          "type_info": "Text"
-        },
-        {
-          "name": "attempts",
-          "ordinal": 2,
-          "type_info": "Int2"
-        }
-      ],
-      "nullable": [
-        false,
-        false,
-        false
-      ],
-      "parameters": {
-        "Left": [
-          "Interval",
-          "Int2"
-        ]
-      }
-    },
-    "query": "\n                UPDATE node_aggregation_witness_jobs_fri\n                SET status = 'queued', attempts = attempts + 1, updated_at = now(), processing_started_at = now()\n                WHERE (status = 'in_progress' AND  processing_started_at <= now() - $1::interval AND attempts < $2)\n                OR (status = 'failed' AND attempts < $2)\n                RETURNING id, status, attempts\n                "
-  },
   "dd330bc075a163974c59ec55ecfddd769d05801963b3e0e840e7f11e7bc6d3e9": {
     "describe": {
       "columns": [
@@ -9751,39 +9742,6 @@
       }
     },
     "query": "SELECT timestamp, virtual_blocks FROM miniblocks WHERE number BETWEEN $1 AND $2 ORDER BY number"
-  },
-  "e1ad7a51afef6bd7a95df3294f64b7b1bdc4c4fc7ae5c4195802177986f3e876": {
-    "describe": {
-      "columns": [
-        {
-          "name": "id",
-          "ordinal": 0,
-          "type_info": "Int8"
-        },
-        {
-          "name": "status",
-          "ordinal": 1,
-          "type_info": "Text"
-        },
-        {
-          "name": "attempts",
-          "ordinal": 2,
-          "type_info": "Int2"
-        }
-      ],
-      "nullable": [
-        false,
-        false,
-        false
-      ],
-      "parameters": {
-        "Left": [
-          "Interval",
-          "Int2"
-        ]
-      }
-    },
-    "query": "\n                UPDATE prover_jobs_fri\n                SET status = 'queued', attempts = attempts + 1, updated_at = now(), processing_started_at = now()\n                WHERE (status = 'in_progress' AND  processing_started_at <= now() - $1::interval AND attempts < $2)\n                OR (status = 'failed' AND attempts < $2)\n                RETURNING id, status, attempts\n                "
   },
   "e29d263f33257a37f391907b7ff588f416a0350b606f16f4779fa1d3bf4be08b": {
     "describe": {
@@ -10191,6 +10149,39 @@
       }
     },
     "query": "SELECT number, timestamp, is_finished, l1_tx_count, l2_tx_count, fee_account_address, bloom, priority_ops_onchain_data, hash, parent_hash, commitment, compressed_write_logs, compressed_contracts, eth_prove_tx_id, eth_commit_tx_id, eth_execute_tx_id, merkle_root_hash, l2_to_l1_logs, l2_to_l1_messages, used_contract_hashes, compressed_initial_writes, compressed_repeated_writes, l2_l1_compressed_messages, l2_l1_merkle_root, l1_gas_price, l2_fair_gas_price, rollup_last_leaf_index, zkporter_is_available, bootloader_code_hash, default_aa_code_hash, base_fee_per_gas, aux_data_hash, pass_through_data_hash, meta_parameters_hash, protocol_version FROM l1_batches WHERE number BETWEEN $1 AND $2 ORDER BY number LIMIT $3"
+  },
+  "e8988deed66ad9d10be89e89966082aeb920c5dc91eb5fad16bd0d3118708c2e": {
+    "describe": {
+      "columns": [
+        {
+          "name": "id",
+          "ordinal": 0,
+          "type_info": "Int8"
+        },
+        {
+          "name": "status",
+          "ordinal": 1,
+          "type_info": "Text"
+        },
+        {
+          "name": "attempts",
+          "ordinal": 2,
+          "type_info": "Int4"
+        }
+      ],
+      "nullable": [
+        false,
+        false,
+        false
+      ],
+      "parameters": {
+        "Left": [
+          "Interval",
+          "Int4"
+        ]
+      }
+    },
+    "query": "\n                UPDATE prover_jobs\n                SET status = 'queued', updated_at = now(), processing_started_at = now()\n                WHERE (status = 'in_progress' AND  processing_started_at <= now() - $1::interval AND attempts < $2)\n                OR (status = 'in_gpu_proof' AND  processing_started_at <= now() - $1::interval AND attempts < $2)\n                OR (status = 'failed' AND attempts < $2)\n                RETURNING id, status, attempts\n                "
   },
   "e900682a160af90d532da47a1222fc1d7c9962ee8996dbd9b9bb63f13820cf2b": {
     "describe": {
@@ -11105,6 +11096,39 @@
       }
     },
     "query": "\n                UPDATE gpu_prover_queue\n                SET instance_status = 'available', updated_at = now(), queue_free_slots = $3\n                WHERE instance_host = $1::text::inet\n                AND instance_port = $2\n                AND instance_status = 'full'\n                AND region = $4\n                AND zone = $5\n                "
+  },
+  "f39893caa0ad524eda13ab89539fd61804c9190b3d62f4416de83159c2c189e4": {
+    "describe": {
+      "columns": [
+        {
+          "name": "l1_batch_number",
+          "ordinal": 0,
+          "type_info": "Int8"
+        },
+        {
+          "name": "status",
+          "ordinal": 1,
+          "type_info": "Text"
+        },
+        {
+          "name": "attempts",
+          "ordinal": 2,
+          "type_info": "Int2"
+        }
+      ],
+      "nullable": [
+        false,
+        false,
+        false
+      ],
+      "parameters": {
+        "Left": [
+          "Interval",
+          "Int2"
+        ]
+      }
+    },
+    "query": "UPDATE proof_compression_jobs_fri SET status = 'queued', updated_at = now(), processing_started_at = now() WHERE (status = 'in_progress' AND  processing_started_at <= now() - $1::interval AND attempts < $2) OR (status = 'failed' AND attempts < $2) RETURNING l1_batch_number, status, attempts"
   },
   "f5e3c4b23fa0d0686b400b64c42cf78b2219f0cbcf1c9240b77e4132513e36ef": {
     "describe": {

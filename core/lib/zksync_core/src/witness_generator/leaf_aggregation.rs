@@ -93,7 +93,7 @@ impl JobProcessor for LeafAggregationWitnessGenerator {
 
     const SERVICE_NAME: &'static str = "leaf_aggregation_witness_generator";
 
-    async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, Self::Job)>> {
+    async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, u32, Self::Job)>> {
         let mut prover_connection = self.prover_connection_pool.access_storage().await.unwrap();
         let last_l1_batch_to_process = self.config.last_l1_batch_to_process();
 
@@ -109,8 +109,9 @@ impl JobProcessor for LeafAggregationWitnessGenerator {
                 .await
             {
                 Some(metadata) => {
+                    let attempts = metadata.attempts;
                     let job = get_artifacts(metadata, &*self.object_store).await;
-                    Some((job.block_number, job))
+                    Some((job.block_number, attempts, job))
                 }
                 None => None,
             },
@@ -170,6 +171,10 @@ impl JobProcessor for LeafAggregationWitnessGenerator {
         )
         .await;
         Ok(())
+    }
+
+    fn max_attempts(&self) -> u32 {
+        self.config.max_attempts
     }
 }
 

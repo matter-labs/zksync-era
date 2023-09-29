@@ -60,7 +60,6 @@ pub struct LeafAggregationWitnessGeneratorJob {
 
 #[derive(Debug)]
 pub struct LeafAggregationWitnessGenerator {
-    #[allow(dead_code)]
     config: FriWitnessGeneratorConfig,
     object_store: Box<dyn ObjectStore>,
     prover_connection_pool: ConnectionPool,
@@ -104,7 +103,7 @@ impl JobProcessor for LeafAggregationWitnessGenerator {
 
     const SERVICE_NAME: &'static str = "fri_leaf_aggregation_witness_generator";
 
-    async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, Self::Job)>> {
+    async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, u32, Self::Job)>> {
         let mut prover_connection = self.prover_connection_pool.access_storage().await.unwrap();
         let pod_name = get_current_pod_name();
         let Some(metadata) = prover_connection
@@ -115,6 +114,7 @@ impl JobProcessor for LeafAggregationWitnessGenerator {
         tracing::info!("Processing leaf aggregation job {:?}", metadata.id);
         Ok(Some((
             metadata.id,
+            metadata.attempts,
             prepare_leaf_aggregation_job(metadata, &*self.object_store).await
                 .context("prepare_leaf_aggregation_job()")?,
         )))
@@ -156,6 +156,10 @@ impl JobProcessor for LeafAggregationWitnessGenerator {
         )
         .await;
         Ok(())
+    }
+
+    fn max_attempts(&self) -> u32 {
+        self.config.max_attempts
     }
 }
 

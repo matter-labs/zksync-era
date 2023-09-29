@@ -50,7 +50,7 @@ async fn prover_and_assert_base_layer(
     let setup_data = Arc::new(generate_cpu_base_layer_setup_data(circuit)
         .context("generate_cpu_base_layers_setup_data()")?);
     let setup_key = ProverServiceDataKey::new(circuit_id, aggregation_round);
-    let prover_job = ProverJob::new(block_number, expected_proof_id, circuit_wrapper, setup_key);
+    let prover_job = ProverJob::new(block_number, expected_proof_id, circuit_wrapper, setup_key, 1);
     let artifacts = Prover::prove(
         prover_job,
         Arc::new(FriProverConfig::from_env().context("FriProverConfig::from_env()")?),
