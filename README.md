@@ -34,7 +34,7 @@ at your option.
 - [GitHub](https://github.com/matter-labs)
 - [Twitter](https://twitter.com/zksync)
 - [Twitter for Devs](https://twitter.com/zkSyncDevs)
-- [Discord](https://discord.gg/invite/nt42jc7)
+- [Discord](https://join.zksync.dev/)
 
 ## Disclaimer
 
