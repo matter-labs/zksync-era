@@ -4,7 +4,7 @@ use crate::eth_watch::{
 };
 use std::convert::TryFrom;
 use std::time::Instant;
-use zksync_contracts::governance_contract;
+use zksync_contracts::{governance_contract, zksync_contract};
 use zksync_dal::StorageProcessor;
 use zksync_types::{
     protocol_version::GovernanceOperation, web3::types::Log, Address, ProtocolUpgrade,
@@ -17,6 +17,7 @@ pub struct UpgradesEventProcessor {
     diamond_proxy_address: Address,
     last_seen_version_id: ProtocolVersionId,
     upgrade_proposal_signature: H256,
+    execute_upgrade_short_signature: [u8; 4],
 }
 
 impl UpgradesEventProcessor {
@@ -28,6 +29,10 @@ impl UpgradesEventProcessor {
                 .event("TransparentOperationScheduled")
                 .expect("TransparentOperationScheduled event is missing in abi")
                 .signature(),
+            execute_upgrade_short_signature: zksync_contract()
+                .function("executeUpgrade")
+                .unwrap()
+                .short_signature(),
         }
     }
 }
@@ -53,8 +58,13 @@ impl<W: EthClient + Sync> EventProcessor<W> for UpgradesEventProcessor {
                 .into_iter()
                 .filter(|call| call.target == self.diamond_proxy_address)
             {
+                if call.data.len() < 4 || &call.data[..4] != &self.execute_upgrade_short_signature {
+                    continue;
+                }
+
                 let upgrade = ProtocolUpgrade::try_from(call)
                     .map_err(|err| Error::LogParse(format!("{:?}", err)))?;
+
                 // Scheduler VK is not present in proposal event. It is hardcoded in verifier contract.
                 let scheduler_vk_hash = if let Some(address) = upgrade.verifier_address {
                     Some(client.scheduler_vk_hash(address).await?)
