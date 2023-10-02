@@ -26,7 +26,7 @@ fn hash_of_empty_tree_with_single_item() {
     for depth in 0..=5 {
         let len = 1 << depth;
         println!("checking tree with {len} items");
-        let tree = MiniMerkleTree::new(iter::once([0_u8; 88]), len);
+        let tree = MiniMerkleTree::new(iter::once([0_u8; 88]), Some(len));
         assert_eq!(tree.merkle_root(), KeccakHasher.empty_subtree_hash(depth));
     }
 }
@@ -38,16 +38,15 @@ fn hash_of_large_empty_tree_with_multiple_items() {
         let leaves = iter::repeat([0_u8; 88]).take(len);
         let tree_size = len.next_power_of_two();
 
-        let tree = MiniMerkleTree::new(leaves, tree_size);
+        let tree = MiniMerkleTree::new(leaves, Some(tree_size));
         let depth = tree_depth_by_size(tree_size);
-        assert!(depth <= MAX_TREE_DEPTH);
         assert_eq!(tree.merkle_root(), KeccakHasher.empty_subtree_hash(depth));
     }
 }
 
 #[test]
 fn single_item_tree_snapshot() {
-    let tree = MiniMerkleTree::new(iter::once([1_u8; 88]), 32);
+    let tree = MiniMerkleTree::new(iter::once([1_u8; 88]), Some(32));
     let (root_hash, path) = tree.merkle_root_and_path(0);
 
     let expected_root_hash: H256 =
@@ -70,7 +69,7 @@ fn single_item_tree_snapshot() {
 #[test]
 fn full_tree_snapshot() {
     let leaves = (1_u8..=32).map(|byte| [byte; 88]);
-    let tree = MiniMerkleTree::new(leaves, 32);
+    let tree = MiniMerkleTree::new(leaves, None);
     let (root_hash, path) = tree.merkle_root_and_path(2);
 
     let expected_root_hash: H256 =
@@ -93,7 +92,7 @@ fn full_tree_snapshot() {
 #[test]
 fn partial_tree_snapshot() {
     let leaves = (1_u8..=50).map(|byte| [byte; 88]);
-    let tree = MiniMerkleTree::new(leaves.clone(), 64);
+    let tree = MiniMerkleTree::new(leaves.clone(), None);
     let (root_hash, path) = tree.merkle_root_and_path(10);
 
     let expected_root_hash: H256 =
@@ -113,7 +112,7 @@ fn partial_tree_snapshot() {
     .map(|s| s.parse::<H256>().unwrap());
     assert_eq!(path, expected_path);
 
-    let tree = MiniMerkleTree::new(leaves, 64);
+    let tree = MiniMerkleTree::new(leaves, None);
     let (root_hash, path) = tree.merkle_root_and_path(49);
 
     assert_eq!(root_hash, expected_root_hash);
@@ -157,7 +156,7 @@ fn verify_merkle_proof(
 #[test]
 fn merkle_proofs_are_valid_in_small_tree() {
     let leaves = (1_u8..=50).map(|byte| [byte; 88]);
-    let tree = MiniMerkleTree::new(leaves.clone(), 64);
+    let tree = MiniMerkleTree::new(leaves.clone(), None);
 
     for (i, item) in leaves.enumerate() {
         let (merkle_root, path) = tree.clone().merkle_root_and_path(i);
@@ -168,7 +167,7 @@ fn merkle_proofs_are_valid_in_small_tree() {
 #[test]
 fn merkle_proofs_are_valid_in_larger_tree() {
     let leaves = (1_u8..=255).map(|byte| [byte; 88]);
-    let tree = MiniMerkleTree::new(leaves.clone(), 512);
+    let tree = MiniMerkleTree::new(leaves.clone(), Some(512));
 
     for (i, item) in leaves.enumerate() {
         let (merkle_root, path) = tree.clone().merkle_root_and_path(i);
