@@ -4,7 +4,7 @@ import { spawn as _spawn } from 'child_process';
 
 import { getZksolcPath, getZksolcUrl, saltFromUrl } from '@matterlabs/hardhat-zksync-solc';
 
-const COMPILER_VERSION = '1.3.10';
+const COMPILER_VERSION = '1.3.14';
 const IS_COMPILER_PRE_RELEASE = false;
 
 async function compilerLocation(): Promise<string> {
@@ -30,23 +30,25 @@ export function spawn(command: string) {
     });
 }
 
-export async function compileYul(path: string, files: string[], outputDirName: string | null) {
+export async function compile(path: string, files: string[], outputDirName: string | null, type: string) {
     if (!files.length) {
         console.log(`No test files provided in folder ${path}.`);
         return;
     }
     let paths = preparePaths(path, files, outputDirName);
 
+    let systemMode = type === 'yul' ? '--system-mode  --optimization 3' : '';
+
     const zksolcLocation = await compilerLocation();
     await spawn(
-        `${zksolcLocation} ${paths.absolutePathSources}/${paths.outputDir} --optimization 3 --system-mode --yul --bin --overwrite -o ${paths.absolutePathArtifacts}/${paths.outputDir}`
+        `${zksolcLocation} ${paths.absolutePathSources}/${paths.outputDir} ${systemMode} --${type} --bin --overwrite -o ${paths.absolutePathArtifacts}/${paths.outputDir}`
     );
 }
 
-export async function compileYulFolder(path: string) {
-    let files: string[] = (await fs.promises.readdir(path)).filter((fn) => fn.endsWith('.yul'));
+export async function compileFolder(path: string, type: string) {
+    let files: string[] = (await fs.promises.readdir(path)).filter((fn) => fn.endsWith(`.${type}`));
     for (const file of files) {
-        await compileYul(path, [file], `${file}`);
+        await compile(path, [file], `${file}`, type);
     }
 }
 
@@ -78,7 +80,8 @@ class CompilerPaths {
 }
 
 async function main() {
-    await compileYulFolder('contracts/yul');
+    await compileFolder('contracts/yul', 'yul');
+    await compileFolder('contracts/zkasm', 'zkasm');
 }
 
 main()

@@ -1,34 +1,34 @@
-use futures::{channel::mpsc, FutureExt, SinkExt};
+use futures::{channel::mpsc, SinkExt};
 use std::{
     collections::VecDeque,
-    future::Future,
     sync::Arc,
     time::{Duration, Instant},
 };
-use tokio::{sync::RwLock, time::sleep};
-use zksync_utils::test_utils::LoadnextContractExecutionParams;
+use tokio::sync::RwLock;
 
 use zksync::{error::ClientError, operations::SyncTransactionHandle, HttpClient};
-use zksync_types::{
-    api::{TransactionReceipt, U64},
-    Address, Nonce, H256, U256,
-};
-use zksync_web3_decl::jsonrpsee;
+use zksync_types::{api::TransactionReceipt, Address, Nonce, H256, U256, U64};
+use zksync_web3_decl::jsonrpsee::core::Error as CoreError;
+
+use zksync_contracts::test_contracts::LoadnextContractExecutionParams;
 
 use crate::utils::format_gwei;
 use crate::{
-    account::{explorer_api_executor::ExplorerApiClient, tx_command_executor::SubmitResult},
+    account::tx_command_executor::SubmitResult,
     account_pool::{AddressPool, TestWallet},
     command::{ExpectedOutcome, IncorrectnessModifier, TxCommand, TxType},
-    config::LoadtestConfig,
-    constants::POLLING_INTERVAL,
+    config::{LoadtestConfig, RequestLimiters},
+    constants::{MAX_L1_TRANSACTIONS, POLLING_INTERVAL},
     report::{Report, ReportBuilder, ReportLabel},
 };
 
 mod api_request_executor;
-mod explorer_api_executor;
 mod pubsub_executor;
 mod tx_command_executor;
+
+/// Error returned when the load test is aborted.
+#[derive(Debug)]
+struct Aborted;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ExecutionType {
@@ -55,8 +55,6 @@ struct InflightTx {
 pub struct AccountLifespan {
     /// Wallet used to perform the test.
     pub wallet: TestWallet,
-    /// Client for explorer api
-    pub explorer_client: ExplorerApiClient,
     config: LoadtestConfig,
     contract_execution_params: LoadnextContractExecutionParams,
     /// Pool of account addresses, used to generate commands.
@@ -87,15 +85,8 @@ impl AccountLifespan {
         main_l2_token: Address,
         paymaster_address: Address,
     ) -> Self {
-        let explorer_client = ExplorerApiClient {
-            client: Default::default(),
-            base_url: config.l2_explorer_api_address.clone(),
-            last_sealed_block_number: None,
-        };
-
         Self {
             wallet: test_account,
-            explorer_client,
             config: config.clone(),
             contract_execution_params,
             addresses,
@@ -103,38 +94,32 @@ impl AccountLifespan {
             main_l1_token: config.main_token,
             main_l2_token,
             paymaster_address,
-
             report_sink,
             inflight_txs: Default::default(),
             current_nonce: None,
         }
     }
 
-    pub async fn run(self) {
+    pub async fn run(self, limiters: &RequestLimiters) {
         let duration = self.config.duration();
-        let mut tx_execution_task = Box::pin(self.clone().run_tx_execution()).fuse();
-        let mut api_requests_task = Box::pin(self.clone().run_api_requests_task()).fuse();
-        let mut api_explorer_requests_task =
-            Box::pin(self.clone().run_explorer_api_requests_task()).fuse();
-        let mut pubsub_task = Box::pin(self.run_pubsub_task()).fuse();
-        let mut sleep_task = Box::pin(sleep(duration)).fuse();
+        let tx_execution_task = self.clone().run_tx_execution();
+        let api_requests_task = self.clone().run_api_requests_task(limiters);
 
-        futures::select! {
-            () = tx_execution_task => {},
-            () = api_requests_task => {
-                vlog::error!("API requests task unexpectedly finished first");
+        tokio::select! {
+            result = tx_execution_task => {
+                tracing::trace!("Transaction execution task finished with {result:?}");
             },
-            () = api_explorer_requests_task => {
-                vlog::error!("Explorer API requests task unexpectedly finished first");
+            result = api_requests_task => {
+                tracing::trace!("API requests task finished with {result:?}");
             },
-            () = pubsub_task => {
-                vlog::error!("PubSub task unexpectedly finished first");
+            result = self.run_pubsub_task(limiters) => {
+                tracing::trace!("PubSub task finished with {result:?}");
             },
-            () = sleep_task => {}
+            () = tokio::time::sleep(duration) => {}
         }
     }
 
-    async fn run_tx_execution(mut self) {
+    async fn run_tx_execution(mut self) -> Result<(), Aborted> {
         // Every account starts with deploying a contract.
         let deploy_command = TxCommand {
             command_type: TxType::DeployContract,
@@ -142,43 +127,54 @@ impl AccountLifespan {
             to: Address::zero(),
             amount: U256::zero(),
         };
-        self.execute_command(deploy_command.clone()).await;
-        self.wait_for_all_inflight_tx().await;
+        self.execute_command(deploy_command.clone()).await?;
+        self.wait_for_all_inflight_tx().await?;
+
         let mut timer = tokio::time::interval(POLLING_INTERVAL);
+        let mut l1_tx_count = 0;
         loop {
             let command = self.generate_command();
+            let is_l1_transaction =
+                matches!(command.command_type, TxType::L1Execute | TxType::Deposit);
+            if is_l1_transaction && l1_tx_count >= MAX_L1_TRANSACTIONS {
+                continue; // Skip command to not run out of ethereum on L1
+            }
+
             // The new transaction should be sent only if mempool is not full
             loop {
                 if self.inflight_txs.len() >= self.config.max_inflight_txs {
                     timer.tick().await;
-                    self.check_inflight_txs().await;
+                    self.check_inflight_txs().await?;
                 } else {
-                    self.execute_command(command.clone()).await;
+                    self.execute_command(command).await?;
+                    l1_tx_count += u64::from(is_l1_transaction);
                     break;
                 }
             }
         }
     }
 
-    async fn wait_for_all_inflight_tx(&mut self) {
+    async fn wait_for_all_inflight_tx(&mut self) -> Result<(), Aborted> {
         let mut timer = tokio::time::interval(POLLING_INTERVAL);
         while !self.inflight_txs.is_empty() {
             timer.tick().await;
-            self.check_inflight_txs().await;
+            self.check_inflight_txs().await?;
         }
+        Ok(())
     }
 
-    async fn check_inflight_txs(&mut self) {
+    async fn check_inflight_txs(&mut self) -> Result<(), Aborted> {
         // No need to wait for confirmation for all tx, one check for each tx is enough.
         // If some txs haven't been processed yet, we'll check them in the next iteration.
         // Due to natural sleep for sending tx, usually more than 1 tx can be already
         // processed and have a receipt
         let start = Instant::now();
-        vlog::trace!(
+        tracing::trace!(
             "Account {:?}: check_inflight_txs len {:?}",
             self.wallet.wallet.address(),
             self.inflight_txs.len()
         );
+
         while let Some(tx) = self.inflight_txs.pop_front() {
             let receipt = self.get_tx_receipt_for_committed_block(tx.tx_hash).await;
             match receipt {
@@ -191,34 +187,33 @@ impl AccountLifespan {
                     let effective_gas_price = transaction_receipt
                         .effective_gas_price
                         .unwrap_or(U256::zero());
-                    vlog::debug!(
-                        "Account {:?}: tx included. Total fee: {}, gas used: {}gas, gas price: {} WEI. Latency {:?} at attempt {:?}",
+                    tracing::debug!(
+                        "Account {:?}: tx included. Total fee: {}, gas used: {gas_used}gas, \
+                         gas price: {effective_gas_price} WEI. Latency {:?} at attempt {:?}",
                         self.wallet.wallet.address(),
                         format_gwei(gas_used * effective_gas_price),
-                        gas_used,
-                        effective_gas_price,
                         tx.start.elapsed(),
                         tx.attempt,
                     );
                     self.report(label, tx.start.elapsed(), tx.attempt, tx.command)
-                        .await;
+                        .await?;
                 }
                 other => {
-                    vlog::trace!(
-                        "Account {:?}: check_inflight_txs tx not yet included: {:?}",
-                        self.wallet.wallet.address(),
-                        other
+                    tracing::trace!(
+                        "Account {:?}: check_inflight_txs tx not yet included: {other:?}",
+                        self.wallet.wallet.address()
                     );
                     self.inflight_txs.push_front(tx);
                     break;
                 }
             }
         }
-        vlog::trace!(
+        tracing::trace!(
             "Account {:?}: check_inflight_txs complete {:?}",
             self.wallet.wallet.address(),
             start.elapsed()
         );
+        Ok(())
     }
 
     fn verify_receipt(
@@ -232,7 +227,7 @@ impl AccountLifespan {
                 // address for subsequent usage by `Execute`.
                 if let Some(address) = transaction_receipt.contract_address {
                     // An error means that the contract is already initialized.
-                    let _ = self.wallet.deployed_contract_address.set(address);
+                    self.wallet.deployed_contract_address.set(address).ok();
                 }
 
                 // Transaction succeed and it should have.
@@ -245,10 +240,10 @@ impl AccountLifespan {
             other => {
                 // Transaction status didn't match expected one.
                 let error = format!(
-                    "Unexpected transaction status: expected {:#?} because of modifier {:?}, receipt {:#?}",
-                    other, expected_outcome, transaction_receipt
+                    "Unexpected transaction status: expected {other:#?} because of \
+                     modifier {expected_outcome:?}, receipt {transaction_receipt:#?}"
                 );
-                ReportLabel::failed(&error)
+                ReportLabel::failed(error)
             }
         }
     }
@@ -257,7 +252,7 @@ impl AccountLifespan {
     /// If command fails due to the network/API error, it will be retried multiple times
     /// before considering it completely failed. Such an approach makes us a bit more resilient to
     /// volatile errors such as random connection drop or insufficient fee error.
-    async fn execute_command(&mut self, command: TxCommand) {
+    async fn execute_command(&mut self, command: TxCommand) -> Result<(), Aborted> {
         // We consider API errors to be somewhat likely, thus we will retry the operation if it fails
         // due to connection issues.
         const MAX_RETRIES: usize = 3;
@@ -269,27 +264,21 @@ impl AccountLifespan {
 
             let submit_result = match result {
                 Ok(result) => result,
-                Err(ClientError::NetworkError(_)) | Err(ClientError::OperationTimeout) => {
+                Err(err) if Self::should_retry(&err) => {
                     if attempt < MAX_RETRIES {
-                        vlog::warn!(
-                            "Error while sending tx: {}. Retrying...",
-                            result.unwrap_err()
-                        );
+                        tracing::warn!("Error while sending tx: {err}. Retrying...");
                         // Retry operation.
                         attempt += 1;
                         continue;
                     }
 
                     // We reached the maximum amount of retries.
-                    let error = format!(
-                        "Retries limit reached. Latest error: {}",
-                        result.unwrap_err()
-                    );
-                    SubmitResult::ReportLabel(ReportLabel::failed(&error))
+                    let error = format!("Retries limit reached. Latest error: {err}");
+                    SubmitResult::ReportLabel(ReportLabel::failed(error))
                 }
                 Err(err) => {
                     // Other kinds of errors should not be handled, we will just report them.
-                    SubmitResult::ReportLabel(ReportLabel::failed(&err.to_string()))
+                    SubmitResult::ReportLabel(ReportLabel::failed(err.to_string()))
                 }
             };
 
@@ -305,13 +294,24 @@ impl AccountLifespan {
                 }
                 SubmitResult::ReportLabel(label) => {
                     // Make a report if there was some problems sending tx
-                    self.report(label, start.elapsed(), attempt, command).await
+                    self.report(label, start.elapsed(), attempt, command)
+                        .await?;
                 }
-            };
+            }
 
             // We won't continue the loop unless `continue` was manually called.
             break;
         }
+        Ok(())
+    }
+
+    fn should_retry(err: &ClientError) -> bool {
+        matches!(
+            err,
+            ClientError::NetworkError(_)
+                | ClientError::OperationTimeout
+                | ClientError::RpcError(CoreError::Transport(_) | CoreError::RequestTimeout)
+        )
     }
 
     pub async fn reset_nonce(&mut self) {
@@ -326,28 +326,30 @@ impl AccountLifespan {
         time: Duration,
         retries: usize,
         command: TxCommand,
-    ) {
+    ) -> Result<(), Aborted> {
         if let ReportLabel::ActionFailed { error } = &label {
-            vlog::error!(
-                "Command failed: from {:?}, {:#?} (${})",
-                self.wallet.wallet.address(),
-                command,
-                error
+            tracing::error!(
+                "Command failed: from {:?}, {command:#?} ({error})",
+                self.wallet.wallet.address()
             )
         }
 
-        let report = ReportBuilder::new()
+        let report = ReportBuilder::default()
             .label(label)
             .reporter(self.wallet.wallet.address())
             .time(time)
             .retries(retries)
             .action(command)
             .finish();
+        self.send_report(report).await
+    }
 
-        if let Err(_err) = self.report_sink.send(report).await {
-            // It's not that important if report will be skipped.
-            vlog::trace!("Failed to send report to the sink");
-        };
+    async fn send_report(&mut self, report: Report) -> Result<(), Aborted> {
+        if self.report_sink.send(report).await.is_err() {
+            Err(Aborted)
+        } else {
+            Ok(())
+        }
     }
 
     /// Generic submitter for zkSync network: it can operate individual transactions,
@@ -355,21 +357,15 @@ impl AccountLifespan {
     /// execution result.
     /// Once result is obtained, it's compared to the expected operation outcome in order to check whether
     /// command was completed as planned.
-    async fn submit<'a, F, Fut>(
-        &'a mut self,
+    async fn submit(
+        &mut self,
         modifier: IncorrectnessModifier,
-        send: F,
-    ) -> Result<SubmitResult, ClientError>
-    where
-        F: FnOnce() -> Fut,
-        Fut: Future<Output = Result<SyncTransactionHandle<'a, HttpClient>, ClientError>>,
-    {
+        send_result: Result<SyncTransactionHandle<'_, HttpClient>, ClientError>,
+    ) -> Result<SubmitResult, ClientError> {
         let expected_outcome = modifier.expected_outcome();
 
-        let send_result = send().await;
-
         let submit_result = match (expected_outcome, send_result) {
-            (ExpectedOutcome::ApiRequestFailed, Ok(_handle)) => {
+            (ExpectedOutcome::ApiRequestFailed, Ok(_)) => {
                 // Transaction got accepted, but should have not been.
                 let error = "Tx was accepted, but should have not been";
                 SubmitResult::ReportLabel(ReportLabel::failed(error))
@@ -378,31 +374,23 @@ impl AccountLifespan {
                 // Transaction should have been accepted by API and it was; now wait for the commitment.
                 SubmitResult::TxHash(handle.hash())
             }
-            (ExpectedOutcome::ApiRequestFailed, Err(_error)) => {
+            (ExpectedOutcome::ApiRequestFailed, Err(_)) => {
                 // Transaction was expected to be rejected and it was.
                 SubmitResult::ReportLabel(ReportLabel::done())
             }
             (_, Err(err)) => {
                 // Transaction was expected to be accepted, but was rejected.
-                if let ClientError::RpcError(jsonrpsee::core::Error::Call(err)) = &err {
-                    let message = match err {
-                        jsonrpsee::types::error::CallError::InvalidParams(err) => err.to_string(),
-                        jsonrpsee::types::error::CallError::Failed(err) => err.to_string(),
-                        jsonrpsee::types::error::CallError::Custom(err) => {
-                            err.message().to_string()
-                        }
-                    };
+                if let ClientError::RpcError(CoreError::Call(err)) = &err {
+                    let message = err.message();
                     if message.contains("nonce") {
                         self.reset_nonce().await;
-                        return Ok(SubmitResult::ReportLabel(ReportLabel::skipped(&message)));
+                        return Ok(SubmitResult::ReportLabel(ReportLabel::skipped(message)));
                     }
                 }
 
-                let error = format!(
-                    "Tx should have been accepted, but got rejected. Reason: {:?}",
-                    err
-                );
-                SubmitResult::ReportLabel(ReportLabel::failed(&error))
+                let error =
+                    format!("Tx should have been accepted, but got rejected. Reason: {err:?}");
+                SubmitResult::ReportLabel(ReportLabel::failed(error))
             }
         };
         Ok(submit_result)

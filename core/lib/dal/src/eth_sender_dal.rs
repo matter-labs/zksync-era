@@ -14,12 +14,12 @@ use zksync_types::{Address, L1BatchNumber, H256, U256};
 
 #[derive(Debug)]
 pub struct EthSenderDal<'a, 'c> {
-    pub storage: &'a mut StorageProcessor<'c>,
+    pub(crate) storage: &'a mut StorageProcessor<'c>,
 }
 
 impl EthSenderDal<'_, '_> {
-    pub fn get_inflight_txs(&mut self) -> Vec<EthTx> {
-        async_std::task::block_on(async {
+    pub async fn get_inflight_txs(&mut self) -> Vec<EthTx> {
+        {
             let txs = sqlx::query_as!(
                 StorageEthTx,
                 "SELECT * FROM eth_txs WHERE confirmed_eth_tx_history_id IS NULL 
@@ -30,11 +30,11 @@ impl EthSenderDal<'_, '_> {
             .await
             .unwrap();
             txs.into_iter().map(|tx| tx.into()).collect()
-        })
+        }
     }
 
-    pub fn get_eth_l1_batches(&mut self) -> L1BatchEthSenderStats {
-        async_std::task::block_on(async {
+    pub async fn get_eth_l1_batches(&mut self) -> L1BatchEthSenderStats {
+        {
             let mut stats = L1BatchEthSenderStats::default();
             for tx_type in ["execute_tx", "commit_tx", "prove_tx"] {
                 let mut records= sqlx::query(&format!(
@@ -63,9 +63,9 @@ impl EthSenderDal<'_, '_> {
                 for record in records {
                     let batch_number = L1BatchNumber(record.get::<i64, &str>("number") as u32);
                     let aggregation_action = match tx_type {
-                        "execute_tx" => AggregatedActionType::ExecuteBlocks,
-                        "commit_tx" => AggregatedActionType::CommitBlocks,
-                        "prove_tx" => AggregatedActionType::PublishProofBlocksOnchain,
+                        "execute_tx" => AggregatedActionType::Execute,
+                        "commit_tx" => AggregatedActionType::Commit,
+                        "prove_tx" => AggregatedActionType::PublishProofOnchain,
                         _ => unreachable!(),
                     };
                     if record.get::<bool, &str>("confirmed") {
@@ -76,11 +76,11 @@ impl EthSenderDal<'_, '_> {
                 }
             }
             stats
-        })
+        }
     }
 
-    pub fn get_eth_tx(&mut self, eth_tx_id: u32) -> Option<EthTx> {
-        async_std::task::block_on(async {
+    pub async fn get_eth_tx(&mut self, eth_tx_id: u32) -> Option<EthTx> {
+        {
             sqlx::query_as!(
                 StorageEthTx,
                 "SELECT * FROM eth_txs WHERE id = $1",
@@ -90,11 +90,11 @@ impl EthSenderDal<'_, '_> {
             .await
             .unwrap()
             .map(Into::into)
-        })
+        }
     }
 
-    pub fn get_new_eth_txs(&mut self, limit: u64) -> Vec<EthTx> {
-        async_std::task::block_on(async {
+    pub async fn get_new_eth_txs(&mut self, limit: u64) -> Vec<EthTx> {
+        {
             let txs = sqlx::query_as!(
                 StorageEthTx,
                 r#"SELECT * FROM eth_txs 
@@ -108,11 +108,11 @@ impl EthSenderDal<'_, '_> {
             .await
             .unwrap();
             txs.into_iter().map(|tx| tx.into()).collect()
-        })
+        }
     }
 
-    pub fn get_unsent_txs(&mut self) -> Vec<TxHistoryToSend> {
-        async_std::task::block_on(async {
+    pub async fn get_unsent_txs(&mut self) -> Vec<TxHistoryToSend> {
+        {
             let txs = sqlx::query_as!(
                 StorageTxHistoryToSend,
                 r#"
@@ -133,10 +133,10 @@ impl EthSenderDal<'_, '_> {
             .await
             .unwrap();
             txs.into_iter().map(|tx| tx.into()).collect()
-        })
+        }
     }
 
-    pub fn save_eth_tx(
+    pub async fn save_eth_tx(
         &mut self,
         nonce: u64,
         raw_tx: Vec<u8>,
@@ -144,7 +144,7 @@ impl EthSenderDal<'_, '_> {
         contract_address: Address,
         predicted_gas_cost: u32,
     ) -> EthTx {
-        async_std::task::block_on(async {
+        {
             let address = format!("{:#x}", contract_address);
             let eth_tx = sqlx::query_as!(
             StorageEthTx,
@@ -161,10 +161,10 @@ impl EthSenderDal<'_, '_> {
         .await
         .unwrap();
             eth_tx.into()
-        })
+        }
     }
 
-    pub fn insert_tx_history(
+    pub async fn insert_tx_history(
         &mut self,
         eth_tx_id: u32,
         base_fee_per_gas: u64,
@@ -172,7 +172,7 @@ impl EthSenderDal<'_, '_> {
         tx_hash: H256,
         raw_signed_tx: Vec<u8>,
     ) -> Option<u32> {
-        async_std::task::block_on(async {
+        {
             let priority_fee_per_gas =
                 i64::try_from(priority_fee_per_gas).expect("Can't convert U256 to i64");
             let base_fee_per_gas =
@@ -195,11 +195,11 @@ impl EthSenderDal<'_, '_> {
             .await
             .unwrap()
             .map(|row| row.id as u32)
-        })
+        }
     }
 
-    pub fn set_sent_at_block(&mut self, eth_txs_history_id: u32, sent_at_block: u32) {
-        async_std::task::block_on(async {
+    pub async fn set_sent_at_block(&mut self, eth_txs_history_id: u32, sent_at_block: u32) {
+        {
             sqlx::query!(
                 "UPDATE eth_txs_history SET sent_at_block = $2, sent_at = now()
                 WHERE id = $1 AND sent_at_block IS NULL",
@@ -209,11 +209,11 @@ impl EthSenderDal<'_, '_> {
             .execute(self.storage.conn())
             .await
             .unwrap();
-        })
+        }
     }
 
-    pub fn remove_tx_history(&mut self, eth_txs_history_id: u32) {
-        async_std::task::block_on(async {
+    pub async fn remove_tx_history(&mut self, eth_txs_history_id: u32) {
+        {
             sqlx::query!(
                 "DELETE FROM eth_txs_history
                 WHERE id = $1",
@@ -222,12 +222,12 @@ impl EthSenderDal<'_, '_> {
             .execute(self.storage.conn())
             .await
             .unwrap();
-        })
+        }
     }
 
-    pub fn confirm_tx(&mut self, tx_hash: H256, gas_used: U256) {
-        async_std::task::block_on(async {
-            let mut transaction = self.storage.start_transaction().await;
+    pub async fn confirm_tx(&mut self, tx_hash: H256, gas_used: U256) {
+        {
+            let mut transaction = self.storage.start_transaction().await.unwrap();
             let gas_used = i64::try_from(gas_used).expect("Can't convert U256 to i64");
             let tx_hash = format!("{:#x}", tx_hash);
             let ids = sqlx::query!(
@@ -253,12 +253,12 @@ impl EthSenderDal<'_, '_> {
             .await
             .unwrap();
 
-            transaction.commit().await;
-        })
+            transaction.commit().await.unwrap();
+        }
     }
 
-    pub fn get_confirmed_tx_hash_by_eth_tx_id(&mut self, eth_tx_id: u32) -> Option<H256> {
-        async_std::task::block_on(async {
+    pub async fn get_confirmed_tx_hash_by_eth_tx_id(&mut self, eth_tx_id: u32) -> Option<H256> {
+        {
             let tx_hash = sqlx::query!(
                 "SELECT tx_hash FROM eth_txs_history
                 WHERE eth_tx_id = $1 AND confirmed_at IS NOT NULL",
@@ -273,7 +273,7 @@ impl EthSenderDal<'_, '_> {
                 let tx_hash = tx_hash.trim_start_matches("0x");
                 H256::from_str(tx_hash).unwrap()
             })
-        })
+        }
     }
 
     /// This method inserts a fake transaction into the database that would make the corresponding L1 batch
@@ -286,15 +286,15 @@ impl EthSenderDal<'_, '_> {
     ///
     /// After this method is used anywhere in the codebase, it is considered a bug to try to directly query `eth_txs_history`
     /// or `eth_txs` tables.
-    pub fn insert_bogus_confirmed_eth_tx(
+    pub async fn insert_bogus_confirmed_eth_tx(
         &mut self,
         l1_batch: L1BatchNumber,
         tx_type: AggregatedActionType,
         tx_hash: H256,
         confirmed_at: DateTime<Utc>,
     ) {
-        async_std::task::block_on(async {
-            let mut transaction = self.storage.start_transaction().await;
+        {
+            let mut transaction = self.storage.start_transaction().await.unwrap();
             let tx_hash = format!("{:#x}", tx_hash);
 
             let eth_tx_id = sqlx::query_scalar!(
@@ -357,14 +357,16 @@ impl EthSenderDal<'_, '_> {
             super::BlocksDal {
                 storage: &mut transaction,
             }
-            .set_eth_tx_id(l1_batch, l1_batch, eth_tx_id as u32, tx_type);
+            .set_eth_tx_id(l1_batch..=l1_batch, eth_tx_id as u32, tx_type)
+            .await
+            .unwrap();
 
-            transaction.commit().await;
-        })
+            transaction.commit().await.unwrap();
+        }
     }
 
-    pub fn get_tx_history_to_check(&mut self, eth_tx_id: u32) -> Vec<TxHistory> {
-        async_std::task::block_on(async {
+    pub async fn get_tx_history_to_check(&mut self, eth_tx_id: u32) -> Vec<TxHistory> {
+        {
             let tx_history = sqlx::query_as!(
                 StorageTxHistory,
                 "SELECT * FROM eth_txs_history WHERE eth_tx_id = $1 ORDER BY created_at DESC",
@@ -374,11 +376,11 @@ impl EthSenderDal<'_, '_> {
             .await
             .unwrap();
             tx_history.into_iter().map(|tx| tx.into()).collect()
-        })
+        }
     }
 
-    pub fn get_block_number_on_first_sent_attempt(&mut self, eth_tx_id: u32) -> Option<u32> {
-        async_std::task::block_on(async {
+    pub async fn get_block_number_on_first_sent_attempt(&mut self, eth_tx_id: u32) -> Option<u32> {
+        {
             let sent_at_block = sqlx::query_scalar!(
             "SELECT sent_at_block FROM eth_txs_history WHERE eth_tx_id = $1 AND sent_at_block IS NOT NULL ORDER BY created_at ASC LIMIT 1",
             eth_tx_id as i32
@@ -387,11 +389,11 @@ impl EthSenderDal<'_, '_> {
             .await
             .unwrap();
             sent_at_block.flatten().map(|block| block as u32)
-        })
+        }
     }
 
-    pub fn get_last_sent_eth_tx(&mut self, eth_tx_id: u32) -> Option<TxHistory> {
-        async_std::task::block_on(async {
+    pub async fn get_last_sent_eth_tx(&mut self, eth_tx_id: u32) -> Option<TxHistory> {
+        {
             let history_item = sqlx::query_as!(
             StorageTxHistory,
             "SELECT * FROM eth_txs_history WHERE eth_tx_id = $1 ORDER BY created_at DESC LIMIT 1",
@@ -401,22 +403,21 @@ impl EthSenderDal<'_, '_> {
             .await
             .unwrap();
             history_item.map(|tx| tx.into())
-        })
+        }
     }
 
-    pub fn get_next_nonce(&mut self) -> Option<u64> {
-        async_std::task::block_on(async {
-            sqlx::query!(r#"SELECT MAX(nonce) as "max_nonce?" FROM eth_txs"#,)
-                .fetch_one(self.storage.conn())
+    pub async fn get_next_nonce(&mut self) -> Option<u64> {
+        {
+            let row = sqlx::query!("SELECT nonce FROM eth_txs ORDER BY id DESC LIMIT 1")
+                .fetch_optional(self.storage.conn())
                 .await
-                .unwrap()
-                .max_nonce
-                .map(|n| n as u64 + 1)
-        })
+                .unwrap();
+            row.map(|row| row.nonce as u64 + 1)
+        }
     }
 
-    pub fn mark_failed_transaction(&mut self, eth_tx_id: u32) {
-        async_std::task::block_on(async {
+    pub async fn mark_failed_transaction(&mut self, eth_tx_id: u32) {
+        {
             sqlx::query!(
                 "UPDATE eth_txs SET has_failed = TRUE WHERE id = $1",
                 eth_tx_id as i32
@@ -424,22 +425,22 @@ impl EthSenderDal<'_, '_> {
             .execute(self.storage.conn())
             .await
             .unwrap();
-        })
+        }
     }
 
-    pub fn get_number_of_failed_transactions(&mut self) -> i64 {
-        async_std::task::block_on(async {
+    pub async fn get_number_of_failed_transactions(&mut self) -> i64 {
+        {
             sqlx::query!("SELECT COUNT(*) FROM eth_txs WHERE has_failed = TRUE")
                 .fetch_one(self.storage.conn())
                 .await
                 .unwrap()
                 .count
                 .unwrap()
-        })
+        }
     }
 
-    pub fn clear_failed_transactions(&mut self) {
-        async_std::task::block_on(async {
+    pub async fn clear_failed_transactions(&mut self) {
+        {
             sqlx::query!(
                 "DELETE FROM eth_txs WHERE id >=
                 (SELECT MIN(id) FROM eth_txs WHERE has_failed = TRUE)"
@@ -447,6 +448,6 @@ impl EthSenderDal<'_, '_> {
             .execute(self.storage.conn())
             .await
             .unwrap();
-        })
+        }
     }
 }

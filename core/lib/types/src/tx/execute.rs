@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use zksync_utils::ZeroPrefixHexSerde;
 
 /// `Execute` transaction executes a previously deployed smart contract in the L2 rollup.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Execute {
     pub contract_address: Address,
@@ -27,7 +27,7 @@ impl EIP712TypedStructure for Execute {
     fn build_structure<BUILDER: StructBuilder>(&self, builder: &mut BUILDER) {
         builder.add_member("to", &U256::from(self.contract_address.as_bytes()));
         builder.add_member("value", &self.value);
-        builder.add_member("data", &self.calldata().as_slice());
+        builder.add_member("data", &self.calldata.as_slice());
         // Factory deps are not included into the transaction signature, since they are parsed from the
         // transaction metadata.
         // Note that for the deploy transactions all the dependencies are implicitly included into the "calldataHash"
@@ -36,8 +36,8 @@ impl EIP712TypedStructure for Execute {
 }
 
 impl Execute {
-    pub fn calldata(&self) -> Vec<u8> {
-        self.calldata.clone()
+    pub fn calldata(&self) -> &[u8] {
+        &self.calldata
     }
 
     /// Prepares calldata to invoke deployer contract.
@@ -47,6 +47,8 @@ impl Execute {
         contract_hash: H256,
         constructor_input: Vec<u8>,
     ) -> Vec<u8> {
+        // TODO (SMA-1608): We should not re-implement the ABI parts in different places, instead have the ABI available
+        //  from the `zksync_contracts` crate.
         static FUNCTION_SIGNATURE: Lazy<[u8; 4]> = Lazy::new(|| {
             ethabi::short_signature(
                 "create",

@@ -1,6 +1,6 @@
 //! Integration tests for object store.
 
-use std::fs;
+use tokio::fs;
 
 use zksync_object_store::{Bucket, ObjectStoreFactory};
 use zksync_types::{
@@ -10,24 +10,27 @@ use zksync_types::{
 
 /// Tests compatibility of the `PrepareBasicCircuitsJob` serialization to the previously used
 /// one.
-#[test]
-fn prepare_basic_circuits_job_serialization() {
+#[tokio::test]
+async fn prepare_basic_circuits_job_serialization() {
     // The working dir for integration tests is set to the crate dir, so specifying relative paths
     // should be OK.
-    let snapshot = fs::read("./tests/snapshots/prepare-basic-circuits-job-full.bin").unwrap();
-    let store = ObjectStoreFactory::mock().create_store();
+    let snapshot = fs::read("./tests/snapshots/prepare-basic-circuits-job-full.bin")
+        .await
+        .unwrap();
+    let store = ObjectStoreFactory::mock().create_store().await;
     store
         .put_raw(
             Bucket::WitnessInput,
             "merkel_tree_paths_1.bin",
             snapshot.clone(),
         )
+        .await
         .unwrap();
 
-    let job: PrepareBasicCircuitsJob = store.get(L1BatchNumber(1)).unwrap();
+    let job: PrepareBasicCircuitsJob = store.get(L1BatchNumber(1)).await.unwrap();
 
-    let key = store.put(L1BatchNumber(2), &job).unwrap();
-    let serialized_job = store.get_raw(Bucket::WitnessInput, &key).unwrap();
+    let key = store.put(L1BatchNumber(2), &job).await.unwrap();
+    let serialized_job = store.get_raw(Bucket::WitnessInput, &key).await.unwrap();
     assert_eq!(serialized_job, snapshot);
     assert_job_integrity(
         job.next_enumeration_index(),
@@ -45,9 +48,11 @@ fn assert_job_integrity(next_enumeration_index: u64, merkle_paths: Vec<StorageLo
 }
 
 /// Test that serialization works the same as with a tuple of the job fields.
-#[test]
-fn prepare_basic_circuits_job_compatibility() {
-    let snapshot = fs::read("./tests/snapshots/prepare-basic-circuits-job-full.bin").unwrap();
+#[tokio::test]
+async fn prepare_basic_circuits_job_compatibility() {
+    let snapshot = fs::read("./tests/snapshots/prepare-basic-circuits-job-full.bin")
+        .await
+        .unwrap();
     let job_tuple: (Vec<StorageLogMetadata>, u64) = bincode::deserialize(&snapshot).unwrap();
 
     let serialized = bincode::serialize(&job_tuple).unwrap();

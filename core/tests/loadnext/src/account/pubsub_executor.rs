@@ -1,10 +1,9 @@
+use futures::{stream, TryStreamExt};
+
 use std::time::{Duration, Instant};
 
-use futures::SinkExt;
-use once_cell::sync::OnceCell;
-use tokio::sync::Semaphore;
-
 use zksync::error::ClientError;
+use zksync::types::PubSubFilterBuilder;
 use zksync_web3_decl::{
     jsonrpsee::{
         core::client::{Subscription, SubscriptionClientT},
@@ -14,19 +13,49 @@ use zksync_web3_decl::{
     types::PubSubResult,
 };
 
-use super::AccountLifespan;
+use super::{Aborted, AccountLifespan};
 use crate::{
     command::SubscriptionType,
+    config::RequestLimiters,
     report::{ReportBuilder, ReportLabel},
     rng::WeightedRandom,
 };
-use zksync::types::PubSubFilterBuilder;
-
-/// Shared semaphore which limits the number of active subscriptions.
-/// Lazily initialized by the first account accessing it.
-static REQUEST_LIMITER: OnceCell<Semaphore> = OnceCell::new();
 
 impl AccountLifespan {
+    async fn run_single_subscription(mut self, limiters: &RequestLimiters) -> Result<(), Aborted> {
+        let permit = limiters.subscriptions.acquire().await.unwrap();
+        let subscription_type = SubscriptionType::random(&mut self.wallet.rng);
+        let start = Instant::now();
+
+        // Skip the action if the contract is not yet initialized for the account.
+        let label = if let (SubscriptionType::Logs, None) = (
+            subscription_type,
+            self.wallet.deployed_contract_address.get(),
+        ) {
+            ReportLabel::skipped("Contract not deployed yet")
+        } else {
+            let result = self.start_single_subscription_task(subscription_type).await;
+            match result {
+                Ok(_) => ReportLabel::ActionDone,
+                Err(err) => {
+                    // Subscriptions can fail for a variety of reasons - no need to escalate it.
+                    tracing::warn!("Subscription failed: {subscription_type:?}, reason: {err}");
+                    ReportLabel::failed(err.to_string())
+                }
+            }
+        };
+        drop(permit);
+
+        let report = ReportBuilder::default()
+            .action(subscription_type)
+            .label(label)
+            .time(start.elapsed())
+            .reporter(self.wallet.wallet.address())
+            .finish();
+        self.send_report(report).await?;
+        Ok(())
+    }
+
     async fn start_single_subscription_task(
         &mut self,
         subscription_type: SubscriptionType,
@@ -40,11 +69,7 @@ impl AccountLifespan {
                     &self.wallet.test_contract.contract,
                     &mut self.wallet.rng,
                 );
-                // Safety: `run_pubsub_task` checks whether the cell is initialized
-                // at every loop iteration and skips logs action if it's not. Thus,
-                // it's safe to unwrap it.
-                let contract_address =
-                    unsafe { self.wallet.deployed_contract_address.get_unchecked() };
+                let contract_address = self.wallet.deployed_contract_address.get().unwrap();
                 let filter = PubSubFilterBuilder::default()
                     .set_topics(Some(topics), None, None, None)
                     .set_address(vec![*contract_address])
@@ -74,54 +99,14 @@ impl AccountLifespan {
         Ok(())
     }
 
-    #[allow(clippy::let_underscore_future)]
-    pub(super) async fn run_pubsub_task(self) {
-        loop {
-            let semaphore = REQUEST_LIMITER
-                .get_or_init(|| Semaphore::new(self.config.sync_pubsub_subscriptions_limit));
-            // The number of simultaneous subscriptions is limited by semaphore.
-            let permit = semaphore
-                .acquire()
-                .await
-                .expect("static semaphore cannot be closed");
-            let mut self_ = self.clone();
-            let _ = tokio::spawn(async move {
-                let subscription_type = SubscriptionType::random(&mut self_.wallet.rng);
-                let start = Instant::now();
-
-                // Skip the action if the contract is not yet initialized for the account.
-                let label = if let (SubscriptionType::Logs, None) = (
-                    subscription_type,
-                    self_.wallet.deployed_contract_address.get(),
-                ) {
-                    ReportLabel::skipped("Contract not deployed yet")
-                } else {
-                    let result = self_
-                        .start_single_subscription_task(subscription_type)
-                        .await;
-                    match result {
-                        Ok(_) => ReportLabel::ActionDone,
-                        Err(err) => {
-                            let error = err.to_string();
-                            // Subscriptions can fail for a variety of reasons - no need to escalate it.
-                            vlog::warn!(
-                                "Subscription failed: {:?}, reason: {}",
-                                subscription_type,
-                                error
-                            );
-                            ReportLabel::ActionFailed { error }
-                        }
-                    }
-                };
-                let report = ReportBuilder::default()
-                    .action(subscription_type)
-                    .label(label)
-                    .time(start.elapsed())
-                    .reporter(self_.wallet.wallet.address())
-                    .finish();
-                drop(permit);
-                let _ = self_.report_sink.send(report).await;
-            });
-        }
+    pub(super) async fn run_pubsub_task(self, limiters: &RequestLimiters) -> Result<(), Aborted> {
+        // We use `try_for_each_concurrent` to propagate test abortion, but we cannot
+        // rely solely on its concurrency limiter because we need to limit concurrency
+        // for all accounts in total, rather than for each account separately.
+        let local_limit = (self.config.sync_pubsub_subscriptions_limit / 5).max(1);
+        let subscriptions = stream::repeat_with(move || Ok(self.clone()));
+        subscriptions
+            .try_for_each_concurrent(local_limit, |this| this.run_single_subscription(limiters))
+            .await
     }
 }

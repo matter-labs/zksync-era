@@ -1,172 +1,214 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
-use std::{env, str::FromStr, time::Duration};
+use std::time::Duration;
+
+use super::envy_load;
+
+/// Mode of operation for the Merkle tree.
+///
+/// The mode does not influence how tree data is stored; i.e., a mode can be switched on the fly.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MerkleTreeMode {
+    /// In this mode, `MetadataCalculator` will compute witness inputs for all storage operations
+    /// and put them into the object store as provided by `store_factory` (e.g., GCS).
+    #[default]
+    Full,
+    /// In this mode, `MetadataCalculator` computes Merkle tree root hashes and some auxiliary information
+    /// for L1 batches, but not witness inputs.
+    Lightweight,
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+pub struct MerkleTreeConfig {
+    /// Path to the RocksDB data directory for Merkle tree.
+    #[serde(default = "MerkleTreeConfig::default_path")]
+    pub path: String,
+    /// Path to merkle tree backup directory.
+    #[serde(default = "MerkleTreeConfig::default_backup_path")]
+    pub backup_path: String,
+    /// Operation mode for the Merkle tree. If not specified, the full mode will be used.
+    #[serde(default)]
+    pub mode: MerkleTreeMode,
+    /// Chunk size for multi-get operations. Can speed up loading data for the Merkle tree on some environments,
+    /// but the effects vary wildly depending on the setup (e.g., the filesystem used).
+    #[serde(default = "MerkleTreeConfig::default_multi_get_chunk_size")]
+    pub multi_get_chunk_size: usize,
+    /// Capacity of the block cache for the Merkle tree RocksDB. Reasonable values range from ~100 MB to several GB.
+    /// The default value is 128 MB.
+    #[serde(default = "MerkleTreeConfig::default_block_cache_size_mb")]
+    pub block_cache_size_mb: usize,
+    /// Maximum number of L1 batches to be processed by the Merkle tree at a time.
+    #[serde(default = "MerkleTreeConfig::default_max_l1_batches_per_iter")]
+    pub max_l1_batches_per_iter: usize,
+}
+
+impl Default for MerkleTreeConfig {
+    fn default() -> Self {
+        Self {
+            path: Self::default_path(),
+            backup_path: Self::default_backup_path(),
+            mode: MerkleTreeMode::default(),
+            multi_get_chunk_size: Self::default_multi_get_chunk_size(),
+            block_cache_size_mb: Self::default_block_cache_size_mb(),
+            max_l1_batches_per_iter: Self::default_max_l1_batches_per_iter(),
+        }
+    }
+}
+
+impl MerkleTreeConfig {
+    fn default_path() -> String {
+        "./db/lightweight-new".to_owned() // named this way for legacy reasons
+    }
+
+    fn default_backup_path() -> String {
+        "./db/backups".to_owned()
+    }
+
+    const fn default_multi_get_chunk_size() -> usize {
+        500
+    }
+
+    const fn default_block_cache_size_mb() -> usize {
+        128
+    }
+
+    const fn default_max_l1_batches_per_iter() -> usize {
+        20
+    }
+
+    /// Returns the size of block cache size for Merkle tree in bytes.
+    pub fn block_cache_size(&self) -> usize {
+        self.block_cache_size_mb * super::BYTES_IN_MEGABYTE
+    }
+}
 
 /// Database configuration.
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct DBConfig {
-    /// Path to the database data directory.
-    pub path: String,
-    /// Path to the database data directory that serves state cache.
+    /// Statement timeout in seconds for Postgres connections. Applies only to the replica
+    /// connection pool used by the API servers.
+    pub statement_timeout_sec: Option<u64>,
+    /// Path to the RocksDB data directory that serves state cache.
+    #[serde(default = "DBConfig::default_state_keeper_db_path")]
     pub state_keeper_db_path: String,
-    /// Path to merkle tree backup directory.
-    pub merkle_tree_backup_path: String,
-    /// Fast SSD path. Used as a RocksDB dir for the Merkle tree (*old* implementation)
-    /// if the lightweight syncing is enabled.
-    pub merkle_tree_fast_ssd_path: String,
-    /// Fast SSD path. Used as a RocksDB dir for the Merkle tree (*new* implementation).
-    // We cannot compute this path like
-    //
-    // ```
-    // new_merkle_tree_ssd_path = merkle_tree_fast_ssd_path.join("new")
-    // ```
-    //
-    // because (1) we need to maintain backward compatibility; (2) it looks dangerous
-    // to place a RocksDB instance in a subdirectory of another RocksDB instance.
-    pub new_merkle_tree_ssd_path: String,
-    /// Throttle interval for the new tree implementation in milliseconds. This interval will be
-    /// applied after each time the tree makes progress.
-    pub new_merkle_tree_throttle_ms: u64,
+    /// Merkle tree configuration.
+    #[serde(skip)]
+    // ^ Filled in separately in `Self::from_env()`. We cannot use `serde(flatten)` because it
+    // doesn't work with 'envy`.
+    pub merkle_tree: MerkleTreeConfig,
     /// Number of backups to keep.
+    #[serde(default = "DBConfig::default_backup_count")]
     pub backup_count: usize,
     /// Time interval between performing backups.
+    #[serde(default = "DBConfig::default_backup_interval_ms")]
     pub backup_interval_ms: u64,
-    /// Maximum number of blocks to be processed by the full tree at a time.
-    pub max_block_batch: usize,
-}
-
-impl Default for DBConfig {
-    fn default() -> Self {
-        Self {
-            path: "./db".to_owned(),
-            state_keeper_db_path: "./db/state_keeper".to_owned(),
-            merkle_tree_backup_path: "./db/backups".to_owned(),
-            merkle_tree_fast_ssd_path: "./db/lightweight".to_owned(),
-            new_merkle_tree_ssd_path: "./db/lightweight-new".to_owned(),
-            new_merkle_tree_throttle_ms: 0,
-            backup_count: 5,
-            backup_interval_ms: 60_000,
-            max_block_batch: 100,
-        }
-    }
 }
 
 impl DBConfig {
-    pub fn from_env() -> Self {
-        let mut config = DBConfig::default();
-        if let Ok(path) = env::var("DATABASE_PATH") {
-            config.path = path;
-        }
-        if let Ok(path) = env::var("DATABASE_STATE_KEEPER_DB_PATH") {
-            config.state_keeper_db_path = path;
-        }
-        if let Ok(path) = env::var("DATABASE_MERKLE_TREE_BACKUP_PATH") {
-            config.merkle_tree_backup_path = path;
-        }
-        if let Ok(path) = env::var("DATABASE_MERKLE_TREE_FAST_SSD_PATH") {
-            config.merkle_tree_fast_ssd_path = path;
-        }
-        if let Ok(path) = env::var("DATABASE_NEW_MERKLE_TREE_SSD_PATH") {
-            config.new_merkle_tree_ssd_path = path;
-        }
-        if let Some(interval) = Self::parse_env_var("DATABASE_NEW_MERKLE_TREE_THROTTLE_MS") {
-            config.new_merkle_tree_throttle_ms = interval;
-        }
-        if let Some(count) = Self::parse_env_var("DATABASE_BACKUP_COUNT") {
-            config.backup_count = count;
-        }
-        if let Some(interval) = Self::parse_env_var("DATABASE_BACKUP_INTERVAL_MS") {
-            config.backup_interval_ms = interval;
-        }
-        if let Some(size) = Self::parse_env_var("DATABASE_MAX_BLOCK_BATCH") {
-            config.max_block_batch = size;
-        }
-        config
+    fn default_state_keeper_db_path() -> String {
+        "./db/state_keeper".to_owned()
     }
 
-    fn parse_env_var<T: FromStr>(key: &str) -> Option<T> {
-        let env_var = env::var(key).ok()?;
-        env_var.parse().ok()
+    const fn default_backup_count() -> usize {
+        5
     }
 
-    /// Path to the database data directory.
-    pub fn path(&self) -> &str {
-        &self.path
+    const fn default_backup_interval_ms() -> u64 {
+        60_000
     }
 
-    /// Path to the database data directory that serves state cache.
-    pub fn state_keeper_db_path(&self) -> &str {
-        &self.state_keeper_db_path
+    pub fn from_env() -> anyhow::Result<Self> {
+        Ok(Self {
+            merkle_tree: envy_load("database_merkle_tree", "DATABASE_MERKLE_TREE_")?,
+            ..envy_load("database", "DATABASE_")?
+        })
     }
 
-    /// Path to the merkle tree backup directory.
-    pub fn merkle_tree_backup_path(&self) -> &str {
-        &self.merkle_tree_backup_path
-    }
-
-    pub fn merkle_tree_fast_ssd_path(&self) -> &str {
-        &self.merkle_tree_fast_ssd_path
-    }
-
-    /// Throttle interval for the new Merkle tree implementation.
-    pub fn new_merkle_tree_throttle_interval(&self) -> Duration {
-        Duration::from_millis(self.new_merkle_tree_throttle_ms)
-    }
-
-    /// Number of backups to keep
-    pub fn backup_count(&self) -> usize {
-        self.backup_count
+    /// Returns the Postgres statement timeout.
+    pub fn statement_timeout(&self) -> Option<Duration> {
+        self.statement_timeout_sec.map(Duration::from_secs)
     }
 
     pub fn backup_interval(&self) -> Duration {
         Duration::from_millis(self.backup_interval_ms)
-    }
-
-    pub fn max_block_batch(&self) -> usize {
-        self.max_block_batch
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::configs::test_utils::set_env;
+    use crate::configs::test_utils::EnvMutex;
+
+    static MUTEX: EnvMutex = EnvMutex::new();
 
     #[test]
     fn from_env() {
+        let mut lock = MUTEX.lock();
         let config = r#"
-DATABASE_PATH="./db"
-DATABASE_STATE_KEEPER_DB_PATH="./db/state_keeper"
-DATABASE_MERKLE_TREE_BACKUP_PATH="./db/backups"
-DATABASE_MERKLE_TREE_FAST_SSD_PATH="./db/lightweight"
-DATABASE_NEW_MERKLE_TREE_SSD_PATH="./db/lightweight-new"
-DATABASE_NEW_MERKLE_TREE_THROTTLE_MS=0
-DATABASE_BACKUP_COUNT=5
-DATABASE_BACKUP_INTERVAL_MS=60000
-DATABASE_MAX_BLOCK_BATCH=100
+            DATABASE_STATE_KEEPER_DB_PATH="/db/state_keeper"
+            DATABASE_MERKLE_TREE_BACKUP_PATH="/db/backups"
+            DATABASE_MERKLE_TREE_PATH="/db/tree"
+            DATABASE_MERKLE_TREE_MODE=lightweight
+            DATABASE_MERKLE_TREE_MULTI_GET_CHUNK_SIZE=250
+            DATABASE_MERKLE_TREE_MAX_L1_BATCHES_PER_ITER=50
+            DATABASE_BACKUP_COUNT=5
+            DATABASE_BACKUP_INTERVAL_MS=60000
         "#;
-        set_env(config);
+        lock.set_env(config);
 
-        let actual = DBConfig::from_env();
-        assert_eq!(actual, DBConfig::default());
+        let db_config = DBConfig::from_env().unwrap();
+        assert_eq!(db_config.state_keeper_db_path, "/db/state_keeper");
+        assert_eq!(db_config.merkle_tree.path, "/db/tree");
+        assert_eq!(db_config.merkle_tree.backup_path, "/db/backups");
+        assert_eq!(db_config.merkle_tree.mode, MerkleTreeMode::Lightweight);
+        assert_eq!(db_config.merkle_tree.multi_get_chunk_size, 250);
+        assert_eq!(db_config.merkle_tree.max_l1_batches_per_iter, 50);
+        assert_eq!(db_config.backup_count, 5);
+        assert_eq!(db_config.backup_interval().as_secs(), 60);
     }
 
-    /// Checks the correctness of the config helper methods.
     #[test]
-    fn methods() {
-        let config = DBConfig::default();
+    fn from_empty_env() {
+        let mut lock = MUTEX.lock();
+        lock.remove_env(&[
+            "DATABASE_STATE_KEEPER_DB_PATH",
+            "DATABASE_MERKLE_TREE_BACKUP_PATH",
+            "DATABASE_MERKLE_TREE_PATH",
+            "DATABASE_MERKLE_TREE_MODE",
+            "DATABASE_MERKLE_TREE_MULTI_GET_CHUNK_SIZE",
+            "DATABASE_MERKLE_TREE_BLOCK_CACHE_SIZE_MB",
+            "DATABASE_MERKLE_TREE_MAX_L1_BATCHES_PER_ITER",
+            "DATABASE_BACKUP_COUNT",
+            "DATABASE_BACKUP_INTERVAL_MS",
+        ]);
 
-        assert_eq!(config.path(), &config.path);
-        assert_eq!(config.state_keeper_db_path(), &config.state_keeper_db_path);
-        assert_eq!(
-            config.merkle_tree_backup_path(),
-            &config.merkle_tree_backup_path
-        );
-        assert_eq!(
-            config.merkle_tree_fast_ssd_path(),
-            &config.merkle_tree_fast_ssd_path
-        );
-        assert_eq!(config.backup_count(), config.backup_count);
-        assert_eq!(config.backup_interval().as_secs(), 60);
+        let db_config = DBConfig::from_env().unwrap();
+        assert_eq!(db_config.state_keeper_db_path, "./db/state_keeper");
+        assert_eq!(db_config.merkle_tree.path, "./db/lightweight-new");
+        assert_eq!(db_config.merkle_tree.backup_path, "./db/backups");
+        assert_eq!(db_config.merkle_tree.mode, MerkleTreeMode::Full);
+        assert_eq!(db_config.merkle_tree.multi_get_chunk_size, 500);
+        assert_eq!(db_config.merkle_tree.max_l1_batches_per_iter, 20);
+        assert_eq!(db_config.merkle_tree.block_cache_size_mb, 128);
+        assert_eq!(db_config.backup_count, 5);
+        assert_eq!(db_config.backup_interval().as_secs(), 60);
+
+        // Check that new env variable for Merkle tree path is supported
+        lock.set_env("DATABASE_MERKLE_TREE_PATH=/db/tree/main");
+        let db_config = DBConfig::from_env().unwrap();
+        assert_eq!(db_config.merkle_tree.path, "/db/tree/main");
+
+        lock.set_env("DATABASE_MERKLE_TREE_MULTI_GET_CHUNK_SIZE=200");
+        let db_config = DBConfig::from_env().unwrap();
+        assert_eq!(db_config.merkle_tree.multi_get_chunk_size, 200);
+
+        lock.set_env("DATABASE_MERKLE_TREE_BLOCK_CACHE_SIZE_MB=256");
+        let db_config = DBConfig::from_env().unwrap();
+        assert_eq!(db_config.merkle_tree.block_cache_size_mb, 256);
+
+        lock.set_env("DATABASE_MERKLE_TREE_MAX_L1_BATCHES_PER_ITER=50");
+        let db_config = DBConfig::from_env().unwrap();
+        assert_eq!(db_config.merkle_tree.max_l1_batches_per_iter, 50);
     }
 }

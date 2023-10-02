@@ -1,42 +1,24 @@
-use std::net::IpAddr;
 use std::time::Duration;
 
 use crate::time_utils::pg_interval_from_duration;
 use crate::StorageProcessor;
 use std::collections::HashMap;
+use zksync_types::proofs::{GpuProverInstanceStatus, SocketAddress};
 
 #[derive(Debug)]
 pub struct GpuProverQueueDal<'a, 'c> {
-    pub storage: &'a mut StorageProcessor<'c>,
-}
-
-#[derive(Debug, Clone)]
-pub struct SocketAddress {
-    pub host: IpAddr,
-    pub port: u16,
-}
-
-#[derive(Debug)]
-pub enum GpuProverInstanceStatus {
-    // The instance is available for processing.
-    Available,
-    // The instance is running at full capacity.
-    Full,
-    // The instance is reserved by an synthesizer.
-    Reserved,
-    // The instance is not alive anymore.
-    Dead,
+    pub(crate) storage: &'a mut StorageProcessor<'c>,
 }
 
 impl GpuProverQueueDal<'_, '_> {
-    pub fn lock_available_prover(
+    pub async fn lock_available_prover(
         &mut self,
         processing_timeout: Duration,
         specialized_prover_group_id: u8,
         region: String,
         zone: String,
     ) -> Option<SocketAddress> {
-        async_std::task::block_on(async {
+        {
             let processing_timeout = pg_interval_from_duration(processing_timeout);
             let result: Option<SocketAddress> = sqlx::query!(
                 "
@@ -75,10 +57,10 @@ impl GpuProverQueueDal<'_, '_> {
                 });
 
             result
-        })
+        }
     }
 
-    pub fn insert_prover_instance(
+    pub async fn insert_prover_instance(
         &mut self,
         address: SocketAddress,
         queue_capacity: usize,
@@ -87,7 +69,7 @@ impl GpuProverQueueDal<'_, '_> {
         zone: String,
         num_gpu: u8,
     ) {
-        async_std::task::block_on(async {
+        {
             sqlx::query!(
                     "
                     INSERT INTO gpu_prover_queue (instance_host, instance_port, queue_capacity, queue_free_slots, instance_status, specialized_prover_group_id, region, zone, num_gpu, created_at, updated_at)
@@ -104,10 +86,10 @@ impl GpuProverQueueDal<'_, '_> {
                 .execute(self.storage.conn())
                 .await
                 .unwrap();
-        })
+        }
     }
 
-    pub fn update_prover_instance_status(
+    pub async fn update_prover_instance_status(
         &mut self,
         address: SocketAddress,
         status: GpuProverInstanceStatus,
@@ -115,7 +97,7 @@ impl GpuProverQueueDal<'_, '_> {
         region: String,
         zone: String,
     ) {
-        async_std::task::block_on(async {
+        {
             sqlx::query!(
                 "
                 UPDATE gpu_prover_queue
@@ -135,17 +117,17 @@ impl GpuProverQueueDal<'_, '_> {
             .execute(self.storage.conn())
             .await
             .unwrap();
-        })
+        }
     }
 
-    pub fn update_prover_instance_from_full_to_available(
+    pub async fn update_prover_instance_from_full_to_available(
         &mut self,
         address: SocketAddress,
         queue_free_slots: usize,
         region: String,
         zone: String,
     ) {
-        async_std::task::block_on(async {
+        {
             sqlx::query!(
                 "
                 UPDATE gpu_prover_queue
@@ -165,11 +147,11 @@ impl GpuProverQueueDal<'_, '_> {
             .execute(self.storage.conn())
             .await
             .unwrap();
-        })
+        }
     }
 
-    pub fn get_prover_gpu_count_per_region_zone(&mut self) -> HashMap<(String, String), u64> {
-        async_std::task::block_on(async {
+    pub async fn get_prover_gpu_count_per_region_zone(&mut self) -> HashMap<(String, String), u64> {
+        {
             sqlx::query!(
                 r#"
                 SELECT region, zone, SUM(num_gpu) AS total_gpus
@@ -183,6 +165,6 @@ impl GpuProverQueueDal<'_, '_> {
             .into_iter()
             .map(|row| ((row.region, row.zone), row.total_gpus.unwrap() as u64))
             .collect()
-        })
+        }
     }
 }

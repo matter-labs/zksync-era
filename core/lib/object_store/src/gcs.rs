@@ -1,7 +1,7 @@
 //! GCS-based [`ObjectStore`] implementation.
 
+use async_trait::async_trait;
 use google_cloud_auth::{credentials::CredentialsFile, error::Error};
-use google_cloud_default::WithAuthExt;
 use google_cloud_storage::{
     client::{Client, ClientConfig},
     http::objects::{
@@ -13,19 +13,17 @@ use google_cloud_storage::{
     http::Error as HttpError,
 };
 use http::StatusCode;
-use tokio::runtime::{Handle, RuntimeFlavor};
 
-use std::{
-    fmt,
-    future::Future,
-    thread,
-    time::{Duration, Instant},
+use std::{fmt, future::Future, time::Duration};
+
+use crate::{
+    metrics::GCS_METRICS,
+    raw::{Bucket, ObjectStore, ObjectStoreError},
 };
-
-use crate::raw::{Bucket, ObjectStore, ObjectStoreError};
 
 async fn retry<T, E, Fut, F>(max_retries: u16, mut f: F) -> Result<T, E>
 where
+    E: fmt::Display,
     Fut: Future<Output = Result<T, E>>,
     F: FnMut() -> Fut,
 {
@@ -35,7 +33,7 @@ where
         match f().await {
             Ok(result) => return Ok(result),
             Err(err) => {
-                vlog::warn!("Failed gcs request {retries}/{max_retries}, retrying.");
+                tracing::warn!(%err, "Failed GCS request {retries}/{max_retries}, retrying.");
                 if retries > max_retries {
                     return Err(err);
                 }
@@ -47,23 +45,23 @@ where
     }
 }
 
-pub struct AsyncGoogleCloudStorage {
+pub struct GoogleCloudStorage {
     bucket_prefix: String,
     max_retries: u16,
     client: Client,
 }
 
-impl fmt::Debug for AsyncGoogleCloudStorage {
+impl fmt::Debug for GoogleCloudStorage {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
-            .debug_struct("GoogleCloudStorageAsync")
+            .debug_struct("GoogleCloudStorage")
             .field("bucket_prefix", &self.bucket_prefix)
             .field("max_retries", &self.max_retries)
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 
-impl AsyncGoogleCloudStorage {
+impl GoogleCloudStorage {
     pub async fn new(
         credential_file_path: Option<String>,
         bucket_prefix: String,
@@ -99,88 +97,17 @@ impl AsyncGoogleCloudStorage {
         format!("{bucket}/{filename}")
     }
 
-    pub(crate) async fn get_async(
-        &self,
-        bucket: &'static str,
-        key: &str,
-    ) -> Result<Vec<u8>, ObjectStoreError> {
-        let started_at = Instant::now();
-        let filename = Self::filename(bucket, key);
-        vlog::trace!(
-            "Fetching data from GCS for key {filename} from bucket {}",
-            self.bucket_prefix
-        );
-
-        let request = GetObjectRequest {
-            bucket: self.bucket_prefix.clone(),
-            object: filename,
-            ..GetObjectRequest::default()
-        };
-        let range = Range::default();
-        let blob = retry(self.max_retries, || {
-            self.client.download_object(&request, &range)
-        })
-        .await;
-
-        vlog::trace!(
-            "Fetched data from GCS for key {key} from bucket {bucket} and it took: {:?}",
-            started_at.elapsed()
-        );
-        metrics::histogram!(
-            "server.object_store.fetching_time",
-            started_at.elapsed(),
-            "bucket" => bucket
-        );
-        blob.map_err(ObjectStoreError::from)
-    }
-
-    pub(crate) async fn put_async(
-        &self,
-        bucket: &'static str,
-        key: &str,
-        value: Vec<u8>,
-    ) -> Result<(), ObjectStoreError> {
-        let started_at = Instant::now();
-        let filename = Self::filename(bucket, key);
-        vlog::trace!(
-            "Storing data to GCS for key {filename} from bucket {}",
-            self.bucket_prefix
-        );
-
-        let upload_type = UploadType::Simple(Media::new(filename));
-        let request = UploadObjectRequest {
-            bucket: self.bucket_prefix.clone(),
-            ..Default::default()
-        };
-        let object = retry(self.max_retries, || {
-            self.client
-                .upload_object(&request, value.clone(), &upload_type)
-        })
-        .await;
-
-        vlog::trace!(
-            "Stored data to GCS for key {key} from bucket {bucket} and it took: {:?}",
-            started_at.elapsed()
-        );
-        metrics::histogram!(
-            "server.object_store.storing_time",
-            started_at.elapsed(),
-            "bucket" => bucket
-        );
-        object.map(drop).map_err(ObjectStoreError::from)
-    }
-
     // For some bizzare reason, `async fn` doesn't work here, failing with the following error:
     //
     // > hidden type for `impl std::future::Future<Output = Result<(), ObjectStoreError>>`
     // > captures lifetime that does not appear in bounds
-    pub(crate) fn remove_async(
+    fn remove_inner(
         &self,
         bucket: &'static str,
         key: &str,
     ) -> impl Future<Output = Result<(), ObjectStoreError>> + '_ {
         let filename = Self::filename(bucket, key);
-        vlog::trace!(
+        tracing::trace!(
             "Removing data from GCS for key {filename} from bucket {}",
             self.bucket_prefix
         );
@@ -216,62 +143,67 @@ impl From<HttpError> for ObjectStoreError {
     }
 }
 
-#[derive(Debug)]
-pub(crate) struct GoogleCloudStorage {
-    inner: AsyncGoogleCloudStorage,
-    handle: Handle,
-}
-
-impl GoogleCloudStorage {
-    pub fn new(
-        credential_file_path: Option<String>,
-        bucket_prefix: String,
-        max_retries: u16,
-    ) -> Self {
-        let handle = Handle::try_current().unwrap_or_else(|_| {
-            panic!(
-                "No Tokio runtime detected. Make sure that `dyn ObjectStore` is created \
-                 on a Tokio thread, either in a task run by Tokio, or in the blocking context \
-                 run with `tokio::task::spawn_blocking()`."
-            );
-        });
-        let inner = AsyncGoogleCloudStorage::new(credential_file_path, bucket_prefix, max_retries);
-        Self {
-            inner: Self::block_on(&handle, inner),
-            handle,
-        }
-    }
-
-    fn block_on<T: Send>(handle: &Handle, future: impl Future<Output = T> + Send) -> T {
-        if handle.runtime_flavor() == RuntimeFlavor::CurrentThread {
-            // We would like to just call `handle.block_on(future)`, but this panics
-            // if called in an async context. As such, we have this ugly hack, spawning
-            // a new thread just to block on a future.
-            thread::scope(|scope| {
-                scope.spawn(|| handle.block_on(future)).join().unwrap()
-                // ^ `unwrap()` propagates panics to the calling thread, which is what we want
-            })
-        } else {
-            // In multi-threaded runtimes, we have `block_in_place` to the rescue.
-            tokio::task::block_in_place(|| handle.block_on(future))
-        }
-    }
-}
-
+#[async_trait]
 impl ObjectStore for GoogleCloudStorage {
-    fn get_raw(&self, bucket: Bucket, key: &str) -> Result<Vec<u8>, ObjectStoreError> {
-        let task = self.inner.get_async(bucket.as_str(), key);
-        Self::block_on(&self.handle, task)
+    async fn get_raw(&self, bucket: Bucket, key: &str) -> Result<Vec<u8>, ObjectStoreError> {
+        let fetch_latency = GCS_METRICS.start_fetch(bucket);
+        let filename = Self::filename(bucket.as_str(), key);
+        tracing::trace!(
+            "Fetching data from GCS for key {filename} from bucket {}",
+            self.bucket_prefix
+        );
+
+        let request = GetObjectRequest {
+            bucket: self.bucket_prefix.clone(),
+            object: filename,
+            ..GetObjectRequest::default()
+        };
+        let range = Range::default();
+        let blob = retry(self.max_retries, || {
+            self.client.download_object(&request, &range)
+        })
+        .await;
+
+        let elapsed = fetch_latency.observe();
+        tracing::trace!(
+            "Fetched data from GCS for key {key} from bucket {bucket} and it took: {elapsed:?}"
+        );
+        blob.map_err(ObjectStoreError::from)
     }
 
-    fn put_raw(&self, bucket: Bucket, key: &str, value: Vec<u8>) -> Result<(), ObjectStoreError> {
-        let task = self.inner.put_async(bucket.as_str(), key, value);
-        Self::block_on(&self.handle, task)
+    async fn put_raw(
+        &self,
+        bucket: Bucket,
+        key: &str,
+        value: Vec<u8>,
+    ) -> Result<(), ObjectStoreError> {
+        let store_latency = GCS_METRICS.start_store(bucket);
+        let filename = Self::filename(bucket.as_str(), key);
+        tracing::trace!(
+            "Storing data to GCS for key {filename} from bucket {}",
+            self.bucket_prefix
+        );
+
+        let upload_type = UploadType::Simple(Media::new(filename));
+        let request = UploadObjectRequest {
+            bucket: self.bucket_prefix.clone(),
+            ..Default::default()
+        };
+        let object = retry(self.max_retries, || {
+            self.client
+                .upload_object(&request, value.clone(), &upload_type)
+        })
+        .await;
+
+        let elapsed = store_latency.observe();
+        tracing::trace!(
+            "Stored data to GCS for key {key} from bucket {bucket} and it took: {elapsed:?}"
+        );
+        object.map(drop).map_err(ObjectStoreError::from)
     }
 
-    fn remove_raw(&self, bucket: Bucket, key: &str) -> Result<(), ObjectStoreError> {
-        let task = self.inner.remove_async(bucket.as_str(), key);
-        Self::block_on(&self.handle, task)
+    async fn remove_raw(&self, bucket: Bucket, key: &str) -> Result<(), ObjectStoreError> {
+        self.remove_inner(bucket.as_str(), key).await
     }
 }
 
@@ -281,37 +213,16 @@ mod test {
 
     use super::*;
 
-    async fn test_blocking() {
-        let handle = Handle::current();
-        let result = GoogleCloudStorage::block_on(&handle, async { 42 });
-        assert_eq!(result, 42);
-
-        let result = tokio::task::spawn_blocking(move || {
-            GoogleCloudStorage::block_on(&handle, async { 42 })
-        });
-        assert_eq!(result.await.unwrap(), 42);
-    }
-
-    #[tokio::test]
-    async fn blocking_in_sync_and_async_context() {
-        test_blocking().await;
-    }
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-    async fn blocking_in_sync_and_async_context_in_multithreaded_rt() {
-        test_blocking().await;
-    }
-
     #[tokio::test]
     async fn test_retry_success_immediate() {
-        let result = retry(2, || async { Ok::<_, ()>(42) }).await;
+        let result = retry(2, || async { Ok::<_, &'static str>(42) }).await;
         assert_eq!(result, Ok(42));
     }
 
     #[tokio::test]
     async fn test_retry_failure_exhausted() {
-        let result = retry(2, || async { Err::<i32, _>(()) }).await;
-        assert_eq!(result, Err(()));
+        let result = retry(2, || async { Err::<i32, _>("oops") }).await;
+        assert_eq!(result, Err("oops"));
     }
 
     async fn retry_success_after_n_retries(n: u16) -> Result<u32, String> {
@@ -321,7 +232,7 @@ mod test {
             if retries + 1 == n {
                 Ok(42)
             } else {
-                Err(())
+                Err("oops")
             }
         })
         .await;

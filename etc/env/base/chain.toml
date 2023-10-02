@@ -13,12 +13,13 @@ zksync_network_id=270
 [chain.state_keeper]
 fee_account_addr="0xde03a0B5963f75f1C8485B355fF6D30f3093BDE7"
 
-# Detones the amount of slots for transactions in the block.
+# Denotes the amount of slots for transactions in the block.
 transaction_slots=250
 
 max_allowed_l2_tx_gas_limit=4000000000
 block_commit_deadline_ms=2500
 miniblock_commit_deadline_ms=1000
+miniblock_seal_queue_capacity=10
 # Max gas that can used to include single block in aggregated operation
 max_single_tx_gas=6000000
 
@@ -54,11 +55,20 @@ fair_l2_gas_price=250000000
 validation_computational_gas_limit=300000
 save_call_traces=true
 
+virtual_blocks_interval=1
+virtual_blocks_per_miniblock=1
+
+# WARNING! This slows down the statekeeper, forcing mempool to upload to GCS
+# It is meant as a validation flag to be used in STAGING only.
+# This variable should not be set to true in any customer facing environment.
+upload_witness_inputs_to_gcs=false
+
 [chain.operations_manager]
 # Sleep time when there is no new input data
 delay_interval=100
 
 [chain.mempool]
+delay_interval=100
 sync_interval_ms=10
 sync_batch_size = 1000
 capacity=10_000_000

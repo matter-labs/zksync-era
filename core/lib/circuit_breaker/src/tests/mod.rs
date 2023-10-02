@@ -3,11 +3,12 @@ use std::sync::Mutex;
 use assert_matches::assert_matches;
 use async_trait::async_trait;
 
-use zksync_config::configs::chain::CircuitBreakerConfig;
+use zksync_config::configs::{chain::CircuitBreakerConfig, ContractsConfig};
 use zksync_eth_client::{
     types::{Error, ExecutedTxStatus, FailureInfo, SignedCallResult},
     BoundEthInterface, EthInterface,
 };
+use zksync_types::web3::types::Block;
 use zksync_types::{
     ethabi::Token,
     web3::{
@@ -92,6 +93,7 @@ fn get_test_circuit_breaker_config() -> CircuitBreakerConfig {
         sync_interval_ms: 1000,
         http_req_max_retry_number: 5,
         http_req_retry_interval_sec: 2,
+        replication_lag_limit_sec: Some(10),
     }
 }
 #[async_trait]
@@ -193,6 +195,14 @@ impl EthInterface for ETHDirectClientMock {
     async fn logs(&self, _filter: Filter, _component: &'static str) -> Result<Vec<Log>, Error> {
         Ok(Default::default())
     }
+
+    async fn block(
+        &self,
+        _block_id: String,
+        _component: &'static str,
+    ) -> Result<Option<Block<H256>>, Error> {
+        Ok(Default::default())
+    }
 }
 
 #[async_trait]
@@ -240,26 +250,6 @@ impl BoundEthInterface for ETHDirectClientMock {
 }
 
 #[tokio::test]
-async fn retries_for_contract_vk() {
-    let eth_client = ETHDirectClientMock::new();
-    let result: Result<Token, Error> = eth_client
-        .call_main_contract_function("facets", (), None, Default::default(), None)
-        .await;
-
-    assert_matches!(
-        result,
-        Err(Error::EthereumGateway(web3::error::Error::Transport(
-            TransportError::Code(503),
-        )))
-    );
-
-    let config = get_test_circuit_breaker_config();
-    let vks_checker = crate::vks::VksChecker::new(&config, eth_client);
-
-    assert_matches!(vks_checker.get_vk_token_with_retries().await, Ok(_));
-}
-
-#[tokio::test]
 async fn retries_for_facet_selectors() {
     let eth_client = ETHDirectClientMock::new();
 
@@ -282,9 +272,13 @@ async fn retries_for_facet_selectors() {
         )))
     );
 
+    let contracts = ContractsConfig::from_env().unwrap();
     let config = get_test_circuit_breaker_config();
-    let facet_selectors_checker =
-        crate::facet_selectors::FacetSelectorsChecker::new(&config, eth_client);
+    let facet_selectors_checker = crate::facet_selectors::FacetSelectorsChecker::new(
+        &config,
+        eth_client,
+        contracts.diamond_proxy_addr,
+    );
 
     assert_matches!(
         facet_selectors_checker.get_facets_token_with_retry().await,

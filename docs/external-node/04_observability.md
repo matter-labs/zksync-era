@@ -16,8 +16,11 @@ By default, latency histograms are distributed in the following buckets (in seco
 
 ## Metrics
 
-EN exposes a lot of metrics, a significant amount of which aren't interesting outside of the development flow. This
+EN exposes a lot of metrics, a significant amount of which aren't interesting outside the development flow. This
 section's purpose is to highlight metrics that may be worth observing in the external setup.
+
+If you are not planning to scrape Prometheus metrics, please unset `EN_PROMETHEUS_PORT` environment variable to prevent
+memory leaking.
 
 | Metric name                                    | Type      | Labels                                | Description                                                        |
 | ---------------------------------------------- | --------- | ------------------------------------- | ------------------------------------------------------------------ |
@@ -30,7 +33,7 @@ section's purpose is to highlight metrics that may be worth observing in the ext
 | `external_node_action_queue_action_queue_size` | Gauge     | -                                     | Amount of fetched items waiting to be processed                    |
 | `server_miniblock_number`                      | Gauge     | `stage`=`sealed`                      | Last locally applied L2 block number                               |
 | `server_block_number`                          | Gauge     | `stage`=`sealed`                      | Last locally applied L1 batch number                               |
-| `server_block_number`                          | Gauge     | `stage`=`tree_lightweight_new_mode`   | Last L1 batch number processed by the tree                         |
+| `server_block_number`                          | Gauge     | `stage`=`tree_lightweight_mode`       | Last L1 batch number processed by the tree                         |
 | `server_processed_txs`                         | Counter   | `stage`=`mempool_added, state_keeper` | Can be used to show incoming and processing TPS values             |
 | `api_web3_call`                                | Histogram | `method`                              | Duration of Web3 API calls                                         |
 | `sql_connection_acquire`                       | Histogram | -                                     | Time to get an SQL connection from the connection pool             |
@@ -38,7 +41,7 @@ section's purpose is to highlight metrics that may be worth observing in the ext
 ## Interpretation
 
 After applying a dump, the EN has to rebuild the Merkle tree to verify the correctness of the state in PostgreSQL.
-During this stage, `server_block_number { stage='tree_lightweight_new_mode' }` is increasing from 0 to
+During this stage, `server_block_number { stage='tree_lightweight_mode' }` is increasing from 0 to
 `server_block_number { stage='sealed' }`, while the latter does not increase (EN needs the tree to be up-to-date to
 progress).
 

@@ -1,6 +1,6 @@
 use zksync_basic_types::H256;
 
-// Be design we don't have a term: uncle blocks. Hence we have to use rlp hash
+// By design we don't have a term: uncle blocks. Hence we have to use rlp hash
 // from empty list for ethereum compatibility.
 pub const EMPTY_UNCLES_HASH: H256 = H256([
     0x1d, 0xcc, 0x4d, 0xe8, 0xde, 0xc7, 0x5d, 0x7a, 0xab, 0x85, 0xb5, 0x67, 0xb6, 0xcc, 0xd4, 0x1a,

@@ -7,13 +7,13 @@ use std::process::Stdio;
 use crate::error::ContractVerifierError;
 
 #[derive(Debug)]
-pub enum CompilerInput {
+pub enum ZkSolcInput {
     StandardJson(StandardJson),
     YulSingleFile(String),
 }
 
 #[derive(Debug)]
-pub enum CompilerOutput {
+pub enum ZkSolcOutput {
     StandardJson(serde_json::Value),
     YulSingleFile(String),
 }
@@ -115,13 +115,14 @@ impl ZkSolc {
 
     pub async fn async_compile(
         &self,
-        input: &CompilerInput,
-        is_system_flag: bool,
-    ) -> Result<CompilerOutput, ContractVerifierError> {
+        input: ZkSolcInput,
+    ) -> Result<ZkSolcOutput, ContractVerifierError> {
         use tokio::io::AsyncWriteExt;
         let mut command = tokio::process::Command::new(&self.zksolc_path);
-        if is_system_flag {
-            command.arg("--system-mode");
+        if let ZkSolcInput::StandardJson(input) = &input {
+            if input.settings.is_system {
+                command.arg("--system-mode");
+            }
         }
         command
             .arg("--solc")
@@ -129,14 +130,14 @@ impl ZkSolc {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
         match input {
-            CompilerInput::StandardJson(input) => {
+            ZkSolcInput::StandardJson(input) => {
                 let mut child = command
                     .arg("--standard-json")
                     .stdin(Stdio::piped())
                     .spawn()
                     .map_err(|_err| ContractVerifierError::InternalError)?;
                 let stdin = child.stdin.as_mut().unwrap();
-                let content = serde_json::to_vec(input).unwrap();
+                let content = serde_json::to_vec(&input).unwrap();
                 stdin
                     .write_all(&content)
                     .await
@@ -151,17 +152,18 @@ impl ZkSolc {
                     .await
                     .map_err(|_err| ContractVerifierError::InternalError)?;
                 if output.status.success() {
-                    Ok(CompilerOutput::StandardJson(
+                    Ok(ZkSolcOutput::StandardJson(
                         serde_json::from_slice(&output.stdout)
                             .expect("Compiler output must be valid JSON"),
                     ))
                 } else {
-                    Err(ContractVerifierError::ZkSolcError(
+                    Err(ContractVerifierError::CompilerError(
+                        "zksolc".to_string(),
                         String::from_utf8_lossy(&output.stderr).to_string(),
                     ))
                 }
             }
-            CompilerInput::YulSingleFile(content) => {
+            ZkSolcInput::YulSingleFile(content) => {
                 let mut file = tempfile::Builder::new()
                     .prefix("input")
                     .suffix(".yul")
@@ -183,11 +185,12 @@ impl ZkSolc {
                     .await
                     .map_err(|_err| ContractVerifierError::InternalError)?;
                 if output.status.success() {
-                    Ok(CompilerOutput::YulSingleFile(
+                    Ok(ZkSolcOutput::YulSingleFile(
                         String::from_utf8(output.stdout).expect("Couldn't parse string"),
                     ))
                 } else {
-                    Err(ContractVerifierError::ZkSolcError(
+                    Err(ContractVerifierError::CompilerError(
+                        "zksolc".to_string(),
                         String::from_utf8_lossy(&output.stderr).to_string(),
                     ))
                 }

@@ -55,6 +55,7 @@ export type BlockTag =
     | 'earliest'
     | 'pending';
 
+// TODO (SMA-1585): Support create2 variants.
 export type DeploymentType = 'create' | 'createAccount';
 
 export interface Token {
@@ -114,6 +115,7 @@ export interface L2ToL1Log {
     blockHash: string;
     l1BatchNumber: number;
     transactionIndex: number;
+    txIndexInL1Batch?: number;
     shardId: number;
     isService: boolean;
     sender: string;
@@ -189,6 +191,10 @@ export interface BatchDetails {
     executedAt?: Date;
     l1GasPrice: number;
     l2FairGasPrice: number;
+    baseSystemContractsHashes: {
+        bootloader: string;
+        defaultAa: string;
+    };
 }
 
 export interface BlockDetails {
@@ -205,12 +211,17 @@ export interface BlockDetails {
     provenAt?: Date;
     executeTxHash?: string;
     executedAt?: Date;
+    baseSystemContractsHashes: {
+        bootloader: string;
+        defaultAa: string;
+    };
 }
 
 export interface TransactionDetails {
     isL1Originated: boolean;
     status: string;
     fee: BigNumberish;
+    gasPerPubdata: BigNumberish;
     initiatorAddress: Address;
     receivedAt: Date;
     ethCommitTxHash?: string;

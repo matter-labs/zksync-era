@@ -12,7 +12,7 @@ import {
 import { TypedDataDomain, TypedDataField } from '@ethersproject/abstract-signer';
 import { Provider } from './provider';
 import { EIP712Signer } from './signer';
-import { IERC20MetadataFactory } from '../typechain';
+import { IERC20MetadataFactory, IL1BridgeFactory } from '../typechain';
 import { AbiCoder } from 'ethers/lib/utils';
 
 export * from './paymaster-utils';
@@ -532,19 +532,33 @@ export async function estimateDefaultBridgeDepositL2Gas(
             l2Value: amount
         });
     } else {
-        const l1ERC20BridgeAddresses = (await providerL2.getDefaultBridgeAddresses()).erc20L1;
-        const erc20BridgeAddress = (await providerL2.getDefaultBridgeAddresses()).erc20L2;
-        const bridgeData = await getERC20DefaultBridgeData(token, providerL1);
+        let value, l1BridgeAddress, l2BridgeAddress, bridgeData;
+        const bridgeAddresses = await providerL2.getDefaultBridgeAddresses();
+        const l1WethBridge = IL1BridgeFactory.connect(bridgeAddresses.wethL1, providerL1);
+        const l2WethToken = await l1WethBridge.l2TokenAddress(token);
+        if (l2WethToken != ethers.constants.AddressZero) {
+            value = amount;
+            l1BridgeAddress = bridgeAddresses.wethL1;
+            l2BridgeAddress = bridgeAddresses.wethL2;
+            bridgeData = '0x';
+        } else {
+            value = 0;
+            l1BridgeAddress = bridgeAddresses.erc20L1;
+            l2BridgeAddress = bridgeAddresses.erc20L2;
+            bridgeData = await getERC20DefaultBridgeData(token, providerL1);
+        }
+
         return await estimateCustomBridgeDepositL2Gas(
             providerL2,
-            l1ERC20BridgeAddresses,
-            erc20BridgeAddress,
+            l1BridgeAddress,
+            l2BridgeAddress,
             token,
             amount,
             to,
             bridgeData,
             from,
-            gasPerPubdataByte
+            gasPerPubdataByte,
+            value
         );
     }
 }
@@ -562,13 +576,15 @@ export async function estimateCustomBridgeDepositL2Gas(
     to: Address,
     bridgeData: BytesLike,
     from?: Address,
-    gasPerPubdataByte?: BigNumberish
+    gasPerPubdataByte?: BigNumberish,
+    l2Value?: BigNumberish
 ): Promise<BigNumber> {
     const calldata = await getERC20BridgeCalldata(token, from, to, amount, bridgeData);
     return await providerL2.estimateL1ToL2Execute({
         caller: applyL1ToL2Alias(l1BridgeAddress),
         contractAddress: l2BridgeAddress,
-        gasPerPubdataByte: gasPerPubdataByte,
-        calldata: calldata
+        gasPerPubdataByte,
+        calldata,
+        l2Value
     });
 }

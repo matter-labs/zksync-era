@@ -1,22 +1,25 @@
 # zkSync Cross External Nodes Consistency Checker
 
-This tool is used to check the consistency of external node instances against the main node.
+This tool is used to check the consistency of external node instances against the main node. The tool has two main
+checkers:
+
+1. RPC Checker, which checks the consistency of the RPC API of the external node against the main node.
+2. PubSub Checker, which checks the consistency of the PubSub API of the external node against the main node.
+
+Without any arguments, the tool will run both checkers. The RPC Checker will run in Triggered mode, checking all
+available blocks, and the PubSub Checker will run for as long as the RPC Checker is working.
+
+Do note that for the PubSub Checker to properly check the consistency between the nodes, enough time needs to pass. That
+is because the PubSub clients may start out of sync. Minimal recommended amount of time for the PubSub Checker is 80
+seconds, which would guarantee at least 20 miniblocks checked.
 
 ## Running locally
-
-Currently, the URLs to the nodes are set in the main file, so ensure that you have the following consts set to the nodes
-you want to check:
-
-```bash
-EN_INSTANCES_URLS="http://127.0.0.1:3060"
-MAIN_NODE_URL ="http://127.0.0.1:3050"
-```
 
 Run the server
 
 ```
 zk init
-zk server --components api,tree_lightweight,eth,data_fetcher,state_keeper
+zk server --components api,tree,eth,data_fetcher,state_keeper
 ```
 
 Run the EN
@@ -37,22 +40,5 @@ zk test i server
 Run the checker
 
 ```
-cd core/tests/cross_external_nodes_checker
-CHECKER_MODE={Continuous/Triggered} CHECKER_MAIN_NODE_URL={MAIN_NODE_URL}
-CHECKER_INSTANCES_URLS={EN_INSTANCES_URLS} CHECKER_INSTANCE_POLL_PERIOD={POLL_PERIOD}
-cargo run
-```
-
-Examples:
-
-```
-# Continuous Mode connecting to local main node, local EN, and stage EN.
-    CHECKER_MODE=Continuous CHECKER_MAIN_NODE_URL="http://127.0.0.1:3050"
-    CHECKER_INSTANCES_URLS="http://127.0.0.1:3060","https://external-node-dev.zksync.dev:443"
-    CHECKER_INSTANCE_POLL_PERIOD=10 RUST_LOG=cross_external_nodes_checker::checker=debug cargo run
-
-# Triggered Mode with start and finish miniblocks to check.
-    CHECKER_MODE=Triggered CHECKER_START_MINIBLOCK=0 CHECKER_FINISH_MINIBLOCK=10
-    CHECKER_MAIN_NODE_URL="http://127.0.0.1:3050" CHECKER_INSTANCES_URLS="http://127.0.0.1:3060"
-    CHECKER_INSTANCE_POLL_PERIOD=10 RUST_LOG=info cargo run
+zk run cross-en-checker
 ```

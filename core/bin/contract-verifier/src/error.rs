@@ -8,14 +8,12 @@ pub enum ContractVerifierError {
     IncorrectConstructorArguments,
     #[error("Compilation takes too much time")]
     CompilationTimeout,
-    #[error("ZkSolc error: {0}")]
-    ZkSolcError(String),
+    #[error("{0} error: {1}")]
+    CompilerError(String, String),
     #[error("Compilation error")]
     CompilationError(serde_json::Value),
-    #[error("Unknown zksolc version: {0}")]
-    UnknownZkSolcVersion(String),
-    #[error("Unknown solc version: {0}")]
-    UnknownSolcVersion(String),
+    #[error("Unknown {0} version: {1}")]
+    UnknownCompilerVersion(String, String),
     #[error("Contract with {0} name is missing in sources")]
     MissingContract(String),
     #[error("There is no {0} source file")]

@@ -6,10 +6,13 @@ pub const ZKPORTER_IS_AVAILABLE: bool = false;
 /// Depth of the account tree.
 pub const ROOT_TREE_DEPTH: usize = 256;
 /// Cost of 1 byte of calldata in bytes.
+// TODO (SMA-1609): Double check this value.
+// TODO: possibly remove this value.
 pub const GAS_PER_PUBDATA_BYTE: u32 = 16;
 
 /// Maximum amount of bytes in one packed write storage slot.
 /// Calculated as `(len(hash) + 1) + len(u256)`
+// TODO (SMA-1609): Double check this value.
 pub const MAX_BYTES_PER_PACKED_SLOT: u64 = 65;
 
 /// Amount of gas required to publish one slot in pubdata.

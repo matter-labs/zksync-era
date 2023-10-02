@@ -1,6 +1,5 @@
 import { Command } from 'commander';
 import * as utils from './utils';
-import * as env from './env';
 
 export async function reset() {
     await utils.confirmAction();
@@ -49,12 +48,11 @@ export async function setup() {
     }
     await utils.spawn('cargo sqlx database create');
     await utils.spawn('cargo sqlx migrate run');
-    if (process.env.DATABASE_URL == localDbUrl) {
+    if (process.env.DATABASE_URL!.startsWith(localDbUrl)) {
         await utils.spawn('cargo sqlx prepare --check -- --tests || cargo sqlx prepare -- --tests');
     }
 
     process.chdir(process.env.ZKSYNC_HOME as string);
-    env.reload();
 }
 
 export async function wait(tries: number = 4) {
@@ -66,6 +64,12 @@ export async function wait(tries: number = 4) {
     await utils.exec(`pg_isready -d "${process.env.DATABASE_URL}"`);
 }
 
+export async function checkSqlxData() {
+    process.chdir('core/lib/dal');
+    await utils.spawn('cargo sqlx prepare --check -- --tests');
+    process.chdir(process.env.ZKSYNC_HOME as string);
+}
+
 export const command = new Command('db').description('database management');
 
 command.command('drop').description('drop the database').action(drop);
@@ -75,3 +79,4 @@ command.command('setup').description('initialize the database and perform migrat
 command.command('wait').description('wait for database to get ready for interaction').action(wait);
 command.command('reset').description('reinitialize the database').action(reset);
 command.command('reset-test').description('reinitialize the database for test').action(resetTest);
+command.command('check-sqlx-data').description('check sqlx-data.json is up to date').action(checkSqlxData);

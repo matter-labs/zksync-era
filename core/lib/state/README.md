@@ -1,9 +1,11 @@
-# State crate
+# State Keeper State
 
-This crate is implementing the SecondaryStorage and StorageView.
+Access to the VM storage for the state keeper. The state keeper itself is a part of the [`zksync_core`] crate; it is a
+component responsible for handling transaction execution and creating miniblocks and L1 batches.
 
-While most of the ZKSync data is currently stored in postgres - we also keep a secondary copy for part of it in RocksDB
-for performance reasons.
+All state keeper data is currently stored in Postgres. (Beside it, we provide an in-memory implementation for
+benchmarking / testing purposes.) We also keep a secondary copy for part of it in RocksDB for performance reasons.
+Currently, we only duplicate the data needed by the [`vm`] crate.
 
-Currently we only keep the data that is needed by the VM (which is why we implement ZkSyncReadStorage for this
-SecondaryStorage class).
+[`zksync_core`]: ../../bin/zksync_core
+[`vm`]: ../vm

@@ -20,8 +20,8 @@ pub use zksync_types::{
     web3::{
         ethabi,
         types::{
-            Address, BlockHeader, Bytes, CallRequest, Index, SyncState, TraceFilter, Transaction,
-            Work, H160, H256, H64, U256, U64,
+            Address, BlockHeader, Bytes, CallRequest, FeeHistory, Index, SyncState, TraceFilter,
+            Transaction, Work, H160, H256, H64, U256, U64,
         },
     },
 };
@@ -81,6 +81,7 @@ impl From<EIP2718TransactionCallData> for TransactionCalldata {
 }
 
 impl TryFrom<Vec<u8>> for TransactionCalldata {
+    // TODO (SMA-1613): improve length error
     type Error = usize;
 
     fn try_from(mut calldata: Vec<u8>) -> Result<Self, Self::Error> {
@@ -185,6 +186,8 @@ pub struct Filter {
     /// Topics
     #[serde(skip_serializing_if = "Option::is_none")]
     pub topics: Option<Vec<Option<ValueOrArray<H256>>>>,
+    #[serde(rename = "blockHash", skip_serializing_if = "Option::is_none")]
+    pub block_hash: Option<H256>,
 }
 
 /// Filter Builder
@@ -338,7 +341,7 @@ fn topic_to_option<T>(topic: ethabi::Topic<T>) -> Option<Vec<T>> {
 }
 
 #[allow(clippy::large_enum_variant)]
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum PubSubResult {
     Header(BlockHeader),

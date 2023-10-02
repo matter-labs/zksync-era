@@ -21,9 +21,7 @@ fn main() {
         let benchmark_start = Instant::now();
         while benchmark_start.elapsed() < Duration::from_secs(5) {
             let start = Instant::now();
-            BenchmarkingVm::new()
-                .run_transaction(black_box(&tx))
-                .unwrap();
+            BenchmarkingVm::new().run_transaction(black_box(&tx));
             timings.push(start.elapsed());
         }
 

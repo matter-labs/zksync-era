@@ -5,7 +5,14 @@ use std::time::Duration;
 use serde::Deserialize;
 
 // Local uses
-use crate::envy_load;
+use super::envy_load;
+
+#[derive(Debug, Deserialize, Clone, PartialEq)]
+pub enum BasicWitnessGeneratorDataSource {
+    FromPostgres,
+    FromPostgresShadowBlob,
+    FromBlob,
+}
 
 /// Configuration for the witness generation
 #[derive(Debug, Deserialize, Clone, PartialEq)]
@@ -26,11 +33,13 @@ pub struct WitnessGeneratorConfig {
     // This parameter is used in case of performing circuit upgrades(VK/Setup keys),
     // to not let witness-generator pick new job and finish all the existing jobs with old circuit.
     pub last_l1_batch_to_process: Option<u32>,
+    /// Where will basic Witness Generator load its data from
+    pub data_source: BasicWitnessGeneratorDataSource,
 }
 
 impl WitnessGeneratorConfig {
-    pub fn from_env() -> Self {
-        envy_load!("witness", "WITNESS_")
+    pub fn from_env() -> anyhow::Result<Self> {
+        envy_load("witness", "WITNESS_")
     }
 
     pub fn witness_generation_timeout(&self) -> Duration {
@@ -44,34 +53,39 @@ impl WitnessGeneratorConfig {
 
 #[cfg(test)]
 mod tests {
-    use crate::configs::test_utils::set_env;
-
     use super::*;
+    use crate::configs::test_utils::EnvMutex;
+
+    static MUTEX: EnvMutex = EnvMutex::new();
 
     fn expected_config() -> WitnessGeneratorConfig {
         WitnessGeneratorConfig {
-            generation_timeout_in_secs: 900u16,
+            generation_timeout_in_secs: 900_u16,
             initial_setup_key_path: "key".to_owned(),
             key_download_url: "value".to_owned(),
             max_attempts: 4,
             blocks_proving_percentage: Some(30),
             dump_arguments_for_blocks: vec![2, 3],
             last_l1_batch_to_process: None,
+            data_source: BasicWitnessGeneratorDataSource::FromBlob,
         }
     }
 
     #[test]
     fn from_env() {
+        let mut lock = MUTEX.lock();
         let config = r#"
-        WITNESS_GENERATION_TIMEOUT_IN_SECS=900
-        WITNESS_INITIAL_SETUP_KEY_PATH="key"
-        WITNESS_KEY_DOWNLOAD_URL="value"
-        WITNESS_MAX_ATTEMPTS=4
-        WITNESS_DUMP_ARGUMENTS_FOR_BLOCKS="2,3"
-        WITNESS_BLOCKS_PROVING_PERCENTAGE="30"
+            WITNESS_GENERATION_TIMEOUT_IN_SECS=900
+            WITNESS_INITIAL_SETUP_KEY_PATH="key"
+            WITNESS_KEY_DOWNLOAD_URL="value"
+            WITNESS_MAX_ATTEMPTS=4
+            WITNESS_DUMP_ARGUMENTS_FOR_BLOCKS="2,3"
+            WITNESS_BLOCKS_PROVING_PERCENTAGE="30"
+            WITNESS_DATA_SOURCE="FromBlob"
         "#;
-        set_env(config);
-        let actual = WitnessGeneratorConfig::from_env();
+        lock.set_env(config);
+
+        let actual = WitnessGeneratorConfig::from_env().unwrap();
         assert_eq!(actual, expected_config());
     }
 }

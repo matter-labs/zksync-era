@@ -1,6 +1,6 @@
 [package]
 name = "cross_external_nodes_checker"
-version = "1.0.0"
+version = "0.1.0"
 edition = "2018"
 authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
 homepage = "https://zksync.io/"
@@ -11,15 +11,16 @@ categories = ["cryptography"]
 publish = false # We don't want to publish our binaries.
 
 [dependencies]
-zksync_types = { path = "../../lib/types", version = "1.0" }
-zksync_web3_decl = { path = "../../lib/web3_decl", version = "1.0" }
-prometheus_exporter = { path = "../../lib/prometheus_exporter", version = "1.0" }
-vlog = { path = "../../lib/vlog", version = "1.0" }
+zksync_types = { path = "../../lib/types" }
+zksync_web3_decl = { path = "../../lib/web3_decl" }
+zksync_utils = { path = "../../lib/utils" }
+vlog = { path = "../../lib/vlog" }
 serde_json = "1.0"
 
 anyhow = "1.0"
 tokio = { version = "1", features = ["time"] }
-futures = { version = "0.3" }
+futures = "0.3"
 envy = "0.4"
 serde = { version = "1.0" }
 ctrlc = { version = "3.1" }
+tracing = "0.1"

@@ -249,6 +249,7 @@ describe('System behavior checks', () => {
         await expect(alice.finalizeWithdrawal(receipt2.transactionHash)).toBeAccepted([change2]);
     });
 
+    // TODO (SMA-1713): the test is flaky.
     test.skip('Should test forceDeploy', async () => {
         // Testing forcedDeploys involves small upgrades of smart contacts.
         // Thus, it is not appropriate to do them anywhere else except for localhost.
@@ -349,6 +350,7 @@ describe('System behavior checks', () => {
     async function testForcedDeployments(forcedDeployments: ForceDeployment[], bytecode: BytesLike) {
         const receipt = await deployOnAnyLocalAddress(alice.providerL1!, alice.provider, forcedDeployments, [bytecode]);
 
+        // TODO: use toBeAccepted
         expect(receipt.status).toBe(1);
 
         // veryfing that the codes stored are correct

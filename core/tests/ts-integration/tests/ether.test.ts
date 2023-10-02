@@ -69,7 +69,31 @@ describe('ETH token checks', () => {
         expect(l1EthBalanceBefore.sub(depositFee).sub(l1EthBalanceAfter)).bnToBeEq(amount);
     });
 
-    test('Can perform a transfer (legacy)', async () => {
+    test('Can perform a transfer (legacy pre EIP-155)', async () => {
+        const LEGACY_TX_TYPE = 0;
+        const value = BigNumber.from(200);
+
+        const ethBalanceChange = await shouldChangeETHBalances([
+            { wallet: alice, change: -value },
+            { wallet: bob, change: value }
+        ]);
+        const correctReceiptType = checkReceipt(
+            (receipt) => receipt.type == LEGACY_TX_TYPE,
+            'Incorrect tx type in receipt'
+        );
+
+        // ethers doesn't support sending pre EIP-155 transactions, so we create one manually.
+        const transaction = await alice.populateTransaction({ type: LEGACY_TX_TYPE, to: bob.address, value });
+        // Remove chainId and sign the transaction without it.
+        transaction.chainId = undefined;
+        const signedTransaction = await alice.signTransaction(transaction);
+        await expect(alice.provider.sendTransaction(signedTransaction)).toBeAccepted([
+            ethBalanceChange,
+            correctReceiptType
+        ]);
+    });
+
+    test('Can perform a transfer (legacy EIP-155)', async () => {
         const LEGACY_TX_TYPE = 0;
         const value = BigNumber.from(200);
 
@@ -176,7 +200,11 @@ describe('ETH token checks', () => {
         const withdrawalTx = await withdrawalPromise;
         await withdrawalTx.waitFinalize();
 
+        // TODO (SMA-1374): Enable L1 ETH checks as soon as they're supported.
         await expect(alice.finalizeWithdrawal(withdrawalTx.hash)).toBeAccepted();
+        const tx = await alice.provider.getTransactionReceipt(withdrawalTx.hash);
+
+        expect(tx.l2ToL1Logs[0].txIndexInL1Batch).toEqual(expect.anything());
     });
 
     test('Can perform a deposit with precalculated max value', async () => {

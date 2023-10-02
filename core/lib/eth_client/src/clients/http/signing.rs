@@ -1,12 +1,10 @@
-use std::sync::Arc;
-use std::{fmt, time::Instant};
-
 use async_trait::async_trait;
 
-use zksync_config::ZkSyncConfig;
+use std::{fmt, sync::Arc};
+
+use zksync_config::{ContractsConfig, ETHClientConfig, ETHSenderConfig};
 use zksync_contracts::zksync_contract;
-use zksync_eth_signer::PrivateKeySigner;
-use zksync_eth_signer::{raw_ethereum_tx::TransactionParameters, EthereumSigner};
+use zksync_eth_signer::{raw_ethereum_tx::TransactionParameters, EthereumSigner, PrivateKeySigner};
 use zksync_types::web3::{
     self,
     contract::{
@@ -16,14 +14,13 @@ use zksync_types::web3::{
     ethabi,
     transports::Http,
     types::{
-        Address, BlockId, BlockNumber, Filter, Log, Transaction, TransactionReceipt, H160, H256,
-        U256, U64,
+        Address, Block, BlockId, BlockNumber, Filter, Log, Transaction, TransactionReceipt, H160,
+        H256, U256, U64,
     },
 };
 use zksync_types::{L1ChainId, PackedEthSignature, EIP_1559_TX_TYPE};
 
-// Loal uses
-use super::query::QueryClient;
+use super::{query::QueryClient, Method, LATENCIES};
 use crate::{
     types::{Error, ExecutedTxStatus, FailureInfo, SignedCallResult},
     BoundEthInterface, EthInterface,
@@ -33,28 +30,33 @@ use crate::{
 pub type PKSigningClient = SigningClient<PrivateKeySigner>;
 
 impl PKSigningClient {
-    pub fn from_config(config: &ZkSyncConfig) -> Self {
+    pub fn from_config(
+        eth_sender: &ETHSenderConfig,
+        contracts_config: &ContractsConfig,
+        eth_client: &ETHClientConfig,
+    ) -> Self {
         // Gather required data from the config.
         // It's done explicitly to simplify getting rid of this function later.
-        let main_node_url = &config.eth_client.web3_url;
-        let operator_private_key = config.eth_sender.sender.operator_private_key;
-        let operator_commit_eth_addr = config.eth_sender.sender.operator_commit_eth_addr;
-        let diamond_proxy_addr = config.contracts.diamond_proxy_addr;
-        let default_priority_fee_per_gas =
-            config.eth_sender.gas_adjuster.default_priority_fee_per_gas;
-        let l1_chain_id = config.eth_client.chain_id;
+        let main_node_url = &eth_client.web3_url;
+        let operator_private_key = eth_sender
+            .sender
+            .private_key()
+            .expect("Operator private key is required for signing client");
+        let diamond_proxy_addr = contracts_config.diamond_proxy_addr;
+        let default_priority_fee_per_gas = eth_sender.gas_adjuster.default_priority_fee_per_gas;
+        let l1_chain_id = eth_client.chain_id;
 
         let transport =
             web3::transports::Http::new(main_node_url).expect("Failed to create transport");
         let operator_address = PackedEthSignature::address_from_private_key(&operator_private_key)
             .expect("Failed to get address from private key");
 
-        vlog::info!("Operator address: {:?}", operator_address);
+        tracing::info!("Operator address: {:?}", operator_address);
 
         SigningClient::new(
             transport,
             zksync_contract(),
-            operator_commit_eth_addr,
+            operator_address,
             PrivateKeySigner::new(operator_private_key),
             diamond_proxy_addr,
             default_priority_fee_per_gas.into(),
@@ -208,6 +210,14 @@ impl<S: EthereumSigner> EthInterface for SigningClient<S> {
     async fn logs(&self, filter: Filter, component: &'static str) -> Result<Vec<Log>, Error> {
         self.query_client.logs(filter, component).await
     }
+
+    async fn block(
+        &self,
+        block_id: String,
+        component: &'static str,
+    ) -> Result<Option<Block<H256>>, Error> {
+        self.query_client.block(block_id, component).await
+    }
 }
 
 #[async_trait]
@@ -235,15 +245,14 @@ impl<S: EthereumSigner> BoundEthInterface for SigningClient<S> {
         options: Options,
         component: &'static str,
     ) -> Result<SignedCallResult, Error> {
-        let start = Instant::now();
-
-        // fetch current max priority fee per gas
+        let latency = LATENCIES.direct[&Method::SignPreparedTx].start();
+        // Fetch current max priority fee per gas
         let max_priority_fee_per_gas = match options.max_priority_fee_per_gas {
             Some(max_priority_fee_per_gas) => max_priority_fee_per_gas,
             None => self.inner.default_priority_fee_per_gas,
         };
 
-        // fetch current base fee and add max_priority_fee_per_gas
+        // Fetch current base fee and add max_priority_fee_per_gas
         let max_fee_per_gas = match options.max_fee_per_gas {
             Some(max_fee_per_gas) => max_fee_per_gas,
             None => {
@@ -267,7 +276,7 @@ impl<S: EthereumSigner> BoundEthInterface for SigningClient<S> {
             // Verbosity level is set to `error`, since we expect all the transactions to have
             // a set limit, but don't want to crаsh the application if for some reason in some
             // place limit was not set.
-            vlog::error!(
+            tracing::error!(
                 "No gas limit was set for transaction, using the default limit: {}",
                 FALLBACK_GAS_LIMIT
             );
@@ -290,12 +299,8 @@ impl<S: EthereumSigner> BoundEthInterface for SigningClient<S> {
         };
 
         let signed_tx = self.inner.eth_signer.sign_transaction(tx).await?;
-        let hash = zksync_types::web3::signing::keccak256(&signed_tx).into();
-
-        metrics::histogram!(
-            "eth_client.direct.sign_prepared_tx_for_addr",
-            start.elapsed()
-        );
+        let hash = web3::signing::keccak256(&signed_tx).into();
+        latency.observe();
         Ok(SignedCallResult {
             raw_tx: signed_tx,
             max_priority_fee_per_gas,
@@ -311,7 +316,7 @@ impl<S: EthereumSigner> BoundEthInterface for SigningClient<S> {
         address: Address,
         erc20_abi: ethabi::Contract,
     ) -> Result<U256, Error> {
-        let start = Instant::now();
+        let latency = LATENCIES.direct[&Method::Allowance].start();
         let res = self
             .call_contract_function(
                 "allowance",
@@ -323,7 +328,7 @@ impl<S: EthereumSigner> BoundEthInterface for SigningClient<S> {
                 erc20_abi,
             )
             .await?;
-        metrics::histogram!("eth_client.direct.allowance", start.elapsed());
+        latency.observe();
         Ok(res)
     }
 }

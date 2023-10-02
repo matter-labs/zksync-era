@@ -1,7 +1,9 @@
 //! Stored objects.
 
+use zksync_types::aggregated_operations::L1BatchProofForL1;
 use zksync_types::{
     proofs::{AggregationRound, PrepareBasicCircuitsJob},
+    storage::witness_block_state::WitnessBlockState,
     zkevm_test_harness::{
         abstract_zksync_circuit::concrete_circuits::ZkSyncCircuit,
         bellman::bn256::Bn256,
@@ -50,15 +52,26 @@ macro_rules! serialize_using_bincode {
         fn serialize(
             &self,
         ) -> std::result::Result<std::vec::Vec<u8>, $crate::_reexports::BoxedError> {
-            $crate::_reexports::bincode::serialize(self).map_err(std::convert::From::from)
+            $crate::bincode::serialize(self).map_err(std::convert::From::from)
         }
 
         fn deserialize(
             bytes: std::vec::Vec<u8>,
         ) -> std::result::Result<Self, $crate::_reexports::BoxedError> {
-            $crate::_reexports::bincode::deserialize(&bytes).map_err(std::convert::From::from)
+            $crate::bincode::deserialize(&bytes).map_err(std::convert::From::from)
         }
     };
+}
+
+impl StoredObject for WitnessBlockState {
+    const BUCKET: Bucket = Bucket::WitnessInput;
+    type Key<'a> = L1BatchNumber;
+
+    fn encode_key(key: Self::Key<'_>) -> String {
+        format!("witness_block_state_for_l1_batch_{key}.bin")
+    }
+
+    serialize_using_bincode!();
 }
 
 impl StoredObject for PrepareBasicCircuitsJob {
@@ -138,6 +151,31 @@ impl StoredObject for Vec<QueueSimulator<Bn256, RecursionRequest<Bn256>, 2, 2>> 
     serialize_using_bincode!();
 }
 
+/// Storage key for a [AggregationWrapper`].
+#[derive(Debug, Clone, Copy)]
+pub struct AggregationsKey {
+    pub block_number: L1BatchNumber,
+    pub circuit_id: u8,
+    pub depth: u16,
+}
+
+/// Storage key for a [ClosedFormInputWrapper`].
+#[derive(Debug, Clone, Copy)]
+pub struct ClosedFormInputKey {
+    pub block_number: L1BatchNumber,
+    pub circuit_id: u8,
+}
+
+/// Storage key for a [`CircuitWrapper`].
+#[derive(Debug, Clone, Copy)]
+pub struct FriCircuitKey {
+    pub block_number: L1BatchNumber,
+    pub sequence_number: usize,
+    pub circuit_id: u8,
+    pub aggregation_round: AggregationRound,
+    pub depth: u16,
+}
+
 /// Storage key for a [`ZkSyncCircuit`].
 #[derive(Debug, Clone, Copy)]
 pub struct CircuitKey<'a> {
@@ -164,6 +202,17 @@ impl StoredObject for ZkSyncCircuit<Bn256, VmWitnessOracle<Bn256>> {
     serialize_using_bincode!();
 }
 
+impl StoredObject for L1BatchProofForL1 {
+    const BUCKET: Bucket = Bucket::ProofsFri;
+    type Key<'a> = L1BatchNumber;
+
+    fn encode_key(key: Self::Key<'_>) -> String {
+        format!("l1_batch_proof_{key}.bin")
+    }
+
+    serialize_using_bincode!();
+}
+
 impl dyn ObjectStore + '_ {
     /// Fetches the value for the given key if it exists.
     ///
@@ -171,9 +220,9 @@ impl dyn ObjectStore + '_ {
     ///
     /// Returns an error if an object with the `key` does not exist, cannot be accessed,
     /// or cannot be deserialized.
-    pub fn get<V: StoredObject>(&self, key: V::Key<'_>) -> Result<V, ObjectStoreError> {
+    pub async fn get<V: StoredObject>(&self, key: V::Key<'_>) -> Result<V, ObjectStoreError> {
         let key = V::encode_key(key);
-        let bytes = self.get_raw(V::BUCKET, &key)?;
+        let bytes = self.get_raw(V::BUCKET, &key).await?;
         V::deserialize(bytes).map_err(ObjectStoreError::Serialization)
     }
 
@@ -183,14 +232,14 @@ impl dyn ObjectStore + '_ {
     /// # Errors
     ///
     /// Returns an error if serialization or the insertion / replacement operation fails.
-    pub fn put<V: StoredObject>(
+    pub async fn put<V: StoredObject>(
         &self,
         key: V::Key<'_>,
         value: &V,
     ) -> Result<String, ObjectStoreError> {
         let key = V::encode_key(key);
         let bytes = value.serialize().map_err(ObjectStoreError::Serialization)?;
-        self.put_raw(V::BUCKET, &key, bytes)?;
+        self.put_raw(V::BUCKET, &key, bytes).await?;
         Ok(key)
     }
 }

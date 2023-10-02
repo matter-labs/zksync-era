@@ -38,20 +38,6 @@ fn parse_knobs(mut input: syn::ItemFn, inside_dal_crate: bool) -> Result<TokenSt
 
     sig.asyncness = None;
 
-    let Some(pool_arg) = sig.inputs.pop() else {
-        let msg = format!(
-            "DB test function must take a single argument of type `{}`",
-            TYPE_NAME
-        );
-        return Err(syn::Error::new_spanned(&sig.inputs, msg));
-    };
-    let FnArg::Typed(pool_arg) = pool_arg.value() else {
-        let msg = "Pool argument must be typed";
-        return Err(syn::Error::new_spanned(&pool_arg, msg));
-    };
-    let arg_name = &pool_arg.pat;
-    let arg_ty = &pool_arg.ty;
-
     let rt = quote! { tokio::runtime::Builder::new_current_thread() };
     let header = quote! {
         #[::core::prelude::v1::test]
@@ -62,6 +48,41 @@ fn parse_knobs(mut input: syn::ItemFn, inside_dal_crate: bool) -> Result<TokenSt
         quote! { zksync_dal }
     };
 
+    let Some(pool_arg) = sig.inputs.pop() else {
+        let msg = format!(
+            "DB test function must take one or two arguments of type `{}`",
+            TYPE_NAME
+        );
+        return Err(syn::Error::new_spanned(&sig.inputs, msg));
+    };
+
+    let FnArg::Typed(pool_arg) = pool_arg.value() else {
+        let msg = "Pool argument must be typed";
+        return Err(syn::Error::new_spanned(&pool_arg, msg));
+    };
+    let main_pool_arg_name = &pool_arg.pat;
+    let main_pool_arg_type = &pool_arg.ty;
+
+    let prover_pool_arg = sig.inputs.pop();
+    let pools_tokens = if let Some(pool_arg) = prover_pool_arg {
+        let FnArg::Typed(prover_pool_arg) = pool_arg.value() else {
+            let msg = "Pool argument must be typed";
+            return Err(syn::Error::new_spanned(&pool_arg, msg));
+        };
+        let prover_pool_arg_name = &prover_pool_arg.pat;
+        let prover_pool_arg_type = &prover_pool_arg.ty;
+        quote! {
+            let __test_main_pool = #dal_crate_id::connection::TestPool::new().await;
+            let __test_prover_pool = #dal_crate_id::connection::TestPool::new().await;
+            let #main_pool_arg_name: #main_pool_arg_type = #dal_crate_id::ConnectionPool::Test(__test_main_pool);
+            let #prover_pool_arg_name: #prover_pool_arg_type = #dal_crate_id::ConnectionPool::Test(__test_prover_pool);
+        }
+    } else {
+        quote! {
+            let __test_main_pool = #dal_crate_id::connection::TestPool::new().await;
+            let #main_pool_arg_name: #main_pool_arg_type = #dal_crate_id::ConnectionPool::Test(__test_main_pool);
+        }
+    };
     let result = quote! {
         #header
         #(#attrs)*
@@ -70,8 +91,7 @@ fn parse_knobs(mut input: syn::ItemFn, inside_dal_crate: bool) -> Result<TokenSt
                 .build()
                 .unwrap()
                 .block_on(async {
-                    let __test_pool = #dal_crate_id::connection::TestPool::new().await;
-                    let #arg_name: #arg_ty = #dal_crate_id::ConnectionPool::Test(__test_pool);
+                    #pools_tokens
                     {
                         #body
                     }
