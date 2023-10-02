@@ -174,3 +174,29 @@ fn merkle_proofs_are_valid_in_larger_tree() {
         verify_merkle_proof(&item, i, 512, &path, merkle_root);
     }
 }
+
+#[test]
+#[allow(clippy::cast_possible_truncation)] // truncation is intentional
+fn merkle_proofs_are_valid_in_very_large_tree() {
+    let leaves = (1_u32..=15_000).map(|byte| [byte as u8; 88]);
+    let tree = MiniMerkleTree::new(leaves.clone(), None);
+
+    for (i, item) in leaves.enumerate().step_by(61) {
+        let (merkle_root, path) = tree.clone().merkle_root_and_path(i);
+        verify_merkle_proof(&item, i, 1 << 14, &path, merkle_root);
+    }
+}
+
+#[test]
+fn merkle_proofs_are_valid_in_very_small_trees() {
+    for item_count in 1..=20 {
+        let leaves = (1..=item_count).map(|byte| [byte; 88]);
+        let tree = MiniMerkleTree::new(leaves.clone(), None);
+
+        for (i, item) in leaves.enumerate() {
+            let (merkle_root, path) = tree.clone().merkle_root_and_path(i);
+            let item_count = usize::from(item_count).next_power_of_two();
+            verify_merkle_proof(&item, i, item_count, &path, merkle_root);
+        }
+    }
+}
