@@ -24,14 +24,14 @@ zksync_verification_key_generator_and_server = { path = "../../core/bin/verifica
 zksync_object_store = { path = "../../core/lib/object_store" }
 setup_key_generator_and_server = { path = "../setup_key_generator_and_server" }
 
-api = { git = "https://github.com/matter-labs/heavy-ops-service.git", branch = "v1.3.3", features = [
+api = { git = "https://github.com/matter-labs/era-heavy-ops-service.git", branch = "v1.3.3", features = [
     "gpu",
 ], default-features = false }
-prover-service = { git = "https://github.com/matter-labs/heavy-ops-service.git", branch = "v1.3.3", features = [
+prover-service = { git = "https://github.com/matter-labs/era-heavy-ops-service.git", branch = "v1.3.3", features = [
     "gpu",
 ], default-features = false }
 
-zkevm_test_harness = { git = "https://github.com/matter-labs/zkevm_test_harness.git", branch = "v1.3.3" }
+zkevm_test_harness = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.3.3" }
 
 anyhow = "1.0"
 tracing = "0.1"

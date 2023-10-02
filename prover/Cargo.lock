@@ -147,7 +147,7 @@ checksum = "3b13c32d80ecc7ab747b80c3784bce54ee8a7a0cc4fbda9bf4cda2cf6fe90854"
 [[package]]
 name = "api"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/heavy-ops-service.git?branch=v1.3.3#b46ecf3ea167456554e3fac69b33a1e56f6a47b2"
+source = "git+https://github.com/matter-labs/era-heavy-ops-service.git?branch=v1.3.3#0dd1f5dbba7eee194e660dfaaaf026a174e5ad9e"
 dependencies = [
  "bellman_ce 0.3.2 (git+https://github.com/matter-labs/bellman?branch=dev)",
  "cfg-if 1.0.0",
@@ -212,7 +212,7 @@ checksum = "cd56dd203fef61ac097dd65721a419ddccb106b2d2b70ba60a6b529f03961a51"
 dependencies = [
  "async-stream-impl",
  "futures-core",
- "pin-project-lite 0.2.10",
+ "pin-project-lite",
 ]
 
 [[package]]
@@ -281,7 +281,7 @@ dependencies = [
  "fastrand 1.9.0",
  "futures-core",
  "pin-project",
- "tokio 1.29.1",
+ "tokio",
 ]
 
 [[package]]
@@ -326,7 +326,7 @@ checksum = "8c3c1a368f70d6cf7302d78f8f7093da241fb8e8807c05cc9e51a125895a6d5b"
 [[package]]
 name = "bellman_ce"
 version = "0.3.2"
-source = "git+https://github.com/matter-labs/bellman?branch=dev#bbac0559fdc440b2331eca1c347a30559a3dd969"
+source = "git+https://github.com/matter-labs/bellman?branch=dev#5520aa2274afe73d281373c92b007a2ecdebfbea"
 dependencies = [
  "arrayvec 0.7.4",
  "bit-vec",
@@ -349,7 +349,7 @@ dependencies = [
 [[package]]
 name = "bellman_ce"
 version = "0.3.2"
-source = "git+https://github.com/matter-labs/bellman?branch=snark-wrapper#796bfe6b5b49c70393833fe786a22cd6f9c96c60"
+source = "git+https://github.com/matter-labs/bellman?branch=snark-wrapper#1f05c528c392ea9eadb99b22431659c113bc0af4"
 dependencies = [
  "arrayvec 0.7.4",
  "bit-vec",
@@ -432,29 +432,6 @@ dependencies = [
  "rustc-hash",
  "shlex",
  "syn 2.0.28",
-]
-
-[[package]]
-name = "bindgen"
-version = "0.66.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f2b84e06fc203107bfbad243f4aba2af864eb7db3b1cf46ea0a023b0b433d2a7"
-dependencies = [
- "bitflags 2.3.3",
- "cexpr",
- "clang-sys",
- "lazy_static",
- "lazycell",
- "log",
- "peeking_take_while",
- "prettyplease",
- "proc-macro2 1.0.66",
- "quote 1.0.32",
- "regex",
- "rustc-hash",
- "shlex",
- "syn 2.0.28",
- "which",
 ]
 
 [[package]]
@@ -545,7 +522,7 @@ dependencies = [
 [[package]]
 name = "blake2s_const"
 version = "0.6.0"
-source = "git+https://github.com/matter-labs/bellman?branch=dev#bbac0559fdc440b2331eca1c347a30559a3dd969"
+source = "git+https://github.com/matter-labs/bellman?branch=dev#5520aa2274afe73d281373c92b007a2ecdebfbea"
 dependencies = [
  "arrayref",
  "arrayvec 0.5.2",
@@ -555,7 +532,7 @@ dependencies = [
 [[package]]
 name = "blake2s_const"
 version = "0.6.0"
-source = "git+https://github.com/matter-labs/bellman?branch=snark-wrapper#796bfe6b5b49c70393833fe786a22cd6f9c96c60"
+source = "git+https://github.com/matter-labs/bellman?branch=snark-wrapper#1f05c528c392ea9eadb99b22431659c113bc0af4"
 dependencies = [
  "arrayref",
  "arrayvec 0.5.2",
@@ -611,16 +588,16 @@ checksum = "8d696c370c750c948ada61c69a0ee2cbbb9c50b1019ddb86d9317157a99c2cae"
 [[package]]
 name = "boojum"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/boojum?branch=main#ee2f6c64a65144032f2f6e3b00ef1e78f94c6503"
+source = "git+https://github.com/matter-labs/era-boojum?branch=main#2771569baab9a59690d88cee6ba9b295c8a1e4c4"
 dependencies = [
  "arrayvec 0.7.4",
  "bincode",
  "blake2 0.10.6",
  "const_format",
  "convert_case 0.6.0",
- "crossbeam 0.8.2",
+ "crossbeam 0.7.3",
  "crypto-bigint 0.5.2",
- "cs_derive 0.1.0 (git+https://github.com/matter-labs/boojum?branch=main)",
+ "cs_derive 0.1.0 (git+https://github.com/matter-labs/era-boojum?branch=main)",
  "derivative",
  "ethereum-types 0.14.1",
  "firestorm",
@@ -643,7 +620,7 @@ dependencies = [
 [[package]]
 name = "boojum-cuda"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/boojum-cuda?branch=main#db94ea167d55dbe8ce8e5f494a83887a131585cf"
+source = "git+https://github.com/matter-labs/era-boojum-cuda?branch=main#75ee5596114bd7fcb7df08b834e64123522653e1"
 dependencies = [
  "boojum",
  "cmake",
@@ -676,12 +653,6 @@ name = "byteorder"
 version = "1.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "14c189c53d098945499cdfa7ecc63567cf3886b3332b312a5b4585d8d3a6a610"
-
-[[package]]
-name = "bytes"
-version = "0.5.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0e4cec68f03f32e44924783795810fa50a7035d8c8ebe78580ad7e6c703fba38"
 
 [[package]]
 name = "bytes"
@@ -769,19 +740,17 @@ checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
 name = "chrono"
-version = "0.4.26"
+version = "0.4.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ec837a71355b28f6556dbd569b37b3f363091c0bd4b2e735674521b4c5fd9bc5"
+checksum = "7f2c685bad3eb3d45a01354cedb7d5faa66194d1d58ba6e267a8de788f79db38"
 dependencies = [
  "android-tzdata",
  "iana-time-zone",
  "js-sys",
  "num-traits",
- "rustc-serialize",
  "serde",
- "time 0.1.43",
  "wasm-bindgen",
- "winapi",
+ "windows-targets",
 ]
 
 [[package]]
@@ -823,7 +792,7 @@ dependencies = [
 [[package]]
 name = "circuit_definitions"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zkevm_test_harness.git?branch=v1.4.0#6eeb313653982a8f69b56df35735f11ef4b2ab95"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.0#3cd647aa57fc2e1180bab53f7a3b61ec47502a46"
 dependencies = [
  "crossbeam 0.8.2",
  "derivative",
@@ -838,7 +807,7 @@ dependencies = [
 [[package]]
 name = "circuit_testing"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/circuit_testing.git?branch=main#028864449036071cfb4e9ebe7ee4c5be59893031"
+source = "git+https://github.com/matter-labs/era-circuit_testing.git?branch=main#164c0adac85be39ee44bd9456b2b91cdede5af80"
 dependencies = [
  "bellman_ce 0.3.2 (git+https://github.com/matter-labs/bellman?branch=dev)",
 ]
@@ -943,7 +912,7 @@ version = "4.6.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "35ed6e9d84f0b51a7f52daf1c7d71dd136fd7a3f41a8462b8cdb8c78d920fad4"
 dependencies = [
- "bytes 1.4.0",
+ "bytes",
  "memchr",
 ]
 
@@ -1286,7 +1255,7 @@ dependencies = [
 [[package]]
 name = "cs_derive"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/boojum?branch=main#ee2f6c64a65144032f2f6e3b00ef1e78f94c6503"
+source = "git+https://github.com/matter-labs/era-boojum?branch=main#2771569baab9a59690d88cee6ba9b295c8a1e4c4"
 dependencies = [
  "proc-macro-error",
  "proc-macro2 1.0.66",
@@ -1297,7 +1266,7 @@ dependencies = [
 [[package]]
 name = "cs_derive"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/sync_vm.git?branch=v1.3.3#c0cbd48fd38c18fb3746140c9018b855c56ed69d"
+source = "git+https://github.com/matter-labs/era-sync_vm.git?branch=v1.3.3#3a21c8dee43c77604350fdf33c1615e25bf1dacd"
 dependencies = [
  "proc-macro-error",
  "proc-macro2 1.0.66",
@@ -1328,7 +1297,7 @@ dependencies = [
 [[package]]
 name = "cudart"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/boojum-cuda?branch=main#db94ea167d55dbe8ce8e5f494a83887a131585cf"
+source = "git+https://github.com/matter-labs/era-boojum-cuda?branch=main#75ee5596114bd7fcb7df08b834e64123522653e1"
 dependencies = [
  "bitflags 2.3.3",
  "criterion",
@@ -1338,9 +1307,9 @@ dependencies = [
 [[package]]
 name = "cudart-sys"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/boojum-cuda?branch=main#db94ea167d55dbe8ce8e5f494a83887a131585cf"
+source = "git+https://github.com/matter-labs/era-boojum-cuda?branch=main#75ee5596114bd7fcb7df08b834e64123522653e1"
 dependencies = [
- "bindgen 0.66.1",
+ "bindgen 0.59.2",
 ]
 
 [[package]]
@@ -1842,7 +1811,7 @@ dependencies = [
 [[package]]
 name = "franklin-crypto"
 version = "0.0.5"
-source = "git+ssh://git@github.com/matter-labs/franklin-crypto?branch=dev#a5e55f5fc6e718e8ab2e727ce21c0fa599eaf79b"
+source = "git+https://github.com/matter-labs/franklin-crypto?branch=dev#5695d07c7bc604c2c39a27712ffac171d39ee1ed"
 dependencies = [
  "arr_macro",
  "bellman_ce 0.3.2 (git+https://github.com/matter-labs/bellman?branch=dev)",
@@ -1872,37 +1841,7 @@ dependencies = [
 [[package]]
 name = "franklin-crypto"
 version = "0.0.5"
-source = "git+https://github.com/matter-labs/franklin-crypto?branch=dev#5922873d25ecec827cd60420ca8cd84a188bb965"
-dependencies = [
- "arr_macro",
- "bellman_ce 0.3.2 (git+https://github.com/matter-labs/bellman?branch=dev)",
- "bit-vec",
- "blake2 0.9.2",
- "blake2-rfc_bellman_edition",
- "blake2s_simd",
- "byteorder",
- "digest 0.9.0",
- "hex",
- "indexmap 1.9.3",
- "itertools 0.10.5",
- "lazy_static",
- "num-bigint 0.4.3",
- "num-derive 0.2.5",
- "num-integer",
- "num-traits",
- "rand 0.4.6",
- "serde",
- "sha2 0.9.9",
- "sha3 0.9.1",
- "smallvec",
- "splitmut",
- "tiny-keccak 1.5.0",
-]
-
-[[package]]
-name = "franklin-crypto"
-version = "0.0.5"
-source = "git+https://github.com/matter-labs/franklin-crypto?branch=snark_wrapper#6eaf7f71468725569e23ca9dea5d894d84b18998"
+source = "git+https://github.com/matter-labs/franklin-crypto?branch=snark_wrapper#13b493d7619945b035cbbc79d74212298f0b7a26"
 dependencies = [
  "arr_macro",
  "bellman_ce 0.3.2 (git+https://github.com/matter-labs/bellman?branch=snark-wrapper)",
@@ -2017,12 +1956,13 @@ checksum = "4fff74096e71ed47f8e023204cfd0aa1289cd54ae5430a9523be060cdb849964"
 
 [[package]]
 name = "futures-locks"
-version = "0.6.0"
+version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "50c4e684ddb2d8a4db5ca8a02b35156da129674ba4412b6f528698d58c594954"
+checksum = "45ec6fe3675af967e67c5536c0b9d44e34e6c52f86bedc4ea49c5317b8e94d06"
 dependencies = [
- "futures 0.3.28",
- "tokio 0.2.25",
+ "futures-channel",
+ "futures-task",
+ "tokio",
 ]
 
 [[package]]
@@ -2068,7 +2008,7 @@ dependencies = [
  "futures-sink",
  "futures-task",
  "memchr",
- "pin-project-lite 0.2.10",
+ "pin-project-lite",
  "pin-utils",
  "slab",
 ]
@@ -2133,8 +2073,8 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror",
- "time 0.3.24",
- "tokio 1.29.1",
+ "time",
+ "tokio",
  "tracing",
  "urlencoding",
 ]
@@ -2147,7 +2087,7 @@ checksum = "96e4ad0802d3f416f62e7ce01ac1460898ee0efc98f8b45cd4aab7611607012f"
 dependencies = [
  "reqwest",
  "thiserror",
- "tokio 1.29.1",
+ "tokio",
 ]
 
 [[package]]
@@ -2158,7 +2098,7 @@ checksum = "215abab97e07d144428425509c1dad07e57ea72b84b21bcdb6a8a5f12a5c4932"
 dependencies = [
  "async-stream",
  "base64 0.21.2",
- "bytes 1.4.0",
+ "bytes",
  "futures-util",
  "google-cloud-auth",
  "google-cloud-metadata",
@@ -2174,8 +2114,8 @@ dependencies = [
  "serde_json",
  "sha2 0.10.6",
  "thiserror",
- "time 0.3.24",
- "tokio 1.29.1",
+ "time",
+ "tokio",
  "tracing",
  "url",
 ]
@@ -2192,10 +2132,10 @@ dependencies = [
 [[package]]
 name = "gpu-ffi"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/heavy-ops-service.git?branch=v1.3.3#b46ecf3ea167456554e3fac69b33a1e56f6a47b2"
+source = "git+https://github.com/matter-labs/era-heavy-ops-service.git?branch=v1.3.3#0dd1f5dbba7eee194e660dfaaaf026a174e5ad9e"
 dependencies = [
  "bindgen 0.59.2",
- "crossbeam 0.8.2",
+ "crossbeam 0.7.3",
  "derivative",
  "futures 0.3.28",
  "futures-locks",
@@ -2205,12 +2145,12 @@ dependencies = [
 [[package]]
 name = "gpu-prover"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/heavy-ops-service.git?branch=v1.3.3#b46ecf3ea167456554e3fac69b33a1e56f6a47b2"
+source = "git+https://github.com/matter-labs/era-heavy-ops-service.git?branch=v1.3.3#0dd1f5dbba7eee194e660dfaaaf026a174e5ad9e"
 dependencies = [
  "bit-vec",
  "cfg-if 1.0.0",
- "crossbeam 0.8.2",
- "franklin-crypto 0.0.5 (git+ssh://git@github.com/matter-labs/franklin-crypto?branch=dev)",
+ "crossbeam 0.7.3",
+ "franklin-crypto 0.0.5 (git+https://github.com/matter-labs/franklin-crypto?branch=dev)",
  "gpu-ffi",
  "itertools 0.11.0",
  "num_cpus",
@@ -2235,7 +2175,7 @@ version = "0.3.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "97ec8491ebaf99c8eaa73058b045fe58073cd6be7f596ac993ced0b0a0c01049"
 dependencies = [
- "bytes 1.4.0",
+ "bytes",
  "fnv",
  "futures-core",
  "futures-sink",
@@ -2243,7 +2183,7 @@ dependencies = [
  "http",
  "indexmap 1.9.3",
  "slab",
- "tokio 1.29.1",
+ "tokio",
  "tokio-util",
  "tracing",
 ]
@@ -2315,7 +2255,7 @@ checksum = "f3e372db8e5c0d213e0cd0b9be18be2aca3d44cf2fe30a9d46a65581cd454584"
 dependencies = [
  "base64 0.13.1",
  "bitflags 1.3.2",
- "bytes 1.4.0",
+ "bytes",
  "headers-core",
  "http",
  "httpdate",
@@ -2425,7 +2365,7 @@ version = "0.2.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bd6effc99afb63425aff9b05836f029929e345a6148a14b7ecd5ab67af944482"
 dependencies = [
- "bytes 1.4.0",
+ "bytes",
  "fnv",
  "itoa",
 ]
@@ -2436,9 +2376,9 @@ version = "0.4.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d5f38f16d184e36f2408a55281cd658ecbd3ca05cce6d6510a176eca393e26d1"
 dependencies = [
- "bytes 1.4.0",
+ "bytes",
  "http",
- "pin-project-lite 0.2.10",
+ "pin-project-lite",
 ]
 
 [[package]]
@@ -2465,7 +2405,7 @@ version = "0.14.27"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ffb1cfd654a8219eaef89881fdb3bb3b1cdc5fa75ded05d6933b2b382e395468"
 dependencies = [
- "bytes 1.4.0",
+ "bytes",
  "futures-channel",
  "futures-core",
  "futures-util",
@@ -2475,9 +2415,9 @@ dependencies = [
  "httparse",
  "httpdate",
  "itoa",
- "pin-project-lite 0.2.10",
+ "pin-project-lite",
  "socket2",
- "tokio 1.29.1",
+ "tokio",
  "tower-service",
  "tracing",
  "want",
@@ -2493,7 +2433,7 @@ dependencies = [
  "http",
  "hyper",
  "rustls",
- "tokio 1.29.1",
+ "tokio",
  "tokio-rustls",
 ]
 
@@ -2503,10 +2443,10 @@ version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d6183ddfa99b85da61a140bea0efc93fdf56ceaa041b37d553518030827f9905"
 dependencies = [
- "bytes 1.4.0",
+ "bytes",
  "hyper",
  "native-tls",
- "tokio 1.29.1",
+ "tokio",
  "tokio-native-tls",
 ]
 
@@ -2953,7 +2893,7 @@ dependencies = [
  "metrics-util",
  "quanta",
  "thiserror",
- "tokio 1.29.1",
+ "tokio",
  "tracing",
 ]
 
@@ -3709,12 +3649,6 @@ dependencies = [
 
 [[package]]
 name = "pin-project-lite"
-version = "0.1.12"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "257b64915a082f7811703966789728173279bdebb956b143dbcd23f6f970a777"
-
-[[package]]
-name = "pin-project-lite"
 version = "0.2.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4c40d25201921e5ff0c862a505c6557ea88568a4e3ace775ab55e93f2f4f9d57"
@@ -3927,7 +3861,7 @@ dependencies = [
  "anyhow",
  "metrics",
  "metrics-exporter-prometheus",
- "tokio 1.29.1",
+ "tokio",
  "vise-exporter",
 ]
 
@@ -3954,7 +3888,7 @@ dependencies = [
 [[package]]
 name = "prover-service"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/heavy-ops-service.git?branch=v1.3.3#b46ecf3ea167456554e3fac69b33a1e56f6a47b2"
+source = "git+https://github.com/matter-labs/era-heavy-ops-service.git?branch=v1.3.3#0dd1f5dbba7eee194e660dfaaaf026a174e5ad9e"
 dependencies = [
  "api",
  "bincode",
@@ -4353,7 +4287,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cde824a14b7c14f85caff81225f411faacc04a2013f41670f41443742b1c1c55"
 dependencies = [
  "base64 0.21.2",
- "bytes 1.4.0",
+ "bytes",
  "encoding_rs",
  "futures-core",
  "futures-util",
@@ -4371,13 +4305,13 @@ dependencies = [
  "native-tls",
  "once_cell",
  "percent-encoding",
- "pin-project-lite 0.2.10",
+ "pin-project-lite",
  "rustls",
  "rustls-pemfile",
  "serde",
  "serde_json",
  "serde_urlencoded",
- "tokio 1.29.1",
+ "tokio",
  "tokio-native-tls",
  "tokio-rustls",
  "tokio-util",
@@ -4394,7 +4328,7 @@ dependencies = [
 [[package]]
 name = "rescue_poseidon"
 version = "0.4.1"
-source = "git+https://github.com/matter-labs/rescue-poseidon.git?branch=poseidon2#5731618417b425e19552c4730f3a8945c5c01054"
+source = "git+https://github.com/matter-labs/rescue-poseidon.git?branch=poseidon2#d6903256fa17815b86d4d78ddcae9e5cd920e22c"
 dependencies = [
  "addchain",
  "arrayvec 0.7.4",
@@ -4417,7 +4351,7 @@ dependencies = [
 [[package]]
 name = "rescue_poseidon"
 version = "0.4.1"
-source = "git+https://github.com/matter-labs/rescue-poseidon.git#f611a3353e48cf42153e44d89ed90da9bc5934e8"
+source = "git+https://github.com/matter-labs/rescue-poseidon.git#d059b5042df5ed80e151f05751410b524a54d16c"
 dependencies = [
  "addchain",
  "arrayvec 0.7.4",
@@ -4477,7 +4411,7 @@ version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bb919243f34364b6bd2fc10ef797edbfa75f33c252e7998527479c6d6b47e1ec"
 dependencies = [
- "bytes 1.4.0",
+ "bytes",
  "rustc-hex",
 ]
 
@@ -4528,12 +4462,6 @@ name = "rustc-hex"
 version = "2.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3e75f6a532d0fd9f7f13144f392b6ad56a32696bfcd9c78f797f16bbb6f072d6"
-
-[[package]]
-name = "rustc-serialize"
-version = "0.3.24"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dcf128d1287d2ea9d80910b5f1120d0b8eede3fbf1abe91c40d39ea7d51e6fda"
 
 [[package]]
 name = "rustc_version"
@@ -4769,7 +4697,7 @@ dependencies = [
  "sentry-debug-images",
  "sentry-panic",
  "sentry-tracing",
- "tokio 1.29.1",
+ "tokio",
  "ureq",
 ]
 
@@ -4857,7 +4785,7 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror",
- "time 0.3.24",
+ "time",
  "url",
  "uuid",
 ]
@@ -5025,7 +4953,7 @@ dependencies = [
 [[package]]
 name = "shivini"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/shivini.git?branch=main#50b36e549b5ca1f7f0190e08fa9e1b202005bd1d"
+source = "git+https://github.com/matter-labs/era-shivini.git?branch=main#77f0f45c125345db2377bf7fa021792f8a583b12"
 dependencies = [
  "bincode",
  "blake2 0.10.6",
@@ -5075,7 +5003,7 @@ dependencies = [
  "num-bigint 0.4.3",
  "num-traits",
  "thiserror",
- "time 0.3.24",
+ "time",
 ]
 
 [[package]]
@@ -5120,7 +5048,7 @@ dependencies = [
 [[package]]
 name = "snark_wrapper"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/snark-wrapper.git?branch=main#5333c5c98142c6d4aad8d991973ba8c58fee4a01"
+source = "git+https://github.com/matter-labs/snark-wrapper.git?branch=main#9929fefddaedc48716bdcaf716134c552ab24a26"
 dependencies = [
  "boojum",
  "derivative",
@@ -5203,7 +5131,7 @@ dependencies = [
  "bigdecimal",
  "bitflags 1.3.2",
  "byteorder",
- "bytes 1.4.0",
+ "bytes",
  "chrono",
  "crc",
  "crossbeam-queue 0.3.8",
@@ -5274,7 +5202,7 @@ checksum = "4db708cd3e459078f85f39f96a00960bd841f66ee2a669e90bf36907f5a79aae"
 dependencies = [
  "native-tls",
  "once_cell",
- "tokio 1.29.1",
+ "tokio",
  "tokio-native-tls",
 ]
 
@@ -5400,10 +5328,10 @@ dependencies = [
 [[package]]
 name = "sync_vm"
 version = "1.3.3"
-source = "git+https://github.com/matter-labs/sync_vm.git?branch=v1.3.3#c0cbd48fd38c18fb3746140c9018b855c56ed69d"
+source = "git+https://github.com/matter-labs/era-sync_vm.git?branch=v1.3.3#3a21c8dee43c77604350fdf33c1615e25bf1dacd"
 dependencies = [
  "arrayvec 0.7.4",
- "cs_derive 0.1.0 (git+https://github.com/matter-labs/sync_vm.git?branch=v1.3.3)",
+ "cs_derive 0.1.0 (git+https://github.com/matter-labs/era-sync_vm.git?branch=v1.3.3)",
  "derivative",
  "franklin-crypto 0.0.5 (git+https://github.com/matter-labs/franklin-crypto?branch=dev)",
  "hex",
@@ -5509,16 +5437,6 @@ dependencies = [
 
 [[package]]
 name = "time"
-version = "0.1.43"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ca8a50ef2360fbd1eeb0ecd46795a87a19024eb4b53c5dc916ca1fd95fe62438"
-dependencies = [
- "libc",
- "winapi",
-]
-
-[[package]]
-name = "time"
 version = "0.3.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b79eabcd964882a646b3584543ccabeae7869e9ac32a46f6f22b7a5bd405308b"
@@ -5590,29 +5508,18 @@ checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
 
 [[package]]
 name = "tokio"
-version = "0.2.25"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6703a273949a90131b290be1fe7b039d0fc884aa1935860dfcbe056f28cd8092"
-dependencies = [
- "bytes 0.5.6",
- "pin-project-lite 0.1.12",
- "slab",
-]
-
-[[package]]
-name = "tokio"
 version = "1.29.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "532826ff75199d5833b9d2c5fe410f29235e25704ee5f0ef599fb51c21f4a4da"
 dependencies = [
  "autocfg 1.1.0",
  "backtrace",
- "bytes 1.4.0",
+ "bytes",
  "libc",
  "mio",
  "num_cpus",
  "parking_lot 0.12.1",
- "pin-project-lite 0.2.10",
+ "pin-project-lite",
  "signal-hook-registry",
  "socket2",
  "tokio-macros",
@@ -5637,7 +5544,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bbae76ab933c85776efabc971569dd6119c580d8f5d448769dec1764bf796ef2"
 dependencies = [
  "native-tls",
- "tokio 1.29.1",
+ "tokio",
 ]
 
 [[package]]
@@ -5647,7 +5554,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c28327cf380ac148141087fbfb9de9d7bd4e84ab5d2c28fbc911d753de8a7081"
 dependencies = [
  "rustls",
- "tokio 1.29.1",
+ "tokio",
 ]
 
 [[package]]
@@ -5657,8 +5564,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "397c988d37662c7dda6d2208364a706264bf3d6138b11d436cbac0ad38832842"
 dependencies = [
  "futures-core",
- "pin-project-lite 0.2.10",
- "tokio 1.29.1",
+ "pin-project-lite",
+ "tokio",
 ]
 
 [[package]]
@@ -5667,11 +5574,11 @@ version = "0.7.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "806fe8c2c87eccc8b3267cbae29ed3ab2d0bd37fca70ab622e46aaa9375ddb7d"
 dependencies = [
- "bytes 1.4.0",
+ "bytes",
  "futures-core",
  "futures-sink",
- "pin-project-lite 0.2.10",
- "tokio 1.29.1",
+ "pin-project-lite",
+ "tokio",
  "tracing",
 ]
 
@@ -5716,7 +5623,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8ce8c33a8d48bd45d624a6e523445fd21ec13d3653cd51f681abf67418f54eb8"
 dependencies = [
  "cfg-if 1.0.0",
- "pin-project-lite 0.2.10",
+ "pin-project-lite",
  "tracing-attributes",
  "tracing-core",
 ]
@@ -5778,7 +5685,7 @@ dependencies = [
  "sharded-slab",
  "smallvec",
  "thread_local",
- "time 0.3.24",
+ "time",
  "tracing",
  "tracing-core",
  "tracing-log",
@@ -5997,7 +5904,7 @@ dependencies = [
  "hyper",
  "metrics-exporter-prometheus",
  "once_cell",
- "tokio 1.29.1",
+ "tokio",
  "tracing",
  "vise",
 ]
@@ -6203,7 +6110,7 @@ checksum = "5388522c899d1e1c96a4c307e3797e0f697ba7c77dd8e0e625ecba9dd0342937"
 dependencies = [
  "arrayvec 0.7.4",
  "base64 0.21.2",
- "bytes 1.4.0",
+ "bytes",
  "derive_more",
  "ethabi",
  "ethereum-types 0.14.1",
@@ -6414,7 +6321,7 @@ checksum = "2a0956f1ba7c7909bfb66c2e9e4124ab6f6482560f6628b5aaeba39207c9aad9"
 [[package]]
 name = "zk_evm"
 version = "1.3.3"
-source = "git+https://github.com/matter-labs/zk_evm.git?branch=v1.3.3#96a0b2bfc4cb50dfc0cce8114a13432827a27631"
+source = "git+https://github.com/matter-labs/era-zk_evm.git?branch=v1.3.3#fe8215a7047d24430ad470cf15a19bedb4d6ba0b"
 dependencies = [
  "anyhow",
  "lazy_static",
@@ -6429,7 +6336,7 @@ dependencies = [
 [[package]]
 name = "zk_evm"
 version = "1.4.0"
-source = "git+https://github.com/matter-labs/zk_evm.git?branch=v1.4.0#8f698ddb398c52e4c743455cce420887a5edd36d"
+source = "git+https://github.com/matter-labs/era-zk_evm.git?branch=v1.4.0#e33a5ded1b53e35d261fdb46e6d16f2c900b217f"
 dependencies = [
  "anyhow",
  "lazy_static",
@@ -6444,7 +6351,7 @@ dependencies = [
 [[package]]
 name = "zk_evm_abstractions"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zk_evm_abstractions.git#839721a4ae2093c5c0aa8ffd49758f32ecd172ed"
+source = "git+https://github.com/matter-labs/era-zk_evm_abstractions.git#7502a661d7d38906d849dcd3e7a15e5848af6581"
 dependencies = [
  "anyhow",
  "serde",
@@ -6455,7 +6362,7 @@ dependencies = [
 [[package]]
 name = "zkevm-assembly"
 version = "1.3.2"
-source = "git+https://github.com/matter-labs/zkEVM-assembly.git?branch=v1.3.2#fcfeb51e45544a629d4279b3455def847dcc2505"
+source = "git+https://github.com/matter-labs/era-zkEVM-assembly.git?branch=v1.3.2#3c61d450cbe6548068be8f313ed02f1bd229a865"
 dependencies = [
  "env_logger 0.9.3",
  "hex",
@@ -6474,12 +6381,12 @@ dependencies = [
 [[package]]
 name = "zkevm_circuits"
 version = "1.4.0"
-source = "git+https://github.com/matter-labs/zkevm_circuits.git?branch=main#2b88bf8e6fcfbf78f6f06baf62e80542f43cefbc"
+source = "git+https://github.com/matter-labs/era-zkevm_circuits.git?branch=main#4fba537ccecc238e2da9c80844dc8c185e42466f"
 dependencies = [
  "arrayvec 0.7.4",
  "bincode",
  "boojum",
- "cs_derive 0.1.0 (git+https://github.com/matter-labs/boojum?branch=main)",
+ "cs_derive 0.1.0 (git+https://github.com/matter-labs/era-boojum?branch=main)",
  "derivative",
  "hex",
  "itertools 0.10.5",
@@ -6494,7 +6401,7 @@ dependencies = [
 [[package]]
 name = "zkevm_opcode_defs"
 version = "1.3.2"
-source = "git+https://github.com/matter-labs/zkevm_opcode_defs.git?branch=v1.3.2#780ce4129a95ab9a68abf0d60c156ee8df6008c2"
+source = "git+https://github.com/matter-labs/era-zkevm_opcode_defs.git?branch=v1.3.2#c7ab62f4c60b27dfc690c3ab3efb5fff1ded1a25"
 dependencies = [
  "bitflags 2.3.3",
  "blake2 0.10.6",
@@ -6508,7 +6415,7 @@ dependencies = [
 [[package]]
 name = "zkevm_test_harness"
 version = "1.3.3"
-source = "git+https://github.com/matter-labs/zkevm_test_harness.git?branch=v1.3.3#681a72c9d120e7b11283bc06087217ecbad88c5c"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.3.3#d26aa4133f2b5e114c0bf084b8c3f1eca9aa9929"
 dependencies = [
  "bincode",
  "circuit_testing",
@@ -6535,7 +6442,7 @@ dependencies = [
 [[package]]
 name = "zkevm_test_harness"
 version = "1.4.0"
-source = "git+https://github.com/matter-labs/zkevm_test_harness.git?branch=v1.4.0#6eeb313653982a8f69b56df35735f11ef4b2ab95"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.0#3cd647aa57fc2e1180bab53f7a3b61ec47502a46"
 dependencies = [
  "bincode",
  "circuit_definitions",
@@ -6577,7 +6484,7 @@ dependencies = [
  "metrics",
  "serde_json",
  "thiserror",
- "tokio 1.29.1",
+ "tokio",
  "tracing",
  "zksync_config",
  "zksync_contracts",
@@ -6599,7 +6506,7 @@ dependencies = [
  "prover-service",
  "structopt",
  "thiserror",
- "tokio 1.29.1",
+ "tokio",
  "tracing",
  "vlog",
  "zkevm_test_harness 1.3.3",
@@ -6675,7 +6582,7 @@ dependencies = [
  "sqlx",
  "strum",
  "thiserror",
- "tokio 1.29.1",
+ "tokio",
  "tracing",
  "vise",
  "zksync_config",
@@ -6695,7 +6602,7 @@ dependencies = [
  "jsonrpc-core",
  "serde",
  "thiserror",
- "tokio 1.29.1",
+ "tokio",
  "tracing",
  "vise",
  "zksync_config",
@@ -6730,7 +6637,7 @@ dependencies = [
  "futures 0.3.28",
  "serde",
  "serde_json",
- "tokio 1.29.1",
+ "tokio",
  "tracing",
 ]
 
@@ -6753,7 +6660,7 @@ dependencies = [
  "google-cloud-auth",
  "google-cloud-storage",
  "http",
- "tokio 1.29.1",
+ "tokio",
  "tracing",
  "vise",
  "zksync_config",
@@ -6772,7 +6679,7 @@ dependencies = [
  "metrics",
  "prometheus_exporter",
  "structopt",
- "tokio 1.29.1",
+ "tokio",
  "tracing",
  "vk_setup_data_generator_server_fri",
  "vlog",
@@ -6809,7 +6716,7 @@ dependencies = [
  "serde_json",
  "setup_key_generator_and_server",
  "thiserror",
- "tokio 1.29.1",
+ "tokio",
  "tracing",
  "vlog",
  "zkevm_test_harness 1.3.3",
@@ -6838,7 +6745,7 @@ dependencies = [
  "prometheus_exporter",
  "serde",
  "shivini",
- "tokio 1.29.1",
+ "tokio",
  "tracing",
  "vk_setup_data_generator_server_fri",
  "vlog",
@@ -6867,7 +6774,7 @@ dependencies = [
  "prometheus_exporter",
  "reqwest",
  "serde",
- "tokio 1.29.1",
+ "tokio",
  "tracing",
  "vlog",
  "zksync_config",
@@ -6911,7 +6818,7 @@ dependencies = [
  "futures 0.3.28",
  "regex",
  "reqwest",
- "tokio 1.29.1",
+ "tokio",
  "toml_edit 0.14.4",
  "tracing",
  "zksync_config",
@@ -6926,7 +6833,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "tokio 1.29.1",
+ "tokio",
  "tracing",
  "zksync_utils",
 ]
@@ -6937,7 +6844,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "mini-moka",
- "tokio 1.29.1",
+ "tokio",
  "tracing",
  "vise",
  "zksync_dal",
@@ -6990,7 +6897,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bigdecimal",
- "envy",
  "futures 0.3.28",
  "hex",
  "itertools 0.10.5",
@@ -6999,7 +6905,7 @@ dependencies = [
  "reqwest",
  "serde",
  "thiserror",
- "tokio 1.29.1",
+ "tokio",
  "tracing",
  "vlog",
  "zk_evm 1.3.3",
@@ -7042,7 +6948,7 @@ dependencies = [
  "serde",
  "serde_json",
  "structopt",
- "tokio 1.29.1",
+ "tokio",
  "tracing",
  "vk_setup_data_generator_server_fri",
  "vlog",
@@ -7075,7 +6981,7 @@ dependencies = [
  "queues",
  "serde",
  "structopt",
- "tokio 1.29.1",
+ "tokio",
  "tracing",
  "vk_setup_data_generator_server_fri",
  "vlog",
