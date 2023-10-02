@@ -14,12 +14,12 @@ pub(crate) const STORED_USD_PRICE_PRECISION: usize = 6;
 
 #[derive(Debug)]
 pub struct TokensWeb3Dal<'a, 'c> {
-    pub storage: &'a mut StorageProcessor<'c>,
+    pub(crate) storage: &'a mut StorageProcessor<'c>,
 }
 
 impl TokensWeb3Dal<'_, '_> {
-    pub fn get_well_known_tokens(&mut self) -> Result<Vec<TokenInfo>, SqlxError> {
-        async_std::task::block_on(async {
+    pub async fn get_well_known_tokens(&mut self) -> Result<Vec<TokenInfo>, SqlxError> {
+        {
             let records = sqlx::query!(
                 "SELECT l1_address, l2_address, name, symbol, decimals FROM tokens
                  WHERE well_known = true
@@ -40,17 +40,17 @@ impl TokensWeb3Dal<'_, '_> {
                 })
                 .collect();
             Ok(result)
-        })
+        }
     }
 
-    pub fn is_token_actively_trading(
+    pub async fn is_token_actively_trading(
         &mut self,
         l2_token: &Address,
         min_volume: &Ratio<BigUint>,
         max_acceptable_volume_age_in_secs: u32,
         max_acceptable_price_age_in_secs: u32,
     ) -> Result<bool, SqlxError> {
-        async_std::task::block_on(async {
+        {
             let min_volume = ratio_to_big_decimal(min_volume, STORED_USD_PRICE_PRECISION);
             let volume_pg_interval = PgInterval {
                 months: 0,
@@ -79,14 +79,14 @@ impl TokensWeb3Dal<'_, '_> {
             .unwrap()
             .count;
             Ok(count == 1)
-        })
+        }
     }
 
-    pub fn get_token_price(
+    pub async fn get_token_price(
         &mut self,
         l2_address: &Address,
     ) -> Result<Option<TokenPrice>, SqlxError> {
-        async_std::task::block_on(async {
+        {
             let storage_price = sqlx::query_as!(
                 StorageTokenPrice,
                 "SELECT usd_price, usd_price_updated_at FROM tokens WHERE l2_address = $1",
@@ -96,14 +96,14 @@ impl TokensWeb3Dal<'_, '_> {
             .await?;
 
             Ok(storage_price.and_then(Into::into))
-        })
+        }
     }
 
-    pub fn get_token_metadata(
+    pub async fn get_token_metadata(
         &mut self,
         l2_address: &Address,
     ) -> Result<Option<TokenMetadata>, SqlxError> {
-        async_std::task::block_on(async {
+        {
             let storage_token_metadata = sqlx::query_as!(
                 StorageTokenMetadata,
                 r#"
@@ -119,6 +119,6 @@ impl TokensWeb3Dal<'_, '_> {
             .await?;
 
             Ok(storage_token_metadata.map(Into::into))
-        })
+        }
     }
 }

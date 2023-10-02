@@ -193,7 +193,7 @@ describe('System behavior checks', () => {
         const amount = 1;
 
         // Fund bob's account.
-        await alice.transfer({ amount, to: bob.address, token: l2Token });
+        await alice.transfer({ amount, to: bob.address, token: l2Token }).then((tx) => tx.wait());
         await alice
             .transfer({ amount: L2_ETH_PER_ACCOUNT.div(8), to: bob.address, token: zksync.utils.ETH_ADDRESS })
             .then((tx) => tx.wait());
@@ -249,6 +249,7 @@ describe('System behavior checks', () => {
         await expect(alice.finalizeWithdrawal(receipt2.transactionHash)).toBeAccepted([change2]);
     });
 
+    // TODO (SMA-1713): the test is flaky.
     test.skip('Should test forceDeploy', async () => {
         // Testing forcedDeploys involves small upgrades of smart contacts.
         // Thus, it is not appropriate to do them anywhere else except for localhost.
@@ -311,6 +312,22 @@ describe('System behavior checks', () => {
         }
     });
 
+    test('should accept transaction with duplicated factory dep', async () => {
+        const bytecode = contracts.counter.bytecode;
+        // We need some bytecodes that weren't deployed before to test behavior properly.
+        const dep1 = ethers.utils.hexConcat([bytecode, ethers.utils.randomBytes(64)]);
+        const dep2 = ethers.utils.hexConcat([bytecode, ethers.utils.randomBytes(64)]);
+        const dep3 = ethers.utils.hexConcat([bytecode, ethers.utils.randomBytes(64)]);
+        await expect(
+            alice.sendTransaction({
+                to: alice.address,
+                customData: {
+                    factoryDeps: [dep2, dep1, dep3, dep3, dep1, dep2]
+                }
+            })
+        ).toBeAccepted();
+    });
+
     it('should reject transaction with huge gas limit', async () => {
         await expect(
             alice.sendTransaction({ to: alice.address, gasLimit: ethers.BigNumber.from(2).pow(32) })
@@ -333,6 +350,7 @@ describe('System behavior checks', () => {
     async function testForcedDeployments(forcedDeployments: ForceDeployment[], bytecode: BytesLike) {
         const receipt = await deployOnAnyLocalAddress(alice.providerL1!, alice.provider, forcedDeployments, [bytecode]);
 
+        // TODO: use toBeAccepted
         expect(receipt.status).toBe(1);
 
         // veryfing that the codes stored are correct

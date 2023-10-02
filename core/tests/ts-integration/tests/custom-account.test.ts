@@ -219,12 +219,15 @@ describe('Tests for the custom account behavior', () => {
         const transfer = await erc20.populateTransaction.transfer(alice.address, TRANSFER_AMOUNT);
         const nonce = await alice.provider.getTransactionCount(badCustomAccount.address);
 
-        // Create a *promise* that would await for the rejection.
-        // Even though we use `toBeReverted` matcher, we'll check that it's actually rejected based on the nonce.
-        // However, we use `await` on the `sendTransaction` to make sure that tx is past the API server checks.
-        const rejectionCheckPromise = expect(
-            await sendCustomAccountTransaction(transfer, alice.provider, badCustomAccount.address, undefined, nonce + 1)
-        ).toBeReverted();
+        const delayedTx = await sendCustomAccountTransaction(
+            transfer,
+            alice.provider,
+            badCustomAccount.address,
+            undefined,
+            nonce + 1
+        );
+        // delayedTx passed API checks (since we got the response) but should be rejected by the state-keeper.
+        const rejection = expect(delayedTx).toBeReverted();
 
         // Increase nonce and set flag to do many calculations during validation.
         const validationGasLimit = +process.env.CHAIN_STATE_KEEPER_VALIDATION_COMPUTATIONAL_GAS_LIMIT!;
@@ -232,8 +235,7 @@ describe('Tests for the custom account behavior', () => {
         await expect(
             sendCustomAccountTransaction(tx, alice.provider, badCustomAccount.address, undefined, nonce)
         ).toBeAccepted();
-
-        await rejectionCheckPromise;
+        await rejection;
     });
 
     afterAll(async () => {

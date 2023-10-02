@@ -1,0 +1,39 @@
+[package]
+name = "vm-benchmark"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+vm-benchmark-harness = {path = "harness"}
+metrics-exporter-prometheus = "0.12"
+metrics = "0.21"
+tokio = "1"
+
+[dev-dependencies]
+criterion = "0.4"
+iai = "0.1"
+
+[[bench]]
+name = "criterion"
+harness = false
+
+[[bench]]
+name = "diy_benchmark"
+harness = false
+
+[[bench]]
+name = "iai"
+harness = false
+
+[[bin]]
+name = "iai_results_to_prometheus"
+path = "src/iai_results_to_prometheus.rs"
+
+[[bin]]
+name = "compare_iai_results"
+path = "src/compare_iai_results.rs"
+
+[[bin]]
+name = "find-slowest"
+path = "src/find_slowest.rs"

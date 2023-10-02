@@ -2,6 +2,12 @@ use reqwest::header::HeaderMap;
 use reqwest::{Client, Error, Method, Response};
 use tokio::time::{sleep, Duration};
 
+#[derive(Debug)]
+pub enum HttpError {
+    ReqwestError(Error),
+    RetryExhausted(String),
+}
+
 /// Method to send HTTP request with fixed number of retires with exponential back-offs.
 pub async fn send_request_with_retries(
     url: &str,
@@ -9,21 +15,27 @@ pub async fn send_request_with_retries(
     method: Method,
     headers: Option<HeaderMap>,
     body: Option<Vec<u8>>,
-) -> Result<Response, Error> {
+) -> Result<Response, HttpError> {
     let mut retries = 0usize;
     let mut delay = Duration::from_secs(1);
     loop {
-        match send_request(url, method.clone(), headers.clone(), body.clone()).await {
-            Ok(response) => return Ok(response),
-            Err(err) => {
-                if retries >= max_retries {
-                    return Err(err);
-                }
-                retries += 1;
-                sleep(delay).await;
-                delay = delay.checked_mul(2).unwrap_or(Duration::MAX);
+        let result = send_request(url, method.clone(), headers.clone(), body.clone()).await;
+        match result {
+            Ok(response) if response.status().is_success() => return Ok(response),
+            Ok(response) => {
+                tracing::error!("Received non OK http response {:?}", response.status())
             }
+            Err(err) => tracing::error!("Error while sending http request {:?}", err),
         }
+        if retries >= max_retries {
+            return Err(HttpError::RetryExhausted(format!(
+                "All {} http retires failed",
+                max_retries
+            )));
+        }
+        retries += 1;
+        sleep(delay).await;
+        delay = delay.checked_mul(2).unwrap_or(Duration::MAX);
     }
 }
 

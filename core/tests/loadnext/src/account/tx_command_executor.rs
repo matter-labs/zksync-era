@@ -1,3 +1,4 @@
+use std::time::Instant;
 use zksync::web3::ethabi;
 use zksync::EthNamespaceClient;
 use zksync::{
@@ -16,6 +17,7 @@ use zksync_types::{
 };
 
 use crate::account::ExecutionType;
+use crate::utils::format_gwei;
 use crate::{
     account::AccountLifespan,
     command::{IncorrectnessModifier, TxCommand, TxType},
@@ -90,9 +92,8 @@ impl AccountLifespan {
         if eth_balance.is_zero() || erc20_balance < command.amount {
             // We don't have either funds in L1 to pay for tx or to deposit.
             // It's not a problem with the server, thus we mark this operation as skipped.
-            return Ok(SubmitResult::ReportLabel(ReportLabel::skipped(
-                "No L1 balance",
-            )));
+            let label = ReportLabel::skipped("No L1 balance");
+            return Ok(SubmitResult::ReportLabel(label));
         }
 
         let mut ethereum = wallet.ethereum(&self.config.l1_rpc_address).await?;
@@ -116,15 +117,13 @@ impl AccountLifespan {
             match ethereum.wait_for_tx(approve_tx_hash).await {
                 Ok(receipt) => {
                     if receipt.status != Some(1.into()) {
-                        return Ok(SubmitResult::ReportLabel(ReportLabel::skipped(
-                            "Approve transaction failed",
-                        )));
+                        let label = ReportLabel::skipped("Approve transaction failed");
+                        return Ok(SubmitResult::ReportLabel(label));
                     }
                 }
                 Err(_) => {
-                    return Ok(SubmitResult::ReportLabel(ReportLabel::skipped(
-                        "Approve transaction failed",
-                    )));
+                    let label = ReportLabel::skipped("Approve transaction failed");
+                    return Ok(SubmitResult::ReportLabel(label));
                 }
             }
         }
@@ -133,11 +132,11 @@ impl AccountLifespan {
         if eth_balance < gas_price * U256::from(MAX_L1_TRANSACTION_GAS_LIMIT) {
             // We don't have either funds in L1 to pay for tx or to deposit.
             // It's not a problem with the server, thus we mark this operation as skipped.
-            return Ok(SubmitResult::ReportLabel(ReportLabel::skipped(
-                "Not enough L1 balance",
-            )));
+            let label = ReportLabel::skipped("Not enough L1 balance");
+            return Ok(SubmitResult::ReportLabel(label));
         }
-        let eth_tx_hash = match ethereum
+
+        let response = ethereum
             .deposit(
                 self.main_l1_token,
                 command.amount,
@@ -146,14 +145,14 @@ impl AccountLifespan {
                 None,
                 None,
             )
-            .await
-        {
+            .await;
+        let eth_tx_hash = match response {
             Ok(hash) => hash,
             Err(err) => {
                 // Most likely we don't have enough ETH to perform operations.
                 // Just mark the operations as skipped.
-                let reason = format!("Unable to perform an L1 operation. Reason: {}", err);
-                return Ok(SubmitResult::ReportLabel(ReportLabel::skipped(&reason)));
+                let reason = format!("Unable to perform an L1 operation. Reason: {err}");
+                return Ok(SubmitResult::ReportLabel(ReportLabel::skipped(reason)));
             }
         };
 
@@ -176,9 +175,8 @@ impl AccountLifespan {
             Some(tx_common_data) => Ok(SubmitResult::TxHash(tx_common_data.canonical_tx_hash)),
             None => {
                 // Probably we did something wrong, no big deal.
-                Ok(SubmitResult::ReportLabel(ReportLabel::skipped(
-                    "Ethereum transaction for deposit failed",
-                )))
+                let label = ReportLabel::skipped("Ethereum transaction for deposit failed");
+                Ok(SubmitResult::ReportLabel(label))
             }
         }
     }
@@ -192,12 +190,12 @@ impl AccountLifespan {
         let result = match modifier {
             IncorrectnessModifier::IncorrectSignature => {
                 let wallet = self.wallet.corrupted_wallet.clone();
-                self.submit(modifier, || async { wallet.send_transaction(tx).await })
+                self.submit(modifier, wallet.send_transaction(tx).await)
                     .await
             }
             _ => {
                 let wallet = self.wallet.wallet.clone();
-                self.submit(modifier, || async { wallet.send_transaction(tx).await })
+                self.submit(modifier, wallet.send_transaction(tx).await)
                     .await
             }
         }?;
@@ -305,13 +303,12 @@ impl AccountLifespan {
         command: &TxCommand,
         execution_type: ExecutionType,
     ) -> Result<SubmitResult, ClientError> {
-        let contract_address = match self.wallet.deployed_contract_address.get() {
-            Some(address) => *address,
-            None => {
-                return Ok(SubmitResult::ReportLabel(ReportLabel::skipped(
-                    "Account haven't successfully deployed a contract yet",
-                )));
-            }
+        const L1_TRANSACTION_GAS_LIMIT: u32 = 5_000_000;
+
+        let Some(&contract_address) = self.wallet.deployed_contract_address.get() else {
+            let label =
+                ReportLabel::skipped("Account haven't successfully deployed a contract yet");
+            return Ok(SubmitResult::ReportLabel(label));
         };
 
         match execution_type {
@@ -322,35 +319,53 @@ impl AccountLifespan {
                     .wallet
                     .ethereum(&self.config.l1_rpc_address)
                     .await?;
-                let tx_hash = match ethereum
+                let response = ethereum
                     .request_execute(
                         contract_address,
                         U256::zero(),
                         calldata,
-                        U256::from(2_000_000u32),
+                        L1_TRANSACTION_GAS_LIMIT.into(),
                         Some(self.wallet.test_contract.factory_deps.clone()),
                         None,
                         None,
                         Default::default(),
                     )
-                    .await
-                {
+                    .await;
+
+                let tx_hash = match response {
                     Ok(hash) => hash,
+                    Err(ClientError::NetworkError(err)) if err.contains("insufficient funds") => {
+                        let reason =
+                            format!("L1 execution tx failed because of insufficient funds: {err}");
+                        let label = ReportLabel::skipped(reason);
+                        return Ok(SubmitResult::ReportLabel(label));
+                    }
                     Err(err) => {
-                        return Ok(SubmitResult::ReportLabel(ReportLabel::failed(
-                            &err.to_string(),
-                        )));
+                        let label = ReportLabel::failed(err.to_string());
+                        return Ok(SubmitResult::ReportLabel(label));
                     }
                 };
                 self.get_priority_op_l2_hash(tx_hash).await
             }
 
             ExecutionType::L2 => {
+                let mut started_at = Instant::now();
                 let tx = self
                     .build_execute_loadnext_contract(command, contract_address)
                     .await?;
-
-                self.execute_submit(tx, command.modifier).await
+                tracing::trace!(
+                    "Account {:?}: execute_loadnext_contract: tx built in {:?}",
+                    self.wallet.wallet.address(),
+                    started_at.elapsed()
+                );
+                started_at = Instant::now();
+                let result = self.execute_submit(tx, command.modifier).await;
+                tracing::trace!(
+                    "Account {:?}: execute_loadnext_contract: tx executed in {:?}",
+                    self.wallet.wallet.address(),
+                    started_at.elapsed()
+                );
+                result
             }
         }
     }
@@ -390,6 +405,15 @@ impl AccountLifespan {
                 self.main_l2_token,
             )))
             .await?;
+        tracing::trace!(
+            "Account {:?}: fee estimated. Max total fee: {}, gas limit: {}gas; Max gas price: {}WEI, \
+             Gas per pubdata: {:?}gas",
+            self.wallet.wallet.address(),
+            format_gwei(fee.max_total_fee()),
+            fee.gas_limit,
+            fee.max_fee_per_gas,
+            fee.gas_per_pubdata_limit
+        );
         builder = builder.fee(fee.clone());
 
         let paymaster_params = get_approval_based_paymaster_input(

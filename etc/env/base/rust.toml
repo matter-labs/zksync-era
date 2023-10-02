@@ -19,7 +19,7 @@ zksync_utils=debug,\
 zksync_queued_job_processor=info,\
 zksync_types=info,\
 zksync_mempool=debug,\
-loadnext=debug,\
+loadnext=info,\
 vm=info,\
 block_sizes_test=info,\
 zksync_verification_key_generator_and_server=info,\
@@ -27,6 +27,14 @@ zksync_object_store=info,\
 setup_key_generator_and_server=info,\
 zksync_circuit_synthesizer=info,\
 en_playground=info,\
+zksync_external_node=info,\
+cross_nodes_checker=debug,\
+zksync_witness_generator=info,\
+zksync_prover_fri=info,\
+zksync_witness_vector_generator=info,\
+zksync_health_check=debug,\
+zksync_proof_fri_compressor=info,\
+vise_exporter=debug,\
 """
 
 # `RUST_BACKTRACE` variable

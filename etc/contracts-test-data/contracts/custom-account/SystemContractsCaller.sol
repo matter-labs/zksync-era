@@ -1,8 +1,8 @@
-// SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT
 
-pragma solidity ^0.8.0;
+pragma solidity ^0.8;
 
-import {MSG_VALUE_SIMULATOR_IS_SYSTEM_BIT, MSG_VALUE_SYSTEM_CONTRACT} from "./Constants.sol";
+import {MSG_VALUE_SYSTEM_CONTRACT, MSG_VALUE_SIMULATOR_IS_SYSTEM_BIT} from "./Constants.sol";
 import "./Utils.sol";
 
 // Addresses used for the compiler to be replaced with the
@@ -72,12 +72,7 @@ library SystemContractsCaller {
     /// @param data The calldata.
     /// @return success Whether the transaction has been successful.
     /// @dev Note, that the `isSystem` flag can only be set when calling system contracts.
-    function systemCall(
-        uint32 gasLimit,
-        address to,
-        uint128 value,
-        bytes memory data
-    ) internal returns (bool success) {
+    function systemCall(uint32 gasLimit, address to, uint256 value, bytes memory data) internal returns (bool success) {
         address callAddr = SYSTEM_CALL_CALL_ADDRESS;
 
         uint32 dataStart;
@@ -105,19 +100,13 @@ library SystemContractsCaller {
                 success := call(to, callAddr, 0, 0, farCallAbi, 0, 0)
             }
         } else {
-            require(value <= MSG_VALUE_SIMULATOR_IS_SYSTEM_BIT, "Value can not be greater than 2**128");
-            // We must direct the call through the MSG_VALUE_SIMULATOR
-            // The first abi param for the MSG_VALUE_SIMULATOR carries
-            // the value of the call and whether the call should be a system one
-            // (in our case, it should be)
-            uint256 abiParam1 = (MSG_VALUE_SIMULATOR_IS_SYSTEM_BIT | value);
-
-            // The second abi param carries the address to call.
-            uint256 abiParam2 = uint256(uint160(to));
-
             address msgValueSimulator = MSG_VALUE_SYSTEM_CONTRACT;
+            // We need to supply the mask to the MsgValueSimulator to denote
+            // that the call should be a system one.
+            uint256 forwardMask = MSG_VALUE_SIMULATOR_IS_SYSTEM_BIT;
+
             assembly {
-                success := call(msgValueSimulator, callAddr, abiParam1, abiParam2, farCallAbi, 0, 0)
+                success := call(msgValueSimulator, callAddr, value, to, farCallAbi, forwardMask, 0)
             }
         }
     }
@@ -145,7 +134,7 @@ library SystemContractsCaller {
 
         returnData = new bytes(size);
         assembly {
-            returndatacopy(add(returnData, 0x20), 0, size) 
+            returndatacopy(add(returnData, 0x20), 0, size)
         }
     }
 
@@ -154,7 +143,7 @@ library SystemContractsCaller {
     /// @param to The address to call.
     /// @param value The value to pass with the transaction.
     /// @param data The calldata.
-    /// @return returnData The returndata of the transaction. In case the transaction reverts, the error 
+    /// @return returnData The returndata of the transaction. In case the transaction reverts, the error
     /// bubbles up to the parent frame.
     /// @dev Note, that the `isSystem` flag can only be set when calling system contracts.
     function systemCallWithPropagatedRevert(
@@ -166,7 +155,7 @@ library SystemContractsCaller {
         bool success;
         (success, returnData) = systemCallWithReturndata(gasLimit, to, value, data);
 
-        if(!success) {
+        if (!success) {
             assembly {
                 let size := mload(returnData)
                 revert(add(returnData, 0x20), size)
@@ -217,8 +206,8 @@ library SystemContractsCaller {
     /// [96..128) bits -- the length of the slice.
     /// [128..192) bits -- empty bits.
     /// [192..224) bits -- gasPassed.
-    /// [224..232) bits -- shard id.
-    /// [232..240) bits -- forwarding_mode
+    /// [224..232) bits -- forwarding_mode
+    /// [232..240) bits -- shard id.
     /// [240..248) bits -- constructor call flag
     /// [248..256] bits -- system call flag
     function getFarCallABI(
@@ -232,18 +221,46 @@ library SystemContractsCaller {
         bool isConstructorCall,
         bool isSystemCall
     ) internal pure returns (uint256 farCallAbi) {
+        // Fill in the call parameter fields
+        farCallAbi = getFarCallABIWithEmptyFatPointer(
+            gasPassed,
+            shardId,
+            forwardingMode,
+            isConstructorCall,
+            isSystemCall
+        );
+        // Fill in the fat pointer fields
         farCallAbi |= dataOffset;
         farCallAbi |= (uint256(memoryPage) << 32);
         farCallAbi |= (uint256(dataStart) << 64);
         farCallAbi |= (uint256(dataLength) << 96);
-        farCallAbi |= (uint256(gasPassed) << 192);
-        farCallAbi |= (uint256(shardId) << 224);
-        farCallAbi |= (uint256(forwardingMode) << 232);
+    }
+
+    /// @notice Calculates the packed representation of the FarCallABI with zero fat pointer fields.
+    /// @param gasPassed The gas to pass with the call.
+    /// @param shardId Of the account to call. Currently only 0 is supported.
+    /// @param forwardingMode The forwarding mode to use:
+    /// - provide CalldataForwardingMode.UseHeap when using your current memory
+    /// - provide CalldataForwardingMode.ForwardFatPointer when using custom pointer.
+    /// @param isConstructorCall Whether the call will be a call to the constructor
+    /// (ignored when the caller is not a system contract).
+    /// @param isSystemCall Whether the call will have the `isSystem` flag.
+    /// @return farCallAbiWithEmptyFatPtr The far call ABI with zero fat pointer fields.
+    function getFarCallABIWithEmptyFatPointer(
+        uint32 gasPassed,
+        uint8 shardId,
+        CalldataForwardingMode forwardingMode,
+        bool isConstructorCall,
+        bool isSystemCall
+    ) internal pure returns (uint256 farCallAbiWithEmptyFatPtr) {
+        farCallAbiWithEmptyFatPtr |= (uint256(gasPassed) << 192);
+        farCallAbiWithEmptyFatPtr |= (uint256(forwardingMode) << 224);
+        farCallAbiWithEmptyFatPtr |= (uint256(shardId) << 232);
         if (isConstructorCall) {
-            farCallAbi |= (1 << 240);
+            farCallAbiWithEmptyFatPtr |= (1 << 240);
         }
         if (isSystemCall) {
-            farCallAbi |= (1 << 248);
+            farCallAbiWithEmptyFatPtr |= (1 << 248);
         }
     }
 }

@@ -2,11 +2,12 @@ use core::fmt::Debug;
 
 use blake2::{Blake2s256, Digest};
 use serde::{Deserialize, Serialize};
-use zksync_basic_types::web3::signing::keccak256;
+use zksync_basic_types::{web3::signing::keccak256, L2ChainId};
 
 use crate::{AccountTreeId, Address, H160, H256, U256};
 
 pub mod log;
+pub mod witness_block_state;
 pub mod writes;
 
 pub use log::*;
@@ -42,9 +43,7 @@ impl StorageKey {
         bytes[12..32].copy_from_slice(&address.0);
         U256::from(key.to_fixed_bytes()).to_big_endian(&mut bytes[32..64]);
 
-        let mut hash = [0u8; 32];
-        hash.copy_from_slice(Blake2s256::digest(bytes).as_slice());
-        hash
+        Blake2s256::digest(bytes).into()
     }
 
     pub fn hashed_key(&self) -> H256 {
@@ -100,28 +99,11 @@ pub fn get_is_account_key(account: &Address) -> StorageKey {
 
 pub type StorageValue = H256;
 
-/// Allows to read from storage.
-/// Provides ability to read value by corresponsing key and load contract
-/// code from supplied address.
-pub trait ZkSyncReadStorage: Debug {
-    /// Read value of the key, this should not produce logs.
-    fn read_value(&mut self, key: &StorageKey) -> StorageValue;
-
-    /// Returns if the write to the given key is initial.
-    fn is_write_initial(&mut self, key: &StorageKey) -> bool;
-
-    /// Load the contract code deployed to the provided address.
-    fn load_contract(&mut self, address: Address) -> Option<Vec<u8>>;
-
-    /// Load the factory dependency code by its hash.
-    fn load_factory_dep(&mut self, hash: H256) -> Option<Vec<u8>>;
-}
-
-pub fn get_system_context_init_logs(chain_id: H256) -> Vec<StorageLog> {
+pub fn get_system_context_init_logs(chain_id: L2ChainId) -> Vec<StorageLog> {
     vec![
         StorageLog::new_write_log(
             get_system_context_key(SYSTEM_CONTEXT_CHAIN_ID_POSITION),
-            chain_id,
+            H256::from_low_u64_be(chain_id.0 as u64),
         ),
         StorageLog::new_write_log(
             get_system_context_key(SYSTEM_CONTEXT_BLOCK_GAS_LIMIT_POSITION),

@@ -1,0 +1,55 @@
+name: Workflow template for CI jobs for Prover Components
+on:
+  workflow_call:
+
+jobs:
+  unit-tests:
+    runs-on: [matterlabs-ci-runner]
+
+    steps:
+      - name: Prepare environment
+        run: |
+          sudo apt update && sudo apt install -y \
+            pkg-config libclang-dev build-essential lldb lld \
+            clang openssl libssl-dev gcc g++ pkg-config libclang-dev curl wget
+
+      - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
+        with:
+          submodules: "recursive"
+
+      - name: Use Node.js 18.18.0
+        uses: actions/setup-node@v2
+        with:
+          node-version: '18.18.0'
+
+      - name: Install Rust nightly-2023-07-21
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly-2023-07-21
+          override: true
+
+      - name: Setup environment
+        run: |
+          echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
+          echo $(pwd)/bin >> $GITHUB_PATH
+          echo IN_DOCKER=1 >> .env
+          npm install -g yarn
+          cargo install sqlx-cli --version 0.5.13
+
+      - name: Start services
+        run: |
+          docker-compose -f docker-compose-runner.yml pull
+          docker-compose -f docker-compose-runner.yml up --build -d zk
+          ci_run sccache --start-server
+
+      - name: Init
+        run: |
+          zk
+          zk config compile
+          zk db setup
+
+      - name: Prover unit tests
+        run: |
+          cd prover
+          # Not all tests are enabled since, prover and setup_key_generator_and_server requires bellman-cuda to be present
+          zk f cargo +nightly-2023-07-21 test --release -p zksync_witness_generator -p vk_setup_data_generator_server_fri -p zksync_prover_fri -p zksync_witness_vector_generator -p zksync_prover_fri_utils

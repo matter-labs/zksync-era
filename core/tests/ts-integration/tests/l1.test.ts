@@ -359,6 +359,7 @@ function getOverheadForTransaction(
 
     const MAX_TRANSACTIONS_IN_BLOCK = ethers.BigNumber.from(SYSTEM_CONFIG['MAX_TRANSACTIONS_IN_BLOCK']);
     const BOOTLOADER_TX_ENCODING_SPACE = ethers.BigNumber.from(SYSTEM_CONFIG['BOOTLOADER_TX_ENCODING_SPACE']);
+    // TODO (EVM-67): possibly charge overhead for pubdata
     // const MAX_PUBDATA_PER_BLOCK = ethers.BigNumber.from(SYSTEM_CONFIG['MAX_PUBDATA_PER_BLOCK']);
     const L2_TX_MAX_GAS_LIMIT = ethers.BigNumber.from(SYSTEM_CONFIG['L2_TX_MAX_GAS_LIMIT']);
 
@@ -373,6 +374,14 @@ function getOverheadForTransaction(
     if (overheadForLength.gt(blockOverheadForTransaction)) {
         blockOverheadForTransaction = overheadForLength;
     }
+
+    // The overhead for possible published public data
+    // TODO (EVM-67): possibly charge overhead for pubdata
+    // let maxPubdataInTx = ceilDiv(bodyGasLimit, gasPricePerPubdata);
+    // let overheadForPublicData = ceilDiv(maxPubdataInTx.mul(maxBlockOverhead), MAX_PUBDATA_PER_BLOCK);
+    // if (overheadForPublicData.gt(blockOverheadForTransaction)) {
+    //     blockOverheadForTransaction = overheadForPublicData;
+    // }
 
     // The overhead for gas that could be used to use single-instance circuits
     let overheadForSingleInstanceCircuits = ceilDiv(bodyGasLimit.mul(maxBlockOverhead), L2_TX_MAX_GAS_LIMIT);

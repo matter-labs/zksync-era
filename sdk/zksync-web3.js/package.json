@@ -1,6 +1,6 @@
 {
   "name": "zksync-web3",
-  "version": "0.14.1",
+  "version": "0.15.4",
   "main": "build/src/index.js",
   "types": "build/src/index.d.ts",
   "files": [
@@ -10,7 +10,6 @@
     "typechain/"
   ],
   "license": "MIT",
-  "dependencies": {},
   "devDependencies": {
     "@types/chai": "^4.2.19",
     "@types/mocha": "^8.2.2",

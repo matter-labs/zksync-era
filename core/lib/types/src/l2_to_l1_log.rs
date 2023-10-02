@@ -1,4 +1,4 @@
-use crate::commitment::CommitmentSerializable;
+use crate::commitment::SerializeCommitment;
 use crate::{Address, H256};
 use serde::{Deserialize, Serialize};
 use zk_evm::reference_impls::event_sink::EventMessage;
@@ -14,9 +14,9 @@ pub struct L2ToL1Log {
     pub value: H256,
 }
 
-impl From<Vec<u8>> for L2ToL1Log {
-    fn from(data: Vec<u8>) -> Self {
-        assert_eq!(data.len(), L2ToL1Log::SERIALIZED_SIZE);
+impl L2ToL1Log {
+    pub fn from_slice(data: &[u8]) -> Self {
+        assert_eq!(data.len(), Self::SERIALIZED_SIZE);
         Self {
             shard_id: data[0],
             is_service: data[1] != 0,
@@ -25,6 +25,13 @@ impl From<Vec<u8>> for L2ToL1Log {
             key: H256::from_slice(&data[24..56]),
             value: H256::from_slice(&data[56..88]),
         }
+    }
+
+    /// Converts this log to a byte array by serializing it as a commitment.
+    pub fn to_bytes(&self) -> [u8; Self::SERIALIZED_SIZE] {
+        let mut buffer = [0_u8; Self::SERIALIZED_SIZE];
+        self.serialize_commitment(&mut buffer);
+        buffer
     }
 }
 

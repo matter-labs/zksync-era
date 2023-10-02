@@ -49,7 +49,6 @@ export class TestMaster {
         if (!suiteWalletPK) {
             throw new Error(`Wallet for ${suiteName} suite was not provided`);
         }
-
         this.l1Provider = new ethers.providers.JsonRpcProvider(this.env.l1NodeUrl);
         this.l2Provider = new RetryProvider({
             url: this.env.l2NodeUrl,

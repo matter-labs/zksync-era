@@ -1,12 +1,6 @@
-[submodule "sdk/binaryen"]
-	path = sdk/binaryen
-	url = git@github.com:WebAssembly/binaryen.git
 [submodule "etc/system-contracts"]
-	path = etc/system-contracts
-	url = git@github.com:matter-labs/era-system-contracts.git
-[submodule "etc/openzeppelin-contracts"]
-	path = etc/openzeppelin-contracts
-	url = git@github.com:matter-labs/era-openzeppelin.git
+path = etc/system-contracts
+url = https://github.com/matter-labs/era-system-contracts.git
 [submodule "contracts"]
-	path = contracts
-	url = git@github.com:matter-labs/era-contracts.git
+path = contracts
+url = https://github.com/matter-labs/era-contracts.git

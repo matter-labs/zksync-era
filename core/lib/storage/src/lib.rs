@@ -1,5 +1,5 @@
 pub mod db;
-pub mod util;
+mod metrics;
 
 pub use db::RocksDB;
 pub use rocksdb;

@@ -12,3 +12,4 @@ pub mod fs_utils;
 pub mod report;
 pub mod report_collector;
 pub mod rng;
+pub mod utils;

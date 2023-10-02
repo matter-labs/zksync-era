@@ -11,8 +11,8 @@ RUN apt-get update; apt-get install -y make bash git openssl libssl-dev gcc g++ 
 RUN apt-get install -y libpq5 ca-certificates postgresql-client && rm -rf /var/lib/apt/lists/*
 
 # Install node and yarn
-RUN curl -sL https://deb.nodesource.com/setup_14.x | bash -
-RUN apt-get install -y nodejs
+RUN curl -sL https://deb.nodesource.com/setup_18.x | bash -
+RUN apt-get install -y nodejs npm
 RUN npm install -g yarn
 
 # Copy compiler (both solc and zksolc) binaries
@@ -20,10 +20,6 @@ RUN npm install -g yarn
 RUN wget https://github.com/ethereum/solc-bin/raw/gh-pages/linux-amd64/solc-linux-amd64-v0.8.12%2Bcommit.f00d7308 \
     && mv solc-linux-amd64-v0.8.12+commit.f00d7308 /usr/bin/solc \
     && chmod +x /usr/bin/solc
-# Obtain `zksolc` 1.1.5.
-RUN wget https://github.com/matter-labs/zksolc-bin/raw/main/linux-amd64/zksolc-linux-amd64-musl-v1.1.6 \
-    && mv zksolc-linux-amd64-musl-v1.1.6 /usr/bin/zksolc \
-    && chmod +x /usr/bin/zksolc
 
 # Copy required packages while preserving the folders structure from the repo
 # It's required because these packages use relative paths to the SDK

@@ -1,24 +1,18 @@
 use once_cell::sync::Lazy;
-use tempfile::TempDir;
 use vm::{
-    storage::Storage,
-    utils::{
-        create_test_block_params, insert_system_contracts, read_bootloader_test_code,
-        BLOCK_GAS_LIMIT,
-    },
+    utils::{create_test_block_params, read_bootloader_test_code, BLOCK_GAS_LIMIT},
     vm_with_bootloader::{
         init_vm_inner, push_raw_transaction_to_bootloader_memory, BlockContextMode,
         BootloaderJobType, DerivedBlockContext, TxExecutionMode,
     },
     zk_evm::{aux_structures::Timestamp, zkevm_opcode_defs::BOOTLOADER_HEAP_PAGE},
-    OracleTools,
+    HistoryEnabled, OracleTools,
 };
 use zksync_contracts::{
     load_sys_contract, read_bootloader_code, read_sys_contract_bytecode, BaseSystemContracts,
     ContractLanguage, SystemContractCode,
 };
-use zksync_state::{secondary_storage::SecondaryStateStorage, storage_view::StorageView};
-use zksync_storage::{db::Database, RocksDB};
+use zksync_state::{InMemoryStorage, StorageView, WriteStorage};
 use zksync_types::{
     ethabi::Token,
     fee::Fee,
@@ -148,20 +142,14 @@ pub(super) fn execute_internal_transfer_test() -> u32 {
     let (block_context, block_properties) = create_test_block_params();
     let block_context: DerivedBlockContext = block_context.into();
 
-    let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
-    let db = RocksDB::new(Database::StateKeeper, temp_dir.as_ref(), false);
-    let mut raw_storage = SecondaryStateStorage::new(db);
-    insert_system_contracts(&mut raw_storage);
-    let storage_ptr: &mut dyn Storage = &mut StorageView::new(&raw_storage);
-
-    let bootloader_balane_key = storage_key_for_eth_balance(&BOOTLOADER_ADDRESS);
-    storage_ptr.set_value(&bootloader_balane_key, u256_to_h256(U256([0, 0, 1, 0])));
-
-    let mut oracle_tools = OracleTools::new(storage_ptr);
+    let raw_storage = InMemoryStorage::with_system_contracts(hash_bytecode);
+    let mut storage_view = StorageView::new(raw_storage);
+    let bootloader_balance_key = storage_key_for_eth_balance(&BOOTLOADER_ADDRESS);
+    storage_view.set_value(bootloader_balance_key, u256_to_h256(U256([0, 0, 1, 0])));
+    let mut oracle_tools = OracleTools::new(&mut storage_view, HistoryEnabled);
 
     let bytecode = read_bootloader_test_code("transfer_test");
     let hash = hash_bytecode(&bytecode);
-
     let bootloader = SystemContractCode {
         code: bytes_to_be_words(bytecode),
         hash,
@@ -169,7 +157,6 @@ pub(super) fn execute_internal_transfer_test() -> u32 {
 
     let bytecode = read_sys_contract_bytecode("", "DefaultAccount", ContractLanguage::Sol);
     let hash = hash_bytecode(&bytecode);
-
     let default_aa = SystemContractCode {
         code: bytes_to_be_words(bytecode),
         hash,
@@ -242,16 +229,13 @@ pub(super) fn execute_user_txs_in_test_gas_vm(
     let (block_context, block_properties) = create_test_block_params();
     let block_context: DerivedBlockContext = block_context.into();
 
-    let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
-    let db = RocksDB::new(Database::StateKeeper, temp_dir.as_ref(), false);
-    let mut raw_storage = SecondaryStateStorage::new(db);
-    insert_system_contracts(&mut raw_storage);
-    let storage_ptr: &mut dyn Storage = &mut StorageView::new(&raw_storage);
+    let raw_storage = InMemoryStorage::with_system_contracts(hash_bytecode);
+    let mut storage_view = StorageView::new(raw_storage);
 
     for tx in txs.iter() {
         let sender_address = tx.initiator_account();
         let key = storage_key_for_eth_balance(&sender_address);
-        storage_ptr.set_value(&key, u256_to_h256(U256([0, 0, 1, 0])));
+        storage_view.set_value(key, u256_to_h256(U256([0, 0, 1, 0])));
     }
 
     // We also set some of the storage slots to non-zero values. This is not how it will be
@@ -267,12 +251,12 @@ pub(super) fn execute_user_txs_in_test_gas_vm(
             SYSTEM_CONTEXT_GAS_PRICE_POSITION,
         );
 
-        storage_ptr.set_value(&bootloader_balance_key, u256_to_h256(U256([1, 0, 0, 0])));
-        storage_ptr.set_value(&tx_origin_key, u256_to_h256(U256([1, 0, 0, 0])));
-        storage_ptr.set_value(&tx_gas_price_key, u256_to_h256(U256([1, 0, 0, 0])));
+        storage_view.set_value(bootloader_balance_key, u256_to_h256(U256([1, 0, 0, 0])));
+        storage_view.set_value(tx_origin_key, u256_to_h256(U256([1, 0, 0, 0])));
+        storage_view.set_value(tx_gas_price_key, u256_to_h256(U256([1, 0, 0, 0])));
     }
 
-    let mut oracle_tools = OracleTools::new(storage_ptr);
+    let mut oracle_tools = OracleTools::new(&mut storage_view, HistoryEnabled);
 
     let mut vm = init_vm_inner(
         &mut oracle_tools,
@@ -282,6 +266,7 @@ pub(super) fn execute_user_txs_in_test_gas_vm(
         &GAS_TEST_SYSTEM_CONTRACTS,
         TxExecutionMode::VerifyExecute,
     );
+    vm.start_next_l2_block(vm.get_current_l2_block_info().dummy_next_block_info());
 
     let mut total_gas_refunded = 0;
     for tx in txs {
@@ -293,7 +278,7 @@ pub(super) fn execute_user_txs_in_test_gas_vm(
             None,
         );
         let tx_execution_result = vm
-            .execute_next_tx(u32::MAX)
+            .execute_next_tx(u32::MAX, false)
             .expect("Bootloader failed while processing transaction");
 
         total_gas_refunded += tx_execution_result.gas_refunded;
@@ -320,6 +305,8 @@ pub(super) fn execute_user_txs_in_test_gas_vm(
         0, // The number of contracts deployed is irrelevant for our needs
         result.full_result.contracts_used,
         result.full_result.cycles_used,
+        result.full_result.computational_gas_used,
+        result.full_result.total_log_queries,
     );
 
     VmSpentResourcesResult {

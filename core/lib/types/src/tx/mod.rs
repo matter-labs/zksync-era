@@ -13,6 +13,7 @@ pub mod primitives;
 pub mod tx_execution_info;
 
 pub use self::execute::Execute;
+use crate::vm_trace::Call;
 use crate::Transaction;
 pub use tx_execution_info::ExecutionMetrics;
 use tx_execution_info::TxExecutionStatus;
@@ -26,6 +27,26 @@ pub struct TransactionExecutionResult {
     pub refunded_gas: u32,
     pub operator_suggested_refund: u32,
     pub compressed_bytecodes: Vec<CompressedBytecodeInfo>,
+    pub call_traces: Vec<Call>,
+    pub revert_reason: Option<String>,
+}
+
+impl TransactionExecutionResult {
+    pub fn call_trace(&self) -> Option<Call> {
+        if self.call_traces.is_empty() {
+            None
+        } else {
+            Some(Call::new_high_level(
+                self.transaction.gas_limit().as_u32(),
+                self.transaction.gas_limit().as_u32() - self.refunded_gas,
+                self.transaction.execute.value,
+                self.transaction.execute.calldata.clone(),
+                vec![],
+                self.revert_reason.clone(),
+                self.call_traces.clone(),
+            ))
+        }
+    }
 }
 
 #[derive(Debug, Clone)]

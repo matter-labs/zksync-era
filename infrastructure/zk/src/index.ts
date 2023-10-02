@@ -2,12 +2,13 @@
 
 import { program, Command } from 'commander';
 import { spawnSync } from 'child_process';
-import { command as server } from './server';
+import { serverCommand as server, enCommand as en } from './server';
 import { command as contractVerifier } from './contract_verifier';
 import { command as up } from './up';
 import { command as down } from './down';
 import { command as contract } from './contract';
 import { initCommand as init, reinitCommand as reinit, lightweightInitCommand as lightweightInit } from './init';
+import { initHyperchainCommand as initHyperchain } from './hyperchain_wizard';
 import { command as run } from './run/run';
 import { command as test } from './test/test';
 import { command as docker } from './docker';
@@ -17,11 +18,13 @@ import { command as compiler } from './compiler';
 import { command as completion } from './completion';
 import { command as config } from './config';
 import { command as clean } from './clean';
-import { command as db } from './database/database';
+import { command as db } from './database';
+import { command as verifyUpgrade } from './verify-upgrade';
 import * as env from './env';
 
 const COMMANDS = [
     server,
+    en,
     contractVerifier,
     up,
     down,
@@ -30,6 +33,7 @@ const COMMANDS = [
     init,
     reinit,
     lightweightInit,
+    initHyperchain,
     run,
     test,
     fmt,
@@ -38,6 +42,7 @@ const COMMANDS = [
     config,
     clean,
     compiler,
+    verifyUpgrade,
     env.command,
     completion(program as Command)
 ];

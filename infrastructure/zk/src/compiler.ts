@@ -3,7 +3,10 @@ import * as utils from './utils';
 
 export async function compileTestContracts() {
     await utils.spawn('yarn --cwd etc/contracts-test-data hardhat compile');
-    await utils.spawn('yarn --cwd core/tests/ts-integration/contracts hardhat compile');
+    process.chdir('core/tests/ts-integration');
+    await utils.spawn('yarn hardhat compile');
+    await utils.spawn('yarn hardhat run ./scripts/compile-yul.ts');
+    process.chdir('../../..');
 }
 
 export async function compileSystemContracts() {

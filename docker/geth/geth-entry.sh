@@ -22,6 +22,7 @@ standard|fast|mainnet)
   ;;
 esac
 
+mkdir -p /var/lib/geth/data
 cd /var/lib/geth/data
 
 DEV="$CONFIG"-dev.json
@@ -40,7 +41,8 @@ exec geth --networkid 9 --mine --miner.threads 1 \
     --http --http.addr "0.0.0.0" \
     --http.corsdomain "*" --nat "any" --http.api eth,web3,personal,net \
     --unlock 0 --password "./password.sec" --allow-insecure-unlock \
-    --ws --ws.port 8546 \
+    --ws --ws.addr "0.0.0.0" --ws.port 8546 \
     --gcmode archive \
     --ws.origins "*" --http.vhosts=* \
-    --miner.gastarget=10000000 --miner.gaslimit=11000000
+    --miner.gaslimit=11000000 \
+    --miner.etherbase=0x8a91dc2d28b689474298d91899f0c1baf62cb85b 

@@ -1,6 +1,6 @@
 use serde::Deserialize;
 
-use crate::envy_load;
+use super::envy_load;
 
 /// Configuration for the grouping of specialized provers.
 /// This config would be used by circuit-synthesizer and provers.
@@ -17,11 +17,17 @@ pub struct ProverGroupConfig {
     pub group_8_circuit_ids: Vec<u8>,
     pub group_9_circuit_ids: Vec<u8>,
     pub region_read_url: String,
+    // This is used while running the provers/synthesizer in non-gcp cloud env.
+    pub region_override: Option<String>,
+    pub zone_read_url: String,
+    // This is used while running the provers/synthesizer in non-gcp cloud env.
+    pub zone_override: Option<String>,
+    pub synthesizer_per_gpu: u16,
 }
 
 impl ProverGroupConfig {
-    pub fn from_env() -> Self {
-        envy_load!("prover_group", "PROVER_GROUP_")
+    pub fn from_env() -> anyhow::Result<Self> {
+        envy_load("prover_group", "PROVER_GROUP_")
     }
 
     pub fn get_circuit_ids_for_group_id(&self, group_id: u8) -> Option<Vec<u8>> {
@@ -67,9 +73,10 @@ impl ProverGroupConfig {
 
 #[cfg(test)]
 mod tests {
-    use crate::configs::test_utils::set_env;
-
     use super::*;
+    use crate::configs::test_utils::EnvMutex;
+
+    static MUTEX: EnvMutex = EnvMutex::new();
 
     fn expected_config() -> ProverGroupConfig {
         ProverGroupConfig {
@@ -84,6 +91,10 @@ mod tests {
             group_8_circuit_ids: vec![16, 17],
             group_9_circuit_ids: vec![3],
             region_read_url: "http://metadata.google.internal/computeMetadata/v1/instance/attributes/cluster-location".to_string(),
+            region_override: Some("us-central-1".to_string()),
+            zone_read_url: "http://metadata.google.internal/computeMetadata/v1/instance/zone".to_string(),
+            zone_override: Some("us-central-1-b".to_string()),
+            synthesizer_per_gpu: 10,
         }
     }
 
@@ -99,19 +110,23 @@ mod tests {
         PROVER_GROUP_GROUP_8_CIRCUIT_IDS="16,17"
         PROVER_GROUP_GROUP_9_CIRCUIT_IDS="3"
         PROVER_GROUP_REGION_READ_URL="http://metadata.google.internal/computeMetadata/v1/instance/attributes/cluster-location"
+        PROVER_GROUP_REGION_OVERRIDE="us-central-1"
+        PROVER_GROUP_ZONE_READ_URL="http://metadata.google.internal/computeMetadata/v1/instance/zone"
+        PROVER_GROUP_ZONE_OVERRIDE="us-central-1-b"
+        PROVER_GROUP_SYNTHESIZER_PER_GPU="10"
     "#;
 
     #[test]
     fn from_env() {
-        set_env(CONFIG);
-        let actual = ProverGroupConfig::from_env();
+        let mut lock = MUTEX.lock();
+        lock.set_env(CONFIG);
+        let actual = ProverGroupConfig::from_env().unwrap();
         assert_eq!(actual, expected_config());
     }
 
     #[test]
     fn get_group_id_for_circuit_id() {
-        set_env(CONFIG);
-        let prover_group_config = ProverGroupConfig::from_env();
+        let prover_group_config = expected_config();
 
         assert_eq!(Some(0), prover_group_config.get_group_id_for_circuit_id(0));
         assert_eq!(Some(0), prover_group_config.get_group_id_for_circuit_id(18));
@@ -148,8 +163,8 @@ mod tests {
 
     #[test]
     fn get_circuit_ids_for_group_id() {
-        set_env(CONFIG);
-        let prover_group_config = ProverGroupConfig::from_env();
+        let prover_group_config = expected_config();
+
         assert_eq!(
             Some(vec![0, 18]),
             prover_group_config.get_circuit_ids_for_group_id(0)

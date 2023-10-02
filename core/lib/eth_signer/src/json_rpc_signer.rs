@@ -462,7 +462,8 @@ mod tests {
                 let data: String = serde_json::from_value(req.params[1].clone()).unwrap();
                 let data_bytes = hex::decode(&data[2..]).unwrap();
                 let signature =
-                    PackedEthSignature::sign(state.key_pairs[0].secret(), &data_bytes).unwrap();
+                    PackedEthSignature::sign(&state.key_pairs[0].secret().0.into(), &data_bytes)
+                        .unwrap();
                 create_success(json!(signature))
             }
             "eth_signTransaction" => {

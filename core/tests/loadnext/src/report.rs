@@ -5,9 +5,7 @@ use zksync_types::Address;
 use crate::account::ExecutionType;
 use crate::{
     all::All,
-    command::{
-        ApiRequest, ApiRequestType, ExplorerApiRequestType, SubscriptionType, TxCommand, TxType,
-    },
+    command::{ApiRequest, ApiRequestType, SubscriptionType, TxCommand, TxType},
 };
 
 /// Report for any operation done by loadtest.
@@ -39,23 +37,19 @@ pub struct ReportBuilder {
 
 impl Default for ReportBuilder {
     fn default() -> Self {
-        Self::new()
+        Self {
+            report: Report {
+                reporter: Address::default(),
+                label: ReportLabel::done(),
+                action: ActionType::Tx(TxActionType::Execute(ExecutionType::L2)),
+                retries: 0,
+                time: Duration::ZERO,
+            },
+        }
     }
 }
 
 impl ReportBuilder {
-    pub fn new() -> Self {
-        Self {
-            report: Report {
-                reporter: Default::default(),
-                label: ReportLabel::done(),
-                action: ActionType::Tx(TxActionType::Execute(ExecutionType::L2)),
-                retries: 0,
-                time: Default::default(),
-            },
-        }
-    }
-
     pub fn reporter(mut self, reporter: Address) -> Self {
         self.report.reporter = reporter;
         self
@@ -84,6 +78,16 @@ impl ReportBuilder {
     pub fn finish(self) -> Report {
         self.report
     }
+
+    pub fn build_init_complete_report() -> Report {
+        Report {
+            reporter: Address::default(),
+            label: ReportLabel::done(),
+            action: ActionType::InitComplete,
+            retries: 0,
+            time: Duration::ZERO,
+        }
+    }
 }
 
 /// Denotes the outcome of a performed action.
@@ -99,13 +103,13 @@ impl ReportLabel {
         Self::ActionDone
     }
 
-    pub fn skipped(reason: &str) -> Self {
+    pub fn skipped(reason: impl Into<String>) -> Self {
         Self::ActionSkipped {
             reason: reason.into(),
         }
     }
 
-    pub fn failed(error: &str) -> Self {
+    pub fn failed(error: impl Into<String>) -> Self {
         Self::ActionFailed {
             error: error.into(),
         }
@@ -180,16 +184,10 @@ impl From<ApiRequest> for ApiActionType {
 /// Generic wrapper of all the actions that can be done in loadtest.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ActionType {
+    InitComplete,
     Tx(TxActionType),
     Api(ApiActionType),
-    ExplorerApi(ExplorerApiRequestType),
     Subscription(SubscriptionType),
-}
-
-impl From<ExplorerApiRequestType> for ActionType {
-    fn from(action: ExplorerApiRequestType) -> Self {
-        Self::ExplorerApi(action)
-    }
 }
 
 impl From<TxActionType> for ActionType {

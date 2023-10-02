@@ -5,7 +5,7 @@ use std::time::Duration;
 use serde::Deserialize;
 
 // Local uses
-use crate::envy_load;
+use super::envy_load;
 
 /// Configuration for the prover application
 #[derive(Debug, Deserialize, Clone, PartialEq)]
@@ -14,7 +14,7 @@ pub struct ProverConfig {
     pub prometheus_port: u16,
     /// Currently only a single (largest) key is supported. We'll support different ones in the future
     pub initial_setup_key_path: String,
-    /// https://storage.googleapis.com/universal-setup/setup_2\^26.key
+    /// https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2\^26.key
     pub key_download_url: String,
     /// Max time for proof to be generated
     pub generation_timeout_in_secs: u16,
@@ -66,34 +66,35 @@ impl ProverConfig {
 }
 
 impl ProverConfigs {
-    pub fn from_env() -> Self {
-        Self {
-            non_gpu: envy_load!("non_gpu", "PROVER_NON_GPU_"),
-            two_gpu_forty_gb_mem: envy_load!(
+    pub fn from_env() -> anyhow::Result<Self> {
+        Ok(Self {
+            non_gpu: envy_load("non_gpu", "PROVER_NON_GPU_")?,
+            two_gpu_forty_gb_mem: envy_load(
                 "two_gpu_forty_gb_mem",
-                "PROVER_TWO_GPU_FORTY_GB_MEM_"
-            ),
-            one_gpu_eighty_gb_mem: envy_load!(
+                "PROVER_TWO_GPU_FORTY_GB_MEM_",
+            )?,
+            one_gpu_eighty_gb_mem: envy_load(
                 "one_gpu_eighty_gb_mem",
-                "PROVER_ONE_GPU_EIGHTY_GB_MEM_"
-            ),
-            two_gpu_eighty_gb_mem: envy_load!(
+                "PROVER_ONE_GPU_EIGHTY_GB_MEM_",
+            )?,
+            two_gpu_eighty_gb_mem: envy_load(
                 "two_gpu_eighty_gb_mem",
-                "PROVER_TWO_GPU_EIGHTY_GB_MEM_"
-            ),
-            four_gpu_eighty_gb_mem: envy_load!(
+                "PROVER_TWO_GPU_EIGHTY_GB_MEM_",
+            )?,
+            four_gpu_eighty_gb_mem: envy_load(
                 "four_gpu_eighty_gb_mem",
-                "PROVER_FOUR_GPU_EIGHTY_GB_MEM_"
-            ),
-        }
+                "PROVER_FOUR_GPU_EIGHTY_GB_MEM_",
+            )?,
+        })
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::configs::test_utils::set_env;
-
     use super::*;
+    use crate::configs::test_utils::EnvMutex;
+
+    static MUTEX: EnvMutex = EnvMutex::new();
 
     fn expected_config() -> ProverConfigs {
         ProverConfigs {
@@ -176,132 +177,82 @@ mod tests {
     }
 
     const CONFIG: &str = r#"
-PROVER_NON_GPU_PROMETHEUS_PORT="3313"
-PROVER_NON_GPU_INITIAL_SETUP_KEY_PATH="key"
-PROVER_NON_GPU_KEY_DOWNLOAD_URL="value"
-PROVER_NON_GPU_GENERATION_TIMEOUT_IN_SECS=2700
-PROVER_NON_GPU_NUMBER_OF_THREADS="2"
-PROVER_NON_GPU_MAX_ATTEMPTS="4"
-PROVER_NON_GPU_POLLING_DURATION_IN_MILLIS=5
-PROVER_NON_GPU_SETUP_KEYS_PATH="/usr/src/setup-keys"
-PROVER_NON_GPU_NUMBER_OF_SETUP_SLOTS=2
-PROVER_NON_GPU_ASSEMBLY_RECEIVER_PORT=17791
-PROVER_NON_GPU_ASSEMBLY_RECEIVER_POLL_TIME_IN_MILLIS=250
-PROVER_NON_GPU_ASSEMBLY_QUEUE_CAPACITY=5
-PROVER_NON_GPU_SPECIALIZED_PROVER_GROUP_ID=0
+        PROVER_NON_GPU_PROMETHEUS_PORT="3313"
+        PROVER_NON_GPU_INITIAL_SETUP_KEY_PATH="key"
+        PROVER_NON_GPU_KEY_DOWNLOAD_URL="value"
+        PROVER_NON_GPU_GENERATION_TIMEOUT_IN_SECS=2700
+        PROVER_NON_GPU_NUMBER_OF_THREADS="2"
+        PROVER_NON_GPU_MAX_ATTEMPTS="4"
+        PROVER_NON_GPU_POLLING_DURATION_IN_MILLIS=5
+        PROVER_NON_GPU_SETUP_KEYS_PATH="/usr/src/setup-keys"
+        PROVER_NON_GPU_NUMBER_OF_SETUP_SLOTS=2
+        PROVER_NON_GPU_ASSEMBLY_RECEIVER_PORT=17791
+        PROVER_NON_GPU_ASSEMBLY_RECEIVER_POLL_TIME_IN_MILLIS=250
+        PROVER_NON_GPU_ASSEMBLY_QUEUE_CAPACITY=5
+        PROVER_NON_GPU_SPECIALIZED_PROVER_GROUP_ID=0
 
-PROVER_TWO_GPU_FORTY_GB_MEM_PROMETHEUS_PORT="3313"
-PROVER_TWO_GPU_FORTY_GB_MEM_INITIAL_SETUP_KEY_PATH="key"
-PROVER_TWO_GPU_FORTY_GB_MEM_KEY_DOWNLOAD_URL="value"
-PROVER_TWO_GPU_FORTY_GB_MEM_GENERATION_TIMEOUT_IN_SECS=2700
-PROVER_TWO_GPU_FORTY_GB_MEM_NUMBER_OF_THREADS="2"
-PROVER_TWO_GPU_FORTY_GB_MEM_MAX_ATTEMPTS="4"
-PROVER_TWO_GPU_FORTY_GB_MEM_POLLING_DURATION_IN_MILLIS=5
-PROVER_TWO_GPU_FORTY_GB_MEM_SETUP_KEYS_PATH="/usr/src/setup-keys"
-PROVER_TWO_GPU_FORTY_GB_MEM_NUMBER_OF_SETUP_SLOTS=5
-PROVER_TWO_GPU_FORTY_GB_MEM_ASSEMBLY_RECEIVER_PORT=17791
-PROVER_TWO_GPU_FORTY_GB_MEM_ASSEMBLY_RECEIVER_POLL_TIME_IN_MILLIS=250
-PROVER_TWO_GPU_FORTY_GB_MEM_ASSEMBLY_QUEUE_CAPACITY=5
-PROVER_TWO_GPU_FORTY_GB_MEM_SPECIALIZED_PROVER_GROUP_ID=1
+        PROVER_TWO_GPU_FORTY_GB_MEM_PROMETHEUS_PORT="3313"
+        PROVER_TWO_GPU_FORTY_GB_MEM_INITIAL_SETUP_KEY_PATH="key"
+        PROVER_TWO_GPU_FORTY_GB_MEM_KEY_DOWNLOAD_URL="value"
+        PROVER_TWO_GPU_FORTY_GB_MEM_GENERATION_TIMEOUT_IN_SECS=2700
+        PROVER_TWO_GPU_FORTY_GB_MEM_NUMBER_OF_THREADS="2"
+        PROVER_TWO_GPU_FORTY_GB_MEM_MAX_ATTEMPTS="4"
+        PROVER_TWO_GPU_FORTY_GB_MEM_POLLING_DURATION_IN_MILLIS=5
+        PROVER_TWO_GPU_FORTY_GB_MEM_SETUP_KEYS_PATH="/usr/src/setup-keys"
+        PROVER_TWO_GPU_FORTY_GB_MEM_NUMBER_OF_SETUP_SLOTS=5
+        PROVER_TWO_GPU_FORTY_GB_MEM_ASSEMBLY_RECEIVER_PORT=17791
+        PROVER_TWO_GPU_FORTY_GB_MEM_ASSEMBLY_RECEIVER_POLL_TIME_IN_MILLIS=250
+        PROVER_TWO_GPU_FORTY_GB_MEM_ASSEMBLY_QUEUE_CAPACITY=5
+        PROVER_TWO_GPU_FORTY_GB_MEM_SPECIALIZED_PROVER_GROUP_ID=1
 
-PROVER_ONE_GPU_EIGHTY_GB_MEM_PROMETHEUS_PORT="3313"
-PROVER_ONE_GPU_EIGHTY_GB_MEM_INITIAL_SETUP_KEY_PATH="key"
-PROVER_ONE_GPU_EIGHTY_GB_MEM_KEY_DOWNLOAD_URL="value"
-PROVER_ONE_GPU_EIGHTY_GB_MEM_GENERATION_TIMEOUT_IN_SECS=2700
-PROVER_ONE_GPU_EIGHTY_GB_MEM_NUMBER_OF_THREADS="4"
-PROVER_ONE_GPU_EIGHTY_GB_MEM_MAX_ATTEMPTS="4"
-PROVER_ONE_GPU_EIGHTY_GB_MEM_POLLING_DURATION_IN_MILLIS=5
-PROVER_ONE_GPU_EIGHTY_GB_MEM_SETUP_KEYS_PATH="/usr/src/setup-keys"
-PROVER_ONE_GPU_EIGHTY_GB_MEM_NUMBER_OF_SETUP_SLOTS=5
-PROVER_ONE_GPU_EIGHTY_GB_MEM_ASSEMBLY_RECEIVER_PORT=17791
-PROVER_ONE_GPU_EIGHTY_GB_MEM_ASSEMBLY_RECEIVER_POLL_TIME_IN_MILLIS=250
-PROVER_ONE_GPU_EIGHTY_GB_MEM_ASSEMBLY_QUEUE_CAPACITY=5
-PROVER_ONE_GPU_EIGHTY_GB_MEM_SPECIALIZED_PROVER_GROUP_ID=2
+        PROVER_ONE_GPU_EIGHTY_GB_MEM_PROMETHEUS_PORT="3313"
+        PROVER_ONE_GPU_EIGHTY_GB_MEM_INITIAL_SETUP_KEY_PATH="key"
+        PROVER_ONE_GPU_EIGHTY_GB_MEM_KEY_DOWNLOAD_URL="value"
+        PROVER_ONE_GPU_EIGHTY_GB_MEM_GENERATION_TIMEOUT_IN_SECS=2700
+        PROVER_ONE_GPU_EIGHTY_GB_MEM_NUMBER_OF_THREADS="4"
+        PROVER_ONE_GPU_EIGHTY_GB_MEM_MAX_ATTEMPTS="4"
+        PROVER_ONE_GPU_EIGHTY_GB_MEM_POLLING_DURATION_IN_MILLIS=5
+        PROVER_ONE_GPU_EIGHTY_GB_MEM_SETUP_KEYS_PATH="/usr/src/setup-keys"
+        PROVER_ONE_GPU_EIGHTY_GB_MEM_NUMBER_OF_SETUP_SLOTS=5
+        PROVER_ONE_GPU_EIGHTY_GB_MEM_ASSEMBLY_RECEIVER_PORT=17791
+        PROVER_ONE_GPU_EIGHTY_GB_MEM_ASSEMBLY_RECEIVER_POLL_TIME_IN_MILLIS=250
+        PROVER_ONE_GPU_EIGHTY_GB_MEM_ASSEMBLY_QUEUE_CAPACITY=5
+        PROVER_ONE_GPU_EIGHTY_GB_MEM_SPECIALIZED_PROVER_GROUP_ID=2
 
-PROVER_TWO_GPU_EIGHTY_GB_MEM_PROMETHEUS_PORT="3313"
-PROVER_TWO_GPU_EIGHTY_GB_MEM_INITIAL_SETUP_KEY_PATH="key"
-PROVER_TWO_GPU_EIGHTY_GB_MEM_KEY_DOWNLOAD_URL="value"
-PROVER_TWO_GPU_EIGHTY_GB_MEM_GENERATION_TIMEOUT_IN_SECS=2700
-PROVER_TWO_GPU_EIGHTY_GB_MEM_NUMBER_OF_THREADS="9"
-PROVER_TWO_GPU_EIGHTY_GB_MEM_MAX_ATTEMPTS="4"
-PROVER_TWO_GPU_EIGHTY_GB_MEM_POLLING_DURATION_IN_MILLIS=5
-PROVER_TWO_GPU_EIGHTY_GB_MEM_SETUP_KEYS_PATH="/usr/src/setup-keys"
-PROVER_TWO_GPU_EIGHTY_GB_MEM_NUMBER_OF_SETUP_SLOTS=9
-PROVER_TWO_GPU_EIGHTY_GB_MEM_ASSEMBLY_RECEIVER_PORT=17791
-PROVER_TWO_GPU_EIGHTY_GB_MEM_ASSEMBLY_RECEIVER_POLL_TIME_IN_MILLIS=250
-PROVER_TWO_GPU_EIGHTY_GB_MEM_ASSEMBLY_QUEUE_CAPACITY=5
-PROVER_TWO_GPU_EIGHTY_GB_MEM_SPECIALIZED_PROVER_GROUP_ID=3
+        PROVER_TWO_GPU_EIGHTY_GB_MEM_PROMETHEUS_PORT="3313"
+        PROVER_TWO_GPU_EIGHTY_GB_MEM_INITIAL_SETUP_KEY_PATH="key"
+        PROVER_TWO_GPU_EIGHTY_GB_MEM_KEY_DOWNLOAD_URL="value"
+        PROVER_TWO_GPU_EIGHTY_GB_MEM_GENERATION_TIMEOUT_IN_SECS=2700
+        PROVER_TWO_GPU_EIGHTY_GB_MEM_NUMBER_OF_THREADS="9"
+        PROVER_TWO_GPU_EIGHTY_GB_MEM_MAX_ATTEMPTS="4"
+        PROVER_TWO_GPU_EIGHTY_GB_MEM_POLLING_DURATION_IN_MILLIS=5
+        PROVER_TWO_GPU_EIGHTY_GB_MEM_SETUP_KEYS_PATH="/usr/src/setup-keys"
+        PROVER_TWO_GPU_EIGHTY_GB_MEM_NUMBER_OF_SETUP_SLOTS=9
+        PROVER_TWO_GPU_EIGHTY_GB_MEM_ASSEMBLY_RECEIVER_PORT=17791
+        PROVER_TWO_GPU_EIGHTY_GB_MEM_ASSEMBLY_RECEIVER_POLL_TIME_IN_MILLIS=250
+        PROVER_TWO_GPU_EIGHTY_GB_MEM_ASSEMBLY_QUEUE_CAPACITY=5
+        PROVER_TWO_GPU_EIGHTY_GB_MEM_SPECIALIZED_PROVER_GROUP_ID=3
 
-PROVER_FOUR_GPU_EIGHTY_GB_MEM_PROMETHEUS_PORT="3313"
-PROVER_FOUR_GPU_EIGHTY_GB_MEM_INITIAL_SETUP_KEY_PATH="key"
-PROVER_FOUR_GPU_EIGHTY_GB_MEM_KEY_DOWNLOAD_URL="value"
-PROVER_FOUR_GPU_EIGHTY_GB_MEM_GENERATION_TIMEOUT_IN_SECS=2700
-PROVER_FOUR_GPU_EIGHTY_GB_MEM_NUMBER_OF_THREADS="18"
-PROVER_FOUR_GPU_EIGHTY_GB_MEM_MAX_ATTEMPTS="4"
-PROVER_FOUR_GPU_EIGHTY_GB_MEM_POLLING_DURATION_IN_MILLIS=5
-PROVER_FOUR_GPU_EIGHTY_GB_MEM_SETUP_KEYS_PATH="/usr/src/setup-keys"
-PROVER_FOUR_GPU_EIGHTY_GB_MEM_NUMBER_OF_SETUP_SLOTS=18
-PROVER_FOUR_GPU_EIGHTY_GB_MEM_ASSEMBLY_RECEIVER_PORT=17791
-PROVER_FOUR_GPU_EIGHTY_GB_MEM_ASSEMBLY_RECEIVER_POLL_TIME_IN_MILLIS=250
-PROVER_FOUR_GPU_EIGHTY_GB_MEM_ASSEMBLY_QUEUE_CAPACITY=5
-PROVER_FOUR_GPU_EIGHTY_GB_MEM_SPECIALIZED_PROVER_GROUP_ID=4
-        "#;
+        PROVER_FOUR_GPU_EIGHTY_GB_MEM_PROMETHEUS_PORT="3313"
+        PROVER_FOUR_GPU_EIGHTY_GB_MEM_INITIAL_SETUP_KEY_PATH="key"
+        PROVER_FOUR_GPU_EIGHTY_GB_MEM_KEY_DOWNLOAD_URL="value"
+        PROVER_FOUR_GPU_EIGHTY_GB_MEM_GENERATION_TIMEOUT_IN_SECS=2700
+        PROVER_FOUR_GPU_EIGHTY_GB_MEM_NUMBER_OF_THREADS="18"
+        PROVER_FOUR_GPU_EIGHTY_GB_MEM_MAX_ATTEMPTS="4"
+        PROVER_FOUR_GPU_EIGHTY_GB_MEM_POLLING_DURATION_IN_MILLIS=5
+        PROVER_FOUR_GPU_EIGHTY_GB_MEM_SETUP_KEYS_PATH="/usr/src/setup-keys"
+        PROVER_FOUR_GPU_EIGHTY_GB_MEM_NUMBER_OF_SETUP_SLOTS=18
+        PROVER_FOUR_GPU_EIGHTY_GB_MEM_ASSEMBLY_RECEIVER_PORT=17791
+        PROVER_FOUR_GPU_EIGHTY_GB_MEM_ASSEMBLY_RECEIVER_POLL_TIME_IN_MILLIS=250
+        PROVER_FOUR_GPU_EIGHTY_GB_MEM_ASSEMBLY_QUEUE_CAPACITY=5
+        PROVER_FOUR_GPU_EIGHTY_GB_MEM_SPECIALIZED_PROVER_GROUP_ID=4
+    "#;
 
     #[test]
     fn from_env() {
-        set_env(CONFIG);
-        let actual = ProverConfigs::from_env();
+        let mut lock = MUTEX.lock();
+        lock.set_env(CONFIG);
+        let actual = ProverConfigs::from_env().unwrap();
         assert_eq!(actual, expected_config());
-    }
-
-    fn convert<'a, T: IntoIterator<Item = &'a (&'a str, &'a str)>>(
-        iter: T,
-        prefix: &str,
-    ) -> ProverConfig {
-        let iter = iter
-            .into_iter()
-            .map(|(x, y)| (x.to_string(), y.to_string()));
-
-        envy::prefixed(prefix).from_iter(iter).unwrap()
-    }
-
-    #[test]
-    fn from_env_some() {
-        let expected_config = ProverConfig {
-            prometheus_port: 3313,
-            initial_setup_key_path: "key".to_owned(),
-            key_download_url: "value".to_owned(),
-            generation_timeout_in_secs: 2700u16,
-            number_of_threads: 2,
-            max_attempts: 4,
-            polling_duration_in_millis: 5,
-            setup_keys_path: "/usr/src/setup-keys".to_string(),
-            specialized_prover_group_id: 0,
-            number_of_setup_slots: 11,
-            assembly_receiver_port: 17791,
-            assembly_receiver_poll_time_in_millis: 250,
-            assembly_queue_capacity: 5,
-        };
-
-        let config = [
-            ("PROVER_PROMETHEUS_PORT", "3313"),
-            ("PROVER_INITIAL_SETUP_KEY_PATH", "key"),
-            ("PROVER_KEY_DOWNLOAD_URL", "value"),
-            ("PROVER_GENERATION_TIMEOUT_IN_SECS", "2700"),
-            ("PROVER_NUMBER_OF_THREADS", "2"),
-            ("PROVER_MAX_ATTEMPTS", "4"),
-            ("PROVER_POLLING_DURATION_IN_MILLIS", "5"),
-            ("PROVER_SETUP_KEYS_PATH", "/usr/src/setup-keys"),
-            ("PROVER_NUMBER_OF_SETUP_SLOTS", "11"),
-            ("PROVER_ASSEMBLY_RECEIVER_PORT", "17791"),
-            ("PROVER_ASSEMBLY_RECEIVER_POLL_TIME_IN_MILLIS", "250"),
-            ("PROVER_ASSEMBLY_QUEUE_CAPACITY", "5"),
-            ("PROVER_SPECIALIZED_PROVER_GROUP_ID", "0"),
-        ]
-        .iter()
-        .chain(vec![&("PROVER_CIRCUIT_TYPES", "1,2")]);
-
-        let actual = convert(config, "PROVER_");
-        assert_eq!(actual, expected_config);
     }
 }

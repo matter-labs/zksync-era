@@ -1,0 +1,12 @@
+database_url = "postgres://postgres@postgres/zksync_local"
+test_database_url = "postgres://postgres@postgres/zksync_local_test"
+
+# for loadtest
+l1_rpc_address = "http://geth:8545"
+
+[eth_client]
+web3_url = "http://geth:8545"
+
+[chain.state_keeper]
+miniblock_iteration_interval = 50
+

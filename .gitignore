@@ -15,6 +15,11 @@ a.out
 cobertura.xml
 tags
 *.orig
+.direnv
+
+# Yarn files
+.yarn/
+.yarnrc.yml
 
 zksync_pk.key
 dist
@@ -22,20 +27,20 @@ todo
 
 Cargo.lock
 !/Cargo.lock
-!/core/bin/prover/Cargo.lock
-!/core/bin/circuit_synthesizer/Cargo.lock
-!/core/bin/setup_key_generator_and_server/Cargo.lock
 !/core/bin/verification_key_generator_and_server/Cargo.lock
 !/infrastructure/zksync-crypto/Cargo.lock
+!/prover/Cargo.lock
 
 /etc/env/*
-!/etc/env/dev.env.example
-!/etc/env/docker.env
-!/etc/env/ci.env
 !/etc/env/base
+!/etc/env/docker.toml
+!/etc/env/ext-node.toml
+!/etc/env/ext-node-docker.toml
 /etc/tokens/localhost.json
 /etc/zksolc-bin/*
+/etc/zkvyper-bin/*
 /etc/solc-bin/*
+/etc/vyper-bin/*
 !/keys
 /keys/*
 !/keys/packed
@@ -50,16 +55,18 @@ Cargo.lock
 loadtest_accounts_*
 
 go_to_env.sh
+server_logs.txt
 
 core/lib/storage/.env
 
 .zcli-config.json
 
 db/
+en_db/
 db-ssd/
 backups/
 artifacts/
 artifacts-zk/
 cache-zk/
 zksolc
-.github
+verified_sources

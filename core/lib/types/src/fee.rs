@@ -3,7 +3,7 @@ use zksync_utils::ceil_div;
 
 use crate::U256;
 
-#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[derive(Debug, Default, Clone, Copy, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "result")]
 pub struct TransactionExecutionMetrics {
     pub initial_storage_writes: usize,
@@ -21,9 +21,10 @@ pub struct TransactionExecutionMetrics {
     // and the number of precompile calls
     pub total_log_queries: usize,
     pub cycles_used: u32,
+    pub computational_gas_used: u32,
 }
 
-#[derive(Default, Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Fee {
     /// The limit of gas that are to be spent on the actual transaction.
     pub gas_limit: U256,
@@ -62,7 +63,7 @@ pub fn encoding_len(
     const BASE_LEN: usize = 1 + 19 + 5;
 
     // All of the fields are encoded as `bytes`, so their encoding takes ceil(len, 32) slots.
-    // Factory deps are encoded as an array of bytes32.
+    // For factory deps we only provide hashes, which are encoded as an array of bytes32.
     let dynamic_len = ceil_div(data_len, 32)
         + ceil_div(signature_len, 32)
         + ceil_div(paymaster_input_len, 32)
