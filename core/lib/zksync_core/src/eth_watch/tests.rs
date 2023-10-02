@@ -609,7 +609,12 @@ fn upgrade_into_log(upgrade: ProtocolUpgrade, eth_block: u64) -> Log {
         ),
     ]);
 
-    let diamond_upgrade_calldata = vec![0u8; 4]
+    let execute_upgrade_selector = zksync_contract()
+        .function("executeUpgrade")
+        .unwrap()
+        .short_signature();
+    let diamond_upgrade_calldata = execute_upgrade_selector
+        .to_vec()
         .into_iter()
         .chain(encode(&[diamond_cut]))
         .collect();
