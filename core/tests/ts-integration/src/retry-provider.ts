@@ -1,15 +1,19 @@
 import * as zksync from 'zksync-web3';
 import * as ethers from 'ethers';
+import { Reporter } from './reporter';
 
 /**
  * RetryProvider retries every RPC request if it detects a timeout-related issue on the server side.
  */
 export class RetryProvider extends zksync.Provider {
+    private reporter?: Reporter;
     constructor(
         url?: string | ethers.ethers.utils.ConnectionInfo | undefined,
-        network?: ethers.ethers.providers.Networkish | undefined
+        network?: ethers.ethers.providers.Networkish | undefined,
+        reporter?: Reporter | undefined
     ) {
         super(url, network);
+        this.reporter = reporter;
     }
 
     override async send(method: string, params: any): Promise<any> {
@@ -18,7 +22,7 @@ export class RetryProvider extends zksync.Provider {
                 const result = await super.send(method, params);
                 // If we obtained result not from the first attempt, print a warning.
                 if (retry != 0) {
-                    console.log(`Request for method ${method} took ${retry} retries to succeed`);
+                    this.reporter?.debug(`Request for method ${method} took ${retry} retries to succeed`);
                 }
                 return result;
             } catch (err: any) {

@@ -3,22 +3,22 @@ use std::time::Duration;
 // External uses
 use serde::Deserialize;
 // Local uses
-use crate::envy_load;
+use super::envy_load;
 
 /// Configuration for the Ethereum sender crate.
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct ETHWatchConfig {
     /// Amount of confirmations for the priority operation to be processed.
-    /// In production this should be a non-zero value because of block reverts.
-    pub confirmations_for_eth_event: u64,
+    /// If not specified operation will be processed once its block is finalized.
+    pub confirmations_for_eth_event: Option<u64>,
     /// How often we want to poll the Ethereum node.
     /// Value in milliseconds.
     pub eth_node_poll_interval: u64,
 }
 
 impl ETHWatchConfig {
-    pub fn from_env() -> Self {
-        envy_load!("eth_watch", "ETH_WATCH_")
+    pub fn from_env() -> anyhow::Result<Self> {
+        envy_load("eth_watch", "ETH_WATCH_")
     }
 
     /// Converts `self.eth_node_poll_interval` into `Duration`.
@@ -30,24 +30,27 @@ impl ETHWatchConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::configs::test_utils::set_env;
+    use crate::configs::test_utils::EnvMutex;
+
+    static MUTEX: EnvMutex = EnvMutex::new();
 
     fn expected_config() -> ETHWatchConfig {
         ETHWatchConfig {
-            confirmations_for_eth_event: 0,
+            confirmations_for_eth_event: Some(0),
             eth_node_poll_interval: 300,
         }
     }
 
     #[test]
     fn from_env() {
+        let mut lock = MUTEX.lock();
         let config = r#"
-ETH_WATCH_CONFIRMATIONS_FOR_ETH_EVENT="0"
-ETH_WATCH_ETH_NODE_POLL_INTERVAL="300"
+            ETH_WATCH_CONFIRMATIONS_FOR_ETH_EVENT="0"
+            ETH_WATCH_ETH_NODE_POLL_INTERVAL="300"
         "#;
-        set_env(config);
+        lock.set_env(config);
 
-        let actual = ETHWatchConfig::from_env();
+        let actual = ETHWatchConfig::from_env().unwrap();
         assert_eq!(actual, expected_config());
     }
 
@@ -55,7 +58,6 @@ ETH_WATCH_ETH_NODE_POLL_INTERVAL="300"
     #[test]
     fn methods() {
         let config = expected_config();
-
         assert_eq!(
             config.poll_interval(),
             Duration::from_millis(config.eth_node_poll_interval)

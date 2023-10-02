@@ -32,7 +32,7 @@ pub struct TestContract {
 pub fn read_tokens(network: Network) -> anyhow::Result<Vec<Token>> {
     let home = std::env::var("ZKSYNC_HOME")?;
     let path = Path::new(&home);
-    let path = path.join(format!("etc/tokens/{}.json", network));
+    let path = path.join(format!("etc/tokens/{network}.json"));
 
     let file = File::open(path)?;
     let reader = BufReader::new(file);

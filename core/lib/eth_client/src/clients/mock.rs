@@ -4,17 +4,23 @@ use async_trait::async_trait;
 use jsonrpc_core::types::error::Error as RpcError;
 use std::collections::{BTreeMap, HashMap};
 use std::sync::RwLock;
-use zksync_types::web3::{
-    contract::tokens::Tokenize,
-    contract::Options,
-    ethabi,
-    types::{BlockNumber, U64},
-    Error as Web3Error,
+use zksync_types::{
+    web3::{
+        contract::{
+            tokens::{Detokenize, Tokenize},
+            Options,
+        },
+        ethabi::{self, Token},
+        types::{Block, BlockId, BlockNumber, Filter, Log, Transaction, TransactionReceipt, U64},
+        Error as Web3Error,
+    },
+    Address, L1ChainId, ProtocolVersionId, H160, H256, U256,
 };
 
-use zksync_types::{web3::types::TransactionReceipt, H160, H256, U256};
-
-use super::http_client::{Error, EthInterface, ExecutedTxStatus, FailureInfo, SignedCallResult};
+use crate::{
+    types::{Error, ExecutedTxStatus, FailureInfo, SignedCallResult},
+    BoundEthInterface, EthInterface,
+};
 
 #[derive(Debug, Clone, Default, Copy)]
 pub struct MockTx {
@@ -58,6 +64,10 @@ pub struct MockEthereum {
     pub current_nonce: AtomicU64,
     pub pending_nonce: AtomicU64,
     pub nonces: RwLock<BTreeMap<u64, u64>>,
+    /// If true, the mock will not check the ordering nonces of the transactions.
+    /// This is useful for testing the cases when the transactions are executed out of order.
+    pub non_ordering_confirmations: bool,
+    pub multicall_address: Address,
 }
 
 impl Default for MockEthereum {
@@ -72,6 +82,8 @@ impl Default for MockEthereum {
             current_nonce: Default::default(),
             pending_nonce: Default::default(),
             nonces: RwLock::new([(0, 0)].into()),
+            non_ordering_confirmations: false,
+            multicall_address: Address::default(),
         }
     }
 }
@@ -103,7 +115,14 @@ impl MockEthereum {
         let nonce = self.current_nonce.fetch_add(1, Ordering::SeqCst);
         let tx_nonce = self.sent_txs.read().unwrap()[&tx_hash].nonce;
 
-        anyhow::ensure!(tx_nonce == nonce, "nonce mismatch");
+        if self.non_ordering_confirmations {
+            if tx_nonce >= nonce {
+                self.current_nonce.store(tx_nonce, Ordering::SeqCst);
+            }
+        } else {
+            anyhow::ensure!(tx_nonce == nonce, "nonce mismatch");
+        }
+
         self.nonces.write().unwrap().insert(block_number, nonce + 1);
 
         let status = ExecutedTxStatus {
@@ -162,6 +181,20 @@ impl MockEthereum {
             ..self
         }
     }
+
+    pub fn with_non_ordering_confirmation(self, non_ordering_confirmations: bool) -> Self {
+        Self {
+            non_ordering_confirmations,
+            ..self
+        }
+    }
+
+    pub fn with_multicall_address(self, address: Address) -> Self {
+        Self {
+            multicall_address: address,
+            ..self
+        }
+    }
 }
 
 #[async_trait]
@@ -198,38 +231,13 @@ impl EthInterface for MockEthereum {
         Ok(mock_tx.hash)
     }
 
-    async fn pending_nonce(&self, _: &'static str) -> Result<U256, Error> {
-        Ok(self.pending_nonce.load(Ordering::SeqCst).into())
-    }
-
-    async fn current_nonce(&self, _: &'static str) -> Result<U256, Error> {
-        Ok(self.current_nonce.load(Ordering::SeqCst).into())
-    }
-
-    async fn nonce_at(&self, block: BlockNumber, _: &'static str) -> Result<U256, Error> {
-        if let BlockNumber::Number(block_number) = block {
-            Ok((*self
-                .nonces
-                .read()
-                .unwrap()
-                .range(..=block_number.as_u64())
-                .next_back()
-                .unwrap()
-                .1)
-                .into())
-        } else {
-            panic!("MockEthereum::nonce_at called with non-number block tag");
-        }
-    }
-
-    async fn sign_prepared_tx_for_addr(
+    async fn nonce_at_for_account(
         &self,
-        data: Vec<u8>,
-        _contract_addr: H160,
-        options: Options,
+        _account: Address,
+        _block: BlockNumber,
         _: &'static str,
-    ) -> Result<SignedCallResult, Error> {
-        self.sign_prepared_tx(data, options)
+    ) -> Result<U256, Error> {
+        unimplemented!("Getting nonce for custom account is not supported")
     }
 
     async fn get_gas_price(&self, _: &'static str) -> Result<U256, Error> {
@@ -247,6 +255,15 @@ impl EthInterface for MockEthereum {
             .to_vec())
     }
 
+    async fn get_pending_block_base_fee_per_gas(
+        &self,
+        _component: &'static str,
+    ) -> Result<U256, Error> {
+        Ok(U256::from(
+            *self.base_fee_history.read().unwrap().last().unwrap(),
+        ))
+    }
+
     async fn failure_reason(&self, tx_hash: H256) -> Result<Option<FailureInfo>, Error> {
         let tx_status = self.get_tx_status(tx_hash, "failure_reason").await.unwrap();
 
@@ -257,12 +274,154 @@ impl EthInterface for MockEthereum {
             gas_limit: U256::zero(),
         }))
     }
+
+    #[allow(clippy::too_many_arguments)]
+    async fn call_contract_function<R, A, B, P>(
+        &self,
+        _func: &str,
+        _params: P,
+        _from: A,
+        _options: Options,
+        _block: B,
+        contract_address: Address,
+        _contract_abi: ethabi::Contract,
+    ) -> Result<R, Error>
+    where
+        R: Detokenize + Unpin,
+        A: Into<Option<Address>> + Send,
+        B: Into<Option<BlockId>> + Send,
+        P: Tokenize + Send,
+    {
+        if contract_address == self.multicall_address {
+            let token = Token::Array(vec![
+                Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![1u8; 32])]),
+                Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![2u8; 32])]),
+                Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![3u8; 96])]),
+                Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![4u8; 32])]),
+                Token::Tuple(vec![
+                    Token::Bool(true),
+                    Token::Bytes(
+                        H256::from_low_u64_be(ProtocolVersionId::default() as u64)
+                            .0
+                            .to_vec(),
+                    ),
+                ]),
+            ]);
+            return Ok(R::from_tokens(vec![token]).unwrap());
+        }
+        Ok(R::from_tokens(vec![]).unwrap())
+    }
+
+    async fn get_tx(
+        &self,
+        _hash: H256,
+        _component: &'static str,
+    ) -> Result<Option<Transaction>, Error> {
+        unimplemented!("Not needed right now")
+    }
+
+    async fn tx_receipt(
+        &self,
+        _tx_hash: H256,
+        _component: &'static str,
+    ) -> Result<Option<TransactionReceipt>, Error> {
+        unimplemented!("Not needed right now")
+    }
+
+    async fn eth_balance(
+        &self,
+        _address: Address,
+        _component: &'static str,
+    ) -> Result<U256, Error> {
+        unimplemented!("Not needed right now")
+    }
+
+    async fn logs(&self, _filter: Filter, _component: &'static str) -> Result<Vec<Log>, Error> {
+        unimplemented!("Not needed right now")
+    }
+
+    async fn block(
+        &self,
+        _block_id: String,
+        _component: &'static str,
+    ) -> Result<Option<Block<H256>>, Error> {
+        unimplemented!("Not needed right now")
+    }
+}
+
+#[async_trait::async_trait]
+impl BoundEthInterface for MockEthereum {
+    fn contract(&self) -> &ethabi::Contract {
+        unimplemented!("Not needed right now")
+    }
+
+    fn contract_addr(&self) -> H160 {
+        H160::repeat_byte(0x22)
+    }
+
+    fn chain_id(&self) -> L1ChainId {
+        unimplemented!("Not needed right now")
+    }
+
+    fn sender_account(&self) -> Address {
+        Address::repeat_byte(0x11)
+    }
+
+    async fn sign_prepared_tx_for_addr(
+        &self,
+        data: Vec<u8>,
+        _contract_addr: H160,
+        options: Options,
+        _component: &'static str,
+    ) -> Result<SignedCallResult, Error> {
+        self.sign_prepared_tx(data, options)
+    }
+
+    async fn allowance_on_account(
+        &self,
+        _token_address: Address,
+        _contract_address: Address,
+        _erc20_abi: ethabi::Contract,
+    ) -> Result<U256, Error> {
+        unimplemented!("Not needed right now")
+    }
+
+    async fn nonce_at(&self, block: BlockNumber, _component: &'static str) -> Result<U256, Error> {
+        if let BlockNumber::Number(block_number) = block {
+            Ok((*self
+                .nonces
+                .read()
+                .unwrap()
+                .range(..=block_number.as_u64())
+                .next_back()
+                .unwrap()
+                .1)
+                .into())
+        } else {
+            panic!("MockEthereum::nonce_at called with non-number block tag");
+        }
+    }
+
+    async fn pending_nonce(&self, _: &'static str) -> Result<U256, Error> {
+        Ok(self.pending_nonce.load(Ordering::SeqCst).into())
+    }
+
+    async fn current_nonce(&self, _: &'static str) -> Result<U256, Error> {
+        Ok(self.current_nonce.load(Ordering::SeqCst).into())
+    }
 }
 
 #[async_trait]
-impl<T: AsRef<MockEthereum> + Sync> EthInterface for T {
-    async fn current_nonce(&self, component: &'static str) -> Result<U256, Error> {
-        self.as_ref().current_nonce(component).await
+impl<T: AsRef<MockEthereum> + Send + Sync> EthInterface for T {
+    async fn nonce_at_for_account(
+        &self,
+        account: Address,
+        block: BlockNumber,
+        component: &'static str,
+    ) -> Result<U256, Error> {
+        self.as_ref()
+            .nonce_at_for_account(account, block, component)
+            .await
     }
 
     async fn base_fee_history(
@@ -276,16 +435,17 @@ impl<T: AsRef<MockEthereum> + Sync> EthInterface for T {
             .await
     }
 
+    async fn get_pending_block_base_fee_per_gas(
+        &self,
+        component: &'static str,
+    ) -> Result<U256, Error> {
+        self.as_ref()
+            .get_pending_block_base_fee_per_gas(component)
+            .await
+    }
+
     async fn get_gas_price(&self, component: &'static str) -> Result<U256, Error> {
         self.as_ref().get_gas_price(component).await
-    }
-
-    async fn pending_nonce(&self, component: &'static str) -> Result<U256, Error> {
-        self.as_ref().pending_nonce(component).await
-    }
-
-    async fn nonce_at(&self, block: BlockNumber, component: &'static str) -> Result<U256, Error> {
-        self.as_ref().nonce_at(block, component).await
     }
 
     async fn block_number(&self, component: &'static str) -> Result<U64, Error> {
@@ -294,6 +454,99 @@ impl<T: AsRef<MockEthereum> + Sync> EthInterface for T {
 
     async fn send_raw_tx(&self, tx: Vec<u8>) -> Result<H256, Error> {
         self.as_ref().send_raw_tx(tx).await
+    }
+
+    async fn failure_reason(&self, tx_hash: H256) -> Result<Option<FailureInfo>, Error> {
+        self.as_ref().failure_reason(tx_hash).await
+    }
+
+    async fn get_tx_status(
+        &self,
+        hash: H256,
+        component: &'static str,
+    ) -> Result<Option<ExecutedTxStatus>, Error> {
+        self.as_ref().get_tx_status(hash, component).await
+    }
+
+    async fn get_tx(
+        &self,
+        hash: H256,
+        component: &'static str,
+    ) -> Result<Option<Transaction>, Error> {
+        self.as_ref().get_tx(hash, component).await
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    async fn call_contract_function<R, A, B, P>(
+        &self,
+        func: &str,
+        params: P,
+        from: A,
+        options: Options,
+        block: B,
+        contract_address: Address,
+        contract_abi: ethabi::Contract,
+    ) -> Result<R, Error>
+    where
+        R: Detokenize + Unpin,
+        A: Into<Option<Address>> + Send,
+        B: Into<Option<BlockId>> + Send,
+        P: Tokenize + Send,
+    {
+        self.as_ref()
+            .call_contract_function(
+                func,
+                params,
+                from,
+                options,
+                block,
+                contract_address,
+                contract_abi,
+            )
+            .await
+    }
+
+    async fn tx_receipt(
+        &self,
+        tx_hash: H256,
+        component: &'static str,
+    ) -> Result<Option<TransactionReceipt>, Error> {
+        self.as_ref().tx_receipt(tx_hash, component).await
+    }
+
+    async fn eth_balance(&self, address: Address, component: &'static str) -> Result<U256, Error> {
+        self.as_ref().eth_balance(address, component).await
+    }
+
+    async fn logs(&self, filter: Filter, component: &'static str) -> Result<Vec<Log>, Error> {
+        self.as_ref().logs(filter, component).await
+    }
+
+    async fn block(
+        &self,
+        block_id: String,
+        component: &'static str,
+    ) -> Result<Option<Block<H256>>, Error> {
+        self.as_ref().block(block_id, component).await
+    }
+}
+
+#[async_trait::async_trait]
+impl<T: AsRef<MockEthereum> + Send + Sync> BoundEthInterface for T {
+    fn contract(&self) -> &ethabi::Contract {
+        self.as_ref().contract()
+    }
+
+    fn contract_addr(&self) -> H160 {
+        self.as_ref().contract_addr()
+    }
+
+    fn chain_id(&self) -> L1ChainId {
+        self.as_ref().chain_id()
+    }
+
+    fn sender_account(&self) -> Address {
+        self.as_ref().sender_account()
     }
 
     async fn sign_prepared_tx_for_addr(
@@ -308,15 +561,26 @@ impl<T: AsRef<MockEthereum> + Sync> EthInterface for T {
             .await
     }
 
-    async fn failure_reason(&self, tx_hash: H256) -> Result<Option<FailureInfo>, Error> {
-        self.as_ref().failure_reason(tx_hash).await
+    async fn allowance_on_account(
+        &self,
+        token_address: Address,
+        contract_address: Address,
+        erc20_abi: ethabi::Contract,
+    ) -> Result<U256, Error> {
+        self.as_ref()
+            .allowance_on_account(token_address, contract_address, erc20_abi)
+            .await
     }
 
-    async fn get_tx_status(
-        &self,
-        hash: H256,
-        component: &'static str,
-    ) -> Result<Option<ExecutedTxStatus>, Error> {
-        self.as_ref().get_tx_status(hash, component).await
+    async fn nonce_at(&self, block: BlockNumber, component: &'static str) -> Result<U256, Error> {
+        self.as_ref().nonce_at(block, component).await
+    }
+
+    async fn pending_nonce(&self, _: &'static str) -> Result<U256, Error> {
+        self.as_ref().pending_nonce("").await
+    }
+
+    async fn current_nonce(&self, _: &'static str) -> Result<U256, Error> {
+        self.as_ref().current_nonce("").await
     }
 }

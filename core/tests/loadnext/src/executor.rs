@@ -1,28 +1,31 @@
-use futures::{channel::mpsc, future::join_all};
-use std::ops::Add;
-use tokio::task::JoinHandle;
+use anyhow::anyhow;
+use futures::{channel::mpsc, future, SinkExt};
+
+use std::sync::Arc;
 
 use zksync::ethereum::{PriorityOpHolder, DEFAULT_PRIORITY_FEE};
 use zksync::utils::{
     get_approval_based_paymaster_input, get_approval_based_paymaster_input_for_estimation,
 };
 use zksync::web3::{contract::Options, types::TransactionReceipt};
-use zksync::{EthereumProvider, ZksNamespaceClient};
+use zksync::{EthNamespaceClient, EthereumProvider, ZksNamespaceClient};
 use zksync_config::constants::MAX_L1_TRANSACTION_GAS_LIMIT;
-use zksync_eth_client::EthInterface;
+use zksync_eth_client::{BoundEthInterface, EthInterface};
 use zksync_eth_signer::PrivateKeySigner;
-use zksync_types::api::{BlockNumber, U64};
-use zksync_types::{tokens::ETHEREUM_ADDRESS, Address, Nonce, U256};
+use zksync_types::{
+    api::BlockNumber, tokens::ETHEREUM_ADDRESS, Address, Nonce,
+    REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256, U64,
+};
 
+use crate::report::ReportBuilder;
+use crate::utils::format_eth;
 use crate::{
     account::AccountLifespan,
     account_pool::AccountPool,
-    config::{ExecutionConfig, LoadtestConfig},
+    config::{ExecutionConfig, LoadtestConfig, RequestLimiters},
     constants::*,
     report_collector::{LoadtestResult, ReportCollector},
 };
-
-pub const MAX_L1_TRANSACTIONS: u64 = 10;
 
 /// Executor is the entity capable of running the loadtest flow.
 ///
@@ -72,53 +75,55 @@ impl Executor {
     pub async fn start(&mut self) -> LoadtestResult {
         // If the error occurs during the main flow, we will consider it as a test failure.
         self.start_inner().await.unwrap_or_else(|err| {
-            vlog::error!("Loadtest was interrupted by the following error: {}", err);
+            tracing::error!("Loadtest was interrupted by the following error: {err}");
             LoadtestResult::TestFailed
         })
     }
 
     /// Inner representation of `start` function which returns a `Result`, so it can conveniently use `?`.
     async fn start_inner(&mut self) -> anyhow::Result<LoadtestResult> {
-        vlog::info!("Initializing accounts");
-        vlog::info!("Running for MASTER {:?}", self.pool.master_wallet.address());
+        tracing::info!("Initializing accounts");
+        tracing::info!("Running for MASTER {:?}", self.pool.master_wallet.address());
         self.check_onchain_balance().await?;
         self.mint().await?;
         self.deposit_to_master().await?;
 
-        // Top up paymaster for local env.
-        if self.config.l2_rpc_address == crate::config::get_default_l2_rpc_address() {
-            self.deposit_eth_to_paymaster().await?;
-        }
+        self.deposit_eth_to_paymaster().await?;
 
-        let (executor_future, account_futures) = self.send_initial_transfers().await?;
-        self.wait_account_routines(account_futures).await;
-
-        let final_resultion = executor_future.await.unwrap_or(LoadtestResult::TestFailed);
-
-        Ok(final_resultion)
+        let final_result = self.send_initial_transfers().await?;
+        Ok(final_result)
     }
 
     /// Verifies that onchain ETH balance for the main account is sufficient to run the loadtest.
     async fn check_onchain_balance(&mut self) -> anyhow::Result<()> {
-        vlog::info!("Master Account: Checking onchain balance...");
+        tracing::info!("Master Account: Checking onchain balance");
         let master_wallet = &mut self.pool.master_wallet;
         let ethereum = master_wallet.ethereum(&self.config.l1_rpc_address).await?;
         let eth_balance = ethereum.balance().await?;
-        if eth_balance < 2u64.pow(17).into() {
+        if eth_balance < U256::from(MIN_MASTER_ACCOUNT_BALANCE) {
             anyhow::bail!(
-                "ETH balance on {:x} is too low to safely perform the loadtest: {}",
+                "ETH balance on {:x} is too low to safely perform the loadtest: {} - at least {} is required",
                 ethereum.client().sender_account(),
-                eth_balance
+                format_eth(eth_balance),
+                format_eth(U256::from(MIN_MASTER_ACCOUNT_BALANCE))
             );
         }
+        tracing::info!(
+            "Master Account {} L1 balance is {}",
+            self.pool.master_wallet.address(),
+            format_eth(eth_balance)
+        );
+        metrics::gauge!(
+            "loadtest.master_account_balance",
+            eth_balance.as_u128() as f64
+        );
 
-        vlog::info!("Master Account: Onchain balance is OK");
         Ok(())
     }
 
     /// Mints the ERC-20 token on the main wallet.
     async fn mint(&mut self) -> anyhow::Result<()> {
-        vlog::info!("Master Account: Minting ERC20 token...");
+        tracing::info!("Master Account: Minting ERC20 token...");
         let mint_amount = self.amount_to_deposit() + self.amount_for_l1_distribution();
 
         let master_wallet = &self.pool.master_wallet;
@@ -134,7 +139,7 @@ impl Executor {
 
         // Only send the mint transaction if it's necessary.
         if eth_balance > U256::from(mint_amount) {
-            vlog::info!("There is already enough money on the master balance");
+            tracing::info!("There is already enough money on the master balance");
             return Ok(());
         }
 
@@ -157,7 +162,7 @@ impl Executor {
             Ok(value) => value,
         };
 
-        vlog::info!("Mint tx with hash {:?}", mint_tx_hash);
+        tracing::info!("Mint tx with hash {mint_tx_hash:?}");
         let receipt = ethereum.wait_for_tx(mint_tx_hash).await?;
         self.assert_eth_tx_success(&receipt).await;
 
@@ -169,13 +174,13 @@ impl Executor {
             "Minting didn't result in tokens added to balance"
         );
 
-        vlog::info!("Master Account: Minting is OK (balance: {})", erc20_balance);
+        tracing::info!("Master Account: Minting is OK (balance: {erc20_balance})");
         Ok(())
     }
 
     /// Deposits the ERC-20 token to main wallet in L2.
     async fn deposit_to_master(&mut self) -> anyhow::Result<()> {
-        vlog::info!("Master Account: Performing an ERC-20 deposit to master");
+        tracing::info!("Master Account: Performing an ERC-20 deposit to master");
 
         let balance = self
             .pool
@@ -185,12 +190,15 @@ impl Executor {
         let necessary_balance =
             U256::from(self.erc20_transfer_amount() * self.config.accounts_amount as u128);
 
+        tracing::info!(
+            "Master account token balance on l2: {balance:?}, necessary balance \
+             for initial transfers {necessary_balance:?}"
+        );
+
         if balance > necessary_balance {
-            vlog::info!(
-                "Master account has enough money on l2, nothing to deposit. Current balance {:?},\
-             necessary balance for initial transfers {:?}",
-                balance,
-                necessary_balance
+            tracing::info!(
+                "Master account has enough money on l2, nothing to deposit. Current balance \
+                 {balance:?}, necessary balance for initial transfers {necessary_balance:?}"
             );
             return Ok(());
         }
@@ -214,7 +222,7 @@ impl Executor {
             self.assert_eth_tx_success(&receipt).await;
         }
 
-        vlog::info!("Approved ERC20 deposits");
+        tracing::info!("Approved ERC20 deposits");
         let receipt = deposit_with_attempts(
             &ethereum,
             self.pool.master_wallet.address(),
@@ -242,13 +250,12 @@ impl Executor {
             .wait_for_commit()
             .await?;
 
-        vlog::info!("Master Account: ERC-20 deposit is OK");
+        tracing::info!("Master Account: ERC-20 deposit is OK");
         Ok(())
     }
 
     async fn deposit_eth_to_paymaster(&mut self) -> anyhow::Result<()> {
-        vlog::info!("Master Account: Performing an ETH deposit to the paymaster");
-        let deposit_amount = U256::from(10u32).pow(U256::from(20u32)); // 100 ETH
+        tracing::info!("Master Account: Checking paymaster balance");
         let mut ethereum = self
             .pool
             .master_wallet
@@ -264,6 +271,25 @@ impl Executor {
             .get_testnet_paymaster()
             .await?
             .expect("No testnet paymaster is set");
+
+        let paymaster_balance: U256 = self
+            .pool
+            .master_wallet
+            .provider
+            .get_balance(paymaster_address, None)
+            .await?;
+
+        tracing::info!(
+            "Paymaster balance is {}. Minimum amount {}",
+            format_eth(paymaster_balance),
+            format_eth(U256::from(MIN_PAYMASTER_BALANCE))
+        );
+
+        if paymaster_balance >= U256::from(MIN_PAYMASTER_BALANCE) {
+            return Ok(());
+        }
+
+        let deposit_amount = U256::from(TARGET_PAYMASTER_BALANCE) - paymaster_balance;
 
         // Perform the deposit itself.
         let receipt = deposit_with_attempts(
@@ -293,7 +319,18 @@ impl Executor {
             .wait_for_commit()
             .await?;
 
-        vlog::info!("Master Account: ETH deposit to the paymaster is OK");
+        let paymaster_balance: U256 = self
+            .pool
+            .master_wallet
+            .provider
+            .get_balance(paymaster_address, None)
+            .await?;
+
+        tracing::info!(
+            "Paymaster deposit complete. New balance: {}",
+            format_eth(paymaster_balance)
+        );
+
         Ok(())
     }
 
@@ -326,11 +363,11 @@ impl Executor {
         // We request nonce each time, so that if one iteration was failed, it will be repeated on the next iteration.
         let mut nonce = Nonce(master_wallet.get_nonce().await?);
 
-        // 2 txs per account (1 ERC-20 & 1 ETH transfer) + 1 fee tx.
         let txs_amount = accounts_to_process * 2 + 1;
-        let mut handles = Vec::with_capacity(txs_amount);
+        let mut handles = Vec::with_capacity(accounts_to_process);
 
-        let mut eth_txs = Vec::with_capacity((txs_amount + 1) * 2);
+        // 2 txs per account (1 ERC-20 & 1 ETH transfer).
+        let mut eth_txs = Vec::with_capacity(txs_amount * 2);
         let mut eth_nonce = ethereum.client().pending_nonce("loadnext").await?;
 
         for account in self.pool.accounts.iter().take(accounts_to_process) {
@@ -347,10 +384,13 @@ impl Executor {
                     .client()
                     .eth_balance(target_address, "loadnext")
                     .await?;
+                let gas_price = ethereum.client().get_gas_price("loadnext").await?;
 
                 if balance < eth_to_distribute {
                     let options = Options {
                         nonce: Some(eth_nonce),
+                        max_fee_per_gas: Some(gas_price * 2),
+                        max_priority_fee_per_gas: Some(gas_price * 2),
                         ..Default::default()
                     };
                     let res = ethereum
@@ -362,7 +402,7 @@ impl Executor {
                         )
                         .await
                         .unwrap();
-                    eth_nonce = eth_nonce.add(U256::one());
+                    eth_nonce += U256::one();
                     eth_txs.push(res);
                 }
 
@@ -373,6 +413,8 @@ impl Executor {
                 if ethereum_erc20_balance < U256::from(l1_transfer_amount) {
                     let options = Options {
                         nonce: Some(eth_nonce),
+                        max_fee_per_gas: Some(gas_price * 2),
+                        max_priority_fee_per_gas: Some(gas_price * 2),
                         ..Default::default()
                     };
                     let res = ethereum
@@ -383,7 +425,7 @@ impl Executor {
                             Some(options),
                         )
                         .await?;
-                    eth_nonce = eth_nonce.add(U256::one());
+                    eth_nonce += U256::one();
                     eth_txs.push(res);
                 }
             }
@@ -433,10 +475,7 @@ impl Executor {
             }
         }
 
-        vlog::info!(
-            "Master account: Wait for ethereum txs confirmations, {:?}",
-            &eth_txs
-        );
+        tracing::info!("Master account: Wait for ethereum txs confirmations, {eth_txs:?}");
         for eth_tx in eth_txs {
             ethereum.wait_for_tx(eth_tx).await?;
         }
@@ -459,18 +498,22 @@ impl Executor {
     /// - Distributing ERC-20 token in L2 among test wallets via `Transfer` operation.
     /// - Distributing ETH in L1 among test wallets in order to make them able to perform priority operations.
     /// - Spawning test account routine futures.
-    /// - Collecting all the spawned tasks and returning them to the caller.
-    async fn send_initial_transfers(
-        &mut self,
-    ) -> anyhow::Result<(JoinHandle<LoadtestResult>, Vec<JoinHandle<()>>)> {
-        vlog::info!("Master Account: Sending initial transfers");
+    /// - Completing all the spawned tasks and returning the result to the caller.
+    async fn send_initial_transfers(&mut self) -> anyhow::Result<LoadtestResult> {
+        tracing::info!("Master Account: Sending initial transfers");
         // How many times we will resend a batch.
         const MAX_RETRIES: usize = 3;
 
         // Prepare channels for the report collector.
-        let (report_sender, report_receiver) = mpsc::channel(256);
+        let (mut report_sender, report_receiver) = mpsc::channel(256);
 
-        let report_collector = ReportCollector::new(report_receiver, self.config.expected_tx_count);
+        let report_collector = ReportCollector::new(
+            report_receiver,
+            self.config.expected_tx_count,
+            self.config.duration(),
+            self.config.prometheus_label.clone(),
+            self.config.fail_fast,
+        );
         let report_collector_future = tokio::spawn(report_collector.run());
 
         let config = &self.config;
@@ -486,38 +529,38 @@ impl Executor {
 
         let mut retry_counter = 0;
         let mut accounts_processed = 0;
+        let limiters = Arc::new(RequestLimiters::new(config));
 
-        let mut account_futures = Vec::new();
+        let mut account_tasks = vec![];
         while accounts_processed != accounts_amount {
             if retry_counter > MAX_RETRIES {
                 anyhow::bail!("Reached max amount of retries when sending initial transfers");
             }
 
             let accounts_left = accounts_amount - accounts_processed;
-            let max_accounts_per_iter = MAX_OUTSTANDING_NONCE / 2; // We send two transfers per account: ERC-20 and ETH.
+            let max_accounts_per_iter = MAX_OUTSTANDING_NONCE;
             let accounts_to_process = std::cmp::min(accounts_left, max_accounts_per_iter);
 
             if let Err(err) = self.send_initial_transfers_inner(accounts_to_process).await {
-                vlog::warn!(
-                    "Iteration of the initial funds distribution failed: {}",
-                    err
-                );
+                tracing::warn!("Iteration of the initial funds distribution failed: {err}");
                 retry_counter += 1;
                 continue;
             }
 
-            vlog::info!(
-                "[{}/{}] Accounts processed",
-                accounts_processed,
-                accounts_amount
-            );
+            accounts_processed += accounts_to_process;
+            tracing::info!("[{accounts_processed}/{accounts_amount}] Accounts processed");
 
             retry_counter = 0;
-            accounts_processed += accounts_to_process;
 
             let contract_execution_params = self.execution_config.contract_execution_params.clone();
             // Spawn each account lifespan.
             let main_token = self.l2_main_token;
+
+            anyhow::ensure!(
+                !report_sender.is_closed(),
+                "test aborted; see reporter logs for details"
+            );
+
             let new_account_futures =
                 self.pool
                     .accounts
@@ -532,19 +575,30 @@ impl Executor {
                             main_token,
                             paymaster_address,
                         );
-                        tokio::spawn(account.run())
+                        let limiters = Arc::clone(&limiters);
+                        tokio::spawn(async move { account.run(&limiters).await })
                     });
-
-            account_futures.extend(new_account_futures);
+            account_tasks.extend(new_account_futures);
         }
+
+        report_sender
+            .send(ReportBuilder::build_init_complete_report())
+            .await
+            .map_err(|_| anyhow!("test aborted; see reporter logs for details"))?;
+        drop(report_sender);
+        // ^ to terminate `report_collector_future` once all `account_futures` are finished
 
         assert!(
             self.pool.accounts.is_empty(),
             "Some accounts were not drained"
         );
-        vlog::info!("All the initial transfers are completed");
+        tracing::info!("All the initial transfers are completed");
 
-        Ok((report_collector_future, account_futures))
+        tracing::info!("Waiting for the account futures to be completed...");
+        future::try_join_all(account_tasks).await?;
+        tracing::info!("All the spawned tasks are completed");
+
+        Ok(report_collector_future.await?)
     }
 
     /// Calculates amount of ETH to be distributed per account in order to make them
@@ -560,16 +614,22 @@ impl Executor {
         // Assuming that gas prices on testnets are somewhat stable, we will consider it a constant.
         let average_gas_price = ethereum.client().get_gas_price("executor").await?;
 
-        Ok((average_gas_price + U256::from(DEFAULT_PRIORITY_FEE))
-            * MAX_L1_TRANSACTION_GAS_LIMIT
-            * MAX_L1_TRANSACTIONS)
-    }
+        let gas_price_with_priority = average_gas_price + U256::from(DEFAULT_PRIORITY_FEE);
 
-    /// Waits for all the test account futures to be completed.
-    async fn wait_account_routines(&self, account_futures: Vec<JoinHandle<()>>) {
-        vlog::info!("Waiting for the account futures to be completed...");
-        join_all(account_futures).await;
-        vlog::info!("All the spawned tasks are completed");
+        // TODO (PLA-85): Add gas estimations for deposits in Rust SDK
+        let average_l1_to_l2_gas_limit = 5_000_000u32;
+        let average_price_for_l1_to_l2_execute = ethereum
+            .base_cost(
+                average_l1_to_l2_gas_limit.into(),
+                REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE as u32,
+                Some(gas_price_with_priority),
+            )
+            .await?;
+
+        Ok(
+            gas_price_with_priority * MAX_L1_TRANSACTION_GAS_LIMIT * MAX_L1_TRANSACTIONS
+                + average_price_for_l1_to_l2_execute * MAX_L1_TRANSACTIONS,
+        )
     }
 
     /// Returns the amount of funds to be deposited on the main account in L2.
@@ -581,7 +641,7 @@ impl Executor {
 
     /// Returns the amount of funds to be distributed between accounts on l1.
     fn amount_for_l1_distribution(&self) -> u128 {
-        u128::MAX >> 32
+        u128::MAX >> 29
     }
 
     /// Ensures that Ethereum transaction was successfully executed.
@@ -635,7 +695,7 @@ async fn deposit_with_attempts(
             .deposit(token, deposit_amount, to, None, None, Some(options))
             .await?;
 
-        vlog::info!("Deposit with tx_hash {:?}", deposit_tx_hash);
+        tracing::info!("Deposit with tx_hash {deposit_tx_hash:?}");
 
         // Wait for the corresponding priority operation to be committed in zkSync.
         match ethereum.wait_for_tx(deposit_tx_hash).await {
@@ -643,7 +703,7 @@ async fn deposit_with_attempts(
                 return Ok(eth_receipt);
             }
             Err(err) => {
-                vlog::error!("Deposit error: {:?}", err);
+                tracing::error!("Deposit error: {err}");
             }
         };
     }

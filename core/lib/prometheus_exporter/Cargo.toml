@@ -1,17 +1,22 @@
 [package]
 name = "prometheus_exporter"
-version = "1.0.0"
+version = "0.1.0"
 edition = "2018"
 authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
 homepage = "https://zksync.io/"
-repository = "https://github.com/matter-labs/zksync-2"
-license = "Apache-2.0"
+repository = "https://github.com/matter-labs/zksync-era"
+license = "MIT OR Apache-2.0"
 keywords = ["blockchain", "zksync"]
 categories = ["cryptography"]
 
 [dependencies]
+anyhow = "1.0"
+metrics = "0.21"
+metrics-exporter-prometheus = "0.12"
 tokio = "1"
-metrics = "0.20"
-metrics-exporter-prometheus = "0.11"
-zksync_config = { path = "../config", version = "1.0" }
-vlog = { path = "../vlog", version = "1.0" }
+
+[dependencies.vise-exporter]
+git = "https://github.com/matter-labs/vise.git"
+version = "0.1.0"
+rev = "9d097ab747b037b6e62504df1db5b975425b6bdd"
+features = ["legacy"]

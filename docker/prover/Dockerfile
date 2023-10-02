@@ -15,8 +15,8 @@ ENV RUSTUP_HOME=/usr/local/rustup \
     PATH=/usr/local/cargo/bin:$PATH
 
 RUN curl https://sh.rustup.rs -sSf | bash -s -- -y && \
-    rustup install nightly-2022-08-23 && \
-    rustup default nightly-2022-08-23
+    rustup install nightly-2023-07-21 && \
+    rustup default nightly-2023-07-21
 
 WORKDIR /usr/src/zksync
 COPY . .
@@ -35,6 +35,7 @@ COPY etc/system-contracts/bootloader/build/artifacts/ /etc/system-contracts/boot
 COPY etc/system-contracts/artifacts-zk /etc/system-contracts/artifacts-zk
 COPY contracts/ethereum/artifacts/ /contracts/ethereum/artifacts/
 COPY contracts/zksync/artifacts-zk/ /contracts/zksync/artifacts-zk/
+COPY setup_2\^26.key /etc/
 
 COPY core/bin/verification_key_generator_and_server/data/ /core/bin/verification_key_generator_and_server/data/
 

@@ -99,19 +99,20 @@ describe('Tests for the mempool behavior', () => {
         const poorBob = testMaster.newEmptyAccount();
         const nonce = 0; // No transactions from this account were sent.
 
-        const gasForTransfer = await alice.estimateGas({ to: alice.address });
+        const gasLimit = await alice.estimateGas({ to: alice.address });
         const gasPrice = await alice.provider.getGasPrice();
-        const fund = gasForTransfer.mul(gasPrice).mul(13).div(10);
+        const fund = gasLimit.mul(gasPrice).mul(13).div(10);
         await alice.sendTransaction({ to: poorBob.address, value: fund }).then((tx) => tx.wait());
 
-        // Create a *promise* that would await for the rejection.
-        // Even though we use `toBeReverted` matcher, we'll check that it's actually rejected based on the nonce.
-        // However, we use `await` on the `sendTransaction` to make sure that tx is past the API server checks.
-        const rejectionCheckPromise = expect(
-            await poorBob.sendTransaction({ to: poorBob.address, nonce: nonce + 1 })
-        ).toBeReverted();
+        const delayedTx = await poorBob.sendTransaction({
+            to: poorBob.address,
+            nonce: nonce + 1
+        });
+        // delayedTx passed API checks (since we got the response) but should be rejected by the state-keeper.
+        const rejection = expect(delayedTx).toBeReverted();
+
         await expect(poorBob.sendTransaction({ to: poorBob.address, nonce })).toBeAccepted();
-        await rejectionCheckPromise;
+        await rejection;
 
         // Now check that there is only one executed transaction for the account.
         await expect(poorBob.getTransactionCount()).resolves.toEqual(1);

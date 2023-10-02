@@ -55,6 +55,8 @@ where
             .ok_or_else(|| ClientError::MissingRequiredField("amount".into()))?;
 
         let (contract_address, calldata, value) = if token == ETHEREUM_ADDRESS {
+            // TODO (SMA-1608): Do not implement the ABI manually, introduce ABI files with an update script similarly to
+            //  how it's done for L1 part of SDK.
             let calldata_params = vec![ethabi::ParamType::Address];
             let mut calldata = ethabi::short_signature("withdraw", &calldata_params).to_vec();
             calldata.append(&mut ethabi::encode(&[ethabi::Token::Address(to)]));
@@ -73,6 +75,8 @@ where
                 default_bridges.l2_erc20_default_bridge
             };
 
+            // TODO (SMA-1608): Do not implement the ABI manually, introduce ABI files with an update script similarly to
+            //  how it's done for L1 part of SDK.
             let calldata_params = vec![
                 ethabi::ParamType::Address,
                 ethabi::ParamType::Address,

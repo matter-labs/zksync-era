@@ -1,8 +1,10 @@
 use futures::{channel::mpsc::Receiver, StreamExt};
 use operation_results_collector::OperationResultsCollector;
 
+use std::time::{Duration, Instant};
+
 use crate::{
-    report::{Report, ReportLabel},
+    report::{ActionType, Report, ReportLabel},
     report_collector::metrics_collector::MetricsCollector,
 };
 
@@ -14,6 +16,59 @@ mod operation_results_collector;
 pub enum LoadtestResult {
     TestPassed,
     TestFailed,
+}
+
+#[derive(Debug)]
+struct Collectors {
+    start: Instant,
+    is_aborted: bool,
+    metrics: MetricsCollector,
+    operation_results: OperationResultsCollector,
+}
+
+impl Collectors {
+    fn new(loadtest_duration: Duration) -> Self {
+        Self {
+            start: Instant::now(),
+            is_aborted: false,
+            metrics: MetricsCollector::default(),
+            operation_results: OperationResultsCollector::new(loadtest_duration),
+        }
+    }
+
+    fn report(&self, prometheus_label: String) {
+        let actual_duration = self.start.elapsed();
+        self.metrics.report();
+        if !self.is_aborted {
+            metrics::gauge!(
+                "loadtest.tps",
+                self.operation_results.nominal_tps(),
+                "label" => prometheus_label,
+            );
+        }
+        self.operation_results.report(actual_duration);
+    }
+
+    fn final_resolution(&self, expected_tx_count: Option<usize>) -> LoadtestResult {
+        let is_tx_count_acceptable = expected_tx_count.map_or(true, |expected_count| {
+            const MIN_ACCEPTABLE_DELTA: f64 = -10.0;
+            const MAX_ACCEPTABLE_DELTA: f64 = 100.0;
+
+            let actual_count = self.operation_results.tx_results.successes() as f64;
+            let delta = 100.0 * (actual_count - expected_count as f64) / (expected_count as f64);
+            tracing::info!("Expected number of processed txs: {expected_count}");
+            tracing::info!("Actual number of processed txs: {actual_count}");
+            tracing::info!("Delta: {delta:.1}%");
+
+            (MIN_ACCEPTABLE_DELTA..=MAX_ACCEPTABLE_DELTA).contains(&delta)
+        });
+
+        if !is_tx_count_acceptable || self.operation_results.tx_results.failures() > 0 {
+            LoadtestResult::TestFailed
+        } else {
+            LoadtestResult::TestPassed
+        }
+    }
 }
 
 /// ReportCollector is an entity capable of analyzing everything that happens in the loadtest.
@@ -44,69 +99,89 @@ pub enum LoadtestResult {
 #[derive(Debug)]
 pub struct ReportCollector {
     reports_stream: Receiver<Report>,
-    metrics_collector: MetricsCollector,
-    operations_results_collector: OperationResultsCollector,
     expected_tx_count: Option<usize>,
+    loadtest_duration: Duration,
+    prometheus_label: String,
+    fail_fast: bool,
 }
 
 impl ReportCollector {
-    pub fn new(reports_stream: Receiver<Report>, expected_tx_count: Option<usize>) -> Self {
+    pub fn new(
+        reports_stream: Receiver<Report>,
+        expected_tx_count: Option<usize>,
+        loadtest_duration: Duration,
+        prometheus_label: String,
+        fail_fast: bool,
+    ) -> Self {
         Self {
             reports_stream,
-            metrics_collector: MetricsCollector::new(),
-            operations_results_collector: OperationResultsCollector::new(),
             expected_tx_count,
+            loadtest_duration,
+            prometheus_label,
+            fail_fast,
         }
     }
 
     pub async fn run(mut self) -> LoadtestResult {
-        while let Some(report) = self.reports_stream.next().await {
-            vlog::trace!("Report: {:?}", &report);
+        let mut collectors = None;
+        let mut start = Instant::now();
 
-            if matches!(&report.label, ReportLabel::ActionDone) {
-                // We only count successfully created statistics.
-                self.metrics_collector
-                    .add_metric(report.action, report.time);
+        while let Some(report) = self.reports_stream.next().await {
+            tracing::trace!("Report: {report:?}");
+            if matches!(&report.action, ActionType::InitComplete) {
+                assert!(collectors.is_none(), "`InitComplete` report sent twice");
+
+                tracing::info!("Test initialization and warm-up took {:?}", start.elapsed());
+                start = Instant::now();
+                collectors = Some(Collectors::new(self.loadtest_duration));
+                continue;
             }
 
-            self.operations_results_collector
-                .add_status(&report.label, report.action);
+            if let Some(collectors) = &mut collectors {
+                if matches!(&report.label, ReportLabel::ActionDone) {
+                    // We only count successfully created statistics.
+                    collectors.metrics.add_metric(report.action, report.time);
+                }
+                collectors
+                    .operation_results
+                    .add_status(&report.label, report.action);
+
+                let should_check_tx_count = matches!(report.action, ActionType::Tx(_))
+                    && matches!(&report.label, ReportLabel::ActionDone);
+                if should_check_tx_count {
+                    let processed_tx_count = collectors.operation_results.tx_results.total();
+                    if processed_tx_count % 50 == 0 {
+                        let current_test_duration = start.elapsed();
+                        tracing::info!(
+                            "Processed {processed_tx_count} transactions after initialization, \
+                             took {current_test_duration:?} (current TPS: {})",
+                            collectors.operation_results.tps(current_test_duration)
+                        );
+                    }
+                }
+            }
 
             // Report failure, if it exists.
             if let ReportLabel::ActionFailed { error } = &report.label {
-                vlog::warn!("Operation failed: {}", error);
+                tracing::warn!("Operation failed: {error}");
+                if self.fail_fast && matches!(report.action, ActionType::Tx(_)) {
+                    tracing::error!("Test aborted because of an error in transaction processing");
+                    if let Some(collectors) = &mut collectors {
+                        collectors.is_aborted = true;
+                    }
+                    break;
+                }
             }
         }
 
         // All the receivers are gone, it's likely the end of the test.
         // Now we can output the statistics.
-        self.metrics_collector.report();
-        self.operations_results_collector.report();
-
-        self.final_resolution()
-    }
-
-    fn final_resolution(&self) -> LoadtestResult {
-        let is_tx_count_acceptable = if let Some(expected_tx_count) = self.expected_tx_count {
-            const MIN_ACCEPTABLE_DELTA: f64 = -10.0;
-            const MAX_ACCEPTABLE_DELTA: f64 = 100.0;
-
-            let actual_count = self.operations_results_collector.tx_results.successes() as f64;
-            let delta =
-                100.0 * (actual_count - expected_tx_count as f64) / (expected_tx_count as f64);
-            vlog::info!("Expected number of processed txs: {}", expected_tx_count);
-            vlog::info!("Actual number of processed txs: {}", actual_count);
-            vlog::info!("Delta: {:.1}%", delta);
-
-            (MIN_ACCEPTABLE_DELTA..=MAX_ACCEPTABLE_DELTA).contains(&delta)
+        if let Some(collectors) = collectors {
+            collectors.report(self.prometheus_label);
+            collectors.final_resolution(self.expected_tx_count)
         } else {
-            true
-        };
-
-        if !is_tx_count_acceptable || self.operations_results_collector.tx_results.failures() > 0 {
+            tracing::error!("Test failed before initialization was completed");
             LoadtestResult::TestFailed
-        } else {
-            LoadtestResult::TestPassed
         }
     }
 }

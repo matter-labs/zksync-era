@@ -1,3 +1,4 @@
+/// Error codes returned by the bootloader.
 #[derive(Debug)]
 pub(crate) enum BootloaderErrorCode {
     EthCall,
@@ -23,6 +24,10 @@ pub(crate) enum BootloaderErrorCode {
     NotEnoughGasProvided,
     AccountReturnedInvalidMagic,
     PaymasterReturnedInvalidMagic,
+    MintEtherFailed,
+    FailedToAppendTransactionToL2Block,
+    FailedToSetL2Block,
+    FailedToPublishBlockDataToL1,
     Unknown,
 }
 
@@ -52,6 +57,10 @@ impl From<u8> for BootloaderErrorCode {
             20 => BootloaderErrorCode::NotEnoughGasProvided,
             21 => BootloaderErrorCode::AccountReturnedInvalidMagic,
             22 => BootloaderErrorCode::PaymasterReturnedInvalidMagic,
+            23 => BootloaderErrorCode::MintEtherFailed,
+            24 => BootloaderErrorCode::FailedToAppendTransactionToL2Block,
+            25 => BootloaderErrorCode::FailedToSetL2Block,
+            26 => BootloaderErrorCode::FailedToPublishBlockDataToL1,
             _ => BootloaderErrorCode::Unknown,
         }
     }

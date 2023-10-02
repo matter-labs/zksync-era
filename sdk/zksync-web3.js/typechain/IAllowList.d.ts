@@ -22,77 +22,73 @@ import { FunctionFragment, EventFragment, Result } from "@ethersproject/abi";
 
 interface IAllowListInterface extends ethers.utils.Interface {
   functions: {
-    "acceptOwner()": FunctionFragment;
     "canCall(address,address,bytes4)": FunctionFragment;
+    "getAccessMode(address)": FunctionFragment;
+    "getTokenDepositLimitData(address)": FunctionFragment;
     "hasSpecialAccessToCall(address,address,bytes4)": FunctionFragment;
-    "isAccessPublic(address)": FunctionFragment;
-    "owner()": FunctionFragment;
-    "pendingOwner()": FunctionFragment;
+    "setAccessMode(address,uint8)": FunctionFragment;
+    "setBatchAccessMode(address[],uint8[])": FunctionFragment;
     "setBatchPermissionToCall(address[],address[],bytes4[],bool[])": FunctionFragment;
-    "setBatchPublicAccess(address[],bool[])": FunctionFragment;
-    "setPendingOwner(address)": FunctionFragment;
+    "setDepositLimit(address,bool,uint256)": FunctionFragment;
     "setPermissionToCall(address,address,bytes4,bool)": FunctionFragment;
-    "setPublicAccess(address,bool)": FunctionFragment;
   };
 
   encodeFunctionData(
-    functionFragment: "acceptOwner",
-    values?: undefined
-  ): string;
-  encodeFunctionData(
     functionFragment: "canCall",
     values: [string, string, BytesLike]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "getAccessMode",
+    values: [string]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "getTokenDepositLimitData",
+    values: [string]
   ): string;
   encodeFunctionData(
     functionFragment: "hasSpecialAccessToCall",
     values: [string, string, BytesLike]
   ): string;
   encodeFunctionData(
-    functionFragment: "isAccessPublic",
-    values: [string]
+    functionFragment: "setAccessMode",
+    values: [string, BigNumberish]
   ): string;
-  encodeFunctionData(functionFragment: "owner", values?: undefined): string;
   encodeFunctionData(
-    functionFragment: "pendingOwner",
-    values?: undefined
+    functionFragment: "setBatchAccessMode",
+    values: [string[], BigNumberish[]]
   ): string;
   encodeFunctionData(
     functionFragment: "setBatchPermissionToCall",
     values: [string[], string[], BytesLike[], boolean[]]
   ): string;
   encodeFunctionData(
-    functionFragment: "setBatchPublicAccess",
-    values: [string[], boolean[]]
-  ): string;
-  encodeFunctionData(
-    functionFragment: "setPendingOwner",
-    values: [string]
+    functionFragment: "setDepositLimit",
+    values: [string, boolean, BigNumberish]
   ): string;
   encodeFunctionData(
     functionFragment: "setPermissionToCall",
     values: [string, string, BytesLike, boolean]
   ): string;
-  encodeFunctionData(
-    functionFragment: "setPublicAccess",
-    values: [string, boolean]
-  ): string;
 
+  decodeFunctionResult(functionFragment: "canCall", data: BytesLike): Result;
   decodeFunctionResult(
-    functionFragment: "acceptOwner",
+    functionFragment: "getAccessMode",
     data: BytesLike
   ): Result;
-  decodeFunctionResult(functionFragment: "canCall", data: BytesLike): Result;
+  decodeFunctionResult(
+    functionFragment: "getTokenDepositLimitData",
+    data: BytesLike
+  ): Result;
   decodeFunctionResult(
     functionFragment: "hasSpecialAccessToCall",
     data: BytesLike
   ): Result;
   decodeFunctionResult(
-    functionFragment: "isAccessPublic",
+    functionFragment: "setAccessMode",
     data: BytesLike
   ): Result;
-  decodeFunctionResult(functionFragment: "owner", data: BytesLike): Result;
   decodeFunctionResult(
-    functionFragment: "pendingOwner",
+    functionFragment: "setBatchAccessMode",
     data: BytesLike
   ): Result;
   decodeFunctionResult(
@@ -100,33 +96,21 @@ interface IAllowListInterface extends ethers.utils.Interface {
     data: BytesLike
   ): Result;
   decodeFunctionResult(
-    functionFragment: "setBatchPublicAccess",
-    data: BytesLike
-  ): Result;
-  decodeFunctionResult(
-    functionFragment: "setPendingOwner",
+    functionFragment: "setDepositLimit",
     data: BytesLike
   ): Result;
   decodeFunctionResult(
     functionFragment: "setPermissionToCall",
     data: BytesLike
   ): Result;
-  decodeFunctionResult(
-    functionFragment: "setPublicAccess",
-    data: BytesLike
-  ): Result;
 
   events: {
-    "NewOwner(address)": EventFragment;
-    "NewPendingOwner(address,address)": EventFragment;
+    "UpdateAccessMode(address,uint8,uint8)": EventFragment;
     "UpdateCallPermission(address,address,bytes4,bool)": EventFragment;
-    "UpdatePublicAccess(address,bool)": EventFragment;
   };
 
-  getEvent(nameOrSignatureOrTopic: "NewOwner"): EventFragment;
-  getEvent(nameOrSignatureOrTopic: "NewPendingOwner"): EventFragment;
+  getEvent(nameOrSignatureOrTopic: "UpdateAccessMode"): EventFragment;
   getEvent(nameOrSignatureOrTopic: "UpdateCallPermission"): EventFragment;
-  getEvent(nameOrSignatureOrTopic: "UpdatePublicAccess"): EventFragment;
 }
 
 export class IAllowList extends Contract {
@@ -143,10 +127,6 @@ export class IAllowList extends Contract {
   interface: IAllowListInterface;
 
   functions: {
-    acceptOwner(overrides?: Overrides): Promise<ContractTransaction>;
-
-    "acceptOwner()"(overrides?: Overrides): Promise<ContractTransaction>;
-
     canCall(
       _caller: string,
       _target: string,
@@ -163,6 +143,44 @@ export class IAllowList extends Contract {
       overrides?: CallOverrides
     ): Promise<{
       0: boolean;
+    }>;
+
+    getAccessMode(
+      _target: string,
+      overrides?: CallOverrides
+    ): Promise<{
+      0: number;
+    }>;
+
+    "getAccessMode(address)"(
+      _target: string,
+      overrides?: CallOverrides
+    ): Promise<{
+      0: number;
+    }>;
+
+    getTokenDepositLimitData(
+      _l1Token: string,
+      overrides?: CallOverrides
+    ): Promise<{
+      0: {
+        depositLimitation: boolean;
+        depositCap: BigNumber;
+        0: boolean;
+        1: BigNumber;
+      };
+    }>;
+
+    "getTokenDepositLimitData(address)"(
+      _l1Token: string,
+      overrides?: CallOverrides
+    ): Promise<{
+      0: {
+        depositLimitation: boolean;
+        depositCap: BigNumber;
+        0: boolean;
+        1: BigNumber;
+      };
     }>;
 
     hasSpecialAccessToCall(
@@ -183,35 +201,29 @@ export class IAllowList extends Contract {
       0: boolean;
     }>;
 
-    isAccessPublic(
+    setAccessMode(
       _target: string,
-      overrides?: CallOverrides
-    ): Promise<{
-      0: boolean;
-    }>;
+      _accessMode: BigNumberish,
+      overrides?: Overrides
+    ): Promise<ContractTransaction>;
 
-    "isAccessPublic(address)"(
+    "setAccessMode(address,uint8)"(
       _target: string,
-      overrides?: CallOverrides
-    ): Promise<{
-      0: boolean;
-    }>;
+      _accessMode: BigNumberish,
+      overrides?: Overrides
+    ): Promise<ContractTransaction>;
 
-    owner(overrides?: CallOverrides): Promise<{
-      0: string;
-    }>;
+    setBatchAccessMode(
+      _targets: string[],
+      _accessMode: BigNumberish[],
+      overrides?: Overrides
+    ): Promise<ContractTransaction>;
 
-    "owner()"(overrides?: CallOverrides): Promise<{
-      0: string;
-    }>;
-
-    pendingOwner(overrides?: CallOverrides): Promise<{
-      0: string;
-    }>;
-
-    "pendingOwner()"(overrides?: CallOverrides): Promise<{
-      0: string;
-    }>;
+    "setBatchAccessMode(address[],uint8[])"(
+      _targets: string[],
+      _accessMode: BigNumberish[],
+      overrides?: Overrides
+    ): Promise<ContractTransaction>;
 
     setBatchPermissionToCall(
       _callers: string[],
@@ -229,25 +241,17 @@ export class IAllowList extends Contract {
       overrides?: Overrides
     ): Promise<ContractTransaction>;
 
-    setBatchPublicAccess(
-      _targets: string[],
-      _enables: boolean[],
+    setDepositLimit(
+      _l1Token: string,
+      _depositLimitation: boolean,
+      _depositCap: BigNumberish,
       overrides?: Overrides
     ): Promise<ContractTransaction>;
 
-    "setBatchPublicAccess(address[],bool[])"(
-      _targets: string[],
-      _enables: boolean[],
-      overrides?: Overrides
-    ): Promise<ContractTransaction>;
-
-    setPendingOwner(
-      _newPendingOwner: string,
-      overrides?: Overrides
-    ): Promise<ContractTransaction>;
-
-    "setPendingOwner(address)"(
-      _newPendingOwner: string,
+    "setDepositLimit(address,bool,uint256)"(
+      _l1Token: string,
+      _depositLimitation: boolean,
+      _depositCap: BigNumberish,
       overrides?: Overrides
     ): Promise<ContractTransaction>;
 
@@ -266,23 +270,7 @@ export class IAllowList extends Contract {
       _enable: boolean,
       overrides?: Overrides
     ): Promise<ContractTransaction>;
-
-    setPublicAccess(
-      _target: string,
-      _enable: boolean,
-      overrides?: Overrides
-    ): Promise<ContractTransaction>;
-
-    "setPublicAccess(address,bool)"(
-      _target: string,
-      _enable: boolean,
-      overrides?: Overrides
-    ): Promise<ContractTransaction>;
   };
-
-  acceptOwner(overrides?: Overrides): Promise<ContractTransaction>;
-
-  "acceptOwner()"(overrides?: Overrides): Promise<ContractTransaction>;
 
   canCall(
     _caller: string,
@@ -298,6 +286,33 @@ export class IAllowList extends Contract {
     overrides?: CallOverrides
   ): Promise<boolean>;
 
+  getAccessMode(_target: string, overrides?: CallOverrides): Promise<number>;
+
+  "getAccessMode(address)"(
+    _target: string,
+    overrides?: CallOverrides
+  ): Promise<number>;
+
+  getTokenDepositLimitData(
+    _l1Token: string,
+    overrides?: CallOverrides
+  ): Promise<{
+    depositLimitation: boolean;
+    depositCap: BigNumber;
+    0: boolean;
+    1: BigNumber;
+  }>;
+
+  "getTokenDepositLimitData(address)"(
+    _l1Token: string,
+    overrides?: CallOverrides
+  ): Promise<{
+    depositLimitation: boolean;
+    depositCap: BigNumber;
+    0: boolean;
+    1: BigNumber;
+  }>;
+
   hasSpecialAccessToCall(
     _caller: string,
     _target: string,
@@ -312,20 +327,29 @@ export class IAllowList extends Contract {
     overrides?: CallOverrides
   ): Promise<boolean>;
 
-  isAccessPublic(_target: string, overrides?: CallOverrides): Promise<boolean>;
-
-  "isAccessPublic(address)"(
+  setAccessMode(
     _target: string,
-    overrides?: CallOverrides
-  ): Promise<boolean>;
+    _accessMode: BigNumberish,
+    overrides?: Overrides
+  ): Promise<ContractTransaction>;
 
-  owner(overrides?: CallOverrides): Promise<string>;
+  "setAccessMode(address,uint8)"(
+    _target: string,
+    _accessMode: BigNumberish,
+    overrides?: Overrides
+  ): Promise<ContractTransaction>;
 
-  "owner()"(overrides?: CallOverrides): Promise<string>;
+  setBatchAccessMode(
+    _targets: string[],
+    _accessMode: BigNumberish[],
+    overrides?: Overrides
+  ): Promise<ContractTransaction>;
 
-  pendingOwner(overrides?: CallOverrides): Promise<string>;
-
-  "pendingOwner()"(overrides?: CallOverrides): Promise<string>;
+  "setBatchAccessMode(address[],uint8[])"(
+    _targets: string[],
+    _accessMode: BigNumberish[],
+    overrides?: Overrides
+  ): Promise<ContractTransaction>;
 
   setBatchPermissionToCall(
     _callers: string[],
@@ -343,25 +367,17 @@ export class IAllowList extends Contract {
     overrides?: Overrides
   ): Promise<ContractTransaction>;
 
-  setBatchPublicAccess(
-    _targets: string[],
-    _enables: boolean[],
+  setDepositLimit(
+    _l1Token: string,
+    _depositLimitation: boolean,
+    _depositCap: BigNumberish,
     overrides?: Overrides
   ): Promise<ContractTransaction>;
 
-  "setBatchPublicAccess(address[],bool[])"(
-    _targets: string[],
-    _enables: boolean[],
-    overrides?: Overrides
-  ): Promise<ContractTransaction>;
-
-  setPendingOwner(
-    _newPendingOwner: string,
-    overrides?: Overrides
-  ): Promise<ContractTransaction>;
-
-  "setPendingOwner(address)"(
-    _newPendingOwner: string,
+  "setDepositLimit(address,bool,uint256)"(
+    _l1Token: string,
+    _depositLimitation: boolean,
+    _depositCap: BigNumberish,
     overrides?: Overrides
   ): Promise<ContractTransaction>;
 
@@ -381,23 +397,7 @@ export class IAllowList extends Contract {
     overrides?: Overrides
   ): Promise<ContractTransaction>;
 
-  setPublicAccess(
-    _target: string,
-    _enable: boolean,
-    overrides?: Overrides
-  ): Promise<ContractTransaction>;
-
-  "setPublicAccess(address,bool)"(
-    _target: string,
-    _enable: boolean,
-    overrides?: Overrides
-  ): Promise<ContractTransaction>;
-
   callStatic: {
-    acceptOwner(overrides?: CallOverrides): Promise<void>;
-
-    "acceptOwner()"(overrides?: CallOverrides): Promise<void>;
-
     canCall(
       _caller: string,
       _target: string,
@@ -411,6 +411,33 @@ export class IAllowList extends Contract {
       _functionSig: BytesLike,
       overrides?: CallOverrides
     ): Promise<boolean>;
+
+    getAccessMode(_target: string, overrides?: CallOverrides): Promise<number>;
+
+    "getAccessMode(address)"(
+      _target: string,
+      overrides?: CallOverrides
+    ): Promise<number>;
+
+    getTokenDepositLimitData(
+      _l1Token: string,
+      overrides?: CallOverrides
+    ): Promise<{
+      depositLimitation: boolean;
+      depositCap: BigNumber;
+      0: boolean;
+      1: BigNumber;
+    }>;
+
+    "getTokenDepositLimitData(address)"(
+      _l1Token: string,
+      overrides?: CallOverrides
+    ): Promise<{
+      depositLimitation: boolean;
+      depositCap: BigNumber;
+      0: boolean;
+      1: BigNumber;
+    }>;
 
     hasSpecialAccessToCall(
       _caller: string,
@@ -426,23 +453,29 @@ export class IAllowList extends Contract {
       overrides?: CallOverrides
     ): Promise<boolean>;
 
-    isAccessPublic(
+    setAccessMode(
       _target: string,
+      _accessMode: BigNumberish,
       overrides?: CallOverrides
-    ): Promise<boolean>;
+    ): Promise<void>;
 
-    "isAccessPublic(address)"(
+    "setAccessMode(address,uint8)"(
       _target: string,
+      _accessMode: BigNumberish,
       overrides?: CallOverrides
-    ): Promise<boolean>;
+    ): Promise<void>;
 
-    owner(overrides?: CallOverrides): Promise<string>;
+    setBatchAccessMode(
+      _targets: string[],
+      _accessMode: BigNumberish[],
+      overrides?: CallOverrides
+    ): Promise<void>;
 
-    "owner()"(overrides?: CallOverrides): Promise<string>;
-
-    pendingOwner(overrides?: CallOverrides): Promise<string>;
-
-    "pendingOwner()"(overrides?: CallOverrides): Promise<string>;
+    "setBatchAccessMode(address[],uint8[])"(
+      _targets: string[],
+      _accessMode: BigNumberish[],
+      overrides?: CallOverrides
+    ): Promise<void>;
 
     setBatchPermissionToCall(
       _callers: string[],
@@ -460,25 +493,17 @@ export class IAllowList extends Contract {
       overrides?: CallOverrides
     ): Promise<void>;
 
-    setBatchPublicAccess(
-      _targets: string[],
-      _enables: boolean[],
+    setDepositLimit(
+      _l1Token: string,
+      _depositLimitation: boolean,
+      _depositCap: BigNumberish,
       overrides?: CallOverrides
     ): Promise<void>;
 
-    "setBatchPublicAccess(address[],bool[])"(
-      _targets: string[],
-      _enables: boolean[],
-      overrides?: CallOverrides
-    ): Promise<void>;
-
-    setPendingOwner(
-      _newPendingOwner: string,
-      overrides?: CallOverrides
-    ): Promise<void>;
-
-    "setPendingOwner(address)"(
-      _newPendingOwner: string,
+    "setDepositLimit(address,bool,uint256)"(
+      _l1Token: string,
+      _depositLimitation: boolean,
+      _depositCap: BigNumberish,
       overrides?: CallOverrides
     ): Promise<void>;
 
@@ -497,26 +522,13 @@ export class IAllowList extends Contract {
       _enable: boolean,
       overrides?: CallOverrides
     ): Promise<void>;
-
-    setPublicAccess(
-      _target: string,
-      _enable: boolean,
-      overrides?: CallOverrides
-    ): Promise<void>;
-
-    "setPublicAccess(address,bool)"(
-      _target: string,
-      _enable: boolean,
-      overrides?: CallOverrides
-    ): Promise<void>;
   };
 
   filters: {
-    NewOwner(newOwner: string | null): EventFilter;
-
-    NewPendingOwner(
-      oldPendingOwner: string | null,
-      newPendingOwner: string | null
+    UpdateAccessMode(
+      target: string | null,
+      previousMode: null,
+      newMode: null
     ): EventFilter;
 
     UpdateCallPermission(
@@ -525,15 +537,9 @@ export class IAllowList extends Contract {
       functionSig: BytesLike | null,
       status: null
     ): EventFilter;
-
-    UpdatePublicAccess(target: string | null, newStatus: null): EventFilter;
   };
 
   estimateGas: {
-    acceptOwner(overrides?: Overrides): Promise<BigNumber>;
-
-    "acceptOwner()"(overrides?: Overrides): Promise<BigNumber>;
-
     canCall(
       _caller: string,
       _target: string,
@@ -545,6 +551,26 @@ export class IAllowList extends Contract {
       _caller: string,
       _target: string,
       _functionSig: BytesLike,
+      overrides?: CallOverrides
+    ): Promise<BigNumber>;
+
+    getAccessMode(
+      _target: string,
+      overrides?: CallOverrides
+    ): Promise<BigNumber>;
+
+    "getAccessMode(address)"(
+      _target: string,
+      overrides?: CallOverrides
+    ): Promise<BigNumber>;
+
+    getTokenDepositLimitData(
+      _l1Token: string,
+      overrides?: CallOverrides
+    ): Promise<BigNumber>;
+
+    "getTokenDepositLimitData(address)"(
+      _l1Token: string,
       overrides?: CallOverrides
     ): Promise<BigNumber>;
 
@@ -562,23 +588,29 @@ export class IAllowList extends Contract {
       overrides?: CallOverrides
     ): Promise<BigNumber>;
 
-    isAccessPublic(
+    setAccessMode(
       _target: string,
-      overrides?: CallOverrides
+      _accessMode: BigNumberish,
+      overrides?: Overrides
     ): Promise<BigNumber>;
 
-    "isAccessPublic(address)"(
+    "setAccessMode(address,uint8)"(
       _target: string,
-      overrides?: CallOverrides
+      _accessMode: BigNumberish,
+      overrides?: Overrides
     ): Promise<BigNumber>;
 
-    owner(overrides?: CallOverrides): Promise<BigNumber>;
+    setBatchAccessMode(
+      _targets: string[],
+      _accessMode: BigNumberish[],
+      overrides?: Overrides
+    ): Promise<BigNumber>;
 
-    "owner()"(overrides?: CallOverrides): Promise<BigNumber>;
-
-    pendingOwner(overrides?: CallOverrides): Promise<BigNumber>;
-
-    "pendingOwner()"(overrides?: CallOverrides): Promise<BigNumber>;
+    "setBatchAccessMode(address[],uint8[])"(
+      _targets: string[],
+      _accessMode: BigNumberish[],
+      overrides?: Overrides
+    ): Promise<BigNumber>;
 
     setBatchPermissionToCall(
       _callers: string[],
@@ -596,25 +628,17 @@ export class IAllowList extends Contract {
       overrides?: Overrides
     ): Promise<BigNumber>;
 
-    setBatchPublicAccess(
-      _targets: string[],
-      _enables: boolean[],
+    setDepositLimit(
+      _l1Token: string,
+      _depositLimitation: boolean,
+      _depositCap: BigNumberish,
       overrides?: Overrides
     ): Promise<BigNumber>;
 
-    "setBatchPublicAccess(address[],bool[])"(
-      _targets: string[],
-      _enables: boolean[],
-      overrides?: Overrides
-    ): Promise<BigNumber>;
-
-    setPendingOwner(
-      _newPendingOwner: string,
-      overrides?: Overrides
-    ): Promise<BigNumber>;
-
-    "setPendingOwner(address)"(
-      _newPendingOwner: string,
+    "setDepositLimit(address,bool,uint256)"(
+      _l1Token: string,
+      _depositLimitation: boolean,
+      _depositCap: BigNumberish,
       overrides?: Overrides
     ): Promise<BigNumber>;
 
@@ -630,28 +654,12 @@ export class IAllowList extends Contract {
       _caller: string,
       _target: string,
       _functionSig: BytesLike,
-      _enable: boolean,
-      overrides?: Overrides
-    ): Promise<BigNumber>;
-
-    setPublicAccess(
-      _target: string,
-      _enable: boolean,
-      overrides?: Overrides
-    ): Promise<BigNumber>;
-
-    "setPublicAccess(address,bool)"(
-      _target: string,
       _enable: boolean,
       overrides?: Overrides
     ): Promise<BigNumber>;
   };
 
   populateTransaction: {
-    acceptOwner(overrides?: Overrides): Promise<PopulatedTransaction>;
-
-    "acceptOwner()"(overrides?: Overrides): Promise<PopulatedTransaction>;
-
     canCall(
       _caller: string,
       _target: string,
@@ -663,6 +671,26 @@ export class IAllowList extends Contract {
       _caller: string,
       _target: string,
       _functionSig: BytesLike,
+      overrides?: CallOverrides
+    ): Promise<PopulatedTransaction>;
+
+    getAccessMode(
+      _target: string,
+      overrides?: CallOverrides
+    ): Promise<PopulatedTransaction>;
+
+    "getAccessMode(address)"(
+      _target: string,
+      overrides?: CallOverrides
+    ): Promise<PopulatedTransaction>;
+
+    getTokenDepositLimitData(
+      _l1Token: string,
+      overrides?: CallOverrides
+    ): Promise<PopulatedTransaction>;
+
+    "getTokenDepositLimitData(address)"(
+      _l1Token: string,
       overrides?: CallOverrides
     ): Promise<PopulatedTransaction>;
 
@@ -680,23 +708,29 @@ export class IAllowList extends Contract {
       overrides?: CallOverrides
     ): Promise<PopulatedTransaction>;
 
-    isAccessPublic(
+    setAccessMode(
       _target: string,
-      overrides?: CallOverrides
+      _accessMode: BigNumberish,
+      overrides?: Overrides
     ): Promise<PopulatedTransaction>;
 
-    "isAccessPublic(address)"(
+    "setAccessMode(address,uint8)"(
       _target: string,
-      overrides?: CallOverrides
+      _accessMode: BigNumberish,
+      overrides?: Overrides
     ): Promise<PopulatedTransaction>;
 
-    owner(overrides?: CallOverrides): Promise<PopulatedTransaction>;
+    setBatchAccessMode(
+      _targets: string[],
+      _accessMode: BigNumberish[],
+      overrides?: Overrides
+    ): Promise<PopulatedTransaction>;
 
-    "owner()"(overrides?: CallOverrides): Promise<PopulatedTransaction>;
-
-    pendingOwner(overrides?: CallOverrides): Promise<PopulatedTransaction>;
-
-    "pendingOwner()"(overrides?: CallOverrides): Promise<PopulatedTransaction>;
+    "setBatchAccessMode(address[],uint8[])"(
+      _targets: string[],
+      _accessMode: BigNumberish[],
+      overrides?: Overrides
+    ): Promise<PopulatedTransaction>;
 
     setBatchPermissionToCall(
       _callers: string[],
@@ -714,25 +748,17 @@ export class IAllowList extends Contract {
       overrides?: Overrides
     ): Promise<PopulatedTransaction>;
 
-    setBatchPublicAccess(
-      _targets: string[],
-      _enables: boolean[],
+    setDepositLimit(
+      _l1Token: string,
+      _depositLimitation: boolean,
+      _depositCap: BigNumberish,
       overrides?: Overrides
     ): Promise<PopulatedTransaction>;
 
-    "setBatchPublicAccess(address[],bool[])"(
-      _targets: string[],
-      _enables: boolean[],
-      overrides?: Overrides
-    ): Promise<PopulatedTransaction>;
-
-    setPendingOwner(
-      _newPendingOwner: string,
-      overrides?: Overrides
-    ): Promise<PopulatedTransaction>;
-
-    "setPendingOwner(address)"(
-      _newPendingOwner: string,
+    "setDepositLimit(address,bool,uint256)"(
+      _l1Token: string,
+      _depositLimitation: boolean,
+      _depositCap: BigNumberish,
       overrides?: Overrides
     ): Promise<PopulatedTransaction>;
 
@@ -748,18 +774,6 @@ export class IAllowList extends Contract {
       _caller: string,
       _target: string,
       _functionSig: BytesLike,
-      _enable: boolean,
-      overrides?: Overrides
-    ): Promise<PopulatedTransaction>;
-
-    setPublicAccess(
-      _target: string,
-      _enable: boolean,
-      overrides?: Overrides
-    ): Promise<PopulatedTransaction>;
-
-    "setPublicAccess(address,bool)"(
-      _target: string,
       _enable: boolean,
       overrides?: Overrides
     ): Promise<PopulatedTransaction>;

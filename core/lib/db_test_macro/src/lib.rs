@@ -3,7 +3,7 @@ use quote::quote;
 use syn::{
     parse::{Parse, ParseStream},
     punctuated::Punctuated,
-    Ident, Token,
+    FnArg, Ident, Token,
 };
 
 /// Argument that can be supplied to the `db_test` macro to be used in the `zksync_dal` crate.
@@ -25,19 +25,6 @@ impl Parse for Args {
     }
 }
 
-fn parse_connection_pool_arg_name(arg: Option<&syn::FnArg>) -> Result<syn::PatIdent, ()> {
-    if let Some(syn::FnArg::Typed(arg)) = arg {
-        if let syn::Pat::Ident(ident) = arg.pat.as_ref() {
-            if let syn::Type::Path(path_type) = arg.ty.as_ref() {
-                if path_type.path.is_ident(TYPE_NAME) {
-                    return Ok(ident.clone());
-                }
-            }
-        }
-    }
-    Err(())
-}
-
 fn parse_knobs(mut input: syn::ItemFn, inside_dal_crate: bool) -> Result<TokenStream, syn::Error> {
     let sig = &mut input.sig;
     let body = &input.block;
@@ -51,50 +38,60 @@ fn parse_knobs(mut input: syn::ItemFn, inside_dal_crate: bool) -> Result<TokenSt
 
     sig.asyncness = None;
 
-    let argument_name = parse_connection_pool_arg_name(sig.inputs.first());
-    if sig.inputs.len() != 1 || argument_name.is_err() {
-        let msg = format!(
-            "the DB test function must take a single argument of type {}",
-            TYPE_NAME
-        );
-        return Err(syn::Error::new_spanned(&sig.inputs, msg));
-    }
-
-    // Remove argument, as the test function must not have one.
-    sig.inputs.pop();
-
-    // We've checked that argument is OK above.
-    let argument_name = argument_name.unwrap();
-
     let rt = quote! { tokio::runtime::Builder::new_current_thread() };
-
     let header = quote! {
         #[::core::prelude::v1::test]
     };
-
     let dal_crate_id = if inside_dal_crate {
         quote! { crate }
     } else {
         quote! { zksync_dal }
     };
 
+    let Some(pool_arg) = sig.inputs.pop() else {
+        let msg = format!(
+            "DB test function must take one or two arguments of type `{}`",
+            TYPE_NAME
+        );
+        return Err(syn::Error::new_spanned(&sig.inputs, msg));
+    };
+
+    let FnArg::Typed(pool_arg) = pool_arg.value() else {
+        let msg = "Pool argument must be typed";
+        return Err(syn::Error::new_spanned(&pool_arg, msg));
+    };
+    let main_pool_arg_name = &pool_arg.pat;
+    let main_pool_arg_type = &pool_arg.ty;
+
+    let prover_pool_arg = sig.inputs.pop();
+    let pools_tokens = if let Some(pool_arg) = prover_pool_arg {
+        let FnArg::Typed(prover_pool_arg) = pool_arg.value() else {
+            let msg = "Pool argument must be typed";
+            return Err(syn::Error::new_spanned(&pool_arg, msg));
+        };
+        let prover_pool_arg_name = &prover_pool_arg.pat;
+        let prover_pool_arg_type = &prover_pool_arg.ty;
+        quote! {
+            let __test_main_pool = #dal_crate_id::connection::TestPool::new().await;
+            let __test_prover_pool = #dal_crate_id::connection::TestPool::new().await;
+            let #main_pool_arg_name: #main_pool_arg_type = #dal_crate_id::ConnectionPool::Test(__test_main_pool);
+            let #prover_pool_arg_name: #prover_pool_arg_type = #dal_crate_id::ConnectionPool::Test(__test_prover_pool);
+        }
+    } else {
+        quote! {
+            let __test_main_pool = #dal_crate_id::connection::TestPool::new().await;
+            let #main_pool_arg_name: #main_pool_arg_type = #dal_crate_id::ConnectionPool::Test(__test_main_pool);
+        }
+    };
     let result = quote! {
         #header
         #(#attrs)*
         #vis #sig {
-            use #dal_crate_id::connection::test_pool::Connection;
-
-            #rt
-                .enable_all()
+            #rt.enable_all()
                 .build()
                 .unwrap()
                 .block_on(async {
-                    let mut __connection = #dal_crate_id::connection::TestPool::connect_to_test_db().await;
-                    let mut __transaction = __connection.begin().await.unwrap();
-                    let mut #argument_name = unsafe {
-                        #dal_crate_id::ConnectionPool::Test(#dal_crate_id::connection::TestPool::new(&mut __transaction).await)
-                    };
-
+                    #pools_tokens
                     {
                         #body
                     }

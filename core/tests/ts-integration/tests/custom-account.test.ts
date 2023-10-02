@@ -156,6 +156,88 @@ describe('Tests for the custom account behavior', () => {
         await expect(sendCustomAccountTransaction(customAATx, alice.provider, customAccount.address)).toBeAccepted([]);
     });
 
+    test('API should reject validation that takes too many computational ergs', async () => {
+        const violateStorageRules = false;
+        const badCustomAccount = await deployContract(
+            alice,
+            contracts.customAccount,
+            [violateStorageRules],
+            'createAccount'
+        );
+        badCustomAccount.connect(alice);
+
+        // Fund the account.
+        await alice
+            .transfer({
+                to: badCustomAccount.address,
+                amount: ETH_PER_CUSTOM_ACCOUNT
+            })
+            .then((tx) => tx.wait());
+        await alice
+            .transfer({
+                to: badCustomAccount.address,
+                token: erc20Address,
+                amount: TRANSFER_AMOUNT
+            })
+            .then((tx) => tx.wait());
+
+        // Set flag to do many calculations during validation.
+        const validationGasLimit = +process.env.CHAIN_STATE_KEEPER_VALIDATION_COMPUTATIONAL_GAS_LIMIT!;
+        await badCustomAccount.setGasToSpent(validationGasLimit).then((tx: any) => tx.wait());
+
+        let tx = await erc20.populateTransaction.transfer(alice.address, TRANSFER_AMOUNT);
+        await expect(sendCustomAccountTransaction(tx, alice.provider, badCustomAccount.address)).toBeRejected(
+            'Violated validation rules: Took too many computational gas'
+        );
+    });
+
+    test('State keeper should reject validation that takes too many computational ergs', async () => {
+        const violateStorageRules = false;
+        const badCustomAccount = await deployContract(
+            alice,
+            contracts.customAccount,
+            [violateStorageRules],
+            'createAccount'
+        );
+        badCustomAccount.connect(alice);
+
+        // Fund the account.
+        await alice
+            .transfer({
+                to: badCustomAccount.address,
+                amount: ETH_PER_CUSTOM_ACCOUNT
+            })
+            .then((tx) => tx.wait());
+        await alice
+            .transfer({
+                to: badCustomAccount.address,
+                token: erc20Address,
+                amount: TRANSFER_AMOUNT
+            })
+            .then((tx) => tx.wait());
+
+        const transfer = await erc20.populateTransaction.transfer(alice.address, TRANSFER_AMOUNT);
+        const nonce = await alice.provider.getTransactionCount(badCustomAccount.address);
+
+        const delayedTx = await sendCustomAccountTransaction(
+            transfer,
+            alice.provider,
+            badCustomAccount.address,
+            undefined,
+            nonce + 1
+        );
+        // delayedTx passed API checks (since we got the response) but should be rejected by the state-keeper.
+        const rejection = expect(delayedTx).toBeReverted();
+
+        // Increase nonce and set flag to do many calculations during validation.
+        const validationGasLimit = +process.env.CHAIN_STATE_KEEPER_VALIDATION_COMPUTATIONAL_GAS_LIMIT!;
+        const tx = await badCustomAccount.populateTransaction.setGasToSpent(validationGasLimit);
+        await expect(
+            sendCustomAccountTransaction(tx, alice.provider, badCustomAccount.address, undefined, nonce)
+        ).toBeAccepted();
+        await rejection;
+    });
+
     afterAll(async () => {
         await testMaster.deinitialize();
     });
@@ -167,7 +249,8 @@ async function sendCustomAccountTransaction(
     tx: ethers.PopulatedTransaction,
     web3Provider: zksync.Provider,
     accountAddress: string,
-    customSignature?: Uint8Array
+    customSignature?: Uint8Array,
+    nonce?: number
 ) {
     const gasLimit = await web3Provider.estimateGas({
         ...tx,
@@ -179,7 +262,7 @@ async function sendCustomAccountTransaction(
     tx.gasPrice = gasPrice;
     tx.chainId = parseInt(process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID!, 10);
     tx.value = ethers.BigNumber.from(0);
-    tx.nonce = await web3Provider.getTransactionCount(accountAddress);
+    tx.nonce = nonce ?? (await web3Provider.getTransactionCount(accountAddress));
     tx.type = 113;
     tx.from = accountAddress;
 

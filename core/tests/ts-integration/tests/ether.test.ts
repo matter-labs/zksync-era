@@ -7,7 +7,7 @@ import { shouldChangeETHBalances, shouldOnlyTakeFee } from '../src/modifiers/bal
 import { checkReceipt } from '../src/modifiers/receipt-check';
 
 import * as zksync from 'zksync-web3';
-import { BigNumber } from 'ethers';
+import { BigNumber, Overrides } from 'ethers';
 import { scaledGasPrice } from '../src/helpers';
 
 const ETH_ADDRESS = zksync.utils.ETH_ADDRESS;
@@ -29,13 +29,30 @@ describe('ETH token checks', () => {
 
         // Unfortunately, since fee is taken in ETH, we must calculate the L1 ETH balance diff explicitly.
         const l1EthBalanceBefore = await alice.getBalanceL1();
-        // No need to check fee as the L1->L2 are free for now
         const l2ethBalanceChange = await shouldChangeETHBalances([{ wallet: alice, change: amount }], {
-            noAutoFeeCheck: true
+            l1ToL2: true
         });
+
+        const l2GasLimit = await zksync.utils.estimateDefaultBridgeDepositL2Gas(
+            alice.providerL1!,
+            alice.provider,
+            ETH_ADDRESS,
+            amount,
+            alice.address,
+            alice.address
+        );
+        const gasPerPubdataByte = zksync.utils.REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_LIMIT;
+        const expectedL2Costs = await alice.getBaseCost({
+            gasLimit: l2GasLimit,
+            gasPerPubdataByte,
+            gasPrice: await gasPrice
+        });
+
         const depositOp = alice.deposit({
             token: ETH_ADDRESS,
             amount,
+            gasPerPubdataByte,
+            l2GasLimit,
             overrides: {
                 gasPrice
             }
@@ -44,12 +61,39 @@ describe('ETH token checks', () => {
 
         const depositFee = await depositOp
             .then((op) => op.waitL1Commit())
-            .then((receipt) => receipt.gasUsed.mul(receipt.effectiveGasPrice));
+            .then(async (receipt) => {
+                const l1GasFee = receipt.gasUsed.mul(receipt.effectiveGasPrice);
+                return l1GasFee.add(expectedL2Costs);
+            });
         const l1EthBalanceAfter = await alice.getBalanceL1();
         expect(l1EthBalanceBefore.sub(depositFee).sub(l1EthBalanceAfter)).bnToBeEq(amount);
     });
 
-    test('Can perform a transfer (legacy)', async () => {
+    test('Can perform a transfer (legacy pre EIP-155)', async () => {
+        const LEGACY_TX_TYPE = 0;
+        const value = BigNumber.from(200);
+
+        const ethBalanceChange = await shouldChangeETHBalances([
+            { wallet: alice, change: -value },
+            { wallet: bob, change: value }
+        ]);
+        const correctReceiptType = checkReceipt(
+            (receipt) => receipt.type == LEGACY_TX_TYPE,
+            'Incorrect tx type in receipt'
+        );
+
+        // ethers doesn't support sending pre EIP-155 transactions, so we create one manually.
+        const transaction = await alice.populateTransaction({ type: LEGACY_TX_TYPE, to: bob.address, value });
+        // Remove chainId and sign the transaction without it.
+        transaction.chainId = undefined;
+        const signedTransaction = await alice.signTransaction(transaction);
+        await expect(alice.provider.sendTransaction(signedTransaction)).toBeAccepted([
+            ethBalanceChange,
+            correctReceiptType
+        ]);
+    });
+
+    test('Can perform a transfer (legacy EIP-155)', async () => {
         const LEGACY_TX_TYPE = 0;
         const value = BigNumber.from(200);
 
@@ -156,7 +200,42 @@ describe('ETH token checks', () => {
         const withdrawalTx = await withdrawalPromise;
         await withdrawalTx.waitFinalize();
 
+        // TODO (SMA-1374): Enable L1 ETH checks as soon as they're supported.
         await expect(alice.finalizeWithdrawal(withdrawalTx.hash)).toBeAccepted();
+        const tx = await alice.provider.getTransactionReceipt(withdrawalTx.hash);
+
+        expect(tx.l2ToL1Logs[0].txIndexInL1Batch).toEqual(expect.anything());
+    });
+
+    test('Can perform a deposit with precalculated max value', async () => {
+        const depositFee = await alice.getFullRequiredDepositFee({
+            token: ETH_ADDRESS
+        });
+        const l1Fee = depositFee.l1GasLimit.mul(depositFee.maxFeePerGas! || depositFee.gasPrice!);
+        const l2Fee = depositFee.baseCost;
+
+        const maxAmount = (await alice.getBalanceL1()).sub(l1Fee).sub(l2Fee);
+
+        const l2ethBalanceChange = await shouldChangeETHBalances([{ wallet: alice, change: maxAmount }], {
+            l1ToL2: true
+        });
+
+        const overrides: Overrides = depositFee.gasPrice
+            ? { gasPrice: depositFee.gasPrice }
+            : {
+                  maxFeePerGas: depositFee.maxFeePerGas,
+                  maxPriorityFeePerGas: depositFee.maxPriorityFeePerGas
+              };
+        overrides.gasLimit = depositFee.l1GasLimit;
+
+        const depositOp = await alice.deposit({
+            token: ETH_ADDRESS,
+            amount: maxAmount,
+            l2GasLimit: depositFee.l2GasLimit,
+            overrides
+        });
+
+        await expect(depositOp).toBeAccepted([l2ethBalanceChange]);
     });
 
     afterAll(async () => {

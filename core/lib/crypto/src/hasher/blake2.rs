@@ -1,36 +1,24 @@
-use crate::hasher::Hasher;
 use blake2::{Blake2s256, Digest};
+
+use crate::hasher::Hasher;
+use zksync_basic_types::H256;
 
 #[derive(Default, Clone, Debug)]
 pub struct Blake2Hasher;
 
-impl Hasher<Vec<u8>> for Blake2Hasher {
-    /// Gets the hash of the byte sequence.
-    fn hash_bytes<I: IntoIterator<Item = u8>>(&self, value: I) -> Vec<u8> {
-        let mut hasher = Blake2s256::new();
-        let value: Vec<u8> = value.into_iter().collect();
-        hasher.update(&value);
+impl Hasher for Blake2Hasher {
+    type Hash = H256;
 
-        hasher.finalize().to_vec()
+    fn hash_bytes(&self, value: &[u8]) -> H256 {
+        let mut hasher = Blake2s256::new();
+        hasher.update(value);
+        H256(hasher.finalize().into())
     }
 
-    /// Get the hash of the hashes sequence.
-    fn hash_elements<I: IntoIterator<Item = Vec<u8>>>(&self, elements: I) -> Vec<u8> {
-        let elems: Vec<u8> = elements.into_iter().flatten().collect();
-
+    fn compress(&self, lhs: &H256, rhs: &H256) -> H256 {
         let mut hasher = Blake2s256::new();
-        hasher.update(&elems);
-        hasher.finalize().to_vec()
-    }
-
-    /// Merges two hashes into one.
-    fn compress(&self, lhs: &Vec<u8>, rhs: &Vec<u8>) -> Vec<u8> {
-        let mut elems = vec![];
-        elems.extend(lhs);
-        elems.extend(rhs);
-
-        let mut hasher = Blake2s256::new();
-        hasher.update(&elems);
-        hasher.finalize().to_vec()
+        hasher.update(lhs.as_ref());
+        hasher.update(rhs.as_ref());
+        H256(hasher.finalize().into())
     }
 }

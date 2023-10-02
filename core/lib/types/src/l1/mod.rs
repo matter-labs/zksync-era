@@ -2,23 +2,23 @@
 
 use serde::{Deserialize, Serialize};
 use std::convert::TryFrom;
+
 use zksync_basic_types::{
     ethabi::{decode, ParamType, Token},
-    Address, Log, PriorityOpId, H160, H256, U256,
+    Address, L1BlockNumber, Log, PriorityOpId, H160, H256, U256,
 };
 use zksync_utils::u256_to_account_address;
 
 use crate::{
+    helpers::unix_timestamp_ms,
     l1::error::L1TxParseError,
+    l2::TransactionType,
     priority_op_onchain_data::{PriorityOpOnchainData, PriorityOpOnchainMetadata},
     tx::Execute,
-    ExecuteTransactionCommon,
+    ExecuteTransactionCommon, PRIORITY_OPERATION_L2_TX_TYPE, PROTOCOL_UPGRADE_TX_TYPE,
 };
 
 use super::Transaction;
-
-use crate::helpers::unix_timestamp_ms;
-use crate::l2::TransactionType;
 
 pub mod error;
 
@@ -47,9 +47,10 @@ impl Default for OpProcessingType {
     }
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Copy)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Copy, Default)]
 #[repr(u8)]
 pub enum PriorityQueueType {
+    #[default]
     Deque = 0,
     HeapBuffer = 1,
     Heap = 2,
@@ -68,10 +69,8 @@ impl TryFrom<u8> for PriorityQueueType {
     }
 }
 
-impl Default for PriorityQueueType {
-    fn default() -> Self {
-        PriorityQueueType::Deque
-    }
+pub fn is_l1_tx_type(tx_type: u8) -> bool {
+    tx_type == PRIORITY_OPERATION_L2_TX_TYPE || tx_type == PROTOCOL_UPGRADE_TX_TYPE
 }
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
@@ -87,6 +86,8 @@ pub struct L1TxCommonData {
     pub layer_2_tip_fee: U256,
     /// The total cost the sender paid for the transaction.
     pub full_fee: U256,
+    /// The maximal fee per gas to be used for L1->L2 transaction
+    pub max_fee_per_gas: U256,
     /// The maximum number of gas that a transaction can spend at a price of gas equals 1.
     pub gas_limit: U256,
     /// The maximum number of gas per 1 byte of pubdata.
@@ -150,18 +151,20 @@ impl From<L1Tx> for Transaction {
             common_data: ExecuteTransactionCommon::L1(common_data),
             execute,
             received_timestamp_ms,
+            raw_bytes: None,
         }
     }
 }
 
 impl TryFrom<Transaction> for L1Tx {
-    type Error = ();
+    type Error = &'static str;
 
     fn try_from(value: Transaction) -> Result<Self, Self::Error> {
         let Transaction {
             common_data,
             execute,
             received_timestamp_ms,
+            ..
         } = value;
         match common_data {
             ExecuteTransactionCommon::L1(common_data) => Ok(L1Tx {
@@ -169,7 +172,10 @@ impl TryFrom<Transaction> for L1Tx {
                 common_data,
                 received_timestamp_ms,
             }),
-            ExecuteTransactionCommon::L2(_) => Err(()),
+            ExecuteTransactionCommon::L2(_) => Err("Cannot convert L2Tx to L1Tx"),
+            ExecuteTransactionCommon::ProtocolUpgrade(_) => {
+                Err("Cannot convert ProtocolUpgradeTx to L1Tx")
+            }
         }
     }
 }
@@ -179,8 +185,8 @@ impl L1Tx {
         self.common_data.serial_id
     }
 
-    pub fn eth_block(&self) -> u64 {
-        self.common_data.eth_block
+    pub fn eth_block(&self) -> L1BlockNumber {
+        L1BlockNumber(self.common_data.eth_block as u32)
     }
 
     pub fn hash(&self) -> H256 {
@@ -192,6 +198,7 @@ impl TryFrom<Log> for L1Tx {
     type Error = L1TxParseError;
 
     fn try_from(event: Log) -> Result<Self, Self::Error> {
+        // TODO: refactor according to tx type
         let transaction_param_type = ParamType::Tuple(vec![
             ParamType::Uint(8),                                       // txType
             ParamType::Address,                                       // sender
@@ -252,7 +259,7 @@ impl TryFrom<Log> for L1Tx {
         assert_eq!(transaction.len(), 16);
 
         let tx_type = transaction.remove(0).into_uint().unwrap();
-        assert_eq!(tx_type.clone(), U256::from(255u8)); // L1TxType
+        assert_eq!(tx_type.clone(), U256::from(PRIORITY_OPERATION_L2_TX_TYPE));
 
         let sender = transaction.remove(0).into_address().unwrap();
         let contract_address = transaction.remove(0).into_address().unwrap();
@@ -262,7 +269,6 @@ impl TryFrom<Log> for L1Tx {
         let gas_per_pubdata_limit = transaction.remove(0).into_uint().unwrap();
 
         let max_fee_per_gas = transaction.remove(0).into_uint().unwrap();
-        assert_eq!(max_fee_per_gas, U256::zero());
 
         let max_priority_fee_per_gas = transaction.remove(0).into_uint().unwrap();
         assert_eq!(max_priority_fee_per_gas, U256::zero());
@@ -297,6 +303,7 @@ impl TryFrom<Log> for L1Tx {
         let signature = transaction.remove(0).into_bytes().unwrap();
         assert_eq!(signature.len(), 0);
 
+        // TODO (SMA-1621): check that reservedDynamic are constructed correctly.
         let _factory_deps_hashes = transaction.remove(0).into_array().unwrap();
         let _paymaster_input = transaction.remove(0).into_bytes().unwrap();
         let _reserved_dynamic = transaction.remove(0).into_bytes().unwrap();
@@ -324,6 +331,7 @@ impl TryFrom<Log> for L1Tx {
             refund_recipient,
             full_fee: U256::zero(),
             gas_limit,
+            max_fee_per_gas,
             gas_per_pubdata_limit,
             op_processing_type: OpProcessingType::Common,
             priority_queue_type: PriorityQueueType::Deque,

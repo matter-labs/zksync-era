@@ -6,6 +6,44 @@
         {
           "indexed": true,
           "internalType": "address",
+          "name": "accountAddress",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "enum IContractDeployer.AccountNonceOrdering",
+          "name": "nonceOrdering",
+          "type": "uint8"
+        }
+      ],
+      "name": "AccountNonceOrderingUpdated",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "accountAddress",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "enum IContractDeployer.AccountAbstractionVersion",
+          "name": "aaVersion",
+          "type": "uint8"
+        }
+      ],
+      "name": "AccountVersionUpdated",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
           "name": "deployerAddress",
           "type": "address"
         },
@@ -29,7 +67,7 @@
       "inputs": [
         {
           "internalType": "bytes32",
-          "name": "",
+          "name": "_salt",
           "type": "bytes32"
         },
         {
@@ -341,7 +379,7 @@
           "type": "address"
         }
       ],
-      "stateMutability": "pure",
+      "stateMutability": "view",
       "type": "function"
     },
     {

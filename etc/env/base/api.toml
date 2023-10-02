@@ -42,15 +42,12 @@ account_pks=[
 ]
 estimate_gas_scale_factor=1.2
 estimate_gas_acceptable_overestimation=1000
-# Configuration for the explorer API
-[api.explorer]
-# Port for the explorer API.
+max_tx_size=1000000
+# Configuration for the contract verification API
+[api.contract_verification]
+# Port for the contract verification API.
 port=3070
 url="http://127.0.0.1:3070"
-# Interval between polling db for network stats (in ms).
-network_stats_polling_interval=1000
-req_entities_limit=100
-offset_limit=10000
 threads_per_server=128
 
 # Configuration for the prometheus exporter server.
@@ -58,3 +55,7 @@ threads_per_server=128
 listener_port=3312
 pushgateway_url="http://127.0.0.1:9091"
 push_interval_ms=100
+
+# Configuration for the healtcheck server.
+[api.healthcheck]
+port=3071

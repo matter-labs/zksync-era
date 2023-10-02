@@ -50,7 +50,7 @@ describe('ERC20 contract checks', () => {
         const l2BalanceChange = await shouldChangeTokenBalances(tokenDetails.l2Address, [
             { wallet: alice, change: amount }
         ]);
-        const feeCheck = await shouldOnlyTakeFee(alice);
+        const feeCheck = await shouldOnlyTakeFee(alice, true);
         await expect(
             alice.deposit({
                 token: tokenDetails.l1Address,
@@ -176,6 +176,7 @@ describe('ERC20 contract checks', () => {
             to: ethers.constants.AddressZero,
             token: tokenDetails.l1Address,
             amount,
+            l2GasLimit: 5_000_000, // Setting the limit manually to avoid estimation for L1->L2 transaction
             approveERC20: true
         });
         const l1Receipt = await depositHandle.waitL1Commit();
@@ -194,6 +195,44 @@ describe('ERC20 contract checks', () => {
         // Claim failed deposit.
         await expect(alice.claimFailedDeposit(l2Hash)).toBeAccepted();
         await expect(alice.getBalanceL1(tokenDetails.l1Address)).resolves.bnToBeEq(initialBalance);
+    });
+
+    test('Can perform a deposit with precalculated max value', async () => {
+        const maxAmount = await alice.getBalanceL1(tokenDetails.l1Address);
+
+        // Approving the needed allowance to ensure that the user has enough funds.
+        await (await alice.approveERC20(tokenDetails.l1Address, maxAmount)).wait();
+
+        const depositFee = await alice.getFullRequiredDepositFee({
+            token: tokenDetails.l1Address
+        });
+        const l1Fee = depositFee.l1GasLimit.mul(depositFee.maxFeePerGas! || depositFee.gasPrice!);
+        const l2Fee = depositFee.baseCost;
+
+        const aliceETHBalance = await alice.getBalanceL1();
+        if (aliceETHBalance.lt(l1Fee.add(l2Fee))) {
+            throw new Error('Not enough ETH to perform a deposit');
+        }
+
+        const l2ERC20BalanceChange = await shouldChangeTokenBalances(tokenDetails.l2Address, [
+            { wallet: alice, change: maxAmount }
+        ]);
+
+        const overrides: ethers.Overrides = depositFee.gasPrice
+            ? { gasPrice: depositFee.gasPrice }
+            : {
+                  maxFeePerGas: depositFee.maxFeePerGas,
+                  maxPriorityFeePerGas: depositFee.maxPriorityFeePerGas
+              };
+        overrides.gasLimit = depositFee.l1GasLimit;
+        const depositOp = await alice.deposit({
+            token: tokenDetails.l1Address,
+            amount: maxAmount,
+            l2GasLimit: depositFee.l2GasLimit,
+            overrides
+        });
+
+        await expect(depositOp).toBeAccepted([l2ERC20BalanceChange]);
     });
 
     afterAll(async () => {

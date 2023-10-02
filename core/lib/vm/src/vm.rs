@@ -1,904 +1,158 @@
-use std::fmt::Debug;
+use zksync_state::{StoragePtr, WriteStorage};
+use zksync_types::Transaction;
+use zksync_utils::bytecode::CompressedBytecodeInfo;
 
-use zk_evm::aux_structures::Timestamp;
-use zk_evm::vm_state::{PrimitiveValue, VmLocalState, VmState};
-use zk_evm::witness_trace::DummyTracer;
-use zk_evm::zkevm_opcode_defs::decoding::{AllowedPcOrImm, EncodingModeProduction, VmEncodingMode};
-use zk_evm::zkevm_opcode_defs::definitions::RET_IMPLICIT_RETURNDATA_PARAMS_REGISTER;
-use zksync_config::constants::MAX_TXS_IN_BLOCK;
-use zksync_types::l2_to_l1_log::L2ToL1Log;
-use zksync_types::tx::tx_execution_info::{TxExecutionStatus, VmExecutionLogs};
-use zksync_types::vm_trace::VmExecutionTrace;
-use zksync_types::{L1BatchNumber, StorageLogQuery, VmEvent, U256};
-use zksync_utils::bytes_to_be_words;
+use crate::old_vm::events::merge_events;
+use crate::old_vm::history_recorder::{HistoryEnabled, HistoryMode};
 
 use crate::bootloader_state::BootloaderState;
-use crate::errors::{TxRevertReason, VmRevertReason, VmRevertReasonParsingResult};
-use crate::event_sink::InMemoryEventSink;
-use crate::events::merge_events;
-use crate::memory::SimpleMemory;
-use crate::oracles::decommitter::DecommitterOracle;
-use crate::oracles::precompile::PrecompilesProcessorWithHistory;
-use crate::oracles::storage::StorageOracle;
-use crate::oracles::tracer::{
-    BootloaderTracer, ExecutionEndTracer, NoopMemoryTracer, OneTxTracer, PendingRefundTracer,
-    ValidationError, ValidationTracer, ValidationTracerParams,
+use crate::errors::BytecodeCompressionError;
+use crate::tracers::traits::VmTracer;
+use crate::types::{
+    inputs::{L1BatchEnv, SystemEnv, VmExecutionMode},
+    internals::{new_vm_state, VmSnapshot, ZkSyncVmState},
+    outputs::{BootloaderMemory, CurrentExecutionState, VmExecutionResultAndLogs},
 };
-use crate::oracles::OracleWithHistory;
-use crate::utils::{
-    collect_log_queries_after_timestamp, collect_storage_log_queries_after_timestamp,
-    dump_memory_page_using_primitive_value, precompile_calls_count_after_timestamp,
-};
-use crate::vm_with_bootloader::{
-    BootloaderJobType, DerivedBlockContext, TxExecutionMode, BOOTLOADER_HEAP_PAGE,
-    OPERATOR_REFUNDS_OFFSET,
-};
-use crate::Word;
+use crate::L2BlockEnv;
 
-pub type ZkSyncVmState<'a> = VmState<
-    'a,
-    StorageOracle<'a>,
-    SimpleMemory,
-    InMemoryEventSink,
-    PrecompilesProcessorWithHistory<false>,
-    DecommitterOracle<'a, false>,
-    DummyTracer,
->;
-
-pub const MAX_MEM_SIZE_BYTES: u32 = 16777216; // 2^24
-
-// Arbitrary space in memory closer to the end of the page
-pub const RESULT_SUCCESS_FIRST_SLOT: u32 =
-    (MAX_MEM_SIZE_BYTES - (MAX_TXS_IN_BLOCK as u32) * 32) / 32;
-// The slot that is used for tracking vm hooks
-pub const VM_HOOK_POSITION: u32 = RESULT_SUCCESS_FIRST_SLOT - 1;
-pub const VM_HOOK_PARAMS_COUNT: u32 = 2;
-pub const VM_HOOK_PARAMS_START_POSITION: u32 = VM_HOOK_POSITION - VM_HOOK_PARAMS_COUNT;
-
-pub(crate) fn get_vm_hook_params(memory: &SimpleMemory) -> Vec<U256> {
-    memory.dump_page_content_as_u256_words(
-        BOOTLOADER_HEAP_PAGE,
-        VM_HOOK_PARAMS_START_POSITION..VM_HOOK_PARAMS_START_POSITION + VM_HOOK_PARAMS_COUNT,
-    )
-}
-
+/// Main entry point for Virtual Machine integration.
+/// The instance should process only one l1 batch
 #[derive(Debug)]
-pub struct VmInstance<'a> {
-    pub gas_limit: u32,
-    pub state: ZkSyncVmState<'a>,
-    pub execution_mode: TxExecutionMode,
-    pub block_context: DerivedBlockContext,
+pub struct Vm<S: WriteStorage, H: HistoryMode> {
     pub(crate) bootloader_state: BootloaderState,
-
-    pub snapshots: Vec<VmSnapshot>,
+    // Current state and oracles of virtual machine
+    pub(crate) state: ZkSyncVmState<S, H>,
+    pub(crate) storage: StoragePtr<S>,
+    pub(crate) system_env: SystemEnv,
+    pub(crate) batch_env: L1BatchEnv,
+    // Snapshots for the current run
+    pub(crate) snapshots: Vec<VmSnapshot>,
+    _phantom: std::marker::PhantomData<H>,
 }
 
-/// This structure stores data that accumulates during the VM run.
-#[derive(Debug, PartialEq)]
-pub struct VmExecutionResult {
-    pub events: Vec<VmEvent>,
-    pub storage_log_queries: Vec<StorageLogQuery>,
-    pub used_contract_hashes: Vec<U256>,
-    pub l2_to_l1_logs: Vec<L2ToL1Log>,
-    pub return_data: Vec<Word>,
-
-    /// Value denoting the amount of gas spent withing VM invocation.
-    /// Note that return value represents the difference between the amount of gas
-    /// available to VM before and after execution.
-    ///
-    /// It means, that depending on the context, `gas_used` may represent different things.
-    /// If VM is continously invoked and interrupted after each tx, this field may represent the
-    /// amount of gas spent by a single transaction.
-    ///
-    /// To understand, which value does `gas_used` represent, see the documentation for the method
-    /// that you use to get `VmExecutionResult` object.
-    ///
-    /// Side note: this may sound confusing, but this arises from the nature of the bootloader: for it,
-    /// processing multiple transactions is a single action. We *may* intrude and stop VM once transaction
-    /// is executed, but it's not enforced. So best we can do is to calculate the amount of gas before and
-    /// after the invocation, leaving the interpretation of this value to the user.
-    pub gas_used: u32,
-    pub contracts_used: usize,
-    pub revert_reason: Option<VmRevertReasonParsingResult>,
-    pub trace: VmExecutionTrace,
-    pub total_log_queries: usize,
-    pub cycles_used: u32,
-}
-
-impl VmExecutionResult {
-    pub fn error_message(&self) -> Option<String> {
-        self.revert_reason
-            .as_ref()
-            .map(|result| result.revert_reason.to_string())
-    }
-}
-
-#[derive(Debug, PartialEq)]
-pub struct VmBlockResult {
-    /// Result for the whole block execution.
-    pub full_result: VmExecutionResult,
-    /// Result for the block tip execution.
-    pub block_tip_result: VmPartialExecutionResult,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct VmPartialExecutionResult {
-    pub logs: VmExecutionLogs,
-    pub revert_reason: Option<TxRevertReason>,
-    pub contracts_used: usize,
-    pub cycles_used: u32,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct VmTxExecutionResult {
-    pub status: TxExecutionStatus,
-    pub result: VmPartialExecutionResult,
-    // Gas refunded to the user at the end of the transaction
-    pub gas_refunded: u32,
-    // Gas proposed by the operator to be refunded, before the postOp call.
-    // This value is needed to correctly recover memory of the bootloader.
-    pub operator_suggested_refund: u32,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum VmExecutionStopReason {
-    VmFinished,
-    TracerRequestedStop,
-}
-
-use crate::utils::VmExecutionResult as NewVmExecutionResult;
-
-fn vm_may_have_ended_inner<const B: bool>(
-    vm: &VmState<
-        StorageOracle,
-        SimpleMemory,
-        InMemoryEventSink,
-        PrecompilesProcessorWithHistory<B>,
-        DecommitterOracle<B>,
-        DummyTracer,
-    >,
-) -> Option<NewVmExecutionResult> {
-    let execution_has_ended = vm.execution_has_ended();
-
-    let r1 = vm.local_state.registers[RET_IMPLICIT_RETURNDATA_PARAMS_REGISTER as usize];
-    let current_address = vm.local_state.callstack.get_current_stack().this_address;
-
-    let outer_eh_location = <EncodingModeProduction as VmEncodingMode<8>>::PcOrImm::MAX.as_u64();
-    match (
-        execution_has_ended,
-        vm.local_state.callstack.get_current_stack().pc.as_u64(),
-    ) {
-        (true, 0) => {
-            let returndata = dump_memory_page_using_primitive_value(vm.memory, r1);
-
-            Some(NewVmExecutionResult::Ok(returndata))
-        }
-        (false, _) => None,
-        (true, l) if l == outer_eh_location => {
-            // check r1,r2,r3
-            if vm.local_state.flags.overflow_or_less_than_flag {
-                Some(NewVmExecutionResult::Panic)
-            } else {
-                let returndata = dump_memory_page_using_primitive_value(vm.memory, r1);
-                Some(NewVmExecutionResult::Revert(returndata))
-            }
-        }
-        (_, a) => Some(NewVmExecutionResult::MostLikelyDidNotFinish(
-            current_address,
-            a as u16,
-        )),
-    }
-}
-
-// This method returns `VmExecutionResult` struct, but some of the fields are left empty.
-//
-// `gas_before` argument is used to calculate the amount of gas spent by transaction.
-// It is required because the same VM instance is continuously used to apply several transactions.
-fn vm_may_have_ended(vm: &VmInstance, gas_before: u32) -> Option<VmExecutionResult> {
-    let basic_execution_result = vm_may_have_ended_inner(&vm.state)?;
-
-    let gas_used = gas_before - vm.gas_remaining();
-
-    match basic_execution_result {
-        NewVmExecutionResult::Ok(mut data) => {
-            while data.len() % 32 != 0 {
-                data.push(0)
-            }
-            Some(VmExecutionResult {
-                // The correct `events` value for this field should be set separately
-                // later on based on the information inside the event_sink oracle.
-                events: vec![],
-                storage_log_queries: vm.get_final_log_queries(),
-                used_contract_hashes: vm.get_used_contracts(),
-                l2_to_l1_logs: vec![],
-                return_data: bytes_to_be_words(data),
-                gas_used,
-                contracts_used: vm
-                    .state
-                    .decommittment_processor
-                    .get_used_bytecode_hashes()
-                    .len(),
-                revert_reason: None,
-                trace: VmExecutionTrace::default(),
-                total_log_queries: vm.state.event_sink.get_log_queries()
-                    + vm.state.precompiles_processor.get_timestamp_history().len()
-                    + vm.get_final_log_queries().len(),
-                cycles_used: vm.state.local_state.monotonic_cycle_counter,
-            })
-        }
-        NewVmExecutionResult::Revert(data) => {
-            let revert_reason = VmRevertReasonParsingResult::new(
-                TxRevertReason::parse_error(data.as_slice()),
-                data,
-            );
-
-            // Check if error indicates a bug in server/vm/bootloader.
-            if matches!(
-                revert_reason.revert_reason,
-                TxRevertReason::UnexpectedVMBehavior(_)
-            ) {
-                vlog::error!(
-                    "Observed error that should never happen: {:?}. Full VM data: {:?}",
-                    revert_reason,
-                    vm
-                );
-            }
-
-            Some(VmExecutionResult {
-                events: vec![],
-                storage_log_queries: vm.get_final_log_queries(),
-                used_contract_hashes: vm.get_used_contracts(),
-                l2_to_l1_logs: vec![],
-                return_data: vec![],
-                gas_used,
-                contracts_used: vm
-                    .state
-                    .decommittment_processor
-                    .get_used_bytecode_hashes()
-                    .len(),
-                revert_reason: Some(revert_reason),
-                trace: VmExecutionTrace::default(),
-                total_log_queries: vm.state.event_sink.get_log_queries()
-                    + vm.state.precompiles_processor.get_timestamp_history().len()
-                    + vm.get_final_log_queries().len(),
-                cycles_used: vm.state.local_state.monotonic_cycle_counter,
-            })
-        }
-        // Panic is effectively the same as Revert, but has different nature.
-        NewVmExecutionResult::Panic => Some(VmExecutionResult {
-            events: vec![],
-            storage_log_queries: vec![],
-            used_contract_hashes: vec![],
-            l2_to_l1_logs: vec![],
-            return_data: vec![],
-            gas_used,
-            contracts_used: vm
-                .state
-                .decommittment_processor
-                .get_used_bytecode_hashes()
-                .len(),
-            revert_reason: Some(VmRevertReasonParsingResult {
-                revert_reason: TxRevertReason::Unknown(VmRevertReason::VmError),
-                original_data: vec![],
-            }),
-            trace: VmExecutionTrace::default(),
-            total_log_queries: vm.state.event_sink.get_log_queries()
-                + vm.state.precompiles_processor.get_timestamp_history().len()
-                + vm.get_final_log_queries().len(),
-            cycles_used: vm.state.local_state.monotonic_cycle_counter,
-        }),
-        NewVmExecutionResult::MostLikelyDidNotFinish(_, _) => {
-            // The execution has not ended yet. It should either continue
-            // or throw Out-of-gas error.
-            None
-        }
-    }
-}
-
-/// A snapshot of the VM that holds enough information to
-/// rollback the VM to some historical state.
-#[derive(Debug, Clone)]
-pub struct VmSnapshot {
-    local_state: VmLocalState,
-    bootloader_state: BootloaderState,
-}
-
-impl<'a> VmInstance<'a> {
-    fn has_ended(&self) -> bool {
-        match vm_may_have_ended_inner(&self.state) {
-            None | Some(NewVmExecutionResult::MostLikelyDidNotFinish(_, _)) => false,
-            Some(
-                NewVmExecutionResult::Ok(_)
-                | NewVmExecutionResult::Revert(_)
-                | NewVmExecutionResult::Panic,
-            ) => true,
-        }
-    }
-
-    fn revert_reason(&self) -> Option<VmRevertReasonParsingResult> {
-        match vm_may_have_ended_inner(&self.state) {
-            None
-            | Some(
-                NewVmExecutionResult::MostLikelyDidNotFinish(_, _) | NewVmExecutionResult::Ok(_),
-            ) => None,
-            Some(NewVmExecutionResult::Revert(data)) => {
-                let revert_reason = VmRevertReasonParsingResult::new(
-                    TxRevertReason::parse_error(data.as_slice()),
-                    data,
-                );
-
-                // Check if error indicates a bug in server/vm/bootloader.
-                if matches!(
-                    revert_reason.revert_reason,
-                    TxRevertReason::UnexpectedVMBehavior(_)
-                ) {
-                    vlog::error!(
-                        "Observed error that should never happen: {:?}. Full VM data: {:?}",
-                        revert_reason,
-                        self
-                    );
-                }
-
-                Some(revert_reason)
-            }
-            Some(NewVmExecutionResult::Panic) => Some(VmRevertReasonParsingResult {
-                revert_reason: TxRevertReason::Unknown(VmRevertReason::VmError),
-                original_data: vec![],
-            }),
-        }
-    }
-
-    /// Saves the snapshot of the current state of the VM that can be used
-    /// to roll back its state later on.
-    pub fn save_current_vm_as_snapshot(&mut self) {
-        self.snapshots.push(VmSnapshot {
-            // Vm local state contains O(1) various parameters (registers/etc).
-            // The only "expensive" copying here is copying of the callstack.
-            // It will take O(callstack_depth) to copy it.
-            // So it is generally recommended to get snapshots of the bootloader frame,
-            // where the depth is 1.
-            local_state: self.state.local_state.clone(),
-            bootloader_state: self.bootloader_state.clone(),
-        });
-    }
-
-    fn rollback_to_snapshot(&mut self, snapshot: VmSnapshot) {
-        let VmSnapshot {
-            local_state,
+/// Public interface for VM
+impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
+    pub fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage: StoragePtr<S>, _: H) -> Self {
+        let (state, bootloader_state) = new_vm_state(storage.clone(), &system_env, &batch_env);
+        Self {
             bootloader_state,
-        } = snapshot;
-
-        let timestamp = Timestamp(local_state.timestamp);
-
-        vlog::trace!("Rollbacking decomitter");
-        self.state
-            .decommittment_processor
-            .rollback_to_timestamp(timestamp);
-
-        vlog::trace!("Rollbacking event_sink");
-        self.state.event_sink.rollback_to_timestamp(timestamp);
-
-        vlog::trace!("Rollbacking storage");
-        self.state.storage.rollback_to_timestamp(timestamp);
-
-        vlog::trace!("Rollbacking memory");
-        self.state.memory.rollback_to_timestamp(timestamp);
-
-        vlog::trace!("Rollbacking precompiles_processor");
-        self.state
-            .precompiles_processor
-            .rollback_to_timestamp(timestamp);
-        self.state.local_state = local_state;
-        self.bootloader_state = bootloader_state;
+            state,
+            storage,
+            system_env,
+            batch_env,
+            snapshots: vec![],
+            _phantom: Default::default(),
+        }
     }
 
-    /// Rollbacks the state of the VM to the state of the latest snapshot.
-    pub fn rollback_to_latest_snapshot(&mut self) {
-        let snapshot = self.snapshots.last().cloned().unwrap();
-        self.rollback_to_snapshot(snapshot);
+    /// Push tx into memory for the future execution
+    pub fn push_transaction(&mut self, tx: Transaction) {
+        self.push_transaction_with_compression(tx, true)
     }
 
-    /// Rollbacks the state of the VM to the state of the latest snapshot.
-    /// Removes that snapshot from the list.
-    pub fn rollback_to_latest_snapshot_popping(&mut self) {
-        let snapshot = self.snapshots.pop().unwrap();
-        self.rollback_to_snapshot(snapshot);
+    /// Execute VM with default tracers. The execution mode determines whether the VM will stop and
+    /// how the vm will be processed.
+    pub fn execute(&mut self, execution_mode: VmExecutionMode) -> VmExecutionResultAndLogs {
+        self.inspect(vec![], execution_mode)
     }
 
-    /// Returns the amount of gas remaining to the VM.
-    /// Note that this *does not* correspond to the gas limit of a transaction.
-    /// To calculate the amount of gas spent by transaction, you should call this method before and after
-    /// the execution, and subtract these values.
-    ///
-    /// Note: this method should only be called when either transaction is fully completed or VM completed
-    /// its execution. Remaining gas value is read from the current stack frame, so if you'll attempt to
-    /// read it during the transaction execution, you may receive invalid value.
-    fn gas_remaining(&self) -> u32 {
-        self.state.local_state.callstack.current.ergs_remaining
+    /// Execute VM with custom tracers.
+    pub fn inspect(
+        &mut self,
+        tracers: Vec<Box<dyn VmTracer<S, H>>>,
+        execution_mode: VmExecutionMode,
+    ) -> VmExecutionResultAndLogs {
+        self.inspect_inner(tracers, execution_mode)
     }
 
-    /// Returns the amount of gas consumed by the VM so far (based on the `gas_limit` provided
-    /// to initiate the virtual machine).
-    ///
-    /// Note: this method should only be called when either transaction is fully completed or VM completed
-    /// its execution. Remaining gas value is read from the current stack frame, so if you'll attempt to
-    /// read it during the transaction execution, you may receive invalid value.
-    pub fn gas_consumed(&self) -> u32 {
-        self.gas_limit - self.gas_remaining()
+    /// Get current state of bootloader memory.
+    pub fn get_bootloader_memory(&self) -> BootloaderMemory {
+        self.bootloader_state.bootloader_memory()
     }
 
-    pub(crate) fn collect_events_and_l1_logs_after_timestamp(
-        &self,
-        from_timestamp: Timestamp,
-    ) -> (Vec<VmEvent>, Vec<L2ToL1Log>) {
-        let (raw_events, l1_messages) = self
-            .state
-            .event_sink
-            .get_events_and_l2_l1_logs_after_timestamp(from_timestamp);
+    /// Get compressed bytecodes of the last executed transaction
+    pub fn get_last_tx_compressed_bytecodes(&self) -> Vec<CompressedBytecodeInfo> {
+        self.bootloader_state.get_last_tx_compressed_bytecodes()
+    }
+
+    pub fn start_new_l2_block(&mut self, l2_block_env: L2BlockEnv) {
+        self.bootloader_state.start_new_l2_block(l2_block_env);
+    }
+
+    /// Get current state of virtual machine.
+    /// This method should be used only after the batch execution.
+    /// Otherwise it can panic.
+    pub fn get_current_execution_state(&self) -> CurrentExecutionState {
+        let (_full_history, raw_events, l1_messages) = self.state.event_sink.flatten();
         let events = merge_events(raw_events)
             .into_iter()
-            .map(|e| e.into_vm_event(L1BatchNumber(self.block_context.context.block_number)))
+            .map(|e| e.into_vm_event(self.batch_env.number))
             .collect();
-        (
-            events,
-            l1_messages.into_iter().map(L2ToL1Log::from).collect(),
-        )
-    }
-
-    fn collect_execution_logs_after_timestamp(&self, from_timestamp: Timestamp) -> VmExecutionLogs {
-        let storage_logs = collect_storage_log_queries_after_timestamp(
-            &self
+        let l2_to_l1_logs = l1_messages.into_iter().map(|log| log.into()).collect();
+        let total_log_queries = self.state.event_sink.get_log_queries()
+            + self
                 .state
-                .storage
-                .frames_stack
-                .inner()
-                .current_frame()
-                .forward,
-            from_timestamp,
-        );
-        let storage_logs_count = storage_logs.len();
+                .precompiles_processor
+                .get_timestamp_history()
+                .len()
+            + self.state.storage.get_final_log_queries().len();
 
-        let (events, l2_to_l1_logs) =
-            self.collect_events_and_l1_logs_after_timestamp(from_timestamp);
-
-        let log_queries = collect_log_queries_after_timestamp(
-            &self
-                .state
-                .event_sink
-                .frames_stack
-                .inner()
-                .current_frame()
-                .forward,
-            from_timestamp,
-        );
-
-        let precompile_calls_count = precompile_calls_count_after_timestamp(
-            self.state.precompiles_processor.timestamp_history.inner(),
-            from_timestamp,
-        );
-        VmExecutionLogs {
-            storage_logs,
+        CurrentExecutionState {
             events,
+            storage_log_queries: self.state.storage.get_final_log_queries(),
+            used_contract_hashes: self.get_used_contracts(),
             l2_to_l1_logs,
-            total_log_queries_count: storage_logs_count
-                + log_queries.len()
-                + precompile_calls_count,
+            total_log_queries,
+            cycles_used: self.state.local_state.monotonic_cycle_counter,
         }
     }
 
-    // Returns a tuple of `VmExecutionStopReason` and the size of the refund proposed by the operator
-    fn execute_with_custom_tracer_and_refunds<T: ExecutionEndTracer + PendingRefundTracer>(
+    /// Execute transaction with optional bytecode compression.
+    pub fn execute_transaction_with_bytecode_compression(
         &mut self,
-        tracer: &mut T,
-    ) -> (VmExecutionStopReason, u32) {
-        let mut operator_refund = None;
-        let timestamp_initial = Timestamp(self.state.local_state.timestamp);
-        let gas_remaining_before = self.gas_remaining();
-
-        loop {
-            // Sanity check: we should never reach the maximum value, because then we won't be able to process the next cycle.
-            assert_ne!(
-                self.state.local_state.monotonic_cycle_counter,
-                u32::MAX,
-                "VM reached maximum possible amount of cycles. Vm state: {:?}",
-                self.state
-            );
-
-            let timestamp_before_cycle = self.state.local_state.timestamp;
-            self.state.cycle(tracer);
-
-            if self.has_ended() {
-                return (
-                    VmExecutionStopReason::VmFinished,
-                    operator_refund.unwrap_or_default(),
-                );
-            }
-
-            if let Some(bootloader_refund) = tracer.requested_refund() {
-                assert!(
-                    operator_refund.is_none(),
-                    "Operator was asked for refund two times"
-                );
-
-                let refund_to_propose = bootloader_refund
-                    + self.block_overhead_refund(timestamp_initial, gas_remaining_before);
-                let refund_slot =
-                    OPERATOR_REFUNDS_OFFSET + self.bootloader_state.tx_to_execute() - 1;
-
-                // Writing the refund into memory
-                self.state.memory.memory.write_to_memory(
-                    BOOTLOADER_HEAP_PAGE as usize,
-                    refund_slot,
-                    Some(PrimitiveValue {
-                        value: refund_to_propose.into(),
-                        is_pointer: false,
-                    }),
-                    Timestamp(timestamp_before_cycle),
-                );
-                operator_refund = Some(refund_to_propose);
-                tracer.set_refund_as_done();
-            }
-
-            if tracer.should_stop_execution() {
-                return (
-                    VmExecutionStopReason::TracerRequestedStop,
-                    operator_refund.unwrap_or_default(),
-                );
-            }
-        }
+        tx: Transaction,
+        with_compression: bool,
+    ) -> Result<VmExecutionResultAndLogs, BytecodeCompressionError> {
+        self.inspect_transaction_with_bytecode_compression(vec![], tx, with_compression)
     }
 
-    /// Calculates the refund for the block overhead.
-    /// This refund is the difference between how much user paid in advance for the block overhead
-    /// and how much he should pay based on actual tx execution result.
-    fn block_overhead_refund(&self, _from_timestamp: Timestamp, _gas_remaining_before: u32) -> u32 {
-        0
-
-        // let pubdata_used = self.pubdata_used(from_timestamp);
-
-        // let gas_used = gas_remaining_before - self.gas_remaining();
-        // //  Can be fixed in the scope of SMA-1654 because it also requires calculation of `pubdata_paid_for`.
-        // let computational_gas_used =
-        //     gas_used - pubdata_used * self.state.local_state.current_ergs_per_pubdata_byte;
-        // let (_, l2_to_l1_logs) = self.collect_events_and_l1_logs_after_timestamp(from_timestamp);
-        // let current_tx_index = self.bootloader_state.tx_to_execute() - 1;
-
-        // let actual_overhead = Self::actual_overhead_gas(
-        //     self.state.local_state.current_ergs_per_pubdata_byte,
-        //     self.bootloader_state.get_tx_size(current_tx_index),
-        //     pubdata_used,
-        //     computational_gas_used,
-        //     self.state
-        //         .decommittment_processor
-        //         .get_number_of_decommitment_requests_after_timestamp(from_timestamp),
-        //     l2_to_l1_logs.len(),
-        // );
-
-        // let predefined_overhead = self
-        //     .state
-        //     .memory
-        //     .read_slot(
-        //         BOOTLOADER_HEAP_PAGE as usize,
-        //         TX_OVERHEAD_OFFSET + current_tx_index,
-        //     )
-        //     .value
-        //     .as_u32();
-
-        // if actual_overhead <= predefined_overhead {
-        //     predefined_overhead - actual_overhead
-        // } else {
-        //     // This should never happen but potential mistakes at the early stage should not bring the server down.
-        //     vlog::error!(
-        //         "Actual overhead is greater than predefined one, actual: {}, predefined: {}",
-        //         actual_overhead,
-        //         predefined_overhead
-        //     );
-        //     0
-        // }
-    }
-
-    #[allow(dead_code)]
-    fn actual_overhead_gas(
-        _gas_per_pubdata_byte_limit: u32,
-        _encoded_len: usize,
-        _pubdata_used: u32,
-        _computational_gas_used: u32,
-        _number_of_decommitment_requests: usize,
-        _l2_l1_logs: usize,
-    ) -> u32 {
-        0
-
-        // let overhead_for_block_gas = U256::from(crate::transaction_data::block_overhead_gas(
-        //     gas_per_pubdata_byte_limit,
-        // ));
-
-        // let encoded_len = U256::from(encoded_len);
-        // let pubdata_used = U256::from(pubdata_used);
-        // let computational_gas_used = U256::from(computational_gas_used);
-        // let number_of_decommitment_requests = U256::from(number_of_decommitment_requests);
-        // let l2_l1_logs = U256::from(l2_l1_logs);
-
-        // let tx_slot_overhead = ceil_div_u256(overhead_for_block_gas, MAX_TXS_IN_BLOCK.into());
-
-        // let overhead_for_length = ceil_div_u256(
-        //     encoded_len * overhead_for_block_gas,
-        //     BOOTLOADER_TX_ENCODING_SPACE.into(),
-        // );
-
-        // let actual_overhead_for_pubdata = ceil_div_u256(
-        //     pubdata_used * overhead_for_block_gas,
-        //     MAX_PUBDATA_PER_BLOCK.into(),
-        // );
-
-        // let actual_gas_limit_overhead = ceil_div_u256(
-        //     computational_gas_used * overhead_for_block_gas,
-        //     MAX_BLOCK_MULTIINSTANCE_GAS_LIMIT.into(),
-        // );
-
-        // let code_decommitter_sorter_circuit_overhead = ceil_div_u256(
-        //     number_of_decommitment_requests * overhead_for_block_gas,
-        //     GEOMETRY_CONFIG.limit_for_code_decommitter_sorter.into(),
-        // );
-
-        // let l1_l2_logs_overhead = ceil_div_u256(
-        //     l2_l1_logs * overhead_for_block_gas,
-        //     std::cmp::min(
-        //         GEOMETRY_CONFIG.limit_for_l1_messages_merklizer,
-        //         GEOMETRY_CONFIG.limit_for_l1_messages_pudata_hasher,
-        //     )
-        //     .into(),
-        // );
-
-        // let overhead = vec![
-        //     tx_slot_overhead,
-        //     overhead_for_length,
-        //     actual_overhead_for_pubdata,
-        //     actual_gas_limit_overhead,
-        //     code_decommitter_sorter_circuit_overhead,
-        //     l1_l2_logs_overhead,
-        // ]
-        // .into_iter()
-        // .max()
-        // .unwrap();
-
-        // overhead.as_u32()
-    }
-
-    // Executes VM until the end or tracer says to stop.
-    pub(crate) fn execute_with_custom_tracer<T: ExecutionEndTracer + PendingRefundTracer>(
+    /// Inspect transaction with optional bytecode compression.
+    pub fn inspect_transaction_with_bytecode_compression(
         &mut self,
-        tracer: &mut T,
-    ) -> VmExecutionStopReason {
-        self.execute_with_custom_tracer_and_refunds(tracer).0
-    }
-
-    // Err when transaction is rejected.
-    // Ok(status: TxExecutionStatus::Success) when the transaction succeeded
-    // Ok(status: TxExecutionStatus::Failure) when the transaction failed.
-    // Note that failed transactions are considered properly processed and are included in blocks
-    pub fn execute_next_tx(&mut self) -> Result<VmTxExecutionResult, TxRevertReason> {
-        let tx_index = self.bootloader_state.next_unexecuted_tx() as u32;
-        let mut tx_tracer = OneTxTracer::default();
-
-        let timestamp_initial = Timestamp(self.state.local_state.timestamp);
-        let cycles_initial = self.state.local_state.monotonic_cycle_counter;
-
-        let (stop_reason, operator_suggested_refund) =
-            self.execute_with_custom_tracer_and_refunds(&mut tx_tracer);
-        match stop_reason {
-            VmExecutionStopReason::VmFinished => {
-                // Bootloader resulted in panic or revert, this means either the transaction is rejected
-                // (e.g. not enough fee or incorrect signature) or bootloader is out of gas.
-
-                // Collect generated events to show bootloader debug logs.
-                let _ = self.collect_events_and_l1_logs_after_timestamp(timestamp_initial);
-
-                let error = if tx_tracer.is_bootloader_out_of_gas() {
-                    TxRevertReason::BootloaderOutOfGas
-                } else {
-                    self.revert_reason()
-                        .expect("vm ended execution prematurely, but no revert reason is given")
-                        .revert_reason
-                };
-                Err(error)
-            }
-            VmExecutionStopReason::TracerRequestedStop => {
-                if tx_tracer.tx_has_been_processed() {
-                    let tx_execution_status =
-                        TxExecutionStatus::from_has_failed(tx_has_failed(&self.state, tx_index));
-                    let vm_execution_logs =
-                        self.collect_execution_logs_after_timestamp(timestamp_initial);
-
-                    Ok(VmTxExecutionResult {
-                        gas_refunded: tx_tracer.refund_gas,
-                        operator_suggested_refund,
-                        status: tx_execution_status,
-                        result: VmPartialExecutionResult {
-                            logs: vm_execution_logs,
-                            // If there is a revert Err is already returned above.
-                            revert_reason: None,
-                            // getting contracts used during this transaction
-                            // at least for now the number returned here is always <= to the number
-                            // of the code hashes actually used by the transaction, since it might've
-                            // reused bytecode hashes from some of the previous ones.
-                            contracts_used: self
-                                .state
-                                .decommittment_processor
-                                .get_decommitted_bytes_after_timestamp(timestamp_initial),
-                            cycles_used: self.state.local_state.monotonic_cycle_counter
-                                - cycles_initial,
-                        },
-                    })
-                } else {
-                    // VM ended up in state `stop_reason == VmExecutionStopReason::TracerRequestedStop && !tx_tracer.tx_has_been_processed()`.
-                    // It means that bootloader successfully finished its execution without executing the transaction.
-                    // It is an unexpected situation.
-                    panic!("VM successfully finished executing bootloader but transaction wasn't executed");
-                }
-            }
+        tracers: Vec<Box<dyn VmTracer<S, H>>>,
+        tx: Transaction,
+        with_compression: bool,
+    ) -> Result<VmExecutionResultAndLogs, BytecodeCompressionError> {
+        self.push_transaction_with_compression(tx, with_compression);
+        let result = self.inspect(tracers, VmExecutionMode::OneTx);
+        if self.has_unpublished_bytecodes() {
+            Err(BytecodeCompressionError::BytecodeCompressionFailed)
+        } else {
+            Ok(result)
         }
-    }
-
-    /// Returns full VM result and partial result produced within the current execution.
-    pub fn execute_till_block_end(&mut self, job_type: BootloaderJobType) -> VmBlockResult {
-        let timestamp_initial = Timestamp(self.state.local_state.timestamp);
-        let cycles_initial = self.state.local_state.monotonic_cycle_counter;
-        let gas_before = self.gas_remaining();
-
-        let stop_reason = self.execute_with_custom_tracer(&mut NoopMemoryTracer);
-        match stop_reason {
-            VmExecutionStopReason::VmFinished => {
-                let mut full_result = vm_may_have_ended(self, gas_before).unwrap();
-
-                // if `job_type == BootloaderJobType::TransactionExecution` it means
-                // that the transaction has been executed as eth_call.
-                if job_type == BootloaderJobType::TransactionExecution
-                    && tx_has_failed(&self.state, 0)
-                    && full_result.revert_reason.is_none()
-                {
-                    full_result.revert_reason = Some(VmRevertReasonParsingResult {
-                        revert_reason: TxRevertReason::TxOutOfGas,
-                        original_data: vec![],
-                    });
-                }
-
-                let block_tip_result = VmPartialExecutionResult {
-                    logs: self.collect_execution_logs_after_timestamp(timestamp_initial),
-                    revert_reason: full_result.revert_reason.clone().map(|r| r.revert_reason),
-                    contracts_used: self
-                        .state
-                        .decommittment_processor
-                        .get_decommitted_bytes_after_timestamp(timestamp_initial),
-                    cycles_used: self.state.local_state.monotonic_cycle_counter - cycles_initial,
-                };
-
-                // Collecting `block_tip_result` needs logs with timestamp, so we drain events for the `full_result`
-                // after because draining will drop timestamps.
-                let (_full_history, raw_events, l1_messages) = self.state.event_sink.flatten();
-                full_result.events = merge_events(raw_events)
-                    .into_iter()
-                    .map(|e| {
-                        e.into_vm_event(L1BatchNumber(self.block_context.context.block_number))
-                    })
-                    .collect();
-                full_result.l2_to_l1_logs = l1_messages.into_iter().map(L2ToL1Log::from).collect();
-                VmBlockResult {
-                    full_result,
-                    block_tip_result,
-                }
-            }
-            VmExecutionStopReason::TracerRequestedStop => {
-                unreachable!("NoopMemoryTracer will never stop execution until the block ends")
-            }
-        }
-    }
-
-    /// Unlike `execute_till_block_end` methods returns only result for the block tip execution.
-    pub fn execute_block_tip(&mut self) -> VmPartialExecutionResult {
-        let timestamp_initial = Timestamp(self.state.local_state.timestamp);
-        let cycles_initial = self.state.local_state.monotonic_cycle_counter;
-        let mut bootloader_tracer = BootloaderTracer::default();
-
-        let stop_reason = self.execute_with_custom_tracer(&mut bootloader_tracer);
-        let revert_reason = match stop_reason {
-            VmExecutionStopReason::VmFinished => {
-                // Bootloader panicked or reverted.
-                let revert_reason = if bootloader_tracer.is_bootloader_out_of_gas() {
-                    TxRevertReason::BootloaderOutOfGas
-                } else {
-                    self.revert_reason()
-                        .expect("vm ended execution prematurely, but no revert reason is given")
-                        .revert_reason
-                };
-                Some(revert_reason)
-            }
-            VmExecutionStopReason::TracerRequestedStop => {
-                // Bootloader finished successfully.
-                None
-            }
-        };
-        VmPartialExecutionResult {
-            logs: self.collect_execution_logs_after_timestamp(timestamp_initial),
-            revert_reason,
-            contracts_used: self
-                .state
-                .decommittment_processor
-                .get_decommitted_bytes_after_timestamp(timestamp_initial),
-            cycles_used: self.state.local_state.monotonic_cycle_counter - cycles_initial,
-        }
-    }
-
-    pub fn execute_validation(
-        &mut self,
-        validation_params: ValidationTracerParams,
-    ) -> Result<(), ValidationError> {
-        let mut validation_tracer = ValidationTracer::new(
-            self.state.storage.storage.inner().get_ptr(),
-            validation_params,
-        );
-
-        let stop_reason = self.execute_with_custom_tracer(&mut validation_tracer);
-
-        match (stop_reason, validation_tracer.validation_error) {
-            (VmExecutionStopReason::VmFinished, _) => {
-                // The tx should only end in case of a revert, so it is safe to unwrap here
-                Err(ValidationError::FailedTx(self.revert_reason().unwrap()))
-            }
-            (VmExecutionStopReason::TracerRequestedStop, Some(err)) => {
-                Err(ValidationError::VioalatedRule(err))
-            }
-            (VmExecutionStopReason::TracerRequestedStop, None) => Ok(()),
-        }
-    }
-
-    // returns Some only when there is just one frame in execution trace.
-    fn get_final_log_queries(&self) -> Vec<StorageLogQuery> {
-        assert_eq!(
-            self.state.storage.frames_stack.inner().len(),
-            1,
-            "VM finished execution in unexpected state"
-        );
-
-        let result = self
-            .state
-            .storage
-            .frames_stack
-            .inner()
-            .current_frame()
-            .forward
-            .clone();
-
-        result
-    }
-
-    fn get_used_contracts(&self) -> Vec<U256> {
-        self.state
-            .decommittment_processor
-            .known_bytecodes
-            .inner()
-            .keys()
-            .cloned()
-            .collect()
-    }
-
-    pub fn number_of_updated_storage_slots(&self) -> usize {
-        self.state
-            .storage
-            .storage
-            .inner()
-            .get_ptr()
-            .borrow_mut()
-            .number_of_updated_storage_slots()
     }
 }
 
-// Reads the bootloader memory and checks whether the execution step of the transaction
-// has failed.
-pub(crate) fn tx_has_failed(state: &ZkSyncVmState<'_>, tx_id: u32) -> bool {
-    let mem_slot = RESULT_SUCCESS_FIRST_SLOT + tx_id;
-    let mem_value = state
-        .memory
-        .dump_page_content_as_u256_words(BOOTLOADER_HEAP_PAGE, mem_slot..mem_slot + 1)[0];
+/// Methods of vm, which required some history manipullations
+impl<S: WriteStorage> Vm<S, HistoryEnabled> {
+    /// Create snapshot of current vm state and push it into the memory
+    pub fn make_snapshot(&mut self) {
+        self.make_snapshot_inner()
+    }
 
-    mem_value == U256::zero()
+    /// Rollback vm state to the latest snapshot and destroy the snapshot
+    pub fn rollback_to_the_latest_snapshot(&mut self) {
+        let snapshot = self
+            .snapshots
+            .pop()
+            .expect("Snapshot should be created before rolling it back");
+        self.rollback_to_snapshot(snapshot);
+    }
+
+    /// Pop the latest snapshot from the memory and destroy it
+    pub fn pop_snapshot_no_rollback(&mut self) {
+        self.snapshots
+            .pop()
+            .expect("Snapshot should be created before rolling it back");
+    }
 }

@@ -55,6 +55,7 @@ export type BlockTag =
     | 'earliest'
     | 'pending';
 
+// TODO (SMA-1585): Support create2 variants.
 export type DeploymentType = 'create' | 'createAccount';
 
 export interface Token {
@@ -114,6 +115,7 @@ export interface L2ToL1Log {
     blockHash: string;
     l1BatchNumber: number;
     transactionIndex: number;
+    txIndexInL1Batch?: number;
     shardId: number;
     isService: boolean;
     sender: string;
@@ -174,7 +176,7 @@ export interface ContractAccountInfo {
     nonceOrdering: AccountNonceOrdering;
 }
 
-export interface BlockDetails {
+export interface BatchDetails {
     number: number;
     timestamp: number;
     l1TxCount: number;
@@ -187,15 +189,51 @@ export interface BlockDetails {
     provenAt?: Date;
     executeTxHash?: string;
     executedAt?: Date;
+    l1GasPrice: number;
+    l2FairGasPrice: number;
+    baseSystemContractsHashes: {
+        bootloader: string;
+        defaultAa: string;
+    };
+}
+
+export interface BlockDetails {
+    number: number;
+    timestamp: number;
+    l1BatchNumber: number;
+    l1TxCount: number;
+    l2TxCount: number;
+    rootHash?: string;
+    status: string;
+    commitTxHash?: string;
+    committedAt?: Date;
+    proveTxHash?: string;
+    provenAt?: Date;
+    executeTxHash?: string;
+    executedAt?: Date;
+    baseSystemContractsHashes: {
+        bootloader: string;
+        defaultAa: string;
+    };
 }
 
 export interface TransactionDetails {
     isL1Originated: boolean;
     status: string;
     fee: BigNumberish;
+    gasPerPubdata: BigNumberish;
     initiatorAddress: Address;
     receivedAt: Date;
     ethCommitTxHash?: string;
     ethProveTxHash?: string;
     ethExecuteTxHash?: string;
+}
+
+export interface FullDepositFee {
+    maxFeePerGas?: BigNumber;
+    maxPriorityFeePerGas?: BigNumber;
+    gasPrice?: BigNumber;
+    baseCost: BigNumber;
+    l1GasLimit: BigNumber;
+    l2GasLimit: BigNumber;
 }

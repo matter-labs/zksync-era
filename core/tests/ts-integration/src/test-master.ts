@@ -49,7 +49,6 @@ export class TestMaster {
         if (!suiteWalletPK) {
             throw new Error(`Wallet for ${suiteName} suite was not provided`);
         }
-
         this.l1Provider = new ethers.providers.JsonRpcProvider(this.env.l1NodeUrl);
         this.l2Provider = new RetryProvider({
             url: this.env.l2NodeUrl,
@@ -66,6 +65,15 @@ export class TestMaster {
         }
 
         this.mainWallet = new zksync.Wallet(suiteWalletPK, this.l2Provider, this.l1Provider);
+    }
+
+    /**
+     * Returns whether the network is localhost
+     *
+     * @returns `true` if the test suite is run on localhost and `false` otherwise.
+     */
+    isLocalHost(): boolean {
+        return this.env.network == 'localhost';
     }
 
     /**

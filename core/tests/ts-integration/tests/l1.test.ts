@@ -52,7 +52,6 @@ describe('Tests for L1 behavior', () => {
             alice.requestExecute({
                 contractAddress: counterContract.address,
                 calldata,
-                l2GasLimit: DEFAULT_L2_GAS_LIMIT,
                 overrides: {
                     gasPrice
                 }
@@ -69,7 +68,6 @@ describe('Tests for L1 behavior', () => {
             alice.requestExecute({
                 contractAddress: contextContract.address,
                 calldata,
-                l2GasLimit: DEFAULT_L2_GAS_LIMIT,
                 l2Value,
                 overrides: {
                     gasPrice
@@ -143,7 +141,8 @@ describe('Tests for L1 behavior', () => {
             calldata: '0x',
             l2GasLimit: l2GasLimit + 1,
             overrides: {
-                gasPrice
+                gasPrice,
+                gasLimit: 600_000
             }
         });
         let thrown = false;
@@ -167,6 +166,12 @@ describe('Tests for L1 behavior', () => {
     });
 
     test('Should revert l1 tx with too many initial storage writes', async () => {
+        // This test sends a transaction that consumes a lot of L2 ergs and so may be too expensive for
+        // stage environment. That's why we only test it on the local environment (which includes CI).
+        if (!testMaster.isLocalHost()) {
+            return;
+        }
+
         const contract = await deployContract(alice, contracts.writesAndMessages, []);
         // The circuit allows us to have ~4700 initial writes for an L1 batch.
         // We check that we will run out of gas if we do a bit smaller amount of writes.
@@ -190,6 +195,12 @@ describe('Tests for L1 behavior', () => {
     });
 
     test('Should revert l1 tx with too many repeated storage writes', async () => {
+        // This test sends a transaction that consumes a lot of L2 ergs and so may be too expensive for
+        // stage environment. That's why we only test it on the local environment (which includes CI).
+        if (!testMaster.isLocalHost()) {
+            return;
+        }
+
         const contract = await deployContract(alice, contracts.writesAndMessages, []);
         // The circuit allows us to have ~7500 repeated writes for an L1 batch.
         // We check that we will run out of gas if we do a bit smaller amount of writes.
@@ -231,6 +242,12 @@ describe('Tests for L1 behavior', () => {
     });
 
     test('Should revert l1 tx with too many l2 to l1 messages', async () => {
+        // This test sends a transaction that consumes a lot of L2 ergs and so may be too expensive for
+        // stage environment. That's why we only test it on the local environment (which includes CI).
+        if (!testMaster.isLocalHost()) {
+            return;
+        }
+
         const contract = await deployContract(alice, contracts.writesAndMessages, []);
         // The circuit allows us to have 512 L2->L1 logs for an L1 batch.
         // We check that we will run out of gas if we send a bit smaller amount of L2->L1 logs.
@@ -254,6 +271,12 @@ describe('Tests for L1 behavior', () => {
     });
 
     test('Should revert l1 tx with too big l2 to l1 message', async () => {
+        // This test sends a transaction that consumes a lot of L2 ergs and so may be too expensive for
+        // stage environment. That's why we only test it on the local environment (which includes CI).
+        if (!testMaster.isLocalHost()) {
+            return;
+        }
+
         const contract = await deployContract(alice, contracts.writesAndMessages, []);
         const MAX_PUBDATA_PER_BLOCK = ethers.BigNumber.from(SYSTEM_CONFIG['MAX_PUBDATA_PER_BLOCK']);
         // We check that we will run out of gas if we send a bit
@@ -314,60 +337,61 @@ function maxL2GasLimitForPriorityTxs(): number {
     // using binary search.
     let maxGasBodyLimit = +process.env.CONTRACTS_PRIORITY_TX_MAX_GAS_LIMIT!;
 
-    const overhead = 0;
-    // const overhead = getOverheadForTransaction(
-    //     ethers.BigNumber.from(maxGasBodyLimit),
-    //     ethers.BigNumber.from(zksync.utils.DEFAULT_GAS_PER_PUBDATA_LIMIT),
-    //     // We can just pass 0 as `encodingLength` because `overheadForPublicData` and `overheadForGas`
-    //     // will be greater than `overheadForLength` for large `gasLimit`.
-    //     ethers.BigNumber.from(0)
-    // );
+    const overhead = getOverheadForTransaction(
+        ethers.BigNumber.from(maxGasBodyLimit),
+        ethers.BigNumber.from(zksync.utils.REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_LIMIT),
+        // We can just pass 0 as `encodingLength` because `overheadForPublicData` and `overheadForGas`
+        // will be greater than `overheadForLength` for large `gasLimit`.
+        ethers.BigNumber.from(0)
+    );
     return maxGasBodyLimit + overhead;
 }
 
-// function getOverheadForTransaction(
-//     bodyGasLimit: ethers.BigNumber,
-//     gasPricePerPubdata: ethers.BigNumber,
-//     encodingLength: ethers.BigNumber
-// ): number {
-//     const BLOCK_OVERHEAD_L2_GAS = ethers.BigNumber.from(SYSTEM_CONFIG['BLOCK_OVERHEAD_L2_GAS']);
-//     const L1_GAS_PER_PUBDATA_BYTE = ethers.BigNumber.from(SYSTEM_CONFIG['L1_GAS_PER_PUBDATA_BYTE']);
-//     const BLOCK_OVERHEAD_L1_GAS = ethers.BigNumber.from(SYSTEM_CONFIG['BLOCK_OVERHEAD_L1_GAS']);
-//     const BLOCK_OVERHEAD_PUBDATA = BLOCK_OVERHEAD_L1_GAS.div(L1_GAS_PER_PUBDATA_BYTE);
+function getOverheadForTransaction(
+    bodyGasLimit: ethers.BigNumber,
+    gasPricePerPubdata: ethers.BigNumber,
+    encodingLength: ethers.BigNumber
+): number {
+    const BLOCK_OVERHEAD_L2_GAS = ethers.BigNumber.from(SYSTEM_CONFIG['BLOCK_OVERHEAD_L2_GAS']);
+    const L1_GAS_PER_PUBDATA_BYTE = ethers.BigNumber.from(SYSTEM_CONFIG['L1_GAS_PER_PUBDATA_BYTE']);
+    const BLOCK_OVERHEAD_L1_GAS = ethers.BigNumber.from(SYSTEM_CONFIG['BLOCK_OVERHEAD_L1_GAS']);
+    const BLOCK_OVERHEAD_PUBDATA = BLOCK_OVERHEAD_L1_GAS.div(L1_GAS_PER_PUBDATA_BYTE);
 
-//     const MAX_TRANSACTIONS_IN_BLOCK = ethers.BigNumber.from(SYSTEM_CONFIG['MAX_TRANSACTIONS_IN_BLOCK']);
-//     const BOOTLOADER_TX_ENCODING_SPACE = ethers.BigNumber.from(SYSTEM_CONFIG['BOOTLOADER_TX_ENCODING_SPACE']);
-//     const MAX_PUBDATA_PER_BLOCK = ethers.BigNumber.from(SYSTEM_CONFIG['MAX_PUBDATA_PER_BLOCK']);
-//     const L2_TX_MAX_GAS_LIMIT = ethers.BigNumber.from(SYSTEM_CONFIG['L2_TX_MAX_GAS_LIMIT']);
+    const MAX_TRANSACTIONS_IN_BLOCK = ethers.BigNumber.from(SYSTEM_CONFIG['MAX_TRANSACTIONS_IN_BLOCK']);
+    const BOOTLOADER_TX_ENCODING_SPACE = ethers.BigNumber.from(SYSTEM_CONFIG['BOOTLOADER_TX_ENCODING_SPACE']);
+    // TODO (EVM-67): possibly charge overhead for pubdata
+    // const MAX_PUBDATA_PER_BLOCK = ethers.BigNumber.from(SYSTEM_CONFIG['MAX_PUBDATA_PER_BLOCK']);
+    const L2_TX_MAX_GAS_LIMIT = ethers.BigNumber.from(SYSTEM_CONFIG['L2_TX_MAX_GAS_LIMIT']);
 
-//     const maxBlockOverhead = BLOCK_OVERHEAD_L2_GAS.add(BLOCK_OVERHEAD_PUBDATA.mul(gasPricePerPubdata));
+    const maxBlockOverhead = BLOCK_OVERHEAD_L2_GAS.add(BLOCK_OVERHEAD_PUBDATA.mul(gasPricePerPubdata));
 
-//     // The overhead from taking up the transaction's slot
-//     const txSlotOverhead = ceilDiv(maxBlockOverhead, MAX_TRANSACTIONS_IN_BLOCK);
-//     let blockOverheadForTransaction = txSlotOverhead;
+    // The overhead from taking up the transaction's slot
+    const txSlotOverhead = ceilDiv(maxBlockOverhead, MAX_TRANSACTIONS_IN_BLOCK);
+    let blockOverheadForTransaction = txSlotOverhead;
 
-//     // The overhead for occupying the bootloader memory can be derived from encoded_len
-//     const overheadForLength = ceilDiv(encodingLength.mul(maxBlockOverhead), BOOTLOADER_TX_ENCODING_SPACE);
-//     if (overheadForLength.gt(blockOverheadForTransaction)) {
-//         blockOverheadForTransaction = overheadForLength;
-//     }
+    // The overhead for occupying the bootloader memory can be derived from encoded_len
+    const overheadForLength = ceilDiv(encodingLength.mul(maxBlockOverhead), BOOTLOADER_TX_ENCODING_SPACE);
+    if (overheadForLength.gt(blockOverheadForTransaction)) {
+        blockOverheadForTransaction = overheadForLength;
+    }
 
-//     // The overhead for possible published public data
-//     let maxPubdataInTx = ceilDiv(bodyGasLimit, gasPricePerPubdata);
-//     let overheadForPublicData = ceilDiv(maxPubdataInTx.mul(maxBlockOverhead), MAX_PUBDATA_PER_BLOCK);
-//     if (overheadForPublicData.gt(blockOverheadForTransaction)) {
-//         blockOverheadForTransaction = overheadForPublicData;
-//     }
+    // The overhead for possible published public data
+    // TODO (EVM-67): possibly charge overhead for pubdata
+    // let maxPubdataInTx = ceilDiv(bodyGasLimit, gasPricePerPubdata);
+    // let overheadForPublicData = ceilDiv(maxPubdataInTx.mul(maxBlockOverhead), MAX_PUBDATA_PER_BLOCK);
+    // if (overheadForPublicData.gt(blockOverheadForTransaction)) {
+    //     blockOverheadForTransaction = overheadForPublicData;
+    // }
 
-//     // The overhead for gas that could be used to use single-instance circuits
-//     let overheadForSingleInstanceCircuits = ceilDiv(bodyGasLimit.mul(maxBlockOverhead), L2_TX_MAX_GAS_LIMIT);
-//     if (overheadForSingleInstanceCircuits.gt(blockOverheadForTransaction)) {
-//         blockOverheadForTransaction = overheadForSingleInstanceCircuits;
-//     }
+    // The overhead for gas that could be used to use single-instance circuits
+    let overheadForSingleInstanceCircuits = ceilDiv(bodyGasLimit.mul(maxBlockOverhead), L2_TX_MAX_GAS_LIMIT);
+    if (overheadForSingleInstanceCircuits.gt(blockOverheadForTransaction)) {
+        blockOverheadForTransaction = overheadForSingleInstanceCircuits;
+    }
 
-//     return blockOverheadForTransaction.toNumber();
-// }
+    return blockOverheadForTransaction.toNumber();
+}
 
-// function ceilDiv(a: ethers.BigNumber, b: ethers.BigNumber): ethers.BigNumber {
-//     return a.add(b.sub(1)).div(b);
-// }
+function ceilDiv(a: ethers.BigNumber, b: ethers.BigNumber): ethers.BigNumber {
+    return a.add(b.sub(1)).div(b);
+}

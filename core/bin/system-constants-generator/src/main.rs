@@ -12,8 +12,8 @@ use vm::{
     },
 };
 use zksync_types::{
-    IntrinsicSystemGasConstants, FAIR_L2_GAS_PRICE, GUARANTEED_PUBDATA_IN_TX,
-    L1_GAS_PER_PUBDATA_BYTE, MAX_GAS_PER_PUBDATA_BYTE, MAX_NEW_FACTORY_DEPS, MAX_TXS_IN_BLOCK,
+    IntrinsicSystemGasConstants, GUARANTEED_PUBDATA_IN_TX, L1_GAS_PER_PUBDATA_BYTE,
+    MAX_GAS_PER_PUBDATA_BYTE, MAX_NEW_FACTORY_DEPS, MAX_TXS_IN_BLOCK,
 };
 
 mod intrinsic_costs;
@@ -42,15 +42,20 @@ struct L1SystemConfig {
     l1_tx_delta_factory_deps_l2_gas: u32,
     l1_tx_delta_factory_deps_pubdata: u32,
     max_new_factory_deps: u32,
-    default_l2_gas_price_per_pubdata: u64,
+    required_l2_gas_price_per_pubdata: u64,
 }
 
 pub fn generate_l1_contracts_system_config(gas_constants: &IntrinsicSystemGasConstants) -> String {
+    // Currently this value is hardcoded here as a constant.
+    // L1->L2 txs are free for now and thus this value is unused on L1 contract, so it's ok.
+    // Though, maybe it's worth to use some other approach when users will pay for L1->L2 txs.
+    const FAIR_L2_GAS_PRICE_ON_L1_CONTRACT: u64 = 250_000_000;
+
     let l1_contracts_config = L1SystemConfig {
         l2_tx_max_gas_limit: MAX_TX_ERGS_LIMIT,
         max_pubdata_per_block: MAX_PUBDATA_PER_BLOCK,
         priority_tx_max_pubdata: (L1_TX_DECREASE * (MAX_PUBDATA_PER_BLOCK as f64)) as u32,
-        fair_l2_gas_price: FAIR_L2_GAS_PRICE,
+        fair_l2_gas_price: FAIR_L2_GAS_PRICE_ON_L1_CONTRACT,
         l1_gas_per_pubdata_byte: L1_GAS_PER_PUBDATA_BYTE,
         block_overhead_l2_gas: BLOCK_OVERHEAD_GAS,
         block_overhead_l1_gas: BLOCK_OVERHEAD_L1_GAS,
@@ -64,7 +69,7 @@ pub fn generate_l1_contracts_system_config(gas_constants: &IntrinsicSystemGasCon
         l1_tx_delta_factory_deps_l2_gas: gas_constants.l1_tx_delta_factory_dep_gas,
         l1_tx_delta_factory_deps_pubdata: gas_constants.l1_tx_delta_factory_dep_pubdata,
         max_new_factory_deps: MAX_NEW_FACTORY_DEPS as u32,
-        default_l2_gas_price_per_pubdata: MAX_GAS_PER_PUBDATA_BYTE,
+        required_l2_gas_price_per_pubdata: MAX_GAS_PER_PUBDATA_BYTE,
     };
 
     serde_json::to_string_pretty(&l1_contracts_config).unwrap()
@@ -124,6 +129,8 @@ fn generate_rust_fee_constants(intrinsic_gas_constants: &IntrinsicSystemGasConst
 
     scope.raw(
         vec![
+            "// TODO (SMA-1699): Use this method to ensure that the transactions provide enough",
+            "// intrinsic gas on the API level.",
         ]
         .join("\n"),
     );

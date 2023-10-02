@@ -1,2 +1,2 @@
-pub mod http_client;
+pub mod http;
 pub mod mock;

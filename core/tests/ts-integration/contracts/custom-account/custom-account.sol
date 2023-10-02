@@ -15,6 +15,7 @@ contract CustomAccount is IAccount {
 	using TransactionHelper for Transaction;
 
 	bool public violateValidationRules;
+	uint256 public gasToSpent;
 
 	bytes32 public lastTxHash;
 
@@ -34,6 +35,9 @@ contract CustomAccount is IAccount {
 			// out by the compiler
 			emit BootloaderBalance(BOOTLOADER_FORMAL_ADDRESS.balance);
 		}
+
+		uint256 initialGas = gasleft();
+		while(initialGas - gasleft() < gasToSpent) {}
 	}
 
 	function _validateTransaction(bytes32 _suggestedSignedTxHash, Transaction calldata _transaction) internal returns (bytes4 magic) {
@@ -47,7 +51,7 @@ contract CustomAccount is IAccount {
 			0,
 			abi.encodeCall(INonceHolder.incrementMinNonceIfEquals, (_transaction.nonce))
 		);
-				
+
 		bytes memory correctSignature = abi.encodePacked(_suggestedSignedTxHash, address(this));
 
 		if (keccak256(_transaction.signature) == keccak256(correctSignature)) {
@@ -100,10 +104,14 @@ contract CustomAccount is IAccount {
 		_transaction.processPaymasterInput();
 	}
 
+	function setGasToSpent(uint256 _gasToSpent) public {
+		gasToSpent = _gasToSpent;
+	}
+
 	fallback() external payable {
 		// fallback of default AA shouldn't be called by bootloader under no circumstances 
-		assert(msg.sender != BOOTLOADER_FORMAL_ADDRESS);		
-		
+		assert(msg.sender != BOOTLOADER_FORMAL_ADDRESS);
+
 		// If the contract is called directly, behave like an EOA
 	}
 

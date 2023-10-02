@@ -223,14 +223,14 @@ fn mempool_size() {
         gen_l2_tx(account1, Nonce(1)),
     ];
     mempool.insert(transactions, HashMap::new());
-    assert_eq!(mempool.size(), 5);
+    assert_eq!(mempool.stats().l2_transaction_count, 5);
     // replacement
     mempool.insert(vec![gen_l2_tx(account0, Nonce(2))], HashMap::new());
-    assert_eq!(mempool.size(), 5);
+    assert_eq!(mempool.stats().l2_transaction_count, 5);
     // load next
     mempool.next_transaction(&L2TxFilter::default());
     mempool.next_transaction(&L2TxFilter::default());
-    assert_eq!(mempool.size(), 3);
+    assert_eq!(mempool.stats().l2_transaction_count, 3);
 }
 
 /// Checks whether filtering transactions based on their fee works as expected.
@@ -392,6 +392,7 @@ fn gen_l1_tx(priority_id: PriorityOpId) -> Transaction {
         layer_2_tip_fee: U256::zero(),
         full_fee: U256::zero(),
         gas_limit: U256::zero(),
+        max_fee_per_gas: U256::zero(),
         gas_per_pubdata_limit: U256::one(),
         op_processing_type: OpProcessingType::Common,
         priority_queue_type: PriorityQueueType::Deque,
@@ -406,6 +407,7 @@ fn gen_l1_tx(priority_id: PriorityOpId) -> Transaction {
         common_data: ExecuteTransactionCommon::L1(op_data),
         execute,
         received_timestamp_ms: 0,
+        raw_bytes: None,
     }
 }
 

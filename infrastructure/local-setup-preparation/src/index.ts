@@ -15,16 +15,30 @@ async function depositWithRichAccounts() {
         throw new Error('zkSync L1 Main contract address was not found');
     }
 
+    // During the preparation for the local node, the L2 server is not available, so
+    // it is not possible to estimate the exact number of gas that is required for the transaction
+    const DEPOSIT_L2_GAS_LIMIT = 10_000_000;
+    const gasPrice = await ethProvider.getGasPrice();
+    const contract = new ethers.Contract(process.env.CONTRACTS_DIAMOND_PROXY_ADDR, utils.ZKSYNC_MAIN_ABI, ethProvider);
+
+    const expectedCost = await contract.l2TransactionBaseCost(
+        gasPrice,
+        DEPOSIT_L2_GAS_LIMIT,
+        utils.DEFAULT_GAS_PER_PUBDATA_LIMIT
+    );
+
     for (const wallet of wallets) {
         const contract = new ethers.Contract(process.env.CONTRACTS_DIAMOND_PROXY_ADDR, utils.ZKSYNC_MAIN_ABI, wallet);
 
         const overrides = {
-            value: AMOUNT_TO_DEPOSIT
+            value: AMOUNT_TO_DEPOSIT.add(expectedCost)
         };
 
         const balance = await wallet.getBalance();
         console.log(`Wallet balance is ${ethers.utils.formatEther(balance)} ETH`);
 
+        // TODO: Currently we're providing zero as an operator fee, which works right now,
+        // but will be changed in the future.
         handles.push(
             // We have to implement the deposit manually because we run this script before running the server,
             // deposit method from wallet requires a running server
@@ -32,8 +46,8 @@ async function depositWithRichAccounts() {
                 wallet.address,
                 AMOUNT_TO_DEPOSIT,
                 '0x',
-                utils.RECOMMENDED_DEPOSIT_L2_GAS_LIMIT,
-                utils.DEFAULT_GAS_PER_PUBDATA_LIMIT,
+                DEPOSIT_L2_GAS_LIMIT,
+                utils.REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_LIMIT,
                 [],
                 wallet.address,
                 overrides

@@ -23,6 +23,7 @@ import { FunctionFragment, EventFragment, Result } from "@ethersproject/abi";
 interface IL2BridgeInterface extends ethers.utils.Interface {
   functions: {
     "finalizeDeposit(address,address,address,uint256,bytes)": FunctionFragment;
+    "initialize(address,bytes32,address)": FunctionFragment;
     "l1Bridge()": FunctionFragment;
     "l1TokenAddress(address)": FunctionFragment;
     "l2TokenAddress(address)": FunctionFragment;
@@ -32,6 +33,10 @@ interface IL2BridgeInterface extends ethers.utils.Interface {
   encodeFunctionData(
     functionFragment: "finalizeDeposit",
     values: [string, string, string, BigNumberish, BytesLike]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "initialize",
+    values: [string, BytesLike, string]
   ): string;
   encodeFunctionData(functionFragment: "l1Bridge", values?: undefined): string;
   encodeFunctionData(
@@ -51,6 +56,7 @@ interface IL2BridgeInterface extends ethers.utils.Interface {
     functionFragment: "finalizeDeposit",
     data: BytesLike
   ): Result;
+  decodeFunctionResult(functionFragment: "initialize", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "l1Bridge", data: BytesLike): Result;
   decodeFunctionResult(
     functionFragment: "l1TokenAddress",
@@ -94,6 +100,20 @@ export class IL2Bridge extends Contract {
       _l1Token: string,
       _amount: BigNumberish,
       _data: BytesLike,
+      overrides?: Overrides
+    ): Promise<ContractTransaction>;
+
+    initialize(
+      _l1Bridge: string,
+      _l2TokenProxyBytecodeHash: BytesLike,
+      _governor: string,
+      overrides?: Overrides
+    ): Promise<ContractTransaction>;
+
+    "initialize(address,bytes32,address)"(
+      _l1Bridge: string,
+      _l2TokenProxyBytecodeHash: BytesLike,
+      _governor: string,
       overrides?: Overrides
     ): Promise<ContractTransaction>;
 
@@ -166,6 +186,20 @@ export class IL2Bridge extends Contract {
     overrides?: Overrides
   ): Promise<ContractTransaction>;
 
+  initialize(
+    _l1Bridge: string,
+    _l2TokenProxyBytecodeHash: BytesLike,
+    _governor: string,
+    overrides?: Overrides
+  ): Promise<ContractTransaction>;
+
+  "initialize(address,bytes32,address)"(
+    _l1Bridge: string,
+    _l2TokenProxyBytecodeHash: BytesLike,
+    _governor: string,
+    overrides?: Overrides
+  ): Promise<ContractTransaction>;
+
   l1Bridge(overrides?: CallOverrides): Promise<string>;
 
   "l1Bridge()"(overrides?: CallOverrides): Promise<string>;
@@ -214,6 +248,20 @@ export class IL2Bridge extends Contract {
       _l1Token: string,
       _amount: BigNumberish,
       _data: BytesLike,
+      overrides?: CallOverrides
+    ): Promise<void>;
+
+    initialize(
+      _l1Bridge: string,
+      _l2TokenProxyBytecodeHash: BytesLike,
+      _governor: string,
+      overrides?: CallOverrides
+    ): Promise<void>;
+
+    "initialize(address,bytes32,address)"(
+      _l1Bridge: string,
+      _l2TokenProxyBytecodeHash: BytesLike,
+      _governor: string,
       overrides?: CallOverrides
     ): Promise<void>;
 
@@ -277,6 +325,20 @@ export class IL2Bridge extends Contract {
       overrides?: Overrides
     ): Promise<BigNumber>;
 
+    initialize(
+      _l1Bridge: string,
+      _l2TokenProxyBytecodeHash: BytesLike,
+      _governor: string,
+      overrides?: Overrides
+    ): Promise<BigNumber>;
+
+    "initialize(address,bytes32,address)"(
+      _l1Bridge: string,
+      _l2TokenProxyBytecodeHash: BytesLike,
+      _governor: string,
+      overrides?: Overrides
+    ): Promise<BigNumber>;
+
     l1Bridge(overrides?: CallOverrides): Promise<BigNumber>;
 
     "l1Bridge()"(overrides?: CallOverrides): Promise<BigNumber>;
@@ -332,6 +394,20 @@ export class IL2Bridge extends Contract {
       _l1Token: string,
       _amount: BigNumberish,
       _data: BytesLike,
+      overrides?: Overrides
+    ): Promise<PopulatedTransaction>;
+
+    initialize(
+      _l1Bridge: string,
+      _l2TokenProxyBytecodeHash: BytesLike,
+      _governor: string,
+      overrides?: Overrides
+    ): Promise<PopulatedTransaction>;
+
+    "initialize(address,bytes32,address)"(
+      _l1Bridge: string,
+      _l2TokenProxyBytecodeHash: BytesLike,
+      _governor: string,
       overrides?: Overrides
     ): Promise<PopulatedTransaction>;
 

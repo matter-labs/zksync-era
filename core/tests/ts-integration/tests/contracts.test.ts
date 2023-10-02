@@ -15,6 +15,7 @@ import * as zksync from 'zksync-web3';
 import { Provider } from 'zksync-web3';
 import { RetryProvider } from '../src/retry-provider';
 
+// TODO: Leave only important ones.
 const contracts = {
     counter: getTestContract('Counter'),
     constructor: getTestContract('SimpleConstructor'),
@@ -24,7 +25,8 @@ const contracts = {
         ...getTestContract('Import'),
         factoryDep: getTestContract('Foo').bytecode
     },
-    context: getTestContract('Context')
+    context: getTestContract('Context'),
+    error: getTestContract('SimpleRequire')
 };
 
 describe('Smart contract behavior checks', () => {
@@ -73,11 +75,9 @@ describe('Smart contract behavior checks', () => {
         const expensiveContract = await deployContract(alice, contracts.expensive, []);
 
         // First, check that the transaction that is too expensive would be rejected by the API server.
-        await expect(expensiveContract.expensive(2000)).toBeRejected(
-            'transaction may fail or may require manual gas limit'
-        );
+        await expect(expensiveContract.expensive(2000)).toBeRejected();
 
-        // Second, check that processable transaction may fail with out of gas error.
+        // Second, check that processable transaction may fail with "out of gas" error.
         // To do so, we estimate gas for arg "1" and supply it to arg "20".
         // This guarantees that transaction won't fail during verification.
         const lowGasLimit = await expensiveContract.estimateGas.expensive(1);
@@ -90,6 +90,7 @@ describe('Smart contract behavior checks', () => {
 
     test('Should fail an infinite loop transaction', async () => {
         if (testMaster.isFastMode()) {
+            // TODO: This test currently doesn't work on stage (ZKD-552).
             console.log(`This test is disabled. If you see this line, please check if the issue is resolved`);
             return;
         }
@@ -97,6 +98,7 @@ describe('Smart contract behavior checks', () => {
         const infiniteLoop = await deployContract(alice, contracts.infinite, []);
 
         // Test eth_call first
+        // TODO: provide a proper error for transactions that consume too much gas.
         // await expect(infiniteLoop.callStatic.infiniteLoop()).toBeRejected('cannot estimate transaction: out of gas');
         // ...and then an actual transaction
         await expect(infiniteLoop.infiniteLoop({ gasLimit: 1_000_000 })).toBeReverted([]);
@@ -196,6 +198,21 @@ describe('Smart contract behavior checks', () => {
         });
     });
 
+    test('Should return correct error during fee estimation', async () => {
+        const errorContract = await deployContract(alice, contracts.error, []);
+
+        await expect(errorContract.estimateGas.require_long()).toBeRevertedEstimateGas('longlonglong');
+        await expect(errorContract.require_long()).toBeRevertedEthCall('longlonglong');
+        await expect(errorContract.estimateGas.new_error()).toBeRevertedEstimateGas(
+            undefined,
+            '0x157bea60000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000000046461746100000000000000000000000000000000000000000000000000000000'
+        );
+        await expect(errorContract.callStatic.new_error()).toBeRevertedEthCall(
+            undefined,
+            '0x157bea60000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000000046461746100000000000000000000000000000000000000000000000000000000'
+        );
+    });
+
     test('Should check block properties for tx execution', async () => {
         if (testMaster.isFastMode()) {
             // This test requires a new L1 batch to be created, which may be very time consuming on stage.
@@ -254,6 +271,38 @@ describe('Smart contract behavior checks', () => {
         // This is why we use `initialTimestamp` here.
         await expect(
             contextContract.checkBlockTimestamp(initialTimestamp, initialTimestamp.add(acceptedTimestampLag))
+        ).toBeAccepted([]);
+    });
+
+    test('Should successfully publish a large packable bytecode', async () => {
+        // The rough length of the packed bytecode should be 350_000 / 4 = 87500,
+        // which should fit into a batch
+        const BYTECODE_LEN = 350_016 + 32; // +32 to ensure validity of the bytecode
+
+        // Our current packing algorithm uses 8-byte chunks for dictionary and
+        // so in order to make an effectively-packable bytecode, we need to have bytecode
+        // consist of the same 2 types of 8-byte chunks.
+        // Note, that instead of having 1 type of 8-byte chunks, we need 2 in order to have
+        // a unique bytecode for each test run.
+        const CHUNK_TYPE_1 = '00000000';
+        const CHUNK_TYPE_2 = 'ffffffff';
+
+        let bytecode = '0x';
+        while (bytecode.length < BYTECODE_LEN * 2 + 2) {
+            if (Math.random() < 0.5) {
+                bytecode += CHUNK_TYPE_1;
+            } else {
+                bytecode += CHUNK_TYPE_2;
+            }
+        }
+
+        await expect(
+            alice.sendTransaction({
+                to: alice.address,
+                customData: {
+                    factoryDeps: [bytecode]
+                }
+            })
         ).toBeAccepted([]);
     });
 

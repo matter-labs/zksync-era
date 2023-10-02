@@ -96,6 +96,32 @@ export declare global {
              * @param additionalInfo Optional message to be included if test fails.
              */
             toBeRejected(errorSubstring?: string, additionalInfo?: string): Promise<R>;
+            /**
+             * Checks that eth_call is rejected by the API server.
+             * Does NOT support `.not` modifier. Use `toBeAccepted` instead.
+             *
+             * @param revertReason Optional revert reason of eth_call.
+             * @param encodedRevertReason Optional RLP encoded revert reason.
+             * @param additionalInfo Optional message to be included if test fails.
+             */
+            toBeRevertedEthCall(
+                revertReason?: string,
+                encodedRevertReason?: string,
+                additionalInfo?: string
+            ): Promise<R>;
+            /**
+             * Checks that eth_estimateGas is rejected by the API server.
+             * Does NOT support `.not` modifier. Use `toBeAccepted` instead.
+             *
+             * @param revertReason Optional revert reason of eth_call.
+             * @param encodedRevertReason Optional RLP encoded revert reason.
+             * @param additionalInfo Optional message to be included if test fails.
+             */
+            toBeRevertedEstimateGas(
+                revertReason?: string,
+                encodedRevertReason?: string,
+                additionalInfo?: string
+            ): Promise<R>;
         }
     }
 }

@@ -11,12 +11,13 @@ use zksync_types::{
         transports::Http,
         types::{TransactionReceipt, H160, H256, U256},
     },
-    L1ChainId, U64,
+    L1ChainId, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE,
 };
 use zksync_web3_decl::namespaces::{EthNamespaceClient, ZksNamespaceClient};
 
-use zksync_eth_client::clients::http_client::Error;
-use zksync_eth_client::{ETHDirectClient, EthInterface};
+use zksync_eth_client::{
+    clients::http::SigningClient, types::Error, BoundEthInterface, EthInterface,
+};
 use zksync_eth_signer::EthereumSigner;
 use zksync_types::network::Network;
 use zksync_types::{l1::L1Tx, Address, L1TxCommonData};
@@ -58,7 +59,7 @@ pub fn l1_bridge_contract() -> ethabi::Contract {
 /// via `EthereumProvider::web3` method.
 #[derive(Debug)]
 pub struct EthereumProvider<S: EthereumSigner> {
-    eth_client: ETHDirectClient<S>,
+    eth_client: SigningClient<S>,
     default_bridges: BridgeAddresses,
     erc20_abi: ethabi::Contract,
     l1_bridge_abi: ethabi::Contract,
@@ -66,6 +67,8 @@ pub struct EthereumProvider<S: EthereumSigner> {
     polling_interval: Duration,
 }
 
+// TODO (SMA-1623): create a way to pass `Options` (e.g. nonce, gas_limit, priority_fee_per_gas)
+// into methods that perform L1 transactions. The unit is wei.
 pub const DEFAULT_PRIORITY_FEE: u64 = 2_000_000_000;
 
 impl<S: EthereumSigner> EthereumProvider<S> {
@@ -83,13 +86,11 @@ impl<S: EthereumSigner> EthereumProvider<S> {
             .map_err(|err| ClientError::NetworkError(err.to_string()))?;
 
         let l1_chain_id = provider.l1_chain_id().await?;
-        if l1_chain_id > U64::from(u16::MAX) {
-            return Err(ClientError::MalformedResponse(
-                "Chain id overflow".to_owned(),
-            ));
-        }
-        let l1_chain_id =
-            u8::try_from(l1_chain_id).expect("Expected chain id to be in range 0..256");
+        let l1_chain_id = u64::try_from(l1_chain_id).map_err(|_| {
+            ClientError::MalformedResponse(
+                "Chain id overflow - Expected chain id to be in range 0..2^64".to_owned(),
+            )
+        })?;
 
         let contract_address = provider.get_main_contract().await?;
         let default_bridges = provider
@@ -97,7 +98,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
             .await
             .map_err(|err| ClientError::NetworkError(err.to_string()))?;
 
-        let eth_client = ETHDirectClient::new(
+        let eth_client = SigningClient::new(
             transport,
             zksync_contract(),
             eth_addr,
@@ -120,7 +121,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
     }
 
     /// Exposes Ethereum node `web3` API.
-    pub fn client(&self) -> &ETHDirectClient<S> {
+    pub fn client(&self) -> &SigningClient<S> {
         &self.eth_client
     }
 
@@ -209,7 +210,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
         let bridge = bridge.unwrap_or(self.default_bridges.l1_erc20_default_bridge);
         let current_allowance = self
             .client()
-            .allowance_on_contract(token_address, bridge, self.erc20_abi.clone())
+            .allowance_on_account(token_address, bridge, self.erc20_abi.clone())
             .await
             .map_err(|err| ClientError::NetworkError(err.to_string()))?;
 
@@ -426,7 +427,8 @@ impl<S: EthereumSigner> EthereumProvider<S> {
                 tx_data,
                 Options::with(|f| {
                     f.gas = Some(U256::from(300000));
-                    f.value = Some(value)
+                    f.value = Some(value);
+                    f.gas_price = Some(gas_price)
                 }),
                 "zksync-rs",
             )
@@ -458,17 +460,6 @@ impl<S: EthereumSigner> EthereumProvider<S> {
 
         let is_eth_deposit = l1_token_address == Address::zero();
 
-        let base_cost: U256 = U256::zero();
-
-        // Calculate the amount of ether to be sent in the transaction.
-        let total_value = if is_eth_deposit {
-            // Both fee component and the deposit amount are represented as `msg.value`.
-            base_cost + operator_tip + amount
-        } else {
-            // ERC20 token, `msg.value` is used only for the fee.
-            base_cost + operator_tip
-        };
-
         // Calculate the gas limit for transaction: it may vary for different tokens.
         let gas_limit = if is_eth_deposit {
             200_000u64
@@ -489,10 +480,49 @@ impl<S: EthereumSigner> EthereumProvider<S> {
         };
 
         let mut options = eth_options.unwrap_or_default();
+
+        // If the user has already provided max_fee_per_gas or gas_price, we will use
+        // it to calculate the base cost for the transaction
+        let gas_price = if let Some(max_fee_per_gas) = options.max_fee_per_gas {
+            max_fee_per_gas
+        } else if let Some(gas_price) = options.gas_price {
+            gas_price
+        } else {
+            let gas_price = self
+                .eth_client
+                .get_gas_price("zksync-rs")
+                .await
+                .map_err(|e| ClientError::NetworkError(e.to_string()))?;
+
+            options.gas_price = Some(gas_price);
+
+            gas_price
+        };
+
+        // TODO (PLA-85): Add gas estimations for deposits in Rust SDK
+        let l2_gas_limit = U256::from(3_000_000u32);
+
+        let base_cost: U256 = self
+            .base_cost(
+                l2_gas_limit,
+                REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE as u32,
+                Some(gas_price),
+            )
+            .await
+            .map_err(|e| ClientError::NetworkError(e.to_string()))?;
+
+        // Calculate the amount of ether to be sent in the transaction.
+        let total_value = if is_eth_deposit {
+            // Both fee component and the deposit amount are represented as `msg.value`.
+            base_cost + operator_tip + amount
+        } else {
+            // ERC20 token, `msg.value` is used only for the fee.
+            base_cost + operator_tip
+        };
+
         options.value = Some(total_value);
         options.gas = Some(gas_limit.into());
 
-        let l2_gas_limit = U256::from(10000000u32);
         let transaction_hash = if is_eth_deposit {
             self.request_execute(
                 to,
@@ -501,7 +531,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
                 l2_gas_limit,
                 None,
                 None,
-                None,
+                Some(gas_price),
                 Default::default(),
             )
             .await?

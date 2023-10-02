@@ -128,7 +128,7 @@ pub(crate) struct InsertionMetadata {
 
 /// Structure that can be used by state keeper to describe
 /// criteria for transaction it wants to fetch.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, PartialEq, Eq)]
 pub struct L2TxFilter {
     /// L1 gas price.
     pub l1_gas_price: u64,

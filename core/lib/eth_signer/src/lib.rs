@@ -3,7 +3,7 @@ use error::SignerError;
 use zksync_types::tx::primitives::PackedEthSignature;
 use zksync_types::{Address, EIP712TypedStructure, Eip712Domain};
 
-use crate::raw_ethereum_tx::TransactionParameters;
+pub use crate::raw_ethereum_tx::TransactionParameters;
 pub use json_rpc_signer::JsonRpcSigner;
 pub use pk_signer::PrivateKeySigner;
 

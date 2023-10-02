@@ -80,6 +80,7 @@ impl From<StorageL2ToL1Log> for L2ToL1Log {
             shard_id: (log.shard_id as u32).into(),
             is_service: log.is_service,
             sender: Address::from_slice(&log.sender),
+            tx_index_in_l1_batch: Some(log.tx_index_in_l1_batch.into()),
             key: H256::from_slice(&log.key),
             value: H256::from_slice(&log.value),
         }

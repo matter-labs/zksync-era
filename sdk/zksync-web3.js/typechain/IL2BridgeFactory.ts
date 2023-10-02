@@ -51,6 +51,29 @@ const _abi = [
     type: "function",
   },
   {
+    inputs: [
+      {
+        internalType: "address",
+        name: "_l1Bridge",
+        type: "address",
+      },
+      {
+        internalType: "bytes32",
+        name: "_l2TokenProxyBytecodeHash",
+        type: "bytes32",
+      },
+      {
+        internalType: "address",
+        name: "_governor",
+        type: "address",
+      },
+    ],
+    name: "initialize",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
     inputs: [],
     name: "l1Bridge",
     outputs: [

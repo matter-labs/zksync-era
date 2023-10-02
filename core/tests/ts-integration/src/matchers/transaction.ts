@@ -47,7 +47,7 @@ export async function toBeAccepted(
 }
 
 export async function toBeReverted(
-    txPromise: Promise<any>,
+    txPromise: zksync.types.TransactionResponse | Promise<zksync.types.TransactionResponse>,
     modifiers: MatcherModifier[] = [],
     additionalInfo?: string
 ) {
@@ -85,7 +85,43 @@ export async function toBeReverted(
     }
 }
 
-export async function toBeRejected(txPromise: Promise<any>, errorSubstring?: string, additionalInfo?: string) {
+export async function toBeRevertedEthCall(
+    txPromise: Promise<any>,
+    revertReason?: string,
+    encodedRevertReason?: string,
+    additionalInfo?: string
+) {
+    return await toBeRejectedWithPrefix(
+        txPromise,
+        'call revert exception; VM Exception while processing transaction: reverted with reason string "',
+        revertReason,
+        encodedRevertReason,
+        additionalInfo
+    );
+}
+
+export async function toBeRevertedEstimateGas(
+    txPromise: Promise<any>,
+    revertReason?: string,
+    encodedRevertReason?: string,
+    additionalInfo?: string
+) {
+    return await toBeRejectedWithPrefix(
+        txPromise,
+        'execution reverted: ',
+        revertReason,
+        encodedRevertReason,
+        additionalInfo
+    );
+}
+
+async function toBeRejectedWithPrefix(
+    txPromise: Promise<any>,
+    prefix: string,
+    errorSubstring?: string,
+    dataSubstring?: string,
+    additionalInfo?: string
+) {
     try {
         const tx = await txPromise;
         // Unlike with `toBeReverted` test, we don't even need to wait for the transaction to be executed.
@@ -102,7 +138,8 @@ export async function toBeRejected(txPromise: Promise<any>, errorSubstring?: str
     } catch (error: any) {
         if (errorSubstring) {
             // We expect thrown exception to always have the `message` field.
-            if (!error.message || !error.message.includes(errorSubstring)) {
+            let fullErrorSubstring = `${prefix}${errorSubstring}`;
+            if (!error.message || !error.message.includes(fullErrorSubstring)) {
                 const message = new TestMessage()
                     .matcherHint('.toBeRejected')
                     .line('Transaction was expected to be rejected by the API server with the following message:')
@@ -116,8 +153,27 @@ export async function toBeRejected(txPromise: Promise<any>, errorSubstring?: str
             }
         }
 
+        if (dataSubstring) {
+            // We expect thrown exception to always have the `data` field.
+            if (!error.message || !error.message.includes(dataSubstring)) {
+                const message = new TestMessage()
+                    .matcherHint('.toBeRejected')
+                    .line('Transaction was expected to be rejected by the API server with the following data:')
+                    .expected(dataSubstring)
+                    .line("but it wasn't detected. Received error:")
+                    .received(error)
+                    .additional(additionalInfo)
+                    .build();
+
+                return fail(message);
+            }
+        }
         return pass();
     }
+}
+
+export async function toBeRejected(txPromise: Promise<any>, errorSubstring?: string, additionalInfo?: string) {
+    return await toBeRejectedWithPrefix(txPromise, '', errorSubstring, undefined, additionalInfo);
 }
 
 // Local helper to mark transaction test as passed.

@@ -9,17 +9,18 @@ const DIAMOND_UPGRADE_INIT_ABI = new ethers.utils.Interface(
 const DIAMOND_CUT_FACET_ABI = new ethers.utils.Interface(
     require(`${L1_CONTRACTS_FOLDER}/zksync/facets/DiamondCut.sol/DiamondCutFacet.json`).abi
 );
+
 export interface ForceDeployment {
     // The bytecode hash to put on an address
     bytecodeHash: BytesLike;
     // The address on which to deploy the bytecodehash to
     newAddress: string;
+    // Whether to call the constructor
+    callConstructor: boolean;
     // The value with which to initialize a contract
     value: BigNumber;
     // The constructor calldata
     input: BytesLike;
-    // Whether to call the constructor
-    callConstructor: boolean;
 }
 
 // A minimized copy of the `diamondCut` function used in L1 contracts

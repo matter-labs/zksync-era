@@ -20,11 +20,11 @@ then
 
     # Override values for database URL and eth client in the toml config files
     # so they will be taken into account
-    sed -i 's!^database_url=.*$!database_url="'"$DATABASE_URL"'"!' /etc/env/dev/private.toml
-    sed -i 's!^web3_url=.*$!web3_url="'"$ETH_CLIENT_WEB3_URL"'"!' /etc/env/dev/eth_client.toml
-    sed -i 's!^path=.*$!path="/var/lib/zksync/data"!' /etc/env/dev/database.toml
-    sed -i 's!^state_keeper_db_path=.*$!state_keeper_db_path="/var/lib/zksync/data/state_keeper"!' /etc/env/dev/database.toml
-    sed -i 's!^merkle_tree_backup_path=.*$!merkle_tree_backup_path="/var/lib/zksync/data/backups"!' /etc/env/dev/database.toml
+    sed -i 's!^database_url=.*$!database_url="'"$DATABASE_URL"'"!' /etc/env/base/private.toml
+    sed -i 's!^web3_url=.*$!web3_url="'"$ETH_CLIENT_WEB3_URL"'"!' /etc/env/base/eth_client.toml
+    sed -i 's!^path=.*$!path="/var/lib/zksync/data"!' /etc/env/base/database.toml
+    sed -i 's!^state_keeper_db_path=.*$!state_keeper_db_path="/var/lib/zksync/data/state_keeper"!' /etc/env/base/database.toml
+    sed -i 's!^merkle_tree_backup_path=.*$!merkle_tree_backup_path="/var/lib/zksync/data/backups"!' /etc/env/base/database.toml
 
     # Switch zksolc compiler source from docker to binary
     sed -i "s!'docker'!'binary'!" /contracts/zksync/hardhat.config.ts
@@ -41,6 +41,6 @@ then
 fi
 
 # start server
-cd /infrastructure/zk && yarn start config compile && cd /
 source /etc/env/dev.env
+source /etc/env/.init.env
 zksync_server

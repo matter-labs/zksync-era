@@ -33,7 +33,7 @@ contract CustomAccount is IAccount {
 		if (violateValidationRules) {
 			// Such a tx should not pass the validation step, because it depends on the balance of another account
 			require(BOOTLOADER_FORMAL_ADDRESS.balance == 0, "Bootloader balance must be zero");
-		}	
+		}
 	}
 
 	function _validateTransaction(bytes32 _suggestedSignedTxHash, Transaction calldata _transaction) internal {

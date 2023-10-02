@@ -139,37 +139,6 @@
       "inputs": [
         {
           "internalType": "address",
-          "name": "_l1Token",
-          "type": "address"
-        }
-      ],
-      "name": "getTokenWithdrawalLimitData",
-      "outputs": [
-        {
-          "components": [
-            {
-              "internalType": "bool",
-              "name": "withdrawalLimitation",
-              "type": "bool"
-            },
-            {
-              "internalType": "uint256",
-              "name": "withdrawalFactor",
-              "type": "uint256"
-            }
-          ],
-          "internalType": "struct IAllowList.Withdrawal",
-          "name": "",
-          "type": "tuple"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "address",
           "name": "_caller",
           "type": "address"
         },
@@ -306,29 +275,6 @@
         }
       ],
       "name": "setPermissionToCall",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "address",
-          "name": "_l1Token",
-          "type": "address"
-        },
-        {
-          "internalType": "bool",
-          "name": "_withdrawalLimitation",
-          "type": "bool"
-        },
-        {
-          "internalType": "uint256",
-          "name": "_withdrawalFactor",
-          "type": "uint256"
-        }
-      ],
-      "name": "setWithdrawalLimit",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"

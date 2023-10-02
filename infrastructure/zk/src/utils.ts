@@ -21,7 +21,6 @@ const IGNORED_DIRS = [
     'typechain',
     'binaryen',
     'system-contracts',
-    'openzeppelin-contracts',
     'artifacts-zk',
     'cache-zk'
 ];

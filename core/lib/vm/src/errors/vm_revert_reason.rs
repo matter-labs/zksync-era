@@ -1,9 +1,6 @@
-use std::convert::TryFrom;
 use std::fmt::{Debug, Display};
 
 use zksync_types::U256;
-
-use crate::TxRevertReason;
 
 #[derive(Debug, thiserror::Error)]
 pub enum VmRevertReasonParsingError {
@@ -20,6 +17,7 @@ pub enum VmRevertReasonParsingError {
 pub enum VmRevertReason {
     General {
         msg: String,
+        data: Vec<u8>,
     },
     InnerTxError,
     VmError,
@@ -31,8 +29,8 @@ pub enum VmRevertReason {
 
 impl VmRevertReason {
     const GENERAL_ERROR_SELECTOR: &'static [u8] = &[0x08, 0xc3, 0x79, 0xa0];
-
-    fn parse_general_error(bytes: &[u8]) -> Result<Self, VmRevertReasonParsingError> {
+    fn parse_general_error(raw_bytes: &[u8]) -> Result<Self, VmRevertReasonParsingError> {
+        let bytes = &raw_bytes[4..];
         if bytes.len() < 32 {
             return Err(VmRevertReasonParsingError::InputIsTooShort(bytes.to_vec()));
         }
@@ -61,16 +59,31 @@ impl VmRevertReason {
             ));
         };
 
+        let raw_data = &data[32..32 + string_length];
         Ok(Self::General {
-            msg: String::from_utf8_lossy(&data[32..32 + string_length]).to_string(),
+            msg: String::from_utf8_lossy(raw_data).to_string(),
+            data: raw_bytes.to_vec(),
         })
     }
-}
 
-impl TryFrom<&[u8]> for VmRevertReason {
-    type Error = VmRevertReasonParsingError;
+    pub fn to_user_friendly_string(&self) -> String {
+        match self {
+            // In case of `Unknown` reason we suppress it to prevent verbose Error function_selector = 0x{}
+            // message shown to user.
+            VmRevertReason::Unknown { .. } => "".to_owned(),
+            _ => self.to_string(),
+        }
+    }
 
-    fn try_from(bytes: &[u8]) -> Result<Self, VmRevertReasonParsingError> {
+    pub fn encoded_data(&self) -> Vec<u8> {
+        match self {
+            VmRevertReason::Unknown { data, .. } => data.clone(),
+            VmRevertReason::General { data, .. } => data.clone(),
+            _ => vec![],
+        }
+    }
+
+    fn try_from_bytes(bytes: &[u8]) -> Result<Self, VmRevertReasonParsingError> {
         if bytes.len() < 4 {
             // Note, that when the method reverts with no data
             // the selector is empty as well.
@@ -91,16 +104,41 @@ impl TryFrom<&[u8]> for VmRevertReason {
         }
 
         let function_selector = &bytes[0..4];
-        let error_data = &bytes[4..];
         match function_selector {
-            VmRevertReason::GENERAL_ERROR_SELECTOR => Self::parse_general_error(error_data),
+            VmRevertReason::GENERAL_ERROR_SELECTOR => Self::parse_general_error(bytes),
             _ => {
                 let result = VmRevertReason::Unknown {
                     function_selector: function_selector.to_vec(),
-                    data: error_data.to_vec(),
+                    data: bytes.to_vec(),
                 };
-                vlog::warn!("Unsupported error type: {}", result);
+                tracing::warn!("Unsupported error type: {}", result);
                 Ok(result)
+            }
+        }
+    }
+}
+
+impl From<&[u8]> for VmRevertReason {
+    fn from(error_msg: &[u8]) -> Self {
+        match Self::try_from_bytes(error_msg) {
+            Ok(reason) => reason,
+            Err(_) => {
+                let function_selector = if error_msg.len() >= 4 {
+                    error_msg[0..4].to_vec()
+                } else {
+                    error_msg.to_vec()
+                };
+
+                let data = if error_msg.len() > 4 {
+                    error_msg[4..].to_vec()
+                } else {
+                    vec![]
+                };
+
+                VmRevertReason::Unknown {
+                    function_selector,
+                    data,
+                }
             }
         }
     }
@@ -111,7 +149,7 @@ impl Display for VmRevertReason {
         use VmRevertReason::{General, InnerTxError, Unknown, VmError};
 
         match self {
-            General { msg } => write!(f, "{}", msg),
+            General { msg, .. } => write!(f, "{}", msg),
             VmError => write!(f, "VM Error",),
             InnerTxError => write!(f, "Bootloader-based tx failed"),
             Unknown {
@@ -127,25 +165,8 @@ impl Display for VmRevertReason {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct VmRevertReasonParsingResult {
-    pub revert_reason: TxRevertReason,
-    pub original_data: Vec<u8>,
-}
-
-impl VmRevertReasonParsingResult {
-    pub fn new(revert_reason: TxRevertReason, original_data: Vec<u8>) -> Self {
-        Self {
-            revert_reason,
-            original_data,
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use std::convert::TryFrom;
-
     use super::VmRevertReason;
 
     #[test]
@@ -159,11 +180,12 @@ mod tests {
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             0, 0, 0, 0, 0, 0, 0, 0, 0,
         ];
-        let reason = VmRevertReason::try_from(msg.as_slice()).expect("Shouldn't be error");
+        let reason = VmRevertReason::try_from_bytes(msg.as_slice()).expect("Shouldn't be error");
         assert_eq!(
             reason,
             VmRevertReason::General {
-                msg: "ERC20: transfer amount exceeds balance".to_string()
+                msg: "ERC20: transfer amount exceeds balance".to_string(),
+                data: msg
             }
         );
     }
@@ -179,7 +201,7 @@ mod tests {
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             0, 0, 0, 0, 0, 0, 0, 0, 0,
         ];
-        let reason = VmRevertReason::try_from(msg.as_slice()).expect("Shouldn't be error");
+        let reason = VmRevertReason::try_from_bytes(msg.as_slice()).expect("Shouldn't be error");
         assert!(matches!(reason, VmRevertReason::Unknown { .. }));
     }
 
@@ -194,7 +216,7 @@ mod tests {
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             0, 0, 0, 0, 0, 0, 0, 0, 0,
         ];
-        let reason = VmRevertReason::try_from(msg.as_slice());
+        let reason = VmRevertReason::try_from_bytes(msg.as_slice());
         assert!(reason.is_err());
     }
 
@@ -209,7 +231,7 @@ mod tests {
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             0, 0, 0, 0, 0, 0, 0, 0, 0,
         ];
-        let reason = VmRevertReason::try_from(msg.as_slice());
+        let reason = VmRevertReason::try_from_bytes(msg.as_slice());
         assert!(reason.is_err());
     }
 
@@ -224,7 +246,7 @@ mod tests {
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             0, 0, 0, 0, 0, 0, 0, 0, 0,
         ];
-        let reason = VmRevertReason::try_from(msg.as_slice());
+        let reason = VmRevertReason::try_from_bytes(msg.as_slice());
         assert!(reason.is_err());
     }
 }
