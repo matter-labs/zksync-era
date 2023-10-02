@@ -8,7 +8,6 @@ use zksync_types::{
         BlockDetails, BridgeAddresses, GetLogsFilter, L1BatchDetails, L2ToL1LogProof,
         ProtocolVersion, TransactionDetails,
     },
-    commitment::SerializeCommitment,
     fee::Fee,
     l1::L1Tx,
     l2::L2Tx,
@@ -319,7 +318,8 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
         };
 
         let merkle_tree_leaves = all_l1_logs_in_batch.iter().map(L2ToL1Log::to_bytes);
-        let (root, proof) = MiniMerkleTree::new(merkle_tree_leaves, L2ToL1Log::LIMIT_PER_L1_BATCH)
+        let min_tree_size = Some(L2ToL1Log::LEGACY_LIMIT_PER_L1_BATCH);
+        let (root, proof) = MiniMerkleTree::new(merkle_tree_leaves, min_tree_size)
             .merkle_root_and_path(l1_log_index);
         let msg_proof = L2ToL1LogProof {
             proof,
@@ -374,7 +374,8 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
         };
 
         let merkle_tree_leaves = all_l1_logs_in_batch.iter().map(L2ToL1Log::to_bytes);
-        let (root, proof) = MiniMerkleTree::new(merkle_tree_leaves, L2ToL1Log::LIMIT_PER_L1_BATCH)
+        let min_tree_size = Some(L2ToL1Log::LEGACY_LIMIT_PER_L1_BATCH);
+        let (root, proof) = MiniMerkleTree::new(merkle_tree_leaves, min_tree_size)
             .merkle_root_and_path(l1_log_index);
         let msg_proof = L2ToL1LogProof {
             proof,
