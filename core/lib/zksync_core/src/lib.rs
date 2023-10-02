@@ -110,6 +110,7 @@ pub async fn genesis_init(
     eth_sender: &ETHSenderConfig,
     network_config: &NetworkConfig,
     contracts_config: &ContractsConfig,
+    eth_client_url: &str,
 ) -> anyhow::Result<()> {
     let mut storage = StorageProcessor::establish_connection(true)
         .await
@@ -121,6 +122,26 @@ pub async fn genesis_init(
             .context("Private key is required for genesis init")?,
     )
     .context("Failed to restore operator address from private key")?;
+
+    // We don't need to worry about backward-compatibility with the old verifier here,
+    // since this is only run during genesis.
+    let eth_client = QueryClient::new(eth_web3_url)?;
+    let vk_hash = eth_client
+        .call_contract_function(
+            "verificationKeyHash",
+            (),
+            None,
+            Default::default(),
+            None,
+            contracts_config.verifier_addr,
+            zksync_contracts::verifier_contract(),
+        )
+        .await?;
+
+    assert_eq!(
+        vk, first_l1_verifier_config.recursion_scheduler_level_vk_hash,
+        "L1 verifier key does not match the one in the config"
+    );
 
     genesis::ensure_genesis_state(
         &mut storage,

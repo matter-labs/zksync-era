@@ -7,6 +7,7 @@ use anyhow::Context as _;
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::StorageProcessor;
 use zksync_merkle_tree::domain::ZkSyncTree;
+use zksync_types::web3::{Http, Web3};
 
 use zksync_types::{
     block::DeployedContract,
