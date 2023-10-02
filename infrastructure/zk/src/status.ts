@@ -155,10 +155,11 @@ async function compareVerificationKeys() {
     }
     let dbHash = '0x' + bytesToHex(protocol_version.rows[0].recursion_scheduler_level_vk_hash);
 
-
     console.log(`Verification key in database is ${dbHash}`);
     if (dbHash != verificationKeyHash) {
-        console.log(`${redStart}Verification hash in DB differs from the one in contract.${resetColor} State keeper might not send prove requests.`)
+        console.log(
+            `${redStart}Verification hash in DB differs from the one in contract.${resetColor} State keeper might not send prove requests.`
+        );
     }
 }
 
