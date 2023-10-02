@@ -15,6 +15,7 @@ import * as zksync from 'zksync-web3';
 import { Provider } from 'zksync-web3';
 import { RetryProvider } from '../src/retry-provider';
 
+// TODO: Leave only important ones.
 const contracts = {
     counter: getTestContract('Counter'),
     constructor: getTestContract('SimpleConstructor'),
@@ -89,6 +90,7 @@ describe('Smart contract behavior checks', () => {
 
     test('Should fail an infinite loop transaction', async () => {
         if (testMaster.isFastMode()) {
+            // TODO: This test currently doesn't work on stage (ZKD-552).
             console.log(`This test is disabled. If you see this line, please check if the issue is resolved`);
             return;
         }
@@ -96,6 +98,9 @@ describe('Smart contract behavior checks', () => {
         const infiniteLoop = await deployContract(alice, contracts.infinite, []);
 
         // Test eth_call first
+        // TODO: provide a proper error for transactions that consume too much gas.
+        // await expect(infiniteLoop.callStatic.infiniteLoop()).toBeRejected('cannot estimate transaction: out of gas');
+        // ...and then an actual transaction
         await expect(infiniteLoop.infiniteLoop({ gasLimit: 1_000_000 })).toBeReverted([]);
     });
 

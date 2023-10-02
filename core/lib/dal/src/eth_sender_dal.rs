@@ -63,9 +63,9 @@ impl EthSenderDal<'_, '_> {
                 for record in records {
                     let batch_number = L1BatchNumber(record.get::<i64, &str>("number") as u32);
                     let aggregation_action = match tx_type {
-                        "execute_tx" => AggregatedActionType::ExecuteBlocks,
-                        "commit_tx" => AggregatedActionType::CommitBlocks,
-                        "prove_tx" => AggregatedActionType::PublishProofBlocksOnchain,
+                        "execute_tx" => AggregatedActionType::Execute,
+                        "commit_tx" => AggregatedActionType::Commit,
+                        "prove_tx" => AggregatedActionType::PublishProofOnchain,
                         _ => unreachable!(),
                     };
                     if record.get::<bool, &str>("confirmed") {
@@ -227,7 +227,7 @@ impl EthSenderDal<'_, '_> {
 
     pub async fn confirm_tx(&mut self, tx_hash: H256, gas_used: U256) {
         {
-            let mut transaction = self.storage.start_transaction().await;
+            let mut transaction = self.storage.start_transaction().await.unwrap();
             let gas_used = i64::try_from(gas_used).expect("Can't convert U256 to i64");
             let tx_hash = format!("{:#x}", tx_hash);
             let ids = sqlx::query!(
@@ -253,7 +253,7 @@ impl EthSenderDal<'_, '_> {
             .await
             .unwrap();
 
-            transaction.commit().await;
+            transaction.commit().await.unwrap();
         }
     }
 
@@ -294,7 +294,7 @@ impl EthSenderDal<'_, '_> {
         confirmed_at: DateTime<Utc>,
     ) {
         {
-            let mut transaction = self.storage.start_transaction().await;
+            let mut transaction = self.storage.start_transaction().await.unwrap();
             let tx_hash = format!("{:#x}", tx_hash);
 
             let eth_tx_id = sqlx::query_scalar!(
@@ -357,10 +357,11 @@ impl EthSenderDal<'_, '_> {
             super::BlocksDal {
                 storage: &mut transaction,
             }
-            .set_eth_tx_id(l1_batch, l1_batch, eth_tx_id as u32, tx_type)
-            .await;
+            .set_eth_tx_id(l1_batch..=l1_batch, eth_tx_id as u32, tx_type)
+            .await
+            .unwrap();
 
-            transaction.commit().await;
+            transaction.commit().await.unwrap();
         }
     }
 

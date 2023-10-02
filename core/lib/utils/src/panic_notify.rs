@@ -15,11 +15,12 @@ impl Drop for ThreadPanicNotify {
     }
 }
 
-pub fn spawn_panic_handler() -> (JoinHandle<()>, mpsc::Sender<bool>) {
+pub fn spawn_panic_handler() -> (JoinHandle<anyhow::Result<()>>, mpsc::Sender<bool>) {
     let (panic_sender, mut panic_receiver) = mpsc::channel(1);
 
     let handler = tokio::spawn(async move {
         let _ = panic_receiver.next().await;
+        Ok(())
     });
     (handler, panic_sender)
 }

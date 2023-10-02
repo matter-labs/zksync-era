@@ -38,9 +38,9 @@ export interface TestEnvironment {
      */
     wsL2NodeUrl: string;
     /**
-     * URL of zkSync node's Explorer API.
+     * URL of zkSync node's contract verification API.
      */
-    explorerUrl: string;
+    contractVerificationUrl: string;
     /**
      * Description of the "main" ERC20 token used in the tests.
      */

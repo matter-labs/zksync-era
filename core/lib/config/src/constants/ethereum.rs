@@ -13,6 +13,7 @@ pub const GUARANTEED_PUBDATA_PER_L1_BATCH: u64 = 4000;
 /// The maximum number of pubdata per L1 batch.
 pub const MAX_PUBDATA_PER_L1_BATCH: u64 = 120000;
 
+// TODO: import from zkevm_opcode_defs once VM1.3 is supported
 pub const MAX_L2_TX_GAS_LIMIT: u64 = 80000000;
 
 // The users should always be able to provide `MAX_GAS_PER_PUBDATA_BYTE` gas per pubdata in their

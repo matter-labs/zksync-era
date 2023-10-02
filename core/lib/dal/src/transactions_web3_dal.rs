@@ -14,7 +14,7 @@ use crate::models::{
         StorageTransactionDetails,
     },
 };
-use crate::{SqlxError, StorageProcessor};
+use crate::{instrument::InstrumentExt, SqlxError, StorageProcessor};
 
 #[derive(Debug)]
 pub struct TransactionsWeb3Dal<'a, 'c> {
@@ -59,9 +59,11 @@ impl TransactionsWeb3Dal<'_, '_> {
                 WHERE transactions.hash = $2
                 "#,
                 ACCOUNT_CODE_STORAGE_ADDRESS.as_bytes(),
-                hash.0.to_vec(),
+                hash.as_bytes(),
                 FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH.as_bytes()
             )
+            .instrument("get_transaction_receipt")
+            .with_arg("hash", &hash)
             .fetch_optional(self.storage.conn())
             .await?
             .map(|db_row| {
@@ -74,13 +76,11 @@ impl TransactionsWeb3Dal<'_, '_> {
                 let tx_type = db_row.tx_format.map(U64::from).unwrap_or_default();
                 let transaction_index = db_row.index_in_block.map(U64::from).unwrap_or_default();
 
+                let block_hash = db_row.block_hash.map(|bytes| H256::from_slice(&bytes));
                 api::TransactionReceipt {
                     transaction_hash: H256::from_slice(&db_row.tx_hash),
                     transaction_index,
-                    block_hash: db_row
-                        .block_hash
-                        .clone()
-                        .map(|bytes| H256::from_slice(&bytes)),
+                    block_hash,
                     block_number: db_row.block_number.map(U64::from),
                     l1_batch_tx_index: db_row.l1_batch_tx_index.map(U64::from),
                     l1_batch_number: db_row.l1_batch_number.map(U64::from),
@@ -94,7 +94,7 @@ impl TransactionsWeb3Dal<'_, '_> {
                         })
                         // For better compatibility with various clients, we never return null.
                         .or_else(|| Some(Address::default())),
-                    cumulative_gas_used: Default::default(),
+                    cumulative_gas_used: Default::default(), // TODO: Should be actually calculated (SMA-1183).
                     gas_used: {
                         let refunded_gas: U256 = db_row.refunded_gas.into();
                         db_row.gas_limit.map(|val| {
@@ -114,7 +114,7 @@ impl TransactionsWeb3Dal<'_, '_> {
                     logs: vec![],
                     l2_to_l1_logs: vec![],
                     status,
-                    root: db_row.block_hash.map(|bytes| H256::from_slice(&bytes)),
+                    root: block_hash,
                     logs_bloom: Default::default(),
                     // Even though the Rust SDK recommends us to supply "None" for legacy transactions
                     // we always supply some number anyway to have the same behaviour as most popular RPCs
@@ -137,6 +137,8 @@ impl TransactionsWeb3Dal<'_, '_> {
                         "#,
                         hash.as_bytes()
                     )
+                    .instrument("get_transaction_receipt_events")
+                    .with_arg("hash", &hash)
                     .fetch_all(self.storage.conn())
                     .await?
                     .into_iter()
@@ -219,9 +221,15 @@ impl TransactionsWeb3Dal<'_, '_> {
             let storage_tx_details: Option<StorageTransactionDetails> = sqlx::query_as!(
                 StorageTransactionDetails,
                 r#"
-                    SELECT transactions.*,
-                        miniblocks.timestamp as "miniblock_timestamp?",
-                        miniblocks.hash as "block_hash?",
+                    SELECT transactions.is_priority,
+                        transactions.initiator_address,
+                        transactions.gas_limit,
+                        transactions.gas_per_pubdata_limit,
+                        transactions.received_at,
+                        transactions.miniblock_number,
+                        transactions.error,
+                        transactions.effective_gas_price,
+                        transactions.refunded_gas,
                         commit_tx.tx_hash as "eth_commit_tx_hash?",
                         prove_tx.tx_hash as "eth_prove_tx_hash?",
                         execute_tx.tx_hash as "eth_execute_tx_hash?"
@@ -235,6 +243,8 @@ impl TransactionsWeb3Dal<'_, '_> {
                 "#,
                 hash.as_bytes()
             )
+            .instrument("get_transaction_details")
+            .with_arg("hash", &hash)
             .fetch_optional(self.storage.conn())
             .await?;
 
@@ -344,8 +354,9 @@ impl TransactionsWeb3Dal<'_, '_> {
 #[cfg(test)]
 mod tests {
     use db_test_macro::db_test;
-    use zksync_types::{fee::TransactionExecutionMetrics, l2::L2Tx};
-    use zksync_utils::miniblock_hash;
+    use zksync_types::{
+        block::miniblock_hash, fee::TransactionExecutionMetrics, l2::L2Tx, ProtocolVersion,
+    };
 
     use super::*;
     use crate::{
@@ -356,16 +367,21 @@ mod tests {
     async fn prepare_transaction(conn: &mut StorageProcessor<'_>, tx: L2Tx) {
         conn.blocks_dal()
             .delete_miniblocks(MiniblockNumber(0))
-            .await;
+            .await
+            .unwrap();
         conn.transactions_dal()
             .insert_transaction_l2(tx.clone(), TransactionExecutionMetrics::default())
             .await;
         conn.blocks_dal()
             .insert_miniblock(&create_miniblock_header(0))
-            .await;
+            .await
+            .unwrap();
         let mut miniblock_header = create_miniblock_header(1);
         miniblock_header.l2_tx_count = 1;
-        conn.blocks_dal().insert_miniblock(&miniblock_header).await;
+        conn.blocks_dal()
+            .insert_miniblock(&miniblock_header)
+            .await
+            .unwrap();
 
         let tx_results = [mock_execution_result(tx)];
         conn.transactions_dal()
@@ -376,6 +392,9 @@ mod tests {
     #[db_test(dal_crate)]
     async fn getting_transaction(connection_pool: ConnectionPool) {
         let mut conn = connection_pool.access_test_storage().await;
+        conn.protocol_versions_dal()
+            .save_protocol_version_with_tx(ProtocolVersion::default())
+            .await;
         let tx = mock_l2_transaction();
         let tx_hash = tx.hash();
         prepare_transaction(&mut conn, tx).await;
@@ -383,7 +402,12 @@ mod tests {
         let block_ids = [
             api::BlockId::Number(api::BlockNumber::Latest),
             api::BlockId::Number(api::BlockNumber::Number(1.into())),
-            api::BlockId::Hash(miniblock_hash(MiniblockNumber(1))),
+            api::BlockId::Hash(miniblock_hash(
+                MiniblockNumber(1),
+                0,
+                H256::zero(),
+                H256::zero(),
+            )),
         ];
         let transaction_ids = block_ids
             .iter()
@@ -433,6 +457,9 @@ mod tests {
     #[db_test(dal_crate)]
     async fn getting_miniblock_transactions(connection_pool: ConnectionPool) {
         let mut conn = connection_pool.access_test_storage().await;
+        conn.protocol_versions_dal()
+            .save_protocol_version_with_tx(ProtocolVersion::default())
+            .await;
         let tx = mock_l2_transaction();
         let tx_hash = tx.hash();
         prepare_transaction(&mut conn, tx).await;

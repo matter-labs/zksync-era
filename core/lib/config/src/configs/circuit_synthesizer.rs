@@ -26,7 +26,7 @@ pub struct CircuitSynthesizerConfig {
 }
 
 impl CircuitSynthesizerConfig {
-    pub fn from_env() -> Self {
+    pub fn from_env() -> anyhow::Result<Self> {
         envy_load("circuit_synthesizer", "CIRCUIT_SYNTHESIZER_")
     }
 
@@ -49,9 +49,10 @@ impl CircuitSynthesizerConfig {
 
 #[cfg(test)]
 mod tests {
-    use crate::configs::test_utils::set_env;
-
     use super::*;
+    use crate::configs::test_utils::EnvMutex;
+
+    static MUTEX: EnvMutex = EnvMutex::new();
 
     fn expected_config() -> CircuitSynthesizerConfig {
         CircuitSynthesizerConfig {
@@ -69,19 +70,21 @@ mod tests {
 
     #[test]
     fn from_env() {
+        let mut lock = MUTEX.lock();
         let config = r#"
-        CIRCUIT_SYNTHESIZER_GENERATION_TIMEOUT_IN_SECS=1000
-        CIRCUIT_SYNTHESIZER_MAX_ATTEMPTS=2
-        CIRCUIT_SYNTHESIZER_GPU_PROVER_QUEUE_TIMEOUT_IN_SECS=1000
-        CIRCUIT_SYNTHESIZER_PROVER_INSTANCE_WAIT_TIMEOUT_IN_SECS=1000
-        CIRCUIT_SYNTHESIZER_PROVER_INSTANCE_POLL_TIME_IN_MILLI_SECS=250
-        CIRCUIT_SYNTHESIZER_PROMETHEUS_LISTENER_PORT=3314
-        CIRCUIT_SYNTHESIZER_PROMETHEUS_PUSHGATEWAY_URL="http://127.0.0.1:9091"
-        CIRCUIT_SYNTHESIZER_PROMETHEUS_PUSH_INTERVAL_MS=100
-        CIRCUIT_SYNTHESIZER_PROVER_GROUP_ID=0
+            CIRCUIT_SYNTHESIZER_GENERATION_TIMEOUT_IN_SECS=1000
+            CIRCUIT_SYNTHESIZER_MAX_ATTEMPTS=2
+            CIRCUIT_SYNTHESIZER_GPU_PROVER_QUEUE_TIMEOUT_IN_SECS=1000
+            CIRCUIT_SYNTHESIZER_PROVER_INSTANCE_WAIT_TIMEOUT_IN_SECS=1000
+            CIRCUIT_SYNTHESIZER_PROVER_INSTANCE_POLL_TIME_IN_MILLI_SECS=250
+            CIRCUIT_SYNTHESIZER_PROMETHEUS_LISTENER_PORT=3314
+            CIRCUIT_SYNTHESIZER_PROMETHEUS_PUSHGATEWAY_URL="http://127.0.0.1:9091"
+            CIRCUIT_SYNTHESIZER_PROMETHEUS_PUSH_INTERVAL_MS=100
+            CIRCUIT_SYNTHESIZER_PROVER_GROUP_ID=0
         "#;
-        set_env(config);
-        let actual = CircuitSynthesizerConfig::from_env();
+        lock.set_env(config);
+
+        let actual = CircuitSynthesizerConfig::from_env().unwrap();
         assert_eq!(actual, expected_config());
     }
 }

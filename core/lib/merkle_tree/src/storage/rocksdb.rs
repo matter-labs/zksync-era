@@ -2,18 +2,18 @@
 
 use rayon::prelude::*;
 
-use std::{path::Path, sync::Arc};
+use std::path::Path;
 
 use crate::{
     errors::{DeserializeError, ErrorContext},
-    metrics::ApplyPatchMetrics,
+    metrics::ApplyPatchStats,
     storage::{
         database::{PruneDatabase, PrunePatchSet},
         Database, NodeKeys, PatchSet,
     },
     types::{InternalNode, LeafNode, Manifest, Nibbles, Node, NodeKey, Root, StaleNodeKey},
 };
-use zksync_storage::{db::NamedColumnFamily, RocksDB};
+use zksync_storage::{db::NamedColumnFamily, rocksdb::DBPinnableSlice, RocksDB};
 
 /// RocksDB column families used by the tree.
 #[derive(Debug, Clone, Copy)]
@@ -51,7 +51,7 @@ impl NamedColumnFamily for MerkleTreeColumnFamily {
 /// [`MerkleTreePruner`]: crate::MerkleTreePruner
 #[derive(Debug, Clone)]
 pub struct RocksDBWrapper {
-    db: Arc<RocksDB<MerkleTreeColumnFamily>>,
+    db: RocksDB<MerkleTreeColumnFamily>,
     multi_get_chunk_size: usize,
 }
 
@@ -62,7 +62,7 @@ impl RocksDBWrapper {
     const MANIFEST_KEY: &'static [u8] = &[0];
 
     /// Creates a new wrapper, initializing RocksDB at the specified directory.
-    pub fn new(path: impl AsRef<Path>) -> Self {
+    pub fn new(path: &Path) -> Self {
         let db = RocksDB::new(path, true);
         Self::from(db)
     }
@@ -79,6 +79,7 @@ impl RocksDBWrapper {
     /// performance boost (order of 2x) in some environments.
     ///
     /// [RocksDB docs]: https://github.com/facebook/rocksdb/wiki/MultiGet-Performance
+    // TODO (BFT-153): Benchmark multi-get performance to find out optimal value
     pub fn set_multi_get_chunk_size(&mut self, chunk_size: usize) {
         self.multi_get_chunk_size = chunk_size;
     }
@@ -89,7 +90,7 @@ impl RocksDBWrapper {
             .expect("Failed reading from RocksDB")
     }
 
-    fn raw_nodes(&self, keys: &NodeKeys) -> Vec<Option<Vec<u8>>> {
+    fn raw_nodes(&self, keys: &NodeKeys) -> Vec<Option<DBPinnableSlice<'_>>> {
         // `par_chunks()` below uses `rayon` to speed up multi-get I/O;
         // see `Self::set_multi_get_chunk_size()` docs for an explanation why this makes sense.
         keys.par_chunks(self.multi_get_chunk_size)
@@ -127,14 +128,14 @@ impl RocksDBWrapper {
 
     /// Returns the wrapped RocksDB instance.
     pub fn into_inner(self) -> RocksDB<MerkleTreeColumnFamily> {
-        Arc::try_unwrap(self.db).expect("Merkle tree RocksDB instance is shared")
+        self.db
     }
 }
 
 impl From<RocksDB<MerkleTreeColumnFamily>> for RocksDBWrapper {
     fn from(db: RocksDB<MerkleTreeColumnFamily>) -> Self {
         Self {
-            db: Arc::new(db),
+            db,
             multi_get_chunk_size: usize::MAX,
         }
     }
@@ -189,7 +190,7 @@ impl Database for RocksDBWrapper {
         let mut node_bytes = Vec::with_capacity(128);
         // ^ 128 looks somewhat reasonable as node capacity
 
-        let mut metrics = ApplyPatchMetrics::new(patch.copied_hashes_count());
+        let mut metrics = ApplyPatchStats::new(patch.copied_hashes_count());
 
         patch.manifest.serialize(&mut node_bytes);
         write_batch.put_cf(tree_cf, Self::MANIFEST_KEY, &node_bytes);
@@ -288,7 +289,7 @@ mod tests {
     #[test]
     fn garbage_is_removed_on_db_reverts() {
         let dir = TempDir::new().expect("failed creating temporary dir for RocksDB");
-        let mut db = RocksDBWrapper::new(&dir);
+        let mut db = RocksDBWrapper::new(dir.path());
 
         // Insert some data to the database.
         let mut expected_keys = HashSet::new();

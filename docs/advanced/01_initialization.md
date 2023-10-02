@@ -43,7 +43,7 @@ After which we setup the schema (lots of lines with `Applied XX`).
 
 You can try connecting to postgres now, to see what's inside:
 
-```
+```shell
 psql postgres://postgres@localhost/zksync_local
 ```
 
@@ -64,17 +64,17 @@ We're running two things in a docker:
 
 Let's see if they are running:
 
-```
+```shell
 docker container ls
 ```
 
 and then we can look at the Geth logs:
 
-```
-docker logs zksync-2-dev_geth_1
+```shell
+docker logs zksync-2-dev-geth-1
 ```
 
-Where zksync-2-dev_geth_1 is the container id, that we got from the first command.
+Where `zksync-2-dev-geth-1` is the container name, that we got from the first command.
 
 If everything goes well, you should see that L1 blocks are being produced.
 
@@ -82,7 +82,7 @@ If everything goes well, you should see that L1 blocks are being produced.
 
 Now we can start the main server:
 
-```
+```shell
 zk server
 ```
 
@@ -103,13 +103,13 @@ select * from miniblocks;
 
 Let's finish this article, by taking a look at our L1:
 
-```
-docker container exec -it zksync-2-dev_geth_1  geth attach http://localhost:8545
+```shell
+docker container exec -it zksync-2-dev-geth-1  geth attach http://localhost:8545
 ```
 
 The command above will start a shell - and you can check that you're a (localnet) crypto trillionaire, by running:
 
-```
+```shell
 eth.getBalance(personal.listAccounts[0])
 ```
 
@@ -127,7 +127,7 @@ contains the address.
 
 You can quickly verify that they were really deployed, by calling:
 
-```
+```shell
 eth.getCode("XXXX")
 ```
 
@@ -146,4 +146,4 @@ Ok - so let's sum up what we have:
   - and two accounts with lots of tokens
 - and a server process
 
-In the next article, we'll start playing with the system (bridging tokens etc).
+In the [next article](02_deposits.md), we'll start playing with the system (bridging tokens etc).

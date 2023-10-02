@@ -1,6 +1,6 @@
 [package]
 name = "zksync_basic_types"
-version = "1.0.0"
+version="0.1.0"
 edition = "2018"
 authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
 homepage = "https://zksync.io/"
@@ -10,5 +10,5 @@ keywords = ["blockchain", "zksync"]
 categories = ["cryptography"]
 
 [dependencies]
-web3 = { version= "0.18.0", default-features = false, features = ["http-rustls-tls", "test", "signing"] }
+web3 = { version= "0.19.0", default-features = false, features = ["http-rustls-tls", "test", "signing"] }
 serde = { version = "1.0", features = ["derive"] }

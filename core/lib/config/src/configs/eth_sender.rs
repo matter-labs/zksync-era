@@ -1,6 +1,7 @@
 // Built-in uses
 use std::time::Duration;
 // External uses
+use anyhow::Context as _;
 use serde::Deserialize;
 // Workspace uses
 use zksync_basic_types::H256;
@@ -17,11 +18,11 @@ pub struct ETHSenderConfig {
 }
 
 impl ETHSenderConfig {
-    pub fn from_env() -> Self {
-        Self {
-            sender: SenderConfig::from_env(),
-            gas_adjuster: GasAdjusterConfig::from_env(),
-        }
+    pub fn from_env() -> anyhow::Result<Self> {
+        Ok(Self {
+            sender: SenderConfig::from_env().context("SenderConfig")?,
+            gas_adjuster: GasAdjusterConfig::from_env().context("GasAdjusterConfig")?,
+        })
     }
 }
 
@@ -30,6 +31,12 @@ pub enum ProofSendingMode {
     OnlyRealProofs,
     OnlySampledProofs,
     SkipEveryProof,
+}
+
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq)]
+pub enum ProofLoadingMode {
+    OldProofFromDb,
+    FriProofFromGcs,
 }
 
 #[derive(Debug, Deserialize, Clone, PartialEq)]
@@ -62,6 +69,9 @@ pub struct SenderConfig {
     pub l1_batch_min_age_before_execute_seconds: Option<u64>,
     // Max acceptable fee for sending tx it acts as a safeguard to prevent sending tx with very high fees.
     pub max_acceptable_priority_fee_in_gwei: u64,
+
+    /// The mode in which proofs are loaded, either from DB/GCS for FRI/Old proof.
+    pub proof_loading_mode: ProofLoadingMode,
 }
 
 impl SenderConfig {
@@ -81,7 +91,7 @@ impl SenderConfig {
             .map(|pk| pk.parse().unwrap())
     }
 
-    pub fn from_env() -> Self {
+    pub fn from_env() -> anyhow::Result<Self> {
         envy_load("eth_sender", "ETH_SENDER_SENDER_")
     }
 }
@@ -116,7 +126,7 @@ impl GasAdjusterConfig {
         self.max_l1_gas_price.unwrap_or(u64::MAX)
     }
 
-    pub fn from_env() -> Self {
+    pub fn from_env() -> anyhow::Result<Self> {
         envy_load("eth_sender.gas_adjuster", "ETH_SENDER_GAS_ADJUSTER_")
     }
 }
@@ -124,7 +134,9 @@ impl GasAdjusterConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::configs::test_utils::{hash, set_env};
+    use crate::configs::test_utils::{hash, EnvMutex};
+
+    static MUTEX: EnvMutex = EnvMutex::new();
 
     fn expected_config() -> ETHSenderConfig {
         ETHSenderConfig {
@@ -146,6 +158,7 @@ mod tests {
                 proof_sending_mode: ProofSendingMode::SkipEveryProof,
                 l1_batch_min_age_before_execute_seconds: Some(1000),
                 max_acceptable_priority_fee_in_gwei: 100_000_000_000,
+                proof_loading_mode: ProofLoadingMode::OldProofFromDb,
             },
             gas_adjuster: GasAdjusterConfig {
                 default_priority_fee_per_gas: 20000000000,
@@ -162,36 +175,38 @@ mod tests {
 
     #[test]
     fn from_env() {
+        let mut lock = MUTEX.lock();
         let config = r#"
-ETH_SENDER_SENDER_WAIT_CONFIRMATIONS="1"
-ETH_SENDER_SENDER_TX_POLL_PERIOD="3"
-ETH_SENDER_SENDER_AGGREGATE_TX_POLL_PERIOD="3"
-ETH_SENDER_SENDER_MAX_TXS_IN_FLIGHT="3"
-ETH_SENDER_SENDER_OPERATOR_PRIVATE_KEY="0x27593fea79697e947890ecbecce7901b0008345e5d7259710d0dd5e500d040be"
-ETH_SENDER_SENDER_PROOF_SENDING_MODE="SkipEveryProof"
-ETH_SENDER_GAS_ADJUSTER_DEFAULT_PRIORITY_FEE_PER_GAS="20000000000"
-ETH_SENDER_GAS_ADJUSTER_MAX_BASE_FEE_SAMPLES="10000"
-ETH_SENDER_GAS_ADJUSTER_PRICING_FORMULA_PARAMETER_A="1.5"
-ETH_SENDER_GAS_ADJUSTER_PRICING_FORMULA_PARAMETER_B="1.0005"
-ETH_SENDER_GAS_ADJUSTER_INTERNAL_L1_PRICING_MULTIPLIER="0.8"
-ETH_SENDER_GAS_ADJUSTER_POLL_PERIOD="15"
-ETH_SENDER_GAS_ADJUSTER_MAX_L1_GAS_PRICE="100000000"
-ETH_SENDER_WAIT_FOR_PROOFS="false"
-ETH_SENDER_SENDER_AGGREGATED_PROOF_SIZES="1,5"
-ETH_SENDER_SENDER_MAX_AGGREGATED_BLOCKS_TO_COMMIT="3"
-ETH_SENDER_SENDER_MAX_AGGREGATED_BLOCKS_TO_EXECUTE="4"
-ETH_SENDER_SENDER_AGGREGATED_BLOCK_COMMIT_DEADLINE="30"
-ETH_SENDER_SENDER_AGGREGATED_BLOCK_PROVE_DEADLINE="3000"
-ETH_SENDER_SENDER_AGGREGATED_BLOCK_EXECUTE_DEADLINE="4000"
-ETH_SENDER_SENDER_TIMESTAMP_CRITERIA_MAX_ALLOWED_LAG="30"
-ETH_SENDER_SENDER_MAX_AGGREGATED_TX_GAS="4000000"
-ETH_SENDER_SENDER_MAX_ETH_TX_DATA_SIZE="120000"
-ETH_SENDER_SENDER_L1_BATCH_MIN_AGE_BEFORE_EXECUTE_SECONDS="1000"
-ETH_SENDER_SENDER_MAX_ACCEPTABLE_PRIORITY_FEE_IN_GWEI="100000000000"
+            ETH_SENDER_SENDER_WAIT_CONFIRMATIONS="1"
+            ETH_SENDER_SENDER_TX_POLL_PERIOD="3"
+            ETH_SENDER_SENDER_AGGREGATE_TX_POLL_PERIOD="3"
+            ETH_SENDER_SENDER_MAX_TXS_IN_FLIGHT="3"
+            ETH_SENDER_SENDER_OPERATOR_PRIVATE_KEY="0x27593fea79697e947890ecbecce7901b0008345e5d7259710d0dd5e500d040be"
+            ETH_SENDER_SENDER_PROOF_SENDING_MODE="SkipEveryProof"
+            ETH_SENDER_GAS_ADJUSTER_DEFAULT_PRIORITY_FEE_PER_GAS="20000000000"
+            ETH_SENDER_GAS_ADJUSTER_MAX_BASE_FEE_SAMPLES="10000"
+            ETH_SENDER_GAS_ADJUSTER_PRICING_FORMULA_PARAMETER_A="1.5"
+            ETH_SENDER_GAS_ADJUSTER_PRICING_FORMULA_PARAMETER_B="1.0005"
+            ETH_SENDER_GAS_ADJUSTER_INTERNAL_L1_PRICING_MULTIPLIER="0.8"
+            ETH_SENDER_GAS_ADJUSTER_POLL_PERIOD="15"
+            ETH_SENDER_GAS_ADJUSTER_MAX_L1_GAS_PRICE="100000000"
+            ETH_SENDER_WAIT_FOR_PROOFS="false"
+            ETH_SENDER_SENDER_AGGREGATED_PROOF_SIZES="1,5"
+            ETH_SENDER_SENDER_MAX_AGGREGATED_BLOCKS_TO_COMMIT="3"
+            ETH_SENDER_SENDER_MAX_AGGREGATED_BLOCKS_TO_EXECUTE="4"
+            ETH_SENDER_SENDER_AGGREGATED_BLOCK_COMMIT_DEADLINE="30"
+            ETH_SENDER_SENDER_AGGREGATED_BLOCK_PROVE_DEADLINE="3000"
+            ETH_SENDER_SENDER_AGGREGATED_BLOCK_EXECUTE_DEADLINE="4000"
+            ETH_SENDER_SENDER_TIMESTAMP_CRITERIA_MAX_ALLOWED_LAG="30"
+            ETH_SENDER_SENDER_MAX_AGGREGATED_TX_GAS="4000000"
+            ETH_SENDER_SENDER_MAX_ETH_TX_DATA_SIZE="120000"
+            ETH_SENDER_SENDER_L1_BATCH_MIN_AGE_BEFORE_EXECUTE_SECONDS="1000"
+            ETH_SENDER_SENDER_MAX_ACCEPTABLE_PRIORITY_FEE_IN_GWEI="100000000000"
+            ETH_SENDER_SENDER_PROOF_LOADING_MODE="OldProofFromDb"
         "#;
-        set_env(config);
+        lock.set_env(config);
 
-        let actual = ETHSenderConfig::from_env();
+        let actual = ETHSenderConfig::from_env().unwrap();
         assert_eq!(actual, expected_config());
         assert_eq!(
             actual.sender.private_key().unwrap(),

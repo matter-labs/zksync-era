@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::fs::File;
 use std::io::Write;
 use std::path::PathBuf;
 use std::process::Stdio;
@@ -40,19 +41,23 @@ impl ZkVyper {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
 
-        let mut files = vec![];
-        for (name, content) in input.sources {
-            let mut file = tempfile::Builder::new()
-                .prefix(&name)
-                .suffix("")
-                .rand_bytes(0)
-                .tempfile()
-                .map_err(|_err| ContractVerifierError::InternalError)?;
+        let temp_dir = tempfile::tempdir().map_err(|_err| ContractVerifierError::InternalError)?;
+        for (mut name, content) in input.sources {
+            if !name.ends_with(".vy") {
+                name += ".vy";
+            }
+            let path = temp_dir.path().join(name);
+            if let Some(prefix) = path.parent() {
+                std::fs::create_dir_all(prefix)
+                    .map_err(|_err| ContractVerifierError::InternalError)?;
+            }
+            let mut file =
+                File::create(&path).map_err(|_err| ContractVerifierError::InternalError)?;
             file.write_all(content.as_bytes())
                 .map_err(|_err| ContractVerifierError::InternalError)?;
-            command.arg(file.path().to_str().unwrap());
-            files.push(file);
+            command.arg(path.into_os_string());
         }
+
         let child = command
             .spawn()
             .map_err(|_err| ContractVerifierError::InternalError)?;

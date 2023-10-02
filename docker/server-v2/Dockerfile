@@ -2,15 +2,18 @@
 # Not expected to work locally
 
 # syntax=docker/dockerfile:experimental
-FROM rust:1.67-buster as builder
-RUN apt-get update && apt-get install -y clang && rm -rf /var/lib/apt/lists/*
+FROM rust:1.72-bookworm as builder
+RUN apt-get update && apt-get install -y linux-libc-dev liburing-dev clang && \
+    # ^ We need a newer version of `linux-libc-dev` from backports than the one installed by default
+    rm -rf /var/lib/apt/lists/*
 WORKDIR /usr/src/zksync
 COPY . .
 
-RUN CARGO_HOME=./cargo cargo build --release
+RUN CARGO_HOME=./cargo cargo build --release --features=rocksdb/io-uring
 
-FROM debian:buster-slim
-RUN apt-get update && apt-get install -y curl libpq5 ca-certificates && rm -rf /var/lib/apt/lists/*
+FROM debian:bookworm-slim
+RUN apt-get update && apt-get install -y curl libpq5 liburing-dev ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
 EXPOSE 3000
 EXPOSE 3031
 EXPOSE 3030
@@ -26,6 +29,7 @@ COPY contracts/ethereum/artifacts/ /contracts/ethereum/artifacts/
 COPY contracts/zksync/artifacts-zk/ /contracts/zksync/artifacts-zk/
 COPY etc/tokens/ /etc/tokens/
 COPY etc/ERC20/ /etc/ERC20/
+COPY etc/multivm_bootloaders/ /etc/multivm_bootloaders/
 COPY core/bin/verification_key_generator_and_server/data/ /core/bin/verification_key_generator_and_server/data/
 
 ENTRYPOINT ["zksync_server"]

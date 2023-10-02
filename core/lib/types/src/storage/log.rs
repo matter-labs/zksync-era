@@ -1,10 +1,14 @@
 use serde::{Deserialize, Serialize};
-use zk_evm::aux_structures::LogQuery;
+
+use std::mem;
+
+use zk_evm::aux_structures::{LogQuery, Timestamp};
 use zksync_basic_types::AccountTreeId;
 use zksync_utils::u256_to_h256;
 
-use super::{StorageKey, StorageValue, H256};
+use crate::{StorageKey, StorageValue, U256};
 
+// TODO (SMA-1269): Refactor StorageLog/StorageLogQuery and StorageLogKind/StorageLongQueryType.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum StorageLogKind {
     Read,
@@ -51,21 +55,28 @@ impl StorageLog {
         }
     }
 
-    /// Encodes the log key and value into a byte sequence.
-    pub fn to_bytes(&self) -> Vec<u8> {
-        // Concatenate account, key and value.
-        let mut output = self.key.account().to_fixed_bytes().to_vec();
-        output.extend_from_slice(&self.key.key().to_fixed_bytes());
-        output.extend_from_slice(self.value.as_fixed_bytes());
+    /// Converts this log to a log query that could be used in tests.
+    pub fn to_test_log_query(&self) -> LogQuery {
+        let mut read_value = U256::zero();
+        let mut written_value = U256::from_big_endian(self.value.as_bytes());
+        if self.kind == StorageLogKind::Read {
+            mem::swap(&mut read_value, &mut written_value);
+        }
 
-        output
+        LogQuery {
+            timestamp: Timestamp(0),
+            tx_number_in_block: 0,
+            aux_byte: 0,
+            shard_id: 0,
+            address: *self.key.address(),
+            key: U256::from_big_endian(self.key.key().as_bytes()),
+            read_value,
+            written_value,
+            rw_flag: matches!(self.kind, StorageLogKind::Write),
+            rollback: false,
+            is_service: false,
+        }
     }
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct WitnessStorageLog {
-    pub storage_log: StorageLog,
-    pub previous_value: H256,
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]

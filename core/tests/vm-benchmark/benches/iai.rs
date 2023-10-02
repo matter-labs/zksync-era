@@ -6,7 +6,7 @@ fn run_bytecode(path: &str) {
     let code = cut_to_allowed_bytecode_size(&test_contract).unwrap();
     let tx = get_deploy_tx(code);
 
-    black_box(BenchmarkingVm::new().run_transaction(&tx).unwrap());
+    black_box(BenchmarkingVm::new().run_transaction(&tx));
 }
 
 macro_rules! make_functions_and_main {
@@ -29,4 +29,5 @@ make_functions_and_main!(
     finish_eventful_frames,
     write_and_decode,
     event_spam,
+    slot_hash_collision,
 );

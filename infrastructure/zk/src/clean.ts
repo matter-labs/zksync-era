@@ -30,13 +30,14 @@ export const command = new Command('clean')
         }
 
         if (cmd.all || cmd.artifacts) {
-            clean(`artifacts`);
+            clean('core/tests/ts-integration/artifacts-zk');
+            clean('core/tests/ts-integration/cache-zk');
         }
 
         if (cmd.all || cmd.database) {
             const dbPaths = process.env.ZKSYNC_ENV?.startsWith('ext-node')
                 ? [process.env.EN_MERKLE_TREE_PATH!]
-                : [process.env.DATABASE_STATE_KEEPER_DB_PATH!, process.env.DATABASE_NEW_MERKLE_TREE_SSD_PATH!];
+                : [process.env.DATABASE_STATE_KEEPER_DB_PATH!, process.env.DATABASE_MERKLE_TREE_PATH!];
             for (const dbPath of dbPaths) {
                 clean(path.dirname(dbPath));
             }

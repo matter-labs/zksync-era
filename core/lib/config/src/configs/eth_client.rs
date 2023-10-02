@@ -13,22 +13,24 @@ pub struct ETHClientConfig {
 }
 
 impl ETHClientConfig {
-    pub fn from_env() -> Self {
-        let config: Self = envy_load("eth_client", "ETH_CLIENT_");
+    pub fn from_env() -> anyhow::Result<Self> {
+        let config: Self = envy_load("eth_client", "ETH_CLIENT_")?;
         if config.web3_url.find(',').is_some() {
-            panic!(
+            anyhow::bail!(
                 "Multiple web3 URLs aren't supported anymore. Provided invalid value: {}",
                 config.web3_url
             );
         }
-        config
+        Ok(config)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::configs::test_utils::set_env;
+    use crate::configs::test_utils::EnvMutex;
+
+    static MUTEX: EnvMutex = EnvMutex::new();
 
     fn expected_config() -> ETHClientConfig {
         ETHClientConfig {
@@ -39,13 +41,14 @@ mod tests {
 
     #[test]
     fn from_env() {
+        let mut lock = MUTEX.lock();
         let config = r#"
-ETH_CLIENT_CHAIN_ID="9"
-ETH_CLIENT_WEB3_URL="http://127.0.0.1:8545"
+            ETH_CLIENT_CHAIN_ID="9"
+            ETH_CLIENT_WEB3_URL="http://127.0.0.1:8545"
         "#;
-        set_env(config);
+        lock.set_env(config);
 
-        let actual = ETHClientConfig::from_env();
+        let actual = ETHClientConfig::from_env().unwrap();
         assert_eq!(actual, expected_config());
     }
 }

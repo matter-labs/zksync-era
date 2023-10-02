@@ -26,7 +26,7 @@ pub struct ProverGroupConfig {
 }
 
 impl ProverGroupConfig {
-    pub fn from_env() -> Self {
+    pub fn from_env() -> anyhow::Result<Self> {
         envy_load("prover_group", "PROVER_GROUP_")
     }
 
@@ -73,9 +73,10 @@ impl ProverGroupConfig {
 
 #[cfg(test)]
 mod tests {
-    use crate::configs::test_utils::set_env;
-
     use super::*;
+    use crate::configs::test_utils::EnvMutex;
+
+    static MUTEX: EnvMutex = EnvMutex::new();
 
     fn expected_config() -> ProverGroupConfig {
         ProverGroupConfig {
@@ -117,15 +118,15 @@ mod tests {
 
     #[test]
     fn from_env() {
-        set_env(CONFIG);
-        let actual = ProverGroupConfig::from_env();
+        let mut lock = MUTEX.lock();
+        lock.set_env(CONFIG);
+        let actual = ProverGroupConfig::from_env().unwrap();
         assert_eq!(actual, expected_config());
     }
 
     #[test]
     fn get_group_id_for_circuit_id() {
-        set_env(CONFIG);
-        let prover_group_config = ProverGroupConfig::from_env();
+        let prover_group_config = expected_config();
 
         assert_eq!(Some(0), prover_group_config.get_group_id_for_circuit_id(0));
         assert_eq!(Some(0), prover_group_config.get_group_id_for_circuit_id(18));
@@ -162,8 +163,8 @@ mod tests {
 
     #[test]
     fn get_circuit_ids_for_group_id() {
-        set_env(CONFIG);
-        let prover_group_config = ProverGroupConfig::from_env();
+        let prover_group_config = expected_config();
+
         assert_eq!(
             Some(vec![0, 18]),
             prover_group_config.get_circuit_ids_for_group_id(0)

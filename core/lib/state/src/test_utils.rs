@@ -3,14 +3,17 @@
 use zksync_dal::StorageProcessor;
 use zksync_types::{
     block::{BlockGasCount, L1BatchHeader, MiniblockHeader},
-    zk_evm::aux_structures::{LogQuery, Timestamp},
-    AccountTreeId, Address, L1BatchNumber, MiniblockNumber, StorageKey, StorageLog, H256, U256,
+    AccountTreeId, Address, L1BatchNumber, MiniblockNumber, ProtocolVersion, StorageKey,
+    StorageLog, H256,
 };
 
 use std::ops;
 
 pub(crate) async fn prepare_postgres(conn: &mut StorageProcessor<'_>) {
-    if conn.blocks_dal().is_genesis_needed().await {
+    if conn.blocks_dal().is_genesis_needed().await.unwrap() {
+        conn.protocol_versions_dal()
+            .save_protocol_version_with_tx(ProtocolVersion::default())
+            .await;
         // The created genesis block is likely to be invalid, but since it's not committed,
         // we don't really care.
         let genesis_storage_logs = gen_storage_logs(0..20);
@@ -23,8 +26,12 @@ pub(crate) async fn prepare_postgres(conn: &mut StorageProcessor<'_>) {
         .await;
     conn.blocks_dal()
         .delete_miniblocks(MiniblockNumber(0))
-        .await;
-    conn.blocks_dal().delete_l1_batches(L1BatchNumber(0)).await;
+        .await
+        .unwrap();
+    conn.blocks_dal()
+        .delete_l1_batches(L1BatchNumber(0))
+        .await
+        .unwrap();
 }
 
 pub(crate) fn gen_storage_logs(indices: ops::Range<u64>) -> Vec<StorageLog> {
@@ -70,9 +77,14 @@ pub(crate) async fn create_miniblock(
         l1_gas_price: 0,
         l2_fair_gas_price: 0,
         base_system_contracts_hashes: Default::default(),
+        protocol_version: Some(Default::default()),
+        virtual_blocks: 0,
     };
 
-    conn.blocks_dal().insert_miniblock(&miniblock_header).await;
+    conn.blocks_dal()
+        .insert_miniblock(&miniblock_header)
+        .await
+        .unwrap();
     conn.storage_logs_dal()
         .insert_storage_logs(miniblock_number, &[(H256::zero(), block_logs)])
         .await;
@@ -85,36 +97,26 @@ pub(crate) async fn create_l1_batch(
     l1_batch_number: L1BatchNumber,
     logs_for_initial_writes: &[StorageLog],
 ) {
-    let mut header = L1BatchHeader::new(l1_batch_number, 0, Address::default(), Default::default());
+    let mut header = L1BatchHeader::new(
+        l1_batch_number,
+        0,
+        Address::default(),
+        Default::default(),
+        Default::default(),
+    );
     header.is_finished = true;
     conn.blocks_dal()
-        .insert_l1_batch(&header, BlockGasCount::default())
-        .await;
+        .insert_l1_batch(&header, &[], BlockGasCount::default())
+        .await
+        .unwrap();
     conn.blocks_dal()
         .mark_miniblocks_as_executed_in_l1_batch(l1_batch_number)
-        .await;
+        .await
+        .unwrap();
 
-    let log_queries: Vec<_> = logs_for_initial_writes
-        .iter()
-        .map(write_log_to_query)
-        .collect();
+    let mut written_keys: Vec<_> = logs_for_initial_writes.iter().map(|log| log.key).collect();
+    written_keys.sort_unstable();
     conn.storage_logs_dedup_dal()
-        .insert_initial_writes(l1_batch_number, &log_queries)
+        .insert_initial_writes(l1_batch_number, &written_keys)
         .await;
-}
-
-fn write_log_to_query(log: &StorageLog) -> LogQuery {
-    LogQuery {
-        timestamp: Timestamp(0),
-        tx_number_in_block: 0,
-        aux_byte: 0,
-        shard_id: 0,
-        address: *log.key.address(),
-        key: U256::from_big_endian(log.key.key().as_bytes()),
-        read_value: U256::zero(),
-        written_value: U256::from_big_endian(log.value.as_bytes()),
-        rw_flag: true,
-        rollback: false,
-        is_service: false,
-    }
 }

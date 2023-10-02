@@ -39,7 +39,7 @@ impl AccountLifespan {
                 Ok(_) => ReportLabel::ActionDone,
                 Err(err) => {
                     // Subscriptions can fail for a variety of reasons - no need to escalate it.
-                    vlog::warn!("Subscription failed: {subscription_type:?}, reason: {err}");
+                    tracing::warn!("Subscription failed: {subscription_type:?}, reason: {err}");
                     ReportLabel::failed(err.to_string())
                 }
             }

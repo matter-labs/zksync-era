@@ -6,11 +6,13 @@ use std::collections::{hash_map::Entry, HashMap};
 
 use crate::{
     hasher::HashTree,
-    metrics::HashingMetrics,
-    storage::proofs::SUBTREE_COUNT,
+    metrics::HashingStats,
+    storage::{proofs::SUBTREE_COUNT, SortedKeys},
     types::{
         ChildRef, InternalNode, Manifest, Nibbles, NibblesBytes, Node, NodeKey, Root, ValueHash,
+        KEY_SIZE,
     },
+    Database,
 };
 
 /// Raw set of database changes.
@@ -19,6 +21,9 @@ use crate::{
 pub struct PatchSet {
     pub(super) manifest: Manifest,
     pub(super) roots: HashMap<u64, Root>,
+    // TODO (BFT-130): investigate most efficient ways to store key-value pairs:
+    //   - `HashMap`s indexed by version
+    //   - Full upper levels (i.e., `Vec<Option<Node>>`)
     pub(super) nodes_by_version: HashMap<u64, HashMap<NodeKey, Node>>,
     pub(super) stale_keys_by_version: HashMap<u64, Vec<NodeKey>>,
 }
@@ -130,10 +135,19 @@ impl WorkingNode {
     }
 }
 
+/// Result of ancestors loading.
+#[derive(Debug)]
+pub(crate) struct LoadAncestorsResult {
+    /// The longest prefixes present in the tree currently for each requested key.
+    pub longest_prefixes: Vec<Nibbles>,
+    /// Number of db reads used.
+    pub db_reads: u64,
+}
+
 /// Mutable version of [`PatchSet`] where we insert all changed nodes when updating
 /// a Merkle tree.
 #[derive(Debug)]
-pub(super) struct WorkingPatchSet {
+pub(crate) struct WorkingPatchSet {
     version: u64,
     // Group changes by `nibble_count` (which is linearly tied to the tree depth:
     // `depth == nibble_count * 4`) so that we can compute hashes for all changed nodes
@@ -330,10 +344,10 @@ impl WorkingPatchSet {
         manifest: Manifest,
         leaf_count: u64,
         hasher: &dyn HashTree,
-    ) -> (ValueHash, PatchSet, HashingMetrics) {
+    ) -> (ValueHash, PatchSet, HashingStats) {
         self.remove_unchanged_nodes();
         let stale_keys = self.stale_keys();
-        let metrics = HashingMetrics::default();
+        let metrics = HashingStats::default();
 
         let mut changes_by_nibble_count = self.changes_by_nibble_count;
         if changes_by_nibble_count.is_empty() {
@@ -412,6 +426,91 @@ impl WorkingPatchSet {
             })
         });
         PatchSet::new(manifest, self.version, root, nodes.collect(), stale_keys)
+    }
+
+    /// Loads ancestor nodes for all keys in `sorted_keys`.
+    ///
+    /// This method works by traversing the tree level by level. It uses [`Database::tree_nodes()`]
+    /// (translating to multi-get in RocksDB) for each level to expedite node loading.
+    pub fn load_ancestors<DB: Database + ?Sized>(
+        &mut self,
+        sorted_keys: &SortedKeys,
+        db: &DB,
+    ) -> LoadAncestorsResult {
+        let Some(Node::Internal(_)) = self.get(&Nibbles::EMPTY) else {
+            return LoadAncestorsResult {
+                longest_prefixes: vec![Nibbles::EMPTY; sorted_keys.0.len()],
+                db_reads: 0,
+            };
+        };
+
+        // Longest prefix for each key in `key_value_pairs` (i.e., what we'll return from
+        // this method). `None` indicates that the longest prefix for a key is not determined yet.
+        let mut longest_prefixes = vec![None; sorted_keys.0.len()];
+        // Previous encountered when iterating by `sorted_keys` below.
+        let mut prev_nibbles = None;
+        // Cumulative number of db reads.
+        let mut db_reads = 0;
+        for nibble_count in 1.. {
+            // Extract `nibble_count` nibbles from each key for which we haven't found the parent
+            // yet. Note that nibbles in `requested_keys` are sorted.
+            let requested_keys = sorted_keys.0.iter().filter_map(|(idx, key)| {
+                if longest_prefixes[*idx].is_some() {
+                    return None;
+                }
+                if nibble_count > 2 * KEY_SIZE {
+                    // We have traversed to the final tree level. There's nothing to load;
+                    // we just need to record the longest prefix as the full key.
+                    longest_prefixes[*idx] = Some(Nibbles::new(key, 2 * KEY_SIZE));
+                    return None;
+                }
+
+                let nibbles = Nibbles::new(key, nibble_count);
+                let (this_parent_nibbles, last_nibble) = nibbles.split_last().unwrap();
+                // ^ `unwrap()` is safe by construction; `nibble_count` is positive
+                let this_ref = self.child_ref(&this_parent_nibbles, last_nibble);
+                let Some(this_ref) = this_ref else {
+                    longest_prefixes[*idx] = Some(this_parent_nibbles);
+                    return None;
+                };
+
+                // Deduplicate by `nibbles`. We do it at the end to properly
+                // assign `parent_nibbles` for all keys, and before the version is updated
+                // for `ChildRef`s, in order to update it only once.
+                if prev_nibbles == Some(nibbles) {
+                    return None;
+                }
+                prev_nibbles = Some(nibbles);
+
+                Some((nibbles.with_version(this_ref.version), this_ref.is_leaf))
+            });
+            let requested_keys: Vec<_> = requested_keys.collect();
+
+            if requested_keys.is_empty() {
+                break;
+            }
+            let new_nodes = db.tree_nodes(&requested_keys);
+            db_reads += new_nodes.len() as u64;
+
+            // Since we load nodes level by level, we can update `patch_set` more efficiently
+            // by pushing entire `HashMap`s into `changes_by_nibble_count`.
+            let level = requested_keys
+                .iter()
+                .zip(new_nodes)
+                .map(|((key, _), node)| {
+                    (key, node.unwrap())
+                    // ^ `unwrap()` is safe: all requested nodes are referenced by their parents
+                });
+            self.push_level_from_db(level);
+        }
+
+        // All parents must be set at this point.
+        let longest_prefixes = longest_prefixes.into_iter().map(Option::unwrap).collect();
+
+        LoadAncestorsResult {
+            longest_prefixes,
+            db_reads,
+        }
     }
 }
 

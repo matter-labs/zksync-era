@@ -1,0 +1,23 @@
+[package]
+name = "multivm"
+version = "0.1.0"
+edition = "2018"
+authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
+homepage = "https://zksync.io/"
+repository = "https://github.com/matter-labs/zksync-era"
+license = "MIT OR Apache-2.0"
+keywords = ["blockchain", "zksync"]
+categories = ["cryptography"]
+
+[dependencies]
+vm_m5 = { path = "../../multivm_deps/vm_m5" }
+vm_m6 = { path = "../../multivm_deps/vm_m6" }
+vm_1_3_2 = { path = "../../multivm_deps/vm_1_3_2" }
+vm_latest = { path = "../vm", package = "vm" }
+
+zksync_types = { path = "../types" }
+zksync_state = { path = "../state" }
+zksync_contracts = { path = "../contracts" }
+zksync_utils = { path = "../utils" }
+
+vlog = { path = "../../lib/vlog" }

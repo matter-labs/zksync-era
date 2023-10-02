@@ -43,15 +43,11 @@ account_pks=[
 estimate_gas_scale_factor=1.2
 estimate_gas_acceptable_overestimation=1000
 max_tx_size=1000000
-# Configuration for the explorer API
-[api.explorer]
-# Port for the explorer API.
+# Configuration for the contract verification API
+[api.contract_verification]
+# Port for the contract verification API.
 port=3070
 url="http://127.0.0.1:3070"
-# Interval between polling db for network stats (in ms).
-network_stats_polling_interval=1000
-req_entities_limit=100
-offset_limit=250
 threads_per_server=128
 
 # Configuration for the prometheus exporter server.

@@ -7,8 +7,19 @@ import * as dataRestore from './data-restore';
 
 export { dataRestore };
 
-export async function deployERC20(command: 'dev' | 'new', name?: string, symbol?: string, decimals?: string) {
+export async function deployERC20(
+    command: 'dev' | 'new',
+    name?: string,
+    symbol?: string,
+    decimals?: string,
+    args: any = []
+) {
     if (command == 'dev') {
+        let destinationFile = 'localhost';
+        if (args.includes('--envFile')) {
+            destinationFile = args[args.indexOf('--envFile') + 1];
+            args.splice(args.indexOf('--envFile'), 2);
+        }
         await utils.spawn(`yarn --silent --cwd contracts/ethereum deploy-erc20 add-multi '
             [
                 { "name": "DAI",  "symbol": "DAI",  "decimals": 18 },
@@ -27,7 +38,7 @@ export async function deployERC20(command: 'dev' | 'new', name?: string, symbol?
                 { "name": "GNTL",  "symbol": "GNTW",  "decimals": 18 },
                 { "name": "MLTTL", "symbol": "MLTTW", "decimals": 18 },
                 { "name": "Wrapped Ether", "symbol": "WETH", "decimals": 18, "implementation": "WETH9"}
-            ]' > ./etc/tokens/localhost.json`);
+            ]' ${args.join(' ')} > ./etc/tokens/${destinationFile}.json`);
     } else if (command == 'new') {
         await utils.spawn(
             `yarn --silent --cwd contracts/ethereum deploy-erc20 add --token-name ${name} --symbol ${symbol} --decimals ${decimals}`
@@ -67,10 +78,6 @@ export async function plonkSetup(powers?: number[]) {
 
 export async function revertReason(txHash: string, web3url?: string) {
     await utils.spawn(`yarn l1-contracts ts-node scripts/revert-reason.ts ${txHash} ${web3url || ''}`);
-}
-
-export async function explorer() {
-    await utils.spawn('yarn explorer serve');
 }
 
 export async function exitProof(...args: string[]) {
@@ -128,7 +135,6 @@ export async function cross_en_checker() {
 export const command = new Command('run').description('run miscellaneous applications').addCommand(dataRestore.command);
 
 command.command('test-accounts').description('print ethereum test accounts').action(testAccounts);
-command.command('explorer').description('run zksync explorer locally').action(explorer);
 command.command('yarn').description('install all JS dependencies').action(yarn);
 command.command('cat-logs [exit_code]').description('print server and prover logs').action(catLogs);
 

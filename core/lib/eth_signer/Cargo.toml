@@ -1,6 +1,6 @@
 [package]
 name = "zksync_eth_signer"
-version = "1.0.0"
+version = "0.1.0"
 edition = "2018"
 authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
 homepage = "https://zksync.io/"
@@ -10,14 +10,15 @@ keywords = ["blockchain", "zksync"]
 categories = ["cryptography"]
 
 [dependencies]
-zksync_types = { path = "../types", version = "1.0" }
+zksync_types = { path = "../types" }
 
 serde = "1.0.90"
 serde_derive = "1.0.90"
 serde_json = "1.0.0"
 hex = "0.4.2"
-secp256k1 = "0.21.3"
+secp256k1 = "0.27.0"
 
+# TODO (PLA-440): remove parity-crypto
 parity-crypto = { version = "0.9", features = ["publickey"] }
 rlp = "0.5"
 
@@ -32,4 +33,3 @@ actix-rt = "2"
 tokio = { version = "1", features = ["full"] }
 actix-web = "4.0.0-beta.8"
 futures = "0.3"
-

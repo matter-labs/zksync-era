@@ -1,9 +1,7 @@
-use std::collections::HashMap;
-use std::ops::Range;
-use std::time::{Duration, Instant};
-
 use itertools::Itertools;
 use sqlx::Row;
+
+use std::{collections::HashMap, ops::Range, time::Duration};
 
 use zksync_types::proofs::{
     AggregationRound, JobCountStatistics, WitnessGeneratorJobMetadata, WitnessJobInfo,
@@ -13,11 +11,15 @@ use zksync_types::zkevm_test_harness::abstract_zksync_circuit::concrete_circuits
 use zksync_types::zkevm_test_harness::bellman::bn256::Bn256;
 use zksync_types::zkevm_test_harness::bellman::plonk::better_better_cs::proof::Proof;
 use zksync_types::zkevm_test_harness::witness::oracle::VmWitnessOracle;
-use zksync_types::L1BatchNumber;
+use zksync_types::{L1BatchNumber, ProtocolVersionId};
 
-use crate::models::storage_witness_job_info::StorageWitnessJobInfo;
-use crate::time_utils::{duration_to_naive_time, pg_interval_from_duration};
-use crate::StorageProcessor;
+use crate::{
+    instrument::InstrumentExt,
+    metrics::MethodLatency,
+    models::storage_witness_job_info::StorageWitnessJobInfo,
+    time_utils::{duration_to_naive_time, pg_interval_from_duration},
+    StorageProcessor,
+};
 
 #[derive(Debug)]
 pub struct WitnessGeneratorDal<'a, 'c> {
@@ -30,7 +32,9 @@ impl WitnessGeneratorDal<'_, '_> {
         processing_timeout: Duration,
         max_attempts: u32,
         last_l1_batch_to_process: u32,
+        protocol_versions: &[ProtocolVersionId],
     ) -> Option<WitnessGeneratorJobMetadata> {
+        let protocol_versions: Vec<i32> = protocol_versions.iter().map(|&id| id as i32).collect();
         let processing_timeout = pg_interval_from_duration(processing_timeout);
         let result: Option<WitnessGeneratorJobMetadata> = sqlx::query!(
             "
@@ -38,33 +42,34 @@ impl WitnessGeneratorDal<'_, '_> {
                 SET status = 'in_progress', attempts = attempts + 1,
                     updated_at = now(), processing_started_at = now()
                 WHERE l1_batch_number = (
-                    SELECT l1_batch_number
-                    FROM witness_inputs
-                    WHERE l1_batch_number <= $3
-                    AND
-                    (   status = 'queued'
-                        OR (status = 'in_progress' AND processing_started_at < now() - $1::interval)
-                        OR (status = 'failed' AND attempts < $2)
-                    )
-                    ORDER BY l1_batch_number ASC
-                    LIMIT 1
-                    FOR UPDATE
-                    SKIP LOCKED
+                        SELECT l1_batch_number
+                        FROM witness_inputs
+                        WHERE l1_batch_number <= $3
+                        AND
+                        (   status = 'queued'
+                            OR (status = 'in_progress' AND processing_started_at < now() - $1::interval)
+                            OR (status = 'failed' AND attempts < $2)
+                        )
+                        AND protocol_version = ANY($4)
+                        ORDER BY l1_batch_number ASC
+                        LIMIT 1
+                        FOR UPDATE
+                        SKIP LOCKED
                 )
                 RETURNING witness_inputs.*
                ",
-            &processing_timeout,
-            max_attempts as i32,
-            last_l1_batch_to_process as i64
-        )
-        .fetch_optional(self.storage.conn())
-        .await
-        .unwrap()
-        .map(|row| WitnessGeneratorJobMetadata {
-            block_number: L1BatchNumber(row.l1_batch_number as u32),
-            proofs: vec![],
-        });
-
+                &processing_timeout,
+                max_attempts as i32,
+                last_l1_batch_to_process as i64,
+                &protocol_versions[..],
+            )
+            .fetch_optional(self.storage.conn())
+            .await
+            .unwrap()
+            .map(|row| WitnessGeneratorJobMetadata {
+                block_number: L1BatchNumber(row.l1_batch_number as u32),
+                proofs: vec![],
+            });
         result
     }
 
@@ -109,7 +114,9 @@ impl WitnessGeneratorDal<'_, '_> {
         processing_timeout: Duration,
         max_attempts: u32,
         last_l1_batch_to_process: u32,
+        protocol_versions: &[ProtocolVersionId],
     ) -> Option<WitnessGeneratorJobMetadata> {
+        let protocol_versions: Vec<i32> = protocol_versions.iter().map(|&id| id as i32).collect();
         let processing_timeout = pg_interval_from_duration(processing_timeout);
         let record = sqlx::query!(
             "
@@ -125,6 +132,7 @@ impl WitnessGeneratorDal<'_, '_> {
                         OR (status = 'in_progress' AND processing_started_at < now() - $1::interval)
                         OR (status = 'failed' AND attempts < $2)
                     )
+                    AND protocol_version = ANY($4)
                     ORDER BY l1_batch_number ASC
                     LIMIT 1
                     FOR UPDATE
@@ -134,7 +142,8 @@ impl WitnessGeneratorDal<'_, '_> {
                 ",
             &processing_timeout,
             max_attempts as i32,
-            last_l1_batch_to_process as i64
+            last_l1_batch_to_process as i64,
+            &protocol_versions[..],
         )
         .fetch_optional(self.storage.conn())
         .await
@@ -154,14 +163,13 @@ impl WitnessGeneratorDal<'_, '_> {
                 .await;
 
             assert_eq!(
-                        basic_circuits_proofs.len(),
-                        number_of_basic_circuits as usize,
-                        "leaf_aggregation_witness_job for l1 batch {} is in status `queued`, but there are only {} computed basic proofs, which is different from expected {}",
-                        l1_batch_number,
-                        basic_circuits_proofs.len(),
-                        number_of_basic_circuits
-                    );
-
+                basic_circuits_proofs.len(),
+                number_of_basic_circuits as usize,
+                "leaf_aggregation_witness_job for l1 batch {} is in status `queued`, but there are only {} computed basic proofs, which is different from expected {}",
+                l1_batch_number,
+                basic_circuits_proofs.len(),
+                number_of_basic_circuits
+            );
             Some(WitnessGeneratorJobMetadata {
                 block_number: l1_batch_number,
                 proofs: basic_circuits_proofs,
@@ -176,7 +184,9 @@ impl WitnessGeneratorDal<'_, '_> {
         processing_timeout: Duration,
         max_attempts: u32,
         last_l1_batch_to_process: u32,
+        protocol_versions: &[ProtocolVersionId],
     ) -> Option<WitnessGeneratorJobMetadata> {
+        let protocol_versions: Vec<i32> = protocol_versions.iter().map(|&id| id as i32).collect();
         {
             let processing_timeout = pg_interval_from_duration(processing_timeout);
             let record = sqlx::query!(
@@ -185,28 +195,30 @@ impl WitnessGeneratorDal<'_, '_> {
                 SET status = 'in_progress', attempts = attempts + 1,
                     updated_at = now(), processing_started_at = now()
                 WHERE l1_batch_number = (
-                    SELECT l1_batch_number
-                    FROM node_aggregation_witness_jobs
-                    WHERE l1_batch_number <= $3
-                    AND
-                    (   status = 'queued'
-                        OR (status = 'in_progress' AND processing_started_at < now() - $1::interval)
-                        OR (status = 'failed' AND attempts < $2)
-                    )
-                    ORDER BY l1_batch_number ASC
-                    LIMIT 1
-                    FOR UPDATE
-                    SKIP LOCKED
+                        SELECT l1_batch_number
+                        FROM node_aggregation_witness_jobs
+                        WHERE l1_batch_number <= $3
+                        AND
+                        (   status = 'queued'
+                            OR (status = 'in_progress' AND processing_started_at < now() - $1::interval)
+                            OR (status = 'failed' AND attempts < $2)
+                        )
+                        AND protocol_version = ANY($4)
+                        ORDER BY l1_batch_number ASC
+                        LIMIT 1
+                        FOR UPDATE
+                        SKIP LOCKED
                 )
                 RETURNING node_aggregation_witness_jobs.*
             ",
                 &processing_timeout,
                 max_attempts as i32,
                 last_l1_batch_to_process as i64,
+                &protocol_versions[..],
             )
-            .fetch_optional(self.storage.conn())
-            .await
-            .unwrap();
+                .fetch_optional(self.storage.conn())
+                .await
+                .unwrap();
             if let Some(row) = record {
                 let l1_batch_number = L1BatchNumber(row.l1_batch_number as u32);
                 let number_of_leaf_circuits = row.number_of_leaf_circuits.expect("number_of_leaf_circuits is not found in a `queued` `node_aggregation_witness_jobs` job");
@@ -220,13 +232,13 @@ impl WitnessGeneratorDal<'_, '_> {
                     .await;
 
                 assert_eq!(
-                        leaf_circuits_proofs.len(),
-                        number_of_leaf_circuits as usize,
-                        "node_aggregation_witness_job for l1 batch {} is in status `queued`, but there are only {} computed leaf proofs, which is different from expected {}",
-                        l1_batch_number,
-                        leaf_circuits_proofs.len(),
-                        number_of_leaf_circuits
-                    );
+                    leaf_circuits_proofs.len(),
+                    number_of_leaf_circuits as usize,
+                    "node_aggregation_witness_job for l1 batch {} is in status `queued`, but there are only {} computed leaf proofs, which is different from expected {}",
+                    l1_batch_number,
+                    leaf_circuits_proofs.len(),
+                    number_of_leaf_circuits
+                );
                 Some(WitnessGeneratorJobMetadata {
                     block_number: l1_batch_number,
                     proofs: leaf_circuits_proofs,
@@ -242,7 +254,9 @@ impl WitnessGeneratorDal<'_, '_> {
         processing_timeout: Duration,
         max_attempts: u32,
         last_l1_batch_to_process: u32,
+        protocol_versions: &[ProtocolVersionId],
     ) -> Option<WitnessGeneratorJobMetadata> {
+        let protocol_versions: Vec<i32> = protocol_versions.iter().map(|&id| id as i32).collect();
         {
             let processing_timeout = pg_interval_from_duration(processing_timeout);
             let record = sqlx::query!(
@@ -259,6 +273,7 @@ impl WitnessGeneratorDal<'_, '_> {
                         OR (status = 'in_progress' AND processing_started_at < now() - $1::interval)
                         OR (status = 'failed' AND attempts < $2)
                     )
+                    AND protocol_version = ANY($4)
                     ORDER BY l1_batch_number ASC
                     LIMIT 1
                     FOR UPDATE
@@ -268,7 +283,8 @@ impl WitnessGeneratorDal<'_, '_> {
                 ",
                 &processing_timeout,
                 max_attempts as i32,
-                last_l1_batch_to_process as i64
+                last_l1_batch_to_process as i64,
+                &protocol_versions[..],
             )
             .fetch_optional(self.storage.conn())
             .await
@@ -284,13 +300,12 @@ impl WitnessGeneratorDal<'_, '_> {
                     .await;
 
                 assert_eq!(
-                        leaf_circuits_proofs.len(),
-                        1usize,
-                        "scheduler_job for l1 batch {} is in status `queued`, but there is {} computed node proofs. We expect exactly one node proof.",
-                        l1_batch_number.0,
-                        leaf_circuits_proofs.len()
-                    );
-
+                    leaf_circuits_proofs.len(),
+                    1usize,
+                    "scheduler_job for l1 batch {} is in status `queued`, but there is {} computed node proofs. We expect exactly one node proof.",
+                    l1_batch_number.0,
+                    leaf_circuits_proofs.len()
+                );
                 Some(WitnessGeneratorJobMetadata {
                     block_number: l1_batch_number,
                     proofs: leaf_circuits_proofs,
@@ -452,22 +467,25 @@ impl WitnessGeneratorDal<'_, '_> {
         basic_circuits_inputs_blob_url: &str,
         number_of_basic_circuits: usize,
         scheduler_witness_blob_url: &str,
+        protocol_version: i32,
     ) {
         {
-            let started_at = Instant::now();
+            let latency = MethodLatency::new("create_aggregation_jobs");
 
             sqlx::query!(
                     "
                     INSERT INTO leaf_aggregation_witness_jobs
-                        (l1_batch_number, basic_circuits, basic_circuits_inputs, basic_circuits_blob_url, basic_circuits_inputs_blob_url, number_of_basic_circuits, status, created_at, updated_at)
-                    VALUES ($1, $2, $3, $4, $5, $6, 'waiting_for_proofs', now(), now())
+                        (l1_batch_number, basic_circuits, basic_circuits_inputs, basic_circuits_blob_url, basic_circuits_inputs_blob_url, number_of_basic_circuits, protocol_version, status, created_at, updated_at)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, 'waiting_for_proofs', now(), now())
                     ",
                     block_number.0 as i64,
+                // TODO(SMA-1476): remove the below columns once blob is migrated to GCS.
                     vec![],
                     vec![],
                     basic_circuits_blob_url,
                     basic_circuits_inputs_blob_url,
                     number_of_basic_circuits as i64,
+                    protocol_version,
                 )
                 .execute(self.storage.conn())
                 .await
@@ -476,10 +494,11 @@ impl WitnessGeneratorDal<'_, '_> {
             sqlx::query!(
                 "
                     INSERT INTO node_aggregation_witness_jobs
-                        (l1_batch_number, status, created_at, updated_at)
-                    VALUES ($1, 'waiting_for_artifacts', now(), now())
+                        (l1_batch_number, protocol_version, status, created_at, updated_at)
+                    VALUES ($1, $2, 'waiting_for_artifacts', now(), now())
                     ",
                 block_number.0 as i64,
+                protocol_version,
             )
             .execute(self.storage.conn())
             .await
@@ -488,18 +507,20 @@ impl WitnessGeneratorDal<'_, '_> {
             sqlx::query!(
                 "
                     INSERT INTO scheduler_witness_jobs
-                        (l1_batch_number, scheduler_witness, scheduler_witness_blob_url, status, created_at, updated_at)
-                    VALUES ($1, $2, $3, 'waiting_for_artifacts', now(), now())
+                        (l1_batch_number, scheduler_witness, scheduler_witness_blob_url, protocol_version, status, created_at, updated_at)
+                    VALUES ($1, $2, $3, $4, 'waiting_for_artifacts', now(), now())
                     ",
                 block_number.0 as i64,
+                // TODO(SMA-1476): remove the below column once blob is migrated to GCS.
                 vec![],
                 scheduler_witness_blob_url,
+                protocol_version,
             )
-            .execute(self.storage.conn())
-            .await
-            .unwrap();
+                .execute(self.storage.conn())
+                .await
+                .unwrap();
 
-            metrics::histogram!("dal.request", started_at.elapsed(), "method" => "create_aggregation_jobs");
+            drop(latency);
         }
     }
 
@@ -510,13 +531,12 @@ impl WitnessGeneratorDal<'_, '_> {
     /// we keep the status as is to prevent data race.
     pub async fn save_leaf_aggregation_artifacts(
         &mut self,
-        block_number: L1BatchNumber,
+        l1_batch_number: L1BatchNumber,
         number_of_leaf_circuits: usize,
         leaf_layer_subqueues_blob_url: &str,
         aggregation_outputs_blob_url: &str,
     ) {
         {
-            let started_at = Instant::now();
             sqlx::query!(
                 "
                     UPDATE node_aggregation_witness_jobs
@@ -528,19 +548,16 @@ impl WitnessGeneratorDal<'_, '_> {
                     WHERE l1_batch_number = $2 AND status != 'queued'
                     ",
                 number_of_leaf_circuits as i64,
-                block_number.0 as i64,
+                l1_batch_number.0 as i64,
                 leaf_layer_subqueues_blob_url,
                 aggregation_outputs_blob_url,
             )
+            .instrument("save_leaf_aggregation_artifacts")
+            .report_latency()
+            .with_arg("l1_batch_number", &l1_batch_number)
             .execute(self.storage.conn())
             .await
             .unwrap();
-
-            metrics::histogram!(
-                "dal.request",
-                started_at.elapsed(),
-                "method" => "save_leaf_aggregation_artifacts"
-            );
         }
     }
 
@@ -554,7 +571,6 @@ impl WitnessGeneratorDal<'_, '_> {
         node_aggregations_blob_url: &str,
     ) {
         {
-            let started_at = Instant::now();
             sqlx::query!(
                 "
                     UPDATE scheduler_witness_jobs
@@ -566,15 +582,11 @@ impl WitnessGeneratorDal<'_, '_> {
                 block_number.0 as i64,
                 node_aggregations_blob_url,
             )
+            .instrument("save_node_aggregation_artifacts")
+            .report_latency()
             .execute(self.storage.conn())
             .await
             .unwrap();
-
-            metrics::histogram!(
-                "dal.request",
-                started_at.elapsed(),
-                "method" => "save_node_aggregation_artifacts",
-            );
         }
     }
 
@@ -707,15 +719,22 @@ impl WitnessGeneratorDal<'_, '_> {
             .collect())
     }
 
-    pub async fn save_witness_inputs(&mut self, block_number: L1BatchNumber, object_key: &str) {
+    pub async fn save_witness_inputs(
+        &mut self,
+        block_number: L1BatchNumber,
+        object_key: &str,
+        protocol_version: Option<ProtocolVersionId>,
+    ) {
         {
             sqlx::query!(
-                "INSERT INTO witness_inputs(l1_batch_number, merkle_tree_paths, merkel_tree_paths_blob_url, status, created_at, updated_at) \
-                 VALUES ($1, $2, $3, 'queued', now(), now())
+                "INSERT INTO witness_inputs(l1_batch_number, merkle_tree_paths, merkel_tree_paths_blob_url, status, protocol_version, created_at, updated_at) \
+                 VALUES ($1, $2, $3, 'queued', $4, now(), now())
                  ON CONFLICT (l1_batch_number) DO NOTHING",
                 block_number.0 as i64,
+                // TODO(SMA-1476): remove the below column once blob is migrated to GCS.
                 vec![],
                 object_key,
+                protocol_version.map(|v| v as i32),
             )
                 .fetch_optional(self.storage.conn())
                 .await
@@ -957,6 +976,24 @@ impl WitnessGeneratorDal<'_, '_> {
             .map(|row| row.l1_batch_number)
             .collect()
         }
+    }
+
+    pub async fn protocol_version_for_l1_batch(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+    ) -> Option<i32> {
+        sqlx::query!(
+            r#"
+                SELECT protocol_version
+                FROM witness_inputs
+                WHERE l1_batch_number = $1
+                "#,
+            l1_batch_number.0 as i64,
+        )
+        .fetch_one(self.storage.conn())
+        .await
+        .unwrap()
+        .protocol_version
     }
 }
 

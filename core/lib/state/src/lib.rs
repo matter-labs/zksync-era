@@ -21,16 +21,19 @@ mod cache;
 mod in_memory;
 mod postgres;
 mod rocksdb;
+mod shadow_storage;
 mod storage_view;
 #[cfg(test)]
 mod test_utils;
+mod witness;
 
 pub use self::{
-    in_memory::InMemoryStorage,
-    postgres::FactoryDepsCache,
-    postgres::PostgresStorage,
+    in_memory::{InMemoryStorage, IN_MEMORY_STORAGE_DEFAULT_NETWORK_ID},
+    postgres::{PostgresStorage, PostgresStorageCaches},
     rocksdb::RocksdbStorage,
+    shadow_storage::ShadowStorage,
     storage_view::{StorageView, StorageViewMetrics},
+    witness::WitnessStorage,
 };
 
 /// Functionality to read from the VM storage.
@@ -69,5 +72,5 @@ pub trait WriteStorage: ReadStorage {
     fn missed_storage_invocations(&self) -> usize;
 }
 
-/// Smart pointer to a dynamically typed [`WriteStorage`].
-pub type StoragePtr<'a> = Rc<RefCell<&'a mut dyn WriteStorage>>;
+/// Smart pointer to [`WriteStorage`].
+pub type StoragePtr<S> = Rc<RefCell<S>>;

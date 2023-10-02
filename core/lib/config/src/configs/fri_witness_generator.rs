@@ -24,10 +24,13 @@ pub struct FriWitnessGeneratorConfig {
     pub last_l1_batch_to_process: Option<u32>,
     // Force process block with specified number when sampling is enabled.
     pub force_process_block: Option<u32>,
+
+    // whether to write to public GCS bucket for https://github.com/matter-labs/era-boojum-validator-cli
+    pub shall_save_to_public_bucket: bool,
 }
 
 impl FriWitnessGeneratorConfig {
-    pub fn from_env() -> Self {
+    pub fn from_env() -> anyhow::Result<Self> {
         envy_load("fri_witness", "FRI_WITNESS_")
     }
 
@@ -42,9 +45,10 @@ impl FriWitnessGeneratorConfig {
 
 #[cfg(test)]
 mod tests {
-    use crate::configs::test_utils::set_env;
-
     use super::*;
+    use crate::configs::test_utils::EnvMutex;
+
+    static MUTEX: EnvMutex = EnvMutex::new();
 
     fn expected_config() -> FriWitnessGeneratorConfig {
         FriWitnessGeneratorConfig {
@@ -54,20 +58,24 @@ mod tests {
             dump_arguments_for_blocks: vec![2, 3],
             last_l1_batch_to_process: None,
             force_process_block: Some(1),
+            shall_save_to_public_bucket: true,
         }
     }
 
     #[test]
     fn from_env() {
+        let mut lock = MUTEX.lock();
         let config = r#"
-        FRI_WITNESS_GENERATION_TIMEOUT_IN_SECS=900
-        FRI_WITNESS_MAX_ATTEMPTS=4
-        FRI_WITNESS_DUMP_ARGUMENTS_FOR_BLOCKS="2,3"
-        FRI_WITNESS_BLOCKS_PROVING_PERCENTAGE="30"
-        FRI_WITNESS_FORCE_PROCESS_BLOCK="1"
+            FRI_WITNESS_GENERATION_TIMEOUT_IN_SECS=900
+            FRI_WITNESS_MAX_ATTEMPTS=4
+            FRI_WITNESS_DUMP_ARGUMENTS_FOR_BLOCKS="2,3"
+            FRI_WITNESS_BLOCKS_PROVING_PERCENTAGE="30"
+            FRI_WITNESS_FORCE_PROCESS_BLOCK="1"
+            FRI_WITNESS_SHALL_SAVE_TO_PUBLIC_BUCKET=true
         "#;
-        set_env(config);
-        let actual = FriWitnessGeneratorConfig::from_env();
+        lock.set_env(config);
+
+        let actual = FriWitnessGeneratorConfig::from_env().unwrap();
         assert_eq!(actual, expected_config());
     }
 }

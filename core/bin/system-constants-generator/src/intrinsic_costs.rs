@@ -21,6 +21,7 @@ pub(crate) struct VmSpentResourcesResult {
     // The total amount of gas the users have paid for.
     pub(crate) total_gas_paid: u32,
     // The total amount of gas the users have paid for public data.
+    // TODO (SMA-1698): make it an option, since sometimes its calculation is skipped.
     pub(crate) total_pubdata_paid: u32,
 }
 

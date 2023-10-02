@@ -19,6 +19,11 @@ export async function api(bail: boolean = false) {
     await utils.spawn('yarn ts-integration api-test' + flag);
 }
 
+export async function contractVerification(bail: boolean = false) {
+    const flag = bail ? ' --bail' : '';
+    await utils.spawn('yarn ts-integration contract-verification-test' + flag);
+}
+
 export async function server(options: string[] = []) {
     if (process.env.ZKSYNC_ENV?.startsWith('ext-node')) {
         process.env.ZKSYNC_WEB3_API_URL = `http://127.0.0.1:${process.env.EN_HTTP_PORT}`;
@@ -159,6 +164,14 @@ command
     .option('--bail')
     .action(async (cmd: Command) => {
         await api(cmd.bail);
+    });
+
+command
+    .command('contract-verification')
+    .description('run contract verification tests')
+    .option('--bail')
+    .action(async (cmd: Command) => {
+        await contractVerification(cmd.bail);
     });
 
 command

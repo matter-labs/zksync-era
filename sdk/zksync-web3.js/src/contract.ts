@@ -42,6 +42,7 @@ export class ContractFactory extends ethers.ContractFactory {
     }
 
     override getDeployTransaction(...args: any[]): ethers.providers.TransactionRequest {
+        // TODO (SMA-1585): Users should be able to provide the salt.
         let salt = '0x0000000000000000000000000000000000000000000000000000000000000000';
 
         // The overrides will be popped out in this call:
