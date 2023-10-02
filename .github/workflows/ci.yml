@@ -3,12 +3,10 @@ name: CI
 on:
   pull_request:
     paths-ignore:
-      - "docker/zk-environment/Dockerfile"
       - ".github/workflows/zk-environment.publish.yml"
+      - "docker/zk-environment/Dockerfile"
       - "docker/zk-environment-cuda-12-0/Dockerfile"
-      - ".github/workflows/zk-environment-cuda-12-0.publish.yml"
       - "docker/zk-rust-nightly-environment/Dockerfile"
-      - ".github/workflows/rust-nightly-environment.publish.yml"
   merge_group:
   push:
     branches:
