@@ -12,7 +12,7 @@ pub(crate) enum ApiTracer {
 }
 
 impl ApiTracer {
-    pub fn into_boxed<S: WriteStorage, H: multivm::HistoryMode>(
+    pub fn into_boxed<S: WriteStorage, H: multivm::HistoryMode + 'static>(
         self,
     ) -> Box<dyn MultivmTracer<S, H>> {
         match self {

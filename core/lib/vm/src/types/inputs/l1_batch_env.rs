@@ -43,7 +43,7 @@ impl L1BatchEnv {
     const SHOULD_SET_NEW_BLOCK_SLOT: usize = 7;
 
     /// Returns the initial memory for the bootloader based on the current batch environment.
-    pub(crate) fn bootloader_initial_memory(&self) -> Vec<(usize, U256)> {
+    pub fn bootloader_initial_memory(&self) -> Vec<(usize, U256)> {
         let mut base_params: HashMap<usize, U256> = vec![
             (
                 Self::OPERATOR_ADDRESS_SLOT,
@@ -70,7 +70,7 @@ impl L1BatchEnv {
         base_params.into_iter().collect()
     }
 
-    pub(crate) fn block_gas_price_per_pubdata(&self) -> u64 {
+    pub fn block_gas_price_per_pubdata(&self) -> u64 {
         derive_base_fee_and_gas_per_pubdata(self.l1_gas_price, self.fair_l2_gas_price).1
     }
 }

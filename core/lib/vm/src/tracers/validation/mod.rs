@@ -19,7 +19,8 @@ use zksync_config::constants::{
 use zksync_state::{StoragePtr, WriteStorage};
 
 use zksync_types::{
-    get_code_key, web3::signing::keccak256, AccountTreeId, Address, StorageKey, H256, U256,
+    get_code_key, vm_trace::ViolatedValidationRule, web3::signing::keccak256, AccountTreeId,
+    Address, StorageKey, H256, U256,
 };
 use zksync_utils::{
     be_bytes_to_safe_address, h256_to_account_address, u256_to_account_address, u256_to_h256,
@@ -31,7 +32,7 @@ use crate::tracers::utils::{
     computational_gas_price, get_calldata_page_via_abi, print_debug_if_needed, VmHook,
 };
 
-pub use error::{ValidationError, ViolatedValidationRule};
+pub use error::ValidationError;
 pub use params::ValidationTracerParams;
 
 use types::NewTrustedValidationItems;
@@ -55,7 +56,7 @@ pub struct ValidationTracer {
     trusted_address_slots: HashSet<(Address, U256)>,
     computational_gas_used: u32,
     computational_gas_limit: u32,
-    result: Arc<OnceCell<ViolatedValidationRule>>,
+    pub result: Arc<OnceCell<ViolatedValidationRule>>,
 }
 
 type ValidationRoundResult = Result<NewTrustedValidationItems, ViolatedValidationRule>;
@@ -80,6 +81,17 @@ impl ValidationTracer {
             },
             result,
         )
+    }
+
+    pub fn params(&self) -> ValidationTracerParams {
+        ValidationTracerParams {
+            user_address: self.user_address,
+            paymaster_address: self.paymaster_address,
+            trusted_slots: self.trusted_slots.clone(),
+            trusted_addresses: self.trusted_addresses.clone(),
+            trusted_address_slots: self.trusted_address_slots.clone(),
+            computational_gas_limit: self.computational_gas_limit,
+        }
     }
 
     fn process_validation_round_result(&mut self, result: ValidationRoundResult) {

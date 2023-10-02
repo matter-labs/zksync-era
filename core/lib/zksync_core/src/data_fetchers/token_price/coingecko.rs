@@ -141,7 +141,7 @@ impl FetcherImpl for CoinGeckoFetcher {
                     let naive_last_updated =
                         NaiveDateTime::from_timestamp_opt(coingecko_token_price.last_updated_at, 0)
                             .unwrap();
-                    DateTime::<Utc>::from_naive_utc_and_offset(naive_last_updated, Utc)
+                    DateTime::<Utc>::from_utc(naive_last_updated, Utc)
                 };
 
                 let token_price = TokenPrice {

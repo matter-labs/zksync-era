@@ -5,7 +5,7 @@ use zksync_state::WriteStorage;
 
 #[derive(Debug, Default, Clone)]
 pub struct StorageInvocations {
-    limit: usize,
+    pub limit: usize,
     current: usize,
 }
 

@@ -11,9 +11,13 @@
 //! specific VM version.
 //!
 //! Specific traits for each VM version, which supports Custom Tracers
-//! - `IntoLatestTracer<S, H>`: This trait is responsible for converting a tracer
+//! - `IntoLatestTracer<S>`: This trait is responsible for converting a tracer
 //! into a form compatible with the latest VM version.
 //! It defines a method `latest` for obtaining a boxed tracer.
+//!
+//! - `IntoVmVirtualBlocksTracer<S, H>`:This trait is responsible for converting a tracer
+//! into a form compatible with the vm_virtual_blocks version.
+//! It defines a method `vm_virtual_blocks` for obtaining a boxed tracer.
 //!
 //! For `MultivmTracer` to be implemented, Tracer must implement all N currently
 //! existing sub-traits.
@@ -30,10 +34,15 @@
 //! - Create a new trait performing conversion to the specified VM tracer, e.g. `Into<VmVersion>Tracer`.
 //! - Provide implementations of this trait for all the structures that currently implement `MultivmTracer`.
 //! - Add this trait as a trait bound to the `MultivmTracer`.
+//! - Add this trait as a trait bound for `T` in `MultivmTracer` implementation.
 //! - Integrate the newly added method to the MultiVM itself (e.g. add required tracer conversions where applicable).
+mod implementations;
+
 use zksync_state::WriteStorage;
 
-pub trait MultivmTracer<S: WriteStorage, H: vm_1_3_2::HistoryMode>: IntoLatestTracer<S> {
+pub trait MultivmTracer<S: WriteStorage, H: crate::HistoryMode>:
+    IntoLatestTracer<S> + IntoVmVirtualBlocksTracer<S, H>
+{
     fn into_boxed(self) -> Box<dyn MultivmTracer<S, H>>
     where
         Self: Sized + 'static,
@@ -44,6 +53,10 @@ pub trait MultivmTracer<S: WriteStorage, H: vm_1_3_2::HistoryMode>: IntoLatestTr
 
 pub trait IntoLatestTracer<S: WriteStorage> {
     fn latest(&self) -> Box<dyn vm_latest::VmTracer<S>>;
+}
+
+pub trait IntoVmVirtualBlocksTracer<S: WriteStorage, H: vm_virtual_blocks::HistoryMode> {
+    fn vm_virtual_blocks(&self) -> Box<dyn vm_virtual_blocks::VmTracer<S, H>>;
 }
 
 impl<S, T> IntoLatestTracer<S> for T
@@ -59,7 +72,7 @@ where
 impl<S, H, T> MultivmTracer<S, H> for T
 where
     S: WriteStorage,
-    H: vm_1_3_2::HistoryMode,
-    T: vm_latest::VmTracer<S> + Clone + 'static,
+    H: vm_virtual_blocks::HistoryMode,
+    T: vm_latest::VmTracer<S> + IntoVmVirtualBlocksTracer<S, H> + Clone + 'static,
 {
 }

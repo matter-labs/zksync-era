@@ -452,7 +452,7 @@ impl From<StorageTransactionDetails> for TransactionDetails {
             bigdecimal_to_u256(tx_details.gas_per_pubdata_limit.unwrap_or_default());
 
         let initiator_address = H160::from_slice(tx_details.initiator_address.as_slice());
-        let received_at = DateTime::<Utc>::from_naive_utc_and_offset(tx_details.received_at, Utc);
+        let received_at = DateTime::<Utc>::from_utc(tx_details.received_at, Utc);
 
         let eth_commit_tx_hash = tx_details
             .eth_commit_tx_hash

@@ -11,9 +11,7 @@ mod validation;
 pub use bootloader::BootloaderTracer;
 pub use call::CallTracer;
 pub use one_tx::OneTxTracer;
-pub use validation::{
-    ValidationError, ValidationTracer, ValidationTracerParams, ViolatedValidationRule,
-};
+pub use validation::{ValidationError, ValidationTracer, ValidationTracerParams};
 
 pub(crate) use transaction_result::TransactionResultTracer;
 

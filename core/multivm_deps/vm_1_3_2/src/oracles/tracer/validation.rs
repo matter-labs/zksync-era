@@ -24,6 +24,7 @@ use zksync_config::constants::{
     SYSTEM_CONTEXT_ADDRESS,
 };
 use zksync_state::{StoragePtr, WriteStorage};
+use zksync_types::vm_trace::ViolatedValidationRule;
 use zksync_types::{
     get_code_key, web3::signing::keccak256, AccountTreeId, Address, StorageKey, H256, U256,
 };
@@ -42,43 +43,9 @@ pub enum ValidationTracerMode {
     NoValidation,
 }
 
-#[derive(Debug, Clone)]
-pub enum ViolatedValidationRule {
-    TouchedUnallowedStorageSlots(Address, U256),
-    CalledContractWithNoCode(Address),
-    TouchedUnallowedContext,
-    TookTooManyComputationalGas(u32),
-}
-
 pub enum ValidationError {
     FailedTx(VmRevertReasonParsingResult),
     ViolatedRule(ViolatedValidationRule),
-}
-
-impl Display for ViolatedValidationRule {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ViolatedValidationRule::TouchedUnallowedStorageSlots(contract, key) => write!(
-                f,
-                "Touched unallowed storage slots: address {}, key: {}",
-                hex::encode(contract),
-                hex::encode(u256_to_h256(*key))
-            ),
-            ViolatedValidationRule::CalledContractWithNoCode(contract) => {
-                write!(f, "Called contract with no code: {}", hex::encode(contract))
-            }
-            ViolatedValidationRule::TouchedUnallowedContext => {
-                write!(f, "Touched unallowed context")
-            }
-            ViolatedValidationRule::TookTooManyComputationalGas(gas_limit) => {
-                write!(
-                    f,
-                    "Took too many computational gas, allowed limit: {}",
-                    gas_limit
-                )
-            }
-        }
-    }
 }
 
 impl Display for ValidationError {

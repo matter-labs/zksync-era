@@ -27,11 +27,8 @@ where
                 let oracle_tools = vm_m6::OracleTools::new(state, history.glue_into());
                 OracleTools::M6(oracle_tools)
             }
-            VmVersion::Vm1_3_2 => {
-                panic!("oracle tools for vm1.3.2 do not exist")
-            }
-            VmVersion::VmVirtualBlocks => {
-                panic!("oracle tools for VmVirtualBlocks do not exist")
+            _ => {
+                panic!("Oracle tools for post vm1_3_2 don't exist")
             }
         }
     }

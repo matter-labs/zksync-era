@@ -24,7 +24,8 @@ pub(crate) enum VmInstanceVersion<'a, S: ReadStorage, H: HistoryMode> {
     VmM5(Box<vm_m5::VmInstance<'a, StorageView<S>>>),
     VmM6(Box<vm_m6::VmInstance<'a, StorageView<S>, H::VmM6Mode>>),
     Vm1_3_2(Box<vm_1_3_2::VmInstance<StorageView<S>, H::Vm1_3_2Mode>>),
-    VmVirtualBlocks(Box<vm_latest::Vm<StorageView<S>>>),
+    VmVirtualBlocks(Box<vm_virtual_blocks::Vm<StorageView<S>, H::VmVirtualBlocksMode>>),
+    VmTimelessHistory(Box<vm_latest::Vm<StorageView<S>>>),
 }
 
 impl<'a, S: ReadStorage, H: HistoryMode> VmInstance<'a, S, H> {
@@ -55,6 +56,9 @@ impl<'a, S: ReadStorage, H: HistoryMode> VmInstance<'a, S, H> {
                 )
             }
             VmInstanceVersion::VmVirtualBlocks(vm) => {
+                vm.push_transaction(tx.clone());
+            }
+            VmInstanceVersion::VmTimelessHistory(vm) => {
                 vm.push_transaction(tx.clone());
             }
         }
@@ -88,6 +92,16 @@ impl<'a, S: ReadStorage, H: HistoryMode> VmInstance<'a, S, H> {
                     final_bootloader_memory: Some(bootloader_memory),
                 }
             }
+            VmInstanceVersion::VmTimelessHistory(vm) => {
+                let result = vm.execute(VmExecutionMode::Batch);
+                let execution_state = vm.get_current_execution_state();
+                let bootloader_memory = vm.get_bootloader_memory();
+                FinishedL1Batch {
+                    block_tip_execution_result: result,
+                    final_execution_state: execution_state,
+                    final_bootloader_memory: Some(bootloader_memory),
+                }
+            }
         }
     }
 
@@ -99,6 +113,7 @@ impl<'a, S: ReadStorage, H: HistoryMode> VmInstance<'a, S, H> {
             VmInstanceVersion::VmM6(vm) => vm.execute_block_tip().glue_into(),
             VmInstanceVersion::Vm1_3_2(vm) => vm.execute_block_tip().glue_into(),
             VmInstanceVersion::VmVirtualBlocks(vm) => vm.execute(VmExecutionMode::Bootloader),
+            VmInstanceVersion::VmTimelessHistory(vm) => vm.execute(VmExecutionMode::Bootloader),
         }
     }
 
@@ -148,6 +163,7 @@ impl<'a, S: ReadStorage, H: HistoryMode> VmInstance<'a, S, H> {
                 }
             }
             VmInstanceVersion::VmVirtualBlocks(vm) => vm.execute(VmExecutionMode::OneTx),
+            VmInstanceVersion::VmTimelessHistory(vm) => vm.execute(VmExecutionMode::OneTx),
         }
     }
 
@@ -165,8 +181,15 @@ impl<'a, S: ReadStorage, H: HistoryMode> VmInstance<'a, S, H> {
         tracers: Vec<Box<dyn MultivmTracer<StorageView<S>, H::VmVirtualBlocksMode>>>,
     ) -> vm_latest::VmExecutionResultAndLogs {
         match &mut self.vm {
-            VmInstanceVersion::VmVirtualBlocks(vm) => vm.inspect(
+            VmInstanceVersion::VmTimelessHistory(vm) => vm.inspect(
                 tracers.into_iter().map(|tracer| tracer.latest()).collect(),
+                VmExecutionMode::OneTx,
+            ),
+            VmInstanceVersion::VmVirtualBlocks(vm) => vm.inspect(
+                tracers
+                    .into_iter()
+                    .map(|tracer| tracer.vm_virtual_blocks())
+                    .collect(),
                 VmExecutionMode::OneTx,
             ),
             _ => self.execute_next_transaction(),
@@ -319,6 +342,9 @@ impl<'a, S: ReadStorage, H: HistoryMode> VmInstance<'a, S, H> {
             VmInstanceVersion::VmVirtualBlocks(vm) => {
                 vm.execute_transaction_with_bytecode_compression(tx, with_compression)
             }
+            VmInstanceVersion::VmTimelessHistory(vm) => {
+                vm.execute_transaction_with_bytecode_compression(tx, with_compression)
+            }
         }
     }
 
@@ -329,21 +355,36 @@ impl<'a, S: ReadStorage, H: HistoryMode> VmInstance<'a, S, H> {
         tx: zksync_types::Transaction,
         with_compression: bool,
     ) -> Result<vm_latest::VmExecutionResultAndLogs, vm_latest::BytecodeCompressionError> {
-        if let VmInstanceVersion::VmVirtualBlocks(vm) = &mut self.vm {
-            vm.inspect_transaction_with_bytecode_compression(
-                tracers.into_iter().map(|tracer| tracer.latest()).collect(),
-                tx,
-                with_compression,
-            )
-        } else {
-            self.last_tx_compressed_bytecodes = vec![];
-            self.execute_transaction_with_bytecode_compression(tx, with_compression)
+        match &mut self.vm {
+            VmInstanceVersion::VmVirtualBlocks(vm) => vm
+                .inspect_transaction_with_bytecode_compression(
+                    tracers
+                        .into_iter()
+                        .map(|tracer| tracer.vm_virtual_blocks())
+                        .collect(),
+                    tx,
+                    with_compression,
+                ),
+            VmInstanceVersion::VmTimelessHistory(vm) => vm
+                .inspect_transaction_with_bytecode_compression(
+                    tracers.into_iter().map(|tracer| tracer.latest()).collect(),
+                    tx,
+                    with_compression,
+                ),
+            _ => {
+                self.last_tx_compressed_bytecodes = vec![];
+                self.execute_transaction_with_bytecode_compression(tx, with_compression)
+            }
         }
     }
 
     pub fn start_new_l2_block(&mut self, l2_block_env: L2BlockEnv) {
-        if let VmInstanceVersion::VmVirtualBlocks(vm) = &mut self.vm {
-            vm.start_new_l2_block(l2_block_env);
+        match &mut self.vm {
+            VmInstanceVersion::VmVirtualBlocks(vm) => vm.start_new_l2_block(l2_block_env),
+            VmInstanceVersion::VmTimelessHistory(vm) => {
+                vm.start_new_l2_block(l2_block_env);
+            }
+            _ => {}
         }
     }
 }
@@ -375,6 +416,7 @@ pub enum VmInstanceData<S: ReadStorage, H: HistoryMode> {
     M6(M6NecessaryData<S, H>),
     Vm1_3_2(Vm1_3_2NecessaryData<S, H>),
     VmVirtualBlocks(VmVirtualBlocksNecessaryData<S, H>),
+    VmTimelessHistory(zksync_state::StoragePtr<StorageView<S>>),
 }
 
 impl<S: ReadStorage, H: HistoryMode> VmInstanceData<S, H> {
@@ -401,7 +443,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInstanceData<S, H> {
         })
     }
 
-    fn latest(storage_view: StoragePtr<StorageView<S>>, history_mode: H) -> Self {
+    fn vm_virtual_blocks(storage_view: StoragePtr<StorageView<S>>, history_mode: H) -> Self {
         Self::VmVirtualBlocks(VmVirtualBlocksNecessaryData {
             storage_view,
             history_mode,
@@ -413,6 +455,10 @@ impl<S: ReadStorage, H: HistoryMode> VmInstanceData<S, H> {
             storage_view,
             history_mode,
         })
+    }
+
+    fn vm_timeless_history(storage_view: StoragePtr<StorageView<S>>) -> Self {
+        Self::VmTimelessHistory(storage_view)
     }
 
     pub fn new(
@@ -482,12 +528,13 @@ impl<S: ReadStorage, H: HistoryMode> VmInstanceData<S, H> {
                 )
             }
             VmVersion::Vm1_3_2 => VmInstanceData::vm1_3_2(storage_view, history),
-            VmVersion::VmVirtualBlocks => VmInstanceData::latest(storage_view, history),
+            VmVersion::VmVirtualBlocks => VmInstanceData::vm_virtual_blocks(storage_view, history),
+            VmVersion::VmTimelessHistory => VmInstanceData::vm_timeless_history(storage_view),
         }
     }
 }
 
-impl<S: ReadStorage> VmInstance<'_, S, vm_1_3_2::HistoryEnabled> {
+impl<S: ReadStorage> VmInstance<'_, S, vm_virtual_blocks::HistoryEnabled> {
     pub fn make_snapshot(&mut self) -> Snapshot {
         match &mut self.vm {
             VmInstanceVersion::VmM5(vm) => {
@@ -502,7 +549,11 @@ impl<S: ReadStorage> VmInstance<'_, S, vm_1_3_2::HistoryEnabled> {
                 vm.save_current_vm_as_snapshot();
                 forge_snapshot()
             }
-            VmInstanceVersion::VmVirtualBlocks(vm) => vm.make_snapshot(),
+            VmInstanceVersion::VmVirtualBlocks(vm) => {
+                vm.make_snapshot();
+                forge_snapshot()
+            }
+            VmInstanceVersion::VmTimelessHistory(vm) => vm.make_snapshot(),
         }
     }
 
@@ -512,7 +563,10 @@ impl<S: ReadStorage> VmInstance<'_, S, vm_1_3_2::HistoryEnabled> {
             VmInstanceVersion::VmM6(vm) => vm.rollback_to_latest_snapshot_popping(),
             VmInstanceVersion::Vm1_3_2(vm) => vm.rollback_to_latest_snapshot_popping(),
             VmInstanceVersion::VmVirtualBlocks(vm) => {
-                vm.rollback_to_the_latest_snapshot(snapshot);
+                vm.rollback_to_the_latest_snapshot();
+            }
+            VmInstanceVersion::VmTimelessHistory(vm) => {
+                vm.rollback_to_the_latest_snapshot(snapshot)
             }
         }
     }
@@ -525,7 +579,8 @@ impl<S: ReadStorage> VmInstance<'_, S, vm_1_3_2::HistoryEnabled> {
             }
             VmInstanceVersion::VmM6(vm) => vm.pop_snapshot_no_rollback(),
             VmInstanceVersion::Vm1_3_2(vm) => vm.pop_snapshot_no_rollback(),
-            VmInstanceVersion::VmVirtualBlocks(vm) => vm.pop_snapshot_no_rollback(snapshot),
+            VmInstanceVersion::VmVirtualBlocks(vm) => vm.pop_snapshot_no_rollback(),
+            VmInstanceVersion::VmTimelessHistory(vm) => vm.pop_snapshot_no_rollback(snapshot),
         }
     }
 }

@@ -1,12 +1,5 @@
 # Changelog
 
-## [7.1.1](https://github.com/matter-labs/zksync-2-dev/compare/prover-v7.1.0...prover-v7.1.1) (2023-09-27)
-
-
-### Bug Fixes
-
-* **crypto:** update harness to fix snark proof verification ([#2659](https://github.com/matter-labs/zksync-2-dev/issues/2659)) ([b48248b](https://github.com/matter-labs/zksync-2-dev/commit/b48248babb6200bb3735715a51a7fac01c5353d3))
-
 ## [7.1.0](https://github.com/matter-labs/zksync-2-dev/compare/prover-v7.0.1...prover-v7.1.0) (2023-09-26)
 
 

@@ -20,7 +20,7 @@ use crate::types::outputs::VmExecutionResultAndLogs;
 #[derive(Debug, Clone)]
 pub struct CallTracer {
     stack: Vec<FarcallAndNearCallCount>,
-    result: Arc<OnceCell<Vec<Call>>>,
+    pub result: Arc<OnceCell<Vec<Call>>>,
 }
 
 #[derive(Debug, Clone)]
