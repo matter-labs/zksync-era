@@ -67,7 +67,7 @@ impl FriProofCompressorDal<'_, '_> {
         &mut self,
         picked_by: &str,
     ) -> Option<(L1BatchNumber, u32)> {
-        let result = sqlx::query!(
+        sqlx::query!(
             "UPDATE proof_compression_jobs_fri \
                 SET status = $1, attempts = attempts + 1, \
                     updated_at = now(), processing_started_at = now(), \
@@ -89,8 +89,7 @@ impl FriProofCompressorDal<'_, '_> {
         .fetch_optional(self.storage.conn())
         .await
         .unwrap()
-        .map(|row| (L1BatchNumber(row.l1_batch_number as u32), row.attempts as u32));
-        result
+        .map(|row| (L1BatchNumber(row.l1_batch_number as u32), row.attempts as u32))
     }
 
     pub async fn mark_proof_compression_job_successful(

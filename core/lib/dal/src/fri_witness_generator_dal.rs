@@ -64,7 +64,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
         picked_by: &str,
     ) -> Option<(L1BatchNumber, u32)> {
         let protocol_versions: Vec<i32> = protocol_versions.iter().map(|&id| id as i32).collect();
-        let result = sqlx::query!(
+        sqlx::query!(
             "
                 UPDATE witness_inputs_fri
                 SET status = 'in_progress', attempts = attempts + 1,
@@ -95,8 +95,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 L1BatchNumber(row.l1_batch_number as u32),
                 row.attempts as u32,
             )
-        });
-        result
+        })
     }
 
     pub async fn mark_witness_job(
@@ -678,7 +677,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
         picked_by: &str,
     ) -> Option<(L1BatchNumber, u32)> {
         let protocol_versions: Vec<i32> = protocol_versions.iter().map(|&id| id as i32).collect();
-        let result = sqlx::query!(
+        sqlx::query!(
             "
                 UPDATE scheduler_witness_jobs_fri
                 SET status = 'in_progress', attempts = attempts + 1,
@@ -707,8 +706,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 L1BatchNumber(row.l1_batch_number as u32),
                 row.attempts as u32,
             )
-        });
-        result
+        })
     }
 
     pub async fn mark_scheduler_job_as_successful(
