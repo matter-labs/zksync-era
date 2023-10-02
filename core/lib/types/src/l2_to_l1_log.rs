@@ -2,6 +2,7 @@ use crate::commitment::SerializeCommitment;
 use crate::{Address, H256};
 use serde::{Deserialize, Serialize};
 use zk_evm::reference_impls::event_sink::EventMessage;
+use zk_evm_1_3_3::reference_impls::event_sink::EventMessage as OldEventMessage;
 use zksync_utils::u256_to_h256;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default, Eq)]
@@ -48,6 +49,19 @@ impl L2ToL1Log {
 
 impl From<EventMessage> for L2ToL1Log {
     fn from(m: EventMessage) -> Self {
+        Self {
+            shard_id: m.shard_id,
+            is_service: m.is_first,
+            tx_number_in_block: m.tx_number_in_block,
+            sender: m.address,
+            key: u256_to_h256(m.key),
+            value: u256_to_h256(m.value),
+        }
+    }
+}
+
+impl From<OldEventMessage> for L2ToL1Log {
+    fn from(m: OldEventMessage) -> Self {
         Self {
             shard_id: m.shard_id,
             is_service: m.is_first,
