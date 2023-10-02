@@ -38,7 +38,10 @@ fn hash_of_large_empty_tree_with_multiple_items() {
         let leaves = iter::repeat([0_u8; 88]).take(len);
         let tree_size = len.next_power_of_two();
 
-        let tree = MiniMerkleTree::new(leaves, Some(tree_size));
+        let tree = MiniMerkleTree::new(leaves.clone(), Some(tree_size));
+        let depth = tree_depth_by_size(tree_size);
+        assert_eq!(tree.merkle_root(), KeccakHasher.empty_subtree_hash(depth));
+        let tree = MiniMerkleTree::new(leaves, None);
         let depth = tree_depth_by_size(tree_size);
         assert_eq!(tree.merkle_root(), KeccakHasher.empty_subtree_hash(depth));
     }
@@ -179,10 +182,17 @@ fn merkle_proofs_are_valid_in_larger_tree() {
 #[allow(clippy::cast_possible_truncation)] // truncation is intentional
 fn merkle_proofs_are_valid_in_very_large_tree() {
     let leaves = (1_u32..=15_000).map(|byte| [byte as u8; 88]);
-    let tree = MiniMerkleTree::new(leaves.clone(), None);
 
-    for (i, item) in leaves.enumerate().step_by(61) {
+    let tree = MiniMerkleTree::new(leaves.clone(), None);
+    for (i, item) in leaves.clone().enumerate().step_by(61) {
         let (merkle_root, path) = tree.clone().merkle_root_and_path(i);
+        verify_merkle_proof(&item, i, 1 << 14, &path, merkle_root);
+    }
+
+    let tree_with_min_size = MiniMerkleTree::new(leaves.clone(), Some(512));
+    assert_eq!(tree_with_min_size.clone().merkle_root(), tree.merkle_root());
+    for (i, item) in leaves.enumerate().step_by(61) {
+        let (merkle_root, path) = tree_with_min_size.clone().merkle_root_and_path(i);
         verify_merkle_proof(&item, i, 1 << 14, &path, merkle_root);
     }
 }
@@ -191,12 +201,19 @@ fn merkle_proofs_are_valid_in_very_large_tree() {
 fn merkle_proofs_are_valid_in_very_small_trees() {
     for item_count in 1..=20 {
         let leaves = (1..=item_count).map(|byte| [byte; 88]);
-        let tree = MiniMerkleTree::new(leaves.clone(), None);
 
-        for (i, item) in leaves.enumerate() {
+        let tree = MiniMerkleTree::new(leaves.clone(), None);
+        let item_count = usize::from(item_count).next_power_of_two();
+        for (i, item) in leaves.clone().enumerate() {
             let (merkle_root, path) = tree.clone().merkle_root_and_path(i);
-            let item_count = usize::from(item_count).next_power_of_two();
             verify_merkle_proof(&item, i, item_count, &path, merkle_root);
+        }
+
+        let tree_with_min_size = MiniMerkleTree::new(leaves.clone(), Some(512));
+        assert_ne!(tree_with_min_size.clone().merkle_root(), tree.merkle_root());
+        for (i, item) in leaves.enumerate() {
+            let (merkle_root, path) = tree_with_min_size.clone().merkle_root_and_path(i);
+            verify_merkle_proof(&item, i, 512, &path, merkle_root);
         }
     }
 }

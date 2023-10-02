@@ -35,8 +35,8 @@ impl<const LEAF_SIZE: usize> MiniMerkleTree<'static, LEAF_SIZE>
 where
     KeccakHasher: HashEmptySubtree<LEAF_SIZE>,
 {
-    /// Creates a new Merkle tree from the supplied leaves. If `binary_tree_size` is larger than the
-    /// number of the supplied leaves, the remaining leaves are `[0_u8; LEAF_SIZE]`.
+    /// Creates a new Merkle tree from the supplied leaves. If `min_tree_size` is supplied and is larger
+    /// than the number of the supplied leaves, the leaves are padded to `min_tree_size` with `[0_u8; LEAF_SIZE]` entries.
     /// The hash function used in keccak-256.
     ///
     /// # Panics
@@ -44,41 +44,35 @@ where
     /// Panics in the same situations as [`Self::with_hasher()`].
     pub fn new(
         leaves: impl Iterator<Item = [u8; LEAF_SIZE]>,
-        binary_tree_size: Option<usize>,
+        min_tree_size: Option<usize>,
     ) -> Self {
-        Self::with_hasher(&KeccakHasher, leaves, binary_tree_size)
+        Self::with_hasher(&KeccakHasher, leaves, min_tree_size)
     }
 }
 
 impl<'a, const LEAF_SIZE: usize> MiniMerkleTree<'a, LEAF_SIZE> {
-    /// Creates a new Merkle tree from the supplied leaves. If `binary_tree_size` is larger than the
-    /// number of the supplied leaves, the remaining leaves are `[0_u8; LEAF_SIZE]`.
+    /// Creates a new Merkle tree from the supplied leaves. If `min_tree_size` is supplied and is larger than the
+    /// number of the supplied leaves, the leaves are padded to `min_tree_size` with `[0_u8; LEAF_SIZE]` entries.
     ///
     /// # Panics
     ///
     /// Panics if any of the following conditions applies:
     ///
-    /// - The number of `leaves` is greater than `binary_tree_size` (if supplied).
-    /// - `binary_tree_size` (if supplied) is not a power of 2.
+    /// - `min_tree_size` (if supplied) is not a power of 2.
     pub fn with_hasher(
         hasher: &'a dyn HashEmptySubtree<LEAF_SIZE>,
         leaves: impl Iterator<Item = [u8; LEAF_SIZE]>,
-        binary_tree_size: Option<usize>,
+        min_tree_size: Option<usize>,
     ) -> Self {
         let hashes: Box<[H256]> = leaves.map(|bytes| hasher.hash_bytes(&bytes)).collect();
-        let binary_tree_size = if let Some(tree_size) = binary_tree_size {
+        let mut binary_tree_size = hashes.len().next_power_of_two();
+        if let Some(min_tree_size) = min_tree_size {
             assert!(
-                tree_size.is_power_of_two(),
+                min_tree_size.is_power_of_two(),
                 "tree size must be a power of 2"
             );
-            assert!(
-                hashes.len() <= tree_size,
-                "tree size must be greater or equal the number of supplied leaves"
-            );
-            tree_size
-        } else {
-            hashes.len().next_power_of_two()
-        };
+            binary_tree_size = min_tree_size.max(binary_tree_size);
+        }
         assert!(
             tree_depth_by_size(binary_tree_size) <= MAX_TREE_DEPTH,
             "Tree contains more than {} items; this is not supported",
