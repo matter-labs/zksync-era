@@ -1,18 +1,11 @@
 import { Command } from 'commander';
-import * as utils from './utils';
-import fs from 'fs';
 
 import { Pool } from 'pg';
 import { ethers } from 'ethers';
 import { assert } from 'console';
 
-const pool = new Pool({
-    user: 'postgres',
-    host: 'localhost',
-    database: 'zksync_local',
-    password: 'postgres',
-    port: 5432
-});
+// Postgress connection pool - must be intialized later - as the ENV variables are set later.
+let pool: any = null;
 
 const GETTER_ABI = [
     {
@@ -63,6 +56,7 @@ const VERIFIER_ABI = [
 
 export async function query(text: string, params?: any[]): Promise<any> {
     const start = Date.now();
+
     const res = await pool.query(text, params);
     const duration = Date.now() - start;
     return res;
@@ -134,13 +128,7 @@ async function getL1ValidatorStatus(): Promise<[number, number]> {
         return [-1, -1];
     }
 }
-function stringToHex(str: string) {
-    var hex = '';
-    for (var i = 0; i < str.length; i++) {
-        hex += ('0' + str.charCodeAt(i).toString(16)).slice(-2);
-    }
-    return hex;
-}
+
 function bytesToHex(bytes: Uint8Array): string {
     return bytes.reduce((hex, byte) => hex + byte.toString(16).padStart(2, '0'), '');
 }
@@ -170,9 +158,8 @@ async function compareVerificationKeys() {
 
     console.log(`Verification key in database is ${dbHash}`);
     if (dbHash != verificationKeyHash) {
-        console.log(`${redStart}Verification hash in DB differs from the one in contract.${resetColor} State keeper might not send prove requests.}`)
+        console.log(`${redStart}Verification hash in DB differs from the one in contract.${resetColor} State keeper might not send prove requests.`)
     }
-
 }
 
 const redStart = '\x1b[31m';
@@ -180,6 +167,9 @@ const resetColor = '\x1b[0m';
 
 export async function statusProver() {
     console.log('==== FRI Prover status ====');
+
+    pool = new Pool({ connectionString: process.env.DATABASE_URL });
+
     if (process.env.ETH_SENDER_SENDER_PROOF_LOADING_MODE != 'FriProofFromGcs') {
         console.log(`${redStart}Can only show status for FRI provers.${resetColor}`);
         return;
