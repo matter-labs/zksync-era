@@ -441,6 +441,79 @@ async function startServer() {
     await server.server(false, false, components.join(','));
 }
 
+export async function startZksyncServerDocker() {
+
+    // Set home variable to be used in Docker image.
+    wrapEnvModify('ZKSYNC_HOME', '/');
+
+    // Ask user for the URLs of the GETH and POSTGRES servers. 
+    const l1gethQuestion = [
+        {
+            message: 'Please provide URL of the L1 GETH node.',
+            name: 'GETH_URL',
+            type: 'input'
+        }
+    ];
+
+    const l1gethResults: any = await enquirer.prompt(l1gethQuestion);
+
+    wrapEnvModify('ETH_CLIENT_WEB3_URL', l1gethResults.GETH_URL);
+
+    const l2postgresQuestion = [
+        {
+            message: 'Please provide URL of the L2 Postgres DB.',
+            name: 'DB_URL',
+            type: 'input'
+        }
+    ];
+
+    const l2postgresResults: any = await enquirer.prompt(l2postgresQuestion);
+
+    wrapEnvModify('DATABASE_URL', l2postgresResults.DB_URL);
+
+    // Ask user for potential custom components to launch with server.
+
+    const DEFAULT = 'Default components';
+    const CUSTOM = 'Custom components';
+
+    const questions: BasePromptOptions[] = [
+        {
+            message: 'Do you want to use default or custom components with the dockerized Hyperchain server?',
+            name: 'start',
+            type: 'select',
+            choices: [DEFAULT, CUSTOM]
+        }
+    ];
+
+    const results: any = await enquirer.prompt(questions);
+
+    let components: string[] = [];
+    const defaultChoices = ['http_api', 'eth', 'data_fetcher', 'state_keeper', 'housekeeper', 'tree_lightweight'];
+
+    if (results.start === CUSTOM) {
+        const componentQuestions: BasePromptOptions[] = [
+            {
+                message: 'Please select the desired components',
+                name: 'components',
+                type: 'multiselect',
+                choices: ['api', 'ws_api', ...defaultChoices, 'tree'].sort()
+            }
+        ];
+
+        components = ((await enquirer.prompt(componentQuestions)) as any).components;
+    } else {
+        components = defaultChoices;
+    }
+
+    await utils.spawn('cp etc/tokens/{test,localhost}.json');
+
+    await utils.spawn('CARGO_HOME=./cargo cargo fetch');
+
+    await utils.spawn('docker build -t zksync_server -f ./docker/server-v2/Dockerfile . ');
+
+    await utils.spawn(`docker run --env-file ${process.env.ENV_FILE}  zksync_server --network zksync-2-dev_default $${components.join(' $')}`);
+}
+
 // The current env.modify requires to write down the variable name twice. This wraps it so the caller only writes the name and the value
 function wrapEnvModify(variable: string, assignedVariable: string) {
     env.modify(variable, `${variable}=${assignedVariable}`);
@@ -495,8 +568,7 @@ async function checkBalance(wallet: ethers.Wallet, expectedBalance: BigNumber): 
     const balance = await wallet.getBalance();
     if (balance.lt(expectedBalance)) {
         console.log(
-            `Wallet ${
-                wallet.address
+            `Wallet ${wallet.address
             } has insufficient funds. Expected ${expectedBalance.toString()}, got ${balance.toString()}`
         );
         return false;
@@ -562,4 +634,9 @@ export function getTokens(network: string): L1Token[] {
 
 export const initHyperchainCommand = new Command('init-hyperchain')
     .description('Initializes a new hyperchain network')
+    .action(initHyperchain);
+
+
+export const startDockerHyperchainCommand = new Command('docker-hyperchain')
+    .description('Start a new dockerized hyperchain network')
     .action(initHyperchain);
