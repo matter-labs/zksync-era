@@ -26,11 +26,11 @@ zksync_types = { path = "../../core/lib/types" }
 zksync_prover_utils = { path = "../../core/lib/prover_utils" }
 zksync_prover_fri_types = { path = "../prover_fri_types" }
 
-zkevm_test_harness = { git = "https://github.com/matter-labs/zkevm_test_harness.git", branch = "v1.4.0" }
-circuit_definitions = { git = "https://github.com/matter-labs/zkevm_test_harness.git", branch = "v1.4.0", features = [
+zkevm_test_harness = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.4.0" }
+circuit_definitions = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.4.0", features = [
     "log_tracing",
 ] }
-shivini = { git = "https://github.com/matter-labs/shivini.git", branch = "main", optional = true }
+shivini = { git = "https://github.com/matter-labs/era-shivini.git", branch = "main", optional = true }
 zksync_config = { path = "../../core/lib/config" }
 
 anyhow = "1.0"

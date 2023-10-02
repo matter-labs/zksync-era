@@ -23,7 +23,7 @@ pub struct StorageWitnessJobInfo {
 impl From<StorageWitnessJobInfo> for WitnessJobInfo {
     fn from(x: StorageWitnessJobInfo) -> Self {
         fn nt2d(nt: NaiveDateTime) -> DateTime<Utc> {
-            DateTime::from_utc(nt, Utc)
+            DateTime::from_naive_utc_and_offset(nt, Utc)
         }
 
         let status =
