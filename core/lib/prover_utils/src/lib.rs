@@ -2,7 +2,7 @@
 
 extern crate core;
 
-use std::{fs::create_dir_all, io::Cursor, path::Path, time::Duration, time::Instant};
+use std::{fs::create_dir_all, io::Cursor, path::Path, time::Duration};
 
 use futures::{channel::mpsc, executor::block_on, SinkExt};
 
@@ -51,7 +51,6 @@ pub fn ensure_initial_setup_keys_present(initial_setup_key_path: &str, key_downl
         );
         return;
     }
-    let started_at = Instant::now();
 
     let bytes = download_bytes(key_download_url).expect("Failed downloading initial setup");
     let initial_setup_key_dir = Path::new(initial_setup_key_path).parent().unwrap();
@@ -65,7 +64,6 @@ pub fn ensure_initial_setup_keys_present(initial_setup_key_path: &str, key_downl
         .expect("Cannot create file for the initial setup");
     let mut content = Cursor::new(bytes);
     std::io::copy(&mut content, &mut file).expect("Cannot write the downloaded key to the file");
-    metrics::histogram!("server.prover.download_time", started_at.elapsed());
 }
 
 pub fn numeric_index_to_circuit_name(circuit_numeric_index: u8) -> Option<&'static str> {

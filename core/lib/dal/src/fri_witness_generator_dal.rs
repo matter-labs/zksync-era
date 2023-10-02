@@ -13,7 +13,7 @@ use zksync_types::{
 };
 
 use crate::{
-    instrument::MethodLatency,
+    metrics::MethodLatency,
     time_utils::{duration_to_naive_time, pg_interval_from_duration},
     StorageProcessor,
 };

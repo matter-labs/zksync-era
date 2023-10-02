@@ -8,9 +8,9 @@ use zksync_types::{
 };
 
 use crate::{
-    instrument::{InstrumentExt, MethodLatency},
-    time_utils::duration_to_naive_time,
-    time_utils::pg_interval_from_duration,
+    instrument::InstrumentExt,
+    metrics::MethodLatency,
+    time_utils::{duration_to_naive_time, pg_interval_from_duration},
     StorageProcessor,
 };
 

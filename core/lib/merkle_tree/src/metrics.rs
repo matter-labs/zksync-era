@@ -272,19 +272,10 @@ impl ApplyPatchStats {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
-#[metrics(label = "bound")]
+#[metrics(label = "bound", rename_all = "snake_case")]
 enum Bound {
     Start,
     End,
-}
-
-impl fmt::Display for Bound {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str(match self {
-            Self::Start => "start",
-            Self::End => "end",
-        })
-    }
 }
 
 #[derive(Debug, Metrics)]

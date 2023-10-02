@@ -1,7 +1,6 @@
 use crate::system_contracts::DEPLOYMENT_NONCE_INCREMENT;
 use crate::L2_ETH_TOKEN_ADDRESS;
 use crate::{web3::signing::keccak256, AccountTreeId, StorageKey, U256};
-use std::time::Instant;
 
 use zksync_basic_types::{Address, H256};
 
@@ -33,7 +32,6 @@ fn key_for_eth_balance(address: &Address) -> H256 {
 
 /// Create a `key` part of `StorageKey` to access the balance from ERC20 contract balances
 fn key_for_erc20_balance(address: &Address) -> H256 {
-    let started_at = Instant::now();
     let address_h256 = address_to_h256(address);
 
     // 20 bytes address first gets aligned to 32 bytes with index of `balanceOf` storage slot
@@ -42,13 +40,7 @@ fn key_for_erc20_balance(address: &Address) -> H256 {
     let mut bytes = [0_u8; 64];
     bytes[..32].copy_from_slice(address_h256.as_bytes());
     bytes[32..].copy_from_slice(slot_index.as_bytes());
-    let hash = H256(keccak256(&bytes));
-
-    metrics::histogram!(
-        "server.compute_storage_key_for_erc20_balance_latency",
-        started_at.elapsed()
-    );
-    hash
+    H256(keccak256(&bytes))
 }
 
 /// Create a storage key to access the balance from supported token contract balances

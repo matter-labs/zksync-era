@@ -118,11 +118,11 @@ impl DBConfig {
         60_000
     }
 
-    pub fn from_env() -> Self {
-        Self {
-            merkle_tree: envy_load("database_merkle_tree", "DATABASE_MERKLE_TREE_"),
-            ..envy_load("database", "DATABASE_")
-        }
+    pub fn from_env() -> anyhow::Result<Self> {
+        Ok(Self {
+            merkle_tree: envy_load("database_merkle_tree", "DATABASE_MERKLE_TREE_")?,
+            ..envy_load("database", "DATABASE_")?
+        })
     }
 
     /// Returns the Postgres statement timeout.
@@ -157,7 +157,7 @@ mod tests {
         "#;
         lock.set_env(config);
 
-        let db_config = DBConfig::from_env();
+        let db_config = DBConfig::from_env().unwrap();
         assert_eq!(db_config.state_keeper_db_path, "/db/state_keeper");
         assert_eq!(db_config.merkle_tree.path, "/db/tree");
         assert_eq!(db_config.merkle_tree.backup_path, "/db/backups");
@@ -183,7 +183,7 @@ mod tests {
             "DATABASE_BACKUP_INTERVAL_MS",
         ]);
 
-        let db_config = DBConfig::from_env();
+        let db_config = DBConfig::from_env().unwrap();
         assert_eq!(db_config.state_keeper_db_path, "./db/state_keeper");
         assert_eq!(db_config.merkle_tree.path, "./db/lightweight-new");
         assert_eq!(db_config.merkle_tree.backup_path, "./db/backups");
@@ -196,19 +196,19 @@ mod tests {
 
         // Check that new env variable for Merkle tree path is supported
         lock.set_env("DATABASE_MERKLE_TREE_PATH=/db/tree/main");
-        let db_config = DBConfig::from_env();
+        let db_config = DBConfig::from_env().unwrap();
         assert_eq!(db_config.merkle_tree.path, "/db/tree/main");
 
         lock.set_env("DATABASE_MERKLE_TREE_MULTI_GET_CHUNK_SIZE=200");
-        let db_config = DBConfig::from_env();
+        let db_config = DBConfig::from_env().unwrap();
         assert_eq!(db_config.merkle_tree.multi_get_chunk_size, 200);
 
         lock.set_env("DATABASE_MERKLE_TREE_BLOCK_CACHE_SIZE_MB=256");
-        let db_config = DBConfig::from_env();
+        let db_config = DBConfig::from_env().unwrap();
         assert_eq!(db_config.merkle_tree.block_cache_size_mb, 256);
 
         lock.set_env("DATABASE_MERKLE_TREE_MAX_L1_BATCHES_PER_ITER=50");
-        let db_config = DBConfig::from_env();
+        let db_config = DBConfig::from_env().unwrap();
         assert_eq!(db_config.merkle_tree.max_l1_batches_per_iter, 50);
     }
 }

@@ -1,4 +1,4 @@
-use tokio::{runtime::Handle, sync::mpsc, time::Instant};
+use tokio::{runtime::Handle, sync::mpsc};
 
 use std::{
     mem,
@@ -8,9 +8,11 @@ use std::{
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_types::{L1BatchNumber, MiniblockNumber, StorageKey, StorageValue, H256};
 
+mod metrics;
 #[cfg(test)]
 mod tests;
 
+use self::metrics::{Method, ValuesUpdateStage, CACHE_METRICS, STORAGE_METRICS};
 use crate::{
     cache::{Cache, CacheValue},
     ReadStorage,
@@ -134,7 +136,7 @@ impl ValuesCache {
                 },
             );
         } else {
-            metrics::increment_counter!("server.state_cache.stale_values", "method" => "insert");
+            CACHE_METRICS.stale_values.inc();
         }
     }
 
@@ -164,9 +166,9 @@ impl ValuesCache {
             lock.valid_for = to_miniblock;
             lock.values.clear();
 
-            metrics::increment_counter!("server.state_cache.values_emptied");
+            CACHE_METRICS.values_emptied.inc();
         } else {
-            let stage_started_at = Instant::now();
+            let update_latency = CACHE_METRICS.values_update[&ValuesUpdateStage::LoadKeys].start();
             let miniblocks = (from_miniblock + 1)..=to_miniblock;
             let modified_keys = rt_handle.block_on(
                 connection
@@ -174,23 +176,18 @@ impl ValuesCache {
                     .modified_keys_in_miniblocks(miniblocks.clone()),
             );
 
-            let elapsed = stage_started_at.elapsed();
-            metrics::histogram!(
-                "server.state_cache.values_update",
-                elapsed,
-                "stage" => "load_keys"
-            );
-            metrics::histogram!(
-                "server.state_cache.values_update.modified_keys",
-                modified_keys.len() as f64
-            );
+            let elapsed = update_latency.observe();
+            CACHE_METRICS
+                .values_update_modified_keys
+                .observe(modified_keys.len());
             tracing::debug!(
                 "Loaded {modified_keys_len} modified storage keys from miniblocks {miniblocks:?}; \
                  took {elapsed:?}",
                 modified_keys_len = modified_keys.len()
             );
 
-            let stage_started_at = Instant::now();
+            let update_latency =
+                CACHE_METRICS.values_update[&ValuesUpdateStage::RemoveStaleKeys].start();
             let mut lock = self.0.write().expect("values cache is poisoned");
             // The code below holding onto the write `lock` is the only code that can theoretically poison the `RwLock`
             // (other than emptying the cache above). Thus, it's kept as simple and tight as possible.
@@ -202,17 +199,11 @@ impl ValuesCache {
             }
             lock.values.report_size();
             drop(lock);
-
-            metrics::histogram!(
-                "server.state_cache.values_update",
-                stage_started_at.elapsed(),
-                "stage" => "remove_stale_keys"
-            );
+            update_latency.observe();
         }
-        metrics::gauge!(
-            "server.state_cache.values_valid_for_miniblock",
-            f64::from(to_miniblock.0)
-        );
+        CACHE_METRICS
+            .values_valid_for_miniblock
+            .set(u64::from(to_miniblock.0));
     }
 }
 
@@ -307,7 +298,8 @@ impl PostgresStorageCaches {
                     continue;
                 }
                 let mut connection = rt_handle
-                    .block_on(connection_pool.access_storage_tagged("values_cache_updater"));
+                    .block_on(connection_pool.access_storage_tagged("values_cache_updater"))
+                    .unwrap();
                 values_cache.update(current_miniblock, to_miniblock, &rt_handle, &mut connection);
                 current_miniblock = to_miniblock;
             }
@@ -351,6 +343,8 @@ pub struct PostgresStorage<'a> {
 
 impl<'a> PostgresStorage<'a> {
     /// Creates a new storage using the specified connection.
+    /// # Panics
+    /// Panics on Postgres errors.
     pub fn new(
         rt_handle: Handle,
         mut connection: StorageProcessor<'a>,
@@ -404,7 +398,7 @@ impl<'a> PostgresStorage<'a> {
 
 impl ReadStorage for PostgresStorage<'_> {
     fn read_value(&mut self, &key: &StorageKey) -> StorageValue {
-        let started_at = Instant::now();
+        let latency = STORAGE_METRICS.storage[&Method::ReadValue].start();
         let values_cache = self.values_cache();
         let cached_value = values_cache.and_then(|cache| cache.get(self.miniblock_number, &key));
 
@@ -420,12 +414,12 @@ impl ReadStorage for PostgresStorage<'_> {
             value
         });
 
-        metrics::histogram!("state.postgres_storage", started_at.elapsed(), "method" => "read_value");
+        latency.observe();
         value
     }
 
     fn is_write_initial(&mut self, key: &StorageKey) -> bool {
-        let started_at = Instant::now();
+        let latency = STORAGE_METRICS.storage[&Method::IsWriteInitial].start();
         let caches = self.caches.as_ref();
         let cached_value = caches.and_then(|caches| caches.initial_writes.get(key));
 
@@ -438,10 +432,7 @@ impl ReadStorage for PostgresStorage<'_> {
                 // This is based on the hypothetical worst-case scenario, in which the key was
                 // written to at the earliest possible L1 batch (i.e., `min_l1_batch_for_initial_write`).
                 if !self.write_counts(min_l1_batch_for_initial_write) {
-                    metrics::increment_counter!(
-                        "server.state_cache.effective_values",
-                        "name" => PostgresStorageCaches::NEG_INITIAL_WRITES_NAME
-                    );
+                    CACHE_METRICS.effective_values.inc();
                     return true;
                 }
             }
@@ -468,7 +459,7 @@ impl ReadStorage for PostgresStorage<'_> {
             }
             value
         });
-        metrics::histogram!("state.postgres_storage", started_at.elapsed(), "method" => "is_write_initial");
+        latency.observe();
 
         let contains_key = l1_batch_number.map_or(false, |initial_write_l1_batch_number| {
             self.write_counts(initial_write_l1_batch_number)
@@ -477,7 +468,7 @@ impl ReadStorage for PostgresStorage<'_> {
     }
 
     fn load_factory_dep(&mut self, hash: H256) -> Option<Vec<u8>> {
-        let started_at = Instant::now();
+        let latency = STORAGE_METRICS.storage[&Method::LoadFactoryDep].start();
 
         let cached_value = self
             .caches
@@ -501,11 +492,7 @@ impl ReadStorage for PostgresStorage<'_> {
             value
         });
 
-        metrics::histogram!(
-            "state.postgres_storage",
-            started_at.elapsed(),
-            "method" => "load_factory_dep",
-        );
+        latency.observe();
         result
     }
 }

@@ -208,7 +208,7 @@ impl ProverDal<'_, '_> {
         max_attempts: u32,
     ) -> Result<(), Error> {
         {
-            let mut transaction = self.storage.start_transaction().await;
+            let mut transaction = self.storage.start_transaction().await.unwrap();
 
             let row = sqlx::query!(
                 "
@@ -227,10 +227,11 @@ impl ProverDal<'_, '_> {
                 transaction
                     .blocks_dal()
                     .set_skip_proof_for_l1_batch(L1BatchNumber(row.l1_batch_number as u32))
-                    .await;
+                    .await
+                    .unwrap();
             }
 
-            transaction.commit().await;
+            transaction.commit().await.unwrap();
             Ok(())
         }
     }

@@ -529,14 +529,6 @@ impl<H: HistoryMode, S: WriteStorage> VmInstance<S, H> {
                         refund_to_propose
                     );
                 }
-
-                metrics::histogram!("vm.refund", bootloader_refund as f64 / tx_gas_limit as f64 * 100.0, "type" => "bootloader");
-                metrics::histogram!("vm.refund", refund_to_propose as f64 / tx_gas_limit as f64 * 100.0, "type" => "operator");
-                metrics::histogram!(
-                    "vm.refund.diff",
-                    (refund_to_propose as f64 - bootloader_refund as f64) / tx_gas_limit as f64
-                        * 100.0
-                );
             }
 
             tracer.set_missed_storage_invocations(
@@ -765,8 +757,6 @@ impl<H: HistoryMode, S: WriteStorage> VmInstance<S, H> {
                 }
             }
             VmExecutionStopReason::TracerRequestedStop => {
-                metrics::increment_counter!("runtime_context.execution.dropped");
-
                 if tx_result_tracer.is_limit_reached() {
                     VmBlockResult {
                         // Normally tracer should never stop, but if it's transaction call and it consumes

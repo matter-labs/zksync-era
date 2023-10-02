@@ -2,7 +2,7 @@ use bigdecimal::BigDecimal;
 use std::collections::HashMap;
 use std::fmt::{self, Debug};
 use std::iter::FromIterator;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use itertools::Itertools;
 use sqlx::error;
@@ -18,9 +18,12 @@ use zksync_types::{
 };
 use zksync_utils::{h256_to_u32, u256_to_big_decimal};
 
-use crate::models::storage_transaction::{CallTrace, StorageTransaction};
-use crate::time_utils::pg_interval_from_duration;
-use crate::StorageProcessor;
+use crate::{
+    instrument::InstrumentExt,
+    models::storage_transaction::{CallTrace, StorageTransaction},
+    time_utils::pg_interval_from_duration,
+    StorageProcessor,
+};
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum L2TxSubmissionResult {
@@ -411,7 +414,7 @@ impl TransactionsDal<'_, '_> {
         block_base_fee_per_gas: U256,
     ) {
         {
-            let mut transaction = self.storage.start_transaction().await;
+            let mut transaction = self.storage.start_transaction().await.unwrap();
             let mut l1_hashes = Vec::with_capacity(transactions.len());
             let mut l1_indices_in_block = Vec::with_capacity(transactions.len());
             let mut l1_errors = Vec::with_capacity(transactions.len());
@@ -472,13 +475,8 @@ impl TransactionsDal<'_, '_> {
                     };
 
                     if let Some(call_trace) = tx_res.call_trace() {
-                        let started_at = Instant::now();
                         bytea_call_traces.push(bincode::serialize(&call_trace).unwrap());
                         call_traces_tx_hashes.push(hash.0.to_vec());
-                        metrics::histogram!(
-                            "dal.transactions.serialize_tracer",
-                            started_at.elapsed()
-                        );
                     }
 
                     match &transaction.common_data {
@@ -708,7 +706,6 @@ impl TransactionsDal<'_, '_> {
             }
 
             if !bytea_call_traces.is_empty() {
-                let started_at = Instant::now();
                 sqlx::query!(
                     r#"
                         INSERT INTO call_traces (tx_hash, call_trace)
@@ -719,12 +716,13 @@ impl TransactionsDal<'_, '_> {
                     &call_traces_tx_hashes,
                     &bytea_call_traces
                 )
+                .instrument("insert_call_tracer")
+                .report_latency()
                 .execute(transaction.conn())
                 .await
                 .unwrap();
-                metrics::histogram!("dal.transactions.insert_call_tracer", started_at.elapsed());
             }
-            transaction.commit().await;
+            transaction.commit().await.unwrap();
         }
     }
 

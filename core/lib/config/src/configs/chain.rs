@@ -1,4 +1,5 @@
 /// External uses
+use anyhow::Context as _;
 use serde::Deserialize;
 /// Built-in uses
 use std::time::Duration;
@@ -24,15 +25,16 @@ pub struct ChainConfig {
 }
 
 impl ChainConfig {
-    pub fn from_env() -> Self {
-        Self {
+    pub fn from_env() -> anyhow::Result<Self> {
+        Ok(Self {
             // TODO rename `eth` to `network`
-            network: NetworkConfig::from_env(),
-            state_keeper: StateKeeperConfig::from_env(),
-            operations_manager: OperationsManagerConfig::from_env(),
-            mempool: MempoolConfig::from_env(),
-            circuit_breaker: CircuitBreakerConfig::from_env(),
-        }
+            network: NetworkConfig::from_env().context("NetworkConfig")?,
+            state_keeper: StateKeeperConfig::from_env().context("StateKeeperConfig")?,
+            operations_manager: OperationsManagerConfig::from_env()
+                .context("OperationsManagerConfig")?,
+            mempool: MempoolConfig::from_env().context("MempoolConfig")?,
+            circuit_breaker: CircuitBreakerConfig::from_env().context("CircuitBreakerConfig")?,
+        })
     }
 }
 
@@ -49,7 +51,7 @@ pub struct NetworkConfig {
 }
 
 impl NetworkConfig {
-    pub fn from_env() -> Self {
+    pub fn from_env() -> anyhow::Result<Self> {
         envy_load("network", "CHAIN_ETH_")
     }
 }
@@ -110,7 +112,7 @@ pub struct StateKeeperConfig {
 }
 
 impl StateKeeperConfig {
-    pub fn from_env() -> Self {
+    pub fn from_env() -> anyhow::Result<Self> {
         envy_load("state_keeper", "CHAIN_STATE_KEEPER_")
     }
 
@@ -129,7 +131,7 @@ pub struct OperationsManagerConfig {
 }
 
 impl OperationsManagerConfig {
-    pub fn from_env() -> Self {
+    pub fn from_env() -> anyhow::Result<Self> {
         envy_load("operations_manager", "CHAIN_OPERATIONS_MANAGER_")
     }
 
@@ -143,10 +145,11 @@ pub struct CircuitBreakerConfig {
     pub sync_interval_ms: u64,
     pub http_req_max_retry_number: usize,
     pub http_req_retry_interval_sec: u8,
+    pub replication_lag_limit_sec: Option<u32>,
 }
 
 impl CircuitBreakerConfig {
-    pub fn from_env() -> Self {
+    pub fn from_env() -> anyhow::Result<Self> {
         envy_load("circuit_breaker", "CHAIN_CIRCUIT_BREAKER_")
     }
 
@@ -182,7 +185,7 @@ impl MempoolConfig {
         Duration::from_millis(self.delay_interval)
     }
 
-    pub fn from_env() -> Self {
+    pub fn from_env() -> anyhow::Result<Self> {
         envy_load("mempool", "CHAIN_MEMPOOL_")
     }
 }
@@ -239,6 +242,7 @@ mod tests {
                 sync_interval_ms: 1000,
                 http_req_max_retry_number: 5,
                 http_req_retry_interval_sec: 2,
+                replication_lag_limit_sec: Some(10),
             },
         }
     }
@@ -279,10 +283,11 @@ mod tests {
             CHAIN_CIRCUIT_BREAKER_SYNC_INTERVAL_MS="1000"
             CHAIN_CIRCUIT_BREAKER_HTTP_REQ_MAX_RETRY_NUMBER="5"
             CHAIN_CIRCUIT_BREAKER_HTTP_REQ_RETRY_INTERVAL_SEC="2"
+            CHAIN_CIRCUIT_BREAKER_REPLICATION_LAG_LIMIT_SEC="10"
         "#;
         lock.set_env(config);
 
-        let actual = ChainConfig::from_env();
+        let actual = ChainConfig::from_env().unwrap();
         assert_eq!(actual, expected_config());
     }
 }

@@ -223,14 +223,14 @@ fn mempool_size() {
         gen_l2_tx(account1, Nonce(1)),
     ];
     mempool.insert(transactions, HashMap::new());
-    assert_eq!(mempool.size(), 5);
+    assert_eq!(mempool.stats().l2_transaction_count, 5);
     // replacement
     mempool.insert(vec![gen_l2_tx(account0, Nonce(2))], HashMap::new());
-    assert_eq!(mempool.size(), 5);
+    assert_eq!(mempool.stats().l2_transaction_count, 5);
     // load next
     mempool.next_transaction(&L2TxFilter::default());
     mempool.next_transaction(&L2TxFilter::default());
-    assert_eq!(mempool.size(), 3);
+    assert_eq!(mempool.stats().l2_transaction_count, 3);
 }
 
 /// Checks whether filtering transactions based on their fee works as expected.

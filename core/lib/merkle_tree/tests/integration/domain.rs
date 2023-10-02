@@ -248,17 +248,15 @@ fn reset_tree() {
     let mut tree = ZkSyncTree::new_lightweight(storage);
     let empty_root_hash = tree.root_hash();
 
-    logs.chunks(5)
-        .into_iter()
-        .fold(empty_root_hash, |hash, chunk| {
-            tree.process_l1_batch(chunk);
-            tree.reset();
-            assert_eq!(tree.root_hash(), hash);
+    logs.chunks(5).fold(empty_root_hash, |hash, chunk| {
+        tree.process_l1_batch(chunk);
+        tree.reset();
+        assert_eq!(tree.root_hash(), hash);
 
-            tree.process_l1_batch(chunk);
-            tree.save();
-            tree.root_hash()
-        });
+        tree.process_l1_batch(chunk);
+        tree.save();
+        tree.root_hash()
+    });
 }
 
 #[test]

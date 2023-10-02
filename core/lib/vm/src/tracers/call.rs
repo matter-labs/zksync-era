@@ -219,6 +219,7 @@ impl<H: HistoryMode> CallTracer<H> {
 
         if current_call.near_calls_after > 0 {
             current_call.near_calls_after -= 1;
+            self.stack.push(current_call);
             return;
         }
 

@@ -68,7 +68,7 @@ RUN echo "deb http://packages.cloud.google.com/apt cloud-sdk main" > /etc/apt/so
 RUN curl https://sh.rustup.rs -sSf | bash -s -- -y
 RUN rustup install nightly-2023-07-21
 RUN rustup default stable
-RUN cargo install --version=0.5.6 sqlx-cli
+RUN cargo install --version=0.5.13 sqlx-cli
 RUN cargo install cargo-tarpaulin
 RUN cargo install cargo-nextest
 
