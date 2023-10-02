@@ -22,12 +22,6 @@ jobs:
         with:
           node-version: '18.18.0'
 
-      - name: Install Rust nightly-2023-07-21
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly-2023-07-21
-          override: true
-
       - name: Setup environment
         run: |
           echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
@@ -52,4 +46,4 @@ jobs:
         run: |
           cd prover
           # Not all tests are enabled since, prover and setup_key_generator_and_server requires bellman-cuda to be present
-          zk f cargo +nightly-2023-07-21 test --release -p zksync_witness_generator -p vk_setup_data_generator_server_fri -p zksync_prover_fri -p zksync_witness_vector_generator -p zksync_prover_fri_utils
+          zk f cargo test --release -p zksync_witness_generator -p vk_setup_data_generator_server_fri -p zksync_prover_fri -p zksync_witness_vector_generator -p zksync_prover_fri_utils
