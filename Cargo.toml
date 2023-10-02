@@ -1,5 +1,6 @@
 [workspace]
 members = [
+    "blah"
     # Binaries
     "core/bin/block_reverter",
     "core/bin/contract-verifier",
