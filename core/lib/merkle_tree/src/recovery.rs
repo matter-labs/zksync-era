@@ -1,7 +1,5 @@
 //! Merkle tree recovery logic.
 
-#![allow(missing_docs)] // FIXME
-
 use crate::{
     hasher::HashTree,
     storage::{Database, PatchSet, Storage},
@@ -10,14 +8,19 @@ use crate::{
 };
 use zksync_crypto::hasher::blake2::Blake2Hasher;
 
+/// Entry in a Merkle tree used during recovery.
 #[derive(Debug, Clone)]
 pub struct RecoveryEntry {
+    /// Entry key.
     pub key: Key,
+    /// Entry value.
     pub value: ValueHash,
+    /// Leaf index associated with the entry. It is **not** checked whether leaf indices are well-formed
+    /// during recovery (e.g., that they are unique).
     pub leaf_index: u64,
-    // FIXME: add version
 }
 
+/// Handle to a Merkle tree during its recovery.
 #[derive(Debug)]
 pub struct MerkleTreeRecovery<'a, DB> {
     db: DB,
@@ -39,7 +42,10 @@ impl<'a, DB: Database> MerkleTreeRecovery<'a, DB> {
     ///
     /// # Panics
     ///
-    /// FIXME
+    /// - Panics if the tree DB exists and it's not being recovered, or if it's being recovered
+    ///   for a different tree version.
+    /// - Panics if the hasher or basic tree parameters (e.g., the tree depth)
+    ///   do not match those of the tree loaded from the database.
     pub fn with_hasher(mut db: DB, recovered_version: u64, hasher: &'a dyn HashTree) -> Self {
         let manifest = db.manifest();
         let mut manifest = if let Some(manifest) = manifest {
@@ -60,6 +66,7 @@ impl<'a, DB: Database> MerkleTreeRecovery<'a, DB> {
             }
         };
 
+        manifest.version_count = recovered_version + 1;
         if let Some(tags) = &manifest.tags {
             tags.assert_consistency(hasher, true);
         } else {
@@ -92,10 +99,16 @@ impl<'a, DB: Database> MerkleTreeRecovery<'a, DB> {
     }
 
     /// Extends a tree with a chunk of entries.
+    ///
+    /// Entries must be ordered by increasing `key`, and the key of the first entry must be greater
+    /// than [`Self::last_processed_key()`].
+    ///
+    /// # Panics
+    ///
+    /// Panics if entry keys are not correctly ordered.
     pub fn extend(&mut self, recovery_entries: Vec<RecoveryEntry>) {
         let storage = Storage::new(&self.db, self.hasher, self.recovered_version, false);
         let patch = storage.extend_during_recovery(recovery_entries);
-        dbg!(patch.manifest());
         self.db.apply_patch(patch);
     }
 
@@ -118,4 +131,23 @@ impl<'a, DB: Database> MerkleTreeRecovery<'a, DB> {
     }
 }
 
-// FIXME: cover panics with unit tests
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    #[should_panic(expected = "Tree is expected to be in the process of recovery")]
+    fn recovery_for_initialized_tree() {
+        let mut db = PatchSet::default();
+        MerkleTreeRecovery::new(&mut db, 123).finalize();
+        MerkleTreeRecovery::new(db, 123);
+    }
+
+    #[test]
+    #[should_panic(expected = "Requested to recover tree version 42")]
+    fn recovery_for_different_version() {
+        let mut db = PatchSet::default();
+        MerkleTreeRecovery::new(&mut db, 123);
+        MerkleTreeRecovery::new(&mut db, 42);
+    }
+}

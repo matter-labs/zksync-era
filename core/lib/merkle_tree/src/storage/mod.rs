@@ -337,7 +337,7 @@ impl<'a, DB: Database + ?Sized> Storage<'a, DB> {
         // ^ We should not record stale keys when updating an existing tree version, since
         // otherwise updated keys will be marked as stale and removed.
         let (root_hash, patch, stats) = self.updater.patch_set.finalize(
-            dbg!(self.manifest),
+            self.manifest,
             self.leaf_count,
             record_stale_keys,
             self.hasher,
