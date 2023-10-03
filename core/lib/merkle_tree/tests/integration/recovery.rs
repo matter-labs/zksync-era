@@ -2,7 +2,7 @@
 
 use zksync_merkle_tree::{
     recovery::{MerkleTreeRecovery, RecoveryEntry},
-    PatchSet,
+    Database, PatchSet,
 };
 
 use crate::common::KVS_AND_HASH;
@@ -33,8 +33,7 @@ fn recovery_basics() {
     tree.verify_consistency(recovered_version).unwrap();
 }
 
-#[test]
-fn recovery_in_chunks() {
+fn test_recovery_in_chunks<DB: Database>(mut create_db: impl FnMut() -> DB) {
     let (kvs, expected_hash) = &*KVS_AND_HASH;
     let recovery_entries = kvs
         .iter()
@@ -50,7 +49,7 @@ fn recovery_in_chunks() {
 
     let recovered_version = 123;
     for chunk_size in [6, 10, 17, 42] {
-        let mut db = PatchSet::default();
+        let mut db = create_db();
         let mut recovery = MerkleTreeRecovery::new(&mut db, recovered_version);
         for (i, chunk) in recovery_entries.chunks(chunk_size).enumerate() {
             recovery.extend(chunk.to_vec());
@@ -65,5 +64,27 @@ fn recovery_in_chunks() {
 
         let tree = recovery.finalize();
         tree.verify_consistency(recovered_version).unwrap();
+    }
+}
+
+#[test]
+fn recovery_in_chunks() {
+    test_recovery_in_chunks(PatchSet::default);
+}
+
+mod rocksdb {
+    use tempfile::TempDir;
+
+    use super::*;
+    use zksync_merkle_tree::RocksDBWrapper;
+
+    #[test]
+    fn recovery_in_chunks() {
+        let temp_dir = TempDir::new().unwrap();
+        let mut counter = 0;
+        test_recovery_in_chunks(|| {
+            counter += 1;
+            RocksDBWrapper::new(&temp_dir.path().join(counter.to_string()))
+        });
     }
 }
