@@ -18,6 +18,7 @@ pub use self::{
 use crate::{
     hasher::HashTree,
     metrics::{TreeUpdaterStats, BLOCK_TIMINGS, GENERAL_METRICS},
+    recovery::RecoveryEntry,
     types::{
         BlockOutput, ChildRef, InternalNode, Key, LeafNode, Manifest, Nibbles, Node, Root,
         TreeLogEntry, TreeTags, ValueHash,
@@ -90,6 +91,14 @@ impl TreeUpdater {
 
         self.metrics.db_reads += db_reads;
         longest_prefixes
+    }
+
+    /// Loads the greatest key from the database.
+    fn load_greatest_key<DB: Database + ?Sized>(&mut self, db: &DB) -> Option<(LeafNode, Nibbles)> {
+        let (leaf, load_result) = self.patch_set.load_greatest_key(db)?;
+        self.metrics.db_reads += load_result.db_reads;
+        assert_eq!(load_result.longest_prefixes.len(), 1);
+        Some((leaf, load_result.longest_prefixes[0]))
     }
 
     /// Inserts or updates a value hash for the specified `key`. This implementation
@@ -221,22 +230,33 @@ pub(crate) struct Storage<'a, DB: ?Sized> {
     hasher: &'a dyn HashTree,
     manifest: Manifest,
     leaf_count: u64,
+    create_new_version: bool,
     updater: TreeUpdater,
 }
 
 impl<'a, DB: Database + ?Sized> Storage<'a, DB> {
     /// Creates storage for a new version of the tree.
-    pub fn new(db: &'a DB, hasher: &'a dyn HashTree, version: u64) -> Self {
+    pub fn new(
+        db: &'a DB,
+        hasher: &'a dyn HashTree,
+        version: u64,
+        create_new_version: bool,
+    ) -> Self {
         let mut manifest = db.manifest().unwrap_or_default();
         if manifest.tags.is_none() {
             manifest.tags = Some(TreeTags::new(hasher));
         }
-        manifest.version_count = version + 1;
+        manifest.version_count = version + u64::from(create_new_version);
 
-        let root = if version == 0 {
-            Root::Empty
+        let base_version = if create_new_version {
+            version.checked_sub(1)
         } else {
-            db.root(version - 1).expect("no previous root")
+            Some(version)
+        };
+        let root = if let Some(base_version) = base_version {
+            db.root(base_version).unwrap_or(Root::Empty)
+        } else {
+            Root::Empty
         };
 
         Self {
@@ -244,6 +264,7 @@ impl<'a, DB: Database + ?Sized> Storage<'a, DB> {
             hasher,
             manifest,
             leaf_count: root.leaf_count(),
+            create_new_version,
             updater: TreeUpdater::new(version, root),
         }
     }
@@ -276,14 +297,47 @@ impl<'a, DB: Database + ?Sized> Storage<'a, DB> {
         (output, patch)
     }
 
+    pub fn extend_during_recovery(mut self, recovery_entries: Vec<RecoveryEntry>) -> PatchSet {
+        let (mut prev_key, mut prev_nibbles) = match self.updater.load_greatest_key(self.db) {
+            Some((leaf, nibbles)) => (Some(leaf.full_key), nibbles),
+            None => (None, Nibbles::EMPTY),
+        };
+
+        let extend_patch_latency = BLOCK_TIMINGS.extend_patch.start();
+        for entry in recovery_entries {
+            if let Some(prev_key) = prev_key {
+                assert!(
+                    entry.key > prev_key,
+                    "Recovery entries must be ordered by increasing key"
+                );
+            }
+            prev_key = Some(entry.key);
+            let key_nibbles = Nibbles::new(&entry.key, prev_nibbles.nibble_count());
+            prev_nibbles = prev_nibbles.common_prefix(&key_nibbles);
+
+            self.updater
+                .insert(entry.key, entry.value, &prev_nibbles, || entry.leaf_index);
+            self.leaf_count += 1;
+        }
+        extend_patch_latency.observe();
+
+        let (_, patch) = self.finalize();
+        patch
+    }
+
     fn finalize(self) -> (ValueHash, PatchSet) {
         self.updater.metrics.report();
 
         let finalize_patch = BLOCK_TIMINGS.finalize_patch.start();
-        let (root_hash, patch, stats) =
-            self.updater
-                .patch_set
-                .finalize(self.manifest, self.leaf_count, self.hasher);
+        let record_stale_keys = self.create_new_version;
+        // ^ We should not record stale keys when updating an existing tree version, since
+        // otherwise updated keys will be marked as stale and removed.
+        let (root_hash, patch, stats) = self.updater.patch_set.finalize(
+            self.manifest,
+            self.leaf_count,
+            record_stale_keys,
+            self.hasher,
+        );
         GENERAL_METRICS.leaf_count.set(self.leaf_count);
         finalize_patch.observe();
         stats.report();

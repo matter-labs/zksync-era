@@ -205,6 +205,26 @@ impl Nibbles {
         }
         Some(child)
     }
+
+    /// Returns nibbles that form a common prefix between these nibbles and the provided `key`.
+    pub fn common_prefix(mut self, other: &Self) -> Self {
+        for i in 0..(self.nibble_count + 1) / 2 {
+            let (this_byte, other_byte) = (self.bytes[i], other.bytes[i]);
+            if this_byte != other_byte {
+                // Check whether the first nibble matches.
+                if this_byte & 0xf0 == other_byte & 0xf0 {
+                    self.nibble_count = i * 2 + 1;
+                    self.bytes[i] &= 0xf0;
+                    self.bytes[(i + 1)..].fill(0);
+                } else {
+                    self.nibble_count = i * 2;
+                    self.bytes[i..].fill(0);
+                }
+                return self;
+            }
+        }
+        self
+    }
 }
 
 impl fmt::Display for Nibbles {
@@ -564,6 +584,34 @@ mod tests {
 
         let nibbles = Nibbles::new(&TEST_KEY, 64);
         assert!(nibbles.push(0xb).is_none());
+    }
+
+    #[test]
+    fn nibbles_prefix() {
+        let nibbles = Nibbles::new(&TEST_KEY, 6);
+        assert_eq!(nibbles.common_prefix(&nibbles), nibbles);
+
+        let nibbles = Nibbles::new(&TEST_KEY, 6);
+        let prefix = Nibbles::new(&TEST_KEY, 4);
+        assert_eq!(nibbles.common_prefix(&prefix), prefix);
+        assert_eq!(prefix.common_prefix(&nibbles), prefix);
+
+        let nibbles = Nibbles::new(&TEST_KEY, 7);
+        assert_eq!(nibbles.common_prefix(&prefix), prefix);
+        assert_eq!(prefix.common_prefix(&nibbles), prefix);
+
+        let nibbles = Nibbles::new(&TEST_KEY, 64);
+        let diverging_nibbles = Nibbles::new(&TEST_KEY, 4).push(0x1).unwrap();
+        assert_eq!(nibbles.common_prefix(&diverging_nibbles), prefix);
+
+        let diverging_nibbles = Nibbles::new(&TEST_KEY, 5).push(0x1).unwrap();
+        assert_eq!(
+            nibbles.common_prefix(&diverging_nibbles),
+            Nibbles::new(&TEST_KEY, 5)
+        );
+
+        let diverging_nibbles = Nibbles::from_parts([0xff; KEY_SIZE], 64);
+        assert_eq!(nibbles.common_prefix(&diverging_nibbles), Nibbles::EMPTY);
     }
 
     #[test]

@@ -146,7 +146,14 @@ impl Database for PatchSet {
         }
         self.manifest = other.manifest;
         self.roots.extend(other.roots);
-        self.nodes_by_version.extend(other.nodes_by_version);
+
+        for (version, nodes) in other.nodes_by_version {
+            if let Some(existing_nodes) = self.nodes_by_version.get_mut(&version) {
+                existing_nodes.extend(nodes);
+            } else {
+                self.nodes_by_version.insert(version, nodes);
+            }
+        }
         self.stale_keys_by_version
             .extend(other.stale_keys_by_version);
     }

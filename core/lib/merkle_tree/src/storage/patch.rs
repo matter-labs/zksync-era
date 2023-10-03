@@ -346,10 +346,15 @@ impl WorkingPatchSet {
         mut self,
         manifest: Manifest,
         leaf_count: u64,
+        record_stale_keys: bool,
         hasher: &dyn HashTree,
     ) -> (ValueHash, PatchSet, HashingStats) {
         self.remove_unchanged_nodes();
-        let stale_keys = self.stale_keys();
+        let stale_keys = if record_stale_keys {
+            self.stale_keys()
+        } else {
+            vec![]
+        };
         let metrics = HashingStats::default();
 
         let mut changes_by_nibble_count = self.changes_by_nibble_count;
@@ -691,7 +696,7 @@ mod tests {
         // Test DB with a single entry.
         let mut db = PatchSet::default();
         let key = Key::from(1234_u64);
-        let (_, patch) = Storage::new(&db, &(), 0).extend(vec![(key, ValueHash::zero())]);
+        let (_, patch) = Storage::new(&db, &(), 0, true).extend(vec![(key, ValueHash::zero())]);
         db.apply_patch(patch);
 
         let mut patch = WorkingPatchSet::new(1, db.root(0).unwrap());
@@ -703,7 +708,8 @@ mod tests {
 
         // Test DB with multiple entries.
         let other_key = Key::from_little_endian(&[0xa0; 32]);
-        let (_, patch) = Storage::new(&db, &(), 1).extend(vec![(other_key, ValueHash::zero())]);
+        let (_, patch) =
+            Storage::new(&db, &(), 1, true).extend(vec![(other_key, ValueHash::zero())]);
         db.apply_patch(patch);
 
         let mut patch = WorkingPatchSet::new(2, db.root(1).unwrap());
@@ -714,7 +720,8 @@ mod tests {
         assert_eq!(load_result.db_reads, 1);
 
         let greater_key = Key::from_little_endian(&[0xaf; 32]);
-        let (_, patch) = Storage::new(&db, &(), 2).extend(vec![(greater_key, ValueHash::zero())]);
+        let (_, patch) =
+            Storage::new(&db, &(), 2, true).extend(vec![(greater_key, ValueHash::zero())]);
         db.apply_patch(patch);
 
         let mut patch = WorkingPatchSet::new(3, db.root(2).unwrap());

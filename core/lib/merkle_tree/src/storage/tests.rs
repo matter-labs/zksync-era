@@ -166,7 +166,7 @@ fn changing_child_ref_type() {
 #[test]
 fn inserting_node_in_non_empty_database() {
     let mut db = PatchSet::default();
-    let storage = Storage::new(&db, &(), 0);
+    let storage = Storage::new(&db, &(), 0, true);
     let kvs = vec![(FIRST_KEY, H256([1; 32])), (SECOND_KEY, H256([2; 32]))];
     let (_, patch) = storage.extend(kvs);
     db.apply_patch(patch);
@@ -220,7 +220,7 @@ fn inserting_node_in_non_empty_database() {
 #[test]
 fn inserting_node_in_non_empty_database_with_moved_key() {
     let mut db = PatchSet::default();
-    let storage = Storage::new(&db, &(), 0);
+    let storage = Storage::new(&db, &(), 0, true);
     let kvs = vec![(FIRST_KEY, H256([1; 32])), (THIRD_KEY, H256([3; 32]))];
     let (_, patch) = storage.extend(kvs);
     db.apply_patch(patch);
@@ -290,12 +290,12 @@ fn finalize_merkle_path(mut path: MerklePath, hasher: &mut HasherWithStats<'_>) 
 #[test]
 fn reading_keys_does_not_change_child_version() {
     let mut db = PatchSet::default();
-    let storage = Storage::new(&db, &(), 0);
+    let storage = Storage::new(&db, &(), 0, true);
     let kvs = vec![(FIRST_KEY, H256([0; 32])), (SECOND_KEY, H256([1; 32]))];
     let (_, patch) = storage.extend(kvs);
     db.apply_patch(patch);
 
-    let storage = Storage::new(&db, &(), 1);
+    let storage = Storage::new(&db, &(), 1, true);
     let instructions = vec![
         (FIRST_KEY, TreeInstruction::Read),
         (E_KEY, TreeInstruction::Write(H256([2; 32]))),
@@ -317,12 +317,12 @@ fn reading_keys_does_not_change_child_version() {
 #[test]
 fn read_ops_are_not_reflected_in_patch() {
     let mut db = PatchSet::default();
-    let storage = Storage::new(&db, &(), 0);
+    let storage = Storage::new(&db, &(), 0, true);
     let kvs = vec![(FIRST_KEY, H256([0; 32])), (SECOND_KEY, H256([1; 32]))];
     let (_, patch) = storage.extend(kvs);
     db.apply_patch(patch);
 
-    let storage = Storage::new(&db, &(), 1);
+    let storage = Storage::new(&db, &(), 1, true);
     let instructions = vec![(FIRST_KEY, TreeInstruction::Read)];
     let (_, patch) = storage.extend_with_proofs(instructions);
     assert!(patch.nodes_by_version[&1].is_empty());
@@ -339,7 +339,7 @@ fn test_read_instructions_do_not_lead_to_copied_nodes(writes_per_block: u64) {
     // Write some keys into the database.
     let mut key_count = writes_per_block;
     let mut database = PatchSet::default();
-    let storage = Storage::new(&database, &(), 0);
+    let storage = Storage::new(&database, &(), 0, true);
     let kvs = (0..key_count)
         .map(|i| (big_endian_key(i), H256::zero()))
         .collect();
@@ -360,7 +360,7 @@ fn test_read_instructions_do_not_lead_to_copied_nodes(writes_per_block: u64) {
         instructions.shuffle(&mut rng);
         key_count += writes_per_block;
 
-        let storage = Storage::new(&database, &(), 1);
+        let storage = Storage::new(&database, &(), 1, true);
         let (_, patch) = storage.extend_with_proofs(instructions);
         assert_no_copied_nodes(&database, &patch);
         database.apply_patch(patch);
@@ -395,7 +395,7 @@ fn test_replaced_keys_are_correctly_tracked(writes_per_block: usize, with_proofs
 
     // Write some keys into the database.
     let mut database = PatchSet::default();
-    let storage = Storage::new(&database, &(), 0);
+    let storage = Storage::new(&database, &(), 0, true);
     let kvs = (0..100)
         .map(|i| (big_endian_key(i), H256::zero()))
         .collect();
@@ -411,7 +411,7 @@ fn test_replaced_keys_are_correctly_tracked(writes_per_block: usize, with_proofs
             .into_iter()
             .map(|i| (big_endian_key(i), H256::zero()));
 
-        let storage = Storage::new(&database, &(), new_version);
+        let storage = Storage::new(&database, &(), new_version, true);
         let patch = if with_proofs {
             let instructions = updates.map(|(key, value)| (key, TreeInstruction::Write(value)));
             storage.extend_with_proofs(instructions.collect()).1
@@ -469,12 +469,12 @@ fn tree_handles_keys_at_terminal_level() {
     let kvs = (0_u32..100)
         .map(|i| (Key::from(i), ValueHash::zero()))
         .collect();
-    let (_, patch) = Storage::new(&db, &(), 0).extend(kvs);
+    let (_, patch) = Storage::new(&db, &(), 0, true).extend(kvs);
     db.apply_patch(patch);
 
     // Overwrite a key and check that we don't panic.
     let new_kvs = vec![(Key::from(0), ValueHash::from_low_u64_be(1))];
-    let (_, patch) = Storage::new(&db, &(), 1).extend(new_kvs);
+    let (_, patch) = Storage::new(&db, &(), 1, true).extend(new_kvs);
 
     assert_eq!(patch.roots[&1].leaf_count(), 100);
     assert_eq!(patch.nodes_by_version[&1].len(), 2 * KEY_SIZE); // root is counted separately
@@ -483,4 +483,41 @@ fn tree_handles_keys_at_terminal_level() {
         assert_eq!(is_terminal, matches!(node, Node::Leaf(_)));
     }
     assert_eq!(patch.stale_keys_by_version[&1].len(), 2 * KEY_SIZE + 1);
+}
+
+#[test]
+fn recovery_workflow() {
+    let mut db = PatchSet::default();
+    let recovery_version = 100;
+    let recovery_entries = (0_u32..100).map(|i| RecoveryEntry {
+        key: Key::from(i),
+        value: ValueHash::zero(),
+        leaf_index: u64::from(i),
+    });
+    let patch = Storage::new(&db, &(), recovery_version, false)
+        .extend_during_recovery(recovery_entries.collect());
+    assert_eq!(patch.roots[&recovery_version].leaf_count(), 100);
+    db.apply_patch(patch);
+
+    let more_recovery_entries = (100_u32..200).map(|i| RecoveryEntry {
+        key: Key::from(i),
+        value: ValueHash::zero(),
+        leaf_index: u64::from(i),
+    });
+
+    let patch = Storage::new(&db, &(), recovery_version, false)
+        .extend_during_recovery(more_recovery_entries.collect());
+    assert_eq!(patch.roots[&recovery_version].leaf_count(), 200);
+    db.apply_patch(patch);
+
+    // Check that all entries can be accessed
+    let storage = Storage::new(&db, &(), recovery_version + 1, true);
+    let instructions = (0_u32..200).map(|i| (Key::from(i), TreeInstruction::Read));
+    let (output, _) = storage.extend_with_proofs(instructions.collect());
+    assert_eq!(output.leaf_count, 200);
+    assert_eq!(output.logs.len(), 200);
+    assert!(output
+        .logs
+        .iter()
+        .all(|log| matches!(log.base, TreeLogEntry::Read { .. })));
 }
