@@ -69,7 +69,7 @@ pub trait DynTracer<S, H: HistoryMode> {
 
 /// Save the results of the vm execution.
 pub trait VmTracer<S: WriteStorage, H: HistoryMode>:
-    DynTracer<S, H> + ExecutionEndTracer<H> + ExecutionProcessing<S, H> + Send
+    DynTracer<S, H> + ExecutionEndTracer<H> + ExecutionProcessing<S, H>
 {
     fn save_results(&mut self, _result: &mut VmExecutionResultAndLogs) {}
 }
