@@ -174,5 +174,5 @@ impl Cli {
 }
 
 fn main() {
-    Cli::parse().run()
+    Cli::parse().run();
 }
