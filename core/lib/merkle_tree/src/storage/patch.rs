@@ -2,7 +2,10 @@
 
 use rayon::prelude::*;
 
-use std::collections::{hash_map::Entry, HashMap};
+use std::{
+    collections::{hash_map::Entry, HashMap},
+    iter,
+};
 
 use crate::{
     hasher::{HashTree, HasherWithStats, MerklePath},
@@ -235,7 +238,7 @@ impl WorkingPatchSet {
 
     /// The pushed nodes are not marked as changed, so this method should only be used
     /// if the nodes are loaded from DB.
-    pub fn push_level_from_db<'a>(&mut self, level: impl Iterator<Item = (&'a NodeKey, Node)>) {
+    fn push_level_from_db<'a>(&mut self, level: impl Iterator<Item = (&'a NodeKey, Node)>) {
         let level = level
             .map(|(key, node)| {
                 let node = WorkingNode::unchanged(node, key.version);
@@ -530,6 +533,36 @@ impl WorkingPatchSet {
         unreachable!("We must have encountered a leaf or missing node when traversing");
     }
 
+    pub fn load_greatest_key<DB: Database + ?Sized>(
+        &mut self,
+        db: &DB,
+    ) -> Option<(LeafNode, LoadAncestorsResult)> {
+        let mut nibbles = Nibbles::EMPTY;
+        let mut db_reads = 0;
+        let greatest_leaf = loop {
+            match self.get(&nibbles) {
+                None => return None,
+                Some(Node::Leaf(leaf)) => break *leaf,
+                Some(Node::Internal(node)) => {
+                    let (next_nibble, child_ref) = node.last_child_ref();
+                    nibbles = nibbles.push(next_nibble).unwrap();
+                    // ^ `unwrap()` is safe; there can be no internal nodes on the bottommost tree level
+                    let child_key = nibbles.with_version(child_ref.version);
+                    let child_node = db.tree_node(&child_key, child_ref.is_leaf).unwrap();
+                    // ^ `unwrap()` is safe by construction
+                    self.push_level_from_db(iter::once((&child_key, child_node)));
+                    db_reads += 1;
+                }
+            }
+        };
+
+        let result = LoadAncestorsResult {
+            longest_prefixes: vec![nibbles],
+            db_reads,
+        };
+        Some((greatest_leaf, result))
+    }
+
     /// Creates a Merkle proof for the specified `key`, which has given `parent_nibbles`
     /// in this patch set. `root_nibble_count` specifies to which level the proof needs to be constructed.
     pub(crate) fn create_proof(
@@ -594,7 +627,10 @@ impl WorkingPatchSet {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::{Key, LeafNode};
+    use crate::{
+        storage::Storage,
+        types::{Key, LeafNode},
+    };
 
     fn patch_len(patch: &WorkingPatchSet) -> usize {
         patch.changes_by_nibble_count.iter().map(HashMap::len).sum()
@@ -643,5 +679,49 @@ mod tests {
             assert!(merged.get(nibbles).is_some());
         }
         assert_eq!(patch_len(&merged), all_nibbles.len() + 1);
+    }
+
+    #[test]
+    fn loading_greatest_key() {
+        // Test empty DB.
+        let mut patch = WorkingPatchSet::new(0, Root::Empty);
+        let load_result = patch.load_greatest_key(&PatchSet::default());
+        assert!(load_result.is_none());
+
+        // Test DB with a single entry.
+        let mut db = PatchSet::default();
+        let key = Key::from(1234_u64);
+        let (_, patch) = Storage::new(&db, &(), 0).extend(vec![(key, ValueHash::zero())]);
+        db.apply_patch(patch);
+
+        let mut patch = WorkingPatchSet::new(1, db.root(0).unwrap());
+        let (greatest_leaf, load_result) = patch.load_greatest_key(&db).unwrap();
+        assert_eq!(greatest_leaf.full_key, key);
+        assert_eq!(load_result.longest_prefixes.len(), 1);
+        assert_eq!(load_result.longest_prefixes[0].nibble_count(), 0);
+        assert_eq!(load_result.db_reads, 0);
+
+        // Test DB with multiple entries.
+        let other_key = Key::from_little_endian(&[0xa0; 32]);
+        let (_, patch) = Storage::new(&db, &(), 1).extend(vec![(other_key, ValueHash::zero())]);
+        db.apply_patch(patch);
+
+        let mut patch = WorkingPatchSet::new(2, db.root(1).unwrap());
+        let (greatest_leaf, load_result) = patch.load_greatest_key(&db).unwrap();
+        assert_eq!(greatest_leaf.full_key, other_key);
+        assert_eq!(load_result.longest_prefixes.len(), 1);
+        assert_eq!(load_result.longest_prefixes[0].nibble_count(), 1);
+        assert_eq!(load_result.db_reads, 1);
+
+        let greater_key = Key::from_little_endian(&[0xaf; 32]);
+        let (_, patch) = Storage::new(&db, &(), 2).extend(vec![(greater_key, ValueHash::zero())]);
+        db.apply_patch(patch);
+
+        let mut patch = WorkingPatchSet::new(3, db.root(2).unwrap());
+        let (greatest_leaf, load_result) = patch.load_greatest_key(&db).unwrap();
+        assert_eq!(greatest_leaf.full_key, greater_key);
+        assert_eq!(load_result.longest_prefixes.len(), 1);
+        assert_eq!(load_result.longest_prefixes[0].nibble_count(), 2);
+        assert_eq!(load_result.db_reads, 2);
     }
 }

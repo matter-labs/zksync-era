@@ -409,6 +409,11 @@ impl InternalNode {
         self.children.values()
     }
 
+    pub(crate) fn last_child_ref(&self) -> (u8, &ChildRef) {
+        self.children.last().unwrap()
+        // ^ `unwrap()` is safe by construction; all persisted internal nodes are not empty
+    }
+
     pub(crate) fn child_hashes(&self) -> [Option<ValueHash>; Self::CHILD_COUNT as usize] {
         let mut hashes = [None; Self::CHILD_COUNT as usize];
         for (nibble, child_ref) in self.children.iter() {
