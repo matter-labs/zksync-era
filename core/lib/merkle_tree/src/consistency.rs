@@ -284,7 +284,7 @@ mod tests {
     #[test]
     fn missing_root_error() {
         let mut db = prepare_database();
-        db.roots_mut().remove(&0);
+        db.remove_root(0);
 
         let err = MerkleTree::new(db).verify_consistency(0).unwrap_err();
         assert_matches!(err, ConsistencyError::MissingRoot(0));
@@ -311,7 +311,7 @@ mod tests {
     fn leaf_count_mismatch_error() {
         let mut db = prepare_database();
 
-        let root = db.roots_mut().get_mut(&0).unwrap();
+        let root = db.root_mut(0).unwrap();
         let Root::Filled { leaf_count, .. } = root else {
             panic!("unexpected root: {root:?}");
         };
@@ -331,7 +331,7 @@ mod tests {
     fn hash_mismatch_error() {
         let mut db = prepare_database();
 
-        let root = db.roots_mut().get_mut(&0).unwrap();
+        let root = db.root_mut(0).unwrap();
         let Root::Filled {
             node: Node::Internal(node),
             ..

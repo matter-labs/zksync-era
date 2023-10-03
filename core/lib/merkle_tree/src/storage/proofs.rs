@@ -571,6 +571,6 @@ mod tests {
             .all(|log| matches!(log.base, TreeLogEntry::ReadMissingKey));
         assert!(all_misses);
 
-        assert_matches!(patch.roots[&0], Root::Empty);
+        assert_matches!(patch.patches_by_version[&0].root, Some(Root::Empty));
     }
 }

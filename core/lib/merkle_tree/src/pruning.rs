@@ -211,8 +211,10 @@ mod tests {
         assert!(!stats.has_more_work());
 
         // Check the `PatchSet` implementation of `PruneDatabase`.
-        assert_eq!(db.roots_mut().len(), 1);
-        assert!(db.roots_mut().contains_key(&4));
+        for version in 0..4 {
+            assert!(db.root_mut(version).is_none());
+        }
+        assert!(db.root_mut(4).is_some());
     }
 
     #[test]

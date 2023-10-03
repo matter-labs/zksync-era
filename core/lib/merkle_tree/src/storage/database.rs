@@ -109,7 +109,10 @@ impl Database for PatchSet {
     }
 
     fn try_root(&self, version: u64) -> Result<Option<Root>, DeserializeError> {
-        Ok(self.roots.get(&version).cloned())
+        let Some(patch) = self.patches_by_version.get(&version) else {
+            return Ok(None);
+        };
+        Ok(patch.root.clone())
     }
 
     fn try_tree_node(
@@ -118,9 +121,9 @@ impl Database for PatchSet {
         is_leaf: bool,
     ) -> Result<Option<Node>, DeserializeError> {
         let node = self
-            .nodes_by_version
+            .patches_by_version
             .get(&key.version)
-            .and_then(|nodes| nodes.get(key));
+            .and_then(|patch| patch.nodes.get(key));
         let Some(node) = node.cloned() else {
             return Ok(None);
         };
@@ -137,21 +140,17 @@ impl Database for PatchSet {
     fn apply_patch(&mut self, other: PatchSet) {
         let new_version_count = other.manifest.version_count;
         if new_version_count < self.manifest.version_count {
-            // Remove obsolete roots and nodes from the patch.
-            self.roots.retain(|&version, _| version < new_version_count);
-            self.nodes_by_version
-                .retain(|&version, _| version < new_version_count);
-            self.stale_keys_by_version
+            // Remove obsolete sub-patches from the patch.
+            self.patches_by_version
                 .retain(|&version, _| version < new_version_count);
         }
         self.manifest = other.manifest;
-        self.roots.extend(other.roots);
 
-        for (version, nodes) in other.nodes_by_version {
-            if let Some(existing_nodes) = self.nodes_by_version.get_mut(&version) {
-                existing_nodes.extend(nodes);
+        for (version, new_patch) in other.patches_by_version {
+            if let Some(existing_patch) = self.patches_by_version.get_mut(&version) {
+                existing_patch.merge(new_patch);
             } else {
-                self.nodes_by_version.insert(version, nodes);
+                self.patches_by_version.insert(version, new_patch);
             }
         }
         self.stale_keys_by_version
@@ -177,9 +176,9 @@ impl<DB: Database> Patched<DB> {
     }
 
     pub(crate) fn patched_versions(&self) -> Vec<u64> {
-        self.patch
-            .as_ref()
-            .map_or_else(Vec::new, |patch| patch.roots.keys().copied().collect())
+        self.patch.as_ref().map_or_else(Vec::new, |patch| {
+            patch.patches_by_version.keys().copied().collect()
+        })
     }
 
     /// Provides access to the wrapped DB. Should not be used to mutate DB data.
@@ -226,7 +225,7 @@ impl<DB: Database> Database for Patched<DB> {
     fn try_root(&self, version: u64) -> Result<Option<Root>, DeserializeError> {
         if let Some(patch) = &self.patch {
             if patch.is_responsible_for_version(version) {
-                return Ok(patch.roots.get(&version).cloned());
+                return patch.try_root(version);
             }
         }
         self.inner.try_root(version)
@@ -348,10 +347,13 @@ impl PruneDatabase for PatchSet {
 
     fn prune(&mut self, patch: PrunePatchSet) {
         for key in &patch.pruned_node_keys {
+            let Some(patch) = self.patches_by_version.get_mut(&key.version) else {
+                continue;
+            };
             if key.is_empty() {
-                self.roots.remove(&key.version);
-            } else if let Some(nodes) = self.nodes_by_version.get_mut(&key.version) {
-                nodes.remove(key);
+                patch.root = None;
+            } else {
+                patch.nodes.remove(key);
             }
         }
 

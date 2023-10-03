@@ -10,6 +10,7 @@ use std::collections::{HashMap, HashSet};
 use super::*;
 use crate::{
     hasher::{HasherWithStats, MerklePath},
+    storage::patch::Operation,
     types::{NodeKey, TreeInstruction, KEY_SIZE},
 };
 use zksync_types::{H256, U256};
@@ -35,7 +36,13 @@ pub(super) fn create_patch(
     nodes: HashMap<NodeKey, Node>,
 ) -> PatchSet {
     let manifest = Manifest::new(latest_version + 1, &());
-    PatchSet::new(manifest, latest_version, root, nodes, vec![])
+    PatchSet::new(
+        manifest,
+        latest_version,
+        root,
+        nodes,
+        Operation::insert(vec![]),
+    )
 }
 
 #[test]
@@ -302,10 +309,10 @@ fn reading_keys_does_not_change_child_version() {
     ];
 
     let (_, patch) = storage.extend_with_proofs(instructions);
-    let Root::Filled {
+    let Some(Root::Filled {
         leaf_count,
         node: Node::Internal(node),
-    } = &patch.roots[&1]
+    }) = &patch.patches_by_version[&1].root
     else {
         panic!("unexpected root");
     };
@@ -325,7 +332,7 @@ fn read_ops_are_not_reflected_in_patch() {
     let storage = Storage::new(&db, &(), 1, true);
     let instructions = vec![(FIRST_KEY, TreeInstruction::Read)];
     let (_, patch) = storage.extend_with_proofs(instructions);
-    assert!(patch.nodes_by_version[&1].is_empty());
+    assert!(patch.patches_by_version[&1].nodes.is_empty());
 }
 
 // This maps small indices to keys that differ in the starting nibbles.
@@ -368,13 +375,13 @@ fn test_read_instructions_do_not_lead_to_copied_nodes(writes_per_block: u64) {
 }
 
 fn assert_no_copied_nodes(database: &PatchSet, patch: &PatchSet) {
-    assert_eq!(patch.nodes_by_version.len(), 1);
+    assert_eq!(patch.patches_by_version.len(), 1);
 
-    let (&version, nodes) = patch.nodes_by_version.iter().next().unwrap();
-    for (key, node) in nodes {
+    let (&version, patch) = patch.patches_by_version.iter().next().unwrap();
+    for (key, node) in &patch.nodes {
         let prev_node = (0..version).rev().find_map(|v| {
             let prev_key = key.nibbles.with_version(v);
-            database.nodes_by_version[&v].get(&prev_key)
+            database.patches_by_version[&v].nodes.get(&prev_key)
         });
         if let Some(prev_node) = prev_node {
             assert_ne!(node, prev_node, "node at {key:?} is copied");
@@ -440,17 +447,18 @@ fn replaced_keys_are_correctly_tracked_with_proofs() {
 }
 
 fn assert_replaced_keys(db: &PatchSet, patch: &PatchSet) {
-    assert_eq!(patch.nodes_by_version.len(), 1);
-    let (&version, patch_nodes) = patch.nodes_by_version.iter().next().unwrap();
+    assert_eq!(patch.patches_by_version.len(), 1);
+    let (&version, sub_patch) = patch.patches_by_version.iter().next().unwrap();
     assert_eq!(patch.stale_keys_by_version.len(), 1);
     let replaced_keys = patch.stale_keys_by_version.values().next().unwrap();
 
-    let expected_replaced_keys = patch_nodes.keys().filter_map(|key| {
+    let expected_replaced_keys = sub_patch.nodes.keys().filter_map(|key| {
         (0..key.version).rev().find_map(|v| {
             let prev_key = key.nibbles.with_version(v);
             let contains_key = db
-                .nodes_by_version
+                .patches_by_version
                 .get(&prev_key.version)?
+                .nodes
                 .contains_key(&prev_key);
             contains_key.then_some(prev_key)
         })
@@ -476,9 +484,16 @@ fn tree_handles_keys_at_terminal_level() {
     let new_kvs = vec![(Key::from(0), ValueHash::from_low_u64_be(1))];
     let (_, patch) = Storage::new(&db, &(), 1, true).extend(new_kvs);
 
-    assert_eq!(patch.roots[&1].leaf_count(), 100);
-    assert_eq!(patch.nodes_by_version[&1].len(), 2 * KEY_SIZE); // root is counted separately
-    for (key, node) in &patch.nodes_by_version[&1] {
+    assert_eq!(
+        patch.patches_by_version[&1]
+            .root
+            .as_ref()
+            .unwrap()
+            .leaf_count(),
+        100
+    );
+    assert_eq!(patch.patches_by_version[&1].nodes.len(), 2 * KEY_SIZE); // root is counted separately
+    for (key, node) in &patch.patches_by_version[&1].nodes {
         let is_terminal = key.nibbles.nibble_count() == 2 * KEY_SIZE;
         assert_eq!(is_terminal, matches!(node, Node::Leaf(_)));
     }
@@ -496,7 +511,7 @@ fn recovery_workflow() {
     });
     let patch = Storage::new(&db, &(), recovery_version, false)
         .extend_during_recovery(recovery_entries.collect());
-    assert_eq!(patch.roots[&recovery_version].leaf_count(), 100);
+    assert_eq!(patch.root(recovery_version).unwrap().leaf_count(), 100);
     db.apply_patch(patch);
 
     let more_recovery_entries = (100_u32..200).map(|i| RecoveryEntry {
@@ -507,7 +522,7 @@ fn recovery_workflow() {
 
     let patch = Storage::new(&db, &(), recovery_version, false)
         .extend_during_recovery(more_recovery_entries.collect());
-    assert_eq!(patch.roots[&recovery_version].leaf_count(), 200);
+    assert_eq!(patch.root(recovery_version).unwrap().leaf_count(), 200);
     db.apply_patch(patch);
 
     // Check that all entries can be accessed

@@ -18,16 +18,67 @@ use crate::{
     utils, Database,
 };
 
-/// Raw set of database changes.
-#[derive(Debug, Default)]
-#[cfg_attr(test, derive(Clone))] // Used in tree consistency tests
-pub struct PatchSet {
-    pub(super) manifest: Manifest,
-    pub(super) roots: HashMap<u64, Root>,
+#[derive(Debug)]
+pub(super) enum OperationKind {
+    Insert,
+    Update,
+}
+
+impl OperationKind {
+    pub fn is_insert(&self) -> bool {
+        matches!(self, Self::Insert)
+    }
+}
+
+#[derive(Debug)]
+pub(super) enum Operation {
+    Insert { stale_keys: Vec<NodeKey> },
+    Update,
+}
+
+impl Operation {
+    pub fn insert(stale_keys: Vec<NodeKey>) -> Self {
+        Self::Insert { stale_keys }
+    }
+
+    fn kind(&self) -> OperationKind {
+        match self {
+            Self::Insert { .. } => OperationKind::Insert,
+            Self::Update => OperationKind::Update,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub(super) struct VersionedPatchSet {
+    pub operation: OperationKind,
+    pub root: Option<Root>,
     // TODO (BFT-130): investigate most efficient ways to store key-value pairs:
     //   - `HashMap`s indexed by version
     //   - Full upper levels (i.e., `Vec<Option<Node>>`)
-    pub(super) nodes_by_version: HashMap<u64, HashMap<NodeKey, Node>>,
+    pub nodes: HashMap<NodeKey, Node>,
+}
+
+impl VersionedPatchSet {
+    pub fn merge(&mut self, other: Self) {
+        match &other.operation {
+            OperationKind::Insert => {
+                // Replace this patch with the new one.
+                *self = other;
+            }
+            OperationKind::Update => {
+                self.root = other.root;
+                self.nodes.extend(other.nodes);
+            }
+        }
+    }
+}
+
+/// Raw set of database changes.
+#[derive(Debug, Default)]
+pub struct PatchSet {
+    pub(super) manifest: Manifest,
+    pub(super) patches_by_version: HashMap<u64, VersionedPatchSet>,
     pub(super) stale_keys_by_version: HashMap<u64, Vec<NodeKey>>,
 }
 
@@ -35,8 +86,7 @@ impl PatchSet {
     pub(crate) fn from_manifest(manifest: Manifest) -> Self {
         Self {
             manifest,
-            roots: HashMap::new(),
-            nodes_by_version: HashMap::new(),
+            patches_by_version: HashMap::new(),
             stale_keys_by_version: HashMap::new(),
         }
     }
@@ -47,7 +97,13 @@ impl PatchSet {
         } else {
             vec![]
         };
-        Self::new(manifest, version, Root::Empty, HashMap::new(), stale_keys)
+        Self::new(
+            manifest,
+            version,
+            Root::Empty,
+            HashMap::new(),
+            Operation::insert(stale_keys),
+        )
     }
 
     pub(super) fn new(
@@ -55,30 +111,39 @@ impl PatchSet {
         version: u64,
         root: Root,
         mut nodes: HashMap<NodeKey, Node>,
-        mut stale_keys: Vec<NodeKey>,
+        mut operation: Operation,
     ) -> Self {
         debug_assert_eq!(manifest.version_count, version + 1);
 
         nodes.shrink_to_fit(); // We never insert into `nodes` later
-        stale_keys.shrink_to_fit();
+        if let Operation::Insert { stale_keys } = &mut operation {
+            stale_keys.shrink_to_fit();
+        }
+        let versioned_patch = VersionedPatchSet {
+            operation: operation.kind(),
+            root: Some(root),
+            nodes,
+        };
         Self {
             manifest,
-            roots: HashMap::from_iter([(version, root)]),
-            nodes_by_version: HashMap::from_iter([(version, nodes)]),
-            stale_keys_by_version: HashMap::from_iter([(version, stale_keys)]),
+            patches_by_version: HashMap::from([(version, versioned_patch)]),
+            stale_keys_by_version: match operation {
+                Operation::Insert { stale_keys } => HashMap::from([(version, stale_keys)]),
+                Operation::Update => HashMap::new(),
+            },
         }
     }
 
     pub(super) fn is_responsible_for_version(&self, version: u64) -> bool {
         version >= self.manifest.version_count // this patch truncates `version`
-            || self.roots.contains_key(&version)
+            || self.patches_by_version.contains_key(&version)
     }
 
     /// Calculates the number of hashes in `ChildRef`s copied from the previous versions
     /// of the tree. This allows to estimate redundancy of this `PatchSet`.
     pub(super) fn copied_hashes_count(&self) -> u64 {
-        let copied_hashes = self.nodes_by_version.iter().map(|(&version, nodes)| {
-            let copied_hashes = nodes.values().map(|node| {
+        let copied_hashes = self.patches_by_version.iter().map(|(&version, patch)| {
+            let copied_hashes = patch.nodes.values().map(|node| {
                 let Node::Internal(node) = node else {
                     return 0;
                 };
@@ -97,17 +162,25 @@ impl PatchSet {
         &mut self.manifest
     }
 
-    pub(crate) fn roots_mut(&mut self) -> &mut HashMap<u64, Root> {
-        &mut self.roots
+    pub(crate) fn root_mut(&mut self, version: u64) -> Option<&mut Root> {
+        let patch = self.patches_by_version.get_mut(&version)?;
+        patch.root.as_mut()
+    }
+
+    pub(crate) fn remove_root(&mut self, version: u64) {
+        let patch = self.patches_by_version.get_mut(&version).unwrap();
+        patch.root = None;
     }
 
     pub(crate) fn nodes_mut(&mut self) -> impl Iterator<Item = (&NodeKey, &mut Node)> + '_ {
-        self.nodes_by_version.values_mut().flatten()
+        self.patches_by_version
+            .values_mut()
+            .flat_map(|patch| &mut patch.nodes)
     }
 
     pub(crate) fn remove_node(&mut self, key: &NodeKey) {
-        let nodes = self.nodes_by_version.get_mut(&key.version).unwrap();
-        nodes.remove(key);
+        let patch = self.patches_by_version.get_mut(&key.version).unwrap();
+        patch.nodes.remove(key);
     }
 }
 
@@ -350,10 +423,10 @@ impl WorkingPatchSet {
         hasher: &dyn HashTree,
     ) -> (ValueHash, PatchSet, HashingStats) {
         self.remove_unchanged_nodes();
-        let stale_keys = if record_stale_keys {
-            self.stale_keys()
+        let operation = if record_stale_keys {
+            Operation::insert(self.stale_keys())
         } else {
-            vec![]
+            Operation::Update
         };
         let metrics = HashingStats::default();
 
@@ -400,7 +473,7 @@ impl WorkingPatchSet {
                     // We're at the root node level.
                     let root = Root::new(leaf_count, node.inner);
                     let patch =
-                        PatchSet::new(manifest, self.version, root, patched_nodes, stale_keys);
+                        PatchSet::new(manifest, self.version, root, patched_nodes, operation);
                     return (node_hash, patch, metrics);
                 }
 
@@ -418,7 +491,7 @@ impl WorkingPatchSet {
 
     pub fn finalize_without_hashing(mut self, manifest: Manifest, leaf_count: u64) -> PatchSet {
         self.remove_unchanged_nodes();
-        let stale_keys = self.stale_keys();
+        let operation = Operation::insert(self.stale_keys());
 
         let Some(root) = self.take_root() else {
             return PatchSet::for_empty_root(manifest, self.version);
@@ -433,7 +506,7 @@ impl WorkingPatchSet {
                 (nibbles.with_version(self.version), node.inner)
             })
         });
-        PatchSet::new(manifest, self.version, root, nodes.collect(), stale_keys)
+        PatchSet::new(manifest, self.version, root, nodes.collect(), operation)
     }
 
     /// Loads ancestor nodes for all keys in `sorted_keys`.
