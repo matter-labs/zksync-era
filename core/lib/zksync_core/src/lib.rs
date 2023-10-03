@@ -32,6 +32,7 @@ use zksync_dal::{
     connection::DbVariant, healthcheck::ConnectionPoolHealthCheck, ConnectionPool, StorageProcessor,
 };
 use zksync_eth_client::clients::http::QueryClient;
+use zksync_eth_client::EthInterface;
 use zksync_eth_client::{clients::http::PKSigningClient, BoundEthInterface};
 use zksync_health_check::{CheckHealth, HealthStatus, ReactiveHealthCheck};
 use zksync_object_store::ObjectStoreFactory;
@@ -125,8 +126,8 @@ pub async fn genesis_init(
 
     // We don't need to worry about backward-compatibility with the old verifier here,
     // since this is only run during genesis.
-    let eth_client = QueryClient::new(eth_web3_url)?;
-    let vk_hash = eth_client
+    let eth_client = QueryClient::new(eth_client_url)?;
+    let vk_hash: zksync_types::H256 = eth_client
         .call_contract_function(
             "verificationKeyHash",
             (),
@@ -139,7 +140,7 @@ pub async fn genesis_init(
         .await?;
 
     assert_eq!(
-        vk_hash, first_l1_verifier_config.recursion_scheduler_level_vk_hash,
+        vk_hash, contracts_config.recursion_scheduler_level_vk_hash,
         "L1 verifier key does not match the one in the config"
     );
 
