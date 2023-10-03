@@ -11,7 +11,7 @@ impl NetNamespace {
     }
 
     pub fn version_impl(&self) -> String {
-        self.zksync_network_id.to_string()
+        self.zksync_network_id.0.to_string()
     }
 
     pub fn peer_count_impl(&self) -> U256 {

@@ -122,9 +122,17 @@ pub async fn genesis_init(
     )
     .context("Failed to restore operator address from private key")?;
 
+    let zksync_chain_id = network_config.zksync_network_id;
+
+    assert!(
+        zksync_chain_id.0 <= L2ChainId::MAX.into(),
+        "Too big chain ID. MAX: {}",
+        L2ChainId::MAX
+    );
+
     genesis::ensure_genesis_state(
         &mut storage,
-        L2ChainId(network_config.zksync_network_id),
+        zksync_chain_id,
         &genesis::GenesisParams {
             // We consider the operator to be the first validator for now.
             first_validator: operator_address,
@@ -365,7 +373,7 @@ pub async fn initialize_components(
         let tx_sender_config = TxSenderConfig::new(
             &state_keeper_config,
             &api_config.web3_json_rpc,
-            L2ChainId(network_config.zksync_network_id),
+            network_config.zksync_network_id,
         );
         let internal_api_config = InternalApiConfig::new(
             &network_config,

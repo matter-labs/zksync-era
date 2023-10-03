@@ -41,7 +41,7 @@ fn test_l1_tx_execution() {
         is_service: true,
         tx_number_in_block: 0,
         sender: BOOTLOADER_ADDRESS,
-        key: tx_data.tx_hash(L2ChainId(0)),
+        key: tx_data.tx_hash(L2ChainId(U256::zero())),
         value: u256_to_h256(U256::from(1u32)),
     }];
 

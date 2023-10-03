@@ -368,8 +368,8 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
     }
 
     #[tracing::instrument(skip(self))]
-    pub fn chain_id_impl(&self) -> U64 {
-        self.state.api_config.l2_chain_id.0.into()
+    pub fn chain_id_impl(&self) -> U256 {
+        self.state.api_config.l2_chain_id.0
     }
 
     #[tracing::instrument(skip(self))]

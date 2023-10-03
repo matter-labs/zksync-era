@@ -66,7 +66,7 @@ pub(super) fn get_l2_tx(contract_address: Address, signer: &H256, pubdata_price:
             gas_per_pubdata_limit: pubdata_price.into(),
         },
         U256::from(0),
-        L2ChainId(270),
+        L2ChainId::from(270),
         signer,
         None,
         Default::default(),

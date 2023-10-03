@@ -1,5 +1,5 @@
 use std::fmt;
-use zksync_types::{web3::types::U64, MiniblockNumber};
+use zksync_types::{web3::types::U64, MiniblockNumber, U256};
 
 #[derive(Debug, Clone)]
 pub(crate) enum Divergence {
@@ -11,7 +11,7 @@ pub(crate) enum Divergence {
     Log(DivergenceDetails<Option<String>>),
     MainContracts(DivergenceDetails<Option<String>>),
     BridgeContracts(DivergenceDetails<Option<String>>),
-    ChainID(DivergenceDetails<Option<U64>>),
+    ChainID(DivergenceDetails<Option<U256>>),
     L1ChainID(DivergenceDetails<Option<U64>>),
     PubSubHeader(DivergenceDetails<Option<String>>),
 }

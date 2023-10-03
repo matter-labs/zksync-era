@@ -12,7 +12,7 @@ pub mod writes;
 
 pub use log::*;
 pub use zksync_config::constants::*;
-use zksync_utils::address_to_h256;
+use zksync_utils::{address_to_h256, u256_to_h256};
 
 /// Typed fully qualified key of the storage slot in global state tree.
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
@@ -103,7 +103,7 @@ pub fn get_system_context_init_logs(chain_id: L2ChainId) -> Vec<StorageLog> {
     vec![
         StorageLog::new_write_log(
             get_system_context_key(SYSTEM_CONTEXT_CHAIN_ID_POSITION),
-            H256::from_low_u64_be(chain_id.0 as u64),
+            u256_to_h256(chain_id.0),
         ),
         StorageLog::new_write_log(
             get_system_context_key(SYSTEM_CONTEXT_BLOCK_GAS_LIMIT_POSITION),

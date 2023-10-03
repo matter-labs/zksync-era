@@ -24,7 +24,7 @@ impl<G: L1GasPriceProvider + Send + Sync + 'static> EthNamespaceServer for EthNa
         self.get_block_number_impl().await.map_err(into_jsrpc_error)
     }
 
-    async fn chain_id(&self) -> RpcResult<U64> {
+    async fn chain_id(&self) -> RpcResult<U256> {
         Ok(self.chain_id_impl())
     }
 

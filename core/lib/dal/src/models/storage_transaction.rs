@@ -502,7 +502,7 @@ pub fn web3_transaction_select_sql() -> &'static str {
 
 pub fn extract_web3_transaction(db_row: PgRow, chain_id: L2ChainId) -> api::Transaction {
     let mut storage_api_tx = StorageApiTransaction::from_row(&db_row).unwrap();
-    storage_api_tx.inner_api_transaction.chain_id = U256::from(chain_id.0);
+    storage_api_tx.inner_api_transaction.chain_id = chain_id.0;
     storage_api_tx.into()
 }
 

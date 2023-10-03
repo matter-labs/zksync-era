@@ -26,7 +26,7 @@ pub trait EthNamespaceT {
     fn get_block_number(&self) -> BoxFuture<Result<U64>>;
 
     #[rpc(name = "eth_chainId")]
-    fn chain_id(&self) -> BoxFuture<Result<U64>>;
+    fn chain_id(&self) -> BoxFuture<Result<U256>>;
 
     #[rpc(name = "eth_call")]
     fn call(&self, req: CallRequest, block: Option<BlockIdVariant>) -> BoxFuture<Result<Bytes>>;
@@ -187,7 +187,7 @@ impl<G: L1GasPriceProvider + Send + Sync + 'static> EthNamespaceT for EthNamespa
         })
     }
 
-    fn chain_id(&self) -> BoxFuture<Result<U64>> {
+    fn chain_id(&self) -> BoxFuture<Result<U256>> {
         let self_ = self.clone();
         Box::pin(async move { Ok(self_.chain_id_impl()) })
     }
