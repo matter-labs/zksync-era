@@ -86,8 +86,8 @@ impl TxSharedArgs {
                     ]);
 
                     let result = match (result.result, validation_result.get()) {
-                        (ExecutionResult::Halt { reason }, _) => Err(ValidationError::FailedTx(reason)),
                         (_, Some(err)) => Err(ValidationError::ViolatedRule(err.clone())),
+                        (ExecutionResult::Halt { reason }, _) => Err(ValidationError::FailedTx(reason)),
                         (_, None) => Ok(()),
                     };
 

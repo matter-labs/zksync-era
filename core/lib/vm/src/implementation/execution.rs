@@ -5,9 +5,10 @@ use crate::old_vm::{
     history_recorder::HistoryMode,
     utils::{vm_may_have_ended_inner, VmExecutionResult},
 };
-use crate::tracers::traits::TracerExecutionStatus;
 use crate::tracers::{
-    traits::{BoxedTracer, ExecutionEndTracer, ExecutionProcessing, VmTracer},
+    traits::{
+        BoxedTracer, ExecutionEndTracer, ExecutionProcessing, TracerExecutionStatus, VmTracer,
+    },
     DefaultExecutionTracer, RefundsTracer,
 };
 use crate::types::{inputs::VmExecutionMode, outputs::VmExecutionResultAndLogs};

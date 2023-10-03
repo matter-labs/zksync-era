@@ -26,6 +26,7 @@ pub enum Halt {
     UnexpectedVMBehavior(String),
     // Bootloader is out of gas.
     BootloaderOutOfGas,
+    // Validation step is out of gas
     ValidationOutOfGas,
     // Transaction has a too big gas limit and will not be executed by the server.
     TooBigGasLimit,

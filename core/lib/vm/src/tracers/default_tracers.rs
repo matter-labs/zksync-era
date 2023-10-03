@@ -164,8 +164,9 @@ impl<S: WriteStorage, H: HistoryMode> ExecutionEndTracer<H> for DefaultExecution
             ));
         }
         for tracer in self.custom_tracers.iter() {
-            if let TracerExecutionStatus::Stop(reason) = tracer.should_stop_execution() {
-                return TracerExecutionStatus::Stop(reason);
+            let reason = tracer.should_stop_execution();
+            if TracerExecutionStatus::Continue != reason {
+                return reason;
             }
         }
         TracerExecutionStatus::Continue
