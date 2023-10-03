@@ -246,7 +246,7 @@ impl<'a, DB: Database + ?Sized> Storage<'a, DB> {
         if manifest.tags.is_none() {
             manifest.tags = Some(TreeTags::new(hasher));
         }
-        manifest.version_count = version + u64::from(create_new_version);
+        manifest.version_count = version + 1;
 
         let base_version = if create_new_version {
             version.checked_sub(1)
@@ -297,6 +297,10 @@ impl<'a, DB: Database + ?Sized> Storage<'a, DB> {
         (output, patch)
     }
 
+    pub fn greatest_key(mut self) -> Option<Key> {
+        Some(self.updater.load_greatest_key(self.db)?.0.full_key)
+    }
+
     pub fn extend_during_recovery(mut self, recovery_entries: Vec<RecoveryEntry>) -> PatchSet {
         let (mut prev_key, mut prev_nibbles) = match self.updater.load_greatest_key(self.db) {
             Some((leaf, nibbles)) => (Some(leaf.full_key), nibbles),
@@ -333,7 +337,7 @@ impl<'a, DB: Database + ?Sized> Storage<'a, DB> {
         // ^ We should not record stale keys when updating an existing tree version, since
         // otherwise updated keys will be marked as stale and removed.
         let (root_hash, patch, stats) = self.updater.patch_set.finalize(
-            self.manifest,
+            dbg!(self.manifest),
             self.leaf_count,
             record_stale_keys,
             self.hasher,

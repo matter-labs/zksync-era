@@ -200,6 +200,7 @@ impl TreeTags {
         let mut architecture = None;
         let mut hasher = None;
         let mut depth = None;
+        let mut is_recovering = false;
 
         for _ in 0..tag_count {
             let key = Self::deserialize_str(bytes)?;
@@ -216,6 +217,15 @@ impl TreeTags {
                     })?;
                     depth = Some(parsed);
                 }
+                "is_recovering" => {
+                    let parsed = value.parse::<bool>().map_err(|err| {
+                        DeserializeErrorKind::MalformedTag {
+                            name: "is_recovering",
+                            err: err.into(),
+                        }
+                    })?;
+                    is_recovering = parsed;
+                }
                 _ => return Err(DeserializeErrorKind::UnknownTag(key.to_owned()).into()),
             }
         }
@@ -223,6 +233,7 @@ impl TreeTags {
             architecture: architecture.ok_or(DeserializeErrorKind::MissingTag("architecture"))?,
             hasher: hasher.ok_or(DeserializeErrorKind::MissingTag("hasher"))?,
             depth: depth.ok_or(DeserializeErrorKind::MissingTag("depth"))?,
+            is_recovering,
         })
     }
 
@@ -251,6 +262,10 @@ impl TreeTags {
         Self::serialize_str(buffer, &self.depth.to_string());
         Self::serialize_str(buffer, "hasher");
         Self::serialize_str(buffer, &self.hasher);
+        if self.is_recovering {
+            Self::serialize_str(buffer, "is_recovering");
+            Self::serialize_str(buffer, "true");
+        }
     }
 }
 

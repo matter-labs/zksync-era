@@ -48,7 +48,7 @@ mod getters;
 mod hasher;
 mod metrics;
 mod pruning;
-mod recovery;
+pub mod recovery;
 mod storage;
 mod types;
 mod utils;
@@ -147,7 +147,7 @@ impl<'a, DB: Database> MerkleTree<'a, DB> {
     pub fn with_hasher(db: DB, hasher: &'a dyn HashTree) -> Self {
         let tags = db.manifest().and_then(|manifest| manifest.tags);
         if let Some(tags) = tags {
-            tags.assert_consistency(hasher);
+            tags.assert_consistency(hasher, false);
         }
         // If there are currently no tags in the tree, we consider that it fits
         // for backward compatibility. The tags will be added the next time the tree is saved.
@@ -247,6 +247,7 @@ mod tests {
             architecture: "AR64MT".to_owned(),
             depth: 256,
             hasher: "blake2s256".to_string(),
+            is_recovering: false,
         });
 
         MerkleTree::new(db);
@@ -260,6 +261,7 @@ mod tests {
             architecture: "AR16MT".to_owned(),
             depth: 128,
             hasher: "blake2s256".to_string(),
+            is_recovering: false,
         });
 
         MerkleTree::new(db);
@@ -273,6 +275,7 @@ mod tests {
             architecture: "AR16MT".to_owned(),
             depth: 256,
             hasher: "sha256".to_string(),
+            is_recovering: false,
         });
 
         MerkleTree::new(db);

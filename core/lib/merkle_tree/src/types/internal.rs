@@ -25,6 +25,7 @@ pub(crate) struct TreeTags {
     pub architecture: String,
     pub depth: usize,
     pub hasher: String,
+    pub is_recovering: bool,
 }
 
 impl TreeTags {
@@ -35,10 +36,11 @@ impl TreeTags {
             architecture: Self::ARCHITECTURE.to_owned(),
             hasher: hasher.name().to_owned(),
             depth: TREE_DEPTH,
+            is_recovering: false,
         }
     }
 
-    pub fn assert_consistency(&self, hasher: &dyn HashTree) {
+    pub fn assert_consistency(&self, hasher: &dyn HashTree, expecting_recovery: bool) {
         assert_eq!(
             self.architecture,
             Self::ARCHITECTURE,
@@ -59,6 +61,18 @@ impl TreeTags {
             hasher.name(),
             self.hasher
         );
+
+        if expecting_recovery {
+            assert!(
+                self.is_recovering,
+                "Tree is expected to be in the process of recovery, but it is not"
+            );
+        } else {
+            assert!(
+                !self.is_recovering,
+                "Tree is being recovered; cannot access it until recovery finishes"
+            );
+        }
     }
 }
 
