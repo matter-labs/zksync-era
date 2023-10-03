@@ -27,7 +27,10 @@ use zksync_utils::{
 
 use crate::old_vm::history_recorder::HistoryMode;
 use crate::old_vm::memory::SimpleMemory;
-use crate::tracers::traits::{DynTracer, ExecutionEndTracer, ExecutionProcessing, VmTracer};
+use crate::tracers::traits::{
+    DynTracer, ExecutionEndTracer, ExecutionProcessing, TracerExecutionStatus,
+    TracerExecutionStopReason, VmTracer,
+};
 use crate::tracers::utils::{
     computational_gas_price, get_calldata_page_via_abi, print_debug_if_needed, VmHook,
 };
@@ -38,7 +41,7 @@ pub use params::ValidationTracerParams;
 use types::NewTrustedValidationItems;
 use types::ValidationTracerMode;
 
-use crate::VmExecutionResultAndLogs;
+use crate::{Halt, VmExecutionResultAndLogs};
 
 /// Tracer that is used to ensure that the validation adheres to all the rules
 /// to prevent DDoS attacks on the server.
@@ -341,8 +344,16 @@ impl<S: WriteStorage, H: HistoryMode> DynTracer<S, H> for ValidationTracer<H> {
 }
 
 impl<H: HistoryMode> ExecutionEndTracer<H> for ValidationTracer<H> {
-    fn should_stop_execution(&self) -> bool {
-        self.should_stop_execution || self.result.get().is_some()
+    fn should_stop_execution(&self) -> TracerExecutionStatus {
+        if self.should_stop_execution {
+            return TracerExecutionStatus::Stop(TracerExecutionStopReason::Finish);
+        }
+        if let Some(result) = self.result.get() {
+            return TracerExecutionStatus::Stop(TracerExecutionStopReason::Abort(
+                Halt::TracerCustom(format!("Validation error: {:#?}", result)),
+            ));
+        }
+        TracerExecutionStatus::Continue
     }
 }
 

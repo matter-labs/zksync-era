@@ -18,6 +18,7 @@ use crate::constants::{
 use crate::old_vm::history_recorder::HistoryMode;
 use crate::old_vm::memory::SimpleMemory;
 use crate::old_vm::utils::{aux_heap_page_from_base, heap_page_from_base};
+use crate::tracers::traits::TracerExecutionStopReason;
 
 #[derive(Clone, Debug, Copy)]
 pub(crate) enum VmHook {
@@ -217,8 +218,8 @@ pub(crate) fn get_vm_hook_params<H: HistoryMode>(memory: &SimpleMemory<H>) -> Ve
     )
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum VmExecutionStopReason {
     VmFinished,
-    TracerRequestedStop,
+    TracerRequestedStop(TracerExecutionStopReason),
 }
