@@ -139,7 +139,7 @@ pub async fn genesis_init(
         .await?;
 
     assert_eq!(
-        vk, first_l1_verifier_config.recursion_scheduler_level_vk_hash,
+        vk_hash, first_l1_verifier_config.recursion_scheduler_level_vk_hash,
         "L1 verifier key does not match the one in the config"
     );
 
