@@ -255,7 +255,8 @@ impl TreeTags {
     }
 
     fn serialize(&self, buffer: &mut Vec<u8>) {
-        leb128::write::unsigned(buffer, 3).unwrap();
+        let entry_count = 3 + u64::from(self.is_recovering);
+        leb128::write::unsigned(buffer, entry_count).unwrap();
         Self::serialize_str(buffer, "architecture");
         Self::serialize_str(buffer, &self.architecture);
         Self::serialize_str(buffer, "depth");
@@ -308,6 +309,24 @@ mod tests {
         assert_eq!(
             buffer[2..],
             *b"\x0Carchitecture\x06AR16MT\x05depth\x03256\x06hasher\x08no_op256"
+        );
+        // ^ length-prefixed tag names and values
+
+        let manifest_copy = Manifest::deserialize(&buffer).unwrap();
+        assert_eq!(manifest_copy, manifest);
+    }
+
+    #[test]
+    fn serializing_manifest_with_recovery_flag() {
+        let mut manifest = Manifest::new(42, &());
+        manifest.tags.as_mut().unwrap().is_recovering = true;
+        let mut buffer = vec![];
+        manifest.serialize(&mut buffer);
+        assert_eq!(buffer[0], 42); // version count
+        assert_eq!(buffer[1], 4); // number of tags
+        assert_eq!(
+            buffer[2..],
+            *b"\x0Carchitecture\x06AR16MT\x05depth\x03256\x06hasher\x08no_op256\x0Dis_recovering\x04true"
         );
         // ^ length-prefixed tag names and values
 
