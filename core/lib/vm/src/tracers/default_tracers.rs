@@ -9,10 +9,12 @@ use zk_evm::{
     vm_state::VmLocalState,
 };
 use zksync_state::{StoragePtr, WriteStorage};
+use zksync_types::Timestamp;
 
 use crate::bootloader_state::utils::apply_l2_block;
 use crate::bootloader_state::BootloaderState;
 use crate::constants::BOOTLOADER_HEAP_PAGE;
+use crate::old_vm::history_recorder::HistoryMode;
 use crate::old_vm::memory::SimpleMemory;
 use crate::tracers::traits::{DynTracer, ExecutionEndTracer, ExecutionProcessing, VmTracer};
 use crate::tracers::utils::{
@@ -24,7 +26,7 @@ use crate::types::internals::ZkSyncVmState;
 use crate::{VmExecutionMode, VmExecutionStopReason};
 
 /// Default tracer for the VM. It manages the other tracers execution and stop the vm when needed.
-pub(crate) struct DefaultExecutionTracer<S> {
+pub(crate) struct DefaultExecutionTracer<S, H: HistoryMode> {
     tx_has_been_processed: bool,
     execution_mode: VmExecutionMode,
 
@@ -36,26 +38,26 @@ pub(crate) struct DefaultExecutionTracer<S> {
     in_account_validation: bool,
     final_batch_info_requested: bool,
     pub(crate) result_tracer: ResultTracer,
-    pub(crate) custom_tracers: Vec<Box<dyn VmTracer<S>>>,
+    pub(crate) custom_tracers: Vec<Box<dyn VmTracer<S, H>>>,
     ret_from_the_bootloader: Option<RetOpcode>,
     storage: StoragePtr<S>,
 }
 
-impl<S> Debug for DefaultExecutionTracer<S> {
+impl<S, H: HistoryMode> Debug for DefaultExecutionTracer<S, H> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("DefaultExecutionTracer").finish()
     }
 }
 
-impl<S> Tracer for DefaultExecutionTracer<S> {
+impl<S, H: HistoryMode> Tracer for DefaultExecutionTracer<S, H> {
     const CALL_BEFORE_DECODING: bool = true;
     const CALL_AFTER_DECODING: bool = true;
     const CALL_BEFORE_EXECUTION: bool = true;
     const CALL_AFTER_EXECUTION: bool = true;
-    type SupportedMemory = SimpleMemory;
+    type SupportedMemory = SimpleMemory<H>;
 
     fn before_decoding(&mut self, state: VmLocalStateData<'_>, memory: &Self::SupportedMemory) {
-        <ResultTracer as DynTracer<S>>::before_decoding(&mut self.result_tracer, state, memory);
+        <ResultTracer as DynTracer<S, H>>::before_decoding(&mut self.result_tracer, state, memory);
         for tracer in self.custom_tracers.iter_mut() {
             tracer.before_decoding(state, memory)
         }
@@ -67,7 +69,7 @@ impl<S> Tracer for DefaultExecutionTracer<S> {
         data: AfterDecodingData,
         memory: &Self::SupportedMemory,
     ) {
-        <ResultTracer as DynTracer<S>>::after_decoding(
+        <ResultTracer as DynTracer<S, H>>::after_decoding(
             &mut self.result_tracer,
             state,
             data,
@@ -138,7 +140,7 @@ impl<S> Tracer for DefaultExecutionTracer<S> {
     }
 }
 
-impl<S: WriteStorage> ExecutionEndTracer for DefaultExecutionTracer<S> {
+impl<S: WriteStorage, H: HistoryMode> ExecutionEndTracer<H> for DefaultExecutionTracer<S, H> {
     fn should_stop_execution(&self) -> bool {
         let mut should_stop = match self.execution_mode {
             VmExecutionMode::OneTx => self.tx_has_been_processed(),
@@ -153,11 +155,11 @@ impl<S: WriteStorage> ExecutionEndTracer for DefaultExecutionTracer<S> {
     }
 }
 
-impl<S: WriteStorage> DefaultExecutionTracer<S> {
+impl<S: WriteStorage, H: HistoryMode> DefaultExecutionTracer<S, H> {
     pub(crate) fn new(
         computational_gas_limit: u32,
         execution_mode: VmExecutionMode,
-        custom_tracers: Vec<Box<dyn VmTracer<S>>>,
+        custom_tracers: Vec<Box<dyn VmTracer<S, H>>>,
         storage: StoragePtr<S>,
     ) -> Self {
         Self {
@@ -189,31 +191,32 @@ impl<S: WriteStorage> DefaultExecutionTracer<S> {
 
     fn set_fictive_l2_block(
         &mut self,
-        state: &mut ZkSyncVmState<S>,
+        state: &mut ZkSyncVmState<S, H>,
         bootloader_state: &mut BootloaderState,
     ) {
+        let current_timestamp = Timestamp(state.local_state.timestamp);
         let txs_index = bootloader_state.free_tx_index();
         let l2_block = bootloader_state.insert_fictive_l2_block();
         let mut memory = vec![];
         apply_l2_block(&mut memory, l2_block, txs_index);
         state
             .memory
-            .populate_page(BOOTLOADER_HEAP_PAGE as usize, memory);
+            .populate_page(BOOTLOADER_HEAP_PAGE as usize, memory, current_timestamp);
         self.final_batch_info_requested = false;
     }
 }
 
-impl<S> DynTracer<S> for DefaultExecutionTracer<S> {}
+impl<S, H: HistoryMode> DynTracer<S, H> for DefaultExecutionTracer<S, H> {}
 
-impl<S: WriteStorage> ExecutionProcessing<S> for DefaultExecutionTracer<S> {
-    fn initialize_tracer(&mut self, state: &mut ZkSyncVmState<S>) {
+impl<S: WriteStorage, H: HistoryMode> ExecutionProcessing<S, H> for DefaultExecutionTracer<S, H> {
+    fn initialize_tracer(&mut self, state: &mut ZkSyncVmState<S, H>) {
         self.result_tracer.initialize_tracer(state);
         for processor in self.custom_tracers.iter_mut() {
             processor.initialize_tracer(state);
         }
     }
 
-    fn before_cycle(&mut self, state: &mut ZkSyncVmState<S>) {
+    fn before_cycle(&mut self, state: &mut ZkSyncVmState<S, H>) {
         self.result_tracer.before_cycle(state);
         for processor in self.custom_tracers.iter_mut() {
             processor.before_cycle(state);
@@ -222,7 +225,7 @@ impl<S: WriteStorage> ExecutionProcessing<S> for DefaultExecutionTracer<S> {
 
     fn after_cycle(
         &mut self,
-        state: &mut ZkSyncVmState<S>,
+        state: &mut ZkSyncVmState<S, H>,
         bootloader_state: &mut BootloaderState,
     ) {
         self.result_tracer.after_cycle(state, bootloader_state);
@@ -236,7 +239,7 @@ impl<S: WriteStorage> ExecutionProcessing<S> for DefaultExecutionTracer<S> {
 
     fn after_vm_execution(
         &mut self,
-        state: &mut ZkSyncVmState<S>,
+        state: &mut ZkSyncVmState<S, H>,
         bootloader_state: &BootloaderState,
         stop_reason: VmExecutionStopReason,
     ) {

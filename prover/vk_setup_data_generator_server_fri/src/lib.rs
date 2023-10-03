@@ -2,7 +2,7 @@
 #![feature(allocator_api)]
 
 use anyhow::Context as _;
-use circuit_definitions::circuit_definitions::aux_layer::{ZkSyncCompressionLayerStorageType, ZkSyncSnarkWrapperVK};
+use circuit_definitions::circuit_definitions::aux_layer::ZkSyncSnarkWrapperVK;
 use std::fs;
 use std::fs::File;
 use std::io::Read;
@@ -42,10 +42,6 @@ use serde::{Deserialize, Serialize};
 use zkevm_test_harness::prover_utils::create_base_layer_setup_data;
 use zksync_config::configs::FriProverConfig;
 use zksync_types::proofs::AggregationRound;
-use zksync_types::zkevm_test_harness::abstract_zksync_circuit::concrete_circuits::ZkSyncCircuit;
-use zksync_types::zkevm_test_harness::bellman::bn256::Bn256;
-use zksync_types::zkevm_test_harness::bellman::plonk::better_better_cs::setup::VerificationKey as SnarkVerificationKey;
-use zksync_types::zkevm_test_harness::witness::oracle::VmWitnessOracle as SnarkWitnessOracle;
 
 pub mod commitment_utils;
 pub mod utils;
@@ -349,17 +345,4 @@ pub fn get_finalization_hints(key: ProverServiceDataKey) -> anyhow::Result<Final
     let file = fs::read(filepath).context("Failed to read finalization hints from file")?;
     bincode::deserialize::<FinalizationHintsForProver>(&file)
         .context("Finalization hint deserialization failed")
-}
-
-pub fn get_snark_vk() -> anyhow::Result<SnarkVerificationKey<Bn256, ZkSyncCircuit<Bn256, SnarkWitnessOracle<Bn256>>>> {
-    let circuit_id = ZkSyncCompressionLayerStorageType::CompressionMode1Circuit as u8;
-    let filepath = get_file_path(
-        ProverServiceDataKey::new(circuit_id, AggregationRound::Scheduler),
-        ProverServiceDataType::SnarkVerificationKey,
-    ).context("get_file_path()")?;
-    tracing::info!("Fetching verification key from path: {}", filepath);
-    let text = fs::read_to_string(&filepath)
-        .with_context(|| format!("Failed reading verification key from path: {filepath}"))?;
-    serde_json::from_str::<SnarkVerificationKey<Bn256, ZkSyncCircuit<Bn256, SnarkWitnessOracle<Bn256>>>>(&text)
-        .with_context(|| format!("Failed deserializing verification key from path: {filepath}"))
 }

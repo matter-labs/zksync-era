@@ -1,7 +1,7 @@
 use once_cell::sync::Lazy;
 use std::{cell::RefCell, rc::Rc};
 use vm::{
-    constants::BLOCK_GAS_LIMIT, L2BlockEnv, TxExecutionMode, Vm, VmExecutionMode,
+    constants::BLOCK_GAS_LIMIT, HistoryEnabled, L2BlockEnv, TxExecutionMode, Vm, VmExecutionMode,
     VmExecutionResultAndLogs,
 };
 use zksync_config::constants::ethereum::MAX_GAS_PER_PUBDATA_BYTE;
@@ -54,7 +54,7 @@ static CREATE_FUNCTION_SIGNATURE: Lazy<[u8; 4]> = Lazy::new(|| {
 });
 const PRIVATE_KEY: H256 = H256([42; 32]);
 
-pub struct BenchmarkingVm(Vm<StorageView<&'static InMemoryStorage>>);
+pub struct BenchmarkingVm(Vm<StorageView<&'static InMemoryStorage>, HistoryEnabled>);
 
 impl BenchmarkingVm {
     #[allow(clippy::new_without_default)]
@@ -84,9 +84,10 @@ impl BenchmarkingVm {
                 gas_limit: BLOCK_GAS_LIMIT,
                 execution_mode: TxExecutionMode::VerifyExecute,
                 default_validation_computational_gas_limit: BLOCK_GAS_LIMIT,
-                chain_id: L2ChainId(270),
+                chain_id: L2ChainId::from(270),
             },
             Rc::new(RefCell::new(StorageView::new(&*STORAGE))),
+            HistoryEnabled,
         ))
     }
 
@@ -119,7 +120,7 @@ pub fn get_deploy_tx(code: &[u8]) -> Transaction {
             gas_per_pubdata_limit: U256::from(MAX_GAS_PER_PUBDATA_BYTE),
         },
         U256::zero(),
-        L2ChainId(270),
+        L2ChainId::from(270),
         &PRIVATE_KEY,
         Some(vec![code.to_vec()]), // maybe not needed?
         Default::default(),

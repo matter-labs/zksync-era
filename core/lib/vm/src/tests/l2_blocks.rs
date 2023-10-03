@@ -9,7 +9,11 @@ use crate::constants::{
 use crate::tests::tester::default_l1_batch;
 use crate::tests::tester::VmTesterBuilder;
 use crate::utils::l2_blocks::get_l2_block_hash_key;
-use crate::{ExecutionResult, Halt, L2BlockEnv, TxExecutionMode, Vm, VmExecutionMode};
+use crate::{
+    ExecutionResult, Halt, HistoryEnabled, HistoryMode, L2BlockEnv, TxExecutionMode, Vm,
+    VmExecutionMode,
+};
+use zk_evm::aux_structures::Timestamp;
 use zksync_config::constants::{
     CURRENT_VIRTUAL_BLOCK_INFO_POSITION, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE,
 };
@@ -49,7 +53,7 @@ fn test_l2_block_initialization_timestamp() {
     // Here we check that that the first block must have timestamp that is greater or equal to the timestamp
     // of the current batch.
 
-    let mut vm = VmTesterBuilder::new()
+    let mut vm = VmTesterBuilder::new(HistoryEnabled)
         .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_random_rich_accounts(1)
@@ -86,7 +90,7 @@ fn test_l2_block_initialization_number_non_zero() {
         max_virtual_blocks_to_create: 1,
     };
 
-    let mut vm = VmTesterBuilder::new()
+    let mut vm = VmTesterBuilder::new(HistoryEnabled)
         .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_l1_batch_env(l1_batch)
@@ -97,7 +101,8 @@ fn test_l2_block_initialization_number_non_zero() {
 
     vm.vm.push_transaction(l1_tx);
 
-    set_manual_l2_block_info(&mut vm.vm, 0, first_l2_block);
+    let timestamp = Timestamp(vm.vm.state.local_state.timestamp);
+    set_manual_l2_block_info(&mut vm.vm, 0, first_l2_block, timestamp);
 
     let res = vm.vm.execute(VmExecutionMode::OneTx);
 
@@ -118,7 +123,7 @@ fn test_same_l2_block(
 ) {
     let mut l1_batch = default_l1_batch(L1BatchNumber(1));
     l1_batch.timestamp = 1;
-    let mut vm = VmTesterBuilder::new()
+    let mut vm = VmTesterBuilder::new(HistoryEnabled)
         .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_l1_batch_env(l1_batch)
@@ -144,7 +149,8 @@ fn test_same_l2_block(
     }
 
     vm.vm.push_transaction(l1_tx);
-    set_manual_l2_block_info(&mut vm.vm, 1, current_l2_block);
+    let timestamp = Timestamp(vm.vm.state.local_state.timestamp);
+    set_manual_l2_block_info(&mut vm.vm, 1, current_l2_block, timestamp);
 
     let result = vm.vm.execute(VmExecutionMode::OneTx);
 
@@ -192,7 +198,7 @@ fn test_new_l2_block(
     l1_batch.timestamp = 1;
     l1_batch.first_l2_block = first_l2_block;
 
-    let mut vm = VmTesterBuilder::new()
+    let mut vm = VmTesterBuilder::new(HistoryEnabled)
         .with_empty_in_memory_storage()
         .with_l1_batch_env(l1_batch)
         .with_execution_mode(TxExecutionMode::VerifyExecute)
@@ -293,7 +299,7 @@ fn test_first_in_batch(
     l1_batch.number += 1;
     l1_batch.timestamp = new_batch_timestamp;
 
-    let mut vm = VmTesterBuilder::new()
+    let mut vm = VmTesterBuilder::new(HistoryEnabled)
         .with_empty_in_memory_storage()
         .with_l1_batch_env(l1_batch)
         .with_execution_mode(TxExecutionMode::VerifyExecute)
@@ -302,7 +308,7 @@ fn test_first_in_batch(
     let l1_tx = get_l1_noop();
 
     // Setting the values provided.
-    let storage_ptr = vm.vm.state.storage.get_ptr();
+    let storage_ptr = vm.vm.state.storage.storage.get_ptr();
     let miniblock_info_slot = StorageKey::new(
         AccountTreeId::new(SYSTEM_CONTEXT_ADDRESS),
         SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
@@ -349,7 +355,8 @@ fn test_first_in_batch(
 
     vm.vm.bootloader_state.push_l2_block(new_l2_block);
     vm.vm.push_transaction(l1_tx);
-    set_manual_l2_block_info(&mut vm.vm, 0, proposed_block);
+    let timestamp = Timestamp(vm.vm.state.local_state.timestamp);
+    set_manual_l2_block_info(&mut vm.vm, 0, proposed_block, timestamp);
 
     let result = vm.vm.execute(VmExecutionMode::OneTx);
     if let Some(err) = expected_error {
@@ -401,7 +408,7 @@ fn test_l2_block_first_in_batch() {
 
 #[test]
 fn test_l2_block_upgrade() {
-    let mut vm = VmTesterBuilder::new()
+    let mut vm = VmTesterBuilder::new(HistoryEnabled)
         .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_random_rich_accounts(1)
@@ -409,6 +416,7 @@ fn test_l2_block_upgrade() {
 
     vm.vm
         .state
+        .storage
         .storage
         .get_ptr()
         .borrow_mut()
@@ -427,7 +435,7 @@ fn test_l2_block_upgrade() {
 fn test_l2_block_upgrade_ending() {
     let mut l1_batch = default_l1_batch(L1BatchNumber(1));
     l1_batch.timestamp = 1;
-    let mut vm = VmTesterBuilder::new()
+    let mut vm = VmTesterBuilder::new(HistoryEnabled)
         .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_l1_batch_env(l1_batch.clone())
@@ -464,10 +472,11 @@ fn test_l2_block_upgrade_ending() {
     assert!(!result.result.is_failed(), "No revert reason expected");
 }
 
-fn set_manual_l2_block_info<S: WriteStorage>(
-    vm: &mut Vm<S>,
+fn set_manual_l2_block_info<S: WriteStorage, H: HistoryMode>(
+    vm: &mut Vm<S, H>,
     tx_number: usize,
     block_info: L2BlockEnv,
+    timestamp: Timestamp,
 ) {
     let fictive_miniblock_position =
         TX_OPERATOR_L2_BLOCK_INFO_OFFSET + TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO * tx_number;
@@ -486,5 +495,6 @@ fn set_manual_l2_block_info<S: WriteStorage>(
                 block_info.max_virtual_blocks_to_create.into(),
             ),
         ],
+        timestamp,
     )
 }

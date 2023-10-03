@@ -4,7 +4,7 @@ use zksync_types::get_nonce_key;
 use crate::tests::tester::{Account, TxType, VmTesterBuilder};
 use crate::tests::utils::read_test_contract;
 use crate::types::inputs::system_env::TxExecutionMode;
-use crate::VmExecutionMode;
+use crate::{HistoryDisabled, VmExecutionMode};
 
 #[test]
 fn test_is_write_initial_behaviour() {
@@ -13,7 +13,7 @@ fn test_is_write_initial_behaviour() {
     // messed up it with the repeated writes during the one batch execution.
 
     let mut account = Account::random();
-    let mut vm = VmTesterBuilder::new()
+    let mut vm = VmTesterBuilder::new(HistoryDisabled)
         .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_rich_accounts(vec![account.clone()])

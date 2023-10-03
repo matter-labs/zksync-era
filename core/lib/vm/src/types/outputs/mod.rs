@@ -8,4 +8,4 @@ pub use execution_result::{ExecutionResult, Refunds, VmExecutionResultAndLogs};
 pub use execution_state::{BootloaderMemory, CurrentExecutionState};
 pub use finished_l1batch::FinishedL1Batch;
 pub use l2_block::L2Block;
-pub use statistic::VmExecutionStatistics;
+pub use statistic::{VmExecutionStatistics, VmMemoryMetrics};

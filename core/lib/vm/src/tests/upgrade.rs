@@ -1,3 +1,5 @@
+use zk_evm::aux_structures::Timestamp;
+
 use zksync_types::{
     ethabi::Contract,
     Execute, COMPLEX_UPGRADER_ADDRESS, CONTRACT_DEPLOYER_ADDRESS, CONTRACT_FORCE_DEPLOYER_ADDRESS,
@@ -14,7 +16,7 @@ use zksync_test_account::TxType;
 
 use crate::tests::tester::VmTesterBuilder;
 use crate::tests::utils::verify_required_storage;
-use crate::{ExecutionResult, Halt, TxExecutionMode, VmExecutionMode};
+use crate::{ExecutionResult, Halt, HistoryEnabled, TxExecutionMode, VmExecutionMode};
 use zksync_types::protocol_version::ProtocolUpgradeTxCommonData;
 
 use super::utils::read_test_contract;
@@ -24,7 +26,7 @@ use super::utils::read_test_contract;
 /// - If present, this transaction must be the first one in block
 #[test]
 fn test_protocol_upgrade_is_first() {
-    let mut vm = VmTesterBuilder::new()
+    let mut vm = VmTesterBuilder::new(HistoryEnabled)
         .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_random_rich_accounts(1)
@@ -53,7 +55,7 @@ fn test_protocol_upgrade_is_first() {
     let expected_error =
         Halt::UnexpectedVMBehavior("Assertion error: Protocol upgrade tx not first".to_string());
 
-    let snapshot = vm.vm.make_snapshot();
+    vm.vm.make_snapshot();
     // Test 1: there must be only one system transaction in block
     vm.vm.push_transaction(protocol_upgrade_transaction.clone());
     vm.vm.push_transaction(normal_l1_transaction.clone());
@@ -70,8 +72,8 @@ fn test_protocol_upgrade_is_first() {
     );
 
     // Test 2: the protocol upgrade tx must be the first one in block
-    vm.vm.rollback_to_the_latest_snapshot(snapshot);
-    let snapshot = vm.vm.make_snapshot();
+    vm.vm.rollback_to_the_latest_snapshot();
+    vm.vm.make_snapshot();
     vm.vm.push_transaction(normal_l1_transaction.clone());
     vm.vm.push_transaction(protocol_upgrade_transaction.clone());
 
@@ -84,7 +86,8 @@ fn test_protocol_upgrade_is_first() {
         }
     );
 
-    vm.vm.rollback_to_the_latest_snapshot(snapshot);
+    vm.vm.rollback_to_the_latest_snapshot();
+    vm.vm.make_snapshot();
     vm.vm.push_transaction(protocol_upgrade_transaction);
     vm.vm.push_transaction(normal_l1_transaction);
 
@@ -96,7 +99,7 @@ fn test_protocol_upgrade_is_first() {
 /// In this test we try to test how force deployments could be done via protocol upgrade transactions.
 #[test]
 fn test_force_deploy_upgrade() {
-    let mut vm = VmTesterBuilder::new()
+    let mut vm = VmTesterBuilder::new(HistoryEnabled)
         .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_random_rich_accounts(1)
@@ -144,7 +147,7 @@ fn test_force_deploy_upgrade() {
 /// Here we show how the work with the complex upgrader could be done
 #[test]
 fn test_complex_upgrader() {
-    let mut vm = VmTesterBuilder::new()
+    let mut vm = VmTesterBuilder::new(HistoryEnabled)
         .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_random_rich_accounts(1)
@@ -172,16 +175,19 @@ fn test_complex_upgrader() {
         .set_value(account_code_key, bytecode_hash);
     drop(storage_view);
 
-    vm.vm.state.decommittment_processor.populate(vec![
-        (
-            h256_to_u256(bytecode_hash),
-            bytes_to_be_words(read_complex_upgrade()),
-        ),
-        (
-            h256_to_u256(msg_sender_test_hash),
-            bytes_to_be_words(read_msg_sender_test()),
-        ),
-    ]);
+    vm.vm.state.decommittment_processor.populate(
+        vec![
+            (
+                h256_to_u256(bytecode_hash),
+                bytes_to_be_words(read_complex_upgrade()),
+            ),
+            (
+                h256_to_u256(msg_sender_test_hash),
+                bytes_to_be_words(read_msg_sender_test()),
+            ),
+        ],
+        Timestamp(0),
+    );
 
     let address_to_deploy1 = H160::random();
     let address_to_deploy2 = H160::random();

@@ -23,9 +23,6 @@ pub struct FriProofCompressorConfig {
     pub universal_setup_path: String,
     /// https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2\^26.key
     pub universal_setup_download_url: String,
-
-    // Whether to verify wrapper proof or not.
-    pub verify_wrapper_proof: bool,
 }
 
 impl FriProofCompressorConfig {
@@ -58,7 +55,6 @@ mod tests {
             universal_setup_download_url:
                 "https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2^26.key"
                     .to_string(),
-            verify_wrapper_proof: false,
         }
     }
 
@@ -74,7 +70,6 @@ mod tests {
             FRI_PROOF_COMPRESSOR_MAX_ATTEMPTS=5
             FRI_PROOF_COMPRESSOR_UNIVERSAL_SETUP_PATH="keys/setup/setup_2^26.key"
             FRI_PROOF_COMPRESSOR_UNIVERSAL_SETUP_DOWNLOAD_URL="https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2^26.key"
-            FRI_PROOF_COMPRESSOR_VERIFY_WRAPPER_PROOF=false
         "#;
         lock.set_env(config);
 

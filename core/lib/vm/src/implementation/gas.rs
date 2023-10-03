@@ -1,9 +1,10 @@
 use zksync_state::WriteStorage;
 
+use crate::old_vm::history_recorder::HistoryMode;
 use crate::tracers::DefaultExecutionTracer;
 use crate::vm::Vm;
 
-impl<S: WriteStorage> Vm<S> {
+impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
     /// Returns the amount of gas remaining to the VM.
     /// Note that this *does not* correspond to the gas limit of a transaction.
     /// To calculate the amount of gas spent by transaction, you should call this method before and after
@@ -18,7 +19,7 @@ impl<S: WriteStorage> Vm<S> {
 
     pub(crate) fn calculate_computational_gas_used(
         &self,
-        tracer: &DefaultExecutionTracer<S>,
+        tracer: &DefaultExecutionTracer<S, H>,
         gas_remaining_before: u32,
         spent_pubdata_counter_before: u32,
     ) -> u32 {

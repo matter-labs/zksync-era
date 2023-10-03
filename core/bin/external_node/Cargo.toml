@@ -11,7 +11,7 @@ categories = ["cryptography"]
 publish = false # We don't want to publish our binaries.
 
 [dependencies]
-zksync_core = { path = "../../lib/zksync_core" }
+zksync_core = { path = "../zksync_core" }
 zksync_dal = { path = "../../lib/dal" }
 zksync_config = { path = "../../lib/config" }
 zksync_storage = { path = "../../lib/storage" }
@@ -27,7 +27,7 @@ zksync_types = { path = "../../lib/types" }
 vlog = { path = "../../lib/vlog" }
 
 anyhow = "1.0"
-tokio = { version = "1", features = ["full"] }
+tokio = { version = "1", features = ["time"] }
 futures = "0.3"
 serde = { version = "1.0", features = ["derive"] }
 envy = "0.4"

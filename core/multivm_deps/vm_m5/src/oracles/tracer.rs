@@ -27,7 +27,6 @@ use zk_evm::{
     },
 };
 
-use zksync_types::vm_trace::ViolatedValidationRule;
 use zksync_types::{
     get_code_key, web3::signing::keccak256, AccountTreeId, Address, StorageKey,
     ACCOUNT_CODE_STORAGE_ADDRESS, BOOTLOADER_ADDRESS, CONTRACT_DEPLOYER_ADDRESS, H256,
@@ -132,9 +131,35 @@ pub enum ValidationTracerMode {
     NoValidation,
 }
 
+#[derive(Debug, Clone)]
+pub enum ViolatedValidationRule {
+    TouchedUnallowedStorageSlots(Address, U256),
+    CalledContractWithNoCode(Address),
+    TouchedUnallowedContext,
+}
+
 pub enum ValidationError {
     FailedTx(VmRevertReasonParsingResult),
     VioalatedRule(ViolatedValidationRule),
+}
+
+impl Display for ViolatedValidationRule {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ViolatedValidationRule::TouchedUnallowedStorageSlots(contract, key) => write!(
+                f,
+                "Touched unallowed storage slots: address {}, key: {}",
+                hex::encode(contract),
+                hex::encode(u256_to_h256(*key))
+            ),
+            ViolatedValidationRule::CalledContractWithNoCode(contract) => {
+                write!(f, "Called contract with no code: {}", hex::encode(contract))
+            }
+            ViolatedValidationRule::TouchedUnallowedContext => {
+                write!(f, "Touched unallowed context")
+            }
+        }
+    }
 }
 
 impl Display for ValidationError {

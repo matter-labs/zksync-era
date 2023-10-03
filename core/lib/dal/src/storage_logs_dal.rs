@@ -249,8 +249,7 @@ impl StorageLogsDal<'_, '_> {
             .storage
             .blocks_dal()
             .get_miniblock_range_of_l1_batch(l1_batch_number)
-            .await
-            .unwrap();
+            .await;
         let Some((_, last_miniblock)) = miniblock_range else {
             return HashMap::new();
         };
@@ -364,7 +363,6 @@ impl StorageLogsDal<'_, '_> {
             .blocks_dal()
             .get_miniblock_range_of_l1_batch(next_l1_batch)
             .await
-            .unwrap()
             .unwrap();
 
         if miniblock_number == MiniblockNumber(0) {
@@ -539,12 +537,10 @@ mod tests {
         header.is_finished = true;
         conn.blocks_dal()
             .insert_l1_batch(&header, &[], BlockGasCount::default())
-            .await
-            .unwrap();
+            .await;
         conn.blocks_dal()
             .insert_miniblock(&create_miniblock_header(number))
-            .await
-            .unwrap();
+            .await;
 
         let logs = [(H256::zero(), logs)];
         conn.storage_logs_dal()
@@ -553,22 +549,17 @@ mod tests {
         conn.storage_dal().apply_storage_logs(&logs).await;
         conn.blocks_dal()
             .mark_miniblocks_as_executed_in_l1_batch(L1BatchNumber(number))
-            .await
-            .unwrap();
+            .await;
     }
 
     #[db_test(dal_crate)]
     async fn inserting_storage_logs(pool: ConnectionPool) {
-        let mut conn = pool.access_storage().await.unwrap();
+        let mut conn = pool.access_storage().await;
 
         conn.blocks_dal()
             .delete_miniblocks(MiniblockNumber(0))
-            .await
-            .unwrap();
-        conn.blocks_dal()
-            .delete_l1_batches(L1BatchNumber(0))
-            .await
-            .unwrap();
+            .await;
+        conn.blocks_dal().delete_l1_batches(L1BatchNumber(0)).await;
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;
@@ -651,16 +642,12 @@ mod tests {
 
     #[db_test(dal_crate)]
     async fn getting_storage_logs_for_revert(pool: ConnectionPool) {
-        let mut conn = pool.access_storage().await.unwrap();
+        let mut conn = pool.access_storage().await;
 
         conn.blocks_dal()
             .delete_miniblocks(MiniblockNumber(0))
-            .await
-            .unwrap();
-        conn.blocks_dal()
-            .delete_l1_batches(L1BatchNumber(0))
-            .await
-            .unwrap();
+            .await;
+        conn.blocks_dal().delete_l1_batches(L1BatchNumber(0)).await;
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;
@@ -706,16 +693,12 @@ mod tests {
 
     #[db_test(dal_crate)]
     async fn reverting_keys_without_initial_write(pool: ConnectionPool) {
-        let mut conn = pool.access_storage().await.unwrap();
+        let mut conn = pool.access_storage().await;
 
         conn.blocks_dal()
             .delete_miniblocks(MiniblockNumber(0))
-            .await
-            .unwrap();
-        conn.blocks_dal()
-            .delete_l1_batches(L1BatchNumber(0))
-            .await
-            .unwrap();
+            .await;
+        conn.blocks_dal().delete_l1_batches(L1BatchNumber(0)).await;
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;

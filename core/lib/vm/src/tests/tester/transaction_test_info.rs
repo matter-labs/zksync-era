@@ -3,7 +3,7 @@ use zksync_types::{ExecuteTransactionCommon, Transaction};
 use crate::errors::VmRevertReason;
 use crate::tests::tester::vm_tester::VmTester;
 use crate::{
-    CurrentExecutionState, ExecutionResult, Halt, TxRevertReason, VmExecutionMode,
+    CurrentExecutionState, ExecutionResult, Halt, HistoryEnabled, TxRevertReason, VmExecutionMode,
     VmExecutionResultAndLogs,
 };
 
@@ -180,7 +180,7 @@ impl TransactionTestInfo {
     }
 }
 
-impl VmTester {
+impl VmTester<HistoryEnabled> {
     pub(crate) fn execute_and_verify_txs(
         &mut self,
         txs: &[TransactionTestInfo],
@@ -199,19 +199,17 @@ impl VmTester {
         tx_test_info: TransactionTestInfo,
     ) -> VmExecutionResultAndLogs {
         let inner_state_before = self.vm.dump_inner_state();
-        let snapshot = self.vm.make_snapshot();
+        self.vm.make_snapshot();
         self.vm.push_transaction(tx_test_info.tx.clone());
         let result = self.vm.execute(VmExecutionMode::OneTx);
         tx_test_info.verify_result(&result);
         if tx_test_info.should_rollback() {
-            self.vm.rollback_to_the_latest_snapshot(snapshot);
+            self.vm.rollback_to_the_latest_snapshot();
             let inner_state_after = self.vm.dump_inner_state();
             assert_eq!(
                 inner_state_before, inner_state_after,
                 "Inner state before and after rollback should be equal"
             );
-        } else {
-            self.vm.pop_snapshot_no_rollback(snapshot);
         }
         result
     }

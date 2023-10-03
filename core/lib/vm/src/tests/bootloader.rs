@@ -7,14 +7,14 @@ use crate::tests::utils::{get_bootloader, verify_required_memory, BASE_SYSTEM_CO
 use crate::types::inputs::system_env::TxExecutionMode;
 
 use crate::types::outputs::ExecutionResult;
-use crate::VmExecutionMode;
+use crate::{HistoryEnabled, VmExecutionMode};
 
 #[test]
 fn test_dummy_bootloader() {
     let mut base_system_contracts = BASE_SYSTEM_CONTRACTS.clone();
     base_system_contracts.bootloader = get_bootloader("dummy");
 
-    let mut vm = VmTesterBuilder::new()
+    let mut vm = VmTesterBuilder::new(HistoryEnabled)
         .with_empty_in_memory_storage()
         .with_base_system_smart_contracts(base_system_contracts)
         .with_execution_mode(TxExecutionMode::VerifyExecute)
@@ -35,7 +35,7 @@ fn test_bootloader_out_of_gas() {
     let mut base_system_contracts = BASE_SYSTEM_CONTRACTS.clone();
     base_system_contracts.bootloader = get_bootloader("dummy");
 
-    let mut vm = VmTesterBuilder::new()
+    let mut vm = VmTesterBuilder::new(HistoryEnabled)
         .with_empty_in_memory_storage()
         .with_base_system_smart_contracts(base_system_contracts)
         .with_gas_limit(10)

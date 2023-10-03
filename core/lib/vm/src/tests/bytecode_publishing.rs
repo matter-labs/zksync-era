@@ -4,13 +4,13 @@ use zksync_utils::bytecode::compress_bytecode;
 use crate::tests::tester::{DeployContractsTx, TxType, VmTesterBuilder};
 use crate::tests::utils::read_test_contract;
 use crate::types::inputs::system_env::TxExecutionMode;
-use crate::VmExecutionMode;
+use crate::{HistoryEnabled, VmExecutionMode};
 
 #[test]
 fn test_bytecode_publishing() {
     // In this test, we aim to ensure that the contents of the compressed bytecodes
     // are included as part of the L2->L1 long messages
-    let mut vm = VmTesterBuilder::new()
+    let mut vm = VmTesterBuilder::new(HistoryEnabled)
         .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_random_rich_accounts(1)

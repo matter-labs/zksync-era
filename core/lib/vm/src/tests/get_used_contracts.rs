@@ -12,11 +12,11 @@ use zksync_utils::h256_to_u256;
 use crate::tests::tester::{TxType, VmTesterBuilder};
 use crate::tests::utils::{read_test_contract, BASE_SYSTEM_CONTRACTS};
 use crate::types::inputs::system_env::TxExecutionMode;
-use crate::{Vm, VmExecutionMode};
+use crate::{HistoryDisabled, HistoryMode, Vm, VmExecutionMode};
 
 #[test]
 fn test_get_used_contracts() {
-    let mut vm = VmTesterBuilder::new()
+    let mut vm = VmTesterBuilder::new(HistoryDisabled)
         .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .build();
@@ -52,7 +52,7 @@ fn test_get_used_contracts() {
     // create push and execute some non-empty factory deps transaction that fails
     // (known_bytecodes will be updated but we expect get_used_contracts() to not be updated)
 
-    let calldata = [1, 2, 3];
+    let calldata = vec![1, 2, 3];
     let big_calldata: Vec<u8> = calldata
         .iter()
         .cycle()
@@ -86,7 +86,9 @@ fn test_get_used_contracts() {
     }
 }
 
-fn known_bytecodes_without_aa_code<S: WriteStorage>(vm: &Vm<S>) -> HashMap<U256, Vec<U256>> {
+fn known_bytecodes_without_aa_code<S: WriteStorage, H: HistoryMode>(
+    vm: &Vm<S, H>,
+) -> HashMap<U256, Vec<U256>> {
     let mut known_bytecodes_without_aa_code = vm
         .state
         .decommittment_processor

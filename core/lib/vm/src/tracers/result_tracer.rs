@@ -10,6 +10,7 @@ use zksync_types::U256;
 use crate::bootloader_state::BootloaderState;
 use crate::errors::VmRevertReason;
 use crate::old_vm::{
+    history_recorder::HistoryMode,
     memory::SimpleMemory,
     utils::{vm_may_have_ended_inner, VmExecutionResult},
 };
@@ -58,12 +59,12 @@ fn current_frame_is_bootloader(local_state: &VmLocalState) -> bool {
     local_state.callstack.inner.len() == 1
 }
 
-impl<S> DynTracer<S> for ResultTracer {
+impl<S, H: HistoryMode> DynTracer<S, H> for ResultTracer {
     fn after_decoding(
         &mut self,
         state: VmLocalStateData<'_>,
         data: AfterDecodingData,
-        _memory: &SimpleMemory,
+        _memory: &SimpleMemory<H>,
     ) {
         // We should check not only for the `NOT_ENOUGH_ERGS` flag but if the current frame is bootloader too.
         if current_frame_is_bootloader(state.vm_local_state)
@@ -79,7 +80,7 @@ impl<S> DynTracer<S> for ResultTracer {
         &mut self,
         state: VmLocalStateData<'_>,
         data: BeforeExecutionData,
-        memory: &SimpleMemory,
+        memory: &SimpleMemory<H>,
         _storage: StoragePtr<S>,
     ) {
         let hook = VmHook::from_opcode_memory(&state, &data);
@@ -102,12 +103,12 @@ impl<S> DynTracer<S> for ResultTracer {
     }
 }
 
-impl ExecutionEndTracer for ResultTracer {}
+impl<H: HistoryMode> ExecutionEndTracer<H> for ResultTracer {}
 
-impl<S: WriteStorage> ExecutionProcessing<S> for ResultTracer {
+impl<S: WriteStorage, H: HistoryMode> ExecutionProcessing<S, H> for ResultTracer {
     fn after_vm_execution(
         &mut self,
-        state: &mut ZkSyncVmState<S>,
+        state: &mut ZkSyncVmState<S, H>,
         bootloader_state: &BootloaderState,
         stop_reason: VmExecutionStopReason,
     ) {
@@ -131,7 +132,10 @@ impl<S: WriteStorage> ExecutionProcessing<S> for ResultTracer {
 }
 
 impl ResultTracer {
-    fn vm_finished_execution<S: WriteStorage>(&mut self, state: &ZkSyncVmState<S>) {
+    fn vm_finished_execution<S: WriteStorage, H: HistoryMode>(
+        &mut self,
+        state: &ZkSyncVmState<S, H>,
+    ) {
         let Some(result) = vm_may_have_ended_inner(state) else {
             // The VM has finished execution, but the result is not yet available.
             self.result = Some(Result::Success {
@@ -180,9 +184,9 @@ impl ResultTracer {
         }
     }
 
-    fn vm_stopped_execution<S: WriteStorage>(
+    fn vm_stopped_execution<S: WriteStorage, H: HistoryMode>(
         &mut self,
-        state: &ZkSyncVmState<S>,
+        state: &ZkSyncVmState<S, H>,
         bootloader_state: &BootloaderState,
     ) {
         if self.bootloader_out_of_gas {
@@ -224,11 +228,14 @@ impl ResultTracer {
     }
 }
 
-impl<S: WriteStorage> VmTracer<S> for ResultTracer {
+impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for ResultTracer {
     fn save_results(&mut self, _result: &mut VmExecutionResultAndLogs) {}
 }
 
-pub(crate) fn tx_has_failed<S: WriteStorage>(state: &ZkSyncVmState<S>, tx_id: u32) -> bool {
+pub(crate) fn tx_has_failed<S: WriteStorage, H: HistoryMode>(
+    state: &ZkSyncVmState<S, H>,
+    tx_id: u32,
+) -> bool {
     let mem_slot = RESULT_SUCCESS_FIRST_SLOT + tx_id;
     let mem_value = state
         .memory

@@ -59,7 +59,8 @@ pub mod gpu_socket_listener {
 
             let _lock = self.queue.lock().await;
             self.pool
-                .access_storage().await.unwrap()
+                .access_storage()
+                .await
                 .fri_gpu_prover_queue_dal()
                 .insert_prover_instance(
                     self.address.clone(),
@@ -139,7 +140,8 @@ pub mod gpu_socket_listener {
             };
 
             self.pool
-                .access_storage().await.unwrap()
+                .access_storage()
+                .await
                 .fri_gpu_prover_queue_dal()
                 .update_prover_instance_status(self.address.clone(), status, self.zone.clone())
                 .await;

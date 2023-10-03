@@ -156,7 +156,7 @@ describe('Tests for the custom account behavior', () => {
         await expect(sendCustomAccountTransaction(customAATx, alice.provider, customAccount.address)).toBeAccepted([]);
     });
 
-    test('API should reject validation that takes too many computational ergs', async () => {
+    test('API should reject validation that takes too many computational gas', async () => {
         const violateStorageRules = false;
         const badCustomAccount = await deployContract(
             alice,

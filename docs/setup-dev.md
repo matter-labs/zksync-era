@@ -172,7 +172,7 @@ Rust toolchain as well.
 Install the latest postgres.
 
 ```bash
-brew install postgresql@14
+brew install postgresql
 ```
 
 ### Cargo nextest

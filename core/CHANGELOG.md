@@ -1,28 +1,5 @@
 # Changelog
 
-## [15.0.1](https://github.com/matter-labs/zksync-2-dev/compare/core-v15.0.0...core-v15.0.1) (2023-09-27)
-
-
-### Bug Fixes
-
-* **vm:** Fix divergency of hashes for l2 block ([#2662](https://github.com/matter-labs/zksync-2-dev/issues/2662)) ([fb2e2ff](https://github.com/matter-labs/zksync-2-dev/commit/fb2e2ff5a79b7bbc8a1467f174fd6d26c3d11d36))
-
-## [15.0.0](https://github.com/matter-labs/zksync-2-dev/compare/core-v9.0.0...core-v15.0.0) (2023-09-26)
-
-
-### Features
-
-* Add replication lag checker to circuit breaker component ([#2620](https://github.com/matter-labs/zksync-2-dev/issues/2620)) ([a2b3395](https://github.com/matter-labs/zksync-2-dev/commit/a2b33950d884cbca1b1f7cc7b5a43ac3e38112dd))
-* Rewrite libraries to use `vise` metrics ([#2616](https://github.com/matter-labs/zksync-2-dev/issues/2616)) ([d8cdbe9](https://github.com/matter-labs/zksync-2-dev/commit/d8cdbe9ad8ce40f55bbd8c788f3ca055a33989e6))
-
-
-### Bug Fixes
-
-* **crypto:** update compressor to pass universal setup file ([#2610](https://github.com/matter-labs/zksync-2-dev/issues/2610)) ([39ea81c](https://github.com/matter-labs/zksync-2-dev/commit/39ea81c360026d58222826d8d97bf909ff2c6326))
-* **prover-fri:** move saving to GCS behind flag ([#2627](https://github.com/matter-labs/zksync-2-dev/issues/2627)) ([ed49420](https://github.com/matter-labs/zksync-2-dev/commit/ed49420fb782856541c632e64466ff4da8e05e81))
-* **tracer:** Fixed a bug in calltracer that resulted in empty traces ([#2636](https://github.com/matter-labs/zksync-2-dev/issues/2636)) ([7983edc](https://github.com/matter-labs/zksync-2-dev/commit/7983edc9f65b1accf960c71d1d99033f3ba0e111))
-* **vm:** next block assertion for the very first miniblock after upgrade ([#2655](https://github.com/matter-labs/zksync-2-dev/issues/2655)) ([7c00107](https://github.com/matter-labs/zksync-2-dev/commit/7c00107c0eb87092c1a5bab66b004c61d6917ac9))
-
 ## [9.0.0](https://github.com/matter-labs/zksync-2-dev/compare/core-v8.7.0...core-v9.0.0) (2023-09-21)
 
 

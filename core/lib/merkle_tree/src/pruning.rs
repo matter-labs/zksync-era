@@ -52,7 +52,7 @@ impl<DB> fmt::Debug for MerkleTreePruner<DB> {
             .field("past_versions_to_keep", &self.past_versions_to_keep)
             .field("target_pruned_key_count", &self.target_pruned_key_count)
             .field("poll_interval", &self.poll_interval)
-            .finish_non_exhaustive()
+            .finish()
     }
 }
 

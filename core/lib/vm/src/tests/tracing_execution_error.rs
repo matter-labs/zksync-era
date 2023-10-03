@@ -4,12 +4,12 @@ use crate::errors::VmRevertReason;
 use crate::tests::tester::{ExpectedError, TransactionTestInfo, VmTesterBuilder};
 use crate::tests::utils::{get_execute_error_calldata, read_error_contract, BASE_SYSTEM_CONTRACTS};
 use crate::types::inputs::system_env::TxExecutionMode;
-use crate::TxRevertReason;
+use crate::{HistoryEnabled, TxRevertReason};
 
 #[test]
 fn test_tracing_of_execution_errors() {
     let contract_address = H160::random();
-    let mut vm = VmTesterBuilder::new()
+    let mut vm = VmTesterBuilder::new(HistoryEnabled)
         .with_empty_in_memory_storage()
         .with_base_system_smart_contracts(BASE_SYSTEM_CONTRACTS.clone())
         .with_custom_contracts(vec![(read_error_contract(), contract_address, false)])

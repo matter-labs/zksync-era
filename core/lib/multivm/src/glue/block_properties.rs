@@ -33,10 +33,10 @@ impl BlockProperties {
                 };
                 Self::Vm1_3_2(inner)
             }
-            VmVersion::VmVirtualBlocks | VmVersion::VmTimelessHistory => {
+            VmVersion::VmVirtualBlocks => {
                 unreachable!(
-                    "VmVirtualBlocks and VmTimelessHistory have different initialization logic,\
-                        so it's not required to have BlockProperties for them"
+                    "Vm with virtual blocks has another initialization logic, \
+                     so it's not required to have BlockProperties for it"
                 )
             }
         }

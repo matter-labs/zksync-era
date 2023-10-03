@@ -22,7 +22,7 @@ impl InMemoryStorage {
     /// Constructs a storage that contains system smart contracts.
     pub fn with_system_contracts(bytecode_hasher: impl Fn(&[u8]) -> H256) -> Self {
         Self::with_system_contracts_and_chain_id(
-            L2ChainId(IN_MEMORY_STORAGE_DEFAULT_NETWORK_ID),
+            L2ChainId::from(u64::from(IN_MEMORY_STORAGE_DEFAULT_NETWORK_ID)),
             bytecode_hasher,
         )
     }

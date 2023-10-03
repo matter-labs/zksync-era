@@ -36,16 +36,15 @@ pub enum ProtocolVersionId {
     Version14,
     Version15,
     Version16,
-    Version17,
 }
 
 impl ProtocolVersionId {
     pub fn latest() -> Self {
-        Self::Version16
+        Self::Version15
     }
 
     pub fn next() -> Self {
-        Self::Version17
+        Self::Version16
     }
 
     /// Returns VM version to be used by API for this protocol version.
@@ -68,8 +67,7 @@ impl ProtocolVersionId {
             ProtocolVersionId::Version13 => VmVersion::VmVirtualBlocks,
             ProtocolVersionId::Version14 => VmVersion::VmVirtualBlocks,
             ProtocolVersionId::Version15 => VmVersion::VmVirtualBlocks,
-            ProtocolVersionId::Version16 => VmVersion::VmTimelessHistory,
-            ProtocolVersionId::Version17 => VmVersion::VmTimelessHistory,
+            ProtocolVersionId::Version16 => VmVersion::VmVirtualBlocks,
         }
     }
 }
@@ -554,8 +552,7 @@ impl From<ProtocolVersionId> for VmVersion {
             ProtocolVersionId::Version13 => VmVersion::VmVirtualBlocks,
             ProtocolVersionId::Version14 => VmVersion::VmVirtualBlocks,
             ProtocolVersionId::Version15 => VmVersion::VmVirtualBlocks,
-            ProtocolVersionId::Version16 => VmVersion::VmTimelessHistory,
-            ProtocolVersionId::Version17 => VmVersion::VmTimelessHistory,
+            ProtocolVersionId::Version16 => VmVersion::VmVirtualBlocks,
         }
     }
 }

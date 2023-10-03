@@ -7,9 +7,8 @@ use zksync_state::WriteStorage;
 use zksync_types::{StorageKey, StorageLogQuery, StorageValue, U256};
 
 use crate::old_vm::event_sink::InMemoryEventSink;
-use crate::rollback::history_recorder::HistoryRecorder;
-use crate::rollback::reversable_log::ReversableLog;
-use crate::{SimpleMemory, Vm};
+use crate::old_vm::history_recorder::{AppDataFrameManagerWithHistory, HistoryRecorder};
+use crate::{HistoryEnabled, HistoryMode, SimpleMemory, Vm};
 
 #[derive(Clone, Debug)]
 pub(crate) struct ModifiedKeysMap(HashMap<StorageKey, StorageValue>);
@@ -33,43 +32,43 @@ impl PartialEq for ModifiedKeysMap {
 }
 
 #[derive(Clone, PartialEq, Debug)]
-pub(crate) struct DecommitterTestInnerState {
+pub(crate) struct DecommitterTestInnerState<H: HistoryMode> {
     /// There is no way to "trully" compare the storage pointer,
     /// so we just compare the modified keys. This is reasonable enough.
     pub(crate) modified_storage_keys: ModifiedKeysMap,
-    pub(crate) known_bytecodes: HistoryRecorder<HashMap<U256, Vec<U256>>>,
-    pub(crate) decommitted_code_hashes: HistoryRecorder<HashMap<U256, u32>>,
+    pub(crate) known_bytecodes: HistoryRecorder<HashMap<U256, Vec<U256>>, H>,
+    pub(crate) decommitted_code_hashes: HistoryRecorder<HashMap<U256, u32>, HistoryEnabled>,
 }
 
 #[derive(Clone, PartialEq, Debug)]
-pub(crate) struct StorageOracleInnerState {
+pub(crate) struct StorageOracleInnerState<H: HistoryMode> {
     /// There is no way to "trully" compare the storage pointer,
     /// so we just compare the modified keys. This is reasonable enough.
     pub(crate) modified_storage_keys: ModifiedKeysMap,
 
-    pub(crate) storage_logs: ReversableLog<Box<StorageLogQuery>>,
+    pub(crate) frames_stack: AppDataFrameManagerWithHistory<Box<StorageLogQuery>, H>,
 }
 
 #[derive(Clone, PartialEq, Debug)]
-pub(crate) struct PrecompileProcessorTestInnerState {
-    pub(crate) timestamp_history: HistoryRecorder<Vec<Timestamp>>,
+pub(crate) struct PrecompileProcessorTestInnerState<H: HistoryMode> {
+    pub(crate) timestamp_history: HistoryRecorder<Vec<Timestamp>, H>,
 }
 
 /// A struct that encapsulates the state of the VM's oracles
 /// The state is to be used in tests.
 #[derive(Clone, PartialEq, Debug)]
-pub(crate) struct VmInstanceInnerState {
-    event_sink: InMemoryEventSink,
-    precompile_processor_state: PrecompileProcessorTestInnerState,
-    memory: SimpleMemory,
-    decommitter_state: DecommitterTestInnerState,
-    storage_oracle_state: StorageOracleInnerState,
+pub(crate) struct VmInstanceInnerState<H: HistoryMode> {
+    event_sink: InMemoryEventSink<H>,
+    precompile_processor_state: PrecompileProcessorTestInnerState<H>,
+    memory: SimpleMemory<H>,
+    decommitter_state: DecommitterTestInnerState<H>,
+    storage_oracle_state: StorageOracleInnerState<H>,
     local_state: VmLocalState,
 }
 
-impl<S: WriteStorage> Vm<S> {
+impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
     // Dump inner state of the VM.
-    pub(crate) fn dump_inner_state(&self) -> VmInstanceInnerState {
+    pub(crate) fn dump_inner_state(&self) -> VmInstanceInnerState<H> {
         let event_sink = self.state.event_sink.clone();
         let precompile_processor_state = PrecompileProcessorTestInnerState {
             timestamp_history: self.state.precompiles_processor.timestamp_history.clone(),
@@ -95,12 +94,13 @@ impl<S: WriteStorage> Vm<S> {
             modified_storage_keys: ModifiedKeysMap(
                 self.state
                     .storage
+                    .storage
                     .get_ptr()
                     .borrow()
                     .modified_storage_keys()
                     .clone(),
             ),
-            storage_logs: self.state.storage.storage_logs(),
+            frames_stack: self.state.storage.frames_stack.clone(),
         };
         let local_state = self.state.local_state.clone();
 

@@ -3,7 +3,7 @@ use zksync_types::Transaction;
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
 use crate::old_vm::events::merge_events;
-use crate::rollback::Rollback;
+use crate::old_vm::history_recorder::{HistoryEnabled, HistoryMode};
 
 use crate::bootloader_state::BootloaderState;
 use crate::errors::BytecodeCompressionError;
@@ -18,20 +18,21 @@ use crate::L2BlockEnv;
 /// Main entry point for Virtual Machine integration.
 /// The instance should process only one l1 batch
 #[derive(Debug)]
-pub struct Vm<S: WriteStorage> {
+pub struct Vm<S: WriteStorage, H: HistoryMode> {
     pub(crate) bootloader_state: BootloaderState,
     // Current state and oracles of virtual machine
-    pub(crate) state: ZkSyncVmState<S>,
+    pub(crate) state: ZkSyncVmState<S, H>,
     pub(crate) storage: StoragePtr<S>,
     pub(crate) system_env: SystemEnv,
     pub(crate) batch_env: L1BatchEnv,
     // Snapshots for the current run
     pub(crate) snapshots: Vec<VmSnapshot>,
+    _phantom: std::marker::PhantomData<H>,
 }
 
 /// Public interface for VM
-impl<S: WriteStorage> Vm<S> {
-    pub fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage: StoragePtr<S>) -> Self {
+impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
+    pub fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage: StoragePtr<S>, _: H) -> Self {
         let (state, bootloader_state) = new_vm_state(storage.clone(), &system_env, &batch_env);
         Self {
             bootloader_state,
@@ -40,6 +41,7 @@ impl<S: WriteStorage> Vm<S> {
             system_env,
             batch_env,
             snapshots: vec![],
+            _phantom: Default::default(),
         }
     }
 
@@ -57,7 +59,7 @@ impl<S: WriteStorage> Vm<S> {
     /// Execute VM with custom tracers.
     pub fn inspect(
         &mut self,
-        tracers: Vec<Box<dyn VmTracer<S>>>,
+        tracers: Vec<Box<dyn VmTracer<S, H>>>,
         execution_mode: VmExecutionMode,
     ) -> VmExecutionResultAndLogs {
         self.inspect_inner(tracers, execution_mode)
@@ -117,7 +119,7 @@ impl<S: WriteStorage> Vm<S> {
     /// Inspect transaction with optional bytecode compression.
     pub fn inspect_transaction_with_bytecode_compression(
         &mut self,
-        tracers: Vec<Box<dyn VmTracer<S>>>,
+        tracers: Vec<Box<dyn VmTracer<S, H>>>,
         tx: Transaction,
         with_compression: bool,
     ) -> Result<VmExecutionResultAndLogs, BytecodeCompressionError> {
@@ -131,26 +133,15 @@ impl<S: WriteStorage> Vm<S> {
     }
 }
 
-/// A token that can only be created by calling Vm::make_snapshot.
-/// It is consumed by rolling back or popping a snapshot.
-///
-/// This does not protect against a situation where someone makes a snapshot
-/// after your snapshot and you end up rolling back to the other snapshot by accident
-/// but it makes that situation more visible as that can only happen if the token is
-/// stored somewhere.
-#[must_use]
-#[derive(Debug)]
-pub struct Snapshot(());
-
-impl<S: WriteStorage> Vm<S> {
+/// Methods of vm, which required some history manipullations
+impl<S: WriteStorage> Vm<S, HistoryEnabled> {
     /// Create snapshot of current vm state and push it into the memory
-    pub fn make_snapshot(&mut self) -> Snapshot {
-        self.make_snapshot_inner();
-        Snapshot(())
+    pub fn make_snapshot(&mut self) {
+        self.make_snapshot_inner()
     }
 
     /// Rollback vm state to the latest snapshot and destroy the snapshot
-    pub fn rollback_to_the_latest_snapshot(&mut self, _: Snapshot) {
+    pub fn rollback_to_the_latest_snapshot(&mut self) {
         let snapshot = self
             .snapshots
             .pop()
@@ -159,15 +150,9 @@ impl<S: WriteStorage> Vm<S> {
     }
 
     /// Pop the latest snapshot from the memory and destroy it
-    pub fn pop_snapshot_no_rollback(&mut self, _: Snapshot) {
+    pub fn pop_snapshot_no_rollback(&mut self) {
         self.snapshots
             .pop()
             .expect("Snapshot should be created before rolling it back");
-
-        self.state.decommittment_processor.forget_snapshot();
-        self.state.event_sink.forget_snapshot();
-        self.state.storage.forget_snapshot();
-        self.state.memory.forget_snapshot();
-        self.state.precompiles_processor.forget_snapshot();
     }
 }

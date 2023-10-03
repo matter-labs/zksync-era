@@ -2,7 +2,6 @@
 name = "zksync_verification_key_generator_and_server"
 version = "0.1.0"
 edition = "2018"
-license = "MIT OR Apache-2.0"
 
 [lib]
 name = "zksync_verification_key_server"
@@ -24,7 +23,7 @@ path = "src/commitment_generator.rs"
 zksync_types = { path = "../../lib/types" }
 zksync_prover_utils = { path = "../../lib/prover_utils" }
 vlog = { path = "../../lib/vlog" }
-circuit_testing = { git = "https://github.com/matter-labs/era-circuit_testing.git", branch = "main" }
+circuit_testing = { git = "https://github.com/matter-labs/circuit_testing.git", branch = "main" }
 itertools = "0.10.5"
 bincode = "1.3.3"
 

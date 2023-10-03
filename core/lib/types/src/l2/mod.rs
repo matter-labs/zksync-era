@@ -93,7 +93,7 @@ impl L2TxCommonData {
         self.input = Some(InputData { hash, data: input })
     }
 
-    pub fn extract_chain_id(&self) -> Option<u16> {
+    pub fn extract_chain_id(&self) -> Option<U256> {
         let bytes = self.input_data()?;
         let chain_id = match bytes.first() {
             Some(x) if *x >= 0x80 => {
@@ -287,7 +287,7 @@ impl L2Tx {
     }
 }
 
-fn signature_to_vrs(signature: &[u8], tx_type: u32) -> (Option<U64>, Option<U256>, Option<U256>) {
+fn signature_to_vrs(signature: &[u8], tx_type: u32) -> (Option<U256>, Option<U256>, Option<U256>) {
     let signature = if tx_type == LEGACY_TX_TYPE as u32 {
         // Note that we use `deserialize_packed_no_v_check` here, because we want to preserve the original `v` value.
         // This is needed due to inconsistent behaviour on Ethereum where the `v` value is >= 27 for legacy transactions
@@ -299,7 +299,7 @@ fn signature_to_vrs(signature: &[u8], tx_type: u32) -> (Option<U64>, Option<U256
 
     if let Ok(sig) = signature {
         (
-            Some(U64::from(sig.v())),
+            Some(U256::from(sig.v())),
             Some(U256::from(sig.r())),
             Some(U256::from(sig.s())),
         )
@@ -389,7 +389,7 @@ impl From<L2Tx> for api::Transaction {
 
         Self {
             hash: tx.hash(),
-            chain_id: tx.common_data.extract_chain_id().unwrap_or_default().into(),
+            chain_id: tx.common_data.extract_chain_id().unwrap_or_default(),
             nonce: U256::from(tx.common_data.nonce.0),
             from: Some(tx.common_data.initiator_address),
             to: Some(tx.recipient_account()),

@@ -15,6 +15,7 @@ use zksync_utils::u256_to_h256;
 use crate::constants::{
     BOOTLOADER_HEAP_PAGE, VM_HOOK_PARAMS_COUNT, VM_HOOK_PARAMS_START_POSITION, VM_HOOK_POSITION,
 };
+use crate::old_vm::history_recorder::HistoryMode;
 use crate::old_vm::memory::SimpleMemory;
 use crate::old_vm::utils::{aux_heap_page_from_base, heap_page_from_base};
 
@@ -76,7 +77,10 @@ impl VmHook {
     }
 }
 
-pub(crate) fn get_debug_log(state: &VmLocalStateData<'_>, memory: &SimpleMemory) -> String {
+pub(crate) fn get_debug_log<H: HistoryMode>(
+    state: &VmLocalStateData<'_>,
+    memory: &SimpleMemory<H>,
+) -> String {
     let vm_hook_params: Vec<_> = get_vm_hook_params(memory)
         .into_iter()
         .map(u256_to_h256)
@@ -103,7 +107,10 @@ pub(crate) fn get_debug_log(state: &VmLocalStateData<'_>, memory: &SimpleMemory)
 
 /// Reads the memory slice represented by the fat pointer.
 /// Note, that the fat pointer must point to the accesible memory (i.e. not cleared up yet).
-pub(crate) fn read_pointer(memory: &SimpleMemory, pointer: FatPointer) -> Vec<u8> {
+pub(crate) fn read_pointer<H: HistoryMode>(
+    memory: &SimpleMemory<H>,
+    pointer: FatPointer,
+) -> Vec<u8> {
     let FatPointer {
         offset,
         length,
@@ -124,7 +131,7 @@ pub(crate) fn read_pointer(memory: &SimpleMemory, pointer: FatPointer) -> Vec<u8
 
 /// Outputs the returndata for the latest call.
 /// This is usually used to output the revert reason.
-pub(crate) fn get_debug_returndata(memory: &SimpleMemory) -> String {
+pub(crate) fn get_debug_returndata<H: HistoryMode>(memory: &SimpleMemory<H>) -> String {
     let vm_hook_params: Vec<_> = get_vm_hook_params(memory);
     let returndata_ptr = FatPointer::from_u256(vm_hook_params[0]);
     let returndata = read_pointer(memory, returndata_ptr);
@@ -133,10 +140,10 @@ pub(crate) fn get_debug_returndata(memory: &SimpleMemory) -> String {
 }
 
 /// Accepts a vm hook and, if it requires to output some debug log, outputs it.
-pub(crate) fn print_debug_if_needed(
+pub(crate) fn print_debug_if_needed<H: HistoryMode>(
     hook: &VmHook,
     state: &VmLocalStateData<'_>,
-    memory: &SimpleMemory,
+    memory: &SimpleMemory<H>,
 ) {
     let log = match hook {
         VmHook::DebugLog => get_debug_log(state, memory),
@@ -203,7 +210,7 @@ pub(crate) fn get_calldata_page_via_abi(far_call_abi: &FarCallABI, base_page: Me
         FarCallForwardPageType::UseHeap => heap_page_from_base(base_page).0,
     }
 }
-pub(crate) fn get_vm_hook_params(memory: &SimpleMemory) -> Vec<U256> {
+pub(crate) fn get_vm_hook_params<H: HistoryMode>(memory: &SimpleMemory<H>) -> Vec<U256> {
     memory.dump_page_content_as_u256_words(
         BOOTLOADER_HEAP_PAGE,
         VM_HOOK_PARAMS_START_POSITION..VM_HOOK_PARAMS_START_POSITION + VM_HOOK_PARAMS_COUNT,

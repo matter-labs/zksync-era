@@ -33,7 +33,7 @@ pub trait EthNamespace {
     async fn get_block_number(&self) -> RpcResult<U64>;
 
     #[method(name = "chainId")]
-    async fn chain_id(&self) -> RpcResult<U64>;
+    async fn chain_id(&self) -> RpcResult<U256>;
 
     #[method(name = "call")]
     async fn call(&self, req: CallRequest, block: Option<BlockIdVariant>) -> RpcResult<Bytes>;

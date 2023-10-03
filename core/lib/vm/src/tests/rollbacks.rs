@@ -10,10 +10,11 @@ use crate::tests::tester::{
 };
 use crate::tests::utils::read_test_contract;
 use crate::types::inputs::system_env::TxExecutionMode;
+use crate::HistoryEnabled;
 
 #[test]
 fn test_vm_rollbacks() {
-    let mut vm = VmTesterBuilder::new()
+    let mut vm = VmTesterBuilder::new(HistoryEnabled)
         .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_random_rich_accounts(1)
@@ -62,7 +63,7 @@ fn test_vm_rollbacks() {
 
 #[test]
 fn test_vm_loadnext_rollbacks() {
-    let mut vm = VmTesterBuilder::new()
+    let mut vm = VmTesterBuilder::new(HistoryEnabled)
         .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_random_rich_accounts(1)

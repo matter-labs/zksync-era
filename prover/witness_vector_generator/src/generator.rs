@@ -70,7 +70,7 @@ impl JobProcessor for WitnessVectorGenerator {
     const SERVICE_NAME: &'static str = "WitnessVectorGenerator";
 
     async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, Self::Job)>> {
-        let mut storage = self.pool.access_storage().await.unwrap();
+        let mut storage = self.pool.access_storage().await;
         let Some(job) = fetch_next_circuit(
             &mut storage,
             &*self.blob_store,
@@ -83,7 +83,8 @@ impl JobProcessor for WitnessVectorGenerator {
 
     async fn save_failure(&self, job_id: Self::JobId, _started_at: Instant, error: String) {
         self.pool
-            .access_storage().await.unwrap()
+            .access_storage()
+            .await
             .fri_prover_jobs_dal()
             .save_proof_error(job_id, error)
             .await;
@@ -123,7 +124,8 @@ impl JobProcessor for WitnessVectorGenerator {
         while now.elapsed() < self.config.prover_instance_wait_timeout() {
             let prover = self
                 .pool
-                .access_storage().await.unwrap()
+                .access_storage()
+                .await
                 .fri_gpu_prover_queue_dal()
                 .lock_available_prover(
                     self.config.max_prover_reservation_duration(),
@@ -179,7 +181,8 @@ async fn handle_send_result(
                 "blob_size_in_mb" => blob_size_in_mb.to_string(),
             );
 
-            pool.access_storage().await.unwrap()
+            pool.access_storage()
+                .await
                 .fri_prover_jobs_dal()
                 .update_status(job_id, "in_gpu_proof")
                 .await;
@@ -192,13 +195,15 @@ async fn handle_send_result(
             );
 
             // mark prover instance in gpu_prover_queue dead
-            pool.access_storage().await.unwrap()
+            pool.access_storage()
+                .await
                 .fri_gpu_prover_queue_dal()
                 .update_prover_instance_status(address.clone(), GpuProverInstanceStatus::Dead, zone)
                 .await;
 
             // mark the job as failed
-            pool.access_storage().await.unwrap()
+            pool.access_storage()
+                .await
                 .fri_prover_jobs_dal()
                 .save_proof_error(job_id, "prover instance unreachable".to_string())
                 .await;

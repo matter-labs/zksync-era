@@ -7,13 +7,13 @@ use zksync_utils::u256_to_h256;
 use crate::tests::tester::{DeployContractsTx, TxType, VmTesterBuilder};
 use crate::tests::utils::{get_balance, read_test_contract, verify_required_storage};
 use crate::types::inputs::system_env::TxExecutionMode;
-use crate::VmExecutionMode;
+use crate::{HistoryEnabled, VmExecutionMode};
 
 #[test]
 fn test_default_aa_interaction() {
     // In this test, we aim to test whether a simple account interaction (without any fee logic)
     // will work. The account will try to deploy a simple contract from integration tests.
-    let mut vm = VmTesterBuilder::new()
+    let mut vm = VmTesterBuilder::new(HistoryEnabled)
         .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_random_rich_accounts(1)
@@ -58,7 +58,7 @@ fn test_default_aa_interaction() {
     let operator_balance = get_balance(
         AccountTreeId::new(L2_ETH_TOKEN_ADDRESS),
         &vm.fee_account,
-        vm.vm.state.storage.get_ptr(),
+        vm.vm.state.storage.storage.get_ptr(),
     );
 
     assert_eq!(

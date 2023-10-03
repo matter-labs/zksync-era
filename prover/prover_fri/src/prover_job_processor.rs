@@ -189,7 +189,7 @@ impl JobProcessor for Prover {
     const SERVICE_NAME: &'static str = "FriCpuProver";
 
     async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, Self::Job)>> {
-        let mut storage = self.prover_connection_pool.access_storage().await.unwrap();
+        let mut storage = self.prover_connection_pool.access_storage().await;
         let Some(prover_job) = fetch_next_circuit(
             &mut storage,
             &*self.blob_store,
@@ -202,7 +202,8 @@ impl JobProcessor for Prover {
 
     async fn save_failure(&self, job_id: Self::JobId, _started_at: Instant, error: String) {
         self.prover_connection_pool
-            .access_storage().await.unwrap()
+            .access_storage()
+            .await
             .fri_prover_jobs_dal()
             .save_proof_error(job_id, error)
             .await;
@@ -230,7 +231,7 @@ impl JobProcessor for Prover {
             "prover_fri.prover.cpu_total_proving_time",
             started_at.elapsed(),
         );
-        let mut storage_processor = self.prover_connection_pool.access_storage().await.unwrap();
+        let mut storage_processor = self.prover_connection_pool.access_storage().await;
         save_proof(
             job_id,
             started_at,

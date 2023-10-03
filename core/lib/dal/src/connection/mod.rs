@@ -3,7 +3,6 @@ use sqlx::{
     postgres::{PgConnectOptions, PgPool, PgPoolOptions, Postgres},
 };
 
-use anyhow::Context as _;
 use std::time::Duration;
 
 use zksync_utils::parse_env;
@@ -123,7 +122,7 @@ impl ConnectionPool {
     ///
     /// This method is intended to be used in crucial contexts, where the
     /// database access is must-have (e.g. block committer).
-    pub async fn access_storage(&self) -> anyhow::Result<StorageProcessor<'_>> {
+    pub async fn access_storage(&self) -> StorageProcessor<'_> {
         self.access_storage_inner(None).await
     }
 
@@ -132,23 +131,15 @@ impl ConnectionPool {
     ///
     /// WARN: This method should not be used if it will result in too many time series (e.g.
     /// from witness generators or provers), otherwise Prometheus won't be able to handle it.
-    pub async fn access_storage_tagged(
-        &self,
-        requester: &'static str,
-    ) -> anyhow::Result<StorageProcessor<'_>> {
+    pub async fn access_storage_tagged(&self, requester: &'static str) -> StorageProcessor<'_> {
         self.access_storage_inner(Some(requester)).await
     }
 
-    async fn access_storage_inner(
-        &self,
-        requester: Option<&'static str>,
-    ) -> anyhow::Result<StorageProcessor<'_>> {
-        Ok(match self {
+    async fn access_storage_inner(&self, requester: Option<&'static str>) -> StorageProcessor<'_> {
+        match self {
             ConnectionPool::Real(real_pool) => {
                 let acquire_latency = CONNECTION_METRICS.acquire.start();
-                let conn = Self::acquire_connection_retried(real_pool)
-                    .await
-                    .context("acquire_connection_retried()")?;
+                let conn = Self::acquire_connection_retried(real_pool).await;
                 let elapsed = acquire_latency.observe();
                 if let Some(requester) = requester {
                     CONNECTION_METRICS.acquire_tagged[&requester].observe(elapsed);
@@ -156,10 +147,10 @@ impl ConnectionPool {
                 StorageProcessor::from_pool(conn)
             }
             ConnectionPool::Test(test) => test.access_storage().await,
-        })
+        }
     }
 
-    async fn acquire_connection_retried(pool: &PgPool) -> anyhow::Result<PoolConnection<Postgres>> {
+    async fn acquire_connection_retried(pool: &PgPool) -> PoolConnection<Postgres> {
         const DB_CONNECTION_RETRIES: u32 = 3;
         const BACKOFF_INTERVAL: Duration = Duration::from_secs(1);
 
@@ -170,7 +161,7 @@ impl ConnectionPool {
 
             let connection = pool.acquire().await;
             let connection_err = match connection {
-                Ok(connection) => return Ok(connection),
+                Ok(connection) => return connection,
                 Err(err) => {
                     retry_count += 1;
                     err
@@ -185,13 +176,13 @@ impl ConnectionPool {
         }
 
         // Attempting to get the pooled connection for the last time
-        match pool.acquire().await {
-            Ok(conn) => Ok(conn),
-            Err(err) => {
-                Self::report_connection_error(&err);
-                anyhow::bail!("Run out of retries getting a DB connetion, last error: {err}");
-            }
-        }
+        pool.acquire().await.unwrap_or_else(|connection_err| {
+            Self::report_connection_error(&connection_err);
+            panic!(
+                "Run out of retries getting a DB connection; last error: {}",
+                connection_err
+            );
+        })
     }
 
     fn report_connection_error(err: &sqlx::Error) {
@@ -226,7 +217,7 @@ mod tests {
             .await;
 
         // NB. We must not mutate the database below! Doing so may break other tests.
-        let mut conn = pool.access_storage().await.unwrap();
+        let mut conn = pool.access_storage().await;
         let err = sqlx::query("SELECT pg_sleep(2)")
             .map(drop)
             .fetch_optional(conn.conn())

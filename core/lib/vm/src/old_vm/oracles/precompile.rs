@@ -6,10 +6,9 @@ use zk_evm::{
     precompiles::DefaultPrecompilesProcessor,
 };
 
-use crate::{
-    implement_rollback,
-    rollback::{history_recorder::HistoryRecorder, Rollback},
-};
+use crate::old_vm::history_recorder::{HistoryEnabled, HistoryMode, HistoryRecorder};
+
+use super::OracleWithHistory;
 
 /// Wrap of DefaultPrecompilesProcessor that store queue
 /// of timestamp when precompiles are called to be executed.
@@ -17,12 +16,12 @@ use crate::{
 /// saving timestamps allows us to check the exact number
 /// of log queries, that were used during the tx execution.
 #[derive(Debug, Clone)]
-pub struct PrecompilesProcessorWithHistory<const B: bool> {
-    pub timestamp_history: HistoryRecorder<Vec<Timestamp>>,
+pub struct PrecompilesProcessorWithHistory<const B: bool, H: HistoryMode> {
+    pub timestamp_history: HistoryRecorder<Vec<Timestamp>, H>,
     pub default_precompiles_processor: DefaultPrecompilesProcessor<B>,
 }
 
-impl<const B: bool> Default for PrecompilesProcessorWithHistory<B> {
+impl<const B: bool, H: HistoryMode> Default for PrecompilesProcessorWithHistory<B, H> {
     fn default() -> Self {
         Self {
             timestamp_history: Default::default(),
@@ -31,17 +30,23 @@ impl<const B: bool> Default for PrecompilesProcessorWithHistory<B> {
     }
 }
 
-impl<const B: bool> Rollback for PrecompilesProcessorWithHistory<B> {
-    implement_rollback! {timestamp_history}
-}
-
-impl<const B: bool> PrecompilesProcessorWithHistory<B> {
-    pub fn get_timestamp_history(&self) -> &Vec<Timestamp> {
-        self.timestamp_history.inner()
+impl<const B: bool> OracleWithHistory for PrecompilesProcessorWithHistory<B, HistoryEnabled> {
+    fn rollback_to_timestamp(&mut self, timestamp: Timestamp) {
+        self.timestamp_history.rollback_to_timestamp(timestamp);
     }
 }
 
-impl<const B: bool> PrecompilesProcessor for PrecompilesProcessorWithHistory<B> {
+impl<const B: bool, H: HistoryMode> PrecompilesProcessorWithHistory<B, H> {
+    pub fn get_timestamp_history(&self) -> &Vec<Timestamp> {
+        self.timestamp_history.inner()
+    }
+
+    pub fn delete_history(&mut self) {
+        self.timestamp_history.delete_history();
+    }
+}
+
+impl<const B: bool, H: HistoryMode> PrecompilesProcessor for PrecompilesProcessorWithHistory<B, H> {
     fn start_frame(&mut self) {
         self.default_precompiles_processor.start_frame();
     }
@@ -56,7 +61,8 @@ impl<const B: bool> PrecompilesProcessor for PrecompilesProcessorWithHistory<B> 
         // the time when this operation occured.
         // While slightly weird, it is done for consistency with other oracles
         // where operations and timestamp have different types.
-        self.timestamp_history.push(query.timestamp);
+        self.timestamp_history
+            .push(query.timestamp, query.timestamp);
         self.default_precompiles_processor.execute_precompile(
             monotonic_cycle_counter,
             query,

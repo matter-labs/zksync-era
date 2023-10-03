@@ -1,4 +1,7 @@
-use crate::{implement_rollback, rollback::history_recorder::AppDataFrameManagerWithHistory};
+use crate::old_vm::{
+    history_recorder::{AppDataFrameManagerWithHistory, HistoryEnabled, HistoryMode},
+    oracles::OracleWithHistory,
+};
 use std::collections::HashMap;
 use zk_evm::{
     abstractions::EventSink,
@@ -9,21 +12,21 @@ use zk_evm::{
     },
 };
 
-use crate::rollback::Rollback;
-
 #[derive(Debug, Clone, PartialEq, Default)]
-pub struct InMemoryEventSink {
-    frames_stack: AppDataFrameManagerWithHistory<Box<LogQuery>>,
+pub struct InMemoryEventSink<H: HistoryMode> {
+    frames_stack: AppDataFrameManagerWithHistory<Box<LogQuery>, H>,
 }
 
-impl Rollback for InMemoryEventSink {
-    implement_rollback! {frames_stack}
+impl OracleWithHistory for InMemoryEventSink<HistoryEnabled> {
+    fn rollback_to_timestamp(&mut self, timestamp: Timestamp) {
+        self.frames_stack.rollback_to_timestamp(timestamp);
+    }
 }
 
 // as usual, if we rollback the current frame then we apply changes to storage immediately,
 // otherwise we carry rollbacks to the parent's frames
 
-impl InMemoryEventSink {
+impl<H: HistoryMode> InMemoryEventSink<H> {
     pub fn flatten(&self) -> (Vec<LogQuery>, Vec<EventMessage>, Vec<EventMessage>) {
         assert_eq!(
             self.frames_stack.len(),
@@ -116,9 +119,21 @@ impl InMemoryEventSink {
 
         (events, l1_messages)
     }
+
+    pub(crate) fn get_size(&self) -> usize {
+        self.frames_stack.get_size()
+    }
+
+    pub fn get_history_size(&self) -> usize {
+        self.frames_stack.get_history_size()
+    }
+
+    pub fn delete_history(&mut self) {
+        self.frames_stack.delete_history();
+    }
 }
 
-impl EventSink for InMemoryEventSink {
+impl<H: HistoryMode> EventSink for InMemoryEventSink<H> {
     // when we enter a new frame we should remember all our current applications and rollbacks
     // when we exit the current frame then if we did panic we should concatenate all current
     // forward and rollback cases
@@ -130,24 +145,27 @@ impl EventSink for InMemoryEventSink {
 
         // just append to rollbacks and a full history
 
-        self.frames_stack.push_forward(Box::new(query));
+        self.frames_stack
+            .push_forward(Box::new(query), query.timestamp);
         // we do not need it explicitly here, but let's be consistent with circuit counterpart
         query.rollback = true;
-        self.frames_stack.push_rollback(Box::new(query));
+        self.frames_stack
+            .push_rollback(Box::new(query), query.timestamp);
     }
 
-    fn start_frame(&mut self, _: Timestamp) {
-        self.frames_stack.push_frame()
+    fn start_frame(&mut self, timestamp: Timestamp) {
+        self.frames_stack.push_frame(timestamp)
     }
 
-    fn finish_frame(&mut self, panicked: bool, _: Timestamp) {
+    fn finish_frame(&mut self, panicked: bool, timestamp: Timestamp) {
         // if we panic then we append forward and rollbacks to the forward of parent,
         // otherwise we place rollbacks of child before rollbacks of the parent
         if panicked {
-            self.frames_stack.move_rollback_to_forward(|q| {
-                q.address != *BOOTLOADER_FORMAL_ADDRESS || q.aux_byte != EVENT_AUX_BYTE
-            });
+            self.frames_stack.move_rollback_to_forward(
+                |q| q.address != *BOOTLOADER_FORMAL_ADDRESS || q.aux_byte != EVENT_AUX_BYTE,
+                timestamp,
+            );
         }
-        self.frames_stack.merge_frame();
+        self.frames_stack.merge_frame(timestamp);
     }
 }

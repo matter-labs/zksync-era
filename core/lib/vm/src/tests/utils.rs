@@ -12,17 +12,18 @@ use zksync_utils::bytecode::hash_bytecode;
 use zksync_utils::{bytes_to_be_words, h256_to_u256, u256_to_h256};
 
 use crate::types::internals::ZkSyncVmState;
+use crate::HistoryMode;
 
 pub(crate) static BASE_SYSTEM_CONTRACTS: Lazy<BaseSystemContracts> =
     Lazy::new(BaseSystemContracts::load_from_disk);
 
 // Probably make it a part of vm tester
-pub(crate) fn verify_required_storage(
-    state: &ZkSyncVmState<InMemoryStorageView>,
+pub(crate) fn verify_required_storage<H: HistoryMode>(
+    state: &ZkSyncVmState<InMemoryStorageView, H>,
     required_values: Vec<(H256, StorageKey)>,
 ) {
     for (required_value, key) in required_values {
-        let current_value = state.storage.read_from_storage(&key);
+        let current_value = state.storage.storage.read_from_storage(&key);
 
         assert_eq!(
             u256_to_h256(current_value),
@@ -32,8 +33,8 @@ pub(crate) fn verify_required_storage(
     }
 }
 
-pub(crate) fn verify_required_memory(
-    state: &ZkSyncVmState<InMemoryStorageView>,
+pub(crate) fn verify_required_memory<H: HistoryMode>(
+    state: &ZkSyncVmState<InMemoryStorageView, H>,
     required_values: Vec<(U256, u32, u32)>,
 ) {
     for (required_value, memory_page, cell) in required_values {

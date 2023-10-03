@@ -1,18 +1,16 @@
 [workspace]
 members = [
-    # Binaries
-    "core/bin/block_reverter",
-    "core/bin/contract-verifier",
+    # Server
+    "core/bin/zksync_core",
     "core/bin/external_node",
-    "core/bin/merkle_tree_consistency_checker",
-    "core/bin/rocksdb_util",
-    "core/bin/storage_logs_dedup_migration",
     # "core/bin/system-constants-generator",
+    "core/tests/cross_external_nodes_checker",
+    # Contract verifier
+    "core/bin/contract-verifier",
+    # Verification key generator and server
     "core/bin/verification_key_generator_and_server",
-    "core/bin/verified_sources_fetcher",
-    "core/bin/zksync_server",
+    "core/bin/storage_logs_dedup_migration",
     # Libraries
-    "core/lib/zksync_core",
     "core/lib/basic_types",
     "core/lib/config",
     "core/lib/contracts",
@@ -44,7 +42,6 @@ members = [
     "core/multivm_deps/vm_m6",
 
     # Test infrastructure
-    "core/tests/cross_external_nodes_checker",
     "core/tests/loadnext",
     "core/tests/vm-benchmark",
     "core/tests/vm-benchmark/harness",

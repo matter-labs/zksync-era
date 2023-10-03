@@ -1,22 +1,26 @@
+use zk_evm::aux_structures::Timestamp;
 use zksync_state::WriteStorage;
 
 use zksync_types::U256;
 
+use crate::old_vm::history_recorder::HistoryMode;
 use crate::tracers::DefaultExecutionTracer;
 use crate::types::outputs::VmExecutionStatistics;
 use crate::vm::Vm;
 
+use crate::VmMemoryMetrics;
+
 /// Module responsible for observing the VM behavior, i.e. calculating the statistics of the VM runs
 /// or reporting the VM memory usage.
 
-impl<S: WriteStorage> Vm<S> {
+impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
     /// Get statistics about TX execution.
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn get_statistics(
         &self,
-        initial_contracts_used: usize,
+        timestamp_initial: Timestamp,
         cycles_initial: u32,
-        tracer: &DefaultExecutionTracer<S>,
+        tracer: &DefaultExecutionTracer<S, H>,
         gas_remaining_before: u32,
         gas_remaining_after: u32,
         spent_pubdata_counter_before: u32,
@@ -31,10 +35,7 @@ impl<S: WriteStorage> Vm<S> {
             contracts_used: self
                 .state
                 .decommittment_processor
-                .decommitted_code_hashes
-                .inner()
-                .len()
-                - initial_contracts_used,
+                .get_decommitted_bytecodes_after_timestamp(timestamp_initial),
             cycles_used: self.state.local_state.monotonic_cycle_counter - cycles_initial,
             gas_used: gas_remaining_before - gas_remaining_after,
             computational_gas_used,
@@ -51,5 +52,36 @@ impl<S: WriteStorage> Vm<S> {
             .keys()
             .cloned()
             .collect()
+    }
+
+    /// Returns the info about all oracles' sizes.
+    pub fn record_vm_memory_metrics(&self) -> VmMemoryMetrics {
+        VmMemoryMetrics {
+            event_sink_inner: self.state.event_sink.get_size(),
+            event_sink_history: self.state.event_sink.get_history_size(),
+            memory_inner: self.state.memory.get_size(),
+            memory_history: self.state.memory.get_history_size(),
+            decommittment_processor_inner: self.state.decommittment_processor.get_size(),
+            decommittment_processor_history: self.state.decommittment_processor.get_history_size(),
+            storage_inner: self.state.storage.get_size(),
+            storage_history: self.state.storage.get_history_size(),
+        }
+    }
+}
+
+impl VmMemoryMetrics {
+    pub fn full_size(&self) -> usize {
+        [
+            self.event_sink_inner,
+            self.event_sink_history,
+            self.memory_inner,
+            self.memory_history,
+            self.decommittment_processor_inner,
+            self.decommittment_processor_history,
+            self.storage_inner,
+            self.storage_history,
+        ]
+        .iter()
+        .sum::<usize>()
     }
 }

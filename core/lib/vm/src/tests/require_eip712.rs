@@ -16,15 +16,15 @@ use zksync_types::{
 use crate::tests::tester::{Account, VmTester, VmTesterBuilder};
 use crate::tests::utils::read_many_owners_custom_account_contract;
 use crate::types::inputs::system_env::TxExecutionMode;
-use crate::VmExecutionMode;
+use crate::{HistoryDisabled, VmExecutionMode};
 
-impl VmTester {
+impl VmTester<HistoryDisabled> {
     pub(crate) fn get_eth_balance(&mut self, address: Address) -> U256 {
         let key = storage_key_for_standard_token_balance(
             AccountTreeId::new(L2_ETH_TOKEN_ADDRESS),
             &address,
         );
-        self.vm.state.storage.read_from_storage(&key)
+        self.vm.state.storage.storage.read_from_storage(&key)
     }
 }
 
@@ -43,7 +43,7 @@ async fn test_require_eip712() {
     let beneficiary = Account::random();
 
     let (bytecode, contract) = read_many_owners_custom_account_contract();
-    let mut vm = VmTesterBuilder::new()
+    let mut vm = VmTesterBuilder::new(HistoryDisabled)
         .with_empty_in_memory_storage()
         .with_custom_contracts(vec![(bytecode, account_abstraction.address, true)])
         .with_execution_mode(TxExecutionMode::VerifyExecute)
@@ -94,7 +94,7 @@ async fn test_require_eip712() {
     };
 
     let aa_tx = private_account.sign_legacy_tx(aa_raw_tx).await;
-    let (tx_request, hash) = TransactionRequest::from_bytes(&aa_tx, 270).unwrap();
+    let (tx_request, hash) = TransactionRequest::from_bytes(&aa_tx, U256::from(270)).unwrap();
 
     let mut l2_tx: L2Tx = L2Tx::from_request(tx_request, 10000).unwrap();
     l2_tx.set_input(aa_tx, hash);
@@ -134,15 +134,16 @@ async fn test_require_eip712() {
 
     let transaction_request: TransactionRequest = tx_712.into();
 
-    let domain = Eip712Domain::new(L2ChainId(chain_id));
+    let domain = Eip712Domain::new(L2ChainId(chain_id.into()));
     let signature = private_account
         .get_pk_signer()
         .sign_typed_data(&domain, &transaction_request)
         .await
         .unwrap();
-    let encoded_tx = transaction_request.get_signed_bytes(&signature, L2ChainId(chain_id));
+    let encoded_tx = transaction_request.get_signed_bytes(&signature, L2ChainId(chain_id.into()));
 
-    let (aa_txn_request, aa_hash) = TransactionRequest::from_bytes(&encoded_tx, chain_id).unwrap();
+    let (aa_txn_request, aa_hash) =
+        TransactionRequest::from_bytes(&encoded_tx, chain_id.into()).unwrap();
 
     let mut l2_tx = L2Tx::from_request(aa_txn_request, 100000).unwrap();
     l2_tx.set_input(encoded_tx, aa_hash);

@@ -5,11 +5,12 @@ use crate::constants::{BOOTLOADER_HEAP_PAGE, TX_DESCRIPTION_OFFSET, TX_GAS_LIMIT
 use crate::tests::tester::VmTesterBuilder;
 
 use crate::types::inputs::system_env::TxExecutionMode;
+use crate::HistoryDisabled;
 
 /// Checks that `TX_GAS_LIMIT_OFFSET` constant is correct.
 #[test]
 fn test_tx_gas_limit_offset() {
-    let mut vm = VmTesterBuilder::new()
+    let mut vm = VmTesterBuilder::new(HistoryDisabled)
         .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_random_rich_accounts(1)

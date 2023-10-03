@@ -414,7 +414,7 @@ impl TransactionsDal<'_, '_> {
         block_base_fee_per_gas: U256,
     ) {
         {
-            let mut transaction = self.storage.start_transaction().await.unwrap();
+            let mut transaction = self.storage.start_transaction().await;
             let mut l1_hashes = Vec::with_capacity(transactions.len());
             let mut l1_indices_in_block = Vec::with_capacity(transactions.len());
             let mut l1_errors = Vec::with_capacity(transactions.len());
@@ -722,7 +722,7 @@ impl TransactionsDal<'_, '_> {
                 .await
                 .unwrap();
             }
-            transaction.commit().await.unwrap();
+            transaction.commit().await;
         }
     }
 

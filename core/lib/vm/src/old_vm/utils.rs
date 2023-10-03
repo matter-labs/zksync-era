@@ -1,6 +1,7 @@
 use crate::old_vm::memory::SimpleMemory;
 
 use crate::types::internals::ZkSyncVmState;
+use crate::HistoryMode;
 
 use zk_evm::zkevm_opcode_defs::decoding::{AllowedPcOrImm, EncodingModeProduction, VmEncodingMode};
 use zk_evm::zkevm_opcode_defs::RET_IMPLICIT_RETURNDATA_PARAMS_REGISTER;
@@ -102,8 +103,8 @@ pub(crate) fn eth_price_per_pubdata_byte(l1_gas_price: u64) -> u64 {
     l1_gas_price * (L1_GAS_PER_PUBDATA_BYTE as u64)
 }
 
-pub(crate) fn vm_may_have_ended_inner<S: WriteStorage>(
-    vm: &ZkSyncVmState<S>,
+pub(crate) fn vm_may_have_ended_inner<S: WriteStorage, H: HistoryMode>(
+    vm: &ZkSyncVmState<S, H>,
 ) -> Option<VmExecutionResult> {
     let execution_has_ended = vm.execution_has_ended();
 
@@ -137,8 +138,8 @@ pub(crate) fn vm_may_have_ended_inner<S: WriteStorage>(
     }
 }
 
-pub(crate) fn dump_memory_page_using_primitive_value(
-    memory: &SimpleMemory,
+pub(crate) fn dump_memory_page_using_primitive_value<H: HistoryMode>(
+    memory: &SimpleMemory<H>,
     ptr: PrimitiveValue,
 ) -> Vec<u8> {
     if !ptr.is_pointer {
@@ -148,8 +149,8 @@ pub(crate) fn dump_memory_page_using_primitive_value(
     dump_memory_page_using_fat_pointer(memory, fat_ptr)
 }
 
-pub(crate) fn dump_memory_page_using_fat_pointer(
-    memory: &SimpleMemory,
+pub(crate) fn dump_memory_page_using_fat_pointer<H: HistoryMode>(
+    memory: &SimpleMemory<H>,
     fat_ptr: FatPointer,
 ) -> Vec<u8> {
     dump_memory_page_by_offset_and_length(
@@ -160,8 +161,8 @@ pub(crate) fn dump_memory_page_using_fat_pointer(
     )
 }
 
-pub(crate) fn dump_memory_page_by_offset_and_length(
-    memory: &SimpleMemory,
+pub(crate) fn dump_memory_page_by_offset_and_length<H: HistoryMode>(
+    memory: &SimpleMemory<H>,
     page: u32,
     offset: usize,
     length: usize,

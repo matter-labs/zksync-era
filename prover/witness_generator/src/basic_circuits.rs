@@ -22,7 +22,7 @@ use zksync_prover_fri_types::circuit_definitions::zkevm_circuits::scheduler::blo
 use zksync_prover_fri_types::circuit_definitions::zkevm_circuits::scheduler::input::SchedulerCircuitInstanceWitness;
 use zksync_prover_fri_types::{AuxOutputWitnessWrapper, get_current_pod_name};
 
-use vm::{constants::MAX_CYCLES_FOR_TX, StorageOracle};
+use vm::{constants::MAX_CYCLES_FOR_TX, HistoryDisabled, StorageOracle};
 use zksync_config::configs::FriWitnessGeneratorConfig;
 use zksync_dal::fri_witness_generator_dal::FriWitnessJobStatus;
 use zksync_dal::ConnectionPool;
@@ -127,8 +127,8 @@ impl BasicWitnessGenerator {
                     blocks_proving_percentage
                 );
 
-                let mut prover_storage = prover_connection_pool.access_storage().await.unwrap();
-                let mut transaction = prover_storage.start_transaction().await.unwrap();
+                let mut prover_storage = prover_connection_pool.access_storage().await;
+                let mut transaction = prover_storage.start_transaction().await;
                 transaction
                     .fri_proof_compressor_dal()
                     .skip_proof_compression_job(block_number)
@@ -137,7 +137,7 @@ impl BasicWitnessGenerator {
                     .fri_witness_generator_dal()
                     .mark_witness_job(FriWitnessJobStatus::Skipped, block_number)
                     .await;
-                transaction.commit().await.unwrap();
+                transaction.commit().await;
                 return None;
             }
         }
@@ -173,7 +173,7 @@ impl JobProcessor for BasicWitnessGenerator {
     const SERVICE_NAME: &'static str = "fri_basic_circuit_witness_generator";
 
     async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, Self::Job)>> {
-        let mut prover_connection = self.prover_connection_pool.access_storage().await.unwrap();
+        let mut prover_connection = self.prover_connection_pool.access_storage().await;
         let last_l1_batch_to_process = self.config.last_l1_batch_to_process();
         let pod_name = get_current_pod_name();
         match prover_connection
@@ -205,7 +205,8 @@ impl JobProcessor for BasicWitnessGenerator {
 
     async fn save_failure(&self, job_id: L1BatchNumber, _started_at: Instant, error: String) -> () {
         self.prover_connection_pool
-            .access_storage().await.unwrap()
+            .access_storage()
+            .await
             .fri_witness_generator_dal()
             .mark_witness_job_failed(&error, job_id)
             .await;
@@ -306,7 +307,7 @@ async fn update_database(
     block_number: L1BatchNumber,
     blob_urls: BlobUrls,
 ) {
-    let mut prover_connection = prover_connection_pool.access_storage().await.unwrap();
+    let mut prover_connection = prover_connection_pool.access_storage().await;
     let protocol_version_id = prover_connection
         .fri_witness_generator_dal()
         .protocol_version_for_l1_batch(block_number)
@@ -442,27 +443,27 @@ async fn build_basic_circuits_witness_generator_input(
     witness_merkle_input: PrepareBasicCircuitsJob,
     l1_batch_number: L1BatchNumber,
 ) -> BasicCircuitWitnessGeneratorInput {
-    let mut connection = connection_pool.access_storage().await.unwrap();
+    let mut connection = connection_pool.access_storage().await;
     let block_header = connection
         .blocks_dal()
         .get_l1_batch_header(l1_batch_number)
         .await
-        .unwrap().unwrap();
+        .unwrap();
     let initial_heap_content = connection
         .blocks_dal()
         .get_initial_bootloader_heap(l1_batch_number)
         .await
-        .unwrap().unwrap();
+        .unwrap();
     let (_, previous_block_timestamp) = connection
         .blocks_dal()
         .get_l1_batch_state_root_and_timestamp(l1_batch_number - 1)
         .await
-        .unwrap().unwrap();
+        .unwrap();
     let previous_block_hash = connection
         .blocks_dal()
         .get_l1_batch_state_root(l1_batch_number - 1)
         .await
-        .unwrap().expect("cannot generate witness before the root hash is computed");
+        .expect("cannot generate witness before the root hash is computed");
     BasicCircuitWitnessGeneratorInput {
         block_number: l1_batch_number,
         previous_block_timestamp,
@@ -490,12 +491,12 @@ async fn generate_witness(
     >,
     BlockAuxilaryOutputWitness<GoldilocksField>,
 ) {
-    let mut connection = connection_pool.access_storage().await.unwrap();
+    let mut connection = connection_pool.access_storage().await;
     let header = connection
         .blocks_dal()
         .get_l1_batch_header(input.block_number)
         .await
-        .unwrap().unwrap();
+        .unwrap();
     let bootloader_code_bytes = connection
         .storage_dal()
         .get_factory_dep(header.base_system_contracts_hashes.bootloader)
@@ -537,7 +538,7 @@ async fn generate_witness(
         .blocks_dal()
         .get_miniblock_range_of_l1_batch(input.block_number - 1)
         .await
-        .unwrap().expect("L1 batch should contain at least one miniblock");
+        .expect("L1 batch should contain at least one miniblock");
     drop(connection);
 
     let mut tree = PrecalculatedMerklePathsProvider::new(
@@ -579,10 +580,10 @@ async fn generate_witness(
     // The following part is CPU-heavy, so we move it to a separate thread.
     let rt_handle = tokio::runtime::Handle::current();
     tokio::task::spawn_blocking(move || {
-        let connection = rt_handle.block_on(connection_pool.access_storage()).unwrap();
+        let connection = rt_handle.block_on(connection_pool.access_storage());
         let storage = PostgresStorage::new(rt_handle, connection, last_miniblock_number, true);
         let storage_view = StorageView::new(storage).to_rc_ptr();
-        let storage_oracle: StorageOracle<StorageView<PostgresStorage<'_>>> =
+        let storage_oracle: StorageOracle<StorageView<PostgresStorage<'_>>, HistoryDisabled> =
             StorageOracle::new(storage_view.clone());
         zkevm_test_harness::external_calls::run_with_fixed_params(
             Address::zero(),

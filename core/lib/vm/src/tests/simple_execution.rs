@@ -1,10 +1,10 @@
 use crate::tests::tester::{TxType, VmTesterBuilder};
 use crate::types::outputs::ExecutionResult;
-use crate::VmExecutionMode;
+use crate::{HistoryDisabled, VmExecutionMode};
 
 #[test]
 fn estimate_fee() {
-    let mut vm_tester = VmTesterBuilder::new()
+    let mut vm_tester = VmTesterBuilder::new(HistoryDisabled)
         .with_empty_in_memory_storage()
         .with_deployer()
         .with_random_rich_accounts(1)
@@ -29,7 +29,7 @@ fn estimate_fee() {
 
 #[test]
 fn simple_execute() {
-    let mut vm_tester = VmTesterBuilder::new()
+    let mut vm_tester = VmTesterBuilder::new(HistoryDisabled)
         .with_empty_in_memory_storage()
         .with_deployer()
         .with_random_rich_accounts(1)

@@ -109,7 +109,7 @@ impl JobProcessor for SchedulerWitnessGenerator {
     const SERVICE_NAME: &'static str = "fri_scheduler_witness_generator";
 
     async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, Self::Job)>> {
-        let mut prover_connection = self.prover_connection_pool.access_storage().await.unwrap();
+        let mut prover_connection = self.prover_connection_pool.access_storage().await;
         let pod_name = get_current_pod_name();
         let Some(l1_batch_number) = prover_connection
             .fri_witness_generator_dal()
@@ -130,7 +130,8 @@ impl JobProcessor for SchedulerWitnessGenerator {
 
     async fn save_failure(&self, job_id: L1BatchNumber, _started_at: Instant, error: String) -> () {
         self.prover_connection_pool
-            .access_storage().await.unwrap()
+            .access_storage()
+            .await
             .fri_witness_generator_dal()
             .mark_scheduler_job_failed(&error, job_id)
             .await;
@@ -170,8 +171,8 @@ impl JobProcessor for SchedulerWitnessGenerator {
                     "aggregation_round" => format!("{:?}", AggregationRound::Scheduler),
         );
 
-        let mut prover_connection = self.prover_connection_pool.access_storage().await.unwrap();
-        let mut transaction = prover_connection.start_transaction().await.unwrap();
+        let mut prover_connection = self.prover_connection_pool.access_storage().await;
+        let mut transaction = prover_connection.start_transaction().await;
         let protocol_version_id = transaction
             .fri_witness_generator_dal()
             .protocol_version_for_l1_batch(job_id)
@@ -195,7 +196,7 @@ impl JobProcessor for SchedulerWitnessGenerator {
             .mark_scheduler_job_as_successful(job_id, started_at.elapsed())
             .await;
 
-        transaction.commit().await.unwrap();
+        transaction.commit().await;
         Ok(())
     }
 }

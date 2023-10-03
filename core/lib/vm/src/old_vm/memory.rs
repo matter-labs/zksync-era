@@ -4,43 +4,64 @@ use zk_evm::vm_state::PrimitiveValue;
 use zk_evm::zkevm_opcode_defs::FatPointer;
 use zksync_types::U256;
 
-use crate::implement_rollback;
+use crate::old_vm::history_recorder::{
+    FramedStack, HistoryEnabled, HistoryMode, IntFrameManagerWithHistory, MemoryWithHistory,
+    MemoryWrapper, WithHistory,
+};
+use crate::old_vm::oracles::OracleWithHistory;
 use crate::old_vm::utils::{aux_heap_page_from_base, heap_page_from_base, stack_page_from_base};
-use crate::rollback::history_recorder::{IntFrameManagerWithHistory, MemoryWithHistory};
 
-use crate::rollback::Rollback;
-
-#[derive(Debug, Default, Clone, PartialEq)]
-pub struct SimpleMemory {
-    memory: MemoryWithHistory,
-    observable_pages: IntFrameManagerWithHistory<u32>,
+#[derive(Debug, Clone, PartialEq)]
+pub struct SimpleMemory<H: HistoryMode> {
+    memory: MemoryWithHistory<H>,
+    observable_pages: IntFrameManagerWithHistory<u32, H>,
 }
 
-impl Rollback for SimpleMemory {
-    implement_rollback! {memory, observable_pages}
+impl<H: HistoryMode> Default for SimpleMemory<H> {
+    fn default() -> Self {
+        let mut memory: MemoryWithHistory<H> = Default::default();
+        memory.mutate_history(|_, h| h.reserve(607));
+        Self {
+            memory,
+            observable_pages: Default::default(),
+        }
+    }
 }
 
-impl SimpleMemory {
-    pub fn populate(&mut self, elements: Vec<(u32, Vec<U256>)>) {
+impl OracleWithHistory for SimpleMemory<HistoryEnabled> {
+    fn rollback_to_timestamp(&mut self, timestamp: Timestamp) {
+        self.memory.rollback_to_timestamp(timestamp);
+        self.observable_pages.rollback_to_timestamp(timestamp);
+    }
+}
+
+impl<H: HistoryMode> SimpleMemory<H> {
+    pub fn populate(&mut self, elements: Vec<(u32, Vec<U256>)>, timestamp: Timestamp) {
         for (page, values) in elements.into_iter() {
             for (i, value) in values.into_iter().enumerate() {
                 let value = PrimitiveValue {
                     value,
                     is_pointer: false,
                 };
-                self.memory.write_to_memory(page as usize, i, value);
+                self.memory
+                    .write_to_memory(page as usize, i, value, timestamp);
             }
         }
     }
 
-    pub fn populate_page(&mut self, page: usize, elements: Vec<(usize, U256)>) {
+    pub fn populate_page(
+        &mut self,
+        page: usize,
+        elements: Vec<(usize, U256)>,
+        timestamp: Timestamp,
+    ) {
         elements.into_iter().for_each(|(offset, value)| {
             let value = PrimitiveValue {
                 value,
                 is_pointer: false,
             };
 
-            self.memory.write_to_memory(page, offset, value);
+            self.memory.write_to_memory(page, offset, value, timestamp);
         });
     }
 
@@ -94,9 +115,31 @@ impl SimpleMemory {
 
         result
     }
+
+    pub(crate) fn get_size(&self) -> usize {
+        // Hashmap memory overhead is neglected.
+        let memory_size = self.memory.inner().get_size();
+        let observable_pages_size = self.observable_pages.inner().get_size();
+
+        memory_size + observable_pages_size
+    }
+
+    pub fn get_history_size(&self) -> usize {
+        let memory_size = self.memory.borrow_history(|h| h.len(), 0)
+            * std::mem::size_of::<<MemoryWrapper as WithHistory>::HistoryRecord>();
+        let observable_pages_size = self.observable_pages.borrow_history(|h| h.len(), 0)
+            * std::mem::size_of::<<FramedStack<u32> as WithHistory>::HistoryRecord>();
+
+        memory_size + observable_pages_size
+    }
+
+    pub fn delete_history(&mut self) {
+        self.memory.delete_history();
+        self.observable_pages.delete_history();
+    }
 }
 
-impl Memory for SimpleMemory {
+impl<H: HistoryMode> Memory for SimpleMemory<H> {
     fn execute_partial_query(
         &mut self,
         _monotonic_cycle_counter: u32,
@@ -136,6 +179,7 @@ impl Memory for SimpleMemory {
                     value: query.value,
                     is_pointer: query.value_is_pointer,
                 },
+                query.timestamp,
             );
         } else {
             let current_value = self.read_slot(page, slot);
@@ -168,6 +212,7 @@ impl Memory for SimpleMemory {
                     value: query.value,
                     is_pointer: query.value_is_pointer,
                 },
+                query.timestamp,
             );
         } else {
             let current_value = self.read_slot(page, slot);
@@ -205,25 +250,28 @@ impl Memory for SimpleMemory {
         _current_base_page: MemoryPage,
         new_base_page: MemoryPage,
         calldata_fat_pointer: FatPointer,
-        _: Timestamp,
+        timestamp: Timestamp,
     ) {
         // Besides the calldata page, we also formally include the current stack
         // page, heap page and aux heap page.
         // The code page will be always left observable, so we don't include it here.
-        self.observable_pages.push_frame();
-        self.observable_pages.extend_frame(vec![
-            calldata_fat_pointer.memory_page,
-            stack_page_from_base(new_base_page).0,
-            heap_page_from_base(new_base_page).0,
-            aux_heap_page_from_base(new_base_page).0,
-        ]);
+        self.observable_pages.push_frame(timestamp);
+        self.observable_pages.extend_frame(
+            vec![
+                calldata_fat_pointer.memory_page,
+                stack_page_from_base(new_base_page).0,
+                heap_page_from_base(new_base_page).0,
+                aux_heap_page_from_base(new_base_page).0,
+            ],
+            timestamp,
+        );
     }
 
     fn finish_global_frame(
         &mut self,
         base_page: MemoryPage,
         returndata_fat_pointer: FatPointer,
-        _: Timestamp,
+        timestamp: Timestamp,
     ) {
         // Safe to unwrap here, since `finish_global_frame` is never called with empty stack
         let current_observable_pages = self.observable_pages.inner().current_frame();
@@ -235,14 +283,15 @@ impl Memory for SimpleMemory {
             // We need to add this check as the calldata pointer is also part of the
             // observable pages.
             if page >= base_page.0 && page != returndata_page {
-                self.memory.clear_page(page as usize);
+                self.memory.clear_page(page as usize, timestamp);
             }
         }
 
-        self.observable_pages.clear_frame();
-        self.observable_pages.merge_frame();
+        self.observable_pages.clear_frame(timestamp);
+        self.observable_pages.merge_frame(timestamp);
 
-        self.observable_pages.push_to_frame(returndata_page);
+        self.observable_pages
+            .push_to_frame(returndata_page, timestamp);
     }
 }
 

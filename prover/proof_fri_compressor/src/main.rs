@@ -1,5 +1,5 @@
-use anyhow::Context as _;
 use std::env;
+use anyhow::Context as _;
 use structopt::StructOpt;
 use tokio::{sync::oneshot, sync::watch};
 
@@ -45,23 +45,16 @@ async fn main() -> anyhow::Result<()> {
             .with_sentry_environment(environment);
     }
     let _guard = builder.build();
-
+    
     let opt = Opt::from_args();
-    let config = FriProofCompressorConfig::from_env().context("FriProofCompressorConfig")?;
-    let pool = ConnectionPool::builder(DbVariant::Prover)
-        .build()
-        .await
+    let config = FriProofCompressorConfig::from_env()
+        .context("FriProofCompressorConfig")?;
+    let pool = ConnectionPool::builder(DbVariant::Prover).build().await
         .context("failed to build a connection pool")?;
     let blob_store = ObjectStoreFactory::prover_from_env()
         .context("ObjectSToreFactor::prover_from_env()")?
-        .create_store()
-        .await;
-    let proof_compressor = ProofCompressor::new(
-        blob_store,
-        pool,
-        config.compression_mode,
-        config.verify_wrapper_proof,
-    );
+        .create_store().await;
+    let proof_compressor = ProofCompressor::new(blob_store, pool, config.compression_mode);
 
     let (stop_sender, stop_receiver) = watch::channel(false);
 

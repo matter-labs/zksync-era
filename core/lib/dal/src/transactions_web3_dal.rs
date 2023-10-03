@@ -367,21 +367,16 @@ mod tests {
     async fn prepare_transaction(conn: &mut StorageProcessor<'_>, tx: L2Tx) {
         conn.blocks_dal()
             .delete_miniblocks(MiniblockNumber(0))
-            .await
-            .unwrap();
+            .await;
         conn.transactions_dal()
             .insert_transaction_l2(tx.clone(), TransactionExecutionMetrics::default())
             .await;
         conn.blocks_dal()
             .insert_miniblock(&create_miniblock_header(0))
-            .await
-            .unwrap();
+            .await;
         let mut miniblock_header = create_miniblock_header(1);
         miniblock_header.l2_tx_count = 1;
-        conn.blocks_dal()
-            .insert_miniblock(&miniblock_header)
-            .await
-            .unwrap();
+        conn.blocks_dal().insert_miniblock(&miniblock_header).await;
 
         let tx_results = [mock_execution_result(tx)];
         conn.transactions_dal()
@@ -417,7 +412,7 @@ mod tests {
         for transaction_id in transaction_ids {
             let web3_tx = conn
                 .transactions_web3_dal()
-                .get_transaction(transaction_id, L2ChainId(270))
+                .get_transaction(transaction_id, L2ChainId::from(270))
                 .await;
             let web3_tx = web3_tx.unwrap().unwrap();
             assert_eq!(web3_tx.hash, tx_hash);
@@ -431,7 +426,7 @@ mod tests {
         for transaction_id in transactions_with_bogus_index {
             let web3_tx = conn
                 .transactions_web3_dal()
-                .get_transaction(transaction_id, L2ChainId(270))
+                .get_transaction(transaction_id, L2ChainId::from(270))
                 .await;
             assert!(web3_tx.unwrap().is_none());
         }
@@ -448,7 +443,7 @@ mod tests {
         for transaction_id in transactions_with_bogus_block {
             let web3_tx = conn
                 .transactions_web3_dal()
-                .get_transaction(transaction_id, L2ChainId(270))
+                .get_transaction(transaction_id, L2ChainId::from(270))
                 .await;
             assert!(web3_tx.unwrap().is_none());
         }

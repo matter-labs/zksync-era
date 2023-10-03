@@ -82,11 +82,7 @@ impl RocksdbStorage {
     /// in Postgres.
     pub async fn update_from_postgres(&mut self, conn: &mut StorageProcessor<'_>) {
         let latency = METRICS.update.start();
-        let latest_l1_batch_number = conn
-            .blocks_dal()
-            .get_sealed_l1_batch_number()
-            .await
-            .unwrap();
+        let latest_l1_batch_number = conn.blocks_dal().get_sealed_l1_batch_number().await;
         tracing::debug!(
             "loading storage for l1 batch number {}",
             latest_l1_batch_number.0
@@ -114,8 +110,7 @@ impl RocksdbStorage {
             let factory_deps = conn
                 .blocks_dal()
                 .get_l1_batch_factory_deps(L1BatchNumber(current_l1_batch_number))
-                .await
-                .unwrap();
+                .await;
             for (hash, bytecode) in factory_deps {
                 self.store_factory_dep(hash, bytecode);
             }
@@ -181,7 +176,6 @@ impl RocksdbStorage {
             .blocks_dal()
             .get_miniblock_range_of_l1_batch(last_l1_batch_to_keep)
             .await
-            .unwrap()
             .expect("L1 batch should contain at least one miniblock");
         tracing::info!(
             "Got miniblock number {last_miniblock_to_keep}, took {:?}",
@@ -258,8 +252,6 @@ impl RocksdbStorage {
     }
 
     /// Returns the last processed l1 batch number + 1
-    /// # Panics
-    /// Panics on RocksDB errors.
     pub fn l1_batch_number(&self) -> L1BatchNumber {
         let cf = StateKeeperColumnFamily::State;
         let block_number = self
@@ -342,7 +334,7 @@ mod tests {
 
     #[db_test]
     async fn rocksdb_storage_syncing_with_postgres(pool: ConnectionPool) {
-        let mut conn = pool.access_storage().await.unwrap();
+        let mut conn = pool.access_storage().await;
         prepare_postgres(&mut conn).await;
         let storage_logs = gen_storage_logs(20..40);
         create_miniblock(&mut conn, MiniblockNumber(1), storage_logs.clone()).await;
@@ -373,7 +365,7 @@ mod tests {
 
     #[db_test]
     async fn rocksdb_storage_revert(pool: ConnectionPool) {
-        let mut conn = pool.access_storage().await.unwrap();
+        let mut conn = pool.access_storage().await;
         prepare_postgres(&mut conn).await;
         let storage_logs = gen_storage_logs(20..40);
         create_miniblock(&mut conn, MiniblockNumber(1), storage_logs[..10].to_vec()).await;

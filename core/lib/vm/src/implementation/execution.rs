@@ -1,7 +1,10 @@
 use zk_evm::aux_structures::Timestamp;
 use zksync_state::WriteStorage;
 
-use crate::old_vm::utils::{vm_may_have_ended_inner, VmExecutionResult};
+use crate::old_vm::{
+    history_recorder::HistoryMode,
+    utils::{vm_may_have_ended_inner, VmExecutionResult},
+};
 use crate::tracers::{
     traits::{BoxedTracer, ExecutionEndTracer, ExecutionProcessing, VmTracer},
     DefaultExecutionTracer, RefundsTracer,
@@ -10,10 +13,10 @@ use crate::types::{inputs::VmExecutionMode, outputs::VmExecutionResultAndLogs};
 use crate::vm::Vm;
 use crate::VmExecutionStopReason;
 
-impl<S: WriteStorage> Vm<S> {
+impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
     pub(crate) fn inspect_inner(
         &mut self,
-        mut tracers: Vec<Box<dyn VmTracer<S>>>,
+        mut tracers: Vec<Box<dyn VmTracer<S, H>>>,
         execution_mode: VmExecutionMode,
     ) -> VmExecutionResultAndLogs {
         if let VmExecutionMode::OneTx = execution_mode {
@@ -30,10 +33,10 @@ impl<S: WriteStorage> Vm<S> {
     /// Collect the result from the default tracers.
     fn inspect_and_collect_results(
         &mut self,
-        tracers: Vec<Box<dyn VmTracer<S>>>,
+        tracers: Vec<Box<dyn VmTracer<S, H>>>,
         execution_mode: VmExecutionMode,
     ) -> (VmExecutionStopReason, VmExecutionResultAndLogs) {
-        let mut tx_tracer: DefaultExecutionTracer<S> = DefaultExecutionTracer::new(
+        let mut tx_tracer: DefaultExecutionTracer<S, H> = DefaultExecutionTracer::new(
             self.system_env.default_validation_computational_gas_limit,
             execution_mode,
             tracers,
@@ -41,12 +44,6 @@ impl<S: WriteStorage> Vm<S> {
         );
 
         let timestamp_initial = Timestamp(self.state.local_state.timestamp);
-        let initial_contracts_used = self
-            .state
-            .decommittment_processor
-            .get_decommitted_code_hashes_with_history()
-            .inner()
-            .len();
         let cycles_initial = self.state.local_state.monotonic_cycle_counter;
         let gas_remaining_before = self.gas_remaining();
         let spent_pubdata_counter_before = self.state.local_state.spent_pubdata_counter;
@@ -58,7 +55,7 @@ impl<S: WriteStorage> Vm<S> {
         let logs = self.collect_execution_logs_after_timestamp(timestamp_initial);
 
         let statistics = self.get_statistics(
-            initial_contracts_used,
+            timestamp_initial,
             cycles_initial,
             &tx_tracer,
             gas_remaining_before,
@@ -85,7 +82,7 @@ impl<S: WriteStorage> Vm<S> {
     /// Execute vm with given tracers until the stop reason is reached.
     fn execute_with_default_tracer(
         &mut self,
-        tracer: &mut DefaultExecutionTracer<S>,
+        tracer: &mut DefaultExecutionTracer<S, H>,
     ) -> VmExecutionStopReason {
         tracer.initialize_tracer(&mut self.state);
         let result = loop {

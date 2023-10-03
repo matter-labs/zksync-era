@@ -2,8 +2,8 @@ mod error;
 mod params;
 mod types;
 
-use std::collections::HashSet;
 use std::sync::Arc;
+use std::{collections::HashSet, marker::PhantomData};
 
 use once_cell::sync::OnceCell;
 use zk_evm::{
@@ -19,20 +19,20 @@ use zksync_config::constants::{
 use zksync_state::{StoragePtr, WriteStorage};
 
 use zksync_types::{
-    get_code_key, vm_trace::ViolatedValidationRule, web3::signing::keccak256, AccountTreeId,
-    Address, StorageKey, H256, U256,
+    get_code_key, web3::signing::keccak256, AccountTreeId, Address, StorageKey, H256, U256,
 };
 use zksync_utils::{
     be_bytes_to_safe_address, h256_to_account_address, u256_to_account_address, u256_to_h256,
 };
 
+use crate::old_vm::history_recorder::HistoryMode;
 use crate::old_vm::memory::SimpleMemory;
 use crate::tracers::traits::{DynTracer, ExecutionEndTracer, ExecutionProcessing, VmTracer};
 use crate::tracers::utils::{
     computational_gas_price, get_calldata_page_via_abi, print_debug_if_needed, VmHook,
 };
 
-pub use error::ValidationError;
+pub use error::{ValidationError, ViolatedValidationRule};
 pub use params::ValidationTracerParams;
 
 use types::NewTrustedValidationItems;
@@ -43,7 +43,7 @@ use crate::VmExecutionResultAndLogs;
 /// Tracer that is used to ensure that the validation adheres to all the rules
 /// to prevent DDoS attacks on the server.
 #[derive(Debug, Clone)]
-pub struct ValidationTracer {
+pub struct ValidationTracer<H> {
     validation_mode: ValidationTracerMode,
     auxilary_allowed_slots: HashSet<H256>,
 
@@ -56,12 +56,13 @@ pub struct ValidationTracer {
     trusted_address_slots: HashSet<(Address, U256)>,
     computational_gas_used: u32,
     computational_gas_limit: u32,
-    pub result: Arc<OnceCell<ViolatedValidationRule>>,
+    result: Arc<OnceCell<ViolatedValidationRule>>,
+    _marker: PhantomData<fn(H) -> H>,
 }
 
 type ValidationRoundResult = Result<NewTrustedValidationItems, ViolatedValidationRule>;
 
-impl ValidationTracer {
+impl<H: HistoryMode> ValidationTracer<H> {
     pub fn new(params: ValidationTracerParams) -> (Self, Arc<OnceCell<ViolatedValidationRule>>) {
         let result = Arc::new(OnceCell::new());
         (
@@ -78,20 +79,10 @@ impl ValidationTracer {
                 computational_gas_used: 0,
                 computational_gas_limit: params.computational_gas_limit,
                 result: result.clone(),
+                _marker: Default::default(),
             },
             result,
         )
-    }
-
-    pub fn params(&self) -> ValidationTracerParams {
-        ValidationTracerParams {
-            user_address: self.user_address,
-            paymaster_address: self.paymaster_address,
-            trusted_slots: self.trusted_slots.clone(),
-            trusted_addresses: self.trusted_addresses.clone(),
-            trusted_address_slots: self.trusted_address_slots.clone(),
-            computational_gas_limit: self.computational_gas_limit,
-        }
     }
 
     fn process_validation_round_result(&mut self, result: ValidationRoundResult) {
@@ -202,7 +193,7 @@ impl ValidationTracer {
         &mut self,
         state: VmLocalStateData<'_>,
         data: BeforeExecutionData,
-        memory: &SimpleMemory,
+        memory: &SimpleMemory<H>,
         storage: StoragePtr<S>,
     ) -> ValidationRoundResult {
         if self.computational_gas_used > self.computational_gas_limit {
@@ -296,12 +287,12 @@ impl ValidationTracer {
     }
 }
 
-impl<S: WriteStorage> DynTracer<S> for ValidationTracer {
+impl<S: WriteStorage, H: HistoryMode> DynTracer<S, H> for ValidationTracer<H> {
     fn before_execution(
         &mut self,
         state: VmLocalStateData<'_>,
         data: BeforeExecutionData,
-        memory: &SimpleMemory,
+        memory: &SimpleMemory<H>,
         storage: StoragePtr<S>,
     ) {
         // For now, we support only validations for users.
@@ -349,15 +340,15 @@ impl<S: WriteStorage> DynTracer<S> for ValidationTracer {
     }
 }
 
-impl ExecutionEndTracer for ValidationTracer {
+impl<H: HistoryMode> ExecutionEndTracer<H> for ValidationTracer<H> {
     fn should_stop_execution(&self) -> bool {
         self.should_stop_execution || self.result.get().is_some()
     }
 }
 
-impl<S: WriteStorage> ExecutionProcessing<S> for ValidationTracer {}
+impl<S: WriteStorage, H: HistoryMode> ExecutionProcessing<S, H> for ValidationTracer<H> {}
 
-impl<S: WriteStorage> VmTracer<S> for ValidationTracer {
+impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for ValidationTracer<H> {
     fn save_results(&mut self, _result: &mut VmExecutionResultAndLogs) {}
 }
 

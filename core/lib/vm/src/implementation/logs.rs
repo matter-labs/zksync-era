@@ -6,10 +6,11 @@ use zksync_types::tx::tx_execution_info::VmExecutionLogs;
 use zksync_types::VmEvent;
 
 use crate::old_vm::events::merge_events;
+use crate::old_vm::history_recorder::HistoryMode;
 use crate::old_vm::utils::precompile_calls_count_after_timestamp;
 use crate::vm::Vm;
 
-impl<S: WriteStorage> Vm<S> {
+impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
     pub(crate) fn collect_execution_logs_after_timestamp(
         &self,
         from_timestamp: Timestamp,

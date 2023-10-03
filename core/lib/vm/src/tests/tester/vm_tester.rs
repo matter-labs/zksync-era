@@ -18,21 +18,22 @@ use crate::tests::tester::TxType;
 use crate::tests::utils::read_test_contract;
 use crate::types::inputs::system_env::TxExecutionMode;
 use crate::utils::l2_blocks::load_last_l2_block;
-use crate::{L1BatchEnv, L2Block, L2BlockEnv, SystemEnv, Vm, VmExecutionMode};
+use crate::{HistoryMode, L1BatchEnv, L2BlockEnv, SystemEnv, Vm, VmExecutionMode};
 
 pub(crate) type InMemoryStorageView = StorageView<InMemoryStorage>;
 
-pub(crate) struct VmTester {
-    pub(crate) vm: Vm<InMemoryStorageView>,
+pub(crate) struct VmTester<H: HistoryMode> {
+    pub(crate) vm: Vm<InMemoryStorageView, H>,
     pub(crate) storage: StoragePtr<InMemoryStorageView>,
     pub(crate) fee_account: Address,
     pub(crate) deployer: Option<Account>,
     pub(crate) test_contract: Option<Address>,
     pub(crate) rich_accounts: Vec<Account>,
     pub(crate) custom_contracts: Vec<ContractsToDeploy>,
+    history_mode: H,
 }
 
-impl VmTester {
+impl<H: HistoryMode> VmTester<H> {
     pub(crate) fn deploy_test_contract(&mut self) {
         let contract = read_test_contract();
         let tx = self
@@ -73,11 +74,7 @@ impl VmTester {
 
         let mut l1_batch = self.vm.batch_env.clone();
         if use_latest_l2_block {
-            let last_l2_block = load_last_l2_block(self.storage.clone()).unwrap_or(L2Block {
-                number: 0,
-                timestamp: 0,
-                hash: legacy_miniblock_hash(MiniblockNumber(0)),
-            });
+            let last_l2_block = load_last_l2_block(self.storage.clone());
             l1_batch.first_l2_block = L2BlockEnv {
                 number: last_l2_block.number + 1,
                 timestamp: std::cmp::max(last_l2_block.timestamp + 1, l1_batch.timestamp),
@@ -86,7 +83,12 @@ impl VmTester {
             };
         }
 
-        let vm = Vm::new(l1_batch, self.vm.system_env.clone(), self.storage.clone());
+        let vm = Vm::new(
+            l1_batch,
+            self.vm.system_env.clone(),
+            self.storage.clone(),
+            self.history_mode.clone(),
+        );
 
         if self.test_contract.is_some() {
             self.deploy_test_contract();
@@ -98,7 +100,8 @@ impl VmTester {
 
 pub(crate) type ContractsToDeploy = (Vec<u8>, Address, bool);
 
-pub(crate) struct VmTesterBuilder {
+pub(crate) struct VmTesterBuilder<H: HistoryMode> {
+    history_mode: H,
     storage: Option<InMemoryStorage>,
     l1_batch_env: Option<L1BatchEnv>,
     system_env: SystemEnv,
@@ -107,9 +110,10 @@ pub(crate) struct VmTesterBuilder {
     custom_contracts: Vec<ContractsToDeploy>,
 }
 
-impl Clone for VmTesterBuilder {
+impl<H: HistoryMode> Clone for VmTesterBuilder<H> {
     fn clone(&self) -> Self {
         Self {
+            history_mode: self.history_mode.clone(),
             storage: None,
             l1_batch_env: self.l1_batch_env.clone(),
             system_env: self.system_env.clone(),
@@ -121,9 +125,10 @@ impl Clone for VmTesterBuilder {
 }
 
 #[allow(dead_code)]
-impl VmTesterBuilder {
-    pub(crate) fn new() -> Self {
+impl<H: HistoryMode> VmTesterBuilder<H> {
+    pub(crate) fn new(history_mode: H) -> Self {
         Self {
+            history_mode,
             storage: None,
             l1_batch_env: None,
             system_env: SystemEnv {
@@ -133,7 +138,7 @@ impl VmTesterBuilder {
                 gas_limit: BLOCK_GAS_LIMIT,
                 execution_mode: TxExecutionMode::VerifyExecute,
                 default_validation_computational_gas_limit: BLOCK_GAS_LIMIT,
-                chain_id: L2ChainId(270),
+                chain_id: L2ChainId::from(270),
             },
             deployer: None,
             rich_accounts: vec![],
@@ -203,7 +208,7 @@ impl VmTesterBuilder {
         self
     }
 
-    pub(crate) fn build(self) -> VmTester {
+    pub(crate) fn build(self) -> VmTester<H> {
         let l1_batch_env = self
             .l1_batch_env
             .unwrap_or_else(|| default_l1_batch(L1BatchNumber(1)));
@@ -219,7 +224,12 @@ impl VmTesterBuilder {
         }
         let fee_account = l1_batch_env.fee_account;
 
-        let vm = Vm::new(l1_batch_env, self.system_env, storage_ptr.clone());
+        let vm = Vm::new(
+            l1_batch_env,
+            self.system_env,
+            storage_ptr.clone(),
+            self.history_mode.clone(),
+        );
 
         VmTester {
             vm,
@@ -229,6 +239,7 @@ impl VmTesterBuilder {
             test_contract: None,
             rich_accounts: self.rich_accounts.clone(),
             custom_contracts: self.custom_contracts.clone(),
+            history_mode: self.history_mode,
         }
     }
 }

@@ -11,7 +11,7 @@ use parity_crypto::{
 };
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use thiserror::Error;
-use zksync_basic_types::{Address, H256};
+use zksync_basic_types::{Address, H256, U256};
 use zksync_utils::ZeroPrefixHexSerde;
 
 /// Struct used for working with ethereum signatures created using eth_sign (using geth, ethers.js, etc)
@@ -150,25 +150,20 @@ impl PackedEthSignature {
     pub fn v(&self) -> u8 {
         self.0.v()
     }
-    pub fn v_with_chain_id(&self, chain_id: u16) -> u16 {
-        self.0.v() as u16 + 35 + chain_id * 2
+    pub fn v_with_chain_id(&self, chain_id: U256) -> U256 {
+        U256::from(self.0.v()) + 35 + chain_id * 2
     }
-    pub fn unpack_v(v: u64) -> Result<(u8, Option<u16>), ParityCryptoError> {
-        use std::convert::TryInto;
-
-        if v == 27 {
+    pub fn unpack_v(v: U256) -> Result<(u8, Option<U256>), ParityCryptoError> {
+        if v == 27.into() {
             return Ok((0, None));
-        } else if v == 28 {
+        } else if v == 28.into() {
             return Ok((1, None));
-        } else if v >= 35 {
+        } else if v >= 35.into() {
             let chain_id = (v - 35) >> 1;
             let v = v - 35 - chain_id * 2;
-            let chain_id = chain_id
-                .try_into()
-                .map_err(|_| ParityCryptoError::Custom("Invalid chain_id".to_string()))?;
-            if v == 0 {
+            if v == 0.into() {
                 return Ok((0, Some(chain_id)));
-            } else if v == 1 {
+            } else if v == 1.into() {
                 return Ok((1, Some(chain_id)));
             }
         }
@@ -209,41 +204,53 @@ mod tests {
 
     #[test]
     fn unpack_v_0() {
-        assert_eq!(PackedEthSignature::unpack_v(27).unwrap(), (0, None));
+        assert_eq!(PackedEthSignature::unpack_v(27.into()).unwrap(), (0, None));
     }
 
     #[test]
     fn unpack_v_1() {
-        assert_eq!(PackedEthSignature::unpack_v(28).unwrap(), (1, None));
+        assert_eq!(PackedEthSignature::unpack_v(28.into()).unwrap(), (1, None));
     }
 
     #[test]
     fn unpack_wrong_v_10_without_chain_id() {
-        assert!(PackedEthSignature::unpack_v(10).is_err());
+        assert!(PackedEthSignature::unpack_v(10.into()).is_err());
     }
 
     #[test]
     fn unpack_wrong_v_30_without_chain_id() {
-        assert!(PackedEthSignature::unpack_v(30).is_err());
+        assert!(PackedEthSignature::unpack_v(30.into()).is_err());
     }
 
     #[test]
     fn unpack_v_0_with_chain_id_0() {
-        assert_eq!(PackedEthSignature::unpack_v(35).unwrap(), (0, Some(0)));
+        assert_eq!(
+            PackedEthSignature::unpack_v(35.into()).unwrap(),
+            (0, Some(U256::from(0)))
+        );
     }
 
     #[test]
     fn unpack_v_1_with_chain_id_0() {
-        assert_eq!(PackedEthSignature::unpack_v(36).unwrap(), (1, Some(0)));
+        assert_eq!(
+            PackedEthSignature::unpack_v(36.into()).unwrap(),
+            (1, Some(U256::from(0)))
+        );
     }
 
     #[test]
     fn unpack_v_1_with_chain_id_11() {
-        assert_eq!(PackedEthSignature::unpack_v(58).unwrap(), (1, Some(11)));
+        assert_eq!(
+            PackedEthSignature::unpack_v(58.into()).unwrap(),
+            (1, Some(U256::from(11)))
+        );
     }
 
     #[test]
     fn unpack_v_1_with_chain_id_270() {
-        assert_eq!(PackedEthSignature::unpack_v(576).unwrap(), (1, Some(270)));
+        assert_eq!(
+            PackedEthSignature::unpack_v(576.into()).unwrap(),
+            (1, Some(U256::from(270)))
+        );
     }
 }

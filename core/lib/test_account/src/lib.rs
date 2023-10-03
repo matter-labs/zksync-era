@@ -77,7 +77,7 @@ impl Account {
             nonce,
             fee.unwrap_or_else(|| self.default_fee()),
             value,
-            L2ChainId(270),
+            L2ChainId::from(270),
             &self.private_key,
             factory_deps,
             Default::default(),

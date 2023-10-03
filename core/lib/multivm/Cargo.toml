@@ -14,7 +14,6 @@ vm_m5 = { path = "../../multivm_deps/vm_m5" }
 vm_m6 = { path = "../../multivm_deps/vm_m6" }
 vm_1_3_2 = { path = "../../multivm_deps/vm_1_3_2" }
 vm_latest = { path = "../vm", package = "vm" }
-vm_virtual_blocks = { path = "../../multivm_deps/vm_virtual_blocks" }
 
 zksync_types = { path = "../types" }
 zksync_state = { path = "../state" }

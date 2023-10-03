@@ -1,4 +1,5 @@
 use once_cell::sync::OnceCell;
+use std::marker::PhantomData;
 use std::sync::Arc;
 
 use zk_evm::tracing::{AfterExecutionData, VmLocalStateData};
@@ -13,14 +14,16 @@ use zksync_types::vm_trace::{Call, CallType};
 use zksync_types::U256;
 
 use crate::errors::VmRevertReason;
+use crate::old_vm::history_recorder::HistoryMode;
 use crate::old_vm::memory::SimpleMemory;
 use crate::tracers::traits::{DynTracer, ExecutionEndTracer, ExecutionProcessing, VmTracer};
 use crate::types::outputs::VmExecutionResultAndLogs;
 
 #[derive(Debug, Clone)]
-pub struct CallTracer {
+pub struct CallTracer<H: HistoryMode> {
     stack: Vec<FarcallAndNearCallCount>,
-    pub result: Arc<OnceCell<Vec<Call>>>,
+    result: Arc<OnceCell<Vec<Call>>>,
+    _phantom: PhantomData<fn() -> H>,
 }
 
 #[derive(Debug, Clone)]
@@ -29,21 +32,22 @@ struct FarcallAndNearCallCount {
     near_calls_after: usize,
 }
 
-impl CallTracer {
-    pub fn new(resulted_stack: Arc<OnceCell<Vec<Call>>>) -> Self {
+impl<H: HistoryMode> CallTracer<H> {
+    pub fn new(resulted_stack: Arc<OnceCell<Vec<Call>>>, _history: H) -> Self {
         Self {
             stack: vec![],
             result: resulted_stack,
+            _phantom: PhantomData,
         }
     }
 }
 
-impl<S> DynTracer<S> for CallTracer {
+impl<S, H: HistoryMode> DynTracer<S, H> for CallTracer<H> {
     fn after_execution(
         &mut self,
         state: VmLocalStateData<'_>,
         data: AfterExecutionData,
-        memory: &SimpleMemory,
+        memory: &SimpleMemory<H>,
         _storage: StoragePtr<S>,
     ) {
         match data.opcode.variant.opcode {
@@ -84,11 +88,11 @@ impl<S> DynTracer<S> for CallTracer {
     }
 }
 
-impl ExecutionEndTracer for CallTracer {}
+impl<H: HistoryMode> ExecutionEndTracer<H> for CallTracer<H> {}
 
-impl<S: WriteStorage> ExecutionProcessing<S> for CallTracer {}
+impl<S: WriteStorage, H: HistoryMode> ExecutionProcessing<S, H> for CallTracer<H> {}
 
-impl<S: WriteStorage> VmTracer<S> for CallTracer {
+impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for CallTracer<H> {
     fn save_results(&mut self, _result: &mut VmExecutionResultAndLogs) {
         self.result
             .set(
@@ -101,12 +105,12 @@ impl<S: WriteStorage> VmTracer<S> for CallTracer {
     }
 }
 
-impl CallTracer {
+impl<H: HistoryMode> CallTracer<H> {
     fn handle_far_call_op_code(
         &mut self,
         state: VmLocalStateData<'_>,
         _data: AfterExecutionData,
-        memory: &SimpleMemory,
+        memory: &SimpleMemory<H>,
         current_call: &mut Call,
     ) {
         let current = state.vm_local_state.callstack.current;
@@ -161,7 +165,7 @@ impl CallTracer {
     fn save_output(
         &mut self,
         state: VmLocalStateData<'_>,
-        memory: &SimpleMemory,
+        memory: &SimpleMemory<H>,
         ret_opcode: RetOpcode,
         current_call: &mut Call,
     ) {
@@ -206,7 +210,7 @@ impl CallTracer {
         &mut self,
         state: VmLocalStateData<'_>,
         _data: AfterExecutionData,
-        memory: &SimpleMemory,
+        memory: &SimpleMemory<H>,
         ret_opcode: RetOpcode,
     ) {
         let Some(mut current_call) = self.stack.pop() else {

@@ -5,7 +5,7 @@ use crate::tests::tester::{Account, VmTesterBuilder};
 use crate::tests::utils::read_nonce_holder_tester;
 use crate::types::inputs::system_env::TxExecutionMode;
 use crate::types::internals::TransactionData;
-use crate::{ExecutionResult, Halt, TxRevertReason, VmExecutionMode};
+use crate::{ExecutionResult, Halt, HistoryEnabled, TxRevertReason, VmExecutionMode};
 
 pub enum NonceHolderTestMode {
     SetValueUnderNonce,
@@ -33,7 +33,7 @@ impl From<NonceHolderTestMode> for u8 {
 fn test_nonce_holder() {
     let mut account = Account::random();
 
-    let mut vm = VmTesterBuilder::new()
+    let mut vm = VmTesterBuilder::new(HistoryEnabled)
         .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_deployer()

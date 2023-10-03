@@ -1,4 +1,4 @@
-//! Utility functions for vm
+///! Utility functions for vm
 use zksync_config::constants::MAX_GAS_PER_PUBDATA_BYTE;
 use zksync_utils::ceil_div;
 

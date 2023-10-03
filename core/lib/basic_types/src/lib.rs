@@ -7,17 +7,20 @@ mod macros;
 
 pub mod network;
 
-use serde::{Deserialize, Serialize};
-use std::convert::{Infallible, TryFrom, TryInto};
-use std::fmt;
-use std::num::ParseIntError;
-use std::ops::{Add, Deref, DerefMut, Sub};
-use std::str::FromStr;
+use serde::{de, Deserialize, Deserializer, Serialize};
+use web3::ethabi::ethereum_types::FromStrRadixErr;
 
-pub use web3;
-pub use web3::ethabi;
-pub use web3::types::{
-    Address, Bytes, Log, TransactionRequest, H128, H160, H2048, H256, U128, U256, U64,
+use std::{
+    convert::{Infallible, TryFrom, TryInto},
+    fmt,
+    num::ParseIntError,
+    ops::{Add, Deref, DerefMut, Sub},
+    str::FromStr,
+};
+
+pub use web3::{
+    self, ethabi,
+    types::{Address, Bytes, Log, TransactionRequest, H128, H160, H2048, H256, U128, U256, U64},
 };
 
 /// Account place in the global state tree is uniquely identified by its address.
@@ -76,6 +79,76 @@ impl TryFrom<U256> for AccountTreeId {
     }
 }
 
+/// ChainId in the ZkSync network.
+#[derive(Copy, Clone, Debug, Serialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct L2ChainId(pub U256);
+
+impl<'de> Deserialize<'de> for L2ChainId {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s: String = Deserialize::deserialize(deserializer)?;
+
+        // Parse the string as a U256
+        // try to parse as decimal first
+        let u256 = match U256::from_dec_str(&s) {
+            Ok(u) => u,
+            Err(_) => {
+                // try to parse as hex
+                U256::from_str(&s).map_err(|err| de::Error::custom(err.to_string()))?
+            }
+        };
+        assert!(
+            u256 <= L2ChainId::MAX.into(),
+            "Too big chain ID. MAX: {}",
+            L2ChainId::MAX
+        );
+        Ok(L2ChainId(u256))
+    }
+}
+impl FromStr for L2ChainId {
+    type Err = FromStrRadixErr;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        // Parse the string as a U256
+        // try to parse as decimal first
+        let u256 = match U256::from_dec_str(s) {
+            Ok(u) => u,
+            Err(_) => {
+                // try to parse as hex
+                U256::from_str(s).map_err(FromStrRadixErr::from)?
+            }
+        };
+        assert!(
+            u256 <= L2ChainId::MAX.into(),
+            "Too big chain ID. MAX: {}",
+            L2ChainId::MAX
+        );
+        Ok(L2ChainId(u256))
+    }
+}
+
+impl L2ChainId {
+    /// The maximum value of the L2 chain ID.
+    // 2^53 - 1 is a max safe integer in JS. In ethereum JS libs chain ID should be the safe integer.
+    // Next arithmetic operation: subtract 36 and divide by 2 comes from `v` calculation:
+    // v = 2*chainId + 36, that should be save integer as well.
+    pub const MAX: u64 = 4503599627370477; // (2^53 - 1 - 36) / 2
+}
+
+impl Default for L2ChainId {
+    fn default() -> Self {
+        Self(U256::from(270))
+    }
+}
+
+impl From<u64> for L2ChainId {
+    fn from(val: u64) -> Self {
+        Self(U256::from(val))
+    }
+}
+
 basic_type!(
     /// zkSync network block sequential index.
     MiniblockNumber,
@@ -112,12 +185,6 @@ basic_type!(
     u64
 );
 
-basic_type!(
-    /// ChainId in the ZkSync network.
-    L2ChainId,
-    u16
-);
-
 #[allow(clippy::derivable_impls)]
 impl Default for MiniblockNumber {
     fn default() -> Self {
@@ -136,12 +203,6 @@ impl Default for L1BatchNumber {
 impl Default for L1BlockNumber {
     fn default() -> Self {
         Self(0)
-    }
-}
-
-impl Default for L2ChainId {
-    fn default() -> Self {
-        Self(270)
     }
 }
 

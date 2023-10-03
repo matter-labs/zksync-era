@@ -1,5 +1,6 @@
 use zk_evm::{
     aux_structures::MemoryPage,
+    aux_structures::Timestamp,
     block_properties::BlockProperties,
     vm_state::{CallStackEntry, PrimitiveValue, VmState},
     witness_trace::DummyTracer,
@@ -14,27 +15,25 @@ use zk_evm::zkevm_opcode_defs::{
 };
 use zksync_config::constants::BOOTLOADER_ADDRESS;
 use zksync_state::{StoragePtr, WriteStorage};
-use zksync_types::block::legacy_miniblock_hash;
-use zksync_types::{zkevm_test_harness::INITIAL_MONOTONIC_CYCLE_COUNTER, Address, MiniblockNumber};
+use zksync_types::{zkevm_test_harness::INITIAL_MONOTONIC_CYCLE_COUNTER, Address};
 use zksync_utils::h256_to_u256;
 
 use crate::bootloader_state::BootloaderState;
 use crate::constants::BOOTLOADER_HEAP_PAGE;
 use crate::old_vm::{
-    event_sink::InMemoryEventSink, memory::SimpleMemory, oracles::decommitter::DecommitterOracle,
-    oracles::precompile::PrecompilesProcessorWithHistory,
+    event_sink::InMemoryEventSink, history_recorder::HistoryMode, memory::SimpleMemory,
+    oracles::decommitter::DecommitterOracle, oracles::precompile::PrecompilesProcessorWithHistory,
+    oracles::storage::StorageOracle,
 };
-use crate::oracles::storage::StorageOracle;
 use crate::types::inputs::{L1BatchEnv, SystemEnv};
 use crate::utils::l2_blocks::{assert_next_block, load_last_l2_block};
-use crate::L2Block;
 
-pub type ZkSyncVmState<S> = VmState<
-    StorageOracle<S>,
-    SimpleMemory,
-    InMemoryEventSink,
-    PrecompilesProcessorWithHistory<false>,
-    DecommitterOracle<false, S>,
+pub type ZkSyncVmState<S, H> = VmState<
+    StorageOracle<S, H>,
+    SimpleMemory<H>,
+    InMemoryEventSink<H>,
+    PrecompilesProcessorWithHistory<false, H>,
+    DecommitterOracle<false, S, H>,
     DummyTracer,
 >;
 
@@ -53,53 +52,50 @@ fn formal_calldata_abi() -> PrimitiveValue {
 }
 
 /// Initialize the vm state and all necessary oracles
-pub(crate) fn new_vm_state<S: WriteStorage>(
+pub(crate) fn new_vm_state<S: WriteStorage, H: HistoryMode>(
     storage: StoragePtr<S>,
     system_env: &SystemEnv,
     l1_batch_env: &L1BatchEnv,
-) -> (ZkSyncVmState<S>, BootloaderState) {
-    let last_l2_block = if let Some(last_l2_block) = load_last_l2_block(storage.clone()) {
-        last_l2_block
-    } else {
-        // This is the scenario of either the first L2 block ever or
-        // the first block after the upgrade for support of L2 blocks.
-        L2Block {
-            number: l1_batch_env.first_l2_block.number.saturating_sub(1),
-            timestamp: 0,
-            hash: legacy_miniblock_hash(MiniblockNumber(l1_batch_env.first_l2_block.number) - 1),
-        }
-    };
-
+) -> (ZkSyncVmState<S, H>, BootloaderState) {
+    let last_l2_block = load_last_l2_block(storage.clone());
     assert_next_block(&last_l2_block, &l1_batch_env.first_l2_block);
     let first_l2_block = l1_batch_env.first_l2_block;
-    let storage_oracle: StorageOracle<S> = StorageOracle::new(storage.clone());
+    let storage_oracle: StorageOracle<S, H> = StorageOracle::new(storage.clone());
     let mut memory = SimpleMemory::default();
     let event_sink = InMemoryEventSink::default();
-    let precompiles_processor = PrecompilesProcessorWithHistory::<false>::default();
-    let mut decommittment_processor: DecommitterOracle<false, S> = DecommitterOracle::new(storage);
+    let precompiles_processor = PrecompilesProcessorWithHistory::<false, H>::default();
+    let mut decommittment_processor: DecommitterOracle<false, S, H> =
+        DecommitterOracle::new(storage);
 
-    decommittment_processor.populate(vec![(
-        h256_to_u256(system_env.base_system_smart_contracts.default_aa.hash),
-        system_env
-            .base_system_smart_contracts
-            .default_aa
-            .code
-            .clone(),
-    )]);
+    decommittment_processor.populate(
+        vec![(
+            h256_to_u256(system_env.base_system_smart_contracts.default_aa.hash),
+            system_env
+                .base_system_smart_contracts
+                .default_aa
+                .code
+                .clone(),
+        )],
+        Timestamp(0),
+    );
 
-    memory.populate(vec![(
-        BOOTLOADER_CODE_PAGE,
-        system_env
-            .base_system_smart_contracts
-            .bootloader
-            .code
-            .clone(),
-    )]);
+    memory.populate(
+        vec![(
+            BOOTLOADER_CODE_PAGE,
+            system_env
+                .base_system_smart_contracts
+                .bootloader
+                .code
+                .clone(),
+        )],
+        Timestamp(0),
+    );
 
     let bootloader_initial_memory = l1_batch_env.bootloader_initial_memory();
     memory.populate_page(
         BOOTLOADER_HEAP_PAGE as usize,
         bootloader_initial_memory.clone(),
+        Timestamp(0),
     );
 
     let mut vm = VmState::empty_state(
@@ -149,12 +145,18 @@ pub(crate) fn new_vm_state<S: WriteStorage>(
     vm.local_state.current_ergs_per_pubdata_byte = 0;
     vm.local_state.registers[0] = formal_calldata_abi();
 
-    (
-        vm,
-        BootloaderState::new(
-            system_env.execution_mode,
-            bootloader_initial_memory,
-            first_l2_block,
-        ),
-    )
+    // Deleting all the historical records brought by the initial
+    // initialization of the VM to make them permanent.
+    vm.decommittment_processor.delete_history();
+    vm.event_sink.delete_history();
+    vm.storage.delete_history();
+    vm.memory.delete_history();
+    vm.precompiles_processor.delete_history();
+    let bootloader_state = BootloaderState::new(
+        system_env.execution_mode,
+        bootloader_initial_memory,
+        first_l2_block,
+    );
+
+    (vm, bootloader_state)
 }

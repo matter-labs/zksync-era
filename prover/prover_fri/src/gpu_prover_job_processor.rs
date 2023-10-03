@@ -198,7 +198,8 @@ pub mod gpu_prover {
                 Ok(item) => {
                     if is_full {
                         self.prover_connection_pool
-                            .access_storage().await.unwrap()
+                            .access_storage()
+                            .await
                             .fri_gpu_prover_queue_dal()
                             .update_prover_instance_from_full_to_available(
                                 self.address.clone(),
@@ -217,7 +218,8 @@ pub mod gpu_prover {
 
         async fn save_failure(&self, job_id: Self::JobId, _started_at: Instant, error: String) {
             self.prover_connection_pool
-                .access_storage().await.unwrap()
+                .access_storage()
+                .await
                 .fri_prover_jobs_dal()
                 .save_proof_error(job_id, error)
                 .await;
@@ -247,7 +249,7 @@ pub mod gpu_prover {
                 "prover_fri.prover.gpu_total_proving_time",
                 started_at.elapsed(),
             );
-            let mut storage_processor = self.prover_connection_pool.access_storage().await.unwrap();
+            let mut storage_processor = self.prover_connection_pool.access_storage().await;
             save_proof(
                 job_id,
                 started_at,

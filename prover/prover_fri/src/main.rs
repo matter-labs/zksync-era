@@ -35,7 +35,8 @@ async fn graceful_shutdown(port: u16) -> anyhow::Result<impl Future<Output = ()>
     let zone = get_zone().await.context("get_zone()")?;
     let address = SocketAddress { host, port };
     Ok(async move {
-        pool.access_storage().await.unwrap()
+        pool.access_storage()
+            .await
             .fri_gpu_prover_queue_dal()
             .update_prover_instance_status(address, GpuProverInstanceStatus::Dead, zone)
             .await

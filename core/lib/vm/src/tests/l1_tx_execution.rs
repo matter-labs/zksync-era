@@ -8,7 +8,7 @@ use crate::tests::tester::{TxType, VmTesterBuilder};
 use crate::tests::utils::{read_test_contract, verify_required_storage, BASE_SYSTEM_CONTRACTS};
 use crate::types::inputs::system_env::TxExecutionMode;
 use crate::types::internals::TransactionData;
-use crate::VmExecutionMode;
+use crate::{HistoryEnabled, VmExecutionMode};
 
 #[test]
 fn test_l1_tx_execution() {
@@ -24,7 +24,7 @@ fn test_l1_tx_execution() {
 
     let basic_initial_writes = 1;
 
-    let mut vm = VmTesterBuilder::new()
+    let mut vm = VmTesterBuilder::new(HistoryEnabled)
         .with_empty_in_memory_storage()
         .with_base_system_smart_contracts(BASE_SYSTEM_CONTRACTS.clone())
         .with_execution_mode(TxExecutionMode::VerifyExecute)
@@ -41,7 +41,7 @@ fn test_l1_tx_execution() {
         is_service: true,
         tx_number_in_block: 0,
         sender: BOOTLOADER_ADDRESS,
-        key: tx_data.tx_hash(L2ChainId(0)),
+        key: tx_data.tx_hash(L2ChainId(U256::zero())),
         value: u256_to_h256(U256::from(1u32)),
     }];
 

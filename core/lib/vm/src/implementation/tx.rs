@@ -1,13 +1,15 @@
 use crate::constants::BOOTLOADER_HEAP_PAGE;
 use crate::implementation::bytecode::{bytecode_to_factory_dep, compress_bytecodes};
+use zk_evm::aux_structures::Timestamp;
 use zksync_state::WriteStorage;
 use zksync_types::l1::is_l1_tx_type;
 use zksync_types::Transaction;
 
+use crate::old_vm::history_recorder::HistoryMode;
 use crate::types::internals::TransactionData;
 use crate::vm::Vm;
 
-impl<S: WriteStorage> Vm<S> {
+impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
     pub(crate) fn push_raw_transaction(
         &mut self,
         tx: TransactionData,
@@ -15,6 +17,7 @@ impl<S: WriteStorage> Vm<S> {
         predefined_refund: u32,
         with_compression: bool,
     ) {
+        let timestamp = Timestamp(self.state.local_state.timestamp);
         let codes_for_decommiter = tx
             .factory_deps
             .iter()
@@ -25,12 +28,12 @@ impl<S: WriteStorage> Vm<S> {
             // L1 transactions do not need compression
             vec![]
         } else {
-            compress_bytecodes(&tx.factory_deps, self.state.storage.get_ptr())
+            compress_bytecodes(&tx.factory_deps, self.state.storage.storage.get_ptr())
         };
 
         self.state
             .decommittment_processor
-            .populate(codes_for_decommiter);
+            .populate(codes_for_decommiter, timestamp);
 
         let trusted_ergs_limit =
             tx.trusted_ergs_limit(self.batch_env.block_gas_price_per_pubdata());
@@ -46,7 +49,7 @@ impl<S: WriteStorage> Vm<S> {
 
         self.state
             .memory
-            .populate_page(BOOTLOADER_HEAP_PAGE as usize, memory);
+            .populate_page(BOOTLOADER_HEAP_PAGE as usize, memory, timestamp);
     }
 
     pub(crate) fn push_transaction_with_compression(

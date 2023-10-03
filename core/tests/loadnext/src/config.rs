@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use zksync_contracts::test_contracts::LoadnextContractExecutionParams;
 use zksync_types::network::Network;
-use zksync_types::{Address, L2ChainId, H160};
+use zksync_types::{Address, L2ChainId, H160, U256};
 
 use crate::fs_utils::read_tokens;
 
@@ -103,7 +103,7 @@ pub struct LoadtestConfig {
 
     /// Chain id of L2 node.
     #[serde(default = "default_l2_chain_id")]
-    pub l2_chain_id: u16,
+    pub l2_chain_id: U256,
 
     /// RPC address of L2 node.
     #[serde(default = "default_l2_rpc_address")]
@@ -227,11 +227,10 @@ fn default_seed() -> Option<String> {
     result
 }
 
-fn default_l2_chain_id() -> u16 {
-    // 270 for rinkeby
-    let result = *L2ChainId::default();
-    tracing::info!("Using default L2_CHAIN_ID: {result}");
-    result
+fn default_l2_chain_id() -> U256 {
+    let result = L2ChainId::default();
+    tracing::info!("Using default L2_CHAIN_ID: {result:?}");
+    result.0
 }
 
 pub fn get_default_l2_rpc_address() -> String {

@@ -2,10 +2,14 @@ use vise::{Buckets, EncodeLabelSet, EncodeLabelValue, Family, Histogram, Metrics
 
 use std::time::Duration;
 
+use zk_evm::aux_structures::Timestamp;
 use zksync_state::WriteStorage;
 
-use crate::rollback::Rollback;
-use crate::{types::internals::VmSnapshot, vm::Vm};
+use crate::{
+    old_vm::{history_recorder::HistoryEnabled, oracles::OracleWithHistory},
+    types::internals::VmSnapshot,
+    vm::Vm,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelSet, EncodeLabelValue)]
 #[metrics(label = "stage", rename_all = "snake_case")]
@@ -29,7 +33,7 @@ struct VmMetrics {
 static METRICS: vise::Global<VmMetrics> = vise::Global::new();
 
 /// Implementation of VM related to rollbacks inside virtual machine
-impl<S: WriteStorage> Vm<S> {
+impl<S: WriteStorage> Vm<S, HistoryEnabled> {
     pub(crate) fn make_snapshot_inner(&mut self) {
         self.snapshots.push(VmSnapshot {
             // Vm local state contains O(1) various parameters (registers/etc).
@@ -40,12 +44,6 @@ impl<S: WriteStorage> Vm<S> {
             local_state: self.state.local_state.clone(),
             bootloader_state: self.bootloader_state.get_snapshot(),
         });
-
-        self.state.decommittment_processor.snapshot();
-        self.state.event_sink.snapshot();
-        self.state.storage.snapshot();
-        self.state.memory.snapshot();
-        self.state.precompiles_processor.snapshot();
     }
 
     pub(crate) fn rollback_to_snapshot(&mut self, snapshot: VmSnapshot) {
@@ -56,29 +54,34 @@ impl<S: WriteStorage> Vm<S> {
 
         let stage_latency =
             METRICS.rollback_time[&RollbackStage::DecommitmentProcessorRollback].start();
+        let timestamp = Timestamp(local_state.timestamp);
         tracing::trace!("Rolling back decomitter");
-        self.state.decommittment_processor.rollback();
-
+        self.state
+            .decommittment_processor
+            .rollback_to_timestamp(timestamp);
         stage_latency.observe();
+
         let stage_latency = METRICS.rollback_time[&RollbackStage::EventSinkRollback].start();
         tracing::trace!("Rolling back event_sink");
-        self.state.event_sink.rollback();
+        self.state.event_sink.rollback_to_timestamp(timestamp);
         stage_latency.observe();
 
         let stage_latency = METRICS.rollback_time[&RollbackStage::StorageRollback].start();
         tracing::trace!("Rolling back storage");
-        self.state.storage.rollback();
+        self.state.storage.rollback_to_timestamp(timestamp);
         stage_latency.observe();
 
         let stage_latency = METRICS.rollback_time[&RollbackStage::MemoryRollback].start();
         tracing::trace!("Rolling back memory");
-        self.state.memory.rollback();
+        self.state.memory.rollback_to_timestamp(timestamp);
         stage_latency.observe();
 
         let stage_latency =
             METRICS.rollback_time[&RollbackStage::PrecompilesProcessorRollback].start();
         tracing::trace!("Rolling back precompiles_processor");
-        self.state.precompiles_processor.rollback();
+        self.state
+            .precompiles_processor
+            .rollback_to_timestamp(timestamp);
         stage_latency.observe();
 
         self.state.local_state = local_state;
