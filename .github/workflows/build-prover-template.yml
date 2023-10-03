@@ -46,6 +46,7 @@ jobs:
     env:
       image_tag: ${{ inputs.image_tag }}
       IMAGE_TAG_SUFFIX: ${{ inputs.image_tag_suffix }}
+      RUNNER_COMPOSE_FILE: "docker-compose-runner-nightly.yml"
     runs-on: [matterlabs-ci-runner]
     needs: [era-bellman-cuda]
     strategy:
@@ -126,7 +127,6 @@ jobs:
             if [ "$underscored_name" == "prover_gpu_fri" ]; then
               underscored_name="prover_fri"
             fi
-            ci_run rustup default nightly-2023-07-21
             ci_run echo [workspace] > Cargo.toml
             ci_run echo members = [\"prover/${underscored_name}\"] >> Cargo.toml
             ci_run cp prover/Cargo.lock Cargo.lock
