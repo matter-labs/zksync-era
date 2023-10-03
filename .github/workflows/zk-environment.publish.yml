@@ -109,7 +109,7 @@ jobs:
 
 
   zk_environment_cuda_12:
-    if: needs.changed_files.outputs.zk_environment_cuda_12 == 'true' github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
+    if: needs.changed_files.outputs.zk_environment_cuda_12 == 'true' && github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
     name: Push zk-environment cuda 12 docker image to Docker Hub
     runs-on: [matterlabs-ci-runner]
     needs: changed_files
