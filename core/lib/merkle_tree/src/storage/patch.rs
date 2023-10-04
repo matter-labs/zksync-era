@@ -10,25 +10,13 @@ use std::{
 use crate::{
     hasher::{HashTree, HasherWithStats, MerklePath},
     metrics::HashingStats,
-    storage::{proofs::SUBTREE_COUNT, SortedKeys, TraverseOutcome},
+    storage::{proofs::SUBTREE_COUNT, Operation, SortedKeys, TraverseOutcome},
     types::{
         ChildRef, InternalNode, Key, LeafNode, Manifest, Nibbles, NibblesBytes, Node, NodeKey,
         Root, ValueHash, KEY_SIZE,
     },
     utils, Database,
 };
-
-#[derive(Debug)]
-pub(super) enum Operation {
-    Insert { stale_keys: Vec<NodeKey> },
-    Update,
-}
-
-impl Operation {
-    pub fn insert(stale_keys: Vec<NodeKey>) -> Self {
-        Self::Insert { stale_keys }
-    }
-}
 
 #[derive(Debug)]
 pub(super) struct PartialPatchSet {
@@ -80,7 +68,8 @@ impl PatchSet {
             version,
             Root::Empty,
             HashMap::new(),
-            Operation::insert(stale_keys),
+            stale_keys,
+            Operation::Insert,
         )
     }
 
@@ -89,17 +78,19 @@ impl PatchSet {
         version: u64,
         root: Root,
         mut nodes: HashMap<NodeKey, Node>,
+        mut stale_keys: Vec<NodeKey>,
         operation: Operation,
     ) -> Self {
         debug_assert_eq!(manifest.version_count, version + 1);
 
         nodes.shrink_to_fit(); // We never insert into `nodes` later
+        stale_keys.shrink_to_fit();
         let partial_patch = PartialPatchSet {
             root: Some(root),
             nodes,
         };
         let (updated_version, new_versions) = match &operation {
-            Operation::Insert { .. } => (None, HashMap::from([(version, partial_patch)])),
+            Operation::Insert => (None, HashMap::from([(version, partial_patch)])),
             Operation::Update => (Some((version, partial_patch)), HashMap::new()),
         };
 
@@ -107,13 +98,7 @@ impl PatchSet {
             manifest,
             updated_patch: updated_version,
             patches_by_version: new_versions,
-            stale_keys_by_version: match operation {
-                Operation::Insert { mut stale_keys } => {
-                    stale_keys.shrink_to_fit();
-                    HashMap::from([(version, stale_keys)])
-                }
-                Operation::Update => HashMap::new(),
-            },
+            stale_keys_by_version: HashMap::from([(version, stale_keys)]),
         }
     }
 
@@ -177,23 +162,13 @@ impl PatchSet {
 struct WorkingNode {
     inner: Node,
     prev_version: Option<u64>,
-    is_changed: bool,
 }
 
 impl WorkingNode {
-    fn unchanged(inner: Node, prev_version: u64) -> Self {
-        Self {
-            inner,
-            prev_version: Some(prev_version),
-            is_changed: false,
-        }
-    }
-
-    fn changed(inner: Node, prev_version: Option<u64>) -> Self {
+    fn new(inner: Node, prev_version: Option<u64>) -> Self {
         Self {
             inner,
             prev_version,
-            is_changed: true,
         }
     }
 }
@@ -222,7 +197,7 @@ impl WorkingPatchSet {
     pub fn new(root_version: u64, root: Root) -> Self {
         let changes_by_nibble_count = match root {
             Root::Filled { node, .. } => {
-                let root_node = WorkingNode::changed(node, root_version.checked_sub(1));
+                let root_node = WorkingNode::new(node, root_version.checked_sub(1));
                 let root_level = [(*Nibbles::EMPTY.bytes(), root_node)];
                 vec![HashMap::from_iter(root_level)]
             }
@@ -253,30 +228,20 @@ impl WorkingPatchSet {
         }
 
         let level = &mut self.changes_by_nibble_count[key.nibble_count()];
-        // We use `Entry` API to ensure that `prev_version`is correctly retained
+        // We use `Entry` API to ensure that `prev_version` is correctly retained
         // in existing `WorkingNode`s.
         match level.entry(*key.bytes()) {
             Entry::Vacant(entry) => {
-                entry.insert(WorkingNode::changed(node, None));
+                entry.insert(WorkingNode::new(node, None));
             }
             Entry::Occupied(mut entry) => {
                 entry.get_mut().inner = node;
-                entry.get_mut().is_changed = true;
             }
         }
     }
 
     /// Marks the retrieved node as changed.
     pub fn get_mut(&mut self, key: &Nibbles) -> Option<&mut Node> {
-        let level = self.changes_by_nibble_count.get_mut(key.nibble_count())?;
-        let node = level.get_mut(key.bytes())?;
-        node.is_changed = true;
-        Some(&mut node.inner)
-    }
-
-    /// Analogue of [`Self::get_mut()`] that doesn't mark the node as changed.
-    /// This should only be used if the only updated part of the node is its cache.
-    pub fn get_mut_without_updating(&mut self, key: &Nibbles) -> Option<&mut Node> {
         let level = self.changes_by_nibble_count.get_mut(key.nibble_count())?;
         let node = level.get_mut(key.bytes())?;
         Some(&mut node.inner)
@@ -301,7 +266,7 @@ impl WorkingPatchSet {
     fn push_level_from_db<'a>(&mut self, level: impl Iterator<Item = (&'a NodeKey, Node)>) {
         let level = level
             .map(|(key, node)| {
-                let node = WorkingNode::unchanged(node, key.version);
+                let node = WorkingNode::new(node, Some(key.version));
                 (*key.nibbles.bytes(), node)
             })
             .collect();
@@ -381,94 +346,115 @@ impl WorkingPatchSet {
         }
     }
 
-    fn remove_unchanged_nodes(&mut self) {
-        // Do not remove the root node in any case since it has special role in finalization.
-        for level in self.changes_by_nibble_count.iter_mut().skip(1) {
-            level.retain(|_, node| node.is_changed);
-        }
-    }
-
-    fn stale_keys(&self) -> Vec<NodeKey> {
-        let levels = self.changes_by_nibble_count.iter().enumerate();
-        let stale_keys = levels.flat_map(|(nibble_count, level)| {
-            level.iter().filter_map(move |(nibbles, node)| {
-                node.prev_version.map(|prev_version| {
-                    let nibbles = Nibbles::from_parts(*nibbles, nibble_count);
-                    nibbles.with_version(prev_version)
-                })
-            })
-        });
-        stale_keys.collect()
-    }
-
     /// Computes hashes and serializes this changeset.
-    pub fn finalize(
-        mut self,
+    pub(super) fn finalize(
+        self,
         manifest: Manifest,
         leaf_count: u64,
-        record_stale_keys: bool,
+        operation: Operation,
         hasher: &dyn HashTree,
     ) -> (ValueHash, PatchSet, HashingStats) {
-        // FIXME: refactor how node changes are tracked?
+        let stats = HashingStats::default();
+        let (root_hash, patch) = self.finalize_inner(
+            manifest,
+            leaf_count,
+            operation,
+            |nibble_count, level_changes| {
+                let tree_level = nibble_count * 4;
+                // `into_par_iter()` below uses `rayon` to parallelize hash computations.
+                level_changes
+                    .into_par_iter()
+                    .map_init(
+                        || hasher.with_stats(&stats),
+                        |hasher, (nibbles, node)| {
+                            let nibbles = Nibbles::from_parts(nibbles, nibble_count);
+                            (nibbles, Some(node.inner.hash(hasher, tree_level)), node)
+                        },
+                    )
+                    .collect::<Vec<_>>()
+            },
+        );
+        let root_hash = root_hash.unwrap_or_else(|| hasher.empty_tree_hash());
+        (root_hash, patch, stats)
+    }
 
-        self.remove_unchanged_nodes();
-        let operation = if record_stale_keys {
-            Operation::insert(self.stale_keys())
-        } else {
-            Operation::Update
-        };
-        let metrics = HashingStats::default();
-
+    fn finalize_inner<I>(
+        self,
+        manifest: Manifest,
+        leaf_count: u64,
+        operation: Operation,
+        mut map_level_changes: impl FnMut(usize, HashMap<NibblesBytes, WorkingNode>) -> I,
+    ) -> (Option<ValueHash>, PatchSet)
+    where
+        I: IntoIterator<Item = (Nibbles, Option<ValueHash>, WorkingNode)>,
+    {
         let mut changes_by_nibble_count = self.changes_by_nibble_count;
-        if changes_by_nibble_count.is_empty() {
-            // The tree is empty and there is no root present.
-            let patch = PatchSet::for_empty_root(manifest, self.root_version);
-            return (hasher.empty_tree_hash(), patch, metrics);
-        }
         let len = changes_by_nibble_count.iter().map(HashMap::len).sum();
+        if len == 0 {
+            // The tree is empty and there is no root present.
+            return (None, PatchSet::for_empty_root(manifest, self.root_version));
+        }
         let mut patched_nodes = HashMap::with_capacity(len);
+        let mut stale_keys = vec![];
 
         // Compute hashes for the changed nodes with decreasing nibble count (i.e., topologically
         // sorted) and store the computed hash in the parent nodes.
         while let Some(level_changes) = changes_by_nibble_count.pop() {
             let nibble_count = changes_by_nibble_count.len();
-            let tree_level = nibble_count * 4;
-            // `into_par_iter()` below uses `rayon` to parallelize hash computations.
-            let hashed_nodes: Vec<_> = level_changes
-                .into_par_iter()
-                .map_init(
-                    || hasher.with_stats(&metrics),
-                    |hasher, (nibbles, node)| {
-                        let nibbles = Nibbles::from_parts(nibbles, nibble_count);
-                        (nibbles, node.inner.hash(hasher, tree_level), node)
-                    },
-                )
-                .collect();
+            let hashed_nodes = map_level_changes(nibble_count, level_changes);
 
             for (nibbles, node_hash, node) in hashed_nodes {
-                let node_version = if let Some(upper_level_changes) =
-                    changes_by_nibble_count.last_mut()
-                {
-                    let (parent_nibbles, last_nibble) = nibbles.split_last().unwrap();
-                    let parent = upper_level_changes.get_mut(parent_nibbles.bytes()).unwrap();
-                    let Node::Internal(parent) = &mut parent.inner else {
-                        unreachable!("Node parent must be an internal node");
+                let node_version =
+                    if let Some(upper_level_changes) = changes_by_nibble_count.last_mut() {
+                        let (parent_nibbles, last_nibble) = nibbles.split_last().unwrap();
+                        let parent = upper_level_changes.get_mut(parent_nibbles.bytes()).unwrap();
+                        let Node::Internal(parent) = &mut parent.inner else {
+                            unreachable!("Node parent must be an internal node");
+                        };
+                        // ^ `unwrap()`s are safe by construction: the parent of any changed node
+                        // is an `InternalNode` that must be in the change set as well.
+                        let self_ref = parent.child_ref_mut(last_nibble).unwrap();
+                        // ^ `unwrap()` is safe by construction: the parent node must reference
+                        // the currently considered child.
+                        if let Some(node_hash) = node_hash {
+                            self_ref.hash = node_hash;
+                        }
+                        self_ref.version
+                    } else {
+                        // We're at the root node level.
+                        if matches!(operation, Operation::Insert) {
+                            // The root node is always replaced for inserts and is never replaced for updated.
+                            if let Some(prev_version) = node.prev_version {
+                                stale_keys.push(nibbles.with_version(prev_version));
+                            }
+                        }
+
+                        let root = Root::new(leaf_count, node.inner);
+                        let patch = PatchSet::new(
+                            manifest,
+                            self.root_version,
+                            root,
+                            patched_nodes,
+                            stale_keys,
+                            operation,
+                        );
+                        return (node_hash, patch);
                     };
-                    // ^ `unwrap()`s are safe by construction: the parent of any changed node
-                    // is an `InternalNode` that must be in the change set as well.
-                    let self_ref = parent.child_ref_mut(last_nibble).unwrap();
-                    // ^ `unwrap()` is safe by construction: the parent node must reference
-                    // the currently considered child.
-                    self_ref.hash = node_hash;
-                    self_ref.version
-                } else {
-                    // We're at the root node level.
-                    let root = Root::new(leaf_count, node.inner);
-                    let patch =
-                        PatchSet::new(manifest, self.root_version, root, patched_nodes, operation);
-                    return (node_hash, patch, metrics);
-                };
-                patched_nodes.insert(nibbles.with_version(node_version), node.inner);
+
+                let was_replaced = node
+                    .prev_version
+                    .map_or(true, |prev_version| prev_version < node_version);
+                if was_replaced {
+                    if let Some(prev_version) = node.prev_version {
+                        stale_keys.push(nibbles.with_version(prev_version));
+                    }
+                }
+                if was_replaced || matches!(operation, Operation::Update) {
+                    // All nodes in the patch set are updated for the update operation, regardless
+                    // of the version change. For insert operations, we only should update nodes
+                    // with the changed version.
+                    patched_nodes.insert(nibbles.with_version(node_version), node.inner);
+                }
             }
         }
         unreachable!("We should have returned when the root node was encountered above");
@@ -480,31 +466,19 @@ impl WorkingPatchSet {
         Some(node.inner)
     }
 
-    pub fn finalize_without_hashing(mut self, manifest: Manifest, leaf_count: u64) -> PatchSet {
-        self.remove_unchanged_nodes();
-        let operation = Operation::insert(self.stale_keys());
-
-        let Some(root) = self.take_root() else {
-            return PatchSet::for_empty_root(manifest, self.root_version);
-        };
-        let root = Root::new(leaf_count, root);
-
-        let levels = self.changes_by_nibble_count.drain(1..);
-        let nodes = levels.enumerate().flat_map(|(i, level)| {
-            let nibble_count = i + 1;
-            level.into_iter().map(move |(nibbles, node)| {
-                let nibbles = Nibbles::from_parts(nibbles, nibble_count);
-                (nibbles.with_version(self.root_version), node.inner)
-                // ^ **NB.** This `version` is only correct for insert operations!
-            })
-        });
-        PatchSet::new(
+    pub fn finalize_without_hashing(self, manifest: Manifest, leaf_count: u64) -> PatchSet {
+        let (_, patch) = self.finalize_inner(
             manifest,
-            self.root_version,
-            root,
-            nodes.collect(),
-            operation,
-        )
+            leaf_count,
+            Operation::Insert,
+            |nibble_count, level_changes| {
+                level_changes.into_iter().map(move |(nibbles, node)| {
+                    let nibbles = Nibbles::from_parts(nibbles, nibble_count);
+                    (nibbles, None, node)
+                })
+            },
+        );
+        patch
     }
 
     /// Loads ancestor nodes for all keys in `sorted_keys`.
@@ -681,7 +655,7 @@ impl WorkingPatchSet {
                 break;
             }
 
-            let parent = self.get_mut_without_updating(&parent_nibbles);
+            let parent = self.get_mut(&parent_nibbles);
             let Some(Node::Internal(parent)) = parent else {
                 unreachable!()
             };

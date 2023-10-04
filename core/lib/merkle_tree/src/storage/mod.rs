@@ -26,6 +26,14 @@ use crate::{
     utils::increment_counter,
 };
 
+/// Tree operation: either inserting a new version or updating an existing one (the latter is only
+/// used during tree recovery).
+#[derive(Debug, Clone, Copy)]
+enum Operation {
+    Insert,
+    Update,
+}
+
 /// Mutable storage encapsulating AR16MT update logic.
 #[derive(Debug)]
 struct TreeUpdater {
@@ -272,7 +280,7 @@ pub(crate) struct Storage<'a, DB: ?Sized> {
     hasher: &'a dyn HashTree,
     manifest: Manifest,
     leaf_count: u64,
-    create_new_version: bool,
+    operation: Operation,
     updater: TreeUpdater,
 }
 
@@ -306,7 +314,11 @@ impl<'a, DB: Database + ?Sized> Storage<'a, DB> {
             hasher,
             manifest,
             leaf_count: root.leaf_count(),
-            create_new_version,
+            operation: if create_new_version {
+                Operation::Insert
+            } else {
+                Operation::Update
+            },
             updater: TreeUpdater::new(version, root),
         }
     }
@@ -388,13 +400,12 @@ impl<'a, DB: Database + ?Sized> Storage<'a, DB> {
         self.updater.metrics.report();
 
         let finalize_patch = BLOCK_TIMINGS.finalize_patch.start();
-        let record_stale_keys = self.create_new_version;
         // ^ We should not record stale keys when updating an existing tree version, since
         // otherwise updated keys will be marked as stale and removed.
         let (root_hash, patch, stats) = self.updater.patch_set.finalize(
             self.manifest,
             self.leaf_count,
-            record_stale_keys,
+            self.operation,
             self.hasher,
         );
         GENERAL_METRICS.leaf_count.set(self.leaf_count);

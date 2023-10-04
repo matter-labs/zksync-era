@@ -10,7 +10,6 @@ use std::collections::{HashMap, HashSet};
 use super::*;
 use crate::{
     hasher::{HasherWithStats, MerklePath},
-    storage::patch::Operation,
     types::{NodeKey, TreeInstruction, KEY_SIZE},
 };
 use zksync_types::{H256, U256};
@@ -41,7 +40,8 @@ pub(super) fn create_patch(
         latest_version,
         root,
         nodes,
-        Operation::insert(vec![]),
+        vec![],
+        Operation::Insert,
     )
 }
 

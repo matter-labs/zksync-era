@@ -425,8 +425,8 @@ mod tests {
     use super::*;
     use crate::{
         storage::{
-            patch::Operation,
             tests::{create_patch, generate_nodes, FIRST_KEY},
+            Operation,
         },
         types::{InternalNode, Nibbles},
     };
@@ -442,6 +442,7 @@ mod tests {
             9,
             old_root.clone(),
             nodes.clone(),
+            vec![],
             Operation::Update,
         );
 
@@ -461,7 +462,8 @@ mod tests {
             10,
             new_root.clone(),
             new_nodes.clone(),
-            Operation::insert(vec![]),
+            vec![],
+            Operation::Insert,
         );
         patch.apply_patch(new_patch);
 
@@ -484,7 +486,14 @@ mod tests {
         let old_root = Root::new(2, Node::Internal(InternalNode::default()));
         let nodes = generate_nodes(5, &[1, 2]);
         // ^ Note that nodes have lesser version than the update patch
-        let mut patch = PatchSet::new(manifest, 9, old_root, nodes.clone(), Operation::Update);
+        let mut patch = PatchSet::new(
+            manifest,
+            9,
+            old_root,
+            nodes.clone(),
+            vec![],
+            Operation::Update,
+        );
 
         let new_nodes = generate_nodes(6, &[3, 4]);
         let manifest = Manifest::new(10, &());
@@ -494,6 +503,7 @@ mod tests {
             9,
             new_root.clone(),
             new_nodes.clone(),
+            vec![],
             Operation::Update,
         );
         patch.apply_patch(new_patch);
@@ -582,6 +592,7 @@ mod tests {
             9,
             old_root.clone(),
             nodes.clone(),
+            vec![],
             Operation::Update,
         );
         let mut patched = Patched::new(db);
@@ -593,6 +604,7 @@ mod tests {
             9,
             new_root.clone(),
             new_nodes.clone(),
+            vec![],
             Operation::Update,
         );
         patched.apply_patch(new_patch);
