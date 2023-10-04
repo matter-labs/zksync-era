@@ -349,7 +349,7 @@ dependencies = [
 [[package]]
 name = "bellman_ce"
 version = "0.3.2"
-source = "git+https://github.com/matter-labs/bellman?branch=snark-wrapper#eb435a580189eacded001b494f9aa918d76cd60b"
+source = "git+https://github.com/matter-labs/bellman?branch=snark-wrapper#e01e5fa08a97a113e76ec8a69d06fe6cc2c82d17"
 dependencies = [
  "arrayvec 0.7.4",
  "bit-vec",
@@ -532,7 +532,7 @@ dependencies = [
 [[package]]
 name = "blake2s_const"
 version = "0.6.0"
-source = "git+https://github.com/matter-labs/bellman?branch=snark-wrapper#eb435a580189eacded001b494f9aa918d76cd60b"
+source = "git+https://github.com/matter-labs/bellman?branch=snark-wrapper#e01e5fa08a97a113e76ec8a69d06fe6cc2c82d17"
 dependencies = [
  "arrayref",
  "arrayvec 0.5.2",
@@ -588,37 +588,6 @@ checksum = "8d696c370c750c948ada61c69a0ee2cbbb9c50b1019ddb86d9317157a99c2cae"
 [[package]]
 name = "boojum"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/boojum?branch=main#2aad0b6899863865da91f1c530d6d47a852e93ad"
-dependencies = [
- "arrayvec 0.7.4",
- "bincode",
- "blake2 0.10.6",
- "const_format",
- "convert_case 0.6.0",
- "crossbeam 0.8.2",
- "crypto-bigint 0.5.3",
- "cs_derive 0.1.0 (git+https://github.com/matter-labs/boojum?branch=main)",
- "derivative",
- "ethereum-types 0.14.1",
- "firestorm",
- "itertools 0.10.5",
- "lazy_static",
- "num-modular",
- "num_cpus",
- "packed_simd",
- "pairing_ce 0.28.5 (git+https://github.com/matter-labs/pairing.git)",
- "rand 0.8.5",
- "rayon",
- "serde",
- "sha2 0.10.6",
- "sha3 0.10.6",
- "smallvec",
- "unroll",
-]
-
-[[package]]
-name = "boojum"
-version = "0.1.0"
 source = "git+https://github.com/matter-labs/era-boojum?branch=main#2771569baab9a59690d88cee6ba9b295c8a1e4c4"
 dependencies = [
  "arrayvec 0.7.4",
@@ -626,7 +595,7 @@ dependencies = [
  "blake2 0.10.6",
  "const_format",
  "convert_case 0.4.0",
- "crossbeam 0.7.3",
+ "crossbeam 0.8.2",
  "crypto-bigint 0.5.3",
  "cs_derive 0.1.0 (git+https://github.com/matter-labs/era-boojum?branch=main)",
  "derivative",
@@ -653,11 +622,11 @@ name = "boojum-cuda"
 version = "0.1.0"
 source = "git+https://github.com/matter-labs/era-boojum-cuda?branch=main#75ee5596114bd7fcb7df08b834e64123522653e1"
 dependencies = [
- "boojum 0.1.0 (git+https://github.com/matter-labs/era-boojum?branch=main)",
+ "boojum",
  "cmake",
  "cudart",
  "cudart-sys",
- "itertools 0.10.5",
+ "itertools 0.11.0",
  "lazy_static",
 ]
 
@@ -1287,17 +1256,6 @@ dependencies = [
 [[package]]
 name = "cs_derive"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/boojum?branch=main#2aad0b6899863865da91f1c530d6d47a852e93ad"
-dependencies = [
- "proc-macro-error",
- "proc-macro2 1.0.67",
- "quote 1.0.33",
- "syn 1.0.109",
-]
-
-[[package]]
-name = "cs_derive"
-version = "0.1.0"
 source = "git+https://github.com/matter-labs/era-boojum?branch=main#2771569baab9a59690d88cee6ba9b295c8a1e4c4"
 dependencies = [
  "proc-macro-error",
@@ -1890,7 +1848,7 @@ dependencies = [
 [[package]]
 name = "franklin-crypto"
 version = "0.0.5"
-source = "git+https://github.com/matter-labs/franklin-crypto?branch=snark_wrapper#6eaf7f71468725569e23ca9dea5d894d84b18998"
+source = "git+https://github.com/matter-labs/franklin-crypto?branch=snark_wrapper#b1f1677d9ece6a6ddcfbf394dc2db2bd8b792e6c"
 dependencies = [
  "arr_macro",
  "bellman_ce 0.3.2 (git+https://github.com/matter-labs/bellman?branch=snark-wrapper)",
@@ -1898,7 +1856,7 @@ dependencies = [
  "blake2 0.9.2",
  "blake2-rfc_bellman_edition",
  "blake2s_simd",
- "boojum 0.1.0 (git+https://github.com/matter-labs/boojum?branch=main)",
+ "boojum",
  "byteorder",
  "derivative",
  "digest 0.9.0",
@@ -2184,7 +2142,7 @@ version = "0.1.0"
 source = "git+https://github.com/matter-labs/era-heavy-ops-service.git?branch=v1.3.3#0dd1f5dbba7eee194e660dfaaaf026a174e5ad9e"
 dependencies = [
  "bindgen 0.59.2",
- "crossbeam 0.7.3",
+ "crossbeam 0.8.2",
  "derivative",
  "futures 0.3.28",
  "futures-locks",
@@ -2198,7 +2156,7 @@ source = "git+https://github.com/matter-labs/era-heavy-ops-service.git?branch=v1
 dependencies = [
  "bit-vec",
  "cfg-if 1.0.0",
- "crossbeam 0.7.3",
+ "crossbeam 0.8.2",
  "franklin-crypto 0.0.5 (git+https://github.com/matter-labs/franklin-crypto?branch=dev)",
  "gpu-ffi",
  "itertools 0.11.0",
@@ -4376,12 +4334,12 @@ dependencies = [
 [[package]]
 name = "rescue_poseidon"
 version = "0.4.1"
-source = "git+https://github.com/matter-labs/rescue-poseidon.git?branch=poseidon2#d6903256fa17815b86d4d78ddcae9e5cd920e22c"
+source = "git+https://github.com/matter-labs/rescue-poseidon.git?branch=poseidon2#09b96e7e82dadac151d8d681f017cb6a16961801"
 dependencies = [
  "addchain",
  "arrayvec 0.7.4",
  "blake2 0.10.6",
- "boojum 0.1.0 (git+https://github.com/matter-labs/era-boojum?branch=main)",
+ "boojum",
  "byteorder",
  "derivative",
  "franklin-crypto 0.0.5 (git+https://github.com/matter-labs/franklin-crypto?branch=snark_wrapper)",
@@ -5005,7 +4963,7 @@ source = "git+https://github.com/matter-labs/era-shivini.git?branch=main#8858445
 dependencies = [
  "bincode",
  "blake2 0.10.6",
- "boojum 0.1.0 (git+https://github.com/matter-labs/era-boojum?branch=main)",
+ "boojum",
  "boojum-cuda",
  "circuit_definitions",
  "cudart",
@@ -5096,11 +5054,12 @@ dependencies = [
 [[package]]
 name = "snark_wrapper"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/snark-wrapper.git?branch=main#9929fefddaedc48716bdcaf716134c552ab24a26"
+source = "git+https://github.com/matter-labs/snark-wrapper.git?branch=main#450ea6c9f3ede11e149b86ad3a072e673f9846e7"
 dependencies = [
- "boojum 0.1.0 (git+https://github.com/matter-labs/era-boojum?branch=main)",
+ "boojum",
  "derivative",
  "franklin-crypto 0.0.5 (git+https://github.com/matter-labs/franklin-crypto?branch=snark_wrapper)",
+ "rand 0.4.6",
  "rescue_poseidon 0.4.1 (git+https://github.com/matter-labs/rescue-poseidon.git?branch=poseidon2)",
 ]
 
@@ -6431,7 +6390,7 @@ source = "git+https://github.com/matter-labs/era-zkevm_circuits.git?branch=main#
 dependencies = [
  "arrayvec 0.7.4",
  "bincode",
- "boojum 0.1.0 (git+https://github.com/matter-labs/era-boojum?branch=main)",
+ "boojum",
  "cs_derive 0.1.0 (git+https://github.com/matter-labs/era-boojum?branch=main)",
  "derivative",
  "hex",
