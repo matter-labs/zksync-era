@@ -12,4 +12,3 @@ categories = ["cryptography"]
 [dependencies]
 web3 = { version= "0.19.0", default-features = false, features = ["http-rustls-tls", "test", "signing"] }
 serde = { version = "1.0", features = ["derive"] }
-

@@ -96,7 +96,7 @@ impl<'de> Deserialize<'de> for L2ChainId {
             Ok(u) => u,
             Err(_) => {
                 // try to parse as hex
-                U256::from_str(&s).map_err(|err| de::Error::custom(err.to_string()))?
+                s.parse::<U256>().map_err(de::Error::custom)?
             }
         };
         assert!(
@@ -117,7 +117,7 @@ impl FromStr for L2ChainId {
             Ok(u) => u,
             Err(_) => {
                 // try to parse as hex
-                U256::from_str(s).map_err(FromStrRadixErr::from)?
+                s.parse::<U256>().map_err(FromStrRadixErr::from)?
             }
         };
         assert!(
@@ -134,7 +134,7 @@ impl L2ChainId {
     // 2^53 - 1 is a max safe integer in JS. In ethereum JS libs chain ID should be the safe integer.
     // Next arithmetic operation: subtract 36 and divide by 2 comes from `v` calculation:
     // v = 2*chainId + 36, that should be save integer as well.
-    pub const MAX: u64 = 4503599627370477; // (2^53 - 1 - 36) / 2
+    pub const MAX: u64 = ((1 << 53) - 1 - 36) / 2;
 }
 
 impl Default for L2ChainId {
