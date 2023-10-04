@@ -5,53 +5,15 @@ import { ethers } from 'ethers';
 import { assert } from 'console';
 
 // Postgress connection pool - must be intialized later - as the ENV variables are set later.
-let pool: any = null;
+let pool: Pool | null = null;
 
 const GETTER_ABI = [
-    {
-        constant: true,
-        inputs: [],
-        name: 'getTotalBlocksCommitted',
-        outputs: [
-            {
-                name: '',
-                type: 'uint256'
-            }
-        ],
-        payable: false,
-        stateMutability: 'view',
-        type: 'function'
-    },
-    {
-        constant: true,
-        inputs: [],
-        name: 'getTotalBlocksVerified',
-        outputs: [
-            {
-                name: '',
-                type: 'uint256'
-            }
-        ],
-        payable: false,
-        stateMutability: 'view',
-        type: 'function'
-    }
+    'function getTotalBlocksCommitted() returns (uint256)', 
+    'function getTotalBlocksVerified() returns (uint256)',
 ];
 
 const VERIFIER_ABI = [
-    {
-        inputs: [],
-        name: 'verificationKeyHash',
-        outputs: [
-            {
-                internalType: 'bytes32',
-                name: 'vkHash',
-                type: 'bytes32'
-            }
-        ],
-        stateMutability: 'pure',
-        type: 'function'
-    }
+    'function verificationKeyHash() returns (bytes32)',
 ];
 
 export async function query(text: string, params?: any[]): Promise<any> {
