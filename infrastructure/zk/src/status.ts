@@ -10,7 +10,7 @@ let pool: Pool | null = null;
 const GETTER_ABI = [
     'function getTotalBlocksCommitted() view returns (uint256)',
     'function getTotalBlocksVerified() view returns (uint256)',
-    'function getVerifierParams() view returns (bytes32, bytes32, bytes32)',
+    'function getVerifierParams() view returns (bytes32, bytes32, bytes32)'
 ];
 
 const VERIFIER_ABI = ['function verificationKeyHash() view returns (bytes32)'];
@@ -122,7 +122,7 @@ async function compareVerificationKeys() {
             `${redStart}Verification hash in DB differs from the one in contract.${resetColor} State keeper might not send prove requests.`
         );
     } else {
-        console.log(`${greenStart}Verifier hash matches.${resetColor}`)
+        console.log(`${greenStart}Verifier hash matches.${resetColor}`);
     }
 }
 
@@ -141,7 +141,9 @@ async function compareVerificationParams() {
         return;
     }
 
-    let protocol_version = await query('select recursion_node_level_vk_hash, recursion_leaf_level_vk_hash, recursion_circuits_set_vks_hash  from prover_fri_protocol_versions');
+    let protocol_version = await query(
+        'select recursion_node_level_vk_hash, recursion_leaf_level_vk_hash, recursion_circuits_set_vks_hash  from prover_fri_protocol_versions'
+    );
     if (protocol_version.rowCount != 1) {
         console.log(`${redStart}Got ${protocol_version.rowCount} rows with protocol versions, expected 1${resetColor}`);
         return;
@@ -172,10 +174,9 @@ async function compareVerificationParams() {
     }
 
     if (fail == false) {
-        console.log(`${greenStart}Verifcation params match.${resetColor}`)
+        console.log(`${greenStart}Verifcation params match.${resetColor}`);
     }
 }
-
 
 const redStart = '\x1b[31m';
 const greenStart = '\x1b[32m';
