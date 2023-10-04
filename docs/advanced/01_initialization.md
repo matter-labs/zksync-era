@@ -147,3 +147,5 @@ Ok - so let's sum up what we have:
 - and a server process
 
 In the [next article](02_deposits.md), we'll start playing with the system (bridging tokens etc).
+
+Thanks Marcin for these docs!
