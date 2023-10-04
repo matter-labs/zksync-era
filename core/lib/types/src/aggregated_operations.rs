@@ -93,19 +93,14 @@ impl L1BatchProofOperation {
             assert_eq!(self.l1_batches.len(), 1);
 
             let L1BatchProofForL1 {
-                aggregation_result_coords,
+                aggregation_result_coords: _,
                 scheduler_proof,
             } = self.proofs.first().unwrap();
 
             let (_inputs, proof) = serialize_proof(scheduler_proof);
 
             let proof_input = Token::Tuple(vec![
-                Token::Array(
-                    aggregation_result_coords
-                        .iter()
-                        .map(|bytes| Token::Uint(U256::from_big_endian(bytes)))
-                        .collect(),
-                ),
+                Token::Array(vec![]),
                 Token::Array(proof.into_iter().map(Token::Uint).collect()),
             ]);
 
