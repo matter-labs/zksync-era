@@ -8,7 +8,6 @@ mod macros;
 pub mod network;
 
 use serde::{de, Deserialize, Deserializer, Serialize};
-use web3::ethabi::ethereum_types::FromStrRadixErr;
 
 use std::{
     convert::{Infallible, TryFrom, TryInto},
@@ -99,16 +98,19 @@ impl<'de> Deserialize<'de> for L2ChainId {
                 s.parse::<U256>().map_err(de::Error::custom)?
             }
         };
-        assert!(
-            u256 <= L2ChainId::MAX.into(),
-            "Too big chain ID. MAX: {}",
-            L2ChainId::MAX
-        );
+
+        if u256 > L2ChainId::MAX.into() {
+            return Err(de::Error::custom(format!(
+                "Too big chain ID. MAX: {}",
+                L2ChainId::MAX
+            )));
+        }
         Ok(L2ChainId(u256))
     }
 }
+
 impl FromStr for L2ChainId {
-    type Err = FromStrRadixErr;
+    type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         // Parse the string as a U256
@@ -117,14 +119,14 @@ impl FromStr for L2ChainId {
             Ok(u) => u,
             Err(_) => {
                 // try to parse as hex
-                s.parse::<U256>().map_err(FromStrRadixErr::from)?
+                s.parse::<U256>()
+                    .map_err(|err| format!("Failed to parse L2ChainId: Err {err}"))?
             }
         };
-        assert!(
-            u256 <= L2ChainId::MAX.into(),
-            "Too big chain ID. MAX: {}",
-            L2ChainId::MAX
-        );
+
+        if u256 > L2ChainId::MAX.into() {
+            return Err(format!("Too big chain ID. MAX: {}", L2ChainId::MAX));
+        }
         Ok(L2ChainId(u256))
     }
 }
@@ -143,9 +145,18 @@ impl Default for L2ChainId {
     }
 }
 
-impl From<u64> for L2ChainId {
-    fn from(val: u64) -> Self {
-        Self(U256::from(val))
+impl TryFrom<u64> for L2ChainId {
+    type Error = String;
+
+    fn try_from(val: u64) -> Result<Self, Self::Error> {
+        if val > L2ChainId::MAX {
+            return Err(format!(
+                "Cannot convert given value {} into L2ChainId. It's greater than MAX: {},",
+                val,
+                L2ChainId::MAX,
+            ));
+        }
+        Ok(Self(U256::from(val)))
     }
 }
 

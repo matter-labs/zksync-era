@@ -353,6 +353,8 @@ impl TransactionsWeb3Dal<'_, '_> {
 
 #[cfg(test)]
 mod tests {
+    use std::convert::TryFrom;
+
     use db_test_macro::db_test;
     use zksync_types::{
         block::miniblock_hash, fee::TransactionExecutionMetrics, l2::L2Tx, ProtocolVersion,
@@ -417,7 +419,7 @@ mod tests {
         for transaction_id in transaction_ids {
             let web3_tx = conn
                 .transactions_web3_dal()
-                .get_transaction(transaction_id, L2ChainId::from(270))
+                .get_transaction(transaction_id, L2ChainId::try_from(270).unwrap())
                 .await;
             let web3_tx = web3_tx.unwrap().unwrap();
             assert_eq!(web3_tx.hash, tx_hash);
@@ -431,7 +433,7 @@ mod tests {
         for transaction_id in transactions_with_bogus_index {
             let web3_tx = conn
                 .transactions_web3_dal()
-                .get_transaction(transaction_id, L2ChainId::from(270))
+                .get_transaction(transaction_id, L2ChainId::try_from(270).unwrap())
                 .await;
             assert!(web3_tx.unwrap().is_none());
         }
@@ -448,7 +450,7 @@ mod tests {
         for transaction_id in transactions_with_bogus_block {
             let web3_tx = conn
                 .transactions_web3_dal()
-                .get_transaction(transaction_id, L2ChainId::from(270))
+                .get_transaction(transaction_id, L2ChainId::try_from(270).unwrap())
                 .await;
             assert!(web3_tx.unwrap().is_none());
         }

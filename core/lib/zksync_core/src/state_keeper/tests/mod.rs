@@ -1,6 +1,7 @@
 use once_cell::sync::Lazy;
 
 use std::{
+    convert::TryFrom,
     sync::{
         atomic::{AtomicBool, AtomicU64, Ordering},
         Arc,
@@ -58,7 +59,7 @@ pub(super) fn default_system_env() -> SystemEnv {
         gas_limit: BLOCK_GAS_LIMIT,
         execution_mode: TxExecutionMode::VerifyExecute,
         default_validation_computational_gas_limit: BLOCK_GAS_LIMIT,
-        chain_id: L2ChainId::from(270),
+        chain_id: L2ChainId::try_from(270).unwrap(),
     }
 }
 
@@ -147,7 +148,7 @@ pub(super) fn create_l2_transaction(fee_per_gas: u64, gas_per_pubdata: u32) -> L
         Nonce(0),
         fee,
         U256::zero(),
-        L2ChainId::from(271),
+        L2ChainId::try_from(271).unwrap(),
         &H256::repeat_byte(0x11),
         None,
         PaymasterParams::default(),

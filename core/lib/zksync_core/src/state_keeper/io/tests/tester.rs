@@ -1,6 +1,6 @@
 //! Testing harness for the IO.
 
-use std::{sync::Arc, time::Duration};
+use std::{convert::TryFrom, sync::Arc, time::Duration};
 use vm::constants::BLOCK_GAS_LIMIT;
 
 use zksync_config::configs::chain::StateKeeperConfig;
@@ -91,7 +91,7 @@ impl Tester {
             Duration::from_secs(1),
             l2_erc20_bridge_addr,
             BLOCK_GAS_LIMIT,
-            L2ChainId::from(270),
+            L2ChainId::try_from(270).unwrap(),
         )
         .await;
 
@@ -108,7 +108,7 @@ impl Tester {
             create_genesis_l1_batch(
                 &mut storage,
                 Address::repeat_byte(0x01),
-                L2ChainId::from(270),
+                L2ChainId::try_from(270).unwrap(),
                 ProtocolVersionId::latest(),
                 &self.base_system_contracts,
                 &get_system_smart_contracts(),

@@ -397,12 +397,12 @@ impl ExternalNodeConfig {
 
         let l2_chain_id: L2ChainId = env_var("EN_L2_CHAIN_ID");
         let l1_chain_id: u64 = env_var("EN_L1_CHAIN_ID");
-        if l2_chain_id.0 != remote.l2_chain_id.0 {
+        if l2_chain_id != remote.l2_chain_id {
             anyhow::bail!(
                 "Configured L2 chain id doesn't match the one from main node.
                 Make sure your configuration is correct and you are corrected to the right main node.
-                Main node L2 chain id: {}. Local config value: {}",
-                remote.l2_chain_id.0, l2_chain_id.0
+                Main node L2 chain id: {:?}. Local config value: {:?}",
+                remote.l2_chain_id, l2_chain_id
             );
         }
         if l1_chain_id != remote.l1_chain_id.0 {

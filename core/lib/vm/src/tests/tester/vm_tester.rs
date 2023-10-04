@@ -1,3 +1,5 @@
+use std::convert::TryFrom;
+
 use zksync_contracts::BaseSystemContracts;
 use zksync_state::{InMemoryStorage, StoragePtr, StorageView, WriteStorage};
 
@@ -142,7 +144,7 @@ impl<H: HistoryMode> VmTesterBuilder<H> {
                 gas_limit: BLOCK_GAS_LIMIT,
                 execution_mode: TxExecutionMode::VerifyExecute,
                 default_validation_computational_gas_limit: BLOCK_GAS_LIMIT,
-                chain_id: L2ChainId::from(270),
+                chain_id: L2ChainId::try_from(270).unwrap(),
             },
             deployer: None,
             rich_accounts: vec![],

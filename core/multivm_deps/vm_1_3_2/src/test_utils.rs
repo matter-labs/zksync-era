@@ -7,6 +7,7 @@
 //!
 
 use std::collections::HashMap;
+use std::convert::TryFrom;
 
 use itertools::Itertools;
 use zk_evm::{aux_structures::Timestamp, vm_state::VmLocalState};
@@ -172,7 +173,7 @@ pub fn mock_loadnext_test_call(
         nonce,
         fee,
         Default::default(),
-        L2ChainId::from(270),
+        L2ChainId::try_from(270).unwrap(),
         &eth_private_key,
         None,
         Default::default(),
@@ -209,7 +210,7 @@ pub fn mock_loadnext_gas_burn_call(
         nonce,
         fee,
         Default::default(),
-        L2ChainId::from(270),
+        L2ChainId::try_from(270).unwrap(),
         &eth_private_key,
         None,
         Default::default(),
@@ -276,7 +277,7 @@ pub fn get_deploy_tx(
         nonce,
         fee,
         U256::zero(),
-        L2ChainId::from(270),
+        L2ChainId::try_from(270).unwrap(),
         &account_private_key,
         Some(factory_deps),
         Default::default(),
@@ -303,7 +304,7 @@ pub fn get_error_tx(
         nonce,
         fee,
         U256::zero(),
-        L2ChainId::from(270),
+        L2ChainId::try_from(270).unwrap(),
         &account_private_key,
         Some(factory_deps),
         Default::default(),

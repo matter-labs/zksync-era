@@ -582,6 +582,8 @@ impl BlocksWeb3Dal<'_, '_> {
 
 #[cfg(test)]
 mod tests {
+    use std::convert::TryFrom;
+
     use db_test_macro::db_test;
     use zksync_contracts::BaseSystemContractsHashes;
     use zksync_types::{
@@ -623,7 +625,7 @@ mod tests {
         for block_id in block_ids {
             let block = conn
                 .blocks_web3_dal()
-                .get_block_by_web3_block_id(block_id, false, L2ChainId::from(270))
+                .get_block_by_web3_block_id(block_id, false, L2ChainId::try_from(270).unwrap())
                 .await;
             let block = block.unwrap().unwrap();
             assert!(block.transactions.is_empty());
@@ -650,7 +652,7 @@ mod tests {
         for block_id in non_existing_block_ids {
             let block = conn
                 .blocks_web3_dal()
-                .get_block_by_web3_block_id(block_id, false, L2ChainId::from(270))
+                .get_block_by_web3_block_id(block_id, false, L2ChainId::try_from(270).unwrap())
                 .await;
             assert!(block.unwrap().is_none());
 

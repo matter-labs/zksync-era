@@ -272,6 +272,8 @@ impl L1BatchWithLogs {
 
 #[cfg(test)]
 mod tests {
+    use std::convert::TryFrom;
+
     use tempfile::TempDir;
 
     use db_test_macro::db_test;
@@ -366,7 +368,7 @@ mod tests {
     async fn loaded_logs_equivalence_basics(pool: ConnectionPool) {
         ensure_genesis_state(
             &mut pool.access_storage().await.unwrap(),
-            L2ChainId::from(270),
+            L2ChainId::try_from(270).unwrap(),
             &mock_genesis_params(),
         )
         .await
@@ -389,9 +391,13 @@ mod tests {
     #[db_test]
     async fn loaded_logs_equivalence_with_zero_no_op_logs(pool: ConnectionPool) {
         let mut storage = pool.access_storage().await.unwrap();
-        ensure_genesis_state(&mut storage, L2ChainId::from(270), &mock_genesis_params())
-            .await
-            .unwrap();
+        ensure_genesis_state(
+            &mut storage,
+            L2ChainId::try_from(270).unwrap(),
+            &mock_genesis_params(),
+        )
+        .await
+        .unwrap();
 
         let mut logs = gen_storage_logs(100..200, 2);
         for log in &mut logs[0] {
@@ -467,9 +473,13 @@ mod tests {
     #[db_test]
     async fn loaded_logs_equivalence_with_non_zero_no_op_logs(pool: ConnectionPool) {
         let mut storage = pool.access_storage().await.unwrap();
-        ensure_genesis_state(&mut storage, L2ChainId::from(270), &mock_genesis_params())
-            .await
-            .unwrap();
+        ensure_genesis_state(
+            &mut storage,
+            L2ChainId::try_from(270).unwrap(),
+            &mock_genesis_params(),
+        )
+        .await
+        .unwrap();
 
         let mut logs = gen_storage_logs(100..120, 1);
         // Entire batch of no-op logs (writing previous values).
@@ -514,9 +524,13 @@ mod tests {
     #[db_test]
     async fn loaded_logs_equivalence_with_protective_reads(pool: ConnectionPool) {
         let mut storage = pool.access_storage().await.unwrap();
-        ensure_genesis_state(&mut storage, L2ChainId::from(270), &mock_genesis_params())
-            .await
-            .unwrap();
+        ensure_genesis_state(
+            &mut storage,
+            L2ChainId::try_from(270).unwrap(),
+            &mock_genesis_params(),
+        )
+        .await
+        .unwrap();
 
         let mut logs = gen_storage_logs(100..120, 1);
         let logs_copy = logs[0].clone();

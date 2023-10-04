@@ -370,6 +370,8 @@ pub(crate) async fn save_genesis_l1_batch_metadata(
 
 #[cfg(test)]
 mod tests {
+    use std::convert::TryFrom;
+
     use db_test_macro::db_test;
     use zksync_dal::ConnectionPool;
     use zksync_types::{system_contracts::get_system_smart_contracts, U256};
@@ -389,7 +391,7 @@ mod tests {
             first_l1_verifier_config: L1VerifierConfig::default(),
             first_verifier_address: Address::random(),
         };
-        ensure_genesis_state(&mut conn, L2ChainId::from(270), &params)
+        ensure_genesis_state(&mut conn, L2ChainId::try_from(270).unwrap(), &params)
             .await
             .unwrap();
 
@@ -403,14 +405,14 @@ mod tests {
         assert_ne!(root_hash, H256::zero());
 
         // Check that `ensure_genesis_state()` doesn't panic on repeated runs.
-        ensure_genesis_state(&mut conn, L2ChainId::from(270), &params)
+        ensure_genesis_state(&mut conn, L2ChainId::try_from(270).unwrap(), &params)
             .await
             .unwrap();
     }
 
     #[db_test]
     async fn running_genesis_with_big_chain_id(pool: ConnectionPool) {
-        let mut conn = pool.access_storage().await;
+        let mut conn = pool.access_storage().await.unwrap();
         conn.blocks_dal().delete_genesis().await;
 
         let params = GenesisParams {
@@ -425,12 +427,12 @@ mod tests {
             .await
             .unwrap();
 
-        assert!(!conn.blocks_dal().is_genesis_needed().await);
+        assert!(!conn.blocks_dal().is_genesis_needed().await.unwrap());
         let metadata = conn
             .blocks_dal()
             .get_l1_batch_metadata(L1BatchNumber(0))
             .await;
-        let root_hash = metadata.unwrap().metadata.root_hash;
+        let root_hash = metadata.unwrap().unwrap().metadata.root_hash;
         assert_ne!(root_hash, H256::zero());
     }
 }

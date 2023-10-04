@@ -1,6 +1,8 @@
 //! Testing harness for the batch executor.
 //! Contains helper functionality to initialize test context and perform tests without too much boilerplate.
 
+use std::convert::TryFrom;
+
 use tempfile::TempDir;
 
 use vm::{
@@ -144,7 +146,7 @@ impl Tester {
             create_genesis_l1_batch(
                 &mut storage,
                 self.fee_account,
-                L2ChainId::from(CHAIN_ID),
+                L2ChainId::try_from(CHAIN_ID).unwrap(),
                 ProtocolVersionId::latest(),
                 &BASE_SYSTEM_CONTRACTS,
                 &get_system_smart_contracts(),

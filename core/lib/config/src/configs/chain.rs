@@ -192,6 +192,8 @@ impl MempoolConfig {
 
 #[cfg(test)]
 mod tests {
+    use std::convert::TryFrom;
+
     use super::*;
     use crate::configs::test_utils::{addr, EnvMutex};
 
@@ -202,7 +204,7 @@ mod tests {
             network: NetworkConfig {
                 network: "localhost".parse().unwrap(),
                 zksync_network: "localhost".to_string(),
-                zksync_network_id: L2ChainId::from(270),
+                zksync_network_id: L2ChainId::try_from(270).unwrap(),
             },
             state_keeper: StateKeeperConfig {
                 transaction_slots: 50,

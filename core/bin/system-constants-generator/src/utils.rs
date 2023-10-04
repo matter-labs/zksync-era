@@ -1,5 +1,6 @@
 use once_cell::sync::Lazy;
 use std::cell::RefCell;
+use std::convert::TryFrom;
 use std::rc::Rc;
 use vm::constants::{BLOCK_GAS_LIMIT, BOOTLOADER_HEAP_PAGE};
 use vm::{
@@ -92,7 +93,7 @@ pub(super) fn get_l2_tx(contract_address: Address, signer: &H256, pubdata_price:
             gas_per_pubdata_limit: pubdata_price.into(),
         },
         U256::from(0),
-        L2ChainId::from(270),
+        L2ChainId::try_from(270).unwrap(),
         signer,
         None,
         Default::default(),

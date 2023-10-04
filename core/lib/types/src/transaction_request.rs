@@ -1055,7 +1055,7 @@ mod tests {
         };
 
         let msg = PackedEthSignature::typed_data_to_signed_bytes(
-            &Eip712Domain::new(L2ChainId::from(270)),
+            &Eip712Domain::new(L2ChainId::try_from(270).unwrap()),
             &tx,
         );
         let signature = PackedEthSignature::sign_raw(&private_key, &msg).unwrap();
@@ -1098,12 +1098,13 @@ mod tests {
             chain_id: Some(U256::from(270)),
             ..Default::default()
         };
-        let domain = Eip712Domain::new(L2ChainId::from(270));
+        let domain = Eip712Domain::new(L2ChainId::try_from(270).unwrap());
         let signature =
             PackedEthSignature::sign_typed_data(&private_key, &domain, &transaction_request)
                 .unwrap();
 
-        let encoded_tx = transaction_request.get_signed_bytes(&signature, L2ChainId::from(270));
+        let encoded_tx =
+            transaction_request.get_signed_bytes(&signature, L2ChainId::try_from(270).unwrap());
 
         let (decoded_tx, _) =
             TransactionRequest::from_bytes(encoded_tx.as_slice(), U256::from(270)).unwrap();
@@ -1138,12 +1139,13 @@ mod tests {
             chain_id: Some(U256::from(270)),
             ..Default::default()
         };
-        let domain = Eip712Domain::new(L2ChainId::from(270));
+        let domain = Eip712Domain::new(L2ChainId::try_from(270).unwrap());
         let signature =
             PackedEthSignature::sign_typed_data(&private_key, &domain, &transaction_request)
                 .unwrap();
 
-        let encoded_tx = transaction_request.get_signed_bytes(&signature, L2ChainId::from(270));
+        let encoded_tx =
+            transaction_request.get_signed_bytes(&signature, L2ChainId::try_from(270).unwrap());
 
         let decoded_tx = TransactionRequest::from_bytes(encoded_tx.as_slice(), U256::from(272));
         assert_eq!(
@@ -1426,7 +1428,7 @@ mod tests {
         };
 
         let msg = PackedEthSignature::typed_data_to_signed_bytes(
-            &Eip712Domain::new(L2ChainId::from(270)),
+            &Eip712Domain::new(L2ChainId::try_from(270).unwrap()),
             &tx,
         );
         let signature = PackedEthSignature::sign_raw(&private_key, &msg).unwrap();

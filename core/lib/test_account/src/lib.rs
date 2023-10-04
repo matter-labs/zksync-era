@@ -1,3 +1,5 @@
+use std::convert::TryFrom;
+
 use ethabi::Token;
 use zksync_config::constants::{
     CONTRACT_DEPLOYER_ADDRESS, MAX_GAS_PER_PUBDATA_BYTE, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE,
@@ -77,7 +79,7 @@ impl Account {
             nonce,
             fee.unwrap_or_else(|| self.default_fee()),
             value,
-            L2ChainId::from(270),
+            L2ChainId::try_from(270).unwrap(),
             &self.private_key,
             factory_deps,
             Default::default(),

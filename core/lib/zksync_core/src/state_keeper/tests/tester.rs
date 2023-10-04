@@ -3,7 +3,7 @@ use tokio::sync::{mpsc, watch};
 
 use std::{
     collections::{HashMap, HashSet, VecDeque},
-    convert::TryInto,
+    convert::{TryFrom, TryInto},
     sync::{Arc, RwLock},
     time::{Duration, Instant},
 };
@@ -286,7 +286,7 @@ pub(crate) fn pending_batch_data(
             gas_limit: BLOCK_GAS_LIMIT,
             execution_mode: TxExecutionMode::VerifyExecute,
             default_validation_computational_gas_limit: BLOCK_GAS_LIMIT,
-            chain_id: L2ChainId::from(270),
+            chain_id: L2ChainId::try_from(270).unwrap(),
         },
         pending_miniblocks,
     }
@@ -601,7 +601,7 @@ impl StateKeeperIO for TestIO {
                 gas_limit: BLOCK_GAS_LIMIT,
                 execution_mode: TxExecutionMode::VerifyExecute,
                 default_validation_computational_gas_limit: BLOCK_GAS_LIMIT,
-                chain_id: L2ChainId::from(270),
+                chain_id: L2ChainId::try_from(270).unwrap(),
             },
             L1BatchEnv {
                 previous_batch_hash: Some(H256::zero()),

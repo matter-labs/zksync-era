@@ -84,7 +84,7 @@ impl BenchmarkingVm {
                 gas_limit: BLOCK_GAS_LIMIT,
                 execution_mode: TxExecutionMode::VerifyExecute,
                 default_validation_computational_gas_limit: BLOCK_GAS_LIMIT,
-                chain_id: L2ChainId::from(270),
+                chain_id: L2ChainId::try_from(270).unwrap(),
             },
             Rc::new(RefCell::new(StorageView::new(&*STORAGE))),
             HistoryEnabled,
@@ -120,7 +120,7 @@ pub fn get_deploy_tx(code: &[u8]) -> Transaction {
             gas_per_pubdata_limit: U256::from(MAX_GAS_PER_PUBDATA_BYTE),
         },
         U256::zero(),
-        L2ChainId::from(270),
+        L2ChainId::try_from(270).unwrap(),
         &PRIVATE_KEY,
         Some(vec![code.to_vec()]), // maybe not needed?
         Default::default(),
