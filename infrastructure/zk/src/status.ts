@@ -8,18 +8,18 @@ import { assert } from 'console';
 let pool: Pool | null = null;
 
 const GETTER_ABI = [
-    'function getTotalBlocksCommitted() returns (uint256)', 
-    'function getTotalBlocksVerified() returns (uint256)',
+    'function getTotalBlocksCommitted() view returns (uint256)', 
+    'function getTotalBlocksVerified() view returns (uint256)',
 ];
 
 const VERIFIER_ABI = [
-    'function verificationKeyHash() returns (bytes32)',
+    'function verificationKeyHash() view returns (bytes32)',
 ];
 
 export async function query(text: string, params?: any[]): Promise<any> {
     const start = Date.now();
 
-    const res = await pool.query(text, params);
+    const res = await pool!.query(text, params);
     const duration = Date.now() - start;
     return res;
 }
