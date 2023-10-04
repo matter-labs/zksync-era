@@ -3,6 +3,10 @@ on:
     branches:
       - main
 
+permissions:
+  contents: write
+  pull-requests: write
+
 name: release-please
 jobs:
   release-please:
@@ -25,3 +29,7 @@ jobs:
         with:
           release-please-output: ${{ toJSON(steps.release.outputs) }}
           slack-webhook-url: ${{ secrets.SLACK_WEBHOOK_RELEASES }}
+
+      - name: Build form tag
+        if: ${{ steps.release.outputs.releases_created }}
+        uses: ./.github/workflows/build-docker-from-tag.yml
