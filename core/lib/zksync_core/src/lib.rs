@@ -139,8 +139,9 @@ pub async fn genesis_init(
                     recursion_circuits_set_vks_hash: contracts_config
                         .recursion_circuits_set_vks_hash,
                 },
+                // FIXME: we should have a flag to decide on the type of proofs at genesis.
                 recursion_scheduler_level_vk_hash: contracts_config
-                    .recursion_scheduler_level_vk_hash,
+                    .fri_recursion_scheduler_level_vk_hash,
             },
         },
     )
