@@ -612,7 +612,15 @@ fn test_recovery_with_deep_node_hierarchy(chunk_size: usize) {
             .extend_during_recovery(recovery_chunk.to_vec());
         db.apply_patch(patch);
     }
-    let (_, patch) = db.updated_patch.unwrap();
+    let (_, mut patch) = db.updated_patch.unwrap();
+    // Manually remove all stale keys from the patch
+    assert_eq!(db.stale_keys_by_version.len(), 1);
+    for stale_key in &db.stale_keys_by_version[&recovery_version] {
+        assert!(
+            patch.nodes.remove(stale_key).is_some(),
+            "Stale key {stale_key} is missing"
+        );
+    }
 
     let root = patch.root.unwrap();
     assert_eq!(root.leaf_count(), 256);
@@ -665,13 +673,10 @@ fn test_recovery_with_deep_node_hierarchy(chunk_size: usize) {
 #[test]
 fn recovery_persists_node_versions_with_deep_node_hierarchy() {
     test_recovery_with_deep_node_hierarchy(256);
-    // FIXME: doesn't work because of accumulated garbage
-    /*
     for chunk_size in [5, 7, 20, 59, 127, 128] {
         println!("Testing recovery with chunk size {chunk_size}");
         test_recovery_with_deep_node_hierarchy(chunk_size);
     }
-    */
 }
 
 #[test]

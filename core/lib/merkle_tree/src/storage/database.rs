@@ -165,10 +165,13 @@ impl Database for PatchSet {
                 .retain(|&version, _| version < new_version_count);
         }
         self.manifest = other.manifest;
-
         self.patches_by_version.extend(other.patches_by_version);
-        self.stale_keys_by_version
-            .extend(other.stale_keys_by_version);
+        for (version, stale_keys) in other.stale_keys_by_version {
+            self.stale_keys_by_version
+                .entry(version)
+                .or_default()
+                .extend(stale_keys);
+        }
 
         // Check that `PatchSet` invariants still hold.
         if let Some((updated_version, _)) = &self.updated_patch {
