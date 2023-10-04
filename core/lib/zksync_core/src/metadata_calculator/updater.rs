@@ -174,6 +174,8 @@ impl TreeUpdater {
             // That is, if we run multiple tree instances, we'll get metadata correspondence
             // right away without having to implement dedicated code.
 
+            // If there is an `object_key`, then the witness is being process.
+            // If not, it must've been skipped (witness/proving is done at a very small percentage on testnet).
             if let Some(object_key) = &object_key {
                 let protocol_version_id = storage
                     .blocks_dal()
@@ -201,10 +203,22 @@ impl TreeUpdater {
                     .witness_generator_dal()
                     .save_witness_inputs(l1_batch_number, object_key, protocol_version_id)
                     .await;
-                storage
+                let mut transaction = storage
+                    .start_transaction()
+                    .await
+                    .expect("could not get get transaction from storage");
+                transaction
+                    .basic_witness_input_producer_dal()
+                    .create_basic_witness_input_producer_job(l1_batch_number, protocol_version_id)
+                    .await;
+                transaction
                     .proof_generation_dal()
                     .insert_proof_generation_details(l1_batch_number, object_key)
                     .await;
+                transaction
+                    .commit()
+                    .await
+                    .expect("could not commit transaction");
             }
             save_postgres_latency.observe();
             tracing::info!("Updated metadata for L1 batch #{l1_batch_number} in Postgres");

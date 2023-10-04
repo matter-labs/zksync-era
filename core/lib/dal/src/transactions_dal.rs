@@ -968,6 +968,32 @@ impl TransactionsDal<'_, '_> {
         }
     }
 
+    pub async fn get_miniblock_with_transactions_for_l1_batch(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+    ) -> Vec<(MiniblockNumber, Vec<Transaction>)> {
+        sqlx::query_as!(
+            StorageTransaction,
+            "SELECT * FROM transactions \
+            WHERE l1_batch_number = $1 \
+            ORDER BY miniblock_number, index_in_block",
+            l1_batch_number.0 as i64,
+        )
+        .fetch_all(self.storage.conn())
+        .await
+        .unwrap()
+        .into_iter()
+        .group_by(|tx| tx.miniblock_number.unwrap())
+        .into_iter()
+        .map(|(miniblock_number, txs)| {
+            (
+                MiniblockNumber(miniblock_number as u32),
+                txs.map(Transaction::from).collect::<Vec<_>>(),
+            )
+        })
+        .collect()
+    }
+
     /// Returns miniblocks with their transactions that state_keeper needs to reexecute on restart.
     /// These are the transactions that are included to some miniblock,
     /// but not included to L1 batch. The order of the transactions is the same as it was
