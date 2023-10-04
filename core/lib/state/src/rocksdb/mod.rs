@@ -15,7 +15,7 @@
 //! | Contracts    | address (20 bytes)     | `Vec<u8>`               | Contract contents                    |
 //! | Factory deps | hash (32 bytes)        | `Vec<u8>`               | Bytecodes for new contracts that a certain contract may deploy. |
 
-use std::{collections::HashMap, mem, path::Path, time::Instant};
+use std::{collections::HashMap, convert::TryInto, mem, path::Path, time::Instant};
 
 use zksync_dal::StorageProcessor;
 use zksync_storage::{db::NamedColumnFamily, RocksDB};
@@ -108,7 +108,32 @@ impl RocksdbStorage {
                 .storage_logs_dal()
                 .get_touched_slots_for_l1_batch(L1BatchNumber(current_l1_batch_number))
                 .await;
-            self.process_transaction_logs(&storage_logs);
+            let changed_keys = self.process_transaction_logs(storage_logs);
+
+            tracing::debug!("Loading enumeration indexes for l1 batch {current_l1_batch_number}");
+            let enum_indices: HashMap<H256, u64> = conn
+                .storage_logs_dedup_dal()
+                .initial_writes_for_batch(L1BatchNumber(current_l1_batch_number))
+                .await
+                .into_iter()
+                .collect();
+            self.pending_patch.state = changed_keys
+                .into_iter()
+                .map(|(key, (value, index))| {
+                    let index = index.unwrap_or_else(|| {
+                        enum_indices
+                            .get(&key.hashed_key())
+                            .copied()
+                            .unwrap_or_else(|| {
+                                panic!(
+                                    "Missing enumeration index for hashed key {:?}",
+                                    key.hashed_key()
+                                )
+                            })
+                    });
+                    (key, (value, index))
+                })
+                .collect();
 
             tracing::debug!("loading factory deps for l1 batch {current_l1_batch_number}");
             let factory_deps = conn
@@ -138,16 +163,32 @@ impl RocksdbStorage {
         self.db
             .get_cf(cf, &Self::serialize_state_key(key))
             .expect("failed to read rocksdb state value")
-            .map(|value| H256::from_slice(&value))
+            .map(|value| H256::from_slice(&value[..32]))
+    }
+
+    fn read_enum_index(&self, key: &StorageKey) -> Option<u64> {
+        let cf = StateKeeperColumnFamily::State;
+        self.db
+            .get_cf(cf, &Self::serialize_state_key(key))
+            .expect("failed to read rocksdb state value")
+            .map(|value| u64::from_be_bytes(value[32..].try_into().unwrap()))
     }
 
     /// Processes storage `logs` produced by transactions.
-    fn process_transaction_logs(&mut self, updates: &HashMap<StorageKey, H256>) {
-        for (&key, &value) in updates {
-            if !value.is_zero() || self.read_value_inner(&key).is_some() {
-                self.pending_patch.state.insert(key, value);
-            }
-        }
+    fn process_transaction_logs(
+        &self,
+        updates: HashMap<StorageKey, H256>,
+    ) -> HashMap<StorageKey, (StorageValue, Option<u64>)> {
+        updates
+            .into_iter()
+            .filter_map(|(key, value)| {
+                if let Some(index) = self.read_enum_index(&key) {
+                    Some((key, (value, Some(index))))
+                } else {
+                    (!value.is_zero()).then_some((key, (value, None)))
+                }
+            })
+            .collect()
     }
 
     /// Stores a factory dependency with the specified `hash` and `bytecode`.
@@ -243,8 +284,12 @@ impl RocksdbStorage {
                 Self::BLOCK_NUMBER_KEY,
                 &serialize_block_number(l1_batch_number.0),
             );
-            for (key, value) in pending_patch.state {
-                batch.put_cf(cf, &Self::serialize_state_key(&key), value.as_ref());
+            for (key, (value, enum_index)) in pending_patch.state {
+                batch.put_cf(
+                    cf,
+                    &Self::serialize_state_key(&key),
+                    &Self::serialize_state_value(value, enum_index),
+                );
             }
 
             let cf = StateKeeperColumnFamily::FactoryDeps;
@@ -272,6 +317,14 @@ impl RocksdbStorage {
 
     fn serialize_state_key(key: &StorageKey) -> [u8; 32] {
         key.hashed_key().to_fixed_bytes()
+    }
+
+    fn serialize_state_value(value: H256, enum_index: u64) -> Vec<u8> {
+        value
+            .0
+            .into_iter()
+            .chain(enum_index.to_be_bytes())
+            .collect()
     }
 
     /// Estimates the number of key–value entries in the VM state.

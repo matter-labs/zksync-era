@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{hash_map::Entry, HashMap};
 
 use crate::ReadStorage;
 use zksync_types::{
@@ -8,14 +8,17 @@ use zksync_types::{
 };
 use zksync_utils::u256_to_h256;
 
+use itertools::Itertools;
+
 /// Network ID we use by defailt for in memory storage.
 pub const IN_MEMORY_STORAGE_DEFAULT_NETWORK_ID: u16 = 270;
 
 /// In-memory storage.
 #[derive(Debug, Default)]
 pub struct InMemoryStorage {
-    pub(crate) state: HashMap<StorageKey, StorageValue>,
+    pub(crate) state: HashMap<StorageKey, (StorageValue, u64)>,
     pub(crate) factory_deps: HashMap<H256, Vec<u8>>,
+    last_enum_index_set: u64,
 }
 
 impl InMemoryStorage {
@@ -47,7 +50,7 @@ impl InMemoryStorage {
     ) -> Self {
         let system_context_init_log = get_system_context_init_logs(chain_id);
 
-        let state = contracts
+        let state: HashMap<_, _> = contracts
             .iter()
             .flat_map(|contract| {
                 let bytecode_hash = bytecode_hasher(&contract.bytecode);
@@ -61,22 +64,38 @@ impl InMemoryStorage {
                 ]
             })
             .chain(system_context_init_log)
-            .filter_map(|log| (log.kind == StorageLogKind::Write).then_some((log.key, log.value)))
+            .sorted_by_key(|log| log.key)
+            .enumerate()
+            .filter_map(|(idx, log)| {
+                (log.kind == StorageLogKind::Write)
+                    .then_some((log.key, (log.value, idx as u64 + 1)))
+            })
             .collect();
 
         let factory_deps = contracts
             .into_iter()
             .map(|contract| (bytecode_hasher(&contract.bytecode), contract.bytecode))
             .collect();
+
+        let last_enum_index_set = state.len() as u64;
         Self {
             state,
             factory_deps,
+            last_enum_index_set,
         }
     }
 
     /// Sets the storage `value` at the specified `key`.
     pub fn set_value(&mut self, key: StorageKey, value: StorageValue) {
-        self.state.insert(key, value);
+        match self.state.entry(key) {
+            Entry::Occupied(mut entry) => {
+                entry.insert((value, entry.get().1));
+            }
+            Entry::Vacant(entry) => {
+                self.last_enum_index_set += 1;
+                entry.insert((value, self.last_enum_index_set));
+            }
+        }
     }
 
     /// Stores a factory dependency with the specified `hash` and `bytecode`.
@@ -87,7 +106,11 @@ impl InMemoryStorage {
 
 impl ReadStorage for &InMemoryStorage {
     fn read_value(&mut self, key: &StorageKey) -> StorageValue {
-        self.state.get(key).copied().unwrap_or_default()
+        self.state
+            .get(key)
+            .map(|(value, _)| value)
+            .copied()
+            .unwrap_or_default()
     }
 
     fn is_write_initial(&mut self, key: &StorageKey) -> bool {
