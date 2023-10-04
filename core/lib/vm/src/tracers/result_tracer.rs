@@ -24,6 +24,7 @@ use crate::types::{
 };
 
 use crate::constants::{BOOTLOADER_HEAP_PAGE, RESULT_SUCCESS_FIRST_SLOT};
+use crate::tracers::traits::TracerExecutionStopReason;
 use crate::{Halt, TxRevertReason};
 use crate::{VmExecutionMode, VmExecutionStopReason};
 
@@ -120,9 +121,11 @@ impl<S: WriteStorage, H: HistoryMode> ExecutionProcessing<S, H> for ResultTracer
             // One of the tracers above has requested to stop the execution.
             // If it was the correct stop we already have the result,
             // otherwise it can be out of gas error
-            VmExecutionStopReason::TracerRequestedStop => {
+            VmExecutionStopReason::TracerRequestedStop(reason) => {
                 match self.execution_mode {
-                    VmExecutionMode::OneTx => self.vm_stopped_execution(state, bootloader_state),
+                    VmExecutionMode::OneTx => {
+                        self.vm_stopped_execution(state, bootloader_state, reason)
+                    }
                     VmExecutionMode::Batch => self.vm_finished_execution(state),
                     VmExecutionMode::Bootloader => self.vm_finished_execution(state),
                 };
@@ -188,7 +191,13 @@ impl ResultTracer {
         &mut self,
         state: &ZkSyncVmState<S, H>,
         bootloader_state: &BootloaderState,
+        reason: TracerExecutionStopReason,
     ) {
+        if let TracerExecutionStopReason::Abort(halt) = reason {
+            self.result = Some(Result::Halt { reason: halt });
+            return;
+        }
+
         if self.bootloader_out_of_gas {
             self.result = Some(Result::Halt {
                 reason: Halt::BootloaderOutOfGas,
