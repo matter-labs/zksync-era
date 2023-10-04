@@ -1,5 +1,5 @@
+use crate::get_recursive_layer_vk_for_circuit_type;
 use crate::utils::get_leaf_vk_params;
-use crate::{get_recursive_layer_vk_for_circuit_type, get_snark_vk};
 use anyhow::Context as _;
 use once_cell::sync::Lazy;
 use std::str::FromStr;
@@ -25,6 +25,8 @@ pub struct VkCommitments {
 
 fn circuit_commitments() -> anyhow::Result<L1VerifierConfig> {
     let commitments = generate_commitments().context("generate_commitments()")?;
+    let snark_wrapper_vk = std::env::var("CONTRACTS_RECURSION_SCHEDULER_LEVEL_VK_HASH")
+        .context("SNARK wrapper VK not found in the config")?;
     Ok(L1VerifierConfig {
         params: VerifierParams {
             recursion_node_level_vk_hash: H256::from_str(&commitments.node)
@@ -41,8 +43,7 @@ fn circuit_commitments() -> anyhow::Result<L1VerifierConfig> {
         // `prover_protocol_versions` table, which has the SNARK-wrapper verification key.
         // This is OK because if the FRI VK changes, the SNARK-wrapper VK will change as well.
         // You can actually compute the SNARK-wrapper VK from the FRI VK, but this is not yet
-        // implemented in the `zkevm_test_harness`, so instead we're loading it from a separate
-        // file.
+        // implemented in the `zkevm_test_harness`, so instead we're loading it from the env.
         recursion_scheduler_level_vk_hash: H256::from_str(&snark_wrapper_vk)
             .context("invalid SNARK wrapper VK")?,
     })
