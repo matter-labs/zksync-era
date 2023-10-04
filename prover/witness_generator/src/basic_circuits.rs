@@ -205,9 +205,7 @@ impl JobProcessor for BasicWitnessGenerator {
 
     async fn save_failure(&self, job_id: L1BatchNumber, _started_at: Instant, error: String) -> () {
         self.prover_connection_pool
-            .access_storage()
-            .await
-            .unwrap()
+            .access_storage().await.unwrap()
             .fri_witness_generator_dal()
             .mark_witness_job_failed(&error, job_id)
             .await;
@@ -231,8 +229,7 @@ impl JobProcessor for BasicWitnessGenerator {
                 job,
                 started_at,
                 config,
-            )
-            .await)
+            ).await)
         })
     }
 
@@ -450,26 +447,22 @@ async fn build_basic_circuits_witness_generator_input(
         .blocks_dal()
         .get_l1_batch_header(l1_batch_number)
         .await
-        .unwrap()
-        .unwrap();
+        .unwrap().unwrap();
     let initial_heap_content = connection
         .blocks_dal()
         .get_initial_bootloader_heap(l1_batch_number)
         .await
-        .unwrap()
-        .unwrap();
+        .unwrap().unwrap();
     let (_, previous_block_timestamp) = connection
         .blocks_dal()
         .get_l1_batch_state_root_and_timestamp(l1_batch_number - 1)
         .await
-        .unwrap()
-        .unwrap();
+        .unwrap().unwrap();
     let previous_block_hash = connection
         .blocks_dal()
         .get_l1_batch_state_root(l1_batch_number - 1)
         .await
-        .unwrap()
-        .expect("cannot generate witness before the root hash is computed");
+        .unwrap().expect("cannot generate witness before the root hash is computed");
     BasicCircuitWitnessGeneratorInput {
         block_number: l1_batch_number,
         previous_block_timestamp,
@@ -502,8 +495,7 @@ async fn generate_witness(
         .blocks_dal()
         .get_l1_batch_header(input.block_number)
         .await
-        .unwrap()
-        .unwrap();
+        .unwrap().unwrap();
 
     let previous_batch_with_metadata = connection
         .blocks_dal()
@@ -555,8 +547,7 @@ async fn generate_witness(
         .blocks_dal()
         .get_miniblock_range_of_l1_batch(input.block_number - 1)
         .await
-        .unwrap()
-        .expect("L1 batch should contain at least one miniblock");
+        .unwrap().expect("L1 batch should contain at least one miniblock");
     drop(connection);
 
     let mut tree = PrecalculatedMerklePathsProvider::new(
