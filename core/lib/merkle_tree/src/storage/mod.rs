@@ -161,7 +161,7 @@ impl TreeUpdater {
                         child_ref.is_leaf = false;
                         child_ref.version
                     } else {
-                        todo!()
+                        version // FIXME: not necessarily correct
                     };
                 let internal_node_version = moved_leaf_version.max(version);
 

@@ -195,9 +195,20 @@ impl Database for RocksDBWrapper {
         patch.manifest.serialize(&mut node_bytes);
         write_batch.put_cf(tree_cf, Self::MANIFEST_KEY, &node_bytes);
 
-        for (version, sub_patch) in patch.patches_by_version {
+        let all_patches = patch
+            .updated_patch
+            .map(|entry| (false, entry))
+            .into_iter()
+            .chain(
+                patch
+                    .patches_by_version
+                    .into_iter()
+                    .map(|entry| (true, entry)),
+            );
+
+        for (is_insert, (version, sub_patch)) in all_patches {
             let root_key = NodeKey::empty(version);
-            if sub_patch.operation.is_insert() {
+            if is_insert {
                 // Delete the key range corresponding to the entire new version. This removes
                 // potential garbage left after reverting the tree to a previous version.
                 let next_root_key = NodeKey::empty(version + 1);

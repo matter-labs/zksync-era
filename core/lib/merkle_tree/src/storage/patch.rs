@@ -19,18 +19,6 @@ use crate::{
 };
 
 #[derive(Debug)]
-pub(super) enum OperationKind {
-    Insert,
-    Update,
-}
-
-impl OperationKind {
-    pub fn is_insert(&self) -> bool {
-        matches!(self, Self::Insert)
-    }
-}
-
-#[derive(Debug)]
 pub(super) enum Operation {
     Insert { stale_keys: Vec<NodeKey> },
     Update,
@@ -40,19 +28,10 @@ impl Operation {
     pub fn insert(stale_keys: Vec<NodeKey>) -> Self {
         Self::Insert { stale_keys }
     }
-
-    fn kind(&self) -> OperationKind {
-        match self {
-            Self::Insert { .. } => OperationKind::Insert,
-            Self::Update => OperationKind::Update,
-        }
-    }
 }
 
 #[derive(Debug)]
-pub(super) struct VersionedPatchSet {
-    // FIXME: remove in favor of single "update" ops
-    pub operation: OperationKind,
+pub(super) struct PartialPatchSet {
     pub root: Option<Root>,
     // TODO (BFT-130): investigate most efficient ways to store key-value pairs:
     //   - `HashMap`s indexed by version
@@ -60,18 +39,10 @@ pub(super) struct VersionedPatchSet {
     pub nodes: HashMap<NodeKey, Node>,
 }
 
-impl VersionedPatchSet {
+impl PartialPatchSet {
     pub fn merge(&mut self, other: Self) {
-        match &other.operation {
-            OperationKind::Insert => {
-                // Replace this patch with the new one.
-                *self = other;
-            }
-            OperationKind::Update => {
-                self.root = other.root;
-                self.nodes.extend(other.nodes);
-            }
-        }
+        self.root = other.root;
+        self.nodes.extend(other.nodes);
     }
 }
 
@@ -79,7 +50,12 @@ impl VersionedPatchSet {
 #[derive(Debug, Default)]
 pub struct PatchSet {
     pub(super) manifest: Manifest,
-    pub(super) patches_by_version: HashMap<u64, VersionedPatchSet>,
+    /// Optional update to the existing tree versions.
+    /// INVARIANT: The updated version is lower than all new versions.
+    pub(super) updated_patch: Option<(u64, PartialPatchSet)>,
+    /// Patches for new versions keyed by the version.
+    /// INVARIANT: All `nodes` in new versions have `NodeKey.version` set to the respective version.
+    pub(super) patches_by_version: HashMap<u64, PartialPatchSet>,
     pub(super) stale_keys_by_version: HashMap<u64, Vec<NodeKey>>,
 }
 
@@ -87,6 +63,7 @@ impl PatchSet {
     pub(crate) fn from_manifest(manifest: Manifest) -> Self {
         Self {
             manifest,
+            updated_patch: None,
             patches_by_version: HashMap::new(),
             stale_keys_by_version: HashMap::new(),
         }
@@ -112,30 +89,39 @@ impl PatchSet {
         version: u64,
         root: Root,
         mut nodes: HashMap<NodeKey, Node>,
-        mut operation: Operation,
+        operation: Operation,
     ) -> Self {
         debug_assert_eq!(manifest.version_count, version + 1);
 
         nodes.shrink_to_fit(); // We never insert into `nodes` later
-        if let Operation::Insert { stale_keys } = &mut operation {
-            stale_keys.shrink_to_fit();
-        }
-        let versioned_patch = VersionedPatchSet {
-            operation: operation.kind(),
+        let partial_patch = PartialPatchSet {
             root: Some(root),
             nodes,
         };
+        let (updated_version, new_versions) = match &operation {
+            Operation::Insert { .. } => (None, HashMap::from([(version, partial_patch)])),
+            Operation::Update => (Some((version, partial_patch)), HashMap::new()),
+        };
+
         Self {
             manifest,
-            patches_by_version: HashMap::from([(version, versioned_patch)]),
+            updated_patch: updated_version,
+            patches_by_version: new_versions,
             stale_keys_by_version: match operation {
-                Operation::Insert { stale_keys } => HashMap::from([(version, stale_keys)]),
+                Operation::Insert { mut stale_keys } => {
+                    stale_keys.shrink_to_fit();
+                    HashMap::from([(version, stale_keys)])
+                }
                 Operation::Update => HashMap::new(),
             },
         }
     }
 
-    pub(super) fn is_responsible_for_version(&self, version: u64) -> bool {
+    pub(super) fn updated_version(&self) -> Option<u64> {
+        Some(self.updated_patch.as_ref()?.0)
+    }
+
+    pub(super) fn is_new_version(&self, version: u64) -> bool {
         version >= self.manifest.version_count // this patch truncates `version`
             || self.patches_by_version.contains_key(&version)
     }
