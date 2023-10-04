@@ -2,11 +2,13 @@
 
 use crate::{
     hasher::HashTree,
-    storage::{Database, PatchSet, Storage},
+    storage::{PatchSet, PruneDatabase, PrunePatchSet, Storage},
     types::{Key, Manifest, Root, TreeTags, ValueHash},
     MerkleTree,
 };
 use zksync_crypto::hasher::blake2::Blake2Hasher;
+
+// FIXME: add logging
 
 /// Entry in a Merkle tree used during recovery.
 #[derive(Debug, Clone)]
@@ -31,7 +33,7 @@ pub struct MerkleTreeRecovery<'a, DB> {
     recovered_version: u64,
 }
 
-impl<'a, DB: Database> MerkleTreeRecovery<'a, DB> {
+impl<'a, DB: PruneDatabase> MerkleTreeRecovery<'a, DB> {
     /// Creates tree recovery with the default Blake2 hasher.
     ///
     /// # Panics
@@ -116,7 +118,7 @@ impl<'a, DB: Database> MerkleTreeRecovery<'a, DB> {
     }
 
     /// Finalizes the recovery process marking it as complete in the tree manifest.
-    #[allow(clippy::missing_panics_doc)]
+    #[allow(clippy::missing_panics_doc, clippy::range_plus_one)]
     pub fn finalize(mut self) -> MerkleTree<'a, DB> {
         let mut manifest = self.db.manifest().unwrap();
         // ^ `unwrap()` is safe: manifest is inserted into the DB on creation
@@ -125,6 +127,14 @@ impl<'a, DB: Database> MerkleTreeRecovery<'a, DB> {
             .get_or_insert_with(|| TreeTags::new(self.hasher))
             .is_recovering = false;
         self.db.apply_patch(PatchSet::from_manifest(manifest));
+
+        // Prune all accumulated stale keys.
+        let stale_keys = self.db.stale_keys(self.recovered_version);
+        let prune_patch = PrunePatchSet::new(
+            stale_keys,
+            self.recovered_version..self.recovered_version + 1,
+        );
+        self.db.prune(prune_patch);
 
         // We don't need additional checks since they were performed in the constructor
         MerkleTree {

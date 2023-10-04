@@ -2,7 +2,7 @@
 
 use zksync_merkle_tree::{
     recovery::{MerkleTreeRecovery, RecoveryEntry},
-    Database, PatchSet,
+    PatchSet, PruneDatabase,
 };
 
 use crate::common::KVS_AND_HASH;
@@ -34,7 +34,7 @@ fn recovery_basics() {
     tree.verify_consistency(recovered_version).unwrap();
 }
 
-fn test_recovery_in_chunks<DB: Database>(mut create_db: impl FnMut() -> DB) {
+fn test_recovery_in_chunks<DB: PruneDatabase>(mut create_db: impl FnMut() -> DB) {
     let (kvs, expected_hash) = &*KVS_AND_HASH;
     let recovery_entries = kvs
         .iter()

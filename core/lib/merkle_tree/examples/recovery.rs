@@ -9,7 +9,7 @@ use std::time::Instant;
 use zksync_crypto::hasher::blake2::Blake2Hasher;
 use zksync_merkle_tree::{
     recovery::{MerkleTreeRecovery, RecoveryEntry},
-    Database, HashTree, Key, PatchSet, RocksDBWrapper, ValueHash,
+    HashTree, Key, PatchSet, PruneDatabase, RocksDBWrapper, ValueHash,
 };
 use zksync_storage::RocksDB;
 
@@ -42,7 +42,7 @@ impl Cli {
 
         let (mut mock_db, mut rocksdb);
         let mut _temp_dir = None;
-        let db: &mut dyn Database = if self.in_memory {
+        let db: &mut dyn PruneDatabase = if self.in_memory {
             mock_db = PatchSet::default();
             &mut mock_db
         } else {
