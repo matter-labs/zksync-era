@@ -109,7 +109,14 @@ impl TreeUpdater {
         leaf_index_fn: impl FnOnce() -> u64,
     ) -> (TreeLogEntry, NewLeafData) {
         let version = self.patch_set.root_version();
-        self.insert_versioned(version, key, value_hash, parent_nibbles, leaf_index_fn)
+        self.insert_versioned(
+            version,
+            true,
+            key,
+            value_hash,
+            parent_nibbles,
+            leaf_index_fn,
+        )
     }
 
     /// Inserts or updates a value hash for the specified `key`. This implementation
@@ -136,6 +143,7 @@ impl TreeUpdater {
     fn insert_versioned(
         &mut self,
         version: u64,
+        update_moved_leaf_version: bool,
         key: Key,
         value_hash: ValueHash,
         parent_nibbles: &Nibbles,
@@ -152,17 +160,13 @@ impl TreeUpdater {
             }
 
             TraverseOutcome::LeafMismatch(nibbles, leaf) => {
-                let moved_leaf_version =
-                    if let Some((parent_nibbles, last_nibble)) = nibbles.split_last() {
-                        let child_ref = self
-                            .patch_set
-                            .child_ref_mut(&parent_nibbles, last_nibble)
-                            .unwrap();
-                        child_ref.is_leaf = false;
-                        child_ref.version
-                    } else {
-                        version // FIXME: not necessarily correct
-                    };
+                let moved_leaf_version = self.update_moved_leaf_ref(&nibbles);
+                let moved_leaf_version = if update_moved_leaf_version {
+                    // We still need to call `update_moved_leaf_ref()` to change the `ChildRef.is_leaf` flag.
+                    version
+                } else {
+                    moved_leaf_version.expect("Leaf node must not be root")
+                };
                 let internal_node_version = moved_leaf_version.max(version);
 
                 let mut nibble_idx = nibbles.nibble_count();
@@ -244,6 +248,20 @@ impl TreeUpdater {
         }
 
         (log, leaf_data)
+    }
+
+    /// Returns version of the moved leaf.
+    fn update_moved_leaf_ref(&mut self, leaf_nibbles: &Nibbles) -> Option<u64> {
+        if let Some((parent_nibbles, last_nibble)) = leaf_nibbles.split_last() {
+            let child_ref = self
+                .patch_set
+                .child_ref_mut(&parent_nibbles, last_nibble)
+                .unwrap();
+            child_ref.is_leaf = false;
+            Some(child_ref.version)
+        } else {
+            None
+        }
     }
 }
 
@@ -330,9 +348,16 @@ impl<'a, DB: Database + ?Sized> Storage<'a, DB> {
             Some((leaf, nibbles)) => (Some(leaf.full_key), nibbles),
             None => (None, Nibbles::EMPTY),
         };
+        self.updater.patch_set.ensure_internal_root_node();
+        // ^ Necessary to retain information about all node versions in `ChildRef`s
 
         let extend_patch_latency = BLOCK_TIMINGS.extend_patch.start();
+        let root_version = self.updater.patch_set.root_version();
         for entry in recovery_entries {
+            assert!(
+                entry.version <= root_version,
+                "Entry {entry:?} has version exceeding the recovered version {root_version}"
+            );
             if let Some(prev_key) = prev_key {
                 assert!(
                     entry.key > prev_key,
@@ -345,6 +370,7 @@ impl<'a, DB: Database + ?Sized> Storage<'a, DB> {
 
             self.updater.insert_versioned(
                 entry.version,
+                false,
                 entry.key,
                 entry.value,
                 &prev_nibbles,

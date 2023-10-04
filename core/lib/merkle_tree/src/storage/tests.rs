@@ -501,7 +501,181 @@ fn tree_handles_keys_at_terminal_level() {
 }
 
 #[test]
-fn recovery_workflow() {
+fn recovery_persists_node_versions() {
+    let recovery_version = 100;
+    let recovery_entries = (0_u64..10).map(|i| RecoveryEntry {
+        key: Key::from(i) << 252, // the first key nibbles are distinct
+        value: ValueHash::zero(),
+        leaf_index: i + 1,
+        version: i % 3,
+    });
+    let patch = Storage::new(&PatchSet::default(), &(), recovery_version, false)
+        .extend_during_recovery(recovery_entries.collect());
+    assert!(patch.patches_by_version.is_empty());
+    let (updated_version, patch) = patch.updated_patch.unwrap();
+    assert_eq!(updated_version, recovery_version);
+
+    let root = patch.root.unwrap();
+    assert_eq!(root.leaf_count(), 10);
+    let Root::Filled {
+        node: Node::Internal(root_node),
+        ..
+    } = &root
+    else {
+        panic!("Unexpected root: {root:?}");
+    };
+    for nibble in 0..10 {
+        let expected_version = u64::from(nibble % 3);
+        assert_eq!(
+            root_node.child_ref(nibble).unwrap().version,
+            expected_version
+        );
+        let expected_key = Nibbles::single(nibble).with_version(expected_version);
+        assert_matches!(patch.nodes[&expected_key], Node::Leaf { .. });
+    }
+}
+
+fn test_recovery_with_node_hierarchy(chunk_size: usize) {
+    let recovery_version = 100;
+    let recovery_entries = (0_u64..256).map(|i| RecoveryEntry {
+        key: Key::from(i) << 248, // the first two key nibbles are distinct
+        value: ValueHash::zero(),
+        leaf_index: i + 1,
+        version: i % 7,
+    });
+    let recovery_entries: Vec<_> = recovery_entries.collect();
+
+    let mut db = PatchSet::default();
+    for recovery_chunk in recovery_entries.chunks(chunk_size) {
+        let patch = Storage::new(&db, &(), recovery_version, false)
+            .extend_during_recovery(recovery_chunk.to_vec());
+        db.apply_patch(patch);
+    }
+    let (_, patch) = db.updated_patch.unwrap();
+
+    let root = patch.root.unwrap();
+    assert_eq!(root.leaf_count(), 256);
+    let Root::Filled {
+        node: Node::Internal(root_node),
+        ..
+    } = &root
+    else {
+        panic!("Unexpected root: {root:?}");
+    };
+
+    for nibble in 0..16 {
+        let expected_version = 6; // all upper-level nodes have at least one child with max version
+        let child_ref = root_node.child_ref(nibble).unwrap();
+        assert!(!child_ref.is_leaf);
+        assert_eq!(child_ref.version, expected_version);
+
+        let internal_node_key = Nibbles::single(nibble).with_version(expected_version);
+        let node = &patch.nodes[&internal_node_key];
+        let Node::Internal(node) = node else {
+            panic!("Unexpected upper-level node: {node:?}");
+        };
+        assert_eq!(node.child_count(), 16);
+
+        for (second_nibble, child_ref) in node.children() {
+            let i = nibble * 16 + second_nibble;
+            let expected_version = u64::from(i % 7);
+            assert!(child_ref.is_leaf);
+            assert_eq!(child_ref.version, expected_version);
+            let leaf_key = Nibbles::new(&(Key::from(i) << 248), 2).with_version(expected_version);
+            assert_matches!(patch.nodes[&leaf_key], Node::Leaf { .. });
+        }
+    }
+}
+
+#[test]
+fn recovery_persists_node_versions_with_node_hierarchy() {
+    test_recovery_with_node_hierarchy(256); // single chunk
+    for chunk_size in [4, 5, 20, 69, 127, 128] {
+        println!("Testing recovery with chunk size {chunk_size}");
+        test_recovery_with_node_hierarchy(chunk_size);
+    }
+}
+
+fn test_recovery_with_deep_node_hierarchy(chunk_size: usize) {
+    let recovery_version = 1_000;
+    let recovery_entries = (0_u64..256).map(|i| RecoveryEntry {
+        key: Key::from(i), // the last two key nibbles are distinct
+        value: ValueHash::zero(),
+        leaf_index: i + 1,
+        version: i,
+    });
+    let recovery_entries: Vec<_> = recovery_entries.collect();
+
+    let mut db = PatchSet::default();
+    for recovery_chunk in recovery_entries.chunks(chunk_size) {
+        let patch = Storage::new(&db, &(), recovery_version, false)
+            .extend_during_recovery(recovery_chunk.to_vec());
+        db.apply_patch(patch);
+    }
+    let (_, patch) = db.updated_patch.unwrap();
+
+    let root = patch.root.unwrap();
+    assert_eq!(root.leaf_count(), 256);
+    let Root::Filled {
+        node: Node::Internal(root_node),
+        ..
+    } = &root
+    else {
+        panic!("Unexpected root: {root:?}");
+    };
+    assert_eq!(root_node.child_count(), 1);
+    let child_ref = root_node.child_ref(0).unwrap();
+    assert!(!child_ref.is_leaf);
+    assert_eq!(child_ref.version, 255);
+
+    for (node_key, node) in patch.nodes {
+        let nibble_count = node_key.nibbles.nibble_count();
+        if nibble_count < 64 {
+            let Node::Internal(node) = node else {
+                panic!("Unexpected node at {node_key}: {node:?}");
+            };
+            assert_eq!(node.child_count(), if nibble_count < 62 { 1 } else { 16 });
+            let expected_version = if nibble_count <= 62 {
+                255
+            } else {
+                let last_byte = node_key.nibbles.bytes()[31];
+                u64::from(last_byte | 0x0f)
+            };
+            assert_eq!(
+                node_key.version, expected_version,
+                "Unexpected version for {node_key}"
+            );
+            let version_by_children = node
+                .child_refs()
+                .map(|child_ref| {
+                    assert_eq!(child_ref.is_leaf, nibble_count == 63);
+                    child_ref.version
+                })
+                .max();
+            assert_eq!(version_by_children, Some(expected_version));
+        } else {
+            let Node::Leaf(leaf) = node else {
+                panic!("Unexpected node at {node_key}: {node:?}");
+            };
+            assert_eq!(node_key.version, leaf.leaf_index - 1);
+        }
+    }
+}
+
+#[test]
+fn recovery_persists_node_versions_with_deep_node_hierarchy() {
+    test_recovery_with_deep_node_hierarchy(256);
+    // FIXME: doesn't work because of accumulated garbage
+    /*
+    for chunk_size in [5, 7, 20, 59, 127, 128] {
+        println!("Testing recovery with chunk size {chunk_size}");
+        test_recovery_with_deep_node_hierarchy(chunk_size);
+    }
+    */
+}
+
+#[test]
+fn recovery_workflow_with_multiple_stages() {
     let mut db = PatchSet::default();
     let recovery_version = 100;
     let recovery_entries = (0_u64..100).map(|i| RecoveryEntry {

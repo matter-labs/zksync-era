@@ -409,6 +409,8 @@ impl WorkingPatchSet {
         record_stale_keys: bool,
         hasher: &dyn HashTree,
     ) -> (ValueHash, PatchSet, HashingStats) {
+        // FIXME: refactor how node changes are tracked?
+
         self.remove_unchanged_nodes();
         let operation = if record_stale_keys {
             Operation::insert(self.stale_keys())
