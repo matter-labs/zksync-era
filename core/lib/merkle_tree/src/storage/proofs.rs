@@ -215,7 +215,7 @@ impl TreeUpdater {
         mut root: InternalNode,
         logs: Vec<(usize, TreeLogEntryWithProof<MerklePath>)>,
     ) -> Vec<TreeLogEntryWithProof> {
-        let version = self.patch_set.version();
+        let version = self.patch_set.root_version();
         let mut root_hash = root.hash(hasher, 0);
 
         // Check the kind of each of subtrees. This is used later to ensure the correct

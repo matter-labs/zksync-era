@@ -51,6 +51,7 @@ impl Operation {
 
 #[derive(Debug)]
 pub(super) struct VersionedPatchSet {
+    // FIXME: remove in favor of single "update" ops
     pub operation: OperationKind,
     pub root: Option<Root>,
     // TODO (BFT-130): investigate most efficient ways to store key-value pairs:
@@ -224,7 +225,7 @@ pub(crate) struct LoadAncestorsResult {
 /// a Merkle tree.
 #[derive(Debug)]
 pub(crate) struct WorkingPatchSet {
-    version: u64,
+    root_version: u64,
     // Group changes by `nibble_count` (which is linearly tied to the tree depth:
     // `depth == nibble_count * 4`) so that we can compute hashes for all changed nodes
     // in a single traversal in `Self::finalize()`.
@@ -232,23 +233,23 @@ pub(crate) struct WorkingPatchSet {
 }
 
 impl WorkingPatchSet {
-    pub fn new(version: u64, root: Root) -> Self {
+    pub fn new(root_version: u64, root: Root) -> Self {
         let changes_by_nibble_count = match root {
             Root::Filled { node, .. } => {
-                let root_node = WorkingNode::changed(node, version.checked_sub(1));
+                let root_node = WorkingNode::changed(node, root_version.checked_sub(1));
                 let root_level = [(*Nibbles::EMPTY.bytes(), root_node)];
                 vec![HashMap::from_iter(root_level)]
             }
             Root::Empty => Vec::new(),
         };
         Self {
-            version,
+            root_version,
             changes_by_nibble_count,
         }
     }
 
-    pub fn version(&self) -> u64 {
-        self.version
+    pub fn root_version(&self) -> u64 {
+        self.root_version
     }
 
     pub fn get(&self, nibbles: &Nibbles) -> Option<&Node> {
@@ -330,7 +331,7 @@ impl WorkingPatchSet {
                 let leaf = *leaf;
                 let first_nibble = Nibbles::nibble(&leaf.full_key, 0);
                 let mut internal_node = InternalNode::default();
-                internal_node.insert_child_ref(first_nibble, ChildRef::leaf(self.version));
+                internal_node.insert_child_ref(first_nibble, ChildRef::leaf(self.root_version));
                 self.insert(Nibbles::EMPTY, internal_node.clone().into());
                 self.insert(Nibbles::new(&leaf.full_key, 1), leaf.into());
                 internal_node
@@ -346,7 +347,7 @@ impl WorkingPatchSet {
     /// Splits this patch set by the first nibble of the contained keys.
     pub fn split(self) -> [Self; SUBTREE_COUNT] {
         let mut parts = [(); SUBTREE_COUNT].map(|_| Self {
-            version: self.version,
+            root_version: self.root_version,
             changes_by_nibble_count: vec![HashMap::new(); self.changes_by_nibble_count.len()],
         });
 
@@ -369,7 +370,7 @@ impl WorkingPatchSet {
     }
 
     pub fn merge(&mut self, other: Self) {
-        debug_assert_eq!(self.version, other.version);
+        debug_assert_eq!(self.root_version, other.root_version);
 
         let other_len = other.changes_by_nibble_count.len();
         if self.changes_by_nibble_count.len() < other_len {
@@ -433,7 +434,7 @@ impl WorkingPatchSet {
         let mut changes_by_nibble_count = self.changes_by_nibble_count;
         if changes_by_nibble_count.is_empty() {
             // The tree is empty and there is no root present.
-            let patch = PatchSet::for_empty_root(manifest, self.version);
+            let patch = PatchSet::for_empty_root(manifest, self.root_version);
             return (hasher.empty_tree_hash(), patch, metrics);
         }
         let len = changes_by_nibble_count.iter().map(HashMap::len).sum();
@@ -457,7 +458,9 @@ impl WorkingPatchSet {
                 .collect();
 
             for (nibbles, node_hash, node) in hashed_nodes {
-                if let Some(upper_level_changes) = changes_by_nibble_count.last_mut() {
+                let node_version = if let Some(upper_level_changes) =
+                    changes_by_nibble_count.last_mut()
+                {
                     let (parent_nibbles, last_nibble) = nibbles.split_last().unwrap();
                     let parent = upper_level_changes.get_mut(parent_nibbles.bytes()).unwrap();
                     let Node::Internal(parent) = &mut parent.inner else {
@@ -469,15 +472,15 @@ impl WorkingPatchSet {
                     // ^ `unwrap()` is safe by construction: the parent node must reference
                     // the currently considered child.
                     self_ref.hash = node_hash;
+                    self_ref.version
                 } else {
                     // We're at the root node level.
                     let root = Root::new(leaf_count, node.inner);
                     let patch =
-                        PatchSet::new(manifest, self.version, root, patched_nodes, operation);
+                        PatchSet::new(manifest, self.root_version, root, patched_nodes, operation);
                     return (node_hash, patch, metrics);
-                }
-
-                patched_nodes.insert(nibbles.with_version(self.version), node.inner);
+                };
+                patched_nodes.insert(nibbles.with_version(node_version), node.inner);
             }
         }
         unreachable!("We should have returned when the root node was encountered above");
@@ -494,7 +497,7 @@ impl WorkingPatchSet {
         let operation = Operation::insert(self.stale_keys());
 
         let Some(root) = self.take_root() else {
-            return PatchSet::for_empty_root(manifest, self.version);
+            return PatchSet::for_empty_root(manifest, self.root_version);
         };
         let root = Root::new(leaf_count, root);
 
@@ -503,10 +506,17 @@ impl WorkingPatchSet {
             let nibble_count = i + 1;
             level.into_iter().map(move |(nibbles, node)| {
                 let nibbles = Nibbles::from_parts(nibbles, nibble_count);
-                (nibbles.with_version(self.version), node.inner)
+                (nibbles.with_version(self.root_version), node.inner)
+                // ^ **NB.** This `version` is only correct for insert operations!
             })
         });
-        PatchSet::new(manifest, self.version, root, nodes.collect(), operation)
+        PatchSet::new(
+            manifest,
+            self.root_version,
+            root,
+            nodes.collect(),
+            operation,
+        )
     }
 
     /// Loads ancestor nodes for all keys in `sorted_keys`.

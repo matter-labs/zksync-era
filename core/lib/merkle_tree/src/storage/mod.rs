@@ -101,6 +101,17 @@ impl TreeUpdater {
         Some((leaf, load_result.longest_prefixes[0]))
     }
 
+    fn insert(
+        &mut self,
+        key: Key,
+        value_hash: ValueHash,
+        parent_nibbles: &Nibbles,
+        leaf_index_fn: impl FnOnce() -> u64,
+    ) -> (TreeLogEntry, NewLeafData) {
+        let version = self.patch_set.root_version();
+        self.insert_versioned(version, key, value_hash, parent_nibbles, leaf_index_fn)
+    }
+
     /// Inserts or updates a value hash for the specified `key`. This implementation
     /// is almost verbatim the algorithm described in the Jellyfish Merkle tree white paper.
     /// The algorithm from the paper is as follows:
@@ -122,14 +133,14 @@ impl TreeUpdater {
     /// We don't update node hashes; this would lead to a significant compute overhead (internal
     /// nodes on upper levels are updated multiple times in a block). Instead, we recompute
     /// hashes for all updated nodes in [`Self::finalize()`].
-    fn insert(
+    fn insert_versioned(
         &mut self,
+        version: u64,
         key: Key,
         value_hash: ValueHash,
         parent_nibbles: &Nibbles,
         leaf_index_fn: impl FnOnce() -> u64,
     ) -> (TreeLogEntry, NewLeafData) {
-        let version = self.patch_set.version();
         let traverse_outcome = self.patch_set.traverse(key, parent_nibbles);
         let (log, leaf_data) = match traverse_outcome {
             TraverseOutcome::LeafMatch(nibbles, mut leaf) => {
@@ -141,12 +152,18 @@ impl TreeUpdater {
             }
 
             TraverseOutcome::LeafMismatch(nibbles, leaf) => {
-                if let Some((parent_nibbles, last_nibble)) = nibbles.split_last() {
-                    self.patch_set
-                        .child_ref_mut(&parent_nibbles, last_nibble)
-                        .unwrap()
-                        .is_leaf = false;
-                }
+                let moved_leaf_version =
+                    if let Some((parent_nibbles, last_nibble)) = nibbles.split_last() {
+                        let child_ref = self
+                            .patch_set
+                            .child_ref_mut(&parent_nibbles, last_nibble)
+                            .unwrap();
+                        child_ref.is_leaf = false;
+                        child_ref.version
+                    } else {
+                        todo!()
+                    };
+                let internal_node_version = moved_leaf_version.max(version);
 
                 let mut nibble_idx = nibbles.nibble_count();
                 loop {
@@ -155,12 +172,18 @@ impl TreeUpdater {
                     let mut node = InternalNode::default();
                     if moved_leaf_nibble == new_leaf_nibble {
                         // Insert a path of internal nodes with a single child.
-                        node.insert_child_ref(new_leaf_nibble, ChildRef::internal(version));
+                        node.insert_child_ref(
+                            new_leaf_nibble,
+                            ChildRef::internal(internal_node_version),
+                        );
                     } else {
                         // Insert a diverging internal node with 2 children for the existing
                         // and the new leaf.
                         node.insert_child_ref(new_leaf_nibble, ChildRef::leaf(version));
-                        node.insert_child_ref(moved_leaf_nibble, ChildRef::leaf(version));
+                        node.insert_child_ref(
+                            moved_leaf_nibble,
+                            ChildRef::leaf(moved_leaf_version),
+                        );
                     }
                     let node_nibbles = Nibbles::new(&key, nibble_idx);
                     self.insert_node(node_nibbles, node, true);
@@ -212,10 +235,11 @@ impl TreeUpdater {
         // Traverse nodes up to the root level and update `ChildRef.version`.
         let mut cursor = traverse_outcome.position();
         while let Some((parent_nibbles, last_nibble)) = cursor.split_last() {
-            self.patch_set
+            let child_ref = self
+                .patch_set
                 .child_ref_mut(&parent_nibbles, last_nibble)
-                .unwrap()
-                .version = version;
+                .unwrap();
+            child_ref.version = child_ref.version.max(version);
             cursor = parent_nibbles;
         }
 
@@ -319,8 +343,13 @@ impl<'a, DB: Database + ?Sized> Storage<'a, DB> {
             let key_nibbles = Nibbles::new(&entry.key, prev_nibbles.nibble_count());
             prev_nibbles = prev_nibbles.common_prefix(&key_nibbles);
 
-            self.updater
-                .insert(entry.key, entry.value, &prev_nibbles, || entry.leaf_index);
+            self.updater.insert_versioned(
+                entry.version,
+                entry.key,
+                entry.value,
+                &prev_nibbles,
+                || entry.leaf_index,
+            );
             self.leaf_count += 1;
         }
         extend_patch_latency.observe();

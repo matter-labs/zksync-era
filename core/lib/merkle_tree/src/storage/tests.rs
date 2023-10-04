@@ -49,7 +49,7 @@ pub(super) fn create_patch(
 fn inserting_entries_in_empty_database() {
     let db = PatchSet::default();
     let mut updater = TreeUpdater::new(0, Root::Empty);
-    assert_eq!(updater.patch_set.version(), 0);
+    assert_eq!(updater.patch_set.root_version(), 0);
     assert!(updater.patch_set.get(&Nibbles::EMPTY).is_none());
 
     let sorted_keys = SortedKeys::new([FIRST_KEY, SECOND_KEY, THIRD_KEY].into_iter());
@@ -504,20 +504,22 @@ fn tree_handles_keys_at_terminal_level() {
 fn recovery_workflow() {
     let mut db = PatchSet::default();
     let recovery_version = 100;
-    let recovery_entries = (0_u32..100).map(|i| RecoveryEntry {
+    let recovery_entries = (0_u64..100).map(|i| RecoveryEntry {
         key: Key::from(i),
         value: ValueHash::zero(),
-        leaf_index: u64::from(i),
+        leaf_index: i,
+        version: i % recovery_version,
     });
     let patch = Storage::new(&db, &(), recovery_version, false)
         .extend_during_recovery(recovery_entries.collect());
     assert_eq!(patch.root(recovery_version).unwrap().leaf_count(), 100);
     db.apply_patch(patch);
 
-    let more_recovery_entries = (100_u32..200).map(|i| RecoveryEntry {
+    let more_recovery_entries = (100_u64..200).map(|i| RecoveryEntry {
         key: Key::from(i),
         value: ValueHash::zero(),
-        leaf_index: u64::from(i),
+        leaf_index: i,
+        version: i % recovery_version,
     });
 
     let patch = Storage::new(&db, &(), recovery_version, false)
