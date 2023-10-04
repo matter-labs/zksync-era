@@ -1,5 +1,5 @@
-use crate::{get_recursive_layer_vk_for_circuit_type, get_snark_vk};
 use crate::utils::get_leaf_vk_params;
+use crate::{get_recursive_layer_vk_for_circuit_type, get_snark_vk};
 use anyhow::Context as _;
 use once_cell::sync::Lazy;
 use std::str::FromStr;
@@ -46,10 +46,6 @@ fn circuit_commitments() -> anyhow::Result<L1VerifierConfig> {
         recursion_scheduler_level_vk_hash: H256::from_str(&snark_wrapper_vk)
             .context("invalid SNARK wrapper VK")?,
     })
-}
-
-pub get_snark_vk_hash() -> anyhow::Result<H256> {
-    let snark_vk = get_snark_vk()?;
 }
 
 pub fn generate_commitments() -> anyhow::Result<VkCommitments> {
