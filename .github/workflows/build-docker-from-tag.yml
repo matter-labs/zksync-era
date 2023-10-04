@@ -40,13 +40,17 @@ jobs:
             git_tag="${{ inputs.tag_name }}"
           fi
           version=$(cut -d "-" -f2 <<< ${git_tag})
+          echo "image_tag=${git_tag}" >> $GITHUB_OUTPUT
           echo "image_tag_suffix=${version}" >> $GITHUB_OUTPUT
+          # Debug output
+          echo "image_tag=${git_tag}"
+          echo "image_tag_suffix=${version}"
 
   build-push-core-images:
     name: Build and push image
     needs: [setup]
     uses: ./.github/workflows/build-core-template.yml
-    if: contains(github.ref_name, 'core')
+    if: contains(needs.setup.outputs.image_tag, 'core')
     secrets:
       DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -58,7 +62,7 @@ jobs:
     name: Build and push image
     needs: [setup]
     uses: ./.github/workflows/build-prover-template.yml
-    if: contains(github.ref_name, 'prover')
+    if: contains(needs.setup.outputs.image_tag, 'prover')
     with:
       image_tag: ${{ needs.setup.outputs.image_tag }}
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
@@ -71,7 +75,7 @@ jobs:
     name: Build GAR prover
     needs: [setup, build-push-prover-images]
     uses: ./.github/workflows/build-gar-reusable.yml
-    if: contains(github.ref_name, 'prover')
+    if: contains(needs.setup.outputs.image_tag, 'prover')
     with:
       setup_keys_id: 4989f12
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
@@ -81,7 +85,7 @@ jobs:
     name: Build GAR prover FRI GPU
     needs: [setup, build-push-prover-images]
     uses: ./.github/workflows/build-prover-fri-gpu-gar.yml
-    if: contains(github.ref_name, 'prover')
+    if: contains(needs.setup.outputs.image_tag, 'prover')
     with:
       setup_keys_id: 2d33a27-gpu
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
