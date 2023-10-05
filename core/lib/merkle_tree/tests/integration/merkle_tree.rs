@@ -566,7 +566,7 @@ mod rocksdb {
     use std::collections::BTreeMap;
 
     use super::*;
-    use zksync_merkle_tree::{MerkleTreeColumnFamily, RocksDBWrapper};
+    use zksync_merkle_tree::{MerkleTreeColumnFamily, MerkleTreePruner, RocksDBWrapper};
     use zksync_storage::RocksDB;
 
     #[derive(Debug)]
@@ -631,14 +631,34 @@ mod rocksdb {
             let raw_db = db.into_inner();
             let snapshot_name = format!("db-snapshot-{chunk_size}-chunked-commits");
             insta::assert_yaml_snapshot!(snapshot_name, DatabaseSnapshot::new(&raw_db));
+            db = clean_db(raw_db);
+        }
+    }
 
-            // Clear the entire database instead of using `MerkleTree::truncate_versions()`
-            // so that it doesn't contain any junk that can influence snapshots.
-            let mut batch = raw_db.new_write_batch();
-            let cf = MerkleTreeColumnFamily::Tree;
-            batch.delete_range_cf(cf, (&[] as &[_])..&u64::MAX.to_be_bytes());
-            raw_db.write(batch).unwrap();
-            db = RocksDBWrapper::from(raw_db);
+    fn clean_db(raw_db: RocksDB<MerkleTreeColumnFamily>) -> RocksDBWrapper {
+        // Clear the entire database instead of using `MerkleTree::truncate_versions()`
+        // so that it doesn't contain any junk that can influence snapshots.
+        let mut batch = raw_db.new_write_batch();
+        let cf = MerkleTreeColumnFamily::Tree;
+        batch.delete_range_cf(cf, (&[] as &[_])..&u64::MAX.to_be_bytes());
+        raw_db.write(batch).unwrap();
+        RocksDBWrapper::from(raw_db)
+    }
+
+    #[test]
+    fn snapshot_for_pruned_tree() {
+        let Harness { mut db, dir: _dir } = Harness::new();
+        for chunk_size in [3, 8, 21] {
+            test_intermediate_commits(&mut db, chunk_size);
+            let (mut pruner, _) = MerkleTreePruner::new(&mut db, 0);
+            pruner.run_once();
+
+            let raw_db = db.into_inner();
+            let snapshot_name = format!("db-snapshot-{chunk_size}-chunked-commits-pruned");
+            let db_snapshot = DatabaseSnapshot::new(&raw_db);
+            assert!(db_snapshot.stale_keys.is_empty());
+            insta::assert_yaml_snapshot!(snapshot_name, db_snapshot);
+            db = clean_db(raw_db);
         }
     }
 

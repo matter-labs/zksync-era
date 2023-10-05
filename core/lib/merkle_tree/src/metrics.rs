@@ -296,7 +296,7 @@ struct PruningMetrics {
 static PRUNING_METRICS: Global<PruningMetrics> = Global::new();
 
 #[derive(Debug)]
-pub(crate) struct PruningStats {
+pub struct PruningStats {
     pub target_retained_version: u64,
     pub pruned_key_count: usize,
     pub deleted_stale_key_versions: ops::Range<u64>,
