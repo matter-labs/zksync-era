@@ -20,7 +20,8 @@ use std::{collections::HashMap, convert::TryInto, mem, path::Path, time::Instant
 
 use zksync_dal::StorageProcessor;
 use zksync_storage::{db::NamedColumnFamily, RocksDB};
-use zksync_types::{L1BatchNumber, StorageKey, StorageValue, H256};
+use zksync_types::{L1BatchNumber, StorageKey, StorageValue, H256, U256};
+use zksync_utils::{h256_to_u256, u256_to_h256};
 
 mod metrics;
 
@@ -61,7 +62,7 @@ impl NamedColumnFamily for StateKeeperColumnFamily {
 pub struct RocksdbStorage {
     db: RocksDB<StateKeeperColumnFamily>,
     pending_patch: InMemoryStorage,
-    enum_index_migration_chunks: u16,
+    enum_index_migration_chunk_size: usize,
 }
 
 impl RocksdbStorage {
@@ -75,20 +76,20 @@ impl RocksdbStorage {
         Self {
             db,
             pending_patch: InMemoryStorage::default(),
-            enum_index_migration_chunks: 0,
+            enum_index_migration_chunk_size: 0,
         }
     }
 
     /// Creates a new storage with the provided RocksDB `path` and enum index migration settings.
-    pub fn new_with_enum_index_migration_chunks(
+    pub fn new_with_enum_index_migration_chunk_size(
         path: &Path,
-        enum_index_migration_chunks: u16,
+        enum_index_migration_chunk_size: usize,
     ) -> Self {
         let db = RocksDB::new(path, true);
         Self {
             db,
             pending_patch: InMemoryStorage::default(),
-            enum_index_migration_chunks,
+            enum_index_migration_chunk_size,
         }
     }
 
@@ -187,44 +188,49 @@ impl RocksdbStorage {
     }
 
     async fn save_missing_enum_indices(&self, conn: &mut StorageProcessor<'_>) {
-        if let (Some(start_from), true) = (
+        let (Some(start_from), true) = (
             self.enum_migration_start_from(),
-            self.enum_index_migration_chunks > 0,
-        ) {
-            let started_at = Instant::now();
-            let chunk_from = u16::from_be_bytes(start_from);
-            let chunk_to = chunk_from.saturating_add(self.enum_index_migration_chunks - 1);
-            tracing::info!("RocksDB enum index migration is not finished, processing chunks {chunk_from}..={chunk_to}");
+            self.enum_index_migration_chunk_size > 0,
+        ) else {
+            return;
+        };
 
-            let mut write_batch = self.db.new_write_batch();
-            let mut number_of_keys_migrated = 0;
-            for chunk in chunk_from..=chunk_to {
-                let (keys, values): (Vec<_>, Vec<_>) = self
-                    .db
-                    .prefix_iterator_cf(StateKeeperColumnFamily::State, &chunk.to_be_bytes())
-                    .filter_map(|(key, value)| {
-                        (key.as_ref() != Self::BLOCK_NUMBER_KEY
-                            && key.as_ref() != Self::ENUM_INDEX_MIGRATION_PROGRESS_KEY
-                            && key.as_ref() != Self::ENUM_INDEX_MIGRATION_FINISHED
-                            && value.len() != 40)
-                            .then(|| (H256::from_slice(&key), H256::from_slice(&value[..32])))
-                    })
-                    .unzip();
-                let indices = conn
-                    .storage_logs_dedup_dal()
-                    .enum_indices_for_keys(&keys)
-                    .await;
-                number_of_keys_migrated += indices.len();
-                for ((key, value), index) in keys.into_iter().zip(values).zip(indices) {
-                    write_batch.put_cf(
-                        StateKeeperColumnFamily::State,
-                        key.as_bytes(),
-                        &Self::serialize_state_value(value, index),
-                    );
-                }
-            }
+        let started_at = Instant::now();
+        tracing::info!(
+            "RocksDB enum index migration is not finished, starting from key {start_from:?}"
+        );
 
-            if chunk_to == u16::MAX {
+        let mut write_batch = self.db.new_write_batch();
+        let (keys, values): (Vec<_>, Vec<_>) = self
+            .db
+            .from_iterator_cf(StateKeeperColumnFamily::State, start_from.as_bytes())
+            .take(self.enum_index_migration_chunk_size)
+            .filter_map(|(key, value)| {
+                (key.as_ref() != Self::BLOCK_NUMBER_KEY
+                    && key.as_ref() != Self::ENUM_INDEX_MIGRATION_PROGRESS_KEY
+                    && key.as_ref() != Self::ENUM_INDEX_MIGRATION_FINISHED
+                    && value.len() != 40)
+                    .then(|| (H256::from_slice(&key), H256::from_slice(&value[..32])))
+            })
+            .unzip();
+        let indices = conn
+            .storage_logs_dedup_dal()
+            .enum_indices_for_keys(&keys)
+            .await;
+        for ((key, value), index) in keys.iter().zip(values).zip(indices) {
+            write_batch.put_cf(
+                StateKeeperColumnFamily::State,
+                key.as_bytes(),
+                &Self::serialize_state_value(value, index),
+            );
+        }
+
+        let next_key = keys
+            .last()
+            .and_then(|last_key| h256_to_u256(*last_key).checked_add(U256::one()))
+            .map(u256_to_h256);
+        match next_key {
+            None => {
                 write_batch.put_cf(
                     StateKeeperColumnFamily::State,
                     Self::ENUM_INDEX_MIGRATION_FINISHED,
@@ -234,21 +240,24 @@ impl RocksdbStorage {
                     StateKeeperColumnFamily::State,
                     Self::ENUM_INDEX_MIGRATION_PROGRESS_KEY,
                 );
-            } else {
+                tracing::info!("RocksDB enum index migration finished");
+            }
+            Some(next_key) => {
                 write_batch.put_cf(
                     StateKeeperColumnFamily::State,
                     Self::ENUM_INDEX_MIGRATION_PROGRESS_KEY,
-                    &(chunk_to + 1).to_be_bytes(),
+                    next_key.as_bytes(),
                 );
             }
-            self.db
-                .write(write_batch)
-                .expect("failed to save state data into rocksdb");
-            tracing::info!(
-                "RocksDB enum index migration for chunks {chunk_from}..={chunk_to} took {:?}, migrated {number_of_keys_migrated} keys",
-                started_at.elapsed()
-            );
         }
+        self.db
+            .write(write_batch)
+            .expect("failed to save state data into rocksdb");
+        tracing::info!(
+            "RocksDB enum index migration chunk took {:?}, migrated {} keys",
+            started_at.elapsed(),
+            keys.len()
+        );
     }
 
     fn read_value_inner(&self, key: &StorageKey) -> Option<StorageValue> {
@@ -436,7 +445,7 @@ impl RocksdbStorage {
             .estimated_number_of_entries(StateKeeperColumnFamily::State)
     }
 
-    fn enum_migration_start_from(&self) -> Option<[u8; 2]> {
+    fn enum_migration_start_from(&self) -> Option<H256> {
         let finished = self
             .db
             .get_cf(
@@ -452,7 +461,7 @@ impl RocksdbStorage {
                     Self::ENUM_INDEX_MIGRATION_PROGRESS_KEY,
                 )
                 .expect("failed to read `ENUM_INDEX_MIGRATION_FINISHED`")
-                .map_or([0u8; 2], |v| v.try_into().unwrap())
+                .map_or(H256::zero(), |h| H256::from_slice(&h))
         })
     }
 }
