@@ -7,7 +7,7 @@ mod macros;
 
 pub mod network;
 
-use serde::{Deserialize, Serialize};
+use serde::{de, Deserialize, Deserializer, Serialize};
 use std::convert::{Infallible, TryFrom, TryInto};
 use std::fmt;
 use std::num::ParseIntError;
@@ -76,6 +76,92 @@ impl TryFrom<U256> for AccountTreeId {
     }
 }
 
+/// ChainId in the ZkSync network.
+#[derive(Copy, Clone, Debug, Serialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct L2ChainId(pub u64);
+
+impl<'de> Deserialize<'de> for L2ChainId {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s: String = Deserialize::deserialize(deserializer)?;
+
+        // Parse the string as a U256
+        // try to parse as decimal first
+        let u64 = match U64::from_dec_str(&s) {
+            Ok(u) => u,
+            Err(_) => {
+                // try to parse as hex
+                s.parse::<U64>().map_err(de::Error::custom)?
+            }
+        };
+
+        if u64.as_u64() > L2ChainId::max().0 {
+            return Err(de::Error::custom(format!(
+                "Too big chain ID. MAX: {}",
+                L2ChainId::max().0
+            )));
+        }
+        Ok(L2ChainId(u64.as_u64()))
+    }
+}
+
+impl FromStr for L2ChainId {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        // Parse the string as a U64
+        // try to parse as decimal first
+        let u64 = match U64::from_dec_str(s) {
+            Ok(u) => u,
+            Err(_) => {
+                // try to parse as hex
+                s.parse::<U64>()
+                    .map_err(|err| format!("Failed to parse L2ChainId: Err {err}"))?
+            }
+        };
+
+        if u64.as_u64() > L2ChainId::max().0 {
+            return Err(format!("Too big chain ID. MAX: {}", L2ChainId::max().0));
+        }
+        Ok(L2ChainId(u64.as_u64()))
+    }
+}
+
+impl L2ChainId {
+    /// The maximum value of the L2 chain ID.
+    // 2^53 - 1 is a max safe integer in JS. In ethereum JS libs chain ID should be the safe integer.
+    // Next arithmetic operation: subtract 36 and divide by 2 comes from `v` calculation:
+    // v = 2*chainId + 36, that should be save integer as well.
+    const MAX: u64 = ((1 << 53) - 1 - 36) / 2;
+
+    pub fn max() -> Self {
+        Self(Self::MAX)
+    }
+}
+
+impl Default for L2ChainId {
+    fn default() -> Self {
+        Self(270)
+    }
+}
+
+impl TryFrom<u64> for L2ChainId {
+    type Error = String;
+
+    fn try_from(val: u64) -> Result<Self, Self::Error> {
+        if val > L2ChainId::max().0 {
+            return Err(format!(
+                "Cannot convert given value {} into L2ChainId. It's greater than MAX: {},",
+                val,
+                L2ChainId::max().0,
+            ));
+        }
+        Ok(Self(val))
+    }
+}
+
 basic_type!(
     /// zkSync network block sequential index.
     MiniblockNumber,
@@ -112,12 +198,6 @@ basic_type!(
     u64
 );
 
-basic_type!(
-    /// ChainId in the ZkSync network.
-    L2ChainId,
-    u16
-);
-
 #[allow(clippy::derivable_impls)]
 impl Default for MiniblockNumber {
     fn default() -> Self {
@@ -136,12 +216,6 @@ impl Default for L1BatchNumber {
 impl Default for L1BlockNumber {
     fn default() -> Self {
         Self(0)
-    }
-}
-
-impl Default for L2ChainId {
-    fn default() -> Self {
-        Self(270)
     }
 }
 

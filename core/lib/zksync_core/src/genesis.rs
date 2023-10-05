@@ -407,4 +407,30 @@ mod tests {
             .await
             .unwrap();
     }
+
+    #[db_test]
+    async fn running_genesis_with_big_chain_id(pool: ConnectionPool) {
+        let mut conn: StorageProcessor<'_> = pool.access_storage().await.unwrap();
+        conn.blocks_dal().delete_genesis().await;
+
+        let params = GenesisParams {
+            protocol_version: ProtocolVersionId::latest(),
+            first_validator: Address::random(),
+            base_system_contracts: BaseSystemContracts::load_from_disk(),
+            system_contracts: get_system_smart_contracts(),
+            first_l1_verifier_config: L1VerifierConfig::default(),
+            first_verifier_address: Address::random(),
+        };
+        ensure_genesis_state(&mut conn, L2ChainId::max(), &params)
+            .await
+            .unwrap();
+
+        assert!(!conn.blocks_dal().is_genesis_needed().await.unwrap());
+        let metadata = conn
+            .blocks_dal()
+            .get_l1_batch_metadata(L1BatchNumber(0))
+            .await;
+        let root_hash = metadata.unwrap().unwrap().metadata.root_hash;
+        assert_ne!(root_hash, H256::zero());
+    }
 }

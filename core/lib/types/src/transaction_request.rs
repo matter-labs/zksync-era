@@ -168,7 +168,7 @@ pub enum SerializationTransactionError {
     #[error("invalid signature")]
     MalformedSignature,
     #[error("wrong chain id {}", .0.unwrap_or_default())]
-    WrongChainId(Option<u16>),
+    WrongChainId(Option<u64>),
     #[error("malformed paymaster params")]
     MalforedPaymasterParams,
     #[error("factory dependency #{0} is invalid: {1}")]
@@ -233,7 +233,7 @@ pub struct TransactionRequest {
     pub eip712_meta: Option<Eip712Meta>,
     /// Chain ID
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub chain_id: Option<u16>,
+    pub chain_id: Option<u64>,
 }
 
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Debug, Eq)]
@@ -426,7 +426,7 @@ impl TransactionRequest {
 
     pub fn get_signed_bytes(&self, signature: &PackedEthSignature, chain_id: L2ChainId) -> Vec<u8> {
         let mut rlp = RlpStream::new();
-        self.rlp(&mut rlp, *chain_id, Some(signature));
+        self.rlp(&mut rlp, chain_id.0, Some(signature));
         let mut data = rlp.out().to_vec();
         if let Some(tx_type) = self.transaction_type {
             data.insert(0, tx_type.as_u64() as u8);
@@ -438,7 +438,7 @@ impl TransactionRequest {
         self.transaction_type.is_none() || self.transaction_type == Some(LEGACY_TX_TYPE.into())
     }
 
-    pub fn rlp(&self, rlp: &mut RlpStream, chain_id: u16, signature: Option<&PackedEthSignature>) {
+    pub fn rlp(&self, rlp: &mut RlpStream, chain_id: u64, signature: Option<&PackedEthSignature>) {
         rlp.begin_unbounded_list();
 
         match self.transaction_type {
@@ -553,7 +553,7 @@ impl TransactionRequest {
 
     pub fn from_bytes(
         bytes: &[u8],
-        chain_id: u16,
+        chain_id: u64,
     ) -> Result<(Self, H256), SerializationTransactionError> {
         let rlp;
         let mut tx = match bytes.first() {
@@ -666,7 +666,7 @@ impl TransactionRequest {
 
     fn get_default_signed_message(
         &self,
-        chain_id: Option<u16>,
+        chain_id: Option<u64>,
     ) -> Result<H256, SerializationTransactionError> {
         if self.is_eip712_tx() {
             let tx_chain_id =
@@ -1019,10 +1019,7 @@ mod tests {
         assert_eq!(tx.nonce, tx2.nonce);
         assert_eq!(tx.input, tx2.input);
         assert_eq!(tx.value, tx2.value);
-        assert_eq!(
-            tx2.v.unwrap().as_u32() as u16,
-            signature.v_with_chain_id(270)
-        );
+        assert_eq!(tx2.v.unwrap().as_u64(), signature.v_with_chain_id(270));
         assert_eq!(tx2.s.unwrap(), signature.s().into());
         assert_eq!(tx2.r.unwrap(), signature.r().into());
         assert_eq!(address, tx2.from.unwrap());

@@ -52,7 +52,7 @@ async fn test_require_eip712() {
 
     assert_eq!(vm.get_eth_balance(beneficiary.address), U256::from(0));
 
-    let chain_id: u16 = 270;
+    let chain_id: u64 = 270;
 
     // First, let's set the owners of the AA account to the private_address.
     // (so that messages signed by private_address, are authorized to act on behalf of the AA account).

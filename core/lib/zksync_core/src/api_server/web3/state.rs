@@ -65,7 +65,7 @@ impl InternalApiConfig {
     ) -> Self {
         Self {
             l1_chain_id: eth_config.network.chain_id(),
-            l2_chain_id: L2ChainId(eth_config.zksync_network_id),
+            l2_chain_id: eth_config.zksync_network_id,
             max_tx_size: web3_config.max_tx_size,
             estimate_gas_scale_factor: web3_config.estimate_gas_scale_factor,
             estimate_gas_acceptable_overestimation: web3_config
