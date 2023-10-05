@@ -227,7 +227,7 @@ impl MerklePath {
         }
     }
 
-    pub(crate) fn push(&mut self, hasher: &mut HasherWithStats<'_>, maybe_hash: Option<ValueHash>) {
+    pub(crate) fn push(&mut self, hasher: &HasherWithStats<'_>, maybe_hash: Option<ValueHash>) {
         if let Some(hash) = maybe_hash {
             self.hashes.push(hash);
         } else if !self.hashes.is_empty() {
@@ -316,7 +316,7 @@ impl InternalNodeCache {
 
     fn extend_merkle_path(
         &self,
-        hasher: &mut HasherWithStats<'_>,
+        hasher: &HasherWithStats<'_>,
         merkle_path: &mut MerklePath,
         nibble: u8,
     ) {

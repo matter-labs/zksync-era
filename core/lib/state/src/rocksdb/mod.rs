@@ -136,7 +136,7 @@ impl RocksdbStorage {
                 .collect();
             for (key, _) in storage_logs {
                 if let Some(index) = enum_indices.get(&key.hashed_key()) {
-                    self.store_enumeration_index(key, *index)
+                    self.store_enumeration_index(key, *index);
                 }
             }
 

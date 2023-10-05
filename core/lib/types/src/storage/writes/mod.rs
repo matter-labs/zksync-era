@@ -437,7 +437,7 @@ mod tests {
         );
         let compressed_state_diffs = &compressed_state_diffs[32..];
 
-        assert!(compressed_state_diffs.len() == 0);
+        assert!(compressed_state_diffs.is_empty());
     }
 
     fn verify_value(

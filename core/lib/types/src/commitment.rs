@@ -410,6 +410,7 @@ pub struct L1BatchCommitmentHash {
 }
 
 impl L1BatchCommitment {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         l2_to_l1_logs: Vec<L2ToL1Log>,
         rollup_last_leaf_index: u64,
@@ -574,7 +575,8 @@ mod tests {
     }
 
     // TODO(PLA-568): restore this test
-    // #[test]
+    #[ignore]
+    #[test]
     fn commitment_test() {
         let zksync_home = std::env::var("ZKSYNC_HOME").unwrap_or_else(|_| ".".into());
         let path = std::path::Path::new(&zksync_home)
