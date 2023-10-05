@@ -86,6 +86,8 @@ impl<'a, const LEAF_SIZE: usize> MiniMerkleTree<'a, LEAF_SIZE> {
     }
 
     /// Returns the root hash of this tree.
+    /// # Panics
+    /// Will panic if the constant below is invalid.
     pub fn merkle_root(self) -> H256 {
         if self.hashes.is_empty() {
             H256::from_str("fef7bd9f889811e59e4076a0174087135f080177302763019adaf531257e3a87")
