@@ -15,6 +15,7 @@
 //! | Contracts    | address (20 bytes)     | `Vec<u8>`               | Contract contents                    |
 //! | Factory deps | hash (32 bytes)        | `Vec<u8>`               | Bytecodes for new contracts that a certain contract may deploy. |
 
+use itertools::{Either, Itertools};
 use std::{collections::HashMap, convert::TryInto, mem, path::Path, time::Instant};
 
 use zksync_dal::StorageProcessor;
@@ -125,31 +126,32 @@ impl RocksdbStorage {
                 .storage_logs_dal()
                 .get_touched_slots_for_l1_batch(L1BatchNumber(current_l1_batch_number))
                 .await;
-            let changed_keys = self.process_transaction_logs(storage_logs);
+            let (logs_with_known_indices, logs_with_unknown_indices): (Vec<_>, Vec<_>) = self
+                .process_transaction_logs(storage_logs)
+                .into_iter()
+                .partition_map(|(key, (value, index))| match index {
+                    Some(index) => Either::Left((key, (value, index))),
+                    None => Either::Right((key, value)),
+                });
+            let keys_with_unknown_indices: Vec<_> = logs_with_unknown_indices
+                .iter()
+                .map(|(key, _)| key.hashed_key())
+                .collect();
 
             tracing::debug!("Loading enumeration indexes for l1 batch {current_l1_batch_number}");
-            let enum_indices: HashMap<H256, u64> = conn
+            let enum_indices = conn
                 .storage_logs_dedup_dal()
-                .initial_writes_for_batch(L1BatchNumber(current_l1_batch_number))
-                .await
+                .enum_indices_for_keys(&keys_with_unknown_indices)
+                .await;
+            assert_eq!(keys_with_unknown_indices.len(), enum_indices.len());
+            self.pending_patch.state = logs_with_known_indices
                 .into_iter()
-                .collect();
-            self.pending_patch.state = changed_keys
-                .into_iter()
-                .map(|(key, (value, index))| {
-                    let index = index.unwrap_or_else(|| {
-                        enum_indices
-                            .get(&key.hashed_key())
-                            .copied()
-                            .unwrap_or_else(|| {
-                                panic!(
-                                    "Missing enumeration index for hashed key {:?}",
-                                    key.hashed_key()
-                                )
-                            })
-                    });
-                    (key, (value, index))
-                })
+                .chain(
+                    logs_with_unknown_indices
+                        .into_iter()
+                        .zip(enum_indices)
+                        .map(|((key, value), index)| (key, (value, index))),
+                )
                 .collect();
 
             tracing::debug!("loading factory deps for l1 batch {current_l1_batch_number}");
@@ -336,8 +338,12 @@ impl RocksdbStorage {
 
             let cf = StateKeeperColumnFamily::State;
             for (key, maybe_value) in logs {
-                if let Some(prev_value) = maybe_value {
-                    batch.put_cf(cf, key.as_bytes(), prev_value.as_bytes());
+                if let Some((prev_value, prev_index)) = maybe_value {
+                    batch.put_cf(
+                        cf,
+                        key.as_bytes(),
+                        &Self::serialize_state_value(prev_value, prev_index),
+                    );
                 } else {
                     batch.delete_cf(cf, key.as_bytes());
                 }
