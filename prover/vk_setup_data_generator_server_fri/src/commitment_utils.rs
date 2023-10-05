@@ -25,7 +25,7 @@ pub struct VkCommitments {
 
 fn circuit_commitments() -> anyhow::Result<L1VerifierConfig> {
     let commitments = generate_commitments().context("generate_commitments()")?;
-    let snark_wrapper_vk = std::env::var("CONTRACTS_RECURSION_SCHEDULER_LEVEL_VK_HASH")
+    let snark_wrapper_vk = std::env::var("CONTRACTS_SNARK_WRAPPER_VK_HASH")
         .context("SNARK wrapper VK not found in the config")?;
     Ok(L1VerifierConfig {
         params: VerifierParams {

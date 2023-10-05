@@ -134,7 +134,7 @@ pub async fn genesis_init(
                 recursion_leaf_level_vk_hash: contracts_config.fri_recursion_leaf_level_vk_hash,
                 recursion_circuits_set_vks_hash: zksync_types::H256::zero(),
             },
-            recursion_scheduler_level_vk_hash: contracts_config.recursion_scheduler_level_vk_hash,
+            recursion_scheduler_level_vk_hash: contracts_config.snark_wrapper_vk_hash,
         };
 
         let eth_client = QueryClient::new(eth_client_url)?;
