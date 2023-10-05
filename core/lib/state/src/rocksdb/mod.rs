@@ -126,33 +126,7 @@ impl RocksdbStorage {
                 .storage_logs_dal()
                 .get_touched_slots_for_l1_batch(L1BatchNumber(current_l1_batch_number))
                 .await;
-            let (logs_with_known_indices, logs_with_unknown_indices): (Vec<_>, Vec<_>) = self
-                .process_transaction_logs(storage_logs)
-                .into_iter()
-                .partition_map(|(key, (value, index))| match index {
-                    Some(index) => Either::Left((key, (value, index))),
-                    None => Either::Right((key, value)),
-                });
-            let keys_with_unknown_indices: Vec<_> = logs_with_unknown_indices
-                .iter()
-                .map(|(key, _)| key.hashed_key())
-                .collect();
-
-            tracing::debug!("Loading enumeration indexes for l1 batch {current_l1_batch_number}");
-            let enum_indices = conn
-                .storage_logs_dedup_dal()
-                .enum_indices_for_keys(&keys_with_unknown_indices)
-                .await;
-            assert_eq!(keys_with_unknown_indices.len(), enum_indices.len());
-            self.pending_patch.state = logs_with_known_indices
-                .into_iter()
-                .chain(
-                    logs_with_unknown_indices
-                        .into_iter()
-                        .zip(enum_indices)
-                        .map(|((key, value), index)| (key, (value, index))),
-                )
-                .collect();
+            self.apply_storage_logs(storage_logs, conn).await;
 
             tracing::debug!("loading factory deps for l1 batch {current_l1_batch_number}");
             let factory_deps = conn
@@ -179,6 +153,39 @@ impl RocksdbStorage {
         self.save_missing_enum_indices(conn).await;
     }
 
+    async fn apply_storage_logs(
+        &mut self,
+        storage_logs: HashMap<StorageKey, H256>,
+        conn: &mut StorageProcessor<'_>,
+    ) {
+        let (logs_with_known_indices, logs_with_unknown_indices): (Vec<_>, Vec<_>) = self
+            .process_transaction_logs(storage_logs)
+            .into_iter()
+            .partition_map(|(key, (value, index))| match index {
+                Some(index) => Either::Left((key, (value, index))),
+                None => Either::Right((key, value)),
+            });
+        let keys_with_unknown_indices: Vec<_> = logs_with_unknown_indices
+            .iter()
+            .map(|(key, _)| key.hashed_key())
+            .collect();
+
+        let enum_indices = conn
+            .storage_logs_dedup_dal()
+            .enum_indices_for_keys(&keys_with_unknown_indices)
+            .await;
+        assert_eq!(keys_with_unknown_indices.len(), enum_indices.len());
+        self.pending_patch.state = logs_with_known_indices
+            .into_iter()
+            .chain(
+                logs_with_unknown_indices
+                    .into_iter()
+                    .zip(enum_indices)
+                    .map(|((key, value), index)| (key, (value, index))),
+            )
+            .collect();
+    }
+
     async fn save_missing_enum_indices(&self, conn: &mut StorageProcessor<'_>) {
         if let (Some(start_from), true) = (
             self.enum_migration_start_from(),
@@ -198,7 +205,8 @@ impl RocksdbStorage {
                     .filter_map(|(key, value)| {
                         (key.as_ref() != Self::BLOCK_NUMBER_KEY
                             && key.as_ref() != Self::ENUM_INDEX_MIGRATION_PROGRESS_KEY
-                            && key.as_ref() != Self::ENUM_INDEX_MIGRATION_FINISHED)
+                            && key.as_ref() != Self::ENUM_INDEX_MIGRATION_FINISHED
+                            && value.len() != 40)
                             .then(|| (H256::from_slice(&key), H256::from_slice(&value[..32])))
                     })
                     .unzip();
