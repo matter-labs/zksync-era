@@ -42,6 +42,9 @@ FRI_RECURSION_LEAF_LEVEL_VK_HASH ="0x72167c43a46cf38875b267d67716edc4563861364a3
 FRI_RECURSION_NODE_LEVEL_VK_HASH ="0x5a3ef282b21e12fe1f4438e5bb158fc5060b160559c5158c6389d62d9fe3d080"
 FRI_RECURSION_SCHEDULER_LEVEL_VK_HASH ="0x4be443afd605a782b6e56d199df2460a025c81b3dea144e135bece83612563f2"
 
+# Prover that should be used at genesis. 'fri' or 'snark'
+PROVER_AT_GENESIS="fri"
+
 [contracts.test]
 dummy_verifier=true
 easy_priority_mode=false

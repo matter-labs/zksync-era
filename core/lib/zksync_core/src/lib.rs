@@ -122,6 +122,30 @@ pub async fn genesis_init(
     )
     .context("Failed to restore operator address from private key")?;
 
+    // Select the first prover to be used during genesis.
+    // Later we can change provers using the system upgrades, but for genesis
+    // we should select one using the environment config.
+    let first_l1_verifier_config = if contracts_config.prover_at_genesis == "fri" {
+        L1VerifierConfig {
+            params: VerifierParams {
+                recursion_node_level_vk_hash: contracts_config.fri_recursion_node_level_vk_hash,
+                recursion_leaf_level_vk_hash: contracts_config.fri_recursion_leaf_level_vk_hash,
+                recursion_circuits_set_vks_hash: zksync_types::H256::zero(),
+            },
+            recursion_scheduler_level_vk_hash: contracts_config
+                .fri_recursion_scheduler_level_vk_hash,
+        }
+    } else {
+        L1VerifierConfig {
+            params: VerifierParams {
+                recursion_node_level_vk_hash: contracts_config.recursion_node_level_vk_hash,
+                recursion_leaf_level_vk_hash: contracts_config.recursion_leaf_level_vk_hash,
+                recursion_circuits_set_vks_hash: contracts_config.recursion_circuits_set_vks_hash,
+            },
+            recursion_scheduler_level_vk_hash: contracts_config.recursion_scheduler_level_vk_hash,
+        }
+    };
+
     genesis::ensure_genesis_state(
         &mut storage,
         L2ChainId(network_config.zksync_network_id),
@@ -132,17 +156,7 @@ pub async fn genesis_init(
             base_system_contracts: BaseSystemContracts::load_from_disk(),
             system_contracts: get_system_smart_contracts(),
             first_verifier_address: contracts_config.verifier_addr,
-            first_l1_verifier_config: L1VerifierConfig {
-                params: VerifierParams {
-                    recursion_node_level_vk_hash: contracts_config.recursion_node_level_vk_hash,
-                    recursion_leaf_level_vk_hash: contracts_config.recursion_leaf_level_vk_hash,
-                    recursion_circuits_set_vks_hash: contracts_config
-                        .recursion_circuits_set_vks_hash,
-                },
-                // FIXME: we should have a flag to decide on the type of proofs at genesis.
-                recursion_scheduler_level_vk_hash: contracts_config
-                    .fri_recursion_scheduler_level_vk_hash,
-            },
+            first_l1_verifier_config,
         },
     )
     .await?;

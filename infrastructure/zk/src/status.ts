@@ -9,7 +9,8 @@ let pool: Pool | null = null;
 
 const GETTER_ABI = [
     'function getTotalBlocksCommitted() view returns (uint256)',
-    'function getTotalBlocksVerified() view returns (uint256)'
+    'function getTotalBlocksVerified() view returns (uint256)',
+    'function getVerifierParams() view returns (bytes32, bytes32, bytes32)'
 ];
 
 const VERIFIER_ABI = ['function verificationKeyHash() view returns (bytes32)'];
@@ -120,10 +121,65 @@ async function compareVerificationKeys() {
         console.log(
             `${redStart}Verification hash in DB differs from the one in contract.${resetColor} State keeper might not send prove requests.`
         );
+    } else {
+        console.log(`${greenStart}Verifier hash matches.${resetColor}`);
+    }
+}
+
+async function compareVerificationParams() {
+    // Setup a provider
+    let provider = new ethers.providers.JsonRpcProvider(process.env.ETH_CLIENT_WEB3_URL);
+
+    // Create a contract instance (diamond proxy doesn't expose this one)
+    let contract = new ethers.Contract(process.env.CONTRACTS_DIAMOND_PROXY_ADDR!, GETTER_ABI, provider);
+    let node, leaf, circuits;
+    try {
+        [node, leaf, circuits] = await contract.getVerifierParams();
+        console.log(`Verifier params on contract are ${node}, ${leaf}, ${circuits}`);
+    } catch (error) {
+        console.error(`Error calling L1 contract: ${error}`);
+        return;
+    }
+
+    let protocol_version = await query(
+        'select recursion_node_level_vk_hash, recursion_leaf_level_vk_hash, recursion_circuits_set_vks_hash  from prover_fri_protocol_versions'
+    );
+    if (protocol_version.rowCount != 1) {
+        console.log(`${redStart}Got ${protocol_version.rowCount} rows with protocol versions, expected 1${resetColor}`);
+        return;
+    }
+    let dbNode = '0x' + bytesToHex(protocol_version.rows[0].recursion_node_level_vk_hash);
+    let dbLeaf = '0x' + bytesToHex(protocol_version.rows[0].recursion_leaf_level_vk_hash);
+    let dbCircuit = '0x' + bytesToHex(protocol_version.rows[0].recursion_circuits_set_vks_hash);
+
+    let fail = false;
+
+    if (dbNode != node) {
+        fail = true;
+        console.log(
+            `${redStart}Verification node in DB differs from the one in contract ${dbNode} vs ${node}.${resetColor}`
+        );
+    }
+    if (dbLeaf != leaf) {
+        fail = true;
+        console.log(
+            `${redStart}Verification leaf in DB differs from the one in contract ${dbLeaf} vs ${leaf}.${resetColor}`
+        );
+    }
+    if (dbCircuit != circuits) {
+        fail = true;
+        console.log(
+            `${redStart}Verification circuits in DB differs from the one in contract ${dbCircuit} vs ${circuits}.${resetColor}`
+        );
+    }
+
+    if (fail == false) {
+        console.log(`${greenStart}Verifcation params match.${resetColor}`);
     }
 }
 
 const redStart = '\x1b[31m';
+const greenStart = '\x1b[32m';
 const resetColor = '\x1b[0m';
 
 export async function statusProver() {
@@ -151,6 +207,7 @@ export async function statusProver() {
         return;
     }
     await compareVerificationKeys();
+    await compareVerificationParams();
 
     const nextBlockForVerification = blockVerified + 1;
 
