@@ -7942,6 +7942,7 @@ dependencies = [
  "tempfile",
  "thiserror",
  "tracing",
+ "tracing-subscriber",
  "vise",
  "zksync_config",
  "zksync_crypto",

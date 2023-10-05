@@ -3,6 +3,7 @@
 use clap::Parser;
 use rand::{rngs::StdRng, Rng, SeedableRng};
 use tempfile::TempDir;
+use tracing_subscriber::EnvFilter;
 
 use std::time::Instant;
 
@@ -37,8 +38,16 @@ struct Cli {
 }
 
 impl Cli {
+    fn init_logging() {
+        tracing_subscriber::fmt()
+            .pretty()
+            .with_env_filter(EnvFilter::from_default_env())
+            .init();
+    }
+
     fn run(self) {
-        println!("Launched with options: {self:?}");
+        Self::init_logging();
+        tracing::info!("Launched with options: {self:?}");
 
         let (mut mock_db, mut rocksdb);
         let mut _temp_dir = None;
@@ -47,7 +56,7 @@ impl Cli {
             &mut mock_db
         } else {
             let dir = TempDir::new().expect("failed creating temp dir for RocksDB");
-            println!(
+            tracing::info!(
                 "Created temp dir for RocksDB: {}",
                 dir.path().to_string_lossy()
             );
@@ -84,20 +93,20 @@ impl Cli {
                 })
                 .collect();
             recovery.extend(recovery_entries);
-            println!(
+            tracing::info!(
                 "Updated tree with recovery chunk #{updated_idx} in {:?}",
                 started_at.elapsed()
             );
         }
 
         let tree = recovery.finalize();
-        println!(
+        tracing::info!(
             "Recovery finished in {:?}; verifying consistency...",
             recovery_started_at.elapsed()
         );
         let started_at = Instant::now();
         tree.verify_consistency(recovered_version).unwrap();
-        println!("Verified consistency in {:?}", started_at.elapsed());
+        tracing::info!("Verified consistency in {:?}", started_at.elapsed());
     }
 }
 
