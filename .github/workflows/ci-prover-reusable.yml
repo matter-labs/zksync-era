@@ -11,7 +11,7 @@ jobs:
         run: |
           sudo apt update && sudo apt install -y \
             pkg-config libclang-dev build-essential lldb lld \
-            clang openssl libssl-dev gcc g++ pkg-config libclang-dev curl wget 
+            clang openssl libssl-dev gcc g++ pkg-config libclang-dev curl wget
 
       - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
         with:
