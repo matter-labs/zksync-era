@@ -2,5 +2,5 @@
 
 # Runs the command from within CI docker-compose environment.
 cd $ZKSYNC_HOME
-
-docker-compose -f docker-compose-runner.yml exec -T zk $@
+compose_file="${RUNNER_COMPOSE_FILE:-docker-compose-runner.yml}"
+docker-compose -f $compose_file exec -T zk $@
