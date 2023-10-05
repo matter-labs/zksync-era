@@ -10,8 +10,6 @@ on:
       - ".github/workflows/zk-environment.publish.yml"
       - "docker/zk-environment-cuda-12-0/Dockerfile"
       - ".github/workflows/zk-environment-cuda-12-0.publish.yml"
-      - "docker/zk-rust-nightly-environment/Dockerfile"
-      - ".github/workflows/rust-nightly-environment.publish.yml"
   workflow_dispatch:
     branches:
       - "main"
@@ -22,7 +20,6 @@ jobs:
     outputs:
       zk_environment: ${{ steps.changed-files-yaml.outputs.zk_env_any_changed }}
       zk_environment_cuda_12: ${{ steps.changed-files-yaml.outputs.zk_env_cuda_12_any_changed }}
-      rust_nightly: ${{ steps.changed-files-yaml.outputs.rust_nightly_any_changed }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
@@ -40,9 +37,6 @@ jobs:
             zk_env_cuda_12:
               - docker/zk-environment-cuda-12-0/Dockerfile
               - .github/workflows/zk-environment-cuda-12-0.publish.yml
-            rust_nightly:
-              - docker/zk-rust-nightly-environment/Dockerfile
-              - .github/workflows/rust-nightly-environment.publish.yml
 
   zk_environment:
     if: needs.changed_files.outputs.zk_environment == 'true' && github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
@@ -85,7 +79,7 @@ jobs:
           no-cache: true
 
   rust_nightly:
-    if: needs.changed_files.outputs.rust_nightly == 'true' && github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
+    if: needs.changed_files.outputs.zk_environment == 'true' && github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
     name: Push rust nightly docker image to Docker Hub
     needs: changed_files
     runs-on: ubuntu-latest
@@ -108,13 +102,14 @@ jobs:
         with:
           context: .
           push: true
+          target: rust-nightly
           tags: "matterlabs/zksync_rust:nightly"
-          file: docker/zk-rust-nightly-environment/Dockerfile
+          file: docker/zk-environment/Dockerfile
           no-cache: true
 
 
   zk_environment_cuda_12:
-    if: needs.changed_files.outputs.zk_environment_cuda_12 == 'true' github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
+    if: needs.changed_files.outputs.zk_environment_cuda_12 == 'true' && github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
     name: Push zk-environment cuda 12 docker image to Docker Hub
     runs-on: [matterlabs-ci-runner]
     needs: changed_files

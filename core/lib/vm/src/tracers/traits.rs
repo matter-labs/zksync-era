@@ -8,7 +8,7 @@ use crate::old_vm::history_recorder::HistoryMode;
 use crate::old_vm::memory::SimpleMemory;
 use crate::types::internals::ZkSyncVmState;
 use crate::types::outputs::VmExecutionResultAndLogs;
-use crate::VmExecutionStopReason;
+use crate::{Halt, VmExecutionStopReason};
 
 /// Run tracer for collecting data during the vm execution cycles
 pub trait ExecutionProcessing<S: WriteStorage, H: HistoryMode>:
@@ -28,14 +28,6 @@ pub trait ExecutionProcessing<S: WriteStorage, H: HistoryMode>:
         _bootloader_state: &BootloaderState,
         _stop_reason: VmExecutionStopReason,
     ) {
-    }
-}
-
-/// Stop the vm execution if the tracer conditions are met
-pub trait ExecutionEndTracer<H: HistoryMode> {
-    // Returns whether the vm execution should stop.
-    fn should_stop_execution(&self) -> bool {
-        false
     }
 }
 
@@ -69,7 +61,7 @@ pub trait DynTracer<S, H: HistoryMode> {
 
 /// Save the results of the vm execution.
 pub trait VmTracer<S: WriteStorage, H: HistoryMode>:
-    DynTracer<S, H> + ExecutionEndTracer<H> + ExecutionProcessing<S, H> + Send
+    DynTracer<S, H> + ExecutionEndTracer<H> + ExecutionProcessing<S, H>
 {
     fn save_results(&mut self, _result: &mut VmExecutionResultAndLogs) {}
 }
@@ -81,5 +73,25 @@ pub trait BoxedTracer<S, H> {
 impl<S: WriteStorage, H: HistoryMode, T: VmTracer<S, H> + 'static> BoxedTracer<S, H> for T {
     fn into_boxed(self) -> Box<dyn VmTracer<S, H>> {
         Box::new(self)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum TracerExecutionStopReason {
+    Finish,
+    Abort(Halt),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum TracerExecutionStatus {
+    Continue,
+    Stop(TracerExecutionStopReason),
+}
+
+/// Stop the vm execution if the tracer conditions are met
+pub trait ExecutionEndTracer<H: HistoryMode> {
+    // Returns whether the vm execution should stop.
+    fn should_stop_execution(&self) -> TracerExecutionStatus {
+        TracerExecutionStatus::Continue
     }
 }

@@ -6209,6 +6209,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2047c6ded9c721764247e62cd3b03c09ffc529b2ba5b10ec482ae507a4a70160"
 
 [[package]]
+name = "system-constants-generator"
+version = "0.1.0"
+dependencies = [
+ "codegen 0.2.0",
+ "once_cell",
+ "serde",
+ "serde_json",
+ "vm",
+ "zksync_contracts",
+ "zksync_state",
+ "zksync_types",
+ "zksync_utils",
+]
+
+[[package]]
 name = "tagptr"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
