@@ -254,7 +254,13 @@ impl RocksdbStorage {
         self.db
             .get_cf(cf, &Self::serialize_state_key(key))
             .expect("failed to read rocksdb state value")
-            .map(|value| u64::from_be_bytes(value[32..].try_into().unwrap()))
+            .and_then(|value| {
+                if value.len() == 40 {
+                    Some(u64::from_be_bytes(value[32..].try_into().unwrap()))
+                } else {
+                    None
+                }
+            })
     }
 
     /// Processes storage `logs` produced by transactions.
@@ -265,8 +271,8 @@ impl RocksdbStorage {
         updates
             .into_iter()
             .filter_map(|(key, value)| {
-                if let Some(index) = self.read_enum_index(&key) {
-                    Some((key, (value, Some(index))))
+                if self.read_value_inner(&key).is_some() {
+                    Some((key, (value, self.read_enum_index(&key))))
                 } else {
                     (!value.is_zero()).then_some((key, (value, None)))
                 }
