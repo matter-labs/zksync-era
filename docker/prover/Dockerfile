@@ -1,7 +1,3 @@
-# For using private GitHub dependencies, CI downdloads all crates and bellman-cuda dependency outside of the contatiner
-# Not expected to work locally
-
-# syntax=docker/dockerfile:experimental
 FROM nvidia/cuda:11.8.0-devel-ubuntu22.04 as builder
 
 ARG DEBIAN_FRONTEND=noninteractive
@@ -23,7 +19,7 @@ COPY . .
 
 ENV BELLMAN_CUDA_DIR=/usr/src/zksync/bellman-cuda
 
-RUN CARGO_HOME=./cargo cargo build --release
+RUN cargo build --release
 
 FROM nvidia/cuda:11.8.0-runtime-ubuntu22.04 as runner
 

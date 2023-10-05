@@ -1,8 +1,4 @@
-# For using private GitHub dependencies, CI downdloads all crates outside of the contatiner
-# Not expected to work locally
-
-# syntax=docker/dockerfile:experimental
-FROM nvidia/cuda:12.0.0-devel-ubuntu22.04 as builder
+FROM nvidia/cuda:12.2.0-devel-ubuntu22.04 as builder
 
 ARG DEBIAN_FRONTEND=noninteractive
 
@@ -14,6 +10,7 @@ ENV RUSTUP_HOME=/usr/local/rustup \
     CARGO_HOME=/usr/local/cargo \
     PATH=/usr/local/cargo/bin:$PATH
 
+# Building for L4 GPU
 ENV CUDAARCHS=75
 
 RUN curl https://sh.rustup.rs -sSf | bash -s -- -y && \
@@ -28,7 +25,7 @@ RUN curl -Lo cmake-3.24.2-linux-x86_64.sh https://github.com/Kitware/CMake/relea
 WORKDIR /usr/src/zksync
 COPY . .
 
-RUN CARGO_HOME=./cargo cargo build --release --features "gpu"
+RUN cargo build --release --features "gpu"
 
 FROM nvidia/cuda:12.0.0-devel-ubuntu22.04
 RUN apt-get update && apt-get install -y curl libpq5 ca-certificates && rm -rf /var/lib/apt/lists/*

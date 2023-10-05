@@ -94,8 +94,6 @@ async function _build(image: string, tagList: string[]) {
 
     // generate list of tags for image - we want 3 tags (latest, SHA, SHA+TimeStamp) for listed components and only "latest" for everything else
 
-    await utils.spawn(`CARGO_HOME=./cargo cargo fetch`);
-
     // HACK
     // For prover-v2 which is not a prover, but should be built from the prover dockerfile. So here we go.
     const imagePath = image == 'prover-v2' ? 'prover' : image;

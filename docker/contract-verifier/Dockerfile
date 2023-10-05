@@ -1,11 +1,10 @@
-# syntax=docker/dockerfile:experimental
 FROM rust:1.72-bookworm as builder
 RUN apt-get update && apt-get install -y clang && rm -rf /var/lib/apt/lists/*
 WORKDIR /usr/src/zksync
 COPY . .
 #Needed to get zkEVM package from github link with auth embedded
 # Doesn't expected to work local
-RUN CARGO_HOME=./cargo cargo build --release
+RUN cargo build --release
 
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y curl libpq5 ca-certificates wget python3 && rm -rf /var/lib/apt/lists/*

@@ -1,7 +1,3 @@
-# For using private GitHub dependencies, CI downdloads all crates outside of the contatiner
-# Not expected to work locally
-
-# syntax=docker/dockerfile:experimental
 FROM debian:bookworm-slim as builder
 
 ARG DEBIAN_FRONTEND=noninteractive
@@ -21,7 +17,7 @@ RUN curl https://sh.rustup.rs -sSf | bash -s -- -y && \
 WORKDIR /usr/src/zksync
 COPY . .
 
-RUN CARGO_HOME=./cargo cargo build --release
+RUN cargo build --release
 
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y curl libpq5 ca-certificates && rm -rf /var/lib/apt/lists/*

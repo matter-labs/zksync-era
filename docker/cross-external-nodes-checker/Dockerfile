@@ -1,14 +1,9 @@
-# For using private GitHub dependencies, CI downdloads all crates outside of the contatiner
-# Not expected to work locally
-
-# BUILDING STAGE
-# syntax=docker/dockerfile:experimental
 FROM rust:1.72-bookworm as builder
 RUN apt-get update && apt-get install -y clang && rm -rf /var/lib/apt/lists/*
 WORKDIR /usr/src/zksync
 COPY . .
 
-RUN CARGO_HOME=./cargo cargo build --release
+RUN cargo build --release
 
 # RUNNING STAGE
 FROM debian:bookworm-slim

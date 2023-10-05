@@ -1,4 +1,3 @@
-# syntax=docker/dockerfile:1
 ARG PROVER_IMAGE
 FROM us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/prover-v2:2.0-$PROVER_IMAGE as prover
 
