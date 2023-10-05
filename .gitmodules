@@ -4,3 +4,18 @@ url = https://github.com/matter-labs/era-system-contracts.git
 [submodule "contracts"]
 path = contracts
 url = https://github.com/matter-labs/era-contracts.git
+[submodule "etc/multivm/system-contracts/vm_1_3_2"]
+	path = etc/multivm/system-contracts/vm_1_3_2
+	url = git@github.com:matter-labs/era-system-contracts.git
+[submodule "etc/multivm/system-contracts/vm_virtual_blocks"]
+	path = etc/multivm/system-contracts/vm_virtual_blocks
+	url = git@github.com:matter-labs/era-system-contracts.git
+[submodule "etc/multivm/system-contracts/vm_virtual_blocks_with_bug"]
+	path = etc/multivm/system-contracts/vm_virtual_blocks_with_bug
+	url = git@github.com:matter-labs/era-system-contracts.git
+[submodule "etc/multivm/contracts/vm_virtual_blocks"]
+	path = etc/multivm/contracts/vm_virtual_blocks
+	url = git@github.com:matter-labs/era-contracts.git
+[submodule "etc/multivm/contracts/vm_1_3_2"]
+	path = etc/multivm/contracts/vm_1_3_2
+	url = git@github.com:matter-labs/era-contracts.git
