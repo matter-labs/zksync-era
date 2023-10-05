@@ -21,7 +21,7 @@ use std::{collections::HashMap, convert::TryInto, mem, path::Path, time::Instant
 use zksync_dal::StorageProcessor;
 use zksync_storage::{db::NamedColumnFamily, RocksDB};
 use zksync_types::{L1BatchNumber, StorageKey, StorageValue, H256, U256};
-use zksync_utils::{h256_to_u256, u256_to_h256};
+use zksync_utils::{h256_to_u256, u256_to_big_decimal, u256_to_h256, BigDecimal};
 
 mod metrics;
 
@@ -196,8 +196,12 @@ impl RocksdbStorage {
         };
 
         let started_at = Instant::now();
+        let progress_percentage = BigDecimal::from(100)
+            * u256_to_big_decimal(h256_to_u256(start_from))
+            / u256_to_big_decimal(U256::MAX);
         tracing::info!(
-            "RocksDB enum index migration is not finished, starting from key {start_from:?}"
+            "RocksDB enum index migration is not finished, current progress {}%, starting from key {start_from:?}",
+            progress_percentage.with_prec(5)
         );
 
         let mut write_batch = self.db.new_write_batch();
