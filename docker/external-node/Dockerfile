@@ -11,7 +11,7 @@ RUN apt-get update && apt-get install -y curl libpq5 ca-certificates && rm -rf /
 
 COPY --from=builder /usr/src/zksync/target/release/zksync_external_node /usr/bin
 COPY --from=builder /usr/src/zksync/target/release/block_reverter /usr/bin
-COPY --from=builder /usr/src/zksync/cargo/bin/sqlx /usr/bin
+COPY --from=builder /usr/local/cargo/bin/sqlx /usr/bin
 COPY --from=builder /usr/src/zksync/docker/external-node/entrypoint.sh /usr/bin
 RUN chmod +x /usr/bin/entrypoint.sh
 COPY etc/system-contracts/bootloader/build/artifacts/ /etc/system-contracts/bootloader/build/artifacts/
