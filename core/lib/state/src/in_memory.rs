@@ -1,4 +1,4 @@
-use std::collections::{hash_map::Entry, HashMap};
+use std::collections::{hash_map::Entry, BTreeMap, HashMap};
 
 use crate::ReadStorage;
 use zksync_types::{
@@ -7,8 +7,6 @@ use zksync_types::{
     StorageLogKind, StorageValue, H256, U256,
 };
 use zksync_utils::u256_to_h256;
-
-use itertools::Itertools;
 
 /// Network ID we use by defailt for in memory storage.
 pub const IN_MEMORY_STORAGE_DEFAULT_NETWORK_ID: u16 = 270;
@@ -50,7 +48,7 @@ impl InMemoryStorage {
     ) -> Self {
         let system_context_init_log = get_system_context_init_logs(chain_id);
 
-        let state: HashMap<_, _> = contracts
+        let state_without_indices: BTreeMap<_, _> = contracts
             .iter()
             .flat_map(|contract| {
                 let bytecode_hash = bytecode_hasher(&contract.bytecode);
@@ -64,12 +62,12 @@ impl InMemoryStorage {
                 ]
             })
             .chain(system_context_init_log)
-            .sorted_by_key(|log| log.key)
+            .filter_map(|log| (log.kind == StorageLogKind::Write).then_some((log.key, log.value)))
+            .collect();
+        let state: HashMap<_, _> = state_without_indices
+            .into_iter()
             .enumerate()
-            .filter_map(|(idx, log)| {
-                (log.kind == StorageLogKind::Write)
-                    .then_some((log.key, (log.value, idx as u64 + 1)))
-            })
+            .map(|(idx, (key, value))| (key, (value, idx as u64 + 1)))
             .collect();
 
         let factory_deps = contracts
@@ -89,7 +87,7 @@ impl InMemoryStorage {
     pub fn set_value(&mut self, key: StorageKey, value: StorageValue) {
         match self.state.entry(key) {
             Entry::Occupied(mut entry) => {
-                entry.insert((value, entry.get().1));
+                entry.get_mut().0 = value;
             }
             Entry::Vacant(entry) => {
                 self.last_enum_index_set += 1;

@@ -265,7 +265,7 @@ impl RocksdbStorage {
             })
     }
 
-    /// Processes storage `logs` produced by transactions.
+    /// Returns storage logs to apply.
     fn process_transaction_logs(
         &self,
         updates: HashMap<StorageKey, H256>,

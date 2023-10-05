@@ -1,3 +1,4 @@
+use crate::instrument::InstrumentExt;
 use crate::StorageProcessor;
 use sqlx::types::chrono::Utc;
 use std::collections::{HashMap, HashSet};
@@ -146,6 +147,8 @@ impl StorageLogsDedupDal<'_, '_> {
             WHERE hashed_key = ANY($1)",
             &hashed_keys as &[&[u8]]
         )
+        .instrument("enum_indices_for_keys")
+        .report_latency()
         .fetch_all(self.storage.conn())
         .await
         .unwrap()
