@@ -196,6 +196,9 @@ pub struct OptionalENConfig {
     /// Whether to try running EN with MultiVM.
     #[serde(default)]
     pub experimental_multivm_support: bool,
+    /// Number of enum_index migration chunks that State Keeper processes each L1 batch.
+    #[serde(default = "OptionalENConfig::default_enum_index_migration_chunks")]
+    pub enum_index_migration_chunks: u16,
 }
 
 impl OptionalENConfig {
@@ -280,6 +283,10 @@ impl OptionalENConfig {
 
     const fn default_max_response_body_size_mb() -> usize {
         10
+    }
+
+    const fn default_enum_index_migration_chunks() -> u16 {
+        1
     }
 
     pub fn polling_interval(&self) -> Duration {

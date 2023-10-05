@@ -60,10 +60,13 @@ impl NamedColumnFamily for StateKeeperColumnFamily {
 pub struct RocksdbStorage {
     db: RocksDB<StateKeeperColumnFamily>,
     pending_patch: InMemoryStorage,
+    enum_index_migration_chunks: u16,
 }
 
 impl RocksdbStorage {
     const BLOCK_NUMBER_KEY: &'static [u8] = b"block_number";
+    const ENUM_INDEX_MIGRATION_PROGRESS_KEY: &'static [u8] = b"enum_index_migration_progress";
+    const ENUM_INDEX_MIGRATION_FINISHED: &'static [u8] = b"enum_index_migration_finished";
 
     /// Creates a new storage with the provided RocksDB `path`.
     pub fn new(path: &Path) -> Self {
@@ -71,6 +74,20 @@ impl RocksdbStorage {
         Self {
             db,
             pending_patch: InMemoryStorage::default(),
+            enum_index_migration_chunks: 0,
+        }
+    }
+
+    /// Creates a new storage with the provided RocksDB `path` and enum index migration settings.
+    pub fn new_with_enum_index_migration_chunks(
+        path: &Path,
+        enum_index_migration_chunks: u16,
+    ) -> Self {
+        let db = RocksDB::new(path, true);
+        Self {
+            db,
+            pending_patch: InMemoryStorage::default(),
+            enum_index_migration_chunks,
         }
     }
 
@@ -156,6 +173,72 @@ impl RocksdbStorage {
         tracing::info!(
             "Secondary storage for L1 batch #{latest_l1_batch_number} initialized, size is {estimated_size}"
         );
+
+        self.save_missing_enum_indices(conn).await;
+    }
+
+    async fn save_missing_enum_indices(&self, conn: &mut StorageProcessor<'_>) {
+        if let (Some(start_from), true) = (
+            self.enum_migration_start_from(),
+            self.enum_index_migration_chunks > 0,
+        ) {
+            let started_at = Instant::now();
+            let chunk_from = u16::from_be_bytes(start_from);
+            let chunk_to = chunk_from.saturating_add(self.enum_index_migration_chunks - 1);
+            tracing::info!("RocksDB enum index migration is not finished, processing chunks {chunk_from}..={chunk_to}");
+
+            let mut write_batch = self.db.new_write_batch();
+            let mut number_of_keys_migrated = 0;
+            for chunk in chunk_from..=chunk_to {
+                let (keys, values): (Vec<_>, Vec<_>) = self
+                    .db
+                    .prefix_iterator_cf(StateKeeperColumnFamily::State, &chunk.to_be_bytes())
+                    .filter_map(|(key, value)| {
+                        (key.as_ref() != Self::BLOCK_NUMBER_KEY
+                            && key.as_ref() != Self::ENUM_INDEX_MIGRATION_PROGRESS_KEY
+                            && key.as_ref() != Self::ENUM_INDEX_MIGRATION_FINISHED)
+                            .then(|| (H256::from_slice(&key), H256::from_slice(&value[..32])))
+                    })
+                    .unzip();
+                let indices = conn
+                    .storage_logs_dedup_dal()
+                    .enum_indices_for_keys(&keys)
+                    .await;
+                number_of_keys_migrated += indices.len();
+                for ((key, value), index) in keys.into_iter().zip(values).zip(indices) {
+                    write_batch.put_cf(
+                        StateKeeperColumnFamily::State,
+                        key.as_bytes(),
+                        &Self::serialize_state_value(value, index),
+                    );
+                }
+            }
+
+            if chunk_to == u16::MAX {
+                write_batch.put_cf(
+                    StateKeeperColumnFamily::State,
+                    Self::ENUM_INDEX_MIGRATION_FINISHED,
+                    &[1u8; 1],
+                );
+                write_batch.delete_cf(
+                    StateKeeperColumnFamily::State,
+                    Self::ENUM_INDEX_MIGRATION_PROGRESS_KEY,
+                );
+            } else {
+                write_batch.put_cf(
+                    StateKeeperColumnFamily::State,
+                    Self::ENUM_INDEX_MIGRATION_PROGRESS_KEY,
+                    &(chunk_to + 1).to_be_bytes(),
+                );
+            }
+            self.db
+                .write(write_batch)
+                .expect("failed to save state data into rocksdb");
+            tracing::info!(
+                "RocksDB enum index migration for chunks {chunk_from}..={chunk_to} took {:?}, migrated {number_of_keys_migrated} keys",
+                started_at.elapsed()
+            );
+        }
     }
 
     fn read_value_inner(&self, key: &StorageKey) -> Option<StorageValue> {
@@ -332,6 +415,26 @@ impl RocksdbStorage {
         self.db
             .estimated_number_of_entries(StateKeeperColumnFamily::State)
     }
+
+    fn enum_migration_start_from(&self) -> Option<[u8; 2]> {
+        let finished = self
+            .db
+            .get_cf(
+                StateKeeperColumnFamily::State,
+                Self::ENUM_INDEX_MIGRATION_FINISHED,
+            )
+            .expect("failed to read `ENUM_INDEX_MIGRATION_FINISHED`")
+            .is_some();
+        (!finished).then(|| {
+            self.db
+                .get_cf(
+                    StateKeeperColumnFamily::State,
+                    Self::ENUM_INDEX_MIGRATION_PROGRESS_KEY,
+                )
+                .expect("failed to read `ENUM_INDEX_MIGRATION_FINISHED`")
+                .map_or([0u8; 2], |v| v.try_into().unwrap())
+        })
+    }
 }
 
 impl ReadStorage for RocksdbStorage {
@@ -367,11 +470,15 @@ mod tests {
     async fn rocksdb_storage_basics() {
         let dir = TempDir::new().expect("cannot create temporary dir for state keeper");
         let mut storage = RocksdbStorage::new(dir.path());
-        let mut storage_logs = gen_storage_logs(0..20)
+        let mut storage_logs: HashMap<_, _> = gen_storage_logs(0..20)
             .into_iter()
             .map(|log| (log.key, log.value))
             .collect();
-        storage.process_transaction_logs(&storage_logs);
+        let changed_keys = storage.process_transaction_logs(storage_logs.clone());
+        storage.pending_patch.state = changed_keys
+            .into_iter()
+            .map(|(key, (value, _))| (key, (value, 1))) // enum index doesn't matter in the test
+            .collect();
         storage.save(L1BatchNumber(0)).await;
         {
             for (key, value) in &storage_logs {
@@ -384,7 +491,11 @@ mod tests {
         for log in storage_logs.values_mut().step_by(2) {
             *log = StorageValue::zero();
         }
-        storage.process_transaction_logs(&storage_logs);
+        let changed_keys = storage.process_transaction_logs(storage_logs.clone());
+        storage.pending_patch.state = changed_keys
+            .into_iter()
+            .map(|(key, (value, _))| (key, (value, 1))) // enum index doesn't matter in the test
+            .collect();
         storage.save(L1BatchNumber(1)).await;
 
         for (key, value) in &storage_logs {

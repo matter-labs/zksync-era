@@ -109,6 +109,9 @@ pub struct StateKeeperConfig {
     /// Flag which will enable storage to cache witness_inputs during State Keeper's run.
     /// NOTE: This will slow down StateKeeper, to be used in non-production environments!
     pub upload_witness_inputs_to_gcs: bool,
+
+    /// Number of enum_index migration chunks that State Keeper processes each L1 batch.
+    pub enum_index_migration_chunks: Option<u16>,
 }
 
 impl StateKeeperConfig {
@@ -121,6 +124,10 @@ impl StateKeeperConfig {
             bootloader: self.bootloader_hash,
             default_aa: self.default_aa_hash,
         }
+    }
+
+    pub fn enum_index_migration_chunks(&self) -> u16 {
+        self.enum_index_migration_chunks.unwrap_or(1)
     }
 }
 
@@ -226,6 +233,7 @@ mod tests {
                 virtual_blocks_interval: 1,
                 virtual_blocks_per_miniblock: 1,
                 upload_witness_inputs_to_gcs: false,
+                enum_index_migration_chunks: Some(2),
             },
             operations_manager: OperationsManagerConfig {
                 delay_interval: 100,
@@ -273,6 +281,7 @@ mod tests {
             CHAIN_STATE_KEEPER_VALIDATION_COMPUTATIONAL_GAS_LIMIT="10000000"
             CHAIN_STATE_KEEPER_SAVE_CALL_TRACES="false"
             CHAIN_STATE_KEEPER_UPLOAD_WITNESS_INPUTS_TO_GCS="false"
+            CHAIN_STATE_KEEPER_ENUM_INDEX_MIGRATION_CHUNKS="2"
             CHAIN_OPERATIONS_MANAGER_DELAY_INTERVAL="100"
             CHAIN_MEMPOOL_SYNC_INTERVAL_MS="10"
             CHAIN_MEMPOOL_SYNC_BATCH_SIZE="1000"

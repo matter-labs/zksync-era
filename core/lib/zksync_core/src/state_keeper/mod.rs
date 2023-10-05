@@ -60,6 +60,7 @@ where
         state_keeper_config.max_allowed_l2_tx_gas_limit.into(),
         state_keeper_config.save_call_traces,
         state_keeper_config.upload_witness_inputs_to_gcs,
+        state_keeper_config.enum_index_migration_chunks(),
     );
 
     let io = MempoolIO::new(
