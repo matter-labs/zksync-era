@@ -41,6 +41,9 @@ jobs:
             all:
               - '!core/**'
               - '!prover/**'
+              - '!.github/workflows/zk-environment.publish.yml'
+              - '!docker/zk-environment/Dockerfile'
+              - '!docker/zk-environment-cuda-12-0/Dockerfile'
   ci-for-core:
     name: CI for Core Components
     needs: changed_files
