@@ -85,8 +85,8 @@ where
                 TreeEntry {
                     value_hash,
                     leaf_index: leaf.map_or(0, |leaf| leaf.leaf_index),
-                    merkle_path: merkle_path.into_inner(),
                 }
+                .with_merkle_path(merkle_path.into_inner())
             },
         )
     }
@@ -109,7 +109,7 @@ mod tests {
 
         let entries = tree.entries_with_proofs(0, &[missing_key]).unwrap();
         assert_eq!(entries.len(), 1);
-        assert!(entries[0].is_empty());
+        assert!(entries[0].base.is_empty());
         entries[0].verify(tree.hasher, missing_key, tree.hasher.empty_tree_hash());
     }
 
@@ -127,9 +127,9 @@ mod tests {
 
         let entries = tree.entries_with_proofs(0, &[key, missing_key]).unwrap();
         assert_eq!(entries.len(), 2);
-        assert!(!entries[0].is_empty());
+        assert!(!entries[0].base.is_empty());
         entries[0].verify(tree.hasher, key, output.root_hash);
-        assert!(entries[1].is_empty());
+        assert!(entries[1].base.is_empty());
         entries[1].verify(tree.hasher, missing_key, output.root_hash);
     }
 }

@@ -66,14 +66,18 @@ impl TreeEntryWithProof {
     ///
     /// Panics if the proof doesn't verify.
     pub fn verify(&self, hasher: &dyn HashTree, key: Key, trusted_root_hash: ValueHash) {
-        if self.leaf_index == 0 {
+        if self.base.leaf_index == 0 {
             assert!(
-                self.value_hash.is_zero(),
+                self.base.value_hash.is_zero(),
                 "Invalid missing value specification: leaf index is zero, but value is non-default"
             );
         }
-        let root_hash =
-            hasher.fold_merkle_path(&self.merkle_path, key, self.value_hash, self.leaf_index);
+        let root_hash = hasher.fold_merkle_path(
+            &self.merkle_path,
+            key,
+            self.base.value_hash,
+            self.base.leaf_index,
+        );
         assert_eq!(root_hash, trusted_root_hash, "Root hash mismatch");
     }
 }
@@ -142,7 +146,11 @@ impl<'a> TreeRangeDigest<'a> {
         let left_contour: Vec<_> = left_contour.collect();
         Self {
             hasher: hasher.into(),
-            current_leaf: LeafNode::new(start_key, start_entry.value_hash, start_entry.leaf_index),
+            current_leaf: LeafNode::new(
+                start_key,
+                start_entry.base.value_hash,
+                start_entry.base.leaf_index,
+            ),
             left_contour: left_contour.try_into().unwrap(),
             // ^ `unwrap()` is safe by construction; `left_contour` will always have necessary length
         }
@@ -189,14 +197,7 @@ impl<'a> TreeRangeDigest<'a> {
     ///
     /// Panics if the provided `final_key` is not greater than the previous key provided to this digest.
     pub fn finalize(mut self, final_key: Key, final_entry: &TreeEntryWithProof) -> ValueHash {
-        self.update(
-            final_key,
-            TreeEntry {
-                value_hash: final_entry.value_hash,
-                leaf_index: final_entry.leaf_index,
-                merkle_path: (),
-            },
-        );
+        self.update(final_key, final_entry.base);
 
         let full_path = self
             .hasher
@@ -205,7 +206,7 @@ impl<'a> TreeRangeDigest<'a> {
         let zipped_paths = self.left_contour.into_iter().zip(full_path);
         let mut hash = self
             .hasher
-            .hash_leaf(&final_entry.value_hash, final_entry.leaf_index);
+            .hash_leaf(&final_entry.base.value_hash, final_entry.base.leaf_index);
         for (depth, (left, right)) in zipped_paths.enumerate() {
             hash = if final_key.bit(depth) {
                 self.hasher.hash_branch(&left, &hash)

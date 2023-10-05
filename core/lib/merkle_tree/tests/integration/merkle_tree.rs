@@ -142,7 +142,7 @@ fn entry_proofs_are_computed_correctly_on_empty_tree() {
         assert_eq!(entries.len(), existing_keys.len());
         for ((key, value), entry) in kvs.iter().zip(entries) {
             entry.verify(&Blake2Hasher, *key, expected_hash);
-            assert_eq!(entry.value_hash, *value);
+            assert_eq!(entry.base.value_hash, *value);
         }
 
         // Test some keys adjacent to existing ones.
@@ -162,7 +162,7 @@ fn entry_proofs_are_computed_correctly_on_empty_tree() {
         let entries = tree.entries_with_proofs(0, &missing_keys).unwrap();
         assert_eq!(entries.len(), missing_keys.len());
         for (key, entry) in missing_keys.iter().zip(entries) {
-            assert!(entry.is_empty());
+            assert!(entry.base.is_empty());
             entry.verify(&Blake2Hasher, *key, expected_hash);
         }
     }
@@ -287,7 +287,7 @@ fn entry_proofs_are_computed_correctly_with_intermediate_commits() {
             let entries = tree.entries_with_proofs(version as u64, &all_keys).unwrap();
             assert_eq!(entries.len(), all_keys.len());
             for (i, (key, entry)) in all_keys.iter().zip(entries).enumerate() {
-                assert_eq!(entry.is_empty(), i >= (version + 1) * chunk_size);
+                assert_eq!(entry.base.is_empty(), i >= (version + 1) * chunk_size);
                 entry.verify(&Blake2Hasher, *key, output.root_hash);
             }
         }
@@ -297,7 +297,7 @@ fn entry_proofs_are_computed_correctly_with_intermediate_commits() {
             let entries = tree.entries_with_proofs(version as u64, &all_keys).unwrap();
             assert_eq!(entries.len(), all_keys.len());
             for (i, (key, entry)) in all_keys.iter().zip(entries).enumerate() {
-                assert_eq!(entry.is_empty(), i >= (version + 1) * chunk_size);
+                assert_eq!(entry.base.is_empty(), i >= (version + 1) * chunk_size);
                 entry.verify(&Blake2Hasher, *key, root_hash);
             }
         }
@@ -473,7 +473,7 @@ fn proofs_are_computed_correctly_with_key_updates() {
         let keys: Vec<_> = kvs.iter().map(|(key, _)| *key).collect();
         let proofs = tree.entries_with_proofs(1, &keys).unwrap();
         for ((key, value), proof) in kvs.iter().zip(proofs) {
-            assert_eq!(proof.value_hash, *value);
+            assert_eq!(proof.base.value_hash, *value);
             proof.verify(&Blake2Hasher, *key, *expected_hash);
         }
     }
