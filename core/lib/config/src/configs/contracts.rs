@@ -35,6 +35,7 @@ pub struct ContractsConfig {
     pub fri_recursion_node_level_vk_hash: H256,
     pub fri_recursion_leaf_level_vk_hash: H256,
     pub prover_at_genesis: String,
+    pub snark_wrapper_vk_hash: H256,
 }
 
 impl ContractsConfig {
@@ -95,6 +96,9 @@ mod tests {
                 "0x72167c43a46cf38875b267d67716edc4563861364a3c03ab7aee73498421e828",
             ),
             prover_at_genesis: "fri".to_string(),
+            snark_wrapper_vk_hash: hash(
+                "0x4be443afd605a782b6e56d199df2460a025c81b3dea144e135bece83612563f2",
+            ),
         }
     }
 
@@ -129,6 +133,7 @@ CONTRACTS_FRI_RECURSION_SCHEDULER_LEVEL_VK_HASH="0x201d4c7d8e781d51a3bbd451a43a8
 CONTRACTS_FRI_RECURSION_NODE_LEVEL_VK_HASH="0x5a3ef282b21e12fe1f4438e5bb158fc5060b160559c5158c6389d62d9fe3d080"
 CONTRACTS_FRI_RECURSION_LEAF_LEVEL_VK_HASH="0x72167c43a46cf38875b267d67716edc4563861364a3c03ab7aee73498421e828"
 CONTRACTS_PROVER_AT_GENESIS="fri"
+SNARK_WRAPPER_VK_HASH="0x4be443afd605a782b6e56d199df2460a025c81b3dea144e135bece83612563f2"
         "#;
         lock.set_env(config);
 

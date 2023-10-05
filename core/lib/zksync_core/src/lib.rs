@@ -32,6 +32,7 @@ use zksync_dal::{
     connection::DbVariant, healthcheck::ConnectionPoolHealthCheck, ConnectionPool, StorageProcessor,
 };
 use zksync_eth_client::clients::http::QueryClient;
+use zksync_eth_client::EthInterface;
 use zksync_eth_client::{clients::http::PKSigningClient, BoundEthInterface};
 use zksync_health_check::{CheckHealth, HealthStatus, ReactiveHealthCheck};
 use zksync_object_store::ObjectStoreFactory;
@@ -110,6 +111,7 @@ pub async fn genesis_init(
     eth_sender: &ETHSenderConfig,
     network_config: &NetworkConfig,
     contracts_config: &ContractsConfig,
+    eth_client_url: &str,
 ) -> anyhow::Result<()> {
     let mut storage = StorageProcessor::establish_connection(true)
         .await
@@ -126,15 +128,34 @@ pub async fn genesis_init(
     // Later we can change provers using the system upgrades, but for genesis
     // we should select one using the environment config.
     let first_l1_verifier_config = if contracts_config.prover_at_genesis == "fri" {
-        L1VerifierConfig {
+        let l1_verifier_config = L1VerifierConfig {
             params: VerifierParams {
                 recursion_node_level_vk_hash: contracts_config.fri_recursion_node_level_vk_hash,
                 recursion_leaf_level_vk_hash: contracts_config.fri_recursion_leaf_level_vk_hash,
                 recursion_circuits_set_vks_hash: zksync_types::H256::zero(),
             },
-            recursion_scheduler_level_vk_hash: contracts_config
-                .fri_recursion_scheduler_level_vk_hash,
-        }
+            recursion_scheduler_level_vk_hash: contracts_config.snark_wrapper_vk_hash,
+        };
+
+        let eth_client = QueryClient::new(eth_client_url)?;
+        let vk_hash: zksync_types::H256 = eth_client
+            .call_contract_function(
+                "verificationKeyHash",
+                (),
+                None,
+                Default::default(),
+                None,
+                contracts_config.verifier_addr,
+                zksync_contracts::verifier_contract(),
+            )
+            .await?;
+
+        assert_eq!(
+            vk_hash, l1_verifier_config.recursion_scheduler_level_vk_hash,
+            "L1 verifier key does not match the one in the config"
+        );
+
+        l1_verifier_config
     } else {
         L1VerifierConfig {
             params: VerifierParams {
