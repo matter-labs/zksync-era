@@ -81,10 +81,10 @@ async function generateFacetCuts(l1RpcProvider?: string, zksyncAddress?: string,
     if (diamondCutAddress) {
         diamondCutAddress = diamondCutAddress['address'];
     }
-    let mailboxAddress = facets['MailboxFacet'];
-    if (mailboxAddress) {
-        mailboxAddress = mailboxAddress['address'];
-    }
+    // let mailboxAddress = facets['MailboxFacet'];
+    // if (mailboxAddress) {
+    //     mailboxAddress = mailboxAddress['address'];
+    // }
     let executorAddress = facets['ExecutorFacet'];
     if (executorAddress) {
         executorAddress = executorAddress['address'];
@@ -100,7 +100,7 @@ async function generateFacetCuts(l1RpcProvider?: string, zksyncAddress?: string,
         l1RpcProvider,
         diamondCutAddress,
         gettersAddress,
-        mailboxAddress,
+        // mailboxAddress,
         executorAddress,
         governanceAddress
     );

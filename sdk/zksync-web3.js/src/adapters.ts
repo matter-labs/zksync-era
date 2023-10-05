@@ -1,5 +1,5 @@
 import { BigNumber, BigNumberish, BytesLike, ethers } from 'ethers';
-import { IERC20MetadataFactory, IL1BridgeFactory, IL2BridgeFactory, IZkSyncFactory } from '../typechain';
+import { IERC20MetadataFactory, IL1BridgeFactory, IL2BridgeFactory, IBridgeheadChainFactory } from '../typechain';
 import { Provider } from './provider';
 import {
     Address,
@@ -49,7 +49,7 @@ export function AdapterL1<TBase extends Constructor<TxSender>>(Base: TBase) {
 
         async getMainContract() {
             const address = await this._providerL2().getMainContractAddress();
-            return IZkSyncFactory.connect(address, this._signerL1());
+            return IBridgeheadChainFactory.connect(address, this._signerL1());
         }
 
         async getL1BridgeContracts() {
@@ -138,13 +138,13 @@ export function AdapterL1<TBase extends Constructor<TxSender>>(Base: TBase) {
             gasPerPubdataByte?: BigNumberish;
             gasPrice?: BigNumberish;
         }): Promise<BigNumber> {
-            const zksyncContract = await this.getMainContract();
+            const bridgeheadChainContract = await this.getMainContract();
             const parameters = { ...layer1TxDefaults(), ...params };
             parameters.gasPrice ??= await this._providerL1().getGasPrice();
             parameters.gasPerPubdataByte ??= REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_LIMIT;
 
             return BigNumber.from(
-                await zksyncContract.l2TransactionBaseCost(
+                await bridgeheadChainContract.l2TransactionBaseCost(
                     parameters.gasPrice,
                     parameters.gasLimit,
                     parameters.gasPerPubdataByte
@@ -153,6 +153,7 @@ export function AdapterL1<TBase extends Constructor<TxSender>>(Base: TBase) {
         }
 
         async deposit(transaction: {
+            chainId: BigNumberish;
             token: Address;
             amount: BigNumberish;
             to?: Address;
@@ -210,6 +211,7 @@ export function AdapterL1<TBase extends Constructor<TxSender>>(Base: TBase) {
         }
 
         async estimateGasDeposit(transaction: {
+            chainId: BigNumberish;
             token: Address;
             amount: BigNumberish;
             to?: Address;
@@ -234,6 +236,7 @@ export function AdapterL1<TBase extends Constructor<TxSender>>(Base: TBase) {
         }
 
         async getDepositTx(transaction: {
+            chainId: BigNumberish;
             token: Address;
             amount: BigNumberish;
             to?: Address;
@@ -285,14 +288,14 @@ export function AdapterL1<TBase extends Constructor<TxSender>>(Base: TBase) {
                 );
             }
 
-            const { to, token, amount, operatorTip, overrides } = tx;
+            const { chainId, to, token, amount, operatorTip, overrides } = tx;
 
             await insertGasPrice(this._providerL1(), overrides);
             const gasPriceForEstimation = overrides.maxFeePerGas || overrides.gasPrice;
 
-            const zksyncContract = await this.getMainContract();
+            const bridgeheadChainContract = await this.getMainContract();
 
-            const baseCost = await zksyncContract.l2TransactionBaseCost(
+            const baseCost = await bridgeheadChainContract.l2TransactionBaseCost(
                 await gasPriceForEstimation,
                 tx.l2GasLimit,
                 tx.gasPerPubdataByte
@@ -312,7 +315,8 @@ export function AdapterL1<TBase extends Constructor<TxSender>>(Base: TBase) {
                 };
             } else {
                 let refundRecipient = tx.refundRecipient ?? ethers.constants.AddressZero;
-                const args: [Address, Address, BigNumberish, BigNumberish, BigNumberish, Address] = [
+                const args: [BigNumberish, Address, Address, BigNumberish, BigNumberish, BigNumberish, Address] = [
+                    chainId,
                     to,
                     token,
                     amount,
@@ -334,6 +338,7 @@ export function AdapterL1<TBase extends Constructor<TxSender>>(Base: TBase) {
         // Retrieves the full needed ETH fee for the deposit.
         // Returns the L1 fee and the L2 fee.
         async getFullRequiredDepositFee(transaction: {
+            chainId: BigNumberish;
             token: Address;
             to?: Address;
             bridgeAddress?: Address;
@@ -345,7 +350,7 @@ export function AdapterL1<TBase extends Constructor<TxSender>>(Base: TBase) {
             const dummyAmount = '1';
 
             const { ...tx } = transaction;
-            const zksyncContract = await this.getMainContract();
+            const bridgeheadChainContract = await this.getMainContract();
 
             tx.overrides ??= {};
             await insertGasPrice(this._providerL1(), tx.overrides);
@@ -386,7 +391,7 @@ export function AdapterL1<TBase extends Constructor<TxSender>>(Base: TBase) {
                 );
             }
 
-            const baseCost = await zksyncContract.l2TransactionBaseCost(
+            const baseCost = await bridgeheadChainContract.l2TransactionBaseCost(
                 gasPriceForMessages,
                 l2GasLimit,
                 tx.gasPerPubdataByte
@@ -498,7 +503,12 @@ export function AdapterL1<TBase extends Constructor<TxSender>>(Base: TBase) {
             };
         }
 
-        async finalizeWithdrawal(withdrawalHash: BytesLike, index: number = 0, overrides?: ethers.Overrides) {
+        async finalizeWithdrawal(
+            chainId: BigNumberish,
+            withdrawalHash: BytesLike,
+            index: number = 0,
+            overrides?: ethers.Overrides
+        ) {
             const { l1BatchNumber, l2MessageIndex, l2TxNumberInBlock, message, sender, proof } =
                 await this.finalizeWithdrawalParams(withdrawalHash, index);
 
@@ -509,6 +519,7 @@ export function AdapterL1<TBase extends Constructor<TxSender>>(Base: TBase) {
                 // the withdrawal request is processed through the WETH bridge.
                 if (withdrawTo.toLowerCase() == l1Bridges.weth.address.toLowerCase()) {
                     return await l1Bridges.weth.finalizeWithdrawal(
+                        chainId,
                         l1BatchNumber,
                         l2MessageIndex,
                         l2TxNumberInBlock,
@@ -519,7 +530,7 @@ export function AdapterL1<TBase extends Constructor<TxSender>>(Base: TBase) {
                 }
 
                 const contractAddress = await this._providerL2().getMainContractAddress();
-                const zksync = IZkSyncFactory.connect(contractAddress, this._signerL1());
+                const zksync = IBridgeheadChainFactory.connect(contractAddress, this._signerL1());
 
                 return await zksync.finalizeEthWithdrawal(
                     l1BatchNumber,
@@ -534,6 +545,7 @@ export function AdapterL1<TBase extends Constructor<TxSender>>(Base: TBase) {
             const l2Bridge = IL2BridgeFactory.connect(sender, this._providerL2());
             const l1Bridge = IL1BridgeFactory.connect(await l2Bridge.l1Bridge(), this._signerL1());
             return await l1Bridge.finalizeWithdrawal(
+                chainId,
                 l1BatchNumber,
                 l2MessageIndex,
                 l2TxNumberInBlock,
@@ -543,7 +555,7 @@ export function AdapterL1<TBase extends Constructor<TxSender>>(Base: TBase) {
             );
         }
 
-        async isWithdrawalFinalized(withdrawalHash: BytesLike, index: number = 0) {
+        async isWithdrawalFinalized(chainId: BigNumberish, withdrawalHash: BytesLike, index: number = 0) {
             const { log } = await this._getWithdrawalLog(withdrawalHash, index);
             const { l2ToL1LogIndex } = await this._getWithdrawalL2ToL1Log(withdrawalHash, index);
             const sender = ethers.utils.hexDataSlice(log.topics[1], 12);
@@ -554,7 +566,7 @@ export function AdapterL1<TBase extends Constructor<TxSender>>(Base: TBase) {
 
             if (isETH(sender)) {
                 const contractAddress = await this._providerL2().getMainContractAddress();
-                const zksync = IZkSyncFactory.connect(contractAddress, this._signerL1());
+                const zksync = IBridgeheadChainFactory.connect(contractAddress, this._signerL1());
 
                 return await zksync.isEthWithdrawalFinalized(log.l1BatchNumber, proof.id);
             }
@@ -562,10 +574,10 @@ export function AdapterL1<TBase extends Constructor<TxSender>>(Base: TBase) {
             const l2Bridge = IL2BridgeFactory.connect(sender, this._providerL2());
             const l1Bridge = IL1BridgeFactory.connect(await l2Bridge.l1Bridge(), this._providerL1());
 
-            return await l1Bridge.isWithdrawalFinalized(log.l1BatchNumber, proof.id);
+            return await l1Bridge.isWithdrawalFinalized(chainId, log.l1BatchNumber, proof.id);
         }
 
-        async claimFailedDeposit(depositHash: BytesLike, overrides?: ethers.Overrides) {
+        async claimFailedDeposit(chainId: BigNumberish, depositHash: BytesLike, overrides?: ethers.Overrides) {
             const receipt = await this._providerL2().getTransactionReceipt(ethers.utils.hexlify(depositHash));
             const successL2ToL1LogIndex = receipt.l2ToL1Logs.findIndex(
                 (l2ToL1log) => l2ToL1log.sender == BOOTLOADER_FORMAL_ADDRESS && l2ToL1log.key == depositHash
@@ -588,6 +600,7 @@ export function AdapterL1<TBase extends Constructor<TxSender>>(Base: TBase) {
 
             const proof = await this._providerL2().getLogProof(depositHash, successL2ToL1LogIndex);
             return await l1Bridge.claimFailedDeposit(
+                chainId,
                 calldata['_l1Sender'],
                 calldata['_l1Token'],
                 depositHash,
@@ -600,6 +613,7 @@ export function AdapterL1<TBase extends Constructor<TxSender>>(Base: TBase) {
         }
 
         async requestExecute(transaction: {
+            chainId: BigNumberish;
             contractAddress: Address;
             calldata: BytesLike;
             l2GasLimit?: BigNumberish;
@@ -615,6 +629,7 @@ export function AdapterL1<TBase extends Constructor<TxSender>>(Base: TBase) {
         }
 
         async estimateGasRequestExecute(transaction: {
+            chainId: BigNumberish;
             contractAddress: Address;
             calldata: BytesLike;
             l2GasLimit?: BigNumberish;
@@ -635,6 +650,7 @@ export function AdapterL1<TBase extends Constructor<TxSender>>(Base: TBase) {
         }
 
         async getRequestExecuteTx(transaction: {
+            chainId: BigNumberish;
             contractAddress: Address;
             calldata: BytesLike;
             l2GasLimit?: BigNumberish;
@@ -645,7 +661,7 @@ export function AdapterL1<TBase extends Constructor<TxSender>>(Base: TBase) {
             refundRecipient?: Address;
             overrides?: ethers.PayableOverrides;
         }): Promise<ethers.PopulatedTransaction> {
-            const zksyncContract = await this.getMainContract();
+            const bridgeheadChainContract = await this.getMainContract();
 
             const { ...tx } = transaction;
             tx.l2Value ??= BigNumber.from(0);
@@ -681,7 +697,7 @@ export function AdapterL1<TBase extends Constructor<TxSender>>(Base: TBase) {
 
             await checkBaseCost(baseCost, overrides.value);
 
-            return await zksyncContract.populateTransaction.requestL2Transaction(
+            return await bridgeheadChainContract.populateTransaction.requestL2Transaction(
                 contractAddress,
                 l2Value,
                 calldata,

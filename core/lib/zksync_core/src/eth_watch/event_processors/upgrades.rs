@@ -4,7 +4,7 @@ use crate::eth_watch::{
 };
 use std::convert::TryFrom;
 use std::time::Instant;
-use zksync_contracts::zksync_contract;
+use zksync_contracts::proof_chain_contract;
 use zksync_dal::StorageProcessor;
 use zksync_types::{web3::types::Log, ProtocolUpgrade, ProtocolVersionId, H256};
 
@@ -19,7 +19,7 @@ impl UpgradesEventProcessor {
     pub fn new(last_seen_version_id: ProtocolVersionId) -> Self {
         Self {
             last_seen_version_id,
-            upgrade_proposal_signature: zksync_contract()
+            upgrade_proposal_signature: proof_chain_contract()
                 .event("ProposeTransparentUpgrade")
                 .expect("ProposeTransparentUpgrade event is missing in abi")
                 .signature(),

@@ -30,6 +30,12 @@
       "inputs": [
         {
           "indexed": true,
+          "internalType": "bytes32",
+          "name": "l2DepositTxHash",
+          "type": "bytes32"
+        },
+        {
+          "indexed": true,
           "internalType": "address",
           "name": "from",
           "type": "address"
@@ -41,7 +47,7 @@
           "type": "address"
         },
         {
-          "indexed": true,
+          "indexed": false,
           "internalType": "address",
           "name": "l1Token",
           "type": "address"
@@ -83,6 +89,11 @@
     },
     {
       "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "_chainId",
+          "type": "uint256"
+        },
         {
           "internalType": "address",
           "name": "_depositSender",
@@ -127,6 +138,11 @@
     {
       "inputs": [
         {
+          "internalType": "uint256",
+          "name": "_chainId",
+          "type": "uint256"
+        },
+        {
           "internalType": "address",
           "name": "_l2Receiver",
           "type": "address"
@@ -150,6 +166,11 @@
           "internalType": "uint256",
           "name": "_l2TxGasPerPubdataByte",
           "type": "uint256"
+        },
+        {
+          "internalType": "address",
+          "name": "_refundRecipient",
+          "type": "address"
         }
       ],
       "name": "deposit",
@@ -165,6 +186,11 @@
     },
     {
       "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "_chainId",
+          "type": "uint256"
+        },
         {
           "internalType": "uint256",
           "name": "_l2BlockNumber",
@@ -200,6 +226,11 @@
       "inputs": [
         {
           "internalType": "uint256",
+          "name": "chainId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
           "name": "_l2BlockNumber",
           "type": "uint256"
         },
@@ -215,6 +246,19 @@
           "internalType": "bool",
           "name": "",
           "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "l2Bridge",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
         }
       ],
       "stateMutability": "view",

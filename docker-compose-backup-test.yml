@@ -22,4 +22,4 @@ services:
       - DB_PATH=/usr/src/db
       - CI=1
     env_file:
-      - ./etc/env/dev.env
+      - ./etc/env/target/dev.env

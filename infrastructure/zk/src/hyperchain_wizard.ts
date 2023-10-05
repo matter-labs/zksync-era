@@ -3,15 +3,15 @@ import enquirer from 'enquirer';
 import { BigNumber, ethers } from 'ethers';
 import chalk from 'chalk';
 import { announced, submoduleUpdate } from './init';
-import * as server from './server';
 import * as contract from './contract';
 import * as run from './run/run';
 import * as compiler from './compiler';
+import * as env from './env';
+import { compileConfig, pushConfig } from './config';
+import * as fs from 'fs';
 import * as db from './database';
 import { clean } from './clean';
-import * as env from './env';
-import { compileConfig } from './config';
-import * as fs from 'fs';
+import * as server from './server';
 import fetch from 'node-fetch';
 import { up } from './up';
 
@@ -66,8 +66,6 @@ async function initHyperchain() {
     await announced('Deploying L2 contracts', contract.deployL2(['--private-key', deployerPrivateKey], false));
 
     await announced('Initialize WETH Token', initializeWethTokenForHyperchain());
-
-    env.mergeInitToEnv();
 
     console.log(announce(`\nYour Hyperchain configuration is available at ${process.env.ENV_FILE}\n`));
 
@@ -278,34 +276,36 @@ async function setHyperchainMetadata() {
 
             const etherscanResults: any = await enquirer.prompt(etherscanQuestions);
 
-            wrapEnvModify('MISC_ETHERSCAN_API_KEY', etherscanResults.etherscanKey);
+            env.modify('MISC_ETHERSCAN_API_KEY', etherscanResults.etherscanKey, 'etc/env/l1-inits/.init.env');
         }
     }
 
     const environment = getEnv(results.chainName);
 
-    await compileConfig(environment);
+    compileConfig(environment);
     env.set(environment);
 
-    wrapEnvModify('ETH_CLIENT_CHAIN_ID', l1Id.toString());
-    wrapEnvModify('ETH_CLIENT_WEB3_URL', l1Rpc);
-    wrapEnvModify('CHAIN_ETH_NETWORK', getL1Name(results.l1Chain));
-    wrapEnvModify('CHAIN_ETH_ZKSYNC_NETWORK', results.chainName);
-    wrapEnvModify('CHAIN_ETH_ZKSYNC_NETWORK_ID', results.chainId);
-    wrapEnvModify('ETH_SENDER_SENDER_OPERATOR_PRIVATE_KEY', ethOperator.privateKey);
-    wrapEnvModify('ETH_SENDER_SENDER_OPERATOR_COMMIT_ETH_ADDR', ethOperator.address);
-    wrapEnvModify('DEPLOYER_PRIVATE_KEY', deployer.privateKey);
-    wrapEnvModify('GOVERNOR_PRIVATE_KEY', governor.privateKey);
-    wrapEnvModify('GOVERNOR_ADDRESS', governor.address);
-    wrapEnvModify('CHAIN_STATE_KEEPER_FEE_ACCOUNT_ADDR', feeReceiverAddress);
+    env.modify('ETH_CLIENT_CHAIN_ID', l1Id.toString(), 'etc/env/l1-inits/.init.env');
+    env.modify('ETH_CLIENT_WEB3_URL', l1Rpc, 'etc/env/l1-inits/.init.env');
+    env.modify('CHAIN_ETH_NETWORK', getL1Name(results.l1Chain), 'etc/env/l1-inits/.init.env');
+    env.modify('CHAIN_ETH_ZKSYNC_NETWORK', results.chainName, process.env.ENV_FILE!);
+    env.modify('CHAIN_ETH_ZKSYNC_NETWORK_ID', results.chainId, process.env.ENV_FILE!);
+    env.modify('ETH_SENDER_SENDER_OPERATOR_PRIVATE_KEY', ethOperator.privateKey, 'etc/env/l1-inits/.init.env');
+    env.modify('ETH_SENDER_SENDER_OPERATOR_COMMIT_ETH_ADDR', ethOperator.address, 'etc/env/l1-inits/.init.env');
+    env.modify('DEPLOYER_PRIVATE_KEY', deployer.privateKey, 'etc/env/l1-inits/.init.env');
+    env.modify('GOVERNOR_PRIVATE_KEY', governor.privateKey, 'etc/env/l1-inits/.init.env');
+    env.modify('GOVERNOR_ADDRESS', governor.address, 'etc/env/l1-inits/.init.env');
+    env.modify('CHAIN_STATE_KEEPER_FEE_ACCOUNT_ADDR', feeReceiverAddress, 'etc/env/l1-inits/.init.env');
     if (feeReceiver) {
-        wrapEnvModify('FEE_RECEIVER_PRIVATE_KEY', feeReceiver.privateKey);
+        env.modify('FEE_RECEIVER_PRIVATE_KEY', feeReceiver.privateKey, 'etc/env/l1-inits/.init.env');
     }
 
     // For now force delay to 20 seconds to ensure batch execution doesn't not happen in same block as batch proving
     // This bug will be fixed on the smart contract soon
-    wrapEnvModify('CONTRACTS_VALIDATOR_TIMELOCK_EXECUTION_DELAY', '0');
-    wrapEnvModify('ETH_SENDER_SENDER_L1_BATCH_MIN_AGE_BEFORE_EXECUTE_SECONDS', '20');
+    env.modify('CONTRACTS_VALIDATOR_TIMELOCK_EXECUTION_DELAY', '0', 'etc/env/l1-inits/.init.env');
+    env.modify('ETH_SENDER_SENDER_L1_BATCH_MIN_AGE_BEFORE_EXECUTE_SECONDS', '20', 'etc/env/l1-inits/.init.env');
+    const diff = env.getAvailableEnvsFromFiles().size;
+    pushConfig(undefined, diff.toString());
 
     env.load();
 }
@@ -391,7 +391,7 @@ async function initializeWethTokenForHyperchain() {
             }
         }
 
-        wrapEnvModify('CONTRACTS_L1_WETH_TOKEN_ADDR', baseWethToken!);
+        env.modify('CONTRACTS_L1_WETH_TOKEN_ADDR', baseWethToken!, 'etc/env/l1-inits/.init.env');
 
         const governorPrivateKey = process.env.GOVERNOR_PRIVATE_KEY;
 
@@ -439,11 +439,6 @@ async function startServer() {
     }
 
     await server.server(false, false, components.join(','));
-}
-
-// The current env.modify requires to write down the variable name twice. This wraps it so the caller only writes the name and the value
-function wrapEnvModify(variable: string, assignedVariable: string) {
-    env.modify(variable, `${variable}=${assignedVariable}`);
 }
 
 // Make sure all env information is available and wallets are funded

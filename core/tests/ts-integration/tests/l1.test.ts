@@ -26,6 +26,7 @@ const DEFAULT_L2_GAS_LIMIT = 5000000;
 describe('Tests for L1 behavior', () => {
     let testMaster: TestMaster;
     let alice: zksync.Wallet;
+    let chainId: ethers.BigNumberish;
 
     let counterContract: zksync.Contract;
     let contextContract: zksync.Contract;
@@ -34,6 +35,7 @@ describe('Tests for L1 behavior', () => {
     beforeAll(() => {
         testMaster = TestMaster.getInstance(__filename);
         alice = testMaster.mainAccount();
+        chainId = process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID!;
     });
 
     test('Should deploy required contracts', async () => {
@@ -50,6 +52,7 @@ describe('Tests for L1 behavior', () => {
 
         await expect(
             alice.requestExecute({
+                chainId,
                 contractAddress: counterContract.address,
                 calldata,
                 overrides: {
@@ -66,6 +69,7 @@ describe('Tests for L1 behavior', () => {
 
         await expect(
             alice.requestExecute({
+                chainId,
                 contractAddress: contextContract.address,
                 calldata,
                 l2Value,
@@ -82,6 +86,7 @@ describe('Tests for L1 behavior', () => {
 
         await expect(
             alice.requestExecute({
+                chainId,
                 contractAddress: errorContract.address,
                 calldata,
                 l2GasLimit: DEFAULT_L2_GAS_LIMIT,
@@ -116,8 +121,8 @@ describe('Tests for L1 behavior', () => {
         expect(accumutatedRoot).toBe(root);
 
         // Ensure that provided proof is accepted by the main zkSync contract.
-        const zkSyncContract = await alice.getMainContract();
-        const acceptedByContract = await zkSyncContract.proveL2MessageInclusion(
+        const bridgeheadChainContract = await alice.getMainContract();
+        const acceptedByContract = await bridgeheadChainContract.proveL2MessageInclusion(
             receipt.l1BatchNumber,
             id,
             {
@@ -137,6 +142,7 @@ describe('Tests for L1 behavior', () => {
 
         // Check that the request with higher `gasLimit` fails.
         let priorityOpHandle = await alice.requestExecute({
+            chainId,
             contractAddress: alice.address,
             calldata: '0x',
             l2GasLimit: l2GasLimit + 1,
@@ -155,6 +161,7 @@ describe('Tests for L1 behavior', () => {
 
         // Check that the request with `gasLimit` succeeds.
         priorityOpHandle = await alice.requestExecute({
+            chainId,
             contractAddress: alice.address,
             calldata: '0x',
             l2GasLimit,
@@ -181,6 +188,7 @@ describe('Tests for L1 behavior', () => {
         const l2GasLimit = maxL2GasLimitForPriorityTxs();
 
         const priorityOpHandle = await alice.requestExecute({
+            chainId,
             contractAddress: contract.address,
             calldata,
             l2GasLimit,
@@ -228,6 +236,7 @@ describe('Tests for L1 behavior', () => {
         const l2GasLimit = maxL2GasLimitForPriorityTxs();
 
         const priorityOpHandle = await alice.requestExecute({
+            chainId,
             contractAddress: contract.address,
             calldata,
             l2GasLimit,
@@ -257,6 +266,7 @@ describe('Tests for L1 behavior', () => {
         const l2GasLimit = maxL2GasLimitForPriorityTxs();
 
         const priorityOpHandle = await alice.requestExecute({
+            chainId,
             contractAddress: contract.address,
             calldata,
             l2GasLimit,
@@ -289,6 +299,7 @@ describe('Tests for L1 behavior', () => {
         const l2GasLimit = maxL2GasLimitForPriorityTxs();
 
         const priorityOpHandle = await alice.requestExecute({
+            chainId,
             contractAddress: contract.address,
             calldata,
             l2GasLimit,

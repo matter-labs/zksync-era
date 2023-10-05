@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import * as fs from 'fs';
 import * as path from 'path';
 import { confirmAction } from './utils';
+import * as down from './down';
 
 export function clean(path: string) {
     if (fs.existsSync(path)) {
@@ -24,9 +25,9 @@ export const command = new Command('clean')
         await confirmAction();
 
         if (cmd.all || cmd.config) {
-            const env = process.env.ZKSYNC_ENV;
-            clean(`etc/env/${env}.env`);
-            clean('etc/env/.init.env');
+            const envName = process.env.ZKSYNC_ENV;
+            clean(`etc/env/target/${envName}.env`);
+            clean(`etc/env/l2-inits/${envName}.init.env`);
         }
 
         if (cmd.all || cmd.artifacts) {
@@ -50,5 +51,11 @@ export const command = new Command('clean')
             clean('contracts/zksync/artifacts-zk');
             clean('contracts/zksync/cache-zk');
             clean('contracts/zksync/typechain');
+        }
+
+        if (cmd.all) {
+            await down.down();
+            clean('volumes');
+            clean('contracts/ethereum/.openzeppelin');
         }
     });

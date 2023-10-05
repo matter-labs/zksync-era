@@ -14,18 +14,21 @@ import {
     AllowListFactory
 } from 'l1-zksync-contracts/typechain';
 import { sleep } from 'zk/build/utils';
+import { BigNumberish } from 'ethers';
 
 describe('Tests for the custom bridge behavior', () => {
     let testMaster: TestMaster;
     let alice: zksync.Wallet;
     let bob: zksync.Wallet;
     let tokenDetails: Token;
+    let chainId: BigNumberish;
 
     beforeAll(() => {
         testMaster = TestMaster.getInstance(__filename);
         alice = testMaster.mainAccount();
         bob = testMaster.newEmptyAccount();
         tokenDetails = testMaster.environment().erc20Token;
+        chainId = process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID!;
     });
 
     test('Should deploy custom bridge', async () => {
@@ -48,7 +51,7 @@ describe('Tests for the custom bridge behavior', () => {
         const gasPrice = await scaledGasPrice(alice);
 
         let l1Bridge = await l1bridgeFactory.deploy(
-            process.env.CONTRACTS_DIAMOND_PROXY_ADDR!,
+            process.env.CONTRACTS_BRIDGEHEAD_PROXY_ADDR!,
             allowListContract.address
         );
         await l1Bridge.deployTransaction.wait(2);
@@ -70,6 +73,7 @@ describe('Tests for the custom bridge behavior', () => {
         const initialBalanceL1 = await alice.getBalanceL1(tokenDetails.l1Address);
         const initialBalanceL2 = await alice.getBalance(l2TokenAddress);
         let tx = await alice.deposit({
+            chainId,
             token: tokenDetails.l1Address,
             amount,
             approveERC20: true,

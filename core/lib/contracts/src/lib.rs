@@ -24,12 +24,18 @@ pub enum ContractLanguage {
     Yul,
 }
 
-const ZKSYNC_CONTRACT_FILE: &str =
-    "contracts/ethereum/artifacts/cache/solpp-generated-contracts/zksync/interfaces/IZkSync.sol/IZkSync.json";
+const BRIDGEHEAD_CONTRACT_FILE: &str =
+    "contracts/ethereum/artifacts/cache/solpp-generated-contracts/bridgehead/bridgehead-interfaces/IBridgehead.sol/IBridgehead.json";
+const BRIDGEHEAD_CHAIN_CONTRACT_FILE: &str =
+    "contracts/ethereum/artifacts/cache/solpp-generated-contracts/bridgehead/chain-interfaces/IBridgeheadChain.sol/IBridgeheadChain.json";
+const PROOF_SYSTEM_CONTRACT_FILE: &str =
+    "contracts/ethereum/artifacts/cache/solpp-generated-contracts/proof-system/proof-system-interfaces/IProofSystem.sol/IProofSystem.json";
+const PROOF_CHAIN_CONTRACT_FILE: &str =
+    "contracts/ethereum/artifacts/cache/solpp-generated-contracts/proof-system/chain-interfaces/IProofChain.sol/IProofChain.json";
 const MULTICALL3_CONTRACT_FILE: &str =
     "contracts/ethereum/artifacts/cache/solpp-generated-contracts/dev-contracts/Multicall3.sol/Multicall3.json";
 const VERIFIER_CONTRACT_FILE: &str =
-    "contracts/ethereum/artifacts/cache/solpp-generated-contracts/zksync/Verifier.sol/Verifier.json";
+    "contracts/ethereum/artifacts/cache/solpp-generated-contracts/proof-system/Verifier.sol/Verifier.json";
 const IERC20_CONTRACT_FILE: &str =
     "contracts/ethereum/artifacts/cache/solpp-generated-contracts/common/interfaces/IERC20.sol/IERC20.json";
 const FAIL_ON_RECEIVE_CONTRACT_FILE: &str =
@@ -69,8 +75,20 @@ pub fn read_contract_abi(path: impl AsRef<Path>) -> String {
         .to_string()
 }
 
-pub fn zksync_contract() -> Contract {
-    load_contract(ZKSYNC_CONTRACT_FILE)
+pub fn bridgehead_contract() -> Contract {
+    load_contract(BRIDGEHEAD_CONTRACT_FILE)
+}
+
+pub fn bridgehead_chain_contract() -> Contract {
+    load_contract(BRIDGEHEAD_CHAIN_CONTRACT_FILE)
+}
+
+pub fn proof_system_contract() -> Contract {
+    load_contract(PROOF_SYSTEM_CONTRACT_FILE)
+}
+
+pub fn proof_chain_contract() -> Contract {
+    load_contract(PROOF_CHAIN_CONTRACT_FILE)
 }
 
 pub fn multicall_contract() -> Contract {

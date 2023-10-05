@@ -226,6 +226,7 @@ export class TestContextOwner {
         l2ETHAmountToDeposit: ethers.BigNumber,
         l2erc20DepositAmount: ethers.BigNumber
     ) {
+        const chainId = process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID!;
         this.reporter.startAction(`Distributing tokens on L1`);
         const l1startNonce = await this.mainEthersWallet.getTransactionCount();
         this.reporter.debug(`Start nonce is ${l1startNonce}`);
@@ -243,6 +244,7 @@ export class TestContextOwner {
             // we have to correctly send nonce.
             const depositHandle = this.mainSyncWallet
                 .deposit({
+                    chainId,
                     token: zksync.utils.ETH_ADDRESS,
                     amount: l2ETHAmountToDeposit,
                     overrides: {
@@ -280,6 +282,7 @@ export class TestContextOwner {
         // Deposit ERC20.
         const erc20DepositPromise = this.mainSyncWallet
             .deposit({
+                chainId,
                 token: erc20Token,
                 amount: l2erc20DepositAmount,
                 approveERC20: true,

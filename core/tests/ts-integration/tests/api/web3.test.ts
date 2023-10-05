@@ -4,7 +4,7 @@
 import { TestMaster } from '../../src';
 import * as zksync from 'zksync-web3';
 import { types } from 'zksync-web3';
-import { ethers, Event } from 'ethers';
+import { BigNumberish, ethers, Event } from 'ethers';
 import { serialize } from '@ethersproject/transactions';
 import { deployContract, getTestContract, waitForNewL1Batch, anyTransaction } from '../../src/helpers';
 import { shouldOnlyTakeFee } from '../../src/modifiers/balance-checker';
@@ -23,11 +23,13 @@ describe('web3 API compatibility tests', () => {
     let testMaster: TestMaster;
     let alice: zksync.Wallet;
     let l2Token: string;
+    let chainId: BigNumberish;
 
     beforeAll(async () => {
         testMaster = TestMaster.getInstance(__filename);
         alice = testMaster.mainAccount();
         l2Token = testMaster.environment().erc20Token.l2Address;
+        chainId = process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID!;
     });
 
     test('Should test block/transaction web3 methods', async () => {
@@ -129,7 +131,7 @@ describe('web3 API compatibility tests', () => {
     test('Should check the network version', async () => {
         // Valid network IDs for zkSync are greater than 270.
         // This test suite may run on different envs, so we don't expect a particular ID.
-        await expect(alice.provider.send('net_version', [])).resolves.toMatch(/^27\d|28\d$/);
+        await expect(alice.provider.send('net_version', [])).resolves.toMatch(chainId.toString());
     });
 
     // @ts-ignore
@@ -436,6 +438,7 @@ describe('web3 API compatibility tests', () => {
         let amount = 1;
 
         const sentTx = await alice.deposit({
+            chainId,
             token: zksync.utils.ETH_ADDRESS,
             amount
         });

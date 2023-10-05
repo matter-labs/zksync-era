@@ -18,7 +18,7 @@ const SLEEP_DELAY: Duration = Duration::from_secs(5);
 impl ConsistencyChecker {
     pub fn new(web3_url: &str, max_batches_to_recheck: u32, db: ConnectionPool) -> Self {
         let web3 = Web3::new(Http::new(web3_url).unwrap());
-        let contract = zksync_contracts::zksync_contract();
+        let contract = zksync_contracts::proof_chain_contract();
         Self {
             web3,
             contract,

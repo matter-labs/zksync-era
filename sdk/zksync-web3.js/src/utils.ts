@@ -19,7 +19,7 @@ export * from './paymaster-utils';
 
 export const ETH_ADDRESS = '0x0000000000000000000000000000000000000000';
 
-export const ZKSYNC_MAIN_ABI = new utils.Interface(require('../../abi/IZkSync.json').abi);
+export const BRIDGEHEAD_ABI = new utils.Interface(require('../../abi/IBridgehead.json').abi);
 export const CONTRACT_DEPLOYER = new utils.Interface(require('../../abi/ContractDeployer.json').abi);
 export const L1_MESSENGER = new utils.Interface(require('../../abi/IL1Messenger.json').abi);
 export const IERC20 = new utils.Interface(require('../../abi/IERC20.json').abi);
@@ -365,7 +365,7 @@ export function getL2HashFromPriorityOp(
         }
 
         try {
-            const priorityQueueLog = ZKSYNC_MAIN_ABI.parseLog(log);
+            const priorityQueueLog = BRIDGEHEAD_ABI.parseLog(log);
             if (priorityQueueLog && priorityQueueLog.args.txHash != null) {
                 txHash = priorityQueueLog.args.txHash;
             }
@@ -381,7 +381,9 @@ export function getL2HashFromPriorityOp(
 const ADDRESS_MODULO = BigNumber.from(2).pow(160);
 
 export function applyL1ToL2Alias(address: string): string {
-    return ethers.utils.hexlify(ethers.BigNumber.from(address).add(L1_TO_L2_ALIAS_OFFSET).mod(ADDRESS_MODULO));
+    return toAddress(
+        ethers.utils.hexlify(ethers.BigNumber.from(address).add(L1_TO_L2_ALIAS_OFFSET).mod(ADDRESS_MODULO))
+    );
 }
 
 export function undoL1ToL2Alias(address: string): string {
@@ -390,7 +392,12 @@ export function undoL1ToL2Alias(address: string): string {
         result = result.add(ADDRESS_MODULO);
     }
 
-    return ethers.utils.hexlify(result);
+    return toAddress(ethers.utils.hexlify(result));
+}
+
+function toAddress(address: string): string {
+    let zeros = '0'.repeat(42 - address.length);
+    return ethers.utils.getAddress(zeros + address.slice(2));
 }
 
 /// Getters data used to correctly initialize the L1 token counterpart on L2

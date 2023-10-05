@@ -30,7 +30,7 @@ use crate::{
 };
 
 const IERC20_INTERFACE: &str = include_str!("../abi/IERC20.json");
-const ZKSYNC_INTERFACE: &str = include_str!("../abi/IZkSync.json");
+const BRIDGEHEAD_INTERFACE: &str = include_str!("../abi/IBridgehead.json");
 const L1_DEFAULT_BRIDGE_INTERFACE: &str = include_str!("../abi/IL1Bridge.json");
 const RAW_ERC20_DEPOSIT_GAS_LIMIT: &str = include_str!("DepositERC20GasLimit.json");
 
@@ -39,10 +39,10 @@ const RAW_ERC20_DEPOSIT_GAS_LIMIT: &str = include_str!("DepositERC20GasLimit.jso
 const L1_TO_L2_GAS_PER_PUBDATA: u32 = 800;
 
 /// Returns `ethabi::Contract` object for zkSync smart contract.
-pub fn zksync_contract() -> ethabi::Contract {
-    load_contract(ZKSYNC_INTERFACE)
+pub fn bridgehead_contract() -> ethabi::Contract {
+    load_contract(BRIDGEHEAD_INTERFACE)
 }
-
+// KL todo: this file needs chainIds
 /// Returns `ethabi::Contract` object for ERC-20 smart contract interface.
 pub fn ierc20_contract() -> ethabi::Contract {
     load_contract(IERC20_INTERFACE)
@@ -92,7 +92,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
             )
         })?;
 
-        let contract_address = provider.get_main_contract().await?;
+        let contract_address = provider.get_bridgehead_chain_contract().await?;
         let default_bridges = provider
             .get_bridge_contracts()
             .await
@@ -100,7 +100,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
 
         let eth_client = SigningClient::new(
             transport,
-            zksync_contract(),
+            bridgehead_contract(),
             eth_addr,
             eth_signer,
             contract_address,

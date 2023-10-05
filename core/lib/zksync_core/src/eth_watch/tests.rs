@@ -5,7 +5,7 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 
 use db_test_macro::db_test;
-use zksync_contracts::zksync_contract;
+use zksync_contracts::bridgehead_chain_contract;
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_types::protocol_version::{ProtocolUpgradeTx, ProtocolUpgradeTxCommonData};
 use zksync_types::web3::types::{Address, BlockNumber};
@@ -474,7 +474,7 @@ fn tx_into_log(tx: L1Tx) -> Log {
 
     Log {
         address: Address::repeat_byte(0x1),
-        topics: vec![zksync_contract()
+        topics: vec![bridgehead_chain_contract()
             .event("NewPriorityRequest")
             .expect("NewPriorityRequest event is missing in abi")
             .signature()],
@@ -606,7 +606,7 @@ fn upgrade_into_log(upgrade: ProtocolUpgrade, eth_block: u64) -> Log {
     let data = encode(&[final_token, Token::FixedBytes(vec![0u8; 32])]);
     Log {
         address: Address::repeat_byte(0x1),
-        topics: vec![zksync_contract()
+        topics: vec![bridgehead_chain_contract()
             .event("ProposeTransparentUpgrade")
             .expect("ProposeTransparentUpgrade event is missing in abi")
             .signature()],

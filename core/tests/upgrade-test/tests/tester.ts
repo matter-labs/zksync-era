@@ -36,7 +36,7 @@ export class Tester {
             ethWallet = new ethers.Wallet(process.env.MASTER_WALLET_PK!);
         }
         ethWallet = ethWallet.connect(ethProvider);
-        const web3Provider = new zkweb3.Provider(process.env.ZKSYNC_WEB3_API_URL || "http://localhost:3050");
+        const web3Provider = new zkweb3.Provider(process.env.ZKSYNC_WEB3_API_URL || process.env.API_WEB3_JSON_RPC_HTTP_URL ||  "http://localhost:3050");
         web3Provider.pollingInterval = 100; // It's OK to keep it low even on stage.
         const syncWallet = new zkweb3.Wallet(ethWallet.privateKey, web3Provider, ethProvider);
 

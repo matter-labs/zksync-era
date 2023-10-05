@@ -41,6 +41,6 @@ then
 fi
 
 # start server
-source /etc/env/dev.env
-source /etc/env/.init.env
+source /etc/env/target/dev.env
+source /etc/env/l2-inits/dev.init.env
 zksync_server

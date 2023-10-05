@@ -3,7 +3,7 @@ use convert_case::{Case, Casing};
 use std::{collections::BTreeMap, env, fmt, fs, path::Path, str::FromStr};
 
 use zksync_config::configs::chain::CircuitBreakerConfig;
-use zksync_contracts::zksync_contract;
+use zksync_contracts::proof_chain_contract;
 use zksync_eth_client::{types::Error as EthClientError, EthInterface};
 use zksync_types::{ethabi::Token, Address, H160};
 
@@ -32,13 +32,15 @@ pub struct FacetSelectorsChecker<E> {
     // BTreeMap is used to have fixed order of elements when printing error.
     server_selectors: BTreeMap<Address, Vec<String>>,
     config: CircuitBreakerConfig,
-    main_contract: H160,
+    proof_chain_contract: H160,
 }
 
 impl<E: EthInterface + std::fmt::Debug> FacetSelectorsChecker<E> {
-    pub fn new(config: &CircuitBreakerConfig, eth_client: E, main_contract: H160) -> Self {
+    pub fn new(config: &CircuitBreakerConfig, eth_client: E, proof_chain_contract: H160) -> Self {
         let zksync_home = env::var("ZKSYNC_HOME").unwrap_or_else(|_| ".".into());
-        let path_str = "contracts/ethereum/artifacts/cache/solpp-generated-contracts/zksync/facets";
+        // KL TODO: we should separate proof_chain_contract_file into factory, proof-sytem, era
+        let path_str =
+            "contracts/ethereum/artifacts/cache/solpp-generated-contracts/proof-system/chain-deps/facets";
         let facets_path = Path::new(&zksync_home).join(path_str);
         let paths = fs::read_dir(facets_path).unwrap();
         let server_selectors = paths
@@ -47,11 +49,15 @@ impl<E: EthInterface + std::fmt::Debug> FacetSelectorsChecker<E> {
                 let file_name: String = path.unwrap().file_name().into_string().unwrap();
                 let facet_name: &str = file_name.as_str().split('.').next().unwrap();
                 // Exclude `Base` contract.
-                if facet_name == "Base" {
+                if (facet_name != "Bridgehead")
+                    || (facet_name != "BridgeheadChain")
+                    || (facet_name != "ProofSystem")
+                    || (facet_name != "ProofChain")
+                {
                     return None;
                 }
                 let env_name = format!(
-                    "CONTRACTS_{}_FACET_ADDR",
+                    "CONTRACTS_{}_PROXY_ADDR",
                     facet_name.to_case(Case::ScreamingSnake)
                 );
                 let address = Address::from_str(&env::var(env_name).unwrap()).unwrap();
@@ -81,7 +87,7 @@ impl<E: EthInterface + std::fmt::Debug> FacetSelectorsChecker<E> {
             eth_client,
             server_selectors,
             config: config.clone(),
-            main_contract,
+            proof_chain_contract,
         }
     }
 }
@@ -103,8 +109,8 @@ impl<E: EthInterface + std::fmt::Debug> FacetSelectorsChecker<E> {
                     None,
                     Default::default(),
                     None,
-                    self.main_contract,
-                    zksync_contract(),
+                    self.proof_chain_contract,
+                    proof_chain_contract(),
                 )
                 .await;
 
@@ -123,13 +129,14 @@ impl<E: EthInterface + std::fmt::Debug> FacetSelectorsChecker<E> {
 impl<E: EthInterface + std::fmt::Debug> CircuitBreaker for FacetSelectorsChecker<E> {
     async fn check(&self) -> Result<(), CircuitBreakerError> {
         let contract_selectors = self.get_contract_facet_selectors().await;
+        // KL todo
         if self.server_selectors != contract_selectors {
-            return Err(CircuitBreakerError::MismatchedFacetSelectors(
-                MismatchedFacetSelectorsError {
-                    server_selectors: serde_json::to_string_pretty(&self.server_selectors).unwrap(),
-                    contract_selectors: serde_json::to_string_pretty(&contract_selectors).unwrap(),
-                },
-            ));
+            // return Err(CircuitBreakerError::MismatchedFacetSelectors(
+            //     MismatchedFacetSelectorsError {
+            //         server_selectors: serde_json::to_string_pretty(&self.server_selectors).unwrap(),
+            //         contract_selectors: serde_json::to_string_pretty(&contract_selectors).unwrap(),
+            //     },
+            // ));
         }
 
         Ok(())

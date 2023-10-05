@@ -116,7 +116,12 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
     }
 
     #[tracing::instrument(skip(self))]
-    pub fn get_main_contract_impl(&self) -> Address {
+    pub fn get_bridgehead_chain_contract_impl(&self) -> Address {
+        self.state.api_config.bridgehead_chain_proxy_addr
+    }
+
+    #[tracing::instrument(skip(self))]
+    pub fn get_proof_contract_impl(&self) -> Address {
         self.state.api_config.diamond_proxy_addr
     }
 

@@ -294,7 +294,7 @@ async function sendTransaction(
     nonce: number
 ) {
     const wallet = getWallet(l1rpc, privateKey);
-    zksyncAddress = zksyncAddress ?? process.env.CONTRACTS_DIAMOND_PROXY_ADDR;
+    zksyncAddress = zksyncAddress ?? process.env.CONTRACTS_BRIDGEHEAD_PROXY_ADDR;
     gasPrice = gasPrice ?? (await wallet.provider.getGasPrice());
     nonce = nonce ?? (await wallet.getTransactionCount());
     const tx = await wallet.sendTransaction({
@@ -369,7 +369,7 @@ async function cancelUpgrade(
     nonce: number,
     execute: boolean
 ) {
-    zksyncAddress = zksyncAddress ?? process.env.CONTRACTS_DIAMOND_PROXY_ADDR;
+    zksyncAddress = zksyncAddress ?? process.env.CONTRACTS_BRIDGEHEAD_PROXY_ADDR;
     let wallet = getWallet(l1rpc, privateKey);
     let zkSync = IZkSyncFactory.connect(zksyncAddress, wallet);
     const transactions = JSON.parse(fs.readFileSync(getL2TransactionsFileName(environment)).toString());
@@ -393,7 +393,7 @@ async function cancelUpgrade(
 }
 
 async function getNewDiamondUpgradeProposalId(l1rpc: string, zksyncAddress: string) {
-    zksyncAddress = zksyncAddress ?? process.env.CONTRACTS_DIAMOND_PROXY_ADDR;
+    zksyncAddress = zksyncAddress ?? process.env.CONTRACTS_BRIDGEHEAD_PROXY_ADDR;
     // We don't care about the wallet here, we just need to make a get call.
     let wallet = getWallet(l1rpc, undefined);
     let zkSync = IZkSyncFactory.connect(zksyncAddress, wallet);

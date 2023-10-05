@@ -516,6 +516,8 @@ impl<S: ReadStorage, H: HistoryMode> VmInstanceData<S, H> {
             }
             VmVersion::Vm1_3_2 => VmInstanceData::vm1_3_2(storage_view, history),
             VmVersion::VmVirtualBlocks => VmInstanceData::latest(storage_view, history),
+            // kl todo delete local vm verion
+            VmVersion::Local => VmInstanceData::latest(storage_view, history),
         }
     }
 }

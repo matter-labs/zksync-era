@@ -69,6 +69,9 @@ pub struct MultiVMBaseSystemContracts {
     pub(crate) post_virtual_blocks: BaseSystemContracts,
     /// Contracts to be used for protocol versions after virtual block upgrade fix.
     pub(crate) post_virtual_blocks_finish_upgrade_fix: BaseSystemContracts,
+    // kl todo delete local vm verion
+    /// Contracts to be used for local requests.
+    pub(crate) local: BaseSystemContracts,
 }
 
 impl MultiVMBaseSystemContracts {
@@ -91,6 +94,8 @@ impl MultiVMBaseSystemContracts {
             ProtocolVersionId::Version14
             | ProtocolVersionId::Version15
             | ProtocolVersionId::Version16 => self.post_virtual_blocks_finish_upgrade_fix,
+            // kl todo delete local vm verion
+            ProtocolVersionId::Local => self.local,
         }
     }
 }
@@ -120,12 +125,16 @@ impl ApiContracts {
                 post_virtual_blocks: BaseSystemContracts::estimate_gas_post_virtual_blocks(),
                 post_virtual_blocks_finish_upgrade_fix:
                     BaseSystemContracts::estimate_gas_post_virtual_blocks_finish_upgrade_fix(),
+                // kl todo delete local vm verion
+                local: BaseSystemContracts::estimate_gas(),
             },
             eth_call: MultiVMBaseSystemContracts {
                 pre_virtual_blocks: BaseSystemContracts::playground_pre_virtual_blocks(),
                 post_virtual_blocks: BaseSystemContracts::playground_post_virtual_blocks(),
                 post_virtual_blocks_finish_upgrade_fix:
                     BaseSystemContracts::playground_post_virtual_blocks_finish_upgrade_fix(),
+                // kl todo delete local vm verion
+                local: BaseSystemContracts::playground(),
             },
         }
     }

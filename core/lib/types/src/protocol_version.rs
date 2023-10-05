@@ -36,11 +36,15 @@ pub enum ProtocolVersionId {
     Version14,
     Version15,
     Version16,
+    // kl todo delete local vm verion
+    Local = 65535,
 }
 
 impl ProtocolVersionId {
     pub fn latest() -> Self {
-        Self::Version15
+        // kl todo delete local vm verion
+        Self::Local
+        // Self::Version15
     }
 
     pub fn next() -> Self {
@@ -68,6 +72,8 @@ impl ProtocolVersionId {
             ProtocolVersionId::Version14 => VmVersion::VmVirtualBlocks,
             ProtocolVersionId::Version15 => VmVersion::VmVirtualBlocks,
             ProtocolVersionId::Version16 => VmVersion::VmVirtualBlocks,
+            // kl todo delete local vm verion
+            ProtocolVersionId::Local => VmVersion::Local,
         }
     }
 }
@@ -553,6 +559,8 @@ impl From<ProtocolVersionId> for VmVersion {
             ProtocolVersionId::Version14 => VmVersion::VmVirtualBlocks,
             ProtocolVersionId::Version15 => VmVersion::VmVirtualBlocks,
             ProtocolVersionId::Version16 => VmVersion::VmVirtualBlocks,
+            // kl todo delete local vm verion
+            ProtocolVersionId::Local => VmVersion::Local,
         }
     }
 }

@@ -24,7 +24,7 @@ If not provided as arguments, the tool can retrieve certain values from environm
 1. `l1rpc` - `ETH_CLIENT_WEB3_URL`
 2. `l2rpc` - `API_WEB3_JSON_RPC_HTTP_URL`
 3. `create2-address` - `CONTRACTS_CREATE2_FACTORY_ADDR`
-4. `zksync-address` - `CONTRACTS_DIAMOND_PROXY_ADDR`
+4. `zksync-address` - `CONTRACTS_BRIDGEHEAD_PROXY_ADDR`
 5. `nonce` - Taken from the node via `l1rpc`
 6. `gas-price` - Taken from the node via `l1rpc`
 7. `environment` - By default, set to `localhost`. Always specify it explicitly. Possible values: `localhost`,

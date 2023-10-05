@@ -18,13 +18,13 @@ export async function resetTest() {
 
 export async function drop() {
     await utils.confirmAction();
-    console.log('Dropping DB...');
-    await utils.spawn('cargo sqlx database drop -y');
+    console.log(`Dropping DB ${process.env.DATABASE_URL}`);
+    await utils.spawn(`cargo sqlx database drop -y`);
 }
 
 export async function migrate() {
     await utils.confirmAction();
-    console.log('Running migrations...');
+    console.log(`Running migrations ${process.env.DATABASE_URL}`);
     await utils.spawn('cd core/lib/dal && cargo sqlx database create && cargo sqlx migrate run');
 }
 

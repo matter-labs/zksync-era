@@ -7,7 +7,7 @@ import * as zksync from 'zksync-web3';
 import { scaledGasPrice, waitUntilBlockFinalized } from '../src/helpers';
 import { WETH9, WETH9Factory } from 'l1-zksync-contracts/typechain';
 import { L2Weth, L2WethFactory } from 'l2-zksync-contracts/typechain';
-import { BigNumber, ethers } from 'ethers';
+import { BigNumber, BigNumberish, ethers } from 'ethers';
 import {
     shouldChangeETHBalances,
     shouldChangeTokenBalances,
@@ -21,11 +21,13 @@ describe('Tests for the WETH bridge/token behavior', () => {
     let bob: zksync.Wallet;
     let aliceL1Weth: WETH9;
     let aliceL2Weth: L2Weth;
+    let chainId: BigNumberish;
 
     beforeAll(async () => {
         testMaster = TestMaster.getInstance(__filename);
         alice = testMaster.mainAccount();
         bob = testMaster.newEmptyAccount();
+        chainId = process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID!;
 
         const l1WethTokenAddress = testMaster.environment().wethToken.l1Address;
         aliceL1Weth = WETH9Factory.connect(l1WethTokenAddress, alice._signerL1());
@@ -50,6 +52,7 @@ describe('Tests for the WETH bridge/token behavior', () => {
         const initialBalanceL1 = await alice.getBalanceL1(aliceL1Weth.address);
         const initialBalanceL2 = await alice.getBalance(aliceL2Weth.address);
         let tx = await alice.deposit({
+            chainId,
             token: aliceL1Weth.address,
             amount,
             approveERC20: true,
@@ -135,7 +138,7 @@ describe('Tests for the WETH bridge/token behavior', () => {
                 l1: true
             }
         );
-        await expect(alice.finalizeWithdrawal(withdrawalTx.hash)).toBeAccepted([l1BalanceChange]);
+        await expect(alice.finalizeWithdrawal(chainId, withdrawalTx.hash)).toBeAccepted([l1BalanceChange]);
     });
 
     test('Should fail to claim failed deposit', async () => {
@@ -149,6 +152,7 @@ describe('Tests for the WETH bridge/token behavior', () => {
         const initialEthL2Balance = await alice.getBalance();
         // Deposit to the zero address is forbidden and should fail with the current implementation.
         const depositHandle = await alice.deposit({
+            chainId,
             to: ethers.constants.AddressZero,
             token: aliceL1Weth.address,
             amount,
@@ -169,7 +173,7 @@ describe('Tests for the WETH bridge/token behavior', () => {
         await waitUntilBlockFinalized(alice, l2TxReceipt.blockNumber);
 
         // Try to claim failed deposit, which should revert, and ETH should be returned on L2.
-        await expect(alice.claimFailedDeposit(l2Hash)).toBeRevertedEstimateGas();
+        await expect(alice.claimFailedDeposit(chainId, l2Hash)).toBeRevertedEstimateGas();
         await expect(alice.getBalanceL1(aliceL1Weth.address)).resolves.bnToBeEq(initialWethL1Balance.sub(amount));
         await expect(alice.getBalance(aliceL2Weth.address)).resolves.bnToBeEq(initialWethL2Balance);
         await expect(alice.getBalance()).resolves.bnToBeGte(initialEthL2Balance.add(amount));

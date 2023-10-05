@@ -307,13 +307,13 @@ pub async fn initialize_components(
     let circuit_breaker_config =
         CircuitBreakerConfig::from_env().context("CircuitBreakerConfig::from_env()")?;
 
-    let main_zksync_contract_address = contracts_config.diamond_proxy_addr;
+    let proof_chain_contract = contracts_config.diamond_proxy_addr;
     let circuit_breaker_checker = CircuitBreakerChecker::new(
         circuit_breakers_for_components(
             &components,
             &eth_client_config.web3_url,
             &circuit_breaker_config,
-            main_zksync_contract_address,
+            proof_chain_contract,
         )
         .await
         .context("circuit_breakers_for_components")?,
@@ -496,7 +496,8 @@ pub async fn initialize_components(
             start_eth_watch(
                 eth_watch_pool,
                 query_client.clone(),
-                main_zksync_contract_address,
+                contracts_config.bridgehead_chain_proxy_addr,
+                proof_chain_contract,
                 stop_receiver.clone(),
             )
             .await
@@ -532,7 +533,7 @@ pub async fn initialize_components(
             ),
             contracts_config.validator_timelock_addr,
             contracts_config.l1_multicall3_addr,
-            main_zksync_contract_address,
+            proof_chain_contract,
             nonce.as_u64(),
         );
         task_futures.push(tokio::spawn(eth_tx_aggregator_actor.run(
@@ -1162,7 +1163,7 @@ async fn circuit_breakers_for_components(
     components: &[Component],
     web3_url: &str,
     circuit_breaker_config: &CircuitBreakerConfig,
-    main_contract: Address,
+    proof_chain_contract: Address,
 ) -> anyhow::Result<Vec<Box<dyn CircuitBreaker>>> {
     let mut circuit_breakers: Vec<Box<dyn CircuitBreaker>> = Vec::new();
 
@@ -1187,7 +1188,7 @@ async fn circuit_breakers_for_components(
         circuit_breakers.push(Box::new(FacetSelectorsChecker::new(
             circuit_breaker_config,
             eth_client,
-            main_contract,
+            proof_chain_contract,
         )));
     }
 

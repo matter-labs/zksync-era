@@ -6,7 +6,7 @@ use std::path::Path;
 use std::time::Duration;
 
 use zksync_config::{ContractsConfig, ETHSenderConfig};
-use zksync_contracts::zksync_contract;
+use zksync_contracts::proof_chain_contract;
 use zksync_dal::ConnectionPool;
 use zksync_merkle_tree::domain::ZkSyncTree;
 use zksync_state::RocksdbStorage;
@@ -296,7 +296,7 @@ impl BlockReverter {
             .expect("eth_config is not provided");
 
         let web3 = Web3::new(Http::new(&eth_config.eth_client_url).unwrap());
-        let contract = zksync_contract();
+        let contract = proof_chain_contract();
         let signer = PrivateKeySigner::new(eth_config.reverter_private_key);
         let chain_id = web3.eth().chain_id().await.unwrap().as_u64();
 
@@ -358,7 +358,7 @@ impl BlockReverter {
 
         let web3 = Web3::new(Http::new(&eth_config.eth_client_url).unwrap());
         let contract = {
-            let abi = zksync_contract();
+            let abi = proof_chain_contract();
             let contract_address = eth_config.diamond_proxy_addr;
             Contract::new(web3.eth(), contract_address, abi)
         };

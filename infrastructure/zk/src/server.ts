@@ -3,7 +3,6 @@ import * as utils from './utils';
 import * as env from './env';
 import { clean } from './clean';
 import fs from 'fs';
-import { unloadInit } from './env';
 import * as path from 'path';
 import * as db from './database';
 
@@ -22,6 +21,7 @@ export async function server(rebuildTree: boolean, uring: boolean, components?: 
     if (components) {
         options += ` --components=${components}`;
     }
+    // await utils.spawn(`RUST_LOG=vm=trace cargo run --bin zksync_server --release ${options}`);
     await utils.spawn(`cargo run --bin zksync_server --release ${options}`);
 }
 
@@ -35,8 +35,6 @@ export async function externalNode(reinit: boolean = false) {
     process.env.EN_BOOTLOADER_HASH = process.env.CHAIN_STATE_KEEPER_BOOTLOADER_HASH;
     process.env.EN_DEFAULT_AA_HASH = process.env.CHAIN_STATE_KEEPER_DEFAULT_AA_HASH;
 
-    // We don't need to have server-native variables in the config.
-    unloadInit();
 
     // On --reinit we want to reset RocksDB and Postgres before we start.
     if (reinit) {
@@ -103,15 +101,16 @@ async function create_genesis(cmd: string) {
     const label = `${process.env.ZKSYNC_ENV}-Genesis_gen-${year}-${month}-${day}-${hour}${minute}${second}`;
     fs.mkdirSync(`logs/${label}`, { recursive: true });
     fs.copyFileSync('genesis.log', `logs/${label}/genesis.log`);
-    env.modify('CONTRACTS_GENESIS_ROOT', genesisRoot);
-    env.modify('CHAIN_STATE_KEEPER_BOOTLOADER_HASH', genesisBootloaderHash);
-    env.modify('CHAIN_STATE_KEEPER_DEFAULT_AA_HASH', genesisDefaultAAHash);
-    env.modify('CONTRACTS_GENESIS_BLOCK_COMMITMENT', genesisBlockCommitment);
-    env.modify('CONTRACTS_GENESIS_ROLLUP_LEAF_INDEX', genesisRollupLeafIndex);
+    env.modify('CONTRACTS_GENESIS_ROOT', genesisRoot, 'etc/env/l1-inits/.init.env');
+    env.modify('CHAIN_STATE_KEEPER_BOOTLOADER_HASH', genesisBootloaderHash, 'etc/env/l1-inits/.init.env');
+    env.modify('CHAIN_STATE_KEEPER_DEFAULT_AA_HASH', genesisDefaultAAHash, 'etc/env/l1-inits/.init.env');
+    env.modify('CONTRACTS_GENESIS_BLOCK_COMMITMENT', genesisBlockCommitment, 'etc/env/l1-inits/.init.env');
+    env.modify('CONTRACTS_GENESIS_ROLLUP_LEAF_INDEX', genesisRollupLeafIndex, 'etc/env/l1-inits/.init.env');
 }
 
 export async function genesisFromSources() {
-    await create_genesis('cargo run --bin zksync_server --release -- --genesis');
+    // we fix chainId as we need all chains to have the same chainId at genesis
+    await create_genesis('CHAIN_ETH_ZKSYNC_NETWORK_ID=270 cargo run --bin zksync_server --release -- --genesis');
 }
 
 export async function genesisFromBinary() {
@@ -124,7 +123,9 @@ export const serverCommand = new Command('server')
     .option('--rebuild-tree', 'rebuilds merkle tree from database logs', 'rebuild_tree')
     .option('--uring', 'enables uring support for RocksDB')
     .option('--components <components>', 'comma-separated list of components to run')
+    .option('--chain-name <chain-name>', 'environment name')
     .action(async (cmd: Command) => {
+        cmd.chainName ? env.reload(cmd.chainName) : env.load();
         if (cmd.genesis) {
             await genesisFromSources();
         } else {

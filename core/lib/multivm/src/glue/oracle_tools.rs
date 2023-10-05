@@ -33,6 +33,10 @@ where
             VmVersion::VmVirtualBlocks => {
                 panic!("oracle tools for VmVirtualBlocks do not exist")
             }
+            // kl todo delete local vm verion
+            VmVersion::Local => {
+                panic!("oracle tools after VmVirtualBlocks do not exist")
+            }
         }
     }
 

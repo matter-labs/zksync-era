@@ -140,7 +140,7 @@ this is the contract that our server is 'listening' on).
 
 Ok - so let's sum up what we have:
 
-- a postgress running in docker (main database)
+- a postgres running in docker (main database)
 - a local instance of ethereum (get running in docker)
   - which also has a bunch of 'magic' contracts deployed
   - and two accounts with lots of tokens

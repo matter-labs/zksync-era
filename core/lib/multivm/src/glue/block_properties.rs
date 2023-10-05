@@ -39,6 +39,13 @@ impl BlockProperties {
                      so it's not required to have BlockProperties for it"
                 )
             }
+            // kl todo delete local vm verion
+            VmVersion::Local => {
+                unreachable!(
+                    "Vm after virtual blocks has another initialization logic, \
+                     so it's not required to have BlockProperties for it"
+                )
+            }
         }
     }
 

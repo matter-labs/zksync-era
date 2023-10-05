@@ -10,7 +10,7 @@ SYSTEM_CONTRACTS=$ZKSYNC_HOME/etc/system-contracts/artifacts-zk/cache-zk/solpp-g
 cat $OPEN_ZEPPELIN_CONTRACTS/token/ERC20/extensions/IERC20Metadata.sol/IERC20Metadata.json | jq '{ abi: .abi}' > IERC20.json
 
 cat $ETHEREUM_CONTRACTS/bridge/interfaces/IL1Bridge.sol/IL1Bridge.json | jq '{ abi: .abi}' > IL1Bridge.json
-cat $ETHEREUM_CONTRACTS/zksync/interfaces/IZkSync.sol/IZkSync.json | jq '{ abi: .abi}' > IZkSync.json
+cat $ETHEREUM_CONTRACTS/bridgehead/bridgehead-interfaces/IBridgehead.sol/IBridgehead.json | jq '{ abi: .abi}' > IBridgehead.json
 cat $ETHEREUM_CONTRACTS/common/interfaces/IAllowList.sol/IAllowList.json | jq '{ abi: .abi}' > IAllowList.json
 
 cat $ZKSYNC_CONTRACTS/bridge/interfaces/IL2Bridge.sol/IL2Bridge.json | jq '{ abi: .abi}' > IL2Bridge.json

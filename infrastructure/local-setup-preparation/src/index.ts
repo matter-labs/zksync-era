@@ -7,11 +7,13 @@ const AMOUNT_TO_DEPOSIT = ethers.utils.parseEther('1000000000000');
 
 async function depositWithRichAccounts() {
     const ethProvider = getEthersProvider();
+
+    const chainId = process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID!;
     const wallets = getWalletKeys().map((wk) => new ethers.Wallet(wk.privateKey, ethProvider));
 
     const handles: Promise<any>[] = [];
 
-    if (!process.env.CONTRACTS_DIAMOND_PROXY_ADDR) {
+    if (!process.env.CONTRACTS_BRIDGEHEAD_PROXY_ADDR) {
         throw new Error('zkSync L1 Main contract address was not found');
     }
 
@@ -19,16 +21,21 @@ async function depositWithRichAccounts() {
     // it is not possible to estimate the exact number of gas that is required for the transaction
     const DEPOSIT_L2_GAS_LIMIT = 10_000_000;
     const gasPrice = await ethProvider.getGasPrice();
-    const contract = new ethers.Contract(process.env.CONTRACTS_DIAMOND_PROXY_ADDR, utils.ZKSYNC_MAIN_ABI, ethProvider);
+    const contract = new ethers.Contract(
+        process.env.CONTRACTS_BRIDGEHEAD_PROXY_ADDR,
+        utils.BRIDGEHEAD_ABI,
+        ethProvider
+    );
 
     const expectedCost = await contract.l2TransactionBaseCost(
+        chainId,
         gasPrice,
         DEPOSIT_L2_GAS_LIMIT,
         utils.DEFAULT_GAS_PER_PUBDATA_LIMIT
     );
 
     for (const wallet of wallets) {
-        const contract = new ethers.Contract(process.env.CONTRACTS_DIAMOND_PROXY_ADDR, utils.ZKSYNC_MAIN_ABI, wallet);
+        const contract = new ethers.Contract(process.env.CONTRACTS_BRIDGEHEAD_PROXY_ADDR, utils.BRIDGEHEAD_ABI, wallet);
 
         const overrides = {
             value: AMOUNT_TO_DEPOSIT.add(expectedCost)
@@ -43,6 +50,7 @@ async function depositWithRichAccounts() {
             // We have to implement the deposit manually because we run this script before running the server,
             // deposit method from wallet requires a running server
             contract.requestL2Transaction(
+                chainId,
                 wallet.address,
                 AMOUNT_TO_DEPOSIT,
                 '0x',

@@ -20,6 +20,10 @@ export async function deployERC20(
             destinationFile = args[args.indexOf('--envFile') + 1];
             args.splice(args.indexOf('--envFile'), 2);
         }
+        const governorPrivateKey = process.env.DEPLOYER_PRIVATE_KEY;
+        if (governorPrivateKey) {
+            args.push('--private-key', governorPrivateKey);
+        }
         await utils.spawn(`yarn --silent --cwd contracts/ethereum deploy-erc20 add-multi '
             [
                 { "name": "DAI",  "symbol": "DAI",  "decimals": 18 },

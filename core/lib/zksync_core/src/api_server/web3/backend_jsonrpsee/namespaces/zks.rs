@@ -34,8 +34,12 @@ impl<G: L1GasPriceProvider + Send + Sync + 'static> ZksNamespaceServer for ZksNa
             .map_err(into_jsrpc_error)
     }
 
-    async fn get_main_contract(&self) -> RpcResult<Address> {
-        Ok(self.get_main_contract_impl())
+    async fn get_bridgehead_chain_contract(&self) -> RpcResult<Address> {
+        Ok(self.get_bridgehead_chain_contract_impl())
+    }
+
+    async fn get_proof_chain_contract(&self) -> RpcResult<Address> {
+        Ok(self.get_proof_contract_impl())
     }
 
     async fn get_testnet_paymaster(&self) -> RpcResult<Option<Address>> {

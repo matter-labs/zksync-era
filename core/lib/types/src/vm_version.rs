@@ -6,6 +6,8 @@ pub enum VmVersion {
     M6BugWithCompressionFixed,
     Vm1_3_2,
     VmVirtualBlocks,
+    // kl todo delete local vm verion
+    Local,
 }
 
 impl VmVersion {

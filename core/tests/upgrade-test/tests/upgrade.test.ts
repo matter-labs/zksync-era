@@ -364,7 +364,7 @@ async function prepareUpgradeCalldata(
     }
 
     const zkSyncContract = await l2Provider.getMainContractAddress();
-    const zkSync = new ethers.Contract(zkSyncContract, zkweb3.utils.ZKSYNC_MAIN_ABI, govWallet);
+    const zkSync = new ethers.Contract(zkSyncContract, zkweb3.utils.BRIDGEHEAD_ABI, govWallet);
 
     // In case there is some pending upgrade there, we cancel it
     const upgradeProposalState = await zkSync.getUpgradeProposalState();

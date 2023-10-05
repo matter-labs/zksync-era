@@ -690,7 +690,9 @@ export class Provider extends ethers.providers.JsonRpcProvider {
 
     static getDefaultProvider() {
         // TODO (SMA-1606): Add different urls for different networks.
-        return new Provider(process.env.ZKSYNC_WEB3_API_URL || 'http://localhost:3050');
+        return new Provider(
+            process.env.ZKSYNC_WEB3_API_URL || process.env.API_WEB3_JSON_RPC_HTTP_URL || 'http://localhost:3050'
+        );
     }
 
     async newFilter(filter: EventFilter | Promise<EventFilter>): Promise<BigNumber> {

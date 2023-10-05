@@ -90,6 +90,11 @@
     {
       "inputs": [
         {
+          "internalType": "uint256",
+          "name": "_chainId",
+          "type": "uint256"
+        },
+        {
           "internalType": "address",
           "name": "_depositSender",
           "type": "address"
@@ -132,6 +137,11 @@
     },
     {
       "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "_chainId",
+          "type": "uint256"
+        },
         {
           "internalType": "address",
           "name": "_l2Receiver",
@@ -178,6 +188,11 @@
       "inputs": [
         {
           "internalType": "uint256",
+          "name": "_chainId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
           "name": "_l2BlockNumber",
           "type": "uint256"
         },
@@ -209,6 +224,11 @@
     },
     {
       "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "chainId",
+          "type": "uint256"
+        },
         {
           "internalType": "uint256",
           "name": "_l2BlockNumber",
