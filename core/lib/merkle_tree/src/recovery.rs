@@ -1,6 +1,6 @@
 //! Merkle tree recovery logic.
 
-use std::{ops, time::Instant};
+use std::time::Instant;
 
 use crate::{
     hasher::HashTree,
@@ -117,7 +117,7 @@ impl<'a, DB: PruneDatabase> MerkleTreeRecovery<'a, DB> {
         fields(
             recovered_version = self.recovered_version,
             entries.len = entries.len(),
-            ?entries.key_range = entries_key_range(&entries),
+            %entries.key_range = entries_key_range(&entries),
         ),
     )]
     pub fn extend(&mut self, entries: Vec<RecoveryEntry>) {
@@ -172,9 +172,11 @@ impl<'a, DB: PruneDatabase> MerkleTreeRecovery<'a, DB> {
     }
 }
 
-fn entries_key_range(entries: &[RecoveryEntry]) -> Option<ops::RangeInclusive<Key>> {
-    let (first, last) = (entries.first()?, entries.last()?);
-    Some(first.key..=last.key)
+fn entries_key_range(entries: &[RecoveryEntry]) -> String {
+    let (Some(first), Some(last)) = (entries.first(), entries.last()) else {
+        return "(empty)".to_owned();
+    };
+    format!("{:064x}..={:064x}", first.key, last.key)
 }
 
 #[cfg(test)]
