@@ -1,5 +1,7 @@
 //! Merkle tree recovery logic.
 
+use std::{ops, time::Instant};
+
 use crate::{
     hasher::HashTree,
     storage::{PatchSet, PruneDatabase, PrunePatchSet, Storage},
@@ -7,8 +9,6 @@ use crate::{
     MerkleTree,
 };
 use zksync_crypto::hasher::blake2::Blake2Hasher;
-
-// FIXME: add logging
 
 /// Entry in a Merkle tree used during recovery.
 #[derive(Debug, Clone)]
@@ -111,15 +111,50 @@ impl<'a, DB: PruneDatabase> MerkleTreeRecovery<'a, DB> {
     /// # Panics
     ///
     /// Panics if entry keys are not correctly ordered.
-    pub fn extend(&mut self, recovery_entries: Vec<RecoveryEntry>) {
+    #[tracing::instrument(
+        level = "debug",
+        skip_all,
+        fields(
+            recovered_version = self.recovered_version,
+            entries.len = entries.len(),
+            ?entries.key_range = entries_key_range(&entries),
+        ),
+    )]
+    pub fn extend(&mut self, entries: Vec<RecoveryEntry>) {
+        tracing::debug!("Started extending tree");
+
+        let started_at = Instant::now();
         let storage = Storage::new(&self.db, self.hasher, self.recovered_version, false);
-        let patch = storage.extend_during_recovery(recovery_entries);
+        let patch = storage.extend_during_recovery(entries);
+        tracing::debug!("Finished processing keys; took {:?}", started_at.elapsed());
+
+        let started_at = Instant::now();
         self.db.apply_patch(patch);
+        tracing::debug!("Finished persisting to DB; took {:?}", started_at.elapsed());
     }
 
     /// Finalizes the recovery process marking it as complete in the tree manifest.
+    #[tracing::instrument(
+        level = "debug",
+        skip_all,
+        fields(recovered_version = self.recovered_version),
+    )]
     #[allow(clippy::missing_panics_doc, clippy::range_plus_one)]
     pub fn finalize(mut self) -> MerkleTree<'a, DB> {
+        let started_at = Instant::now();
+        let stale_keys = self.db.stale_keys(self.recovered_version);
+        let stale_keys_len = stale_keys.len();
+        tracing::debug!("Pruning {stale_keys_len} accumulated stale keys");
+        let prune_patch = PrunePatchSet::new(
+            stale_keys,
+            self.recovered_version..self.recovered_version + 1,
+        );
+        self.db.prune(prune_patch);
+        tracing::debug!(
+            "Pruned {stale_keys_len} stale keys in {:?}",
+            started_at.elapsed()
+        );
+
         let mut manifest = self.db.manifest().unwrap();
         // ^ `unwrap()` is safe: manifest is inserted into the DB on creation
         manifest
@@ -127,14 +162,7 @@ impl<'a, DB: PruneDatabase> MerkleTreeRecovery<'a, DB> {
             .get_or_insert_with(|| TreeTags::new(self.hasher))
             .is_recovering = false;
         self.db.apply_patch(PatchSet::from_manifest(manifest));
-
-        // Prune all accumulated stale keys.
-        let stale_keys = self.db.stale_keys(self.recovered_version);
-        let prune_patch = PrunePatchSet::new(
-            stale_keys,
-            self.recovered_version..self.recovered_version + 1,
-        );
-        self.db.prune(prune_patch);
+        tracing::debug!("Updated tree manifest to mark recovery as complete");
 
         // We don't need additional checks since they were performed in the constructor
         MerkleTree {
@@ -142,6 +170,11 @@ impl<'a, DB: PruneDatabase> MerkleTreeRecovery<'a, DB> {
             hasher: self.hasher,
         }
     }
+}
+
+fn entries_key_range(entries: &[RecoveryEntry]) -> Option<ops::RangeInclusive<Key>> {
+    let (first, last) = (entries.first()?, entries.last()?);
+    Some(first.key..=last.key)
 }
 
 #[cfg(test)]

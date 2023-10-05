@@ -329,7 +329,8 @@ impl<'a, DB: Database + ?Sized> Storage<'a, DB> {
         let load_nodes_latency = BLOCK_TIMINGS.load_nodes.start();
         let sorted_keys = SortedKeys::new(key_value_pairs.iter().map(|(key, _)| *key));
         let parent_nibbles = self.updater.load_ancestors(&sorted_keys, self.db);
-        load_nodes_latency.observe();
+        let load_nodes_latency = load_nodes_latency.observe();
+        tracing::debug!("Load stage took {load_nodes_latency:?}");
 
         let extend_patch_latency = BLOCK_TIMINGS.extend_patch.start();
         let mut logs = Vec::with_capacity(key_value_pairs.len());
@@ -339,7 +340,8 @@ impl<'a, DB: Database + ?Sized> Storage<'a, DB> {
             });
             logs.push(log);
         }
-        extend_patch_latency.observe();
+        let extend_patch_latency = extend_patch_latency.observe();
+        tracing::debug!("Tree traversal stage took {extend_patch_latency:?}");
 
         let leaf_count = self.leaf_count;
         let (root_hash, patch) = self.finalize();
@@ -390,7 +392,8 @@ impl<'a, DB: Database + ?Sized> Storage<'a, DB> {
             );
             self.leaf_count += 1;
         }
-        extend_patch_latency.observe();
+        let extend_patch_latency = extend_patch_latency.observe();
+        tracing::debug!("Tree traversal stage took {extend_patch_latency:?}");
 
         let (_, patch) = self.finalize();
         patch
@@ -399,9 +402,7 @@ impl<'a, DB: Database + ?Sized> Storage<'a, DB> {
     fn finalize(self) -> (ValueHash, PatchSet) {
         self.updater.metrics.report();
 
-        let finalize_patch = BLOCK_TIMINGS.finalize_patch.start();
-        // ^ We should not record stale keys when updating an existing tree version, since
-        // otherwise updated keys will be marked as stale and removed.
+        let finalize_patch_latency = BLOCK_TIMINGS.finalize_patch.start();
         let (root_hash, patch, stats) = self.updater.patch_set.finalize(
             self.manifest,
             self.leaf_count,
@@ -409,7 +410,11 @@ impl<'a, DB: Database + ?Sized> Storage<'a, DB> {
             self.hasher,
         );
         GENERAL_METRICS.leaf_count.set(self.leaf_count);
-        finalize_patch.observe();
+        let finalize_patch_latency = finalize_patch_latency.observe();
+        tracing::debug!(
+            "Node hashing stage took {finalize_patch_latency:?}; hashed {:?}B",
+            stats.hashed_bytes
+        );
         stats.report();
 
         (root_hash, patch)
