@@ -57,7 +57,7 @@ impl PubdataTracer {
     // L2toL1Logs sent in the block
     fn get_total_user_logs<S: WriteStorage, H: HistoryMode>(
         &self,
-        state: &mut ZkSyncVmState<S, H>,
+        state: &ZkSyncVmState<S, H>,
     ) -> Vec<L1MessengerL2ToL1Log> {
         let (all_generated_events, _) =
             collect_events_and_l1_logs_after_timestamp(state, &self.l1_batch_env, Timestamp(0));
@@ -68,7 +68,7 @@ impl PubdataTracer {
     // Messages sent in the block
     fn get_total_l1_messenger_messages<S: WriteStorage, H: HistoryMode>(
         &self,
-        state: &mut ZkSyncVmState<S, H>,
+        state: &ZkSyncVmState<S, H>,
     ) -> Vec<Vec<u8>> {
         let (all_generated_events, _) =
             collect_events_and_l1_logs_after_timestamp(state, &self.l1_batch_env, Timestamp(0));
@@ -80,7 +80,7 @@ impl PubdataTracer {
     // Bytecodes needed to be published on L1
     fn get_total_published_bytecodes<S: WriteStorage, H: HistoryMode>(
         &self,
-        state: &mut ZkSyncVmState<S, H>,
+        state: &ZkSyncVmState<S, H>,
     ) -> Vec<Vec<u8>> {
         let (all_generated_events, _) =
             collect_events_and_l1_logs_after_timestamp(state, &self.l1_batch_env, Timestamp(0));
@@ -98,8 +98,7 @@ impl PubdataTracer {
                     .get(&h256_to_u256(bytecode_publication_request.bytecode_hash))
                     .unwrap()
                     .iter()
-                    .map(u256_to_bytes_be)
-                    .flatten()
+                    .flat_map(u256_to_bytes_be)
                     .collect()
             })
             .collect()
@@ -108,7 +107,7 @@ impl PubdataTracer {
     // Packs part of L1Messenger total pubdata that corresponds to
     // State diffs needed to be published on L1
     fn get_state_diffs<S: WriteStorage, H: HistoryMode>(
-        state: &mut ZkSyncVmState<S, H>,
+        state: &ZkSyncVmState<S, H>,
     ) -> Vec<StateDiffRecord> {
         sort_storage_access_queries(
             state
@@ -144,7 +143,7 @@ impl PubdataTracer {
 
     fn build_pubdata_input<S: WriteStorage, H: HistoryMode>(
         &self,
-        state: &mut ZkSyncVmState<S, H>,
+        state: &ZkSyncVmState<S, H>,
     ) -> PubdataInput {
         PubdataInput {
             user_logs: self.get_total_user_logs(state),
@@ -164,9 +163,8 @@ impl<S, H: HistoryMode> DynTracer<S, H> for PubdataTracer {
         _storage: StoragePtr<S>,
     ) {
         let hook = VmHook::from_opcode_memory(&state, &data);
-        match hook {
-            VmHook::PubdataRequested => self.pubdata_info_requested = true,
-            _ => {}
+        if let VmHook::PubdataRequested = hook {
+            self.pubdata_info_requested = true;
         }
     }
 }
