@@ -151,7 +151,7 @@ impl fmt::Display for NoVersionError {
         if missing_version >= version_count {
             write!(
                 formatter,
-                "Version {missing_version} does not exist in Merkle tree"
+                "Version {missing_version} does not exist in Merkle tree; it has {version_count} versions"
             )
         } else {
             write!(
