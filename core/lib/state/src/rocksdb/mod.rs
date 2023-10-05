@@ -8,12 +8,14 @@
 //! - Contracts
 //! - Factory dependencies
 //!
-//! | Column       | Key                    | Value                   | Description                          |
-//! | ------------ | ---------------------- | ----------------------- | ------------------------------------ |
-//! | State        | 'block_number'         | serialized block number | Last processed L1 batch number (u32) |
-//! | State        | hashed `StorageKey`    | 32 bytes value          | State for the given key              |
-//! | Contracts    | address (20 bytes)     | `Vec<u8>`               | Contract contents                    |
-//! | Factory deps | hash (32 bytes)        | `Vec<u8>`               | Bytecodes for new contracts that a certain contract may deploy. |
+//! | Column       | Key                             | Value                           | Description                               |
+//! | ------------ | ------------------------------- | ------------------------------- | ----------------------------------------- |
+//! | State        | 'block_number'                  | serialized block number         | Last processed L1 batch number (u32)      |
+//! | State        | 'enum_index_migration_progress' | serialized next key to process  | Hashed key migration should continue from |
+//! | State        | 'enum_index_migration_finished' | 1 byte flag                     | Denotes if the migration if completed     |
+//! | State        | hashed `StorageKey`             | 32 bytes value ++ 8 bytes index | State for the given key                   |
+//! | Contracts    | address (20 bytes)              | `Vec<u8>`                       | Contract contents                         |
+//! | Factory deps | hash (32 bytes)                 | `Vec<u8>`                       | Bytecodes for new contracts that a certain contract may deploy. |
 
 use itertools::{Either, Itertools};
 use std::{collections::HashMap, convert::TryInto, mem, path::Path, time::Instant};
