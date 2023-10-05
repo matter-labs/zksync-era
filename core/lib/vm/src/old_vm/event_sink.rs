@@ -3,7 +3,7 @@ use crate::old_vm::{
     oracles::OracleWithHistory,
 };
 use itertools::Itertools;
-use std::{cmp::Ordering, collections::HashMap, f32::consts::E};
+use std::{cmp::Ordering, collections::HashMap};
 use zk_evm::{
     abstractions::EventSink,
     aux_structures::{LogQuery, Timestamp},

@@ -226,8 +226,6 @@ impl SerializeCommitment for RepeatedStorageWrite {
 
 impl SerializeCommitment for StateDiffRecord {
     const SERIALIZED_SIZE: usize = PADDED_ENCODED_STORAGE_DIFF_LEN_BYTES;
-    const LIMIT_PER_L1_BATCH: usize =
-        ((GEOMETRY_CONFIG.limit_for_repeated_writes_pubdata_hasher * 40) / 156) as usize;
 
     fn serialize_commitment(&self, buffer: &mut [u8]) {
         buffer.copy_from_slice(&self.encode_padded());

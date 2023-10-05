@@ -9,20 +9,11 @@ use crate::tracers::{
     traits::{
         BoxedTracer, ExecutionEndTracer, ExecutionProcessing, TracerExecutionStatus, VmTracer,
     },
-    DefaultExecutionTracer, RefundsTracer,
+    DefaultExecutionTracer, PubdataTracer, RefundsTracer,
 };
 use crate::types::{inputs::VmExecutionMode, outputs::VmExecutionResultAndLogs};
 use crate::vm::Vm;
 use crate::VmExecutionStopReason;
-use crate::{
-    old_vm::utils::{vm_may_have_ended_inner, VmExecutionResult},
-    tracers::{
-        pubdata_tracer::PubdataTracer,
-        traits::{BoxedTracer, ExecutionEndTracer, ExecutionProcessing, VmTracer},
-        DefaultExecutionTracer, RefundsTracer,
-    },
-    HistoryMode,
-};
 
 impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
     pub(crate) fn inspect_inner(

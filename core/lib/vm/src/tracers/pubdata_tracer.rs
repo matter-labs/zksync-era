@@ -20,7 +20,10 @@ use crate::constants::BOOTLOADER_HEAP_PAGE;
 use crate::old_vm::{history_recorder::HistoryMode, memory::SimpleMemory};
 
 use crate::tracers::{
-    traits::{DynTracer, ExecutionEndTracer, ExecutionProcessing, VmTracer},
+    traits::{
+        DynTracer, ExecutionEndTracer, ExecutionProcessing, TracerExecutionStatus,
+        TracerExecutionStopReason, VmTracer,
+    },
     utils::VmHook,
 };
 use crate::types::{inputs::L1BatchEnv, internals::ZkSyncVmState};
@@ -169,13 +172,17 @@ impl<S, H: HistoryMode> DynTracer<S, H> for PubdataTracer {
 }
 
 impl<H: HistoryMode> ExecutionEndTracer<H> for PubdataTracer {
-    fn should_stop_execution(&self) -> bool {
+    fn should_stop_execution(&self) -> TracerExecutionStatus {
         if !matches!(self.execution_mode, VmExecutionMode::Batch) {
             // We do not provide the pubdata when executing the block tip or a single transaction
-            return self.pubdata_info_requested;
+            if self.pubdata_info_requested {
+                return TracerExecutionStatus::Stop(TracerExecutionStopReason::Finish);
+            } else {
+                return TracerExecutionStatus::Continue;
+            }
         }
 
-        false
+        TracerExecutionStatus::Continue
     }
 }
 
