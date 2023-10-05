@@ -12,6 +12,7 @@ use crate::{
     hasher::{HasherWithStats, MerklePath},
     types::{NodeKey, TreeInstruction, KEY_SIZE},
 };
+use zksync_crypto::hasher::blake2::Blake2Hasher;
 use zksync_types::{H256, U256};
 
 pub(super) const FIRST_KEY: Key = U256([0, 0, 0, 0x_dead_beef_0000_0000]);
@@ -716,4 +717,102 @@ fn recovery_workflow_with_multiple_stages() {
         .logs
         .iter()
         .all(|log| matches!(log.base, TreeLogEntry::Read { .. })));
+}
+
+fn test_recovery_pruning_equivalence(
+    chunk_size: usize,
+    recovery_chunk_size: usize,
+    hasher: &dyn HashTree,
+) {
+    const RNG_SEED: u64 = 123;
+
+    println!(
+        "Testing recovery–pruning equivalence (chunk size: {chunk_size}, recovery chunk size: \
+         {recovery_chunk_size})"
+    );
+
+    let mut rng = StdRng::seed_from_u64(RNG_SEED);
+    let kvs = (0..100).map(|i| {
+        (
+            U256([rng.gen(), rng.gen(), rng.gen(), rng.gen()]),
+            ValueHash::repeat_byte(i),
+        )
+    });
+    let kvs: Vec<_> = kvs.collect();
+
+    // Add `kvs` into the tree in several commits.
+    let mut db = PatchSet::default();
+    for (version, chunk) in kvs.chunks(chunk_size).enumerate() {
+        let (_, patch) = Storage::new(&db, hasher, version as u64, true).extend(chunk.to_vec());
+        db.apply_patch(patch);
+    }
+    // Unite all remaining nodes to a map and manually remove all stale keys.
+    let recovered_version = db.manifest.version_count - 1;
+    let root = db.root(recovered_version).unwrap();
+    let mut all_nodes: HashMap<_, _> = db
+        .patches_by_version
+        .into_values()
+        .flat_map(|sub_patch| sub_patch.nodes)
+        .collect();
+    for stale_key in db.stale_keys_by_version.values().flatten() {
+        all_nodes.remove(stale_key);
+    }
+
+    // Generate recovery entries.
+    let recovery_entries = all_nodes.iter().filter_map(|(key, node)| {
+        if let Node::Leaf(leaf) = node {
+            return Some(RecoveryEntry {
+                key: leaf.full_key,
+                value: leaf.value_hash,
+                leaf_index: leaf.leaf_index,
+                version: key.version,
+            });
+        }
+        None
+    });
+    let mut recovery_entries: Vec<_> = recovery_entries.collect();
+    assert_eq!(recovery_entries.len(), 100);
+    recovery_entries.sort_unstable_by_key(|entry| entry.key);
+
+    // Recover the tree.
+    let mut recovered_db = PatchSet::default();
+    for recovery_chunk in recovery_entries.chunks(recovery_chunk_size) {
+        let patch = Storage::new(&recovered_db, hasher, recovered_version, false)
+            .extend_during_recovery(recovery_chunk.to_vec());
+        recovered_db.apply_patch(patch);
+    }
+    let (_, sub_patch) = recovered_db.updated_patch.unwrap();
+    let recovered_root = sub_patch.root.unwrap();
+    let mut all_recovered_nodes = sub_patch.nodes;
+    for stale_key in db.stale_keys_by_version.values().flatten() {
+        all_recovered_nodes.remove(stale_key);
+    }
+
+    // Nodes must be identical for the pruned and recovered trees.
+    assert_eq!(recovered_root, root);
+    assert_eq!(all_recovered_nodes, all_nodes);
+}
+
+#[test]
+fn recovery_pruning_equivalence() {
+    for chunk_size in [3, 5, 7, 11, 21, 42, 99, 100] {
+        // No chunking during recovery (simple case).
+        test_recovery_pruning_equivalence(chunk_size, 100, &());
+        // Recovery is chunked (more complex case).
+        for recovery_chunk_size in [chunk_size, 1, 6, 19, 50, 73] {
+            test_recovery_pruning_equivalence(chunk_size, recovery_chunk_size, &());
+        }
+    }
+}
+
+#[test]
+fn recovery_pruning_equivalence_with_hashing() {
+    for chunk_size in [3, 7, 21, 42, 100] {
+        // No chunking during recovery (simple case).
+        test_recovery_pruning_equivalence(chunk_size, 100, &Blake2Hasher);
+        // Recovery is chunked (more complex case).
+        for recovery_chunk_size in [chunk_size, 1, 19, 73] {
+            test_recovery_pruning_equivalence(chunk_size, recovery_chunk_size, &Blake2Hasher);
+        }
+    }
 }
