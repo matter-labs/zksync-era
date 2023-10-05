@@ -204,18 +204,17 @@ impl CompressionMode for CompressionByteNone {
 }
 
 fn default_passes(prev_value: U256, new_value: U256) -> Vec<Box<dyn CompressionMode>> {
-    let mut result: Vec<Box<dyn CompressionMode>> = vec![];
-    result.push(Box::new(CompressionByteAdd {
-        prev_value,
-        new_value,
-    }));
-    result.push(Box::new(CompressionByteSub {
-        prev_value,
-        new_value,
-    }));
-    result.push(Box::new(CompressionByteTransform { new_value }));
-
-    result
+    vec![
+        Box::new(CompressionByteAdd {
+            prev_value,
+            new_value,
+        }),
+        Box::new(CompressionByteSub {
+            prev_value,
+            new_value,
+        }),
+        Box::new(CompressionByteTransform { new_value }),
+    ]
 }
 
 /// For a given previous value and new value, try each compression strategy selecting the most
@@ -227,7 +226,7 @@ pub fn compress_with_best_strategy(prev_value: U256, new_value: U256) -> Vec<u8>
     let mut result: Option<(&Box<dyn CompressionMode + 'static>, usize)> = None;
     for compressor in compressors.iter() {
         if let Some(expected_size) = compressor.output_size() {
-            if let Some(_) = compressor.compress_value_only() {
+            if compressor.compress_value_only().is_some() {
                 if let Some(existing) = result.as_mut() {
                     if expected_size < existing.1 {
                         existing.0 = compressor;
@@ -267,11 +266,11 @@ mod tests {
 
         assert!(compress_add_strategy.output_size() == Some(2));
 
-        assert!(compress_add_strategy.compress_value_only() == Some(vec![01, 164]));
+        assert!(compress_add_strategy.compress_value_only() == Some(vec![1, 164]));
 
         let compressed_val = compress_with_best_strategy(initial_val, final_val);
 
-        assert!(compressed_val == vec![17, 01, 164]);
+        assert!(compressed_val == vec![17, 1, 164]);
 
         let (metadata, compressed_val) = compressed_val.split_at(1);
 
@@ -330,7 +329,7 @@ mod tests {
         let final_val = U256::from(1337);
 
         let compressed_value = compress_with_best_strategy(initial_val, final_val);
-        assert!(compressed_value == vec![19, 05, 57]);
+        assert!(compressed_value == vec![19, 5, 57]);
 
         let (metadata, compressed_val) = compressed_value.split_at(1);
 
@@ -419,8 +418,8 @@ mod tests {
             new_value: final_val,
         };
 
-        assert!(compression_add_strategy.compress_value_only() == None);
-        assert!(compression_add_strategy.compress_extended() == None);
+        assert!(compression_add_strategy.compress_value_only().is_none());
+        assert!(compression_add_strategy.compress_extended().is_none());
     }
 
     fn verify_sub_is_none(initial_val: U256, final_val: U256) {
@@ -429,7 +428,7 @@ mod tests {
             new_value: final_val,
         };
 
-        assert!(compression_sub_strategy.compress_value_only() == None);
-        assert!(compression_sub_strategy.compress_extended() == None);
+        assert!(compression_sub_strategy.compress_value_only().is_none());
+        assert!(compression_sub_strategy.compress_extended().is_none());
     }
 }

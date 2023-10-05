@@ -15,7 +15,6 @@ use zksync_mini_merkle_tree::MiniMerkleTree;
 
 use crate::{
     block::L1BatchHeader,
-    circuit::GEOMETRY_CONFIG,
     ethabi::Token,
     l2_to_l1_log::L2ToL1Log,
     web3::signing::keccak256,
@@ -30,8 +29,6 @@ use crate::{
 pub trait SerializeCommitment {
     /// Size of the structure in bytes.
     const SERIALIZED_SIZE: usize;
-    /// The number of objects of this type that can be included in a single L1 batch.
-    const LIMIT_PER_L1_BATCH: usize;
     /// Serializes this struct into the provided buffer, which is guaranteed to have byte length
     /// [`Self::SERIALIZED_SIZE`].
     fn serialize_commitment(&self, buffer: &mut [u8]);
@@ -198,8 +195,6 @@ impl L1BatchWithMetadata {
 
 impl SerializeCommitment for L2ToL1Log {
     const SERIALIZED_SIZE: usize = 88;
-    // Unlike the other limits, it is not enforced by GeometryConfig, but the constants in contracts.
-    const LIMIT_PER_L1_BATCH: usize = 2048;
 
     fn serialize_commitment(&self, buffer: &mut [u8]) {
         buffer[0] = self.shard_id;
@@ -213,8 +208,6 @@ impl SerializeCommitment for L2ToL1Log {
 
 impl SerializeCommitment for InitialStorageWrite {
     const SERIALIZED_SIZE: usize = 64;
-    const LIMIT_PER_L1_BATCH: usize =
-        GEOMETRY_CONFIG.limit_for_initial_writes_pubdata_hasher as usize;
 
     fn serialize_commitment(&self, buffer: &mut [u8]) {
         self.key.to_little_endian(&mut buffer[0..32]);
@@ -224,8 +217,6 @@ impl SerializeCommitment for InitialStorageWrite {
 
 impl SerializeCommitment for RepeatedStorageWrite {
     const SERIALIZED_SIZE: usize = 40;
-    const LIMIT_PER_L1_BATCH: usize =
-        GEOMETRY_CONFIG.limit_for_repeated_writes_pubdata_hasher as usize;
 
     fn serialize_commitment(&self, buffer: &mut [u8]) {
         buffer[..8].copy_from_slice(&self.index.to_be_bytes());
@@ -235,8 +226,6 @@ impl SerializeCommitment for RepeatedStorageWrite {
 
 impl SerializeCommitment for StateDiffRecord {
     const SERIALIZED_SIZE: usize = PADDED_ENCODED_STORAGE_DIFF_LEN_BYTES;
-    const LIMIT_PER_L1_BATCH: usize =
-        ((GEOMETRY_CONFIG.limit_for_repeated_writes_pubdata_hasher * 40) / 156) as usize;
 
     fn serialize_commitment(&self, buffer: &mut [u8]) {
         buffer.copy_from_slice(&self.encode_padded());
@@ -306,8 +295,9 @@ impl L1BatchAuxiliaryOutput {
             .chunks(L2ToL1Log::SERIALIZED_SIZE)
             .map(|chunk| <[u8; L2ToL1Log::SERIALIZED_SIZE]>::try_from(chunk).unwrap());
         // ^ Skip first 4 bytes of the serialized logs (i.e., the number of logs).
+        let min_tree_size = Some(L2ToL1Log::LEGACY_LIMIT_PER_L1_BATCH);
         let l2_l1_logs_merkle_root =
-            MiniMerkleTree::new(merkle_tree_leaves, L2ToL1Log::LIMIT_PER_L1_BATCH).merkle_root();
+            MiniMerkleTree::new(merkle_tree_leaves, min_tree_size).merkle_root();
 
         Self {
             l2_l1_logs_compressed,
@@ -420,6 +410,7 @@ pub struct L1BatchCommitmentHash {
 }
 
 impl L1BatchCommitment {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         l2_to_l1_logs: Vec<L2ToL1Log>,
         rollup_last_leaf_index: u64,
@@ -584,7 +575,8 @@ mod tests {
     }
 
     // TODO(PLA-568): restore this test
-    // #[test]
+    #[ignore]
+    #[test]
     fn commitment_test() {
         let zksync_home = std::env::var("ZKSYNC_HOME").unwrap_or_else(|_| ".".into());
         let path = std::path::Path::new(&zksync_home)

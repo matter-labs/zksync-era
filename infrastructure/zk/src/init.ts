@@ -17,8 +17,17 @@ const announce = chalk.yellow;
 const success = chalk.green;
 const timestamp = chalk.grey;
 
-export async function init(skipSubmodulesCheckout: boolean) {
-    if (!process.env.CI) {
+export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
+    const {
+        skipSubmodulesCheckout,
+        skipEnvSetup,
+        testTokens,
+        deployerL1ContractInputArgs,
+        governorPrivateKeyArgs,
+        deployerL2ContractInput
+    } = initArgs;
+
+    if (!process.env.CI && !skipEnvSetup) {
         await announced('Pulling images', docker.pull());
         await announced('Checking environment', checkEnv());
         await announced('Checking git hooks', env.gitHooks());
@@ -28,6 +37,7 @@ export async function init(skipSubmodulesCheckout: boolean) {
     if (!skipSubmodulesCheckout) {
         await announced('Checkout system-contracts submodule', submoduleUpdate());
     }
+
     await announced('Compiling JS packages', run.yarn());
     await announced('Compile l2 contracts', compiler.compileAll());
     await announced('Drop postgres db', db.drop());
@@ -35,16 +45,28 @@ export async function init(skipSubmodulesCheckout: boolean) {
     await announced('Clean rocksdb', clean('db'));
     await announced('Clean backups', clean('backups'));
     await announced('Building contracts', contract.build());
-    await announced('Deploying localhost ERC20 tokens', run.deployERC20('dev'));
+    if (testTokens.deploy) {
+        await announced('Deploying localhost ERC20 tokens', run.deployERC20('dev', '', '', '', testTokens.args));
+    }
     await announced('Deploying L1 verifier', contract.deployVerifier([]));
     await announced('Reloading env', env.reload());
     await announced('Running server genesis setup', server.genesisFromSources());
     await announced('Deploying L1 contracts', contract.redeployL1([]));
-    await announced('Initialize L1 allow list', contract.initializeL1AllowList());
-    await announced('Deploying L2 contracts', contract.deployL2([], true, true));
-    await announced('Initializing L2 WETH token', contract.initializeWethToken());
-    await announced('Initializing governance', contract.initializeGovernance());
     await announced('Initializing validator', contract.initializeValidator());
+    await announced('Initialize L1 allow list', contract.initializeL1AllowList());
+    await announced(
+        'Deploying L2 contracts',
+        contract.deployL2(
+            deployerL2ContractInput.args,
+            deployerL2ContractInput.includePaymaster,
+            deployerL2ContractInput.includeL2WETH
+        )
+    );
+
+    if (deployerL2ContractInput.includeL2WETH) {
+        await announced('Initializing L2 WETH token', contract.initializeWethToken(governorPrivateKeyArgs));
+    }
+    await announced('Initializing governance', contract.initializeGovernance());
 }
 
 // A smaller version of `init` that "resets" the localhost environment, for which `init` was already called before.
@@ -118,11 +140,45 @@ async function checkEnv() {
     }
 }
 
+export interface InitArgs {
+    skipSubmodulesCheckout: boolean;
+    skipEnvSetup: boolean;
+    deployerL1ContractInputArgs: any[];
+    governorPrivateKeyArgs: any[];
+    deployerL2ContractInput: {
+        args: any[];
+        includePaymaster: boolean;
+        includeL2WETH: boolean;
+    };
+    testTokens: {
+        deploy: boolean;
+        args: any[];
+    };
+}
+
+const DEFAULT_ARGS: InitArgs = {
+    skipSubmodulesCheckout: false,
+    skipEnvSetup: false,
+    deployerL1ContractInputArgs: [],
+    governorPrivateKeyArgs: [],
+    deployerL2ContractInput: { args: [], includePaymaster: true, includeL2WETH: true },
+    testTokens: { deploy: true, args: [] }
+};
+
 export const initCommand = new Command('init')
     .option('--skip-submodules-checkout')
+    .option('--skip-env-setup')
     .description('perform zksync network initialization for development')
     .action(async (cmd: Command) => {
-        await init(cmd.skipSubmodulesCheckout);
+        const initArgs: InitArgs = {
+            skipSubmodulesCheckout: cmd.skipSubmodulesCheckout,
+            skipEnvSetup: cmd.skipEnvSetup,
+            deployerL1ContractInputArgs: [],
+            governorPrivateKeyArgs: [],
+            deployerL2ContractInput: { args: [], includePaymaster: true, includeL2WETH: true },
+            testTokens: { deploy: true, args: [] }
+        };
+        await init(initArgs);
     });
 export const reinitCommand = new Command('reinit')
     .description('"reinitializes" network. Runs faster than `init`, but requires `init` to be executed prior')

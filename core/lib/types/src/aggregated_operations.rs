@@ -9,7 +9,7 @@ use zkevm_test_harness::bellman::plonk::better_better_cs::proof::Proof;
 use zkevm_test_harness::witness::oracle::VmWitnessOracle;
 use zksync_basic_types::{ethabi::Token, L1BatchNumber};
 
-use crate::{commitment::L1BatchWithMetadata, U256};
+use crate::commitment::L1BatchWithMetadata;
 
 fn l1_batch_range_from_batches(
     batches: &[L1BatchWithMetadata],

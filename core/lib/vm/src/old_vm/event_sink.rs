@@ -3,7 +3,7 @@ use crate::old_vm::{
     oracles::OracleWithHistory,
 };
 use itertools::Itertools;
-use std::{cmp::Ordering, collections::HashMap, f32::consts::E};
+use std::{cmp::Ordering, collections::HashMap};
 use zk_evm::{
     abstractions::EventSink,
     aux_structures::{LogQuery, Timestamp},
@@ -70,8 +70,8 @@ impl<H: HistoryMode> InMemoryEventSink<H> {
     fn events_logs_from_history(history: &[Box<LogQuery>]) -> Vec<LogQuery> {
         // Filter out all the L2->L1 logs and leave only events
         let mut events = history
-            .into_iter()
-            .filter_map(|log_query| (log_query.aux_byte == EVENT_AUX_BYTE).then(|| **log_query))
+            .iter()
+            .filter_map(|log_query| (log_query.aux_byte == EVENT_AUX_BYTE).then_some(**log_query))
             .collect_vec();
 
         // Sort the events by timestamp and rollback flag, basically ensuring that
@@ -84,7 +84,7 @@ impl<H: HistoryMode> InMemoryEventSink<H> {
                     Ordering::Greater
                 }
             }
-            r @ _ => r,
+            r => r,
         });
 
         let mut stack = Vec::<LogQuery>::new();
@@ -92,7 +92,7 @@ impl<H: HistoryMode> InMemoryEventSink<H> {
         for el in events.iter() {
             assert_eq!(el.shard_id, 0, "only rollup shard is supported");
             if stack.is_empty() {
-                assert!(el.rollback == false);
+                assert!(!el.rollback);
                 stack.push(*el);
             } else {
                 // we can always pop as it's either one to add to queue, or discard
@@ -100,10 +100,10 @@ impl<H: HistoryMode> InMemoryEventSink<H> {
                 if previous.timestamp == el.timestamp {
                     // Only rollback can have the same timestamp, so here we do nothing and simply
                     // double check the invariants
-                    assert!(previous.rollback == false);
-                    assert!(el.rollback == true);
-                    assert!(previous.rw_flag == true);
-                    assert!(el.rw_flag == true);
+                    assert!(!previous.rollback);
+                    assert!(el.rollback);
+                    assert!(previous.rw_flag);
+                    assert!(el.rw_flag);
                     assert_eq!(previous.tx_number_in_block, el.tx_number_in_block);
                     assert_eq!(previous.shard_id, el.shard_id);
                     assert_eq!(previous.address, el.address);

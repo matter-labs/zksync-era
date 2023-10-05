@@ -1,18 +1,19 @@
 use zk_evm::aux_structures::Timestamp;
 use zksync_state::WriteStorage;
 
+use crate::old_vm::{
+    history_recorder::HistoryMode,
+    utils::{vm_may_have_ended_inner, VmExecutionResult},
+};
+use crate::tracers::{
+    traits::{
+        BoxedTracer, ExecutionEndTracer, ExecutionProcessing, TracerExecutionStatus, VmTracer,
+    },
+    DefaultExecutionTracer, PubdataTracer, RefundsTracer,
+};
 use crate::types::{inputs::VmExecutionMode, outputs::VmExecutionResultAndLogs};
 use crate::vm::Vm;
 use crate::VmExecutionStopReason;
-use crate::{
-    old_vm::utils::{vm_may_have_ended_inner, VmExecutionResult},
-    tracers::{
-        pubdata_tracer::PubdataTracer,
-        traits::{BoxedTracer, ExecutionEndTracer, ExecutionProcessing, VmTracer},
-        DefaultExecutionTracer, RefundsTracer,
-    },
-    HistoryMode,
-};
 
 impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
     pub(crate) fn inspect_inner(
@@ -107,11 +108,11 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
                 break VmExecutionStopReason::VmFinished;
             }
 
-            if tracer.should_stop_execution() {
-                break VmExecutionStopReason::TracerRequestedStop;
+            if let TracerExecutionStatus::Stop(reason) = tracer.should_stop_execution() {
+                break VmExecutionStopReason::TracerRequestedStop(reason);
             }
         };
-        tracer.after_vm_execution(&mut self.state, &self.bootloader_state, result);
+        tracer.after_vm_execution(&mut self.state, &self.bootloader_state, result.clone());
         result
     }
 

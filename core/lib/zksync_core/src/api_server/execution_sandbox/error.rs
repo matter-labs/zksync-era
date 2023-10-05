@@ -61,6 +61,10 @@ impl From<Halt> for SandboxExecutionError {
             Halt::FailedToAppendTransactionToL2Block(reason) => {
                 SandboxExecutionError::Revert(reason, vec![])
             }
+            Halt::TracerCustom(reason) => SandboxExecutionError::Revert(reason, vec![]),
+            Halt::ValidationOutOfGas => Self::AccountValidationFailed(
+                "The validation of the transaction ran out of gas".to_string(),
+            ),
         }
     }
 }

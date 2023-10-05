@@ -98,15 +98,15 @@ impl L1MessengerL2ToL1Log {
     }
 }
 
-impl Into<L2ToL1Log> for L1MessengerL2ToL1Log {
-    fn into(self) -> L2ToL1Log {
+impl From<L1MessengerL2ToL1Log> for L2ToL1Log {
+    fn from(log: L1MessengerL2ToL1Log) -> Self {
         L2ToL1Log {
-            shard_id: self.l2_shard_id,
-            is_service: self.is_service,
-            tx_number_in_block: self.tx_number_in_block,
-            sender: self.sender,
-            key: u256_to_h256(self.key),
-            value: u256_to_h256(self.value),
+            shard_id: log.l2_shard_id,
+            is_service: log.is_service,
+            tx_number_in_block: log.tx_number_in_block,
+            sender: log.sender,
+            key: u256_to_h256(log.key),
+            value: u256_to_h256(log.value),
         }
     }
 }

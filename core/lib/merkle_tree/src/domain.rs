@@ -194,7 +194,7 @@ impl ZkSyncTree {
 
         let instructions_with_hashed_keys = instructions
             .iter()
-            .map(|(k, instr)| (k.hashed_key_u256(), instr.clone()))
+            .map(|(k, instr)| (k.hashed_key_u256(), *instr))
             .collect::<Vec<(Key, TreeInstruction)>>();
 
         tracing::info!(
@@ -361,7 +361,7 @@ impl ZkSyncTree {
 
         let kvs_with_derived_key = kvs
             .iter()
-            .map(|(k, v)| (k.hashed_key_u256(), v.clone()))
+            .map(|(k, v)| (k.hashed_key_u256(), *v))
             .collect::<Vec<(Key, ValueHash)>>();
 
         let output = if let Some(thread_pool) = &self.thread_pool {

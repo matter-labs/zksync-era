@@ -112,7 +112,7 @@ impl ReadStorage for &InMemoryStorage {
     }
 
     fn get_enumeration_index(&mut self, key: &StorageKey) -> Option<u64> {
-        self.enum_indices.get(&key).copied()
+        self.enum_indices.get(key).copied()
     }
 }
 
