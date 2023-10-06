@@ -135,14 +135,9 @@ impl StorageLogsDedupDal<'_, '_> {
         .collect()
     }
 
-    pub async fn enum_indices_for_keys(&mut self, hashed_keys: &[H256]) -> Vec<u64> {
-        let hashed_keys_order: HashMap<_, _> = hashed_keys
-            .iter()
-            .enumerate()
-            .map(|(index, key)| (key, index))
-            .collect();
+    pub async fn enum_indices_for_keys(&mut self, hashed_keys: &[H256]) -> HashMap<H256, u64> {
         let hashed_keys: Vec<_> = hashed_keys.iter().map(H256::as_bytes).collect();
-        let mut indices: Vec<(H256, u64)> = sqlx::query!(
+        sqlx::query!(
             "SELECT hashed_key, index FROM initial_writes \
             WHERE hashed_key = ANY($1)",
             &hashed_keys as &[&[u8]]
@@ -154,9 +149,6 @@ impl StorageLogsDedupDal<'_, '_> {
         .unwrap()
         .into_iter()
         .map(|row| (H256::from_slice(&row.hashed_key), row.index as u64))
-        .collect();
-
-        indices.sort_by_key(|(hashed_key, _)| hashed_keys_order.get(hashed_key).unwrap());
-        indices.into_iter().map(|(_, index)| index).collect()
+        .collect()
     }
 }

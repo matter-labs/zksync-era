@@ -11,7 +11,7 @@
 //! | Column       | Key                             | Value                           | Description                               |
 //! | ------------ | ------------------------------- | ------------------------------- | ----------------------------------------- |
 //! | State        | 'block_number'                  | serialized block number         | Last processed L1 batch number (u32)      |
-//! | State        | 'enum_index_migration_progress' | serialized next key to process  | Hashed key migration should continue from |
+//! | State        | 'enum_index_migration_cursor'   | serialized hashed key           | Hashed key migration should continue from |
 //! | State        | 'enum_index_migration_finished' | 1 byte flag                     | Denotes if the migration if completed     |
 //! | State        | hashed `StorageKey`             | 32 bytes value ++ 8 bytes index | State for the given key                   |
 //! | Contracts    | address (20 bytes)              | `Vec<u8>`                       | Contract contents                         |
@@ -23,7 +23,7 @@ use std::{collections::HashMap, convert::TryInto, mem, path::Path, time::Instant
 use zksync_dal::StorageProcessor;
 use zksync_storage::{db::NamedColumnFamily, RocksDB};
 use zksync_types::{L1BatchNumber, StorageKey, StorageValue, H256, U256};
-use zksync_utils::{h256_to_u256, u256_to_big_decimal, u256_to_h256, BigDecimal};
+use zksync_utils::{h256_to_u256, u256_to_h256};
 
 mod metrics;
 
@@ -69,8 +69,14 @@ pub struct RocksdbStorage {
 
 impl RocksdbStorage {
     const BLOCK_NUMBER_KEY: &'static [u8] = b"block_number";
-    const ENUM_INDEX_MIGRATION_PROGRESS_KEY: &'static [u8] = b"enum_index_migration_progress";
+    const ENUM_INDEX_MIGRATION_CURSOR: &'static [u8] = b"enum_index_migration_cursor";
     const ENUM_INDEX_MIGRATION_FINISHED: &'static [u8] = b"enum_index_migration_finished";
+
+    fn is_special_key(key: &[u8]) -> bool {
+        key == Self::BLOCK_NUMBER_KEY
+            || key == Self::ENUM_INDEX_MIGRATION_CURSOR
+            || key == Self::ENUM_INDEX_MIGRATION_FINISHED
+    }
 
     /// Creates a new storage with the provided RocksDB `path`.
     pub fn new(path: &Path) -> Self {
@@ -183,8 +189,7 @@ impl RocksdbStorage {
             .chain(
                 logs_with_unknown_indices
                     .into_iter()
-                    .zip(enum_indices)
-                    .map(|((key, value), index)| (key, (value, index))),
+                    .map(|(key, value)| (key, (value, enum_indices[&key.hashed_key()]))),
             )
             .collect();
     }
@@ -198,32 +203,28 @@ impl RocksdbStorage {
         };
 
         let started_at = Instant::now();
-        let progress_percentage = BigDecimal::from(100)
-            * u256_to_big_decimal(h256_to_u256(start_from))
-            / u256_to_big_decimal(U256::MAX);
         tracing::info!(
-            "RocksDB enum index migration is not finished, current progress {}%, starting from key {start_from:?}",
-            progress_percentage.with_prec(5)
+            "RocksDB enum index migration is not finished, starting from key {start_from:0>64x}"
         );
 
         let mut write_batch = self.db.new_write_batch();
         let (keys, values): (Vec<_>, Vec<_>) = self
             .db
             .from_iterator_cf(StateKeeperColumnFamily::State, start_from.as_bytes())
-            .take(self.enum_index_migration_chunk_size)
             .filter_map(|(key, value)| {
-                (key.as_ref() != Self::BLOCK_NUMBER_KEY
-                    && key.as_ref() != Self::ENUM_INDEX_MIGRATION_PROGRESS_KEY
-                    && key.as_ref() != Self::ENUM_INDEX_MIGRATION_FINISHED
-                    && value.len() != 40)
+                (!Self::is_special_key(&key) && value.len() != 40)
                     .then(|| (H256::from_slice(&key), H256::from_slice(&value[..32])))
             })
+            .take(self.enum_index_migration_chunk_size)
             .unzip();
-        let indices = conn
+        let enum_indices = conn
             .storage_logs_dedup_dal()
             .enum_indices_for_keys(&keys)
             .await;
-        for ((key, value), index) in keys.iter().zip(values).zip(indices) {
+        assert_eq!(keys.len(), enum_indices.len());
+
+        for (key, value) in keys.iter().zip(values) {
+            let index = enum_indices[key];
             write_batch.put_cf(
                 StateKeeperColumnFamily::State,
                 key.as_bytes(),
@@ -235,25 +236,25 @@ impl RocksdbStorage {
             .last()
             .and_then(|last_key| h256_to_u256(*last_key).checked_add(U256::one()))
             .map(u256_to_h256);
-        match next_key {
-            None => {
+        match (next_key, keys.len()) {
+            (Some(next_key), keys_len) if keys_len == self.enum_index_migration_chunk_size => {
+                write_batch.put_cf(
+                    StateKeeperColumnFamily::State,
+                    Self::ENUM_INDEX_MIGRATION_CURSOR,
+                    next_key.as_bytes(),
+                );
+            }
+            _ => {
                 write_batch.put_cf(
                     StateKeeperColumnFamily::State,
                     Self::ENUM_INDEX_MIGRATION_FINISHED,
-                    &[1u8; 1],
+                    &[1],
                 );
                 write_batch.delete_cf(
                     StateKeeperColumnFamily::State,
-                    Self::ENUM_INDEX_MIGRATION_PROGRESS_KEY,
+                    Self::ENUM_INDEX_MIGRATION_CURSOR,
                 );
                 tracing::info!("RocksDB enum index migration finished");
-            }
-            Some(next_key) => {
-                write_batch.put_cf(
-                    StateKeeperColumnFamily::State,
-                    Self::ENUM_INDEX_MIGRATION_PROGRESS_KEY,
-                    next_key.as_bytes(),
-                );
             }
         }
         self.db
@@ -464,9 +465,9 @@ impl RocksdbStorage {
             self.db
                 .get_cf(
                     StateKeeperColumnFamily::State,
-                    Self::ENUM_INDEX_MIGRATION_PROGRESS_KEY,
+                    Self::ENUM_INDEX_MIGRATION_CURSOR,
                 )
-                .expect("failed to read `ENUM_INDEX_MIGRATION_FINISHED`")
+                .expect("failed to read `ENUM_INDEX_MIGRATION_CURSOR`")
                 .map_or(H256::zero(), |h| H256::from_slice(&h))
         })
     }
