@@ -39,6 +39,8 @@ RUN set -e; \
     tar xvfz bellman-cuda.tar.gz -C ./bellman-cuda; \
     tar xvfz bellman-cuda-source.tar.gz -C ./bellman-cuda --strip-components=1
 
+ENV BELLMAN_CUDA_DIR=/usr/src/zksync/bellman-cuda
+
 COPY . .
 
 RUN cargo build --release
