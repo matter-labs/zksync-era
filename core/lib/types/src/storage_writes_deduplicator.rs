@@ -147,6 +147,7 @@ impl StorageWritesDeduplicator {
                         update_type: UpdateType::Update(*old_value),
                         is_write_initial,
                     });
+                    #[allow(clippy::comparison_chain)]
                     if value_size > old_value.size {
                         value_size = value_size + old_value.size - 1;
                         *total_size += value_size
