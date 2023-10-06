@@ -114,7 +114,8 @@ jobs:
             ci_run echo [workspace] > Cargo.toml
             ci_run echo members = [\"prover/${underscored_name}\"] >> Cargo.toml
             ci_run cp prover/Cargo.lock Cargo.lock
-            PASSED_ENV_VARS="ERA_BELLMAN_CUDA_RELEASE" ci_run zk docker $DOCKER_ACTION $COMPONENT
+            PASSED_ENV_VARS="ERA_BELLMAN_CUDA_RELEASE"  \
+            ci_run zk docker $DOCKER_ACTION $COMPONENT
           else
             ci_run zk docker $DOCKER_ACTION $COMPONENT
           fi
