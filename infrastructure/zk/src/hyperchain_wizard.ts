@@ -138,7 +138,7 @@ async function setHyperchainMetadata() {
     const results: any = await enquirer.prompt(questions);
 
     let deployer, governor, ethOperator, feeReceiver: ethers.Wallet | undefined;
-    let feeReceiverAddress, l1Rpc, l1Id;
+    let feeReceiverAddress, l1Rpc, l1Id, l2Db;
 
     await initializeTestERC20s();
     await initializeWethTokenForHyperchain();
@@ -148,6 +148,12 @@ async function setHyperchainMetadata() {
             {
                 message: 'What is the RPC url for the L1 Network?',
                 name: 'l1Rpc',
+                type: 'input',
+                required: true
+            },
+            {
+                message: 'What is the url for Postgres DB of the L2 Network?',
+                name: 'l2Db',
                 type: 'input',
                 required: true
             }
@@ -170,9 +176,10 @@ async function setHyperchainMetadata() {
             choices: [GENERATE_KEYS, INSERT_KEYS]
         });
 
-        const rpcResults: any = await enquirer.prompt(questions);
+        const rpcResults: any = await enquirer.prompt(rpcQuestions);
 
         l1Rpc = rpcResults.l1Rpc;
+        l2Db = rpcResults.l2Db;
 
         if (results.l1Chain === BaseNetwork.LOCALHOST_CUSTOM) {
             l1Id = rpcResults.l1NetworkId;
@@ -241,6 +248,7 @@ async function setHyperchainMetadata() {
         }
     } else {
         l1Rpc = 'http://localhost:8545';
+        l2Db = 'postgres://postgres@localhost/zksync_local';
         l1Id = 9;
 
         const richWalletsRaw = await fetch(
@@ -306,6 +314,7 @@ async function setHyperchainMetadata() {
 
     wrapEnvModify('ETH_CLIENT_CHAIN_ID', l1Id.toString());
     wrapEnvModify('ETH_CLIENT_WEB3_URL', l1Rpc);
+    wrapEnvModify('DATABASE_URL', l2Db);
     wrapEnvModify('CHAIN_ETH_NETWORK', getL1Name(results.l1Chain));
     wrapEnvModify('CHAIN_ETH_ZKSYNC_NETWORK', results.chainName);
     wrapEnvModify('CHAIN_ETH_ZKSYNC_NETWORK_ID', results.chainId);
