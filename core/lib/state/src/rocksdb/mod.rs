@@ -691,4 +691,98 @@ mod tests {
             }
         }
     }
+
+    #[db_test]
+    async fn rocksdb_enum_index_migration(pool: ConnectionPool) {
+        let mut conn = pool.access_storage().await.unwrap();
+        prepare_postgres(&mut conn).await;
+        let storage_logs = gen_storage_logs(20..40);
+        create_miniblock(&mut conn, MiniblockNumber(1), storage_logs.clone()).await;
+        create_l1_batch(&mut conn, L1BatchNumber(1), &storage_logs).await;
+
+        let enum_indices: HashMap<_, _> = conn
+            .storage_logs_dedup_dal()
+            .initial_writes_for_batch(L1BatchNumber(1))
+            .await
+            .into_iter()
+            .collect();
+
+        let dir = TempDir::new().expect("cannot create temporary dir for state keeper");
+        let mut storage = RocksdbStorage::new(dir.path());
+        storage.update_from_postgres(&mut conn).await;
+
+        assert_eq!(storage.l1_batch_number(), L1BatchNumber(2));
+        // Check that enum indices are correct after syncing with postgres.
+        for log in &storage_logs {
+            let expected_index = enum_indices[&log.key.hashed_key()];
+            assert_eq!(
+                storage.read_state_value(&log.key).unwrap().enum_index,
+                Some(expected_index)
+            );
+        }
+
+        // Remove enum indices for some keys.
+        let mut write_batch = storage.db.new_write_batch();
+        for log in &storage_logs {
+            write_batch.put_cf(
+                StateKeeperColumnFamily::State,
+                log.key.hashed_key().as_bytes(),
+                log.value.as_bytes(),
+            );
+            write_batch.delete_cf(
+                StateKeeperColumnFamily::State,
+                RocksdbStorage::ENUM_INDEX_MIGRATION_CURSOR,
+            );
+            write_batch.delete_cf(
+                StateKeeperColumnFamily::State,
+                RocksdbStorage::ENUM_INDEX_MIGRATION_FINISHED,
+            );
+        }
+        storage.db.write(write_batch).unwrap();
+
+        // Check that migration works as expected.
+        let ordered_keys_to_migrate: Vec<StorageKey> = storage_logs
+            .iter()
+            .map(|log| log.key)
+            .sorted_by_key(StorageKey::hashed_key)
+            .collect();
+
+        storage.enable_enum_index_migration(10);
+        let start_from = storage.enum_migration_start_from();
+        assert_eq!(start_from, Some(H256::zero()));
+
+        // Migrate the first half.
+        storage.save_missing_enum_indices(&mut conn).await;
+        for key in ordered_keys_to_migrate.iter().take(10) {
+            let expected_index = enum_indices[&key.hashed_key()];
+            assert_eq!(
+                storage.read_state_value(key).unwrap().enum_index,
+                Some(expected_index)
+            );
+        }
+        assert!(storage
+            .read_state_value(&ordered_keys_to_migrate[10])
+            .unwrap()
+            .enum_index
+            .is_none());
+
+        // Migrate the second half.
+        storage.save_missing_enum_indices(&mut conn).await;
+        for key in ordered_keys_to_migrate.iter().skip(10) {
+            let expected_index = enum_indices[&key.hashed_key()];
+            assert_eq!(
+                storage.read_state_value(key).unwrap().enum_index,
+                Some(expected_index)
+            );
+        }
+
+        // 20 keys were processed but we haven't checked that no keys to migrate are left.
+        let start_from = storage.enum_migration_start_from();
+        assert!(start_from.is_some());
+
+        // Check that migration will be marked as completed after the next iteration.
+        storage.save_missing_enum_indices(&mut conn).await;
+        let start_from = storage.enum_migration_start_from();
+        assert!(start_from.is_none());
+    }
 }
