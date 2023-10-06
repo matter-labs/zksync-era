@@ -337,6 +337,11 @@ impl<S: WriteStorage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
 fn get_pubdata_price_bytes(query: &LogQuery, is_initial: bool) -> u32 {
     // TODO (SMA-1702): take into account the content of the log query, i.e. values that contain mostly zeroes
     // should cost less.
+
+    if query.read_value >= query.written_value {
+        return 0u32;
+    }
+
     let compressed_value_size =
         compress_with_best_strategy(query.read_value, query.written_value).len() as u32;
 
