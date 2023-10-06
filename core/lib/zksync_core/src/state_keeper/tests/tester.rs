@@ -286,7 +286,7 @@ pub(crate) fn pending_batch_data(
             gas_limit: BLOCK_GAS_LIMIT,
             execution_mode: TxExecutionMode::VerifyExecute,
             default_validation_computational_gas_limit: BLOCK_GAS_LIMIT,
-            chain_id: L2ChainId(270),
+            chain_id: L2ChainId::from(270),
         },
         pending_miniblocks,
     }
@@ -601,7 +601,7 @@ impl StateKeeperIO for TestIO {
                 gas_limit: BLOCK_GAS_LIMIT,
                 execution_mode: TxExecutionMode::VerifyExecute,
                 default_validation_computational_gas_limit: BLOCK_GAS_LIMIT,
-                chain_id: L2ChainId(270),
+                chain_id: L2ChainId::from(270),
             },
             L1BatchEnv {
                 previous_batch_hash: Some(H256::zero()),
