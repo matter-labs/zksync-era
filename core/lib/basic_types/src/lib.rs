@@ -96,7 +96,7 @@ impl FromStr for L2ChainId {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         // Parse the string as a U64
         // try to parse as decimal first
-        let u64 = match U64::from_dec_str(s) {
+        let number = match U64::from_dec_str(s) {
             Ok(u) => u,
             Err(_) => {
                 // try to parse as hex
@@ -105,10 +105,10 @@ impl FromStr for L2ChainId {
             }
         };
 
-        if u64.as_u64() > L2ChainId::max().0 {
+        if number.as_u64() > L2ChainId::max().0 {
             return Err(format!("Too big chain ID. MAX: {}", L2ChainId::max().0));
         }
-        Ok(L2ChainId(u64.as_u64()))
+        Ok(L2ChainId(number.as_u64()))
     }
 }
 
