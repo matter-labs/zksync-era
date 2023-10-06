@@ -57,10 +57,10 @@ and now let's bridge it over to L2.
 
 ## Bridging over to L2
 
-We'll use the zksync-cli from: <https://github.com/matter-labs/zksync-cli> and then run:
+For an easy way to bridge we'll use [zkSync CLI](https://github.com/matter-labs/zksync-cli)
 
 ```shell
-npx zksync-cli deposit --chain=local-dockerized
+npx zksync-cli bridge deposit --chain=local-dockerized
 # Amount of ETH to deposit: 3
 # Private key of the sender: 0x5090c024edb3bdf4ce2ebc2da96bedee925d9d77d729687e5e2d56382cf0a5a6
 # Recipient address on L2: 0x618263CE921F7dd5F4f40C29f6c524Aaf97b9bbd
