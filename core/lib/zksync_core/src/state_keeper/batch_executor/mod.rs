@@ -114,10 +114,8 @@ impl L1BatchExecutorBuilder for MainBatchExecutorBuilder {
         l1_batch_params: L1BatchEnv,
         system_env: SystemEnv,
     ) -> BatchExecutorHandle {
-        let mut secondary_storage = RocksdbStorage::new_with_enum_index_migration_chunk_size(
-            self.state_keeper_db_path.as_ref(),
-            self.enum_index_migration_chunk_size,
-        );
+        let mut secondary_storage = RocksdbStorage::new(self.state_keeper_db_path.as_ref());
+        secondary_storage.enable_enum_index_migration(self.enum_index_migration_chunk_size);
         let mut conn = self
             .pool
             .access_storage_tagged("state_keeper")
