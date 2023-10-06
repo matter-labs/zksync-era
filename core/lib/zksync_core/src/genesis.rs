@@ -411,7 +411,7 @@ mod tests {
     #[db_test]
     async fn running_genesis_with_big_chain_id(pool: ConnectionPool) {
         let mut conn: StorageProcessor<'_> = pool.access_storage().await.unwrap();
-        conn.blocks_dal().delete_genesis().await;
+        conn.blocks_dal().delete_genesis().await.unwrap();
 
         let params = GenesisParams {
             protocol_version: ProtocolVersionId::latest(),
