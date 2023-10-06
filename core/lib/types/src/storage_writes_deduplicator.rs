@@ -3,6 +3,8 @@ use std::collections::HashMap;
 use zksync_utils::u256_to_h256;
 
 use crate::tx::tx_execution_info::DeduplicatedWritesMetrics;
+use crate::writes::compression::compress_with_best_strategy;
+use crate::writes::{BYTES_PER_DERIVED_KEY, BYTES_PER_ENUMERATION_INDEX};
 use crate::{AccountTreeId, StorageKey, StorageLogQuery, StorageLogQueryType, U256};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -11,6 +13,18 @@ pub struct ModifiedSlot {
     pub value: U256,
     /// Index (in L1 batch) of the transaction that lastly modified the slot.
     pub tx_index: u16,
+    /// Size of update in bytes
+    pub size: usize,
+}
+
+impl Default for ModifiedSlot {
+    fn default() -> Self {
+        Self {
+            value: U256::default(),
+            tx_index: 0u16,
+            size: 0,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -101,10 +115,16 @@ impl StorageWritesDeduplicator {
             };
 
             let is_write_initial = log.log_type == StorageLogQueryType::InitialWrite;
-            let field_to_change = if is_write_initial {
-                &mut self.metrics.initial_storage_writes
+            let (field_to_change, total_size) = if is_write_initial {
+                (
+                    &mut self.metrics.initial_storage_writes,
+                    &mut self.metrics.total_writes_size,
+                )
             } else {
-                &mut self.metrics.repeated_storage_writes
+                (
+                    &mut self.metrics.repeated_storage_writes,
+                    &mut self.metrics.total_writes_size,
+                )
             };
 
             match (was_key_modified, modified_value) {
@@ -113,6 +133,12 @@ impl StorageWritesDeduplicator {
                         panic!("tried removing key: {:?} before insertion", key)
                     });
                     *field_to_change -= 1;
+                    *total_size -= value.size;
+                    if is_write_initial {
+                        *total_size -= BYTES_PER_DERIVED_KEY as usize;
+                    } else {
+                        *total_size -= BYTES_PER_ENUMERATION_INDEX as usize;
+                    }
                     updates.push(UpdateItem {
                         key,
                         update_type: UpdateType::Remove(value),
@@ -120,6 +146,8 @@ impl StorageWritesDeduplicator {
                     });
                 }
                 (true, Some(new_value)) => {
+                    let value_size =
+                        compress_with_best_strategy(log.log_query.read_value, new_value).len();
                     let old_value = self
                         .modified_key_values
                         .insert(
@@ -127,6 +155,7 @@ impl StorageWritesDeduplicator {
                             ModifiedSlot {
                                 value: new_value,
                                 tx_index: log.log_query.tx_number_in_block,
+                                size: value_size,
                             },
                         )
                         .unwrap_or_else(|| {
@@ -136,17 +165,28 @@ impl StorageWritesDeduplicator {
                         key,
                         update_type: UpdateType::Update(old_value),
                         is_write_initial,
-                    })
+                    });
+                    *total_size -= old_value.size;
+                    *total_size += value_size;
                 }
                 (false, Some(new_value)) => {
+                    let value_size =
+                        compress_with_best_strategy(log.log_query.read_value, new_value).len();
                     self.modified_key_values.insert(
                         key,
                         ModifiedSlot {
                             value: new_value,
                             tx_index: log.log_query.tx_number_in_block,
+                            size: value_size,
                         },
                     );
                     *field_to_change += 1;
+                    *total_size += value_size;
+                    if is_write_initial {
+                        *total_size += BYTES_PER_DERIVED_KEY as usize;
+                    } else {
+                        *total_size += BYTES_PER_ENUMERATION_INDEX as usize;
+                    }
                     updates.push(UpdateItem {
                         key,
                         update_type: UpdateType::Insert,
@@ -161,23 +201,53 @@ impl StorageWritesDeduplicator {
 
     fn rollback(&mut self, updates: Vec<UpdateItem>) {
         for item in updates.into_iter().rev() {
-            let field_to_change = if item.is_write_initial {
-                &mut self.metrics.initial_storage_writes
+            let (field_to_change, total_size) = if item.is_write_initial {
+                (
+                    &mut self.metrics.initial_storage_writes,
+                    &mut self.metrics.total_writes_size,
+                )
             } else {
-                &mut self.metrics.repeated_storage_writes
+                (
+                    &mut self.metrics.repeated_storage_writes,
+                    &mut self.metrics.total_writes_size,
+                )
             };
 
             match item.update_type {
                 UpdateType::Insert => {
-                    self.modified_key_values.remove(&item.key);
+                    let old_value = self.modified_key_values.remove(&item.key);
                     *field_to_change -= 1;
+                    match old_value {
+                        Some(value) => {
+                            *total_size -= value.size;
+                            if item.is_write_initial {
+                                *total_size -= BYTES_PER_DERIVED_KEY as usize;
+                            } else {
+                                *total_size -= BYTES_PER_ENUMERATION_INDEX as usize;
+                            }
+                        }
+                        None => {}
+                    }
                 }
                 UpdateType::Update(value) => {
-                    self.modified_key_values.insert(item.key, value);
+                    let old_value = self.modified_key_values.insert(item.key, value);
+                    *total_size -= value.size;
+                    *total_size += old_value.unwrap_or_default().size;
                 }
                 UpdateType::Remove(value) => {
-                    self.modified_key_values.insert(item.key, value);
+                    let old_value = self.modified_key_values.insert(item.key, value);
                     *field_to_change += 1;
+                    match old_value {
+                        Some(value) => {
+                            *total_size += value.size;
+                            if item.is_write_initial {
+                                *total_size += BYTES_PER_DERIVED_KEY as usize;
+                            } else {
+                                *total_size += BYTES_PER_ENUMERATION_INDEX as usize;
+                            }
+                        }
+                        None => {}
+                    }
                 }
             }
         }
@@ -247,6 +317,7 @@ mod tests {
                 DeduplicatedWritesMetrics {
                     initial_storage_writes: 1,
                     repeated_storage_writes: 0,
+                    total_writes_size: 34,
                 },
                 "single initial write".into(),
             ),
@@ -258,6 +329,7 @@ mod tests {
                 DeduplicatedWritesMetrics {
                     initial_storage_writes: 1,
                     repeated_storage_writes: 1,
+                    total_writes_size: 40,
                 },
                 "initial and repeated write".into(),
             ),
@@ -269,6 +341,7 @@ mod tests {
                 DeduplicatedWritesMetrics {
                     initial_storage_writes: 0,
                     repeated_storage_writes: 0,
+                    total_writes_size: 0,
                 },
                 "single rollback".into(),
             ),
@@ -283,6 +356,7 @@ mod tests {
                 DeduplicatedWritesMetrics {
                     initial_storage_writes: 0,
                     repeated_storage_writes: 0,
+                    total_writes_size: 0,
                 },
                 "idle write".into(),
             ),
@@ -295,6 +369,7 @@ mod tests {
                 DeduplicatedWritesMetrics {
                     initial_storage_writes: 0,
                     repeated_storage_writes: 0,
+                    total_writes_size: 0,
                 },
                 "idle write cycle".into(),
             ),
@@ -311,6 +386,7 @@ mod tests {
                 DeduplicatedWritesMetrics {
                     initial_storage_writes: 2,
                     repeated_storage_writes: 1,
+                    total_writes_size: 77,
                 },
                 "complex".into(),
             ),
@@ -336,8 +412,8 @@ mod tests {
             assert_eq!(
                 deduplicator.metrics,
                 Default::default(),
-                "rolled back incorrectly for scenario: {}",
-                descr
+                "rolled back incorrectly for scenario: {:?}",
+                input
             )
         }
     }
@@ -357,6 +433,7 @@ mod tests {
                 ModifiedSlot {
                     value: 8u32.into(),
                     tx_index: 0,
+                    size: 2,
                 },
             ),
             (
@@ -364,6 +441,7 @@ mod tests {
                 ModifiedSlot {
                     value: 6u32.into(),
                     tx_index: 0,
+                    size: 2,
                 },
             ),
             (
@@ -371,6 +449,7 @@ mod tests {
                 ModifiedSlot {
                     value: 9u32.into(),
                     tx_index: 0,
+                    size: 2,
                 },
             ),
             (
@@ -378,6 +457,7 @@ mod tests {
                 ModifiedSlot {
                     value: 11u32.into(),
                     tx_index: 0,
+                    size: 2,
                 },
             ),
             (
@@ -385,6 +465,7 @@ mod tests {
                 ModifiedSlot {
                     value: 2u32.into(),
                     tx_index: 0,
+                    size: 2,
                 },
             ),
             (
@@ -392,6 +473,7 @@ mod tests {
                 ModifiedSlot {
                     value: 7u32.into(),
                     tx_index: 0,
+                    size: 2,
                 },
             ),
         ]);
@@ -416,6 +498,7 @@ mod tests {
                 ModifiedSlot {
                     value: 6u32.into(),
                     tx_index: 0,
+                    size: 2,
                 },
             ),
             (
@@ -423,6 +506,7 @@ mod tests {
                 ModifiedSlot {
                     value: 11u32.into(),
                     tx_index: 0,
+                    size: 2,
                 },
             ),
             (
@@ -430,6 +514,7 @@ mod tests {
                 ModifiedSlot {
                     value: 7u32.into(),
                     tx_index: 0,
+                    size: 2,
                 },
             ),
         ]);
@@ -454,6 +539,7 @@ mod tests {
                 ModifiedSlot {
                     value: 3u32.into(),
                     tx_index: 0,
+                    size: 2,
                 },
             ),
             (
@@ -461,6 +547,7 @@ mod tests {
                 ModifiedSlot {
                     value: 4u32.into(),
                     tx_index: 0,
+                    size: 2,
                 },
             ),
             (
@@ -468,6 +555,7 @@ mod tests {
                 ModifiedSlot {
                     value: 5u32.into(),
                     tx_index: 0,
+                    size: 2,
                 },
             ),
         ]);
@@ -488,6 +576,7 @@ mod tests {
             ModifiedSlot {
                 value: 2u32.into(),
                 tx_index: 0,
+                size: 1,
             },
         )]);
         let mut deduplicator = StorageWritesDeduplicator::new();

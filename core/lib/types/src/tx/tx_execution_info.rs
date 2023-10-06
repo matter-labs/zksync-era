@@ -1,7 +1,6 @@
 use crate::commitment::SerializeCommitment;
 use crate::fee::TransactionExecutionMetrics;
 use crate::l2_to_l1_log::L2ToL1Log;
-use crate::writes::{InitialStorageWrite, RepeatedStorageWrite};
 use std::ops::{Add, AddAssign};
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
@@ -24,6 +23,7 @@ impl TxExecutionStatus {
 pub struct DeduplicatedWritesMetrics {
     pub initial_storage_writes: usize,
     pub repeated_storage_writes: usize,
+    pub total_writes_size: usize,
 }
 
 impl DeduplicatedWritesMetrics {
@@ -31,12 +31,12 @@ impl DeduplicatedWritesMetrics {
         Self {
             initial_storage_writes: tx_metrics.initial_storage_writes,
             repeated_storage_writes: tx_metrics.repeated_storage_writes,
+            total_writes_size: tx_metrics.total_writes_size,
         }
     }
 
     pub fn size(&self) -> usize {
-        self.initial_storage_writes * InitialStorageWrite::SERIALIZED_SIZE
-            + self.repeated_storage_writes * RepeatedStorageWrite::SERIALIZED_SIZE
+        self.total_writes_size
     }
 }
 

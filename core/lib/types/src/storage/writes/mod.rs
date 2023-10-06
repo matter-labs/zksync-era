@@ -6,10 +6,12 @@ use zksync_basic_types::{Address, U256};
 
 use self::compression::compress_with_best_strategy;
 
-mod compression;
+pub mod compression;
+
+pub const BYTES_PER_ENUMERATION_INDEX: u8 = 4;
+pub const BYTES_PER_DERIVED_KEY: u8 = 32;
 
 const COMPRESSION_VERSION_NUMBER: u8 = 1;
-const BYTES_PER_ENUMERATION_INDEX: u8 = 4;
 const STATE_DIFF_RECORD_SIZE: usize = 156;
 
 // 2 * 136 - the size that allows for two keccak rounds.

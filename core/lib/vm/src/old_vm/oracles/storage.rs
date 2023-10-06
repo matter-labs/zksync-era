@@ -14,6 +14,8 @@ use zk_evm::{
 
 use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::utils::storage_key_for_eth_balance;
+use zksync_types::writes::compression::compress_with_best_strategy;
+use zksync_types::writes::{BYTES_PER_DERIVED_KEY, BYTES_PER_ENUMERATION_INDEX};
 use zksync_types::{
     AccountTreeId, Address, StorageKey, StorageLogQuery, StorageLogQueryType, BOOTLOADER_ADDRESS,
     U256,
@@ -260,7 +262,9 @@ impl<S: WriteStorage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
         _monotonic_cycle_counter: u32,
         partial_query: &LogQuery,
     ) -> RefundType {
-        let price_to_pay = self.value_update_price(partial_query);
+        let price_to_pay = self
+            .value_update_price(partial_query)
+            .min(INITIAL_STORAGE_WRITE_PUBDATA_BYTES as u32);
 
         RefundType::RepeatedWrite(RefundedAmounts {
             ergs: 0,
@@ -321,18 +325,24 @@ impl<S: WriteStorage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
 
 /// Returns the number of bytes needed to publish a slot.
 // Since we need to publish the state diffs onchain, for each of the updated storage slot
-// we basically need to publish the following pair: (<storage_key, new_value>).
-// While new_value is always 32 bytes long, for key we use the following optimization:
+// we basically need to publish the following pair: (<storage_key, compressed_new_value>).
+// For key we use the following optimization:
 //   - The first time we publish it, we use 32 bytes.
 //         Then, we remember a 8-byte id for this slot and assign it to it. We call this initial write.
-//   - The second time we publish it, we will use this 8-byte instead of the 32 bytes of the entire key.
-//         So the total size of the publish pubdata is 40 bytes. We call this kind of write the repeated one
-fn get_pubdata_price_bytes(_query: &LogQuery, is_initial: bool) -> u32 {
+//   - The second time we publish it, we will use the 4/5 byte representation of this 8-byte instead of the 32
+//     bytes of the entire key.
+// For value compression, we use a metadata byte which holds the length of the value and the operation from the
+// previous state to the new state, and the compressed value. The maxiumum for this is 33 bytes.
+// Total bytes for initial writes then becomes 65 bytes and repeated writes becomes 38 bytes.
+fn get_pubdata_price_bytes(query: &LogQuery, is_initial: bool) -> u32 {
     // TODO (SMA-1702): take into account the content of the log query, i.e. values that contain mostly zeroes
     // should cost less.
+    let compressed_value_size =
+        compress_with_best_strategy(query.read_value, query.written_value).len() as u32;
+
     if is_initial {
-        zk_evm::zkevm_opcode_defs::system_params::INITIAL_STORAGE_WRITE_PUBDATA_BYTES as u32
+        (BYTES_PER_DERIVED_KEY as u32) + compressed_value_size
     } else {
-        zk_evm::zkevm_opcode_defs::system_params::REPEATED_STORAGE_WRITE_PUBDATA_BYTES as u32
+        (BYTES_PER_ENUMERATION_INDEX as u32) + compressed_value_size
     }
 }
