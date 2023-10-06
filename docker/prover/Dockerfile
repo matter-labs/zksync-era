@@ -19,7 +19,6 @@ RUN curl https://sh.rustup.rs -sSf | bash -s -- -y && \
     rustup default nightly-2023-07-21
 
 WORKDIR /usr/src/zksync
-COPY . .
 
 ENV GITHUB_OWNER=matter-labs
 ENV GITHUB_REPO=era-bellman-cuda
@@ -39,6 +38,8 @@ RUN set -e; \
     mkdir -p bellman-cuda; \
     tar xvfz bellman-cuda.tar.gz -C ./bellman-cuda; \
     tar xvfz bellman-cuda-source.tar.gz -C ./bellman-cuda --strip-components=1
+
+COPY . .
 
 RUN cargo build --release
 
