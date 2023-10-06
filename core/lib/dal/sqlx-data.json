@@ -11133,6 +11133,236 @@
     },
     "query": "\n                UPDATE gpu_prover_queue\n                SET instance_status = 'available', updated_at = now(), queue_free_slots = $3\n                WHERE instance_host = $1::text::inet\n                AND instance_port = $2\n                AND instance_status = 'full'\n                AND region = $4\n                AND zone = $5\n                "
   },
+  "f365ada84c576a9049551a28f800ca8cb1d0096f3ba1c9edec725e11892a5a6c": {
+    "describe": {
+      "columns": [
+        {
+          "name": "hash",
+          "ordinal": 0,
+          "type_info": "Bytea"
+        },
+        {
+          "name": "is_priority",
+          "ordinal": 1,
+          "type_info": "Bool"
+        },
+        {
+          "name": "full_fee",
+          "ordinal": 2,
+          "type_info": "Numeric"
+        },
+        {
+          "name": "layer_2_tip_fee",
+          "ordinal": 3,
+          "type_info": "Numeric"
+        },
+        {
+          "name": "initiator_address",
+          "ordinal": 4,
+          "type_info": "Bytea"
+        },
+        {
+          "name": "nonce",
+          "ordinal": 5,
+          "type_info": "Int8"
+        },
+        {
+          "name": "signature",
+          "ordinal": 6,
+          "type_info": "Bytea"
+        },
+        {
+          "name": "input",
+          "ordinal": 7,
+          "type_info": "Bytea"
+        },
+        {
+          "name": "data",
+          "ordinal": 8,
+          "type_info": "Jsonb"
+        },
+        {
+          "name": "received_at",
+          "ordinal": 9,
+          "type_info": "Timestamp"
+        },
+        {
+          "name": "priority_op_id",
+          "ordinal": 10,
+          "type_info": "Int8"
+        },
+        {
+          "name": "l1_batch_number",
+          "ordinal": 11,
+          "type_info": "Int8"
+        },
+        {
+          "name": "index_in_block",
+          "ordinal": 12,
+          "type_info": "Int4"
+        },
+        {
+          "name": "error",
+          "ordinal": 13,
+          "type_info": "Varchar"
+        },
+        {
+          "name": "gas_limit",
+          "ordinal": 14,
+          "type_info": "Numeric"
+        },
+        {
+          "name": "gas_per_storage_limit",
+          "ordinal": 15,
+          "type_info": "Numeric"
+        },
+        {
+          "name": "gas_per_pubdata_limit",
+          "ordinal": 16,
+          "type_info": "Numeric"
+        },
+        {
+          "name": "tx_format",
+          "ordinal": 17,
+          "type_info": "Int4"
+        },
+        {
+          "name": "created_at",
+          "ordinal": 18,
+          "type_info": "Timestamp"
+        },
+        {
+          "name": "updated_at",
+          "ordinal": 19,
+          "type_info": "Timestamp"
+        },
+        {
+          "name": "execution_info",
+          "ordinal": 20,
+          "type_info": "Jsonb"
+        },
+        {
+          "name": "contract_address",
+          "ordinal": 21,
+          "type_info": "Bytea"
+        },
+        {
+          "name": "in_mempool",
+          "ordinal": 22,
+          "type_info": "Bool"
+        },
+        {
+          "name": "l1_block_number",
+          "ordinal": 23,
+          "type_info": "Int4"
+        },
+        {
+          "name": "value",
+          "ordinal": 24,
+          "type_info": "Numeric"
+        },
+        {
+          "name": "paymaster",
+          "ordinal": 25,
+          "type_info": "Bytea"
+        },
+        {
+          "name": "paymaster_input",
+          "ordinal": 26,
+          "type_info": "Bytea"
+        },
+        {
+          "name": "max_fee_per_gas",
+          "ordinal": 27,
+          "type_info": "Numeric"
+        },
+        {
+          "name": "max_priority_fee_per_gas",
+          "ordinal": 28,
+          "type_info": "Numeric"
+        },
+        {
+          "name": "effective_gas_price",
+          "ordinal": 29,
+          "type_info": "Numeric"
+        },
+        {
+          "name": "miniblock_number",
+          "ordinal": 30,
+          "type_info": "Int8"
+        },
+        {
+          "name": "l1_batch_tx_index",
+          "ordinal": 31,
+          "type_info": "Int4"
+        },
+        {
+          "name": "refunded_gas",
+          "ordinal": 32,
+          "type_info": "Int8"
+        },
+        {
+          "name": "l1_tx_mint",
+          "ordinal": 33,
+          "type_info": "Numeric"
+        },
+        {
+          "name": "l1_tx_refund_recipient",
+          "ordinal": 34,
+          "type_info": "Bytea"
+        },
+        {
+          "name": "upgrade_id",
+          "ordinal": 35,
+          "type_info": "Int4"
+        }
+      ],
+      "nullable": [
+        false,
+        false,
+        true,
+        true,
+        false,
+        true,
+        true,
+        true,
+        false,
+        false,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        false,
+        false,
+        false,
+        true,
+        false,
+        true,
+        false,
+        false,
+        false,
+        true,
+        true,
+        true,
+        true,
+        true,
+        false,
+        true,
+        true,
+        true
+      ],
+      "parameters": {
+        "Left": [
+          "Int8"
+        ]
+      }
+    },
+    "query": "SELECT * FROM transactions WHERE l1_batch_number = $1 ORDER BY miniblock_number, index_in_block"
+  },
   "f5e3c4b23fa0d0686b400b64c42cf78b2219f0cbcf1c9240b77e4132513e36ef": {
     "describe": {
       "columns": [

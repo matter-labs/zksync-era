@@ -641,15 +641,17 @@ pub async fn initialize_components(
     .await
     .context("add_witness_generator_to_task_futures()")?;
 
-    add_basic_witness_input_producer(
-        &mut task_futures,
-        &components,
-        &connection_pool,
-        &store_factory,
-        stop_receiver.clone(),
-    )
-    .await
-    .context("add_basic_witness_input_producer()")?;
+    if components.contains(&Component::BasicWitnessInputProducer) {
+        add_basic_witness_input_producer(
+            &mut task_futures,
+            &components,
+            &connection_pool,
+            &store_factory,
+            stop_receiver.clone(),
+        )
+        .await
+        .context("add_basic_witness_input_producer()")?;
+    }
 
     if components.contains(&Component::Housekeeper) {
         add_house_keeper_to_task_futures(&mut task_futures, &store_factory)

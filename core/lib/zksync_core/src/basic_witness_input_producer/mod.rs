@@ -4,7 +4,10 @@ use tokio::task::JoinHandle;
 
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_queued_job_processor::JobProcessor;
-use zksync_types::{Address, L1BatchNumber, L2ChainId, MiniblockNumber, Transaction};
+use zksync_types::{
+    AccountTreeId, Address, L1BatchNumber, L2ChainId, MiniblockNumber, StorageKey, Transaction,
+    H256,
+};
 
 use crate::state_keeper::io::common::load_pending_batch;
 use crate::state_keeper::io::PendingBatchData;
@@ -14,10 +17,18 @@ use anyhow::Context;
 use multivm::{VmInstance, VmInstanceData};
 use std::thread;
 use std::time::{Duration, Instant};
-use vm::{HistoryEnabled, Vm};
+use vm::{HistoryEnabled, L2BlockEnv, Vm};
 use zksync_config::configs::chain::{NetworkConfig, StateKeeperConfig};
+use zksync_config::constants::{
+    SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
+    SYSTEM_CONTEXT_CURRENT_TX_ROLLING_HASH_POSITION,
+};
 use zksync_config::{ContractsConfig, DBConfig};
+use zksync_object_store::ObjectStoreFactory;
 use zksync_state::{PostgresStorage, PostgresStorageCaches, ReadStorage, StorageView};
+use zksync_types::block::unpack_block_info;
+use zksync_types::witness_block_state::WitnessBlockState;
+use zksync_utils::h256_to_u256;
 
 // #[derive(Debug)]
 // pub struct BasicWitnessInputProducerJob {
@@ -26,6 +37,54 @@ use zksync_state::{PostgresStorage, PostgresStorageCaches, ReadStorage, StorageV
 
 pub struct BasicWitnessInputProducer {
     connection_pool: ConnectionPool,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct StoredL2BlockInfo {
+    pub l2_block_number: u32,
+    pub l2_block_timestamp: u64,
+    pub l2_block_hash: H256,
+    pub txs_rolling_hash: H256,
+}
+
+async fn read_l2_block_info(
+    connection: &mut StorageProcessor<'_>,
+    miniblock_number: MiniblockNumber,
+) -> StoredL2BlockInfo {
+    let l2_block_info_key = StorageKey::new(
+        AccountTreeId::new(SYSTEM_CONTEXT_ADDRESS),
+        SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
+    );
+    let l2_block_info = connection
+        .storage_web3_dal()
+        .get_historical_value_unchecked(&l2_block_info_key, miniblock_number)
+        .await
+        .unwrap();
+    let (l2_block_number, l2_block_timestamp) = unpack_block_info(h256_to_u256(l2_block_info));
+
+    let l2_block_txs_rolling_hash_key = StorageKey::new(
+        AccountTreeId::new(SYSTEM_CONTEXT_ADDRESS),
+        SYSTEM_CONTEXT_CURRENT_TX_ROLLING_HASH_POSITION,
+    );
+    let txs_rolling_hash = connection
+        .storage_web3_dal()
+        .get_historical_value_unchecked(&l2_block_txs_rolling_hash_key, miniblock_number)
+        .await
+        .unwrap();
+
+    let l2_block_hash = connection
+        .blocks_web3_dal()
+        .get_miniblock_hash(miniblock_number)
+        .await
+        .unwrap()
+        .unwrap();
+
+    StoredL2BlockInfo {
+        l2_block_number: l2_block_number as u32,
+        l2_block_timestamp,
+        l2_block_hash,
+        txs_rolling_hash,
+    }
 }
 
 fn execute_tx<S: ReadStorage>(tx: &Transaction, vm: &mut VmInstance<'_, S, HistoryEnabled>) {
@@ -139,7 +198,7 @@ impl BasicWitnessInputProducer {
     // }
 
     pub async fn run(self) -> anyhow::Result<()> {
-        let l1_batch_number = L1BatchNumber(1_u32);
+        let l1_batch_number = L1BatchNumber(2_u32);
         let state_keeper_config =
             StateKeeperConfig::from_env().context("StateKeeperConfig::from_env()")?;
         // let db_config = DBConfig::from_env().context("DbConfig::from_env()")?;
@@ -171,7 +230,7 @@ impl BasicWitnessInputProducer {
                 .block_on(connection_pool.access_storage())
                 .unwrap();
             let pg_storage =
-                PostgresStorage::new(rt_handle.clone(), connection, MiniblockNumber(0_u32), true)
+                PostgresStorage::new(rt_handle.clone(), connection, MiniblockNumber(2_u32), true)
                     .with_caches(PostgresStorageCaches::new(
                         128 * 1_024 * 1_024,
                         128 * 1_024 * 1_024,
@@ -193,21 +252,57 @@ impl BasicWitnessInputProducer {
             println!("Then got some transactions = {miniblock_and_transactions:#?}");
             println!("got some vm, I guess");
 
-            println!(
-                "cache at start = {:#?}",
-                (*storage_view).borrow().witness_block_state()
-            );
+            // println!(
+            //     "cache at start = {:#?}",
+            //     (*storage_view).borrow().witness_block_state()
+            // );
             for (miniblock, txs) in miniblock_and_transactions {
                 println!("Starting execution of miniblock: {miniblock:?}");
                 for tx in txs {
                     execute_tx(&tx, &mut vm);
                 }
+
+                let current_l2_block_info =
+                    rt_handle.block_on(read_l2_block_info(&mut connection, miniblock + 1));
+                let prev_l2_block_info =
+                    rt_handle.block_on(read_l2_block_info(&mut connection, miniblock));
+                let l2_block_env = L2BlockEnv {
+                    number: current_l2_block_info.l2_block_number,
+                    timestamp: current_l2_block_info.l2_block_timestamp,
+                    prev_block_hash: prev_l2_block_info.l2_block_hash,
+                    max_virtual_blocks_to_create: 1,
+                };
+                vm.start_new_l2_block(l2_block_env);
+
                 println!("Finished execution of miniblock: {miniblock:?}");
             }
-            println!(
-                "cache at end = {:#?}",
-                (*storage_view).borrow().witness_block_state()
-            );
+            // println!(
+            //     "cache at end = {:#?}",
+            //     (*storage_view).borrow().witness_block_state()
+            // );
+
+            let store = rt_handle.block_on(ObjectStoreFactory::from_env().unwrap().create_store());
+
+            let witness_inputs = (*storage_view).borrow().witness_block_state();
+            let object_place = rt_handle
+                .block_on(store.put(l1_batch_number, &witness_inputs))
+                .unwrap();
+            println!("{object_place:?}");
+
+            // let state_keeper_block_state: WitnessBlockState = rt_handle.block_on(store.get(L1BatchNumber(1_u32))).unwrap();
+            // let storage_block_state = (*storage_view).borrow().witness_block_state();
+            // for read_key in state_keeper_block_state.read_storage_key.keys() {
+            //     if !storage_block_state.read_storage_key.contains_key(read_key) {
+            //         println!("missing read_key from storage_block_state: {read_key:?}");
+            //     }
+            // }
+            // for read_key in storage_block_state.read_storage_key.keys() {
+            //     if !state_keeper_block_state.read_storage_key.contains_key(read_key) {
+            //         println!("missing read_key from state_keeper_block_State: {read_key:?}");
+            //     }
+            // }
+            // println!("Statistics on state_keeper:\n\tread_storage_keys_count={}\n\tis_write_initial_count={}", state_keeper_block_state.read_storage_key.len(), state_keeper_block_state.is_write_initial.len());
+            // println!("Statistics on storage:\n\tread_storage_keys_count={}\n\tis_write_initial_count={}", storage_block_state.read_storage_key.len(), storage_block_state.is_write_initial.len());
         })
         .await
         .unwrap();
