@@ -5,6 +5,7 @@ use rayon::prelude::*;
 use std::{
     collections::{hash_map::Entry, HashMap},
     iter,
+    time::Instant,
 };
 
 use crate::{
@@ -354,15 +355,16 @@ impl WorkingPatchSet {
         operation: Operation,
         hasher: &dyn HashTree,
     ) -> (ValueHash, PatchSet, HashingStats) {
-        let stats = HashingStats::default();
+        let mut stats = HashingStats::default();
         let (root_hash, patch) = self.finalize_inner(
             manifest,
             leaf_count,
             operation,
             |nibble_count, level_changes| {
+                let started_at = Instant::now();
                 let tree_level = nibble_count * 4;
                 // `into_par_iter()` below uses `rayon` to parallelize hash computations.
-                level_changes
+                let output = level_changes
                     .into_par_iter()
                     .map_init(
                         || hasher.with_stats(&stats),
@@ -371,7 +373,9 @@ impl WorkingPatchSet {
                             (nibbles, Some(node.inner.hash(hasher, tree_level)), node)
                         },
                     )
-                    .collect::<Vec<_>>()
+                    .collect::<Vec<_>>();
+                stats.hashing_duration += started_at.elapsed();
+                output
             },
         );
         let root_hash = root_hash.unwrap_or_else(|| hasher.empty_tree_hash());

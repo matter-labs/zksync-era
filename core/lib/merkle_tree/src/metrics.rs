@@ -7,7 +7,9 @@ use std::{
 };
 
 use crate::types::Nibbles;
-use vise::{Buckets, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Global, Histogram, Metrics};
+use vise::{
+    Buckets, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Global, Histogram, Metrics, Unit,
+};
 
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "merkle_tree")]
@@ -23,19 +25,20 @@ const BYTE_SIZE_BUCKETS: Buckets = Buckets::exponential(65_536.0..=16.0 * 1_024.
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "merkle_tree_finalize_patch")]
 struct HashingMetrics {
-    /// Total amount of hashing input performed while processing a single block.
-    #[metrics(buckets = BYTE_SIZE_BUCKETS)]
-    hashed_bytes: Histogram<u64>,
+    /// Total amount of hashing input performed while processing a patch.
+    #[metrics(buckets = BYTE_SIZE_BUCKETS, unit = Unit::Bytes)]
+    hashed: Histogram<u64>,
+    /// Total time spent on hashing while processing a patch.
+    #[metrics(buckets = Buckets::LATENCIES, unit = Unit::Seconds)]
+    hashing_duration: Histogram<Duration>,
 }
-
-#[vise::register]
-static HASHING_METRICS: Global<HashingMetrics> = Global::new();
 
 /// Hashing-related statistics reported as metrics for each block of operations.
 #[derive(Debug, Default)]
 #[must_use = "hashing stats should be `report()`ed"]
 pub(crate) struct HashingStats {
     pub hashed_bytes: AtomicU64,
+    pub hashing_duration: Duration,
 }
 
 impl HashingStats {
@@ -44,8 +47,14 @@ impl HashingStats {
     }
 
     pub fn report(self) {
+        #[vise::register]
+        static HASHING_METRICS: Global<HashingMetrics> = Global::new();
+
         let hashed_bytes = self.hashed_bytes.into_inner();
-        HASHING_METRICS.hashed_bytes.observe(hashed_bytes);
+        HASHING_METRICS.hashed.observe(hashed_bytes);
+        HASHING_METRICS
+            .hashing_duration
+            .observe(self.hashing_duration);
     }
 }
 

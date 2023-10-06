@@ -412,8 +412,9 @@ impl<'a, DB: Database + ?Sized> Storage<'a, DB> {
         GENERAL_METRICS.leaf_count.set(self.leaf_count);
         let finalize_patch_latency = finalize_patch_latency.observe();
         tracing::debug!(
-            "Node hashing stage took {finalize_patch_latency:?}; hashed {:?}B",
-            stats.hashed_bytes
+            "Tree finalization stage took {finalize_patch_latency:?}; hashed {:?}B in {:?}",
+            stats.hashed_bytes,
+            stats.hashing_duration
         );
         stats.report();
 
