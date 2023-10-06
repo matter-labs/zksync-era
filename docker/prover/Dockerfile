@@ -1,9 +1,8 @@
-# CI pre-downdloads bellman-cuda dependency before building Docker image
-# Not expected to work locally
-
 FROM nvidia/cuda:11.8.0-devel-ubuntu22.04 as builder
 
 ARG DEBIAN_FRONTEND=noninteractive
+
+ARG ERA_BELLMAN_CUDA_RELEASE=latest
 
 RUN apt-get update && apt-get install -y curl clang openssl libssl-dev gcc g++ \
     pkg-config build-essential libclang-dev && \
@@ -20,7 +19,21 @@ RUN curl https://sh.rustup.rs -sSf | bash -s -- -y && \
 WORKDIR /usr/src/zksync
 COPY . .
 
-ENV BELLMAN_CUDA_DIR=/usr/src/zksync/bellman-cuda
+RUN set -e; \
+    if [ "$ERA_BELLMAN_CUDA_RELEASE" = "latest" ]; then \
+    api_url="https://api.github.com/repos/matter-labs/era-bellman-cuda/releases/latest"; \
+    else \
+    api_url="https://api.github.com/repos/matter-labs/era-bellman-cuda/releases/tags/${ERA_BELLMAN_CUDA_RELEASE}"; \
+    fi; \
+    release_info=$(curl --silent "$api_url" | jq -r ".tarball_url, .assets[0].browser_download_url"); \
+    IFS=$'\n' read -ra release <<< "$release_info"; \
+    source="${release[0]}"; \
+    binary="${release[1]}"; \
+    curl --silent --location "$source" --output bellman-cuda-source.tar.gz; \
+    curl --silent --location "$binary" --output bellman-cuda.tar.gz; \
+    mkdir -p bellman-cuda; \
+    tar xvfz bellman-cuda.tar.gz -C ./bellman-cuda; \
+    tar xvfz bellman-cuda-source.tar.gz -C ./bellman-cuda --strip-components=1
 
 RUN cargo build --release
 

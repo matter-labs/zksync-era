@@ -91,8 +91,14 @@ async function _build(image: string, tagList: string[]) {
     }
 
     const tagsToBuild = tagList.map((tag) => `-t matterlabs/${image}:${tag}`).join(' ');
-
     // generate list of tags for image - we want 3 tags (latest, SHA, SHA+TimeStamp) for listed components and only "latest" for everything else
+
+    // Conditionally add build argument if image is prover-v2
+    let buildArgs = '';
+    if (image === 'prover-v2') {
+        const eraBellmanCudaRelease = process.env.ERA_BELLMAN_CUDA_RELEASE || '';
+        buildArgs = `--build-arg ERA_BELLMAN_CUDA_RELEASE=${eraBellmanCudaRelease}`;
+    }
 
     // HACK
     // For prover-v2 which is not a prover, but should be built from the prover dockerfile. So here we go.
