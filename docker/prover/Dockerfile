@@ -4,7 +4,7 @@ ARG DEBIAN_FRONTEND=noninteractive
 
 ARG ERA_BELLMAN_CUDA_RELEASE=latest
 
-RUN apt-get update && apt-get install -y curl clang openssl libssl-dev gcc g++ \
+RUN apt-get update && apt-get install -y curl jq clang openssl libssl-dev gcc g++ \
     pkg-config build-essential libclang-dev && \
     rm -rf /var/lib/apt/lists/*
 
