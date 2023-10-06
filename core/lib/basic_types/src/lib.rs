@@ -78,7 +78,7 @@ impl TryFrom<U256> for AccountTreeId {
 
 /// ChainId in the ZkSync network.
 #[derive(Copy, Clone, Debug, Serialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct L2ChainId(pub u64);
+pub struct L2ChainId(u64);
 
 impl<'de> Deserialize<'de> for L2ChainId {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
@@ -86,24 +86,7 @@ impl<'de> Deserialize<'de> for L2ChainId {
         D: Deserializer<'de>,
     {
         let s: String = Deserialize::deserialize(deserializer)?;
-
-        // Parse the string as a U256
-        // try to parse as decimal first
-        let u64 = match U64::from_dec_str(&s) {
-            Ok(u) => u,
-            Err(_) => {
-                // try to parse as hex
-                s.parse::<U64>().map_err(de::Error::custom)?
-            }
-        };
-
-        if u64.as_u64() > L2ChainId::max().0 {
-            return Err(de::Error::custom(format!(
-                "Too big chain ID. MAX: {}",
-                L2ChainId::max().0
-            )));
-        }
-        Ok(L2ChainId(u64.as_u64()))
+        s.parse().map_err(de::Error::custom)
     }
 }
 
@@ -139,6 +122,10 @@ impl L2ChainId {
     pub fn max() -> Self {
         Self(Self::MAX)
     }
+
+    pub fn as_u64(&self) -> u64 {
+        self.0
+    }
 }
 
 impl Default for L2ChainId {
@@ -159,6 +146,12 @@ impl TryFrom<u64> for L2ChainId {
             ));
         }
         Ok(Self(val))
+    }
+}
+
+impl From<u32> for L2ChainId {
+    fn from(value: u32) -> Self {
+        Self(value as u64)
     }
 }
 

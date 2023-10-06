@@ -226,7 +226,7 @@ impl L2Tx {
     pub fn get_rlp_bytes(&self, chain_id: L2ChainId) -> Bytes {
         let mut rlp_stream = RlpStream::new();
         let tx: TransactionRequest = self.clone().into();
-        tx.rlp(&mut rlp_stream, chain_id.0, None);
+        tx.rlp(&mut rlp_stream, chain_id.as_u64(), None);
         Bytes(rlp_stream.as_raw().to_vec())
     }
 

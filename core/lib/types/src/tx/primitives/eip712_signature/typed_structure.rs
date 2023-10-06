@@ -170,7 +170,7 @@ impl Eip712Domain {
         Self {
             name: Self::NAME.to_string(),
             version: Self::VERSION.to_string(),
-            chain_id: U256::from(chain_id.0),
+            chain_id: U256::from(chain_id.as_u64()),
         }
     }
 }

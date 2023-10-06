@@ -52,13 +52,14 @@ impl RemoteENConfig {
             .get_main_contract()
             .await
             .context("Failed to fetch L1 contract address")?;
-        let l2_chain_id = L2ChainId(
+        let l2_chain_id = L2ChainId::try_from(
             client
                 .chain_id()
                 .await
                 .context("Failed to fetch L2 chain ID")?
                 .as_u64(),
-        );
+        )
+        .unwrap();
         let l1_chain_id = L1ChainId(
             client
                 .l1_chain_id()

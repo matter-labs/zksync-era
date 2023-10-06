@@ -389,7 +389,7 @@ mod tests {
             first_l1_verifier_config: L1VerifierConfig::default(),
             first_verifier_address: Address::random(),
         };
-        ensure_genesis_state(&mut conn, L2ChainId(270), &params)
+        ensure_genesis_state(&mut conn, L2ChainId::from(270), &params)
             .await
             .unwrap();
 
@@ -403,7 +403,7 @@ mod tests {
         assert_ne!(root_hash, H256::zero());
 
         // Check that `ensure_genesis_state()` doesn't panic on repeated runs.
-        ensure_genesis_state(&mut conn, L2ChainId(270), &params)
+        ensure_genesis_state(&mut conn, L2ChainId::from(270), &params)
             .await
             .unwrap();
     }

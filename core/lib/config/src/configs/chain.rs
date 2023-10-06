@@ -202,7 +202,7 @@ mod tests {
             network: NetworkConfig {
                 network: "localhost".parse().unwrap(),
                 zksync_network: "localhost".to_string(),
-                zksync_network_id: zksync_basic_types::L2ChainId(270),
+                zksync_network_id: zksync_basic_types::L2ChainId::from(270),
             },
             state_keeper: StateKeeperConfig {
                 transaction_slots: 50,
