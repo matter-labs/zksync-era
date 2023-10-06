@@ -1,3 +1,6 @@
+# CI pre-downdloads bellman-cuda dependency before building Docker image
+# Not expected to work locally
+
 FROM nvidia/cuda:11.8.0-devel-ubuntu22.04 as builder
 
 ARG DEBIAN_FRONTEND=noninteractive
