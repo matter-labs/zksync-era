@@ -96,7 +96,7 @@ async function _build(image: string, tagList: string[]) {
     // Conditionally add build argument if image is prover-v2
     let buildArgs = '';
     if (image === 'prover-v2') {
-        const eraBellmanCudaRelease = process.env.ERA_BELLMAN_CUDA_RELEASE || '';
+        const eraBellmanCudaRelease = process.env.ERA_BELLMAN_CUDA_RELEASE;
         buildArgs = `--build-arg ERA_BELLMAN_CUDA_RELEASE=${eraBellmanCudaRelease}`;
     }
 
