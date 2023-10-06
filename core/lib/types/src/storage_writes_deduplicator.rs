@@ -136,8 +136,7 @@ impl StorageWritesDeduplicator {
                     });
                 }
                 (true, Some(new_value)) => {
-                    let mut value_size =
-                        compress_with_best_strategy(log.log_query.read_value, new_value).len();
+                    let value_size = compress_with_best_strategy(initial_value, new_value).len();
                     let old_value = self
                         .modified_key_values
                         .get(&key)
@@ -147,14 +146,9 @@ impl StorageWritesDeduplicator {
                         update_type: UpdateType::Update(*old_value),
                         is_write_initial,
                     });
-                    #[allow(clippy::comparison_chain)]
-                    if value_size > old_value.size {
-                        value_size = value_size + old_value.size - 1;
-                        *total_size += value_size
-                    } else if value_size < old_value.size {
-                        *total_size -= old_value.size;
-                        *total_size += value_size
-                    }
+
+                    *total_size -= old_value.size;
+                    *total_size += value_size;
 
                     self.modified_key_values.insert(
                         key,
@@ -166,8 +160,7 @@ impl StorageWritesDeduplicator {
                     );
                 }
                 (false, Some(new_value)) => {
-                    let value_size =
-                        compress_with_best_strategy(log.log_query.read_value, new_value).len();
+                    let value_size = compress_with_best_strategy(initial_value, new_value).len();
                     self.modified_key_values.insert(
                         key,
                         ModifiedSlot {
@@ -378,7 +371,7 @@ mod tests {
                 DeduplicatedWritesMetrics {
                     initial_storage_writes: 2,
                     repeated_storage_writes: 1,
-                    total_writes_size: 73,
+                    total_writes_size: 74,
                 },
                 "complex".into(),
             ),
@@ -568,7 +561,7 @@ mod tests {
             ModifiedSlot {
                 value: 2u32.into(),
                 tx_index: 0,
-                size: 1,
+                size: 2,
             },
         )]);
         let mut deduplicator = StorageWritesDeduplicator::new();
