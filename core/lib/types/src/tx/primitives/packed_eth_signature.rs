@@ -154,8 +154,6 @@ impl PackedEthSignature {
         self.0.v() as u64 + 35 + chain_id * 2
     }
     pub fn unpack_v(v: u64) -> Result<(u8, Option<u64>), ParityCryptoError> {
-        use std::convert::TryInto;
-
         if v == 27 {
             return Ok((0, None));
         } else if v == 28 {
@@ -163,9 +161,6 @@ impl PackedEthSignature {
         } else if v >= 35 {
             let chain_id = (v - 35) >> 1;
             let v = v - 35 - chain_id * 2;
-            let chain_id = chain_id
-                .try_into()
-                .map_err(|_| ParityCryptoError::Custom("Invalid chain_id".to_string()))?;
             if v == 0 {
                 return Ok((0, Some(chain_id)));
             } else if v == 1 {
