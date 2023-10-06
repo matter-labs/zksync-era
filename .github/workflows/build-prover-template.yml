@@ -97,7 +97,6 @@ jobs:
               "proof-fri-compressor"
             )
         run: |
-          ci_run export ERA_BELLMAN_CUDA_RELEASE=${{ env.ERA_BELLMAN_CUDA_RELEASE }}
           nightly_components=${{ env.RUST_NIGHTLY_COMPONENTS }}
           ci_run docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
           ci_run gcloud auth configure-docker us-docker.pkg.dev,asia-docker.pkg.dev -q
@@ -115,7 +114,7 @@ jobs:
             ci_run echo [workspace] > Cargo.toml
             ci_run echo members = [\"prover/${underscored_name}\"] >> Cargo.toml
             ci_run cp prover/Cargo.lock Cargo.lock
-            ci_run zk docker $DOCKER_ACTION $COMPONENT
+            PASSED_ENV_VARS="ERA_BELLMAN_CUDA_RELEASE" ci_run zk docker $DOCKER_ACTION $COMPONENT
           else
             ci_run zk docker $DOCKER_ACTION $COMPONENT
           fi

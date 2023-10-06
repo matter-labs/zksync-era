@@ -1,4 +1,6 @@
-ARG PROVER_IMAGE
+# Will work locally only after prior universal key download and Docker login to the private registry
+
+ARG PROVER_IMAGE=latest
 FROM us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/prover-v2:2.0-$PROVER_IMAGE as prover
 
 FROM nvidia/cuda:11.8.0-runtime-ubuntu22.04 as app

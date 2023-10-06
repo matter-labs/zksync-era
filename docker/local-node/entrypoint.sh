@@ -13,7 +13,7 @@ then
     echo "Initialing local environment"
     psql ${DATABASE_URL%/*} -c "create database ${DATABASE_URL##*/}"
     find /migrations -name "*up.sql" | sort | xargs printf -- ' -f %s' | xargs -t psql $DATABASE_URL
-    
+
     cd /infrastructure/zk
     # Compile configs
     yarn start config compile
