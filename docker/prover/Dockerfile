@@ -19,25 +19,21 @@ RUN curl https://sh.rustup.rs -sSf | bash -s -- -y && \
 WORKDIR /usr/src/zksync
 COPY . .
 
+ENV GITHUB_OWNER=matter-labs
+ENV GITHUB_REPO=era-bellman-cuda
+
 RUN set -e; \
     if [ "$ERA_BELLMAN_CUDA_RELEASE" = "latest" ]; then \
-    api_url="https://api.github.com/repos/matter-labs/era-bellman-cuda/releases/latest"; \
-    release_info=$(curl -s -o /dev/null -w "%{http_code}" "$api_url"); \
-    if [ "$release_info" = "404" ]; then \
-    api_url="https://api.github.com/repos/matter-labs/era-bellman-cuda/releases"; \
-    release_info=$(curl --silent "$api_url" | jq -r '.[0].tarball_url, .[0].assets[0].browser_download_url'); \
+        latest_release_data=$(curl --silent "https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases"); \
+        latest_tag=$(echo "$latest_release_data" | jq -r '.[0].tag_name'); \
+        source_url="https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/archive/refs/tags/${latest_tag}.tar.gz"; \
+        binary_url="https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases/download/${latest_tag}/bellman-cuda.tar.gz"; \
     else \
-    release_info=$(curl --silent "$api_url" | jq -r ".tarball_url, .assets[0].browser_download_url"); \
+        source_url="https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/archive/refs/tags/${ERA_BELLMAN_CUDA_RELEASE}.tar.gz"; \
+        binary_url="https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases/download/${ERA_BELLMAN_CUDA_RELEASE}/bellman-cuda.tar.gz"; \
     fi; \
-    else \
-    api_url="https://api.github.com/repos/matter-labs/era-bellman-cuda/releases/tags/${ERA_BELLMAN_CUDA_RELEASE}"; \
-    release_info=$(curl --silent "$api_url" | jq -r ".tarball_url, .assets[0].browser_download_url"); \
-    fi; \
-    IFS=$'\n' read -ra release <<< "$release_info"; \
-    source="${release[0]}"; \
-    binary="${release[1]}"; \
-    curl --silent --location "$source" --output bellman-cuda-source.tar.gz; \
-    curl --silent --location "$binary" --output bellman-cuda.tar.gz; \
+    curl --silent --location "$source_url" --output bellman-cuda-source.tar.gz; \
+    curl --silent --location "$binary_url" --output bellman-cuda.tar.gz; \
     mkdir -p bellman-cuda; \
     tar xvfz bellman-cuda.tar.gz -C ./bellman-cuda; \
     tar xvfz bellman-cuda-source.tar.gz -C ./bellman-cuda --strip-components=1

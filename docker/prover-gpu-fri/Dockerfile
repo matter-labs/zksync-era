@@ -3,7 +3,7 @@ FROM nvidia/cuda:12.2.0-devel-ubuntu22.04 as builder
 ARG DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && apt-get install -y curl clang openssl libssl-dev gcc g++ \
-    pkg-config build-essential libclang-dev && \
+    pkg-config build-essential libclang-dev &&
     rm -rf /var/lib/apt/lists/*
 
 ENV RUSTUP_HOME=/usr/local/rustup \
@@ -12,13 +12,13 @@ ENV RUSTUP_HOME=/usr/local/rustup \
 
 ENV CUDAARCHS=75
 
-RUN curl https://sh.rustup.rs -sSf | bash -s -- -y && \
-    rustup install nightly-2023-07-21 && \
+RUN curl https://sh.rustup.rs -sSf | bash -s -- -y &&
+    rustup install nightly-2023-07-21 &&
     rustup default nightly-2023-07-21
 
 # Setup cmake
-RUN curl -Lo cmake-3.24.2-linux-x86_64.sh https://github.com/Kitware/CMake/releases/download/v3.24.2/cmake-3.24.2-linux-x86_64.sh && \
-    chmod +x cmake-3.24.2-linux-x86_64.sh && \
+RUN curl -Lo cmake-3.24.2-linux-x86_64.sh https://github.com/Kitware/CMake/releases/download/v3.24.2/cmake-3.24.2-linux-x86_64.sh &&
+    chmod +x cmake-3.24.2-linux-x86_64.sh &&
     ./cmake-3.24.2-linux-x86_64.sh --skip-license --prefix=/usr/local
 
 WORKDIR /usr/src/zksync
