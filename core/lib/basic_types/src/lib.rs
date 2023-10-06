@@ -218,3 +218,72 @@ impl Default for PriorityOpId {
         Self(0)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::from_str;
+
+    #[test]
+    fn test_from_str_valid_decimal() {
+        let input = "42";
+        let result = L2ChainId::from_str(input);
+        assert_eq!(result.unwrap().as_u64(), 42);
+    }
+
+    #[test]
+    fn test_from_str_valid_hexadecimal() {
+        let input = "0x2A";
+        let result = L2ChainId::from_str(input);
+        assert_eq!(result.unwrap().as_u64(), 42);
+    }
+
+    #[test]
+    fn test_from_str_too_big_chain_id() {
+        let input = "18446744073709551615"; // 2^64 - 1
+        let result = L2ChainId::from_str(input);
+        assert_eq!(
+            result,
+            Err(format!("Too big chain ID. MAX: {}", L2ChainId::max().0))
+        );
+    }
+
+    #[test]
+    fn test_from_str_invalid_input() {
+        let input = "invalid"; // Invalid input that cannot be parsed as a number
+        let result = L2ChainId::from_str(input);
+
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .contains("Failed to parse L2ChainId: Err "));
+    }
+
+    #[test]
+    fn test_deserialize_valid_decimal() {
+        let input_json = "\"42\"";
+
+        let result: Result<L2ChainId, _> = from_str(input_json);
+        assert_eq!(result.unwrap().as_u64(), 42);
+    }
+
+    #[test]
+    fn test_deserialize_valid_hex() {
+        let input_json = "\"0x2A\"";
+
+        let result: Result<L2ChainId, _> = from_str(input_json);
+        assert_eq!(result.unwrap().as_u64(), 42);
+    }
+
+    #[test]
+    fn test_deserialize_invalid() {
+        let input_json = "\"invalid\"";
+
+        let result: Result<L2ChainId, serde_json::Error> = from_str(input_json);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Failed to parse L2ChainId: Err Invalid character "));
+    }
+}
