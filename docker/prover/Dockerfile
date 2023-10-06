@@ -22,10 +22,17 @@ COPY . .
 RUN set -e; \
     if [ "$ERA_BELLMAN_CUDA_RELEASE" = "latest" ]; then \
     api_url="https://api.github.com/repos/matter-labs/era-bellman-cuda/releases/latest"; \
+    release_info=$(curl -s -o /dev/null -w "%{http_code}" "$api_url"); \
+    if [ "$release_info" = "404" ]; then \
+    api_url="https://api.github.com/repos/matter-labs/era-bellman-cuda/releases"; \
+    release_info=$(curl --silent "$api_url" | jq -r '.[0].tarball_url, .[0].assets[0].browser_download_url'); \
+    else \
+    release_info=$(curl --silent "$api_url" | jq -r ".tarball_url, .assets[0].browser_download_url"); \
+    fi; \
     else \
     api_url="https://api.github.com/repos/matter-labs/era-bellman-cuda/releases/tags/${ERA_BELLMAN_CUDA_RELEASE}"; \
-    fi; \
     release_info=$(curl --silent "$api_url" | jq -r ".tarball_url, .assets[0].browser_download_url"); \
+    fi; \
     IFS=$'\n' read -ra release <<< "$release_info"; \
     source="${release[0]}"; \
     binary="${release[1]}"; \

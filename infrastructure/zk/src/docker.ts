@@ -104,13 +104,13 @@ async function _build(image: string, tagList: string[]) {
     // For prover-v2 which is not a prover, but should be built from the prover dockerfile. So here we go.
     const imagePath = image == 'prover-v2' ? 'prover' : image;
 
-    const buildCommand = `DOCKER_BUILDKIT=1 docker build ${tagsToBuild}` +
+    const buildCommand =
+        `DOCKER_BUILDKIT=1 docker build ${tagsToBuild}` +
         (buildArgs ? ` ${buildArgs}` : '') +
         ` -f ./docker/${imagePath}/Dockerfile .`;
 
     await utils.spawn(buildCommand);
 }
-
 
 async function _push(image: string, tagList: string[], publishPublic: boolean = false) {
     // For development purposes, we want to use `2.0` tags for 2.0 images, just to not interfere with 1.x
