@@ -58,7 +58,7 @@ impl PatchSet {
         }
     }
 
-    pub(super) fn for_empty_root(manifest: Manifest, version: u64) -> Self {
+    pub(crate) fn for_empty_root(manifest: Manifest, version: u64) -> Self {
         let stale_keys = if let Some(prev_version) = version.checked_sub(1) {
             vec![Nibbles::EMPTY.with_version(prev_version)]
         } else {

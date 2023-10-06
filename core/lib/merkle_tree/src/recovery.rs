@@ -11,7 +11,7 @@ use crate::{
 use zksync_crypto::hasher::blake2::Blake2Hasher;
 
 /// Entry in a Merkle tree used during recovery.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RecoveryEntry {
     /// Entry key.
     pub key: Key,
@@ -141,6 +141,21 @@ impl<'a, DB: PruneDatabase> MerkleTreeRecovery<'a, DB> {
     )]
     #[allow(clippy::missing_panics_doc, clippy::range_plus_one)]
     pub fn finalize(mut self) -> MerkleTree<'a, DB> {
+        let mut manifest = self.db.manifest().unwrap();
+        // ^ `unwrap()` is safe: manifest is inserted into the DB on creation
+
+        let leaf_count = if let Some(root) = self.db.root(self.recovered_version) {
+            root.leaf_count()
+        } else {
+            // Marginal case: an empty tree is recovered (i.e., `extend()` was never called).
+            let patch = PatchSet::for_empty_root(manifest.clone(), self.recovered_version);
+            self.db.apply_patch(patch);
+            0
+        };
+        tracing::debug!(
+            "Finalizing recovery of the Merkle tree with {leaf_count} key–value entries"
+        );
+
         let started_at = Instant::now();
         let stale_keys = self.db.stale_keys(self.recovered_version);
         let stale_keys_len = stale_keys.len();
@@ -155,8 +170,6 @@ impl<'a, DB: PruneDatabase> MerkleTreeRecovery<'a, DB> {
             started_at.elapsed()
         );
 
-        let mut manifest = self.db.manifest().unwrap();
-        // ^ `unwrap()` is safe: manifest is inserted into the DB on creation
         manifest
             .tags
             .get_or_insert_with(|| TreeTags::new(self.hasher))
@@ -164,7 +177,7 @@ impl<'a, DB: PruneDatabase> MerkleTreeRecovery<'a, DB> {
         self.db.apply_patch(PatchSet::from_manifest(manifest));
         tracing::debug!("Updated tree manifest to mark recovery as complete");
 
-        // We don't need additional checks since they were performed in the constructor
+        // We don't need additional integrity checks since they were performed in the constructor
         MerkleTree {
             db: self.db,
             hasher: self.hasher,
@@ -176,12 +189,13 @@ fn entries_key_range(entries: &[RecoveryEntry]) -> String {
     let (Some(first), Some(last)) = (entries.first(), entries.last()) else {
         return "(empty)".to_owned();
     };
-    format!("{:064x}..={:064x}", first.key, last.key)
+    format!("{:0>64x}..={:0>64x}", first.key, last.key)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{hasher::HasherWithStats, types::LeafNode};
 
     #[test]
     #[should_panic(expected = "Tree is expected to be in the process of recovery")]
@@ -197,5 +211,38 @@ mod tests {
         let mut db = PatchSet::default();
         MerkleTreeRecovery::new(&mut db, 123);
         MerkleTreeRecovery::new(&mut db, 42);
+    }
+
+    #[test]
+    fn recovering_empty_tree() {
+        let tree = MerkleTreeRecovery::new(PatchSet::default(), 42).finalize();
+        assert_eq!(tree.latest_version(), Some(42));
+        assert_eq!(tree.root(42), Some(Root::Empty));
+    }
+
+    #[test]
+    fn recovering_tree_with_single_node() {
+        let mut recovery = MerkleTreeRecovery::new(PatchSet::default(), 42);
+        let recovery_entry = RecoveryEntry {
+            key: Key::from(123),
+            value: ValueHash::repeat_byte(1),
+            leaf_index: 1,
+            version: 42,
+        };
+        recovery.extend(vec![recovery_entry]);
+        let tree = recovery.finalize();
+
+        assert_eq!(tree.latest_version(), Some(42));
+        let mut hasher = HasherWithStats::from(&Blake2Hasher as &dyn HashTree);
+        assert_eq!(
+            tree.latest_root_hash(),
+            LeafNode::new(
+                recovery_entry.key,
+                recovery_entry.value,
+                recovery_entry.leaf_index
+            )
+            .hash(&mut hasher, 0)
+        );
+        tree.verify_consistency(42).unwrap();
     }
 }
