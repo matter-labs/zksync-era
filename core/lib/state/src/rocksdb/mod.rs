@@ -13,7 +13,8 @@
 //! | State        | 'block_number'                  | serialized block number         | Last processed L1 batch number (u32)      |
 //! | State        | 'enum_index_migration_cursor'   | serialized hashed key           | Hashed key migration should continue from |
 //! | State        | 'enum_index_migration_finished' | 1 byte flag                     | Denotes if the migration if completed     |
-//! | State        | hashed `StorageKey`             | 32 bytes value ++ 8 bytes index | State for the given key                   |
+//! | State        | hashed `StorageKey`             | 32 bytes value ++ 8 bytes index | State value for the given key             |
+//! |              |                                 |                    (big-endian) |                                           |
 //! | Contracts    | address (20 bytes)              | `Vec<u8>`                       | Contract contents                         |
 //! | Factory deps | hash (32 bytes)                 | `Vec<u8>`                       | Bytecodes for new contracts that a certain contract may deploy. |
 
