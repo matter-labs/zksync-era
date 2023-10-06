@@ -1,11 +1,14 @@
 //! Tests for tree recovery.
 
+use rand::{rngs::StdRng, seq::SliceRandom, SeedableRng};
+use zksync_crypto::hasher::blake2::Blake2Hasher;
+
 use zksync_merkle_tree::{
     recovery::{MerkleTreeRecovery, RecoveryEntry},
-    PatchSet, PruneDatabase,
+    Database, MerkleTree, PatchSet, PruneDatabase, ValueHash,
 };
 
-use crate::common::KVS_AND_HASH;
+use crate::common::{convert_to_writes, generate_key_value_pairs, TreeMap, KVS_AND_HASH};
 
 #[test]
 fn recovery_basics() {
@@ -64,8 +67,56 @@ fn test_recovery_in_chunks<DB: PruneDatabase>(mut create_db: impl FnMut() -> DB)
         assert_eq!(recovery.last_processed_key(), Some(greatest_key));
         assert_eq!(recovery.root_hash(), *expected_hash);
 
-        let tree = recovery.finalize();
+        let mut tree = recovery.finalize();
         tree.verify_consistency(recovered_version).unwrap();
+        // Check that new tree versions can be built and function as expected.
+        test_tree_after_recovery(&mut tree, recovered_version, *expected_hash);
+    }
+}
+
+fn test_tree_after_recovery<DB: Database>(
+    tree: &mut MerkleTree<DB>,
+    recovered_version: u64,
+    root_hash: ValueHash,
+) {
+    const RNG_SEED: u64 = 765;
+    const CHUNK_SIZE: usize = 18;
+
+    assert_eq!(tree.latest_version(), Some(recovered_version));
+    assert_eq!(tree.root_hash(recovered_version), Some(root_hash));
+    for ver in 0..recovered_version {
+        assert_eq!(tree.root_hash(ver), None);
+    }
+
+    // Check adding new and updating existing entries in the tree.
+    let mut rng = StdRng::seed_from_u64(RNG_SEED);
+    let mut kvs = generate_key_value_pairs(100..=150);
+    let mut modified_kvs = generate_key_value_pairs(50..=100);
+    for (_, value) in &mut modified_kvs {
+        *value = ValueHash::repeat_byte(1);
+    }
+    kvs.extend(modified_kvs);
+    kvs.shuffle(&mut rng);
+
+    let mut tree_map = TreeMap::new(&KVS_AND_HASH.0);
+    let mut prev_root_hash = root_hash;
+    for (i, chunk) in kvs.chunks(CHUNK_SIZE).enumerate() {
+        tree_map.extend(chunk);
+
+        let new_root_hash = if i % 2 == 0 {
+            let output = tree.extend(chunk.to_vec());
+            output.root_hash
+        } else {
+            let instructions = convert_to_writes(chunk);
+            let output = tree.extend_with_proofs(instructions.clone());
+            output.verify_proofs(&Blake2Hasher, prev_root_hash, &instructions);
+            output.root_hash().unwrap()
+        };
+
+        assert_eq!(new_root_hash, tree_map.root_hash());
+        tree.verify_consistency(recovered_version + i as u64)
+            .unwrap();
+        prev_root_hash = new_root_hash;
     }
 }
 

@@ -11,14 +11,7 @@ use zksync_merkle_tree::{
 };
 use zksync_types::{AccountTreeId, Address, StorageKey, H256, U256};
 
-use crate::common::{compute_tree_hash, generate_key_value_pairs, KVS_AND_HASH};
-
-fn convert_to_writes(kvs: &[(U256, H256)]) -> Vec<(U256, TreeInstruction)> {
-    let kvs = kvs
-        .iter()
-        .map(|&(key, hash)| (key, TreeInstruction::Write(hash)));
-    kvs.collect()
-}
+use crate::common::{compute_tree_hash, convert_to_writes, generate_key_value_pairs, KVS_AND_HASH};
 
 #[test]
 fn compute_tree_hash_works_correctly() {
@@ -31,7 +24,7 @@ fn compute_tree_hash_works_correctly() {
     let address: Address = "4b3af74f66ab1f0da3f2e4ec7a3cb99baf1af7b2".parse().unwrap();
     let key = StorageKey::new(AccountTreeId::new(address), H256::zero());
     let key = key.hashed_key_u256();
-    let hash = compute_tree_hash(&[(key, H256([1; 32]))]);
+    let hash = compute_tree_hash([(key, H256([1; 32]))].into_iter());
     assert_eq!(hash, EXPECTED_HASH);
 }
 
@@ -42,7 +35,7 @@ fn root_hash_is_computed_correctly_on_empty_tree() {
 
         let mut tree = MerkleTree::new(PatchSet::default());
         let kvs = generate_key_value_pairs(0..kv_count);
-        let expected_hash = compute_tree_hash(&kvs);
+        let expected_hash = compute_tree_hash(kvs.iter().copied());
         let output = tree.extend(kvs);
         assert_eq!(output.root_hash, expected_hash);
     }
@@ -59,7 +52,7 @@ fn output_proofs_are_computed_correctly_on_empty_tree() {
 
         let mut tree = MerkleTree::new(PatchSet::default());
         let kvs = generate_key_value_pairs(0..kv_count);
-        let expected_hash = compute_tree_hash(&kvs);
+        let expected_hash = compute_tree_hash(kvs.iter().copied());
         let instructions = convert_to_writes(&kvs);
         let output = tree.extend_with_proofs(instructions.clone());
 
@@ -89,7 +82,7 @@ fn entry_proofs_are_computed_correctly_on_empty_tree() {
 
         let mut tree = MerkleTree::new(PatchSet::default());
         let kvs = generate_key_value_pairs(0..kv_count);
-        let expected_hash = compute_tree_hash(&kvs);
+        let expected_hash = compute_tree_hash(kvs.iter().copied());
         tree.extend(kvs.clone());
 
         let existing_keys: Vec<_> = kvs.iter().map(|(key, _)| *key).collect();
@@ -137,7 +130,7 @@ fn proofs_are_computed_correctly_for_mixed_instructions() {
     let mut instructions: Vec<_> = reads.collect();
     // Overwrite all keys in the tree.
     let writes: Vec<_> = kvs.iter().map(|(key, _)| (*key, H256::zero())).collect();
-    let expected_hash = compute_tree_hash(&writes);
+    let expected_hash = compute_tree_hash(writes.iter().copied());
     instructions.extend(convert_to_writes(&writes));
     instructions.shuffle(&mut rng);
 
@@ -322,7 +315,7 @@ fn test_root_hash_computing_with_key_updates(db: impl Database) {
 
     let mut kvs = generate_key_value_pairs(0..50);
     let mut tree = MerkleTree::new(db);
-    let expected_hash = compute_tree_hash(&kvs);
+    let expected_hash = compute_tree_hash(kvs.iter().copied());
     let output = tree.extend(kvs.clone());
     assert_eq!(output.root_hash, expected_hash);
 
@@ -337,7 +330,7 @@ fn test_root_hash_computing_with_key_updates(db: impl Database) {
     let changed_kvs: Vec<_> = changed_kvs.collect();
     let new_kvs = generate_key_value_pairs(50..75);
     kvs.extend_from_slice(&new_kvs);
-    let expected_hash = compute_tree_hash(&kvs);
+    let expected_hash = compute_tree_hash(kvs.iter().copied());
 
     // We can merge `changed_kvs` and `new_kvs` in any way that preserves `new_kvs` ordering.
     // We'll do multiple ways (which also will effectively test DB rollbacks).
@@ -452,7 +445,7 @@ fn test_root_hash_equals_to_previous_implementation(db: &mut impl Database) {
     let values = (0..100).map(H256::from_low_u64_be);
     let kvs: Vec<_> = keys.zip(values).collect();
 
-    let expected_hash = compute_tree_hash(&kvs);
+    let expected_hash = compute_tree_hash(kvs.iter().copied());
     assert_eq!(expected_hash, PREV_IMPL_HASH);
 
     let mut tree = MerkleTree::new(db);
