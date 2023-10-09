@@ -400,6 +400,11 @@ impl<'a, DB: Database + ?Sized> Storage<'a, DB> {
     }
 
     fn finalize(self) -> (ValueHash, PatchSet) {
+        tracing::debug!(
+            "Finished updating tree; total leaf count: {}, stats: {:?}",
+            self.leaf_count,
+            self.updater.metrics
+        );
         self.updater.metrics.report();
 
         let finalize_patch_latency = BLOCK_TIMINGS.finalize_patch.start();

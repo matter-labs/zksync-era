@@ -104,7 +104,7 @@ struct TreeUpdateMetrics {
 static TREE_UPDATE_METRICS: Global<TreeUpdateMetrics> = Global::new();
 
 #[must_use = "tree updater stats should be `report()`ed"]
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Clone, Copy, Default)]
 pub(crate) struct TreeUpdaterStats {
     pub new_leaves: u64,
     pub new_internal_nodes: u64,
@@ -118,6 +118,24 @@ pub(crate) struct TreeUpdaterStats {
     pub patch_reads: u64,
 }
 
+impl fmt::Debug for TreeUpdaterStats {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("TreeUpdaterStats")
+            .field("new_leaves", &self.new_leaves)
+            .field("new_internal_nodes", &self.new_internal_nodes)
+            .field("moved_leaves", &self.moved_leaves)
+            .field("updated_leaves", &self.updated_leaves)
+            .field("avg_leaf_level", &self.avg_leaf_level())
+            .field("max_leaf_level", &self.max_leaf_level)
+            .field("key_reads", &self.key_reads)
+            .field("missing_key_reads", &self.missing_key_reads)
+            .field("db_reads", &self.db_reads)
+            .field("patch_reads", &self.patch_reads)
+            .finish_non_exhaustive()
+    }
+}
+
 impl TreeUpdaterStats {
     pub(crate) fn update_leaf_levels(&mut self, nibble_count: usize) {
         let leaf_level = nibble_count as u64 * 4;
@@ -126,20 +144,22 @@ impl TreeUpdaterStats {
     }
 
     #[allow(clippy::cast_precision_loss)] // Acceptable for metrics
+    fn avg_leaf_level(&self) -> f64 {
+        let touched_leaves = self.new_leaves + self.moved_leaves;
+        if touched_leaves > 0 {
+            self.leaf_level_sum as f64 / touched_leaves as f64
+        } else {
+            0.0
+        }
+    }
+
     pub(crate) fn report(self) {
         let metrics = &TREE_UPDATE_METRICS;
         metrics.new_leaves.observe(self.new_leaves);
         metrics.new_internal_nodes.observe(self.new_internal_nodes);
         metrics.moved_leaves.observe(self.moved_leaves);
         metrics.updated_leaves.observe(self.updated_leaves);
-
-        let touched_leaves = self.new_leaves + self.moved_leaves;
-        let avg_leaf_level = if touched_leaves > 0 {
-            self.leaf_level_sum as f64 / touched_leaves as f64
-        } else {
-            0.0
-        };
-        metrics.avg_leaf_level.observe(avg_leaf_level);
+        metrics.avg_leaf_level.observe(self.avg_leaf_level());
         metrics.max_leaf_level.observe(self.max_leaf_level);
 
         if self.key_reads > 0 {

@@ -348,6 +348,11 @@ impl<'a, DB: Database + ?Sized> Storage<'a, DB> {
         root: InternalNode,
         logs: Vec<(usize, TreeLogEntryWithProof<MerklePath>)>,
     ) -> (BlockOutputWithProofs, PatchSet) {
+        tracing::debug!(
+            "Finished updating tree; total leaf count: {}, stats: {:?}",
+            self.leaf_count,
+            self.updater.metrics
+        );
         let logs = self.updater.finalize_logs(hasher, root, logs);
         self.updater.metrics.report();
 
