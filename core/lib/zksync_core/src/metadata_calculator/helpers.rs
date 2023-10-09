@@ -366,7 +366,7 @@ mod tests {
     async fn loaded_logs_equivalence_basics(pool: ConnectionPool) {
         ensure_genesis_state(
             &mut pool.access_storage().await.unwrap(),
-            L2ChainId(270),
+            L2ChainId::from(270),
             &mock_genesis_params(),
         )
         .await
@@ -389,7 +389,7 @@ mod tests {
     #[db_test]
     async fn loaded_logs_equivalence_with_zero_no_op_logs(pool: ConnectionPool) {
         let mut storage = pool.access_storage().await.unwrap();
-        ensure_genesis_state(&mut storage, L2ChainId(270), &mock_genesis_params())
+        ensure_genesis_state(&mut storage, L2ChainId::from(270), &mock_genesis_params())
             .await
             .unwrap();
 
@@ -467,7 +467,7 @@ mod tests {
     #[db_test]
     async fn loaded_logs_equivalence_with_non_zero_no_op_logs(pool: ConnectionPool) {
         let mut storage = pool.access_storage().await.unwrap();
-        ensure_genesis_state(&mut storage, L2ChainId(270), &mock_genesis_params())
+        ensure_genesis_state(&mut storage, L2ChainId::from(270), &mock_genesis_params())
             .await
             .unwrap();
 
@@ -514,7 +514,7 @@ mod tests {
     #[db_test]
     async fn loaded_logs_equivalence_with_protective_reads(pool: ConnectionPool) {
         let mut storage = pool.access_storage().await.unwrap();
-        ensure_genesis_state(&mut storage, L2ChainId(270), &mock_genesis_params())
+        ensure_genesis_state(&mut storage, L2ChainId::from(270), &mock_genesis_params())
             .await
             .unwrap();
 

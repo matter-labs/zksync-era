@@ -52,7 +52,7 @@ async fn test_require_eip712() {
 
     assert_eq!(vm.get_eth_balance(beneficiary.address), U256::from(0));
 
-    let chain_id: u16 = 270;
+    let chain_id: u32 = 270;
 
     // First, let's set the owners of the AA account to the private_address.
     // (so that messages signed by private_address, are authorized to act on behalf of the AA account).
@@ -94,7 +94,7 @@ async fn test_require_eip712() {
     };
 
     let aa_tx = private_account.sign_legacy_tx(aa_raw_tx).await;
-    let (tx_request, hash) = TransactionRequest::from_bytes(&aa_tx, 270).unwrap();
+    let (tx_request, hash) = TransactionRequest::from_bytes(&aa_tx, L2ChainId::from(270)).unwrap();
 
     let mut l2_tx: L2Tx = L2Tx::from_request(tx_request, 10000).unwrap();
     l2_tx.set_input(aa_tx, hash);
@@ -134,15 +134,16 @@ async fn test_require_eip712() {
 
     let transaction_request: TransactionRequest = tx_712.into();
 
-    let domain = Eip712Domain::new(L2ChainId(chain_id));
+    let domain = Eip712Domain::new(L2ChainId::from(chain_id));
     let signature = private_account
         .get_pk_signer()
         .sign_typed_data(&domain, &transaction_request)
         .await
         .unwrap();
-    let encoded_tx = transaction_request.get_signed_bytes(&signature, L2ChainId(chain_id));
+    let encoded_tx = transaction_request.get_signed_bytes(&signature, L2ChainId::from(chain_id));
 
-    let (aa_txn_request, aa_hash) = TransactionRequest::from_bytes(&encoded_tx, chain_id).unwrap();
+    let (aa_txn_request, aa_hash) =
+        TransactionRequest::from_bytes(&encoded_tx, L2ChainId::from(chain_id)).unwrap();
 
     let mut l2_tx = L2Tx::from_request(aa_txn_request, 100000).unwrap();
     l2_tx.set_input(encoded_tx, aa_hash);

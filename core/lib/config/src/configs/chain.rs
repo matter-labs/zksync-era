@@ -5,7 +5,7 @@ use serde::Deserialize;
 use std::time::Duration;
 // Local uses
 use zksync_basic_types::network::Network;
-use zksync_basic_types::{Address, H256};
+use zksync_basic_types::{Address, L2ChainId, H256};
 use zksync_contracts::BaseSystemContractsHashes;
 
 use super::envy_load;
@@ -47,7 +47,7 @@ pub struct NetworkConfig {
     pub zksync_network: String,
     /// ID of current zkSync network treated as ETH network ID.
     /// Used to distinguish zkSync from other Web3-capable networks.
-    pub zksync_network_id: u16,
+    pub zksync_network_id: L2ChainId,
 }
 
 impl NetworkConfig {
@@ -209,7 +209,7 @@ mod tests {
             network: NetworkConfig {
                 network: "localhost".parse().unwrap(),
                 zksync_network: "localhost".to_string(),
-                zksync_network_id: 270,
+                zksync_network_id: L2ChainId::from(270),
             },
             state_keeper: StateKeeperConfig {
                 transaction_slots: 50,

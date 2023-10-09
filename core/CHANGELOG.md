@@ -1,5 +1,12 @@
 # Changelog
 
+## [15.1.1](https://github.com/matter-labs/zksync-era/compare/core-v15.1.0...core-v15.1.1) (2023-10-05)
+
+
+### Bug Fixes
+
+* use gauge instead histogram for replication lag metric ([#159](https://github.com/matter-labs/zksync-era/issues/159)) ([0d952d4](https://github.com/matter-labs/zksync-era/commit/0d952d43a021c2fbf18920da3e7d770a6309d990))
+
 ## [15.1.0](https://github.com/matter-labs/zksync-era/compare/core-v15.0.2...core-v15.1.0) (2023-10-03)
 
 

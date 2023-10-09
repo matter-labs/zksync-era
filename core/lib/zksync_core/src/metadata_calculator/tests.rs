@@ -397,7 +397,7 @@ async fn setup_calculator_with_options(
 
     let mut storage = pool.access_storage().await.unwrap();
     if storage.blocks_dal().is_genesis_needed().await.unwrap() {
-        let chain_id = L2ChainId(270);
+        let chain_id = L2ChainId::from(270);
         let protocol_version = ProtocolVersionId::latest();
         let base_system_contracts = BaseSystemContracts::load_from_disk();
         let system_contracts = get_system_smart_contracts();
@@ -650,7 +650,7 @@ async fn deduplication_works_as_expected(pool: ConnectionPool) {
     let first_verifier_address = Address::zero();
     ensure_genesis_state(
         &mut storage,
-        L2ChainId(270),
+        L2ChainId::from(270),
         &GenesisParams {
             protocol_version,
             first_validator,
