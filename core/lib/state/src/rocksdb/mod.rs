@@ -237,8 +237,11 @@ impl RocksdbStorage {
             .db
             .from_iterator_cf(StateKeeperColumnFamily::State, start_from.as_bytes())
             .filter_map(|(key, value)| {
+                if Self::is_special_key(&key) {
+                    return None;
+                }
                 let state_value = StateValue::deserialize(&value);
-                (!Self::is_special_key(&key) && state_value.enum_index.is_none())
+                (state_value.enum_index.is_none())
                     .then(|| (H256::from_slice(&key), state_value.value))
             })
             .take(self.enum_index_migration_chunk_size)
