@@ -4,6 +4,7 @@ use std::fmt::{self, Debug};
 use std::iter::FromIterator;
 use std::time::Duration;
 
+use crate::connection::holder::Acquire;
 use itertools::Itertools;
 use sqlx::error;
 use sqlx::types::chrono::NaiveDateTime;
@@ -41,13 +42,13 @@ impl fmt::Display for L2TxSubmissionResult {
 }
 
 #[derive(Debug)]
-pub struct TransactionsDal<'c, 'a> {
-    pub(crate) storage: &'c mut StorageProcessor<'a>,
+pub struct TransactionsDal<'a, Conn> {
+    pub(crate) storage: &'a mut StorageProcessor<Conn>,
 }
 
 type TxLocations = Vec<(MiniblockNumber, Vec<(H256, u32, u16)>)>;
 
-impl TransactionsDal<'_, '_> {
+impl<'a, Conn: Acquire> TransactionsDal<'a, Conn> {
     pub async fn insert_transaction_l1(&mut self, tx: L1Tx, l1_block_number: L1BlockNumber) {
         {
             let contract_address = tx.execute.contract_address.as_bytes();
@@ -130,7 +131,7 @@ impl TransactionsDal<'_, '_> {
                 refund_recipient,
                 received_at,
             )
-            .fetch_optional(self.storage.conn())
+            .fetch_optional(self.storage.acquire().await.as_conn())
             .await
             .unwrap();
         }
@@ -212,7 +213,7 @@ impl TransactionsDal<'_, '_> {
                 refund_recipient,
                 received_at,
             )
-            .fetch_optional(self.storage.conn())
+            .fetch_optional(self.storage.acquire().await.as_conn())
             .await
             .unwrap();
         }
@@ -331,7 +332,7 @@ impl TransactionsDal<'_, '_> {
                 exec_info.contracts_used as i32,
                 received_at
             )
-                .fetch_optional(self.storage.conn())
+                .fetch_optional(self.storage.acquire().await.as_conn())
                 .await
                 .map(|option_record| option_record.map(|record| record.is_replaced));
 
@@ -401,7 +402,7 @@ impl TransactionsDal<'_, '_> {
                 &hashes,
                 block_number.0 as i64
             )
-            .execute(self.storage.conn())
+            .execute(self.storage.acquire().await.as_conn())
             .await
             .unwrap();
         }
@@ -623,7 +624,7 @@ impl TransactionsDal<'_, '_> {
                     &l2_paymaster_input,
                     miniblock_number.0 as i32,
                 )
-                .execute(transaction.conn())
+                .execute(transaction.acquire().await.as_conn())
                 .await
                 .unwrap();
             }
@@ -662,7 +663,7 @@ impl TransactionsDal<'_, '_> {
                     &l1_refunded_gas,
                     &l1_effective_gas_prices,
                 )
-                .execute(transaction.conn())
+                .execute(transaction.acquire().await.as_conn())
                 .await
                 .unwrap();
             }
@@ -700,7 +701,7 @@ impl TransactionsDal<'_, '_> {
                     &upgrade_refunded_gas,
                     &upgrade_effective_gas_prices,
                 )
-                .execute(transaction.conn())
+                .execute(transaction.acquire().await.as_conn())
                 .await
                 .unwrap();
             }
@@ -718,7 +719,7 @@ impl TransactionsDal<'_, '_> {
                 )
                 .instrument("insert_call_tracer")
                 .report_latency()
-                .execute(transaction.conn())
+                .execute(transaction.acquire().await.as_conn())
                 .await
                 .unwrap();
             }
@@ -738,7 +739,7 @@ impl TransactionsDal<'_, '_> {
                 error,
                 transaction_hash.0.to_vec()
             )
-            .execute(self.storage.conn())
+            .execute(self.storage.acquire().await.as_conn())
             .await
             .unwrap();
         }
@@ -754,7 +755,7 @@ impl TransactionsDal<'_, '_> {
                     ",
                 miniblock_number.0 as i64
             )
-            .fetch_all(self.storage.conn())
+            .fetch_all(self.storage.acquire().await.as_conn())
             .await
             .unwrap();
             sqlx::query!(
@@ -765,7 +766,7 @@ impl TransactionsDal<'_, '_> {
                     .map(|tx| tx.hash.clone())
                     .collect::<Vec<Vec<u8>>>()
             )
-            .execute(self.storage.conn())
+            .execute(self.storage.acquire().await.as_conn())
             .await
             .unwrap();
         }
@@ -781,7 +782,7 @@ impl TransactionsDal<'_, '_> {
                  RETURNING hash",
                 stuck_tx_timeout
             )
-            .fetch_all(self.storage.conn())
+            .fetch_all(self.storage.acquire().await.as_conn())
             .await
             .unwrap()
             .len()
@@ -808,7 +809,7 @@ impl TransactionsDal<'_, '_> {
                 WHERE transactions.in_mempool = TRUE AND transactions.initiator_address = s.address",
                 &stashed_addresses,
             )
-            .execute(self.storage.conn())
+            .execute(self.storage.acquire().await.as_conn())
             .await
             .unwrap();
 
@@ -819,7 +820,7 @@ impl TransactionsDal<'_, '_> {
                 WHERE in_mempool = TRUE AND initiator_address = ANY($1)",
                 &purged_addresses[..]
             )
-            .execute(self.storage.conn())
+            .execute(self.storage.acquire().await.as_conn())
             .await
             .unwrap();
 
@@ -847,7 +848,7 @@ impl TransactionsDal<'_, '_> {
                 BigDecimal::from(gas_per_pubdata),
                 PROTOCOL_UPGRADE_TX_TYPE as i32,
             )
-            .fetch_all(self.storage.conn())
+            .fetch_all(self.storage.acquire().await.as_conn())
             .await
             .unwrap();
 
@@ -865,7 +866,7 @@ impl TransactionsDal<'_, '_> {
                 r#"SELECT hashed_key, value as "value!" FROM storage WHERE hashed_key = ANY($1)"#,
                 &storage_keys,
             )
-            .fetch_all(self.storage.conn())
+            .fetch_all(self.storage.acquire().await.as_conn())
             .await
             .unwrap()
             .into_iter()
@@ -887,7 +888,7 @@ impl TransactionsDal<'_, '_> {
     pub async fn reset_mempool(&mut self) {
         {
             sqlx::query!("UPDATE transactions SET in_mempool = FALSE WHERE in_mempool = TRUE")
-                .execute(self.storage.conn())
+                .execute(self.storage.acquire().await.as_conn())
                 .await
                 .unwrap();
         }
@@ -901,7 +902,7 @@ impl TransactionsDal<'_, '_> {
                 ORDER BY priority_op_id DESC
                 LIMIT 1"
             )
-            .fetch_optional(self.storage.conn())
+            .fetch_optional(self.storage.acquire().await.as_conn())
             .await
             .unwrap()
             .and_then(|x| x.l1_block_number.map(|block| L1BlockNumber(block as u32)))
@@ -913,7 +914,7 @@ impl TransactionsDal<'_, '_> {
             let op_id = sqlx::query!(
                 r#"SELECT MAX(priority_op_id) as "op_id" from transactions where is_priority = true"#
             )
-            .fetch_optional(self.storage.conn())
+            .fetch_optional(self.storage.acquire().await.as_conn())
             .await
             .unwrap()?
             .op_id?;
@@ -926,7 +927,7 @@ impl TransactionsDal<'_, '_> {
             sqlx::query!(
                 r#"SELECT MAX(priority_op_id) as "op_id" from transactions where is_priority = true AND miniblock_number IS NOT NULL"#
             )
-                .fetch_optional(self.storage.conn())
+                .fetch_optional(self.storage.acquire().await.as_conn())
                 .await
                 .unwrap()
                 .and_then(|row| row.op_id)
@@ -942,7 +943,7 @@ impl TransactionsDal<'_, '_> {
                 hash.as_bytes(),
                 serde_json::to_value(trace).unwrap()
             )
-            .execute(self.storage.conn())
+            .execute(self.storage.acquire().await.as_conn())
             .await
             .unwrap();
         }
@@ -954,7 +955,7 @@ impl TransactionsDal<'_, '_> {
                 "SELECT trace FROM transaction_traces WHERE tx_hash = $1",
                 hash.as_bytes()
             )
-            .fetch_optional(self.storage.conn())
+            .fetch_optional(self.storage.acquire().await.as_conn())
             .await
             .unwrap()
             .map(|record| record.trace);
@@ -976,7 +977,7 @@ impl TransactionsDal<'_, '_> {
             WHERE miniblock_number IS NOT NULL AND l1_batch_number IS NULL \
             ORDER BY miniblock_number, index_in_block",
         )
-        .fetch_all(self.storage.conn())
+        .fetch_all(self.storage.acquire().await.as_conn())
         .await
         .unwrap()
         .into_iter()
@@ -1000,7 +1001,7 @@ impl TransactionsDal<'_, '_> {
             from_miniblock.0 as i64,
             to_miniblock.0 as i64,
         )
-        .fetch_all(self.storage.conn())
+        .fetch_all(self.storage.acquire().await.as_conn())
         .await
         .unwrap();
 
@@ -1011,7 +1012,7 @@ impl TransactionsDal<'_, '_> {
             from_miniblock.0 as i64 - 1,
             to_miniblock.0 as i64 - 1,
         )
-        .fetch_all(self.storage.conn())
+        .fetch_all(self.storage.acquire().await.as_conn())
         .await
         .unwrap();
 
@@ -1054,7 +1055,7 @@ impl TransactionsDal<'_, '_> {
                 "#,
                 l1_batch_number.0 as i64
             )
-                .fetch_all(self.storage.conn())
+                .fetch_all(self.storage.acquire().await.as_conn())
                 .await
                 .unwrap()
                 .into_iter()
@@ -1081,7 +1082,7 @@ impl TransactionsDal<'_, '_> {
                 "#,
                 tx_hash.as_bytes()
             )
-            .fetch_optional(self.storage.conn())
+            .fetch_optional(self.storage.acquire().await.as_conn())
             .await
             .unwrap()
             .map(|trace| trace.into())
@@ -1097,7 +1098,7 @@ impl TransactionsDal<'_, '_> {
             "#,
             hash.as_bytes()
         )
-        .fetch_optional(self.storage.conn())
+        .fetch_optional(self.storage.acquire().await.as_conn())
         .await
         .unwrap()
         .map(|tx| tx.into())

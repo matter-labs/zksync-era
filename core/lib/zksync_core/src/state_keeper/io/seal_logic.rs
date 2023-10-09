@@ -126,7 +126,7 @@ impl UpdatesManager {
     /// the events generated during the bootloader "tip phase".
     pub(crate) async fn seal_l1_batch(
         mut self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut StorageProcessor,
         current_miniblock_number: MiniblockNumber,
         l1_batch_env: &L1BatchEnv,
         finished_batch: FinishedL1Batch,
@@ -334,7 +334,7 @@ impl UpdatesManager {
 }
 
 impl MiniblockSealCommand {
-    pub async fn seal(&self, storage: &mut StorageProcessor<'_>) {
+    pub async fn seal<Conn: zksync_dal::Acquire>(&self, storage: &mut StorageProcessor<Conn>) {
         self.seal_inner(storage, false).await;
     }
 
@@ -347,7 +347,11 @@ impl MiniblockSealCommand {
     /// one for sending fees to the operator).
     ///
     /// `l2_erc20_bridge_addr` is required to extract the information on newly added tokens.
-    async fn seal_inner(&self, storage: &mut StorageProcessor<'_>, is_fictive: bool) {
+    async fn seal_inner<Conn: zksync_dal::Acquire>(
+        &self,
+        storage: &mut StorageProcessor<Conn>,
+        is_fictive: bool,
+    ) {
         self.assert_valid_miniblock(is_fictive);
 
         let l1_batch_number = self.l1_batch_number;

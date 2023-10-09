@@ -1,16 +1,17 @@
 use std::time::Duration;
 
+use crate::connection::holder::Acquire;
 use crate::time_utils::pg_interval_from_duration;
 use crate::StorageProcessor;
 use std::collections::HashMap;
 use zksync_types::proofs::{GpuProverInstanceStatus, SocketAddress};
 
 #[derive(Debug)]
-pub struct GpuProverQueueDal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+pub struct GpuProverQueueDal<'a, Conn: Acquire> {
+    pub(crate) storage: &'a mut StorageProcessor<Conn>,
 }
 
-impl GpuProverQueueDal<'_, '_> {
+impl<'a, Conn: Acquire> GpuProverQueueDal<'a, Conn> {
     pub async fn lock_available_prover(
         &mut self,
         processing_timeout: Duration,
@@ -48,7 +49,7 @@ impl GpuProverQueueDal<'_, '_> {
                 region,
                 zone
             )
-                .fetch_optional(self.storage.conn())
+                .fetch_optional(self.storage.acquire().await.as_conn())
                 .await
                 .unwrap()
                 .map(|row| SocketAddress {
@@ -83,7 +84,7 @@ impl GpuProverQueueDal<'_, '_> {
                 region,
                 zone,
                 num_gpu as i16)
-                .execute(self.storage.conn())
+                .execute(self.storage.acquire().await.as_conn())
                 .await
                 .unwrap();
         }
@@ -114,7 +115,7 @@ impl GpuProverQueueDal<'_, '_> {
                 region,
                 zone
             )
-            .execute(self.storage.conn())
+            .execute(self.storage.acquire().await.as_conn())
             .await
             .unwrap();
         }
@@ -144,7 +145,7 @@ impl GpuProverQueueDal<'_, '_> {
                 region,
                 zone
             )
-            .execute(self.storage.conn())
+            .execute(self.storage.acquire().await.as_conn())
             .await
             .unwrap();
         }
@@ -159,7 +160,7 @@ impl GpuProverQueueDal<'_, '_> {
                 GROUP BY region, zone
                "#,
             )
-            .fetch_all(self.storage.conn())
+            .fetch_all(self.storage.acquire().await.as_conn())
             .await
             .unwrap()
             .into_iter()

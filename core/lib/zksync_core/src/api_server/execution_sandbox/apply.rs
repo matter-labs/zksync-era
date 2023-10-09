@@ -36,7 +36,7 @@ pub(super) fn apply_vm_in_sandbox<T>(
     connection_pool: &ConnectionPool,
     tx: Transaction,
     block_args: BlockArgs,
-    apply: impl FnOnce(&mut VmInstance<'_, PostgresStorage<'_>, HistoryDisabled>, Transaction) -> T,
+    apply: impl FnOnce(&mut VmInstance<'_, PostgresStorage, HistoryDisabled>, Transaction) -> T,
 ) -> T {
     let stage_started_at = Instant::now();
     let span = tracing::debug_span!("initialization").entered();
@@ -245,7 +245,7 @@ struct StoredL2BlockInfo {
 }
 
 async fn read_l2_block_info(
-    connection: &mut StorageProcessor<'_>,
+    connection: &mut StorageProcessor,
     miniblock_number: MiniblockNumber,
 ) -> StoredL2BlockInfo {
     let l2_block_info_key = StorageKey::new(
@@ -302,7 +302,7 @@ impl BlockArgs {
 
     async fn resolve_block_info(
         &self,
-        connection: &mut StorageProcessor<'_>,
+        connection: &mut StorageProcessor,
     ) -> Result<ResolvedBlockInfo, SqlxError> {
         let (state_l2_block_number, vm_l1_batch_number, l1_batch_timestamp) =
             if self.is_pending_miniblock() {

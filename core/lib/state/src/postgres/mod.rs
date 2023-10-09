@@ -146,7 +146,7 @@ impl ValuesCache {
         from_miniblock: MiniblockNumber,
         to_miniblock: MiniblockNumber,
         rt_handle: &Handle,
-        connection: &mut StorageProcessor<'_>,
+        connection: &mut StorageProcessor,
     ) {
         const MAX_MINIBLOCKS_LAG: u32 = 5;
 
@@ -331,9 +331,9 @@ impl PostgresStorageCaches {
 
 /// [`ReadStorage`] implementation backed by the Postgres database.
 #[derive(Debug)]
-pub struct PostgresStorage<'a> {
+pub struct PostgresStorage {
     rt_handle: Handle,
-    connection: StorageProcessor<'a>,
+    connection: StorageProcessor,
     miniblock_number: MiniblockNumber,
     l1_batch_number_for_miniblock: L1BatchNumber,
     pending_l1_batch_number: L1BatchNumber,
@@ -341,16 +341,16 @@ pub struct PostgresStorage<'a> {
     caches: Option<PostgresStorageCaches>,
 }
 
-impl<'a> PostgresStorage<'a> {
+impl PostgresStorage {
     /// Creates a new storage using the specified connection.
     /// # Panics
     /// Panics on Postgres errors.
     pub fn new(
         rt_handle: Handle,
-        mut connection: StorageProcessor<'a>,
+        mut connection: StorageProcessor,
         block_number: MiniblockNumber,
         consider_new_l1_batch: bool,
-    ) -> PostgresStorage<'a> {
+    ) -> PostgresStorage {
         let resolved = rt_handle
             .block_on(
                 connection
@@ -396,7 +396,7 @@ impl<'a> PostgresStorage<'a> {
     }
 }
 
-impl ReadStorage for PostgresStorage<'_> {
+impl ReadStorage for PostgresStorage {
     fn read_value(&mut self, &key: &StorageKey) -> StorageValue {
         let latency = STORAGE_METRICS.storage[&Method::ReadValue].start();
         let values_cache = self.values_cache();

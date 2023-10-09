@@ -2,13 +2,14 @@ use std::time::Duration;
 
 use zksync_types::L1BatchNumber;
 
+use crate::connection::holder::Acquire;
 use crate::time_utils::pg_interval_from_duration;
 use crate::{SqlxError, StorageProcessor};
 use strum::{Display, EnumString};
 
 #[derive(Debug)]
-pub struct ProofGenerationDal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+pub struct ProofGenerationDal<'a, Conn: Acquire> {
+    pub(crate) storage: &'a mut StorageProcessor<Conn>,
 }
 
 #[derive(Debug, EnumString, Display)]
@@ -23,7 +24,7 @@ enum ProofGenerationJobStatus {
     Skipped,
 }
 
-impl ProofGenerationDal<'_, '_> {
+impl<'a, Conn: Acquire> ProofGenerationDal<'a, Conn> {
     pub async fn get_next_block_to_be_proven(
         &mut self,
         processing_timeout: Duration,
@@ -45,7 +46,7 @@ impl ProofGenerationDal<'_, '_> {
              RETURNING proof_generation_details.l1_batch_number",
             &processing_timeout,
         )
-        .fetch_optional(self.storage.conn())
+        .fetch_optional(self.storage.acquire().await.as_conn())
         .await
         .unwrap()
         .map(|row| L1BatchNumber(row.l1_batch_number as u32));
@@ -65,7 +66,7 @@ impl ProofGenerationDal<'_, '_> {
             proof_blob_url,
             block_number.0 as i64,
         )
-        .execute(self.storage.conn())
+        .execute(self.storage.acquire().await.as_conn())
         .await?
         .rows_affected()
         .eq(&1)
@@ -86,7 +87,7 @@ impl ProofGenerationDal<'_, '_> {
             block_number.0 as i64,
             proof_gen_data_blob_url,
         )
-        .execute(self.storage.conn())
+        .execute(self.storage.acquire().await.as_conn())
         .await
         .unwrap();
     }
@@ -102,7 +103,7 @@ impl ProofGenerationDal<'_, '_> {
             ProofGenerationJobStatus::Skipped.to_string(),
             block_number.0 as i64,
         )
-        .execute(self.storage.conn())
+        .execute(self.storage.acquire().await.as_conn())
         .await?
         .rows_affected()
         .eq(&1)

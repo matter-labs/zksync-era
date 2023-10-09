@@ -35,7 +35,7 @@ pub struct FeeTicker;
 impl FeeTicker {
     /// Returns the token price in USD.
     pub async fn get_l2_token_price(
-        tokens_web3_dal: &mut TokensWeb3Dal<'_, '_>,
+        tokens_web3_dal: &mut TokensWeb3Dal<'_>,
         request_type: TokenPriceRequestType,
         l2_token_addr: &Address,
     ) -> Result<BigDecimal, TickerError> {
@@ -52,7 +52,7 @@ impl FeeTicker {
     }
 
     async fn get_l2_token_price_inner(
-        tokens_web3_dal: &mut TokensWeb3Dal<'_, '_>,
+        tokens_web3_dal: &mut TokensWeb3Dal<'_>,
         request_type: TokenPriceRequestType,
         l2_token_addr: &Address,
     ) -> Result<Ratio<BigUint>, TickerError> {

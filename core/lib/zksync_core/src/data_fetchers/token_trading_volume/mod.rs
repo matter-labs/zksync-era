@@ -106,7 +106,7 @@ impl TradingVolumeFetcher {
 
     async fn store_market_volumes(
         &self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut StorageProcessor,
         tokens: HashMap<Address, TokenMarketVolume>,
     ) {
         let mut tokens_dal = storage.tokens_dal();
@@ -117,7 +117,7 @@ impl TradingVolumeFetcher {
 
     /// Returns the list of tokens with known metadata (if token is not in the list we use,
     /// it's very likely to not have required level of trading volume anyways).
-    async fn load_tokens(&self, storage: &mut StorageProcessor<'_>) -> Vec<Address> {
+    async fn load_tokens(&self, storage: &mut StorageProcessor) -> Vec<Address> {
         storage
             .tokens_dal()
             .get_well_known_token_addresses()

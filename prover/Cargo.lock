@@ -424,6 +424,7 @@ dependencies = [
  "clang-sys",
  "lazy_static",
  "lazycell",
+ "log",
  "peeking_take_while",
  "prettyplease",
  "proc-macro2 1.0.66",
@@ -432,6 +433,7 @@ dependencies = [
  "rustc-hash",
  "shlex",
  "syn 2.0.28",
+ "which",
 ]
 
 [[package]]
@@ -595,7 +597,7 @@ dependencies = [
  "blake2 0.10.6",
  "const_format",
  "convert_case 0.6.0",
- "crossbeam 0.7.3",
+ "crossbeam 0.8.2",
  "crypto-bigint 0.5.2",
  "cs_derive 0.1.0 (git+https://github.com/matter-labs/era-boojum?branch=main)",
  "derivative",
@@ -1309,7 +1311,7 @@ name = "cudart-sys"
 version = "0.1.0"
 source = "git+https://github.com/matter-labs/era-boojum-cuda?branch=main#75ee5596114bd7fcb7df08b834e64123522653e1"
 dependencies = [
- "bindgen 0.59.2",
+ "bindgen 0.65.1",
 ]
 
 [[package]]
@@ -2135,7 +2137,7 @@ version = "0.1.0"
 source = "git+https://github.com/matter-labs/era-heavy-ops-service.git?branch=v1.3.3#0dd1f5dbba7eee194e660dfaaaf026a174e5ad9e"
 dependencies = [
  "bindgen 0.59.2",
- "crossbeam 0.7.3",
+ "crossbeam 0.8.2",
  "derivative",
  "futures 0.3.28",
  "futures-locks",
@@ -2149,7 +2151,7 @@ source = "git+https://github.com/matter-labs/era-heavy-ops-service.git?branch=v1
 dependencies = [
  "bit-vec",
  "cfg-if 1.0.0",
- "crossbeam 0.7.3",
+ "crossbeam 0.8.2",
  "franklin-crypto 0.0.5 (git+https://github.com/matter-labs/franklin-crypto?branch=dev)",
  "gpu-ffi",
  "itertools 0.11.0",
@@ -6571,6 +6573,7 @@ name = "zksync_dal"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-trait",
  "bigdecimal",
  "bincode",
  "hex",

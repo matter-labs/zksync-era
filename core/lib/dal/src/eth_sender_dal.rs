@@ -1,3 +1,4 @@
+use crate::connection::holder::Acquire;
 use crate::models::storage_eth_tx::{
     L1BatchEthSenderStats, StorageEthTx, StorageTxHistory, StorageTxHistoryToSend,
 };
@@ -13,11 +14,11 @@ use zksync_types::eth_sender::{EthTx, TxHistory, TxHistoryToSend};
 use zksync_types::{Address, L1BatchNumber, H256, U256};
 
 #[derive(Debug)]
-pub struct EthSenderDal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+pub struct EthSenderDal<'a, Conn: Acquire> {
+    pub(crate) storage: &'a mut StorageProcessor<Conn>,
 }
 
-impl EthSenderDal<'_, '_> {
+impl<'a, Conn: Acquire> EthSenderDal<'a, Conn> {
     pub async fn get_inflight_txs(&mut self) -> Vec<EthTx> {
         {
             let txs = sqlx::query_as!(
@@ -26,7 +27,7 @@ impl EthSenderDal<'_, '_> {
                  AND id <= (SELECT COALESCE(MAX(eth_tx_id), 0) FROM eth_txs_history WHERE sent_at_block IS NOT NULL)
                  ORDER BY id"
             )
-            .fetch_all(self.storage.conn())
+            .fetch_all(self.storage.acquire().await.as_conn())
             .await
             .unwrap();
             txs.into_iter().map(|tx| tx.into()).collect()
@@ -45,7 +46,7 @@ impl EthSenderDal<'_, '_> {
                          LIMIT 1",
                         tx_type
                     ))
-                        .fetch_all(self.storage.conn())
+                        .fetch_all(self.storage.acquire().await.as_conn())
                         .await
                         .unwrap();
 
@@ -56,7 +57,7 @@ impl EthSenderDal<'_, '_> {
                      LIMIT 1",
                     tx_type
                 ))
-                    .fetch_all(self.storage.conn())
+                    .fetch_all(self.storage.acquire().await.as_conn())
                     .await
                     .unwrap());
 
@@ -86,7 +87,7 @@ impl EthSenderDal<'_, '_> {
                 "SELECT * FROM eth_txs WHERE id = $1",
                 eth_tx_id as i32
             )
-            .fetch_optional(self.storage.conn())
+            .fetch_optional(self.storage.acquire().await.as_conn())
             .await
             .unwrap()
             .map(Into::into)
@@ -104,7 +105,7 @@ impl EthSenderDal<'_, '_> {
                    "#,
                 limit as i64
             )
-            .fetch_all(self.storage.conn())
+            .fetch_all(self.storage.acquire().await.as_conn())
             .await
             .unwrap();
             txs.into_iter().map(|tx| tx.into()).collect()
@@ -129,7 +130,7 @@ impl EthSenderDal<'_, '_> {
                 WHERE eth_txs_history.sent_at_block IS NULL AND eth_txs.confirmed_eth_tx_history_id IS NULL
                 ORDER BY eth_txs_history.id DESC"#,
             )
-            .fetch_all(self.storage.conn())
+            .fetch_all(self.storage.acquire().await.as_conn())
             .await
             .unwrap();
             txs.into_iter().map(|tx| tx.into()).collect()
@@ -157,7 +158,7 @@ impl EthSenderDal<'_, '_> {
             address,
             predicted_gas_cost as i64
         )
-        .fetch_one(self.storage.conn())
+        .fetch_one(self.storage.acquire().await.as_conn())
         .await
         .unwrap();
             eth_tx.into()
@@ -191,7 +192,7 @@ impl EthSenderDal<'_, '_> {
                 tx_hash,
                 raw_signed_tx
             )
-            .fetch_optional(self.storage.conn())
+            .fetch_optional(self.storage.acquire().await.as_conn())
             .await
             .unwrap()
             .map(|row| row.id as u32)
@@ -206,7 +207,7 @@ impl EthSenderDal<'_, '_> {
                 eth_txs_history_id as i32,
                 sent_at_block as i32
             )
-            .execute(self.storage.conn())
+            .execute(self.storage.acquire().await.as_conn())
             .await
             .unwrap();
         }
@@ -219,7 +220,7 @@ impl EthSenderDal<'_, '_> {
                 WHERE id = $1",
                 eth_txs_history_id as i64
             )
-            .execute(self.storage.conn())
+            .execute(self.storage.acquire().await.as_conn())
             .await
             .unwrap();
         }
@@ -237,7 +238,7 @@ impl EthSenderDal<'_, '_> {
                 RETURNING id, eth_tx_id",
                 tx_hash,
             )
-            .fetch_one(transaction.conn())
+            .fetch_one(transaction.acquire().await.as_conn())
             .await
             .unwrap();
 
@@ -249,7 +250,7 @@ impl EthSenderDal<'_, '_> {
                 ids.id,
                 ids.eth_tx_id
             )
-            .execute(transaction.conn())
+            .execute(transaction.acquire().await.as_conn())
             .await
             .unwrap();
 
@@ -264,7 +265,7 @@ impl EthSenderDal<'_, '_> {
                 WHERE eth_tx_id = $1 AND confirmed_at IS NOT NULL",
                 eth_tx_id as i64
             )
-            .fetch_optional(self.storage.conn())
+            .fetch_optional(self.storage.acquire().await.as_conn())
             .await
             .unwrap();
 
@@ -303,7 +304,7 @@ impl EthSenderDal<'_, '_> {
                 WHERE eth_txs_history.tx_hash = $1",
                 tx_hash
             )
-            .fetch_optional(transaction.conn())
+            .fetch_optional(transaction.acquire().await.as_conn())
             .await
             .unwrap();
 
@@ -320,7 +321,7 @@ impl EthSenderDal<'_, '_> {
                     RETURNING id",
                     tx_type.to_string()
                 )
-                .fetch_one(transaction.conn())
+                .fetch_one(transaction.acquire().await.as_conn())
                 .await
                 .unwrap();
 
@@ -334,7 +335,7 @@ impl EthSenderDal<'_, '_> {
                     tx_hash,
                     confirmed_at.naive_utc()
                 )
-                .fetch_one(transaction.conn())
+                .fetch_one(transaction.acquire().await.as_conn())
                 .await
                 .unwrap();
 
@@ -346,7 +347,7 @@ impl EthSenderDal<'_, '_> {
                     eth_history_id,
                     eth_tx_id
                 )
-                .execute(transaction.conn())
+                .execute(transaction.acquire().await.as_conn())
                 .await
                 .unwrap();
 
@@ -372,7 +373,7 @@ impl EthSenderDal<'_, '_> {
                 "SELECT * FROM eth_txs_history WHERE eth_tx_id = $1 ORDER BY created_at DESC",
                 eth_tx_id as i32
             )
-            .fetch_all(self.storage.conn())
+            .fetch_all(self.storage.acquire().await.as_conn())
             .await
             .unwrap();
             tx_history.into_iter().map(|tx| tx.into()).collect()
@@ -385,7 +386,7 @@ impl EthSenderDal<'_, '_> {
             "SELECT sent_at_block FROM eth_txs_history WHERE eth_tx_id = $1 AND sent_at_block IS NOT NULL ORDER BY created_at ASC LIMIT 1",
             eth_tx_id as i32
         )
-            .fetch_optional(self.storage.conn())
+            .fetch_optional(self.storage.acquire().await.as_conn())
             .await
             .unwrap();
             sent_at_block.flatten().map(|block| block as u32)
@@ -399,7 +400,7 @@ impl EthSenderDal<'_, '_> {
             "SELECT * FROM eth_txs_history WHERE eth_tx_id = $1 ORDER BY created_at DESC LIMIT 1",
             eth_tx_id as i32
         )
-            .fetch_optional(self.storage.conn())
+            .fetch_optional(self.storage.acquire().await.as_conn())
             .await
             .unwrap();
             history_item.map(|tx| tx.into())
@@ -409,7 +410,7 @@ impl EthSenderDal<'_, '_> {
     pub async fn get_next_nonce(&mut self) -> Option<u64> {
         {
             let row = sqlx::query!("SELECT nonce FROM eth_txs ORDER BY id DESC LIMIT 1")
-                .fetch_optional(self.storage.conn())
+                .fetch_optional(self.storage.acquire().await.as_conn())
                 .await
                 .unwrap();
             row.map(|row| row.nonce as u64 + 1)
@@ -422,7 +423,7 @@ impl EthSenderDal<'_, '_> {
                 "UPDATE eth_txs SET has_failed = TRUE WHERE id = $1",
                 eth_tx_id as i32
             )
-            .execute(self.storage.conn())
+            .execute(self.storage.acquire().await.as_conn())
             .await
             .unwrap();
         }
@@ -431,7 +432,7 @@ impl EthSenderDal<'_, '_> {
     pub async fn get_number_of_failed_transactions(&mut self) -> i64 {
         {
             sqlx::query!("SELECT COUNT(*) FROM eth_txs WHERE has_failed = TRUE")
-                .fetch_one(self.storage.conn())
+                .fetch_one(self.storage.acquire().await.as_conn())
                 .await
                 .unwrap()
                 .count
@@ -445,7 +446,7 @@ impl EthSenderDal<'_, '_> {
                 "DELETE FROM eth_txs WHERE id >=
                 (SELECT MIN(id) FROM eth_txs WHERE has_failed = TRUE)"
             )
-            .execute(self.storage.conn())
+            .execute(self.storage.acquire().await.as_conn())
             .await
             .unwrap();
         }

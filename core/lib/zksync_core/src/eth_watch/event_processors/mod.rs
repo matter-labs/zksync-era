@@ -10,7 +10,7 @@ pub trait EventProcessor<W: EthClient + Sync>: Send + std::fmt::Debug {
     /// Processes given events
     async fn process_events(
         &mut self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut StorageProcessor,
         client: &W,
         events: Vec<Log>,
     ) -> Result<(), Error>;

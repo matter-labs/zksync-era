@@ -5,6 +5,7 @@ use zksync_types::{
     Address, MiniblockNumber, H256,
 };
 
+use crate::connection::holder::Acquire;
 use crate::{
     instrument::InstrumentExt,
     models::{storage_block::web3_block_number_to_sql, storage_event::StorageWeb3Log},
@@ -12,11 +13,11 @@ use crate::{
 };
 
 #[derive(Debug)]
-pub struct EventsWeb3Dal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+pub struct EventsWeb3Dal<'a, Conn: Acquire> {
+    pub(crate) storage: &'a mut StorageProcessor<Conn>,
 }
 
-impl EventsWeb3Dal<'_, '_> {
+impl<'a, Conn: Acquire> EventsWeb3Dal<'a, Conn> {
     /// Returns miniblock number of log for given filter and offset.
     /// Used to determine if there is more than `offset` logs that satisfies filter.
     pub async fn get_log_block_number(
@@ -54,7 +55,7 @@ impl EventsWeb3Dal<'_, '_> {
                 .report_latency()
                 .with_arg("filter", filter)
                 .with_arg("offset", &offset)
-                .fetch_optional(self.storage.conn())
+                .fetch_optional(self.storage.acquire().await.as_conn())
                 .await?;
 
             Ok(log.map(|row| MiniblockNumber(row.get::<i64, _>("miniblock_number") as u32)))
@@ -107,7 +108,7 @@ impl EventsWeb3Dal<'_, '_> {
                 .report_latency()
                 .with_arg("filter", &filter)
                 .with_arg("limit", &limit)
-                .fetch_all(self.storage.conn())
+                .fetch_all(self.storage.acquire().await.as_conn())
                 .await?;
             let logs = db_logs.into_iter().map(Into::into).collect();
             Ok(logs)
@@ -162,7 +163,7 @@ impl EventsWeb3Dal<'_, '_> {
                 "#,
                 from_block.0 as i64
             )
-                .fetch_all(self.storage.conn())
+                .fetch_all(self.storage.acquire().await.as_conn())
                 .await?;
             let logs = db_logs.into_iter().map(Into::into).collect();
             Ok(logs)

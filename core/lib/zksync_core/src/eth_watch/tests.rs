@@ -428,7 +428,7 @@ async fn test_overlapping_batches(connection_pool: ConnectionPool) {
     assert_eq!(tx.common_data.serial_id.0, 4);
 }
 
-async fn get_all_db_txs(storage: &mut StorageProcessor<'_>) -> Vec<Transaction> {
+async fn get_all_db_txs(storage: &mut StorageProcessor) -> Vec<Transaction> {
     storage.transactions_dal().reset_mempool().await;
     storage
         .transactions_dal()

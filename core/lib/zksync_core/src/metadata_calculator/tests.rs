@@ -474,7 +474,7 @@ pub(super) async fn reset_db_state(pool: &ConnectionPool, num_batches: usize) {
 }
 
 pub(super) async fn extend_db_state(
-    storage: &mut StorageProcessor<'_>,
+    storage: &mut StorageProcessor,
     new_logs: impl IntoIterator<Item = Vec<StorageLog>>,
 ) {
     let next_l1_batch = storage
@@ -542,7 +542,7 @@ pub(super) async fn extend_db_state(
 }
 
 async fn insert_initial_writes_for_batch(
-    connection: &mut StorageProcessor<'_>,
+    connection: &mut StorageProcessor,
     l1_batch_number: L1BatchNumber,
 ) {
     let written_non_zero_slots: Vec<_> = connection
@@ -610,7 +610,7 @@ pub(super) fn gen_storage_logs(
 }
 
 async fn remove_l1_batches(
-    storage: &mut StorageProcessor<'_>,
+    storage: &mut StorageProcessor,
     last_l1_batch_to_keep: L1BatchNumber,
 ) -> Vec<L1BatchHeader> {
     let sealed_l1_batch_number = storage

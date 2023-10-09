@@ -112,7 +112,7 @@ impl TokenListFetcher {
 
     async fn update_tokens(
         &self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut StorageProcessor,
         tokens: HashMap<Address, TokenMetadata>,
     ) {
         let mut tokens_dal = storage.tokens_dal();
@@ -123,7 +123,7 @@ impl TokenListFetcher {
         }
     }
 
-    async fn load_unknown_tokens(&self, storage: &mut StorageProcessor<'_>) -> HashSet<Address> {
+    async fn load_unknown_tokens(&self, storage: &mut StorageProcessor) -> HashSet<Address> {
         storage
             .tokens_dal()
             .get_unknown_l1_token_addresses()

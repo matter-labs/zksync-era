@@ -79,7 +79,7 @@ impl<W: EthClient + Sync> EthWatch<W> {
         }
     }
 
-    async fn initialize_state(client: &W, storage: &mut StorageProcessor<'_>) -> EthWatchState {
+    async fn initialize_state(client: &W, storage: &mut StorageProcessor) -> EthWatchState {
         let next_expected_priority_id: PriorityOpId = storage
             .transactions_dal()
             .last_priority_id()
@@ -146,7 +146,7 @@ impl<W: EthClient + Sync> EthWatch<W> {
     }
 
     #[tracing::instrument(skip(self, storage))]
-    async fn loop_iteration(&mut self, storage: &mut StorageProcessor<'_>) -> Result<(), Error> {
+    async fn loop_iteration(&mut self, storage: &mut StorageProcessor) -> Result<(), Error> {
         let stage_start = Instant::now();
         let to_block = self.client.finalized_block_number().await?;
 

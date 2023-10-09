@@ -1,3 +1,5 @@
+use crate::connection::holder::Acquire;
+use crate::connection::holder::Connection;
 use crate::models::storage_token::{StorageTokenMetadata, StorageTokenPrice};
 use crate::SqlxError;
 use crate::StorageProcessor;
@@ -13,11 +15,11 @@ use zksync_utils::ratio_to_big_decimal;
 pub(crate) const STORED_USD_PRICE_PRECISION: usize = 6;
 
 #[derive(Debug)]
-pub struct TokensWeb3Dal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+pub struct TokensWeb3Dal<'a, Conn: Acquire = Connection> {
+    pub(crate) storage: &'a mut StorageProcessor<Conn>,
 }
 
-impl TokensWeb3Dal<'_, '_> {
+impl<'a, Conn: Acquire> TokensWeb3Dal<'a, Conn> {
     pub async fn get_well_known_tokens(&mut self) -> Result<Vec<TokenInfo>, SqlxError> {
         {
             let records = sqlx::query!(
@@ -25,7 +27,7 @@ impl TokensWeb3Dal<'_, '_> {
                  WHERE well_known = true
                  ORDER BY symbol"
             )
-            .fetch_all(self.storage.conn())
+            .fetch_all(self.storage.acquire().await.as_conn())
             .await?;
             let result: Vec<TokenInfo> = records
                 .into_iter()
@@ -74,7 +76,7 @@ impl TokensWeb3Dal<'_, '_> {
                 volume_pg_interval,
                 price_pg_interval
             )
-            .fetch_one(self.storage.conn())
+            .fetch_one(self.storage.acquire().await.as_conn())
             .await
             .unwrap()
             .count;
@@ -92,7 +94,7 @@ impl TokensWeb3Dal<'_, '_> {
                 "SELECT usd_price, usd_price_updated_at FROM tokens WHERE l2_address = $1",
                 l2_address.as_bytes(),
             )
-            .fetch_optional(self.storage.conn())
+            .fetch_optional(self.storage.acquire().await.as_conn())
             .await?;
 
             Ok(storage_price.and_then(Into::into))
@@ -115,7 +117,7 @@ impl TokensWeb3Dal<'_, '_> {
                 "#,
                 l2_address.as_bytes(),
             )
-            .fetch_optional(self.storage.conn())
+            .fetch_optional(self.storage.acquire().await.as_conn())
             .await?;
 
             Ok(storage_token_metadata.map(Into::into))

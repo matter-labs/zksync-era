@@ -1,5 +1,6 @@
 use zksync_types::{api::en::SyncBlock, Address, MiniblockNumber, Transaction};
 
+use crate::connection::holder::Acquire;
 use crate::{
     instrument::InstrumentExt,
     metrics::MethodLatency,
@@ -9,11 +10,11 @@ use crate::{
 
 /// DAL subset dedicated to the EN synchronization.
 #[derive(Debug)]
-pub struct SyncDal<'a, 'c> {
-    pub storage: &'a mut StorageProcessor<'c>,
+pub struct SyncDal<'a, Conn: Acquire> {
+    pub storage: &'a mut StorageProcessor<Conn>,
 }
 
-impl SyncDal<'_, '_> {
+impl<'a, Conn: Acquire> SyncDal<'a, Conn> {
     pub async fn sync_block(
         &mut self,
         block_number: MiniblockNumber,
@@ -54,7 +55,7 @@ impl SyncDal<'_, '_> {
         )
         .instrument("sync_dal_sync_block.block")
         .with_arg("block_number", &block_number)
-        .fetch_optional(self.storage.conn())
+        .fetch_optional(self.storage.acquire().await.as_conn())
         .await?;
 
         let res = if let Some(storage_block_details) = storage_block_details {
@@ -66,7 +67,7 @@ impl SyncDal<'_, '_> {
                 )
                 .instrument("sync_dal_sync_block.transactions")
                 .with_arg("block_number", &block_number)
-                .fetch_all(self.storage.conn())
+                .fetch_all(self.storage.acquire().await.as_conn())
                 .await?
                 .into_iter()
                 .map(Transaction::from)

@@ -719,7 +719,7 @@ impl jsonrpc_ws_server::SessionStats for TrackOpenWsConnections {
 }
 
 async fn resolve_block(
-    connection: &mut StorageProcessor<'_>,
+    connection: &mut StorageProcessor,
     block: api::BlockId,
     method_name: &'static str,
 ) -> Result<MiniblockNumber, Web3Error> {

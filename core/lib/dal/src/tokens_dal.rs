@@ -1,3 +1,4 @@
+use crate::connection::holder::Acquire;
 use crate::models::storage_token::StorageTokenMarketVolume;
 use crate::StorageProcessor;
 use num::{rational::Ratio, BigUint};
@@ -13,16 +14,15 @@ use zksync_utils::ratio_to_big_decimal;
 pub(crate) const STORED_USD_PRICE_PRECISION: usize = 6;
 
 #[derive(Debug)]
-pub struct TokensDal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+pub struct TokensDal<'a, Conn: Acquire> {
+    pub(crate) storage: &'a mut StorageProcessor<Conn>,
 }
 
-impl TokensDal<'_, '_> {
+impl<'a, Conn: Acquire> TokensDal<'a, Conn> {
     pub async fn add_tokens(&mut self, tokens: Vec<TokenInfo>) {
         {
-            let mut copy = self
-            .storage
-            .conn()
+            let mut conn = self.storage.acquire().await;
+            let mut copy = conn.as_conn()
             .copy_in_raw(
                 "COPY tokens (l1_address, l2_address, name, symbol, decimals, well_known, created_at, updated_at)
                 FROM STDIN WITH (DELIMITER '|')",
@@ -72,7 +72,7 @@ impl TokensDal<'_, '_> {
                 metadata.symbol,
                 metadata.decimals as i32,
             )
-            .execute(self.storage.conn())
+            .execute(self.storage.acquire().await.as_conn())
             .await
             .unwrap();
         }
@@ -82,7 +82,7 @@ impl TokensDal<'_, '_> {
         {
             let records =
                 sqlx::query!("SELECT l1_address, l2_address FROM tokens WHERE well_known = true")
-                    .fetch_all(self.storage.conn())
+                    .fetch_all(self.storage.acquire().await.as_conn())
                     .await
                     .unwrap();
             let addresses: Vec<(Address, Address)> = records
@@ -101,7 +101,7 @@ impl TokensDal<'_, '_> {
     pub async fn get_all_l2_token_addresses(&mut self) -> Vec<Address> {
         {
             let records = sqlx::query!("SELECT l2_address FROM tokens")
-                .fetch_all(self.storage.conn())
+                .fetch_all(self.storage.acquire().await.as_conn())
                 .await
                 .unwrap();
             let addresses: Vec<Address> = records
@@ -115,7 +115,7 @@ impl TokensDal<'_, '_> {
     pub async fn get_unknown_l1_token_addresses(&mut self) -> Vec<Address> {
         {
             let records = sqlx::query!("SELECT l1_address FROM tokens WHERE well_known = false")
-                .fetch_all(self.storage.conn())
+                .fetch_all(self.storage.acquire().await.as_conn())
                 .await
                 .unwrap();
             let addresses: Vec<Address> = records
@@ -133,7 +133,7 @@ impl TokensDal<'_, '_> {
                 "SELECT l1_address FROM tokens WHERE market_volume > $1",
                 min_volume
             )
-            .fetch_all(self.storage.conn())
+            .fetch_all(self.storage.acquire().await.as_conn())
             .await
             .unwrap();
             let addresses: Vec<Address> = records
@@ -152,7 +152,7 @@ impl TokensDal<'_, '_> {
             ratio_to_big_decimal(&price.usd_price, STORED_USD_PRICE_PRECISION),
             price.last_updated.naive_utc(),
         )
-            .execute(self.storage.conn())
+            .execute(self.storage.acquire().await.as_conn())
             .await
             .unwrap();
         }
@@ -170,7 +170,7 @@ impl TokensDal<'_, '_> {
             ratio_to_big_decimal(&market_volume.market_volume, STORED_USD_PRICE_PRECISION),
             market_volume.last_updated.naive_utc(),
         )
-            .execute(self.storage.conn())
+            .execute(self.storage.acquire().await.as_conn())
             .await
             .unwrap();
         }
@@ -186,7 +186,7 @@ impl TokensDal<'_, '_> {
                 "SELECT market_volume, market_volume_updated_at FROM tokens WHERE l2_address = $1",
                 l2_address.as_bytes(),
             )
-            .fetch_optional(self.storage.conn())
+            .fetch_optional(self.storage.acquire().await.as_conn())
             .await
             .unwrap();
             storage_market_volume.and_then(Into::into)
@@ -214,7 +214,7 @@ impl TokensDal<'_, '_> {
                 block_number.0 as i64,
                 FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH.as_bytes()
             )
-            .execute(self.storage.conn())
+            .execute(self.storage.acquire().await.as_conn())
             .await
             .unwrap();
         }

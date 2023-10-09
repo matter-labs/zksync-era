@@ -36,8 +36,8 @@ pub(super) fn display_timestamp(timestamp: u64) -> impl fmt::Display {
     )
 }
 
-pub(crate) async fn wait_for_prev_l1_batch_params(
-    storage: &mut StorageProcessor<'_>,
+pub(crate) async fn wait_for_prev_l1_batch_params<Conn: zksync_dal::Acquire>(
+    storage: &mut StorageProcessor<Conn>,
     number: L1BatchNumber,
 ) -> (U256, u64) {
     if number == L1BatchNumber(0) {
@@ -49,8 +49,8 @@ pub(crate) async fn wait_for_prev_l1_batch_params(
 /// # Warning
 ///
 /// If invoked for a `L1BatchNumber` of a non-existent l1 batch, will block current thread indefinitely.
-async fn wait_for_l1_batch_params_unchecked(
-    storage: &mut StorageProcessor<'_>,
+async fn wait_for_l1_batch_params_unchecked<Conn: zksync_dal::Acquire>(
+    storage: &mut StorageProcessor<Conn>,
     number: L1BatchNumber,
 ) -> (U256, u64) {
     // If the state root is not known yet, this duration will be used to back off in the while loops

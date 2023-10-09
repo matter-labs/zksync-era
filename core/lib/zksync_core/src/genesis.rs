@@ -5,6 +5,7 @@
 use anyhow::Context as _;
 
 use zksync_contracts::BaseSystemContracts;
+use zksync_dal::connection::holder::Transaction;
 use zksync_dal::StorageProcessor;
 use zksync_merkle_tree::domain::ZkSyncTree;
 
@@ -34,8 +35,8 @@ pub struct GenesisParams {
     pub first_l1_verifier_config: L1VerifierConfig,
 }
 
-pub async fn ensure_genesis_state(
-    storage: &mut StorageProcessor<'_>,
+pub async fn ensure_genesis_state<Conn: zksync_dal::Acquire>(
+    storage: &mut StorageProcessor<Conn>,
     zksync_chain_id: L2ChainId,
     genesis_params: &GenesisParams,
 ) -> anyhow::Result<H256> {
@@ -133,7 +134,7 @@ pub async fn ensure_genesis_state(
 // The code of the bootloader should not be deployed anywhere anywhere in the kernel space (i.e. addresses below 2^16)
 // because in this case we will have to worry about protecting it.
 async fn insert_base_system_contracts_to_factory_deps(
-    storage: &mut StorageProcessor<'_>,
+    storage: &mut StorageProcessor<Transaction<'_>>,
     contracts: &BaseSystemContracts,
 ) {
     let factory_deps = [&contracts.bootloader, &contracts.default_aa]
@@ -148,7 +149,7 @@ async fn insert_base_system_contracts_to_factory_deps(
 }
 
 async fn insert_system_contracts(
-    storage: &mut StorageProcessor<'_>,
+    storage: &mut StorageProcessor<Transaction<'_>>,
     contracts: &[DeployedContract],
     chain_id: L2ChainId,
 ) {
@@ -242,8 +243,8 @@ async fn insert_system_contracts(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(crate) async fn create_genesis_l1_batch(
-    storage: &mut StorageProcessor<'_>,
+pub(crate) async fn create_genesis_l1_batch<Conn: zksync_dal::Acquire>(
+    storage: &mut StorageProcessor<Conn>,
     first_validator_address: Address,
     chain_id: L2ChainId,
     protocol_version: ProtocolVersionId,
@@ -314,7 +315,7 @@ pub(crate) async fn create_genesis_l1_batch(
     transaction.commit().await.unwrap();
 }
 
-pub(crate) async fn add_eth_token(storage: &mut StorageProcessor<'_>) {
+pub(crate) async fn add_eth_token(storage: &mut StorageProcessor<Transaction<'_>>) {
     let eth_token = TokenInfo {
         l1_address: ETHEREUM_ADDRESS,
         l2_address: ETHEREUM_ADDRESS,
@@ -340,7 +341,7 @@ pub(crate) async fn add_eth_token(storage: &mut StorageProcessor<'_>) {
 }
 
 pub(crate) async fn save_genesis_l1_batch_metadata(
-    storage: &mut StorageProcessor<'_>,
+    storage: &mut StorageProcessor<Transaction<'_>>,
     commitment: &L1BatchCommitment,
     genesis_root_hash: H256,
     rollup_last_leaf_index: u64,

@@ -110,7 +110,7 @@ impl TxSharedArgs {
 // trusted to change between validation and execution in general case, but
 // sometimes we can safely rely on them to not change often.
 async fn get_validation_params(
-    connection: &mut StorageProcessor<'_>,
+    connection: &mut StorageProcessor,
     tx: &L2Tx,
     computational_gas_limit: u32,
 ) -> ValidationTracerParams {

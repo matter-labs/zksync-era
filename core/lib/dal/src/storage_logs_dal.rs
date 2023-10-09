@@ -3,6 +3,7 @@ use sqlx::Row;
 
 use std::{collections::HashMap, time::Instant};
 
+use crate::connection::holder::Acquire;
 use crate::StorageProcessor;
 use zksync_types::{
     get_code_key, AccountTreeId, Address, L1BatchNumber, MiniblockNumber, StorageKey, StorageLog,
@@ -10,11 +11,11 @@ use zksync_types::{
 };
 
 #[derive(Debug)]
-pub struct StorageLogsDal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+pub struct StorageLogsDal<'a, Conn: Acquire> {
+    pub(crate) storage: &'a mut StorageProcessor<Conn>,
 }
 
-impl StorageLogsDal<'_, '_> {
+impl<'a, Conn: Acquire> StorageLogsDal<'a, Conn> {
     /// Inserts storage logs grouped by transaction for a miniblock. The ordering of transactions
     /// must be the same as their ordering in the miniblock.
     pub async fn insert_storage_logs(
@@ -31,9 +32,9 @@ impl StorageLogsDal<'_, '_> {
         logs: &[(H256, Vec<StorageLog>)],
         mut operation_number: u32,
     ) {
-        let mut copy = self
-            .storage
-            .conn()
+        let mut conn = self.storage.acquire().await;
+        let mut copy = conn
+            .as_conn()
             .copy_in_raw(
                 "COPY storage_logs(
                     hashed_key, address, key, value, operation_number, tx_hash, miniblock_number,
@@ -77,7 +78,7 @@ impl StorageLogsDal<'_, '_> {
             "SELECT MAX(operation_number) as \"max?\" FROM storage_logs WHERE miniblock_number = $1",
             block_number.0 as i64
         )
-        .fetch_one(self.storage.conn())
+        .fetch_one(self.storage.acquire().await.as_conn())
         .await
         .unwrap()
         .max
@@ -133,7 +134,7 @@ impl StorageLogsDal<'_, '_> {
             "DELETE FROM storage WHERE hashed_key = ANY($1)",
             &keys_to_delete as &[&[u8]],
         )
-        .execute(self.storage.conn())
+        .execute(self.storage.acquire().await.as_conn())
         .await
         .unwrap();
         tracing::info!(
@@ -150,7 +151,7 @@ impl StorageLogsDal<'_, '_> {
             &keys_to_update as &[&[u8]],
             &values_to_update as &[&[u8]],
         )
-        .execute(self.storage.conn())
+        .execute(self.storage.acquire().await.as_conn())
         .await
         .unwrap();
         tracing::info!(
@@ -170,7 +171,7 @@ impl StorageLogsDal<'_, '_> {
             (SELECT * FROM storage_logs WHERE miniblock_number > $1) inn",
             miniblock_number.0 as i64
         )
-        .fetch_all(self.storage.conn())
+        .fetch_all(self.storage.acquire().await.as_conn())
         .await
         .unwrap()
         .into_iter()
@@ -184,7 +185,7 @@ impl StorageLogsDal<'_, '_> {
             "DELETE FROM storage_logs WHERE miniblock_number > $1",
             block_number.0 as i64
         )
-        .execute(self.storage.conn())
+        .execute(self.storage.acquire().await.as_conn())
         .await
         .unwrap();
     }
@@ -203,7 +204,7 @@ impl StorageLogsDal<'_, '_> {
             hashed_key.as_bytes(),
             FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH.as_bytes(),
         )
-        .fetch_one(self.storage.conn())
+        .fetch_one(self.storage.acquire().await.as_conn())
         .await
         .unwrap();
 
@@ -225,7 +226,7 @@ impl StorageLogsDal<'_, '_> {
             ORDER BY miniblock_number, operation_number",
             l1_batch_number.0 as i64
         )
-        .fetch_all(self.storage.conn())
+        .fetch_all(self.storage.acquire().await.as_conn())
         .await
         .unwrap();
 
@@ -330,7 +331,7 @@ impl StorageLogsDal<'_, '_> {
             WHERE hashed_key = ANY($1::bytea[])",
             &hashed_keys as &[&[u8]],
         )
-        .fetch_all(self.storage.conn())
+        .fetch_all(self.storage.acquire().await.as_conn())
         .await
         .unwrap();
 
@@ -392,7 +393,7 @@ impl StorageLogsDal<'_, '_> {
             &hashed_keys as &[&[u8]],
             miniblock_number.0 as i64
         )
-        .fetch_all(self.storage.conn())
+        .fetch_all(self.storage.acquire().await.as_conn())
         .await
         .unwrap();
 
@@ -418,7 +419,7 @@ impl StorageLogsDal<'_, '_> {
             FROM UNNEST($1::bytea[]) AS u(hashed_key)",
             &hashed_keys as &[&[u8]],
         )
-        .fetch_all(self.storage.conn())
+        .fetch_all(self.storage.acquire().await.as_conn())
         .await
         .unwrap()
         .into_iter()
@@ -451,7 +452,7 @@ impl StorageLogsDal<'_, '_> {
             miniblock_number.0 as i64,
             &operation_numbers
         )
-        .execute(self.storage.conn())
+        .execute(self.storage.acquire().await.as_conn())
         .await
         .unwrap();
     }
@@ -470,7 +471,7 @@ impl StorageLogsDal<'_, '_> {
             ORDER BY operation_number"
         ))
         .bind(miniblock_number.0 as i64)
-        .fetch_all(self.storage.conn())
+        .fetch_all(self.storage.acquire().await.as_conn())
         .await
         .unwrap()
         .into_iter()
@@ -500,7 +501,7 @@ impl StorageLogsDal<'_, '_> {
         sqlx::query(&query_str)
             .bind(hashed_key.as_bytes())
             .bind(miniblock_number.0 as i64)
-            .fetch_optional(self.storage.conn())
+            .fetch_optional(self.storage.acquire().await.as_conn())
             .await
             .unwrap()
             .map(|row| H256::from_slice(row.get("value")))
@@ -511,7 +512,7 @@ impl StorageLogsDal<'_, '_> {
     /// Shouldn't be used in production.
     pub async fn vacuum_storage_logs(&mut self) {
         sqlx::query!("VACUUM storage_logs")
-            .execute(self.storage.conn())
+            .execute(self.storage.acquire().await.as_conn())
             .await
             .unwrap();
     }
@@ -528,7 +529,7 @@ mod tests {
         ProtocolVersion, ProtocolVersionId,
     };
 
-    async fn insert_miniblock(conn: &mut StorageProcessor<'_>, number: u32, logs: Vec<StorageLog>) {
+    async fn insert_miniblock(conn: &mut StorageProcessor, number: u32, logs: Vec<StorageLog>) {
         let mut header = L1BatchHeader::new(
             L1BatchNumber(number),
             0,
@@ -607,11 +608,7 @@ mod tests {
         test_rollback(&mut conn, first_key, second_key).await;
     }
 
-    async fn test_rollback(
-        conn: &mut StorageProcessor<'_>,
-        key: StorageKey,
-        second_key: StorageKey,
-    ) {
+    async fn test_rollback(conn: &mut StorageProcessor, key: StorageKey, second_key: StorageKey) {
         let new_account = AccountTreeId::new(Address::repeat_byte(2));
         let new_key = StorageKey::new(new_account, H256::zero());
         let log = StorageLog::new_write_log(key, H256::repeat_byte(0xff));

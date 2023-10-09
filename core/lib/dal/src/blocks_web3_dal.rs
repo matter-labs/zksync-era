@@ -13,6 +13,7 @@ use zksync_types::{
 };
 use zksync_utils::bigdecimal_to_u256;
 
+use crate::connection::holder::Acquire;
 use crate::models::{
     storage_block::{
         bind_block_where_sql_params, web3_block_number_to_sql, web3_block_where_sql,
@@ -25,16 +26,16 @@ use crate::{instrument::InstrumentExt, StorageProcessor};
 const BLOCK_GAS_LIMIT: u32 = system_params::VM_INITIAL_FRAME_ERGS;
 
 #[derive(Debug)]
-pub struct BlocksWeb3Dal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+pub struct BlocksWeb3Dal<'a, Conn: Acquire> {
+    pub(crate) storage: &'a mut StorageProcessor<Conn>,
 }
 
-impl BlocksWeb3Dal<'_, '_> {
+impl<'a, Conn: Acquire> BlocksWeb3Dal<'a, Conn> {
     pub async fn get_sealed_miniblock_number(&mut self) -> Result<MiniblockNumber, sqlx::Error> {
         let number = sqlx::query!("SELECT MAX(number) as \"number\" FROM miniblocks")
             .instrument("get_sealed_block_number")
             .report_latency()
-            .fetch_one(self.storage.conn())
+            .fetch_one(self.storage.acquire().await.as_conn())
             .await?
             .number
             .expect("DAL invocation before genesis");
@@ -45,7 +46,7 @@ impl BlocksWeb3Dal<'_, '_> {
         let number = sqlx::query!("SELECT MAX(number) as \"number\" FROM l1_batches")
             .instrument("get_sealed_block_number")
             .report_latency()
-            .fetch_one(self.storage.conn())
+            .fetch_one(self.storage.acquire().await.as_conn())
             .await?
             .number
             .expect("DAL invocation before genesis");
@@ -89,7 +90,10 @@ impl BlocksWeb3Dal<'_, '_> {
         );
 
         let query = bind_block_where_sql_params(&block_id, sqlx::query(&query));
-        let rows = query.fetch_all(self.storage.conn()).await?.into_iter();
+        let rows = query
+            .fetch_all(self.storage.acquire().await.as_conn())
+            .await?
+            .into_iter();
 
         let block = rows.fold(None, |prev_block, db_row| {
             let mut block = prev_block.unwrap_or_else(|| {
@@ -154,11 +158,14 @@ impl BlocksWeb3Dal<'_, '_> {
         );
         let query = bind_block_where_sql_params(&block_id, sqlx::query(&query));
 
-        Ok(query.fetch_optional(self.storage.conn()).await?.map(|row| {
-            let miniblock_number = row.get::<i64, _>("number") as u32;
-            let tx_count = row.get::<i32, _>("tx_count") as u32;
-            (MiniblockNumber(miniblock_number), tx_count.into())
-        }))
+        Ok(query
+            .fetch_optional(self.storage.acquire().await.as_conn())
+            .await?
+            .map(|row| {
+                let miniblock_number = row.get::<i64, _>("number") as u32;
+                let tx_count = row.get::<i32, _>("tx_count") as u32;
+                (MiniblockNumber(miniblock_number), tx_count.into())
+            }))
     }
 
     /// Returns hashes of blocks with numbers greater than `from_block` and the number of the last block.
@@ -175,7 +182,7 @@ impl BlocksWeb3Dal<'_, '_> {
             from_block.0 as i64,
             limit as i32
         )
-        .fetch_all(self.storage.conn())
+        .fetch_all(self.storage.acquire().await.as_conn())
         .await?;
 
         let last_block_number = rows.last().map(|row| MiniblockNumber(row.number as u32));
@@ -195,7 +202,7 @@ impl BlocksWeb3Dal<'_, '_> {
             ORDER BY number ASC",
             from_block.0 as i64,
         )
-        .fetch_all(self.storage.conn())
+        .fetch_all(self.storage.acquire().await.as_conn())
         .await?;
 
         let blocks = rows.into_iter().map(|row| BlockHeader {
@@ -240,7 +247,7 @@ impl BlocksWeb3Dal<'_, '_> {
             api::BlockId::Number(block_number) => web3_block_number_to_sql(block_number),
         };
         let row = bind_block_where_sql_params(&block_id, sqlx::query(&query_string))
-            .fetch_optional(self.storage.conn())
+            .fetch_optional(self.storage.acquire().await.as_conn())
             .await?;
 
         let block_number = row
@@ -270,7 +277,7 @@ impl BlocksWeb3Dal<'_, '_> {
             WHERE number = $1",
             first_miniblock_of_batch.0 as i64
         )
-        .fetch_optional(self.storage.conn())
+        .fetch_optional(self.storage.acquire().await.as_conn())
         .await?
         .map(|row| row.timestamp as u64);
         Ok(timestamp)
@@ -284,7 +291,7 @@ impl BlocksWeb3Dal<'_, '_> {
             "SELECT hash FROM miniblocks WHERE number = $1",
             block_number.0 as i64
         )
-        .fetch_optional(self.storage.conn())
+        .fetch_optional(self.storage.acquire().await.as_conn())
         .await?
         .map(|row| H256::from_slice(&row.hash));
         Ok(hash)
@@ -298,7 +305,7 @@ impl BlocksWeb3Dal<'_, '_> {
             "SELECT l2_to_l1_logs FROM l1_batches WHERE number = $1",
             block_number.0 as i64
         )
-        .fetch_optional(self.storage.conn())
+        .fetch_optional(self.storage.acquire().await.as_conn())
         .await?
         .map(|row| row.l2_to_l1_logs)
         .unwrap_or_default();
@@ -317,7 +324,7 @@ impl BlocksWeb3Dal<'_, '_> {
             "SELECT l1_batch_number FROM miniblocks WHERE number = $1",
             miniblock_number.0 as i64
         )
-        .fetch_optional(self.storage.conn())
+        .fetch_optional(self.storage.acquire().await.as_conn())
         .await?
         .and_then(|row| row.l1_batch_number);
 
@@ -334,7 +341,7 @@ impl BlocksWeb3Dal<'_, '_> {
             WHERE l1_batch_number = $1",
             l1_batch_number.0 as i64
         )
-        .fetch_one(self.storage.conn())
+        .fetch_one(self.storage.acquire().await.as_conn())
         .await?;
 
         Ok(match (row.min, row.max) {
@@ -356,7 +363,7 @@ impl BlocksWeb3Dal<'_, '_> {
             WHERE hash = $1",
             tx_hash.as_bytes()
         )
-        .fetch_optional(self.storage.conn())
+        .fetch_optional(self.storage.acquire().await.as_conn())
         .await?;
 
         let result = row.and_then(|row| match (row.l1_batch_number, row.l1_batch_tx_index) {
@@ -376,7 +383,7 @@ impl BlocksWeb3Dal<'_, '_> {
                 (SELECT hash FROM transactions WHERE miniblock_number = $1)",
             block_number.0 as i64
         )
-        .fetch_all(self.storage.conn())
+        .fetch_all(self.storage.acquire().await.as_conn())
         .await
         .unwrap()
         .into_iter()
@@ -398,7 +405,7 @@ impl BlocksWeb3Dal<'_, '_> {
             newest_block.0 as i64,
             block_count as i64
         )
-        .fetch_all(self.storage.conn())
+        .fetch_all(self.storage.acquire().await.as_conn())
         .await?
         .into_iter()
         .map(|row| bigdecimal_to_u256(row.base_fee_per_gas))
@@ -446,7 +453,7 @@ impl BlocksWeb3Dal<'_, '_> {
             .instrument("get_block_details")
             .with_arg("block_number", &block_number)
             .report_latency()
-            .fetch_optional(self.storage.conn())
+            .fetch_optional(self.storage.acquire().await.as_conn())
             .await?;
 
             Ok(storage_block_details.map(|storage_block_details| {
@@ -489,7 +496,7 @@ impl BlocksWeb3Dal<'_, '_> {
             .instrument("get_l1_batch_details")
             .with_arg("l1_batch_number", &l1_batch_number)
             .report_latency()
-            .fetch_optional(self.storage.conn())
+            .fetch_optional(self.storage.acquire().await.as_conn())
             .await?;
 
             Ok(l1_batch_details.map(api::L1BatchDetails::from))
@@ -529,7 +536,7 @@ impl BlocksWeb3Dal<'_, '_> {
             &migration_start_l1_batch_number,
         )
         .report_latency()
-        .fetch_optional(self.storage.conn())
+        .fetch_optional(self.storage.acquire().await.as_conn())
         .await?;
 
         let result = record.map(|row| row.number as u32);
@@ -571,7 +578,7 @@ impl BlocksWeb3Dal<'_, '_> {
             &migration_start_l1_batch_number,
         )
         .report_latency()
-        .fetch_optional(self.storage.conn())
+        .fetch_optional(self.storage.acquire().await.as_conn())
         .await?;
 
         let result = record.map(|row| row.number as u32);

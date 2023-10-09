@@ -119,7 +119,7 @@ impl EthSenderTester {
         }
     }
 
-    async fn storage(&self) -> StorageProcessor<'static> {
+    async fn storage(&self) -> StorageProcessor {
         self.conn.access_test_storage().await
     }
 

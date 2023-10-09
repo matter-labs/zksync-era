@@ -1,15 +1,16 @@
 use std::time::Duration;
 use zksync_types::proofs::{GpuProverInstanceStatus, SocketAddress};
 
+use crate::connection::holder::Acquire;
 use crate::time_utils::pg_interval_from_duration;
 use crate::StorageProcessor;
 
 #[derive(Debug)]
-pub struct FriGpuProverQueueDal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+pub struct FriGpuProverQueueDal<'a, Conn: Acquire> {
+    pub(crate) storage: &'a mut StorageProcessor<Conn>,
 }
 
-impl FriGpuProverQueueDal<'_, '_> {
+impl<'a, Conn: Acquire> FriGpuProverQueueDal<'a, Conn> {
     pub async fn lock_available_prover(
         &mut self,
         processing_timeout: Duration,
@@ -42,7 +43,7 @@ impl FriGpuProverQueueDal<'_, '_> {
                 specialized_prover_group_id as i16,
                 zone
             )
-            .fetch_optional(self.storage.conn())
+            .fetch_optional(self.storage.acquire().await.as_conn())
             .await
             .unwrap()
             .map(|row| SocketAddress {
@@ -69,7 +70,7 @@ impl FriGpuProverQueueDal<'_, '_> {
              specialized_prover_group_id as i16,
              zone
         )
-            .execute(self.storage.conn())
+            .execute(self.storage.acquire().await.as_conn())
             .await
             .unwrap();
     }
@@ -92,7 +93,7 @@ impl FriGpuProverQueueDal<'_, '_> {
             address.port as i32,
             zone
         )
-        .execute(self.storage.conn())
+        .execute(self.storage.acquire().await.as_conn())
         .await
         .unwrap();
     }
@@ -114,7 +115,7 @@ impl FriGpuProverQueueDal<'_, '_> {
             address.port as i32,
             zone
         )
-        .execute(self.storage.conn())
+        .execute(self.storage.acquire().await.as_conn())
         .await
         .unwrap();
     }

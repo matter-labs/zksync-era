@@ -4,11 +4,7 @@ use zksync_dal::StorageProcessor;
 use zksync_types::eth_sender::EthTx;
 use zksync_utils::time::seconds_since_epoch;
 
-pub async fn track_eth_tx_metrics(
-    connection: &mut StorageProcessor<'_>,
-    l1_stage: &str,
-    tx: &EthTx,
-) {
+pub async fn track_eth_tx_metrics(connection: &mut StorageProcessor, l1_stage: &str, tx: &EthTx) {
     let start = Instant::now();
     let stage = format!("l1_{l1_stage}_{}", tx.tx_type);
 

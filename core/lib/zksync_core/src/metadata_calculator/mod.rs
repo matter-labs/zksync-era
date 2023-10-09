@@ -144,7 +144,7 @@ impl MetadataCalculator {
     /// in the State Keeper, where storage writes aren't yet deduplicated, whereas L1 batch metadata
     /// contains deduplicated storage writes.
     async fn reestimate_l1_batch_commit_gas(
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut StorageProcessor,
         header: &L1BatchHeader,
         metadata: &L1BatchMetadata,
     ) {

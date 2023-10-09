@@ -1,5 +1,6 @@
 use std::{collections::HashMap, convert::TryFrom, time::Duration};
 
+use crate::connection::holder::Acquire;
 use zksync_config::configs::fri_prover_group::CircuitIdRoundTuple;
 use zksync_types::protocol_version::FriProtocolVersionId;
 use zksync_types::{
@@ -15,11 +16,11 @@ use crate::{
 };
 
 #[derive(Debug)]
-pub struct FriProverDal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+pub struct FriProverDal<'a, Conn: Acquire> {
+    pub(crate) storage: &'a mut StorageProcessor<Conn>,
 }
 
-impl FriProverDal<'_, '_> {
+impl<'a, Conn: Acquire> FriProverDal<'a, Conn> {
     pub async fn insert_prover_jobs(
         &mut self,
         l1_batch_number: L1BatchNumber,
@@ -76,7 +77,7 @@ impl FriProverDal<'_, '_> {
             &protocol_versions[..],
             picked_by,
         )
-            .fetch_optional(self.storage.conn())
+            .fetch_optional(self.storage.acquire().await.as_conn())
             .await
             .unwrap()
             .map(|row| FriProverJobMetadata {
@@ -133,7 +134,7 @@ impl FriProverDal<'_, '_> {
             &protocol_versions[..],
             picked_by,
         )
-            .fetch_optional(self.storage.conn())
+            .fetch_optional(self.storage.acquire().await.as_conn())
             .await
             .unwrap()
             .map(|row| FriProverJobMetadata {
@@ -158,7 +159,7 @@ impl FriProverDal<'_, '_> {
                 error,
                 id as i64,
             )
-            .execute(self.storage.conn())
+            .execute(self.storage.acquire().await.as_conn())
             .await
             .unwrap();
         }
@@ -186,7 +187,7 @@ impl FriProverDal<'_, '_> {
             .instrument("save_fri_proof")
             .report_latency()
             .with_arg("id", &id)
-            .fetch_optional(self.storage.conn())
+            .fetch_optional(self.storage.acquire().await.as_conn())
             .await
             .unwrap()
             .map(|row| FriProverJobMetadata {
@@ -219,7 +220,7 @@ impl FriProverDal<'_, '_> {
                 &processing_timeout,
                 max_attempts as i32,
             )
-                .fetch_all(self.storage.conn())
+                .fetch_all(self.storage.acquire().await.as_conn())
                 .await
                 .unwrap()
                 .into_iter()
@@ -256,7 +257,7 @@ impl FriProverDal<'_, '_> {
             is_node_final_proof,
             protocol_version_id as i32,
         )
-            .execute(self.storage.conn())
+            .execute(self.storage.acquire().await.as_conn())
             .await
             .unwrap();
     }
@@ -270,7 +271,7 @@ impl FriProverDal<'_, '_> {
                 GROUP BY circuit_id, aggregation_round, status
                 "#
             )
-                .fetch_all(self.storage.conn())
+                .fetch_all(self.storage.acquire().await.as_conn())
                 .await
                 .unwrap()
                 .into_iter()
@@ -304,7 +305,7 @@ impl FriProverDal<'_, '_> {
                     GROUP BY circuit_id, aggregation_round
                 "#
             )
-            .fetch_all(self.storage.conn())
+            .fetch_all(self.storage.acquire().await.as_conn())
             .await
             .unwrap()
             .into_iter()
@@ -326,7 +327,7 @@ impl FriProverDal<'_, '_> {
             status,
             id as i64,
         )
-        .execute(self.storage.conn())
+        .execute(self.storage.acquire().await.as_conn())
         .await
         .unwrap();
     }
@@ -338,7 +339,7 @@ impl FriProverDal<'_, '_> {
                 WHERE l1_batch_number = $1",
             l1_batch_number.0 as i64,
         )
-        .execute(self.storage.conn())
+        .execute(self.storage.acquire().await.as_conn())
         .await
         .unwrap();
     }
@@ -355,7 +356,7 @@ impl FriProverDal<'_, '_> {
             l1_batch_number.0 as i64,
             AggregationRound::Scheduler as i16,
         )
-        .fetch_optional(self.storage.conn())
+        .fetch_optional(self.storage.acquire().await.as_conn())
         .await
         .ok()?
         .map(|row| row.id as u32)

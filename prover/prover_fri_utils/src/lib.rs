@@ -17,7 +17,7 @@ use zksync_types::protocol_version::L1VerifierConfig;
 pub mod socket_utils;
 
 pub async fn fetch_next_circuit(
-    storage: &mut StorageProcessor<'_>,
+    storage: &mut StorageProcessor,
     blob_store: &dyn ObjectStore,
     circuit_ids_for_round_to_be_proven: &Vec<CircuitIdRoundTuple>,
     vk_commitments: &L1VerifierConfig,

@@ -8,17 +8,18 @@ use zksync_types::{
 };
 use zksync_utils::h256_to_u256;
 
+use crate::connection::holder::Acquire;
 use crate::{
     instrument::InstrumentExt, models::storage_block::ResolvedL1BatchForMiniblock, SqlxError,
     StorageProcessor,
 };
 
 #[derive(Debug)]
-pub struct StorageWeb3Dal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+pub struct StorageWeb3Dal<'a, Conn: Acquire> {
+    pub(crate) storage: &'a mut StorageProcessor<Conn>,
 }
 
-impl StorageWeb3Dal<'_, '_> {
+impl<'a, Conn: Acquire> StorageWeb3Dal<'a, Conn> {
     pub async fn get_address_historical_nonce(
         &mut self,
         address: Address,
@@ -72,7 +73,7 @@ impl StorageWeb3Dal<'_, '_> {
             .instrument("get_historical_value_unchecked")
             .report_latency()
             .with_arg("key", &hashed_key)
-            .fetch_optional(self.storage.conn())
+            .fetch_optional(self.storage.acquire().await.as_conn())
             .await
             .map(|option_row| {
                 option_row
@@ -95,7 +96,7 @@ impl StorageWeb3Dal<'_, '_> {
                 (SELECT MAX(number) + 1 FROM l1_batches) as \"max_batch?\"",
             miniblock_number.0 as i64
         )
-        .fetch_one(self.storage.conn())
+        .fetch_one(self.storage.acquire().await.as_conn())
         .await?;
 
         Ok(ResolvedL1BatchForMiniblock {
@@ -116,7 +117,7 @@ impl StorageWeb3Dal<'_, '_> {
         .instrument("get_l1_batch_number_for_initial_write")
         .report_latency()
         .with_arg("key", &hashed_key)
-        .fetch_optional(self.storage.conn())
+        .fetch_optional(self.storage.acquire().await.as_conn())
         .await?;
 
         let l1_batch_number = row.map(|record| L1BatchNumber(record.l1_batch_number as u32));
@@ -133,7 +134,7 @@ impl StorageWeb3Dal<'_, '_> {
             miniblock_numbers.start().0 as i64,
             miniblock_numbers.end().0 as i64
         )
-        .fetch_all(self.storage.conn())
+        .fetch_all(self.storage.acquire().await.as_conn())
         .await
         .unwrap()
         .into_iter()
@@ -168,7 +169,7 @@ impl StorageWeb3Dal<'_, '_> {
                 block_number.0 as i64,
                 FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH.as_bytes(),
             )
-            .fetch_optional(self.storage.conn())
+            .fetch_optional(self.storage.acquire().await.as_conn())
             .await
             .map(|option_row| option_row.map(|row| row.bytecode))
         }
@@ -187,7 +188,7 @@ impl StorageWeb3Dal<'_, '_> {
                 hash.as_bytes(),
                 block_number.0 as i64
             )
-            .fetch_optional(self.storage.conn())
+            .fetch_optional(self.storage.acquire().await.as_conn())
             .await
             .map(|option_row| option_row.map(|row| row.bytecode))
         }

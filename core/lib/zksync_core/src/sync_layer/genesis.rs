@@ -15,7 +15,7 @@ use zksync_web3_decl::{
 };
 
 pub async fn perform_genesis_if_needed(
-    storage: &mut StorageProcessor<'_>,
+    storage: &mut StorageProcessor,
     zksync_chain_id: L2ChainId,
     main_node_url: String,
 ) -> anyhow::Result<()> {

@@ -1,3 +1,4 @@
+use crate::connection::holder::Acquire;
 use crate::StorageProcessor;
 use sqlx::types::chrono::Utc;
 use std::collections::HashSet;
@@ -5,19 +6,19 @@ use zksync_types::{AccountTreeId, Address, L1BatchNumber, LogQuery, StorageKey, 
 use zksync_utils::u256_to_h256;
 
 #[derive(Debug)]
-pub struct StorageLogsDedupDal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+pub struct StorageLogsDedupDal<'a, Conn: Acquire> {
+    pub(crate) storage: &'a mut StorageProcessor<Conn>,
 }
 
-impl StorageLogsDedupDal<'_, '_> {
+impl<'a, Conn: Acquire> StorageLogsDedupDal<'a, Conn> {
     pub async fn insert_protective_reads(
         &mut self,
         l1_batch_number: L1BatchNumber,
         read_logs: &[LogQuery],
     ) {
-        let mut copy = self
-            .storage
-            .conn()
+        let mut conn = self.storage.acquire().await;
+        let mut copy = conn
+            .as_conn()
             .copy_in_raw(
                 "COPY protective_reads (l1_batch_number, address, key, created_at, updated_at) \
                 FROM STDIN WITH (DELIMITER '|')",
@@ -65,7 +66,7 @@ impl StorageLogsDedupDal<'_, '_> {
             &indices,
             l1_batch_number.0 as i64,
         )
-        .execute(self.storage.conn())
+        .execute(self.storage.acquire().await.as_conn())
         .await
         .unwrap();
     }
@@ -78,7 +79,7 @@ impl StorageLogsDedupDal<'_, '_> {
             "SELECT address, key FROM protective_reads WHERE l1_batch_number = $1",
             l1_batch_number.0 as i64
         )
-        .fetch_all(self.storage.conn())
+        .fetch_all(self.storage.acquire().await.as_conn())
         .await
         .unwrap()
         .into_iter()
@@ -93,7 +94,7 @@ impl StorageLogsDedupDal<'_, '_> {
 
     pub async fn max_enumeration_index(&mut self) -> Option<u64> {
         sqlx::query!("SELECT MAX(index) as \"max?\" FROM initial_writes",)
-            .fetch_one(self.storage.conn())
+            .fetch_one(self.storage.acquire().await.as_conn())
             .await
             .unwrap()
             .max
@@ -110,7 +111,7 @@ impl StorageLogsDedupDal<'_, '_> {
             ORDER BY index",
             l1_batch_number.0 as i64
         )
-        .fetch_all(self.storage.conn())
+        .fetch_all(self.storage.acquire().await.as_conn())
         .await
         .unwrap()
         .into_iter()
@@ -126,7 +127,7 @@ impl StorageLogsDedupDal<'_, '_> {
             WHERE hashed_key = ANY($1)",
             &hashed_keys as &[&[u8]],
         )
-        .fetch_all(self.storage.conn())
+        .fetch_all(self.storage.acquire().await.as_conn())
         .await
         .unwrap()
         .into_iter()

@@ -31,7 +31,7 @@ impl PriorityOpsEventProcessor {
 impl<W: EthClient + Sync> EventProcessor<W> for PriorityOpsEventProcessor {
     async fn process_events(
         &mut self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut StorageProcessor,
         _client: &W,
         events: Vec<Log>,
     ) -> Result<(), Error> {

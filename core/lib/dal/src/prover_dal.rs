@@ -19,6 +19,7 @@ use zksync_types::{
     L1BatchNumber, ProtocolVersionId,
 };
 
+use crate::connection::holder::Acquire;
 use crate::{
     instrument::InstrumentExt,
     models::storage_prover_job_info::StorageProverJobInfo,
@@ -27,11 +28,11 @@ use crate::{
 };
 
 #[derive(Debug)]
-pub struct ProverDal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+pub struct ProverDal<'a, Conn: Acquire> {
+    pub(crate) storage: &'a mut StorageProcessor<Conn>,
 }
 
-impl ProverDal<'_, '_> {
+impl<'a, Conn: Acquire> ProverDal<'a, Conn> {
     pub async fn get_next_prover_job(
         &mut self,
         protocol_versions: &[ProtocolVersionId],
@@ -56,7 +57,7 @@ impl ProverDal<'_, '_> {
                 ",
             &protocol_versions[..]
         )
-        .fetch_optional(self.storage.conn())
+        .fetch_optional(self.storage.acquire().await.as_conn())
         .await
         .unwrap()
         .map(|row| ProverJobMetadata {
@@ -77,7 +78,7 @@ impl ProverDal<'_, '_> {
                  GROUP BY aggregation_round 
                 "#
             )
-                .fetch_all(self.storage.conn())
+                .fetch_all(self.storage.acquire().await.as_conn())
                 .await
                 .unwrap()
                 .into_iter()
@@ -120,7 +121,7 @@ impl ProverDal<'_, '_> {
                 &circuit_types[..],
                 &protocol_versions[..]
             )
-            .fetch_optional(self.storage.conn())
+            .fetch_optional(self.storage.acquire().await.as_conn())
             .await
             .unwrap()
             .map(|row| ProverJobMetadata {
@@ -165,7 +166,7 @@ impl ProverDal<'_, '_> {
                 .with_arg("l1_batch_number", &l1_batch_number)
                 .with_arg("circuit", &circuit)
                 .with_arg("circuit_input_blob_url", &circuit_input_blob_url)
-                .execute(self.storage.conn())
+                .execute(self.storage.acquire().await.as_conn())
                 .await
                 .unwrap();
             }
@@ -195,7 +196,7 @@ impl ProverDal<'_, '_> {
             .report_latency()
             .with_arg("id", &id)
             .with_arg("proof.len", &proof.len())
-            .execute(self.storage.conn())
+            .execute(self.storage.acquire().await.as_conn())
             .await?;
         }
         Ok(())
@@ -220,7 +221,7 @@ impl ProverDal<'_, '_> {
                 error,
                 id as i64,
             )
-            .fetch_one(transaction.conn())
+            .fetch_one(transaction.acquire().await.as_conn())
             .await?;
 
             if row.attempts as u32 >= max_attempts {
@@ -255,7 +256,7 @@ impl ProverDal<'_, '_> {
                 &processing_timeout,
                 max_attempts as i32,
             )
-                .fetch_all(self.storage.conn())
+                .fetch_all(self.storage.acquire().await.as_conn())
                 .await
                 .unwrap()
                 .into_iter()
@@ -284,7 +285,7 @@ impl ProverDal<'_, '_> {
                 from_block.0 as i32,
                 to_block.0 as i32
             )
-                .fetch_all(self.storage.conn())
+                .fetch_all(self.storage.acquire().await.as_conn())
                 .await
                 .unwrap()
                 .into_iter()
@@ -317,7 +318,7 @@ impl ProverDal<'_, '_> {
                 GROUP BY circuit_type, status
                 "#
             )
-            .fetch_all(self.storage.conn())
+            .fetch_all(self.storage.acquire().await.as_conn())
             .await
             .unwrap()
             .into_iter()
@@ -350,7 +351,7 @@ impl ProverDal<'_, '_> {
                 GROUP BY status
                 "#
             )
-            .fetch_all(self.storage.conn())
+            .fetch_all(self.storage.acquire().await.as_conn())
             .await
             .unwrap()
             .into_iter()
@@ -378,7 +379,7 @@ impl ProverDal<'_, '_> {
                 ) as inn
                 "#
             )
-            .fetch_one(self.storage.conn())
+            .fetch_one(self.storage.acquire().await.as_conn())
             .await
             .unwrap()
             .l1_batch_number
@@ -400,7 +401,7 @@ impl ProverDal<'_, '_> {
                     GROUP BY circuit_type
                 "#
             )
-            .fetch_all(self.storage.conn())
+            .fetch_all(self.storage.acquire().await.as_conn())
             .await
             .unwrap()
             .into_iter()
@@ -429,7 +430,7 @@ impl ProverDal<'_, '_> {
                     (SELECT MAX(l1_batch_number) as "max!" FROM prover_jobs) as "max_block!"
                 "#
             )
-            .fetch_one(self.storage.conn())
+            .fetch_one(self.storage.acquire().await.as_conn())
             .await?;
 
             let active_area = self
@@ -529,7 +530,7 @@ impl ProverDal<'_, '_> {
         let query = sqlx::query_as(&sql);
 
         Ok(query
-            .fetch_all(self.storage.conn())
+            .fetch_all(self.storage.acquire().await.as_conn())
             .await?
             .into_iter()
             .map(|x: StorageProverJobInfo| x.into())
@@ -542,7 +543,7 @@ impl ProverDal<'_, '_> {
     ) -> Result<Option<ProverJobMetadata>, Error> {
         {
             let row = sqlx::query!("SELECT * from prover_jobs where id=$1", job_id as i64)
-                .fetch_optional(self.storage.conn())
+                .fetch_optional(self.storage.acquire().await.as_conn())
                 .await?;
 
             Ok(row.map(|row| ProverJobMetadata {
@@ -570,7 +571,7 @@ impl ProverDal<'_, '_> {
                 "#,
                 limit as i32
             )
-            .fetch_all(self.storage.conn())
+            .fetch_all(self.storage.acquire().await.as_conn())
             .await
             .unwrap();
             job_ids
@@ -590,7 +591,7 @@ impl ProverDal<'_, '_> {
             "#,
                 &ids[..]
             )
-            .execute(self.storage.conn())
+            .execute(self.storage.acquire().await.as_conn())
             .await
             .unwrap();
         }
@@ -607,7 +608,7 @@ impl ProverDal<'_, '_> {
                 status,
                 id as i64,
             )
-            .execute(self.storage.conn())
+            .execute(self.storage.acquire().await.as_conn())
             .await
             .unwrap();
         }

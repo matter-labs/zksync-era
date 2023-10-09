@@ -58,7 +58,7 @@ pub async fn save_proof(
     blob_store: &dyn ObjectStore,
     public_blob_store: Option<&dyn ObjectStore>,
     shall_save_to_public_bucket: bool,
-    storage_processor: &mut StorageProcessor<'_>,
+    storage_processor: &mut StorageProcessor,
 ) {
     tracing::info!(
         "Successfully proven job: {}, total time taken: {:?}",

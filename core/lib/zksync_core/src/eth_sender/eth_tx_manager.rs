@@ -75,7 +75,7 @@ where
 
     async fn check_all_sending_attempts(
         &self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut StorageProcessor,
         op: &EthTx,
     ) -> Option<ExecutedTxStatus> {
         // Checking history items, starting from most recently sent.
@@ -102,7 +102,7 @@ where
 
     async fn calculate_fee(
         &self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut StorageProcessor,
         tx: &EthTx,
         time_in_mempool: u32,
     ) -> Result<EthFee, ETHSenderError> {
@@ -141,7 +141,7 @@ where
 
     async fn increase_priority_fee(
         &self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut StorageProcessor,
         eth_tx_id: u32,
         base_fee_per_gas: u64,
     ) -> Result<u64, ETHSenderError> {
@@ -176,7 +176,7 @@ where
 
     pub(crate) async fn send_eth_tx(
         &mut self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut StorageProcessor,
         tx: &EthTx,
         time_in_mempool: u32,
         current_block: L1BlockNumber,
@@ -229,7 +229,7 @@ where
 
     async fn send_raw_transaction(
         &self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut StorageProcessor,
         tx_history_id: u32,
         raw_tx: Vec<u8>,
         current_block: L1BlockNumber,
@@ -304,7 +304,7 @@ where
     // returns the one that has to be resent (if there is one).
     pub(super) async fn monitor_inflight_transactions(
         &mut self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut StorageProcessor,
         l1_block_numbers: L1BlockNumbers,
     ) -> Result<Option<(EthTx, u32)>, ETHSenderError> {
         metrics::gauge!(
@@ -407,7 +407,7 @@ where
 
     async fn send_unsent_txs(
         &mut self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut StorageProcessor,
         l1_block_numbers: L1BlockNumbers,
     ) {
         for tx in storage.eth_sender_dal().get_unsent_txs().await {
@@ -447,7 +447,7 @@ where
 
     async fn apply_tx_status(
         &self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut StorageProcessor,
         tx: &EthTx,
         tx_status: ExecutedTxStatus,
         finalized_block: L1BlockNumber,
@@ -470,7 +470,7 @@ where
 
     pub async fn fail_tx(
         &self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut StorageProcessor,
         tx: &EthTx,
         tx_status: ExecutedTxStatus,
     ) {
@@ -497,7 +497,7 @@ where
 
     pub async fn confirm_tx(
         &self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut StorageProcessor,
         tx: &EthTx,
         tx_status: ExecutedTxStatus,
     ) {
@@ -594,7 +594,7 @@ where
 
     async fn send_new_eth_txs(
         &mut self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut StorageProcessor,
         current_block: L1BlockNumber,
     ) {
         let number_inflight_txs = storage.eth_sender_dal().get_inflight_txs().await.len();
@@ -619,7 +619,7 @@ where
     #[tracing::instrument(skip(self, storage))]
     async fn loop_iteration(
         &mut self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut StorageProcessor,
         previous_block: L1BlockNumber,
     ) -> Result<L1BlockNumber, ETHSenderError> {
         let l1_block_numbers = self.get_l1_block_numbers().await?;

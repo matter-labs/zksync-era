@@ -4,18 +4,18 @@ use std::env;
 
 // Built-in deps
 pub use sqlx::Error as SqlxError;
-use sqlx::{postgres::Postgres, Connection, PgConnection, Transaction};
+use sqlx::{Connection as _, PgConnection};
 // External imports
 use anyhow::Context as _;
-use sqlx::pool::PoolConnection;
 pub use sqlx::types::BigDecimal;
 
 // Local imports
 use crate::accounts_dal::AccountsDal;
 use crate::blocks_dal::BlocksDal;
 use crate::blocks_web3_dal::BlocksWeb3Dal;
+use crate::connection::holder::ConnectionRef;
+pub use crate::connection::holder::{Acquire, Connection, Transaction};
 pub use crate::connection::ConnectionPool;
-use crate::connection::{holder::ConnectionHolder, test_pool::TestPoolLock};
 use crate::contract_verification_dal::ContractVerificationDal;
 use crate::eth_sender_dal::EthSenderDal;
 use crate::events_dal::EventsDal;
@@ -114,15 +114,24 @@ pub fn get_test_database_url() -> anyhow::Result<String> {
 /// It holds down the connection (either direct or pooled) to the database
 /// and provide methods to obtain different storage schemas.
 #[derive(Debug)]
-pub struct StorageProcessor<'a> {
-    conn: ConnectionHolder<'a>,
-    in_transaction: bool,
+pub struct StorageProcessor<Conn = Connection>(Conn);
+
+impl<'a> StorageProcessor<Transaction<'a>> {
+    pub async fn commit(self) -> sqlx::Result<()> {
+        self.0.commit().await
+    }
 }
 
-impl<'a> StorageProcessor<'a> {
+impl From<Connection> for StorageProcessor<Connection> {
+    fn from(c: Connection) -> Self {
+        Self(c)
+    }
+}
+
+impl StorageProcessor<Connection> {
     pub async fn establish_connection(
         connect_to_master: bool,
-    ) -> anyhow::Result<StorageProcessor<'static>> {
+    ) -> anyhow::Result<StorageProcessor<Connection>> {
         let database_url = if connect_to_master {
             get_master_database_url()?
         } else {
@@ -130,181 +139,135 @@ impl<'a> StorageProcessor<'a> {
         };
         let connection = PgConnection::connect(&database_url)
             .await
-            .context("PgConnectio::connect()")?;
-        Ok(StorageProcessor {
-            conn: ConnectionHolder::Direct(connection),
-            in_transaction: false,
-        })
+            .context("PgConnection::connect()")?;
+        Ok(Connection::Direct(connection).into())
+    }
+}
+
+impl<Conn: Acquire> StorageProcessor<Conn> {
+    pub async fn acquire(&mut self) -> ConnectionRef<'_> {
+        self.0.acquire().await
     }
 
-    pub async fn start_transaction<'c: 'b, 'b>(&'c mut self) -> sqlx::Result<StorageProcessor<'b>> {
-        let transaction = self.conn().begin().await?;
-        let mut processor = StorageProcessor::from_transaction(transaction);
-        processor.in_transaction = true;
-        Ok(processor)
+    pub async fn start_transaction(&mut self) -> sqlx::Result<StorageProcessor<Transaction<'_>>> {
+        Ok(StorageProcessor(self.0.begin().await?))
     }
 
-    /// Checks if the `StorageProcessor` is currently within database transaction.
-    pub fn in_transaction(&self) -> bool {
-        self.in_transaction
-    }
-
-    pub fn from_transaction(conn: Transaction<'a, Postgres>) -> Self {
-        Self {
-            conn: ConnectionHolder::Transaction(conn),
-            in_transaction: true,
-        }
-    }
-
-    pub fn from_test_transaction(conn: TestPoolLock) -> StorageProcessor<'static> {
-        StorageProcessor {
-            conn: ConnectionHolder::TestTransaction(conn),
-            in_transaction: true,
-        }
-    }
-
-    pub async fn commit(self) -> sqlx::Result<()> {
-        if let ConnectionHolder::Transaction(transaction) = self.conn {
-            transaction.commit().await
-        } else {
-            panic!("StorageProcessor::commit can only be invoked after calling StorageProcessor::begin_transaction");
-        }
-    }
-
-    /// Creates a `StorageProcessor` using a pool of connections.
-    /// This method borrows one of the connections from the pool, and releases it
-    /// after `drop`.
-    pub fn from_pool(conn: PoolConnection<Postgres>) -> Self {
-        Self {
-            conn: ConnectionHolder::Pooled(conn),
-            in_transaction: false,
-        }
-    }
-
-    fn conn(&mut self) -> &mut PgConnection {
-        match &mut self.conn {
-            ConnectionHolder::Pooled(conn) => conn,
-            ConnectionHolder::Direct(conn) => conn,
-            ConnectionHolder::Transaction(conn) => conn,
-            ConnectionHolder::TestTransaction(conn) => conn.as_connection(),
-        }
-    }
-
-    pub fn transactions_dal(&mut self) -> TransactionsDal<'_, 'a> {
+    pub fn transactions_dal(&mut self) -> TransactionsDal<Conn> {
         TransactionsDal { storage: self }
     }
 
-    pub fn transactions_web3_dal(&mut self) -> TransactionsWeb3Dal<'_, 'a> {
+    pub fn transactions_web3_dal(&mut self) -> TransactionsWeb3Dal<Conn> {
         TransactionsWeb3Dal { storage: self }
     }
 
-    pub fn accounts_dal(&mut self) -> AccountsDal<'_, 'a> {
+    pub fn accounts_dal(&mut self) -> AccountsDal<Conn> {
         AccountsDal { storage: self }
     }
 
-    pub fn blocks_dal(&mut self) -> BlocksDal<'_, 'a> {
+    pub fn blocks_dal(&mut self) -> BlocksDal<Conn> {
         BlocksDal { storage: self }
     }
 
-    pub fn blocks_web3_dal(&mut self) -> BlocksWeb3Dal<'_, 'a> {
+    pub fn blocks_web3_dal(&mut self) -> BlocksWeb3Dal<Conn> {
         BlocksWeb3Dal { storage: self }
     }
 
-    pub fn eth_sender_dal(&mut self) -> EthSenderDal<'_, 'a> {
+    pub fn eth_sender_dal(&mut self) -> EthSenderDal<Conn> {
         EthSenderDal { storage: self }
     }
 
-    pub fn events_dal(&mut self) -> EventsDal<'_, 'a> {
+    pub fn events_dal(&mut self) -> EventsDal<Conn> {
         EventsDal { storage: self }
     }
 
-    pub fn events_web3_dal(&mut self) -> EventsWeb3Dal<'_, 'a> {
+    pub fn events_web3_dal(&mut self) -> EventsWeb3Dal<Conn> {
         EventsWeb3Dal { storage: self }
     }
 
-    pub fn storage_dal(&mut self) -> StorageDal<'_, 'a> {
+    pub fn storage_dal(&mut self) -> StorageDal<Conn> {
         StorageDal { storage: self }
     }
 
-    pub fn storage_web3_dal(&mut self) -> StorageWeb3Dal<'_, 'a> {
+    pub fn storage_web3_dal(&mut self) -> StorageWeb3Dal<Conn> {
         StorageWeb3Dal { storage: self }
     }
 
-    pub fn storage_logs_dal(&mut self) -> StorageLogsDal<'_, 'a> {
+    pub fn storage_logs_dal(&mut self) -> StorageLogsDal<Conn> {
         StorageLogsDal { storage: self }
     }
 
-    pub fn storage_logs_dedup_dal(&mut self) -> StorageLogsDedupDal<'_, 'a> {
+    pub fn storage_logs_dedup_dal(&mut self) -> StorageLogsDedupDal<Conn> {
         StorageLogsDedupDal { storage: self }
     }
 
-    pub fn tokens_dal(&mut self) -> TokensDal<'_, 'a> {
+    pub fn tokens_dal(&mut self) -> TokensDal<Conn> {
         TokensDal { storage: self }
     }
 
-    pub fn tokens_web3_dal(&mut self) -> TokensWeb3Dal<'_, 'a> {
+    pub fn tokens_web3_dal(&mut self) -> TokensWeb3Dal<Conn> {
         TokensWeb3Dal { storage: self }
     }
 
-    pub fn prover_dal(&mut self) -> ProverDal<'_, 'a> {
+    pub fn prover_dal(&mut self) -> ProverDal<Conn> {
         ProverDal { storage: self }
     }
 
-    pub fn witness_generator_dal(&mut self) -> WitnessGeneratorDal<'_, 'a> {
+    pub fn witness_generator_dal(&mut self) -> WitnessGeneratorDal<Conn> {
         WitnessGeneratorDal { storage: self }
     }
 
-    pub fn contract_verification_dal(&mut self) -> ContractVerificationDal<'_, 'a> {
+    pub fn contract_verification_dal(&mut self) -> ContractVerificationDal<Conn> {
         ContractVerificationDal { storage: self }
     }
 
-    pub fn gpu_prover_queue_dal(&mut self) -> GpuProverQueueDal<'_, 'a> {
+    pub fn gpu_prover_queue_dal(&mut self) -> GpuProverQueueDal<Conn> {
         GpuProverQueueDal { storage: self }
     }
 
-    pub fn protocol_versions_dal(&mut self) -> ProtocolVersionsDal<'_, 'a> {
+    pub fn protocol_versions_dal(&mut self) -> ProtocolVersionsDal<Conn> {
         ProtocolVersionsDal { storage: self }
     }
 
-    pub fn protocol_versions_web3_dal(&mut self) -> ProtocolVersionsWeb3Dal<'_, 'a> {
+    pub fn protocol_versions_web3_dal(&mut self) -> ProtocolVersionsWeb3Dal<Conn> {
         ProtocolVersionsWeb3Dal { storage: self }
     }
 
-    pub fn fri_witness_generator_dal(&mut self) -> FriWitnessGeneratorDal<'_, 'a> {
+    pub fn fri_witness_generator_dal(&mut self) -> FriWitnessGeneratorDal<Conn> {
         FriWitnessGeneratorDal { storage: self }
     }
 
-    pub fn fri_prover_jobs_dal(&mut self) -> FriProverDal<'_, 'a> {
+    pub fn fri_prover_jobs_dal(&mut self) -> FriProverDal<Conn> {
         FriProverDal { storage: self }
     }
 
-    pub fn sync_dal(&mut self) -> SyncDal<'_, 'a> {
+    pub fn sync_dal(&mut self) -> SyncDal<Conn> {
         SyncDal { storage: self }
     }
 
     pub fn fri_scheduler_dependency_tracker_dal(
         &mut self,
-    ) -> FriSchedulerDependencyTrackerDal<'_, 'a> {
+    ) -> FriSchedulerDependencyTrackerDal<Conn> {
         FriSchedulerDependencyTrackerDal { storage: self }
     }
 
-    pub fn proof_generation_dal(&mut self) -> ProofGenerationDal<'_, 'a> {
+    pub fn proof_generation_dal(&mut self) -> ProofGenerationDal<Conn> {
         ProofGenerationDal { storage: self }
     }
 
-    pub fn fri_gpu_prover_queue_dal(&mut self) -> FriGpuProverQueueDal<'_, 'a> {
+    pub fn fri_gpu_prover_queue_dal(&mut self) -> FriGpuProverQueueDal<Conn> {
         FriGpuProverQueueDal { storage: self }
     }
 
-    pub fn fri_protocol_versions_dal(&mut self) -> FriProtocolVersionsDal<'_, 'a> {
+    pub fn fri_protocol_versions_dal(&mut self) -> FriProtocolVersionsDal<Conn> {
         FriProtocolVersionsDal { storage: self }
     }
 
-    pub fn fri_proof_compressor_dal(&mut self) -> FriProofCompressorDal<'_, 'a> {
+    pub fn fri_proof_compressor_dal(&mut self) -> FriProofCompressorDal<Conn> {
         FriProofCompressorDal { storage: self }
     }
 
-    pub fn system_dal(&mut self) -> SystemDal<'_, 'a> {
+    pub fn system_dal(&mut self) -> SystemDal<Conn> {
         SystemDal { storage: self }
     }
 }

@@ -1,18 +1,18 @@
 use std::collections::HashMap;
 
+use crate::connection::holder::Acquire;
+use crate::{SqlxError, StorageProcessor};
 use zksync_types::{
     tokens::ETHEREUM_ADDRESS, utils::storage_key_for_standard_token_balance, AccountTreeId,
     Address, L2_ETH_TOKEN_ADDRESS, U256,
 };
 
-use crate::{SqlxError, StorageProcessor};
-
 #[derive(Debug)]
-pub struct AccountsDal<'a, 'c> {
-    pub(super) storage: &'a mut StorageProcessor<'c>,
+pub struct AccountsDal<'a, Conn: Acquire> {
+    pub(super) storage: &'a mut StorageProcessor<Conn>,
 }
 
-impl AccountsDal<'_, '_> {
+impl<'a, Conn: Acquire> AccountsDal<'a, Conn> {
     pub async fn get_balances_for_address(
         &mut self,
         address: Address,
@@ -56,7 +56,7 @@ impl AccountsDal<'_, '_> {
             ETHEREUM_ADDRESS.as_bytes(),
             vec![0u8; 32]
         )
-        .fetch_all(self.storage.conn())
+        .fetch_all(self.storage.acquire().await.as_conn())
         .await?;
 
         let result: HashMap<Address, U256> = rows

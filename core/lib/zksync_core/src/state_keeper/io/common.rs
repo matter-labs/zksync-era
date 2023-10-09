@@ -68,7 +68,7 @@ pub(crate) fn poll_iters(delay_interval: Duration, max_wait: Duration) -> usize 
 
 /// Loads the pending L1 block data from the database.
 pub(crate) async fn load_pending_batch(
-    storage: &mut StorageProcessor<'_>,
+    storage: &mut StorageProcessor,
     current_l1_batch_number: L1BatchNumber,
     fee_account: Address,
     validation_computational_gas_limit: u32,

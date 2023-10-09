@@ -257,7 +257,7 @@ mod tests {
             .instrument("erroneous")
             .with_arg("miniblock", &MiniblockNumber(1))
             .with_arg("hash", &H256::zero())
-            .fetch_optional(conn.conn())
+            .fetch_optional(conn.acquire().await.as_conn())
             .await
             .unwrap_err();
     }
@@ -272,7 +272,7 @@ mod tests {
             .instrument("slow")
             .with_arg("miniblock", &MiniblockNumber(1))
             .with_arg("hash", &H256::zero())
-            .fetch_optional(conn.conn())
+            .fetch_optional(conn.acquire().await.as_conn())
             .await
             .unwrap();
     }

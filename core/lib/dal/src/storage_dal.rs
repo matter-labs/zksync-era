@@ -6,14 +6,15 @@ use zksync_contracts::{BaseSystemContracts, SystemContractCode};
 use zksync_types::{MiniblockNumber, StorageKey, StorageLog, StorageValue, H256, U256};
 use zksync_utils::{bytes_to_be_words, bytes_to_chunks};
 
+use crate::connection::holder::Acquire;
 use crate::{instrument::InstrumentExt, StorageProcessor};
 
 #[derive(Debug)]
-pub struct StorageDal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+pub struct StorageDal<'a, Conn: Acquire> {
+    pub(crate) storage: &'a mut StorageProcessor<Conn>,
 }
 
-impl StorageDal<'_, '_> {
+impl<'a, Conn: Acquire> StorageDal<'a, Conn> {
     /// Inserts factory dependencies for a miniblock. Factory deps are specified as a map of
     /// `(bytecode_hash, bytecode)` entries.
     pub async fn insert_factory_deps(
@@ -38,7 +39,7 @@ impl StorageDal<'_, '_> {
             &bytecodes as &[&[u8]],
             block_number.0 as i64,
         )
-        .execute(self.storage.conn())
+        .execute(self.storage.acquire().await.as_conn())
         .await
         .unwrap();
     }
@@ -49,7 +50,7 @@ impl StorageDal<'_, '_> {
             "SELECT bytecode FROM factory_deps WHERE bytecode_hash = $1",
             hash.as_bytes(),
         )
-        .fetch_optional(self.storage.conn())
+        .fetch_optional(self.storage.acquire().await.as_conn())
         .await
         .unwrap()
         .map(|row| row.bytecode)
@@ -95,7 +96,7 @@ impl StorageDal<'_, '_> {
             "SELECT bytecode, bytecode_hash FROM factory_deps WHERE bytecode_hash = ANY($1)",
             &hashes_as_bytes as &[&[u8]],
         )
-        .fetch_all(self.storage.conn())
+        .fetch_all(self.storage.acquire().await.as_conn())
         .await
         .unwrap()
         .into_iter()
@@ -118,7 +119,7 @@ impl StorageDal<'_, '_> {
             "SELECT bytecode_hash FROM factory_deps WHERE miniblock_number > $1",
             block_number.0 as i64
         )
-        .fetch_all(self.storage.conn())
+        .fetch_all(self.storage.acquire().await.as_conn())
         .await
         .unwrap()
         .into_iter()
@@ -172,7 +173,7 @@ impl StorageDal<'_, '_> {
             &values as &[&[u8]],
             &tx_hashes as &[&[u8]],
         )
-        .execute(self.storage.conn())
+        .execute(self.storage.acquire().await.as_conn())
         .await
         .unwrap();
 
@@ -190,7 +191,7 @@ impl StorageDal<'_, '_> {
         .instrument("get_by_key")
         .report_latency()
         .with_arg("key", &hashed_key)
-        .fetch_optional(self.storage.conn())
+        .fetch_optional(self.storage.acquire().await.as_conn())
         .await
         .unwrap()
         .map(|row| H256::from_slice(&row.value))
@@ -202,7 +203,7 @@ impl StorageDal<'_, '_> {
             "DELETE FROM factory_deps WHERE miniblock_number > $1",
             block_number.0 as i64
         )
-        .execute(self.storage.conn())
+        .execute(self.storage.acquire().await.as_conn())
         .await
         .unwrap();
     }

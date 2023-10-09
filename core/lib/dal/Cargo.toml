@@ -17,6 +17,7 @@ zksync_contracts = { path = "../contracts" }
 zksync_types = { path = "../types" }
 zksync_health_check = { path = "../health_check" }
 
+async-trait = "0.1"
 itertools = "0.10.1"
 thiserror = "1.0"
 anyhow = "1.0"

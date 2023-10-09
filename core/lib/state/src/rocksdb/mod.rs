@@ -80,7 +80,7 @@ impl RocksdbStorage {
     ///
     /// Panics if the local L1 batch number is greater than the last sealed L1 batch number
     /// in Postgres.
-    pub async fn update_from_postgres(&mut self, conn: &mut StorageProcessor<'_>) {
+    pub async fn update_from_postgres(&mut self, conn: &mut StorageProcessor) {
         let latency = METRICS.update.start();
         let latest_l1_batch_number = conn
             .blocks_dal()
@@ -162,7 +162,7 @@ impl RocksdbStorage {
     /// Panics on RocksDB errors.
     pub async fn rollback(
         &mut self,
-        connection: &mut StorageProcessor<'_>,
+        connection: &mut StorageProcessor,
         last_l1_batch_to_keep: L1BatchNumber,
     ) {
         tracing::info!("Rolling back state keeper storage to L1 batch #{last_l1_batch_to_keep}...");
@@ -359,7 +359,7 @@ mod tests {
     }
 
     async fn insert_factory_deps(
-        conn: &mut StorageProcessor<'_>,
+        conn: &mut StorageProcessor,
         miniblock_number: MiniblockNumber,
         indices: impl Iterator<Item = u8>,
     ) {

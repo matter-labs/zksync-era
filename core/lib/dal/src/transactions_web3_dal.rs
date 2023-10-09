@@ -1,3 +1,4 @@
+use crate::connection::holder::Acquire;
 use sqlx::types::chrono::NaiveDateTime;
 
 use zksync_types::{
@@ -17,11 +18,11 @@ use crate::models::{
 use crate::{instrument::InstrumentExt, SqlxError, StorageProcessor};
 
 #[derive(Debug)]
-pub struct TransactionsWeb3Dal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+pub struct TransactionsWeb3Dal<'a, Conn: Acquire> {
+    pub(crate) storage: &'a mut StorageProcessor<Conn>,
 }
 
-impl TransactionsWeb3Dal<'_, '_> {
+impl<'a, Conn: Acquire> TransactionsWeb3Dal<'a, Conn> {
     pub async fn get_transaction_receipt(
         &mut self,
         hash: H256,
@@ -64,7 +65,7 @@ impl TransactionsWeb3Dal<'_, '_> {
             )
             .instrument("get_transaction_receipt")
             .with_arg("hash", &hash)
-            .fetch_optional(self.storage.conn())
+            .fetch_optional(self.storage.acquire().await.as_conn())
             .await?
             .map(|db_row| {
                 let status = match (db_row.block_number, db_row.error) {
@@ -139,7 +140,7 @@ impl TransactionsWeb3Dal<'_, '_> {
                     )
                     .instrument("get_transaction_receipt_events")
                     .with_arg("hash", &hash)
-                    .fetch_all(self.storage.conn())
+                    .fetch_all(self.storage.acquire().await.as_conn())
                     .await?
                     .into_iter()
                     .map(|storage_log| {
@@ -207,7 +208,7 @@ impl TransactionsWeb3Dal<'_, '_> {
         };
 
         let tx = query
-            .fetch_optional(self.storage.conn())
+            .fetch_optional(self.storage.acquire().await.as_conn())
             .await?
             .map(|row| extract_web3_transaction(row, chain_id));
         Ok(tx)
@@ -245,7 +246,7 @@ impl TransactionsWeb3Dal<'_, '_> {
             )
             .instrument("get_transaction_details")
             .with_arg("hash", &hash)
-            .fetch_optional(self.storage.conn())
+            .fetch_optional(self.storage.acquire().await.as_conn())
             .await?;
 
             let tx = storage_tx_details.map(|tx_details| tx_details.into());
@@ -270,7 +271,7 @@ impl TransactionsWeb3Dal<'_, '_> {
             from_timestamp,
             limit.map(|limit| limit as i64)
         )
-        .fetch_all(self.storage.conn())
+        .fetch_all(self.storage.acquire().await.as_conn())
         .await?;
 
         let last_loc = records.last().map(|record| record.received_at);
@@ -312,7 +313,7 @@ impl TransactionsWeb3Dal<'_, '_> {
             initiator_address.as_bytes(),
             latest_nonce as i64
         )
-        .fetch_all(self.storage.conn())
+        .fetch_all(self.storage.acquire().await.as_conn())
         .await?
         .into_iter()
         .map(|row| row.nonce as u64)
@@ -344,7 +345,7 @@ impl TransactionsWeb3Dal<'_, '_> {
             ORDER BY index_in_block",
             miniblock.0 as i64
         )
-        .fetch_all(self.storage.conn())
+        .fetch_all(self.storage.acquire().await.as_conn())
         .await?;
 
         Ok(rows.into_iter().map(Into::into).collect())
@@ -364,7 +365,7 @@ mod tests {
         ConnectionPool,
     };
 
-    async fn prepare_transaction(conn: &mut StorageProcessor<'_>, tx: L2Tx) {
+    async fn prepare_transaction(conn: &mut StorageProcessor, tx: L2Tx) {
         conn.blocks_dal()
             .delete_miniblocks(MiniblockNumber(0))
             .await

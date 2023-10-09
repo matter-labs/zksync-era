@@ -1,5 +1,6 @@
 use sqlx::Row;
 
+use crate::connection::holder::Acquire;
 use std::convert::TryFrom;
 use std::{collections::HashMap, time::Duration};
 
@@ -19,8 +20,8 @@ use crate::{
 };
 
 #[derive(Debug)]
-pub struct FriWitnessGeneratorDal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+pub struct FriWitnessGeneratorDal<'a, Conn: Acquire> {
+    pub(crate) storage: &'a mut StorageProcessor<Conn>,
 }
 
 #[derive(Debug, strum::Display, strum::EnumString, strum::AsRefStr)]
@@ -37,7 +38,7 @@ pub enum FriWitnessJobStatus {
     Queued,
 }
 
-impl FriWitnessGeneratorDal<'_, '_> {
+impl<'a, Conn: Acquire> FriWitnessGeneratorDal<'a, Conn> {
     pub async fn save_witness_inputs(
         &mut self,
         block_number: L1BatchNumber,
@@ -52,7 +53,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 object_key,
                 protocol_version_id as i32,
             )
-                .fetch_optional(self.storage.conn())
+                .fetch_optional(self.storage.acquire().await.as_conn())
                 .await
                 .unwrap();
     }
@@ -87,7 +88,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             &protocol_versions[..],
             picked_by,
         )
-        .fetch_optional(self.storage.conn())
+        .fetch_optional(self.storage.acquire().await.as_conn())
         .await
         .unwrap()
         .map(|row| L1BatchNumber(row.l1_batch_number as u32));
@@ -107,7 +108,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             format!("{}", status),
             block_number.0 as i64
         )
-        .execute(self.storage.conn())
+        .execute(self.storage.acquire().await.as_conn())
         .await
         .unwrap();
     }
@@ -126,7 +127,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             duration_to_naive_time(time_taken),
             block_number.0 as i64
         )
-        .execute(self.storage.conn())
+        .execute(self.storage.acquire().await.as_conn())
         .await
         .unwrap();
     }
@@ -140,7 +141,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             error,
             block_number.0 as i64
         )
-        .execute(self.storage.conn())
+        .execute(self.storage.acquire().await.as_conn())
         .await
         .unwrap();
     }
@@ -155,7 +156,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             error,
             id as i64
         )
-        .execute(self.storage.conn())
+        .execute(self.storage.acquire().await.as_conn())
         .await
         .unwrap();
     }
@@ -170,7 +171,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             duration_to_naive_time(time_taken),
             id as i64
         )
-        .execute(self.storage.conn())
+        .execute(self.storage.acquire().await.as_conn())
         .await
         .unwrap();
     }
@@ -193,7 +194,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 &processing_timeout,
                 max_attempts as i32,
             )
-            .fetch_all(self.storage.conn())
+            .fetch_all(self.storage.acquire().await.as_conn())
             .await
             .unwrap()
             .into_iter()
@@ -228,7 +229,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                     *number_of_basic_circuits as i32,
                     protocol_version_id as i32,
                 )
-                .execute(self.storage.conn())
+                .execute(self.storage.acquire().await.as_conn())
                 .await
                 .unwrap();
 
@@ -255,7 +256,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 scheduler_partial_input_blob_url,
                 protocol_version_id as i32,
             )
-            .execute(self.storage.conn())
+            .execute(self.storage.acquire().await.as_conn())
             .await
             .unwrap();
 
@@ -269,7 +270,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                     ",
                 block_number.0 as i64,
             )
-            .execute(self.storage.conn())
+            .execute(self.storage.acquire().await.as_conn())
             .await
             .unwrap();
 
@@ -304,7 +305,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             &protocol_versions[..],
             picked_by,
         )
-        .fetch_optional(self.storage.conn())
+        .fetch_optional(self.storage.acquire().await.as_conn())
         .await
         .unwrap()?;
 
@@ -347,7 +348,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             round as i16,
             depth as i32,
         )
-        .fetch_all(self.storage.conn())
+        .fetch_all(self.storage.acquire().await.as_conn())
         .await
         .unwrap()
         .into_iter()
@@ -374,7 +375,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 RETURNING l1_batch_number, circuit_id;
             "#,
         )
-        .fetch_all(self.storage.conn())
+        .fetch_all(self.storage.acquire().await.as_conn())
         .await
         .unwrap()
         .into_iter()
@@ -404,7 +405,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             depth as i32,
             number_of_dependent_jobs as i32,
         )
-        .execute(self.storage.conn())
+        .execute(self.storage.acquire().await.as_conn())
         .await
         .unwrap();
     }
@@ -436,7 +437,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             &protocol_versions[..],
             picked_by,
         )
-        .fetch_optional(self.storage.conn())
+        .fetch_optional(self.storage.acquire().await.as_conn())
         .await
         .unwrap()?;
         let depth = row.depth as u16;
@@ -471,7 +472,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             error,
             id as i64
         )
-        .execute(self.storage.conn())
+        .execute(self.storage.acquire().await.as_conn())
         .await
         .unwrap();
     }
@@ -486,7 +487,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             duration_to_naive_time(time_taken),
             id as i64
         )
-        .execute(self.storage.conn())
+        .execute(self.storage.acquire().await.as_conn())
         .await
         .unwrap();
     }
@@ -512,7 +513,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 number_of_dependent_jobs,
                 protocol_version_id as i32,
             )
-            .fetch_optional(self.storage.conn())
+            .fetch_optional(self.storage.acquire().await.as_conn())
             .await
             .unwrap();
     }
@@ -538,7 +539,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 RETURNING l1_batch_number, circuit_id, depth;
             "#,
         )
-        .fetch_all(self.storage.conn())
+        .fetch_all(self.storage.acquire().await.as_conn())
         .await
         .unwrap()
         .into_iter()
@@ -566,7 +567,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 RETURNING l1_batch_number, circuit_id, depth;
             "#,
         )
-        .fetch_all(self.storage.conn())
+        .fetch_all(self.storage.acquire().await.as_conn())
         .await
         .unwrap()
         .into_iter()
@@ -591,7 +592,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 &processing_timeout,
                 max_attempts as i32,
         )
-        .fetch_all(self.storage.conn())
+        .fetch_all(self.storage.acquire().await.as_conn())
         .await
         .unwrap()
         .into_iter()
@@ -616,7 +617,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 &processing_timeout,
                 max_attempts as i32,
         )
-        .fetch_all(self.storage.conn())
+        .fetch_all(self.storage.acquire().await.as_conn())
         .await
         .unwrap()
         .into_iter()
@@ -635,7 +636,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             "#,
             l1_batch_number
         )
-        .execute(self.storage.conn())
+        .execute(self.storage.acquire().await.as_conn())
         .await
         .unwrap();
     }
@@ -657,7 +658,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 &processing_timeout,
                 max_attempts as i32,
         )
-        .fetch_all(self.storage.conn())
+        .fetch_all(self.storage.acquire().await.as_conn())
         .await
         .unwrap()
         .into_iter()
@@ -692,7 +693,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             &protocol_versions[..],
             picked_by,
         )
-        .fetch_optional(self.storage.conn())
+        .fetch_optional(self.storage.acquire().await.as_conn())
         .await
         .unwrap()
         .map(|row| L1BatchNumber(row.l1_batch_number as u32));
@@ -713,7 +714,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             duration_to_naive_time(time_taken),
             block_number.0 as i64
         )
-        .execute(self.storage.conn())
+        .execute(self.storage.acquire().await.as_conn())
         .await
         .unwrap();
     }
@@ -728,7 +729,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             error,
             block_number.0 as i64
         )
-        .execute(self.storage.conn())
+        .execute(self.storage.acquire().await.as_conn())
         .await
         .unwrap();
     }
@@ -747,7 +748,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             table_name
         );
         let mut results: HashMap<String, i64> = sqlx::query(&sql)
-            .fetch_all(self.storage.conn())
+            .fetch_all(self.storage.acquire().await.as_conn())
             .await
             .unwrap()
             .into_iter()
@@ -781,7 +782,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
              WHERE l1_batch_number = $1",
             l1_batch_number.0 as i64,
         )
-        .fetch_one(self.storage.conn())
+        .fetch_one(self.storage.acquire().await.as_conn())
         .await
         .unwrap()
         .protocol_version

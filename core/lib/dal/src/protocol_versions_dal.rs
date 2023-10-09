@@ -1,3 +1,4 @@
+use crate::connection::holder::Acquire;
 use std::convert::{TryFrom, TryInto};
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes};
 use zksync_types::{
@@ -11,11 +12,11 @@ use crate::models::storage_protocol_version::{
 use crate::StorageProcessor;
 
 #[derive(Debug)]
-pub struct ProtocolVersionsDal<'a, 'c> {
-    pub storage: &'a mut StorageProcessor<'c>,
+pub struct ProtocolVersionsDal<'a, Conn: Acquire> {
+    pub storage: &'a mut StorageProcessor<Conn>,
 }
 
-impl ProtocolVersionsDal<'_, '_> {
+impl<'a, Conn: Acquire> ProtocolVersionsDal<'a, Conn> {
     pub async fn save_protocol_version(
         &mut self,
         id: ProtocolVersionId,
@@ -42,7 +43,7 @@ impl ProtocolVersionsDal<'_, '_> {
                 verifier_address.as_bytes(),
                 tx_hash.map(|tx_hash| tx_hash.0.to_vec()),
             )
-            .execute(self.storage.conn())
+            .execute(self.storage.acquire().await.as_conn())
             .await
             .unwrap();
     }
@@ -88,7 +89,7 @@ impl ProtocolVersionsDal<'_, '_> {
                 version.l1_verifier_config.params.recursion_circuits_set_vks_hash.as_bytes(),
                 version.verifier_address.as_bytes(),
             )
-            .execute(self.storage.conn())
+            .execute(self.storage.acquire().await.as_conn())
             .await
             .unwrap();
     }
@@ -105,7 +106,7 @@ impl ProtocolVersionsDal<'_, '_> {
             ",
             current_timestamp as i64
         )
-        .fetch_one(self.storage.conn())
+        .fetch_one(self.storage.acquire().await.as_conn())
         .await
         .unwrap();
         let contracts = self
@@ -129,7 +130,7 @@ impl ProtocolVersionsDal<'_, '_> {
             ",
             version_id as i32
         )
-        .fetch_optional(self.storage.conn())
+        .fetch_optional(self.storage.acquire().await.as_conn())
         .await
         .unwrap();
         if let Some(row) = row {
@@ -160,7 +161,7 @@ impl ProtocolVersionsDal<'_, '_> {
             ",
             version_id as i32
         )
-        .fetch_optional(self.storage.conn())
+        .fetch_optional(self.storage.acquire().await.as_conn())
         .await
         .unwrap()?;
         let tx = self
@@ -179,7 +180,7 @@ impl ProtocolVersionsDal<'_, '_> {
             "SELECT * FROM protocol_versions WHERE id = $1",
             version_id as i32
         )
-        .fetch_optional(self.storage.conn())
+        .fetch_optional(self.storage.acquire().await.as_conn())
         .await
         .unwrap()?;
         let tx = self.get_protocol_upgrade_tx(version_id).await;
@@ -198,7 +199,7 @@ impl ProtocolVersionsDal<'_, '_> {
             ",
             version_id as i32
         )
-            .fetch_optional(self.storage.conn())
+            .fetch_optional(self.storage.acquire().await.as_conn())
             .await
             .unwrap()?;
         Some(L1VerifierConfig {
@@ -217,7 +218,7 @@ impl ProtocolVersionsDal<'_, '_> {
 
     pub async fn last_version_id(&mut self) -> Option<ProtocolVersionId> {
         let id = sqlx::query!(r#"SELECT MAX(id) as "max?" FROM protocol_versions"#)
-            .fetch_optional(self.storage.conn())
+            .fetch_optional(self.storage.acquire().await.as_conn())
             .await
             .unwrap()?
             .max?;
@@ -226,7 +227,7 @@ impl ProtocolVersionsDal<'_, '_> {
 
     pub async fn all_version_ids(&mut self) -> Vec<ProtocolVersionId> {
         let rows = sqlx::query!("SELECT id FROM protocol_versions")
-            .fetch_all(self.storage.conn())
+            .fetch_all(self.storage.acquire().await.as_conn())
             .await
             .unwrap();
         rows.into_iter()
@@ -245,7 +246,7 @@ impl ProtocolVersionsDal<'_, '_> {
             ",
             protocol_version_id as i32
         )
-        .fetch_optional(self.storage.conn())
+        .fetch_optional(self.storage.acquire().await.as_conn())
         .await
         .unwrap()?;
         if let Some(hash) = row.upgrade_tx_hash {
@@ -295,7 +296,7 @@ impl ProtocolVersionsDal<'_, '_> {
                 .as_bytes(),
             vk_commitments.recursion_scheduler_level_vk_hash.as_bytes(),
         )
-        .fetch_all(self.storage.conn())
+        .fetch_all(self.storage.acquire().await.as_conn())
         .await
         .unwrap()
         .into_iter()
@@ -309,7 +310,7 @@ impl ProtocolVersionsDal<'_, '_> {
             WHERE id = $1",
             id as i32
         )
-        .fetch_one(self.storage.conn())
+        .fetch_one(self.storage.acquire().await.as_conn())
         .await
         .unwrap()
         .count

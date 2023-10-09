@@ -1,12 +1,13 @@
+use crate::connection::holder::Acquire;
 use crate::StorageProcessor;
 use zksync_types::L1BatchNumber;
 
 #[derive(Debug)]
-pub struct FriSchedulerDependencyTrackerDal<'a, 'c> {
-    pub storage: &'a mut StorageProcessor<'c>,
+pub struct FriSchedulerDependencyTrackerDal<'a, Conn: Acquire> {
+    pub storage: &'a mut StorageProcessor<Conn>,
 }
 
-impl FriSchedulerDependencyTrackerDal<'_, '_> {
+impl<'a, Conn: Acquire> FriSchedulerDependencyTrackerDal<'a, Conn> {
     pub async fn get_l1_batches_ready_for_queuing(&mut self) -> Vec<i64> {
         sqlx::query!(
             r#"
@@ -32,7 +33,7 @@ impl FriSchedulerDependencyTrackerDal<'_, '_> {
                 RETURNING l1_batch_number;
             "#,
         )
-        .fetch_all(self.storage.conn())
+        .fetch_all(self.storage.acquire().await.as_conn())
         .await
         .unwrap()
         .into_iter()
@@ -49,7 +50,7 @@ impl FriSchedulerDependencyTrackerDal<'_, '_> {
                 "#,
             &l1_batches[..]
         )
-        .execute(self.storage.conn())
+        .execute(self.storage.acquire().await.as_conn())
         .await
         .unwrap();
     }
@@ -71,7 +72,7 @@ impl FriSchedulerDependencyTrackerDal<'_, '_> {
         sqlx::query(&query)
             .bind(final_prover_job_id as i64)
             .bind(l1_batch_number.0 as i64)
-            .execute(self.storage.conn())
+            .execute(self.storage.acquire().await.as_conn())
             .await
             .unwrap();
     }
@@ -87,7 +88,7 @@ impl FriSchedulerDependencyTrackerDal<'_, '_> {
                "#,
             l1_batch_number.0 as i64,
         )
-        .fetch_all(self.storage.conn())
+        .fetch_all(self.storage.acquire().await.as_conn())
         .await
         .unwrap()
         .into_iter()

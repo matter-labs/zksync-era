@@ -3,14 +3,15 @@ use std::convert::TryFrom;
 use zksync_types::protocol_version::FriProtocolVersionId;
 use zksync_types::protocol_version::L1VerifierConfig;
 
+use crate::connection::holder::Acquire;
 use crate::StorageProcessor;
 
 #[derive(Debug)]
-pub struct FriProtocolVersionsDal<'a, 'c> {
-    pub storage: &'a mut StorageProcessor<'c>,
+pub struct FriProtocolVersionsDal<'a, Conn: Acquire> {
+    pub storage: &'a mut StorageProcessor<Conn>,
 }
 
-impl FriProtocolVersionsDal<'_, '_> {
+impl<'a, Conn: Acquire> FriProtocolVersionsDal<'a, Conn> {
     pub async fn save_prover_protocol_version(
         &mut self,
         id: FriProtocolVersionId,
@@ -39,7 +40,7 @@ impl FriProtocolVersionsDal<'_, '_> {
                 .recursion_circuits_set_vks_hash
                 .as_bytes(),
         )
-        .execute(self.storage.conn())
+        .execute(self.storage.acquire().await.as_conn())
         .await
         .unwrap();
     }
@@ -70,7 +71,7 @@ impl FriProtocolVersionsDal<'_, '_> {
                 .as_bytes(),
             vk_commitments.recursion_scheduler_level_vk_hash.as_bytes(),
         )
-        .fetch_all(self.storage.conn())
+        .fetch_all(self.storage.acquire().await.as_conn())
         .await
         .unwrap()
         .into_iter()

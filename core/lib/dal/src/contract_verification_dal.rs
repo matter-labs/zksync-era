@@ -11,13 +11,14 @@ use zksync_types::{
 
 use sqlx::postgres::types::PgInterval;
 
+use crate::connection::holder::Acquire;
 use crate::models::storage_verification_request::StorageVerificationRequest;
 use crate::SqlxError;
 use crate::StorageProcessor;
 
 #[derive(Debug)]
-pub struct ContractVerificationDal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+pub struct ContractVerificationDal<'a, Conn: Acquire> {
+    pub(crate) storage: &'a mut StorageProcessor<Conn>,
 }
 
 #[derive(Debug)]
@@ -39,7 +40,7 @@ impl Display for Compiler {
     }
 }
 
-impl ContractVerificationDal<'_, '_> {
+impl<'a, Conn: Acquire> ContractVerificationDal<'a, Conn> {
     pub async fn get_count_of_queued_verification_requests(&mut self) -> Result<usize, SqlxError> {
         {
             sqlx::query!(
@@ -49,7 +50,7 @@ impl ContractVerificationDal<'_, '_> {
                 WHERE status = 'queued'
                 "#
             )
-            .fetch_one(self.storage.conn())
+            .fetch_one(self.storage.acquire().await.as_conn())
             .await
             .map(|row| row.count as usize)
         }
@@ -89,7 +90,7 @@ impl ContractVerificationDal<'_, '_> {
                 query.constructor_arguments.0,
                 query.is_system,
             )
-            .fetch_one(self.storage.conn())
+            .fetch_one(self.storage.acquire().await.as_conn())
             .await
             .map(|row| row.id as usize)
         }
@@ -127,7 +128,7 @@ impl ContractVerificationDal<'_, '_> {
                 ",
                 &processing_timeout
             )
-            .fetch_optional(self.storage.conn())
+            .fetch_optional(self.storage.acquire().await.as_conn())
             .await?
             .map(Into::into);
             Ok(result)
@@ -150,7 +151,7 @@ impl ContractVerificationDal<'_, '_> {
                 ",
                 verification_info.request.id as i64,
             )
-            .execute(transaction.conn())
+            .execute(transaction.acquire().await.as_conn())
             .await?;
 
             let address = verification_info.request.req.contract_address;
@@ -167,7 +168,7 @@ impl ContractVerificationDal<'_, '_> {
                 address.as_bytes(),
                 &verification_info_json
             )
-            .execute(transaction.conn())
+            .execute(transaction.acquire().await.as_conn())
             .await?;
 
             transaction.commit().await.unwrap();
@@ -194,7 +195,7 @@ impl ContractVerificationDal<'_, '_> {
                 &compilation_errors,
                 panic_message
             )
-            .execute(self.storage.conn())
+            .execute(self.storage.acquire().await.as_conn())
             .await?;
             Ok(())
         }
@@ -212,7 +213,7 @@ impl ContractVerificationDal<'_, '_> {
                 ",
                 id as i64,
             )
-            .fetch_optional(self.storage.conn())
+            .fetch_optional(self.storage.acquire().await.as_conn())
             .await?
             .map(|row| VerificationRequestStatus {
                 status: row.status,
@@ -260,7 +261,7 @@ impl ContractVerificationDal<'_, '_> {
                 hashed_key.as_bytes(),
                 FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH.as_bytes()
             )
-            .fetch_optional(self.storage.conn())
+            .fetch_optional(self.storage.acquire().await.as_conn())
             .await?
             .map(|row| {
                 let calldata = match row.contract_address {
@@ -294,7 +295,7 @@ impl ContractVerificationDal<'_, '_> {
                 "#,
                 address.as_bytes()
             )
-            .fetch_one(self.storage.conn())
+            .fetch_one(self.storage.acquire().await.as_conn())
             .await
             .unwrap()
             .count;
@@ -312,7 +313,7 @@ impl ContractVerificationDal<'_, '_> {
                 "SELECT version FROM compiler_versions WHERE compiler = $1 ORDER by version",
                 &compiler
             )
-            .fetch_all(self.storage.conn())
+            .fetch_all(self.storage.acquire().await.as_conn())
             .await?
             .into_iter()
             .map(|row| row.version)
@@ -350,7 +351,7 @@ impl ContractVerificationDal<'_, '_> {
                 "DELETE FROM compiler_versions WHERE compiler = $1",
                 &compiler
             )
-            .execute(transaction.conn())
+            .execute(transaction.acquire().await.as_conn())
             .await?;
 
             sqlx::query!(
@@ -363,7 +364,7 @@ impl ContractVerificationDal<'_, '_> {
                 &versions,
                 &compiler,
             )
-            .execute(transaction.conn())
+            .execute(transaction.acquire().await.as_conn())
             .await?;
 
             transaction.commit().await.unwrap();
@@ -400,7 +401,7 @@ impl ContractVerificationDal<'_, '_> {
                 WHERE status = 'successful'
                 ORDER BY id",
             )
-            .fetch_all(self.storage.conn())
+            .fetch_all(self.storage.acquire().await.as_conn())
             .await?
             .into_iter()
             .map(Into::into)
@@ -417,7 +418,7 @@ impl ContractVerificationDal<'_, '_> {
             "SELECT verification_info FROM contracts_verification_info WHERE address = $1",
             address.as_bytes(),
         )
-        .fetch_optional(self.storage.conn())
+        .fetch_optional(self.storage.acquire().await.as_conn())
         .await?;
         Ok(row.and_then(|row| {
             row.verification_info

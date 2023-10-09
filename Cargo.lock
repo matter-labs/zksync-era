@@ -7838,6 +7838,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "assert_matches",
+ "async-trait",
  "bigdecimal",
  "bincode",
  "db_test_macro",

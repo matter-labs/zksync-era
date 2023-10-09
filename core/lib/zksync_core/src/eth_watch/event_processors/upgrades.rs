@@ -31,7 +31,7 @@ impl UpgradesEventProcessor {
 impl<W: EthClient + Sync> EventProcessor<W> for UpgradesEventProcessor {
     async fn process_events(
         &mut self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut StorageProcessor,
         client: &W,
         events: Vec<Log>,
     ) -> Result<(), Error> {

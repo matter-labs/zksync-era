@@ -114,7 +114,7 @@ impl TokenPriceFetcher {
 
     async fn store_token_prices(
         &self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut StorageProcessor,
         token_prices: HashMap<Address, TokenPrice>,
     ) {
         let mut tokens_dal = storage.tokens_dal();
@@ -125,7 +125,7 @@ impl TokenPriceFetcher {
 
     /// Returns the list of "interesting" tokens, e.g. ones that can be used to pay fees.
     /// We don't actually need prices for other tokens.
-    async fn get_tokens(&self, storage: &mut StorageProcessor<'_>) -> Vec<Address> {
+    async fn get_tokens(&self, storage: &mut StorageProcessor) -> Vec<Address> {
         storage
             .tokens_dal()
             .get_l1_tokens_by_volume(&self.minimum_required_liquidity)

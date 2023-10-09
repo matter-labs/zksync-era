@@ -102,8 +102,8 @@ impl TreeUpdater {
     /// is slow for whatever reason.
     async fn process_multiple_batches(
         &mut self,
-        storage: &mut StorageProcessor<'_>,
-        prover_storage: &mut StorageProcessor<'_>,
+        storage: &mut StorageProcessor,
+        prover_storage: &mut StorageProcessor,
         l1_batch_numbers: ops::RangeInclusive<u32>,
     ) -> L1BatchNumber {
         let start = Instant::now();
@@ -206,8 +206,8 @@ impl TreeUpdater {
 
     async fn step(
         &mut self,
-        mut storage: StorageProcessor<'_>,
-        mut prover_storage: StorageProcessor<'_>,
+        mut storage: StorageProcessor,
+        mut prover_storage: StorageProcessor,
         next_l1_batch_to_seal: &mut L1BatchNumber,
     ) {
         let last_sealed_l1_batch = storage
@@ -359,7 +359,7 @@ impl TreeUpdater {
     }
 
     async fn check_initial_writes_consistency(
-        connection: &mut StorageProcessor<'_>,
+        connection: &mut StorageProcessor,
         l1_batch_number: L1BatchNumber,
         tree_initial_writes: &[InitialStorageWrite],
     ) {

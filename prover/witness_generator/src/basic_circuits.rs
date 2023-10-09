@@ -582,7 +582,7 @@ async fn generate_witness(
         let connection = rt_handle.block_on(connection_pool.access_storage()).unwrap();
         let storage = PostgresStorage::new(rt_handle, connection, last_miniblock_number, true);
         let storage_view = StorageView::new(storage).to_rc_ptr();
-        let storage_oracle: StorageOracle<StorageView<PostgresStorage<'_>>, HistoryDisabled> =
+        let storage_oracle: StorageOracle<StorageView<PostgresStorage>, HistoryDisabled> =
             StorageOracle::new(storage_view.clone());
         zkevm_test_harness::external_calls::run_with_fixed_params(
             Address::zero(),

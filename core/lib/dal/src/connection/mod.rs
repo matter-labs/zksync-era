@@ -4,6 +4,7 @@ use sqlx::{
 };
 
 use anyhow::Context as _;
+use std::fmt;
 use std::time::Duration;
 
 use zksync_utils::parse_env;
@@ -11,7 +12,7 @@ use zksync_utils::parse_env;
 pub mod holder;
 pub mod test_pool;
 
-pub use self::test_pool::TestPool;
+use holder::Connection;
 
 use crate::{
     get_master_database_url, get_prover_database_url, get_replica_database_url,
@@ -89,10 +90,19 @@ impl ConnectionPoolBuilder {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub enum ConnectionPool {
     Real(PgPool),
-    Test(TestPool),
+    Test(test_pool::TestConnection),
+}
+
+impl fmt::Debug for ConnectionPool {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::Real(_) => write!(f, "Real connection pool"),
+            Self::Test(_) => write!(f, "Test connection pool"),
+        }
+    }
 }
 
 impl ConnectionPool {
@@ -123,7 +133,7 @@ impl ConnectionPool {
     ///
     /// This method is intended to be used in crucial contexts, where the
     /// database access is must-have (e.g. block committer).
-    pub async fn access_storage(&self) -> anyhow::Result<StorageProcessor<'_>> {
+    pub async fn access_storage(&self) -> anyhow::Result<StorageProcessor> {
         self.access_storage_inner(None).await
     }
 
@@ -135,14 +145,14 @@ impl ConnectionPool {
     pub async fn access_storage_tagged(
         &self,
         requester: &'static str,
-    ) -> anyhow::Result<StorageProcessor<'_>> {
+    ) -> anyhow::Result<StorageProcessor> {
         self.access_storage_inner(Some(requester)).await
     }
 
     async fn access_storage_inner(
         &self,
         requester: Option<&'static str>,
-    ) -> anyhow::Result<StorageProcessor<'_>> {
+    ) -> anyhow::Result<StorageProcessor> {
         Ok(match self {
             ConnectionPool::Real(real_pool) => {
                 let acquire_latency = CONNECTION_METRICS.acquire.start();
@@ -153,9 +163,9 @@ impl ConnectionPool {
                 if let Some(requester) = requester {
                     CONNECTION_METRICS.acquire_tagged[&requester].observe(elapsed);
                 }
-                StorageProcessor::from_pool(conn)
+                Connection::Pooled(conn).into()
             }
-            ConnectionPool::Test(test) => test.access_storage().await,
+            ConnectionPool::Test(test) => Connection::Test(test.clone()).into(),
         })
     }
 
@@ -198,13 +208,17 @@ impl ConnectionPool {
         CONNECTION_METRICS.pool_acquire_error[&err.into()].inc();
     }
 
-    pub async fn access_test_storage(&self) -> StorageProcessor<'static> {
+    pub async fn access_test_storage(&self) -> StorageProcessor {
         match self {
-            ConnectionPool::Test(test) => test.access_storage().await,
+            ConnectionPool::Test(test) => Connection::Test(test.clone()).into(),
             ConnectionPool::Real(_) => {
                 panic!("Attempt to access test storage with the real pool");
             }
         }
+    }
+
+    pub async fn test_pool() -> ConnectionPool {
+        ConnectionPool::Test(test_pool::TestConnection::new().await)
     }
 }
 
@@ -229,7 +243,7 @@ mod tests {
         let mut conn = pool.access_storage().await.unwrap();
         let err = sqlx::query("SELECT pg_sleep(2)")
             .map(drop)
-            .fetch_optional(conn.conn())
+            .fetch_optional(conn.acquire().await.as_conn())
             .await
             .unwrap_err();
         assert_matches!(

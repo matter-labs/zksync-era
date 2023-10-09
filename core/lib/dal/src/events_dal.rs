@@ -2,6 +2,7 @@ use sqlx::types::chrono::Utc;
 
 use std::fmt;
 
+use crate::connection::holder::Acquire;
 use crate::{models::storage_event::StorageL2ToL1Log, SqlxError, StorageProcessor};
 use zksync_types::{
     l2_to_l1_log::L2ToL1Log, tx::IncludedTxLocation, MiniblockNumber, VmEvent, H256,
@@ -22,20 +23,20 @@ impl fmt::LowerHex for EventTopic<'_> {
 }
 
 #[derive(Debug)]
-pub struct EventsDal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+pub struct EventsDal<'a, Conn: Acquire> {
+    pub(crate) storage: &'a mut StorageProcessor<Conn>,
 }
 
-impl EventsDal<'_, '_> {
+impl<'a, Conn: Acquire> EventsDal<'a, Conn> {
     /// Saves events for the specified miniblock.
     pub async fn save_events(
         &mut self,
         block_number: MiniblockNumber,
         all_block_events: &[(IncludedTxLocation, Vec<&VmEvent>)],
     ) {
-        let mut copy = self
-            .storage
-            .conn()
+        let mut conn = self.storage.acquire().await;
+        let mut copy = conn
+            .as_conn()
             .copy_in_raw(
                 "COPY events(
                     miniblock_number, tx_hash, tx_index_in_block, address,
@@ -94,7 +95,7 @@ impl EventsDal<'_, '_> {
             "DELETE FROM events WHERE miniblock_number > $1",
             block_number.0 as i64
         )
-        .execute(self.storage.conn())
+        .execute(self.storage.acquire().await.as_conn())
         .await
         .unwrap();
     }
@@ -106,9 +107,9 @@ impl EventsDal<'_, '_> {
         block_number: MiniblockNumber,
         all_block_l2_to_l1_logs: &[(IncludedTxLocation, Vec<&L2ToL1Log>)],
     ) {
-        let mut copy = self
-            .storage
-            .conn()
+        let mut conn = self.storage.acquire().await;
+        let mut copy = conn
+            .as_conn()
             .copy_in_raw(
                 "COPY l2_to_l1_logs(
                     miniblock_number, log_index_in_miniblock, log_index_in_tx, tx_hash,
@@ -167,7 +168,7 @@ impl EventsDal<'_, '_> {
             "DELETE FROM l2_to_l1_logs WHERE miniblock_number > $1",
             block_number.0 as i64
         )
-        .execute(self.storage.conn())
+        .execute(self.storage.acquire().await.as_conn())
         .await
         .unwrap();
     }
@@ -187,7 +188,7 @@ impl EventsDal<'_, '_> {
             ORDER BY log_index_in_tx ASC",
             tx_hash.as_bytes()
         )
-        .fetch_all(self.storage.conn())
+        .fetch_all(self.storage.acquire().await.as_conn())
         .await
     }
 }

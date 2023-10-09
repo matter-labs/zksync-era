@@ -1,3 +1,4 @@
+use crate::connection::holder::Acquire;
 use itertools::Itertools;
 use sqlx::Row;
 
@@ -22,11 +23,11 @@ use crate::{
 };
 
 #[derive(Debug)]
-pub struct WitnessGeneratorDal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+pub struct WitnessGeneratorDal<'a, Conn: Acquire> {
+    pub(crate) storage: &'a mut StorageProcessor<Conn>,
 }
 
-impl WitnessGeneratorDal<'_, '_> {
+impl<'a, Conn: Acquire> WitnessGeneratorDal<'a, Conn> {
     pub async fn get_next_basic_circuit_witness_job(
         &mut self,
         processing_timeout: Duration,
@@ -63,7 +64,7 @@ impl WitnessGeneratorDal<'_, '_> {
                 last_l1_batch_to_process as i64,
                 &protocol_versions[..],
             )
-            .fetch_optional(self.storage.conn())
+            .fetch_optional(self.storage.acquire().await.as_conn())
             .await
             .unwrap()
             .map(|row| WitnessGeneratorJobMetadata {
@@ -87,7 +88,7 @@ impl WitnessGeneratorDal<'_, '_> {
                 "SELECT MAX(l1_batch_number) as l1_batch FROM {} WHERE status='successful'",
                 round
             ))
-            .fetch_one(self.storage.conn())
+            .fetch_one(self.storage.acquire().await.as_conn())
             .await
             .unwrap();
             let generated_batch = (
@@ -145,7 +146,7 @@ impl WitnessGeneratorDal<'_, '_> {
             last_l1_batch_to_process as i64,
             &protocol_versions[..],
         )
-        .fetch_optional(self.storage.conn())
+        .fetch_optional(self.storage.acquire().await.as_conn())
         .await
         .unwrap();
         if let Some(row) = record {
@@ -216,7 +217,7 @@ impl WitnessGeneratorDal<'_, '_> {
                 last_l1_batch_to_process as i64,
                 &protocol_versions[..],
             )
-                .fetch_optional(self.storage.conn())
+                .fetch_optional(self.storage.acquire().await.as_conn())
                 .await
                 .unwrap();
             if let Some(row) = record {
@@ -286,7 +287,7 @@ impl WitnessGeneratorDal<'_, '_> {
                 last_l1_batch_to_process as i64,
                 &protocol_versions[..],
             )
-            .fetch_optional(self.storage.conn())
+            .fetch_optional(self.storage.acquire().await.as_conn())
             .await
             .unwrap();
             if let Some(row) = record {
@@ -331,7 +332,7 @@ impl WitnessGeneratorDal<'_, '_> {
                         block_number.0 as i64,
                         aggregation_round as i64
                 )
-                .fetch_all(self.storage.conn())
+                .fetch_all(self.storage.acquire().await.as_conn())
                 .await
                 .unwrap()
                 .into_iter()
@@ -364,7 +365,10 @@ impl WitnessGeneratorDal<'_, '_> {
             query = query.bind(duration_to_naive_time(time_taken));
             query = query.bind(block_number.0 as i64);
 
-            query.execute(self.storage.conn()).await.unwrap();
+            query
+                .execute(self.storage.acquire().await.as_conn())
+                .await
+                .unwrap();
         });
     }
 
@@ -385,7 +389,10 @@ impl WitnessGeneratorDal<'_, '_> {
             let mut query = sqlx::query(&sql);
             query = query.bind(block_number.0 as i64);
 
-            query.execute(self.storage.conn()).await.unwrap();
+            query
+                .execute(self.storage.acquire().await.as_conn())
+                .await
+                .unwrap();
         });
     }
 
@@ -405,7 +412,10 @@ impl WitnessGeneratorDal<'_, '_> {
             let mut query = sqlx::query(&sql);
             query = query.bind(block_number.0 as i64);
 
-            query.execute(self.storage.conn()).await.unwrap();
+            query
+                .execute(self.storage.acquire().await.as_conn())
+                .await
+                .unwrap();
         });
     }
 
@@ -425,7 +435,10 @@ impl WitnessGeneratorDal<'_, '_> {
         let mut query = sqlx::query(&sql);
         query = query.bind(block_number.0 as i64);
 
-        query.execute(self.storage.conn()).await.unwrap();
+        query
+            .execute(self.storage.acquire().await.as_conn())
+            .await
+            .unwrap();
     }
 
     pub async fn mark_witness_job_as_failed(
@@ -450,7 +463,7 @@ impl WitnessGeneratorDal<'_, '_> {
         query = query.bind(l1_batch_number.0 as i64);
         // returns the number of attempts of the job
         query
-            .fetch_one(self.storage.conn())
+            .fetch_one(self.storage.acquire().await.as_conn())
             .await
             .unwrap()
             .get::<i32, &str>("attempts") as u32
@@ -487,7 +500,7 @@ impl WitnessGeneratorDal<'_, '_> {
                     number_of_basic_circuits as i64,
                     protocol_version,
                 )
-                .execute(self.storage.conn())
+                .execute(self.storage.acquire().await.as_conn())
                 .await
                 .unwrap();
 
@@ -500,7 +513,7 @@ impl WitnessGeneratorDal<'_, '_> {
                 block_number.0 as i64,
                 protocol_version,
             )
-            .execute(self.storage.conn())
+            .execute(self.storage.acquire().await.as_conn())
             .await
             .unwrap();
 
@@ -516,7 +529,7 @@ impl WitnessGeneratorDal<'_, '_> {
                 scheduler_witness_blob_url,
                 protocol_version,
             )
-                .execute(self.storage.conn())
+                .execute(self.storage.acquire().await.as_conn())
                 .await
                 .unwrap();
 
@@ -555,7 +568,7 @@ impl WitnessGeneratorDal<'_, '_> {
             .instrument("save_leaf_aggregation_artifacts")
             .report_latency()
             .with_arg("l1_batch_number", &l1_batch_number)
-            .execute(self.storage.conn())
+            .execute(self.storage.acquire().await.as_conn())
             .await
             .unwrap();
         }
@@ -584,7 +597,7 @@ impl WitnessGeneratorDal<'_, '_> {
             )
             .instrument("save_node_aggregation_artifacts")
             .report_latency()
-            .execute(self.storage.conn())
+            .execute(self.storage.acquire().await.as_conn())
             .await
             .unwrap();
         }
@@ -609,7 +622,7 @@ impl WitnessGeneratorDal<'_, '_> {
                 aggregation_result_coords_serialized,
                 block_number.0 as i64,
             )
-            .execute(self.storage.conn())
+            .execute(self.storage.acquire().await.as_conn())
             .await
             .unwrap();
         }
@@ -630,7 +643,7 @@ impl WitnessGeneratorDal<'_, '_> {
                 table_name
             );
             let mut results: HashMap<String, i64> = sqlx::query(&sql)
-                .fetch_all(self.storage.conn())
+                .fetch_all(self.storage.acquire().await.as_conn())
                 .await
                 .unwrap()
                 .into_iter()
@@ -712,7 +725,7 @@ impl WitnessGeneratorDal<'_, '_> {
         let query = sqlx::query_as(&sql);
 
         Ok(query
-            .fetch_all(self.storage.conn())
+            .fetch_all(self.storage.acquire().await.as_conn())
             .await?
             .into_iter()
             .map(|x: StorageWitnessJobInfo| x.into())
@@ -736,7 +749,7 @@ impl WitnessGeneratorDal<'_, '_> {
                 object_key,
                 protocol_version.map(|v| v as i32),
             )
-                .fetch_optional(self.storage.conn())
+                .fetch_optional(self.storage.acquire().await.as_conn())
                 .await
                 .unwrap();
         }
@@ -758,7 +771,7 @@ impl WitnessGeneratorDal<'_, '_> {
                 "#,
                 limit as i32
             )
-                .fetch_all(self.storage.conn())
+                .fetch_all(self.storage.acquire().await.as_conn())
                 .await
                 .unwrap();
             job_ids
@@ -792,7 +805,7 @@ impl WitnessGeneratorDal<'_, '_> {
                 "#,
                 limit as i32
             )
-                .fetch_all(self.storage.conn())
+                .fetch_all(self.storage.acquire().await.as_conn())
                 .await
                 .unwrap();
             job_ids
@@ -826,7 +839,7 @@ impl WitnessGeneratorDal<'_, '_> {
                 "#,
                 limit as i32
             )
-                .fetch_all(self.storage.conn())
+                .fetch_all(self.storage.acquire().await.as_conn())
                 .await
                 .unwrap();
             job_ids
@@ -854,7 +867,7 @@ impl WitnessGeneratorDal<'_, '_> {
             "#,
                 &l1_batch_numbers[..]
             )
-            .execute(self.storage.conn())
+            .execute(self.storage.acquire().await.as_conn())
             .await
             .unwrap();
         }
@@ -870,7 +883,7 @@ impl WitnessGeneratorDal<'_, '_> {
             "#,
                 &l1_batch_numbers[..]
             )
-            .execute(self.storage.conn())
+            .execute(self.storage.acquire().await.as_conn())
             .await
             .unwrap();
         }
@@ -889,7 +902,7 @@ impl WitnessGeneratorDal<'_, '_> {
             "#,
                 &l1_batch_numbers[..]
             )
-            .execute(self.storage.conn())
+            .execute(self.storage.acquire().await.as_conn())
             .await
             .unwrap();
         }
@@ -913,7 +926,7 @@ impl WitnessGeneratorDal<'_, '_> {
                 RETURNING l1_batch_number;
             "#,
             )
-            .fetch_all(self.storage.conn())
+            .fetch_all(self.storage.acquire().await.as_conn())
             .await
             .unwrap()
             .into_iter()
@@ -940,7 +953,7 @@ impl WitnessGeneratorDal<'_, '_> {
                 RETURNING l1_batch_number;
             "#,
             )
-            .fetch_all(self.storage.conn())
+            .fetch_all(self.storage.acquire().await.as_conn())
             .await
             .unwrap()
             .into_iter()
@@ -969,7 +982,7 @@ impl WitnessGeneratorDal<'_, '_> {
                 RETURNING l1_batch_number;
             "#,
             )
-            .fetch_all(self.storage.conn())
+            .fetch_all(self.storage.acquire().await.as_conn())
             .await
             .unwrap()
             .into_iter()
@@ -990,7 +1003,7 @@ impl WitnessGeneratorDal<'_, '_> {
                 "#,
             l1_batch_number.0 as i64,
         )
-        .fetch_one(self.storage.conn())
+        .fetch_one(self.storage.acquire().await.as_conn())
         .await
         .unwrap()
         .protocol_version

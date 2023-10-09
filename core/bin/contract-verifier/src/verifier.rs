@@ -52,7 +52,7 @@ impl ContractVerifier {
     }
 
     async fn verify(
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut StorageProcessor,
         mut request: VerificationRequest,
         config: ContractVerifierConfig,
     ) -> Result<VerificationInfo, ContractVerifierError> {
@@ -414,7 +414,7 @@ impl ContractVerifier {
     }
 
     async fn process_result(
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut StorageProcessor,
         request_id: usize,
         verification_result: Result<VerificationInfo, ContractVerifierError>,
     ) {

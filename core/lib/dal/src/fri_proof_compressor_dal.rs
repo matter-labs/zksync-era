@@ -4,6 +4,7 @@ use std::str::FromStr;
 use std::time::Duration;
 use strum::{Display, EnumString};
 
+use crate::connection::holder::Acquire;
 use zksync_types::proofs::{JobCountStatistics, StuckJobs};
 use zksync_types::L1BatchNumber;
 
@@ -11,8 +12,8 @@ use crate::time_utils::{duration_to_naive_time, pg_interval_from_duration};
 use crate::StorageProcessor;
 
 #[derive(Debug)]
-pub struct FriProofCompressorDal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+pub struct FriProofCompressorDal<'a, Conn: Acquire> {
+    pub(crate) storage: &'a mut StorageProcessor<Conn>,
 }
 
 #[derive(Debug, EnumString, Display)]
@@ -31,7 +32,7 @@ pub enum ProofCompressionJobStatus {
     Skipped,
 }
 
-impl FriProofCompressorDal<'_, '_> {
+impl<'a, Conn: Acquire> FriProofCompressorDal<'a, Conn> {
     pub async fn insert_proof_compression_job(
         &mut self,
         block_number: L1BatchNumber,
@@ -45,7 +46,7 @@ impl FriProofCompressorDal<'_, '_> {
                 fri_proof_blob_url,
             ProofCompressionJobStatus::Queued.to_string(),
             )
-            .fetch_optional(self.storage.conn())
+            .fetch_optional(self.storage.acquire().await.as_conn())
             .await
             .unwrap();
     }
@@ -58,7 +59,7 @@ impl FriProofCompressorDal<'_, '_> {
                 block_number.0 as i64,
             ProofCompressionJobStatus::Skipped.to_string(),
             )
-            .fetch_optional(self.storage.conn())
+            .fetch_optional(self.storage.acquire().await.as_conn())
             .await
             .unwrap();
     }
@@ -86,7 +87,7 @@ impl FriProofCompressorDal<'_, '_> {
             ProofCompressionJobStatus::Queued.to_string(),
             picked_by,
         )
-        .fetch_optional(self.storage.conn())
+        .fetch_optional(self.storage.acquire().await.as_conn())
         .await
         .unwrap()
         .map(|row| L1BatchNumber(row.l1_batch_number as u32));
@@ -108,7 +109,7 @@ impl FriProofCompressorDal<'_, '_> {
             l1_proof_blob_url,
             block_number.0 as i64,
         )
-        .execute(self.storage.conn())
+        .execute(self.storage.acquire().await.as_conn())
         .await
         .unwrap();
     }
@@ -126,7 +127,7 @@ impl FriProofCompressorDal<'_, '_> {
             error,
             block_number.0 as i64
         )
-        .execute(self.storage.conn())
+        .execute(self.storage.acquire().await.as_conn())
         .await
         .unwrap();
     }
@@ -145,7 +146,7 @@ impl FriProofCompressorDal<'_, '_> {
             ProofCompressionJobStatus::Successful.to_string(),
             ProofCompressionJobStatus::Skipped.to_string()
         )
-        .fetch_optional(self.storage.conn())
+        .fetch_optional(self.storage.acquire().await.as_conn())
         .await
         .ok()?;
         match row {
@@ -165,7 +166,7 @@ impl FriProofCompressorDal<'_, '_> {
             ProofCompressionJobStatus::SentToServer.to_string(),
             block_number.0 as i64
         )
-        .execute(self.storage.conn())
+        .execute(self.storage.acquire().await.as_conn())
         .await
         .unwrap();
     }
@@ -176,7 +177,7 @@ impl FriProofCompressorDal<'_, '_> {
                  FROM proof_compression_jobs_fri \
                  GROUP BY status",
         )
-        .fetch_all(self.storage.conn())
+        .fetch_all(self.storage.acquire().await.as_conn())
         .await
         .unwrap()
         .into_iter()
@@ -207,7 +208,7 @@ impl FriProofCompressorDal<'_, '_> {
                 &processing_timeout,
                 max_attempts as i32,
             )
-                .fetch_all(self.storage.conn())
+                .fetch_all(self.storage.acquire().await.as_conn())
                 .await
                 .unwrap()
                 .into_iter()

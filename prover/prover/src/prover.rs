@@ -103,9 +103,9 @@ impl ProverReporter {
         prover_job_metadata.circuit_type
     }
 
-    async fn get_prover_job_metadata_by_id_and_exit_if_error(
+    async fn get_prover_job_metadata_by_id_and_exit_if_error<Conn:zksync_dal::Acquire>(
         &self,
-        connection: &mut StorageProcessor<'_>,
+        connection: &mut StorageProcessor<Conn>,
         job_id: u32,
     ) -> ProverJobMetadata {
         // BEWARE, HERE BE DRAGONS.

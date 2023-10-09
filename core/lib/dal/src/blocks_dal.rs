@@ -15,6 +15,7 @@ use zksync_types::{
     L1BatchNumber, MiniblockNumber, ProtocolVersionId, H256, MAX_GAS_PER_PUBDATA_BYTE, U256,
 };
 
+use crate::connection::holder::Acquire;
 use crate::{
     instrument::InstrumentExt,
     models::storage_block::{StorageL1Batch, StorageL1BatchHeader, StorageMiniblockHeader},
@@ -22,14 +23,14 @@ use crate::{
 };
 
 #[derive(Debug)]
-pub struct BlocksDal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+pub struct BlocksDal<'a, Conn: Acquire> {
+    pub(crate) storage: &'a mut StorageProcessor<Conn>,
 }
 
-impl BlocksDal<'_, '_> {
+impl<'a, Conn: Acquire> BlocksDal<'a, Conn> {
     pub async fn is_genesis_needed(&mut self) -> sqlx::Result<bool> {
         let count = sqlx::query!("SELECT COUNT(*) as \"count!\" FROM l1_batches")
-            .fetch_one(self.storage.conn())
+            .fetch_one(self.storage.acquire().await.as_conn())
             .await?
             .count;
         Ok(count == 0)
@@ -45,7 +46,7 @@ impl BlocksDal<'_, '_> {
             "SELECT number from miniblocks where timestamp > $1 ORDER BY number ASC LIMIT 1",
             timestamp as i64
         )
-        .fetch_one(self.storage.conn())
+        .fetch_one(self.storage.acquire().await.as_conn())
         .await?
         .number;
         self.storage
@@ -64,7 +65,7 @@ impl BlocksDal<'_, '_> {
             version as i32,
             limit as i32
         )
-            .fetch_all(self.storage.conn())
+            .fetch_all(self.storage.acquire().await.as_conn())
             .await?
             .iter()
             .map(|block| {
@@ -90,7 +91,7 @@ impl BlocksDal<'_, '_> {
             version as i32,
             limit as i32
         )
-        .fetch_all(self.storage.conn())
+        .fetch_all(self.storage.acquire().await.as_conn())
         .await?
         .iter()
         .map(|block| {
@@ -110,7 +111,7 @@ impl BlocksDal<'_, '_> {
         )
         .instrument("get_sealed_block_number")
         .report_latency()
-        .fetch_one(self.storage.conn())
+        .fetch_one(self.storage.acquire().await.as_conn())
         .await?
         .number
         .context("DAL invocation before genesis")?;
@@ -122,7 +123,7 @@ impl BlocksDal<'_, '_> {
         let number: i64 = sqlx::query!("SELECT MAX(number) as \"number\" FROM miniblocks")
             .instrument("get_sealed_miniblock_number")
             .report_latency()
-            .fetch_one(self.storage.conn())
+            .fetch_one(self.storage.acquire().await.as_conn())
             .await?
             .number
             .unwrap_or(0);
@@ -136,7 +137,7 @@ impl BlocksDal<'_, '_> {
             sqlx::query!("SELECT MAX(number) as \"number\" FROM l1_batches WHERE hash IS NOT NULL")
                 .instrument("get_last_block_number_with_metadata")
                 .report_latency()
-                .fetch_one(self.storage.conn())
+                .fetch_one(self.storage.acquire().await.as_conn())
                 .await?
                 .number
                 .context("DAL invocation before genesis")?;
@@ -162,7 +163,7 @@ impl BlocksDal<'_, '_> {
         )
         .instrument("get_l1_batches_for_eth_tx_id")
         .with_arg("eth_tx_id", &eth_tx_id)
-        .fetch_all(self.storage.conn())
+        .fetch_all(self.storage.acquire().await.as_conn())
         .await?;
 
         Ok(l1_batches.into_iter().map(Into::into).collect())
@@ -189,7 +190,7 @@ impl BlocksDal<'_, '_> {
         )
         .instrument("get_storage_l1_batch")
         .with_arg("number", &number)
-        .fetch_optional(self.storage.conn())
+        .fetch_optional(self.storage.acquire().await.as_conn())
         .await
     }
 
@@ -210,7 +211,7 @@ impl BlocksDal<'_, '_> {
         )
         .instrument("get_l1_batch_header")
         .with_arg("number", &number)
-        .fetch_optional(self.storage.conn())
+        .fetch_optional(self.storage.acquire().await.as_conn())
         .await?
         .map(Into::into))
     }
@@ -227,7 +228,7 @@ impl BlocksDal<'_, '_> {
         .instrument("get_initial_bootloader_heap")
         .report_latency()
         .with_arg("number", &number)
-        .fetch_optional(self.storage.conn())
+        .fetch_optional(self.storage.acquire().await.as_conn())
         .await?
         else {
             return Ok(None);
@@ -254,7 +255,7 @@ impl BlocksDal<'_, '_> {
                     number_range.start().0 as i64,
                     number_range.end().0 as i64
                 )
-                .execute(self.storage.conn())
+                .execute(self.storage.acquire().await.as_conn())
                 .await?;
             }
             AggregatedActionType::PublishProofOnchain => {
@@ -266,7 +267,7 @@ impl BlocksDal<'_, '_> {
                     number_range.start().0 as i64,
                     number_range.end().0 as i64
                 )
-                .execute(self.storage.conn())
+                .execute(self.storage.acquire().await.as_conn())
                 .await?;
             }
             AggregatedActionType::Execute => {
@@ -278,7 +279,7 @@ impl BlocksDal<'_, '_> {
                     number_range.start().0 as i64,
                     number_range.end().0 as i64
                 )
-                .execute(self.storage.conn())
+                .execute(self.storage.acquire().await.as_conn())
                 .await?;
             }
         }
@@ -349,7 +350,7 @@ impl BlocksDal<'_, '_> {
                 .as_bytes(),
             header.protocol_version.map(|v| v as i32),
         )
-        .execute(self.storage.conn())
+        .execute(self.storage.acquire().await.as_conn())
         .await?;
         Ok(())
     }
@@ -387,7 +388,7 @@ impl BlocksDal<'_, '_> {
             miniblock_header.protocol_version.map(|v| v as i32),
             miniblock_header.virtual_blocks as i64,
         )
-        .execute(self.storage.conn())
+        .execute(self.storage.acquire().await.as_conn())
         .await?;
         Ok(())
     }
@@ -411,7 +412,7 @@ impl BlocksDal<'_, '_> {
             &numbers,
             &hashes
         )
-        .execute(self.storage.conn())
+        .execute(self.storage.acquire().await.as_conn())
         .await?;
         Ok(())
     }
@@ -429,7 +430,7 @@ impl BlocksDal<'_, '_> {
             ORDER BY number DESC \
             LIMIT 1",
         )
-        .fetch_optional(self.storage.conn())
+        .fetch_optional(self.storage.acquire().await.as_conn())
         .await?
         .map(Into::into))
     }
@@ -448,7 +449,7 @@ impl BlocksDal<'_, '_> {
             WHERE number = $1",
             miniblock_number.0 as i64,
         )
-        .fetch_optional(self.storage.conn())
+        .fetch_optional(self.storage.acquire().await.as_conn())
         .await?
         .map(Into::into))
     }
@@ -463,7 +464,7 @@ impl BlocksDal<'_, '_> {
             WHERE l1_batch_number IS NULL",
             l1_batch_number.0 as i32,
         )
-        .execute(self.storage.conn())
+        .execute(self.storage.acquire().await.as_conn())
         .await?;
         Ok(())
     }
@@ -497,7 +498,7 @@ impl BlocksDal<'_, '_> {
             metadata.meta_parameters_hash.as_bytes(),
             0,
         )
-        .execute(self.storage.conn())
+        .execute(self.storage.acquire().await.as_conn())
         .await?;
         Ok(())
     }
@@ -535,7 +536,7 @@ impl BlocksDal<'_, '_> {
         .instrument("save_blocks_metadata")
         .with_arg("number", &number)
         .report_latency()
-        .execute(self.storage.conn())
+        .execute(self.storage.acquire().await.as_conn())
         .await?;
 
         if update_result.rows_affected() == 0 {
@@ -565,7 +566,7 @@ impl BlocksDal<'_, '_> {
             .instrument("get_matching_blocks_metadata")
             .with_arg("number", &number)
             .report_latency()
-            .fetch_one(self.storage.conn())
+            .fetch_one(self.storage.acquire().await.as_conn())
             .await?
             .count;
 
@@ -601,7 +602,7 @@ impl BlocksDal<'_, '_> {
             LIMIT 1",
         )
         .instrument("get_last_committed_to_eth_l1_batch")
-        .fetch_one(self.storage.conn())
+        .fetch_one(self.storage.acquire().await.as_conn())
         .await?;
         // genesis block is first generated without commitment, we should wait for the tree to set it.
         if block.commitment.is_none() {
@@ -624,7 +625,7 @@ impl BlocksDal<'_, '_> {
             WHERE commit_tx.confirmed_at IS NOT NULL \
             ORDER BY number DESC LIMIT 1"
         )
-        .fetch_optional(self.storage.conn())
+        .fetch_optional(self.storage.acquire().await.as_conn())
         .await?
         .map(|row| L1BatchNumber(row.number as u32)))
     }
@@ -636,7 +637,7 @@ impl BlocksDal<'_, '_> {
             FROM l1_batches \
             WHERE eth_prove_tx_id IS NOT NULL"
         )
-        .fetch_one(self.storage.conn())
+        .fetch_one(self.storage.acquire().await.as_conn())
         .await?;
 
         Ok(L1BatchNumber(row.number as u32))
@@ -653,7 +654,7 @@ impl BlocksDal<'_, '_> {
             WHERE prove_tx.confirmed_at IS NOT NULL \
             ORDER BY number DESC LIMIT 1"
         )
-        .fetch_optional(self.storage.conn())
+        .fetch_optional(self.storage.acquire().await.as_conn())
         .await?
         .map(|record| L1BatchNumber(record.number as u32)))
     }
@@ -669,7 +670,7 @@ impl BlocksDal<'_, '_> {
             WHERE execute_tx.confirmed_at IS NOT NULL \
             ORDER BY number DESC LIMIT 1"
         )
-        .fetch_optional(self.storage.conn())
+        .fetch_optional(self.storage.acquire().await.as_conn())
         .await?
         .map(|row| L1BatchNumber(row.number as u32)))
     }
@@ -697,7 +698,7 @@ impl BlocksDal<'_, '_> {
         )
         .instrument("get_ready_for_dummy_proof_l1_batches")
         .with_arg("limit", &limit)
-        .fetch_all(self.storage.conn())
+        .fetch_all(self.storage.acquire().await.as_conn())
         .await?;
 
         self.map_l1_batches(raw_batches)
@@ -729,7 +730,7 @@ impl BlocksDal<'_, '_> {
             "UPDATE l1_batches SET skip_proof = TRUE WHERE number = $1",
             l1_batch_number.0 as i64
         )
-        .execute(self.storage.conn())
+        .execute(self.storage.acquire().await.as_conn())
         .await?;
         Ok(())
     }
@@ -770,7 +771,7 @@ impl BlocksDal<'_, '_> {
         )
         .instrument("get_skipped_for_proof_l1_batches")
         .with_arg("limit", &limit)
-        .fetch_all(self.storage.conn())
+        .fetch_all(self.storage.acquire().await.as_conn())
         .await?;
 
         self.map_l1_batches(raw_batches)
@@ -802,7 +803,7 @@ impl BlocksDal<'_, '_> {
             )
             .instrument("get_ready_for_execute_l1_batches/no_max_timestamp")
             .with_arg("limit", &limit)
-            .fetch_all(self.storage.conn())
+            .fetch_all(self.storage.acquire().await.as_conn())
             .await?,
 
             Some(max_l1_batch_timestamp_millis) => {
@@ -832,7 +833,7 @@ impl BlocksDal<'_, '_> {
             WHERE eth_prove_tx_id IS NOT NULL AND eth_execute_tx_id IS NULL \
             ORDER BY number LIMIT 1"
         )
-        .fetch_optional(self.storage.conn())
+        .fetch_optional(self.storage.acquire().await.as_conn())
         .await?;
 
         let Some(row) = row else { return Ok(vec![]) };
@@ -854,7 +855,7 @@ impl BlocksDal<'_, '_> {
                 AND EXTRACT(epoch FROM commit_tx.confirmed_at) < $1",
             max_l1_batch_timestamp_seconds_bd,
         )
-        .fetch_one(self.storage.conn())
+        .fetch_one(self.storage.acquire().await.as_conn())
         .await?;
 
         Ok(if let Some(max_ready_to_send_block) = row.max {
@@ -882,7 +883,7 @@ impl BlocksDal<'_, '_> {
             .instrument("get_ready_for_execute_l1_batches")
             .with_arg("numbers", &(expected_started_point..=max_ready_to_send_block))
             .with_arg("limit", &limit)
-            .fetch_all(self.storage.conn())
+            .fetch_all(self.storage.acquire().await.as_conn())
             .await?
         } else {
             vec![]
@@ -925,7 +926,7 @@ impl BlocksDal<'_, '_> {
         .with_arg("bootloader_hash", &bootloader_hash)
         .with_arg("default_aa_hash", &default_aa_hash)
         .with_arg("protocol_version_id", &protocol_version_id)
-        .fetch_all(self.storage.conn())
+        .fetch_all(self.storage.acquire().await.as_conn())
         .await?;
 
         self.map_l1_batches(raw_batches)
@@ -941,7 +942,7 @@ impl BlocksDal<'_, '_> {
             "SELECT hash FROM l1_batches WHERE number = $1",
             number.0 as i64
         )
-        .fetch_optional(self.storage.conn())
+        .fetch_optional(self.storage.acquire().await.as_conn())
         .await?
         .and_then(|row| row.hash)
         .map(|hash| H256::from_slice(&hash)))
@@ -955,7 +956,7 @@ impl BlocksDal<'_, '_> {
             "SELECT timestamp, hash FROM l1_batches WHERE number = $1",
             number.0 as i64
         )
-        .fetch_optional(self.storage.conn())
+        .fetch_optional(self.storage.acquire().await.as_conn())
         .await?
         else {
             return Ok(None);
@@ -979,7 +980,7 @@ impl BlocksDal<'_, '_> {
             LIMIT 1"
         )
         .instrument("get_newest_l1_batch_header")
-        .fetch_one(self.storage.conn())
+        .fetch_one(self.storage.acquire().await.as_conn())
         .await?;
 
         Ok(last_l1_batch.into())
@@ -1031,7 +1032,7 @@ impl BlocksDal<'_, '_> {
             WHERE miniblocks.l1_batch_number = $1",
             l1_batch_number.0 as i64
         )
-        .fetch_all(self.storage.conn())
+        .fetch_all(self.storage.acquire().await.as_conn())
         .await?
         .into_iter()
         .map(|row| (H256::from_slice(&row.bytecode_hash), row.bytecode))
@@ -1052,7 +1053,7 @@ impl BlocksDal<'_, '_> {
     ) -> sqlx::Result<()> {
         let block_number = last_batch_to_keep.map_or(-1, |number| number.0 as i64);
         sqlx::query!("DELETE FROM l1_batches WHERE number > $1", block_number)
-            .execute(self.storage.conn())
+            .execute(self.storage.acquire().await.as_conn())
             .await?;
         Ok(())
     }
@@ -1072,7 +1073,7 @@ impl BlocksDal<'_, '_> {
     ) -> sqlx::Result<()> {
         let block_number = last_miniblock_to_keep.map_or(-1, |number| number.0 as i64);
         sqlx::query!("DELETE FROM miniblocks WHERE number > $1", block_number)
-            .execute(self.storage.conn())
+            .execute(self.storage.acquire().await.as_conn())
             .await?;
         Ok(())
     }
@@ -1096,7 +1097,7 @@ impl BlocksDal<'_, '_> {
         sqlx::query(&sql_query_str)
             .bind(number_range.start().0 as i64)
             .bind(number_range.end().0 as i64)
-            .fetch_one(self.storage.conn())
+            .fetch_one(self.storage.acquire().await.as_conn())
             .await?
             .get::<BigDecimal, &str>("sum")
             .to_u32()
@@ -1115,7 +1116,7 @@ impl BlocksDal<'_, '_> {
             number.0 as i64,
             predicted_gas_cost as i64
         )
-        .execute(self.storage.conn())
+        .execute(self.storage.acquire().await.as_conn())
         .await?;
         Ok(())
     }
@@ -1130,7 +1131,7 @@ impl BlocksDal<'_, '_> {
             WHERE l1_batch_number = $1",
             l1_batch_number.0 as i64
         )
-        .fetch_one(self.storage.conn())
+        .fetch_one(self.storage.acquire().await.as_conn())
         .await?;
         let Some(min) = row.min else { return Ok(None) };
         let Some(max) = row.max else { return Ok(None) };
@@ -1146,7 +1147,7 @@ impl BlocksDal<'_, '_> {
         let count = sqlx::query_scalar!(
             "SELECT COUNT(miniblocks.number) FROM miniblocks WHERE l1_batch_number IS NULL"
         )
-        .fetch_one(self.storage.conn())
+        .fetch_one(self.storage.acquire().await.as_conn())
         .await?
         .unwrap_or(0);
 
@@ -1160,7 +1161,7 @@ impl BlocksDal<'_, '_> {
             "SELECT MAX(l1_batch_number) FROM witness_inputs \
             WHERE merkel_tree_paths_blob_url IS NOT NULL",
         )
-        .fetch_one(self.storage.conn())
+        .fetch_one(self.storage.acquire().await.as_conn())
         .await?;
 
         Ok(row
@@ -1180,7 +1181,7 @@ impl BlocksDal<'_, '_> {
             LIMIT $1",
             limit as i32
         )
-        .fetch_all(self.storage.conn())
+        .fetch_all(self.storage.acquire().await.as_conn())
         .await?;
 
         Ok(rows
@@ -1202,7 +1203,7 @@ impl BlocksDal<'_, '_> {
             LIMIT $1",
             limit as i32
         )
-        .fetch_all(self.storage.conn())
+        .fetch_all(self.storage.acquire().await.as_conn())
         .await?;
 
         Ok(rows
@@ -1221,7 +1222,7 @@ impl BlocksDal<'_, '_> {
             WHERE l1_batch_number = ANY($1)",
             l1_batch_numbers
         )
-        .execute(self.storage.conn())
+        .execute(self.storage.acquire().await.as_conn())
         .await?;
         Ok(())
     }
@@ -1234,7 +1235,7 @@ impl BlocksDal<'_, '_> {
             WHERE eth_commit_tx_id IS NULL AND number > 0 \
             ORDER BY number LIMIT 1",
         )
-        .fetch_optional(self.storage.conn())
+        .fetch_optional(self.storage.acquire().await.as_conn())
         .await?
         .map(|row| row.timestamp as u64))
     }
@@ -1245,7 +1246,7 @@ impl BlocksDal<'_, '_> {
             WHERE eth_prove_tx_id IS NULL AND number > 0 \
             ORDER BY number LIMIT 1",
         )
-        .fetch_optional(self.storage.conn())
+        .fetch_optional(self.storage.acquire().await.as_conn())
         .await?
         .map(|row| row.timestamp as u64))
     }
@@ -1256,7 +1257,7 @@ impl BlocksDal<'_, '_> {
             WHERE eth_execute_tx_id IS NULL AND number > 0 \
             ORDER BY number LIMIT 1",
         )
-        .fetch_optional(self.storage.conn())
+        .fetch_optional(self.storage.acquire().await.as_conn())
         .await?
         .map(|row| row.timestamp as u64))
     }
@@ -1269,7 +1270,7 @@ impl BlocksDal<'_, '_> {
             "SELECT protocol_version FROM l1_batches WHERE number = $1",
             l1_batch_number.0 as i64
         )
-        .fetch_optional(self.storage.conn())
+        .fetch_optional(self.storage.acquire().await.as_conn())
         .await?
         else {
             return Ok(None);
@@ -1288,7 +1289,7 @@ impl BlocksDal<'_, '_> {
             "SELECT protocol_version FROM miniblocks WHERE number = $1",
             miniblock_number.0 as i64
         )
-        .fetch_optional(self.storage.conn())
+        .fetch_optional(self.storage.acquire().await.as_conn())
         .await?
         else {
             return Ok(None);
@@ -1307,7 +1308,7 @@ impl BlocksDal<'_, '_> {
             "SELECT timestamp FROM miniblocks WHERE number = $1",
             miniblock_number.0 as i64,
         )
-        .fetch_optional(self.storage.conn())
+        .fetch_optional(self.storage.acquire().await.as_conn())
         .await?
         .map(|row| row.timestamp as u64))
     }
@@ -1321,14 +1322,14 @@ impl BlocksDal<'_, '_> {
             WHERE l1_batch_number IS NULL",
             id as i32,
         )
-        .execute(self.storage.conn())
+        .execute(self.storage.acquire().await.as_conn())
         .await?;
         Ok(())
     }
 }
 
 /// These functions should only be used for tests.
-impl BlocksDal<'_, '_> {
+impl<'a, Conn: Acquire> BlocksDal<'a, Conn> {
     // The actual l1 batch hash is only set by the metadata calculator.
     pub async fn set_l1_batch_hash(
         &mut self,
@@ -1340,7 +1341,7 @@ impl BlocksDal<'_, '_> {
             hash.as_bytes(),
             batch_num.0 as i64
         )
-        .execute(self.storage.conn())
+        .execute(self.storage.acquire().await.as_conn())
         .await?;
         Ok(())
     }
