@@ -31,7 +31,6 @@ contracts/.git
 !infrastructure/local-setup-preparation
 !infrastructure/zk
 !sdk/zksync-rs
-!sdk/zksync-web3.js
 !etc/system-contracts/bootloader/build/artifacts
 !etc/system-contracts/contracts/artifacts
 !etc/system-contracts/contracts/precompiles/artifacts

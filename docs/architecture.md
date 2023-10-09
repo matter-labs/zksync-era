@@ -107,4 +107,3 @@ This section provides a physical map of folders & files in this repository.
 
 - `/sdk`: Implementation of client libraries for the zkSync network in different programming languages.
   - `/zksync-rs`: Rust client library for zkSync.
-  - `/zksync-web3.js`: A JavaScript / TypeScript client library for zkSync.
