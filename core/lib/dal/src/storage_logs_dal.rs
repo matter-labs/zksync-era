@@ -3,7 +3,7 @@ use sqlx::Row;
 
 use std::{collections::HashMap, time::Instant};
 
-use crate::StorageProcessor;
+use crate::{instrument::InstrumentExt, StorageProcessor};
 use zksync_types::{
     get_code_key, AccountTreeId, Address, L1BatchNumber, MiniblockNumber, StorageKey, StorageLog,
     FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH, H256,
@@ -324,34 +324,6 @@ impl StorageLogsDal<'_, '_> {
         output
     }
 
-    pub async fn get_l1_batches_for_initial_writes(
-        &mut self,
-        hashed_keys: &[H256],
-    ) -> HashMap<H256, L1BatchNumber> {
-        if hashed_keys.is_empty() {
-            return HashMap::new(); // Shortcut to save time on communication with DB in the common case
-        }
-
-        let hashed_keys: Vec<_> = hashed_keys.iter().map(H256::as_bytes).collect();
-        let rows = sqlx::query!(
-            "SELECT hashed_key, l1_batch_number FROM initial_writes \
-            WHERE hashed_key = ANY($1::bytea[])",
-            &hashed_keys as &[&[u8]],
-        )
-        .fetch_all(self.storage.conn())
-        .await
-        .unwrap();
-
-        rows.into_iter()
-            .map(|row| {
-                (
-                    H256::from_slice(&row.hashed_key),
-                    L1BatchNumber(row.l1_batch_number as u32),
-                )
-            })
-            .collect()
-    }
-
     pub async fn get_l1_batches_and_indices_for_initial_writes(
         &mut self,
         hashed_keys: &[H256],
@@ -366,6 +338,8 @@ impl StorageLogsDal<'_, '_> {
             WHERE hashed_key = ANY($1::bytea[])",
             &hashed_keys as &[&[u8]],
         )
+        .instrument("get_l1_batches_and_indices_for_initial_writes")
+        .report_latency()
         .fetch_all(self.storage.conn())
         .await
         .unwrap();

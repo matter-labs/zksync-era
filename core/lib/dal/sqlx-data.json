@@ -9392,32 +9392,6 @@
     },
     "query": "SELECT number, timestamp, is_finished, l1_tx_count, l2_tx_count, fee_account_address, bloom, priority_ops_onchain_data, hash, parent_hash, commitment, compressed_write_logs, compressed_contracts, eth_prove_tx_id, eth_commit_tx_id, eth_execute_tx_id, merkle_root_hash, l2_to_l1_logs, l2_to_l1_messages, used_contract_hashes, compressed_initial_writes, compressed_repeated_writes, l2_l1_compressed_messages, l2_l1_merkle_root, l1_gas_price, l2_fair_gas_price, rollup_last_leaf_index, zkporter_is_available, bootloader_code_hash, default_aa_code_hash, base_fee_per_gas, aux_data_hash, pass_through_data_hash, meta_parameters_hash, protocol_version FROM (SELECT l1_batches.*, row_number() OVER (ORDER BY number ASC) AS row_number FROM l1_batches WHERE eth_commit_tx_id IS NOT NULL AND l1_batches.skip_proof = TRUE AND l1_batches.number > $1 ORDER BY number LIMIT $2) inn WHERE number - row_number = $1"
   },
-  "d611418a9f5ea1ab6b1af674ee44a824cd7e68e41f6065868dd66d94af5e0987": {
-    "describe": {
-      "columns": [
-        {
-          "name": "hashed_key",
-          "ordinal": 0,
-          "type_info": "Bytea"
-        },
-        {
-          "name": "index",
-          "ordinal": 1,
-          "type_info": "Int8"
-        }
-      ],
-      "nullable": [
-        false,
-        false
-      ],
-      "parameters": {
-        "Left": [
-          "ByteaArray"
-        ]
-      }
-    },
-    "query": "SELECT hashed_key, index FROM initial_writes WHERE hashed_key = ANY($1)"
-  },
   "d6709f3ce8f08f988e10a0e0fb5c06db9488834a85066babaf3d56cf212b4ea0": {
     "describe": {
       "columns": [],
@@ -9487,32 +9461,6 @@
       }
     },
     "query": "UPDATE l1_batches SET skip_proof = TRUE WHERE number = $1"
-  },
-  "da01d59119023c822cffa5dc226e82b2abd4cbd46d3856d7db16289868a27fa1": {
-    "describe": {
-      "columns": [
-        {
-          "name": "hashed_key",
-          "ordinal": 0,
-          "type_info": "Bytea"
-        },
-        {
-          "name": "l1_batch_number",
-          "ordinal": 1,
-          "type_info": "Int8"
-        }
-      ],
-      "nullable": [
-        false,
-        false
-      ],
-      "parameters": {
-        "Left": [
-          "ByteaArray"
-        ]
-      }
-    },
-    "query": "SELECT hashed_key, l1_batch_number FROM initial_writes WHERE hashed_key = ANY($1::bytea[])"
   },
   "dc16d0fac093a52480b66dfcb5976fb01e6629e8c982c265f2af1d5000090572": {
     "describe": {

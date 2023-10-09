@@ -204,19 +204,21 @@ impl RocksdbStorage {
             .map(|(key, _)| key.hashed_key())
             .collect();
 
-        let enum_indices = conn
-            .storage_logs_dedup_dal()
-            .enum_indices_for_keys(&keys_with_unknown_indices)
+        let enum_indices_and_batches = conn
+            .storage_logs_dal()
+            .get_l1_batches_and_indices_for_initial_writes(&keys_with_unknown_indices)
             .await;
-        assert_eq!(keys_with_unknown_indices.len(), enum_indices.len());
-        self.pending_patch.state = logs_with_known_indices
-            .into_iter()
-            .chain(
-                logs_with_unknown_indices
-                    .into_iter()
-                    .map(|(key, value)| (key, (value, enum_indices[&key.hashed_key()]))),
-            )
-            .collect();
+        assert_eq!(
+            keys_with_unknown_indices.len(),
+            enum_indices_and_batches.len()
+        );
+        self.pending_patch.state =
+            logs_with_known_indices
+                .into_iter()
+                .chain(logs_with_unknown_indices.into_iter().map(|(key, value)| {
+                    (key, (value, enum_indices_and_batches[&key.hashed_key()].1))
+                }))
+                .collect();
     }
 
     async fn save_missing_enum_indices(&self, conn: &mut StorageProcessor<'_>) {
@@ -246,14 +248,14 @@ impl RocksdbStorage {
             })
             .take(self.enum_index_migration_chunk_size)
             .unzip();
-        let enum_indices = conn
-            .storage_logs_dedup_dal()
-            .enum_indices_for_keys(&keys)
+        let enum_indices_and_batches = conn
+            .storage_logs_dal()
+            .get_l1_batches_and_indices_for_initial_writes(&keys)
             .await;
-        assert_eq!(keys.len(), enum_indices.len());
+        assert_eq!(keys.len(), enum_indices_and_batches.len());
 
         for (key, value) in keys.iter().zip(values) {
-            let index = enum_indices[key];
+            let index = enum_indices_and_batches[key].1;
             write_batch.put_cf(
                 StateKeeperColumnFamily::State,
                 key.as_bytes(),
@@ -293,11 +295,8 @@ impl RocksdbStorage {
     }
 
     fn read_value_inner(&self, key: &StorageKey) -> Option<StorageValue> {
-        let cf = StateKeeperColumnFamily::State;
-        self.db
-            .get_cf(cf, &Self::serialize_state_key(key))
-            .expect("failed to read rocksdb state value")
-            .map(|value| H256::from_slice(&value[..32]))
+        self.read_state_value(key)
+            .map(|state_value| state_value.value)
     }
 
     fn read_state_value(&self, key: &StorageKey) -> Option<StateValue> {

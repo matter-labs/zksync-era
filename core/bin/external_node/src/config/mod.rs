@@ -196,7 +196,7 @@ pub struct OptionalENConfig {
     /// Whether to try running EN with MultiVM.
     #[serde(default)]
     pub experimental_multivm_support: bool,
-    /// Number of enum_index migration chunks that State Keeper processes each L1 batch.
+    /// Number of keys that is processed by enum_index migration in State Keeper each L1 batch.
     #[serde(default = "OptionalENConfig::default_enum_index_migration_chunk_size")]
     pub enum_index_migration_chunk_size: usize,
 }

@@ -1,7 +1,6 @@
-use crate::instrument::InstrumentExt;
 use crate::StorageProcessor;
 use sqlx::types::chrono::Utc;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use zksync_types::{AccountTreeId, Address, L1BatchNumber, LogQuery, StorageKey, H256};
 use zksync_utils::u256_to_h256;
 
@@ -132,23 +131,6 @@ impl StorageLogsDedupDal<'_, '_> {
         .unwrap()
         .into_iter()
         .map(|row| H256::from_slice(&row.hashed_key))
-        .collect()
-    }
-
-    pub async fn enum_indices_for_keys(&mut self, hashed_keys: &[H256]) -> HashMap<H256, u64> {
-        let hashed_keys: Vec<_> = hashed_keys.iter().map(H256::as_bytes).collect();
-        sqlx::query!(
-            "SELECT hashed_key, index FROM initial_writes \
-            WHERE hashed_key = ANY($1)",
-            &hashed_keys as &[&[u8]]
-        )
-        .instrument("enum_indices_for_keys")
-        .report_latency()
-        .fetch_all(self.storage.conn())
-        .await
-        .unwrap()
-        .into_iter()
-        .map(|row| (H256::from_slice(&row.hashed_key), row.index as u64))
         .collect()
     }
 }
