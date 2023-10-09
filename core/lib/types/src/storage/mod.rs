@@ -103,7 +103,7 @@ pub fn get_system_context_init_logs(chain_id: L2ChainId) -> Vec<StorageLog> {
     vec![
         StorageLog::new_write_log(
             get_system_context_key(SYSTEM_CONTEXT_CHAIN_ID_POSITION),
-            H256::from_low_u64_be(chain_id.0 as u64),
+            H256::from_low_u64_be(chain_id.as_u64()),
         ),
         StorageLog::new_write_log(
             get_system_context_key(SYSTEM_CONTEXT_BLOCK_GAS_LIMIT_POSITION),

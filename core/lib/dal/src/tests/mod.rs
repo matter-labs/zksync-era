@@ -59,7 +59,7 @@ pub(crate) fn mock_l2_transaction() -> L2Tx {
         zksync_types::Nonce(0),
         fee,
         Default::default(),
-        L2ChainId(270),
+        L2ChainId::from(270),
         &H256::random(),
         None,
         Default::default(),

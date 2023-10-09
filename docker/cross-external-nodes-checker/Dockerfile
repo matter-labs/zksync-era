@@ -20,14 +20,12 @@ RUN curl https://sh.rustup.rs -sSf | bash -s -- -y && \
 WORKDIR /usr/src/zksync
 COPY . .
 
-RUN CARGO_HOME=./cargo cargo build --release
+RUN cargo build --release
 
-# RUNNING STAGE
 FROM debian:bookworm-slim
+
 RUN apt-get update && apt-get install -y curl ca-certificates && rm -rf /var/lib/apt/lists/*
 
-# Bring the below from the building stage to the final image.
 COPY --from=builder /usr/src/zksync/target/release/cross_external_nodes_checker /usr/bin
 
-# Run the entrypoint script as the default command.
 ENTRYPOINT ["cross_external_nodes_checker"]

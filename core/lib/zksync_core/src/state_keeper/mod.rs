@@ -8,7 +8,6 @@ use zksync_config::{
     ContractsConfig, DBConfig,
 };
 use zksync_dal::ConnectionPool;
-use zksync_types::L2ChainId;
 
 mod batch_executor;
 pub(crate) mod extractors;
@@ -71,7 +70,7 @@ where
         mempool_config.delay_interval(),
         contracts_config.l2_erc20_bridge_addr,
         state_keeper_config.validation_computational_gas_limit,
-        L2ChainId(network_config.zksync_network_id),
+        network_config.zksync_network_id,
     )
     .await;
 
