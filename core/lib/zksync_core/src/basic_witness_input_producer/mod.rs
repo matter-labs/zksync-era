@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 use std::rc::Rc;
+use std::str::FromStr;
 use tokio::task::JoinHandle;
 
 use zksync_dal::{ConnectionPool, StorageProcessor};
@@ -199,11 +200,13 @@ impl BasicWitnessInputProducer {
 
     pub async fn run(self) -> anyhow::Result<()> {
         let l1_batch_number = L1BatchNumber(2_u32);
+        let miniblock_number = MiniblockNumber(2_u32);
         let state_keeper_config =
             StateKeeperConfig::from_env().context("StateKeeperConfig::from_env()")?;
         // let db_config = DBConfig::from_env().context("DbConfig::from_env()")?;
 
         let mut connection = self.connection_pool.access_storage().await?;
+        println!("{}", state_keeper_config.fee_account_addr);
         let PendingBatchData {
             l1_batch_env,
             system_env,
@@ -211,9 +214,8 @@ impl BasicWitnessInputProducer {
         } = load_pending_batch(
             &mut connection,
             l1_batch_number,
-            ContractsConfig::from_env()
-                .context("ContractsConfig::from_env()")?
-                .l2_erc20_bridge_addr,
+            Address::from_str("0xde03a0b5963f75f1c8485b355ff6d30f3093bde7").unwrap(),
+            // state_keeper_config.fee_account_addr,
             state_keeper_config.validation_computational_gas_limit,
             L2ChainId(
                 NetworkConfig::from_env()
@@ -230,17 +232,17 @@ impl BasicWitnessInputProducer {
                 .block_on(connection_pool.access_storage())
                 .unwrap();
             let pg_storage =
-                PostgresStorage::new(rt_handle.clone(), connection, MiniblockNumber(2_u32), true)
+                PostgresStorage::new(rt_handle.clone(), connection, miniblock_number, true)
                     .with_caches(PostgresStorageCaches::new(
                         128 * 1_024 * 1_024,
                         128 * 1_024 * 1_024,
                     ));
-            let storage_view = StorageView::new(pg_storage).to_rc_ptr();
+            let storage_view = StorageView::new(pg_storage).with_debug("INPUT_PRODUCER_STORAGE".to_string()).to_rc_ptr();
 
             let mut instance_data =
                 VmInstanceData::new(storage_view.clone(), &system_env, HistoryEnabled);
 
-            let mut vm = VmInstance::new(l1_batch_env, system_env, &mut instance_data);
+            let mut vm = VmInstance::new_with_debug(l1_batch_env, system_env, &mut instance_data, "INPUT_PRODUCER_VM".to_string());
             let mut connection = rt_handle
                 .block_on(connection_pool.access_storage())
                 .unwrap();
@@ -270,12 +272,14 @@ impl BasicWitnessInputProducer {
                     number: current_l2_block_info.l2_block_number,
                     timestamp: current_l2_block_info.l2_block_timestamp,
                     prev_block_hash: prev_l2_block_info.l2_block_hash,
+                    // TODO: Load this from DB -- miniblocks table, virtual_blocks value
                     max_virtual_blocks_to_create: 1,
                 };
                 vm.start_new_l2_block(l2_block_env);
 
                 println!("Finished execution of miniblock: {miniblock:?}");
             }
+            vm.finish_batch();
             // println!(
             //     "cache at end = {:#?}",
             //     (*storage_view).borrow().witness_block_state()
@@ -283,26 +287,38 @@ impl BasicWitnessInputProducer {
 
             let store = rt_handle.block_on(ObjectStoreFactory::from_env().unwrap().create_store());
 
-            let witness_inputs = (*storage_view).borrow().witness_block_state();
-            let object_place = rt_handle
-                .block_on(store.put(l1_batch_number, &witness_inputs))
-                .unwrap();
-            println!("{object_place:?}");
+            // let witness_inputs = (*storage_view).borrow().witness_block_state();
+            // let object_place = rt_handle
+            //     .block_on(store.put(l1_batch_number, &witness_inputs))
+            //     .unwrap();
+            // println!("{object_place:?}");
 
-            // let state_keeper_block_state: WitnessBlockState = rt_handle.block_on(store.get(L1BatchNumber(1_u32))).unwrap();
-            // let storage_block_state = (*storage_view).borrow().witness_block_state();
-            // for read_key in state_keeper_block_state.read_storage_key.keys() {
-            //     if !storage_block_state.read_storage_key.contains_key(read_key) {
-            //         println!("missing read_key from storage_block_state: {read_key:?}");
-            //     }
-            // }
-            // for read_key in storage_block_state.read_storage_key.keys() {
-            //     if !state_keeper_block_state.read_storage_key.contains_key(read_key) {
-            //         println!("missing read_key from state_keeper_block_State: {read_key:?}");
-            //     }
-            // }
-            // println!("Statistics on state_keeper:\n\tread_storage_keys_count={}\n\tis_write_initial_count={}", state_keeper_block_state.read_storage_key.len(), state_keeper_block_state.is_write_initial.len());
-            // println!("Statistics on storage:\n\tread_storage_keys_count={}\n\tis_write_initial_count={}", storage_block_state.read_storage_key.len(), storage_block_state.is_write_initial.len());
+            let state_keeper_block_state: WitnessBlockState = rt_handle.block_on(store.get(l1_batch_number)).unwrap();
+            let storage_block_state = (*storage_view).borrow().witness_block_state();
+            println!("READ_KEY");
+            for key in state_keeper_block_state.read_storage_key.keys() {
+                if !storage_block_state.read_storage_key.contains_key(key) {
+                    println!("missing read_key from storage_block_state: {key:?}");
+                }
+            }
+            for key in storage_block_state.read_storage_key.keys() {
+                if !state_keeper_block_state.read_storage_key.contains_key(key) {
+                    println!("missing read_key from state_keeper_block_state: {key:?}");
+                }
+            }
+            println!("IS_WRITE_INITIAL");
+            for key in state_keeper_block_state.is_write_initial.keys() {
+                if !storage_block_state.is_write_initial.contains_key(key) {
+                    println!("missing is_write_initial from storage_block_state: {key:?}");
+                }
+            }
+            for key in storage_block_state.is_write_initial.keys() {
+                if !state_keeper_block_state.is_write_initial.contains_key(key) {
+                    println!("missing is_write_initial from state_keeper_block_state: {key:?}");
+                }
+            }
+            println!("Statistics on state_keeper:\n\tread_storage_keys_count={}\n\tis_write_initial_count={}", state_keeper_block_state.read_storage_key.len(), state_keeper_block_state.is_write_initial.len());
+            println!("Statistics on storage:\n\tread_storage_keys_count={}\n\tis_write_initial_count={}", storage_block_state.read_storage_key.len(), storage_block_state.is_write_initial.len());
         })
         .await
         .unwrap();

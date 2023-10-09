@@ -45,54 +45,55 @@ impl BasicWitnessInputProducerDal<'_, '_> {
         l1_batch_number: L1BatchNumber,
         protocol_version: Option<ProtocolVersionId>,
     ) {
-        sqlx::query!(
-            "
-                INSERT INTO basic_witness_input_producer_jobs
-                    (l1_batch_number, status, protocol_version, created_at, updated_at)
-                VALUES ($1, $2, $3, now(), now())
-                ",
-            l1_batch_number.0 as i64,
-            format!("{}", BasicWitnessInputProducerStatus::Queued),
-            protocol_version.map(|v| v as i32),
-        )
-        .instrument("create_basic_witness_input_producer_job")
-        .report_latency()
-        .execute(self.storage.conn())
-        .await
-        .unwrap();
+        // sqlx::query!(
+        //     "
+        //         INSERT INTO basic_witness_input_producer_jobs
+        //             (l1_batch_number, status, protocol_version, created_at, updated_at)
+        //         VALUES ($1, $2, $3, now(), now())
+        //         ",
+        //     l1_batch_number.0 as i64,
+        //     format!("{}", BasicWitnessInputProducerStatus::Queued),
+        //     protocol_version.map(|v| v as i32),
+        // )
+        // .instrument("create_basic_witness_input_producer_job")
+        // .report_latency()
+        // .execute(self.storage.conn())
+        // .await
+        // .unwrap();
     }
 
     pub async fn get_next_basic_witness_input_producer_job(&mut self) -> Option<L1BatchNumber> {
-        let max_attempts = 5;
-        let processing_timeout = pg_interval_from_duration(Duration::from_secs(60));
-        sqlx::query!(
-            "
-                UPDATE basic_witness_input_producer_jobs
-                SET status = $1,
-                    attempts = attempts + 1,
-                    updated_at = now(),
-                    processing_started_at = now()
-                WHERE l1_batch_number = (
-                    SELECT MIN(l1_batch_number)
-                    FROM basic_witness_input_producer_jobs
-                    WHERE status = $2 OR
-                        (status = $1 AND processing_started_at < now() - $4::interval) OR
-                        (status = $3 AND attempts < $5)
-                )
-                RETURNING basic_witness_input_producer_jobs.l1_batch_number
-            ",
-            format!("{}", BasicWitnessInputProducerStatus::InProgress),
-            format!("{}", BasicWitnessInputProducerStatus::Queued),
-            format!("{}", BasicWitnessInputProducerStatus::Failed),
-            &processing_timeout,
-            max_attempts as i32,
-        )
-        .instrument("get_next_basic_witness_input_producer_job")
-        .report_latency()
-        .fetch_optional(self.storage.conn())
-        .await
-        .expect("failed to query basic witness input producer job")
-        .map(|job| L1BatchNumber(job.l1_batch_number as u32))
+        // let max_attempts = 5;
+        // let processing_timeout = pg_interval_from_duration(Duration::from_secs(60));
+        // sqlx::query!(
+        //     "
+        //         UPDATE basic_witness_input_producer_jobs
+        //         SET status = $1,
+        //             attempts = attempts + 1,
+        //             updated_at = now(),
+        //             processing_started_at = now()
+        //         WHERE l1_batch_number = (
+        //             SELECT MIN(l1_batch_number)
+        //             FROM basic_witness_input_producer_jobs
+        //             WHERE status = $2 OR
+        //                 (status = $1 AND processing_started_at < now() - $4::interval) OR
+        //                 (status = $3 AND attempts < $5)
+        //         )
+        //         RETURNING basic_witness_input_producer_jobs.l1_batch_number
+        //     ",
+        //     format!("{}", BasicWitnessInputProducerStatus::InProgress),
+        //     format!("{}", BasicWitnessInputProducerStatus::Queued),
+        //     format!("{}", BasicWitnessInputProducerStatus::Failed),
+        //     &processing_timeout,
+        //     max_attempts as i32,
+        // )
+        // .instrument("get_next_basic_witness_input_producer_job")
+        // .report_latency()
+        // .fetch_optional(self.storage.conn())
+        // .await
+        // .expect("failed to query basic witness input producer job")
+        // .map(|job| L1BatchNumber(job.l1_batch_number as u32))
+        None
     }
 }
 
