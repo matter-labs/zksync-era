@@ -790,13 +790,13 @@ describe('web3 API compatibility tests', () => {
         expect(logs).toEqual([]);
 
         logs = await alice.provider.send('zks_getLogsWithVirtualBlocks', [{ fromBlock: '0x1', toBlock: '0x2' }]);
-        expect(logs.length > 0);
+        expect(logs.length > 0).toEqual(true);
 
         logs = await alice.provider.send('zks_getLogsWithVirtualBlocks', [{ fromBlock: '0x2', toBlock: '0x1' }]);
         expect(logs).toEqual([]);
 
         logs = await alice.provider.send('zks_getLogsWithVirtualBlocks', [{ fromBlock: '0x3', toBlock: '0x3' }]);
-        expect(logs.length > 0);
+        expect(logs.length > 0).toEqual(true);
 
         await expect(
             alice.provider.send('zks_getLogsWithVirtualBlocks', [{ fromBlock: '0x100000000', toBlock: '0x100000000' }]) // 2^32
@@ -806,6 +806,32 @@ describe('web3 API compatibility tests', () => {
                 { fromBlock: '0x10000000000000000', toBlock: '0x10000000000000000' } // 2^64
             ])
         ).toBeRejected();
+    });
+
+    test('Should check TransactionResponse v value for different tx types', async () => {
+        let txResponse;
+
+        const LEGACY_TX_TYPE = 0;
+        const legacyTx = await alice.sendTransaction({
+            type: LEGACY_TX_TYPE,
+            to: alice.address
+        });
+        await legacyTx.wait();
+
+        txResponse = await alice.provider.getTransaction(legacyTx.hash);
+        const expectedV = 35 + +process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID! * 2;
+
+        expect(Math.abs(txResponse.v! - expectedV) <= 1).toEqual(true);
+
+        const EIP1559_TX_TYPE = 2;
+        const eip1559Tx = await alice.sendTransaction({
+            type: EIP1559_TX_TYPE,
+            to: alice.address
+        });
+        await eip1559Tx.wait();
+        txResponse = await alice.provider.getTransaction(eip1559Tx.hash);
+
+        expect(txResponse.v!).toEqual(1);
     });
 
     afterAll(async () => {
