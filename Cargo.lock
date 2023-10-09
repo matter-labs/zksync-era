@@ -3827,6 +3827,7 @@ dependencies = [
  "vm_1_3_2",
  "vm_m5",
  "vm_m6",
+ "vm_virtual_blocks",
  "zksync_contracts",
  "zksync_state",
  "zksync_types",
@@ -7028,6 +7029,29 @@ dependencies = [
  "zksync_crypto",
  "zksync_state",
  "zksync_storage",
+ "zksync_types",
+ "zksync_utils",
+]
+
+[[package]]
+name = "vm_virtual_blocks"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "ethabi",
+ "hex",
+ "itertools",
+ "once_cell",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "vise",
+ "zk_evm 1.3.3",
+ "zksync_config",
+ "zksync_contracts",
+ "zksync_eth_signer",
+ "zksync_state",
+ "zksync_test_account",
  "zksync_types",
  "zksync_utils",
 ]
