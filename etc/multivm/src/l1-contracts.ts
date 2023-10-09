@@ -2,17 +2,15 @@ import { Command } from 'commander';
 import { exec as _exec, spawn as _spawn } from 'child_process';
 // import * as env from './env';
 import fs from 'fs';
-import {spawn, updateContractsEnv} from "./utils";
+import { spawn, updateContractsEnv } from './utils';
 
 // executes a command in a new shell
 // but pipes data to parent's stdout/stderr
-
 
 export async function build() {
     await spawn('yarn l1-contracts build');
     await spawn('yarn l2-contracts build');
 }
-
 
 export async function verifyL1Contracts(protocolVersion: ProtocolVersions) {
     // Spawning a new script is expensive, so if we know that publishing is disabled, it's better to not launch
@@ -24,7 +22,6 @@ export async function verifyL1Contracts(protocolVersion: ProtocolVersions) {
     let path = l1ContractsPath(protocolVersion);
     await spawn(`yarn --cwd ${path} verify`);
 }
-
 
 export async function initializeValidator(version: ProtocolVersions, args: any[] = []) {
     const baseCommandL1 = `yarn --cwd ${l1ContractsPath(version)}`;
@@ -86,4 +83,3 @@ export async function redeployL1(version: ProtocolVersions, args: any[]) {
 export async function deployVerifier(version: ProtocolVersions, args: any[]) {
     await deployL1(version, [...args, '--only-verifier']);
 }
-

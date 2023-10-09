@@ -3,14 +3,18 @@ use ethabi::Token;
 use zksync_contracts::get_loadnext_contract;
 use zksync_contracts::test_contracts::LoadnextContractExecutionParams;
 
-use zksync_types::{Execute, U256};
+use zksync_state::WriteStorage;
+use zksync_types::{get_nonce_key, Execute, U256};
 
 use crate::tests::tester::{
     DeployContractsTx, TransactionTestInfo, TxModifier, TxType, VmTesterBuilder,
 };
 use crate::tests::utils::read_test_contract;
 use crate::types::inputs::system_env::TxExecutionMode;
-use crate::HistoryEnabled;
+use crate::{
+    BootloaderState, DynTracer, ExecutionEndTracer, ExecutionProcessing, HistoryEnabled,
+    HistoryMode, VmExecutionMode, VmTracer, ZkSyncVmState,
+};
 
 #[test]
 fn test_vm_rollbacks() {
@@ -143,4 +147,120 @@ fn test_vm_loadnext_rollbacks() {
     ]);
 
     assert_eq!(result_without_rollbacks, result_with_rollbacks);
+}
+
+// Testing tracer that does not allow the recursion to go deeper than a certain limit
+struct MaxRecursionTracer {
+    max_recursion_depth: usize,
+    should_stop_execution: bool,
+}
+
+/// Tracer responsible for calculating the number of storage invocations and
+/// stopping the VM execution if the limit is reached.
+impl<S, H: HistoryMode> DynTracer<S, H> for MaxRecursionTracer {}
+
+impl<H: HistoryMode> ExecutionEndTracer<H> for MaxRecursionTracer {
+    fn should_stop_execution(&self) -> bool {
+        self.should_stop_execution
+    }
+}
+
+impl<S: WriteStorage, H: HistoryMode> ExecutionProcessing<S, H> for MaxRecursionTracer {
+    fn after_cycle(
+        &mut self,
+        state: &mut ZkSyncVmState<S, H>,
+        _bootloader_state: &mut BootloaderState,
+    ) {
+        let current_depth = state.local_state.callstack.depth();
+
+        if current_depth > self.max_recursion_depth {
+            self.should_stop_execution = true;
+        }
+    }
+}
+
+impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for MaxRecursionTracer {}
+
+#[test]
+fn test_layered_rollback() {
+    // This test checks that the layered rollbacks work correctly, i.e.
+    // the rollback by the operator will always revert all the changes
+
+    let mut vm = VmTesterBuilder::new(HistoryEnabled)
+        .with_empty_in_memory_storage()
+        .with_execution_mode(TxExecutionMode::VerifyExecute)
+        .with_random_rich_accounts(1)
+        .build();
+
+    let account = &mut vm.rich_accounts[0];
+    let loadnext_contract = get_loadnext_contract().bytecode;
+
+    let DeployContractsTx {
+        tx: deploy_tx,
+        address,
+        ..
+    } = account.get_deploy_tx(
+        &loadnext_contract,
+        Some(&[Token::Uint(0.into())]),
+        TxType::L2,
+    );
+    vm.vm.push_transaction(deploy_tx);
+    let deployment_res = vm.vm.execute(VmExecutionMode::OneTx);
+    assert!(!deployment_res.result.is_failed(), "transaction failed");
+
+    let loadnext_transaction = account.get_loadnext_transaction(
+        address,
+        LoadnextContractExecutionParams {
+            writes: 1,
+            recursive_calls: 20,
+            ..LoadnextContractExecutionParams::empty()
+        },
+        TxType::L2,
+    );
+
+    let nonce_val = vm
+        .vm
+        .state
+        .storage
+        .storage
+        .read_from_storage(&get_nonce_key(&account.address));
+
+    vm.vm.make_snapshot();
+
+    vm.vm.push_transaction(loadnext_transaction.clone());
+    vm.vm.inspect(
+        vec![Box::new(MaxRecursionTracer {
+            max_recursion_depth: 15,
+            should_stop_execution: false,
+        })],
+        VmExecutionMode::OneTx,
+    );
+
+    let nonce_val2 = vm
+        .vm
+        .state
+        .storage
+        .storage
+        .read_from_storage(&get_nonce_key(&account.address));
+
+    // The tracer stopped after the validation has passed, so nonce has already been increased
+    assert_eq!(nonce_val + U256::one(), nonce_val2, "nonce did not change");
+
+    vm.vm.rollback_to_the_latest_snapshot();
+
+    let nonce_val_after_rollback = vm
+        .vm
+        .state
+        .storage
+        .storage
+        .read_from_storage(&get_nonce_key(&account.address));
+
+    assert_eq!(
+        nonce_val, nonce_val_after_rollback,
+        "nonce changed after rollback"
+    );
+
+    vm.vm.push_transaction(loadnext_transaction);
+    let result = vm.vm.inspect(vec![], VmExecutionMode::OneTx);
+    assert!(!result.result.is_failed(), "transaction must not fail");
 }

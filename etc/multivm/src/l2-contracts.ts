@@ -1,7 +1,5 @@
-import {spawn, updateContractsEnv} from "./utils";
-import fs from "fs";
-
-
+import { spawn, updateContractsEnv } from './utils';
+import fs from 'fs';
 
 export async function deployL2(
     version: ProtocolVersions,

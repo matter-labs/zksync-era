@@ -1,4 +1,4 @@
-import {spawn as _spawn} from "child_process";
+import { spawn as _spawn } from 'child_process';
 
 export function spawn(command: string) {
     command = command.replace(/\n/g, ' ');
