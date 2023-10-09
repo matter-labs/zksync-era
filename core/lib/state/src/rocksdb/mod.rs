@@ -67,6 +67,10 @@ struct StateValue {
 }
 
 impl StateValue {
+    pub fn new(value: H256, enum_index: Option<u64>) -> Self {
+        Self { value, enum_index }
+    }
+
     pub fn deserialize(bytes: &[u8]) -> Self {
         if bytes.len() == 32 {
             Self {
@@ -82,16 +86,12 @@ impl StateValue {
     }
 
     pub fn serialize(&self) -> Vec<u8> {
-        self.value
-            .0
-            .into_iter()
-            .chain(
-                self.enum_index
-                    .map(|i| i.to_be_bytes().into_iter())
-                    .into_iter()
-                    .flatten(),
-            )
-            .collect()
+        let mut buffer = Vec::with_capacity(40);
+        buffer.extend_from_slice(self.value.as_bytes());
+        if let Some(index) = self.enum_index {
+            buffer.extend_from_slice(&index.to_be_bytes());
+        }
+        buffer
     }
 }
 
@@ -127,19 +127,6 @@ impl RocksdbStorage {
     /// Enables enum indices migration.
     pub fn enable_enum_index_migration(&mut self, chunk_size: usize) {
         self.enum_index_migration_chunk_size = chunk_size;
-    }
-
-    /// Creates a new storage with the provided RocksDB `path` and enum index migration settings.
-    pub fn new_with_enum_index_migration_chunk_size(
-        path: &Path,
-        enum_index_migration_chunk_size: usize,
-    ) -> Self {
-        let db = RocksDB::new(path, true);
-        Self {
-            db,
-            pending_patch: InMemoryStorage::default(),
-            enum_index_migration_chunk_size,
-        }
     }
 
     /// Synchronizes this storage with Postgres using the provided connection.
@@ -210,7 +197,6 @@ impl RocksdbStorage {
     ) {
         let (logs_with_known_indices, logs_with_unknown_indices): (Vec<_>, Vec<_>) = self
             .process_transaction_logs(storage_logs)
-            .into_iter()
             .partition_map(|(key, StateValue { value, enum_index })| match enum_index {
                 Some(index) => Either::Left((key, (value, index))),
                 None => Either::Right((key, value)),
@@ -253,8 +239,9 @@ impl RocksdbStorage {
             .db
             .from_iterator_cf(StateKeeperColumnFamily::State, start_from.as_bytes())
             .filter_map(|(key, value)| {
-                (!Self::is_special_key(&key) && value.len() != 40)
-                    .then(|| (H256::from_slice(&key), H256::from_slice(&value[..32])))
+                let state_value = StateValue::deserialize(&value);
+                (!Self::is_special_key(&key) && state_value.enum_index.is_none())
+                    .then(|| (H256::from_slice(&key), state_value.value))
             })
             .take(self.enum_index_migration_chunk_size)
             .unzip();
@@ -269,11 +256,7 @@ impl RocksdbStorage {
             write_batch.put_cf(
                 StateKeeperColumnFamily::State,
                 key.as_bytes(),
-                &StateValue {
-                    value,
-                    enum_index: Some(index),
-                }
-                .serialize(),
+                &StateValue::new(value, Some(index)).serialize(),
             );
         }
 
@@ -332,29 +315,14 @@ impl RocksdbStorage {
     fn process_transaction_logs(
         &self,
         updates: HashMap<StorageKey, H256>,
-    ) -> HashMap<StorageKey, StateValue> {
-        updates
-            .into_iter()
-            .filter_map(|(key, new_value)| {
-                if let Some(state_value) = self.read_state_value(&key) {
-                    Some((
-                        key,
-                        StateValue {
-                            value: new_value,
-                            enum_index: state_value.enum_index,
-                        },
-                    ))
-                } else {
-                    (!new_value.is_zero()).then_some((
-                        key,
-                        StateValue {
-                            value: new_value,
-                            enum_index: None,
-                        },
-                    ))
-                }
-            })
-            .collect()
+    ) -> impl Iterator<Item = (StorageKey, StateValue)> + '_ {
+        updates.into_iter().filter_map(|(key, new_value)| {
+            if let Some(state_value) = self.read_state_value(&key) {
+                Some((key, StateValue::new(new_value, state_value.enum_index)))
+            } else {
+                (!new_value.is_zero()).then_some((key, StateValue::new(new_value, None)))
+            }
+        })
     }
 
     /// Stores a factory dependency with the specified `hash` and `bytecode`.
@@ -417,11 +385,7 @@ impl RocksdbStorage {
                     batch.put_cf(
                         cf,
                         key.as_bytes(),
-                        &StateValue {
-                            value: prev_value,
-                            enum_index: Some(prev_index),
-                        }
-                        .serialize(),
+                        &StateValue::new(prev_value, Some(prev_index)).serialize(),
                     );
                 } else {
                     batch.delete_cf(cf, key.as_bytes());
@@ -462,11 +426,7 @@ impl RocksdbStorage {
                 batch.put_cf(
                     cf,
                     &Self::serialize_state_key(&key),
-                    &StateValue {
-                        value,
-                        enum_index: Some(enum_index),
-                    }
-                    .serialize(),
+                    &StateValue::new(value, Some(enum_index)).serialize(),
                 );
             }
 
@@ -563,7 +523,6 @@ mod tests {
             .collect();
         let changed_keys = storage.process_transaction_logs(storage_logs.clone());
         storage.pending_patch.state = changed_keys
-            .into_iter()
             .map(|(key, state_value)| (key, (state_value.value, 1))) // enum index doesn't matter in the test
             .collect();
         storage.save(L1BatchNumber(0)).await;
@@ -580,7 +539,6 @@ mod tests {
         }
         let changed_keys = storage.process_transaction_logs(storage_logs.clone());
         storage.pending_patch.state = changed_keys
-            .into_iter()
             .map(|(key, state_value)| (key, (state_value.value, 1))) // enum index doesn't matter in the test
             .collect();
         storage.save(L1BatchNumber(1)).await;

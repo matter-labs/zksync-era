@@ -312,7 +312,7 @@ impl StorageLogsDal<'_, '_> {
             .into_iter()
             .map(|(key, value)| {
                 let value = value.unwrap(); // We already filtered out keys that weren't touched.
-                let index = l1_batch_and_index_by_key.get(&key).unwrap().1;
+                let index = l1_batch_and_index_by_key[&key].1;
                 (key, Some((value, index)))
             });
         tracing::info!(
