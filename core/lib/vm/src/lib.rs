@@ -14,7 +14,10 @@ pub use errors::{
 
 pub use tracers::{
     call::CallTracer,
-    traits::{BoxedTracer, DynTracer, ExecutionEndTracer, ExecutionProcessing, VmTracer},
+    traits::{
+        BoxedTracer, DynTracer, ExecutionEndTracer, ExecutionProcessing, TracerExecutionStatus,
+        TracerExecutionStopReason, VmTracer,
+    },
     utils::VmExecutionStopReason,
     validation::ViolatedValidationRule,
     StorageInvocations, ValidationError, ValidationTracer, ValidationTracerParams,

@@ -9,7 +9,7 @@ use zksync_types::{
 use zksync_utils::u256_to_h256;
 
 /// Network ID we use by defailt for in memory storage.
-pub const IN_MEMORY_STORAGE_DEFAULT_NETWORK_ID: u16 = 270;
+pub const IN_MEMORY_STORAGE_DEFAULT_NETWORK_ID: u32 = 270;
 
 /// In-memory storage.
 #[derive(Debug, Default)]
@@ -23,7 +23,7 @@ impl InMemoryStorage {
     /// Constructs a storage that contains system smart contracts.
     pub fn with_system_contracts(bytecode_hasher: impl Fn(&[u8]) -> H256) -> Self {
         Self::with_system_contracts_and_chain_id(
-            L2ChainId(IN_MEMORY_STORAGE_DEFAULT_NETWORK_ID),
+            L2ChainId::from(IN_MEMORY_STORAGE_DEFAULT_NETWORK_ID),
             bytecode_hasher,
         )
     }

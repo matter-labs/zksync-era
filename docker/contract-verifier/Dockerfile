@@ -15,11 +15,11 @@ RUN curl https://sh.rustup.rs -sSf | bash -s -- -y && \
 
 WORKDIR /usr/src/zksync
 COPY . .
-#Needed to get zkEVM package from github link with auth embedded
-# Doesn't expected to work local
-RUN CARGO_HOME=./cargo cargo build --release
+
+RUN cargo build --release
 
 FROM debian:bookworm-slim
+
 RUN apt-get update && apt-get install -y curl libpq5 ca-certificates wget python3 && rm -rf /var/lib/apt/lists/*
 
 # install zksolc
@@ -107,5 +107,6 @@ RUN mkdir -p /etc/vyper-bin/0.3.9 \
 COPY --from=builder /usr/src/zksync/target/release/zksync_contract_verifier /usr/bin/
 COPY etc/system-contracts/bootloader/build/artifacts/ /etc/system-contracts/bootloader/build/artifacts/
 COPY etc/system-contracts/artifacts-zk /etc/system-contracts/artifacts-zk
+
 # CMD tail -f /dev/null
 ENTRYPOINT ["zksync_contract_verifier"]

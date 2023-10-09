@@ -28,7 +28,7 @@ use crate::state_keeper::{
 };
 
 const DEFAULT_GAS_PER_PUBDATA: u32 = 100;
-const CHAIN_ID: L2ChainId = L2ChainId(270);
+const CHAIN_ID: u32 = 270;
 
 /// Representation of configuration parameters used by the state keeper.
 /// Has sensible defaults for most tests, each of which can be overridden.
@@ -144,7 +144,7 @@ impl Tester {
             create_genesis_l1_batch(
                 &mut storage,
                 self.fee_account,
-                CHAIN_ID,
+                L2ChainId::from(CHAIN_ID),
                 ProtocolVersionId::latest(),
                 &BASE_SYSTEM_CONTRACTS,
                 &get_system_smart_contracts(),
