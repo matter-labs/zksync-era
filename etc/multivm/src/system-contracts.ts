@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import { spawn } from './l1-contracts';
+import { spawn } from './utils';
 
 export async function compileTestContracts() {
     await spawn('yarn --cwd etc/contracts-test-data hardhat compile');

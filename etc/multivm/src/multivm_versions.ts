@@ -12,7 +12,7 @@ enum ProtocolVersions {
 
 const systemContractProtocolVersions = {
     [ProtocolVersions.Version12]: `${systemContractsPath}/vm_1_3_2`,
-    [ProtocolVersions.Version13]: `${systemContractsPath}/vm_virtual_blocks`,
+    [ProtocolVersions.Version13]: `${systemContractsPath}/vm_virtual_blocks_with_bug`,
     [ProtocolVersions.Version14]: `${systemContractsPath}/vm_virtual_blocks`,
     [ProtocolVersions.Version15]: `${systemContractsPath}/vm_virtual_blocks`,
     [ProtocolVersions.Version16]: `${systemContractsPath}/vm_virtual_blocks`
@@ -31,4 +31,12 @@ function systemContractsPathForProtocol(version: ProtocolVersions): string {
 
 function contractsPathForProtocol(version: ProtocolVersions): string {
     return contractsVersions[version];
+}
+
+function l1ContractsPath(version: ProtocolVersions): string {
+    return `${contractsPathForProtocol(version)}\ethereum`;
+}
+
+function l2ContractsPath(version: ProtocolVersions): string {
+    return `${contractsPathForProtocol(version)}\zksync`;
 }
