@@ -11,8 +11,9 @@
 //! | Column       | Key                             | Value                           | Description                               |
 //! | ------------ | ------------------------------- | ------------------------------- | ----------------------------------------- |
 //! | State        | 'block_number'                  | serialized block number         | Last processed L1 batch number (u32)      |
-//! | State        | 'enum_index_migration_cursor'   | serialized hashed key           | Hashed key migration should continue from |
-//! | State        | 'enum_index_migration_finished' | 1 byte flag                     | Denotes if the migration if completed     |
+//! | State        | 'enum_index_migration_cursor'   | serialized hashed key or empty  | If key is not present it means that the migration hasn't started.                   |
+//! |              |                                 | bytes                           | If value is of length 32 then it represents hashed_key migration should start from. |
+//! |              |                                 |                                 | If value is empty then it means the migration has finished                          |
 //! | State        | hashed `StorageKey`             | 32 bytes value ++ 8 bytes index | State value for the given key             |
 //! |              |                                 |                    (big-endian) |                                           |
 //! | Contracts    | address (20 bytes)              | `Vec<u8>`                       | Contract contents                         |
@@ -106,12 +107,9 @@ pub struct RocksdbStorage {
 impl RocksdbStorage {
     const BLOCK_NUMBER_KEY: &'static [u8] = b"block_number";
     const ENUM_INDEX_MIGRATION_CURSOR: &'static [u8] = b"enum_index_migration_cursor";
-    const ENUM_INDEX_MIGRATION_FINISHED: &'static [u8] = b"enum_index_migration_finished";
 
     fn is_special_key(key: &[u8]) -> bool {
-        key == Self::BLOCK_NUMBER_KEY
-            || key == Self::ENUM_INDEX_MIGRATION_CURSOR
-            || key == Self::ENUM_INDEX_MIGRATION_FINISHED
+        key == Self::BLOCK_NUMBER_KEY || key == Self::ENUM_INDEX_MIGRATION_CURSOR
     }
 
     /// Creates a new storage with the provided RocksDB `path`.
@@ -275,12 +273,8 @@ impl RocksdbStorage {
             _ => {
                 write_batch.put_cf(
                     StateKeeperColumnFamily::State,
-                    Self::ENUM_INDEX_MIGRATION_FINISHED,
-                    &[1],
-                );
-                write_batch.delete_cf(
-                    StateKeeperColumnFamily::State,
                     Self::ENUM_INDEX_MIGRATION_CURSOR,
+                    &[],
                 );
                 tracing::info!("RocksDB enum index migration finished");
             }
@@ -464,23 +458,18 @@ impl RocksdbStorage {
     }
 
     fn enum_migration_start_from(&self) -> Option<H256> {
-        let finished = self
+        let value = self
             .db
             .get_cf(
                 StateKeeperColumnFamily::State,
-                Self::ENUM_INDEX_MIGRATION_FINISHED,
+                Self::ENUM_INDEX_MIGRATION_CURSOR,
             )
-            .expect("failed to read `ENUM_INDEX_MIGRATION_FINISHED`")
-            .is_some();
-        (!finished).then(|| {
-            self.db
-                .get_cf(
-                    StateKeeperColumnFamily::State,
-                    Self::ENUM_INDEX_MIGRATION_CURSOR,
-                )
-                .expect("failed to read `ENUM_INDEX_MIGRATION_CURSOR`")
-                .map_or(H256::zero(), |h| H256::from_slice(&h))
-        })
+            .expect("failed to read `ENUM_INDEX_MIGRATION_CURSOR`");
+        match value {
+            Some(v) if v.is_empty() => None,
+            Some(cursor) => Some(H256::from_slice(&cursor)),
+            None => Some(H256::zero()),
+        }
     }
 }
 
@@ -691,10 +680,6 @@ mod tests {
             write_batch.delete_cf(
                 StateKeeperColumnFamily::State,
                 RocksdbStorage::ENUM_INDEX_MIGRATION_CURSOR,
-            );
-            write_batch.delete_cf(
-                StateKeeperColumnFamily::State,
-                RocksdbStorage::ENUM_INDEX_MIGRATION_FINISHED,
             );
         }
         storage.db.write(write_batch).unwrap();
