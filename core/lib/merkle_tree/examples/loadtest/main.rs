@@ -153,8 +153,6 @@ impl Cli {
             };
             let elapsed = start.elapsed();
             tracing::info!("Processed block #{version} in {elapsed:?}, root hash = {root_hash:?}");
-
-            //registry.encode(&mut io::stdout().lock()).unwrap();
         }
 
         tracing::info!("Verifying tree consistency...");
