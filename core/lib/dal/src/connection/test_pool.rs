@@ -58,7 +58,7 @@ pub struct TestConnectionRef(OwnedMutexGuard<StaticTransaction>);
 
 impl TestConnectionRef {
     pub fn as_conn(&mut self) -> &mut PgConnection {
-        &mut *self.0.tx
+        &mut self.0.tx
     }
 }
 
@@ -76,7 +76,7 @@ impl TestConnection {
 
 impl TestTransaction {
     pub fn as_conn(&mut self) -> &mut PgConnection {
-        &mut *self.0.tx
+        &mut self.0.tx
     }
 
     pub async fn commit(self) -> sqlx::Result<()> {
