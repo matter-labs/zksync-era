@@ -48,6 +48,8 @@ pub struct StorageOracle<S: WriteStorage, H: HistoryMode> {
     // to cover this slot.
     // `paid_changes` history is necessary
     pub(crate) paid_changes: HistoryRecorder<HashMap<StorageKey, u32>, HistoryEnabled>,
+
+    initial_values: HistoryRecorder<HashMap<StorageKey, U256>, HistoryEnabled>,
 }
 
 impl<S: WriteStorage> OracleWithHistory for StorageOracle<S, HistoryEnabled> {
@@ -64,6 +66,7 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
             storage: HistoryRecorder::from_inner(StorageWrapper::new(storage)),
             frames_stack: Default::default(),
             paid_changes: Default::default(),
+            initial_values: Default::default(),
         }
     }
 
@@ -71,6 +74,7 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
         self.frames_stack.delete_history();
         self.storage.delete_history();
         self.paid_changes.delete_history();
+        self.initial_values.delete_history();
     }
 
     fn is_storage_key_free(&self, key: &StorageKey) -> bool {
@@ -133,6 +137,25 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
             .unwrap_or_default()
     }
 
+    fn get_initial_value(&self, storage_key: &StorageKey) -> Option<U256> {
+        self.initial_values.inner().get(storage_key).copied()
+    }
+
+    fn set_initial_value(&mut self, storage_key: &StorageKey, value: U256, timestamp: Timestamp) {
+        match self.get_initial_value(storage_key) {
+            Some(_) => {}
+            None => {
+                self.initial_values.apply_historic_record(
+                    HashMapHistoryEvent {
+                        key: *storage_key,
+                        value: Some(value),
+                    },
+                    timestamp,
+                );
+            }
+        }
+    }
+
     pub(crate) fn base_price_for_write(&self, query: &LogQuery) -> u32 {
         let storage_key = storage_key_of_log(query);
 
@@ -146,15 +169,25 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
             .borrow_mut()
             .is_write_initial(&storage_key);
 
-        get_pubdata_price_bytes(query, is_initial_write)
+        let initial_value = self
+            .get_initial_value(&storage_key)
+            .unwrap_or(query.read_value);
+
+        get_pubdata_price_bytes(initial_value, query.written_value, is_initial_write)
     }
 
     // Returns the price of the update in terms of pubdata bytes.
     // TODO (SMA-1701): update VM to accept gas instead of pubdata.
-    fn value_update_price(&self, query: &LogQuery) -> u32 {
+    fn value_update_price(&mut self, query: &LogQuery) -> u32 {
         let storage_key = storage_key_of_log(query);
 
         let base_cost = self.base_price_for_write(query);
+
+        let initial_value = self
+            .get_initial_value(&storage_key)
+            .unwrap_or(query.read_value);
+
+        self.set_initial_value(&storage_key, initial_value, query.timestamp);
 
         let already_paid = self.prepaid_for_write(&storage_key);
 
@@ -239,6 +272,12 @@ impl<S: WriteStorage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
             let to_pay_by_user = self.base_price_for_write(&query);
             let prepaid = self.prepaid_for_write(&storage_key);
 
+            let initial_value = self
+                .get_initial_value(&storage_key)
+                .unwrap_or(query.read_value);
+
+            self.set_initial_value(&storage_key, initial_value, query.timestamp);
+
             if to_pay_by_user > prepaid {
                 self.paid_changes.apply_historic_record(
                     HashMapHistoryEvent {
@@ -262,9 +301,14 @@ impl<S: WriteStorage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
         _monotonic_cycle_counter: u32,
         partial_query: &LogQuery,
     ) -> RefundType {
+        let storage_key = storage_key_of_log(partial_query);
         let price_to_pay = self
             .value_update_price(partial_query)
             .min(INITIAL_STORAGE_WRITE_PUBDATA_BYTES as u32);
+
+        let initial_value = self
+            .get_initial_value(&storage_key)
+            .unwrap_or(partial_query.read_value);
 
         RefundType::RepeatedWrite(RefundedAmounts {
             ergs: 0,
@@ -334,20 +378,42 @@ impl<S: WriteStorage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
 // For value compression, we use a metadata byte which holds the length of the value and the operation from the
 // previous state to the new state, and the compressed value. The maxiumum for this is 33 bytes.
 // Total bytes for initial writes then becomes 65 bytes and repeated writes becomes 38 bytes.
-fn get_pubdata_price_bytes(query: &LogQuery, is_initial: bool) -> u32 {
+fn get_pubdata_price_bytes(initial_value: U256, final_value: U256, is_initial: bool) -> u32 {
     // TODO (SMA-1702): take into account the content of the log query, i.e. values that contain mostly zeroes
     // should cost less.
 
-    if query.read_value >= query.written_value {
-        return 0u32;
-    }
-
     let compressed_value_size =
-        compress_with_best_strategy(query.read_value, query.written_value).len() as u32;
+        compress_with_best_strategy(initial_value, final_value).len() as u32;
 
     if is_initial {
         (BYTES_PER_DERIVED_KEY as u32) + compressed_value_size
     } else {
         (BYTES_PER_ENUMERATION_INDEX as u32) + compressed_value_size
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_get_pubdata_price_bytes() {
+        let initial_value = U256::default();
+        let final_value = U256::from(92122);
+        let is_initial = true;
+
+        let compression_len = 4;
+
+        let initial_bytes_price = get_pubdata_price_bytes(initial_value, final_value, is_initial);
+        let repeated_bytes_price = get_pubdata_price_bytes(initial_value, final_value, !is_initial);
+
+        assert_eq!(
+            initial_bytes_price,
+            (compression_len + BYTES_PER_DERIVED_KEY as usize) as u32
+        );
+        assert_eq!(
+            repeated_bytes_price,
+            (compression_len + BYTES_PER_ENUMERATION_INDEX as usize) as u32
+        );
     }
 }
