@@ -104,10 +104,6 @@ impl PatchSet {
         }
     }
 
-    pub(super) fn updated_version(&self) -> Option<u64> {
-        self.updated_version
-    }
-
     pub(super) fn is_new_version(&self, version: u64) -> bool {
         version >= self.manifest.version_count // this patch truncates `version`
             || (self.updated_version != Some(version) && self.patches_by_version.contains_key(&version))

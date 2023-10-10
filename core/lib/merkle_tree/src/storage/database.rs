@@ -208,9 +208,7 @@ impl<DB: Database> Patched<DB> {
         if patch.is_new_version(key.version) {
             return (patch.tree_node(key, is_leaf), true);
         }
-        let could_be_in_updated_patch = patch
-            .updated_version()
-            .map_or(false, |ver| ver >= key.version);
+        let could_be_in_updated_patch = patch.updated_version == Some(key.version);
         if could_be_in_updated_patch {
             // Unlike with new versions, we must look both in the update patch and in the original DB.
             if let Some(node) = patch.tree_node(key, is_leaf) {
@@ -263,8 +261,7 @@ impl<DB: Database> Database for Patched<DB> {
 
     fn try_root(&self, version: u64) -> Result<Option<Root>, DeserializeError> {
         if let Some(patch) = &self.patch {
-            let has_root =
-                patch.is_new_version(version) || patch.updated_version() == Some(version);
+            let has_root = patch.is_new_version(version) || patch.updated_version == Some(version);
             if has_root {
                 return patch.try_root(version);
             }
