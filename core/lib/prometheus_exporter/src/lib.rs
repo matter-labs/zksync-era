@@ -16,69 +16,14 @@ fn configure_legacy_exporter(builder: PrometheusBuilder) -> PrometheusBuilder {
         1.0, 10.0, 20.0, 40.0, 60.0, 120.0, 240.0, 360.0, 600.0, 1800.0, 3600.0,
     ];
 
-    let storage_interactions_per_call_buckets = [
-        10.0, 100.0, 1000.0, 10000.0, 100000.0, 1000000.0, 10000000.0,
-    ];
-    let vm_memory_per_call_buckets = [
-        1000.0,
-        10000.0,
-        100000.0,
-        500000.0,
-        1000000.0,
-        5000000.0,
-        10000000.0,
-        50000000.0,
-        100000000.0,
-        500000000.0,
-        1000000000.0,
-    ];
-    let percents_buckets = [
-        5.0, 10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0, 90.0, 100.0, 120.0,
-    ];
-    let zero_to_one_buckets = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9];
-
-    let around_one_buckets = [
-        0.01, 0.03, 0.1, 0.3, 0.5, 0.75, 1., 1.5, 3., 5., 10., 20., 50.,
-    ];
-
-    // Buckets for a metric reporting the sizes of the JSON RPC batches sent to the server.
-    let batch_size_buckets = [1.0, 2.0, 4.0, 8.0, 16.0, 32.0, 64.0, 128.0, 256.0, 512.0];
-
     builder
         .set_buckets(&default_latency_buckets)
-        .unwrap()
-        .set_buckets_for_metric(
-            Matcher::Full("runtime_context.storage_interaction.amount".to_owned()),
-            &storage_interactions_per_call_buckets,
-        )
-        .unwrap()
-        .set_buckets_for_metric(
-            Matcher::Full("runtime_context.storage_interaction.ratio".to_owned()),
-            &zero_to_one_buckets,
-        )
-        .unwrap()
-        .set_buckets_for_metric(
-            Matcher::Prefix("runtime_context.memory".to_owned()),
-            &vm_memory_per_call_buckets,
-        )
         .unwrap()
         .set_buckets_for_metric(Matcher::Prefix("server.prover".to_owned()), &prover_buckets)
         .unwrap()
         .set_buckets_for_metric(
             Matcher::Prefix("server.witness_generator".to_owned()),
             &slow_latency_buckets,
-        )
-        .unwrap()
-        .set_buckets_for_metric(Matcher::Prefix("vm.refund".to_owned()), &percents_buckets)
-        .unwrap()
-        .set_buckets_for_metric(
-            Matcher::Full("state_keeper_computational_gas_per_nanosecond".to_owned()),
-            &around_one_buckets,
-        )
-        .unwrap()
-        .set_buckets_for_metric(
-            Matcher::Full("api.jsonrpc_backend.batch.size".to_owned()),
-            &batch_size_buckets,
         )
         .unwrap()
 }
