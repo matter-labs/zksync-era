@@ -306,10 +306,6 @@ impl<S: WriteStorage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
             .value_update_price(partial_query)
             .min(INITIAL_STORAGE_WRITE_PUBDATA_BYTES as u32);
 
-        let initial_value = self
-            .get_initial_value(&storage_key)
-            .unwrap_or(partial_query.read_value);
-
         RefundType::RepeatedWrite(RefundedAmounts {
             ergs: 0,
             // `INITIAL_STORAGE_WRITE_PUBDATA_BYTES` is the default amount of pubdata bytes the user pays for.
