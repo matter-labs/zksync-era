@@ -20,9 +20,6 @@ pub struct RecoveryEntry {
     /// Leaf index associated with the entry. It is **not** checked whether leaf indices are well-formed
     /// during recovery (e.g., that they are unique).
     pub leaf_index: u64,
-    /// Version of this entry. It is **not** checked, whether this version makes sense together with
-    /// `leaf_index`; it's only checked that it does not exceed the recovered tree version.
-    pub version: u64,
 }
 
 /// Handle to a Merkle tree during its recovery.
@@ -227,7 +224,6 @@ mod tests {
             key: Key::from(123),
             value: ValueHash::repeat_byte(1),
             leaf_index: 1,
-            version: 42,
         };
         recovery.extend(vec![recovery_entry]);
         let tree = recovery.finalize();

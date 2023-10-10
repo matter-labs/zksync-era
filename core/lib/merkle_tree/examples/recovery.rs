@@ -92,7 +92,6 @@ impl Cli {
                         key: last_key,
                         value: ValueHash::zero(),
                         leaf_index: last_leaf_index,
-                        version: rng.gen_range(0..=recovered_version),
                     }
                 })
                 .collect();
