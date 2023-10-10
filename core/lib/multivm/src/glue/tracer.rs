@@ -15,6 +15,10 @@
 //! into a form compatible with the latest VM version.
 //! It defines a method `latest` for obtaining a boxed tracer.
 //!
+//! - `IntoVmVirtualBlocksTracer<S, H>`:This trait is responsible for converting a tracer
+//! into a form compatible with the vm_virtual_blocks version.
+//! It defines a method `vm_virtual_blocks` for obtaining a boxed tracer.
+//!
 //! For `MultivmTracer` to be implemented, Tracer must implement all N currently
 //! existing sub-traits.
 //!
@@ -30,11 +34,15 @@
 //! - Create a new trait performing conversion to the specified VM tracer, e.g. `Into<VmVersion>Tracer`.
 //! - Provide implementations of this trait for all the structures that currently implement `MultivmTracer`.
 //! - Add this trait as a trait bound to the `MultivmTracer`.
+//! - Add this trait as a trait bound for `T` in `MultivmTracer` implementation.
 //! - Integrate the newly added method to the MultiVM itself (e.g. add required tracer conversions where applicable).
+mod implementations;
+
+use crate::HistoryMode;
 use zksync_state::WriteStorage;
 
-pub trait MultivmTracer<S: WriteStorage, H: vm_latest::HistoryMode>:
-    IntoLatestTracer<S, H>
+pub trait MultivmTracer<S: WriteStorage, H: HistoryMode>:
+    IntoLatestTracer<S, H> + IntoVmVirtualBlocksTracer<S, H>
 {
     fn into_boxed(self) -> Box<dyn MultivmTracer<S, H>>
     where
@@ -44,17 +52,21 @@ pub trait MultivmTracer<S: WriteStorage, H: vm_latest::HistoryMode>:
     }
 }
 
-pub trait IntoLatestTracer<S: WriteStorage, H: vm_latest::HistoryMode> {
-    fn latest(&self) -> Box<dyn vm_latest::VmTracer<S, H>>;
+pub trait IntoLatestTracer<S: WriteStorage, H: HistoryMode> {
+    fn latest(&self) -> Box<dyn vm_latest::VmTracer<S, H::VmVirtualBlocksRefundsEnhancement>>;
 }
 
-impl<S, H, T> IntoLatestTracer<S, H> for T
+pub trait IntoVmVirtualBlocksTracer<S: WriteStorage, H: HistoryMode> {
+    fn vm_virtual_blocks(&self) -> Box<dyn vm_virtual_blocks::VmTracer<S, H::VmVirtualBlocksMode>>;
+}
+
+impl<S, T, H> IntoLatestTracer<S, H> for T
 where
     S: WriteStorage,
-    H: vm_latest::HistoryMode,
-    T: vm_latest::VmTracer<S, H> + Clone + 'static,
+    H: HistoryMode,
+    T: vm_latest::VmTracer<S, H::VmVirtualBlocksRefundsEnhancement> + Clone + 'static,
 {
-    fn latest(&self) -> Box<dyn vm_latest::VmTracer<S, H>> {
+    fn latest(&self) -> Box<dyn vm_latest::VmTracer<S, H::VmVirtualBlocksRefundsEnhancement>> {
         Box::new(self.clone())
     }
 }
@@ -62,7 +74,11 @@ where
 impl<S, H, T> MultivmTracer<S, H> for T
 where
     S: WriteStorage,
-    H: vm_latest::HistoryMode,
-    T: vm_latest::VmTracer<S, H> + Clone + 'static,
+    H: HistoryMode,
+    T: vm_latest::VmTracer<S, H::VmVirtualBlocksRefundsEnhancement>
+        + IntoLatestTracer<S, H>
+        + IntoVmVirtualBlocksTracer<S, H>
+        + Clone
+        + 'static,
 {
 }

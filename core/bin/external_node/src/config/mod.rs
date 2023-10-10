@@ -52,13 +52,14 @@ impl RemoteENConfig {
             .get_main_contract()
             .await
             .context("Failed to fetch L1 contract address")?;
-        let l2_chain_id = L2ChainId(
+        let l2_chain_id = L2ChainId::try_from(
             client
                 .chain_id()
                 .await
                 .context("Failed to fetch L2 chain ID")?
-                .as_u64() as u16,
-        );
+                .as_u64(),
+        )
+        .unwrap();
         let l1_chain_id = L1ChainId(
             client
                 .l1_chain_id()
@@ -196,6 +197,9 @@ pub struct OptionalENConfig {
     /// Whether to try running EN with MultiVM.
     #[serde(default)]
     pub experimental_multivm_support: bool,
+    /// Number of keys that is processed by enum_index migration in State Keeper each L1 batch.
+    #[serde(default = "OptionalENConfig::default_enum_index_migration_chunk_size")]
+    pub enum_index_migration_chunk_size: usize,
 }
 
 impl OptionalENConfig {
@@ -280,6 +284,10 @@ impl OptionalENConfig {
 
     const fn default_max_response_body_size_mb() -> usize {
         10
+    }
+
+    const fn default_enum_index_migration_chunk_size() -> usize {
+        1000
     }
 
     pub fn polling_interval(&self) -> Duration {
@@ -396,14 +404,14 @@ impl ExternalNodeConfig {
             .await
             .context("Unable to check L1 chain ID through the configured L1 client")?;
 
-        let l2_chain_id: u16 = env_var("EN_L2_CHAIN_ID");
+        let l2_chain_id: L2ChainId = env_var("EN_L2_CHAIN_ID");
         let l1_chain_id: u64 = env_var("EN_L1_CHAIN_ID");
-        if l2_chain_id != remote.l2_chain_id.0 {
+        if l2_chain_id != remote.l2_chain_id {
             anyhow::bail!(
                 "Configured L2 chain id doesn't match the one from main node.
                 Make sure your configuration is correct and you are corrected to the right main node.
-                Main node L2 chain id: {}. Local config value: {}",
-                remote.l2_chain_id.0, l2_chain_id
+                Main node L2 chain id: {:?}. Local config value: {:?}",
+                remote.l2_chain_id, l2_chain_id
             );
         }
         if l1_chain_id != remote.l1_chain_id.0 {

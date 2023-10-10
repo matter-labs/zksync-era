@@ -42,7 +42,7 @@ use zksync_types::{
     proofs::AggregationRound,
     protocol_version::{L1VerifierConfig, VerifierParams},
     system_contracts::get_system_smart_contracts,
-    Address, L2ChainId, PackedEthSignature, ProtocolVersionId,
+    Address, PackedEthSignature, ProtocolVersionId,
 };
 use zksync_verification_key_server::get_cached_commitments;
 
@@ -126,7 +126,7 @@ pub async fn genesis_init(
 
     genesis::ensure_genesis_state(
         &mut storage,
-        L2ChainId(network_config.zksync_network_id),
+        network_config.zksync_network_id,
         &genesis::GenesisParams {
             // We consider the operator to be the first validator for now.
             first_validator: operator_address,
@@ -367,7 +367,7 @@ pub async fn initialize_components(
         let tx_sender_config = TxSenderConfig::new(
             &state_keeper_config,
             &api_config.web3_json_rpc,
-            L2ChainId(network_config.zksync_network_id),
+            network_config.zksync_network_id,
         );
         let internal_api_config = InternalApiConfig::new(
             &network_config,

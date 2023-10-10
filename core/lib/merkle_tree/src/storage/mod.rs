@@ -92,23 +92,6 @@ impl TreeUpdater {
         longest_prefixes
     }
 
-    fn traverse(&self, key: Key, parent_nibbles: &Nibbles) -> TraverseOutcome {
-        for nibble_idx in parent_nibbles.nibble_count().. {
-            let nibbles = Nibbles::new(&key, nibble_idx);
-            match self.patch_set.get(&nibbles) {
-                Some(Node::Internal(_)) => { /* continue descent */ }
-                Some(Node::Leaf(leaf)) if leaf.full_key == key => {
-                    return TraverseOutcome::LeafMatch(nibbles, *leaf);
-                }
-                Some(Node::Leaf(leaf)) => {
-                    return TraverseOutcome::LeafMismatch(nibbles, *leaf);
-                }
-                None => return TraverseOutcome::MissingChild(nibbles),
-            }
-        }
-        unreachable!("We must have encountered a leaf or missing node when traversing");
-    }
-
     /// Inserts or updates a value hash for the specified `key`. This implementation
     /// is almost verbatim the algorithm described in the Jellyfish Merkle tree white paper.
     /// The algorithm from the paper is as follows:
@@ -138,7 +121,7 @@ impl TreeUpdater {
         leaf_index_fn: impl FnOnce() -> u64,
     ) -> (TreeLogEntry, NewLeafData) {
         let version = self.patch_set.version();
-        let traverse_outcome = self.traverse(key, parent_nibbles);
+        let traverse_outcome = self.patch_set.traverse(key, parent_nibbles);
         let (log, leaf_data) = match traverse_outcome {
             TraverseOutcome::LeafMatch(nibbles, mut leaf) => {
                 let log = TreeLogEntry::update(leaf.value_hash, leaf.leaf_index);

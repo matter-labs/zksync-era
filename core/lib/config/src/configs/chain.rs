@@ -5,7 +5,7 @@ use serde::Deserialize;
 use std::time::Duration;
 // Local uses
 use zksync_basic_types::network::Network;
-use zksync_basic_types::{Address, H256};
+use zksync_basic_types::{Address, L2ChainId, H256};
 use zksync_contracts::BaseSystemContractsHashes;
 
 use super::envy_load;
@@ -47,7 +47,7 @@ pub struct NetworkConfig {
     pub zksync_network: String,
     /// ID of current zkSync network treated as ETH network ID.
     /// Used to distinguish zkSync from other Web3-capable networks.
-    pub zksync_network_id: u16,
+    pub zksync_network_id: L2ChainId,
 }
 
 impl NetworkConfig {
@@ -109,6 +109,9 @@ pub struct StateKeeperConfig {
     /// Flag which will enable storage to cache witness_inputs during State Keeper's run.
     /// NOTE: This will slow down StateKeeper, to be used in non-production environments!
     pub upload_witness_inputs_to_gcs: bool,
+
+    /// Number of keys that is processed by enum_index migration in State Keeper each L1 batch.
+    pub enum_index_migration_chunk_size: Option<usize>,
 }
 
 impl StateKeeperConfig {
@@ -121,6 +124,10 @@ impl StateKeeperConfig {
             bootloader: self.bootloader_hash,
             default_aa: self.default_aa_hash,
         }
+    }
+
+    pub fn enum_index_migration_chunk_size(&self) -> usize {
+        self.enum_index_migration_chunk_size.unwrap_or(1_000)
     }
 }
 
@@ -202,7 +209,7 @@ mod tests {
             network: NetworkConfig {
                 network: "localhost".parse().unwrap(),
                 zksync_network: "localhost".to_string(),
-                zksync_network_id: 270,
+                zksync_network_id: L2ChainId::from(270),
             },
             state_keeper: StateKeeperConfig {
                 transaction_slots: 50,
@@ -226,6 +233,7 @@ mod tests {
                 virtual_blocks_interval: 1,
                 virtual_blocks_per_miniblock: 1,
                 upload_witness_inputs_to_gcs: false,
+                enum_index_migration_chunk_size: Some(2_000),
             },
             operations_manager: OperationsManagerConfig {
                 delay_interval: 100,
@@ -273,6 +281,7 @@ mod tests {
             CHAIN_STATE_KEEPER_VALIDATION_COMPUTATIONAL_GAS_LIMIT="10000000"
             CHAIN_STATE_KEEPER_SAVE_CALL_TRACES="false"
             CHAIN_STATE_KEEPER_UPLOAD_WITNESS_INPUTS_TO_GCS="false"
+            CHAIN_STATE_KEEPER_ENUM_INDEX_MIGRATION_CHUNK_SIZE="2000"
             CHAIN_OPERATIONS_MANAGER_DELAY_INTERVAL="100"
             CHAIN_MEMPOOL_SYNC_INTERVAL_MS="10"
             CHAIN_MEMPOOL_SYNC_BATCH_SIZE="1000"
