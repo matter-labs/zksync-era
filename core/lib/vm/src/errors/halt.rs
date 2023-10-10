@@ -26,6 +26,8 @@ pub enum Halt {
     UnexpectedVMBehavior(String),
     // Bootloader is out of gas.
     BootloaderOutOfGas,
+    // Validation step is out of gas
+    ValidationOutOfGas,
     // Transaction has a too big gas limit and will not be executed by the server.
     TooBigGasLimit,
     // The bootloader did not have enough gas to start the transaction in the first place
@@ -37,6 +39,7 @@ pub enum Halt {
     // Failed to publish information about the batch and the L2 block onto L1
     FailedToAppendTransactionToL2Block(String),
     VMPanic,
+    TracerCustom(String),
 }
 
 impl Display for Halt {
@@ -101,6 +104,12 @@ impl Display for Halt {
                     "Failed to append the transaction to the current L2 block: {}",
                     reason
                 )
+            }
+            Halt::TracerCustom(reason) => {
+                write!(f, "Tracer aborted execution: {}", reason)
+            }
+            Halt::ValidationOutOfGas => {
+                write!(f, "Validation run out of gas")
             }
         }
     }

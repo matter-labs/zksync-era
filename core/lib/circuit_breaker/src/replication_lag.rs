@@ -20,7 +20,7 @@ impl CircuitBreaker for ReplicationLagChecker {
             .get_replication_lag_sec()
             .await;
 
-        metrics::histogram!("circuit_breaker.replication_lag", lag as f64);
+        metrics::gauge!("circuit_breaker.replication_lag", lag as f64);
         match self.replication_lag_limit_sec {
             Some(replication_lag_limit_sec) if lag > replication_lag_limit_sec => Err(
                 CircuitBreakerError::ReplicationLag(lag, replication_lag_limit_sec),

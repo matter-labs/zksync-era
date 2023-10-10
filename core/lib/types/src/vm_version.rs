@@ -6,11 +6,12 @@ pub enum VmVersion {
     M6BugWithCompressionFixed,
     Vm1_3_2,
     VmVirtualBlocks,
+    VmVirtualBlocksRefundsEnhancement,
 }
 
 impl VmVersion {
     /// Returns the latest supported VM version.
     pub const fn latest() -> VmVersion {
-        Self::VmVirtualBlocks
+        Self::VmVirtualBlocksRefundsEnhancement
     }
 }

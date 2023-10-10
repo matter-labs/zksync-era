@@ -3827,6 +3827,7 @@ dependencies = [
  "vm_1_3_2",
  "vm_m5",
  "vm_m6",
+ "vm_virtual_blocks",
  "zksync_contracts",
  "zksync_state",
  "zksync_types",
@@ -5645,9 +5646,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.97"
+version = "1.0.107"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bdf3bf93142acad5821c99197022e170842cdbc1c30482b98750c688c640842a"
+checksum = "6b420ce6e3d8bd882e9b243c6eed35dbc9a6110c9769e74b584e0d68d1f20c65"
 dependencies = [
  "itoa",
  "ryu",
@@ -6207,6 +6208,21 @@ name = "sync_wrapper"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2047c6ded9c721764247e62cd3b03c09ffc529b2ba5b10ec482ae507a4a70160"
+
+[[package]]
+name = "system-constants-generator"
+version = "0.1.0"
+dependencies = [
+ "codegen 0.2.0",
+ "once_cell",
+ "serde",
+ "serde_json",
+ "vm",
+ "zksync_contracts",
+ "zksync_state",
+ "zksync_types",
+ "zksync_utils",
+]
 
 [[package]]
 name = "tagptr"
@@ -7018,6 +7034,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "vm_virtual_blocks"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "ethabi",
+ "hex",
+ "itertools",
+ "once_cell",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "vise",
+ "zk_evm 1.3.3",
+ "zksync_config",
+ "zksync_contracts",
+ "zksync_eth_signer",
+ "zksync_state",
+ "zksync_test_account",
+ "zksync_types",
+ "zksync_utils",
+]
+
+[[package]]
 name = "walkdir"
 version = "2.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7176,9 +7215,9 @@ dependencies = [
 
 [[package]]
 name = "webpki"
-version = "0.22.1"
+version = "0.22.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f0e74f82d49d545ad128049b7e88f6576df2da6b02e9ce565c6f533be576957e"
+checksum = "07ecc0cd7cac091bf682ec5efa18b1cff79d617b84181f38b3951dbe135f607f"
 dependencies = [
  "ring",
  "untrusted",
@@ -7625,6 +7664,7 @@ name = "zksync_basic_types"
 version = "0.1.0"
 dependencies = [
  "serde",
+ "serde_json",
  "web3",
 ]
 
@@ -8015,6 +8055,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "db_test_macro",
+ "itertools",
  "mini-moka",
  "rand 0.8.5",
  "tempfile",

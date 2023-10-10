@@ -12,7 +12,7 @@ concurrency: vm-benchmarks
 jobs:
   vm-benchmarks:
     name: Run VM benchmarks
-    runs-on: [self-hosted, ci-runner]
+    runs-on: [matterlabs-ci-runner]
 
     steps:
       - uses: actions/checkout@v3

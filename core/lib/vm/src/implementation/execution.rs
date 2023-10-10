@@ -6,7 +6,7 @@ use crate::old_vm::{
     utils::{vm_may_have_ended_inner, VmExecutionResult},
 };
 use crate::tracers::{
-    traits::{ExecutionEndTracer, ExecutionProcessing, VmTracer},
+    traits::{ExecutionEndTracer, ExecutionProcessing, TracerExecutionStatus, VmTracer},
     DefaultExecutionTracer, RefundsTracer,
 };
 use crate::types::{inputs::VmExecutionMode, outputs::VmExecutionResultAndLogs};
@@ -24,7 +24,8 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
             self.bootloader_state.move_tx_to_execute_pointer();
             enable_refund_tracer = true;
         }
-        let (_, result) = self.inspect_and_collect_results(tracers, execution_mode, enable_refund_tracer);
+        let (_, result) =
+            self.inspect_and_collect_results(tracers, execution_mode, enable_refund_tracer);
         result
     }
 
@@ -91,9 +92,11 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
         (stop_reason, result)
     }
 
-
     /// Execute vm with given tracers until the stop reason is reached.
-    fn execute_with_default_tracer(&mut self, tracer: &mut DefaultExecutionTracer<S, H>) -> VmExecutionStopReason {
+    fn execute_with_default_tracer(
+        &mut self,
+        tracer: &mut DefaultExecutionTracer<S, H>,
+    ) -> VmExecutionStopReason {
         tracer.initialize_tracer(&mut self.state);
         let result = loop {
             // Sanity check: we should never reach the maximum value, because then we won't be able to process the next cycle.
@@ -114,11 +117,11 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
                 break VmExecutionStopReason::VmFinished;
             }
 
-            if tracer.should_stop_execution() {
-                break VmExecutionStopReason::TracerRequestedStop;
+            if let TracerExecutionStatus::Stop(reason) = tracer.should_stop_execution() {
+                break VmExecutionStopReason::TracerRequestedStop(reason);
             }
         };
-        tracer.after_vm_execution(&mut self.state, &self.bootloader_state, result);
+        tracer.after_vm_execution(&mut self.state, &self.bootloader_state, result.clone());
         result
     }
 

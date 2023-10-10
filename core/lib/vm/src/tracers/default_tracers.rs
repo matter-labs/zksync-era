@@ -16,14 +16,17 @@ use crate::bootloader_state::BootloaderState;
 use crate::constants::BOOTLOADER_HEAP_PAGE;
 use crate::old_vm::history_recorder::HistoryMode;
 use crate::old_vm::memory::SimpleMemory;
-use crate::tracers::traits::{DynTracer, ExecutionEndTracer, ExecutionProcessing, VmTracer};
+use crate::tracers::traits::{
+    DynTracer, ExecutionEndTracer, ExecutionProcessing, TracerExecutionStatus,
+    TracerExecutionStopReason, VmTracer,
+};
 use crate::tracers::utils::{
     computational_gas_price, gas_spent_on_bytecodes_and_long_messages_this_opcode,
     print_debug_if_needed, VmHook,
 };
 use crate::tracers::{RefundsTracer, ResultTracer};
 use crate::types::internals::ZkSyncVmState;
-use crate::{VmExecutionMode, VmExecutionStopReason};
+use crate::{Halt, VmExecutionMode, VmExecutionStopReason};
 
 /// Default tracer for the VM. It manages the other tracers execution and stop the vm when needed.
 pub(crate) struct DefaultExecutionTracer<S, H: HistoryMode> {
@@ -154,21 +157,39 @@ impl<S, H: HistoryMode> Tracer for DefaultExecutionTracer<S, H> {
 }
 
 impl<S: WriteStorage, H: HistoryMode> ExecutionEndTracer<H> for DefaultExecutionTracer<S, H> {
-    fn should_stop_execution(&self) -> bool {
-        let mut should_stop = match self.execution_mode {
-            VmExecutionMode::OneTx => self.tx_has_been_processed(),
-            VmExecutionMode::Batch => false,
-            VmExecutionMode::Bootloader => self.ret_from_the_bootloader == Some(RetOpcode::Ok),
+    fn should_stop_execution(&self) -> TracerExecutionStatus {
+        match self.execution_mode {
+            VmExecutionMode::OneTx => {
+                if self.tx_has_been_processed() {
+                    return TracerExecutionStatus::Stop(TracerExecutionStopReason::Finish);
+                }
+            }
+            VmExecutionMode::Bootloader => {
+                if self.ret_from_the_bootloader == Some(RetOpcode::Ok) {
+                    return TracerExecutionStatus::Stop(TracerExecutionStopReason::Finish);
+                }
+            }
+            VmExecutionMode::Batch => {}
         };
-        should_stop = should_stop || self.validation_run_out_of_gas();
+        if self.validation_run_out_of_gas() {
+            return TracerExecutionStatus::Stop(TracerExecutionStopReason::Abort(
+                Halt::ValidationOutOfGas,
+            ));
+        }
         if let Some(refund_tracer) = &self.refund_tracer {
-            should_stop = should_stop
-                || <RefundsTracer as ExecutionEndTracer<H>>::should_stop_execution(refund_tracer)
+            let reason =
+                <RefundsTracer as ExecutionEndTracer<H>>::should_stop_execution(refund_tracer);
+            if TracerExecutionStatus::Continue != reason {
+                return reason;
+            }
         }
         for tracer in self.custom_tracers.iter() {
-            should_stop = should_stop || tracer.should_stop_execution();
+            let reason = tracer.should_stop_execution();
+            if TracerExecutionStatus::Continue != reason {
+                return reason;
+            }
         }
-        should_stop
+        TracerExecutionStatus::Continue
     }
 }
 
@@ -262,13 +283,13 @@ impl<S: WriteStorage, H: HistoryMode> ExecutionProcessing<S, H> for DefaultExecu
         stop_reason: VmExecutionStopReason,
     ) {
         self.result_tracer
-            .after_vm_execution(state, bootloader_state, stop_reason);
+            .after_vm_execution(state, bootloader_state, stop_reason.clone());
 
         if let Some(refund_tracer) = &mut self.refund_tracer {
-            refund_tracer.after_vm_execution(state, bootloader_state, stop_reason);
+            refund_tracer.after_vm_execution(state, bootloader_state, stop_reason.clone());
         }
         for processor in self.custom_tracers.iter_mut() {
-            processor.after_vm_execution(state, bootloader_state, stop_reason);
+            processor.after_vm_execution(state, bootloader_state, stop_reason.clone());
         }
     }
 }

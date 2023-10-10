@@ -1,22 +1,24 @@
-# For using private GitHub dependencies, CI downdloads all crates outside of the contatiner
-# Not expected to work locally
+# Will work locally only after prior contracts build
 
-# syntax=docker/dockerfile:experimental
 FROM rust:1.72-bookworm as builder
+
 RUN apt-get update && apt-get install -y linux-libc-dev liburing-dev clang && \
-    # ^ We need a newer version of `linux-libc-dev` from backports than the one installed by default
     rm -rf /var/lib/apt/lists/*
+
 WORKDIR /usr/src/zksync
 COPY . .
 
-RUN CARGO_HOME=./cargo cargo build --release --features=rocksdb/io-uring
+RUN cargo build --release --features=rocksdb/io-uring
 
 FROM debian:bookworm-slim
+
 RUN apt-get update && apt-get install -y curl libpq5 liburing-dev ca-certificates && \
     rm -rf /var/lib/apt/lists/*
+
 EXPOSE 3000
 EXPOSE 3031
 EXPOSE 3030
+
 COPY --from=builder /usr/src/zksync/target/release/zksync_server /usr/bin
 COPY --from=builder /usr/src/zksync/target/release/block_reverter /usr/bin
 COPY --from=builder /usr/src/zksync/target/release/merkle_tree_consistency_checker /usr/bin

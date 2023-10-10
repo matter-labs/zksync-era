@@ -28,26 +28,14 @@ on:
         required: false
 
 jobs:
-  era-bellman-cuda:
-    name: Get era-bellman-cuda release URLs.
-    runs-on: [ubuntu-latest]
-    outputs:
-      source: ${{ steps.release.outputs.source }}
-      binary: ${{ steps.release.outputs.binary }}
-    steps:
-      - id: release
-        run: |
-          release=($(curl -v --silent https://api.github.com/repos/matter-labs/era-bellman-cuda/releases/tags/${{ inputs.ERA_BELLMAN_CUDA_RELEASE }} | jq -r ".name, .tarball_url, .assets[0].browser_download_url"))
-          echo "source=${release[1]}" >> "$GITHUB_OUTPUT"
-          echo "binary=${release[2]}" >> "$GITHUB_OUTPUT"
-
   build-images:
     name: Build and Push Docker Images
     env:
       image_tag: ${{ inputs.image_tag }}
       IMAGE_TAG_SUFFIX: ${{ inputs.image_tag_suffix }}
+      RUNNER_COMPOSE_FILE: "docker-compose-runner-nightly.yml"
+      ERA_BELLMAN_CUDA_RELEASE: ${{ inputs.ERA_BELLMAN_CUDA_RELEASE }}
     runs-on: [matterlabs-ci-runner]
-    needs: [era-bellman-cuda]
     strategy:
       matrix:
         component:
@@ -63,9 +51,6 @@ jobs:
       - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
         with:
           submodules: "recursive"
-
-      - name: Prepare bellman-cuda directory
-        run: etc/scripts/prepare_era_bellman_cuda.sh ${{ needs.era-bellman-cuda.outputs.source }} ${{ needs.era-bellman-cuda.outputs.binary }}
 
       - name: setup-env
         run: |
@@ -112,7 +97,7 @@ jobs:
               "proof-fri-compressor"
             )
         run: |
-          nightly_components=${{env.RUST_NIGHTLY_COMPONENTS}}
+          nightly_components=${{ env.RUST_NIGHTLY_COMPONENTS }}
           ci_run docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
           ci_run gcloud auth configure-docker us-docker.pkg.dev,asia-docker.pkg.dev -q
 
@@ -126,10 +111,10 @@ jobs:
             if [ "$underscored_name" == "prover_gpu_fri" ]; then
               underscored_name="prover_fri"
             fi
-            ci_run rustup default nightly-2023-07-21
             ci_run echo [workspace] > Cargo.toml
             ci_run echo members = [\"prover/${underscored_name}\"] >> Cargo.toml
             ci_run cp prover/Cargo.lock Cargo.lock
+            PASSED_ENV_VARS="ERA_BELLMAN_CUDA_RELEASE"  \
             ci_run zk docker $DOCKER_ACTION $COMPONENT
           else
             ci_run zk docker $DOCKER_ACTION $COMPONENT
