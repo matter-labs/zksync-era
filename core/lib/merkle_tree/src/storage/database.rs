@@ -109,11 +109,7 @@ impl Database for PatchSet {
     }
 
     fn try_root(&self, version: u64) -> Result<Option<Root>, DeserializeError> {
-        let patch_with_root = self.patches_by_version.get(&version).or_else(|| {
-            let (updated_version, partial_patch) = self.updated_patch.as_ref()?;
-            (*updated_version == version).then_some(partial_patch)
-        });
-        let Some(patch) = patch_with_root else {
+        let Some(patch) = self.patches_by_version.get(&version) else {
             return Ok(None);
         };
         Ok(patch.root.clone())
@@ -124,13 +120,7 @@ impl Database for PatchSet {
         key: &NodeKey,
         is_leaf: bool,
     ) -> Result<Option<Node>, DeserializeError> {
-        // Due to `PatchSet` invariants (updated version being always less than any new version),
-        // there's always no more than one partial patch responsible for a `key`.
-        let patch_with_node = self.patches_by_version.get(&key.version).or_else(|| {
-            let (updated_version, partial_patch) = self.updated_patch.as_ref()?;
-            (*updated_version >= key.version).then_some(partial_patch)
-        });
-
+        let patch_with_node = self.patches_by_version.get(&key.version);
         let node = patch_with_node.and_then(|patch| patch.nodes.get(key));
         let Some(node) = node.cloned() else {
             return Ok(None);
@@ -145,16 +135,25 @@ impl Database for PatchSet {
         Ok(Some(node))
     }
 
-    fn apply_patch(&mut self, other: PatchSet) {
-        if let Some((other_version, other_patch)) = other.updated_patch {
-            if let Some((updated_version, patch)) = &mut self.updated_patch {
+    fn apply_patch(&mut self, mut other: PatchSet) {
+        if let Some(other_updated_version) = other.updated_version {
+            if let Some(updated_version) = self.updated_version {
                 assert_eq!(
-                    *updated_version, other_version,
+                    other_updated_version, updated_version,
                     "Cannot merge patches with different updated versions"
                 );
+
+                let patch = self.patches_by_version.get_mut(&updated_version).unwrap();
+                let other_patch = other.patches_by_version.remove(&updated_version).unwrap();
+                // ^ `unwrap()`s are safe by design.
                 patch.merge(other_patch);
             } else {
-                self.updated_patch = Some((other_version, other_patch));
+                assert!(
+                    self.patches_by_version.keys().all(|&ver| ver > other_updated_version),
+                    "Cannot update {self:?} from {other:?}; this would break the update version invariant \
+                     (the update version being lesser than all inserted versions)"
+                );
+                self.updated_version = Some(other_updated_version);
             }
         }
 
@@ -172,15 +171,8 @@ impl Database for PatchSet {
                 .or_default()
                 .extend(stale_keys);
         }
-
-        // Check that `PatchSet` invariants still hold.
-        if let Some((updated_version, _)) = &self.updated_patch {
-            let mut new_versions = self.patches_by_version.keys();
-            assert!(
-                new_versions.all(|ver| ver > updated_version),
-                "PatchSet invariants violated in {self:?}"
-            );
-        }
+        // `PatchSet` invariants hold by construction: the updated version (if set) is still lower
+        // than all other versions by design.
     }
 }
 
@@ -320,7 +312,6 @@ impl<DB: Database> Database for Patched<DB> {
 
         let mut patch_values = patch_values.into_iter();
         let mut db_values = self.inner.tree_nodes(&db_keys).into_iter();
-
         let values = is_in_patch.into_iter().map(|is_in_patch| {
             if is_in_patch {
                 patch_values.next().unwrap()
@@ -438,8 +429,7 @@ mod tests {
     fn patch_set_with_update() {
         let manifest = Manifest::new(10, &());
         let old_root = Root::new(2, Node::Internal(InternalNode::default()));
-        let nodes = generate_nodes(5, &[1, 2]);
-        // ^ Note that nodes have lesser version than the update patch
+        let nodes = generate_nodes(9, &[1, 2]);
         let mut patch = PatchSet::new(
             manifest,
             9,
@@ -487,10 +477,9 @@ mod tests {
     fn merging_two_update_patches() {
         let manifest = Manifest::new(10, &());
         let old_root = Root::new(2, Node::Internal(InternalNode::default()));
-        let nodes = generate_nodes(5, &[1, 2]);
-        // ^ Note that nodes have lesser version than the update patch
+        let nodes = generate_nodes(9, &[1, 2]);
         let mut patch = PatchSet::new(
-            manifest,
+            manifest.clone(),
             9,
             old_root,
             nodes.clone(),
@@ -498,8 +487,7 @@ mod tests {
             Operation::Update,
         );
 
-        let new_nodes = generate_nodes(6, &[3, 4]);
-        let manifest = Manifest::new(10, &());
+        let new_nodes = generate_nodes(9, &[3, 4]);
         let new_root = Root::new(4, Node::Internal(InternalNode::default()));
         let new_patch = PatchSet::new(
             manifest,
@@ -589,7 +577,7 @@ mod tests {
     fn patched_db_with_update_patch() {
         let manifest = Manifest::new(10, &());
         let old_root = Root::new(2, Node::Internal(InternalNode::default()));
-        let nodes = generate_nodes(5, &[1, 2]);
+        let nodes = generate_nodes(9, &[1, 2]);
         let db = PatchSet::new(
             manifest.clone(),
             9,
@@ -600,7 +588,7 @@ mod tests {
         );
         let mut patched = Patched::new(db);
 
-        let new_nodes = generate_nodes(6, &[3, 4]);
+        let new_nodes = generate_nodes(9, &[3, 4]);
         let new_root = Root::new(4, Node::Internal(InternalNode::default()));
         let new_patch = PatchSet::new(
             manifest,

@@ -19,6 +19,8 @@ use crate::{
     utils, Database,
 };
 
+/// Subset of a [`PatchSet`] corresponding to a specific version. All nodes in the subset
+/// have the same version.
 #[derive(Debug)]
 pub(super) struct PartialPatchSet {
     pub root: Option<Root>,
@@ -39,12 +41,10 @@ impl PartialPatchSet {
 #[derive(Debug, Default)]
 pub struct PatchSet {
     pub(super) manifest: Manifest,
-    /// Optional update to the existing tree versions.
-    /// INVARIANT: The updated version is lower than all new versions.
-    pub(super) updated_patch: Option<(u64, PartialPatchSet)>,
-    /// Patches for new versions keyed by the version.
-    /// INVARIANT: All `nodes` in new versions have `NodeKey.version` set to the respective version.
     pub(super) patches_by_version: HashMap<u64, PartialPatchSet>,
+    /// INVARIANT: If present, `patches_by_version` contains the corresponding version, and it
+    /// is smaller than all other keys in `patches_by_version`.
+    pub(super) updated_version: Option<u64>,
     pub(super) stale_keys_by_version: HashMap<u64, Vec<NodeKey>>,
 }
 
@@ -52,8 +52,8 @@ impl PatchSet {
     pub(crate) fn from_manifest(manifest: Manifest) -> Self {
         Self {
             manifest,
-            updated_patch: None,
             patches_by_version: HashMap::new(),
+            updated_version: None,
             stale_keys_by_version: HashMap::new(),
         }
     }
@@ -83,6 +83,7 @@ impl PatchSet {
         operation: Operation,
     ) -> Self {
         debug_assert_eq!(manifest.version_count, version + 1);
+        debug_assert!(nodes.keys().all(|key| key.version == version));
 
         nodes.shrink_to_fit(); // We never insert into `nodes` later
         stale_keys.shrink_to_fit();
@@ -90,26 +91,26 @@ impl PatchSet {
             root: Some(root),
             nodes,
         };
-        let (updated_version, new_versions) = match &operation {
-            Operation::Insert => (None, HashMap::from([(version, partial_patch)])),
-            Operation::Update => (Some((version, partial_patch)), HashMap::new()),
+        let updated_version = match &operation {
+            Operation::Insert => None,
+            Operation::Update => Some(version),
         };
 
         Self {
             manifest,
-            updated_patch: updated_version,
-            patches_by_version: new_versions,
+            patches_by_version: HashMap::from([(version, partial_patch)]),
+            updated_version,
             stale_keys_by_version: HashMap::from([(version, stale_keys)]),
         }
     }
 
     pub(super) fn updated_version(&self) -> Option<u64> {
-        Some(self.updated_patch.as_ref()?.0)
+        self.updated_version
     }
 
     pub(super) fn is_new_version(&self, version: u64) -> bool {
         version >= self.manifest.version_count // this patch truncates `version`
-            || self.patches_by_version.contains_key(&version)
+            || (self.updated_version != Some(version) && self.patches_by_version.contains_key(&version))
     }
 
     /// Calculates the number of hashes in `ChildRef`s copied from the previous versions

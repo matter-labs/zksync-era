@@ -511,8 +511,8 @@ fn recovery_flattens_node_versions() {
     });
     let patch = Storage::new(&PatchSet::default(), &(), recovery_version, false)
         .extend_during_recovery(recovery_entries.collect());
-    assert!(patch.patches_by_version.is_empty());
-    let (updated_version, patch) = patch.updated_patch.unwrap();
+    assert_eq!(patch.patches_by_version.len(), 1);
+    let (updated_version, patch) = patch.patches_by_version.into_iter().next().unwrap();
     assert_eq!(updated_version, recovery_version);
 
     let root = patch.root.unwrap();
@@ -549,7 +549,8 @@ fn test_recovery_with_node_hierarchy(chunk_size: usize) {
             .extend_during_recovery(recovery_chunk.to_vec());
         db.apply_patch(patch);
     }
-    let (_, patch) = db.updated_patch.unwrap();
+    assert_eq!(db.updated_version, Some(recovery_version));
+    let patch = db.patches_by_version.remove(&recovery_version).unwrap();
 
     let root = patch.root.unwrap();
     assert_eq!(root.leaf_count(), 256);
@@ -607,7 +608,7 @@ fn test_recovery_with_deep_node_hierarchy(chunk_size: usize) {
             .extend_during_recovery(recovery_chunk.to_vec());
         db.apply_patch(patch);
     }
-    let (_, mut patch) = db.updated_patch.unwrap();
+    let mut patch = db.patches_by_version.remove(&recovery_version).unwrap();
     // Manually remove all stale keys from the patch
     assert_eq!(db.stale_keys_by_version.len(), 1);
     for stale_key in &db.stale_keys_by_version[&recovery_version] {
@@ -760,7 +761,10 @@ fn test_recovery_pruning_equivalence(
             .extend_during_recovery(recovery_chunk.to_vec());
         recovered_db.apply_patch(patch);
     }
-    let (_, sub_patch) = recovered_db.updated_patch.unwrap();
+    let sub_patch = recovered_db
+        .patches_by_version
+        .remove(&recovered_version)
+        .unwrap();
     let recovered_root = sub_patch.root.unwrap();
     let mut all_recovered_nodes = sub_patch.nodes;
     for stale_key in db.stale_keys_by_version.values().flatten() {
