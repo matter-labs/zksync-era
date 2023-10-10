@@ -327,23 +327,24 @@ impl<'a, DB: Database + ?Sized> Storage<'a, DB> {
             Some((leaf, nibbles)) => (Some(leaf.full_key), nibbles),
             None => (None, Nibbles::EMPTY),
         };
-        self.updater.patch_set.ensure_internal_root_node();
-        // ^ Necessary to retain information about all node versions in `ChildRef`s
 
         let extend_patch_latency = BLOCK_TIMINGS.extend_patch.start();
         for entry in recovery_entries {
             if let Some(prev_key) = prev_key {
                 assert!(
                     entry.key > prev_key,
-                    "Recovery entries must be ordered by increasing key"
+                    "Recovery entries must be ordered by increasing key (previous key: {prev_key:0>64x}, \
+                     offending entry: {entry:?})"
                 );
             }
             prev_key = Some(entry.key);
-            let key_nibbles = Nibbles::new(&entry.key, prev_nibbles.nibble_count());
-            prev_nibbles = prev_nibbles.common_prefix(&key_nibbles);
 
-            self.updater
-                .insert(entry.key, entry.value, &prev_nibbles, || entry.leaf_index);
+            let key_nibbles = Nibbles::new(&entry.key, prev_nibbles.nibble_count());
+            let parent_nibbles = prev_nibbles.common_prefix(&key_nibbles);
+            let (_, new_leaf) =
+                self.updater
+                    .insert(entry.key, entry.value, &parent_nibbles, || entry.leaf_index);
+            prev_nibbles = new_leaf.nibbles;
             self.leaf_count += 1;
         }
         let extend_patch_latency = extend_patch_latency.observe();
