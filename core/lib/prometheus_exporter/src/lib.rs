@@ -1,6 +1,7 @@
 use anyhow::Context as _;
 use metrics_exporter_prometheus::{Matcher, PrometheusBuilder};
 use tokio::sync::watch;
+use vise::MetricsCollection;
 use vise_exporter::MetricsExporter;
 
 use std::{net::Ipv4Addr, time::Duration};
@@ -146,7 +147,8 @@ impl PrometheusExporterConfig {
         self,
         mut stop_receiver: watch::Receiver<bool>,
     ) -> anyhow::Result<()> {
-        let metrics_exporter = MetricsExporter::default()
+        let registry = MetricsCollection::lazy().collect();
+        let metrics_exporter = MetricsExporter::new(registry.into())
             .with_legacy_exporter(configure_legacy_exporter)
             .with_graceful_shutdown(async move {
                 stop_receiver.changed().await.ok();
@@ -155,7 +157,10 @@ impl PrometheusExporterConfig {
         match self.transport {
             PrometheusTransport::Pull { port } => {
                 let prom_bind_address = (Ipv4Addr::UNSPECIFIED, port).into();
-                metrics_exporter.start(prom_bind_address).await
+                metrics_exporter
+                    .start(prom_bind_address)
+                    .await
+                    .expect("Failed starting metrics server");
             }
             PrometheusTransport::Push {
                 gateway_uri,
@@ -164,7 +169,7 @@ impl PrometheusExporterConfig {
                 let endpoint = gateway_uri
                     .parse()
                     .context("Failed parsing Prometheus push gateway endpoint")?;
-                metrics_exporter.push_to_gateway(endpoint, interval).await
+                metrics_exporter.push_to_gateway(endpoint, interval).await;
             }
         }
         Ok(())
