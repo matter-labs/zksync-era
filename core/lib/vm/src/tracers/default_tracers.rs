@@ -17,8 +17,7 @@ use crate::constants::BOOTLOADER_HEAP_PAGE;
 use crate::old_vm::history_recorder::HistoryMode;
 use crate::old_vm::memory::SimpleMemory;
 use crate::tracers::traits::{
-    DynTracer, ExecutionEndTracer, ExecutionProcessing, TracerExecutionStatus,
-    TracerExecutionStopReason, VmTracer,
+    DynTracer, ExecutionProcessing, TracerExecutionStatus, TracerExecutionStopReason, VmTracer,
 };
 use crate::tracers::utils::{
     computational_gas_price, gas_spent_on_bytecodes_and_long_messages_this_opcode,
@@ -156,43 +155,6 @@ impl<S, H: HistoryMode> Tracer for DefaultExecutionTracer<S, H> {
     }
 }
 
-impl<S: WriteStorage, H: HistoryMode> ExecutionEndTracer<H> for DefaultExecutionTracer<S, H> {
-    fn should_stop_execution(&self) -> TracerExecutionStatus {
-        match self.execution_mode {
-            VmExecutionMode::OneTx => {
-                if self.tx_has_been_processed() {
-                    return TracerExecutionStatus::Stop(TracerExecutionStopReason::Finish);
-                }
-            }
-            VmExecutionMode::Bootloader => {
-                if self.ret_from_the_bootloader == Some(RetOpcode::Ok) {
-                    return TracerExecutionStatus::Stop(TracerExecutionStopReason::Finish);
-                }
-            }
-            VmExecutionMode::Batch => {}
-        };
-        if self.validation_run_out_of_gas() {
-            return TracerExecutionStatus::Stop(TracerExecutionStopReason::Abort(
-                Halt::ValidationOutOfGas,
-            ));
-        }
-        if let Some(refund_tracer) = &self.refund_tracer {
-            let reason =
-                <RefundsTracer as ExecutionEndTracer<H>>::should_stop_execution(refund_tracer);
-            if TracerExecutionStatus::Continue != reason {
-                return reason;
-            }
-        }
-        for tracer in self.custom_tracers.iter() {
-            let reason = tracer.should_stop_execution();
-            if TracerExecutionStatus::Continue != reason {
-                return reason;
-            }
-        }
-        TracerExecutionStatus::Continue
-    }
-}
-
 impl<S: WriteStorage, H: HistoryMode> DefaultExecutionTracer<S, H> {
     pub(crate) fn new(
         computational_gas_limit: u32,
@@ -244,6 +206,28 @@ impl<S: WriteStorage, H: HistoryMode> DefaultExecutionTracer<S, H> {
             .populate_page(BOOTLOADER_HEAP_PAGE as usize, memory, current_timestamp);
         self.final_batch_info_requested = false;
     }
+
+    fn should_stop_execution(&self) -> TracerExecutionStatus {
+        match self.execution_mode {
+            VmExecutionMode::OneTx => {
+                if self.tx_has_been_processed() {
+                    return TracerExecutionStatus::Stop(TracerExecutionStopReason::Finish);
+                }
+            }
+            VmExecutionMode::Bootloader => {
+                if self.ret_from_the_bootloader == Some(RetOpcode::Ok) {
+                    return TracerExecutionStatus::Stop(TracerExecutionStopReason::Finish);
+                }
+            }
+            VmExecutionMode::Batch => {}
+        };
+        if self.validation_run_out_of_gas() {
+            return TracerExecutionStatus::Stop(TracerExecutionStopReason::Abort(
+                Halt::ValidationOutOfGas,
+            ));
+        }
+        TracerExecutionStatus::Continue
+    }
 }
 
 impl<S, H: HistoryMode> DynTracer<S, H> for DefaultExecutionTracer<S, H> {}
@@ -259,21 +243,27 @@ impl<S: WriteStorage, H: HistoryMode> ExecutionProcessing<S, H> for DefaultExecu
         }
     }
 
-    fn after_cycle(
+    fn finish_cycle(
         &mut self,
         state: &mut ZkSyncVmState<S, H>,
         bootloader_state: &mut BootloaderState,
-    ) {
-        self.result_tracer.after_cycle(state, bootloader_state);
-        for processor in self.custom_tracers.iter_mut() {
-            processor.after_cycle(state, bootloader_state);
-        }
-        if let Some(refund_tracer) = &mut self.refund_tracer {
-            refund_tracer.after_cycle(state, bootloader_state);
-        }
+    ) -> TracerExecutionStatus {
         if self.final_batch_info_requested {
             self.set_fictive_l2_block(state, bootloader_state)
         }
+
+        let mut result = self.result_tracer.finish_cycle(state, bootloader_state);
+        if let Some(refund_tracer) = &mut self.refund_tracer {
+            result = refund_tracer
+                .finish_cycle(state, bootloader_state)
+                .stricter(result);
+        }
+        for processor in self.custom_tracers.iter_mut() {
+            result = processor
+                .finish_cycle(state, bootloader_state)
+                .stricter(result);
+        }
+        result.stricter(self.should_stop_execution())
     }
 
     fn after_vm_execution(

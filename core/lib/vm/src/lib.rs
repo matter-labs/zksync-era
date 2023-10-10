@@ -17,7 +17,7 @@ pub use errors::{
 pub use tracers::{
     call::CallTracer,
     traits::{
-        BoxedTracer, DynTracer, ExecutionEndTracer, ExecutionProcessing, TracerExecutionStatus,
+        BoxedTracer, DynTracer, ExecutionProcessing, TracerExecutionStatus,
         TracerExecutionStopReason, VmTracer,
     },
     utils::VmExecutionStopReason,

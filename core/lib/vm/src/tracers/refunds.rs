@@ -24,7 +24,7 @@ use crate::old_vm::{
 use crate::bootloader_state::BootloaderState;
 use crate::tracers::utils::gas_spent_on_bytecodes_and_long_messages_this_opcode;
 use crate::tracers::{
-    traits::{DynTracer, ExecutionEndTracer, ExecutionProcessing, VmTracer},
+    traits::{DynTracer, ExecutionProcessing, VmTracer},
     utils::{get_vm_hook_params, VmHook},
 };
 use crate::types::{
@@ -32,6 +32,7 @@ use crate::types::{
     internals::ZkSyncVmState,
     outputs::{Refunds, VmExecutionResultAndLogs},
 };
+use crate::TracerExecutionStatus;
 
 /// Tracer responsible for collecting information about refunds.
 #[derive(Debug, Clone)]
@@ -167,8 +168,6 @@ impl<S, H: HistoryMode> DynTracer<S, H> for RefundsTracer {
     }
 }
 
-impl<H: HistoryMode> ExecutionEndTracer<H> for RefundsTracer {}
-
 impl<S: WriteStorage, H: HistoryMode> ExecutionProcessing<S, H> for RefundsTracer {
     fn initialize_tracer(&mut self, state: &mut ZkSyncVmState<S, H>) {
         self.timestamp_initial = Timestamp(state.local_state.timestamp);
@@ -176,11 +175,11 @@ impl<S: WriteStorage, H: HistoryMode> ExecutionProcessing<S, H> for RefundsTrace
         self.spent_pubdata_counter_before = state.local_state.spent_pubdata_counter;
     }
 
-    fn after_cycle(
+    fn finish_cycle(
         &mut self,
         state: &mut ZkSyncVmState<S, H>,
         bootloader_state: &mut BootloaderState,
-    ) {
+    ) -> TracerExecutionStatus {
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
         #[metrics(label = "type", rename_all = "snake_case")]
         enum RefundType {
@@ -289,6 +288,7 @@ impl<S: WriteStorage, H: HistoryMode> ExecutionProcessing<S, H> for RefundsTrace
                 (refund_to_propose as f64 - bootloader_refund as f64) / tx_gas_limit as f64 * 100.0;
             METRICS.refund_diff.observe(refund_diff);
         }
+        TracerExecutionStatus::Continue
     }
 }
 

@@ -6,7 +6,7 @@ use crate::old_vm::{
     utils::{vm_may_have_ended_inner, VmExecutionResult},
 };
 use crate::tracers::{
-    traits::{ExecutionEndTracer, ExecutionProcessing, TracerExecutionStatus, VmTracer},
+    traits::{ExecutionProcessing, TracerExecutionStatus, VmTracer},
     DefaultExecutionTracer, RefundsTracer,
 };
 use crate::types::{inputs::VmExecutionMode, outputs::VmExecutionResultAndLogs};
@@ -107,18 +107,17 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
                 self.state
             );
 
-            tracer.before_cycle(&mut self.state);
             self.state
                 .cycle(tracer)
                 .expect("Failed execution VM cycle.");
 
-            tracer.after_cycle(&mut self.state, &mut self.bootloader_state);
+            if let TracerExecutionStatus::Stop(reason) =
+                tracer.finish_cycle(&mut self.state, &mut self.bootloader_state)
+            {
+                break VmExecutionStopReason::TracerRequestedStop(reason);
+            }
             if self.has_ended() {
                 break VmExecutionStopReason::VmFinished;
-            }
-
-            if let TracerExecutionStatus::Stop(reason) = tracer.should_stop_execution() {
-                break VmExecutionStopReason::TracerRequestedStop(reason);
             }
         };
         tracer.after_vm_execution(&mut self.state, &self.bootloader_state, result.clone());

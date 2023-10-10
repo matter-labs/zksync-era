@@ -16,7 +16,7 @@ use zksync_types::U256;
 use crate::errors::VmRevertReason;
 use crate::old_vm::history_recorder::HistoryMode;
 use crate::old_vm::memory::SimpleMemory;
-use crate::tracers::traits::{DynTracer, ExecutionEndTracer, ExecutionProcessing, VmTracer};
+use crate::tracers::traits::{DynTracer, ExecutionProcessing, VmTracer};
 use crate::types::outputs::VmExecutionResultAndLogs;
 
 #[derive(Debug, Clone)]
@@ -87,8 +87,6 @@ impl<S, H: HistoryMode> DynTracer<S, H> for CallTracer<H> {
         };
     }
 }
-
-impl<H: HistoryMode> ExecutionEndTracer<H> for CallTracer<H> {}
 
 impl<S: WriteStorage, H: HistoryMode> ExecutionProcessing<S, H> for CallTracer<H> {}
 

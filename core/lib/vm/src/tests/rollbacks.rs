@@ -171,7 +171,7 @@ impl<H: HistoryMode> ExecutionEndTracer<H> for MaxRecursionTracer {
 }
 
 impl<S: WriteStorage, H: HistoryMode> ExecutionProcessing<S, H> for MaxRecursionTracer {
-    fn after_cycle(
+    fn finish_cycle(
         &mut self,
         state: &mut ZkSyncVmState<S, H>,
         _bootloader_state: &mut BootloaderState,

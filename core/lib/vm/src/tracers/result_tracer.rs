@@ -15,7 +15,7 @@ use crate::old_vm::{
     utils::{vm_may_have_ended_inner, VmExecutionResult},
 };
 use crate::tracers::{
-    traits::{DynTracer, ExecutionEndTracer, ExecutionProcessing, VmTracer},
+    traits::{DynTracer, ExecutionProcessing, VmTracer},
     utils::{get_vm_hook_params, read_pointer, VmHook},
 };
 use crate::types::{
@@ -103,8 +103,6 @@ impl<S, H: HistoryMode> DynTracer<S, H> for ResultTracer {
         }
     }
 }
-
-impl<H: HistoryMode> ExecutionEndTracer<H> for ResultTracer {}
 
 impl<S: WriteStorage, H: HistoryMode> ExecutionProcessing<S, H> for ResultTracer {
     fn after_vm_execution(

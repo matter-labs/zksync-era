@@ -3,9 +3,9 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use vm::constants::{BLOCK_GAS_LIMIT, BOOTLOADER_HEAP_PAGE};
 use vm::{
-    BootloaderState, BoxedTracer, DynTracer, ExecutionEndTracer, ExecutionProcessing,
-    HistoryEnabled, HistoryMode, L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, Vm,
-    VmExecutionMode, VmExecutionStopReason, VmTracer, ZkSyncVmState,
+    BootloaderState, BoxedTracer, DynTracer, ExecutionProcessing, HistoryEnabled, HistoryMode,
+    L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, Vm, VmExecutionMode, VmExecutionStopReason,
+    VmTracer, ZkSyncVmState,
 };
 use zksync_contracts::{
     load_sys_contract, read_bootloader_code, read_sys_contract_bytecode, read_zbin_bytecode,
@@ -32,8 +32,6 @@ struct SpecialBootloaderTracer {
 }
 
 impl<S: WriteStorage, H: HistoryMode> DynTracer<S, H> for SpecialBootloaderTracer {}
-
-impl<H: HistoryMode> ExecutionEndTracer<H> for SpecialBootloaderTracer {}
 
 impl<S: WriteStorage, H: HistoryMode> ExecutionProcessing<S, H> for SpecialBootloaderTracer {
     fn initialize_tracer(&mut self, state: &mut ZkSyncVmState<S, H>) {

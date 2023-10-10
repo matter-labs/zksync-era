@@ -11,16 +11,14 @@ use crate::types::outputs::VmExecutionResultAndLogs;
 use crate::{Halt, VmExecutionStopReason};
 
 /// Run tracer for collecting data during the vm execution cycles
-pub trait ExecutionProcessing<S: WriteStorage, H: HistoryMode>:
-    DynTracer<S, H> + ExecutionEndTracer<H>
-{
+pub trait ExecutionProcessing<S: WriteStorage, H: HistoryMode>: DynTracer<S, H> {
     fn initialize_tracer(&mut self, _state: &mut ZkSyncVmState<S, H>) {}
-    fn before_cycle(&mut self, _state: &mut ZkSyncVmState<S, H>) {}
-    fn after_cycle(
+    fn finish_cycle(
         &mut self,
         _state: &mut ZkSyncVmState<S, H>,
         _bootloader_state: &mut BootloaderState,
-    ) {
+    ) -> TracerExecutionStatus {
+        TracerExecutionStatus::Continue
     }
     fn after_vm_execution(
         &mut self,
@@ -61,7 +59,7 @@ pub trait DynTracer<S, H: HistoryMode> {
 
 /// Save the results of the vm execution.
 pub trait VmTracer<S: WriteStorage, H: HistoryMode>:
-    DynTracer<S, H> + ExecutionEndTracer<H> + ExecutionProcessing<S, H>
+    DynTracer<S, H> + ExecutionProcessing<S, H>
 {
     fn save_results(&mut self, _result: &mut VmExecutionResultAndLogs) {}
 }
@@ -88,10 +86,24 @@ pub enum TracerExecutionStatus {
     Stop(TracerExecutionStopReason),
 }
 
-/// Stop the vm execution if the tracer conditions are met
-pub trait ExecutionEndTracer<H: HistoryMode> {
-    // Returns whether the vm execution should stop.
-    fn should_stop_execution(&self) -> TracerExecutionStatus {
-        TracerExecutionStatus::Continue
+impl TracerExecutionStatus {
+    /// Chose the stricter ExecutionStatus
+    /// If one of the statuses is Abort, then the result is Abort
+    /// If one of the statuses is Finish, then the result is Finish
+    /// Otherwise, the result is Continue
+    pub fn stricter(self, other: Self) -> Self {
+        match (self, other) {
+            (Self::Stop(TracerExecutionStopReason::Abort(reason)), _) => {
+                Self::Stop(TracerExecutionStopReason::Abort(reason))
+            }
+            (_, Self::Stop(TracerExecutionStopReason::Abort(reason))) => {
+                Self::Stop(TracerExecutionStopReason::Abort(reason))
+            }
+            (Self::Stop(TracerExecutionStopReason::Finish), _)
+            | (_, Self::Stop(TracerExecutionStopReason::Finish)) => {
+                Self::Stop(TracerExecutionStopReason::Finish)
+            }
+            _ => Self::Continue,
+        }
     }
 }
