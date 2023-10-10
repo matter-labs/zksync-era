@@ -79,7 +79,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
             Default::default()
         };
 
-        let mut result = VmExecutionResultAndLogs {
+        let result = VmExecutionResultAndLogs {
             result,
             logs,
             statistics,
@@ -87,7 +87,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
         };
 
         for tracer in tx_tracer.custom_tracers.iter_mut() {
-            tracer.save_results(&mut result);
+            tracer.save_results(&result);
         }
         (stop_reason, result)
     }
