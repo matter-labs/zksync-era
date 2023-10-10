@@ -45,3 +45,13 @@ impl GlueFrom<vm_latest::TxExecutionMode> for vm_1_3_2::vm_with_bootloader::TxEx
         }
     }
 }
+
+impl GlueFrom<vm_latest::TxExecutionMode> for vm_virtual_blocks::TxExecutionMode {
+    fn glue_from(value: vm_latest::TxExecutionMode) -> Self {
+        match value {
+            vm_latest::TxExecutionMode::VerifyExecute => Self::VerifyExecute,
+            vm_latest::TxExecutionMode::EstimateFee => Self::EstimateFee,
+            vm_latest::TxExecutionMode::EthCall => Self::EthCall,
+        }
+    }
+}
