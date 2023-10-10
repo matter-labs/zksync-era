@@ -256,14 +256,14 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for DefaultExecutionTracer<
         if let Some(refund_tracer) = &mut self.refund_tracer {
             result = refund_tracer
                 .finish_cycle(state, bootloader_state)
-                .stricter(result);
+                .stricter(&result);
         }
         for processor in self.custom_tracers.iter_mut() {
             result = processor
                 .finish_cycle(state, bootloader_state)
-                .stricter(result);
+                .stricter(&result);
         }
-        result.stricter(self.should_stop_execution())
+        result.stricter(&self.should_stop_execution())
     }
 
     fn after_vm_execution(
