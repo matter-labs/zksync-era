@@ -179,11 +179,11 @@ async fn multi_l1_batch_workflow(pool: ConnectionPool, prover_pool: ConnectionPo
     }
 }
 
-#[db_test]
-async fn running_metadata_calculator_with_additional_blocks(
-    pool: ConnectionPool,
-    prover_pool: ConnectionPool,
-) {
+#[tokio::test]
+async fn running_metadata_calculator_with_additional_blocks() {
+    let pool = ConnectionPool::test_pool().await;
+    let prover_pool = ConnectionPool::test_pool().await;
+
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
     let calculator = setup_lightweight_calculator(temp_dir.path(), &pool).await;
     reset_db_state(&pool, 5).await;
@@ -477,6 +477,7 @@ pub(super) async fn extend_db_state(
     storage: &mut StorageProcessor,
     new_logs: impl IntoIterator<Item = Vec<StorageLog>>,
 ) {
+    let mut storage = storage.start_transaction().await.unwrap();
     let next_l1_batch = storage
         .blocks_dal()
         .get_sealed_l1_batch_number()
@@ -537,12 +538,13 @@ pub(super) async fn extend_db_state(
             .mark_miniblocks_as_executed_in_l1_batch(batch_number)
             .await
             .unwrap();
-        insert_initial_writes_for_batch(storage, batch_number).await;
+        insert_initial_writes_for_batch(&mut storage, batch_number).await;
     }
+    storage.commit().await.unwrap();
 }
 
-async fn insert_initial_writes_for_batch(
-    connection: &mut StorageProcessor,
+async fn insert_initial_writes_for_batch<Conn: zksync_dal::Acquire>(
+    connection: &mut StorageProcessor<Conn>,
     l1_batch_number: L1BatchNumber,
 ) {
     let written_non_zero_slots: Vec<_> = connection
