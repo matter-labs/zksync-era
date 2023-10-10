@@ -13,7 +13,6 @@ use zksync_merkle_tree::{
     HashTree, Key, PatchSet, PruneDatabase, RocksDBWrapper, ValueHash,
 };
 use zksync_storage::RocksDB;
-use zksync_types::U256;
 
 /// CLI for load-testing Merkle tree recovery.
 #[derive(Debug, Parser)]
@@ -77,6 +76,9 @@ impl Cli {
         let recovered_version = 123;
         let key_step =
             Key::MAX / (Key::from(self.update_count) * Key::from(self.writes_per_update));
+        assert!(key_step > Key::from(u64::MAX));
+        // ^ Total number of generated keys is <2^128.
+
         let mut last_key = Key::zero();
         let mut last_leaf_index = 0;
         let mut recovery = MerkleTreeRecovery::with_hasher(db, recovered_version, hasher);
@@ -85,8 +87,8 @@ impl Cli {
             let started_at = Instant::now();
             let recovery_entries = (0..self.writes_per_update)
                 .map(|_| {
-                    last_key += key_step / 2 + gen_key(&mut rng, key_step / 2);
-                    // ^ Increases the key by a random increment in [key_step / 2, key_step].
+                    last_key += key_step - Key::from(rng.gen::<u64>());
+                    // ^ Increases the key by a random increment close to `key` step with some randomness.
                     last_leaf_index += 1;
                     RecoveryEntry {
                         key: last_key,
@@ -111,13 +113,6 @@ impl Cli {
         tree.verify_consistency(recovered_version).unwrap();
         tracing::info!("Verified consistency in {:?}", started_at.elapsed());
     }
-}
-
-/// Generates a random `Key` in `0..=max` range.
-fn gen_key(rng: &mut impl Rng, max: Key) -> Key {
-    let output = max & U256([rng.gen(), rng.gen(), rng.gen(), rng.gen()]);
-    assert!(output <= max);
-    output
 }
 
 fn main() {
