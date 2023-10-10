@@ -6,7 +6,7 @@ use crate::old_vm::{
     utils::{vm_may_have_ended_inner, VmExecutionResult},
 };
 use crate::tracers::{
-    traits::{ExecutionProcessing, TracerExecutionStatus, VmTracer},
+    traits::{TracerExecutionStatus, VmTracer},
     DefaultExecutionTracer, RefundsTracer,
 };
 use crate::types::{inputs::VmExecutionMode, outputs::VmExecutionResultAndLogs};

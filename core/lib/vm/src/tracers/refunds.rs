@@ -24,14 +24,10 @@ use crate::old_vm::{
 use crate::bootloader_state::BootloaderState;
 use crate::tracers::utils::gas_spent_on_bytecodes_and_long_messages_this_opcode;
 use crate::tracers::{
-    traits::{DynTracer, ExecutionProcessing, VmTracer},
+    traits::{DynTracer, VmTracer},
     utils::{get_vm_hook_params, VmHook},
 };
-use crate::types::{
-    inputs::L1BatchEnv,
-    internals::ZkSyncVmState,
-    outputs::{Refunds, VmExecutionResultAndLogs},
-};
+use crate::types::{inputs::L1BatchEnv, internals::ZkSyncVmState, outputs::Refunds};
 use crate::TracerExecutionStatus;
 
 /// Tracer responsible for collecting information about refunds.
@@ -168,7 +164,7 @@ impl<S, H: HistoryMode> DynTracer<S, H> for RefundsTracer {
     }
 }
 
-impl<S: WriteStorage, H: HistoryMode> ExecutionProcessing<S, H> for RefundsTracer {
+impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for RefundsTracer {
     fn initialize_tracer(&mut self, state: &mut ZkSyncVmState<S, H>) {
         self.timestamp_initial = Timestamp(state.local_state.timestamp);
         self.gas_remaining_before = state.local_state.callstack.current.ergs_remaining;
@@ -335,10 +331,4 @@ pub(crate) fn pubdata_published<S: WriteStorage, H: HistoryMode>(
         + l2_l1_logs_bytes
         + l2_l1_long_messages_bytes
         + published_bytecode_bytes
-}
-
-impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for RefundsTracer {
-    fn save_results(&mut self, result: &mut VmExecutionResultAndLogs) {
-        result.refunds = self.get_refunds();
-    }
 }

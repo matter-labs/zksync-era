@@ -11,7 +11,7 @@ use crate::types::outputs::VmExecutionResultAndLogs;
 use crate::{Halt, VmExecutionStopReason};
 
 /// Run tracer for collecting data during the vm execution cycles
-pub trait ExecutionProcessing<S: WriteStorage, H: HistoryMode>: DynTracer<S, H> {
+pub trait VmTracer<S: WriteStorage, H: HistoryMode>: DynTracer<S, H> {
     fn initialize_tracer(&mut self, _state: &mut ZkSyncVmState<S, H>) {}
     fn finish_cycle(
         &mut self,
@@ -27,6 +27,8 @@ pub trait ExecutionProcessing<S: WriteStorage, H: HistoryMode>: DynTracer<S, H> 
         _stop_reason: VmExecutionStopReason,
     ) {
     }
+
+    fn save_results(&mut self, _result: &VmExecutionResultAndLogs) {}
 }
 
 /// Version of zk_evm::Tracer suitable for dynamic dispatch.
@@ -55,13 +57,6 @@ pub trait DynTracer<S, H: HistoryMode> {
         _storage: StoragePtr<S>,
     ) {
     }
-}
-
-/// Save the results of the vm execution.
-pub trait VmTracer<S: WriteStorage, H: HistoryMode>:
-    DynTracer<S, H> + ExecutionProcessing<S, H>
-{
-    fn save_results(&mut self, _result: &mut VmExecutionResultAndLogs) {}
 }
 
 pub trait BoxedTracer<S, H> {

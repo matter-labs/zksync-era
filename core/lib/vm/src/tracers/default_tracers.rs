@@ -17,7 +17,7 @@ use crate::constants::BOOTLOADER_HEAP_PAGE;
 use crate::old_vm::history_recorder::HistoryMode;
 use crate::old_vm::memory::SimpleMemory;
 use crate::tracers::traits::{
-    DynTracer, ExecutionProcessing, TracerExecutionStatus, TracerExecutionStopReason, VmTracer,
+    DynTracer, TracerExecutionStatus, TracerExecutionStopReason, VmTracer,
 };
 use crate::tracers::utils::{
     computational_gas_price, gas_spent_on_bytecodes_and_long_messages_this_opcode,
@@ -232,7 +232,7 @@ impl<S: WriteStorage, H: HistoryMode> DefaultExecutionTracer<S, H> {
 
 impl<S, H: HistoryMode> DynTracer<S, H> for DefaultExecutionTracer<S, H> {}
 
-impl<S: WriteStorage, H: HistoryMode> ExecutionProcessing<S, H> for DefaultExecutionTracer<S, H> {
+impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for DefaultExecutionTracer<S, H> {
     fn initialize_tracer(&mut self, state: &mut ZkSyncVmState<S, H>) {
         self.result_tracer.initialize_tracer(state);
         if let Some(refund_tracer) = &mut self.refund_tracer {

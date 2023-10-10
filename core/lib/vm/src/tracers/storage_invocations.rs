@@ -1,7 +1,7 @@
 use crate::bootloader_state::BootloaderState;
 use crate::old_vm::history_recorder::HistoryMode;
 use crate::tracers::traits::{
-    DynTracer, ExecutionProcessing, TracerExecutionStatus, TracerExecutionStopReason, VmTracer,
+    DynTracer, TracerExecutionStatus, TracerExecutionStopReason, VmTracer,
 };
 use crate::types::internals::ZkSyncVmState;
 use crate::Halt;
@@ -22,7 +22,7 @@ impl StorageInvocations {
 /// stopping the VM execution if the limit is reached.
 impl<S, H: HistoryMode> DynTracer<S, H> for StorageInvocations {}
 
-impl<S: WriteStorage, H: HistoryMode> ExecutionProcessing<S, H> for StorageInvocations {
+impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for StorageInvocations {
     fn finish_cycle(
         &mut self,
         state: &mut ZkSyncVmState<S, H>,
@@ -43,5 +43,3 @@ impl<S: WriteStorage, H: HistoryMode> ExecutionProcessing<S, H> for StorageInvoc
         TracerExecutionStatus::Continue
     }
 }
-
-impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for StorageInvocations {}

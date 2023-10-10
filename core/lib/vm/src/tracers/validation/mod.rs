@@ -29,7 +29,7 @@ use zksync_utils::{
 use crate::old_vm::history_recorder::HistoryMode;
 use crate::old_vm::memory::SimpleMemory;
 use crate::tracers::traits::{
-    DynTracer, ExecutionProcessing, TracerExecutionStatus, TracerExecutionStopReason, VmTracer,
+    DynTracer, TracerExecutionStatus, TracerExecutionStopReason, VmTracer,
 };
 use crate::tracers::utils::{
     computational_gas_price, get_calldata_page_via_abi, print_debug_if_needed, VmHook,
@@ -41,7 +41,7 @@ pub use params::ValidationTracerParams;
 use types::NewTrustedValidationItems;
 use types::ValidationTracerMode;
 
-use crate::{BootloaderState, Halt, VmExecutionResultAndLogs, ZkSyncVmState};
+use crate::{BootloaderState, Halt, ZkSyncVmState};
 
 /// Tracer that is used to ensure that the validation adheres to all the rules
 /// to prevent DDoS attacks on the server.
@@ -354,7 +354,7 @@ impl<S: WriteStorage, H: HistoryMode> DynTracer<S, H> for ValidationTracer<H> {
     }
 }
 
-impl<S: WriteStorage, H: HistoryMode> ExecutionProcessing<S, H> for ValidationTracer<H> {
+impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for ValidationTracer<H> {
     fn finish_cycle(
         &mut self,
         _state: &mut ZkSyncVmState<S, H>,
@@ -370,10 +370,6 @@ impl<S: WriteStorage, H: HistoryMode> ExecutionProcessing<S, H> for ValidationTr
         }
         TracerExecutionStatus::Continue
     }
-}
-
-impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for ValidationTracer<H> {
-    fn save_results(&mut self, _result: &mut VmExecutionResultAndLogs) {}
 }
 
 fn touches_allowed_context(address: Address, key: U256) -> bool {

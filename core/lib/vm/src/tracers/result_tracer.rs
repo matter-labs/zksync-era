@@ -15,13 +15,10 @@ use crate::old_vm::{
     utils::{vm_may_have_ended_inner, VmExecutionResult},
 };
 use crate::tracers::{
-    traits::{DynTracer, ExecutionProcessing, VmTracer},
+    traits::{DynTracer, VmTracer},
     utils::{get_vm_hook_params, read_pointer, VmHook},
 };
-use crate::types::{
-    internals::ZkSyncVmState,
-    outputs::{ExecutionResult, VmExecutionResultAndLogs},
-};
+use crate::types::{internals::ZkSyncVmState, outputs::ExecutionResult};
 
 use crate::constants::{BOOTLOADER_HEAP_PAGE, RESULT_SUCCESS_FIRST_SLOT};
 use crate::tracers::traits::TracerExecutionStopReason;
@@ -104,7 +101,7 @@ impl<S, H: HistoryMode> DynTracer<S, H> for ResultTracer {
     }
 }
 
-impl<S: WriteStorage, H: HistoryMode> ExecutionProcessing<S, H> for ResultTracer {
+impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for ResultTracer {
     fn after_vm_execution(
         &mut self,
         state: &mut ZkSyncVmState<S, H>,
@@ -233,10 +230,6 @@ impl ResultTracer {
             Result::Halt { reason } => ExecutionResult::Halt { reason },
         }
     }
-}
-
-impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for ResultTracer {
-    fn save_results(&mut self, _result: &mut VmExecutionResultAndLogs) {}
 }
 
 pub(crate) fn tx_has_failed<S: WriteStorage, H: HistoryMode>(
