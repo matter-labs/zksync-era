@@ -9099,6 +9099,38 @@
     },
     "query": "\n                UPDATE prover_jobs_fri\n                SET status = 'in_progress', attempts = attempts + 1,\n                    updated_at = now(), processing_started_at = now(),\n                    picked_by = $2\n                WHERE id = (\n                    SELECT id\n                    FROM prover_jobs_fri\n                    WHERE status = 'queued'\n                    AND protocol_version = ANY($1)\n                    ORDER BY aggregation_round DESC, l1_batch_number ASC, id ASC\n                    LIMIT 1\n                    FOR UPDATE\n                    SKIP LOCKED\n                )\n                RETURNING prover_jobs_fri.id, prover_jobs_fri.l1_batch_number, prover_jobs_fri.circuit_id,\n                prover_jobs_fri.aggregation_round, prover_jobs_fri.sequence_number, prover_jobs_fri.depth,\n                prover_jobs_fri.is_node_final_proof\n                "
   },
+  "d1c82bd0b3c010569937ad7600760fa0c3aca7c9585bbf9598a5c0515b431b26": {
+    "describe": {
+      "columns": [
+        {
+          "name": "hashed_key",
+          "ordinal": 0,
+          "type_info": "Bytea"
+        },
+        {
+          "name": "l1_batch_number",
+          "ordinal": 1,
+          "type_info": "Int8"
+        },
+        {
+          "name": "index",
+          "ordinal": 2,
+          "type_info": "Int8"
+        }
+      ],
+      "nullable": [
+        false,
+        false,
+        false
+      ],
+      "parameters": {
+        "Left": [
+          "ByteaArray"
+        ]
+      }
+    },
+    "query": "SELECT hashed_key, l1_batch_number, index FROM initial_writes WHERE hashed_key = ANY($1::bytea[])"
+  },
   "d5dea31f2a325bb44e8ef2cbbabbeb73fd6996a3e6cb99d62c6b97a4aa49c1ca": {
     "describe": {
       "columns": [
@@ -9393,32 +9425,6 @@
       }
     },
     "query": "UPDATE l1_batches SET skip_proof = TRUE WHERE number = $1"
-  },
-  "da01d59119023c822cffa5dc226e82b2abd4cbd46d3856d7db16289868a27fa1": {
-    "describe": {
-      "columns": [
-        {
-          "name": "hashed_key",
-          "ordinal": 0,
-          "type_info": "Bytea"
-        },
-        {
-          "name": "l1_batch_number",
-          "ordinal": 1,
-          "type_info": "Int8"
-        }
-      ],
-      "nullable": [
-        false,
-        false
-      ],
-      "parameters": {
-        "Left": [
-          "ByteaArray"
-        ]
-      }
-    },
-    "query": "SELECT hashed_key, l1_batch_number FROM initial_writes WHERE hashed_key = ANY($1::bytea[])"
   },
   "dc16d0fac093a52480b66dfcb5976fb01e6629e8c982c265f2af1d5000090572": {
     "describe": {
