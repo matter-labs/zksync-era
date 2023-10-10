@@ -30,12 +30,6 @@ impl<'a, Conn: Acquire> SyncDal<'a, Conn> {
                     (SELECT max(m2.number) FROM miniblocks m2 WHERE miniblocks.l1_batch_number = m2.l1_batch_number) as "last_batch_miniblock?",
                     miniblocks.timestamp,
                     miniblocks.hash as "root_hash?",
-                    commit_tx.tx_hash as "commit_tx_hash?",
-                    commit_tx.confirmed_at as "committed_at?",
-                    prove_tx.tx_hash as "prove_tx_hash?",
-                    prove_tx.confirmed_at as "proven_at?",
-                    execute_tx.tx_hash as "execute_tx_hash?",
-                    execute_tx.confirmed_at as "executed_at?",
                     miniblocks.l1_gas_price,
                     miniblocks.l2_fair_gas_price,
                     miniblocks.bootloader_code_hash,
@@ -46,9 +40,6 @@ impl<'a, Conn: Acquire> SyncDal<'a, Conn> {
                     l1_batches.fee_account_address as "fee_account_address?"
                 FROM miniblocks
                 LEFT JOIN l1_batches ON miniblocks.l1_batch_number = l1_batches.number
-                LEFT JOIN eth_txs_history as commit_tx ON (l1_batches.eth_commit_tx_id = commit_tx.eth_tx_id AND commit_tx.confirmed_at IS NOT NULL)
-                LEFT JOIN eth_txs_history as prove_tx ON (l1_batches.eth_prove_tx_id = prove_tx.eth_tx_id AND prove_tx.confirmed_at IS NOT NULL)
-                LEFT JOIN eth_txs_history as execute_tx ON (l1_batches.eth_execute_tx_id = execute_tx.eth_tx_id AND execute_tx.confirmed_at IS NOT NULL)
                 WHERE miniblocks.number = $1
             "#,
             block_number.0 as i64
