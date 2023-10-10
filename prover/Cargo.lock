@@ -6469,6 +6469,7 @@ name = "zksync_basic_types"
 version = "0.1.0"
 dependencies = [
  "serde",
+ "serde_json",
  "web3",
 ]
 
@@ -6844,6 +6845,7 @@ name = "zksync_state"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "itertools 0.10.5",
  "mini-moka",
  "tokio",
  "tracing",
@@ -6873,6 +6875,7 @@ dependencies = [
  "chrono",
  "codegen 0.1.0",
  "ethereum-types 0.12.1",
+ "hex",
  "num 0.3.1",
  "num_enum",
  "once_cell",
