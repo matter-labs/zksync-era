@@ -314,7 +314,7 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
     async fn get_l2_to_l1_log_proof_inner(
         &self,
         method_name: &'static str,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut StorageProcessor,
         l1_batch_number: L1BatchNumber,
         index_in_filtered_logs: usize,
         log_filter: impl Fn(&L2ToL1Log) -> bool,
