@@ -81,6 +81,11 @@ impl<V> SmallMap<V> {
         self.values.iter()
     }
 
+    #[cfg(test)]
+    pub fn values_mut(&mut self) -> impl Iterator<Item = &mut V> + '_ {
+        self.values.iter_mut()
+    }
+
     pub fn get_mut(&mut self, index: u8) -> Option<&mut V> {
         assert!(index < Self::CAPACITY, "index is too large");
 

@@ -443,6 +443,11 @@ impl InternalNode {
         self.children.values()
     }
 
+    #[cfg(test)]
+    pub(crate) fn child_refs_mut(&mut self) -> impl Iterator<Item = &mut ChildRef> + '_ {
+        self.children.values_mut()
+    }
+
     pub(crate) fn last_child_ref(&self) -> (u8, &ChildRef) {
         self.children.last().unwrap()
         // ^ `unwrap()` is safe by construction; all persisted internal nodes are not empty

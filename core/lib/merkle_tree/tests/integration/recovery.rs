@@ -20,7 +20,6 @@ fn recovery_basics() {
             key,
             value,
             leaf_index: i as u64 + 1,
-            version: i as u64 % 5,
         });
     let mut recovery_entries: Vec<_> = recovery_entries.collect();
     recovery_entries.sort_unstable_by_key(|entry| entry.key);
@@ -46,7 +45,6 @@ fn test_recovery_in_chunks<DB: PruneDatabase>(mut create_db: impl FnMut() -> DB)
             key,
             value,
             leaf_index: i as u64 + 1,
-            version: i as u64 % 5,
         });
     let mut recovery_entries: Vec<_> = recovery_entries.collect();
     recovery_entries.sort_unstable_by_key(|entry| entry.key);

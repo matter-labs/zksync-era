@@ -502,13 +502,12 @@ fn tree_handles_keys_at_terminal_level() {
 }
 
 #[test]
-fn recovery_persists_node_versions() {
+fn recovery_flattens_node_versions() {
     let recovery_version = 100;
     let recovery_entries = (0_u64..10).map(|i| RecoveryEntry {
         key: Key::from(i) << 252, // the first key nibbles are distinct
         value: ValueHash::zero(),
         leaf_index: i + 1,
-        version: i % 3,
     });
     let patch = Storage::new(&PatchSet::default(), &(), recovery_version, false)
         .extend_during_recovery(recovery_entries.collect());
@@ -526,12 +525,11 @@ fn recovery_persists_node_versions() {
         panic!("Unexpected root: {root:?}");
     };
     for nibble in 0..10 {
-        let expected_version = u64::from(nibble % 3);
         assert_eq!(
             root_node.child_ref(nibble).unwrap().version,
-            expected_version
+            recovery_version
         );
-        let expected_key = Nibbles::single(nibble).with_version(expected_version);
+        let expected_key = Nibbles::single(nibble).with_version(recovery_version);
         assert_matches!(patch.nodes[&expected_key], Node::Leaf { .. });
     }
 }
@@ -542,7 +540,6 @@ fn test_recovery_with_node_hierarchy(chunk_size: usize) {
         key: Key::from(i) << 248, // the first two key nibbles are distinct
         value: ValueHash::zero(),
         leaf_index: i + 1,
-        version: i % 7,
     });
     let recovery_entries: Vec<_> = recovery_entries.collect();
 
@@ -565,12 +562,11 @@ fn test_recovery_with_node_hierarchy(chunk_size: usize) {
     };
 
     for nibble in 0..16 {
-        let expected_version = 6; // all upper-level nodes have at least one child with max version
         let child_ref = root_node.child_ref(nibble).unwrap();
         assert!(!child_ref.is_leaf);
-        assert_eq!(child_ref.version, expected_version);
+        assert_eq!(child_ref.version, recovery_version);
 
-        let internal_node_key = Nibbles::single(nibble).with_version(expected_version);
+        let internal_node_key = Nibbles::single(nibble).with_version(recovery_version);
         let node = &patch.nodes[&internal_node_key];
         let Node::Internal(node) = node else {
             panic!("Unexpected upper-level node: {node:?}");
@@ -579,17 +575,16 @@ fn test_recovery_with_node_hierarchy(chunk_size: usize) {
 
         for (second_nibble, child_ref) in node.children() {
             let i = nibble * 16 + second_nibble;
-            let expected_version = u64::from(i % 7);
             assert!(child_ref.is_leaf);
-            assert_eq!(child_ref.version, expected_version);
-            let leaf_key = Nibbles::new(&(Key::from(i) << 248), 2).with_version(expected_version);
+            assert_eq!(child_ref.version, recovery_version);
+            let leaf_key = Nibbles::new(&(Key::from(i) << 248), 2).with_version(recovery_version);
             assert_matches!(patch.nodes[&leaf_key], Node::Leaf { .. });
         }
     }
 }
 
 #[test]
-fn recovery_persists_node_versions_with_node_hierarchy() {
+fn recovery_with_node_hierarchy() {
     test_recovery_with_node_hierarchy(256); // single chunk
     for chunk_size in [4, 5, 20, 69, 127, 128] {
         println!("Testing recovery with chunk size {chunk_size}");
@@ -603,7 +598,6 @@ fn test_recovery_with_deep_node_hierarchy(chunk_size: usize) {
         key: Key::from(i), // the last two key nibbles are distinct
         value: ValueHash::zero(),
         leaf_index: i + 1,
-        version: i,
     });
     let recovery_entries: Vec<_> = recovery_entries.collect();
 
@@ -635,44 +629,32 @@ fn test_recovery_with_deep_node_hierarchy(chunk_size: usize) {
     assert_eq!(root_node.child_count(), 1);
     let child_ref = root_node.child_ref(0).unwrap();
     assert!(!child_ref.is_leaf);
-    assert_eq!(child_ref.version, 255);
+    assert_eq!(child_ref.version, recovery_version);
 
     for (node_key, node) in patch.nodes {
+        assert_eq!(
+            node_key.version, recovery_version,
+            "Unexpected version for {node_key}"
+        );
+
         let nibble_count = node_key.nibbles.nibble_count();
         if nibble_count < 64 {
             let Node::Internal(node) = node else {
                 panic!("Unexpected node at {node_key}: {node:?}");
             };
             assert_eq!(node.child_count(), if nibble_count < 62 { 1 } else { 16 });
-            let expected_version = if nibble_count <= 62 {
-                255
-            } else {
-                let last_byte = node_key.nibbles.bytes()[31];
-                u64::from(last_byte | 0x0f)
-            };
-            assert_eq!(
-                node_key.version, expected_version,
-                "Unexpected version for {node_key}"
-            );
-            let version_by_children = node
-                .child_refs()
-                .map(|child_ref| {
-                    assert_eq!(child_ref.is_leaf, nibble_count == 63);
-                    child_ref.version
-                })
-                .max();
-            assert_eq!(version_by_children, Some(expected_version));
         } else {
-            let Node::Leaf(leaf) = node else {
-                panic!("Unexpected node at {node_key}: {node:?}");
-            };
-            assert_eq!(node_key.version, leaf.leaf_index - 1);
+            assert_matches!(
+                node,
+                Node::Leaf(_),
+                "Unexpected node at {node_key}: {node:?}"
+            );
         }
     }
 }
 
 #[test]
-fn recovery_persists_node_versions_with_deep_node_hierarchy() {
+fn recovery_with_deep_node_hierarchy() {
     test_recovery_with_deep_node_hierarchy(256);
     for chunk_size in [5, 7, 20, 59, 127, 128] {
         println!("Testing recovery with chunk size {chunk_size}");
@@ -688,7 +670,6 @@ fn recovery_workflow_with_multiple_stages() {
         key: Key::from(i),
         value: ValueHash::zero(),
         leaf_index: i,
-        version: i % recovery_version,
     });
     let patch = Storage::new(&db, &(), recovery_version, false)
         .extend_during_recovery(recovery_entries.collect());
@@ -699,7 +680,6 @@ fn recovery_workflow_with_multiple_stages() {
         key: Key::from(i),
         value: ValueHash::zero(),
         leaf_index: i,
-        version: i % recovery_version,
     });
 
     let patch = Storage::new(&db, &(), recovery_version, false)
@@ -748,7 +728,7 @@ fn test_recovery_pruning_equivalence(
     }
     // Unite all remaining nodes to a map and manually remove all stale keys.
     let recovered_version = db.manifest.version_count - 1;
-    let root = db.root(recovered_version).unwrap();
+    let mut root = db.root(recovered_version).unwrap();
     let mut all_nodes: HashMap<_, _> = db
         .patches_by_version
         .into_values()
@@ -759,13 +739,12 @@ fn test_recovery_pruning_equivalence(
     }
 
     // Generate recovery entries.
-    let recovery_entries = all_nodes.iter().filter_map(|(key, node)| {
+    let recovery_entries = all_nodes.values().filter_map(|node| {
         if let Node::Leaf(leaf) = node {
             return Some(RecoveryEntry {
                 key: leaf.full_key,
                 value: leaf.value_hash,
                 leaf_index: leaf.leaf_index,
-                version: key.version,
             });
         }
         None
@@ -788,9 +767,30 @@ fn test_recovery_pruning_equivalence(
         all_recovered_nodes.remove(stale_key);
     }
 
-    // Nodes must be identical for the pruned and recovered trees.
+    // Nodes must be identical for the pruned and recovered trees up to the version.
+    if let Root::Filled {
+        node: Node::Internal(node),
+        ..
+    } = &mut root
+    {
+        for child_ref in node.child_refs_mut() {
+            child_ref.version = recovered_version;
+        }
+    }
     assert_eq!(recovered_root, root);
-    assert_eq!(all_recovered_nodes, all_nodes);
+
+    let flattened_version_nodes: HashMap<_, _> = all_nodes
+        .into_iter()
+        .map(|(key, mut node)| {
+            if let Node::Internal(node) = &mut node {
+                for child_ref in node.child_refs_mut() {
+                    child_ref.version = recovered_version;
+                }
+            }
+            (key.nibbles.with_version(recovered_version), node)
+        })
+        .collect();
+    assert_eq!(all_recovered_nodes, flattened_version_nodes);
 }
 
 #[test]
