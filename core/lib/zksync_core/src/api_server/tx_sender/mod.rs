@@ -90,7 +90,8 @@ impl MultiVMBaseSystemContracts {
             ProtocolVersionId::Version13 => self.post_virtual_blocks,
             ProtocolVersionId::Version14
             | ProtocolVersionId::Version15
-            | ProtocolVersionId::Version16 => self.post_virtual_blocks_finish_upgrade_fix,
+            | ProtocolVersionId::Version16
+            | ProtocolVersionId::Version17 => self.post_virtual_blocks_finish_upgrade_fix,
         }
     }
 }
