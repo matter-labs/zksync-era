@@ -21,6 +21,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
     ) -> VmExecutionResultAndLogs {
         let mut enable_refund_tracer = false;
         if let VmExecutionMode::OneTx = execution_mode {
+            // Move the pointer to the next transaction
             self.bootloader_state.move_tx_to_execute_pointer();
             enable_refund_tracer = true;
         }
@@ -37,11 +38,8 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
         execution_mode: VmExecutionMode,
         with_refund_tracer: bool,
     ) -> (VmExecutionStopReason, VmExecutionResultAndLogs) {
-        let refund_tracers = if with_refund_tracer {
-            Some(RefundsTracer::new(self.batch_env.clone()))
-        } else {
-            None
-        };
+        let refund_tracers =
+            with_refund_tracer.then_some(RefundsTracer::new(self.batch_env.clone()));
         let mut tx_tracer: DefaultExecutionTracer<S, H> = DefaultExecutionTracer::new(
             self.system_env.default_validation_computational_gas_limit,
             execution_mode,
@@ -73,11 +71,10 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
 
         let result = tx_tracer.result_tracer.into_result();
 
-        let refunds = if let Some(refund_tracer) = tx_tracer.refund_tracer {
-            refund_tracer.get_refunds()
-        } else {
-            Default::default()
-        };
+        let refunds = tx_tracer
+            .refund_tracer
+            .map(|x| x.get_refunds())
+            .unwrap_or_default();
 
         let result = VmExecutionResultAndLogs {
             result,

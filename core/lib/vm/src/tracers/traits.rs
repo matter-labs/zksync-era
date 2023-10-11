@@ -83,16 +83,14 @@ pub enum TracerExecutionStatus {
 
 impl TracerExecutionStatus {
     /// Chose the stricter ExecutionStatus
+    /// If both statuses are Continue, then the result is Continue
     /// If one of the statuses is Abort, then the result is Abort
     /// If one of the statuses is Finish, then the result is Finish
-    /// Otherwise, the result is Continue
     pub fn stricter(&self, other: &Self) -> Self {
         match (self, other) {
             (Self::Continue, Self::Continue) => Self::Continue,
-            (Self::Stop(TracerExecutionStopReason::Abort(reason)), _) => {
-                Self::Stop(TracerExecutionStopReason::Abort(reason.clone()))
-            }
-            (_, Self::Stop(TracerExecutionStopReason::Abort(reason))) => {
+            (Self::Stop(TracerExecutionStopReason::Abort(reason)), _)
+            | (_, Self::Stop(TracerExecutionStopReason::Abort(reason))) => {
                 Self::Stop(TracerExecutionStopReason::Abort(reason.clone()))
             }
             (Self::Stop(TracerExecutionStopReason::Finish), _)

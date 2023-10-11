@@ -40,6 +40,9 @@ pub(crate) struct DefaultExecutionTracer<S, H: HistoryMode> {
     in_account_validation: bool,
     final_batch_info_requested: bool,
     pub(crate) result_tracer: ResultTracer,
+    // This tracer is designed specifically for calculating refunds. Its separation from the custom tracer
+    // ensures static dispatch, enhancing performance by avoiding dynamic dispatch overhead.
+    // Additionally, being an internal tracer, it saves the results directly to VmResultAndLogs.
     pub(crate) refund_tracer: Option<RefundsTracer>,
     pub(crate) custom_tracers: Vec<Box<dyn VmTracer<S, H>>>,
     ret_from_the_bootloader: Option<RetOpcode>,
@@ -209,17 +212,13 @@ impl<S: WriteStorage, H: HistoryMode> DefaultExecutionTracer<S, H> {
 
     fn should_stop_execution(&self) -> TracerExecutionStatus {
         match self.execution_mode {
-            VmExecutionMode::OneTx => {
-                if self.tx_has_been_processed() {
-                    return TracerExecutionStatus::Stop(TracerExecutionStopReason::Finish);
-                }
+            VmExecutionMode::OneTx if self.tx_has_been_processed() => {
+                return TracerExecutionStatus::Stop(TracerExecutionStopReason::Finish);
             }
-            VmExecutionMode::Bootloader => {
-                if self.ret_from_the_bootloader == Some(RetOpcode::Ok) {
-                    return TracerExecutionStatus::Stop(TracerExecutionStopReason::Finish);
-                }
+            VmExecutionMode::Bootloader if self.ret_from_the_bootloader == Some(RetOpcode::Ok) => {
+                return TracerExecutionStatus::Stop(TracerExecutionStopReason::Finish);
             }
-            VmExecutionMode::Batch => {}
+            _ => {}
         };
         if self.validation_run_out_of_gas() {
             return TracerExecutionStatus::Stop(TracerExecutionStopReason::Abort(
