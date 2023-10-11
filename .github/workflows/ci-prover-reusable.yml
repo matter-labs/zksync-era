@@ -3,6 +3,30 @@ on:
   workflow_call:
 
 jobs:
+  lint:
+    runs-on: [matterlabs-ci-runner]
+    env:
+      RUNNER_COMPOSE_FILE: "docker-compose-runner-nightly.yml"
+
+    steps:
+      - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
+        with:
+          submodules: "recursive"
+
+      - name: Setup environment
+        run: |
+          echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
+          echo $(pwd)/bin >> $GITHUB_PATH
+          echo IN_DOCKER=1 >> .env
+
+      - name: Formatting
+        working-directory: prover
+        run: ci_run cargo fmt --check
+
+      - name: Lints
+        working-directory: prover
+        run: ci_run cargo clippy --tests -- -D warnings -A incomplete_features
+
   unit-tests:
     runs-on: [matterlabs-ci-runner]
     env:
@@ -30,14 +54,6 @@ jobs:
           ci_run zk
           ci_run zk config compile
           ci_run zk db setup
-
-      - name: Formatting
-        working-directory: prover
-        run: cargo fmt --check
-
-      - name: Lints
-        working-directory: prover
-        run: cargo clippy --tests -- -D warnings -A incomplete_features
 
       - name: Prover unit tests
         working-directory: prover
