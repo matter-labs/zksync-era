@@ -7,12 +7,13 @@ use crate::bootloader_state::BootloaderState;
 use crate::old_vm::history_recorder::HistoryMode;
 use crate::old_vm::memory::SimpleMemory;
 use crate::types::internals::ZkSyncVmState;
-use crate::types::outputs::VmExecutionResultAndLogs;
 use crate::{Halt, VmExecutionStopReason};
 
 /// Run tracer for collecting data during the vm execution cycles
 pub trait VmTracer<S: WriteStorage, H: HistoryMode>: DynTracer<S, H> {
+    /// Initialize the tracer before the vm execution
     fn initialize_tracer(&mut self, _state: &mut ZkSyncVmState<S, H>) {}
+    /// Run after each vm execution cycle
     fn finish_cycle(
         &mut self,
         _state: &mut ZkSyncVmState<S, H>,
@@ -20,6 +21,7 @@ pub trait VmTracer<S: WriteStorage, H: HistoryMode>: DynTracer<S, H> {
     ) -> TracerExecutionStatus {
         TracerExecutionStatus::Continue
     }
+    /// Run after the vm execution
     fn after_vm_execution(
         &mut self,
         _state: &mut ZkSyncVmState<S, H>,
@@ -27,8 +29,6 @@ pub trait VmTracer<S: WriteStorage, H: HistoryMode>: DynTracer<S, H> {
         _stop_reason: VmExecutionStopReason,
     ) {
     }
-
-    fn save_results(&mut self, _result: &VmExecutionResultAndLogs) {}
 }
 
 /// Version of zk_evm::Tracer suitable for dynamic dispatch.
@@ -88,6 +88,7 @@ impl TracerExecutionStatus {
     /// Otherwise, the result is Continue
     pub fn stricter(&self, other: &Self) -> Self {
         match (self, other) {
+            (Self::Continue, Self::Continue) => Self::Continue,
             (Self::Stop(TracerExecutionStopReason::Abort(reason)), _) => {
                 Self::Stop(TracerExecutionStopReason::Abort(reason.clone()))
             }
@@ -98,7 +99,6 @@ impl TracerExecutionStatus {
             | (_, Self::Stop(TracerExecutionStopReason::Finish)) => {
                 Self::Stop(TracerExecutionStopReason::Finish)
             }
-            _ => Self::Continue,
         }
     }
 }

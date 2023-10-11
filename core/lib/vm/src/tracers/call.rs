@@ -17,7 +17,7 @@ use crate::errors::VmRevertReason;
 use crate::old_vm::history_recorder::HistoryMode;
 use crate::old_vm::memory::SimpleMemory;
 use crate::tracers::traits::{DynTracer, VmTracer};
-use crate::types::outputs::VmExecutionResultAndLogs;
+use crate::{BootloaderState, VmExecutionStopReason, ZkSyncVmState};
 
 #[derive(Debug, Clone)]
 pub struct CallTracer<H: HistoryMode> {
@@ -89,7 +89,12 @@ impl<S, H: HistoryMode> DynTracer<S, H> for CallTracer<H> {
 }
 
 impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for CallTracer<H> {
-    fn save_results(&mut self, _result: &VmExecutionResultAndLogs) {
+    fn after_vm_execution(
+        &mut self,
+        _state: &mut ZkSyncVmState<S, H>,
+        _bootloader_state: &BootloaderState,
+        _stop_reason: VmExecutionStopReason,
+    ) {
         self.result
             .set(
                 std::mem::take(&mut self.stack)

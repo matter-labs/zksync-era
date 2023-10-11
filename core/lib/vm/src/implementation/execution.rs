@@ -86,9 +86,6 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
             refunds,
         };
 
-        for tracer in tx_tracer.custom_tracers.iter_mut() {
-            tracer.save_results(&result);
-        }
         (stop_reason, result)
     }
 
