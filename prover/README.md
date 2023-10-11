@@ -46,6 +46,5 @@ Some of the components here belong to the old proof system:
 
 Moreover old proof system is also using components from 'core' directory, like:
 
-* core/bin/verification_key_generator_and_server
-* core/lib/zksycn_core/src/witness_generator.
-
+- core/bin/verification_key_generator_and_server
+- core/lib/zksycn_core/src/witness_generator.
