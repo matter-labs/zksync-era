@@ -5,8 +5,9 @@
 pub use old_vm::{
     history_recorder::{HistoryDisabled, HistoryEnabled, HistoryMode},
     memory::SimpleMemory,
-    oracles::storage::StorageOracle,
 };
+
+pub use oracles::storage::StorageOracle;
 
 pub use errors::{
     BytecodeCompressionError, Halt, TxRevertReason, VmRevertReason, VmRevertReasonParsingError,
@@ -14,9 +15,11 @@ pub use errors::{
 
 pub use tracers::{
     call::CallTracer,
-    traits::{BoxedTracer, DynTracer, ExecutionEndTracer, ExecutionProcessing, VmTracer},
+    traits::{
+        BoxedTracer, DynTracer, ExecutionEndTracer, ExecutionProcessing, TracerExecutionStatus,
+        TracerExecutionStopReason, VmTracer,
+    },
     utils::VmExecutionStopReason,
-    validation::ViolatedValidationRule,
     StorageInvocations, ValidationError, ValidationTracer, ValidationTracerParams,
 };
 
@@ -38,6 +41,7 @@ mod bootloader_state;
 mod errors;
 mod implementation;
 mod old_vm;
+mod oracles;
 mod tracers;
 mod types;
 mod vm;

@@ -1,6 +1,6 @@
 use rocksdb::{
     properties, BlockBasedOptions, Cache, ColumnFamily, ColumnFamilyDescriptor, DBPinnableSlice,
-    IteratorMode, Options, PrefixRange, ReadOptions, WriteOptions, DB,
+    Direction, IteratorMode, Options, PrefixRange, ReadOptions, WriteOptions, DB,
 };
 
 use std::ffi::CStr;
@@ -328,6 +328,22 @@ impl<CF: NamedColumnFamily> RocksDB<CF> {
         // can become invalid "when it reaches the end of its defined range, or when it encounters an error."
         // We panic on RocksDB errors elsewhere and fuse it to prevent polling after the end of the range.
         // Thus, `unwrap()` should be safe.
+    }
+
+    /// Iterates over key-value pairs in the specified column family `cf` in the lexical
+    /// key order starting from the given `key_from`.
+    pub fn from_iterator_cf(
+        &self,
+        cf: CF,
+        key_from: &[u8],
+    ) -> impl Iterator<Item = (Box<[u8]>, Box<[u8]>)> + '_ {
+        let cf = self.column_family(cf);
+        self.inner
+            .db
+            .iterator_cf(cf, IteratorMode::From(key_from, Direction::Forward))
+            .map(Result::unwrap)
+            .fuse()
+        // ^ unwrap() is safe for the same reasons as in `prefix_iterator_cf()`.
     }
 }
 

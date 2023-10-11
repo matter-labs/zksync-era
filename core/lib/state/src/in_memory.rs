@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{hash_map::Entry, BTreeMap, HashMap};
 
 use crate::ReadStorage;
 use zksync_types::{
@@ -9,21 +9,21 @@ use zksync_types::{
 use zksync_utils::u256_to_h256;
 
 /// Network ID we use by defailt for in memory storage.
-pub const IN_MEMORY_STORAGE_DEFAULT_NETWORK_ID: u16 = 270;
+pub const IN_MEMORY_STORAGE_DEFAULT_NETWORK_ID: u32 = 270;
 
 /// In-memory storage.
 #[derive(Debug, Default)]
 pub struct InMemoryStorage {
-    pub(crate) state: HashMap<StorageKey, StorageValue>,
+    pub(crate) state: HashMap<StorageKey, (StorageValue, u64)>,
     pub(crate) factory_deps: HashMap<H256, Vec<u8>>,
-    pub(crate) enum_indices: HashMap<StorageKey, u64>,
+    last_enum_index_set: u64,
 }
 
 impl InMemoryStorage {
     /// Constructs a storage that contains system smart contracts.
     pub fn with_system_contracts(bytecode_hasher: impl Fn(&[u8]) -> H256) -> Self {
         Self::with_system_contracts_and_chain_id(
-            L2ChainId(IN_MEMORY_STORAGE_DEFAULT_NETWORK_ID),
+            L2ChainId::from(IN_MEMORY_STORAGE_DEFAULT_NETWORK_ID),
             bytecode_hasher,
         )
     }
@@ -48,7 +48,7 @@ impl InMemoryStorage {
     ) -> Self {
         let system_context_init_log = get_system_context_init_logs(chain_id);
 
-        let state: BTreeMap<_, _> = contracts
+        let state_without_indices: BTreeMap<_, _> = contracts
             .iter()
             .flat_map(|contract| {
                 let bytecode_hash = bytecode_hasher(&contract.bytecode);
@@ -64,10 +64,10 @@ impl InMemoryStorage {
             .chain(system_context_init_log)
             .filter_map(|log| (log.kind == StorageLogKind::Write).then_some((log.key, log.value)))
             .collect();
-        let enum_indices = state
-            .keys()
+        let state: HashMap<_, _> = state_without_indices
+            .into_iter()
             .enumerate()
-            .map(|(index, key)| (*key, index as u64 + 1))
+            .map(|(idx, (key, value))| (key, (value, idx as u64 + 1)))
             .collect();
 
         let factory_deps = contracts
@@ -75,21 +75,25 @@ impl InMemoryStorage {
             .map(|contract| (bytecode_hasher(&contract.bytecode), contract.bytecode))
             .collect();
 
+        let last_enum_index_set = state.len() as u64;
         Self {
             state: state.into_iter().collect(),
             factory_deps,
-            enum_indices,
+            last_enum_index_set,
         }
     }
 
     /// Sets the storage `value` at the specified `key`.
     pub fn set_value(&mut self, key: StorageKey, value: StorageValue) {
-        self.state.insert(key, value);
-    }
-
-    /// Sets the given `enumeration_index ` for the specified `key`.
-    pub fn set_enumeration_index(&mut self, key: StorageKey, enumeration_index: u64) {
-        self.enum_indices.insert(key, enumeration_index);
+        match self.state.entry(key) {
+            Entry::Occupied(mut entry) => {
+                entry.get_mut().0 = value;
+            }
+            Entry::Vacant(entry) => {
+                self.last_enum_index_set += 1;
+                entry.insert((value, self.last_enum_index_set));
+            }
+        }
     }
 
     /// Stores a factory dependency with the specified `hash` and `bytecode`.
@@ -100,7 +104,11 @@ impl InMemoryStorage {
 
 impl ReadStorage for &InMemoryStorage {
     fn read_value(&mut self, key: &StorageKey) -> StorageValue {
-        self.state.get(key).copied().unwrap_or_default()
+        self.state
+            .get(key)
+            .map(|(value, _)| value)
+            .copied()
+            .unwrap_or_default()
     }
 
     fn is_write_initial(&mut self, key: &StorageKey) -> bool {
@@ -112,7 +120,7 @@ impl ReadStorage for &InMemoryStorage {
     }
 
     fn get_enumeration_index(&mut self, key: &StorageKey) -> Option<u64> {
-        self.enum_indices.get(key).copied()
+        self.state.get(key).map(|(_, idx)| *idx)
     }
 }
 

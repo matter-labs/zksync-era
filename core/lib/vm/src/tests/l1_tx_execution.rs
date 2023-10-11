@@ -1,7 +1,7 @@
 use zksync_config::constants::BOOTLOADER_ADDRESS;
 use zksync_types::l2_to_l1_log::L2ToL1Log;
 use zksync_types::storage_writes_deduplicator::StorageWritesDeduplicator;
-use zksync_types::{get_code_key, get_known_code_key, L2ChainId, U256};
+use zksync_types::{get_code_key, get_known_code_key, U256};
 use zksync_utils::u256_to_h256;
 
 use crate::tests::tester::{TxType, VmTesterBuilder};
@@ -45,7 +45,7 @@ fn test_l1_tx_execution() {
         is_service: true,
         tx_number_in_block: 0,
         sender: BOOTLOADER_ADDRESS,
-        key: tx_data.tx_hash(L2ChainId(0)),
+        key: tx_data.tx_hash(0.into()),
         value: u256_to_h256(U256::from(1u32)),
     }];
 
