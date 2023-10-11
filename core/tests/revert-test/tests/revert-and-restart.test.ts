@@ -136,6 +136,8 @@ describe('Block reverting test', function () {
 
         // Stop server.
         await killServerAndWaitForShutdown(tester);
+
+        console.log(`Server stopped. Blocks committed: ${blocksCommitted}, blocks executed: ${blocksExecuted}`);
     });
 
     step('revert blocks', async () => {
@@ -146,6 +148,10 @@ describe('Block reverting test', function () {
         );
         const suggestedValuesOutput = executedProcess.stdout;
         const { lastL1BatchNumber, nonce, priorityFee } = parseSuggestedValues(suggestedValuesOutput);
+        console.log(
+            `Suggested values: lastL1BatchNumber: ${lastL1BatchNumber}, nonce: ${nonce}, priorityFee: ${priorityFee}`
+        );
+
         expect(lastL1BatchNumber < blocksCommittedBeforeRevert, 'There should be at least one block for revert').to.be
             .true;
 
