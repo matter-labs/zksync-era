@@ -22,9 +22,12 @@ use zksync_prover_fri_utils::socket_utils::send_assembly;
 use zksync_prover_utils::numeric_index_to_circuit_name;
 use zksync_prover_utils::region_fetcher::{get_region, get_zone};
 use zksync_queued_job_processor::{async_trait, JobProcessor};
-use zksync_types::{protocol_version::L1VerifierConfig, proofs::{GpuProverInstanceStatus, SocketAddress}};
+use zksync_types::{
+    proofs::{GpuProverInstanceStatus, SocketAddress},
+    protocol_version::L1VerifierConfig,
+};
 
-#[derive(thiserror::Error,Debug)]
+#[derive(thiserror::Error, Debug)]
 pub enum CircuitSynthesizerError {
     #[error("InvalidaGroupCircuits: {0}")]
     InvalidGroupCircuits(u8),
@@ -85,8 +88,12 @@ impl CircuitSynthesizer {
             blob_store: store_factory.create_store().await,
             allowed_circuit_types: allowed_circuit_types
                 .map(|x| x.into_iter().map(|x| x.1).collect()),
-            region: get_region().await.map_err(CircuitSynthesizerError::GetRegionFailed)?,
-            zone: get_zone().await.map_err(CircuitSynthesizerError::GetZoneFailed)?,
+            region: get_region()
+                .await
+                .map_err(CircuitSynthesizerError::GetRegionFailed)?,
+            zone: get_zone()
+                .await
+                .map_err(CircuitSynthesizerError::GetZoneFailed)?,
             vk_commitments,
             prover_connection_pool,
         })
@@ -144,9 +151,16 @@ impl JobProcessor for CircuitSynthesizer {
                     .get_next_prover_job_by_circuit_types(types.clone(), &protocol_versions)
                     .await
             }
-            None => storage.prover_dal().get_next_prover_job(&protocol_versions).await,
+            None => {
+                storage
+                    .prover_dal()
+                    .get_next_prover_job(&protocol_versions)
+                    .await
+            }
         };
-        let Some(prover_job) = prover_job else { return Ok(None) };
+        let Some(prover_job) = prover_job else {
+            return Ok(None);
+        };
 
         let circuit_key = CircuitKey {
             block_number: prover_job.block_number,
@@ -164,8 +178,11 @@ impl JobProcessor for CircuitSynthesizer {
     }
 
     async fn save_failure(&self, job_id: Self::JobId, _started_at: Instant, error: String) {
-        let res = self.prover_connection_pool
-            .access_storage().await.unwrap()
+        let res = self
+            .prover_connection_pool
+            .access_storage()
+            .await
+            .unwrap()
             .prover_dal()
             .save_proof_error(job_id, error, self.config.max_attempts)
             .await;
@@ -208,7 +225,9 @@ impl JobProcessor for CircuitSynthesizer {
         while now.elapsed() < self.config.prover_instance_wait_timeout() {
             let prover = self
                 .prover_connection_pool
-                .access_storage().await.unwrap()
+                .access_storage()
+                .await
+                .unwrap()
                 .gpu_prover_queue_dal()
                 .lock_available_prover(
                     self.config.gpu_prover_queue_timeout(),
@@ -227,7 +246,9 @@ impl JobProcessor for CircuitSynthesizer {
                     &self.prover_connection_pool,
                     self.region.clone(),
                     self.zone.clone(),
-                ).await.context("handle_send_result()")?;
+                )
+                .await
+                .context("handle_send_result()")?;
 
                 if result.is_ok() {
                     return Ok(());
@@ -279,7 +300,9 @@ async fn handle_send_result(
 
             // endregion
 
-            pool.access_storage().await.unwrap()
+            pool.access_storage()
+                .await
+                .unwrap()
                 .prover_dal()
                 .update_status(job_id, "in_gpu_proof")
                 .await;
@@ -292,7 +315,9 @@ async fn handle_send_result(
             );
 
             // mark prover instance in gpu_prover_queue dead
-            pool.access_storage().await.unwrap()
+            pool.access_storage()
+                .await
+                .unwrap()
                 .gpu_prover_queue_dal()
                 .update_prover_instance_status(
                     address.clone(),
@@ -307,7 +332,10 @@ async fn handle_send_result(
                 .context("ProverConfigs::from_env()")?
                 .non_gpu;
             // mark the job as failed
-            let res = pool.access_storage().await.unwrap()
+            let res = pool
+                .access_storage()
+                .await
+                .unwrap()
                 .prover_dal()
                 .save_proof_error(
                     job_id,

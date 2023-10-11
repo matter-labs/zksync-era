@@ -151,6 +151,7 @@ source = "git+https://github.com/matter-labs/era-heavy-ops-service.git?branch=v1
 dependencies = [
  "bellman_ce 0.3.2 (git+https://github.com/matter-labs/bellman?branch=dev)",
  "cfg-if 1.0.0",
+ "gpu-prover",
  "num_cpus",
  "serde",
 ]
@@ -272,6 +273,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d468802bab17cbc0cc575e9b053f41e72aa36bfa6b7f55e3529ffa43161b97fa"
 
 [[package]]
+name = "backon"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0c1a6197b2120bb2185a267f6515038558b019e92b832bb0320e96d66268dcf9"
+dependencies = [
+ "fastrand 1.9.0",
+ "futures-core",
+ "pin-project",
+ "tokio",
+]
+
+[[package]]
 name = "backtrace"
 version = "0.3.69"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -375,6 +388,29 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b1f45e9417d87227c7a56d22e471c6206462cba514c7590c09aff4cf6d1ddcad"
 dependencies = [
  "serde",
+]
+
+[[package]]
+name = "bindgen"
+version = "0.59.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2bd2a9a458e8f4304c52c43ebb0cfbd520289f8379a52e329a38afda99bf8eb8"
+dependencies = [
+ "bitflags 1.3.2",
+ "cexpr",
+ "clang-sys",
+ "clap 2.34.0",
+ "env_logger 0.9.3",
+ "lazy_static",
+ "lazycell",
+ "log",
+ "peeking_take_while",
+ "proc-macro2 1.0.67",
+ "quote 1.0.33",
+ "regex",
+ "rustc-hash",
+ "shlex",
+ "which",
 ]
 
 [[package]]
@@ -1674,6 +1710,15 @@ checksum = "0206175f82b8d6bf6652ff7d71a1e27fd2e4efde587fd368662814d6ec1d9ce0"
 
 [[package]]
 name = "fastrand"
+version = "1.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e51093e27b0797c359783294ca4f0a911c270184cb10f85783b118614a1501be"
+dependencies = [
+ "instant",
+]
+
+[[package]]
+name = "fastrand"
 version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "25cbce373ec4653f1a01a31e8a5e5ec0c622dc27ff9c4e6606eefef5cbbed4a5"
@@ -1941,6 +1986,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4fff74096e71ed47f8e023204cfd0aa1289cd54ae5430a9523be060cdb849964"
 
 [[package]]
+name = "futures-locks"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "45ec6fe3675af967e67c5536c0b9d44e34e6c52f86bedc4ea49c5317b8e94d06"
+dependencies = [
+ "futures-channel",
+ "futures-task",
+ "tokio",
+]
+
+[[package]]
 name = "futures-macro"
 version = "0.3.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2102,6 +2158,35 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0fcd62eb34e3de2f085bcc33a09c3e17c4f65650f36d53eb328b00d63bcb536a"
 dependencies = [
  "async-trait",
+]
+
+[[package]]
+name = "gpu-ffi"
+version = "0.1.0"
+source = "git+https://github.com/matter-labs/era-heavy-ops-service.git?branch=v1.3.3#ac6a3af6415dc12c9ae2932fa5ad906939023d82"
+dependencies = [
+ "bindgen 0.59.2",
+ "crossbeam 0.8.2",
+ "derivative",
+ "futures 0.3.28",
+ "futures-locks",
+ "num_cpus",
+]
+
+[[package]]
+name = "gpu-prover"
+version = "0.1.0"
+source = "git+https://github.com/matter-labs/era-heavy-ops-service.git?branch=v1.3.3#ac6a3af6415dc12c9ae2932fa5ad906939023d82"
+dependencies = [
+ "bit-vec",
+ "cfg-if 1.0.0",
+ "crossbeam 0.8.2",
+ "franklin-crypto 0.0.5 (git+https://github.com/matter-labs/franklin-crypto?branch=dev)",
+ "gpu-ffi",
+ "itertools 0.11.0",
+ "num_cpus",
+ "rand 0.4.6",
+ "serde",
 ]
 
 [[package]]
@@ -4802,6 +4887,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "setup_key_generator_and_server"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "api",
+ "circuit_testing",
+ "itertools 0.10.5",
+ "prover-service",
+ "structopt",
+ "tracing",
+ "vlog",
+ "zkevm_test_harness 1.3.3",
+ "zksync_config",
+ "zksync_types",
+]
+
+[[package]]
 name = "sha-1"
 version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5331,7 +5433,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cb94d2f3cc536af71caac6b6fcebf65860b347e7ce0cc9ebe8f70d3e521054ef"
 dependencies = [
  "cfg-if 1.0.0",
- "fastrand",
+ "fastrand 2.0.1",
  "redox_syscall 0.3.5",
  "rustix",
  "windows-sys",
@@ -6421,6 +6523,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_circuit_breaker"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "backon",
+ "convert_case 0.6.0",
+ "futures 0.3.28",
+ "hex",
+ "metrics",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "zksync_config",
+ "zksync_contracts",
+ "zksync_dal",
+ "zksync_eth_client",
+ "zksync_types",
+]
+
+[[package]]
 name = "zksync_circuit_synthesizer"
 version = "0.1.0"
 dependencies = [
@@ -6520,6 +6644,43 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_eth_client"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "hex",
+ "jsonrpc-core",
+ "serde",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "vise",
+ "zksync_config",
+ "zksync_contracts",
+ "zksync_eth_signer",
+ "zksync_types",
+]
+
+[[package]]
+name = "zksync_eth_signer"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "hex",
+ "jsonrpc-core",
+ "parity-crypto",
+ "reqwest",
+ "rlp",
+ "secp256k1 0.27.0",
+ "serde",
+ "serde_derive",
+ "serde_json",
+ "thiserror",
+ "zksync_types",
+]
+
+[[package]]
 name = "zksync_health_check"
 version = "0.1.0"
 dependencies = [
@@ -6582,6 +6743,43 @@ dependencies = [
  "zksync_queued_job_processor",
  "zksync_types",
  "zksync_utils",
+]
+
+[[package]]
+name = "zksync_prover"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "api",
+ "bincode",
+ "chrono",
+ "ctrlc",
+ "ethabi",
+ "futures 0.3.28",
+ "hex",
+ "local-ip-address",
+ "metrics",
+ "prometheus_exporter",
+ "prover-service",
+ "queues",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "setup_key_generator_and_server",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "vlog",
+ "zkevm_test_harness 1.3.3",
+ "zksync_circuit_breaker",
+ "zksync_config",
+ "zksync_dal",
+ "zksync_eth_client",
+ "zksync_object_store",
+ "zksync_prover_utils",
+ "zksync_types",
+ "zksync_utils",
+ "zksync_verification_key_generator_and_server",
 ]
 
 [[package]]
