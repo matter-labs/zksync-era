@@ -10,10 +10,17 @@ export async function reset() {
 
 export async function resetTest() {
     const databaseUrl = process.env.DATABASE_URL as string;
-    process.env.DATABASE_URL = databaseUrl.replace('zksync_local', 'zksync_local_test');
+    process.env.DATABASE_URL = databaseUrl.replace('zksync_local', 'zksync_local_compilation');
     await utils.confirmAction();
     await drop();
     await setup();
+    await utils.allowFail(utils.exec(`psql "${process.env.DATABASE_URL}" -c "drop database zksync_local_test"`));
+    await utils.exec(
+        `psql "${process.env.DATABASE_URL}" -c "create database zksync_local_test with template zksync_local_compilation"`
+    );
+    await utils.exec(
+        `psql "${process.env.DATABASE_URL}" -c "update pg_database set datallowconn = false where datname = 'zksync_local_test'"`
+    );
 }
 
 export async function drop() {

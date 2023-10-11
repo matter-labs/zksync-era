@@ -60,18 +60,20 @@ impl ConnectionPoolBuilder {
             DbVariant::Prover => get_prover_database_url()?,
             DbVariant::TestTmp => test_pool::new_db().await.to_string(),
         };
-        Ok(self.build_inner(&database_url).await)
+        self.build_inner(&database_url)
+            .await
+            .context("build_inner()")
     }
 
-    pub async fn build_inner(&self, database_url: &str) -> ConnectionPool {
+    pub async fn build_inner(&self, database_url: &str) -> anyhow::Result<ConnectionPool> {
         let max_connections = self
             .max_size
             .unwrap_or_else(|| parse_env("DATABASE_POOL_SIZE"));
 
         let options = PgPoolOptions::new().max_connections(max_connections);
-        let mut connect_options: PgConnectOptions = database_url.parse().unwrap_or_else(|err| {
-            panic!("Failed parsing {:?} database URL: {}", self.db, err);
-        });
+        let mut connect_options: PgConnectOptions = database_url
+            .parse()
+            .with_context(|| format!("Failed parsing {:?} database URL", self.db))?;
         if let Some(timeout) = self.statement_timeout {
             let timeout_string = format!("{}s", timeout.as_secs());
             connect_options = connect_options.options([("statement_timeout", timeout_string)]);
@@ -79,16 +81,14 @@ impl ConnectionPoolBuilder {
         let pool = options
             .connect_with(connect_options)
             .await
-            .unwrap_or_else(|err| {
-                panic!("Failed connecting to {:?} database: {}", self.db, err);
-            });
+            .with_context(|| format!("Failed connecting to {:?} database", self.db))?;
         tracing::info!(
             "Created pool for {db:?} database with {max_connections} max connections \
              and {statement_timeout:?} statement timeout",
             db = self.db,
             statement_timeout = self.statement_timeout
         );
-        ConnectionPool::Real(pool)
+        Ok(ConnectionPool::Real(pool))
     }
 }
 

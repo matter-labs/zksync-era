@@ -11457,6 +11457,24 @@
     },
     "query": "\n                UPDATE contract_verification_requests\n                SET status = 'successful', updated_at = now()\n                WHERE id = $1\n                "
   },
+  "fcb03524380d42b171d3d8a91c432c26bd7008483b6e9a1b6d63f0cd648fa026": {
+    "describe": {
+      "columns": [
+        {
+          "name": "datname!",
+          "ordinal": 0,
+          "type_info": "Name"
+        }
+      ],
+      "nullable": [
+        null
+      ],
+      "parameters": {
+        "Left": []
+      }
+    },
+    "query": "SELECT datname as \"datname!\" FROM pg_catalog.pg_database except SELECT datname FROM pg_stat_activity"
+  },
   "ff7ff36b86b0e8d1cd7280aa447baef172cb054ffe7e1d742c59bf09b4f414cb": {
     "describe": {
       "columns": [
