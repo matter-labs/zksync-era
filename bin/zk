@@ -21,7 +21,7 @@ check_subdirectory() {
 
 # Currently many parts of our zk typescript are checked & verified with yarn v1.22.19 - and might fail with newer versions of yarn.
 check_yarn_version() {
-    desired_version="1.22.119"
+    desired_version="1.22.19"
     installed_version=$(yarn --version)
 
     if [ "$installed_version" != "$desired_version" ]; then
