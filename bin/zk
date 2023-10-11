@@ -1,5 +1,25 @@
 #!/usr/bin/env bash
 
+# checks that the current directory that user is in, is inside the $ZKSYNC_HOME.
+# We depend on this variable in multiple places - so running from a different directory might have
+# some surprising side effects (like loading wrong binaries etc).
+check_subdirectory() {
+    if [[ -z "$ZKSYNC_HOME" ]]; then
+        echo -e "\e[31mError: ZKSYNC_HOME is not set.\e[0m"
+        return 1
+    fi
+
+    ZKSYNC_HOME_ABS=$(realpath "$ZKSYNC_HOME")
+    CURRENT_DIR_ABS=$(realpath .)
+
+    if [[ "$CURRENT_DIR_ABS" != "$ZKSYNC_HOME_ABS"* ]]; then
+        echo -e "\e[31mWarning: You are not in a subdirectory of ZKSYNC_HOME ($ZKSYNC_HOME_ABS).\e[0m"
+        return 1
+    fi
+    return 0
+}
+
+check_subdirectory
 if [ -z "$1" ]; then
     cd $ZKSYNC_HOME
     yarn && yarn zk build
