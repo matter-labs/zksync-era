@@ -282,6 +282,7 @@ impl L1BatchAuxiliaryOutput {
 
         let mut comp_state_diffs: Vec<u8> = vec![];
 
+        println!("ON ETH SENDER SIDE: {:#?}", state_diffs);
         let state_diffs_compressed = compress_state_diffs(state_diffs.clone());
         comp_state_diffs.extend(state_diffs_compressed);
 

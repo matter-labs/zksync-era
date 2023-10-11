@@ -200,6 +200,11 @@ impl<S: WriteStorage, H: HistoryMode> ExecutionProcessing<S, H> for PubdataTrace
             // Whenever we are executing the block tip, we want to avoid publishing the full pubdata
             let pubdata_input = self.build_pubdata_input(state);
 
+            println!(
+                "HI HI HI State diffs: {:#?}",
+                pubdata_input.state_diffs.clone()
+            );
+
             // Save the pubdata for the future initial bootloader memory building
             bootloader_state.set_pubdata_input(pubdata_input.clone());
 
