@@ -1,3 +1,4 @@
+use anyhow::Context as _;
 use api::Prover;
 use prover_service::utils::generate_setup_for_circuit;
 use prover_service::Setup;
@@ -20,21 +21,23 @@ struct Opt {
     numeric_circuit: u8,
 }
 
-fn main() {
+fn main() -> anyhow::Result<()> {
     let opt = Opt::from_args();
     env::set_var("CRS_FILE", "setup_2^26.key");
-    vlog::info!("Starting setup key generation!");
+    tracing::info!("Starting setup key generation!");
     get_circuits_for_vk()
+        .context("get_circuits_for_vk()")?
         .into_iter()
         .filter(|c| c.numeric_circuit_type() == opt.numeric_circuit)
         .for_each(generate_setup_key_for_circuit);
+    Ok(())
 }
 
 fn generate_setup_key_for_circuit(circuit: ZkSyncCircuit<Bn256, VmWitnessOracle<Bn256>>) {
     let mut prover = Prover::new();
     let setup = generate_setup_for_circuit(&mut prover, &circuit);
     save_setup_for_circuit_type(circuit.numeric_circuit_type(), setup);
-    vlog::info!(
+    tracing::info!(
         "Finished setup key generation for circuit {:?} (id {:?})",
         circuit.short_description(),
         circuit.numeric_circuit_type()
@@ -43,7 +46,7 @@ fn generate_setup_key_for_circuit(circuit: ZkSyncCircuit<Bn256, VmWitnessOracle<
 
 fn save_setup_for_circuit_type(circuit_type: u8, setup: Setup) {
     let filepath = get_setup_key_write_file_path(circuit_type);
-    vlog::info!("saving setup key to: {}", filepath);
+    tracing::info!("saving setup key to: {}", filepath);
     let setup_file = File::create(&filepath).unwrap();
     setup
         .write(setup_file)

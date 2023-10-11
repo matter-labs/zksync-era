@@ -1,4 +1,4 @@
-use std::{collections::HashMap, time::Instant};
+use std::collections::HashMap;
 
 use zk_evm::{
     abstractions::{MAX_HEAP_PAGE_SIZE_IN_WORDS, MAX_MEMORY_BYTES},
@@ -24,6 +24,7 @@ use zksync_utils::{
     misc::ceil_div,
 };
 
+use crate::storage::Storage;
 use crate::{
     bootloader_state::BootloaderState,
     history_recorder::HistoryMode,
@@ -35,6 +36,8 @@ use crate::{
     OracleTools, VmInstance,
 };
 
+// TODO (SMA-1703): move these to config and make them programmatically generatable.
+// fill these values in the similar fasion as other overhead-related constants
 pub const BLOCK_OVERHEAD_GAS: u32 = 1200000;
 pub const BLOCK_OVERHEAD_L1_GAS: u32 = 1000000;
 pub const BLOCK_OVERHEAD_PUBDATA: u32 = BLOCK_OVERHEAD_L1_GAS / L1_GAS_PER_PUBDATA_BYTE;
@@ -209,14 +212,14 @@ impl Default for TxExecutionMode {
     }
 }
 
-pub fn init_vm<'a, H: HistoryMode>(
+pub fn init_vm<'a, S: Storage, H: HistoryMode>(
     vm_subversion: MultiVMSubversion,
-    oracle_tools: &'a mut OracleTools<'a, false, H>,
+    oracle_tools: &'a mut OracleTools<false, S, H>,
     block_context: BlockContextMode,
     block_properties: &'a BlockProperties,
     execution_mode: TxExecutionMode,
     base_system_contract: &BaseSystemContracts,
-) -> Box<VmInstance<'a, H>> {
+) -> Box<VmInstance<'a, S, H>> {
     init_vm_with_gas_limit(
         vm_subversion,
         oracle_tools,
@@ -228,15 +231,15 @@ pub fn init_vm<'a, H: HistoryMode>(
     )
 }
 
-pub fn init_vm_with_gas_limit<'a, H: HistoryMode>(
+pub fn init_vm_with_gas_limit<'a, S: Storage, H: HistoryMode>(
     vm_subversion: MultiVMSubversion,
-    oracle_tools: &'a mut OracleTools<'a, false, H>,
+    oracle_tools: &'a mut OracleTools<false, S, H>,
     block_context: BlockContextMode,
     block_properties: &'a BlockProperties,
     execution_mode: TxExecutionMode,
     base_system_contract: &BaseSystemContracts,
     gas_limit: u32,
-) -> Box<VmInstance<'a, H>> {
+) -> Box<VmInstance<'a, S, H>> {
     init_vm_inner(
         vm_subversion,
         oracle_tools,
@@ -325,17 +328,15 @@ impl BlockContextMode {
 
 // This method accepts a custom bootloader code.
 // It should be used only in tests.
-pub fn init_vm_inner<'a, H: HistoryMode>(
+pub fn init_vm_inner<'a, S: Storage, H: HistoryMode>(
     vm_subversion: MultiVMSubversion,
-    oracle_tools: &'a mut OracleTools<'a, false, H>,
+    oracle_tools: &'a mut OracleTools<false, S, H>,
     block_context: BlockContextMode,
     block_properties: &'a BlockProperties,
     gas_limit: u32,
     base_system_contract: &BaseSystemContracts,
     execution_mode: TxExecutionMode,
-) -> Box<VmInstance<'a, H>> {
-    let start = Instant::now();
-
+) -> Box<VmInstance<'a, S, H>> {
     oracle_tools.decommittment_processor.populate(
         vec![(
             h256_to_u256(base_system_contract.default_aa.hash),
@@ -360,7 +361,7 @@ pub fn init_vm_inner<'a, H: HistoryMode>(
 
     let state = get_default_local_state(oracle_tools, block_properties, gas_limit);
 
-    let vm = Box::new(VmInstance {
+    Box::new(VmInstance {
         gas_limit,
         state,
         execution_mode,
@@ -368,10 +369,7 @@ pub fn init_vm_inner<'a, H: HistoryMode>(
         bootloader_state: BootloaderState::new(),
         snapshots: Vec::new(),
         vm_subversion,
-    });
-
-    metrics::histogram!("server.vm.init", start.elapsed());
-    vm
+    })
 }
 
 fn bootloader_initial_memory(block_properties: &BlockContextMode) -> Vec<(usize, U256)> {
@@ -495,8 +493,8 @@ fn get_bootloader_memory_v2(
     memory
 }
 
-pub fn push_transaction_to_bootloader_memory<H: HistoryMode>(
-    vm: &mut VmInstance<H>,
+pub fn push_transaction_to_bootloader_memory<S: Storage, H: HistoryMode>(
+    vm: &mut VmInstance<S, H>,
     tx: &Transaction,
     execution_mode: TxExecutionMode,
     explicit_compressed_bytecodes: Option<Vec<CompressedBytecodeInfo>>,
@@ -513,8 +511,8 @@ pub fn push_transaction_to_bootloader_memory<H: HistoryMode>(
     );
 }
 
-pub fn push_raw_transaction_to_bootloader_memory<H: HistoryMode>(
-    vm: &mut VmInstance<H>,
+pub fn push_raw_transaction_to_bootloader_memory<S: Storage, H: HistoryMode>(
+    vm: &mut VmInstance<S, H>,
     tx: TransactionData,
     execution_mode: TxExecutionMode,
     predefined_overhead: u32,
@@ -539,8 +537,8 @@ pub fn push_raw_transaction_to_bootloader_memory<H: HistoryMode>(
 }
 
 /// Contains a bug in the bytecode compression.
-fn push_raw_transaction_to_bootloader_memory_v1<H: HistoryMode>(
-    vm: &mut VmInstance<H>,
+fn push_raw_transaction_to_bootloader_memory_v1<S: Storage, H: HistoryMode>(
+    vm: &mut VmInstance<S, H>,
     tx: TransactionData,
     execution_mode: TxExecutionMode,
     predefined_overhead: u32,
@@ -571,7 +569,7 @@ fn push_raw_transaction_to_bootloader_memory_v1<H: HistoryMode>(
                     .storage
                     .get_ptr()
                     .borrow_mut()
-                    .is_bytecode_known(&hash_bytecode(bytecode))
+                    .is_bytecode_exists(&hash_bytecode(bytecode))
                 {
                     return None;
                 }
@@ -623,8 +621,8 @@ fn push_raw_transaction_to_bootloader_memory_v1<H: HistoryMode>(
 }
 
 // Bytecode compression bug fixed
-fn push_raw_transaction_to_bootloader_memory_v2<H: HistoryMode>(
-    vm: &mut VmInstance<H>,
+fn push_raw_transaction_to_bootloader_memory_v2<S: Storage, H: HistoryMode>(
+    vm: &mut VmInstance<S, H>,
     tx: TransactionData,
     execution_mode: TxExecutionMode,
     predefined_overhead: u32,
@@ -655,7 +653,7 @@ fn push_raw_transaction_to_bootloader_memory_v2<H: HistoryMode>(
                     .storage
                     .get_ptr()
                     .borrow_mut()
-                    .is_bytecode_known(&hash_bytecode(bytecode))
+                    .is_bytecode_exists(&hash_bytecode(bytecode))
                 {
                     return None;
                 }
@@ -801,11 +799,11 @@ pub(crate) fn get_bootloader_memory_for_encoded_tx(
     memory
 }
 
-fn get_default_local_state<'a, H: HistoryMode>(
-    tools: &'a mut OracleTools<'a, false, H>,
+fn get_default_local_state<'a, S: Storage, H: HistoryMode>(
+    tools: &'a mut OracleTools<false, S, H>,
     block_properties: &'a BlockProperties,
     gas_limit: u32,
-) -> ZkSyncVmState<'a, H> {
+) -> ZkSyncVmState<'a, S, H> {
     let mut vm = VmState::empty_state(
         &mut tools.storage,
         &mut tools.memory,

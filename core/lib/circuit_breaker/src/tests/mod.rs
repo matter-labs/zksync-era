@@ -93,6 +93,7 @@ fn get_test_circuit_breaker_config() -> CircuitBreakerConfig {
         sync_interval_ms: 1000,
         http_req_max_retry_number: 5,
         http_req_retry_interval_sec: 2,
+        replication_lag_limit_sec: Some(10),
     }
 }
 #[async_trait]
@@ -271,7 +272,7 @@ async fn retries_for_facet_selectors() {
         )))
     );
 
-    let contracts = ContractsConfig::from_env();
+    let contracts = ContractsConfig::from_env().unwrap();
     let config = get_test_circuit_breaker_config();
     let facet_selectors_checker = crate::facet_selectors::FacetSelectorsChecker::new(
         &config,

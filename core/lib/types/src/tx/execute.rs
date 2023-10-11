@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use zksync_utils::ZeroPrefixHexSerde;
 
 /// `Execute` transaction executes a previously deployed smart contract in the L2 rollup.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Execute {
     pub contract_address: Address,
@@ -47,6 +47,8 @@ impl Execute {
         contract_hash: H256,
         constructor_input: Vec<u8>,
     ) -> Vec<u8> {
+        // TODO (SMA-1608): We should not re-implement the ABI parts in different places, instead have the ABI available
+        //  from the `zksync_contracts` crate.
         static FUNCTION_SIGNATURE: Lazy<[u8; 4]> = Lazy::new(|| {
             ethabi::short_signature(
                 "create",

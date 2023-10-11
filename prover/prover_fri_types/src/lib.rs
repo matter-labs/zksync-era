@@ -1,3 +1,6 @@
+pub mod queue;
+
+use std::env;
 pub use circuit_definitions;
 
 use circuit_definitions::aux_definitions::witness_oracle::VmWitnessOracle;
@@ -7,6 +10,7 @@ use circuit_definitions::circuit_definitions::base_layer::ZkSyncBaseLayerCircuit
 use circuit_definitions::circuit_definitions::base_layer::ZkSyncBaseLayerProof;
 use circuit_definitions::circuit_definitions::recursion_layer::ZkSyncRecursionLayerProof;
 use circuit_definitions::circuit_definitions::recursion_layer::ZkSyncRecursiveLayerCircuit;
+use circuit_definitions::zkevm_circuits::scheduler::block_header::BlockAuxilaryOutputWitness;
 use circuit_definitions::ZkSyncDefaultRoundFunction;
 
 use zksync_object_store::serialize_using_bincode;
@@ -112,4 +116,24 @@ impl ProverServiceDataKey {
     pub fn new(circuit_id: u8, round: AggregationRound) -> Self {
         Self { circuit_id, round }
     }
+}
+
+
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct AuxOutputWitnessWrapper(pub BlockAuxilaryOutputWitness<GoldilocksField>);
+
+impl StoredObject for AuxOutputWitnessWrapper {
+    const BUCKET: Bucket = Bucket::SchedulerWitnessJobsFri;
+    type Key<'a> = L1BatchNumber;
+
+    fn encode_key(key: Self::Key<'_>) -> String {
+        format!("aux_output_witness_{key}.bin")
+    }
+
+    serialize_using_bincode!();
+}
+
+pub fn get_current_pod_name() -> String {
+    env::var("POD_NAME")
+        .unwrap_or("UNKNOWN_POD".to_owned())
 }

@@ -1,8 +1,12 @@
-use std::cmp::min;
-use std::sync::Arc;
-use std::time::Instant;
-
 use async_trait::async_trait;
+
+use std::sync::Arc;
+
+use crate::{
+    clients::http::{Method, COUNTERS, LATENCIES},
+    types::{Error, ExecutedTxStatus, FailureInfo},
+    EthInterface,
+};
 use zksync_types::web3::{
     self,
     contract::{
@@ -17,11 +21,6 @@ use zksync_types::web3::{
         TransactionReceipt, H256, U256, U64,
     },
     Transport, Web3,
-};
-
-use crate::{
-    types::{Error, ExecutedTxStatus, FailureInfo},
-    EthInterface,
 };
 
 /// An "anonymous" Ethereum client that can invoke read-only methods that aren't
@@ -55,37 +54,37 @@ impl EthInterface for QueryClient {
         block: BlockNumber,
         component: &'static str,
     ) -> Result<U256, Error> {
-        metrics::counter!("server.ethereum_gateway.call", 1, "component" => component, "method" => "nonce_at_for_account");
-        let start = Instant::now();
+        COUNTERS.call[&(Method::NonceAtForAccount, component)].inc();
+        let latency = LATENCIES.direct[&Method::NonceAtForAccount].start();
         let nonce = self
             .web3
             .eth()
             .transaction_count(account, Some(block))
             .await?;
-        metrics::histogram!("eth_client.direct.current_nonce", start.elapsed());
+        latency.observe();
         Ok(nonce)
     }
 
     async fn block_number(&self, component: &'static str) -> Result<U64, Error> {
-        metrics::counter!("server.ethereum_gateway.call", 1, "component" => component, "method" => "block_number");
-        let start = Instant::now();
+        COUNTERS.call[&(Method::BlockNumber, component)].inc();
+        let latency = LATENCIES.direct[&Method::BlockNumber].start();
         let block_number = self.web3.eth().block_number().await?;
-        metrics::histogram!("eth_client.direct.block_number", start.elapsed());
+        latency.observe();
         Ok(block_number)
     }
 
     async fn get_gas_price(&self, component: &'static str) -> Result<U256, Error> {
-        metrics::counter!("server.ethereum_gateway.call", 1, "component" => component, "method" => "get_gas_price");
-        let start = Instant::now();
+        COUNTERS.call[&(Method::GetGasPrice, component)].inc();
+        let latency = LATENCIES.direct[&Method::GetGasPrice].start();
         let network_gas_price = self.web3.eth().gas_price().await?;
-        metrics::histogram!("eth_client.direct.get_gas_price", start.elapsed());
+        latency.observe();
         Ok(network_gas_price)
     }
 
     async fn send_raw_tx(&self, tx: Vec<u8>) -> Result<H256, Error> {
-        let start = Instant::now();
+        let latency = LATENCIES.direct[&Method::SendRawTx].start();
         let tx = self.web3.eth().send_raw_transaction(Bytes(tx)).await?;
-        metrics::histogram!("eth_client.direct.send_raw_tx", start.elapsed());
+        latency.observe();
         Ok(tx)
     }
 
@@ -97,9 +96,8 @@ impl EthInterface for QueryClient {
     ) -> Result<Vec<u64>, Error> {
         const MAX_REQUEST_CHUNK: usize = 1024;
 
-        metrics::counter!("server.ethereum_gateway.call", 1, "component" => component, "method" => "base_fee_history");
-        let start = Instant::now();
-
+        COUNTERS.call[&(Method::BaseFeeHistory, component)].inc();
+        let latency = LATENCIES.direct[&Method::BaseFeeHistory].start();
         let mut history = Vec::with_capacity(block_count);
         let from_block = upto_block.saturating_sub(block_count);
 
@@ -119,7 +117,7 @@ impl EthInterface for QueryClient {
             history.extend(chunk);
         }
 
-        metrics::histogram!("eth_client.direct.base_fee", start.elapsed());
+        latency.observe();
         Ok(history.into_iter().map(|fee| fee.as_u64()).collect())
     }
 
@@ -127,8 +125,9 @@ impl EthInterface for QueryClient {
         &self,
         component: &'static str,
     ) -> Result<U256, Error> {
-        metrics::counter!("server.ethereum_gateway.call", 1, "component" => component, "method" => "get_pending_block_base_fee_per_gas");
-        let start = Instant::now();
+        COUNTERS.call[&(Method::PendingBlockBaseFee, component)].inc();
+        let latency = LATENCIES.direct[&Method::PendingBlockBaseFee].start();
+
         let block = self
             .web3
             .eth()
@@ -136,7 +135,7 @@ impl EthInterface for QueryClient {
             .await?
             .expect("Pending block should always exist");
 
-        metrics::histogram!("eth_client.direct.base_fee", start.elapsed());
+        latency.observe();
         // base_fee_per_gas always exists after London fork
         Ok(block.base_fee_per_gas.unwrap())
     }
@@ -146,8 +145,8 @@ impl EthInterface for QueryClient {
         hash: H256,
         component: &'static str,
     ) -> Result<Option<ExecutedTxStatus>, Error> {
-        metrics::counter!("server.ethereum_gateway.call", 1, "component" => component, "method" => "get_tx_status");
-        let start = Instant::now();
+        COUNTERS.call[&(Method::GetTxStatus, component)].inc();
+        let latency = LATENCIES.direct[&Method::GetTxStatus].start();
 
         let receipt = self.tx_receipt(hash, component).await?;
         let res = receipt.and_then(|receipt| match receipt.status {
@@ -163,12 +162,12 @@ impl EthInterface for QueryClient {
             _ => None,
         });
 
-        metrics::histogram!("eth_client.direct.get_tx_status", start.elapsed());
+        latency.observe();
         Ok(res)
     }
 
     async fn failure_reason(&self, tx_hash: H256) -> Result<Option<FailureInfo>, Error> {
-        let start = Instant::now();
+        let latency = LATENCIES.direct[&Method::FailureReason].start();
         let transaction = self.web3.eth().transaction(tx_hash.into()).await?;
         let receipt = self.web3.eth().transaction_receipt(tx_hash).await?;
 
@@ -200,8 +199,7 @@ impl EthInterface for QueryClient {
                 let failure_info = match call_error {
                     Some(web3::Error::Rpc(rpc_error)) => {
                         let revert_code = rpc_error.code.code();
-                        let message_len =
-                            min("execution reverted: ".len(), rpc_error.message.len());
+                        let message_len = "execution reverted: ".len().min(rpc_error.message.len());
                         let revert_reason = rpc_error.message[message_len..].to_string();
 
                         Ok(Some(FailureInfo {
@@ -215,8 +213,7 @@ impl EthInterface for QueryClient {
                     None => Ok(None),
                 };
 
-                metrics::histogram!("eth_client.direct.failure_reason", start.elapsed());
-
+                latency.observe();
                 failure_info
             }
             _ => Ok(None),
@@ -228,7 +225,7 @@ impl EthInterface for QueryClient {
         hash: H256,
         component: &'static str,
     ) -> Result<Option<Transaction>, Error> {
-        metrics::counter!("server.ethereum_gateway.call", 1, "component" => component, "method" => "get_tx");
+        COUNTERS.call[&(Method::GetTx, component)].inc();
         let tx = self
             .web3
             .eth()
@@ -254,10 +251,10 @@ impl EthInterface for QueryClient {
         B: Into<Option<BlockId>> + Send,
         P: Tokenize + Send,
     {
-        let start = Instant::now();
+        let latency = LATENCIES.direct[&Method::CallContractFunction].start();
         let contract = Contract::new(self.web3.eth(), contract_address, contract_abi);
         let res = contract.query(func, params, from, options, block).await?;
-        metrics::histogram!("eth_client.direct.call_contract_function", start.elapsed());
+        latency.observe();
         Ok(res)
     }
 
@@ -266,43 +263,47 @@ impl EthInterface for QueryClient {
         tx_hash: H256,
         component: &'static str,
     ) -> Result<Option<TransactionReceipt>, Error> {
-        metrics::counter!("server.ethereum_gateway.call", 1, "component" => component, "method" => "tx_receipt");
-        let start = Instant::now();
+        COUNTERS.call[&(Method::TxReceipt, component)].inc();
+        let latency = LATENCIES.direct[&Method::TxReceipt].start();
         let receipt = self.web3.eth().transaction_receipt(tx_hash).await?;
-        metrics::histogram!("eth_client.direct.tx_receipt", start.elapsed());
+        latency.observe();
         Ok(receipt)
     }
 
     async fn eth_balance(&self, address: Address, component: &'static str) -> Result<U256, Error> {
-        metrics::counter!("server.ethereum_gateway.call", 1, "component" => component, "method" => "eth_balance");
-        let start = Instant::now();
+        COUNTERS.call[&(Method::EthBalance, component)].inc();
+        let latency = LATENCIES.direct[&Method::EthBalance].start();
         let balance = self.web3.eth().balance(address, None).await?;
-        metrics::histogram!("eth_client.direct.eth_balance", start.elapsed());
+        latency.observe();
         Ok(balance)
     }
 
     async fn logs(&self, filter: Filter, component: &'static str) -> Result<Vec<Log>, Error> {
-        metrics::counter!("server.ethereum_gateway.call", 1, "component" => component, "method" => "logs");
-        let start = Instant::now();
+        COUNTERS.call[&(Method::Logs, component)].inc();
+        let latency = LATENCIES.direct[&Method::Logs].start();
         let logs = self.web3.eth().logs(filter).await?;
-        metrics::histogram!("eth_client.direct.logs", start.elapsed());
+        latency.observe();
         Ok(logs)
     }
 
+    // TODO (PLA-333): at the moment the latest version of `web3` crate doesn't have `Finalized` variant in `BlockNumber`.
+    // However, it's already added in github repo and probably will be included in the next released version.
+    // Scope of PLA-333 includes forking/using crate directly from github, after that we will be able to change
+    // type of `block_id` from `String` to `BlockId` and use `self.web3.eth().block(block_id)`.
     async fn block(
         &self,
         block_id: String,
         component: &'static str,
     ) -> Result<Option<Block<H256>>, Error> {
-        metrics::counter!("server.ethereum_gateway.call", 1, "component" => component, "method" => "block");
-        let start = Instant::now();
+        COUNTERS.call[&(Method::Block, component)].inc();
+        let latency = LATENCIES.direct[&Method::Block].start();
         let block = CallFuture::new(
             self.web3
                 .transport()
                 .execute("eth_getBlockByNumber", vec![block_id.into(), false.into()]),
         )
         .await?;
-        metrics::histogram!("eth_client.direct.block", start.elapsed());
+        latency.observe();
         Ok(block)
     }
 }

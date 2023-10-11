@@ -9,7 +9,7 @@ use crate::utils::{
     get_l2_txs,
 };
 use crate::utils::{metrics_from_txs, TransactionGenerator};
-use vm::vm_with_bootloader::BOOTLOADER_TX_ENCODING_SPACE;
+use vm::constants::BOOTLOADER_TX_ENCODING_SPACE;
 use zksync_types::{ethabi::Address, IntrinsicSystemGasConstants, U256};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -21,6 +21,7 @@ pub(crate) struct VmSpentResourcesResult {
     // The total amount of gas the users have paid for.
     pub(crate) total_gas_paid: u32,
     // The total amount of gas the users have paid for public data.
+    // TODO (SMA-1698): make it an option, since sometimes its calculation is skipped.
     pub(crate) total_pubdata_paid: u32,
 }
 

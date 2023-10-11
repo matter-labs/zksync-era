@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use zksync_config::constants::SYSTEM_BLOCK_INFO_BLOCK_NUMBER_MULTIPLIER;
 
 use std::{fmt, ops};
 
@@ -77,6 +78,8 @@ pub struct MiniblockHeader {
     pub l2_fair_gas_price: u64, // L2 gas price assumed in the corresponding batch
     pub base_system_contracts_hashes: BaseSystemContractsHashes,
     pub protocol_version: Option<ProtocolVersionId>,
+    /// The maximal number of virtual blocks to be created in the miniblock.
+    pub virtual_blocks: u32,
 }
 
 /// Data needed to re-execute miniblock.
@@ -84,6 +87,8 @@ pub struct MiniblockHeader {
 pub struct MiniblockReexecuteData {
     pub number: MiniblockNumber,
     pub timestamp: u64,
+    pub prev_block_hash: H256,
+    pub virtual_blocks: u32,
     pub txs: Vec<Transaction>,
 }
 
@@ -176,5 +181,107 @@ impl ops::AddAssign for BlockGasCount {
             prove: self.prove + other.prove,
             execute: self.execute + other.execute,
         };
+    }
+}
+
+/// Returns the hash of the miniblock.
+/// `txs_rolling_hash` of the miniblock is calculated the following way:
+/// If the miniblock has 0 transactions, then `txs_rolling_hash` is equal to `H256::zero()`.
+/// If the miniblock has i transactions, then `txs_rolling_hash` is equal to `H(H_{i-1}, H(tx_i))`, where
+/// `H_{i-1}` is the `txs_rolling_hash` of the first i-1 transactions.
+pub fn miniblock_hash(
+    miniblock_number: MiniblockNumber,
+    miniblock_timestamp: u64,
+    prev_miniblock_hash: H256,
+    txs_rolling_hash: H256,
+) -> H256 {
+    let mut digest: [u8; 128] = [0u8; 128];
+    U256::from(miniblock_number.0).to_big_endian(&mut digest[0..32]);
+    U256::from(miniblock_timestamp).to_big_endian(&mut digest[32..64]);
+    digest[64..96].copy_from_slice(prev_miniblock_hash.as_bytes());
+    digest[96..128].copy_from_slice(txs_rolling_hash.as_bytes());
+
+    H256(keccak256(&digest))
+}
+
+/// At the beginning of the zkSync, the hashes of the blocks could be calculated as the hash of their number.
+/// This method returns the hash of such miniblocks.
+pub fn legacy_miniblock_hash(miniblock_number: MiniblockNumber) -> H256 {
+    H256(keccak256(&miniblock_number.0.to_be_bytes()))
+}
+
+/// Returns block.number/timestamp based on the block's information
+pub fn unpack_block_info(info: U256) -> (u64, u64) {
+    let block_number = (info / SYSTEM_BLOCK_INFO_BLOCK_NUMBER_MULTIPLIER).as_u64();
+    let block_timestamp = (info % SYSTEM_BLOCK_INFO_BLOCK_NUMBER_MULTIPLIER).as_u64();
+    (block_number, block_timestamp)
+}
+
+/// Transforms block number and timestamp into a packed 32-byte representation
+pub fn pack_block_info(block_number: u64, block_timestamp: u64) -> U256 {
+    U256::from(block_number) * SYSTEM_BLOCK_INFO_BLOCK_NUMBER_MULTIPLIER
+        + U256::from(block_timestamp)
+}
+
+/// Returns virtual_block_start_batch and virtual_block_finish_l2_block based on the virtual block upgrade information
+pub fn unpack_block_upgrade_info(info: U256) -> (u64, u64) {
+    // its safe to use SYSTEM_BLOCK_INFO_BLOCK_NUMBER_MULTIPLIER here, since VirtualBlockUpgradeInfo and BlockInfo are packed same way
+    let virtual_block_start_batch = (info / SYSTEM_BLOCK_INFO_BLOCK_NUMBER_MULTIPLIER).as_u64();
+    let virtual_block_finish_l2_block = (info % SYSTEM_BLOCK_INFO_BLOCK_NUMBER_MULTIPLIER).as_u64();
+    (virtual_block_start_batch, virtual_block_finish_l2_block)
+}
+
+#[cfg(test)]
+mod tests {
+    use zksync_basic_types::{MiniblockNumber, H256};
+
+    use crate::block::{legacy_miniblock_hash, miniblock_hash, pack_block_info, unpack_block_info};
+
+    #[test]
+    fn test_legacy_miniblock_hashes() {
+        // The comparing with the hash taken from explorer
+        let expected_hash = "6a13b75b5982035ebb28999fbf6f54e7d7fad9e290d5c5f99e7c7d75d42b6099"
+            .parse()
+            .unwrap();
+        assert_eq!(
+            legacy_miniblock_hash(MiniblockNumber(11470850)),
+            expected_hash
+        )
+    }
+
+    #[test]
+    fn test_miniblock_hash() {
+        // Comparing with a constant hash generated from a contract:
+        let expected_hash: H256 =
+            "c4e184fa9dde8d81aa085f3d1831b00be0a2f4e40218ff1b3456684e7eeccdfe"
+                .parse()
+                .unwrap();
+        let prev_miniblock_hash =
+            "9b14f83c434b860168ed4081f7b2a65f432f68bfea86ddf3351c02bc855dd721"
+                .parse()
+                .unwrap();
+        let txs_rolling_hash = "67506e289f13aee79b8de3bfd99f460f46135028b85eee9da760a17a4453fb64"
+            .parse()
+            .unwrap();
+        assert_eq!(
+            expected_hash,
+            miniblock_hash(
+                MiniblockNumber(1),
+                12,
+                prev_miniblock_hash,
+                txs_rolling_hash
+            )
+        )
+    }
+
+    #[test]
+    fn test_block_packing() {
+        let block_number = 101;
+        let block_timestamp = 102;
+        let block_info = pack_block_info(block_number, block_timestamp);
+
+        let (unpacked_block_number, unpacked_block_timestamp) = unpack_block_info(block_info);
+        assert_eq!(block_number, unpacked_block_number);
+        assert_eq!(block_timestamp, unpacked_block_timestamp);
     }
 }

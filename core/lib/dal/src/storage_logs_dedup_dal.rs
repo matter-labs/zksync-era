@@ -1,9 +1,7 @@
 use crate::StorageProcessor;
 use sqlx::types::chrono::Utc;
 use std::collections::HashSet;
-use zksync_types::{
-    zk_evm::aux_structures::LogQuery, AccountTreeId, Address, L1BatchNumber, StorageKey, H256,
-};
+use zksync_types::{AccountTreeId, Address, L1BatchNumber, LogQuery, StorageKey, H256};
 use zksync_utils::u256_to_h256;
 
 #[derive(Debug)]
@@ -54,11 +52,7 @@ impl StorageLogsDedupDal<'_, '_> {
             .map(|key| StorageKey::raw_hashed_key(key.address(), key.key()).to_vec())
             .collect();
 
-        let last_index = self
-            .max_set_enumeration_index()
-            .await
-            .map(|(last_index, _)| last_index)
-            .unwrap_or(0);
+        let last_index = self.max_enumeration_index().await.unwrap_or(0);
         let indices: Vec<_> = ((last_index + 1)..=(last_index + hashed_keys.len() as u64))
             .map(|x| x as i64)
             .collect();
@@ -97,27 +91,19 @@ impl StorageLogsDedupDal<'_, '_> {
         .collect()
     }
 
-    pub async fn max_set_enumeration_index(&mut self) -> Option<(u64, L1BatchNumber)> {
-        sqlx::query!(
-            "SELECT index, l1_batch_number FROM initial_writes \
-            WHERE index IS NOT NULL \
-            ORDER BY index DESC LIMIT 1",
-        )
-        .fetch_optional(self.storage.conn())
-        .await
-        .unwrap()
-        .map(|row| {
-            (
-                row.index.unwrap() as u64,
-                L1BatchNumber(row.l1_batch_number as u32),
-            )
-        })
+    pub async fn max_enumeration_index(&mut self) -> Option<u64> {
+        sqlx::query!("SELECT MAX(index) as \"max?\" FROM initial_writes",)
+            .fetch_one(self.storage.conn())
+            .await
+            .unwrap()
+            .max
+            .map(|max| max as u64)
     }
 
     pub async fn initial_writes_for_batch(
         &mut self,
         l1_batch_number: L1BatchNumber,
-    ) -> Vec<(H256, Option<u64>)> {
+    ) -> Vec<(H256, u64)> {
         sqlx::query!(
             "SELECT hashed_key, index FROM initial_writes \
             WHERE l1_batch_number = $1 \
@@ -128,34 +114,8 @@ impl StorageLogsDedupDal<'_, '_> {
         .await
         .unwrap()
         .into_iter()
-        .map(|row| {
-            (
-                H256::from_slice(&row.hashed_key),
-                row.index.map(|i| i as u64),
-            )
-        })
+        .map(|row| (H256::from_slice(&row.hashed_key), row.index as u64))
         .collect()
-    }
-
-    pub async fn set_indices_for_initial_writes(&mut self, indexed_keys: &[(H256, u64)]) {
-        let (hashed_keys, indices): (Vec<_>, Vec<_>) = indexed_keys
-            .iter()
-            .map(|(hashed_key, index)| (hashed_key.as_bytes(), *index as i64))
-            .unzip();
-        sqlx::query!(
-            "UPDATE initial_writes \
-                SET index = data_table.index \
-            FROM ( \
-                SELECT UNNEST($1::bytea[]) as hashed_key, \
-                    UNNEST($2::bigint[]) as index \
-            ) as data_table \
-            WHERE initial_writes.hashed_key = data_table.hashed_key",
-            &hashed_keys as &[&[u8]],
-            &indices,
-        )
-        .execute(self.storage.conn())
-        .await
-        .unwrap();
     }
 
     /// Returns `hashed_keys` that are both present in the input and in `initial_writes` table.
@@ -172,16 +132,5 @@ impl StorageLogsDedupDal<'_, '_> {
         .into_iter()
         .map(|row| H256::from_slice(&row.hashed_key))
         .collect()
-    }
-
-    // Used only for tests.
-    pub async fn reset_indices(&mut self) {
-        sqlx::query!(
-            "UPDATE initial_writes \
-            SET index = NULL",
-        )
-        .execute(self.storage.conn())
-        .await
-        .unwrap();
     }
 }

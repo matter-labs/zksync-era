@@ -1,4 +1,4 @@
-use std::{collections::VecDeque, str::FromStr, sync::Arc, time::Duration};
+use std::{collections::VecDeque, convert::TryFrom, str::FromStr, sync::Arc, time::Duration};
 
 use once_cell::sync::OnceCell;
 use rand::Rng;
@@ -90,7 +90,7 @@ pub struct AccountPool {
 impl AccountPool {
     /// Generates all the required test accounts and prepares `Wallet` objects.
     pub async fn new(config: &LoadtestConfig) -> anyhow::Result<Self> {
-        let l2_chain_id = L2ChainId(config.l2_chain_id);
+        let l2_chain_id = L2ChainId::try_from(config.l2_chain_id).unwrap();
         // Create a client for pinging the rpc.
         let client = HttpClientBuilder::default()
             .build(&config.l2_rpc_address)
@@ -120,7 +120,7 @@ impl AccountPool {
         };
 
         let mut rng = LoadtestRng::new_generic(config.seed.clone());
-        vlog::info!("Using RNG with master seed: {}", rng.seed_hex());
+        tracing::info!("Using RNG with master seed: {}", rng.seed_hex());
 
         let group_size = config.accounts_group_size;
         let accounts_amount = config.accounts_amount;

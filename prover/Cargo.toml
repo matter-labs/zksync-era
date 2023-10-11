@@ -5,13 +5,15 @@ members = [
     "prover_fri_types",
 
     # binaries
-    "prover",
+    # "prover",
     "circuit_synthesizer",
-    "setup_key_generator_and_server",
+    # "setup_key_generator_and_server",
     "witness_generator",
     "vk_setup_data_generator_server_fri",
     "prover_fri",
-    "witness_vector_generator"
+    "witness_vector_generator",
+    "prover_fri_gateway",
+    "proof_fri_compressor",
 ]
 
 resolver = "2"

@@ -14,7 +14,8 @@ use zksync_types::zkevm_test_harness::witness::oracle::VmWitnessOracle;
 use zksync_types::{L1BatchNumber, ProtocolVersionId};
 
 use crate::{
-    instrument::{InstrumentExt, MethodLatency},
+    instrument::InstrumentExt,
+    metrics::MethodLatency,
     models::storage_witness_job_info::StorageWitnessJobInfo,
     time_utils::{duration_to_naive_time, pg_interval_from_duration},
     StorageProcessor,
@@ -478,6 +479,7 @@ impl WitnessGeneratorDal<'_, '_> {
                     VALUES ($1, $2, $3, $4, $5, $6, $7, 'waiting_for_proofs', now(), now())
                     ",
                     block_number.0 as i64,
+                // TODO(SMA-1476): remove the below columns once blob is migrated to GCS.
                     vec![],
                     vec![],
                     basic_circuits_blob_url,
@@ -509,6 +511,7 @@ impl WitnessGeneratorDal<'_, '_> {
                     VALUES ($1, $2, $3, $4, 'waiting_for_artifacts', now(), now())
                     ",
                 block_number.0 as i64,
+                // TODO(SMA-1476): remove the below column once blob is migrated to GCS.
                 vec![],
                 scheduler_witness_blob_url,
                 protocol_version,
@@ -716,15 +719,22 @@ impl WitnessGeneratorDal<'_, '_> {
             .collect())
     }
 
-    pub async fn save_witness_inputs(&mut self, block_number: L1BatchNumber, object_key: &str) {
+    pub async fn save_witness_inputs(
+        &mut self,
+        block_number: L1BatchNumber,
+        object_key: &str,
+        protocol_version: Option<ProtocolVersionId>,
+    ) {
         {
             sqlx::query!(
-                "INSERT INTO witness_inputs(l1_batch_number, merkle_tree_paths, merkel_tree_paths_blob_url, status, created_at, updated_at) \
-                 VALUES ($1, $2, $3, 'queued', now(), now())
+                "INSERT INTO witness_inputs(l1_batch_number, merkle_tree_paths, merkel_tree_paths_blob_url, status, protocol_version, created_at, updated_at) \
+                 VALUES ($1, $2, $3, 'queued', $4, now(), now())
                  ON CONFLICT (l1_batch_number) DO NOTHING",
                 block_number.0 as i64,
+                // TODO(SMA-1476): remove the below column once blob is migrated to GCS.
                 vec![],
                 object_key,
+                protocol_version.map(|v| v as i32),
             )
                 .fetch_optional(self.storage.conn())
                 .await

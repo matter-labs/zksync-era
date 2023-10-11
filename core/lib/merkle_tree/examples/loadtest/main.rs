@@ -8,10 +8,11 @@ use rand::{rngs::StdRng, seq::IteratorRandom, SeedableRng};
 use tempfile::TempDir;
 
 use std::{
-    thread,
+    io, thread,
     time::{Duration, Instant},
 };
 
+use vise::Registry;
 use zksync_crypto::hasher::blake2::Blake2Hasher;
 use zksync_merkle_tree::{
     Database, HashTree, MerkleTree, MerkleTreePruner, PatchSet, RocksDBWrapper, TreeInstruction,
@@ -20,9 +21,8 @@ use zksync_storage::RocksDB;
 use zksync_types::{AccountTreeId, Address, StorageKey, H256, U256};
 
 mod batch;
-mod recorder;
 
-use crate::{batch::WithBatching, recorder::PrintingRecorder};
+use crate::batch::WithBatching;
 
 /// CLI for load-testing for the Merkle tree implementation.
 #[derive(Debug, Parser)]
@@ -69,7 +69,7 @@ struct Cli {
 impl Cli {
     fn run(self) {
         println!("Launched with options: {self:?}");
-        PrintingRecorder::install();
+        let registry = Registry::collect();
 
         let (mut mock_db, mut rocksdb);
         let mut _temp_dir = None;
@@ -84,10 +84,10 @@ impl Cli {
                 dir.path().to_string_lossy()
             );
             rocksdb = if let Some(block_cache_capacity) = self.block_cache {
-                let db = RocksDB::with_cache(&dir, true, Some(block_cache_capacity));
+                let db = RocksDB::with_cache(dir.path(), true, Some(block_cache_capacity));
                 RocksDBWrapper::from(db)
             } else {
-                RocksDBWrapper::new(&dir)
+                RocksDBWrapper::new(dir.path())
             };
             if let Some(chunk_size) = self.chunk_size {
                 rocksdb.set_multi_get_chunk_size(chunk_size);
@@ -146,6 +146,8 @@ impl Cli {
             };
             let elapsed = start.elapsed();
             println!("Processed block #{version} in {elapsed:?}, root hash = {root_hash:?}");
+
+            registry.encode(&mut io::stdout().lock()).unwrap();
         }
 
         println!("Verifying tree consistency...");

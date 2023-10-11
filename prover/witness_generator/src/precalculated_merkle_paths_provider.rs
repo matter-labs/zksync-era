@@ -24,7 +24,7 @@ pub struct PrecalculatedMerklePathsProvider {
 impl PrecalculatedMerklePathsProvider {
     pub fn new(input: PrepareBasicCircuitsJob, root_hash: [u8; 32]) -> Self {
         let next_enumeration_index = input.next_enumeration_index();
-        vlog::debug!("Initializing PrecalculatedMerklePathsProvider. Initial root_hash: {:?}, initial next_enumeration_index: {:?}", root_hash, next_enumeration_index);
+        tracing::debug!("Initializing PrecalculatedMerklePathsProvider. Initial root_hash: {:?}, initial next_enumeration_index: {:?}", root_hash, next_enumeration_index);
         Self {
             root_hash,
             pending_leaves: input.into_merkle_paths().collect(),
@@ -56,7 +56,7 @@ impl BinarySparseStorageTree<256, 32, 32, 8, 32, Blake2s256, ZkSyncStorageLeaf>
     }
 
     fn get_leaf(&mut self, index: &[u8; 32]) -> LeafQuery<256, 32, 32, 32, ZkSyncStorageLeaf> {
-        vlog::trace!(
+        tracing::trace!(
             "Invoked get_leaf({:?}). pending leaves size: {:?}. current root: {:?}",
             index,
             self.pending_leaves.len(),
@@ -109,7 +109,7 @@ impl BinarySparseStorageTree<256, 32, 32, 8, 32, Blake2s256, ZkSyncStorageLeaf>
         index: &[u8; 32],
         leaf: ZkSyncStorageLeaf,
     ) -> LeafQuery<256, 32, 32, 32, ZkSyncStorageLeaf> {
-        vlog::trace!(
+        tracing::trace!(
             "Invoked insert_leaf({:?}). pending leaves size: {:?}. current root: {:?}",
             index,
             self.pending_leaves.len(),
@@ -174,7 +174,7 @@ impl BinarySparseStorageTree<256, 32, 32, 8, 32, Blake2s256, ZkSyncStorageLeaf>
         Vec<([u8; 32], ZkSyncStorageLeaf)>,
         Vec<ZkSyncStorageLeaf>,
     ) {
-        vlog::trace!(
+        tracing::trace!(
             "invoked filter_renumerate(), pending leaves size: {:?}",
             self.pending_leaves.len()
         );
@@ -223,7 +223,7 @@ impl BinarySparseStorageTree<256, 32, 32, 8, 32, Blake2s256, ZkSyncStorageLeaf>
         query: &LeafQuery<256, 32, 32, 32, ZkSyncStorageLeaf>,
     ) -> bool {
         //copied from zkevm_test_harness/src/witness/tree/mod.rs with minor changes
-        vlog::trace!(
+        tracing::trace!(
             "invoked verify_inclusion. Index: {:?}, root: {:?})",
             query.index,
             root

@@ -151,6 +151,7 @@ impl From<L1Tx> for Transaction {
             common_data: ExecuteTransactionCommon::L1(common_data),
             execute,
             received_timestamp_ms,
+            raw_bytes: None,
         }
     }
 }
@@ -163,6 +164,7 @@ impl TryFrom<Transaction> for L1Tx {
             common_data,
             execute,
             received_timestamp_ms,
+            ..
         } = value;
         match common_data {
             ExecuteTransactionCommon::L1(common_data) => Ok(L1Tx {
@@ -196,6 +198,7 @@ impl TryFrom<Log> for L1Tx {
     type Error = L1TxParseError;
 
     fn try_from(event: Log) -> Result<Self, Self::Error> {
+        // TODO: refactor according to tx type
         let transaction_param_type = ParamType::Tuple(vec![
             ParamType::Uint(8),                                       // txType
             ParamType::Address,                                       // sender
@@ -300,6 +303,7 @@ impl TryFrom<Log> for L1Tx {
         let signature = transaction.remove(0).into_bytes().unwrap();
         assert_eq!(signature.len(), 0);
 
+        // TODO (SMA-1621): check that reservedDynamic are constructed correctly.
         let _factory_deps_hashes = transaction.remove(0).into_array().unwrap();
         let _paymaster_input = transaction.remove(0).into_bytes().unwrap();
         let _reserved_dynamic = transaction.remove(0).into_bytes().unwrap();

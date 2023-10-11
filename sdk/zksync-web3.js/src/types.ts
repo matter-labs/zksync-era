@@ -221,7 +221,7 @@ export interface TransactionDetails {
     isL1Originated: boolean;
     status: string;
     fee: BigNumberish;
-    gasPerPubdata?: BigNumberish;
+    gasPerPubdata: BigNumberish;
     initiatorAddress: Address;
     receivedAt: Date;
     ethCommitTxHash?: string;

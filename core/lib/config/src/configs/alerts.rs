@@ -12,7 +12,7 @@ pub struct AlertsConfig {
 }
 
 impl AlertsConfig {
-    pub fn from_env() -> Self {
+    pub fn from_env() -> anyhow::Result<Self> {
         envy_load("sporadic_crypto_errors_substrs", "ALERTS_")
     }
 }
@@ -29,7 +29,7 @@ mod tests {
             sporadic_crypto_errors_substrs: vec![
                 "EventDestroyErr".to_string(),
                 "Can't free memory of DeviceBuf".to_string(),
-                "called `Result::unwrap()` on an `Err` value: PoisonError".to_string(),
+                "value: PoisonError".to_string(),
             ],
         }
     }
@@ -38,10 +38,10 @@ mod tests {
     fn test_from_env() {
         let mut lock = MUTEX.lock();
         let config = r#"
-            ALERTS_SPORADIC_CRYPTO_ERRORS_SUBSTRS=EventDestroyErr,Can't free memory of DeviceBuf,called `Result::unwrap()` on an `Err` value: PoisonError
+            ALERTS_SPORADIC_CRYPTO_ERRORS_SUBSTRS="EventDestroyErr,Can't free memory of DeviceBuf,value: PoisonError"
         "#;
         lock.set_env(config);
 
-        assert_eq!(AlertsConfig::from_env(), expected_config());
+        assert_eq!(AlertsConfig::from_env().unwrap(), expected_config());
     }
 }

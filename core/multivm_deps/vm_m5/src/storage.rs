@@ -6,7 +6,7 @@ use std::rc::Rc;
 use zksync_state::{ReadStorage, StorageView, WriteStorage};
 use zksync_types::{StorageKey, StorageValue, H256};
 
-pub trait Storage: Debug + Sync + Send {
+pub trait Storage: Debug {
     fn get_value(&mut self, key: &StorageKey) -> StorageValue;
     // Returns the original value.
     fn set_value(&mut self, key: &StorageKey, value: StorageValue) -> StorageValue;
@@ -18,7 +18,7 @@ pub trait Storage: Debug + Sync + Send {
     fn get_modified_storage_keys(&self) -> &HashMap<StorageKey, StorageValue>;
 }
 
-impl<S: ReadStorage + Debug + Send + Sync> Storage for StorageView<S> {
+impl<S: ReadStorage + Debug> Storage for StorageView<S> {
     fn get_value(&mut self, key: &StorageKey) -> StorageValue {
         ReadStorage::read_value(self, key)
     }
@@ -45,4 +45,4 @@ impl<S: ReadStorage + Debug + Send + Sync> Storage for StorageView<S> {
     }
 }
 
-pub type StoragePtr<'a> = Rc<RefCell<&'a mut dyn Storage>>;
+pub type StoragePtr<S> = Rc<RefCell<S>>;

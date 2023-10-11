@@ -1,6 +1,6 @@
 [package]
 name = "zksync_utils"
-version = "1.0.0"
+version = "0.1.0"
 edition = "2018"
 authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
 homepage = "https://zksync.io/"
@@ -10,23 +10,22 @@ keywords = ["blockchain", "zksync"]
 categories = ["cryptography"]
 
 [dependencies]
-zksync_basic_types = { path = "../../lib/basic_types", version = "1.0" }
-vlog = { path = "../../lib/vlog", version = "1.0" }
-zk_evm = {git = "https://github.com/matter-labs/era-zk_evm.git", branch = "v1.3.3"}
+zksync_basic_types = { path = "../../lib/basic_types" }
+zk_evm = { git = "https://github.com/matter-labs/era-zk_evm.git", branch = "v1.3.3" }
+vlog = { path = "../../lib/vlog" }
 
 num = { version = "0.3.1", features = ["serde"] }
-bigdecimal = { version = "0.2.2", features = ["serde"]}
+bigdecimal = { version = "0.2.2", features = ["serde"] }
 serde = { version = "1.0", features = ["derive"] }
 tokio = { version = "1", features = ["time"] }
+tracing = "0.1"
 anyhow = "1.0"
 thiserror = "1.0"
 futures = "0.3"
 hex = "0.4"
-envy = "0.4"
 reqwest = { version = "0.11", features = ["blocking"] }
 itertools = "0.10.5"
-metrics = "0.20"
+metrics = "0.21"
 
 [dev-dependencies]
 serde_json = "1.0.0"
-

@@ -4,7 +4,7 @@ Assuming that you have completed [part 1](01_initialization.md) and [part 2](02_
 tokens back by simply calling the zksync-cli:
 
 ```bash
-npm exec zksync-cli withdraw --l1-rpc-url=http://localhost:8545 --l2-rpc-url=http://localhost:3050
+npx zksync-cli withdraw --chain=local-dockerized
 ```
 
 And providing the account name (public address) and private key.
@@ -15,10 +15,10 @@ they didn't** - what happened?
 Actually we'll have to run one additional step:
 
 ```bash
-npm exec zksync-cli confirm-withdraw --l1-rpc-url=http://localhost:8545 --l2-rpc-url=http://localhost:3050
+npx zksync-cli withdraw-finalize --chain=local-dockerized
 ```
 
-and pass the transaction that we received from the first call, into the `confirm-withdraw` call.
+and pass the transaction that we received from the first call, into the `withdraw-finalize` call.
 
 **Note:** This is not needed on testnet - as we (MatterLabs) - are running an automatic tool that confirms withdrawals.
 

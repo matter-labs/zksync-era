@@ -1,9 +1,11 @@
-use crate::ethabi::{decode, encode, ParamType, Token};
-use crate::helpers::unix_timestamp_ms;
-use crate::web3::contract::{tokens::Detokenize, Error};
-use crate::web3::signing::keccak256;
 use crate::{
-    Address, Execute, ExecuteTransactionCommon, Log, Transaction, TransactionType, H256,
+    ethabi::{decode, encode, ParamType, Token},
+    helpers::unix_timestamp_ms,
+    web3::{
+        contract::{tokens::Detokenize, Error},
+        signing::keccak256,
+    },
+    Address, Execute, ExecuteTransactionCommon, Log, Transaction, TransactionType, VmVersion, H256,
     PROTOCOL_UPGRADE_TX_TYPE, U256,
 };
 use num_enum::TryFromPrimitive;
@@ -14,7 +16,7 @@ use zksync_utils::u256_to_account_address;
 
 #[repr(u16)]
 #[derive(
-    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, TryFromPrimitive,
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, TryFromPrimitive, Serialize, Deserialize,
 )]
 pub enum ProtocolVersionId {
     Version0 = 0,
@@ -31,15 +33,44 @@ pub enum ProtocolVersionId {
     Version11,
     Version12,
     Version13,
+    Version14,
+    Version15,
+    Version16,
+    Version17,
 }
 
 impl ProtocolVersionId {
     pub fn latest() -> Self {
-        Self::Version12
+        Self::Version16
     }
 
     pub fn next() -> Self {
-        Self::Version13
+        Self::Version17
+    }
+
+    /// Returns VM version to be used by API for this protocol version.
+    /// We temporary support only two latest VM versions for API.
+    pub fn into_api_vm_version(self) -> VmVersion {
+        match self {
+            ProtocolVersionId::Version0 => VmVersion::Vm1_3_2,
+            ProtocolVersionId::Version1 => VmVersion::Vm1_3_2,
+            ProtocolVersionId::Version2 => VmVersion::Vm1_3_2,
+            ProtocolVersionId::Version3 => VmVersion::Vm1_3_2,
+            ProtocolVersionId::Version4 => VmVersion::Vm1_3_2,
+            ProtocolVersionId::Version5 => VmVersion::Vm1_3_2,
+            ProtocolVersionId::Version6 => VmVersion::Vm1_3_2,
+            ProtocolVersionId::Version7 => VmVersion::Vm1_3_2,
+            ProtocolVersionId::Version8 => VmVersion::Vm1_3_2,
+            ProtocolVersionId::Version9 => VmVersion::Vm1_3_2,
+            ProtocolVersionId::Version10 => VmVersion::Vm1_3_2,
+            ProtocolVersionId::Version11 => VmVersion::Vm1_3_2,
+            ProtocolVersionId::Version12 => VmVersion::Vm1_3_2,
+            ProtocolVersionId::Version13 => VmVersion::VmVirtualBlocks,
+            ProtocolVersionId::Version14 => VmVersion::VmVirtualBlocks,
+            ProtocolVersionId::Version15 => VmVersion::VmVirtualBlocks,
+            ProtocolVersionId::Version16 => VmVersion::VmVirtualBlocksRefundsEnhancement,
+            ProtocolVersionId::Version17 => VmVersion::VmVirtualBlocksRefundsEnhancement,
+        }
     }
 }
 
@@ -60,6 +91,32 @@ impl TryFrom<U256> for ProtocolVersionId {
                 .try_into()
                 .map_err(|_| format!("unknown protocol version ID: {}", value))
         }
+    }
+}
+
+#[repr(u16)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, TryFromPrimitive, Serialize, Deserialize,
+)]
+pub enum FriProtocolVersionId {
+    Version0 = 0,
+    Version1,
+    Version2,
+}
+
+impl FriProtocolVersionId {
+    pub fn latest() -> Self {
+        Self::Version1
+    }
+
+    pub fn next() -> Self {
+        Self::Version2
+    }
+}
+
+impl Default for FriProtocolVersionId {
+    fn default() -> Self {
+        Self::latest()
     }
 }
 
@@ -255,6 +312,7 @@ impl TryFrom<Log> for ProtocolUpgrade {
                 let paymaster_input = transaction.remove(0).into_bytes().unwrap();
                 assert_eq!(paymaster_input.len(), 0);
 
+                // TODO (SMA-1621): check that reservedDynamic are constructed correctly.
                 let reserved_dynamic = transaction.remove(0).into_bytes().unwrap();
                 assert_eq!(reserved_dynamic.len(), 0);
 
@@ -450,6 +508,7 @@ impl From<ProtocolUpgradeTx> for Transaction {
             common_data: ExecuteTransactionCommon::ProtocolUpgrade(common_data),
             execute,
             received_timestamp_ms,
+            raw_bytes: None,
         }
     }
 }
@@ -462,6 +521,7 @@ impl TryFrom<Transaction> for ProtocolUpgradeTx {
             common_data,
             execute,
             received_timestamp_ms,
+            ..
         } = value;
         match common_data {
             ExecuteTransactionCommon::L1(_) => Err("Cannot convert L1Tx to ProtocolUpgradeTx"),
@@ -471,6 +531,31 @@ impl TryFrom<Transaction> for ProtocolUpgradeTx {
                 common_data,
                 received_timestamp_ms,
             }),
+        }
+    }
+}
+
+impl From<ProtocolVersionId> for VmVersion {
+    fn from(value: ProtocolVersionId) -> Self {
+        match value {
+            ProtocolVersionId::Version0 => VmVersion::M5WithoutRefunds,
+            ProtocolVersionId::Version1 => VmVersion::M5WithoutRefunds,
+            ProtocolVersionId::Version2 => VmVersion::M5WithRefunds,
+            ProtocolVersionId::Version3 => VmVersion::M5WithRefunds,
+            ProtocolVersionId::Version4 => VmVersion::M6Initial,
+            ProtocolVersionId::Version5 => VmVersion::M6BugWithCompressionFixed,
+            ProtocolVersionId::Version6 => VmVersion::M6BugWithCompressionFixed,
+            ProtocolVersionId::Version7 => VmVersion::Vm1_3_2,
+            ProtocolVersionId::Version8 => VmVersion::Vm1_3_2,
+            ProtocolVersionId::Version9 => VmVersion::Vm1_3_2,
+            ProtocolVersionId::Version10 => VmVersion::Vm1_3_2,
+            ProtocolVersionId::Version11 => VmVersion::Vm1_3_2,
+            ProtocolVersionId::Version12 => VmVersion::Vm1_3_2,
+            ProtocolVersionId::Version13 => VmVersion::VmVirtualBlocks,
+            ProtocolVersionId::Version14 => VmVersion::VmVirtualBlocks,
+            ProtocolVersionId::Version15 => VmVersion::VmVirtualBlocks,
+            ProtocolVersionId::Version16 => VmVersion::VmVirtualBlocksRefundsEnhancement,
+            ProtocolVersionId::Version17 => VmVersion::VmVirtualBlocksRefundsEnhancement,
         }
     }
 }

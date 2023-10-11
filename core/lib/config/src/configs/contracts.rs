@@ -31,10 +31,13 @@ pub struct ContractsConfig {
     pub recursion_leaf_level_vk_hash: H256,
     pub recursion_circuits_set_vks_hash: H256,
     pub l1_multicall3_addr: Address,
+    pub fri_recursion_scheduler_level_vk_hash: H256,
+    pub fri_recursion_node_level_vk_hash: H256,
+    pub fri_recursion_leaf_level_vk_hash: H256,
 }
 
 impl ContractsConfig {
-    pub fn from_env() -> Self {
+    pub fn from_env() -> anyhow::Result<Self> {
         envy_load("contracts", "CONTRACTS_")
     }
 }
@@ -81,6 +84,15 @@ mod tests {
                 "0x142a364ef2073132eaf07aa7f3d8495065be5b92a2dc14fda09b4216affed9c0",
             ),
             l1_multicall3_addr: addr("0xcA11bde05977b3631167028862bE2a173976CA11"),
+            fri_recursion_scheduler_level_vk_hash: hash(
+                "0x201d4c7d8e781d51a3bbd451a43a8f45240bb765b565ae6ce69192d918c3563d",
+            ),
+            fri_recursion_node_level_vk_hash: hash(
+                "0x5a3ef282b21e12fe1f4438e5bb158fc5060b160559c5158c6389d62d9fe3d080",
+            ),
+            fri_recursion_leaf_level_vk_hash: hash(
+                "0x72167c43a46cf38875b267d67716edc4563861364a3c03ab7aee73498421e828",
+            ),
         }
     }
 
@@ -111,10 +123,14 @@ CONTRACTS_RECURSION_NODE_LEVEL_VK_HASH="0x1186ec268d49f1905f8d9c1e9d39fc33e98c74
 CONTRACTS_RECURSION_LEAF_LEVEL_VK_HASH="0x101e08b00193e529145ee09823378ef51a3bc8966504064f1f6ba3f1ba863210"
 CONTRACTS_RECURSION_CIRCUITS_SET_VKS_HASH="0x142a364ef2073132eaf07aa7f3d8495065be5b92a2dc14fda09b4216affed9c0"
 CONTRACTS_L1_MULTICALL3_ADDR="0xcA11bde05977b3631167028862bE2a173976CA11"
+CONTRACTS_FRI_RECURSION_SCHEDULER_LEVEL_VK_HASH="0x201d4c7d8e781d51a3bbd451a43a8f45240bb765b565ae6ce69192d918c3563d"
+CONTRACTS_FRI_RECURSION_NODE_LEVEL_VK_HASH="0x5a3ef282b21e12fe1f4438e5bb158fc5060b160559c5158c6389d62d9fe3d080"
+CONTRACTS_FRI_RECURSION_LEAF_LEVEL_VK_HASH="0x72167c43a46cf38875b267d67716edc4563861364a3c03ab7aee73498421e828"
+
         "#;
         lock.set_env(config);
 
-        let actual = ContractsConfig::from_env();
+        let actual = ContractsConfig::from_env().unwrap();
         assert_eq!(actual, expected_config());
     }
 }

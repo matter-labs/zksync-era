@@ -22,8 +22,10 @@ pub async fn send_request_with_retries(
         let result = send_request(url, method.clone(), headers.clone(), body.clone()).await;
         match result {
             Ok(response) if response.status().is_success() => return Ok(response),
-            Ok(response) => vlog::error!("Received non OK http response {:?}", response.status()),
-            Err(err) => vlog::error!("Error while sending http request {:?}", err),
+            Ok(response) => {
+                tracing::error!("Received non OK http response {:?}", response.status())
+            }
+            Err(err) => tracing::error!("Error while sending http request {:?}", err),
         }
         if retries >= max_retries {
             return Err(HttpError::RetryExhausted(format!(

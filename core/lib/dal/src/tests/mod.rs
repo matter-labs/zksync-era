@@ -4,7 +4,7 @@ use std::time::Duration;
 use db_test_macro::db_test;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_types::{
-    block::{L1BatchHeader, MiniblockHeader},
+    block::{miniblock_hash, L1BatchHeader, MiniblockHeader},
     fee::{Fee, TransactionExecutionMetrics},
     helpers::unix_timestamp_ms,
     l1::{L1Tx, OpProcessingType, PriorityQueueType},
@@ -14,7 +14,6 @@ use zksync_types::{
     Address, Execute, L1BatchNumber, L1BlockNumber, L1TxCommonData, L2ChainId, MiniblockNumber,
     PriorityOpId, ProtocolVersion, ProtocolVersionId, H160, H256, MAX_GAS_PER_PUBDATA_BYTE, U256,
 };
-use zksync_utils::miniblock_hash;
 
 use crate::blocks_dal::BlocksDal;
 use crate::connection::ConnectionPool;
@@ -35,7 +34,7 @@ pub(crate) fn create_miniblock_header(number: u32) -> MiniblockHeader {
     MiniblockHeader {
         number: MiniblockNumber(number),
         timestamp: 0,
-        hash: miniblock_hash(MiniblockNumber(number)),
+        hash: miniblock_hash(MiniblockNumber(number), 0, H256::zero(), H256::zero()),
         l1_tx_count: 0,
         l2_tx_count: 0,
         base_fee_per_gas: 100,
@@ -43,6 +42,7 @@ pub(crate) fn create_miniblock_header(number: u32) -> MiniblockHeader {
         l2_fair_gas_price: 100,
         base_system_contracts_hashes: BaseSystemContractsHashes::default(),
         protocol_version: Some(ProtocolVersionId::default()),
+        virtual_blocks: 1,
     }
 }
 
@@ -59,7 +59,7 @@ pub(crate) fn mock_l2_transaction() -> L2Tx {
         zksync_types::Nonce(0),
         fee,
         Default::default(),
-        L2ChainId(270),
+        L2ChainId::from(270),
         &H256::random(),
         None,
         Default::default(),
@@ -168,7 +168,7 @@ async fn remove_stuck_txs(connection_pool: ConnectionPool) {
     let storage = &mut connection_pool.access_test_storage().await;
     let mut protocol_versions_dal = ProtocolVersionsDal { storage };
     protocol_versions_dal
-        .save_protocol_version(Default::default())
+        .save_protocol_version_with_tx(Default::default())
         .await;
 
     let storage = protocol_versions_dal.storage;
@@ -212,7 +212,8 @@ async fn remove_stuck_txs(connection_pool: ConnectionPool) {
     let storage = transactions_dal.storage;
     BlocksDal { storage }
         .insert_miniblock(&create_miniblock_header(1))
-        .await;
+        .await
+        .unwrap();
 
     let mut transactions_dal = TransactionsDal { storage };
     transactions_dal
@@ -273,7 +274,11 @@ async fn test_duplicate_insert_prover_jobs(connection_pool: ConnectionPool) {
     let storage = &mut connection_pool.access_test_storage().await;
     storage
         .protocol_versions_dal()
-        .save_protocol_version(Default::default())
+        .save_protocol_version_with_tx(Default::default())
+        .await;
+    storage
+        .protocol_versions_dal()
+        .save_prover_protocol_version(Default::default())
         .await;
     let block_number = 1;
     let header = L1BatchHeader::new(
@@ -286,7 +291,8 @@ async fn test_duplicate_insert_prover_jobs(connection_pool: ConnectionPool) {
     storage
         .blocks_dal()
         .insert_l1_batch(&header, &[], Default::default())
-        .await;
+        .await
+        .unwrap();
 
     let mut prover_dal = ProverDal { storage };
     let circuits = create_circuits();
@@ -330,7 +336,11 @@ async fn test_requeue_prover_jobs(connection_pool: ConnectionPool) {
     let protocol_version = ProtocolVersion::default();
     storage
         .protocol_versions_dal()
-        .save_protocol_version(protocol_version)
+        .save_protocol_version_with_tx(protocol_version)
+        .await;
+    storage
+        .protocol_versions_dal()
+        .save_prover_protocol_version(Default::default())
         .await;
     let block_number = 1;
     let header = L1BatchHeader::new(
@@ -343,7 +353,8 @@ async fn test_requeue_prover_jobs(connection_pool: ConnectionPool) {
     storage
         .blocks_dal()
         .insert_l1_batch(&header, &[], Default::default())
-        .await;
+        .await
+        .unwrap();
 
     let mut prover_dal = ProverDal { storage };
     let circuits = create_circuits();
@@ -388,7 +399,11 @@ async fn test_move_leaf_aggregation_jobs_from_waiting_to_queued(connection_pool:
     let protocol_version = ProtocolVersion::default();
     storage
         .protocol_versions_dal()
-        .save_protocol_version(protocol_version)
+        .save_protocol_version_with_tx(protocol_version)
+        .await;
+    storage
+        .protocol_versions_dal()
+        .save_prover_protocol_version(Default::default())
         .await;
     let block_number = 1;
     let header = L1BatchHeader::new(
@@ -401,7 +416,8 @@ async fn test_move_leaf_aggregation_jobs_from_waiting_to_queued(connection_pool:
     storage
         .blocks_dal()
         .insert_l1_batch(&header, &[], Default::default())
-        .await;
+        .await
+        .unwrap();
 
     let mut prover_dal = ProverDal { storage };
     let circuits = create_circuits();
@@ -463,7 +479,11 @@ async fn test_move_node_aggregation_jobs_from_waiting_to_queued(connection_pool:
     let protocol_version = ProtocolVersion::default();
     storage
         .protocol_versions_dal()
-        .save_protocol_version(protocol_version)
+        .save_protocol_version_with_tx(protocol_version)
+        .await;
+    storage
+        .protocol_versions_dal()
+        .save_prover_protocol_version(Default::default())
         .await;
     let block_number = 1;
     let header = L1BatchHeader::new(
@@ -476,7 +496,8 @@ async fn test_move_node_aggregation_jobs_from_waiting_to_queued(connection_pool:
     storage
         .blocks_dal()
         .insert_l1_batch(&header, &[], Default::default())
-        .await;
+        .await
+        .unwrap();
 
     let mut prover_dal = ProverDal { storage };
     let circuits = create_circuits();
@@ -545,7 +566,11 @@ async fn test_move_scheduler_jobs_from_waiting_to_queued(connection_pool: Connec
     let protocol_version = ProtocolVersion::default();
     storage
         .protocol_versions_dal()
-        .save_protocol_version(protocol_version)
+        .save_protocol_version_with_tx(protocol_version)
+        .await;
+    storage
+        .protocol_versions_dal()
+        .save_prover_protocol_version(Default::default())
         .await;
     let block_number = 1;
     let header = L1BatchHeader::new(
@@ -558,7 +583,8 @@ async fn test_move_scheduler_jobs_from_waiting_to_queued(connection_pool: Connec
     storage
         .blocks_dal()
         .insert_l1_batch(&header, &[], Default::default())
-        .await;
+        .await
+        .unwrap();
 
     let mut prover_dal = ProverDal { storage };
     let circuits = vec![(

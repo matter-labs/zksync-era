@@ -13,15 +13,15 @@ pub struct ETHClientConfig {
 }
 
 impl ETHClientConfig {
-    pub fn from_env() -> Self {
-        let config: Self = envy_load("eth_client", "ETH_CLIENT_");
+    pub fn from_env() -> anyhow::Result<Self> {
+        let config: Self = envy_load("eth_client", "ETH_CLIENT_")?;
         if config.web3_url.find(',').is_some() {
-            panic!(
+            anyhow::bail!(
                 "Multiple web3 URLs aren't supported anymore. Provided invalid value: {}",
                 config.web3_url
             );
         }
-        config
+        Ok(config)
     }
 }
 
@@ -48,7 +48,7 @@ mod tests {
         "#;
         lock.set_env(config);
 
-        let actual = ETHClientConfig::from_env();
+        let actual = ETHClientConfig::from_env().unwrap();
         assert_eq!(actual, expected_config());
     }
 }

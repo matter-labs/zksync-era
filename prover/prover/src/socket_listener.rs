@@ -5,6 +5,7 @@ use std::time::Instant;
 use zksync_dal::ConnectionPool;
 use zksync_types::proofs::{GpuProverInstanceStatus, SocketAddress};
 
+use anyhow::Context as _;
 use tokio::{
     io::copy,
     net::{TcpListener, TcpStream},
@@ -20,21 +21,20 @@ pub async fn incoming_socket_listener(
     region: String,
     zone: String,
     num_gpu: u8,
-) {
+) -> anyhow::Result<()> {
     let listening_address = SocketAddr::new(host, port);
-    vlog::info!(
+    tracing::info!(
         "Starting assembly receiver at host: {}, port: {}",
         host,
         port
     );
     let listener = TcpListener::bind(listening_address)
         .await
-        .unwrap_or_else(|_| panic!("Failed binding address: {:?}", listening_address));
+        .with_context(|| format!("Failed binding address: {listening_address:?}"))?;
     let address = SocketAddress { host, port };
 
     let queue_capacity = queue.lock().await.capacity();
-    pool.access_storage()
-        .await
+    pool.access_storage().await.unwrap()
         .gpu_prover_queue_dal()
         .insert_prover_instance(
             address.clone(),
@@ -49,13 +49,8 @@ pub async fn incoming_socket_listener(
     let mut now = Instant::now();
 
     loop {
-        let stream = match listener.accept().await {
-            Ok(stream) => stream.0,
-            Err(e) => {
-                panic!("could not accept connection: {:?}", e);
-            }
-        };
-        vlog::trace!(
+        let stream = listener.accept().await.context("could not accept connection")?.0;
+        tracing::trace!(
             "Received new assembly send connection, waited for {}ms.",
             now.elapsed().as_millis()
         );
@@ -88,7 +83,7 @@ async fn handle_incoming_file(
         .await
         .expect("Failed reading from stream");
     let file_size_in_gb = assembly.len() / (1024 * 1024 * 1024);
-    vlog::trace!(
+    tracing::trace!(
         "Read file of size: {}GB from stream took: {} seconds",
         file_size_in_gb,
         started_at.elapsed().as_secs()
@@ -109,8 +104,7 @@ async fn handle_incoming_file(
         (queue_free_slots, status)
     };
 
-    pool.access_storage()
-        .await
+    pool.access_storage().await.unwrap()
         .gpu_prover_queue_dal()
         .update_prover_instance_status(address, status, queue_free_slots, region, zone)
         .await;

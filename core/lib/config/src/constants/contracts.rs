@@ -100,6 +100,7 @@ pub const ERC20_TRANSFER_TOPIC: H256 = H256([
     99, 196, 161, 22, 40, 245, 90, 77, 245, 35, 179, 239,
 ]);
 
+// TODO (SMA-240): Research whether using zero address is ok
 pub const MINT_AND_BURN_ADDRESS: H160 = H160::zero();
 
 // The storage_log.value database value for a contract that was deployed in a failed transaction.

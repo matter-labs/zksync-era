@@ -1,15 +1,16 @@
 use std::{collections::HashMap, convert::TryFrom, time::Duration};
 
 use zksync_config::configs::fri_prover_group::CircuitIdRoundTuple;
+use zksync_types::protocol_version::FriProtocolVersionId;
 use zksync_types::{
     proofs::{AggregationRound, FriProverJobMetadata, JobCountStatistics, StuckJobs},
     L1BatchNumber,
 };
 
 use crate::{
-    instrument::{InstrumentExt, MethodLatency},
-    time_utils::duration_to_naive_time,
-    time_utils::pg_interval_from_duration,
+    instrument::InstrumentExt,
+    metrics::MethodLatency,
+    time_utils::{duration_to_naive_time, pg_interval_from_duration},
     StorageProcessor,
 };
 
@@ -25,6 +26,7 @@ impl FriProverDal<'_, '_> {
         circuit_ids_and_urls: Vec<(u8, String)>,
         aggregation_round: AggregationRound,
         depth: u16,
+        protocol_version_id: FriProtocolVersionId,
     ) {
         let latency = MethodLatency::new("save_fri_prover_jobs");
         for (sequence_number, (circuit_id, circuit_blob_url)) in
@@ -38,22 +40,30 @@ impl FriProverDal<'_, '_> {
                 aggregation_round,
                 circuit_blob_url,
                 false,
+                protocol_version_id,
             )
             .await;
         }
         drop(latency);
     }
 
-    pub async fn get_next_job(&mut self) -> Option<FriProverJobMetadata> {
+    pub async fn get_next_job(
+        &mut self,
+        protocol_versions: &[FriProtocolVersionId],
+        picked_by: &str,
+    ) -> Option<FriProverJobMetadata> {
+        let protocol_versions: Vec<i32> = protocol_versions.iter().map(|&id| id as i32).collect();
         sqlx::query!(
             "
                 UPDATE prover_jobs_fri
                 SET status = 'in_progress', attempts = attempts + 1,
-                    updated_at = now(), processing_started_at = now()
+                    updated_at = now(), processing_started_at = now(),
+                    picked_by = $2
                 WHERE id = (
                     SELECT id
                     FROM prover_jobs_fri
                     WHERE status = 'queued'
+                    AND protocol_version = ANY($1)
                     ORDER BY aggregation_round DESC, l1_batch_number ASC, id ASC
                     LIMIT 1
                     FOR UPDATE
@@ -63,6 +73,8 @@ impl FriProverDal<'_, '_> {
                 prover_jobs_fri.aggregation_round, prover_jobs_fri.sequence_number, prover_jobs_fri.depth,
                 prover_jobs_fri.is_node_final_proof
                 ",
+            &protocol_versions[..],
+            picked_by,
         )
             .fetch_optional(self.storage.conn())
             .await
@@ -81,11 +93,14 @@ impl FriProverDal<'_, '_> {
     pub async fn get_next_job_for_circuit_id_round(
         &mut self,
         circuits_to_pick: &[CircuitIdRoundTuple],
+        protocol_versions: &[FriProtocolVersionId],
+        picked_by: &str,
     ) -> Option<FriProverJobMetadata> {
         let circuit_ids: Vec<_> = circuits_to_pick
             .iter()
             .map(|tuple| tuple.circuit_id as i16)
             .collect();
+        let protocol_versions: Vec<i32> = protocol_versions.iter().map(|&id| id as i32).collect();
         let aggregation_rounds: Vec<_> = circuits_to_pick
             .iter()
             .map(|tuple| tuple.aggregation_round as i16)
@@ -94,7 +109,8 @@ impl FriProverDal<'_, '_> {
             "
                 UPDATE prover_jobs_fri
                 SET status = 'in_progress', attempts = attempts + 1,
-                    updated_at = now(), processing_started_at = now()
+                    updated_at = now(), processing_started_at = now(),
+                    picked_by = $4
                 WHERE id = (
                     SELECT id
                     FROM prover_jobs_fri
@@ -102,6 +118,7 @@ impl FriProverDal<'_, '_> {
                     AND (circuit_id, aggregation_round) IN (
                         SELECT * FROM UNNEST($1::smallint[], $2::smallint[])
                     )
+                    AND protocol_version = ANY($3)
                     ORDER BY aggregation_round DESC, l1_batch_number ASC, id ASC
                     LIMIT 1
                     FOR UPDATE
@@ -113,6 +130,8 @@ impl FriProverDal<'_, '_> {
                 ",
             &circuit_ids[..],
             &aggregation_rounds[..],
+            &protocol_versions[..],
+            picked_by,
         )
             .fetch_optional(self.storage.conn())
             .await
@@ -219,11 +238,12 @@ impl FriProverDal<'_, '_> {
         aggregation_round: AggregationRound,
         circuit_blob_url: &str,
         is_node_final_proof: bool,
+        protocol_version_id: FriProtocolVersionId,
     ) {
         sqlx::query!(
                     "
-                    INSERT INTO prover_jobs_fri (l1_batch_number, circuit_id, circuit_blob_url, aggregation_round, sequence_number, depth, is_node_final_proof, status, created_at, updated_at)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, 'queued', now(), now())
+                    INSERT INTO prover_jobs_fri (l1_batch_number, circuit_id, circuit_blob_url, aggregation_round, sequence_number, depth, is_node_final_proof, protocol_version, status, created_at, updated_at)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'queued', now(), now())
                     ON CONFLICT(l1_batch_number, aggregation_round, circuit_id, depth, sequence_number)
                     DO UPDATE SET updated_at=now()
                     ",
@@ -234,6 +254,7 @@ impl FriProverDal<'_, '_> {
             sequence_number as i64,
             depth as i32,
             is_node_final_proof,
+            protocol_version_id as i32,
         )
             .execute(self.storage.conn())
             .await
@@ -308,5 +329,35 @@ impl FriProverDal<'_, '_> {
         .execute(self.storage.conn())
         .await
         .unwrap();
+    }
+
+    pub async fn save_successful_sent_proof(&mut self, l1_batch_number: L1BatchNumber) {
+        sqlx::query!(
+            "UPDATE prover_jobs_fri \
+                SET status = 'sent_to_server', updated_at = now() \
+                WHERE l1_batch_number = $1",
+            l1_batch_number.0 as i64,
+        )
+        .execute(self.storage.conn())
+        .await
+        .unwrap();
+    }
+
+    pub async fn get_scheduler_proof_job_id(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+    ) -> Option<u32> {
+        sqlx::query!(
+            "SELECT id from prover_jobs_fri \
+             WHERE l1_batch_number = $1 \
+             AND status = 'successful' \
+             AND aggregation_round = $2",
+            l1_batch_number.0 as i64,
+            AggregationRound::Scheduler as i16,
+        )
+        .fetch_optional(self.storage.conn())
+        .await
+        .ok()?
+        .map(|row| row.id as u32)
     }
 }

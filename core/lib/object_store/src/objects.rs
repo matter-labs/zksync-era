@@ -1,8 +1,9 @@
 //! Stored objects.
 
+use zksync_types::aggregated_operations::L1BatchProofForL1;
 use zksync_types::{
     proofs::{AggregationRound, PrepareBasicCircuitsJob},
-    prover_server_api::RawProof,
+    storage::witness_block_state::WitnessBlockState,
     zkevm_test_harness::{
         abstract_zksync_circuit::concrete_circuits::ZkSyncCircuit,
         bellman::bn256::Bn256,
@@ -60,6 +61,17 @@ macro_rules! serialize_using_bincode {
             $crate::bincode::deserialize(&bytes).map_err(std::convert::From::from)
         }
     };
+}
+
+impl StoredObject for WitnessBlockState {
+    const BUCKET: Bucket = Bucket::WitnessInput;
+    type Key<'a> = L1BatchNumber;
+
+    fn encode_key(key: Self::Key<'_>) -> String {
+        format!("witness_block_state_for_l1_batch_{key}.bin")
+    }
+
+    serialize_using_bincode!();
 }
 
 impl StoredObject for PrepareBasicCircuitsJob {
@@ -190,12 +202,12 @@ impl StoredObject for ZkSyncCircuit<Bn256, VmWitnessOracle<Bn256>> {
     serialize_using_bincode!();
 }
 
-impl StoredObject for RawProof {
+impl StoredObject for L1BatchProofForL1 {
     const BUCKET: Bucket = Bucket::ProofsFri;
     type Key<'a> = L1BatchNumber;
 
     fn encode_key(key: Self::Key<'_>) -> String {
-        format!("proof_fri_{key}.bin")
+        format!("l1_batch_proof_{key}.bin")
     }
 
     serialize_using_bincode!();

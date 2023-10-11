@@ -10,13 +10,15 @@ keywords = ["blockchain", "zksync"]
 categories = ["cryptography"]
 
 [dependencies]
-vm_m5 = { path = "../../multivm_deps/vm_m5", version = "0.1.0" }
-vm_m6 = { path = "../../multivm_deps/vm_m6", version = "0.1.0" }
-vm_vm1_3_2 = { path = "../vm", package = "vm", version = "0.1.0" }
+vm_m5 = { path = "../../multivm_deps/vm_m5" }
+vm_m6 = { path = "../../multivm_deps/vm_m6" }
+vm_1_3_2 = { path = "../../multivm_deps/vm_1_3_2" }
+vm_virtual_blocks= { path = "../../multivm_deps/vm_virtual_blocks" }
+vm_latest = { path = "../vm", package = "vm" }
 
-zksync_types = { path = "../types", version = "1.0.0" }
-zksync_state = { path = "../state", version = "1.0.0" }
-zksync_contracts = { path = "../contracts", version = "1.0.0" }
-zksync_utils = { path = "../utils", version = "1.0.0" }
+zksync_types = { path = "../types" }
+zksync_state = { path = "../state" }
+zksync_contracts = { path = "../contracts" }
+zksync_utils = { path = "../utils" }
 
-vlog = { path = "../../lib/vlog", version = "1.0" }
+vlog = { path = "../../lib/vlog" }
