@@ -142,7 +142,7 @@ impl<H: HistoryMode> VmTesterBuilder<H> {
                 gas_limit: BLOCK_GAS_LIMIT,
                 execution_mode: TxExecutionMode::VerifyExecute,
                 default_validation_computational_gas_limit: BLOCK_GAS_LIMIT,
-                chain_id: L2ChainId(270),
+                chain_id: L2ChainId::from(270),
             },
             deployer: None,
             rich_accounts: vec![],

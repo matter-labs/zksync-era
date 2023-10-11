@@ -1,4 +1,6 @@
-//! Basic storage types.
+//! Internal types, mostly related to Merkle tree nodes. Note that because of the public `Database` trait,
+//! some of these types are declared as public and can be even exported using the `unstable` module.
+//! Still, logically these types are private, so adding them to new public APIs etc. is a logical error.
 
 use std::{fmt, num::NonZeroU64};
 
@@ -15,15 +17,6 @@ pub(crate) const KEY_SIZE: usize = 32;
 pub(crate) const TREE_DEPTH: usize = KEY_SIZE * 8;
 /// Size of a hashed value in bytes.
 pub(crate) const HASH_SIZE: usize = 32;
-
-/// Instruction to read or write a tree value at a certain key.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TreeInstruction {
-    /// Read the current tree value.
-    Read,
-    /// Write the specified value.
-    Write(ValueHash),
-}
 
 /// Tags associated with a tree.
 #[derive(Debug, Clone)]
@@ -320,22 +313,6 @@ impl LeafNode {
     }
 }
 
-/// Data of a leaf node of the tree.
-#[derive(Debug, Clone, Copy)]
-pub struct LeafData {
-    pub value_hash: ValueHash,
-    pub leaf_index: u64,
-}
-
-impl From<LeafNode> for LeafData {
-    fn from(leaf: LeafNode) -> Self {
-        Self {
-            value_hash: leaf.value_hash,
-            leaf_index: leaf.leaf_index,
-        }
-    }
-}
-
 /// Reference to a child in an [`InternalNode`].
 #[derive(Debug, Clone, Copy)]
 #[cfg_attr(test, derive(PartialEq, Eq))]
@@ -530,97 +507,6 @@ impl StaleNodeKey {
         bytes.extend_from_slice(&self.key.to_db_key());
         bytes
     }
-}
-
-/// Output of inserting a block of entries into a Merkle tree.
-#[derive(Debug, PartialEq, Eq)]
-pub struct BlockOutput {
-    /// The new hash of the tree.
-    pub root_hash: ValueHash,
-    /// The number of leaves in the tree after the update.
-    pub leaf_count: u64,
-    /// Information about each insertion / update operation in the order of application.
-    pub logs: Vec<TreeLogEntry>,
-}
-
-/// Information about an the effect of a [`TreeInstruction`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TreeLogEntry {
-    /// A node was inserted into the tree.
-    Inserted {
-        /// Index of the inserted node.
-        leaf_index: u64,
-    },
-    /// A node with the specified index was updated.
-    Updated {
-        /// Index of the updated node.
-        leaf_index: u64,
-        /// Hash of the previous value.
-        previous_value: ValueHash,
-    },
-    /// A node was read from the tree.
-    Read {
-        /// Index of the read node.
-        leaf_index: u64,
-        /// Hash of the read value.
-        value: ValueHash,
-    },
-    /// A missing key was read.
-    ReadMissingKey,
-}
-
-impl TreeLogEntry {
-    pub(crate) fn insert(leaf_index: u64) -> Self {
-        Self::Inserted { leaf_index }
-    }
-
-    pub(crate) fn update(previous_value: ValueHash, leaf_index: u64) -> Self {
-        Self::Updated {
-            leaf_index,
-            previous_value,
-        }
-    }
-
-    pub(crate) fn read(value: ValueHash, leaf_index: u64) -> Self {
-        Self::Read { leaf_index, value }
-    }
-
-    pub(crate) fn is_read(&self) -> bool {
-        matches!(self, Self::Read { .. } | Self::ReadMissingKey)
-    }
-}
-
-/// Extended output of inserting a block of entries into a Merkle tree that contains
-/// Merkle proofs for each operation.
-#[derive(Debug)]
-pub struct BlockOutputWithProofs {
-    /// Extended information about each insertion / update operation in the order of application.
-    pub logs: Vec<TreeLogEntryWithProof>,
-    /// The number of leaves in the tree after the update.
-    pub leaf_count: u64,
-}
-
-impl BlockOutputWithProofs {
-    /// Returns the final root hash of the Merkle tree.
-    pub fn root_hash(&self) -> Option<ValueHash> {
-        Some(self.logs.last()?.root_hash)
-    }
-}
-
-/// [`TreeLogEntry`] together with its authenticity proof.
-#[derive(Debug)]
-pub struct TreeLogEntryWithProof<P = Vec<ValueHash>> {
-    /// Log entry about an atomic operation on the tree.
-    pub base: TreeLogEntry,
-    /// Merkle path to prove the log authenticity. The path consists of up to 256 hashes
-    /// ordered starting the bottommost level of the tree (one with leaves) and ending before
-    /// the root level.
-    ///
-    /// If the path is not full (contains <256 hashes), it means that the hashes at the beginning
-    /// corresponding to the empty subtrees are skipped. This allows compacting the proof ~10x.
-    pub merkle_path: P,
-    /// Root tree hash after the operation.
-    pub root_hash: ValueHash,
 }
 
 #[cfg(test)]

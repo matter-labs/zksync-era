@@ -64,15 +64,16 @@ pub mod unstable {
 }
 
 pub use crate::{
-    hasher::HashTree,
+    errors::NoVersionError,
+    hasher::{HashTree, TreeRangeDigest},
     pruning::{MerkleTreePruner, MerkleTreePrunerHandle},
     storage::{
         Database, MerkleTreeColumnFamily, PatchSet, Patched, PruneDatabase, PrunePatchSet,
         RocksDBWrapper,
     },
     types::{
-        BlockOutput, BlockOutputWithProofs, Key, TreeInstruction, TreeLogEntry,
-        TreeLogEntryWithProof, ValueHash,
+        BlockOutput, BlockOutputWithProofs, Key, TreeEntry, TreeEntryWithProof, TreeInstruction,
+        TreeLogEntry, TreeLogEntryWithProof, ValueHash,
     },
 };
 
