@@ -287,7 +287,7 @@ impl OptionalENConfig {
     }
 
     const fn default_enum_index_migration_chunk_size() -> usize {
-        1000
+        5000
     }
 
     pub fn polling_interval(&self) -> Duration {
