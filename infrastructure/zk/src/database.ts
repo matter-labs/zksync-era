@@ -18,9 +18,9 @@ export async function resetTest() {
     await utils.exec(
         `psql "${process.env.DATABASE_URL}" -c "create database zksync_local_test with template zksync_local_compilation"`
     );
-    await utils.exec(
-        `psql "${process.env.DATABASE_URL}" -c "update pg_database set datallowconn = false where datname = 'zksync_local_test'"`
-    );
+    // await utils.exec(
+    //    `psql "${process.env.DATABASE_URL}" -c "update pg_database set datallowconn = false where datname = 'zksync_local_test'"`
+    //);
 }
 
 export async function drop() {

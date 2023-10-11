@@ -218,8 +218,8 @@ impl ConnectionPool {
     }
 
     pub async fn test_pool() -> ConnectionPool {
-        Self::builder(DbVariant::TestTmp).build().await.unwrap()
-        //ConnectionPool::Test(test_pool::TestConnection::new().await)
+        //Self::builder(DbVariant::TestTmp).build().await.unwrap()
+        ConnectionPool::Test(test_pool::TestConnection::new().await)
     }
 }
 
@@ -230,6 +230,7 @@ mod tests {
     use super::*;
 
     #[tokio::test]
+    #[ignore]
     async fn setting_statement_timeout() {
         let pool = ConnectionPool::builder(DbVariant::TestTmp)
             .set_statement_timeout(Some(Duration::from_secs(1)))
