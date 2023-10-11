@@ -76,6 +76,7 @@ async fn build_state_keeper(
             max_allowed_l2_tx_gas_limit,
             save_call_traces,
             false,
+            config.optional.enum_index_migration_chunk_size,
         ));
 
     let io = Box::new(

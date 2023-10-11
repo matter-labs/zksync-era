@@ -69,13 +69,27 @@ impl<'a, S: ReadStorage, H: HistoryMode> VmInstance<'a, S, H> {
                 }
             }
             VmInstanceData::VmVirtualBlocks(data) => {
-                let vm = vm_latest::Vm::new(
+                let vm = vm_virtual_blocks::Vm::new(
                     l1_batch_env.glue_into(),
-                    system_env.clone(),
+                    system_env.clone().glue_into(),
                     data.storage_view.clone(),
                     H::VmVirtualBlocksMode::default(),
                 );
                 let vm = VmInstanceVersion::VmVirtualBlocks(Box::new(vm));
+                Self {
+                    vm,
+                    system_env,
+                    last_tx_compressed_bytecodes: vec![],
+                }
+            }
+            VmInstanceData::VmVirtualBlocksRefundsEnhancement(data) => {
+                let vm = vm_latest::Vm::new(
+                    l1_batch_env.glue_into(),
+                    system_env.clone(),
+                    data.storage_view.clone(),
+                    H::VmVirtualBlocksRefundsEnhancement::default(),
+                );
+                let vm = VmInstanceVersion::VmVirtualBlocksRefundsEnhancement(Box::new(vm));
                 Self {
                     vm,
                     system_env,
