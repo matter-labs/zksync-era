@@ -16,7 +16,7 @@ pub struct ContractVerifierConfig {
 }
 
 impl ContractVerifierConfig {
-    pub fn from_env() -> Self {
+    pub fn from_env() -> anyhow::Result<Self> {
         envy_load("contract_verifier", "CONTRACT_VERIFIER_")
     }
 
@@ -54,7 +54,7 @@ mod tests {
         "#;
         lock.set_env(config);
 
-        let actual = ContractVerifierConfig::from_env();
+        let actual = ContractVerifierConfig::from_env().unwrap();
         assert_eq!(actual, expected_config());
     }
 }

@@ -91,6 +91,7 @@ fn convert_l2_to_l1_logs(raw_logs: Vec<Vec<u8>>) -> Vec<L2ToL1Log> {
         .collect()
 }
 
+// TODO (SMA-1635): Make these fields non optional in database
 fn convert_base_system_contracts_hashes(
     bootloader_code_hash: Option<Vec<u8>>,
     default_aa_code_hash: Option<Vec<u8>>,
@@ -106,6 +107,7 @@ fn convert_base_system_contracts_hashes(
 }
 
 /// Projection of the `l1_batches` table corresponding to [`L1BatchHeader`] + [`L1BatchMetadata`].
+// TODO(PLA-369): use `#[sqlx(flatten)]` once upgraded to newer `sqlx`
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct StorageL1Batch {
     pub number: i64,
@@ -361,21 +363,21 @@ impl StorageBlockDetails {
                 .map(|hash| H256::from_str(hash).expect("Incorrect commit_tx hash")),
             committed_at: self
                 .committed_at
-                .map(|committed_at| DateTime::<Utc>::from_utc(committed_at, Utc)),
+                .map(|committed_at| DateTime::from_naive_utc_and_offset(committed_at, Utc)),
             prove_tx_hash: self
                 .prove_tx_hash
                 .as_deref()
                 .map(|hash| H256::from_str(hash).expect("Incorrect prove_tx hash")),
             proven_at: self
                 .proven_at
-                .map(|proven_at| DateTime::<Utc>::from_utc(proven_at, Utc)),
+                .map(|proven_at| DateTime::<Utc>::from_naive_utc_and_offset(proven_at, Utc)),
             execute_tx_hash: self
                 .execute_tx_hash
                 .as_deref()
                 .map(|hash| H256::from_str(hash).expect("Incorrect execute_tx hash")),
             executed_at: self
                 .executed_at
-                .map(|executed_at| DateTime::<Utc>::from_utc(executed_at, Utc)),
+                .map(|executed_at| DateTime::<Utc>::from_naive_utc_and_offset(executed_at, Utc)),
             l1_gas_price: self.l1_gas_price as u64,
             l2_fair_gas_price: self.l2_fair_gas_price as u64,
             base_system_contracts_hashes: convert_base_system_contracts_hashes(
@@ -437,21 +439,21 @@ impl From<StorageL1BatchDetails> for api::L1BatchDetails {
                 .map(|hash| H256::from_str(hash).expect("Incorrect commit_tx hash")),
             committed_at: details
                 .committed_at
-                .map(|committed_at| DateTime::<Utc>::from_utc(committed_at, Utc)),
+                .map(|committed_at| DateTime::<Utc>::from_naive_utc_and_offset(committed_at, Utc)),
             prove_tx_hash: details
                 .prove_tx_hash
                 .as_deref()
                 .map(|hash| H256::from_str(hash).expect("Incorrect prove_tx hash")),
             proven_at: details
                 .proven_at
-                .map(|proven_at| DateTime::<Utc>::from_utc(proven_at, Utc)),
+                .map(|proven_at| DateTime::<Utc>::from_naive_utc_and_offset(proven_at, Utc)),
             execute_tx_hash: details
                 .execute_tx_hash
                 .as_deref()
                 .map(|hash| H256::from_str(hash).expect("Incorrect execute_tx hash")),
             executed_at: details
                 .executed_at
-                .map(|executed_at| DateTime::<Utc>::from_utc(executed_at, Utc)),
+                .map(|executed_at| DateTime::<Utc>::from_naive_utc_and_offset(executed_at, Utc)),
             l1_gas_price: details.l1_gas_price as u64,
             l2_fair_gas_price: details.l2_fair_gas_price as u64,
             base_system_contracts_hashes: convert_base_system_contracts_hashes(
@@ -480,6 +482,12 @@ pub struct StorageMiniblockHeader {
     pub bootloader_code_hash: Option<Vec<u8>>,
     pub default_aa_code_hash: Option<Vec<u8>>,
     pub protocol_version: Option<i32>,
+
+    // The maximal number of virtual blocks that can be created with this miniblock.
+    // If this value is greater than zero, then at least 1 will be created, but no more than
+    // min(virtual_blocks, miniblock_number - virtual_block_number), i.e. making sure that virtual blocks
+    // never go beyond the miniblock they are based on.
+    pub virtual_blocks: i64,
 }
 
 impl From<StorageMiniblockHeader> for MiniblockHeader {
@@ -498,6 +506,7 @@ impl From<StorageMiniblockHeader> for MiniblockHeader {
                 row.default_aa_code_hash,
             ),
             protocol_version: row.protocol_version.map(|v| (v as u16).try_into().unwrap()),
+            virtual_blocks: row.virtual_blocks as u32,
         }
     }
 }

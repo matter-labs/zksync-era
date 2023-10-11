@@ -505,7 +505,7 @@ pub struct Transaction {
     pub max_priority_fee_per_gas: Option<U256>,
     /// Id of the current chain
     #[serde(rename = "chainId")]
-    pub chain_id: U256,
+    pub chain_id: u64,
     /// Number of the l1 batch this transaction was included within.
     #[serde(
         rename = "l1BatchNumber",
@@ -537,7 +537,7 @@ pub struct TransactionDetails {
     pub is_l1_originated: bool,
     pub status: TransactionStatus,
     pub fee: U256,
-    pub gas_per_pubdata: Option<U256>,
+    pub gas_per_pubdata: U256,
     pub initiator_address: Address,
     pub received_at: DateTime<Utc>,
     pub eth_commit_tx_hash: Option<H256>,

@@ -39,7 +39,7 @@ impl HealthStatus {
 }
 
 /// Health of a single component.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, PartialEq)]
 pub struct Health {
     status: HealthStatus,
     /// Component-specific details allowing to assess whether the component is healthy or not.
@@ -158,9 +158,16 @@ pub struct HealthUpdater {
 }
 
 impl HealthUpdater {
-    /// Updates the health check information.
-    pub fn update(&self, health: Health) {
-        self.health_sender.send_replace(health);
+    /// Updates the health check information, returning if a change occurred from previous state.
+    /// Note, description change on Health is counted as a change, even if status is the same.
+    /// I.E. `Health { Ready, None }` to `Health { Ready, Some(_) }` is considered a change.
+    pub fn update(&self, health: Health) -> bool {
+        let old_health = self.health_sender.send_replace(health.clone());
+        if old_health != health {
+            tracing::debug!("changed health from {:?} to {:?}", old_health, health);
+            return true;
+        }
+        false
     }
 
     /// Creates a [`ReactiveHealthCheck`] attached to this updater. This allows not retaining the initial health check
@@ -225,5 +232,29 @@ mod tests {
             health_check.check_health().await.status(),
             HealthStatus::Panicked
         );
+    }
+
+    #[tokio::test]
+    async fn updating_health_status_return_value() {
+        let (health_check, health_updater) = ReactiveHealthCheck::new("test");
+        assert_matches!(
+            health_check.check_health().await.status(),
+            HealthStatus::NotReady
+        );
+
+        let updated = health_updater.update(HealthStatus::Ready.into());
+        assert!(updated);
+        assert_matches!(
+            health_check.check_health().await.status(),
+            HealthStatus::Ready
+        );
+
+        let updated = health_updater.update(HealthStatus::Ready.into());
+        assert!(!updated);
+
+        let health: Health = HealthStatus::Ready.into();
+        let health = health.with_details("new details are treated as status change");
+        let updated = health_updater.update(health);
+        assert!(updated);
     }
 }

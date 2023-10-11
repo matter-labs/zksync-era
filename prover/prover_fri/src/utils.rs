@@ -1,9 +1,13 @@
 use std::sync::Arc;
 use std::time::Instant;
+use zksync_prover_fri_types::circuit_definitions::boojum::config::ProvingCSConfig;
+use zksync_prover_fri_types::circuit_definitions::boojum::cs::implementations::reference_cs::CSReferenceAssembly;
 
-use queues::{Buffer};
 use tokio::sync::Mutex;
 use zkevm_test_harness::prover_utils::{verify_base_layer_proof, verify_recursion_layer_proof};
+use zksync_config::configs::fri_prover_group::CircuitIdRoundTuple;
+use zksync_dal::StorageProcessor;
+use zksync_object_store::ObjectStore;
 use zksync_prover_fri_types::circuit_definitions::boojum::algebraic_props::round_function::AbsorptionModeOverwrite;
 use zksync_prover_fri_types::circuit_definitions::boojum::algebraic_props::sponge::GoldilocksPoseidon2Sponge;
 use zksync_prover_fri_types::circuit_definitions::boojum::cs::implementations::pow::NoPow;
@@ -13,10 +17,7 @@ use zksync_prover_fri_types::circuit_definitions::boojum::field::goldilocks::{
     GoldilocksExt2, GoldilocksField,
 };
 use zksync_prover_fri_types::circuit_definitions::circuit_definitions::recursion_layer::ZkSyncRecursionLayerProof;
-
-use zksync_config::configs::fri_prover_group::CircuitIdRoundTuple;
-use zksync_dal::StorageProcessor;
-use zksync_object_store::ObjectStore;
+use zksync_prover_fri_types::queue::FixedSizeQueue;
 use zksync_prover_fri_types::{
     CircuitWrapper, FriProofWrapper, ProverServiceDataKey, WitnessVectorArtifacts,
 };
@@ -28,7 +29,8 @@ pub type F = GoldilocksField;
 pub type H = GoldilocksPoseidon2Sponge<AbsorptionModeOverwrite>;
 pub type EXT = GoldilocksExt2;
 
-pub type SharedWitnessVectorQueue = Arc<Mutex<Buffer<WitnessVectorArtifacts>>>;
+pub type ProvingAssembly = CSReferenceAssembly<F, F, ProvingCSConfig>;
+pub type SharedWitnessVectorQueue = Arc<Mutex<FixedSizeQueue<GpuProverJob>>>;
 
 pub struct ProverArtifacts {
     block_number: L1BatchNumber,
@@ -44,16 +46,22 @@ impl ProverArtifacts {
     }
 }
 
+pub struct GpuProverJob {
+    pub witness_vector_artifacts: WitnessVectorArtifacts,
+    pub assembly: ProvingAssembly,
+}
+
 pub async fn save_proof(
     job_id: u32,
     started_at: Instant,
     artifacts: ProverArtifacts,
     blob_store: &dyn ObjectStore,
-    public_blob_store: &dyn ObjectStore,
+    public_blob_store: Option<&dyn ObjectStore>,
+    shall_save_to_public_bucket: bool,
     storage_processor: &mut StorageProcessor<'_>,
 ) {
-    vlog::info!(
-        "Successfully proven job: {}, took: {:?}",
+    tracing::info!(
+        "Successfully proven job: {}, total time taken: {:?}",
         job_id,
         started_at.elapsed()
     );
@@ -61,17 +69,20 @@ pub async fn save_proof(
 
     // We save the scheduler proofs in public bucket,
     // so that it can be verified independently while we're doing shadow proving
-    let circuit_type = match &proof {
-        FriProofWrapper::Base(base) => base.numeric_circuit_type(),
+    let (circuit_type, is_scheduler_proof) = match &proof {
+        FriProofWrapper::Base(base) => (base.numeric_circuit_type(), false),
         FriProofWrapper::Recursive(recursive_circuit) => match recursive_circuit {
             ZkSyncRecursionLayerProof::SchedulerCircuit(_) => {
-                public_blob_store
-                    .put(artifacts.block_number.0, &proof)
-                    .await
-                    .unwrap();
-                recursive_circuit.numeric_circuit_type()
+                if shall_save_to_public_bucket {
+                    public_blob_store
+                        .expect("public_object_store shall not be empty while running with shall_save_to_public_bucket config")
+                        .put(artifacts.block_number.0, &proof)
+                        .await
+                        .unwrap();
+                }
+                (recursive_circuit.numeric_circuit_type(), true)
             }
-            _ => recursive_circuit.numeric_circuit_type(),
+            _ => (recursive_circuit.numeric_circuit_type(), false),
         },
     };
 
@@ -83,11 +94,17 @@ pub async fn save_proof(
             "circuit_type" => circuit_type.to_string(),
     );
 
-    let mut transaction = storage_processor.start_transaction().await;
+    let mut transaction = storage_processor.start_transaction().await.unwrap();
     let job_metadata = transaction
         .fri_prover_jobs_dal()
         .save_proof(job_id, started_at.elapsed(), &blob_url)
         .await;
+    if is_scheduler_proof {
+        transaction
+            .fri_proof_compressor_dal()
+            .insert_proof_compression_job(artifacts.block_number, &blob_url)
+            .await;
+    }
     if job_metadata.is_node_final_proof {
         transaction
             .fri_scheduler_dependency_tracker_dal()
@@ -98,7 +115,7 @@ pub async fn save_proof(
             )
             .await;
     }
-    transaction.commit().await;
+    transaction.commit().await.unwrap();
 }
 
 pub fn verify_proof(
@@ -124,11 +141,11 @@ pub fn verify_proof(
         "circuit_type" => circuit_id.to_string(),
     );
     if !is_valid {
-        vlog::error!(
-            "Failed to verify base layer proof for job-id: {} circuit_type {}",
-            job_id,
-            circuit_id
+        let msg = format!(
+            "Failed to verify base layer proof for job-id: {job_id} circuit_type {circuit_id}"
         );
+        tracing::error!("{}", msg);
+        panic!("{}", msg);
     }
 }
 

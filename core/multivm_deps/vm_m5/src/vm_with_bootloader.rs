@@ -1,4 +1,4 @@
-use std::{collections::HashMap, time::Instant};
+use std::collections::HashMap;
 
 use zk_evm::{
     abstractions::{MAX_HEAP_PAGE_SIZE_IN_WORDS, MAX_MEMORY_BYTES},
@@ -21,6 +21,7 @@ use zksync_utils::{
     address_to_u256, bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256, misc::ceil_div,
 };
 
+use crate::storage::Storage;
 use crate::{
     bootloader_state::BootloaderState,
     oracles::OracleWithHistory,
@@ -32,6 +33,8 @@ use crate::{
     OracleTools, VmInstance,
 };
 
+// TODO (SMA-1703): move these to config and make them programmatically generatable.
+// fill these values in the similar fasion as other overhead-related constants
 pub const BLOCK_OVERHEAD_GAS: u32 = 1200000;
 pub const BLOCK_OVERHEAD_L1_GAS: u32 = 1000000;
 pub const BLOCK_OVERHEAD_PUBDATA: u32 = BLOCK_OVERHEAD_L1_GAS / L1_GAS_PER_PUBDATA_BYTE;
@@ -174,14 +177,14 @@ impl Default for TxExecutionMode {
     }
 }
 
-pub fn init_vm<'a>(
+pub fn init_vm<'a, S: Storage>(
     refund_state: MultiVMSubversion,
-    oracle_tools: &'a mut OracleTools<'a, false>,
+    oracle_tools: &'a mut OracleTools<false, S>,
     block_context: BlockContextMode,
     block_properties: &'a BlockProperties,
     execution_mode: TxExecutionMode,
     base_system_contract: &BaseSystemContracts,
-) -> Box<VmInstance<'a>> {
+) -> Box<VmInstance<'a, S>> {
     init_vm_with_gas_limit(
         refund_state,
         oracle_tools,
@@ -193,15 +196,15 @@ pub fn init_vm<'a>(
     )
 }
 
-pub fn init_vm_with_gas_limit<'a>(
+pub fn init_vm_with_gas_limit<'a, S: Storage>(
     refund_state: MultiVMSubversion,
-    oracle_tools: &'a mut OracleTools<'a, false>,
+    oracle_tools: &'a mut OracleTools<false, S>,
     block_context: BlockContextMode,
     block_properties: &'a BlockProperties,
     execution_mode: TxExecutionMode,
     base_system_contract: &BaseSystemContracts,
     gas_limit: u32,
-) -> Box<VmInstance<'a>> {
+) -> Box<VmInstance<'a, S>> {
     init_vm_inner(
         refund_state,
         oracle_tools,
@@ -290,17 +293,15 @@ impl BlockContextMode {
 
 // This method accepts a custom bootloader code.
 // It should be used only in tests.
-pub fn init_vm_inner<'a>(
+pub fn init_vm_inner<'a, S: Storage>(
     refund_state: MultiVMSubversion,
-    oracle_tools: &'a mut OracleTools<'a, false>,
+    oracle_tools: &'a mut OracleTools<false, S>,
     block_context: BlockContextMode,
     block_properties: &'a BlockProperties,
     gas_limit: u32,
     base_system_contract: &BaseSystemContracts,
     execution_mode: TxExecutionMode,
-) -> Box<VmInstance<'a>> {
-    let start = Instant::now();
-
+) -> Box<VmInstance<'a, S>> {
     oracle_tools.decommittment_processor.populate(
         vec![(
             h256_to_u256(base_system_contract.default_aa.hash),
@@ -325,7 +326,7 @@ pub fn init_vm_inner<'a>(
 
     let state = get_default_local_state(oracle_tools, block_properties, gas_limit);
 
-    let vm = Box::new(VmInstance {
+    Box::new(VmInstance {
         refund_state,
         gas_limit,
         state,
@@ -333,10 +334,7 @@ pub fn init_vm_inner<'a>(
         block_context: block_context.inner_block_context(),
         bootloader_state: BootloaderState::new(),
         snapshots: Vec::new(),
-    });
-
-    metrics::histogram!("server.vm.init", start.elapsed());
-    vm
+    })
 }
 
 fn bootloader_initial_memory(block_properties: &BlockContextMode) -> Vec<(usize, U256)> {
@@ -368,8 +366,8 @@ pub fn get_bootloader_memory(
     memory
 }
 
-pub fn push_transaction_to_bootloader_memory(
-    vm: &mut VmInstance,
+pub fn push_transaction_to_bootloader_memory<S: Storage>(
+    vm: &mut VmInstance<S>,
     tx: &Transaction,
     execution_mode: TxExecutionMode,
 ) {
@@ -378,8 +376,8 @@ pub fn push_transaction_to_bootloader_memory(
     push_raw_transaction_to_bootloader_memory(vm, tx, execution_mode, overhead);
 }
 
-pub fn push_raw_transaction_to_bootloader_memory(
-    vm: &mut VmInstance,
+pub fn push_raw_transaction_to_bootloader_memory<S: Storage>(
+    vm: &mut VmInstance<S>,
     tx: TransactionData,
     execution_mode: TxExecutionMode,
     predefined_overhead: u32,
@@ -472,11 +470,11 @@ pub(crate) fn get_bootloader_memory_for_encoded_tx(
     memory
 }
 
-fn get_default_local_state<'a>(
-    tools: &'a mut OracleTools<'a, false>,
+fn get_default_local_state<'a, S: Storage>(
+    tools: &'a mut OracleTools<false, S>,
     block_properties: &'a BlockProperties,
     gas_limit: u32,
-) -> ZkSyncVmState<'a> {
+) -> ZkSyncVmState<'a, S> {
     let mut vm = VmState::empty_state(
         &mut tools.storage,
         &mut tools.memory,

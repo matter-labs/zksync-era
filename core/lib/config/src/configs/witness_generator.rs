@@ -7,6 +7,13 @@ use serde::Deserialize;
 // Local uses
 use super::envy_load;
 
+#[derive(Debug, Deserialize, Clone, PartialEq)]
+pub enum BasicWitnessGeneratorDataSource {
+    FromPostgres,
+    FromPostgresShadowBlob,
+    FromBlob,
+}
+
 /// Configuration for the witness generation
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct WitnessGeneratorConfig {
@@ -26,10 +33,12 @@ pub struct WitnessGeneratorConfig {
     // This parameter is used in case of performing circuit upgrades(VK/Setup keys),
     // to not let witness-generator pick new job and finish all the existing jobs with old circuit.
     pub last_l1_batch_to_process: Option<u32>,
+    /// Where will basic Witness Generator load its data from
+    pub data_source: BasicWitnessGeneratorDataSource,
 }
 
 impl WitnessGeneratorConfig {
-    pub fn from_env() -> Self {
+    pub fn from_env() -> anyhow::Result<Self> {
         envy_load("witness", "WITNESS_")
     }
 
@@ -58,6 +67,7 @@ mod tests {
             blocks_proving_percentage: Some(30),
             dump_arguments_for_blocks: vec![2, 3],
             last_l1_batch_to_process: None,
+            data_source: BasicWitnessGeneratorDataSource::FromBlob,
         }
     }
 
@@ -71,10 +81,11 @@ mod tests {
             WITNESS_MAX_ATTEMPTS=4
             WITNESS_DUMP_ARGUMENTS_FOR_BLOCKS="2,3"
             WITNESS_BLOCKS_PROVING_PERCENTAGE="30"
+            WITNESS_DATA_SOURCE="FromBlob"
         "#;
         lock.set_env(config);
 
-        let actual = WitnessGeneratorConfig::from_env();
+        let actual = WitnessGeneratorConfig::from_env().unwrap();
         assert_eq!(actual, expected_config());
     }
 }

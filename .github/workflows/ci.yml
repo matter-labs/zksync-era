@@ -1,0 +1,99 @@
+name: CI
+
+on:
+  pull_request:
+  merge_group:
+  push:
+    branches:
+      - staging
+      - trying
+      - '!release-please--branches--**'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  changed_files:
+    runs-on: [matterlabs-default-infra-runners]
+    name: Test changed-files
+    outputs:
+      core: ${{ steps.changed-files-yaml.outputs.core_any_changed }}
+      prover: ${{ steps.changed-files-yaml.outputs.prover_any_changed }}
+      all: ${{ steps.changed-files-yaml.outputs.all_any_changed }}
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 2
+          submodules: "recursive"
+
+      - name: Get all test, doc and src files that have changed
+        id: changed-files-yaml
+        uses: tj-actions/changed-files@v37
+        with:
+          files_yaml: |
+            # If you want to exclude some files, please adjust here.
+            prover:
+              - prover/**
+              - '!.github/release-please/manifest.json'
+            core:
+              - core/**
+            all:
+              - '!core/**'
+              - '!prover/**'
+              - '!.github/workflows/zk-environment.publish.yml'
+              - '!docker/zk-environment/Dockerfile'
+              - '!docker/zk-environment-cuda-12-0/Dockerfile'
+  ci-for-core:
+    name: CI for Core Components
+    needs: changed_files
+    if: needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true'
+    uses: ./.github/workflows/ci-core-reusable.yml
+
+  ci-for-prover:
+    needs: changed_files
+    if: needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true'
+    name: CI for Prover Components
+    uses: ./.github/workflows/ci-prover-reusable.yml
+
+  build-core-images:
+    name: Build core images
+    needs: changed_files
+    if: needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true'
+    uses: ./.github/workflows/build-core-template.yml
+    with:
+      image_tag: ${{ needs.setup.outputs.image_tag }}
+      image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
+      action: "build"
+    secrets:
+      DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+
+  build-prover-images:
+    name: Build prover images
+    needs: changed_files
+    if: needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true'
+    uses: ./.github/workflows/build-prover-template.yml
+    with:
+      image_tag: ${{ needs.setup.outputs.image_tag }}
+      image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
+      action: "build"
+      ERA_BELLMAN_CUDA_RELEASE: ${{ vars.ERA_BELLMAN_CUDA_RELEASE }}
+    secrets:
+      DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+
+  ci-success:
+    name: Github Status Check
+    runs-on: ubuntu-latest
+    if: always() && !cancelled()
+    needs: [ci-for-core, ci-for-prover, build-core-images, build-prover-images]
+    steps:
+      - name: Status
+        run: |
+          # This will check all jobs status in the `needs` list, and fail job if one is failed.
+          # Since we split prover and core to different flows, this job will be only as Required Status Check in the Pull Request.
+          if [[ ${{ contains(join(needs.*.result, ','), 'failure') }} == "true" ]]; then
+            echo "Intentionally failing to block PR from merging"
+            exit 1
+          fi

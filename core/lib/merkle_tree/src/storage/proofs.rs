@@ -62,13 +62,13 @@ use rayon::prelude::*;
 
 use crate::{
     hasher::{HasherWithStats, MerklePath},
-    metrics::{BlockTimings, HashingMetrics, LeafCountMetric, Timing, TreeUpdaterMetrics},
-    storage::{Database, NewLeafData, PatchSet, SortedKeys, Storage, TraverseOutcome, TreeUpdater},
+    metrics::{HashingStats, TreeUpdaterStats, BLOCK_TIMINGS, GENERAL_METRICS},
+    storage::{Database, NewLeafData, PatchSet, SortedKeys, Storage, TreeUpdater},
     types::{
         BlockOutputWithProofs, InternalNode, Key, Nibbles, Node, TreeInstruction, TreeLogEntry,
         TreeLogEntryWithProof, ValueHash,
     },
-    utils::{find_diverging_bit, increment_counter, merge_by_index},
+    utils::{increment_counter, merge_by_index},
 };
 
 /// Number of subtrees used for parallel computations.
@@ -179,67 +179,24 @@ impl TreeUpdater {
         key: Key,
         parent_nibbles: &Nibbles,
     ) -> (TreeLogEntry, MerklePath) {
-        let traverse_outcome = self.traverse(key, parent_nibbles);
-        let (operation, merkle_path) = match traverse_outcome {
-            TraverseOutcome::MissingChild(_) => (TreeLogEntry::ReadMissingKey, None),
-            TraverseOutcome::LeafMatch(_, leaf) => {
-                let log = TreeLogEntry::read(leaf.value_hash, leaf.leaf_index);
-                (log, None)
-            }
-            TraverseOutcome::LeafMismatch(nibbles, leaf) => {
-                // Find the level at which `leaf.full_key` and `key` diverge.
-                // Note the addition of 1; e.g., if the keys differ at 0th bit, they
-                // differ at level 1 of the tree.
-                let diverging_level = find_diverging_bit(key, leaf.full_key) + 1;
-                let nibble_count = nibbles.nibble_count();
-                debug_assert!(diverging_level > 4 * nibble_count);
-                let mut path = MerklePath::new(diverging_level);
-                // Find the hash of the existing `leaf` at the level, and include it
-                // as the first hash on the Merkle path.
-                let adjacent_hash = leaf.hash(hasher, diverging_level);
-                path.push(hasher, Some(adjacent_hash));
-                // Fill the path with empty hashes until we've reached the leaf level.
-                for _ in (4 * nibble_count + 1)..diverging_level {
-                    path.push(hasher, None);
-                }
-                (TreeLogEntry::ReadMissingKey, Some(path))
-            }
-        };
+        let (leaf, merkle_path) =
+            self.patch_set
+                .create_proof(hasher, key, parent_nibbles, SUBTREE_ROOT_LEVEL / 4);
+        let operation = leaf.map_or(TreeLogEntry::ReadMissingKey, |leaf| {
+            TreeLogEntry::read(leaf.value_hash, leaf.leaf_index)
+        });
 
         if matches!(operation, TreeLogEntry::ReadMissingKey) {
             self.metrics.missing_key_reads += 1;
         } else {
             self.metrics.key_reads += 1;
         }
-
-        let mut nibbles = traverse_outcome.position();
-        let leaf_level = nibbles.nibble_count() * 4;
-        debug_assert!(leaf_level >= SUBTREE_ROOT_LEVEL);
-        // ^ Because we've ensured an internal root node, all found positions have at least
-        // 1 nibble.
-
-        let mut merkle_path = merkle_path.unwrap_or_else(|| MerklePath::new(leaf_level));
-        while let Some((parent_nibbles, last_nibble)) = nibbles.split_last() {
-            if parent_nibbles.nibble_count() == 0 {
-                break;
-            }
-
-            let parent = self.patch_set.get_mut_without_updating(&parent_nibbles);
-            let Some(Node::Internal(parent)) = parent else {
-                unreachable!()
-            };
-            let parent_level = parent_nibbles.nibble_count() * 4;
-            parent
-                .updater(hasher, parent_level, last_nibble)
-                .extend_merkle_path(&mut merkle_path);
-            nibbles = parent_nibbles;
-        }
         (operation, merkle_path)
     }
 
     fn split(self) -> [Self; SUBTREE_COUNT] {
         self.patch_set.split().map(|patch_set| Self {
-            metrics: TreeUpdaterMetrics::default(),
+            metrics: TreeUpdaterStats::default(),
             patch_set,
         })
     }
@@ -304,10 +261,10 @@ impl<'a, DB: Database + ?Sized> Storage<'a, DB> {
         mut self,
         instructions: Vec<(Key, TreeInstruction)>,
     ) -> (BlockOutputWithProofs, PatchSet) {
-        let load_nodes = BlockTimings::LoadNodes.start();
+        let load_nodes_latency = BLOCK_TIMINGS.load_nodes.start();
         let sorted_keys = SortedKeys::new(instructions.iter().map(|(key, _)| *key));
         let parent_nibbles = self.updater.load_ancestors(&sorted_keys, self.db);
-        load_nodes.report();
+        load_nodes_latency.observe();
 
         let leaf_indices = self.compute_leaf_indices(&instructions, sorted_keys, &parent_nibbles);
         let instruction_parts =
@@ -316,9 +273,9 @@ impl<'a, DB: Database + ?Sized> Storage<'a, DB> {
         let initial_metrics = self.updater.metrics;
         let storage_parts = self.updater.split();
 
-        let hashing_stats = HashingMetrics::default();
+        let hashing_stats = HashingStats::default();
 
-        let extend_patch = BlockTimings::ExtendPatch.start();
+        let extend_patch_latency = BLOCK_TIMINGS.extend_patch.start();
         // `into_par_iter()` below uses `rayon` to parallelize tree traversal and proof generation.
         let (storage_parts, logs): (Vec<_>, Vec<_>) = storage_parts
             .into_par_iter()
@@ -333,9 +290,9 @@ impl<'a, DB: Database + ?Sized> Storage<'a, DB> {
                 },
             )
             .unzip();
-        extend_patch.report();
+        extend_patch_latency.observe();
 
-        let finalize_patch = BlockTimings::FinalizePatch.start();
+        let finalize_patch_latency = BLOCK_TIMINGS.finalize_patch.start();
         self.updater = storage_parts
             .into_iter()
             .reduce(TreeUpdater::merge)
@@ -346,7 +303,7 @@ impl<'a, DB: Database + ?Sized> Storage<'a, DB> {
         let logs = merge_by_index(logs);
         let mut hasher = self.hasher.with_stats(&hashing_stats);
         let output_with_proofs = self.finalize_with_proofs(&mut hasher, initial_root, logs);
-        finalize_patch.report();
+        finalize_patch_latency.observe();
         drop(hasher);
         hashing_stats.report();
 
@@ -402,7 +359,7 @@ impl<'a, DB: Database + ?Sized> Storage<'a, DB> {
             logs,
             leaf_count: self.leaf_count,
         };
-        LeafCountMetric(self.leaf_count).report();
+        GENERAL_METRICS.leaf_count.set(self.leaf_count);
 
         (block_output, patch)
     }

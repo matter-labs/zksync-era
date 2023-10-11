@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::glue::GlueInto;
-use crate::storage::StoragePtr;
+use crate::storage::{Storage, StoragePtr};
 
 use crate::history_recorder::{
     AppDataFrameManagerWithHistory, HashMapHistoryEvent, HistoryRecorder, StorageWrapper,
@@ -15,6 +15,7 @@ use zk_evm::{
     aux_structures::{LogQuery, Timestamp},
     reference_impls::event_sink::ApplicationData,
 };
+
 use zksync_types::utils::storage_key_for_eth_balance;
 use zksync_types::{
     AccountTreeId, Address, StorageKey, StorageLogQuery, StorageLogQueryType, BOOTLOADER_ADDRESS,
@@ -35,11 +36,11 @@ pub fn storage_key_of_log(query: &LogQuery) -> StorageKey {
 }
 
 #[derive(Debug)]
-pub struct StorageOracle<'a> {
+pub struct StorageOracle<S: Storage> {
     // Access to the persistent storage. Please note that it
     // is used only for read access. All the actual writes happen
     // after the execution ended.
-    pub storage: HistoryRecorder<StorageWrapper<'a>>,
+    pub storage: HistoryRecorder<StorageWrapper<S>>,
 
     pub frames_stack: AppDataFrameManagerWithHistory<StorageLogQuery>,
 
@@ -51,7 +52,7 @@ pub struct StorageOracle<'a> {
     pub refund_state: MultiVMSubversion,
 }
 
-impl<'a> OracleWithHistory for StorageOracle<'a> {
+impl<S: Storage> OracleWithHistory for StorageOracle<S> {
     fn rollback_to_timestamp(&mut self, timestamp: Timestamp) {
         self.frames_stack.rollback_to_timestamp(timestamp);
         self.storage.rollback_to_timestamp(timestamp);
@@ -65,8 +66,8 @@ impl<'a> OracleWithHistory for StorageOracle<'a> {
     }
 }
 
-impl<'a> StorageOracle<'a> {
-    pub fn new(storage: StoragePtr<'a>, refund_state: MultiVMSubversion) -> Self {
+impl<S: Storage> StorageOracle<S> {
+    pub fn new(storage: StoragePtr<S>, refund_state: MultiVMSubversion) -> Self {
         Self {
             storage: HistoryRecorder::from_inner(StorageWrapper::new(storage)),
             frames_stack: Default::default(),
@@ -158,6 +159,7 @@ impl<'a> StorageOracle<'a> {
     }
 
     // Returns the price of the update in terms of pubdata bytes.
+    // TODO (SMA-1701): update VM to accept gas instead of pubdata.
     fn value_update_price(&self, query: &LogQuery) -> u32 {
         let storage_key = storage_key_of_log(query);
 
@@ -174,7 +176,7 @@ impl<'a> StorageOracle<'a> {
     }
 }
 
-impl<'a> VmStorageOracle for StorageOracle<'a> {
+impl<S: Storage> VmStorageOracle for StorageOracle<S> {
     // Perform a storage read/write access by taking an partially filled query
     // and returning filled query and cold/warm marker for pricing purposes
     fn execute_partial_query(
@@ -182,7 +184,7 @@ impl<'a> VmStorageOracle for StorageOracle<'a> {
         _monotonic_cycle_counter: u32,
         query: LogQuery,
     ) -> LogQuery {
-        // vlog::trace!(
+        // tracing::trace!(
         //     "execute partial query cyc {:?} addr {:?} key {:?}, rw {:?}, wr {:?}, tx {:?}",
         //     _monotonic_cycle_counter,
         //     query.address,
@@ -251,7 +253,7 @@ impl<'a> VmStorageOracle for StorageOracle<'a> {
                 let read_value = match query.log_type {
                     StorageLogQueryType::Read => {
                         // Having Read logs in rollback is not possible
-                        vlog::warn!("Read log in rollback queue {:?}", query);
+                        tracing::warn!("Read log in rollback queue {:?}", query);
                         continue;
                     }
                     StorageLogQueryType::InitialWrite | StorageLogQueryType::RepeatedWrite => {
@@ -296,6 +298,8 @@ impl<'a> VmStorageOracle for StorageOracle<'a> {
 }
 
 fn get_pubdata_price_bytes(_query: &LogQuery, is_initial: bool) -> u32 {
+    // TODO (SMA-1702): take into account the content of the log query, i.e. values that contain mostly zeroes
+    // should cost less.
     if is_initial {
         zk_evm::zkevm_opcode_defs::system_params::INITIAL_STORAGE_WRITE_PUBDATA_BYTES as u32
     } else {

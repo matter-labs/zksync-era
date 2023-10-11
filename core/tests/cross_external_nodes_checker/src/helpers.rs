@@ -119,7 +119,7 @@ impl ExponentialBackoff {
                 break;
             }
             let delay = self.base_delay * retry;
-            vlog::warn!(
+            tracing::warn!(
                 "{} Retrying in {} seconds",
                 self.retry_message,
                 delay.as_secs()

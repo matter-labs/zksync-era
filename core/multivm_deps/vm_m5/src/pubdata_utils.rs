@@ -1,15 +1,17 @@
 use crate::glue::GlueInto;
 use crate::oracles::storage::storage_key_of_log;
+use crate::storage::Storage;
 use crate::utils::collect_storage_log_queries_after_timestamp;
 use crate::VmInstance;
 use std::collections::HashMap;
 use zk_evm::aux_structures::Timestamp;
+
 use zksync_types::event::{extract_long_l2_to_l1_messages, extract_published_bytecodes};
 use zksync_types::zkevm_test_harness::witness::sort_storage_access::sort_storage_access_queries;
 use zksync_types::{StorageKey, PUBLISH_BYTECODE_OVERHEAD, SYSTEM_CONTEXT_ADDRESS};
 use zksync_utils::bytecode::bytecode_len_in_bytes;
 
-impl<'a> VmInstance<'a> {
+impl<'a, S: Storage> VmInstance<'a, S> {
     pub fn pubdata_published(&self, from_timestamp: Timestamp) -> u32 {
         let storage_writes_pubdata_published = self.pubdata_published_for_writes(from_timestamp);
 

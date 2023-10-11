@@ -41,7 +41,7 @@ impl CheckHealth for ConnectionPoolHealthCheck {
     async fn check_health(&self) -> Health {
         // This check is rather feeble, plan to make reliable here:
         // https://linear.app/matterlabs/issue/PLA-255/revamp-db-connection-health-check
-        self.connection_pool.access_storage().await;
+        self.connection_pool.access_storage().await.unwrap();
 
         let mut health = Health::from(HealthStatus::Ready);
         if let ConnectionPool::Real(pool) = &self.connection_pool {

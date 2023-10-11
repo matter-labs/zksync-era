@@ -19,6 +19,11 @@ The following questions will be answered by the following resources:
 | What is the logical project structure and architecture? | [architecture.md](docs/architecture.md) |
 | Where can I find developer docs?                        | [docs](https://v2-docs.zksync.io/dev/)  |
 
+## Policies
+
+- [Security policy](.github/SECURITY.md)
+- [Contribution policy](CONTRIBUTING.md)
+
 ## License
 
 zkSync Era is distributed under the terms of either
@@ -32,6 +37,7 @@ at your option.
 
 - [Website](https://zksync.io/)
 - [GitHub](https://github.com/matter-labs)
+- [ZK Credo](https://github.com/zksync/credo)
 - [Twitter](https://twitter.com/zksync)
 - [Twitter for Devs](https://twitter.com/zkSyncDevs)
 - [Discord](https://discord.gg/nMaPGrDDwk)

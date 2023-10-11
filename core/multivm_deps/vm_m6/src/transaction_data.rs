@@ -1,6 +1,7 @@
 use zk_evm::zkevm_opcode_defs::system_params::MAX_TX_ERGS_LIMIT;
 use zksync_types::ethabi::{encode, Address, Token};
 use zksync_types::fee::encoding_len;
+use zksync_types::l1::is_l1_tx_type;
 use zksync_types::{l2::TransactionType, ExecuteTransactionCommon, Transaction, U256};
 use zksync_types::{MAX_L2_TX_GAS_LIMIT, MAX_TXS_IN_BLOCK};
 use zksync_utils::{address_to_h256, ceil_div_u256};
@@ -35,6 +36,7 @@ pub struct TransactionData {
     // The factory deps provided with the transaction.
     // Note that *only hashes* of these bytecodes are signed by the user
     // and they are used in the ABI encoding of the struct.
+    // TODO: include this into the tx signature as part of SMA-1010
     pub factory_deps: Vec<Vec<u8>>,
     pub paymaster_input: Vec<u8>,
     pub reserved_dynamic: Vec<u8>,
@@ -191,7 +193,7 @@ impl TransactionData {
     pub(crate) fn effective_gas_price_per_pubdata(&self, block_gas_price_per_pubdata: u32) -> u32 {
         // It is enforced by the protocol that the L1 transactions always pay the exact amount of gas per pubdata
         // as was supplied in the transaction.
-        if self.tx_type == L1_TX_TYPE {
+        if is_l1_tx_type(self.tx_type) {
             self.pubdata_price_limit.as_u32()
         } else {
             block_gas_price_per_pubdata
@@ -221,6 +223,7 @@ impl TransactionData {
     }
 
     pub fn trusted_gas_limit(&self, _block_gas_price_per_pubdata: u32) -> u32 {
+        // TODO (EVM-66): correctly calculate the trusted gas limit for a transaction
         self.gas_limit.as_u32()
     }
 }
@@ -259,6 +262,7 @@ pub fn derive_overhead(
     // let max_pubdata_in_tx = ceil_div_u256(gas_limit, gas_price_per_pubdata);
 
     // The maximal potential overhead from pubdata
+    // TODO (EVM-67): possibly use overhead for pubdata
     // let pubdata_overhead = ceil_div_u256(
     //     max_pubdata_in_tx * max_block_overhead,
     //     MAX_PUBDATA_PER_BLOCK.into(),
@@ -391,6 +395,8 @@ pub fn get_amortized_overhead(
             as u32
     };
 
+    // TODO (EVM-67): possibly include the overhead for pubdata. The formula below has not been properly maintained,
+    // since the pubdat is not published. If decided to use the pubdata overhead, it needs to be updated.
     // 3. ceil(O3 * overhead_for_block_gas) >= overhead_gas
     // O3 = max_pubdata_in_tx / MAX_PUBDATA_PER_BLOCK = ceil(gas_limit / gas_per_pubdata_byte_limit) / MAX_PUBDATA_PER_BLOCK
     // >= (gas_limit / (gas_per_pubdata_byte_limit * MAX_PUBDATA_PER_BLOCK). Throwing off the `ceil`, while may provide marginally lower
@@ -584,6 +590,7 @@ mod tests {
             // The factory deps provided with the transaction.
             // Note that *only hashes* of these bytecodes are signed by the user
             // and they are used in the ABI encoding of the struct.
+            // TODO: include this into the tx signature as part of SMA-1010
             factory_deps: vec![vec![0u8; 32], vec![1u8; 32]],
             paymaster_input: vec![0u8; 85],
             reserved_dynamic: vec![0u8; 32],

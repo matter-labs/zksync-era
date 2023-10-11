@@ -62,7 +62,7 @@ export async function initializeWethToken(args: any[] = []) {
     );
 }
 
-export async function deployL2(args: any[] = [], includePaymaster?: boolean) {
+export async function deployL2(args: any[] = [], includePaymaster?: boolean, includeWETH?: boolean) {
     await utils.confirmAction();
 
     const isLocalSetup = process.env.ZKSYNC_LOCAL_SETUP;
@@ -81,7 +81,9 @@ export async function deployL2(args: any[] = [], includePaymaster?: boolean) {
         await utils.spawn(`${baseCommandL2} deploy-testnet-paymaster ${args.join(' ')} | tee -a deployL2.log`);
     }
 
-    await utils.spawn(`${baseCommandL2} deploy-l2-weth ${args.join(' ')} | tee -a deployL2.log`);
+    if (includeWETH) {
+        await utils.spawn(`${baseCommandL2} deploy-l2-weth ${args.join(' ')} | tee -a deployL2.log`);
+    }
 
     await utils.spawn(`${baseCommandL2} deploy-force-deploy-upgrader ${args.join(' ')} | tee -a deployL2.log`);
 
@@ -95,7 +97,9 @@ export async function deployL2(args: any[] = [], includePaymaster?: boolean) {
     ];
     updateContractsEnv(l2DeployLog, l2DeploymentEnvVars);
 
-    await utils.spawn(`${baseCommandL1} initialize-weth-bridges ${args.join(' ')} | tee -a deployL1.log`);
+    if (includeWETH) {
+        await utils.spawn(`${baseCommandL1} initialize-weth-bridges ${args.join(' ')} | tee -a deployL1.log`);
+    }
 
     const l1DeployLog = fs.readFileSync('deployL1.log').toString();
     const l1DeploymentEnvVars = ['CONTRACTS_L2_WETH_BRIDGE_ADDR'];

@@ -40,18 +40,30 @@ impl PackedEthSignature {
         self.0.clone().into_electrum()
     }
 
-    pub fn deserialize_packed(bytes: &[u8]) -> Result<Self, DeserializeError> {
+    fn deserialize_signature(bytes: &[u8]) -> Result<[u8; 65], DeserializeError> {
         if bytes.len() != 65 {
             return Err(DeserializeError::IncorrectSignatureLength);
         }
+
         let mut bytes_array = [0u8; 65];
         bytes_array.copy_from_slice(bytes);
+        Ok(bytes_array)
+    }
 
-        if bytes_array[64] >= 27 {
-            bytes_array[64] -= 27;
+    pub fn deserialize_packed(bytes: &[u8]) -> Result<Self, DeserializeError> {
+        let mut signature = Self::deserialize_signature(bytes)?;
+        if signature[64] >= 27 {
+            signature[64] -= 27;
         }
 
-        Ok(PackedEthSignature(ETHSignature::from(bytes_array)))
+        Ok(PackedEthSignature(ETHSignature::from(signature)))
+    }
+
+    /// Unlike the `deserialize_packed` packed signature, this method does not make sure that the `v` value is in the range [0, 3].
+    /// This one should be generally avoided and be used only in places where preservation of the original `v` is important.
+    pub fn deserialize_packed_no_v_check(bytes: &[u8]) -> Result<Self, DeserializeError> {
+        let signature = Self::deserialize_signature(bytes)?;
+        Ok(PackedEthSignature(ETHSignature::from(signature)))
     }
 
     /// Signs message using ethereum private key, results are identical to signature created
@@ -138,12 +150,10 @@ impl PackedEthSignature {
     pub fn v(&self) -> u8 {
         self.0.v()
     }
-    pub fn v_with_chain_id(&self, chain_id: u16) -> u16 {
-        self.0.v() as u16 + 35 + chain_id * 2
+    pub fn v_with_chain_id(&self, chain_id: u64) -> u64 {
+        self.0.v() as u64 + 35 + chain_id * 2
     }
-    pub fn unpack_v(v: u64) -> Result<(u8, Option<u16>), ParityCryptoError> {
-        use std::convert::TryInto;
-
+    pub fn unpack_v(v: u64) -> Result<(u8, Option<u64>), ParityCryptoError> {
         if v == 27 {
             return Ok((0, None));
         } else if v == 28 {
@@ -151,9 +161,6 @@ impl PackedEthSignature {
         } else if v >= 35 {
             let chain_id = (v - 35) >> 1;
             let v = v - 35 - chain_id * 2;
-            let chain_id = chain_id
-                .try_into()
-                .map_err(|_| ParityCryptoError::Custom("Invalid chain_id".to_string()))?;
             if v == 0 {
                 return Ok((0, Some(chain_id)));
             } else if v == 1 {

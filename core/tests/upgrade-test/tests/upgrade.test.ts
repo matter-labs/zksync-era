@@ -35,10 +35,12 @@ describe('Upgrade test', function () {
     let executeUpgradeCalldata: string;
     let forceDeployAddress: string;
     let forceDeployBytecode: string;
+    let logs: fs.WriteStream;
 
     before('Create test wallet', async () => {
         tester = await Tester.init(process.env.CHAIN_ETH_NETWORK || 'localhost');
         alice = tester.emptyWallet();
+        logs = fs.createWriteStream('upgrade.log', { flags: 'a' });
 
         const govMnemonic = require('../../../../etc/test_config/constant/eth.json').mnemonic;
         govWallet = ethers.Wallet.fromMnemonic(govMnemonic, "m/44'/60'/0'/0/1").connect(alice._providerL1());
@@ -60,7 +62,8 @@ describe('Upgrade test', function () {
         process.env.CHAIN_STATE_KEEPER_BLOCK_COMMIT_DEADLINE_MS = '2000';
         // Run server in background.
         utils.background(
-            `cd $ZKSYNC_HOME && cargo run --bin zksync_server --release -- --components=api,tree,eth,data_fetcher,state_keeper > server_logs.txt`
+            'cd $ZKSYNC_HOME && cargo run --bin zksync_server --release -- --components=api,tree,eth,data_fetcher,state_keeper',
+            [null, logs, logs]
         );
         // Server may need some time to recompile if it's a cold run, so wait for it.
         let iter = 0;
@@ -102,6 +105,14 @@ describe('Upgrade test', function () {
         const balance = await alice.getBalance();
         expect(balance.eq(depositAmount.mul(2)), 'Incorrect balance after deposits').to.be.true;
 
+        if (process.env.CHECK_EN_URL) {
+            console.log('Checking EN after deposit');
+            await utils.sleep(2);
+            const enProvider = new ethers.providers.JsonRpcProvider(process.env.CHECK_EN_URL);
+            const enBalance = await enProvider.getBalance(alice.address);
+            expect(enBalance.eq(balance), 'Failed to update the balance on EN after deposit').to.be.true;
+        }
+
         // Wait for at least one new committed block
         let newBlocksCommitted = await mainContract.getTotalBlocksCommitted();
         let tryCount = 0;
@@ -113,7 +124,7 @@ describe('Upgrade test', function () {
     });
 
     step('Send l1 tx for saving new bootloader', async () => {
-        const path = `${process.env.ZKSYNC_HOME}/etc/system-contracts/bootloader/build/artifacts/playground_block.yul/playground_block.yul.zbin`;
+        const path = `${process.env.ZKSYNC_HOME}/etc/system-contracts/bootloader/build/artifacts/playground_batch.yul/playground_batch.yul.zbin`;
         const bootloaderCode = ethers.utils.hexlify(fs.readFileSync(path));
         bootloaderHash = ethers.utils.hexlify(hashBytecode(bootloaderCode));
         const txHandle = await tester.syncWallet.requestExecute({
@@ -240,7 +251,8 @@ describe('Upgrade test', function () {
 
         // Run again.
         utils.background(
-            `cd $ZKSYNC_HOME && cargo run --bin zksync_server --release -- --components=api,tree,eth,data_fetcher,state_keeper >> server_logs.txt`
+            'cd $ZKSYNC_HOME && cargo run --bin zksync_server --release -- --components=api,tree,eth,data_fetcher,state_keeper &>> upgrade.log',
+            [null, logs, logs]
         );
         await utils.sleep(10);
 
@@ -272,6 +284,15 @@ async function checkedRandomTransfer(sender: zkweb3.Wallet, amount: BigNumber): 
     const spentAmount = txReceipt.gasUsed.mul(transferHandle.gasPrice!).add(amount);
     expect(senderBalanceAfter.add(spentAmount).eq(senderBalanceBefore), 'Failed to update the balance of the sender').to
         .be.true;
+
+    if (process.env.CHECK_EN_URL) {
+        console.log('Checking EN after transfer');
+        await utils.sleep(2);
+        const enProvider = new ethers.providers.JsonRpcProvider(process.env.CHECK_EN_URL);
+        const enSenderBalance = await enProvider.getBalance(sender.address);
+        expect(enSenderBalance.eq(senderBalanceAfter), 'Failed to update the balance of the sender on EN').to.be.true;
+    }
+
     return transferHandle;
 }
 

@@ -17,6 +17,7 @@ pub struct StorageEthTx {
     pub predicted_gas_cost: i64,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
+    // TODO (SMA-1614): remove the field
     pub sent_at_block: Option<i32>,
 }
 

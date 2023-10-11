@@ -94,7 +94,7 @@ impl TransactionsWeb3Dal<'_, '_> {
                         })
                         // For better compatibility with various clients, we never return null.
                         .or_else(|| Some(Address::default())),
-                    cumulative_gas_used: Default::default(),
+                    cumulative_gas_used: Default::default(), // TODO: Should be actually calculated (SMA-1183).
                     gas_used: {
                         let refunded_gas: U256 = db_row.refunded_gas.into();
                         db_row.gas_limit.map(|val| {
@@ -354,8 +354,9 @@ impl TransactionsWeb3Dal<'_, '_> {
 #[cfg(test)]
 mod tests {
     use db_test_macro::db_test;
-    use zksync_types::{fee::TransactionExecutionMetrics, l2::L2Tx, ProtocolVersion};
-    use zksync_utils::miniblock_hash;
+    use zksync_types::{
+        block::miniblock_hash, fee::TransactionExecutionMetrics, l2::L2Tx, ProtocolVersion,
+    };
 
     use super::*;
     use crate::{
@@ -366,16 +367,21 @@ mod tests {
     async fn prepare_transaction(conn: &mut StorageProcessor<'_>, tx: L2Tx) {
         conn.blocks_dal()
             .delete_miniblocks(MiniblockNumber(0))
-            .await;
+            .await
+            .unwrap();
         conn.transactions_dal()
             .insert_transaction_l2(tx.clone(), TransactionExecutionMetrics::default())
             .await;
         conn.blocks_dal()
             .insert_miniblock(&create_miniblock_header(0))
-            .await;
+            .await
+            .unwrap();
         let mut miniblock_header = create_miniblock_header(1);
         miniblock_header.l2_tx_count = 1;
-        conn.blocks_dal().insert_miniblock(&miniblock_header).await;
+        conn.blocks_dal()
+            .insert_miniblock(&miniblock_header)
+            .await
+            .unwrap();
 
         let tx_results = [mock_execution_result(tx)];
         conn.transactions_dal()
@@ -387,7 +393,7 @@ mod tests {
     async fn getting_transaction(connection_pool: ConnectionPool) {
         let mut conn = connection_pool.access_test_storage().await;
         conn.protocol_versions_dal()
-            .save_protocol_version(ProtocolVersion::default())
+            .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;
         let tx = mock_l2_transaction();
         let tx_hash = tx.hash();
@@ -396,7 +402,12 @@ mod tests {
         let block_ids = [
             api::BlockId::Number(api::BlockNumber::Latest),
             api::BlockId::Number(api::BlockNumber::Number(1.into())),
-            api::BlockId::Hash(miniblock_hash(MiniblockNumber(1))),
+            api::BlockId::Hash(miniblock_hash(
+                MiniblockNumber(1),
+                0,
+                H256::zero(),
+                H256::zero(),
+            )),
         ];
         let transaction_ids = block_ids
             .iter()
@@ -406,7 +417,7 @@ mod tests {
         for transaction_id in transaction_ids {
             let web3_tx = conn
                 .transactions_web3_dal()
-                .get_transaction(transaction_id, L2ChainId(270))
+                .get_transaction(transaction_id, L2ChainId::from(270))
                 .await;
             let web3_tx = web3_tx.unwrap().unwrap();
             assert_eq!(web3_tx.hash, tx_hash);
@@ -420,7 +431,7 @@ mod tests {
         for transaction_id in transactions_with_bogus_index {
             let web3_tx = conn
                 .transactions_web3_dal()
-                .get_transaction(transaction_id, L2ChainId(270))
+                .get_transaction(transaction_id, L2ChainId::from(270))
                 .await;
             assert!(web3_tx.unwrap().is_none());
         }
@@ -437,7 +448,7 @@ mod tests {
         for transaction_id in transactions_with_bogus_block {
             let web3_tx = conn
                 .transactions_web3_dal()
-                .get_transaction(transaction_id, L2ChainId(270))
+                .get_transaction(transaction_id, L2ChainId::from(270))
                 .await;
             assert!(web3_tx.unwrap().is_none());
         }
@@ -447,7 +458,7 @@ mod tests {
     async fn getting_miniblock_transactions(connection_pool: ConnectionPool) {
         let mut conn = connection_pool.access_test_storage().await;
         conn.protocol_versions_dal()
-            .save_protocol_version(ProtocolVersion::default())
+            .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;
         let tx = mock_l2_transaction();
         let tx_hash = tx.hash();

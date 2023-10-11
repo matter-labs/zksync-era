@@ -20,7 +20,7 @@ fn test_generate_witness_vector() {
         circuit_wrapper,
         setup_data_key: key,
     };
-    let vector = WitnessVectorGenerator::generate_witness_vector(job);
+    let vector = WitnessVectorGenerator::generate_witness_vector(job).unwrap();
     assert!(!vector.witness_vector.all_values.is_empty());
     assert!(!vector.witness_vector.multiplicities.is_empty());
     assert!(!vector.witness_vector.public_inputs_locations.is_empty());

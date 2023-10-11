@@ -10,25 +10,23 @@ keywords = ["blockchain", "zksync"]
 categories = ["cryptography"]
 
 [dependencies]
-zkevm-assembly = { git = "https://github.com/matter-labs/era-zkEVM-assembly.git", branch = "v1.3.2" }
+vise = { git = "https://github.com/matter-labs/vise.git", version = "0.1.0", rev = "9d097ab747b037b6e62504df1db5b975425b6bdd" }
 zk_evm = { git = "https://github.com/matter-labs/era-zk_evm.git", branch = "v1.3.3" }
-
-zksync_config = { path = "../config", version = "1.0" }
-zksync_types = { path = "../types", version = "1.0" }
-zksync_utils = { path = "../utils", version = "1.0" }
-zksync_state = { path = "../state", version = "1.0" }
-
+zksync_config = { path = "../config" }
+zksync_types = { path = "../types" }
+zksync_utils = { path = "../utils" }
+zksync_state = { path = "../state" }
 zksync_contracts = { path = "../contracts" }
-vlog = { path = "../vlog", version = "1.0" }
 
 anyhow = "1.0"
 hex = "0.4"
 itertools = "0.10"
-metrics = "0.20"
-ethabi = "18.0.0"
 once_cell = "1.7"
 thiserror = "1.0"
+tracing = "0.1"
 
 [dev-dependencies]
-zksync_eth_signer = { path = "../eth_signer", version = "1.0" }
 tokio = { version = "1", features = ["time"] }
+zksync_test_account = { path = "../test_account" }
+ethabi = "18.0.0"
+zksync_eth_signer = { path = "../eth_signer" }

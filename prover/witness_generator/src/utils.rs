@@ -11,15 +11,13 @@ use zksync_prover_fri_types::circuit_definitions::encodings::recursion_request::
 
 use zkevm_test_harness::boojum::field::goldilocks::GoldilocksField;
 use zkevm_test_harness::witness::full_block_artifact::BlockBasicCircuits;
-use zksync_prover_fri_types::circuit_definitions::zkevm_circuits::scheduler::input::SchedulerCircuitInstanceWitness;
-use zksync_prover_fri_types::circuit_definitions::ZkSyncDefaultRoundFunction;
-
-use zkevm_test_harness::zkevm_circuits::scheduler::block_header::BlockAuxilaryOutputWitness;
 use zksync_config::constants::USED_BOOTLOADER_MEMORY_BYTES;
 use zksync_object_store::{
     serialize_using_bincode, AggregationsKey, Bucket, ClosedFormInputKey, FriCircuitKey,
     ObjectStore, StoredObject,
 };
+use zksync_prover_fri_types::circuit_definitions::zkevm_circuits::scheduler::input::SchedulerCircuitInstanceWitness;
+use zksync_prover_fri_types::circuit_definitions::ZkSyncDefaultRoundFunction;
 use zksync_prover_fri_types::{CircuitWrapper, FriProofWrapper};
 use zksync_types::proofs::AggregationRound;
 use zksync_types::{L1BatchNumber, U256};
@@ -96,20 +94,6 @@ impl StoredObject for SchedulerPartialInputWrapper {
 
     fn encode_key(key: Self::Key<'_>) -> String {
         format!("scheduler_witness_{key}.bin")
-    }
-
-    serialize_using_bincode!();
-}
-
-#[derive(serde::Serialize, serde::Deserialize)]
-pub struct AuxOutputWitnessWrapper(pub BlockAuxilaryOutputWitness<GoldilocksField>);
-
-impl StoredObject for AuxOutputWitnessWrapper {
-    const BUCKET: Bucket = Bucket::SchedulerWitnessJobsFri;
-    type Key<'a> = L1BatchNumber;
-
-    fn encode_key(key: Self::Key<'_>) -> String {
-        format!("aux_output_witness_{key}.bin")
     }
 
     serialize_using_bincode!();

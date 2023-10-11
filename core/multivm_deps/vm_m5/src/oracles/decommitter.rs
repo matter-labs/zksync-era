@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::history_recorder::HistoryRecorder;
-use crate::storage::StoragePtr;
+use crate::storage::{Storage, StoragePtr};
 
 use zk_evm::abstractions::MemoryType;
 use zk_evm::aux_structures::Timestamp;
@@ -9,6 +9,7 @@ use zk_evm::{
     abstractions::{DecommittmentProcessor, Memory},
     aux_structures::{DecommittmentQuery, MemoryIndex, MemoryLocation, MemoryPage, MemoryQuery},
 };
+
 use zksync_types::U256;
 use zksync_utils::bytecode::bytecode_len_in_words;
 use zksync_utils::{bytes_to_be_words, u256_to_h256};
@@ -16,9 +17,9 @@ use zksync_utils::{bytes_to_be_words, u256_to_h256};
 use super::OracleWithHistory;
 
 #[derive(Debug)]
-pub struct DecommitterOracle<'a, const B: bool> {
+pub struct DecommitterOracle<S, const B: bool> {
     /// Pointer that enables to read contract bytecodes from the database.
-    storage: StoragePtr<'a>,
+    storage: StoragePtr<S>,
     /// The cache of bytecodes that the bootloader "knows", but that are not necessarily in the database.
     pub known_bytecodes: HistoryRecorder<HashMap<U256, Vec<U256>>>,
     /// Stores pages of memory where certain code hashes have already been decommitted.
@@ -27,8 +28,8 @@ pub struct DecommitterOracle<'a, const B: bool> {
     decommitment_requests: HistoryRecorder<Vec<()>>,
 }
 
-impl<'a, const B: bool> DecommitterOracle<'a, B> {
-    pub fn new(storage: StoragePtr<'a>) -> Self {
+impl<S: Storage, const B: bool> DecommitterOracle<S, B> {
+    pub fn new(storage: StoragePtr<S>) -> Self {
         Self {
             storage,
             known_bytecodes: Default::default(),
@@ -48,6 +49,7 @@ impl<'a, const B: bool> DecommitterOracle<'a, B> {
                 // code hash which we didn't previously claim to know the preimage of.
                 let value = self
                     .storage
+                    .as_ref()
                     .borrow_mut()
                     .load_factory_dep(u256_to_h256(hash))
                     .expect("Trying to decode unexisting hash");
@@ -100,12 +102,12 @@ impl<'a, const B: bool> DecommitterOracle<'a, B> {
         &self.decommitted_code_hashes
     }
 
-    pub fn get_storage(&self) -> StoragePtr<'a> {
+    pub fn get_storage(&self) -> StoragePtr<S> {
         self.storage.clone()
     }
 }
 
-impl<'a, const B: bool> OracleWithHistory for DecommitterOracle<'a, B> {
+impl<S: Storage, const B: bool> OracleWithHistory for DecommitterOracle<S, B> {
     fn rollback_to_timestamp(&mut self, timestamp: Timestamp) {
         self.decommitted_code_hashes
             .rollback_to_timestamp(timestamp);
@@ -120,7 +122,7 @@ impl<'a, const B: bool> OracleWithHistory for DecommitterOracle<'a, B> {
     }
 }
 
-impl<'a, const B: bool> DecommittmentProcessor for DecommitterOracle<'a, B> {
+impl<S: Storage, const B: bool> DecommittmentProcessor for DecommitterOracle<S, B> {
     fn decommit_into_memory<M: Memory>(
         &mut self,
         monotonic_cycle_counter: u32,

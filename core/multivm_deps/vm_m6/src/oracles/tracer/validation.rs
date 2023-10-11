@@ -20,12 +20,13 @@ use zk_evm::{
 };
 
 use crate::oracles::tracer::{utils::get_calldata_page_via_abi, StorageInvocationTracer};
-use crate::storage::StoragePtr;
+use crate::storage::{Storage, StoragePtr};
 use zksync_config::constants::{
     ACCOUNT_CODE_STORAGE_ADDRESS, BOOTLOADER_ADDRESS, CONTRACT_DEPLOYER_ADDRESS,
     KECCAK256_PRECOMPILE_ADDRESS, L2_ETH_TOKEN_ADDRESS, MSG_VALUE_SIMULATOR_ADDRESS,
     SYSTEM_CONTEXT_ADDRESS,
 };
+
 use zksync_types::{
     get_code_key, web3::signing::keccak256, AccountTreeId, Address, StorageKey, H256, U256,
 };
@@ -106,7 +107,7 @@ fn touches_allowed_context(address: Address, key: U256) -> bool {
     key == U256::from(0u32)
 }
 
-fn is_constant_code_hash(address: Address, key: U256, storage: StoragePtr<'_>) -> bool {
+fn is_constant_code_hash<S: Storage>(address: Address, key: U256, storage: StoragePtr<S>) -> bool {
     if address != ACCOUNT_CODE_STORAGE_ADDRESS {
         // Not a code hash
         return false;
@@ -130,9 +131,9 @@ fn valid_eth_token_call(address: Address, msg_sender: Address) -> bool {
 /// Tracer that is used to ensure that the validation adheres to all the rules
 /// to prevent DDoS attacks on the server.
 #[derive(Clone)]
-pub struct ValidationTracer<'a, H> {
+pub struct ValidationTracer<S, H> {
     // A copy of it should be used in the Storage oracle
-    pub storage: StoragePtr<'a>,
+    pub storage: StoragePtr<S>,
     pub validation_mode: ValidationTracerMode,
     pub auxilary_allowed_slots: HashSet<H256>,
     pub validation_error: Option<ViolatedValidationRule>,
@@ -149,7 +150,7 @@ pub struct ValidationTracer<'a, H> {
     _marker: PhantomData<H>,
 }
 
-impl<H: HistoryMode> fmt::Debug for ValidationTracer<'_, H> {
+impl<S, H: HistoryMode> fmt::Debug for ValidationTracer<S, H> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ValidationTracer")
             .field("storage", &"StoragePtr")
@@ -190,8 +191,8 @@ pub struct NewTrustedValidationItems {
 
 type ValidationRoundResult = Result<NewTrustedValidationItems, ViolatedValidationRule>;
 
-impl<'a, H: HistoryMode> ValidationTracer<'a, H> {
-    pub fn new(storage: StoragePtr<'a>, params: ValidationTracerParams) -> Self {
+impl<S: Storage, H: HistoryMode> ValidationTracer<S, H> {
+    pub fn new(storage: StoragePtr<S>, params: ValidationTracerParams) -> Self {
         ValidationTracer {
             storage,
             validation_error: None,
@@ -366,6 +367,7 @@ impl<'a, H: HistoryMode> ValidationTracer<'a, H> {
                         return Err(ViolatedValidationRule::TouchedUnallowedContext);
                     }
                     ContextOpcode::ErgsLeft => {
+                        // TODO (SMA-1168): implement the correct restrictions for the gas left opcode.
                     }
                     _ => {}
                 }
@@ -401,7 +403,7 @@ impl<'a, H: HistoryMode> ValidationTracer<'a, H> {
     }
 }
 
-impl<H: HistoryMode> Tracer for ValidationTracer<'_, H> {
+impl<S: Storage, H: HistoryMode> Tracer for ValidationTracer<S, H> {
     const CALL_BEFORE_EXECUTION: bool = true;
 
     type SupportedMemory = SimpleMemory<H>;
@@ -470,13 +472,13 @@ impl<H: HistoryMode> Tracer for ValidationTracer<'_, H> {
     }
 }
 
-impl<H: HistoryMode> ExecutionEndTracer<H> for ValidationTracer<'_, H> {
+impl<S: Storage, H: HistoryMode> ExecutionEndTracer<H> for ValidationTracer<S, H> {
     fn should_stop_execution(&self) -> bool {
         self.should_stop_execution || self.validation_error.is_some()
     }
 }
 
-impl<H: HistoryMode> PendingRefundTracer<H> for ValidationTracer<'_, H> {}
-impl<H: HistoryMode> PubdataSpentTracer<H> for ValidationTracer<'_, H> {}
+impl<S: Storage, H: HistoryMode> PendingRefundTracer<H> for ValidationTracer<S, H> {}
+impl<S: Storage, H: HistoryMode> PubdataSpentTracer<H> for ValidationTracer<S, H> {}
 
-impl<H: HistoryMode> StorageInvocationTracer<H> for ValidationTracer<'_, H> {}
+impl<S: Storage, H: HistoryMode> StorageInvocationTracer<H> for ValidationTracer<S, H> {}

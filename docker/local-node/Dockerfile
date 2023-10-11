@@ -1,5 +1,3 @@
-# syntax=docker/dockerfile:experimental
-
 # Image is always built from the server image to reuse the common parts
 # This image is expected to be built locally beforehand (implemented in the `zk` tool)
 FROM matterlabs/server-v2:latest2.0
@@ -11,8 +9,8 @@ RUN apt-get update; apt-get install -y make bash git openssl libssl-dev gcc g++ 
 RUN apt-get install -y libpq5 ca-certificates postgresql-client && rm -rf /var/lib/apt/lists/*
 
 # Install node and yarn
-RUN curl -sL https://deb.nodesource.com/setup_14.x | bash -
-RUN apt-get install -y nodejs
+RUN curl -sL https://deb.nodesource.com/setup_18.x | bash -
+RUN apt-get install -y nodejs npm
 RUN npm install -g yarn
 
 # Copy compiler (both solc and zksolc) binaries

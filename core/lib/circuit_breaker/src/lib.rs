@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use anyhow::Context as _;
 use futures::channel::oneshot;
 use thiserror::Error;
 use tokio::sync::watch;
@@ -10,6 +11,7 @@ use crate::facet_selectors::MismatchedFacetSelectorsError;
 
 pub mod facet_selectors;
 pub mod l1_txs;
+pub mod replication_lag;
 pub mod utils;
 
 #[cfg(test)]
@@ -21,6 +23,8 @@ pub enum CircuitBreakerError {
     FailedL1Transaction,
     #[error("Mismatched facet selectors: {0}")]
     MismatchedFacetSelectors(MismatchedFacetSelectorsError),
+    #[error("Replication lag ({0:?}) is above the threshold ({1:?})")]
+    ReplicationLag(u32, u32),
 }
 
 /// Checks circuit breakers
@@ -57,18 +61,20 @@ impl CircuitBreakerChecker {
         self,
         circuit_breaker_sender: oneshot::Sender<CircuitBreakerError>,
         stop_receiver: watch::Receiver<bool>,
-    ) {
+    ) -> anyhow::Result<()> {
+        tracing::info!("running circuit breaker checker...");
         loop {
             if *stop_receiver.borrow() {
                 break;
             }
             if let Err(error) = self.check().await {
-                circuit_breaker_sender
+                return circuit_breaker_sender
                     .send(error)
-                    .expect("failed to send circuit breaker messsage");
-                return;
+                    .ok()
+                    .context("failed to send circuit breaker messsage");
             }
             tokio::time::sleep(self.sync_interval).await;
         }
+        Ok(())
     }
 }

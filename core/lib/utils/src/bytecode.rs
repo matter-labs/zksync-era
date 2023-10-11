@@ -124,8 +124,8 @@ impl CompressedBytecodeInfo {
 
         bytecode_hash
             .into_iter()
-            .chain(empty_cell.into_iter())
-            .chain(bytes_encoded.into_iter())
+            .chain(empty_cell)
+            .chain(bytes_encoded)
             .collect()
     }
 }
