@@ -5,7 +5,8 @@ use super::*;
 trait CompressionMode: 'static {
     /// Id of the operation being performed.
     fn operation_id(&self) -> usize;
-    /// Number of bytes the compressed value requires.
+    /// Number of bytes the compressed value requires. None indicates that compression cannot be performed for the
+    /// given strategy.
     fn output_size(&self) -> Option<usize>;
     /// Compress the value.
     fn compress_value_only(&self) -> Option<Vec<u8>>;
@@ -57,7 +58,10 @@ impl CompressionMode for CompressionByteAdd {
             None => None,
             Some(compressed_val) => {
                 let mut res: Vec<u8> = vec![];
-                res.push(((self.output_size().unwrap() << 3) | self.operation_id()) as u8);
+                res.push(metadata_byte(
+                    self.output_size().unwrap(),
+                    self.operation_id(),
+                ));
                 res.extend(compressed_val);
                 Some(res)
             }
@@ -109,7 +113,10 @@ impl CompressionMode for CompressionByteSub {
             None => None,
             Some(compressed_val) => {
                 let mut res: Vec<u8> = vec![];
-                res.push(((self.output_size().unwrap() << 3) | self.operation_id()) as u8);
+                res.push(metadata_byte(
+                    self.output_size().unwrap(),
+                    self.operation_id(),
+                ));
                 res.extend(compressed_val);
                 Some(res)
             }
@@ -159,7 +166,10 @@ impl CompressionMode for CompressionByteTransform {
             None => None,
             Some(compressed_val) => {
                 let mut res: Vec<u8> = vec![];
-                res.push(((self.output_size().unwrap() << 3) | self.operation_id()) as u8);
+                res.push(metadata_byte(
+                    self.output_size().unwrap(),
+                    self.operation_id(),
+                ));
                 res.extend(compressed_val);
                 Some(res)
             }
@@ -217,33 +227,35 @@ fn default_passes(prev_value: U256, new_value: U256) -> Vec<Box<dyn CompressionM
     ]
 }
 
+/// Generates the metadata byte for a given compression strategy.
+/// The metadata byte is structured as:
+/// First 5 bits: length of the compressed value
+/// Last 3 bits: operation id corresponding to the given compression used.
+fn metadata_byte(output_size: usize, operation_id: usize) -> u8 {
+    ((output_size << 3) | operation_id) as u8
+}
+
 /// For a given previous value and new value, try each compression strategy selecting the most
 /// efficient one. Using that strategy, generate the extended compression (metadata byte and compressed value).
 /// If none are found then use the full 32 byte new value with the metadata byte being `0x00`
 pub fn compress_with_best_strategy(prev_value: U256, new_value: U256) -> Vec<u8> {
     let compressors = default_passes(prev_value, new_value);
 
-    let mut result: Option<(&Box<dyn CompressionMode + 'static>, usize)> = None;
-    for compressor in compressors.iter() {
-        if let Some(expected_size) = compressor.output_size() {
-            if compressor.compress_value_only().is_some() {
-                if let Some(existing) = result.as_mut() {
-                    if expected_size < existing.1 {
-                        existing.0 = compressor;
-                        existing.1 = expected_size;
-                    }
-                } else {
-                    result = Some((compressor, expected_size));
-                }
-            }
-        }
-    }
+    let compressor = compressors
+        .iter()
+        .filter(|e| e.output_size().is_some())
+        .min_by(|x, y| {
+            let x_size = x.output_size();
+            let y_size = y.output_size();
 
-    match result {
+            x_size.cmp(&y_size)
+        });
+
+    match compressor {
         None => CompressionByteNone::new(new_value)
             .compress_extended()
             .unwrap(),
-        Some((compression_strategy, _)) => compression_strategy.compress_extended().unwrap(),
+        Some(compressor) => compressor.compress_extended().unwrap(),
     }
 }
 
