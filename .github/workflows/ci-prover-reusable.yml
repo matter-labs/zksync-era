@@ -19,13 +19,17 @@ jobs:
           echo $(pwd)/bin >> $GITHUB_PATH
           echo IN_DOCKER=1 >> .env
 
+      - name: Start services
+        run: |
+          docker-compose -f ${RUNNER_COMPOSE_FILE} pull
+          docker-compose -f ${RUNNER_COMPOSE_FILE} up --build -d zk
+          ci_run sccache --start-server
+
       - name: Formatting
-        working-directory: prover
-        run: ci_run cargo fmt --check
+        run: ci_run bash -c "cd prover && cargo fmt --check"
 
       - name: Lints
-        working-directory: prover
-        run: ci_run cargo clippy --tests -- -D warnings -A incomplete_features
+        run: ci_run bash -c "cd prover && cargo clippy --tests -- -D warnings -A incomplete_features"
 
   unit-tests:
     runs-on: [matterlabs-ci-runner]
@@ -46,7 +50,7 @@ jobs:
       - name: Start services
         run: |
           docker-compose -f ${RUNNER_COMPOSE_FILE} pull
-          docker-compose -f ${RUNNER_COMPOSE_FILE} up --build -d geth zk postgres
+          docker-compose -f ${RUNNER_COMPOSE_FILE} up --build -d zk
           ci_run sccache --start-server
 
       - name: Init
@@ -56,7 +60,6 @@ jobs:
           ci_run zk db setup
 
       - name: Prover unit tests
-        working-directory: prover
         run: |
           # Not all tests are enabled, since prover and setup_key_generator_and_server requires bellman-cuda to be present
-          ci_run zk f cargo test --release --workspace
+          ci_run bash -c "cd prover && zk f cargo test --release --workspace"
