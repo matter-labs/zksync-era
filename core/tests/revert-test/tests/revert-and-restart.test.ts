@@ -71,7 +71,7 @@ describe('Block reverting test', function () {
         await killServerAndWaitForShutdown(tester).catch(ignoreError);
 
         // Set 1000 seconds deadline for `ExecuteBlocks` operation.
-        process.env.CHAIN_STATE_KEEPER_AGGREGATED_BLOCK_EXECUTE_DEADLINE = '1000';
+        process.env.ETH_SENDER_SENDER_AGGREGATED_BLOCK_EXECUTE_DEADLINE = '1000';
         // Set lightweight mode for the Merkle tree.
         process.env.DATABASE_MERKLE_TREE_MODE = 'lightweight';
 
@@ -175,7 +175,7 @@ describe('Block reverting test', function () {
 
     step('execute transaction after revert', async () => {
         // Set 1 second deadline for `ExecuteBlocks` operation.
-        process.env.CHAIN_STATE_KEEPER_AGGREGATED_BLOCK_EXECUTE_DEADLINE = '1';
+        process.env.ETH_SENDER_SENDER_AGGREGATED_BLOCK_EXECUTE_DEADLINE = '1';
 
         // Run server.
         utils.background('zk server --components api,tree,eth,data_fetcher,state_keeper', [null, logs, logs]);
