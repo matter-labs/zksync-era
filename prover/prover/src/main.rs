@@ -1,10 +1,10 @@
-use anyhow::Context as _;
-use tokio::sync::{oneshot, Mutex};
-use std::{env, future::Future, sync::Arc, time::Instant};
+#![cfg_attr(not(feature = "gpu"), allow(unused_imports))]
 
-use api::gpu_prover;
+use anyhow::Context as _;
+use std::{env, future::Future, sync::Arc, time::Instant};
+use tokio::sync::{oneshot, Mutex};
+
 use local_ip_address::local_ip;
-use prover_service::run_prover::run_prover_with_remote_synthesizer;
 use queues::Buffer;
 
 use prometheus_exporter::PrometheusExporterConfig;
@@ -18,48 +18,57 @@ use zksync_prover_utils::region_fetcher::{get_region, get_zone};
 use zksync_types::proofs::{GpuProverInstanceStatus, SocketAddress};
 use zksync_utils::wait_for_tasks::wait_for_tasks;
 
-use crate::artifact_provider::ProverArtifactProvider;
-use crate::prover::ProverReporter;
-use crate::prover_params::ProverParams;
-use crate::socket_listener::incoming_socket_listener;
-use crate::synthesized_circuit_provider::SynthesizedCircuitProvider;
-
+#[cfg(feature = "gpu")]
 mod artifact_provider;
+#[cfg(feature = "gpu")]
 mod prover;
+#[cfg(feature = "gpu")]
 mod prover_params;
+#[cfg(feature = "gpu")]
 mod socket_listener;
+#[cfg(feature = "gpu")]
 mod synthesized_circuit_provider;
 
 async fn graceful_shutdown() -> anyhow::Result<impl Future<Output = ()>> {
-    let pool = ConnectionPool::singleton(DbVariant::Prover).build().await
+    let pool = ConnectionPool::singleton(DbVariant::Prover)
+        .build()
+        .await
         .context("failed to build a connection pool")?;
     let host = local_ip().context("Failed obtaining local IP address")?;
     let port = ProverConfigs::from_env()
         .context("ProverConfigs")?
-        .non_gpu.assembly_receiver_port;
+        .non_gpu
+        .assembly_receiver_port;
     let region = get_region().await.context("get_region()")?;
     let zone = get_zone().await.context("get_zone()")?;
     let address = SocketAddress { host, port };
     Ok(async move {
-        pool.access_storage().await.unwrap()
+        pool.access_storage()
+            .await
+            .unwrap()
             .gpu_prover_queue_dal()
             .update_prover_instance_status(address, GpuProverInstanceStatus::Dead, 0, region, zone)
             .await
     })
 }
 
+#[cfg(feature = "gpu")]
 fn get_ram_per_gpu() -> anyhow::Result<u64> {
-    let device_info = gpu_prover::cuda_bindings::device_info(0)
-        .map_err(|err|anyhow::anyhow!("device_info(): {err:?}"))?;
+    use api::gpu_prover::cuda_bindings;
+
+    let device_info =
+        cuda_bindings::device_info(0).map_err(|err| anyhow::anyhow!("device_info(): {err:?}"))?;
     let ram_in_gb: u64 = device_info.total / (1024 * 1024 * 1024);
     tracing::info!("Detected RAM per GPU: {:?} GB", ram_in_gb);
     Ok(ram_in_gb)
 }
 
+#[cfg(feature = "gpu")]
 fn get_prover_config_for_machine_type() -> anyhow::Result<(ProverConfig, u8)> {
-    let prover_configs = ProverConfigs::from_env()
-        .context("ProverConfigs::from_env()")?;
-    let actual_num_gpus = match gpu_prover::cuda_bindings::devices() {
+    use api::gpu_prover::cuda_bindings;
+
+    let prover_configs = ProverConfigs::from_env().context("ProverConfigs::from_env()")?;
+    let actual_num_gpus = match cuda_bindings::devices() {
         Ok(gpus) => gpus as u8,
         Err(err) => {
             tracing::error!("unable to get number of GPUs: {err:?}");
@@ -91,8 +100,20 @@ fn get_prover_config_for_machine_type() -> anyhow::Result<(ProverConfig, u8)> {
     })
 }
 
+#[cfg(not(feature = "gpu"))]
+fn main() {
+    unimplemented!("This binary is only available with `gpu` feature enabled");
+}
+
+#[cfg(feature = "gpu")]
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    use crate::artifact_provider::ProverArtifactProvider;
+    use crate::prover::ProverReporter;
+    use crate::prover_params::ProverParams;
+    use crate::socket_listener::incoming_socket_listener;
+    use crate::synthesized_circuit_provider::SynthesizedCircuitProvider;
+
     #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
     let log_format = vlog::log_format_from_env();
     #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
@@ -110,11 +131,14 @@ async fn main() -> anyhow::Result<()> {
     let _guard = builder.build();
 
     tracing::trace!("starting prover");
-    let (prover_config, num_gpu) = get_prover_config_for_machine_type().context("get_prover_config_for_machine_type()")?;
+    let (prover_config, num_gpu) =
+        get_prover_config_for_machine_type().context("get_prover_config_for_machine_type()")?;
 
     let prometheus_config = PrometheusConfig {
         listener_port: prover_config.prometheus_port,
-        ..ApiConfig::from_env().context("ApiConfig::from_env()")?.prometheus
+        ..ApiConfig::from_env()
+            .context("ApiConfig::from_env()")?
+            .prometheus
     };
 
     let region = get_region().await.context("get_regtion()")?;
@@ -170,7 +194,9 @@ async fn main() -> anyhow::Result<()> {
         local_ip,
         prover_config.assembly_receiver_port,
         producer,
-        ConnectionPool::singleton(DbVariant::Prover).build().await
+        ConnectionPool::singleton(DbVariant::Prover)
+            .build()
+            .await
             .context("failed to build a connection pool")?,
         prover_config.specialized_prover_group_id,
         region.clone(),
@@ -179,10 +205,11 @@ async fn main() -> anyhow::Result<()> {
     )));
 
     let params = ProverParams::new(&prover_config);
-    let store_factory = ObjectStoreFactory::from_env()
-        .context("ObjectStoreFactory::from_env()")?;
+    let store_factory = ObjectStoreFactory::from_env().context("ObjectStoreFactory::from_env()")?;
 
-    let circuit_provider_pool = ConnectionPool::singleton(DbVariant::Prover).build().await
+    let circuit_provider_pool = ConnectionPool::singleton(DbVariant::Prover)
+        .build()
+        .await
         .context("failed to build circuit_provider_pool")?;
     tasks.push(tokio::task::spawn_blocking(move || {
         let rt_handle = tokio::runtime::Handle::current();
@@ -196,7 +223,7 @@ async fn main() -> anyhow::Result<()> {
         );
         let prover_job_reporter = ProverReporter::new(prover_config, &store_factory, rt_handle)
             .context("ProverReporter::new()")?;
-        run_prover_with_remote_synthesizer(
+        prover_service::run_prover::run_prover_with_remote_synthesizer(
             synthesized_circuit_provider,
             ProverArtifactProvider,
             prover_job_reporter,
@@ -209,9 +236,13 @@ async fn main() -> anyhow::Result<()> {
     let particular_crypto_alerts = Some(
         AlertsConfig::from_env()
             .context("AlertsConfig::from_env()")?
-            .sporadic_crypto_errors_substrs
+            .sporadic_crypto_errors_substrs,
     );
-    let graceful_shutdown = Some(graceful_shutdown().await.context("failed to prepare graceful shutdown future")?);
+    let graceful_shutdown = Some(
+        graceful_shutdown()
+            .await
+            .context("failed to prepare graceful shutdown future")?,
+    );
     let tasks_allowed_to_finish = false;
     tokio::select! {
         _ = wait_for_tasks(tasks, particular_crypto_alerts, graceful_shutdown, tasks_allowed_to_finish) => {},
