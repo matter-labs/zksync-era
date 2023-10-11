@@ -441,6 +441,45 @@ mod tests {
         assert!(compressed_state_diffs.is_empty());
     }
 
+    #[test]
+    fn test_encoding() {
+        let state_diff = StateDiffRecord {
+            address: Address::from_str("0x09610c49cfe4a0509dbe319886eb0cfc01f2cfd1").unwrap(),
+            key: U256::from(1u8),
+            derived_key: [1u8; 32],
+            enumeration_index: 0u64,
+            initial_value: U256::default(),
+            final_value: U256::from(64u8),
+        };
+
+        let encoded = state_diff.encode();
+        let encoded_state_diff = hex::encode(encoded);
+
+        let expected_encoding = "09610c49cfe4a0509dbe319886eb0cfc01f2cfd1000000000000\
+            000000000000000000000000000000000000000000000000000101010101010101010101010101010\
+            101010101010101010101010101010101010000000000000000000000000000000000000000000000\
+            000000000000000000000000000000000000000000000000000000000000000000000000000000000\
+            00000000000000040"
+            .to_string();
+
+        assert_eq!(encoded_state_diff, expected_encoding);
+
+        let encode_padded = state_diff.encode_padded();
+        let encoded_padded_state_diff = hex::encode(encode_padded);
+
+        let expected_padded_encoding = "09610c49cfe4a0509dbe319886eb0cfc01f2cfd100000\
+            000000000000000000000000000000000000000000000000000000000010101010101010101010101\
+            010101010101010101010101010101010101010101000000000000000000000000000000000000000\
+            000000000000000000000000000000000000000000000000000000000000000000000000000000000\
+            000000000000000000000040000000000000000000000000000000000000000000000000000000000\
+            000000000000000000000000000000000000000000000000000000000000000000000000000000000\
+            000000000000000000000000000000000000000000000000000000000000000000000000000000000\
+            0000000000000"
+            .to_string();
+
+        assert_eq!(encoded_padded_state_diff, expected_padded_encoding);
+    }
+
     fn verify_value(
         initial_value: U256,
         final_value: U256,
