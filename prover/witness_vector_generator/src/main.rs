@@ -64,7 +64,7 @@ async fn main() -> anyhow::Result<()> {
         .await;
     let circuit_ids_for_round_to_be_proven = FriProverGroupConfig::from_env()
         .get_circuit_ids_for_group_id(specialized_group_id)
-        .unwrap_or(vec![]);
+        .unwrap_or_default();
     let circuit_ids_for_round_to_be_proven =
         get_all_circuit_id_round_tuples_for(circuit_ids_for_round_to_be_proven);
     let zone = get_zone().await.context("get_zone()")?;

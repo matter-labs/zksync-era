@@ -29,6 +29,7 @@ mod socket_listener;
 #[cfg(feature = "gpu")]
 mod synthesized_circuit_provider;
 
+#[cfg(feature = "gpu")]
 async fn graceful_shutdown() -> anyhow::Result<impl Future<Output = ()>> {
     let pool = ConnectionPool::singleton(DbVariant::Prover)
         .build()

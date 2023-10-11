@@ -118,8 +118,8 @@ pub fn get_leaf_circuits() -> anyhow::Result<Vec<ZkSyncRecursiveLayerCircuit>> {
 
         let circuit = ZkSyncLeafLayerRecursiveCircuit {
             base_layer_circuit_type: BaseLayerCircuitType::from_numeric_value(base_circuit_type),
-            witness: witness,
-            config: config,
+            witness,
+            config,
             transcript_params: (),
             _marker: std::marker::PhantomData,
         };
@@ -155,8 +155,8 @@ pub fn get_node_circuit() -> anyhow::Result<ZkSyncRecursiveLayerCircuit> {
         _marker: std::marker::PhantomData,
     };
     let circuit = ZkSyncNodeLayerRecursiveCircuit {
-        witness: witness,
-        config: config,
+        witness,
+        config,
         transcript_params: (),
         _marker: std::marker::PhantomData,
     };
@@ -231,6 +231,7 @@ pub fn get_leaf_vk_params(
     Ok(leaf_vk_commits)
 }
 
+#[allow(clippy::type_complexity)]
 fn get_circuits(
     mut test_artifact: TestArtifact,
     cycle_limit: usize,
@@ -267,10 +268,10 @@ fn get_circuits(
     let used_bytecodes = HashMap::from_iter(
         test_artifact
             .predeployed_contracts
-            .iter()
-            .map(|(_, bytecode)| {
+            .values()
+            .map(|bytecode| {
                 (
-                    bytecode_to_code_hash(&bytecode).unwrap().into(),
+                    bytecode_to_code_hash(bytecode).unwrap().into(),
                     bytecode.clone(),
                 )
             })
@@ -289,24 +290,24 @@ fn get_circuits(
     // simualate content hash
 
     let mut hasher = Keccak256::new();
-    hasher.update(&previous_enumeration_index.to_be_bytes());
-    hasher.update(&previous_root);
-    hasher.update(&0u64.to_be_bytes()); // porter shard
-    hasher.update(&[0u8; 32]); // porter shard
+    hasher.update(previous_enumeration_index.to_be_bytes());
+    hasher.update(previous_root);
+    hasher.update(0u64.to_be_bytes()); // porter shard
+    hasher.update([0u8; 32]); // porter shard
 
     let mut previous_data_hash = [0u8; 32];
-    (&mut previous_data_hash[..]).copy_from_slice(&hasher.finalize().as_slice());
+    previous_data_hash[..].copy_from_slice(hasher.finalize().as_slice());
 
     let previous_aux_hash = [0u8; 32];
     let previous_meta_hash = [0u8; 32];
 
     let mut hasher = Keccak256::new();
-    hasher.update(&previous_data_hash);
-    hasher.update(&previous_meta_hash);
-    hasher.update(&previous_aux_hash);
+    hasher.update(previous_data_hash);
+    hasher.update(previous_meta_hash);
+    hasher.update(previous_aux_hash);
 
     let mut previous_content_hash = [0u8; 32];
-    (&mut previous_content_hash[..]).copy_from_slice(&hasher.finalize().as_slice());
+    previous_content_hash[..].copy_from_slice(hasher.finalize().as_slice());
 
     let default_account_codehash =
         bytecode_to_code_hash(&test_artifact.default_account_code).unwrap();
@@ -328,7 +329,7 @@ fn get_circuits(
         used_bytecodes,
         vec![],
         cycle_limit,
-        round_function.clone(),
+        round_function,
         geometry,
         storage_impl,
         &mut tree,

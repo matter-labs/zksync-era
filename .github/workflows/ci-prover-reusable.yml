@@ -31,7 +31,16 @@ jobs:
           ci_run zk config compile
           ci_run zk db setup
 
+      - name: Formatting
+        working-directory: prover
+        run: cargo fmt --check
+
+      - name: Lints
+        working-directory: prover
+        run: cargo clippy --tests -- -D warnings -A incomplete_features
+
       - name: Prover unit tests
+        working-directory: prover
         run: |
-          # Not all tests are enabled since, prover and setup_key_generator_and_server requires bellman-cuda to be present
-          ci_run bash -c "cd prover && zk f cargo test --release -p zksync_witness_generator -p vk_setup_data_generator_server_fri -p zksync_prover_fri -p zksync_witness_vector_generator -p zksync_prover_fri_utils"
+          # Not all tests are enabled, since prover and setup_key_generator_and_server requires bellman-cuda to be present
+          ci_run zk f cargo test --release --workspace

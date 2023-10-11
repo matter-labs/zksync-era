@@ -9,6 +9,7 @@ use zkevm_test_harness::bellman::bn256::Bn256;
 use zkevm_test_harness::witness::oracle::VmWitnessOracle;
 use zksync_setup_key_server::{get_circuits_for_vk, get_setup_key_write_file_path};
 
+#[cfg(feature = "gpu")]
 #[derive(Debug, StructOpt)]
 #[structopt(
     name = "Generate setup keys for individual circuit",
