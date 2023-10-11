@@ -53,7 +53,7 @@ impl BaseConnection {
 
 const PREFIX: &str = "test-";
 
-pub async fn new_db() -> sqlx::PgPool {
+pub async fn new_db() -> url::Url {
     use rand::Rng as _;
     use sqlx::Executor as _;
     let db_url = crate::get_test_database_url().unwrap();
@@ -70,7 +70,7 @@ pub async fn new_db() -> sqlx::PgPool {
     .await
     .unwrap();
     db_url.set_path(&db_copy_name);
-    sqlx::PgPool::connect(&db_url.to_string()).await.unwrap()
+    db_url
 }
 
 #[cfg(test)]

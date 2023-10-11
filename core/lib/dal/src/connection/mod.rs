@@ -24,6 +24,7 @@ pub enum DbVariant {
     Master,
     Replica,
     Prover,
+    TestTmp,
 }
 
 /// Builder for [`ConnectionPool`]s.
@@ -45,7 +46,7 @@ impl ConnectionPoolBuilder {
     /// Sets the statement timeout for the pool. See [Postgres docs] for semantics.
     /// If not specified, the statement timeout will not be set.
     ///
-    /// [Postgres docs]: https://www.postgresql.org/docs/14/runtime-config-client.html
+    /// [Postgres docs]: https//www.postgresql.org/docs/14/runtime-config-client.html
     pub fn set_statement_timeout(&mut self, timeout: Option<Duration>) -> &mut Self {
         self.statement_timeout = timeout;
         self
@@ -57,6 +58,7 @@ impl ConnectionPoolBuilder {
             DbVariant::Master => get_master_database_url()?,
             DbVariant::Replica => get_replica_database_url()?,
             DbVariant::Prover => get_prover_database_url()?,
+            DbVariant::TestTmp => test_pool::new_db().await.to_string(),
         };
         Ok(self.build_inner(&database_url).await)
     }
@@ -216,7 +218,7 @@ impl ConnectionPool {
     }
 
     pub async fn test_pool() -> ConnectionPool {
-        ConnectionPool::Real(test_pool::new_db().await)
+        Self::builder(DbVariant::TestTmp).build().await.unwrap()
         //ConnectionPool::Test(test_pool::TestConnection::new().await)
     }
 }
@@ -230,15 +232,12 @@ mod tests {
 
     #[tokio::test]
     async fn setting_statement_timeout() {
-        // We cannot use an ordinary test pool here because it isn't created using `ConnectionPoolBuilder`.
-        // Since we don't need to mutate the DB for the test, using a real DB connection is OK.
-        let database_url = get_test_database_url().unwrap();
-        let pool = ConnectionPool::builder(DbVariant::Master)
+        let pool = ConnectionPool::builder(DbVariant::TestTmp)
             .set_statement_timeout(Some(Duration::from_secs(1)))
-            .build_inner(&database_url)
-            .await;
+            .build()
+            .await
+            .unwrap();
 
-        // NB. We must not mutate the database below! Doing so may break other tests.
         let mut conn = pool.access_storage().await.unwrap();
         let err = sqlx::query("SELECT pg_sleep(2)")
             .map(drop)
