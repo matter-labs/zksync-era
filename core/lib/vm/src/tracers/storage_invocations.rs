@@ -1,12 +1,16 @@
 use crate::bootloader_state::BootloaderState;
 use crate::old_vm::history_recorder::HistoryMode;
-use crate::tracers::traits::{DynTracer, ExecutionEndTracer, ExecutionProcessing, VmTracer};
+use crate::tracers::traits::{
+    DynTracer, ExecutionEndTracer, ExecutionProcessing, TracerExecutionStatus,
+    TracerExecutionStopReason, VmTracer,
+};
 use crate::types::internals::ZkSyncVmState;
+use crate::Halt;
 use zksync_state::WriteStorage;
 
 #[derive(Debug, Default, Clone)]
 pub struct StorageInvocations {
-    limit: usize,
+    pub limit: usize,
     current: usize,
 }
 
@@ -21,8 +25,13 @@ impl StorageInvocations {
 impl<S, H: HistoryMode> DynTracer<S, H> for StorageInvocations {}
 
 impl<H: HistoryMode> ExecutionEndTracer<H> for StorageInvocations {
-    fn should_stop_execution(&self) -> bool {
-        self.current >= self.limit
+    fn should_stop_execution(&self) -> TracerExecutionStatus {
+        if self.current >= self.limit {
+            return TracerExecutionStatus::Stop(TracerExecutionStopReason::Abort(
+                Halt::TracerCustom("Storage invocations limit reached".to_string()),
+            ));
+        }
+        TracerExecutionStatus::Continue
     }
 }
 

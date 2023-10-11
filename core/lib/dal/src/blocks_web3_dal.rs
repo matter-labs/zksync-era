@@ -623,7 +623,7 @@ mod tests {
         for block_id in block_ids {
             let block = conn
                 .blocks_web3_dal()
-                .get_block_by_web3_block_id(block_id, false, L2ChainId(270))
+                .get_block_by_web3_block_id(block_id, false, L2ChainId::from(270))
                 .await;
             let block = block.unwrap().unwrap();
             assert!(block.transactions.is_empty());
@@ -650,7 +650,7 @@ mod tests {
         for block_id in non_existing_block_ids {
             let block = conn
                 .blocks_web3_dal()
-                .get_block_by_web3_block_id(block_id, false, L2ChainId(270))
+                .get_block_by_web3_block_id(block_id, false, L2ChainId::from(270))
                 .await;
             assert!(block.unwrap().is_none());
 

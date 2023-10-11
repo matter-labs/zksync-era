@@ -103,7 +103,7 @@ pub struct LoadtestConfig {
 
     /// Chain id of L2 node.
     #[serde(default = "default_l2_chain_id")]
-    pub l2_chain_id: u16,
+    pub l2_chain_id: u64,
 
     /// RPC address of L2 node.
     #[serde(default = "default_l2_rpc_address")]
@@ -227,9 +227,9 @@ fn default_seed() -> Option<String> {
     result
 }
 
-fn default_l2_chain_id() -> u16 {
+fn default_l2_chain_id() -> u64 {
     // 270 for rinkeby
-    let result = *L2ChainId::default();
+    let result = L2ChainId::default().as_u64();
     tracing::info!("Using default L2_CHAIN_ID: {result}");
     result
 }

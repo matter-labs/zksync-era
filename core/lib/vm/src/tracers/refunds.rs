@@ -1,7 +1,5 @@
 use vise::{Buckets, EncodeLabelSet, EncodeLabelValue, Family, Histogram, Metrics};
 
-use std::collections::HashMap;
-
 use zk_evm::{
     aux_structures::Timestamp,
     tracing::{BeforeExecutionData, VmLocalStateData},
@@ -12,18 +10,18 @@ use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::{
     event::{extract_long_l2_to_l1_messages, extract_published_bytecodes},
     l2_to_l1_log::L2ToL1Log,
-    zkevm_test_harness::witness::sort_storage_access::sort_storage_access_queries,
-    L1BatchNumber, StorageKey, U256,
+    L1BatchNumber, U256,
 };
 use zksync_utils::bytecode::bytecode_len_in_bytes;
 use zksync_utils::{ceil_div_u256, u256_to_h256};
 
-use crate::bootloader_state::BootloaderState;
 use crate::constants::{BOOTLOADER_HEAP_PAGE, OPERATOR_REFUNDS_OFFSET, TX_GAS_LIMIT_OFFSET};
 use crate::old_vm::{
     events::merge_events, history_recorder::HistoryMode, memory::SimpleMemory,
-    oracles::storage::storage_key_of_log, utils::eth_price_per_pubdata_byte,
+    utils::eth_price_per_pubdata_byte,
 };
+
+use crate::bootloader_state::BootloaderState;
 use crate::tracers::utils::gas_spent_on_bytecodes_and_long_messages_this_opcode;
 use crate::tracers::{
     traits::{DynTracer, ExecutionEndTracer, ExecutionProcessing, VmTracer},
@@ -224,8 +222,16 @@ impl<S: WriteStorage, H: HistoryMode> ExecutionProcessing<S, H> for RefundsTrace
                 .value
                 .as_u32();
 
-            let pubdata_published =
-                pubdata_published(state, self.timestamp_initial, self.l1_batch.number);
+            let used_published_storage_slots = state
+                .storage
+                .save_paid_changes(Timestamp(state.local_state.timestamp));
+
+            let pubdata_published = pubdata_published(
+                state,
+                used_published_storage_slots,
+                self.timestamp_initial,
+                self.l1_batch.number,
+            );
 
             let current_ergs_per_pubdata_byte = state.local_state.current_ergs_per_pubdata_byte;
             let tx_body_refund = self.tx_body_refund(
@@ -285,11 +291,10 @@ impl<S: WriteStorage, H: HistoryMode> ExecutionProcessing<S, H> for RefundsTrace
 /// Returns the given transactions' gas limit - by reading it directly from the VM memory.
 pub(crate) fn pubdata_published<S: WriteStorage, H: HistoryMode>(
     state: &ZkSyncVmState<S, H>,
+    storage_writes_pubdata_published: u32,
     from_timestamp: Timestamp,
     batch_number: L1BatchNumber,
 ) -> u32 {
-    let storage_writes_pubdata_published = pubdata_published_for_writes(state, from_timestamp);
-
     let (raw_events, l1_messages) = state
         .event_sink
         .get_events_and_l2_l1_logs_after_timestamp(from_timestamp);
@@ -326,62 +331,6 @@ pub(crate) fn pubdata_published<S: WriteStorage, H: HistoryMode>(
         + l2_l1_logs_bytes
         + l2_l1_long_messages_bytes
         + published_bytecode_bytes
-}
-
-fn pubdata_published_for_writes<S: WriteStorage, H: HistoryMode>(
-    state: &ZkSyncVmState<S, H>,
-    from_timestamp: Timestamp,
-) -> u32 {
-    // This `HashMap` contains how much was already paid for every slot that was paid during the last tx execution.
-    // For the slots that weren't paid during the last tx execution we can just use
-    // `self.state.storage.paid_changes.inner().get(&key)` to get how much it was paid before.
-    let pre_paid_before_tx_map: HashMap<StorageKey, u32> = state
-        .storage
-        .paid_changes
-        .history()
-        .iter()
-        .rev()
-        .take_while(|history_elem| history_elem.0 >= from_timestamp)
-        .map(|history_elem| (history_elem.1.key, history_elem.1.value.unwrap_or(0)))
-        .collect();
-    let pre_paid_before_tx = |key: &StorageKey| -> u32 {
-        if let Some(pre_paid) = pre_paid_before_tx_map.get(key) {
-            *pre_paid
-        } else {
-            state
-                .storage
-                .paid_changes
-                .inner()
-                .get(key)
-                .copied()
-                .unwrap_or(0)
-        }
-    };
-
-    let storage_logs = state
-        .storage
-        .storage_log_queries_after_timestamp(from_timestamp);
-    let (_, deduplicated_logs) =
-        sort_storage_access_queries(storage_logs.iter().map(|log| &log.log_query));
-
-    deduplicated_logs
-        .into_iter()
-        .filter_map(|log| {
-            if log.rw_flag {
-                let key = storage_key_of_log(&log);
-                let pre_paid = pre_paid_before_tx(&key);
-                let to_pay_by_user = state.storage.base_price_for_write(&log);
-
-                if to_pay_by_user > pre_paid {
-                    Some(to_pay_by_user - pre_paid)
-                } else {
-                    None
-                }
-            } else {
-                None
-            }
-        })
-        .sum()
 }
 
 impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for RefundsTracer {
