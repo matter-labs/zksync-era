@@ -86,22 +86,30 @@ function defaultTagList(image: string, imageTagSha: string, imageTagShaTS: strin
 }
 
 async function _build(image: string, tagList: string[]) {
-    if (image == 'server-v2' || image == 'external-node' || image == 'prover') {
+    if (image === 'server-v2' || image === 'external-node' || image === 'prover') {
         await contract.build();
     }
 
     const tagsToBuild = tagList.map((tag) => `-t matterlabs/${image}:${tag}`).join(' ');
-
     // generate list of tags for image - we want 3 tags (latest, SHA, SHA+TimeStamp) for listed components and only "latest" for everything else
 
-    await utils.spawn(`CARGO_HOME=./cargo cargo fetch`);
+    // Conditionally add build argument if image is prover-v2
+    let buildArgs = '';
+    if (image === 'prover-v2') {
+        const eraBellmanCudaRelease = process.env.ERA_BELLMAN_CUDA_RELEASE;
+        buildArgs = `--build-arg ERA_BELLMAN_CUDA_RELEASE=${eraBellmanCudaRelease}`;
+    }
 
     // HACK
     // For prover-v2 which is not a prover, but should be built from the prover dockerfile. So here we go.
     const imagePath = image == 'prover-v2' ? 'prover' : image;
 
-    // build image with needed tags
-    await utils.spawn(`DOCKER_BUILDKIT=1 docker build ${tagsToBuild} -f ./docker/${imagePath}/Dockerfile .`);
+    const buildCommand =
+        `DOCKER_BUILDKIT=1 docker build ${tagsToBuild}` +
+        (buildArgs ? ` ${buildArgs}` : '') +
+        ` -f ./docker/${imagePath}/Dockerfile .`;
+
+    await utils.spawn(buildCommand);
 }
 
 async function _push(image: string, tagList: string[], publishPublic: boolean = false) {
