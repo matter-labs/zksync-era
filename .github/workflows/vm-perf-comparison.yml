@@ -11,14 +11,24 @@ jobs:
     runs-on: [matterlabs-ci-runner]
 
     steps:
-      - uses: actions/checkout@v3
+      - name: checkout base branch
+        uses: actions/checkout@v3
         with:
           submodules: "recursive"
           fetch-depth: 0
           ref: ${{ github.base_ref }}
 
+      - name: fetch PR branch
+        run: |
+          git remote add pr_repo ${{ github.event.pull_request.head.repo.clone_url }}
+          git fetch pr_repo ${{ github.event.pull_request.head.ref }}
+
+      - name: fet merge-base SHA
+        id: merge_base
+        run: echo "::set-output name=sha::$(git merge-base HEAD FETCH_HEAD)"
+
       - name: checkout divergence point
-        run: git checkout $(git merge-base ${{ github.event.pull_request.head.sha }} HEAD)
+        run: git checkout ${{ steps.merge_base.outputs.sha }}
 
       - name: setup-env
         run: |
@@ -37,8 +47,8 @@ jobs:
           ci_run zk compiler system-contracts
           ci_run cargo bench --package vm-benchmark --bench iai | tee base-iai
 
-      - name: checkout pull request
-        run: git checkout --force ${{ github.event.pull_request.head.sha }}
+      - name: checkout PR
+        run: git checkout --force FETCH_HEAD
 
       - name: run benchmarks on PR
         shell: bash
