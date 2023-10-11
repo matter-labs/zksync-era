@@ -56,6 +56,9 @@ resolver = "2"
 
 exclude = []
 
+[profile.dev.package."*"]
+opt-level = 3
+
 # for `perf` profiling
 [profile.perf]
 inherits = "release"

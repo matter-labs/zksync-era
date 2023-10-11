@@ -51,6 +51,53 @@ impl BaseConnection {
     }
 }
 
+const PREFIX: &str = "test-";
+
+pub async fn new_db() -> sqlx::PgPool {
+    use rand::Rng as _;
+    use sqlx::Executor as _;
+    let db_url = crate::get_test_database_url().unwrap();
+    let mut db_url = url::Url::parse(&db_url).unwrap();
+    let db_name = db_url.path()[1..].to_string();
+    let db_copy_name = format!("{PREFIX}{}", rand::thread_rng().gen::<u64>());
+    db_url.set_path("");
+    let mut conn = sqlx::PgConnection::connect(&db_url.to_string())
+        .await
+        .unwrap();
+    conn.execute(
+        format!("CREATE DATABASE \"{db_copy_name}\" WITH TEMPLATE \"{db_name}\"").as_str(),
+    )
+    .await
+    .unwrap();
+    db_url.set_path(&db_copy_name);
+    sqlx::PgPool::connect(&db_url.to_string()).await.unwrap()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use sqlx::Executor as _;
+
+    #[tokio::test]
+    async fn clean_old_dbs() {
+        let db_url = crate::get_test_database_url().unwrap();
+        let mut db_url = url::Url::parse(&db_url).unwrap();
+        db_url.set_path("");
+        let mut conn = sqlx::PgConnection::connect(&db_url.to_string())
+            .await
+            .unwrap();
+        let rows = sqlx::query!("SELECT datname as \"datname!\" FROM pg_catalog.pg_database except SELECT datname FROM pg_stat_activity")
+            .fetch_all(&mut conn).await.unwrap();
+        for row in rows {
+            if row.datname.starts_with(PREFIX) {
+                conn.execute(format!("DROP DATABASE \"{}\"", row.datname).as_str())
+                    .await
+                    .unwrap();
+            }
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct TestConnection(Arc<Mutex<StaticTransaction>>);
 pub struct TestTransaction(StaticTransaction);

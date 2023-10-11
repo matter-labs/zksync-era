@@ -305,12 +305,13 @@ async fn test_postgres_backup_recovery(
     // Re-insert L1 batches to the storage after recovery.
     let mut storage = pool.access_storage().await.unwrap();
     for batch_header in &removed_batches {
-        storage
-            .blocks_dal()
+        let mut txn = storage.start_transaction().await.unwrap();
+        txn.blocks_dal()
             .insert_l1_batch(batch_header, &[], BlockGasCount::default())
             .await
             .unwrap();
-        insert_initial_writes_for_batch(&mut storage, batch_header.number).await;
+        insert_initial_writes_for_batch(&mut txn, batch_header.number).await;
+        txn.commit().await.unwrap();
         if sleep_between_batches {
             tokio::time::sleep(Duration::from_millis(100)).await;
         }

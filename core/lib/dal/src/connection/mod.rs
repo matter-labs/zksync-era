@@ -211,14 +211,13 @@ impl ConnectionPool {
     pub async fn access_test_storage(&self) -> StorageProcessor {
         match self {
             ConnectionPool::Test(test) => Connection::Test(test.clone()).into(),
-            ConnectionPool::Real(_) => {
-                panic!("Attempt to access test storage with the real pool");
-            }
+            ConnectionPool::Real(_) => self.access_storage().await.unwrap(),
         }
     }
 
     pub async fn test_pool() -> ConnectionPool {
-        ConnectionPool::Test(test_pool::TestConnection::new().await)
+        ConnectionPool::Real(test_pool::new_db().await)
+        //ConnectionPool::Test(test_pool::TestConnection::new().await)
     }
 }
 
