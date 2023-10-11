@@ -19,7 +19,19 @@ check_subdirectory() {
     return 0
 }
 
+# Currently many parts of our zk typescript are checked & verified with yarn v1.22.19 - and might fail with newer versions of yarn.
+check_yarn_version() {
+    desired_version="1.22.119"
+    installed_version=$(yarn --version)
+
+    if [ "$installed_version" != "$desired_version" ]; then
+        echo -e "\e[31mWarning: Yarn is not at the desired version ($desired_version). Installed version is ($installed_version).\e[0m"
+        echo -e "This might cause errors - we recommend to run:  \e[1m yarn set version $desired_version.\e[0m"
+    fi
+}
+
 check_subdirectory
+check_yarn_version
 if [ -z "$1" ]; then
     cd $ZKSYNC_HOME
     yarn && yarn zk build
