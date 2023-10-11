@@ -228,7 +228,6 @@ mod tests {
     use assert_matches::assert_matches;
 
     use super::*;
-    use crate::get_test_database_url;
 
     #[tokio::test]
     async fn setting_statement_timeout() {
