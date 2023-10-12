@@ -8,6 +8,7 @@ use crate::constants::{
 };
 use crate::tests::tester::default_l1_batch;
 use crate::tests::tester::VmTesterBuilder;
+use crate::tests::utils::get_l1_noop;
 use crate::utils::l2_blocks::get_l2_block_hash_key;
 use crate::{
     ExecutionResult, Halt, HistoryEnabled, HistoryMode, L2BlockEnv, TxExecutionMode, Vm,
@@ -27,25 +28,6 @@ use zksync_types::{
     SYSTEM_CONTEXT_CURRENT_TX_ROLLING_HASH_POSITION, U256,
 };
 use zksync_utils::{h256_to_u256, u256_to_h256};
-
-fn get_l1_noop() -> Transaction {
-    Transaction {
-        common_data: ExecuteTransactionCommon::L1(L1TxCommonData {
-            sender: H160::random(),
-            gas_limit: U256::from(2000000u32),
-            gas_per_pubdata_limit: REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE.into(),
-            ..Default::default()
-        }),
-        execute: Execute {
-            contract_address: H160::zero(),
-            calldata: vec![],
-            value: U256::zero(),
-            factory_deps: None,
-        },
-        received_timestamp_ms: 0,
-        raw_bytes: None,
-    }
-}
 
 #[test]
 fn test_l2_block_initialization_timestamp() {

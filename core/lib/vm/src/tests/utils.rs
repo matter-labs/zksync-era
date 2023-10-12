@@ -7,7 +7,10 @@ use zksync_contracts::{
 };
 use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::utils::storage_key_for_standard_token_balance;
-use zksync_types::{AccountTreeId, Address, StorageKey, H256, U256};
+use zksync_types::{
+    AccountTreeId, Address, Execute, ExecuteTransactionCommon, L1TxCommonData, StorageKey,
+    Transaction, H160, H256, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256,
+};
 use zksync_utils::bytecode::hash_bytecode;
 use zksync_utils::{bytes_to_be_words, h256_to_u256, u256_to_h256};
 
@@ -103,4 +106,23 @@ pub(crate) fn read_max_depth_contract() -> Vec<u8> {
     read_zbin_bytecode(
         "core/tests/ts-integration/contracts/zkasm/artifacts/deep_stak.zkasm/deep_stak.zkasm.zbin",
     )
+}
+
+pub(crate) fn get_l1_noop() -> Transaction {
+    Transaction {
+        common_data: ExecuteTransactionCommon::L1(L1TxCommonData {
+            sender: H160::random(),
+            gas_limit: U256::from(2000000u32),
+            gas_per_pubdata_limit: REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE.into(),
+            ..Default::default()
+        }),
+        execute: Execute {
+            contract_address: H160::zero(),
+            calldata: vec![],
+            value: U256::zero(),
+            factory_deps: None,
+        },
+        received_timestamp_ms: 0,
+        raw_bytes: None,
+    }
 }

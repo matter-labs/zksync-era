@@ -3,7 +3,7 @@ use zk_evm::aux_structures::Timestamp;
 use zksync_types::{
     ethabi::Contract,
     Execute, COMPLEX_UPGRADER_ADDRESS, CONTRACT_DEPLOYER_ADDRESS, CONTRACT_FORCE_DEPLOYER_ADDRESS,
-    REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE,
+    KECCAK256_PRECOMPILE_ADDRESS, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE,
     {ethabi::Token, Address, ExecuteTransactionCommon, Transaction, H256, U256},
     {get_code_key, get_known_code_key, H160},
 };
@@ -14,8 +14,8 @@ use zksync_contracts::{deployer_contract, load_contract, load_sys_contract, read
 use zksync_state::WriteStorage;
 use zksync_test_account::TxType;
 
-use crate::tests::tester::VmTesterBuilder;
 use crate::tests::utils::verify_required_storage;
+use crate::tests::{tester::VmTesterBuilder, utils::get_l1_noop};
 use crate::{ExecutionResult, Halt, HistoryEnabled, TxExecutionMode, VmExecutionMode};
 use zksync_types::protocol_version::ProtocolUpgradeTxCommonData;
 
@@ -213,6 +213,31 @@ fn test_complex_upgrader() {
 
     // Verify that the bytecode has been set correctly
     verify_required_storage(&vm.vm.state, expected_slots);
+}
+
+#[test]
+fn test_keccak_upgrade() {
+    let mut vm = VmTesterBuilder::new(HistoryEnabled)
+        .with_empty_in_memory_storage()
+        .with_execution_mode(TxExecutionMode::VerifyExecute)
+        .with_random_rich_accounts(1)
+        .build();
+
+    vm.vm
+        .state
+        .storage
+        .storage
+        .get_ptr()
+        .borrow_mut()
+        .set_value(get_code_key(&KECCAK256_PRECOMPILE_ADDRESS), H256::default());
+
+    let l1_tx = get_l1_noop();
+    // Firstly we execute the first transaction
+    vm.vm.push_transaction(l1_tx);
+    let result = vm.vm.execute(VmExecutionMode::OneTx);
+    assert!(!result.result.is_failed(), "No revert reason expected");
+    let result = vm.vm.execute(VmExecutionMode::Batch);
+    assert!(!result.result.is_failed(), "No revert reason expected");
 }
 
 #[derive(Debug, Clone)]
