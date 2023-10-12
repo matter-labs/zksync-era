@@ -3,8 +3,7 @@ use vm_latest::{
     FinishedL1Batch, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode, VmMemoryMetrics,
 };
 
-use zksync_state::{ReadStorage, StoragePtr, StorageView};
-use zksync_types::VmVersion;
+use zksync_state::{ReadStorage, StorageView};
 use zksync_utils::bytecode::{hash_bytecode, CompressedBytecodeInfo};
 
 use crate::glue::history_mode::HistoryMode;
@@ -438,120 +437,6 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
             }
             VmInstanceVersion::VmVirtualBlocksRefundsEnhancement(vm) => {
                 Some(vm.record_vm_memory_metrics())
-            }
-        }
-    }
-}
-
-pub struct M5NecessaryData<S: ReadStorage, H: HistoryMode> {
-    pub storage_view: StoragePtr<StorageView<S>>,
-    pub sub_version: vm_m5::vm::MultiVMSubversion,
-    pub history_mode: H,
-}
-
-pub struct M6NecessaryData<S: ReadStorage, H: HistoryMode> {
-    pub storage_view: StoragePtr<StorageView<S>>,
-    pub sub_version: vm_m6::vm::MultiVMSubversion,
-    pub history_mode: H,
-}
-
-pub struct Vm1_3_2NecessaryData<S: ReadStorage, H: HistoryMode> {
-    pub storage_view: StoragePtr<StorageView<S>>,
-    pub history_mode: H,
-}
-
-pub struct VmVirtualBlocksNecessaryData<S: ReadStorage, H: HistoryMode> {
-    pub storage_view: StoragePtr<StorageView<S>>,
-    pub history_mode: H,
-}
-
-pub enum VmInstanceData<S: ReadStorage, H: HistoryMode> {
-    M5(M5NecessaryData<S, H>),
-    M6(M6NecessaryData<S, H>),
-    Vm1_3_2(Vm1_3_2NecessaryData<S, H>),
-    VmVirtualBlocks(VmVirtualBlocksNecessaryData<S, H>),
-    VmVirtualBlocksRefundsEnhancement(VmVirtualBlocksNecessaryData<S, H>),
-}
-
-impl<S: ReadStorage, H: HistoryMode> VmInstanceData<S, H> {
-    fn m5(
-        storage_view: StoragePtr<StorageView<S>>,
-        sub_version: vm_m5::vm::MultiVMSubversion,
-        history_mode: H,
-    ) -> Self {
-        Self::M5(M5NecessaryData {
-            storage_view,
-            sub_version,
-            history_mode,
-        })
-    }
-
-    fn m6(
-        storage_view: StoragePtr<StorageView<S>>,
-        sub_version: vm_m6::vm::MultiVMSubversion,
-        history_mode: H,
-    ) -> Self {
-        Self::M6(M6NecessaryData {
-            storage_view,
-            sub_version,
-            history_mode,
-        })
-    }
-
-    fn latest(storage_view: StoragePtr<StorageView<S>>, history_mode: H) -> Self {
-        Self::VmVirtualBlocksRefundsEnhancement(VmVirtualBlocksNecessaryData {
-            storage_view,
-            history_mode,
-        })
-    }
-
-    fn vm_virtual_blocks(storage_view: StoragePtr<StorageView<S>>, history_mode: H) -> Self {
-        Self::VmVirtualBlocks(VmVirtualBlocksNecessaryData {
-            storage_view,
-            history_mode,
-        })
-    }
-
-    fn vm1_3_2(storage_view: StoragePtr<StorageView<S>>, history_mode: H) -> Self {
-        Self::Vm1_3_2(Vm1_3_2NecessaryData {
-            storage_view,
-            history_mode,
-        })
-    }
-
-    pub fn new(
-        storage_view: StoragePtr<StorageView<S>>,
-        system_env: &SystemEnv,
-        history: H,
-    ) -> Self {
-        let protocol_version = system_env.version;
-        let vm_version: VmVersion = protocol_version.into();
-        Self::new_for_specific_vm_version(storage_view, history, vm_version)
-    }
-
-    // In api we support only subset of vm versions, so we need to create vm instance for specific version
-    pub fn new_for_specific_vm_version(
-        storage_view: StoragePtr<StorageView<S>>,
-        history: H,
-        vm_version: VmVersion,
-    ) -> Self {
-        match vm_version {
-            VmVersion::M5WithoutRefunds => {
-                VmInstanceData::m5(storage_view, vm_m5::vm::MultiVMSubversion::V1, history)
-            }
-            VmVersion::M5WithRefunds => {
-                VmInstanceData::m5(storage_view, vm_m5::vm::MultiVMSubversion::V2, history)
-            }
-            VmVersion::M6Initial => {
-                VmInstanceData::m6(storage_view, vm_m6::vm::MultiVMSubversion::V1, history)
-            }
-            VmVersion::M6BugWithCompressionFixed => {
-                VmInstanceData::m6(storage_view, vm_m6::vm::MultiVMSubversion::V2, history)
-            }
-            VmVersion::Vm1_3_2 => VmInstanceData::vm1_3_2(storage_view, history),
-            VmVersion::VmVirtualBlocks => VmInstanceData::vm_virtual_blocks(storage_view, history),
-            VmVersion::VmVirtualBlocksRefundsEnhancement => {
-                VmInstanceData::latest(storage_view, history)
             }
         }
     }

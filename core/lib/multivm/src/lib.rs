@@ -3,7 +3,7 @@ pub use crate::{
         block_properties::BlockProperties, history_mode::HistoryMode, oracle_tools::OracleTools,
         tracer::MultivmTracer,
     },
-    vm_instance::{VmInstance, VmInstanceData},
+    vm_instance::VmInstance,
 };
 pub use zksync_types::vm_version::VmVersion;
 
