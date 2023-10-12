@@ -181,7 +181,7 @@ mod tests {
 
     #[db_test(dal_crate)]
     async fn test_build_get_logs_where_clause(connection_pool: ConnectionPool) {
-        let storage = &mut connection_pool.access_test_storage().await;
+        let storage = &mut connection_pool.access_storage().await.unwrap();
         let events_web3_dal = EventsWeb3Dal { storage };
         let filter = GetLogsFilter {
             from_block: MiniblockNumber(100),

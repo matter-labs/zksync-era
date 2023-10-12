@@ -10,7 +10,6 @@ use std::time::Duration;
 use zksync_utils::parse_env;
 
 pub mod holder;
-pub mod test_pool;
 
 use crate::{
     get_master_database_url, get_prover_database_url, get_replica_database_url,
@@ -56,7 +55,7 @@ impl ConnectionPoolBuilder {
             DbVariant::Master => get_master_database_url()?,
             DbVariant::Replica => get_replica_database_url()?,
             DbVariant::Prover => get_prover_database_url()?,
-            DbVariant::TestTmp => test_pool::new_db().await.to_string(),
+            DbVariant::TestTmp => create_test_db().await.to_string(),
         };
         self.build_inner(&database_url)
             .await
@@ -86,22 +85,42 @@ impl ConnectionPoolBuilder {
             db = self.db,
             statement_timeout = self.statement_timeout
         );
-        Ok(ConnectionPool::Real(pool))
+        Ok(ConnectionPool(pool))
     }
 }
 
-#[derive(Clone)]
-pub enum ConnectionPool {
-    Real(PgPool),
-    Test(test_pool::TestPool),
+const PREFIX: &str = "test-";
+
+async fn create_test_db() -> url::Url {
+    use rand::Rng as _;
+    use sqlx::{Connection as _, Executor as _};
+    let db_url = crate::get_test_database_url().unwrap();
+    let mut db_url = url::Url::parse(&db_url).unwrap();
+    let db_name = db_url.path()[1..].to_string();
+    let db_copy_name = format!("{PREFIX}{}", rand::thread_rng().gen::<u64>());
+    db_url.set_path("");
+    let mut conn = loop {
+        if let Ok(conn) = sqlx::PgConnection::connect(db_url.as_ref()).await {
+            break conn;
+        } else {
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        }
+    };
+    conn.execute(
+        format!("CREATE DATABASE \"{db_copy_name}\" WITH TEMPLATE \"{db_name}\"").as_str(),
+    )
+    .await
+    .unwrap();
+    db_url.set_path(&db_copy_name);
+    db_url
 }
+
+#[derive(Clone)]
+pub struct ConnectionPool(pub(crate) PgPool);
 
 impl fmt::Debug for ConnectionPool {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Self::Real(_) => write!(f, "Real connection pool"),
-            Self::Test(_) => write!(f, "Test connection pool"),
-        }
+        write!(f, "connection pool")
     }
 }
 
@@ -157,32 +176,28 @@ impl ConnectionPool {
         &self,
         requester: Option<&'static str>,
     ) -> anyhow::Result<StorageProcessor<'_>> {
-        Ok(match self {
-            ConnectionPool::Real(real_pool) => {
-                let acquire_latency = CONNECTION_METRICS.acquire.start();
-                let conn = Self::acquire_connection_retried(real_pool)
-                    .await
-                    .context("acquire_connection_retried()")?;
-                let elapsed = acquire_latency.observe();
-                if let Some(requester) = requester {
-                    CONNECTION_METRICS.acquire_tagged[&requester].observe(elapsed);
-                }
-                StorageProcessor::from_pool(conn)
-            }
-            ConnectionPool::Test(test) => test.access_storage().await,
-        })
+        let acquire_latency = CONNECTION_METRICS.acquire.start();
+        let conn = self
+            .acquire_connection_retried()
+            .await
+            .context("acquire_connection_retried()")?;
+        let elapsed = acquire_latency.observe();
+        if let Some(requester) = requester {
+            CONNECTION_METRICS.acquire_tagged[&requester].observe(elapsed);
+        }
+        Ok(StorageProcessor::from_pool(conn))
     }
 
-    async fn acquire_connection_retried(pool: &PgPool) -> anyhow::Result<PoolConnection<Postgres>> {
+    async fn acquire_connection_retried(&self) -> anyhow::Result<PoolConnection<Postgres>> {
         const DB_CONNECTION_RETRIES: u32 = 3;
         const BACKOFF_INTERVAL: Duration = Duration::from_secs(1);
 
         let mut retry_count = 0;
         while retry_count < DB_CONNECTION_RETRIES {
-            CONNECTION_METRICS.pool_size.observe(pool.size() as usize);
-            CONNECTION_METRICS.pool_idle.observe(pool.num_idle());
+            CONNECTION_METRICS.pool_size.observe(self.0.size() as usize);
+            CONNECTION_METRICS.pool_idle.observe(self.0.num_idle());
 
-            let connection = pool.acquire().await;
+            let connection = self.0.acquire().await;
             let connection_err = match connection {
                 Ok(connection) => return Ok(connection),
                 Err(err) => {
@@ -199,7 +214,7 @@ impl ConnectionPool {
         }
 
         // Attempting to get the pooled connection for the last time
-        match pool.acquire().await {
+        match self.0.acquire().await {
             Ok(conn) => Ok(conn),
             Err(err) => {
                 Self::report_connection_error(&err);
@@ -210,10 +225,6 @@ impl ConnectionPool {
 
     fn report_connection_error(err: &sqlx::Error) {
         CONNECTION_METRICS.pool_acquire_error[&err.into()].inc();
-    }
-
-    pub async fn access_test_storage(&self) -> StorageProcessor<'_> {
-        self.access_storage().await.unwrap()
     }
 }
 

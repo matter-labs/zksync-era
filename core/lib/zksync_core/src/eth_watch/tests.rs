@@ -196,7 +196,7 @@ async fn test_normal_operation_l1_txs(connection_pool: ConnectionPool) {
     )
     .await;
 
-    let mut storage = connection_pool.access_test_storage().await;
+    let mut storage = connection_pool.access_storage().await.unwrap();
     client
         .add_transactions(&[build_l1_tx(0, 10), build_l1_tx(1, 14), build_l1_tx(2, 18)])
         .await;
@@ -241,7 +241,7 @@ async fn test_normal_operation_upgrades(connection_pool: ConnectionPool) {
     )
     .await;
 
-    let mut storage = connection_pool.access_test_storage().await;
+    let mut storage = connection_pool.access_storage().await.unwrap();
     client
         .add_upgrades(&[
             (
@@ -299,7 +299,7 @@ async fn test_gap_in_upgrades(connection_pool: ConnectionPool) {
     )
     .await;
 
-    let mut storage = connection_pool.access_test_storage().await;
+    let mut storage = connection_pool.access_storage().await.unwrap();
     client
         .add_upgrades(&[(
             ProtocolUpgrade {
@@ -336,7 +336,7 @@ async fn test_gap_in_single_batch(connection_pool: ConnectionPool) {
     )
     .await;
 
-    let mut storage = connection_pool.access_test_storage().await;
+    let mut storage = connection_pool.access_storage().await.unwrap();
     client
         .add_transactions(&[
             build_l1_tx(0, 10),
@@ -363,7 +363,7 @@ async fn test_gap_between_batches(connection_pool: ConnectionPool) {
     )
     .await;
 
-    let mut storage = connection_pool.access_test_storage().await;
+    let mut storage = connection_pool.access_storage().await.unwrap();
     client
         .add_transactions(&[
             // this goes to the first batch
@@ -395,7 +395,7 @@ async fn test_overlapping_batches(connection_pool: ConnectionPool) {
     )
     .await;
 
-    let mut storage = connection_pool.access_test_storage().await;
+    let mut storage = connection_pool.access_storage().await.unwrap();
     client
         .add_transactions(&[
             // this goes to the first batch
@@ -624,8 +624,9 @@ fn upgrade_into_log(upgrade: ProtocolUpgrade, eth_block: u64) -> Log {
 
 async fn setup_db(connection_pool: &ConnectionPool) {
     connection_pool
-        .access_test_storage()
+        .access_storage()
         .await
+        .unwrap()
         .protocol_versions_dal()
         .save_protocol_version_with_tx(ProtocolVersion {
             id: (ProtocolVersionId::latest() as u16 - 1).try_into().unwrap(),

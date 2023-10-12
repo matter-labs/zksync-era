@@ -391,7 +391,7 @@ mod tests {
 
     #[db_test(dal_crate)]
     async fn getting_transaction(connection_pool: ConnectionPool) {
-        let mut conn = connection_pool.access_test_storage().await;
+        let mut conn = connection_pool.access_storage().await.unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;
@@ -456,7 +456,7 @@ mod tests {
 
     #[db_test(dal_crate)]
     async fn getting_miniblock_transactions(connection_pool: ConnectionPool) {
-        let mut conn = connection_pool.access_test_storage().await;
+        let mut conn = connection_pool.access_storage().await.unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;

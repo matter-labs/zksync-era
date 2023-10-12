@@ -1,0 +1,10 @@
+version: '3.2'
+services:
+  postgres_tmp:
+    image: "postgres:14"
+    container_name: "postgres_tmp"
+    command: "postgres -c fsync=false"
+    ports:
+      - "7000:5432"
+    environment:
+      - POSTGRES_HOST_AUTH_METHOD=trust

@@ -594,7 +594,7 @@ mod tests {
 
     #[db_test(dal_crate)]
     async fn getting_web3_block_and_tx_count(connection_pool: ConnectionPool) {
-        let mut conn = connection_pool.access_test_storage().await;
+        let mut conn = connection_pool.access_storage().await.unwrap();
         conn.blocks_dal()
             .delete_miniblocks(MiniblockNumber(0))
             .await
@@ -661,7 +661,7 @@ mod tests {
 
     #[db_test(dal_crate)]
     async fn resolving_earliest_block_id(connection_pool: ConnectionPool) {
-        let mut conn = connection_pool.access_test_storage().await;
+        let mut conn = connection_pool.access_storage().await.unwrap();
         conn.blocks_dal()
             .delete_miniblocks(MiniblockNumber(0))
             .await
@@ -676,7 +676,7 @@ mod tests {
 
     #[db_test(dal_crate)]
     async fn resolving_latest_block_id(connection_pool: ConnectionPool) {
-        let mut conn = connection_pool.access_test_storage().await;
+        let mut conn = connection_pool.access_storage().await.unwrap();
         conn.blocks_dal()
             .delete_miniblocks(MiniblockNumber(0))
             .await
@@ -731,7 +731,7 @@ mod tests {
 
     #[db_test(dal_crate)]
     async fn resolving_block_by_hash(connection_pool: ConnectionPool) {
-        let mut conn = connection_pool.access_test_storage().await;
+        let mut conn = connection_pool.access_storage().await.unwrap();
         conn.blocks_dal()
             .delete_miniblocks(MiniblockNumber(0))
             .await
@@ -761,7 +761,7 @@ mod tests {
 
     #[db_test(dal_crate)]
     async fn getting_miniblocks_for_virtual_block(connection_pool: ConnectionPool) {
-        let mut conn = connection_pool.access_test_storage().await;
+        let mut conn = connection_pool.access_storage().await.unwrap();
 
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())

@@ -120,7 +120,7 @@ impl EthSenderTester {
     }
 
     async fn storage(&self) -> StorageProcessor<'_> {
-        self.conn.access_test_storage().await
+        self.conn.access_storage().await.unwrap()
     }
 
     async fn get_block_numbers(&self) -> L1BlockNumbers {
@@ -141,14 +141,14 @@ async fn confirm_many(connection_pool: ConnectionPool) -> anyhow::Result<()> {
         let tx = tester
             .aggregator
             .save_eth_tx(
-                &mut tester.conn.access_test_storage().await,
+                &mut tester.conn.access_storage().await.unwrap(),
                 &DUMMY_OPERATION,
             )
             .await?;
         let hash = tester
             .manager
             .send_eth_tx(
-                &mut tester.conn.access_test_storage().await,
+                &mut tester.conn.access_storage().await.unwrap(),
                 &tx,
                 0,
                 L1BlockNumber(tester.gateway.block_number("").await?.as_u32()),
@@ -179,7 +179,7 @@ async fn confirm_many(connection_pool: ConnectionPool) -> anyhow::Result<()> {
     let to_resend = tester
         .manager
         .monitor_inflight_transactions(
-            &mut tester.conn.access_test_storage().await,
+            &mut tester.conn.access_storage().await.unwrap(),
             tester.get_block_numbers().await,
         )
         .await?;
@@ -215,14 +215,19 @@ async fn resend_each_block(connection_pool: ConnectionPool) -> anyhow::Result<()
     let tx = tester
         .aggregator
         .save_eth_tx(
-            &mut tester.conn.access_test_storage().await,
+            &mut tester.conn.access_storage().await.unwrap(),
             &DUMMY_OPERATION,
         )
         .await?;
 
     let hash = tester
         .manager
-        .send_eth_tx(&mut tester.conn.access_test_storage().await, &tx, 0, block)
+        .send_eth_tx(
+            &mut tester.conn.access_storage().await.unwrap(),
+            &tx,
+            0,
+            block,
+        )
         .await?;
 
     // check that we sent something and stored it in the db
@@ -250,14 +255,17 @@ async fn resend_each_block(connection_pool: ConnectionPool) -> anyhow::Result<()
 
     let (to_resend, _) = tester
         .manager
-        .monitor_inflight_transactions(&mut tester.conn.access_test_storage().await, block_numbers)
+        .monitor_inflight_transactions(
+            &mut tester.conn.access_storage().await.unwrap(),
+            block_numbers,
+        )
         .await?
         .unwrap();
 
     let resent_hash = tester
         .manager
         .send_eth_tx(
-            &mut tester.conn.access_test_storage().await,
+            &mut tester.conn.access_storage().await.unwrap(),
             &to_resend,
             1,
             block_numbers.latest,
@@ -292,7 +300,7 @@ async fn dont_resend_already_mined(connection_pool: ConnectionPool) -> anyhow::R
     let tx = tester
         .aggregator
         .save_eth_tx(
-            &mut tester.conn.access_test_storage().await,
+            &mut tester.conn.access_storage().await.unwrap(),
             &DUMMY_OPERATION,
         )
         .await
@@ -301,7 +309,7 @@ async fn dont_resend_already_mined(connection_pool: ConnectionPool) -> anyhow::R
     let hash = tester
         .manager
         .send_eth_tx(
-            &mut tester.conn.access_test_storage().await,
+            &mut tester.conn.access_storage().await.unwrap(),
             &tx,
             0,
             L1BlockNumber(tester.gateway.block_number("").await.unwrap().as_u32()),
@@ -330,7 +338,7 @@ async fn dont_resend_already_mined(connection_pool: ConnectionPool) -> anyhow::R
     let to_resend = tester
         .manager
         .monitor_inflight_transactions(
-            &mut tester.conn.access_test_storage().await,
+            &mut tester.conn.access_storage().await.unwrap(),
             tester.get_block_numbers().await,
         )
         .await?;
@@ -362,7 +370,7 @@ async fn three_scenarios(connection_pool: ConnectionPool) -> anyhow::Result<()> 
         let tx = tester
             .aggregator
             .save_eth_tx(
-                &mut tester.conn.access_test_storage().await,
+                &mut tester.conn.access_storage().await.unwrap(),
                 &DUMMY_OPERATION,
             )
             .await
@@ -371,7 +379,7 @@ async fn three_scenarios(connection_pool: ConnectionPool) -> anyhow::Result<()> 
         let hash = tester
             .manager
             .send_eth_tx(
-                &mut tester.conn.access_test_storage().await,
+                &mut tester.conn.access_storage().await.unwrap(),
                 &tx,
                 0,
                 L1BlockNumber(tester.gateway.block_number("").await.unwrap().as_u32()),
@@ -398,7 +406,7 @@ async fn three_scenarios(connection_pool: ConnectionPool) -> anyhow::Result<()> 
     let (to_resend, _) = tester
         .manager
         .monitor_inflight_transactions(
-            &mut tester.conn.access_test_storage().await,
+            &mut tester.conn.access_storage().await.unwrap(),
             tester.get_block_numbers().await,
         )
         .await?
@@ -430,7 +438,7 @@ async fn failed_eth_tx(connection_pool: ConnectionPool) {
     let tx = tester
         .aggregator
         .save_eth_tx(
-            &mut tester.conn.access_test_storage().await,
+            &mut tester.conn.access_storage().await.unwrap(),
             &DUMMY_OPERATION,
         )
         .await
@@ -439,7 +447,7 @@ async fn failed_eth_tx(connection_pool: ConnectionPool) {
     let hash = tester
         .manager
         .send_eth_tx(
-            &mut tester.conn.access_test_storage().await,
+            &mut tester.conn.access_storage().await.unwrap(),
             &tx,
             0,
             L1BlockNumber(tester.gateway.block_number("").await.unwrap().as_u32()),
@@ -455,7 +463,7 @@ async fn failed_eth_tx(connection_pool: ConnectionPool) {
     tester
         .manager
         .monitor_inflight_transactions(
-            &mut tester.conn.access_test_storage().await,
+            &mut tester.conn.access_storage().await.unwrap(),
             tester.get_block_numbers().await,
         )
         .await
@@ -903,7 +911,7 @@ async fn send_operation(
     let tx = tester
         .aggregator
         .save_eth_tx(
-            &mut tester.conn.access_test_storage().await,
+            &mut tester.conn.access_storage().await.unwrap(),
             &aggregated_operation,
         )
         .await
@@ -912,7 +920,7 @@ async fn send_operation(
     let hash = tester
         .manager
         .send_eth_tx(
-            &mut tester.conn.access_test_storage().await,
+            &mut tester.conn.access_storage().await.unwrap(),
             &tx,
             0,
             L1BlockNumber(tester.gateway.block_number("").await.unwrap().as_u32()),
@@ -935,7 +943,7 @@ async fn confirm_tx(tester: &mut EthSenderTester, hash: H256) {
     tester
         .manager
         .monitor_inflight_transactions(
-            &mut tester.conn.access_test_storage().await,
+            &mut tester.conn.access_storage().await.unwrap(),
             tester.get_block_numbers().await,
         )
         .await
