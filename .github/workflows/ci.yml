@@ -102,6 +102,7 @@ jobs:
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
       action: "build"
       ERA_BELLMAN_CUDA_RELEASE: ${{ vars.ERA_BELLMAN_CUDA_RELEASE }}
+      is_pr_from_fork: ${{ github.event.pull_request.head.repo.fork == true }}
     secrets:
       DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
