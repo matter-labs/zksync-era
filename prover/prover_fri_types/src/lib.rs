@@ -21,6 +21,7 @@ use zksync_types::proofs::AggregationRound;
 use zksync_types::L1BatchNumber;
 
 #[derive(serde::Serialize, serde::Deserialize, Clone)]
+#[allow(clippy::large_enum_variant)]
 pub enum CircuitWrapper {
     Base(
         ZkSyncBaseLayerCircuit<
