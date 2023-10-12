@@ -1,5 +1,5 @@
-use zkevm_test_harness::geometry_config::get_geometry_config;
-use zkevm_test_harness::toolset::GeometryConfig;
+use zkevm_test_harness_old::geometry_config::get_geometry_config;
+use zkevm_test_harness_old::toolset::GeometryConfig;
 
 pub const LEAF_SPLITTING_FACTOR: usize = 50;
 pub const NODE_SPLITTING_FACTOR: usize = 48;

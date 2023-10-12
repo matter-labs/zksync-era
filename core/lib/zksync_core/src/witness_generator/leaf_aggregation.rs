@@ -10,7 +10,7 @@ use zksync_queued_job_processor::JobProcessor;
 use zksync_types::{
     circuit::LEAF_SPLITTING_FACTOR,
     proofs::{AggregationRound, PrepareLeafAggregationCircuitsJob, WitnessGeneratorJobMetadata},
-    zkevm_test_harness::{
+    zkevm_test_harness_old::{
         abstract_zksync_circuit::concrete_circuits::ZkSyncCircuit, bellman::bn256::Bn256,
         bellman::plonk::better_better_cs::setup::VerificationKey,
         encodings::recursion_request::RecursionRequest, encodings::QueueSimulator, witness,

@@ -80,8 +80,8 @@ impl<'a, S: Storage> VmInstance<'a, S> {
                 .forward,
             from_timestamp,
         );
-        let (_, deduplicated_logs) =
-            sort_storage_access_queries(storage_logs.iter().map(|log| &log.log_query));
+        let queries: Vec<_> = storage_logs.into_iter().map(|log| log.log_query).collect();
+        let (_, deduplicated_logs) = sort_storage_access_queries(&queries);
 
         deduplicated_logs
             .into_iter()

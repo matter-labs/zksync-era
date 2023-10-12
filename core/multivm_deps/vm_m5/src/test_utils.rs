@@ -14,13 +14,13 @@ use zk_evm::{
 };
 use zksync_contracts::test_contracts::LoadnextContractExecutionParams;
 use zksync_contracts::{deployer_contract, get_loadnext_contract, load_contract};
+use zksync_types::StorageLogQuery;
 use zksync_types::{
     ethabi::{Address, Token},
     fee::Fee,
     l2::L2Tx,
     web3::signing::keccak256,
-    Execute, L2ChainId, Nonce, StorageKey, StorageLogQuery, StorageValue,
-    CONTRACT_DEPLOYER_ADDRESS, H256, U256,
+    Execute, L2ChainId, Nonce, StorageKey, StorageValue, CONTRACT_DEPLOYER_ADDRESS, H256, U256,
 };
 use zksync_utils::{
     address_to_h256, bytecode::hash_bytecode, h256_to_account_address, u256_to_h256,

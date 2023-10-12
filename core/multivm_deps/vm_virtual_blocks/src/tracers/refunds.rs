@@ -1,3 +1,4 @@
+use itertools::Itertools;
 use vise::{Buckets, EncodeLabelSet, EncodeLabelValue, Family, Histogram, Metrics};
 
 use std::collections::HashMap;
@@ -18,7 +19,6 @@ use zksync_types::{
 use zksync_utils::bytecode::bytecode_len_in_bytes;
 use zksync_utils::{ceil_div_u256, u256_to_h256};
 
-use crate::bootloader_state::BootloaderState;
 use crate::constants::{BOOTLOADER_HEAP_PAGE, OPERATOR_REFUNDS_OFFSET, TX_GAS_LIMIT_OFFSET};
 use crate::old_vm::{
     events::merge_events, history_recorder::HistoryMode, memory::SimpleMemory,
@@ -34,6 +34,7 @@ use crate::types::{
     internals::ZkSyncVmState,
     outputs::{Refunds, VmExecutionResultAndLogs},
 };
+use crate::{bootloader_state::BootloaderState, types::glue::GlueInto};
 
 /// Tracer responsible for collecting information about refunds.
 #[derive(Debug, Clone)]
@@ -361,16 +362,16 @@ fn pubdata_published_for_writes<S: WriteStorage, H: HistoryMode>(
     let storage_logs = state
         .storage
         .storage_log_queries_after_timestamp(from_timestamp);
-    let (_, deduplicated_logs) =
-        sort_storage_access_queries(storage_logs.iter().map(|log| &log.log_query));
+    let queries: Vec<_> = storage_logs.into_iter().map(|log| log.log_query).collect();
+    let (_, deduplicated_logs) = sort_storage_access_queries(&queries);
 
     deduplicated_logs
         .into_iter()
         .filter_map(|log| {
             if log.rw_flag {
-                let key = storage_key_of_log(&log);
+                let key = storage_key_of_log(&log.glue_into());
                 let pre_paid = pre_paid_before_tx(&key);
-                let to_pay_by_user = state.storage.base_price_for_write(&log);
+                let to_pay_by_user = state.storage.base_price_for_write(&log.glue_into());
 
                 if to_pay_by_user > pre_paid {
                     Some(to_pay_by_user - pre_paid)

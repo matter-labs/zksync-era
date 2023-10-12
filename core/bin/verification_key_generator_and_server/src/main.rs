@@ -1,9 +1,9 @@
 use std::collections::HashSet;
 use std::env;
-use zksync_types::zkevm_test_harness::abstract_zksync_circuit::concrete_circuits::ZkSyncCircuit;
-use zksync_types::zkevm_test_harness::bellman::bn256::Bn256;
-use zksync_types::zkevm_test_harness::bellman::plonk::better_better_cs::cs::PlonkCsWidth4WithNextStepAndCustomGatesParams;
-use zksync_types::zkevm_test_harness::witness::oracle::VmWitnessOracle;
+use zksync_types::zkevm_test_harness_old::abstract_zksync_circuit::concrete_circuits::ZkSyncCircuit;
+use zksync_types::zkevm_test_harness_old::bellman::bn256::Bn256;
+use zksync_types::zkevm_test_harness_old::bellman::plonk::better_better_cs::cs::PlonkCsWidth4WithNextStepAndCustomGatesParams;
+use zksync_types::zkevm_test_harness_old::witness::oracle::VmWitnessOracle;
 use zksync_verification_key_server::{get_circuits_for_vk, save_vk_for_circuit_type};
 
 /// Creates verification keys for the given circuit.

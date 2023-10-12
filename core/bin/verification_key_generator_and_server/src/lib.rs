@@ -3,10 +3,11 @@ use once_cell::sync::Lazy;
 use std::collections::HashMap;
 use std::path::Path;
 use std::str::FromStr;
-use zksync_types::zkevm_test_harness::abstract_zksync_circuit::concrete_circuits::ZkSyncCircuit;
-use zksync_types::zkevm_test_harness::bellman::bn256::Bn256;
-use zksync_types::zkevm_test_harness::bellman::plonk::better_better_cs::setup::VerificationKey;
-use zksync_types::zkevm_test_harness::witness::oracle::VmWitnessOracle;
+use zksync_types::zkevm_test_harness_old::abstract_zksync_circuit::concrete_circuits::ZkSyncCircuit;
+use zksync_types::zkevm_test_harness_old::bellman::bn256::Bn256;
+use zksync_types::zkevm_test_harness_old::bellman::plonk::better_better_cs::setup::VerificationKey;
+use zksync_types::zkevm_test_harness_old::geometry_config::get_geometry_config;
+use zksync_types::zkevm_test_harness_old::witness::oracle::VmWitnessOracle;
 
 use itertools::Itertools;
 use structopt::lazy_static::lazy_static;
@@ -17,12 +18,12 @@ use zksync_types::circuit::{
 };
 use zksync_types::protocol_version::{L1VerifierConfig, VerifierParams};
 use zksync_types::vk_transform::generate_vk_commitment;
-use zksync_types::zkevm_test_harness::witness;
-use zksync_types::zkevm_test_harness::witness::full_block_artifact::BlockBasicCircuits;
-use zksync_types::zkevm_test_harness::witness::recursive_aggregation::{
+use zksync_types::zkevm_test_harness_old::witness;
+use zksync_types::zkevm_test_harness_old::witness::full_block_artifact::BlockBasicCircuits;
+use zksync_types::zkevm_test_harness_old::witness::recursive_aggregation::{
     erase_vk_type, padding_aggregations,
 };
-use zksync_types::zkevm_test_harness::witness::vk_set_generator::circuits_for_vk_generation;
+use zksync_types::zkevm_test_harness_old::witness::vk_set_generator::circuits_for_vk_generation;
 use zksync_types::H256;
 
 #[cfg(test)]
@@ -108,7 +109,7 @@ pub fn get_circuits_for_vk() -> Vec<ZkSyncCircuit<Bn256, VmWitnessOracle<Bn256>>
     ensure_setup_key_exist();
     let padding_aggregations = padding_aggregations(NODE_SPLITTING_FACTOR);
     circuits_for_vk_generation(
-        GEOMETRY_CONFIG,
+        get_geometry_config(),
         LEAF_SPLITTING_FACTOR,
         NODE_SPLITTING_FACTOR,
         SCHEDULER_UPPER_BOUND,

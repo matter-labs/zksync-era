@@ -4,6 +4,7 @@ use crate::oracles::storage::storage_key_of_log;
 use crate::storage::Storage;
 use crate::utils::collect_storage_log_queries_after_timestamp;
 use crate::VmInstance;
+use itertools::Itertools;
 use std::collections::HashMap;
 use zk_evm::aux_structures::Timestamp;
 use zksync_types::event::{extract_long_l2_to_l1_messages, extract_published_bytecodes};
@@ -74,8 +75,8 @@ impl<H: HistoryMode, S: Storage> VmInstance<'_, S, H> {
             self.state.storage.frames_stack.forward().current_frame(),
             from_timestamp,
         );
-        let (_, deduplicated_logs) =
-            sort_storage_access_queries(storage_logs.iter().map(|log| &log.log_query));
+        let queries: Vec<_> = storage_logs.into_iter().map(|log| log.log_query).collect();
+        let (_, deduplicated_logs) = sort_storage_access_queries(&queries);
 
         deduplicated_logs
             .into_iter()

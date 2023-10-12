@@ -4,7 +4,7 @@ use zksync_types::aggregated_operations::L1BatchProofForL1;
 use zksync_types::{
     proofs::{AggregationRound, PrepareBasicCircuitsJob},
     storage::witness_block_state::WitnessBlockState,
-    zkevm_test_harness::{
+    zkevm_test_harness_old::{
         abstract_zksync_circuit::concrete_circuits::ZkSyncCircuit,
         bellman::bn256::Bn256,
         encodings::{recursion_request::RecursionRequest, QueueSimulator},

@@ -109,36 +109,37 @@ impl PubdataTracer {
     fn get_state_diffs<S: WriteStorage, H: HistoryMode>(
         state: &ZkSyncVmState<S, H>,
     ) -> Vec<StateDiffRecord> {
-        sort_storage_access_queries(
-            state
-                .storage
-                .storage_log_queries_after_timestamp(Timestamp(0))
-                .iter()
-                .map(|log| &log.log_query),
-        )
-        .1
-        .into_iter()
-        .filter(|log| log.rw_flag)
-        .filter(|log| log.read_value != log.written_value)
-        .filter(|log| log.address != L1_MESSENGER_ADDRESS)
-        .map(|log| StateDiffRecord {
-            address: log.address,
-            key: log.key,
-            derived_key: log.derive_final_address(),
-            enumeration_index: state
-                .storage
-                .storage
-                .get_ptr()
-                .borrow_mut()
-                .get_enumeration_index(&StorageKey::new(
-                    AccountTreeId::new(log.address),
-                    u256_to_h256(log.key),
-                ))
-                .unwrap_or_default(),
-            initial_value: log.read_value,
-            final_value: log.written_value,
-        })
-        .collect()
+        let queries: Vec<_> = state
+            .storage
+            .storage_log_queries_after_timestamp(Timestamp(0))
+            .iter()
+            .map(|log| log.log_query)
+            .collect();
+
+        sort_storage_access_queries(&queries)
+            .1
+            .into_iter()
+            .filter(|log| log.rw_flag)
+            .filter(|log| log.read_value != log.written_value)
+            .filter(|log| log.address != L1_MESSENGER_ADDRESS)
+            .map(|log| StateDiffRecord {
+                address: log.address,
+                key: log.key,
+                derived_key: log.derive_final_address(),
+                enumeration_index: state
+                    .storage
+                    .storage
+                    .get_ptr()
+                    .borrow_mut()
+                    .get_enumeration_index(&StorageKey::new(
+                        AccountTreeId::new(log.address),
+                        u256_to_h256(log.key),
+                    ))
+                    .unwrap_or_default(),
+                initial_value: log.read_value,
+                final_value: log.written_value,
+            })
+            .collect()
     }
 
     fn build_pubdata_input<S: WriteStorage, H: HistoryMode>(

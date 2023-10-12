@@ -13,7 +13,7 @@ use zksync_types::{
         LEAF_CIRCUIT_INDEX, LEAF_SPLITTING_FACTOR, NODE_CIRCUIT_INDEX, NODE_SPLITTING_FACTOR,
     },
     proofs::{AggregationRound, PrepareSchedulerCircuitJob, WitnessGeneratorJobMetadata},
-    zkevm_test_harness::{
+    zkevm_test_harness_old::{
         abstract_zksync_circuit::concrete_circuits::ZkSyncCircuit,
         bellman::{bn256::Bn256, plonk::better_better_cs::setup::VerificationKey},
         sync_vm::scheduler::BlockApplicationWitness,

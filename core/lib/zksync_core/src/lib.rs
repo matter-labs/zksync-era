@@ -72,10 +72,10 @@ use crate::metadata_calculator::{
     MetadataCalculator, MetadataCalculatorConfig, MetadataCalculatorModeConfig,
 };
 use crate::state_keeper::{create_state_keeper, MempoolFetcher, MempoolGuard, MiniblockSealer};
-use crate::witness_generator::{
-    basic_circuits::BasicWitnessGenerator, leaf_aggregation::LeafAggregationWitnessGenerator,
-    node_aggregation::NodeAggregationWitnessGenerator, scheduler::SchedulerWitnessGenerator,
-};
+// use crate::witness_generator::{
+//     basic_circuits::BasicWitnessGenerator, leaf_aggregation::LeafAggregationWitnessGenerator,
+//     node_aggregation::NodeAggregationWitnessGenerator, scheduler::SchedulerWitnessGenerator,
+// };
 use crate::{
     api_server::{
         contract_verification,
@@ -104,7 +104,7 @@ pub mod proof_data_handler;
 pub mod reorg_detector;
 pub mod state_keeper;
 pub mod sync_layer;
-pub mod witness_generator;
+// pub mod witness_generator;
 
 /// Inserts the initial information about zkSync tokens into the database.
 pub async fn genesis_init(
@@ -829,88 +829,88 @@ async fn add_witness_generator_to_task_futures(
         return Ok(());
     }
 
-    let generator_params = components.iter().filter_map(|component| {
-        if let Component::WitnessGenerator(batch_size, component_type) = component {
-            Some((*batch_size, *component_type))
-        } else {
-            None
-        }
-    });
+    // let generator_params = components.iter().filter_map(|component| {
+    //     if let Component::WitnessGenerator(batch_size, component_type) = component {
+    //         Some((*batch_size, *component_type))
+    //     } else {
+    //         None
+    //     }
+    // });
 
-    for (batch_size, component_type) in generator_params {
-        let started_at = Instant::now();
-        tracing::info!(
-            "initializing the {component_type:?} witness generator, batch size: {batch_size:?}"
-        );
+    // for (batch_size, component_type) in generator_params {
+    //     let started_at = Instant::now();
+    //     tracing::info!(
+    //         "initializing the {component_type:?} witness generator, batch size: {batch_size:?}"
+    //     );
 
-        let vk_commitments = get_cached_commitments();
-        let protocol_versions = prover_connection_pool
-            .access_storage()
-            .await
-            .unwrap()
-            .protocol_versions_dal()
-            .protocol_version_for(&vk_commitments)
-            .await;
-        let config =
-            WitnessGeneratorConfig::from_env().context("WitnessGeneratorConfig::from_env()")?;
-        let task = match component_type {
-            AggregationRound::BasicCircuits => {
-                let witness_generator = BasicWitnessGenerator::new(
-                    config,
-                    store_factory,
-                    protocol_versions.clone(),
-                    connection_pool.clone(),
-                    prover_connection_pool.clone(),
-                )
-                .await;
-                tokio::spawn(witness_generator.run(stop_receiver.clone(), batch_size))
-            }
-            AggregationRound::LeafAggregation => {
-                let witness_generator = LeafAggregationWitnessGenerator::new(
-                    config,
-                    store_factory,
-                    protocol_versions.clone(),
-                    connection_pool.clone(),
-                    prover_connection_pool.clone(),
-                )
-                .await;
-                tokio::spawn(witness_generator.run(stop_receiver.clone(), batch_size))
-            }
-            AggregationRound::NodeAggregation => {
-                let witness_generator = NodeAggregationWitnessGenerator::new(
-                    config,
-                    store_factory,
-                    protocol_versions.clone(),
-                    connection_pool.clone(),
-                    prover_connection_pool.clone(),
-                )
-                .await;
-                tokio::spawn(witness_generator.run(stop_receiver.clone(), batch_size))
-            }
-            AggregationRound::Scheduler => {
-                let witness_generator = SchedulerWitnessGenerator::new(
-                    config,
-                    store_factory,
-                    protocol_versions.clone(),
-                    connection_pool.clone(),
-                    prover_connection_pool.clone(),
-                )
-                .await;
-                tokio::spawn(witness_generator.run(stop_receiver.clone(), batch_size))
-            }
-        };
-        task_futures.push(task);
+    //     let vk_commitments = get_cached_commitments();
+    //     let protocol_versions = prover_connection_pool
+    //         .access_storage()
+    //         .await
+    //         .unwrap()
+    //         .protocol_versions_dal()
+    //         .protocol_version_for(&vk_commitments)
+    //         .await;
+    //     let config =
+    //         WitnessGeneratorConfig::from_env().context("WitnessGeneratorConfig::from_env()")?;
+    //     let task = match component_type {
+    //         AggregationRound::BasicCircuits => {
+    //             let witness_generator = BasicWitnessGenerator::new(
+    //                 config,
+    //                 store_factory,
+    //                 protocol_versions.clone(),
+    //                 connection_pool.clone(),
+    //                 prover_connection_pool.clone(),
+    //             )
+    //             .await;
+    //             tokio::spawn(witness_generator.run(stop_receiver.clone(), batch_size))
+    //         }
+    //         AggregationRound::LeafAggregation => {
+    //             let witness_generator = LeafAggregationWitnessGenerator::new(
+    //                 config,
+    //                 store_factory,
+    //                 protocol_versions.clone(),
+    //                 connection_pool.clone(),
+    //                 prover_connection_pool.clone(),
+    //             )
+    //             .await;
+    //             tokio::spawn(witness_generator.run(stop_receiver.clone(), batch_size))
+    //         }
+    //         AggregationRound::NodeAggregation => {
+    //             let witness_generator = NodeAggregationWitnessGenerator::new(
+    //                 config,
+    //                 store_factory,
+    //                 protocol_versions.clone(),
+    //                 connection_pool.clone(),
+    //                 prover_connection_pool.clone(),
+    //             )
+    //             .await;
+    //             tokio::spawn(witness_generator.run(stop_receiver.clone(), batch_size))
+    //         }
+    //         AggregationRound::Scheduler => {
+    //             let witness_generator = SchedulerWitnessGenerator::new(
+    //                 config,
+    //                 store_factory,
+    //                 protocol_versions.clone(),
+    //                 connection_pool.clone(),
+    //                 prover_connection_pool.clone(),
+    //             )
+    //             .await;
+    //             tokio::spawn(witness_generator.run(stop_receiver.clone(), batch_size))
+    //         }
+    //     };
+    //     task_futures.push(task);
 
-        tracing::info!(
-            "initialized {component_type:?} witness generator in {:?}",
-            started_at.elapsed()
-        );
-        metrics::gauge!(
-            "server.init.latency",
-            started_at.elapsed(),
-            "stage" => format!("witness_generator_{component_type:?}")
-        );
-    }
+    //     tracing::info!(
+    //         "initialized {component_type:?} witness generator in {:?}",
+    //         started_at.elapsed()
+    //     );
+    //     metrics::gauge!(
+    //         "server.init.latency",
+    //         started_at.elapsed(),
+    //         "stage" => format!("witness_generator_{component_type:?}")
+    //     );
+    // }
     Ok(())
 }
 

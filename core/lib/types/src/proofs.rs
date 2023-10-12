@@ -7,15 +7,15 @@ use std::str::FromStr;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, Bytes};
-use zkevm_test_harness::abstract_zksync_circuit::concrete_circuits::ZkSyncCircuit;
-use zkevm_test_harness::bellman::bn256::Bn256;
-use zkevm_test_harness::bellman::plonk::better_better_cs::proof::Proof;
-use zkevm_test_harness::encodings::{recursion_request::RecursionRequest, QueueSimulator};
-use zkevm_test_harness::witness::full_block_artifact::{
+use zkevm_test_harness_old::abstract_zksync_circuit::concrete_circuits::ZkSyncCircuit;
+use zkevm_test_harness_old::bellman::bn256::Bn256;
+use zkevm_test_harness_old::bellman::plonk::better_better_cs::proof::Proof;
+use zkevm_test_harness_old::encodings::{recursion_request::RecursionRequest, QueueSimulator};
+use zkevm_test_harness_old::witness::full_block_artifact::{
     BlockBasicCircuits, BlockBasicCircuitsPublicInputs,
 };
-use zkevm_test_harness::witness::oracle::VmWitnessOracle;
-use zkevm_test_harness::{
+use zkevm_test_harness_old::witness::oracle::VmWitnessOracle;
+use zkevm_test_harness_old::{
     LeafAggregationOutputDataWitness, NodeAggregationOutputDataWitness,
     SchedulerCircuitInstanceWitness,
 };

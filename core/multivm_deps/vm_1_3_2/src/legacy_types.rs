@@ -1,4 +1,5 @@
-use zksync_types::{l2_to_l1_log::L2ToL1Log, StorageLogQuery, VmEvent};
+use zk_evm::aux_structures::LogQuery;
+use zksync_types::{l2_to_l1_log::L2ToL1Log, StorageLogQuery, StorageLogQueryType, VmEvent};
 
 ///
 /// Here we insert of the types that used to be present in lib/types at the time when this VM was in use.
@@ -13,3 +14,10 @@ pub struct VmExecutionLogs {
     // This field moved to statistics, but we need to keep it for backward compatibility
     pub total_log_queries_count: usize,
 }
+
+// /// Log query, which handle initial and repeated writes to the storage
+// #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+// pub struct StorageLogQuery {
+//     pub log_query: LogQuery,
+//     pub log_type: StorageLogQueryType,
+// }

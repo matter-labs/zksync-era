@@ -30,6 +30,7 @@ pub use zk_evm::{
 };
 
 pub use zkevm_test_harness;
+pub use zkevm_test_harness_old;
 pub use zksync_basic_types::*;
 
 pub mod aggregated_operations;

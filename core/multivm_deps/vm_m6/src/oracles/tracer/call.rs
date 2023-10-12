@@ -67,7 +67,7 @@ impl<H: HistoryMode> Tracer for CallTracer<H> {
     ) {
         let call_type = match data.opcode.variant.opcode {
             Opcode::NearCall(_) => CallType::NearCall,
-            Opcode::FarCall(far_call) => CallType::Call(far_call.glue_into()),
+            Opcode::FarCall(far_call) => CallType::Call(far_call.into()),
             Opcode::Ret(ret_code) => {
                 self.handle_ret_op_code(state, data, memory, ret_code);
                 return;
@@ -133,7 +133,7 @@ impl<H: HistoryMode> CallTracer<H> {
         // Actually it's a call of the constructor.
         // And at this stage caller is user and callee is deployed contract.
         let call_type = if let CallType::Call(far_call) = current_call.r#type {
-            if matches!(far_call.glue_into(), FarCallOpcode::Mimic) {
+            if far_call == FarCallOpcode::Mimic.into() {
                 let previous_caller = state
                     .vm_local_state
                     .callstack

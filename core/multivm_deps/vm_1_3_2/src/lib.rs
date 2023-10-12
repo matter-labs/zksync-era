@@ -4,6 +4,7 @@ mod bootloader_state;
 pub mod errors;
 pub mod event_sink;
 mod events;
+pub mod glue;
 mod history_recorder;
 pub mod legacy_types;
 pub mod memory;

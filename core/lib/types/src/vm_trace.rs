@@ -3,7 +3,6 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::fmt::Display;
-use zk_evm::zkevm_opcode_defs::FarCallOpcode;
 use zksync_config::constants::BOOTLOADER_ADDRESS;
 use zksync_utils::u256_to_h256;
 
@@ -60,11 +59,50 @@ pub struct VmDebugTrace {
     pub sources: HashMap<Address, Option<ContractSourceDebugInfo>>,
 }
 
+/// This is the common representation of a far call in VM trace
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[repr(u8)]
+pub enum FarCallOpcodeType {
+    Normal = 0,
+    Delegate,
+    Mimic,
+}
+
+impl From<zk_evm_1_3_3::zkevm_opcode_defs::FarCallOpcode> for FarCallOpcodeType {
+    fn from(value: zk_evm_1_3_3::zkevm_opcode_defs::FarCallOpcode) -> Self {
+        match value {
+            zk_evm_1_3_3::zkevm_opcode_defs::FarCallOpcode::Normal => Self::Normal,
+            zk_evm_1_3_3::zkevm_opcode_defs::FarCallOpcode::Delegate => Self::Delegate,
+            zk_evm_1_3_3::zkevm_opcode_defs::FarCallOpcode::Mimic => Self::Mimic,
+        }
+    }
+}
+
+impl From<zk_evm_1_3_1::zkevm_opcode_defs::FarCallOpcode> for FarCallOpcodeType {
+    fn from(value: zk_evm_1_3_1::zkevm_opcode_defs::FarCallOpcode) -> Self {
+        match value {
+            zk_evm_1_3_1::zkevm_opcode_defs::FarCallOpcode::Normal => Self::Normal,
+            zk_evm_1_3_1::zkevm_opcode_defs::FarCallOpcode::Delegate => Self::Delegate,
+            zk_evm_1_3_1::zkevm_opcode_defs::FarCallOpcode::Mimic => Self::Mimic,
+        }
+    }
+}
+
+impl From<zk_evm::zkevm_opcode_defs::FarCallOpcode> for FarCallOpcodeType {
+    fn from(value: zk_evm::zkevm_opcode_defs::FarCallOpcode) -> Self {
+        match value {
+            zk_evm::zkevm_opcode_defs::FarCallOpcode::Normal => Self::Normal,
+            zk_evm::zkevm_opcode_defs::FarCallOpcode::Delegate => Self::Delegate,
+            zk_evm::zkevm_opcode_defs::FarCallOpcode::Mimic => Self::Mimic,
+        }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq)]
 pub enum CallType {
     #[serde(serialize_with = "far_call_type_to_u8")]
     #[serde(deserialize_with = "far_call_type_from_u8")]
-    Call(FarCallOpcode),
+    Call(FarCallOpcodeType),
     Create,
     NearCall,
 }
@@ -109,7 +147,7 @@ impl Call {
         calls: Vec<Call>,
     ) -> Self {
         Self {
-            r#type: CallType::Call(FarCallOpcode::Normal),
+            r#type: CallType::Call(FarCallOpcodeType::Normal),
             from: Address::zero(),
             to: BOOTLOADER_ADDRESS,
             parent_gas: gas,
@@ -139,20 +177,20 @@ impl PartialEq for Call {
     }
 }
 
-fn far_call_type_from_u8<'de, D>(deserializer: D) -> Result<FarCallOpcode, D::Error>
+fn far_call_type_from_u8<'de, D>(deserializer: D) -> Result<FarCallOpcodeType, D::Error>
 where
     D: Deserializer<'de>,
 {
     let res = u8::deserialize(deserializer)?;
     match res {
-        0 => Ok(FarCallOpcode::Normal),
-        1 => Ok(FarCallOpcode::Delegate),
-        2 => Ok(FarCallOpcode::Mimic),
-        _ => Err(serde::de::Error::custom("Invalid FarCallOpcode")),
+        0 => Ok(FarCallOpcodeType::Normal),
+        1 => Ok(FarCallOpcodeType::Delegate),
+        2 => Ok(FarCallOpcodeType::Mimic),
+        _ => Err(serde::de::Error::custom("Invalid FarCallOpcodeType")),
     }
 }
 
-fn far_call_type_to_u8<S>(far_call_type: &FarCallOpcode, s: S) -> Result<S::Ok, S::Error>
+fn far_call_type_to_u8<S>(far_call_type: &FarCallOpcodeType, s: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
 {
@@ -162,7 +200,7 @@ where
 impl Default for Call {
     fn default() -> Self {
         Self {
-            r#type: CallType::Call(FarCallOpcode::Normal),
+            r#type: CallType::Call(FarCallOpcodeType::Normal),
             from: Default::default(),
             to: Default::default(),
             parent_gas: 0,

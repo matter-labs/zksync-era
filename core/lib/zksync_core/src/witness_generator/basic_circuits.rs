@@ -21,8 +21,8 @@ use zksync_state::{PostgresStorage, ReadStorage, ShadowStorage, StorageView, Wit
 use zksync_types::{
     circuit::GEOMETRY_CONFIG,
     proofs::{AggregationRound, BasicCircuitWitnessGeneratorInput, PrepareBasicCircuitsJob},
-    zkevm_test_harness::toolset::GeometryConfig,
-    zkevm_test_harness::{
+    zkevm_test_harness_old::toolset::GeometryConfig,
+    zkevm_test_harness_old::{
         abstract_zksync_circuit::concrete_circuits::ZkSyncCircuit,
         bellman::bn256::Bn256,
         witness::full_block_artifact::{BlockBasicCircuits, BlockBasicCircuitsPublicInputs},
@@ -91,6 +91,7 @@ impl BasicWitnessGenerator {
         basic_job: BasicWitnessGeneratorJob,
         started_at: Instant,
     ) -> anyhow::Result<Option<BasicCircuitArtifacts>> {
+        return Ok(None);
         let config =
             WitnessGeneratorConfig::from_env().context("WitnessGeneratorConfig::from_env()")?;
         let BasicWitnessGeneratorJob { block_number, job } = basic_job;
@@ -549,7 +550,7 @@ pub async fn generate_witness(
             ));
         }
 
-        zksync_types::zkevm_test_harness::external_calls::run_with_fixed_params(
+        zksync_types::zkevm_test_harness_old::external_calls::run_with_fixed_params(
             Address::zero(),
             BOOTLOADER_ADDRESS,
             bootloader_code,

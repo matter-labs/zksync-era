@@ -1,6 +1,6 @@
 use crate::{ethabi::Token, H256};
 use std::str::FromStr;
-use zkevm_test_harness::{
+use zkevm_test_harness_old::{
     abstract_zksync_circuit::concrete_circuits::ZkSyncCircuit,
     bellman::{
         bn256::{Bn256, Fq, Fr, G1Affine},

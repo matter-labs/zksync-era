@@ -39,7 +39,8 @@ mod errors;
 mod implementation;
 mod old_vm;
 mod tracers;
-mod types;
+// todo: maybe remove pub
+pub mod types;
 mod vm;
 
 pub mod constants;

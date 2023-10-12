@@ -13,7 +13,7 @@ use zksync_types::{
         AggregationRound, JobCountStatistics, JobExtendedStatistics, ProverJobInfo,
         ProverJobMetadata,
     },
-    zkevm_test_harness::{
+    zkevm_test_harness_old::{
         abstract_zksync_circuit::concrete_circuits::ZkSyncProof, bellman::bn256::Bn256,
     },
     L1BatchNumber, ProtocolVersionId,

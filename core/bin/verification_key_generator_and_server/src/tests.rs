@@ -2,11 +2,11 @@ use crate::{get_vk_for_circuit_type, get_vks_for_basic_circuits, get_vks_for_com
 use itertools::Itertools;
 use serde_json::Value;
 use std::collections::HashMap;
-use zksync_types::zkevm_test_harness::abstract_zksync_circuit::concrete_circuits::ZkSyncCircuit;
-use zksync_types::zkevm_test_harness::bellman::bn256::Bn256;
-use zksync_types::zkevm_test_harness::bellman::plonk::better_better_cs::setup::VerificationKey;
+use zksync_types::zkevm_test_harness_old::abstract_zksync_circuit::concrete_circuits::ZkSyncCircuit;
+use zksync_types::zkevm_test_harness_old::bellman::bn256::Bn256;
+use zksync_types::zkevm_test_harness_old::bellman::plonk::better_better_cs::setup::VerificationKey;
 
-use zksync_types::zkevm_test_harness::witness::oracle::VmWitnessOracle;
+use zksync_types::zkevm_test_harness_old::witness::oracle::VmWitnessOracle;
 
 #[test]
 fn test_get_vk_for_circuit_type() {

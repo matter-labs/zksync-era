@@ -1,6 +1,8 @@
+use crate::glue::GlueInto;
 use crate::history_recorder::HistoryMode;
 use crate::oracles::storage::storage_key_of_log;
 use crate::VmInstance;
+use itertools::Itertools;
 use std::collections::HashMap;
 use zk_evm::aux_structures::Timestamp;
 use zksync_state::WriteStorage;
@@ -72,16 +74,16 @@ impl<H: HistoryMode, S: WriteStorage> VmInstance<S, H> {
             .state
             .storage
             .storage_log_queries_after_timestamp(from_timestamp);
-        let (_, deduplicated_logs) =
-            sort_storage_access_queries(storage_logs.iter().map(|log| &log.log_query));
+        let queries: Vec<_> = storage_logs.into_iter().map(|log| log.log_query).collect();
+        let (_, deduplicated_logs) = sort_storage_access_queries(&queries);
 
         deduplicated_logs
             .into_iter()
             .filter_map(|log| {
                 if log.rw_flag {
-                    let key = storage_key_of_log(&log);
+                    let key = storage_key_of_log(&log.glue_into());
                     let pre_paid = pre_paid_before_tx(&key);
-                    let to_pay_by_user = self.state.storage.base_price_for_write(&log);
+                    let to_pay_by_user = self.state.storage.base_price_for_write(&log.glue_into());
 
                     if to_pay_by_user > pre_paid {
                         Some(to_pay_by_user - pre_paid)

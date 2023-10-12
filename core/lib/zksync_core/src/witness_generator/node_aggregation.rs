@@ -14,7 +14,7 @@ use zksync_types::{
         LEAF_CIRCUIT_INDEX, LEAF_SPLITTING_FACTOR, NODE_CIRCUIT_INDEX, NODE_SPLITTING_FACTOR,
     },
     proofs::{AggregationRound, PrepareNodeAggregationCircuitJob, WitnessGeneratorJobMetadata},
-    zkevm_test_harness::{
+    zkevm_test_harness_old::{
         abstract_zksync_circuit::concrete_circuits::ZkSyncCircuit,
         bellman::bn256::Bn256,
         bellman::plonk::better_better_cs::setup::VerificationKey,
@@ -233,7 +233,7 @@ pub fn process_node_aggregation_job(
 
     let stage_started_at = Instant::now();
     let (_, final_node_aggregations, node_circuits) =
-        zksync_types::zkevm_test_harness::witness::recursive_aggregation::prepare_node_aggregations(
+        zksync_types::zkevm_test_harness_old::witness::recursive_aggregation::prepare_node_aggregations(
             job.previous_level_proofs,
             leaf_aggregation_vk,
             true,

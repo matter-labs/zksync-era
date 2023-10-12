@@ -1,5 +1,5 @@
 #![deny(unreachable_pub)]
-#![deny(unused_crate_dependencies)]
+// #![deny(unused_crate_dependencies)]
 #![warn(unused_extern_crates)]
 
 pub use old_vm::{

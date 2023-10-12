@@ -13,7 +13,7 @@ use zk_evm::zkevm_opcode_defs::{
 };
 use zkevm_assembly::zkevm_opcode_defs::FatPointer;
 use zksync_config::constants::CONTRACT_DEPLOYER_ADDRESS;
-use zksync_types::vm_trace::{Call, CallType};
+use zksync_types::vm_trace::{Call, CallType, FarCallOpcodeType};
 use zksync_types::U256;
 
 /// NOTE Auto implementing clone for this tracer can cause stack overflow.
@@ -66,7 +66,7 @@ impl<H: HistoryMode> Tracer for CallTracer<H> {
     ) {
         let call_type = match data.opcode.variant.opcode {
             Opcode::NearCall(_) => CallType::NearCall,
-            Opcode::FarCall(far_call) => CallType::Call(far_call),
+            Opcode::FarCall(far_call) => CallType::Call(far_call.into()),
             Opcode::Ret(ret_code) => {
                 self.handle_ret_op_code(state, data, memory, ret_code);
                 return;
@@ -132,7 +132,7 @@ impl<H: HistoryMode> CallTracer<H> {
         // Actually it's a call of the constructor.
         // And at this stage caller is user and callee is deployed contract.
         let call_type = if let CallType::Call(far_call) = current_call.r#type {
-            if matches!(far_call, FarCallOpcode::Mimic) {
+            if matches!(far_call, FarCallOpcodeType::Mimic) {
                 let previous_caller = state
                     .vm_local_state
                     .callstack

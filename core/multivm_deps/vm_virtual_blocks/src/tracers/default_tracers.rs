@@ -1,5 +1,6 @@
 use std::fmt::{Debug, Formatter};
 
+use zk_evm::aux_structures::Timestamp;
 use zk_evm::witness_trace::DummyTracer;
 use zk_evm::zkevm_opcode_defs::{Opcode, RetOpcode};
 use zk_evm::{
@@ -9,7 +10,6 @@ use zk_evm::{
     vm_state::VmLocalState,
 };
 use zksync_state::{StoragePtr, WriteStorage};
-use zksync_types::Timestamp;
 
 use crate::bootloader_state::utils::apply_l2_block;
 use crate::bootloader_state::BootloaderState;

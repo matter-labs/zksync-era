@@ -6,11 +6,11 @@ use std::{collections::HashMap, ops::Range, time::Duration};
 use zksync_types::proofs::{
     AggregationRound, JobCountStatistics, WitnessGeneratorJobMetadata, WitnessJobInfo,
 };
-use zksync_types::zkevm_test_harness::abstract_zksync_circuit::concrete_circuits::ZkSyncCircuit;
-use zksync_types::zkevm_test_harness::abstract_zksync_circuit::concrete_circuits::ZkSyncProof;
-use zksync_types::zkevm_test_harness::bellman::bn256::Bn256;
-use zksync_types::zkevm_test_harness::bellman::plonk::better_better_cs::proof::Proof;
-use zksync_types::zkevm_test_harness::witness::oracle::VmWitnessOracle;
+use zksync_types::zkevm_test_harness_old::abstract_zksync_circuit::concrete_circuits::ZkSyncCircuit;
+use zksync_types::zkevm_test_harness_old::abstract_zksync_circuit::concrete_circuits::ZkSyncProof;
+use zksync_types::zkevm_test_harness_old::bellman::bn256::Bn256;
+use zksync_types::zkevm_test_harness_old::bellman::plonk::better_better_cs::proof::Proof;
+use zksync_types::zkevm_test_harness_old::witness::oracle::VmWitnessOracle;
 use zksync_types::{L1BatchNumber, ProtocolVersionId};
 
 use crate::{

@@ -68,7 +68,8 @@ impl MetricExtractor for RepeatedWritesCriterion {
     const PROM_METRIC_CRITERION_NAME: &'static str = "repeated_storage_writes";
 
     fn limit_per_block() -> usize {
-        GEOMETRY_CONFIG.limit_for_repeated_writes_pubdata_hasher as usize
+        // todo
+        120000
     }
 
     fn extract(_metrics: &ExecutionMetrics, writes: &DeduplicatedWritesMetrics) -> usize {
@@ -80,7 +81,8 @@ impl MetricExtractor for InitialWritesCriterion {
     const PROM_METRIC_CRITERION_NAME: &'static str = "initial_storage_writes";
 
     fn limit_per_block() -> usize {
-        GEOMETRY_CONFIG.limit_for_initial_writes_pubdata_hasher as usize
+        // todo
+        120000
     }
 
     fn extract(_metrics: &ExecutionMetrics, writes: &DeduplicatedWritesMetrics) -> usize {

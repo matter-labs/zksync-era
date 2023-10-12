@@ -4,7 +4,8 @@ use zk_evm::aux_structures::Timestamp;
 use zk_evm::vm_state::VmLocalState;
 use zksync_state::WriteStorage;
 
-use zksync_types::{StorageKey, StorageLogQuery, StorageValue, U256};
+use zksync_types::{StorageKey, StorageValue, U256};
+use crate::types::legacy_types::StorageLogQuery;
 
 use crate::old_vm::event_sink::InMemoryEventSink;
 use crate::old_vm::history_recorder::{AppDataFrameManagerWithHistory, HistoryRecorder};

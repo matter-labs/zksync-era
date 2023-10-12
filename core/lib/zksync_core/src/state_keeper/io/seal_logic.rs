@@ -33,10 +33,25 @@ use zksync_types::{
     StorageKey, StorageLog, StorageLogQuery, StorageValue, Transaction, VmEvent, H256,
 };
 // TODO (SMA-1206): use seconds instead of milliseconds.
+use zksync_types::U256;
 use zksync_utils::{h256_to_u256, time::millis_since_epoch, u256_to_h256};
 
+use crate::state_keeper::extractors;
 use crate::state_keeper::updates::{MiniblockSealCommand, UpdatesManager};
-use crate::{state_keeper::extractors, witness_generator::utils::expand_bootloader_contents};
+
+// TODO: please import it from wit gen
+const USED_BOOTLOADER_MEMORY_BYTES: usize = 1 << 24;
+const USED_BOOTLOADER_MEMORY_WORDS: usize = USED_BOOTLOADER_MEMORY_BYTES / 32;
+pub fn expand_bootloader_contents(packed: &[(usize, U256)]) -> Vec<u8> {
+    let mut result: Vec<u8> = Vec::new();
+    result.resize(USED_BOOTLOADER_MEMORY_BYTES, 0);
+
+    for (offset, value) in packed {
+        value.to_big_endian(&mut result[(offset * 32)..(offset + 1) * 32]);
+    }
+
+    result.to_vec()
+}
 
 #[derive(Debug, Clone, Copy)]
 struct SealProgressMetricNames {
@@ -152,11 +167,12 @@ impl UpdatesManager {
         progress.end_stage("fictive_miniblock", None);
 
         let (_, deduped_log_queries) = sort_storage_access_queries(
-            finished_batch
+            &finished_batch
                 .final_execution_state
                 .storage_log_queries
                 .iter()
-                .map(|log| &log.log_query),
+                .map(|log| log.log_query)
+                .collect_vec(),
         );
         progress.end_stage("log_deduplication", Some(deduped_log_queries.len()));
 
