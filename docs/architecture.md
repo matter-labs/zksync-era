@@ -50,7 +50,7 @@ This section provides a physical map of folders & files in this repository.
         - `/web3`: zkSync implementation of the Web3 API.
         - `/tx_sender`: Helper module encapsulating the transaction processing logic.
       - `/bin`: The executable main starting point for the zkSync server.
-      - `/circuit_breaker_checker`: zkSync watchdog.
+      - `/consistency_checker`: zkSync watchdog.
       - `/eth_sender`: Submits transactions to the zkSync smart contract.
       - `/eth_watch`: Fetches data from the L1. for L2 censorship resistance.
       - `/fee_monitor`: Monitors the ratio of fees collected by executing txs over the costs of interacting with

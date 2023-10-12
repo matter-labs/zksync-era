@@ -389,7 +389,7 @@ impl<'r> FromRow<'r, PgRow> for StorageApiTransaction {
                     .unwrap_or_default()
                     .map(U64::from),
                 access_list: None,
-                chain_id: 0,
+                chain_id: U256::zero(),
                 l1_batch_number: db_row
                     .try_get::<i64, &str>("l1_batch_number_tx")
                     .ok()
@@ -502,7 +502,7 @@ pub fn web3_transaction_select_sql() -> &'static str {
 
 pub fn extract_web3_transaction(db_row: PgRow, chain_id: L2ChainId) -> api::Transaction {
     let mut storage_api_tx = StorageApiTransaction::from_row(&db_row).unwrap();
-    storage_api_tx.inner_api_transaction.chain_id = chain_id.as_u64();
+    storage_api_tx.inner_api_transaction.chain_id = U256::from(chain_id.as_u64());
     if storage_api_tx.inner_api_transaction.transaction_type == Some(U64::from(0)) {
         storage_api_tx.inner_api_transaction.v = storage_api_tx
             .inner_api_transaction
