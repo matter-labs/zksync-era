@@ -8,7 +8,7 @@ This section assumes that you have prepared a configuration file as described on
 This configuration is approximate, expect updates to these specs.
 
 - 32-core CPU
-- 32GB RAM
+- 64GB RAM
 - SSD storage:
   - Testnet - ~800 GB (at the time of writing) and will grow over time, so should be constantly monitored
   - Mainnet - ~400 GB (at the time of writing) and will grow over time, so should be constantly monitored
