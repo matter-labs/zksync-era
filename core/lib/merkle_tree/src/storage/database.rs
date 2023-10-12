@@ -175,6 +175,11 @@ impl<DB: Database> Patched<DB> {
             .map_or_else(Vec::new, |patch| patch.roots.keys().copied().collect())
     }
 
+    /// Provides readonly access to the wrapped DB.
+    pub(crate) fn inner(&self) -> &DB {
+        &self.inner
+    }
+
     /// Provides access to the wrapped DB. Should not be used to mutate DB data.
     pub(crate) fn inner_mut(&mut self) -> &mut DB {
         &mut self.inner

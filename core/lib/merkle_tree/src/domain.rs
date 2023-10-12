@@ -4,8 +4,8 @@ use rayon::{ThreadPool, ThreadPoolBuilder};
 
 use crate::{
     storage::{MerkleTreeColumnFamily, PatchSet, Patched, RocksDBWrapper},
-    types::{Key, Root, TreeInstruction, TreeLogEntry, ValueHash, TREE_DEPTH},
-    BlockOutput, HashTree, MerkleTree,
+    types::{Key, Root, TreeEntryWithProof, TreeInstruction, TreeLogEntry, ValueHash, TREE_DEPTH},
+    BlockOutput, HashTree, MerkleTree, NoVersionError,
 };
 use zksync_crypto::hasher::blake2::Blake2Hasher;
 use zksync_storage::RocksDB;
@@ -96,6 +96,13 @@ impl ZkSyncTree {
             thread_pool: None,
             mode,
         }
+    }
+
+    /// Returns a readonly handle to the tree. The handle **does not** see uncommitted changes to the tree,
+    /// only ones flushed to RocksDB.
+    pub fn reader(&self) -> ZkSyncTreeReader {
+        let db = self.tree.db.inner().clone();
+        ZkSyncTreeReader(MerkleTree::new(db))
     }
 
     /// Sets the chunk size for multi-get operations. The requested keys will be split
@@ -371,5 +378,33 @@ impl ZkSyncTree {
     /// Resets the tree to the latest database state.
     pub fn reset(&mut self) {
         self.tree.db.reset();
+    }
+}
+
+/// Readonly handle to a [`ZkSyncTree`].
+#[derive(Debug)]
+pub struct ZkSyncTreeReader(MerkleTree<'static, RocksDBWrapper>);
+
+// While cloning `MerkleTree` is logically unsound, cloning a reader is reasonable since it is readonly.
+impl Clone for ZkSyncTreeReader {
+    fn clone(&self) -> Self {
+        Self(MerkleTree::new(self.0.db.clone()))
+    }
+}
+
+impl ZkSyncTreeReader {
+    /// Reads entries together with Merkle proofs with the specified keys from the tree. The entries are returned
+    /// in the same order as requested.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the tree `version` is missing.
+    pub fn entries_with_proofs(
+        &self,
+        l1_batch_number: L1BatchNumber,
+        keys: &[Key],
+    ) -> Result<Vec<TreeEntryWithProof>, NoVersionError> {
+        let version = u64::from(l1_batch_number.0);
+        self.0.entries_with_proofs(version, keys)
     }
 }
