@@ -1359,15 +1359,15 @@ impl BlocksDal<'_, '_> {
 
 #[cfg(test)]
 mod tests {
-    use db_test_macro::db_test;
     use zksync_contracts::BaseSystemContractsHashes;
     use zksync_types::{l2_to_l1_log::L2ToL1Log, Address, ProtocolVersion, ProtocolVersionId};
 
     use super::*;
     use crate::ConnectionPool;
 
-    #[db_test(dal_crate)]
-    async fn loading_l1_batch_header(pool: ConnectionPool) {
+    #[tokio::test]
+    async fn loading_l1_batch_header() {
+        let pool = ConnectionPool::test_pool().await;
         let mut conn = pool.access_storage().await.unwrap();
         conn.blocks_dal()
             .delete_l1_batches(L1BatchNumber(0))
@@ -1426,8 +1426,9 @@ mod tests {
             .is_none());
     }
 
-    #[db_test(dal_crate)]
-    async fn getting_predicted_gas(pool: ConnectionPool) {
+    #[tokio::test]
+    async fn getting_predicted_gas() {
+        let pool = ConnectionPool::test_pool().await;
         let mut conn = pool.access_storage().await.unwrap();
         conn.blocks_dal()
             .delete_l1_batches(L1BatchNumber(0))

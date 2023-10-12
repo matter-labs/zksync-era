@@ -1,7 +1,6 @@
 use assert_matches::assert_matches;
 use std::sync::{atomic::Ordering, Arc};
 
-use db_test_macro::db_test;
 use zksync_config::{
     configs::eth_sender::{ProofSendingMode, SenderConfig},
     ContractsConfig, ETHSenderConfig, GasAdjusterConfig,
@@ -131,8 +130,9 @@ impl EthSenderTester {
 }
 
 // Tests that we send multiple transactions and confirm them all in one iteration.
-#[db_test]
-async fn confirm_many(connection_pool: ConnectionPool) -> anyhow::Result<()> {
+#[tokio::test]
+async fn confirm_many() -> anyhow::Result<()> {
+    let connection_pool = ConnectionPool::test_pool().await;
     let mut tester = EthSenderTester::new(connection_pool, vec![10; 100], false).await;
 
     let mut hashes = vec![];
@@ -203,8 +203,9 @@ async fn confirm_many(connection_pool: ConnectionPool) -> anyhow::Result<()> {
 }
 
 // Tests that we resend first unmined transaction every block with an increased gas price.
-#[db_test]
-async fn resend_each_block(connection_pool: ConnectionPool) -> anyhow::Result<()> {
+#[tokio::test]
+async fn resend_each_block() -> anyhow::Result<()> {
+    let connection_pool = ConnectionPool::test_pool().await;
     let mut tester = EthSenderTester::new(connection_pool, vec![7, 6, 5, 5, 5, 2, 1], false).await;
 
     // after this, median should be 6
@@ -294,8 +295,9 @@ async fn resend_each_block(connection_pool: ConnectionPool) -> anyhow::Result<()
 
 // Tests that if transaction was mined, but not enough blocks has been mined since,
 // we won't mark it as confirmed but also won't resend it.
-#[db_test]
-async fn dont_resend_already_mined(connection_pool: ConnectionPool) -> anyhow::Result<()> {
+#[tokio::test]
+async fn dont_resend_already_mined() -> anyhow::Result<()> {
+    let connection_pool = ConnectionPool::test_pool().await;
     let mut tester = EthSenderTester::new(connection_pool, vec![100; 100], false).await;
     let tx = tester
         .aggregator
@@ -361,8 +363,9 @@ async fn dont_resend_already_mined(connection_pool: ConnectionPool) -> anyhow::R
     Ok(())
 }
 
-#[db_test]
-async fn three_scenarios(connection_pool: ConnectionPool) -> anyhow::Result<()> {
+#[tokio::test]
+async fn three_scenarios() -> anyhow::Result<()> {
+    let connection_pool = ConnectionPool::test_pool().await;
     let mut tester = EthSenderTester::new(connection_pool.clone(), vec![100; 100], false).await;
     let mut hashes = vec![];
 
@@ -431,8 +434,9 @@ async fn three_scenarios(connection_pool: ConnectionPool) -> anyhow::Result<()> 
 }
 
 #[should_panic(expected = "We can't operate after tx fail")]
-#[db_test]
-async fn failed_eth_tx(connection_pool: ConnectionPool) {
+#[tokio::test]
+async fn failed_eth_tx() {
+    let connection_pool = ConnectionPool::test_pool().await;
     let mut tester = EthSenderTester::new(connection_pool.clone(), vec![100; 100], false).await;
 
     let tx = tester
@@ -499,8 +503,9 @@ fn l1_batch_with_metadata(header: L1BatchHeader) -> L1BatchWithMetadata {
     }
 }
 
-#[db_test]
-async fn correct_order_for_confirmations(connection_pool: ConnectionPool) -> anyhow::Result<()> {
+#[tokio::test]
+async fn correct_order_for_confirmations() -> anyhow::Result<()> {
+    let connection_pool = ConnectionPool::test_pool().await;
     let mut tester = EthSenderTester::new(connection_pool, vec![100; 100], true).await;
     insert_genesis_protocol_version(&tester).await;
     let genesis_l1_batch = insert_l1_batch(&mut tester, L1BatchNumber(0)).await;
@@ -559,8 +564,9 @@ async fn correct_order_for_confirmations(connection_pool: ConnectionPool) -> any
     Ok(())
 }
 
-#[db_test]
-async fn skipped_l1_batch_at_the_start(connection_pool: ConnectionPool) -> anyhow::Result<()> {
+#[tokio::test]
+async fn skipped_l1_batch_at_the_start() -> anyhow::Result<()> {
+    let connection_pool = ConnectionPool::test_pool().await;
     let mut tester = EthSenderTester::new(connection_pool, vec![100; 100], true).await;
     insert_genesis_protocol_version(&tester).await;
     let genesis_l1_batch = insert_l1_batch(&mut tester, L1BatchNumber(0)).await;
@@ -651,8 +657,9 @@ async fn skipped_l1_batch_at_the_start(connection_pool: ConnectionPool) -> anyho
     Ok(())
 }
 
-#[db_test]
-async fn skipped_l1_batch_in_the_middle(connection_pool: ConnectionPool) -> anyhow::Result<()> {
+#[tokio::test]
+async fn skipped_l1_batch_in_the_middle() -> anyhow::Result<()> {
+    let connection_pool = ConnectionPool::test_pool().await;
     let mut tester = EthSenderTester::new(connection_pool, vec![100; 100], true).await;
     insert_genesis_protocol_version(&tester).await;
     let genesis_l1_batch = insert_l1_batch(&mut tester, L1BatchNumber(0)).await;
@@ -737,8 +744,9 @@ async fn skipped_l1_batch_in_the_middle(connection_pool: ConnectionPool) -> anyh
     Ok(())
 }
 
-#[db_test]
-async fn test_parse_multicall_data(connection_pool: ConnectionPool) {
+#[tokio::test]
+async fn test_parse_multicall_data() {
+    let connection_pool = ConnectionPool::test_pool().await;
     let tester = EthSenderTester::new(connection_pool, vec![100; 100], false).await;
 
     let original_correct_form_data = Token::Array(vec![
@@ -816,8 +824,9 @@ async fn test_parse_multicall_data(connection_pool: ConnectionPool) {
     }
 }
 
-#[db_test]
-async fn get_multicall_data(connection_pool: ConnectionPool) {
+#[tokio::test]
+async fn get_multicall_data() {
+    let connection_pool = ConnectionPool::test_pool().await;
     let mut tester = EthSenderTester::new(connection_pool, vec![100; 100], false).await;
     let multicall_data = tester.aggregator.get_multicall_data(&tester.gateway).await;
     assert!(multicall_data.is_ok());

@@ -274,7 +274,6 @@ impl L1BatchWithLogs {
 mod tests {
     use tempfile::TempDir;
 
-    use db_test_macro::db_test;
     use zksync_contracts::BaseSystemContracts;
     use zksync_dal::ConnectionPool;
     use zksync_types::{
@@ -362,8 +361,9 @@ mod tests {
         }
     }
 
-    #[db_test]
-    async fn loaded_logs_equivalence_basics(pool: ConnectionPool) {
+    #[tokio::test]
+    async fn loaded_logs_equivalence_basics() {
+        let pool = ConnectionPool::test_pool().await;
         ensure_genesis_state(
             &mut pool.access_storage().await.unwrap(),
             L2ChainId::from(270),
@@ -386,8 +386,9 @@ mod tests {
         }
     }
 
-    #[db_test]
-    async fn loaded_logs_equivalence_with_zero_no_op_logs(pool: ConnectionPool) {
+    #[tokio::test]
+    async fn loaded_logs_equivalence_with_zero_no_op_logs() {
+        let pool = ConnectionPool::test_pool().await;
         let mut storage = pool.access_storage().await.unwrap();
         ensure_genesis_state(&mut storage, L2ChainId::from(270), &mock_genesis_params())
             .await
@@ -464,8 +465,9 @@ mod tests {
         }
     }
 
-    #[db_test]
-    async fn loaded_logs_equivalence_with_non_zero_no_op_logs(pool: ConnectionPool) {
+    #[tokio::test]
+    async fn loaded_logs_equivalence_with_non_zero_no_op_logs() {
+        let pool = ConnectionPool::test_pool().await;
         let mut storage = pool.access_storage().await.unwrap();
         ensure_genesis_state(&mut storage, L2ChainId::from(270), &mock_genesis_params())
             .await
@@ -511,8 +513,9 @@ mod tests {
         }
     }
 
-    #[db_test]
-    async fn loaded_logs_equivalence_with_protective_reads(pool: ConnectionPool) {
+    #[tokio::test]
+    async fn loaded_logs_equivalence_with_protective_reads() {
+        let pool = ConnectionPool::test_pool().await;
         let mut storage = pool.access_storage().await.unwrap();
         ensure_genesis_state(&mut storage, L2ChainId::from(270), &mock_genesis_params())
             .await

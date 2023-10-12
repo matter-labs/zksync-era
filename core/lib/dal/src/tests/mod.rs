@@ -1,7 +1,6 @@
 use std::fs;
 use std::time::Duration;
 
-use db_test_macro::db_test;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_types::{
     block::{miniblock_hash, L1BatchHeader, MiniblockHeader},
@@ -118,8 +117,9 @@ pub(crate) fn mock_execution_result(transaction: L2Tx) -> TransactionExecutionRe
     }
 }
 
-#[db_test(dal_crate)]
-async fn workflow_with_submit_tx_equal_hashes(connection_pool: ConnectionPool) {
+#[tokio::test]
+async fn workflow_with_submit_tx_equal_hashes() {
+    let connection_pool = ConnectionPool::test_pool().await;
     let storage = &mut connection_pool.access_storage().await.unwrap();
     let mut transactions_dal = TransactionsDal { storage };
 
@@ -137,8 +137,9 @@ async fn workflow_with_submit_tx_equal_hashes(connection_pool: ConnectionPool) {
     assert_eq!(result, L2TxSubmissionResult::Replaced);
 }
 
-#[db_test(dal_crate)]
-async fn workflow_with_submit_tx_diff_hashes(connection_pool: ConnectionPool) {
+#[tokio::test]
+async fn workflow_with_submit_tx_diff_hashes() {
+    let connection_pool = ConnectionPool::test_pool().await;
     let storage = &mut connection_pool.access_storage().await.unwrap();
     let mut transactions_dal = TransactionsDal { storage };
 
@@ -163,8 +164,9 @@ async fn workflow_with_submit_tx_diff_hashes(connection_pool: ConnectionPool) {
     assert_eq!(result, L2TxSubmissionResult::Replaced);
 }
 
-#[db_test(dal_crate)]
-async fn remove_stuck_txs(connection_pool: ConnectionPool) {
+#[tokio::test]
+async fn remove_stuck_txs() {
+    let connection_pool = ConnectionPool::test_pool().await;
     let storage = &mut connection_pool.access_storage().await.unwrap();
     let mut protocol_versions_dal = ProtocolVersionsDal { storage };
     protocol_versions_dal
@@ -269,8 +271,9 @@ fn create_circuits() -> Vec<(&'static str, String)> {
     ]
 }
 
-#[db_test(dal_crate)]
-async fn test_duplicate_insert_prover_jobs(connection_pool: ConnectionPool) {
+#[tokio::test]
+async fn test_duplicate_insert_prover_jobs() {
+    let connection_pool = ConnectionPool::test_pool().await;
     let storage = &mut connection_pool.access_storage().await.unwrap();
     storage
         .protocol_versions_dal()
@@ -330,8 +333,9 @@ async fn test_duplicate_insert_prover_jobs(connection_pool: ConnectionPool) {
     assert_eq!(circuits.len(), jobs.len());
 }
 
-#[db_test(dal_crate)]
-async fn test_requeue_prover_jobs(connection_pool: ConnectionPool) {
+#[tokio::test]
+async fn test_requeue_prover_jobs() {
+    let connection_pool = ConnectionPool::test_pool().await;
     let storage = &mut connection_pool.access_storage().await.unwrap();
     let protocol_version = ProtocolVersion::default();
     storage
@@ -393,8 +397,9 @@ async fn test_requeue_prover_jobs(connection_pool: ConnectionPool) {
     }
 }
 
-#[db_test(dal_crate)]
-async fn test_move_leaf_aggregation_jobs_from_waiting_to_queued(connection_pool: ConnectionPool) {
+#[tokio::test]
+async fn test_move_leaf_aggregation_jobs_from_waiting_to_queued() {
+    let connection_pool = ConnectionPool::test_pool().await;
     let storage = &mut connection_pool.access_storage().await.unwrap();
     let protocol_version = ProtocolVersion::default();
     storage
@@ -473,8 +478,9 @@ async fn test_move_leaf_aggregation_jobs_from_waiting_to_queued(connection_pool:
     assert_eq!(l1_batch_number, job.unwrap().block_number);
 }
 
-#[db_test(dal_crate)]
-async fn test_move_node_aggregation_jobs_from_waiting_to_queued(connection_pool: ConnectionPool) {
+#[tokio::test]
+async fn test_move_node_aggregation_jobs_from_waiting_to_queued() {
+    let connection_pool = ConnectionPool::test_pool().await;
     let storage = &mut connection_pool.access_storage().await.unwrap();
     let protocol_version = ProtocolVersion::default();
     storage
@@ -560,8 +566,9 @@ async fn test_move_node_aggregation_jobs_from_waiting_to_queued(connection_pool:
     assert_eq!(l1_batch_number, job.unwrap().block_number);
 }
 
-#[db_test(dal_crate)]
-async fn test_move_scheduler_jobs_from_waiting_to_queued(connection_pool: ConnectionPool) {
+#[tokio::test]
+async fn test_move_scheduler_jobs_from_waiting_to_queued() {
+    let connection_pool = ConnectionPool::test_pool().await;
     let storage = &mut connection_pool.access_storage().await.unwrap();
     let protocol_version = ProtocolVersion::default();
     storage

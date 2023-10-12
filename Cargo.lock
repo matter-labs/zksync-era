@@ -1701,15 +1701,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "db_test_macro"
-version = "0.1.0"
-dependencies = [
- "proc-macro2 1.0.66",
- "quote 1.0.33",
- "syn 1.0.109",
-]
-
-[[package]]
 name = "debugid"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7767,7 +7758,6 @@ dependencies = [
  "bitflags 1.3.2",
  "chrono",
  "ctrlc",
- "db_test_macro",
  "futures 0.3.28",
  "governor",
  "hex",
@@ -7840,7 +7830,6 @@ dependencies = [
  "assert_matches",
  "bigdecimal",
  "bincode",
- "db_test_macro",
  "hex",
  "itertools",
  "num 0.3.1",
@@ -8056,7 +8045,6 @@ name = "zksync_state"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "db_test_macro",
  "itertools",
  "mini-moka",
  "rand 0.8.5",
