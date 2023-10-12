@@ -904,6 +904,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "bollard-stubs"
+version = "1.42.0-rc.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ed59b5c00048f48d7af971b71f800fdf23e858844a6f9e4d32ca72e9399e7864"
+dependencies = [
+ "serde",
+ "serde_with",
+]
+
+[[package]]
 name = "brotli"
 version = "3.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6281,6 +6291,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "testcontainers"
+version = "0.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f83d2931d7f521af5bae989f716c3fa43a6af9af7ec7a5e21b59ae40878cec00"
+dependencies = [
+ "bollard-stubs",
+ "futures 0.3.28",
+ "hex",
+ "hmac 0.12.1",
+ "log",
+ "rand 0.8.5",
+ "serde",
+ "serde_json",
+ "sha2 0.10.6",
+]
+
+[[package]]
+name = "testcontainers-modules"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bf4510e2f8ab395df9961e9c595edfd3d41d1289ea98ec84b3cf47880ba7e302"
+dependencies = [
+ "testcontainers",
+]
+
+[[package]]
 name = "textwrap"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7851,9 +7887,12 @@ dependencies = [
  "serde_json",
  "sqlx",
  "strum",
+ "testcontainers",
+ "testcontainers-modules",
  "thiserror",
  "tokio",
  "tracing",
+ "tracing-subscriber",
  "url",
  "vise",
  "zksync_config",

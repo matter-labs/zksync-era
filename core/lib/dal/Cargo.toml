@@ -48,3 +48,6 @@ tracing = "0.1"
 [dev-dependencies]
 assert_matches = "1.5.0"
 db_test_macro = { path = "../db_test_macro" }
+testcontainers.workspace = true
+testcontainers-modules.workspace = true
+tracing-subscriber.workspace = true

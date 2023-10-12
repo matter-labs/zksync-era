@@ -56,6 +56,12 @@ resolver = "2"
 
 exclude = []
 
+[workspace.dependencies]
+testcontainers = "0.15.0"
+testcontainers-modules = { version = "0.1.2", features = ["postgres"] }
+tracing-subscriber = { version = "0.3.16", features = ["env-filter", "fmt"] }
+
+
 [profile.dev.package."*"]
 opt-level = 3
 

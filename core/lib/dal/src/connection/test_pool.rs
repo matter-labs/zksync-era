@@ -98,6 +98,69 @@ mod tests {
             }
         }
     }
+
+    struct PostgresImg(Vec<(String, String)>);
+
+    impl Default for PostgresImg {
+        fn default() -> Self {
+            Self(vec![(
+                "POSTGRES_HOST_AUTH_METHOD".to_string(),
+                "trust".to_string(),
+            )])
+        }
+    }
+
+    #[derive(Default, Clone, Debug)]
+    struct PostgresArgs;
+
+    impl testcontainers::ImageArgs for PostgresArgs {
+        fn into_iterator(self) -> Box<dyn Iterator<Item = String>> {
+            Box::new(vec!["-c".to_string(), "fsync=false".to_string()].into_iter())
+        }
+    }
+
+    impl testcontainers::Image for PostgresImg {
+        type Args = PostgresArgs;
+        fn name(&self) -> String {
+            "postgres".to_string()
+        }
+        fn tag(&self) -> String {
+            "14".to_string()
+        }
+        fn ready_conditions(&self) -> Vec<testcontainers::core::WaitFor> {
+            vec![testcontainers::core::WaitFor::message_on_stderr(
+                "database system is ready to accept connections",
+            )]
+        }
+        fn env_vars(&self) -> Box<dyn Iterator<Item = (&String, &String)> + '_> {
+            Box::new(self.0.iter().map(|(k, v)| (k, v)))
+        }
+    }
+
+    #[tokio::test]
+    async fn container() {
+        use std::io::IsTerminal as _;
+        let _ = tracing_subscriber::fmt()
+            .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+            .with_test_writer()
+            .with_ansi(std::env::var("NO_COLOR").is_err() && std::io::stdout().is_terminal())
+            .try_init();
+
+        tracing::warn!("starting container");
+        let docker = testcontainers::clients::Cli::default();
+        let node = docker.run(PostgresImg::default());
+        let addr = format!(
+            "postgres://postgres:postgres@127.0.0.1:{}",
+            node.get_host_port_ipv4(5432)
+        );
+        tracing::warn!("container is up");
+        let mut conn = sqlx::PgConnection::connect(&addr).await.unwrap();
+        let rows = conn.fetch_all("SHOW fsync").await.unwrap();
+        use sqlx::Row;
+        for row in rows {
+            tracing::info!("fsync = {}", row.get::<String, usize>(0));
+        }
+    }
 }
 
 #[derive(Clone)]
