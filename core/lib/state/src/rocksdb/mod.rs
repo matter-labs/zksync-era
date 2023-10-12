@@ -185,7 +185,10 @@ impl RocksdbStorage {
             "Secondary storage for L1 batch #{latest_l1_batch_number} initialized, size is {estimated_size}"
         );
 
-        self.save_missing_enum_indices(conn).await;
+        // Enum indices must be at the storage. Run migration till the end.
+        while self.enum_migration_start_from().is_some() {
+            self.save_missing_enum_indices(conn).await;
+        }
     }
 
     async fn apply_storage_logs(
