@@ -19,6 +19,7 @@ use zksync_vk_setup_data_server_fri::{
     save_recursive_layer_vk, save_snark_vk,
 };
 
+#[cfg(test)]
 mod tests;
 mod vk_generator;
 
