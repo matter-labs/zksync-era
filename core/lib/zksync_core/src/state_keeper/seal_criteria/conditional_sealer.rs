@@ -101,6 +101,7 @@ impl ConditionalSealer {
             Box::new(criteria::MaxCyclesCriterion),
             Box::new(criteria::ComputationalGasCriterion),
             Box::new(criteria::TxEncodingSizeCriterion),
+            Box::new(criteria::L2ToL1LogsCriterion),
         ]
     }
 }
