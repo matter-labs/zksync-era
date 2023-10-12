@@ -238,7 +238,7 @@ impl JobProcessor for CircuitSynthesizer {
                 .await;
 
             if let Some(address) = prover {
-                let result = send_assembly(job_id, &mut serialized, &address);
+                let result = send_assembly(job_id, &serialized, &address);
                 handle_send_result(
                     &result,
                     job_id,
