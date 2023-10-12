@@ -21,7 +21,7 @@ jobs:
       core: ${{ steps.changed-files.outputs.core_any_changed }}
       prover: ${{ steps.changed-files.outputs.prover_any_changed }}
       docs: ${{ steps.changed-files.outputs.docs_any_changed }}
-      other: ${{ steps.calc-other.outputs.other_changed }}
+      all: ${{ steps.changed-files.outputs.all_any_changed }}
     steps:
       - uses: actions/checkout@v3
         with:
@@ -32,107 +32,91 @@ jobs:
         id: changed-files
         uses: tj-actions/changed-files@v39
         with:
-          json: true
+          json: true"
           files_yaml: |
             prover:
               - 'prover/**'
               - 'docker/prover*/**'
               - '.github/workflows/build-prover-template.yml'
               - '.github/workflows/ci-prover-reusable.yml'
+              - 'docker-compose-runner-nightly.yml'
             core:
               - 'core/**'
+              - 'contracts/**'
               - 'docker/contract-verifier/**'
               - 'docker/cross-external-nodes-checker/**'
               - 'docker/external-node/**'
               - 'docker/server/**'
               - '.github/workflows/build-core-template.yml'
               - '.github/workflows/ci-core-reusable.yml'
+              - 'docker-compose-runner.yml'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
             docs:
               - '**/*.md'
               - '**/*.MD'
               - '.github/workflows/ci-docs-reusable.yml'
-      - run: echo ${{ steps.changed-files.outputs.all_changed_files }}
+            all:
+              - '.github/workflows/ci.yml'
+              - 'bin/**'
+              - 'etc/**'
 
-      # - name: Calculate "other" changed files
-      #   id: calc-other
-      #   run: |
-      #     core_other_files="${{ steps.changed-files.outputs.core_other_changed_files }}"
-      #     prover_other_files="${{ steps.changed-files.outputs.prover_other_changed_files }}"
-      #     docs_other_files="${{ steps.changed-files.outputs.docs_other_changed_files }}"
+  ci-for-core:
+    name: CI for Core Components
+    needs: changed_files
+    if: needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true'
+    uses: ./.github/workflows/ci-core-reusable.yml
 
-      #     core_all_files="${{ steps.changed-files.outputs.core_all_changed_files }}"
-      #     prover_all_files="${{ steps.changed-files.outputs.prover_all_changed_files }}"
-      #     docs_all_files="${{ steps.changed-files.outputs.docs_all_changed_files }}"
+  ci-for-prover:
+    needs: changed_files
+    if: needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true'
+    name: CI for Prover Components
+    uses: ./.github/workflows/ci-prover-reusable.yml
 
-      #     # Concatenate all 'other' files and 'all' files, remove duplicates
-      #     all_other_files=$(echo "$core_other_files $prover_other_files $docs_other_files" | tr ' ' '\n' | sort -u)
-      #     all_all_files=$(echo "$core_all_files $prover_all_files $docs_all_files" | tr ' ' '\n' | sort -u)
+  ci-for-docs:
+    needs: changed_files
+    if: needs.changed_files.outputs.docs == 'true'
+    name: CI for Docs
+    uses: ./.github/workflows/ci-docs-reusable.yml
 
-      #     # Find unique 'other' files
-      #     unique_other_files=$(comm -23 <(echo "$all_other_files") <(echo "$all_all_files"))
+  build-core-images:
+    name: Build core images
+    needs: changed_files
+    if: needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true'
+    uses: ./.github/workflows/build-core-template.yml
+    with:
+      image_tag: ${{ needs.setup.outputs.image_tag }}
+      image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
+      action: "build"
+    secrets:
+      DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      #     if [ -n "$unique_other_files" ]; then
-      #       echo 'other_changed=true' >> $GITHUB_OUTPUT
-      #     else
-      #       echo 'other_changed=false' >> $GITHUB_OUTPUT
-      #     fi
+  build-prover-images:
+    name: Build prover images
+    needs: changed_files
+    if: needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'all'
+    uses: ./.github/workflows/build-prover-template.yml
+    with:
+      image_tag: ${{ needs.setup.outputs.image_tag }}
+      image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
+      action: "build"
+      ERA_BELLMAN_CUDA_RELEASE: ${{ vars.ERA_BELLMAN_CUDA_RELEASE }}
+    secrets:
+      DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
 
-  # ci-for-core:
-  #   name: CI for Core Components
-  #   needs: changed_files
-  #   if: needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.other == 'true'
-  #   uses: ./.github/workflows/ci-core-reusable.yml
-
-  # ci-for-prover:
-  #   needs: changed_files
-  #   if: needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.other == 'true'
-  #   name: CI for Prover Components
-  #   uses: ./.github/workflows/ci-prover-reusable.yml
-
-  # ci-for-docs:
-  #   needs: changed_files
-  #   if: needs.changed_files.outputs.docs == 'true'
-  #   name: CI for Docs
-  #   uses: ./.github/workflows/ci-docs-reusable.yml
-
-  # build-core-images:
-  #   name: Build core images
-  #   needs: changed_files
-  #   if: needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.other == 'true'
-  #   uses: ./.github/workflows/build-core-template.yml
-  #   with:
-  #     image_tag: ${{ needs.setup.outputs.image_tag }}
-  #     image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
-  #     action: "build"
-  #   secrets:
-  #     DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
-  #     DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-
-  # build-prover-images:
-  #   name: Build prover images
-  #   needs: changed_files
-  #   if: needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.other == 'true'
-  #   uses: ./.github/workflows/build-prover-template.yml
-  #   with:
-  #     image_tag: ${{ needs.setup.outputs.image_tag }}
-  #     image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
-  #     action: "build"
-  #     ERA_BELLMAN_CUDA_RELEASE: ${{ vars.ERA_BELLMAN_CUDA_RELEASE }}
-  #   secrets:
-  #     DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
-  #     DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-
-  # ci-success:
-  #   name: Github Status Check
-  #   runs-on: ubuntu-latest
-  #   if: always() && !cancelled()
-  #   needs: [ci-for-core, ci-for-prover, ci-for-docs, build-core-images, build-prover-images]
-  #   steps:
-  #     - name: Status
-  #       run: |
-  #         # This will check all jobs status in the `needs` list, and fail job if one is failed.
-  #         # Since we split prover and core to different flows, this job will be only as Required Status Check in the Pull Request.
-  #         if [[ ${{ contains(join(needs.*.result, ','), 'failure') }} == "true" ]]; then
-  #           echo "Intentionally failing to block PR from merging"
-  #           exit 1
-  #         fi
+  ci-success:
+    name: Github Status Check
+    runs-on: ubuntu-latest
+    if: always() && !cancelled()
+    needs: [ci-for-core, ci-for-prover, ci-for-docs, build-core-images, build-prover-images]
+    steps:
+      - name: Status
+        run: |
+          # This will check all jobs status in the `needs` list, and fail job if one is failed.
+          # Since we split prover and core to different flows, this job will be only as Required Status Check in the Pull Request.
+          if [[ ${{ contains(join(needs.*.result, ','), 'failure') }} == "true" ]]; then
+            echo "Intentionally failing to block PR from merging"
+            exit 1
+          fi
