@@ -1,6 +1,6 @@
 #![allow(clippy::upper_case_acronyms, clippy::derive_partial_eq_without_eq)]
 
-use std::{str::FromStr, sync::Arc, time::Instant};
+use std::{net::Ipv4Addr, str::FromStr, sync::Arc, time::Instant};
 
 use anyhow::Context as _;
 use futures::channel::oneshot;
@@ -733,20 +733,27 @@ async fn add_trees_to_task_futures(
         },
         (false, false) => return Ok(()),
     };
-    let (future, tree_health_check) = run_tree(&db_config, &operation_config, mode, stop_receiver)
-        .await
-        .context("run_tree()")?;
-    task_futures.push(future);
-    healthchecks.push(Box::new(tree_health_check));
-    Ok(())
+
+    run_tree(
+        task_futures,
+        healthchecks,
+        &db_config,
+        &operation_config,
+        mode,
+        stop_receiver,
+    )
+    .await
+    .context("run_tree()")
 }
 
 async fn run_tree(
-    config: &DBConfig,
+    task_futures: &mut Vec<JoinHandle<anyhow::Result<()>>>,
+    healthchecks: &mut Vec<Box<dyn CheckHealth>>,
+    db_config: &DBConfig,
     operation_manager: &OperationsManagerConfig,
     mode: MetadataCalculatorModeConfig<'_>,
     stop_receiver: watch::Receiver<bool>,
-) -> anyhow::Result<(JoinHandle<anyhow::Result<()>>, ReactiveHealthCheck)> {
+) -> anyhow::Result<()> {
     let started_at = Instant::now();
     let mode_str = if matches!(mode, MetadataCalculatorModeConfig::Full { .. }) {
         "full"
@@ -755,9 +762,16 @@ async fn run_tree(
     };
     tracing::info!("Initializing Merkle tree in {mode_str} mode");
 
-    let config = MetadataCalculatorConfig::for_main_node(config, operation_manager, mode);
+    let config = MetadataCalculatorConfig::for_main_node(db_config, operation_manager, mode);
     let metadata_calculator = MetadataCalculator::new(&config).await;
+    if let Some(port) = db_config.merkle_tree.api_port {
+        let address = (Ipv4Addr::UNSPECIFIED, port).into();
+        let server_task = metadata_calculator.run_api_server(&address, stop_receiver.clone());
+        task_futures.push(tokio::spawn(server_task));
+    }
+
     let tree_health_check = metadata_calculator.tree_health_check();
+    healthchecks.push(Box::new(tree_health_check));
     let pool = ConnectionPool::singleton(DbVariant::Master)
         .build()
         .await
@@ -766,7 +780,8 @@ async fn run_tree(
         .build()
         .await
         .context("failed to build prover_pool")?;
-    let future = tokio::spawn(metadata_calculator.run(pool, prover_pool, stop_receiver));
+    let tree_task = tokio::spawn(metadata_calculator.run(pool, prover_pool, stop_receiver));
+    task_futures.push(tree_task);
 
     tracing::info!("Initialized {mode_str} tree in {:?}", started_at.elapsed());
     metrics::gauge!(
@@ -775,7 +790,7 @@ async fn run_tree(
         "stage" => "tree",
         "tree" => mode_str
     );
-    Ok((future, tree_health_check))
+    Ok(())
 }
 
 async fn add_witness_generator_to_task_futures(

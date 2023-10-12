@@ -30,6 +30,9 @@ pub struct MerkleTreeConfig {
     /// Operation mode for the Merkle tree. If not specified, the full mode will be used.
     #[serde(default)]
     pub mode: MerkleTreeMode,
+    /// Port to bind the Merkle tree API server to. If not specified, the API server will not be launched.
+    #[serde(default)]
+    pub api_port: Option<u16>,
     /// Chunk size for multi-get operations. Can speed up loading data for the Merkle tree on some environments,
     /// but the effects vary wildly depending on the setup (e.g., the filesystem used).
     #[serde(default = "MerkleTreeConfig::default_multi_get_chunk_size")]
@@ -49,6 +52,7 @@ impl Default for MerkleTreeConfig {
             path: Self::default_path(),
             backup_path: Self::default_backup_path(),
             mode: MerkleTreeMode::default(),
+            api_port: None,
             multi_get_chunk_size: Self::default_multi_get_chunk_size(),
             block_cache_size_mb: Self::default_block_cache_size_mb(),
             max_l1_batches_per_iter: Self::default_max_l1_batches_per_iter(),
@@ -150,6 +154,7 @@ mod tests {
             DATABASE_MERKLE_TREE_BACKUP_PATH="/db/backups"
             DATABASE_MERKLE_TREE_PATH="/db/tree"
             DATABASE_MERKLE_TREE_MODE=lightweight
+            DATABASE_MERKLE_TREE_API_PORT=3072
             DATABASE_MERKLE_TREE_MULTI_GET_CHUNK_SIZE=250
             DATABASE_MERKLE_TREE_MAX_L1_BATCHES_PER_ITER=50
             DATABASE_BACKUP_COUNT=5
@@ -162,6 +167,7 @@ mod tests {
         assert_eq!(db_config.merkle_tree.path, "/db/tree");
         assert_eq!(db_config.merkle_tree.backup_path, "/db/backups");
         assert_eq!(db_config.merkle_tree.mode, MerkleTreeMode::Lightweight);
+        assert_eq!(db_config.merkle_tree.api_port, Some(3_072));
         assert_eq!(db_config.merkle_tree.multi_get_chunk_size, 250);
         assert_eq!(db_config.merkle_tree.max_l1_batches_per_iter, 50);
         assert_eq!(db_config.backup_count, 5);
@@ -176,6 +182,7 @@ mod tests {
             "DATABASE_MERKLE_TREE_BACKUP_PATH",
             "DATABASE_MERKLE_TREE_PATH",
             "DATABASE_MERKLE_TREE_MODE",
+            "DATABASE_MERKLE_TREE_API_PORT",
             "DATABASE_MERKLE_TREE_MULTI_GET_CHUNK_SIZE",
             "DATABASE_MERKLE_TREE_BLOCK_CACHE_SIZE_MB",
             "DATABASE_MERKLE_TREE_MAX_L1_BATCHES_PER_ITER",
@@ -188,6 +195,7 @@ mod tests {
         assert_eq!(db_config.merkle_tree.path, "./db/lightweight-new");
         assert_eq!(db_config.merkle_tree.backup_path, "./db/backups");
         assert_eq!(db_config.merkle_tree.mode, MerkleTreeMode::Full);
+        assert_eq!(db_config.merkle_tree.api_port, None);
         assert_eq!(db_config.merkle_tree.multi_get_chunk_size, 500);
         assert_eq!(db_config.merkle_tree.max_l1_batches_per_iter, 20);
         assert_eq!(db_config.merkle_tree.block_cache_size_mb, 128);
