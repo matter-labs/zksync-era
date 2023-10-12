@@ -20,7 +20,7 @@ jobs:
     outputs:
       core: ${{ steps.changed-files.outputs.core_any_changed }}
       prover: ${{ steps.changed-files.outputs.prover_any_changed }}
-      all: ${{ steps.changed-files.outputs.all_any_changed }}
+      other: ${{ steps.changed-files.outputs.other_changed_files }}
     steps:
       - uses: actions/checkout@v3
         with:
@@ -52,25 +52,25 @@ jobs:
   ci-for-core:
     name: CI for Core Components
     needs: changed_files
-    if: needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.other_modified_files != ''
+    if: needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.other != ''
     uses: ./.github/workflows/ci-core-reusable.yml
 
   ci-for-prover:
     needs: changed_files
-    if: needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.other_modified_files != ''
+    if: needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.other != ''
     name: CI for Prover Components
     uses: ./.github/workflows/ci-prover-reusable.yml
 
   ci-for-docs:
     needs: changed_files
-    if: needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.other_modified_files != ''
+    if: needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.other != ''
     name: CI for Docs
     uses: ./.github/workflows/ci-docs-reusable.yml
 
   build-core-images:
     name: Build core images
     needs: changed_files
-    if: needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.other_modified_files != ''
+    if: needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.other != ''
     uses: ./.github/workflows/build-core-template.yml
     with:
       image_tag: ${{ needs.setup.outputs.image_tag }}
@@ -83,7 +83,7 @@ jobs:
   build-prover-images:
     name: Build prover images
     needs: changed_files
-    if: needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.other_modified_files != ''
+    if: needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.other != ''
     uses: ./.github/workflows/build-prover-template.yml
     with:
       image_tag: ${{ needs.setup.outputs.image_tag }}
