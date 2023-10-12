@@ -16,34 +16,51 @@ concurrency:
 jobs:
   changed_files:
     runs-on: [matterlabs-default-infra-runners]
-    name: Test changed-files
+    name: Get changed files
     outputs:
-      core: ${{ steps.changed-files-yaml.outputs.core_any_changed }}
-      prover: ${{ steps.changed-files-yaml.outputs.prover_any_changed }}
-      all: ${{ steps.changed-files-yaml.outputs.all_any_changed }}
+      core: ${{ steps.changed-files.outputs.core_any_changed }}
+      prover: ${{ steps.changed-files.outputs.prover_any_changed }}
+      docs: ${{ steps.changed-files.outputs.docs_any_changed }}
+      all: ${{ steps.changed-files.outputs.all_any_changed }}
     steps:
       - uses: actions/checkout@v3
         with:
           fetch-depth: 2
           submodules: "recursive"
 
-      - name: Get all test, doc and src files that have changed
-        id: changed-files-yaml
-        uses: tj-actions/changed-files@v37
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@v39
         with:
           files_yaml: |
-            # If you want to exclude some files, please adjust here.
             prover:
-              - prover/**
-              - '!.github/release-please/manifest.json'
+              - 'prover/**'
+              - 'docker/prover*/**'
+              - '.github/workflows/build-prover-template.yml'
+              - '.github/workflows/ci-prover-reusable.yml'
+              - 'docker-compose-runner-nightly.yml'
             core:
-              - core/**
+              - 'core/**'
+              - 'docker/contract-verifier/**'
+              - 'docker/cross-external-nodes-checker/**'
+              - 'docker/external-node/**'
+              - 'docker/server/**'
+              - '.github/workflows/build-core-template.yml'
+              - '.github/workflows/ci-core-reusable.yml'
+              - 'docker-compose-runner.yml'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+            docs:
+              - '**/*.md'
+              - '**/*.MD'
+              - '.github/workflows/ci-docs-reusable.yml'
             all:
-              - '!core/**'
-              - '!prover/**'
-              - '!.github/workflows/zk-environment.publish.yml'
-              - '!docker/zk-environment/Dockerfile'
-              - '!docker/zk-environment-cuda-12-0/Dockerfile'
+              - '.github/workflows/ci.yml'
+              - 'bin/**'
+              - 'etc/**'
+              - 'contracts/**'
+              - 'infrastructure/zk/**'
+
   ci-for-core:
     name: CI for Core Components
     needs: changed_files
@@ -55,6 +72,12 @@ jobs:
     if: needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true'
     name: CI for Prover Components
     uses: ./.github/workflows/ci-prover-reusable.yml
+
+  ci-for-docs:
+    needs: changed_files
+    if: needs.changed_files.outputs.docs == 'true'
+    name: CI for Docs
+    uses: ./.github/workflows/ci-docs-reusable.yml
 
   build-core-images:
     name: Build core images
@@ -79,6 +102,7 @@ jobs:
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
       action: "build"
       ERA_BELLMAN_CUDA_RELEASE: ${{ vars.ERA_BELLMAN_CUDA_RELEASE }}
+      is_pr_from_fork: ${{ github.event.pull_request.head.repo.fork == true }}
     secrets:
       DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -87,7 +111,7 @@ jobs:
     name: Github Status Check
     runs-on: ubuntu-latest
     if: always() && !cancelled()
-    needs: [ci-for-core, ci-for-prover, build-core-images, build-prover-images]
+    needs: [ci-for-core, ci-for-prover, ci-for-docs, build-core-images, build-prover-images]
     steps:
       - name: Status
         run: |

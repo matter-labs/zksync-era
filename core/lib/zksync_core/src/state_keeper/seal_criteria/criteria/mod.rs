@@ -7,7 +7,7 @@ mod tx_encoding_size;
 pub(in crate::state_keeper) use self::{
     gas::GasCriterion,
     geometry_seal_criteria::{
-        ComputationalGasCriterion, InitialWritesCriterion, MaxCyclesCriterion,
+        ComputationalGasCriterion, InitialWritesCriterion, L2ToL1LogsCriterion, MaxCyclesCriterion,
         RepeatedWritesCriterion,
     },
     pubdata_bytes::PubDataBytesCriterion,
