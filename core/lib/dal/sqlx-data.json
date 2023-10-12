@@ -4031,36 +4031,6 @@
     },
     "query": "UPDATE l1_batches SET eth_commit_tx_id = $1, updated_at = now() WHERE number BETWEEN $2 AND $3"
   },
-  "57b4e8fb728f1e90dc5ed80c1493471f8e9eff828c99eadc531b28a068ade83e": {
-    "describe": {
-      "columns": [
-        {
-          "name": "count!",
-          "ordinal": 0,
-          "type_info": "Int8"
-        },
-        {
-          "name": "circuit_type!",
-          "ordinal": 1,
-          "type_info": "Text"
-        },
-        {
-          "name": "status!",
-          "ordinal": 2,
-          "type_info": "Text"
-        }
-      ],
-      "nullable": [
-        null,
-        false,
-        false
-      ],
-      "parameters": {
-        "Left": []
-      }
-    },
-    "query": "\n                SELECT COUNT(*) as \"count!\", circuit_type as \"circuit_type!\", status as \"status!\"\n                FROM prover_jobs\n                GROUP BY circuit_type, status\n                "
-  },
   "580d973b404123108e8e8b27cd754f108a289e1556da10a466e4c795fbd23ddf": {
     "describe": {
       "columns": [],
@@ -9006,6 +8976,36 @@
       }
     },
     "query": "\n                UPDATE contract_verification_requests\n                SET status = 'failed', updated_at = now(), error = $2, compilation_errors = $3, panic_message = $4\n                WHERE id = $1\n                "
+  },
+  "cfd2ce8eb6997b7609090b4400e1bc42db577fdd3758248be69d3b5d9d132bf1": {
+    "describe": {
+      "columns": [
+        {
+          "name": "count!",
+          "ordinal": 0,
+          "type_info": "Int8"
+        },
+        {
+          "name": "circuit_type!",
+          "ordinal": 1,
+          "type_info": "Text"
+        },
+        {
+          "name": "status!",
+          "ordinal": 2,
+          "type_info": "Text"
+        }
+      ],
+      "nullable": [
+        null,
+        false,
+        false
+      ],
+      "parameters": {
+        "Left": []
+      }
+    },
+    "query": "\n                SELECT COUNT(*) as \"count!\", circuit_type as \"circuit_type!\", status as \"status!\"\n                FROM prover_jobs\n                WHERE status <> 'skipped' and status <> 'successful' \n                GROUP BY circuit_type, status\n                "
   },
   "d0ff67e7c59684a0e4409726544cf850dbdbb36d038ebbc6a1c5bf0e76b0358c": {
     "describe": {
