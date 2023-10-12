@@ -32,6 +32,7 @@ jobs:
         id: changed-files
         uses: tj-actions/changed-files@v39
         with:
+          json: true"
           files_yaml: |
             prover:
               - 'prover/**'
@@ -50,30 +51,31 @@ jobs:
               - '**/*.md'
               - '**/*.MD'
               - '.github/workflows/ci-docs-reusable.yml'
+      - run: echo ${{ steps.changed-files.outputs.all_changed_files }}
 
-      - name: Calculate "other" changed files
-        id: calc-other
-        run: |
-          core_other_files="${{ steps.changed-files.outputs.core_other_changed_files }}"
-          prover_other_files="${{ steps.changed-files.outputs.prover_other_changed_files }}"
-          docs_other_files="${{ steps.changed-files.outputs.docs_other_changed_files }}"
+      # - name: Calculate "other" changed files
+      #   id: calc-other
+      #   run: |
+      #     core_other_files="${{ steps.changed-files.outputs.core_other_changed_files }}"
+      #     prover_other_files="${{ steps.changed-files.outputs.prover_other_changed_files }}"
+      #     docs_other_files="${{ steps.changed-files.outputs.docs_other_changed_files }}"
 
-          core_all_files="${{ steps.changed-files.outputs.core_all_changed_files }}"
-          prover_all_files="${{ steps.changed-files.outputs.prover_all_changed_files }}"
-          docs_all_files="${{ steps.changed-files.outputs.docs_all_changed_files }}"
+      #     core_all_files="${{ steps.changed-files.outputs.core_all_changed_files }}"
+      #     prover_all_files="${{ steps.changed-files.outputs.prover_all_changed_files }}"
+      #     docs_all_files="${{ steps.changed-files.outputs.docs_all_changed_files }}"
 
-          # Concatenate all 'other' files and 'all' files, remove duplicates
-          all_other_files=$(echo "$core_other_files $prover_other_files $docs_other_files" | tr ' ' '\n' | sort -u)
-          all_all_files=$(echo "$core_all_files $prover_all_files $docs_all_files" | tr ' ' '\n' | sort -u)
+      #     # Concatenate all 'other' files and 'all' files, remove duplicates
+      #     all_other_files=$(echo "$core_other_files $prover_other_files $docs_other_files" | tr ' ' '\n' | sort -u)
+      #     all_all_files=$(echo "$core_all_files $prover_all_files $docs_all_files" | tr ' ' '\n' | sort -u)
 
-          # Find unique 'other' files
-          unique_other_files=$(comm -23 <(echo "$all_other_files") <(echo "$all_all_files"))
+      #     # Find unique 'other' files
+      #     unique_other_files=$(comm -23 <(echo "$all_other_files") <(echo "$all_all_files"))
 
-          if [ -n "$unique_other_files" ]; then
-            echo 'other_changed=true' >> $GITHUB_OUTPUT
-          else
-            echo 'other_changed=false' >> $GITHUB_OUTPUT
-          fi
+      #     if [ -n "$unique_other_files" ]; then
+      #       echo 'other_changed=true' >> $GITHUB_OUTPUT
+      #     else
+      #       echo 'other_changed=false' >> $GITHUB_OUTPUT
+      #     fi
 
   ci-for-core:
     name: CI for Core Components
