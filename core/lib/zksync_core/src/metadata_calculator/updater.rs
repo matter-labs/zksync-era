@@ -1,4 +1,5 @@
 //! Tree updater trait and its implementations.
+
 use anyhow::Context as _;
 use futures::{future, FutureExt};
 use tokio::sync::watch;
@@ -53,7 +54,6 @@ impl TreeUpdater {
         }
     }
 
-    #[cfg(test)]
     pub fn tree(&self) -> &AsyncTree {
         &self.tree
     }

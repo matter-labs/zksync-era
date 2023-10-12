@@ -3,7 +3,7 @@
 
 use tokio::sync::watch;
 
-use std::time::Duration;
+use std::{future::Future, net::SocketAddr, time::Duration};
 
 use zksync_config::configs::{
     chain::OperationsManagerConfig,
@@ -18,6 +18,7 @@ use zksync_types::{
     commitment::{L1BatchCommitment, L1BatchMetadata},
 };
 
+pub(crate) mod api;
 mod helpers;
 mod metrics;
 #[cfg(test)]
@@ -110,6 +111,7 @@ impl MetadataCalculator {
             MetadataCalculatorModeConfig::Lightweight => None,
         };
         let updater = TreeUpdater::new(mode, config, object_store).await;
+
         let (_, health_updater) = ReactiveHealthCheck::new("tree");
         Self {
             updater,
@@ -121,6 +123,27 @@ impl MetadataCalculator {
     /// Returns a health check for this calculator.
     pub fn tree_health_check(&self) -> ReactiveHealthCheck {
         self.health_updater.subscribe()
+    }
+
+    /// Runs the Merkle tree API server on the specified address.
+    pub fn run_api_server(
+        &self,
+        address: &SocketAddr,
+        stop_receiver: watch::Receiver<bool>,
+    ) -> impl Future<Output = anyhow::Result<()>> {
+        let server = self.create_api_server(address, stop_receiver);
+        async { server?.run().await }
+    }
+
+    fn create_api_server(
+        &self,
+        address: &SocketAddr,
+        stop_receiver: watch::Receiver<bool>,
+    ) -> anyhow::Result<api::MerkleTreeServer> {
+        self.updater
+            .tree()
+            .reader()
+            .create_server(address, stop_receiver)
     }
 
     pub async fn run(
