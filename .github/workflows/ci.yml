@@ -29,21 +29,23 @@ jobs:
 
       - name: Get all test, doc and src files that have changed
         id: changed-files-yaml
-        uses: tj-actions/changed-files@v37
+        uses: tj-actions/changed-files@v39
         with:
           files_yaml: |
-            # If you want to exclude some files, please adjust here.
             prover:
-              - prover/**
+              - 'prover/**'
+              - 'docker/prover*/**'
               - '!.github/release-please/manifest.json'
             core:
-              - core/**
+              - 'core/**'
             all:
               - '!core/**'
               - '!prover/**'
+              - '!docker/prover*/**'
               - '!.github/workflows/zk-environment.publish.yml'
               - '!docker/zk-environment/Dockerfile'
               - '!docker/zk-environment-cuda-12-0/Dockerfile'
+
   ci-for-core:
     name: CI for Core Components
     needs: changed_files
