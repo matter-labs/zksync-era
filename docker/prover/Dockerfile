@@ -19,6 +19,7 @@ RUN curl https://sh.rustup.rs -sSf | bash -s -- -y && \
 WORKDIR /usr/src/zksync
 
 ARG ERA_BELLMAN_CUDA_RELEASE
+ENV ERA_BELLMAN_CUDA_RELEASE=$ERA_BELLMAN_CUDA_RELEASE
 ENV GITHUB_OWNER=matter-labs
 ENV GITHUB_REPO=era-bellman-cuda
 
