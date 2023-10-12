@@ -46,24 +46,17 @@ enum StateKeeperColumnFamily {
     State,
     Contracts,
     FactoryDeps,
-    EnumIndices,
 }
 
 impl NamedColumnFamily for StateKeeperColumnFamily {
     const DB_NAME: &'static str = "state_keeper";
-    const ALL: &'static [Self] = &[
-        Self::State,
-        Self::Contracts,
-        Self::FactoryDeps,
-        Self::EnumIndices,
-    ];
+    const ALL: &'static [Self] = &[Self::State, Self::Contracts, Self::FactoryDeps];
 
     fn name(&self) -> &'static str {
         match self {
             Self::State => "state",
             Self::Contracts => "contracts",
             Self::FactoryDeps => "factory_deps",
-            Self::EnumIndices => "enum_indices",
         }
     }
 }
@@ -391,21 +384,18 @@ impl RocksdbStorage {
                         &StateValue::new(prev_value, Some(prev_index)).serialize(),
                     );
                 } else {
-                    batch.delete_cf(StateKeeperColumnFamily::State, key.as_bytes());
-                    batch.delete_cf(StateKeeperColumnFamily::EnumIndices, key.as_bytes());
+                    batch.delete_cf(cf, key.as_bytes());
                 }
             }
             batch.put_cf(
-                StateKeeperColumnFamily::State,
+                cf,
                 Self::BLOCK_NUMBER_KEY,
                 &serialize_block_number(last_l1_batch_to_keep.0 + 1),
             );
 
+            let cf = StateKeeperColumnFamily::FactoryDeps;
             for factory_dep_hash in &factory_deps {
-                batch.delete_cf(
-                    StateKeeperColumnFamily::FactoryDeps,
-                    factory_dep_hash.as_bytes(),
-                );
+                batch.delete_cf(cf, factory_dep_hash.as_bytes());
             }
 
             db.write(batch)
@@ -512,7 +502,6 @@ impl ReadStorage for RocksdbStorage {
 #[cfg(test)]
 mod tests {
     use db_test_macro::db_test;
-    use itertools::Itertools;
     use tempfile::TempDir;
 
     use super::*;
