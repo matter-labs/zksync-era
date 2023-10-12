@@ -21,7 +21,7 @@ jobs:
       core: ${{ steps.changed-files.outputs.core_any_changed }}
       prover: ${{ steps.changed-files.outputs.prover_any_changed }}
       docs: ${{ steps.changed-files.outputs.docs_any_changed }}
-      other: ${{ steps.changed-files.outputs.other_changed_files }}
+      all: ${{ steps.changed-files.outputs.all_any_changed }}
     steps:
       - uses: actions/checkout@v3
         with:
@@ -38,6 +38,7 @@ jobs:
               - 'docker/prover*/**'
               - '.github/workflows/build-prover-template.yml'
               - '.github/workflows/ci-prover-reusable.yml'
+              - 'docker-compose-runner-nightly.yml'
             core:
               - 'core/**'
               - 'docker/contract-verifier/**'
@@ -46,20 +47,29 @@ jobs:
               - 'docker/server/**'
               - '.github/workflows/build-core-template.yml'
               - '.github/workflows/ci-core-reusable.yml'
+              - 'docker-compose-runner.yml'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
             docs:
               - '**/*.md'
               - '**/*.MD'
               - '.github/workflows/ci-docs-reusable.yml'
+            all:
+              - '.github/workflows/ci.yml'
+              - 'bin/**'
+              - 'etc/**'
+              - 'contracts/**'
+              - 'infrastructure/zk/**'
 
   ci-for-core:
     name: CI for Core Components
     needs: changed_files
-    if: needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.other != ''
+    if: needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true'
     uses: ./.github/workflows/ci-core-reusable.yml
 
   ci-for-prover:
     needs: changed_files
-    if: needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.other != ''
+    if: needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true'
     name: CI for Prover Components
     uses: ./.github/workflows/ci-prover-reusable.yml
 
@@ -72,7 +82,7 @@ jobs:
   build-core-images:
     name: Build core images
     needs: changed_files
-    if: needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.other != ''
+    if: needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true'
     uses: ./.github/workflows/build-core-template.yml
     with:
       image_tag: ${{ needs.setup.outputs.image_tag }}
@@ -85,7 +95,7 @@ jobs:
   build-prover-images:
     name: Build prover images
     needs: changed_files
-    if: needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.other != ''
+    if: needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true'
     uses: ./.github/workflows/build-prover-template.yml
     with:
       image_tag: ${{ needs.setup.outputs.image_tag }}
