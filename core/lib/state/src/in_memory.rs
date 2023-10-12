@@ -77,7 +77,7 @@ impl InMemoryStorage {
 
         let last_enum_index_set = state.len() as u64;
         Self {
-            state: state.into_iter().collect(),
+            state,
             factory_deps,
             last_enum_index_set,
         }
