@@ -38,9 +38,9 @@ async function clippy() {
 }
 
 export const command = new Command('lint')
-    .description('lint non-rust code')
+    .description('lint code')
     .option('--check')
-    .arguments('[extension]')
+    .arguments('[rust|md|sol|js|ts]')
     .action(async (extension: string | null, cmd: Command) => {
         if (extension) {
             await lint(extension, cmd.check);

@@ -941,6 +941,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "const-decoder"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5241cd7938b1b415942e943ea96f615953d500b50347b505b0b507080bad5a6f"
+
+[[package]]
 name = "const-oid"
 version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6992,6 +6998,7 @@ dependencies = [
  "async-trait",
  "bincode",
  "circuit_definitions",
+ "const-decoder",
  "ctrlc",
  "futures 0.3.28",
  "hex",
