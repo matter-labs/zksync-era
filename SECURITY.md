@@ -19,7 +19,7 @@ The following PGP key may be used to communicate sensitive information to develo
 
 Fingerprint: `5FED B2D0 EA2C 4906 DD66 71D7 A2C5 0B40 CE3C F297`
 
-```
+```text
 -----BEGIN PGP PUBLIC KEY BLOCK-----
 
 mQINBGEBmQkBEAD6tlkBEZFMvR8kOgxXX857nC2+oTik6TopJz4uCskuqDaeldMy
