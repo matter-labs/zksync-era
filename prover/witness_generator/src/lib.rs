@@ -1,3 +1,5 @@
+#![feature(generic_const_exprs)]
+
 pub mod basic_circuits;
 pub mod leaf_aggregation;
 pub mod node_aggregation;

@@ -122,7 +122,7 @@ impl JobProcessor for WitnessVectorGenerator {
             started_at.elapsed()
         );
 
-        let mut serialized: Vec<u8> =
+        let serialized: Vec<u8> =
             bincode::serialize(&artifacts).expect("Failed to serialize witness vector artifacts");
 
         let now = Instant::now();
