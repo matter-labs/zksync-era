@@ -25,8 +25,10 @@ ENV GITHUB_REPO=era-bellman-cuda
 
 RUN set -e; \
     if [ -z "$ERA_BELLMAN_CUDA_RELEASE" ]; then \
-    latest_release_data=$(curl --silent "https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases"); \
-    ERA_BELLMAN_CUDA_RELEASE=$(echo "$latest_release_data" | jq -r '.[0].tag_name'); \
+        ERA_BELLMAN_CUDA_RELEASE="latest"; \
+    fi; \
+    if [ "$ERA_BELLMAN_CUDA_RELEASE" = "latest" ]; then \
+        ERA_BELLMAN_CUDA_RELEASE=$(curl --silent "https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases" | jq -r '.[0].tag_name'); \
     fi; \
     source_url="https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/archive/refs/tags/${ERA_BELLMAN_CUDA_RELEASE}.tar.gz"; \
     binary_url="https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases/download/${ERA_BELLMAN_CUDA_RELEASE}/bellman-cuda.tar.gz"; \
