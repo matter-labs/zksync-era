@@ -16,7 +16,7 @@ concurrency:
 jobs:
   changed_files:
     runs-on: [matterlabs-default-infra-runners]
-    name: Test changed-files
+    name: Get changed files
     outputs:
       core: ${{ steps.changed-files.outputs.core_any_changed }}
       prover: ${{ steps.changed-files.outputs.prover_any_changed }}
