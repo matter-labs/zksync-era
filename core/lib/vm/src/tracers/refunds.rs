@@ -24,14 +24,11 @@ use crate::old_vm::{
 use crate::bootloader_state::BootloaderState;
 use crate::tracers::utils::gas_spent_on_bytecodes_and_long_messages_this_opcode;
 use crate::tracers::{
-    traits::{DynTracer, ExecutionEndTracer, ExecutionProcessing, VmTracer},
+    traits::{DynTracer, VmTracer},
     utils::{get_vm_hook_params, VmHook},
 };
-use crate::types::{
-    inputs::L1BatchEnv,
-    internals::ZkSyncVmState,
-    outputs::{Refunds, VmExecutionResultAndLogs},
-};
+use crate::types::{inputs::L1BatchEnv, internals::ZkSyncVmState, outputs::Refunds};
+use crate::TracerExecutionStatus;
 
 /// Tracer responsible for collecting information about refunds.
 #[derive(Debug, Clone)]
@@ -77,6 +74,13 @@ impl RefundsTracer {
 
     fn block_overhead_refund(&mut self) -> u32 {
         0
+    }
+
+    pub(crate) fn get_refunds(&self) -> Refunds {
+        Refunds {
+            gas_refunded: self.refund_gas,
+            operator_suggested_refund: self.operator_refund.unwrap_or_default(),
+        }
     }
 
     pub(crate) fn tx_body_refund(
@@ -145,6 +149,7 @@ impl<S, H: HistoryMode> DynTracer<S, H> for RefundsTracer {
         memory: &SimpleMemory<H>,
         _storage: StoragePtr<S>,
     ) {
+        self.timestamp_before_cycle = Timestamp(state.vm_local_state.timestamp);
         let hook = VmHook::from_opcode_memory(&state, &data);
         match hook {
             VmHook::NotifyAboutRefund => self.refund_gas = get_vm_hook_params(memory)[0].as_u32(),
@@ -159,24 +164,18 @@ impl<S, H: HistoryMode> DynTracer<S, H> for RefundsTracer {
     }
 }
 
-impl<H: HistoryMode> ExecutionEndTracer<H> for RefundsTracer {}
-
-impl<S: WriteStorage, H: HistoryMode> ExecutionProcessing<S, H> for RefundsTracer {
+impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for RefundsTracer {
     fn initialize_tracer(&mut self, state: &mut ZkSyncVmState<S, H>) {
         self.timestamp_initial = Timestamp(state.local_state.timestamp);
         self.gas_remaining_before = state.local_state.callstack.current.ergs_remaining;
         self.spent_pubdata_counter_before = state.local_state.spent_pubdata_counter;
     }
 
-    fn before_cycle(&mut self, state: &mut ZkSyncVmState<S, H>) {
-        self.timestamp_before_cycle = Timestamp(state.local_state.timestamp);
-    }
-
-    fn after_cycle(
+    fn finish_cycle(
         &mut self,
         state: &mut ZkSyncVmState<S, H>,
         bootloader_state: &mut BootloaderState,
-    ) {
+    ) -> TracerExecutionStatus {
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
         #[metrics(label = "type", rename_all = "snake_case")]
         enum RefundType {
@@ -285,6 +284,7 @@ impl<S: WriteStorage, H: HistoryMode> ExecutionProcessing<S, H> for RefundsTrace
                 (refund_to_propose as f64 - bootloader_refund as f64) / tx_gas_limit as f64 * 100.0;
             METRICS.refund_diff.observe(refund_diff);
         }
+        TracerExecutionStatus::Continue
     }
 }
 
@@ -331,13 +331,4 @@ pub(crate) fn pubdata_published<S: WriteStorage, H: HistoryMode>(
         + l2_l1_logs_bytes
         + l2_l1_long_messages_bytes
         + published_bytecode_bytes
-}
-
-impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for RefundsTracer {
-    fn save_results(&mut self, result: &mut VmExecutionResultAndLogs) {
-        result.refunds = Refunds {
-            gas_refunded: self.refund_gas,
-            operator_suggested_refund: self.operator_refund.unwrap_or_default(),
-        }
-    }
 }
