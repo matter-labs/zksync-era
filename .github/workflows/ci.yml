@@ -70,13 +70,9 @@ jobs:
           unique_other_files=$(comm -23 <(echo "$all_other_files") <(echo "$all_all_files"))
 
           if [ -n "$unique_other_files" ]; then
-            echo "other_changed=true"
-            echo "other_changed=true" >> $GITHUB_ENV
-            echo "::set-output name=other_changed::true"
+            echo 'other_changed=true' >> $GITHUB_OUTPUT
           else
-            echo "other_changed=false"
-            echo "other_changed=false" >> $GITHUB_ENV
-            echo "::set-output name=other_changed::false"
+            echo 'other_changed=false' >> $GITHUB_OUTPUT
           fi
 
   debug-outputs:
