@@ -16,34 +16,36 @@ concurrency:
 jobs:
   changed_files:
     runs-on: [matterlabs-default-infra-runners]
-    name: Test changed-files
+    name: Get changed files
     outputs:
-      core: ${{ steps.changed-files-yaml.outputs.core_any_changed }}
-      prover: ${{ steps.changed-files-yaml.outputs.prover_any_changed }}
-      all: ${{ steps.changed-files-yaml.outputs.all_any_changed }}
+      core: ${{ steps.changed-files.outputs.core_any_changed }}
+      prover: ${{ steps.changed-files.outputs.prover_any_changed }}
+      all: ${{ steps.changed-files.outputs.all_any_changed }}
     steps:
       - uses: actions/checkout@v3
         with:
           fetch-depth: 2
           submodules: "recursive"
 
-      - name: Get all test, doc and src files that have changed
-        id: changed-files-yaml
-        uses: tj-actions/changed-files@v37
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@v39
         with:
           files_yaml: |
-            # If you want to exclude some files, please adjust here.
             prover:
-              - prover/**
+              - 'prover/**'
+              - 'docker/prover*/**'
               - '!.github/release-please/manifest.json'
             core:
-              - core/**
+              - 'core/**'
             all:
               - '!core/**'
               - '!prover/**'
+              - '!docker/prover*/**'
               - '!.github/workflows/zk-environment.publish.yml'
               - '!docker/zk-environment/Dockerfile'
               - '!docker/zk-environment-cuda-12-0/Dockerfile'
+
   ci-for-core:
     name: CI for Core Components
     needs: changed_files
