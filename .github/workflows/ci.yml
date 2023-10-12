@@ -64,7 +64,7 @@ jobs:
 
   ci-for-docs:
     needs: changed_files
-    if: needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.other != ''
+    if: needs.changed_files.outputs.docs == 'true'
     name: CI for Docs
     uses: ./.github/workflows/ci-docs-reusable.yml
 
