@@ -300,7 +300,7 @@ mod tests {
         let filtered_call = filter_near_call(near_call.clone());
         assert_eq!(filtered_call.len(), 0);
 
-        call.r#type = CallType::Call(FarCallOpcode::Mimic.glue_into());
+        call.r#type = CallType::Call(FarCallOpcode::Mimic.into());
         call.calls = vec![Call::default(), Call::default(), near_call.clone()];
         let filtered_call = filter_near_call(call.clone());
         assert_eq!(filtered_call.len(), 1);
