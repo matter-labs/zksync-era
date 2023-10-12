@@ -4,20 +4,22 @@ use crate::H256;
 use serde::{Deserialize, Serialize};
 use zksync_basic_types::{Address, U256};
 
-use self::compression::compress_with_best_strategy;
+use self::compression::{compress_with_best_strategy, COMPRESSION_VERSION_NUMBER};
 
 mod compression;
 
-const COMPRESSION_VERSION_NUMBER: u8 = 1;
 const BYTES_PER_ENUMERATION_INDEX: u8 = 4;
+// Total byte size of all fields in StateDiffRecord struct
+// 20 + 32 + 32 +8 + 32 + 32
 const STATE_DIFF_RECORD_SIZE: usize = 156;
 
 // 2 * 136 - the size that allows for two keccak rounds.
 pub const PADDED_ENCODED_STORAGE_DIFF_LEN_BYTES: usize = 272;
 
-/// In vm there are two types of writes Initial and Repeated. After the first write to the leaf,
+/// In vm there are two types of writes Initial and Repeated. After the first write to the key,
 /// we assign an index to it and in the future we should use index instead of full key.
-/// It allows us to compress the data.
+/// It allows us to compress the data, as the full key would use 32 bytes, and the index can be
+/// represented only as BYTES_PER_ENUMERATION_INDEX bytes
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct InitialStorageWrite {
     pub index: u64,
@@ -25,6 +27,8 @@ pub struct InitialStorageWrite {
     pub value: H256,
 }
 
+/// For repeated writes, we can substitute the 32 byte key for a BYTES_PER_ENUMERATION_INDEX byte index
+/// representing its leaf index in the tree.
 #[derive(Clone, Debug, Deserialize, Serialize, Default, Eq, PartialEq)]
 pub struct RepeatedStorageWrite {
     pub index: u64,
@@ -92,32 +96,34 @@ impl StateDiffRecord {
     }
 
     /// Decode bytes into StateDiffRecord
-    pub fn from_slice(data: &[u8]) -> Self {
-        assert_eq!(data.len(), 156);
-
-        Self {
-            address: Address::from_slice(&data[0..20]),
-            key: U256::from(&data[20..52]),
-            derived_key: data[52..84].try_into().unwrap(),
-            enumeration_index: u64::from_be_bytes(data[84..92].try_into().unwrap()),
-            initial_value: U256::from(&data[92..124]),
-            final_value: U256::from(&data[124..156]),
+    pub fn try_from_slice(data: &[u8]) -> Option<Self> {
+        if data.len() == 156 {
+            Some(Self {
+                address: Address::from_slice(&data[0..20]),
+                key: U256::from(&data[20..52]),
+                derived_key: data[52..84].try_into().unwrap(),
+                enumeration_index: u64::from_be_bytes(data[84..92].try_into().unwrap()),
+                initial_value: U256::from(&data[92..124]),
+                final_value: U256::from(&data[124..156]),
+            })
+        } else {
+            None
         }
     }
 
     /// compression follows the following algo:
     /// 1. if repeated write:
-    ///      entry <- enumeration_index || value
+    ///      entry <- enumeration_index || compressed value
     /// 2. if initial write:
-    ///      entry <- blake2(bytes32(address), key) || value
+    ///      entry <- blake2(bytes32(address), key) || compressed value
     /// size:
-    ///      initial:  64 bytes
-    ///      repeated: 40 bytes
+    ///      initial:  max of 65 bytes
+    ///      repeated: max of 38 bytes
     ///      before:  156 bytes for each
     pub fn compress(&self) -> Vec<u8> {
         let mut comp_state_diff = match self.enumeration_index {
             0 => self.derived_key.to_vec(),
-            enumeration_index if enumeration_index < u32::MAX.into() => {
+            enumeration_index if enumeration_index <= u32::MAX.into() => {
                 (self.enumeration_index as u32).to_be_bytes().to_vec()
             }
             enumeration_index => panic!("enumeration_index is too large: {}", enumeration_index),
@@ -137,6 +143,7 @@ impl StateDiffRecord {
 pub fn compress_state_diffs(mut state_diffs: Vec<StateDiffRecord>) -> Vec<u8> {
     let mut res = vec![];
 
+    // IMPORTANT: Sorting here is determined by the order expected in the circuits.
     state_diffs.sort_by_key(|rec| (rec.address, rec.key));
 
     let (initial_writes, repeated_writes): (Vec<_>, Vec<_>) = state_diffs
@@ -155,6 +162,9 @@ pub fn compress_state_diffs(mut state_diffs: Vec<StateDiffRecord>) -> Vec<u8> {
     prepend_header(res)
 }
 
+/// Adds the header to the beginning of the compressed state diffs so it can be used as part of the overall
+/// pubdata. Need to prepend: compression version || number of compressed state diffs || number of bytes used for
+/// enumeration index.
 fn prepend_header(compressed_state_diffs: Vec<u8>) -> Vec<u8> {
     let mut res = vec![0u8; 5];
     res[0] = COMPRESSION_VERSION_NUMBER;

@@ -1,5 +1,9 @@
 use super::*;
 
+// Starting with version 1 for this compression strategy. Any modifications to our current strategy MUST
+// increment this number.
+pub const COMPRESSION_VERSION_NUMBER: u8 = 1;
+
 // Trait used to define functionality for different compression modes. Defines functions for
 // output size, what type of operation was performed, and value/extended compression.
 trait CompressionMode: 'static {
