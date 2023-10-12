@@ -496,6 +496,16 @@ async fn generate_witness(
         .get_l1_batch_header(input.block_number)
         .await
         .unwrap().unwrap();
+
+    let previous_batch_with_metadata = connection
+        .blocks_dal()
+        .get_l1_batch_metadata(zksync_types::L1BatchNumber(
+            input.block_number.checked_sub(1).unwrap(),
+        ))
+        .await
+        .unwrap()
+        .unwrap();
+
     let bootloader_code_bytes = connection
         .storage_dal()
         .get_factory_dep(header.base_system_contracts_hashes.bootloader)
@@ -578,8 +588,17 @@ async fn generate_witness(
 
     // The following part is CPU-heavy, so we move it to a separate thread.
     let rt_handle = tokio::runtime::Handle::current();
-    tokio::task::spawn_blocking(move || {
-        let connection = rt_handle.block_on(connection_pool.access_storage()).unwrap();
+
+    let (
+        basic_circuits,
+        basic_circuits_public_inputs,
+        basic_circuits_public_compact_witness,
+        mut scheduler_witness,
+        block_aux_witness,
+    ) = tokio::task::spawn_blocking(move || {
+        let connection = rt_handle
+            .block_on(connection_pool.access_storage())
+            .unwrap();
         let storage = PostgresStorage::new(rt_handle, connection, last_miniblock_number, true);
         let storage_view = StorageView::new(storage).to_rc_ptr();
         let storage_oracle: StorageOracle<StorageView<PostgresStorage<'_>>, HistoryDisabled> =
@@ -600,7 +619,20 @@ async fn generate_witness(
         )
     })
     .await
-    .unwrap()
+    .unwrap();
+
+    scheduler_witness.previous_block_meta_hash =
+        previous_batch_with_metadata.metadata.meta_parameters_hash.0;
+    scheduler_witness.previous_block_aux_hash =
+        previous_batch_with_metadata.metadata.aux_data_hash.0;
+
+    (
+        basic_circuits,
+        basic_circuits_public_inputs,
+        basic_circuits_public_compact_witness,
+        scheduler_witness,
+        block_aux_witness,
+    )
 }
 
 #[allow(clippy::too_many_arguments)]
