@@ -1213,6 +1213,7 @@ async fn circuit_breakers_for_components(
 
 #[tokio::test]
 async fn test_house_keeper_components_get_added() {
+    zksync_dal::set_database_url_to_test_db().await;
     let (core_task_handles, _, _, _) = initialize_components(vec![Component::Housekeeper], false)
         .await
         .unwrap();

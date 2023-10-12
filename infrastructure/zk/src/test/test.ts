@@ -32,7 +32,7 @@ export async function rust(options: string[]) {
         test_runner = 'cargo test';
     }
 
-    let cmd = `${test_runner} --release ${options.join(' ')}`;
+    let cmd = `SQLX_OFFLINE=true ${test_runner} --release ${options.join(' ')}`;
     console.log(`running unit tests with '${cmd}'`);
 
     await utils.spawn(cmd);

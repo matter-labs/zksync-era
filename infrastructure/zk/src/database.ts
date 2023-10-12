@@ -11,9 +11,13 @@ export async function reset() {
 export async function resetTest() {
     process.env.DATABASE_URL = process.env.TEST_DATABASE_URL;
     await utils.confirmAction();
-    await utils.exec('docker-compose -f docker-compose-test.yml up --force-recreate -d postgres_tmp --wait');
+    await utils.spawn('docker rm -f postgres_tmp');
+    await utils.spawn('docker-compose -f docker-compose-test.yml up -d postgres_tmp');
+    await wait();
+    console.log('setup');
     await setup();
-    await utils.exec(
+    console.log('disallowing connections');
+    await utils.spawn(
         `psql "${process.env.DATABASE_URL}" -c "update pg_database set datallowconn = false where datname = current_database()"`
     );
 }
@@ -61,7 +65,8 @@ export async function wait(tries: number = 4) {
     for (let i = 0; i < tries; i++) {
         const result = await utils.allowFail(utils.exec(`pg_isready -d "${process.env.DATABASE_URL}"`));
         if (result !== null) return; // null means failure
-        await utils.sleep(5);
+        console.log('waiting for postgres');
+        await utils.sleep(1);
     }
     await utils.exec(`pg_isready -d "${process.env.DATABASE_URL}"`);
 }

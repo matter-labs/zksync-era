@@ -91,7 +91,7 @@ impl ConnectionPoolBuilder {
 
 const PREFIX: &str = "test-";
 
-async fn create_test_db() -> url::Url {
+pub(super) async fn create_test_db() -> url::Url {
     use rand::Rng as _;
     use sqlx::{Connection as _, Executor as _};
     let db_url = crate::get_test_database_url().unwrap();
