@@ -36,7 +36,7 @@ pub(super) fn apply_vm_in_sandbox<T>(
     connection_pool: &ConnectionPool,
     tx: Transaction,
     block_args: BlockArgs,
-    apply: impl FnOnce(&mut VmInstance<'_, PostgresStorage<'_>, HistoryDisabled>, Transaction) -> T,
+    apply: impl FnOnce(&mut VmInstance<PostgresStorage<'_>, HistoryDisabled>, Transaction) -> T,
 ) -> T {
     let stage_started_at = Instant::now();
     let span = tracing::debug_span!("initialization").entered();
@@ -197,17 +197,12 @@ pub(super) fn apply_vm_in_sandbox<T>(
     };
 
     let storage_view = storage_view.to_rc_ptr();
-    let mut initial_version = VmInstanceData::new_for_specific_vm_version(
+    let initial_version = VmInstanceData::new_for_specific_vm_version(
         storage_view.clone(),
-        &system_env,
         HistoryDisabled,
         protocol_version.into_api_vm_version(),
     );
-    let mut vm = Box::new(VmInstance::new(
-        l1_batch_env,
-        system_env,
-        &mut initial_version,
-    ));
+    let mut vm = Box::new(VmInstance::new(l1_batch_env, system_env, initial_version));
 
     metrics::histogram!("api.web3.sandbox", stage_started_at.elapsed(), "stage" => "initialization");
     span.exit();

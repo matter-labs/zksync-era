@@ -6,19 +6,27 @@ use vm_latest::{L1BatchEnv, SystemEnv};
 use zksync_state::ReadStorage;
 use zksync_utils::h256_to_u256;
 
-impl<'a, S: ReadStorage, H: HistoryMode> VmInstance<'a, S, H> {
+impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
     pub fn new(
         l1_batch_env: L1BatchEnv,
         system_env: SystemEnv,
-        initial_version: &'a mut VmInstanceData<S, H>,
+        initial_version: VmInstanceData<S, H>,
     ) -> Self {
         match initial_version {
             VmInstanceData::M5(data) => {
+                let oracle_tools =
+                    vm_m5::OracleTools::new(data.storage_view.clone(), data.sub_version);
+                let block_properties = vm_m5::zk_evm::block_properties::BlockProperties {
+                    default_aa_code_hash: h256_to_u256(
+                        system_env.base_system_smart_contracts.default_aa.hash,
+                    ),
+                    zkporter_is_available: false,
+                };
                 let inner_vm = vm_m5::vm_with_bootloader::init_vm_with_gas_limit(
                     data.sub_version,
-                    data.oracle_tools.m5(),
+                    oracle_tools,
                     l1_batch_env.glue_into(),
-                    data.block_properties.m5(),
+                    block_properties,
                     system_env.execution_mode.glue_into(),
                     &system_env.base_system_smart_contracts.clone().glue_into(),
                     system_env.gas_limit,
@@ -30,11 +38,22 @@ impl<'a, S: ReadStorage, H: HistoryMode> VmInstance<'a, S, H> {
                 }
             }
             VmInstanceData::M6(data) => {
+                let oracle_tools = vm_m6::OracleTools::new(
+                    data.storage_view.clone(),
+                    data.history_mode.glue_into(),
+                );
+                let block_properties = vm_m6::zk_evm::block_properties::BlockProperties {
+                    default_aa_code_hash: h256_to_u256(
+                        system_env.base_system_smart_contracts.default_aa.hash,
+                    ),
+                    zkporter_is_available: false,
+                };
+
                 let inner_vm = vm_m6::vm_with_bootloader::init_vm_with_gas_limit(
                     data.sub_version,
-                    data.oracle_tools.m6(),
+                    oracle_tools,
                     l1_batch_env.glue_into(),
-                    data.block_properties.m6(),
+                    block_properties,
                     system_env.execution_mode.glue_into(),
                     &system_env.base_system_smart_contracts.clone().glue_into(),
                     system_env.gas_limit,

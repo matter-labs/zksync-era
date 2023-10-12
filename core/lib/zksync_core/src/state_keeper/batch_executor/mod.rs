@@ -292,9 +292,8 @@ impl BatchExecutor {
 
         let storage_view = StorageView::new(secondary_storage).to_rc_ptr();
 
-        let mut instance_data =
-            VmInstanceData::new(storage_view.clone(), &system_env, HistoryEnabled);
-        let mut vm = VmInstance::new(l1_batch_params, system_env, &mut instance_data);
+        let instance_data = VmInstanceData::new(storage_view.clone(), &system_env, HistoryEnabled);
+        let mut vm = VmInstance::new(l1_batch_params, system_env, instance_data);
 
         while let Some(cmd) = self.commands.blocking_recv() {
             match cmd {
@@ -344,7 +343,7 @@ impl BatchExecutor {
     fn execute_tx<S: ReadStorage>(
         &self,
         tx: &Transaction,
-        vm: &mut VmInstance<'_, S, HistoryEnabled>,
+        vm: &mut VmInstance<S, HistoryEnabled>,
     ) -> TxExecutionResult {
         // Save pre-`execute_next_tx` VM snapshot.
         vm.make_snapshot();
@@ -414,7 +413,7 @@ impl BatchExecutor {
         }
     }
 
-    fn rollback_last_tx<S: ReadStorage>(&self, vm: &mut VmInstance<'_, S, HistoryEnabled>) {
+    fn rollback_last_tx<S: ReadStorage>(&self, vm: &mut VmInstance<S, HistoryEnabled>) {
         let stage_started_at = Instant::now();
         vm.rollback_to_the_latest_snapshot();
         metrics::histogram!(
@@ -427,14 +426,14 @@ impl BatchExecutor {
     fn start_next_miniblock<S: ReadStorage>(
         &self,
         l2_block_env: L2BlockEnv,
-        vm: &mut VmInstance<'_, S, HistoryEnabled>,
+        vm: &mut VmInstance<S, HistoryEnabled>,
     ) {
         vm.start_new_l2_block(l2_block_env);
     }
 
     fn finish_batch<S: ReadStorage>(
         &self,
-        vm: &mut VmInstance<'_, S, HistoryEnabled>,
+        vm: &mut VmInstance<S, HistoryEnabled>,
     ) -> FinishedL1Batch {
         // The vm execution was paused right after the last transaction was executed.
         // There is some post-processing work that the VM needs to do before the block is fully processed.
@@ -452,7 +451,7 @@ impl BatchExecutor {
     fn execute_tx_in_vm<S: ReadStorage>(
         &self,
         tx: &Transaction,
-        vm: &mut VmInstance<'_, S, HistoryEnabled>,
+        vm: &mut VmInstance<S, HistoryEnabled>,
     ) -> (
         VmExecutionResultAndLogs,
         Vec<CompressedBytecodeInfo>,
@@ -512,7 +511,7 @@ impl BatchExecutor {
 
     fn dryrun_block_tip<S: ReadStorage>(
         &self,
-        vm: &mut VmInstance<'_, S, HistoryEnabled>,
+        vm: &mut VmInstance<S, HistoryEnabled>,
     ) -> (VmExecutionResultAndLogs, ExecutionMetricsForCriteria) {
         let started_at = Instant::now();
         let mut stage_started_at = Instant::now();
