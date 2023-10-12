@@ -49,6 +49,7 @@ jobs:
             docs:
               - '*.md'
               - '*.MD'
+              - '.github/workflows/ci-docs-reusable.yml'
 
   ci-for-core:
     name: CI for Core Components
