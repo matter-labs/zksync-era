@@ -122,3 +122,29 @@ impl TestPool {
         StorageProcessor::from_test_transaction(TestPoolLock { lock })
     }
 }
+
+const PREFIX: &str = "test-";
+
+pub async fn new_db() -> url::Url {
+    use rand::Rng as _;
+    use sqlx::Executor as _;
+    let db_url = crate::get_test_database_url().unwrap();
+    let mut db_url = url::Url::parse(&db_url).unwrap();
+    let db_name = db_url.path()[1..].to_string();
+    let db_copy_name = format!("{PREFIX}{}", rand::thread_rng().gen::<u64>());
+    db_url.set_path("");
+    let mut conn = loop {
+        if let Ok(conn) = sqlx::PgConnection::connect(db_url.as_ref()).await {
+            break conn;
+        } else {
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        }
+    };
+    conn.execute(
+        format!("CREATE DATABASE \"{db_copy_name}\" WITH TEMPLATE \"{db_name}\"").as_str(),
+    )
+    .await
+    .unwrap();
+    db_url.set_path(&db_copy_name);
+    db_url
+}

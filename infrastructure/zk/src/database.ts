@@ -9,11 +9,13 @@ export async function reset() {
 }
 
 export async function resetTest() {
-    const databaseUrl = process.env.DATABASE_URL as string;
-    process.env.DATABASE_URL = databaseUrl.replace('zksync_local', 'zksync_local_test');
+    process.env.DATABASE_URL = process.env.TEST_DATABASE_URL;
     await utils.confirmAction();
-    await drop();
+    await utils.exec('docker-compose -f docker-compose-test.yml up --force-recreate -d postgres_tmp --wait');
     await setup();
+    await utils.exec(
+        `psql "${process.env.DATABASE_URL}" -c "update pg_database set datallowconn = false where datname = current_database()"`
+    );
 }
 
 export async function drop() {

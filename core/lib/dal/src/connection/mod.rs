@@ -4,14 +4,13 @@ use sqlx::{
 };
 
 use anyhow::Context as _;
+use std::fmt;
 use std::time::Duration;
 
 use zksync_utils::parse_env;
 
 pub mod holder;
 pub mod test_pool;
-
-pub use self::test_pool::TestPool;
 
 use crate::{
     get_master_database_url, get_prover_database_url, get_replica_database_url,
@@ -23,6 +22,7 @@ pub enum DbVariant {
     Master,
     Replica,
     Prover,
+    TestTmp,
 }
 
 /// Builder for [`ConnectionPool`]s.
@@ -56,19 +56,22 @@ impl ConnectionPoolBuilder {
             DbVariant::Master => get_master_database_url()?,
             DbVariant::Replica => get_replica_database_url()?,
             DbVariant::Prover => get_prover_database_url()?,
+            DbVariant::TestTmp => test_pool::new_db().await.to_string(),
         };
-        Ok(self.build_inner(&database_url).await)
+        self.build_inner(&database_url)
+            .await
+            .context("build_inner()")
     }
 
-    pub async fn build_inner(&self, database_url: &str) -> ConnectionPool {
+    pub async fn build_inner(&self, database_url: &str) -> anyhow::Result<ConnectionPool> {
         let max_connections = self
             .max_size
             .unwrap_or_else(|| parse_env("DATABASE_POOL_SIZE"));
 
         let options = PgPoolOptions::new().max_connections(max_connections);
-        let mut connect_options: PgConnectOptions = database_url.parse().unwrap_or_else(|err| {
-            panic!("Failed parsing {:?} database URL: {}", self.db, err);
-        });
+        let mut connect_options: PgConnectOptions = database_url
+            .parse()
+            .with_context(|| format!("Failed parsing {:?} database URL", self.db))?;
         if let Some(timeout) = self.statement_timeout {
             let timeout_string = format!("{}s", timeout.as_secs());
             connect_options = connect_options.options([("statement_timeout", timeout_string)]);
@@ -76,26 +79,37 @@ impl ConnectionPoolBuilder {
         let pool = options
             .connect_with(connect_options)
             .await
-            .unwrap_or_else(|err| {
-                panic!("Failed connecting to {:?} database: {}", self.db, err);
-            });
+            .with_context(|| format!("Failed connecting to {:?} database", self.db))?;
         tracing::info!(
             "Created pool for {db:?} database with {max_connections} max connections \
              and {statement_timeout:?} statement timeout",
             db = self.db,
             statement_timeout = self.statement_timeout
         );
-        ConnectionPool::Real(pool)
+        Ok(ConnectionPool::Real(pool))
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub enum ConnectionPool {
     Real(PgPool),
-    Test(TestPool),
+    Test(test_pool::TestPool),
+}
+
+impl fmt::Debug for ConnectionPool {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::Real(_) => write!(f, "Real connection pool"),
+            Self::Test(_) => write!(f, "Test connection pool"),
+        }
+    }
 }
 
 impl ConnectionPool {
+    pub async fn test_pool() -> ConnectionPool {
+        Self::builder(DbVariant::TestTmp).build().await.unwrap()
+    }
+
     /// Initializes a builder for connection pools.
     pub fn builder(db: DbVariant) -> ConnectionPoolBuilder {
         ConnectionPoolBuilder {
@@ -198,13 +212,8 @@ impl ConnectionPool {
         CONNECTION_METRICS.pool_acquire_error[&err.into()].inc();
     }
 
-    pub async fn access_test_storage(&self) -> StorageProcessor<'static> {
-        match self {
-            ConnectionPool::Test(test) => test.access_storage().await,
-            ConnectionPool::Real(_) => {
-                panic!("Attempt to access test storage with the real pool");
-            }
-        }
+    pub async fn access_test_storage(&self) -> StorageProcessor<'_> {
+        self.access_storage().await.unwrap()
     }
 }
 
@@ -213,23 +222,19 @@ mod tests {
     use assert_matches::assert_matches;
 
     use super::*;
-    use crate::get_test_database_url;
 
     #[tokio::test]
     async fn setting_statement_timeout() {
-        // We cannot use an ordinary test pool here because it isn't created using `ConnectionPoolBuilder`.
-        // Since we don't need to mutate the DB for the test, using a real DB connection is OK.
-        let database_url = get_test_database_url().unwrap();
-        let pool = ConnectionPool::builder(DbVariant::Master)
+        let pool = ConnectionPool::builder(DbVariant::TestTmp)
             .set_statement_timeout(Some(Duration::from_secs(1)))
-            .build_inner(&database_url)
-            .await;
+            .build()
+            .await
+            .unwrap();
 
-        // NB. We must not mutate the database below! Doing so may break other tests.
-        let mut conn = pool.access_storage().await.unwrap();
+        let mut storage = pool.access_storage().await.unwrap();
         let err = sqlx::query("SELECT pg_sleep(2)")
             .map(drop)
-            .fetch_optional(conn.conn())
+            .fetch_optional(storage.conn())
             .await
             .unwrap_err();
         assert_matches!(

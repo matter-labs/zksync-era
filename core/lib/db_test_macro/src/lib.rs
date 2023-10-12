@@ -72,15 +72,12 @@ fn parse_knobs(mut input: syn::ItemFn, inside_dal_crate: bool) -> Result<TokenSt
         let prover_pool_arg_name = &prover_pool_arg.pat;
         let prover_pool_arg_type = &prover_pool_arg.ty;
         quote! {
-            let __test_main_pool = #dal_crate_id::connection::TestPool::new().await;
-            let __test_prover_pool = #dal_crate_id::connection::TestPool::new().await;
-            let #main_pool_arg_name: #main_pool_arg_type = #dal_crate_id::ConnectionPool::Test(__test_main_pool);
-            let #prover_pool_arg_name: #prover_pool_arg_type = #dal_crate_id::ConnectionPool::Test(__test_prover_pool);
+            let #main_pool_arg_name: #main_pool_arg_type = #dal_crate_id::ConnectionPool::test_pool().await;
+            let #prover_pool_arg_name: #prover_pool_arg_type = #dal_crate_id::ConnectionPool::test_pool().await;
         }
     } else {
         quote! {
-            let __test_main_pool = #dal_crate_id::connection::TestPool::new().await;
-            let #main_pool_arg_name: #main_pool_arg_type = #dal_crate_id::ConnectionPool::Test(__test_main_pool);
+            let #main_pool_arg_name: #main_pool_arg_type = #dal_crate_id::ConnectionPool::test_pool().await;
         }
     };
     let result = quote! {
