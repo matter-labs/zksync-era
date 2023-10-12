@@ -1,6 +1,7 @@
 //! Primitive Merkle tree API used internally to fetch proofs.
 
 use anyhow::Context as _;
+use async_trait::async_trait;
 use axum::{
     extract::State,
     http::{header, StatusCode},
@@ -14,17 +15,17 @@ use std::{fmt, future::Future, net::SocketAddr, pin::Pin};
 
 use super::helpers::AsyncTreeReader;
 use zksync_merkle_tree::NoVersionError;
-use zksync_types::{L1BatchNumber, H256};
+use zksync_types::{L1BatchNumber, H256, U256};
 
 #[derive(Debug, Serialize, Deserialize)]
-pub(crate) struct TreeProofsRequest {
-    pub l1_batch_number: L1BatchNumber,
-    pub hashed_keys: Vec<H256>,
+struct TreeProofsRequest {
+    l1_batch_number: L1BatchNumber,
+    hashed_keys: Vec<U256>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub(crate) struct TreeProofsResponse {
-    pub entries: Vec<TreeEntryWithProof>,
+struct TreeProofsResponse {
+    entries: Vec<TreeEntryWithProof>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -55,7 +56,7 @@ impl TreeEntryWithProof {
 }
 
 #[derive(Debug)]
-pub(crate) enum TreeApiError {
+enum TreeApiError {
     NoTreeVersion(NoVersionError),
 }
 
@@ -75,6 +76,61 @@ impl IntoResponse for TreeApiError {
         });
         let headers = [(header::CONTENT_TYPE, "application/problem+json")];
         (status, headers, Json(body)).into_response()
+    }
+}
+
+/// Client accessing Merkle tree API.
+#[async_trait]
+pub(crate) trait TreeApiClient {
+    /// Obtains proofs for the specified `hashed_keys` at the specified tree version (= L1 batch number).
+    async fn get_proofs(
+        &self,
+        l1_batch_number: L1BatchNumber,
+        hashed_keys: Vec<U256>,
+    ) -> anyhow::Result<Vec<TreeEntryWithProof>>;
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct TreeApiHttpClient {
+    inner: reqwest::Client,
+    url_base: String,
+}
+
+impl TreeApiHttpClient {
+    #[cfg(test)] // temporary measure until `TreeApiClient` is required by other components
+    pub fn new(url_base: impl Into<String>) -> Self {
+        Self {
+            inner: reqwest::Client::new(),
+            url_base: url_base.into(),
+        }
+    }
+}
+
+#[async_trait]
+impl TreeApiClient for TreeApiHttpClient {
+    async fn get_proofs(
+        &self,
+        l1_batch_number: L1BatchNumber,
+        hashed_keys: Vec<U256>,
+    ) -> anyhow::Result<Vec<TreeEntryWithProof>> {
+        let url = format!("{base}/proofs", base = self.url_base);
+        let response = self
+            .inner
+            .post(&url)
+            .json(&TreeProofsRequest {
+                l1_batch_number,
+                hashed_keys,
+            })
+            .send()
+            .await
+            .with_context(|| format!("Failed requesting proofs for L1 batch #{l1_batch_number}"))?;
+        let response = response.error_for_status().with_context(|| {
+            format!("Requesting proofs for L1 batch #{l1_batch_number} returned non-OK response")
+        })?;
+        let response: TreeProofsResponse = response.json().await.with_context(|| {
+            format!("Failed deserializing proofs for L1 batch #{l1_batch_number}")
+        })?;
+        Ok(response.entries)
     }
 }
 
@@ -148,7 +204,7 @@ impl fmt::Debug for MerkleTreeServer {
 }
 
 impl MerkleTreeServer {
-    #[allow(dead_code)] // FIXME
+    #[cfg(test)]
     pub fn local_addr(&self) -> &SocketAddr {
         &self.local_addr
     }

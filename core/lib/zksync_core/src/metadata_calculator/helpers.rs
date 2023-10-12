@@ -20,8 +20,7 @@ use zksync_merkle_tree::{
     MerkleTreeColumnFamily, NoVersionError, TreeEntryWithProof,
 };
 use zksync_storage::RocksDB;
-use zksync_types::{block::L1BatchHeader, L1BatchNumber, StorageLog, H256};
-use zksync_utils::h256_to_u256;
+use zksync_types::{block::L1BatchHeader, L1BatchNumber, StorageLog, H256, U256};
 
 use super::metrics::{LoadChangesStage, ReportStage, TreeUpdateStage};
 
@@ -156,9 +155,8 @@ impl AsyncTreeReader {
     pub async fn entries_with_proofs(
         &mut self,
         l1_batch_number: L1BatchNumber,
-        keys: Vec<H256>,
+        keys: Vec<U256>,
     ) -> Result<Vec<TreeEntryWithProof>, NoVersionError> {
-        let keys: Vec<_> = keys.into_iter().map(h256_to_u256).collect();
         let tree_reader = mem::take(self);
         let (tree_reader, result) = tokio::task::spawn_blocking(move || {
             let result = tree_reader
