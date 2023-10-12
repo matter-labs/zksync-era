@@ -95,7 +95,7 @@ jobs:
   build-prover-images:
     name: Build prover images
     needs: changed_files
-    if: needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'all'
+    if: needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true'
     uses: ./.github/workflows/build-prover-template.yml
     with:
       image_tag: ${{ needs.setup.outputs.image_tag }}
