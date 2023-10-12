@@ -9,7 +9,7 @@ use tokio::{
     task::JoinHandle,
 };
 
-use multivm::{MultivmTracer, VmInstance, VmInstanceData};
+use multivm::{MultivmTracer, VmInstance};
 use vm::{
     CallTracer, ExecutionResult, FinishedL1Batch, Halt, HistoryEnabled, L1BatchEnv, L2BlockEnv,
     SystemEnv, VmExecutionResultAndLogs,
@@ -292,8 +292,7 @@ impl BatchExecutor {
 
         let storage_view = StorageView::new(secondary_storage).to_rc_ptr();
 
-        let instance_data = VmInstanceData::new(storage_view.clone(), &system_env, HistoryEnabled);
-        let mut vm = VmInstance::new(l1_batch_params, system_env, instance_data);
+        let mut vm = VmInstance::new(l1_batch_params, system_env, storage_view.clone());
 
         while let Some(cmd) = self.commands.blocking_recv() {
             match cmd {
