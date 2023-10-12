@@ -15,16 +15,6 @@ Rosetta may cause problems that are hard to spot and debug, so make sure to chec
 
 If you are a NixOS user or would like to have a reproducible environment, skip to the section about `nix`.
 
-## `git`
-
-If you are using an ssh key to authenticate with Github you need to make git always use ssh instead of http.
-
-```bash
-git config --global url."ssh://git@github.com/".insteadOf https://github.com/
-```
-
-[More information about how we use git](https://www.notion.so/matterlabs/Working-with-dependencies-in-private-repositories-697620178338452798a0ea5ac0d8e56a)
-
 ## `Docker`
 
 Install `docker`. It is recommended to follow the instructions from the
@@ -169,7 +159,9 @@ Rust toolchain as well.
 
 ## Postgres
 
-Install the latest postgres.
+Install the latest postgres:
+
+On mac:
 
 ```bash
 brew install postgresql@14
@@ -182,6 +174,12 @@ brew install postgresql@14
 
 ```bash
 cargo install cargo-nextest
+```
+
+On linux:
+
+```bash
+sudo apt-get install postgresql
 ```
 
 ### SQLx CLI
