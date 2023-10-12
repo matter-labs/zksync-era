@@ -20,7 +20,7 @@ on:
 jobs:
   build-gar-prover:
     name: Build GAR prover
-    runs-on: [self-hosted, ci-runner]
+    runs-on: [matterlabs-ci-runner]
     strategy:
       fail-fast: false
       matrix:

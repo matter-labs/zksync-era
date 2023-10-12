@@ -244,7 +244,7 @@ impl L1BatchWithLogs {
         let latency = LoadChangesStage::InitialWritesForZeroValues.start();
         let l1_batches_for_initial_writes = storage
             .storage_logs_dal()
-            .get_l1_batches_for_initial_writes(&hashed_keys_for_zero_values)
+            .get_l1_batches_and_indices_for_initial_writes(&hashed_keys_for_zero_values)
             .await;
         latency.report_with_count(hashed_keys_for_zero_values.len());
 
@@ -252,7 +252,7 @@ impl L1BatchWithLogs {
             let write_matters = if value.is_zero() {
                 let initial_write_batch_for_key =
                     l1_batches_for_initial_writes.get(&storage_key.hashed_key());
-                initial_write_batch_for_key.map_or(false, |&number| number <= l1_batch_number)
+                initial_write_batch_for_key.map_or(false, |&(number, _)| number <= l1_batch_number)
             } else {
                 true
             };
@@ -366,7 +366,7 @@ mod tests {
     async fn loaded_logs_equivalence_basics(pool: ConnectionPool) {
         ensure_genesis_state(
             &mut pool.access_storage().await.unwrap(),
-            L2ChainId(270),
+            L2ChainId::from(270),
             &mock_genesis_params(),
         )
         .await
@@ -389,7 +389,7 @@ mod tests {
     #[db_test]
     async fn loaded_logs_equivalence_with_zero_no_op_logs(pool: ConnectionPool) {
         let mut storage = pool.access_storage().await.unwrap();
-        ensure_genesis_state(&mut storage, L2ChainId(270), &mock_genesis_params())
+        ensure_genesis_state(&mut storage, L2ChainId::from(270), &mock_genesis_params())
             .await
             .unwrap();
 
@@ -467,7 +467,7 @@ mod tests {
     #[db_test]
     async fn loaded_logs_equivalence_with_non_zero_no_op_logs(pool: ConnectionPool) {
         let mut storage = pool.access_storage().await.unwrap();
-        ensure_genesis_state(&mut storage, L2ChainId(270), &mock_genesis_params())
+        ensure_genesis_state(&mut storage, L2ChainId::from(270), &mock_genesis_params())
             .await
             .unwrap();
 
@@ -514,7 +514,7 @@ mod tests {
     #[db_test]
     async fn loaded_logs_equivalence_with_protective_reads(pool: ConnectionPool) {
         let mut storage = pool.access_storage().await.unwrap();
-        ensure_genesis_state(&mut storage, L2ChainId(270), &mock_genesis_params())
+        ensure_genesis_state(&mut storage, L2ChainId::from(270), &mock_genesis_params())
             .await
             .unwrap();
 

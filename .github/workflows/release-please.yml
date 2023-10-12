@@ -3,6 +3,10 @@ on:
     branches:
       - main
 
+permissions:
+  contents: write
+  pull-requests: write
+
 name: release-please
 jobs:
   release-please:
@@ -14,6 +18,7 @@ jobs:
         id: release
         uses: google-github-actions/release-please-action@v3
         with:
+            token: ${{ secrets.RELEASE_TOKEN }}
             command: manifest
             config-file: .github/release-please/config.json
             manifest-file: .github/release-please/manifest.json

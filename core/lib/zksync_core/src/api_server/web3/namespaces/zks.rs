@@ -1,6 +1,7 @@
 use std::{collections::HashMap, convert::TryInto, time::Instant};
 
 use bigdecimal::{BigDecimal, Zero};
+use zksync_dal::StorageProcessor;
 
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_types::{
@@ -8,7 +9,6 @@ use zksync_types::{
         BlockDetails, BridgeAddresses, GetLogsFilter, L1BatchDetails, L2ToL1LogProof,
         ProtocolVersion, TransactionDetails,
     },
-    commitment::SerializeCommitment,
     fee::Fee,
     l1::L1Tx,
     l2::L2Tx,
@@ -266,15 +266,9 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
             .map_err(|err| internal_error(METHOD_NAME, err))?
             .expect("L1 batch should contain at least one miniblock");
 
-        let all_l1_logs_in_batch = storage
-            .blocks_web3_dal()
-            .get_l2_to_l1_logs(l1_batch_number)
-            .await
-            .map_err(|err| internal_error(METHOD_NAME, err))?;
-
         // Position of l1 log in L1 batch relative to logs with identical data
         let l1_log_relative_position = if let Some(l2_log_position) = l2_log_position {
-            let pos = storage
+            let logs = storage
                 .events_web3_dal()
                 .get_logs(
                     GetLogsFilter {
@@ -286,48 +280,69 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
                     self.state.api_config.req_entities_limit,
                 )
                 .await
-                .map_err(|err| internal_error(METHOD_NAME, err))?
-                .iter()
-                .position(|event| {
-                    event.block_number == Some(block_number.0.into())
-                        && event.log_index == Some(l2_log_position.into())
-                });
-            match pos {
+                .map_err(|err| internal_error(METHOD_NAME, err))?;
+            let maybe_pos = logs.iter().position(|event| {
+                event.block_number == Some(block_number.0.into())
+                    && event.log_index == Some(l2_log_position.into())
+            });
+            match maybe_pos {
                 Some(pos) => pos,
-                None => {
-                    return Ok(None);
-                }
+                None => return Ok(None),
             }
         } else {
             0
         };
 
-        let l1_log_index = match all_l1_logs_in_batch
+        let log_proof = self
+            .get_l2_to_l1_log_proof_inner(
+                METHOD_NAME,
+                &mut storage,
+                l1_batch_number,
+                l1_log_relative_position,
+                |log| {
+                    log.sender == L1_MESSENGER_ADDRESS
+                        && log.key == address_to_h256(&sender)
+                        && log.value == msg
+                },
+            )
+            .await?;
+
+        metrics::histogram!("api.web3.call", start.elapsed(), "method" => METHOD_NAME);
+        Ok(log_proof)
+    }
+
+    async fn get_l2_to_l1_log_proof_inner(
+        &self,
+        method_name: &'static str,
+        storage: &mut StorageProcessor<'_>,
+        l1_batch_number: L1BatchNumber,
+        index_in_filtered_logs: usize,
+        log_filter: impl Fn(&L2ToL1Log) -> bool,
+    ) -> Result<Option<L2ToL1LogProof>, Web3Error> {
+        let all_l1_logs_in_batch = storage
+            .blocks_web3_dal()
+            .get_l2_to_l1_logs(l1_batch_number)
+            .await
+            .map_err(|err| internal_error(method_name, err))?;
+
+        let Some((l1_log_index, _)) = all_l1_logs_in_batch
             .iter()
             .enumerate()
-            .filter(|(_, log)| {
-                log.sender == L1_MESSENGER_ADDRESS
-                    && log.key == address_to_h256(&sender)
-                    && log.value == msg
-            })
-            .nth(l1_log_relative_position)
-        {
-            Some(nth_elem) => nth_elem.0,
-            None => {
-                return Ok(None);
-            }
+            .filter(|(_, log)| log_filter(log))
+            .nth(index_in_filtered_logs)
+        else {
+            return Ok(None);
         };
 
         let merkle_tree_leaves = all_l1_logs_in_batch.iter().map(L2ToL1Log::to_bytes);
-        let (root, proof) = MiniMerkleTree::new(merkle_tree_leaves, L2ToL1Log::LIMIT_PER_L1_BATCH)
+        let min_tree_size = Some(L2ToL1Log::LEGACY_LIMIT_PER_L1_BATCH);
+        let (root, proof) = MiniMerkleTree::new(merkle_tree_leaves, min_tree_size)
             .merkle_root_and_path(l1_log_index);
-        let msg_proof = L2ToL1LogProof {
+        Ok(Some(L2ToL1LogProof {
             proof,
             root,
             id: l1_log_index as u32,
-        };
-        metrics::histogram!("api.web3.call", start.elapsed(), "method" => METHOD_NAME);
-        Ok(Some(msg_proof))
+        }))
     }
 
     #[tracing::instrument(skip(self))]
@@ -345,45 +360,27 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
             .access_storage_tagged("api")
             .await
             .unwrap();
-        let (l1_batch_number, l1_batch_tx_index) = match storage
+        let Some((l1_batch_number, l1_batch_tx_index)) = storage
             .blocks_web3_dal()
             .get_l1_batch_info_for_tx(tx_hash)
             .await
             .map_err(|err| internal_error(METHOD_NAME, err))?
-        {
-            Some(x) => x,
-            None => return Ok(None),
+        else {
+            return Ok(None);
         };
 
-        let all_l1_logs_in_batch = storage
-            .blocks_web3_dal()
-            .get_l2_to_l1_logs(l1_batch_number)
-            .await
-            .map_err(|err| internal_error(METHOD_NAME, err))?;
-
-        let l1_log_index = match all_l1_logs_in_batch
-            .iter()
-            .enumerate()
-            .filter(|(_, log)| log.tx_number_in_block == l1_batch_tx_index)
-            .nth(index.unwrap_or(0))
-        {
-            Some(nth_elem) => nth_elem.0,
-            None => {
-                return Ok(None);
-            }
-        };
-
-        let merkle_tree_leaves = all_l1_logs_in_batch.iter().map(L2ToL1Log::to_bytes);
-        let (root, proof) = MiniMerkleTree::new(merkle_tree_leaves, L2ToL1Log::LIMIT_PER_L1_BATCH)
-            .merkle_root_and_path(l1_log_index);
-        let msg_proof = L2ToL1LogProof {
-            proof,
-            root,
-            id: l1_log_index as u32,
-        };
+        let log_proof = self
+            .get_l2_to_l1_log_proof_inner(
+                METHOD_NAME,
+                &mut storage,
+                l1_batch_number,
+                index.unwrap_or(0),
+                |log| log.tx_number_in_block == l1_batch_tx_index,
+            )
+            .await?;
 
         metrics::histogram!("api.web3.call", start.elapsed(), "method" => METHOD_NAME);
-        Ok(Some(msg_proof))
+        Ok(log_proof)
     }
 
     #[tracing::instrument(skip(self))]

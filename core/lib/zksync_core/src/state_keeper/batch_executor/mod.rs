@@ -84,6 +84,7 @@ pub struct MainBatchExecutorBuilder {
     save_call_traces: bool,
     max_allowed_tx_gas_limit: U256,
     upload_witness_inputs_to_gcs: bool,
+    enum_index_migration_chunk_size: usize,
 }
 
 impl MainBatchExecutorBuilder {
@@ -93,6 +94,7 @@ impl MainBatchExecutorBuilder {
         max_allowed_tx_gas_limit: U256,
         save_call_traces: bool,
         upload_witness_inputs_to_gcs: bool,
+        enum_index_migration_chunk_size: usize,
     ) -> Self {
         Self {
             state_keeper_db_path,
@@ -100,6 +102,7 @@ impl MainBatchExecutorBuilder {
             save_call_traces,
             max_allowed_tx_gas_limit,
             upload_witness_inputs_to_gcs,
+            enum_index_migration_chunk_size,
         }
     }
 }
@@ -112,6 +115,7 @@ impl L1BatchExecutorBuilder for MainBatchExecutorBuilder {
         system_env: SystemEnv,
     ) -> BatchExecutorHandle {
         let mut secondary_storage = RocksdbStorage::new(self.state_keeper_db_path.as_ref());
+        secondary_storage.enable_enum_index_migration(self.enum_index_migration_chunk_size);
         let mut conn = self
             .pool
             .access_storage_tagged("state_keeper")

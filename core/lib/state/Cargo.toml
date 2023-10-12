@@ -20,6 +20,7 @@ anyhow = "1.0"
 mini-moka = "0.10.0"
 tokio = { version = "1", features = ["rt"] }
 tracing = "0.1"
+itertools = "0.10.3"
 
 [dev-dependencies]
 db_test_macro = { path = "../db_test_macro" }
