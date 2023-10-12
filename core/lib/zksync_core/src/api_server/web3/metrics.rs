@@ -31,7 +31,7 @@ impl From<&ApiTransport> for ApiTransportLabel {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue)]
-#[metrics(rename_all = "snake_case")] // FIXME: was PascalCase
+#[metrics(rename_all = "snake_case")]
 enum BlockIdLabel {
     Hash,
     Committed,

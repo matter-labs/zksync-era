@@ -296,7 +296,6 @@ impl<G: L1GasPriceProvider + 'static + Send + Sync> StateKeeperIO for MempoolIO<
                     );
                 }
             }
-            // FIXME: there was a metric here
         }
 
         let pool = self.pool.clone();

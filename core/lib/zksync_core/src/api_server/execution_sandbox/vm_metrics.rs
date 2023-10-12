@@ -61,7 +61,7 @@ struct RuntimeContextStorageMetrics {
     amount: Family<InteractionType, Histogram<usize>>,
     #[metrics(buckets = Buckets::LATENCIES)]
     duration: Family<InteractionType, Histogram<Duration>>,
-    #[metrics(buckets = Buckets::LATENCIES)] // FIXME: probably should use smaller buckets
+    #[metrics(buckets = Buckets::LATENCIES)]
     duration_per_unit: Family<InteractionType, Histogram<Duration>>,
     #[metrics(buckets = Buckets::ZERO_TO_ONE)]
     ratio: Histogram<f64>,
@@ -147,7 +147,6 @@ pub(super) fn report_vm_memory_metrics(
     MEMORY_METRICS
         .full
         .observe(memory_metrics.full_size() + storage_metrics.cache_size);
-    // ^ FIXME: renamed from `runtime_context_memory`
 
     let total_storage_invocations = storage_metrics.get_value_storage_invocations
         + storage_metrics.set_value_storage_invocations;

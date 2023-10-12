@@ -166,11 +166,9 @@ impl MetadataCalculator {
             first_batch_number..=last_batch_number
         );
         APP_METRICS.block_number[&BlockStage::Tree].set(last_batch_number.into());
-        // ^ FIXME: label changed (was "tree_{mode_tag}_mode")
 
         let latency =
             seconds_since_epoch().saturating_sub(batch_headers.first().unwrap().timestamp);
         APP_METRICS.block_latency[&BlockStage::Tree].observe(Duration::from_secs(latency));
-        // ^ FIXME: label changed (was "tree_{mode_tag}_mode")
     }
 }

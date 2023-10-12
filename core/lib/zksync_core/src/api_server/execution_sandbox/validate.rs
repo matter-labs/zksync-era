@@ -105,7 +105,7 @@ impl TxSharedArgs {
         .await
         .unwrap();
 
-        stage_latency.observe(); // FIXME: renamed from `server.api.validation_sandbox`
+        stage_latency.observe();
         validation_result
     }
 }
