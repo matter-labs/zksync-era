@@ -20,6 +20,7 @@ jobs:
     outputs:
       core: ${{ steps.changed-files.outputs.core_any_changed }}
       prover: ${{ steps.changed-files.outputs.prover_any_changed }}
+      docs: ${{ steps.changed-files.outputs.docs_any_changed }}
       other: ${{ steps.changed-files.outputs.other_changed_files }}
     steps:
       - uses: actions/checkout@v3
