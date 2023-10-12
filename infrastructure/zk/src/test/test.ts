@@ -11,7 +11,8 @@ export async function l1Contracts() {
 }
 
 export async function prover() {
-    // await utils.spawn('cargo test -p zksync_prover --release');
+    process.chdir('prover');
+    await utils.spawn('cargo test --release --workspace');
 }
 
 export async function js() {

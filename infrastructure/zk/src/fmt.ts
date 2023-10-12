@@ -24,6 +24,8 @@ export async function rustfmt(check: boolean = false) {
     process.chdir(process.env.ZKSYNC_HOME as string);
     const command = check ? 'cargo fmt -- --check' : 'cargo fmt';
     await utils.spawn(command);
+    process.chdir('prover');
+    await utils.spawn(command);
 }
 
 export const command = new Command('fmt')
@@ -38,7 +40,7 @@ export const command = new Command('fmt')
                 await prettier(extension, cmd.check);
             }
         } else {
-            // Run all the checks in parallel.
+            // Run all the checks concurrently.
             const promises = EXTENSIONS.map((ext) => prettier(ext, cmd.check));
             promises.push(rustfmt(cmd.check));
             await Promise.all(promises);
