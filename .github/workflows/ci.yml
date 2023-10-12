@@ -21,7 +21,7 @@ jobs:
       core: ${{ steps.changed-files.outputs.core_any_changed }}
       prover: ${{ steps.changed-files.outputs.prover_any_changed }}
       docs: ${{ steps.changed-files.outputs.docs_any_changed }}
-      other: ${{ steps.changed-files.outputs.prover_other_changed_files }}
+      other: ${{ steps.calc-other.outputs.other_changed }}
     steps:
       - uses: actions/checkout@v3
         with:
@@ -51,6 +51,34 @@ jobs:
               - '**/*.MD'
               - '.github/workflows/ci-docs-reusable.yml'
 
+      - name: Calculate "other" changed files
+        id: calc-other
+        run: |
+          core_other_files="${{ steps.changed-files.outputs.core_other_changed_files }}"
+          prover_other_files="${{ steps.changed-files.outputs.prover_other_changed_files }}"
+          docs_other_files="${{ steps.changed-files.outputs.docs_other_changed_files }}"
+
+          core_all_files="${{ steps.changed-files.outputs.core_all_changed_files }}"
+          prover_all_files="${{ steps.changed-files.outputs.prover_all_changed_files }}"
+          docs_all_files="${{ steps.changed-files.outputs.docs_all_changed_files }}"
+
+          # Concatenate all 'other' files and 'all' files, remove duplicates
+          all_other_files=$(echo "$core_other_files $prover_other_files $docs_other_files" | tr ' ' '\n' | sort -u)
+          all_all_files=$(echo "$core_all_files $prover_all_files $docs_all_files" | tr ' ' '\n' | sort -u)
+
+          # Find unique 'other' files
+          unique_other_files=$(comm -23 <(echo "$all_other_files") <(echo "$all_all_files"))
+
+          if [ -n "$unique_other_files" ]; then
+            echo "other_changed=true"
+            echo "other_changed=true" >> $GITHUB_ENV
+            echo "::set-output name=other_changed::true"
+          else
+            echo "other_changed=false"
+            echo "other_changed=false" >> $GITHUB_ENV
+            echo "::set-output name=other_changed::false"
+          fi
+
   debug-outputs:
     name: Debug outputs
     runs-on: ubuntu-latest
@@ -63,12 +91,12 @@ jobs:
   ci-for-core:
     name: CI for Core Components
     needs: changed_files
-    if: needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.other != ''
+    if: needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.other_changed == 'true'
     uses: ./.github/workflows/ci-core-reusable.yml
 
   ci-for-prover:
     needs: changed_files
-    if: needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.other != ''
+    if: needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.other_changed == 'true'
     name: CI for Prover Components
     uses: ./.github/workflows/ci-prover-reusable.yml
 
@@ -81,7 +109,7 @@ jobs:
   build-core-images:
     name: Build core images
     needs: changed_files
-    if: needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.other != ''
+    if: needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.other_changed == 'true'
     uses: ./.github/workflows/build-core-template.yml
     with:
       image_tag: ${{ needs.setup.outputs.image_tag }}
@@ -94,7 +122,7 @@ jobs:
   build-prover-images:
     name: Build prover images
     needs: changed_files
-    if: needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.other != ''
+    if: needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.other_changed == 'true'
     uses: ./.github/workflows/build-prover-template.yml
     with:
       image_tag: ${{ needs.setup.outputs.image_tag }}
