@@ -47,8 +47,8 @@ jobs:
               - '.github/workflows/build-core-template.yml'
               - '.github/workflows/ci-core-reusable.yml'
             docs:
-              - '*.md'
-              - '*.MD'
+              - '**/*.md'
+              - '**/*.MD'
               - '.github/workflows/ci-docs-reusable.yml'
 
   ci-for-core:
