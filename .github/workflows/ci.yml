@@ -91,12 +91,12 @@ jobs:
   ci-for-core:
     name: CI for Core Components
     needs: changed_files
-    if: needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.other_changed == 'true'
+    if: needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.other == 'true'
     uses: ./.github/workflows/ci-core-reusable.yml
 
   ci-for-prover:
     needs: changed_files
-    if: needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.other_changed == 'true'
+    if: needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.other == 'true'
     name: CI for Prover Components
     uses: ./.github/workflows/ci-prover-reusable.yml
 
@@ -109,7 +109,7 @@ jobs:
   build-core-images:
     name: Build core images
     needs: changed_files
-    if: needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.other_changed == 'true'
+    if: needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.other == 'true'
     uses: ./.github/workflows/build-core-template.yml
     with:
       image_tag: ${{ needs.setup.outputs.image_tag }}
@@ -122,7 +122,7 @@ jobs:
   build-prover-images:
     name: Build prover images
     needs: changed_files
-    if: needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.other_changed == 'true'
+    if: needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.other == 'true'
     uses: ./.github/workflows/build-prover-template.yml
     with:
       image_tag: ${{ needs.setup.outputs.image_tag }}
