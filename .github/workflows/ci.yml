@@ -41,7 +41,6 @@ jobs:
               - 'docker-compose-runner-nightly.yml'
             core:
               - 'core/**'
-              - 'contracts/**'
               - 'docker/contract-verifier/**'
               - 'docker/cross-external-nodes-checker/**'
               - 'docker/external-node/**'
@@ -59,6 +58,8 @@ jobs:
               - '.github/workflows/ci.yml'
               - 'bin/**'
               - 'etc/**'
+              - 'contracts/**'
+              - 'infrastructure/zk/**'
 
   ci-for-core:
     name: CI for Core Components
