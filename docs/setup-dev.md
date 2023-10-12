@@ -2,7 +2,7 @@
 
 ## Supported operating systems
 
-zkSync is currently can be launched on any \*nix operating system (e.g. any linux distribution or MacOS).
+zkSync currently can be launched on any \*nix operating system (e.g. any linux distribution or MacOS).
 
 If you're using Windows, then make sure to use WSL 2, since WSL 1 is known to cause troubles.
 
