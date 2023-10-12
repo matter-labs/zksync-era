@@ -51,6 +51,15 @@ jobs:
               - '**/*.MD'
               - '.github/workflows/ci-docs-reusable.yml'
 
+  debug-outputs:
+    name: Debug outputs
+    runs-on: ubuntu-latest
+    needs: changed_files
+    steps:
+      - name: Debug
+        run: |
+          echo ${{ needs.changed_files.outputs.other }}
+
   ci-for-core:
     name: CI for Core Components
     needs: changed_files
