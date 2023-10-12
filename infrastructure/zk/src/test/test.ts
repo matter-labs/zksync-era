@@ -11,7 +11,7 @@ export async function l1Contracts() {
 }
 
 export async function prover() {
-    process.chdir('prover');
+    process.chdir(process.env.ZKSYNC_HOME! + '/prover');
     await utils.spawn('cargo test --release --workspace');
 }
 

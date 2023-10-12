@@ -24,7 +24,7 @@ export async function rustfmt(check: boolean = false) {
     process.chdir(process.env.ZKSYNC_HOME as string);
     const command = check ? 'cargo fmt -- --check' : 'cargo fmt';
     await utils.spawn(command);
-    process.chdir('prover');
+    process.chdir('./prover');
     await utils.spawn(command);
 }
 
