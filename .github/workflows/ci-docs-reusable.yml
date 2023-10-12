@@ -25,5 +25,6 @@ jobs:
       - name: Lints
         run: |
           ci_run zk
+          ci_run zk fmt md --check
           ci_run zk lint md --check
 
