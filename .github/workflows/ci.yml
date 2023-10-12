@@ -35,33 +35,42 @@ jobs:
             prover:
               - 'prover/**'
               - 'docker/prover*/**'
-              - '!.github/release-please/manifest.json'
+              - '.github/workflows/build-prover-template.yml'
+              - '.github/workflows/ci-prover-reusable.yml'
             core:
               - 'core/**'
-            all:
-              - '!core/**'
-              - '!prover/**'
-              - '!docker/prover*/**'
-              - '!.github/workflows/zk-environment.publish.yml'
-              - '!docker/zk-environment/Dockerfile'
-              - '!docker/zk-environment-cuda-12-0/Dockerfile'
+              - 'docker/contract-verifier/**'
+              - 'docker/cross-external-nodes-checker/**'
+              - 'docker/external-node/**'
+              - 'docker/server/**'
+              - '.github/workflows/build-core-template.yml'
+              - '.github/workflows/ci-core-reusable.yml'
+            docs:
+              - '*.md'
+              - '*.MD'
 
   ci-for-core:
     name: CI for Core Components
     needs: changed_files
-    if: needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true'
+    if: needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.other_modified_files != ''
     uses: ./.github/workflows/ci-core-reusable.yml
 
   ci-for-prover:
     needs: changed_files
-    if: needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true'
+    if: needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.other_modified_files != ''
     name: CI for Prover Components
     uses: ./.github/workflows/ci-prover-reusable.yml
+
+  ci-for-docs:
+    needs: changed_files
+    if: needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.other_modified_files != ''
+    name: CI for Docs
+    uses: ./.github/workflows/ci-docs-reusable.yml
 
   build-core-images:
     name: Build core images
     needs: changed_files
-    if: needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true'
+    if: needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.other_modified_files != ''
     uses: ./.github/workflows/build-core-template.yml
     with:
       image_tag: ${{ needs.setup.outputs.image_tag }}
@@ -74,7 +83,7 @@ jobs:
   build-prover-images:
     name: Build prover images
     needs: changed_files
-    if: needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true'
+    if: needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.other_modified_files != ''
     uses: ./.github/workflows/build-prover-template.yml
     with:
       image_tag: ${{ needs.setup.outputs.image_tag }}
