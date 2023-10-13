@@ -8,8 +8,7 @@ use zksync_utils::bytecode::CompressedBytecodeInfo;
 /// Public interface for VM
 ///
 
-trait VmInterface<S: WriteStorage> {
-    type Tracer;
+pub trait VmInterface<S: WriteStorage> {
     fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage: StoragePtr<S>) -> Self;
     fn push_transaction(&mut self, tx: Transaction);
     fn execute(&mut self, execution_mode: VmExecutionMode) -> VmExecutionResultAndLogs;
@@ -45,7 +44,7 @@ trait VmInterface<S: WriteStorage> {
 }
 
 /// Methods of vm, which required some history manipullations
-trait VmInterfaceHistoryEnabled<S: WriteStorage>: VmInterface<S> {
+pub trait VmInterfaceHistoryEnabled<S: WriteStorage>: VmInterface<S> {
     /// Create snapshot of current vm state and push it into the memory
     fn make_snapshot(&mut self);
 

@@ -1,4 +1,5 @@
 use itertools::Itertools;
+use vm_interface::VmInterface;
 
 use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::U256;

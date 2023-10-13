@@ -11,3 +11,5 @@ pub use types::{
         Refunds, VmExecutionResultAndLogs, VmExecutionStatistics, VmMemoryMetrics,
     },
 };
+
+pub use traits::{VmInterface, VmInterfaceHistoryEnabled};
