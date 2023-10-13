@@ -246,4 +246,33 @@ library SystemContractsCaller {
             farCallAbi |= (1 << 248);
         }
     }
+
+
+    /// @notice Calculates the packed representation of the FarCallABI with zero fat pointer fields.
+    /// @param gasPassed The gas to pass with the call.
+    /// @param shardId Of the account to call. Currently only 0 is supported.
+    /// @param forwardingMode The forwarding mode to use:
+    /// - provide CalldataForwardingMode.UseHeap when using your current memory
+    /// - provide CalldataForwardingMode.ForwardFatPointer when using custom pointer.
+    /// @param isConstructorCall Whether the call will be a call to the constructor
+    /// (ignored when the caller is not a system contract).
+    /// @param isSystemCall Whether the call will have the `isSystem` flag.
+    /// @return farCallAbiWithEmptyFatPtr The far call ABI with zero fat pointer fields.
+    function getFarCallABIWithEmptyFatPointer(
+        uint32 gasPassed,
+        uint8 shardId,
+        CalldataForwardingMode forwardingMode,
+        bool isConstructorCall,
+        bool isSystemCall
+    ) internal pure returns (uint256 farCallAbiWithEmptyFatPtr) {
+        farCallAbiWithEmptyFatPtr |= (uint256(gasPassed) << 192);
+        farCallAbiWithEmptyFatPtr |= (uint256(forwardingMode) << 224);
+        farCallAbiWithEmptyFatPtr |= (uint256(shardId) << 232);
+        if (isConstructorCall) {
+            farCallAbiWithEmptyFatPtr |= (1 << 240);
+        }
+        if (isSystemCall) {
+            farCallAbiWithEmptyFatPtr |= (1 << 248);
+        }
+    }
 }

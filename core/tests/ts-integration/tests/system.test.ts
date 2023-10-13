@@ -14,11 +14,12 @@ import * as ethers from 'ethers';
 import { BigNumberish, BytesLike } from 'ethers';
 import { serialize, hashBytecode } from 'zksync-web3/build/src/utils';
 import { deployOnAnyLocalAddress, ForceDeployment } from '../src/system';
-import { getTestContract } from '../src/helpers';
+import { deployContract, getTestContract } from '../src/helpers';
 
 const contracts = {
     counter: getTestContract('Counter'),
-    events: getTestContract('Emitter')
+    events: getTestContract('Emitter'),
+    keccakTest: getTestContract('KeccakTest')
 };
 
 describe('System behavior checks', () => {
@@ -332,6 +333,11 @@ describe('System behavior checks', () => {
         await expect(
             alice.sendTransaction({ to: alice.address, gasLimit: ethers.BigNumber.from(2).pow(32) })
         ).toBeRejected('exceeds block gas limit');
+    });
+
+    it('Keccak256 should work correctly', async () => {
+        const keccakTestContract = await deployContract(alice, contracts.keccakTest, []);
+        await (await keccakTestContract.zeroPointerTest()).wait();
     });
 
     afterAll(async () => {
