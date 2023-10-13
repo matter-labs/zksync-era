@@ -6,7 +6,7 @@
 //!
 //! This module is intended to be blocking.
 
-use multivm::{VmInstance, VmInstanceData};
+use multivm::VmInstance;
 use std::time::{Duration, Instant};
 use vm::{constants::BLOCK_GAS_LIMIT, HistoryDisabled, L1BatchEnv, L2BlockEnv, SystemEnv};
 
@@ -36,7 +36,7 @@ pub(super) fn apply_vm_in_sandbox<T>(
     connection_pool: &ConnectionPool,
     tx: Transaction,
     block_args: BlockArgs,
-    apply: impl FnOnce(&mut VmInstance<'_, PostgresStorage<'_>, HistoryDisabled>, Transaction) -> T,
+    apply: impl FnOnce(&mut VmInstance<PostgresStorage<'_>, HistoryDisabled>, Transaction) -> T,
 ) -> T {
     let stage_started_at = Instant::now();
     let span = tracing::debug_span!("initialization").entered();
@@ -197,16 +197,11 @@ pub(super) fn apply_vm_in_sandbox<T>(
     };
 
     let storage_view = storage_view.to_rc_ptr();
-    let mut initial_version = VmInstanceData::new_for_specific_vm_version(
-        storage_view.clone(),
-        &system_env,
-        HistoryDisabled,
-        protocol_version.into_api_vm_version(),
-    );
-    let mut vm = Box::new(VmInstance::new(
+    let mut vm = Box::new(VmInstance::new_with_specific_version(
         l1_batch_env,
         system_env,
-        &mut initial_version,
+        storage_view.clone(),
+        protocol_version.into_api_vm_version(),
     ));
 
     metrics::histogram!("api.web3.sandbox", stage_started_at.elapsed(), "stage" => "initialization");

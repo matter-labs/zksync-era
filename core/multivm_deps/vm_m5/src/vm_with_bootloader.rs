@@ -177,14 +177,14 @@ impl Default for TxExecutionMode {
     }
 }
 
-pub fn init_vm<'a, S: Storage>(
+pub fn init_vm<S: Storage>(
     refund_state: MultiVMSubversion,
-    oracle_tools: &'a mut OracleTools<false, S>,
+    oracle_tools: OracleTools<false, S>,
     block_context: BlockContextMode,
-    block_properties: &'a BlockProperties,
+    block_properties: BlockProperties,
     execution_mode: TxExecutionMode,
     base_system_contract: &BaseSystemContracts,
-) -> Box<VmInstance<'a, S>> {
+) -> Box<VmInstance<S>> {
     init_vm_with_gas_limit(
         refund_state,
         oracle_tools,
@@ -196,15 +196,15 @@ pub fn init_vm<'a, S: Storage>(
     )
 }
 
-pub fn init_vm_with_gas_limit<'a, S: Storage>(
+pub fn init_vm_with_gas_limit<S: Storage>(
     refund_state: MultiVMSubversion,
-    oracle_tools: &'a mut OracleTools<false, S>,
+    oracle_tools: OracleTools<false, S>,
     block_context: BlockContextMode,
-    block_properties: &'a BlockProperties,
+    block_properties: BlockProperties,
     execution_mode: TxExecutionMode,
     base_system_contract: &BaseSystemContracts,
     gas_limit: u32,
-) -> Box<VmInstance<'a, S>> {
+) -> Box<VmInstance<S>> {
     init_vm_inner(
         refund_state,
         oracle_tools,
@@ -293,15 +293,15 @@ impl BlockContextMode {
 
 // This method accepts a custom bootloader code.
 // It should be used only in tests.
-pub fn init_vm_inner<'a, S: Storage>(
+pub fn init_vm_inner<S: Storage>(
     refund_state: MultiVMSubversion,
-    oracle_tools: &'a mut OracleTools<false, S>,
+    mut oracle_tools: OracleTools<false, S>,
     block_context: BlockContextMode,
-    block_properties: &'a BlockProperties,
+    block_properties: BlockProperties,
     gas_limit: u32,
     base_system_contract: &BaseSystemContracts,
     execution_mode: TxExecutionMode,
-) -> Box<VmInstance<'a, S>> {
+) -> Box<VmInstance<S>> {
     oracle_tools.decommittment_processor.populate(
         vec![(
             h256_to_u256(base_system_contract.default_aa.hash),
@@ -470,18 +470,18 @@ pub(crate) fn get_bootloader_memory_for_encoded_tx(
     memory
 }
 
-fn get_default_local_state<'a, S: Storage>(
-    tools: &'a mut OracleTools<false, S>,
-    block_properties: &'a BlockProperties,
+fn get_default_local_state<S: Storage>(
+    tools: OracleTools<false, S>,
+    block_properties: BlockProperties,
     gas_limit: u32,
-) -> ZkSyncVmState<'a, S> {
+) -> ZkSyncVmState<S> {
     let mut vm = VmState::empty_state(
-        &mut tools.storage,
-        &mut tools.memory,
-        &mut tools.event_sink,
-        &mut tools.precompiles_processor,
-        &mut tools.decommittment_processor,
-        &mut tools.witness_tracer,
+        tools.storage,
+        tools.memory,
+        tools.event_sink,
+        tools.precompiles_processor,
+        tools.decommittment_processor,
+        tools.witness_tracer,
         block_properties,
     );
 
