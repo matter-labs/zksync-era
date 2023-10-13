@@ -1,4 +1,4 @@
-name: Workflow template for CI jobs for Release
+name: Workflow template for Core Linting CI jobs
 on:
   workflow_call:
 
