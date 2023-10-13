@@ -6990,6 +6990,9 @@ dependencies = [
 name = "vm_interface"
 version = "0.1.0"
 dependencies = [
+ "hex",
+ "thiserror",
+ "tracing",
  "zksync_config",
  "zksync_contracts",
  "zksync_state",
