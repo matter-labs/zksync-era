@@ -14,7 +14,7 @@ use zksync_object_store::ObjectStore;
 use zksync_types::{block::L1BatchHeader, writes::InitialStorageWrite, L1BatchNumber, U256};
 
 use super::{
-    helpers::{AsyncTree, Delayer, L1BatchWithLogs, TreeHealthCheckDetails},
+    helpers::{AsyncTree, Delayer, L1BatchWithLogs},
     metrics::{ReportStage, TreeUpdateStage},
     MetadataCalculator, MetadataCalculatorConfig,
 };
@@ -278,11 +278,8 @@ impl TreeUpdater {
             (last_l1_batch_with_metadata.0 + 1).saturating_sub(next_l1_batch_to_seal.0);
         metrics::gauge!("server.metadata_calculator.backup_lag", backup_lag as f64);
 
-        let health = TreeHealthCheckDetails {
-            mode: self.mode,
-            next_l1_batch_to_seal,
-        };
-        health_updater.update(health.into());
+        let tree_info = tree.reader().get_info_inner().await;
+        health_updater.update(tree_info.into());
 
         if next_l1_batch_to_seal > last_l1_batch_with_metadata + 1 {
             // Check stop signal before proceeding with a potentially time-consuming operation.
@@ -301,11 +298,8 @@ impl TreeUpdater {
             next_l1_batch_to_seal = tree.next_l1_batch_number();
             tracing::info!("Truncated Merkle tree to L1 batch #{next_l1_batch_to_seal}");
 
-            let health = TreeHealthCheckDetails {
-                mode: self.mode,
-                next_l1_batch_to_seal,
-            };
-            health_updater.update(health.into());
+            let tree_info = tree.reader().get_info_inner().await;
+            health_updater.update(tree_info.into());
         }
 
         loop {
@@ -332,11 +326,8 @@ impl TreeUpdater {
                 );
                 delayer.wait(&self.tree).left_future()
             } else {
-                let health = TreeHealthCheckDetails {
-                    mode: self.mode,
-                    next_l1_batch_to_seal,
-                };
-                health_updater.update(health.into());
+                let tree_info = self.tree.reader().get_info_inner().await;
+                health_updater.update(tree_info.into());
 
                 tracing::trace!(
                     "Metadata calculator (next L1 batch: #{next_l1_batch_to_seal}) made progress from #{snapshot}"

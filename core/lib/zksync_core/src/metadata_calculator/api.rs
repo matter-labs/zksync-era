@@ -90,6 +90,7 @@ impl IntoResponse for TreeApiError {
 /// Client accessing Merkle tree API.
 #[async_trait]
 pub(crate) trait TreeApiClient {
+    /// Obtains general information about the tree.
     async fn get_info(&self) -> anyhow::Result<MerkleTreeInfo>;
 
     /// Obtains proofs for the specified `hashed_keys` at the specified tree version (= L1 batch number).
@@ -181,16 +182,6 @@ impl TreeApiClient for TreeApiHttpClient {
 }
 
 impl AsyncTreeReader {
-    async fn get_info_inner(self) -> MerkleTreeInfo {
-        tokio::task::spawn_blocking(move || MerkleTreeInfo {
-            root_hash: self.as_ref().root_hash(),
-            next_l1_batch_number: self.as_ref().next_l1_batch_number(),
-            leaf_count: self.as_ref().leaf_count(),
-        })
-        .await
-        .unwrap()
-    }
-
     async fn info_handler(State(this): State<Self>) -> Json<MerkleTreeInfo> {
         Json(this.get_info_inner().await)
     }
