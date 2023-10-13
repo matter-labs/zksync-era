@@ -35,12 +35,14 @@ jobs:
           files_yaml: |
             prover:
               - 'prover/**'
+              - '!prover/CHANGELOG.md'
               - 'docker/prover*/**'
               - '.github/workflows/build-prover-template.yml'
               - '.github/workflows/ci-prover-reusable.yml'
               - 'docker-compose-runner-nightly.yml'
             core:
               - 'core/**'
+              - '!core/CHANGELOG.md'
               - 'docker/contract-verifier/**'
               - 'docker/cross-external-nodes-checker/**'
               - 'docker/external-node/**'
@@ -61,15 +63,21 @@ jobs:
               - 'contracts/**'
               - 'infrastructure/zk/**'
 
+  ci-for-core-lint:
+    name: CI for Core lint Components
+    needs: changed_files
+    if: contains(github.ref_name, 'release-please--branches')
+    uses: ./github/workflows/ci-core-lint-reusable.yml
+
   ci-for-core:
     name: CI for Core Components
     needs: changed_files
-    if: needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true'
+    if: ${{ (needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
     uses: ./.github/workflows/ci-core-reusable.yml
 
   ci-for-prover:
     needs: changed_files
-    if: needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true'
+    if: ${{ (needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
     name: CI for Prover Components
     uses: ./.github/workflows/ci-prover-reusable.yml
 
@@ -82,7 +90,7 @@ jobs:
   build-core-images:
     name: Build core images
     needs: changed_files
-    if: needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true'
+    if: ${{ (needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
     uses: ./.github/workflows/build-core-template.yml
     with:
       image_tag: ${{ needs.setup.outputs.image_tag }}
@@ -95,7 +103,7 @@ jobs:
   build-prover-images:
     name: Build prover images
     needs: changed_files
-    if: needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true'
+    if: ${{ (needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
     uses: ./.github/workflows/build-prover-template.yml
     with:
       image_tag: ${{ needs.setup.outputs.image_tag }}
@@ -111,7 +119,7 @@ jobs:
     name: Github Status Check
     runs-on: ubuntu-latest
     if: always() && !cancelled()
-    needs: [ci-for-core, ci-for-prover, ci-for-docs, build-core-images, build-prover-images]
+    needs: [ci-for-core-lint, ci-for-core, ci-for-prover, ci-for-docs, build-core-images, build-prover-images]
     steps:
       - name: Status
         run: |
