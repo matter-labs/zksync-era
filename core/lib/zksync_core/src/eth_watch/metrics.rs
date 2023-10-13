@@ -13,7 +13,7 @@ pub(super) enum PollStage {
 }
 
 #[derive(Debug, Metrics)]
-#[metrics(prefix = "eth_watcher")]
+#[metrics(prefix = "server_eth_watch")]
 pub(super) struct EthWatcherMetrics {
     pub eth_poll: Counter,
     #[metrics(buckets = Buckets::LATENCIES)]
