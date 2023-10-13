@@ -49,6 +49,7 @@ jobs:
               - 'docker/server/**'
               - '.github/workflows/build-core-template.yml'
               - '.github/workflows/ci-core-reusable.yml'
+              - '.github/workflows/ci-core-lint-reusable.yml'
               - 'docker-compose-runner.yml'
               - 'Cargo.toml'
               - 'Cargo.lock'
