@@ -11,6 +11,11 @@ services:
       file: docker-compose-runner.yml
       service: postgres
 
+  postgres_tmp:
+    extends:
+      file: docker-compose-runner.yml
+      service: postgres_tmp
+
   geth:
     extends:
       file: docker-compose-runner.yml

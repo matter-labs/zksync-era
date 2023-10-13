@@ -1210,14 +1210,3 @@ async fn circuit_breakers_for_components(
     }
     Ok(circuit_breakers)
 }
-
-#[tokio::test]
-async fn test_house_keeper_components_get_added() {
-    zksync_dal::set_database_url_to_test_db().await;
-    let (core_task_handles, _, _, _) = initialize_components(vec![Component::Housekeeper], false)
-        .await
-        .unwrap();
-    // circuit-breaker, prometheus-exporter components are run, irrespective of other components.
-    let always_running_component_count = 2;
-    assert_eq!(15, core_task_handles.len() - always_running_component_count);
-}

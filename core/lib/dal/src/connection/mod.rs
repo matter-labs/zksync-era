@@ -55,7 +55,10 @@ impl ConnectionPoolBuilder {
             DbVariant::Master => get_master_database_url()?,
             DbVariant::Replica => get_replica_database_url()?,
             DbVariant::Prover => get_prover_database_url()?,
-            DbVariant::TestTmp => create_test_db().await.to_string(),
+            DbVariant::TestTmp => create_test_db()
+                .await
+                .context("create_test_db()")?
+                .to_string(),
         };
         self.build_inner(&database_url)
             .await
@@ -89,30 +92,40 @@ impl ConnectionPoolBuilder {
     }
 }
 
-const PREFIX: &str = "test-";
-
-pub(super) async fn create_test_db() -> url::Url {
+pub(super) async fn create_test_db() -> anyhow::Result<url::Url> {
     use rand::Rng as _;
     use sqlx::{Connection as _, Executor as _};
+    const PREFIX: &str = "test-";
     let db_url = crate::get_test_database_url().unwrap();
-    let mut db_url = url::Url::parse(&db_url).unwrap();
-    let db_name = db_url.path()[1..].to_string();
+    let mut db_url = url::Url::parse(&db_url)
+        .with_context(|| format!("{} is not a valid database address", db_url))?;
+    let db_name = db_url
+        .path()
+        .strip_prefix('/')
+        .with_context(|| format!("{} is not a valid database address", db_url.as_ref()))?
+        .to_string();
     let db_copy_name = format!("{PREFIX}{}", rand::thread_rng().gen::<u64>());
     db_url.set_path("");
+    let mut attempts = 10;
     let mut conn = loop {
-        if let Ok(conn) = sqlx::PgConnection::connect(db_url.as_ref()).await {
-            break conn;
-        } else {
-            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        match sqlx::PgConnection::connect(db_url.as_ref()).await {
+            Ok(conn) => break conn,
+            Err(err) => {
+                attempts -= 1;
+                if attempts == 0 {
+                    return Err(err).context("sqlx::PgConnection::connect()");
+                }
+            }
         }
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
     };
     conn.execute(
         format!("CREATE DATABASE \"{db_copy_name}\" WITH TEMPLATE \"{db_name}\"").as_str(),
     )
     .await
-    .unwrap();
+    .context("failed to create a temporary database")?;
     db_url.set_path(&db_copy_name);
-    db_url
+    Ok(db_url)
 }
 
 #[derive(Clone)]
@@ -120,7 +133,7 @@ pub struct ConnectionPool(pub(crate) PgPool);
 
 impl fmt::Debug for ConnectionPool {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "connection pool")
+        f.debug_tuple("ConnectionPool").finish()
     }
 }
 

@@ -84,10 +84,6 @@ pub mod witness_generator_dal;
 #[cfg(test)]
 mod tests;
 
-pub async fn set_database_url_to_test_db() {
-    env::set_var("DATABASE_URL", connection::create_test_db().await.as_ref());
-}
-
 /// Obtains the master database URL from the environment variable.
 pub fn get_master_database_url() -> anyhow::Result<String> {
     env::var("DATABASE_URL").context("DATABASE_URL must be set")
