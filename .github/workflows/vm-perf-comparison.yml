@@ -45,7 +45,7 @@ jobs:
         run: |
           ci_run zk
           ci_run zk compiler system-contracts
-          ci_run cargo bench --package vm-benchmark --bench iai | tee base-iai
+          # ci_run cargo bench --package vm-benchmark --bench iai | tee base-iai
           docker compose -f docker-compose-runner.yml down
 
       - name: checkout PR
@@ -56,6 +56,10 @@ jobs:
       - name: run benchmarks on PR
         shell: bash
         run: |
+          ci_run yarn cache clean
+          ci_run yarn autoclean --init
+          ci_run yarn autoclean --force
+          ci_run rm -rf node_modules
           ci_run zk
           ci_run zk compiler system-contracts
           ci_run cargo bench --package vm-benchmark --bench iai | tee pr-iai
