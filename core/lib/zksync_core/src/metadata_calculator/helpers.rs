@@ -17,10 +17,10 @@ use zksync_dal::StorageProcessor;
 use zksync_health_check::{Health, HealthStatus};
 use zksync_merkle_tree::{
     domain::{TreeMetadata, ZkSyncTree, ZkSyncTreeReader},
-    MerkleTreeColumnFamily, NoVersionError, TreeEntryWithProof,
+    MerkleTreeColumnFamily,
 };
 use zksync_storage::RocksDB;
-use zksync_types::{block::L1BatchHeader, L1BatchNumber, StorageLog, H256, U256};
+use zksync_types::{block::L1BatchHeader, L1BatchNumber, StorageLog, H256};
 
 use super::metrics::{LoadChangesStage, ReportStage, TreeUpdateStage};
 
@@ -97,7 +97,7 @@ impl AsyncTree {
     }
 
     pub fn reader(&self) -> AsyncTreeReader {
-        AsyncTreeReader(Some(self.as_ref().reader()))
+        AsyncTreeReader(self.as_ref().reader())
     }
 
     pub fn is_empty(&self) -> bool {
@@ -141,34 +141,12 @@ impl AsyncTree {
 }
 
 /// Async version of [`ZkSyncTreeReader`].
-#[derive(Debug, Clone, Default)]
-pub(super) struct AsyncTreeReader(Option<ZkSyncTreeReader>);
+#[derive(Debug, Clone)]
+pub(crate) struct AsyncTreeReader(ZkSyncTreeReader);
 
 impl AsyncTreeReader {
-    const INCONSISTENT_MSG: &'static str =
-        "`AsyncTreeReader` is in inconsistent state, which could occur after one of its async methods was cancelled";
-
-    fn as_ref(&self) -> &ZkSyncTreeReader {
-        self.0.as_ref().expect(Self::INCONSISTENT_MSG)
-    }
-
-    pub async fn entries_with_proofs(
-        &mut self,
-        l1_batch_number: L1BatchNumber,
-        keys: Vec<U256>,
-    ) -> Result<Vec<TreeEntryWithProof>, NoVersionError> {
-        let tree_reader = mem::take(self);
-        let (tree_reader, result) = tokio::task::spawn_blocking(move || {
-            let result = tree_reader
-                .as_ref()
-                .entries_with_proofs(l1_batch_number, &keys);
-            (tree_reader, result)
-        })
-        .await
-        .unwrap();
-
-        *self = tree_reader;
-        result
+    pub(super) fn as_ref(&self) -> &ZkSyncTreeReader {
+        &self.0
     }
 }
 

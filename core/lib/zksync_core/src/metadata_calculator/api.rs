@@ -90,18 +90,33 @@ pub(crate) trait TreeApiClient {
     ) -> anyhow::Result<Vec<TreeEntryWithProof>>;
 }
 
+/// In-memory client implementation.
+#[async_trait]
+impl TreeApiClient for AsyncTreeReader {
+    async fn get_proofs(
+        &self,
+        l1_batch_number: L1BatchNumber,
+        hashed_keys: Vec<U256>,
+    ) -> anyhow::Result<Vec<TreeEntryWithProof>> {
+        self.get_proofs_inner(l1_batch_number, hashed_keys)
+            .await
+            .map_err(Into::into)
+    }
+}
+
+/// [`TreeApiClient`] implementation requesting data from a Merkle tree API server.
 #[derive(Debug, Clone)]
 pub(crate) struct TreeApiHttpClient {
     inner: reqwest::Client,
-    url_base: String,
+    proofs_url: String,
 }
 
 impl TreeApiHttpClient {
     #[cfg(test)] // temporary measure until `TreeApiClient` is required by other components
-    pub fn new(url_base: impl Into<String>) -> Self {
+    pub fn new(url_base: &str) -> Self {
         Self {
             inner: reqwest::Client::new(),
-            url_base: url_base.into(),
+            proofs_url: format!("{url_base}/proofs"),
         }
     }
 }
@@ -113,10 +128,9 @@ impl TreeApiClient for TreeApiHttpClient {
         l1_batch_number: L1BatchNumber,
         hashed_keys: Vec<U256>,
     ) -> anyhow::Result<Vec<TreeEntryWithProof>> {
-        let url = format!("{base}/proofs", base = self.url_base);
         let response = self
             .inner
-            .post(&url)
+            .post(&self.proofs_url)
             .json(&TreeProofsRequest {
                 l1_batch_number,
                 hashed_keys,
@@ -135,18 +149,31 @@ impl TreeApiClient for TreeApiHttpClient {
 }
 
 impl AsyncTreeReader {
-    async fn get_proofs(
-        State(mut this): State<Self>,
+    async fn get_proofs_inner(
+        &self,
+        l1_batch_number: L1BatchNumber,
+        hashed_keys: Vec<U256>,
+    ) -> Result<Vec<TreeEntryWithProof>, NoVersionError> {
+        let tree_reader = self.as_ref().clone();
+        let proofs = tokio::task::spawn_blocking(move || {
+            tree_reader.entries_with_proofs(l1_batch_number, &hashed_keys)
+        })
+        .await
+        .unwrap()?;
+
+        Ok(proofs.into_iter().map(TreeEntryWithProof::new).collect())
+    }
+
+    async fn get_proofs_handler(
+        State(this): State<Self>,
         Json(request): Json<TreeProofsRequest>,
     ) -> Result<Json<TreeProofsResponse>, TreeApiError> {
         // FIXME: metrics
         let entries = this
-            .entries_with_proofs(request.l1_batch_number, request.hashed_keys)
+            .get_proofs_inner(request.l1_batch_number, request.hashed_keys)
             .await
             .map_err(TreeApiError::NoTreeVersion)?;
-        let response = TreeProofsResponse {
-            entries: entries.into_iter().map(TreeEntryWithProof::new).collect(),
-        };
+        let response = TreeProofsResponse { entries };
         Ok(Json(response))
     }
 
@@ -158,7 +185,7 @@ impl AsyncTreeReader {
         tracing::debug!("Starting Merkle tree API server on {bind_address}");
 
         let app = Router::new()
-            .route("/proofs", routing::post(Self::get_proofs))
+            .route("/proofs", routing::post(Self::get_proofs_handler))
             .with_state(self);
 
         let server = axum::Server::try_bind(bind_address)
@@ -188,6 +215,7 @@ impl AsyncTreeReader {
     }
 }
 
+/// `axum`-powered REST server for Merkle tree API.
 #[must_use = "Server must be `run()`"]
 pub(super) struct MerkleTreeServer {
     local_addr: SocketAddr,

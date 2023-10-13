@@ -191,7 +191,7 @@ async fn merkle_tree_api(pool: ConnectionPool, prover_pool: ConnectionPool) {
         .unwrap();
     let local_addr = *api_server.local_addr();
     let api_server_task = tokio::spawn(api_server.run());
-    let api_client = api::TreeApiHttpClient::new(format!("http://{local_addr}"));
+    let api_client = api::TreeApiHttpClient::new(&format!("http://{local_addr}"));
 
     reset_db_state(&pool, 5).await;
     let (delay_sx, mut delay_rx) = mpsc::unbounded_channel();
