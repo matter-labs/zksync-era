@@ -10,7 +10,6 @@ services:
     depends_on:
       - geth
       - postgres
-      - postgres_tmp
     security_opt:
       - seccomp:unconfined
     command: tail -f /dev/null
