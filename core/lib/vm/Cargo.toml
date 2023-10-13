@@ -17,6 +17,7 @@ zksync_types = { path = "../types" }
 zksync_utils = { path = "../utils" }
 zksync_state = { path = "../state" }
 zksync_contracts = { path = "../contracts" }
+vm_interface = { path = "../vm_interface" }
 
 anyhow = "1.0"
 hex = "0.4"

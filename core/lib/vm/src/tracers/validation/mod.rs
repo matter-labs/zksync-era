@@ -40,8 +40,9 @@ pub use params::ValidationTracerParams;
 
 use types::NewTrustedValidationItems;
 use types::ValidationTracerMode;
+use vm_interface::Halt;
 
-use crate::{BootloaderState, Halt, ZkSyncVmState};
+use crate::{BootloaderState, ZkSyncVmState};
 
 /// Tracer that is used to ensure that the validation adheres to all the rules
 /// to prevent DDoS attacks on the server.

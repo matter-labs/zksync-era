@@ -1,11 +1,11 @@
 use std::cmp::Ordering;
+use vm_interface::{L2Block, L2BlockEnv};
 use zksync_types::{MiniblockNumber, H256};
 use zksync_utils::concat_and_hash;
 
 use crate::bootloader_state::snapshot::L2BlockSnapshot;
 use crate::bootloader_state::tx::BootloaderTx;
 use crate::utils::l2_blocks::l2_block_hash;
-use crate::{L2Block, L2BlockEnv};
 
 const EMPTY_TXS_ROLLING_HASH: H256 = H256::zero();
 

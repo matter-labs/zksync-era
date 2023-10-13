@@ -1,3 +1,4 @@
+use vm_interface::{BootloaderMemory, TxExecutionMode};
 use zksync_types::U256;
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 use zksync_utils::{bytes_to_be_words, h256_to_u256};
@@ -8,7 +9,6 @@ use crate::constants::{
     OPERATOR_REFUNDS_OFFSET, TX_DESCRIPTION_OFFSET, TX_OPERATOR_L2_BLOCK_INFO_OFFSET,
     TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO, TX_OVERHEAD_OFFSET, TX_TRUSTED_GAS_LIMIT_OFFSET,
 };
-use crate::{BootloaderMemory, TxExecutionMode};
 
 use super::tx::BootloaderTx;
 

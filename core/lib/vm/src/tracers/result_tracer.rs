@@ -1,3 +1,4 @@
+use vm_interface::{ExecutionResult, Halt, TxRevertReason, VmExecutionMode, VmRevertReason};
 use zk_evm::{
     tracing::{AfterDecodingData, BeforeExecutionData, VmLocalStateData},
     vm_state::{ErrorFlags, VmLocalState},
@@ -8,7 +9,6 @@ use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::U256;
 
 use crate::bootloader_state::BootloaderState;
-use crate::errors::VmRevertReason;
 use crate::old_vm::{
     history_recorder::HistoryMode,
     memory::SimpleMemory,
@@ -18,12 +18,11 @@ use crate::tracers::{
     traits::{DynTracer, VmTracer},
     utils::{get_vm_hook_params, read_pointer, VmHook},
 };
-use crate::types::{internals::ZkSyncVmState, outputs::ExecutionResult};
+use crate::types::internals::ZkSyncVmState;
 
 use crate::constants::{BOOTLOADER_HEAP_PAGE, RESULT_SUCCESS_FIRST_SLOT};
 use crate::tracers::traits::TracerExecutionStopReason;
-use crate::{Halt, TxRevertReason};
-use crate::{VmExecutionMode, VmExecutionStopReason};
+use crate::VmExecutionStopReason;
 
 #[derive(Debug, Clone)]
 enum Result {

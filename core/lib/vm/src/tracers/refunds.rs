@@ -1,5 +1,6 @@
 use vise::{Buckets, EncodeLabelSet, EncodeLabelValue, Family, Histogram, Metrics};
 
+use vm_interface::{L1BatchEnv, Refunds};
 use zk_evm::{
     aux_structures::Timestamp,
     tracing::{BeforeExecutionData, VmLocalStateData},
@@ -27,8 +28,8 @@ use crate::tracers::{
     traits::{DynTracer, VmTracer},
     utils::{get_vm_hook_params, VmHook},
 };
-use crate::types::{inputs::L1BatchEnv, internals::ZkSyncVmState, outputs::Refunds};
-use crate::TracerExecutionStatus;
+use crate::types::inputs::l1_batch_env::base_fee;
+use crate::{TracerExecutionStatus, ZkSyncVmState};
 
 /// Tracer responsible for collecting information about refunds.
 #[derive(Debug, Clone)]
@@ -105,7 +106,7 @@ impl RefundsTracer {
             });
 
         // For now, bootloader charges only for base fee.
-        let effective_gas_price = self.l1_batch.base_fee();
+        let effective_gas_price = base_fee(&self.l1_batch);
 
         let bootloader_eth_price_per_pubdata_byte =
             U256::from(effective_gas_price) * U256::from(current_ergs_per_pubdata_byte);

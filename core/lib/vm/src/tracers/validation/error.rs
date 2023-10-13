@@ -1,5 +1,5 @@
-use crate::Halt;
 use std::fmt::Display;
+use vm_interface::Halt;
 use zksync_types::vm_trace::ViolatedValidationRule;
 
 #[derive(Debug, Clone)]

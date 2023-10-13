@@ -2,6 +2,7 @@ use once_cell::sync::OnceCell;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
+use vm_interface::VmRevertReason;
 use zk_evm::tracing::{AfterExecutionData, VmLocalStateData};
 use zk_evm::zkevm_opcode_defs::{
     FarCallABI, FarCallOpcode, FatPointer, Opcode, RetOpcode,
@@ -13,7 +14,6 @@ use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::vm_trace::{Call, CallType};
 use zksync_types::U256;
 
-use crate::errors::VmRevertReason;
 use crate::old_vm::history_recorder::HistoryMode;
 use crate::old_vm::memory::SimpleMemory;
 use crate::tracers::traits::{DynTracer, VmTracer};

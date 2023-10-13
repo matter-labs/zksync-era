@@ -4,7 +4,7 @@ use crate::tracers::traits::{
     DynTracer, TracerExecutionStatus, TracerExecutionStopReason, VmTracer,
 };
 use crate::types::internals::ZkSyncVmState;
-use crate::Halt;
+use vm_interface::Halt;
 use zksync_state::WriteStorage;
 
 #[derive(Debug, Default, Clone)]
