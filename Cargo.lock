@@ -6987,6 +6987,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "vm_interface"
+version = "0.1.0"
+dependencies = [
+ "zksync_config",
+ "zksync_contracts",
+ "zksync_state",
+ "zksync_types",
+ "zksync_utils",
+]
+
+[[package]]
 name = "vm_m5"
 version = "0.1.0"
 dependencies = [

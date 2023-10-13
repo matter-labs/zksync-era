@@ -36,6 +36,7 @@ members = [
     "core/lib/vlog",
     "core/lib/multivm",
     "core/lib/vm",
+    "core/lib/vm_interface",
     "core/lib/web3_decl",
     "core/lib/test_account",
 

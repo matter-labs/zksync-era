@@ -1,0 +1,21 @@
+[package]
+name = "vm_interface"
+version = "0.1.0"
+edition = "2018"
+authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
+homepage = "https://zksync.io/"
+repository = "https://github.com/matter-labs/zksync-era"
+license = "MIT OR Apache-2.0"
+keywords = ["blockchain", "zksync"]
+categories = ["cryptography"]
+
+[dependencies]
+thiserror = "1.0"
+hex = "0.4"
+tracing = "0.1"
+
+zksync_config = { path = "../config" }
+zksync_types = { path = "../types" }
+zksync_utils = { path = "../utils" }
+zksync_state = { path = "../state" }
+zksync_contracts = { path = "../contracts" }
