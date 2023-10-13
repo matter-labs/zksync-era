@@ -586,8 +586,8 @@ fn mini_fuzz_values_cache_inner(rng: &mut impl Rng, pool: &ConnectionPool, mut r
 
 #[tokio::test]
 async fn mini_fuzz_values_cache() {
-    let pool = ConnectionPool::test_pool().await;
     const RNG_SEED: u64 = 123;
+    let pool = ConnectionPool::test_pool().await;
 
     let handle = Handle::current();
     let mut rng = StdRng::seed_from_u64(RNG_SEED);
