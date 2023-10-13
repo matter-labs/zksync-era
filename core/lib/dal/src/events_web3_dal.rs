@@ -1,12 +1,12 @@
 use sqlx::Row;
 
+use zksync_dal_utils::instrument::InstrumentExt;
 use zksync_types::{
     api::{GetLogsFilter, Log},
     Address, MiniblockNumber, H256,
 };
 
 use crate::{
-    instrument::InstrumentExt,
     models::{storage_block::web3_block_number_to_sql, storage_event::StorageWeb3Log},
     SqlxError, StorageProcessor,
 };

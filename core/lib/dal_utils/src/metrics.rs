@@ -10,7 +10,7 @@ use std::{thread, time::Duration};
 /// Request-related DB metrics.
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "sql")]
-pub(crate) struct RequestMetrics {
+pub struct RequestMetrics {
     /// Latency of a DB request.
     #[metrics(buckets = Buckets::LATENCIES, labels = ["method"])]
     pub request: LabeledFamily<&'static str, Histogram<Duration>>,
@@ -23,14 +23,14 @@ pub(crate) struct RequestMetrics {
 }
 
 #[vise::register]
-pub(crate) static REQUEST_METRICS: vise::Global<RequestMetrics> = vise::Global::new();
+pub static REQUEST_METRICS: vise::Global<RequestMetrics> = vise::Global::new();
 
 /// Reporter of latency for DAL methods consisting of multiple DB queries. If there's a single query,
 /// use `.instrument().report_latency()` on it instead.
 ///
 /// Should be created at the start of the relevant method and dropped when the latency needs to be reported.
 #[derive(Debug)]
-pub(crate) struct MethodLatency(Option<LatencyObserver<'static>>);
+pub struct MethodLatency(Option<LatencyObserver<'static>>);
 
 impl MethodLatency {
     pub fn new(name: &'static str) -> Self {
@@ -51,7 +51,7 @@ impl Drop for MethodLatency {
 /// Kind of a connection error.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
 #[metrics(label = "kind", rename_all = "snake_case")]
-pub(crate) enum ConnectionErrorKind {
+pub enum ConnectionErrorKind {
     Timeout,
     Database,
     Io,
@@ -74,7 +74,7 @@ const POOL_SIZE_BUCKETS: Buckets = Buckets::linear(0.0..=100.0, 10.0);
 /// Connection-related metrics.
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "sql_connection")]
-pub(crate) struct ConnectionMetrics {
+pub struct ConnectionMetrics {
     /// Latency of acquiring a DB connection.
     #[metrics(buckets = Buckets::LATENCIES)]
     pub acquire: Histogram<Duration>,
@@ -92,4 +92,4 @@ pub(crate) struct ConnectionMetrics {
 }
 
 #[vise::register]
-pub(crate) static CONNECTION_METRICS: vise::Global<ConnectionMetrics> = vise::Global::new();
+pub static CONNECTION_METRICS: vise::Global<ConnectionMetrics> = vise::Global::new();

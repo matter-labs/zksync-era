@@ -6,6 +6,7 @@ use sqlx::{
 use anyhow::Context as _;
 use std::time::Duration;
 
+use zksync_dal_utils::metrics::CONNECTION_METRICS;
 use zksync_utils::parse_env;
 
 pub mod holder;
@@ -14,8 +15,7 @@ pub mod test_pool;
 pub use self::test_pool::TestPool;
 
 use crate::{
-    get_master_database_url, get_prover_database_url, get_replica_database_url,
-    metrics::CONNECTION_METRICS, StorageProcessor,
+    get_master_database_url, get_prover_database_url, get_replica_database_url, StorageProcessor,
 };
 
 #[derive(Debug, Clone, Copy)]

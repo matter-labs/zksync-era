@@ -8,6 +8,7 @@ use itertools::Itertools;
 use sqlx::error;
 use sqlx::types::chrono::NaiveDateTime;
 
+use zksync_dal_utils::{instrument::InstrumentExt, time_utils::pg_interval_from_duration};
 use zksync_types::tx::tx_execution_info::TxExecutionStatus;
 use zksync_types::vm_trace::Call;
 use zksync_types::{
@@ -19,9 +20,7 @@ use zksync_types::{
 use zksync_utils::{h256_to_u32, u256_to_big_decimal};
 
 use crate::{
-    instrument::InstrumentExt,
     models::storage_transaction::{CallTrace, StorageTransaction},
-    time_utils::pg_interval_from_duration,
     StorageProcessor,
 };
 

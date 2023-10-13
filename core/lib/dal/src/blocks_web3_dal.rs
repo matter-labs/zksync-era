@@ -2,6 +2,7 @@ use bigdecimal::BigDecimal;
 use sqlx::Row;
 
 use zksync_config::constants::EMPTY_UNCLES_HASH;
+use zksync_dal_utils::instrument::InstrumentExt;
 use zksync_types::{
     api,
     ethabi::Address,
@@ -20,7 +21,7 @@ use crate::models::{
     },
     storage_transaction::{extract_web3_transaction, web3_transaction_select_sql, CallTrace},
 };
-use crate::{instrument::InstrumentExt, StorageProcessor};
+use crate::StorageProcessor;
 
 const BLOCK_GAS_LIMIT: u32 = system_params::VM_INITIAL_FRAME_ERGS;
 

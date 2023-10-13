@@ -10,12 +10,12 @@ keywords = ["blockchain", "zksync"]
 categories = ["cryptography"]
 
 [dependencies]
-vise = { git = "https://github.com/matter-labs/vise.git", version = "0.1.0", rev = "9d097ab747b037b6e62504df1db5b975425b6bdd" }
 zksync_utils = { path = "../utils" }
 zksync_config = { path = "../config" }
 zksync_contracts = { path = "../contracts" }
 zksync_types = { path = "../types" }
 zksync_health_check = { path = "../health_check" }
+zksync_dal_utils = { path = "../dal_utils"}
 
 itertools = "0.10.1"
 thiserror = "1.0"

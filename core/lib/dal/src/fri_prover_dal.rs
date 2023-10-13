@@ -1,18 +1,18 @@
 use std::{collections::HashMap, convert::TryFrom, time::Duration};
 
 use zksync_config::configs::fri_prover_group::CircuitIdRoundTuple;
+use zksync_dal_utils::{
+    instrument::InstrumentExt,
+    metrics::MethodLatency,
+    time_utils::{duration_to_naive_time, pg_interval_from_duration},
+};
 use zksync_types::protocol_version::FriProtocolVersionId;
 use zksync_types::{
     proofs::{AggregationRound, FriProverJobMetadata, JobCountStatistics, StuckJobs},
     L1BatchNumber,
 };
 
-use crate::{
-    instrument::InstrumentExt,
-    metrics::MethodLatency,
-    time_utils::{duration_to_naive_time, pg_interval_from_duration},
-    StorageProcessor,
-};
+use crate::StorageProcessor;
 
 #[derive(Debug)]
 pub struct FriProverDal<'a, 'c> {

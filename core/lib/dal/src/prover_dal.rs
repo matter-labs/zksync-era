@@ -7,6 +7,10 @@ use std::{
     time::Duration,
 };
 
+use zksync_dal_utils::{
+    instrument::InstrumentExt,
+    time_utils::{duration_to_naive_time, pg_interval_from_duration},
+};
 use zksync_types::{
     aggregated_operations::L1BatchProofForL1,
     proofs::{
@@ -19,12 +23,7 @@ use zksync_types::{
     L1BatchNumber, ProtocolVersionId,
 };
 
-use crate::{
-    instrument::InstrumentExt,
-    models::storage_prover_job_info::StorageProverJobInfo,
-    time_utils::{duration_to_naive_time, pg_interval_from_duration},
-    StorageProcessor,
-};
+use crate::{models::storage_prover_job_info::StorageProverJobInfo, StorageProcessor};
 
 #[derive(Debug)]
 pub struct ProverDal<'a, 'c> {

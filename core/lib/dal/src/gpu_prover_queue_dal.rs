@@ -1,8 +1,8 @@
 use std::time::Duration;
 
-use crate::time_utils::pg_interval_from_duration;
 use crate::StorageProcessor;
 use std::collections::HashMap;
+use zksync_dal_utils::time_utils::pg_interval_from_duration;
 use zksync_types::proofs::{GpuProverInstanceStatus, SocketAddress};
 
 #[derive(Debug)]

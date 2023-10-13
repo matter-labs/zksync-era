@@ -1,5 +1,6 @@
 use sqlx::types::chrono::NaiveDateTime;
 
+use zksync_dal_utils::instrument::InstrumentExt;
 use zksync_types::{
     api, Address, L2ChainId, MiniblockNumber, Transaction, ACCOUNT_CODE_STORAGE_ADDRESS,
     FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH, H160, H256, U256, U64,
@@ -14,7 +15,7 @@ use crate::models::{
         StorageTransactionDetails,
     },
 };
-use crate::{instrument::InstrumentExt, SqlxError, StorageProcessor};
+use crate::{SqlxError, StorageProcessor};
 
 #[derive(Debug)]
 pub struct TransactionsWeb3Dal<'a, 'c> {

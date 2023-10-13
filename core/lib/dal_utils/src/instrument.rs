@@ -39,7 +39,7 @@ impl fmt::Display for QueryArgs<'_> {
 }
 
 /// Extension trait for instrumenting `sqlx::query!` outputs.
-pub(crate) trait InstrumentExt: Sized {
+pub trait InstrumentExt: Sized {
     /// Instruments a query, assigning it the provided name.
     fn instrument(self, name: &'static str) -> Instrumented<'static, Self>;
 }
@@ -168,7 +168,7 @@ impl<'a> InstrumentedData<'a> {
 /// - Slow and erroneous queries are also reported using metrics (`dal.request.slow` and `dal.request.error`,
 ///   respectively). The query name is included as a metric label; args are not included for obvious reasons.
 #[derive(Debug)]
-pub(crate) struct Instrumented<'a, Q> {
+pub struct Instrumented<'a, Q> {
     query: Q,
     data: InstrumentedData<'a>,
 }

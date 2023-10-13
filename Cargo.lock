@@ -7852,12 +7852,22 @@ dependencies = [
  "thiserror",
  "tokio",
  "tracing",
- "vise",
  "zksync_config",
  "zksync_contracts",
+ "zksync_dal_utils",
  "zksync_health_check",
  "zksync_types",
  "zksync_utils",
+]
+
+[[package]]
+name = "zksync_dal_utils"
+version = "0.1.0"
+dependencies = [
+ "sqlx",
+ "tokio",
+ "tracing",
+ "vise",
 ]
 
 [[package]]
@@ -7942,6 +7952,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_main_dal"
+version = "0.1.0"
+
+[[package]]
 name = "zksync_mempool"
 version = "0.1.0"
 dependencies = [
@@ -8000,6 +8014,10 @@ dependencies = [
  "zksync_config",
  "zksync_types",
 ]
+
+[[package]]
+name = "zksync_prover_dal"
+version = "0.1.0"
 
 [[package]]
 name = "zksync_prover_utils"

@@ -1,8 +1,10 @@
-use crate::StorageProcessor;
 use sqlx::types::chrono::Utc;
 use std::collections::HashSet;
+
 use zksync_types::{AccountTreeId, Address, L1BatchNumber, LogQuery, StorageKey, H256};
 use zksync_utils::u256_to_h256;
+
+use crate::StorageProcessor;
 
 #[derive(Debug)]
 pub struct StorageLogsDedupDal<'a, 'c> {

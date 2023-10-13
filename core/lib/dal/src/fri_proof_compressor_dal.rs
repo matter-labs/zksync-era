@@ -7,8 +7,8 @@ use strum::{Display, EnumString};
 use zksync_types::proofs::{JobCountStatistics, StuckJobs};
 use zksync_types::L1BatchNumber;
 
-use crate::time_utils::{duration_to_naive_time, pg_interval_from_duration};
 use crate::StorageProcessor;
+use zksync_dal_utils::time_utils::{duration_to_naive_time, pg_interval_from_duration};
 
 #[derive(Debug)]
 pub struct FriProofCompressorDal<'a, 'c> {

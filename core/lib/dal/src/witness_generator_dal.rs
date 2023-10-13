@@ -13,12 +13,12 @@ use zksync_types::zkevm_test_harness::bellman::plonk::better_better_cs::proof::P
 use zksync_types::zkevm_test_harness::witness::oracle::VmWitnessOracle;
 use zksync_types::{L1BatchNumber, ProtocolVersionId};
 
-use crate::{
+use crate::{models::storage_witness_job_info::StorageWitnessJobInfo, StorageProcessor};
+
+use zksync_dal_utils::{
     instrument::InstrumentExt,
     metrics::MethodLatency,
-    models::storage_witness_job_info::StorageWitnessJobInfo,
     time_utils::{duration_to_naive_time, pg_interval_from_duration},
-    StorageProcessor,
 };
 
 #[derive(Debug)]

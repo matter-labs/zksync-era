@@ -8,6 +8,7 @@ use anyhow::Context as _;
 use bigdecimal::{BigDecimal, FromPrimitive, ToPrimitive};
 use sqlx::Row;
 
+use zksync_dal_utils::instrument::InstrumentExt;
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
     block::{BlockGasCount, L1BatchHeader, MiniblockHeader},
@@ -16,7 +17,6 @@ use zksync_types::{
 };
 
 use crate::{
-    instrument::InstrumentExt,
     models::storage_block::{StorageL1Batch, StorageL1BatchHeader, StorageMiniblockHeader},
     StorageProcessor,
 };

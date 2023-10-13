@@ -1,6 +1,7 @@
 //! Miscellaneous helper macros.
 
 /// Writes to a [`String`]. This is equivalent to `write!`, but without the need to `unwrap()` the result.
+#[macro_export]
 macro_rules! write_str {
     ($buffer:expr, $($args:tt)+) => {{
         use std::fmt::Write as _;
@@ -11,6 +12,7 @@ macro_rules! write_str {
 
 /// Writing a line to a [`String`]. This is equivalent to `writeln!`, but without the need
 /// to `unwrap()` the result.
+#[macro_export]
 macro_rules! writeln_str {
     ($buffer:expr, $($args:tt)+) => {{
         use std::fmt::Write as _;

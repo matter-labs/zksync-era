@@ -3,10 +3,11 @@ use itertools::Itertools;
 use std::collections::{HashMap, HashSet};
 
 use zksync_contracts::{BaseSystemContracts, SystemContractCode};
+use zksync_dal_utils::instrument::InstrumentExt;
 use zksync_types::{MiniblockNumber, StorageKey, StorageLog, StorageValue, H256, U256};
 use zksync_utils::{bytes_to_be_words, bytes_to_chunks};
 
-use crate::{instrument::InstrumentExt, StorageProcessor};
+use crate::StorageProcessor;
 
 #[derive(Debug)]
 pub struct StorageDal<'a, 'c> {

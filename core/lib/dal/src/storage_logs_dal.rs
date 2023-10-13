@@ -1,13 +1,14 @@
-use sqlx::types::chrono::Utc;
-use sqlx::Row;
+use sqlx::{types::chrono::Utc, Row};
 
 use std::{collections::HashMap, time::Instant};
 
-use crate::{instrument::InstrumentExt, StorageProcessor};
+use zksync_dal_utils::{instrument::InstrumentExt, write_str, writeln_str};
 use zksync_types::{
     get_code_key, AccountTreeId, Address, L1BatchNumber, MiniblockNumber, StorageKey, StorageLog,
     FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH, H256,
 };
+
+use crate::StorageProcessor;
 
 #[derive(Debug)]
 pub struct StorageLogsDal<'a, 'c> {

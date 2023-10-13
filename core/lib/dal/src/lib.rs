@@ -43,8 +43,6 @@ use crate::transactions_dal::TransactionsDal;
 use crate::transactions_web3_dal::TransactionsWeb3Dal;
 use crate::witness_generator_dal::WitnessGeneratorDal;
 
-#[macro_use]
-mod macro_utils;
 pub mod accounts_dal;
 pub mod blocks_dal;
 pub mod blocks_web3_dal;
@@ -61,8 +59,6 @@ pub mod fri_scheduler_dependency_tracker_dal;
 pub mod fri_witness_generator_dal;
 pub mod gpu_prover_queue_dal;
 pub mod healthcheck;
-mod instrument;
-mod metrics;
 mod models;
 pub mod proof_generation_dal;
 pub mod protocol_versions_dal;
@@ -74,7 +70,6 @@ pub mod storage_logs_dedup_dal;
 pub mod storage_web3_dal;
 pub mod sync_dal;
 pub mod system_dal;
-pub mod time_utils;
 pub mod tokens_dal;
 pub mod tokens_web3_dal;
 pub mod transactions_dal;

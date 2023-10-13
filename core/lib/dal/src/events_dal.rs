@@ -1,4 +1,5 @@
 use sqlx::types::chrono::Utc;
+use zksync_dal_utils::{write_str, writeln_str};
 
 use std::fmt;
 

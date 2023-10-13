@@ -3,6 +3,10 @@ use sqlx::Row;
 use std::convert::TryFrom;
 use std::{collections::HashMap, time::Duration};
 
+use zksync_dal_utils::{
+    metrics::MethodLatency,
+    time_utils::{duration_to_naive_time, pg_interval_from_duration},
+};
 use zksync_types::protocol_version::FriProtocolVersionId;
 use zksync_types::{
     proofs::{
@@ -12,11 +16,7 @@ use zksync_types::{
     L1BatchNumber,
 };
 
-use crate::{
-    metrics::MethodLatency,
-    time_utils::{duration_to_naive_time, pg_interval_from_duration},
-    StorageProcessor,
-};
+use crate::StorageProcessor;
 
 #[derive(Debug)]
 pub struct FriWitnessGeneratorDal<'a, 'c> {

@@ -2,9 +2,9 @@ use std::time::Duration;
 
 use zksync_types::L1BatchNumber;
 
-use crate::time_utils::pg_interval_from_duration;
 use crate::{SqlxError, StorageProcessor};
 use strum::{Display, EnumString};
+use zksync_dal_utils::time_utils::pg_interval_from_duration;
 
 #[derive(Debug)]
 pub struct ProofGenerationDal<'a, 'c> {
