@@ -1,15 +1,16 @@
 version: '3.2'
+name: test
 services:
   geth:
     image: "matterlabs/geth:latest"
     environment:
       - PLUGIN_CONFIG
-
   zk:
     image: "matterlabs/zk-environment:latest2.0-lightweight"
     depends_on:
       - geth
       - postgres
+      - postgres_tmp
     security_opt:
       - seccomp:unconfined
     command: tail -f /dev/null
@@ -28,20 +29,16 @@ services:
       - GITHUB_WORKSPACE=$GITHUB_WORKSPACE
     env_file:
       - ./.env
-    network_mode: bridge
   postgres:
     image: "postgres:14"
     ports:
       - "5432:5432"
     environment:
       - POSTGRES_HOST_AUTH_METHOD=trust
-    network_mode: bridge
   postgres_tmp:
     image: "postgres:14"
-    container_name: "postgres_tmp"
     command: "postgres -c fsync=false"
     ports:
       - "7000:5432"
     environment:
       - POSTGRES_HOST_AUTH_METHOD=trust
-    network_mode: bridge
