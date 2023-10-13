@@ -1,5 +1,5 @@
 version: '3.2'
-name: test
+name: runner
 services:
   geth:
     image: "matterlabs/geth:latest"

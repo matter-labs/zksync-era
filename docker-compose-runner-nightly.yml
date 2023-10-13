@@ -1,4 +1,5 @@
 version: '3.2'
+name: runner
 services:
   zk:
     image: matterlabs/zksync_rust:nightly
@@ -10,11 +11,6 @@ services:
     extends:
       file: docker-compose-runner.yml
       service: postgres
-
-  postgres_tmp:
-    extends:
-      file: docker-compose-runner.yml
-      service: postgres_tmp
 
   geth:
     extends:
