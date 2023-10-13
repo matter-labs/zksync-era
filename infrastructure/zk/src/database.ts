@@ -12,7 +12,7 @@ export async function resetTest() {
     process.env.DATABASE_URL = process.env.TEST_DATABASE_URL;
     await utils.confirmAction();
     await utils.spawn('docker rm -f postgres_tmp');
-    await utils.spawn('docker-compose -f docker-compose-test.yml up -d postgres_tmp');
+    await utils.spawn('docker compose -f docker-compose-test.yml up -d postgres_tmp');
     await wait();
     console.log('setup');
     await setup();
