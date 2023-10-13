@@ -3,7 +3,7 @@ import * as utils from './utils';
 
 export async function reset() {
     await utils.confirmAction();
-    await wait();
+    await wait(100);
     await drop();
     await setup();
 }

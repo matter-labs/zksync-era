@@ -1,4 +1,4 @@
-version: '3.2'
+name: test
 services:
   postgres_tmp:
     image: "postgres:14"
