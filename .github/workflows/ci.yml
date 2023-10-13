@@ -68,7 +68,7 @@ jobs:
     name: CI for Core lint Components
     needs: changed_files
     if: contains(github.ref_name, 'release-please--branches')
-    uses: ./github/workflows/ci-core-lint-reusable.yml
+    uses: ./.github/workflows/ci-core-lint-reusable.yml
 
   ci-for-core:
     name: CI for Core Components
