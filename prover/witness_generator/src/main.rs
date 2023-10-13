@@ -71,12 +71,11 @@ async fn main() -> anyhow::Result<()> {
     let started_at = Instant::now();
     let use_push_gateway = opt.batch_size.is_some();
 
-    let store_factory = ObjectStoreFactory::prover_from_env()
-        .context("ObjectStoreFactor::prover_from_env()")?;
-    let config = FriWitnessGeneratorConfig::from_env()
-        .context("FriWitnessGeneratorConfig::from_env()")?;
-    let prometheus_config = PrometheusConfig::from_env()
-        .context("PrometheusConfig::from_env()")?;
+    let store_factory =
+        ObjectStoreFactory::prover_from_env().context("ObjectStoreFactor::prover_from_env()")?;
+    let config =
+        FriWitnessGeneratorConfig::from_env().context("FriWitnessGeneratorConfig::from_env()")?;
+    let prometheus_config = PrometheusConfig::from_env().context("PrometheusConfig::from_env()")?;
     let connection_pool = ConnectionPool::builder(DbVariant::Master)
         .build()
         .await
@@ -88,7 +87,9 @@ async fn main() -> anyhow::Result<()> {
     let (stop_sender, stop_receiver) = watch::channel(false);
     let vk_commitments = get_cached_commitments();
     let protocol_versions = prover_connection_pool
-        .access_storage().await.unwrap()
+        .access_storage()
+        .await
+        .unwrap()
         .fri_protocol_versions_dal()
         .protocol_version_for(&vk_commitments)
         .await;
@@ -99,6 +100,17 @@ async fn main() -> anyhow::Result<()> {
         opt.batch_size,
         protocol_versions
     );
+
+    // If batch_size is none, it means that the job is 'looping forever' (this is the usual setup in local network).
+    // At the same time, we're reading the protocol_version only once at startup - so if there is no protocol version
+    // read (this is often due to the fact, that the gateway was started too late, and it didn't put the updated protocol
+    // versions into the database) - then the job will simply 'hang forever' and not pick any tasks.
+    if opt.batch_size.is_none() && protocol_versions.is_empty() {
+        panic!(
+            "Could not find a protocol version for my commitments. Is gateway running?  Maybe you started this job before gateway updated the database? Commitments: {:?}",
+            vk_commitments
+        );
+    }
 
     let prometheus_config = if use_push_gateway {
         PrometheusExporterConfig::push(
@@ -117,10 +129,10 @@ async fn main() -> anyhow::Result<()> {
                 true => Some(
                     ObjectStoreFactory::new(
                         ObjectStoreConfig::public_from_env()
-                            .context("ObjectStoreConfig::public_from_env()")?
+                            .context("ObjectStoreConfig::public_from_env()")?,
                     )
-                        .create_store()
-                        .await,
+                    .create_store()
+                    .await,
                 ),
             };
             let generator = BasicWitnessGenerator::new(

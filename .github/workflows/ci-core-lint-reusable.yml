@@ -1,9 +1,10 @@
-name: Workflow template for CI jobs against docs
+name: Workflow template for Core Linting CI jobs
 on:
   workflow_call:
 
+
 jobs:
-  lint:
+  code_lint:
     runs-on: [matterlabs-ci-runner]
 
     steps:
@@ -21,10 +22,19 @@ jobs:
         run: |
           docker-compose -f docker-compose-runner.yml pull
           docker-compose -f docker-compose-runner.yml up --build -d zk
+          ci_run sccache --start-server
+
+      - name: Setup db
+        run: |
+          ci_run zk
+          ci_run zk db migrate
 
       - name: Lints
         run: |
-          ci_run zk
-          ci_run zk fmt md --check
+          ci_run zk fmt --check
+          ci_run zk lint rust --check
+          ci_run zk lint js --check
+          ci_run zk lint ts --check
           ci_run zk lint md --check
+          ci_run zk db check-sqlx-data
 

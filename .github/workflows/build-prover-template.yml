@@ -26,6 +26,11 @@ on:
         type: string
         default: "push"
         required: false
+      is_pr_from_fork:
+        description: "Indicates whether the workflow is invoked from a PR created from fork"
+        type: boolean
+        default: false
+        required: false
 
 jobs:
   build-images:
@@ -87,7 +92,10 @@ jobs:
           ci_run docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
           ci_run gcloud auth configure-docker us-docker.pkg.dev,asia-docker.pkg.dev -q
 
+      # We need to run this only when ERA_BELLMAN_CUDA_RELEASE is not available
+      # In our case it happens only when PR is created from fork
       - name: Wait for runner IP to be not rate-limited against GH API
+        if: inputs.is_pr_from_fork == true
         run: |
           api_endpoint="https://api.github.com/users/zksync-era-bot"
           wait_time=60
