@@ -1,4 +1,4 @@
-use super::*;
+use zksync_basic_types::U256;
 
 // Starting with version 1 for this compression strategy. Any modifications to our current strategy MUST
 // increment this number.
