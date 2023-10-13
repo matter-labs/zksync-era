@@ -14,9 +14,7 @@ export async function compileSystemContracts() {
 
     process.chdir('etc/system-contracts');
     await utils.spawn('yarn');
-    await utils.spawn('yarn hardhat compile');
-    await utils.spawn('yarn preprocess');
-    await utils.spawn('yarn hardhat run ./scripts/compile-yul.ts');
+    await utils.spawn('yarn build');
     process.chdir('../..');
 }
 
