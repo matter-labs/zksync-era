@@ -3,7 +3,7 @@ import * as utils from './utils';
 
 export async function reset() {
     await utils.confirmAction();
-    await wait(100);
+    await wait();
     await drop();
     await setup();
 }
@@ -13,7 +13,7 @@ export async function resetTest() {
     await utils.confirmAction();
     await utils.spawn('docker rm -f postgres_tmp');
     await utils.spawn('docker compose -f docker-compose-test.yml up -d postgres_tmp');
-    await wait();
+    await wait(100);
     console.log('setup');
     await setup();
     console.log('disallowing connections');
