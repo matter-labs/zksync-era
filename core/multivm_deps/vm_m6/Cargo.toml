@@ -18,7 +18,7 @@ zksync_config = { path = "../../lib/config" }
 zksync_state = { path = "../../lib/state" }
 zksync_storage = { path = "../../lib/storage" }
 
-zk_evm = { git = "https://github.com/matter-labs/era-zk_evm.git", branch = "v1.3.1-without-lifetime" }
+zk_evm = { git = "https://github.com/matter-labs/era-zk_evm.git", tag = "v1.3.1-rc1" }
 zksync_contracts = { path = "../../lib/contracts" }
 
 hex = "0.4"
