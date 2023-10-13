@@ -205,6 +205,10 @@ async fn merkle_tree_api(pool: ConnectionPool, prover_pool: ConnectionPool) {
     assert_eq!(next_l1_batch, L1BatchNumber(6));
 
     // Query the API.
+    let tree_info = api_client.get_info().await.unwrap();
+    assert!(tree_info.leaf_count > 20);
+    assert_eq!(tree_info.next_l1_batch_number, L1BatchNumber(6));
+
     let mut hashed_keys: Vec<_> = gen_storage_logs(20..30, 1)[0]
         .iter()
         .map(|log| log.key.hashed_key_u256())

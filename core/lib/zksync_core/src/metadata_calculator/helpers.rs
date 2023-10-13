@@ -24,6 +24,7 @@ use zksync_types::{block::L1BatchHeader, L1BatchNumber, StorageLog, H256};
 
 use super::metrics::{LoadChangesStage, ReportStage, TreeUpdateStage};
 
+// FIXME: replace with `MerkleTreeInfo`
 #[derive(Debug, Serialize)]
 pub(super) struct TreeHealthCheckDetails {
     pub mode: MerkleTreeMode,

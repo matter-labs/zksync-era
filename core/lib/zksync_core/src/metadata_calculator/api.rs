@@ -17,6 +17,14 @@ use super::helpers::AsyncTreeReader;
 use zksync_merkle_tree::NoVersionError;
 use zksync_types::{L1BatchNumber, H256, U256};
 
+/// General information about the Merkle tree.
+#[derive(Debug, Serialize, Deserialize)]
+pub(crate) struct MerkleTreeInfo {
+    pub root_hash: H256,
+    pub next_l1_batch_number: L1BatchNumber,
+    pub leaf_count: u64,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 struct TreeProofsRequest {
     l1_batch_number: L1BatchNumber,
@@ -82,6 +90,8 @@ impl IntoResponse for TreeApiError {
 /// Client accessing Merkle tree API.
 #[async_trait]
 pub(crate) trait TreeApiClient {
+    async fn get_info(&self) -> anyhow::Result<MerkleTreeInfo>;
+
     /// Obtains proofs for the specified `hashed_keys` at the specified tree version (= L1 batch number).
     async fn get_proofs(
         &self,
@@ -93,6 +103,10 @@ pub(crate) trait TreeApiClient {
 /// In-memory client implementation.
 #[async_trait]
 impl TreeApiClient for AsyncTreeReader {
+    async fn get_info(&self) -> anyhow::Result<MerkleTreeInfo> {
+        Ok(self.clone().get_info_inner().await)
+    }
+
     async fn get_proofs(
         &self,
         l1_batch_number: L1BatchNumber,
@@ -108,6 +122,7 @@ impl TreeApiClient for AsyncTreeReader {
 #[derive(Debug, Clone)]
 pub(crate) struct TreeApiHttpClient {
     inner: reqwest::Client,
+    info_url: String,
     proofs_url: String,
 }
 
@@ -116,6 +131,7 @@ impl TreeApiHttpClient {
     pub fn new(url_base: &str) -> Self {
         Self {
             inner: reqwest::Client::new(),
+            info_url: url_base.to_owned(),
             proofs_url: format!("{url_base}/proofs"),
         }
     }
@@ -123,6 +139,22 @@ impl TreeApiHttpClient {
 
 #[async_trait]
 impl TreeApiClient for TreeApiHttpClient {
+    async fn get_info(&self) -> anyhow::Result<MerkleTreeInfo> {
+        let response = self
+            .inner
+            .get(&self.info_url)
+            .send()
+            .await
+            .context("Failed requesting tree info")?;
+        let response = response
+            .error_for_status()
+            .context("Requesting tree info returned non-OK response")?;
+        response
+            .json()
+            .await
+            .context("Failed deserializing tree info")
+    }
+
     async fn get_proofs(
         &self,
         l1_batch_number: L1BatchNumber,
@@ -149,6 +181,20 @@ impl TreeApiClient for TreeApiHttpClient {
 }
 
 impl AsyncTreeReader {
+    async fn get_info_inner(self) -> MerkleTreeInfo {
+        tokio::task::spawn_blocking(move || MerkleTreeInfo {
+            root_hash: self.as_ref().root_hash(),
+            next_l1_batch_number: self.as_ref().next_l1_batch_number(),
+            leaf_count: self.as_ref().leaf_count(),
+        })
+        .await
+        .unwrap()
+    }
+
+    async fn info_handler(State(this): State<Self>) -> Json<MerkleTreeInfo> {
+        Json(this.get_info_inner().await)
+    }
+
     async fn get_proofs_inner(
         &self,
         l1_batch_number: L1BatchNumber,
@@ -185,6 +231,7 @@ impl AsyncTreeReader {
         tracing::debug!("Starting Merkle tree API server on {bind_address}");
 
         let app = Router::new()
+            .route("/", routing::get(Self::info_handler))
             .route("/proofs", routing::post(Self::get_proofs_handler))
             .with_state(self);
 
