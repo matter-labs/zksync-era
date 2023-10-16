@@ -115,7 +115,9 @@ impl JobProcessor for SchedulerWitnessGenerator {
             .fri_witness_generator_dal()
             .get_next_scheduler_witness_job(&self.protocol_versions, &pod_name)
             .await
-        else { return Ok(None) };
+        else {
+            return Ok(None);
+        };
         let proof_job_ids = prover_connection
             .fri_scheduler_dependency_tracker_dal()
             .get_final_prover_job_ids_for(l1_batch_number)
@@ -123,14 +125,17 @@ impl JobProcessor for SchedulerWitnessGenerator {
 
         Ok(Some((
             l1_batch_number,
-            prepare_job(l1_batch_number, proof_job_ids, &*self.object_store).await
+            prepare_job(l1_batch_number, proof_job_ids, &*self.object_store)
+                .await
                 .context("prepare_job()")?,
         )))
     }
 
     async fn save_failure(&self, job_id: L1BatchNumber, _started_at: Instant, error: String) -> () {
         self.prover_connection_pool
-            .access_storage().await.unwrap()
+            .access_storage()
+            .await
+            .unwrap()
             .fri_witness_generator_dal()
             .mark_scheduler_job_failed(&error, job_id)
             .await;
@@ -215,23 +220,27 @@ pub async fn prepare_job(
     let mut recursive_proofs = vec![];
     for wrapper in proofs {
         match wrapper {
-            FriProofWrapper::Base(_) => anyhow::bail!("Expected only recursive proofs for scheduler l1 batch {l1_batch_number}"),
-            FriProofWrapper::Recursive(recursive_proof) => recursive_proofs.push(recursive_proof.into_inner()),
+            FriProofWrapper::Base(_) => anyhow::bail!(
+                "Expected only recursive proofs for scheduler l1 batch {l1_batch_number}"
+            ),
+            FriProofWrapper::Recursive(recursive_proof) => {
+                recursive_proofs.push(recursive_proof.into_inner())
+            }
         }
     }
 
     let started_at = Instant::now();
     let node_vk = get_recursive_layer_vk_for_circuit_type(
         ZkSyncRecursionLayerStorageType::NodeLayerCircuit as u8,
-    ).context("get_recursive_layer_vk_for_circuit_type()")?;
+    )
+    .context("get_recursive_layer_vk_for_circuit_type()")?;
     let SchedulerPartialInputWrapper(mut scheduler_witness) =
         object_store.get(l1_batch_number).await.unwrap();
     scheduler_witness.node_layer_vk_witness = node_vk.clone().into_inner();
 
     scheduler_witness.proof_witnesses = recursive_proofs.into();
 
-    let leaf_vk_commits = get_leaf_vk_params()
-        .context("get_leaf_vk_params()")?;
+    let leaf_vk_commits = get_leaf_vk_params().context("get_leaf_vk_params()")?;
     let leaf_layer_params = leaf_vk_commits
         .iter()
         .map(|el| el.1.clone())

@@ -70,7 +70,7 @@ pub enum SubmitTxError {
 }
 
 impl SubmitTxError {
-    pub fn grafana_error_code(&self) -> &'static str {
+    pub fn prom_error_code(&self) -> &'static str {
         match self {
             Self::NonceIsTooHigh(_, _, _) => "nonce-is-too-high",
             Self::NonceIsTooLow(_, _, _) => "nonce-is-too-low",

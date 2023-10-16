@@ -61,8 +61,9 @@ impl ProofCompressor {
         // TODO: is that true here?
         let serialized = bincode::serialize(&inner)
             .expect("Failed to serialize proof with ZkSyncSnarkWrapperCircuit");
-        let proof: Proof<Bn256, ZkSyncCircuit<Bn256, VmWitnessOracle<Bn256>>> = bincode::deserialize(&serialized)
-            .expect("Failed to deserialize proof with ZkSyncCircuit");
+        let proof: Proof<Bn256, ZkSyncCircuit<Bn256, VmWitnessOracle<Bn256>>> =
+            bincode::deserialize(&serialized)
+                .expect("Failed to deserialize proof with ZkSyncCircuit");
         if verify_wrapper_proof {
             let existing_vk = get_snark_vk().context("get_snark_vk()")?;
             let vk = ZkSyncVerificationKey::from_verification_key_and_numeric_type(0, existing_vk);
@@ -134,7 +135,9 @@ impl JobProcessor for ProofCompressor {
 
     async fn save_failure(&self, job_id: Self::JobId, _started_at: Instant, error: String) {
         self.pool
-            .access_storage().await.unwrap()
+            .access_storage()
+            .await
+            .unwrap()
             .fri_proof_compressor_dal()
             .mark_proof_compression_job_failed(&error, job_id)
             .await;
@@ -189,7 +192,9 @@ impl JobProcessor for ProofCompressor {
             blob_save_started_at.elapsed(),
         );
         self.pool
-            .access_storage().await.unwrap()
+            .access_storage()
+            .await
+            .unwrap()
             .fri_proof_compressor_dal()
             .mark_proof_compression_job_successful(job_id, started_at.elapsed(), &blob_url)
             .await;

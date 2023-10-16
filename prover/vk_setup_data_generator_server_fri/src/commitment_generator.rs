@@ -10,10 +10,8 @@ fn main() -> anyhow::Result<()> {
 }
 
 fn read_and_update_contract_toml() -> anyhow::Result<()> {
-    let mut contract_doc = read_contract_toml()
-        .context("read_contract_toml()")?;
-    let vk_commitments = generate_commitments()
-        .context("generate_commitments()")?;
+    let mut contract_doc = read_contract_toml().context("read_contract_toml()")?;
+    let vk_commitments = generate_commitments().context("generate_commitments()")?;
     contract_doc["contracts"]["FRI_RECURSION_LEAF_LEVEL_VK_HASH"] =
         get_toml_formatted_value(vk_commitments.leaf);
     contract_doc["contracts"]["FRI_RECURSION_NODE_LEVEL_VK_HASH"] =
@@ -21,8 +19,7 @@ fn read_and_update_contract_toml() -> anyhow::Result<()> {
     contract_doc["contracts"]["FRI_RECURSION_SCHEDULER_LEVEL_VK_HASH"] =
         get_toml_formatted_value(vk_commitments.scheduler);
     tracing::info!("Updated toml content: {:?}", contract_doc.to_string());
-    write_contract_toml(contract_doc)
-        .context("write_contract_toml")
+    write_contract_toml(contract_doc).context("write_contract_toml")
 }
 
 #[cfg(test)]

@@ -16,6 +16,7 @@ pub(crate) struct GeneralMetrics {
     pub leaf_count: Gauge<u64>,
 }
 
+#[vise::register]
 pub(crate) static GENERAL_METRICS: Global<GeneralMetrics> = Global::new();
 
 const BYTE_SIZE_BUCKETS: Buckets = Buckets::exponential(65_536.0..=16.0 * 1_024.0 * 1_024.0, 2.0);

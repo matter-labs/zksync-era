@@ -8,11 +8,10 @@ use rand::{rngs::StdRng, seq::IteratorRandom, SeedableRng};
 use tempfile::TempDir;
 
 use std::{
-    io, thread,
+    thread,
     time::{Duration, Instant},
 };
 
-use vise::Registry;
 use zksync_crypto::hasher::blake2::Blake2Hasher;
 use zksync_merkle_tree::{
     Database, HashTree, MerkleTree, MerkleTreePruner, PatchSet, RocksDBWrapper, TreeInstruction,
@@ -69,7 +68,6 @@ struct Cli {
 impl Cli {
     fn run(self) {
         println!("Launched with options: {self:?}");
-        let registry = Registry::collect();
 
         let (mut mock_db, mut rocksdb);
         let mut _temp_dir = None;
@@ -146,8 +144,6 @@ impl Cli {
             };
             let elapsed = start.elapsed();
             println!("Processed block #{version} in {elapsed:?}, root hash = {root_hash:?}");
-
-            registry.encode(&mut io::stdout().lock()).unwrap();
         }
 
         println!("Verifying tree consistency...");

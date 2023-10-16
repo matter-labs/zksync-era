@@ -1,8 +1,10 @@
 use anyhow::Context as _;
 use std::{env, time::Duration};
 
-use prover_service::JobResult::{Failure, ProofGenerated};
-use prover_service::{JobReporter, JobResult};
+use prover_service::{
+    JobReporter,
+    JobResult::{self, Failure, ProofGenerated},
+};
 use tokio::runtime::Handle;
 use zkevm_test_harness::abstract_zksync_circuit::concrete_circuits::ZkSyncProof;
 use zkevm_test_harness::pairing::bn256::Bn256;
@@ -32,7 +34,8 @@ impl ProverReporter {
         store_factory: &ObjectStoreFactory,
         rt_handle: Handle,
     ) -> anyhow::Result<Self> {
-        let pool = rt_handle.block_on(ConnectionPool::singleton(DbVariant::Prover).build())
+        let pool = rt_handle
+            .block_on(ConnectionPool::singleton(DbVariant::Prover).build())
             .context("failed to build a connection pool")?;
         Ok(Self {
             pool,
@@ -148,7 +151,9 @@ impl JobReporter for ProverReporter {
                 self.rt_handle.block_on(async {
                     let result = self
                         .pool
-                        .access_storage().await.unwrap()
+                        .access_storage()
+                        .await
+                        .unwrap()
                         .prover_dal()
                         .save_proof_error(job_id as u32, error, self.config.max_attempts)
                         .await;
