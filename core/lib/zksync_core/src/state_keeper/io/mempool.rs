@@ -11,7 +11,7 @@ use std::{
 use vm::{utils::fee::derive_base_fee_and_gas_per_pubdata, FinishedL1Batch, L1BatchEnv, SystemEnv};
 
 use zksync_config::configs::chain::StateKeeperConfig;
-use zksync_dal::ConnectionPool;
+use zksync_dal::MainConnectionPool;
 use zksync_mempool::L2TxFilter;
 use zksync_object_store::ObjectStoreFactory;
 use zksync_types::{
@@ -45,7 +45,7 @@ use super::MiniblockParams;
 #[derive(Debug)]
 pub(crate) struct MempoolIO<G> {
     mempool: MempoolGuard,
-    pool: ConnectionPool,
+    pool: MainConnectionPool,
     filter: L2TxFilter,
     current_miniblock_number: MiniblockNumber,
     miniblock_sealer_handle: MiniblockSealerHandle,
@@ -397,7 +397,7 @@ impl<G: L1GasPriceProvider> MempoolIO<G> {
         mempool: MempoolGuard,
         miniblock_sealer_handle: MiniblockSealerHandle,
         l1_gas_price_provider: Arc<G>,
-        pool: ConnectionPool,
+        pool: MainConnectionPool,
         config: &StateKeeperConfig,
         delay_interval: Duration,
         l2_erc20_bridge_addr: Address,

@@ -1,11 +1,11 @@
 use std::time::Instant;
 
-use zksync_dal::StorageProcessor;
+use zksync_dal::MainStorageProcessor;
 use zksync_types::eth_sender::EthTx;
 use zksync_utils::time::seconds_since_epoch;
 
 pub async fn track_eth_tx_metrics(
-    connection: &mut StorageProcessor<'_>,
+    connection: &mut MainStorageProcessor<'_>,
     l1_stage: &str,
     tx: &EthTx,
 ) {

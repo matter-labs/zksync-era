@@ -6,7 +6,7 @@ use tokio::sync::watch;
 use std::{ops, time::Instant};
 
 use zksync_config::configs::database::MerkleTreeMode;
-use zksync_dal::{ConnectionPool, StorageProcessor};
+use zksync_dal::{MainConnectionPool, MainStorageProcessor};
 use zksync_health_check::HealthUpdater;
 use zksync_merkle_tree::domain::TreeMetadata;
 use zksync_object_store::ObjectStore;
@@ -102,8 +102,8 @@ impl TreeUpdater {
     /// is slow for whatever reason.
     async fn process_multiple_batches(
         &mut self,
-        storage: &mut StorageProcessor<'_>,
-        prover_storage: &mut StorageProcessor<'_>,
+        storage: &mut MainStorageProcessor<'_>,
+        prover_storage: &mut MainStorageProcessor<'_>,
         l1_batch_numbers: ops::RangeInclusive<u32>,
     ) -> L1BatchNumber {
         let start = Instant::now();
@@ -206,8 +206,8 @@ impl TreeUpdater {
 
     async fn step(
         &mut self,
-        mut storage: StorageProcessor<'_>,
-        mut prover_storage: StorageProcessor<'_>,
+        mut storage: MainStorageProcessor<'_>,
+        mut prover_storage: MainStorageProcessor<'_>,
         next_l1_batch_to_seal: &mut L1BatchNumber,
     ) {
         let last_sealed_l1_batch = storage
@@ -235,8 +235,8 @@ impl TreeUpdater {
     pub async fn loop_updating_tree(
         mut self,
         delayer: Delayer,
-        pool: &ConnectionPool,
-        prover_pool: &ConnectionPool,
+        pool: &MainConnectionPool,
+        prover_pool: &MainConnectionPool,
         mut stop_receiver: watch::Receiver<bool>,
         health_updater: HealthUpdater,
     ) -> anyhow::Result<()> {
@@ -359,7 +359,7 @@ impl TreeUpdater {
     }
 
     async fn check_initial_writes_consistency(
-        connection: &mut StorageProcessor<'_>,
+        connection: &mut MainStorageProcessor<'_>,
         l1_batch_number: L1BatchNumber,
         tree_initial_writes: &[InitialStorageWrite],
     ) {

@@ -1,14 +1,14 @@
 use core::panic;
-use sqlx::types::chrono::{DateTime, NaiveDateTime, NaiveTime, Utc};
-use std::convert::TryFrom;
-use std::str::FromStr;
 
-use zksync_types::proofs::{
-    JobPosition, ProverJobStatus, ProverJobStatusFailed, ProverJobStatusInProgress,
-    ProverJobStatusSuccessful,
-};
+use std::{convert::TryFrom, str::FromStr};
+
+use sqlx::types::chrono::{DateTime, NaiveDateTime, NaiveTime, Utc};
+
 use zksync_types::{
-    proofs::{AggregationRound, ProverJobInfo},
+    proofs::{
+        AggregationRound, JobPosition, ProverJobInfo, ProverJobStatus, ProverJobStatusFailed,
+        ProverJobStatusInProgress, ProverJobStatusSuccessful,
+    },
     L1BatchNumber,
 };
 

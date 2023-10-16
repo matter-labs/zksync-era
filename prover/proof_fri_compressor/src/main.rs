@@ -7,8 +7,7 @@ use std::time::Duration;
 
 use prometheus_exporter::PrometheusExporterConfig;
 use zksync_config::configs::FriProofCompressorConfig;
-use zksync_dal::connection::DbVariant;
-use zksync_dal::ConnectionPool;
+use zksync_prover_dal::ProverConnectionPool;
 use zksync_object_store::ObjectStoreFactory;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_utils::wait_for_tasks::wait_for_tasks;

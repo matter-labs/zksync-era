@@ -15,11 +15,11 @@ use crate::models::{
         StorageTransactionDetails,
     },
 };
-use crate::{SqlxError, StorageProcessor};
+use crate::{MainStorageProcessor, SqlxError};
 
 #[derive(Debug)]
 pub struct TransactionsWeb3Dal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+    pub(crate) storage: &'a mut MainStorageProcessor<'c>,
 }
 
 impl TransactionsWeb3Dal<'_, '_> {
@@ -362,10 +362,10 @@ mod tests {
     use super::*;
     use crate::{
         tests::{create_miniblock_header, mock_execution_result, mock_l2_transaction},
-        ConnectionPool,
+        MainConnectionPool,
     };
 
-    async fn prepare_transaction(conn: &mut StorageProcessor<'_>, tx: L2Tx) {
+    async fn prepare_transaction(conn: &mut MainStorageProcessor<'_>, tx: L2Tx) {
         conn.blocks_dal()
             .delete_miniblocks(MiniblockNumber(0))
             .await
@@ -391,7 +391,7 @@ mod tests {
     }
 
     #[db_test(dal_crate)]
-    async fn getting_transaction(connection_pool: ConnectionPool) {
+    async fn getting_transaction(connection_pool: MainConnectionPool) {
         let mut conn = connection_pool.access_test_storage().await;
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
@@ -456,7 +456,7 @@ mod tests {
     }
 
     #[db_test(dal_crate)]
-    async fn getting_miniblock_transactions(connection_pool: ConnectionPool) {
+    async fn getting_miniblock_transactions(connection_pool: MainConnectionPool) {
         let mut conn = connection_pool.access_test_storage().await;
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())

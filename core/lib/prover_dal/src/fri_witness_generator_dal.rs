@@ -1,26 +1,26 @@
+// use sqlx::Row;
+
+use std::{collections::HashMap, convert::TryFrom, time::Duration};
+
 use sqlx::Row;
-
-use std::convert::TryFrom;
-use std::{collections::HashMap, time::Duration};
-
 use zksync_dal_utils::{
     metrics::MethodLatency,
     time_utils::{duration_to_naive_time, pg_interval_from_duration},
 };
-use zksync_types::protocol_version::FriProtocolVersionId;
 use zksync_types::{
     proofs::{
         AggregationRound, JobCountStatistics, LeafAggregationJobMetadata,
         NodeAggregationJobMetadata, StuckJobs,
     },
+    protocol_version::FriProtocolVersionId,
     L1BatchNumber,
 };
 
-use crate::StorageProcessor;
+use crate::ProverStorageProcessor;
 
 #[derive(Debug)]
 pub struct FriWitnessGeneratorDal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+    pub(crate) storage: &'a mut ProverStorageProcessor<'c>,
 }
 
 #[derive(Debug, strum::Display, strum::EnumString, strum::AsRefStr)]

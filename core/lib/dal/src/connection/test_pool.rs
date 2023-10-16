@@ -7,7 +7,7 @@ use tokio::{
     time::timeout,
 };
 // Local imports
-use crate::StorageProcessor;
+use crate::MainStorageProcessor;
 
 /// Self-referential struct powering [`TestPool`].
 // Ideally, we'd want to use a readily available crate like `ouroboros` to define this struct,
@@ -111,7 +111,7 @@ impl TestPool {
         }
     }
 
-    pub async fn access_storage(&self) -> StorageProcessor<'static> {
+    pub async fn access_storage(&self) -> MainStorageProcessor<'static> {
         const LOCK_TIMEOUT: Duration = Duration::from_secs(1);
 
         let lock = self.inner.clone().lock_owned();
@@ -119,6 +119,6 @@ impl TestPool {
             "Timed out waiting to acquire a lock in test `ConnectionPool`. \
              Check the backtrace and make sure that no `StorageProcessor`s are alive",
         );
-        StorageProcessor::from_test_transaction(TestPoolLock { lock })
+        MainStorageProcessor::from_test_transaction(TestPoolLock { lock })
     }
 }

@@ -21,13 +21,13 @@ use crate::models::{
     },
     storage_transaction::{extract_web3_transaction, web3_transaction_select_sql, CallTrace},
 };
-use crate::StorageProcessor;
+use crate::MainStorageProcessor;
 
 const BLOCK_GAS_LIMIT: u32 = system_params::VM_INITIAL_FRAME_ERGS;
 
 #[derive(Debug)]
 pub struct BlocksWeb3Dal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+    pub(crate) storage: &'a mut MainStorageProcessor<'c>,
 }
 
 impl BlocksWeb3Dal<'_, '_> {
@@ -591,10 +591,10 @@ mod tests {
     };
 
     use super::*;
-    use crate::{tests::create_miniblock_header, ConnectionPool};
+    use crate::{tests::create_miniblock_header, MainConnectionPool};
 
     #[db_test(dal_crate)]
-    async fn getting_web3_block_and_tx_count(connection_pool: ConnectionPool) {
+    async fn getting_web3_block_and_tx_count(connection_pool: MainConnectionPool) {
         let mut conn = connection_pool.access_test_storage().await;
         conn.blocks_dal()
             .delete_miniblocks(MiniblockNumber(0))
@@ -661,7 +661,7 @@ mod tests {
     }
 
     #[db_test(dal_crate)]
-    async fn resolving_earliest_block_id(connection_pool: ConnectionPool) {
+    async fn resolving_earliest_block_id(connection_pool: MainConnectionPool) {
         let mut conn = connection_pool.access_test_storage().await;
         conn.blocks_dal()
             .delete_miniblocks(MiniblockNumber(0))
@@ -676,7 +676,7 @@ mod tests {
     }
 
     #[db_test(dal_crate)]
-    async fn resolving_latest_block_id(connection_pool: ConnectionPool) {
+    async fn resolving_latest_block_id(connection_pool: MainConnectionPool) {
         let mut conn = connection_pool.access_test_storage().await;
         conn.blocks_dal()
             .delete_miniblocks(MiniblockNumber(0))
@@ -731,7 +731,7 @@ mod tests {
     }
 
     #[db_test(dal_crate)]
-    async fn resolving_block_by_hash(connection_pool: ConnectionPool) {
+    async fn resolving_block_by_hash(connection_pool: MainConnectionPool) {
         let mut conn = connection_pool.access_test_storage().await;
         conn.blocks_dal()
             .delete_miniblocks(MiniblockNumber(0))
@@ -761,7 +761,7 @@ mod tests {
     }
 
     #[db_test(dal_crate)]
-    async fn getting_miniblocks_for_virtual_block(connection_pool: ConnectionPool) {
+    async fn getting_miniblocks_for_virtual_block(connection_pool: MainConnectionPool) {
         let mut conn = connection_pool.access_test_storage().await;
 
         conn.protocol_versions_dal()

@@ -8,7 +8,7 @@ use async_trait::async_trait;
 use tokio::sync::watch;
 
 use zksync_config::{configs::fetcher::TokenTradingVolumeSource, FetcherConfig};
-use zksync_dal::{ConnectionPool, StorageProcessor};
+use zksync_dal::{MainConnectionPool, MainStorageProcessor};
 use zksync_types::{tokens::TokenMarketVolume, Address};
 
 use super::error::{ApiFetchError, ErrorAnalyzer};
@@ -57,7 +57,7 @@ impl TradingVolumeFetcher {
 
     pub async fn run(
         mut self,
-        pool: ConnectionPool,
+        pool: MainConnectionPool,
         stop_receiver: watch::Receiver<bool>,
     ) -> anyhow::Result<()> {
         let mut fetching_interval =
@@ -106,7 +106,7 @@ impl TradingVolumeFetcher {
 
     async fn store_market_volumes(
         &self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut MainStorageProcessor<'_>,
         tokens: HashMap<Address, TokenMarketVolume>,
     ) {
         let mut tokens_dal = storage.tokens_dal();
@@ -117,7 +117,7 @@ impl TradingVolumeFetcher {
 
     /// Returns the list of tokens with known metadata (if token is not in the list we use,
     /// it's very likely to not have required level of trading volume anyways).
-    async fn load_tokens(&self, storage: &mut StorageProcessor<'_>) -> Vec<Address> {
+    async fn load_tokens(&self, storage: &mut MainStorageProcessor<'_>) -> Vec<Address> {
         storage
             .tokens_dal()
             .get_well_known_token_addresses()

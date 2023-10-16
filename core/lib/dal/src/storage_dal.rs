@@ -7,11 +7,11 @@ use zksync_dal_utils::instrument::InstrumentExt;
 use zksync_types::{MiniblockNumber, StorageKey, StorageLog, StorageValue, H256, U256};
 use zksync_utils::{bytes_to_be_words, bytes_to_chunks};
 
-use crate::StorageProcessor;
+use crate::MainStorageProcessor;
 
 #[derive(Debug)]
 pub struct StorageDal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+    pub(crate) storage: &'a mut MainStorageProcessor<'c>,
 }
 
 impl StorageDal<'_, '_> {
@@ -212,12 +212,12 @@ impl StorageDal<'_, '_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ConnectionPool;
+    use crate::MainConnectionPool;
     use db_test_macro::db_test;
     use zksync_types::{AccountTreeId, Address};
 
     #[db_test(dal_crate)]
-    async fn applying_storage_logs(pool: ConnectionPool) {
+    async fn applying_storage_logs(pool: MainConnectionPool) {
         let mut conn = pool.access_storage().await.unwrap();
 
         let account = AccountTreeId::new(Address::repeat_byte(1));

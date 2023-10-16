@@ -10,7 +10,7 @@ use vm::{
 
 use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_contracts::{get_loadnext_contract, test_contracts::LoadnextContractExecutionParams};
-use zksync_dal::ConnectionPool;
+use zksync_dal::MainConnectionPool;
 use zksync_state::RocksdbStorage;
 use zksync_test_account::{Account, DeployContractsTx, TxType};
 use zksync_types::{
@@ -62,16 +62,16 @@ impl TestConfig {
 pub(super) struct Tester {
     fee_account: Address,
     db_dir: TempDir,
-    pool: ConnectionPool,
+    pool: MainConnectionPool,
     config: TestConfig,
 }
 
 impl Tester {
-    pub(super) fn new(pool: ConnectionPool) -> Self {
+    pub(super) fn new(pool: MainConnectionPool) -> Self {
         Self::with_config(pool, TestConfig::new())
     }
 
-    pub(super) fn with_config(pool: ConnectionPool, config: TestConfig) -> Self {
+    pub(super) fn with_config(pool: MainConnectionPool, config: TestConfig) -> Self {
         Self {
             fee_account: Address::repeat_byte(0x01),
             db_dir: TempDir::new().unwrap(),

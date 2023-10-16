@@ -9,7 +9,7 @@ use std::{
 use vm::FinishedL1Batch;
 use vm::{L1BatchEnv, SystemEnv};
 
-use zksync_dal::ConnectionPool;
+use zksync_dal::MainConnectionPool;
 use zksync_types::witness_block_state::WitnessBlockState;
 use zksync_types::{
     block::MiniblockReexecuteData, protocol_version::ProtocolUpgradeTx, L1BatchNumber,
@@ -219,7 +219,7 @@ impl MiniblockSealerHandle {
 /// Component responsible for sealing miniblocks (i.e., storing their data to Postgres).
 #[derive(Debug)]
 pub(crate) struct MiniblockSealer {
-    pool: ConnectionPool,
+    pool: MainConnectionPool,
     is_sync: bool,
     // Weak sender handle to get queue capacity stats.
     commands_sender: mpsc::WeakSender<Completable<MiniblockSealCommand>>,
@@ -230,7 +230,7 @@ impl MiniblockSealer {
     /// Creates a sealer that will use the provided Postgres connection and will have the specified
     /// `command_capacity` for unprocessed sealing commands.
     pub(crate) fn new(
-        pool: ConnectionPool,
+        pool: MainConnectionPool,
         mut command_capacity: usize,
     ) -> (Self, MiniblockSealerHandle) {
         let is_sync = command_capacity == 0;

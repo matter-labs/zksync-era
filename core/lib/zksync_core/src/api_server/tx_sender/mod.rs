@@ -24,7 +24,7 @@ use vm::{
 
 use zksync_config::configs::{api::Web3JsonRpcConfig, chain::StateKeeperConfig};
 use zksync_contracts::BaseSystemContracts;
-use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool};
+use zksync_dal::{transactions_dal::L2TxSubmissionResult, MainConnectionPool};
 use zksync_state::PostgresStorageCaches;
 use zksync_types::{
     fee::{Fee, TransactionExecutionMetrics},
@@ -138,9 +138,9 @@ pub struct TxSenderBuilder {
     /// Shared TxSender configuration.
     config: TxSenderConfig,
     /// Connection pool for read requests.
-    replica_connection_pool: ConnectionPool,
+    replica_connection_pool: MainConnectionPool,
     /// Connection pool for write requests. If not set, `proxy` must be set.
-    master_connection_pool: Option<ConnectionPool>,
+    master_connection_pool: Option<MainConnectionPool>,
     /// Rate limiter for tx submissions.
     rate_limiter: Option<TxSenderRateLimiter>,
     /// Proxy to submit transactions to the network. If not set, `master_connection_pool` must be set.
@@ -151,7 +151,7 @@ pub struct TxSenderBuilder {
 }
 
 impl TxSenderBuilder {
-    pub fn new(config: TxSenderConfig, replica_connection_pool: ConnectionPool) -> Self {
+    pub fn new(config: TxSenderConfig, replica_connection_pool: MainConnectionPool) -> Self {
         Self {
             config,
             replica_connection_pool,
@@ -178,7 +178,7 @@ impl TxSenderBuilder {
         self
     }
 
-    pub fn with_main_connection_pool(mut self, master_connection_pool: ConnectionPool) -> Self {
+    pub fn with_main_connection_pool(mut self, master_connection_pool: MainConnectionPool) -> Self {
         self.master_connection_pool = Some(master_connection_pool);
         self
     }
@@ -257,8 +257,8 @@ impl TxSenderConfig {
 
 pub struct TxSenderInner<G> {
     pub(super) sender_config: TxSenderConfig,
-    pub master_connection_pool: Option<ConnectionPool>,
-    pub replica_connection_pool: ConnectionPool,
+    pub master_connection_pool: Option<MainConnectionPool>,
+    pub replica_connection_pool: MainConnectionPool,
     // Used to keep track of gas prices for the fee ticker.
     pub l1_gas_price_source: Arc<G>,
     pub(super) api_contracts: ApiContracts,

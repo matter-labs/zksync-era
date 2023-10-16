@@ -6,17 +6,17 @@ use zksync_dal_utils::{
     metrics::MethodLatency,
     time_utils::{duration_to_naive_time, pg_interval_from_duration},
 };
-use zksync_types::protocol_version::FriProtocolVersionId;
 use zksync_types::{
     proofs::{AggregationRound, FriProverJobMetadata, JobCountStatistics, StuckJobs},
+    protocol_version::FriProtocolVersionId,
     L1BatchNumber,
 };
 
-use crate::StorageProcessor;
+use crate::ProverStorageProcessor;
 
 #[derive(Debug)]
 pub struct FriProverDal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+    pub(crate) storage: &'a mut ProverStorageProcessor<'c>,
 }
 
 impl FriProverDal<'_, '_> {

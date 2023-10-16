@@ -14,7 +14,7 @@ use vm::{
     CallTracer, ExecutionResult, FinishedL1Batch, Halt, HistoryEnabled, L1BatchEnv, L2BlockEnv,
     SystemEnv, VmExecutionResultAndLogs,
 };
-use zksync_dal::ConnectionPool;
+use zksync_dal::MainConnectionPool;
 use zksync_state::{ReadStorage, RocksdbStorage, StorageView};
 use zksync_types::{vm_trace::Call, witness_block_state::WitnessBlockState, Transaction, U256};
 
@@ -80,7 +80,7 @@ pub trait L1BatchExecutorBuilder: 'static + Send + Sync + fmt::Debug {
 #[derive(Debug, Clone)]
 pub struct MainBatchExecutorBuilder {
     state_keeper_db_path: String,
-    pool: ConnectionPool,
+    pool: MainConnectionPool,
     save_call_traces: bool,
     max_allowed_tx_gas_limit: U256,
     upload_witness_inputs_to_gcs: bool,
@@ -90,7 +90,7 @@ pub struct MainBatchExecutorBuilder {
 impl MainBatchExecutorBuilder {
     pub fn new(
         state_keeper_db_path: String,
-        pool: ConnectionPool,
+        pool: MainConnectionPool,
         max_allowed_tx_gas_limit: U256,
         save_call_traces: bool,
         upload_witness_inputs_to_gcs: bool,

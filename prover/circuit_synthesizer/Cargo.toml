@@ -8,7 +8,7 @@ name = "zksync_circuit_synthesizer"
 path = "src/main.rs"
 
 [dependencies]
-zksync_dal = { path = "../../core/lib/dal" }
+zksync_prover_dal = { path = "../../core/lib/prover_dal" }
 zksync_types = { path = "../../core/lib/types" }
 zksync_queued_job_processor = { path = "../../core/lib/queued_job_processor" }
 zksync_config = { path = "../../core/lib/config" }

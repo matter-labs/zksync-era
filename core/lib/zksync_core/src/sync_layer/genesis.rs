@@ -2,7 +2,7 @@ use crate::genesis::{ensure_genesis_state, GenesisParams};
 
 use anyhow::Context;
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes, SystemContractCode};
-use zksync_dal::StorageProcessor;
+use zksync_dal::MainStorageProcessor;
 use zksync_types::{
     api, block::DeployedContract, get_code_key, protocol_version::L1VerifierConfig,
     system_contracts::get_system_smart_contracts, AccountTreeId, Address, L1BatchNumber, L2ChainId,
@@ -15,7 +15,7 @@ use zksync_web3_decl::{
 };
 
 pub async fn perform_genesis_if_needed(
-    storage: &mut StorageProcessor<'_>,
+    storage: &mut MainStorageProcessor<'_>,
     zksync_chain_id: L2ChainId,
     main_node_url: String,
 ) -> anyhow::Result<()> {

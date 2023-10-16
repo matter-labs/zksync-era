@@ -1,6 +1,6 @@
 use crate::models::storage_token::{StorageTokenMetadata, StorageTokenPrice};
+use crate::MainStorageProcessor;
 use crate::SqlxError;
-use crate::StorageProcessor;
 use num::{rational::Ratio, BigUint};
 use sqlx::postgres::types::PgInterval;
 use zksync_types::{
@@ -14,7 +14,7 @@ pub(crate) const STORED_USD_PRICE_PRECISION: usize = 6;
 
 #[derive(Debug)]
 pub struct TokensWeb3Dal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+    pub(crate) storage: &'a mut MainStorageProcessor<'c>,
 }
 
 impl TokensWeb3Dal<'_, '_> {

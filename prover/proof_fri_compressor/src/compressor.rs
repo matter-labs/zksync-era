@@ -4,7 +4,7 @@ use std::time::Instant;
 use tokio::task::JoinHandle;
 
 use zkevm_test_harness::proof_wrapper_utils::wrap_proof;
-use zksync_dal::ConnectionPool;
+use zksync_prover_dal::ProverConnectionPool;
 use zksync_object_store::ObjectStore;
 use zksync_prover_fri_types::circuit_definitions::boojum::field::goldilocks::GoldilocksField;
 use zksync_prover_fri_types::circuit_definitions::circuit_definitions::recursion_layer::{
@@ -26,7 +26,7 @@ use zksync_vk_setup_data_server_fri::{get_recursive_layer_vk_for_circuit_type, g
 
 pub struct ProofCompressor {
     blob_store: Box<dyn ObjectStore>,
-    pool: ConnectionPool,
+    pool: ProverConnectionPool,
     compression_mode: u8,
     verify_wrapper_proof: bool,
 }
@@ -34,7 +34,7 @@ pub struct ProofCompressor {
 impl ProofCompressor {
     pub fn new(
         blob_store: Box<dyn ObjectStore>,
-        pool: ConnectionPool,
+        pool: ProverConnectionPool,
         compression_mode: u8,
         verify_wrapper_proof: bool,
     ) -> Self {

@@ -1,4 +1,4 @@
-use zksync_dal::ConnectionPool;
+use zksync_dal::MainConnectionPool;
 use zksync_types::L1BatchNumber;
 use zksync_web3_decl::{
     jsonrpsee::core::Error as RpcError,
@@ -28,11 +28,11 @@ const SLEEP_INTERVAL: Duration = Duration::from_secs(5);
 #[derive(Debug)]
 pub struct ReorgDetector {
     client: HttpClient,
-    pool: ConnectionPool,
+    pool: MainConnectionPool,
 }
 
 impl ReorgDetector {
-    pub fn new(url: &str, pool: ConnectionPool) -> Self {
+    pub fn new(url: &str, pool: MainConnectionPool) -> Self {
         let client = HttpClientBuilder::default()
             .build(url)
             .expect("Failed to create HTTP client");

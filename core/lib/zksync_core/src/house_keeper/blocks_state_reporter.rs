@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 
-use zksync_dal::ConnectionPool;
+use zksync_dal::MainConnectionPool;
 use zksync_utils::time::seconds_since_epoch;
 
 use zksync_prover_utils::periodic_job::PeriodicJob;
@@ -8,11 +8,11 @@ use zksync_prover_utils::periodic_job::PeriodicJob;
 #[derive(Debug)]
 pub struct L1BatchMetricsReporter {
     reporting_interval_ms: u64,
-    connection_pool: ConnectionPool,
+    connection_pool: MainConnectionPool,
 }
 
 impl L1BatchMetricsReporter {
-    pub fn new(reporting_interval_ms: u64, connection_pool: ConnectionPool) -> Self {
+    pub fn new(reporting_interval_ms: u64, connection_pool: MainConnectionPool) -> Self {
         Self {
             reporting_interval_ms,
             connection_pool,

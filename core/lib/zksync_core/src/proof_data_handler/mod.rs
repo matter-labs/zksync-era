@@ -8,7 +8,7 @@ use zksync_config::{
     configs::{proof_data_handler::ProtocolVersionLoadingMode, ProofDataHandlerConfig},
     ContractsConfig,
 };
-use zksync_dal::ConnectionPool;
+use zksync_dal::MainConnectionPool;
 use zksync_object_store::ObjectStore;
 use zksync_types::{
     protocol_version::{L1VerifierConfig, VerifierParams},
@@ -34,7 +34,7 @@ fn fri_l1_verifier_config_from_env() -> anyhow::Result<L1VerifierConfig> {
 pub(crate) async fn run_server(
     config: ProofDataHandlerConfig,
     blob_store: Box<dyn ObjectStore>,
-    pool: ConnectionPool,
+    pool: MainConnectionPool,
     mut stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<()> {
     let bind_address = SocketAddr::from(([0, 0, 0, 0], config.http_port));

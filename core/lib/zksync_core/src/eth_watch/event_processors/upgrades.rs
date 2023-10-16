@@ -5,7 +5,7 @@ use crate::eth_watch::{
 use std::convert::TryFrom;
 use std::time::Instant;
 use zksync_contracts::zksync_contract;
-use zksync_dal::StorageProcessor;
+use zksync_dal::MainStorageProcessor;
 use zksync_types::{web3::types::Log, ProtocolUpgrade, ProtocolVersionId, H256};
 
 /// Responsible for saving new protocol upgrade proposals to the database.
@@ -31,7 +31,7 @@ impl UpgradesEventProcessor {
 impl<W: EthClient + Sync> EventProcessor<W> for UpgradesEventProcessor {
     async fn process_events(
         &mut self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut MainStorageProcessor<'_>,
         client: &W,
         events: Vec<Log>,
     ) -> Result<(), Error> {

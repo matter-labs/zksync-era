@@ -6,3 +6,26 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+zksync_config = { path = "../config" }
+zksync_dal = { path = "../dal" }
+zksync_types = { path = "../types" }
+zksync_dal_utils = { path = "../dal_utils"}
+zksync_utils = { path = "../utils" }
+
+sqlx = { version = "0.5.13", default-features = false, features = [
+    "runtime-tokio-native-tls",
+    "macros",
+    "postgres",
+    "bigdecimal",
+    "chrono",
+    "json",
+    "offline",
+    "migrate",
+    "ipnetwork",
+] }
+tokio = { version = "1", features = ["full"] }
+strum = { version = "0.24", features = ["derive"] }
+itertools = "0.10.1"
+anyhow = "1.0"
+tracing = "0.1"
+bincode = "1"

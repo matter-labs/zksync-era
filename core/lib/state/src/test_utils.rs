@@ -1,6 +1,6 @@
 //! Shared utils for unit tests.
 
-use zksync_dal::StorageProcessor;
+use zksync_dal::MainStorageProcessor;
 use zksync_types::{
     block::{BlockGasCount, L1BatchHeader, MiniblockHeader},
     AccountTreeId, Address, L1BatchNumber, MiniblockNumber, ProtocolVersion, StorageKey,
@@ -9,7 +9,7 @@ use zksync_types::{
 
 use std::ops;
 
-pub(crate) async fn prepare_postgres(conn: &mut StorageProcessor<'_>) {
+pub(crate) async fn prepare_postgres(conn: &mut MainStorageProcessor<'_>) {
     if conn.blocks_dal().is_genesis_needed().await.unwrap() {
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
@@ -63,7 +63,7 @@ pub(crate) fn gen_storage_logs(indices: ops::Range<u64>) -> Vec<StorageLog> {
 #[allow(clippy::default_trait_access)]
 // ^ `BaseSystemContractsHashes::default()` would require a new direct dependency
 pub(crate) async fn create_miniblock(
-    conn: &mut StorageProcessor<'_>,
+    conn: &mut MainStorageProcessor<'_>,
     miniblock_number: MiniblockNumber,
     block_logs: Vec<StorageLog>,
 ) {
@@ -93,7 +93,7 @@ pub(crate) async fn create_miniblock(
 #[allow(clippy::default_trait_access)]
 // ^ `BaseSystemContractsHashes::default()` would require a new direct dependency
 pub(crate) async fn create_l1_batch(
-    conn: &mut StorageProcessor<'_>,
+    conn: &mut MainStorageProcessor<'_>,
     l1_batch_number: L1BatchNumber,
     logs_for_initial_writes: &[StorageLog],
 ) {

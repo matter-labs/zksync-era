@@ -5,7 +5,7 @@
 use anyhow::Context as _;
 
 use zksync_contracts::BaseSystemContracts;
-use zksync_dal::StorageProcessor;
+use zksync_dal::MainStorageProcessor;
 use zksync_merkle_tree::domain::ZkSyncTree;
 
 use zksync_types::{
@@ -35,7 +35,7 @@ pub struct GenesisParams {
 }
 
 pub async fn ensure_genesis_state(
-    storage: &mut StorageProcessor<'_>,
+    storage: &mut MainStorageProcessor<'_>,
     zksync_chain_id: L2ChainId,
     genesis_params: &GenesisParams,
 ) -> anyhow::Result<H256> {
@@ -133,7 +133,7 @@ pub async fn ensure_genesis_state(
 // The code of the bootloader should not be deployed anywhere anywhere in the kernel space (i.e. addresses below 2^16)
 // because in this case we will have to worry about protecting it.
 async fn insert_base_system_contracts_to_factory_deps(
-    storage: &mut StorageProcessor<'_>,
+    storage: &mut MainStorageProcessor<'_>,
     contracts: &BaseSystemContracts,
 ) {
     let factory_deps = [&contracts.bootloader, &contracts.default_aa]
@@ -148,7 +148,7 @@ async fn insert_base_system_contracts_to_factory_deps(
 }
 
 async fn insert_system_contracts(
-    storage: &mut StorageProcessor<'_>,
+    storage: &mut MainStorageProcessor<'_>,
     contracts: &[DeployedContract],
     chain_id: L2ChainId,
 ) {
@@ -243,7 +243,7 @@ async fn insert_system_contracts(
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn create_genesis_l1_batch(
-    storage: &mut StorageProcessor<'_>,
+    storage: &mut MainStorageProcessor<'_>,
     first_validator_address: Address,
     chain_id: L2ChainId,
     protocol_version: ProtocolVersionId,
@@ -314,7 +314,7 @@ pub(crate) async fn create_genesis_l1_batch(
     transaction.commit().await.unwrap();
 }
 
-pub(crate) async fn add_eth_token(storage: &mut StorageProcessor<'_>) {
+pub(crate) async fn add_eth_token(storage: &mut MainStorageProcessor<'_>) {
     let eth_token = TokenInfo {
         l1_address: ETHEREUM_ADDRESS,
         l2_address: ETHEREUM_ADDRESS,
@@ -340,7 +340,7 @@ pub(crate) async fn add_eth_token(storage: &mut StorageProcessor<'_>) {
 }
 
 pub(crate) async fn save_genesis_l1_batch_metadata(
-    storage: &mut StorageProcessor<'_>,
+    storage: &mut MainStorageProcessor<'_>,
     commitment: &L1BatchCommitment,
     genesis_root_hash: H256,
     rollup_last_leaf_index: u64,
@@ -371,13 +371,13 @@ pub(crate) async fn save_genesis_l1_batch_metadata(
 #[cfg(test)]
 mod tests {
     use db_test_macro::db_test;
-    use zksync_dal::ConnectionPool;
+    use zksync_dal::MainConnectionPool;
     use zksync_types::system_contracts::get_system_smart_contracts;
 
     use super::*;
 
     #[db_test]
-    async fn running_genesis(pool: ConnectionPool) {
+    async fn running_genesis(pool: MainConnectionPool) {
         let mut conn = pool.access_storage().await.unwrap();
         conn.blocks_dal().delete_genesis().await.unwrap();
 
@@ -409,8 +409,8 @@ mod tests {
     }
 
     #[db_test]
-    async fn running_genesis_with_big_chain_id(pool: ConnectionPool) {
-        let mut conn: StorageProcessor<'_> = pool.access_storage().await.unwrap();
+    async fn running_genesis_with_big_chain_id(pool: MainConnectionPool) {
+        let mut conn: MainStorageProcessor<'_> = pool.access_storage().await.unwrap();
         conn.blocks_dal().delete_genesis().await.unwrap();
 
         let params = GenesisParams {

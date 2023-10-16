@@ -1,11 +1,6 @@
-use sqlx::Error;
+use std::{collections::HashMap, convert::TryFrom, ops::Range, time::Duration};
 
-use std::{
-    collections::HashMap,
-    convert::{TryFrom, TryInto},
-    ops::Range,
-    time::Duration,
-};
+use sqlx::Error;
 
 use zksync_dal_utils::{
     instrument::InstrumentExt,
@@ -23,11 +18,12 @@ use zksync_types::{
     L1BatchNumber, ProtocolVersionId,
 };
 
-use crate::{models::storage_prover_job_info::StorageProverJobInfo, StorageProcessor};
+use crate::models::storage_prover_job_info::StorageProverJobInfo;
+use crate::ProverStorageProcessor;
 
 #[derive(Debug)]
 pub struct ProverDal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+    pub(crate) storage: &'a mut ProverStorageProcessor<'c>,
 }
 
 impl ProverDal<'_, '_> {
@@ -200,12 +196,7 @@ impl ProverDal<'_, '_> {
         Ok(())
     }
 
-    pub async fn save_proof_error(
-        &mut self,
-        id: u32,
-        error: String,
-        max_attempts: u32,
-    ) -> Result<(), Error> {
+    pub async fn save_proof_error(&mut self, id: u32, error: String) -> Result<(u32, u32), Error> {
         {
             let mut transaction = self.storage.start_transaction().await.unwrap();
 
@@ -222,16 +213,8 @@ impl ProverDal<'_, '_> {
             .fetch_one(transaction.conn())
             .await?;
 
-            if row.attempts as u32 >= max_attempts {
-                transaction
-                    .blocks_dal()
-                    .set_skip_proof_for_l1_batch(L1BatchNumber(row.l1_batch_number as u32))
-                    .await
-                    .unwrap();
-            }
-
             transaction.commit().await.unwrap();
-            Ok(())
+            Ok((row.l1_batch_number as u32, row.attempts as u32))
         }
     }
 

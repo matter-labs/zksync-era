@@ -14,26 +14,23 @@ pub mod test_pool;
 
 pub use self::test_pool::TestPool;
 
-use crate::{
-    get_master_database_url, get_prover_database_url, get_replica_database_url, StorageProcessor,
-};
+use crate::{get_master_database_url, get_replica_database_url, MainStorageProcessor};
 
 #[derive(Debug, Clone, Copy)]
 pub enum DbVariant {
     Master,
     Replica,
-    Prover,
 }
 
 /// Builder for [`ConnectionPool`]s.
 #[derive(Debug)]
-pub struct ConnectionPoolBuilder {
+pub struct MainConnectionPoolBuilder {
     db: DbVariant,
     max_size: Option<u32>,
     statement_timeout: Option<Duration>,
 }
 
-impl ConnectionPoolBuilder {
+impl MainConnectionPoolBuilder {
     /// Sets the maximum size of the created pool. If not specified, the max pool size will be
     /// taken from the `DATABASE_POOL_SIZE` env variable.
     pub fn set_max_size(&mut self, max_size: Option<u32>) -> &mut Self {
@@ -51,16 +48,15 @@ impl ConnectionPoolBuilder {
     }
 
     /// Builds a connection pool from this builder.
-    pub async fn build(&self) -> anyhow::Result<ConnectionPool> {
+    pub async fn build(&self) -> anyhow::Result<MainConnectionPool> {
         let database_url = match self.db {
             DbVariant::Master => get_master_database_url()?,
             DbVariant::Replica => get_replica_database_url()?,
-            DbVariant::Prover => get_prover_database_url()?,
         };
         Ok(self.build_inner(&database_url).await)
     }
 
-    pub async fn build_inner(&self, database_url: &str) -> ConnectionPool {
+    pub async fn build_inner(&self, database_url: &str) -> MainConnectionPool {
         let max_connections = self
             .max_size
             .unwrap_or_else(|| parse_env("DATABASE_POOL_SIZE"));
@@ -85,20 +81,20 @@ impl ConnectionPoolBuilder {
             db = self.db,
             statement_timeout = self.statement_timeout
         );
-        ConnectionPool::Real(pool)
+        MainConnectionPool::Real(pool)
     }
 }
 
 #[derive(Debug, Clone)]
-pub enum ConnectionPool {
+pub enum MainConnectionPool {
     Real(PgPool),
     Test(TestPool),
 }
 
-impl ConnectionPool {
+impl MainConnectionPool {
     /// Initializes a builder for connection pools.
-    pub fn builder(db: DbVariant) -> ConnectionPoolBuilder {
-        ConnectionPoolBuilder {
+    pub fn builder(db: DbVariant) -> MainConnectionPoolBuilder {
+        MainConnectionPoolBuilder {
             db,
             max_size: None,
             statement_timeout: None,
@@ -107,8 +103,8 @@ impl ConnectionPool {
 
     /// Initializes a builder for connection pools with a single connection. This is equivalent
     /// to calling `Self::builder(db).set_max_size(Some(1))`.
-    pub fn singleton(db: DbVariant) -> ConnectionPoolBuilder {
-        ConnectionPoolBuilder {
+    pub fn singleton(db: DbVariant) -> MainConnectionPoolBuilder {
+        MainConnectionPoolBuilder {
             db,
             max_size: Some(1),
             statement_timeout: None,
@@ -123,7 +119,7 @@ impl ConnectionPool {
     ///
     /// This method is intended to be used in crucial contexts, where the
     /// database access is must-have (e.g. block committer).
-    pub async fn access_storage(&self) -> anyhow::Result<StorageProcessor<'_>> {
+    pub async fn access_storage(&self) -> anyhow::Result<MainStorageProcessor<'_>> {
         self.access_storage_inner(None).await
     }
 
@@ -135,16 +131,16 @@ impl ConnectionPool {
     pub async fn access_storage_tagged(
         &self,
         requester: &'static str,
-    ) -> anyhow::Result<StorageProcessor<'_>> {
+    ) -> anyhow::Result<MainStorageProcessor<'_>> {
         self.access_storage_inner(Some(requester)).await
     }
 
     async fn access_storage_inner(
         &self,
         requester: Option<&'static str>,
-    ) -> anyhow::Result<StorageProcessor<'_>> {
+    ) -> anyhow::Result<MainStorageProcessor<'_>> {
         Ok(match self {
-            ConnectionPool::Real(real_pool) => {
+            MainConnectionPool::Real(real_pool) => {
                 let acquire_latency = CONNECTION_METRICS.acquire.start();
                 let conn = Self::acquire_connection_retried(real_pool)
                     .await
@@ -153,9 +149,9 @@ impl ConnectionPool {
                 if let Some(requester) = requester {
                     CONNECTION_METRICS.acquire_tagged[&requester].observe(elapsed);
                 }
-                StorageProcessor::from_pool(conn)
+                MainStorageProcessor::from_pool(conn)
             }
-            ConnectionPool::Test(test) => test.access_storage().await,
+            MainConnectionPool::Test(test) => test.access_storage().await,
         })
     }
 
@@ -198,10 +194,10 @@ impl ConnectionPool {
         CONNECTION_METRICS.pool_acquire_error[&err.into()].inc();
     }
 
-    pub async fn access_test_storage(&self) -> StorageProcessor<'static> {
+    pub async fn access_test_storage(&self) -> MainStorageProcessor<'static> {
         match self {
-            ConnectionPool::Test(test) => test.access_storage().await,
-            ConnectionPool::Real(_) => {
+            MainConnectionPool::Test(test) => test.access_storage().await,
+            MainConnectionPool::Real(_) => {
                 panic!("Attempt to access test storage with the real pool");
             }
         }
@@ -220,7 +216,7 @@ mod tests {
         // We cannot use an ordinary test pool here because it isn't created using `ConnectionPoolBuilder`.
         // Since we don't need to mutate the DB for the test, using a real DB connection is OK.
         let database_url = get_test_database_url().unwrap();
-        let pool = ConnectionPool::builder(DbVariant::Master)
+        let pool = MainConnectionPool::builder(DbVariant::Master)
             .set_statement_timeout(Some(Duration::from_secs(1)))
             .build_inner(&database_url)
             .await;

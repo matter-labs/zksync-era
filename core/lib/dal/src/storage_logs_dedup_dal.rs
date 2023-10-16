@@ -4,11 +4,11 @@ use std::collections::HashSet;
 use zksync_types::{AccountTreeId, Address, L1BatchNumber, LogQuery, StorageKey, H256};
 use zksync_utils::u256_to_h256;
 
-use crate::StorageProcessor;
+use crate::MainStorageProcessor;
 
 #[derive(Debug)]
 pub struct StorageLogsDedupDal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+    pub(crate) storage: &'a mut MainStorageProcessor<'c>,
 }
 
 impl StorageLogsDedupDal<'_, '_> {

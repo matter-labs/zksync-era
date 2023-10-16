@@ -2,7 +2,7 @@ use crate::synthesized_circuit_provider::SharedAssemblyQueue;
 use queues::IsQueue;
 use std::net::{IpAddr, SocketAddr};
 use std::time::Instant;
-use zksync_dal::ConnectionPool;
+use zksync_prover_dal::ProverConnectionPool;
 use zksync_types::proofs::{GpuProverInstanceStatus, SocketAddress};
 
 use anyhow::Context as _;
@@ -16,7 +16,7 @@ pub async fn incoming_socket_listener(
     host: IpAddr,
     port: u16,
     queue: SharedAssemblyQueue,
-    pool: ConnectionPool,
+    pool: ProverConnectionPool,
     specialized_prover_group_id: u8,
     region: String,
     zone: String,
@@ -72,7 +72,7 @@ pub async fn incoming_socket_listener(
 async fn handle_incoming_file(
     mut stream: TcpStream,
     queue: SharedAssemblyQueue,
-    pool: ConnectionPool,
+    pool: ProverConnectionPool,
     address: SocketAddress,
     region: String,
     zone: String,

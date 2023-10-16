@@ -12,7 +12,7 @@ use zksync_config::{
     configs::{api::PrometheusConfig, prover_group::ProverGroupConfig, AlertsConfig},
     ApiConfig, ProverConfig, ProverConfigs,
 };
-use zksync_dal::{connection::DbVariant, ConnectionPool};
+use zksync_prover_dal::connection::ProverConnectionPool;
 use zksync_object_store::ObjectStoreFactory;
 use zksync_prover_utils::region_fetcher::{get_region, get_zone};
 use zksync_types::proofs::{GpuProverInstanceStatus, SocketAddress};
@@ -31,7 +31,7 @@ mod socket_listener;
 mod synthesized_circuit_provider;
 
 async fn graceful_shutdown() -> anyhow::Result<impl Future<Output = ()>> {
-    let pool = ConnectionPool::singleton(DbVariant::Prover).build().await
+    let pool = ProverConnectionPool::singleton().build().await
         .context("failed to build a connection pool")?;
     let host = local_ip().context("Failed obtaining local IP address")?;
     let port = ProverConfigs::from_env()
@@ -170,7 +170,7 @@ async fn main() -> anyhow::Result<()> {
         local_ip,
         prover_config.assembly_receiver_port,
         producer,
-        ConnectionPool::singleton(DbVariant::Prover).build().await
+        ProverConnectionPool::singleton().build().await
             .context("failed to build a connection pool")?,
         prover_config.specialized_prover_group_id,
         region.clone(),
@@ -182,7 +182,7 @@ async fn main() -> anyhow::Result<()> {
     let store_factory = ObjectStoreFactory::from_env()
         .context("ObjectStoreFactory::from_env()")?;
 
-    let circuit_provider_pool = ConnectionPool::singleton(DbVariant::Prover).build().await
+    let circuit_provider_pool = ProverConnectionPool::singleton().build().await
         .context("failed to build circuit_provider_pool")?;
     tasks.push(tokio::task::spawn_blocking(move || {
         let rt_handle = tokio::runtime::Handle::current();

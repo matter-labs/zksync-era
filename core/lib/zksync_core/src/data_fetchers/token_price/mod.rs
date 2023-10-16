@@ -5,7 +5,7 @@ use std::{collections::HashMap, time::Duration};
 use async_trait::async_trait;
 
 use zksync_config::{configs::fetcher::TokenPriceSource, FetcherConfig};
-use zksync_dal::{ConnectionPool, StorageProcessor};
+use zksync_dal::{MainConnectionPool, MainStorageProcessor};
 use zksync_types::{tokens::TokenPrice, Address};
 
 use super::error::{ApiFetchError, ErrorAnalyzer};
@@ -64,7 +64,7 @@ impl TokenPriceFetcher {
 
     pub async fn run(
         mut self,
-        pool: ConnectionPool,
+        pool: MainConnectionPool,
         stop_receiver: watch::Receiver<bool>,
     ) -> anyhow::Result<()> {
         let mut fetching_interval =
@@ -114,7 +114,7 @@ impl TokenPriceFetcher {
 
     async fn store_token_prices(
         &self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut MainStorageProcessor<'_>,
         token_prices: HashMap<Address, TokenPrice>,
     ) {
         let mut tokens_dal = storage.tokens_dal();
@@ -125,7 +125,7 @@ impl TokenPriceFetcher {
 
     /// Returns the list of "interesting" tokens, e.g. ones that can be used to pay fees.
     /// We don't actually need prices for other tokens.
-    async fn get_tokens(&self, storage: &mut StorageProcessor<'_>) -> Vec<Address> {
+    async fn get_tokens(&self, storage: &mut MainStorageProcessor<'_>) -> Vec<Address> {
         storage
             .tokens_dal()
             .get_l1_tokens_by_volume(&self.minimum_required_liquidity)

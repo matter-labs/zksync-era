@@ -6,7 +6,7 @@ use multivm::MultivmTracer;
 use vm::{
     constants::ETH_CALL_GAS_LIMIT, StorageInvocations, TxExecutionMode, VmExecutionResultAndLogs,
 };
-use zksync_dal::ConnectionPool;
+use zksync_dal::MainConnectionPool;
 
 use zksync_types::{
     fee::TransactionExecutionMetrics, l2::L2Tx, ExecuteTransactionCommon, Nonce,
@@ -76,7 +76,7 @@ impl TxExecutionArgs {
 pub(crate) async fn execute_tx_eth_call(
     vm_permit: VmPermit,
     shared_args: TxSharedArgs,
-    connection_pool: ConnectionPool,
+    connection_pool: MainConnectionPool,
     mut tx: L2Tx,
     block_args: BlockArgs,
     vm_execution_cache_misses_limit: Option<usize>,
@@ -113,7 +113,7 @@ pub(crate) async fn execute_tx_with_pending_state(
     vm_permit: VmPermit,
     mut shared_args: TxSharedArgs,
     execution_args: TxExecutionArgs,
-    connection_pool: ConnectionPool,
+    connection_pool: MainConnectionPool,
     tx: Transaction,
 ) -> (VmExecutionResultAndLogs, TransactionExecutionMetrics) {
     let mut connection = connection_pool.access_storage_tagged("api").await.unwrap();
@@ -143,7 +143,7 @@ async fn execute_tx_in_sandbox(
     vm_permit: VmPermit,
     shared_args: TxSharedArgs,
     execution_args: TxExecutionArgs,
-    connection_pool: ConnectionPool,
+    connection_pool: MainConnectionPool,
     tx: Transaction,
     block_args: BlockArgs,
     custom_tracers: Vec<ApiTracer>,

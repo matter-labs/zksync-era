@@ -3,7 +3,7 @@ use std::time::{Duration, Instant};
 use chrono::{DateTime, Utc};
 use tokio::sync::watch::Receiver;
 
-use zksync_dal::ConnectionPool;
+use zksync_dal::MainConnectionPool;
 use zksync_types::{
     aggregated_operations::AggregatedActionType, api::BlockDetails, L1BatchNumber, MiniblockNumber,
     H256,
@@ -51,7 +51,7 @@ impl StatusChanges {
 #[derive(Debug)]
 pub struct BatchStatusUpdater {
     client: HttpClient,
-    pool: ConnectionPool,
+    pool: MainConnectionPool,
 
     last_executed_l1_batch: L1BatchNumber,
     last_proven_l1_batch: L1BatchNumber,
@@ -59,7 +59,7 @@ pub struct BatchStatusUpdater {
 }
 
 impl BatchStatusUpdater {
-    pub async fn new(main_node_url: &str, pool: ConnectionPool) -> Self {
+    pub async fn new(main_node_url: &str, pool: MainConnectionPool) -> Self {
         let client = HttpClientBuilder::default()
             .build(main_node_url)
             .expect("Unable to create a main node client");

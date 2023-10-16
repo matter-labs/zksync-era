@@ -3,7 +3,7 @@ use std::time::{Duration, Instant};
 use tokio::sync::watch::Receiver;
 
 use crate::sync_layer::sync_action::{ActionQueue, SyncAction};
-use zksync_dal::ConnectionPool;
+use zksync_dal::MainConnectionPool;
 use zksync_types::{L1BatchNumber, MiniblockNumber, H256};
 use zksync_web3_decl::jsonrpsee::core::Error as RpcError;
 use zksync_web3_decl::RpcResult;
@@ -26,7 +26,7 @@ pub struct MainNodeFetcher {
 
 impl MainNodeFetcher {
     pub async fn new(
-        pool: ConnectionPool,
+        pool: MainConnectionPool,
         main_node_url: &str,
         actions: ActionQueue,
         sync_state: SyncState,

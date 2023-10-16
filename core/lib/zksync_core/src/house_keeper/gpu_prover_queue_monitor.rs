@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use zksync_dal::ConnectionPool;
+use zksync_dal::MainConnectionPool;
 
 use zksync_prover_utils::periodic_job::PeriodicJob;
 
@@ -7,14 +7,14 @@ use zksync_prover_utils::periodic_job::PeriodicJob;
 pub struct GpuProverQueueMonitor {
     synthesizer_per_gpu: u16,
     reporting_interval_ms: u64,
-    prover_connection_pool: ConnectionPool,
+    prover_connection_pool: MainConnectionPool,
 }
 
 impl GpuProverQueueMonitor {
     pub fn new(
         synthesizer_per_gpu: u16,
         reporting_interval_ms: u64,
-        prover_connection_pool: ConnectionPool,
+        prover_connection_pool: MainConnectionPool,
     ) -> Self {
         Self {
             synthesizer_per_gpu,

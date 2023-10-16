@@ -3,7 +3,7 @@ use sqlx::PgPool;
 
 use zksync_health_check::{async_trait, CheckHealth, Health, HealthStatus};
 
-use crate::ConnectionPool;
+use crate::MainConnectionPool;
 
 #[derive(Debug, Serialize)]
 struct ConnectionPoolHealthDetails {
@@ -23,11 +23,11 @@ impl ConnectionPoolHealthDetails {
 // Used in the /health endpoint
 #[derive(Clone, Debug)]
 pub struct ConnectionPoolHealthCheck {
-    connection_pool: ConnectionPool,
+    connection_pool: MainConnectionPool,
 }
 
 impl ConnectionPoolHealthCheck {
-    pub fn new(connection_pool: ConnectionPool) -> ConnectionPoolHealthCheck {
+    pub fn new(connection_pool: MainConnectionPool) -> ConnectionPoolHealthCheck {
         Self { connection_pool }
     }
 }
@@ -44,7 +44,7 @@ impl CheckHealth for ConnectionPoolHealthCheck {
         self.connection_pool.access_storage().await.unwrap();
 
         let mut health = Health::from(HealthStatus::Ready);
-        if let ConnectionPool::Real(pool) = &self.connection_pool {
+        if let MainConnectionPool::Real(pool) = &self.connection_pool {
             let details = ConnectionPoolHealthDetails::new(pool).await;
             health = health.with_details(details);
         }

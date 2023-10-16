@@ -6,7 +6,7 @@ use db_test_macro::db_test;
 
 use vm::utils::fee::derive_base_fee_and_gas_per_pubdata;
 use zksync_contracts::BaseSystemContractsHashes;
-use zksync_dal::ConnectionPool;
+use zksync_dal::MainConnectionPool;
 use zksync_mempool::L2TxFilter;
 use zksync_types::{
     block::BlockGasCount, tx::ExecutionMetrics, AccountTreeId, Address, L1BatchNumber,
@@ -32,7 +32,7 @@ use self::tester::Tester;
 
 /// Ensure that MempoolIO.filter is correctly initialized right after mempool initialization.
 #[db_test]
-async fn test_filter_initialization(connection_pool: ConnectionPool) {
+async fn test_filter_initialization(connection_pool: MainConnectionPool) {
     let tester = Tester::new();
 
     // Genesis is needed for proper mempool initialization.
@@ -45,7 +45,7 @@ async fn test_filter_initialization(connection_pool: ConnectionPool) {
 
 /// Ensure that MempoolIO.filter is modified correctly if there is a pending batch upon mempool initialization.
 #[db_test]
-async fn test_filter_with_pending_batch(connection_pool: ConnectionPool) {
+async fn test_filter_with_pending_batch(connection_pool: MainConnectionPool) {
     let tester = Tester::new();
 
     tester.genesis(&connection_pool).await;
@@ -88,7 +88,7 @@ async fn test_filter_with_pending_batch(connection_pool: ConnectionPool) {
 
 /// Ensure that MempoolIO.filter is modified correctly if there is no pending batch.
 #[db_test]
-async fn test_filter_with_no_pending_batch(connection_pool: ConnectionPool) {
+async fn test_filter_with_no_pending_batch(connection_pool: MainConnectionPool) {
     let tester = Tester::new();
     tester.genesis(&connection_pool).await;
 
@@ -126,7 +126,7 @@ async fn test_filter_with_no_pending_batch(connection_pool: ConnectionPool) {
 }
 
 async fn test_timestamps_are_distinct(
-    connection_pool: ConnectionPool,
+    connection_pool: MainConnectionPool,
     prev_miniblock_timestamp: u64,
     delay_prev_miniblock_compared_to_batch: bool,
 ) {
@@ -158,33 +158,33 @@ async fn test_timestamps_are_distinct(
 }
 
 #[db_test]
-async fn l1_batch_timestamp_basics(connection_pool: ConnectionPool) {
+async fn l1_batch_timestamp_basics(connection_pool: MainConnectionPool) {
     let current_timestamp = seconds_since_epoch();
     test_timestamps_are_distinct(connection_pool, current_timestamp, false).await;
 }
 
 #[db_test]
-async fn l1_batch_timestamp_with_clock_skew(connection_pool: ConnectionPool) {
+async fn l1_batch_timestamp_with_clock_skew(connection_pool: MainConnectionPool) {
     let current_timestamp = seconds_since_epoch();
     test_timestamps_are_distinct(connection_pool, current_timestamp + 2, false).await;
 }
 
 #[db_test]
-async fn l1_batch_timestamp_respects_prev_miniblock(connection_pool: ConnectionPool) {
+async fn l1_batch_timestamp_respects_prev_miniblock(connection_pool: MainConnectionPool) {
     let current_timestamp = seconds_since_epoch();
     test_timestamps_are_distinct(connection_pool, current_timestamp, true).await;
 }
 
 #[db_test]
 async fn l1_batch_timestamp_respects_prev_miniblock_with_clock_skew(
-    connection_pool: ConnectionPool,
+    connection_pool: MainConnectionPool,
 ) {
     let current_timestamp = seconds_since_epoch();
     test_timestamps_are_distinct(connection_pool, current_timestamp + 2, true).await;
 }
 
 #[db_test]
-async fn processing_storage_logs_when_sealing_miniblock(connection_pool: ConnectionPool) {
+async fn processing_storage_logs_when_sealing_miniblock(connection_pool: MainConnectionPool) {
     let mut miniblock =
         MiniblockUpdates::new(0, 1, H256::zero(), 1, Some(ProtocolVersionId::latest()));
 
@@ -278,7 +278,7 @@ async fn processing_storage_logs_when_sealing_miniblock(connection_pool: Connect
 }
 
 #[db_test]
-async fn processing_events_when_sealing_miniblock(pool: ConnectionPool) {
+async fn processing_events_when_sealing_miniblock(pool: MainConnectionPool) {
     let l1_batch_number = L1BatchNumber(2);
     let mut miniblock =
         MiniblockUpdates::new(0, 1, H256::zero(), 1, Some(ProtocolVersionId::latest()));
@@ -337,7 +337,7 @@ async fn processing_events_when_sealing_miniblock(pool: ConnectionPool) {
 }
 
 async fn test_miniblock_and_l1_batch_processing(
-    pool: ConnectionPool,
+    pool: MainConnectionPool,
     miniblock_sealer_capacity: usize,
 ) {
     let tester = Tester::new();
@@ -407,17 +407,17 @@ async fn test_miniblock_and_l1_batch_processing(
 }
 
 #[db_test]
-async fn miniblock_and_l1_batch_processing(pool: ConnectionPool) {
+async fn miniblock_and_l1_batch_processing(pool: MainConnectionPool) {
     test_miniblock_and_l1_batch_processing(pool, 1).await;
 }
 
 #[db_test]
-async fn miniblock_and_l1_batch_processing_with_sync_sealer(pool: ConnectionPool) {
+async fn miniblock_and_l1_batch_processing_with_sync_sealer(pool: MainConnectionPool) {
     test_miniblock_and_l1_batch_processing(pool, 0).await;
 }
 
 #[db_test]
-async fn miniblock_sealer_handle_blocking(pool: ConnectionPool) {
+async fn miniblock_sealer_handle_blocking(pool: MainConnectionPool) {
     let (mut sealer, mut sealer_handle) = MiniblockSealer::new(pool, 1);
 
     // The first command should be successfully submitted immediately.
@@ -470,7 +470,7 @@ async fn miniblock_sealer_handle_blocking(pool: ConnectionPool) {
 }
 
 #[db_test]
-async fn miniblock_sealer_handle_parallel_processing(pool: ConnectionPool) {
+async fn miniblock_sealer_handle_parallel_processing(pool: MainConnectionPool) {
     let (mut sealer, mut sealer_handle) = MiniblockSealer::new(pool, 5);
 
     // 5 miniblock sealing commands can be submitted without blocking.
@@ -495,7 +495,7 @@ async fn miniblock_sealer_handle_parallel_processing(pool: ConnectionPool) {
 
 /// Ensure that subsequent miniblocks that belong to the same L1 batch have different timestamps
 #[db_test]
-async fn different_timestamp_for_miniblocks_in_same_batch(connection_pool: ConnectionPool) {
+async fn different_timestamp_for_miniblocks_in_same_batch(connection_pool: MainConnectionPool) {
     let tester = Tester::new();
 
     // Genesis is needed for proper mempool initialization.

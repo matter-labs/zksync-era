@@ -18,12 +18,12 @@ use zksync_types::{
 
 use crate::{
     models::storage_block::{StorageL1Batch, StorageL1BatchHeader, StorageMiniblockHeader},
-    StorageProcessor,
+    MainStorageProcessor,
 };
 
 #[derive(Debug)]
 pub struct BlocksDal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+    pub(crate) storage: &'a mut MainStorageProcessor<'c>,
 }
 
 impl BlocksDal<'_, '_> {
@@ -1364,10 +1364,10 @@ mod tests {
     use zksync_types::{l2_to_l1_log::L2ToL1Log, Address, ProtocolVersion, ProtocolVersionId};
 
     use super::*;
-    use crate::ConnectionPool;
+    use crate::MainConnectionPool;
 
     #[db_test(dal_crate)]
-    async fn loading_l1_batch_header(pool: ConnectionPool) {
+    async fn loading_l1_batch_header(pool: MainConnectionPool) {
         let mut conn = pool.access_storage().await.unwrap();
         conn.blocks_dal()
             .delete_l1_batches(L1BatchNumber(0))
@@ -1427,7 +1427,7 @@ mod tests {
     }
 
     #[db_test(dal_crate)]
-    async fn getting_predicted_gas(pool: ConnectionPool) {
+    async fn getting_predicted_gas(pool: MainConnectionPool) {
         let mut conn = pool.access_storage().await.unwrap();
         conn.blocks_dal()
             .delete_l1_batches(L1BatchNumber(0))

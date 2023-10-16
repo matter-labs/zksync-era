@@ -1,17 +1,17 @@
 use actix_web::web;
 
-use zksync_dal::connection::ConnectionPool;
+use zksync_dal::connection::MainConnectionPool;
 
 #[derive(Debug, Clone)]
 pub struct RestApi {
-    pub(super) master_connection_pool: ConnectionPool,
-    pub(super) replica_connection_pool: ConnectionPool,
+    pub(super) master_connection_pool: MainConnectionPool,
+    pub(super) replica_connection_pool: MainConnectionPool,
 }
 
 impl RestApi {
     pub fn new(
-        master_connection_pool: ConnectionPool,
-        replica_connection_pool: ConnectionPool,
+        master_connection_pool: MainConnectionPool,
+        replica_connection_pool: MainConnectionPool,
     ) -> Self {
         Self {
             master_connection_pool,

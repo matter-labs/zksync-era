@@ -3,7 +3,7 @@ use std::cell::RefCell;
 use anyhow::Context as _;
 use prometheus_exporter::PrometheusExporterConfig;
 use zksync_config::{configs::PrometheusConfig, ApiConfig, ContractVerifierConfig};
-use zksync_dal::ConnectionPool;
+use zksync_dal::MainConnectionPool;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_utils::wait_for_tasks::wait_for_tasks;
 
@@ -17,7 +17,7 @@ pub mod verifier;
 pub mod zksolc_utils;
 pub mod zkvyper_utils;
 
-async fn update_compiler_versions(connection_pool: &ConnectionPool) {
+async fn update_compiler_versions(connection_pool: &MainConnectionPool) {
     let mut storage = connection_pool.access_storage().await.unwrap();
     let mut transaction = storage.start_transaction().await.unwrap();
 
@@ -131,7 +131,7 @@ async fn main() -> anyhow::Result<()> {
         listener_port: verifier_config.prometheus_port,
         ..ApiConfig::from_env().context("ApiConfig")?.prometheus
     };
-    let pool = ConnectionPool::singleton(DbVariant::Master)
+    let pool = MainConnectionPool::singleton(DbVariant::Master)
         .build()
         .await
         .unwrap();

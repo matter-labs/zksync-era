@@ -1,12 +1,12 @@
 use std::time::Duration;
-use zksync_types::proofs::{GpuProverInstanceStatus, SocketAddress};
 
-use crate::StorageProcessor;
+use crate::ProverStorageProcessor;
 use zksync_dal_utils::time_utils::pg_interval_from_duration;
+use zksync_types::proofs::{GpuProverInstanceStatus, SocketAddress};
 
 #[derive(Debug)]
 pub struct FriGpuProverQueueDal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+    pub(crate) storage: &'a mut ProverStorageProcessor<'c>,
 }
 
 impl FriGpuProverQueueDal<'_, '_> {

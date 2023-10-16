@@ -8,7 +8,7 @@ use std::{future::Future, ops, panic, path::Path, time::Duration};
 
 use zksync_config::{configs::chain::OperationsManagerConfig, DBConfig};
 use zksync_contracts::BaseSystemContracts;
-use zksync_dal::{ConnectionPool, StorageProcessor};
+use zksync_dal::{MainConnectionPool, MainStorageProcessor};
 use zksync_health_check::{CheckHealth, HealthStatus};
 use zksync_merkle_tree::domain::ZkSyncTree;
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
@@ -41,7 +41,7 @@ where
 }
 
 #[db_test]
-async fn genesis_creation(pool: ConnectionPool, prover_pool: ConnectionPool) {
+async fn genesis_creation(pool: MainConnectionPool, prover_pool: MainConnectionPool) {
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
 
     let (calculator, _) = setup_calculator(temp_dir.path(), &pool).await;
@@ -56,7 +56,7 @@ async fn genesis_creation(pool: ConnectionPool, prover_pool: ConnectionPool) {
 // TODO (SMA-1726): Restore tests for tree backup mode
 
 #[db_test]
-async fn basic_workflow(pool: ConnectionPool, prover_pool: ConnectionPool) {
+async fn basic_workflow(pool: MainConnectionPool, prover_pool: MainConnectionPool) {
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
 
     let (calculator, object_store) = setup_calculator(temp_dir.path(), &pool).await;
@@ -81,7 +81,7 @@ async fn basic_workflow(pool: ConnectionPool, prover_pool: ConnectionPool) {
     );
 }
 
-async fn expected_tree_hash(pool: &ConnectionPool) -> H256 {
+async fn expected_tree_hash(pool: &MainConnectionPool) -> H256 {
     let mut storage = pool.access_storage().await.unwrap();
     let sealed_l1_batch_number = storage
         .blocks_dal()
@@ -99,7 +99,10 @@ async fn expected_tree_hash(pool: &ConnectionPool) -> H256 {
 }
 
 #[db_test]
-async fn status_receiver_has_correct_states(pool: ConnectionPool, prover_pool: ConnectionPool) {
+async fn status_receiver_has_correct_states(
+    pool: MainConnectionPool,
+    prover_pool: MainConnectionPool,
+) {
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
 
     let (mut calculator, _) = setup_calculator(temp_dir.path(), &pool).await;
@@ -146,7 +149,7 @@ async fn status_receiver_has_correct_states(pool: ConnectionPool, prover_pool: C
 }
 
 #[db_test]
-async fn multi_l1_batch_workflow(pool: ConnectionPool, prover_pool: ConnectionPool) {
+async fn multi_l1_batch_workflow(pool: MainConnectionPool, prover_pool: MainConnectionPool) {
     // Collect all storage logs in a single L1 batch
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
     let (calculator, _) = setup_calculator(temp_dir.path(), &pool).await;
@@ -181,8 +184,8 @@ async fn multi_l1_batch_workflow(pool: ConnectionPool, prover_pool: ConnectionPo
 
 #[db_test]
 async fn running_metadata_calculator_with_additional_blocks(
-    pool: ConnectionPool,
-    prover_pool: ConnectionPool,
+    pool: MainConnectionPool,
+    prover_pool: MainConnectionPool,
 ) {
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
     let calculator = setup_lightweight_calculator(temp_dir.path(), &pool).await;
@@ -232,7 +235,7 @@ async fn running_metadata_calculator_with_additional_blocks(
 }
 
 #[db_test]
-async fn shutting_down_calculator(pool: ConnectionPool, prover_pool: ConnectionPool) {
+async fn shutting_down_calculator(pool: MainConnectionPool, prover_pool: MainConnectionPool) {
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
     let (db_config, mut operation_config) = create_config(temp_dir.path());
     operation_config.delay_interval = 30_000; // ms; chosen to be larger than `RUN_TIMEOUT`
@@ -258,8 +261,8 @@ async fn shutting_down_calculator(pool: ConnectionPool, prover_pool: ConnectionP
 }
 
 async fn test_postgres_backup_recovery(
-    pool: ConnectionPool,
-    prover_pool: ConnectionPool,
+    pool: MainConnectionPool,
+    prover_pool: MainConnectionPool,
     sleep_between_batches: bool,
     insert_batch_without_metadata: bool,
 ) {
@@ -336,29 +339,29 @@ async fn test_postgres_backup_recovery(
 }
 
 #[db_test]
-async fn postgres_backup_recovery(pool: ConnectionPool, prover_pool: ConnectionPool) {
+async fn postgres_backup_recovery(pool: MainConnectionPool, prover_pool: MainConnectionPool) {
     test_postgres_backup_recovery(pool, prover_pool, false, false).await;
 }
 
 #[db_test]
 async fn postgres_backup_recovery_with_delay_between_batches(
-    pool: ConnectionPool,
-    prover_pool: ConnectionPool,
+    pool: MainConnectionPool,
+    prover_pool: MainConnectionPool,
 ) {
     test_postgres_backup_recovery(pool, prover_pool, true, false).await;
 }
 
 #[db_test]
 async fn postgres_backup_recovery_with_excluded_metadata(
-    pool: ConnectionPool,
-    prover_pool: ConnectionPool,
+    pool: MainConnectionPool,
+    prover_pool: MainConnectionPool,
 ) {
     test_postgres_backup_recovery(pool, prover_pool, false, true).await;
 }
 
 async fn setup_calculator(
     db_path: &Path,
-    pool: &ConnectionPool,
+    pool: &MainConnectionPool,
 ) -> (MetadataCalculator, Box<dyn ObjectStore>) {
     let store_factory = &ObjectStoreFactory::mock();
     let (db_config, operation_manager) = create_config(db_path);
@@ -368,7 +371,10 @@ async fn setup_calculator(
     (calculator, store_factory.create_store().await)
 }
 
-async fn setup_lightweight_calculator(db_path: &Path, pool: &ConnectionPool) -> MetadataCalculator {
+async fn setup_lightweight_calculator(
+    db_path: &Path,
+    pool: &MainConnectionPool,
+) -> MetadataCalculator {
     let mode = MetadataCalculatorModeConfig::Lightweight;
     let (db_config, operation_config) = create_config(db_path);
     setup_calculator_with_options(&db_config, &operation_config, pool, mode).await
@@ -388,7 +394,7 @@ fn create_config(db_path: &Path) -> (DBConfig, OperationsManagerConfig) {
 async fn setup_calculator_with_options(
     db_config: &DBConfig,
     operation_config: &OperationsManagerConfig,
-    pool: &ConnectionPool,
+    pool: &MainConnectionPool,
     mode: MetadataCalculatorModeConfig<'_>,
 ) -> MetadataCalculator {
     let calculator_config =
@@ -428,8 +434,8 @@ fn path_to_string(path: &Path) -> String {
 
 async fn run_calculator(
     mut calculator: MetadataCalculator,
-    pool: ConnectionPool,
-    prover_pool: ConnectionPool,
+    pool: MainConnectionPool,
+    prover_pool: MainConnectionPool,
 ) -> H256 {
     let (stop_sx, stop_rx) = watch::channel(false);
     let (delay_sx, mut delay_rx) = mpsc::unbounded_channel();
@@ -451,7 +457,7 @@ async fn run_calculator(
     delayer_handle.await.unwrap()
 }
 
-pub(super) async fn reset_db_state(pool: &ConnectionPool, num_batches: usize) {
+pub(super) async fn reset_db_state(pool: &MainConnectionPool, num_batches: usize) {
     let mut storage = pool.access_storage().await.unwrap();
     // Drops all L1 batches (except the L1 batch with number 0) and their storage logs.
     storage
@@ -474,7 +480,7 @@ pub(super) async fn reset_db_state(pool: &ConnectionPool, num_batches: usize) {
 }
 
 pub(super) async fn extend_db_state(
-    storage: &mut StorageProcessor<'_>,
+    storage: &mut MainStorageProcessor<'_>,
     new_logs: impl IntoIterator<Item = Vec<StorageLog>>,
 ) {
     let next_l1_batch = storage
@@ -542,7 +548,7 @@ pub(super) async fn extend_db_state(
 }
 
 async fn insert_initial_writes_for_batch(
-    connection: &mut StorageProcessor<'_>,
+    connection: &mut MainStorageProcessor<'_>,
     l1_batch_number: L1BatchNumber,
 ) {
     let written_non_zero_slots: Vec<_> = connection
@@ -610,7 +616,7 @@ pub(super) fn gen_storage_logs(
 }
 
 async fn remove_l1_batches(
-    storage: &mut StorageProcessor<'_>,
+    storage: &mut MainStorageProcessor<'_>,
     last_l1_batch_to_keep: L1BatchNumber,
 ) -> Vec<L1BatchHeader> {
     let sealed_l1_batch_number = storage
@@ -639,7 +645,7 @@ async fn remove_l1_batches(
 }
 
 #[db_test]
-async fn deduplication_works_as_expected(pool: ConnectionPool) {
+async fn deduplication_works_as_expected(pool: MainConnectionPool) {
     let mut storage = pool.access_storage().await.unwrap();
 
     let first_validator = Address::repeat_byte(0x01);

@@ -167,10 +167,21 @@ impl JobProcessor for CircuitSynthesizer {
         let res = self.prover_connection_pool
             .access_storage().await.unwrap()
             .prover_dal()
-            .save_proof_error(job_id, error, self.config.max_attempts)
+            .save_proof_error(job_id, error)
             .await;
-        if let Err(err) = res {
-            tracing::error!("save_proof_error(): {err:#}");
+
+        match res {
+            Ok((l1_batch_number, attempts)) => {
+                if attempts >= self.config.max_attempts {
+                    self.main_connection_pool
+                        .access_storage().await.unwrap()
+                        .blocks_dal()
+                        .set_skip_proof_for_l1_batch(L1BatchNumber(l1_batch_number))
+                        .await
+                        .unwrap();
+                }
+            },
+            Err(err) => tracing::error!("save_proof_error(): {err:#}");
         }
     }
 
@@ -256,7 +267,8 @@ async fn handle_send_result(
     result: &Result<(Duration, u64), String>,
     job_id: u32,
     address: &SocketAddress,
-    pool: &ConnectionPool,
+    prover_pool: &ProverConnectionPool,
+    main_pool: &MainConnectionPool,
     region: String,
     zone: String,
 ) -> anyhow::Result<()> {
@@ -279,7 +291,7 @@ async fn handle_send_result(
 
             // endregion
 
-            pool.access_storage().await.unwrap()
+            prover_pool.access_storage().await.unwrap()
                 .prover_dal()
                 .update_status(job_id, "in_gpu_proof")
                 .await;
@@ -292,7 +304,7 @@ async fn handle_send_result(
             );
 
             // mark prover instance in gpu_prover_queue dead
-            pool.access_storage().await.unwrap()
+            prover_pool.access_storage().await.unwrap()
                 .gpu_prover_queue_dal()
                 .update_prover_instance_status(
                     address.clone(),
@@ -307,16 +319,26 @@ async fn handle_send_result(
                 .context("ProverConfigs::from_env()")?
                 .non_gpu;
             // mark the job as failed
-            let res = pool.access_storage().await.unwrap()
+            let res = prover_pool.access_storage().await.unwrap()
                 .prover_dal()
                 .save_proof_error(
                     job_id,
                     "prover instance unreachable".to_string(),
-                    prover_config.max_attempts,
                 )
                 .await;
-            if let Err(err) = res {
-                tracing::error!("save_proof_error(): {err}");
+
+            match res {
+                Ok((l1_batch_number, attempts)) => {
+                    if attempts >= prover_config.max_attempts {
+                        self.main_connection_pool
+                            .access_storage().await.unwrap()
+                            .blocks_dal()
+                            .set_skip_proof_for_l1_batch(L1BatchNumber(l1_batch_number))
+                            .await
+                            .unwrap();
+                    }
+                },
+                Err(err) => tracing::error!("save_proof_error(): {err}");
             }
         }
     }

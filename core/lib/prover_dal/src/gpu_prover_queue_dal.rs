@@ -1,13 +1,13 @@
-use std::time::Duration;
+use std::{collections::HashMap, time::Duration};
 
-use crate::StorageProcessor;
-use std::collections::HashMap;
 use zksync_dal_utils::time_utils::pg_interval_from_duration;
 use zksync_types::proofs::{GpuProverInstanceStatus, SocketAddress};
 
+use crate::ProverStorageProcessor;
+
 #[derive(Debug)]
 pub struct GpuProverQueueDal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+    pub(crate) storage: &'a mut ProverStorageProcessor<'c>,
 }
 
 impl GpuProverQueueDal<'_, '_> {

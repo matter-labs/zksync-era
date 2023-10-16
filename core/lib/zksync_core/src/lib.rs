@@ -29,7 +29,8 @@ use zksync_config::{
 };
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{
-    connection::DbVariant, healthcheck::ConnectionPoolHealthCheck, ConnectionPool, StorageProcessor,
+    connection::DbVariant, healthcheck::ConnectionPoolHealthCheck, MainConnectionPool,
+    MainStorageProcessor,
 };
 use zksync_eth_client::clients::http::QueryClient;
 use zksync_eth_client::{clients::http::PKSigningClient, BoundEthInterface};
@@ -111,7 +112,7 @@ pub async fn genesis_init(
     network_config: &NetworkConfig,
     contracts_config: &ContractsConfig,
 ) -> anyhow::Result<()> {
-    let mut storage = StorageProcessor::establish_connection(true)
+    let mut storage = MainStorageProcessor::establish_connection(true)
         .await
         .context("establish_connection")?;
     let operator_address = PackedEthSignature::address_from_private_key(
@@ -149,7 +150,9 @@ pub async fn genesis_init(
 }
 
 pub async fn is_genesis_needed() -> bool {
-    let mut storage = StorageProcessor::establish_connection(true).await.unwrap();
+    let mut storage = MainStorageProcessor::establish_connection(true)
+        .await
+        .unwrap();
     storage.blocks_dal().is_genesis_needed().await.unwrap()
 }
 
@@ -287,15 +290,15 @@ pub async fn initialize_components(
     tracing::info!("Starting the components: {components:?}");
 
     let db_config = DBConfig::from_env().context("DbConfig::from_env()")?;
-    let connection_pool = ConnectionPool::builder(DbVariant::Master)
+    let connection_pool = MainConnectionPool::builder(DbVariant::Master)
         .build()
         .await
         .context("failed to build connection_pool")?;
-    let prover_connection_pool = ConnectionPool::builder(DbVariant::Prover)
+    let prover_connection_pool = MainConnectionPool::builder(DbVariant::Prover)
         .build()
         .await
         .context("failed to build prover_connection_pool")?;
-    let replica_connection_pool = ConnectionPool::builder(DbVariant::Replica)
+    let replica_connection_pool = MainConnectionPool::builder(DbVariant::Replica)
         .set_statement_timeout(db_config.statement_timeout())
         .build()
         .await
@@ -488,7 +491,7 @@ pub async fn initialize_components(
     if components.contains(&Component::EthWatcher) {
         let started_at = Instant::now();
         tracing::info!("initializing ETH-Watcher");
-        let eth_watch_pool = ConnectionPool::singleton(DbVariant::Master)
+        let eth_watch_pool = MainConnectionPool::singleton(DbVariant::Master)
             .build()
             .await
             .context("failed to build eth_watch_pool")?;
@@ -511,11 +514,11 @@ pub async fn initialize_components(
     if components.contains(&Component::EthTxAggregator) {
         let started_at = Instant::now();
         tracing::info!("initializing ETH-TxAggregator");
-        let eth_sender_pool = ConnectionPool::singleton(DbVariant::Master)
+        let eth_sender_pool = MainConnectionPool::singleton(DbVariant::Master)
             .build()
             .await
             .context("failed to build eth_sender_pool")?;
-        let eth_sender_prover_pool = ConnectionPool::singleton(DbVariant::Prover)
+        let eth_sender_prover_pool = MainConnectionPool::singleton(DbVariant::Prover)
             .build()
             .await
             .context("failed to build eth_sender_prover_pool")?;
@@ -548,7 +551,7 @@ pub async fn initialize_components(
     if components.contains(&Component::EthTxManager) {
         let started_at = Instant::now();
         tracing::info!("initializing ETH-TxManager");
-        let eth_manager_pool = ConnectionPool::singleton(DbVariant::Master)
+        let eth_manager_pool = MainConnectionPool::singleton(DbVariant::Master)
             .build()
             .await
             .context("failed to build eth_manager_pool")?;
@@ -648,7 +651,7 @@ async fn add_state_keeper_to_task_futures<E: L1GasPriceProvider + Send + Sync + 
     stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<()> {
     let fair_l2_gas_price = state_keeper_config.fair_l2_gas_price;
-    let pool_builder = ConnectionPool::singleton(DbVariant::Master);
+    let pool_builder = MainConnectionPool::singleton(DbVariant::Master);
     let state_keeper_pool = pool_builder
         .build()
         .await
@@ -758,11 +761,11 @@ async fn run_tree(
     let config = MetadataCalculatorConfig::for_main_node(config, operation_manager, mode);
     let metadata_calculator = MetadataCalculator::new(&config).await;
     let tree_health_check = metadata_calculator.tree_health_check();
-    let pool = ConnectionPool::singleton(DbVariant::Master)
+    let pool = MainConnectionPool::singleton(DbVariant::Master)
         .build()
         .await
         .context("failed to build connection pool")?;
-    let prover_pool = ConnectionPool::singleton(DbVariant::Prover)
+    let prover_pool = MainConnectionPool::singleton(DbVariant::Prover)
         .build()
         .await
         .context("failed to build prover_pool")?;
@@ -781,8 +784,8 @@ async fn run_tree(
 async fn add_witness_generator_to_task_futures(
     task_futures: &mut Vec<JoinHandle<anyhow::Result<()>>>,
     components: &[Component],
-    connection_pool: &ConnectionPool,
-    prover_connection_pool: &ConnectionPool,
+    connection_pool: &MainConnectionPool,
+    prover_connection_pool: &MainConnectionPool,
     store_factory: &ObjectStoreFactory,
     stop_receiver: &watch::Receiver<bool>,
 ) -> anyhow::Result<()> {
@@ -882,7 +885,7 @@ async fn add_house_keeper_to_task_futures(
 ) -> anyhow::Result<()> {
     let house_keeper_config =
         HouseKeeperConfig::from_env().context("HouseKeeperConfig::from_env()")?;
-    let connection_pool = ConnectionPool::singleton(DbVariant::Replica)
+    let connection_pool = MainConnectionPool::singleton(DbVariant::Replica)
         .build()
         .await
         .context("failed to build a connection pool")?;
@@ -891,7 +894,7 @@ async fn add_house_keeper_to_task_futures(
         connection_pool,
     );
 
-    let prover_connection_pool = ConnectionPool::builder(DbVariant::Prover)
+    let prover_connection_pool = MainConnectionPool::builder(DbVariant::Prover)
         .set_max_size(Some(house_keeper_config.prover_db_pool_size))
         .build()
         .await
@@ -1002,7 +1005,7 @@ async fn add_house_keeper_to_task_futures(
 }
 
 fn build_storage_caches(
-    replica_connection_pool: &ConnectionPool,
+    replica_connection_pool: &MainConnectionPool,
     task_futures: &mut Vec<JoinHandle<anyhow::Result<()>>>,
 ) -> anyhow::Result<PostgresStorageCaches> {
     let rpc_config = Web3JsonRpcConfig::from_env().context("Web3JsonRpcConfig::from_env()")?;
@@ -1027,8 +1030,8 @@ async fn build_tx_sender<G: L1GasPriceProvider>(
     tx_sender_config: &TxSenderConfig,
     web3_json_config: &Web3JsonRpcConfig,
     state_keeper_config: &StateKeeperConfig,
-    replica_pool: ConnectionPool,
-    master_pool: ConnectionPool,
+    replica_pool: MainConnectionPool,
+    master_pool: MainConnectionPool,
     l1_gas_price_provider: Arc<G>,
     storage_caches: PostgresStorageCaches,
 ) -> (TxSender<G>, VmConcurrencyBarrier) {
@@ -1061,8 +1064,8 @@ async fn run_http_api<G: L1GasPriceProvider + Send + Sync + 'static>(
     state_keeper_config: &StateKeeperConfig,
     internal_api: &InternalApiConfig,
     api_config: &ApiConfig,
-    master_connection_pool: ConnectionPool,
-    replica_connection_pool: ConnectionPool,
+    master_connection_pool: MainConnectionPool,
+    replica_connection_pool: MainConnectionPool,
     stop_receiver: watch::Receiver<bool>,
     gas_adjuster: Arc<G>,
     with_debug_namespace: bool,
@@ -1085,7 +1088,7 @@ async fn run_http_api<G: L1GasPriceProvider + Send + Sync + 'static>(
     } else {
         Namespace::NON_DEBUG.to_vec()
     };
-    let last_miniblock_pool = ConnectionPool::singleton(DbVariant::Replica)
+    let last_miniblock_pool = MainConnectionPool::singleton(DbVariant::Replica)
         .build()
         .await
         .context("failed to build last_miniblock_pool")?;
@@ -1113,8 +1116,8 @@ async fn run_ws_api<G: L1GasPriceProvider + Send + Sync + 'static>(
     internal_api: &InternalApiConfig,
     api_config: &ApiConfig,
     gas_adjuster: Arc<G>,
-    master_connection_pool: ConnectionPool,
-    replica_connection_pool: ConnectionPool,
+    master_connection_pool: MainConnectionPool,
+    replica_connection_pool: MainConnectionPool,
     stop_receiver: watch::Receiver<bool>,
     storage_caches: PostgresStorageCaches,
     with_logs_request_translator_enabled: bool,
@@ -1129,7 +1132,7 @@ async fn run_ws_api<G: L1GasPriceProvider + Send + Sync + 'static>(
         storage_caches,
     )
     .await;
-    let last_miniblock_pool = ConnectionPool::singleton(DbVariant::Replica)
+    let last_miniblock_pool = MainConnectionPool::singleton(DbVariant::Replica)
         .build()
         .await
         .context("failed to build last_miniblock_pool")?;
@@ -1172,7 +1175,7 @@ async fn circuit_breakers_for_components(
             Component::EthTxAggregator | Component::EthTxManager | Component::StateKeeper
         )
     }) {
-        let pool = ConnectionPool::singleton(DbVariant::Replica)
+        let pool = MainConnectionPool::singleton(DbVariant::Replica)
             .build()
             .await
             .context("failed to build a connection pool")?;
@@ -1200,7 +1203,7 @@ async fn circuit_breakers_for_components(
                 | Component::ContractVerificationApi
         )
     }) {
-        let pool = ConnectionPool::singleton(DbVariant::Replica)
+        let pool = MainConnectionPool::singleton(DbVariant::Replica)
             .build()
             .await?;
         circuit_breakers.push(Box::new(ReplicationLagChecker {

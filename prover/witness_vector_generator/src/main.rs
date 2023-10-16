@@ -8,8 +8,7 @@ use tokio::{sync::oneshot, sync::watch};
 use crate::generator::WitnessVectorGenerator;
 use zksync_config::configs::fri_prover_group::FriProverGroupConfig;
 use zksync_config::configs::{FriWitnessVectorGeneratorConfig};
-use zksync_dal::connection::DbVariant;
-use zksync_dal::ConnectionPool;
+use zksync_prover_dal::ProverConnectionPool;
 use zksync_object_store::ObjectStoreFactory;
 use zksync_prover_fri_utils::get_all_circuit_id_round_tuples_for;
 use zksync_prover_utils::region_fetcher::get_zone;
@@ -54,7 +53,7 @@ async fn main() -> anyhow::Result<()> {
     let specialized_group_id = config.specialized_group_id;
     let exporter_config = PrometheusExporterConfig::pull(config.prometheus_listener_port);
 
-    let pool = ConnectionPool::builder(DbVariant::Prover).build().await
+    let pool = ProverConnectionPool::builder().build().await
         .context("failed to build a connection pool")?;
     let blob_store = ObjectStoreFactory::prover_from_env()
         .context("ObjectStoreFactor::prover_from_env()")?

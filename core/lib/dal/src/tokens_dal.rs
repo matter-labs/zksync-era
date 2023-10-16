@@ -1,5 +1,5 @@
 use crate::models::storage_token::StorageTokenMarketVolume;
-use crate::StorageProcessor;
+use crate::MainStorageProcessor;
 use num::{rational::Ratio, BigUint};
 use sqlx::types::chrono::Utc;
 use zksync_types::{
@@ -14,7 +14,7 @@ pub(crate) const STORED_USD_PRICE_PRECISION: usize = 6;
 
 #[derive(Debug)]
 pub struct TokensDal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+    pub(crate) storage: &'a mut MainStorageProcessor<'c>,
 }
 
 impl TokensDal<'_, '_> {

@@ -8,15 +8,22 @@ use zkevm_test_harness::abstract_zksync_circuit::concrete_circuits::ZkSyncProof;
 use zkevm_test_harness::pairing::bn256::Bn256;
 
 use zksync_config::ProverConfig;
-use zksync_dal::StorageProcessor;
-use zksync_dal::{connection::DbVariant, ConnectionPool};
+use zksync_prover_dal::{
+    ProverStorageProcessor,
+    ProverConnectionPool,
+};
+use zksync_main_dal::{
+    connection::DbVariant,
+    MainConnectionPool
+};
 use zksync_object_store::{Bucket, ObjectStore, ObjectStoreFactory};
 use zksync_types::proofs::ProverJobMetadata;
 
 #[derive(Debug)]
 pub struct ProverReporter {
     rt_handle: Handle,
-    pool: ConnectionPool,
+    prover_pool: ProverConnectionPool,
+    main_pool: MainConnectionPool
     config: ProverConfig,
     processed_by: String,
     object_store: Box<dyn ObjectStore>,
@@ -32,10 +39,13 @@ impl ProverReporter {
         store_factory: &ObjectStoreFactory,
         rt_handle: Handle,
     ) -> anyhow::Result<Self> {
-        let pool = rt_handle.block_on(ConnectionPool::singleton(DbVariant::Prover).build())
-            .context("failed to build a connection pool")?;
+        let prover_pool = rt_handle.block_on(ProverConnectionPool::singleton().build())
+            .context("failed to build prover connection pool")?;
+        let main_pool = rt_handle.block_on(MainConnectionPool::singleton(DbVariant::Master).build())
+            .context("failed to build main connection pool")?;
         Ok(Self {
-            pool,
+            prover_pool,
+            main_pool,
             config,
             processed_by: env::var("POD_NAME").unwrap_or("Unknown".to_string()),
             object_store: rt_handle.block_on(store_factory.create_store()),
@@ -105,7 +115,7 @@ impl ProverReporter {
 
     async fn get_prover_job_metadata_by_id_and_exit_if_error(
         &self,
-        connection: &mut StorageProcessor<'_>,
+        connection: &mut ProverStorageProcessor<'_>,
         job_id: u32,
     ) -> ProverJobMetadata {
         // BEWARE, HERE BE DRAGONS.
@@ -147,24 +157,37 @@ impl JobReporter for ProverReporter {
                 );
                 self.rt_handle.block_on(async {
                     let result = self
-                        .pool
+                        .prover_pool
                         .access_storage().await.unwrap()
                         .prover_dal()
-                        .save_proof_error(job_id as u32, error, self.config.max_attempts)
+                        .save_proof_error(job_id as u32, error)
                         .await;
-                    // BEWARE, HERE BE DRAGONS.
-                    // `send_report` method is called in an operating system thread,
-                    // which is in charge of saving proof output (ok, errored, etc.).
-                    // The code that calls it is in a thread that does not check it's status.
-                    // If the thread panics, proofs will be generated, but their status won't be saved.
-                    // So a prover will work like this:
-                    // Pick task, execute task, prepare task to be saved, be restarted as nothing happens.
-                    // The error prevents the "fake" work by killing the prover, which causes it to restart.
-                    // A proper fix would be to have the thread signal it was dead or be watched from outside.
-                    // Given we want to deprecate old prover, this is the quick and dirty hack I'm not proud of.
-                    if let Err(e) = result {
-                        tracing::warn!("panicked inside heavy-ops thread: {e:?}; exiting...");
-                        std::process::exit(-1);
+                    
+                    match result {
+                        Ok((l1_batch_number, attempts)) => {
+                            if attempts >= self.config.max_attempts {
+                                self.main_connection_pool
+                                    .access_storage().await.unwrap()
+                                    .blocks_dal()
+                                    .set_skip_proof_for_l1_batch(L1BatchNumber(l1_batch_number))
+                                    .await
+                                    .unwrap();
+                            }
+                        },
+                        // BEWARE, HERE BE DRAGONS.
+                        // `send_report` method is called in an operating system thread,
+                        // which is in charge of saving proof output (ok, errored, etc.).
+                        // The code that calls it is in a thread that does not check it's status.
+                        // If the thread panics, proofs will be generated, but their status won't be saved.
+                        // So a prover will work like this:
+                        // Pick task, execute task, prepare task to be saved, be restarted as nothing happens.
+                        // The error prevents the "fake" work by killing the prover, which causes it to restart.
+                        // A proper fix would be to have the thread signal it was dead or be watched from outside.
+                        // Given we want to deprecate old prover, this is the quick and dirty hack I'm not proud of.
+                        Err(e) => {
+                            tracing::warn!("panicked inside heavy-ops thread: {e:?}; exiting...");
+                            std::process::exit(-1);
+                        }
                     }
                 });
             }

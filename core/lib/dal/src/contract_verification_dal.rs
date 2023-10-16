@@ -12,12 +12,12 @@ use zksync_types::{
 use sqlx::postgres::types::PgInterval;
 
 use crate::models::storage_verification_request::StorageVerificationRequest;
+use crate::MainStorageProcessor;
 use crate::SqlxError;
-use crate::StorageProcessor;
 
 #[derive(Debug)]
 pub struct ContractVerificationDal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+    pub(crate) storage: &'a mut MainStorageProcessor<'c>,
 }
 
 #[derive(Debug)]

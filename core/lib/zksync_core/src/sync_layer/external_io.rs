@@ -10,7 +10,7 @@ use async_trait::async_trait;
 
 use vm::{FinishedL1Batch, L1BatchEnv, SystemEnv};
 use zksync_contracts::{BaseSystemContracts, SystemContractCode};
-use zksync_dal::ConnectionPool;
+use zksync_dal::MainConnectionPool;
 use zksync_types::block::legacy_miniblock_hash;
 use zksync_types::witness_block_state::WitnessBlockState;
 use zksync_types::{
@@ -91,7 +91,7 @@ impl ExternalNodeSealer {
 /// to the one in the mempool IO (which is used in the main node).
 #[derive(Debug)]
 pub struct ExternalIO {
-    pool: ConnectionPool,
+    pool: MainConnectionPool,
 
     current_l1_batch_number: L1BatchNumber,
     current_miniblock_number: MiniblockNumber,
@@ -108,7 +108,7 @@ pub struct ExternalIO {
 
 impl ExternalIO {
     pub async fn new(
-        pool: ConnectionPool,
+        pool: MainConnectionPool,
         actions: ActionQueue,
         sync_state: SyncState,
         main_node_url: String,

@@ -6,7 +6,7 @@ use vm::constants::BLOCK_GAS_LIMIT;
 use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_config::GasAdjusterConfig;
 use zksync_contracts::BaseSystemContracts;
-use zksync_dal::ConnectionPool;
+use zksync_dal::MainConnectionPool;
 use zksync_eth_client::clients::mock::MockEthereum;
 use zksync_types::{
     block::{L1BatchHeader, MiniblockHeader},
@@ -63,7 +63,7 @@ impl Tester {
 
     pub(super) async fn create_test_mempool_io(
         &self,
-        pool: ConnectionPool,
+        pool: MainConnectionPool,
         miniblock_sealer_capacity: usize,
     ) -> (MempoolIO<GasAdjuster<MockEthereum>>, MempoolGuard) {
         let gas_adjuster = Arc::new(self.create_gas_adjuster().await);
@@ -102,7 +102,7 @@ impl Tester {
         self.current_timestamp = timestamp;
     }
 
-    pub(super) async fn genesis(&self, pool: &ConnectionPool) {
+    pub(super) async fn genesis(&self, pool: &MainConnectionPool) {
         let mut storage = pool.access_storage_tagged("state_keeper").await.unwrap();
         if storage.blocks_dal().is_genesis_needed().await.unwrap() {
             create_genesis_l1_batch(
@@ -121,7 +121,7 @@ impl Tester {
 
     pub(super) async fn insert_miniblock(
         &self,
-        pool: &ConnectionPool,
+        pool: &MainConnectionPool,
         number: u32,
         base_fee_per_gas: u64,
         l1_gas_price: u64,
@@ -147,7 +147,7 @@ impl Tester {
             .unwrap();
     }
 
-    pub(super) async fn insert_sealed_batch(&self, pool: &ConnectionPool, number: u32) {
+    pub(super) async fn insert_sealed_batch(&self, pool: &MainConnectionPool, number: u32) {
         let mut batch_header = L1BatchHeader::new(
             L1BatchNumber(number),
             self.current_timestamp,

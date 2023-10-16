@@ -5,7 +5,7 @@ use crate::eth_watch::{
 use std::convert::TryFrom;
 use std::time::Instant;
 use zksync_contracts::zksync_contract;
-use zksync_dal::StorageProcessor;
+use zksync_dal::MainStorageProcessor;
 use zksync_types::{l1::L1Tx, web3::types::Log, PriorityOpId, H256};
 
 /// Responsible for saving new priority L1 transactions to the database.
@@ -31,7 +31,7 @@ impl PriorityOpsEventProcessor {
 impl<W: EthClient + Sync> EventProcessor<W> for PriorityOpsEventProcessor {
     async fn process_events(
         &mut self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut MainStorageProcessor<'_>,
         _client: &W,
         events: Vec<Log>,
     ) -> Result<(), Error> {

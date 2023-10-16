@@ -3,7 +3,7 @@ use chrono::Utc;
 
 use std::fmt;
 
-use zksync_dal::StorageProcessor;
+use zksync_dal::MainStorageProcessor;
 use zksync_types::commitment::L1BatchWithMetadata;
 use zksync_types::{aggregated_operations::AggregatedActionType, L1BatchNumber};
 
@@ -18,7 +18,7 @@ pub trait L1BatchPublishCriterion: fmt::Debug + Send + Sync {
     /// Otherwise, returns the number of the last L1 batch that needs to be published.
     async fn last_l1_batch_to_publish(
         &mut self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut MainStorageProcessor<'_>,
         consecutive_l1_batches: &[L1BatchWithMetadata],
         last_sealed_l1_batch: L1BatchNumber,
     ) -> Option<L1BatchNumber>;
@@ -39,7 +39,7 @@ impl L1BatchPublishCriterion for NumberCriterion {
 
     async fn last_l1_batch_to_publish(
         &mut self,
-        _storage: &mut StorageProcessor<'_>,
+        _storage: &mut MainStorageProcessor<'_>,
         consecutive_l1_batches: &[L1BatchWithMetadata],
         _last_sealed_l1_batch: L1BatchNumber,
     ) -> Option<L1BatchNumber> {
@@ -90,7 +90,7 @@ impl L1BatchPublishCriterion for TimestampDeadlineCriterion {
 
     async fn last_l1_batch_to_publish(
         &mut self,
-        _storage: &mut StorageProcessor<'_>,
+        _storage: &mut MainStorageProcessor<'_>,
         consecutive_l1_batches: &[L1BatchWithMetadata],
         last_sealed_l1_batch: L1BatchNumber,
     ) -> Option<L1BatchNumber> {
@@ -140,7 +140,7 @@ impl GasCriterion {
 
     async fn get_gas_amount(
         &self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut MainStorageProcessor<'_>,
         batch_number: L1BatchNumber,
     ) -> u32 {
         storage
@@ -159,7 +159,7 @@ impl L1BatchPublishCriterion for GasCriterion {
 
     async fn last_l1_batch_to_publish(
         &mut self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut MainStorageProcessor<'_>,
         consecutive_l1_batches: &[L1BatchWithMetadata],
         _last_sealed_l1_batch: L1BatchNumber,
     ) -> Option<L1BatchNumber> {
@@ -221,7 +221,7 @@ impl L1BatchPublishCriterion for DataSizeCriterion {
 
     async fn last_l1_batch_to_publish(
         &mut self,
-        _storage: &mut StorageProcessor<'_>,
+        _storage: &mut MainStorageProcessor<'_>,
         consecutive_l1_batches: &[L1BatchWithMetadata],
         _last_sealed_l1_batch: L1BatchNumber,
     ) -> Option<L1BatchNumber> {

@@ -4,7 +4,7 @@ use tokio::runtime::Handle;
 
 use vm::utils::fee::derive_base_fee_and_gas_per_pubdata;
 use zksync_config::constants::PUBLISH_BYTECODE_OVERHEAD;
-use zksync_dal::{ConnectionPool, SqlxError, StorageProcessor};
+use zksync_dal::{MainConnectionPool, MainStorageProcessor, SqlxError};
 use zksync_state::{PostgresStorage, PostgresStorageCaches, ReadStorage, StorageView};
 use zksync_types::{api, AccountTreeId, L2ChainId, MiniblockNumber, U256};
 use zksync_utils::bytecode::{compress_bytecode, hash_bytecode};
@@ -165,7 +165,7 @@ pub(super) fn adjust_l1_gas_price_for_tx(
 }
 
 async fn get_pending_state(
-    connection: &mut StorageProcessor<'_>,
+    connection: &mut MainStorageProcessor<'_>,
 ) -> (api::BlockId, MiniblockNumber) {
     let block_id = api::BlockId::Number(api::BlockNumber::Pending);
     let resolved_block_number = connection
@@ -180,7 +180,7 @@ async fn get_pending_state(
 /// Returns the number of the pubdata that the transaction will spend on factory deps.
 pub(super) async fn get_pubdata_for_factory_deps(
     _vm_permit: &VmPermit,
-    connection_pool: &ConnectionPool,
+    connection_pool: &MainConnectionPool,
     factory_deps: &[Vec<u8>],
     storage_caches: PostgresStorageCaches,
 ) -> u32 {
@@ -242,7 +242,7 @@ pub(crate) struct BlockArgs {
 }
 
 impl BlockArgs {
-    async fn pending(connection: &mut StorageProcessor<'_>) -> Self {
+    async fn pending(connection: &mut MainStorageProcessor<'_>) -> Self {
         let (block_id, resolved_block_number) = get_pending_state(connection).await;
         Self {
             block_id,
@@ -253,7 +253,7 @@ impl BlockArgs {
 
     /// Loads block information from DB.
     pub async fn new(
-        connection: &mut StorageProcessor<'_>,
+        connection: &mut MainStorageProcessor<'_>,
         block_id: api::BlockId,
     ) -> Result<Option<Self>, SqlxError> {
         if block_id == api::BlockId::Number(api::BlockNumber::Pending) {

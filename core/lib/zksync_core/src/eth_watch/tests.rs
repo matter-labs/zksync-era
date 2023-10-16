@@ -6,7 +6,7 @@ use tokio::sync::RwLock;
 
 use db_test_macro::db_test;
 use zksync_contracts::zksync_contract;
-use zksync_dal::{ConnectionPool, StorageProcessor};
+use zksync_dal::{MainConnectionPool, MainStorageProcessor};
 use zksync_types::protocol_version::{ProtocolUpgradeTx, ProtocolUpgradeTxCommonData};
 use zksync_types::web3::types::{Address, BlockNumber};
 use zksync_types::{
@@ -185,7 +185,7 @@ fn build_upgrade_tx(id: ProtocolVersionId, eth_block: u64) -> ProtocolUpgradeTx 
 }
 
 #[db_test]
-async fn test_normal_operation_l1_txs(connection_pool: ConnectionPool) {
+async fn test_normal_operation_l1_txs(connection_pool: MainConnectionPool) {
     setup_db(&connection_pool).await;
 
     let mut client = FakeEthClient::new();
@@ -230,7 +230,7 @@ async fn test_normal_operation_l1_txs(connection_pool: ConnectionPool) {
 }
 
 #[db_test]
-async fn test_normal_operation_upgrades(connection_pool: ConnectionPool) {
+async fn test_normal_operation_upgrades(connection_pool: MainConnectionPool) {
     setup_db(&connection_pool).await;
 
     let mut client = FakeEthClient::new();
@@ -288,7 +288,7 @@ async fn test_normal_operation_upgrades(connection_pool: ConnectionPool) {
 }
 
 #[db_test]
-async fn test_gap_in_upgrades(connection_pool: ConnectionPool) {
+async fn test_gap_in_upgrades(connection_pool: MainConnectionPool) {
     setup_db(&connection_pool).await;
 
     let mut client = FakeEthClient::new();
@@ -325,7 +325,7 @@ async fn test_gap_in_upgrades(connection_pool: ConnectionPool) {
 
 #[db_test]
 #[should_panic]
-async fn test_gap_in_single_batch(connection_pool: ConnectionPool) {
+async fn test_gap_in_single_batch(connection_pool: MainConnectionPool) {
     setup_db(&connection_pool).await;
 
     let mut client = FakeEthClient::new();
@@ -352,7 +352,7 @@ async fn test_gap_in_single_batch(connection_pool: ConnectionPool) {
 
 #[db_test]
 #[should_panic]
-async fn test_gap_between_batches(connection_pool: ConnectionPool) {
+async fn test_gap_between_batches(connection_pool: MainConnectionPool) {
     setup_db(&connection_pool).await;
 
     let mut client = FakeEthClient::new();
@@ -384,7 +384,7 @@ async fn test_gap_between_batches(connection_pool: ConnectionPool) {
 }
 
 #[db_test]
-async fn test_overlapping_batches(connection_pool: ConnectionPool) {
+async fn test_overlapping_batches(connection_pool: MainConnectionPool) {
     setup_db(&connection_pool).await;
 
     let mut client = FakeEthClient::new();
@@ -428,7 +428,7 @@ async fn test_overlapping_batches(connection_pool: ConnectionPool) {
     assert_eq!(tx.common_data.serial_id.0, 4);
 }
 
-async fn get_all_db_txs(storage: &mut StorageProcessor<'_>) -> Vec<Transaction> {
+async fn get_all_db_txs(storage: &mut MainStorageProcessor<'_>) -> Vec<Transaction> {
     storage.transactions_dal().reset_mempool().await;
     storage
         .transactions_dal()
@@ -622,7 +622,7 @@ fn upgrade_into_log(upgrade: ProtocolUpgrade, eth_block: u64) -> Log {
     }
 }
 
-async fn setup_db(connection_pool: &ConnectionPool) {
+async fn setup_db(connection_pool: &MainConnectionPool) {
     connection_pool
         .access_test_storage()
         .await

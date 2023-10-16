@@ -7,7 +7,7 @@ use prover_service::RemoteSynthesizer;
 use queues::{Buffer, IsQueue};
 
 use tokio::runtime::Handle;
-use zksync_dal::ConnectionPool;
+use zksync_prover_dal::ProverConnectionPool;
 use zksync_types::proofs::SocketAddress;
 
 pub type SharedAssemblyQueue = Arc<Mutex<Buffer<Vec<u8>>>>;
@@ -15,7 +15,7 @@ pub type SharedAssemblyQueue = Arc<Mutex<Buffer<Vec<u8>>>>;
 pub struct SynthesizedCircuitProvider {
     rt_handle: Handle,
     queue: SharedAssemblyQueue,
-    pool: ConnectionPool,
+    pool: ProverConnectionPool,
     address: SocketAddress,
     region: String,
     zone: String,
@@ -24,7 +24,7 @@ pub struct SynthesizedCircuitProvider {
 impl SynthesizedCircuitProvider {
     pub fn new(
         queue: SharedAssemblyQueue,
-        pool: ConnectionPool,
+        pool: ProverConnectionPool,
         address: SocketAddress,
         region: String,
         zone: String,

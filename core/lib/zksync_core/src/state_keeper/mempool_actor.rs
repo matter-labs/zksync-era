@@ -7,7 +7,7 @@ use tokio::sync::watch;
 use vm::utils::fee::derive_base_fee_and_gas_per_pubdata;
 use zksync_config::configs::chain::MempoolConfig;
 
-use zksync_dal::ConnectionPool;
+use zksync_dal::MainConnectionPool;
 use zksync_mempool::L2TxFilter;
 
 /// Creates a mempool filter for L2 transactions based on the current L1 gas price.
@@ -52,7 +52,7 @@ impl<G: L1GasPriceProvider> MempoolFetcher<G> {
 
     pub async fn run(
         mut self,
-        pool: ConnectionPool,
+        pool: MainConnectionPool,
         remove_stuck_txs: bool,
         stuck_tx_timeout: Duration,
         fair_l2_gas_price: u64,

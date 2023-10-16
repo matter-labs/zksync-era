@@ -8,11 +8,11 @@ use zksync_types::{
     FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH, H256,
 };
 
-use crate::StorageProcessor;
+use crate::MainStorageProcessor;
 
 #[derive(Debug)]
 pub struct StorageLogsDal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+    pub(crate) storage: &'a mut MainStorageProcessor<'c>,
 }
 
 impl StorageLogsDal<'_, '_> {
@@ -531,7 +531,7 @@ impl StorageLogsDal<'_, '_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{tests::create_miniblock_header, ConnectionPool};
+    use crate::{tests::create_miniblock_header, MainConnectionPool};
     use db_test_macro::db_test;
     use zksync_contracts::BaseSystemContractsHashes;
     use zksync_types::{
@@ -539,7 +539,11 @@ mod tests {
         ProtocolVersion, ProtocolVersionId,
     };
 
-    async fn insert_miniblock(conn: &mut StorageProcessor<'_>, number: u32, logs: Vec<StorageLog>) {
+    async fn insert_miniblock(
+        conn: &mut MainStorageProcessor<'_>,
+        number: u32,
+        logs: Vec<StorageLog>,
+    ) {
         let mut header = L1BatchHeader::new(
             L1BatchNumber(number),
             0,
@@ -569,7 +573,7 @@ mod tests {
     }
 
     #[db_test(dal_crate)]
-    async fn inserting_storage_logs(pool: ConnectionPool) {
+    async fn inserting_storage_logs(pool: MainConnectionPool) {
         let mut conn = pool.access_storage().await.unwrap();
 
         conn.blocks_dal()
@@ -619,7 +623,7 @@ mod tests {
     }
 
     async fn test_rollback(
-        conn: &mut StorageProcessor<'_>,
+        conn: &mut MainStorageProcessor<'_>,
         key: StorageKey,
         second_key: StorageKey,
     ) {
@@ -661,7 +665,7 @@ mod tests {
     }
 
     #[db_test(dal_crate)]
-    async fn getting_storage_logs_for_revert(pool: ConnectionPool) {
+    async fn getting_storage_logs_for_revert(pool: MainConnectionPool) {
         let mut conn = pool.access_storage().await.unwrap();
 
         conn.blocks_dal()
@@ -716,7 +720,7 @@ mod tests {
     }
 
     #[db_test(dal_crate)]
-    async fn reverting_keys_without_initial_write(pool: ConnectionPool) {
+    async fn reverting_keys_without_initial_write(pool: MainConnectionPool) {
         let mut conn = pool.access_storage().await.unwrap();
 
         conn.blocks_dal()

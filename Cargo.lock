@@ -7838,6 +7838,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "assert_matches",
+ "async-trait",
  "bigdecimal",
  "bincode",
  "db_test_macro",
@@ -8018,6 +8019,20 @@ dependencies = [
 [[package]]
 name = "zksync_prover_dal"
 version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bincode",
+ "itertools",
+ "sqlx",
+ "strum",
+ "tokio",
+ "tracing",
+ "zksync_config",
+ "zksync_dal",
+ "zksync_dal_utils",
+ "zksync_types",
+ "zksync_utils",
+]
 
 [[package]]
 name = "zksync_prover_utils"

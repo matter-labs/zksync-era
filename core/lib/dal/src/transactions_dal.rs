@@ -21,7 +21,7 @@ use zksync_utils::{h256_to_u32, u256_to_big_decimal};
 
 use crate::{
     models::storage_transaction::{CallTrace, StorageTransaction},
-    StorageProcessor,
+    MainStorageProcessor,
 };
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
@@ -41,7 +41,7 @@ impl fmt::Display for L2TxSubmissionResult {
 
 #[derive(Debug)]
 pub struct TransactionsDal<'c, 'a> {
-    pub(crate) storage: &'c mut StorageProcessor<'a>,
+    pub(crate) storage: &'c mut MainStorageProcessor<'a>,
 }
 
 type TxLocations = Vec<(MiniblockNumber, Vec<(H256, u32, u16)>)>;

@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use vm::{constants::BLOCK_GAS_LIMIT, L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode};
 use zksync_contracts::BaseSystemContracts;
-use zksync_dal::StorageProcessor;
+use zksync_dal::MainStorageProcessor;
 use zksync_types::{
     Address, L1BatchNumber, L2ChainId, MiniblockNumber, ProtocolVersionId, H256, U256,
     ZKPORTER_IS_AVAILABLE,
@@ -68,7 +68,7 @@ pub(crate) fn poll_iters(delay_interval: Duration, max_wait: Duration) -> usize 
 
 /// Loads the pending L1 block data from the database.
 pub(crate) async fn load_pending_batch(
-    storage: &mut StorageProcessor<'_>,
+    storage: &mut MainStorageProcessor<'_>,
     current_l1_batch_number: L1BatchNumber,
     fee_account: Address,
     validation_computational_gas_limit: u32,
