@@ -1,0 +1,29 @@
+name: Workflow to label external contributions
+
+on:
+  pull_request:
+    types: [opened, ready_for_review]
+
+jobs:
+  label:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Add external-contribution label
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        PR_NUMBER=$(jq --raw-output .pull_request.number "$GITHUB_EVENT_PATH")
+        REPO_FULL_NAME=$(jq --raw-output .repository.full_name "$GITHUB_EVENT_PATH")
+        IS_FORK=$(jq --raw-output .pull_request.head.repo.fork "$GITHUB_EVENT_PATH")
+
+        if [[ "$IS_FORK" == "true" ]]; then
+            echo "This PR is created from a fork."
+            curl \
+            -X POST \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github.v3+json" \
+            "https://api.github.com/repos/$REPO_FULL_NAME/issues/$PR_NUMBER/labels" \
+            -d '{"labels": ["external-contribution"]}'
+        else
+            echo "This PR is not created from a fork."
+        fi
