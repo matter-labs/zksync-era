@@ -77,21 +77,6 @@ impl CompressionMode for CompressionByteAdd {
 
         Some(diff)
     }
-
-    fn compress_extended(&self) -> Option<Vec<u8>> {
-        match self.compress_value_only() {
-            None => None,
-            Some(compressed_val) => {
-                let mut res: Vec<u8> = vec![];
-                res.push(metadata_byte(
-                    self.output_size().unwrap(),
-                    self.operation_id(),
-                ));
-                res.extend(compressed_val);
-                Some(res)
-            }
-        }
-    }
 }
 
 struct CompressionByteSub {
