@@ -17,9 +17,6 @@ RUN curl https://sh.rustup.rs -sSf | bash -s -- -y && \
     rustup install nightly-2023-07-21 && \
     rustup default nightly-2023-07-21
 
-WORKDIR /usr/src/zksync
-COPY . .
-
 RUN cargo build --release --features=rocksdb/io-uring
 
 FROM debian:bookworm-slim
