@@ -24,9 +24,11 @@ pub(crate) mod updates;
 pub use self::{
     batch_executor::{L1BatchExecutorBuilder, MainBatchExecutorBuilder},
     keeper::ZkSyncStateKeeper,
-    seal_criteria::SealManager,
 };
-pub(crate) use self::{io::MiniblockSealer, mempool_actor::MempoolFetcher, types::MempoolGuard};
+pub(crate) use self::{
+    io::MiniblockSealer, mempool_actor::MempoolFetcher, seal_criteria::ConditionalSealer,
+    types::MempoolGuard,
+};
 
 use self::io::{MempoolIO, MiniblockSealerHandle};
 use crate::l1_gas_price::L1GasPriceProvider;
@@ -76,7 +78,7 @@ where
     )
     .await;
 
-    let sealer = SealManager::new(state_keeper_config);
+    let sealer = ConditionalSealer::new(state_keeper_config);
     ZkSyncStateKeeper::new(
         stop_receiver,
         Box::new(io),

@@ -4,6 +4,7 @@ use tokio::sync::{mpsc, watch};
 use std::{
     collections::{HashMap, HashSet, VecDeque},
     convert::TryInto,
+    fmt,
     sync::{Arc, RwLock},
     time::{Duration, Instant},
 };
@@ -21,7 +22,7 @@ use zksync_types::{
 use crate::state_keeper::{
     batch_executor::{BatchExecutorHandle, Command, L1BatchExecutorBuilder, TxExecutionResult},
     io::{MiniblockParams, PendingBatchData, StateKeeperIO},
-    seal_criteria::SealManager,
+    seal_criteria::{ConditionalSealer, IoSealCriteria},
     tests::{
         create_l2_transaction, default_l1_batch_env, default_vm_block_result, BASE_SYSTEM_CONTRACTS,
     },
@@ -44,10 +45,23 @@ const FEE_ACCOUNT: Address = Address::repeat_byte(0x11);
 /// it would be easier for developer to find the problem.
 ///
 /// See any test in the `mod.rs` file to get a visual example.
-#[derive(Debug)]
 pub(crate) struct TestScenario {
     actions: VecDeque<ScenarioItem>,
     pending_batch: Option<PendingBatchData>,
+    l1_batch_seal_fn: Box<SealFn>,
+    miniblock_seal_fn: Box<SealFn>,
+}
+
+type SealFn = dyn FnMut(&UpdatesManager) -> bool + Send;
+
+impl fmt::Debug for TestScenario {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("TestScenario")
+            .field("actions", &self.actions)
+            .field("pending_batch", &self.pending_batch)
+            .finish_non_exhaustive()
+    }
 }
 
 impl TestScenario {
@@ -55,6 +69,8 @@ impl TestScenario {
         Self {
             actions: VecDeque::new(),
             pending_batch: None,
+            l1_batch_seal_fn: Box::new(|_| false),
+            miniblock_seal_fn: Box::new(|_| false),
         }
     }
 
@@ -145,21 +161,34 @@ impl TestScenario {
     /// Expects the batch to be sealed.
     /// Accepts a function that would be given access to the received batch seal params, which can implement
     /// additional assertions on the sealed batch.
-    pub(crate) fn batch_sealed_with<
+    pub(crate) fn batch_sealed_with<F>(mut self, description: &'static str, f: F) -> Self
+    where
         F: FnOnce(&VmExecutionResultAndLogs, &UpdatesManager, &L1BatchEnv) + Send + 'static,
-    >(
-        mut self,
-        description: &'static str,
-        f: F,
-    ) -> Self {
+    {
         self.actions
             .push_back(ScenarioItem::BatchSeal(description, Some(Box::new(f))));
         self
     }
 
+    pub(crate) fn seal_l1_batch_when<F>(mut self, seal_fn: F) -> Self
+    where
+        F: FnMut(&UpdatesManager) -> bool + Send + 'static,
+    {
+        self.l1_batch_seal_fn = Box::new(seal_fn);
+        self
+    }
+
+    pub(crate) fn seal_miniblock_when<F>(mut self, seal_fn: F) -> Self
+    where
+        F: FnMut(&UpdatesManager) -> bool + Send + 'static,
+    {
+        self.miniblock_seal_fn = Box::new(seal_fn);
+        self
+    }
+
     /// Launches the test.
     /// Provided `SealManager` is expected to be externally configured to adhere the written scenario logic.
-    pub(crate) async fn run(self, sealer: SealManager) {
+    pub(crate) async fn run(self, sealer: ConditionalSealer) {
         assert!(!self.actions.is_empty(), "Test scenario can't be empty");
 
         let batch_executor_base = TestBatchExecutorBuilder::new(&self);
@@ -566,6 +595,16 @@ impl TestIO {
             self.stop_sender.send(true).unwrap();
         }
         action
+    }
+}
+
+impl IoSealCriteria for TestIO {
+    fn should_seal_l1_batch_unconditionally(&mut self, manager: &UpdatesManager) -> bool {
+        (self.scenario.l1_batch_seal_fn)(manager)
+    }
+
+    fn should_seal_miniblock(&mut self, manager: &UpdatesManager) -> bool {
+        (self.scenario.miniblock_seal_fn)(manager)
     }
 }
 

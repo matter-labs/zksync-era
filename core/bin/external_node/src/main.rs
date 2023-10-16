@@ -21,9 +21,7 @@ use zksync_core::{
     },
     reorg_detector::ReorgDetector,
     setup_sigint_handler,
-    state_keeper::{
-        L1BatchExecutorBuilder, MainBatchExecutorBuilder, SealManager, ZkSyncStateKeeper,
-    },
+    state_keeper::{L1BatchExecutorBuilder, MainBatchExecutorBuilder, ZkSyncStateKeeper},
     sync_layer::{
         batch_status_updater::BatchStatusUpdater, external_io::ExternalIO,
         fetcher::MainNodeFetcher, genesis::perform_genesis_if_needed, ActionQueue, SyncState,
@@ -52,11 +50,6 @@ async fn build_state_keeper(
     chain_id: L2ChainId,
 ) -> ZkSyncStateKeeper {
     let main_node_url = config.required.main_node_url().unwrap();
-    let sealer = SealManager::custom(
-        None,
-        vec![], // FIXME: rework sealers
-        vec![],
-    );
 
     // These config values are used on the main node, and depending on these values certain transactions can
     // be *rejected* (that is, not included into the block). However, external node only mirrors what the main
@@ -89,10 +82,9 @@ async fn build_state_keeper(
         )
         .await,
     );
-
     io.recalculate_miniblock_hashes().await;
 
-    ZkSyncStateKeeper::new(stop_receiver, io, batch_executor_base, sealer)
+    ZkSyncStateKeeper::without_sealer(stop_receiver, io, batch_executor_base)
 }
 
 async fn init_tasks(

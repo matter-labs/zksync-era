@@ -32,7 +32,7 @@ impl ConditionalSealer {
         None
     }
 
-    pub(super) fn new(config: StateKeeperConfig) -> Self {
+    pub(crate) fn new(config: StateKeeperConfig) -> Self {
         let sealers = Self::default_sealers();
         Self { config, sealers }
     }
@@ -45,7 +45,7 @@ impl ConditionalSealer {
         Self { config, sealers }
     }
 
-    pub(super) fn should_seal_l1_batch(
+    pub fn should_seal_l1_batch(
         &self,
         l1_batch_number: u32,
         block_open_timestamp_ms: u128,

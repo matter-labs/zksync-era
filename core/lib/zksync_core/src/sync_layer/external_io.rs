@@ -34,6 +34,7 @@ use crate::{
             MiniblockParams, PendingBatchData, StateKeeperIO,
         },
         metrics::{KEEPER_METRICS, L1_BATCH_METRICS},
+        seal_criteria::IoSealCriteria,
         updates::UpdatesManager,
     },
 };
@@ -262,6 +263,19 @@ impl ExternalIO {
                 contract
             }
         }
+    }
+}
+
+impl IoSealCriteria for ExternalIO {
+    fn should_seal_l1_batch_unconditionally(&mut self, _manager: &UpdatesManager) -> bool {
+        matches!(
+            self.actions.peek_action(),
+            Some(SyncAction::SealBatch { .. })
+        )
+    }
+
+    fn should_seal_miniblock(&mut self, _manager: &UpdatesManager) -> bool {
+        matches!(self.actions.peek_action(), Some(SyncAction::SealMiniblock))
     }
 }
 
