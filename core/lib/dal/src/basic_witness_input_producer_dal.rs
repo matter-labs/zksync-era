@@ -135,3 +135,13 @@ impl BasicWitnessInputProducerDal<'_, '_> {
             .unwrap();
     }
 }
+
+/// These functions should only be used for tests.
+impl BasicWitnessInputProducerDal<'_, '_> {
+    pub async fn delete_all_jobs(&mut self) -> sqlx::Result<()> {
+        sqlx::query!("DELETE FROM basic_witness_input_producer_jobs")
+            .execute(self.storage.conn())
+            .await?;
+        Ok(())
+    }
+}

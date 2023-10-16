@@ -7662,6 +7662,16 @@
     },
     "query": "SELECT transactions.hash, transactions.received_at FROM transactions LEFT JOIN miniblocks ON miniblocks.number = miniblock_number WHERE received_at > $1 ORDER BY received_at ASC LIMIT $2"
   },
+  "a4f240188c1447f5b6dcef33dfcc9d00b105f62a6b4c3949a825bea979954160": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Left": []
+      }
+    },
+    "query": "DELETE FROM basic_witness_input_producer_jobs"
+  },
   "a5115658f3a53462a9570fd6676f1931604d1c17a9a2b5f1475519006aaf03ba": {
     "describe": {
       "columns": [],
