@@ -2,7 +2,7 @@ name: Workflow to label external contributions
 
 on:
   pull_request_target:
-    types: [opened, synchronize]
+    types: [opened]
 
 jobs:
   label:
