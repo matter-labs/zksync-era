@@ -96,13 +96,6 @@ impl<S: ReadStorage + fmt::Debug> StorageView<S> {
         }
     }
 
-    pub fn with_debug(self, debug: String) -> Self {
-        Self {
-            debug: Some(debug),
-            ..self
-        }
-    }
-
     fn get_value_no_log(&mut self, key: &StorageKey) -> StorageValue {
         let started_at = Instant::now();
 

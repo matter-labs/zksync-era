@@ -342,24 +342,6 @@ pub struct PostgresStorage<'a> {
 }
 
 impl<'a> PostgresStorage<'a> {
-    pub fn new_with_l1_batch(
-        rt_handle: Handle,
-        connection: StorageProcessor<'a>,
-        miniblock_number: MiniblockNumber,
-        l1_batch_number_for_miniblock: L1BatchNumber,
-        pending_l1_batch_number: L1BatchNumber,
-    ) -> PostgresStorage<'a> {
-        Self {
-            rt_handle,
-            connection,
-            miniblock_number,
-            l1_batch_number_for_miniblock,
-            pending_l1_batch_number,
-            consider_new_l1_batch: false,
-            caches: None,
-        }
-    }
-
     /// Creates a new storage using the specified connection.
     /// # Panics
     /// Panics on Postgres errors.
