@@ -1,5 +1,15 @@
 # Changelog
 
+## [16.0.2](https://github.com/matter-labs/zksync-era/compare/core-v16.0.1...core-v16.0.2) (2023-10-12)
+
+
+### Bug Fixes
+
+* **API:** return correct v value for Legacy tx ([#154](https://github.com/matter-labs/zksync-era/issues/154)) ([ed502ea](https://github.com/matter-labs/zksync-era/commit/ed502ea9aff50627ae9620f1570579893cbf2722))
+* **API:** U256 for chainId in api::Transaction struct ([#211](https://github.com/matter-labs/zksync-era/issues/211)) ([ca98a1c](https://github.com/matter-labs/zksync-era/commit/ca98a1c70c8482397215221b4e00bdb2edeccd84))
+* **prover:** Fix statistic query ([#193](https://github.com/matter-labs/zksync-era/issues/193)) ([5499093](https://github.com/matter-labs/zksync-era/commit/54990933051632e505c76bd98b83462617cb725a))
+* **state-keeper:** Add L2ToL1LogsCriterion ([#195](https://github.com/matter-labs/zksync-era/issues/195)) ([64459b2](https://github.com/matter-labs/zksync-era/commit/64459b2383a344b558ae648743c3f7d91c1b24c0))
+
 ## [16.0.0](https://github.com/matter-labs/zksync-era/compare/core-v15.1.1...core-v16.0.0) (2023-10-11)
 
 

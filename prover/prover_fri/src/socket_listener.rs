@@ -59,7 +59,9 @@ pub mod gpu_socket_listener {
 
             let _lock = self.queue.lock().await;
             self.pool
-                .access_storage().await.unwrap()
+                .access_storage()
+                .await
+                .unwrap()
                 .fri_gpu_prover_queue_dal()
                 .insert_prover_instance(
                     self.address.clone(),
@@ -91,7 +93,9 @@ pub mod gpu_socket_listener {
                     now.elapsed().as_millis()
                 );
 
-                self.handle_incoming_file(stream).await.context("handle_incoming_file()")?;
+                self.handle_incoming_file(stream)
+                    .await
+                    .context("handle_incoming_file()")?;
 
                 now = Instant::now();
             }
@@ -120,7 +124,8 @@ pub mod gpu_socket_listener {
                 witness_vector.prover_job.circuit_wrapper.clone(),
                 witness_vector.prover_job.job_id,
                 witness_vector.prover_job.setup_data_key.circuit_id,
-            ).context("generate_assembly_for_repeated_proving()")?;
+            )
+            .context("generate_assembly_for_repeated_proving()")?;
             let gpu_prover_job = GpuProverJob {
                 witness_vector_artifacts: witness_vector,
                 assembly,
@@ -139,7 +144,9 @@ pub mod gpu_socket_listener {
             };
 
             self.pool
-                .access_storage().await.unwrap()
+                .access_storage()
+                .await
+                .unwrap()
                 .fri_gpu_prover_queue_dal()
                 .update_prover_instance_status(self.address.clone(), status, self.zone.clone())
                 .await;
@@ -159,8 +166,8 @@ pub mod gpu_socket_listener {
                     base_circuit.numeric_circuit_type(),
                     AggregationRound::BasicCircuits,
                 );
-                let finalization_hint = get_finalization_hints(key)
-                    .context("get_finalization_hints()")?;
+                let finalization_hint =
+                    get_finalization_hints(key).context("get_finalization_hints()")?;
                 init_base_layer_cs_for_repeated_proving(base_circuit, &finalization_hint)
             }
             CircuitWrapper::Recursive(recursive_circuit) => {
@@ -168,8 +175,8 @@ pub mod gpu_socket_listener {
                     recursive_circuit.numeric_circuit_type(),
                     get_round_for_recursive_circuit_type(recursive_circuit.numeric_circuit_type()),
                 );
-                let finalization_hint = get_finalization_hints(key)
-                    .context("get_finalization_hints()")?;
+                let finalization_hint =
+                    get_finalization_hints(key).context("get_finalization_hints()")?;
                 init_recursive_layer_cs_for_repeated_proving(recursive_circuit, &finalization_hint)
             }
         };

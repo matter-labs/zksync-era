@@ -91,7 +91,7 @@ pub struct VmInstanceInnerState {
     local_state: VmLocalState,
 }
 
-impl<'a, S: Storage> VmInstance<'a, S> {
+impl<S: Storage> VmInstance<S> {
     /// This method is mostly to be used in tests. It dumps the inner state of all the oracles and the VM itself.
     pub fn dump_inner_state(&self) -> VmInstanceInnerState {
         let event_sink = self.state.event_sink.clone();

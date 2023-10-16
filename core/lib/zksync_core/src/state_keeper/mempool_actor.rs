@@ -1,14 +1,14 @@
-use super::types::MempoolGuard;
-use crate::l1_gas_price::L1GasPriceProvider;
-use std::sync::Arc;
-use std::time::Duration;
-use std::time::Instant;
 use tokio::sync::watch;
+
+use std::{sync::Arc, time::Duration};
+
 use vm::utils::fee::derive_base_fee_and_gas_per_pubdata;
 use zksync_config::configs::chain::MempoolConfig;
-
 use zksync_dal::ConnectionPool;
 use zksync_mempool::L2TxFilter;
+
+use super::{metrics::KEEPER_METRICS, types::MempoolGuard};
+use crate::l1_gas_price::L1GasPriceProvider;
 
 /// Creates a mempool filter for L2 transactions based on the current L1 gas price.
 /// The filter is used to filter out transactions from the mempool that do not cover expenses
@@ -75,7 +75,7 @@ impl<G: L1GasPriceProvider> MempoolFetcher<G> {
                 tracing::info!("Stop signal received, mempool is shutting down");
                 break;
             }
-            let started_at = Instant::now();
+            let latency = KEEPER_METRICS.mempool_sync.start();
             let mut storage = pool.access_storage_tagged("state_keeper").await.unwrap();
             let mempool_info = self.mempool.get_mempool_info();
             let l2_tx_filter = l2_tx_filter(self.l1_gas_price_provider.as_ref(), fair_l2_gas_price);
@@ -92,7 +92,7 @@ impl<G: L1GasPriceProvider> MempoolFetcher<G> {
                 .await;
             let all_transactions_loaded = transactions.len() < self.sync_batch_size;
             self.mempool.insert(transactions, nonces);
-            metrics::histogram!("server.state_keeper.mempool_sync", started_at.elapsed());
+            latency.observe();
             if all_transactions_loaded {
                 tokio::time::sleep(self.sync_interval).await;
             }

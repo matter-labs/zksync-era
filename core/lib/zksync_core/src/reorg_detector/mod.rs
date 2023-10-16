@@ -1,3 +1,5 @@
+use std::{future::Future, time::Duration};
+
 use zksync_dal::ConnectionPool;
 use zksync_types::{L1BatchNumber, MiniblockNumber};
 use zksync_web3_decl::{
@@ -7,7 +9,7 @@ use zksync_web3_decl::{
     RpcResult,
 };
 
-use std::{future::Future, time::Duration};
+use crate::metrics::{CheckerComponent, EN_METRICS};
 
 const SLEEP_INTERVAL: Duration = Duration::from_secs(5);
 
@@ -226,16 +228,10 @@ impl ReorgDetector {
             if self.root_hashes_match(sealed_l1_batch_number).await?
                 && self.miniblock_hashes_match(sealed_miniblock_number).await?
             {
-                metrics::gauge!(
-                    "external_node.last_correct_batch",
-                    sealed_l1_batch_number.0 as f64,
-                    "component" => "reorg_detector",
-                );
-                metrics::gauge!(
-                    "external_node.last_correct_miniblock",
-                    sealed_miniblock_number.0 as f64,
-                    "component" => "reorg_detector",
-                );
+                EN_METRICS.last_correct_batch[&CheckerComponent::ReorgDetector]
+                    .set(sealed_l1_batch_number.0.into());
+                EN_METRICS.last_correct_miniblock[&CheckerComponent::ReorgDetector]
+                    .set(sealed_miniblock_number.0.into());
                 tokio::time::sleep(SLEEP_INTERVAL).await;
             } else {
                 tracing::warn!(

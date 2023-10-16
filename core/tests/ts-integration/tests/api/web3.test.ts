@@ -790,13 +790,13 @@ describe('web3 API compatibility tests', () => {
         expect(logs).toEqual([]);
 
         logs = await alice.provider.send('zks_getLogsWithVirtualBlocks', [{ fromBlock: '0x1', toBlock: '0x2' }]);
-        expect(logs.length > 0);
+        expect(logs.length > 0).toEqual(true);
 
         logs = await alice.provider.send('zks_getLogsWithVirtualBlocks', [{ fromBlock: '0x2', toBlock: '0x1' }]);
         expect(logs).toEqual([]);
 
         logs = await alice.provider.send('zks_getLogsWithVirtualBlocks', [{ fromBlock: '0x3', toBlock: '0x3' }]);
-        expect(logs.length > 0);
+        expect(logs.length > 0).toEqual(true);
 
         await expect(
             alice.provider.send('zks_getLogsWithVirtualBlocks', [{ fromBlock: '0x100000000', toBlock: '0x100000000' }]) // 2^32
@@ -806,6 +806,83 @@ describe('web3 API compatibility tests', () => {
                 { fromBlock: '0x10000000000000000', toBlock: '0x10000000000000000' } // 2^64
             ])
         ).toBeRejected();
+    });
+
+    test('Should check transaction signature', async () => {
+        const CHAIN_ID = +process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID!;
+        const value = 1;
+        const gasLimit = 300000;
+        const gasPrice = await alice.provider.getGasPrice();
+        const data = '0x';
+        const to = alice.address;
+
+        let tx_handle;
+        let txFromApi;
+        let signerAddr;
+
+        // check for legacy transaction type
+        const LEGACY_TX_TYPE = 0;
+        const legacyTxReq = {
+            type: LEGACY_TX_TYPE,
+            to,
+            value,
+            chainId: CHAIN_ID,
+            gasLimit,
+            gasPrice,
+            data,
+            nonce: await alice.getTransactionCount()
+        };
+        const signedLegacyTx = await alice.signTransaction(legacyTxReq);
+        tx_handle = await alice.provider.sendTransaction(signedLegacyTx);
+        await tx_handle.wait();
+
+        txFromApi = await alice.provider.getTransaction(tx_handle.hash);
+
+        const serializedLegacyTxReq = ethers.utils.serializeTransaction(legacyTxReq);
+
+        // check that API returns correct signature values for the given transaction
+        // by invoking recoverAddress() method with the serialized transaction and signature values
+        signerAddr = ethers.utils.recoverAddress(ethers.utils.keccak256(serializedLegacyTxReq), {
+            r: txFromApi.r!,
+            s: txFromApi.s!,
+            v: txFromApi.v!
+        });
+        expect(signerAddr).toEqual(alice.address);
+
+        const expectedV = 35 + CHAIN_ID! * 2;
+        expect(Math.abs(txFromApi.v! - expectedV) <= 1).toEqual(true);
+
+        // check for EIP1559 transaction type
+        const EIP1559_TX_TYPE = 2;
+        const eip1559TxReq = {
+            type: EIP1559_TX_TYPE,
+            to,
+            value,
+            chainId: CHAIN_ID,
+            gasLimit,
+            data,
+            nonce: await alice.getTransactionCount(),
+            maxFeePerGas: gasPrice,
+            maxPriorityFeePerGas: gasPrice
+        };
+
+        const signedEip1559TxReq = await alice.signTransaction(eip1559TxReq);
+        tx_handle = await alice.provider.sendTransaction(signedEip1559TxReq);
+        await tx_handle.wait();
+
+        txFromApi = await alice.provider.getTransaction(tx_handle.hash);
+
+        const serializedEip1559TxReq = ethers.utils.serializeTransaction(eip1559TxReq);
+
+        // check that API returns correct signature values for the given transaction
+        // by invoking recoverAddress() method with the serialized transaction and signature values
+        signerAddr = ethers.utils.recoverAddress(ethers.utils.keccak256(serializedEip1559TxReq), {
+            r: txFromApi.r!,
+            s: txFromApi.s!,
+            v: txFromApi.v!
+        });
+        expect(signerAddr).toEqual(alice.address);
+        expect(txFromApi.v! <= 1).toEqual(true);
     });
 
     afterAll(async () => {
