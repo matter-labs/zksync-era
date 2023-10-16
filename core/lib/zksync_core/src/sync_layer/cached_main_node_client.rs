@@ -1,4 +1,4 @@
-use std::{collections::HashMap, time::Instant};
+use std::collections::HashMap;
 
 use zksync_types::{api::en::SyncBlock, MiniblockNumber, U64};
 use zksync_web3_decl::{
@@ -6,6 +6,8 @@ use zksync_web3_decl::{
     namespaces::{EnNamespaceClient, EthNamespaceClient},
     RpcResult,
 };
+
+use super::metrics::{CachedMethod, FETCHER_METRICS};
 
 /// Maximum number of concurrent requests to the main node.
 const MAX_CONCURRENT_REQUESTS: usize = 100;
@@ -46,11 +48,11 @@ impl CachedMainNodeClient {
 
     /// Cached version of [`HttpClient::sync_l2_block`].
     pub async fn sync_l2_block(&self, miniblock: MiniblockNumber) -> RpcResult<Option<SyncBlock>> {
-        let block = { self.blocks.get(&miniblock).cloned() };
-        metrics::increment_counter!("external_node.fetcher.cache.total", "method" => "sync_l2_block");
+        let block = self.blocks.get(&miniblock).cloned();
+        FETCHER_METRICS.cache_total[&CachedMethod::SyncL2Block].inc();
         match block {
             Some(block) => {
-                metrics::increment_counter!("external_node.fetcher.cache.hit", "method" => "sync_l2_block");
+                FETCHER_METRICS.cache_hit[&CachedMethod::SyncL2Block].inc();
                 Ok(Some(block))
             }
             None => self.client.sync_l2_block(miniblock, true).await,
@@ -79,7 +81,7 @@ impl CachedMainNodeClient {
         if current_miniblock < self.next_refill_at {
             return;
         }
-        let start = Instant::now();
+        let populate_latency = FETCHER_METRICS.cache_populate.start();
         let last_miniblock_to_fetch =
             last_miniblock.min(current_miniblock + MAX_CONCURRENT_REQUESTS as u32);
         let task_futures = (current_miniblock.0..last_miniblock_to_fetch.0)
@@ -99,10 +101,10 @@ impl CachedMainNodeClient {
                 // At the cache level, it's fine to just silence errors.
                 // The entry won't be included into the cache, and whoever uses the cache, will have to process
                 // a cache miss as they will.
-                metrics::increment_counter!("external_node.fetcher.cache.errors");
+                FETCHER_METRICS.cache_errors.inc();
             }
         }
-        metrics::histogram!("external_node.fetcher.cache.populate", start.elapsed());
+        populate_latency.observe();
     }
 
     fn has_miniblock(&self, miniblock: MiniblockNumber) -> bool {

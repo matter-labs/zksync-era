@@ -1,34 +1,16 @@
-use std::collections::HashMap;
-use std::sync::Arc;
-
 use jsonrpc_core::error::{Error, ErrorCode};
-use jsonrpc_pubsub::typed;
-use jsonrpc_pubsub::SubscriptionId;
+use jsonrpc_pubsub::{typed, SubscriptionId};
 use tokio::sync::RwLock;
+
+use std::{collections::HashMap, sync::Arc};
 
 use zksync_types::web3::types::H128;
 use zksync_web3_decl::types::{PubSubFilter, PubSubResult};
 
 use super::eth::EVENT_TOPIC_NUMBER_LIMIT;
+use crate::api_server::web3::metrics::{SubscriptionType, PUB_SUB_METRICS};
 
 pub type SubscriptionMap<T> = Arc<RwLock<HashMap<SubscriptionId, T>>>;
-
-#[derive(Debug, Clone, Copy)]
-enum SubscriptionType {
-    Blocks,
-    Txs,
-    Logs,
-}
-
-impl SubscriptionType {
-    fn as_str(&self) -> &'static str {
-        match self {
-            Self::Blocks => "blocks",
-            Self::Txs => "txs",
-            Self::Logs => "logs",
-        }
-    }
-}
 
 #[derive(Debug, Clone)]
 pub struct EthSubscribe {
@@ -136,7 +118,7 @@ impl EthSubscribe {
         };
 
         if let Some(sub_type) = sub_type {
-            metrics::increment_gauge!("api.web3.pubsub.active_subscribers", 1f64, "subscription_type" => sub_type.as_str());
+            PUB_SUB_METRICS.active_subscribers[&sub_type].inc_by(1);
         }
     }
 
@@ -152,7 +134,7 @@ impl EthSubscribe {
             None
         };
         if let Some(sub_type) = removed {
-            metrics::decrement_gauge!("api.web3.pubsub.active_subscribers", 1f64, "subscription_type" => sub_type.as_str());
+            PUB_SUB_METRICS.active_subscribers[&sub_type].dec_by(1);
             Ok(true)
         } else {
             Err(Error {

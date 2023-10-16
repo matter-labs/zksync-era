@@ -1,7 +1,7 @@
+use anyhow::Context as _;
 use std::fs::File;
 use std::io::Read;
 use std::path::Path;
-use anyhow::Context as _;
 
 use zkevm_test_harness::abstract_zksync_circuit::concrete_circuits::ZkSyncCircuit;
 use zkevm_test_harness::bellman::bn256::Bn256;
@@ -45,7 +45,9 @@ pub fn get_setup_key_write_file_path(circuit_type: u8) -> String {
 }
 
 fn get_setup_key_file_path(circuit_type: u8) -> anyhow::Result<String> {
-    let prover_config = ProverConfigs::from_env().context("ProverConfigs::from_env()")?.non_gpu;
+    let prover_config = ProverConfigs::from_env()
+        .context("ProverConfigs::from_env()")?
+        .non_gpu;
     Ok(format!(
         "{}/{}",
         prover_config.setup_keys_path,

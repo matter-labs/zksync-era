@@ -1,14 +1,18 @@
-use std::num::NonZeroU32;
-use std::sync::Arc;
-
-use governor::clock::DefaultClock;
-use governor::middleware::NoOpMiddleware;
-use governor::state::{InMemoryState, NotKeyed};
-use governor::{Quota, RateLimiter};
-
-use jsonrpc_core::middleware::Middleware;
-use jsonrpc_core::*;
+use futures::{future, FutureExt};
+use governor::{
+    clock::DefaultClock,
+    middleware::NoOpMiddleware,
+    state::{InMemoryState, NotKeyed},
+    Quota, RateLimiter,
+};
+use jsonrpc_core::{
+    middleware::{self, Middleware},
+    Error, FutureResponse, Request, Response, Version,
+};
 use jsonrpc_pubsub::Session;
+use vise::{Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Histogram, Metrics};
+
+use std::{future::Future, num::NonZeroU32, sync::Arc};
 
 /// Configures the rate limiting for the WebSocket API.
 /// Rate limiting is applied per active connection, e.g. a single connected user may not send more than X requests
@@ -43,18 +47,26 @@ impl<T: jsonrpc_pubsub::PubSubMetadata> jsonrpc_pubsub::PubSubMetadata for RateL
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
+#[metrics(label = "transport", rename_all = "snake_case")]
 pub(crate) enum Transport {
     Ws,
 }
 
-impl Transport {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            Transport::Ws => "ws",
-        }
-    }
+#[derive(Debug, Metrics)]
+#[metrics(prefix = "api_jsonrpc_backend_batch")]
+struct LimitMiddlewareMetrics {
+    /// Number of rate-limited requests.
+    rate_limited: Family<Transport, Counter>,
+    /// Size of batch requests.
+    #[metrics(buckets = Buckets::exponential(1.0..=512.0, 2.0))]
+    size: Family<Transport, Histogram<usize>>,
+    /// Number of requests rejected by the limiter.
+    rejected: Family<Transport, Counter>,
 }
+
+#[vise::register]
+static METRICS: vise::Global<LimitMiddlewareMetrics> = vise::Global::new();
 
 /// Middleware that implements limiting for WebSocket connections:
 /// - Limits the number of requests per minute for a single connection.
@@ -84,52 +96,50 @@ impl<T: jsonrpc_core::Metadata> Middleware<RateLimitMetadata<T>> for LimitMiddle
 
     fn on_request<F, X>(
         &self,
-        request: jsonrpc_core::Request,
+        request: Request,
         meta: RateLimitMetadata<T>,
         next: F,
-    ) -> futures::future::Either<Self::Future, X>
+    ) -> future::Either<Self::Future, X>
     where
-        F: Fn(jsonrpc_core::Request, RateLimitMetadata<T>) -> X + Send + Sync,
-        X: futures::Future<Output = Option<jsonrpc_core::Response>> + Send + 'static,
+        F: Fn(Request, RateLimitMetadata<T>) -> X + Send + Sync,
+        X: Future<Output = Option<Response>> + Send + 'static,
     {
         // Check whether rate limiting is enabled, and if so, whether we should discard the request.
         // Note that RPC batch requests are stil counted as a single request.
         if let Some(rate_limiter) = &meta.rate_limiter {
             // Check number of actual RPC requests.
             let num_requests: usize = match &request {
-                jsonrpc_core::Request::Single(_) => 1,
-                jsonrpc_core::Request::Batch(batch) => batch.len(),
+                Request::Single(_) => 1,
+                Request::Batch(batch) => batch.len(),
             };
             let num_requests = NonZeroU32::new(num_requests.max(1) as u32).unwrap();
 
             // Note: if required, we can extract data on rate limiting from the error.
             if rate_limiter.check_n(num_requests).is_err() {
-                metrics::increment_counter!("api.jsonrpc_backend.batch.rate_limited", "transport" => self.transport.as_str());
-                let err = jsonrpc_core::error::Error {
+                METRICS.rate_limited[&self.transport].inc();
+                let err = Error {
                     code: jsonrpc_core::error::ErrorCode::ServerError(429),
                     message: "Too many requests".to_string(),
                     data: None,
                 };
 
-                return futures::future::Either::Left(Box::pin(futures::future::ready(Some(
-                    jsonrpc_core::Response::from(err, Some(Version::V2)),
-                ))));
+                let response = Response::from(err, Some(Version::V2));
+                return future::ready(Some(response)).boxed().left_future();
             }
         }
 
         // Check whether the batch size is within the allowed limits.
-        if let jsonrpc_core::Request::Batch(batch) = &request {
-            metrics::histogram!("api.jsonrpc_backend.batch.size", batch.len() as f64, "transport" => self.transport.as_str());
+        if let Request::Batch(batch) = &request {
+            METRICS.size[&self.transport].observe(batch.len());
 
             if Some(batch.len()) > self.max_batch_size {
-                metrics::increment_counter!("api.jsonrpc_backend.batch.rejected", "transport" => self.transport.as_str());
-                return futures::future::Either::Left(Box::pin(futures::future::ready(Some(
-                    jsonrpc_core::Response::from(Error::invalid_request(), Some(Version::V2)),
-                ))));
+                METRICS.rejected[&self.transport].inc();
+                let response = Response::from(Error::invalid_request(), Some(Version::V2));
+                return future::ready(Some(response)).boxed().left_future();
             }
         }
 
         // Proceed with the request.
-        futures::future::Either::Right(next(request, meta))
+        next(request, meta).right_future()
     }
 }
