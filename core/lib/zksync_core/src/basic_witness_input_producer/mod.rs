@@ -77,7 +77,10 @@ async fn get_miniblock_transition_state(
 
 fn execute_tx<S: ReadStorage>(tx: &Transaction, vm: &mut VmInstance<S, HistoryEnabled>) {
     vm.make_snapshot();
-    if let Ok(_) = vm.inspect_transaction_with_bytecode_compression(vec![], tx.clone(), true) {
+    if vm
+        .inspect_transaction_with_bytecode_compression(vec![], tx.clone(), true)
+        .is_ok()
+    {
         vm.pop_snapshot_no_rollback();
         return;
     }
@@ -137,19 +140,15 @@ impl BasicWitnessInputProducer {
             .context(format!(
                 "get_last_miniblock_for_l1_batch({prev_l1_batch_number:?})"
             ))?
-            .expect(&format!(
-                "l1_batch_number {:?} must have a previous miniblock to start from",
-                l1_batch_number
-            ));
+            .unwrap_or_else(|| panic!("l1_batch_number {l1_batch_number:?} must have a previous miniblock to start from"));
 
         let fee_account_addr = connection
             .blocks_dal()
             .get_fee_address_for_l1_batch(&l1_batch_number)
             .await?
-            .expect(&format!(
-                "l1_batch_number {:?} must have fee_address_account",
-                l1_batch_number
-            ));
+            .unwrap_or_else(|| {
+                panic!("l1_batch_number {l1_batch_number:?} must have fee_address_account")
+            });
         let (system_env, l1_batch_env) = load_l1_batch_params(
             &mut connection,
             l1_batch_number,

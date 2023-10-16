@@ -863,7 +863,7 @@ async fn add_basic_witness_input_producer(
     tracing::info!("initializing BasicWitnessInputProducer");
     let producer = BasicWitnessInputProducer::new(
         connection_pool.clone(),
-        &store_factory,
+        store_factory,
         state_keeper_config,
         network_config,
     )
