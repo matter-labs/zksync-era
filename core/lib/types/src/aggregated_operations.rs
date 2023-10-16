@@ -144,7 +144,7 @@ impl L1BatchExecuteOperation {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum AggregatedActionType {
     Commit,
     PublishProofOnchain,

@@ -1,6 +1,10 @@
 use jsonrpc_core::{Error, ErrorCode};
 use zksync_web3_decl::error::Web3Error;
 
+use std::fmt;
+
+use crate::api_server::web3::metrics::API_METRICS;
+
 pub fn into_jsrpc_error(err: Web3Error) -> Error {
     Error {
         code: match err {
@@ -32,13 +36,8 @@ pub fn into_jsrpc_error(err: Web3Error) -> Error {
     }
 }
 
-pub fn internal_error(method_name: &str, error: impl ToString) -> Web3Error {
-    tracing::error!(
-        "Internal error in method {}: {}",
-        method_name,
-        error.to_string(),
-    );
-    metrics::counter!("api.web3.internal_errors", 1, "method" => method_name.to_string());
-
+pub fn internal_error(method_name: &'static str, error: impl fmt::Display) -> Web3Error {
+    tracing::error!("Internal error in method {method_name}: {error}");
+    API_METRICS.web3_internal_errors[&method_name].inc();
     Web3Error::InternalError
 }
