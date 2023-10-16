@@ -186,6 +186,7 @@ impl BlocksDal<'_, '_> {
                 meta_parameters_hash, protocol_version, \
                 events_queue_commitment, bootloader_initial_content_commitment \
             FROM l1_batches \
+            LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number \
             WHERE number = $1",
             number.0 as i64
         )
@@ -546,6 +547,8 @@ impl BlocksDal<'_, '_> {
         metadata: &L1BatchMetadata,
         previous_root_hash: H256,
     ) -> anyhow::Result<()> {
+        let mut transaction = self.storage.start_transaction().await?;
+
         let update_result = sqlx::query!(
             "UPDATE l1_batches \
             SET hash = $1, merkle_root_hash = $2, commitment = $3, \
@@ -553,9 +556,8 @@ impl BlocksDal<'_, '_> {
                 l2_l1_compressed_messages = $6, l2_l1_merkle_root = $7, \
                 zkporter_is_available = $8, parent_hash = $9, rollup_last_leaf_index = $10, \
                 aux_data_hash = $11, pass_through_data_hash = $12, meta_parameters_hash = $13, \
-                events_queue_commitment = $14, bootloader_initial_content_commitment = $15,
                 updated_at = now() \
-            WHERE number = $16 AND hash IS NULL",
+            WHERE number = $14 AND hash IS NULL",
             metadata.root_hash.as_bytes(),
             metadata.merkle_root_hash.as_bytes(),
             metadata.commitment.as_bytes(),
@@ -569,16 +571,28 @@ impl BlocksDal<'_, '_> {
             metadata.aux_data_hash.as_bytes(),
             metadata.pass_through_data_hash.as_bytes(),
             metadata.meta_parameters_hash.as_bytes(),
-            metadata.events_queue_commitment.map(|h| h.0.to_vec()),
-            metadata
-                .bootloader_initial_content_commitment
-                .map(|h| h.0.to_vec()),
             number.0 as i64,
         )
         .instrument("save_blocks_metadata")
         .with_arg("number", &number)
         .report_latency()
-        .execute(self.storage.conn())
+        .execute(transaction.conn())
+        .await?;
+
+        sqlx::query!(
+            "INSERT INTO commitments (l1_batch_number, events_queue_commitment, bootloader_initial_content_commitment) \
+            VALUES ($1, $2, $3) \
+            ON CONFLICT (l1_batch_number) DO UPDATE SET events_queue_commitment = $2, bootloader_initial_content_commitment = $3",
+            number.0 as i64,
+            metadata.events_queue_commitment.map(|h| h.0.to_vec()),
+            metadata
+                .bootloader_initial_content_commitment
+                .map(|h| h.0.to_vec()),
+        )
+        .instrument("save_batch_commitments")
+        .with_arg("number", &number)
+        .report_latency()
+        .execute(transaction.conn())
         .await?;
 
         if update_result.rows_affected() == 0 {
@@ -608,7 +622,7 @@ impl BlocksDal<'_, '_> {
             .instrument("get_matching_blocks_metadata")
             .with_arg("number", &number)
             .report_latency()
-            .fetch_one(self.storage.conn())
+            .fetch_one(transaction.conn())
             .await?
             .count;
 
@@ -620,6 +634,7 @@ impl BlocksDal<'_, '_> {
                 metadata.l2_l1_merkle_root
             );
         }
+        transaction.commit().await?;
         Ok(())
     }
 
@@ -640,6 +655,7 @@ impl BlocksDal<'_, '_> {
                 meta_parameters_hash, protocol_version, \
                 events_queue_commitment, bootloader_initial_content_commitment \
             FROM l1_batches \
+            LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number \
             WHERE number = 0 OR eth_commit_tx_id IS NOT NULL AND commitment IS NOT NULL \
             ORDER BY number DESC \
             LIMIT 1",
@@ -736,6 +752,7 @@ impl BlocksDal<'_, '_> {
                 meta_parameters_hash, protocol_version, \
                 events_queue_commitment, bootloader_initial_content_commitment \
             FROM l1_batches \
+            LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number \
             WHERE eth_commit_tx_id IS NOT NULL AND eth_prove_tx_id IS NULL \
             ORDER BY number LIMIT $1",
             limit as i32
@@ -810,6 +827,7 @@ impl BlocksDal<'_, '_> {
                     AND l1_batches.number > $1 \
                 ORDER BY number LIMIT $2\
             ) inn \
+            LEFT JOIN commitments ON commitments.l1_batch_number = inn.number \
             WHERE number - row_number = $1",
             last_proved_block_number.0 as i32,
             limit as i32
@@ -843,6 +861,7 @@ impl BlocksDal<'_, '_> {
                     meta_parameters_hash, protocol_version, \
                     events_queue_commitment, bootloader_initial_content_commitment \
                 FROM l1_batches \
+                LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number \
                 WHERE eth_prove_tx_id IS NOT NULL AND eth_execute_tx_id IS NULL \
                 ORDER BY number LIMIT $1",
                 limit as i32,
@@ -921,6 +940,7 @@ impl BlocksDal<'_, '_> {
                     meta_parameters_hash, protocol_version, \
                     events_queue_commitment, bootloader_initial_content_commitment \
                 FROM l1_batches \
+                LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number \
                 WHERE number BETWEEN $1 AND $2 \
                 ORDER BY number LIMIT $3",
                 expected_started_point as i32,
@@ -957,6 +977,7 @@ impl BlocksDal<'_, '_> {
                 meta_parameters_hash, protocol_version, \
                 events_queue_commitment, bootloader_initial_content_commitment \
             FROM l1_batches \
+            LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number \
             JOIN protocol_versions ON protocol_versions.id = l1_batches.protocol_version \
             WHERE eth_commit_tx_id IS NULL \
                 AND number != 0 \

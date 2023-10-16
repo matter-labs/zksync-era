@@ -5,22 +5,19 @@ use tokio::sync::watch;
 
 use std::{ops, time::Instant};
 
-use zkevm_test_harness::witness::utils::{
-    events_queue_commitment_fixed, initial_heap_content_commitment_fixed,
-};
+use zksync_commitment_utils::{bootloader_initial_content_commitment, events_queue_commitment};
 use zksync_config::configs::database::MerkleTreeMode;
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_health_check::HealthUpdater;
 use zksync_merkle_tree::domain::TreeMetadata;
 use zksync_object_store::ObjectStore;
-use zksync_types::{block::L1BatchHeader, writes::InitialStorageWrite, L1BatchNumber, H256, U256};
+use zksync_types::{block::L1BatchHeader, writes::InitialStorageWrite, L1BatchNumber, U256};
 
 use super::{
     helpers::{AsyncTree, Delayer, L1BatchWithLogs, TreeHealthCheckDetails},
     metrics::{TreeUpdateStage, METRICS},
     MetadataCalculator, MetadataCalculatorConfig,
 };
-use crate::witness_generator::utils::expand_bootloader_contents;
 
 #[derive(Debug)]
 pub(super) struct TreeUpdater {
@@ -146,40 +143,42 @@ impl TreeUpdater {
             .await;
             check_consistency_latency.observe();
 
-            let (events_queue_commitment, bootloader_initial_content_commitment) =
-                if self.mode == MerkleTreeMode::Full {
-                    let events_queue_commitment_latency =
-                        METRICS.start_stage(TreeUpdateStage::EventsCommitment);
-                    let events_queue = storage
-                        .blocks_dal()
-                        .get_events_queue(header.number)
-                        .await
-                        .unwrap()
-                        .unwrap();
-                    let events_queue_commitment = events_queue_commitment_fixed(&events_queue);
-                    events_queue_commitment_latency.observe();
+            let (events_queue_commitment, bootloader_initial_content_commitment) = if self.mode
+                == MerkleTreeMode::Full
+            {
+                let events_queue_commitment_latency =
+                    METRICS.start_stage(TreeUpdateStage::EventsCommitment);
+                let events_queue = storage
+                    .blocks_dal()
+                    .get_events_queue(header.number)
+                    .await
+                    .unwrap()
+                    .unwrap();
+                let events_queue_commitment =
+                    events_queue_commitment(&events_queue, header.protocol_version.unwrap());
+                events_queue_commitment_latency.observe();
 
-                    let bootloader_commitment_latency =
-                        METRICS.start_stage(TreeUpdateStage::BootloaderCommitment);
-                    let initial_bootloader_contents = storage
-                        .blocks_dal()
-                        .get_initial_bootloader_heap(header.number)
-                        .await
-                        .unwrap()
-                        .unwrap();
-                    let full_bootloader_memory =
-                        expand_bootloader_contents(&initial_bootloader_contents);
-                    let bootloader_initial_content_commitment =
-                        initial_heap_content_commitment_fixed(&full_bootloader_memory);
-                    bootloader_commitment_latency.observe();
+                let bootloader_commitment_latency =
+                    METRICS.start_stage(TreeUpdateStage::BootloaderCommitment);
+                let initial_bootloader_contents = storage
+                    .blocks_dal()
+                    .get_initial_bootloader_heap(header.number)
+                    .await
+                    .unwrap()
+                    .unwrap();
+                let bootloader_initial_content_commitment = bootloader_initial_content_commitment(
+                    &initial_bootloader_contents,
+                    header.protocol_version.unwrap(),
+                );
+                bootloader_commitment_latency.observe();
 
-                    (
-                        Some(H256(events_queue_commitment)),
-                        Some(H256(bootloader_initial_content_commitment)),
-                    )
-                } else {
-                    (None, None)
-                };
+                (
+                    events_queue_commitment,
+                    bootloader_initial_content_commitment,
+                )
+            } else {
+                (None, None)
+            };
 
             let build_metadata_latency = METRICS.start_stage(TreeUpdateStage::BuildMetadata);
             let metadata = MetadataCalculator::build_l1_batch_metadata(

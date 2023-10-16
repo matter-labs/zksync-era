@@ -51,7 +51,7 @@ mod precalculated_merkle_paths_provider;
 pub mod scheduler;
 #[cfg(test)]
 mod tests;
-pub(crate) mod utils;
+mod utils;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelSet, EncodeLabelValue)]
 #[metrics(label = "stage", format = "wit_gen_{}")]

@@ -106,7 +106,7 @@ fn convert_base_system_contracts_hashes(
     }
 }
 
-/// Projection of the `l1_batches` table corresponding to [`L1BatchHeader`] + [`L1BatchMetadata`].
+/// Projection of the columns corresponding to [`L1BatchHeader`] + [`L1BatchMetadata`].
 // TODO(PLA-369): use `#[sqlx(flatten)]` once upgraded to newer `sqlx`
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct StorageL1Batch {

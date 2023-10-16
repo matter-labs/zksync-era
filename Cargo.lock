@@ -7997,6 +7997,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_commitment_utils"
+version = "0.1.0"
+dependencies = [
+ "zkevm_test_harness 1.4.0",
+ "zksync_types",
+ "zksync_utils",
+]
+
+[[package]]
 name = "zksync_config"
 version = "0.1.0"
 dependencies = [
@@ -8101,8 +8110,8 @@ dependencies = [
  "vise",
  "vlog",
  "vm",
- "zkevm_test_harness 1.4.0",
  "zksync_circuit_breaker",
+ "zksync_commitment_utils",
  "zksync_config",
  "zksync_contracts",
  "zksync_dal",
