@@ -4721,6 +4721,7 @@ dependencies = [
  "metrics",
  "metrics-exporter-prometheus",
  "tokio",
+ "vise",
  "vise-exporter",
 ]
 
@@ -6872,7 +6873,7 @@ checksum = "49874b5167b65d7193b8aba1567f5c7d93d001cafc34600cee003eda787e483f"
 [[package]]
 name = "vise"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/vise.git?rev=9d097ab747b037b6e62504df1db5b975425b6bdd#9d097ab747b037b6e62504df1db5b975425b6bdd"
+source = "git+https://github.com/matter-labs/vise.git?rev=dd05139b76ab0843443ab3ff730174942c825dae#dd05139b76ab0843443ab3ff730174942c825dae"
 dependencies = [
  "elsa",
  "linkme",
@@ -6884,7 +6885,7 @@ dependencies = [
 [[package]]
 name = "vise-exporter"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/vise.git?rev=9d097ab747b037b6e62504df1db5b975425b6bdd#9d097ab747b037b6e62504df1db5b975425b6bdd"
+source = "git+https://github.com/matter-labs/vise.git?rev=dd05139b76ab0843443ab3ff730174942c825dae#dd05139b76ab0843443ab3ff730174942c825dae"
 dependencies = [
  "hyper",
  "metrics-exporter-prometheus",
@@ -6897,7 +6898,7 @@ dependencies = [
 [[package]]
 name = "vise-macros"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/vise.git?rev=9d097ab747b037b6e62504df1db5b975425b6bdd#9d097ab747b037b6e62504df1db5b975425b6bdd"
+source = "git+https://github.com/matter-labs/vise.git?rev=dd05139b76ab0843443ab3ff730174942c825dae#dd05139b76ab0843443ab3ff730174942c825dae"
 dependencies = [
  "proc-macro2 1.0.66",
  "quote 1.0.33",
@@ -7793,6 +7794,7 @@ dependencies = [
  "tower",
  "tower-http",
  "tracing",
+ "vise",
  "vlog",
  "vm",
  "zksync_circuit_breaker",

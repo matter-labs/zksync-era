@@ -1,5 +1,5 @@
 use once_cell::sync::OnceCell;
-use std::{sync::Arc, time::Instant};
+use std::sync::Arc;
 use vm::constants::BLOCK_GAS_LIMIT;
 
 use vm::ExecutionResult;
@@ -15,7 +15,6 @@ use zksync_types::{
 };
 use zksync_web3_decl::error::Web3Error;
 
-use super::report_latency_with_block_id_and_diff;
 use crate::api_server::{
     execution_sandbox::{
         execute_tx_eth_call, ApiTracer, BlockArgs, TxSharedArgs, VmConcurrencyLimiter,
@@ -23,6 +22,7 @@ use crate::api_server::{
     tx_sender::ApiContracts,
     web3::{
         backend_jsonrpc::error::internal_error,
+        metrics::API_METRICS,
         resolve_block,
         state::{RpcState, SealedMiniblockNumber},
     },
@@ -66,7 +66,7 @@ impl DebugNamespace {
     ) -> Result<Vec<ResultDebugCall>, Web3Error> {
         const METHOD_NAME: &str = "debug_trace_block";
 
-        let start = Instant::now();
+        let method_latency = API_METRICS.start_block_call(METHOD_NAME, block_id);
         let only_top_call = options
             .map(|options| options.tracer_config.only_top_call)
             .unwrap_or(false);
@@ -92,7 +92,7 @@ impl DebugNamespace {
             .collect();
 
         let block_diff = self.last_sealed_miniblock.diff(block_number);
-        report_latency_with_block_id_and_diff(METHOD_NAME, start, block_id, block_diff);
+        method_latency.observe(block_diff);
         Ok(call_trace)
     }
 
@@ -130,12 +130,13 @@ impl DebugNamespace {
         options: Option<TracerConfig>,
     ) -> Result<DebugCall, Web3Error> {
         const METHOD_NAME: &str = "debug_trace_call";
-        let start = Instant::now();
+
+        let block_id = block_id.unwrap_or(BlockId::Number(BlockNumber::Pending));
+        let method_latency = API_METRICS.start_block_call(METHOD_NAME, block_id);
         let only_top_call = options
             .map(|options| options.tracer_config.only_top_call)
             .unwrap_or(false);
 
-        let block_id = block_id.unwrap_or(BlockId::Number(BlockNumber::Pending));
         let mut connection = self
             .connection_pool
             .access_storage_tagged("api")
@@ -199,7 +200,7 @@ impl DebugNamespace {
         );
 
         let block_diff = self.last_sealed_miniblock.diff_with_block_args(&block_args);
-        report_latency_with_block_id_and_diff(METHOD_NAME, start, block_id, block_diff);
+        method_latency.observe(block_diff);
         Ok(call.into())
     }
 

@@ -11,10 +11,11 @@ use zksync_config::configs::api::ContractVerificationApiConfig;
 use zksync_dal::connection::ConnectionPool;
 use zksync_utils::panic_notify::{spawn_panic_handler, ThreadPanicNotify};
 
-use api_decl::RestApi;
+mod api_decl;
+mod api_impl;
+mod metrics;
 
-pub mod api_decl;
-pub mod api_impl;
+use self::api_decl::RestApi;
 
 fn start_server(api: RestApi, bind_to: SocketAddr, threads: usize) -> Server {
     HttpServer::new(move || {
