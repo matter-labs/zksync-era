@@ -13,7 +13,7 @@ We take an impact-first approach instead of a rules-first approach. Therefore, i
 issue but can't report it via the Bug Bounty, please email us at
 [security@matterlabs.dev](mailto:security@matterlabs.dev).
 
-### PGP Keyyy
+### PGP Keyyyy
 
 The following PGP key may be used to communicate sensitive information to developers:
 
