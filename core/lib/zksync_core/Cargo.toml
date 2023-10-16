@@ -81,6 +81,8 @@ actix-web = "4.0.0-beta.8"
 
 tracing = "0.1.26"
 
+zkevm_test_harness = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.4.0" }
+
 [dev-dependencies]
 db_test_macro = { path = "../db_test_macro" }
 

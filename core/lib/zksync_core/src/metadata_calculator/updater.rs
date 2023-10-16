@@ -5,18 +5,22 @@ use tokio::sync::watch;
 
 use std::{ops, time::Instant};
 
+use zkevm_test_harness::witness::utils::{
+    events_queue_commitment_fixed, initial_heap_content_commitment_fixed,
+};
 use zksync_config::configs::database::MerkleTreeMode;
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_health_check::HealthUpdater;
 use zksync_merkle_tree::domain::TreeMetadata;
 use zksync_object_store::ObjectStore;
-use zksync_types::{block::L1BatchHeader, writes::InitialStorageWrite, L1BatchNumber, U256};
+use zksync_types::{block::L1BatchHeader, writes::InitialStorageWrite, L1BatchNumber, H256, U256};
 
 use super::{
     helpers::{AsyncTree, Delayer, L1BatchWithLogs, TreeHealthCheckDetails},
     metrics::{ReportStage, TreeUpdateStage},
     MetadataCalculator, MetadataCalculatorConfig,
 };
+use crate::witness_generator::utils::expand_bootloader_contents;
 
 #[derive(Debug)]
 pub(super) struct TreeUpdater {
@@ -133,15 +137,57 @@ impl TreeUpdater {
             let ((header, metadata, object_key), next_l1_batch_data) =
                 future::join(process_l1_batch_task, load_next_l1_batch_task).await;
 
-            let prepare_results_latency = TreeUpdateStage::PrepareResults.start();
+            let check_consistency_latency = TreeUpdateStage::CheckConsistency.start();
             Self::check_initial_writes_consistency(
                 storage,
                 header.number,
                 &metadata.initial_writes,
             )
             .await;
-            let metadata = MetadataCalculator::build_l1_batch_metadata(metadata, &header);
-            prepare_results_latency.report();
+            check_consistency_latency.report();
+
+            let (events_queue_commitment, bootloader_initial_content_commitment) = if self.mode
+                == MerkleTreeMode::Full
+            {
+                let events_queue_commitment_latency = TreeUpdateStage::EventsCommitment.start();
+                let events_queue = storage
+                    .blocks_dal()
+                    .get_events_queue(header.number)
+                    .await
+                    .unwrap()
+                    .unwrap();
+                let events_queue_commitment = events_queue_commitment_fixed(&events_queue);
+                events_queue_commitment_latency.report();
+
+                let bootloader_commitment_latency = TreeUpdateStage::BootloaderCommitment.start();
+                let initial_bootloader_contents = storage
+                    .blocks_dal()
+                    .get_initial_bootloader_heap(header.number)
+                    .await
+                    .unwrap()
+                    .unwrap();
+                let full_bootloader_memory =
+                    expand_bootloader_contents(&initial_bootloader_contents);
+                let bootloader_initial_content_commitment =
+                    initial_heap_content_commitment_fixed(&full_bootloader_memory);
+                bootloader_commitment_latency.report();
+
+                (
+                    Some(H256(events_queue_commitment)),
+                    Some(H256(bootloader_initial_content_commitment)),
+                )
+            } else {
+                (None, None)
+            };
+
+            let build_metadata_latency = TreeUpdateStage::BuildMetadata.start();
+            let metadata = MetadataCalculator::build_l1_batch_metadata(
+                metadata,
+                &header,
+                events_queue_commitment,
+                bootloader_initial_content_commitment,
+            );
+            build_metadata_latency.report();
 
             MetadataCalculator::reestimate_l1_batch_commit_gas(storage, &header, &metadata).await;
 

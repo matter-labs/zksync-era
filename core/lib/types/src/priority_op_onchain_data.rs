@@ -35,7 +35,7 @@ impl Eq for PriorityOpOnchainData {}
 
 impl PartialOrd for PriorityOpOnchainData {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.layer_2_tip_fee.cmp(&other.layer_2_tip_fee))
+        Some(self.cmp(other))
     }
 }
 

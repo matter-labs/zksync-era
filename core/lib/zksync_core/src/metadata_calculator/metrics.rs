@@ -29,7 +29,10 @@ pub(super) trait ReportStage: Copy {
 pub(super) enum TreeUpdateStage {
     LoadChanges,
     Compute,
-    PrepareResults,
+    CheckConsistency,
+    EventsCommitment,
+    BootloaderCommitment,
+    BuildMetadata,
     ReestimateGasCost,
     SavePostgres,
     SaveRocksDB,
@@ -44,7 +47,10 @@ impl ReportStage for TreeUpdateStage {
         match self {
             Self::LoadChanges => "load_changes",
             Self::Compute => "compute",
-            Self::PrepareResults => "prepare_results",
+            Self::CheckConsistency => "check_consistency",
+            Self::EventsCommitment => "events_commitment",
+            Self::BootloaderCommitment => "bootloader_commitment",
+            Self::BuildMetadata => "build_metadata",
             Self::ReestimateGasCost => "reestimate_block_commit_gas_cost",
             Self::SavePostgres => "save_postgres",
             Self::SaveRocksDB => "save_rocksdb",

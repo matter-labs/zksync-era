@@ -6,8 +6,7 @@ use zksync_types::{proofs::AggregationRound, L1BatchNumber};
 use zksync_types::{U256, USED_BOOTLOADER_MEMORY_BYTES};
 
 pub fn expand_bootloader_contents(packed: &[(usize, U256)]) -> Vec<u8> {
-    let mut result: Vec<u8> = Vec::new();
-    result.resize(USED_BOOTLOADER_MEMORY_BYTES, 0);
+    let mut result: Vec<u8> = vec![0; USED_BOOTLOADER_MEMORY_BYTES];
 
     for (offset, value) in packed {
         value.to_big_endian(&mut result[(offset * 32)..(offset + 1) * 32]);

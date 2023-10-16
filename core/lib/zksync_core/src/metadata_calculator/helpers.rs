@@ -230,11 +230,12 @@ impl L1BatchWithLogs {
         // since no new leaf indices are allocated in the tree for them, such writes are no-op on the tree side as well.
         let hashed_keys_for_zero_values: Vec<_> = touched_slots
             .iter()
-            .filter_map(|(key, value)| {
+            .filter(|(_, value)| {
                 // Only zero values are worth checking for initial writes; non-zero values are always
                 // written per deduplication rules.
-                value.is_zero().then(|| key.hashed_key())
+                value.is_zero()
             })
+            .map(|(key, _value)| key.hashed_key())
             .collect();
         metrics::histogram!(
             "server.metadata_calculator.load_changes.zero_values",
