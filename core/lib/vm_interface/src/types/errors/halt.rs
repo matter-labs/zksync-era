@@ -114,3 +114,12 @@ impl Display for Halt {
         }
     }
 }
+
+impl From<vm_tracer_interface::types::Halt> for Halt {
+    fn from(value: vm_tracer_interface::types::Halt) -> Self {
+        match value {
+            vm_tracer_interface::types::Halt::ValidationOutOfGas => Self::ValidationOutOfGas,
+            vm_tracer_interface::types::Halt::TracerCustom(error) => Self::TracerCustom(error),
+        }
+    }
+}

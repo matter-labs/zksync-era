@@ -1,0 +1,18 @@
+[package]
+name = "vm_tracer"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+vm_tracer_interface = { path = "../vm_tracer_interface" }
+vm_interface = { path = "../vm_interface" }
+zksync_types = { path = "../types" }
+zksync_state = { path = "../state" }
+zksync_config = { path = "../config" }
+vm_1_3_3 = {package = "vm", path = "../vm"}
+zksync_contracts = { path = "../contracts" }
+once_cell = "1.7"
+
+

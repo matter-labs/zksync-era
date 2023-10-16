@@ -6,17 +6,17 @@ use crate::old_vm::{
     history_recorder::HistoryMode,
     utils::{vm_may_have_ended_inner, VmExecutionResult},
 };
-use crate::tracers::{
-    traits::{TracerExecutionStatus, VmTracer},
-    DefaultExecutionTracer, RefundsTracer,
-};
+
+use crate::tracers::{DefaultExecutionTracer, RefundsTracer};
 use crate::vm::Vm;
-use crate::VmExecutionStopReason;
+use crate::{BootloaderState, VmExecutionStopReason, ZkSyncVmState};
+use vm_tracer_interface::traits::vm_1_3_3::VmTracer;
+use vm_tracer_interface::types::TracerExecutionStatus;
 
 impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
-    pub(crate) fn inspect_inner(
+    pub(crate) fn inspect_inner<T: VmTracer<S>>(
         &mut self,
-        tracers: Vec<Box<dyn VmTracer<S, H>>>,
+        tracer: T,
         execution_mode: VmExecutionMode,
     ) -> VmExecutionResultAndLogs {
         let mut enable_refund_tracer = false;
@@ -26,24 +26,24 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
             enable_refund_tracer = true;
         }
         let (_, result) =
-            self.inspect_and_collect_results(tracers, execution_mode, enable_refund_tracer);
+            self.inspect_and_collect_results(tracer, execution_mode, enable_refund_tracer);
         result
     }
 
     /// Execute VM with given traces until the stop reason is reached.
     /// Collect the result from the default tracers.
-    fn inspect_and_collect_results(
+    fn inspect_and_collect_results<T: VmTracer<S>>(
         &mut self,
-        tracers: Vec<Box<dyn VmTracer<S, H>>>,
+        tracer: T,
         execution_mode: VmExecutionMode,
         with_refund_tracer: bool,
     ) -> (VmExecutionStopReason, VmExecutionResultAndLogs) {
         let refund_tracers =
             with_refund_tracer.then_some(RefundsTracer::new(self.batch_env.clone()));
-        let mut tx_tracer: DefaultExecutionTracer<S, H> = DefaultExecutionTracer::new(
+        let mut tx_tracer: DefaultExecutionTracer<S, H, T> = DefaultExecutionTracer::new(
             self.system_env.default_validation_computational_gas_limit,
             execution_mode,
-            tracers,
+            tracer,
             self.storage.clone(),
             refund_tracers,
         );
@@ -87,10 +87,13 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
     }
 
     /// Execute vm with given tracers until the stop reason is reached.
-    fn execute_with_default_tracer(
+    fn execute_with_default_tracer<T>(
         &mut self,
-        tracer: &mut DefaultExecutionTracer<S, H>,
-    ) -> VmExecutionStopReason {
+        tracer: &mut DefaultExecutionTracer<S, H, T>,
+    ) -> VmExecutionStopReason
+    where
+        T: VmTracer<S>,
+    {
         tracer.initialize_tracer(&mut self.state);
         let result = loop {
             // Sanity check: we should never reach the maximum value, because then we won't be able to process the next cycle.

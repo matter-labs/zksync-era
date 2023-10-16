@@ -11,13 +11,14 @@ categories = ["cryptography"]
 
 [dependencies]
 vise = { git = "https://github.com/matter-labs/vise.git", version = "0.1.0", rev = "9d097ab747b037b6e62504df1db5b975425b6bdd" }
-zk_evm = { git = "https://github.com/matter-labs/era-zk_evm.git", branch = "v1.3.3" }
+zk_evm = { git = "https://github.com/matter-labs/era-zk_evm.git", tag = "v1.3.3-rc1" }
 zksync_config = { path = "../config" }
 zksync_types = { path = "../types" }
 zksync_utils = { path = "../utils" }
 zksync_state = { path = "../state" }
 zksync_contracts = { path = "../contracts" }
 vm_interface = { path = "../vm_interface" }
+vm_tracer_interface = { path = "../vm_tracer_interface" }
 
 anyhow = "1.0"
 hex = "0.4"

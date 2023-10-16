@@ -34,11 +34,15 @@ members = [
     "core/lib/prover_utils",
     "core/lib/utils",
     "core/lib/vlog",
+    "core/lib/web3_decl",
+    "core/lib/test_account",
+
+    # Vm Implementation
     "core/lib/multivm",
     "core/lib/vm",
     "core/lib/vm_interface",
-    "core/lib/web3_decl",
-    "core/lib/test_account",
+    "core/lib/vm_tracer",
+    "core/lib/vm_tracer_interface",
 
     # MultiVM dependencies
     "core/multivm_deps/vm_m5",

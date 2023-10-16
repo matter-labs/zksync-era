@@ -11,7 +11,7 @@ categories = ["cryptography"]
 
 [dependencies]
 vise = { git = "https://github.com/matter-labs/vise.git", version = "0.1.0", rev = "9d097ab747b037b6e62504df1db5b975425b6bdd" }
-zk_evm = { git = "https://github.com/matter-labs/era-zk_evm.git", branch = "v1.3.3" }
+zk_evm = { git = "https://github.com/matter-labs/era-zk_evm.git", tag = "v1.3.3-rc1" }
 zksync_config = { path = "../../lib/config" }
 zksync_types = { path = "../../lib/types" }
 zksync_utils = { path = "../../lib/utils" }

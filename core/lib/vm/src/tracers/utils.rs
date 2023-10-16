@@ -1,3 +1,4 @@
+use vm_tracer_interface::types::TracerExecutionStopReason;
 use zk_evm::aux_structures::MemoryPage;
 use zk_evm::zkevm_opcode_defs::{FarCallABI, FarCallForwardPageType};
 use zk_evm::{
@@ -18,7 +19,6 @@ use crate::constants::{
 use crate::old_vm::history_recorder::HistoryMode;
 use crate::old_vm::memory::SimpleMemory;
 use crate::old_vm::utils::{aux_heap_page_from_base, heap_page_from_base};
-use crate::tracers::traits::TracerExecutionStopReason;
 
 #[derive(Clone, Debug, Copy)]
 pub(crate) enum VmHook {

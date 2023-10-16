@@ -36,7 +36,7 @@ pub struct StorageOracle<S: WriteStorage, H: HistoryMode> {
     // Access to the persistent storage. Please note that it
     // is used only for read access. All the actual writes happen
     // after the execution ended.
-    pub(crate) storage: HistoryRecorder<StorageWrapper<S>, H>,
+    pub storage: HistoryRecorder<StorageWrapper<S>, H>,
 
     pub(crate) frames_stack: AppDataFrameManagerWithHistory<Box<StorageLogQuery>, H>,
 

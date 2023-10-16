@@ -1,28 +1,35 @@
-use crate::bootloader_state::BootloaderState;
-use crate::old_vm::history_recorder::HistoryMode;
-use crate::tracers::traits::{
-    DynTracer, TracerExecutionStatus, TracerExecutionStopReason, VmTracer,
-};
-use crate::types::internals::ZkSyncVmState;
-use vm_interface::Halt;
+use crate::{BootloaderState, HistoryMode, SimpleMemory, ZkSyncVmState};
+use std::marker::PhantomData;
+use vm_tracer_interface::traits::vm_1_3_3::{DynTracer, VmTracer};
+use vm_tracer_interface::types::{Halt, TracerExecutionStatus, TracerExecutionStopReason};
 use zksync_state::WriteStorage;
 
 #[derive(Debug, Default, Clone)]
-pub struct StorageInvocations {
+pub struct StorageInvocations<H> {
     pub limit: usize,
+    _h: PhantomData<H>,
 }
 
-impl StorageInvocations {
-    pub fn new(limit: usize) -> Self {
-        Self { limit }
+impl<H> StorageInvocations<H> {
+    pub fn new(limit: usize, _history: H) -> Self {
+        Self {
+            limit,
+            _h: Default::default(),
+        }
     }
 }
 
 /// Tracer responsible for calculating the number of storage invocations and
 /// stopping the VM execution if the limit is reached.
-impl<S, H: HistoryMode> DynTracer<S, H> for StorageInvocations {}
+impl<S: WriteStorage, H: HistoryMode> DynTracer<S> for StorageInvocations<H> {
+    type Memory = SimpleMemory<H>;
+}
 
-impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for StorageInvocations {
+impl<S: WriteStorage, H: HistoryMode> VmTracer<S> for StorageInvocations<H> {
+    type ZkSyncVmState = ZkSyncVmState<S, H>;
+    type BootloaderState = BootloaderState;
+    type VmExecutionStopReason = ();
+
     fn finish_cycle(
         &mut self,
         state: &mut ZkSyncVmState<S, H>,

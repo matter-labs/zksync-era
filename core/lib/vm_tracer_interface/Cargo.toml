@@ -1,0 +1,10 @@
+[package]
+name = "vm_tracer_interface"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+zk_evm_1_3_3 = {package = "zk_evm", git = "https://github.com/matter-labs/era-zk_evm.git", tag = "v1.3.3-rc1" }
+zksync_state = { path = "../state" }

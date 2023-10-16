@@ -1,6 +1,7 @@
 use crate::types::errors::BytecodeCompressionError;
 use crate::types::inputs::{L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode};
 use crate::types::outputs::{BootloaderMemory, CurrentExecutionState, VmExecutionResultAndLogs};
+use vm_tracer_interface::traits::vm_1_3_3;
 use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::Transaction;
 use zksync_utils::bytecode::CompressedBytecodeInfo;
@@ -12,7 +13,7 @@ pub trait VmInterface<S: WriteStorage> {
     fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage: StoragePtr<S>) -> Self;
     fn push_transaction(&mut self, tx: Transaction);
     fn execute(&mut self, execution_mode: VmExecutionMode) -> VmExecutionResultAndLogs;
-    fn inspect<T>(
+    fn inspect<T: vm_1_3_3::VmTracer<S>>(
         &mut self,
         tracer: T,
         execution_mode: VmExecutionMode,
@@ -30,12 +31,10 @@ pub trait VmInterface<S: WriteStorage> {
         &mut self,
         tx: Transaction,
         with_compression: bool,
-    ) -> Result<VmExecutionResultAndLogs, BytecodeCompressionError> {
-        self.inspect_transaction_with_bytecode_compression((), tx, with_compression)
-    }
+    ) -> Result<VmExecutionResultAndLogs, BytecodeCompressionError>;
 
     /// Inspect transaction with optional bytecode compression.
-    fn inspect_transaction_with_bytecode_compression<T>(
+    fn inspect_transaction_with_bytecode_compression<T: vm_1_3_3::VmTracer<S>>(
         &mut self,
         tracer: T,
         tx: Transaction,

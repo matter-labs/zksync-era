@@ -1,3 +1,4 @@
+pub use call::CallTracer;
 pub(crate) use default_tracers::DefaultExecutionTracer;
 pub(crate) use refunds::RefundsTracer;
 pub(crate) use result_tracer::ResultTracer;

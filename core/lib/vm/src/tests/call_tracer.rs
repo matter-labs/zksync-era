@@ -1,9 +1,18 @@
 use crate::constants::BLOCK_GAS_LIMIT;
 use crate::tests::tester::VmTesterBuilder;
 use crate::tests::utils::{read_max_depth_contract, read_test_contract};
-use crate::{CallTracer, HistoryEnabled, TxExecutionMode, VmExecutionMode};
+use crate::CallTracer;
+use crate::HistoryEnabled;
 use once_cell::sync::OnceCell;
+use std::cell::RefCell;
+use std::rc::Rc;
 use std::sync::Arc;
+use vm_interface::{
+    L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode, VmInterface,
+};
+use zksync_contracts::{deployer_contract, BaseSystemContracts};
+
+use zksync_state::{InMemoryStorage, StorageView};
 use zksync_types::{Address, Execute};
 
 // This test is ultra slow, so it's ignored by default.
@@ -72,9 +81,7 @@ fn test_basic_behavior() {
     let result = Arc::new(OnceCell::new());
     let call_tracer = CallTracer::new(result.clone(), HistoryEnabled);
     vm.vm.push_transaction(tx);
-    let res = vm
-        .vm
-        .inspect(vec![Box::new(call_tracer)], VmExecutionMode::OneTx);
+    let res = vm.inspect(call_tracer, VmExecutionMode::OneTx);
 
     let call_tracer_result = result.get().unwrap();
 

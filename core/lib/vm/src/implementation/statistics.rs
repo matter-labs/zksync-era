@@ -1,4 +1,5 @@
 use vm_interface::{VmExecutionStatistics, VmMemoryMetrics};
+use vm_tracer_interface::traits::vm_1_3_3::VmTracer;
 use zk_evm::aux_structures::Timestamp;
 use zksync_state::WriteStorage;
 
@@ -14,11 +15,11 @@ use crate::vm::Vm;
 impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
     /// Get statistics about TX execution.
     #[allow(clippy::too_many_arguments)]
-    pub(crate) fn get_statistics(
+    pub(crate) fn get_statistics<T: VmTracer<S>>(
         &self,
         timestamp_initial: Timestamp,
         cycles_initial: u32,
-        tracer: &DefaultExecutionTracer<S, H>,
+        tracer: &DefaultExecutionTracer<S, H, T>,
         gas_remaining_before: u32,
         gas_remaining_after: u32,
         spent_pubdata_counter_before: u32,

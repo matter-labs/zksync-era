@@ -11,10 +11,8 @@ pub use old_vm::{
 pub use oracles::storage::StorageOracle;
 
 pub use tracers::{
-    call::CallTracer,
-    traits::{BoxedTracer, DynTracer, TracerExecutionStatus, TracerExecutionStopReason, VmTracer},
-    utils::VmExecutionStopReason,
-    StorageInvocations, ValidationError, ValidationTracer, ValidationTracerParams,
+    utils::VmExecutionStopReason, CallTracer, StorageInvocations, ValidationError,
+    ValidationTracer, ValidationTracerParams,
 };
 
 pub use types::internals::ZkSyncVmState;

@@ -10,8 +10,8 @@ use crate::old_vm::events::merge_events;
 use crate::old_vm::history_recorder::{HistoryEnabled, HistoryMode};
 
 use crate::bootloader_state::BootloaderState;
-use crate::tracers::traits::VmTracer;
 use crate::types::internals::{new_vm_state, VmSnapshot, ZkSyncVmState};
+use vm_tracer_interface::traits::vm_1_3_3::VmTracer;
 
 use crate::tracers::noop::NoopTracer;
 use vm_interface::VmInterface;
@@ -54,17 +54,16 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S> for Vm<S, H> {
     /// Execute VM with default tracers. The execution mode determines whether the VM will stop and
     /// how the vm will be processed.
     fn execute(&mut self, execution_mode: VmExecutionMode) -> VmExecutionResultAndLogs {
-        self.inspect(NoopTracer, execution_mode)
+        self.inspect::<NoopTracer<H>>(NoopTracer::default(), execution_mode)
     }
 
     /// Execute VM with custom tracers.
-    fn inspect<T: VmTracer<S, H>>(
+    fn inspect<T: VmTracer<S>>(
         &mut self,
         tracer: T,
         execution_mode: VmExecutionMode,
     ) -> VmExecutionResultAndLogs {
-        todo!()
-        // self.inspect_inner(tracer, execution_mode)
+        self.inspect_inner(tracer, execution_mode)
     }
 
     /// Get current state of bootloader memory.
@@ -115,11 +114,15 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S> for Vm<S, H> {
         tx: Transaction,
         with_compression: bool,
     ) -> Result<VmExecutionResultAndLogs, BytecodeCompressionError> {
-        self.inspect_transaction_with_bytecode_compression(NoopTracer, tx, with_compression)
+        self.inspect_transaction_with_bytecode_compression::<NoopTracer<H>>(
+            NoopTracer::default(),
+            tx,
+            with_compression,
+        )
     }
 
     /// Inspect transaction with optional bytecode compression.
-    fn inspect_transaction_with_bytecode_compression<T: VmTracer<S, H>>(
+    fn inspect_transaction_with_bytecode_compression<T: VmTracer<S>>(
         &mut self,
         tracer: T,
         tx: Transaction,

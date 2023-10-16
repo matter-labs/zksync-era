@@ -1,17 +1,17 @@
+use std::marker::PhantomData;
 use vise::{Buckets, EncodeLabelSet, EncodeLabelValue, Family, Histogram, Metrics};
+use zk_evm::tracing::{BeforeExecutionData, VmLocalStateData};
+use zk_evm::vm_state::VmLocalState;
 
 use vm_interface::{L1BatchEnv, Refunds};
-use zk_evm::{
-    aux_structures::Timestamp,
-    tracing::{BeforeExecutionData, VmLocalStateData},
-    vm_state::VmLocalState,
-};
+use vm_tracer_interface::traits::vm_1_3_3::{DynTracer, VmTracer};
+use vm_tracer_interface::types::TracerExecutionStatus;
 use zksync_config::constants::{PUBLISH_BYTECODE_OVERHEAD, SYSTEM_CONTEXT_ADDRESS};
 use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::{
     event::{extract_long_l2_to_l1_messages, extract_published_bytecodes},
     l2_to_l1_log::L2ToL1Log,
-    L1BatchNumber, U256,
+    L1BatchNumber, Timestamp, U256,
 };
 use zksync_utils::bytecode::bytecode_len_in_bytes;
 use zksync_utils::{ceil_div_u256, u256_to_h256};
@@ -24,16 +24,13 @@ use crate::old_vm::{
 
 use crate::bootloader_state::BootloaderState;
 use crate::tracers::utils::gas_spent_on_bytecodes_and_long_messages_this_opcode;
-use crate::tracers::{
-    traits::{DynTracer, VmTracer},
-    utils::{get_vm_hook_params, VmHook},
-};
+use crate::tracers::utils::{get_vm_hook_params, VmHook};
 use crate::types::inputs::l1_batch_env::base_fee;
-use crate::{TracerExecutionStatus, ZkSyncVmState};
+use crate::{VmExecutionStopReason, ZkSyncVmState};
 
 /// Tracer responsible for collecting information about refunds.
 #[derive(Debug, Clone)]
-pub(crate) struct RefundsTracer {
+pub(crate) struct RefundsTracer<H> {
     // Some(x) means that the bootloader has asked the operator
     // to provide the refund the user, where `x` is the refund proposed
     // by the bootloader itself.
@@ -46,9 +43,10 @@ pub(crate) struct RefundsTracer {
     spent_pubdata_counter_before: u32,
     gas_spent_on_bytecodes_and_long_messages: u32,
     l1_batch: L1BatchEnv,
+    _h: PhantomData<H>,
 }
 
-impl RefundsTracer {
+impl<H> RefundsTracer<H> {
     pub(crate) fn new(l1_batch: L1BatchEnv) -> Self {
         Self {
             pending_operator_refund: None,
@@ -60,11 +58,9 @@ impl RefundsTracer {
             spent_pubdata_counter_before: 0,
             gas_spent_on_bytecodes_and_long_messages: 0,
             l1_batch,
+            _h: Default::default(),
         }
     }
-}
-
-impl RefundsTracer {
     fn requested_refund(&self) -> Option<u32> {
         self.pending_operator_refund
     }
@@ -142,7 +138,9 @@ impl RefundsTracer {
     }
 }
 
-impl<S, H: HistoryMode> DynTracer<S, H> for RefundsTracer {
+impl<S: WriteStorage, H: HistoryMode> DynTracer<S> for RefundsTracer<H> {
+    type Memory = SimpleMemory<H>;
+
     fn before_execution(
         &mut self,
         state: VmLocalStateData<'_>,
@@ -165,7 +163,11 @@ impl<S, H: HistoryMode> DynTracer<S, H> for RefundsTracer {
     }
 }
 
-impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for RefundsTracer {
+impl<S: WriteStorage, H: HistoryMode> VmTracer<S> for RefundsTracer<H> {
+    type ZkSyncVmState = ZkSyncVmState<S, H>;
+    type BootloaderState = BootloaderState;
+    type VmExecutionStopReason = VmExecutionStopReason;
+
     fn initialize_tracer(&mut self, state: &mut ZkSyncVmState<S, H>) {
         self.timestamp_initial = Timestamp(state.local_state.timestamp);
         self.gas_remaining_before = state.local_state.callstack.current.ergs_remaining;

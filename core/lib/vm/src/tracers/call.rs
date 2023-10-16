@@ -1,10 +1,10 @@
 use once_cell::sync::OnceCell;
 use std::marker::PhantomData;
 use std::sync::Arc;
-
 use vm_interface::VmRevertReason;
-use zk_evm::tracing::{AfterExecutionData, VmLocalStateData};
-use zk_evm::zkevm_opcode_defs::{
+
+use vm_tracer_interface::zk_evm_1_3_3::tracing::{AfterExecutionData, VmLocalStateData};
+use vm_tracer_interface::zk_evm_1_3_3::zkevm_opcode_defs::{
     FarCallABI, FarCallOpcode, FatPointer, Opcode, RetOpcode,
     CALL_IMPLICIT_CALLDATA_FAT_PTR_REGISTER, RET_IMPLICIT_RETURNDATA_PARAMS_REGISTER,
 };
@@ -14,10 +14,8 @@ use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::vm_trace::{Call, CallType};
 use zksync_types::U256;
 
-use crate::old_vm::history_recorder::HistoryMode;
-use crate::old_vm::memory::SimpleMemory;
-use crate::tracers::traits::{DynTracer, VmTracer};
-use crate::{BootloaderState, VmExecutionStopReason, ZkSyncVmState};
+use crate::{BootloaderState, HistoryMode, SimpleMemory, VmExecutionStopReason, ZkSyncVmState};
+use vm_tracer_interface::traits::vm_1_3_3::{DynTracer, VmTracer};
 
 #[derive(Debug, Clone)]
 pub struct CallTracer<H: HistoryMode> {
@@ -42,7 +40,8 @@ impl<H: HistoryMode> CallTracer<H> {
     }
 }
 
-impl<S, H: HistoryMode> DynTracer<S, H> for CallTracer<H> {
+impl<S: WriteStorage, H: HistoryMode> DynTracer<S> for CallTracer<H> {
+    type Memory = SimpleMemory<H>;
     fn after_execution(
         &mut self,
         state: VmLocalStateData<'_>,
@@ -88,7 +87,11 @@ impl<S, H: HistoryMode> DynTracer<S, H> for CallTracer<H> {
     }
 }
 
-impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for CallTracer<H> {
+impl<S: WriteStorage, H: HistoryMode> VmTracer<S> for CallTracer<H> {
+    type ZkSyncVmState = ZkSyncVmState<S, H>;
+    type BootloaderState = BootloaderState;
+    type VmExecutionStopReason = VmExecutionStopReason;
+
     fn after_vm_execution(
         &mut self,
         _state: &mut ZkSyncVmState<S, H>,

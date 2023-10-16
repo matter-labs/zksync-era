@@ -19,3 +19,5 @@ zksync_types = { path = "../types" }
 zksync_utils = { path = "../utils" }
 zksync_state = { path = "../state" }
 zksync_contracts = { path = "../contracts" }
+
+vm_tracer_interface = { path = "../vm_tracer_interface" }
