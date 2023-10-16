@@ -205,7 +205,9 @@ impl JobProcessor for BasicWitnessGenerator {
 
     async fn save_failure(&self, job_id: L1BatchNumber, _started_at: Instant, error: String) -> () {
         self.prover_connection_pool
-            .access_storage().await.unwrap()
+            .access_storage()
+            .await
+            .unwrap()
             .fri_witness_generator_dal()
             .mark_witness_job_failed(&error, job_id)
             .await;
@@ -229,7 +231,8 @@ impl JobProcessor for BasicWitnessGenerator {
                 job,
                 started_at,
                 config,
-            ).await)
+            )
+            .await)
         })
     }
 
@@ -447,22 +450,26 @@ async fn build_basic_circuits_witness_generator_input(
         .blocks_dal()
         .get_l1_batch_header(l1_batch_number)
         .await
-        .unwrap().unwrap();
+        .unwrap()
+        .unwrap();
     let initial_heap_content = connection
         .blocks_dal()
         .get_initial_bootloader_heap(l1_batch_number)
         .await
-        .unwrap().unwrap();
+        .unwrap()
+        .unwrap();
     let (_, previous_block_timestamp) = connection
         .blocks_dal()
         .get_l1_batch_state_root_and_timestamp(l1_batch_number - 1)
         .await
-        .unwrap().unwrap();
+        .unwrap()
+        .unwrap();
     let previous_block_hash = connection
         .blocks_dal()
         .get_l1_batch_state_root(l1_batch_number - 1)
         .await
-        .unwrap().expect("cannot generate witness before the root hash is computed");
+        .unwrap()
+        .expect("cannot generate witness before the root hash is computed");
     BasicCircuitWitnessGeneratorInput {
         block_number: l1_batch_number,
         previous_block_timestamp,
@@ -495,7 +502,18 @@ async fn generate_witness(
         .blocks_dal()
         .get_l1_batch_header(input.block_number)
         .await
-        .unwrap().unwrap();
+        .unwrap()
+        .unwrap();
+
+    let previous_batch_with_metadata = connection
+        .blocks_dal()
+        .get_l1_batch_metadata(zksync_types::L1BatchNumber(
+            input.block_number.checked_sub(1).unwrap(),
+        ))
+        .await
+        .unwrap()
+        .unwrap();
+
     let bootloader_code_bytes = connection
         .storage_dal()
         .get_factory_dep(header.base_system_contracts_hashes.bootloader)
@@ -537,7 +555,8 @@ async fn generate_witness(
         .blocks_dal()
         .get_miniblock_range_of_l1_batch(input.block_number - 1)
         .await
-        .unwrap().expect("L1 batch should contain at least one miniblock");
+        .unwrap()
+        .expect("L1 batch should contain at least one miniblock");
     drop(connection);
 
     let mut tree = PrecalculatedMerklePathsProvider::new(
@@ -578,8 +597,17 @@ async fn generate_witness(
 
     // The following part is CPU-heavy, so we move it to a separate thread.
     let rt_handle = tokio::runtime::Handle::current();
-    tokio::task::spawn_blocking(move || {
-        let connection = rt_handle.block_on(connection_pool.access_storage()).unwrap();
+
+    let (
+        basic_circuits,
+        basic_circuits_public_inputs,
+        basic_circuits_public_compact_witness,
+        mut scheduler_witness,
+        block_aux_witness,
+    ) = tokio::task::spawn_blocking(move || {
+        let connection = rt_handle
+            .block_on(connection_pool.access_storage())
+            .unwrap();
         let storage = PostgresStorage::new(rt_handle, connection, last_miniblock_number, true);
         let storage_view = StorageView::new(storage).to_rc_ptr();
         let storage_oracle: StorageOracle<StorageView<PostgresStorage<'_>>, HistoryDisabled> =
@@ -600,7 +628,20 @@ async fn generate_witness(
         )
     })
     .await
-    .unwrap()
+    .unwrap();
+
+    scheduler_witness.previous_block_meta_hash =
+        previous_batch_with_metadata.metadata.meta_parameters_hash.0;
+    scheduler_witness.previous_block_aux_hash =
+        previous_batch_with_metadata.metadata.aux_data_hash.0;
+
+    (
+        basic_circuits,
+        basic_circuits_public_inputs,
+        basic_circuits_public_compact_witness,
+        scheduler_witness,
+        block_aux_witness,
+    )
 }
 
 #[allow(clippy::too_many_arguments)]

@@ -39,8 +39,7 @@ use crate::vm_with_bootloader::{
     OPERATOR_REFUNDS_OFFSET,
 };
 
-pub type ZkSyncVmState<'a, S, H> = VmState<
-    'a,
+pub type ZkSyncVmState<S, H> = VmState<
     StorageOracle<S, H>,
     SimpleMemory<H>,
     InMemoryEventSink<H>,
@@ -81,9 +80,9 @@ pub enum MultiVMSubversion {
 }
 
 #[derive(Debug)]
-pub struct VmInstance<'a, S: Storage, H: HistoryMode> {
+pub struct VmInstance<S: Storage, H: HistoryMode> {
     pub gas_limit: u32,
-    pub state: ZkSyncVmState<'a, S, H>,
+    pub state: ZkSyncVmState<S, H>,
     pub execution_mode: TxExecutionMode,
     pub block_context: DerivedBlockContext,
     pub(crate) bootloader_state: BootloaderState,
@@ -185,7 +184,7 @@ fn vm_may_have_ended_inner<H: HistoryMode, S: Storage>(
         vm.local_state.callstack.get_current_stack().pc.as_u64(),
     ) {
         (true, 0) => {
-            let returndata = dump_memory_page_using_primitive_value(vm.memory, r1);
+            let returndata = dump_memory_page_using_primitive_value(&vm.memory, r1);
 
             Some(NewVmExecutionResult::Ok(returndata))
         }
@@ -195,7 +194,7 @@ fn vm_may_have_ended_inner<H: HistoryMode, S: Storage>(
             if vm.local_state.flags.overflow_or_less_than_flag {
                 Some(NewVmExecutionResult::Panic)
             } else {
-                let returndata = dump_memory_page_using_primitive_value(vm.memory, r1);
+                let returndata = dump_memory_page_using_primitive_value(&vm.memory, r1);
                 Some(NewVmExecutionResult::Revert(returndata))
             }
         }
@@ -327,7 +326,7 @@ pub struct VmSnapshot {
     bootloader_state: BootloaderState,
 }
 
-impl<H: HistoryMode, S: Storage> VmInstance<'_, S, H> {
+impl<H: HistoryMode, S: Storage> VmInstance<S, H> {
     fn has_ended(&self) -> bool {
         match vm_may_have_ended_inner(&self.state) {
             None | Some(NewVmExecutionResult::MostLikelyDidNotFinish(_, _)) => false,
@@ -924,7 +923,7 @@ impl<H: HistoryMode, S: Storage> VmInstance<'_, S, H> {
     }
 }
 
-impl<S: Storage> VmInstance<'_, S, HistoryEnabled> {
+impl<S: Storage> VmInstance<S, HistoryEnabled> {
     /// Saves the snapshot of the current state of the VM that can be used
     /// to roll back its state later on.
     pub fn save_current_vm_as_snapshot(&mut self) {
@@ -986,7 +985,7 @@ impl<S: Storage> VmInstance<'_, S, HistoryEnabled> {
 // Reads the bootloader memory and checks whether the execution step of the transaction
 // has failed.
 pub(crate) fn tx_has_failed<H: HistoryMode, S: Storage>(
-    state: &ZkSyncVmState<'_, S, H>,
+    state: &ZkSyncVmState<S, H>,
     tx_id: u32,
 ) -> bool {
     let mem_slot = RESULT_SUCCESS_FIRST_SLOT + tx_id;

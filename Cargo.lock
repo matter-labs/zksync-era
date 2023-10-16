@@ -3827,6 +3827,7 @@ dependencies = [
  "vm_1_3_2",
  "vm_m5",
  "vm_m6",
+ "vm_virtual_blocks",
  "zksync_contracts",
  "zksync_state",
  "zksync_types",
@@ -4720,6 +4721,7 @@ dependencies = [
  "metrics",
  "metrics-exporter-prometheus",
  "tokio",
+ "vise",
  "vise-exporter",
 ]
 
@@ -6871,7 +6873,7 @@ checksum = "49874b5167b65d7193b8aba1567f5c7d93d001cafc34600cee003eda787e483f"
 [[package]]
 name = "vise"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/vise.git?rev=9d097ab747b037b6e62504df1db5b975425b6bdd#9d097ab747b037b6e62504df1db5b975425b6bdd"
+source = "git+https://github.com/matter-labs/vise.git?rev=dd05139b76ab0843443ab3ff730174942c825dae#dd05139b76ab0843443ab3ff730174942c825dae"
 dependencies = [
  "elsa",
  "linkme",
@@ -6883,7 +6885,7 @@ dependencies = [
 [[package]]
 name = "vise-exporter"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/vise.git?rev=9d097ab747b037b6e62504df1db5b975425b6bdd#9d097ab747b037b6e62504df1db5b975425b6bdd"
+source = "git+https://github.com/matter-labs/vise.git?rev=dd05139b76ab0843443ab3ff730174942c825dae#dd05139b76ab0843443ab3ff730174942c825dae"
 dependencies = [
  "hyper",
  "metrics-exporter-prometheus",
@@ -6896,7 +6898,7 @@ dependencies = [
 [[package]]
 name = "vise-macros"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/vise.git?rev=9d097ab747b037b6e62504df1db5b975425b6bdd#9d097ab747b037b6e62504df1db5b975425b6bdd"
+source = "git+https://github.com/matter-labs/vise.git?rev=dd05139b76ab0843443ab3ff730174942c825dae#dd05139b76ab0843443ab3ff730174942c825dae"
 dependencies = [
  "proc-macro2 1.0.66",
  "quote 1.0.33",
@@ -7028,6 +7030,29 @@ dependencies = [
  "zksync_crypto",
  "zksync_state",
  "zksync_storage",
+ "zksync_types",
+ "zksync_utils",
+]
+
+[[package]]
+name = "vm_virtual_blocks"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "ethabi",
+ "hex",
+ "itertools",
+ "once_cell",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "vise",
+ "zk_evm 1.3.3",
+ "zksync_config",
+ "zksync_contracts",
+ "zksync_eth_signer",
+ "zksync_state",
+ "zksync_test_account",
  "zksync_types",
  "zksync_utils",
 ]
@@ -7487,7 +7512,7 @@ checksum = "2a0956f1ba7c7909bfb66c2e9e4124ab6f6482560f6628b5aaeba39207c9aad9"
 [[package]]
 name = "zk_evm"
 version = "1.3.1"
-source = "git+https://github.com/matter-labs/era-zk_evm.git?tag=v1.3.1-rc0#877ba31cc1d82316fd924e8d83a9f5f1a77b1b9a"
+source = "git+https://github.com/matter-labs/era-zk_evm.git?tag=v1.3.1-rc1#cec6535e2bcb1e8f0bad1befaaddec8da7f11b24"
 dependencies = [
  "blake2 0.10.6",
  "k256",
@@ -7769,6 +7794,7 @@ dependencies = [
  "tower",
  "tower-http",
  "tracing",
+ "vise",
  "vlog",
  "vm",
  "zksync_circuit_breaker",
@@ -8031,6 +8057,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "db_test_macro",
+ "itertools",
  "mini-moka",
  "rand 0.8.5",
  "tempfile",

@@ -3,31 +3,31 @@ use vm_latest::{
     FinishedL1Batch, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode, VmMemoryMetrics,
 };
 
-use zksync_state::{ReadStorage, StoragePtr, StorageView};
-use zksync_types::VmVersion;
+use zksync_state::{ReadStorage, StorageView};
 use zksync_utils::bytecode::{hash_bytecode, CompressedBytecodeInfo};
-use zksync_utils::h256_to_u256;
 
 use crate::glue::history_mode::HistoryMode;
 use crate::glue::tracer::MultivmTracer;
 use crate::glue::GlueInto;
-use crate::{BlockProperties, OracleTools};
 
-pub struct VmInstance<'a, S: ReadStorage, H: HistoryMode> {
-    pub(crate) vm: VmInstanceVersion<'a, S, H>,
+pub struct VmInstance<S: ReadStorage, H: HistoryMode> {
+    pub(crate) vm: VmInstanceVersion<S, H>,
     pub(crate) system_env: SystemEnv,
     pub(crate) last_tx_compressed_bytecodes: Vec<CompressedBytecodeInfo>,
 }
 
 #[derive(Debug)]
-pub(crate) enum VmInstanceVersion<'a, S: ReadStorage, H: HistoryMode> {
-    VmM5(Box<vm_m5::VmInstance<'a, StorageView<S>>>),
-    VmM6(Box<vm_m6::VmInstance<'a, StorageView<S>, H::VmM6Mode>>),
+pub(crate) enum VmInstanceVersion<S: ReadStorage, H: HistoryMode> {
+    VmM5(Box<vm_m5::VmInstance<StorageView<S>>>),
+    VmM6(Box<vm_m6::VmInstance<StorageView<S>, H::VmM6Mode>>),
     Vm1_3_2(Box<vm_1_3_2::VmInstance<StorageView<S>, H::Vm1_3_2Mode>>),
-    VmVirtualBlocks(Box<vm_latest::Vm<StorageView<S>, H::VmVirtualBlocksMode>>),
+    VmVirtualBlocks(Box<vm_virtual_blocks::Vm<StorageView<S>, H::VmVirtualBlocksMode>>),
+    VmVirtualBlocksRefundsEnhancement(
+        Box<vm_latest::Vm<StorageView<S>, H::VmVirtualBlocksRefundsEnhancement>>,
+    ),
 }
 
-impl<'a, S: ReadStorage, H: HistoryMode> VmInstance<'a, S, H> {
+impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
     /// Push tx into memory for the future execution
     pub fn push_transaction(&mut self, tx: &zksync_types::Transaction) {
         match &mut self.vm {
@@ -57,6 +57,9 @@ impl<'a, S: ReadStorage, H: HistoryMode> VmInstance<'a, S, H> {
             VmInstanceVersion::VmVirtualBlocks(vm) => {
                 vm.push_transaction(tx.clone());
             }
+            VmInstanceVersion::VmVirtualBlocksRefundsEnhancement(vm) => {
+                vm.push_transaction(tx.clone());
+            }
         }
     }
 
@@ -79,6 +82,16 @@ impl<'a, S: ReadStorage, H: HistoryMode> VmInstance<'a, S, H> {
                 )
                 .glue_into(),
             VmInstanceVersion::VmVirtualBlocks(vm) => {
+                let result = vm.execute(VmExecutionMode::Batch.glue_into());
+                let execution_state = vm.get_current_execution_state();
+                let bootloader_memory = vm.get_bootloader_memory();
+                FinishedL1Batch {
+                    block_tip_execution_result: result.glue_into(),
+                    final_execution_state: execution_state.glue_into(),
+                    final_bootloader_memory: Some(bootloader_memory),
+                }
+            }
+            VmInstanceVersion::VmVirtualBlocksRefundsEnhancement(vm) => {
                 let result = vm.execute(VmExecutionMode::Batch);
                 let execution_state = vm.get_current_execution_state();
                 let bootloader_memory = vm.get_bootloader_memory();
@@ -98,7 +111,12 @@ impl<'a, S: ReadStorage, H: HistoryMode> VmInstance<'a, S, H> {
             VmInstanceVersion::VmM5(vm) => vm.execute_block_tip().glue_into(),
             VmInstanceVersion::VmM6(vm) => vm.execute_block_tip().glue_into(),
             VmInstanceVersion::Vm1_3_2(vm) => vm.execute_block_tip().glue_into(),
-            VmInstanceVersion::VmVirtualBlocks(vm) => vm.execute(VmExecutionMode::Bootloader),
+            VmInstanceVersion::VmVirtualBlocks(vm) => vm
+                .execute(VmExecutionMode::Bootloader.glue_into())
+                .glue_into(),
+            VmInstanceVersion::VmVirtualBlocksRefundsEnhancement(vm) => {
+                vm.execute(VmExecutionMode::Bootloader)
+            }
         }
     }
 
@@ -147,7 +165,12 @@ impl<'a, S: ReadStorage, H: HistoryMode> VmInstance<'a, S, H> {
                         .glue_into(),
                 }
             }
-            VmInstanceVersion::VmVirtualBlocks(vm) => vm.execute(VmExecutionMode::OneTx),
+            VmInstanceVersion::VmVirtualBlocks(vm) => {
+                vm.execute(VmExecutionMode::OneTx.glue_into()).glue_into()
+            }
+            VmInstanceVersion::VmVirtualBlocksRefundsEnhancement(vm) => {
+                vm.execute(VmExecutionMode::OneTx)
+            }
         }
     }
 
@@ -155,6 +178,9 @@ impl<'a, S: ReadStorage, H: HistoryMode> VmInstance<'a, S, H> {
     pub fn get_last_tx_compressed_bytecodes(&self) -> Vec<CompressedBytecodeInfo> {
         match &self.vm {
             VmInstanceVersion::VmVirtualBlocks(vm) => vm.get_last_tx_compressed_bytecodes(),
+            VmInstanceVersion::VmVirtualBlocksRefundsEnhancement(vm) => {
+                vm.get_last_tx_compressed_bytecodes()
+            }
             _ => self.last_tx_compressed_bytecodes.clone(),
         }
     }
@@ -162,10 +188,19 @@ impl<'a, S: ReadStorage, H: HistoryMode> VmInstance<'a, S, H> {
     /// Execute next transaction with custom tracers
     pub fn inspect_next_transaction(
         &mut self,
-        tracers: Vec<Box<dyn MultivmTracer<StorageView<S>, H::VmVirtualBlocksMode>>>,
+        tracers: Vec<Box<dyn MultivmTracer<StorageView<S>, H>>>,
     ) -> vm_latest::VmExecutionResultAndLogs {
         match &mut self.vm {
-            VmInstanceVersion::VmVirtualBlocks(vm) => vm.inspect(
+            VmInstanceVersion::VmVirtualBlocks(vm) => vm
+                .inspect(
+                    tracers
+                        .into_iter()
+                        .map(|tracer| tracer.vm_virtual_blocks())
+                        .collect(),
+                    VmExecutionMode::OneTx.glue_into(),
+                )
+                .glue_into(),
+            VmInstanceVersion::VmVirtualBlocksRefundsEnhancement(vm) => vm.inspect(
                 tracers.into_iter().map(|tracer| tracer.latest()).collect(),
                 VmExecutionMode::OneTx,
             ),
@@ -316,7 +351,10 @@ impl<'a, S: ReadStorage, H: HistoryMode> VmInstance<'a, S, H> {
                     Ok(result)
                 }
             }
-            VmInstanceVersion::VmVirtualBlocks(vm) => {
+            VmInstanceVersion::VmVirtualBlocks(vm) => vm
+                .execute_transaction_with_bytecode_compression(tx, with_compression)
+                .glue_into(),
+            VmInstanceVersion::VmVirtualBlocksRefundsEnhancement(vm) => {
                 vm.execute_transaction_with_bytecode_compression(tx, with_compression)
             }
         }
@@ -325,25 +363,43 @@ impl<'a, S: ReadStorage, H: HistoryMode> VmInstance<'a, S, H> {
     /// Inspect transaction with optional bytecode compression.
     pub fn inspect_transaction_with_bytecode_compression(
         &mut self,
-        tracers: Vec<Box<dyn MultivmTracer<StorageView<S>, H::VmVirtualBlocksMode>>>,
+        tracers: Vec<Box<dyn MultivmTracer<StorageView<S>, H>>>,
         tx: zksync_types::Transaction,
         with_compression: bool,
     ) -> Result<vm_latest::VmExecutionResultAndLogs, vm_latest::BytecodeCompressionError> {
-        if let VmInstanceVersion::VmVirtualBlocks(vm) = &mut self.vm {
-            vm.inspect_transaction_with_bytecode_compression(
-                tracers.into_iter().map(|tracer| tracer.latest()).collect(),
-                tx,
-                with_compression,
-            )
-        } else {
-            self.last_tx_compressed_bytecodes = vec![];
-            self.execute_transaction_with_bytecode_compression(tx, with_compression)
+        match &mut self.vm {
+            VmInstanceVersion::VmVirtualBlocks(vm) => vm
+                .inspect_transaction_with_bytecode_compression(
+                    tracers
+                        .into_iter()
+                        .map(|tracer| tracer.vm_virtual_blocks())
+                        .collect(),
+                    tx,
+                    with_compression,
+                )
+                .glue_into(),
+            VmInstanceVersion::VmVirtualBlocksRefundsEnhancement(vm) => vm
+                .inspect_transaction_with_bytecode_compression(
+                    tracers.into_iter().map(|tracer| tracer.latest()).collect(),
+                    tx,
+                    with_compression,
+                ),
+            _ => {
+                self.last_tx_compressed_bytecodes = vec![];
+                self.execute_transaction_with_bytecode_compression(tx, with_compression)
+            }
         }
     }
 
     pub fn start_new_l2_block(&mut self, l2_block_env: L2BlockEnv) {
-        if let VmInstanceVersion::VmVirtualBlocks(vm) = &mut self.vm {
-            vm.start_new_l2_block(l2_block_env);
+        match &mut self.vm {
+            VmInstanceVersion::VmVirtualBlocks(vm) => {
+                vm.start_new_l2_block(l2_block_env.glue_into());
+            }
+            VmInstanceVersion::VmVirtualBlocksRefundsEnhancement(vm) => {
+                vm.start_new_l2_block(l2_block_env);
+            }
+            _ => {}
         }
     }
 
@@ -376,157 +432,24 @@ impl<'a, S: ReadStorage, H: HistoryMode> VmInstance<'a, S, H> {
                 storage_inner: vm.state.storage.get_size(),
                 storage_history: vm.state.storage.get_history_size(),
             }),
-            VmInstanceVersion::VmVirtualBlocks(vm) => Some(vm.record_vm_memory_metrics()),
+            VmInstanceVersion::VmVirtualBlocks(vm) => {
+                Some(vm.record_vm_memory_metrics().glue_into())
+            }
+            VmInstanceVersion::VmVirtualBlocksRefundsEnhancement(vm) => {
+                Some(vm.record_vm_memory_metrics())
+            }
         }
     }
 }
 
-pub struct M5NecessaryData<S: ReadStorage, H: HistoryMode> {
-    pub oracle_tools: OracleTools<S, H>,
-    pub block_properties: BlockProperties,
-    pub sub_version: vm_m5::vm::MultiVMSubversion,
-}
-
-pub struct M6NecessaryData<S: ReadStorage, H: HistoryMode> {
-    pub oracle_tools: OracleTools<S, H>,
-    pub block_properties: BlockProperties,
-    pub sub_version: vm_m6::vm::MultiVMSubversion,
-}
-
-pub struct Vm1_3_2NecessaryData<S: ReadStorage, H: HistoryMode> {
-    pub storage_view: StoragePtr<StorageView<S>>,
-    pub history_mode: H,
-}
-
-pub struct VmVirtualBlocksNecessaryData<S: ReadStorage, H: HistoryMode> {
-    pub storage_view: zksync_state::StoragePtr<StorageView<S>>,
-    pub history_mode: H,
-}
-
-pub enum VmInstanceData<S: ReadStorage, H: HistoryMode> {
-    M5(M5NecessaryData<S, H>),
-    M6(M6NecessaryData<S, H>),
-    Vm1_3_2(Vm1_3_2NecessaryData<S, H>),
-    VmVirtualBlocks(VmVirtualBlocksNecessaryData<S, H>),
-}
-
-impl<S: ReadStorage, H: HistoryMode> VmInstanceData<S, H> {
-    fn m5(
-        oracle_tools: OracleTools<S, H>,
-        block_properties: BlockProperties,
-        sub_version: vm_m5::vm::MultiVMSubversion,
-    ) -> Self {
-        Self::M5(M5NecessaryData {
-            oracle_tools,
-            block_properties,
-            sub_version,
-        })
-    }
-    fn m6(
-        oracle_tools: OracleTools<S, H>,
-        block_properties: BlockProperties,
-        sub_version: vm_m6::vm::MultiVMSubversion,
-    ) -> Self {
-        Self::M6(M6NecessaryData {
-            oracle_tools,
-            block_properties,
-            sub_version,
-        })
-    }
-
-    fn latest(storage_view: StoragePtr<StorageView<S>>, history_mode: H) -> Self {
-        Self::VmVirtualBlocks(VmVirtualBlocksNecessaryData {
-            storage_view,
-            history_mode,
-        })
-    }
-
-    fn vm1_3_2(storage_view: StoragePtr<StorageView<S>>, history_mode: H) -> Self {
-        Self::Vm1_3_2(Vm1_3_2NecessaryData {
-            storage_view,
-            history_mode,
-        })
-    }
-
-    pub fn new(
-        storage_view: StoragePtr<StorageView<S>>,
-        system_env: &SystemEnv,
-        history: H,
-    ) -> Self {
-        let protocol_version = system_env.version;
-        let vm_version: VmVersion = protocol_version.into();
-        Self::new_for_specific_vm_version(storage_view, system_env, history, vm_version)
-    }
-
-    // In api we support only subset of vm versions, so we need to create vm instance for specific version
-    pub fn new_for_specific_vm_version(
-        storage_view: StoragePtr<StorageView<S>>,
-        system_env: &SystemEnv,
-        history: H,
-        vm_version: VmVersion,
-    ) -> Self {
-        match vm_version {
-            VmVersion::M5WithoutRefunds => {
-                let oracle_tools = OracleTools::new(vm_version, storage_view, history);
-                let block_properties = BlockProperties::new(
-                    vm_version,
-                    h256_to_u256(system_env.base_system_smart_contracts.default_aa.hash),
-                );
-                VmInstanceData::m5(
-                    oracle_tools,
-                    block_properties,
-                    vm_m5::vm::MultiVMSubversion::V1,
-                )
-            }
-            VmVersion::M5WithRefunds => {
-                let oracle_tools = OracleTools::new(vm_version, storage_view, history);
-                let block_properties = BlockProperties::new(
-                    vm_version,
-                    h256_to_u256(system_env.base_system_smart_contracts.default_aa.hash),
-                );
-                VmInstanceData::m5(
-                    oracle_tools,
-                    block_properties,
-                    vm_m5::vm::MultiVMSubversion::V2,
-                )
-            }
-            VmVersion::M6Initial => {
-                let oracle_tools = OracleTools::new(vm_version, storage_view, history);
-                let block_properties = BlockProperties::new(
-                    vm_version,
-                    h256_to_u256(system_env.base_system_smart_contracts.default_aa.hash),
-                );
-                VmInstanceData::m6(
-                    oracle_tools,
-                    block_properties,
-                    vm_m6::vm::MultiVMSubversion::V1,
-                )
-            }
-            VmVersion::M6BugWithCompressionFixed => {
-                let oracle_tools = OracleTools::new(vm_version, storage_view, history);
-                let block_properties = BlockProperties::new(
-                    vm_version,
-                    h256_to_u256(system_env.base_system_smart_contracts.default_aa.hash),
-                );
-                VmInstanceData::m6(
-                    oracle_tools,
-                    block_properties,
-                    vm_m6::vm::MultiVMSubversion::V2,
-                )
-            }
-            VmVersion::Vm1_3_2 => VmInstanceData::vm1_3_2(storage_view, history),
-            VmVersion::VmVirtualBlocks => VmInstanceData::latest(storage_view, history),
-        }
-    }
-}
-
-impl<S: ReadStorage> VmInstance<'_, S, vm_latest::HistoryEnabled> {
+impl<S: ReadStorage> VmInstance<S, vm_latest::HistoryEnabled> {
     pub fn make_snapshot(&mut self) {
         match &mut self.vm {
             VmInstanceVersion::VmM5(vm) => vm.save_current_vm_as_snapshot(),
             VmInstanceVersion::VmM6(vm) => vm.save_current_vm_as_snapshot(),
             VmInstanceVersion::Vm1_3_2(vm) => vm.save_current_vm_as_snapshot(),
             VmInstanceVersion::VmVirtualBlocks(vm) => vm.make_snapshot(),
+            VmInstanceVersion::VmVirtualBlocksRefundsEnhancement(vm) => vm.make_snapshot(),
         }
     }
 
@@ -536,6 +459,9 @@ impl<S: ReadStorage> VmInstance<'_, S, vm_latest::HistoryEnabled> {
             VmInstanceVersion::VmM6(vm) => vm.rollback_to_latest_snapshot_popping(),
             VmInstanceVersion::Vm1_3_2(vm) => vm.rollback_to_latest_snapshot_popping(),
             VmInstanceVersion::VmVirtualBlocks(vm) => {
+                vm.rollback_to_the_latest_snapshot();
+            }
+            VmInstanceVersion::VmVirtualBlocksRefundsEnhancement(vm) => {
                 vm.rollback_to_the_latest_snapshot();
             }
         }
@@ -550,6 +476,9 @@ impl<S: ReadStorage> VmInstance<'_, S, vm_latest::HistoryEnabled> {
             VmInstanceVersion::VmM6(vm) => vm.pop_snapshot_no_rollback(),
             VmInstanceVersion::Vm1_3_2(vm) => vm.pop_snapshot_no_rollback(),
             VmInstanceVersion::VmVirtualBlocks(vm) => vm.pop_snapshot_no_rollback(),
+            VmInstanceVersion::VmVirtualBlocksRefundsEnhancement(vm) => {
+                vm.pop_snapshot_no_rollback()
+            }
         }
     }
 }

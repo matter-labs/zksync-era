@@ -2,12 +2,12 @@
 
 The goal of this doc, is to show you some more details on how zkSync works internally.
 
-Please do the the dev_setup.md and development.md (these commands do all the heavy lifting on starting the components of
-the system).
+Please do the dev_setup.md and development.md (these commands do all the heavy lifting on starting the components of the
+system).
 
 Now let's take a look what's inside:
 
-### Initializiation (zk init)
+### Initialization (zk init)
 
 Let's take a deeper look into what `zk init` does.
 
@@ -23,7 +23,8 @@ As first step, it gets the docker images for postgres and geth.
 Geth (one of the ethereum clients) will be used to setup our own copy of L1 chain (that our local zkSync would use).
 
 Postgres is one of the two databases, that is used by zkSync (the other one is RocksDB). Currently most of the data is
-stored in postgres (blocks, transations etc) - while RocksDB is only storing the state (Tree & Map) - and it used by VM.
+stored in postgres (blocks, transactions etc) - while RocksDB is only storing the state (Tree & Map) - and it used by
+VM.
 
 Then we compile JS packages (these include our web3 sdk, tools and testing infrastructure).
 
@@ -140,7 +141,7 @@ this is the contract that our server is 'listening' on).
 
 Ok - so let's sum up what we have:
 
-- a postgress running in docker (main database)
+- a postgres running in docker (main database)
 - a local instance of ethereum (get running in docker)
   - which also has a bunch of 'magic' contracts deployed
   - and two accounts with lots of tokens

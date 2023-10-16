@@ -1,14 +1,14 @@
-use std::collections::hash_map::DefaultHasher;
-use std::collections::{HashMap, HashSet};
-use std::hash::{Hash, Hasher};
-
-use std::sync::Arc;
-use std::time::Instant;
-
 use anyhow::Context as _;
 use async_trait::async_trait;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
+
+use std::{
+    collections::{hash_map::DefaultHasher, HashMap, HashSet},
+    hash::{Hash, Hasher},
+    sync::Arc,
+    time::Instant,
+};
 
 use vm::{constants::MAX_CYCLES_FOR_TX, HistoryDisabled, SimpleMemory, StorageOracle};
 use zksync_config::configs::witness_generator::BasicWitnessGeneratorDataSource;
@@ -33,9 +33,11 @@ use zksync_types::{
 };
 use zksync_utils::{bytes_to_chunks, h256_to_u256, u256_to_h256};
 
-use crate::witness_generator::precalculated_merkle_paths_provider::PrecalculatedMerklePathsProvider;
-use crate::witness_generator::track_witness_generation_stage;
-use crate::witness_generator::utils::{expand_bootloader_contents, save_prover_input_artifacts};
+use super::{
+    precalculated_merkle_paths_provider::PrecalculatedMerklePathsProvider,
+    utils::{expand_bootloader_contents, save_prover_input_artifacts},
+    METRICS,
+};
 
 pub struct BasicCircuitArtifacts {
     basic_circuits: BlockBasicCircuits<Bn256>,
@@ -101,7 +103,7 @@ impl BasicWitnessGenerator {
             // We get value higher than `blocks_proving_percentage` with prob = `1 - blocks_proving_percentage`.
             // In this case job should be skipped.
             if threshold > blocks_proving_percentage {
-                metrics::counter!("server.witness_generator.skipped_blocks", 1);
+                METRICS.skipped_blocks.inc();
                 tracing::info!(
                     "Skipping witness generation for block {}, blocks_proving_percentage: {}",
                     block_number.0,
@@ -122,7 +124,7 @@ impl BasicWitnessGenerator {
             }
         }
 
-        metrics::counter!("server.witness_generator.sampled_blocks", 1);
+        METRICS.sampled_blocks.inc();
         tracing::info!(
             "Starting witness generation of type {:?} for block {}",
             AggregationRound::BasicCircuits,
@@ -314,7 +316,7 @@ async fn update_database(
         .await;
 
     transaction.commit().await.unwrap();
-    track_witness_generation_stage(started_at, AggregationRound::BasicCircuits);
+    METRICS.processing_time[&AggregationRound::BasicCircuits.into()].observe(started_at.elapsed());
 }
 
 async fn get_artifacts(

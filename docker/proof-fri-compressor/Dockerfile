@@ -1,7 +1,5 @@
-# For using private GitHub dependencies, CI downdloads all crates outside of the contatiner
-# Not expected to work locally
+# Will work locally only after prior universal setup key download
 
-# syntax=docker/dockerfile:experimental
 FROM debian:bookworm-slim as builder
 
 ARG DEBIAN_FRONTEND=noninteractive
@@ -21,9 +19,10 @@ RUN curl https://sh.rustup.rs -sSf | bash -s -- -y && \
 WORKDIR /usr/src/zksync
 COPY . .
 
-RUN CARGO_HOME=./cargo cargo build --release
+RUN cargo build --release
 
 FROM debian:bookworm-slim
+
 RUN apt-get update && apt-get install -y curl libpq5 ca-certificates && rm -rf /var/lib/apt/lists/*
 
 # copy VK required for proof wrapping
@@ -33,4 +32,5 @@ COPY prover/vk_setup_data_generator_server_fri/data/ /prover/vk_setup_data_gener
 COPY setup_2\^26.key /setup_2\^26.key
 
 COPY --from=builder /usr/src/zksync/target/release/zksync_proof_fri_compressor /usr/bin/
+
 ENTRYPOINT ["zksync_proof_fri_compressor"]
