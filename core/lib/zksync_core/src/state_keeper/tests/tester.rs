@@ -5,7 +5,6 @@ use std::{
     collections::{HashMap, HashSet, VecDeque},
     convert::TryInto,
     fmt,
-    sync::{Arc, RwLock},
     time::{Duration, Instant},
 };
 
@@ -192,17 +191,14 @@ impl TestScenario {
         assert!(!self.actions.is_empty(), "Test scenario can't be empty");
 
         let batch_executor_base = TestBatchExecutorBuilder::new(&self);
-
         let (stop_sender, stop_receiver) = watch::channel(false);
         let io = TestIO::new(stop_sender, self);
-
         let sk = ZkSyncStateKeeper::new(
             stop_receiver,
             Box::new(io),
             Box::new(batch_executor_base),
             sealer,
         );
-
         let sk_thread = tokio::spawn(sk.run());
 
         // We must assume that *theoretically* state keeper may ignore the stop signal from IO once scenario is

@@ -17,7 +17,7 @@ impl ActionQueueSender {
     /// Requires that the actions are in the correct order: starts with a new open batch/miniblock,
     /// followed by 0 or more transactions, have mandatory `SealMiniblock` and optional `SealBatch` at the end.
     /// Would panic if the order is incorrect.
-    pub(crate) async fn push_actions(&mut self, actions: Vec<SyncAction>) {
+    pub(crate) async fn push_actions(&self, actions: Vec<SyncAction>) {
         Self::check_action_sequence(&actions).unwrap();
         for action in actions {
             self.0.send(action).await.expect("EN sync logic panicked");

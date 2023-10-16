@@ -17,7 +17,7 @@ mod mempool_actor;
 pub(crate) mod metrics;
 pub(crate) mod seal_criteria;
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;
 pub(crate) mod types;
 pub(crate) mod updates;
 

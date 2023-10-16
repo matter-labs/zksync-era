@@ -120,8 +120,10 @@ pub(super) trait SealCriterion: fmt::Debug + Send + 'static {
 
 /// I/O-dependent seal criteria.
 pub trait IoSealCriteria {
+    /// Checks whether an L1 batch should be sealed unconditionally (i.e., regardless of metrics
+    /// related to transaction execution) given the provided `manager` state.
     fn should_seal_l1_batch_unconditionally(&mut self, manager: &UpdatesManager) -> bool;
-
+    /// Checks whether a miniblock should be sealed given the provided `manager` state.
     fn should_seal_miniblock(&mut self, manager: &UpdatesManager) -> bool;
 }
 
@@ -171,7 +173,6 @@ impl IoSealCriteria for TimeoutSealer {
         // where we have to replicate the state of the main node, including the last (empty) miniblock of the batch).
         // The check for the number of transactions is expected to be done, if relevant, in the `miniblock_sealer`
         // directly.
-
         !manager.miniblock.executed_transactions.is_empty()
             && millis_since(manager.miniblock.timestamp) > self.miniblock_commit_deadline_ms
     }

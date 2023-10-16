@@ -30,6 +30,9 @@ use zksync_types::{
     StorageLogQuery, StorageLogQueryType, Timestamp, Transaction, H256, U256,
 };
 
+mod tester;
+
+pub(crate) use self::tester::TestBatchExecutorBuilder;
 use self::tester::{
     bootloader_tip_out_of_gas, pending_batch_data, random_tx, rejected_exec, successful_exec,
     successful_exec_with_metrics, TestScenario,
@@ -44,8 +47,6 @@ use crate::state_keeper::{
     types::ExecutionMetricsForCriteria,
     updates::UpdatesManager,
 };
-
-mod tester;
 
 pub(super) static BASE_SYSTEM_CONTRACTS: Lazy<BaseSystemContracts> =
     Lazy::new(BaseSystemContracts::load_from_disk);
@@ -136,7 +137,7 @@ pub(super) fn create_updates_manager() -> UpdatesManager {
     )
 }
 
-pub(super) fn create_l2_transaction(fee_per_gas: u64, gas_per_pubdata: u32) -> L2Tx {
+pub(crate) fn create_l2_transaction(fee_per_gas: u64, gas_per_pubdata: u32) -> L2Tx {
     let fee = Fee {
         gas_limit: 1000_u64.into(),
         max_fee_per_gas: fee_per_gas.into(),
