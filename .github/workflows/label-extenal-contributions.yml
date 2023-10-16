@@ -1,8 +1,11 @@
 name: Workflow to label external contributions
 
 on:
-  pull_request:
+  pull_request_target:
     types: [opened, ready_for_review]
+
+permissions:
+  issues: write
 
 jobs:
   label:
