@@ -43,7 +43,10 @@ impl PeriodicApiStruct {
             .await
     }
 
-    pub(crate) async fn run<Req>(self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()>
+    pub(crate) async fn run<Req>(
+        self,
+        mut stop_receiver: watch::Receiver<bool>,
+    ) -> anyhow::Result<()>
     where
         Req: Send,
         Self: PeriodicApi<Req>,

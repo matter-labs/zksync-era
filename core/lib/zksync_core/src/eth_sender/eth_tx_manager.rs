@@ -1,6 +1,8 @@
 use anyhow::Context as _;
-use std::sync::Arc;
 use tokio::sync::watch;
+
+use std::sync::Arc;
+use std::time::Duration;
 
 use zksync_config::configs::eth_sender::SenderConfig;
 use zksync_dal::{ConnectionPool, StorageProcessor};
@@ -15,8 +17,9 @@ use zksync_types::{
 };
 use zksync_utils::time::seconds_since_epoch;
 
-use crate::eth_sender::ETHSenderError;
-use crate::{eth_sender::grafana_metrics::track_eth_tx_metrics, l1_gas_price::L1TxParamsProvider};
+use super::{metrics::METRICS, ETHSenderError};
+use crate::l1_gas_price::L1TxParamsProvider;
+use crate::metrics::BlockL1Stage;
 
 #[derive(Debug)]
 struct EthFee {
@@ -109,7 +112,7 @@ where
         let base_fee_per_gas = self.gas_adjuster.get_base_fee(time_in_mempool);
 
         let priority_fee_per_gas = if time_in_mempool != 0 {
-            metrics::increment_counter!("server.eth_sender.transaction_resent");
+            METRICS.transaction_resent.inc();
             let priority_fee_per_gas = self
                 .increase_priority_fee(storage, tx.id, base_fee_per_gas)
                 .await?;
@@ -186,15 +189,10 @@ where
             priority_fee_per_gas,
         } = self.calculate_fee(storage, tx, time_in_mempool).await?;
 
-        metrics::histogram!(
-            "server.eth_sender.used_base_fee_per_gas",
-            base_fee_per_gas as f64
-        );
-
-        metrics::histogram!(
-            "server.eth_sender.used_priority_fee_per_gas",
-            priority_fee_per_gas as f64
-        );
+        METRICS.used_base_fee_per_gas.observe(base_fee_per_gas);
+        METRICS
+            .used_priority_fee_per_gas
+            .observe(priority_fee_per_gas);
 
         let signed_tx = self
             .sign_tx(tx, base_fee_per_gas, priority_fee_per_gas)
@@ -307,18 +305,12 @@ where
         storage: &mut StorageProcessor<'_>,
         l1_block_numbers: L1BlockNumbers,
     ) -> Result<Option<(EthTx, u32)>, ETHSenderError> {
-        metrics::gauge!(
-            "server.eth_sender.last_known_l1_block",
-            l1_block_numbers.latest.0 as f64
-        );
-
+        METRICS
+            .last_known_l1_block
+            .set(l1_block_numbers.latest.0.into());
         let operator_nonce = self.get_operator_nonce(l1_block_numbers).await?;
-
         let inflight_txs = storage.eth_sender_dal().get_inflight_txs().await;
-        metrics::gauge!(
-            "server.eth_sender.number_of_inflight_txs",
-            inflight_txs.len() as f64,
-        );
+        METRICS.number_of_inflight_txs.set(inflight_txs.len());
 
         tracing::trace!(
             "Going through not confirmed txs. \
@@ -512,45 +504,36 @@ where
             .confirm_tx(tx_status.tx_hash, gas_used)
             .await;
 
-        track_eth_tx_metrics(storage, "mined", tx).await;
+        METRICS
+            .track_eth_tx_metrics(storage, BlockL1Stage::Mined, tx)
+            .await;
 
         if gas_used > U256::from(tx.predicted_gas_cost) {
             tracing::error!(
-                "Predicted gas {} lower than used gas {} for tx {:?} {}",
+                "Predicted gas {} lower than used gas {gas_used} for tx {:?} {}",
                 tx.predicted_gas_cost,
-                gas_used,
                 tx.tx_type,
                 tx.id
             );
         }
         tracing::info!(
-            "eth_tx {} with hash {:?} for {} is confirmed. Gas spent: {:?}",
+            "eth_tx {} with hash {tx_hash:?} for {} is confirmed. Gas spent: {gas_used:?}",
             tx.id,
-            tx_hash,
-            tx.tx_type.to_string(),
-            gas_used
+            tx.tx_type
         );
-        metrics::histogram!(
-            "server.eth_sender.l1_gas_used",
-            gas_used.low_u128() as f64,
-            "type" => tx.tx_type.to_string()
-        );
-        metrics::histogram!(
-            "server.eth_sender.l1_tx_mined_latency",
-            (seconds_since_epoch() - tx.created_at_timestamp) as f64,
-            "type" => tx.tx_type.to_string()
-        );
+        let tx_type_label = tx.tx_type.into();
+        METRICS.l1_gas_used[&tx_type_label].observe(gas_used.low_u128() as f64);
+        METRICS.l1_tx_mined_latency[&tx_type_label].observe(Duration::from_secs(
+            seconds_since_epoch() - tx.created_at_timestamp,
+        ));
 
         let sent_at_block = storage
             .eth_sender_dal()
             .get_block_number_on_first_sent_attempt(tx.id)
             .await
             .unwrap_or(0);
-        metrics::histogram!(
-            "server.eth_sender.l1_blocks_waited_in_mempool",
-            (tx_status.receipt.block_number.unwrap().as_u32() - sent_at_block) as f64,
-            "type" => tx.tx_type.to_string()
-        );
+        let waited_blocks = tx_status.receipt.block_number.unwrap().as_u32() - sent_at_block;
+        METRICS.l1_blocks_waited_in_mempool[&tx_type_label].observe(waited_blocks.into());
     }
 
     pub async fn run(
