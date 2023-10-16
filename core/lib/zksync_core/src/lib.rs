@@ -238,18 +238,14 @@ impl FromStr for Components {
             "data_fetcher" => Ok(Components(vec![Component::DataFetcher])),
             "state_keeper" => Ok(Components(vec![Component::StateKeeper])),
             "housekeeper" => Ok(Components(vec![Component::Housekeeper])),
-            // TODO: make it 2 modes, indeed
-            "continuous_basic_witness_input_producer" => {
-                Ok(Components(vec![Component::BasicWitnessInputProducer]))
-            }
-            "one_batch_basic_witness_input_producer" => {
+            "basic_witness_input_producer" => {
                 Ok(Components(vec![Component::BasicWitnessInputProducer]))
             }
             "witness_generator" => Ok(Components(vec![
                 Component::WitnessGenerator(None, AggregationRound::BasicCircuits),
-                Component::WitnessGenerator(None, AggregationRound::LeafAggregation),
-                Component::WitnessGenerator(None, AggregationRound::NodeAggregation),
-                Component::WitnessGenerator(None, AggregationRound::Scheduler),
+                // Component::WitnessGenerator(None, AggregationRound::LeafAggregation),
+                // Component::WitnessGenerator(None, AggregationRound::NodeAggregation),
+                // Component::WitnessGenerator(None, AggregationRound::Scheduler),
             ])),
             "one_shot_witness_generator" => Ok(Components(vec![
                 Component::WitnessGenerator(Some(1), AggregationRound::BasicCircuits),
@@ -644,9 +640,10 @@ pub async fn initialize_components(
     if components.contains(&Component::BasicWitnessInputProducer) {
         add_basic_witness_input_producer(
             &mut task_futures,
-            &components,
             &connection_pool,
             &store_factory,
+            &StateKeeperConfig::from_env().context("StateKeeperConfig::from_env()")?,
+            &NetworkConfig::from_env().context("NetworkConfig::from_env()")?,
             stop_receiver.clone(),
         )
         .await
@@ -856,16 +853,22 @@ async fn run_tree(
 
 async fn add_basic_witness_input_producer(
     task_futures: &mut Vec<JoinHandle<anyhow::Result<()>>>,
-    _components: &[Component],
     connection_pool: &ConnectionPool,
-    _store_factory: &ObjectStoreFactory,
+    store_factory: &ObjectStoreFactory,
+    state_keeper_config: &StateKeeperConfig,
+    network_config: &NetworkConfig,
     stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<()> {
     let started_at = Instant::now();
     tracing::info!("initializing BasicWitnessInputProducer");
-    let producer = BasicWitnessInputProducer::new(connection_pool.clone());
-    // task_futures.push(tokio::spawn(producer.run(stop_receiver, None)));
-    task_futures.push(tokio::spawn(producer.run()));
+    let producer = BasicWitnessInputProducer::new(
+        connection_pool.clone(),
+        &store_factory,
+        state_keeper_config,
+        network_config,
+    )
+    .await?;
+    task_futures.push(tokio::spawn(producer.run(stop_receiver, None)));
     tracing::info!(
         "Initialized BasicWitnessInputProducer in {:?}",
         started_at.elapsed()

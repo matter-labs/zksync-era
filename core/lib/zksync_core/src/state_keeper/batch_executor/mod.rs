@@ -297,10 +297,7 @@ impl BatchExecutor {
         let l1_batch_number = l1_batch_params.number.clone();
         tracing::info!("Starting executing batch #{:?}", &l1_batch_params.number);
 
-        let storage_view = StorageView::new(secondary_storage)
-            .with_debug("BATCH_EXECUTOR_STORAGE".to_string())
-            .to_rc_ptr();
-
+        let storage_view = StorageView::new(secondary_storage).to_rc_ptr();
 
         let mut vm = VmInstance::new(l1_batch_params, system_env, storage_view.clone());
 

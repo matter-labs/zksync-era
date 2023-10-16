@@ -21,14 +21,14 @@ impl WitnessStorage {
 impl ReadStorage for WitnessStorage {
     fn read_value(&mut self, key: &StorageKey) -> StorageValue {
         *self.block_state.read_storage_key.get(&key).unwrap_or({
-            println!("giving default for read_value, wot? {key:?}");
+            // println!("giving default for read_value, wot? {key:?}");
             &H256::default()
         })
     }
 
     fn is_write_initial(&mut self, key: &StorageKey) -> bool {
         *self.block_state.is_write_initial.get(&key).unwrap_or({
-            println!("giving default for is_write_initial, wot? {key:?}");
+            // println!("giving default for is_write_initial, wot? {key:?}");
             &false
         })
     }

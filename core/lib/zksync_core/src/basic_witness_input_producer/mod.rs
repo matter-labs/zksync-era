@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 use std::rc::Rc;
 use std::str::FromStr;
+use std::sync::Arc;
 use tokio::task::JoinHandle;
 
 use zksync_dal::{ConnectionPool, StorageProcessor};
@@ -10,12 +11,13 @@ use zksync_types::{
     H256,
 };
 
-use crate::state_keeper::io::common::load_pending_batch;
+use crate::state_keeper::io::common::{load_l1_batch_params, load_pending_batch};
 use crate::state_keeper::io::PendingBatchData;
 use crate::state_keeper::{L1BatchExecutorBuilder, MainBatchExecutorBuilder};
 use crate::sync_layer::sync_action::SyncAction::Miniblock;
+use crate::Component::StateKeeper;
 use anyhow::Context;
-use multivm::{VmInstance, VmInstanceData};
+use multivm::VmInstance;
 use std::thread;
 use std::time::{Duration, Instant};
 use vm::{HistoryEnabled, L2BlockEnv, Vm};
@@ -25,224 +27,264 @@ use zksync_config::constants::{
     SYSTEM_CONTEXT_CURRENT_TX_ROLLING_HASH_POSITION,
 };
 use zksync_config::{ContractsConfig, DBConfig};
-use zksync_object_store::ObjectStoreFactory;
+use zksync_dal::basic_witness_input_producer_dal::BasicWitnessInputProducerStatus;
+use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_state::{PostgresStorage, PostgresStorageCaches, ReadStorage, StorageView};
 use zksync_types::block::unpack_block_info;
 use zksync_types::witness_block_state::WitnessBlockState;
 use zksync_utils::h256_to_u256;
 
-// #[derive(Debug)]
-// pub struct BasicWitnessInputProducerJob {
-//     l1_batch_number: L1BatchNumber,
-// }
+#[derive(Debug)]
+pub struct BasicWitnessInputProducerJob {
+    l1_batch_number: L1BatchNumber,
+}
 
 pub struct BasicWitnessInputProducer {
     connection_pool: ConnectionPool,
+    validation_computational_gas_limit: u32,
+    l2_chain_id: L2ChainId,
+    object_store: Arc<dyn ObjectStore>,
 }
 
-#[derive(Debug, Clone, Copy)]
-struct StoredL2BlockInfo {
-    pub l2_block_number: u32,
-    pub l2_block_timestamp: u64,
-    pub l2_block_hash: H256,
-    pub txs_rolling_hash: H256,
-}
-
-async fn read_l2_block_info(
+async fn get_miniblock_transition_state(
     connection: &mut StorageProcessor<'_>,
     miniblock_number: MiniblockNumber,
-) -> StoredL2BlockInfo {
+) -> L2BlockEnv {
     let l2_block_info_key = StorageKey::new(
         AccountTreeId::new(SYSTEM_CONTEXT_ADDRESS),
         SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
     );
     let l2_block_info = connection
         .storage_web3_dal()
-        .get_historical_value_unchecked(&l2_block_info_key, miniblock_number)
-        .await
-        .unwrap();
-    let (l2_block_number, l2_block_timestamp) = unpack_block_info(h256_to_u256(l2_block_info));
-
-    let l2_block_txs_rolling_hash_key = StorageKey::new(
-        AccountTreeId::new(SYSTEM_CONTEXT_ADDRESS),
-        SYSTEM_CONTEXT_CURRENT_TX_ROLLING_HASH_POSITION,
-    );
-    let txs_rolling_hash = connection
-        .storage_web3_dal()
-        .get_historical_value_unchecked(&l2_block_txs_rolling_hash_key, miniblock_number)
+        .get_historical_value_unchecked(&l2_block_info_key, miniblock_number + 1)
         .await
         .unwrap();
 
-    let l2_block_hash = connection
+    let (next_miniblock_number, next_miniblock_timestamp) =
+        unpack_block_info(h256_to_u256(l2_block_info));
+
+    let miniblock_hash = connection
         .blocks_web3_dal()
         .get_miniblock_hash(miniblock_number)
         .await
         .unwrap()
         .unwrap();
 
-    StoredL2BlockInfo {
-        l2_block_number: l2_block_number as u32,
-        l2_block_timestamp,
-        l2_block_hash,
-        txs_rolling_hash,
+    let virtual_blocks = connection
+        .blocks_dal()
+        .get_virtual_blocks_for_miniblock(&(miniblock_number + 1))
+        .await
+        .unwrap()
+        .unwrap();
+
+    L2BlockEnv {
+        number: next_miniblock_number as u32,
+        timestamp: next_miniblock_timestamp,
+        prev_block_hash: miniblock_hash,
+        max_virtual_blocks_to_create: virtual_blocks,
     }
 }
 
-fn execute_tx<S: ReadStorage>(tx: &Transaction, vm: &mut VmInstance<'_, S, HistoryEnabled>) {
+fn execute_tx<S: ReadStorage>(tx: &Transaction, vm: &mut VmInstance<S, HistoryEnabled>) {
     vm.make_snapshot();
-
-    if let Ok(result) = vm.inspect_transaction_with_bytecode_compression(vec![], tx.clone(), true) {
-        let compressed_bytecodes = vm.get_last_tx_compressed_bytecodes();
+    if let Ok(_) = vm.inspect_transaction_with_bytecode_compression(vec![], tx.clone(), true) {
         vm.pop_snapshot_no_rollback();
         return;
-        // return (result, compressed_bytecodes, trace);
     }
-
     vm.rollback_to_the_latest_snapshot();
-    let result = vm
-        .inspect_transaction_with_bytecode_compression(vec![], tx.clone(), false)
+    vm.inspect_transaction_with_bytecode_compression(vec![], tx.clone(), false)
         .expect("Compression can't fail if we don't apply it");
-    let compressed_bytecodes = vm.get_last_tx_compressed_bytecodes();
-    return;
-    // TODO implement tracer manager which will be responsible
-    // for collecting result from all tracers and save it to the database
-    // let trace = Arc::try_unwrap(call_tracer_result)
-    //     .unwrap()
-    //     .take()
-    //     .unwrap_or_default();
-    // (result, compressed_bytecodes, trace)
 }
 
 impl BasicWitnessInputProducer {
-    pub fn new(connection_pool: ConnectionPool) -> Self {
-        BasicWitnessInputProducer { connection_pool }
+    pub async fn new(
+        connection_pool: ConnectionPool,
+        store_factory: &ObjectStoreFactory,
+        state_keeper_config: &StateKeeperConfig,
+        network_config: &NetworkConfig,
+    ) -> anyhow::Result<Self> {
+        // BEWARE, HERE BE DRAGONS.
+        // This usage here is a race condition waiting to happen.
+        // Context -- The VM run in BasicWitnessInputProducer MUST be identical to run from StateKeeper.
+        // Race condition scenario:
+        // 1. StateKeeper runs with a config A, which has value a for `validation_computational_gas_limit`
+        // 2. StateKeeper runs the batch and saves data to database.
+        // 3. Deployment is made and changes to config B, with value b for `validation_computational_gas_limit`.
+        // 4. BasicWitnessInputProducer loads config B
+        // 5. BasicWitnessInputProducer runs the L1Batch that was saved with config A using config B.
+        // In this scenario, the outputs will be different, which will make Witness Generation crash.
+        // This has been discussed between @evl and @deniallugo as a terrible solution, but best so far.
+        let validation_computational_gas_limit =
+            state_keeper_config.validation_computational_gas_limit;
+        // This variable is fine to be loaded from config.
+        // Today, this config changes only during regenesis.
+        // In the hyper-chains world, this code will be refactored (using the DB saved value instead of config)
+        let l2_chain_id = network_config.zksync_network_id;
+
+        Ok(BasicWitnessInputProducer {
+            connection_pool,
+            validation_computational_gas_limit,
+            object_store: store_factory.create_store().await.into(),
+            l2_chain_id,
+        })
     }
 
-    // async fn load_batch(
-    //     storage: &mut StorageProcessor<'_>,
-    //     current_l1_batch_number: L1BatchNumber,
-    //     fee_account: Address,
-    //     validation_computational_gas_limit: u32,
-    //     chain_id: L2ChainId,
-    // ) -> Option<PendingBatchData> {
-    //     // If pending miniblock doesn't exist, it means that there is no unsynced state (i.e. no transaction
-    //     // were executed after the last sealed batch).
-    //     let pending_miniblock_number = {
-    //         let (_, last_miniblock_number_included_in_l1_batch) = storage
+    //     pub async fn run(self) -> anyhow::Result<()> {
+    //         let l1_batch_number = L1BatchNumber(2_u32);
+    //         let prev_l1_batch_number = L1BatchNumber(l1_batch_number.0 - 1);
+    //
+    //         let connection_pool = self.connection_pool.clone();
+    //         let mut connection = connection_pool.access_storage().await.unwrap();
+    //         let miniblock_number = connection
     //             .blocks_dal()
-    //             .get_miniblock_range_of_l1_batch(current_l1_batch_number - 1)
+    //             .get_last_miniblock_for_l1_batch(&prev_l1_batch_number)
     //             .await
-    //             .unwrap()
-    //             .unwrap();
-    //         last_miniblock_number_included_in_l1_batch + 1
-    //     };
-    //     let pending_miniblock_header = storage
-    //         .blocks_dal()
-    //         .get_miniblock_header(pending_miniblock_number)
-    //         .await
-    //         .unwrap()?;
+    //             .context(format!(
+    //                 "get_last_miniblock_for_l1_batch({prev_l1_batch_number:?})"
+    //             ))?
+    //             .expect(&format!(
+    //                 "l1_batch_number {:?} must have a previous miniblock to start from",
+    //                 l1_batch_number
+    //             ));
     //
-    //     tracing::info!("Getting previous batch hash");
-    //     let (previous_l1_batch_hash, _) =
-    //         extractors::wait_for_prev_l1_batch_params(storage, current_l1_batch_number).await;
-    //
-    //     tracing::info!("Getting previous miniblock hash");
-    //     let prev_miniblock_hash = storage
-    //         .blocks_dal()
-    //         .get_miniblock_header(pending_miniblock_number - 1)
-    //         .await
-    //         .unwrap()
-    //         .unwrap()
-    //         .hash;
-    //
-    //     let base_system_contracts = storage
-    //         .storage_dal()
-    //         .get_base_system_contracts(
-    //             pending_miniblock_header
-    //                 .base_system_contracts_hashes
-    //                 .bootloader,
-    //             pending_miniblock_header
-    //                 .base_system_contracts_hashes
-    //                 .default_aa,
+    //         let fee_account_addr = connection
+    //             .blocks_dal()
+    //             .get_fee_address_for_l1_batch(&l1_batch_number)
+    //             .await?
+    //             .expect(&format!(
+    //                 "l1_batch_number {:?} must have fee_address_account",
+    //                 l1_batch_number
+    //             ));
+    //         let (system_env, l1_batch_env) = load_l1_batch_params(
+    //             &mut connection,
+    //             l1_batch_number,
+    //             fee_account_addr,
+    //             self.validation_computational_gas_limit,
+    //             self.l2_chain_id,
     //         )
-    //         .await;
+    //         .await
+    //         .unwrap();
     //
-    //     tracing::info!("Previous l1_batch_hash: {}", previous_l1_batch_hash);
-    //     let (system_env, l1_batch_env) = l1_batch_params(
-    //         current_l1_batch_number,
-    //         fee_account,
-    //         pending_miniblock_header.timestamp,
-    //         previous_l1_batch_hash,
-    //         pending_miniblock_header.l1_gas_price,
-    //         pending_miniblock_header.l2_fair_gas_price,
-    //         pending_miniblock_number,
-    //         prev_miniblock_hash,
-    //         base_system_contracts,
-    //         validation_computational_gas_limit,
-    //         pending_miniblock_header
-    //             .protocol_version
-    //             .expect("`protocol_version` must be set for pending miniblock"),
-    //         pending_miniblock_header.virtual_blocks,
-    //         chain_id,
-    //     );
+    //         drop(connection);
     //
-    //     let pending_miniblocks = storage
-    //         .transactions_dal()
-    //         .get_miniblocks_to_reexecute()
-    //         .await;
+    //         let connection_pool = self.connection_pool.clone();
+    //         // This spawn_blocking is needed given PostgresStorage's interface is a mix of blocking and non-blocking
+    //         // The interface may be either refactored or broken down in a async and sync interface.
+    //         tokio::task::spawn_blocking(move || {
+    //             let rt_handle = tokio::runtime::Handle::current();
+    //             let connection = rt_handle
+    //                 .block_on(connection_pool.access_storage())
+    //                 .unwrap();
+    //             let pg_storage =
+    //                 PostgresStorage::new(rt_handle.clone(), connection, miniblock_number, true)
+    //                     .with_caches(PostgresStorageCaches::new(
+    //                         128 * 1_024 * 1_024, // 128MB -- picked as the default value used in EN
+    //                         128 * 1_024 * 1_024, // 128MB -- picked as the default value used in EN
+    //                     ));
+    //             let storage_view = StorageView::new(pg_storage).to_rc_ptr();
     //
-    //     Some(PendingBatchData {
-    //         l1_batch_env,
-    //         system_env,
-    //         pending_miniblocks,
-    //     })
-    // }
+    //             let mut instance_data =
+    //                 VmInstanceData::new(storage_view.clone(), &system_env, HistoryEnabled);
+    //
+    //             let mut vm = VmInstance::new(l1_batch_env, system_env, &mut instance_data);
+    //
+    //             let mut connection = rt_handle
+    //                 .block_on(connection_pool.access_storage())
+    //                 .unwrap();
+    //             let miniblock_and_transactions = rt_handle.block_on(
+    //                 connection
+    //                     .transactions_dal()
+    //                     .get_miniblock_with_transactions_for_l1_batch(l1_batch_number),
+    //             );
+    //             tracing::info!("Started execution of l1_batch: {l1_batch_number:?}");
+    //             for (miniblock, txs) in miniblock_and_transactions {
+    //                 tracing::debug!("Started execution of miniblock: {miniblock:?}");
+    //                 for tx in txs {
+    //                     execute_tx(&tx, &mut vm);
+    //                 }
+    //                 let miniblock_state =
+    //                     rt_handle.block_on(get_miniblock_transition_state(&mut connection, miniblock));
+    //                 vm.start_new_l2_block(miniblock_state);
+    //                 tracing::debug!("Finished execution of miniblock: {miniblock:?}");
+    //             }
+    //             vm.finish_batch();
+    //             tracing::info!("Finished execution of l1_batch: {l1_batch_number:?}");
+    //
+    //             let store = rt_handle.block_on(ObjectStoreFactory::from_env().unwrap().create_store());
+    //             let witness_inputs = (*storage_view).borrow().witness_block_state();
+    //             let object_destination = rt_handle
+    //                 .block_on(store.put(l1_batch_number, &witness_inputs))
+    //                 .unwrap();
+    //             tracing::debug!(
+    //                 "Uploaded artifact for l1_batch: {l1_batch_number:?} to {object_destination:?}"
+    //             );
+    //         })
+    //         .await
+    //         .unwrap();
+    //         Ok(())
+    //     }
 
-    pub async fn run(self) -> anyhow::Result<()> {
-        let l1_batch_number = L1BatchNumber(2_u32);
-        let miniblock_number = MiniblockNumber(2_u32);
-        let state_keeper_config =
-            StateKeeperConfig::from_env().context("StateKeeperConfig::from_env()")?;
-        // let db_config = DBConfig::from_env().context("DbConfig::from_env()")?;
+    async fn process_job_impl(
+        job: BasicWitnessInputProducerJob,
+        started_at: Instant,
+        connection_pool: ConnectionPool,
+        validation_computational_gas_limit: u32,
+        l2_chain_id: L2ChainId,
+    ) -> anyhow::Result<WitnessBlockState> {
+        let l1_batch_number = job.l1_batch_number;
+        let prev_l1_batch_number = L1BatchNumber(l1_batch_number.0 - 1);
 
-        let mut connection = self.connection_pool.access_storage().await?;
-        println!("{}", state_keeper_config.fee_account_addr);
-        let PendingBatchData {
-            l1_batch_env,
-            system_env,
-            ..
-        } = load_pending_batch(
+        let mut connection = connection_pool.access_storage().await?;
+        let miniblock_number = connection
+            .blocks_dal()
+            .get_last_miniblock_for_l1_batch(&prev_l1_batch_number)
+            .await
+            .context(format!(
+                "get_last_miniblock_for_l1_batch({prev_l1_batch_number:?})"
+            ))?
+            .expect(&format!(
+                "l1_batch_number {:?} must have a previous miniblock to start from",
+                l1_batch_number
+            ));
+
+        let fee_account_addr = connection
+            .blocks_dal()
+            .get_fee_address_for_l1_batch(&l1_batch_number)
+            .await?
+            .expect(&format!(
+                "l1_batch_number {:?} must have fee_address_account",
+                l1_batch_number
+            ));
+        let (system_env, l1_batch_env) = load_l1_batch_params(
             &mut connection,
             l1_batch_number,
-            Address::from_str("0xde03a0b5963f75f1c8485b355ff6d30f3093bde7").unwrap(),
-            // state_keeper_config.fee_account_addr,
-            state_keeper_config.validation_computational_gas_limit,
-            L2ChainId(
-                NetworkConfig::from_env()
-                    .context("NetworkConfig::from_env()")?
-                    .zksync_network_id,
-            ),
+            fee_account_addr,
+            validation_computational_gas_limit,
+            l2_chain_id,
         )
         .await
         .unwrap();
-        let connection_pool = self.connection_pool.clone();
+
+        drop(connection);
+
+        let connection_pool = connection_pool.clone();
+        // This spawn_blocking is needed given PostgresStorage's interface is a mix of blocking and non-blocking
+        // The interface may be either refactored or broken down in a async and sync interface.
         tokio::task::spawn_blocking(move || {
             let rt_handle = tokio::runtime::Handle::current();
-            let mut connection = rt_handle
+            let connection = rt_handle
                 .block_on(connection_pool.access_storage())
                 .unwrap();
             let pg_storage =
                 PostgresStorage::new(rt_handle.clone(), connection, miniblock_number, true)
                     .with_caches(PostgresStorageCaches::new(
-                        128 * 1_024 * 1_024,
-                        128 * 1_024 * 1_024,
+                        128 * 1_024 * 1_024, // 128MB -- picked as the default value used in EN
+                        128 * 1_024 * 1_024, // 128MB -- picked as the default value used in EN
                     ));
-            let storage_view = StorageView::new(pg_storage).with_debug("INPUT_PRODUCER_STORAGE".to_string()).to_rc_ptr();
+            let storage_view = StorageView::new(pg_storage).to_rc_ptr();
 
-            let mut instance_data =
-                VmInstanceData::new(storage_view.clone(), &system_env, HistoryEnabled);
+            let mut vm = VmInstance::new(l1_batch_env, system_env, storage_view.clone());
 
-            let mut vm = VmInstance::new_with_debug(l1_batch_env, system_env, &mut instance_data, "INPUT_PRODUCER_VM".to_string());
             let mut connection = rt_handle
                 .block_on(connection_pool.access_storage())
                 .unwrap();
@@ -251,184 +293,107 @@ impl BasicWitnessInputProducer {
                     .transactions_dal()
                     .get_miniblock_with_transactions_for_l1_batch(l1_batch_number),
             );
-            println!("Then got some transactions = {miniblock_and_transactions:#?}");
-            println!("got some vm, I guess");
-
-            // println!(
-            //     "cache at start = {:#?}",
-            //     (*storage_view).borrow().witness_block_state()
-            // );
+            tracing::info!("Started execution of l1_batch: {l1_batch_number:?}");
             for (miniblock, txs) in miniblock_and_transactions {
-                println!("Starting execution of miniblock: {miniblock:?}");
+                tracing::debug!("Started execution of miniblock: {miniblock:?}");
                 for tx in txs {
                     execute_tx(&tx, &mut vm);
                 }
-
-                let current_l2_block_info =
-                    rt_handle.block_on(read_l2_block_info(&mut connection, miniblock + 1));
-                let prev_l2_block_info =
-                    rt_handle.block_on(read_l2_block_info(&mut connection, miniblock));
-                let l2_block_env = L2BlockEnv {
-                    number: current_l2_block_info.l2_block_number,
-                    timestamp: current_l2_block_info.l2_block_timestamp,
-                    prev_block_hash: prev_l2_block_info.l2_block_hash,
-                    // TODO: Load this from DB -- miniblocks table, virtual_blocks value
-                    max_virtual_blocks_to_create: 1,
-                };
-                vm.start_new_l2_block(l2_block_env);
-
-                println!("Finished execution of miniblock: {miniblock:?}");
+                let miniblock_state =
+                    rt_handle.block_on(get_miniblock_transition_state(&mut connection, miniblock));
+                vm.start_new_l2_block(miniblock_state);
+                tracing::debug!("Finished execution of miniblock: {miniblock:?}");
             }
             vm.finish_batch();
-            // println!(
-            //     "cache at end = {:#?}",
-            //     (*storage_view).borrow().witness_block_state()
-            // );
+            tracing::info!("Finished execution of l1_batch: {l1_batch_number:?}");
 
-            let store = rt_handle.block_on(ObjectStoreFactory::from_env().unwrap().create_store());
+            metrics::histogram!(
+                "basic_witness_input_producer.input_producer_time",
+                started_at.elapsed(),
+            );
+            tracing::info!(
+                "BasicWitnessInputProducer took {:?} for L1BatchNumber {}",
+                started_at.elapsed(),
+                l1_batch_number.0
+            );
 
-            // let witness_inputs = (*storage_view).borrow().witness_block_state();
-            // let object_place = rt_handle
-            //     .block_on(store.put(l1_batch_number, &witness_inputs))
-            //     .unwrap();
-            // println!("{object_place:?}");
-
-            let state_keeper_block_state: WitnessBlockState = rt_handle.block_on(store.get(l1_batch_number)).unwrap();
-            let storage_block_state = (*storage_view).borrow().witness_block_state();
-            println!("READ_KEY");
-            for key in state_keeper_block_state.read_storage_key.keys() {
-                if !storage_block_state.read_storage_key.contains_key(key) {
-                    println!("missing read_key from storage_block_state: {key:?}");
-                }
-            }
-            for key in storage_block_state.read_storage_key.keys() {
-                if !state_keeper_block_state.read_storage_key.contains_key(key) {
-                    println!("missing read_key from state_keeper_block_state: {key:?}");
-                }
-            }
-            println!("IS_WRITE_INITIAL");
-            for key in state_keeper_block_state.is_write_initial.keys() {
-                if !storage_block_state.is_write_initial.contains_key(key) {
-                    println!("missing is_write_initial from storage_block_state: {key:?}");
-                }
-            }
-            for key in storage_block_state.is_write_initial.keys() {
-                if !state_keeper_block_state.is_write_initial.contains_key(key) {
-                    println!("missing is_write_initial from state_keeper_block_state: {key:?}");
-                }
-            }
-            println!("Statistics on state_keeper:\n\tread_storage_keys_count={}\n\tis_write_initial_count={}", state_keeper_block_state.read_storage_key.len(), state_keeper_block_state.is_write_initial.len());
-            println!("Statistics on storage:\n\tread_storage_keys_count={}\n\tis_write_initial_count={}", storage_block_state.read_storage_key.len(), storage_block_state.is_write_initial.len());
+            let witness_block_state = (*storage_view).borrow().witness_block_state();
+            Ok(witness_block_state)
         })
-        .await
-        .unwrap();
-        Ok(())
+        .await?
     }
-
-    // pub async fn run(self) -> anyhow::Result<()> {
-    //     loop {
-    //         tracing::info!("konichiwa!");
-    //         thread::sleep(Duration::from_secs(5));
-    //     }
-    // }
-
-    // pub async fn run(self) -> anyhow::Result<()> {
-    //     let l1_batch_number = L1BatchNumber(1_u32);
-    //     println!("{l1_batch_number:?}");
-    //     let state_keeper_config = StateKeeperConfig::from_env().context("StateKeeperConfig::from_env()")?;
-    //     let db_config = DBConfig::from_env().context("DbConfig::from_env()")?;
-    //     let mut storage = self.connection_pool.access_storage().await?;
-    //     let PendingBatchData {
-    //         l1_batch_env, system_env, ..
-    //     } = load_pending_batch(
-    //         &mut storage,
-    //         l1_batch_number,
-    //         ContractsConfig::from_env().context("ContractsConfig::from_env()")?.l2_erc20_bridge_addr,
-    //         state_keeper_config.validation_computational_gas_limit,
-    //         L2ChainId(NetworkConfig::from_env().context("NetworkConfig::from_env()")?.zksync_network_id),
-    //     ).await.unwrap();
-    //     println!("L1BatchEnv = {l1_batch_env:#?}");
-    //     println!("SystemEnv = {system_env:#?}");
-    //     println!("got here, I guess");
-    //
-    //     let batch_executor_base = MainBatchExecutorBuilder::new(
-    //         db_config.state_keeper_db_path.clone(),
-    //         self.connection_pool.clone(),
-    //         state_keeper_config.max_allowed_l2_tx_gas_limit.into(),
-    //         state_keeper_config.save_call_traces,
-    //         state_keeper_config.upload_witness_inputs_to_gcs,
-    //     );
-    //     println!("trouble here?");
-    //     let batch_executor = batch_executor_base.init_batch(l1_batch_env.clone(), system_env.clone()).await;
-    //     println!("{batch_executor:?}");
-    //     thread::sleep(Duration::from_secs(100));
-    //     Ok(())
-    //     // loop {
-    //     //     tracing::info!("konichiwa!");
-    //     //     thread::sleep(Duration::from_secs(5));
-    //     // }
-    // }
 }
 
-// impl BasicWitnessInputProducer {
-//     async fn process_job_impl(&self) -> anyhow::Result<Self::JobArtifacts>{
-//         Ok(())
-//     }
-// }
-//
-//
-// #[async_trait]
-// impl JobProcessor for BasicWitnessInputProducer {
-//     type Job = BasicWitnessInputProducerJob;
-//     type JobId = L1BatchNumber;
-//     type JobArtifacts = ();
-//     const SERVICE_NAME: &'static str = "";
-//
-//     async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, Self::Job)>> {
-//         tracing::info!("EMIL -- get_next_job()");
-//         let mut connection = self
-//             .connection_pool
-//             .access_storage()
-//             .await
-//             .expect("couldn't get a connection from the pool");
-//         let l1_batch_to_process = connection
-//             .basic_witness_input_producer_dal()
-//             .get_next_basic_witness_input_producer_job()
-//             .await;
-//         match l1_batch_to_process {
-//             Some(val) => Ok(Some((
-//                 val,
-//                 BasicWitnessInputProducerJob {
-//                     l1_batch_number: val,
-//                 },
-//             ))),
-//             None => Ok(None),
-//         }
-//     }
-//
-//     async fn save_failure(&self, job_id: Self::JobId, started_at: Instant, error: String) {
-//         tracing::info!("EMIL -- save_failure({job_id:?}; {started_at:?}; {error:?})");
-//         thread::sleep(Duration::from_secs(10));
-//     }
-//
-//     async fn process_job(
-//         &self,
-//         job: Self::Job,
-//         started_at: Instant,
-//     ) -> JoinHandle<anyhow::Result<Self::JobArtifacts>> {
-//         tracing::info!("EMIL -- process_job({job:?}; {started_at:?})");
-//         thread::sleep(Duration::from_secs(10));
-//         tokio::spawn(self.process_job_impl())
-//     }
-//
-//     async fn save_result(
-//         &self,
-//         job_id: Self::JobId,
-//         started_at: Instant,
-//         artifacts: Self::JobArtifacts,
-//     ) -> anyhow::Result<()> {
-//         tracing::info!("EMIL -- save_result({job_id:?}; {started_at:?}; {artifacts:?})");
-//         thread::sleep(Duration::from_secs(10));
-//         Ok(())
-//     }
-// }
+#[async_trait]
+impl JobProcessor for BasicWitnessInputProducer {
+    type Job = BasicWitnessInputProducerJob;
+    type JobId = L1BatchNumber;
+    type JobArtifacts = WitnessBlockState;
+    const SERVICE_NAME: &'static str = "";
+
+    async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, Self::Job)>> {
+        let mut connection = self
+            .connection_pool
+            .access_storage()
+            .await
+            .expect("couldn't get a connection from the pool");
+        let l1_batch_to_process = connection
+            .basic_witness_input_producer_dal()
+            .get_next_basic_witness_input_producer_job()
+            .await;
+        match l1_batch_to_process {
+            Some(number) => Ok(Some((
+                number,
+                BasicWitnessInputProducerJob {
+                    l1_batch_number: number,
+                },
+            ))),
+            None => Ok(None),
+        }
+    }
+
+    async fn save_failure(&self, job_id: Self::JobId, started_at: Instant, error: String) {
+        self.connection_pool
+            .access_storage()
+            .await
+            .unwrap()
+            .basic_witness_input_producer_dal()
+            .mark_job_as_failed(job_id, started_at, error)
+            .await;
+        // TODO: How about some nice logs on number of attempts here? We can load it form DB
+    }
+
+    async fn process_job(
+        &self,
+        job: Self::Job,
+        started_at: Instant,
+    ) -> JoinHandle<anyhow::Result<Self::JobArtifacts>> {
+        tokio::spawn(Self::process_job_impl(
+            job,
+            started_at,
+            self.connection_pool.clone(),
+            self.validation_computational_gas_limit,
+            self.l2_chain_id,
+        ))
+    }
+
+    async fn save_result(
+        &self,
+        job_id: Self::JobId,
+        started_at: Instant,
+        artifacts: Self::JobArtifacts,
+    ) -> anyhow::Result<()> {
+        let upload_started_at = Instant::now();
+        let object_path = self.object_store.put(job_id, &artifacts).await?;
+        metrics::histogram!(
+            "basic_witness_input_producer.upload_input_time",
+            upload_started_at.elapsed(),
+        );
+        let mut connection = self.connection_pool.access_storage().await?;
+        connection
+            .basic_witness_input_producer_dal()
+            .mark_job_as_successful(job_id, started_at)
+            .await;
+        Ok(())
+    }
+}
