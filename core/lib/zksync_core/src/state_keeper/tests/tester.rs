@@ -377,7 +377,7 @@ pub(crate) struct TestBatchExecutorBuilder {
     /// We need to store txs for each batch separately, since the same transaction
     /// can be executed in several batches (e.g. after an `ExcludeAndSeal` rollback).
     /// When initializing each batch, we will `pop_front` known txs for the corresponding executor.
-    txs: Arc<RwLock<ExpectedTransactions>>,
+    txs: ExpectedTransactions,
     /// Set of transactions that would be rolled back at least once.
     rollback_set: HashSet<H256>,
 }
@@ -434,9 +434,17 @@ impl TestBatchExecutorBuilder {
         // for the initialization of the "next-to-last" batch.
         txs.push_back(HashMap::default());
 
+        Self { txs, rollback_set }
+    }
+
+    pub(crate) fn for_successful_transactions(tx_hashes: &[H256]) -> Self {
+        let txs = tx_hashes
+            .iter()
+            .copied()
+            .map(|tx_hash| (tx_hash, VecDeque::from([successful_exec()])));
         Self {
-            txs: Arc::new(RwLock::new(txs)),
-            rollback_set,
+            txs: VecDeque::from([txs.collect()]),
+            rollback_set: HashSet::new(),
         }
     }
 }
@@ -444,7 +452,7 @@ impl TestBatchExecutorBuilder {
 #[async_trait]
 impl L1BatchExecutorBuilder for TestBatchExecutorBuilder {
     async fn init_batch(
-        &self,
+        &mut self,
         _l1batch_params: L1BatchEnv,
         _system_env: SystemEnv,
     ) -> BatchExecutorHandle {
@@ -452,7 +460,7 @@ impl L1BatchExecutorBuilder for TestBatchExecutorBuilder {
 
         let executor = TestBatchExecutor::new(
             commands_receiver,
-            self.txs.write().unwrap().pop_front().unwrap(),
+            self.txs.pop_front().unwrap(),
             self.rollback_set.clone(),
         );
         let handle = tokio::task::spawn_blocking(move || executor.run());

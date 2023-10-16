@@ -70,7 +70,7 @@ impl TxExecutionResult {
 #[async_trait]
 pub trait L1BatchExecutorBuilder: 'static + Send + Sync + fmt::Debug {
     async fn init_batch(
-        &self,
+        &mut self,
         l1_batch_params: L1BatchEnv,
         system_env: SystemEnv,
     ) -> BatchExecutorHandle;
@@ -111,7 +111,7 @@ impl MainBatchExecutorBuilder {
 #[async_trait]
 impl L1BatchExecutorBuilder for MainBatchExecutorBuilder {
     async fn init_batch(
-        &self,
+        &mut self,
         l1_batch_params: L1BatchEnv,
         system_env: SystemEnv,
     ) -> BatchExecutorHandle {
