@@ -236,7 +236,7 @@ impl L1BatchWithLogs {
                 // written per deduplication rules.
                 value.is_zero()
             })
-            .map(|(key, _value)| key.hashed_key())
+            .map(|(key, _)| key.hashed_key())
             .collect();
         METRICS
             .load_changes_zero_values
