@@ -1,2 +1,5 @@
 # Ignore submodule
 bellman-cuda
+
+# Ignore Github configuration markdowns
+.github
