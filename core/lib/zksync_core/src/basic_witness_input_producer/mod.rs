@@ -1,38 +1,28 @@
-use async_trait::async_trait;
-use std::rc::Rc;
-use std::str::FromStr;
 use std::sync::Arc;
-use tokio::task::JoinHandle;
+use std::time::Instant;
 
-use zksync_dal::{ConnectionPool, StorageProcessor};
-use zksync_queued_job_processor::JobProcessor;
-use zksync_types::{
-    AccountTreeId, Address, L1BatchNumber, L2ChainId, MiniblockNumber, StorageKey, Transaction,
-    H256,
-};
+use crate::state_keeper::io::common::load_l1_batch_params;
 
-use crate::state_keeper::io::common::{load_l1_batch_params, load_pending_batch};
-use crate::state_keeper::io::PendingBatchData;
-use crate::state_keeper::{L1BatchExecutorBuilder, MainBatchExecutorBuilder};
-use crate::sync_layer::sync_action::SyncAction::Miniblock;
-use crate::Component::StateKeeper;
-use anyhow::Context;
 use multivm::VmInstance;
-use std::thread;
-use std::time::{Duration, Instant};
-use vm::{HistoryEnabled, L2BlockEnv, Vm};
+use vm::{HistoryEnabled, L2BlockEnv};
 use zksync_config::configs::chain::{NetworkConfig, StateKeeperConfig};
 use zksync_config::constants::{
     SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
-    SYSTEM_CONTEXT_CURRENT_TX_ROLLING_HASH_POSITION,
 };
-use zksync_config::{ContractsConfig, DBConfig};
-use zksync_dal::basic_witness_input_producer_dal::BasicWitnessInputProducerStatus;
+use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
+use zksync_queued_job_processor::JobProcessor;
 use zksync_state::{PostgresStorage, PostgresStorageCaches, ReadStorage, StorageView};
 use zksync_types::block::unpack_block_info;
 use zksync_types::witness_block_state::WitnessBlockState;
+use zksync_types::{
+    AccountTreeId, L1BatchNumber, L2ChainId, MiniblockNumber, StorageKey, Transaction,
+};
 use zksync_utils::h256_to_u256;
+
+use anyhow::Context;
+use async_trait::async_trait;
+use tokio::task::JoinHandle;
 
 #[derive(Debug)]
 pub struct BasicWitnessInputProducerJob {
@@ -289,7 +279,7 @@ impl JobProcessor for BasicWitnessInputProducer {
         artifacts: Self::JobArtifacts,
     ) -> anyhow::Result<()> {
         let upload_started_at = Instant::now();
-        let object_path = self.object_store.put(job_id, &artifacts).await?;
+        let _object_path = self.object_store.put(job_id, &artifacts).await?;
         metrics::histogram!(
             "basic_witness_input_producer.upload_input_time",
             upload_started_at.elapsed(),

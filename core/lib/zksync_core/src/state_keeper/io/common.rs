@@ -4,7 +4,6 @@ use multivm::interface::{L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode};
 use multivm::vm_latest::constants::BLOCK_GAS_LIMIT;
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::StorageProcessor;
-use zksync_types::block::MiniblockReexecuteData;
 use zksync_types::{
     Address, L1BatchNumber, L2ChainId, MiniblockNumber, ProtocolVersionId, H256, U256,
     ZKPORTER_IS_AVAILABLE,
@@ -135,15 +134,6 @@ pub(crate) async fn load_l1_batch_params(
         pending_miniblock_header.virtual_blocks,
         chain_id,
     ))
-}
-
-pub(crate) async fn load_pending_miniblocks(
-    storage: &mut StorageProcessor<'_>,
-) -> Vec<MiniblockReexecuteData> {
-    storage
-        .transactions_dal()
-        .get_miniblocks_to_reexecute()
-        .await
 }
 
 /// Loads the pending L1 block data from the database.
