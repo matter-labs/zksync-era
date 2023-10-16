@@ -71,6 +71,10 @@ export async function loadTestEnvironment(): Promise<TestEnvironment> {
         ? process.env.API_CONTRACT_VERIFICATION_URL!
         : ensureVariable(process.env.API_CONTRACT_VERIFICATION_URL, 'Contract verification API');
 
+    const snapshotsUrl = process.env.ZKSYNC_ENV!.startsWith('ext-node')
+        ? process.env.API_SNAPSHOTS_URL!
+        : ensureVariable(process.env.API_SNAPSHOTS_URL, 'Snapshots API');
+
     const tokens = getTokens(process.env.CHAIN_ETH_NETWORK || 'localhost');
     // wBTC is chosen because it has decimals different from ETH (8 instead of 18).
     // Using this token will help us to detect decimals-related errors.
@@ -114,7 +118,8 @@ export async function loadTestEnvironment(): Promise<TestEnvironment> {
             decimals: weth.decimals,
             l1Address: weth.address,
             l2Address: l2WethAddress
-        }
+        },
+        snapshotsUrl
     };
 }
 

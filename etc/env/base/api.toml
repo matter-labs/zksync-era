@@ -63,3 +63,9 @@ port=3071
 # Configuration for the Merkle tree API server
 [api.merkle_tree]
 port=3072
+
+[api.snapshots]
+# Port for the contract verification API.
+port=3080
+url="http://127.0.0.1:3080"
+threads_per_server=128

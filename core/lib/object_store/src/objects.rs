@@ -1,8 +1,10 @@
 //! Stored objects.
 
 use zksync_types::aggregated_operations::L1BatchProofForL1;
+use zksync_types::snapshots::StorageLogsSnapshotKey;
 use zksync_types::{
     proofs::{AggregationRound, PrepareBasicCircuitsJob},
+    snapshots::StorageLogsSnapshot,
     storage::witness_block_state::WitnessBlockState,
     zkevm_test_harness::{
         abstract_zksync_circuit::concrete_circuits::ZkSyncCircuit,
@@ -61,6 +63,30 @@ macro_rules! serialize_using_bincode {
             $crate::bincode::deserialize(&bytes).map_err(std::convert::From::from)
         }
     };
+}
+
+/// Derives [`StoredObject::serialize()`] and [`StoredObject::deserialize()`] using
+/// the `json` (de)serializer. Should be used in `impl StoredObject` blocks.
+
+impl StoredObject for StorageLogsSnapshot {
+    const BUCKET: Bucket = Bucket::StorageSnapshot;
+    type Key<'a> = StorageLogsSnapshotKey;
+
+    fn encode_key(key: Self::Key<'_>) -> String {
+        format!(
+            "storage_logs_{}_part{}.json",
+            key.l1_batch_number, key.chunk_id
+        )
+    }
+
+    //TODO use better language agnostic serialization format like protobuf
+    fn serialize(&self) -> Result<Vec<u8>, BoxedError> {
+        serde_json::to_vec(self).map_err(From::from)
+    }
+
+    fn deserialize(bytes: Vec<u8>) -> Result<Self, BoxedError> {
+        serde_json::from_slice(&bytes).map_err(From::from)
+    }
 }
 
 impl StoredObject for WitnessBlockState {

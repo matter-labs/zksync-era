@@ -49,6 +49,10 @@ export interface TestEnvironment {
      * Description of the WETH token used in the tests.
      */
     wethToken: Token;
+    /**
+     * URL of zkSync node's snapshots API.
+     */
+    snapshotsUrl: string;
 }
 
 /**

@@ -4,5 +4,6 @@ pub mod contract_verification;
 pub mod execution_sandbox;
 pub mod healthcheck;
 pub mod tree;
+pub mod snapshots;
 pub mod tx_sender;
 pub mod web3;

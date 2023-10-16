@@ -6139,6 +6139,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "snapshot_creator"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap 4.3.4",
+ "futures 0.3.28",
+ "serde",
+ "tokio",
+ "tracing",
+ "vlog",
+ "zksync_config",
+ "zksync_core",
+ "zksync_dal",
+ "zksync_object_store",
+ "zksync_types",
+ "zksync_utils",
+]
+
+[[package]]
 name = "socket2"
 version = "0.4.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8244,6 +8263,7 @@ dependencies = [
  "google-cloud-auth",
  "google-cloud-storage",
  "http",
+ "serde_json",
  "tempdir",
  "tokio",
  "tracing",

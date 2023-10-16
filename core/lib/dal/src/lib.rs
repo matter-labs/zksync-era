@@ -32,9 +32,11 @@ use crate::proof_generation_dal::ProofGenerationDal;
 use crate::protocol_versions_dal::ProtocolVersionsDal;
 use crate::protocol_versions_web3_dal::ProtocolVersionsWeb3Dal;
 use crate::prover_dal::ProverDal;
+use crate::snapshots_dal::SnapshotsDal;
 use crate::storage_dal::StorageDal;
 use crate::storage_logs_dal::StorageLogsDal;
 use crate::storage_logs_dedup_dal::StorageLogsDedupDal;
+use crate::storage_logs_snapshots_dal::StorageLogsSnapshotsDal;
 use crate::storage_web3_dal::StorageWeb3Dal;
 use crate::sync_dal::SyncDal;
 use crate::system_dal::SystemDal;
@@ -70,9 +72,11 @@ pub mod proof_generation_dal;
 pub mod protocol_versions_dal;
 pub mod protocol_versions_web3_dal;
 pub mod prover_dal;
+pub mod snapshots_dal;
 pub mod storage_dal;
 pub mod storage_logs_dal;
 pub mod storage_logs_dedup_dal;
+pub mod storage_logs_snapshots_dal;
 pub mod storage_web3_dal;
 pub mod sync_dal;
 pub mod system_dal;
@@ -304,5 +308,13 @@ impl<'a> StorageProcessor<'a> {
 
     pub fn system_dal(&mut self) -> SystemDal<'_, 'a> {
         SystemDal { storage: self }
+    }
+
+    pub fn snapshots_dal(&mut self) -> SnapshotsDal<'_, 'a> {
+        SnapshotsDal { storage: self }
+    }
+
+    pub fn storage_logs_snapshots_dal(&mut self) -> StorageLogsSnapshotsDal<'_, 'a> {
+        StorageLogsSnapshotsDal { storage: self }
     }
 }
