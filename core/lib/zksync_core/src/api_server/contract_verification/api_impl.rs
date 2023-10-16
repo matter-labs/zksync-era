@@ -1,5 +1,3 @@
-use std::time::Instant;
-
 use actix_web::{
     web::{self, Json},
     HttpResponse, Result as ActixResult,
@@ -8,7 +6,7 @@ use serde::Serialize;
 
 use zksync_types::{contract_verification_api::VerificationIncomingRequest, Address};
 
-use super::api_decl::RestApi;
+use super::{api_decl::RestApi, metrics::METRICS};
 
 fn ok_json(data: impl Serialize) -> ActixResult<HttpResponse> {
     Ok(HttpResponse::Ok().json(data))
@@ -32,7 +30,7 @@ impl RestApi {
         self_: web::Data<Self>,
         Json(request): Json<VerificationIncomingRequest>,
     ) -> ActixResult<HttpResponse> {
-        let start = Instant::now();
+        let method_latency = METRICS.call[&"contract_verification"].start();
         if let Err(res) = Self::validate_contract_verification_query(&request) {
             return Ok(res);
         }
@@ -65,7 +63,7 @@ impl RestApi {
             .await
             .unwrap();
 
-        metrics::histogram!("api.contract_verification.call", start.elapsed(), "method" => "contract_verification");
+        method_latency.observe();
         ok_json(request_id)
     }
 
@@ -74,8 +72,7 @@ impl RestApi {
         self_: web::Data<Self>,
         id: web::Path<usize>,
     ) -> ActixResult<HttpResponse> {
-        let start = Instant::now();
-
+        let method_latency = METRICS.call[&"contract_verification_request_status"].start();
         let status = self_
             .replica_connection_pool
             .access_storage_tagged("api")
@@ -86,7 +83,7 @@ impl RestApi {
             .await
             .unwrap();
 
-        metrics::histogram!("api.contract_verification.call", start.elapsed(), "method" => "contract_verification_request_status");
+        method_latency.observe();
         match status {
             Some(status) => ok_json(status),
             None => Ok(HttpResponse::NotFound().finish()),
@@ -95,8 +92,7 @@ impl RestApi {
 
     #[tracing::instrument(skip(self_))]
     pub async fn zksolc_versions(self_: web::Data<Self>) -> ActixResult<HttpResponse> {
-        let start = Instant::now();
-
+        let method_latency = METRICS.call[&"contract_verification_zksolc_versions"].start();
         let versions = self_
             .replica_connection_pool
             .access_storage_tagged("api")
@@ -107,14 +103,13 @@ impl RestApi {
             .await
             .unwrap();
 
-        metrics::histogram!("api.contract_verification.call", start.elapsed(), "method" => "contract_verification_zksolc_versions");
+        method_latency.observe();
         ok_json(versions)
     }
 
     #[tracing::instrument(skip(self_))]
     pub async fn solc_versions(self_: web::Data<Self>) -> ActixResult<HttpResponse> {
-        let start = Instant::now();
-
+        let method_latency = METRICS.call[&"contract_verification_solc_versions"].start();
         let versions = self_
             .replica_connection_pool
             .access_storage_tagged("api")
@@ -125,14 +120,13 @@ impl RestApi {
             .await
             .unwrap();
 
-        metrics::histogram!("api.contract_verification.call", start.elapsed(), "method" => "contract_verification_solc_versions");
+        method_latency.observe();
         ok_json(versions)
     }
 
     #[tracing::instrument(skip(self_))]
     pub async fn zkvyper_versions(self_: web::Data<Self>) -> ActixResult<HttpResponse> {
-        let start = Instant::now();
-
+        let method_latency = METRICS.call[&"contract_verification_zkvyper_versions"].start();
         let versions = self_
             .replica_connection_pool
             .access_storage_tagged("api")
@@ -143,14 +137,13 @@ impl RestApi {
             .await
             .unwrap();
 
-        metrics::histogram!("api.contract_verification.call", start.elapsed(), "method" => "contract_verification_zkvyper_versions");
+        method_latency.observe();
         ok_json(versions)
     }
 
     #[tracing::instrument(skip(self_))]
     pub async fn vyper_versions(self_: web::Data<Self>) -> ActixResult<HttpResponse> {
-        let start = Instant::now();
-
+        let method_latency = METRICS.call[&"contract_verification_vyper_versions"].start();
         let versions = self_
             .replica_connection_pool
             .access_storage_tagged("api")
@@ -161,7 +154,7 @@ impl RestApi {
             .await
             .unwrap();
 
-        metrics::histogram!("api.contract_verification.call", start.elapsed(), "method" => "contract_verification_vyper_versions");
+        method_latency.observe();
         ok_json(versions)
     }
 
@@ -170,7 +163,7 @@ impl RestApi {
         self_: web::Data<Self>,
         address: web::Path<Address>,
     ) -> ActixResult<HttpResponse> {
-        let start = Instant::now();
+        let method_latency = METRICS.call[&"contract_verification_info"].start();
 
         let info = self_
             .replica_connection_pool
@@ -182,7 +175,7 @@ impl RestApi {
             .await
             .unwrap();
 
-        metrics::histogram!("api.contract_verification.call", start.elapsed(), "method" => "contract_verification_info");
+        method_latency.observe();
         match info {
             Some(info) => ok_json(info),
             None => Ok(HttpResponse::NotFound().finish()),

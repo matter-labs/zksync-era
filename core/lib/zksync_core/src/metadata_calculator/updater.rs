@@ -17,7 +17,7 @@ use zksync_types::{block::L1BatchHeader, writes::InitialStorageWrite, L1BatchNum
 
 use super::{
     helpers::{AsyncTree, Delayer, L1BatchWithLogs, TreeHealthCheckDetails},
-    metrics::{ReportStage, TreeUpdateStage},
+    metrics::{TreeUpdateStage, METRICS},
     MetadataCalculator, MetadataCalculatorConfig,
 };
 use crate::witness_generator::utils::expand_bootloader_contents;
@@ -66,21 +66,21 @@ impl TreeUpdater {
         &mut self,
         l1_batch: L1BatchWithLogs,
     ) -> (L1BatchHeader, TreeMetadata, Option<String>) {
-        let compute_latency = TreeUpdateStage::Compute.start();
+        let compute_latency = METRICS.start_stage(TreeUpdateStage::Compute);
         let mut metadata = self.tree.process_l1_batch(l1_batch.storage_logs).await;
-        compute_latency.report();
+        compute_latency.observe();
 
         let witness_input = metadata.witness.take();
         let l1_batch_number = l1_batch.header.number;
         let object_key = if let Some(object_store) = &self.object_store {
             let witness_input =
                 witness_input.expect("No witness input provided by tree; this is a bug");
-            let save_witnesses_latency = TreeUpdateStage::SaveWitnesses.start();
+            let save_witnesses_latency = METRICS.start_stage(TreeUpdateStage::SaveGcs);
             let object_key = object_store
                 .put(l1_batch_number, &witness_input)
                 .await
                 .unwrap();
-            save_witnesses_latency.report();
+            save_witnesses_latency.observe();
 
             tracing::info!(
                 "Saved witnesses for L1 batch #{l1_batch_number} to object storage at `{object_key}`"
@@ -137,61 +137,65 @@ impl TreeUpdater {
             let ((header, metadata, object_key), next_l1_batch_data) =
                 future::join(process_l1_batch_task, load_next_l1_batch_task).await;
 
-            let check_consistency_latency = TreeUpdateStage::CheckConsistency.start();
+            let check_consistency_latency = METRICS.start_stage(TreeUpdateStage::CheckConsistency);
             Self::check_initial_writes_consistency(
                 storage,
                 header.number,
                 &metadata.initial_writes,
             )
             .await;
-            check_consistency_latency.report();
+            check_consistency_latency.observe();
 
-            let (events_queue_commitment, bootloader_initial_content_commitment) = if self.mode
-                == MerkleTreeMode::Full
-            {
-                let events_queue_commitment_latency = TreeUpdateStage::EventsCommitment.start();
-                let events_queue = storage
-                    .blocks_dal()
-                    .get_events_queue(header.number)
-                    .await
-                    .unwrap()
-                    .unwrap();
-                let events_queue_commitment = events_queue_commitment_fixed(&events_queue);
-                events_queue_commitment_latency.report();
+            let (events_queue_commitment, bootloader_initial_content_commitment) =
+                if self.mode == MerkleTreeMode::Full {
+                    let events_queue_commitment_latency =
+                        METRICS.start_stage(TreeUpdateStage::EventsCommitment);
+                    let events_queue = storage
+                        .blocks_dal()
+                        .get_events_queue(header.number)
+                        .await
+                        .unwrap()
+                        .unwrap();
+                    let events_queue_commitment = events_queue_commitment_fixed(&events_queue);
+                    events_queue_commitment_latency.observe();
 
-                let bootloader_commitment_latency = TreeUpdateStage::BootloaderCommitment.start();
-                let initial_bootloader_contents = storage
-                    .blocks_dal()
-                    .get_initial_bootloader_heap(header.number)
-                    .await
-                    .unwrap()
-                    .unwrap();
-                let full_bootloader_memory =
-                    expand_bootloader_contents(&initial_bootloader_contents);
-                let bootloader_initial_content_commitment =
-                    initial_heap_content_commitment_fixed(&full_bootloader_memory);
-                bootloader_commitment_latency.report();
+                    let bootloader_commitment_latency =
+                        METRICS.start_stage(TreeUpdateStage::BootloaderCommitment);
+                    let initial_bootloader_contents = storage
+                        .blocks_dal()
+                        .get_initial_bootloader_heap(header.number)
+                        .await
+                        .unwrap()
+                        .unwrap();
+                    let full_bootloader_memory =
+                        expand_bootloader_contents(&initial_bootloader_contents);
+                    let bootloader_initial_content_commitment =
+                        initial_heap_content_commitment_fixed(&full_bootloader_memory);
+                    bootloader_commitment_latency.observe();
 
-                (
-                    Some(H256(events_queue_commitment)),
-                    Some(H256(bootloader_initial_content_commitment)),
-                )
-            } else {
-                (None, None)
-            };
+                    (
+                        Some(H256(events_queue_commitment)),
+                        Some(H256(bootloader_initial_content_commitment)),
+                    )
+                } else {
+                    (None, None)
+                };
 
-            let build_metadata_latency = TreeUpdateStage::BuildMetadata.start();
+            let build_metadata_latency = METRICS.start_stage(TreeUpdateStage::BuildMetadata);
             let metadata = MetadataCalculator::build_l1_batch_metadata(
                 metadata,
                 &header,
                 events_queue_commitment,
                 bootloader_initial_content_commitment,
             );
-            build_metadata_latency.report();
+            build_metadata_latency.observe();
 
+            let reestimate_gas_cost_latency =
+                METRICS.start_stage(TreeUpdateStage::ReestimateGasCost);
             MetadataCalculator::reestimate_l1_batch_commit_gas(storage, &header, &metadata).await;
+            reestimate_gas_cost_latency.observe();
 
-            let save_postgres_latency = TreeUpdateStage::SavePostgres.start();
+            let save_postgres_latency = METRICS.start_stage(TreeUpdateStage::SavePostgres);
             storage
                 .blocks_dal()
                 .save_l1_batch_metadata(l1_batch_number, &metadata, previous_root_hash)
@@ -234,7 +238,7 @@ impl TreeUpdater {
                     .insert_proof_generation_details(l1_batch_number, object_key)
                     .await;
             }
-            save_postgres_latency.report();
+            save_postgres_latency.observe();
             tracing::info!("Updated metadata for L1 batch #{l1_batch_number} in Postgres");
 
             previous_root_hash = metadata.merkle_root_hash;
@@ -242,10 +246,10 @@ impl TreeUpdater {
             l1_batch_data = next_l1_batch_data;
         }
 
-        let save_rocksdb_latency = TreeUpdateStage::SaveRocksDB.start();
+        let save_rocksdb_latency = METRICS.start_stage(TreeUpdateStage::SaveRocksdb);
         self.tree.save().await;
-        save_rocksdb_latency.report();
-        MetadataCalculator::update_metrics(self.mode, &updated_headers, total_logs, start);
+        save_rocksdb_latency.observe();
+        MetadataCalculator::update_metrics(&updated_headers, total_logs, start);
 
         last_l1_batch_number + 1
     }
@@ -322,7 +326,7 @@ impl TreeUpdater {
         );
         let backup_lag =
             (last_l1_batch_with_metadata.0 + 1).saturating_sub(next_l1_batch_to_seal.0);
-        metrics::gauge!("server.metadata_calculator.backup_lag", backup_lag as f64);
+        METRICS.backup_lag.set(backup_lag.into());
 
         let health = TreeHealthCheckDetails {
             mode: self.mode,

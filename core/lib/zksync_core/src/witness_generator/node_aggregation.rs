@@ -1,9 +1,7 @@
-use std::collections::HashMap;
-use std::env;
-use std::time::Instant;
-
 use anyhow::Context as _;
 use async_trait::async_trait;
+
+use std::{collections::HashMap, env, time::Instant};
 
 use zksync_config::configs::WitnessGeneratorConfig;
 use zksync_dal::ConnectionPool;
@@ -32,8 +30,7 @@ use zksync_verification_key_server::{
     get_vk_for_circuit_type, get_vks_for_basic_circuits, get_vks_for_commitment,
 };
 
-use crate::witness_generator::track_witness_generation_stage;
-use crate::witness_generator::utils::save_prover_input_artifacts;
+use super::{utils::save_prover_input_artifacts, METRICS};
 
 pub struct NodeAggregationArtifacts {
     final_node_aggregation: NodeAggregationOutputDataWitness<Bn256>,
@@ -323,7 +320,8 @@ async fn update_database(
         .await;
 
     transaction.commit().await.unwrap();
-    track_witness_generation_stage(started_at, AggregationRound::NodeAggregation);
+    METRICS.processing_time[&AggregationRound::NodeAggregation.into()]
+        .observe(started_at.elapsed());
 }
 
 async fn get_artifacts(

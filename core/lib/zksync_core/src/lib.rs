@@ -46,6 +46,25 @@ use zksync_types::{
 };
 use zksync_verification_key_server::get_cached_commitments;
 
+pub mod api_server;
+pub mod block_reverter;
+pub mod consistency_checker;
+pub mod data_fetchers;
+pub mod eth_sender;
+pub mod eth_watch;
+pub mod fee_ticker;
+pub mod gas_tracker;
+pub mod genesis;
+pub mod house_keeper;
+pub mod l1_gas_price;
+pub mod metadata_calculator;
+mod metrics;
+pub mod proof_data_handler;
+pub mod reorg_detector;
+pub mod state_keeper;
+pub mod sync_layer;
+pub mod witness_generator;
+
 use crate::api_server::healthcheck::HealthCheckHandle;
 use crate::api_server::tx_sender::TxSenderConfig;
 use crate::api_server::tx_sender::{TxSender, TxSenderBuilder};
@@ -85,25 +104,8 @@ use crate::{
     data_fetchers::run_data_fetchers,
     eth_sender::EthTxAggregator,
     eth_watch::start_eth_watch,
+    metrics::{InitStage, APP_METRICS},
 };
-
-pub mod api_server;
-pub mod block_reverter;
-pub mod consistency_checker;
-pub mod data_fetchers;
-pub mod eth_sender;
-pub mod eth_watch;
-pub mod fee_ticker;
-pub mod gas_tracker;
-pub mod genesis;
-pub mod house_keeper;
-pub mod l1_gas_price;
-pub mod metadata_calculator;
-pub mod proof_data_handler;
-pub mod reorg_detector;
-pub mod state_keeper;
-pub mod sync_layer;
-pub mod witness_generator;
 
 /// Inserts the initial information about zkSync tokens into the database.
 pub async fn genesis_init(
@@ -408,8 +410,9 @@ pub async fn initialize_components(
             .context("run_http_api")?;
             task_futures.extend(futures);
             healthchecks.push(Box::new(health_check));
-            tracing::info!("initialized HTTP API in {:?}", started_at.elapsed());
-            metrics::gauge!("server.init.latency", started_at.elapsed(), "stage" => "http_api");
+            let elapsed = started_at.elapsed();
+            APP_METRICS.init_latency[&InitStage::HttpApi].set(elapsed);
+            tracing::info!("initialized HTTP API in {elapsed:?}");
         }
 
         if components.contains(&Component::WsApi) {
@@ -441,8 +444,9 @@ pub async fn initialize_components(
             .context("run_ws_api")?;
             task_futures.extend(futures);
             healthchecks.push(Box::new(health_check));
-            tracing::info!("initialized WS API in {:?}", started_at.elapsed());
-            metrics::gauge!("server.init.latency", started_at.elapsed(), "stage" => "ws_api");
+            let elapsed = started_at.elapsed();
+            APP_METRICS.init_latency[&InitStage::WsApi].set(elapsed);
+            tracing::info!("initialized WS API in {elapsed:?}");
         }
 
         if components.contains(&Component::ContractVerificationApi) {
@@ -454,11 +458,9 @@ pub async fn initialize_components(
                 api_config.contract_verification.clone(),
                 stop_receiver.clone(),
             ));
-            tracing::info!(
-                "initialized contract verification REST API in {:?}",
-                started_at.elapsed()
-            );
-            metrics::gauge!("server.init.latency", started_at.elapsed(), "stage" => "contract_verification_api");
+            let elapsed = started_at.elapsed();
+            APP_METRICS.init_latency[&InitStage::ContractVerificationApi].set(elapsed);
+            tracing::info!("initialized contract verification REST API in {elapsed:?}");
         }
     }
 
@@ -481,8 +483,10 @@ pub async fn initialize_components(
         )
         .await
         .context("add_state_keeper_to_task_futures()")?;
-        tracing::info!("initialized State Keeper in {:?}", started_at.elapsed());
-        metrics::gauge!("server.init.latency", started_at.elapsed(), "stage" => "state_keeper");
+
+        let elapsed = started_at.elapsed();
+        APP_METRICS.init_latency[&InitStage::StateKeeper].set(elapsed);
+        tracing::info!("initialized State Keeper in {elapsed:?}");
     }
 
     if components.contains(&Component::EthWatcher) {
@@ -502,8 +506,9 @@ pub async fn initialize_components(
             .await
             .context("start_eth_watch()")?,
         );
-        tracing::info!("initialized ETH-Watcher in {:?}", started_at.elapsed());
-        metrics::gauge!("server.init.latency", started_at.elapsed(), "stage" => "eth_watcher");
+        let elapsed = started_at.elapsed();
+        APP_METRICS.init_latency[&InitStage::EthWatcher].set(elapsed);
+        tracing::info!("initialized ETH-Watcher in {elapsed:?}");
     }
 
     let store_factory = ObjectStoreFactory::from_env().context("ObjectStoreFactor::from_env()")?;
@@ -541,8 +546,9 @@ pub async fn initialize_components(
             eth_client,
             stop_receiver.clone(),
         )));
-        tracing::info!("initialized ETH-TxAggregator in {:?}", started_at.elapsed());
-        metrics::gauge!("server.init.latency", started_at.elapsed(), "stage" => "eth_tx_aggregator");
+        let elapsed = started_at.elapsed();
+        APP_METRICS.init_latency[&InitStage::EthTxAggregator].set(elapsed);
+        tracing::info!("initialized ETH-TxAggregator in {elapsed:?}");
     }
 
     if components.contains(&Component::EthTxManager) {
@@ -566,8 +572,9 @@ pub async fn initialize_components(
         task_futures.extend([tokio::spawn(
             eth_tx_manager_actor.run(eth_manager_pool, stop_receiver.clone()),
         )]);
-        tracing::info!("initialized ETH-TxManager in {:?}", started_at.elapsed());
-        metrics::gauge!("server.init.latency", started_at.elapsed(), "stage" => "eth_tx_aggregator");
+        let elapsed = started_at.elapsed();
+        APP_METRICS.init_latency[&InitStage::EthTxManager].set(elapsed);
+        tracing::info!("initialized ETH-TxManager in {elapsed:?}");
     }
 
     if components.contains(&Component::DataFetcher) {
@@ -581,8 +588,9 @@ pub async fn initialize_components(
             connection_pool.clone(),
             stop_receiver.clone(),
         ));
-        tracing::info!("initialized data fetchers in {:?}", started_at.elapsed());
-        metrics::gauge!("server.init.latency", started_at.elapsed(), "stage" => "data_fetchers");
+        let elapsed = started_at.elapsed();
+        APP_METRICS.init_latency[&InitStage::DataFetcher].set(elapsed);
+        tracing::info!("initialized data fetchers in {elapsed:?}");
     }
 
     add_trees_to_task_futures(
@@ -661,7 +669,7 @@ async fn add_state_keeper_to_task_futures<E: L1GasPriceProvider + Send + Sync + 
         .next_priority_id()
         .await;
     let mempool = MempoolGuard::new(next_priority_id, mempool_config.capacity);
-    tokio::task::spawn(mempool.run_metrics_reporting());
+    mempool.register_metrics();
 
     let miniblock_sealer_pool = pool_builder
         .build()
@@ -768,13 +776,9 @@ async fn run_tree(
         .context("failed to build prover_pool")?;
     let future = tokio::spawn(metadata_calculator.run(pool, prover_pool, stop_receiver));
 
-    tracing::info!("Initialized {mode_str} tree in {:?}", started_at.elapsed());
-    metrics::gauge!(
-        "server.init.latency",
-        started_at.elapsed(),
-        "stage" => "tree",
-        "tree" => mode_str
-    );
+    let elapsed = started_at.elapsed();
+    APP_METRICS.init_latency[&InitStage::Tree].set(elapsed);
+    tracing::info!("Initialized {mode_str} tree in {elapsed:?}");
     Ok((future, tree_health_check))
 }
 
@@ -863,15 +867,9 @@ async fn add_witness_generator_to_task_futures(
         };
         task_futures.push(task);
 
-        tracing::info!(
-            "initialized {component_type:?} witness generator in {:?}",
-            started_at.elapsed()
-        );
-        metrics::gauge!(
-            "server.init.latency",
-            started_at.elapsed(),
-            "stage" => format!("witness_generator_{component_type:?}")
-        );
+        let elapsed = started_at.elapsed();
+        APP_METRICS.init_latency[&InitStage::WitnessGenerator(component_type)].set(elapsed);
+        tracing::info!("initialized {component_type:?} witness generator in {elapsed:?}");
     }
     Ok(())
 }

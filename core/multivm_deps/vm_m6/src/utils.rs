@@ -267,7 +267,7 @@ pub(crate) fn calculate_computational_gas_used<
     T: PubdataSpentTracer<H>,
     H: HistoryMode,
 >(
-    vm: &VmInstance<'_, S, H>,
+    vm: &VmInstance<S, H>,
     tracer: &T,
     gas_remaining_before: u32,
     spent_pubdata_counter_before: u32,

@@ -3,26 +3,23 @@ use vm_latest::{
     FinishedL1Batch, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode, VmMemoryMetrics,
 };
 
-use zksync_state::{ReadStorage, StoragePtr, StorageView};
-use zksync_types::VmVersion;
+use zksync_state::{ReadStorage, StorageView};
 use zksync_utils::bytecode::{hash_bytecode, CompressedBytecodeInfo};
-use zksync_utils::h256_to_u256;
 
 use crate::glue::history_mode::HistoryMode;
 use crate::glue::tracer::MultivmTracer;
 use crate::glue::GlueInto;
-use crate::{BlockProperties, OracleTools};
 
-pub struct VmInstance<'a, S: ReadStorage, H: HistoryMode> {
-    pub(crate) vm: VmInstanceVersion<'a, S, H>,
+pub struct VmInstance<S: ReadStorage, H: HistoryMode> {
+    pub(crate) vm: VmInstanceVersion<S, H>,
     pub(crate) system_env: SystemEnv,
     pub(crate) last_tx_compressed_bytecodes: Vec<CompressedBytecodeInfo>,
 }
 
 #[derive(Debug)]
-pub(crate) enum VmInstanceVersion<'a, S: ReadStorage, H: HistoryMode> {
-    VmM5(Box<vm_m5::VmInstance<'a, StorageView<S>>>),
-    VmM6(Box<vm_m6::VmInstance<'a, StorageView<S>, H::VmM6Mode>>),
+pub(crate) enum VmInstanceVersion<S: ReadStorage, H: HistoryMode> {
+    VmM5(Box<vm_m5::VmInstance<StorageView<S>>>),
+    VmM6(Box<vm_m6::VmInstance<StorageView<S>, H::VmM6Mode>>),
     Vm1_3_2(Box<vm_1_3_2::VmInstance<StorageView<S>, H::Vm1_3_2Mode>>),
     VmVirtualBlocks(Box<vm_virtual_blocks::Vm<StorageView<S>, H::VmVirtualBlocksMode>>),
     VmVirtualBlocksRefundsEnhancement(
@@ -30,7 +27,7 @@ pub(crate) enum VmInstanceVersion<'a, S: ReadStorage, H: HistoryMode> {
     ),
 }
 
-impl<'a, S: ReadStorage, H: HistoryMode> VmInstance<'a, S, H> {
+impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
     /// Push tx into memory for the future execution
     pub fn push_transaction(&mut self, tx: &zksync_types::Transaction) {
         match &mut self.vm {
@@ -445,157 +442,7 @@ impl<'a, S: ReadStorage, H: HistoryMode> VmInstance<'a, S, H> {
     }
 }
 
-pub struct M5NecessaryData<S: ReadStorage, H: HistoryMode> {
-    pub oracle_tools: OracleTools<S, H>,
-    pub block_properties: BlockProperties,
-    pub sub_version: vm_m5::vm::MultiVMSubversion,
-}
-
-pub struct M6NecessaryData<S: ReadStorage, H: HistoryMode> {
-    pub oracle_tools: OracleTools<S, H>,
-    pub block_properties: BlockProperties,
-    pub sub_version: vm_m6::vm::MultiVMSubversion,
-}
-
-pub struct Vm1_3_2NecessaryData<S: ReadStorage, H: HistoryMode> {
-    pub storage_view: StoragePtr<StorageView<S>>,
-    pub history_mode: H,
-}
-
-pub struct VmVirtualBlocksNecessaryData<S: ReadStorage, H: HistoryMode> {
-    pub storage_view: zksync_state::StoragePtr<StorageView<S>>,
-    pub history_mode: H,
-}
-
-pub enum VmInstanceData<S: ReadStorage, H: HistoryMode> {
-    M5(M5NecessaryData<S, H>),
-    M6(M6NecessaryData<S, H>),
-    Vm1_3_2(Vm1_3_2NecessaryData<S, H>),
-    VmVirtualBlocks(VmVirtualBlocksNecessaryData<S, H>),
-    VmVirtualBlocksRefundsEnhancement(VmVirtualBlocksNecessaryData<S, H>),
-}
-
-impl<S: ReadStorage, H: HistoryMode> VmInstanceData<S, H> {
-    fn m5(
-        oracle_tools: OracleTools<S, H>,
-        block_properties: BlockProperties,
-        sub_version: vm_m5::vm::MultiVMSubversion,
-    ) -> Self {
-        Self::M5(M5NecessaryData {
-            oracle_tools,
-            block_properties,
-            sub_version,
-        })
-    }
-    fn m6(
-        oracle_tools: OracleTools<S, H>,
-        block_properties: BlockProperties,
-        sub_version: vm_m6::vm::MultiVMSubversion,
-    ) -> Self {
-        Self::M6(M6NecessaryData {
-            oracle_tools,
-            block_properties,
-            sub_version,
-        })
-    }
-
-    fn latest(storage_view: StoragePtr<StorageView<S>>, history_mode: H) -> Self {
-        Self::VmVirtualBlocksRefundsEnhancement(VmVirtualBlocksNecessaryData {
-            storage_view,
-            history_mode,
-        })
-    }
-
-    fn vm_virtual_blocks(storage_view: StoragePtr<StorageView<S>>, history_mode: H) -> Self {
-        Self::VmVirtualBlocks(VmVirtualBlocksNecessaryData {
-            storage_view,
-            history_mode,
-        })
-    }
-
-    fn vm1_3_2(storage_view: StoragePtr<StorageView<S>>, history_mode: H) -> Self {
-        Self::Vm1_3_2(Vm1_3_2NecessaryData {
-            storage_view,
-            history_mode,
-        })
-    }
-
-    pub fn new(
-        storage_view: StoragePtr<StorageView<S>>,
-        system_env: &SystemEnv,
-        history: H,
-    ) -> Self {
-        let protocol_version = system_env.version;
-        let vm_version: VmVersion = protocol_version.into();
-        Self::new_for_specific_vm_version(storage_view, system_env, history, vm_version)
-    }
-
-    // In api we support only subset of vm versions, so we need to create vm instance for specific version
-    pub fn new_for_specific_vm_version(
-        storage_view: StoragePtr<StorageView<S>>,
-        system_env: &SystemEnv,
-        history: H,
-        vm_version: VmVersion,
-    ) -> Self {
-        match vm_version {
-            VmVersion::M5WithoutRefunds => {
-                let oracle_tools = OracleTools::new(vm_version, storage_view, history);
-                let block_properties = BlockProperties::new(
-                    vm_version,
-                    h256_to_u256(system_env.base_system_smart_contracts.default_aa.hash),
-                );
-                VmInstanceData::m5(
-                    oracle_tools,
-                    block_properties,
-                    vm_m5::vm::MultiVMSubversion::V1,
-                )
-            }
-            VmVersion::M5WithRefunds => {
-                let oracle_tools = OracleTools::new(vm_version, storage_view, history);
-                let block_properties = BlockProperties::new(
-                    vm_version,
-                    h256_to_u256(system_env.base_system_smart_contracts.default_aa.hash),
-                );
-                VmInstanceData::m5(
-                    oracle_tools,
-                    block_properties,
-                    vm_m5::vm::MultiVMSubversion::V2,
-                )
-            }
-            VmVersion::M6Initial => {
-                let oracle_tools = OracleTools::new(vm_version, storage_view, history);
-                let block_properties = BlockProperties::new(
-                    vm_version,
-                    h256_to_u256(system_env.base_system_smart_contracts.default_aa.hash),
-                );
-                VmInstanceData::m6(
-                    oracle_tools,
-                    block_properties,
-                    vm_m6::vm::MultiVMSubversion::V1,
-                )
-            }
-            VmVersion::M6BugWithCompressionFixed => {
-                let oracle_tools = OracleTools::new(vm_version, storage_view, history);
-                let block_properties = BlockProperties::new(
-                    vm_version,
-                    h256_to_u256(system_env.base_system_smart_contracts.default_aa.hash),
-                );
-                VmInstanceData::m6(
-                    oracle_tools,
-                    block_properties,
-                    vm_m6::vm::MultiVMSubversion::V2,
-                )
-            }
-            VmVersion::Vm1_3_2 => VmInstanceData::vm1_3_2(storage_view, history),
-            VmVersion::VmVirtualBlocks => VmInstanceData::vm_virtual_blocks(storage_view, history),
-            VmVersion::VmVirtualBlocksRefundsEnhancement => {
-                VmInstanceData::latest(storage_view, history)
-            }
-        }
-    }
-}
-
-impl<S: ReadStorage> VmInstance<'_, S, vm_latest::HistoryEnabled> {
+impl<S: ReadStorage> VmInstance<S, vm_latest::HistoryEnabled> {
     pub fn make_snapshot(&mut self) {
         match &mut self.vm {
             VmInstanceVersion::VmM5(vm) => vm.save_current_vm_as_snapshot(),
