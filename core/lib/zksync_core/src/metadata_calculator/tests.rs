@@ -15,10 +15,8 @@ use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_types::{
     block::{miniblock_hash, BlockGasCount, L1BatchHeader, MiniblockHeader},
     proofs::PrepareBasicCircuitsJob,
-    protocol_version::L1VerifierConfig,
-    system_contracts::get_system_smart_contracts,
-    AccountTreeId, Address, L1BatchNumber, L2ChainId, MiniblockNumber, ProtocolVersionId,
-    StorageKey, StorageLog, H256,
+    AccountTreeId, Address, L1BatchNumber, L2ChainId, MiniblockNumber, StorageKey, StorageLog,
+    H256,
 };
 use zksync_utils::u32_to_h256;
 
@@ -397,27 +395,9 @@ async fn setup_calculator_with_options(
 
     let mut storage = pool.access_storage().await.unwrap();
     if storage.blocks_dal().is_genesis_needed().await.unwrap() {
-        let chain_id = L2ChainId::from(270);
-        let protocol_version = ProtocolVersionId::latest();
-        let base_system_contracts = BaseSystemContracts::load_from_disk();
-        let system_contracts = get_system_smart_contracts();
-        let first_validator = Address::repeat_byte(0x01);
-        let first_l1_verifier_config = L1VerifierConfig::default();
-        let first_verifier_address = Address::zero();
-        ensure_genesis_state(
-            &mut storage,
-            chain_id,
-            &GenesisParams {
-                first_validator,
-                protocol_version,
-                base_system_contracts,
-                system_contracts,
-                first_l1_verifier_config,
-                first_verifier_address,
-            },
-        )
-        .await
-        .unwrap();
+        ensure_genesis_state(&mut storage, L2ChainId::from(270), &GenesisParams::mock())
+            .await
+            .unwrap();
     }
     metadata_calculator
 }
@@ -641,27 +621,9 @@ async fn remove_l1_batches(
 #[db_test]
 async fn deduplication_works_as_expected(pool: ConnectionPool) {
     let mut storage = pool.access_storage().await.unwrap();
-
-    let first_validator = Address::repeat_byte(0x01);
-    let protocol_version = ProtocolVersionId::latest();
-    let base_system_contracts = BaseSystemContracts::load_from_disk();
-    let system_contracts = get_system_smart_contracts();
-    let first_l1_verifier_config = L1VerifierConfig::default();
-    let first_verifier_address = Address::zero();
-    ensure_genesis_state(
-        &mut storage,
-        L2ChainId::from(270),
-        &GenesisParams {
-            protocol_version,
-            first_validator,
-            base_system_contracts,
-            system_contracts,
-            first_l1_verifier_config,
-            first_verifier_address,
-        },
-    )
-    .await
-    .unwrap();
+    ensure_genesis_state(&mut storage, L2ChainId::from(270), &GenesisParams::mock())
+        .await
+        .unwrap();
 
     let logs = gen_storage_logs(100..120, 1).pop().unwrap();
     let hashed_keys: Vec<_> = logs.iter().map(|log| log.key.hashed_key()).collect();
