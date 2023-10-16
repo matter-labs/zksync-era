@@ -34,55 +34,12 @@ use crate::{
             MiniblockParams, PendingBatchData, StateKeeperIO,
         },
         metrics::{KEEPER_METRICS, L1_BATCH_METRICS},
-        seal_criteria::SealerFn,
         updates::UpdatesManager,
     },
 };
 
 /// The interval between the action queue polling attempts for the new actions.
 const POLL_INTERVAL: Duration = Duration::from_millis(100);
-
-/// In the external node we don't actually decide whether we want to seal l1 batch or l2 block.
-/// We must replicate the state as it's present in the main node.
-/// This structure declares an "unconditional sealer" which would tell the state keeper to seal
-/// blocks/batches at the same point as in the main node.
-#[derive(Debug, Clone)]
-pub struct ExternalNodeSealer {
-    actions: ActionQueue,
-}
-
-impl ExternalNodeSealer {
-    pub fn new(actions: ActionQueue) -> Self {
-        Self { actions }
-    }
-
-    fn should_seal_miniblock(&self) -> bool {
-        let res = matches!(self.actions.peek_action(), Some(SyncAction::SealMiniblock));
-        if res {
-            tracing::info!("Sealing miniblock");
-        }
-        res
-    }
-
-    fn should_seal_batch(&self) -> bool {
-        let res = matches!(
-            self.actions.peek_action(),
-            Some(SyncAction::SealBatch { .. })
-        );
-        if res {
-            tracing::info!("Sealing the batch");
-        }
-        res
-    }
-
-    pub fn into_unconditional_batch_seal_criterion(self) -> Box<SealerFn> {
-        Box::new(move |_| self.should_seal_batch())
-    }
-
-    pub fn into_miniblock_seal_criterion(self) -> Box<SealerFn> {
-        Box::new(move |_| self.should_seal_miniblock())
-    }
-}
 
 /// ExternalIO is the IO abstraction for the state keeper that is used in the external node.
 /// It receives a sequence of actions from the fetcher via the action queue and propagates it
@@ -440,7 +397,7 @@ impl StateKeeperIO for ExternalIO {
         _prev_miniblock_timestamp: u64,
     ) -> Option<MiniblockParams> {
         // Wait for the next miniblock to appear in the queue.
-        let actions = &self.actions;
+        let actions = &mut self.actions;
         for _ in 0..poll_iters(POLL_INTERVAL, max_wait) {
             match actions.peek_action() {
                 Some(SyncAction::Miniblock {
@@ -484,7 +441,7 @@ impl StateKeeperIO for ExternalIO {
     }
 
     async fn wait_for_next_tx(&mut self, max_wait: Duration) -> Option<Transaction> {
-        let actions = &self.actions;
+        let actions = &mut self.actions;
         tracing::debug!(
             "Waiting for the new tx, next action is {:?}",
             actions.peek_action()

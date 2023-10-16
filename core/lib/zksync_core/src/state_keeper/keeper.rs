@@ -370,6 +370,7 @@ impl ZkSyncStateKeeper {
         }
 
         while !self.is_canceled() {
+            // move to IO
             if self
                 .sealer
                 .should_seal_l1_batch_unconditionally(updates_manager)
@@ -381,6 +382,7 @@ impl ZkSyncStateKeeper {
                 return Ok(());
             }
 
+            // move to IO
             if self.sealer.should_seal_miniblock(updates_manager) {
                 tracing::debug!(
                     "Miniblock #{} (L1 batch #{}) should be sealed as per sealing rules",

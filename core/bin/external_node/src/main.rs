@@ -26,8 +26,7 @@ use zksync_core::{
     },
     sync_layer::{
         batch_status_updater::BatchStatusUpdater, external_io::ExternalIO,
-        fetcher::MainNodeFetcher, genesis::perform_genesis_if_needed, ActionQueue,
-        ExternalNodeSealer, SyncState,
+        fetcher::MainNodeFetcher, genesis::perform_genesis_if_needed, ActionQueue, SyncState,
     },
 };
 use zksync_dal::{connection::DbVariant, healthcheck::ConnectionPoolHealthCheck, ConnectionPool};
@@ -52,12 +51,11 @@ async fn build_state_keeper(
     stop_receiver: watch::Receiver<bool>,
     chain_id: L2ChainId,
 ) -> ZkSyncStateKeeper {
-    let en_sealer = ExternalNodeSealer::new(action_queue.clone());
     let main_node_url = config.required.main_node_url().unwrap();
     let sealer = SealManager::custom(
         None,
-        vec![en_sealer.clone().into_unconditional_batch_seal_criterion()],
-        vec![en_sealer.into_miniblock_seal_criterion()],
+        vec![], // FIXME: rework sealers
+        vec![],
     );
 
     // These config values are used on the main node, and depending on these values certain transactions can
@@ -115,9 +113,9 @@ async fn init_tasks(
     let gas_adjuster = Arc::new(MainNodeGasPriceFetcher::new(&main_node_url));
 
     let sync_state = SyncState::new();
-    let action_queue = ActionQueue::new();
+    let (action_queue_sender, action_queue) = ActionQueue::new();
     let state_keeper = build_state_keeper(
-        action_queue.clone(),
+        action_queue,
         config.required.state_cache_path.clone(),
         &config,
         connection_pool.clone(),
@@ -135,7 +133,7 @@ async fn init_tasks(
             .await
             .context("failed to build a connection pool for MainNodeFetcher")?,
         &main_node_url,
-        action_queue.clone(),
+        action_queue_sender,
         sync_state.clone(),
         stop_receiver.clone(),
     )

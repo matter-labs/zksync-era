@@ -7,8 +7,4 @@ mod metrics;
 pub(crate) mod sync_action;
 mod sync_state;
 
-pub use self::{
-    external_io::{ExternalIO, ExternalNodeSealer},
-    sync_action::ActionQueue,
-    sync_state::SyncState,
-};
+pub use self::{external_io::ExternalIO, sync_action::ActionQueue, sync_state::SyncState};
