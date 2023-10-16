@@ -54,7 +54,7 @@ impl ReorgDetector {
             .unwrap()
             .unwrap_or_else(|| {
                 panic!(
-                    "Header does not exist flr local miniblock #{}",
+                    "Header does not exist for local miniblock #{}",
                     miniblock_number
                 )
             })
