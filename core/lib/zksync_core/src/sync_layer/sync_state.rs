@@ -2,6 +2,8 @@ use std::sync::{Arc, RwLock};
 
 use zksync_types::MiniblockNumber;
 
+use crate::metrics::EN_METRICS;
+
 /// `SyncState` is a structure that holds the state of the syncing process.
 /// The intended use case is to signalize to Web3 API whether the node is fully synced.
 /// Data inside is expected to be updated by both `MainNodeFetcher` (on last block available on the main node)
@@ -73,9 +75,9 @@ impl SyncState {
 
     fn update_sync_metric(&self, inner: &SyncStateInner) {
         let (is_synced, lag) = self.is_synced_inner(inner);
-        metrics::gauge!("external_node.synced", is_synced as u64 as f64);
+        EN_METRICS.synced.set(is_synced.into());
         if let Some(lag) = lag {
-            metrics::gauge!("external_node.sync_lag", lag as f64);
+            EN_METRICS.sync_lag.set(lag.into());
         }
     }
 

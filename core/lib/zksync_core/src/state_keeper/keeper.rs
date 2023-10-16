@@ -4,25 +4,22 @@ use tokio::sync::watch;
 use std::convert::Infallible;
 use std::time::{Duration, Instant};
 
+use vm::{Halt, L1BatchEnv, SystemEnv};
 use zksync_types::{
     block::MiniblockReexecuteData, l2::TransactionType, protocol_version::ProtocolUpgradeTx,
     storage_writes_deduplicator::StorageWritesDeduplicator, Transaction,
 };
 
-use vm::{Halt, L1BatchEnv, SystemEnv};
-
-use crate::gas_tracker::gas_count_from_writes;
-
-use crate::state_keeper::io::MiniblockParams;
-
-use crate::state_keeper::{
+use super::{
     batch_executor::{BatchExecutorHandle, L1BatchExecutorBuilder, TxExecutionResult},
     extractors,
-    io::{PendingBatchData, StateKeeperIO},
+    io::{MiniblockParams, PendingBatchData, StateKeeperIO},
+    metrics::{AGGREGATION_METRICS, KEEPER_METRICS, L1_BATCH_METRICS},
     seal_criteria::{SealData, SealManager, SealResolution},
     types::ExecutionMetricsForCriteria,
     updates::UpdatesManager,
 };
+use crate::gas_tracker::gas_count_from_writes;
 
 /// Amount of time to block on waiting for some resource. The exact value is not really important,
 /// we only need it to not block on waiting indefinitely and be able to process cancellation requests.
@@ -199,7 +196,7 @@ impl ZkSyncStateKeeper {
                 .await
                 .context("seal_l1_batch")?;
             if let Some(delta) = l1_batch_seal_delta {
-                metrics::histogram!("server.state_keeper.l1_batch.seal_delta", delta.elapsed());
+                L1_BATCH_METRICS.seal_delta.observe(delta.elapsed());
             }
             l1_batch_seal_delta = Some(Instant::now());
 
@@ -406,21 +403,13 @@ impl ZkSyncStateKeeper {
                     .await;
             }
 
-            let started_waiting = Instant::now();
-
+            let waiting_latency = KEEPER_METRICS.waiting_for_tx.start();
             let Some(tx) = self.io.wait_for_next_tx(POLL_WAIT_DURATION).await else {
-                metrics::histogram!(
-                    "server.state_keeper.waiting_for_tx",
-                    started_waiting.elapsed()
-                );
+                waiting_latency.observe();
                 tracing::trace!("No new transactions. Waiting!");
                 continue;
             };
-
-            metrics::histogram!(
-                "server.state_keeper.waiting_for_tx",
-                started_waiting.elapsed(),
-            );
+            waiting_latency.observe();
 
             let tx_hash = tx.hash();
             let (seal_resolution, exec_result) = self
@@ -553,27 +542,22 @@ impl ZkSyncStateKeeper {
         let exec_result = batch_executor.execute_tx(tx.clone()).await;
         let resolution = match &exec_result {
             TxExecutionResult::BootloaderOutOfGasForTx => {
-                metrics::increment_counter!(
-                    "server.tx_aggregation.reason",
-                    "criterion" => "bootloader_tx_out_of_gas",
-                    "seal_resolution" => "exclude_and_seal",
-                );
+                AGGREGATION_METRICS
+                    .inc("bootloader_tx_out_of_gas", &SealResolution::ExcludeAndSeal);
                 SealResolution::ExcludeAndSeal
             }
             TxExecutionResult::BootloaderOutOfGasForBlockTip => {
-                metrics::increment_counter!(
-                    "server.tx_aggregation.reason",
-                    "criterion" => "bootloader_block_tip_failed",
-                    "seal_resolution" => "exclude_and_seal",
+                AGGREGATION_METRICS.inc(
+                    "bootloader_block_tip_failed",
+                    &SealResolution::ExcludeAndSeal,
                 );
                 SealResolution::ExcludeAndSeal
             }
             TxExecutionResult::RejectedByVm { reason } => match reason {
                 Halt::NotEnoughGasProvided => {
-                    metrics::increment_counter!(
-                        "server.tx_aggregation.reason",
-                        "criterion" => "not_enough_gas_provided_to_start_tx",
-                        "seal_resolution" => "exclude_and_seal",
+                    AGGREGATION_METRICS.inc(
+                        "not_enough_gas_provided_to_start_tx",
+                        &SealResolution::ExcludeAndSeal,
                     );
                     SealResolution::ExcludeAndSeal
                 }

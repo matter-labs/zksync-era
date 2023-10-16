@@ -42,7 +42,7 @@ ENV BELLMAN_CUDA_DIR=/usr/src/zksync/bellman-cuda
 
 COPY . .
 
-RUN cargo build --release
+RUN cargo build --release --features gpu
 
 FROM nvidia/cuda:11.8.0-runtime-ubuntu22.04 as runner
 

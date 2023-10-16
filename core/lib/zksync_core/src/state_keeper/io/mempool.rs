@@ -31,6 +31,7 @@ use crate::{
             MiniblockSealerHandle, PendingBatchData, StateKeeperIO,
         },
         mempool_actor::l2_tx_filter,
+        metrics::KEEPER_METRICS,
         updates::UpdatesManager,
         MempoolGuard,
     },
@@ -202,12 +203,9 @@ impl<G: L1GasPriceProvider + 'static + Send + Sync> StateKeeperIO for MempoolIO<
 
     async fn wait_for_next_tx(&mut self, max_wait: Duration) -> Option<Transaction> {
         for _ in 0..poll_iters(self.delay_interval, max_wait) {
-            let started_at = Instant::now();
+            let get_latency = KEEPER_METRICS.get_tx_from_mempool.start();
             let res = self.mempool.next_transaction(&self.filter);
-            metrics::histogram!(
-                "server.state_keeper.get_tx_from_mempool",
-                started_at.elapsed(),
-            );
+            get_latency.observe();
             if let Some(res) = res {
                 return Some(res);
             } else {
@@ -241,7 +239,7 @@ impl<G: L1GasPriceProvider + 'static + Send + Sync> StateKeeperIO for MempoolIO<
             .access_storage_tagged("state_keeper")
             .await
             .unwrap();
-        metrics::increment_counter!("server.state_keeper.rejected_transactions");
+        KEEPER_METRICS.rejected_transactions.inc();
         tracing::warn!(
             "transaction {} is rejected with error {}",
             rejected.hash(),
@@ -285,7 +283,6 @@ impl<G: L1GasPriceProvider + 'static + Send + Sync> StateKeeperIO for MempoolIO<
                 .context("ObjectsStoreFactor::from_env()")?
                 .create_store()
                 .await;
-            let mut upload_successful_metric = 1.0;
             match object_store
                 .put(self.current_l1_batch_number(), &witness_witness_block_state)
                 .await
@@ -294,16 +291,11 @@ impl<G: L1GasPriceProvider + 'static + Send + Sync> StateKeeperIO for MempoolIO<
                     tracing::debug!("Successfully uploaded witness block start state to Object Store to path = '{path}'");
                 }
                 Err(e) => {
-                    upload_successful_metric = 0.0;
                     tracing::error!(
                         "Failed to upload witness block start state to Object Store: {e:?}"
                     );
                 }
             }
-            metrics::histogram!(
-                "mempool.witness_block_start_upload_success",
-                upload_successful_metric
-            );
         }
 
         let pool = self.pool.clone();
@@ -452,7 +444,7 @@ impl<G: L1GasPriceProvider> MempoolIO<G> {
             "Getting previous L1 batch hash for L1 batch #{}",
             self.current_l1_batch_number
         );
-        let stage_started_at: Instant = Instant::now();
+        let wait_latency = KEEPER_METRICS.wait_for_prev_hash_time.start();
 
         let mut storage = self
             .pool
@@ -463,10 +455,7 @@ impl<G: L1GasPriceProvider> MempoolIO<G> {
             extractors::wait_for_prev_l1_batch_params(&mut storage, self.current_l1_batch_number)
                 .await;
 
-        metrics::histogram!(
-            "server.state_keeper.wait_for_prev_hash_time",
-            stage_started_at.elapsed()
-        );
+        wait_latency.observe();
         tracing::info!(
             "Got previous L1 batch hash: {batch_hash:0>64x} for L1 batch #{}",
             self.current_l1_batch_number
@@ -475,8 +464,7 @@ impl<G: L1GasPriceProvider> MempoolIO<G> {
     }
 
     async fn load_previous_miniblock_header(&self) -> MiniblockHeader {
-        let stage_started_at: Instant = Instant::now();
-
+        let load_latency = KEEPER_METRICS.load_previous_miniblock_header.start();
         let mut storage = self
             .pool
             .access_storage_tagged("state_keeper")
@@ -488,11 +476,7 @@ impl<G: L1GasPriceProvider> MempoolIO<G> {
             .await
             .unwrap()
             .expect("Previous miniblock must be sealed and header saved to DB");
-
-        metrics::histogram!(
-            "server.state_keeper.load_previous_miniblock_header",
-            stage_started_at.elapsed()
-        );
+        load_latency.observe();
         miniblock_header
     }
 
@@ -506,7 +490,6 @@ impl<G: L1GasPriceProvider> MempoolIO<G> {
         if first_in_batch || miniblock_number % self.virtual_blocks_interval == 0 {
             return self.virtual_blocks_per_miniblock;
         }
-
         0
     }
 }

@@ -1,19 +1,21 @@
-use std::time::{Duration, Instant};
-
 use chrono::{DateTime, Utc};
 use tokio::sync::watch::Receiver;
+
+use std::time::Duration;
 
 use zksync_dal::ConnectionPool;
 use zksync_types::{
     aggregated_operations::AggregatedActionType, api::BlockDetails, L1BatchNumber, MiniblockNumber,
     H256,
 };
-
 use zksync_web3_decl::{
     jsonrpsee::http_client::{HttpClient, HttpClientBuilder},
     namespaces::ZksNamespaceClient,
     RpcResult,
 };
+
+use super::metrics::{FetchStage, L1BatchStage, FETCHER_METRICS};
+use crate::metrics::EN_METRICS;
 
 /// Represents a change in the batch status.
 /// It may be a batch being committed, proven or executed.
@@ -125,7 +127,7 @@ impl BatchStatusUpdater {
     /// it's safe to assume that every status change can safely be applied (no status
     /// changes "from the future").
     async fn get_status_changes(&self, status_changes: &mut StatusChanges) -> RpcResult<()> {
-        let start = Instant::now();
+        let total_latency = EN_METRICS.update_batch_statuses.start();
         let last_sealed_batch = self
             .pool
             .access_storage_tagged("sync_layer")
@@ -162,19 +164,14 @@ impl BatchStatusUpdater {
         while batch <= last_sealed_batch {
             // While we may receive `None` for the `self.current_l1_batch`, it's OK: open batch is guaranteed to not
             // be sent to L1.
-            let request_start = Instant::now();
+            let request_latency = FETCHER_METRICS.requests[&FetchStage::GetMiniblockRange].start();
             let Some((start_miniblock, _)) = self.client.get_miniblock_range(batch).await? else {
                 return Ok(());
             };
-            metrics::histogram!(
-                "external_node.fetcher.requests",
-                request_start.elapsed(),
-                "stage" => "get_miniblock_range",
-                "actor" => "batch_status_fetcher"
-            );
+            request_latency.observe();
 
             // We could've used any miniblock from the range, all of them share the same info.
-            let request_start = Instant::now();
+            let request_latency = FETCHER_METRICS.requests[&FetchStage::GetBlockDetails].start();
             let Some(batch_info) = self
                 .client
                 .get_block_details(MiniblockNumber(start_miniblock.as_u32()))
@@ -186,12 +183,7 @@ impl BatchStatusUpdater {
                     but API has no information about this miniblock", start_miniblock, batch
                 );
             };
-            metrics::histogram!(
-                "external_node.fetcher.requests",
-                request_start.elapsed(),
-                "stage" => "get_block_details",
-                "actor" => "batch_status_fetcher"
-            );
+            request_latency.observe();
 
             Self::update_committed_batch(status_changes, &batch_info, &mut last_committed_l1_batch);
             Self::update_proven_batch(status_changes, &batch_info, &mut last_proven_l1_batch);
@@ -212,7 +204,7 @@ impl BatchStatusUpdater {
             }
         }
 
-        metrics::histogram!("external_node.update_batch_statuses", start.elapsed());
+        total_latency.observe();
         Ok(())
     }
 
@@ -234,7 +226,8 @@ impl BatchStatusUpdater {
                 happened_at: batch_info.base.committed_at.unwrap(),
             });
             tracing::info!("Batch {}: committed", batch_info.l1_batch_number);
-            metrics::gauge!("external_node.fetcher.l1_batch", batch_info.l1_batch_number.0 as f64, "status" => "committed");
+            FETCHER_METRICS.l1_batch[&L1BatchStage::Committed]
+                .set(batch_info.l1_batch_number.0.into());
             *last_committed_l1_batch += 1;
         }
     }
@@ -257,7 +250,8 @@ impl BatchStatusUpdater {
                 happened_at: batch_info.base.proven_at.unwrap(),
             });
             tracing::info!("Batch {}: proven", batch_info.l1_batch_number);
-            metrics::gauge!("external_node.fetcher.l1_batch", batch_info.l1_batch_number.0 as f64, "status" => "proven");
+            FETCHER_METRICS.l1_batch[&L1BatchStage::Proven]
+                .set(batch_info.l1_batch_number.0.into());
             *last_proven_l1_batch += 1;
         }
     }
@@ -280,7 +274,8 @@ impl BatchStatusUpdater {
                 happened_at: batch_info.base.executed_at.unwrap(),
             });
             tracing::info!("Batch {}: executed", batch_info.l1_batch_number);
-            metrics::gauge!("external_node.fetcher.l1_batch", batch_info.l1_batch_number.0 as f64, "status" => "executed");
+            FETCHER_METRICS.l1_batch[&L1BatchStage::Executed]
+                .set(batch_info.l1_batch_number.0.into());
             *last_executed_l1_batch += 1;
         }
     }
@@ -293,8 +288,7 @@ impl BatchStatusUpdater {
     /// some fields missing/substituted) only to satisfy API needs; this component doesn't expect the updated
     /// tables to be ever accessed by the `eth_sender` module.
     async fn apply_status_changes(&mut self, changes: StatusChanges) {
-        let start = Instant::now();
-
+        let total_latency = EN_METRICS.batch_status_updater_loop_iteration.start();
         let mut storage = self.pool.access_storage_tagged("sync_layer").await.unwrap();
 
         for change in changes.commit.into_iter() {
@@ -353,9 +347,6 @@ impl BatchStatusUpdater {
             self.last_executed_l1_batch = change.number;
         }
 
-        metrics::histogram!(
-            "external_node.batch_status_updater.loop_iteration",
-            start.elapsed()
-        );
+        total_latency.observe();
     }
 }

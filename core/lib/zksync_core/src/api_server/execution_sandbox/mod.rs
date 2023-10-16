@@ -1,5 +1,5 @@
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use tokio::runtime::Handle;
 
 use vm::utils::fee::derive_base_fee_and_gas_per_pubdata;
@@ -9,8 +9,6 @@ use zksync_state::{PostgresStorage, PostgresStorageCaches, ReadStorage, StorageV
 use zksync_types::{api, AccountTreeId, L2ChainId, MiniblockNumber, U256};
 use zksync_utils::bytecode::{compress_bytecode, hash_bytecode};
 
-use super::tx_sender::MultiVMBaseSystemContracts;
-
 // Note: keep the modules private, and instead re-export functions that make public interface.
 mod apply;
 mod error;
@@ -19,11 +17,14 @@ mod tracers;
 mod validate;
 mod vm_metrics;
 
+use self::vm_metrics::SandboxStage;
 pub(super) use self::{
     error::SandboxExecutionError,
     execute::{execute_tx_eth_call, execute_tx_with_pending_state, TxExecutionArgs},
     tracers::ApiTracer,
+    vm_metrics::{SubmitTxStage, SANDBOX_METRICS},
 };
+use super::tx_sender::MultiVMBaseSystemContracts;
 
 /// Permit to invoke VM code.
 ///
@@ -120,21 +121,20 @@ impl VmConcurrencyLimiter {
     /// Returns a permit that should be dropped when the VM execution is finished.
     pub async fn acquire(&self) -> Option<VmPermit> {
         let available_permits = self.limiter.available_permits();
-        metrics::histogram!(
-            "api.web3.sandbox.semaphore.permits",
-            available_permits as f64
-        );
+        SANDBOX_METRICS
+            .sandbox_execution_permits
+            .observe(available_permits);
 
-        let start = Instant::now();
+        let latency = SANDBOX_METRICS.sandbox[&SandboxStage::VmConcurrencyLimiterAcquire].start();
         let permit = Arc::clone(&self.limiter).acquire_owned().await.ok()?;
-        let elapsed = start.elapsed();
+        let elapsed = latency.observe();
         // We don't want to emit too many logs.
         if elapsed > Duration::from_millis(10) {
             tracing::debug!(
                 "Permit is obtained. Available permits: {available_permits}. Took {elapsed:?}"
             );
         }
-        metrics::histogram!("api.web3.sandbox", elapsed, "stage" => "vm_concurrency_limiter_acquire");
+
         Some(VmPermit {
             rt_handle: self.rt_handle.clone(),
             _permit: Arc::new(permit),

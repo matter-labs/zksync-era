@@ -1,10 +1,5 @@
-use std::fmt::Debug;
-
-use tokio::time::Instant;
-
 use zksync_contracts::verifier_contract;
 use zksync_eth_client::{types::Error as EthClientError, EthInterface};
-
 use zksync_types::{
     ethabi::{Contract, Token},
     vk_transform::l1_vk_commitment,
@@ -14,6 +9,8 @@ use zksync_types::{
     },
     Address, H256,
 };
+
+use super::metrics::METRICS;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -112,8 +109,7 @@ impl<E: EthInterface + Send + Sync + 'static> EthClient for EthHttpQueryClient<E
         to: BlockNumber,
         retries_left: usize,
     ) -> Result<Vec<Log>, Error> {
-        let start = Instant::now();
-
+        let latency = METRICS.get_priority_op_events.start();
         let mut result = self.get_filter_logs(from, to, self.topics.clone()).await;
 
         // This code is compatible with both Infura and Alchemy API providers.
@@ -183,7 +179,7 @@ impl<E: EthInterface + Send + Sync + 'static> EthClient for EthHttpQueryClient<E
             }
         }
 
-        metrics::histogram!("eth_watcher.get_priority_op_events", start.elapsed());
+        latency.observe();
         result
     }
 
