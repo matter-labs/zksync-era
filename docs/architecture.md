@@ -99,7 +99,7 @@ This section provides a physical map of folders & files in this repository.
 
 - `/bin` & `/infrastructure`: Infrastructure scripts that help to work with zkSync applications.
 
-- `/etc`: Configration files.
+- `/etc`: Configuration files.
 
   - `/env`:`.env` files that contain environment variables for different configurations of zkSync Server / Prover.
 
