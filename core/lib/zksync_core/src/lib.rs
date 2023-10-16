@@ -873,11 +873,8 @@ async fn add_basic_witness_input_producer(
         "Initialized BasicWitnessInputProducer in {:?}",
         started_at.elapsed()
     );
-    metrics::gauge!(
-    "server.init.latency",
-    started_at.elapsed(),
-    "stage" => format!("basic_witness_input_producer")
-    );
+    let elapsed = started_at.elapsed();
+    APP_METRICS.init_latency[&InitStage::BasicWitnessInputProducer].set(elapsed);
     Ok(())
 }
 

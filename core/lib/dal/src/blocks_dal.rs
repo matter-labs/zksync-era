@@ -15,7 +15,7 @@ use zksync_types::{
     Address, L1BatchNumber, LogQuery, MiniblockNumber, ProtocolVersionId, H256, MAX_GAS_PER_PUBDATA_BYTE,
     U256,
 };
-use zksync_utils::{be_bytes_to_safe_address, u256_to_account_address};
+use zksync_utils::be_bytes_to_safe_address;
 
 use crate::{
     instrument::InstrumentExt,
