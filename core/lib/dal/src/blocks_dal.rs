@@ -1436,10 +1436,10 @@ impl BlocksDal<'_, '_> {
         .await?
         .map(|row| {
             MiniblockNumber(row.max.unwrap_or_else(|| {
-                panic!(&format!(
+                panic!(
                     "l1_batch number {:?} must have a previous miniblock to start from",
                     l1_batch_number
-                ))
+                )
             }) as u32)
         }))
     }
