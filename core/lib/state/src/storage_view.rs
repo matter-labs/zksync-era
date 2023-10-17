@@ -49,7 +49,6 @@ pub struct StorageView<S> {
     // Cache for `contains_key()` checks. The cache is only valid within one L1 batch execution.
     initial_writes_cache: HashMap<StorageKey, bool>,
     metrics: StorageViewMetrics,
-    debug: Option<String>,
 }
 
 impl<S> StorageView<S> {
@@ -92,7 +91,6 @@ impl<S: ReadStorage + fmt::Debug> StorageView<S> {
             read_storage_keys: HashMap::new(),
             initial_writes_cache: HashMap::new(),
             metrics: StorageViewMetrics::default(),
-            debug: None,
         }
     }
 
@@ -145,9 +143,6 @@ impl<S: ReadStorage + fmt::Debug> ReadStorage for StorageView<S> {
             key.address(),
             key.key()
         );
-        if let Some(identifier) = &self.debug {
-            tracing::info!("EMIL -- {:?} -- read_value(key={:?})", identifier, key);
-        }
 
         self.metrics.time_spent_on_get_value += started_at.elapsed();
         value
@@ -156,13 +151,6 @@ impl<S: ReadStorage + fmt::Debug> ReadStorage for StorageView<S> {
     /// Only keys contained in the underlying storage will return `false`. If a key was
     /// inserted using [`Self::set_value()`], it will still return `true`.
     fn is_write_initial(&mut self, key: &StorageKey) -> bool {
-        if let Some(identifier) = &self.debug {
-            tracing::info!(
-                "EMIL -- {:?} -- is_write_initial(key={:?})",
-                identifier,
-                key
-            );
-        }
         if let Some(&is_write_initial) = self.initial_writes_cache.get(key) {
             is_write_initial
         } else {
@@ -173,13 +161,6 @@ impl<S: ReadStorage + fmt::Debug> ReadStorage for StorageView<S> {
     }
 
     fn load_factory_dep(&mut self, hash: H256) -> Option<Vec<u8>> {
-        if let Some(identifier) = &self.debug {
-            tracing::info!(
-                "EMIL -- {:?} -- load_factory_dep(hash={:?})",
-                identifier,
-                hash
-            );
-        }
         self.storage_handle.load_factory_dep(hash)
     }
 }
