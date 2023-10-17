@@ -17,15 +17,12 @@ use zksync_config::{configs::chain::StateKeeperConfig, constants::ZKPORTER_IS_AV
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes};
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
-    block::legacy_miniblock_hash,
-    block::miniblock_hash,
-    block::BlockGasCount,
-    block::MiniblockReexecuteData,
+    block::{legacy_miniblock_hash, miniblock_hash, BlockGasCount, MiniblockReexecuteData},
     commitment::{L1BatchMetaParameters, L1BatchMetadata},
     fee::Fee,
     l2::L2Tx,
     transaction_request::PaymasterParams,
-    tx::tx_execution_info::VmExecutionLogs,
+    tx::tx_execution_info::{ExecutionMetrics, VmExecutionLogs},
     Address, L1BatchNumber, L2ChainId, LogQuery, MiniblockNumber, Nonce, ProtocolVersionId,
     StorageLogQuery, StorageLogQueryType, Timestamp, Transaction, H256, U256,
 };
@@ -112,9 +109,9 @@ pub(super) fn default_vm_block_result() -> FinishedL1Batch {
     FinishedL1Batch {
         block_tip_execution_result: VmExecutionResultAndLogs {
             result: ExecutionResult::Success { output: vec![] },
-            logs: Default::default(),
-            statistics: Default::default(),
-            refunds: Default::default(),
+            logs: VmExecutionLogs::default(),
+            statistics: VmExecutionStatistics::default(),
+            refunds: vm::Refunds::default(),
         },
         final_execution_state: CurrentExecutionState {
             events: vec![],
@@ -192,7 +189,7 @@ pub(super) fn create_execution_result(
             computational_gas_used: 0,
             total_log_queries,
         },
-        refunds: Default::default(),
+        refunds: vm::Refunds::default(),
     }
 }
 
@@ -240,12 +237,11 @@ impl Query {
 async fn sealed_by_number_of_txs() {
     let config = StateKeeperConfig {
         transaction_slots: 2,
-        ..Default::default()
+        ..StateKeeperConfig::default()
     };
     let sealer = ConditionalSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
 
-    let scenario = TestScenario::new();
-    scenario
+    TestScenario::new()
         .seal_miniblock_when(|updates| updates.miniblock.executed_transactions.len() == 1)
         .next_tx("First tx", random_tx(1), successful_exec())
         .miniblock_sealed("Miniblock 1")
@@ -262,7 +258,7 @@ async fn sealed_by_gas() {
         max_single_tx_gas: 62_002,
         reject_tx_at_gas_percentage: 1.0,
         close_block_at_gas_percentage: 0.5,
-        ..Default::default()
+        ..StateKeeperConfig::default()
     };
     let sealer = ConditionalSealer::with_sealers(config, vec![Box::new(GasCriterion)]);
 
@@ -273,7 +269,7 @@ async fn sealed_by_gas() {
     };
     let execution_result = successful_exec_with_metrics(ExecutionMetricsForCriteria {
         l1_gas: l1_gas_per_tx,
-        execution_metrics: Default::default(),
+        execution_metrics: ExecutionMetrics::default(),
     });
 
     TestScenario::new()
@@ -311,7 +307,7 @@ async fn sealed_by_gas_then_by_num_tx() {
         reject_tx_at_gas_percentage: 1.0,
         close_block_at_gas_percentage: 0.5,
         transaction_slots: 3,
-        ..Default::default()
+        ..StateKeeperConfig::default()
     };
     let sealer = ConditionalSealer::with_sealers(
         config,
@@ -324,7 +320,7 @@ async fn sealed_by_gas_then_by_num_tx() {
             prove: 0,
             execute: 0,
         },
-        execution_metrics: Default::default(),
+        execution_metrics: ExecutionMetrics::default(),
     });
 
     // 1st tx is sealed by gas sealer; 2nd, 3rd, & 4th are sealed by slots sealer.
@@ -348,14 +344,12 @@ async fn sealed_by_gas_then_by_num_tx() {
 async fn batch_sealed_before_miniblock_does() {
     let config = StateKeeperConfig {
         transaction_slots: 2,
-        ..Default::default()
+        ..StateKeeperConfig::default()
     };
     let sealer = ConditionalSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
 
-    let scenario = TestScenario::new();
-
     // Miniblock sealer will not return true before the batch is sealed because the batch only has 2 txs.
-    scenario
+    TestScenario::new()
         .seal_miniblock_when(|updates| updates.miniblock.executed_transactions.len() == 3)
         .next_tx("First tx", random_tx(1), successful_exec())
         .next_tx("Second tx", random_tx(2), successful_exec())
@@ -372,29 +366,10 @@ async fn batch_sealed_before_miniblock_does() {
 }
 
 #[tokio::test]
-async fn basic_flow() {
-    let config = StateKeeperConfig {
-        transaction_slots: 2,
-        ..Default::default()
-    };
-    let sealer = ConditionalSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
-
-    TestScenario::new()
-        .seal_miniblock_when(|updates| updates.miniblock.executed_transactions.len() == 1)
-        .next_tx("First tx", random_tx(1), successful_exec())
-        .miniblock_sealed("Miniblock 1")
-        .next_tx("Second tx", random_tx(2), successful_exec())
-        .miniblock_sealed("Miniblock 2")
-        .batch_sealed("Batch 1")
-        .run(sealer)
-        .await;
-}
-
-#[tokio::test]
 async fn rejected_tx() {
     let config = StateKeeperConfig {
         transaction_slots: 2,
-        ..Default::default()
+        ..StateKeeperConfig::default()
     };
     let sealer = ConditionalSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
 
@@ -416,7 +391,7 @@ async fn rejected_tx() {
 async fn bootloader_tip_out_of_gas_flow() {
     let config = StateKeeperConfig {
         transaction_slots: 2,
-        ..Default::default()
+        ..StateKeeperConfig::default()
     };
     let sealer = ConditionalSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
 
@@ -454,7 +429,7 @@ async fn bootloader_tip_out_of_gas_flow() {
 async fn pending_batch_is_applied() {
     let config = StateKeeperConfig {
         transaction_slots: 3,
-        ..Default::default()
+        ..StateKeeperConfig::default()
     };
     let sealer = ConditionalSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
 
@@ -510,7 +485,7 @@ async fn unconditional_sealing() {
 
     let config = StateKeeperConfig {
         transaction_slots: 2,
-        ..Default::default()
+        ..StateKeeperConfig::default()
     };
     let sealer = ConditionalSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
 
@@ -540,7 +515,7 @@ async fn unconditional_sealing() {
 async fn miniblock_timestamp_after_pending_batch() {
     let config = StateKeeperConfig {
         transaction_slots: 2,
-        ..Default::default()
+        ..StateKeeperConfig::default()
     };
     let sealer = ConditionalSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
 
@@ -583,7 +558,7 @@ async fn time_is_monotonic() {
 
     let config = StateKeeperConfig {
         transaction_slots: 2,
-        ..Default::default()
+        ..StateKeeperConfig::default()
     };
     let sealer = ConditionalSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
 
@@ -634,7 +609,7 @@ async fn time_is_monotonic() {
 async fn protocol_upgrade() {
     let config = StateKeeperConfig {
         transaction_slots: 2,
-        ..Default::default()
+        ..StateKeeperConfig::default()
     };
     let sealer = ConditionalSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
 
