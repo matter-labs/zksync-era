@@ -10,8 +10,7 @@ CREATE TABLE IF NOT EXISTS basic_witness_input_producer_jobs
     updated_at            TIMESTAMP NOT NULL,
     processing_started_at TIMESTAMP,
     time_taken            TIME,
-    protocol_version      INT       REFERENCES protocol_versions (id)
-    );
+);
 
 CREATE INDEX IF NOT EXISTS idx_basic_witness_input_producer_jobs_status
     ON basic_witness_input_producer_jobs (status);

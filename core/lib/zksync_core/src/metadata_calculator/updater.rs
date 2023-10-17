@@ -209,7 +209,7 @@ impl TreeUpdater {
                     .expect("could not get get transaction from storage");
                 transaction
                     .basic_witness_input_producer_dal()
-                    .create_basic_witness_input_producer_job(l1_batch_number, protocol_version_id)
+                    .create_basic_witness_input_producer_job(l1_batch_number)
                     .await;
                 transaction
                     .proof_generation_dal()

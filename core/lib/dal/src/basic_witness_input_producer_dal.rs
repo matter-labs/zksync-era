@@ -43,17 +43,15 @@ impl BasicWitnessInputProducerDal<'_, '_> {
     pub async fn create_basic_witness_input_producer_job(
         &mut self,
         l1_batch_number: L1BatchNumber,
-        protocol_version: Option<ProtocolVersionId>,
     ) {
         sqlx::query!(
             "
                 INSERT INTO basic_witness_input_producer_jobs
-                    (l1_batch_number, status, protocol_version, created_at, updated_at)
-                VALUES ($1, $2, $3, now(), now())
+                    (l1_batch_number, status, created_at, updated_at)
+                VALUES ($1, $2, now(), now())
                 ",
             l1_batch_number.0 as i64,
             format!("{}", BasicWitnessInputProducerStatus::Queued),
-            protocol_version.map(|v| v as i32),
         )
         .instrument("create_basic_witness_input_producer_job")
         .report_latency()
