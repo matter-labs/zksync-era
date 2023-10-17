@@ -4,10 +4,10 @@ use std::time::Duration;
 
 use zksync_dal::ConnectionPool;
 use zksync_types::{L1BatchNumber, MiniblockNumber, H256};
-use zksync_web3_decl::{jsonrpsee::core::Error as RpcError, RpcResult};
+use zksync_web3_decl::jsonrpsee::core::Error as RpcError;
 
 use super::{
-    client::CachingMainNodeClient,
+    client::{CachingMainNodeClient, MainNodeClient},
     metrics::{FetchStage, L1BatchStage, FETCHER_METRICS},
     sync_action::{ActionQueueSender, SyncAction},
     SyncState,
@@ -31,7 +31,7 @@ pub struct MainNodeFetcher {
 impl MainNodeFetcher {
     pub async fn new(
         pool: ConnectionPool,
-        main_node_url: &str,
+        client: Box<dyn MainNodeClient>,
         actions: ActionQueueSender,
         sync_state: SyncState,
         stop_receiver: watch::Receiver<bool>,
@@ -63,10 +63,8 @@ impl MainNodeFetcher {
             last_sealed_l1_batch_header.number
         };
 
-        let client = CachingMainNodeClient::new(main_node_url);
-
         Self {
-            client,
+            client: CachingMainNodeClient::new(client),
             current_l1_batch,
             current_miniblock,
             actions,
@@ -88,13 +86,16 @@ impl MainNodeFetcher {
                     tracing::info!("Stop signal received, exiting the fetcher routine");
                     return Ok(());
                 }
-                Err(err @ RpcError::Transport(_) | err @ RpcError::RequestTimeout) => {
-                    tracing::warn!("Following transport error occurred: {err}");
-                    tracing::info!("Trying again after a delay");
-                    tokio::time::sleep(RETRY_DELAY_INTERVAL).await; // TODO (BFT-100): Implement the fibonacci backoff.
-                }
                 Err(err) => {
-                    anyhow::bail!("Unexpected error in the fetcher: {err}");
+                    if let Some(err @ RpcError::Transport(_) | err @ RpcError::RequestTimeout) =
+                        err.downcast_ref::<RpcError>()
+                    {
+                        tracing::warn!("Following transport error occurred: {err}");
+                        tracing::info!("Trying again after a delay");
+                        tokio::time::sleep(RETRY_DELAY_INTERVAL).await; // TODO (BFT-100): Implement the fibonacci backoff.
+                    } else {
+                        return Err(err.context("Unexpected error in the fetcher"));
+                    }
                 }
             }
         }
@@ -104,16 +105,14 @@ impl MainNodeFetcher {
         *self.stop_receiver.borrow()
     }
 
-    async fn run_inner(&mut self) -> RpcResult<()> {
+    async fn run_inner(&mut self) -> anyhow::Result<()> {
         loop {
             if self.check_if_cancelled() {
                 return Ok(());
             }
 
             let mut progressed = false;
-
-            let last_main_node_block =
-                MiniblockNumber(self.client.get_block_number().await?.as_u32());
+            let last_main_node_block = self.client.get_block_number().await?;
             self.sync_state.set_main_node_block(last_main_node_block);
 
             self.client
@@ -139,7 +138,7 @@ impl MainNodeFetcher {
 
     /// Tries to fetch the next miniblock and insert it to the sync queue.
     /// Returns `true` if a miniblock was processed and `false` otherwise.
-    async fn fetch_next_miniblock(&mut self) -> RpcResult<bool> {
+    async fn fetch_next_miniblock(&mut self) -> anyhow::Result<bool> {
         let total_latency = FETCHER_METRICS.fetch_next_miniblock.start();
         let request_latency = FETCHER_METRICS.requests[&FetchStage::SyncL2Block].start();
         let Some(block) = self.client.sync_l2_block(self.current_miniblock).await? else {

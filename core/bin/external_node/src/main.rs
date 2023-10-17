@@ -99,7 +99,7 @@ async fn init_tasks(
         .required
         .main_node_url()
         .expect("Main node URL is incorrect");
-    let (stop_sender, stop_receiver) = watch::channel::<bool>(false);
+    let (stop_sender, stop_receiver) = watch::channel(false);
     let mut healthchecks: Vec<Box<dyn CheckHealth>> = Vec::new();
     // Create components.
     let gas_adjuster = Arc::new(MainNodeGasPriceFetcher::new(&main_node_url));
@@ -118,13 +118,15 @@ async fn init_tasks(
     )
     .await;
 
+    let main_node_client = <dyn MainNodeClient>::json_rpc(&main_node_url)
+        .context("Failed creating JSON-RPC client for main node")?;
     let singleton_pool_builder = ConnectionPool::singleton(DbVariant::Master);
     let fetcher = MainNodeFetcher::new(
         singleton_pool_builder
             .build()
             .await
             .context("failed to build a connection pool for MainNodeFetcher")?,
-        &main_node_url,
+        Box::new(main_node_client),
         action_queue_sender,
         sync_state.clone(),
         stop_receiver.clone(),

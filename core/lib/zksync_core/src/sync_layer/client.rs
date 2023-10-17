@@ -3,7 +3,7 @@
 use anyhow::Context as _;
 use async_trait::async_trait;
 
-use std::{collections::HashMap, fmt};
+use std::{collections::HashMap, convert::TryInto, fmt};
 use zksync_config::constants::ACCOUNT_CODE_STORAGE_ADDRESS;
 
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes, SystemContractCode};
@@ -14,7 +14,6 @@ use zksync_types::{
 use zksync_web3_decl::{
     jsonrpsee::http_client::{HttpClient, HttpClientBuilder},
     namespaces::{EnNamespaceClient, EthNamespaceClient, ZksNamespaceClient},
-    RpcResult,
 };
 
 use super::metrics::{CachedMethod, FETCHER_METRICS};
@@ -54,6 +53,8 @@ pub trait MainNodeClient: 'static + Send + Sync + fmt::Debug {
 
     async fn fetch_genesis_l1_batch_hash(&self) -> anyhow::Result<H256>;
 
+    async fn fetch_l2_block_number(&self) -> anyhow::Result<MiniblockNumber>;
+
     async fn fetch_l2_block(
         &self,
         number: MiniblockNumber,
@@ -62,6 +63,7 @@ pub trait MainNodeClient: 'static + Send + Sync + fmt::Debug {
 }
 
 impl dyn MainNodeClient {
+    /// Creates a client based on JSON-RPC.
     pub fn json_rpc(url: &str) -> anyhow::Result<HttpClient> {
         HttpClientBuilder::default().build(url).map_err(Into::into)
     }
@@ -133,6 +135,11 @@ impl MainNodeClient for HttpClient {
             .context("empty genesis block hash")
     }
 
+    async fn fetch_l2_block_number(&self) -> anyhow::Result<MiniblockNumber> {
+        let U64([number]) = self.get_block_number().await?;
+        Ok(MiniblockNumber(number.try_into()?))
+    }
+
     async fn fetch_l2_block(
         &self,
         number: MiniblockNumber,
@@ -158,18 +165,14 @@ impl MainNodeClient for HttpClient {
 /// fetcher routine, most likely it'll be a cache miss.
 #[derive(Debug)]
 pub(super) struct CachingMainNodeClient {
-    /// HTTP client.
-    client: HttpClient,
+    client: Box<dyn MainNodeClient>,
     /// Earliest miniblock number that is not yet cached. Used as a marker to refill the cache.
     next_refill_at: MiniblockNumber,
     blocks: HashMap<MiniblockNumber, SyncBlock>,
 }
 
 impl CachingMainNodeClient {
-    pub fn new(main_node_url: &str) -> Self {
-        let client = HttpClientBuilder::default()
-            .build(main_node_url)
-            .expect("Unable to create a main node client");
+    pub fn new(client: Box<dyn MainNodeClient>) -> Self {
         Self {
             client,
             next_refill_at: MiniblockNumber(0),
@@ -178,7 +181,10 @@ impl CachingMainNodeClient {
     }
 
     /// Cached version of [`HttpClient::sync_l2_block`].
-    pub async fn sync_l2_block(&self, miniblock: MiniblockNumber) -> RpcResult<Option<SyncBlock>> {
+    pub async fn sync_l2_block(
+        &self,
+        miniblock: MiniblockNumber,
+    ) -> anyhow::Result<Option<SyncBlock>> {
         let block = self.blocks.get(&miniblock).cloned();
         FETCHER_METRICS.cache_total[&CachedMethod::SyncL2Block].inc();
         match block {
@@ -186,13 +192,13 @@ impl CachingMainNodeClient {
                 FETCHER_METRICS.cache_hit[&CachedMethod::SyncL2Block].inc();
                 Ok(Some(block))
             }
-            None => self.client.sync_l2_block(miniblock, true).await,
+            None => self.client.fetch_l2_block(miniblock, true).await,
         }
     }
 
     /// Re-export of [`HttpClient::get_block_number`]. Added to not expose the internal client.
-    pub async fn get_block_number(&self) -> RpcResult<U64> {
-        self.client.get_block_number().await
+    pub async fn get_block_number(&self) -> anyhow::Result<MiniblockNumber> {
+        self.client.fetch_l2_block_number().await
     }
 
     /// Removes a miniblock data from the cache.
@@ -220,7 +226,7 @@ impl CachingMainNodeClient {
                 // If the miniblock is already in the cache, we don't need to fetch it.
                 !self.has_miniblock(miniblock)
             })
-            .map(|block_number| self.client.sync_l2_block(block_number, true));
+            .map(|block_number| self.client.fetch_l2_block(block_number, true));
 
         let results = futures::future::join_all(task_futures).await;
         for result in results {

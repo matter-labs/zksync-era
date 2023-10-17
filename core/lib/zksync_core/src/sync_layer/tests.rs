@@ -12,8 +12,7 @@ use db_test_macro::db_test;
 use zksync_contracts::SystemContractCode;
 use zksync_dal::ConnectionPool;
 use zksync_types::{
-    api::{self, en::SyncBlock},
-    Address, L1BatchNumber, L2ChainId, MiniblockNumber, ProtocolVersionId, H256,
+    api, Address, L1BatchNumber, L2ChainId, MiniblockNumber, ProtocolVersionId, H256,
 };
 
 use super::{
@@ -61,11 +60,15 @@ impl MainNodeClient for MockMainNodeClient {
         anyhow::bail!("Not implemented");
     }
 
+    async fn fetch_l2_block_number(&self) -> anyhow::Result<MiniblockNumber> {
+        anyhow::bail!("Not implemented");
+    }
+
     async fn fetch_l2_block(
         &self,
         _number: MiniblockNumber,
         _with_transactions: bool,
-    ) -> anyhow::Result<Option<SyncBlock>> {
+    ) -> anyhow::Result<Option<api::en::SyncBlock>> {
         anyhow::bail!("Not implemented");
     }
 }
