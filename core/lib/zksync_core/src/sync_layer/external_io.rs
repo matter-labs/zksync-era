@@ -18,10 +18,7 @@ use zksync_types::{
 use zksync_utils::{be_words_to_bytes, bytes_to_be_words};
 
 use super::{
-    genesis::{
-        fetch_protocol_version, fetch_sync_block_without_transactions,
-        fetch_system_contract_by_hash,
-    },
+    client::MainNodeClient,
     sync_action::{ActionQueue, SyncAction},
     SyncState,
 };
@@ -56,7 +53,7 @@ pub struct ExternalIO {
     current_miniblock_number: MiniblockNumber,
     actions: ActionQueue,
     sync_state: SyncState,
-    main_node_url: String,
+    main_node_client: Box<dyn MainNodeClient>,
 
     /// Required to extract newly added tokens.
     l2_erc20_bridge_addr: Address,
@@ -70,7 +67,7 @@ impl ExternalIO {
         pool: ConnectionPool,
         actions: ActionQueue,
         sync_state: SyncState,
-        main_node_url: String,
+        main_node_client: Box<dyn MainNodeClient>,
         l2_erc20_bridge_addr: Address,
         validation_computational_gas_limit: u32,
         chain_id: L2ChainId,
@@ -102,7 +99,7 @@ impl ExternalIO {
             current_miniblock_number: last_miniblock_number + 1,
             actions,
             sync_state,
-            main_node_url,
+            main_node_client,
             l2_erc20_bridge_addr,
             validation_computational_gas_limit,
             chain_id,
@@ -194,7 +191,9 @@ impl ExternalIO {
         match base_system_contracts {
             Some(version) => version,
             None => {
-                let protocol_version = fetch_protocol_version(&self.main_node_url, id)
+                let protocol_version = self
+                    .main_node_client
+                    .fetch_protocol_version(id)
                     .await
                     .expect("Failed to fetch protocol version from the main node");
                 self.pool
@@ -216,11 +215,9 @@ impl ExternalIO {
                 let bootloader = self
                     .get_base_system_contract(protocol_version.base_system_contracts.bootloader)
                     .await;
-
                 let default_aa = self
                     .get_base_system_contract(protocol_version.base_system_contracts.default_aa)
                     .await;
-
                 BaseSystemContracts {
                     bootloader,
                     default_aa,
@@ -245,9 +242,10 @@ impl ExternalIO {
                 hash,
             },
             None => {
-                let main_node_url = self.main_node_url.clone();
                 tracing::info!("Fetching base system contract bytecode from the main node");
-                let contract = fetch_system_contract_by_hash(&main_node_url, hash)
+                let contract = self
+                    .main_node_client
+                    .fetch_system_contract_by_hash(hash)
                     .await
                     .expect("Failed to fetch base system contract bytecode from the main node");
                 self.pool
@@ -321,14 +319,13 @@ impl StateKeeperIO for ExternalIO {
             .unwrap()?;
 
         if pending_miniblock_header.protocol_version.is_none() {
-            // Fetch protocol version ID for pending miniblocks to know which VM to use to reexecute them.
-            let sync_block = fetch_sync_block_without_transactions(
-                &self.main_node_url,
-                pending_miniblock_header.number,
-            )
-            .await
-            .expect("Failed to fetch block from the main node")
-            .expect("Block must exist");
+            // Fetch protocol version ID for pending miniblocks to know which VM to use to re-execute them.
+            let sync_block = self
+                .main_node_client
+                .fetch_l2_block(pending_miniblock_header.number, false)
+                .await
+                .expect("Failed to fetch block from the main node")
+                .expect("Block must exist");
             // Loading base system contracts will insert protocol version in the database if it's not present there.
             let _ = self
                 .load_base_system_contracts_by_version_id(sync_block.protocol_version)

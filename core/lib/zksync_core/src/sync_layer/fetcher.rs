@@ -7,7 +7,7 @@ use zksync_types::{L1BatchNumber, MiniblockNumber, H256};
 use zksync_web3_decl::{jsonrpsee::core::Error as RpcError, RpcResult};
 
 use super::{
-    cached_main_node_client::CachedMainNodeClient,
+    client::CachingMainNodeClient,
     metrics::{FetchStage, L1BatchStage, FETCHER_METRICS},
     sync_action::{ActionQueueSender, SyncAction},
     SyncState,
@@ -20,7 +20,7 @@ const RETRY_DELAY_INTERVAL: Duration = Duration::from_secs(5);
 /// Structure responsible for fetching batches and miniblock data from the main node.
 #[derive(Debug)]
 pub struct MainNodeFetcher {
-    client: CachedMainNodeClient,
+    client: CachingMainNodeClient,
     current_l1_batch: L1BatchNumber,
     current_miniblock: MiniblockNumber,
     actions: ActionQueueSender,
@@ -63,7 +63,7 @@ impl MainNodeFetcher {
             last_sealed_l1_batch_header.number
         };
 
-        let client = CachedMainNodeClient::build_client(main_node_url);
+        let client = CachingMainNodeClient::new(main_node_url);
 
         Self {
             client,
@@ -89,12 +89,12 @@ impl MainNodeFetcher {
                     return Ok(());
                 }
                 Err(err @ RpcError::Transport(_) | err @ RpcError::RequestTimeout) => {
-                    tracing::warn!("Following transport error occurred: {}", err);
+                    tracing::warn!("Following transport error occurred: {err}");
                     tracing::info!("Trying again after a delay");
                     tokio::time::sleep(RETRY_DELAY_INTERVAL).await; // TODO (BFT-100): Implement the fibonacci backoff.
                 }
                 Err(err) => {
-                    anyhow::bail!("Unexpected error in the fetcher: {}", err);
+                    anyhow::bail!("Unexpected error in the fetcher: {err}");
                 }
             }
         }

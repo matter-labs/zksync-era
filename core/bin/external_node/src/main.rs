@@ -24,7 +24,8 @@ use zksync_core::{
     state_keeper::{L1BatchExecutorBuilder, MainBatchExecutorBuilder, ZkSyncStateKeeper},
     sync_layer::{
         batch_status_updater::BatchStatusUpdater, external_io::ExternalIO,
-        fetcher::MainNodeFetcher, genesis::perform_genesis_if_needed, ActionQueue, SyncState,
+        fetcher::MainNodeFetcher, genesis::perform_genesis_if_needed, ActionQueue, MainNodeClient,
+        SyncState,
     },
 };
 use zksync_dal::{connection::DbVariant, healthcheck::ConnectionPoolHealthCheck, ConnectionPool};
@@ -49,8 +50,6 @@ async fn build_state_keeper(
     stop_receiver: watch::Receiver<bool>,
     chain_id: L2ChainId,
 ) -> ZkSyncStateKeeper {
-    let main_node_url = config.required.main_node_url().unwrap();
-
     // These config values are used on the main node, and depending on these values certain transactions can
     // be *rejected* (that is, not included into the block). However, external node only mirrors what the main
     // node has already executed, so we can safely set these values to the maximum possible values - if the main
@@ -70,21 +69,22 @@ async fn build_state_keeper(
             config.optional.enum_index_migration_chunk_size,
         ));
 
-    let io = Box::new(
-        ExternalIO::new(
-            connection_pool,
-            action_queue,
-            sync_state,
-            main_node_url,
-            l2_erc20_bridge_addr,
-            validation_computational_gas_limit,
-            chain_id,
-        )
-        .await,
-    );
+    let main_node_url = config.required.main_node_url().unwrap();
+    let main_node_client = <dyn MainNodeClient>::json_rpc(&main_node_url)
+        .expect("Failed creating JSON-RPC client for main node");
+    let io = ExternalIO::new(
+        connection_pool,
+        action_queue,
+        sync_state,
+        Box::new(main_node_client),
+        l2_erc20_bridge_addr,
+        validation_computational_gas_limit,
+        chain_id,
+    )
+    .await;
     io.recalculate_miniblock_hashes().await;
 
-    ZkSyncStateKeeper::without_sealer(stop_receiver, io, batch_executor_base)
+    ZkSyncStateKeeper::without_sealer(stop_receiver, Box::new(io), batch_executor_base)
 }
 
 async fn init_tasks(
@@ -379,10 +379,12 @@ async fn main() -> anyhow::Result<()> {
     tracing::info!("Main node URL is: {}", main_node_url);
 
     // Make sure that genesis is performed.
+    let main_node_client = <dyn MainNodeClient>::json_rpc(&main_node_url)
+        .context("Failed creating JSON-RPC client for main node")?;
     perform_genesis_if_needed(
         &mut connection_pool.access_storage().await.unwrap(),
         config.remote.l2_chain_id,
-        main_node_url.clone(),
+        &main_node_client,
     )
     .await
     .context("Performing genesis failed")?;

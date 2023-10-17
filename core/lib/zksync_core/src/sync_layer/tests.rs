@@ -1,10 +1,19 @@
 //! High-level sync layer tests.
 
+use async_trait::async_trait;
 use tokio::{sync::watch, task::JoinHandle};
 
 use std::{
     iter,
     time::{Duration, Instant},
+};
+
+use db_test_macro::db_test;
+use zksync_contracts::SystemContractCode;
+use zksync_dal::ConnectionPool;
+use zksync_types::{
+    api::{self, en::SyncBlock},
+    Address, L1BatchNumber, L2ChainId, MiniblockNumber, ProtocolVersionId, H256,
 };
 
 use super::{
@@ -18,12 +27,48 @@ use crate::{
         ZkSyncStateKeeper,
     },
 };
-use db_test_macro::db_test;
-use zksync_dal::ConnectionPool;
-use zksync_types::{Address, L1BatchNumber, L2ChainId, MiniblockNumber, ProtocolVersionId, H256};
 
 const TEST_TIMEOUT: Duration = Duration::from_secs(10);
 const POLL_INTERVAL: Duration = Duration::from_millis(50);
+
+#[derive(Debug)]
+struct MockMainNodeClient;
+
+#[async_trait]
+impl MainNodeClient for MockMainNodeClient {
+    async fn fetch_system_contract_by_hash(
+        &self,
+        _hash: H256,
+    ) -> anyhow::Result<SystemContractCode> {
+        anyhow::bail!("Not implemented");
+    }
+
+    async fn fetch_genesis_contract_bytecode(
+        &self,
+        _address: Address,
+    ) -> anyhow::Result<Option<Vec<u8>>> {
+        anyhow::bail!("Not implemented");
+    }
+
+    async fn fetch_protocol_version(
+        &self,
+        _protocol_version: ProtocolVersionId,
+    ) -> anyhow::Result<api::ProtocolVersion> {
+        anyhow::bail!("Not implemented");
+    }
+
+    async fn fetch_genesis_l1_batch_hash(&self) -> anyhow::Result<H256> {
+        anyhow::bail!("Not implemented");
+    }
+
+    async fn fetch_l2_block(
+        &self,
+        _number: MiniblockNumber,
+        _with_transactions: bool,
+    ) -> anyhow::Result<Option<SyncBlock>> {
+        anyhow::bail!("Not implemented");
+    }
+}
 
 fn open_l1_batch(number: u32, timestamp: u64, first_miniblock_number: u32) -> SyncAction {
     SyncAction::OpenBatch {
@@ -91,7 +136,7 @@ async fn run_state_keeper(pool: ConnectionPool, tx_hashes: &[&[H256]]) -> StateK
         pool,
         actions,
         sync_state.clone(),
-        String::new(), // `main_node_url`; not used
+        Box::new(MockMainNodeClient),
         Address::repeat_byte(1),
         u32::MAX,
         L2ChainId::default(),
