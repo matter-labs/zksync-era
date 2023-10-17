@@ -153,12 +153,15 @@ pub(crate) async fn load_pending_batch(
     )
     .await?;
 
-    // let pending_miniblocks = load_pending_miniblocks(storage).await;
+    let pending_miniblocks = storage
+        .transactions_dal()
+        .get_miniblocks_to_reexecute()
+        .await;
 
     Some(PendingBatchData {
         l1_batch_env,
         system_env,
-        pending_miniblocks: vec![],
+        pending_miniblocks: pending_miniblocks,
     })
 }
 
