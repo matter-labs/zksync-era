@@ -129,25 +129,26 @@ impl StorageWritesDeduplicator {
                     let value_size = compress_with_best_strategy(initial_value, new_value).len();
                     let old_value = self
                         .modified_key_values
-                        .get(&key)
-                        .unwrap_or_else(|| panic!("key {:?} doesn't exist on update", key));
+                        .insert(
+                            key,
+                            ModifiedSlot {
+                                value: new_value,
+                                tx_index: log.log_query.tx_number_in_block,
+                                size: value_size,
+                            },
+                        )
+                        .unwrap_or_else(|| {
+                            panic!("tried removing key: {:?} before insertion", key)
+                        });
+
                     updates.push(UpdateItem {
                         key,
-                        update_type: UpdateType::Update(*old_value),
+                        update_type: UpdateType::Update(old_value),
                         is_write_initial,
                     });
 
                     *total_size -= old_value.size;
                     *total_size += value_size;
-
-                    self.modified_key_values.insert(
-                        key,
-                        ModifiedSlot {
-                            value: new_value,
-                            tx_index: log.log_query.tx_number_in_block,
-                            size: value_size,
-                        },
-                    );
                 }
                 (false, Some(new_value)) => {
                     let value_size = compress_with_best_strategy(initial_value, new_value).len();
@@ -188,7 +189,9 @@ impl StorageWritesDeduplicator {
                     let value = self
                         .modified_key_values
                         .remove(&item.key)
-                        .unwrap_or_default();
+                        .unwrap_or_else(|| {
+                            panic!("tried removing key: {:?} before insertion", item.key)
+                        });
                     *field_to_change -= 1;
                     *total_size -= value.size;
                 }
@@ -196,7 +199,9 @@ impl StorageWritesDeduplicator {
                     let old_value = self
                         .modified_key_values
                         .insert(item.key, value)
-                        .unwrap_or_default();
+                        .unwrap_or_else(|| {
+                            panic!("tried removing key: {:?} before insertion", item.key)
+                        });
                     *total_size += value.size;
                     *total_size -= old_value.size;
                 }

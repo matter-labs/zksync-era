@@ -95,14 +95,8 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
     }
 
     fn set_initial_value(&mut self, storage_key: &StorageKey, value: U256, timestamp: Timestamp) {
-        if self.get_initial_value(storage_key).is_none() {
-            self.initial_values.apply_historic_record(
-                HashMapHistoryEvent {
-                    key: *storage_key,
-                    value: Some(value),
-                },
-                timestamp,
-            );
+        if !self.initial_values.inner().contains_key(&storage_key) {
+            self.initial_values.insert(*storage_key, value, timestamp);
         }
     }
 
@@ -112,7 +106,7 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
 
         query.read_value = current_value;
 
-        self.set_initial_value(&key, current_value, Timestamp(0));
+        self.set_initial_value(&key, current_value, query.timestamp);
 
         self.frames_stack.push_forward(
             Box::new(StorageLogQuery {
