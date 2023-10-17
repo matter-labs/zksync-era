@@ -156,6 +156,32 @@ pub struct L1VerifierConfig {
     pub recursion_scheduler_level_vk_hash: H256,
 }
 
+/// Represents a call to be made during governance operation.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Call {
+    /// The address to which the call will be made.
+    pub target: Address,
+    ///  The amount of Ether (in wei) to be sent along with the call.
+    pub value: U256,
+    /// The calldata to be executed on the `target` address.
+    pub data: Vec<u8>,
+    /// Hash of the corresponding Ethereum transaction. Size should be 32 bytes.
+    pub eth_hash: H256,
+    /// Block in which Ethereum transaction was included.
+    pub eth_block: u64,
+}
+
+/// Defines the structure of an operation that Governance contract executes.
+#[derive(Debug, Clone, Default)]
+pub struct GovernanceOperation {
+    /// An array of `Call` structs, each representing a call to be made during the operation.
+    pub calls: Vec<Call>,
+    /// The hash of the predecessor operation, that should be executed before this operation.
+    pub predecessor: H256,
+    /// The value used for creating unique operation hashes.
+    pub salt: H256,
+}
+
 /// Protocol upgrade proposal from L1.
 /// Most of the fields are optional meaning if value is none
 /// then this field is not changed within an upgrade.
@@ -405,6 +431,87 @@ impl TryFrom<Log> for ProtocolUpgrade {
             timestamp: timestamp.as_u64(),
             tx,
         })
+    }
+}
+
+impl TryFrom<Log> for GovernanceOperation {
+    type Error = crate::ethabi::Error;
+
+    fn try_from(event: Log) -> Result<Self, Self::Error> {
+        let call_param_type = ParamType::Tuple(vec![
+            ParamType::Address,
+            ParamType::Uint(256),
+            ParamType::Bytes,
+        ]);
+
+        let operation_param_type = ParamType::Tuple(vec![
+            ParamType::Array(Box::new(call_param_type)),
+            ParamType::FixedBytes(32),
+            ParamType::FixedBytes(32),
+        ]);
+        let mut decoded = decode(&[ParamType::Uint(256), operation_param_type], &event.data.0)?;
+        decoded = decoded.remove(1).into_tuple().unwrap();
+
+        let eth_hash = event
+            .transaction_hash
+            .expect("Event transaction hash is missing");
+        let eth_block = event
+            .block_number
+            .expect("Event block number is missing")
+            .as_u64();
+
+        let calls = decoded.remove(0).into_array().unwrap();
+        let predecessor = H256::from_slice(&decoded.remove(0).into_fixed_bytes().unwrap());
+        let salt = H256::from_slice(&decoded.remove(0).into_fixed_bytes().unwrap());
+
+        let calls = calls
+            .into_iter()
+            .map(|call| {
+                let mut decoded = call.into_tuple().unwrap();
+
+                Call {
+                    target: decoded.remove(0).into_address().unwrap(),
+                    value: decoded.remove(0).into_uint().unwrap(),
+                    data: decoded.remove(0).into_bytes().unwrap(),
+                    eth_hash,
+                    eth_block,
+                }
+            })
+            .collect();
+
+        Ok(Self {
+            calls,
+            predecessor,
+            salt,
+        })
+    }
+}
+
+impl TryFrom<Call> for ProtocolUpgrade {
+    type Error = crate::ethabi::Error;
+
+    fn try_from(call: Call) -> Result<Self, Self::Error> {
+        let data = call
+            .data
+            .into_iter()
+            .skip(4)
+            .chain(encode(&[Token::FixedBytes(H256::zero().0.to_vec())]))
+            .collect::<Vec<u8>>()
+            .into();
+        let log = Log {
+            address: Default::default(),
+            topics: Default::default(),
+            data,
+            block_hash: Default::default(),
+            block_number: Some(call.eth_block.into()),
+            transaction_hash: Some(call.eth_hash),
+            transaction_index: Default::default(),
+            log_index: Default::default(),
+            transaction_log_index: Default::default(),
+            log_type: Default::default(),
+            removed: Default::default(),
+        };
+        ProtocolUpgrade::try_from(log)
     }
 }
 

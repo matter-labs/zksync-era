@@ -26,6 +26,7 @@ mod tests;
 use self::{
     client::{Error, EthClient, EthHttpQueryClient, RETRY_LIMIT},
     event_processors::{
+        governance_upgrades::GovernanceUpgradesEventProcessor,
         priority_ops::PriorityOpsEventProcessor, upgrades::UpgradesEventProcessor, EventProcessor,
     },
     metrics::{PollStage, METRICS},
@@ -48,7 +49,12 @@ pub struct EthWatch<W: EthClient + Sync> {
 }
 
 impl<W: EthClient + Sync> EthWatch<W> {
-    pub async fn new(mut client: W, pool: &ConnectionPool, poll_interval: Duration) -> Self {
+    pub async fn new(
+        diamond_proxy_address: Address,
+        mut client: W,
+        pool: &ConnectionPool,
+        poll_interval: Duration,
+    ) -> Self {
         let mut storage = pool.access_storage_tagged("eth_watch").await.unwrap();
 
         let state = Self::initialize_state(&client, &mut storage).await;
@@ -58,10 +64,17 @@ impl<W: EthClient + Sync> EthWatch<W> {
         let priority_ops_processor =
             PriorityOpsEventProcessor::new(state.next_expected_priority_id);
         let upgrades_processor = UpgradesEventProcessor::new(state.last_seen_version_id);
-        let event_processors: Vec<Box<dyn EventProcessor<W>>> = vec![
+        let mut event_processors: Vec<Box<dyn EventProcessor<W>>> = vec![
             Box::new(priority_ops_processor),
             Box::new(upgrades_processor),
         ];
+        let governance_upgrades_processor = GovernanceUpgradesEventProcessor::new(
+            diamond_proxy_address,
+            state.last_seen_version_id,
+        );
+        if let Some(governance_upgrades_processor) = governance_upgrades_processor {
+            event_processors.push(Box::new(governance_upgrades_processor))
+        }
 
         let topics = event_processors
             .iter()
@@ -174,16 +187,24 @@ pub async fn start_eth_watch<E: EthInterface + Send + Sync + 'static>(
     pool: ConnectionPool,
     eth_gateway: E,
     diamond_proxy_addr: Address,
+    governance_addr: Option<Address>,
     stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<JoinHandle<anyhow::Result<()>>> {
     let eth_watch = ETHWatchConfig::from_env().context("ETHWatchConfig::from_env()")?;
     let eth_client = EthHttpQueryClient::new(
         eth_gateway,
         diamond_proxy_addr,
+        governance_addr,
         eth_watch.confirmations_for_eth_event,
     );
 
-    let mut eth_watch = EthWatch::new(eth_client, &pool, eth_watch.poll_interval()).await;
+    let mut eth_watch = EthWatch::new(
+        diamond_proxy_addr,
+        eth_client,
+        &pool,
+        eth_watch.poll_interval(),
+    )
+    .await;
 
     Ok(tokio::spawn(async move {
         eth_watch.run(pool, stop_receiver).await

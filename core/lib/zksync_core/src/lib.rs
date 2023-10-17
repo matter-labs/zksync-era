@@ -501,6 +501,7 @@ pub async fn initialize_components(
                 eth_watch_pool,
                 query_client.clone(),
                 main_zksync_contract_address,
+                contracts_config.governance_addr,
                 stop_receiver.clone(),
             )
             .await
