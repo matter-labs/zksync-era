@@ -17,6 +17,7 @@ zksync_dal = { path = "../dal" }
 zksync_config = { path = "../config" }
 zksync_utils = { path = "../utils" }
 zksync_contracts = { path = "../contracts" }
+zksync_commitment_utils = { path = "../commitment_utils" }
 zksync_eth_client = { path = "../eth_client" }
 zksync_eth_signer = { path = "../eth_signer" }
 zksync_mempool = { path = "../mempool" }

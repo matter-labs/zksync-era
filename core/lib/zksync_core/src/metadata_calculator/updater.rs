@@ -5,12 +5,13 @@ use tokio::sync::watch;
 
 use std::{ops, time::Instant};
 
+use zksync_commitment_utils::{bootloader_initial_content_commitment, events_queue_commitment};
 use zksync_config::configs::database::MerkleTreeMode;
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_health_check::HealthUpdater;
 use zksync_merkle_tree::domain::TreeMetadata;
 use zksync_object_store::ObjectStore;
-use zksync_types::{block::L1BatchHeader, writes::InitialStorageWrite, L1BatchNumber, U256};
+use zksync_types::{block::L1BatchHeader, writes::InitialStorageWrite, L1BatchNumber, H256, U256};
 
 use super::{
     helpers::{AsyncTree, Delayer, L1BatchWithLogs, TreeHealthCheckDetails},
@@ -133,17 +134,31 @@ impl TreeUpdater {
             let ((header, metadata, object_key), next_l1_batch_data) =
                 future::join(process_l1_batch_task, load_next_l1_batch_task).await;
 
-            let prepare_results_latency = METRICS.start_stage(TreeUpdateStage::PrepareResults);
+            let check_consistency_latency = METRICS.start_stage(TreeUpdateStage::CheckConsistency);
             Self::check_initial_writes_consistency(
                 storage,
                 header.number,
                 &metadata.initial_writes,
             )
             .await;
-            let metadata = MetadataCalculator::build_l1_batch_metadata(metadata, &header);
-            prepare_results_latency.observe();
+            check_consistency_latency.observe();
 
+            let (events_queue_commitment, bootloader_initial_content_commitment) =
+                self.calculate_commitments(storage, &header).await;
+
+            let build_metadata_latency = METRICS.start_stage(TreeUpdateStage::BuildMetadata);
+            let metadata = MetadataCalculator::build_l1_batch_metadata(
+                metadata,
+                &header,
+                events_queue_commitment,
+                bootloader_initial_content_commitment,
+            );
+            build_metadata_latency.observe();
+
+            let reestimate_gas_cost_latency =
+                METRICS.start_stage(TreeUpdateStage::ReestimateGasCost);
             MetadataCalculator::reestimate_l1_batch_commit_gas(storage, &header, &metadata).await;
+            reestimate_gas_cost_latency.observe();
 
             let save_postgres_latency = METRICS.start_stage(TreeUpdateStage::SavePostgres);
             storage
@@ -202,6 +217,47 @@ impl TreeUpdater {
         MetadataCalculator::update_metrics(&updated_headers, total_logs, start);
 
         last_l1_batch_number + 1
+    }
+
+    async fn calculate_commitments(
+        &self,
+        conn: &mut StorageProcessor<'_>,
+        header: &L1BatchHeader,
+    ) -> (Option<H256>, Option<H256>) {
+        if self.mode == MerkleTreeMode::Full {
+            let events_queue_commitment_latency =
+                METRICS.start_stage(TreeUpdateStage::EventsCommitment);
+            let events_queue = conn
+                .blocks_dal()
+                .get_events_queue(header.number)
+                .await
+                .unwrap()
+                .unwrap();
+            let events_queue_commitment =
+                events_queue_commitment(&events_queue, header.protocol_version.unwrap());
+            events_queue_commitment_latency.observe();
+
+            let bootloader_commitment_latency =
+                METRICS.start_stage(TreeUpdateStage::BootloaderCommitment);
+            let initial_bootloader_contents = conn
+                .blocks_dal()
+                .get_initial_bootloader_heap(header.number)
+                .await
+                .unwrap()
+                .unwrap();
+            let bootloader_initial_content_commitment = bootloader_initial_content_commitment(
+                &initial_bootloader_contents,
+                header.protocol_version.unwrap(),
+            );
+            bootloader_commitment_latency.observe();
+
+            (
+                events_queue_commitment,
+                bootloader_initial_content_commitment,
+            )
+        } else {
+            (None, None)
+        }
     }
 
     async fn step(

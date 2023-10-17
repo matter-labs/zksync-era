@@ -306,7 +306,6 @@ mod tests {
         assert_eq!(filtered_call.len(), 1);
         assert_eq!(filtered_call[0].calls.len(), 2);
 
-        let mut near_call = near_call;
         near_call.calls = vec![Call::default(), Call::default(), near_call.clone()];
         call.calls = vec![Call::default(), Call::default(), near_call];
         let filtered_call = filter_near_call(call);
