@@ -190,6 +190,7 @@ async fn test_normal_operation_l1_txs(connection_pool: ConnectionPool) {
 
     let mut client = FakeEthClient::new();
     let mut watcher = EthWatch::new(
+        Address::default(),
         client.clone(),
         &connection_pool,
         std::time::Duration::from_nanos(1),
@@ -235,6 +236,7 @@ async fn test_normal_operation_upgrades(connection_pool: ConnectionPool) {
 
     let mut client = FakeEthClient::new();
     let mut watcher = EthWatch::new(
+        Address::default(),
         client.clone(),
         &connection_pool,
         std::time::Duration::from_nanos(1),
@@ -293,6 +295,7 @@ async fn test_gap_in_upgrades(connection_pool: ConnectionPool) {
 
     let mut client = FakeEthClient::new();
     let mut watcher = EthWatch::new(
+        Address::default(),
         client.clone(),
         &connection_pool,
         std::time::Duration::from_nanos(1),
@@ -330,6 +333,7 @@ async fn test_gap_in_single_batch(connection_pool: ConnectionPool) {
 
     let mut client = FakeEthClient::new();
     let mut watcher = EthWatch::new(
+        Address::default(),
         client.clone(),
         &connection_pool,
         std::time::Duration::from_nanos(1),
@@ -357,6 +361,7 @@ async fn test_gap_between_batches(connection_pool: ConnectionPool) {
 
     let mut client = FakeEthClient::new();
     let mut watcher = EthWatch::new(
+        Address::default(),
         client.clone(),
         &connection_pool,
         std::time::Duration::from_nanos(1),
@@ -389,6 +394,7 @@ async fn test_overlapping_batches(connection_pool: ConnectionPool) {
 
     let mut client = FakeEthClient::new();
     let mut watcher = EthWatch::new(
+        Address::default(),
         client.clone(),
         &connection_pool,
         std::time::Duration::from_nanos(1),
