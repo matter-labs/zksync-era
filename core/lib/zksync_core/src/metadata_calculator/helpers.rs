@@ -104,6 +104,10 @@ impl AsyncTree {
         self.inner.as_mut().expect(Self::INCONSISTENT_MSG)
     }
 
+    pub fn mode(&self) -> MerkleTreeMode {
+        self.mode
+    }
+
     pub fn reader(&self) -> AsyncTreeReader {
         AsyncTreeReader {
             inner: self.inner.as_ref().expect(Self::INCONSISTENT_MSG).reader(),

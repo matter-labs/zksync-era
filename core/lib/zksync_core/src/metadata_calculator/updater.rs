@@ -142,7 +142,11 @@ impl TreeUpdater {
             check_consistency_latency.observe();
 
             let (events_queue_commitment, bootloader_initial_content_commitment) =
-                self.calculate_commitments(storage, &header).await;
+                if self.tree.mode() == MerkleTreeMode::Full {
+                    self.calculate_commitments(storage, &header).await
+                } else {
+                    (None, None)
+                };
 
             let build_metadata_latency = METRICS.start_stage(TreeUpdateStage::BuildMetadata);
             let metadata = MetadataCalculator::build_l1_batch_metadata(
@@ -222,40 +226,36 @@ impl TreeUpdater {
         conn: &mut StorageProcessor<'_>,
         header: &L1BatchHeader,
     ) -> (Option<H256>, Option<H256>) {
-        if self.mode == MerkleTreeMode::Full {
-            let events_queue_commitment_latency =
-                METRICS.start_stage(TreeUpdateStage::EventsCommitment);
-            let events_queue = conn
-                .blocks_dal()
-                .get_events_queue(header.number)
-                .await
-                .unwrap()
-                .unwrap();
-            let events_queue_commitment =
-                events_queue_commitment(&events_queue, header.protocol_version.unwrap());
-            events_queue_commitment_latency.observe();
+        let events_queue_commitment_latency =
+            METRICS.start_stage(TreeUpdateStage::EventsCommitment);
+        let events_queue = conn
+            .blocks_dal()
+            .get_events_queue(header.number)
+            .await
+            .unwrap()
+            .unwrap();
+        let events_queue_commitment =
+            events_queue_commitment(&events_queue, header.protocol_version.unwrap());
+        events_queue_commitment_latency.observe();
 
-            let bootloader_commitment_latency =
-                METRICS.start_stage(TreeUpdateStage::BootloaderCommitment);
-            let initial_bootloader_contents = conn
-                .blocks_dal()
-                .get_initial_bootloader_heap(header.number)
-                .await
-                .unwrap()
-                .unwrap();
-            let bootloader_initial_content_commitment = bootloader_initial_content_commitment(
-                &initial_bootloader_contents,
-                header.protocol_version.unwrap(),
-            );
-            bootloader_commitment_latency.observe();
+        let bootloader_commitment_latency =
+            METRICS.start_stage(TreeUpdateStage::BootloaderCommitment);
+        let initial_bootloader_contents = conn
+            .blocks_dal()
+            .get_initial_bootloader_heap(header.number)
+            .await
+            .unwrap()
+            .unwrap();
+        let bootloader_initial_content_commitment = bootloader_initial_content_commitment(
+            &initial_bootloader_contents,
+            header.protocol_version.unwrap(),
+        );
+        bootloader_commitment_latency.observe();
 
-            (
-                events_queue_commitment,
-                bootloader_initial_content_commitment,
-            )
-        } else {
-            (None, None)
-        }
+        (
+            events_queue_commitment,
+            bootloader_initial_content_commitment,
+        )
     }
 
     async fn step(
