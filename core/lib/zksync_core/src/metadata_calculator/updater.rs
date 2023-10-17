@@ -1,4 +1,5 @@
 //! Tree updater trait and its implementations.
+
 use anyhow::Context as _;
 use futures::{future, FutureExt};
 use tokio::sync::watch;
@@ -14,14 +15,13 @@ use zksync_object_store::ObjectStore;
 use zksync_types::{block::L1BatchHeader, writes::InitialStorageWrite, L1BatchNumber, H256, U256};
 
 use super::{
-    helpers::{AsyncTree, Delayer, L1BatchWithLogs, TreeHealthCheckDetails},
+    helpers::{AsyncTree, Delayer, L1BatchWithLogs},
     metrics::{TreeUpdateStage, METRICS},
     MetadataCalculator, MetadataCalculatorConfig,
 };
 
 #[derive(Debug)]
 pub(super) struct TreeUpdater {
-    mode: MerkleTreeMode,
     tree: AsyncTree,
     max_l1_batches_per_iter: usize,
     object_store: Option<Box<dyn ObjectStore>>,
@@ -47,14 +47,12 @@ impl TreeUpdater {
         )
         .await;
         Self {
-            mode,
             tree,
             max_l1_batches_per_iter: config.max_l1_batches_per_iter,
             object_store,
         }
     }
 
-    #[cfg(test)]
     pub fn tree(&self) -> &AsyncTree {
         &self.tree
     }
@@ -144,7 +142,11 @@ impl TreeUpdater {
             check_consistency_latency.observe();
 
             let (events_queue_commitment, bootloader_initial_content_commitment) =
-                self.calculate_commitments(storage, &header).await;
+                if self.tree.mode() == MerkleTreeMode::Full {
+                    self.calculate_commitments(storage, &header).await
+                } else {
+                    (None, None)
+                };
 
             let build_metadata_latency = METRICS.start_stage(TreeUpdateStage::BuildMetadata);
             let metadata = MetadataCalculator::build_l1_batch_metadata(
@@ -224,40 +226,36 @@ impl TreeUpdater {
         conn: &mut StorageProcessor<'_>,
         header: &L1BatchHeader,
     ) -> (Option<H256>, Option<H256>) {
-        if self.mode == MerkleTreeMode::Full {
-            let events_queue_commitment_latency =
-                METRICS.start_stage(TreeUpdateStage::EventsCommitment);
-            let events_queue = conn
-                .blocks_dal()
-                .get_events_queue(header.number)
-                .await
-                .unwrap()
-                .unwrap();
-            let events_queue_commitment =
-                events_queue_commitment(&events_queue, header.protocol_version.unwrap());
-            events_queue_commitment_latency.observe();
+        let events_queue_commitment_latency =
+            METRICS.start_stage(TreeUpdateStage::EventsCommitment);
+        let events_queue = conn
+            .blocks_dal()
+            .get_events_queue(header.number)
+            .await
+            .unwrap()
+            .unwrap();
+        let events_queue_commitment =
+            events_queue_commitment(&events_queue, header.protocol_version.unwrap());
+        events_queue_commitment_latency.observe();
 
-            let bootloader_commitment_latency =
-                METRICS.start_stage(TreeUpdateStage::BootloaderCommitment);
-            let initial_bootloader_contents = conn
-                .blocks_dal()
-                .get_initial_bootloader_heap(header.number)
-                .await
-                .unwrap()
-                .unwrap();
-            let bootloader_initial_content_commitment = bootloader_initial_content_commitment(
-                &initial_bootloader_contents,
-                header.protocol_version.unwrap(),
-            );
-            bootloader_commitment_latency.observe();
+        let bootloader_commitment_latency =
+            METRICS.start_stage(TreeUpdateStage::BootloaderCommitment);
+        let initial_bootloader_contents = conn
+            .blocks_dal()
+            .get_initial_bootloader_heap(header.number)
+            .await
+            .unwrap()
+            .unwrap();
+        let bootloader_initial_content_commitment = bootloader_initial_content_commitment(
+            &initial_bootloader_contents,
+            header.protocol_version.unwrap(),
+        );
+        bootloader_commitment_latency.observe();
 
-            (
-                events_queue_commitment,
-                bootloader_initial_content_commitment,
-            )
-        } else {
-            (None, None)
-        }
+        (
+            events_queue_commitment,
+            bootloader_initial_content_commitment,
+        )
     }
 
     async fn step(
@@ -334,11 +332,8 @@ impl TreeUpdater {
             (last_l1_batch_with_metadata.0 + 1).saturating_sub(next_l1_batch_to_seal.0);
         METRICS.backup_lag.set(backup_lag.into());
 
-        let health = TreeHealthCheckDetails {
-            mode: self.mode,
-            next_l1_batch_to_seal,
-        };
-        health_updater.update(health.into());
+        let tree_info = tree.reader().info().await;
+        health_updater.update(tree_info.into());
 
         if next_l1_batch_to_seal > last_l1_batch_with_metadata + 1 {
             // Check stop signal before proceeding with a potentially time-consuming operation.
@@ -357,11 +352,8 @@ impl TreeUpdater {
             next_l1_batch_to_seal = tree.next_l1_batch_number();
             tracing::info!("Truncated Merkle tree to L1 batch #{next_l1_batch_to_seal}");
 
-            let health = TreeHealthCheckDetails {
-                mode: self.mode,
-                next_l1_batch_to_seal,
-            };
-            health_updater.update(health.into());
+            let tree_info = tree.reader().info().await;
+            health_updater.update(tree_info.into());
         }
 
         loop {
@@ -388,11 +380,8 @@ impl TreeUpdater {
                 );
                 delayer.wait(&self.tree).left_future()
             } else {
-                let health = TreeHealthCheckDetails {
-                    mode: self.mode,
-                    next_l1_batch_to_seal,
-                };
-                health_updater.update(health.into());
+                let tree_info = self.tree.reader().info().await;
+                health_updater.update(tree_info.into());
 
                 tracing::trace!(
                     "Metadata calculator (next L1 batch: #{next_l1_batch_to_seal}) made progress from #{snapshot}"

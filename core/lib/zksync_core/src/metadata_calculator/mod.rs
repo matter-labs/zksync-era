@@ -22,10 +22,10 @@ use zksync_types::{
 mod helpers;
 mod metrics;
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;
 mod updater;
 
-pub(crate) use self::helpers::L1BatchWithLogs;
+pub(crate) use self::helpers::{AsyncTreeReader, L1BatchWithLogs, MerkleTreeInfo};
 use self::{
     helpers::Delayer,
     metrics::{TreeUpdateStage, METRICS},
@@ -111,6 +111,7 @@ impl MetadataCalculator {
             MetadataCalculatorModeConfig::Lightweight => None,
         };
         let updater = TreeUpdater::new(mode, config, object_store).await;
+
         let (_, health_updater) = ReactiveHealthCheck::new("tree");
         Self {
             updater,
@@ -122,6 +123,11 @@ impl MetadataCalculator {
     /// Returns a health check for this calculator.
     pub fn tree_health_check(&self) -> ReactiveHealthCheck {
         self.health_updater.subscribe()
+    }
+
+    /// Returns a reference to the tree reader.
+    pub(crate) fn tree_reader(&self) -> AsyncTreeReader {
+        self.updater.tree().reader()
     }
 
     pub async fn run(
