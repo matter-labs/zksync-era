@@ -1,12 +1,12 @@
-use once_cell::sync::Lazy;
-use std::cell::RefCell;
-use std::rc::Rc;
-use vm::constants::{BLOCK_GAS_LIMIT, BOOTLOADER_HEAP_PAGE};
-use vm::{
+use multivm::vm_latest::constants::{BLOCK_GAS_LIMIT, BOOTLOADER_HEAP_PAGE};
+use multivm::vm_latest::{
     BootloaderState, BoxedTracer, DynTracer, HistoryEnabled, HistoryMode, L1BatchEnv, L2BlockEnv,
     SystemEnv, TxExecutionMode, Vm, VmExecutionMode, VmExecutionStopReason, VmTracer,
     ZkSyncVmState,
 };
+use once_cell::sync::Lazy;
+use std::cell::RefCell;
+use std::rc::Rc;
 use zksync_contracts::{
     load_sys_contract, read_bootloader_code, read_sys_contract_bytecode, read_zbin_bytecode,
     BaseSystemContracts, ContractLanguage, SystemContractCode,

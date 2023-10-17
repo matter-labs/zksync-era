@@ -8,8 +8,10 @@
 
 use std::time::{Duration, Instant};
 
+use multivm::vm_latest::{
+    constants::BLOCK_GAS_LIMIT, HistoryDisabled, L1BatchEnv, L2BlockEnv, SystemEnv,
+};
 use multivm::VmInstance;
-use vm::{constants::BLOCK_GAS_LIMIT, HistoryDisabled, L1BatchEnv, L2BlockEnv, SystemEnv};
 use zksync_config::constants::{
     SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
     SYSTEM_CONTEXT_CURRENT_TX_ROLLING_HASH_POSITION, ZKPORTER_IS_AVAILABLE,

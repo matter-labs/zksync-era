@@ -1,7 +1,7 @@
 use crate::glue::{GlueFrom, GlueInto};
 
-impl GlueFrom<vm_latest::SystemEnv> for vm_virtual_blocks::SystemEnv {
-    fn glue_from(value: vm_latest::SystemEnv) -> Self {
+impl GlueFrom<crate::vm_latest::SystemEnv> for crate::vm_virtual_blocks::SystemEnv {
+    fn glue_from(value: crate::vm_latest::SystemEnv) -> Self {
         Self {
             zk_porter_available: value.zk_porter_available,
             version: value.version,

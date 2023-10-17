@@ -1,8 +1,8 @@
 use crate::glue::GlueFrom;
-use vm_latest::VmMemoryMetrics;
+use crate::vm_latest::VmMemoryMetrics;
 
-impl GlueFrom<vm_virtual_blocks::VmMemoryMetrics> for VmMemoryMetrics {
-    fn glue_from(value: vm_virtual_blocks::VmMemoryMetrics) -> Self {
+impl GlueFrom<crate::vm_virtual_blocks::VmMemoryMetrics> for VmMemoryMetrics {
+    fn glue_from(value: crate::vm_virtual_blocks::VmMemoryMetrics) -> Self {
         Self {
             event_sink_inner: value.event_sink_inner,
             event_sink_history: value.event_sink_history,

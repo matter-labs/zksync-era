@@ -36,13 +36,8 @@ members = [
     "core/lib/utils",
     "core/lib/vlog",
     "core/lib/multivm",
-    "core/lib/vm",
     "core/lib/web3_decl",
     "core/lib/test_account",
-
-    # MultiVM dependencies
-    "core/multivm_deps/vm_m5",
-    "core/multivm_deps/vm_m6",
 
     # Test infrastructure
     "core/tests/cross_external_nodes_checker",

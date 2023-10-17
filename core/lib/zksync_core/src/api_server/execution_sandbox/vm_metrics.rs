@@ -2,7 +2,7 @@ use vise::{Buckets, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, 
 
 use std::time::Duration;
 
-use vm::{VmExecutionResultAndLogs, VmMemoryMetrics};
+use multivm::vm_latest::{VmExecutionResultAndLogs, VmMemoryMetrics};
 use zksync_state::StorageViewMetrics;
 use zksync_types::event::{extract_long_l2_to_l1_messages, extract_published_bytecodes};
 use zksync_types::fee::TransactionExecutionMetrics;

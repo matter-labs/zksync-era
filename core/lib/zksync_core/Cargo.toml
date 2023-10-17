@@ -24,7 +24,6 @@ zksync_mempool = { path = "../mempool" }
 zksync_prover_utils = { path = "../prover_utils" }
 zksync_queued_job_processor = { path = "../queued_job_processor" }
 zksync_circuit_breaker = { path = "../circuit_breaker" }
-vm = { path = "../vm" }
 zksync_storage = { path = "../storage" }
 zksync_merkle_tree = { path = "../merkle_tree" }
 zksync_mini_merkle_tree = { path = "../mini_merkle_tree" }

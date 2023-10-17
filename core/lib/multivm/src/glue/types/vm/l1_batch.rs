@@ -1,7 +1,7 @@
 use crate::glue::{GlueFrom, GlueInto};
 
-impl GlueFrom<vm_latest::L1BatchEnv> for vm_virtual_blocks::L1BatchEnv {
-    fn glue_from(value: vm_latest::L1BatchEnv) -> Self {
+impl GlueFrom<crate::vm_latest::L1BatchEnv> for crate::vm_virtual_blocks::L1BatchEnv {
+    fn glue_from(value: crate::vm_latest::L1BatchEnv) -> Self {
         Self {
             previous_batch_hash: value.previous_batch_hash,
             number: value.number,

@@ -2,7 +2,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::runtime::Handle;
 
-use vm::utils::fee::derive_base_fee_and_gas_per_pubdata;
+use multivm::vm_latest::utils::fee::derive_base_fee_and_gas_per_pubdata;
 use zksync_config::constants::PUBLISH_BYTECODE_OVERHEAD;
 use zksync_dal::{ConnectionPool, SqlxError, StorageProcessor};
 use zksync_state::{PostgresStorage, PostgresStorageCaches, ReadStorage, StorageView};

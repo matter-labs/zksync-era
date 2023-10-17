@@ -1,7 +1,7 @@
+use multivm::vm_latest::{CallTracer, HistoryMode};
 use multivm::MultivmTracer;
 use once_cell::sync::OnceCell;
 use std::sync::Arc;
-use vm::{CallTracer, HistoryMode};
 use zksync_state::WriteStorage;
 use zksync_types::vm_trace::Call;
 

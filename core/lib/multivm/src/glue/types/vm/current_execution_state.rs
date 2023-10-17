@@ -1,8 +1,8 @@
 use crate::glue::GlueFrom;
-use vm_latest::CurrentExecutionState;
+use crate::vm_latest::CurrentExecutionState;
 
-impl GlueFrom<vm_virtual_blocks::CurrentExecutionState> for CurrentExecutionState {
-    fn glue_from(value: vm_virtual_blocks::CurrentExecutionState) -> Self {
+impl GlueFrom<crate::vm_virtual_blocks::CurrentExecutionState> for CurrentExecutionState {
+    fn glue_from(value: crate::vm_virtual_blocks::CurrentExecutionState) -> Self {
         Self {
             events: value.events,
             storage_log_queries: value.storage_log_queries,
