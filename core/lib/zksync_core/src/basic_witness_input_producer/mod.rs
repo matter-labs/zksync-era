@@ -5,11 +5,9 @@ use zksync_config::configs::chain::{NetworkConfig, StateKeeperConfig};
 use zksync_dal::ConnectionPool;
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_queued_job_processor::JobProcessor;
-use zksync_state::ReadStorage;
 use zksync_types::witness_block_state::WitnessBlockState;
 use zksync_types::{L1BatchNumber, L2ChainId};
 
-use anyhow::Context;
 use async_trait::async_trait;
 use tokio::task::JoinHandle;
 
@@ -69,8 +67,6 @@ impl BasicWitnessInputProducer {
         validation_computational_gas_limit: u32,
         l2_chain_id: L2ChainId,
     ) -> anyhow::Result<WitnessBlockState> {
-        let l1_batch_number = job.l1_batch_number;
-
         // This spawn_blocking is needed given PostgresStorage's interface is a mix of blocking and non-blocking
         // The interface may be either refactored or broken down in a async and sync interface.
         tokio::task::spawn_blocking(move || {
@@ -79,7 +75,7 @@ impl BasicWitnessInputProducer {
 
             let (mut vm, storage_view) = rt_handle.block_on(create_vm(
                 rt_handle.clone(),
-                l1_batch_number,
+                job.l1_batch_number,
                 connection,
                 validation_computational_gas_limit,
                 l2_chain_id,
@@ -91,13 +87,15 @@ impl BasicWitnessInputProducer {
             let miniblock_and_transactions = rt_handle.block_on(
                 connection
                     .transactions_dal()
-                    .get_miniblock_with_transactions_for_l1_batch(l1_batch_number),
+                    .get_miniblock_with_transactions_for_l1_batch(job.l1_batch_number),
             );
-            tracing::info!("Started execution of l1_batch: {l1_batch_number:?}");
+            tracing::info!("Started execution of l1_batch: {:?}", job.l1_batch_number);
             for (miniblock, txs) in miniblock_and_transactions {
                 tracing::debug!("Started execution of miniblock: {miniblock:?}");
                 for tx in txs {
+                    tracing::debug!("Started execution of tx: {tx:?}");
                     execute_tx(&tx, &mut vm);
+                    tracing::debug!("Finished execution of tx: {tx:?}");
                 }
                 let miniblock_state =
                     rt_handle.block_on(get_miniblock_transition_state(&mut connection, miniblock));
@@ -105,7 +103,7 @@ impl BasicWitnessInputProducer {
                 tracing::debug!("Finished execution of miniblock: {miniblock:?}");
             }
             vm.finish_batch();
-            tracing::info!("Finished execution of l1_batch: {l1_batch_number:?}");
+            tracing::info!("Finished execution of l1_batch: {:?}", job.l1_batch_number);
 
             metrics::histogram!(
                 "basic_witness_input_producer.input_producer_time",
@@ -114,7 +112,7 @@ impl BasicWitnessInputProducer {
             tracing::info!(
                 "BasicWitnessInputProducer took {:?} for L1BatchNumber {}",
                 started_at.elapsed(),
-                l1_batch_number.0
+                job.l1_batch_number.0
             );
 
             let witness_block_state = (*storage_view).borrow().witness_block_state();

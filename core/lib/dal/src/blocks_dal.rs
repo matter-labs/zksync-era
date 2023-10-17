@@ -1424,26 +1424,6 @@ impl BlocksDal<'_, '_> {
         Ok(())
     }
 
-    pub async fn get_last_miniblock_for_l1_batch(
-        &mut self,
-        l1_batch_number: &L1BatchNumber,
-    ) -> sqlx::Result<Option<MiniblockNumber>> {
-        Ok(sqlx::query!(
-            "SELECT MAX(number) as max FROM miniblocks WHERE l1_batch_number = $1",
-            l1_batch_number.0 as u32
-        )
-        .fetch_optional(self.storage.conn())
-        .await?
-        .map(|row| {
-            MiniblockNumber(row.max.unwrap_or_else(|| {
-                panic!(
-                    "l1_batch number {:?} must have a previous miniblock to start from",
-                    l1_batch_number
-                )
-            }) as u32)
-        }))
-    }
-
     pub async fn get_fee_address_for_l1_batch(
         &mut self,
         l1_batch_number: &L1BatchNumber,

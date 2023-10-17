@@ -4,7 +4,7 @@ use std::rc::Rc;
 use crate::state_keeper::io::common::load_l1_batch_params;
 
 use multivm::VmInstance;
-use vm::{HistoryEnabled, L2BlockEnv, Vm};
+use vm::{HistoryEnabled, L2BlockEnv};
 use zksync_config::constants::{
     SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
 };
@@ -29,9 +29,9 @@ pub(super) async fn create_vm<'a>(
     Rc<RefCell<StorageView<PostgresStorage<'a>>>>,
 ) {
     let prev_l1_batch_number = L1BatchNumber(l1_batch_number.0 - 1);
-    let miniblock_number = connection
+    let (_, miniblock_number) = connection
         .blocks_dal()
-        .get_last_miniblock_for_l1_batch(&prev_l1_batch_number)
+        .get_miniblock_range_of_l1_batch(prev_l1_batch_number)
         .await
         .unwrap()
         .unwrap_or_else(|| {
@@ -68,7 +68,7 @@ pub(super) async fn create_vm<'a>(
             128 * 1_024 * 1_024, // 128MB -- picked as the default value used in EN
         ));
     let storage_view = StorageView::new(pg_storage).to_rc_ptr();
-    let mut vm = VmInstance::new(l1_batch_env, system_env, storage_view.clone());
+    let vm = VmInstance::new(l1_batch_env, system_env, storage_view.clone());
 
     (vm, storage_view)
 }
@@ -113,6 +113,7 @@ pub(super) async fn get_miniblock_transition_state(
 }
 
 pub(super) fn execute_tx<S: ReadStorage>(tx: &Transaction, vm: &mut VmInstance<S, HistoryEnabled>) {
+    // attempt to run without bytecode compression
     vm.make_snapshot();
     if vm
         .inspect_transaction_with_bytecode_compression(vec![], tx.clone(), true)
@@ -121,6 +122,8 @@ pub(super) fn execute_tx<S: ReadStorage>(tx: &Transaction, vm: &mut VmInstance<S
         vm.pop_snapshot_no_rollback();
         return;
     }
+
+    // attempt to run with bytecode compression
     vm.rollback_to_the_latest_snapshot();
     vm.inspect_transaction_with_bytecode_compression(vec![], tx.clone(), false)
         .expect("Compression can't fail if we don't apply it");

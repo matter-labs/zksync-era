@@ -11,10 +11,8 @@ pub struct BasicWitnessInputProducerDal<'a, 'c> {
 
 /// Status of a job that the producer will work on.
 #[derive(Debug, strum::Display, strum::EnumString, strum::AsRefStr)]
-pub enum BasicWitnessInputProducerStatus {
-    /// When the job is queued. It can end in this state either from mempool at creation time or
-    /// from house keeper, in case the job's been pending for too long (in_progress > MAX_TIME) or
-    /// if it failed no more than MAX_ATTEMPT times.
+pub enum BasicWitnessInputProducerJobStatus {
+    /// When the job is queued. Metadata calculator creates the job and marks it as queued.
     #[strum(serialize = "queued")]
     Queued,
     /// The job is not going to be processed. This state is designed for manual operations on DB.
@@ -45,11 +43,11 @@ impl BasicWitnessInputProducerDal<'_, '_> {
         l1_batch_number: L1BatchNumber,
     ) {
         sqlx::query!(
-            "INSERT INTO basic_witness_input_producer_jobs
-                (l1_batch_number, status, created_at, updated_at)
+            "INSERT INTO basic_witness_input_producer_jobs \
+                (l1_batch_number, status, created_at, updated_at) \
             VALUES ($1, $2, now(), now())",
             l1_batch_number.0 as i64,
-            format!("{}", BasicWitnessInputProducerStatus::Queued),
+            format!("{}", BasicWitnessInputProducerJobStatus::Queued),
         )
         .instrument("create_basic_witness_input_producer_job")
         .report_latency()
@@ -62,22 +60,26 @@ impl BasicWitnessInputProducerDal<'_, '_> {
         let max_attempts = 5;
         let processing_timeout = pg_interval_from_duration(Duration::from_secs(60));
         sqlx::query!(
-            "UPDATE basic_witness_input_producer_jobs
-            SET status = $1,
-                attempts = attempts + 1,
-                updated_at = now(),
-                processing_started_at = now()
-            WHERE l1_batch_number = (
-                SELECT MIN(l1_batch_number)
-                FROM basic_witness_input_producer_jobs
-                WHERE status = $2 OR
-                    (status = $1 AND processing_started_at < now() - $4::interval) OR
-                    (status = $3 AND attempts < $5)
+            "UPDATE basic_witness_input_producer_jobs \
+            SET status = $1, \
+                attempts = attempts + 1, \
+                updated_at = now(), \
+                processing_started_at = now() \
+            WHERE l1_batch_number = ( \
+                SELECT l1_batch_number \
+                FROM basic_witness_input_producer_jobs \
+                WHERE status = $2 OR \
+                    (status = $1 AND processing_started_at < now() - $4::interval) OR \
+                    (status = $3 AND attempts < $5) \
+                ORDER BY l1_batch_number ASC \
+                LIMIT 1 \
+                FOR UPDATE \
+                SKIP LOCKED \
             )
             RETURNING basic_witness_input_producer_jobs.l1_batch_number",
-            format!("{}", BasicWitnessInputProducerStatus::InProgress),
-            format!("{}", BasicWitnessInputProducerStatus::Queued),
-            format!("{}", BasicWitnessInputProducerStatus::Failed),
+            format!("{}", BasicWitnessInputProducerJobStatus::InProgress),
+            format!("{}", BasicWitnessInputProducerJobStatus::Queued),
+            format!("{}", BasicWitnessInputProducerJobStatus::Failed),
             &processing_timeout,
             max_attempts as i32,
         )
@@ -95,10 +97,12 @@ impl BasicWitnessInputProducerDal<'_, '_> {
         started_at: Instant,
     ) {
         sqlx::query!(
-            "UPDATE basic_witness_input_producer_jobs
-            SET status = $1, updated_at = now(), time_taken = $3
+            "UPDATE basic_witness_input_producer_jobs \
+            SET status = $1, \
+                updated_at = now(), \
+                time_taken = $3 \
             WHERE l1_batch_number = $2",
-            format!("{}", BasicWitnessInputProducerStatus::Successful),
+            format!("{}", BasicWitnessInputProducerJobStatus::Successful),
             l1_batch_number.0 as i64,
             duration_to_naive_time(started_at.elapsed()),
         )
@@ -116,11 +120,14 @@ impl BasicWitnessInputProducerDal<'_, '_> {
         error: String,
     ) -> Option<u32> {
         sqlx::query!(
-            "UPDATE basic_witness_input_producer_jobs
-            SET status = $1, updated_at = now(), time_taken = $3, error = $4
-            WHERE l1_batch_number = $2
+            "UPDATE basic_witness_input_producer_jobs \
+            SET status = $1, \
+                updated_at = now(), \
+                time_taken = $3, \
+                error = $4 \
+            WHERE l1_batch_number = $2 \
             RETURNING basic_witness_input_producer_jobs.attempts",
-            format!("{}", BasicWitnessInputProducerStatus::Successful),
+            format!("{}", BasicWitnessInputProducerJobStatus::Successful),
             l1_batch_number.0 as i64,
             duration_to_naive_time(started_at.elapsed()),
             error
