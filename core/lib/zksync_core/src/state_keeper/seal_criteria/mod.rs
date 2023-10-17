@@ -168,11 +168,6 @@ impl IoSealCriteria for TimeoutSealer {
     }
 
     fn should_seal_miniblock(&mut self, manager: &UpdatesManager) -> bool {
-        // Unlike with the L1 batch, we don't check the number of transactions in the miniblock,
-        // because we might want to seal the miniblock even if it's empty (e.g. on an external node,
-        // where we have to replicate the state of the main node, including the last (empty) miniblock of the batch).
-        // The check for the number of transactions is expected to be done, if relevant, in the `miniblock_sealer`
-        // directly.
         !manager.miniblock.executed_transactions.is_empty()
             && millis_since(manager.miniblock.timestamp) > self.miniblock_commit_deadline_ms
     }

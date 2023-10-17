@@ -7,10 +7,13 @@ use zksync_config::configs::chain::StateKeeperConfig;
 
 use super::{criteria, SealCriterion, SealData, SealResolution, AGGREGATION_METRICS};
 
+/// Checks if an L1 batch should be sealed after executing a transaction.
+///
+/// The checks are deterministic, i.e., should depend solely on execution metrics and [`StateKeeperConfig`].
+/// Non-deterministic seal criteria are expressed using [`IoSealCriteria`](super::IoSealCriteria).
 #[derive(Debug)]
 pub struct ConditionalSealer {
     config: StateKeeperConfig,
-    /// Primary sealers set that is used to check if batch should be sealed after executing a transaction.
     sealers: Vec<Box<dyn SealCriterion>>,
 }
 
