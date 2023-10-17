@@ -243,9 +243,9 @@ impl FromStr for Components {
             }
             "witness_generator" => Ok(Components(vec![
                 Component::WitnessGenerator(None, AggregationRound::BasicCircuits),
-                // Component::WitnessGenerator(None, AggregationRound::LeafAggregation),
-                // Component::WitnessGenerator(None, AggregationRound::NodeAggregation),
-                // Component::WitnessGenerator(None, AggregationRound::Scheduler),
+                Component::WitnessGenerator(None, AggregationRound::LeafAggregation),
+                Component::WitnessGenerator(None, AggregationRound::NodeAggregation),
+                Component::WitnessGenerator(None, AggregationRound::Scheduler),
             ])),
             "one_shot_witness_generator" => Ok(Components(vec![
                 Component::WitnessGenerator(Some(1), AggregationRound::BasicCircuits),
