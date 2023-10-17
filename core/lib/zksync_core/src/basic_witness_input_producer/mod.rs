@@ -140,14 +140,22 @@ impl BasicWitnessInputProducer {
             .context(format!(
                 "get_last_miniblock_for_l1_batch({prev_l1_batch_number:?})"
             ))?
-            .unwrap_or_else(|| panic!("l1_batch_number {l1_batch_number:?} must have a previous miniblock to start from"));
+            .unwrap_or_else(|| {
+                panic!(
+                    "l1_batch_number {:?} must have a previous miniblock to start from",
+                    l1_batch_number
+                )
+            });
 
         let fee_account_addr = connection
             .blocks_dal()
             .get_fee_address_for_l1_batch(&l1_batch_number)
             .await?
             .unwrap_or_else(|| {
-                panic!("l1_batch_number {l1_batch_number:?} must have fee_address_account")
+                panic!(
+                    "l1_batch_number {:?} must have fee_address_account",
+                    l1_batch_number
+                )
             });
         let (system_env, l1_batch_env) = load_l1_batch_params(
             &mut connection,
