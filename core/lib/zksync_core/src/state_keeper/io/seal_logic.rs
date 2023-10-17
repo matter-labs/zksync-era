@@ -130,12 +130,15 @@ impl UpdatesManager {
 
         let initial_bootloader_contents =
             finished_batch.final_bootloader_memory.unwrap_or_default();
+
+        let events_queue = Vec::new(); // TODO: put actual value when new VM is merged.
         transaction
             .blocks_dal()
             .insert_l1_batch(
                 &l1_batch,
                 &initial_bootloader_contents,
                 self.l1_batch.l1_gas_count,
+                &events_queue,
             )
             .await
             .unwrap();

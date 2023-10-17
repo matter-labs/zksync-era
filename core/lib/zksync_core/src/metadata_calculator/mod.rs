@@ -16,6 +16,7 @@ use zksync_object_store::ObjectStoreFactory;
 use zksync_types::{
     block::L1BatchHeader,
     commitment::{L1BatchCommitment, L1BatchMetadata},
+    H256,
 };
 
 mod helpers;
@@ -173,6 +174,8 @@ impl MetadataCalculator {
     fn build_l1_batch_metadata(
         tree_metadata: TreeMetadata,
         header: &L1BatchHeader,
+        events_queue_commitment: Option<H256>,
+        bootloader_initial_content_commitment: Option<H256>,
     ) -> L1BatchMetadata {
         let merkle_root_hash = tree_metadata.root_hash;
 
@@ -201,6 +204,8 @@ impl MetadataCalculator {
             aux_data_hash: commitment_hash.aux_output,
             meta_parameters_hash: commitment_hash.meta_parameters,
             pass_through_data_hash: commitment_hash.pass_through_data,
+            events_queue_commitment,
+            bootloader_initial_content_commitment,
         };
 
         tracing::trace!("L1 batch metadata: {metadata:?}");

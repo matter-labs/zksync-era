@@ -18,6 +18,7 @@ members = [
     "core/lib/contracts",
     "core/lib/crypto",
     "core/lib/circuit_breaker",
+    "core/lib/commitment_utils",
     "core/lib/dal",
     "core/lib/db_test_macro",
     "core/lib/eth_client",

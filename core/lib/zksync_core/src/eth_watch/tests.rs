@@ -40,7 +40,7 @@ impl FakeEthClientData {
             let eth_block = transaction.eth_block();
             self.transactions
                 .entry(eth_block.0 as u64)
-                .or_insert_with(Vec::new)
+                .or_default()
                 .push(tx_into_log(transaction.clone()));
         }
     }
@@ -49,7 +49,7 @@ impl FakeEthClientData {
         for (upgrade, eth_block) in upgrades {
             self.upgrades
                 .entry(*eth_block)
-                .or_insert_with(Vec::new)
+                .or_default()
                 .push(upgrade_into_log(upgrade.clone(), *eth_block));
         }
     }

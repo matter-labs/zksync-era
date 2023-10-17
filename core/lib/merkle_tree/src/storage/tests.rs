@@ -256,23 +256,23 @@ fn proving_keys_existence_and_absence() {
     let mut hasher = (&() as &dyn HashTree).into();
     let (op, merkle_path) = updater.prove(&mut hasher, FIRST_KEY, &Nibbles::EMPTY);
     assert_matches!(op, TreeLogEntry::Read { .. });
-    let merkle_path = finalize_merkle_path(merkle_path, &mut hasher);
+    let merkle_path = finalize_merkle_path(merkle_path, &hasher);
     assert!(merkle_path.is_empty()); // all adjacent hashes correspond to empty subtrees
 
     let (op, merkle_path) = updater.prove(&mut hasher, SECOND_KEY, &Nibbles::EMPTY);
     assert_matches!(op, TreeLogEntry::ReadMissingKey);
-    let merkle_path = finalize_merkle_path(merkle_path, &mut hasher);
+    let merkle_path = finalize_merkle_path(merkle_path, &hasher);
     assert_eq!(merkle_path.len(), 40);
 
     updater.insert(THIRD_KEY, H256([3; 32]), &Nibbles::EMPTY, || 2);
     let (op, merkle_path) = updater.prove(&mut hasher, FIRST_KEY, &Nibbles::EMPTY);
     assert_matches!(op, TreeLogEntry::Read { .. });
-    let merkle_path = finalize_merkle_path(merkle_path, &mut hasher);
+    let merkle_path = finalize_merkle_path(merkle_path, &hasher);
     assert_eq!(merkle_path.len(), 18); // keys diverge at 18th bit
 
     let (op, merkle_path) = updater.prove(&mut hasher, SECOND_KEY, &Nibbles::EMPTY);
     assert_matches!(op, TreeLogEntry::ReadMissingKey);
-    let merkle_path = finalize_merkle_path(merkle_path, &mut hasher);
+    let merkle_path = finalize_merkle_path(merkle_path, &hasher);
     assert_eq!(merkle_path.len(), 40);
 
     assert_eq!(updater.metrics.key_reads, 2);
@@ -280,7 +280,7 @@ fn proving_keys_existence_and_absence() {
 }
 
 // Emulate Merkle path finalization.
-fn finalize_merkle_path(mut path: MerklePath, hasher: &mut HasherWithStats<'_>) -> Vec<ValueHash> {
+fn finalize_merkle_path(mut path: MerklePath, hasher: &HasherWithStats<'_>) -> Vec<ValueHash> {
     for _ in 0..4 {
         path.push(hasher, None);
     }
