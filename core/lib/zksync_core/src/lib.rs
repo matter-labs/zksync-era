@@ -12,6 +12,7 @@ use zksync_circuit_breaker::{
     replication_lag::ReplicationLagChecker, CircuitBreaker, CircuitBreakerChecker,
     CircuitBreakerError,
 };
+use zksync_config::configs::api::MerkleTreeApiConfig;
 use zksync_config::configs::{
     api::{HealthCheckConfig, Web3JsonRpcConfig},
     chain::{
@@ -729,6 +730,13 @@ async fn add_trees_to_task_futures(
     let db_config = DBConfig::from_env().context("DBConfig::from_env()")?;
     let operation_config =
         OperationsManagerConfig::from_env().context("OperationManagerConfig::from_env()")?;
+    let api_config = ApiConfig::from_env()
+        .context("ApiConfig::from_env()")?
+        .merkle_tree;
+    let api_config = components
+        .contains(&Component::TreeApi)
+        .then_some(&api_config);
+
     let has_tree_component = components.contains(&Component::Tree);
     let has_lightweight_component = components.contains(&Component::TreeLightweight);
     let mode = match (has_tree_component, has_lightweight_component) {
@@ -742,13 +750,20 @@ async fn add_trees_to_task_futures(
             MerkleTreeMode::Lightweight => MetadataCalculatorModeConfig::Lightweight,
             MerkleTreeMode::Full => MetadataCalculatorModeConfig::Full { store_factory },
         },
-        (false, false) => return Ok(()),
+        (false, false) => {
+            anyhow::ensure!(
+                !components.contains(&Component::TreeApi),
+                "Merkle tree API cannot be started without a tree component"
+            );
+            return Ok(());
+        }
     };
 
     run_tree(
         task_futures,
         healthchecks,
         &db_config,
+        api_config,
         &operation_config,
         mode,
         stop_receiver,
@@ -761,6 +776,7 @@ async fn run_tree(
     task_futures: &mut Vec<JoinHandle<anyhow::Result<()>>>,
     healthchecks: &mut Vec<Box<dyn CheckHealth>>,
     db_config: &DBConfig,
+    api_config: Option<&MerkleTreeApiConfig>,
     operation_manager: &OperationsManagerConfig,
     mode: MetadataCalculatorModeConfig<'_>,
     stop_receiver: watch::Receiver<bool>,
@@ -775,8 +791,8 @@ async fn run_tree(
 
     let config = MetadataCalculatorConfig::for_main_node(db_config, operation_manager, mode);
     let metadata_calculator = MetadataCalculator::new(&config).await;
-    if let Some(port) = db_config.merkle_tree.api_port {
-        let address = (Ipv4Addr::UNSPECIFIED, port).into();
+    if let Some(api_config) = api_config {
+        let address = (Ipv4Addr::UNSPECIFIED, api_config.port).into();
         let server_task = metadata_calculator
             .tree_reader()
             .run_api_server(address, stop_receiver.clone());
