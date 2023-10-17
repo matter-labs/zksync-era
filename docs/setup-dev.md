@@ -2,7 +2,7 @@
 
 ## Supported operating systems
 
-zkSync is currently can be launched on any \*nix operating system (e.g. any linux distribution or MacOS).
+zkSync currently can be launched on any \*nix operating system (e.g. any linux distribution or MacOS).
 
 If you're using Windows, then make sure to use WSL 2, since WSL 1 is known to cause troubles.
 
@@ -159,7 +159,9 @@ Rust toolchain as well.
 
 ## Postgres
 
-Install the latest postgres.
+Install the latest postgres:
+
+On mac:
 
 ```bash
 brew install postgresql@14
@@ -172,6 +174,12 @@ brew install postgresql@14
 
 ```bash
 cargo install cargo-nextest
+```
+
+On linux:
+
+```bash
+sudo apt-get install postgresql
 ```
 
 ### SQLx CLI

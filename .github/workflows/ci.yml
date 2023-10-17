@@ -21,7 +21,7 @@ jobs:
       core: ${{ steps.changed-files.outputs.core_any_changed }}
       prover: ${{ steps.changed-files.outputs.prover_any_changed }}
       docs: ${{ steps.changed-files.outputs.docs_any_changed }}
-      other: ${{ steps.changed-files.outputs.other_changed_files }}
+      all: ${{ steps.changed-files.outputs.all_any_changed }}
     steps:
       - uses: actions/checkout@v3
         with:
@@ -35,31 +35,50 @@ jobs:
           files_yaml: |
             prover:
               - 'prover/**'
+              - '!prover/CHANGELOG.md'
               - 'docker/prover*/**'
               - '.github/workflows/build-prover-template.yml'
               - '.github/workflows/ci-prover-reusable.yml'
+              - 'docker-compose-runner-nightly.yml'
             core:
               - 'core/**'
+              - '!core/CHANGELOG.md'
               - 'docker/contract-verifier/**'
               - 'docker/cross-external-nodes-checker/**'
               - 'docker/external-node/**'
               - 'docker/server/**'
               - '.github/workflows/build-core-template.yml'
               - '.github/workflows/ci-core-reusable.yml'
+              - '.github/workflows/ci-core-lint-reusable.yml'
+              - 'docker-compose-runner.yml'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
             docs:
-              - '*.md'
-              - '*.MD'
+              - '**/*.md'
+              - '**/*.MD'
               - '.github/workflows/ci-docs-reusable.yml'
+            all:
+              - '.github/workflows/ci.yml'
+              - 'bin/**'
+              - 'etc/**'
+              - 'contracts/**'
+              - 'infrastructure/zk/**'
+
+  ci-for-core-lint:
+    name: CI for Core lint Components
+    needs: changed_files
+    if: contains(github.ref_name, 'release-please--branches')
+    uses: ./.github/workflows/ci-core-lint-reusable.yml
 
   ci-for-core:
     name: CI for Core Components
     needs: changed_files
-    if: needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.other != ''
+    if: ${{ (needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
     uses: ./.github/workflows/ci-core-reusable.yml
 
   ci-for-prover:
     needs: changed_files
-    if: needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.other != ''
+    if: ${{ (needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
     name: CI for Prover Components
     uses: ./.github/workflows/ci-prover-reusable.yml
 
@@ -72,7 +91,7 @@ jobs:
   build-core-images:
     name: Build core images
     needs: changed_files
-    if: needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.other != ''
+    if: ${{ (needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
     uses: ./.github/workflows/build-core-template.yml
     with:
       image_tag: ${{ needs.setup.outputs.image_tag }}
@@ -85,13 +104,14 @@ jobs:
   build-prover-images:
     name: Build prover images
     needs: changed_files
-    if: needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.other != ''
+    if: ${{ (needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
     uses: ./.github/workflows/build-prover-template.yml
     with:
       image_tag: ${{ needs.setup.outputs.image_tag }}
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
       action: "build"
       ERA_BELLMAN_CUDA_RELEASE: ${{ vars.ERA_BELLMAN_CUDA_RELEASE }}
+      is_pr_from_fork: ${{ github.event.pull_request.head.repo.fork == true }}
     secrets:
       DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -100,7 +120,7 @@ jobs:
     name: Github Status Check
     runs-on: ubuntu-latest
     if: always() && !cancelled()
-    needs: [ci-for-core, ci-for-prover, ci-for-docs, build-core-images, build-prover-images]
+    needs: [ci-for-core-lint, ci-for-core, ci-for-prover, ci-for-docs, build-core-images, build-prover-images]
     steps:
       - name: Status
         run: |

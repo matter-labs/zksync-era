@@ -1,6 +1,6 @@
-use crate::l1_gas_price::L1GasPriceProvider;
-use std::fmt::Debug;
-use std::sync::Arc;
+use std::{fmt, sync::Arc};
+
+use crate::{l1_gas_price::L1GasPriceProvider, state_keeper::metrics::KEEPER_METRICS};
 
 /// Gas adjuster that bounds the gas price to the specified value.
 /// We need this to prevent the gas price from growing too much, because our bootloader is sensitive for the gas price and can fail if it's too high.
@@ -10,8 +10,8 @@ pub struct BoundedGasAdjuster<G> {
     default_gas_adjuster: Arc<G>,
 }
 
-impl<G> Debug for BoundedGasAdjuster<G> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl<G> fmt::Debug for BoundedGasAdjuster<G> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("BoundedGasAdjuster")
             .field("max_gas_price", &self.max_gas_price)
             .finish()
@@ -32,11 +32,10 @@ impl<G: L1GasPriceProvider> L1GasPriceProvider for BoundedGasAdjuster<G> {
         let default_gas_price = self.default_gas_adjuster.estimate_effective_gas_price();
         if default_gas_price > self.max_gas_price {
             tracing::warn!(
-                "Effective gas price is too high: {}, using max allowed: {}",
-                default_gas_price,
+                "Effective gas price is too high: {default_gas_price}, using max allowed: {}",
                 self.max_gas_price
             );
-            metrics::increment_counter!("server.state_keeper.gas_price_too_high");
+            KEEPER_METRICS.gas_price_too_high.inc();
             return self.max_gas_price;
         }
         default_gas_price

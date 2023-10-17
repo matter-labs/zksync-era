@@ -15,12 +15,13 @@ use zksync_types::{block::L1BatchHeader, writes::InitialStorageWrite, L1BatchNum
 
 use super::{
     helpers::{AsyncTree, Delayer, L1BatchWithLogs},
-    metrics::{ReportStage, TreeUpdateStage},
+    metrics::{TreeUpdateStage, METRICS},
     MetadataCalculator, MetadataCalculatorConfig,
 };
 
 #[derive(Debug)]
 pub(super) struct TreeUpdater {
+    #[allow(dead_code)] // FIXME
     mode: MerkleTreeMode,
     tree: AsyncTree,
     max_l1_batches_per_iter: usize,
@@ -62,21 +63,21 @@ impl TreeUpdater {
         &mut self,
         l1_batch: L1BatchWithLogs,
     ) -> (L1BatchHeader, TreeMetadata, Option<String>) {
-        let compute_latency = TreeUpdateStage::Compute.start();
+        let compute_latency = METRICS.start_stage(TreeUpdateStage::Compute);
         let mut metadata = self.tree.process_l1_batch(l1_batch.storage_logs).await;
-        compute_latency.report();
+        compute_latency.observe();
 
         let witness_input = metadata.witness.take();
         let l1_batch_number = l1_batch.header.number;
         let object_key = if let Some(object_store) = &self.object_store {
             let witness_input =
                 witness_input.expect("No witness input provided by tree; this is a bug");
-            let save_witnesses_latency = TreeUpdateStage::SaveWitnesses.start();
+            let save_witnesses_latency = METRICS.start_stage(TreeUpdateStage::SaveGcs);
             let object_key = object_store
                 .put(l1_batch_number, &witness_input)
                 .await
                 .unwrap();
-            save_witnesses_latency.report();
+            save_witnesses_latency.observe();
 
             tracing::info!(
                 "Saved witnesses for L1 batch #{l1_batch_number} to object storage at `{object_key}`"
@@ -133,7 +134,7 @@ impl TreeUpdater {
             let ((header, metadata, object_key), next_l1_batch_data) =
                 future::join(process_l1_batch_task, load_next_l1_batch_task).await;
 
-            let prepare_results_latency = TreeUpdateStage::PrepareResults.start();
+            let prepare_results_latency = METRICS.start_stage(TreeUpdateStage::PrepareResults);
             Self::check_initial_writes_consistency(
                 storage,
                 header.number,
@@ -141,11 +142,11 @@ impl TreeUpdater {
             )
             .await;
             let metadata = MetadataCalculator::build_l1_batch_metadata(metadata, &header);
-            prepare_results_latency.report();
+            prepare_results_latency.observe();
 
             MetadataCalculator::reestimate_l1_batch_commit_gas(storage, &header, &metadata).await;
 
-            let save_postgres_latency = TreeUpdateStage::SavePostgres.start();
+            let save_postgres_latency = METRICS.start_stage(TreeUpdateStage::SavePostgres);
             storage
                 .blocks_dal()
                 .save_l1_batch_metadata(l1_batch_number, &metadata, previous_root_hash)
@@ -188,7 +189,7 @@ impl TreeUpdater {
                     .insert_proof_generation_details(l1_batch_number, object_key)
                     .await;
             }
-            save_postgres_latency.report();
+            save_postgres_latency.observe();
             tracing::info!("Updated metadata for L1 batch #{l1_batch_number} in Postgres");
 
             previous_root_hash = metadata.merkle_root_hash;
@@ -196,10 +197,10 @@ impl TreeUpdater {
             l1_batch_data = next_l1_batch_data;
         }
 
-        let save_rocksdb_latency = TreeUpdateStage::SaveRocksDB.start();
+        let save_rocksdb_latency = METRICS.start_stage(TreeUpdateStage::SaveRocksdb);
         self.tree.save().await;
-        save_rocksdb_latency.report();
-        MetadataCalculator::update_metrics(self.mode, &updated_headers, total_logs, start);
+        save_rocksdb_latency.observe();
+        MetadataCalculator::update_metrics(&updated_headers, total_logs, start);
 
         last_l1_batch_number + 1
     }
@@ -276,7 +277,7 @@ impl TreeUpdater {
         );
         let backup_lag =
             (last_l1_batch_with_metadata.0 + 1).saturating_sub(next_l1_batch_to_seal.0);
-        metrics::gauge!("server.metadata_calculator.backup_lag", backup_lag as f64);
+        METRICS.backup_lag.set(backup_lag.into());
 
         let tree_info = tree.reader().get_info_inner().await;
         health_updater.update(tree_info.into());

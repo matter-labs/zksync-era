@@ -10,7 +10,7 @@ keywords = ["blockchain", "zksync"]
 categories = ["cryptography"]
 
 [dependencies]
-vise = { git = "https://github.com/matter-labs/vise.git", version = "0.1.0", rev = "9d097ab747b037b6e62504df1db5b975425b6bdd" }
+vise = { git = "https://github.com/matter-labs/vise.git", version = "0.1.0", rev = "dd05139b76ab0843443ab3ff730174942c825dae" }
 zk_evm = { git = "https://github.com/matter-labs/era-zk_evm.git", branch = "v1.3.3" }
 zksync_config = { path = "../config" }
 zksync_types = { path = "../types" }

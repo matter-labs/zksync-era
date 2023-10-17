@@ -23,7 +23,7 @@ use zksync_types::{block::L1BatchHeader, L1BatchNumber, StorageLog, H256};
 
 use super::{
     api,
-    metrics::{LoadChangesStage, ReportStage, TreeUpdateStage},
+    metrics::{LoadChangesStage, TreeUpdateStage, METRICS},
 };
 
 impl From<api::MerkleTreeInfo> for Health {
@@ -200,29 +200,30 @@ impl L1BatchWithLogs {
         l1_batch_number: L1BatchNumber,
     ) -> Option<Self> {
         tracing::debug!("Loading storage logs data for L1 batch #{l1_batch_number}");
-        let load_changes_latency = TreeUpdateStage::LoadChanges.start();
+        let load_changes_latency = METRICS.start_stage(TreeUpdateStage::LoadChanges);
 
-        let header_latency = LoadChangesStage::L1BatchHeader.start();
+        let header_latency = METRICS.start_load_stage(LoadChangesStage::LoadL1BatchHeader);
         let header = storage
             .blocks_dal()
             .get_l1_batch_header(l1_batch_number)
             .await
             .unwrap()?;
-        header_latency.report();
+        header_latency.observe();
 
-        let protective_reads_latency = LoadChangesStage::ProtectiveReads.start();
+        let protective_reads_latency =
+            METRICS.start_load_stage(LoadChangesStage::LoadProtectiveReads);
         let protective_reads = storage
             .storage_logs_dedup_dal()
             .get_protective_reads_for_l1_batch(l1_batch_number)
             .await;
-        protective_reads_latency.report_with_count(protective_reads.len());
+        protective_reads_latency.observe_with_count(protective_reads.len());
 
-        let touched_slots_latency = LoadChangesStage::TouchedSlots.start();
+        let touched_slots_latency = METRICS.start_load_stage(LoadChangesStage::LoadTouchedSlots);
         let mut touched_slots = storage
             .storage_logs_dal()
             .get_touched_slots_for_l1_batch(l1_batch_number)
             .await;
-        touched_slots_latency.report_with_count(touched_slots.len());
+        touched_slots_latency.observe_with_count(touched_slots.len());
 
         let mut storage_logs = BTreeMap::new();
         for storage_key in protective_reads {
@@ -256,17 +257,16 @@ impl L1BatchWithLogs {
                 value.is_zero().then(|| key.hashed_key())
             })
             .collect();
-        metrics::histogram!(
-            "server.metadata_calculator.load_changes.zero_values",
-            hashed_keys_for_zero_values.len() as f64
-        );
+        METRICS
+            .load_changes_zero_values
+            .observe(hashed_keys_for_zero_values.len());
 
-        let latency = LoadChangesStage::InitialWritesForZeroValues.start();
+        let latency = METRICS.start_load_stage(LoadChangesStage::LoadInitialWritesForZeroValues);
         let l1_batches_for_initial_writes = storage
             .storage_logs_dal()
             .get_l1_batches_and_indices_for_initial_writes(&hashed_keys_for_zero_values)
             .await;
-        latency.report_with_count(hashed_keys_for_zero_values.len());
+        latency.observe_with_count(hashed_keys_for_zero_values.len());
 
         for (storage_key, value) in touched_slots {
             let write_matters = if value.is_zero() {
@@ -282,7 +282,7 @@ impl L1BatchWithLogs {
             }
         }
 
-        load_changes_latency.report();
+        load_changes_latency.observe();
         Some(Self {
             header,
             storage_logs: storage_logs.into_values().collect(),

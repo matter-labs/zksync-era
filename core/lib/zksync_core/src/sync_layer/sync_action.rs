@@ -1,10 +1,11 @@
 use std::{
     collections::VecDeque,
     sync::{Arc, RwLock},
-    time::Instant,
 };
 
 use zksync_types::{Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, Transaction, H256};
+
+use super::metrics::{LockAction, QUEUE_METRICS};
 
 /// Action queue is used to communicate between the fetcher and the rest of the external node
 /// by collecting the fetched data in memory until it gets processed by the different entities.
@@ -24,7 +25,7 @@ impl ActionQueue {
     /// Removes the first action from the queue.
     pub(crate) fn pop_action(&self) -> Option<SyncAction> {
         self.write_lock().actions.pop_front().map(|action| {
-            metrics::decrement_gauge!("external_node.action_queue.action_queue_size", 1_f64);
+            QUEUE_METRICS.action_queue_size.dec_by(1);
             action
         })
     }
@@ -55,10 +56,7 @@ impl ActionQueue {
     pub(crate) fn push_actions(&self, actions: Vec<SyncAction>) {
         // We need to enforce the ordering of actions to make sure that they can be processed.
         Self::check_action_sequence(&actions).expect("Invalid sequence of actions.");
-        metrics::increment_gauge!(
-            "external_node.action_queue.action_queue_size",
-            actions.len() as f64
-        );
+        QUEUE_METRICS.action_queue_size.inc_by(actions.len());
 
         self.write_lock().actions.extend(actions);
     }
@@ -103,16 +101,16 @@ impl ActionQueue {
     }
 
     fn read_lock(&self) -> std::sync::RwLockReadGuard<'_, ActionQueueInner> {
-        let start = Instant::now();
+        let latency = QUEUE_METRICS.lock[&LockAction::AcquireRead].start();
         let lock = self.inner.read().unwrap();
-        metrics::histogram!("external_node.action_queue.lock", start.elapsed(), "action" => "acquire_read");
+        latency.observe();
         lock
     }
 
     fn write_lock(&self) -> std::sync::RwLockWriteGuard<'_, ActionQueueInner> {
-        let start = Instant::now();
+        let latency = QUEUE_METRICS.lock[&LockAction::AcquireWrite].start();
         let lock = self.inner.write().unwrap();
-        metrics::histogram!("external_node.action_queue.lock", start.elapsed(), "action" => "acquire_write");
+        latency.observe();
         lock
     }
 }
