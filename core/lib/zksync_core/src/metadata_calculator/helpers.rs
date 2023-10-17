@@ -16,7 +16,7 @@ use zksync_dal::StorageProcessor;
 use zksync_health_check::{Health, HealthStatus};
 use zksync_merkle_tree::{
     domain::{TreeMetadata, ZkSyncTree, ZkSyncTreeReader},
-    MerkleTreeColumnFamily,
+    Key, MerkleTreeColumnFamily, NoVersionError, TreeEntryWithProof,
 };
 use zksync_storage::RocksDB;
 use zksync_types::{block::L1BatchHeader, L1BatchNumber, StorageLog, H256};
@@ -168,18 +168,22 @@ impl AsyncTreeReader {
     pub async fn info(self) -> MerkleTreeInfo {
         tokio::task::spawn_blocking(move || MerkleTreeInfo {
             mode: self.mode,
-            root_hash: self.as_ref().root_hash(),
-            next_l1_batch_number: self.as_ref().next_l1_batch_number(),
-            leaf_count: self.as_ref().leaf_count(),
+            root_hash: self.inner.root_hash(),
+            next_l1_batch_number: self.inner.next_l1_batch_number(),
+            leaf_count: self.inner.leaf_count(),
         })
         .await
         .unwrap()
     }
-}
 
-impl AsRef<ZkSyncTreeReader> for AsyncTreeReader {
-    fn as_ref(&self) -> &ZkSyncTreeReader {
-        &self.inner
+    pub async fn entries_with_proofs(
+        self,
+        l1_batch_number: L1BatchNumber,
+        keys: Vec<Key>,
+    ) -> Result<Vec<TreeEntryWithProof>, NoVersionError> {
+        tokio::task::spawn_blocking(move || self.inner.entries_with_proofs(l1_batch_number, &keys))
+            .await
+            .unwrap()
     }
 }
 

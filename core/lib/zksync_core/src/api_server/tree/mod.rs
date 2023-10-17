@@ -181,7 +181,10 @@ impl TreeApiClient for TreeApiHttpClient {
 
 impl AsyncTreeReader {
     async fn info_handler(State(this): State<Self>) -> Json<MerkleTreeInfo> {
-        Json(this.info().await)
+        let latency = API_METRICS.latency[&MerkleTreeApiMethod::Info].start();
+        let info = this.info().await;
+        latency.observe();
+        Json(info)
     }
 
     async fn get_proofs_inner(
@@ -189,17 +192,11 @@ impl AsyncTreeReader {
         l1_batch_number: L1BatchNumber,
         hashed_keys: Vec<U256>,
     ) -> Result<Vec<TreeEntryWithProof>, NoVersionError> {
-        let latency = API_METRICS.latency[&MerkleTreeApiMethod::Info].start();
-        let tree_reader = self.as_ref().clone();
-        let proofs = tokio::task::spawn_blocking(move || {
-            tree_reader.entries_with_proofs(l1_batch_number, &hashed_keys)
-        })
-        .await
-        .unwrap()?;
-
-        let response = proofs.into_iter().map(TreeEntryWithProof::new).collect();
-        latency.observe();
-        Ok(response)
+        let proofs = self
+            .clone()
+            .entries_with_proofs(l1_batch_number, hashed_keys)
+            .await?;
+        Ok(proofs.into_iter().map(TreeEntryWithProof::new).collect())
     }
 
     async fn get_proofs_handler(
