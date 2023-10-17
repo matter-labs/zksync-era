@@ -76,7 +76,7 @@ can rely on a smaller CRS file, namely the setup_2^24.key.
 
 ## Advanced
 
-### What's inside the key?
+### What's inside the key
 
 #### Setup key
 
