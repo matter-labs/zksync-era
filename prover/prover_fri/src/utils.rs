@@ -7,7 +7,6 @@ use zksync_prover_fri_types::circuit_definitions::boojum::cs::implementations::r
 
 use tokio::sync::Mutex;
 use zkevm_test_harness::prover_utils::{verify_base_layer_proof, verify_recursion_layer_proof};
-use zksync_config::configs::fri_prover_group::CircuitIdRoundTuple;
 use zksync_dal::StorageProcessor;
 use zksync_object_store::ObjectStore;
 use zksync_prover_fri_types::circuit_definitions::boojum::algebraic_props::round_function::AbsorptionModeOverwrite;
@@ -25,7 +24,7 @@ use zksync_prover_fri_types::{
 };
 use zksync_prover_fri_utils::get_base_layer_circuit_id_for_recursive_layer;
 
-use zksync_types::L1BatchNumber;
+use zksync_types::{basic_fri_types::CircuitIdRoundTuple, L1BatchNumber};
 
 pub type F = GoldilocksField;
 pub type H = GoldilocksPoseidon2Sponge<AbsorptionModeOverwrite>;

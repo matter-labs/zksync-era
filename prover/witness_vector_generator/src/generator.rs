@@ -5,7 +5,6 @@ use async_trait::async_trait;
 use tokio::task::JoinHandle;
 
 use tokio::time::sleep;
-use zksync_config::configs::fri_prover_group::CircuitIdRoundTuple;
 use zksync_config::configs::FriWitnessVectorGeneratorConfig;
 use zksync_dal::ConnectionPool;
 use zksync_object_store::ObjectStore;
@@ -15,6 +14,7 @@ use zksync_prover_fri_utils::fetch_next_circuit;
 use zksync_prover_fri_utils::get_numeric_circuit_id;
 use zksync_prover_fri_utils::socket_utils::send_assembly;
 use zksync_queued_job_processor::JobProcessor;
+use zksync_types::basic_fri_types::CircuitIdRoundTuple;
 use zksync_types::proofs::{GpuProverInstanceStatus, SocketAddress};
 use zksync_types::protocol_version::L1VerifierConfig;
 use zksync_vk_setup_data_server_fri::get_finalization_hints;
