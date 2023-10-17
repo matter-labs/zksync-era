@@ -57,7 +57,7 @@ impl BasicWitnessInputProducerDal<'_, '_> {
     }
 
     pub async fn get_next_basic_witness_input_producer_job(&mut self) -> Option<L1BatchNumber> {
-        let max_attempts = 5;
+        let max_attempts = 10;
         let processing_timeout = pg_interval_from_duration(Duration::from_secs(60));
         sqlx::query!(
             "UPDATE basic_witness_input_producer_jobs \
