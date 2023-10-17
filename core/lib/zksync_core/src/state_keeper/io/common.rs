@@ -161,7 +161,7 @@ pub(crate) async fn load_pending_batch(
     Some(PendingBatchData {
         l1_batch_env,
         system_env,
-        pending_miniblocks: pending_miniblocks,
+        pending_miniblocks,
     })
 }
 
