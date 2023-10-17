@@ -6,7 +6,6 @@ use tokio::sync::mpsc;
 use std::{
     collections::BTreeMap,
     future::Future,
-    mem,
     path::{Path, PathBuf},
     time::Duration,
 };
@@ -40,8 +39,11 @@ impl From<api::MerkleTreeInfo> for Health {
 /// at least not explicitly), all `MetadataCalculator` data including `ZkSyncTree` is discarded.
 /// In the unlikely case you get a "`ZkSyncTree` is in inconsistent state" panic,
 /// cancellation is most probably the reason.
-#[derive(Debug, Default)]
-pub(super) struct AsyncTree(Option<ZkSyncTree>);
+#[derive(Debug)]
+pub(super) struct AsyncTree {
+    inner: Option<ZkSyncTree>,
+    mode: MerkleTreeMode,
+}
 
 impl AsyncTree {
     const INCONSISTENT_MSG: &'static str =
@@ -70,7 +72,10 @@ impl AsyncTree {
         .unwrap();
 
         tree.set_multi_get_chunk_size(multi_get_chunk_size);
-        Self(Some(tree))
+        Self {
+            inner: Some(tree),
+            mode,
+        }
     }
 
     fn create_db(path: &Path, block_cache_capacity: usize) -> RocksDB<MerkleTreeColumnFamily> {
@@ -85,15 +90,18 @@ impl AsyncTree {
     }
 
     fn as_ref(&self) -> &ZkSyncTree {
-        self.0.as_ref().expect(Self::INCONSISTENT_MSG)
+        self.inner.as_ref().expect(Self::INCONSISTENT_MSG)
     }
 
     fn as_mut(&mut self) -> &mut ZkSyncTree {
-        self.0.as_mut().expect(Self::INCONSISTENT_MSG)
+        self.inner.as_mut().expect(Self::INCONSISTENT_MSG)
     }
 
     pub fn reader(&self) -> AsyncTreeReader {
-        AsyncTreeReader(self.as_ref().reader())
+        AsyncTreeReader {
+            inner: self.inner.as_ref().expect(Self::INCONSISTENT_MSG).reader(),
+            mode: self.mode,
+        }
     }
 
     pub fn is_empty(&self) -> bool {
@@ -109,26 +117,28 @@ impl AsyncTree {
     }
 
     pub async fn process_l1_batch(&mut self, storage_logs: Vec<StorageLog>) -> TreeMetadata {
-        let mut tree = mem::take(self);
+        let mut tree = self.inner.take().expect(Self::INCONSISTENT_MSG);
         let (tree, metadata) = tokio::task::spawn_blocking(move || {
-            let metadata = tree.as_mut().process_l1_batch(&storage_logs);
+            let metadata = tree.process_l1_batch(&storage_logs);
             (tree, metadata)
         })
         .await
         .unwrap();
 
-        *self = tree;
+        self.inner = Some(tree);
         metadata
     }
 
     pub async fn save(&mut self) {
-        let mut tree = mem::take(self);
-        *self = tokio::task::spawn_blocking(|| {
-            tree.as_mut().save();
-            tree
-        })
-        .await
-        .unwrap();
+        let mut tree = self.inner.take().expect(Self::INCONSISTENT_MSG);
+        self.inner = Some(
+            tokio::task::spawn_blocking(|| {
+                tree.save();
+                tree
+            })
+            .await
+            .unwrap(),
+        );
     }
 
     pub fn revert_logs(&mut self, last_l1_batch_to_keep: L1BatchNumber) {
@@ -138,15 +148,19 @@ impl AsyncTree {
 
 /// Async version of [`ZkSyncTreeReader`].
 #[derive(Debug, Clone)]
-pub(crate) struct AsyncTreeReader(ZkSyncTreeReader);
+pub(crate) struct AsyncTreeReader {
+    inner: ZkSyncTreeReader,
+    mode: MerkleTreeMode,
+}
 
 impl AsyncTreeReader {
     pub(super) fn as_ref(&self) -> &ZkSyncTreeReader {
-        &self.0
+        &self.inner
     }
 
     pub(super) async fn get_info_inner(self) -> api::MerkleTreeInfo {
         tokio::task::spawn_blocking(move || api::MerkleTreeInfo {
+            mode: self.mode,
             root_hash: self.as_ref().root_hash(),
             next_l1_batch_number: self.as_ref().next_l1_batch_number(),
             leaf_count: self.as_ref().leaf_count(),

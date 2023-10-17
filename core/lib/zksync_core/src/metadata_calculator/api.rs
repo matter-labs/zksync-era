@@ -14,12 +14,14 @@ use tokio::sync::watch;
 use std::{fmt, future::Future, net::SocketAddr, pin::Pin};
 
 use super::helpers::AsyncTreeReader;
+use zksync_config::configs::database::MerkleTreeMode;
 use zksync_merkle_tree::NoVersionError;
 use zksync_types::{L1BatchNumber, H256, U256};
 
 /// General information about the Merkle tree.
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct MerkleTreeInfo {
+    pub mode: MerkleTreeMode,
     pub root_hash: H256,
     pub next_l1_batch_number: L1BatchNumber,
     pub leaf_count: u64,

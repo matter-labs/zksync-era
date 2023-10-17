@@ -21,8 +21,6 @@ use super::{
 
 #[derive(Debug)]
 pub(super) struct TreeUpdater {
-    #[allow(dead_code)] // FIXME
-    mode: MerkleTreeMode,
     tree: AsyncTree,
     max_l1_batches_per_iter: usize,
     object_store: Option<Box<dyn ObjectStore>>,
@@ -48,7 +46,6 @@ impl TreeUpdater {
         )
         .await;
         Self {
-            mode,
             tree,
             max_l1_batches_per_iter: config.max_l1_batches_per_iter,
             object_store,
