@@ -13,7 +13,10 @@ use tokio::sync::watch;
 
 use std::{fmt, future::Future, net::SocketAddr, pin::Pin};
 
-use super::helpers::AsyncTreeReader;
+use super::{
+    helpers::AsyncTreeReader,
+    metrics::{MerkleTreeApiMethod, API_METRICS},
+};
 use zksync_config::configs::database::MerkleTreeMode;
 use zksync_merkle_tree::NoVersionError;
 use zksync_types::{L1BatchNumber, H256, U256};
@@ -193,6 +196,7 @@ impl AsyncTreeReader {
         l1_batch_number: L1BatchNumber,
         hashed_keys: Vec<U256>,
     ) -> Result<Vec<TreeEntryWithProof>, NoVersionError> {
+        let latency = API_METRICS.latency[&MerkleTreeApiMethod::Info].start();
         let tree_reader = self.as_ref().clone();
         let proofs = tokio::task::spawn_blocking(move || {
             tree_reader.entries_with_proofs(l1_batch_number, &hashed_keys)
@@ -200,19 +204,22 @@ impl AsyncTreeReader {
         .await
         .unwrap()?;
 
-        Ok(proofs.into_iter().map(TreeEntryWithProof::new).collect())
+        let response = proofs.into_iter().map(TreeEntryWithProof::new).collect();
+        latency.observe();
+        Ok(response)
     }
 
     async fn get_proofs_handler(
         State(this): State<Self>,
         Json(request): Json<TreeProofsRequest>,
     ) -> Result<Json<TreeProofsResponse>, TreeApiError> {
-        // FIXME: metrics
+        let latency = API_METRICS.latency[&MerkleTreeApiMethod::GetProofs].start();
         let entries = this
             .get_proofs_inner(request.l1_batch_number, request.hashed_keys)
             .await
             .map_err(TreeApiError::NoTreeVersion)?;
         let response = TreeProofsResponse { entries };
+        latency.observe();
         Ok(Json(response))
     }
 
