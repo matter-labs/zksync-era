@@ -13,7 +13,7 @@ categories = ["cryptography"]
 zksync_crypto = { path = "../../lib/crypto" }
 zksync_types = { path = "../../lib/types" }
 zksync_utils = { path = "../../lib/utils" }
-zksync_config = { path = "../../lib/config" }
+zksync_system_constants = { path = "../../lib/constants" }
 zksync_state = { path = "../../lib/state" }
 zksync_storage = { path = "../../lib/storage" }
 

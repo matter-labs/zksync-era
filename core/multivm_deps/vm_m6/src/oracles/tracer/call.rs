@@ -13,7 +13,7 @@ use zk_evm::zkevm_opcode_defs::{
     RET_IMPLICIT_RETURNDATA_PARAMS_REGISTER,
 };
 use zkevm_assembly::zkevm_opcode_defs::FatPointer;
-use zksync_config::constants::CONTRACT_DEPLOYER_ADDRESS;
+use zksync_system_constants::CONTRACT_DEPLOYER_ADDRESS;
 use zksync_types::vm_trace::{Call, CallType};
 use zksync_types::U256;
 

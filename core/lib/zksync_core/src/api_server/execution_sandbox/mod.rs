@@ -3,9 +3,9 @@ use std::time::Duration;
 use tokio::runtime::Handle;
 
 use vm::utils::fee::derive_base_fee_and_gas_per_pubdata;
-use zksync_config::constants::PUBLISH_BYTECODE_OVERHEAD;
 use zksync_dal::{ConnectionPool, SqlxError, StorageProcessor};
 use zksync_state::{PostgresStorage, PostgresStorageCaches, ReadStorage, StorageView};
+use zksync_system_constants::PUBLISH_BYTECODE_OVERHEAD;
 use zksync_types::{api, AccountTreeId, L2ChainId, MiniblockNumber, U256};
 use zksync_utils::bytecode::{compress_bytecode, hash_bytecode};
 

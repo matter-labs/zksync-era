@@ -13,8 +13,8 @@ use zk_evm::{
     vm_state::PrimitiveValue,
     zkevm_opcode_defs::FatPointer,
 };
-use zksync_config::constants::ZKPORTER_IS_AVAILABLE;
 use zksync_contracts::{read_zbin_bytecode, BaseSystemContracts};
+use zksync_system_constants::ZKPORTER_IS_AVAILABLE;
 use zksync_types::{Address, StorageLogQuery, H160, MAX_L2_TX_GAS_LIMIT, U256};
 use zksync_utils::h256_to_u256;
 

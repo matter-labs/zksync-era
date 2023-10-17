@@ -90,7 +90,7 @@
 // };
 
 // use once_cell::sync::Lazy;
-// use zksync_config::constants::ZKPORTER_IS_AVAILABLE;
+// use zksync_system_constants::ZKPORTER_IS_AVAILABLE;
 
 // fn run_vm_with_custom_factory_deps<'a>(
 //     oracle_tools: &'a mut OracleTools<'a, false>,

@@ -14,10 +14,10 @@ use crate::{
     VmExecutionMode,
 };
 use zk_evm::aux_structures::Timestamp;
-use zksync_config::constants::{
+use zksync_state::{ReadStorage, WriteStorage};
+use zksync_system_constants::{
     CURRENT_VIRTUAL_BLOCK_INFO_POSITION, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE,
 };
-use zksync_state::{ReadStorage, WriteStorage};
 use zksync_types::block::{pack_block_info, unpack_block_info};
 use zksync_types::{
     block::{legacy_miniblock_hash, miniblock_hash},
