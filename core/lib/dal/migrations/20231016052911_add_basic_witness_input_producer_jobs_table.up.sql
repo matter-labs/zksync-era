@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS basic_witness_input_producer_jobs
     created_at            TIMESTAMP NOT NULL,
     updated_at            TIMESTAMP NOT NULL,
     processing_started_at TIMESTAMP,
-    time_taken            TIME,
+    time_taken            TIME
 );
 
 CREATE INDEX IF NOT EXISTS idx_basic_witness_input_producer_jobs_status

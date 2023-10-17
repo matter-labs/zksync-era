@@ -2,7 +2,7 @@ use crate::instrument::InstrumentExt;
 use crate::time_utils::{duration_to_naive_time, pg_interval_from_duration};
 use crate::StorageProcessor;
 use std::time::{Duration, Instant};
-use zksync_types::{L1BatchNumber, ProtocolVersionId};
+use zksync_types::L1BatchNumber;
 
 #[derive(Debug)]
 pub struct BasicWitnessInputProducerDal<'a, 'c> {
@@ -55,7 +55,7 @@ impl BasicWitnessInputProducerDal<'_, '_> {
         .report_latency()
         .execute(self.storage.conn())
         .await
-        .unwrap();
+        .expect("failed to create basic witness input producer job");
     }
 
     pub async fn get_next_basic_witness_input_producer_job(&mut self) -> Option<L1BatchNumber> {
@@ -85,7 +85,7 @@ impl BasicWitnessInputProducerDal<'_, '_> {
         .report_latency()
         .fetch_optional(self.storage.conn())
         .await
-        .expect("failed to query basic witness input producer job")
+        .expect("failed to get next basic witness input producer job")
         .map(|job| L1BatchNumber(job.l1_batch_number as u32))
     }
 
@@ -106,7 +106,7 @@ impl BasicWitnessInputProducerDal<'_, '_> {
         .report_latency()
         .execute(self.storage.conn())
         .await
-        .unwrap();
+        .expect("failed to mark basic witness input producer job as successful");
     }
 
     pub async fn mark_job_as_failed(
@@ -114,11 +114,12 @@ impl BasicWitnessInputProducerDal<'_, '_> {
         l1_batch_number: L1BatchNumber,
         started_at: Instant,
         error: String,
-    ) {
+    ) -> Option<u32> {
         sqlx::query!(
             "UPDATE basic_witness_input_producer_jobs
             SET status = $1, updated_at = now(), time_taken = $3, error = $4
-            WHERE l1_batch_number = $2",
+            WHERE l1_batch_number = $2
+            RETURNING basic_witness_input_producer_jobs.attempts",
             format!("{}", BasicWitnessInputProducerStatus::Successful),
             l1_batch_number.0 as i64,
             duration_to_naive_time(started_at.elapsed()),
@@ -126,9 +127,10 @@ impl BasicWitnessInputProducerDal<'_, '_> {
         )
         .instrument("mark_job_as_failed")
         .report_latency()
-        .execute(self.storage.conn())
+        .fetch_optional(self.storage.conn())
         .await
-        .unwrap();
+        .expect("failed to mark basic witness input producer job as failed")
+        .map(|job| job.attempts as u32)
     }
 }
 

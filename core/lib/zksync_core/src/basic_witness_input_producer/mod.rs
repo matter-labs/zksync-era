@@ -29,13 +29,6 @@ pub struct BasicWitnessInputProducerJob {
     l1_batch_number: L1BatchNumber,
 }
 
-pub struct BasicWitnessInputProducer {
-    connection_pool: ConnectionPool,
-    validation_computational_gas_limit: u32,
-    l2_chain_id: L2ChainId,
-    object_store: Arc<dyn ObjectStore>,
-}
-
 async fn get_miniblock_transition_state(
     connection: &mut StorageProcessor<'_>,
     miniblock_number: MiniblockNumber,
@@ -87,6 +80,13 @@ fn execute_tx<S: ReadStorage>(tx: &Transaction, vm: &mut VmInstance<S, HistoryEn
     vm.rollback_to_the_latest_snapshot();
     vm.inspect_transaction_with_bytecode_compression(vec![], tx.clone(), false)
         .expect("Compression can't fail if we don't apply it");
+}
+
+pub struct BasicWitnessInputProducer {
+    connection_pool: ConnectionPool,
+    validation_computational_gas_limit: u32,
+    l2_chain_id: L2ChainId,
+    object_store: Arc<dyn ObjectStore>,
 }
 
 impl BasicWitnessInputProducer {
@@ -255,14 +255,20 @@ impl JobProcessor for BasicWitnessInputProducer {
     }
 
     async fn save_failure(&self, job_id: Self::JobId, started_at: Instant, error: String) {
-        self.connection_pool
+        let attempts = self
+            .connection_pool
             .access_storage()
             .await
             .unwrap()
             .basic_witness_input_producer_dal()
             .mark_job_as_failed(job_id, started_at, error)
-            .await;
-        // TODO: How about some nice logs on number of attempts here? We can load it form DB
+            .await
+            .expect("didn't receive number of attempts from database");
+        tracing::warn!(
+            "Failed to process job: {:?}, attempts: {}",
+            job_id,
+            attempts
+        );
     }
 
     async fn process_job(
