@@ -491,6 +491,10 @@ impl TryFrom<Call> for ProtocolUpgrade {
     type Error = crate::ethabi::Error;
 
     fn try_from(call: Call) -> Result<Self, Self::Error> {
+        // Reuses `ProtocolUpgrade::try_from`.
+        // `ProtocolUpgrade::try_from` only uses 3 log fields: `data`, `block_number`, `transaction_hash`. Others can be filled with dummy values.
+        // We build data as `call.data` without first 4 bytes which are for selector
+        // and append it with `bytes32(0)` for compatibility with old event data.
         let data = call
             .data
             .into_iter()
