@@ -17,7 +17,7 @@ RUN curl https://sh.rustup.rs -sSf | bash -s -- -y && \
     rustup install nightly-2023-07-21 && \
     rustup default nightly-2023-07-21
 
-RUN CARGO_HOME=./cargo cargo build --release --features=rocksdb/io-uring
+RUN cargo build --release --features=rocksdb/io-uring
 
 FROM debian:bookworm-slim
 

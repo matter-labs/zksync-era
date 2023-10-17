@@ -5,7 +5,7 @@
 
 use zksync_config::configs::chain::StateKeeperConfig;
 
-use super::{criteria, SealCriterion, SealData, SealResolution};
+use super::{criteria, SealCriterion, SealData, SealResolution, AGGREGATION_METRICS};
 
 #[derive(Debug)]
 pub struct ConditionalSealer {
@@ -76,12 +76,7 @@ impl ConditionalSealer {
                         "L1 batch #{l1_batch_number} processed by `{name}` with resolution {seal_resolution:?}",
                         name = sealer.prom_criterion_name()
                     );
-                    metrics::counter!(
-                        "server.tx_aggregation.reason",
-                        1,
-                        "criterion" => sealer.prom_criterion_name(),
-                        "seal_resolution" => seal_resolution.name(),
-                    );
+                    AGGREGATION_METRICS.inc(sealer.prom_criterion_name(), &seal_resolution);
                 }
                 SealResolution::NoSeal => { /* Don't do anything */ }
             }
@@ -101,6 +96,7 @@ impl ConditionalSealer {
             Box::new(criteria::MaxCyclesCriterion),
             Box::new(criteria::ComputationalGasCriterion),
             Box::new(criteria::TxEncodingSizeCriterion),
+            Box::new(criteria::L2ToL1LogsCriterion),
         ]
     }
 }

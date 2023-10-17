@@ -1,6 +1,6 @@
+use anyhow::Context as _;
 use prover_service::ArtifactProvider;
 use std::io::Read;
-use anyhow::Context as _;
 use zkevm_test_harness::abstract_zksync_circuit::concrete_circuits::ZkSyncVerificationKey;
 use zkevm_test_harness::pairing::bn256::Bn256;
 use zksync_setup_key_server::get_setup_for_circuit_type;

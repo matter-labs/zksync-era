@@ -12,9 +12,8 @@ use crate::tests::tester::{
 use crate::tests::utils::read_test_contract;
 use crate::types::inputs::system_env::TxExecutionMode;
 use crate::{
-    BootloaderState, DynTracer, ExecutionEndTracer, ExecutionProcessing, HistoryEnabled,
-    HistoryMode, TracerExecutionStatus, TracerExecutionStopReason, VmExecutionMode, VmTracer,
-    ZkSyncVmState,
+    BootloaderState, DynTracer, HistoryEnabled, HistoryMode, TracerExecutionStatus,
+    TracerExecutionStopReason, VmExecutionMode, VmTracer, ZkSyncVmState,
 };
 
 #[test]
@@ -153,38 +152,27 @@ fn test_vm_loadnext_rollbacks() {
 // Testing tracer that does not allow the recursion to go deeper than a certain limit
 struct MaxRecursionTracer {
     max_recursion_depth: usize,
-    should_stop_execution: bool,
 }
 
 /// Tracer responsible for calculating the number of storage invocations and
 /// stopping the VM execution if the limit is reached.
 impl<S, H: HistoryMode> DynTracer<S, H> for MaxRecursionTracer {}
 
-impl<H: HistoryMode> ExecutionEndTracer<H> for MaxRecursionTracer {
-    fn should_stop_execution(&self) -> TracerExecutionStatus {
-        if self.should_stop_execution {
+impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for MaxRecursionTracer {
+    fn finish_cycle(
+        &mut self,
+        state: &mut ZkSyncVmState<S, H>,
+        _bootloader_state: &mut BootloaderState,
+    ) -> TracerExecutionStatus {
+        let current_depth = state.local_state.callstack.depth();
+
+        if current_depth > self.max_recursion_depth {
             TracerExecutionStatus::Stop(TracerExecutionStopReason::Finish)
         } else {
             TracerExecutionStatus::Continue
         }
     }
 }
-
-impl<S: WriteStorage, H: HistoryMode> ExecutionProcessing<S, H> for MaxRecursionTracer {
-    fn after_cycle(
-        &mut self,
-        state: &mut ZkSyncVmState<S, H>,
-        _bootloader_state: &mut BootloaderState,
-    ) {
-        let current_depth = state.local_state.callstack.depth();
-
-        if current_depth > self.max_recursion_depth {
-            self.should_stop_execution = true;
-        }
-    }
-}
-
-impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for MaxRecursionTracer {}
 
 #[test]
 fn test_layered_rollback() {
@@ -236,7 +224,6 @@ fn test_layered_rollback() {
     vm.vm.inspect(
         vec![Box::new(MaxRecursionTracer {
             max_recursion_depth: 15,
-            should_stop_execution: false,
         })],
         VmExecutionMode::OneTx,
     );

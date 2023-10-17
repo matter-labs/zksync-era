@@ -16,14 +16,11 @@ use zksync_types::{
 use zksync_utils::u256_to_h256;
 use zksync_utils::{h256_to_u256, u256_to_bytes_be};
 
-use crate::constants::BOOTLOADER_HEAP_PAGE;
 use crate::old_vm::{history_recorder::HistoryMode, memory::SimpleMemory};
+use crate::{constants::BOOTLOADER_HEAP_PAGE, TracerExecutionStatus};
 
 use crate::tracers::{
-    traits::{
-        DynTracer, ExecutionEndTracer, ExecutionProcessing, TracerExecutionStatus,
-        TracerExecutionStopReason, VmTracer,
-    },
+    traits::{DynTracer, TracerExecutionStopReason, VmTracer},
     utils::VmHook,
 };
 use crate::types::{inputs::L1BatchEnv, internals::ZkSyncVmState};
@@ -169,8 +166,12 @@ impl<S, H: HistoryMode> DynTracer<S, H> for PubdataTracer {
     }
 }
 
-impl<H: HistoryMode> ExecutionEndTracer<H> for PubdataTracer {
-    fn should_stop_execution(&self) -> TracerExecutionStatus {
+impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for PubdataTracer {
+    fn finish_cycle(
+        &mut self,
+        state: &mut ZkSyncVmState<S, H>,
+        bootloader_state: &mut BootloaderState,
+    ) -> TracerExecutionStatus {
         if !matches!(self.execution_mode, VmExecutionMode::Batch) {
             // We do not provide the pubdata when executing the block tip or a single transaction
             if self.pubdata_info_requested {
@@ -180,23 +181,7 @@ impl<H: HistoryMode> ExecutionEndTracer<H> for PubdataTracer {
             }
         }
 
-        TracerExecutionStatus::Continue
-    }
-}
-
-impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for PubdataTracer {}
-
-impl<S: WriteStorage, H: HistoryMode> ExecutionProcessing<S, H> for PubdataTracer {
-    fn initialize_tracer(&mut self, _state: &mut ZkSyncVmState<S, H>) {}
-
-    fn before_cycle(&mut self, _state: &mut ZkSyncVmState<S, H>) {}
-
-    fn after_cycle(
-        &mut self,
-        state: &mut ZkSyncVmState<S, H>,
-        bootloader_state: &mut BootloaderState,
-    ) {
-        if self.pubdata_info_requested && matches!(self.execution_mode, VmExecutionMode::Batch) {
+        if self.pubdata_info_requested {
             // Whenever we are executing the block tip, we want to avoid publishing the full pubdata
             let pubdata_input = self.build_pubdata_input(state);
 
@@ -214,5 +199,7 @@ impl<S: WriteStorage, H: HistoryMode> ExecutionProcessing<S, H> for PubdataTrace
 
             self.pubdata_info_requested = false;
         }
+
+        TracerExecutionStatus::Continue
     }
 }

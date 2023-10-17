@@ -8,7 +8,7 @@ use zk_evm::aux_structures::Timestamp;
 use zksync_types::U256;
 use zksync_utils::ceil_div_u256;
 
-impl<H: HistoryMode, S: Storage> VmInstance<'_, S, H> {
+impl<H: HistoryMode, S: Storage> VmInstance<S, H> {
     pub(crate) fn tx_body_refund(
         &self,
         from_timestamp: Timestamp,

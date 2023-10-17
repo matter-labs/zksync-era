@@ -71,6 +71,12 @@ jobs:
           ci_run zk f yarn run l2-contracts build
           ci_run curl -LO https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2\^26.key
 
+      - name: login to Docker registries
+        if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
+        run: |
+          ci_run docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
+          ci_run gcloud auth configure-docker us-docker.pkg.dev,asia-docker.pkg.dev -q
+
       - name: update-images
         env:
           DOCKER_ACTION: ${{ inputs.action }}
