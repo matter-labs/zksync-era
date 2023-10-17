@@ -6,7 +6,7 @@ use zksync_state::{StoragePtr, WriteStorage};
 pub trait VmTracer<S: WriteStorage>: DynTracer<S> {
     type ZkSyncVmState;
     type BootloaderState;
-    type VmExecutionStopReason;
+    type VmExecutionStopReason: Clone;
     /// Initialize the tracer before the vm execution
     fn initialize_tracer(&mut self, _state: &mut Self::ZkSyncVmState) {}
     /// Run after each vm execution cycle

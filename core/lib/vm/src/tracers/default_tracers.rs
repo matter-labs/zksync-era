@@ -62,7 +62,7 @@ impl<S: WriteStorage, H: HistoryMode, T: VmTracer<S>> Tracer for DefaultExecutio
     const CALL_AFTER_DECODING: bool = true;
     const CALL_BEFORE_EXECUTION: bool = true;
     const CALL_AFTER_EXECUTION: bool = true;
-    type SupportedMemory = T::Memory;
+    type SupportedMemory = SimpleMemory<H>;
 
     fn before_decoding(
         &mut self,
@@ -225,25 +225,8 @@ impl<S: WriteStorage, H: HistoryMode, T: VmTracer<S>> DefaultExecutionTracer<S, 
         }
         TracerExecutionStatus::Continue
     }
-}
 
-impl<S: WriteStorage, H: HistoryMode, T: VmTracer<S>> DynTracer<S>
-    for DefaultExecutionTracer<S, H, T>
-{
-    type Memory = T::Memory;
-}
-
-impl<S, H, T> VmTracer<S> for DefaultExecutionTracer<S, H, T>
-where
-    S: WriteStorage,
-    H: HistoryMode,
-    T: VmTracer<S>,
-{
-    type ZkSyncVmState = T::ZkSyncVmState;
-    type BootloaderState = T::BootloaderState;
-    type VmExecutionStopReason = T::VmExecutionStopReason;
-
-    fn initialize_tracer(&mut self, state: &mut Self::ZkSyncVmState) {
+    pub(crate) fn initialize_tracer(&mut self, state: &mut ZkSyncVmState<S, H>) {
         self.result_tracer.initialize_tracer(state);
         if let Some(refund_tracer) = &mut self.refund_tracer {
             refund_tracer.initialize_tracer(state);
@@ -251,10 +234,10 @@ where
         self.custom_tracer.initialize_tracer(state);
     }
 
-    fn finish_cycle(
+    pub(crate) fn finish_cycle(
         &mut self,
-        state: &mut Self::ZkSyncVmState,
-        bootloader_state: &mut Self::BootloaderState,
+        state: &mut ZkSyncVmState<S, H>,
+        bootloader_state: &mut BootloaderState,
     ) -> TracerExecutionStatus {
         if self.final_batch_info_requested {
             self.set_fictive_l2_block(state, bootloader_state)
@@ -266,18 +249,18 @@ where
                 .finish_cycle(state, bootloader_state)
                 .stricter(&result);
         }
-        // result = self
-        //     .custom_tracer
-        //     .finish_cycle(state, bootloader_state)
-        //     .stricter(&result);
+        result = self
+            .custom_tracer
+            .finish_cycle(state, bootloader_state)
+            .stricter(&result);
         result.stricter(&self.should_stop_execution())
     }
 
-    fn after_vm_execution(
+    pub(crate) fn after_vm_execution(
         &mut self,
-        state: &mut Self::ZkSyncVmState,
-        bootloader_state: &Self::BootloaderState,
-        stop_reason: Self::VmExecutionStopReason,
+        state: &mut ZkSyncVmState<S, H>,
+        bootloader_state: &BootloaderState,
+        stop_reason: VmExecutionStopReason,
     ) {
         self.result_tracer
             .after_vm_execution(state, bootloader_state, stop_reason.clone());
@@ -285,8 +268,8 @@ where
         if let Some(refund_tracer) = &mut self.refund_tracer {
             refund_tracer.after_vm_execution(state, bootloader_state, stop_reason.clone());
         }
-        // self.custom_tracer
-        //     .after_vm_execution(state, bootloader_state, stop_reason.clone());
+        self.custom_tracer
+            .after_vm_execution(state, bootloader_state, stop_reason.clone());
     }
 }
 
