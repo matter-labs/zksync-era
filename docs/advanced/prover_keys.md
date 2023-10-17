@@ -12,6 +12,8 @@ principles we'll discuss apply there as well.
 
 ## Circuits
 
+![circuits](https://user-images.githubusercontent.com/128217157/275817097-0a543476-52e5-437b-a7d3-10603d5833fa.png)
+
 We offer 13 distinct types of **'base' circuits**, including Vm, Decommitter, and others, which you can view in the
 [full list here][basic_circuit_list]. In addition, there are 15 **'recursive' circuits**. Out of these, 13 are 'leaves,'
 each corresponding to a basic type, while one is a 'node,' and another is a 'scheduler' that oversees all others. You
@@ -21,6 +23,9 @@ In our new proof system, there's also a final element known as the compressor, o
 additional type of circuit.
 
 It's essential to note that each circuit type requires its unique set of keys.
+
+Also, the base circuits, leaves, node and scheduler are STARK based with FRI commitments, while the snark wrapper is
+SNARK based with KZG commitment. This results in slightly different contents of the keys, but their role stays the same.
 
 ## Keys
 
@@ -97,8 +102,12 @@ ensures that each Merkle path is slightly shorter, improving efficiency.
 
 #### Verification key hash
 
-As previously stated, the hash is derived from keccak applied to the data contained in the verification key. You can
-view the exact process of how the keccak hash is computed in the [Verifier.sol][verifier_computation] file.
+As previously stated, the verification key hash is derived from hash function applied to the data contained in the
+verification key. You can view the exact process of how the keccak hash is computed in the
+[Verifier.sol][verifier_computation] file.
+
+For SNARK circuits (like snark_wrapper), we use keccak as hash function. For START based circuits, we use more circuit
+friendly hash function (currently Poseidon2).
 
 [basic_circuit_list]:
   https://github.com/matter-labs/era-zkevm_test_harness/blob/3cd647aa57fc2e1180bab53f7a3b61ec47502a46/circuit_definitions/src/circuit_definitions/base_layer/mod.rs#L80
