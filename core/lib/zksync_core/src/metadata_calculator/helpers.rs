@@ -1,5 +1,6 @@
 //! Various helpers for the metadata calculator.
 
+use serde::{Deserialize, Serialize};
 #[cfg(test)]
 use tokio::sync::mpsc;
 
@@ -20,13 +21,19 @@ use zksync_merkle_tree::{
 use zksync_storage::RocksDB;
 use zksync_types::{block::L1BatchHeader, L1BatchNumber, StorageLog, H256};
 
-use super::{
-    api,
-    metrics::{LoadChangesStage, TreeUpdateStage, METRICS},
-};
+use super::metrics::{LoadChangesStage, TreeUpdateStage, METRICS};
 
-impl From<api::MerkleTreeInfo> for Health {
-    fn from(tree_info: api::MerkleTreeInfo) -> Self {
+/// General information about the Merkle tree.
+#[derive(Debug, Serialize, Deserialize)]
+pub(crate) struct MerkleTreeInfo {
+    pub mode: MerkleTreeMode,
+    pub root_hash: H256,
+    pub next_l1_batch_number: L1BatchNumber,
+    pub leaf_count: u64,
+}
+
+impl From<MerkleTreeInfo> for Health {
+    fn from(tree_info: MerkleTreeInfo) -> Self {
         Self::from(HealthStatus::Ready).with_details(tree_info)
     }
 }
@@ -154,12 +161,8 @@ pub(crate) struct AsyncTreeReader {
 }
 
 impl AsyncTreeReader {
-    pub(super) fn as_ref(&self) -> &ZkSyncTreeReader {
-        &self.inner
-    }
-
-    pub(super) async fn get_info_inner(self) -> api::MerkleTreeInfo {
-        tokio::task::spawn_blocking(move || api::MerkleTreeInfo {
+    pub async fn info(self) -> MerkleTreeInfo {
+        tokio::task::spawn_blocking(move || MerkleTreeInfo {
             mode: self.mode,
             root_hash: self.as_ref().root_hash(),
             next_l1_batch_number: self.as_ref().next_l1_batch_number(),
@@ -167,6 +170,12 @@ impl AsyncTreeReader {
         })
         .await
         .unwrap()
+    }
+}
+
+impl AsRef<ZkSyncTreeReader> for AsyncTreeReader {
+    fn as_ref(&self) -> &ZkSyncTreeReader {
+        &self.inner
     }
 }
 

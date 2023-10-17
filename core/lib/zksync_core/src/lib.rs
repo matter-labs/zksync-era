@@ -175,34 +175,36 @@ pub fn setup_sigint_handler() -> oneshot::Receiver<()> {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Component {
-    // Public Web3 API running on HTTP server.
+    /// Public Web3 API running on HTTP server.
     HttpApi,
-    // Public Web3 API running on HTTP/WebSocket server and redirect eth_getLogs to another method.
+    /// Public Web3 API running on HTTP/WebSocket server and redirect eth_getLogs to another method.
     ApiTranslator,
-    // Public Web3 API (including PubSub) running on WebSocket server.
+    /// Public Web3 API (including PubSub) running on WebSocket server.
     WsApi,
-    // REST API for contract verification.
+    /// REST API for contract verification.
     ContractVerificationApi,
-    // Metadata Calculator.
+    /// Metadata calculator.
     Tree,
     // TODO(BFT-273): Remove `TreeLightweight` component as obsolete
     TreeLightweight,
     TreeBackup,
+    /// Merkle tree API.
+    TreeApi,
     EthWatcher,
-    // Eth tx generator
+    /// Eth tx generator.
     EthTxAggregator,
-    // Manager for eth tx
+    /// Manager for eth tx.
     EthTxManager,
-    // Data fetchers: list fetcher, volume fetcher, price fetcher.
+    /// Data fetchers: list fetcher, volume fetcher, price fetcher.
     DataFetcher,
-    // State keeper.
+    /// State keeper.
     StateKeeper,
-    // Witness Generator. The first argument is a number of jobs to process. If None, runs indefinitely.
-    // The second argument is the type of the witness-generation performed
+    /// Witness Generator. The first argument is a number of jobs to process. If None, runs indefinitely.
+    /// The second argument is the type of the witness-generation performed
     WitnessGenerator(Option<usize>, AggregationRound),
-    // Component for housekeeping task such as cleaning blobs from GCS, reporting metrics etc.
+    /// Component for housekeeping task such as cleaning blobs from GCS, reporting metrics etc.
     Housekeeper,
-    // Component for exposing API's to prover for providing proof generation data and accepting proofs.
+    /// Component for exposing API's to prover for providing proof generation data and accepting proofs.
     ProofDataHandler,
 }
 
@@ -228,6 +230,7 @@ impl FromStr for Components {
                 Ok(Components(vec![Component::TreeLightweight]))
             }
             "tree_backup" => Ok(Components(vec![Component::TreeBackup])),
+            "tree_api" => Ok(Components(vec![Component::TreeApi])),
             "data_fetcher" => Ok(Components(vec![Component::DataFetcher])),
             "state_keeper" => Ok(Components(vec![Component::StateKeeper])),
             "housekeeper" => Ok(Components(vec![Component::Housekeeper])),
@@ -774,7 +777,9 @@ async fn run_tree(
     let metadata_calculator = MetadataCalculator::new(&config).await;
     if let Some(port) = db_config.merkle_tree.api_port {
         let address = (Ipv4Addr::UNSPECIFIED, port).into();
-        let server_task = metadata_calculator.run_api_server(&address, stop_receiver.clone());
+        let server_task = metadata_calculator
+            .tree_reader()
+            .run_api_server(address, stop_receiver.clone());
         task_futures.push(tokio::spawn(server_task));
     }
 

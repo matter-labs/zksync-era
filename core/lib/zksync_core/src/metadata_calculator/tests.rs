@@ -4,7 +4,7 @@ use itertools::Itertools;
 use tempfile::TempDir;
 use tokio::sync::{mpsc, watch};
 
-use std::{future::Future, net::Ipv4Addr, ops, panic, path::Path, time::Duration};
+use std::{future::Future, ops, panic, path::Path, time::Duration};
 
 use zksync_config::{configs::chain::OperationsManagerConfig, DBConfig};
 use zksync_contracts::BaseSystemContracts;
@@ -18,12 +18,11 @@ use zksync_types::{
     protocol_version::L1VerifierConfig,
     system_contracts::get_system_smart_contracts,
     AccountTreeId, Address, L1BatchNumber, L2ChainId, MiniblockNumber, ProtocolVersionId,
-    StorageKey, StorageLog, H256, U256,
+    StorageKey, StorageLog, H256,
 };
 use zksync_utils::u32_to_h256;
 
 use super::{
-    api::{self, TreeApiClient as _},
     L1BatchWithLogs, MetadataCalculator, MetadataCalculatorConfig, MetadataCalculatorModeConfig,
 };
 use crate::genesis::{ensure_genesis_state, GenesisParams};
@@ -178,77 +177,6 @@ async fn multi_l1_batch_workflow(pool: ConnectionPool, prover_pool: ConnectionPo
             .max();
         prev_index = max_leaf_index_in_block.or(prev_index);
     }
-}
-
-#[db_test]
-async fn merkle_tree_api(pool: ConnectionPool, prover_pool: ConnectionPool) {
-    let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
-    let (mut calculator, _) = setup_calculator(temp_dir.path(), &pool).await;
-    let api_addr = (Ipv4Addr::LOCALHOST, 0).into();
-    let (stop_sender, stop_receiver) = watch::channel(false);
-    let api_server = calculator
-        .create_api_server(&api_addr, stop_receiver.clone())
-        .unwrap();
-    let local_addr = *api_server.local_addr();
-    let api_server_task = tokio::spawn(api_server.run());
-    let api_client = api::TreeApiHttpClient::new(&format!("http://{local_addr}"));
-
-    reset_db_state(&pool, 5).await;
-    let (delay_sx, mut delay_rx) = mpsc::unbounded_channel();
-    calculator.delayer.delay_notifier = delay_sx;
-    let calculator_task = tokio::spawn(calculator.run(pool, prover_pool, stop_receiver));
-    // Wait until the calculator processes initial L1 batches.
-    let (next_l1_batch, _) = tokio::time::timeout(RUN_TIMEOUT, delay_rx.recv())
-        .await
-        .expect("metadata calculator timed out processing initial blocks")
-        .unwrap();
-    assert_eq!(next_l1_batch, L1BatchNumber(6));
-
-    // Query the API.
-    let tree_info = api_client.get_info().await.unwrap();
-    assert!(tree_info.leaf_count > 20);
-    assert_eq!(tree_info.next_l1_batch_number, L1BatchNumber(6));
-
-    let mut hashed_keys: Vec<_> = gen_storage_logs(20..30, 1)[0]
-        .iter()
-        .map(|log| log.key.hashed_key_u256())
-        .collect();
-    // Extend with some non-existing keys.
-    hashed_keys.extend((0_u8..10).map(|byte| U256::from_big_endian(&[byte; 32])));
-
-    let proofs = api_client
-        .get_proofs(L1BatchNumber(5), hashed_keys)
-        .await
-        .unwrap();
-    assert_eq!(proofs.len(), 20);
-    for (i, proof) in proofs.into_iter().enumerate() {
-        let should_be_present = i < 10;
-        assert_eq!(proof.index == 0, !should_be_present);
-        assert!(!proof.merkle_path.is_empty());
-    }
-
-    let err = api_client
-        .get_proofs(L1BatchNumber(10), vec![])
-        .await
-        .unwrap_err();
-    let err = format!("{err:?}");
-    // Check that the error message contains all necessary info to troubleshoot it.
-    assert!(
-        err.contains("Requesting proofs for L1 batch #10 returned non-OK response"),
-        "{}",
-        err
-    );
-    assert!(err.contains("404 Not Found"), "{}", err);
-    assert!(
-        err.contains(&format!("http://{local_addr}/proofs")),
-        "{}",
-        err
-    );
-
-    // Stop the calculator and the tree API server.
-    stop_sender.send_replace(true);
-    api_server_task.await.unwrap().unwrap();
-    calculator_task.await.unwrap().unwrap();
 }
 
 #[db_test]
@@ -428,7 +356,7 @@ async fn postgres_backup_recovery_with_excluded_metadata(
     test_postgres_backup_recovery(pool, prover_pool, false, true).await;
 }
 
-async fn setup_calculator(
+pub(crate) async fn setup_calculator(
     db_path: &Path,
     pool: &ConnectionPool,
 ) -> (MetadataCalculator, Box<dyn ObjectStore>) {
@@ -498,7 +426,7 @@ fn path_to_string(path: &Path) -> String {
     path.to_str().unwrap().to_owned()
 }
 
-async fn run_calculator(
+pub(crate) async fn run_calculator(
     mut calculator: MetadataCalculator,
     pool: ConnectionPool,
     prover_pool: ConnectionPool,
@@ -523,7 +451,7 @@ async fn run_calculator(
     delayer_handle.await.unwrap()
 }
 
-pub(super) async fn reset_db_state(pool: &ConnectionPool, num_batches: usize) {
+pub(crate) async fn reset_db_state(pool: &ConnectionPool, num_batches: usize) {
     let mut storage = pool.access_storage().await.unwrap();
     // Drops all L1 batches (except the L1 batch with number 0) and their storage logs.
     storage
@@ -644,7 +572,7 @@ async fn insert_initial_writes_for_batch(
         .await;
 }
 
-pub(super) fn gen_storage_logs(
+pub(crate) fn gen_storage_logs(
     indices: ops::Range<u32>,
     num_batches: usize,
 ) -> Vec<Vec<StorageLog>> {

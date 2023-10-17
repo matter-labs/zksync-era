@@ -3,7 +3,7 @@
 
 use tokio::sync::watch;
 
-use std::{future::Future, net::SocketAddr, time::Duration};
+use std::time::Duration;
 
 use zksync_config::configs::{
     chain::OperationsManagerConfig,
@@ -18,14 +18,13 @@ use zksync_types::{
     commitment::{L1BatchCommitment, L1BatchMetadata},
 };
 
-pub(crate) mod api;
 mod helpers;
 mod metrics;
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;
 mod updater;
 
-pub(crate) use self::helpers::L1BatchWithLogs;
+pub(crate) use self::helpers::{AsyncTreeReader, L1BatchWithLogs, MerkleTreeInfo};
 use self::{
     helpers::Delayer,
     metrics::{TreeUpdateStage, METRICS},
@@ -125,25 +124,9 @@ impl MetadataCalculator {
         self.health_updater.subscribe()
     }
 
-    /// Runs the Merkle tree API server on the specified address.
-    pub fn run_api_server(
-        &self,
-        address: &SocketAddr,
-        stop_receiver: watch::Receiver<bool>,
-    ) -> impl Future<Output = anyhow::Result<()>> {
-        let server = self.create_api_server(address, stop_receiver);
-        async { server?.run().await }
-    }
-
-    fn create_api_server(
-        &self,
-        address: &SocketAddr,
-        stop_receiver: watch::Receiver<bool>,
-    ) -> anyhow::Result<api::MerkleTreeServer> {
-        self.updater
-            .tree()
-            .reader()
-            .create_server(address, stop_receiver)
+    /// Returns a reference to the tree reader.
+    pub(crate) fn tree_reader(&self) -> AsyncTreeReader {
+        self.updater.tree().reader()
     }
 
     pub async fn run(

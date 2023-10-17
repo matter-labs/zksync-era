@@ -13,22 +13,15 @@ use tokio::sync::watch;
 
 use std::{fmt, future::Future, net::SocketAddr, pin::Pin};
 
-use super::{
-    helpers::AsyncTreeReader,
-    metrics::{MerkleTreeApiMethod, API_METRICS},
-};
-use zksync_config::configs::database::MerkleTreeMode;
 use zksync_merkle_tree::NoVersionError;
 use zksync_types::{L1BatchNumber, H256, U256};
 
-/// General information about the Merkle tree.
-#[derive(Debug, Serialize, Deserialize)]
-pub(crate) struct MerkleTreeInfo {
-    pub mode: MerkleTreeMode,
-    pub root_hash: H256,
-    pub next_l1_batch_number: L1BatchNumber,
-    pub leaf_count: u64,
-}
+mod metrics;
+#[cfg(test)]
+mod tests;
+
+use self::metrics::{MerkleTreeApiMethod, API_METRICS};
+use crate::metadata_calculator::{AsyncTreeReader, MerkleTreeInfo};
 
 #[derive(Debug, Serialize, Deserialize)]
 struct TreeProofsRequest {
@@ -110,7 +103,7 @@ pub(crate) trait TreeApiClient {
 #[async_trait]
 impl TreeApiClient for AsyncTreeReader {
     async fn get_info(&self) -> anyhow::Result<MerkleTreeInfo> {
-        Ok(self.clone().get_info_inner().await)
+        Ok(self.clone().info().await)
     }
 
     async fn get_proofs(
@@ -188,7 +181,7 @@ impl TreeApiClient for TreeApiHttpClient {
 
 impl AsyncTreeReader {
     async fn info_handler(State(this): State<Self>) -> Json<MerkleTreeInfo> {
-        Json(this.get_info_inner().await)
+        Json(this.info().await)
     }
 
     async fn get_proofs_inner(
@@ -223,7 +216,7 @@ impl AsyncTreeReader {
         Ok(Json(response))
     }
 
-    pub(super) fn create_server(
+    fn create_api_server(
         self,
         bind_address: &SocketAddr,
         mut stop_receiver: watch::Receiver<bool>,
@@ -248,8 +241,8 @@ impl AsyncTreeReader {
                 }
                 tracing::info!("Stop signal received, Merkle tree API server is shutting down");
             })
-            .await
-            .context("Merkle tree API server failed")?;
+                .await
+                .context("Merkle tree API server failed")?;
 
             tracing::info!("Merkle tree API server shut down");
             Ok(())
@@ -260,11 +253,22 @@ impl AsyncTreeReader {
             server_future: Box::pin(server_future),
         })
     }
+
+    /// Runs the HTTP API server.
+    pub async fn run_api_server(
+        self,
+        bind_address: SocketAddr,
+        stop_receiver: watch::Receiver<bool>,
+    ) -> anyhow::Result<()> {
+        self.create_api_server(&bind_address, stop_receiver)?
+            .run()
+            .await
+    }
 }
 
 /// `axum`-powered REST server for Merkle tree API.
 #[must_use = "Server must be `run()`"]
-pub(super) struct MerkleTreeServer {
+struct MerkleTreeServer {
     local_addr: SocketAddr,
     server_future: Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send>>,
 }
@@ -284,7 +288,7 @@ impl MerkleTreeServer {
         &self.local_addr
     }
 
-    pub async fn run(self) -> anyhow::Result<()> {
+    async fn run(self) -> anyhow::Result<()> {
         self.server_future.await
     }
 }

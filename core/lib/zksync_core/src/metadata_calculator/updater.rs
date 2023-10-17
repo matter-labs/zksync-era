@@ -276,7 +276,7 @@ impl TreeUpdater {
             (last_l1_batch_with_metadata.0 + 1).saturating_sub(next_l1_batch_to_seal.0);
         METRICS.backup_lag.set(backup_lag.into());
 
-        let tree_info = tree.reader().get_info_inner().await;
+        let tree_info = tree.reader().info().await;
         health_updater.update(tree_info.into());
 
         if next_l1_batch_to_seal > last_l1_batch_with_metadata + 1 {
@@ -296,7 +296,7 @@ impl TreeUpdater {
             next_l1_batch_to_seal = tree.next_l1_batch_number();
             tracing::info!("Truncated Merkle tree to L1 batch #{next_l1_batch_to_seal}");
 
-            let tree_info = tree.reader().get_info_inner().await;
+            let tree_info = tree.reader().info().await;
             health_updater.update(tree_info.into());
         }
 
@@ -324,7 +324,7 @@ impl TreeUpdater {
                 );
                 delayer.wait(&self.tree).left_future()
             } else {
-                let tree_info = self.tree.reader().get_info_inner().await;
+                let tree_info = self.tree.reader().info().await;
                 health_updater.update(tree_info.into());
 
                 tracing::trace!(
