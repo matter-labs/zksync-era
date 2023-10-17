@@ -295,7 +295,7 @@ impl WorkingPatchSet {
 
     /// Splits this patch set by the first nibble of the contained keys.
     pub fn split(self) -> [Self; SUBTREE_COUNT] {
-        let mut parts = [(); SUBTREE_COUNT].map(|_| Self {
+        let mut parts = [(); SUBTREE_COUNT].map(|()| Self {
             root_version: self.root_version,
             changes_by_nibble_count: vec![HashMap::new(); self.changes_by_nibble_count.len()],
         });

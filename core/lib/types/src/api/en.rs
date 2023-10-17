@@ -1,6 +1,5 @@
 //! API types related to the External Node specific methods.
 
-use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use zk_evm::ethereum_types::Address;
 use zksync_basic_types::{L1BatchNumber, MiniblockNumber, H256};
@@ -27,21 +26,6 @@ pub struct SyncBlock {
     pub timestamp: u64,
     /// Hash of the L2 block (not the Merkle root hash).
     pub root_hash: Option<H256>,
-    /// Hash of the block's commit transaction on L1.
-    /// May be `None` if the corresponsing L1 batch is not committed yet.
-    pub commit_tx_hash: Option<H256>,
-    /// Timestamp of the commit transaction, as provided by the main node.
-    pub committed_at: Option<DateTime<Utc>>,
-    /// Hash of the block's prove transaction on L1.
-    /// May be `None` if the corresponsing L1 batch is not proven yet.
-    pub prove_tx_hash: Option<H256>,
-    /// Timestamp of the prove transaction, as provided by the main node.
-    pub proven_at: Option<DateTime<Utc>>,
-    /// Hash of the block's execute transaction on L1.
-    /// May be `None` if the corresponsing L1 batch is not executed yet.
-    pub execute_tx_hash: Option<H256>,
-    /// Timestamp of the execute transaction, as provided by the main node.
-    pub executed_at: Option<DateTime<Utc>>,
     /// L1 gas price used as VM parameter for the L1 batch corresponding to this L2 block.
     pub l1_gas_price: u64,
     /// L2 gas price used as VM parameter for the L1 batch corresponding to this L2 block.

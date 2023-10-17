@@ -3,15 +3,13 @@ use prometheus_exporter::PrometheusExporterConfig;
 use structopt::StructOpt;
 use tokio::{sync::oneshot, sync::watch};
 
-use zksync_config::configs::{
-    AlertsConfig, CircuitSynthesizerConfig, ProverGroupConfig,
-};
+use zksync_config::configs::{AlertsConfig, CircuitSynthesizerConfig, ProverGroupConfig};
 use zksync_dal::connection::DbVariant;
 use zksync_dal::ConnectionPool;
 use zksync_object_store::ObjectStoreFactory;
 use zksync_queued_job_processor::JobProcessor;
-use zksync_verification_key_server::get_cached_commitments;
 use zksync_utils::wait_for_tasks::wait_for_tasks;
+use zksync_verification_key_server::get_cached_commitments;
 
 use crate::circuit_synthesizer::CircuitSynthesizer;
 
@@ -26,7 +24,7 @@ struct Opt {
 }
 
 #[tokio::main]
-async fn main() -> anyhow::Result<()>{
+async fn main() -> anyhow::Result<()> {
     #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
     let log_format = vlog::log_format_from_env();
     #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
@@ -44,9 +42,11 @@ async fn main() -> anyhow::Result<()>{
     let _guard = builder.build();
 
     let opt = Opt::from_args();
-    let config: CircuitSynthesizerConfig = CircuitSynthesizerConfig::from_env()
-        .context("CircuitSynthesizerConfig::from_env()")?;
-    let pool = ConnectionPool::builder(DbVariant::Prover).build().await
+    let config: CircuitSynthesizerConfig =
+        CircuitSynthesizerConfig::from_env().context("CircuitSynthesizerConfig::from_env()")?;
+    let pool = ConnectionPool::builder(DbVariant::Prover)
+        .build()
+        .await
         .context("failed to build a connection pool")?;
     let vk_commitments = get_cached_commitments();
 
@@ -56,7 +56,9 @@ async fn main() -> anyhow::Result<()>{
         &ObjectStoreFactory::from_env().context("ObjectStoreFactory::from_env()")?,
         vk_commitments,
         pool,
-    ).await.map_err(|err|anyhow::anyhow!("Could not initialize synthesizer {err:?}"))?;
+    )
+    .await
+    .map_err(|err| anyhow::anyhow!("Could not initialize synthesizer {err:?}"))?;
 
     let (stop_sender, stop_receiver) = watch::channel(false);
 
@@ -66,11 +68,12 @@ async fn main() -> anyhow::Result<()>{
         if let Some(stop_signal_sender) = stop_signal_sender.take() {
             stop_signal_sender.send(()).ok();
         }
-    }).context("Error setting Ctrl+C handler")?;
+    })
+    .context("Error setting Ctrl+C handler")?;
 
     tracing::info!("Starting circuit synthesizer");
-    let prometheus_task = PrometheusExporterConfig::pull(config.prometheus_listener_port)
-        .run(stop_receiver.clone());
+    let prometheus_task =
+        PrometheusExporterConfig::pull(config.prometheus_listener_port).run(stop_receiver.clone());
     let tasks = vec![
         tokio::spawn(prometheus_task),
         tokio::spawn(circuit_synthesizer.run(stop_receiver, opt.number_of_iterations)),
@@ -79,7 +82,7 @@ async fn main() -> anyhow::Result<()>{
     let particular_crypto_alerts = Some(
         AlertsConfig::from_env()
             .context("AlertsConfig::from_env()")?
-            .sporadic_crypto_errors_substrs
+            .sporadic_crypto_errors_substrs,
     );
     let graceful_shutdown = None::<futures::future::Ready<()>>;
     let tasks_allowed_to_finish = false;

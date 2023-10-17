@@ -53,3 +53,20 @@ impl GlueFrom<vm_1_3_2::errors::VmRevertReason> for vm_latest::VmRevertReason {
         }
     }
 }
+
+impl GlueFrom<vm_virtual_blocks::VmRevertReason> for vm_latest::VmRevertReason {
+    fn glue_from(value: vm_virtual_blocks::VmRevertReason) -> Self {
+        match value {
+            vm_virtual_blocks::VmRevertReason::General { msg, data } => Self::General { msg, data },
+            vm_virtual_blocks::VmRevertReason::InnerTxError => Self::InnerTxError,
+            vm_virtual_blocks::VmRevertReason::VmError => Self::VmError,
+            vm_virtual_blocks::VmRevertReason::Unknown {
+                function_selector,
+                data,
+            } => Self::Unknown {
+                function_selector,
+                data,
+            },
+        }
+    }
+}

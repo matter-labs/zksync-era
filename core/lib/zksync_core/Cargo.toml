@@ -10,12 +10,14 @@ keywords = ["blockchain", "zksync"]
 categories = ["cryptography"]
 
 [dependencies]
+vise = { git = "https://github.com/matter-labs/vise.git", version = "0.1.0", rev = "dd05139b76ab0843443ab3ff730174942c825dae" }
 zksync_state = { path = "../state" }
 zksync_types = { path = "../types" }
 zksync_dal = { path = "../dal" }
 zksync_config = { path = "../config" }
 zksync_utils = { path = "../utils" }
 zksync_contracts = { path = "../contracts" }
+zksync_commitment_utils = { path = "../commitment_utils" }
 zksync_eth_client = { path = "../eth_client" }
 zksync_eth_signer = { path = "../eth_signer" }
 zksync_mempool = { path = "../mempool" }
@@ -40,8 +42,8 @@ multivm = { path = "../multivm" }
 
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-metrics = "0.21"
 itertools = "0.10.3"
+metrics = "0.21"
 ctrlc = { version = "3.1", features = ["termination"] }
 rand = "0.8"
 

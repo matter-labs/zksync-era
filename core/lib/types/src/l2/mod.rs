@@ -389,7 +389,7 @@ impl From<L2Tx> for api::Transaction {
 
         Self {
             hash: tx.hash(),
-            chain_id: tx.common_data.extract_chain_id().unwrap_or_default(),
+            chain_id: U256::from(tx.common_data.extract_chain_id().unwrap_or_default()),
             nonce: U256::from(tx.common_data.nonce.0),
             from: Some(tx.common_data.initiator_address),
             to: Some(tx.recipient_account()),

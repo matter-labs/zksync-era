@@ -2,8 +2,8 @@ use zkevm_test_harness::witness::recursive_aggregation::{
     compute_leaf_params, create_leaf_witnesses,
 };
 
-use std::time::Instant;
 use anyhow::Context as _;
+use std::time::Instant;
 
 use async_trait::async_trait;
 use zksync_prover_fri_types::circuit_definitions::boojum::field::goldilocks::GoldilocksField;
@@ -111,18 +111,23 @@ impl JobProcessor for LeafAggregationWitnessGenerator {
             .fri_witness_generator_dal()
             .get_next_leaf_aggregation_job(&self.protocol_versions, &pod_name)
             .await
-        else { return Ok(None) };
+        else {
+            return Ok(None);
+        };
         tracing::info!("Processing leaf aggregation job {:?}", metadata.id);
         Ok(Some((
             metadata.id,
-            prepare_leaf_aggregation_job(metadata, &*self.object_store).await
+            prepare_leaf_aggregation_job(metadata, &*self.object_store)
+                .await
                 .context("prepare_leaf_aggregation_job()")?,
         )))
     }
 
     async fn save_failure(&self, job_id: u32, _started_at: Instant, error: String) -> () {
         self.prover_connection_pool
-            .access_storage().await.unwrap()
+            .access_storage()
+            .await
+            .unwrap()
             .fri_witness_generator_dal()
             .mark_leaf_aggregation_job_failed(&error, job_id)
             .await;

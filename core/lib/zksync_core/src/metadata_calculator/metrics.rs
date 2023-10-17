@@ -1,142 +1,155 @@
 //! Metrics for `MetadataCalculator`.
 
-use std::time::Instant;
+use vise::{
+    Buckets, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, LatencyObserver, Metrics,
+};
 
-use zksync_config::configs::database::MerkleTreeMode;
+use std::time::{Duration, Instant};
+
 use zksync_types::block::L1BatchHeader;
 use zksync_utils::time::seconds_since_epoch;
 
 use super::MetadataCalculator;
+use crate::metrics::{BlockStage, APP_METRICS};
 
-/// Stage of [`MetadataCalculator`] update reported via metric and logged.
-pub(super) trait ReportStage: Copy {
-    /// Name of the histogram using which the stage latency is reported.
-    const HISTOGRAM_NAME: &'static str;
-
-    /// Returns the stage tag for the histogram.
-    fn as_tag(self) -> &'static str;
-
-    /// Starts the stage.
-    fn start(self) -> UpdateTreeLatency<Self> {
-        UpdateTreeLatency {
-            stage: self,
-            start: Instant::now(),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
+#[metrics(label = "stage", rename_all = "snake_case")]
 pub(super) enum TreeUpdateStage {
     LoadChanges,
     Compute,
-    PrepareResults,
+    CheckConsistency,
+    EventsCommitment,
+    BootloaderCommitment,
+    BuildMetadata,
+    #[metrics(name = "reestimate_block_commit_gas_cost")]
     ReestimateGasCost,
     SavePostgres,
-    SaveRocksDB,
-    SaveWitnesses,
-    _Backup,
-}
-
-impl ReportStage for TreeUpdateStage {
-    const HISTOGRAM_NAME: &'static str = "server.metadata_calculator.update_tree.latency.stage";
-
-    fn as_tag(self) -> &'static str {
-        match self {
-            Self::LoadChanges => "load_changes",
-            Self::Compute => "compute",
-            Self::PrepareResults => "prepare_results",
-            Self::ReestimateGasCost => "reestimate_block_commit_gas_cost",
-            Self::SavePostgres => "save_postgres",
-            Self::SaveRocksDB => "save_rocksdb",
-            Self::SaveWitnesses => "save_gcs",
-            Self::_Backup => "backup_tree",
-        }
-    }
+    SaveRocksdb,
+    SaveGcs,
 }
 
 /// Sub-stages of [`TreeUpdateStage::LoadChanges`].
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
+#[metrics(label = "stage", rename_all = "snake_case")]
 pub(super) enum LoadChangesStage {
-    L1BatchHeader,
-    ProtectiveReads,
-    TouchedSlots,
-    InitialWritesForZeroValues,
-}
-
-impl LoadChangesStage {
-    const COUNT_HISTOGRAM_NAME: &'static str = "server.metadata_calculator.load_changes.count";
-}
-
-impl ReportStage for LoadChangesStage {
-    const HISTOGRAM_NAME: &'static str = "server.metadata_calculator.load_changes.latency";
-
-    fn as_tag(self) -> &'static str {
-        match self {
-            Self::L1BatchHeader => "load_l1_batch_header",
-            Self::ProtectiveReads => "load_protective_reads",
-            Self::TouchedSlots => "load_touched_slots",
-            Self::InitialWritesForZeroValues => "load_initial_writes_for_zero_values",
-        }
-    }
+    LoadL1BatchHeader,
+    LoadProtectiveReads,
+    LoadTouchedSlots,
+    LoadInitialWritesForZeroValues,
 }
 
 /// Latency metric for a certain stage of the tree update.
 #[derive(Debug)]
 #[must_use = "Tree latency should be `report`ed"]
-pub(super) struct UpdateTreeLatency<S> {
-    stage: S,
-    start: Instant,
+pub(super) struct UpdateTreeLatency<'a, const COUNT: bool> {
+    stage: String,
+    latency: LatencyObserver<'a>,
+    counter: Option<&'a Histogram<usize>>,
 }
 
-impl<S: ReportStage> UpdateTreeLatency<S> {
-    pub fn report(self) {
-        self.report_inner(None);
+impl<const COUNT: bool> UpdateTreeLatency<'_, COUNT> {
+    pub fn observe(self) {
+        self.observe_inner(None);
     }
 
-    fn report_inner(self, record_count: Option<usize>) {
-        let elapsed = self.start.elapsed();
-        let stage = self.stage.as_tag();
-        metrics::histogram!(S::HISTOGRAM_NAME, elapsed, "stage" => stage);
-
+    fn observe_inner(self, record_count: Option<usize>) {
+        let stage = &self.stage;
+        let elapsed = self.latency.observe();
         if let Some(record_count) = record_count {
             tracing::debug!(
                 "Metadata calculator stage `{stage}` with {record_count} records completed in {elapsed:?}"
             );
+            self.counter.unwrap().observe(record_count);
+            // ^ `unwrap()` is safe by construction
         } else {
             tracing::debug!("Metadata calculator stage `{stage}` completed in {elapsed:?}");
         }
     }
 }
 
-impl UpdateTreeLatency<LoadChangesStage> {
-    pub fn report_with_count(self, count: usize) {
-        let stage = self.stage.as_tag();
-        self.report_inner(Some(count));
-        metrics::histogram!(LoadChangesStage::COUNT_HISTOGRAM_NAME, count as f64, "stage" => stage);
+impl UpdateTreeLatency<'_, true> {
+    pub fn observe_with_count(self, count: usize) {
+        self.observe_inner(Some(count));
     }
 }
 
+const COUNTS_BUCKETS: Buckets = Buckets::values(&[
+    100.0, 200.0, 500.0, 1_000.0, 2_000.0, 5_000.0, 10_000.0, 20_000.0, 50_000.0, 100_000.0,
+]);
+/// Buckets for `update_tree_per_log_latency` (from 1us to 10ms). The expected order of latencies
+/// should be ~100us / log for large trees.
+const LATENCIES_PER_LOG: Buckets = Buckets::values(&[
+    1e-6, 2.5e-6, 5e-6, 1e-5, 2.5e-5, 5e-5, 1e-4, 2.5e-4, 5e-4, 1e-3, 5e-3, 1e-2,
+]);
+
+/// Metrics for the metadata calculator.
+#[derive(Debug, Metrics)]
+#[metrics(prefix = "server_metadata_calculator")]
+pub(super) struct MetadataCalculatorMetrics {
+    /// Lag between the number of L1 batches processed in the Merkle tree and stored in Postgres.
+    /// The lag can only be positive if Postgres was restored from a backup truncating some
+    /// of the batches already processed by the tree.
+    pub backup_lag: Gauge<u64>,
+    /// Number of zero values that need to be checked for L1 batch of the initial write in the process
+    /// of updating the Merkle tree.
+    #[metrics(buckets = COUNTS_BUCKETS)]
+    pub load_changes_zero_values: Histogram<usize>,
+    /// Total latency of updating the Merkle tree.
+    #[metrics(buckets = Buckets::LATENCIES)]
+    update_tree_latency: Histogram<Duration>,
+    /// Latency of updating the Merkle tree divided by the number of updated entries.
+    #[metrics(buckets = LATENCIES_PER_LOG)]
+    update_tree_per_log_latency: Histogram<Duration>,
+    /// Number of entries updated in the Merkle tree for a single L1 batch.
+    #[metrics(buckets = COUNTS_BUCKETS)]
+    log_batch: Histogram<usize>,
+    /// Number of L1 batches applied to the Merkle tree in a single iteration.
+    #[metrics(buckets = Buckets::linear(1.0..=20.0, 1.0))]
+    blocks_batch: Histogram<usize>,
+    /// Latency of updating the Merkle tree per stage.
+    #[metrics(buckets = Buckets::LATENCIES)]
+    update_tree_latency_stage: Family<TreeUpdateStage, Histogram<Duration>>,
+    /// Latency of loading changes from Postgres split into stages.
+    #[metrics(buckets = Buckets::LATENCIES)]
+    load_changes_latency: Family<LoadChangesStage, Histogram<Duration>>,
+    /// Number of changes loaded from Postgres in a specific loading stage.
+    #[metrics(buckets = COUNTS_BUCKETS)]
+    load_changes_count: Family<LoadChangesStage, Histogram<usize>>,
+}
+
+impl MetadataCalculatorMetrics {
+    pub fn start_stage(&self, stage: TreeUpdateStage) -> UpdateTreeLatency<'_, false> {
+        UpdateTreeLatency {
+            stage: format!("{stage:?}"),
+            latency: self.update_tree_latency_stage[&stage].start(),
+            counter: None,
+        }
+    }
+
+    pub fn start_load_stage(&self, stage: LoadChangesStage) -> UpdateTreeLatency<'_, true> {
+        UpdateTreeLatency {
+            stage: format!("{stage:?}"),
+            latency: self.load_changes_latency[&stage].start(),
+            counter: Some(&self.load_changes_count[&stage]),
+        }
+    }
+}
+
+#[vise::register]
+pub(super) static METRICS: vise::Global<MetadataCalculatorMetrics> = vise::Global::new();
+
 impl MetadataCalculator {
     pub(super) fn update_metrics(
-        mode: MerkleTreeMode,
         batch_headers: &[L1BatchHeader],
         total_logs: usize,
         start: Instant,
     ) {
-        let mode_tag = match mode {
-            MerkleTreeMode::Full => "full",
-            MerkleTreeMode::Lightweight => "lightweight",
-        };
-
-        metrics::histogram!(
-            "server.metadata_calculator.update_tree.latency",
-            start.elapsed()
-        );
+        let elapsed = start.elapsed();
+        METRICS.update_tree_latency.observe(elapsed);
         if total_logs > 0 {
-            metrics::histogram!(
-                "server.metadata_calculator.update_tree.per_log.latency",
-                start.elapsed().div_f32(total_logs as f32)
-            );
+            METRICS
+                .update_tree_per_log_latency
+                .observe(elapsed.div_f32(total_logs as f32));
         }
 
         let total_tx: usize = batch_headers.iter().map(L1BatchHeader::tx_count).sum();
@@ -144,13 +157,10 @@ impl MetadataCalculator {
             .iter()
             .map(|batch| u64::from(batch.l1_tx_count))
             .sum();
-        metrics::counter!("server.processed_txs", total_tx as u64, "stage" => "tree");
-        metrics::counter!("server.processed_l1_txs", total_l1_tx_count, "stage" => "tree");
-        metrics::histogram!("server.metadata_calculator.log_batch", total_logs as f64);
-        metrics::histogram!(
-            "server.metadata_calculator.blocks_batch",
-            batch_headers.len() as f64
-        );
+        APP_METRICS.processed_txs[&BlockStage::Tree.into()].inc_by(total_tx as u64);
+        APP_METRICS.processed_l1_txs[&BlockStage::Tree.into()].inc_by(total_l1_tx_count);
+        METRICS.log_batch.observe(total_logs);
+        METRICS.blocks_batch.observe(batch_headers.len());
 
         let first_batch_number = batch_headers.first().unwrap().number.0;
         let last_batch_number = batch_headers.last().unwrap().number.0;
@@ -158,18 +168,10 @@ impl MetadataCalculator {
             "L1 batches #{:?} processed in tree",
             first_batch_number..=last_batch_number
         );
-        metrics::gauge!(
-            "server.block_number",
-            last_batch_number as f64,
-            "stage" => format!("tree_{mode_tag}_mode")
-        );
+        APP_METRICS.block_number[&BlockStage::Tree].set(last_batch_number.into());
 
         let latency =
             seconds_since_epoch().saturating_sub(batch_headers.first().unwrap().timestamp);
-        metrics::histogram!(
-            "server.block_latency",
-            latency as f64,
-            "stage" => format!("tree_{mode_tag}_mode")
-        );
+        APP_METRICS.block_latency[&BlockStage::Tree].observe(Duration::from_secs(latency));
     }
 }

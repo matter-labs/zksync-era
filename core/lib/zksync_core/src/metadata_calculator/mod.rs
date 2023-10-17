@@ -16,6 +16,7 @@ use zksync_object_store::ObjectStoreFactory;
 use zksync_types::{
     block::L1BatchHeader,
     commitment::{L1BatchCommitment, L1BatchMetadata},
+    H256,
 };
 
 mod helpers;
@@ -27,7 +28,7 @@ mod updater;
 pub(crate) use self::helpers::L1BatchWithLogs;
 use self::{
     helpers::Delayer,
-    metrics::{ReportStage, TreeUpdateStage},
+    metrics::{TreeUpdateStage, METRICS},
     updater::TreeUpdater,
 };
 use crate::gas_tracker::commit_gas_count_for_l1_batch;
@@ -148,7 +149,7 @@ impl MetadataCalculator {
         header: &L1BatchHeader,
         metadata: &L1BatchMetadata,
     ) {
-        let reestimate_gas_cost = TreeUpdateStage::ReestimateGasCost.start();
+        let estimate_latency = METRICS.start_stage(TreeUpdateStage::ReestimateGasCost);
         let unsorted_factory_deps = storage
             .blocks_dal()
             .get_l1_batch_factory_deps(header.number)
@@ -161,12 +162,14 @@ impl MetadataCalculator {
             .update_predicted_l1_batch_commit_gas(header.number, commit_gas_cost)
             .await
             .unwrap();
-        reestimate_gas_cost.report();
+        estimate_latency.observe();
     }
 
     fn build_l1_batch_metadata(
         tree_metadata: TreeMetadata,
         header: &L1BatchHeader,
+        events_queue_commitment: Option<H256>,
+        bootloader_initial_content_commitment: Option<H256>,
     ) -> L1BatchMetadata {
         let merkle_root_hash = tree_metadata.root_hash;
 
@@ -195,6 +198,8 @@ impl MetadataCalculator {
             aux_data_hash: commitment_hash.aux_output,
             meta_parameters_hash: commitment_hash.meta_parameters,
             pass_through_data_hash: commitment_hash.pass_through_data,
+            events_queue_commitment,
+            bootloader_initial_content_commitment,
         };
 
         tracing::trace!("L1 batch metadata: {metadata:?}");

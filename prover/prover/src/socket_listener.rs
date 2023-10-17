@@ -34,7 +34,9 @@ pub async fn incoming_socket_listener(
     let address = SocketAddress { host, port };
 
     let queue_capacity = queue.lock().await.capacity();
-    pool.access_storage().await.unwrap()
+    pool.access_storage()
+        .await
+        .unwrap()
         .gpu_prover_queue_dal()
         .insert_prover_instance(
             address.clone(),
@@ -49,7 +51,11 @@ pub async fn incoming_socket_listener(
     let mut now = Instant::now();
 
     loop {
-        let stream = listener.accept().await.context("could not accept connection")?.0;
+        let stream = listener
+            .accept()
+            .await
+            .context("could not accept connection")?
+            .0;
         tracing::trace!(
             "Received new assembly send connection, waited for {}ms.",
             now.elapsed().as_millis()
@@ -104,7 +110,9 @@ async fn handle_incoming_file(
         (queue_free_slots, status)
     };
 
-    pool.access_storage().await.unwrap()
+    pool.access_storage()
+        .await
+        .unwrap()
         .gpu_prover_queue_dal()
         .update_prover_instance_status(address, status, queue_free_slots, region, zone)
         .await;

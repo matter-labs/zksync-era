@@ -1,6 +1,4 @@
-use std::{convert::TryInto, str::FromStr};
-
-use sqlx::types::chrono::{DateTime, NaiveDateTime, Utc};
+use std::convert::TryInto;
 
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_types::api::en::SyncBlock;
@@ -14,12 +12,6 @@ pub struct StorageSyncBlock {
     pub last_batch_miniblock: Option<i64>,
     pub timestamp: i64,
     pub root_hash: Option<Vec<u8>>,
-    pub commit_tx_hash: Option<String>,
-    pub committed_at: Option<NaiveDateTime>,
-    pub prove_tx_hash: Option<String>,
-    pub proven_at: Option<NaiveDateTime>,
-    pub execute_tx_hash: Option<String>,
-    pub executed_at: Option<NaiveDateTime>,
     // L1 gas price assumed in the corresponding batch
     pub l1_gas_price: i64,
     // L2 gas price assumed in the corresponding batch
@@ -47,27 +39,6 @@ impl StorageSyncBlock {
                 .unwrap_or(false),
             timestamp: self.timestamp as u64,
             root_hash: self.root_hash.as_deref().map(H256::from_slice),
-            commit_tx_hash: self
-                .commit_tx_hash
-                .as_deref()
-                .map(|hash| H256::from_str(hash).expect("Incorrect commit_tx hash")),
-            committed_at: self
-                .committed_at
-                .map(|committed_at| DateTime::<Utc>::from_naive_utc_and_offset(committed_at, Utc)),
-            prove_tx_hash: self
-                .prove_tx_hash
-                .as_deref()
-                .map(|hash| H256::from_str(hash).expect("Incorrect prove_tx hash")),
-            proven_at: self
-                .proven_at
-                .map(|proven_at| DateTime::<Utc>::from_naive_utc_and_offset(proven_at, Utc)),
-            execute_tx_hash: self
-                .execute_tx_hash
-                .as_deref()
-                .map(|hash| H256::from_str(hash).expect("Incorrect execute_tx hash")),
-            executed_at: self
-                .executed_at
-                .map(|executed_at| DateTime::<Utc>::from_naive_utc_and_offset(executed_at, Utc)),
             l1_gas_price: self.l1_gas_price as u64,
             l2_fair_gas_price: self.l2_fair_gas_price as u64,
             // TODO (SMA-1635): Make these filed non optional in database

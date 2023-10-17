@@ -314,6 +314,7 @@ impl ProverDal<'_, '_> {
                 r#"
                 SELECT COUNT(*) as "count!", circuit_type as "circuit_type!", status as "status!"
                 FROM prover_jobs
+                WHERE status <> 'skipped' and status <> 'successful' 
                 GROUP BY circuit_type, status
                 "#
             )
