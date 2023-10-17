@@ -108,6 +108,8 @@ impl BasicWitnessInputProducerDal<'_, '_> {
             l1_batch_number.0 as i64,
             duration_to_naive_time(started_at.elapsed()),
         )
+        .instrument("mark_job_as_successful")
+        .report_latency()
         .execute(self.storage.conn())
         .await
         .unwrap();
@@ -124,12 +126,14 @@ impl BasicWitnessInputProducerDal<'_, '_> {
                 UPDATE basic_witness_input_producer_jobs
                 SET status = $1, updated_at = now(), time_taken = $3, error = $4
                 WHERE l1_batch_number = $2
-               ",
+           ",
             format!("{}", BasicWitnessInputProducerStatus::Successful),
             l1_batch_number.0 as i64,
             duration_to_naive_time(started_at.elapsed()),
             error
         )
+        .instrument("mark_job_as_failed")
+        .report_latency()
         .execute(self.storage.conn())
         .await
         .unwrap();
