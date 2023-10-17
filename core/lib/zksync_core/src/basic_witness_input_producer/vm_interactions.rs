@@ -18,15 +18,15 @@ use zksync_utils::h256_to_u256;
 
 use tokio::runtime::Handle;
 
-pub(super) async fn create_vm<'a>(
+pub(super) async fn create_vm(
     rt_handle: Handle,
     l1_batch_number: L1BatchNumber,
-    mut connection: StorageProcessor<'a>,
+    mut connection: StorageProcessor<'_>,
     validation_computational_gas_limit: u32,
     l2_chain_id: L2ChainId,
 ) -> (
-    VmInstance<PostgresStorage<'a>, HistoryEnabled>,
-    Rc<RefCell<StorageView<PostgresStorage<'a>>>>,
+    VmInstance<PostgresStorage, HistoryEnabled>,
+    Rc<RefCell<StorageView<PostgresStorage>>>,
 ) {
     let prev_l1_batch_number = L1BatchNumber(l1_batch_number.0 - 1);
     let (_, miniblock_number) = connection
