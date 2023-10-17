@@ -367,7 +367,7 @@ impl std::fmt::Debug for ScenarioItem {
 
 type ExpectedTransactions = VecDeque<HashMap<H256, VecDeque<TxExecutionResult>>>;
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub(crate) struct TestBatchExecutorBuilder {
     /// Sequence of known transaction execution results per batch.
     /// We need to store txs for each batch separately, since the same transaction
@@ -433,15 +433,13 @@ impl TestBatchExecutorBuilder {
         Self { txs, rollback_set }
     }
 
-    pub(crate) fn for_successful_transactions(tx_hashes: &[H256]) -> Self {
+    /// Adds successful transactions to be executed in a single L1 batch.
+    pub(crate) fn push_successful_transactions(&mut self, tx_hashes: &[H256]) {
         let txs = tx_hashes
             .iter()
             .copied()
             .map(|tx_hash| (tx_hash, VecDeque::from([successful_exec()])));
-        Self {
-            txs: VecDeque::from([txs.collect()]),
-            rollback_set: HashSet::new(),
-        }
+        self.txs.push_back(txs.collect());
     }
 }
 
