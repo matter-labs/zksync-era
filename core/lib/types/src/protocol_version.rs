@@ -156,7 +156,7 @@ pub struct L1VerifierConfig {
     pub recursion_scheduler_level_vk_hash: H256,
 }
 
-/// Represents a call to be made during governance operation.
+/// Represents a call that was made during governance operation.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Call {
     /// The address to which the call will be made.
@@ -165,13 +165,13 @@ pub struct Call {
     pub value: U256,
     /// The calldata to be executed on the `target` address.
     pub data: Vec<u8>,
-    /// Hash of the corresponding Ethereum transaction. Size should be 32 bytes.
+    /// Hash of the corresponding Ethereum transaction.
     pub eth_hash: H256,
     /// Block in which Ethereum transaction was included.
     pub eth_block: u64,
 }
 
-/// Defines the structure of an operation that Governance contract executes.
+/// Defines the structure of an operation that Governance contract executed.
 #[derive(Debug, Clone, Default)]
 pub struct GovernanceOperation {
     /// An array of `Call` structs, each representing a call to be made during the operation.

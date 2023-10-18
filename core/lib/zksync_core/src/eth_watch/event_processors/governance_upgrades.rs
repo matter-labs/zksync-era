@@ -11,10 +11,11 @@ use zksync_types::{
     ProtocolVersionId, H256,
 };
 
-/// Responsible for saving new protocol upgrade proposals to the database.
+/// Listens to operation events coming from the governance contract and saves new protocol upgrade proposals to the database.
 #[derive(Debug)]
 pub struct GovernanceUpgradesEventProcessor {
     diamond_proxy_address: Address,
+    /// Last protocol version seen. Used to skip events for already known upgrade proposals.
     last_seen_version_id: ProtocolVersionId,
     upgrade_proposal_signature: H256,
 }
@@ -97,7 +98,12 @@ impl<W: EthClient + Sync> EventProcessor<W> for GovernanceUpgradesEventProcessor
                 .protocol_versions_dal()
                 .load_previous_version(upgrade.id)
                 .await
-                .expect("Expected previous version to be present in DB");
+                .unwrap_or_else(|| {
+                    panic!(
+                        "Expected some version preceding {:?} be present in DB",
+                        upgrade.id
+                    )
+                });
             let new_version = previous_version.apply_upgrade(upgrade, scheduler_vk_hash);
             storage
                 .protocol_versions_dal()

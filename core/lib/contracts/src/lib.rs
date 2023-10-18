@@ -62,7 +62,9 @@ pub fn load_contract_if_present<P: AsRef<Path> + std::fmt::Debug>(path: P) -> Op
 }
 
 pub fn load_contract<P: AsRef<Path> + std::fmt::Debug>(path: P) -> Contract {
-    load_contract_if_present(path).unwrap()
+    load_contract_if_present(&path).unwrap_or_else(|| {
+        panic!("Failed to load contract from {:?}", path);
+    })
 }
 
 pub fn load_sys_contract(contract_name: &str) -> Contract {
