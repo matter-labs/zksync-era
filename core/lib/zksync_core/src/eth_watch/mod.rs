@@ -11,6 +11,7 @@ use std::time::Duration;
 
 use zksync_config::constants::PRIORITY_EXPIRATION;
 use zksync_config::ETHWatchConfig;
+use zksync_contracts::governance_contract;
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_eth_client::EthInterface;
 use zksync_types::{
@@ -68,11 +69,13 @@ impl<W: EthClient + Sync> EthWatch<W> {
             Box::new(priority_ops_processor),
             Box::new(upgrades_processor),
         ];
-        let governance_upgrades_processor = GovernanceUpgradesEventProcessor::new(
-            diamond_proxy_address,
-            state.last_seen_version_id,
-        );
-        if let Some(governance_upgrades_processor) = governance_upgrades_processor {
+
+        if let Some(governance_contract) = governance_contract() {
+            let governance_upgrades_processor = GovernanceUpgradesEventProcessor::new(
+                diamond_proxy_address,
+                state.last_seen_version_id,
+                &governance_contract,
+            );
             event_processors.push(Box::new(governance_upgrades_processor))
         }
 

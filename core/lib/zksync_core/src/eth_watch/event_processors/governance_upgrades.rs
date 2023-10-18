@@ -4,11 +4,10 @@ use crate::eth_watch::{
 };
 use std::convert::TryFrom;
 use std::time::Instant;
-use zksync_contracts::governance_contract;
 use zksync_dal::StorageProcessor;
 use zksync_types::{
-    protocol_version::GovernanceOperation, web3::types::Log, Address, ProtocolUpgrade,
-    ProtocolVersionId, H256,
+    ethabi::Contract, protocol_version::GovernanceOperation, web3::types::Log, Address,
+    ProtocolUpgrade, ProtocolVersionId, H256,
 };
 
 /// Listens to operation events coming from the governance contract and saves new protocol upgrade proposals to the database.
@@ -24,19 +23,16 @@ impl GovernanceUpgradesEventProcessor {
     pub fn new(
         diamond_proxy_address: Address,
         last_seen_version_id: ProtocolVersionId,
-    ) -> Option<Self> {
-        let Some(governance_contract) = governance_contract() else {
-            return None;
-        };
-
-        Some(Self {
+        governance_contract: &Contract,
+    ) -> Self {
+        Self {
             diamond_proxy_address,
             last_seen_version_id,
             upgrade_proposal_signature: governance_contract
                 .event("TransparentOperationScheduled")
                 .expect("TransparentOperationScheduled event is missing in abi")
                 .signature(),
-        })
+        }
     }
 }
 
