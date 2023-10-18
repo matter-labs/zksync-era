@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use zksync_basic_types::H256;
 
-use zksync_config::constants::{MAX_GAS_PER_PUBDATA_BYTE, USED_BOOTLOADER_MEMORY_BYTES};
+use zksync_system_constants::{MAX_GAS_PER_PUBDATA_BYTE, USED_BOOTLOADER_MEMORY_BYTES};
 use zksync_utils::bytecode::{hash_bytecode, validate_bytecode, InvalidBytecodeError};
 use zksync_utils::{concat_and_hash, u256_to_h256};
 

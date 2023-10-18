@@ -1,6 +1,6 @@
 #![allow(clippy::upper_case_acronyms, clippy::derive_partial_eq_without_eq)]
 
-use std::{str::FromStr, sync::Arc, time::Instant};
+use std::{net::Ipv4Addr, str::FromStr, sync::Arc, time::Instant};
 
 use anyhow::Context as _;
 use futures::channel::oneshot;
@@ -12,6 +12,7 @@ use zksync_circuit_breaker::{
     replication_lag::ReplicationLagChecker, CircuitBreaker, CircuitBreakerChecker,
     CircuitBreakerError,
 };
+use zksync_config::configs::api::MerkleTreeApiConfig;
 use zksync_config::configs::{
     api::{HealthCheckConfig, Web3JsonRpcConfig},
     chain::{
@@ -175,34 +176,36 @@ pub fn setup_sigint_handler() -> oneshot::Receiver<()> {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Component {
-    // Public Web3 API running on HTTP server.
+    /// Public Web3 API running on HTTP server.
     HttpApi,
-    // Public Web3 API running on HTTP/WebSocket server and redirect eth_getLogs to another method.
+    /// Public Web3 API running on HTTP/WebSocket server and redirect eth_getLogs to another method.
     ApiTranslator,
-    // Public Web3 API (including PubSub) running on WebSocket server.
+    /// Public Web3 API (including PubSub) running on WebSocket server.
     WsApi,
-    // REST API for contract verification.
+    /// REST API for contract verification.
     ContractVerificationApi,
-    // Metadata Calculator.
+    /// Metadata calculator.
     Tree,
     // TODO(BFT-273): Remove `TreeLightweight` component as obsolete
     TreeLightweight,
     TreeBackup,
+    /// Merkle tree API.
+    TreeApi,
     EthWatcher,
-    // Eth tx generator
+    /// Eth tx generator.
     EthTxAggregator,
-    // Manager for eth tx
+    /// Manager for eth tx.
     EthTxManager,
-    // Data fetchers: list fetcher, volume fetcher, price fetcher.
+    /// Data fetchers: list fetcher, volume fetcher, price fetcher.
     DataFetcher,
-    // State keeper.
+    /// State keeper.
     StateKeeper,
-    // Witness Generator. The first argument is a number of jobs to process. If None, runs indefinitely.
-    // The second argument is the type of the witness-generation performed
+    /// Witness Generator. The first argument is a number of jobs to process. If None, runs indefinitely.
+    /// The second argument is the type of the witness-generation performed
     WitnessGenerator(Option<usize>, AggregationRound),
-    // Component for housekeeping task such as cleaning blobs from GCS, reporting metrics etc.
+    /// Component for housekeeping task such as cleaning blobs from GCS, reporting metrics etc.
     Housekeeper,
-    // Component for exposing API's to prover for providing proof generation data and accepting proofs.
+    /// Component for exposing API's to prover for providing proof generation data and accepting proofs.
     ProofDataHandler,
 }
 
@@ -228,6 +231,7 @@ impl FromStr for Components {
                 Ok(Components(vec![Component::TreeLightweight]))
             }
             "tree_backup" => Ok(Components(vec![Component::TreeBackup])),
+            "tree_api" => Ok(Components(vec![Component::TreeApi])),
             "data_fetcher" => Ok(Components(vec![Component::DataFetcher])),
             "state_keeper" => Ok(Components(vec![Component::StateKeeper])),
             "housekeeper" => Ok(Components(vec![Component::Housekeeper])),
@@ -726,6 +730,13 @@ async fn add_trees_to_task_futures(
     let db_config = DBConfig::from_env().context("DBConfig::from_env()")?;
     let operation_config =
         OperationsManagerConfig::from_env().context("OperationManagerConfig::from_env()")?;
+    let api_config = ApiConfig::from_env()
+        .context("ApiConfig::from_env()")?
+        .merkle_tree;
+    let api_config = components
+        .contains(&Component::TreeApi)
+        .then_some(&api_config);
+
     let has_tree_component = components.contains(&Component::Tree);
     let has_lightweight_component = components.contains(&Component::TreeLightweight);
     let mode = match (has_tree_component, has_lightweight_component) {
@@ -739,22 +750,37 @@ async fn add_trees_to_task_futures(
             MerkleTreeMode::Lightweight => MetadataCalculatorModeConfig::Lightweight,
             MerkleTreeMode::Full => MetadataCalculatorModeConfig::Full { store_factory },
         },
-        (false, false) => return Ok(()),
+        (false, false) => {
+            anyhow::ensure!(
+                !components.contains(&Component::TreeApi),
+                "Merkle tree API cannot be started without a tree component"
+            );
+            return Ok(());
+        }
     };
-    let (future, tree_health_check) = run_tree(&db_config, &operation_config, mode, stop_receiver)
-        .await
-        .context("run_tree()")?;
-    task_futures.push(future);
-    healthchecks.push(Box::new(tree_health_check));
-    Ok(())
+
+    run_tree(
+        task_futures,
+        healthchecks,
+        &db_config,
+        api_config,
+        &operation_config,
+        mode,
+        stop_receiver,
+    )
+    .await
+    .context("run_tree()")
 }
 
 async fn run_tree(
-    config: &DBConfig,
+    task_futures: &mut Vec<JoinHandle<anyhow::Result<()>>>,
+    healthchecks: &mut Vec<Box<dyn CheckHealth>>,
+    db_config: &DBConfig,
+    api_config: Option<&MerkleTreeApiConfig>,
     operation_manager: &OperationsManagerConfig,
     mode: MetadataCalculatorModeConfig<'_>,
     stop_receiver: watch::Receiver<bool>,
-) -> anyhow::Result<(JoinHandle<anyhow::Result<()>>, ReactiveHealthCheck)> {
+) -> anyhow::Result<()> {
     let started_at = Instant::now();
     let mode_str = if matches!(mode, MetadataCalculatorModeConfig::Full { .. }) {
         "full"
@@ -763,9 +789,18 @@ async fn run_tree(
     };
     tracing::info!("Initializing Merkle tree in {mode_str} mode");
 
-    let config = MetadataCalculatorConfig::for_main_node(config, operation_manager, mode);
+    let config = MetadataCalculatorConfig::for_main_node(db_config, operation_manager, mode);
     let metadata_calculator = MetadataCalculator::new(&config).await;
+    if let Some(api_config) = api_config {
+        let address = (Ipv4Addr::UNSPECIFIED, api_config.port).into();
+        let server_task = metadata_calculator
+            .tree_reader()
+            .run_api_server(address, stop_receiver.clone());
+        task_futures.push(tokio::spawn(server_task));
+    }
+
     let tree_health_check = metadata_calculator.tree_health_check();
+    healthchecks.push(Box::new(tree_health_check));
     let pool = ConnectionPool::singleton(DbVariant::Master)
         .build()
         .await
@@ -774,12 +809,13 @@ async fn run_tree(
         .build()
         .await
         .context("failed to build prover_pool")?;
-    let future = tokio::spawn(metadata_calculator.run(pool, prover_pool, stop_receiver));
+    let tree_task = tokio::spawn(metadata_calculator.run(pool, prover_pool, stop_receiver));
+    task_futures.push(tree_task);
 
     let elapsed = started_at.elapsed();
     APP_METRICS.init_latency[&InitStage::Tree].set(elapsed);
     tracing::info!("Initialized {mode_str} tree in {elapsed:?}");
-    Ok((future, tree_health_check))
+    Ok(())
 }
 
 async fn add_witness_generator_to_task_futures(

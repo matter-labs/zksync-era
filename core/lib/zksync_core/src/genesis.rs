@@ -292,7 +292,7 @@ pub(crate) async fn create_genesis_l1_batch(
         .await;
     transaction
         .blocks_dal()
-        .insert_l1_batch(&genesis_l1_batch_header, &[], BlockGasCount::default())
+        .insert_l1_batch(&genesis_l1_batch_header, &[], BlockGasCount::default(), &[])
         .await
         .unwrap();
     transaction
@@ -360,6 +360,8 @@ pub(crate) async fn save_genesis_l1_batch_metadata(
         aux_data_hash: commitment_hash.aux_output,
         meta_parameters_hash: commitment_hash.meta_parameters,
         pass_through_data_hash: commitment_hash.pass_through_data,
+        events_queue_commitment: None,
+        bootloader_initial_content_commitment: None,
     };
     storage
         .blocks_dal()

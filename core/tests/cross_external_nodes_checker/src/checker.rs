@@ -472,10 +472,7 @@ impl Checker {
         match self.mode {
             RpcMode::Triggered => {
                 // Add a divergence to the list of divergences for the given EN instance.
-                let divergences = self
-                    .divergences
-                    .entry(url.to_string())
-                    .or_insert_with(Vec::new);
+                let divergences = self.divergences.entry(url.to_string()).or_default();
                 divergences.push(divergence.clone());
                 tracing::error!("{}", divergence);
             }

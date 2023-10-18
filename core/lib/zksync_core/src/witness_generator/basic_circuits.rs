@@ -10,14 +10,16 @@ use std::{
     time::Instant,
 };
 
-use vm::{constants::MAX_CYCLES_FOR_TX, HistoryDisabled, SimpleMemory, StorageOracle};
+use multivm::vm_latest::{
+    constants::MAX_CYCLES_FOR_TX, HistoryDisabled, SimpleMemory, StorageOracle,
+};
 use zksync_config::configs::witness_generator::BasicWitnessGeneratorDataSource;
 use zksync_config::configs::WitnessGeneratorConfig;
-use zksync_config::constants::BOOTLOADER_ADDRESS;
 use zksync_dal::ConnectionPool;
 use zksync_object_store::{Bucket, ObjectStore, ObjectStoreFactory, StoredObject};
 use zksync_queued_job_processor::JobProcessor;
 use zksync_state::{PostgresStorage, ReadStorage, ShadowStorage, StorageView, WitnessStorage};
+use zksync_system_constants::BOOTLOADER_ADDRESS;
 use zksync_types::{
     circuit::GEOMETRY_CONFIG,
     proofs::{AggregationRound, BasicCircuitWitnessGeneratorInput, PrepareBasicCircuitsJob},
@@ -29,14 +31,13 @@ use zksync_types::{
         witness::oracle::VmWitnessOracle,
         SchedulerCircuitInstanceWitness,
     },
-    Address, L1BatchNumber, ProtocolVersionId, H256, U256,
+    Address, L1BatchNumber, ProtocolVersionId, H256, U256, USED_BOOTLOADER_MEMORY_BYTES,
 };
-use zksync_utils::{bytes_to_chunks, h256_to_u256, u256_to_h256};
+use zksync_utils::{bytes_to_chunks, expand_memory_contents, h256_to_u256, u256_to_h256};
 
 use super::{
     precalculated_merkle_paths_provider::PrecalculatedMerklePathsProvider,
-    utils::{expand_bootloader_contents, save_prover_input_artifacts},
-    METRICS,
+    utils::save_prover_input_artifacts, METRICS,
 };
 
 pub struct BasicCircuitArtifacts {
@@ -431,7 +432,8 @@ pub async fn generate_witness(
         .await
         .expect("Default aa bytecode should exist");
     let account_bytecode = bytes_to_chunks(&account_bytecode_bytes);
-    let bootloader_contents = expand_bootloader_contents(&input.initial_heap_content);
+    let bootloader_contents =
+        expand_memory_contents(&input.initial_heap_content, USED_BOOTLOADER_MEMORY_BYTES);
     let account_code_hash = h256_to_u256(header.base_system_contracts_hashes.default_aa);
 
     let hashes: HashSet<H256> = input
