@@ -226,7 +226,6 @@ impl TreeUpdater {
         (log, leaf_data)
     }
 
-    /// Returns version of the moved leaf.
     fn update_moved_leaf_ref(&mut self, leaf_nibbles: &Nibbles) {
         if let Some((parent_nibbles, last_nibble)) = leaf_nibbles.split_last() {
             let child_ref = self

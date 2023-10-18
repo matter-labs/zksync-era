@@ -1,4 +1,39 @@
 //! Merkle tree recovery logic.
+//!
+//! # Overview
+//!
+//! **Recovery process** is responsible for restoring a Merkle tree from a snapshot. A snapshot
+//! consists of all tree entries at a specific tree version. As a result of recovery, we create
+//! a Merkle tree with the same entries as the snapshot. Any changes that are applied to the tree
+//! afterwards will have the same outcome as if they were applied to the original tree.
+//!
+//! Importantly, a recovered tree is only *observably* identical to the original tree; it differs
+//! in (currently unobservable) node versions. In a recovered tree, all nodes will initially have
+//! the same version (the snapshot version), while in the original tree, node versions are distributed
+//! from 0 to the snapshot version (both inclusive).
+//!
+//! Recovery process proceeds as follows:
+//!
+//! 1. Initialize a tree in the recovery mode. Until recovery is finished, the tree cannot be accessed
+//!   using ordinary [`MerkleTree`] APIs.
+//! 2. Update the tree from a snapshot, which [is fed to the tree](MerkleTreeRecovery::extend())
+//!   as [`RecoveryEntry`] chunks. Recovery entries must be ordered by increasing key.
+//! 3. Finalize recovery using [`MerkleTreeRecovery::finalize()`]. To check integrity, you may compare
+//!   [`MerkleTreeRecovery::root_hash()`] to the reference value.
+//!
+//! The recovery process is tolerant to crashes and may be resumed from the middle. To find the latest
+//! recovered key, you may use [`MerkleTreeRecovery::last_processed_key()`].
+//!
+//! `RecoveryEntry` chunks are not validated during recovery. They can be authenticated using
+//! [`TreeRangeDigest`](crate::TreeRangeDigest)s provided that the tree root hash is authenticated
+//! using external means.
+//!
+//! # Implementation details
+//!
+//! We require `RecoveryEntry` ordering to simplify tracking the recovery progress. It also makes
+//! node updates more efficient. Indeed, it suffices to load a leaf with the greatest key and its ancestors
+//! before extending the tree; these nodes are guaranteed to be the *only* DB reads necessary
+//! to insert new entries.
 
 use std::time::Instant;
 
