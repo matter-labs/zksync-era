@@ -48,6 +48,8 @@ pub struct EthHttpQueryClient<E> {
     client: E,
     topics: Vec<H256>,
     zksync_contract_addr: Address,
+    /// Address of the `Governance` contract. It's optional because it is present only for post-boojum chains.
+    /// If address is some then client will listen to events coming from it.
     governance_address: Option<Address>,
     verifier_contract_abi: Contract,
     confirmations_for_eth_event: Option<u64>,
