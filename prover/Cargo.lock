@@ -824,7 +824,7 @@ dependencies = [
 [[package]]
 name = "circuit_definitions"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.0#b3f68937616d6b5d4cc90abd4651b12765b005dd"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.0#43aeb53d7d9c909508a98f9fc140edff0e9d2357"
 dependencies = [
  "crossbeam 0.8.2",
  "derivative",
@@ -1302,7 +1302,7 @@ dependencies = [
 [[package]]
 name = "cs_derive"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-sync_vm.git?branch=v1.3.3#3a21c8dee43c77604350fdf33c1615e25bf1dacd"
+source = "git+https://github.com/matter-labs/era-sync_vm.git?branch=v1.3.3#dad50e7eb7462a3819af8d5209d6ca243395bf51"
 dependencies = [
  "proc-macro-error",
  "proc-macro2 1.0.69",
@@ -1394,7 +1394,7 @@ dependencies = [
  "hashbrown 0.14.1",
  "lock_api",
  "once_cell",
- "parking_lot_core 0.9.8",
+ "parking_lot_core 0.9.9",
 ]
 
 [[package]]
@@ -2484,16 +2484,16 @@ dependencies = [
 
 [[package]]
 name = "iana-time-zone"
-version = "0.1.57"
+version = "0.1.58"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2fad5b825842d2b38bd206f3e81d6957625fd7f0a361e345c30e01a0ae2dd613"
+checksum = "8326b86b6cff230b97d0d312a6c40a60726df3332e721f72a1b035f451663b20"
 dependencies = [
  "android_system_properties",
  "core-foundation-sys",
  "iana-time-zone-haiku",
  "js-sys",
  "wasm-bindgen",
- "windows",
+ "windows-core",
 ]
 
 [[package]]
@@ -2823,9 +2823,9 @@ dependencies = [
 
 [[package]]
 name = "lock_api"
-version = "0.4.10"
+version = "0.4.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c1cc9717a20b1bb222f333e6a92fd32f7d8a18ddc5a3191a11af45dcbf4dcd16"
+checksum = "3c168f8615b12bc01f9c17e2eb0cc07dcae1940121185446edc3744920e8ef45"
 dependencies = [
  "autocfg 1.1.0",
  "scopeguard",
@@ -3011,6 +3011,26 @@ dependencies = [
  "libc",
  "wasi 0.11.0+wasi-snapshot-preview1",
  "windows-sys",
+]
+
+[[package]]
+name = "multivm"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "hex",
+ "itertools 0.10.5",
+ "once_cell",
+ "thiserror",
+ "tracing",
+ "vise",
+ "zk_evm 1.3.1",
+ "zk_evm 1.3.3 (git+https://github.com/matter-labs/era-zk_evm.git?tag=v1.3.3-rc1)",
+ "zksync_contracts",
+ "zksync_state",
+ "zksync_system_constants",
+ "zksync_types",
+ "zksync_utils",
 ]
 
 [[package]]
@@ -3517,7 +3537,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3742b2c103b9f06bc9fff0a37ff4912935851bee6d36f3c02bcc755bcfec228f"
 dependencies = [
  "lock_api",
- "parking_lot_core 0.9.8",
+ "parking_lot_core 0.9.9",
 ]
 
 [[package]]
@@ -3536,13 +3556,13 @@ dependencies = [
 
 [[package]]
 name = "parking_lot_core"
-version = "0.9.8"
+version = "0.9.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "93f00c865fe7cabf650081affecd3871070f26767e7b2070a3ffae14c654b447"
+checksum = "4c42a9226546d68acdd9c0a280d17ce19bfe27a46bf68784e4066115788d008e"
 dependencies = [
  "cfg-if 1.0.0",
  "libc",
- "redox_syscall 0.3.5",
+ "redox_syscall 0.4.1",
  "smallvec",
  "windows-targets",
 ]
@@ -4259,6 +4279,15 @@ name = "redox_syscall"
 version = "0.3.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "567664f262709473930a4bf9e51bf2ebf3348f2e748ccc50dea20646858f8f29"
+dependencies = [
+ "bitflags 1.3.2",
+]
+
+[[package]]
+name = "redox_syscall"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4722d768eff46b75989dd134e5c353f0d6296e5aaa3132e776cbdb56be7731aa"
 dependencies = [
  "bitflags 1.3.2",
 ]
@@ -5401,7 +5430,7 @@ dependencies = [
 [[package]]
 name = "sync_vm"
 version = "1.3.3"
-source = "git+https://github.com/matter-labs/era-sync_vm.git?branch=v1.3.3#3a21c8dee43c77604350fdf33c1615e25bf1dacd"
+source = "git+https://github.com/matter-labs/era-sync_vm.git?branch=v1.3.3#dad50e7eb7462a3819af8d5209d6ca243395bf51"
 dependencies = [
  "arrayvec 0.7.4",
  "cs_derive 0.1.0 (git+https://github.com/matter-labs/era-sync_vm.git?branch=v1.3.3)",
@@ -5418,10 +5447,10 @@ dependencies = [
  "rescue_poseidon 0.4.1 (git+https://github.com/matter-labs/rescue-poseidon)",
  "serde",
  "sha2 0.10.8",
- "sha3 0.10.8",
+ "sha3 0.10.6",
  "smallvec",
- "zk_evm 1.3.3",
- "zkevm_opcode_defs",
+ "zk_evm 1.3.3 (git+https://github.com/matter-labs/era-zk_evm.git?branch=v1.3.3)",
+ "zkevm_opcode_defs 1.3.2",
 ]
 
 [[package]]
@@ -5945,9 +5974,9 @@ checksum = "daf8dba3b7eb870caf1ddeed7bc9d2a049f3cfdfae7cb521b087cc33ae4c49da"
 
 [[package]]
 name = "uuid"
-version = "1.4.1"
+version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "79daa5ed5740825c40b389c5e50312b9c86df53fccd33f281df655642b43869d"
+checksum = "88ad59a7560b41a70d191093a945f0b87bc1deeda46fb237479708a1d6b6cdfc"
 dependencies = [
  "serde",
 ]
@@ -6044,25 +6073,6 @@ dependencies = [
  "serde_json",
  "tracing",
  "tracing-subscriber",
-]
-
-[[package]]
-name = "vm"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "hex",
- "itertools 0.10.5",
- "once_cell",
- "thiserror",
- "tracing",
- "vise",
- "zk_evm 1.3.3",
- "zksync_config",
- "zksync_contracts",
- "zksync_state",
- "zksync_types",
- "zksync_utils",
 ]
 
 [[package]]
@@ -6285,10 +6295,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "712e227841d057c1ee1cd2fb22fa7e5a5461ae8e48fa2ca79ec42cfc1931183f"
 
 [[package]]
-name = "windows"
-version = "0.48.0"
+name = "windows-core"
+version = "0.51.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e686886bc078bc1b0b600cac0147aadb815089b6e4da64016cbd754b6342700f"
+checksum = "f1f8cf84f35d2db49a46868f947758c7a1138116f7fac3bc844f43ade1292e64"
 dependencies = [
  "windows-targets",
 ]
@@ -6401,6 +6411,38 @@ checksum = "2a0956f1ba7c7909bfb66c2e9e4124ab6f6482560f6628b5aaeba39207c9aad9"
 
 [[package]]
 name = "zk_evm"
+version = "1.3.1"
+source = "git+https://github.com/matter-labs/era-zk_evm.git?tag=v1.3.1-rc2#0a7c775932db4839ff6b7fb0db9bdb3583ab54c0"
+dependencies = [
+ "blake2 0.10.6 (git+https://github.com/RustCrypto/hashes.git?rev=1f727ce37ff40fa0cce84eb8543a45bdd3ca4a4e)",
+ "k256",
+ "lazy_static",
+ "num 0.4.1",
+ "serde",
+ "serde_json",
+ "sha2 0.10.6",
+ "sha3 0.10.6",
+ "static_assertions",
+ "zkevm_opcode_defs 1.3.1",
+]
+
+[[package]]
+name = "zk_evm"
+version = "1.3.3"
+source = "git+https://github.com/matter-labs/era-zk_evm.git?tag=v1.3.3-rc1#fe8215a7047d24430ad470cf15a19bedb4d6ba0b"
+dependencies = [
+ "anyhow",
+ "lazy_static",
+ "num 0.4.1",
+ "serde",
+ "serde_json",
+ "static_assertions",
+ "zk_evm_abstractions",
+ "zkevm_opcode_defs 1.3.2",
+]
+
+[[package]]
+name = "zk_evm"
 version = "1.3.3"
 source = "git+https://github.com/matter-labs/era-zk_evm.git?branch=v1.3.3#fe8215a7047d24430ad470cf15a19bedb4d6ba0b"
 dependencies = [
@@ -6411,13 +6453,13 @@ dependencies = [
  "serde_json",
  "static_assertions",
  "zk_evm_abstractions",
- "zkevm_opcode_defs",
+ "zkevm_opcode_defs 1.3.2",
 ]
 
 [[package]]
 name = "zk_evm"
 version = "1.4.0"
-source = "git+https://github.com/matter-labs/era-zk_evm.git?branch=v1.4.0#e33a5ded1b53e35d261fdb46e6d16f2c900b217f"
+source = "git+https://github.com/matter-labs/era-zk_evm.git?branch=v1.4.0#dd76fc5badf2c05278a21b38015a7798fe2fe358"
 dependencies = [
  "anyhow",
  "lazy_static",
@@ -6426,7 +6468,7 @@ dependencies = [
  "serde_json",
  "static_assertions",
  "zk_evm_abstractions",
- "zkevm_opcode_defs",
+ "zkevm_opcode_defs 1.3.2",
 ]
 
 [[package]]
@@ -6437,7 +6479,7 @@ dependencies = [
  "anyhow",
  "serde",
  "static_assertions",
- "zkevm_opcode_defs",
+ "zkevm_opcode_defs 1.3.2",
 ]
 
 [[package]]
@@ -6456,7 +6498,7 @@ dependencies = [
  "smallvec",
  "structopt",
  "thiserror",
- "zkevm_opcode_defs",
+ "zkevm_opcode_defs 1.3.2",
 ]
 
 [[package]]
@@ -6476,7 +6518,18 @@ dependencies = [
  "serde",
  "serde_json",
  "smallvec",
- "zkevm_opcode_defs",
+ "zkevm_opcode_defs 1.3.2",
+]
+
+[[package]]
+name = "zkevm_opcode_defs"
+version = "1.3.1"
+source = "git+https://github.com/matter-labs/era-zkevm_opcode_defs.git?branch=v1.3.1#00d4ad2292bd55374a0fa10fe11686d7a109d8a0"
+dependencies = [
+ "bitflags 1.3.2",
+ "ethereum-types 0.14.1",
+ "lazy_static",
+ "sha2 0.10.8",
 ]
 
 [[package]]
@@ -6516,14 +6569,14 @@ dependencies = [
  "sync_vm",
  "test-log",
  "tracing",
- "zk_evm 1.3.3",
+ "zk_evm 1.3.3 (git+https://github.com/matter-labs/era-zk_evm.git?branch=v1.3.3)",
  "zkevm-assembly",
 ]
 
 [[package]]
 name = "zkevm_test_harness"
 version = "1.4.0"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.0#b3f68937616d6b5d4cc90abd4651b12765b005dd"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.0#43aeb53d7d9c909508a98f9fc140edff0e9d2357"
 dependencies = [
  "bincode",
  "circuit_definitions",
@@ -6666,9 +6719,9 @@ dependencies = [
  "tokio",
  "tracing",
  "vise",
- "zksync_config",
  "zksync_contracts",
  "zksync_health_check",
+ "zksync_system_constants",
  "zksync_types",
  "zksync_utils",
 ]
@@ -6947,6 +7000,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_system_constants"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bigdecimal",
+ "hex",
+ "num 0.3.1",
+ "once_cell",
+ "serde",
+ "serde_json",
+ "url",
+ "zksync_basic_types",
+ "zksync_contracts",
+ "zksync_utils",
+]
+
+[[package]]
 name = "zksync_types"
 version = "0.1.0"
 dependencies = [
@@ -6965,12 +7035,12 @@ dependencies = [
  "serde_with",
  "strum",
  "thiserror",
- "zk_evm 1.3.3",
+ "zk_evm 1.3.3 (git+https://github.com/matter-labs/era-zk_evm.git?tag=v1.3.3-rc1)",
  "zkevm_test_harness 1.3.3",
  "zksync_basic_types",
- "zksync_config",
  "zksync_contracts",
  "zksync_mini_merkle_tree",
+ "zksync_system_constants",
  "zksync_utils",
 ]
 
@@ -6991,7 +7061,7 @@ dependencies = [
  "tokio",
  "tracing",
  "vlog",
- "zk_evm 1.3.3",
+ "zk_evm 1.3.3 (git+https://github.com/matter-labs/era-zk_evm.git?tag=v1.3.3-rc1)",
  "zksync_basic_types",
 ]
 
@@ -7027,6 +7097,7 @@ dependencies = [
  "futures 0.3.28",
  "hex",
  "metrics",
+ "multivm",
  "prometheus_exporter",
  "rand 0.8.5",
  "serde",
@@ -7036,7 +7107,6 @@ dependencies = [
  "tracing",
  "vk_setup_data_generator_server_fri",
  "vlog",
- "vm",
  "zk_evm 1.4.0",
  "zkevm_test_harness 1.4.0",
  "zksync_config",
@@ -7047,6 +7117,7 @@ dependencies = [
  "zksync_prover_utils",
  "zksync_queued_job_processor",
  "zksync_state",
+ "zksync_system_constants",
  "zksync_types",
  "zksync_utils",
 ]
