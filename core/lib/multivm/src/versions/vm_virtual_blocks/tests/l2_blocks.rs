@@ -3,16 +3,14 @@
 //! The description for each of the tests can be found in the corresponding `.yul` file.
 //!
 
+use crate::interface::{ExecutionResult, Halt, L2BlockEnv, TxExecutionMode, VmExecutionMode};
 use crate::vm_virtual_blocks::constants::{
     BOOTLOADER_HEAP_PAGE, TX_OPERATOR_L2_BLOCK_INFO_OFFSET, TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO,
 };
 use crate::vm_virtual_blocks::tests::tester::default_l1_batch;
 use crate::vm_virtual_blocks::tests::tester::VmTesterBuilder;
 use crate::vm_virtual_blocks::utils::l2_blocks::get_l2_block_hash_key;
-use crate::vm_virtual_blocks::{
-    ExecutionResult, Halt, HistoryEnabled, HistoryMode, L2BlockEnv, TxExecutionMode, Vm,
-    VmExecutionMode,
-};
+use crate::vm_virtual_blocks::{HistoryEnabled, HistoryMode, Vm};
 use zk_evm_1_3_3::aux_structures::Timestamp;
 use zksync_state::{ReadStorage, WriteStorage};
 use zksync_system_constants::{

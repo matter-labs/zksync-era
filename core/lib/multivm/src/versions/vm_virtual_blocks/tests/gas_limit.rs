@@ -6,7 +6,7 @@ use crate::vm_virtual_blocks::constants::{
 };
 use crate::vm_virtual_blocks::tests::tester::VmTesterBuilder;
 
-use crate::vm_virtual_blocks::types::inputs::system_env::TxExecutionMode;
+use crate::interface::TxExecutionMode;
 use crate::vm_virtual_blocks::HistoryDisabled;
 
 /// Checks that `TX_GAS_LIMIT_OFFSET` constant is correct.

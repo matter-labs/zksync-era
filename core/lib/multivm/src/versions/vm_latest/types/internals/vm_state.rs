@@ -104,7 +104,7 @@ pub(crate) fn new_vm_state<S: WriteStorage, H: HistoryMode>(
         Timestamp(0),
     );
 
-    let bootloader_initial_memory = bootloader_initial_memory(&l1_batch_env);
+    let bootloader_initial_memory = bootloader_initial_memory(l1_batch_env);
     memory.populate_page(
         BOOTLOADER_HEAP_PAGE as usize,
         bootloader_initial_memory.clone(),

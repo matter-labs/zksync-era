@@ -1,4 +1,4 @@
-use crate::interface::VmExecutionMode;
+use crate::interface::{ExecutionResult, VmExecutionMode};
 use crate::vm_latest::tests::tester::{TxType, VmTesterBuilder};
 use crate::vm_latest::HistoryDisabled;
 

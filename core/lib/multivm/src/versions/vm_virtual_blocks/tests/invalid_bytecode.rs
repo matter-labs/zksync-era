@@ -1,8 +1,8 @@
 use zksync_types::H256;
 use zksync_utils::h256_to_u256;
 
+use crate::interface::TxExecutionMode;
 use crate::vm_virtual_blocks::tests::tester::VmTesterBuilder;
-use crate::vm_virtual_blocks::types::inputs::system_env::TxExecutionMode;
 use crate::vm_virtual_blocks::{HistoryEnabled, TxRevertReason};
 
 // TODO this test requires a lot of hacks for bypassing the bytecode checks in the VM.

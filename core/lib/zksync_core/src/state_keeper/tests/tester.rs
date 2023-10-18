@@ -9,9 +9,10 @@ use std::{
 };
 
 use multivm::interface::{
-    constants::BLOCK_GAS_LIMIT, ExecutionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv,
-    SystemEnv, TxExecutionMode, VmExecutionResultAndLogs,
+    ExecutionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode,
+    VmExecutionResultAndLogs,
 };
+use multivm::vm_latest::constants::BLOCK_GAS_LIMIT;
 use zksync_types::{
     block::MiniblockReexecuteData, protocol_version::ProtocolUpgradeTx,
     witness_block_state::WitnessBlockState, Address, L1BatchNumber, L2ChainId, MiniblockNumber,

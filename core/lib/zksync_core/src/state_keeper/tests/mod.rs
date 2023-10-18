@@ -9,10 +9,10 @@ use std::{
 };
 
 use multivm::interface::{
-    constants::BLOCK_GAS_LIMIT, CurrentExecutionState, ExecutionResult, FinishedL1Batch,
-    L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionResultAndLogs,
-    VmExecutionStatistics,
+    CurrentExecutionState, ExecutionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv, SystemEnv,
+    TxExecutionMode, VmExecutionResultAndLogs, VmExecutionStatistics,
 };
+use multivm::vm_latest::constants::BLOCK_GAS_LIMIT;
 use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes};
 use zksync_system_constants::ZKPORTER_IS_AVAILABLE;

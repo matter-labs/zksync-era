@@ -11,10 +11,10 @@ use zksync_types::transaction_request::TransactionRequest;
 use zksync_types::utils::storage_key_for_standard_token_balance;
 use zksync_types::{AccountTreeId, Address, Eip712Domain, Execute, Nonce, Transaction, U256};
 
+use crate::interface::{TxExecutionMode, VmExecutionMode};
 use crate::vm_virtual_blocks::tests::tester::{Account, VmTester, VmTesterBuilder};
 use crate::vm_virtual_blocks::tests::utils::read_many_owners_custom_account_contract;
-use crate::vm_virtual_blocks::types::inputs::system_env::TxExecutionMode;
-use crate::vm_virtual_blocks::{HistoryDisabled, VmExecutionMode};
+use crate::vm_virtual_blocks::HistoryDisabled;
 
 impl VmTester<HistoryDisabled> {
     pub(crate) fn get_eth_balance(&mut self, address: Address) -> U256 {
