@@ -72,8 +72,8 @@ describe('Block reverting test', function () {
 
         // Set 1000 seconds deadline for `ExecuteBlocks` operation.
         process.env.ETH_SENDER_SENDER_AGGREGATED_BLOCK_EXECUTE_DEADLINE = '1000';
-        // Set lightweight mode for the Merkle tree.
-        process.env.DATABASE_MERKLE_TREE_MODE = 'lightweight';
+        // Set full mode for the Merkle tree as it is required to get blocks committed.
+        process.env.DATABASE_MERKLE_TREE_MODE = 'full';
 
         // Run server in background.
         const components = 'api,tree,eth,data_fetcher,state_keeper';
