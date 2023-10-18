@@ -13,4 +13,5 @@ pub use types::{
         BootloaderMemory, CurrentExecutionState, ExecutionResult, FinishedL1Batch, L2Block,
         Refunds, VmExecutionResultAndLogs, VmExecutionStatistics, VmMemoryMetrics,
     },
+    tracer,
 };

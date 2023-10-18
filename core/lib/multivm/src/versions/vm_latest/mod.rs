@@ -7,8 +7,7 @@ pub use oracles::storage::StorageOracle;
 
 pub use tracers::{
     call::CallTracer,
-    traits::{BoxedTracer, TracerExecutionStatus, TracerExecutionStopReason, VmTracer},
-    utils::VmExecutionStopReason,
+    traits::{BoxedTracer, VmTracer},
     StorageInvocations, ValidationError, ValidationTracer, ValidationTracerParams,
 };
 

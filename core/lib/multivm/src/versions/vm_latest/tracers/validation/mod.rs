@@ -28,9 +28,7 @@ use zksync_utils::{
 
 use crate::vm_latest::old_vm::history_recorder::HistoryMode;
 use crate::vm_latest::old_vm::memory::SimpleMemory;
-use crate::vm_latest::tracers::traits::{
-    TracerExecutionStatus, TracerExecutionStopReason, VmTracer,
-};
+use crate::vm_latest::tracers::traits::VmTracer;
 use crate::vm_latest::tracers::utils::{
     computational_gas_price, get_calldata_page_via_abi, print_debug_if_needed, VmHook,
 };
@@ -39,6 +37,7 @@ pub use error::ValidationError;
 pub use params::ValidationTracerParams;
 
 use crate::interface::traits::tracers::dyn_tracers::vm_1_3_3::DynTracer;
+use crate::interface::types::tracer::{TracerExecutionStatus, TracerExecutionStopReason};
 use crate::interface::Halt;
 use types::NewTrustedValidationItems;
 use types::ValidationTracerMode;

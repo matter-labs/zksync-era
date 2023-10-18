@@ -1,10 +1,9 @@
 use crate::interface::traits::tracers::dyn_tracers::vm_1_3_3::DynTracer;
+use crate::interface::types::tracer::{TracerExecutionStatus, TracerExecutionStopReason};
 use crate::interface::Halt;
 use crate::vm_latest::bootloader_state::BootloaderState;
 use crate::vm_latest::old_vm::history_recorder::HistoryMode;
-use crate::vm_latest::tracers::traits::{
-    TracerExecutionStatus, TracerExecutionStopReason, VmTracer,
-};
+use crate::vm_latest::tracers::traits::VmTracer;
 use crate::vm_latest::types::internals::ZkSyncVmState;
 use crate::vm_latest::SimpleMemory;
 use zksync_state::WriteStorage;

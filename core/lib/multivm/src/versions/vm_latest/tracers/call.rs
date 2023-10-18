@@ -8,6 +8,7 @@ use zk_evm_1_3_3::zkevm_opcode_defs::{
     CALL_IMPLICIT_CALLDATA_FAT_PTR_REGISTER, RET_IMPLICIT_RETURNDATA_PARAMS_REGISTER,
 };
 
+use crate::interface::tracer::VmExecutionStopReason;
 use crate::interface::traits::tracers::dyn_tracers::vm_1_3_3::DynTracer;
 use crate::interface::VmRevertReason;
 use zksync_state::{StoragePtr, WriteStorage};
@@ -19,7 +20,7 @@ use crate::vm_latest::old_vm::history_recorder::HistoryMode;
 use crate::vm_latest::old_vm::memory::SimpleMemory;
 use crate::vm_latest::tracers::traits::VmTracer;
 use crate::vm_latest::types::internals::ZkSyncVmState;
-use crate::vm_latest::{BootloaderState, VmExecutionStopReason};
+use crate::vm_latest::BootloaderState;
 
 #[derive(Debug, Clone)]
 pub struct CallTracer<H: HistoryMode> {
