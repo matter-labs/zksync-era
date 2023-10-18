@@ -40,6 +40,8 @@ mod metrics;
 pub mod namespaces;
 mod pubsub_notifier;
 pub mod state;
+#[cfg(test)]
+pub(crate) mod tests;
 
 use self::backend_jsonrpc::{
     batch_limiter_middleware::{LimitMiddleware, Transport},
