@@ -18,7 +18,7 @@ impl L2ToL1Log {
     /// Legacy upper bound of L2-to-L1 logs per single L1 batch. This is not used as a limit now,
     /// but still determines the minimum number of items in the Merkle tree built from L2-to-L1 logs
     /// for a certain batch.
-    pub const LEGACY_LIMIT_PER_L1_BATCH: usize = 512;
+    pub const LEGACY_LIMIT_PER_L1_BATCH: usize = 2048;
 
     pub fn from_slice(data: &[u8]) -> Self {
         assert_eq!(data.len(), Self::SERIALIZED_SIZE);
@@ -37,6 +37,17 @@ impl L2ToL1Log {
         let mut buffer = [0_u8; Self::SERIALIZED_SIZE];
         self.serialize_commitment(&mut buffer);
         buffer
+    }
+
+    pub fn packed_encoding(&self) -> Vec<u8> {
+        let mut res = vec![];
+        res.extend_from_slice(&self.shard_id.to_be_bytes());
+        res.extend_from_slice(&(self.is_service as u8).to_be_bytes());
+        res.extend_from_slice(&self.tx_number_in_block.to_be_bytes());
+        res.extend_from_slice(self.sender.as_bytes());
+        res.extend(self.key.as_bytes());
+        res.extend(self.value.as_bytes());
+        res
     }
 }
 
