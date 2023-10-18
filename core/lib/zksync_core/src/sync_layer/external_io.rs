@@ -7,7 +7,7 @@ use std::{
     time::Duration,
 };
 
-use vm::{FinishedL1Batch, L1BatchEnv, SystemEnv};
+use multivm::interface::{FinishedL1Batch, L1BatchEnv, SystemEnv};
 use zksync_contracts::{BaseSystemContracts, SystemContractCode};
 use zksync_dal::ConnectionPool;
 use zksync_types::{

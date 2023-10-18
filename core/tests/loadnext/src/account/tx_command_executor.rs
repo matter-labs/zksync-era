@@ -8,8 +8,8 @@ use zksync::{
         get_approval_based_paymaster_input, get_approval_based_paymaster_input_for_estimation,
     },
 };
-use zksync_config::constants::MAX_L1_TRANSACTION_GAS_LIMIT;
 use zksync_eth_client::EthInterface;
+use zksync_system_constants::MAX_L1_TRANSACTION_GAS_LIMIT;
 use zksync_types::{
     api::{BlockNumber, TransactionReceipt},
     l2::L2Tx,

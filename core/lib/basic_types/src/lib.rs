@@ -5,6 +5,7 @@
 #[macro_use]
 mod macros;
 
+pub mod basic_fri_types;
 pub mod network;
 
 use serde::{de, Deserialize, Deserializer, Serialize};

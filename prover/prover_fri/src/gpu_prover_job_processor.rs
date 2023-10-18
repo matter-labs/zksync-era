@@ -16,13 +16,13 @@ pub mod gpu_prover {
     use zksync_prover_fri_types::circuit_definitions::circuit_definitions::recursion_layer::ZkSyncRecursionLayerProof;
     use zksync_prover_fri_types::WitnessVectorArtifacts;
 
-    use zksync_config::configs::fri_prover_group::{CircuitIdRoundTuple, FriProverGroupConfig};
+    use zksync_config::configs::fri_prover_group::FriProverGroupConfig;
     use zksync_config::configs::FriProverConfig;
     use zksync_dal::ConnectionPool;
     use zksync_object_store::ObjectStore;
     use zksync_prover_fri_types::{CircuitWrapper, FriProofWrapper, ProverServiceDataKey};
     use zksync_queued_job_processor::{async_trait, JobProcessor};
-    use zksync_types::proofs::SocketAddress;
+    use zksync_types::{basic_fri_types::CircuitIdRoundTuple, proofs::SocketAddress};
     use zksync_vk_setup_data_server_fri::get_setup_data_for_circuit_type;
     use {
         shivini::gpu_prove_from_external_witness_data, shivini::ProverContext,

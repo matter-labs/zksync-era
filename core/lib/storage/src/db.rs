@@ -3,14 +3,16 @@ use rocksdb::{
     Direction, IteratorMode, Options, PrefixRange, ReadOptions, WriteOptions, DB,
 };
 
-use std::ffi::CStr;
 use std::{
     collections::HashSet,
+    ffi::CStr,
     fmt,
     marker::PhantomData,
     ops,
     path::Path,
     sync::{Arc, Condvar, Mutex},
+    thread,
+    time::Duration,
 };
 
 use crate::metrics::{RocksdbLabels, RocksdbSizeMetrics, METRICS};
@@ -139,6 +141,31 @@ impl RocksDBInner {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+struct StalledWritesRetries {
+    max_batch_size: usize,
+    retry_count: usize,
+    interval: Duration,
+}
+
+impl Default for StalledWritesRetries {
+    fn default() -> Self {
+        Self {
+            max_batch_size: 128 << 20, // 128 MiB
+            retry_count: 3,
+            interval: Duration::from_millis(100),
+        }
+    }
+}
+
+impl StalledWritesRetries {
+    // **NB.** The error message may change between RocksDB versions!
+    fn is_write_stall_error(error: &rocksdb::Error) -> bool {
+        matches!(error.kind(), rocksdb::ErrorKind::ShutdownInProgress)
+            && error.as_ref().ends_with("stalled writes")
+    }
+}
+
 /// Thin wrapper around a RocksDB instance.
 ///
 /// The wrapper is cheaply cloneable (internally, it wraps a DB instance in an [`Arc`]).
@@ -146,21 +173,18 @@ impl RocksDBInner {
 pub struct RocksDB<CF> {
     inner: Arc<RocksDBInner>,
     sync_writes: bool,
+    stalled_writes_retries: StalledWritesRetries,
     _cf: PhantomData<CF>,
 }
 
 impl<CF: NamedColumnFamily> RocksDB<CF> {
-    pub fn new(path: &Path, tune_options: bool) -> Self {
-        Self::with_cache(path, tune_options, None)
+    pub fn new(path: &Path) -> Self {
+        Self::with_cache(path, None)
     }
 
-    pub fn with_cache(
-        path: &Path,
-        tune_options: bool,
-        block_cache_capacity: Option<usize>,
-    ) -> Self {
+    pub fn with_cache(path: &Path, block_cache_capacity: Option<usize>) -> Self {
         let caches = RocksDBCaches::new(block_cache_capacity);
-        let options = Self::rocksdb_options(tune_options, None);
+        let options = Self::rocksdb_options(None);
         let existing_cfs = DB::list_cf(&options, path).unwrap_or_else(|err| {
             tracing::warn!(
                 "Failed getting column families for RocksDB `{}` at `{}`, assuming CFs are empty; {err}",
@@ -195,13 +219,11 @@ impl<CF: NamedColumnFamily> RocksDB<CF> {
         let all_cf_names = cf_names.iter().copied().chain(obsolete_cfs);
         let cfs = all_cf_names.map(|cf_name| {
             let mut block_based_options = BlockBasedOptions::default();
-            if tune_options {
-                block_based_options.set_bloom_filter(10.0, false);
-            }
+            block_based_options.set_bloom_filter(10.0, false);
             if let Some(cache) = &caches.shared {
                 block_based_options.set_block_cache(cache);
             }
-            let cf_options = Self::rocksdb_options(tune_options, Some(block_based_options));
+            let cf_options = Self::rocksdb_options(Some(block_based_options));
             ColumnFamilyDescriptor::new(cf_name, cf_options)
         });
 
@@ -218,6 +240,7 @@ impl<CF: NamedColumnFamily> RocksDB<CF> {
         Self {
             inner,
             sync_writes: false,
+            stalled_writes_retries: StalledWritesRetries::default(),
             _cf: PhantomData,
         }
     }
@@ -230,16 +253,19 @@ impl<CF: NamedColumnFamily> RocksDB<CF> {
         self
     }
 
-    fn rocksdb_options(
-        tune_options: bool,
-        block_based_options: Option<BlockBasedOptions>,
-    ) -> Options {
+    fn rocksdb_options(block_based_options: Option<BlockBasedOptions>) -> Options {
         let mut options = Options::default();
         options.create_missing_column_families(true);
         options.create_if_missing(true);
-        if tune_options {
-            options.increase_parallelism(num_cpus::get() as i32);
-        }
+
+        let num_cpus = num_cpus::get() as i32;
+        options.increase_parallelism(num_cpus);
+        // Settings below are taken as per PingCAP recommendations:
+        // https://www.pingcap.com/blog/how-to-troubleshoot-rocksdb-write-stalls-in-tikv/
+        options.set_max_write_buffer_number(5);
+        let max_background_jobs = (num_cpus - 1).clamp(1, 8);
+        options.set_max_background_jobs(max_background_jobs);
+
         if let Some(block_based_options) = block_based_options {
             options.set_block_based_table_factory(&block_based_options);
         }
@@ -282,19 +308,47 @@ impl<CF: NamedColumnFamily> RocksDB<CF> {
     }
 
     pub fn write<'a>(&'a self, batch: WriteBatch<'a, CF>) -> Result<(), rocksdb::Error> {
-        let raw_batch = batch.inner;
+        let retries = &self.stalled_writes_retries;
+        let mut raw_batch = batch.inner;
         METRICS.report_batch_size(CF::DB_NAME, raw_batch.size_in_bytes());
 
+        if raw_batch.size_in_bytes() > retries.max_batch_size {
+            // The write batch is too large to duplicate in RAM.
+            return self.write_inner(raw_batch);
+        }
+
+        let raw_batch_bytes = raw_batch.data().to_vec();
+        let mut retry_count = 0;
+        loop {
+            match self.write_inner(raw_batch) {
+                Ok(()) => return Ok(()),
+                Err(err) => {
+                    let should_retry = StalledWritesRetries::is_write_stall_error(&err)
+                        && retry_count < retries.retry_count;
+                    if should_retry {
+                        tracing::warn!(
+                            "Writes stalled when writing to DB `{}`; will retry after a delay",
+                            CF::DB_NAME
+                        );
+                        thread::sleep(retries.interval);
+                        retry_count += 1;
+                        raw_batch = rocksdb::WriteBatch::from_data(&raw_batch_bytes);
+                    } else {
+                        return Err(err);
+                    }
+                }
+            }
+        }
+    }
+
+    fn write_inner(&self, raw_batch: rocksdb::WriteBatch) -> Result<(), rocksdb::Error> {
         if self.sync_writes {
             let mut options = WriteOptions::new();
             options.set_sync(true);
-            self.inner.db.write_opt(raw_batch, &options)?;
+            self.inner.db.write_opt(raw_batch, &options)
         } else {
-            self.inner.db.write(raw_batch)?;
+            self.inner.db.write(raw_batch)
         }
-
-        // Since getting size stats may take some time, we throttle their reporting.
-        Ok(())
     }
 
     fn column_family(&self, cf: CF) -> &ColumnFamily {
@@ -439,13 +493,13 @@ mod tests {
     #[test]
     fn changing_column_families() {
         let temp_dir = TempDir::new().unwrap();
-        let db = RocksDB::<OldColumnFamilies>::new(temp_dir.path(), true).with_sync_writes();
+        let db = RocksDB::<OldColumnFamilies>::new(temp_dir.path()).with_sync_writes();
         let mut batch = db.new_write_batch();
         batch.put_cf(OldColumnFamilies::Default, b"test", b"value");
         db.write(batch).unwrap();
         drop(db);
 
-        let db = RocksDB::<NewColumnFamilies>::new(temp_dir.path(), true);
+        let db = RocksDB::<NewColumnFamilies>::new(temp_dir.path());
         let value = db.get_cf(NewColumnFamilies::Default, b"test").unwrap();
         assert_eq!(value.unwrap(), b"value");
     }
@@ -465,14 +519,39 @@ mod tests {
     #[test]
     fn default_column_family_does_not_need_to_be_explicitly_opened() {
         let temp_dir = TempDir::new().unwrap();
-        let db = RocksDB::<OldColumnFamilies>::new(temp_dir.path(), true).with_sync_writes();
+        let db = RocksDB::<OldColumnFamilies>::new(temp_dir.path()).with_sync_writes();
         let mut batch = db.new_write_batch();
         batch.put_cf(OldColumnFamilies::Junk, b"test", b"value");
         db.write(batch).unwrap();
         drop(db);
 
-        let db = RocksDB::<JunkColumnFamily>::new(temp_dir.path(), true);
+        let db = RocksDB::<JunkColumnFamily>::new(temp_dir.path());
         let value = db.get_cf(JunkColumnFamily, b"test").unwrap();
         assert_eq!(value.unwrap(), b"value");
+    }
+
+    #[test]
+    fn write_batch_can_be_restored_from_bytes() {
+        let temp_dir = TempDir::new().unwrap();
+        let db = RocksDB::<NewColumnFamilies>::new(temp_dir.path()).with_sync_writes();
+        let mut batch = db.new_write_batch();
+        batch.put_cf(NewColumnFamilies::Default, b"test", b"value");
+        batch.put_cf(NewColumnFamilies::Default, b"test2", b"value2");
+        let batch = WriteBatch {
+            db: &db,
+            inner: rocksdb::WriteBatch::from_data(batch.inner.data()),
+        };
+        db.write(batch).unwrap();
+
+        let value = db
+            .get_cf(NewColumnFamilies::Default, b"test")
+            .unwrap()
+            .unwrap();
+        assert_eq!(value, b"value");
+        let value = db
+            .get_cf(NewColumnFamilies::Default, b"test2")
+            .unwrap()
+            .unwrap();
+        assert_eq!(value, b"value2");
     }
 }

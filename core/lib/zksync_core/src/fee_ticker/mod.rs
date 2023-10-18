@@ -3,8 +3,8 @@
 use core::fmt::Debug;
 
 use bigdecimal::BigDecimal;
+use multivm::vm_latest::utils::fee::base_fee_to_gas_per_pubdata;
 use num::{rational::Ratio, BigUint};
-use vm::utils::fee::base_fee_to_gas_per_pubdata;
 use zksync_types::Address;
 use zksync_utils::ratio_to_big_decimal_normalized;
 

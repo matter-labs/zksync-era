@@ -1,12 +1,10 @@
+use multivm::interface::{L2BlockEnv, TxExecutionMode, VmExecutionMode, VmExecutionResultAndLogs};
+use multivm::vm_latest::{constants::BLOCK_GAS_LIMIT, HistoryEnabled, Vm};
 use once_cell::sync::Lazy;
 use std::{cell::RefCell, rc::Rc};
-use vm::{
-    constants::BLOCK_GAS_LIMIT, HistoryEnabled, L2BlockEnv, TxExecutionMode, Vm, VmExecutionMode,
-    VmExecutionResultAndLogs,
-};
-use zksync_config::constants::ethereum::MAX_GAS_PER_PUBDATA_BYTE;
 use zksync_contracts::{deployer_contract, BaseSystemContracts};
 use zksync_state::{InMemoryStorage, StorageView};
+use zksync_system_constants::ethereum::MAX_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
     block::legacy_miniblock_hash,
     ethabi::{encode, Token},
@@ -62,7 +60,7 @@ impl BenchmarkingVm {
         let timestamp = unix_timestamp_ms();
 
         Self(Vm::new(
-            vm::L1BatchEnv {
+            multivm::interface::L1BatchEnv {
                 previous_batch_hash: None,
                 number: L1BatchNumber(1),
                 timestamp,
@@ -77,7 +75,7 @@ impl BenchmarkingVm {
                     max_virtual_blocks_to_create: 100,
                 },
             },
-            vm::SystemEnv {
+            multivm::interface::SystemEnv {
                 zk_porter_available: false,
                 version: ProtocolVersionId::latest(),
                 base_system_smart_contracts: SYSTEM_CONTRACTS.clone(),
@@ -145,6 +143,9 @@ mod tests {
         let mut vm = BenchmarkingVm::new();
         let res = vm.run_transaction(&get_deploy_tx(&test_contract));
 
-        assert!(matches!(res.result, vm::ExecutionResult::Success { .. }));
+        assert!(matches!(
+            res.result,
+            multivm::interface::ExecutionResult::Success { .. }
+        ));
     }
 }

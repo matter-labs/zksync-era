@@ -4,10 +4,10 @@ use std::sync::Arc;
 
 use zksync_config::{
     configs::chain::{MempoolConfig, NetworkConfig, StateKeeperConfig},
-    constants::MAX_TXS_IN_BLOCK,
     ContractsConfig, DBConfig,
 };
 use zksync_dal::ConnectionPool;
+use zksync_system_constants::MAX_TXS_IN_BLOCK;
 
 mod batch_executor;
 pub(crate) mod extractors;

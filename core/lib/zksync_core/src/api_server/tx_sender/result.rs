@@ -1,7 +1,8 @@
 use crate::api_server::execution_sandbox::SandboxExecutionError;
 use thiserror::Error;
 
-use vm::{ExecutionResult, ValidationError, VmExecutionResultAndLogs};
+use multivm::interface::{ExecutionResult, VmExecutionResultAndLogs};
+use multivm::vm_latest::ValidationError;
 use zksync_types::l2::error::TxCheckError;
 use zksync_types::U256;
 

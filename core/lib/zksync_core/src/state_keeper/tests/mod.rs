@@ -8,13 +8,14 @@ use std::{
     time::Instant,
 };
 
-use vm::{
-    constants::BLOCK_GAS_LIMIT, CurrentExecutionState, ExecutionResult, FinishedL1Batch,
-    L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionResultAndLogs,
-    VmExecutionStatistics,
+use multivm::interface::{
+    CurrentExecutionState, ExecutionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv, Refunds,
+    SystemEnv, TxExecutionMode, VmExecutionResultAndLogs, VmExecutionStatistics,
 };
-use zksync_config::{configs::chain::StateKeeperConfig, constants::ZKPORTER_IS_AVAILABLE};
+use multivm::vm_latest::constants::BLOCK_GAS_LIMIT;
+use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes};
+use zksync_system_constants::ZKPORTER_IS_AVAILABLE;
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
     block::{legacy_miniblock_hash, miniblock_hash, BlockGasCount, MiniblockReexecuteData},
@@ -111,7 +112,7 @@ pub(super) fn default_vm_block_result() -> FinishedL1Batch {
             result: ExecutionResult::Success { output: vec![] },
             logs: VmExecutionLogs::default(),
             statistics: VmExecutionStatistics::default(),
-            refunds: vm::Refunds::default(),
+            refunds: Refunds::default(),
         },
         final_execution_state: CurrentExecutionState {
             events: vec![],
@@ -189,7 +190,7 @@ pub(super) fn create_execution_result(
             computational_gas_used: 0,
             total_log_queries,
         },
-        refunds: vm::Refunds::default(),
+        refunds: Refunds::default(),
     }
 }
 
