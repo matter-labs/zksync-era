@@ -1185,6 +1185,7 @@ dependencies = [
 [[package]]
 name = "circuit_definitions"
 version = "0.1.0"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=sb-tmp-witness-gen#14901677190e258fb0a3a3a244dafb9b80d45412"
 dependencies = [
  "crossbeam 0.8.2",
  "derivative",
@@ -7971,6 +7972,7 @@ dependencies = [
 [[package]]
 name = "zkevm_test_harness"
 version = "1.4.0"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=sb-tmp-witness-gen#14901677190e258fb0a3a3a244dafb9b80d45412"
 dependencies = [
  "bincode",
  "circuit_definitions",
