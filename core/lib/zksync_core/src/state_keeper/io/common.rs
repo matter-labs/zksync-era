@@ -1,6 +1,8 @@
 use std::time::Duration;
 
-use vm::{constants::BLOCK_GAS_LIMIT, L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode};
+use multivm::vm_latest::{
+    constants::BLOCK_GAS_LIMIT, L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode,
+};
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::StorageProcessor;
 use zksync_types::{

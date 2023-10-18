@@ -8,8 +8,10 @@
 
 use std::time::{Duration, Instant};
 
+use multivm::vm_latest::{
+    constants::BLOCK_GAS_LIMIT, HistoryDisabled, L1BatchEnv, L2BlockEnv, SystemEnv,
+};
 use multivm::VmInstance;
-use vm::{constants::BLOCK_GAS_LIMIT, HistoryDisabled, L1BatchEnv, L2BlockEnv, SystemEnv};
 use zksync_dal::{ConnectionPool, SqlxError, StorageProcessor};
 use zksync_state::{PostgresStorage, ReadStorage, StorageView, WriteStorage};
 use zksync_system_constants::{

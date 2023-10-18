@@ -10,7 +10,9 @@ use std::{
     time::Instant,
 };
 
-use vm::{constants::MAX_CYCLES_FOR_TX, HistoryDisabled, SimpleMemory, StorageOracle};
+use multivm::vm_latest::{
+    constants::MAX_CYCLES_FOR_TX, HistoryDisabled, SimpleMemory, StorageOracle,
+};
 use zksync_config::configs::witness_generator::BasicWitnessGeneratorDataSource;
 use zksync_config::configs::WitnessGeneratorConfig;
 use zksync_dal::ConnectionPool;

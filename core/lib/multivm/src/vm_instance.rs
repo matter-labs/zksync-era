@@ -1,7 +1,7 @@
-use std::collections::HashSet;
-use vm_latest::{
+use crate::vm_latest::{
     FinishedL1Batch, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode, VmMemoryMetrics,
 };
+use std::collections::HashSet;
 
 use zksync_state::{ReadStorage, StorageView};
 use zksync_utils::bytecode::{hash_bytecode, CompressedBytecodeInfo};
@@ -18,12 +18,12 @@ pub struct VmInstance<S: ReadStorage, H: HistoryMode> {
 
 #[derive(Debug)]
 pub(crate) enum VmInstanceVersion<S: ReadStorage, H: HistoryMode> {
-    VmM5(Box<vm_m5::VmInstance<StorageView<S>>>),
-    VmM6(Box<vm_m6::VmInstance<StorageView<S>, H::VmM6Mode>>),
-    Vm1_3_2(Box<vm_1_3_2::VmInstance<StorageView<S>, H::Vm1_3_2Mode>>),
-    VmVirtualBlocks(Box<vm_virtual_blocks::Vm<StorageView<S>, H::VmVirtualBlocksMode>>),
+    VmM5(Box<crate::vm_m5::VmInstance<StorageView<S>>>),
+    VmM6(Box<crate::vm_m6::VmInstance<StorageView<S>, H::VmM6Mode>>),
+    Vm1_3_2(Box<crate::vm_1_3_2::VmInstance<StorageView<S>, H::Vm1_3_2Mode>>),
+    VmVirtualBlocks(Box<crate::vm_virtual_blocks::Vm<StorageView<S>, H::VmVirtualBlocksMode>>),
     VmVirtualBlocksRefundsEnhancement(
-        Box<vm_latest::Vm<StorageView<S>, H::VmVirtualBlocksRefundsEnhancement>>,
+        Box<crate::vm_latest::Vm<StorageView<S>, H::VmVirtualBlocksRefundsEnhancement>>,
     ),
 }
 
@@ -32,14 +32,14 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
     pub fn push_transaction(&mut self, tx: &zksync_types::Transaction) {
         match &mut self.vm {
             VmInstanceVersion::VmM5(vm) => {
-                vm_m5::vm_with_bootloader::push_transaction_to_bootloader_memory(
+                crate::vm_m5::vm_with_bootloader::push_transaction_to_bootloader_memory(
                     vm,
                     tx,
                     self.system_env.execution_mode.glue_into(),
                 )
             }
             VmInstanceVersion::VmM6(vm) => {
-                vm_m6::vm_with_bootloader::push_transaction_to_bootloader_memory(
+                crate::vm_m6::vm_with_bootloader::push_transaction_to_bootloader_memory(
                     vm,
                     tx,
                     self.system_env.execution_mode.glue_into(),
@@ -47,7 +47,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
                 )
             }
             VmInstanceVersion::Vm1_3_2(vm) => {
-                vm_1_3_2::vm_with_bootloader::push_transaction_to_bootloader_memory(
+                crate::vm_1_3_2::vm_with_bootloader::push_transaction_to_bootloader_memory(
                     vm,
                     tx,
                     self.system_env.execution_mode.glue_into(),
@@ -68,17 +68,17 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
         match &mut self.vm {
             VmInstanceVersion::VmM5(vm) => vm
                 .execute_till_block_end(
-                    vm_m5::vm_with_bootloader::BootloaderJobType::BlockPostprocessing,
+                    crate::vm_m5::vm_with_bootloader::BootloaderJobType::BlockPostprocessing,
                 )
                 .glue_into(),
             VmInstanceVersion::VmM6(vm) => vm
                 .execute_till_block_end(
-                    vm_m6::vm_with_bootloader::BootloaderJobType::BlockPostprocessing,
+                    crate::vm_m6::vm_with_bootloader::BootloaderJobType::BlockPostprocessing,
                 )
                 .glue_into(),
             VmInstanceVersion::Vm1_3_2(vm) => vm
                 .execute_till_block_end(
-                    vm_1_3_2::vm_with_bootloader::BootloaderJobType::BlockPostprocessing,
+                    crate::vm_1_3_2::vm_with_bootloader::BootloaderJobType::BlockPostprocessing,
                 )
                 .glue_into(),
             VmInstanceVersion::VmVirtualBlocks(vm) => {
@@ -106,7 +106,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
 
     /// Execute the batch without stops after each tx.
     /// This method allows to execute the part  of the VM cycle after executing all txs.
-    pub fn execute_block_tip(&mut self) -> vm_latest::VmExecutionResultAndLogs {
+    pub fn execute_block_tip(&mut self) -> crate::vm_latest::VmExecutionResultAndLogs {
         match &mut self.vm {
             VmInstanceVersion::VmM5(vm) => vm.execute_block_tip().glue_into(),
             VmInstanceVersion::VmM6(vm) => vm.execute_block_tip().glue_into(),
@@ -121,13 +121,13 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
     }
 
     /// Execute next transaction and stop vm right after next transaction execution
-    pub fn execute_next_transaction(&mut self) -> vm_latest::VmExecutionResultAndLogs {
+    pub fn execute_next_transaction(&mut self) -> crate::vm_latest::VmExecutionResultAndLogs {
         match &mut self.vm {
             VmInstanceVersion::VmM5(vm) => match self.system_env.execution_mode {
                 TxExecutionMode::VerifyExecute => vm.execute_next_tx().glue_into(),
                 TxExecutionMode::EstimateFee | TxExecutionMode::EthCall => vm
                     .execute_till_block_end(
-                        vm_m5::vm_with_bootloader::BootloaderJobType::TransactionExecution,
+                        crate::vm_m5::vm_with_bootloader::BootloaderJobType::TransactionExecution,
                     )
                     .glue_into(),
             },
@@ -143,7 +143,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
                     }
                     TxExecutionMode::EstimateFee | TxExecutionMode::EthCall => vm
                         .execute_till_block_end(
-                            vm_m6::vm_with_bootloader::BootloaderJobType::TransactionExecution,
+                             crate::vm_m6::vm_with_bootloader::BootloaderJobType::TransactionExecution,
                         )
                         .glue_into(),
                 }
@@ -160,7 +160,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
                     }
                     TxExecutionMode::EstimateFee | TxExecutionMode::EthCall => vm
                         .execute_till_block_end(
-                            vm_1_3_2::vm_with_bootloader::BootloaderJobType::TransactionExecution,
+                            crate::vm_1_3_2::vm_with_bootloader::BootloaderJobType::TransactionExecution,
                         )
                         .glue_into(),
                 }
@@ -189,7 +189,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
     pub fn inspect_next_transaction(
         &mut self,
         tracers: Vec<Box<dyn MultivmTracer<StorageView<S>, H>>>,
-    ) -> vm_latest::VmExecutionResultAndLogs {
+    ) -> crate::vm_latest::VmExecutionResultAndLogs {
         match &mut self.vm {
             VmInstanceVersion::VmVirtualBlocks(vm) => vm
                 .inspect(
@@ -213,10 +213,13 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
         &mut self,
         tx: zksync_types::Transaction,
         with_compression: bool,
-    ) -> Result<vm_latest::VmExecutionResultAndLogs, vm_latest::BytecodeCompressionError> {
+    ) -> Result<
+        crate::vm_latest::VmExecutionResultAndLogs,
+        crate::vm_latest::BytecodeCompressionError,
+    > {
         match &mut self.vm {
             VmInstanceVersion::VmM5(vm) => {
-                vm_m5::vm_with_bootloader::push_transaction_to_bootloader_memory(
+                crate::vm_m5::vm_with_bootloader::push_transaction_to_bootloader_memory(
                     vm,
                     &tx,
                     self.system_env.execution_mode.glue_into(),
@@ -224,7 +227,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
                 Ok(vm.execute_next_tx().glue_into())
             }
             VmInstanceVersion::VmM6(vm) => {
-                use vm_m6::storage::Storage;
+                use crate::vm_m6::storage::Storage;
                 let bytecodes = if with_compression {
                     let deps = tx.execute.factory_deps.as_deref().unwrap_or_default();
                     let mut deps_hashes = HashSet::with_capacity(deps.len());
@@ -250,7 +253,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
                     let compressed_bytecodes: Vec<_> = filtered_deps.collect();
 
                     self.last_tx_compressed_bytecodes = compressed_bytecodes.clone();
-                    vm_m6::vm_with_bootloader::push_transaction_to_bootloader_memory(
+                    crate::vm_m6::vm_with_bootloader::push_transaction_to_bootloader_memory(
                         vm,
                         &tx,
                         self.system_env.execution_mode.glue_into(),
@@ -258,7 +261,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
                     );
                     bytecode_hashes
                 } else {
-                    vm_m6::vm_with_bootloader::push_transaction_to_bootloader_memory(
+                    crate::vm_m6::vm_with_bootloader::push_transaction_to_bootloader_memory(
                         vm,
                         &tx,
                         self.system_env.execution_mode.glue_into(),
@@ -282,13 +285,13 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
                         .borrow_mut()
                         .is_bytecode_exists(info)
                 }) {
-                    Err(vm_latest::BytecodeCompressionError::BytecodeCompressionFailed)
+                    Err(crate::vm_latest::BytecodeCompressionError::BytecodeCompressionFailed)
                 } else {
                     Ok(result)
                 }
             }
             VmInstanceVersion::Vm1_3_2(vm) => {
-                use vm_m6::storage::Storage;
+                use crate::vm_m6::storage::Storage;
                 let bytecodes = if with_compression {
                     let deps = tx.execute.factory_deps.as_deref().unwrap_or_default();
                     let mut deps_hashes = HashSet::with_capacity(deps.len());
@@ -314,7 +317,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
                     let compressed_bytecodes: Vec<_> = filtered_deps.collect();
 
                     self.last_tx_compressed_bytecodes = compressed_bytecodes.clone();
-                    vm_1_3_2::vm_with_bootloader::push_transaction_to_bootloader_memory(
+                    crate::vm_1_3_2::vm_with_bootloader::push_transaction_to_bootloader_memory(
                         vm,
                         &tx,
                         self.system_env.execution_mode.glue_into(),
@@ -322,7 +325,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
                     );
                     bytecode_hashes
                 } else {
-                    vm_1_3_2::vm_with_bootloader::push_transaction_to_bootloader_memory(
+                    crate::vm_1_3_2::vm_with_bootloader::push_transaction_to_bootloader_memory(
                         vm,
                         &tx,
                         self.system_env.execution_mode.glue_into(),
@@ -346,7 +349,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
                         .borrow_mut()
                         .is_bytecode_exists(info)
                 }) {
-                    Err(vm_latest::BytecodeCompressionError::BytecodeCompressionFailed)
+                    Err(crate::vm_latest::BytecodeCompressionError::BytecodeCompressionFailed)
                 } else {
                     Ok(result)
                 }
@@ -366,7 +369,10 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
         tracers: Vec<Box<dyn MultivmTracer<StorageView<S>, H>>>,
         tx: zksync_types::Transaction,
         with_compression: bool,
-    ) -> Result<vm_latest::VmExecutionResultAndLogs, vm_latest::BytecodeCompressionError> {
+    ) -> Result<
+        crate::vm_latest::VmExecutionResultAndLogs,
+        crate::vm_latest::BytecodeCompressionError,
+    > {
         match &mut self.vm {
             VmInstanceVersion::VmVirtualBlocks(vm) => vm
                 .inspect_transaction_with_bytecode_compression(
@@ -442,7 +448,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
     }
 }
 
-impl<S: ReadStorage> VmInstance<S, vm_latest::HistoryEnabled> {
+impl<S: ReadStorage> VmInstance<S, crate::vm_latest::HistoryEnabled> {
     pub fn make_snapshot(&mut self) {
         match &mut self.vm {
             VmInstanceVersion::VmM5(vm) => vm.save_current_vm_as_snapshot(),

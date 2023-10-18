@@ -1,8 +1,8 @@
 use crate::glue::GlueFrom;
-use vm_latest::VmExecutionStatistics;
+use crate::vm_latest::VmExecutionStatistics;
 
-impl GlueFrom<vm_virtual_blocks::VmExecutionStatistics> for VmExecutionStatistics {
-    fn glue_from(value: vm_virtual_blocks::VmExecutionStatistics) -> Self {
+impl GlueFrom<crate::vm_virtual_blocks::VmExecutionStatistics> for VmExecutionStatistics {
+    fn glue_from(value: crate::vm_virtual_blocks::VmExecutionStatistics) -> Self {
         Self {
             contracts_used: value.contracts_used,
             cycles_used: value.cycles_used,

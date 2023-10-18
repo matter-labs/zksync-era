@@ -1,7 +1,7 @@
 use crate::glue::GlueFrom;
 
-impl GlueFrom<vm_latest::L2BlockEnv> for vm_virtual_blocks::L2BlockEnv {
-    fn glue_from(value: vm_latest::L2BlockEnv) -> Self {
+impl GlueFrom<crate::vm_latest::L2BlockEnv> for crate::vm_virtual_blocks::L2BlockEnv {
+    fn glue_from(value: crate::vm_latest::L2BlockEnv) -> Self {
         Self {
             number: value.number,
             timestamp: value.timestamp,

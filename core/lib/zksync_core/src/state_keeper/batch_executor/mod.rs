@@ -7,11 +7,11 @@ use tokio::{
 
 use std::{fmt, sync::Arc};
 
-use multivm::{MultivmTracer, VmInstance};
-use vm::{
+use multivm::vm_latest::{
     CallTracer, ExecutionResult, FinishedL1Batch, Halt, HistoryEnabled, L1BatchEnv, L2BlockEnv,
     SystemEnv, VmExecutionResultAndLogs,
 };
+use multivm::{MultivmTracer, VmInstance};
 use zksync_dal::ConnectionPool;
 use zksync_state::{ReadStorage, RocksdbStorage, StorageView};
 use zksync_types::{vm_trace::Call, witness_block_state::WitnessBlockState, Transaction, U256};

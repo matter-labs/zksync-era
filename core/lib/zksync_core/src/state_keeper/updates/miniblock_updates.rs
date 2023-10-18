@@ -1,5 +1,5 @@
+use multivm::vm_latest::{ExecutionResult, L2BlockEnv, TransactionVmExt, VmExecutionResultAndLogs};
 use std::collections::HashMap;
-use vm::{ExecutionResult, L2BlockEnv, TransactionVmExt, VmExecutionResultAndLogs};
 
 use zksync_types::{
     block::{legacy_miniblock_hash, miniblock_hash, BlockGasCount},
@@ -162,7 +162,7 @@ impl MiniblockUpdates {
 mod tests {
     use super::*;
     use crate::state_keeper::tests::{create_execution_result, create_transaction};
-    use vm::TransactionVmExt;
+    use multivm::vm_latest::TransactionVmExt;
 
     #[test]
     fn apply_empty_l2_tx() {

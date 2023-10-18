@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use db_test_macro::db_test;
 
-use vm::utils::fee::derive_base_fee_and_gas_per_pubdata;
+use multivm::vm_latest::utils::fee::derive_base_fee_and_gas_per_pubdata;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::ConnectionPool;
 use zksync_mempool::L2TxFilter;

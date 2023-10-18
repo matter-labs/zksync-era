@@ -1,10 +1,10 @@
 use crate::glue::{GlueFrom, GlueInto};
-use vm_latest::{BytecodeCompressionError, VmExecutionResultAndLogs};
+use crate::vm_latest::{BytecodeCompressionError, VmExecutionResultAndLogs};
 
-impl GlueFrom<vm_virtual_blocks::BytecodeCompressionError> for BytecodeCompressionError {
-    fn glue_from(value: vm_virtual_blocks::BytecodeCompressionError) -> Self {
+impl GlueFrom<crate::vm_virtual_blocks::BytecodeCompressionError> for BytecodeCompressionError {
+    fn glue_from(value: crate::vm_virtual_blocks::BytecodeCompressionError) -> Self {
         match value {
-            vm_virtual_blocks::BytecodeCompressionError::BytecodeCompressionFailed => {
+            crate::vm_virtual_blocks::BytecodeCompressionError::BytecodeCompressionFailed => {
                 Self::BytecodeCompressionFailed
             }
         }
@@ -14,15 +14,15 @@ impl GlueFrom<vm_virtual_blocks::BytecodeCompressionError> for BytecodeCompressi
 impl
     GlueFrom<
         Result<
-            vm_virtual_blocks::VmExecutionResultAndLogs,
-            vm_virtual_blocks::BytecodeCompressionError,
+            crate::vm_virtual_blocks::VmExecutionResultAndLogs,
+            crate::vm_virtual_blocks::BytecodeCompressionError,
         >,
     > for Result<VmExecutionResultAndLogs, BytecodeCompressionError>
 {
     fn glue_from(
         value: Result<
-            vm_virtual_blocks::VmExecutionResultAndLogs,
-            vm_virtual_blocks::BytecodeCompressionError,
+            crate::vm_virtual_blocks::VmExecutionResultAndLogs,
+            crate::vm_virtual_blocks::BytecodeCompressionError,
         >,
     ) -> Self {
         match value {

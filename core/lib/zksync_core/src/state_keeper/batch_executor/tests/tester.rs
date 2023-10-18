@@ -3,7 +3,7 @@
 
 use tempfile::TempDir;
 
-use vm::{
+use multivm::vm_latest::{
     constants::INITIAL_STORAGE_WRITE_PUBDATA_BYTES,
     {L1BatchEnv, SystemEnv},
 };
