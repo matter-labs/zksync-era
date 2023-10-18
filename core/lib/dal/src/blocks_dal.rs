@@ -12,7 +12,8 @@ use zksync_types::{
     aggregated_operations::AggregatedActionType,
     block::{BlockGasCount, L1BatchHeader, MiniblockHeader},
     commitment::{L1BatchMetadata, L1BatchWithMetadata},
-    L1BatchNumber, MiniblockNumber, ProtocolVersionId, H256, MAX_GAS_PER_PUBDATA_BYTE, U256,
+    L1BatchNumber, LogQuery, MiniblockNumber, ProtocolVersionId, H256, MAX_GAS_PER_PUBDATA_BYTE,
+    U256,
 };
 
 use crate::{
@@ -154,7 +155,7 @@ impl BlocksDal<'_, '_> {
                 bloom, priority_ops_onchain_data, \
                 used_contract_hashes, base_fee_per_gas, l1_gas_price, \
                 l2_fair_gas_price, bootloader_code_hash, default_aa_code_hash, protocol_version, \
-                system_logs, compressed_state_diffs, events_state_queue_commitment, bootloader_initial_memory_commitment \
+                system_logs, compressed_state_diffs \
             FROM l1_batches \
             WHERE eth_commit_tx_id = $1 \
                 OR eth_prove_tx_id = $1 \
@@ -183,10 +184,11 @@ impl BlocksDal<'_, '_> {
                 l2_l1_compressed_messages, l2_l1_merkle_root, l1_gas_price, l2_fair_gas_price, \
                 rollup_last_leaf_index, zkporter_is_available, bootloader_code_hash, \
                 default_aa_code_hash, base_fee_per_gas, aux_data_hash, pass_through_data_hash, \
-                meta_parameters_hash, protocol_version, compressed_state_diffs, \
-                gas_per_pubdata_byte_in_block, gas_per_pubdata_limit, skip_proof, system_logs, \
-                events_state_queue_commitment, bootloader_initial_memory_commitment
+                meta_parameters_hash, protocol_version, system_logs, compressed_state_diffs, skip_proof, 
+                gas_per_pubdata_byte_in_block, gas_per_pubdata_limit, \
+                events_queue_commitment, bootloader_initial_content_commitment \
             FROM l1_batches \
+            LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number \
             WHERE number = $1",
             number.0 as i64
         )
@@ -207,7 +209,7 @@ impl BlocksDal<'_, '_> {
                 bloom, priority_ops_onchain_data, \
                 used_contract_hashes, base_fee_per_gas, l1_gas_price, \
                 l2_fair_gas_price, bootloader_code_hash, default_aa_code_hash, protocol_version, \
-                compressed_state_diffs, system_logs, events_state_queue_commitment, bootloader_initial_memory_commitment \
+                compressed_state_diffs, system_logs \
             FROM l1_batches \
             WHERE number = $1",
             number.0 as i64
@@ -240,6 +242,28 @@ impl BlocksDal<'_, '_> {
         let heap = serde_json::from_value(row.initial_bootloader_heap_content)
             .context("invalid value for initial_bootloader_heap_content in the DB")?;
         Ok(Some(heap))
+    }
+
+    pub async fn get_events_queue(
+        &mut self,
+        number: L1BatchNumber,
+    ) -> anyhow::Result<Option<Vec<LogQuery>>> {
+        let Some(row) = sqlx::query!(
+            "SELECT serialized_events_queue FROM events_queue WHERE l1_batch_number = $1",
+            number.0 as i64
+        )
+        .instrument("get_events_queue")
+        .report_latency()
+        .with_arg("number", &number)
+        .fetch_optional(self.storage.conn())
+        .await?
+        else {
+            return Ok(None);
+        };
+
+        let events = serde_json::from_value(row.serialized_events_queue)
+            .context("invalid value for serialized_events_queue in the DB")?;
+        Ok(Some(events))
     }
 
     pub async fn set_eth_tx_id(
@@ -294,6 +318,7 @@ impl BlocksDal<'_, '_> {
         header: &L1BatchHeader,
         initial_bootloader_contents: &[(usize, U256)],
         predicted_block_gas: BlockGasCount,
+        events_queue: &[LogQuery],
     ) -> anyhow::Result<()> {
         let priority_onchain_data: Vec<Vec<u8>> = header
             .priority_ops_onchain_data
@@ -314,12 +339,15 @@ impl BlocksDal<'_, '_> {
         // Serialization should always succeed.
         let initial_bootloader_contents = serde_json::to_value(initial_bootloader_contents)
             .expect("failed to serialize initial_bootloader_contents to JSON value");
+        let events_queue = serde_json::to_value(events_queue)
+            .expect("failed to serialize events_queue to JSON value");
         // Serialization should always succeed.
         let used_contract_hashes = serde_json::to_value(&header.used_contract_hashes)
             .expect("failed to serialize used_contract_hashes to JSON value");
         let base_fee_per_gas = BigDecimal::from_u64(header.base_fee_per_gas)
             .context("block.base_fee_per_gas should fit in u64")?;
 
+        let mut transaction = self.storage.start_transaction().await?;
         sqlx::query!(
             "INSERT INTO l1_batches (\
                 number, l1_tx_count, l2_tx_count, \
@@ -328,8 +356,8 @@ impl BlocksDal<'_, '_> {
                 predicted_commit_gas_cost, predicted_prove_gas_cost, predicted_execute_gas_cost, \
                 initial_bootloader_heap_content, used_contract_hashes, base_fee_per_gas, \
                 l1_gas_price, l2_fair_gas_price, bootloader_code_hash, default_aa_code_hash, \
-                protocol_version, system_logs, events_state_queue_commitment, bootloader_initial_memory_commitment, created_at, updated_at\
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, now(), now())",
+                protocol_version, system_logs, created_at, updated_at\
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, now(), now())",
             header.number.0 as i64,
             header.l1_tx_count as i32,
             header.l2_tx_count as i32,
@@ -358,11 +386,19 @@ impl BlocksDal<'_, '_> {
                 .as_bytes(),
             header.protocol_version.map(|v| v as i32),
             &system_logs,
-            header.events_queue_commitment.unwrap_or_default().as_bytes().to_vec(),
-            header.bootloader_initial_content_commitment.unwrap_or_default().as_bytes().to_vec()
         )
-        .execute(self.storage.conn())
+        .execute(transaction.conn())
         .await?;
+
+        sqlx::query!(
+            "INSERT INTO events_queue (l1_batch_number, serialized_events_queue) VALUES ($1, $2)",
+            header.number.0 as i64,
+            events_queue
+        )
+        .execute(transaction.conn())
+        .await?;
+        transaction.commit().await?;
+
         Ok(())
     }
 
@@ -521,6 +557,8 @@ impl BlocksDal<'_, '_> {
         metadata: &L1BatchMetadata,
         previous_root_hash: H256,
     ) -> anyhow::Result<()> {
+        let mut transaction = self.storage.start_transaction().await?;
+
         let update_result = sqlx::query!(
             "UPDATE l1_batches \
             SET hash = $1, merkle_root_hash = $2, commitment = $3, \
@@ -549,7 +587,23 @@ impl BlocksDal<'_, '_> {
         .instrument("save_blocks_metadata")
         .with_arg("number", &number)
         .report_latency()
-        .execute(self.storage.conn())
+        .execute(transaction.conn())
+        .await?;
+
+        sqlx::query!(
+            "INSERT INTO commitments (l1_batch_number, events_queue_commitment, bootloader_initial_content_commitment) \
+            VALUES ($1, $2, $3) \
+            ON CONFLICT (l1_batch_number) DO UPDATE SET events_queue_commitment = $2, bootloader_initial_content_commitment = $3",
+            number.0 as i64,
+            metadata.events_queue_commitment.map(|h| h.0.to_vec()),
+            metadata
+                .bootloader_initial_content_commitment
+                .map(|h| h.0.to_vec()),
+        )
+        .instrument("save_batch_commitments")
+        .with_arg("number", &number)
+        .report_latency()
+        .execute(transaction.conn())
         .await?;
 
         if update_result.rows_affected() == 0 {
@@ -579,7 +633,7 @@ impl BlocksDal<'_, '_> {
             .instrument("get_matching_blocks_metadata")
             .with_arg("number", &number)
             .report_latency()
-            .fetch_one(self.storage.conn())
+            .fetch_one(transaction.conn())
             .await?
             .count;
 
@@ -591,6 +645,7 @@ impl BlocksDal<'_, '_> {
                 metadata.l2_l1_merkle_root
             );
         }
+        transaction.commit().await?;
         Ok(())
     }
 
@@ -610,8 +665,9 @@ impl BlocksDal<'_, '_> {
                 default_aa_code_hash, base_fee_per_gas, aux_data_hash, pass_through_data_hash, \
                 meta_parameters_hash, protocol_version, compressed_state_diffs, \
                 gas_per_pubdata_byte_in_block, gas_per_pubdata_limit, skip_proof, system_logs, \
-                events_state_queue_commitment, bootloader_initial_memory_commitment
+                events_queue_commitment, bootloader_initial_content_commitment
             FROM l1_batches \
+            LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number \
             WHERE number = 0 OR eth_commit_tx_id IS NOT NULL AND commitment IS NOT NULL \
             ORDER BY number DESC \
             LIMIT 1",
@@ -707,8 +763,9 @@ impl BlocksDal<'_, '_> {
                 default_aa_code_hash, base_fee_per_gas, aux_data_hash, pass_through_data_hash, \
                 meta_parameters_hash, protocol_version, compressed_state_diffs, \
                 gas_per_pubdata_byte_in_block, gas_per_pubdata_limit, skip_proof, system_logs, \
-                events_state_queue_commitment, bootloader_initial_memory_commitment \
+                events_queue_commitment, bootloader_initial_content_commitment \
             FROM l1_batches \
+            LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number \
             WHERE eth_commit_tx_id IS NOT NULL AND eth_prove_tx_id IS NULL \
             ORDER BY number LIMIT $1",
             limit as i32
@@ -774,7 +831,7 @@ impl BlocksDal<'_, '_> {
                 rollup_last_leaf_index, zkporter_is_available, bootloader_code_hash, \
                 default_aa_code_hash, base_fee_per_gas, aux_data_hash, pass_through_data_hash, \
                 meta_parameters_hash, skip_proof, gas_per_pubdata_byte_in_block, gas_per_pubdata_limit, \
-                system_logs, compressed_state_diffs, protocol_version, events_state_queue_commitment, bootloader_initial_memory_commitment \
+                system_logs, compressed_state_diffs, protocol_version, events_queue_commitment, bootloader_initial_content_commitment \
             FROM \
             (SELECT l1_batches.*, row_number() OVER (ORDER BY number ASC) AS row_number \
                 FROM l1_batches \
@@ -783,6 +840,7 @@ impl BlocksDal<'_, '_> {
                     AND l1_batches.number > $1 \
                 ORDER BY number LIMIT $2\
             ) inn \
+            LEFT JOIN commitments ON commitments.l1_batch_number = inn.number \
             WHERE number - row_number = $1",
             last_proved_block_number.0 as i32,
             limit as i32
@@ -815,8 +873,9 @@ impl BlocksDal<'_, '_> {
                     default_aa_code_hash, base_fee_per_gas, aux_data_hash, pass_through_data_hash, \
                     meta_parameters_hash, protocol_version, compressed_state_diffs, \
                     gas_per_pubdata_byte_in_block, gas_per_pubdata_limit, skip_proof, system_logs, \
-                    events_state_queue_commitment, bootloader_initial_memory_commitment \
+                    events_queue_commitment, bootloader_initial_content_commitment \
                 FROM l1_batches \
+                LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number \
                 WHERE eth_prove_tx_id IS NOT NULL AND eth_execute_tx_id IS NULL \
                 ORDER BY number LIMIT $1",
                 limit as i32,
@@ -894,8 +953,9 @@ impl BlocksDal<'_, '_> {
                     default_aa_code_hash, base_fee_per_gas, aux_data_hash, pass_through_data_hash, \
                     meta_parameters_hash, protocol_version, compressed_state_diffs, \
                     gas_per_pubdata_byte_in_block, gas_per_pubdata_limit, skip_proof, system_logs, \
-                    events_state_queue_commitment, bootloader_initial_memory_commitment \
+                    events_queue_commitment, bootloader_initial_content_commitment \
                 FROM l1_batches \
+                LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number \
                 WHERE number BETWEEN $1 AND $2 \
                 ORDER BY number LIMIT $3",
                 expected_started_point as i32,
@@ -931,14 +991,17 @@ impl BlocksDal<'_, '_> {
                 l1_batches.default_aa_code_hash, base_fee_per_gas, aux_data_hash, pass_through_data_hash, \
                 meta_parameters_hash, protocol_version, compressed_state_diffs, \
                 gas_per_pubdata_byte_in_block, gas_per_pubdata_limit, skip_proof, system_logs, \
-                events_state_queue_commitment, bootloader_initial_memory_commitment \
+                events_queue_commitment, bootloader_initial_content_commitment \
             FROM l1_batches \
+            LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number \
             JOIN protocol_versions ON protocol_versions.id = l1_batches.protocol_version \
             WHERE eth_commit_tx_id IS NULL \
                 AND number != 0 \
                 AND protocol_versions.bootloader_code_hash = $1 AND protocol_versions.default_account_code_hash = $2 \
                 AND commitment IS NOT NULL \
                 AND (protocol_versions.id = $3 OR protocol_versions.upgrade_tx_hash IS NULL) \
+                AND events_queue_commitment IS NOT NULL \
+                AND bootloader_initial_content_commitment IS NOT NULL
             ORDER BY number LIMIT $4",
             bootloader_hash.as_bytes(),
             default_aa_hash.as_bytes(),
@@ -999,7 +1062,7 @@ impl BlocksDal<'_, '_> {
                 bloom, priority_ops_onchain_data, \
                 used_contract_hashes, base_fee_per_gas, l1_gas_price, \
                 l2_fair_gas_price, bootloader_code_hash, default_aa_code_hash, protocol_version, \
-                compressed_state_diffs, system_logs, events_state_queue_commitment, bootloader_initial_memory_commitment \
+                compressed_state_diffs, system_logs \
             FROM l1_batches \
             ORDER BY number DESC \
             LIMIT 1"
@@ -1427,7 +1490,7 @@ mod tests {
         header.l2_to_l1_messages.push(vec![33; 33]);
 
         conn.blocks_dal()
-            .insert_l1_batch(&header, &[], BlockGasCount::default())
+            .insert_l1_batch(&header, &[], BlockGasCount::default(), &[])
             .await
             .unwrap();
 
@@ -1475,7 +1538,7 @@ mod tests {
             execute: 10,
         };
         conn.blocks_dal()
-            .insert_l1_batch(&header, &[], predicted_gas)
+            .insert_l1_batch(&header, &[], predicted_gas, &[])
             .await
             .unwrap();
 
@@ -1483,7 +1546,7 @@ mod tests {
         header.timestamp += 100;
         predicted_gas += predicted_gas;
         conn.blocks_dal()
-            .insert_l1_batch(&header, &[], predicted_gas)
+            .insert_l1_batch(&header, &[], predicted_gas, &[])
             .await
             .unwrap();
 

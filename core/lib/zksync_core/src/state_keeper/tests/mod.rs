@@ -102,6 +102,8 @@ pub(super) fn create_l1_batch_metadata(number: u32) -> L1BatchMetadata {
         meta_parameters_hash: H256::zero(),
         pass_through_data_hash: H256::zero(),
         state_diffs_compressed: vec![],
+        events_queue_commitment: Some(H256::zero()),
+        bootloader_initial_content_commitment: Some(H256::zero()),
     }
 }
 

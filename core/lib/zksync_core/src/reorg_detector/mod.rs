@@ -1,3 +1,5 @@
+use std::{future::Future, time::Duration};
+
 use zksync_dal::ConnectionPool;
 use zksync_types::L1BatchNumber;
 use zksync_web3_decl::{
@@ -7,7 +9,7 @@ use zksync_web3_decl::{
     RpcResult,
 };
 
-use std::{future::Future, time::Duration};
+use crate::metrics::{CheckerComponent, EN_METRICS};
 
 const SLEEP_INTERVAL: Duration = Duration::from_secs(5);
 
@@ -155,11 +157,8 @@ impl ReorgDetector {
             // At this point we're certain that if we detect a reorg, it's real.
             tracing::trace!("Checking for reorgs - L1 batch #{sealed_l1_batch_number}");
             if self.root_hashes_match(sealed_l1_batch_number).await? {
-                metrics::gauge!(
-                    "external_node.last_correct_batch",
-                    sealed_l1_batch_number.0 as f64,
-                    "component" => "reorg_detector",
-                );
+                EN_METRICS.last_correct_batch[&CheckerComponent::ReorgDetector]
+                    .set(sealed_l1_batch_number.0.into());
                 tokio::time::sleep(SLEEP_INTERVAL).await;
             } else {
                 tracing::warn!(

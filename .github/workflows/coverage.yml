@@ -4,6 +4,10 @@ on:
   push:
     branches:
       - "**"
+    paths:
+      - 'core/**'
+      - 'prover/**'
+      - 'codecov.yml'
 
 jobs:
   generate:

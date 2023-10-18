@@ -4,34 +4,32 @@
 //! Poll interval is configured using the `ETH_POLL_INTERVAL` constant.
 //! Number of confirmations is configured using the `CONFIRMATIONS_FOR_ETH_EVENT` environment variable.
 
-// Built-in deps
-use std::time::{Duration, Instant};
-
-// External uses
 use anyhow::Context as _;
 use tokio::{sync::watch, task::JoinHandle};
 
-// Workspace deps
+use std::time::Duration;
+
 use zksync_config::constants::PRIORITY_EXPIRATION;
 use zksync_config::ETHWatchConfig;
 use zksync_dal::{ConnectionPool, StorageProcessor};
+use zksync_eth_client::EthInterface;
 use zksync_types::{
     web3::types::BlockNumber as Web3BlockNumber, Address, PriorityOpId, ProtocolVersionId,
 };
 
-// Local deps
-use self::client::{Error, EthClient, EthHttpQueryClient};
-use crate::eth_watch::client::RETRY_LIMIT;
-use event_processors::{
-    priority_ops::PriorityOpsEventProcessor, upgrades::UpgradesEventProcessor, EventProcessor,
-};
-use zksync_eth_client::EthInterface;
-
 mod client;
 mod event_processors;
-
+mod metrics;
 #[cfg(test)]
 mod tests;
+
+use self::{
+    client::{Error, EthClient, EthHttpQueryClient, RETRY_LIMIT},
+    event_processors::{
+        priority_ops::PriorityOpsEventProcessor, upgrades::UpgradesEventProcessor, EventProcessor,
+    },
+    metrics::{PollStage, METRICS},
+};
 
 #[derive(Debug)]
 struct EthWatchState {
@@ -134,8 +132,7 @@ impl<W: EthClient + Sync> EthWatch<W> {
             }
 
             timer.tick().await;
-
-            metrics::counter!("server.eth_watch.eth_poll", 1);
+            METRICS.eth_poll.inc();
 
             let mut storage = pool.access_storage_tagged("eth_watch").await.unwrap();
             if let Err(error) = self.loop_iteration(&mut storage).await {
@@ -153,9 +150,8 @@ impl<W: EthClient + Sync> EthWatch<W> {
 
     #[tracing::instrument(skip(self, storage))]
     async fn loop_iteration(&mut self, storage: &mut StorageProcessor<'_>) -> Result<(), Error> {
-        let stage_start = Instant::now();
+        let stage_latency = METRICS.poll_eth_node[&PollStage::Request].start();
         let to_block = self.client.finalized_block_number().await?;
-
         if to_block <= self.last_processed_ethereum_block {
             return Ok(());
         }
@@ -168,14 +164,13 @@ impl<W: EthClient + Sync> EthWatch<W> {
                 RETRY_LIMIT,
             )
             .await?;
-        metrics::histogram!("eth_watcher.poll_eth_node", stage_start.elapsed(), "stage" => "request");
+        stage_latency.observe();
 
         for processor in self.event_processors.iter_mut() {
             processor
                 .process_events(storage, &self.client, events.clone())
                 .await?;
         }
-
         self.last_processed_ethereum_block = to_block;
         Ok(())
     }

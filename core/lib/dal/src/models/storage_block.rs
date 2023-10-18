@@ -45,8 +45,6 @@ pub struct StorageL1BatchHeader {
     pub protocol_version: Option<i32>,
     pub system_logs: Vec<Vec<u8>>,
     pub compressed_state_diffs: Option<Vec<u8>>,
-    pub events_state_queue_commitment: Option<Vec<u8>>,
-    pub bootloader_initial_memory_commitment: Option<Vec<u8>>,
 }
 
 impl From<StorageL1BatchHeader> for L1BatchHeader {
@@ -91,12 +89,6 @@ impl From<StorageL1BatchHeader> for L1BatchHeader {
             protocol_version: l1_batch
                 .protocol_version
                 .map(|v| (v as u16).try_into().unwrap()),
-            events_queue_commitment: l1_batch
-                .events_state_queue_commitment
-                .map(|v| H256::from_slice(&v)),
-            bootloader_initial_content_commitment: l1_batch
-                .bootloader_initial_memory_commitment
-                .map(|v| H256::from_slice(&v)),
         }
     }
 }
@@ -123,7 +115,7 @@ fn convert_base_system_contracts_hashes(
     }
 }
 
-/// Projection of the `l1_batches` table corresponding to [`L1BatchHeader`] + [`L1BatchMetadata`].
+/// Projection of the columns corresponding to [`L1BatchHeader`] + [`L1BatchMetadata`].
 // TODO(PLA-369): use `#[sqlx(flatten)]` once upgraded to newer `sqlx`
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct StorageL1Batch {
@@ -179,8 +171,8 @@ pub struct StorageL1Batch {
 
     pub protocol_version: Option<i32>,
 
-    pub events_state_queue_commitment: Option<Vec<u8>>,
-    pub bootloader_initial_memory_commitment: Option<Vec<u8>>,
+    pub events_queue_commitment: Option<Vec<u8>>,
+    pub bootloader_initial_content_commitment: Option<Vec<u8>>,
 }
 
 impl From<StorageL1Batch> for L1BatchHeader {
@@ -225,12 +217,6 @@ impl From<StorageL1Batch> for L1BatchHeader {
             protocol_version: l1_batch
                 .protocol_version
                 .map(|v| (v as u16).try_into().unwrap()),
-            events_queue_commitment: l1_batch
-                .events_state_queue_commitment
-                .map(|v| H256::from_slice(&v)),
-            bootloader_initial_content_commitment: l1_batch
-                .bootloader_initial_memory_commitment
-                .map(|v| H256::from_slice(&v)),
         }
     }
 }
@@ -302,6 +288,10 @@ impl TryInto<L1BatchMetadata> for StorageL1Batch {
             state_diffs_compressed: self
                 .compressed_state_diffs
                 .ok_or(StorageL1BatchConvertError::Incomplete)?,
+            events_queue_commitment: self.events_queue_commitment.map(|v| H256::from_slice(&v)),
+            bootloader_initial_content_commitment: self
+                .bootloader_initial_content_commitment
+                .map(|v| H256::from_slice(&v)),
         })
     }
 }

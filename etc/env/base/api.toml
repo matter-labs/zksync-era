@@ -59,3 +59,7 @@ push_interval_ms=100
 # Configuration for the healtcheck server.
 [api.healthcheck]
 port=3071
+
+# Configuration for the Merkle tree API server
+[api.merkle_tree]
+port=3072

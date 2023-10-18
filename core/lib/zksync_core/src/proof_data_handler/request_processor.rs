@@ -154,22 +154,33 @@ impl RequestProcessor {
 
                 let mut storage = self.pool.access_storage().await.unwrap();
 
-                let header = storage
+                // let header = storage
+                //     .blocks_dal()
+                //     .get_l1_batch_header(l1_batch_number)
+                //     .await
+                //     .unwrap()
+                //     .expect("Proved block without a header");
+
+                let l1_batch = storage
                     .blocks_dal()
-                    .get_l1_batch_header(l1_batch_number)
+                    .get_l1_batch_metadata(l1_batch_number)
                     .await
                     .unwrap()
-                    .expect("Proved block without a header");
-                let events_queue_state = header
+                    .expect("Proved block without metadata");
+
+                let events_queue_state = l1_batch
+                    .metadata
                     .events_queue_commitment
                     .expect("No events_queue_commitment");
-                let bootloader_heap_initial_content = header
+                let bootloader_heap_initial_content = l1_batch
+                    .metadata
                     .bootloader_initial_content_commitment
                     .expect("No bootloader_initial_content_commitment");
-                let system_logs = serialize_commitments(&header.system_logs);
+                let system_logs = serialize_commitments(&l1_batch.header.system_logs);
                 let system_logs_hash = H256(keccak256(&system_logs));
 
-                let state_diff_hash = header
+                let state_diff_hash = l1_batch
+                    .header
                     .system_logs
                     .into_iter()
                     .find(|elem| elem.key == u256_to_h256(2.into()))
