@@ -134,10 +134,6 @@ impl L1BatchWithMetadata {
     }
 
     pub fn l1_commit_data(&self) -> Token {
-        if self.metadata.events_queue_commitment.is_none() {
-            println!(" {} ", self.header.number.0);
-        }
-
         Token::Tuple(vec![
             Token::Uint(U256::from(self.header.number.0)),
             Token::Uint(U256::from(self.header.timestamp)),
