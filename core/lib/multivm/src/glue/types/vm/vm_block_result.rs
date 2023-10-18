@@ -1,6 +1,6 @@
 use crate::glue::{GlueFrom, GlueInto};
 use vm_latest::{
-    CurrentExecutionState, ExecutionResult, Refunds, VmExecutionResultAndLogs,
+    CurrentExecutionState, ExecutionResult, Refunds, VmExecutionLogs, VmExecutionResultAndLogs,
     VmExecutionStatistics,
 };
 use zksync_types::tx::tx_execution_info::VmExecutionLogs;

@@ -43,6 +43,8 @@ pub struct StorageL1BatchHeader {
     pub bootloader_code_hash: Option<Vec<u8>>,
     pub default_aa_code_hash: Option<Vec<u8>>,
     pub protocol_version: Option<i32>,
+    pub system_logs: Vec<Vec<u8>>,
+    pub compressed_state_diffs: Option<Vec<u8>>,
 }
 
 impl From<StorageL1BatchHeader> for L1BatchHeader {
@@ -51,6 +53,12 @@ impl From<StorageL1BatchHeader> for L1BatchHeader {
             .priority_ops_onchain_data
             .into_iter()
             .map(|raw_data| raw_data.into())
+            .collect();
+
+        let system_logs: Vec<_> = l1_batch
+            .system_logs
+            .into_iter()
+            .map(|raw_log| L2ToL1Log::from_slice(&raw_log))
             .collect();
 
         L1BatchHeader {
@@ -80,6 +88,7 @@ impl From<StorageL1BatchHeader> for L1BatchHeader {
             protocol_version: l1_batch
                 .protocol_version
                 .map(|v| (v as u16).try_into().unwrap()),
+            system_logs,
         }
     }
 }
@@ -155,6 +164,9 @@ pub struct StorageL1Batch {
 
     pub events_queue_commitment: Option<Vec<u8>>,
     pub bootloader_initial_content_commitment: Option<Vec<u8>>,
+
+    pub system_logs: Vec<Vec<u8>>,
+    pub compressed_state_diffs: Option<Vec<u8>>,
 }
 
 impl From<StorageL1Batch> for L1BatchHeader {
@@ -163,6 +175,12 @@ impl From<StorageL1Batch> for L1BatchHeader {
             .priority_ops_onchain_data
             .into_iter()
             .map(Vec::into)
+            .collect();
+
+        let system_logs: Vec<_> = l1_batch
+            .system_logs
+            .into_iter()
+            .map(|raw_log| L2ToL1Log::from_slice(&raw_log))
             .collect();
 
         L1BatchHeader {
@@ -192,6 +210,7 @@ impl From<StorageL1Batch> for L1BatchHeader {
             protocol_version: l1_batch
                 .protocol_version
                 .map(|v| (v as u16).try_into().unwrap()),
+            system_logs,
         }
     }
 }
@@ -264,6 +283,9 @@ impl TryInto<L1BatchMetadata> for StorageL1Batch {
             bootloader_initial_content_commitment: self
                 .bootloader_initial_content_commitment
                 .map(|v| H256::from_slice(&v)),
+            state_diffs_compressed: self
+                .compressed_state_diffs
+                .ok_or(StorageL1BatchConvertError::Incomplete)?,
         })
     }
 }

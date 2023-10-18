@@ -7,7 +7,9 @@ impl GlueFrom<vm_virtual_blocks::CurrentExecutionState> for CurrentExecutionStat
             events: value.events,
             storage_log_queries: value.storage_log_queries,
             used_contract_hashes: value.used_contract_hashes,
-            l2_to_l1_logs: value.l2_to_l1_logs,
+            user_l2_to_l1_logs: value.l2_to_l1_logs,
+            deduplicated_events_logs: vec![],
+            system_logs: vec![],
             total_log_queries: value.total_log_queries,
             cycles_used: value.cycles_used,
         }

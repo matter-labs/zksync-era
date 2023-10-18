@@ -154,7 +154,8 @@ impl BlocksDal<'_, '_> {
                 timestamp, is_finished, fee_account_address, l2_to_l1_logs, l2_to_l1_messages, \
                 bloom, priority_ops_onchain_data, \
                 used_contract_hashes, base_fee_per_gas, l1_gas_price, \
-                l2_fair_gas_price, bootloader_code_hash, default_aa_code_hash, protocol_version \
+                l2_fair_gas_price, bootloader_code_hash, default_aa_code_hash, protocol_version, \
+                system_logs, compressed_state_diffs \
             FROM l1_batches \
             WHERE eth_commit_tx_id = $1 \
                 OR eth_prove_tx_id = $1 \
@@ -184,7 +185,8 @@ impl BlocksDal<'_, '_> {
                 rollup_last_leaf_index, zkporter_is_available, bootloader_code_hash, \
                 default_aa_code_hash, base_fee_per_gas, aux_data_hash, pass_through_data_hash, \
                 meta_parameters_hash, protocol_version, \
-                events_queue_commitment, bootloader_initial_content_commitment \
+                events_queue_commitment, bootloader_initial_content_commitment, system_logs, \
+                compressed_state_diffs \
             FROM l1_batches \
             LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number \
             WHERE number = $1",
@@ -206,7 +208,8 @@ impl BlocksDal<'_, '_> {
                 timestamp, is_finished, fee_account_address, l2_to_l1_logs, l2_to_l1_messages, \
                 bloom, priority_ops_onchain_data, \
                 used_contract_hashes, base_fee_per_gas, l1_gas_price, \
-                l2_fair_gas_price, bootloader_code_hash, default_aa_code_hash, protocol_version \
+                l2_fair_gas_price, bootloader_code_hash, default_aa_code_hash, protocol_version, \
+                system_logs, compressed_state_diffs \
             FROM l1_batches \
             WHERE number = $1",
             number.0 as i64
@@ -653,7 +656,8 @@ impl BlocksDal<'_, '_> {
                 rollup_last_leaf_index, zkporter_is_available, bootloader_code_hash, \
                 default_aa_code_hash, base_fee_per_gas, aux_data_hash, pass_through_data_hash, \
                 meta_parameters_hash, protocol_version, \
-                events_queue_commitment, bootloader_initial_content_commitment \
+                events_queue_commitment, bootloader_initial_content_commitment, system_logs, \
+                compressed_state_diffs \
             FROM l1_batches \
             LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number \
             WHERE number = 0 OR eth_commit_tx_id IS NOT NULL AND commitment IS NOT NULL \
@@ -750,7 +754,8 @@ impl BlocksDal<'_, '_> {
                 rollup_last_leaf_index, zkporter_is_available, bootloader_code_hash, \
                 default_aa_code_hash, base_fee_per_gas, aux_data_hash, pass_through_data_hash, \
                 meta_parameters_hash, protocol_version, \
-                events_queue_commitment, bootloader_initial_content_commitment \
+                events_queue_commitment, bootloader_initial_content_commitment, system_logs, \
+                compressed_state_diffs \
             FROM l1_batches \
             LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number \
             WHERE eth_commit_tx_id IS NOT NULL AND eth_prove_tx_id IS NULL \
@@ -818,7 +823,8 @@ impl BlocksDal<'_, '_> {
                 rollup_last_leaf_index, zkporter_is_available, bootloader_code_hash, \
                 default_aa_code_hash, base_fee_per_gas, aux_data_hash, pass_through_data_hash, \
                 meta_parameters_hash, protocol_version, \
-                events_queue_commitment, bootloader_initial_content_commitment \
+                events_queue_commitment, bootloader_initial_content_commitment, system_logs, \
+                compressed_state_diffs \
             FROM \
             (SELECT l1_batches.*, row_number() OVER (ORDER BY number ASC) AS row_number \
                 FROM l1_batches \
@@ -859,7 +865,8 @@ impl BlocksDal<'_, '_> {
                     rollup_last_leaf_index, zkporter_is_available, bootloader_code_hash, \
                     default_aa_code_hash, base_fee_per_gas, aux_data_hash, pass_through_data_hash, \
                     meta_parameters_hash, protocol_version, \
-                    events_queue_commitment, bootloader_initial_content_commitment \
+                    events_queue_commitment, bootloader_initial_content_commitment, system_logs, \
+                    compressed_state_diffs \
                 FROM l1_batches \
                 LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number \
                 WHERE eth_prove_tx_id IS NOT NULL AND eth_execute_tx_id IS NULL \
@@ -938,7 +945,8 @@ impl BlocksDal<'_, '_> {
                     rollup_last_leaf_index, zkporter_is_available, bootloader_code_hash, \
                     default_aa_code_hash, base_fee_per_gas, aux_data_hash, pass_through_data_hash, \
                     meta_parameters_hash, protocol_version, \
-                    events_queue_commitment, bootloader_initial_content_commitment \
+                    events_queue_commitment, bootloader_initial_content_commitment, system_logs, \
+                    compressed_state_diffs \
                 FROM l1_batches \
                 LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number \
                 WHERE number BETWEEN $1 AND $2 \
@@ -975,7 +983,8 @@ impl BlocksDal<'_, '_> {
                 rollup_last_leaf_index, zkporter_is_available, l1_batches.bootloader_code_hash, \
                 l1_batches.default_aa_code_hash, base_fee_per_gas, aux_data_hash, pass_through_data_hash, \
                 meta_parameters_hash, protocol_version, \
-                events_queue_commitment, bootloader_initial_content_commitment \
+                events_queue_commitment, bootloader_initial_content_commitment, system_logs, \
+                compressed_state_diffs \
             FROM l1_batches \
             LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number \
             JOIN protocol_versions ON protocol_versions.id = l1_batches.protocol_version \
@@ -1043,7 +1052,8 @@ impl BlocksDal<'_, '_> {
                 timestamp, is_finished, fee_account_address, l2_to_l1_logs, l2_to_l1_messages, \
                 bloom, priority_ops_onchain_data, \
                 used_contract_hashes, base_fee_per_gas, l1_gas_price, \
-                l2_fair_gas_price, bootloader_code_hash, default_aa_code_hash, protocol_version \
+                l2_fair_gas_price, bootloader_code_hash, default_aa_code_hash, protocol_version, \
+                system_logs, compressed_state_diffs \
             FROM l1_batches \
             ORDER BY number DESC \
             LIMIT 1"

@@ -62,6 +62,8 @@ pub struct L1BatchHeader {
     pub base_system_contracts_hashes: BaseSystemContractsHashes,
     /// Version of protocol used for the L1 batch.
     pub protocol_version: Option<ProtocolVersionId>,
+    /// System logs are those emitted as part of the Vm excecution.
+    pub system_logs: Vec<L2ToL1Log>,
 }
 
 /// Holder for the miniblock metadata that is not available from transactions themselves.
@@ -117,6 +119,7 @@ impl L1BatchHeader {
             l2_fair_gas_price: 0,
             base_system_contracts_hashes,
             protocol_version: Some(protocol_version),
+            system_logs: vec![],
         }
     }
 

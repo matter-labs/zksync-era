@@ -90,7 +90,10 @@ impl UpdatesManager {
              {event_count} events, {reads_count} reads ({dedup_reads_count} deduped), \
              {writes_count} writes ({dedup_writes_count} deduped)",
             total_tx_count = l1_tx_count + l2_tx_count,
-            l2_to_l1_log_count = finished_batch.final_execution_state.l2_to_l1_logs.len(),
+            l2_to_l1_log_count = finished_batch
+                .final_execution_state
+                .user_l2_to_l1_logs
+                .len(),
             event_count = finished_batch.final_execution_state.events.len(),
             current_l1_batch_number = l1_batch_env.number
         );
@@ -107,6 +110,15 @@ impl UpdatesManager {
             extractors::display_timestamp(l1_batch_env.timestamp)
         );
 
+        let (deduplicated_writes, protective_reads): (Vec<_>, Vec<_>) = deduped_log_queries
+            .into_iter()
+            .partition(|log_query| log_query.rw_flag);
+
+        let l2_to_l1_messages =
+            extract_long_l2_to_l1_messages(&finished_batch.final_execution_state.events);
+        let initial_bootloader_contents =
+            finished_batch.final_bootloader_memory.unwrap_or_default();
+
         let l1_batch = L1BatchHeader {
             number: l1_batch_env.number,
             is_finished: true,
@@ -115,16 +127,15 @@ impl UpdatesManager {
             priority_ops_onchain_data: self.l1_batch.priority_ops_onchain_data.clone(),
             l1_tx_count: l1_tx_count as u16,
             l2_tx_count: l2_tx_count as u16,
-            l2_to_l1_logs: finished_batch.final_execution_state.l2_to_l1_logs,
-            l2_to_l1_messages: extract_long_l2_to_l1_messages(
-                &finished_batch.final_execution_state.events,
-            ),
+            l2_to_l1_logs: finished_batch.final_execution_state.user_l2_to_l1_logs,
+            l2_to_l1_messages,
             bloom: Default::default(),
             used_contract_hashes: finished_batch.final_execution_state.used_contract_hashes,
             base_fee_per_gas: l1_batch_env.base_fee(),
             l1_gas_price: self.l1_gas_price(),
             l2_fair_gas_price: self.fair_l2_gas_price(),
             base_system_contracts_hashes: self.base_system_contract_hashes(),
+            system_logs: finished_batch.final_execution_state.system_logs,
             protocol_version: Some(self.protocol_version()),
         };
 

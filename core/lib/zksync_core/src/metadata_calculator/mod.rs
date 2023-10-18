@@ -187,6 +187,8 @@ impl MetadataCalculator {
             tree_metadata.repeated_writes,
             header.base_system_contracts_hashes.bootloader,
             header.base_system_contracts_hashes.default_aa,
+            header.system_logs.clone(),
+            tree_metadata.state_diffs,
         );
         let commitment_hash = commitment.hash();
         tracing::trace!("L1 batch commitment: {commitment:?}");
@@ -198,7 +200,7 @@ impl MetadataCalculator {
             initial_writes_compressed: commitment.initial_writes_compressed().to_vec(),
             repeated_writes_compressed: commitment.repeated_writes_compressed().to_vec(),
             commitment: commitment_hash.commitment,
-            l2_l1_messages_compressed: commitment.l2_l1_logs_compressed().to_vec(),
+            l2_l1_messages_compressed: commitment.system_logs_compressed().to_vec(),
             l2_l1_merkle_root: commitment.l2_l1_logs_merkle_root(),
             block_meta_params: commitment.meta_parameters(),
             aux_data_hash: commitment_hash.aux_output,
@@ -206,6 +208,7 @@ impl MetadataCalculator {
             pass_through_data_hash: commitment_hash.pass_through_data,
             events_queue_commitment,
             bootloader_initial_content_commitment,
+            state_diffs_compressed: commitment.state_diffs_compressed().to_vec(),
         };
 
         tracing::trace!("L1 batch metadata: {metadata:?}");
