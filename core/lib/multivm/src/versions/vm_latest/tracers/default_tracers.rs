@@ -233,12 +233,7 @@ impl<S: WriteStorage, H: HistoryMode> DefaultExecutionTracer<S, H> {
         }
         TracerExecutionStatus::Continue
     }
-}
-
-impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for DefaultExecutionTracer<S, H> {}
-
-impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for DefaultExecutionTracer<S, H> {
-    fn initialize_tracer(&mut self, state: &mut ZkSyncVmState<S, H>) {
+    pub fn initialize_tracer(&mut self, state: &mut ZkSyncVmState<S, H>) {
         self.result_tracer.initialize_tracer(state);
         if let Some(refund_tracer) = &mut self.refund_tracer {
             refund_tracer.initialize_tracer(state);
@@ -248,7 +243,7 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for DefaultExecutionTracer<
         }
     }
 
-    fn finish_cycle(
+    pub fn finish_cycle(
         &mut self,
         state: &mut ZkSyncVmState<S, H>,
         bootloader_state: &mut BootloaderState,
@@ -271,7 +266,7 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for DefaultExecutionTracer<
         result.stricter(&self.should_stop_execution())
     }
 
-    fn after_vm_execution(
+    pub fn after_vm_execution(
         &mut self,
         state: &mut ZkSyncVmState<S, H>,
         bootloader_state: &BootloaderState,
