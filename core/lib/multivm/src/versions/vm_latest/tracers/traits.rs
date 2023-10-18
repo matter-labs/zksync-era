@@ -1,8 +1,6 @@
+use crate::interface::traits::tracers::dyn_tracers::vm_1_3_3::DynTracer;
 use crate::interface::Halt;
-use zk_evm_1_3_3::tracing::{
-    AfterDecodingData, AfterExecutionData, BeforeExecutionData, VmLocalStateData,
-};
-use zksync_state::{StoragePtr, WriteStorage};
+use zksync_state::WriteStorage;
 
 use crate::vm_latest::bootloader_state::BootloaderState;
 use crate::vm_latest::old_vm::history_recorder::HistoryMode;
@@ -11,7 +9,7 @@ use crate::vm_latest::types::internals::ZkSyncVmState;
 use crate::vm_latest::VmExecutionStopReason;
 
 /// Run tracer for collecting data during the vm execution cycles
-pub trait VmTracer<S: WriteStorage, H: HistoryMode>: DynTracer<S, H> {
+pub trait VmTracer<S: WriteStorage, H: HistoryMode>: DynTracer<S, SimpleMemory<H>> {
     /// Initialize the tracer before the vm execution
     fn initialize_tracer(&mut self, _state: &mut ZkSyncVmState<S, H>) {}
     /// Run after each vm execution cycle
@@ -28,34 +26,6 @@ pub trait VmTracer<S: WriteStorage, H: HistoryMode>: DynTracer<S, H> {
         _state: &mut ZkSyncVmState<S, H>,
         _bootloader_state: &BootloaderState,
         _stop_reason: VmExecutionStopReason,
-    ) {
-    }
-}
-
-/// Version of zk_evm_1_3_3::Tracer suitable for dynamic dispatch.
-pub trait DynTracer<S, H: HistoryMode> {
-    fn before_decoding(&mut self, _state: VmLocalStateData<'_>, _memory: &SimpleMemory<H>) {}
-    fn after_decoding(
-        &mut self,
-        _state: VmLocalStateData<'_>,
-        _data: AfterDecodingData,
-        _memory: &SimpleMemory<H>,
-    ) {
-    }
-    fn before_execution(
-        &mut self,
-        _state: VmLocalStateData<'_>,
-        _data: BeforeExecutionData,
-        _memory: &SimpleMemory<H>,
-        _storage: StoragePtr<S>,
-    ) {
-    }
-    fn after_execution(
-        &mut self,
-        _state: VmLocalStateData<'_>,
-        _data: AfterExecutionData,
-        _memory: &SimpleMemory<H>,
-        _storage: StoragePtr<S>,
     ) {
     }
 }

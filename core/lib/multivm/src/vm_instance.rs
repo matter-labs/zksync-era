@@ -1,5 +1,6 @@
 use crate::interface::{
-    FinishedL1Batch, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode, VmMemoryMetrics,
+    FinishedL1Batch, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode, VmInterface,
+    VmInterfaceHistoryEnabled, VmMemoryMetrics,
 };
 use std::collections::HashSet;
 

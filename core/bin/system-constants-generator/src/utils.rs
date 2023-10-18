@@ -1,7 +1,10 @@
-use multivm::interface::{L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode};
+use multivm::interface::dyn_tracers::vm_1_3_3::DynTracer;
+use multivm::interface::{
+    L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode, VmInterface,
+};
 use multivm::vm_latest::{
     constants::{BLOCK_GAS_LIMIT, BOOTLOADER_HEAP_PAGE},
-    BootloaderState, BoxedTracer, DynTracer, HistoryEnabled, HistoryMode, Vm,
+    BootloaderState, BoxedTracer, HistoryEnabled, HistoryMode, SimpleMemory, Vm,
     VmExecutionStopReason, VmTracer, ZkSyncVmState,
 };
 use once_cell::sync::Lazy;
@@ -31,7 +34,7 @@ struct SpecialBootloaderTracer {
     output: Rc<RefCell<u32>>,
 }
 
-impl<S: WriteStorage, H: HistoryMode> DynTracer<S, H> for SpecialBootloaderTracer {}
+impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for SpecialBootloaderTracer {}
 
 impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for SpecialBootloaderTracer {
     fn initialize_tracer(&mut self, state: &mut ZkSyncVmState<S, H>) {
@@ -248,12 +251,8 @@ pub(super) fn execute_internal_transfer_test() -> u32 {
         input,
         output: tracer_result.clone(),
     };
-    let mut vm = Vm::new(
-        l1_batch,
-        system_env,
-        Rc::new(RefCell::new(storage_view)),
-        HistoryEnabled,
-    );
+    let mut vm: Vm<_, HistoryEnabled> =
+        Vm::new(l1_batch, system_env, Rc::new(RefCell::new(storage_view)));
     let result = vm.inspect(vec![tracer.into_boxed()], VmExecutionMode::Bootloader);
 
     assert!(!result.result.is_failed(), "The internal call has reverted");
@@ -307,12 +306,8 @@ pub(super) fn execute_user_txs_in_test_gas_vm(
         chain_id: L2ChainId::default(),
     };
 
-    let mut vm = Vm::new(
-        l1_batch,
-        system_env,
-        Rc::new(RefCell::new(storage_view)),
-        HistoryEnabled,
-    );
+    let mut vm: Vm<_, HistoryEnabled> =
+        Vm::new(l1_batch, system_env, Rc::new(RefCell::new(storage_view)));
 
     let mut total_gas_refunded = 0;
     for tx in txs {

@@ -29,7 +29,7 @@ use zksync_utils::{
 use crate::vm_latest::old_vm::history_recorder::HistoryMode;
 use crate::vm_latest::old_vm::memory::SimpleMemory;
 use crate::vm_latest::tracers::traits::{
-    DynTracer, TracerExecutionStatus, TracerExecutionStopReason, VmTracer,
+    TracerExecutionStatus, TracerExecutionStopReason, VmTracer,
 };
 use crate::vm_latest::tracers::utils::{
     computational_gas_price, get_calldata_page_via_abi, print_debug_if_needed, VmHook,
@@ -38,6 +38,7 @@ use crate::vm_latest::tracers::utils::{
 pub use error::ValidationError;
 pub use params::ValidationTracerParams;
 
+use crate::interface::traits::tracers::dyn_tracers::vm_1_3_3::DynTracer;
 use crate::interface::Halt;
 use types::NewTrustedValidationItems;
 use types::ValidationTracerMode;
@@ -302,7 +303,7 @@ impl<H: HistoryMode> ValidationTracer<H> {
     }
 }
 
-impl<S: WriteStorage, H: HistoryMode> DynTracer<S, H> for ValidationTracer<H> {
+impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for ValidationTracer<H> {
     fn before_execution(
         &mut self,
         state: VmLocalStateData<'_>,

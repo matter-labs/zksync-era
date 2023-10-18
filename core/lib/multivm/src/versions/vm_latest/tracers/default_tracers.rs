@@ -12,21 +12,21 @@ use zk_evm_1_3_3::{
 use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::Timestamp;
 
+use crate::interface::traits::tracers::dyn_tracers::vm_1_3_3::DynTracer;
 use crate::vm_latest::bootloader_state::utils::apply_l2_block;
 use crate::vm_latest::bootloader_state::BootloaderState;
 use crate::vm_latest::constants::BOOTLOADER_HEAP_PAGE;
 use crate::vm_latest::old_vm::history_recorder::HistoryMode;
 use crate::vm_latest::old_vm::memory::SimpleMemory;
-use crate::vm_latest::tracers::traits::{
-    DynTracer, TracerExecutionStatus, TracerExecutionStopReason, VmTracer,
-};
 use crate::vm_latest::tracers::utils::{
     computational_gas_price, gas_spent_on_bytecodes_and_long_messages_this_opcode,
     print_debug_if_needed, VmHook,
 };
 use crate::vm_latest::tracers::{RefundsTracer, ResultTracer};
 use crate::vm_latest::types::internals::ZkSyncVmState;
-use crate::vm_latest::VmExecutionStopReason;
+use crate::vm_latest::{
+    TracerExecutionStatus, TracerExecutionStopReason, VmExecutionStopReason, VmTracer,
+};
 
 /// Default tracer for the VM. It manages the other tracers execution and stop the vm when needed.
 pub(crate) struct DefaultExecutionTracer<S, H: HistoryMode> {
@@ -76,7 +76,7 @@ impl<S, H: HistoryMode> Tracer for DefaultExecutionTracer<S, H> {
         data: AfterDecodingData,
         memory: &Self::SupportedMemory,
     ) {
-        <ResultTracer as DynTracer<S, H>>::after_decoding(
+        <ResultTracer as DynTracer<S, Self::SupportedMemory>>::after_decoding(
             &mut self.result_tracer,
             state,
             data,
@@ -84,7 +84,12 @@ impl<S, H: HistoryMode> Tracer for DefaultExecutionTracer<S, H> {
         );
 
         if let Some(refund_tracer) = &mut self.refund_tracer {
-            <RefundsTracer as DynTracer<S, H>>::after_decoding(refund_tracer, state, data, memory);
+            <RefundsTracer as DynTracer<S, Self::SupportedMemory>>::after_decoding(
+                refund_tracer,
+                state,
+                data,
+                memory,
+            );
         }
 
         for tracer in self.custom_tracers.iter_mut() {
@@ -230,7 +235,7 @@ impl<S: WriteStorage, H: HistoryMode> DefaultExecutionTracer<S, H> {
     }
 }
 
-impl<S, H: HistoryMode> DynTracer<S, H> for DefaultExecutionTracer<S, H> {}
+impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for DefaultExecutionTracer<S, H> {}
 
 impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for DefaultExecutionTracer<S, H> {
     fn initialize_tracer(&mut self, state: &mut ZkSyncVmState<S, H>) {

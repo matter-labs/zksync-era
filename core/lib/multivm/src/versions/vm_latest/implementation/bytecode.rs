@@ -1,5 +1,6 @@
 use itertools::Itertools;
 
+use crate::interface::VmInterface;
 use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::U256;
 use zksync_utils::bytecode::{compress_bytecode, hash_bytecode, CompressedBytecodeInfo};
