@@ -17,7 +17,8 @@ zksync_types = { path = "../types" }
 zksync_state = { path = "../state" }
 zksync_contracts = { path = "../contracts" }
 zksync_utils = { path = "../utils" }
-zksync_config = { path = "../../lib/config" }
+zksync_system_constants = { path = "../constants" }
+
 
 anyhow = "1.0"
 hex = "0.4"

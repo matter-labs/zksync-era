@@ -5,7 +5,7 @@ use zk_evm_1_3_3::{
     zkevm_opcode_defs::{FatPointer, LogOpcode, Opcode, UMAOpcode},
 };
 
-use zksync_config::constants::{
+use zksync_system_constants::{
     ECRECOVER_PRECOMPILE_ADDRESS, KECCAK256_PRECOMPILE_ADDRESS, KNOWN_CODES_STORAGE_ADDRESS,
     L1_MESSENGER_ADDRESS, SHA256_PRECOMPILE_ADDRESS,
 };

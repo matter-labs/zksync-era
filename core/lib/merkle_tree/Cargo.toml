@@ -22,7 +22,7 @@ thiserror = "1.0"
 tracing = "0.1"
 
 [dev-dependencies]
-zksync_config = { path = "../config" }
+zksync_system_constants = { path = "../constants" }
 
 assert_matches = "1.5.0"
 clap = { version = "4.2.2", features = ["derive"] }

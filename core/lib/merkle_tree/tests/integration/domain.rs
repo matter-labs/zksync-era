@@ -6,10 +6,10 @@ use tempfile::TempDir;
 
 use std::slice;
 
-use zksync_config::constants::ACCOUNT_CODE_STORAGE_ADDRESS;
 use zksync_crypto::hasher::blake2::Blake2Hasher;
 use zksync_merkle_tree::{domain::ZkSyncTree, HashTree};
 use zksync_storage::RocksDB;
+use zksync_system_constants::ACCOUNT_CODE_STORAGE_ADDRESS;
 use zksync_types::{
     proofs::StorageLogMetadata, AccountTreeId, Address, L1BatchNumber, StorageKey, StorageLog, H256,
 };

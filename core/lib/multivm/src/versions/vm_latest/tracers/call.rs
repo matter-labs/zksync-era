@@ -8,8 +8,8 @@ use zk_evm_1_3_3::zkevm_opcode_defs::{
     CALL_IMPLICIT_CALLDATA_FAT_PTR_REGISTER, RET_IMPLICIT_RETURNDATA_PARAMS_REGISTER,
 };
 
-use zksync_config::constants::CONTRACT_DEPLOYER_ADDRESS;
 use zksync_state::{StoragePtr, WriteStorage};
+use zksync_system_constants::CONTRACT_DEPLOYER_ADDRESS;
 use zksync_types::vm_trace::{Call, CallType};
 use zksync_types::U256;
 

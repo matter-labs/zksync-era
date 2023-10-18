@@ -13,8 +13,8 @@ use zk_evm_1_3_3::{
 use zk_evm_1_3_3::zkevm_opcode_defs::{
     BOOTLOADER_BASE_PAGE, BOOTLOADER_CODE_PAGE, STARTING_BASE_PAGE, STARTING_TIMESTAMP,
 };
-use zksync_config::constants::BOOTLOADER_ADDRESS;
 use zksync_state::{StoragePtr, WriteStorage};
+use zksync_system_constants::BOOTLOADER_ADDRESS;
 use zksync_types::block::legacy_miniblock_hash;
 use zksync_types::{zkevm_test_harness::INITIAL_MONOTONIC_CYCLE_COUNTER, Address, MiniblockNumber};
 use zksync_utils::h256_to_u256;

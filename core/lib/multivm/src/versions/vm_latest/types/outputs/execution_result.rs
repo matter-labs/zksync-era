@@ -1,5 +1,5 @@
 use crate::vm_latest::{Halt, VmExecutionStatistics, VmRevertReason};
-use zksync_config::constants::PUBLISH_BYTECODE_OVERHEAD;
+use zksync_system_constants::PUBLISH_BYTECODE_OVERHEAD;
 use zksync_types::event::{extract_long_l2_to_l1_messages, extract_published_bytecodes};
 use zksync_types::tx::tx_execution_info::VmExecutionLogs;
 use zksync_types::tx::ExecutionMetrics;

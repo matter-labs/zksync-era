@@ -1,10 +1,10 @@
 use crate::vm_virtual_blocks::{L2Block, L2BlockEnv};
-use zksync_config::constants::{
+use zksync_state::{ReadStorage, StoragePtr};
+use zksync_system_constants::{
     SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_CURRENT_L2_BLOCK_HASHES_POSITION,
     SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION, SYSTEM_CONTEXT_CURRENT_TX_ROLLING_HASH_POSITION,
     SYSTEM_CONTEXT_STORED_L2_BLOCK_HASHES,
 };
-use zksync_state::{ReadStorage, StoragePtr};
 use zksync_types::block::unpack_block_info;
 use zksync_types::web3::signing::keccak256;
 use zksync_types::{AccountTreeId, MiniblockNumber, StorageKey, H256, U256};

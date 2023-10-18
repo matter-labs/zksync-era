@@ -1,10 +1,8 @@
-/// External uses
 use anyhow::Context as _;
 use serde::Deserialize;
-/// Built-in uses
-use std::net::SocketAddr;
-use std::time::Duration;
-// Local uses
+
+use std::{net::SocketAddr, time::Duration};
+
 use super::envy_load;
 pub use crate::configs::PrometheusConfig;
 use zksync_basic_types::H256;
@@ -20,6 +18,8 @@ pub struct ApiConfig {
     pub prometheus: PrometheusConfig,
     /// Configuration options for the Health check.
     pub healthcheck: HealthCheckConfig,
+    /// Configuration options for Merkle tree API.
+    pub merkle_tree: MerkleTreeApiConfig,
 }
 
 impl ApiConfig {
@@ -30,6 +30,7 @@ impl ApiConfig {
                 .context("ContractVerificationApiConfig")?,
             prometheus: PrometheusConfig::from_env().context("PrometheusConfig")?,
             healthcheck: HealthCheckConfig::from_env().context("HealthCheckConfig")?,
+            merkle_tree: MerkleTreeApiConfig::from_env().context("MerkleTreeApiConfig")?,
         })
     }
 }
@@ -225,6 +226,25 @@ impl ContractVerificationApiConfig {
     }
 }
 
+/// Configuration for the Merkle tree API.
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+pub struct MerkleTreeApiConfig {
+    /// Port to bind the Merkle tree API server to.
+    #[serde(default = "MerkleTreeApiConfig::default_port")]
+    pub port: u16,
+}
+
+impl MerkleTreeApiConfig {
+    const fn default_port() -> u16 {
+        3_072
+    }
+
+    /// Loads configuration from env variables.
+    pub fn from_env() -> anyhow::Result<Self> {
+        envy_load("merkle_tree_api", "API_MERKLE_TREE_")
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::net::IpAddr;
@@ -280,6 +300,7 @@ mod tests {
                 push_interval_ms: Some(100),
             },
             healthcheck: HealthCheckConfig { port: 8081 },
+            merkle_tree: MerkleTreeApiConfig { port: 8082 },
         }
     }
 
@@ -321,6 +342,7 @@ mod tests {
             API_PROMETHEUS_PUSHGATEWAY_URL="http://127.0.0.1:9091"
             API_PROMETHEUS_PUSH_INTERVAL_MS=100
             API_HEALTHCHECK_PORT=8081
+            API_MERKLE_TREE_PORT=8082
         "#;
         lock.set_env(config);
 

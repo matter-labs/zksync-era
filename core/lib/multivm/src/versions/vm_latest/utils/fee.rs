@@ -1,5 +1,5 @@
 //! Utility functions for vm
-use zksync_config::constants::MAX_GAS_PER_PUBDATA_BYTE;
+use zksync_system_constants::MAX_GAS_PER_PUBDATA_BYTE;
 use zksync_utils::ceil_div;
 
 use crate::vm_latest::old_vm::utils::eth_price_per_pubdata_byte;

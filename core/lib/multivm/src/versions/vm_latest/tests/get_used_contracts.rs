@@ -2,8 +2,8 @@ use std::collections::{HashMap, HashSet};
 
 use itertools::Itertools;
 
-use zksync_config::constants::CONTRACT_DEPLOYER_ADDRESS;
 use zksync_state::WriteStorage;
+use zksync_system_constants::CONTRACT_DEPLOYER_ADDRESS;
 use zksync_test_account::Account;
 use zksync_types::{Execute, U256};
 use zksync_utils::bytecode::hash_bytecode;

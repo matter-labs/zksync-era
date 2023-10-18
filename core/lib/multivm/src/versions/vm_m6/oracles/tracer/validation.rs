@@ -21,7 +21,7 @@ use zk_evm_1_3_1::{
 
 use crate::vm_m6::oracles::tracer::{utils::get_calldata_page_via_abi, StorageInvocationTracer};
 use crate::vm_m6::storage::{Storage, StoragePtr};
-use zksync_config::constants::{
+use zksync_system_constants::{
     ACCOUNT_CODE_STORAGE_ADDRESS, BOOTLOADER_ADDRESS, CONTRACT_DEPLOYER_ADDRESS,
     KECCAK256_PRECOMPILE_ADDRESS, L2_ETH_TOKEN_ADDRESS, MSG_VALUE_SIMULATOR_ADDRESS,
     SYSTEM_CONTEXT_ADDRESS,

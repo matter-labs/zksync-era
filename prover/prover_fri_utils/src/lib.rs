@@ -1,11 +1,11 @@
 use std::time::Instant;
 
-use zksync_config::configs::fri_prover_group::CircuitIdRoundTuple;
 use zksync_dal::StorageProcessor;
 use zksync_object_store::{FriCircuitKey, ObjectStore};
 use zksync_prover_fri_types::circuit_definitions::circuit_definitions::recursion_layer::base_circuit_type_into_recursive_leaf_circuit_type;
 use zksync_prover_fri_types::circuit_definitions::circuit_definitions::recursion_layer::ZkSyncRecursionLayerStorageType;
 use zksync_prover_fri_types::circuit_definitions::zkevm_circuits::scheduler::aux::BaseLayerCircuitType;
+use zksync_types::basic_fri_types::CircuitIdRoundTuple;
 
 use zksync_prover_fri_types::{
     get_current_pod_name, CircuitWrapper, ProverJob, ProverServiceDataKey,

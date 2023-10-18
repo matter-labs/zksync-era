@@ -1,4 +1,4 @@
-use zksync_config::constants::BOOTLOADER_ADDRESS;
+use zksync_system_constants::BOOTLOADER_ADDRESS;
 use zksync_types::l2_to_l1_log::L2ToL1Log;
 use zksync_types::storage_writes_deduplicator::StorageWritesDeduplicator;
 use zksync_types::{get_code_key, get_known_code_key, U256};

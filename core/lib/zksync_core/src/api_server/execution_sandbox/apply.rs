@@ -12,12 +12,12 @@ use multivm::vm_latest::{
     constants::BLOCK_GAS_LIMIT, HistoryDisabled, L1BatchEnv, L2BlockEnv, SystemEnv,
 };
 use multivm::VmInstance;
-use zksync_config::constants::{
+use zksync_dal::{ConnectionPool, SqlxError, StorageProcessor};
+use zksync_state::{PostgresStorage, ReadStorage, StorageView, WriteStorage};
+use zksync_system_constants::{
     SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
     SYSTEM_CONTEXT_CURRENT_TX_ROLLING_HASH_POSITION, ZKPORTER_IS_AVAILABLE,
 };
-use zksync_dal::{ConnectionPool, SqlxError, StorageProcessor};
-use zksync_state::{PostgresStorage, ReadStorage, StorageView, WriteStorage};
 use zksync_types::{
     api,
     block::{legacy_miniblock_hash, pack_block_info, unpack_block_info},

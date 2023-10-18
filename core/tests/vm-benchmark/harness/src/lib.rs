@@ -4,9 +4,9 @@ use multivm::vm_latest::{
 };
 use once_cell::sync::Lazy;
 use std::{cell::RefCell, rc::Rc};
-use zksync_config::constants::ethereum::MAX_GAS_PER_PUBDATA_BYTE;
 use zksync_contracts::{deployer_contract, BaseSystemContracts};
 use zksync_state::{InMemoryStorage, StorageView};
+use zksync_system_constants::ethereum::MAX_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
     block::legacy_miniblock_hash,
     ethabi::{encode, Token},

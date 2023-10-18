@@ -1,6 +1,6 @@
 use zk_evm_1_3_3::aux_structures::MemoryPage;
 
-use zksync_config::constants::{
+use zksync_system_constants::{
     L1_GAS_PER_PUBDATA_BYTE, MAX_L2_TX_GAS_LIMIT, MAX_NEW_FACTORY_DEPS, MAX_TXS_IN_BLOCK,
     USED_BOOTLOADER_MEMORY_WORDS,
 };

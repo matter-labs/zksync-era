@@ -196,7 +196,7 @@ async fn running_metadata_calculator_with_additional_blocks(
 
     let calculator_handle =
         tokio::spawn(calculator.run(pool.clone(), prover_pool.clone(), stop_rx));
-    // Wait until the calculator has processed initial blocks.
+    // Wait until the calculator has processed initial L1 batches.
     let (next_l1_batch, _) = tokio::time::timeout(RUN_TIMEOUT, delay_rx.recv())
         .await
         .expect("metadata calculator timed out processing initial blocks")
@@ -356,7 +356,7 @@ async fn postgres_backup_recovery_with_excluded_metadata(
     test_postgres_backup_recovery(pool, prover_pool, false, true).await;
 }
 
-async fn setup_calculator(
+pub(crate) async fn setup_calculator(
     db_path: &Path,
     pool: &ConnectionPool,
 ) -> (MetadataCalculator, Box<dyn ObjectStore>) {
@@ -426,7 +426,7 @@ fn path_to_string(path: &Path) -> String {
     path.to_str().unwrap().to_owned()
 }
 
-async fn run_calculator(
+pub(crate) async fn run_calculator(
     mut calculator: MetadataCalculator,
     pool: ConnectionPool,
     prover_pool: ConnectionPool,
@@ -451,7 +451,7 @@ async fn run_calculator(
     delayer_handle.await.unwrap()
 }
 
-pub(super) async fn reset_db_state(pool: &ConnectionPool, num_batches: usize) {
+pub(crate) async fn reset_db_state(pool: &ConnectionPool, num_batches: usize) {
     let mut storage = pool.access_storage().await.unwrap();
     // Drops all L1 batches (except the L1 batch with number 0) and their storage logs.
     storage
@@ -572,7 +572,7 @@ async fn insert_initial_writes_for_batch(
         .await;
 }
 
-pub(super) fn gen_storage_logs(
+pub(crate) fn gen_storage_logs(
     indices: ops::Range<u32>,
     num_batches: usize,
 ) -> Vec<Vec<StorageLog>> {

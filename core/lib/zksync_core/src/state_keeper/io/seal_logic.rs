@@ -9,8 +9,8 @@ use std::{
 };
 
 use multivm::vm_latest::{FinishedL1Batch, L1BatchEnv};
-use zksync_config::constants::ACCOUNT_CODE_STORAGE_ADDRESS;
 use zksync_dal::StorageProcessor;
+use zksync_system_constants::ACCOUNT_CODE_STORAGE_ADDRESS;
 use zksync_types::{
     block::unpack_block_info, CURRENT_VIRTUAL_BLOCK_INFO_POSITION, SYSTEM_CONTEXT_ADDRESS,
 };

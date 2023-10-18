@@ -10,8 +10,8 @@ use zk_evm_1_3_3::{
         STARTING_TIMESTAMP,
     },
 };
-use zksync_config::constants::MAX_TXS_IN_BLOCK;
 use zksync_contracts::BaseSystemContracts;
+use zksync_system_constants::MAX_TXS_IN_BLOCK;
 
 use zksync_types::{
     l1::is_l1_tx_type, zkevm_test_harness::INITIAL_MONOTONIC_CYCLE_COUNTER, Address, Transaction,
