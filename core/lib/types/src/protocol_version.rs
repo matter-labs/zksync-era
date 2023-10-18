@@ -685,3 +685,46 @@ impl From<ProtocolVersionId> for VmVersion {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn governance_operation_from_log() {
+        let call_token = Token::Tuple(vec![
+            Token::Address(Address::random()),
+            Token::Uint(U256::zero()),
+            Token::Bytes(vec![1, 2, 3]),
+        ]);
+        let operation_token = Token::Tuple(vec![
+            Token::Array(vec![call_token]),
+            Token::FixedBytes(H256::random().0.to_vec()),
+            Token::FixedBytes(H256::random().0.to_vec()),
+        ]);
+        let event_data = encode(&[Token::Uint(U256::zero()), operation_token]);
+
+        let correct_log = Log {
+            address: Default::default(),
+            topics: Default::default(),
+            data: event_data.into(),
+            block_hash: Default::default(),
+            block_number: Some(1u64.into()),
+            transaction_hash: Some(H256::random()),
+            transaction_index: Default::default(),
+            log_index: Default::default(),
+            transaction_log_index: Default::default(),
+            log_type: Default::default(),
+            removed: Default::default(),
+        };
+        let decoded_op: GovernanceOperation = correct_log.clone().try_into().unwrap();
+        assert_eq!(decoded_op.calls.len(), 1);
+
+        let mut incorrect_log = correct_log;
+        incorrect_log
+            .data
+            .0
+            .truncate(incorrect_log.data.0.len() - 32);
+        assert!(TryInto::<GovernanceOperation>::try_into(incorrect_log).is_err());
+    }
+}
