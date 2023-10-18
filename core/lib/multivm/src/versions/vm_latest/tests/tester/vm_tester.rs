@@ -13,14 +13,14 @@ use zksync_utils::u256_to_h256;
 
 use crate::vm_latest::constants::BLOCK_GAS_LIMIT;
 
+use crate::interface::{
+    L1BatchEnv, L2Block, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode,
+};
 use crate::vm_latest::tests::tester::Account;
 use crate::vm_latest::tests::tester::TxType;
 use crate::vm_latest::tests::utils::read_test_contract;
-use crate::vm_latest::types::inputs::system_env::TxExecutionMode;
 use crate::vm_latest::utils::l2_blocks::load_last_l2_block;
-use crate::vm_latest::{
-    HistoryMode, L1BatchEnv, L2Block, L2BlockEnv, SystemEnv, Vm, VmExecutionMode,
-};
+use crate::vm_latest::{HistoryMode, Vm};
 
 pub(crate) type InMemoryStorageView = StorageView<InMemoryStorage>;
 

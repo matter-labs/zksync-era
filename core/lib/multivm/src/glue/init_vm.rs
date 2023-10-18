@@ -1,7 +1,7 @@
 use super::GlueInto;
 use crate::glue::history_mode::HistoryMode;
+use crate::interface::{L1BatchEnv, SystemEnv};
 use crate::vm_instance::VmInstanceVersion;
-use crate::vm_latest::{L1BatchEnv, SystemEnv};
 use crate::VmInstance;
 use zksync_state::{ReadStorage, StoragePtr, StorageView};
 use zksync_types::VmVersion;

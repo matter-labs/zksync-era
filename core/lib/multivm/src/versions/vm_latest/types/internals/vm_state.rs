@@ -10,6 +10,7 @@ use zk_evm_1_3_3::{
     },
 };
 
+use crate::interface::{L1BatchEnv, L2Block, SystemEnv};
 use zk_evm_1_3_3::zkevm_opcode_defs::{
     BOOTLOADER_BASE_PAGE, BOOTLOADER_CODE_PAGE, STARTING_BASE_PAGE, STARTING_TIMESTAMP,
 };
@@ -26,9 +27,8 @@ use crate::vm_latest::old_vm::{
     oracles::decommitter::DecommitterOracle, oracles::precompile::PrecompilesProcessorWithHistory,
 };
 use crate::vm_latest::oracles::storage::StorageOracle;
-use crate::vm_latest::types::inputs::{L1BatchEnv, SystemEnv};
+use crate::vm_latest::types::l1_batch::bootloader_initial_memory;
 use crate::vm_latest::utils::l2_blocks::{assert_next_block, load_last_l2_block};
-use crate::vm_latest::L2Block;
 
 pub type ZkSyncVmState<S, H> = VmState<
     StorageOracle<S, H>,
@@ -104,7 +104,7 @@ pub(crate) fn new_vm_state<S: WriteStorage, H: HistoryMode>(
         Timestamp(0),
     );
 
-    let bootloader_initial_memory = l1_batch_env.bootloader_initial_memory();
+    let bootloader_initial_memory = bootloader_initial_memory(&l1_batch_env);
     memory.populate_page(
         BOOTLOADER_HEAP_PAGE as usize,
         bootloader_initial_memory.clone(),

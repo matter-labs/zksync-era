@@ -1,4 +1,4 @@
-use crate::vm_virtual_blocks::{BootloaderMemory, CurrentExecutionState, VmExecutionResultAndLogs};
+use super::{BootloaderMemory, CurrentExecutionState, VmExecutionResultAndLogs};
 
 /// State of the VM after the batch execution.
 #[derive(Debug, Clone)]

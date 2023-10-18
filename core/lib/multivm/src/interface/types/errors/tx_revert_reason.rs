@@ -1,4 +1,4 @@
-use crate::vm_latest::errors::halt::Halt;
+use super::halt::Halt;
 
 use std::fmt::Display;
 

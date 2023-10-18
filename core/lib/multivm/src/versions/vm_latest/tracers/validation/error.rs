@@ -1,4 +1,4 @@
-use crate::vm_latest::Halt;
+use crate::interface::Halt;
 use std::fmt::Display;
 use zksync_types::vm_trace::ViolatedValidationRule;
 

@@ -5,15 +5,14 @@ use zksync_utils::bytecode::CompressedBytecodeInfo;
 use crate::vm_latest::old_vm::events::merge_events;
 use crate::vm_latest::old_vm::history_recorder::{HistoryEnabled, HistoryMode};
 
-use crate::vm_latest::bootloader_state::BootloaderState;
-use crate::vm_latest::errors::BytecodeCompressionError;
-use crate::vm_latest::tracers::traits::VmTracer;
-use crate::vm_latest::types::{
-    inputs::{L1BatchEnv, SystemEnv, VmExecutionMode},
-    internals::{new_vm_state, VmSnapshot, ZkSyncVmState},
-    outputs::{BootloaderMemory, CurrentExecutionState, VmExecutionResultAndLogs},
+use crate::interface::BytecodeCompressionError;
+use crate::interface::{
+    BootloaderMemory, CurrentExecutionState, L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode,
+    VmExecutionResultAndLogs,
 };
-use crate::vm_latest::L2BlockEnv;
+use crate::vm_latest::bootloader_state::BootloaderState;
+use crate::vm_latest::tracers::traits::VmTracer;
+use crate::vm_latest::types::internals::{new_vm_state, VmSnapshot, ZkSyncVmState};
 
 /// Main entry point for Virtual Machine integration.
 /// The instance should process only one l1 batch

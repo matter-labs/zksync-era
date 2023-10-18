@@ -1,10 +1,10 @@
+use crate::interface::Halt;
 use crate::vm_latest::bootloader_state::BootloaderState;
 use crate::vm_latest::old_vm::history_recorder::HistoryMode;
 use crate::vm_latest::tracers::traits::{
     DynTracer, TracerExecutionStatus, TracerExecutionStopReason, VmTracer,
 };
 use crate::vm_latest::types::internals::ZkSyncVmState;
-use crate::vm_latest::Halt;
 use zksync_state::WriteStorage;
 
 #[derive(Debug, Default, Clone)]

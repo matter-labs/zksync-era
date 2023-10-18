@@ -1,4 +1,4 @@
-use crate::vm_latest::{
+use crate::interface::{
     FinishedL1Batch, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode, VmMemoryMetrics,
 };
 use std::collections::HashSet;
@@ -106,7 +106,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
 
     /// Execute the batch without stops after each tx.
     /// This method allows to execute the part  of the VM cycle after executing all txs.
-    pub fn execute_block_tip(&mut self) -> crate::vm_latest::VmExecutionResultAndLogs {
+    pub fn execute_block_tip(&mut self) -> crate::interface::VmExecutionResultAndLogs {
         match &mut self.vm {
             VmInstanceVersion::VmM5(vm) => vm.execute_block_tip().glue_into(),
             VmInstanceVersion::VmM6(vm) => vm.execute_block_tip().glue_into(),
@@ -121,7 +121,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
     }
 
     /// Execute next transaction and stop vm right after next transaction execution
-    pub fn execute_next_transaction(&mut self) -> crate::vm_latest::VmExecutionResultAndLogs {
+    pub fn execute_next_transaction(&mut self) -> crate::interface::VmExecutionResultAndLogs {
         match &mut self.vm {
             VmInstanceVersion::VmM5(vm) => match self.system_env.execution_mode {
                 TxExecutionMode::VerifyExecute => vm.execute_next_tx().glue_into(),
@@ -189,7 +189,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
     pub fn inspect_next_transaction(
         &mut self,
         tracers: Vec<Box<dyn MultivmTracer<StorageView<S>, H>>>,
-    ) -> crate::vm_latest::VmExecutionResultAndLogs {
+    ) -> crate::interface::VmExecutionResultAndLogs {
         match &mut self.vm {
             VmInstanceVersion::VmVirtualBlocks(vm) => vm
                 .inspect(
@@ -214,8 +214,8 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
         tx: zksync_types::Transaction,
         with_compression: bool,
     ) -> Result<
-        crate::vm_latest::VmExecutionResultAndLogs,
-        crate::vm_latest::BytecodeCompressionError,
+        crate::interface::VmExecutionResultAndLogs,
+        crate::interface::BytecodeCompressionError,
     > {
         match &mut self.vm {
             VmInstanceVersion::VmM5(vm) => {
@@ -285,7 +285,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
                         .borrow_mut()
                         .is_bytecode_exists(info)
                 }) {
-                    Err(crate::vm_latest::BytecodeCompressionError::BytecodeCompressionFailed)
+                    Err(crate::interface::BytecodeCompressionError::BytecodeCompressionFailed)
                 } else {
                     Ok(result)
                 }
@@ -349,7 +349,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
                         .borrow_mut()
                         .is_bytecode_exists(info)
                 }) {
-                    Err(crate::vm_latest::BytecodeCompressionError::BytecodeCompressionFailed)
+                    Err(crate::interface::BytecodeCompressionError::BytecodeCompressionFailed)
                 } else {
                     Ok(result)
                 }
@@ -370,8 +370,8 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
         tx: zksync_types::Transaction,
         with_compression: bool,
     ) -> Result<
-        crate::vm_latest::VmExecutionResultAndLogs,
-        crate::vm_latest::BytecodeCompressionError,
+        crate::interface::VmExecutionResultAndLogs,
+        crate::interface::BytecodeCompressionError,
     > {
         match &mut self.vm {
             VmInstanceVersion::VmVirtualBlocks(vm) => vm

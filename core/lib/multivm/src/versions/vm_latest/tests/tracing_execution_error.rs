@@ -1,12 +1,12 @@
 use zksync_types::{Execute, H160};
 
-use crate::vm_latest::errors::VmRevertReason;
+use crate::interface::TxExecutionMode;
+use crate::interface::{TxRevertReason, VmRevertReason};
 use crate::vm_latest::tests::tester::{ExpectedError, TransactionTestInfo, VmTesterBuilder};
 use crate::vm_latest::tests::utils::{
     get_execute_error_calldata, read_error_contract, BASE_SYSTEM_CONTRACTS,
 };
-use crate::vm_latest::types::inputs::system_env::TxExecutionMode;
-use crate::vm_latest::{HistoryEnabled, TxRevertReason};
+use crate::vm_latest::HistoryEnabled;
 
 #[test]
 fn test_tracing_of_execution_errors() {

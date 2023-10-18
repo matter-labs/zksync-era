@@ -1,8 +1,8 @@
 use crate::glue::GlueFrom;
 use zksync_utils::h256_to_u256;
 
-impl GlueFrom<crate::vm_latest::L1BatchEnv> for crate::vm_m5::vm_with_bootloader::BlockContextMode {
-    fn glue_from(value: crate::vm_latest::L1BatchEnv) -> Self {
+impl GlueFrom<crate::interface::L1BatchEnv> for crate::vm_m5::vm_with_bootloader::BlockContextMode {
+    fn glue_from(value: crate::interface::L1BatchEnv) -> Self {
         let derived = crate::vm_m5::vm_with_bootloader::DerivedBlockContext {
             context: crate::vm_m5::vm_with_bootloader::BlockContext {
                 block_number: value.number.0,
@@ -20,8 +20,8 @@ impl GlueFrom<crate::vm_latest::L1BatchEnv> for crate::vm_m5::vm_with_bootloader
     }
 }
 
-impl GlueFrom<crate::vm_latest::L1BatchEnv> for crate::vm_m6::vm_with_bootloader::BlockContextMode {
-    fn glue_from(value: crate::vm_latest::L1BatchEnv) -> Self {
+impl GlueFrom<crate::interface::L1BatchEnv> for crate::vm_m6::vm_with_bootloader::BlockContextMode {
+    fn glue_from(value: crate::interface::L1BatchEnv) -> Self {
         let derived = crate::vm_m6::vm_with_bootloader::DerivedBlockContext {
             context: crate::vm_m6::vm_with_bootloader::BlockContext {
                 block_number: value.number.0,
@@ -39,10 +39,10 @@ impl GlueFrom<crate::vm_latest::L1BatchEnv> for crate::vm_m6::vm_with_bootloader
     }
 }
 
-impl GlueFrom<crate::vm_latest::L1BatchEnv>
+impl GlueFrom<crate::interface::L1BatchEnv>
     for crate::vm_1_3_2::vm_with_bootloader::BlockContextMode
 {
-    fn glue_from(value: crate::vm_latest::L1BatchEnv) -> Self {
+    fn glue_from(value: crate::interface::L1BatchEnv) -> Self {
         let derived = crate::vm_1_3_2::vm_with_bootloader::DerivedBlockContext {
             context: crate::vm_1_3_2::vm_with_bootloader::BlockContext {
                 block_number: value.number.0,

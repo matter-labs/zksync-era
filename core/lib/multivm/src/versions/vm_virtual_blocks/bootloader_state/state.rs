@@ -5,12 +5,12 @@ use std::cmp::Ordering;
 use zksync_types::{L2ChainId, U256};
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
+use crate::interface::BootloaderMemory;
+use crate::interface::L2BlockEnv;
+use crate::interface::TxExecutionMode;
 use crate::vm_virtual_blocks::constants::TX_DESCRIPTION_OFFSET;
-use crate::vm_virtual_blocks::types::inputs::system_env::TxExecutionMode;
 use crate::vm_virtual_blocks::types::internals::TransactionData;
-use crate::vm_virtual_blocks::types::outputs::BootloaderMemory;
 use crate::vm_virtual_blocks::utils::l2_blocks::assert_next_block;
-use crate::vm_virtual_blocks::L2BlockEnv;
 
 use super::tx::BootloaderTx;
 /// Intermediate bootloader-related VM state.

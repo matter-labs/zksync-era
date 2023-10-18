@@ -1,3 +1,4 @@
+use crate::interface::{VmExecutionMode, VmExecutionResultAndLogs};
 use zk_evm_1_3_3::aux_structures::Timestamp;
 use zksync_state::WriteStorage;
 
@@ -9,7 +10,6 @@ use crate::vm_virtual_blocks::tracers::{
     traits::{BoxedTracer, ExecutionEndTracer, ExecutionProcessing, VmTracer},
     DefaultExecutionTracer, RefundsTracer,
 };
-use crate::vm_virtual_blocks::types::{inputs::VmExecutionMode, outputs::VmExecutionResultAndLogs};
 use crate::vm_virtual_blocks::vm::Vm;
 use crate::vm_virtual_blocks::VmExecutionStopReason;
 

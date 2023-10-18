@@ -24,3 +24,19 @@ pub struct VmMemoryMetrics {
     pub storage_inner: usize,
     pub storage_history: usize,
 }
+impl VmMemoryMetrics {
+    pub fn full_size(&self) -> usize {
+        [
+            self.event_sink_inner,
+            self.event_sink_history,
+            self.memory_inner,
+            self.memory_history,
+            self.decommittment_processor_inner,
+            self.decommittment_processor_history,
+            self.storage_inner,
+            self.storage_history,
+        ]
+        .iter()
+        .sum::<usize>()
+    }
+}

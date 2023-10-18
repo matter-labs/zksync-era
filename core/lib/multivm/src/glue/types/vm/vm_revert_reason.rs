@@ -1,6 +1,6 @@
 use crate::glue::GlueFrom;
 
-impl GlueFrom<crate::vm_m5::errors::VmRevertReason> for crate::vm_latest::VmRevertReason {
+impl GlueFrom<crate::vm_m5::errors::VmRevertReason> for crate::interface::VmRevertReason {
     fn glue_from(value: crate::vm_m5::errors::VmRevertReason) -> Self {
         match value {
             crate::vm_m5::errors::VmRevertReason::General { msg } => Self::General {
@@ -20,7 +20,7 @@ impl GlueFrom<crate::vm_m5::errors::VmRevertReason> for crate::vm_latest::VmReve
     }
 }
 
-impl GlueFrom<crate::vm_m6::errors::VmRevertReason> for crate::vm_latest::VmRevertReason {
+impl GlueFrom<crate::vm_m6::errors::VmRevertReason> for crate::interface::VmRevertReason {
     fn glue_from(value: crate::vm_m6::errors::VmRevertReason) -> Self {
         match value {
             crate::vm_m6::errors::VmRevertReason::General { msg, data } => {
@@ -39,7 +39,7 @@ impl GlueFrom<crate::vm_m6::errors::VmRevertReason> for crate::vm_latest::VmReve
     }
 }
 
-impl GlueFrom<crate::vm_1_3_2::errors::VmRevertReason> for crate::vm_latest::VmRevertReason {
+impl GlueFrom<crate::vm_1_3_2::errors::VmRevertReason> for crate::interface::VmRevertReason {
     fn glue_from(value: crate::vm_1_3_2::errors::VmRevertReason) -> Self {
         match value {
             crate::vm_1_3_2::errors::VmRevertReason::General { msg, data } => {
@@ -48,25 +48,6 @@ impl GlueFrom<crate::vm_1_3_2::errors::VmRevertReason> for crate::vm_latest::VmR
             crate::vm_1_3_2::errors::VmRevertReason::InnerTxError => Self::InnerTxError,
             crate::vm_1_3_2::errors::VmRevertReason::VmError => Self::VmError,
             crate::vm_1_3_2::errors::VmRevertReason::Unknown {
-                function_selector,
-                data,
-            } => Self::Unknown {
-                function_selector,
-                data,
-            },
-        }
-    }
-}
-
-impl GlueFrom<crate::vm_virtual_blocks::VmRevertReason> for crate::vm_latest::VmRevertReason {
-    fn glue_from(value: crate::vm_virtual_blocks::VmRevertReason) -> Self {
-        match value {
-            crate::vm_virtual_blocks::VmRevertReason::General { msg, data } => {
-                Self::General { msg, data }
-            }
-            crate::vm_virtual_blocks::VmRevertReason::InnerTxError => Self::InnerTxError,
-            crate::vm_virtual_blocks::VmRevertReason::VmError => Self::VmError,
-            crate::vm_virtual_blocks::VmRevertReason::Unknown {
                 function_selector,
                 data,
             } => Self::Unknown {

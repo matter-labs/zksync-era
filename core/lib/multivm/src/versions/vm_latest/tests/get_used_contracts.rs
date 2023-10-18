@@ -9,10 +9,10 @@ use zksync_types::{Execute, U256};
 use zksync_utils::bytecode::hash_bytecode;
 use zksync_utils::h256_to_u256;
 
+use crate::interface::{TxExecutionMode, VmExecutionMode};
 use crate::vm_latest::tests::tester::{TxType, VmTesterBuilder};
 use crate::vm_latest::tests::utils::{read_test_contract, BASE_SYSTEM_CONTRACTS};
-use crate::vm_latest::types::inputs::system_env::TxExecutionMode;
-use crate::vm_latest::{HistoryDisabled, HistoryMode, Vm, VmExecutionMode};
+use crate::vm_latest::{HistoryDisabled, HistoryMode, Vm};
 
 #[test]
 fn test_get_used_contracts() {

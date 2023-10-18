@@ -1,3 +1,2 @@
-pub(crate) mod inputs;
 pub(crate) mod internals;
-pub(crate) mod outputs;
+pub(crate) mod l1_batch_env;

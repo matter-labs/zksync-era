@@ -15,7 +15,9 @@ pub use zksync_types::vm_version::VmVersion;
 mod glue;
 mod vm_instance;
 
+mod interface;
 pub mod versions;
+
 pub use versions::vm_1_3_2;
 pub use versions::vm_latest;
 pub use versions::vm_m5;

@@ -5,10 +5,13 @@ use zk_evm_1_3_3::{
 };
 use zksync_state::{StoragePtr, WriteStorage};
 
+use crate::interface::{
+    ExecutionResult, Halt, TxRevertReason, VmExecutionMode, VmExecutionResultAndLogs,
+    VmRevertReason,
+};
 use zksync_types::U256;
 
 use crate::vm_virtual_blocks::bootloader_state::BootloaderState;
-use crate::vm_virtual_blocks::errors::VmRevertReason;
 use crate::vm_virtual_blocks::old_vm::{
     history_recorder::HistoryMode,
     memory::SimpleMemory,
@@ -18,14 +21,10 @@ use crate::vm_virtual_blocks::tracers::{
     traits::{DynTracer, ExecutionEndTracer, ExecutionProcessing, VmTracer},
     utils::{get_vm_hook_params, read_pointer, VmHook},
 };
-use crate::vm_virtual_blocks::types::{
-    internals::ZkSyncVmState,
-    outputs::{ExecutionResult, VmExecutionResultAndLogs},
-};
+use crate::vm_virtual_blocks::types::internals::ZkSyncVmState;
 
 use crate::vm_virtual_blocks::constants::{BOOTLOADER_HEAP_PAGE, RESULT_SUCCESS_FIRST_SLOT};
-use crate::vm_virtual_blocks::{Halt, TxRevertReason};
-use crate::vm_virtual_blocks::{VmExecutionMode, VmExecutionStopReason};
+use crate::vm_virtual_blocks::VmExecutionStopReason;
 
 #[derive(Debug, Clone)]
 enum Result {

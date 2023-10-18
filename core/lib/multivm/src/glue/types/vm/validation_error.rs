@@ -1,7 +1,7 @@
 use crate::glue::{GlueFrom, GlueInto};
 
 impl GlueFrom<crate::vm_m5::oracles::tracer::ValidationError>
-    for crate::vm_latest::oracles::tracer::ValidationError
+    for crate::vm_latest::ValidationError
 {
     fn glue_from(value: crate::vm_m5::oracles::tracer::ValidationError) -> Self {
         match value {
@@ -11,11 +11,11 @@ impl GlueFrom<crate::vm_m5::oracles::tracer::ValidationError>
             crate::vm_m5::oracles::tracer::ValidationError::VioalatedRule(value) => {
                 let rule = match value {
                      crate::vm_m5::oracles::tracer::ViolatedValidationRule::TouchedUnallowedStorageSlots(a, b) =>
-                        crate::vm_latest::oracles::tracer::ViolatedValidationRule::TouchedUnallowedStorageSlots(a, b),
+                         zksync_types::vm_trace::ViolatedValidationRule::TouchedUnallowedStorageSlots(a, b),
                      crate::vm_m5::oracles::tracer::ViolatedValidationRule::CalledContractWithNoCode(a) =>
-                        crate::vm_latest::oracles::tracer::ViolatedValidationRule::CalledContractWithNoCode(a),
+                         zksync_types::vm_trace::ViolatedValidationRule::CalledContractWithNoCode(a),
                      crate::vm_m5::oracles::tracer::ViolatedValidationRule::TouchedUnallowedContext =>
-                        crate::vm_latest::oracles::tracer::ViolatedValidationRule::TouchedUnallowedContext,
+                         zksync_types::vm_trace::ViolatedValidationRule::TouchedUnallowedContext,
                 };
                 Self::ViolatedRule(rule)
             }
@@ -24,7 +24,7 @@ impl GlueFrom<crate::vm_m5::oracles::tracer::ValidationError>
 }
 
 impl GlueFrom<crate::vm_m6::oracles::tracer::ValidationError>
-    for crate::vm_latest::oracles::tracer::ValidationError
+    for crate::vm_latest::tracers::ValidationError
 {
     fn glue_from(value: crate::vm_m6::oracles::tracer::ValidationError) -> Self {
         match value {
@@ -34,13 +34,13 @@ impl GlueFrom<crate::vm_m6::oracles::tracer::ValidationError>
             crate::vm_m6::oracles::tracer::ValidationError::VioalatedRule(value) => {
                 let rule = match value {
                      crate::vm_m6::oracles::tracer::ViolatedValidationRule::TouchedUnallowedStorageSlots(a, b) =>
-                        crate::vm_latest::oracles::tracer::ViolatedValidationRule::TouchedUnallowedStorageSlots(a, b),
+                        zksync_types::vm_trace::ViolatedValidationRule::TouchedUnallowedStorageSlots(a, b),
                      crate::vm_m6::oracles::tracer::ViolatedValidationRule::CalledContractWithNoCode(a) =>
-                        crate::vm_latest::oracles::tracer::ViolatedValidationRule::CalledContractWithNoCode(a),
+                         zksync_types::vm_trace::ViolatedValidationRule::CalledContractWithNoCode(a),
                      crate::vm_m6::oracles::tracer::ViolatedValidationRule::TouchedUnallowedContext =>
-                        crate::vm_latest::oracles::tracer::ViolatedValidationRule::TouchedUnallowedContext,
+                         zksync_types::vm_trace::ViolatedValidationRule::TouchedUnallowedContext,
                      crate::vm_m6::oracles::tracer::ViolatedValidationRule::TookTooManyComputationalGas(a) =>
-                        crate::vm_latest::oracles::tracer::ViolatedValidationRule::TookTooManyComputationalGas(a),
+                         zksync_types::vm_trace::ViolatedValidationRule::TookTooManyComputationalGas(a),
                 };
                 Self::ViolatedRule(rule)
             }
@@ -49,7 +49,7 @@ impl GlueFrom<crate::vm_m6::oracles::tracer::ValidationError>
 }
 
 impl GlueFrom<crate::vm_1_3_2::oracles::tracer::ValidationError>
-    for crate::vm_latest::oracles::tracer::ValidationError
+    for crate::vm_latest::ValidationError
 {
     fn glue_from(value: crate::vm_1_3_2::oracles::tracer::ValidationError) -> Self {
         match value {
@@ -59,13 +59,13 @@ impl GlueFrom<crate::vm_1_3_2::oracles::tracer::ValidationError>
             crate::vm_1_3_2::oracles::tracer::ValidationError::ViolatedRule(value) => {
                 let rule = match value {
                     crate::vm_1_3_2::oracles::tracer::ViolatedValidationRule::TouchedUnallowedStorageSlots(a, b) =>
-                        crate::vm_latest::oracles::tracer::ViolatedValidationRule::TouchedUnallowedStorageSlots(a, b),
+                        zksync_types::vm_trace::ViolatedValidationRule::TouchedUnallowedStorageSlots(a, b),
                     crate::vm_1_3_2::oracles::tracer::ViolatedValidationRule::CalledContractWithNoCode(a) =>
-                        crate::vm_latest::oracles::tracer::ViolatedValidationRule::CalledContractWithNoCode(a),
+                        zksync_types::vm_trace::ViolatedValidationRule::CalledContractWithNoCode(a),
                     crate::vm_1_3_2::oracles::tracer::ViolatedValidationRule::TouchedUnallowedContext =>
-                        crate::vm_latest::oracles::tracer::ViolatedValidationRule::TouchedUnallowedContext,
+                        zksync_types::vm_trace::ViolatedValidationRule::TouchedUnallowedContext,
                     crate::vm_1_3_2::oracles::tracer::ViolatedValidationRule::TookTooManyComputationalGas(a) =>
-                        crate::vm_latest::oracles::tracer::ViolatedValidationRule::TookTooManyComputationalGas(a),
+                        zksync_types::vm_trace::ViolatedValidationRule::TookTooManyComputationalGas(a),
                 };
                 Self::ViolatedRule(rule)
             }
