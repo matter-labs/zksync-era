@@ -112,7 +112,7 @@ impl MainNodeFetcher {
             }
 
             let mut progressed = false;
-            let last_main_node_block = self.client.get_block_number().await?;
+            let last_main_node_block = self.client.fetch_l2_block_number().await?;
             self.sync_state.set_main_node_block(last_main_node_block);
 
             self.client
@@ -141,14 +141,14 @@ impl MainNodeFetcher {
     async fn fetch_next_miniblock(&mut self) -> anyhow::Result<bool> {
         let total_latency = FETCHER_METRICS.fetch_next_miniblock.start();
         let request_latency = FETCHER_METRICS.requests[&FetchStage::SyncL2Block].start();
-        let Some(block) = self.client.sync_l2_block(self.current_miniblock).await? else {
+        let Some(block) = self.client.fetch_l2_block(self.current_miniblock).await? else {
             return Ok(false);
         };
 
         // This will be fetched from cache.
         let prev_block = self
             .client
-            .sync_l2_block(self.current_miniblock - 1)
+            .fetch_l2_block(self.current_miniblock - 1)
             .await?
             .expect("Previous block must exist");
         request_latency.observe();

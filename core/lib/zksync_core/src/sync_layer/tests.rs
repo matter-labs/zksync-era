@@ -4,18 +4,20 @@ use async_trait::async_trait;
 use tokio::{sync::watch, task::JoinHandle};
 
 use std::{
+    collections::VecDeque,
     iter,
     time::{Duration, Instant},
 };
 
 use db_test_macro::db_test;
-use zksync_contracts::SystemContractCode;
+use zksync_contracts::{BaseSystemContractsHashes, SystemContractCode};
 use zksync_dal::ConnectionPool;
 use zksync_types::{
     api, Address, L1BatchNumber, L2ChainId, MiniblockNumber, ProtocolVersionId, H256,
 };
 
 use super::{
+    fetcher::MainNodeFetcher,
     sync_action::{ActionQueueSender, SyncAction},
     *,
 };
@@ -30,8 +32,53 @@ use crate::{
 const TEST_TIMEOUT: Duration = Duration::from_secs(10);
 const POLL_INTERVAL: Duration = Duration::from_millis(50);
 
-#[derive(Debug)]
-struct MockMainNodeClient;
+#[derive(Debug, Default)]
+struct MockMainNodeClient {
+    l2_blocks: Vec<api::en::SyncBlock>,
+}
+
+impl MockMainNodeClient {
+    /// `miniblock_count` doesn't include a fictive miniblock. Returns hashes of generated transactions.
+    fn push_l1_batch(&mut self, miniblock_count: u32) -> Vec<H256> {
+        let l1_batch_number = self
+            .l2_blocks
+            .last()
+            .map_or(L1BatchNumber(0), |block| block.l1_batch_number + 1);
+        let number_offset = self.l2_blocks.len() as u32;
+
+        let mut tx_hashes = vec![];
+        let l2_blocks = (0..=miniblock_count).map(|number| {
+            let is_fictive = number == miniblock_count;
+            let transactions = if is_fictive {
+                vec![]
+            } else {
+                let transaction = create_l2_transaction(10, 100);
+                tx_hashes.push(transaction.hash());
+                vec![transaction.into()]
+            };
+            let number = number + number_offset;
+
+            api::en::SyncBlock {
+                number: MiniblockNumber(number),
+                l1_batch_number,
+                last_in_batch: is_fictive,
+                timestamp: number.into(),
+                root_hash: Some(H256::repeat_byte(1)),
+                l1_gas_price: 2,
+                l2_fair_gas_price: 3,
+                base_system_contracts_hashes: BaseSystemContractsHashes::default(),
+                operator_address: Address::repeat_byte(2),
+                transactions: Some(transactions),
+                virtual_blocks: Some(!is_fictive as u32),
+                hash: Some(H256::repeat_byte(1)),
+                protocol_version: ProtocolVersionId::latest(),
+            }
+        });
+
+        self.l2_blocks.extend(l2_blocks);
+        tx_hashes
+    }
+}
 
 #[async_trait]
 impl MainNodeClient for MockMainNodeClient {
@@ -61,15 +108,25 @@ impl MainNodeClient for MockMainNodeClient {
     }
 
     async fn fetch_l2_block_number(&self) -> anyhow::Result<MiniblockNumber> {
-        anyhow::bail!("Not implemented");
+        if let Some(number) = self.l2_blocks.len().checked_sub(1) {
+            Ok(MiniblockNumber(number as u32))
+        } else {
+            anyhow::bail!("Not implemented");
+        }
     }
 
     async fn fetch_l2_block(
         &self,
-        _number: MiniblockNumber,
-        _with_transactions: bool,
+        number: MiniblockNumber,
+        with_transactions: bool,
     ) -> anyhow::Result<Option<api::en::SyncBlock>> {
-        anyhow::bail!("Not implemented");
+        let Some(mut block) = self.l2_blocks.get(number.0 as usize).cloned() else {
+            return Ok(None);
+        };
+        if !with_transactions {
+            block.transactions = None;
+        }
+        Ok(Some(block))
     }
 }
 
@@ -139,7 +196,7 @@ async fn run_state_keeper(pool: ConnectionPool, tx_hashes: &[&[H256]]) -> StateK
         pool,
         actions,
         sync_state.clone(),
-        Box::new(MockMainNodeClient),
+        Box::<MockMainNodeClient>::default(),
         Address::repeat_byte(1),
         u32::MAX,
         L2ChainId::default(),
@@ -409,4 +466,85 @@ async fn external_io_with_multiple_l1_batches(pool: ConnectionPool) {
         .expect("Fictive miniblock #2 is not persisted");
     assert_eq!(fictive_miniblock.timestamp, 2);
     assert_eq!(fictive_miniblock.l2_tx_count, 0);
+}
+
+#[db_test]
+async fn fetcher_basics(pool: ConnectionPool) {
+    let mut storage = pool.access_storage().await.unwrap();
+    if storage.blocks_dal().is_genesis_needed().await.unwrap() {
+        ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
+            .await
+            .unwrap();
+    }
+    drop(storage);
+
+    let mut mock_client = MockMainNodeClient::default();
+    mock_client.push_l1_batch(0);
+    // ^ The genesis L1 batch will not be queried, so we're OK with filling it with non-authentic data
+    let mut tx_hashes = VecDeque::from(mock_client.push_l1_batch(1));
+    tx_hashes.extend(mock_client.push_l1_batch(2));
+
+    let (actions_sender, mut actions) = ActionQueue::new();
+    let (stop_sender, stop_receiver) = watch::channel(false);
+    let sync_state = SyncState::default();
+    let fetcher = MainNodeFetcher::new(
+        pool,
+        Box::new(mock_client),
+        actions_sender,
+        sync_state.clone(),
+        stop_receiver,
+    )
+    .await;
+    let fetcher_task = tokio::spawn(fetcher.run());
+
+    // Check that sync_state is updated.
+    while sync_state.get_main_node_block() < MiniblockNumber(5) {
+        tokio::time::sleep(POLL_INTERVAL).await;
+    }
+
+    // Check generated actions. Some basic checks are performed by `ActionQueueSender`.
+    let mut current_l1_batch_number = L1BatchNumber(0);
+    let mut current_miniblock_number = MiniblockNumber(0);
+    let mut tx_count_in_miniblock = 0;
+    let started_at = Instant::now();
+    loop {
+        assert!(
+            started_at.elapsed() <= TEST_TIMEOUT,
+            "Timed out waiting for fetcher"
+        );
+        let Some(action) = actions.pop_action() else {
+            tokio::time::sleep(POLL_INTERVAL).await;
+            continue;
+        };
+        match action {
+            SyncAction::OpenBatch { number, .. } => {
+                current_l1_batch_number += 1;
+                current_miniblock_number += 1; // First miniblock is implicitly opened
+                tx_count_in_miniblock = 0;
+                assert_eq!(number, current_l1_batch_number);
+            }
+            SyncAction::Miniblock { number, .. } => {
+                current_miniblock_number += 1;
+                tx_count_in_miniblock = 0;
+                assert_eq!(number, current_miniblock_number);
+            }
+            SyncAction::SealBatch { virtual_blocks } => {
+                assert_eq!(virtual_blocks, 0);
+                assert_eq!(tx_count_in_miniblock, 0);
+                if current_miniblock_number == MiniblockNumber(5) {
+                    break;
+                }
+            }
+            SyncAction::Tx(tx) => {
+                assert_eq!(tx.hash(), tx_hashes.pop_front().unwrap());
+                tx_count_in_miniblock += 1;
+            }
+            SyncAction::SealMiniblock => {
+                assert_eq!(tx_count_in_miniblock, 1);
+            }
+        }
+    }
+
+    stop_sender.send_replace(true);
+    fetcher_task.await.unwrap().unwrap();
 }

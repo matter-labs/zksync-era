@@ -181,7 +181,7 @@ impl CachingMainNodeClient {
     }
 
     /// Cached version of [`HttpClient::sync_l2_block`].
-    pub async fn sync_l2_block(
+    pub async fn fetch_l2_block(
         &self,
         miniblock: MiniblockNumber,
     ) -> anyhow::Result<Option<SyncBlock>> {
@@ -196,8 +196,8 @@ impl CachingMainNodeClient {
         }
     }
 
-    /// Re-export of [`HttpClient::get_block_number`]. Added to not expose the internal client.
-    pub async fn get_block_number(&self) -> anyhow::Result<MiniblockNumber> {
+    /// Re-export of [`MainNodeClient::fetch_l2_block_number()`]. Added to not expose the internal client.
+    pub async fn fetch_l2_block_number(&self) -> anyhow::Result<MiniblockNumber> {
         self.client.fetch_l2_block_number().await
     }
 
