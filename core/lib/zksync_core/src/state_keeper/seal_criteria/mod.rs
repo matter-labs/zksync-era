@@ -12,7 +12,7 @@
 
 use std::fmt;
 
-use vm::TransactionVmExt;
+use multivm::vm_latest::TransactionVmExt;
 use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_types::{
     block::BlockGasCount,

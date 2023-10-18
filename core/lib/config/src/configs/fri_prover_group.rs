@@ -1,22 +1,8 @@
+use serde::Deserialize;
 use std::collections::{HashMap, HashSet};
 use std::env;
 
-use serde::{Deserialize, Serialize};
-
-#[derive(Debug, Deserialize, Serialize, Clone, Eq, Hash, PartialEq)]
-pub struct CircuitIdRoundTuple {
-    pub circuit_id: u8,
-    pub aggregation_round: u8,
-}
-
-impl CircuitIdRoundTuple {
-    pub fn new(circuit_id: u8, aggregation_round: u8) -> Self {
-        Self {
-            circuit_id,
-            aggregation_round,
-        }
-    }
-}
+use zksync_basic_types::basic_fri_types::CircuitIdRoundTuple;
 
 fn load_from_env_variable() -> HashMap<String, HashSet<CircuitIdRoundTuple>> {
     // Prepare a hash map to store the mapping of group to a vector of tuples

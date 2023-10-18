@@ -8,13 +8,14 @@ use std::{
     time::Instant,
 };
 
-use vm::{
-    constants::BLOCK_GAS_LIMIT, CurrentExecutionState, ExecutionResult, FinishedL1Batch,
-    L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionResultAndLogs,
-    VmExecutionStatistics,
+use multivm::interface::{
+    CurrentExecutionState, ExecutionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv, SystemEnv,
+    TxExecutionMode, VmExecutionResultAndLogs, VmExecutionStatistics,
 };
-use zksync_config::{configs::chain::StateKeeperConfig, constants::ZKPORTER_IS_AVAILABLE};
+use multivm::vm_latest::constants::BLOCK_GAS_LIMIT;
+use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes};
+use zksync_system_constants::ZKPORTER_IS_AVAILABLE;
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
     block::legacy_miniblock_hash,
@@ -102,6 +103,8 @@ pub(super) fn create_l1_batch_metadata(number: u32) -> L1BatchMetadata {
         aux_data_hash: H256::zero(),
         meta_parameters_hash: H256::zero(),
         pass_through_data_hash: H256::zero(),
+        events_queue_commitment: Some(H256::zero()),
+        bootloader_initial_content_commitment: Some(H256::zero()),
     }
 }
 

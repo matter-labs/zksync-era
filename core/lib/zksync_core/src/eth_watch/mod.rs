@@ -9,10 +9,10 @@ use tokio::{sync::watch, task::JoinHandle};
 
 use std::time::Duration;
 
-use zksync_config::constants::PRIORITY_EXPIRATION;
 use zksync_config::ETHWatchConfig;
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_eth_client::EthInterface;
+use zksync_system_constants::PRIORITY_EXPIRATION;
 use zksync_types::{
     web3::types::BlockNumber as Web3BlockNumber, Address, PriorityOpId, ProtocolVersionId,
 };

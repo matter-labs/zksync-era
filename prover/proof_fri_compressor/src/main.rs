@@ -92,7 +92,7 @@ async fn main() -> anyhow::Result<()> {
     ];
 
     let graceful_shutdown = None::<futures::future::Ready<()>>;
-    let tasks_allowed_to_finish = false;
+    let tasks_allowed_to_finish = true;
     tokio::select! {
         _ = wait_for_tasks(tasks, None, graceful_shutdown, tasks_allowed_to_finish) => {},
         _ = stop_signal_receiver => {

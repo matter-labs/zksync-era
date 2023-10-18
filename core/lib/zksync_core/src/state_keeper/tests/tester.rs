@@ -8,10 +8,11 @@ use std::{
     time::{Duration, Instant},
 };
 
-use vm::{
-    constants::BLOCK_GAS_LIMIT, ExecutionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv,
-    SystemEnv, TxExecutionMode, VmExecutionResultAndLogs,
+use multivm::interface::{
+    ExecutionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode,
+    VmExecutionResultAndLogs,
 };
+use multivm::vm_latest::constants::BLOCK_GAS_LIMIT;
 use zksync_types::{
     block::MiniblockReexecuteData, protocol_version::ProtocolUpgradeTx,
     witness_block_state::WitnessBlockState, Address, L1BatchNumber, L2ChainId, MiniblockNumber,
@@ -263,7 +264,7 @@ pub(crate) fn successful_exec_with_metrics(
 /// Creates a `TxExecutionResult` object denoting a tx that was rejected.
 pub(crate) fn rejected_exec() -> TxExecutionResult {
     TxExecutionResult::RejectedByVm {
-        reason: vm::Halt::InnerTxError,
+        reason: multivm::interface::Halt::InnerTxError,
     }
 }
 
