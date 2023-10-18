@@ -27,7 +27,7 @@ use zksync_config::{
     ApiConfig, ContractsConfig, DBConfig, ETHClientConfig, ETHSenderConfig, FetcherConfig,
     ProverConfigs,
 };
-use zksync_contracts::BaseSystemContracts;
+use zksync_contracts::{governance_contract, BaseSystemContracts};
 use zksync_dal::{
     connection::DbVariant, healthcheck::ConnectionPoolHealthCheck, ConnectionPool, StorageProcessor,
 };
@@ -496,12 +496,16 @@ pub async fn initialize_components(
             .build()
             .await
             .context("failed to build eth_watch_pool")?;
+        let governance = match (governance_contract(), contracts_config.governance_addr) {
+            (Some(contract), Some(address)) => Some((contract, address)),
+            _ => None,
+        };
         task_futures.push(
             start_eth_watch(
                 eth_watch_pool,
                 query_client.clone(),
                 main_zksync_contract_address,
-                contracts_config.governance_addr,
+                governance,
                 stop_receiver.clone(),
             )
             .await

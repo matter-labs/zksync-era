@@ -11,11 +11,11 @@ use std::time::Duration;
 
 use zksync_config::constants::PRIORITY_EXPIRATION;
 use zksync_config::ETHWatchConfig;
-use zksync_contracts::governance_contract;
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_eth_client::EthInterface;
 use zksync_types::{
-    web3::types::BlockNumber as Web3BlockNumber, Address, PriorityOpId, ProtocolVersionId,
+    ethabi::Contract, web3::types::BlockNumber as Web3BlockNumber, Address, PriorityOpId,
+    ProtocolVersionId,
 };
 
 mod client;
@@ -52,6 +52,7 @@ pub struct EthWatch<W: EthClient + Sync> {
 impl<W: EthClient + Sync> EthWatch<W> {
     pub async fn new(
         diamond_proxy_address: Address,
+        governance_contract: Option<Contract>,
         mut client: W,
         pool: &ConnectionPool,
         poll_interval: Duration,
@@ -70,7 +71,7 @@ impl<W: EthClient + Sync> EthWatch<W> {
             Box::new(upgrades_processor),
         ];
 
-        if let Some(governance_contract) = governance_contract() {
+        if let Some(governance_contract) = governance_contract {
             let governance_upgrades_processor = GovernanceUpgradesEventProcessor::new(
                 diamond_proxy_address,
                 state.last_seen_version_id,
@@ -190,19 +191,20 @@ pub async fn start_eth_watch<E: EthInterface + Send + Sync + 'static>(
     pool: ConnectionPool,
     eth_gateway: E,
     diamond_proxy_addr: Address,
-    governance_addr: Option<Address>,
+    governance: Option<(Contract, Address)>,
     stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<JoinHandle<anyhow::Result<()>>> {
     let eth_watch = ETHWatchConfig::from_env().context("ETHWatchConfig::from_env()")?;
     let eth_client = EthHttpQueryClient::new(
         eth_gateway,
         diamond_proxy_addr,
-        governance_addr,
+        governance.as_ref().map(|(_, address)| *address),
         eth_watch.confirmations_for_eth_event,
     );
 
     let mut eth_watch = EthWatch::new(
         diamond_proxy_addr,
+        governance.map(|(contract, _)| contract),
         eth_client,
         &pool,
         eth_watch.poll_interval(),
