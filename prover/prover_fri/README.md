@@ -23,10 +23,12 @@ Before starting, make sure you go into the root of the repository, then run
 export ZKSYNC_HOME=$(pwd)
 ```
 
-The whole setup below will NOT work if you don't have this environment variable properly set, as the entirety of `zk` depends on it.
+The whole setup below will NOT work if you don't have this environment variable properly set, as the entirety of `zk`
+depends on it.
 
 1. Install the correct nightly version using command: `rustup install nightly-2023-07-21`
-2. Generate the cpu setup data (no need to regenerate if it's already there). This will consume around 300Gb of disk. For this, run
+2. Generate the cpu setup data (no need to regenerate if it's already there). This will consume around 300Gb of disk.
+   For this, run
 
    ```
    ./setup.sh
@@ -37,15 +39,19 @@ The whole setup below will NOT work if you don't have this environment variable 
    zk init
    ```
 
-For the following steps, we recommend using `tmux` to run every command on a separate session, so you can attach to and monitor logs for each one.
+For the following steps, we recommend using `tmux` to run every command on a separate session, so you can attach to and
+monitor logs for each one.
 
 4. Run the sequencer/operator. In the root of the repository:
+
    ```
    zk server --components=api,eth,tree,state_keeper,housekeeper,proof_data_handler
    ```
+
    to produce blocks to be proven
 
 5. Run prover gateway to fetch blocks to be proven from server:
+
    ```
    zk f cargo run --release --bin zksync_prover_fri_gateway
    ```
@@ -59,7 +65,7 @@ For the following steps, we recommend using `tmux` to run every command on a sep
    API_PROMETHEUS_LISTENER_PORT=3119 zk f cargo run --release --bin zksync_witness_generator -- --round=scheduler
    ```
 
-7. Run prover to perform actual proving: 
+7. Run prover to perform actual proving:
    ```
    zk f cargo run --release --bin zksync_prover_fri
    ```
@@ -76,7 +82,8 @@ curl -X POST -H 'content-type: application/json' localhost:3050 -d '{"jsonrpc": 
 
 and then similarly for blocks number `1` and `2` by changing the parameters.
 
-The prover gateway will then fetch block number 1 to prove and start the entire proving pipeline, which starts out by generating the witness, then passing it to the prover, then to the compressor to wrap it inside a SNARK to send to L1.
+The prover gateway will then fetch block number 1 to prove and start the entire proving pipeline, which starts out by
+generating the witness, then passing it to the prover, then to the compressor to wrap it inside a SNARK to send to L1.
 
 You can follow the status of this pipeline by running
 
@@ -84,7 +91,8 @@ You can follow the status of this pipeline by running
 zk status prover
 ```
 
-This will take a while (around an hour and a half on my machine), you can check on it once in a while. A succesful flow should output something like
+This will take a while (around an hour and a half on my machine), you can check on it once in a while. A succesful flow
+should output something like
 
 ```
 ==== FRI Prover status ====
