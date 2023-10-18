@@ -648,5 +648,3 @@ async fn fetcher_with_real_server(pool: ConnectionPool) {
     fetcher_task.await.unwrap().unwrap();
     server_handles.shutdown().await;
 }
-
-// FIXME: what hangs up on panic?

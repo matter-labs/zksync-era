@@ -405,11 +405,14 @@ impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
             let close_handle = server.close_handle();
             let closing_vm_barrier = vm_barrier.clone();
             runtime.handle().spawn(async move {
-                if stop_receiver.changed().await.is_ok() {
-                    tracing::info!("Stop signal received, HTTP JSON-RPC server is shutting down");
-                    closing_vm_barrier.close();
-                    close_handle.close();
+                if stop_receiver.changed().await.is_err() {
+                    tracing::warn!(
+                        "Stop signal sender for HTTP JSON-RPC server was dropped without sending a signal"
+                    );
                 }
+                tracing::info!("Stop signal received, HTTP JSON-RPC server is shutting down");
+                closing_vm_barrier.close();
+                close_handle.close();
             });
 
             health_updater.update(HealthStatus::Ready.into());
@@ -563,11 +566,14 @@ impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
             let close_handle = server.close_handle();
             let closing_vm_barrier = vm_barrier.clone();
             runtime.handle().spawn(async move {
-                if stop_receiver.changed().await.is_ok() {
-                    tracing::info!("Stop signal received, WS JSON-RPC server is shutting down");
-                    closing_vm_barrier.close();
-                    close_handle.close();
+                if stop_receiver.changed().await.is_err() {
+                    tracing::warn!(
+                        "Stop signal sender for WS JSON-RPC server was dropped without sending a signal"
+                    );
                 }
+                tracing::info!("Stop signal received, WS JSON-RPC server is shutting down");
+                closing_vm_barrier.close();
+                close_handle.close();
             });
 
             health_updater.update(HealthStatus::Ready.into());
@@ -738,13 +744,17 @@ impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
         let close_handle = server_handle.clone();
         let closing_vm_barrier = vm_barrier.clone();
         tokio::spawn(async move {
-            if stop_receiver.changed().await.is_ok() {
-                tracing::info!(
-                    "Stop signal received, {transport_str} JSON-RPC server is shutting down"
+            if stop_receiver.changed().await.is_err() {
+                tracing::warn!(
+                    "Stop signal sender for {transport_str} JSON-RPC server was dropped \
+                     without sending a signal"
                 );
-                closing_vm_barrier.close();
-                close_handle.stop().ok();
             }
+            tracing::info!(
+                "Stop signal received, {transport_str} JSON-RPC server is shutting down"
+            );
+            closing_vm_barrier.close();
+            close_handle.stop().ok();
         });
         health_updater.update(HealthStatus::Ready.into());
 
