@@ -449,8 +449,10 @@ impl TryFrom<Log> for GovernanceOperation {
             ParamType::FixedBytes(32),
             ParamType::FixedBytes(32),
         ]);
+        // Decode data.
         let mut decoded = decode(&[ParamType::Uint(256), operation_param_type], &event.data.0)?;
-        decoded = decoded.remove(1).into_tuple().unwrap();
+        // Extract `GovernanceOperation` data.
+        let mut decoded_governance_operation = decoded.remove(1).into_tuple().unwrap();
 
         let eth_hash = event
             .transaction_hash
@@ -460,19 +462,32 @@ impl TryFrom<Log> for GovernanceOperation {
             .expect("Event block number is missing")
             .as_u64();
 
-        let calls = decoded.remove(0).into_array().unwrap();
-        let predecessor = H256::from_slice(&decoded.remove(0).into_fixed_bytes().unwrap());
-        let salt = H256::from_slice(&decoded.remove(0).into_fixed_bytes().unwrap());
+        let calls = decoded_governance_operation.remove(0).into_array().unwrap();
+        let predecessor = H256::from_slice(
+            &decoded_governance_operation
+                .remove(0)
+                .into_fixed_bytes()
+                .unwrap(),
+        );
+        let salt = H256::from_slice(
+            &decoded_governance_operation
+                .remove(0)
+                .into_fixed_bytes()
+                .unwrap(),
+        );
 
         let calls = calls
             .into_iter()
             .map(|call| {
-                let mut decoded = call.into_tuple().unwrap();
+                let mut decoded_governance_operation = call.into_tuple().unwrap();
 
                 Call {
-                    target: decoded.remove(0).into_address().unwrap(),
-                    value: decoded.remove(0).into_uint().unwrap(),
-                    data: decoded.remove(0).into_bytes().unwrap(),
+                    target: decoded_governance_operation
+                        .remove(0)
+                        .into_address()
+                        .unwrap(),
+                    value: decoded_governance_operation.remove(0).into_uint().unwrap(),
+                    data: decoded_governance_operation.remove(0).into_bytes().unwrap(),
                     eth_hash,
                     eth_block,
                 }
