@@ -16,7 +16,7 @@
           "type": "address"
         }
       ],
-      "name": "NewProofChain",
+      "name": "StateTransitionNewChain",
       "type": "event"
     },
     {
@@ -28,7 +28,7 @@
         },
         {
           "internalType": "address",
-          "name": "_bridgeheadChainContract",
+          "name": "_bridgehubChainContract",
           "type": "address"
         },
         {

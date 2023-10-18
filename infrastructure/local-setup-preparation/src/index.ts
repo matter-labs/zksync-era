@@ -13,7 +13,7 @@ async function depositWithRichAccounts() {
 
     const handles: Promise<any>[] = [];
 
-    if (!process.env.CONTRACTS_BRIDGEHEAD_PROXY_ADDR) {
+    if (!process.env.CONTRACTS_BRIDGEHUB_DIAMOND_PROXY_ADDR) {
         throw new Error('zkSync L1 Main contract address was not found');
     }
 
@@ -22,8 +22,8 @@ async function depositWithRichAccounts() {
     const DEPOSIT_L2_GAS_LIMIT = 10_000_000;
     const gasPrice = await ethProvider.getGasPrice();
     const contract = new ethers.Contract(
-        process.env.CONTRACTS_BRIDGEHEAD_PROXY_ADDR,
-        utils.BRIDGEHEAD_ABI,
+        process.env.CONTRACTS_BRIDGEHUB_DIAMOND_PROXY_ADDR,
+        utils.BRIDGEHUB_ABI,
         ethProvider
     );
 
@@ -35,7 +35,11 @@ async function depositWithRichAccounts() {
     );
 
     for (const wallet of wallets) {
-        const contract = new ethers.Contract(process.env.CONTRACTS_BRIDGEHEAD_PROXY_ADDR, utils.BRIDGEHEAD_ABI, wallet);
+        const contract = new ethers.Contract(
+            process.env.CONTRACTS_BRIDGEHUB_DIAMOND_PROXY_ADDR,
+            utils.BRIDGEHUB_ABI,
+            wallet
+        );
 
         const overrides = {
             value: AMOUNT_TO_DEPOSIT.add(expectedCost)

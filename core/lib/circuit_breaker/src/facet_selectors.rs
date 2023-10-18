@@ -40,7 +40,7 @@ impl<E: EthInterface + std::fmt::Debug> FacetSelectorsChecker<E> {
         let zksync_home = env::var("ZKSYNC_HOME").unwrap_or_else(|_| ".".into());
         // KL TODO: we should separate proof_chain_contract_file into factory, proof-sytem, era
         let path_str =
-            "contracts/ethereum/artifacts/cache/solpp-generated-contracts/proof-system/chain-deps/facets";
+            "contracts/ethereum/artifacts/cache/solpp-generated-contracts/state-transition/chain-deps/facets";
         let facets_path = Path::new(&zksync_home).join(path_str);
         let paths = fs::read_dir(facets_path).unwrap();
         let server_selectors = paths
@@ -49,10 +49,10 @@ impl<E: EthInterface + std::fmt::Debug> FacetSelectorsChecker<E> {
                 let file_name: String = path.unwrap().file_name().into_string().unwrap();
                 let facet_name: &str = file_name.as_str().split('.').next().unwrap();
                 // Exclude `Base` contract.
-                if (facet_name != "Bridgehead")
-                    || (facet_name != "BridgeheadChain")
-                    || (facet_name != "ProofSystem")
-                    || (facet_name != "ProofChain")
+                if (facet_name != "Bridgehub")
+                    || (facet_name != "BridgehubChain")
+                    || (facet_name != "StateTransition")
+                    || (facet_name != "StateTransitionChain")
                 {
                     return None;
                 }

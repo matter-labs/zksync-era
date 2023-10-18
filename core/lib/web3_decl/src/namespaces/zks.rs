@@ -35,9 +35,9 @@ pub trait ZksNamespace {
     async fn estimate_gas_l1_to_l2(&self, req: CallRequest) -> RpcResult<U256>;
 
     #[method(name = "getMainContract")]
-    async fn get_bridgehead_chain_contract(&self) -> RpcResult<Address>;
+    async fn get_bridgehub_chain_contract(&self) -> RpcResult<Address>;
 
-    #[method(name = "getProofChainContract")]
+    #[method(name = "getStateTransitionChainContract")]
     async fn get_proof_chain_contract(&self) -> RpcResult<Address>;
 
     #[method(name = "getTestnetPaymaster")]

@@ -33,22 +33,6 @@ function updateContractsEnv(initEnv: string, deployLog: String, envVars: Array<s
     return updatedContracts;
 }
 
-export async function initializeVerifierParams(args: any[] = []) {
-    await utils.confirmAction();
-
-    const isLocalSetup = process.env.ZKSYNC_LOCAL_SETUP;
-    const baseCommandL1 = isLocalSetup ? `yarn --cwd /contracts/ethereum` : `yarn l1-contracts`;
-
-    const governorPrivateKey = process.env.GOVERNOR_PRIVATE_KEY;
-    if (governorPrivateKey) {
-        args.push('--private-key', governorPrivateKey);
-    }
-
-    await utils.spawn(
-        `${baseCommandL1} initialize-verifier-params ${args.join(' ')} | tee initializeVerifierParams.log`
-    );
-}
-
 export async function initializeValidator(args: any[] = []) {
     await utils.confirmAction();
 
@@ -154,11 +138,13 @@ export async function deployL1(args: any[]) {
     const l1EnvVars = [
         'CONTRACTS_CREATE2_FACTORY_ADDR',
 
-        'CONTRACTS_BRIDGEHEAD_PROXY_ADDR',
-        'CONTRACTS_BRIDGEHEAD_IMPL_ADDR',
-        'CONTRACTS_BRIDGEHEAD_PROXY_ADMIN_ADDR',
-        'CONTRACTS_BRIDGEHEAD_CHAIN_IMPL_ADDR',
-        'CONTRACTS_BRIDGEHEAD_CHAIN_PROXY_ADMIN_ADDR',
+        'CONTRACTS_BRIDGEHUB_DIAMOND_PROXY_ADDR',
+        'CONTRACTS_BRIDGEHUB_ADMIN_FACET_ADDR',
+        'CONTRACTS_BRIDGEHUB_MAILBOX_FACET_ADDR',
+        'CONTRACTS_BRIDGEHUB_GETTERS_FACET_ADDR',
+        'CONTRACTS_BRIDGEHUB_DIAMOND_INIT_ADDR',
+        'CONTRACTS_BRIDGEHUB_CHAIN_IMPL_ADDR',
+        'CONTRACTS_BRIDGEHUB_CHAIN_PROXY_ADMIN_ADDR',
 
         'CONTRACTS_PROOF_SYSTEM_PROXY_ADDR',
         'CONTRACTS_PROOF_SYSTEM_IMPL_ADDR',
@@ -170,18 +156,11 @@ export async function deployL1(args: any[]) {
         'CONTRACTS_DIAMOND_UPGRADE_INIT_ADDR',
         'CONTRACTS_GOVERNANCE_FACET_ADDR',
         'CONTRACTS_EXECUTOR_FACET_ADDR',
-        'CONTRACTS_REGISTRY_FACET_ADDR',
+        'CONTRACTS_MAILBOX_FACET_ADDR',
         'CONTRACTS_GETTERS_FACET_ADDR',
         'CONTRACTS_DIAMOND_INIT_ADDR',
         'CONTRACTS_DEFAULT_UPGRADE_ADDR',
 
-        'CONTRACTS_ERA_DIAMOND_CUT_FACET_ADDR',
-        'CONTRACTS_ERA_DIAMOND_UPGRADE_INIT_ADDR',
-        'CONTRACTS_ERA_GOVERNANCE_FACET_ADDR',
-        'CONTRACTS_ERA_EXECUTOR_FACET_ADDR',
-        'CONTRACTS_ERA_GETTERS_FACET_ADDR',
-        'CONTRACTS_ERA_DIAMOND_INIT_ADDR',
-        'CONTRACTS_ERA_DIAMOND_PROXY_ADDR',
         'CONTRACTS_GENESIS_TX_HASH',
         'CONTRACTS_L1_ERC20_BRIDGE_PROXY_ADDR',
         'CONTRACTS_L1_ERC20_BRIDGE_IMPL_ADDR',
@@ -230,7 +209,7 @@ export async function registerHyperchain(args: any[]) {
 
     const l2EnvVars = [
         'CHAIN_ETH_ZKSYNC_NETWORK_ID',
-        'CONTRACTS_BRIDGEHEAD_CHAIN_PROXY_ADDR',
+        'CONTRACTS_BRIDGEHUB_CHAIN_PROXY_ADDR',
         'CONTRACTS_DIAMOND_PROXY_ADDR',
         'CONTRACTS_VALIDATOR_TIMELOCK_ADDR'
     ];
@@ -261,10 +240,6 @@ command
 command.command('deploy [deploy-opts...]').allowUnknownOption(true).description('deploy contracts').action(deployL1);
 command.command('build').description('build contracts').action(build);
 command.command('initialize-validator').description('initialize validator').action(initializeValidator);
-command
-    .command('initialize-verifier-params')
-    .description('initialize verifier params')
-    .action(initializeVerifierParams);
 command
     .command('initialize-l1-allow-list-contract')
     .description('initialize L1 allow list contract')

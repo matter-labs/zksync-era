@@ -37,7 +37,7 @@
         {
           "indexed": false,
           "internalType": "address",
-          "name": "proofSystem",
+          "name": "stateTransition",
           "type": "address"
         },
         {
@@ -247,7 +247,7 @@
           "type": "uint256"
         }
       ],
-      "name": "getChainProofSystem",
+      "name": "getChainStateTransition",
       "outputs": [
         {
           "internalType": "address",
@@ -288,11 +288,11 @@
       "inputs": [
         {
           "internalType": "address",
-          "name": "_proofSystem",
+          "name": "_stateTransition",
           "type": "address"
         }
       ],
-      "name": "getIsProofSystem",
+      "name": "getIsStateTransition",
       "outputs": [
         {
           "internalType": "bool",
@@ -318,7 +318,7 @@
     },
     {
       "inputs": [],
-      "name": "getTotaProofSystems",
+      "name": "getTotaStateTransitions",
       "outputs": [
         {
           "internalType": "uint256",
@@ -413,8 +413,8 @@
           "type": "uint256"
         },
         {
-          "internalType": "contract IProofForBridgehead",
-          "name": "_proofSystem",
+          "internalType": "contract IStateTransition",
+          "name": "_stateTransition",
           "type": "address"
         },
         {
@@ -443,11 +443,11 @@
       "inputs": [
         {
           "internalType": "address",
-          "name": "_proofSystem",
+          "name": "_stateTransition",
           "type": "address"
         }
       ],
-      "name": "newProofSystem",
+      "name": "newStateTransition",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"

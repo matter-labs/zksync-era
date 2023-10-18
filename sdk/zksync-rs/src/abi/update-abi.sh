@@ -3,9 +3,8 @@
 cd `dirname $0`
 
 # Main zkSync contract interface
-cat $ZKSYNC_HOME/contracts/ethereum/artifacts/cache/solpp-generated-contracts/bridgehead/interfaces/IBridgehead.sol/IBridgehead.json | jq '{ abi: .abi}' > IBridgehead.json
-cat $ZKSYNC_HOME/contracts/ethereum/artifacts/cache/solpp-generated-contracts/proof-system/proof-system-interfaces/IProofSystem.sol/IProofSystem.json | jq '{ abi: .abi}' > IProofSystem.json
-# cat $ZKSYNC_HOME/contracts/ethereum/artifacts/cache/solpp-generated-contracts/era/interfaces/Era.sol/IEra.json | jq '{ abi: .abi}' > IEra.json
+cat $ZKSYNC_HOME/contracts/ethereum/artifacts/cache/solpp-generated-contracts/bridgehub/interfaces/IBridgehub.sol/IBridgehub.json | jq '{ abi: .abi}' > IBridgehub.json
+cat $ZKSYNC_HOME/contracts/ethereum/artifacts/cache/solpp-generated-contracts/state-transition/state-transition-interfaces/IStateTransition.sol/IStateTransition.json | jq '{ abi: .abi}' > IStateTransition.json
 # Default L1 bridge
 cat $ZKSYNC_HOME/contracts/ethereum/artifacts/cache/solpp-generated-contracts/bridge/interfaces/IL1Bridge.sol/IL1Bridge.json | jq '{ abi: .abi}' > IL1Bridge.json
 # Paymaster interface

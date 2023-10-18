@@ -100,7 +100,7 @@ impl AccountPool {
         for _ in 0usize..3 {
             if let Ok(Ok(_)) = timeout(
                 Duration::from_secs(3),
-                client.get_bridgehead_chain_contract(),
+                client.get_bridgehub_chain_contract(),
             )
             .await
             {

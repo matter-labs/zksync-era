@@ -1,5 +1,5 @@
 import { BigNumber, BigNumberish, BytesLike, ethers } from 'ethers';
-import { IERC20MetadataFactory, IL1BridgeFactory, IL2BridgeFactory, IBridgeheadChainFactory } from '../typechain';
+import { IERC20MetadataFactory, IL1BridgeFactory, IL2BridgeFactory, IBridgehubChainFactory } from '../typechain';
 import { Provider } from './provider';
 import {
     Address,
@@ -49,7 +49,7 @@ export function AdapterL1<TBase extends Constructor<TxSender>>(Base: TBase) {
 
         async getMainContract() {
             const address = await this._providerL2().getMainContractAddress();
-            return IBridgeheadChainFactory.connect(address, this._signerL1());
+            return IBridgehubChainFactory.connect(address, this._signerL1());
         }
 
         async getL1BridgeContracts() {
@@ -138,13 +138,13 @@ export function AdapterL1<TBase extends Constructor<TxSender>>(Base: TBase) {
             gasPerPubdataByte?: BigNumberish;
             gasPrice?: BigNumberish;
         }): Promise<BigNumber> {
-            const bridgeheadChainContract = await this.getMainContract();
+            const bridgehubChainContract = await this.getMainContract();
             const parameters = { ...layer1TxDefaults(), ...params };
             parameters.gasPrice ??= await this._providerL1().getGasPrice();
             parameters.gasPerPubdataByte ??= REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_LIMIT;
 
             return BigNumber.from(
-                await bridgeheadChainContract.l2TransactionBaseCost(
+                await bridgehubChainContract.l2TransactionBaseCost(
                     parameters.gasPrice,
                     parameters.gasLimit,
                     parameters.gasPerPubdataByte
@@ -293,9 +293,9 @@ export function AdapterL1<TBase extends Constructor<TxSender>>(Base: TBase) {
             await insertGasPrice(this._providerL1(), overrides);
             const gasPriceForEstimation = overrides.maxFeePerGas || overrides.gasPrice;
 
-            const bridgeheadChainContract = await this.getMainContract();
+            const bridgehubChainContract = await this.getMainContract();
 
-            const baseCost = await bridgeheadChainContract.l2TransactionBaseCost(
+            const baseCost = await bridgehubChainContract.l2TransactionBaseCost(
                 await gasPriceForEstimation,
                 tx.l2GasLimit,
                 tx.gasPerPubdataByte
@@ -350,7 +350,7 @@ export function AdapterL1<TBase extends Constructor<TxSender>>(Base: TBase) {
             const dummyAmount = '1';
 
             const { ...tx } = transaction;
-            const bridgeheadChainContract = await this.getMainContract();
+            const bridgehubChainContract = await this.getMainContract();
 
             tx.overrides ??= {};
             await insertGasPrice(this._providerL1(), tx.overrides);
@@ -391,7 +391,7 @@ export function AdapterL1<TBase extends Constructor<TxSender>>(Base: TBase) {
                 );
             }
 
-            const baseCost = await bridgeheadChainContract.l2TransactionBaseCost(
+            const baseCost = await bridgehubChainContract.l2TransactionBaseCost(
                 gasPriceForMessages,
                 l2GasLimit,
                 tx.gasPerPubdataByte
@@ -530,7 +530,7 @@ export function AdapterL1<TBase extends Constructor<TxSender>>(Base: TBase) {
                 }
 
                 const contractAddress = await this._providerL2().getMainContractAddress();
-                const zksync = IBridgeheadChainFactory.connect(contractAddress, this._signerL1());
+                const zksync = IBridgehubChainFactory.connect(contractAddress, this._signerL1());
 
                 return await zksync.finalizeEthWithdrawal(
                     l1BatchNumber,
@@ -566,7 +566,7 @@ export function AdapterL1<TBase extends Constructor<TxSender>>(Base: TBase) {
 
             if (isETH(sender)) {
                 const contractAddress = await this._providerL2().getMainContractAddress();
-                const zksync = IBridgeheadChainFactory.connect(contractAddress, this._signerL1());
+                const zksync = IBridgehubChainFactory.connect(contractAddress, this._signerL1());
 
                 return await zksync.isEthWithdrawalFinalized(log.l1BatchNumber, proof.id);
             }
@@ -661,7 +661,7 @@ export function AdapterL1<TBase extends Constructor<TxSender>>(Base: TBase) {
             refundRecipient?: Address;
             overrides?: ethers.PayableOverrides;
         }): Promise<ethers.PopulatedTransaction> {
-            const bridgeheadChainContract = await this.getMainContract();
+            const bridgehubChainContract = await this.getMainContract();
 
             const { ...tx } = transaction;
             tx.l2Value ??= BigNumber.from(0);
@@ -697,7 +697,7 @@ export function AdapterL1<TBase extends Constructor<TxSender>>(Base: TBase) {
 
             await checkBaseCost(baseCost, overrides.value);
 
-            return await bridgeheadChainContract.populateTransaction.requestL2Transaction(
+            return await bridgehubChainContract.populateTransaction.requestL2Transaction(
                 contractAddress,
                 l2Value,
                 calldata,

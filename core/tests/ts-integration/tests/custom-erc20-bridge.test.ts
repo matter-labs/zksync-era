@@ -51,7 +51,7 @@ describe('Tests for the custom bridge behavior', () => {
         const gasPrice = await scaledGasPrice(alice);
 
         let l1Bridge = await l1bridgeFactory.deploy(
-            process.env.CONTRACTS_BRIDGEHEAD_PROXY_ADDR!,
+            process.env.CONTRACTS_BRIDGEHUB_DIAMOND_PROXY_ADDR!,
             allowListContract.address
         );
         await l1Bridge.deployTransaction.wait(2);

@@ -50,7 +50,7 @@ const TOO_MANY_RESULTS_ALCHEMY: &str = "response size exceeded";
 pub struct EthHttpQueryClient<E> {
     client: E,
     topics: Vec<H256>,
-    bridgehead_chain_proxy_addr: Address,
+    bridgehub_chain_proxy_addr: Address,
     proof_chain_contract_addr: Address,
     verifier_contract_abi: Contract,
     confirmations_for_eth_event: Option<u64>,
@@ -59,18 +59,18 @@ pub struct EthHttpQueryClient<E> {
 impl<E: EthInterface> EthHttpQueryClient<E> {
     pub fn new(
         client: E,
-        bridgehead_chain_proxy_addr: Address,
+        bridgehub_chain_proxy_addr: Address,
         proof_chain_contract_addr: Address,
         confirmations_for_eth_event: Option<u64>,
     ) -> Self {
         tracing::debug!(
             "New eth client, contract addr: {:x}",
-            bridgehead_chain_proxy_addr
+            bridgehub_chain_proxy_addr
         );
         Self {
             client,
             topics: Vec::new(),
-            bridgehead_chain_proxy_addr,
+            bridgehub_chain_proxy_addr,
             proof_chain_contract_addr,
             verifier_contract_abi: verifier_contract(),
             confirmations_for_eth_event,
@@ -85,7 +85,7 @@ impl<E: EthInterface> EthHttpQueryClient<E> {
     ) -> Result<Vec<Log>, Error> {
         let filter = FilterBuilder::default()
             .address(vec![
-                self.bridgehead_chain_proxy_addr,
+                self.bridgehub_chain_proxy_addr,
                 self.proof_chain_contract_addr,
             ])
             .from_block(from)

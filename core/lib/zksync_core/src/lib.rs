@@ -496,7 +496,7 @@ pub async fn initialize_components(
             start_eth_watch(
                 eth_watch_pool,
                 query_client.clone(),
-                contracts_config.bridgehead_chain_proxy_addr,
+                contracts_config.bridgehub_chain_proxy_addr,
                 proof_chain_contract,
                 stop_receiver.clone(),
             )

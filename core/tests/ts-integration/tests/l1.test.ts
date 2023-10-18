@@ -121,8 +121,8 @@ describe('Tests for L1 behavior', () => {
         expect(accumutatedRoot).toBe(root);
 
         // Ensure that provided proof is accepted by the main zkSync contract.
-        const bridgeheadChainContract = await alice.getMainContract();
-        const acceptedByContract = await bridgeheadChainContract.proveL2MessageInclusion(
+        const bridgehubChainContract = await alice.getMainContract();
+        const acceptedByContract = await bridgehubChainContract.proveL2MessageInclusion(
             receipt.l1BatchNumber,
             id,
             {

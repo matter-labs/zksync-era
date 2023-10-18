@@ -4,10 +4,10 @@ import { Provider, utils } from 'zksync-web3';
 
 const L1_CONTRACTS_FOLDER = `${process.env.ZKSYNC_HOME}/contracts/ethereum/artifacts/cache/solpp-generated-contracts`;
 const DIAMOND_UPGRADE_INIT_ABI = new ethers.utils.Interface(
-    require(`${L1_CONTRACTS_FOLDER}/bridgehead/upgrade-initializers/DiamondUpgradeInit1.sol/DiamondUpgradeInit1.json`).abi
+    require(`${L1_CONTRACTS_FOLDER}/bridgehub/upgrade-initializers/DiamondUpgradeInit1.sol/DiamondUpgradeInit1.json`).abi
 );
 const DIAMOND_CUT_FACET_ABI = new ethers.utils.Interface(
-    require(`${L1_CONTRACTS_FOLDER}/proof-system/chain-deps/facets/DiamondCut.sol/DiamondCutFacet.json`).abi
+    require(`${L1_CONTRACTS_FOLDER}/state-transition/chain-deps/facets/DiamondCut.sol/DiamondCutFacet.json`).abi
 );
 
 export interface ForceDeployment {
@@ -58,9 +58,9 @@ export async function deployOnAnyLocalAddress(
 
     const govWallet = ethers.Wallet.fromMnemonic(govMnemonic, "m/44'/60'/0'/0/1").connect(ethProvider);
 
-    const bridgeheadChainContract = await l2Provider.getMainContractAddress();
+    const bridgehubChainContract = await l2Provider.getMainContractAddress();
 
-    const zkSync = new ethers.Contract(bridgeheadChainContract, utils.BRIDGEHEAD_ABI, govWallet);
+    const zkSync = new ethers.Contract(bridgehubChainContract, utils.BRIDGEHUB_ABI, govWallet);
 
     // In case there is some pending upgrade there, we cancel it
     const upgradeProposalState = await zkSync.getUpgradeProposalState();
@@ -96,7 +96,7 @@ export async function deployOnAnyLocalAddress(
     // Proposing the upgrade
     await (
         await govWallet.sendTransaction({
-            to: bridgeheadChainContract,
+            to: bridgehubChainContract,
             data: proposeTransparentUpgrade,
             gasLimit: BigNumber.from(10000000)
         })
@@ -105,13 +105,13 @@ export async function deployOnAnyLocalAddress(
     // Finalize the upgrade
     const receipt = await (
         await govWallet.sendTransaction({
-            to: bridgeheadChainContract,
+            to: bridgehubChainContract,
             data: executeUpgrade,
             gasLimit: BigNumber.from(10000000)
         })
     ).wait();
 
-    const txHash = utils.getL2HashFromPriorityOp(receipt, bridgeheadChainContract);
+    const txHash = utils.getL2HashFromPriorityOp(receipt, bridgehubChainContract);
 
     return await l2Provider.waitForTransaction(txHash);
 }

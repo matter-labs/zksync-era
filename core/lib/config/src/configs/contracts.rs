@@ -8,12 +8,14 @@ use super::envy_load;
 /// Data about deployed contracts.
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct ContractsConfig {
-    pub bridgehead_proxy_addr: Address,
-    pub bridgehead_impl_addr: Address,
-    pub bridgehead_proxy_admin_addr: Address,
-    pub bridgehead_chain_impl_addr: Address,
-    pub bridgehead_chain_proxy_admin_addr: Address,
-    pub bridgehead_chain_proxy_addr: Address,
+    pub bridgehub_diamond_proxy_addr: Address,
+    pub bridgehub_admin_facet_addr: Address,
+    pub bridgehub_mailbox_facet_addr: Address,
+    pub bridgehub_getters_facet_addr: Address,
+    pub bridgehub_diamond_init_addr: Address,
+    pub bridgehub_chain_impl_addr: Address,
+    pub bridgehub_chain_proxy_admin_addr: Address,
+    pub bridgehub_chain_proxy_addr: Address,
 
     pub verifier_addr: Address,
 
@@ -22,9 +24,9 @@ pub struct ContractsConfig {
     pub proof_system_proxy_admin_addr: Address,
 
     pub executor_facet_addr: Address,
-    pub registry_facet_addr: Address,
-    pub governance_facet_addr: Address,
+    pub admin_facet_addr: Address,
     pub diamond_cut_facet_addr: Address,
+    pub mailbox_facet_addr: Address,
     pub getters_facet_addr: Address,
     pub diamond_init_addr: Address,
     pub diamond_upgrade_init_addr: Address,
@@ -63,12 +65,14 @@ mod tests {
 
     fn expected_config() -> ContractsConfig {
         ContractsConfig {
-            bridgehead_proxy_addr: addr("0f6Fa881EF414Fc6E818180657c2d5CD7Ac6cCAd"),
-            bridgehead_impl_addr: addr("0f6Fa881EF414Fc6E818180657c2d5CD7Ac6cCAd"),
-            bridgehead_proxy_admin_addr: addr("0f6Fa881EF414Fc6E818180657c2d5CD7Ac6cCAd"),
-            bridgehead_chain_impl_addr: addr("0f6Fa881EF414Fc6E818180657c2d5CD7Ac6cCAd"),
-            bridgehead_chain_proxy_admin_addr: addr("0f6Fa881EF414Fc6E818180657c2d5CD7Ac6cCAd"),
-            bridgehead_chain_proxy_addr: addr("0f6Fa881EF414Fc6E818180657c2d5CD7Ac6cCAd"),
+            bridgehub_diamond_proxy_addr: addr("0f6Fa881EF414Fc6E818180657c2d5CD7Ac6cCAd"),
+            bridgehub_admin_facet_addr: addr("0f6Fa881EF414Fc6E818180657c2d5CD7Ac6cCAd"),
+            bridgehub_mailbox_facet_addr: addr("0f6Fa881EF414Fc6E818180657c2d5CD7Ac6cCAd"),
+            bridgehub_getters_facet_addr: addr("0f6Fa881EF414Fc6E818180657c2d5CD7Ac6cCAd"),
+            bridgehub_diamond_init_addr: addr("0f6Fa881EF414Fc6E818180657c2d5CD7Ac6cCAd"),
+            bridgehub_chain_impl_addr: addr("0f6Fa881EF414Fc6E818180657c2d5CD7Ac6cCAd"),
+            bridgehub_chain_proxy_admin_addr: addr("0f6Fa881EF414Fc6E818180657c2d5CD7Ac6cCAd"),
+            bridgehub_chain_proxy_addr: addr("0f6Fa881EF414Fc6E818180657c2d5CD7Ac6cCAd"),
 
             verifier_addr: addr("34782eE00206EAB6478F2692caa800e4A581687b"),
             proof_system_proxy_addr: addr("0f6Fa881EF414Fc6E818180657c2d5CD7Ac6cCAd"),
@@ -76,9 +80,9 @@ mod tests {
             proof_system_proxy_admin_addr: addr("0f6Fa881EF414Fc6E818180657c2d5CD7Ac6cCAd"),
 
             executor_facet_addr: addr("18B631537801963A964211C0E86645c1aBfbB2d3"),
-            registry_facet_addr: addr("18B631537801963A964211C0E86645c1aBfbB2d3"),
-            governance_facet_addr: addr("1e12b20BE86bEc3A0aC95aA52ade345cB9AE7a32"),
+            admin_facet_addr: addr("1e12b20BE86bEc3A0aC95aA52ade345cB9AE7a32"),
             diamond_cut_facet_addr: addr("8656770FA78c830456B00B4fFCeE6b1De0e1b888"),
+            mailbox_facet_addr: addr("8656770FA78c830456B00B4fFCeE6b1De0e1b888"),
             getters_facet_addr: addr("8656770FA78c830456B00B4fFCeE6b1De0e1b888"),
             diamond_init_addr: addr("FFC35A5e767BE36057c34586303498e3de7C62Ba"),
             diamond_upgrade_init_addr: addr("FFC35A5e767BE36057c34586303498e3de7C62Ba"),
@@ -123,12 +127,15 @@ mod tests {
     fn from_env() {
         let mut lock = MUTEX.lock();
         let config = r#"
-CONTRACTS_BRIDGEHEAD_PROXY_ADDR="0f6Fa881EF414Fc6E818180657c2d5CD7Ac6cCAd"
-CONTRACTS_BRIDGEHEAD_IMPL_ADDR="0f6Fa881EF414Fc6E818180657c2d5CD7Ac6cCAd"
-CONTRACTS_BRIDGEHEAD_PROXY_admin_ADDR="0f6Fa881EF414Fc6E818180657c2d5CD7Ac6cCAd"
-CONTRACTS_BRIDGEHEAD_CHAIN_IMPL_ADDR="0f6Fa881EF414Fc6E818180657c2d5CD7Ac6cCAd"
-CONTRACTS_BRIDGEHEAD_CHAIN_PROXY_admin_ADDR="0f6Fa881EF414Fc6E818180657c2d5CD7Ac6cCAd"
-CONTRACTS_BRIDGEHEAD_CHAIN_PROXY_ADDR="0f6Fa881EF414Fc6E818180657c2d5CD7Ac6cCAd"
+CONTRACTS_BRIDGEHUB_DIAMOND_PROXY_ADDR="0f6Fa881EF414Fc6E818180657c2d5CD7Ac6cCAd"
+CONTRACTS_BRIDGEHUB_ADMIN_FACET_ADDR="0f6Fa881EF414Fc6E818180657c2d5CD7Ac6cCAd"
+CONTRACTS_BRIDGEHUB_MAILBOX_FACET_ADDR="0f6Fa881EF414Fc6E818180657c2d5CD7Ac6cCAd"
+CONTRACTS_BRIDGEHUB_GETTERS_FACET_ADDR="0f6Fa881EF414Fc6E818180657c2d5CD7Ac6cCAd"
+CONTRACTS_BRIDGEHUB_DIAMOND_INIT_ADDR="0f6Fa881EF414Fc6E818180657c2d5CD7Ac6cCAd"
+
+CONTRACTS_BRIDGEHUB_CHAIN_IMPL_ADDR="0f6Fa881EF414Fc6E818180657c2d5CD7Ac6cCAd"
+CONTRACTS_BRIDGEHUB_CHAIN_PROXY_admin_ADDR="0f6Fa881EF414Fc6E818180657c2d5CD7Ac6cCAd"
+CONTRACTS_BRIDGEHUB_CHAIN_PROXY_ADDR="0f6Fa881EF414Fc6E818180657c2d5CD7Ac6cCAd"
 
 CONTRACTS_VERIFIER_ADDR="0x34782eE00206EAB6478F2692caa800e4A581687b"
 CONTRACTS_PROOF_SYSTEM_PROXY_ADDR="0f6Fa881EF414Fc6E818180657c2d5CD7Ac6cCAd"
@@ -136,9 +143,9 @@ CONTRACTS_PROOF_SYSTEM_IMPL_ADDR="0f6Fa881EF414Fc6E818180657c2d5CD7Ac6cCAd"
 CONTRACTS_PROOF_SYSTEM_PROXY_admin_ADDR="0f6Fa881EF414Fc6E818180657c2d5CD7Ac6cCAd"
 
 CONTRACTS_EXECUTOR_FACET_ADDR="0x18B631537801963A964211C0E86645c1aBfbB2d3"
-CONTRACTS_REGISTRY_FACET_ADDR="0x18B631537801963A964211C0E86645c1aBfbB2d3"
 CONTRACTS_GOVERNANCE_FACET_ADDR="0x1e12b20BE86bEc3A0aC95aA52ade345cB9AE7a32"
 CONTRACTS_DIAMOND_CUT_FACET_ADDR="0x8656770FA78c830456B00B4fFCeE6b1De0e1b888"
+CONTRACTS_MAILBOX_FACET_ADDR="0x8656770FA78c830456B00B4fFCeE6b1De0e1b888"
 CONTRACTS_GETTERS_FACET_ADDR="0x8656770FA78c830456B00B4fFCeE6b1De0e1b888"
 CONTRACTS_VERIFIER_ADDR="0x34782eE00206EAB6478F2692caa800e4A581687b"
 CONTRACTS_DIAMOND_INIT_ADDR="0xFFC35A5e767BE36057c34586303498e3de7C62Ba"

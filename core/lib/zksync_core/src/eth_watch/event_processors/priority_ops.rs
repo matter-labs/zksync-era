@@ -4,7 +4,7 @@ use crate::eth_watch::{
 };
 use std::convert::TryFrom;
 use std::time::Instant;
-use zksync_contracts::bridgehead_chain_contract;
+use zksync_contracts::bridgehub_chain_contract;
 use zksync_dal::StorageProcessor;
 use zksync_types::{l1::L1Tx, web3::types::Log, PriorityOpId, H256};
 
@@ -19,7 +19,7 @@ impl PriorityOpsEventProcessor {
     pub fn new(next_expected_priority_id: PriorityOpId) -> Self {
         Self {
             next_expected_priority_id,
-            new_priority_request_signature: bridgehead_chain_contract()
+            new_priority_request_signature: bridgehub_chain_contract()
                 .event("NewPriorityRequest")
                 .expect("NewPriorityRequest event is missing in abi")
                 .signature(),

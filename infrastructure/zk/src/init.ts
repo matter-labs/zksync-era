@@ -19,7 +19,7 @@ const timestamp = chalk.grey;
 
 export async function init(skipSubmodulesCheckout: boolean) {
     await initSetup(skipSubmodulesCheckout);
-    await initBridgehead();
+    await initBridgehubStateTransition();
     await initHyperchain();
 }
 
@@ -38,10 +38,10 @@ async function initSetup(skipSubmodulesCheckout: boolean) {
     await announced('Building L1 L2 contracts', contract.build());
     await announced('Deploying localhost ERC20 tokens', run.deployERC20('dev'));
 
-    // await announced('Compile L2 system contracts', compiler.compileAll());
+    await announced('Compile L2 system contracts', compiler.compileAll());
 }
 
-export async function initBridgehead() {
+export async function initBridgehubStateTransition() {
     await announced('Building L1 L2 contracts', contract.build());
 
     // we have to initiate the db here, as we need to create the genesis block to initialize the L1 contracts
@@ -55,7 +55,6 @@ export async function initBridgehead() {
     await announced('Running server genesis setup', server.genesisFromSources());
     await announced('Deploying L1 contracts', contract.redeployL1([]));
     await announced('Initializing bridges', contract.initializeBridges([]));
-    await announced('Initializing verifier params', contract.initializeVerifierParams());
 }
 
 export async function initHyperchain() {

@@ -19,7 +19,7 @@ export * from './paymaster-utils';
 
 export const ETH_ADDRESS = '0x0000000000000000000000000000000000000000';
 
-export const BRIDGEHEAD_ABI = new utils.Interface(require('../../abi/IBridgehead.json').abi);
+export const BRIDGEHUB_ABI = new utils.Interface(require('../../abi/IBridgehub.json').abi);
 export const CONTRACT_DEPLOYER = new utils.Interface(require('../../abi/ContractDeployer.json').abi);
 export const L1_MESSENGER = new utils.Interface(require('../../abi/IL1Messenger.json').abi);
 export const IERC20 = new utils.Interface(require('../../abi/IERC20.json').abi);
@@ -365,7 +365,7 @@ export function getL2HashFromPriorityOp(
         }
 
         try {
-            const priorityQueueLog = BRIDGEHEAD_ABI.parseLog(log);
+            const priorityQueueLog = BRIDGEHUB_ABI.parseLog(log);
             if (priorityQueueLog && priorityQueueLog.args.txHash != null) {
                 txHash = priorityQueueLog.args.txHash;
             }
