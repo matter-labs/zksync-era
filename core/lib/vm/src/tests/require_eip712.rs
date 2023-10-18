@@ -2,9 +2,9 @@ use std::convert::TryInto;
 
 use ethabi::Token;
 
-use zksync_config::constants::L2_ETH_TOKEN_ADDRESS;
 use zksync_eth_signer::raw_ethereum_tx::TransactionParameters;
 use zksync_eth_signer::EthereumSigner;
+use zksync_system_constants::L2_ETH_TOKEN_ADDRESS;
 use zksync_types::fee::Fee;
 use zksync_types::l2::L2Tx;
 use zksync_types::transaction_request::TransactionRequest;

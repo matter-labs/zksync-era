@@ -84,7 +84,7 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
     }
 
     fn is_storage_key_free(&self, key: &StorageKey) -> bool {
-        key.address() == &zksync_config::constants::SYSTEM_CONTEXT_ADDRESS
+        key.address() == &zksync_system_constants::SYSTEM_CONTEXT_ADDRESS
             || *key == storage_key_for_eth_balance(&BOOTLOADER_ADDRESS)
     }
 

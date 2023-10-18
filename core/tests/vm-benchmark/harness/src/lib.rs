@@ -4,9 +4,9 @@ use vm::{
     constants::BLOCK_GAS_LIMIT, HistoryEnabled, L2BlockEnv, TxExecutionMode, Vm, VmExecutionMode,
     VmExecutionResultAndLogs,
 };
-use zksync_config::constants::ethereum::MAX_GAS_PER_PUBDATA_BYTE;
 use zksync_contracts::{deployer_contract, BaseSystemContracts};
 use zksync_state::{InMemoryStorage, StorageView};
+use zksync_system_constants::ethereum::MAX_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
     block::legacy_miniblock_hash,
     ethabi::{encode, Token},

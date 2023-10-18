@@ -18,12 +18,12 @@ use zk_evm::{
 };
 
 use crate::oracles::tracer::{utils::get_calldata_page_via_abi, StorageInvocationTracer};
-use zksync_config::constants::{
+use zksync_state::{StoragePtr, WriteStorage};
+use zksync_system_constants::{
     ACCOUNT_CODE_STORAGE_ADDRESS, BOOTLOADER_ADDRESS, CONTRACT_DEPLOYER_ADDRESS,
     KECCAK256_PRECOMPILE_ADDRESS, L2_ETH_TOKEN_ADDRESS, MSG_VALUE_SIMULATOR_ADDRESS,
     SYSTEM_CONTEXT_ADDRESS,
 };
-use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::{
     get_code_key, web3::signing::keccak256, AccountTreeId, Address, StorageKey, H256, U256,
 };

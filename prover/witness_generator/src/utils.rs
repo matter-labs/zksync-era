@@ -11,7 +11,6 @@ use zksync_prover_fri_types::circuit_definitions::encodings::recursion_request::
 
 use zkevm_test_harness::boojum::field::goldilocks::GoldilocksField;
 use zkevm_test_harness::witness::full_block_artifact::BlockBasicCircuits;
-use zksync_config::constants::USED_BOOTLOADER_MEMORY_BYTES;
 use zksync_object_store::{
     serialize_using_bincode, AggregationsKey, Bucket, ClosedFormInputKey, FriCircuitKey,
     ObjectStore, StoredObject,
@@ -19,6 +18,7 @@ use zksync_object_store::{
 use zksync_prover_fri_types::circuit_definitions::zkevm_circuits::scheduler::input::SchedulerCircuitInstanceWitness;
 use zksync_prover_fri_types::circuit_definitions::ZkSyncDefaultRoundFunction;
 use zksync_prover_fri_types::{CircuitWrapper, FriProofWrapper};
+use zksync_system_constants::USED_BOOTLOADER_MEMORY_BYTES;
 use zksync_types::proofs::AggregationRound;
 use zksync_types::{L1BatchNumber, U256};
 

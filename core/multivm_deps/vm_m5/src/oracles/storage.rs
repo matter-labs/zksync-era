@@ -79,10 +79,10 @@ impl<S: Storage> StorageOracle<S> {
     fn is_storage_key_free(&self, key: &StorageKey) -> bool {
         match self.refund_state {
             MultiVMSubversion::V1 => {
-                key.address() == &zksync_config::constants::SYSTEM_CONTEXT_ADDRESS
+                key.address() == &zksync_system_constants::SYSTEM_CONTEXT_ADDRESS
             }
             MultiVMSubversion::V2 => {
-                key.address() == &zksync_config::constants::SYSTEM_CONTEXT_ADDRESS
+                key.address() == &zksync_system_constants::SYSTEM_CONTEXT_ADDRESS
                     || *key == storage_key_for_eth_balance(&BOOTLOADER_ADDRESS)
             }
         }

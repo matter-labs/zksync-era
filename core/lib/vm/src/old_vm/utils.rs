@@ -10,8 +10,8 @@ use zk_evm::{
     vm_state::PrimitiveValue,
     zkevm_opcode_defs::FatPointer,
 };
-use zksync_config::constants::L1_GAS_PER_PUBDATA_BYTE;
 use zksync_state::WriteStorage;
+use zksync_system_constants::L1_GAS_PER_PUBDATA_BYTE;
 
 use zksync_types::{Address, U256};
 
