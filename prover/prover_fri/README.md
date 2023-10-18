@@ -18,19 +18,15 @@ Machine specs:
 - Disk: 400GB of free disk
 
 1. Install the correct nightly version using command: `rustup install nightly-2023-07-21`
-2. Generate the cpu setup data (no need to regenerate if it's already there). This will consume around 300Gb of disk.
-   Use these commands:
+2. Generate the cpu setup data (no need to regenerate if it's already there). This will consume around 300Gb of disk. For this, run
 
-   ```markdown
-   for i in {1..13}; do zk f cargo run --release --bin zksync_setup_data_generator_fri -- --numeric-circuit $i
-   --is_base_layer done
-
-   for i in {1..15}; do zk f cargo run --release --bin zksync_setup_data_generator_fri -- --numeric-circuit $i done
+   ```
+   ./setup.sh
    ```
 
 3. Initialize DB and run migrations: `zk init`
 
-4. Override the following configuration in your `dev.env`:
+4. Override the following configuration in your `dev.env` file, located under `etc/dev/dev.env` on the root of the repo:
 
    ```
    ETH_SENDER_SENDER_PROOF_SENDING_MODE=OnlyRealProofs
