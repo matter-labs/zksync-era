@@ -17,6 +17,14 @@ Machine specs:
 - RAM: 60GB of RAM(if you have lower RAM machine enable swap)
 - Disk: 400GB of free disk
 
+Before starting, make sure you go into the root of the repository, then run
+
+```
+export ZKSYNC_HOME=$(pwd)
+```
+
+The whole setup below will NOT work if you don't have this environment variable properly set, as the entirety of `zk` depends on it.
+
 1. Install the correct nightly version using command: `rustup install nightly-2023-07-21`
 2. Generate the cpu setup data (no need to regenerate if it's already there). This will consume around 300Gb of disk. For this, run
 
@@ -24,23 +32,25 @@ Machine specs:
    ./setup.sh
    ```
 
-3. Initialize DB and run migrations: `zk init`
-
-4. Override the following configuration in your `dev.env` file, located under `etc/dev/dev.env` on the root of the repo:
-
+3. Initialize DB and run migrations. Go into the root of the repository, then run
    ```
-   ETH_SENDER_SENDER_PROOF_SENDING_MODE=OnlyRealProofs
-   ETH_SENDER_SENDER_PROOF_LOADING_MODE=FriProofFromGcs
-   OBJECT_STORE_FILE_BACKED_BASE_PATH=/path/to/server/artifacts
-   PROVER_OBJECT_STORE_FILE_BACKED_BASE_PATH=/path/to/prover/artifacts
-   FRI_PROVER_SETUP_DATA_PATH=/path/to/above-generated/cpu-setup-data
+   zk init
    ```
 
-5. Run server `zk server --components=api,eth,tree,state_keeper,housekeeper,proof_data_handler` to produce blocks to be
-   proven
-6. Run prover gateway to fetch blocks to be proven from server :
-   `zk f cargo run --release --bin zksync_prover_fri_gateway`
-7. Run 4 witness generators to generate witness for each round:
+For the following steps, we recommend using `tmux` to run every command on a separate session, so you can attach to and monitor logs for each one.
+
+4. Run the sequencer/operator. In the root of the repository:
+   ```
+   zk server --components=api,eth,tree,state_keeper,housekeeper,proof_data_handler
+   ```
+   to produce blocks to be proven
+
+5. Run prover gateway to fetch blocks to be proven from server:
+   ```
+   zk f cargo run --release --bin zksync_prover_fri_gateway
+   ```
+
+6. Run 4 witness generators to generate witness for each round:
 
    ```
    API_PROMETHEUS_LISTENER_PORT=3116 zk f cargo run --release --bin zksync_witness_generator -- --round=basic_circuits
@@ -49,9 +59,54 @@ Machine specs:
    API_PROMETHEUS_LISTENER_PORT=3119 zk f cargo run --release --bin zksync_witness_generator -- --round=scheduler
    ```
 
-8. Run prover to perform actual proving: `zk f cargo run --release --bin zksync_prover_fri`
-9. Finally, run proof compressor to compress the proof to be sent on L1:
-   `zk f cargo run --release --bin zksync_proof_fri_compressor`
+7. Run prover to perform actual proving: 
+   ```
+   zk f cargo run --release --bin zksync_prover_fri
+   ```
+8. Finally, run proof compressor to compress the proof to be sent on L1:
+   ```
+   zk f cargo run --release --bin zksync_proof_fri_compressor
+   ```
+
+After this is done, the server should have at least three blocks, you can see the first one by running
+
+```
+curl -X POST -H 'content-type: application/json' localhost:3050 -d '{"jsonrpc": "2.0", "id": 1, "method": "zks_getBlockDetails", "params": [0]}'
+```
+
+and then similarly for blocks number `1` and `2` by changing the parameters.
+
+The prover gateway will then fetch block number 1 to prove and start the entire proving pipeline, which starts out by generating the witness, then passing it to the prover, then to the compressor to wrap it inside a SNARK to send to L1.
+
+You can follow the status of this pipeline by running
+
+```
+zk status prover
+```
+
+This will take a while (around an hour and a half on my machine), you can check on it once in a while. A succesful flow should output something like
+
+```
+==== FRI Prover status ====
+State keeper: First batch: 0, recent batch: 1
+L1 state: block verified: 1, block committed: 1
+Verification key hash on contract is 0x4be443afd605a782b6e56d199df2460a025c81b3dea144e135bece83612563f2
+Verification key in database is 0x4be443afd605a782b6e56d199df2460a025c81b3dea144e135bece83612563f2
+Verifier hash matches.
+Verifier params on contract are 0x5a3ef282b21e12fe1f4438e5bb158fc5060b160559c5158c6389d62d9fe3d080, 0x72167c43a46cf38875b267d67716edc4563861364a3c03ab7aee73498421e828, 0x0000000000000000000000000000000000000000000000000000000000000000
+Verifcation params match.
+Next block that should be verified is: 2
+Checking status of the proofs...
+Proof progress for 1 : 111 successful, 0 failed, 0 in progress, 0 queued.  Compression job status: successful
+```
+
+The most important thing here is the following line
+
+```
+L1 state: block verified: 1, block committed: 1
+```
+
+which means the proof for the block was verified on L1.
 
 ## Proving a block using GPU prover locally
 
