@@ -91,6 +91,10 @@ pub async fn ensure_genesis_state(
         vec![],
         base_system_contracts_hashes.bootloader,
         base_system_contracts_hashes.default_aa,
+        vec![],
+        vec![],
+        H256::zero(),
+        H256::zero(),
     );
 
     save_genesis_l1_batch_metadata(
@@ -362,6 +366,7 @@ pub(crate) async fn save_genesis_l1_batch_metadata(
         pass_through_data_hash: commitment_hash.pass_through_data,
         events_queue_commitment: None,
         bootloader_initial_content_commitment: None,
+        state_diffs_compressed: vec![],
     };
     storage
         .blocks_dal()
