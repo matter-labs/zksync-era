@@ -1,9 +1,9 @@
+use crate::interface::{TxExecutionMode, VmExecutionMode};
 use crate::vm_virtual_blocks::tests::tester::{DeployContractsTx, TxType, VmTesterBuilder};
 use crate::vm_virtual_blocks::tests::utils::read_test_contract;
-use crate::vm_virtual_blocks::types::inputs::system_env::TxExecutionMode;
 
 use crate::vm_virtual_blocks::types::internals::TransactionData;
-use crate::vm_virtual_blocks::{HistoryEnabled, VmExecutionMode};
+use crate::vm_virtual_blocks::HistoryEnabled;
 
 #[test]
 fn test_predetermined_refunded_gas() {

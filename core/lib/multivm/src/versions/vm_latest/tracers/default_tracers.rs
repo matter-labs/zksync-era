@@ -1,5 +1,6 @@
 use std::fmt::{Debug, Formatter};
 
+use crate::interface::{Halt, VmExecutionMode};
 use zk_evm_1_3_3::{
     tracing::{
         AfterDecodingData, AfterExecutionData, BeforeExecutionData, Tracer, VmLocalStateData,
@@ -25,7 +26,7 @@ use crate::vm_latest::tracers::utils::{
 };
 use crate::vm_latest::tracers::{RefundsTracer, ResultTracer};
 use crate::vm_latest::types::internals::ZkSyncVmState;
-use crate::vm_latest::{Halt, VmExecutionMode, VmExecutionStopReason};
+use crate::vm_latest::VmExecutionStopReason;
 
 /// Default tracer for the VM. It manages the other tracers execution and stop the vm when needed.
 pub(crate) struct DefaultExecutionTracer<S, H: HistoryMode> {

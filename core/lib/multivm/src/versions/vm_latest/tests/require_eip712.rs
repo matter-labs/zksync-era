@@ -13,10 +13,10 @@ use zksync_types::{
     AccountTreeId, Address, Eip712Domain, Execute, L2ChainId, Nonce, Transaction, U256,
 };
 
+use crate::interface::{TxExecutionMode, VmExecutionMode};
 use crate::vm_latest::tests::tester::{Account, VmTester, VmTesterBuilder};
 use crate::vm_latest::tests::utils::read_many_owners_custom_account_contract;
-use crate::vm_latest::types::inputs::system_env::TxExecutionMode;
-use crate::vm_latest::{HistoryDisabled, VmExecutionMode};
+use crate::vm_latest::HistoryDisabled;
 
 impl VmTester<HistoryDisabled> {
     pub(crate) fn get_eth_balance(&mut self, address: Address) -> U256 {

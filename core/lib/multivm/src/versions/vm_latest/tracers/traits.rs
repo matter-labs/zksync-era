@@ -1,3 +1,4 @@
+use crate::interface::Halt;
 use zk_evm_1_3_3::tracing::{
     AfterDecodingData, AfterExecutionData, BeforeExecutionData, VmLocalStateData,
 };
@@ -7,7 +8,7 @@ use crate::vm_latest::bootloader_state::BootloaderState;
 use crate::vm_latest::old_vm::history_recorder::HistoryMode;
 use crate::vm_latest::old_vm::memory::SimpleMemory;
 use crate::vm_latest::types::internals::ZkSyncVmState;
-use crate::vm_latest::{Halt, VmExecutionStopReason};
+use crate::vm_latest::VmExecutionStopReason;
 
 /// Run tracer for collecting data during the vm execution cycles
 pub trait VmTracer<S: WriteStorage, H: HistoryMode>: DynTracer<S, H> {

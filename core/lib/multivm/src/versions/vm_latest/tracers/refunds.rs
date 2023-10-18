@@ -1,5 +1,6 @@
 use vise::{Buckets, EncodeLabelSet, EncodeLabelValue, Family, Histogram, Metrics};
 
+use crate::interface::{L1BatchEnv, Refunds};
 use zk_evm_1_3_3::{
     aux_structures::Timestamp,
     tracing::{BeforeExecutionData, VmLocalStateData},
@@ -29,7 +30,7 @@ use crate::vm_latest::tracers::{
     traits::{DynTracer, VmTracer},
     utils::{get_vm_hook_params, VmHook},
 };
-use crate::vm_latest::types::{inputs::L1BatchEnv, internals::ZkSyncVmState, outputs::Refunds};
+use crate::vm_latest::types::internals::ZkSyncVmState;
 use crate::vm_latest::TracerExecutionStatus;
 
 /// Tracer responsible for collecting information about refunds.

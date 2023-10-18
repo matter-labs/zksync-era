@@ -4,13 +4,13 @@ use zksync_types::storage_writes_deduplicator::StorageWritesDeduplicator;
 use zksync_types::{get_code_key, get_known_code_key, U256};
 use zksync_utils::u256_to_h256;
 
+use crate::interface::{TxExecutionMode, VmExecutionMode};
 use crate::vm_latest::tests::tester::{TxType, VmTesterBuilder};
 use crate::vm_latest::tests::utils::{
     read_test_contract, verify_required_storage, BASE_SYSTEM_CONTRACTS,
 };
-use crate::vm_latest::types::inputs::system_env::TxExecutionMode;
 use crate::vm_latest::types::internals::TransactionData;
-use crate::vm_latest::{HistoryEnabled, VmExecutionMode};
+use crate::vm_latest::HistoryEnabled;
 
 #[test]
 fn test_l1_tx_execution() {

@@ -1,4 +1,4 @@
-use crate::vm_virtual_blocks::{L2Block, L2BlockEnv};
+use crate::interface::{L2Block, L2BlockEnv};
 use zksync_state::{ReadStorage, StoragePtr};
 use zksync_system_constants::{
     SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_CURRENT_L2_BLOCK_HASHES_POSITION,

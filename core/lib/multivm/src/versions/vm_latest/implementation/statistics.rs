@@ -3,12 +3,10 @@ use zksync_state::WriteStorage;
 
 use zksync_types::U256;
 
+use crate::interface::{VmExecutionStatistics, VmMemoryMetrics};
 use crate::vm_latest::old_vm::history_recorder::HistoryMode;
 use crate::vm_latest::tracers::DefaultExecutionTracer;
-use crate::vm_latest::types::outputs::VmExecutionStatistics;
 use crate::vm_latest::vm::Vm;
-
-use crate::vm_latest::VmMemoryMetrics;
 
 /// Module responsible for observing the VM behavior, i.e. calculating the statistics of the VM runs
 /// or reporting the VM memory usage.
@@ -66,22 +64,5 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
             storage_inner: self.state.storage.get_size(),
             storage_history: self.state.storage.get_history_size(),
         }
-    }
-}
-
-impl VmMemoryMetrics {
-    pub fn full_size(&self) -> usize {
-        [
-            self.event_sink_inner,
-            self.event_sink_history,
-            self.memory_inner,
-            self.memory_history,
-            self.decommittment_processor_inner,
-            self.decommittment_processor_history,
-            self.storage_inner,
-            self.storage_history,
-        ]
-        .iter()
-        .sum::<usize>()
     }
 }

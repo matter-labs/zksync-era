@@ -1,3 +1,4 @@
+use crate::interface::VmExecutionResultAndLogs;
 use zk_evm_1_3_3::tracing::{
     AfterDecodingData, AfterExecutionData, BeforeExecutionData, VmLocalStateData,
 };
@@ -7,7 +8,6 @@ use crate::vm_virtual_blocks::bootloader_state::BootloaderState;
 use crate::vm_virtual_blocks::old_vm::history_recorder::HistoryMode;
 use crate::vm_virtual_blocks::old_vm::memory::SimpleMemory;
 use crate::vm_virtual_blocks::types::internals::ZkSyncVmState;
-use crate::vm_virtual_blocks::types::outputs::VmExecutionResultAndLogs;
 use crate::vm_virtual_blocks::VmExecutionStopReason;
 
 /// Run tracer for collecting data during the vm execution cycles

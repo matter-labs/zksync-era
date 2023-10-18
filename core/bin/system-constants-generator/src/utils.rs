@@ -1,8 +1,8 @@
-use multivm::vm_latest::constants::{BLOCK_GAS_LIMIT, BOOTLOADER_HEAP_PAGE};
+use multivm::interface::{L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode};
 use multivm::vm_latest::{
-    BootloaderState, BoxedTracer, DynTracer, HistoryEnabled, HistoryMode, L1BatchEnv, L2BlockEnv,
-    SystemEnv, TxExecutionMode, Vm, VmExecutionMode, VmExecutionStopReason, VmTracer,
-    ZkSyncVmState,
+    constants::{BLOCK_GAS_LIMIT, BOOTLOADER_HEAP_PAGE},
+    BootloaderState, BoxedTracer, DynTracer, HistoryEnabled, HistoryMode, Vm,
+    VmExecutionStopReason, VmTracer, ZkSyncVmState,
 };
 use once_cell::sync::Lazy;
 use std::cell::RefCell;

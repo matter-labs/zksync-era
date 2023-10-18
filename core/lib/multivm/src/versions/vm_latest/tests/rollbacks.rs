@@ -6,14 +6,15 @@ use zksync_contracts::test_contracts::LoadnextContractExecutionParams;
 use zksync_state::WriteStorage;
 use zksync_types::{get_nonce_key, Execute, U256};
 
+use crate::interface::{TxExecutionMode, VmExecutionMode};
 use crate::vm_latest::tests::tester::{
     DeployContractsTx, TransactionTestInfo, TxModifier, TxType, VmTesterBuilder,
 };
 use crate::vm_latest::tests::utils::read_test_contract;
-use crate::vm_latest::types::inputs::system_env::TxExecutionMode;
+use crate::vm_latest::types::internals::ZkSyncVmState;
 use crate::vm_latest::{
     BootloaderState, DynTracer, HistoryEnabled, HistoryMode, TracerExecutionStatus,
-    TracerExecutionStopReason, VmExecutionMode, VmTracer, ZkSyncVmState,
+    TracerExecutionStopReason, VmTracer,
 };
 
 #[test]

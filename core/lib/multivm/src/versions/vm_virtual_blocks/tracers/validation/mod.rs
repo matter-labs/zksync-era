@@ -37,11 +37,10 @@ use crate::vm_virtual_blocks::tracers::utils::{
 pub use error::ValidationError;
 pub use params::ValidationTracerParams;
 
+use crate::interface::VmExecutionResultAndLogs;
 use types::NewTrustedValidationItems;
 use types::ValidationTracerMode;
 use zksync_types::vm_trace::ViolatedValidationRule;
-
-use crate::vm_virtual_blocks::VmExecutionResultAndLogs;
 
 /// Tracer that is used to ensure that the validation adheres to all the rules
 /// to prevent DDoS attacks on the server.

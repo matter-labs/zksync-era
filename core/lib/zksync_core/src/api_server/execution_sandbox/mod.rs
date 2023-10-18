@@ -2,7 +2,6 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::runtime::Handle;
 
-use multivm::vm_latest::utils::fee::derive_base_fee_and_gas_per_pubdata;
 use zksync_dal::{ConnectionPool, SqlxError, StorageProcessor};
 use zksync_state::{PostgresStorage, PostgresStorageCaches, ReadStorage, StorageView};
 use zksync_system_constants::PUBLISH_BYTECODE_OVERHEAD;
@@ -25,6 +24,7 @@ pub(super) use self::{
     vm_metrics::{SubmitTxStage, SANDBOX_METRICS},
 };
 use super::tx_sender::MultiVMBaseSystemContracts;
+use multivm::vm_latest::utils::fee::derive_base_fee_and_gas_per_pubdata;
 
 /// Permit to invoke VM code.
 ///

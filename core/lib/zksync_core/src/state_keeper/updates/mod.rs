@@ -1,4 +1,4 @@
-use multivm::vm_latest::{L1BatchEnv, VmExecutionResultAndLogs};
+use multivm::interface::{L1BatchEnv, VmExecutionResultAndLogs};
 
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_types::vm_trace::Call;

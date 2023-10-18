@@ -8,7 +8,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use multivm::vm_latest::{FinishedL1Batch, L1BatchEnv};
+use multivm::interface::{FinishedL1Batch, L1BatchEnv};
 use zksync_dal::StorageProcessor;
 use zksync_system_constants::ACCOUNT_CODE_STORAGE_ADDRESS;
 use zksync_types::{

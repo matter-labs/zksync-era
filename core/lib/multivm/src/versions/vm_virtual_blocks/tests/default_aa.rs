@@ -4,12 +4,12 @@ use zksync_types::system_contracts::{DEPLOYMENT_NONCE_INCREMENT, TX_NONCE_INCREM
 use zksync_types::{get_code_key, get_known_code_key, get_nonce_key, AccountTreeId, U256};
 use zksync_utils::u256_to_h256;
 
+use crate::interface::{TxExecutionMode, VmExecutionMode};
 use crate::vm_virtual_blocks::tests::tester::{DeployContractsTx, TxType, VmTesterBuilder};
 use crate::vm_virtual_blocks::tests::utils::{
     get_balance, read_test_contract, verify_required_storage,
 };
-use crate::vm_virtual_blocks::types::inputs::system_env::TxExecutionMode;
-use crate::vm_virtual_blocks::{HistoryEnabled, VmExecutionMode};
+use crate::vm_virtual_blocks::HistoryEnabled;
 
 #[test]
 fn test_default_aa_interaction() {

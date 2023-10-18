@@ -1,5 +1,5 @@
 use crate::glue::{GlueFrom, GlueInto};
-use crate::vm_latest::{ExecutionResult, Refunds, TxRevertReason, VmExecutionResultAndLogs};
+use crate::interface::{ExecutionResult, Refunds, TxRevertReason, VmExecutionResultAndLogs};
 use zksync_types::tx::tx_execution_info::TxExecutionStatus;
 
 impl GlueFrom<crate::vm_m5::vm::VmTxExecutionResult> for VmExecutionResultAndLogs {
@@ -56,7 +56,7 @@ impl GlueFrom<Result<crate::vm_m6::vm::VmTxExecutionResult, crate::vm_m6::TxReve
         match value {
             Ok(result) => result.glue_into(),
             Err(err) => {
-                let revert: crate::vm_latest::TxRevertReason = err.glue_into();
+                let revert: crate::interface::TxRevertReason = err.glue_into();
                 match revert {
                     TxRevertReason::TxReverted(err) => VmExecutionResultAndLogs {
                         result: ExecutionResult::Revert { output: err },
@@ -85,7 +85,7 @@ impl GlueFrom<Result<crate::vm_1_3_2::vm::VmTxExecutionResult, crate::vm_1_3_2::
         match value {
             Ok(result) => result.glue_into(),
             Err(err) => {
-                let revert: crate::vm_latest::TxRevertReason = err.glue_into();
+                let revert: crate::interface::TxRevertReason = err.glue_into();
                 match revert {
                     TxRevertReason::TxReverted(err) => VmExecutionResultAndLogs {
                         result: ExecutionResult::Revert { output: err },
@@ -114,7 +114,7 @@ impl GlueFrom<Result<crate::vm_m5::vm::VmTxExecutionResult, crate::vm_m5::TxReve
         match value {
             Ok(result) => result.glue_into(),
             Err(err) => {
-                let revert: crate::vm_latest::TxRevertReason = err.glue_into();
+                let revert: crate::interface::TxRevertReason = err.glue_into();
                 match revert {
                     TxRevertReason::Halt(halt) => VmExecutionResultAndLogs {
                         result: ExecutionResult::Halt { reason: halt },

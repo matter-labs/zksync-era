@@ -1,6 +1,6 @@
+use crate::interface::{ExecutionResult, VmExecutionMode};
 use crate::vm_latest::tests::tester::{TxType, VmTesterBuilder};
-use crate::vm_latest::types::outputs::ExecutionResult;
-use crate::vm_latest::{HistoryDisabled, VmExecutionMode};
+use crate::vm_latest::HistoryDisabled;
 
 #[test]
 fn estimate_fee() {

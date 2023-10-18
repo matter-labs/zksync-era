@@ -1,6 +1,7 @@
 use zk_evm_1_3_3::aux_structures::Timestamp;
 use zksync_state::WriteStorage;
 
+use crate::interface::{VmExecutionMode, VmExecutionResultAndLogs};
 use crate::vm_latest::old_vm::{
     history_recorder::HistoryMode,
     utils::{vm_may_have_ended_inner, VmExecutionResult},
@@ -9,7 +10,6 @@ use crate::vm_latest::tracers::{
     traits::{TracerExecutionStatus, VmTracer},
     DefaultExecutionTracer, RefundsTracer,
 };
-use crate::vm_latest::types::{inputs::VmExecutionMode, outputs::VmExecutionResultAndLogs};
 use crate::vm_latest::vm::Vm;
 use crate::vm_latest::VmExecutionStopReason;
 

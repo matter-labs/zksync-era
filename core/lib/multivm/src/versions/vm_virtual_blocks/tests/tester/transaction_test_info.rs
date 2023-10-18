@@ -1,11 +1,11 @@
 use zksync_types::{ExecuteTransactionCommon, Transaction};
 
-use crate::vm_virtual_blocks::errors::VmRevertReason;
-use crate::vm_virtual_blocks::tests::tester::vm_tester::VmTester;
-use crate::vm_virtual_blocks::{
-    CurrentExecutionState, ExecutionResult, Halt, HistoryEnabled, TxRevertReason, VmExecutionMode,
-    VmExecutionResultAndLogs,
+use crate::interface::{
+    CurrentExecutionState, ExecutionResult, Halt, TxRevertReason, VmExecutionMode,
+    VmExecutionResultAndLogs, VmRevertReason,
 };
+use crate::vm_virtual_blocks::tests::tester::vm_tester::VmTester;
+use crate::vm_virtual_blocks::HistoryEnabled;
 
 #[derive(Debug, Clone)]
 pub(crate) enum TxModifier {

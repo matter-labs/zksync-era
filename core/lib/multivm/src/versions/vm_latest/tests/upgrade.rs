@@ -14,9 +14,10 @@ use zksync_contracts::{deployer_contract, load_contract, load_sys_contract, read
 use zksync_state::WriteStorage;
 use zksync_test_account::TxType;
 
+use crate::interface::{ExecutionResult, Halt, TxExecutionMode, VmExecutionMode};
 use crate::vm_latest::tests::tester::VmTesterBuilder;
 use crate::vm_latest::tests::utils::verify_required_storage;
-use crate::vm_latest::{ExecutionResult, Halt, HistoryEnabled, TxExecutionMode, VmExecutionMode};
+use crate::vm_latest::HistoryEnabled;
 use zksync_types::protocol_version::ProtocolUpgradeTxCommonData;
 
 use super::utils::read_test_contract;

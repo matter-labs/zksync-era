@@ -2,7 +2,7 @@ use multivm::vm_latest::constants::BLOCK_GAS_LIMIT;
 use once_cell::sync::OnceCell;
 use std::sync::Arc;
 
-use multivm::vm_latest::ExecutionResult;
+use multivm::interface::ExecutionResult;
 
 use zksync_dal::ConnectionPool;
 use zksync_state::PostgresStorageCaches;

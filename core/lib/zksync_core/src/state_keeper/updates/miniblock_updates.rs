@@ -1,4 +1,5 @@
-use multivm::vm_latest::{ExecutionResult, L2BlockEnv, TransactionVmExt, VmExecutionResultAndLogs};
+use multivm::interface::{ExecutionResult, L2BlockEnv, VmExecutionResultAndLogs};
+use multivm::vm_latest::TransactionVmExt;
 use std::collections::HashMap;
 
 use zksync_types::{
