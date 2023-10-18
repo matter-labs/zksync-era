@@ -4,7 +4,7 @@ use tokio::sync::watch;
 use std::convert::Infallible;
 use std::time::{Duration, Instant};
 
-use vm::{Halt, L1BatchEnv, SystemEnv};
+use multivm::interface::{Halt, L1BatchEnv, SystemEnv};
 use zksync_types::{
     block::MiniblockReexecuteData, l2::TransactionType, protocol_version::ProtocolUpgradeTx,
     storage_writes_deduplicator::StorageWritesDeduplicator, Transaction,

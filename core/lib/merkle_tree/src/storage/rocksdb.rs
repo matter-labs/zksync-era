@@ -63,8 +63,7 @@ impl RocksDBWrapper {
 
     /// Creates a new wrapper, initializing RocksDB at the specified directory.
     pub fn new(path: &Path) -> Self {
-        let db = RocksDB::new(path, true);
-        Self::from(db)
+        Self::from(RocksDB::new(path))
     }
 
     /// Sets the chunk size for multi-get operations. The requested keys will be split

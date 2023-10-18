@@ -91,7 +91,7 @@ impl Cli {
                 dir.path().to_string_lossy()
             );
             rocksdb = if let Some(block_cache_capacity) = self.block_cache {
-                let db = RocksDB::with_cache(dir.path(), true, Some(block_cache_capacity));
+                let db = RocksDB::with_cache(dir.path(), Some(block_cache_capacity));
                 RocksDBWrapper::from(db)
             } else {
                 RocksDBWrapper::new(dir.path())

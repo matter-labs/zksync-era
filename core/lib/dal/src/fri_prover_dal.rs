@@ -1,9 +1,9 @@
 use std::{collections::HashMap, convert::TryFrom, time::Duration};
 
-use zksync_config::configs::fri_prover_group::CircuitIdRoundTuple;
-use zksync_types::protocol_version::FriProtocolVersionId;
 use zksync_types::{
+    basic_fri_types::CircuitIdRoundTuple,
     proofs::{AggregationRound, FriProverJobMetadata, JobCountStatistics, StuckJobs},
+    protocol_version::FriProtocolVersionId,
     L1BatchNumber,
 };
 

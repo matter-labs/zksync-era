@@ -15,7 +15,7 @@ zksync_state = { path = "../../lib/state" }
 zksync_types = { path = "../../lib/types" }
 zksync_utils = { path = "../../lib/utils" }
 zksync_contracts = { path = "../../lib/contracts" }
-vm = { path = "../../lib/vm" }
+multivm = { path = "../../lib/multivm" }
 
 codegen = "0.2.0"
 

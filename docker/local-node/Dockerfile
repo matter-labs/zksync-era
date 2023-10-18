@@ -10,7 +10,7 @@ RUN apt-get install -y libpq5 ca-certificates postgresql-client && rm -rf /var/l
 
 # Install node and yarn
 RUN curl -sL https://deb.nodesource.com/setup_18.x | bash -
-RUN apt-get install -y nodejs npm
+RUN apt-get install -y nodejs
 RUN npm install -g yarn
 
 # Copy compiler (both solc and zksolc) binaries

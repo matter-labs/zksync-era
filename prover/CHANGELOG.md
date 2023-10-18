@@ -1,5 +1,19 @@
 # Changelog
 
+## [7.2.0](https://github.com/matter-labs/zksync-era/compare/prover-v7.1.1...prover-v7.2.0) (2023-10-17)
+
+
+### Features
+
+* **boojum:** Adding README to prover directory ([#189](https://github.com/matter-labs/zksync-era/issues/189)) ([c175033](https://github.com/matter-labs/zksync-era/commit/c175033b48a8da4969d88b6850dd0247c4004794))
+* **fri-prover:** In witness - panic if protocol version is not available ([#192](https://github.com/matter-labs/zksync-era/issues/192)) ([0403749](https://github.com/matter-labs/zksync-era/commit/040374900656c854a7b9de32e5dbaf47c1c47889))
+* Rewrite server binary to use `vise` metrics ([#120](https://github.com/matter-labs/zksync-era/issues/120)) ([26ee1fb](https://github.com/matter-labs/zksync-era/commit/26ee1fbb16cbd7c4fad334cbc6804e7d779029b6))
+
+
+### Bug Fixes
+
+* **prover-logging:** tasks_allowed_to_finish set to true for 1 off jobs ([#227](https://github.com/matter-labs/zksync-era/issues/227)) ([0fac66f](https://github.com/matter-labs/zksync-era/commit/0fac66f5ff86cc801ea0bb6f9272cb397cd03a95))
+
 ## [7.1.1](https://github.com/matter-labs/zksync-2-dev/compare/prover-v7.1.0...prover-v7.1.1) (2023-09-27)
 
 
