@@ -2,7 +2,7 @@ use anyhow::Context as _;
 
 use zksync_dal::connection::DbVariant;
 use zksync_dal::ConnectionPool;
-use zksync_object_store::{ObjectStore, ObjectStoreFactory, StoredObject};
+use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_types::snapshots::{StorageLogsSnapshot, StorageLogsSnapshotKey};
 use zksync_types::L1BatchNumber;
 
@@ -19,7 +19,7 @@ async fn run(blob_store: Box<dyn ObjectStore>, pool: ConnectionPool) {
             .len() as u32
             + 1,
     );
-    print!("Creating snapshot for block {}\n", fake_batch_id.0);
+    println!("Creating snapshot for block {}", fake_batch_id.0);
     let result = StorageLogsSnapshot {
         l1_batch_number: fake_batch_id,
     };
@@ -35,12 +35,12 @@ async fn run(blob_store: Box<dyn ObjectStore>, pool: ConnectionPool) {
         .add_snapshot(fake_batch_id, &files)
         .await
         .unwrap();
-    print!("Stored chunk {} in {} \n", key.chunk_id, files[0]);
+    println!("Stored chunk {} in {}", key.chunk_id, files[0]);
 }
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    print!("Running creator\n");
+    println!("Running creator");
     #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
     let log_format = vlog::log_format_from_env();
     #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
@@ -68,6 +68,6 @@ async fn main() -> anyhow::Result<()> {
         .unwrap();
 
     run(blob_store, pool).await;
-    print!("Finished!\n");
+    println!("Finished!");
     Ok(())
 }

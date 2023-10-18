@@ -46,7 +46,6 @@ fn start_server(api: SnapshotsRestApi, bind_to: SocketAddr, threads: usize) -> S
 
 /// Start HTTP REST API
 pub fn start_server_thread_detached(
-    master_connection_pool: ConnectionPool,
     replica_connection_pool: ConnectionPool,
     api_config: SnapshotsApiConfig,
     mut stop_receiver: watch::Receiver<bool>,

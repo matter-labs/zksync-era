@@ -4,7 +4,6 @@ use zksync_dal::connection::ConnectionPool;
 
 use actix_web::{HttpResponse, Result as ActixResult};
 use serde::Serialize;
-use zksync_types::snapshots::{AllSnapshots, SnapshotFullMetadata};
 use zksync_types::L1BatchNumber;
 
 #[derive(Debug, Clone)]
