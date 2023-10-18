@@ -149,7 +149,7 @@ pub(crate) fn create_l2_transaction(fee_per_gas: u64, gas_per_pubdata: u32) -> L
         fee,
         U256::zero(),
         L2ChainId::from(271),
-        &H256::repeat_byte(0x11),
+        &H256::random(),
         None,
         PaymasterParams::default(),
     )

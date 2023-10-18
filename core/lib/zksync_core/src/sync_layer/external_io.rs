@@ -506,10 +506,9 @@ impl StateKeeperIO for ExternalIO {
         let store_latency = L1_BATCH_METRICS.start_storing_on_en();
         // We don't store the transactions in the database until they're executed to not overcomplicate the state
         // recovery on restart. So we have to store them here.
-        for tx in updates_manager.miniblock.executed_transactions.iter() {
+        for tx in &updates_manager.miniblock.executed_transactions {
             if let Ok(l1_tx) = L1Tx::try_from(tx.transaction.clone()) {
                 let l1_block_number = L1BlockNumber(l1_tx.common_data.eth_block as u32);
-
                 transaction
                     .transactions_dal()
                     .insert_transaction_l1(l1_tx, l1_block_number)

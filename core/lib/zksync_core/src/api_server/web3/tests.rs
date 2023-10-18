@@ -35,6 +35,37 @@ impl L1GasPriceProvider for MockL1GasPriceProvider {
     }
 }
 
+impl ApiServerHandles {
+    /// Waits until the server health check reports the ready state.
+    pub(crate) async fn wait_until_ready(&self) {
+        let started_at = Instant::now();
+        loop {
+            assert!(
+                started_at.elapsed() <= TEST_TIMEOUT,
+                "Timed out waiting for API server"
+            );
+            let health = self.health_check.check_health().await;
+            if health.status().is_ready() {
+                break;
+            }
+            tokio::time::sleep(POLL_INTERVAL).await;
+        }
+    }
+
+    pub(crate) async fn shutdown(self) {
+        let stop_server = async {
+            for task in self.tasks {
+                task.await
+                    .expect("Server panicked")
+                    .expect("Server terminated with error");
+            }
+        };
+        tokio::time::timeout(TEST_TIMEOUT, stop_server)
+            .await
+            .unwrap();
+    }
+}
+
 pub(crate) async fn spawn_http_server(
     network_config: &NetworkConfig,
     pool: ConnectionPool,
@@ -87,34 +118,12 @@ async fn http_server_can_start(pool: ConnectionPool) {
 
     let (stop_sender, stop_receiver) = watch::channel(false);
     let server_handles = spawn_http_server(&network_config, pool, stop_receiver).await;
-
-    // Wait until server health check reports the ready state.
-    let started_at = Instant::now();
-    loop {
-        assert!(
-            started_at.elapsed() <= TEST_TIMEOUT,
-            "Timed out waiting for API server"
-        );
-        let health = server_handles.health_check.check_health().await;
-        if health.status().is_ready() {
-            break;
-        }
-        tokio::time::sleep(POLL_INTERVAL).await;
-    }
+    server_handles.wait_until_ready().await;
 
     test_http_server_methods(server_handles.local_addr).await;
 
     stop_sender.send_replace(true);
-    let stop_server = async {
-        for task in server_handles.tasks {
-            task.await
-                .expect("Server panicked")
-                .expect("Server terminated with error");
-        }
-    };
-    tokio::time::timeout(TEST_TIMEOUT, stop_server)
-        .await
-        .unwrap();
+    server_handles.shutdown().await;
 }
 
 async fn test_http_server_methods(local_addr: SocketAddr) {

@@ -4,16 +4,17 @@ use async_trait::async_trait;
 use tokio::{sync::watch, task::JoinHandle};
 
 use std::{
-    collections::VecDeque,
+    collections::{HashMap, VecDeque},
     iter,
     time::{Duration, Instant},
 };
 
 use db_test_macro::db_test;
+use zksync_config::configs::chain::NetworkConfig;
 use zksync_contracts::{BaseSystemContractsHashes, SystemContractCode};
-use zksync_dal::ConnectionPool;
+use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_types::{
-    api, Address, L1BatchNumber, L2ChainId, MiniblockNumber, ProtocolVersionId, H256,
+    api, Address, L1BatchNumber, L2ChainId, MiniblockNumber, ProtocolVersionId, Transaction, H256,
 };
 
 use super::{
@@ -22,6 +23,7 @@ use super::{
     *,
 };
 use crate::{
+    api_server::web3::tests::spawn_http_server,
     genesis::{ensure_genesis_state, GenesisParams},
     state_keeper::{
         tests::{create_l1_batch_metadata, create_l2_transaction, TestBatchExecutorBuilder},
@@ -177,18 +179,20 @@ impl StateKeeperHandles {
     }
 }
 
+async fn ensure_genesis(storage: &mut StorageProcessor<'_>) {
+    if storage.blocks_dal().is_genesis_needed().await.unwrap() {
+        ensure_genesis_state(storage, L2ChainId::default(), &GenesisParams::mock())
+            .await
+            .unwrap();
+    }
+}
+
 /// `tx_hashes` are grouped by the L1 batch.
 async fn run_state_keeper(pool: ConnectionPool, tx_hashes: &[&[H256]]) -> StateKeeperHandles {
     assert!(!tx_hashes.is_empty());
     assert!(tx_hashes.iter().all(|tx_hashes| !tx_hashes.is_empty()));
 
-    let mut storage = pool.access_storage().await.unwrap();
-    if storage.blocks_dal().is_genesis_needed().await.unwrap() {
-        ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
-            .await
-            .unwrap();
-    }
-    drop(storage);
+    ensure_genesis(&mut pool.access_storage().await.unwrap()).await;
 
     let (actions_sender, actions) = ActionQueue::new();
     let sync_state = SyncState::new();
@@ -274,8 +278,7 @@ async fn external_io_basics(pool: ConnectionPool) {
     assert_eq!(tx_receipt.transaction_index, 0.into());
 }
 
-#[db_test]
-async fn external_io_with_multiple_miniblocks(pool: ConnectionPool) {
+async fn run_state_keeper_with_multiple_miniblocks(pool: ConnectionPool) -> Vec<H256> {
     let open_l1_batch = open_l1_batch(1, 1, 1);
     let txs = (0..5).map(|_| {
         let tx = create_l2_transaction(10, 100);
@@ -305,7 +308,7 @@ async fn external_io_with_multiple_miniblocks(pool: ConnectionPool) {
             .iter()
             .chain(&second_miniblock_actions),
     );
-    let state_keeper = run_state_keeper(pool.clone(), &[&tx_hashes]).await;
+    let state_keeper = run_state_keeper(pool, &[&tx_hashes]).await;
     state_keeper
         .actions_sender
         .push_actions(first_miniblock_actions)
@@ -318,20 +321,38 @@ async fn external_io_with_multiple_miniblocks(pool: ConnectionPool) {
     state_keeper
         .wait(|state| state.get_local_block() == MiniblockNumber(2))
         .await;
+    tx_hashes
+}
+
+#[db_test]
+async fn external_io_with_multiple_miniblocks(pool: ConnectionPool) {
+    let tx_hashes = run_state_keeper_with_multiple_miniblocks(pool.clone()).await;
+    assert_eq!(tx_hashes.len(), 8);
 
     // Check that both miniblocks are persisted.
-    let miniblock_number_to_tx_count = [(1, 5), (2, 3)];
-
+    let tx_hashes_by_miniblock = [(1, &tx_hashes[..5]), (2, &tx_hashes[5..])];
     let mut storage = pool.access_storage().await.unwrap();
-    for (number, expected_tx_count) in miniblock_number_to_tx_count {
+    for (number, expected_tx_hashes) in tx_hashes_by_miniblock {
         let miniblock = storage
             .blocks_dal()
             .get_miniblock_header(MiniblockNumber(number))
             .await
             .unwrap()
             .unwrap_or_else(|| panic!("Miniblock #{} is not persisted", number));
-        assert_eq!(miniblock.l2_tx_count, expected_tx_count);
+        assert_eq!(miniblock.l2_tx_count, expected_tx_hashes.len() as u16);
         assert_eq!(miniblock.timestamp, u64::from(number));
+
+        let sync_block = storage
+            .sync_dal()
+            .sync_block(MiniblockNumber(number), Address::repeat_byte(1), true)
+            .await
+            .unwrap()
+            .unwrap_or_else(|| panic!("Sync block #{} is not persisted", number));
+
+        let transactions = sync_block.transactions.unwrap();
+        assert_eq!(transactions.len(), expected_tx_hashes.len());
+        let tx_hashes: Vec<_> = transactions.iter().map(Transaction::hash).collect();
+        assert_eq!(tx_hashes, expected_tx_hashes);
     }
     drop(storage);
 
@@ -471,12 +492,10 @@ async fn external_io_with_multiple_l1_batches(pool: ConnectionPool) {
 #[db_test]
 async fn fetcher_basics(pool: ConnectionPool) {
     let mut storage = pool.access_storage().await.unwrap();
-    if storage.blocks_dal().is_genesis_needed().await.unwrap() {
-        ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
-            .await
-            .unwrap();
-    }
+    ensure_genesis(&mut storage).await;
     let fetcher_cursor = MainNodeFetcherCursor::new(&mut storage).await.unwrap();
+    assert_eq!(fetcher_cursor.l1_batch, L1BatchNumber(0));
+    assert_eq!(fetcher_cursor.miniblock, MiniblockNumber(1));
     drop(storage);
 
     let mut mock_client = MockMainNodeClient::default();
@@ -547,3 +566,87 @@ async fn fetcher_basics(pool: ConnectionPool) {
     stop_sender.send_replace(true);
     fetcher_task.await.unwrap().unwrap();
 }
+
+#[db_test]
+async fn fetcher_with_real_server(pool: ConnectionPool) {
+    // Fill in transactions grouped in multiple miniblocks in the storage.
+    let tx_hashes = run_state_keeper_with_multiple_miniblocks(pool.clone()).await;
+    let mut tx_hashes = VecDeque::from(tx_hashes);
+
+    // Start the API server.
+    let network_config = NetworkConfig::from_env().unwrap();
+    let (stop_sender, stop_receiver) = watch::channel(false);
+    let server_handles =
+        spawn_http_server(&network_config, pool.clone(), stop_receiver.clone()).await;
+    server_handles.wait_until_ready().await;
+    let server_addr = &server_handles.local_addr;
+
+    // Start the fetcher connected to the API server.
+    let sync_state = SyncState::default();
+    let (actions_sender, mut actions) = ActionQueue::new();
+    let client = <dyn MainNodeClient>::json_rpc(&format!("http://{server_addr}/")).unwrap();
+    let fetcher_cursor = MainNodeFetcherCursor {
+        miniblock: MiniblockNumber(1),
+        l1_batch: L1BatchNumber(0),
+    };
+    let fetcher = fetcher_cursor.into_fetcher(
+        Box::new(client),
+        actions_sender,
+        sync_state.clone(),
+        stop_receiver,
+    );
+    let fetcher_task = tokio::spawn(fetcher.run());
+
+    // Check generated actions.
+    let mut current_miniblock_number = MiniblockNumber(0);
+    let mut tx_count_in_miniblock = 0;
+    let miniblock_number_to_tx_count = HashMap::from([(1, 5), (2, 3)]);
+    let started_at = Instant::now();
+    loop {
+        assert!(
+            started_at.elapsed() <= TEST_TIMEOUT,
+            "Timed out waiting for fetcher actions"
+        );
+        let Some(action) = actions.pop_action() else {
+            tokio::time::sleep(POLL_INTERVAL).await;
+            continue;
+        };
+        match action {
+            SyncAction::OpenBatch {
+                number,
+                first_miniblock_info,
+                ..
+            } => {
+                assert_eq!(number, L1BatchNumber(1));
+                current_miniblock_number += 1; // First miniblock is implicitly opened
+                tx_count_in_miniblock = 0;
+                assert_eq!(first_miniblock_info.0, current_miniblock_number);
+            }
+            SyncAction::SealBatch { .. } => unreachable!("L1 batches are not sealed in test"),
+            SyncAction::Miniblock { number, .. } => {
+                current_miniblock_number += 1;
+                tx_count_in_miniblock = 0;
+                assert_eq!(number, current_miniblock_number);
+            }
+            SyncAction::Tx(tx) => {
+                assert_eq!(tx.hash(), tx_hashes.pop_front().unwrap());
+                tx_count_in_miniblock += 1;
+            }
+            SyncAction::SealMiniblock => {
+                assert_eq!(
+                    tx_count_in_miniblock,
+                    miniblock_number_to_tx_count[&current_miniblock_number]
+                );
+                if current_miniblock_number == MiniblockNumber(2) {
+                    break;
+                }
+            }
+        }
+    }
+
+    stop_sender.send_replace(true);
+    fetcher_task.await.unwrap().unwrap();
+    server_handles.shutdown().await;
+}
+
+// FIXME: what hangs up on panic?
