@@ -178,17 +178,13 @@ pub struct RocksDB<CF> {
 }
 
 impl<CF: NamedColumnFamily> RocksDB<CF> {
-    pub fn new(path: &Path, tune_options: bool) -> Self {
-        Self::with_cache(path, tune_options, None)
+    pub fn new(path: &Path) -> Self {
+        Self::with_cache(path, None)
     }
 
-    pub fn with_cache(
-        path: &Path,
-        tune_options: bool,
-        block_cache_capacity: Option<usize>,
-    ) -> Self {
+    pub fn with_cache(path: &Path, block_cache_capacity: Option<usize>) -> Self {
         let caches = RocksDBCaches::new(block_cache_capacity);
-        let options = Self::rocksdb_options(tune_options, None);
+        let options = Self::rocksdb_options(None);
         let existing_cfs = DB::list_cf(&options, path).unwrap_or_else(|err| {
             tracing::warn!(
                 "Failed getting column families for RocksDB `{}` at `{}`, assuming CFs are empty; {err}",
@@ -223,13 +219,11 @@ impl<CF: NamedColumnFamily> RocksDB<CF> {
         let all_cf_names = cf_names.iter().copied().chain(obsolete_cfs);
         let cfs = all_cf_names.map(|cf_name| {
             let mut block_based_options = BlockBasedOptions::default();
-            if tune_options {
-                block_based_options.set_bloom_filter(10.0, false);
-            }
+            block_based_options.set_bloom_filter(10.0, false);
             if let Some(cache) = &caches.shared {
                 block_based_options.set_block_cache(cache);
             }
-            let cf_options = Self::rocksdb_options(tune_options, Some(block_based_options));
+            let cf_options = Self::rocksdb_options(Some(block_based_options));
             ColumnFamilyDescriptor::new(cf_name, cf_options)
         });
 
@@ -259,22 +253,19 @@ impl<CF: NamedColumnFamily> RocksDB<CF> {
         self
     }
 
-    fn rocksdb_options(
-        tune_options: bool,
-        block_based_options: Option<BlockBasedOptions>,
-    ) -> Options {
+    fn rocksdb_options(block_based_options: Option<BlockBasedOptions>) -> Options {
         let mut options = Options::default();
         options.create_missing_column_families(true);
         options.create_if_missing(true);
-        if tune_options {
-            let num_cpus = num_cpus::get() as i32;
-            options.increase_parallelism(num_cpus);
-            // Settings below are taken as per PingCAP recommendations:
-            // https://www.pingcap.com/blog/how-to-troubleshoot-rocksdb-write-stalls-in-tikv/
-            options.set_max_write_buffer_number(5);
-            let max_background_jobs = (num_cpus - 1).clamp(1, 8);
-            options.set_max_background_jobs(max_background_jobs);
-        }
+
+        let num_cpus = num_cpus::get() as i32;
+        options.increase_parallelism(num_cpus);
+        // Settings below are taken as per PingCAP recommendations:
+        // https://www.pingcap.com/blog/how-to-troubleshoot-rocksdb-write-stalls-in-tikv/
+        options.set_max_write_buffer_number(5);
+        let max_background_jobs = (num_cpus - 1).clamp(1, 8);
+        options.set_max_background_jobs(max_background_jobs);
+
         if let Some(block_based_options) = block_based_options {
             options.set_block_based_table_factory(&block_based_options);
         }
@@ -502,13 +493,13 @@ mod tests {
     #[test]
     fn changing_column_families() {
         let temp_dir = TempDir::new().unwrap();
-        let db = RocksDB::<OldColumnFamilies>::new(temp_dir.path(), true).with_sync_writes();
+        let db = RocksDB::<OldColumnFamilies>::new(temp_dir.path()).with_sync_writes();
         let mut batch = db.new_write_batch();
         batch.put_cf(OldColumnFamilies::Default, b"test", b"value");
         db.write(batch).unwrap();
         drop(db);
 
-        let db = RocksDB::<NewColumnFamilies>::new(temp_dir.path(), true);
+        let db = RocksDB::<NewColumnFamilies>::new(temp_dir.path());
         let value = db.get_cf(NewColumnFamilies::Default, b"test").unwrap();
         assert_eq!(value.unwrap(), b"value");
     }
@@ -528,13 +519,13 @@ mod tests {
     #[test]
     fn default_column_family_does_not_need_to_be_explicitly_opened() {
         let temp_dir = TempDir::new().unwrap();
-        let db = RocksDB::<OldColumnFamilies>::new(temp_dir.path(), true).with_sync_writes();
+        let db = RocksDB::<OldColumnFamilies>::new(temp_dir.path()).with_sync_writes();
         let mut batch = db.new_write_batch();
         batch.put_cf(OldColumnFamilies::Junk, b"test", b"value");
         db.write(batch).unwrap();
         drop(db);
 
-        let db = RocksDB::<JunkColumnFamily>::new(temp_dir.path(), true);
+        let db = RocksDB::<JunkColumnFamily>::new(temp_dir.path());
         let value = db.get_cf(JunkColumnFamily, b"test").unwrap();
         assert_eq!(value.unwrap(), b"value");
     }
@@ -542,7 +533,7 @@ mod tests {
     #[test]
     fn write_batch_can_be_restored_from_bytes() {
         let temp_dir = TempDir::new().unwrap();
-        let db = RocksDB::<NewColumnFamilies>::new(temp_dir.path(), true).with_sync_writes();
+        let db = RocksDB::<NewColumnFamilies>::new(temp_dir.path()).with_sync_writes();
         let mut batch = db.new_write_batch();
         batch.put_cf(NewColumnFamilies::Default, b"test", b"value");
         batch.put_cf(NewColumnFamilies::Default, b"test2", b"value2");

@@ -86,7 +86,7 @@ impl AsyncTree {
     }
 
     fn create_db(path: &Path, block_cache_capacity: usize) -> RocksDB<MerkleTreeColumnFamily> {
-        let db = RocksDB::with_cache(path, true, Some(block_cache_capacity));
+        let db = RocksDB::with_cache(path, Some(block_cache_capacity));
         if cfg!(test) {
             // We need sync writes for the unit tests to execute reliably. With the default config,
             // some writes to RocksDB may occur, but not be visible to the test code.
