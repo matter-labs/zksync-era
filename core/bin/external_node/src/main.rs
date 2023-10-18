@@ -233,7 +233,7 @@ async fn init_tasks(
         (tx_sender, vm_barrier, cache_update_handle)
     };
 
-    let (http_api_handle, http_api_healthcheck) =
+    let http_server_handles =
         ApiBuilder::jsonrpc_backend(config.clone().into(), connection_pool.clone())
             .http(config.required.http_port)
             .with_filter_limit(config.optional.filters_limit)
@@ -244,9 +244,10 @@ async fn init_tasks(
             .with_sync_state(sync_state.clone())
             .enable_api_namespaces(config.optional.api_namespaces())
             .build(stop_receiver.clone())
-            .await;
+            .await
+            .context("Failed initializing HTTP JSON-RPC server")?;
 
-    let (mut task_handles, ws_api_healthcheck) =
+    let ws_server_handles =
         ApiBuilder::jsonrpc_backend(config.clone().into(), connection_pool.clone())
             .ws(config.required.ws_port)
             .with_filter_limit(config.optional.filters_limit)
@@ -259,21 +260,24 @@ async fn init_tasks(
             .with_sync_state(sync_state)
             .enable_api_namespaces(config.optional.api_namespaces())
             .build(stop_receiver.clone())
-            .await;
+            .await
+            .context("Failed initializing WS JSON-RPC server")?;
 
-    healthchecks.push(Box::new(ws_api_healthcheck));
-    healthchecks.push(Box::new(http_api_healthcheck));
+    healthchecks.push(Box::new(ws_server_handles.health_check));
+    healthchecks.push(Box::new(http_server_handles.health_check));
     healthchecks.push(Box::new(ConnectionPoolHealthCheck::new(connection_pool)));
     let healthcheck_handle = HealthCheckHandle::spawn_server(
         ([0, 0, 0, 0], config.required.healthcheck_port).into(),
         healthchecks,
     );
+
+    let mut task_handles = vec![];
     if let Some(port) = config.optional.prometheus_port {
         let prometheus_task = PrometheusExporterConfig::pull(port).run(stop_receiver.clone());
         task_handles.push(tokio::spawn(prometheus_task));
     }
-
-    task_handles.extend(http_api_handle);
+    task_handles.extend(http_server_handles.tasks);
+    task_handles.extend(ws_server_handles.tasks);
     task_handles.extend(cache_update_handle);
     task_handles.extend([
         sk_handle,
