@@ -17,7 +17,7 @@ use zksync_types::{
 };
 
 use super::{
-    fetcher::MainNodeFetcher,
+    fetcher::MainNodeFetcherCursor,
     sync_action::{ActionQueueSender, SyncAction},
     *,
 };
@@ -476,6 +476,7 @@ async fn fetcher_basics(pool: ConnectionPool) {
             .await
             .unwrap();
     }
+    let fetcher_cursor = MainNodeFetcherCursor::new(&mut storage).await.unwrap();
     drop(storage);
 
     let mut mock_client = MockMainNodeClient::default();
@@ -487,14 +488,12 @@ async fn fetcher_basics(pool: ConnectionPool) {
     let (actions_sender, mut actions) = ActionQueue::new();
     let (stop_sender, stop_receiver) = watch::channel(false);
     let sync_state = SyncState::default();
-    let fetcher = MainNodeFetcher::new(
-        pool,
+    let fetcher = fetcher_cursor.into_fetcher(
         Box::new(mock_client),
         actions_sender,
         sync_state.clone(),
         stop_receiver,
-    )
-    .await;
+    );
     let fetcher_task = tokio::spawn(fetcher.run());
 
     // Check that sync_state is updated.
