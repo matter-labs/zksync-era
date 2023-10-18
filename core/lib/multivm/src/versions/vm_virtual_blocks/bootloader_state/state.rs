@@ -1,16 +1,17 @@
-use crate::vm_virtual_blocks::bootloader_state::l2_block::BootloaderL2Block;
-use crate::vm_virtual_blocks::bootloader_state::snapshot::BootloaderStateSnapshot;
-use crate::vm_virtual_blocks::bootloader_state::utils::{apply_l2_block, apply_tx_to_memory};
+use crate::vm_virtual_blocks::bootloader_state::{
+    l2_block::BootloaderL2Block,
+    snapshot::BootloaderStateSnapshot,
+    utils::{apply_l2_block, apply_tx_to_memory},
+};
 use std::cmp::Ordering;
 use zksync_types::{L2ChainId, U256};
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
-use crate::interface::BootloaderMemory;
-use crate::interface::L2BlockEnv;
-use crate::interface::TxExecutionMode;
-use crate::vm_virtual_blocks::constants::TX_DESCRIPTION_OFFSET;
-use crate::vm_virtual_blocks::types::internals::TransactionData;
-use crate::vm_virtual_blocks::utils::l2_blocks::assert_next_block;
+use crate::interface::{BootloaderMemory, L2BlockEnv, TxExecutionMode};
+use crate::vm_virtual_blocks::{
+    constants::TX_DESCRIPTION_OFFSET, types::internals::TransactionData,
+    utils::l2_blocks::assert_next_block,
+};
 
 use super::tx::BootloaderTx;
 /// Intermediate bootloader-related VM state.

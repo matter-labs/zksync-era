@@ -8,7 +8,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use multivm::vm_latest::{
+use multivm::interface::{
     constants::BLOCK_GAS_LIMIT, ExecutionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv,
     SystemEnv, TxExecutionMode, VmExecutionResultAndLogs,
 };
@@ -263,7 +263,7 @@ pub(crate) fn successful_exec_with_metrics(
 /// Creates a `TxExecutionResult` object denoting a tx that was rejected.
 pub(crate) fn rejected_exec() -> TxExecutionResult {
     TxExecutionResult::RejectedByVm {
-        reason: multivm::vm_latest::Halt::InnerTxError,
+        reason: multivm::interface::Halt::InnerTxError,
     }
 }
 

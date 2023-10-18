@@ -24,6 +24,7 @@ pub struct VmMemoryMetrics {
     pub storage_inner: usize,
     pub storage_history: usize,
 }
+
 impl VmMemoryMetrics {
     pub fn full_size(&self) -> usize {
         [

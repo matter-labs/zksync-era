@@ -42,8 +42,7 @@ use crate::interface::Halt;
 use types::NewTrustedValidationItems;
 use types::ValidationTracerMode;
 
-use crate::vm_latest::types::internals::ZkSyncVmState;
-use crate::vm_latest::BootloaderState;
+use crate::vm_latest::{BootloaderState, ZkSyncVmState};
 
 /// Tracer that is used to ensure that the validation adheres to all the rules
 /// to prevent DDoS attacks on the server.

@@ -1,8 +1,8 @@
+use multivm::interface::ExecutionResult;
 use std::collections::HashSet;
 
 use multivm::vm_latest::{
-    ExecutionResult, HistoryDisabled, StorageInvocations, ValidationError, ValidationTracer,
-    ValidationTracerParams,
+    HistoryDisabled, StorageInvocations, ValidationError, ValidationTracer, ValidationTracerParams,
 };
 use multivm::MultivmTracer;
 use zksync_dal::{ConnectionPool, StorageProcessor};

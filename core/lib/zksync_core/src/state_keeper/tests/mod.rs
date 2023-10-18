@@ -8,7 +8,7 @@ use std::{
     time::Instant,
 };
 
-use multivm::vm_latest::{
+use multivm::interface::{
     constants::BLOCK_GAS_LIMIT, CurrentExecutionState, ExecutionResult, FinishedL1Batch,
     L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionResultAndLogs,
     VmExecutionStatistics,

@@ -8,9 +8,8 @@ use std::{
     time::{Duration, Instant},
 };
 
-use multivm::vm_latest::{
-    utils::fee::derive_base_fee_and_gas_per_pubdata, FinishedL1Batch, L1BatchEnv, SystemEnv,
-};
+use multivm::interface::{FinishedL1Batch, L1BatchEnv, SystemEnv};
+use multivm::vm_latest::utils::fee::derive_base_fee_and_gas_per_pubdata;
 
 use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_dal::ConnectionPool;

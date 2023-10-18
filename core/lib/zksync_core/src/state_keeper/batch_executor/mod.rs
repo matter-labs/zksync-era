@@ -7,10 +7,11 @@ use tokio::{
 
 use std::{fmt, sync::Arc};
 
-use multivm::vm_latest::{
-    CallTracer, ExecutionResult, FinishedL1Batch, Halt, HistoryEnabled, L1BatchEnv, L2BlockEnv,
-    SystemEnv, VmExecutionResultAndLogs,
+use multivm::interface::{
+    ExecutionResult, FinishedL1Batch, Halt, L1BatchEnv, L2BlockEnv, SystemEnv,
+    VmExecutionResultAndLogs,
 };
+use multivm::vm_latest::{CallTracer, HistoryEnabled};
 use multivm::{MultivmTracer, VmInstance};
 use zksync_dal::ConnectionPool;
 use zksync_state::{ReadStorage, RocksdbStorage, StorageView};

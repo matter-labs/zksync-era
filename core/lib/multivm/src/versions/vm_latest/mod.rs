@@ -15,14 +15,15 @@ pub use tracers::{
 pub use utils::transaction_encoding::TransactionVmExt;
 
 pub use bootloader_state::BootloaderState;
+pub use types::internals::ZkSyncVmState;
 
 pub use vm::Vm;
 
 mod bootloader_state;
 mod implementation;
 mod old_vm;
-pub(crate) mod oracles;
-pub(crate) mod tracers;
+mod oracles;
+mod tracers;
 mod types;
 mod vm;
 

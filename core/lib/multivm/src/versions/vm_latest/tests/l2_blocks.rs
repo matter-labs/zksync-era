@@ -10,8 +10,7 @@ use crate::vm_latest::constants::{
 use crate::vm_latest::tests::tester::default_l1_batch;
 use crate::vm_latest::tests::tester::VmTesterBuilder;
 use crate::vm_latest::utils::l2_blocks::get_l2_block_hash_key;
-use crate::vm_latest::{HistoryEnabled, Vm};
-use crate::HistoryMode;
+use crate::vm_latest::{HistoryEnabled, HistoryMode, Vm};
 use zk_evm_1_3_3::aux_structures::Timestamp;
 use zksync_state::{ReadStorage, WriteStorage};
 use zksync_system_constants::{

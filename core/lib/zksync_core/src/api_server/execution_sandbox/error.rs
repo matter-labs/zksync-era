@@ -1,6 +1,6 @@
 use thiserror::Error;
 
-use multivm::vm_latest::{Halt, TxRevertReason};
+use multivm::interface::{Halt, TxRevertReason};
 
 #[derive(Debug, Error)]
 pub(crate) enum SandboxExecutionError {

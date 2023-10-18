@@ -6,9 +6,10 @@ use zksync_types::{L2ChainId, U256};
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
 use crate::interface::{BootloaderMemory, L2BlockEnv, TxExecutionMode};
-use crate::vm_latest::constants::TX_DESCRIPTION_OFFSET;
-use crate::vm_latest::types::internals::TransactionData;
-use crate::vm_latest::utils::l2_blocks::assert_next_block;
+use crate::vm_latest::{
+    constants::TX_DESCRIPTION_OFFSET, types::internals::TransactionData,
+    utils::l2_blocks::assert_next_block,
+};
 
 use super::tx::BootloaderTx;
 /// Intermediate bootloader-related VM state.

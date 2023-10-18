@@ -6,7 +6,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use multivm::vm_latest::{FinishedL1Batch, L1BatchEnv, SystemEnv};
+use multivm::interface::{FinishedL1Batch, L1BatchEnv, SystemEnv};
 
 use zksync_dal::ConnectionPool;
 use zksync_types::{
