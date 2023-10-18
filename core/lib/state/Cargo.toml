@@ -26,7 +26,6 @@ metrics = "0.21"
 
 [dev-dependencies]
 db_test_macro = { path = "../db_test_macro" }
-itertools = "0.10.3"
 
 rand = "0.8.5"
 tempfile = "3.0.2"
