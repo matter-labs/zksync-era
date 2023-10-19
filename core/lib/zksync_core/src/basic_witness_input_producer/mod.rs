@@ -139,7 +139,7 @@ impl JobProcessor for BasicWitnessInputProducer {
         let validation_computational_gas_limit = self.validation_computational_gas_limit;
         let l2_chain_id = self.l2_chain_id;
         let connection_pool = self.connection_pool.clone();
-        let result = tokio::task::spawn_blocking(move || {
+        tokio::task::spawn_blocking(move || {
             let rt_handle = tokio::runtime::Handle::current();
             Self::process_job_impl(
                 rt_handle,
@@ -149,8 +149,7 @@ impl JobProcessor for BasicWitnessInputProducer {
                 validation_computational_gas_limit,
                 l2_chain_id,
             )
-        });
-        result
+        })
     }
 
     async fn save_result(
