@@ -22,6 +22,9 @@ pub struct TransactionExecutionMetrics {
     pub total_log_queries: usize,
     pub cycles_used: u32,
     pub computational_gas_used: u32,
+    // Field holding the total number of bytes used in storage writes. Unused for now
+    // but required for new pubdata compression
+    pub total_updated_values_size: usize,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]

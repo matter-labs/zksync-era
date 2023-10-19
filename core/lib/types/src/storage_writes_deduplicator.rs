@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use zksync_utils::u256_to_h256;
 
 use crate::tx::tx_execution_info::DeduplicatedWritesMetrics;
+use crate::writes::compression::compress_with_best_strategy;
 use crate::{AccountTreeId, StorageKey, StorageLogQuery, StorageLogQueryType, U256};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -11,6 +12,8 @@ pub struct ModifiedSlot {
     pub value: U256,
     /// Index (in L1 batch) of the transaction that lastly modified the slot.
     pub tx_index: u16,
+    /// Size of pubdata update in bytes
+    pub size: usize,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -107,12 +110,15 @@ impl StorageWritesDeduplicator {
                 &mut self.metrics.repeated_storage_writes
             };
 
+            let total_size = &mut self.metrics.total_updated_values_size;
+
             match (was_key_modified, modified_value) {
                 (true, None) => {
                     let value = self.modified_key_values.remove(&key).unwrap_or_else(|| {
                         panic!("tried removing key: {:?} before insertion", key)
                     });
                     *field_to_change -= 1;
+                    *total_size -= value.size;
                     updates.push(UpdateItem {
                         key,
                         update_type: UpdateType::Remove(value),
@@ -120,6 +126,7 @@ impl StorageWritesDeduplicator {
                     });
                 }
                 (true, Some(new_value)) => {
+                    let value_size = compress_with_best_strategy(initial_value, new_value).len();
                     let old_value = self
                         .modified_key_values
                         .insert(
@@ -127,6 +134,7 @@ impl StorageWritesDeduplicator {
                             ModifiedSlot {
                                 value: new_value,
                                 tx_index: log.log_query.tx_number_in_block,
+                                size: value_size,
                             },
                         )
                         .unwrap_or_else(|| {
@@ -136,17 +144,22 @@ impl StorageWritesDeduplicator {
                         key,
                         update_type: UpdateType::Update(old_value),
                         is_write_initial,
-                    })
+                    });
+                    *total_size -= old_value.size;
+                    *total_size += value_size;
                 }
                 (false, Some(new_value)) => {
+                    let value_size = compress_with_best_strategy(initial_value, new_value).len();
                     self.modified_key_values.insert(
                         key,
                         ModifiedSlot {
                             value: new_value,
                             tx_index: log.log_query.tx_number_in_block,
+                            size: value_size,
                         },
                     );
                     *field_to_change += 1;
+                    *total_size += value_size;
                     updates.push(UpdateItem {
                         key,
                         update_type: UpdateType::Insert,
@@ -167,17 +180,33 @@ impl StorageWritesDeduplicator {
                 &mut self.metrics.repeated_storage_writes
             };
 
+            let total_size = &mut self.metrics.total_updated_values_size;
+
             match item.update_type {
                 UpdateType::Insert => {
-                    self.modified_key_values.remove(&item.key);
+                    let value = self
+                        .modified_key_values
+                        .remove(&item.key)
+                        .unwrap_or_else(|| {
+                            panic!("tried removing key: {:?} before insertion", item.key)
+                        });
                     *field_to_change -= 1;
+                    *total_size -= value.size;
                 }
                 UpdateType::Update(value) => {
-                    self.modified_key_values.insert(item.key, value);
+                    let old_value = self
+                        .modified_key_values
+                        .insert(item.key, value)
+                        .unwrap_or_else(|| {
+                            panic!("tried removing key: {:?} before insertion", item.key)
+                        });
+                    *total_size += value.size;
+                    *total_size -= old_value.size;
                 }
                 UpdateType::Remove(value) => {
                     self.modified_key_values.insert(item.key, value);
                     *field_to_change += 1;
+                    *total_size += value.size;
                 }
             }
         }
@@ -247,6 +276,7 @@ mod tests {
                 DeduplicatedWritesMetrics {
                     initial_storage_writes: 1,
                     repeated_storage_writes: 0,
+                    total_updated_values_size: 2,
                 },
                 "single initial write".into(),
             ),
@@ -258,6 +288,7 @@ mod tests {
                 DeduplicatedWritesMetrics {
                     initial_storage_writes: 1,
                     repeated_storage_writes: 1,
+                    total_updated_values_size: 4,
                 },
                 "initial and repeated write".into(),
             ),
@@ -269,6 +300,7 @@ mod tests {
                 DeduplicatedWritesMetrics {
                     initial_storage_writes: 0,
                     repeated_storage_writes: 0,
+                    total_updated_values_size: 0,
                 },
                 "single rollback".into(),
             ),
@@ -283,6 +315,7 @@ mod tests {
                 DeduplicatedWritesMetrics {
                     initial_storage_writes: 0,
                     repeated_storage_writes: 0,
+                    total_updated_values_size: 0,
                 },
                 "idle write".into(),
             ),
@@ -295,6 +328,7 @@ mod tests {
                 DeduplicatedWritesMetrics {
                     initial_storage_writes: 0,
                     repeated_storage_writes: 0,
+                    total_updated_values_size: 0,
                 },
                 "idle write cycle".into(),
             ),
@@ -311,6 +345,7 @@ mod tests {
                 DeduplicatedWritesMetrics {
                     initial_storage_writes: 2,
                     repeated_storage_writes: 1,
+                    total_updated_values_size: 6,
                 },
                 "complex".into(),
             ),
@@ -357,6 +392,7 @@ mod tests {
                 ModifiedSlot {
                     value: 8u32.into(),
                     tx_index: 0,
+                    size: 2,
                 },
             ),
             (
@@ -364,6 +400,7 @@ mod tests {
                 ModifiedSlot {
                     value: 6u32.into(),
                     tx_index: 0,
+                    size: 2,
                 },
             ),
             (
@@ -371,6 +408,7 @@ mod tests {
                 ModifiedSlot {
                     value: 9u32.into(),
                     tx_index: 0,
+                    size: 2,
                 },
             ),
             (
@@ -378,6 +416,7 @@ mod tests {
                 ModifiedSlot {
                     value: 11u32.into(),
                     tx_index: 0,
+                    size: 2,
                 },
             ),
             (
@@ -385,6 +424,7 @@ mod tests {
                 ModifiedSlot {
                     value: 2u32.into(),
                     tx_index: 0,
+                    size: 2,
                 },
             ),
             (
@@ -392,6 +432,7 @@ mod tests {
                 ModifiedSlot {
                     value: 7u32.into(),
                     tx_index: 0,
+                    size: 2,
                 },
             ),
         ]);
@@ -416,6 +457,7 @@ mod tests {
                 ModifiedSlot {
                     value: 6u32.into(),
                     tx_index: 0,
+                    size: 2,
                 },
             ),
             (
@@ -423,6 +465,7 @@ mod tests {
                 ModifiedSlot {
                     value: 11u32.into(),
                     tx_index: 0,
+                    size: 2,
                 },
             ),
             (
@@ -430,6 +473,7 @@ mod tests {
                 ModifiedSlot {
                     value: 7u32.into(),
                     tx_index: 0,
+                    size: 2,
                 },
             ),
         ]);
@@ -454,6 +498,7 @@ mod tests {
                 ModifiedSlot {
                     value: 3u32.into(),
                     tx_index: 0,
+                    size: 2,
                 },
             ),
             (
@@ -461,6 +506,7 @@ mod tests {
                 ModifiedSlot {
                     value: 4u32.into(),
                     tx_index: 0,
+                    size: 2,
                 },
             ),
             (
@@ -468,6 +514,7 @@ mod tests {
                 ModifiedSlot {
                     value: 5u32.into(),
                     tx_index: 0,
+                    size: 2,
                 },
             ),
         ]);
@@ -488,6 +535,7 @@ mod tests {
             ModifiedSlot {
                 value: 2u32.into(),
                 tx_index: 0,
+                size: 2,
             },
         )]);
         let mut deduplicator = StorageWritesDeduplicator::new();

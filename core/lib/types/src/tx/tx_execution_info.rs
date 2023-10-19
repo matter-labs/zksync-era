@@ -35,6 +35,7 @@ impl TxExecutionStatus {
 pub struct DeduplicatedWritesMetrics {
     pub initial_storage_writes: usize,
     pub repeated_storage_writes: usize,
+    pub total_updated_values_size: usize,
 }
 
 impl DeduplicatedWritesMetrics {
@@ -42,6 +43,7 @@ impl DeduplicatedWritesMetrics {
         Self {
             initial_storage_writes: tx_metrics.initial_storage_writes,
             repeated_storage_writes: tx_metrics.repeated_storage_writes,
+            total_updated_values_size: tx_metrics.total_updated_values_size,
         }
     }
 
