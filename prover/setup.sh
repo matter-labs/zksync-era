@@ -6,11 +6,13 @@ if [[ -z "${ZKSYNC_HOME}" ]]; then
   exit 1
 fi
 
-sed -i '' 's/^ETH_SENDER_SENDER_PROOF_SENDING_MODE.*$/ETH_SENDER_SENDER_PROOF_SENDING_MODE=OnlyRealProofs/' ../etc/env/dev.env
-sed -i '' 's/^ETH_SENDER_SENDER_PROOF_LOADING_MODE.*$/ETH_SENDER_SENDER_PROOF_LOADING_MODE=FriProofFromGcs/' ../etc/env/dev.env
-sed -i '' 's/^FRI_PROVER_SETUP_DATA_PATH.*$/FRI_PROVER_SETUP_DATA_PATH=vk_setup_data_generator_server_fri\/data\//' ../etc/env/dev.env
-sed -i '' 's/^FRI_PROOF_COMPRESSOR_UNIVERSAL_SETUP_PATH.*$/FRI_PROOF_COMPRESSOR_UNIVERSAL_SETUP_PATH=..\/keys\/setup\/setup_2^26.key/' ../etc/env/dev.env
-sed -i '' 's/^FRI_PROOF_COMPRESSOR_PROMETHEUS_PUSH_INTERVAL_MS.*$/FRI_PROOF_COMPRESSOR_PROMETHEUS_PUSH_INTERVAL_MS=100000000/' ../etc/env/dev.env
+sed -i '' 's/^proof_sending_mode=.*$/proof_sending_mode="OnlyRealProofs"/' ../etc/env/base/eth_sender.toml
+sed -i '' 's/^proof_loading_mode=.*$/proof_loading_mode="FriProofFromGcs"/' ../etc/env/base/eth_sender.toml
+sed -i '' 's/^setup_data_path=.*$/setup_data_path="vk_setup_data_generator_server_fri\/data\/"/' ../etc/env/base/fri_prover.toml
+sed -i '' 's/^universal_setup_path=.*$/universal_setup_path="..\/keys\/setup\/setup_2^26.key"/' ../etc/env/base/fri_proof_compressor.toml
+sed -i '' 's/^prometheus_push_interval_ms=.*$/prometheus_push_interval_ms=100000000/' ../etc/env/base/fri_proof_compressor.toml
+
+zk config compile dev
 
 for i in {1..13}
 do
