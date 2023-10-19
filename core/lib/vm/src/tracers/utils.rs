@@ -1,4 +1,4 @@
-use zk_evm::aux_structures::MemoryPage;
+use zk_evm::aux_structures::{MemoryPage, MemoryQuery};
 use zk_evm::zkevm_opcode_defs::{FarCallABI, FarCallForwardPageType};
 use zk_evm::{
     tracing::{BeforeExecutionData, VmLocalStateData},
@@ -38,6 +38,37 @@ pub(crate) enum VmHook {
 }
 
 impl VmHook {
+    fn hook_from_value(hook_id: u32) -> Self {
+        match hook_id {
+            0 => Self::AccountValidationEntered,
+            1 => Self::PaymasterValidationEntered,
+            2 => Self::NoValidationEntered,
+            3 => Self::ValidationStepEndeded,
+            4 => Self::TxHasEnded,
+            5 => Self::DebugLog,
+            6 => Self::DebugReturnData,
+            7 => Self::NearCallCatch,
+            8 => Self::AskOperatorForRefund,
+            9 => Self::NotifyAboutRefund,
+            10 => Self::ExecutionResult,
+            11 => Self::FinalBatchInfo,
+            _ => panic!("Unkown hook"),
+        }
+    }
+
+    pub(crate) fn from_memory_query(query: MemoryQuery) -> Self {
+        if !query.rw_flag
+            || query.location.page.0 != BOOTLOADER_HEAP_PAGE
+            || query.location.index.0 != VM_HOOK_POSITION
+        {
+            return Self::NoHook;
+        }
+
+        let value = query.value;
+
+        Self::hook_from_value(value.as_u32())
+    }
+
     pub(crate) fn from_opcode_memory(
         state: &VmLocalStateData<'_>,
         data: &BeforeExecutionData,
@@ -60,21 +91,7 @@ impl VmHook {
             return Self::NoHook;
         }
 
-        match value.as_u32() {
-            0 => Self::AccountValidationEntered,
-            1 => Self::PaymasterValidationEntered,
-            2 => Self::NoValidationEntered,
-            3 => Self::ValidationStepEndeded,
-            4 => Self::TxHasEnded,
-            5 => Self::DebugLog,
-            6 => Self::DebugReturnData,
-            7 => Self::NearCallCatch,
-            8 => Self::AskOperatorForRefund,
-            9 => Self::NotifyAboutRefund,
-            10 => Self::ExecutionResult,
-            11 => Self::FinalBatchInfo,
-            _ => panic!("Unkown hook"),
-        }
+        Self::hook_from_value(value.as_u32())
     }
 }
 

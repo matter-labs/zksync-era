@@ -1,7 +1,9 @@
+use std::cell::RefCell;
 use std::collections::hash_map::DefaultHasher;
 use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
 
+use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -514,11 +516,13 @@ pub async fn generate_witness(
             input.previous_block_hash.0,
         );
 
+        let communicator = Rc::new(RefCell::new(false));
+
         let storage_view = StorageView::new(storage);
         let storage_view = storage_view.to_rc_ptr();
         let storage_oracle: StorageOracle<StorageView<Box<dyn ReadStorage>>, HistoryDisabled> =
-            StorageOracle::new(storage_view);
-        let memory: SimpleMemory<HistoryDisabled> = SimpleMemory::default();
+            StorageOracle::new(storage_view, Some(communicator.clone()));
+        let memory: SimpleMemory<HistoryDisabled> = SimpleMemory::new(Some(communicator));
         let mut hasher = DefaultHasher::new();
         GEOMETRY_CONFIG.hash(&mut hasher);
         tracing::info!(

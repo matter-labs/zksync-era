@@ -1,4 +1,6 @@
+use std::cell::RefCell;
 use std::collections::HashMap;
+use std::rc::Rc;
 
 use crate::old_vm::history_recorder::{
     AppDataFrameManagerWithHistory, HashMapHistoryEvent, HistoryEnabled, HistoryMode,
@@ -52,10 +54,14 @@ pub struct StorageOracle<S: WriteStorage, H: HistoryMode> {
     // While formally it does not have to be rollbackable, we still do it to avoid memory bloat
     // for unused slots.
     pub(crate) initial_values: HistoryRecorder<HashMap<StorageKey, U256>, H>,
+
+    pub(crate) should_save_paid_changes: Option<Rc<RefCell<bool>>>,
 }
 
 impl<S: WriteStorage> OracleWithHistory for StorageOracle<S, HistoryEnabled> {
     fn rollback_to_timestamp(&mut self, timestamp: Timestamp) {
+        assert!(self.should_save_paid_changes.is_none(), "Using rollback_to_timestamp in a context where paid changes can be rolled back is not supported");
+
         self.storage.rollback_to_timestamp(timestamp);
         self.frames_stack.rollback_to_timestamp(timestamp);
         self.pre_paid_changes.rollback_to_timestamp(timestamp);
@@ -65,13 +71,14 @@ impl<S: WriteStorage> OracleWithHistory for StorageOracle<S, HistoryEnabled> {
 }
 
 impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
-    pub fn new(storage: StoragePtr<S>) -> Self {
+    pub fn new(storage: StoragePtr<S>, mem_oracle_communicator: Option<Rc<RefCell<bool>>>) -> Self {
         Self {
             storage: HistoryRecorder::from_inner(StorageWrapper::new(storage)),
             frames_stack: Default::default(),
             pre_paid_changes: Default::default(),
             paid_changes: Default::default(),
             initial_values: Default::default(),
+            should_save_paid_changes: mem_oracle_communicator,
         }
     }
 
@@ -285,6 +292,20 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
             * std::mem::size_of::<<HashMap<StorageKey, u32> as WithHistory>::HistoryRecord>();
         storage_size + frames_stack_size + paid_changes_size
     }
+
+    fn save_paid_changes_if_needed(&mut self) {
+        let Some(should_save_paid_changes) = self.should_save_paid_changes.as_ref() else {
+            return;
+        };
+
+        if *should_save_paid_changes.borrow() {
+            *should_save_paid_changes.borrow_mut() = false;
+            // We expect that we can only get into this clause in an environment where the paid changes
+            // can never be rolled back (i.e. witness generation / batch execution without refunds).
+            // That's why providing timestamp 0 is fine here.
+            self.save_paid_changes(Timestamp(0));
+        }
+    }
 }
 
 impl<S: WriteStorage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
@@ -295,6 +316,7 @@ impl<S: WriteStorage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
         _monotonic_cycle_counter: u32,
         query: LogQuery,
     ) -> LogQuery {
+        self.save_paid_changes_if_needed();
         // tracing::trace!(
         //     "execute partial query cyc {:?} addr {:?} key {:?}, rw {:?}, wr {:?}, tx {:?}",
         //     _monotonic_cycle_counter,
@@ -336,6 +358,8 @@ impl<S: WriteStorage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
         _monotonic_cycle_counter: u32,
         partial_query: &LogQuery,
     ) -> RefundType {
+        self.save_paid_changes_if_needed();
+
         let price_to_pay = self.value_update_price(partial_query);
 
         RefundType::RepeatedWrite(RefundedAmounts {
@@ -347,12 +371,16 @@ impl<S: WriteStorage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
 
     // Indicate a start of execution frame for rollback purposes
     fn start_frame(&mut self, timestamp: Timestamp) {
+        self.save_paid_changes_if_needed();
+
         self.frames_stack.push_frame(timestamp);
     }
 
     // Indicate that execution frame went out from the scope, so we can
     // log the history and either rollback immediately or keep records to rollback later
     fn finish_frame(&mut self, timestamp: Timestamp, panicked: bool) {
+        self.save_paid_changes_if_needed();
+
         // If we panic then we append forward and rollbacks to the forward of parent,
         // otherwise we place rollbacks of child before rollbacks of the parent
         if panicked {

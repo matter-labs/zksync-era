@@ -1,3 +1,6 @@
+use std::cell::RefCell;
+use std::rc::Rc;
+
 use zk_evm::abstractions::{Memory, MemoryType};
 use zk_evm::aux_structures::{MemoryPage, MemoryQuery, Timestamp};
 use zk_evm::vm_state::PrimitiveValue;
@@ -10,11 +13,22 @@ use crate::old_vm::history_recorder::{
 };
 use crate::old_vm::oracles::OracleWithHistory;
 use crate::old_vm::utils::{aux_heap_page_from_base, heap_page_from_base, stack_page_from_base};
+use crate::tracers::utils::VmHook;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct SimpleMemory<H: HistoryMode> {
     memory: MemoryWithHistory<H>,
     observable_pages: IntFrameManagerWithHistory<u32, H>,
+    should_save_paid_changes: Option<Rc<RefCell<bool>>>,
+}
+
+impl<H: HistoryMode> SimpleMemory<H> {
+    pub fn new(mem_oracle_communicator: Option<Rc<RefCell<bool>>>) -> Self {
+        Self {
+            should_save_paid_changes: mem_oracle_communicator,
+            ..Default::default()
+        }
+    }
 }
 
 impl<H: HistoryMode> Default for SimpleMemory<H> {
@@ -24,6 +38,7 @@ impl<H: HistoryMode> Default for SimpleMemory<H> {
         Self {
             memory,
             observable_pages: Default::default(),
+            should_save_paid_changes: None,
         }
     }
 }
@@ -137,6 +152,17 @@ impl<H: HistoryMode> SimpleMemory<H> {
         self.memory.delete_history();
         self.observable_pages.delete_history();
     }
+
+    fn update_request_for_storage_if_needed(&mut self, query: MemoryQuery) {
+        let Some(should_save_paid_changes) = self.should_save_paid_changes.as_ref() else {
+            return;
+        };
+
+        let hook = VmHook::from_memory_query(query);
+        if matches!(hook, VmHook::AskOperatorForRefund) {
+            *should_save_paid_changes.borrow_mut() = true;
+        }
+    }
 }
 
 impl<H: HistoryMode> Memory for SimpleMemory<H> {
@@ -181,6 +207,8 @@ impl<H: HistoryMode> Memory for SimpleMemory<H> {
                 },
                 query.timestamp,
             );
+
+            self.update_request_for_storage_if_needed(query);
         } else {
             let current_value = self.read_slot(page, slot);
             query.value = current_value.value;
