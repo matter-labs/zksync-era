@@ -638,7 +638,7 @@ pub async fn initialize_components(
     .context("add_witness_generator_to_task_futures()")?;
 
     if components.contains(&Component::BasicWitnessInputProducer) {
-        add_basic_witness_input_producer(
+        add_basic_witness_input_producer_to_task_futures(
             &mut task_futures,
             &connection_pool,
             &store_factory,
@@ -647,7 +647,7 @@ pub async fn initialize_components(
             stop_receiver.clone(),
         )
         .await
-        .context("add_basic_witness_input_producer()")?;
+        .context("add_basic_witness_input_producer_to_task_futures()")?;
     }
 
     if components.contains(&Component::Housekeeper) {
@@ -851,7 +851,7 @@ async fn run_tree(
     Ok(())
 }
 
-async fn add_basic_witness_input_producer(
+async fn add_basic_witness_input_producer_to_task_futures(
     task_futures: &mut Vec<JoinHandle<anyhow::Result<()>>>,
     connection_pool: &ConnectionPool,
     store_factory: &ObjectStoreFactory,
