@@ -15,8 +15,5 @@ CREATE TABLE IF NOT EXISTS basic_witness_input_producer_jobs
 CREATE INDEX IF NOT EXISTS idx_basic_witness_input_producer_jobs_status
     ON basic_witness_input_producer_jobs (status);
 
-CREATE INDEX IF NOT EXISTS idx_basic_witness_input_producer_jobs_attempts_processing_status
-    ON basic_witness_input_producer_jobs (processing_started_at, attempts, status);
-
-CREATE INDEX IF NOT EXISTS idx_basic_witness_input_producer_jobs_time
-    ON basic_witness_input_producer_jobs (time_taken);
+CREATE INDEX IF NOT EXISTS idx_basic_witness_input_producer_jobs_status_processing_attempts
+    ON basic_witness_input_producer_jobs (status, processing_started_at, attempts);
