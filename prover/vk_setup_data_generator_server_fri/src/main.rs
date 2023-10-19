@@ -128,7 +128,7 @@ fn generate_snark_vk(
 ) -> anyhow::Result<()> {
     let config = WrapperConfig::new(compression_mode);
 
-    let (wrapper_proof, _) = wrap_proof(proof, scheduler_vk, config);
+    let (_, vk) = wrap_proof(proof, scheduler_vk, config);
     save_snark_vk(vk).context("save_snark_vk")
 }
 
