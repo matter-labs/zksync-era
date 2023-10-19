@@ -39,7 +39,7 @@ impl BasicWitnessInputProducer {
 
     fn process_job_impl(
         rt_handle: Handle,
-        job: L1BatchNumber,
+        l1_batch_number: L1BatchNumber,
         started_at: Instant,
         connection_pool: ConnectionPool,
         validation_computational_gas_limit: u32,
@@ -49,7 +49,7 @@ impl BasicWitnessInputProducer {
 
         let (mut vm, storage_view) = create_vm(
             rt_handle.clone(),
-            job.l1_batch_number,
+            l1_batch_number,
             connection,
             validation_computational_gas_limit,
             l2_chain_id,
@@ -61,9 +61,9 @@ impl BasicWitnessInputProducer {
         let miniblock_and_transactions = rt_handle.block_on(
             connection
                 .transactions_dal()
-                .get_miniblock_with_transactions_for_l1_batch(job.l1_batch_number),
+                .get_miniblock_with_transactions_for_l1_batch(l1_batch_number),
         );
-        tracing::info!("Started execution of l1_batch: {:?}", job.l1_batch_number);
+        tracing::info!("Started execution of l1_batch: {l1_batch_number:?}");
         for (miniblock, txs) in miniblock_and_transactions {
             tracing::debug!("Started execution of miniblock: {miniblock:?}");
             for tx in txs {
@@ -77,7 +77,7 @@ impl BasicWitnessInputProducer {
             tracing::debug!("Finished execution of miniblock: {miniblock:?}");
         }
         vm.finish_batch();
-        tracing::info!("Finished execution of l1_batch: {:?}", job.l1_batch_number);
+        tracing::info!("Finished execution of l1_batch: {l1_batch_number:?}");
 
         metrics::histogram!(
             "basic_witness_input_producer.input_producer_time",
@@ -86,7 +86,7 @@ impl BasicWitnessInputProducer {
         tracing::info!(
             "BasicWitnessInputProducer took {:?} for L1BatchNumber {}",
             started_at.elapsed(),
-            job.l1_batch_number.0
+            l1_batch_number.0
         );
 
         let witness_block_state = (*storage_view).borrow().witness_block_state();
