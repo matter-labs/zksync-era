@@ -1,21 +1,24 @@
+use crate::interface::traits::tracers::multivm_tracer::MultivmTracer;
 use crate::interface::types::errors::BytecodeCompressionError;
 use crate::interface::types::inputs::{L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode};
 use crate::interface::types::outputs::{
     BootloaderMemory, CurrentExecutionState, VmExecutionResultAndLogs,
 };
-use crate::vm_latest::{HistoryEnabled, HistoryMode, VmTracer};
+use crate::vm_latest::HistoryEnabled;
+use crate::HistoryMode;
 use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::Transaction;
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
 /// Public interface for VM
 pub trait VmInterface<S: WriteStorage, H: HistoryMode> {
-    fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage: StoragePtr<S>) -> Self;
     fn push_transaction(&mut self, tx: Transaction);
-    fn execute(&mut self, execution_mode: VmExecutionMode) -> VmExecutionResultAndLogs;
-    fn inspect(
+    fn execute(&mut self, execution_mode: VmExecutionMode) -> VmExecutionResultAndLogs {
+        todo!()
+    }
+    fn inspect<T: MultivmTracer<S, H>>(
         &mut self,
-        tracers: Vec<Box<dyn VmTracer<S, H>>>,
+        tracer: T,
         execution_mode: VmExecutionMode,
     ) -> VmExecutionResultAndLogs;
     fn get_bootloader_memory(&self) -> BootloaderMemory;
@@ -31,12 +34,14 @@ pub trait VmInterface<S: WriteStorage, H: HistoryMode> {
         &mut self,
         tx: Transaction,
         with_compression: bool,
-    ) -> Result<VmExecutionResultAndLogs, BytecodeCompressionError>;
+    ) -> Result<VmExecutionResultAndLogs, BytecodeCompressionError> {
+        todo!()
+    }
 
     /// Inspect transaction with optional bytecode compression.
-    fn inspect_transaction_with_bytecode_compression(
+    fn inspect_transaction_with_bytecode_compression<T: MultivmTracer<S, H>>(
         &mut self,
-        tracers: Vec<Box<dyn VmTracer<S, H>>>,
+        tracer: T,
         tx: Transaction,
         with_compression: bool,
     ) -> Result<VmExecutionResultAndLogs, BytecodeCompressionError>;

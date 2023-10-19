@@ -8,7 +8,7 @@ use zksync_state::{ReadStorage, StorageView};
 use zksync_utils::bytecode::{hash_bytecode, CompressedBytecodeInfo};
 
 use crate::glue::history_mode::HistoryMode;
-use crate::glue::tracer::MultivmTracer;
+use crate::glue::tracer::{IntoLatestTracer, MultivmTracer};
 use crate::glue::GlueInto;
 
 pub struct VmInstance<S: ReadStorage, H: HistoryMode> {
@@ -23,9 +23,7 @@ pub(crate) enum VmInstanceVersion<S: ReadStorage, H: HistoryMode> {
     VmM6(Box<crate::vm_m6::VmInstance<StorageView<S>, H::VmM6Mode>>),
     Vm1_3_2(Box<crate::vm_1_3_2::VmInstance<StorageView<S>, H::Vm1_3_2Mode>>),
     VmVirtualBlocks(Box<crate::vm_virtual_blocks::Vm<StorageView<S>, H::VmVirtualBlocksMode>>),
-    VmVirtualBlocksRefundsEnhancement(
-        Box<crate::vm_latest::Vm<StorageView<S>, H::VmVirtualBlocksRefundsEnhancement>>,
-    ),
+    VmVirtualBlocksRefundsEnhancement(Box<crate::vm_latest::Vm<StorageView<S>, H>>),
 }
 
 impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
@@ -201,10 +199,9 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
                     VmExecutionMode::OneTx.glue_into(),
                 )
                 .glue_into(),
-            VmInstanceVersion::VmVirtualBlocksRefundsEnhancement(vm) => vm.inspect(
-                tracers.into_iter().map(|tracer| tracer.latest()).collect(),
-                VmExecutionMode::OneTx,
-            ),
+            VmInstanceVersion::VmVirtualBlocksRefundsEnhancement(vm) => {
+                todo!()
+            }
             _ => self.execute_next_transaction(),
         }
     }
@@ -385,12 +382,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
                     with_compression,
                 )
                 .glue_into(),
-            VmInstanceVersion::VmVirtualBlocksRefundsEnhancement(vm) => vm
-                .inspect_transaction_with_bytecode_compression(
-                    tracers.into_iter().map(|tracer| tracer.latest()).collect(),
-                    tx,
-                    with_compression,
-                ),
+            VmInstanceVersion::VmVirtualBlocksRefundsEnhancement(vm) => todo!(),
             _ => {
                 self.last_tx_compressed_bytecodes = vec![];
                 self.execute_transaction_with_bytecode_compression(tx, with_compression)

@@ -2,6 +2,7 @@ use super::GlueInto;
 use crate::glue::history_mode::HistoryMode;
 use crate::interface::{L1BatchEnv, SystemEnv, VmInterface};
 use crate::vm_instance::VmInstanceVersion;
+use crate::vm_latest::Vm;
 use crate::VmInstance;
 use zksync_state::{ReadStorage, StoragePtr, StorageView};
 use zksync_types::VmVersion;
@@ -164,7 +165,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
                 }
             }
             VmVersion::VmVirtualBlocksRefundsEnhancement => {
-                let vm = crate::vm_latest::Vm::new(
+                let vm: Vm<_, H> = crate::vm_latest::Vm::new(
                     l1_batch_env.glue_into(),
                     system_env.clone(),
                     storage_view.clone(),
