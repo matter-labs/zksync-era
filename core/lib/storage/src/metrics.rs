@@ -1,7 +1,7 @@
 //! General-purpose RocksDB metrics. All metrics code in the crate should be in this module.
 
 use once_cell::sync::Lazy;
-use vise::{Buckets, Collector, EncodeLabelSet, Family, Gauge, Histogram, Metrics};
+use vise::{Buckets, Collector, EncodeLabelSet, Family, Gauge, Histogram, Metrics, Unit};
 
 use std::{
     collections::HashMap,
@@ -56,6 +56,18 @@ pub(crate) static METRICS: vise::Global<RocksdbMetrics> = vise::Global::new();
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "rocksdb")]
 pub(crate) struct RocksdbSizeMetrics {
+    /// Boolean gauge indicating whether writing to the column family is currently stopped.
+    pub writes_stopped: Family<RocksdbLabels, Gauge<u64>>,
+    /// Number of immutable memtables.
+    pub immutable_mem_tables: Family<RocksdbLabels, Gauge<u64>>,
+    /// Number of memtable flushes running for the column family.
+    pub running_flushes: Family<RocksdbLabels, Gauge<u64>>,
+    /// Number of compactions running for the column family.
+    pub running_compactions: Family<RocksdbLabels, Gauge<u64>>,
+    /// Estimated number of bytes for pending compactions.
+    #[metrics(unit = Unit::Bytes)]
+    pub pending_compactions: Family<RocksdbLabels, Gauge<u64>>,
+
     /// Estimated size of all live data in the column family of a RocksDB instance.
     pub live_data_size: Family<RocksdbLabels, Gauge<u64>>,
     /// Total size of all SST files in the column family of a RocksDB instance.
@@ -93,7 +105,7 @@ impl RocksdbSizeMetrics {
             .expect("instances are poisoned")
             .retain(|_, instance| {
                 if let Some(instance) = instance.upgrade() {
-                    instance.report_sizes(&metrics);
+                    instance.collect_metrics(&metrics);
                     true
                 } else {
                     false

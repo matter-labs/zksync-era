@@ -96,11 +96,34 @@ pub(crate) struct RocksDBInner {
 }
 
 impl RocksDBInner {
-    pub(crate) fn report_sizes(&self, metrics: &RocksdbSizeMetrics) {
+    pub(crate) fn collect_metrics(&self, metrics: &RocksdbSizeMetrics) {
         for &cf_name in &self.cf_names {
             let cf = self.db.cf_handle(cf_name).unwrap();
             // ^ `unwrap()` is safe (CF existence is checked during DB initialization)
             let labels = RocksdbLabels::new(self.db_name, cf_name);
+
+            let writes_stopped = self.int_property(cf, properties::IS_WRITE_STOPPED);
+            let writes_stopped = writes_stopped == Some(1);
+            metrics.writes_stopped[&labels].set(writes_stopped.into());
+
+            let num_immutable_memtables =
+                self.int_property(cf, properties::NUM_IMMUTABLE_MEM_TABLE);
+            if let Some(num_immutable_memtables) = num_immutable_memtables {
+                metrics.immutable_mem_tables[&labels].set(num_immutable_memtables);
+            }
+            let num_flushes = self.int_property(cf, properties::NUM_RUNNING_FLUSHES);
+            if let Some(num_flushes) = num_flushes {
+                metrics.running_flushes[&labels].set(num_flushes);
+            }
+            let num_compactions = self.int_property(cf, properties::NUM_RUNNING_COMPACTIONS);
+            if let Some(num_compactions) = num_compactions {
+                metrics.running_compactions[&labels].set(num_compactions);
+            }
+            let pending_compactions =
+                self.int_property(cf, properties::ESTIMATE_PENDING_COMPACTION_BYTES);
+            if let Some(pending_compactions) = pending_compactions {
+                metrics.pending_compactions[&labels].set(pending_compactions);
+            }
 
             let live_data_size = self.int_property(cf, properties::ESTIMATE_LIVE_DATA_SIZE);
             if let Some(size) = live_data_size {
