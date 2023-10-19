@@ -10,9 +10,7 @@ use async_trait::async_trait;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 
-use vm::{
-    constants::MAX_CYCLES_FOR_TX, HistoryDisabled, SimpleMemory, StorageOracle as VmStorageOracle,
-};
+use vm::{constants::MAX_CYCLES_FOR_TX, HistoryDisabled, SimpleMemory, StorageOracle};
 use zksync_config::configs::witness_generator::BasicWitnessGeneratorDataSource;
 use zksync_config::configs::WitnessGeneratorConfig;
 use zksync_config::constants::BOOTLOADER_ADDRESS;
@@ -35,7 +33,6 @@ use zksync_types::{
 };
 use zksync_utils::{bytes_to_chunks, h256_to_u256, u256_to_h256};
 
-use super::storage_oracle::StorageOracle;
 use crate::witness_generator::precalculated_merkle_paths_provider::PrecalculatedMerklePathsProvider;
 use crate::witness_generator::track_witness_generation_stage;
 use crate::witness_generator::utils::{expand_bootloader_contents, save_prover_input_artifacts};
@@ -526,9 +523,8 @@ pub async fn generate_witness(
 
         let storage_view = StorageView::new(storage);
         let storage_view = storage_view.to_rc_ptr();
-        let storage_oracle = StorageOracle::new(storage_view, storage_refunds);
-        // let storage_oracle: VmStorageOracle<StorageView<Box<dyn ReadStorage>>, HistoryDisabled> =
-        //     VmStorageOracle::new(storage_view);
+        let storage_oracle: StorageOracle<StorageView<Box<dyn ReadStorage>>, HistoryDisabled> =
+            StorageOracle::new_with_refunds_to_mimic(storage_view, Some(storage_refunds));
         let memory: SimpleMemory<HistoryDisabled> = SimpleMemory::default();
         let mut hasher = DefaultHasher::new();
         GEOMETRY_CONFIG.hash(&mut hasher);

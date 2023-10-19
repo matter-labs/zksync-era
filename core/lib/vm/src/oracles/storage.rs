@@ -54,6 +54,8 @@ pub struct StorageOracle<S: WriteStorage, H: HistoryMode> {
     pub(crate) initial_values: HistoryRecorder<HashMap<StorageKey, U256>, H>,
 
     pub(crate) returned_refunds: HistoryRecorder<Vec<u32>, H>,
+
+    pub(crate) refunds_to_mimic: Option<(Vec<u32>, usize)>,
 }
 
 impl<S: WriteStorage> OracleWithHistory for StorageOracle<S, HistoryEnabled> {
@@ -69,6 +71,13 @@ impl<S: WriteStorage> OracleWithHistory for StorageOracle<S, HistoryEnabled> {
 
 impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
     pub fn new(storage: StoragePtr<S>) -> Self {
+        Self::new_with_refunds_to_mimic(storage, None)
+    }
+
+    pub fn new_with_refunds_to_mimic(
+        storage: StoragePtr<S>,
+        refunds_to_mimic: Option<Vec<u32>>,
+    ) -> Self {
         Self {
             storage: HistoryRecorder::from_inner(StorageWrapper::new(storage)),
             frames_stack: Default::default(),
@@ -76,6 +85,7 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
             paid_changes: Default::default(),
             initial_values: Default::default(),
             returned_refunds: Default::default(),
+            refunds_to_mimic: refunds_to_mimic.map(|refunds_to_mimic| (refunds_to_mimic, 0)),
         }
     }
 
@@ -341,6 +351,15 @@ impl<S: WriteStorage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
         _monotonic_cycle_counter: u32,
         partial_query: &LogQuery,
     ) -> RefundType {
+        if let Some((refunds_to_mimic, pointer)) = self.refunds_to_mimic.as_mut() {
+            let refund = RefundType::RepeatedWrite(RefundedAmounts {
+                ergs: 0,
+                pubdata_bytes: refunds_to_mimic[*pointer],
+            });
+            *pointer += 1;
+            return refund;
+        }
+
         let price_to_pay = self.value_update_price(partial_query);
 
         let refund = RefundType::RepeatedWrite(RefundedAmounts {
