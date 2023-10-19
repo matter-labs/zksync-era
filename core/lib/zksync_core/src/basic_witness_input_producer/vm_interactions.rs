@@ -8,7 +8,7 @@ use multivm::vm_latest::HistoryEnabled;
 use multivm::VmInstance;
 use tokio::runtime::Handle;
 use zksync_dal::StorageProcessor;
-use zksync_state::{PostgresStorage, PostgresStorageCaches, ReadStorage, StorageView};
+use zksync_state::{PostgresStorage, ReadStorage, StorageView};
 use zksync_system_constants::{
     SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
 };
@@ -67,11 +67,7 @@ pub(super) fn create_vm(
         ))
         .unwrap();
 
-    let pg_storage = PostgresStorage::new(rt_handle.clone(), connection, miniblock_number, true)
-        .with_caches(PostgresStorageCaches::new(
-            128 * 1_024 * 1_024, // 128MB -- picked as the default value used in EN
-            128 * 1_024 * 1_024, // 128MB -- picked as the default value used in EN
-        ));
+    let pg_storage = PostgresStorage::new(rt_handle.clone(), connection, miniblock_number, true);
     let storage_view = StorageView::new(pg_storage).to_rc_ptr();
     let vm = VmInstance::new(l1_batch_env, system_env, storage_view.clone());
 
