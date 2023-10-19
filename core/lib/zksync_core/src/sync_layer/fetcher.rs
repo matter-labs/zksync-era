@@ -9,7 +9,7 @@ use zksync_web3_decl::{jsonrpsee::core::Error as RpcError, RpcResult};
 use super::{
     cached_main_node_client::CachedMainNodeClient,
     metrics::{FetchStage, L1BatchStage, FETCHER_METRICS},
-    sync_action::{ActionQueue, SyncAction},
+    sync_action::{ActionQueueSender, SyncAction},
     SyncState,
 };
 use crate::metrics::{TxStage, APP_METRICS};
@@ -23,7 +23,7 @@ pub struct MainNodeFetcher {
     client: CachedMainNodeClient,
     current_l1_batch: L1BatchNumber,
     current_miniblock: MiniblockNumber,
-    actions: ActionQueue,
+    actions: ActionQueueSender,
     sync_state: SyncState,
     stop_receiver: watch::Receiver<bool>,
 }
@@ -32,7 +32,7 @@ impl MainNodeFetcher {
     pub async fn new(
         pool: ConnectionPool,
         main_node_url: &str,
-        actions: ActionQueue,
+        actions: ActionQueueSender,
         sync_state: SyncState,
         stop_receiver: watch::Receiver<bool>,
     ) -> Self {
@@ -220,7 +220,7 @@ impl MainNodeFetcher {
         self.client
             .forget_miniblock(MiniblockNumber(self.current_miniblock.0.saturating_sub(1)));
         self.current_miniblock += 1;
-        self.actions.push_actions(new_actions);
+        self.actions.push_actions(new_actions).await;
 
         total_latency.observe();
         Ok(true)
