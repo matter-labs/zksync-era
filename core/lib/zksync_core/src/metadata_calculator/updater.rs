@@ -206,7 +206,7 @@ impl TreeUpdater {
                 let mut transaction = storage
                     .start_transaction()
                     .await
-                    .expect("could not get get transaction from storage");
+                    .expect("could not start DB storage");
                 transaction
                     .basic_witness_input_producer_dal()
                     .create_basic_witness_input_producer_job(l1_batch_number)
