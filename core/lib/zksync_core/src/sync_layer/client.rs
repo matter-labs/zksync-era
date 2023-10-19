@@ -4,9 +4,9 @@ use anyhow::Context as _;
 use async_trait::async_trait;
 
 use std::{collections::HashMap, convert::TryInto, fmt};
-use zksync_config::constants::ACCOUNT_CODE_STORAGE_ADDRESS;
 
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes, SystemContractCode};
+use zksync_system_constants::ACCOUNT_CODE_STORAGE_ADDRESS;
 use zksync_types::{
     api::{self, en::SyncBlock},
     get_code_key, Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, H256, U64,
