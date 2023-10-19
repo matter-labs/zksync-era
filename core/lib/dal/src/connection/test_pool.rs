@@ -116,7 +116,7 @@ impl TestPool {
 
         let lock = self.inner.clone().lock_owned();
         let lock = timeout(LOCK_TIMEOUT, lock).await.expect(
-            "Timed out waiting to acquire a lock in test `ConnectionPool`. \
+            "Timed out waiting to acquire a lock in test `MainConnectionPool`. \
              Check the backtrace and make sure that no `StorageProcessor`s are alive",
         );
         MainStorageProcessor::from_test_transaction(TestPoolLock { lock })

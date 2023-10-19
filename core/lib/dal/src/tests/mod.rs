@@ -1,25 +1,24 @@
-use std::fs;
 use std::time::Duration;
 
 use db_test_macro::db_test;
+
 use zksync_contracts::BaseSystemContractsHashes;
+use zksync_dal_utils::instrument::InstrumentExt;
 use zksync_types::{
-    block::{miniblock_hash, L1BatchHeader, MiniblockHeader},
+    block::{miniblock_hash, MiniblockHeader},
     fee::{Fee, TransactionExecutionMetrics},
     helpers::unix_timestamp_ms,
     l1::{L1Tx, OpProcessingType, PriorityQueueType},
     l2::L2Tx,
-    proofs::AggregationRound,
     tx::{tx_execution_info::TxExecutionStatus, ExecutionMetrics, TransactionExecutionResult},
-    Address, Execute, L1BatchNumber, L1BlockNumber, L1TxCommonData, L2ChainId, MiniblockNumber,
-    PriorityOpId, ProtocolVersion, ProtocolVersionId, H160, H256, MAX_GAS_PER_PUBDATA_BYTE, U256,
+    Address, Execute, L1BlockNumber, L1TxCommonData, L2ChainId, MiniblockNumber, PriorityOpId,
+    ProtocolVersionId, H160, H256, MAX_GAS_PER_PUBDATA_BYTE, U256,
 };
 
 use crate::blocks_dal::BlocksDal;
 use crate::connection::MainConnectionPool;
 use crate::protocol_versions_dal::ProtocolVersionsDal;
-use crate::transactions_dal::L2TxSubmissionResult;
-use crate::transactions_dal::TransactionsDal;
+use crate::transactions_dal::{L2TxSubmissionResult, TransactionsDal};
 use crate::transactions_web3_dal::TransactionsWeb3Dal;
 
 const DEFAULT_GAS_PER_PUBDATA: u32 = 100;
@@ -116,7 +115,7 @@ pub(crate) fn mock_execution_result(transaction: L2Tx) -> TransactionExecutionRe
     }
 }
 
-#[db_test(dal_crate)]
+#[db_test(main_dal_crate)]
 async fn workflow_with_submit_tx_equal_hashes(connection_pool: MainConnectionPool) {
     let storage = &mut connection_pool.access_test_storage().await;
     let mut transactions_dal = TransactionsDal { storage };
@@ -135,7 +134,7 @@ async fn workflow_with_submit_tx_equal_hashes(connection_pool: MainConnectionPoo
     assert_eq!(result, L2TxSubmissionResult::Replaced);
 }
 
-#[db_test(dal_crate)]
+#[db_test(main_dal_crate)]
 async fn workflow_with_submit_tx_diff_hashes(connection_pool: MainConnectionPool) {
     let storage = &mut connection_pool.access_test_storage().await;
     let mut transactions_dal = TransactionsDal { storage };
@@ -161,7 +160,7 @@ async fn workflow_with_submit_tx_diff_hashes(connection_pool: MainConnectionPool
     assert_eq!(result, L2TxSubmissionResult::Replaced);
 }
 
-#[db_test(dal_crate)]
+#[db_test(main_dal_crate)]
 async fn remove_stuck_txs(connection_pool: MainConnectionPool) {
     let storage = &mut connection_pool.access_test_storage().await;
     let mut protocol_versions_dal = ProtocolVersionsDal { storage };
@@ -249,5 +248,35 @@ async fn remove_stuck_txs(connection_pool: MainConnectionPool) {
         .get_transaction_receipt(executed_tx.hash())
         .await
         .unwrap()
+        .unwrap();
+}
+
+#[db_test(main_dal_crate)]
+async fn instrumenting_erroneous_query(pool: MainConnectionPool) {
+    // Add `vlog::init()` here to debug this test
+
+    let mut conn = pool.access_storage().await.unwrap();
+    sqlx::query("WHAT")
+        .map(drop)
+        .instrument("erroneous")
+        .with_arg("miniblock", &MiniblockNumber(1))
+        .with_arg("hash", &H256::zero())
+        .fetch_optional(conn.conn())
+        .await
+        .unwrap_err();
+}
+
+#[db_test(main_dal_crate)]
+async fn instrumenting_slow_query(pool: MainConnectionPool) {
+    // Add `vlog::init()` here to debug this test
+
+    let mut conn = pool.access_storage().await.unwrap();
+    sqlx::query("SELECT pg_sleep(1.5)")
+        .map(drop)
+        .instrument("slow")
+        .with_arg("miniblock", &MiniblockNumber(1))
+        .with_arg("hash", &H256::zero())
+        .fetch_optional(conn.conn())
+        .await
         .unwrap();
 }

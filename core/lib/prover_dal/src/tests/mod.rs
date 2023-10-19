@@ -1,19 +1,13 @@
-use std::fs;
-use std::time::Duration;
+use std::{fs, time::Duration};
 
 use db_test_macro::db_test;
+
 use zksync_types::{
-    block::{miniblock_hash, L1BatchHeader, MiniblockHeader},
-    fee::{Fee, TransactionExecutionMetrics},
-    helpers::unix_timestamp_ms,
-    l1::{L1Tx, OpProcessingType, PriorityQueueType},
-    l2::L2Tx,
-    proofs::AggregationRound,
-    tx::{tx_execution_info::TxExecutionStatus, ExecutionMetrics, TransactionExecutionResult},
-    Address, Execute, L1BatchNumber, L1BlockNumber, L1TxCommonData, L2ChainId, MiniblockNumber,
-    PriorityOpId, ProtocolVersion, ProtocolVersionId, H160, H256, MAX_GAS_PER_PUBDATA_BYTE, U256,
+    block::L1BatchHeader, proofs::AggregationRound, L1BatchNumber, ProtocolVersion,
+    ProtocolVersionId,
 };
 
+use crate::connection::ProverConnectionPool;
 use crate::prover_dal::{GetProverJobsParams, ProverDal};
 use crate::witness_generator_dal::WitnessGeneratorDal;
 
@@ -32,8 +26,8 @@ fn create_circuits() -> Vec<(&'static str, String)> {
     ]
 }
 
-#[db_test(dal_crate)]
-async fn test_duplicate_insert_prover_jobs(connection_pool: MainConnectionPool) {
+#[db_test(prover_dal_crate)]
+async fn test_duplicate_insert_prover_jobs(connection_pool: ProverConnectionPool) {
     let storage = &mut connection_pool.access_test_storage().await;
     storage
         .protocol_versions_dal()
@@ -93,8 +87,8 @@ async fn test_duplicate_insert_prover_jobs(connection_pool: MainConnectionPool) 
     assert_eq!(circuits.len(), jobs.len());
 }
 
-#[db_test(dal_crate)]
-async fn test_requeue_prover_jobs(connection_pool: MainConnectionPool) {
+#[db_test(prover_dal_crate)]
+async fn test_requeue_prover_jobs(connection_pool: ProverConnectionPool) {
     let storage = &mut connection_pool.access_test_storage().await;
     let protocol_version = ProtocolVersion::default();
     storage
@@ -156,9 +150,9 @@ async fn test_requeue_prover_jobs(connection_pool: MainConnectionPool) {
     }
 }
 
-#[db_test(dal_crate)]
+#[db_test(prover_dal_crate)]
 async fn test_move_leaf_aggregation_jobs_from_waiting_to_queued(
-    connection_pool: MainConnectionPool,
+    connection_pool: ProverConnectionPool,
 ) {
     let storage = &mut connection_pool.access_test_storage().await;
     let protocol_version = ProtocolVersion::default();
@@ -238,9 +232,9 @@ async fn test_move_leaf_aggregation_jobs_from_waiting_to_queued(
     assert_eq!(l1_batch_number, job.unwrap().block_number);
 }
 
-#[db_test(dal_crate)]
+#[db_test(prover_dal_crate)]
 async fn test_move_node_aggregation_jobs_from_waiting_to_queued(
-    connection_pool: MainConnectionPool,
+    connection_pool: ProverConnectionPool,
 ) {
     let storage = &mut connection_pool.access_test_storage().await;
     let protocol_version = ProtocolVersion::default();
@@ -327,8 +321,8 @@ async fn test_move_node_aggregation_jobs_from_waiting_to_queued(
     assert_eq!(l1_batch_number, job.unwrap().block_number);
 }
 
-#[db_test(dal_crate)]
-async fn test_move_scheduler_jobs_from_waiting_to_queued(connection_pool: MainConnectionPool) {
+#[db_test(prover_dal_crate)]
+async fn test_move_scheduler_jobs_from_waiting_to_queued(connection_pool: ProverConnectionPool) {
     let storage = &mut connection_pool.access_test_storage().await;
     let protocol_version = ProtocolVersion::default();
     storage

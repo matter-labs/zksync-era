@@ -19,7 +19,6 @@ members = [
     "core/lib/crypto",
     "core/lib/circuit_breaker",
     "core/lib/dal",
-    "core/lib/main_dal",
     "core/lib/dal_utils",
     "core/lib/prover_dal",
     "core/lib/db_test_macro",

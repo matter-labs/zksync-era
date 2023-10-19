@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 zksync_types = { path = "../../core/lib/types" }
-zksync_dal = { path = "../../core/lib/dal" }
+zksync_prover_dal = { path = "../../core/lib/prover_dal" }
 zksync_config = { path = "../../core/lib/config" }
 prometheus_exporter = { path = "../../core/lib/prometheus_exporter" }
 vlog = { path = "../../core/lib/vlog" }

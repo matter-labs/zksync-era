@@ -7806,6 +7806,7 @@ dependencies = [
  "zksync_merkle_tree",
  "zksync_mini_merkle_tree",
  "zksync_object_store",
+ "zksync_prover_dal",
  "zksync_prover_utils",
  "zksync_queued_job_processor",
  "zksync_state",
@@ -7932,6 +7933,7 @@ dependencies = [
  "zksync_core",
  "zksync_dal",
  "zksync_health_check",
+ "zksync_prover_dal",
  "zksync_state",
  "zksync_storage",
  "zksync_types",
@@ -7951,10 +7953,6 @@ dependencies = [
  "tokio",
  "tracing",
 ]
-
-[[package]]
-name = "zksync_main_dal"
-version = "0.1.0"
 
 [[package]]
 name = "zksync_mempool"
@@ -8021,7 +8019,9 @@ name = "zksync_prover_dal"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "assert_matches",
  "bincode",
+ "db_test_macro",
  "itertools",
  "sqlx",
  "strum",

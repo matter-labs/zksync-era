@@ -1,8 +1,7 @@
 // Built-in deps
 use std::fmt;
 // External imports
-use sqlx::pool::PoolConnection;
-use sqlx::{postgres::Postgres, PgConnection, Transaction};
+use sqlx::{pool::PoolConnection, postgres::Postgres, PgConnection, Transaction};
 // Workspace imports
 // Local imports
 use crate::connection::test_pool::TestPoolLock;

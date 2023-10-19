@@ -34,6 +34,7 @@ use zksync_dal::{
     connection::DbVariant, healthcheck::ConnectionPoolHealthCheck, MainConnectionPool,
 };
 use zksync_health_check::CheckHealth;
+use zksync_prover_dal::ProverConnectionPool;
 use zksync_state::PostgresStorageCaches;
 use zksync_storage::RocksDB;
 use zksync_utils::wait_for_tasks::wait_for_tasks;
@@ -182,7 +183,7 @@ async fn init_tasks(
         .await
         .context("failed to build a tree_pool")?;
     // todo: PLA-335
-    let prover_tree_pool = MainConnectionPool::singleton(DbVariant::Prover)
+    let prover_tree_pool = ProverConnectionPool::singleton()
         .build()
         .await
         .context("failed to build a prover_tree_pool")?;

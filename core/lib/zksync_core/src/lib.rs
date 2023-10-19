@@ -36,6 +36,7 @@ use zksync_eth_client::clients::http::QueryClient;
 use zksync_eth_client::{clients::http::PKSigningClient, BoundEthInterface};
 use zksync_health_check::{CheckHealth, HealthStatus, ReactiveHealthCheck};
 use zksync_object_store::ObjectStoreFactory;
+use zksync_prover_dal::ProverConnectionPool;
 use zksync_prover_utils::periodic_job::PeriodicJob;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_state::PostgresStorageCaches;
@@ -294,7 +295,7 @@ pub async fn initialize_components(
         .build()
         .await
         .context("failed to build connection_pool")?;
-    let prover_connection_pool = MainConnectionPool::builder(DbVariant::Prover)
+    let prover_connection_pool = ProverConnectionPool::builder()
         .build()
         .await
         .context("failed to build prover_connection_pool")?;
@@ -518,7 +519,7 @@ pub async fn initialize_components(
             .build()
             .await
             .context("failed to build eth_sender_pool")?;
-        let eth_sender_prover_pool = MainConnectionPool::singleton(DbVariant::Prover)
+        let eth_sender_prover_pool = ProverConnectionPool::singleton()
             .build()
             .await
             .context("failed to build eth_sender_prover_pool")?;
@@ -618,7 +619,7 @@ pub async fn initialize_components(
         task_futures.push(tokio::spawn(proof_data_handler::run_server(
             ProofDataHandlerConfig::from_env().context("ProofDataHandlerConfig::from_env()")?,
             store_factory.create_store().await,
-            connection_pool.clone(),
+            prover_connection_pool.clone(),
             stop_receiver.clone(),
         )));
     }
@@ -761,15 +762,15 @@ async fn run_tree(
     let config = MetadataCalculatorConfig::for_main_node(config, operation_manager, mode);
     let metadata_calculator = MetadataCalculator::new(&config).await;
     let tree_health_check = metadata_calculator.tree_health_check();
-    let pool = MainConnectionPool::singleton(DbVariant::Master)
+    let main_pool = MainConnectionPool::singleton(DbVariant::Master)
         .build()
         .await
         .context("failed to build connection pool")?;
-    let prover_pool = MainConnectionPool::singleton(DbVariant::Prover)
+    let prover_pool = ProverConnectionPool::singleton()
         .build()
         .await
         .context("failed to build prover_pool")?;
-    let future = tokio::spawn(metadata_calculator.run(pool, prover_pool, stop_receiver));
+    let future = tokio::spawn(metadata_calculator.run(main_pool, prover_pool, stop_receiver));
 
     tracing::info!("Initialized {mode_str} tree in {:?}", started_at.elapsed());
     metrics::gauge!(
@@ -785,7 +786,7 @@ async fn add_witness_generator_to_task_futures(
     task_futures: &mut Vec<JoinHandle<anyhow::Result<()>>>,
     components: &[Component],
     connection_pool: &MainConnectionPool,
-    prover_connection_pool: &MainConnectionPool,
+    prover_connection_pool: &ProverConnectionPool,
     store_factory: &ObjectStoreFactory,
     stop_receiver: &watch::Receiver<bool>,
 ) -> anyhow::Result<()> {
@@ -809,7 +810,7 @@ async fn add_witness_generator_to_task_futures(
         );
 
         let vk_commitments = get_cached_commitments();
-        let protocol_versions = prover_connection_pool
+        let protocol_versions = connection_pool
             .access_storage()
             .await
             .unwrap()
@@ -894,11 +895,17 @@ async fn add_house_keeper_to_task_futures(
         connection_pool,
     );
 
-    let prover_connection_pool = MainConnectionPool::builder(DbVariant::Prover)
+    let prover_connection_pool = ProverConnectionPool::builder()
         .set_max_size(Some(house_keeper_config.prover_db_pool_size))
         .build()
         .await
         .context("failed to build a prover_connection_pool")?;
+
+    let main_connection_pool = MainConnectionPool::builder(DbVariant::Master)
+        .build()
+        .await
+        .context("failed to build a main_connection_pool")?;
+
     let gpu_prover_queue = GpuProverQueueMonitor::new(
         ProverGroupConfig::from_env()
             .context("ProverGroupConfig::from_env()")?
@@ -930,6 +937,7 @@ async fn add_house_keeper_to_task_futures(
     let gcs_blob_cleaner = GcsBlobCleaner::new(
         store_factory,
         prover_connection_pool.clone(),
+        main_connection_pool,
         house_keeper_config.blob_cleaning_interval_ms,
     )
     .await;

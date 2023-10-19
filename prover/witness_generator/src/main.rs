@@ -7,7 +7,7 @@ use structopt::StructOpt;
 use tokio::sync::watch;
 use zksync_config::configs::{FriWitnessGeneratorConfig, PrometheusConfig};
 use zksync_config::ObjectStoreConfig;
-use zksync_dal::{connection::DbVariant, ConnectionPool};
+use zksync_dal::{connection::DbVariant, MainConnectionPool};
 use zksync_prover_dal::ProverConnectionPool;
 use zksync_object_store::ObjectStoreFactory;
 use zksync_prover_utils::get_stop_signal_receiver;
@@ -77,11 +77,11 @@ async fn main() -> anyhow::Result<()> {
     let config =
         FriWitnessGeneratorConfig::from_env().context("FriWitnessGeneratorConfig::from_env()")?;
     let prometheus_config = PrometheusConfig::from_env().context("PrometheusConfig::from_env()")?;
-    let connection_pool = ConnectionPool::builder(DbVariant::Master)
+    let connection_pool = MainConnectionPool::builder(DbVariant::Master)
         .build()
         .await
         .context("failed to build a connection_pool")?;
-    let prover_connection_pool = ConnectionPool::builder(DbVariant::Prover)
+    let prover_connection_pool = ProverConnectionPool::builder()
         .build()
         .await
         .context("failed to build a prover_connection_pool")?;

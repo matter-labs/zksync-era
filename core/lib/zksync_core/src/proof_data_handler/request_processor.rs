@@ -6,9 +6,9 @@ use std::sync::Arc;
 use zksync_config::configs::{
     proof_data_handler::ProtocolVersionLoadingMode, ProofDataHandlerConfig,
 };
-
-use zksync_dal::{MainConnectionPool, SqlxError};
+use zksync_dal::SqlxError;
 use zksync_object_store::{ObjectStore, ObjectStoreError};
+use zksync_prover_dal::ProverConnectionPool;
 use zksync_types::protocol_version::FriProtocolVersionId;
 use zksync_types::{
     protocol_version::L1VerifierConfig,
@@ -22,7 +22,7 @@ use zksync_types::{
 #[derive(Clone)]
 pub(crate) struct RequestProcessor {
     blob_store: Arc<dyn ObjectStore>,
-    pool: MainConnectionPool,
+    pool: ProverConnectionPool,
     config: ProofDataHandlerConfig,
     l1_verifier_config: Option<L1VerifierConfig>,
 }
@@ -67,7 +67,7 @@ impl IntoResponse for RequestProcessorError {
 impl RequestProcessor {
     pub(crate) fn new(
         blob_store: Box<dyn ObjectStore>,
-        pool: MainConnectionPool,
+        pool: ProverConnectionPool,
         config: ProofDataHandlerConfig,
         l1_verifier_config: Option<L1VerifierConfig>,
     ) -> Self {

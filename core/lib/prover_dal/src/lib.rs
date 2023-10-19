@@ -1,14 +1,11 @@
 use std::env;
 
-// Built-in deps
-pub use sqlx::Error as SqlxError;
-use sqlx::{postgres::Postgres, Connection, PgConnection, Transaction};
-// External imports
 use sqlx::pool::PoolConnection;
 pub use sqlx::types::BigDecimal;
+pub use sqlx::Error as SqlxError;
+use sqlx::{postgres::Postgres, Connection, PgConnection, Transaction};
 
-use zksync_dal::connection::holder::ConnectionHolder;
-
+pub use crate::connection::ProverConnectionPool;
 use crate::fri_gpu_prover_queue_dal::FriGpuProverQueueDal;
 use crate::fri_proof_compressor_dal::FriProofCompressorDal;
 use crate::fri_protocol_versions_dal::FriProtocolVersionsDal;
@@ -19,6 +16,7 @@ use crate::gpu_prover_queue_dal::GpuProverQueueDal;
 use crate::proof_generation_dal::ProofGenerationDal;
 use crate::prover_dal::ProverDal;
 use crate::witness_generator_dal::WitnessGeneratorDal;
+use zksync_dal::connection::holder::ConnectionHolder;
 
 pub mod connection;
 pub mod fri_gpu_prover_queue_dal;
@@ -32,6 +30,9 @@ mod models;
 pub mod proof_generation_dal;
 pub mod prover_dal;
 pub mod witness_generator_dal;
+
+#[cfg(test)]
+mod tests;
 
 /// Obtains the master prover database URL from the environment variable.
 pub fn get_prover_database_url() -> anyhow::Result<String> {
@@ -87,7 +88,7 @@ impl<'a> ProverStorageProcessor<'a> {
         }
     }
 
-    fn conn(&mut self) -> &mut PgConnection {
+    pub fn conn(&mut self) -> &mut PgConnection {
         match &mut self.conn {
             ConnectionHolder::Pooled(conn) => conn,
             ConnectionHolder::Direct(conn) => conn,

@@ -13,6 +13,7 @@ use zksync_dal::{MainConnectionPool, MainStorageProcessor};
 use zksync_health_check::{HealthUpdater, ReactiveHealthCheck};
 use zksync_merkle_tree::domain::TreeMetadata;
 use zksync_object_store::ObjectStoreFactory;
+use zksync_prover_dal::ProverConnectionPool;
 use zksync_types::{
     block::L1BatchHeader,
     commitment::{L1BatchCommitment, L1BatchMetadata},
@@ -126,7 +127,7 @@ impl MetadataCalculator {
     pub async fn run(
         self,
         pool: MainConnectionPool,
-        prover_pool: MainConnectionPool,
+        prover_pool: ProverConnectionPool,
         stop_receiver: watch::Receiver<bool>,
     ) -> anyhow::Result<()> {
         self.updater

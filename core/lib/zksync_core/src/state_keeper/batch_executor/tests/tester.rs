@@ -57,7 +57,7 @@ impl TestConfig {
 }
 
 /// Tester represents an entity that can initialize the state and create batch executors over this storage.
-/// Important: `Tester` must be a *sole* owner of the `ConnectionPool`, since the test pool cannot be shared.
+/// Important: `Tester` must be a *sole* owner of the `MainConnectionPool`, since the test pool cannot be shared.
 #[derive(Debug)]
 pub(super) struct Tester {
     fee_account: Address,
@@ -103,7 +103,7 @@ impl Tester {
         secondary_storage.update_from_postgres(&mut conn).await;
         drop(conn);
 
-        // We don't use the builder because it would require us to clone the `ConnectionPool`, which is forbidden
+        // We don't use the builder because it would require us to clone the `MainConnectionPool`, which is forbidden
         // for the test pool (see the doc-comment on `TestPool` for details).
         BatchExecutorHandle::new(
             self.config.save_call_traces,

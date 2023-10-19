@@ -1,16 +1,16 @@
 use async_trait::async_trait;
-use zksync_dal::MainConnectionPool;
 
+use zksync_prover_dal::ProverConnectionPool;
 use zksync_prover_utils::periodic_job::PeriodicJob;
 
 #[derive(Debug)]
 pub struct WaitingToQueuedFriWitnessJobMover {
     job_moving_interval_ms: u64,
-    pool: MainConnectionPool,
+    pool: ProverConnectionPool,
 }
 
 impl WaitingToQueuedFriWitnessJobMover {
-    pub fn new(job_mover_interval_ms: u64, pool: MainConnectionPool) -> Self {
+    pub fn new(job_mover_interval_ms: u64, pool: ProverConnectionPool) -> Self {
         Self {
             job_moving_interval_ms: job_mover_interval_ms,
             pool,

@@ -7,6 +7,7 @@ use async_trait::async_trait;
 use zksync_config::configs::WitnessGeneratorConfig;
 use zksync_dal::MainConnectionPool;
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
+use zksync_prover_dal::ProverConnectionPool;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::{
     circuit::{
@@ -45,7 +46,7 @@ pub struct SchedulerWitnessGenerator {
     object_store: Box<dyn ObjectStore>,
     protocol_versions: Vec<ProtocolVersionId>,
     connection_pool: MainConnectionPool,
-    prover_connection_pool: MainConnectionPool,
+    prover_connection_pool: ProverConnectionPool,
 }
 
 impl SchedulerWitnessGenerator {
@@ -54,7 +55,7 @@ impl SchedulerWitnessGenerator {
         store_factory: &ObjectStoreFactory,
         protocol_versions: Vec<ProtocolVersionId>,
         connection_pool: MainConnectionPool,
-        prover_connection_pool: MainConnectionPool,
+        prover_connection_pool: ProverConnectionPool,
     ) -> Self {
         Self {
             config,
@@ -257,7 +258,7 @@ pub fn process_scheduler_job(
 
 pub async fn update_database(
     connection_pool: &MainConnectionPool,
-    prover_connection_pool: &MainConnectionPool,
+    prover_connection_pool: &ProverConnectionPool,
     started_at: Instant,
     block_number: L1BatchNumber,
     final_aggregation_result: BlockApplicationWitness<Bn256>,

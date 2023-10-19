@@ -10,6 +10,7 @@ use zksync_dal::{MainConnectionPool, MainStorageProcessor};
 use zksync_health_check::HealthUpdater;
 use zksync_merkle_tree::domain::TreeMetadata;
 use zksync_object_store::ObjectStore;
+use zksync_prover_dal::{ProverConnectionPool, ProverStorageProcessor};
 use zksync_types::{block::L1BatchHeader, writes::InitialStorageWrite, L1BatchNumber, U256};
 
 use super::{
@@ -103,7 +104,7 @@ impl TreeUpdater {
     async fn process_multiple_batches(
         &mut self,
         storage: &mut MainStorageProcessor<'_>,
-        prover_storage: &mut MainStorageProcessor<'_>,
+        prover_storage: &mut ProverStorageProcessor<'_>,
         l1_batch_numbers: ops::RangeInclusive<u32>,
     ) -> L1BatchNumber {
         let start = Instant::now();
@@ -163,7 +164,7 @@ impl TreeUpdater {
                     .await
                     .unwrap();
                 if let Some(id) = protocol_version_id {
-                    if !prover_storage
+                    if !storage
                         .protocol_versions_dal()
                         .prover_protocol_version_exists(id)
                         .await
@@ -173,7 +174,7 @@ impl TreeUpdater {
                             .get_protocol_version(id)
                             .await
                             .unwrap();
-                        prover_storage
+                        storage
                             .protocol_versions_dal()
                             .save_prover_protocol_version(protocol_version)
                             .await;
@@ -183,7 +184,7 @@ impl TreeUpdater {
                     .witness_generator_dal()
                     .save_witness_inputs(l1_batch_number, object_key, protocol_version_id)
                     .await;
-                storage
+                prover_storage
                     .proof_generation_dal()
                     .insert_proof_generation_details(l1_batch_number, object_key)
                     .await;
@@ -207,7 +208,7 @@ impl TreeUpdater {
     async fn step(
         &mut self,
         mut storage: MainStorageProcessor<'_>,
-        mut prover_storage: MainStorageProcessor<'_>,
+        mut prover_storage: ProverStorageProcessor<'_>,
         next_l1_batch_to_seal: &mut L1BatchNumber,
     ) {
         let last_sealed_l1_batch = storage
@@ -236,7 +237,7 @@ impl TreeUpdater {
         mut self,
         delayer: Delayer,
         pool: &MainConnectionPool,
-        prover_pool: &MainConnectionPool,
+        prover_pool: &ProverConnectionPool,
         mut stop_receiver: watch::Receiver<bool>,
         health_updater: HealthUpdater,
     ) -> anyhow::Result<()> {

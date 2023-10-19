@@ -16,6 +16,7 @@ use zksync_config::configs::WitnessGeneratorConfig;
 use zksync_config::constants::BOOTLOADER_ADDRESS;
 use zksync_dal::MainConnectionPool;
 use zksync_object_store::{Bucket, ObjectStore, ObjectStoreFactory, StoredObject};
+use zksync_prover_dal::ProverConnectionPool;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_state::{PostgresStorage, ReadStorage, ShadowStorage, StorageView, WitnessStorage};
 use zksync_types::{
@@ -64,7 +65,7 @@ pub struct BasicWitnessGenerator {
     object_store: Arc<dyn ObjectStore>,
     protocol_versions: Vec<ProtocolVersionId>,
     connection_pool: MainConnectionPool,
-    prover_connection_pool: MainConnectionPool,
+    prover_connection_pool: ProverConnectionPool,
 }
 
 impl BasicWitnessGenerator {
@@ -73,7 +74,7 @@ impl BasicWitnessGenerator {
         store_factory: &ObjectStoreFactory,
         protocol_versions: Vec<ProtocolVersionId>,
         connection_pool: MainConnectionPool,
-        prover_connection_pool: MainConnectionPool,
+        prover_connection_pool: ProverConnectionPool,
     ) -> Self {
         Self {
             config,
@@ -87,7 +88,7 @@ impl BasicWitnessGenerator {
     async fn process_job_impl(
         object_store: Arc<dyn ObjectStore>,
         connection_pool: MainConnectionPool,
-        prover_connection_pool: MainConnectionPool,
+        prover_connection_pool: ProverConnectionPool,
         basic_job: BasicWitnessGeneratorJob,
         started_at: Instant,
     ) -> anyhow::Result<Option<BasicCircuitArtifacts>> {
@@ -267,7 +268,7 @@ pub async fn process_basic_circuits_job(
 }
 
 async fn update_database(
-    prover_connection_pool: &MainConnectionPool,
+    prover_connection_pool: &ProverConnectionPool,
     started_at: Instant,
     block_number: L1BatchNumber,
     blob_urls: BlobUrls,

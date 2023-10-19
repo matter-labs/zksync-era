@@ -16,7 +16,8 @@ use zkevm_test_harness::witness::oracle::VmWitnessOracle;
 use zksync_config::configs::prover_group::ProverGroupConfig;
 use zksync_config::configs::CircuitSynthesizerConfig;
 use zksync_config::ProverConfigs;
-use zksync_dal::ConnectionPool;
+use zksync_prover_dal::ProverConnectionPool;
+use zksync_dal::MainConnectionPool;
 use zksync_object_store::{CircuitKey, ObjectStore, ObjectStoreError, ObjectStoreFactory};
 use zksync_prover_fri_utils::socket_utils::send_assembly;
 use zksync_prover_utils::numeric_index_to_circuit_name;
@@ -45,7 +46,8 @@ pub struct CircuitSynthesizer {
     region: String,
     zone: String,
     vk_commitments: L1VerifierConfig,
-    prover_connection_pool: ConnectionPool,
+    main_connection_pool: MainConnectionPool,
+    prover_connection_pool: ProverConnectionPool,
 }
 
 impl CircuitSynthesizer {
@@ -54,7 +56,8 @@ impl CircuitSynthesizer {
         prover_groups: ProverGroupConfig,
         store_factory: &ObjectStoreFactory,
         vk_commitments: L1VerifierConfig,
-        prover_connection_pool: ConnectionPool,
+        main_connection_pool: MainConnectionPool,
+        prover_connection_pool: ProverConnectionPool,
     ) -> Result<Self, CircuitSynthesizerError> {
         let is_specialized = prover_groups.is_specialized_group_id(config.prover_group_id);
         let allowed_circuit_types = if is_specialized {
@@ -88,6 +91,7 @@ impl CircuitSynthesizer {
             region: get_region().await.map_err(CircuitSynthesizerError::GetRegionFailed)?,
             zone: get_zone().await.map_err(CircuitSynthesizerError::GetZoneFailed)?,
             vk_commitments,
+            main_connection_pool,
             prover_connection_pool,
         })
     }
@@ -131,20 +135,21 @@ impl JobProcessor for CircuitSynthesizer {
             "Attempting to fetch job types: {:?}",
             self.allowed_circuit_types
         );
-        let mut storage = self.prover_connection_pool.access_storage().await.unwrap();
-        let protocol_versions = storage
+        let mut prover_storage = self.prover_connection_pool.access_storage().await.unwrap();
+        let mut main_storage = self.main_connection_pool.access_storage().await.unwrap();
+        let protocol_versions = main_storage
             .protocol_versions_dal()
             .protocol_version_for(&self.vk_commitments)
             .await;
 
         let prover_job = match &self.allowed_circuit_types {
             Some(types) => {
-                storage
+                prover_storage
                     .prover_dal()
                     .get_next_prover_job_by_circuit_types(types.clone(), &protocol_versions)
                     .await
             }
-            None => storage.prover_dal().get_next_prover_job(&protocol_versions).await,
+            None => prover_storage.prover_dal().get_next_prover_job(&protocol_versions).await,
         };
         let Some(prover_job) = prover_job else { return Ok(None) };
 
@@ -330,7 +335,7 @@ async fn handle_send_result(
             match res {
                 Ok((l1_batch_number, attempts)) => {
                     if attempts >= prover_config.max_attempts {
-                        self.main_connection_pool
+                        self.main_pool
                             .access_storage().await.unwrap()
                             .blocks_dal()
                             .set_skip_proof_for_l1_batch(L1BatchNumber(l1_batch_number))

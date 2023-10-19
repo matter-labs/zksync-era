@@ -1,4 +1,5 @@
 use std::io::Write;
+
 use zksync_dal::{connection::DbVariant, MainConnectionPool};
 use zksync_types::contract_verification_api::SourceCodeData;
 

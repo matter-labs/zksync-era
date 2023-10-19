@@ -13,6 +13,7 @@ categories = ["cryptography"]
 zksync_state = { path = "../state" }
 zksync_types = { path = "../types" }
 zksync_dal = { path = "../dal" }
+zksync_prover_dal = { path = "../prover_dal" }
 zksync_config = { path = "../config" }
 zksync_utils = { path = "../utils" }
 zksync_contracts = { path = "../contracts" }

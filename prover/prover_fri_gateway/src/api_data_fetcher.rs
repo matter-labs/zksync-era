@@ -5,7 +5,7 @@ use reqwest::Client;
 use serde::{de::DeserializeOwned, Serialize};
 use tokio::sync::watch;
 use tokio::time::sleep;
-use zksync_dal::ConnectionPool;
+use zksync_prover_dal::ProverConnectionPool;
 use zksync_object_store::ObjectStore;
 
 /// The path to the API endpoint that returns the next proof generation data.
@@ -16,7 +16,7 @@ pub(crate) const SUBMIT_PROOF_PATH: &str = "/submit_proof";
 
 pub(crate) struct PeriodicApiStruct {
     pub(crate) blob_store: Box<dyn ObjectStore>,
-    pub(crate) pool: ConnectionPool,
+    pub(crate) pool: ProverConnectionPool,
     pub(crate) api_url: String,
     pub(crate) poll_duration: Duration,
     pub(crate) client: Client,

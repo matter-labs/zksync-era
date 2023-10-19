@@ -1,41 +1,48 @@
-use std::hash::Hash;
-use std::sync::Arc;
 use std::{
+    hash::Hash,
+    sync::Arc,
     collections::{hash_map::DefaultHasher, HashMap, HashSet},
     hash::Hasher,
     time::Instant,
 };
 
 use async_trait::async_trait;
-use zksync_prover_fri_types::circuit_definitions::ZkSyncDefaultRoundFunction;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
-use zksync_prover_fri_types::circuit_definitions::boojum::field::goldilocks::{GoldilocksExt2, GoldilocksField};
-use zksync_prover_fri_types::circuit_definitions::boojum::gadgets::recursion::recursive_tree_hasher::CircuitGoldilocksPoseidon2Sponge;
-use zkevm_test_harness::geometry_config::get_geometry_config;
-use zkevm_test_harness::toolset::GeometryConfig;
-use zkevm_test_harness::witness::full_block_artifact::{
+
+use zksync_prover_fri_types::{
+    circuit_definitions::{
+        ZkSyncDefaultRoundFunction,
+        boojum::field::goldilocks::{GoldilocksExt2, GoldilocksField},
+        boojum::gadgets::recursion::recursive_tree_hasher::CircuitGoldilocksPoseidon2Sponge,
+        zkevm_circuits::scheduler::block_header::BlockAuxilaryOutputWitness,
+        zkevm_circuits::scheduler::input::SchedulerCircuitInstanceWitness,
+    },
+    {AuxOutputWitnessWrapper, get_current_pod_name},
+}
+
+use zkevm_test_harness::{
+    geometry_config::get_geometry_config;
+    toolset::GeometryConfig;
+    witness::full_block_artifact::{
     BlockBasicCircuits, BlockBasicCircuitsPublicCompactFormsWitnesses,
     BlockBasicCircuitsPublicInputs,
+    }
 };
-use zksync_prover_fri_types::circuit_definitions::zkevm_circuits::scheduler::block_header::BlockAuxilaryOutputWitness;
-use zksync_prover_fri_types::circuit_definitions::zkevm_circuits::scheduler::input::SchedulerCircuitInstanceWitness;
-use zksync_prover_fri_types::{AuxOutputWitnessWrapper, get_current_pod_name};
-
 use vm::{constants::MAX_CYCLES_FOR_TX, HistoryDisabled, StorageOracle};
 use zksync_config::configs::FriWitnessGeneratorConfig;
-use zksync_dal::fri_witness_generator_dal::FriWitnessJobStatus;
-use zksync_dal::ConnectionPool;
+use zksync_prover_dal::fri_witness_generator_dal::FriWitnessJobStatus;
+use zksync_prover_dal::ProverConnectionPool;
+use zksync_dal::MainConnectionPool;
 use zksync_object_store::{
     Bucket, ClosedFormInputKey, ObjectStore, ObjectStoreFactory, StoredObject,
 };
 use zksync_prover_fri_utils::get_recursive_layer_circuit_id_for_base_layer;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_state::{PostgresStorage, StorageView};
-use zksync_types::proofs::AggregationRound;
-use zksync_types::protocol_version::FriProtocolVersionId;
 use zksync_types::{
-    proofs::{BasicCircuitWitnessGeneratorInput, PrepareBasicCircuitsJob},
+    protocol_version::FriProtocolVersionId;
+    proofs::{BasicCircuitWitnessGeneratorInput, PrepareBasicCircuitsJob, AggregationRound},
     Address, L1BatchNumber, BOOTLOADER_ADDRESS, H256, U256,
 };
 use zksync_utils::{bytes_to_chunks, h256_to_u256, u256_to_h256};
@@ -77,8 +84,8 @@ pub struct BasicWitnessGenerator {
     config: Arc<FriWitnessGeneratorConfig>,
     object_store: Arc<dyn ObjectStore>,
     public_blob_store: Option<Box<dyn ObjectStore>>,
-    connection_pool: ConnectionPool,
-    prover_connection_pool: ConnectionPool,
+    connection_pool: ProverConnectionPool,
+    prover_connection_pool: ProverConnectionPool,
     protocol_versions: Vec<FriProtocolVersionId>,
 }
 
@@ -87,8 +94,8 @@ impl BasicWitnessGenerator {
         config: FriWitnessGeneratorConfig,
         store_factory: &ObjectStoreFactory,
         public_blob_store: Option<Box<dyn ObjectStore>>,
-        connection_pool: ConnectionPool,
-        prover_connection_pool: ConnectionPool,
+        connection_pool: MainConnectionPool,
+        prover_connection_pool: ProverConnectionPool,
         protocol_versions: Vec<FriProtocolVersionId>,
     ) -> Self {
         Self {
@@ -103,8 +110,8 @@ impl BasicWitnessGenerator {
 
     async fn process_job_impl(
         object_store: Arc<dyn ObjectStore>,
-        connection_pool: ConnectionPool,
-        prover_connection_pool: ConnectionPool,
+        connection_pool: MainConnectionPool,
+        prover_connection_pool: ProverConnectionPool,
         basic_job: BasicWitnessGeneratorJob,
         started_at: Instant,
         config: Arc<FriWitnessGeneratorConfig>,
@@ -266,7 +273,7 @@ impl JobProcessor for BasicWitnessGenerator {
 async fn process_basic_circuits_job(
     object_store: &dyn ObjectStore,
     config: Arc<FriWitnessGeneratorConfig>,
-    connection_pool: ConnectionPool,
+    connection_pool: MainConnectionPool,
     started_at: Instant,
     block_number: L1BatchNumber,
     job: PrepareBasicCircuitsJob,
@@ -301,7 +308,7 @@ async fn process_basic_circuits_job(
 }
 
 async fn update_database(
-    prover_connection_pool: &ConnectionPool,
+    prover_connection_pool: &ProverConnectionPool,
     started_at: Instant,
     block_number: L1BatchNumber,
     blob_urls: BlobUrls,
@@ -438,7 +445,7 @@ async fn save_leaf_aggregation_artifacts(
 // If making changes to this method, consider moving this logic to the DAL layer and make
 // `PrepareBasicCircuitsJob` have all fields of `BasicCircuitWitnessGeneratorInput`.
 async fn build_basic_circuits_witness_generator_input(
-    connection_pool: &ConnectionPool,
+    connection_pool: &MainConnectionPool,
     witness_merkle_input: PrepareBasicCircuitsJob,
     l1_batch_number: L1BatchNumber,
 ) -> BasicCircuitWitnessGeneratorInput {
@@ -449,7 +456,7 @@ async fn build_basic_circuits_witness_generator_input(
         .await
         .unwrap().unwrap();
     let initial_heap_content = connection
-        .blocks_dal()
+        .blocksMainProverConnectionPool
         .get_initial_bootloader_heap(l1_batch_number)
         .await
         .unwrap().unwrap();
@@ -477,7 +484,7 @@ async fn build_basic_circuits_witness_generator_input(
 async fn generate_witness(
     object_store: &dyn ObjectStore,
     config: Arc<FriWitnessGeneratorConfig>,
-    connection_pool: ConnectionPool,
+    connection_pool: MainConnectionPool,
     input: BasicCircuitWitnessGeneratorInput,
 ) -> (
     BlockBasicCircuits<GoldilocksField, ZkSyncDefaultRoundFunction>,

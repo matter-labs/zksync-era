@@ -22,7 +22,7 @@ pub enum DbVariant {
     Replica,
 }
 
-/// Builder for [`ConnectionPool`]s.
+/// Builder for [`MainConnectionPool`]s.
 #[derive(Debug)]
 pub struct MainConnectionPoolBuilder {
     db: DbVariant,

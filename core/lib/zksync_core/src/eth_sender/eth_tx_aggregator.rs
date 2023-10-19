@@ -6,6 +6,7 @@ use zksync_config::configs::eth_sender::SenderConfig;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{MainConnectionPool, MainStorageProcessor};
 use zksync_eth_client::BoundEthInterface;
+use zksync_prover_dal::{ProverConnectionPool, ProverStorageProcessor};
 use zksync_types::{
     aggregated_operations::AggregatedOperation,
     contracts::{Multicall3Call, Multicall3Result},
@@ -70,7 +71,7 @@ impl EthTxAggregator {
     pub async fn run<E: BoundEthInterface>(
         mut self,
         pool: MainConnectionPool,
-        prover_pool: MainConnectionPool,
+        prover_pool: ProverConnectionPool,
         eth_client: E,
         stop_receiver: watch::Receiver<bool>,
     ) -> anyhow::Result<()> {
@@ -323,7 +324,7 @@ impl EthTxAggregator {
     async fn loop_iteration<E: BoundEthInterface>(
         &mut self,
         storage: &mut MainStorageProcessor<'_>,
-        prover_storage: &mut MainStorageProcessor<'_>,
+        prover_storage: &mut ProverStorageProcessor<'_>,
         eth_client: &E,
     ) -> Result<(), ETHSenderError> {
         let MulticallData {

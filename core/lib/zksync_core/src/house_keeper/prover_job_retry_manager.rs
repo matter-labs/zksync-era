@@ -1,8 +1,8 @@
 use std::time::Duration;
 
 use async_trait::async_trait;
-use zksync_dal::MainConnectionPool;
 
+use zksync_prover_dal::ProverConnectionPool;
 use zksync_prover_utils::periodic_job::PeriodicJob;
 
 #[derive(Debug)]
@@ -10,7 +10,7 @@ pub struct ProverJobRetryManager {
     max_attempts: u32,
     processing_timeout: Duration,
     retry_interval_ms: u64,
-    prover_connection_pool: MainConnectionPool,
+    prover_connection_pool: ProverConnectionPool,
 }
 
 impl ProverJobRetryManager {
@@ -18,7 +18,7 @@ impl ProverJobRetryManager {
         max_attempts: u32,
         processing_timeout: Duration,
         retry_interval_ms: u64,
-        prover_connection_pool: MainConnectionPool,
+        prover_connection_pool: ProverConnectionPool,
     ) -> Self {
         Self {
             max_attempts,

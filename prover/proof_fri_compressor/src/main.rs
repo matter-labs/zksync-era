@@ -47,7 +47,7 @@ async fn main() -> anyhow::Result<()> {
 
     let opt = Opt::from_args();
     let config = FriProofCompressorConfig::from_env().context("FriProofCompressorConfig")?;
-    let pool = ConnectionPool::builder(DbVariant::Prover)
+    let pool = ProverConnectionPool::builder()
         .build()
         .await
         .context("failed to build a connection pool")?;

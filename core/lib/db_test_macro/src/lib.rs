@@ -9,7 +9,7 @@ use syn::{
 /// Argument that can be supplied to the `db_test` macro to be used in the `zksync_dal` crate.
 const DAL_CRATE_MARKER_ARG: &str = "dal_crate";
 /// Name of the type that represents the connection pool in DAL.
-const TYPE_NAME: &str = "ConnectionPool";
+const TYPE_NAME: &str = "MainConnectionPool";
 
 #[derive(Debug)]
 struct Args {
@@ -74,13 +74,13 @@ fn parse_knobs(mut input: syn::ItemFn, inside_dal_crate: bool) -> Result<TokenSt
         quote! {
             let __test_main_pool = #dal_crate_id::connection::TestPool::new().await;
             let __test_prover_pool = #dal_crate_id::connection::TestPool::new().await;
-            let #main_pool_arg_name: #main_pool_arg_type = #dal_crate_id::ConnectionPool::Test(__test_main_pool);
-            let #prover_pool_arg_name: #prover_pool_arg_type = #dal_crate_id::ConnectionPool::Test(__test_prover_pool);
+            let #main_pool_arg_name: #main_pool_arg_type = #dal_crate_id::MainConnectionPool::Test(__test_main_pool);
+            let #prover_pool_arg_name: #prover_pool_arg_type = #dal_crate_id::MainConnectionPool::Test(__test_prover_pool);
         }
     } else {
         quote! {
             let __test_main_pool = #dal_crate_id::connection::TestPool::new().await;
-            let #main_pool_arg_name: #main_pool_arg_type = #dal_crate_id::ConnectionPool::Test(__test_main_pool);
+            let #main_pool_arg_name: #main_pool_arg_type = #dal_crate_id::MainConnectionPool::Test(__test_main_pool);
         }
     };
     let result = quote! {
@@ -108,7 +108,11 @@ pub fn db_test(raw_args: TokenStream, item: TokenStream) -> TokenStream {
     let args = syn::parse_macro_input!(raw_args as Args);
 
     // There may be only one argument, and it should match the exact expected value.
-    if args.vars.len() > 1 || (args.vars.len() == 1 && args.vars[0] != DAL_CRATE_MARKER_ARG) {
+    if args.vars.len() > 1
+        || (args.vars.len() == 1
+            && args.vars[0] != "main_dal_crate"
+            && args.vars[0] != "prover_dal_crate")
+    {
         let msg = format!("only '{DAL_CRATE_MARKER_ARG}' argument is supported");
         return syn::Error::new_spanned(&args.vars[0], msg)
             .to_compile_error()
@@ -117,7 +121,7 @@ pub fn db_test(raw_args: TokenStream, item: TokenStream) -> TokenStream {
     let inside_dal_crate = args
         .vars
         .first()
-        .map(|arg| arg == DAL_CRATE_MARKER_ARG)
+        .map(|arg| arg == "main_dal_crate" || arg == "prover_dal_crate")
         .unwrap_or(false);
 
     for attr in &input.attrs {
