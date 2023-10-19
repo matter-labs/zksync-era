@@ -114,11 +114,20 @@ impl RocksdbStorage {
 
     /// Creates a new storage with the provided RocksDB `path`.
     pub fn new(path: &Path) -> Self {
+        let db = RocksDB::new(path);
         Self {
-            db: RocksDB::new(path),
+            db,
             pending_patch: InMemoryStorage::default(),
             enum_index_migration_chunk_size: 0,
         }
+    }
+
+    #[cfg(test)]
+    pub fn new_testing(path: &Path) -> Self {
+        let mut new_self = Self::new(path);
+        new_self.enable_enum_index_migration(100);
+
+        new_self
     }
 
     /// Enables enum indices migration.
@@ -184,7 +193,11 @@ impl RocksdbStorage {
             "Secondary storage for L1 batch #{latest_l1_batch_number} initialized, size is {estimated_size}"
         );
 
-        self.save_missing_enum_indices(conn).await;
+        assert!(self.enum_index_migration_chunk_size > 0);
+        // Enum indices must be at the storage. Run migration till the end.
+        while self.enum_migration_start_from().is_some() {
+            self.save_missing_enum_indices(conn).await;
+        }
     }
 
     async fn apply_storage_logs(
@@ -489,6 +502,13 @@ impl ReadStorage for RocksdbStorage {
             .get_cf(cf, hash.as_bytes())
             .expect("failed to read RocksDB state value")
     }
+
+    fn get_enumeration_index(&mut self, key: &StorageKey) -> Option<u64> {
+        // Can safely unwrap here since it indicates that the migration has not yet ended and boojum will
+        // only be deployed when the migration is finished.
+        self.read_state_value(key)
+            .map(|state_value| state_value.enum_index.unwrap())
+    }
 }
 
 #[cfg(test)]
@@ -506,7 +526,7 @@ mod tests {
     #[tokio::test]
     async fn rocksdb_storage_basics() {
         let dir = TempDir::new().expect("cannot create temporary dir for state keeper");
-        let mut storage = RocksdbStorage::new(dir.path());
+        let mut storage = RocksdbStorage::new_testing(dir.path());
         let mut storage_logs: HashMap<_, _> = gen_storage_logs(0..20)
             .into_iter()
             .map(|log| (log.key, log.value))
@@ -548,7 +568,7 @@ mod tests {
         create_l1_batch(&mut conn, L1BatchNumber(1), &storage_logs).await;
 
         let dir = TempDir::new().expect("cannot create temporary dir for state keeper");
-        let mut storage = RocksdbStorage::new(dir.path());
+        let mut storage = RocksdbStorage::new_testing(dir.path());
         storage.update_from_postgres(&mut conn).await;
 
         assert_eq!(storage.l1_batch_number(), L1BatchNumber(2));
@@ -598,7 +618,7 @@ mod tests {
         create_l1_batch(&mut conn, L1BatchNumber(2), &inserted_storage_logs).await;
 
         let dir = TempDir::new().expect("cannot create temporary dir for state keeper");
-        let mut storage = RocksdbStorage::new(dir.path());
+        let mut storage = RocksdbStorage::new_testing(dir.path());
         storage.update_from_postgres(&mut conn).await;
 
         // Perform some sanity checks before the revert.
@@ -657,7 +677,7 @@ mod tests {
             .collect();
 
         let dir = TempDir::new().expect("cannot create temporary dir for state keeper");
-        let mut storage = RocksdbStorage::new(dir.path());
+        let mut storage = RocksdbStorage::new_testing(dir.path());
         storage.update_from_postgres(&mut conn).await;
 
         assert_eq!(storage.l1_batch_number(), L1BatchNumber(2));

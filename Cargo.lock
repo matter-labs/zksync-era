@@ -8291,6 +8291,7 @@ dependencies = [
  "anyhow",
  "db_test_macro",
  "itertools",
+ "metrics",
  "mini-moka",
  "rand 0.8.5",
  "tempfile",

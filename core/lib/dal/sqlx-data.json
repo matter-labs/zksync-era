@@ -3735,6 +3735,26 @@
     },
     "query": "UPDATE tokens SET market_volume = $2, market_volume_updated_at = $3, updated_at = now() WHERE l1_address = $1"
   },
+  "3e982e4863eef38069e755e3f20602ef9eaae859d23d86c3f230ddea8805aea7": {
+    "describe": {
+      "columns": [
+        {
+          "name": "index",
+          "ordinal": 0,
+          "type_info": "Int8"
+        }
+      ],
+      "nullable": [
+        false
+      ],
+      "parameters": {
+        "Left": [
+          "Bytea"
+        ]
+      }
+    },
+    "query": "SELECT index FROM initial_writes WHERE hashed_key = $1"
+  },
   "3f6332706376ef4cadda96498872429b6ed28eca5402b03b1aa3b77b8262bccd": {
     "describe": {
       "columns": [],
