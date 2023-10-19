@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - main
+      - sb-comms-between-mem-oracle-and-storage-oracle
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
