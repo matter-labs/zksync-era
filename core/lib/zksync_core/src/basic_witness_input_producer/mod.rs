@@ -1,7 +1,6 @@
 use std::sync::Arc;
 use std::time::Instant;
 
-use zksync_config::configs::chain::{NetworkConfig, StateKeeperConfig};
 use zksync_dal::ConnectionPool;
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_queued_job_processor::JobProcessor;
@@ -32,27 +31,9 @@ impl BasicWitnessInputProducer {
     pub async fn new(
         connection_pool: ConnectionPool,
         store_factory: &ObjectStoreFactory,
-        state_keeper_config: &StateKeeperConfig,
-        network_config: &NetworkConfig,
+        l2_chain_id: L2ChainId,
     ) -> anyhow::Result<Self> {
-        // BEWARE, HERE BE DRAGONS.
-        // This usage here is a race condition waiting to happen.
-        // Context -- The VM run in BasicWitnessInputProducer MUST be identical to run from StateKeeper.
-        // Race condition scenario:
-        // 1. StateKeeper runs with a config A, which has value a for `validation_computational_gas_limit`
-        // 2. StateKeeper runs the batch and saves data to database.
-        // 3. Deployment is made and changes to config B, with value b for `validation_computational_gas_limit`.
-        // 4. BasicWitnessInputProducer loads config B
-        // 5. BasicWitnessInputProducer runs the L1Batch that was saved with config A using config B.
-        // In this scenario, the outputs will be different, which will make Witness Generation crash.
-        // This has been discussed between @evl and @deniallugo as a terrible solution, but best so far.
-        let validation_computational_gas_limit =
-            state_keeper_config.validation_computational_gas_limit;
-        // This variable is fine to be loaded from config.
-        // Today, this config changes only during regenesis.
-        // In the hyper-chains world, this code will be refactored (using the DB saved value instead of config)
-        let l2_chain_id = network_config.zksync_network_id;
-
+        let validation_computational_gas_limit = u32::MAX;
         Ok(BasicWitnessInputProducer {
             connection_pool,
             validation_computational_gas_limit,

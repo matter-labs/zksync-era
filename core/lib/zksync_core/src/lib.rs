@@ -43,7 +43,7 @@ use zksync_types::{
     proofs::AggregationRound,
     protocol_version::{L1VerifierConfig, VerifierParams},
     system_contracts::get_system_smart_contracts,
-    Address, PackedEthSignature, ProtocolVersionId,
+    Address, L2ChainId, PackedEthSignature, ProtocolVersionId,
 };
 use zksync_verification_key_server::get_cached_commitments;
 
@@ -642,8 +642,9 @@ pub async fn initialize_components(
             &mut task_futures,
             &connection_pool,
             &store_factory,
-            &StateKeeperConfig::from_env().context("StateKeeperConfig::from_env()")?,
-            &NetworkConfig::from_env().context("NetworkConfig::from_env()")?,
+            NetworkConfig::from_env()
+                .context("NetworkConfig::from_env()")?
+                .zksync_network_id,
             stop_receiver.clone(),
         )
         .await
@@ -855,19 +856,13 @@ async fn add_basic_witness_input_producer_to_task_futures(
     task_futures: &mut Vec<JoinHandle<anyhow::Result<()>>>,
     connection_pool: &ConnectionPool,
     store_factory: &ObjectStoreFactory,
-    state_keeper_config: &StateKeeperConfig,
-    network_config: &NetworkConfig,
+    l2_chain_id: L2ChainId,
     stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<()> {
     let started_at = Instant::now();
     tracing::info!("initializing BasicWitnessInputProducer");
-    let producer = BasicWitnessInputProducer::new(
-        connection_pool.clone(),
-        store_factory,
-        state_keeper_config,
-        network_config,
-    )
-    .await?;
+    let producer =
+        BasicWitnessInputProducer::new(connection_pool.clone(), store_factory, l2_chain_id).await?;
     task_futures.push(tokio::spawn(producer.run(stop_receiver, None)));
     tracing::info!(
         "Initialized BasicWitnessInputProducer in {:?}",
