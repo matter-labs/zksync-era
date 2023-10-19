@@ -6,10 +6,10 @@
 //!
 //! This module is intended to be blocking.
 
-use multivm::{VmInstance, VmInstanceData};
 use std::time::{Duration, Instant};
-use vm::{constants::BLOCK_GAS_LIMIT, HistoryDisabled, L1BatchEnv, L2BlockEnv, SystemEnv};
 
+use multivm::VmInstance;
+use vm::{constants::BLOCK_GAS_LIMIT, HistoryDisabled, L1BatchEnv, L2BlockEnv, SystemEnv};
 use zksync_config::constants::{
     SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
     SYSTEM_CONTEXT_CURRENT_TX_ROLLING_HASH_POSITION, ZKPORTER_IS_AVAILABLE,
@@ -26,7 +26,10 @@ use zksync_types::{
 };
 use zksync_utils::{h256_to_u256, time::seconds_since_epoch, u256_to_h256};
 
-use super::{vm_metrics, BlockArgs, TxExecutionArgs, TxSharedArgs, VmPermit};
+use super::{
+    vm_metrics::{self, SandboxStage, SANDBOX_METRICS},
+    BlockArgs, TxExecutionArgs, TxSharedArgs, VmPermit,
+};
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn apply_vm_in_sandbox<T>(
@@ -36,7 +39,7 @@ pub(super) fn apply_vm_in_sandbox<T>(
     connection_pool: &ConnectionPool,
     tx: Transaction,
     block_args: BlockArgs,
-    apply: impl FnOnce(&mut VmInstance<'_, PostgresStorage<'_>, HistoryDisabled>, Transaction) -> T,
+    apply: impl FnOnce(&mut VmInstance<PostgresStorage<'_>, HistoryDisabled>, Transaction) -> T,
 ) -> T {
     let stage_started_at = Instant::now();
     let span = tracing::debug_span!("initialization").entered();
@@ -197,19 +200,14 @@ pub(super) fn apply_vm_in_sandbox<T>(
     };
 
     let storage_view = storage_view.to_rc_ptr();
-    let mut initial_version = VmInstanceData::new_for_specific_vm_version(
-        storage_view.clone(),
-        &system_env,
-        HistoryDisabled,
-        protocol_version.into_api_vm_version(),
-    );
-    let mut vm = Box::new(VmInstance::new(
+    let mut vm = Box::new(VmInstance::new_with_specific_version(
         l1_batch_env,
         system_env,
-        &mut initial_version,
+        storage_view.clone(),
+        protocol_version.into_api_vm_version(),
     ));
 
-    metrics::histogram!("api.web3.sandbox", stage_started_at.elapsed(), "stage" => "initialization");
+    SANDBOX_METRICS.sandbox[&SandboxStage::Initialization].observe(stage_started_at.elapsed());
     span.exit();
 
     let tx_id = format!(
@@ -217,10 +215,9 @@ pub(super) fn apply_vm_in_sandbox<T>(
         tx.initiator_account(),
         tx.nonce().unwrap_or(Nonce(0))
     );
-    let stage_started_at = Instant::now();
+    let execution_latency = SANDBOX_METRICS.sandbox[&SandboxStage::Execution].start();
     let result = apply(&mut vm, tx);
-    let vm_execution_took = stage_started_at.elapsed();
-    metrics::histogram!("api.web3.sandbox", vm_execution_took, "stage" => "execution");
+    let vm_execution_took = execution_latency.observe();
 
     let memory_metrics = vm.record_vm_memory_metrics();
     if let Some(memory_metrics) = memory_metrics {

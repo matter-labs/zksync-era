@@ -5,8 +5,8 @@ use zksync_utils::h256_to_u256;
 
 use crate::{
     storage::{MerkleTreeColumnFamily, PatchSet, Patched, RocksDBWrapper},
-    types::{Key, Root, TreeInstruction, TreeLogEntry, ValueHash, TREE_DEPTH},
-    BlockOutput, HashTree, MerkleTree,
+    types::{Key, Root, TreeEntryWithProof, TreeInstruction, TreeLogEntry, ValueHash, TREE_DEPTH},
+    BlockOutput, HashTree, MerkleTree, NoVersionError,
 };
 use zksync_crypto::hasher::blake2::Blake2Hasher;
 use zksync_storage::RocksDB;
@@ -104,6 +104,13 @@ impl ZkSyncTree {
             thread_pool: None,
             mode,
         }
+    }
+
+    /// Returns a readonly handle to the tree. The handle **does not** see uncommitted changes to the tree,
+    /// only ones flushed to RocksDB.
+    pub fn reader(&self) -> ZkSyncTreeReader {
+        let db = self.tree.db.inner().clone();
+        ZkSyncTreeReader(MerkleTree::new(db))
     }
 
     /// Sets the chunk size for multi-get operations. The requested keys will be split
@@ -412,5 +419,52 @@ impl ZkSyncTree {
     /// Resets the tree to the latest database state.
     pub fn reset(&mut self) {
         self.tree.db.reset();
+    }
+}
+
+/// Readonly handle to a [`ZkSyncTree`].
+#[derive(Debug)]
+pub struct ZkSyncTreeReader(MerkleTree<'static, RocksDBWrapper>);
+
+// While cloning `MerkleTree` is logically unsound, cloning a reader is reasonable since it is readonly.
+impl Clone for ZkSyncTreeReader {
+    fn clone(&self) -> Self {
+        Self(MerkleTree::new(self.0.db.clone()))
+    }
+}
+
+impl ZkSyncTreeReader {
+    /// Returns the current root hash of this tree.
+    pub fn root_hash(&self) -> ValueHash {
+        self.0.latest_root_hash()
+    }
+
+    /// Returns the next L1 batch number that should be processed by the tree.
+    #[allow(clippy::missing_panics_doc)]
+    pub fn next_l1_batch_number(&self) -> L1BatchNumber {
+        let number = self.0.latest_version().map_or(0, |version| {
+            u32::try_from(version + 1).expect("integer overflow for L1 batch number")
+        });
+        L1BatchNumber(number)
+    }
+
+    /// Returns the number of leaves in the tree.
+    pub fn leaf_count(&self) -> u64 {
+        self.0.latest_root().leaf_count()
+    }
+
+    /// Reads entries together with Merkle proofs with the specified keys from the tree. The entries are returned
+    /// in the same order as requested.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the tree `version` is missing.
+    pub fn entries_with_proofs(
+        &self,
+        l1_batch_number: L1BatchNumber,
+        keys: &[Key],
+    ) -> Result<Vec<TreeEntryWithProof>, NoVersionError> {
+        let version = u64::from(l1_batch_number.0);
+        self.0.entries_with_proofs(version, keys)
     }
 }

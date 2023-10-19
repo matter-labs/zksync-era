@@ -122,6 +122,14 @@ impl RocksdbStorage {
         }
     }
 
+    #[cfg(test)]
+    pub fn new_testing(path: &Path) -> Self {
+        let mut new_self = Self::new(path);
+        new_self.enable_enum_index_migration(100);
+
+        new_self
+    }
+
     /// Enables enum indices migration.
     pub fn enable_enum_index_migration(&mut self, chunk_size: usize) {
         self.enum_index_migration_chunk_size = chunk_size;
@@ -185,6 +193,7 @@ impl RocksdbStorage {
             "Secondary storage for L1 batch #{latest_l1_batch_number} initialized, size is {estimated_size}"
         );
 
+        assert!(self.enum_index_migration_chunk_size > 0);
         // Enum indices must be at the storage. Run migration till the end.
         while self.enum_migration_start_from().is_some() {
             self.save_missing_enum_indices(conn).await;
@@ -517,7 +526,7 @@ mod tests {
     #[tokio::test]
     async fn rocksdb_storage_basics() {
         let dir = TempDir::new().expect("cannot create temporary dir for state keeper");
-        let mut storage = RocksdbStorage::new(dir.path());
+        let mut storage = RocksdbStorage::new_testing(dir.path());
         let mut storage_logs: HashMap<_, _> = gen_storage_logs(0..20)
             .into_iter()
             .map(|log| (log.key, log.value))
@@ -559,7 +568,7 @@ mod tests {
         create_l1_batch(&mut conn, L1BatchNumber(1), &storage_logs).await;
 
         let dir = TempDir::new().expect("cannot create temporary dir for state keeper");
-        let mut storage = RocksdbStorage::new(dir.path());
+        let mut storage = RocksdbStorage::new_testing(dir.path());
         storage.update_from_postgres(&mut conn).await;
 
         assert_eq!(storage.l1_batch_number(), L1BatchNumber(2));
@@ -609,7 +618,7 @@ mod tests {
         create_l1_batch(&mut conn, L1BatchNumber(2), &inserted_storage_logs).await;
 
         let dir = TempDir::new().expect("cannot create temporary dir for state keeper");
-        let mut storage = RocksdbStorage::new(dir.path());
+        let mut storage = RocksdbStorage::new_testing(dir.path());
         storage.update_from_postgres(&mut conn).await;
 
         // Perform some sanity checks before the revert.
@@ -668,7 +677,7 @@ mod tests {
             .collect();
 
         let dir = TempDir::new().expect("cannot create temporary dir for state keeper");
-        let mut storage = RocksdbStorage::new(dir.path());
+        let mut storage = RocksdbStorage::new_testing(dir.path());
         storage.update_from_postgres(&mut conn).await;
 
         assert_eq!(storage.l1_batch_number(), L1BatchNumber(2));

@@ -1,7 +1,3 @@
-use crate::eth_watch::{
-    client::{Error, EthClient},
-    event_processors::EventProcessor,
-};
 use std::convert::TryFrom;
 use std::time::Instant;
 use zksync_contracts::{governance_contract, zksync_contract};
@@ -9,6 +5,12 @@ use zksync_dal::StorageProcessor;
 use zksync_types::{
     protocol_version::GovernanceOperation, web3::types::Log, Address, ProtocolUpgrade,
     ProtocolVersionId, H256,
+};
+
+use crate::eth_watch::{
+    client::{Error, EthClient},
+    event_processors::EventProcessor,
+    metrics::{PollStage, METRICS},
 };
 
 /// Responsible for saving new protocol upgrade proposals to the database.
@@ -94,7 +96,7 @@ impl<W: EthClient + Sync> EventProcessor<W> for UpgradesEventProcessor {
         }
 
         let last_id = new_upgrades.last().unwrap().0.id;
-        let stage_start = Instant::now();
+        let stage_latency = METRICS.poll_eth_node[&PollStage::PersistUpgrades].start();
         for (upgrade, scheduler_vk_hash) in new_upgrades {
             let previous_version = storage
                 .protocol_versions_dal()
@@ -107,10 +109,8 @@ impl<W: EthClient + Sync> EventProcessor<W> for UpgradesEventProcessor {
                 .save_protocol_version_with_tx(new_version)
                 .await;
         }
-        metrics::histogram!("eth_watcher.poll_eth_node", stage_start.elapsed(), "stage" => "persist_upgrades");
-
+        stage_latency.observe();
         self.last_seen_version_id = last_id;
-
         Ok(())
     }
 

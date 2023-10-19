@@ -2,9 +2,9 @@ use const_decoder::Decoder::Hex;
 
 use std::iter;
 
-use super::PrecalculatedMerklePathsProvider;
+use super::precalculated_merkle_paths_provider::PrecalculatedMerklePathsProvider;
+use zkevm_test_harness::witness::tree::{BinarySparseStorageTree, ZkSyncStorageLeaf};
 use zksync_types::proofs::{PrepareBasicCircuitsJob, StorageLogMetadata};
-use zksync_types::zkevm_test_harness::witness::tree::{BinarySparseStorageTree, ZkSyncStorageLeaf};
 use zksync_types::U256;
 
 // Sample `StorageLogMetadata` entries. Since we cannot allocate in constants, we store
@@ -61,7 +61,7 @@ const fn generate_storage_log_metadata(
     merkle_path: &[u8],
     is_write: bool,
     first_write: bool,
-    leaf_enumeration_index u64,
+    leaf_enumeration_index: u64,
 ) -> (StorageLogMetadata, [u8; 32]) {
     let log = StorageLogMetadata {
         root_hash: Hex.decode(root_hash),

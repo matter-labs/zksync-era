@@ -1,16 +1,44 @@
-use super::*;
+use zksync_basic_types::U256;
+
+// Starting with version 1 for this compression strategy. Any modifications to our current strategy MUST
+// increment this number.
+pub const COMPRESSION_VERSION_NUMBER: u8 = 1;
 
 // Trait used to define functionality for different compression modes. Defines functions for
 // output size, what type of operation was performed, and value/extended compression.
 trait CompressionMode: 'static {
     /// Id of the operation being performed.
     fn operation_id(&self) -> usize;
-    /// Number of bytes the compressed value requires.
-    fn output_size(&self) -> Option<usize>;
+    /// Gets the diff and size of value
+    fn get_diff_and_size(&self) -> Option<(U256, usize)>;
+    /// Number of bytes the compressed value requires. None indicates that compression cannot be performed for the
+    /// given strategy.
+    fn output_size(&self) -> Option<usize> {
+        self.get_diff_and_size().map(|(_, size)| size)
+    }
     /// Compress the value.
-    fn compress_value_only(&self) -> Option<Vec<u8>>;
+    fn compress_value_only(&self) -> Option<Vec<u8>> {
+        let (diff, size) = self.get_diff_and_size()?;
+
+        let mut buffer = [0u8; 32];
+        diff.to_big_endian(&mut buffer);
+
+        let diff = buffer[(32 - size)..].to_vec();
+
+        Some(diff)
+    }
     /// Concatenation of the metadata byte (5 bits for len and 3 bits for operation type) and the compressed value.
-    fn compress_extended(&self) -> Option<Vec<u8>>;
+    fn compress_extended(&self) -> Option<Vec<u8>> {
+        self.compress_value_only().map(|compressed_value| {
+            let mut res: Vec<u8> = vec![];
+            res.push(metadata_byte(
+                self.output_size().unwrap(),
+                self.operation_id(),
+            ));
+            res.extend(compressed_value);
+            res
+        })
+    }
 }
 
 struct CompressionByteAdd {
@@ -18,7 +46,11 @@ struct CompressionByteAdd {
     pub new_value: U256,
 }
 
-impl CompressionByteAdd {
+impl CompressionMode for CompressionByteAdd {
+    fn operation_id(&self) -> usize {
+        1
+    }
+
     fn get_diff_and_size(&self) -> Option<(U256, usize)> {
         let diff = self.new_value.overflowing_sub(self.prev_value).0;
         // Ceiling division
@@ -30,12 +62,6 @@ impl CompressionByteAdd {
             Some((diff, size))
         }
     }
-}
-
-impl CompressionMode for CompressionByteAdd {
-    fn operation_id(&self) -> usize {
-        1
-    }
 
     fn output_size(&self) -> Option<usize> {
         self.get_diff_and_size().map(|(_, size)| size)
@@ -51,18 +77,6 @@ impl CompressionMode for CompressionByteAdd {
 
         Some(diff)
     }
-
-    fn compress_extended(&self) -> Option<Vec<u8>> {
-        match self.compress_value_only() {
-            None => None,
-            Some(compressed_val) => {
-                let mut res: Vec<u8> = vec![];
-                res.push(((self.output_size().unwrap() << 3) | self.operation_id()) as u8);
-                res.extend(compressed_val);
-                Some(res)
-            }
-        }
-    }
 }
 
 struct CompressionByteSub {
@@ -70,7 +84,11 @@ struct CompressionByteSub {
     pub new_value: U256,
 }
 
-impl CompressionByteSub {
+impl CompressionMode for CompressionByteSub {
+    fn operation_id(&self) -> usize {
+        2
+    }
+
     fn get_diff_and_size(&self) -> Option<(U256, usize)> {
         let diff = self.prev_value.overflowing_sub(self.new_value).0;
         // Ceiling division
@@ -82,38 +100,9 @@ impl CompressionByteSub {
             Some((diff, size))
         }
     }
-}
-
-impl CompressionMode for CompressionByteSub {
-    fn operation_id(&self) -> usize {
-        2
-    }
 
     fn output_size(&self) -> Option<usize> {
         self.get_diff_and_size().map(|(_, size)| size)
-    }
-
-    fn compress_value_only(&self) -> Option<Vec<u8>> {
-        let (diff, size) = self.get_diff_and_size()?;
-
-        let mut buffer = [0u8; 32];
-        diff.to_big_endian(&mut buffer);
-
-        let diff = buffer[(32 - size)..].to_vec();
-
-        Some(diff)
-    }
-
-    fn compress_extended(&self) -> Option<Vec<u8>> {
-        match self.compress_value_only() {
-            None => None,
-            Some(compressed_val) => {
-                let mut res: Vec<u8> = vec![];
-                res.push(((self.output_size().unwrap() << 3) | self.operation_id()) as u8);
-                res.extend(compressed_val);
-                Some(res)
-            }
-        }
     }
 }
 
@@ -121,7 +110,11 @@ struct CompressionByteTransform {
     pub new_value: U256,
 }
 
-impl CompressionByteTransform {
+impl CompressionMode for CompressionByteTransform {
+    fn operation_id(&self) -> usize {
+        3
+    }
+
     fn get_diff_and_size(&self) -> Option<(U256, usize)> {
         // Ceiling division
         let size = (self.new_value.bits() + 7) / 8;
@@ -132,38 +125,9 @@ impl CompressionByteTransform {
             Some((self.new_value, size))
         }
     }
-}
-
-impl CompressionMode for CompressionByteTransform {
-    fn operation_id(&self) -> usize {
-        3
-    }
 
     fn output_size(&self) -> Option<usize> {
         self.get_diff_and_size().map(|(_, size)| size)
-    }
-
-    fn compress_value_only(&self) -> Option<Vec<u8>> {
-        let (diff, size) = self.get_diff_and_size()?;
-
-        let mut buffer = [0u8; 32];
-        diff.to_big_endian(&mut buffer);
-
-        let diff = buffer[(32 - size)..].to_vec();
-
-        Some(diff)
-    }
-
-    fn compress_extended(&self) -> Option<Vec<u8>> {
-        match self.compress_value_only() {
-            None => None,
-            Some(compressed_val) => {
-                let mut res: Vec<u8> = vec![];
-                res.push(((self.output_size().unwrap() << 3) | self.operation_id()) as u8);
-                res.extend(compressed_val);
-                Some(res)
-            }
-        }
     }
 }
 
@@ -182,6 +146,10 @@ impl CompressionMode for CompressionByteNone {
         0
     }
 
+    fn get_diff_and_size(&self) -> Option<(U256, usize)> {
+        None
+    }
+
     fn output_size(&self) -> Option<usize> {
         Some(32)
     }
@@ -190,9 +158,7 @@ impl CompressionMode for CompressionByteNone {
         let mut buffer = [0u8; 32];
         self.new_value.to_big_endian(&mut buffer);
 
-        let diff = buffer[(32 - self.output_size().unwrap())..].to_vec();
-
-        Some(diff)
+        Some(buffer.to_vec())
     }
 
     fn compress_extended(&self) -> Option<Vec<u8>> {
@@ -217,34 +183,29 @@ fn default_passes(prev_value: U256, new_value: U256) -> Vec<Box<dyn CompressionM
     ]
 }
 
+/// Generates the metadata byte for a given compression strategy.
+/// The metadata byte is structured as:
+/// First 5 bits: length of the compressed value
+/// Last 3 bits: operation id corresponding to the given compression used.
+fn metadata_byte(output_size: usize, operation_id: usize) -> u8 {
+    ((output_size << 3) | operation_id) as u8
+}
+
 /// For a given previous value and new value, try each compression strategy selecting the most
 /// efficient one. Using that strategy, generate the extended compression (metadata byte and compressed value).
 /// If none are found then use the full 32 byte new value with the metadata byte being `0x00`
 pub fn compress_with_best_strategy(prev_value: U256, new_value: U256) -> Vec<u8> {
     let compressors = default_passes(prev_value, new_value);
 
-    let mut result: Option<(&Box<dyn CompressionMode + 'static>, usize)> = None;
-    for compressor in compressors.iter() {
-        if let Some(expected_size) = compressor.output_size() {
-            if compressor.compress_value_only().is_some() {
-                if let Some(existing) = result.as_mut() {
-                    if expected_size < existing.1 {
-                        existing.0 = compressor;
-                        existing.1 = expected_size;
-                    }
-                } else {
-                    result = Some((compressor, expected_size));
-                }
-            }
-        }
-    }
-
-    match result {
-        None => CompressionByteNone::new(new_value)
-            .compress_extended()
-            .unwrap(),
-        Some((compression_strategy, _)) => compression_strategy.compress_extended().unwrap(),
-    }
+    compressors
+        .iter()
+        .filter_map(|e| e.compress_extended())
+        .min_by_key(|bytes| bytes.len())
+        .unwrap_or_else(|| {
+            CompressionByteNone::new(new_value)
+                .compress_extended()
+                .unwrap()
+        })
 }
 
 #[cfg(test)]
@@ -337,7 +298,6 @@ mod tests {
         let operation = metadata.bitand(U256::from(7u8));
         assert!(operation == U256::from(3));
         let len = metadata.shr(U256::from(3u8));
-        dbg!(len);
         assert!(len == U256::from(2));
 
         let compressed_val = U256::from(compressed_val);

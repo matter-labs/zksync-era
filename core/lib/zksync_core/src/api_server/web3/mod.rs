@@ -1,18 +1,14 @@
-// External uses
 use anyhow::Context as _;
 use futures::future;
 use jsonrpc_core::MetaIoHandler;
 use jsonrpc_http_server::hyper;
-
 use jsonrpc_pubsub::PubSubHandler;
 use serde::Deserialize;
 use tokio::sync::{watch, RwLock};
 use tower_http::{cors::CorsLayer, metrics::InFlightRequestsLayer};
 
-// Built-in uses
 use std::{net::SocketAddr, sync::Arc, time::Duration};
 
-// Workspace uses
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_health_check::{HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_types::{api, MiniblockNumber};
@@ -28,7 +24,6 @@ use zksync_web3_decl::{
     },
 };
 
-// Local uses
 use crate::{
     api_server::{
         execution_sandbox::VmConcurrencyBarrier, tx_sender::TxSender,
@@ -40,11 +35,11 @@ use crate::{
 
 pub mod backend_jsonrpc;
 pub mod backend_jsonrpsee;
+mod metrics;
 pub mod namespaces;
 mod pubsub_notifier;
 pub mod state;
 
-// Uses from submodules.
 use self::backend_jsonrpc::{
     batch_limiter_middleware::{LimitMiddleware, Transport},
     error::internal_error,
@@ -54,6 +49,7 @@ use self::backend_jsonrpc::{
     },
     pub_sub::Web3PubSub,
 };
+use self::metrics::API_METRICS;
 use self::namespaces::{
     DebugNamespace, EnNamespace, EthNamespace, EthSubscribe, NetNamespace, Web3Namespace,
     ZksNamespace,
@@ -649,6 +645,7 @@ impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
             ApiTransport::Http(addr) => ("HTTP", true, addr),
             ApiTransport::WebSocket(addr) => ("WS", false, addr),
         };
+        let transport_label = (&transport).into();
 
         // Setup CORS.
         let cors = is_http.then(|| {
@@ -661,10 +658,12 @@ impl<G: 'static + Send + Sync + L1GasPriceProvider> ApiBuilder<G> {
         });
         // Setup metrics for the number of in-flight requests.
         let (in_flight_requests, counter) = InFlightRequestsLayer::pair();
-        tokio::spawn(counter.run_emitter(Duration::from_millis(100), move |count| {
-            metrics::histogram!("api.web3.in_flight_requests", count as f64, "scheme" => transport_str);
-            future::ready(())
-        }));
+        tokio::spawn(
+            counter.run_emitter(Duration::from_millis(100), move |count| {
+                API_METRICS.web3_in_flight_requests[&transport_label].observe(count);
+                future::ready(())
+            }),
+        );
         // Assemble server middleware.
         let middleware = tower::ServiceBuilder::new()
             .layer(in_flight_requests)
@@ -710,11 +709,11 @@ struct TrackOpenWsConnections;
 
 impl jsonrpc_ws_server::SessionStats for TrackOpenWsConnections {
     fn open_session(&self, _id: jsonrpc_ws_server::SessionId) {
-        metrics::increment_gauge!("api.ws.open_sessions", 1.0);
+        API_METRICS.ws_open_sessions.inc_by(1);
     }
 
     fn close_session(&self, _id: jsonrpc_ws_server::SessionId) {
-        metrics::decrement_gauge!("api.ws.open_sessions", 1.0);
+        API_METRICS.ws_open_sessions.dec_by(1);
     }
 }
 

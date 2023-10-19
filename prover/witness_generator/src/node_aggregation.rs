@@ -142,18 +142,23 @@ impl JobProcessor for NodeAggregationWitnessGenerator {
             .fri_witness_generator_dal()
             .get_next_node_aggregation_job(&self.protocol_versions, &pod_name)
             .await
-        else { return Ok(None) };
+        else {
+            return Ok(None);
+        };
         tracing::info!("Processing node aggregation job {:?}", metadata.id);
         Ok(Some((
             metadata.id,
-            prepare_job(metadata, &*self.object_store).await
+            prepare_job(metadata, &*self.object_store)
+                .await
                 .context("prepare_job()")?,
         )))
     }
 
     async fn save_failure(&self, job_id: u32, _started_at: Instant, error: String) -> () {
         self.prover_connection_pool
-            .access_storage().await.unwrap()
+            .access_storage()
+            .await
+            .unwrap()
             .fri_witness_generator_dal()
             .mark_node_aggregation_job_failed(&error, job_id)
             .await;
@@ -211,7 +216,8 @@ pub async fn prepare_job(
         .context("get_recursive_layer_vk_for_circuit_type")?;
     let node_vk = get_recursive_layer_vk_for_circuit_type(
         ZkSyncRecursionLayerStorageType::NodeLayerCircuit as u8,
-    ).context("get_recursive_layer_vk_for_circuit_type()")?;
+    )
+    .context("get_recursive_layer_vk_for_circuit_type()")?;
 
     let mut recursive_proofs = vec![];
     for wrapper in proofs {

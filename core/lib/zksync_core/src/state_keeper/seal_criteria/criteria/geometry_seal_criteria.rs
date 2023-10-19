@@ -20,6 +20,8 @@ pub struct InitialWritesCriterion;
 pub struct MaxCyclesCriterion;
 #[derive(Debug, Default)]
 pub struct ComputationalGasCriterion;
+#[derive(Debug, Default)]
+pub struct L2ToL1LogsCriterion;
 
 trait MetricExtractor {
     const PROM_METRIC_CRITERION_NAME: &'static str;
@@ -116,6 +118,18 @@ impl MetricExtractor for ComputationalGasCriterion {
 
     fn extract(metrics: &ExecutionMetrics, _writes: &DeduplicatedWritesMetrics) -> usize {
         metrics.computational_gas_used as usize
+    }
+}
+
+impl MetricExtractor for L2ToL1LogsCriterion {
+    const PROM_METRIC_CRITERION_NAME: &'static str = "l2_to_l1_logs";
+
+    fn limit_per_block() -> usize {
+        GEOMETRY_CONFIG.limit_for_l1_messages_merklizer as usize
+    }
+
+    fn extract(metrics: &ExecutionMetrics, _writes: &DeduplicatedWritesMetrics) -> usize {
+        metrics.l2_to_l1_logs
     }
 }
 
@@ -321,5 +335,10 @@ mod tests {
     #[test]
     fn computational_gas_seal_criterion() {
         test_scenario_execution_metrics!(ComputationalGasCriterion, computational_gas_used, u32);
+    }
+
+    #[test]
+    fn l2_to_l1_logs_seal_criterion() {
+        test_scenario_execution_metrics!(L2ToL1LogsCriterion, l2_to_l1_logs, usize);
     }
 }

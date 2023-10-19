@@ -38,8 +38,7 @@ use crate::vm_with_bootloader::{
     OPERATOR_REFUNDS_OFFSET,
 };
 
-pub type ZkSyncVmState<'a, S> = VmState<
-    'a,
+pub type ZkSyncVmState<S> = VmState<
     StorageOracle<S>,
     SimpleMemory,
     InMemoryEventSink,
@@ -80,9 +79,9 @@ pub enum MultiVMSubversion {
 }
 
 #[derive(Debug)]
-pub struct VmInstance<'a, S: Storage> {
+pub struct VmInstance<S: Storage> {
     pub gas_limit: u32,
-    pub state: ZkSyncVmState<'a, S>,
+    pub state: ZkSyncVmState<S>,
     pub execution_mode: TxExecutionMode,
     pub block_context: DerivedBlockContext,
     pub(crate) bootloader_state: BootloaderState,
@@ -189,7 +188,7 @@ fn vm_may_have_ended_inner<const B: bool, S: Storage>(
         vm.local_state.callstack.get_current_stack().pc.as_u64(),
     ) {
         (true, 0) => {
-            let returndata = dump_memory_page_using_primitive_value(vm.memory, r1);
+            let returndata = dump_memory_page_using_primitive_value(&vm.memory, r1);
 
             Some(NewVmExecutionResult::Ok(returndata))
         }
@@ -199,7 +198,7 @@ fn vm_may_have_ended_inner<const B: bool, S: Storage>(
             if vm.local_state.flags.overflow_or_less_than_flag {
                 Some(NewVmExecutionResult::Panic)
             } else {
-                let returndata = dump_memory_page_using_primitive_value(vm.memory, r1);
+                let returndata = dump_memory_page_using_primitive_value(&vm.memory, r1);
                 Some(NewVmExecutionResult::Revert(returndata))
             }
         }
@@ -320,7 +319,7 @@ pub struct VmSnapshot {
     bootloader_state: BootloaderState,
 }
 
-impl<'a, S: Storage> VmInstance<'a, S> {
+impl<S: Storage> VmInstance<S> {
     fn has_ended(&self) -> bool {
         match vm_may_have_ended_inner(&self.state) {
             None | Some(NewVmExecutionResult::MostLikelyDidNotFinish(_, _)) => false,
@@ -859,7 +858,7 @@ impl<'a, S: Storage> VmInstance<'a, S> {
 
 // Reads the bootloader memory and checks whether the execution step of the transaction
 // has failed.
-pub(crate) fn tx_has_failed<S: Storage>(state: &ZkSyncVmState<'_, S>, tx_id: u32) -> bool {
+pub(crate) fn tx_has_failed<S: Storage>(state: &ZkSyncVmState<S>, tx_id: u32) -> bool {
     let mem_slot = RESULT_SUCCESS_FIRST_SLOT + tx_id;
     let mem_value = state
         .memory

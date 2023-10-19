@@ -64,6 +64,12 @@ pub struct L1BatchMetadata {
     pub meta_parameters_hash: H256,
     pub pass_through_data_hash: H256,
     pub state_diffs_compressed: Vec<u8>,
+    /// The commitment to the final events queue state after the batch is committed.
+    /// Practically, it is a commitment to all events that happened on L2 during the batch execution.
+    pub events_queue_commitment: Option<H256>,
+    /// The commitment to the initial heap content of the bootloader. Practically it serves as a
+    /// commitment to the transactions in the batch.
+    pub bootloader_initial_content_commitment: Option<H256>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -141,14 +147,14 @@ impl L1BatchWithMetadata {
                     .to_vec(),
             ),
             Token::FixedBytes(
-                self.header
+                self.metadata
                     .bootloader_initial_content_commitment
                     .unwrap()
                     .as_bytes()
                     .to_vec(),
             ),
             Token::FixedBytes(
-                self.header
+                self.metadata
                     .events_queue_commitment
                     .unwrap()
                     .as_bytes()

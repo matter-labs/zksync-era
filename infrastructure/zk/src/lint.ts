@@ -3,21 +3,23 @@ import * as utils from './utils';
 
 // Note that `rust` is not noted here, as clippy isn't run via `yarn`.
 // `rust` option is still supported though.
-const LINT_COMMANDS = {
+const LINT_COMMANDS: Record<string, string> = {
     md: 'markdownlint',
     sol: 'solhint',
     js: 'eslint',
     ts: 'eslint --ext ts'
-    // This is needed to silence typescipt. It is possible to create type
-    // guards, but unfortunately they would have rather weird type, so
-    // Record<string, string> is a better solution.
-} as Record<string, string>;
+};
 const EXTENSIONS = Object.keys(LINT_COMMANDS);
 const CONFIG_PATH = 'etc/lint-config';
 
 export async function lint(extension: string, check: boolean = false) {
     if (extension == 'rust') {
         await clippy();
+        return;
+    }
+
+    if (extension == 'prover') {
+        await proverClippy();
         return;
     }
 
@@ -33,14 +35,19 @@ export async function lint(extension: string, check: boolean = false) {
 }
 
 async function clippy() {
-    process.chdir(process.env.ZKSYNC_HOME as string);
+    process.chdir(process.env.ZKSYNC_HOME!);
     await utils.spawn('cargo clippy --tests -- -D warnings');
 }
 
+async function proverClippy() {
+    process.chdir(process.env.ZKSYNC_HOME! + '/prover');
+    await utils.spawn('cargo clippy --tests -- -D warnings -A incomplete_features');
+}
+
 export const command = new Command('lint')
-    .description('lint non-rust code')
+    .description('lint code')
     .option('--check')
-    .arguments('[extension]')
+    .arguments('[extension] rust|md|sol|js|ts|prover')
     .action(async (extension: string | null, cmd: Command) => {
         if (extension) {
             await lint(extension, cmd.check);
