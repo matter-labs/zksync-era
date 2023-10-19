@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# This script sets up the necessary data needed by the CPU FRI prover to be used locally.
 
 if [[ -z "${ZKSYNC_HOME}" ]]; then
   echo "Environment variable ZKSYNC_HOME is not set. Make sure it's set and pointing to the root of this repository"
