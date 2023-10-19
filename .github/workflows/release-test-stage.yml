@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - main
+      - witgen-storage-oracle-fixed
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
