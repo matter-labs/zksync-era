@@ -34,6 +34,7 @@ pub struct ContractsConfig {
     pub fri_recursion_scheduler_level_vk_hash: H256,
     pub fri_recursion_node_level_vk_hash: H256,
     pub fri_recursion_leaf_level_vk_hash: H256,
+    pub governance_addr: Option<Address>,
 }
 
 impl ContractsConfig {
@@ -93,6 +94,7 @@ mod tests {
             fri_recursion_leaf_level_vk_hash: hash(
                 "0x72167c43a46cf38875b267d67716edc4563861364a3c03ab7aee73498421e828",
             ),
+            governance_addr: None,
         }
     }
 
