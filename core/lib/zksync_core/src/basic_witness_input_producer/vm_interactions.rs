@@ -3,20 +3,20 @@ use std::rc::Rc;
 
 use crate::state_keeper::io::common::load_l1_batch_params;
 
+use multivm::interface::L2BlockEnv;
+use multivm::vm_latest::HistoryEnabled;
 use multivm::VmInstance;
-use vm::{HistoryEnabled, L2BlockEnv};
-use zksync_config::constants::{
-    SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
-};
+use tokio::runtime::Handle;
 use zksync_dal::StorageProcessor;
 use zksync_state::{PostgresStorage, PostgresStorageCaches, ReadStorage, StorageView};
+use zksync_system_constants::{
+    SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
+};
 use zksync_types::block::unpack_block_info;
 use zksync_types::{
     AccountTreeId, L1BatchNumber, L2ChainId, MiniblockNumber, StorageKey, Transaction,
 };
 use zksync_utils::h256_to_u256;
-
-use tokio::runtime::Handle;
 
 pub(super) fn create_vm(
     rt_handle: Handle,
