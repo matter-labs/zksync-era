@@ -380,15 +380,9 @@ pub async fn build_basic_circuits_witness_generator_input(
         .await
         .unwrap()
         .unwrap();
-    let (_, previous_block_timestamp) = connection
+    let (previous_block_hash, previous_block_timestamp) = connection
         .blocks_dal()
         .get_l1_batch_state_root_and_timestamp(l1_batch_number - 1)
-        .await
-        .unwrap()
-        .unwrap();
-    let previous_block_hash = connection
-        .blocks_dal()
-        .get_l1_batch_state_root(l1_batch_number - 1)
         .await
         .unwrap()
         .expect("cannot generate witness before the root hash is computed");
