@@ -118,7 +118,7 @@ pub(super) async fn get_miniblock_transition_state(
 }
 
 pub(super) fn execute_tx<S: ReadStorage>(tx: &Transaction, vm: &mut VmInstance<S, HistoryEnabled>) {
-    // attempt to run without bytecode compression
+    // attempt to run with bytecode compression
     vm.make_snapshot();
     if vm
         .inspect_transaction_with_bytecode_compression(vec![], tx.clone(), true)
@@ -128,7 +128,7 @@ pub(super) fn execute_tx<S: ReadStorage>(tx: &Transaction, vm: &mut VmInstance<S
         return;
     }
 
-    // attempt to run with bytecode compression
+    // attempt to run without bytecode compression, if it failed with compression
     vm.rollback_to_the_latest_snapshot();
     vm.inspect_transaction_with_bytecode_compression(vec![], tx.clone(), false)
         .expect("Compression can't fail if we don't apply it");
