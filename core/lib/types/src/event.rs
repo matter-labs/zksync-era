@@ -61,20 +61,6 @@ static L1_MESSAGE_EVENT_SIGNATURE: Lazy<H256> = Lazy::new(|| {
 //     bytes32 key;
 //     bytes32 value;
 // }
-static L1_MESSENGER_L2_TO_L1_LOG_EVENT_SIGNATURE: Lazy<H256> = Lazy::new(|| {
-    ethabi::long_signature(
-        "L2ToL1LogSent",
-        &[ethabi::ParamType::Tuple(vec![
-            ethabi::ParamType::Uint(8),
-            ethabi::ParamType::Bool,
-            ethabi::ParamType::Uint(16),
-            ethabi::ParamType::Address,
-            ethabi::ParamType::FixedBytes(32),
-            ethabi::ParamType::FixedBytes(32),
-        ])],
-    )
-});
-
 #[derive(Debug, Default, Clone)]
 pub struct L1MessengerL2ToL1Log {
     l2_shard_id: u8,
@@ -239,24 +225,28 @@ pub fn extract_long_l2_to_l1_messages(all_generated_events: &[VmEvent]) -> Vec<V
 pub fn extract_l2tol1logs_from_l1_messenger(
     all_generated_events: &[VmEvent],
 ) -> Vec<L1MessengerL2ToL1Log> {
+    let params = &[ethabi::ParamType::Tuple(vec![
+        ethabi::ParamType::Uint(8),
+        ethabi::ParamType::Bool,
+        ethabi::ParamType::Uint(16),
+        ethabi::ParamType::Address,
+        ethabi::ParamType::FixedBytes(32),
+        ethabi::ParamType::FixedBytes(32),
+    ])];
+
+    let l1_messenger_l2_to_l1_log_event_signature = ethabi::long_signature("L2ToL1LogSent", params);
+
     all_generated_events
         .iter()
         .filter(|event| {
             // Filter events from the l1 messenger contract that match the expected signature.
             event.address == L1_MESSENGER_ADDRESS
                 && !event.indexed_topics.is_empty()
-                && event.indexed_topics[0] == *L1_MESSENGER_L2_TO_L1_LOG_EVENT_SIGNATURE
+                && event.indexed_topics[0] == l1_messenger_l2_to_l1_log_event_signature
         })
         .map(|event| {
             let tuple = ethabi::decode(
-                &[ethabi::ParamType::Tuple(vec![
-                    ethabi::ParamType::Uint(8),
-                    ethabi::ParamType::Bool,
-                    ethabi::ParamType::Uint(16),
-                    ethabi::ParamType::Address,
-                    ethabi::ParamType::FixedBytes(32),
-                    ethabi::ParamType::FixedBytes(32),
-                ])],
+                params,
                 &event.value,
             )
             .expect("Failed to decode L2ToL1LogSent message")
