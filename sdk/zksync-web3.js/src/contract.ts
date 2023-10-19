@@ -27,23 +27,30 @@ export class ContractFactory extends ethers.ContractFactory {
     }
 
     private encodeCalldata(salt: BytesLike, bytecodeHash: BytesLike, constructorCalldata: BytesLike) {
-        if (this.deploymentType == 'create') {
-            return CONTRACT_DEPLOYER.encodeFunctionData('create', [salt, bytecodeHash, constructorCalldata]);
-        } else if (this.deploymentType == 'createAccount') {
-            return CONTRACT_DEPLOYER.encodeFunctionData('createAccount', [
-                salt,
-                bytecodeHash,
-                constructorCalldata,
-                AccountAbstractionVersion.Version1
-            ]);
-        } else {
+        const deploymentTypeMap = {
+            create: {
+                functionName: 'create',
+                additionalArgs: []
+            },
+            createAccount: {
+                functionName: 'createAccount',
+                additionalArgs: [AccountAbstractionVersion.Version1]
+            }
+        };
+    
+        const deploymentType = deploymentTypeMap[this.deploymentType];
+    
+        if (!deploymentType) {
             throw new Error(`Unsupported deployment type ${this.deploymentType}`);
         }
+    
+        const args = [salt, bytecodeHash, constructorCalldata, ...deploymentType.additionalArgs];
+        return CONTRACT_DEPLOYER.encodeFunctionData(deploymentType.functionName, args);
     }
 
     override getDeployTransaction(...args: any[]): ethers.providers.TransactionRequest {
         // TODO (SMA-1585): Users should be able to provide the salt.
-        let salt = '0x0000000000000000000000000000000000000000000000000000000000000000';
+        const salt = '0x0000000000000000000000000000000000000000000000000000000000000000';
 
         // The overrides will be popped out in this call:
         const txRequest = super.getDeployTransaction(...args);
@@ -58,18 +65,17 @@ export class ContractFactory extends ethers.ContractFactory {
 
         const deployCalldata = this.encodeCalldata(salt, bytecodeHash, constructorCalldata);
 
-        txRequest.type = EIP712_TX_TYPE;
-        txRequest.to = CONTRACT_DEPLOYER_ADDRESS;
-        txRequest.data = deployCalldata;
-        txRequest.customData ??= {};
-        txRequest.customData.factoryDeps ??= [];
-        txRequest.customData.gasPerPubdata ??= DEFAULT_GAS_PER_PUBDATA_LIMIT;
-        // The number of factory deps is relatively low, so it is efficient enough.
-        if (!txRequest.customData.factoryDeps.includes(this.bytecode)) {
-            txRequest.customData.factoryDeps.push(this.bytecode);
-        }
-
-        return txRequest;
+        return {
+            ...txRequest,
+            type: EIP712_TX_TYPE,
+            to: CONTRACT_DEPLOYER_ADDRESS,
+            data: deployCalldata,
+            customData: {
+                ...txRequest.customData,
+                factoryDeps: [...(txRequest.customData?.factoryDeps || []), this.bytecode],
+                gasPerPubdata: txRequest.customData?.gasPerPubdata || DEFAULT_GAS_PER_PUBDATA_LIMIT
+            }
+        };
     }
 
     override async deploy(...args: Array<any>): Promise<Contract> {
