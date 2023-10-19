@@ -15,6 +15,11 @@ mod vm_interactions;
 
 use vm_interactions::{create_vm, execute_tx, get_miniblock_transition_state};
 
+/// Component that extracts all data (from DB) necessary to run a Basic Witness Generator.
+/// This component will upload Witness Inputs to the object store.
+/// This allows Witness Generator workflow (that needs only Basic Witness Generator Inputs)
+/// to be run only using the object store information, having no other external dependency.
+#[derive(Debug)]
 pub struct BasicWitnessInputProducer {
     connection_pool: ConnectionPool,
     validation_computational_gas_limit: u32,
