@@ -172,6 +172,39 @@ impl RocksDBInner {
         }
         property
     }
+
+    /// Waits until writes are not stopped for any of the CFs. Writes can stop immediately on DB initialization
+    /// if there are too many level-0 SST files; in this case, it may help waiting several seconds until
+    /// these files are compacted.
+    fn wait_for_writes_to_resume(&self) {
+        const RETRY_COUNT: usize = 10;
+        const RETRY_INTERVAL: Duration = Duration::from_secs(1);
+
+        for retry in 0..RETRY_COUNT {
+            let cfs_with_stopped_writes = self.cf_names.iter().copied().filter(|cf_name| {
+                let cf = self.db.cf_handle(cf_name).unwrap();
+                // ^ `unwrap()` is safe (CF existence is checked during DB initialization)
+                self.int_property(cf, properties::IS_WRITE_STOPPED) == Some(1)
+            });
+            let cfs_with_stopped_writes: Vec<_> = cfs_with_stopped_writes.collect();
+            if cfs_with_stopped_writes.is_empty() {
+                return;
+            } else {
+                tracing::info!(
+                    "Writes are stopped for column families {cfs_with_stopped_writes:?} in DB `{}` \
+                     (retry: {retry}/{RETRY_COUNT})",
+                    self.db_name
+                );
+                thread::sleep(RETRY_INTERVAL);
+            }
+        }
+
+        tracing::warn!(
+            "Exceeded {RETRY_COUNT} retries waiting for writes to resume in DB `{}`; \
+             proceeding with stopped writes",
+            self.db_name
+        );
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -303,6 +336,7 @@ impl<CF: NamedColumnFamily> RocksDB<CF> {
             path.display()
         );
 
+        inner.wait_for_writes_to_resume();
         Self {
             inner,
             sync_writes: false,
