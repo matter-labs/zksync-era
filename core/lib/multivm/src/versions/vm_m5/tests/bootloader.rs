@@ -624,7 +624,7 @@
 //         };
 
 //         if test_info.should_rollback() {
-//             // Some error has occured, we should reject the transaction
+//             // Some error has occurred, we should reject the transaction
 //             vm.rollback_to_latest_snapshot();
 
 //             // vm_state_before_tx.
