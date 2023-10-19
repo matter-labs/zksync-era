@@ -60,9 +60,7 @@ impl BasicWitnessInputProducer {
             l2_chain_id,
         );
 
-        let mut connection = rt_handle
-            .block_on(connection_pool.access_storage())
-            .unwrap();
+        let mut connection = rt_handle.block_on(connection_pool.access_storage())?;
         let miniblock_and_transactions = rt_handle.block_on(
             connection
                 .transactions_dal()
@@ -107,19 +105,12 @@ impl JobProcessor for BasicWitnessInputProducer {
     const SERVICE_NAME: &'static str = "basic_witness_input_producer";
 
     async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, Self::Job)>> {
-        let mut connection = self
-            .connection_pool
-            .access_storage()
-            .await
-            .expect("couldn't get a connection from the pool");
+        let mut connection = self.connection_pool.access_storage().await?;
         let l1_batch_to_process = connection
             .basic_witness_input_producer_dal()
             .get_next_basic_witness_input_producer_job()
-            .await;
-        match l1_batch_to_process {
-            Some(number) => Ok(Some((number, number))),
-            None => Ok(None),
-        }
+            .await?;
+        Ok(l1_batch_to_process.map(|number| (number, number)))
     }
 
     async fn save_failure(&self, job_id: Self::JobId, started_at: Instant, error: String) {
@@ -131,7 +122,8 @@ impl JobProcessor for BasicWitnessInputProducer {
             .basic_witness_input_producer_dal()
             .mark_job_as_failed(job_id, started_at, error)
             .await
-            .expect("didn't receive number of attempts from database");
+            .expect("didn't receive number of attempts from database")
+            .expect("no attempts received for failed job");
         tracing::warn!(
             "Failed to process job: {:?}, attempts: {}",
             job_id,
