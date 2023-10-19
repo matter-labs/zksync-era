@@ -8026,6 +8026,7 @@ dependencies = [
  "tracing",
  "vise",
  "vlog",
+ "zkevm_test_harness 1.4.0",
  "zksync_circuit_breaker",
  "zksync_commitment_utils",
  "zksync_config",
@@ -8204,6 +8205,7 @@ dependencies = [
  "zksync_storage",
  "zksync_system_constants",
  "zksync_types",
+ "zksync_utils",
 ]
 
 [[package]]

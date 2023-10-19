@@ -126,6 +126,7 @@ impl UpdatesManager {
             l2_fair_gas_price: self.fair_l2_gas_price(),
             base_system_contracts_hashes: self.base_system_contract_hashes(),
             protocol_version: Some(self.protocol_version()),
+            system_logs: vec![],
         };
 
         let initial_bootloader_contents =
