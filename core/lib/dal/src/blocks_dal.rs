@@ -1426,7 +1426,7 @@ impl BlocksDal<'_, '_> {
 
     pub async fn get_fee_address_for_l1_batch(
         &mut self,
-        l1_batch_number: &L1BatchNumber,
+        l1_batch_number: L1BatchNumber,
     ) -> sqlx::Result<Option<Address>> {
         Ok(sqlx::query!(
             "SELECT fee_account_address FROM l1_batches WHERE number = $1",
@@ -1439,7 +1439,7 @@ impl BlocksDal<'_, '_> {
 
     pub async fn get_virtual_blocks_for_miniblock(
         &mut self,
-        miniblock_number: &MiniblockNumber,
+        miniblock_number: MiniblockNumber,
     ) -> sqlx::Result<Option<u32>> {
         Ok(sqlx::query!(
             "SELECT virtual_blocks FROM miniblocks WHERE number = $1",

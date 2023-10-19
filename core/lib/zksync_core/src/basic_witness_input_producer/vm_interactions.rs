@@ -28,7 +28,7 @@ pub(super) fn create_vm(
     VmInstance<PostgresStorage, HistoryEnabled>,
     Rc<RefCell<StorageView<PostgresStorage>>>,
 ) {
-    let prev_l1_batch_number = L1BatchNumber(l1_batch_number.0 - 1);
+    let prev_l1_batch_number = l1_batch_number - 1;
     let (_, miniblock_number) = rt_handle
         .block_on(
             connection
@@ -47,7 +47,7 @@ pub(super) fn create_vm(
         .block_on(
             connection
                 .blocks_dal()
-                .get_fee_address_for_l1_batch(&l1_batch_number),
+                .get_fee_address_for_l1_batch(l1_batch_number),
         )
         .unwrap()
         .unwrap_or_else(|| {
@@ -104,7 +104,7 @@ pub(super) async fn get_miniblock_transition_state(
 
     let virtual_blocks = connection
         .blocks_dal()
-        .get_virtual_blocks_for_miniblock(&(miniblock_number + 1))
+        .get_virtual_blocks_for_miniblock(miniblock_number + 1)
         .await
         .unwrap()
         .unwrap();

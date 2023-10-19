@@ -15,11 +15,6 @@ mod vm_interactions;
 
 use vm_interactions::{create_vm, execute_tx, get_miniblock_transition_state};
 
-#[derive(Debug)]
-pub struct BasicWitnessInputProducerJob {
-    l1_batch_number: L1BatchNumber,
-}
-
 pub struct BasicWitnessInputProducer {
     connection_pool: ConnectionPool,
     validation_computational_gas_limit: u32,
@@ -44,7 +39,7 @@ impl BasicWitnessInputProducer {
 
     fn process_job_impl(
         rt_handle: Handle,
-        job: BasicWitnessInputProducerJob,
+        job: L1BatchNumber,
         started_at: Instant,
         connection_pool: ConnectionPool,
         validation_computational_gas_limit: u32,
@@ -101,10 +96,10 @@ impl BasicWitnessInputProducer {
 
 #[async_trait]
 impl JobProcessor for BasicWitnessInputProducer {
-    type Job = BasicWitnessInputProducerJob;
+    type Job = L1BatchNumber;
     type JobId = L1BatchNumber;
     type JobArtifacts = WitnessBlockState;
-    const SERVICE_NAME: &'static str = "";
+    const SERVICE_NAME: &'static str = "basic_witness_input_producer";
 
     async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, Self::Job)>> {
         let mut connection = self
@@ -117,12 +112,7 @@ impl JobProcessor for BasicWitnessInputProducer {
             .get_next_basic_witness_input_producer_job()
             .await;
         match l1_batch_to_process {
-            Some(number) => Ok(Some((
-                number,
-                BasicWitnessInputProducerJob {
-                    l1_batch_number: number,
-                },
-            ))),
+            Some(number) => Ok(Some((number, number))),
             None => Ok(None),
         }
     }
