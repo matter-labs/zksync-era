@@ -9,6 +9,7 @@ impl GlueFrom<vm_m5::vm::VmExecutionResult> for vm_latest::CurrentExecutionState
             l2_to_l1_logs: value.l2_to_l1_logs,
             total_log_queries: value.total_log_queries,
             cycles_used: value.cycles_used,
+            storage_refunds: Vec::new(),
         }
     }
 }
@@ -22,6 +23,7 @@ impl GlueFrom<vm_m6::vm::VmExecutionResult> for vm_latest::CurrentExecutionState
             l2_to_l1_logs: value.l2_to_l1_logs,
             total_log_queries: value.total_log_queries,
             cycles_used: value.cycles_used,
+            storage_refunds: Vec::new(),
         }
     }
 }
@@ -35,6 +37,7 @@ impl GlueFrom<vm_1_3_2::VmExecutionResult> for vm_latest::CurrentExecutionState 
             l2_to_l1_logs: value.l2_to_l1_logs,
             total_log_queries: value.total_log_queries,
             cycles_used: value.cycles_used,
+            storage_refunds: Vec::new(),
         }
     }
 }

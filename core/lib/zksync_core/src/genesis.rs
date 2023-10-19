@@ -292,7 +292,7 @@ pub(crate) async fn create_genesis_l1_batch(
         .await;
     transaction
         .blocks_dal()
-        .insert_l1_batch(&genesis_l1_batch_header, &[], BlockGasCount::default())
+        .insert_l1_batch(&genesis_l1_batch_header, &[], BlockGasCount::default(), &[])
         .await
         .unwrap();
     transaction

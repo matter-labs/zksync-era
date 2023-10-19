@@ -10,6 +10,7 @@ impl GlueFrom<vm_virtual_blocks::CurrentExecutionState> for CurrentExecutionStat
             l2_to_l1_logs: value.l2_to_l1_logs,
             total_log_queries: value.total_log_queries,
             cycles_used: value.cycles_used,
+            storage_refunds: Vec::new(),
         }
     }
 }

@@ -216,6 +216,7 @@ impl UpdatesManager {
                 &l1_batch,
                 &initial_bootloader_contents,
                 self.l1_batch.l1_gas_count,
+                &finished_batch.final_execution_state.storage_refunds,
             )
             .await
             .unwrap();

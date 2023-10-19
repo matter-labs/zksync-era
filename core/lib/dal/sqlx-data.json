@@ -4915,38 +4915,6 @@
     },
     "query": "\n                    SELECT l1_batch_number, basic_circuits_blob_url, basic_circuits_inputs_blob_url FROM leaf_aggregation_witness_jobs\n                    WHERE status='successful' AND is_blob_cleaned=FALSE\n                    AND basic_circuits_blob_url is NOT NULL\n                    AND basic_circuits_inputs_blob_url is NOT NULL\n                    AND updated_at < NOW() - INTERVAL '30 days'\n                    LIMIT $1;\n                "
   },
-  "73f0e672ff1a5e144b3034beb18271f1164e95029998d6750c6a8953f7344db5": {
-    "describe": {
-      "columns": [],
-      "nullable": [],
-      "parameters": {
-        "Left": [
-          "Int8",
-          "Int4",
-          "Int4",
-          "Int8",
-          "Bool",
-          "Bytea",
-          "ByteaArray",
-          "ByteaArray",
-          "Bytea",
-          "ByteaArray",
-          "Int8",
-          "Int8",
-          "Int8",
-          "Jsonb",
-          "Jsonb",
-          "Numeric",
-          "Int8",
-          "Int8",
-          "Bytea",
-          "Bytea",
-          "Int4"
-        ]
-      }
-    },
-    "query": "INSERT INTO l1_batches (number, l1_tx_count, l2_tx_count, timestamp, is_finished, fee_account_address, l2_to_l1_logs, l2_to_l1_messages, bloom, priority_ops_onchain_data, predicted_commit_gas_cost, predicted_prove_gas_cost, predicted_execute_gas_cost, initial_bootloader_heap_content, used_contract_hashes, base_fee_per_gas, l1_gas_price, l2_fair_gas_price, bootloader_code_hash, default_aa_code_hash, protocol_version, created_at, updated_at ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, now(), now())"
-  },
   "741b13b0a4769a30186c650a4a1b24855806a27ccd8d5a50594741842dde44ec": {
     "describe": {
       "columns": [
@@ -8616,6 +8584,26 @@
     },
     "query": "\n                        INSERT INTO call_traces (tx_hash, call_trace)\n                        SELECT u.tx_hash, u.call_trace\n                        FROM UNNEST($1::bytea[], $2::bytea[])\n                        AS u(tx_hash, call_trace)\n                        "
   },
+  "c3724d96ed4e1c31dd575b911b254ed5a4af4d5b6ad1243c812b37ebde0f6090": {
+    "describe": {
+      "columns": [
+        {
+          "name": "storage_refunds",
+          "ordinal": 0,
+          "type_info": "Int8Array"
+        }
+      ],
+      "nullable": [
+        true
+      ],
+      "parameters": {
+        "Left": [
+          "Int8"
+        ]
+      }
+    },
+    "query": "SELECT storage_refunds FROM l1_batches WHERE number = $1"
+  },
   "c49a6925e9462cc85a6e1cc850f2e147e0a5d990efed56f27792698e6cf9ff0c": {
     "describe": {
       "columns": [
@@ -9476,6 +9464,39 @@
       }
     },
     "query": "\n                UPDATE node_aggregation_witness_jobs_fri\n                SET status = 'queued', attempts = attempts + 1, updated_at = now(), processing_started_at = now()\n                WHERE (status = 'in_progress' AND  processing_started_at <= now() - $1::interval AND attempts < $2)\n                OR (status = 'failed' AND attempts < $2)\n                RETURNING id, status, attempts\n                "
+  },
+  "dce6cfa8b3f4e3c93864d95a0c746a4df31a601cc22e59eb2c2fd747ecbb7c8a": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Left": [
+          "Int8",
+          "Int4",
+          "Int4",
+          "Int8",
+          "Bool",
+          "Bytea",
+          "ByteaArray",
+          "ByteaArray",
+          "Bytea",
+          "ByteaArray",
+          "Int8",
+          "Int8",
+          "Int8",
+          "Jsonb",
+          "Jsonb",
+          "Numeric",
+          "Int8",
+          "Int8",
+          "Bytea",
+          "Bytea",
+          "Int4",
+          "Int8Array"
+        ]
+      }
+    },
+    "query": "INSERT INTO l1_batches (number, l1_tx_count, l2_tx_count, timestamp, is_finished, fee_account_address, l2_to_l1_logs, l2_to_l1_messages, bloom, priority_ops_onchain_data, predicted_commit_gas_cost, predicted_prove_gas_cost, predicted_execute_gas_cost, initial_bootloader_heap_content, used_contract_hashes, base_fee_per_gas, l1_gas_price, l2_fair_gas_price, bootloader_code_hash, default_aa_code_hash, protocol_version, storage_refunds, created_at, updated_at ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, now(), now())"
   },
   "dd330bc075a163974c59ec55ecfddd769d05801963b3e0e840e7f11e7bc6d3e9": {
     "describe": {
