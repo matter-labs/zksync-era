@@ -169,7 +169,8 @@ impl JobProcessor for BasicWitnessInputProducer {
         connection
             .basic_witness_input_producer_dal()
             .mark_job_as_successful(job_id, started_at, object_path)
-            .await;
+            .await
+            .unwrap();
         Ok(())
     }
 }

@@ -210,7 +210,8 @@ impl TreeUpdater {
                 transaction
                     .basic_witness_input_producer_dal()
                     .create_basic_witness_input_producer_job(l1_batch_number)
-                    .await;
+                    .await
+                    .expect("failed to create basic_witness_input_producer job");
                 transaction
                     .proof_generation_dal()
                     .insert_proof_generation_details(l1_batch_number, object_key)
