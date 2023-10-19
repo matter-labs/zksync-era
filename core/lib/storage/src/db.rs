@@ -145,20 +145,27 @@ impl RocksDBInner {
 struct StalledWritesRetries {
     max_batch_size: usize,
     retry_count: usize,
-    interval: Duration,
+    start_interval: Duration,
+    scale_factor: f64,
 }
 
 impl Default for StalledWritesRetries {
     fn default() -> Self {
         Self {
             max_batch_size: 128 << 20, // 128 MiB
-            retry_count: 3,
-            interval: Duration::from_millis(100),
+            retry_count: 10,
+            start_interval: Duration::from_millis(50),
+            scale_factor: 1.5,
         }
     }
 }
 
 impl StalledWritesRetries {
+    fn interval(&self, retry_index: usize) -> Duration {
+        self.start_interval
+            .mul_f64(self.scale_factor.powi(retry_index as i32))
+    }
+
     // **NB.** The error message may change between RocksDB versions!
     fn is_write_stall_error(error: &rocksdb::Error) -> bool {
         matches!(error.kind(), rocksdb::ErrorKind::ShutdownInProgress)
@@ -326,11 +333,12 @@ impl<CF: NamedColumnFamily> RocksDB<CF> {
                     let should_retry = StalledWritesRetries::is_write_stall_error(&err)
                         && retry_count < retries.retry_count;
                     if should_retry {
+                        let retry_interval = retries.interval(retry_count);
                         tracing::warn!(
-                            "Writes stalled when writing to DB `{}`; will retry after a delay",
+                            "Writes stalled when writing to DB `{}`; will retry after {retry_interval:?}",
                             CF::DB_NAME
                         );
-                        thread::sleep(retries.interval);
+                        thread::sleep(retry_interval);
                         retry_count += 1;
                         raw_batch = rocksdb::WriteBatch::from_data(&raw_batch_bytes);
                     } else {
@@ -453,6 +461,20 @@ mod tests {
     use tempfile::TempDir;
 
     use super::*;
+
+    #[test]
+    fn retry_interval_computation() {
+        let retries = StalledWritesRetries::default();
+        assert_close(retries.interval(0), Duration::from_millis(50));
+        assert_close(retries.interval(1), Duration::from_millis(75));
+        assert_close(retries.interval(2), Duration::from_micros(112_500));
+    }
+
+    fn assert_close(lhs: Duration, rhs: Duration) {
+        let lhs_millis = (lhs.as_secs_f64() * 1_000.0).round() as u64;
+        let rhs_millis = (rhs.as_secs_f64() * 1_000.0).round() as u64;
+        assert_eq!(lhs_millis, rhs_millis);
+    }
 
     #[derive(Debug, Clone, Copy)]
     enum OldColumnFamilies {
