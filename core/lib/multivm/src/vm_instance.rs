@@ -22,7 +22,7 @@ pub(crate) enum VmInstanceVersion<S: ReadStorage, H: HistoryMode> {
     VmM5(Box<crate::vm_m5::VmInstance<StorageView<S>>>),
     VmM6(Box<crate::vm_m6::VmInstance<StorageView<S>, H::VmM6Mode>>),
     Vm1_3_2(Box<crate::vm_1_3_2::VmInstance<StorageView<S>, H::Vm1_3_2Mode>>),
-    VmVirtualBlocks(Box<crate::vm_virtual_blocks::Vm<StorageView<S>, H::VmVirtualBlocksMode>>),
+    VmVirtualBlocks(Box<crate::vm_virtual_blocks::Vm<StorageView<S>, H>>),
     VmVirtualBlocksRefundsEnhancement(Box<crate::vm_latest::Vm<StorageView<S>, H>>),
 }
 

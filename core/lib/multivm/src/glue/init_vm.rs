@@ -155,7 +155,6 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
                     l1_batch_env.glue_into(),
                     system_env.clone().glue_into(),
                     storage_view.clone(),
-                    H::VmVirtualBlocksMode::default(),
                 );
                 let vm = VmInstanceVersion::VmVirtualBlocks(Box::new(vm));
                 Self {

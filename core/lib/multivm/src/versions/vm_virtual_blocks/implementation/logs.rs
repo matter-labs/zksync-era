@@ -1,12 +1,12 @@
 use zk_evm_1_3_3::aux_structures::Timestamp;
 use zksync_state::WriteStorage;
 
+use crate::HistoryMode;
 use zksync_types::l2_to_l1_log::L2ToL1Log;
 use zksync_types::tx::tx_execution_info::VmExecutionLogs;
 use zksync_types::VmEvent;
 
 use crate::vm_virtual_blocks::old_vm::events::merge_events;
-use crate::vm_virtual_blocks::old_vm::history_recorder::HistoryMode;
 use crate::vm_virtual_blocks::old_vm::utils::precompile_calls_count_after_timestamp;
 use crate::vm_virtual_blocks::vm::Vm;
 

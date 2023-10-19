@@ -13,6 +13,7 @@ use zksync_utils::bytecode::CompressedBytecodeInfo;
 
 /// Public interface for VM
 pub trait VmInterface<S: WriteStorage, H: HistoryMode> {
+    fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage: StoragePtr<S>) -> Self;
     fn push_transaction(&mut self, tx: Transaction);
     fn execute(&mut self, execution_mode: VmExecutionMode) -> VmExecutionResultAndLogs {
         self.inspect(NoopTracer, execution_mode)

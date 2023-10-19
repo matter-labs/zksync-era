@@ -30,8 +30,9 @@ pub struct Vm<S: WriteStorage, H: HistoryMode> {
     _phantom: std::marker::PhantomData<H>,
 }
 
-impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
-    pub fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage: StoragePtr<S>) -> Self {
+/// Public interface for VM
+impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
+    fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage: StoragePtr<S>) -> Self {
         let (state, bootloader_state) = new_vm_state(storage.clone(), &system_env, &batch_env);
         Self {
             bootloader_state,
@@ -43,9 +44,6 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
             _phantom: Default::default(),
         }
     }
-}
-/// Public interface for VM
-impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
     fn push_transaction(&mut self, tx: Transaction) {
         self.push_transaction_with_compression(tx, true);
     }

@@ -1,11 +1,9 @@
 use crate::interface::{VmExecutionMode, VmExecutionResultAndLogs};
+use crate::HistoryMode;
 use zk_evm_1_3_3::aux_structures::Timestamp;
 use zksync_state::WriteStorage;
 
-use crate::vm_virtual_blocks::old_vm::{
-    history_recorder::HistoryMode,
-    utils::{vm_may_have_ended_inner, VmExecutionResult},
-};
+use crate::vm_virtual_blocks::old_vm::utils::{vm_may_have_ended_inner, VmExecutionResult};
 use crate::vm_virtual_blocks::tracers::{
     traits::{BoxedTracer, ExecutionEndTracer, ExecutionProcessing, VmTracer},
     DefaultExecutionTracer, RefundsTracer,
@@ -16,7 +14,7 @@ use crate::vm_virtual_blocks::VmExecutionStopReason;
 impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
     pub(crate) fn inspect_inner(
         &mut self,
-        mut tracers: Vec<Box<dyn VmTracer<S, H>>>,
+        mut tracers: Vec<Box<dyn VmTracer<S, H::VmVirtualBlocksMode>>>,
         execution_mode: VmExecutionMode,
     ) -> VmExecutionResultAndLogs {
         if let VmExecutionMode::OneTx = execution_mode {
@@ -33,15 +31,16 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
     /// Collect the result from the default tracers.
     fn inspect_and_collect_results(
         &mut self,
-        tracers: Vec<Box<dyn VmTracer<S, H>>>,
+        tracers: Vec<Box<dyn VmTracer<S, H::VmVirtualBlocksMode>>>,
         execution_mode: VmExecutionMode,
     ) -> (VmExecutionStopReason, VmExecutionResultAndLogs) {
-        let mut tx_tracer: DefaultExecutionTracer<S, H> = DefaultExecutionTracer::new(
-            self.system_env.default_validation_computational_gas_limit,
-            execution_mode,
-            tracers,
-            self.storage.clone(),
-        );
+        let mut tx_tracer: DefaultExecutionTracer<S, H::VmVirtualBlocksMode> =
+            DefaultExecutionTracer::new(
+                self.system_env.default_validation_computational_gas_limit,
+                execution_mode,
+                tracers,
+                self.storage.clone(),
+            );
 
         let timestamp_initial = Timestamp(self.state.local_state.timestamp);
         let cycles_initial = self.state.local_state.monotonic_cycle_counter;
@@ -82,7 +81,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
     /// Execute vm with given tracers until the stop reason is reached.
     fn execute_with_default_tracer(
         &mut self,
-        tracer: &mut DefaultExecutionTracer<S, H>,
+        tracer: &mut DefaultExecutionTracer<S, H::VmVirtualBlocksMode>,
     ) -> VmExecutionStopReason {
         tracer.initialize_tracer(&mut self.state);
         let result = loop {
