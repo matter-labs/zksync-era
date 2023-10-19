@@ -117,6 +117,10 @@ impl RocksDBInner {
             if let Some(num_immutable_memtables) = num_immutable_memtables {
                 metrics.immutable_mem_tables[&labels].set(num_immutable_memtables);
             }
+            let num_level0_files = self.int_property(cf, &properties::num_files_at_level(0));
+            if let Some(num_level0_files) = num_level0_files {
+                metrics.level0_files[&labels].set(num_level0_files);
+            }
             let num_flushes = self.int_property(cf, properties::NUM_RUNNING_FLUSHES);
             if let Some(num_flushes) = num_flushes {
                 metrics.running_flushes[&labels].set(num_flushes);
@@ -390,9 +394,12 @@ impl<CF: NamedColumnFamily> RocksDB<CF> {
             match self.write_inner(raw_batch) {
                 Ok(()) => return Ok(()),
                 Err(err) => {
-                    let should_retry = StalledWritesRetries::is_write_stall_error(&err)
-                        && retry_count < retries.retry_count;
-                    if should_retry {
+                    let is_stalled_write = StalledWritesRetries::is_write_stall_error(&err);
+                    if is_stalled_write {
+                        METRICS.report_stalled_write(CF::DB_NAME);
+                    }
+
+                    if is_stalled_write && retry_count < retries.retry_count {
                         let retry_interval = retries.interval(retry_count);
                         tracing::warn!(
                             "Writes stalled when writing to DB `{}`; will retry after {retry_interval:?}",
