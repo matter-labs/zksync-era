@@ -10,7 +10,6 @@ sed -i '' 's/^proof_sending_mode=.*$/proof_sending_mode="OnlyRealProofs"/' ../et
 sed -i '' 's/^proof_loading_mode=.*$/proof_loading_mode="FriProofFromGcs"/' ../etc/env/base/eth_sender.toml
 sed -i '' 's/^setup_data_path=.*$/setup_data_path="vk_setup_data_generator_server_fri\/data\/"/' ../etc/env/base/fri_prover.toml
 sed -i '' 's/^universal_setup_path=.*$/universal_setup_path="..\/keys\/setup\/setup_2^26.key"/' ../etc/env/base/fri_proof_compressor.toml
-sed -i '' 's/^prometheus_push_interval_ms=.*$/prometheus_push_interval_ms=100000000/' ../etc/env/base/fri_proof_compressor.toml
 
 zk config compile dev
 
