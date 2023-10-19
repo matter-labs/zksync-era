@@ -11,7 +11,6 @@ pub mod compression;
 pub const BYTES_PER_ENUMERATION_INDEX: u8 = 4;
 pub const BYTES_PER_DERIVED_KEY: u8 = 32;
 
-const COMPRESSION_VERSION_NUMBER: u8 = 1;
 // Total byte size of all fields in StateDiffRecord struct
 // 20 + 32 + 32 +8 + 32 + 32
 const STATE_DIFF_RECORD_SIZE: usize = 156;
