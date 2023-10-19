@@ -15,7 +15,6 @@ use zksync_types::{
     Address, L1BatchNumber, LogQuery, MiniblockNumber, ProtocolVersionId, H256,
     MAX_GAS_PER_PUBDATA_BYTE, U256,
 };
-use zksync_utils::be_bytes_to_safe_address;
 
 use crate::{
     instrument::InstrumentExt,
@@ -1434,7 +1433,7 @@ impl BlocksDal<'_, '_> {
         )
         .fetch_optional(self.storage.conn())
         .await?
-        .map(|row| be_bytes_to_safe_address(&row.fee_account_address).unwrap()))
+        .map(|row| Address::from_slice(&row.fee_account_address)))
     }
 
     pub async fn get_virtual_blocks_for_miniblock(

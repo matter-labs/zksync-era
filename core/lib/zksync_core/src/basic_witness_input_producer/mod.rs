@@ -168,7 +168,7 @@ impl JobProcessor for BasicWitnessInputProducer {
         artifacts: Self::JobArtifacts,
     ) -> anyhow::Result<()> {
         let upload_started_at = Instant::now();
-        let _object_path = self.object_store.put(job_id, &artifacts).await?;
+        let object_path = self.object_store.put(job_id, &artifacts).await?;
         metrics::histogram!(
             "basic_witness_input_producer.upload_input_time",
             upload_started_at.elapsed(),
@@ -176,7 +176,7 @@ impl JobProcessor for BasicWitnessInputProducer {
         let mut connection = self.connection_pool.access_storage().await?;
         connection
             .basic_witness_input_producer_dal()
-            .mark_job_as_successful(job_id, started_at)
+            .mark_job_as_successful(job_id, started_at, object_path)
             .await;
         Ok(())
     }

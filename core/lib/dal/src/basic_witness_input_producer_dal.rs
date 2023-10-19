@@ -47,7 +47,7 @@ impl BasicWitnessInputProducerDal<'_, '_> {
                 (l1_batch_number, status, created_at, updated_at) \
             VALUES ($1, $2, now(), now())",
             l1_batch_number.0 as i64,
-            format!("{}", BasicWitnessInputProducerJobStatus::Queued),
+            BasicWitnessInputProducerJobStatus::Queued.to_string(),
         )
         .instrument("create_basic_witness_input_producer_job")
         .report_latency()
@@ -77,9 +77,9 @@ impl BasicWitnessInputProducerDal<'_, '_> {
                 SKIP LOCKED \
             )
             RETURNING basic_witness_input_producer_jobs.l1_batch_number",
-            format!("{}", BasicWitnessInputProducerJobStatus::InProgress),
-            format!("{}", BasicWitnessInputProducerJobStatus::Queued),
-            format!("{}", BasicWitnessInputProducerJobStatus::Failed),
+            BasicWitnessInputProducerJobStatus::InProgress.to_string(),
+            BasicWitnessInputProducerJobStatus::Queued.to_string(),
+            BasicWitnessInputProducerJobStatus::Failed.to_string(),
             &processing_timeout,
             max_attempts as i32,
         )
@@ -95,16 +95,19 @@ impl BasicWitnessInputProducerDal<'_, '_> {
         &mut self,
         l1_batch_number: L1BatchNumber,
         started_at: Instant,
+        object_path: String,
     ) {
         sqlx::query!(
             "UPDATE basic_witness_input_producer_jobs \
             SET status = $1, \
                 updated_at = now(), \
-                time_taken = $3 \
+                time_taken = $3, \
+                input_blob_url = $4 \
             WHERE l1_batch_number = $2",
-            format!("{}", BasicWitnessInputProducerJobStatus::Successful),
+            BasicWitnessInputProducerJobStatus::Successful.to_string(),
             l1_batch_number.0 as i64,
             duration_to_naive_time(started_at.elapsed()),
+            object_path,
         )
         .instrument("mark_job_as_successful")
         .report_latency()
@@ -127,7 +130,7 @@ impl BasicWitnessInputProducerDal<'_, '_> {
                 error = $4 \
             WHERE l1_batch_number = $2 \
             RETURNING basic_witness_input_producer_jobs.attempts",
-            format!("{}", BasicWitnessInputProducerJobStatus::Successful),
+            BasicWitnessInputProducerJobStatus::Successful.to_string(),
             l1_batch_number.0 as i64,
             duration_to_naive_time(started_at.elapsed()),
             error

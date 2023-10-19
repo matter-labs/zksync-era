@@ -3341,20 +3341,6 @@
     },
     "query": "SELECT hash FROM miniblocks WHERE number = $1"
   },
-  "44850ff778e5b5d3d21205db8e96451140ccb05fe3ea68e3e5c7875d0bdb6f2f": {
-    "describe": {
-      "columns": [],
-      "nullable": [],
-      "parameters": {
-        "Left": [
-          "Text",
-          "Int8",
-          "Time"
-        ]
-      }
-    },
-    "query": "UPDATE basic_witness_input_producer_jobs SET status = $1, updated_at = now(), time_taken = $3 WHERE l1_batch_number = $2"
-  },
   "448d283cab6ae334de9676f69416974656d11563b58e0188d53ca9e0995dd287": {
     "describe": {
       "columns": [],
@@ -4672,6 +4658,21 @@
       }
     },
     "query": "\n                UPDATE prover_jobs_fri\n                SET status = 'in_progress', attempts = attempts + 1,\n                    updated_at = now(), processing_started_at = now(),\n                    picked_by = $4\n                WHERE id = (\n                    SELECT id\n                    FROM prover_jobs_fri\n                    WHERE status = 'queued'\n                    AND (circuit_id, aggregation_round) IN (\n                        SELECT * FROM UNNEST($1::smallint[], $2::smallint[])\n                    )\n                    AND protocol_version = ANY($3)\n                    ORDER BY aggregation_round DESC, l1_batch_number ASC, id ASC\n                    LIMIT 1\n                    FOR UPDATE\n                    SKIP LOCKED\n                )\n                RETURNING prover_jobs_fri.id, prover_jobs_fri.l1_batch_number, prover_jobs_fri.circuit_id,\n                prover_jobs_fri.aggregation_round, prover_jobs_fri.sequence_number, prover_jobs_fri.depth,\n                prover_jobs_fri.is_node_final_proof\n                "
+  },
+  "65e2cdb70ccef97d886fb53d1bb298875e13b0ffe7b744ac5dd86433f0929eb0": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Left": [
+          "Text",
+          "Int8",
+          "Time",
+          "Text"
+        ]
+      }
+    },
+    "query": "UPDATE basic_witness_input_producer_jobs SET status = $1, updated_at = now(), time_taken = $3, input_blob_url = $4 WHERE l1_batch_number = $2"
   },
   "665112c83ed7f126f94d1c47408de3495ee6431970e334d94ae75f853496eb48": {
     "describe": {
