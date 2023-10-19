@@ -18,7 +18,7 @@ use zksync_utils::h256_to_u256;
 
 use tokio::runtime::Handle;
 
-pub(super) async fn create_vm(
+pub(super) fn create_vm(
     rt_handle: Handle,
     l1_batch_number: L1BatchNumber,
     mut connection: StorageProcessor<'_>,
@@ -29,10 +29,12 @@ pub(super) async fn create_vm(
     Rc<RefCell<StorageView<PostgresStorage>>>,
 ) {
     let prev_l1_batch_number = L1BatchNumber(l1_batch_number.0 - 1);
-    let (_, miniblock_number) = connection
-        .blocks_dal()
-        .get_miniblock_range_of_l1_batch(prev_l1_batch_number)
-        .await
+    let (_, miniblock_number) = rt_handle
+        .block_on(
+            connection
+                .blocks_dal()
+                .get_miniblock_range_of_l1_batch(prev_l1_batch_number),
+        )
         .unwrap()
         .unwrap_or_else(|| {
             panic!(
@@ -41,10 +43,12 @@ pub(super) async fn create_vm(
             )
         });
 
-    let fee_account_addr = connection
-        .blocks_dal()
-        .get_fee_address_for_l1_batch(&l1_batch_number)
-        .await
+    let fee_account_addr = rt_handle
+        .block_on(
+            connection
+                .blocks_dal()
+                .get_fee_address_for_l1_batch(&l1_batch_number),
+        )
         .unwrap()
         .unwrap_or_else(|| {
             panic!(
@@ -52,15 +56,16 @@ pub(super) async fn create_vm(
                 l1_batch_number
             )
         });
-    let (system_env, l1_batch_env) = load_l1_batch_params(
-        &mut connection,
-        l1_batch_number,
-        fee_account_addr,
-        validation_computational_gas_limit,
-        l2_chain_id,
-    )
-    .await
-    .unwrap();
+    let (system_env, l1_batch_env) = rt_handle
+        .block_on(load_l1_batch_params(
+            // rt_handle.clone(),
+            &mut connection,
+            l1_batch_number,
+            fee_account_addr,
+            validation_computational_gas_limit,
+            l2_chain_id,
+        ))
+        .unwrap();
 
     let pg_storage = PostgresStorage::new(rt_handle.clone(), connection, miniblock_number, true)
         .with_caches(PostgresStorageCaches::new(
