@@ -53,7 +53,6 @@ pub mod consistency_checker;
 pub mod data_fetchers;
 pub mod eth_sender;
 pub mod eth_watch;
-pub mod fee_ticker;
 pub mod gas_tracker;
 pub mod genesis;
 pub mod house_keeper;
