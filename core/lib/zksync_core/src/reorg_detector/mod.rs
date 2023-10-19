@@ -1,5 +1,6 @@
 use std::{future::Future, time::Duration};
 
+use tokio::sync::watch;
 use zksync_dal::ConnectionPool;
 use zksync_types::{L1BatchNumber, MiniblockNumber};
 use zksync_web3_decl::{
@@ -31,14 +32,19 @@ const SLEEP_INTERVAL: Duration = Duration::from_secs(5);
 pub struct ReorgDetector {
     client: HttpClient,
     pool: ConnectionPool,
+    should_stop: watch::Receiver<bool>,
 }
 
 impl ReorgDetector {
-    pub fn new(url: &str, pool: ConnectionPool) -> Self {
+    pub fn new(url: &str, pool: ConnectionPool, should_stop: watch::Receiver<bool>) -> Self {
         let client = HttpClientBuilder::default()
             .build(url)
             .expect("Failed to create HTTP client");
-        Self { client, pool }
+        Self {
+            client,
+            pool,
+            should_stop,
+        }
     }
 
     /// Compares hashes of the given local miniblock and the same miniblock from main node.
@@ -118,7 +124,7 @@ impl ReorgDetector {
         .map(L1BatchNumber)
     }
 
-    pub async fn run(self) -> L1BatchNumber {
+    pub async fn run(mut self) -> Option<L1BatchNumber> {
         loop {
             match self.run_inner().await {
                 Ok(l1_batch_number) => return l1_batch_number,
@@ -134,8 +140,15 @@ impl ReorgDetector {
         }
     }
 
-    async fn run_inner(&self) -> RpcResult<L1BatchNumber> {
+    async fn run_inner(&mut self) -> RpcResult<Option<L1BatchNumber>> {
         loop {
+            let should_stop = *self.should_stop.borrow();
+
+            if should_stop {
+                tracing::info!("Shutting down reorg detector");
+                return Ok(None);
+            }
+
             let sealed_l1_batch_number = self
                 .pool
                 .access_storage()
@@ -195,7 +208,7 @@ impl ReorgDetector {
                 tracing::info!(
                     "Reorg localized: last correct L1 batch is #{last_correct_l1_batch}"
                 );
-                return Ok(last_correct_l1_batch);
+                return Ok(Some(last_correct_l1_batch));
             }
         }
     }
