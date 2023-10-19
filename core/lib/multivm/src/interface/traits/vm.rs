@@ -1,4 +1,5 @@
 use crate::interface::traits::tracers::multivm_tracer::MultivmTracer;
+use crate::interface::traits::tracers::noop::NoopTracer;
 use crate::interface::types::errors::BytecodeCompressionError;
 use crate::interface::types::inputs::{L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode};
 use crate::interface::types::outputs::{
@@ -14,7 +15,7 @@ use zksync_utils::bytecode::CompressedBytecodeInfo;
 pub trait VmInterface<S: WriteStorage, H: HistoryMode> {
     fn push_transaction(&mut self, tx: Transaction);
     fn execute(&mut self, execution_mode: VmExecutionMode) -> VmExecutionResultAndLogs {
-        todo!()
+        self.inspect(NoopTracer, execution_mode)
     }
     fn inspect<T: MultivmTracer<S, H>>(
         &mut self,
@@ -35,7 +36,7 @@ pub trait VmInterface<S: WriteStorage, H: HistoryMode> {
         tx: Transaction,
         with_compression: bool,
     ) -> Result<VmExecutionResultAndLogs, BytecodeCompressionError> {
-        todo!()
+        self.inspect_transaction_with_bytecode_compression(NoopTracer, tx, with_compression)
     }
 
     /// Inspect transaction with optional bytecode compression.

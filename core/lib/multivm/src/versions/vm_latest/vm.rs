@@ -61,8 +61,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
         tracer: T,
         execution_mode: VmExecutionMode,
     ) -> VmExecutionResultAndLogs {
-        todo!()
-        // self.inspect_inner(tracers, execution_mode)
+        self.inspect_inner(tracer, execution_mode)
     }
 
     /// Get current state of bootloader memory.

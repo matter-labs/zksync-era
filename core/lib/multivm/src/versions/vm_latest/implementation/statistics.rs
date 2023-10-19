@@ -7,6 +7,7 @@ use zksync_types::U256;
 use crate::interface::{VmExecutionStatistics, VmMemoryMetrics};
 use crate::vm_latest::tracers::DefaultExecutionTracer;
 use crate::vm_latest::vm::Vm;
+use crate::vm_latest::VmTracer;
 
 /// Module responsible for observing the VM behavior, i.e. calculating the statistics of the VM runs
 /// or reporting the VM memory usage.
@@ -14,11 +15,11 @@ use crate::vm_latest::vm::Vm;
 impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
     /// Get statistics about TX execution.
     #[allow(clippy::too_many_arguments)]
-    pub(crate) fn get_statistics(
+    pub(crate) fn get_statistics<T: VmTracer<S, H::VmVirtualBlocksRefundsEnhancement>>(
         &self,
         timestamp_initial: Timestamp,
         cycles_initial: u32,
-        tracer: &DefaultExecutionTracer<S, H::VmVirtualBlocksRefundsEnhancement>,
+        tracer: &DefaultExecutionTracer<S, H::VmVirtualBlocksRefundsEnhancement, T>,
         gas_remaining_before: u32,
         gas_remaining_after: u32,
         spent_pubdata_counter_before: u32,
