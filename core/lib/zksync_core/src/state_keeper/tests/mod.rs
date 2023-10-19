@@ -120,6 +120,7 @@ pub(super) fn default_vm_block_result() -> FinishedL1Batch {
             l2_to_l1_logs: vec![],
             total_log_queries: 0,
             cycles_used: 0,
+            storage_refunds: vec![],
         },
         final_bootloader_memory: Some(vec![]),
     }
