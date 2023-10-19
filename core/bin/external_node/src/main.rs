@@ -138,6 +138,7 @@ async fn init_tasks(
         max_l1_batches_per_iter: config.optional.max_l1_batches_per_tree_iter,
         multi_get_chunk_size: config.optional.merkle_tree_multi_get_chunk_size,
         block_cache_capacity: config.optional.merkle_tree_block_cache_size(),
+        memtable_capacity: config.optional.merkle_tree_memtable_capacity(),
     })
     .await;
     healthchecks.push(Box::new(metadata_calculator.tree_health_check()));

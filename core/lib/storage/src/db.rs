@@ -4,7 +4,7 @@ use rocksdb::{
 };
 
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     ffi::CStr,
     fmt,
     marker::PhantomData,
@@ -29,6 +29,12 @@ pub trait NamedColumnFamily: 'static + Copy {
     const ALL: &'static [Self];
     /// Names a column family to access it in `RocksDB`. Also used in metrics reporting.
     fn name(&self) -> &'static str;
+
+    /// Returns whether this CF is so large that it's likely to require special configuration in terms
+    /// of compaction / memtables.
+    fn requires_tuning(&self) -> bool {
+        false
+    }
 }
 
 /// Thin typesafe wrapper around RocksDB `WriteBatch`.
@@ -196,6 +202,19 @@ impl StalledWritesRetries {
     }
 }
 
+/// [`RocksDB`] options.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct RocksDBOptions {
+    /// Byte capacity of the block cache (the main RocksDB cache for reads). If not set, default RocksDB
+    /// cache options will be used.
+    pub block_cache_capacity: Option<usize>,
+    /// Byte capacity of memtables (recent, non-persisted changes to RocksDB) set for large CFs
+    /// (as defined in [`NamedColumnFamily::requires_tuning()`]).
+    /// Setting this to a reasonably large value (order of 512 MiB) is helpful for large DBs that experience
+    /// write stalls. If not set, large CFs will not be configured specially.
+    pub large_memtable_capacity: Option<usize>,
+}
+
 /// Thin wrapper around a RocksDB instance.
 ///
 /// The wrapper is cheaply cloneable (internally, it wraps a DB instance in an [`Arc`]).
@@ -209,13 +228,13 @@ pub struct RocksDB<CF> {
 
 impl<CF: NamedColumnFamily> RocksDB<CF> {
     pub fn new(path: &Path) -> Self {
-        Self::with_cache(path, None)
+        Self::with_options(path, RocksDBOptions::default())
     }
 
-    pub fn with_cache(path: &Path, block_cache_capacity: Option<usize>) -> Self {
-        let caches = RocksDBCaches::new(block_cache_capacity);
-        let options = Self::rocksdb_options(None);
-        let existing_cfs = DB::list_cf(&options, path).unwrap_or_else(|err| {
+    pub fn with_options(path: &Path, options: RocksDBOptions) -> Self {
+        let caches = RocksDBCaches::new(options.block_cache_capacity);
+        let db_options = Self::rocksdb_options(None, None);
+        let existing_cfs = DB::list_cf(&db_options, path).unwrap_or_else(|err| {
             tracing::warn!(
                 "Failed getting column families for RocksDB `{}` at `{}`, assuming CFs are empty; {err}",
                 CF::DB_NAME,
@@ -224,15 +243,18 @@ impl<CF: NamedColumnFamily> RocksDB<CF> {
             vec![]
         });
 
-        let cf_names: HashSet<_> = CF::ALL.iter().map(|cf| cf.name()).collect();
+        let cfs_and_options: HashMap<_, _> = CF::ALL
+            .iter()
+            .map(|cf| (cf.name(), cf.requires_tuning()))
+            .collect();
         let obsolete_cfs: Vec<_> = existing_cfs
             .iter()
             .filter_map(|cf_name| {
                 let cf_name = cf_name.as_str();
                 // The default CF is created on RocksDB instantiation in any case; it doesn't need
                 // to be explicitly opened.
-                let is_obsolete =
-                    cf_name != rocksdb::DEFAULT_COLUMN_FAMILY_NAME && !cf_names.contains(cf_name);
+                let is_obsolete = cf_name != rocksdb::DEFAULT_COLUMN_FAMILY_NAME
+                    && !cfs_and_options.contains_key(cf_name);
                 is_obsolete.then_some(cf_name)
             })
             .collect();
@@ -246,18 +268,22 @@ impl<CF: NamedColumnFamily> RocksDB<CF> {
         }
 
         // Open obsolete CFs as well; RocksDB initialization will panic otherwise.
-        let all_cf_names = cf_names.iter().copied().chain(obsolete_cfs);
-        let cfs = all_cf_names.map(|cf_name| {
+        let cf_names = cfs_and_options.keys().copied().collect();
+        let all_cfs_and_options = cfs_and_options
+            .into_iter()
+            .chain(obsolete_cfs.into_iter().map(|name| (name, false)));
+        let cfs = all_cfs_and_options.map(|(cf_name, requires_tuning)| {
             let mut block_based_options = BlockBasedOptions::default();
             block_based_options.set_bloom_filter(10.0, false);
             if let Some(cache) = &caches.shared {
                 block_based_options.set_block_cache(cache);
             }
-            let cf_options = Self::rocksdb_options(Some(block_based_options));
+            let memtable_capacity = options.large_memtable_capacity.filter(|_| requires_tuning);
+            let cf_options = Self::rocksdb_options(memtable_capacity, Some(block_based_options));
             ColumnFamilyDescriptor::new(cf_name, cf_options)
         });
 
-        let db = DB::open_cf_descriptors(&options, path, cfs).expect("failed to init rocksdb");
+        let db = DB::open_cf_descriptors(&db_options, path, cfs).expect("failed to init rocksdb");
         let inner = Arc::new(RocksDBInner {
             db,
             db_name: CF::DB_NAME,
@@ -266,6 +292,12 @@ impl<CF: NamedColumnFamily> RocksDB<CF> {
             _caches: caches,
         });
         RocksdbSizeMetrics::register(CF::DB_NAME, Arc::downgrade(&inner));
+
+        tracing::info!(
+            "Initialized RocksDB `{}` at `{}` with {options:?}",
+            CF::DB_NAME,
+            path.display()
+        );
 
         Self {
             inner,
@@ -283,16 +315,21 @@ impl<CF: NamedColumnFamily> RocksDB<CF> {
         self
     }
 
-    fn rocksdb_options(block_based_options: Option<BlockBasedOptions>) -> Options {
+    fn rocksdb_options(
+        memtable_capacity: Option<usize>,
+        block_based_options: Option<BlockBasedOptions>,
+    ) -> Options {
         let mut options = Options::default();
         options.create_missing_column_families(true);
         options.create_if_missing(true);
 
         let num_cpus = num_cpus::get() as i32;
         options.increase_parallelism(num_cpus);
+        if let Some(memtable_capacity) = memtable_capacity {
+            options.optimize_level_style_compaction(memtable_capacity);
+        }
         // Settings below are taken as per PingCAP recommendations:
         // https://www.pingcap.com/blog/how-to-troubleshoot-rocksdb-write-stalls-in-tikv/
-        options.set_max_write_buffer_number(5);
         let max_background_jobs = (num_cpus - 1).clamp(1, 8);
         options.set_max_background_jobs(max_background_jobs);
 

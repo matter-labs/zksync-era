@@ -35,6 +35,10 @@ impl NamedColumnFamily for MerkleTreeColumnFamily {
             Self::StaleKeys => "stale_keys",
         }
     }
+
+    fn requires_tuning(&self) -> bool {
+        matches!(self, Self::Tree)
+    }
 }
 
 /// Main [`Database`] implementation wrapping a [`RocksDB`] reference.
