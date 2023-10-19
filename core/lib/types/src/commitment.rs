@@ -258,11 +258,14 @@ struct L1BatchAuxiliaryOutput {
     repeated_writes_compressed: Vec<u8>,
     repeated_writes_hash: H256,
     system_logs_compressed: Vec<u8>,
+    #[allow(dead_code)]
     system_logs_linear_hash: H256,
+    #[allow(dead_code)]
     state_diffs_hash: H256,
     state_diffs_compressed: Vec<u8>,
-
+    #[allow(dead_code)]
     bootloader_heap_hash: H256,
+    #[allow(dead_code)]
     events_state_hash: H256,
 }
 
@@ -409,6 +412,7 @@ pub struct L1BatchCommitmentHash {
 }
 
 impl L1BatchCommitment {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         l2_to_l1_logs: Vec<L2ToL1Log>,
         rollup_last_leaf_index: u64,
