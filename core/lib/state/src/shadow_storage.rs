@@ -12,6 +12,8 @@ struct ShadowStorageMetrics {
     is_write_initial_mismatch: Counter,
     /// Number of mismatches when calling `load_factory_dep()` on a shadow storage.
     load_factory_dep_mismatch: Counter,
+    /// Number of mismatches when calling `get_enumeration_index` on a shadow storage.
+    get_enumeration_index_mismatch: Counter,
 }
 
 #[vise::register]
@@ -92,15 +94,14 @@ impl ReadStorage for ShadowStorage<'_> {
     fn get_enumeration_index(&mut self, key: &StorageKey) -> Option<u64> {
         let source_value = self.source_storage.get_enumeration_index(key);
         let expected_value = self.to_check_storage.get_enumeration_index(key);
-        let mut metric_value = 0.0;
         if source_value != expected_value {
-            metric_value = 1.0;
-            tracing::error!("get_enumeration_index({:?}) -- l1_batch_number={:?} -- expected source={:?} to be equal to to_check={:?}", key, self.l1_batch_number, source_value, expected_value);
+            tracing::error!(
+                "get_enumeration_index({:?}) -- l1_batch_number={:?} -- expected source={:?} to be equal to \
+                to_check={:?}", key, self.l1_batch_number, source_value, expected_value
+            );
+
+            self.metrics.get_enumeration_index_mismatch.inc();
         }
-        metrics::histogram!(
-            "shadow_storage.get_enumeration_index_mismatch",
-            metric_value
-        );
         source_value
     }
 }

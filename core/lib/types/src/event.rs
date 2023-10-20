@@ -73,9 +73,9 @@ pub struct L1MessengerL2ToL1Log {
 
 impl L1MessengerL2ToL1Log {
     pub fn packed_encoding(&self) -> Vec<u8> {
-        let mut res = vec![];
-        res.extend_from_slice(&self.l2_shard_id.to_be_bytes());
-        res.extend_from_slice(&(self.is_service as u8).to_be_bytes());
+        let mut res: Vec<u8> = vec![];
+        res.push(self.l2_shard_id);
+        res.push(self.is_service as u8);
         res.extend_from_slice(&self.tx_number_in_block.to_be_bytes());
         res.extend_from_slice(self.sender.as_bytes());
         res.extend(u256_to_bytes_be(&self.key));
