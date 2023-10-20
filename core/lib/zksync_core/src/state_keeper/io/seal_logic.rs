@@ -457,7 +457,14 @@ impl MiniblockSealCommand {
 
         deduplicated_logs
             .into_iter()
-            .map(|(key, ModifiedSlot { value, tx_index })| (tx_index, (key, value)))
+            .map(
+                |(
+                    key,
+                    ModifiedSlot {
+                        value, tx_index, ..
+                    },
+                )| (tx_index, (key, value)),
+            )
             .sorted_by_key(|(tx_index, _)| *tx_index)
             .group_by(|(tx_index, _)| *tx_index)
             .into_iter()

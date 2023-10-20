@@ -206,7 +206,7 @@ describe('Tests for L1 behavior', () => {
         // We check that we will run out of gas if we do a bit smaller amount of writes.
         // In order for writes to be repeated we should firstly write to the keys initially.
         const initialWritesInOneTx = 500;
-        const repeatedWritesInOneTx = 7000;
+        const repeatedWritesInOneTx = 8500;
         const gasLimit = await contract.estimateGas.writes(0, initialWritesInOneTx, 1);
 
         let proms = [];

@@ -15,6 +15,8 @@ use zk_evm::{
 
 use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::utils::storage_key_for_eth_balance;
+use zksync_types::writes::compression::compress_with_best_strategy;
+use zksync_types::writes::{BYTES_PER_DERIVED_KEY, BYTES_PER_ENUMERATION_INDEX};
 use zksync_types::{
     AccountTreeId, Address, StorageKey, StorageLogQuery, StorageLogQueryType, BOOTLOADER_ADDRESS,
     U256,
@@ -88,11 +90,23 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
             || *key == storage_key_for_eth_balance(&BOOTLOADER_ADDRESS)
     }
 
+    fn get_initial_value(&self, storage_key: &StorageKey) -> Option<U256> {
+        self.initial_values.inner().get(storage_key).copied()
+    }
+
+    fn set_initial_value(&mut self, storage_key: &StorageKey, value: U256, timestamp: Timestamp) {
+        if !self.initial_values.inner().contains_key(&storage_key) {
+            self.initial_values.insert(*storage_key, value, timestamp);
+        }
+    }
+
     pub fn read_value(&mut self, mut query: LogQuery) -> LogQuery {
         let key = triplet_to_storage_key(query.shard_id, query.address, query.key);
         let current_value = self.storage.read_from_storage(&key);
 
         query.read_value = current_value;
+
+        self.set_initial_value(&key, current_value, query.timestamp);
 
         self.frames_stack.push_forward(
             Box::new(StorageLogQuery {
@@ -120,10 +134,7 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
 
         query.read_value = current_value;
 
-        if !self.initial_values.inner().contains_key(&key) {
-            self.initial_values
-                .insert(key, current_value, query.timestamp);
-        }
+        self.set_initial_value(&key, current_value, query.timestamp);
 
         let mut storage_log_query = StorageLogQuery {
             log_query: query,
@@ -201,7 +212,11 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
     fn base_price_for_write_query(&self, query: &LogQuery) -> u32 {
         let storage_key = storage_key_of_log(query);
 
-        self.base_price_for_write(&storage_key, query.read_value, query.written_value)
+        let initial_value = self
+            .get_initial_value(&storage_key)
+            .unwrap_or(self.storage.read_from_storage(&storage_key));
+
+        self.base_price_for_write(&storage_key, initial_value, query.written_value)
     }
 
     pub(crate) fn base_price_for_write(
@@ -220,15 +235,21 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
             .borrow_mut()
             .is_write_initial(storage_key);
 
-        get_pubdata_price_bytes(is_initial_write)
+        get_pubdata_price_bytes(prev_value, new_value, is_initial_write)
     }
 
     // Returns the price of the update in terms of pubdata bytes.
     // TODO (SMA-1701): update VM to accept gas instead of pubdata.
-    fn value_update_price(&self, query: &LogQuery) -> u32 {
+    fn value_update_price(&mut self, query: &LogQuery) -> u32 {
         let storage_key = storage_key_of_log(query);
 
         let base_cost = self.base_price_for_write_query(query);
+
+        let initial_value = self
+            .get_initial_value(&storage_key)
+            .unwrap_or(self.storage.read_from_storage(&storage_key));
+
+        self.set_initial_value(&storage_key, initial_value, query.timestamp);
 
         let already_paid = self.prepaid_for_write(&storage_key);
 
@@ -313,6 +334,10 @@ impl<S: WriteStorage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
             let to_pay_by_user = self.base_price_for_write_query(&query);
             let prepaid = self.prepaid_for_write(&storage_key);
 
+            let initial_value = self
+                .get_initial_value(&storage_key)
+                .unwrap_or(self.storage.read_from_storage(&storage_key));
+
             if to_pay_by_user > prepaid {
                 self.paid_changes.apply_historic_record(
                     HashMapHistoryEvent {
@@ -336,7 +361,9 @@ impl<S: WriteStorage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
         _monotonic_cycle_counter: u32,
         partial_query: &LogQuery,
     ) -> RefundType {
-        let price_to_pay = self.value_update_price(partial_query);
+        let price_to_pay = self
+            .value_update_price(partial_query)
+            .min(INITIAL_STORAGE_WRITE_PUBDATA_BYTES as u32);
 
         RefundType::RepeatedWrite(RefundedAmounts {
             ergs: 0,
@@ -397,18 +424,51 @@ impl<S: WriteStorage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
 
 /// Returns the number of bytes needed to publish a slot.
 // Since we need to publish the state diffs onchain, for each of the updated storage slot
-// we basically need to publish the following pair: (<storage_key, new_value>).
-// While new_value is always 32 bytes long, for key we use the following optimization:
+// we basically need to publish the following pair: (<storage_key, compressed_new_value>).
+// For key we use the following optimization:
 //   - The first time we publish it, we use 32 bytes.
 //         Then, we remember a 8-byte id for this slot and assign it to it. We call this initial write.
-//   - The second time we publish it, we will use this 8-byte instead of the 32 bytes of the entire key.
-//         So the total size of the publish pubdata is 40 bytes. We call this kind of write the repeated one
-fn get_pubdata_price_bytes(is_initial: bool) -> u32 {
+//   - The second time we publish it, we will use the 4/5 byte representation of this 8-byte instead of the 32
+//     bytes of the entire key.
+// For value compression, we use a metadata byte which holds the length of the value and the operation from the
+// previous state to the new state, and the compressed value. The maxiumum for this is 33 bytes.
+// Total bytes for initial writes then becomes 65 bytes and repeated writes becomes 38 bytes.
+fn get_pubdata_price_bytes(initial_value: U256, final_value: U256, is_initial: bool) -> u32 {
     // TODO (SMA-1702): take into account the content of the log query, i.e. values that contain mostly zeroes
     // should cost less.
+
+    let compressed_value_size =
+        compress_with_best_strategy(initial_value, final_value).len() as u32;
+
     if is_initial {
-        zk_evm::zkevm_opcode_defs::system_params::INITIAL_STORAGE_WRITE_PUBDATA_BYTES as u32
+        (BYTES_PER_DERIVED_KEY as u32) + compressed_value_size
     } else {
-        zk_evm::zkevm_opcode_defs::system_params::REPEATED_STORAGE_WRITE_PUBDATA_BYTES as u32
+        (BYTES_PER_ENUMERATION_INDEX as u32) + compressed_value_size
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_get_pubdata_price_bytes() {
+        let initial_value = U256::default();
+        let final_value = U256::from(92122);
+        let is_initial = true;
+
+        let compression_len = 4;
+
+        let initial_bytes_price = get_pubdata_price_bytes(initial_value, final_value, is_initial);
+        let repeated_bytes_price = get_pubdata_price_bytes(initial_value, final_value, !is_initial);
+
+        assert_eq!(
+            initial_bytes_price,
+            (compression_len + BYTES_PER_DERIVED_KEY as usize) as u32
+        );
+        assert_eq!(
+            repeated_bytes_price,
+            (compression_len + BYTES_PER_ENUMERATION_INDEX as usize) as u32
+        );
     }
 }
