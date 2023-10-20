@@ -21,34 +21,65 @@ import { BytesLike } from "@ethersproject/bytes";
 import { Listener, Provider } from "@ethersproject/providers";
 import { FunctionFragment, EventFragment, Result } from "@ethersproject/abi";
 
-interface IBridgeheadInterface extends ethers.utils.Interface {
+interface IBridgehubInterface extends ethers.utils.Interface {
   functions: {
+    "acceptAdmin()": FunctionFragment;
+    "acceptGovernor()": FunctionFragment;
     "deposit(uint256)": FunctionFragment;
+    "executeUpgrade(tuple)": FunctionFragment;
     "finalizeEthWithdrawal(uint256,uint256,uint256,uint16,bytes,bytes32[])": FunctionFragment;
+    "freezeDiamond()": FunctionFragment;
     "getChainContract(uint256)": FunctionFragment;
     "getChainImplementation()": FunctionFragment;
-    "getChainProofSystem(uint256)": FunctionFragment;
     "getChainProxyAdmin()": FunctionFragment;
+    "getChainStateTransition(uint256)": FunctionFragment;
     "getGovernor()": FunctionFragment;
-    "getIsProofSystem(address)": FunctionFragment;
+    "getIsStateTransition(address)": FunctionFragment;
+    "getName()": FunctionFragment;
     "getPriorityTxMaxGasLimit()": FunctionFragment;
-    "getTotaProofSystems()": FunctionFragment;
+    "getTotaStateTransitions()": FunctionFragment;
     "getTotalChains()": FunctionFragment;
     "isEthWithdrawalFinalized(uint256,uint256,uint256)": FunctionFragment;
     "l2TransactionBaseCost(uint256,uint256,uint256,uint256)": FunctionFragment;
-    "newChain(uint256,address,address,address)": FunctionFragment;
-    "newProofSystem(address)": FunctionFragment;
+    "newChain(uint256,address)": FunctionFragment;
+    "newStateTransition(address)": FunctionFragment;
     "proveL1ToL2TransactionStatus(uint256,bytes32,uint256,uint256,uint16,bytes32[],uint8)": FunctionFragment;
     "proveL2LogInclusion(uint256,uint256,uint256,tuple,bytes32[])": FunctionFragment;
     "proveL2MessageInclusion(uint256,uint256,uint256,tuple,bytes32[])": FunctionFragment;
     "requestL2Transaction(uint256,address,uint256,bytes,uint256,uint256,bytes[],address)": FunctionFragment;
-    "requestL2TransactionProof(uint256,tuple,bytes,bytes[],bool)": FunctionFragment;
+    "setPendingAdmin(address)": FunctionFragment;
+    "setPendingGovernor(address)": FunctionFragment;
+    "setStateTransitionChainContract(uint256,address)": FunctionFragment;
+    "unfreezeDiamond()": FunctionFragment;
     "withdrawFunds(uint256,address,uint256)": FunctionFragment;
   };
 
   encodeFunctionData(
+    functionFragment: "acceptAdmin",
+    values?: undefined
+  ): string;
+  encodeFunctionData(
+    functionFragment: "acceptGovernor",
+    values?: undefined
+  ): string;
+  encodeFunctionData(
     functionFragment: "deposit",
     values: [BigNumberish]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "executeUpgrade",
+    values: [
+      {
+        facetCuts: {
+          facet: string;
+          action: BigNumberish;
+          isFreezable: boolean;
+          selectors: BytesLike[];
+        }[];
+        initAddress: string;
+        initCalldata: BytesLike;
+      }
+    ]
   ): string;
   encodeFunctionData(
     functionFragment: "finalizeEthWithdrawal",
@@ -62,6 +93,10 @@ interface IBridgeheadInterface extends ethers.utils.Interface {
     ]
   ): string;
   encodeFunctionData(
+    functionFragment: "freezeDiamond",
+    values?: undefined
+  ): string;
+  encodeFunctionData(
     functionFragment: "getChainContract",
     values: [BigNumberish]
   ): string;
@@ -70,27 +105,28 @@ interface IBridgeheadInterface extends ethers.utils.Interface {
     values?: undefined
   ): string;
   encodeFunctionData(
-    functionFragment: "getChainProofSystem",
-    values: [BigNumberish]
-  ): string;
-  encodeFunctionData(
     functionFragment: "getChainProxyAdmin",
     values?: undefined
+  ): string;
+  encodeFunctionData(
+    functionFragment: "getChainStateTransition",
+    values: [BigNumberish]
   ): string;
   encodeFunctionData(
     functionFragment: "getGovernor",
     values?: undefined
   ): string;
   encodeFunctionData(
-    functionFragment: "getIsProofSystem",
+    functionFragment: "getIsStateTransition",
     values: [string]
   ): string;
+  encodeFunctionData(functionFragment: "getName", values?: undefined): string;
   encodeFunctionData(
     functionFragment: "getPriorityTxMaxGasLimit",
     values?: undefined
   ): string;
   encodeFunctionData(
-    functionFragment: "getTotaProofSystems",
+    functionFragment: "getTotaStateTransitions",
     values?: undefined
   ): string;
   encodeFunctionData(
@@ -107,10 +143,10 @@ interface IBridgeheadInterface extends ethers.utils.Interface {
   ): string;
   encodeFunctionData(
     functionFragment: "newChain",
-    values: [BigNumberish, string, string, string]
+    values: [BigNumberish, string]
   ): string;
   encodeFunctionData(
-    functionFragment: "newProofSystem",
+    functionFragment: "newStateTransition",
     values: [string]
   ): string;
   encodeFunctionData(
@@ -134,7 +170,7 @@ interface IBridgeheadInterface extends ethers.utils.Interface {
       {
         l2ShardId: BigNumberish;
         isService: boolean;
-        txNumberInBlock: BigNumberish;
+        txNumberInBatch: BigNumberish;
         sender: string;
         key: BytesLike;
         value: BytesLike;
@@ -148,7 +184,7 @@ interface IBridgeheadInterface extends ethers.utils.Interface {
       BigNumberish,
       BigNumberish,
       BigNumberish,
-      { txNumberInBlock: BigNumberish; sender: string; data: BytesLike },
+      { txNumberInBatch: BigNumberish; sender: string; data: BytesLike },
       BytesLike[]
     ]
   ): string;
@@ -166,34 +202,45 @@ interface IBridgeheadInterface extends ethers.utils.Interface {
     ]
   ): string;
   encodeFunctionData(
-    functionFragment: "requestL2TransactionProof",
-    values: [
-      BigNumberish,
-      {
-        sender: string;
-        txId: BigNumberish;
-        l2Value: BigNumberish;
-        contractAddressL2: string;
-        expirationTimestamp: BigNumberish;
-        l2GasLimit: BigNumberish;
-        l2GasPrice: BigNumberish;
-        l2GasPricePerPubdata: BigNumberish;
-        valueToMint: BigNumberish;
-        refundRecipient: string;
-      },
-      BytesLike,
-      BytesLike[],
-      boolean
-    ]
+    functionFragment: "setPendingAdmin",
+    values: [string]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "setPendingGovernor",
+    values: [string]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "setStateTransitionChainContract",
+    values: [BigNumberish, string]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "unfreezeDiamond",
+    values?: undefined
   ): string;
   encodeFunctionData(
     functionFragment: "withdrawFunds",
     values: [BigNumberish, string, BigNumberish]
   ): string;
 
+  decodeFunctionResult(
+    functionFragment: "acceptAdmin",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "acceptGovernor",
+    data: BytesLike
+  ): Result;
   decodeFunctionResult(functionFragment: "deposit", data: BytesLike): Result;
   decodeFunctionResult(
+    functionFragment: "executeUpgrade",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
     functionFragment: "finalizeEthWithdrawal",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "freezeDiamond",
     data: BytesLike
   ): Result;
   decodeFunctionResult(
@@ -205,11 +252,11 @@ interface IBridgeheadInterface extends ethers.utils.Interface {
     data: BytesLike
   ): Result;
   decodeFunctionResult(
-    functionFragment: "getChainProofSystem",
+    functionFragment: "getChainProxyAdmin",
     data: BytesLike
   ): Result;
   decodeFunctionResult(
-    functionFragment: "getChainProxyAdmin",
+    functionFragment: "getChainStateTransition",
     data: BytesLike
   ): Result;
   decodeFunctionResult(
@@ -217,15 +264,16 @@ interface IBridgeheadInterface extends ethers.utils.Interface {
     data: BytesLike
   ): Result;
   decodeFunctionResult(
-    functionFragment: "getIsProofSystem",
+    functionFragment: "getIsStateTransition",
     data: BytesLike
   ): Result;
+  decodeFunctionResult(functionFragment: "getName", data: BytesLike): Result;
   decodeFunctionResult(
     functionFragment: "getPriorityTxMaxGasLimit",
     data: BytesLike
   ): Result;
   decodeFunctionResult(
-    functionFragment: "getTotaProofSystems",
+    functionFragment: "getTotaStateTransitions",
     data: BytesLike
   ): Result;
   decodeFunctionResult(
@@ -242,7 +290,7 @@ interface IBridgeheadInterface extends ethers.utils.Interface {
   ): Result;
   decodeFunctionResult(functionFragment: "newChain", data: BytesLike): Result;
   decodeFunctionResult(
-    functionFragment: "newProofSystem",
+    functionFragment: "newStateTransition",
     data: BytesLike
   ): Result;
   decodeFunctionResult(
@@ -262,7 +310,19 @@ interface IBridgeheadInterface extends ethers.utils.Interface {
     data: BytesLike
   ): Result;
   decodeFunctionResult(
-    functionFragment: "requestL2TransactionProof",
+    functionFragment: "setPendingAdmin",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "setPendingGovernor",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "setStateTransitionChainContract",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "unfreezeDiamond",
     data: BytesLike
   ): Result;
   decodeFunctionResult(
@@ -271,17 +331,27 @@ interface IBridgeheadInterface extends ethers.utils.Interface {
   ): Result;
 
   events: {
-    "EthWithdrawalFinalized(address,uint256)": EventFragment;
-    "NewChain(uint16,address,address,address)": EventFragment;
-    "NewPriorityRequest(uint256,bytes32,uint64,tuple,bytes[])": EventFragment;
+    "ExecuteUpgrade(tuple)": EventFragment;
+    "Freeze()": EventFragment;
+    "NewAdmin(address,address)": EventFragment;
+    "NewChain(uint16,address,address)": EventFragment;
+    "NewGovernor(address,address)": EventFragment;
+    "NewPendingAdmin(address,address)": EventFragment;
+    "NewPendingGovernor(address,address)": EventFragment;
+    "Unfreeze()": EventFragment;
   };
 
-  getEvent(nameOrSignatureOrTopic: "EthWithdrawalFinalized"): EventFragment;
+  getEvent(nameOrSignatureOrTopic: "ExecuteUpgrade"): EventFragment;
+  getEvent(nameOrSignatureOrTopic: "Freeze"): EventFragment;
+  getEvent(nameOrSignatureOrTopic: "NewAdmin"): EventFragment;
   getEvent(nameOrSignatureOrTopic: "NewChain"): EventFragment;
-  getEvent(nameOrSignatureOrTopic: "NewPriorityRequest"): EventFragment;
+  getEvent(nameOrSignatureOrTopic: "NewGovernor"): EventFragment;
+  getEvent(nameOrSignatureOrTopic: "NewPendingAdmin"): EventFragment;
+  getEvent(nameOrSignatureOrTopic: "NewPendingGovernor"): EventFragment;
+  getEvent(nameOrSignatureOrTopic: "Unfreeze"): EventFragment;
 }
 
-export class IBridgehead extends Contract {
+export class IBridgehub extends Contract {
   connect(signerOrProvider: Signer | Provider | string): this;
   attach(addressOrName: string): this;
   deployed(): Promise<this>;
@@ -292,9 +362,17 @@ export class IBridgehead extends Contract {
   removeAllListeners(eventName: EventFilter | string): this;
   removeListener(eventName: any, listener: Listener): this;
 
-  interface: IBridgeheadInterface;
+  interface: IBridgehubInterface;
 
   functions: {
+    acceptAdmin(overrides?: Overrides): Promise<ContractTransaction>;
+
+    "acceptAdmin()"(overrides?: Overrides): Promise<ContractTransaction>;
+
+    acceptGovernor(overrides?: Overrides): Promise<ContractTransaction>;
+
+    "acceptGovernor()"(overrides?: Overrides): Promise<ContractTransaction>;
+
     deposit(
       _chainId: BigNumberish,
       overrides?: PayableOverrides
@@ -303,6 +381,34 @@ export class IBridgehead extends Contract {
     "deposit(uint256)"(
       _chainId: BigNumberish,
       overrides?: PayableOverrides
+    ): Promise<ContractTransaction>;
+
+    executeUpgrade(
+      _diamondCut: {
+        facetCuts: {
+          facet: string;
+          action: BigNumberish;
+          isFreezable: boolean;
+          selectors: BytesLike[];
+        }[];
+        initAddress: string;
+        initCalldata: BytesLike;
+      },
+      overrides?: Overrides
+    ): Promise<ContractTransaction>;
+
+    "executeUpgrade((tuple[],address,bytes))"(
+      _diamondCut: {
+        facetCuts: {
+          facet: string;
+          action: BigNumberish;
+          isFreezable: boolean;
+          selectors: BytesLike[];
+        }[];
+        initAddress: string;
+        initCalldata: BytesLike;
+      },
+      overrides?: Overrides
     ): Promise<ContractTransaction>;
 
     finalizeEthWithdrawal(
@@ -324,6 +430,10 @@ export class IBridgehead extends Contract {
       _merkleProof: BytesLike[],
       overrides?: Overrides
     ): Promise<ContractTransaction>;
+
+    freezeDiamond(overrides?: Overrides): Promise<ContractTransaction>;
+
+    "freezeDiamond()"(overrides?: Overrides): Promise<ContractTransaction>;
 
     getChainContract(
       _chainId: BigNumberish,
@@ -347,25 +457,25 @@ export class IBridgehead extends Contract {
       0: string;
     }>;
 
-    getChainProofSystem(
-      _chainId: BigNumberish,
-      overrides?: CallOverrides
-    ): Promise<{
-      0: string;
-    }>;
-
-    "getChainProofSystem(uint256)"(
-      _chainId: BigNumberish,
-      overrides?: CallOverrides
-    ): Promise<{
-      0: string;
-    }>;
-
     getChainProxyAdmin(overrides?: CallOverrides): Promise<{
       0: string;
     }>;
 
     "getChainProxyAdmin()"(overrides?: CallOverrides): Promise<{
+      0: string;
+    }>;
+
+    getChainStateTransition(
+      _chainId: BigNumberish,
+      overrides?: CallOverrides
+    ): Promise<{
+      0: string;
+    }>;
+
+    "getChainStateTransition(uint256)"(
+      _chainId: BigNumberish,
+      overrides?: CallOverrides
+    ): Promise<{
       0: string;
     }>;
 
@@ -377,18 +487,26 @@ export class IBridgehead extends Contract {
       0: string;
     }>;
 
-    getIsProofSystem(
-      _proofSystem: string,
+    getIsStateTransition(
+      _stateTransition: string,
       overrides?: CallOverrides
     ): Promise<{
       0: boolean;
     }>;
 
-    "getIsProofSystem(address)"(
-      _proofSystem: string,
+    "getIsStateTransition(address)"(
+      _stateTransition: string,
       overrides?: CallOverrides
     ): Promise<{
       0: boolean;
+    }>;
+
+    getName(overrides?: CallOverrides): Promise<{
+      0: string;
+    }>;
+
+    "getName()"(overrides?: CallOverrides): Promise<{
+      0: string;
     }>;
 
     getPriorityTxMaxGasLimit(overrides?: CallOverrides): Promise<{
@@ -399,11 +517,11 @@ export class IBridgehead extends Contract {
       0: BigNumber;
     }>;
 
-    getTotaProofSystems(overrides?: CallOverrides): Promise<{
+    getTotaStateTransitions(overrides?: CallOverrides): Promise<{
       0: BigNumber;
     }>;
 
-    "getTotaProofSystems()"(overrides?: CallOverrides): Promise<{
+    "getTotaStateTransitions()"(overrides?: CallOverrides): Promise<{
       0: BigNumber;
     }>;
 
@@ -455,27 +573,23 @@ export class IBridgehead extends Contract {
 
     newChain(
       _chainId: BigNumberish,
-      _proofSystem: string,
-      _chainGovernor: string,
-      _allowList: string,
+      _stateTransition: string,
       overrides?: Overrides
     ): Promise<ContractTransaction>;
 
-    "newChain(uint256,address,address,address)"(
+    "newChain(uint256,address)"(
       _chainId: BigNumberish,
-      _proofSystem: string,
-      _chainGovernor: string,
-      _allowList: string,
+      _stateTransition: string,
       overrides?: Overrides
     ): Promise<ContractTransaction>;
 
-    newProofSystem(
-      _proofSystem: string,
+    newStateTransition(
+      _stateTransition: string,
       overrides?: Overrides
     ): Promise<ContractTransaction>;
 
-    "newProofSystem(address)"(
-      _proofSystem: string,
+    "newStateTransition(address)"(
+      _stateTransition: string,
       overrides?: Overrides
     ): Promise<ContractTransaction>;
 
@@ -507,12 +621,12 @@ export class IBridgehead extends Contract {
 
     proveL2LogInclusion(
       _chainId: BigNumberish,
-      _blockNumber: BigNumberish,
+      _batchNumber: BigNumberish,
       _index: BigNumberish,
       _log: {
         l2ShardId: BigNumberish;
         isService: boolean;
-        txNumberInBlock: BigNumberish;
+        txNumberInBatch: BigNumberish;
         sender: string;
         key: BytesLike;
         value: BytesLike;
@@ -525,12 +639,12 @@ export class IBridgehead extends Contract {
 
     "proveL2LogInclusion(uint256,uint256,uint256,(uint8,bool,uint16,address,bytes32,bytes32),bytes32[])"(
       _chainId: BigNumberish,
-      _blockNumber: BigNumberish,
+      _batchNumber: BigNumberish,
       _index: BigNumberish,
       _log: {
         l2ShardId: BigNumberish;
         isService: boolean;
-        txNumberInBlock: BigNumberish;
+        txNumberInBatch: BigNumberish;
         sender: string;
         key: BytesLike;
         value: BytesLike;
@@ -543,10 +657,10 @@ export class IBridgehead extends Contract {
 
     proveL2MessageInclusion(
       _chainId: BigNumberish,
-      _blockNumber: BigNumberish,
+      _batchNumber: BigNumberish,
       _index: BigNumberish,
       _message: {
-        txNumberInBlock: BigNumberish;
+        txNumberInBatch: BigNumberish;
         sender: string;
         data: BytesLike;
       },
@@ -558,10 +672,10 @@ export class IBridgehead extends Contract {
 
     "proveL2MessageInclusion(uint256,uint256,uint256,(uint16,address,bytes),bytes32[])"(
       _chainId: BigNumberish,
-      _blockNumber: BigNumberish,
+      _batchNumber: BigNumberish,
       _index: BigNumberish,
       _message: {
-        txNumberInBlock: BigNumberish;
+        txNumberInBatch: BigNumberish;
         sender: string;
         data: BytesLike;
       },
@@ -595,45 +709,41 @@ export class IBridgehead extends Contract {
       overrides?: PayableOverrides
     ): Promise<ContractTransaction>;
 
-    requestL2TransactionProof(
-      _chainId: BigNumberish,
-      _params: {
-        sender: string;
-        txId: BigNumberish;
-        l2Value: BigNumberish;
-        contractAddressL2: string;
-        expirationTimestamp: BigNumberish;
-        l2GasLimit: BigNumberish;
-        l2GasPrice: BigNumberish;
-        l2GasPricePerPubdata: BigNumberish;
-        valueToMint: BigNumberish;
-        refundRecipient: string;
-      },
-      _calldata: BytesLike,
-      _factoryDeps: BytesLike[],
-      _isFree: boolean,
+    setPendingAdmin(
+      _newPendingAdmin: string,
       overrides?: Overrides
     ): Promise<ContractTransaction>;
 
-    "requestL2TransactionProof(uint256,(address,uint256,uint256,address,uint64,uint256,uint256,uint256,uint256,address),bytes,bytes[],bool)"(
-      _chainId: BigNumberish,
-      _params: {
-        sender: string;
-        txId: BigNumberish;
-        l2Value: BigNumberish;
-        contractAddressL2: string;
-        expirationTimestamp: BigNumberish;
-        l2GasLimit: BigNumberish;
-        l2GasPrice: BigNumberish;
-        l2GasPricePerPubdata: BigNumberish;
-        valueToMint: BigNumberish;
-        refundRecipient: string;
-      },
-      _calldata: BytesLike,
-      _factoryDeps: BytesLike[],
-      _isFree: boolean,
+    "setPendingAdmin(address)"(
+      _newPendingAdmin: string,
       overrides?: Overrides
     ): Promise<ContractTransaction>;
+
+    setPendingGovernor(
+      _newPendingGovernor: string,
+      overrides?: Overrides
+    ): Promise<ContractTransaction>;
+
+    "setPendingGovernor(address)"(
+      _newPendingGovernor: string,
+      overrides?: Overrides
+    ): Promise<ContractTransaction>;
+
+    setStateTransitionChainContract(
+      _chainId: BigNumberish,
+      _proofChainContract: string,
+      overrides?: Overrides
+    ): Promise<ContractTransaction>;
+
+    "setStateTransitionChainContract(uint256,address)"(
+      _chainId: BigNumberish,
+      _proofChainContract: string,
+      overrides?: Overrides
+    ): Promise<ContractTransaction>;
+
+    unfreezeDiamond(overrides?: Overrides): Promise<ContractTransaction>;
+
+    "unfreezeDiamond()"(overrides?: Overrides): Promise<ContractTransaction>;
 
     withdrawFunds(
       _chainId: BigNumberish,
@@ -650,6 +760,14 @@ export class IBridgehead extends Contract {
     ): Promise<ContractTransaction>;
   };
 
+  acceptAdmin(overrides?: Overrides): Promise<ContractTransaction>;
+
+  "acceptAdmin()"(overrides?: Overrides): Promise<ContractTransaction>;
+
+  acceptGovernor(overrides?: Overrides): Promise<ContractTransaction>;
+
+  "acceptGovernor()"(overrides?: Overrides): Promise<ContractTransaction>;
+
   deposit(
     _chainId: BigNumberish,
     overrides?: PayableOverrides
@@ -658,6 +776,34 @@ export class IBridgehead extends Contract {
   "deposit(uint256)"(
     _chainId: BigNumberish,
     overrides?: PayableOverrides
+  ): Promise<ContractTransaction>;
+
+  executeUpgrade(
+    _diamondCut: {
+      facetCuts: {
+        facet: string;
+        action: BigNumberish;
+        isFreezable: boolean;
+        selectors: BytesLike[];
+      }[];
+      initAddress: string;
+      initCalldata: BytesLike;
+    },
+    overrides?: Overrides
+  ): Promise<ContractTransaction>;
+
+  "executeUpgrade((tuple[],address,bytes))"(
+    _diamondCut: {
+      facetCuts: {
+        facet: string;
+        action: BigNumberish;
+        isFreezable: boolean;
+        selectors: BytesLike[];
+      }[];
+      initAddress: string;
+      initCalldata: BytesLike;
+    },
+    overrides?: Overrides
   ): Promise<ContractTransaction>;
 
   finalizeEthWithdrawal(
@@ -680,6 +826,10 @@ export class IBridgehead extends Contract {
     overrides?: Overrides
   ): Promise<ContractTransaction>;
 
+  freezeDiamond(overrides?: Overrides): Promise<ContractTransaction>;
+
+  "freezeDiamond()"(overrides?: Overrides): Promise<ContractTransaction>;
+
   getChainContract(
     _chainId: BigNumberish,
     overrides?: CallOverrides
@@ -694,41 +844,45 @@ export class IBridgehead extends Contract {
 
   "getChainImplementation()"(overrides?: CallOverrides): Promise<string>;
 
-  getChainProofSystem(
-    _chainId: BigNumberish,
-    overrides?: CallOverrides
-  ): Promise<string>;
-
-  "getChainProofSystem(uint256)"(
-    _chainId: BigNumberish,
-    overrides?: CallOverrides
-  ): Promise<string>;
-
   getChainProxyAdmin(overrides?: CallOverrides): Promise<string>;
 
   "getChainProxyAdmin()"(overrides?: CallOverrides): Promise<string>;
+
+  getChainStateTransition(
+    _chainId: BigNumberish,
+    overrides?: CallOverrides
+  ): Promise<string>;
+
+  "getChainStateTransition(uint256)"(
+    _chainId: BigNumberish,
+    overrides?: CallOverrides
+  ): Promise<string>;
 
   getGovernor(overrides?: CallOverrides): Promise<string>;
 
   "getGovernor()"(overrides?: CallOverrides): Promise<string>;
 
-  getIsProofSystem(
-    _proofSystem: string,
+  getIsStateTransition(
+    _stateTransition: string,
     overrides?: CallOverrides
   ): Promise<boolean>;
 
-  "getIsProofSystem(address)"(
-    _proofSystem: string,
+  "getIsStateTransition(address)"(
+    _stateTransition: string,
     overrides?: CallOverrides
   ): Promise<boolean>;
+
+  getName(overrides?: CallOverrides): Promise<string>;
+
+  "getName()"(overrides?: CallOverrides): Promise<string>;
 
   getPriorityTxMaxGasLimit(overrides?: CallOverrides): Promise<BigNumber>;
 
   "getPriorityTxMaxGasLimit()"(overrides?: CallOverrides): Promise<BigNumber>;
 
-  getTotaProofSystems(overrides?: CallOverrides): Promise<BigNumber>;
+  getTotaStateTransitions(overrides?: CallOverrides): Promise<BigNumber>;
 
-  "getTotaProofSystems()"(overrides?: CallOverrides): Promise<BigNumber>;
+  "getTotaStateTransitions()"(overrides?: CallOverrides): Promise<BigNumber>;
 
   getTotalChains(overrides?: CallOverrides): Promise<BigNumber>;
 
@@ -766,27 +920,23 @@ export class IBridgehead extends Contract {
 
   newChain(
     _chainId: BigNumberish,
-    _proofSystem: string,
-    _chainGovernor: string,
-    _allowList: string,
+    _stateTransition: string,
     overrides?: Overrides
   ): Promise<ContractTransaction>;
 
-  "newChain(uint256,address,address,address)"(
+  "newChain(uint256,address)"(
     _chainId: BigNumberish,
-    _proofSystem: string,
-    _chainGovernor: string,
-    _allowList: string,
+    _stateTransition: string,
     overrides?: Overrides
   ): Promise<ContractTransaction>;
 
-  newProofSystem(
-    _proofSystem: string,
+  newStateTransition(
+    _stateTransition: string,
     overrides?: Overrides
   ): Promise<ContractTransaction>;
 
-  "newProofSystem(address)"(
-    _proofSystem: string,
+  "newStateTransition(address)"(
+    _stateTransition: string,
     overrides?: Overrides
   ): Promise<ContractTransaction>;
 
@@ -814,12 +964,12 @@ export class IBridgehead extends Contract {
 
   proveL2LogInclusion(
     _chainId: BigNumberish,
-    _blockNumber: BigNumberish,
+    _batchNumber: BigNumberish,
     _index: BigNumberish,
     _log: {
       l2ShardId: BigNumberish;
       isService: boolean;
-      txNumberInBlock: BigNumberish;
+      txNumberInBatch: BigNumberish;
       sender: string;
       key: BytesLike;
       value: BytesLike;
@@ -830,12 +980,12 @@ export class IBridgehead extends Contract {
 
   "proveL2LogInclusion(uint256,uint256,uint256,(uint8,bool,uint16,address,bytes32,bytes32),bytes32[])"(
     _chainId: BigNumberish,
-    _blockNumber: BigNumberish,
+    _batchNumber: BigNumberish,
     _index: BigNumberish,
     _log: {
       l2ShardId: BigNumberish;
       isService: boolean;
-      txNumberInBlock: BigNumberish;
+      txNumberInBatch: BigNumberish;
       sender: string;
       key: BytesLike;
       value: BytesLike;
@@ -846,10 +996,10 @@ export class IBridgehead extends Contract {
 
   proveL2MessageInclusion(
     _chainId: BigNumberish,
-    _blockNumber: BigNumberish,
+    _batchNumber: BigNumberish,
     _index: BigNumberish,
     _message: {
-      txNumberInBlock: BigNumberish;
+      txNumberInBatch: BigNumberish;
       sender: string;
       data: BytesLike;
     },
@@ -859,10 +1009,10 @@ export class IBridgehead extends Contract {
 
   "proveL2MessageInclusion(uint256,uint256,uint256,(uint16,address,bytes),bytes32[])"(
     _chainId: BigNumberish,
-    _blockNumber: BigNumberish,
+    _batchNumber: BigNumberish,
     _index: BigNumberish,
     _message: {
-      txNumberInBlock: BigNumberish;
+      txNumberInBatch: BigNumberish;
       sender: string;
       data: BytesLike;
     },
@@ -894,45 +1044,41 @@ export class IBridgehead extends Contract {
     overrides?: PayableOverrides
   ): Promise<ContractTransaction>;
 
-  requestL2TransactionProof(
-    _chainId: BigNumberish,
-    _params: {
-      sender: string;
-      txId: BigNumberish;
-      l2Value: BigNumberish;
-      contractAddressL2: string;
-      expirationTimestamp: BigNumberish;
-      l2GasLimit: BigNumberish;
-      l2GasPrice: BigNumberish;
-      l2GasPricePerPubdata: BigNumberish;
-      valueToMint: BigNumberish;
-      refundRecipient: string;
-    },
-    _calldata: BytesLike,
-    _factoryDeps: BytesLike[],
-    _isFree: boolean,
+  setPendingAdmin(
+    _newPendingAdmin: string,
     overrides?: Overrides
   ): Promise<ContractTransaction>;
 
-  "requestL2TransactionProof(uint256,(address,uint256,uint256,address,uint64,uint256,uint256,uint256,uint256,address),bytes,bytes[],bool)"(
-    _chainId: BigNumberish,
-    _params: {
-      sender: string;
-      txId: BigNumberish;
-      l2Value: BigNumberish;
-      contractAddressL2: string;
-      expirationTimestamp: BigNumberish;
-      l2GasLimit: BigNumberish;
-      l2GasPrice: BigNumberish;
-      l2GasPricePerPubdata: BigNumberish;
-      valueToMint: BigNumberish;
-      refundRecipient: string;
-    },
-    _calldata: BytesLike,
-    _factoryDeps: BytesLike[],
-    _isFree: boolean,
+  "setPendingAdmin(address)"(
+    _newPendingAdmin: string,
     overrides?: Overrides
   ): Promise<ContractTransaction>;
+
+  setPendingGovernor(
+    _newPendingGovernor: string,
+    overrides?: Overrides
+  ): Promise<ContractTransaction>;
+
+  "setPendingGovernor(address)"(
+    _newPendingGovernor: string,
+    overrides?: Overrides
+  ): Promise<ContractTransaction>;
+
+  setStateTransitionChainContract(
+    _chainId: BigNumberish,
+    _proofChainContract: string,
+    overrides?: Overrides
+  ): Promise<ContractTransaction>;
+
+  "setStateTransitionChainContract(uint256,address)"(
+    _chainId: BigNumberish,
+    _proofChainContract: string,
+    overrides?: Overrides
+  ): Promise<ContractTransaction>;
+
+  unfreezeDiamond(overrides?: Overrides): Promise<ContractTransaction>;
+
+  "unfreezeDiamond()"(overrides?: Overrides): Promise<ContractTransaction>;
 
   withdrawFunds(
     _chainId: BigNumberish,
@@ -949,10 +1095,46 @@ export class IBridgehead extends Contract {
   ): Promise<ContractTransaction>;
 
   callStatic: {
+    acceptAdmin(overrides?: CallOverrides): Promise<void>;
+
+    "acceptAdmin()"(overrides?: CallOverrides): Promise<void>;
+
+    acceptGovernor(overrides?: CallOverrides): Promise<void>;
+
+    "acceptGovernor()"(overrides?: CallOverrides): Promise<void>;
+
     deposit(_chainId: BigNumberish, overrides?: CallOverrides): Promise<void>;
 
     "deposit(uint256)"(
       _chainId: BigNumberish,
+      overrides?: CallOverrides
+    ): Promise<void>;
+
+    executeUpgrade(
+      _diamondCut: {
+        facetCuts: {
+          facet: string;
+          action: BigNumberish;
+          isFreezable: boolean;
+          selectors: BytesLike[];
+        }[];
+        initAddress: string;
+        initCalldata: BytesLike;
+      },
+      overrides?: CallOverrides
+    ): Promise<void>;
+
+    "executeUpgrade((tuple[],address,bytes))"(
+      _diamondCut: {
+        facetCuts: {
+          facet: string;
+          action: BigNumberish;
+          isFreezable: boolean;
+          selectors: BytesLike[];
+        }[];
+        initAddress: string;
+        initCalldata: BytesLike;
+      },
       overrides?: CallOverrides
     ): Promise<void>;
 
@@ -976,6 +1158,10 @@ export class IBridgehead extends Contract {
       overrides?: CallOverrides
     ): Promise<void>;
 
+    freezeDiamond(overrides?: CallOverrides): Promise<void>;
+
+    "freezeDiamond()"(overrides?: CallOverrides): Promise<void>;
+
     getChainContract(
       _chainId: BigNumberish,
       overrides?: CallOverrides
@@ -990,41 +1176,45 @@ export class IBridgehead extends Contract {
 
     "getChainImplementation()"(overrides?: CallOverrides): Promise<string>;
 
-    getChainProofSystem(
-      _chainId: BigNumberish,
-      overrides?: CallOverrides
-    ): Promise<string>;
-
-    "getChainProofSystem(uint256)"(
-      _chainId: BigNumberish,
-      overrides?: CallOverrides
-    ): Promise<string>;
-
     getChainProxyAdmin(overrides?: CallOverrides): Promise<string>;
 
     "getChainProxyAdmin()"(overrides?: CallOverrides): Promise<string>;
+
+    getChainStateTransition(
+      _chainId: BigNumberish,
+      overrides?: CallOverrides
+    ): Promise<string>;
+
+    "getChainStateTransition(uint256)"(
+      _chainId: BigNumberish,
+      overrides?: CallOverrides
+    ): Promise<string>;
 
     getGovernor(overrides?: CallOverrides): Promise<string>;
 
     "getGovernor()"(overrides?: CallOverrides): Promise<string>;
 
-    getIsProofSystem(
-      _proofSystem: string,
+    getIsStateTransition(
+      _stateTransition: string,
       overrides?: CallOverrides
     ): Promise<boolean>;
 
-    "getIsProofSystem(address)"(
-      _proofSystem: string,
+    "getIsStateTransition(address)"(
+      _stateTransition: string,
       overrides?: CallOverrides
     ): Promise<boolean>;
+
+    getName(overrides?: CallOverrides): Promise<string>;
+
+    "getName()"(overrides?: CallOverrides): Promise<string>;
 
     getPriorityTxMaxGasLimit(overrides?: CallOverrides): Promise<BigNumber>;
 
     "getPriorityTxMaxGasLimit()"(overrides?: CallOverrides): Promise<BigNumber>;
 
-    getTotaProofSystems(overrides?: CallOverrides): Promise<BigNumber>;
+    getTotaStateTransitions(overrides?: CallOverrides): Promise<BigNumber>;
 
-    "getTotaProofSystems()"(overrides?: CallOverrides): Promise<BigNumber>;
+    "getTotaStateTransitions()"(overrides?: CallOverrides): Promise<BigNumber>;
 
     getTotalChains(overrides?: CallOverrides): Promise<BigNumber>;
 
@@ -1062,27 +1252,23 @@ export class IBridgehead extends Contract {
 
     newChain(
       _chainId: BigNumberish,
-      _proofSystem: string,
-      _chainGovernor: string,
-      _allowList: string,
+      _stateTransition: string,
       overrides?: CallOverrides
     ): Promise<BigNumber>;
 
-    "newChain(uint256,address,address,address)"(
+    "newChain(uint256,address)"(
       _chainId: BigNumberish,
-      _proofSystem: string,
-      _chainGovernor: string,
-      _allowList: string,
+      _stateTransition: string,
       overrides?: CallOverrides
     ): Promise<BigNumber>;
 
-    newProofSystem(
-      _proofSystem: string,
+    newStateTransition(
+      _stateTransition: string,
       overrides?: CallOverrides
     ): Promise<void>;
 
-    "newProofSystem(address)"(
-      _proofSystem: string,
+    "newStateTransition(address)"(
+      _stateTransition: string,
       overrides?: CallOverrides
     ): Promise<void>;
 
@@ -1110,12 +1296,12 @@ export class IBridgehead extends Contract {
 
     proveL2LogInclusion(
       _chainId: BigNumberish,
-      _blockNumber: BigNumberish,
+      _batchNumber: BigNumberish,
       _index: BigNumberish,
       _log: {
         l2ShardId: BigNumberish;
         isService: boolean;
-        txNumberInBlock: BigNumberish;
+        txNumberInBatch: BigNumberish;
         sender: string;
         key: BytesLike;
         value: BytesLike;
@@ -1126,12 +1312,12 @@ export class IBridgehead extends Contract {
 
     "proveL2LogInclusion(uint256,uint256,uint256,(uint8,bool,uint16,address,bytes32,bytes32),bytes32[])"(
       _chainId: BigNumberish,
-      _blockNumber: BigNumberish,
+      _batchNumber: BigNumberish,
       _index: BigNumberish,
       _log: {
         l2ShardId: BigNumberish;
         isService: boolean;
-        txNumberInBlock: BigNumberish;
+        txNumberInBatch: BigNumberish;
         sender: string;
         key: BytesLike;
         value: BytesLike;
@@ -1142,10 +1328,10 @@ export class IBridgehead extends Contract {
 
     proveL2MessageInclusion(
       _chainId: BigNumberish,
-      _blockNumber: BigNumberish,
+      _batchNumber: BigNumberish,
       _index: BigNumberish,
       _message: {
-        txNumberInBlock: BigNumberish;
+        txNumberInBatch: BigNumberish;
         sender: string;
         data: BytesLike;
       },
@@ -1155,10 +1341,10 @@ export class IBridgehead extends Contract {
 
     "proveL2MessageInclusion(uint256,uint256,uint256,(uint16,address,bytes),bytes32[])"(
       _chainId: BigNumberish,
-      _blockNumber: BigNumberish,
+      _batchNumber: BigNumberish,
       _index: BigNumberish,
       _message: {
-        txNumberInBlock: BigNumberish;
+        txNumberInBatch: BigNumberish;
         sender: string;
         data: BytesLike;
       },
@@ -1190,45 +1376,41 @@ export class IBridgehead extends Contract {
       overrides?: CallOverrides
     ): Promise<string>;
 
-    requestL2TransactionProof(
-      _chainId: BigNumberish,
-      _params: {
-        sender: string;
-        txId: BigNumberish;
-        l2Value: BigNumberish;
-        contractAddressL2: string;
-        expirationTimestamp: BigNumberish;
-        l2GasLimit: BigNumberish;
-        l2GasPrice: BigNumberish;
-        l2GasPricePerPubdata: BigNumberish;
-        valueToMint: BigNumberish;
-        refundRecipient: string;
-      },
-      _calldata: BytesLike,
-      _factoryDeps: BytesLike[],
-      _isFree: boolean,
+    setPendingAdmin(
+      _newPendingAdmin: string,
       overrides?: CallOverrides
-    ): Promise<string>;
+    ): Promise<void>;
 
-    "requestL2TransactionProof(uint256,(address,uint256,uint256,address,uint64,uint256,uint256,uint256,uint256,address),bytes,bytes[],bool)"(
-      _chainId: BigNumberish,
-      _params: {
-        sender: string;
-        txId: BigNumberish;
-        l2Value: BigNumberish;
-        contractAddressL2: string;
-        expirationTimestamp: BigNumberish;
-        l2GasLimit: BigNumberish;
-        l2GasPrice: BigNumberish;
-        l2GasPricePerPubdata: BigNumberish;
-        valueToMint: BigNumberish;
-        refundRecipient: string;
-      },
-      _calldata: BytesLike,
-      _factoryDeps: BytesLike[],
-      _isFree: boolean,
+    "setPendingAdmin(address)"(
+      _newPendingAdmin: string,
       overrides?: CallOverrides
-    ): Promise<string>;
+    ): Promise<void>;
+
+    setPendingGovernor(
+      _newPendingGovernor: string,
+      overrides?: CallOverrides
+    ): Promise<void>;
+
+    "setPendingGovernor(address)"(
+      _newPendingGovernor: string,
+      overrides?: CallOverrides
+    ): Promise<void>;
+
+    setStateTransitionChainContract(
+      _chainId: BigNumberish,
+      _proofChainContract: string,
+      overrides?: CallOverrides
+    ): Promise<void>;
+
+    "setStateTransitionChainContract(uint256,address)"(
+      _chainId: BigNumberish,
+      _proofChainContract: string,
+      overrides?: CallOverrides
+    ): Promise<void>;
+
+    unfreezeDiamond(overrides?: CallOverrides): Promise<void>;
+
+    "unfreezeDiamond()"(overrides?: CallOverrides): Promise<void>;
 
     withdrawFunds(
       _chainId: BigNumberish,
@@ -1246,25 +1428,45 @@ export class IBridgehead extends Contract {
   };
 
   filters: {
-    EthWithdrawalFinalized(to: string | null, amount: null): EventFilter;
+    ExecuteUpgrade(diamondCut: null): EventFilter;
+
+    Freeze(): EventFilter;
+
+    NewAdmin(oldAdmin: string | null, newAdmin: string | null): EventFilter;
 
     NewChain(
       chainId: BigNumberish | null,
-      chainContract: string | null,
-      proofSystem: null,
+      stateTransition: null,
       chainGovernance: string | null
     ): EventFilter;
 
-    NewPriorityRequest(
-      txId: null,
-      txHash: null,
-      expirationTimestamp: null,
-      transaction: null,
-      factoryDeps: null
+    NewGovernor(
+      oldGovernor: string | null,
+      newGovernor: string | null
     ): EventFilter;
+
+    NewPendingAdmin(
+      oldPendingAdmin: string | null,
+      newPendingAdmin: string | null
+    ): EventFilter;
+
+    NewPendingGovernor(
+      oldPendingGovernor: string | null,
+      newPendingGovernor: string | null
+    ): EventFilter;
+
+    Unfreeze(): EventFilter;
   };
 
   estimateGas: {
+    acceptAdmin(overrides?: Overrides): Promise<BigNumber>;
+
+    "acceptAdmin()"(overrides?: Overrides): Promise<BigNumber>;
+
+    acceptGovernor(overrides?: Overrides): Promise<BigNumber>;
+
+    "acceptGovernor()"(overrides?: Overrides): Promise<BigNumber>;
+
     deposit(
       _chainId: BigNumberish,
       overrides?: PayableOverrides
@@ -1273,6 +1475,34 @@ export class IBridgehead extends Contract {
     "deposit(uint256)"(
       _chainId: BigNumberish,
       overrides?: PayableOverrides
+    ): Promise<BigNumber>;
+
+    executeUpgrade(
+      _diamondCut: {
+        facetCuts: {
+          facet: string;
+          action: BigNumberish;
+          isFreezable: boolean;
+          selectors: BytesLike[];
+        }[];
+        initAddress: string;
+        initCalldata: BytesLike;
+      },
+      overrides?: Overrides
+    ): Promise<BigNumber>;
+
+    "executeUpgrade((tuple[],address,bytes))"(
+      _diamondCut: {
+        facetCuts: {
+          facet: string;
+          action: BigNumberish;
+          isFreezable: boolean;
+          selectors: BytesLike[];
+        }[];
+        initAddress: string;
+        initCalldata: BytesLike;
+      },
+      overrides?: Overrides
     ): Promise<BigNumber>;
 
     finalizeEthWithdrawal(
@@ -1295,6 +1525,10 @@ export class IBridgehead extends Contract {
       overrides?: Overrides
     ): Promise<BigNumber>;
 
+    freezeDiamond(overrides?: Overrides): Promise<BigNumber>;
+
+    "freezeDiamond()"(overrides?: Overrides): Promise<BigNumber>;
+
     getChainContract(
       _chainId: BigNumberish,
       overrides?: CallOverrides
@@ -1309,41 +1543,45 @@ export class IBridgehead extends Contract {
 
     "getChainImplementation()"(overrides?: CallOverrides): Promise<BigNumber>;
 
-    getChainProofSystem(
-      _chainId: BigNumberish,
-      overrides?: CallOverrides
-    ): Promise<BigNumber>;
-
-    "getChainProofSystem(uint256)"(
-      _chainId: BigNumberish,
-      overrides?: CallOverrides
-    ): Promise<BigNumber>;
-
     getChainProxyAdmin(overrides?: CallOverrides): Promise<BigNumber>;
 
     "getChainProxyAdmin()"(overrides?: CallOverrides): Promise<BigNumber>;
+
+    getChainStateTransition(
+      _chainId: BigNumberish,
+      overrides?: CallOverrides
+    ): Promise<BigNumber>;
+
+    "getChainStateTransition(uint256)"(
+      _chainId: BigNumberish,
+      overrides?: CallOverrides
+    ): Promise<BigNumber>;
 
     getGovernor(overrides?: CallOverrides): Promise<BigNumber>;
 
     "getGovernor()"(overrides?: CallOverrides): Promise<BigNumber>;
 
-    getIsProofSystem(
-      _proofSystem: string,
+    getIsStateTransition(
+      _stateTransition: string,
       overrides?: CallOverrides
     ): Promise<BigNumber>;
 
-    "getIsProofSystem(address)"(
-      _proofSystem: string,
+    "getIsStateTransition(address)"(
+      _stateTransition: string,
       overrides?: CallOverrides
     ): Promise<BigNumber>;
+
+    getName(overrides?: CallOverrides): Promise<BigNumber>;
+
+    "getName()"(overrides?: CallOverrides): Promise<BigNumber>;
 
     getPriorityTxMaxGasLimit(overrides?: CallOverrides): Promise<BigNumber>;
 
     "getPriorityTxMaxGasLimit()"(overrides?: CallOverrides): Promise<BigNumber>;
 
-    getTotaProofSystems(overrides?: CallOverrides): Promise<BigNumber>;
+    getTotaStateTransitions(overrides?: CallOverrides): Promise<BigNumber>;
 
-    "getTotaProofSystems()"(overrides?: CallOverrides): Promise<BigNumber>;
+    "getTotaStateTransitions()"(overrides?: CallOverrides): Promise<BigNumber>;
 
     getTotalChains(overrides?: CallOverrides): Promise<BigNumber>;
 
@@ -1381,27 +1619,23 @@ export class IBridgehead extends Contract {
 
     newChain(
       _chainId: BigNumberish,
-      _proofSystem: string,
-      _chainGovernor: string,
-      _allowList: string,
+      _stateTransition: string,
       overrides?: Overrides
     ): Promise<BigNumber>;
 
-    "newChain(uint256,address,address,address)"(
+    "newChain(uint256,address)"(
       _chainId: BigNumberish,
-      _proofSystem: string,
-      _chainGovernor: string,
-      _allowList: string,
+      _stateTransition: string,
       overrides?: Overrides
     ): Promise<BigNumber>;
 
-    newProofSystem(
-      _proofSystem: string,
+    newStateTransition(
+      _stateTransition: string,
       overrides?: Overrides
     ): Promise<BigNumber>;
 
-    "newProofSystem(address)"(
-      _proofSystem: string,
+    "newStateTransition(address)"(
+      _stateTransition: string,
       overrides?: Overrides
     ): Promise<BigNumber>;
 
@@ -1429,12 +1663,12 @@ export class IBridgehead extends Contract {
 
     proveL2LogInclusion(
       _chainId: BigNumberish,
-      _blockNumber: BigNumberish,
+      _batchNumber: BigNumberish,
       _index: BigNumberish,
       _log: {
         l2ShardId: BigNumberish;
         isService: boolean;
-        txNumberInBlock: BigNumberish;
+        txNumberInBatch: BigNumberish;
         sender: string;
         key: BytesLike;
         value: BytesLike;
@@ -1445,12 +1679,12 @@ export class IBridgehead extends Contract {
 
     "proveL2LogInclusion(uint256,uint256,uint256,(uint8,bool,uint16,address,bytes32,bytes32),bytes32[])"(
       _chainId: BigNumberish,
-      _blockNumber: BigNumberish,
+      _batchNumber: BigNumberish,
       _index: BigNumberish,
       _log: {
         l2ShardId: BigNumberish;
         isService: boolean;
-        txNumberInBlock: BigNumberish;
+        txNumberInBatch: BigNumberish;
         sender: string;
         key: BytesLike;
         value: BytesLike;
@@ -1461,10 +1695,10 @@ export class IBridgehead extends Contract {
 
     proveL2MessageInclusion(
       _chainId: BigNumberish,
-      _blockNumber: BigNumberish,
+      _batchNumber: BigNumberish,
       _index: BigNumberish,
       _message: {
-        txNumberInBlock: BigNumberish;
+        txNumberInBatch: BigNumberish;
         sender: string;
         data: BytesLike;
       },
@@ -1474,10 +1708,10 @@ export class IBridgehead extends Contract {
 
     "proveL2MessageInclusion(uint256,uint256,uint256,(uint16,address,bytes),bytes32[])"(
       _chainId: BigNumberish,
-      _blockNumber: BigNumberish,
+      _batchNumber: BigNumberish,
       _index: BigNumberish,
       _message: {
-        txNumberInBlock: BigNumberish;
+        txNumberInBatch: BigNumberish;
         sender: string;
         data: BytesLike;
       },
@@ -1509,45 +1743,41 @@ export class IBridgehead extends Contract {
       overrides?: PayableOverrides
     ): Promise<BigNumber>;
 
-    requestL2TransactionProof(
-      _chainId: BigNumberish,
-      _params: {
-        sender: string;
-        txId: BigNumberish;
-        l2Value: BigNumberish;
-        contractAddressL2: string;
-        expirationTimestamp: BigNumberish;
-        l2GasLimit: BigNumberish;
-        l2GasPrice: BigNumberish;
-        l2GasPricePerPubdata: BigNumberish;
-        valueToMint: BigNumberish;
-        refundRecipient: string;
-      },
-      _calldata: BytesLike,
-      _factoryDeps: BytesLike[],
-      _isFree: boolean,
+    setPendingAdmin(
+      _newPendingAdmin: string,
       overrides?: Overrides
     ): Promise<BigNumber>;
 
-    "requestL2TransactionProof(uint256,(address,uint256,uint256,address,uint64,uint256,uint256,uint256,uint256,address),bytes,bytes[],bool)"(
-      _chainId: BigNumberish,
-      _params: {
-        sender: string;
-        txId: BigNumberish;
-        l2Value: BigNumberish;
-        contractAddressL2: string;
-        expirationTimestamp: BigNumberish;
-        l2GasLimit: BigNumberish;
-        l2GasPrice: BigNumberish;
-        l2GasPricePerPubdata: BigNumberish;
-        valueToMint: BigNumberish;
-        refundRecipient: string;
-      },
-      _calldata: BytesLike,
-      _factoryDeps: BytesLike[],
-      _isFree: boolean,
+    "setPendingAdmin(address)"(
+      _newPendingAdmin: string,
       overrides?: Overrides
     ): Promise<BigNumber>;
+
+    setPendingGovernor(
+      _newPendingGovernor: string,
+      overrides?: Overrides
+    ): Promise<BigNumber>;
+
+    "setPendingGovernor(address)"(
+      _newPendingGovernor: string,
+      overrides?: Overrides
+    ): Promise<BigNumber>;
+
+    setStateTransitionChainContract(
+      _chainId: BigNumberish,
+      _proofChainContract: string,
+      overrides?: Overrides
+    ): Promise<BigNumber>;
+
+    "setStateTransitionChainContract(uint256,address)"(
+      _chainId: BigNumberish,
+      _proofChainContract: string,
+      overrides?: Overrides
+    ): Promise<BigNumber>;
+
+    unfreezeDiamond(overrides?: Overrides): Promise<BigNumber>;
+
+    "unfreezeDiamond()"(overrides?: Overrides): Promise<BigNumber>;
 
     withdrawFunds(
       _chainId: BigNumberish,
@@ -1565,6 +1795,14 @@ export class IBridgehead extends Contract {
   };
 
   populateTransaction: {
+    acceptAdmin(overrides?: Overrides): Promise<PopulatedTransaction>;
+
+    "acceptAdmin()"(overrides?: Overrides): Promise<PopulatedTransaction>;
+
+    acceptGovernor(overrides?: Overrides): Promise<PopulatedTransaction>;
+
+    "acceptGovernor()"(overrides?: Overrides): Promise<PopulatedTransaction>;
+
     deposit(
       _chainId: BigNumberish,
       overrides?: PayableOverrides
@@ -1573,6 +1811,34 @@ export class IBridgehead extends Contract {
     "deposit(uint256)"(
       _chainId: BigNumberish,
       overrides?: PayableOverrides
+    ): Promise<PopulatedTransaction>;
+
+    executeUpgrade(
+      _diamondCut: {
+        facetCuts: {
+          facet: string;
+          action: BigNumberish;
+          isFreezable: boolean;
+          selectors: BytesLike[];
+        }[];
+        initAddress: string;
+        initCalldata: BytesLike;
+      },
+      overrides?: Overrides
+    ): Promise<PopulatedTransaction>;
+
+    "executeUpgrade((tuple[],address,bytes))"(
+      _diamondCut: {
+        facetCuts: {
+          facet: string;
+          action: BigNumberish;
+          isFreezable: boolean;
+          selectors: BytesLike[];
+        }[];
+        initAddress: string;
+        initCalldata: BytesLike;
+      },
+      overrides?: Overrides
     ): Promise<PopulatedTransaction>;
 
     finalizeEthWithdrawal(
@@ -1594,6 +1860,10 @@ export class IBridgehead extends Contract {
       _merkleProof: BytesLike[],
       overrides?: Overrides
     ): Promise<PopulatedTransaction>;
+
+    freezeDiamond(overrides?: Overrides): Promise<PopulatedTransaction>;
+
+    "freezeDiamond()"(overrides?: Overrides): Promise<PopulatedTransaction>;
 
     getChainContract(
       _chainId: BigNumberish,
@@ -1613,16 +1883,6 @@ export class IBridgehead extends Contract {
       overrides?: CallOverrides
     ): Promise<PopulatedTransaction>;
 
-    getChainProofSystem(
-      _chainId: BigNumberish,
-      overrides?: CallOverrides
-    ): Promise<PopulatedTransaction>;
-
-    "getChainProofSystem(uint256)"(
-      _chainId: BigNumberish,
-      overrides?: CallOverrides
-    ): Promise<PopulatedTransaction>;
-
     getChainProxyAdmin(
       overrides?: CallOverrides
     ): Promise<PopulatedTransaction>;
@@ -1631,19 +1891,33 @@ export class IBridgehead extends Contract {
       overrides?: CallOverrides
     ): Promise<PopulatedTransaction>;
 
+    getChainStateTransition(
+      _chainId: BigNumberish,
+      overrides?: CallOverrides
+    ): Promise<PopulatedTransaction>;
+
+    "getChainStateTransition(uint256)"(
+      _chainId: BigNumberish,
+      overrides?: CallOverrides
+    ): Promise<PopulatedTransaction>;
+
     getGovernor(overrides?: CallOverrides): Promise<PopulatedTransaction>;
 
     "getGovernor()"(overrides?: CallOverrides): Promise<PopulatedTransaction>;
 
-    getIsProofSystem(
-      _proofSystem: string,
+    getIsStateTransition(
+      _stateTransition: string,
       overrides?: CallOverrides
     ): Promise<PopulatedTransaction>;
 
-    "getIsProofSystem(address)"(
-      _proofSystem: string,
+    "getIsStateTransition(address)"(
+      _stateTransition: string,
       overrides?: CallOverrides
     ): Promise<PopulatedTransaction>;
+
+    getName(overrides?: CallOverrides): Promise<PopulatedTransaction>;
+
+    "getName()"(overrides?: CallOverrides): Promise<PopulatedTransaction>;
 
     getPriorityTxMaxGasLimit(
       overrides?: CallOverrides
@@ -1653,11 +1927,11 @@ export class IBridgehead extends Contract {
       overrides?: CallOverrides
     ): Promise<PopulatedTransaction>;
 
-    getTotaProofSystems(
+    getTotaStateTransitions(
       overrides?: CallOverrides
     ): Promise<PopulatedTransaction>;
 
-    "getTotaProofSystems()"(
+    "getTotaStateTransitions()"(
       overrides?: CallOverrides
     ): Promise<PopulatedTransaction>;
 
@@ -1699,27 +1973,23 @@ export class IBridgehead extends Contract {
 
     newChain(
       _chainId: BigNumberish,
-      _proofSystem: string,
-      _chainGovernor: string,
-      _allowList: string,
+      _stateTransition: string,
       overrides?: Overrides
     ): Promise<PopulatedTransaction>;
 
-    "newChain(uint256,address,address,address)"(
+    "newChain(uint256,address)"(
       _chainId: BigNumberish,
-      _proofSystem: string,
-      _chainGovernor: string,
-      _allowList: string,
+      _stateTransition: string,
       overrides?: Overrides
     ): Promise<PopulatedTransaction>;
 
-    newProofSystem(
-      _proofSystem: string,
+    newStateTransition(
+      _stateTransition: string,
       overrides?: Overrides
     ): Promise<PopulatedTransaction>;
 
-    "newProofSystem(address)"(
-      _proofSystem: string,
+    "newStateTransition(address)"(
+      _stateTransition: string,
       overrides?: Overrides
     ): Promise<PopulatedTransaction>;
 
@@ -1747,12 +2017,12 @@ export class IBridgehead extends Contract {
 
     proveL2LogInclusion(
       _chainId: BigNumberish,
-      _blockNumber: BigNumberish,
+      _batchNumber: BigNumberish,
       _index: BigNumberish,
       _log: {
         l2ShardId: BigNumberish;
         isService: boolean;
-        txNumberInBlock: BigNumberish;
+        txNumberInBatch: BigNumberish;
         sender: string;
         key: BytesLike;
         value: BytesLike;
@@ -1763,12 +2033,12 @@ export class IBridgehead extends Contract {
 
     "proveL2LogInclusion(uint256,uint256,uint256,(uint8,bool,uint16,address,bytes32,bytes32),bytes32[])"(
       _chainId: BigNumberish,
-      _blockNumber: BigNumberish,
+      _batchNumber: BigNumberish,
       _index: BigNumberish,
       _log: {
         l2ShardId: BigNumberish;
         isService: boolean;
-        txNumberInBlock: BigNumberish;
+        txNumberInBatch: BigNumberish;
         sender: string;
         key: BytesLike;
         value: BytesLike;
@@ -1779,10 +2049,10 @@ export class IBridgehead extends Contract {
 
     proveL2MessageInclusion(
       _chainId: BigNumberish,
-      _blockNumber: BigNumberish,
+      _batchNumber: BigNumberish,
       _index: BigNumberish,
       _message: {
-        txNumberInBlock: BigNumberish;
+        txNumberInBatch: BigNumberish;
         sender: string;
         data: BytesLike;
       },
@@ -1792,10 +2062,10 @@ export class IBridgehead extends Contract {
 
     "proveL2MessageInclusion(uint256,uint256,uint256,(uint16,address,bytes),bytes32[])"(
       _chainId: BigNumberish,
-      _blockNumber: BigNumberish,
+      _batchNumber: BigNumberish,
       _index: BigNumberish,
       _message: {
-        txNumberInBlock: BigNumberish;
+        txNumberInBatch: BigNumberish;
         sender: string;
         data: BytesLike;
       },
@@ -1827,45 +2097,41 @@ export class IBridgehead extends Contract {
       overrides?: PayableOverrides
     ): Promise<PopulatedTransaction>;
 
-    requestL2TransactionProof(
-      _chainId: BigNumberish,
-      _params: {
-        sender: string;
-        txId: BigNumberish;
-        l2Value: BigNumberish;
-        contractAddressL2: string;
-        expirationTimestamp: BigNumberish;
-        l2GasLimit: BigNumberish;
-        l2GasPrice: BigNumberish;
-        l2GasPricePerPubdata: BigNumberish;
-        valueToMint: BigNumberish;
-        refundRecipient: string;
-      },
-      _calldata: BytesLike,
-      _factoryDeps: BytesLike[],
-      _isFree: boolean,
+    setPendingAdmin(
+      _newPendingAdmin: string,
       overrides?: Overrides
     ): Promise<PopulatedTransaction>;
 
-    "requestL2TransactionProof(uint256,(address,uint256,uint256,address,uint64,uint256,uint256,uint256,uint256,address),bytes,bytes[],bool)"(
-      _chainId: BigNumberish,
-      _params: {
-        sender: string;
-        txId: BigNumberish;
-        l2Value: BigNumberish;
-        contractAddressL2: string;
-        expirationTimestamp: BigNumberish;
-        l2GasLimit: BigNumberish;
-        l2GasPrice: BigNumberish;
-        l2GasPricePerPubdata: BigNumberish;
-        valueToMint: BigNumberish;
-        refundRecipient: string;
-      },
-      _calldata: BytesLike,
-      _factoryDeps: BytesLike[],
-      _isFree: boolean,
+    "setPendingAdmin(address)"(
+      _newPendingAdmin: string,
       overrides?: Overrides
     ): Promise<PopulatedTransaction>;
+
+    setPendingGovernor(
+      _newPendingGovernor: string,
+      overrides?: Overrides
+    ): Promise<PopulatedTransaction>;
+
+    "setPendingGovernor(address)"(
+      _newPendingGovernor: string,
+      overrides?: Overrides
+    ): Promise<PopulatedTransaction>;
+
+    setStateTransitionChainContract(
+      _chainId: BigNumberish,
+      _proofChainContract: string,
+      overrides?: Overrides
+    ): Promise<PopulatedTransaction>;
+
+    "setStateTransitionChainContract(uint256,address)"(
+      _chainId: BigNumberish,
+      _proofChainContract: string,
+      overrides?: Overrides
+    ): Promise<PopulatedTransaction>;
+
+    unfreezeDiamond(overrides?: Overrides): Promise<PopulatedTransaction>;
+
+    "unfreezeDiamond()"(overrides?: Overrides): Promise<PopulatedTransaction>;
 
     withdrawFunds(
       _chainId: BigNumberish,

@@ -1,7 +1,5 @@
 export { IBridgehubFactory } from './IBridgehubFactory';
 export type { IBridgehub } from './IBridgehub';
-export { IBridgehubChainFactory } from './IBridgehubChainFactory';
-export type { IBridgehubChain } from './IBridgehubChain';
 export { IStateTransitionFactory } from './IStateTransitionFactory';
 export type { IStateTransition } from './IStateTransition';
 export { IStateTransitionChainFactory } from './IStateTransitionChainFactory';

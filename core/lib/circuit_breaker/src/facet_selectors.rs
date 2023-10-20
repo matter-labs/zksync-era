@@ -3,7 +3,7 @@ use convert_case::{Case, Casing};
 use std::{collections::BTreeMap, env, fmt, fs, path::Path, str::FromStr};
 
 use zksync_config::configs::chain::CircuitBreakerConfig;
-use zksync_contracts::proof_chain_contract;
+use zksync_contracts::state_transition_chain_contract;
 use zksync_eth_client::{types::Error as EthClientError, EthInterface};
 use zksync_types::{ethabi::Token, Address, H160};
 
@@ -32,13 +32,17 @@ pub struct FacetSelectorsChecker<E> {
     // BTreeMap is used to have fixed order of elements when printing error.
     server_selectors: BTreeMap<Address, Vec<String>>,
     config: CircuitBreakerConfig,
-    proof_chain_contract: H160,
+    state_transition_chain_contract: H160,
 }
 
 impl<E: EthInterface + std::fmt::Debug> FacetSelectorsChecker<E> {
-    pub fn new(config: &CircuitBreakerConfig, eth_client: E, proof_chain_contract: H160) -> Self {
+    pub fn new(
+        config: &CircuitBreakerConfig,
+        eth_client: E,
+        state_transition_chain_contract: H160,
+    ) -> Self {
         let zksync_home = env::var("ZKSYNC_HOME").unwrap_or_else(|_| ".".into());
-        // KL TODO: we should separate proof_chain_contract_file into factory, proof-sytem, era
+        // KL TODO: we should separate state_transition_chain_contract_file into factory, proof-sytem, era
         let path_str =
             "contracts/ethereum/artifacts/cache/solpp-generated-contracts/state-transition/chain-deps/facets";
         let facets_path = Path::new(&zksync_home).join(path_str);
@@ -87,7 +91,7 @@ impl<E: EthInterface + std::fmt::Debug> FacetSelectorsChecker<E> {
             eth_client,
             server_selectors,
             config: config.clone(),
-            proof_chain_contract,
+            state_transition_chain_contract,
         }
     }
 }
@@ -109,8 +113,8 @@ impl<E: EthInterface + std::fmt::Debug> FacetSelectorsChecker<E> {
                     None,
                     Default::default(),
                     None,
-                    self.proof_chain_contract,
-                    proof_chain_contract(),
+                    self.state_transition_chain_contract,
+                    state_transition_chain_contract(),
                 )
                 .await;
 

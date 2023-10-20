@@ -128,7 +128,7 @@ const _abi = [
       },
       {
         internalType: "uint256",
-        name: "_l2BlockNumber",
+        name: "_l2BatchNumber",
         type: "uint256",
       },
       {
@@ -138,7 +138,7 @@ const _abi = [
       },
       {
         internalType: "uint16",
-        name: "_l2TxNumberInBlock",
+        name: "_l2TxNumberInBatch",
         type: "uint16",
       },
       {
@@ -210,7 +210,7 @@ const _abi = [
       },
       {
         internalType: "uint256",
-        name: "_l2BlockNumber",
+        name: "_l2BatchNumber",
         type: "uint256",
       },
       {
@@ -220,7 +220,7 @@ const _abi = [
       },
       {
         internalType: "uint16",
-        name: "_l2TxNumberInBlock",
+        name: "_l2TxNumberInBatch",
         type: "uint16",
       },
       {
@@ -248,7 +248,7 @@ const _abi = [
       },
       {
         internalType: "uint256",
-        name: "_l2BlockNumber",
+        name: "_l2BatchNumber",
         type: "uint256",
       },
       {

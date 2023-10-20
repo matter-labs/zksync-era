@@ -5,14 +5,14 @@
 import { Contract, Signer } from "ethers";
 import { Provider } from "@ethersproject/providers";
 
-import type { IBridgehead } from "./IBridgehead";
+import type { IBridgehub } from "./IBridgehub";
 
-export class IBridgeheadFactory {
+export class IBridgehubFactory {
   static connect(
     address: string,
     signerOrProvider: Signer | Provider
-  ): IBridgehead {
-    return new Contract(address, _abi, signerOrProvider) as IBridgehead;
+  ): IBridgehub {
+    return new Contract(address, _abi, signerOrProvider) as IBridgehub;
   }
 }
 
@@ -21,19 +21,77 @@ const _abi = [
     anonymous: false,
     inputs: [
       {
+        components: [
+          {
+            components: [
+              {
+                internalType: "address",
+                name: "facet",
+                type: "address",
+              },
+              {
+                internalType: "enum Diamond.Action",
+                name: "action",
+                type: "uint8",
+              },
+              {
+                internalType: "bool",
+                name: "isFreezable",
+                type: "bool",
+              },
+              {
+                internalType: "bytes4[]",
+                name: "selectors",
+                type: "bytes4[]",
+              },
+            ],
+            internalType: "struct Diamond.FacetCut[]",
+            name: "facetCuts",
+            type: "tuple[]",
+          },
+          {
+            internalType: "address",
+            name: "initAddress",
+            type: "address",
+          },
+          {
+            internalType: "bytes",
+            name: "initCalldata",
+            type: "bytes",
+          },
+        ],
+        indexed: false,
+        internalType: "struct Diamond.DiamondCutData",
+        name: "diamondCut",
+        type: "tuple",
+      },
+    ],
+    name: "ExecuteUpgrade",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [],
+    name: "Freeze",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
         indexed: true,
         internalType: "address",
-        name: "to",
+        name: "oldAdmin",
         type: "address",
       },
       {
-        indexed: false,
-        internalType: "uint256",
-        name: "amount",
-        type: "uint256",
+        indexed: true,
+        internalType: "address",
+        name: "newAdmin",
+        type: "address",
       },
     ],
-    name: "EthWithdrawalFinalized",
+    name: "NewAdmin",
     type: "event",
   },
   {
@@ -46,15 +104,9 @@ const _abi = [
         type: "uint16",
       },
       {
-        indexed: true,
-        internalType: "address",
-        name: "chainContract",
-        type: "address",
-      },
-      {
         indexed: false,
         internalType: "address",
-        name: "proofSystem",
+        name: "stateTransition",
         type: "address",
       },
       {
@@ -71,120 +123,78 @@ const _abi = [
     anonymous: false,
     inputs: [
       {
-        indexed: false,
-        internalType: "uint256",
-        name: "txId",
-        type: "uint256",
+        indexed: true,
+        internalType: "address",
+        name: "oldGovernor",
+        type: "address",
       },
       {
-        indexed: false,
-        internalType: "bytes32",
-        name: "txHash",
-        type: "bytes32",
-      },
-      {
-        indexed: false,
-        internalType: "uint64",
-        name: "expirationTimestamp",
-        type: "uint64",
-      },
-      {
-        components: [
-          {
-            internalType: "uint256",
-            name: "txType",
-            type: "uint256",
-          },
-          {
-            internalType: "uint256",
-            name: "from",
-            type: "uint256",
-          },
-          {
-            internalType: "uint256",
-            name: "to",
-            type: "uint256",
-          },
-          {
-            internalType: "uint256",
-            name: "gasLimit",
-            type: "uint256",
-          },
-          {
-            internalType: "uint256",
-            name: "gasPerPubdataByteLimit",
-            type: "uint256",
-          },
-          {
-            internalType: "uint256",
-            name: "maxFeePerGas",
-            type: "uint256",
-          },
-          {
-            internalType: "uint256",
-            name: "maxPriorityFeePerGas",
-            type: "uint256",
-          },
-          {
-            internalType: "uint256",
-            name: "paymaster",
-            type: "uint256",
-          },
-          {
-            internalType: "uint256",
-            name: "nonce",
-            type: "uint256",
-          },
-          {
-            internalType: "uint256",
-            name: "value",
-            type: "uint256",
-          },
-          {
-            internalType: "uint256[4]",
-            name: "reserved",
-            type: "uint256[4]",
-          },
-          {
-            internalType: "bytes",
-            name: "data",
-            type: "bytes",
-          },
-          {
-            internalType: "bytes",
-            name: "signature",
-            type: "bytes",
-          },
-          {
-            internalType: "uint256[]",
-            name: "factoryDeps",
-            type: "uint256[]",
-          },
-          {
-            internalType: "bytes",
-            name: "paymasterInput",
-            type: "bytes",
-          },
-          {
-            internalType: "bytes",
-            name: "reservedDynamic",
-            type: "bytes",
-          },
-        ],
-        indexed: false,
-        internalType: "struct L2CanonicalTransaction",
-        name: "transaction",
-        type: "tuple",
-      },
-      {
-        indexed: false,
-        internalType: "bytes[]",
-        name: "factoryDeps",
-        type: "bytes[]",
+        indexed: true,
+        internalType: "address",
+        name: "newGovernor",
+        type: "address",
       },
     ],
-    name: "NewPriorityRequest",
+    name: "NewGovernor",
     type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "address",
+        name: "oldPendingAdmin",
+        type: "address",
+      },
+      {
+        indexed: true,
+        internalType: "address",
+        name: "newPendingAdmin",
+        type: "address",
+      },
+    ],
+    name: "NewPendingAdmin",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "address",
+        name: "oldPendingGovernor",
+        type: "address",
+      },
+      {
+        indexed: true,
+        internalType: "address",
+        name: "newPendingGovernor",
+        type: "address",
+      },
+    ],
+    name: "NewPendingGovernor",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [],
+    name: "Unfreeze",
+    type: "event",
+  },
+  {
+    inputs: [],
+    name: "acceptAdmin",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "acceptGovernor",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
   },
   {
     inputs: [
@@ -197,6 +207,58 @@ const _abi = [
     name: "deposit",
     outputs: [],
     stateMutability: "payable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        components: [
+          {
+            components: [
+              {
+                internalType: "address",
+                name: "facet",
+                type: "address",
+              },
+              {
+                internalType: "enum Diamond.Action",
+                name: "action",
+                type: "uint8",
+              },
+              {
+                internalType: "bool",
+                name: "isFreezable",
+                type: "bool",
+              },
+              {
+                internalType: "bytes4[]",
+                name: "selectors",
+                type: "bytes4[]",
+              },
+            ],
+            internalType: "struct Diamond.FacetCut[]",
+            name: "facetCuts",
+            type: "tuple[]",
+          },
+          {
+            internalType: "address",
+            name: "initAddress",
+            type: "address",
+          },
+          {
+            internalType: "bytes",
+            name: "initCalldata",
+            type: "bytes",
+          },
+        ],
+        internalType: "struct Diamond.DiamondCutData",
+        name: "_diamondCut",
+        type: "tuple",
+      },
+    ],
+    name: "executeUpgrade",
+    outputs: [],
+    stateMutability: "nonpayable",
     type: "function",
   },
   {
@@ -238,6 +300,13 @@ const _abi = [
     type: "function",
   },
   {
+    inputs: [],
+    name: "freezeDiamond",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
     inputs: [
       {
         internalType: "uint256",
@@ -270,14 +339,8 @@ const _abi = [
     type: "function",
   },
   {
-    inputs: [
-      {
-        internalType: "uint256",
-        name: "_chainId",
-        type: "uint256",
-      },
-    ],
-    name: "getChainProofSystem",
+    inputs: [],
+    name: "getChainProxyAdmin",
     outputs: [
       {
         internalType: "address",
@@ -289,8 +352,14 @@ const _abi = [
     type: "function",
   },
   {
-    inputs: [],
-    name: "getChainProxyAdmin",
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "_chainId",
+        type: "uint256",
+      },
+    ],
+    name: "getChainStateTransition",
     outputs: [
       {
         internalType: "address",
@@ -318,16 +387,29 @@ const _abi = [
     inputs: [
       {
         internalType: "address",
-        name: "_proofSystem",
+        name: "_stateTransition",
         type: "address",
       },
     ],
-    name: "getIsProofSystem",
+    name: "getIsStateTransition",
     outputs: [
       {
         internalType: "bool",
         name: "",
         type: "bool",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "getName",
+    outputs: [
+      {
+        internalType: "string",
+        name: "",
+        type: "string",
       },
     ],
     stateMutability: "view",
@@ -348,7 +430,7 @@ const _abi = [
   },
   {
     inputs: [],
-    name: "getTotaProofSystems",
+    name: "getTotaStateTransitions",
     outputs: [
       {
         internalType: "uint256",
@@ -444,17 +526,7 @@ const _abi = [
       },
       {
         internalType: "address",
-        name: "_proofSystem",
-        type: "address",
-      },
-      {
-        internalType: "address",
-        name: "_chainGovernor",
-        type: "address",
-      },
-      {
-        internalType: "contract IAllowList",
-        name: "_allowList",
+        name: "_stateTransition",
         type: "address",
       },
     ],
@@ -473,11 +545,11 @@ const _abi = [
     inputs: [
       {
         internalType: "address",
-        name: "_proofSystem",
+        name: "_stateTransition",
         type: "address",
       },
     ],
-    name: "newProofSystem",
+    name: "newStateTransition",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",
@@ -540,7 +612,7 @@ const _abi = [
       },
       {
         internalType: "uint256",
-        name: "_blockNumber",
+        name: "_batchNumber",
         type: "uint256",
       },
       {
@@ -562,7 +634,7 @@ const _abi = [
           },
           {
             internalType: "uint16",
-            name: "txNumberInBlock",
+            name: "txNumberInBatch",
             type: "uint16",
           },
           {
@@ -611,7 +683,7 @@ const _abi = [
       },
       {
         internalType: "uint256",
-        name: "_blockNumber",
+        name: "_batchNumber",
         type: "uint256",
       },
       {
@@ -623,7 +695,7 @@ const _abi = [
         components: [
           {
             internalType: "uint16",
-            name: "txNumberInBlock",
+            name: "txNumberInBatch",
             type: "uint16",
           },
           {
@@ -715,91 +787,51 @@ const _abi = [
   {
     inputs: [
       {
+        internalType: "address",
+        name: "_newPendingAdmin",
+        type: "address",
+      },
+    ],
+    name: "setPendingAdmin",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "_newPendingGovernor",
+        type: "address",
+      },
+    ],
+    name: "setPendingGovernor",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
         internalType: "uint256",
         name: "_chainId",
         type: "uint256",
       },
       {
-        components: [
-          {
-            internalType: "address",
-            name: "sender",
-            type: "address",
-          },
-          {
-            internalType: "uint256",
-            name: "txId",
-            type: "uint256",
-          },
-          {
-            internalType: "uint256",
-            name: "l2Value",
-            type: "uint256",
-          },
-          {
-            internalType: "address",
-            name: "contractAddressL2",
-            type: "address",
-          },
-          {
-            internalType: "uint64",
-            name: "expirationTimestamp",
-            type: "uint64",
-          },
-          {
-            internalType: "uint256",
-            name: "l2GasLimit",
-            type: "uint256",
-          },
-          {
-            internalType: "uint256",
-            name: "l2GasPrice",
-            type: "uint256",
-          },
-          {
-            internalType: "uint256",
-            name: "l2GasPricePerPubdata",
-            type: "uint256",
-          },
-          {
-            internalType: "uint256",
-            name: "valueToMint",
-            type: "uint256",
-          },
-          {
-            internalType: "address",
-            name: "refundRecipient",
-            type: "address",
-          },
-        ],
-        internalType: "struct WritePriorityOpParams",
-        name: "_params",
-        type: "tuple",
-      },
-      {
-        internalType: "bytes",
-        name: "_calldata",
-        type: "bytes",
-      },
-      {
-        internalType: "bytes[]",
-        name: "_factoryDeps",
-        type: "bytes[]",
-      },
-      {
-        internalType: "bool",
-        name: "_isFree",
-        type: "bool",
+        internalType: "address",
+        name: "_proofChainContract",
+        type: "address",
       },
     ],
-    name: "requestL2TransactionProof",
-    outputs: [
-      {
-        internalType: "bytes32",
-        name: "canonicalTxHash",
-        type: "bytes32",
-      },
-    ],
+    name: "setStateTransitionChainContract",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "unfreezeDiamond",
+    outputs: [],
     stateMutability: "nonpayable",
     type: "function",
   },

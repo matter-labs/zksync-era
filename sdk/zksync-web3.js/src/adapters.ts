@@ -1,5 +1,5 @@
 import { BigNumber, BigNumberish, BytesLike, ethers } from 'ethers';
-import { IERC20MetadataFactory, IL1BridgeFactory, IL2BridgeFactory, IBridgehubChainFactory } from '../typechain';
+import { IERC20MetadataFactory, IL1BridgeFactory, IL2BridgeFactory, IStateTransitionChainFactory } from '../typechain';
 import { Provider } from './provider';
 import {
     Address,
@@ -49,7 +49,7 @@ export function AdapterL1<TBase extends Constructor<TxSender>>(Base: TBase) {
 
         async getMainContract() {
             const address = await this._providerL2().getMainContractAddress();
-            return IBridgehubChainFactory.connect(address, this._signerL1());
+            return IStateTransitionChainFactory.connect(address, this._signerL1());
         }
 
         async getL1BridgeContracts() {
@@ -530,7 +530,7 @@ export function AdapterL1<TBase extends Constructor<TxSender>>(Base: TBase) {
                 }
 
                 const contractAddress = await this._providerL2().getMainContractAddress();
-                const zksync = IBridgehubChainFactory.connect(contractAddress, this._signerL1());
+                const zksync = IStateTransitionChainFactory.connect(contractAddress, this._signerL1());
 
                 return await zksync.finalizeEthWithdrawal(
                     l1BatchNumber,
@@ -566,7 +566,7 @@ export function AdapterL1<TBase extends Constructor<TxSender>>(Base: TBase) {
 
             if (isETH(sender)) {
                 const contractAddress = await this._providerL2().getMainContractAddress();
-                const zksync = IBridgehubChainFactory.connect(contractAddress, this._signerL1());
+                const zksync = IStateTransitionChainFactory.connect(contractAddress, this._signerL1());
 
                 return await zksync.isEthWithdrawalFinalized(log.l1BatchNumber, proof.id);
             }

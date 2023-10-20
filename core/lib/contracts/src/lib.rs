@@ -26,9 +26,9 @@ pub enum ContractLanguage {
 
 const BRIDGEHUB_CONTRACT_FILE: &str =
     "contracts/ethereum/artifacts/cache/solpp-generated-contracts/bridgehub/bridgehub-interfaces/IBridgehub.sol/IBridgehub.json";
-const PROOF_SYSTEM_CONTRACT_FILE: &str =
+const STATE_TRANSITION_CONTRACT_FILE: &str =
     "contracts/ethereum/artifacts/cache/solpp-generated-contracts/state-transition/state-transition-interfaces/IStateTransition.sol/IStateTransition.json";
-const PROOF_CHAIN_CONTRACT_FILE: &str =
+const STATE_TRANSITION_CHAIN_CONTRACT_FILE: &str =
     "contracts/ethereum/artifacts/cache/solpp-generated-contracts/state-transition/chain-interfaces/IStateTransitionChain.sol/IStateTransitionChain.json";
 const MULTICALL3_CONTRACT_FILE: &str =
     "contracts/ethereum/artifacts/cache/solpp-generated-contracts/dev-contracts/Multicall3.sol/Multicall3.json";
@@ -77,12 +77,12 @@ pub fn bridgehub_contract() -> Contract {
     load_contract(BRIDGEHUB_CONTRACT_FILE)
 }
 
-pub fn proof_system_contract() -> Contract {
-    load_contract(PROOF_SYSTEM_CONTRACT_FILE)
+pub fn state_transition_contract() -> Contract {
+    load_contract(STATE_TRANSITION_CONTRACT_FILE)
 }
 
-pub fn proof_chain_contract() -> Contract {
-    load_contract(PROOF_CHAIN_CONTRACT_FILE)
+pub fn state_transition_chain_contract() -> Contract {
+    load_contract(STATE_TRANSITION_CHAIN_CONTRACT_FILE)
 }
 
 pub fn multicall_contract() -> Contract {

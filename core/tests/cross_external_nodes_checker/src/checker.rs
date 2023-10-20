@@ -814,11 +814,8 @@ impl Checker {
     }
 
     async fn check_main_contract(&mut self, instance_client: &InstanceHttpClient) -> RpcResult<()> {
-        let main_node_main_contract = self.main_node_client.get_bridgehub_chain_contract().await?;
-        let instance_main_contract = instance_client
-            .client
-            .get_bridgehub_chain_contract()
-            .await?;
+        let main_node_main_contract = self.main_node_client.get_main_contract().await?;
+        let instance_main_contract = instance_client.client.get_main_contract().await?;
 
         let contract_differences = compare_json(
             &main_node_main_contract,

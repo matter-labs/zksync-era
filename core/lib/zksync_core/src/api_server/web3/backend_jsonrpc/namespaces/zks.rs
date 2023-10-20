@@ -31,7 +31,7 @@ pub trait ZksNamespaceT {
     fn estimate_gas_l1_to_l2(&self, req: CallRequest) -> BoxFuture<Result<U256>>;
 
     #[rpc(name = "zks_getMainContract")]
-    fn get_bridgehub_chain_contract(&self) -> BoxFuture<Result<Address>>;
+    fn get_main_contract(&self) -> BoxFuture<Result<Address>>;
 
     #[rpc(name = "zks_getTestnetPaymaster")]
     fn get_testnet_paymaster(&self) -> BoxFuture<Result<Option<Address>>>;
@@ -129,9 +129,9 @@ impl<G: L1GasPriceProvider + Send + Sync + 'static> ZksNamespaceT for ZksNamespa
         })
     }
 
-    fn get_bridgehub_chain_contract(&self) -> BoxFuture<Result<Address>> {
+    fn get_main_contract(&self) -> BoxFuture<Result<Address>> {
         let self_ = self.clone();
-        Box::pin(async move { Ok(self_.get_bridgehub_chain_contract_impl()) })
+        Box::pin(async move { Ok(self_.get_main_contract_impl()) })
     }
 
     fn get_miniblock_range(&self, batch: L1BatchNumber) -> BoxFuture<Result<Option<(U64, U64)>>> {

@@ -111,7 +111,7 @@
         },
         {
           "internalType": "uint256",
-          "name": "_l2BlockNumber",
+          "name": "_l2BatchNumber",
           "type": "uint256"
         },
         {
@@ -121,7 +121,7 @@
         },
         {
           "internalType": "uint16",
-          "name": "_l2TxNumberInBlock",
+          "name": "_l2TxNumberInBatch",
           "type": "uint16"
         },
         {
@@ -193,7 +193,7 @@
         },
         {
           "internalType": "uint256",
-          "name": "_l2BlockNumber",
+          "name": "_l2BatchNumber",
           "type": "uint256"
         },
         {
@@ -203,7 +203,7 @@
         },
         {
           "internalType": "uint16",
-          "name": "_l2TxNumberInBlock",
+          "name": "_l2TxNumberInBatch",
           "type": "uint16"
         },
         {
@@ -231,7 +231,7 @@
         },
         {
           "internalType": "uint256",
-          "name": "_l2BlockNumber",
+          "name": "_l2BatchNumber",
           "type": "uint256"
         },
         {

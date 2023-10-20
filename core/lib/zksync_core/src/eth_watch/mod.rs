@@ -178,15 +178,13 @@ impl<W: EthClient + Sync> EthWatch<W> {
 pub async fn start_eth_watch<E: EthInterface + Send + Sync + 'static>(
     pool: ConnectionPool,
     eth_gateway: E,
-    bridgehub_chain_proxy_addr: Address,
-    proof_chain_contract_addr: Address,
+    state_transition_chain_contract_addr: Address,
     stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<JoinHandle<anyhow::Result<()>>> {
     let eth_watch = ETHWatchConfig::from_env().context("ETHWatchConfig::from_env()")?;
     let eth_client = EthHttpQueryClient::new(
         eth_gateway,
-        bridgehub_chain_proxy_addr,
-        proof_chain_contract_addr,
+        state_transition_chain_contract_addr,
         eth_watch.confirmations_for_eth_event,
     );
 
