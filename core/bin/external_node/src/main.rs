@@ -447,7 +447,6 @@ async fn main() -> anyhow::Result<()> {
                 }
                 break
             }
-            else => break
         }
     }
 
