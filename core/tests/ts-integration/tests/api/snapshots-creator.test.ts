@@ -36,7 +36,7 @@ describe('Snapshots API tests', () => {
         return getRequest(`/snapshots/${snapshotL1Batch}`);
     }
 
-    test('most basic API test', async () => {
+    test('snapshots can be created and contain valid values', async () => {
         let existingL1Batches = (await getAllSnapshots()).snapshots as any[];
         await runCreator();
         let newSnapshotsBatches = await getAllSnapshots();
@@ -45,14 +45,28 @@ describe('Snapshots API tests', () => {
         );
         expect(addedSnapshots.length).toEqual(1);
 
-        let expectedBatchNumber = addedSnapshots[0].l1BatchNumber;
-        let fullSnapshot = await getSnapshot(expectedBatchNumber);
+        let expectedWholeSnapshotBatchNumber = addedSnapshots[0].l1BatchNumber;
+        let fullSnapshot = await getSnapshot(expectedWholeSnapshotBatchNumber);
 
         expect(fullSnapshot.l1BatchNumber).toEqual(addedSnapshots[0].l1BatchNumber);
         //TODO make this more generic so that it for instance works in GCS
         let path = `${process.env.ZKSYNC_HOME}/${process.env.OBJECT_STORE_FILE_BACKED_BASE_PATH}/storage_logs_snapshots/${fullSnapshot.storageLogsFiles[0]}`;
 
         let output = JSON.parse(fs.readFileSync(path).toString());
-        expect(output['l1_batch_number']).toEqual(expectedBatchNumber);
+        let l1BatchNumber = output['lastL1BatchNumber'];
+        let miniblockNumber = output['lastMiniblockNumber'];
+        expect(l1BatchNumber).toEqual(expectedWholeSnapshotBatchNumber);
+
+        for (const storageLog of output['storageLogs'] as any[]) {
+            let snapshotAccountAddress = storageLog['key']['account']['address'];
+            let snapshotKey = storageLog['key']['key'];
+            let snapshotValue = storageLog['value'];
+            let snapshotL1BatchNumber = storageLog['l1BatchNumber'];
+            const valueOnBlockchain = await testMaster
+                .mainAccount()
+                .provider.getStorageAt(snapshotAccountAddress, snapshotKey, miniblockNumber);
+            expect(snapshotValue).toEqual(valueOnBlockchain);
+            expect(snapshotL1BatchNumber).toBeLessThanOrEqual(l1BatchNumber);
+        }
     });
 });

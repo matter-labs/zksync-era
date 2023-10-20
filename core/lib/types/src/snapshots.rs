@@ -1,6 +1,7 @@
+use crate::{StorageKey, StorageValue};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use zksync_basic_types::L1BatchNumber;
+use zksync_basic_types::{L1BatchNumber, MiniblockNumber};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -35,6 +36,18 @@ pub struct StorageLogsSnapshotKey {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct StorageLogsSnapshot {
-    pub l1_batch_number: L1BatchNumber, //TODO storage_logs list
+    pub last_l1_batch_number: L1BatchNumber,
+    pub last_miniblock_number: MiniblockNumber,
+    pub storage_logs: Vec<SingleStorageLogSnapshot>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SingleStorageLogSnapshot {
+    pub key: StorageKey,
+    pub value: StorageValue,
+    pub miniblock_number: MiniblockNumber,
+    pub l1_batch_number: L1BatchNumber,
 }

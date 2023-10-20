@@ -4,38 +4,72 @@ use zksync_dal::connection::DbVariant;
 use zksync_dal::ConnectionPool;
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_types::snapshots::{StorageLogsSnapshot, StorageLogsSnapshotKey};
-use zksync_types::L1BatchNumber;
+use zksync_utils::ceil_div;
 
 async fn run(blob_store: Box<dyn ObjectStore>, pool: ConnectionPool) {
     // TODO metrics
     let mut conn = pool.access_storage().await.unwrap();
-    // TODO actual logic and storage logs retrieval
-    let fake_batch_id = L1BatchNumber(
-        conn.snapshots_dal()
-            .get_snapshots()
-            .await
-            .unwrap()
-            .snapshots
-            .len() as u32
-            + 1,
-    );
-    println!("Creating snapshot for block {}", fake_batch_id.0);
-    let result = StorageLogsSnapshot {
-        l1_batch_number: fake_batch_id,
-    };
-    let key = StorageLogsSnapshotKey {
-        l1_batch_number: fake_batch_id,
-        chunk_id: 123,
-    };
-    let result = blob_store.put(key, &result).await;
 
-    let output_filename = result.unwrap();
-    let files = [output_filename];
-    conn.snapshots_dal()
-        .add_snapshot(fake_batch_id, &files)
+    let batch_id = conn
+        .blocks_dal()
+        .get_sealed_l1_batch_number()
         .await
         .unwrap();
-    println!("Stored chunk {} in {}", key.chunk_id, files[0]);
+    let miniblock_number = conn
+        .storage_logs_snapshots_dal()
+        .get_last_miniblock_number(batch_id)
+        .await
+        .unwrap();
+    let logs_count = conn
+        .storage_logs_snapshots_dal()
+        .get_storage_logs_count(batch_id)
+        .await
+        .unwrap();
+
+    //TODO load this from config
+    let chunk_size = 1_000_000;
+    let chunks_count = ceil_div(logs_count, chunk_size);
+
+    println!(
+        "Creating snapshot for storage logs up to miniblock {}, l1_batch {}",
+        miniblock_number, batch_id.0
+    );
+    println!(
+        "{} chunks of max size {} will be generated",
+        chunks_count, chunk_size
+    );
+
+    let mut output_files = vec![];
+    for chunk_id in 0..chunks_count {
+        let logs = conn
+            .storage_logs_snapshots_dal()
+            .get_storage_logs_chunk(batch_id, chunk_id, chunk_size)
+            .await
+            .unwrap();
+        let result = StorageLogsSnapshot {
+            last_l1_batch_number: batch_id,
+            last_miniblock_number: miniblock_number,
+            storage_logs: logs,
+        };
+        let key = StorageLogsSnapshotKey {
+            l1_batch_number: batch_id,
+            chunk_id: 123,
+        };
+        let result = blob_store.put(key, &result).await;
+        let output_file = result.unwrap();
+        output_files.push(output_file.clone());
+        println!(
+            "Finished storing chunk {}/{} in {}",
+            key.chunk_id + 1,
+            chunks_count,
+            output_file
+        );
+    }
+
+    conn.snapshots_dal()
+        .add_snapshot(batch_id, &output_files)
+        .await
+        .unwrap();
 }
 
 #[tokio::main]
