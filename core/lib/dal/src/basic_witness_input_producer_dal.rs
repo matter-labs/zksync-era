@@ -11,7 +11,7 @@ pub struct BasicWitnessInputProducerDal<'a, 'c> {
 }
 
 /// The amount of attempts to process a job before giving up.
-const JOB_MAX_ATTEMPT: i32 = 10;
+const JOB_MAX_ATTEMPT: i16 = 10;
 
 /// Time to wait for job to be processed
 const JOB_PROCESSING_TIMEOUT: PgInterval = pg_interval_from_duration(Duration::from_secs(10 * 60));

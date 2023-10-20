@@ -79,7 +79,7 @@ impl BasicWitnessInputProducer {
                 execute_tx(tx, &mut vm);
                 tracing::debug!("Finished execution of tx: {tx:?}");
             }
-            let next_miniblock_execution_data = if index + 1 < miniblocks_execution_data.len() {
+            if index + 1 < miniblocks_execution_data.len() {
                 start_next_miniblock(&mut vm, &miniblocks_execution_data[index + 1]);
             };
 
