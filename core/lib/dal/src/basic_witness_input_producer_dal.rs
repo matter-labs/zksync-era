@@ -1,6 +1,7 @@
 use crate::instrument::InstrumentExt;
 use crate::time_utils::{duration_to_naive_time, pg_interval_from_duration};
 use crate::StorageProcessor;
+use sqlx::postgres::types::PgInterval;
 use std::time::{Duration, Instant};
 use zksync_types::L1BatchNumber;
 
@@ -8,6 +9,10 @@ use zksync_types::L1BatchNumber;
 pub struct BasicWitnessInputProducerDal<'a, 'c> {
     pub(crate) storage: &'a mut StorageProcessor<'c>,
 }
+
+const GET_JOB_MAX_ATTEMPT: i32 = 10;
+
+const PROCESSING_TIMEOUT: PgInterval = pg_interval_from_duration(Duration::from_secs(60));
 
 /// Status of a job that the producer will work on.
 #[derive(Debug, strum::Display, strum::EnumString, strum::AsRefStr)]
@@ -31,7 +36,7 @@ pub enum BasicWitnessInputProducerJobStatus {
     #[strum(serialize = "successful")]
     Successful,
     /// The job failed for reasons. It will be marked as such and the error persisted in DB.
-    /// If it failed less than MAX_ATTEMPTs, house_keeper will move it back to [`BasicWitnessInputProducerStatus::Queued`],
+    /// If it failed less than MAX_ATTEMPTs, the job will be retried,
     /// otherwise it will stay in this state as final state.
     #[strum(serialize = "failed")]
     Failed,
@@ -60,8 +65,6 @@ impl BasicWitnessInputProducerDal<'_, '_> {
     pub async fn get_next_basic_witness_input_producer_job(
         &mut self,
     ) -> anyhow::Result<Option<L1BatchNumber>> {
-        let max_attempts = 10;
-        let processing_timeout = pg_interval_from_duration(Duration::from_secs(60));
         let l1_batch_number = sqlx::query!(
             "UPDATE basic_witness_input_producer_jobs \
             SET status = $1, \
@@ -84,7 +87,7 @@ impl BasicWitnessInputProducerDal<'_, '_> {
             BasicWitnessInputProducerJobStatus::Queued.to_string(),
             BasicWitnessInputProducerJobStatus::Failed.to_string(),
             &processing_timeout,
-            max_attempts as i32,
+            GET_JOB_MAX_ATTEMPT,
         )
         .instrument("get_next_basic_witness_input_producer_job")
         .report_latency()
@@ -133,12 +136,13 @@ impl BasicWitnessInputProducerDal<'_, '_> {
                 updated_at = now(), \
                 time_taken = $3, \
                 error = $4 \
-            WHERE l1_batch_number = $2 \
+            WHERE l1_batch_number = $2 AND status != $5 \
             RETURNING basic_witness_input_producer_jobs.attempts",
-            BasicWitnessInputProducerJobStatus::Successful.to_string(),
+            BasicWitnessInputProducerJobStatus::Failed.to_string(),
             l1_batch_number.0 as i64,
             duration_to_naive_time(started_at.elapsed()),
-            error
+            error,
+            BasicWitnessInputProducerJobStatus::Successful.to_string(),
         )
         .instrument("mark_job_as_failed")
         .report_latency()

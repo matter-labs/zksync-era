@@ -131,13 +131,15 @@ impl JobProcessor for BasicWitnessInputProducer {
             .basic_witness_input_producer_dal()
             .mark_job_as_failed(job_id, started_at, error)
             .await
-            .expect("didn't receive number of attempts from database")
-            .expect("no attempts received for failed job");
-        tracing::warn!(
-            "Failed to process job: {:?}, attempts: {}",
-            job_id,
-            attempts
-        );
+            .expect("errored whilst marking job as failed");
+        match attempts {
+            Some(tries) => {
+                tracing::warn!("Failed to process job: {job_id:?}, after {tries} tries.");
+            }
+            None => {
+                tracing::warn!("L1 Batch {job_id:?} was processed successfully by another worker.");
+            }
+        }
     }
 
     async fn process_job(
