@@ -10,6 +10,18 @@
 
 ## Proving a block using CPU prover locally
 
+### Overview of the pipeline
+
+These are the main components to this process:
+ - Sequencer
+ - Prover gateway
+ - Witness
+ - Prover
+ - Compressor
+All of them will be sharing information through a database.
+The general idea is that the sequencer will produce blocks and the gateway will place them into the database to be proven. Then, the rest of the components will pull jobs from the database and do their part of the pipeline.
+
+### Block proving
 Below steps can be used to prove a block on local machine using CPU prover. This is useful for debugging and testing
 Machine specs:
 
@@ -27,16 +39,16 @@ The whole setup below will NOT work if you don't have this environment variable 
 depends on it.
 
 1. Install the correct nightly version using command: `rustup install nightly-2023-07-21`
-2. Generate the cpu setup data (no need to regenerate if it's already there). This will consume around 300Gb of disk.
+2. Initialize DB and run migrations. Go into the root of the repository, then run
+   ```
+   zk init
+   ```
+
+3. Generate the cpu setup data (no need to regenerate if it's already there). This will consume around 300Gb of disk.
    For this, run
 
    ```
    ./setup.sh
-   ```
-
-3. Initialize DB and run migrations. Go into the root of the repository, then run
-   ```
-   zk init
    ```
 
 For the following steps, we recommend using `tmux` to run every command on a separate session, so you can attach to and
