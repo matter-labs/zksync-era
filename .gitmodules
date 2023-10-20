@@ -4,3 +4,6 @@ url = https://github.com/matter-labs/era-system-contracts.git
 [submodule "contracts"]
 path = contracts
 url = https://github.com/matter-labs/era-contracts.git
+[submodule "block-explorer"]
+	path = block-explorer
+	url = git@github.com:matter-labs/block-explorer.git
