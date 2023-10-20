@@ -190,15 +190,18 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
         tracers: Vec<Box<dyn MultivmTracer<StorageView<S>, H>>>,
     ) -> crate::interface::VmExecutionResultAndLogs {
         match &mut self.vm {
-            VmInstanceVersion::VmVirtualBlocks(vm) => vm
-                .inspect(
-                    tracers
-                        .into_iter()
-                        .map(|tracer| tracer.vm_virtual_blocks())
-                        .collect(),
-                    VmExecutionMode::OneTx.glue_into(),
-                )
-                .glue_into(),
+            VmInstanceVersion::VmVirtualBlocks(vm) => {
+                todo!()
+                // vm
+                //     .inspect(
+                //         tracers
+                //             .into_iter()
+                //             .map(|tracer| tracer.vm_virtual_blocks())
+                //             .collect(),
+                //         VmExecutionMode::OneTx.glue_into(),
+                //     )
+                //     .glue_into()
+            }
             VmInstanceVersion::VmVirtualBlocksRefundsEnhancement(vm) => {
                 todo!()
             }
@@ -372,16 +375,19 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
         crate::interface::BytecodeCompressionError,
     > {
         match &mut self.vm {
-            VmInstanceVersion::VmVirtualBlocks(vm) => vm
-                .inspect_transaction_with_bytecode_compression(
-                    tracers
-                        .into_iter()
-                        .map(|tracer| tracer.vm_virtual_blocks())
-                        .collect(),
-                    tx,
-                    with_compression,
-                )
-                .glue_into(),
+            VmInstanceVersion::VmVirtualBlocks(vm) => {
+                todo!()
+                // vm
+                //     .inspect_transaction_with_bytecode_compression(
+                //         tracers
+                //             .into_iter()
+                //             .map(|tracer| tracer.vm_virtual_blocks())
+                //             .collect(),
+                //         tx,
+                //         with_compression,
+                //     )
+                //     .glue_into()
+            }
             VmInstanceVersion::VmVirtualBlocksRefundsEnhancement(vm) => todo!(),
             _ => {
                 self.last_tx_compressed_bytecodes = vec![];

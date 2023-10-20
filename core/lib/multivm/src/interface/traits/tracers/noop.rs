@@ -18,6 +18,16 @@ impl<S: WriteStorage, H: crate::vm_virtual_blocks::HistoryMode>
 {
 }
 
+impl<H: crate::vm_virtual_blocks::HistoryMode>
+    crate::versions::vm_virtual_blocks::ExecutionEndTracer<H> for NoopTracer
+{
+}
+
+impl<S: WriteStorage, H: crate::vm_virtual_blocks::HistoryMode>
+    crate::versions::vm_virtual_blocks::ExecutionProcessing<S, H> for NoopTracer
+{
+}
+
 impl<S: WriteStorage, H: crate::vm_virtual_blocks::HistoryMode>
     crate::vm_virtual_blocks::VmTracer<S, H> for NoopTracer
 {

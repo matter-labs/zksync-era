@@ -116,7 +116,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
         with_compression: bool,
     ) -> Result<VmExecutionResultAndLogs, BytecodeCompressionError> {
         self.push_transaction_with_compression(tx, with_compression);
-        let result = self.inspect(tracer, VmExecutionMode::OneTx);
+        let result = self.inspect_inner(tracer, VmExecutionMode::OneTx);
         if self.has_unpublished_bytecodes() {
             Err(BytecodeCompressionError::BytecodeCompressionFailed)
         } else {

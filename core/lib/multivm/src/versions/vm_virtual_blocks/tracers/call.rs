@@ -8,6 +8,7 @@ use zk_evm_1_3_3::zkevm_opcode_defs::{
     CALL_IMPLICIT_CALLDATA_FAT_PTR_REGISTER, RET_IMPLICIT_RETURNDATA_PARAMS_REGISTER,
 };
 
+use crate::interface::dyn_tracers::vm_1_3_3::DynTracer;
 use crate::interface::{VmExecutionResultAndLogs, VmRevertReason};
 use zksync_state::{StoragePtr, WriteStorage};
 use zksync_system_constants::CONTRACT_DEPLOYER_ADDRESS;
@@ -17,7 +18,7 @@ use zksync_types::U256;
 use crate::vm_virtual_blocks::old_vm::history_recorder::HistoryMode;
 use crate::vm_virtual_blocks::old_vm::memory::SimpleMemory;
 use crate::vm_virtual_blocks::tracers::traits::{
-    DynTracer, ExecutionEndTracer, ExecutionProcessing, VmTracer,
+    ExecutionEndTracer, ExecutionProcessing, VmTracer,
 };
 
 #[derive(Debug, Clone)]
@@ -43,7 +44,7 @@ impl<H: HistoryMode> CallTracer<H> {
     }
 }
 
-impl<S, H: HistoryMode> DynTracer<S, H> for CallTracer<H> {
+impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for CallTracer<H> {
     fn after_execution(
         &mut self,
         state: VmLocalStateData<'_>,

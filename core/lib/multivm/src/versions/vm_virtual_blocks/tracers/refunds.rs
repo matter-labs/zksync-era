@@ -2,6 +2,7 @@ use vise::{Buckets, EncodeLabelSet, EncodeLabelValue, Family, Histogram, Metrics
 
 use std::collections::HashMap;
 
+use crate::interface::dyn_tracers::vm_1_3_3::DynTracer;
 use crate::interface::{L1BatchEnv, Refunds, VmExecutionResultAndLogs};
 use zk_evm_1_3_3::{
     aux_structures::Timestamp,
@@ -29,7 +30,7 @@ use crate::vm_virtual_blocks::old_vm::{
 };
 use crate::vm_virtual_blocks::tracers::utils::gas_spent_on_bytecodes_and_long_messages_this_opcode;
 use crate::vm_virtual_blocks::tracers::{
-    traits::{DynTracer, ExecutionEndTracer, ExecutionProcessing, VmTracer},
+    traits::{ExecutionEndTracer, ExecutionProcessing, VmTracer},
     utils::{get_vm_hook_params, VmHook},
 };
 use crate::vm_virtual_blocks::types::internals::ZkSyncVmState;
@@ -138,7 +139,7 @@ impl RefundsTracer {
     }
 }
 
-impl<S, H: HistoryMode> DynTracer<S, H> for RefundsTracer {
+impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for RefundsTracer {
     fn before_execution(
         &mut self,
         state: VmLocalStateData<'_>,

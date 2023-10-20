@@ -5,6 +5,7 @@ use zk_evm_1_3_3::{
 };
 use zksync_state::{StoragePtr, WriteStorage};
 
+use crate::interface::dyn_tracers::vm_1_3_3::DynTracer;
 use crate::interface::{
     ExecutionResult, Halt, TxRevertReason, VmExecutionMode, VmExecutionResultAndLogs,
     VmRevertReason,
@@ -18,7 +19,7 @@ use crate::vm_virtual_blocks::old_vm::{
     utils::{vm_may_have_ended_inner, VmExecutionResult},
 };
 use crate::vm_virtual_blocks::tracers::{
-    traits::{DynTracer, ExecutionEndTracer, ExecutionProcessing, VmTracer},
+    traits::{ExecutionEndTracer, ExecutionProcessing, VmTracer},
     utils::{get_vm_hook_params, read_pointer, VmHook},
 };
 use crate::vm_virtual_blocks::types::internals::ZkSyncVmState;
@@ -58,7 +59,7 @@ fn current_frame_is_bootloader(local_state: &VmLocalState) -> bool {
     local_state.callstack.inner.len() == 1
 }
 
-impl<S, H: HistoryMode> DynTracer<S, H> for ResultTracer {
+impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for ResultTracer {
     fn after_decoding(
         &mut self,
         state: VmLocalStateData<'_>,

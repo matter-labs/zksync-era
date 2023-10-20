@@ -1,9 +1,11 @@
+use crate::interface::dyn_tracers::vm_1_3_3::DynTracer;
 use crate::vm_virtual_blocks::bootloader_state::BootloaderState;
 use crate::vm_virtual_blocks::old_vm::history_recorder::HistoryMode;
 use crate::vm_virtual_blocks::tracers::traits::{
-    DynTracer, ExecutionEndTracer, ExecutionProcessing, VmTracer,
+    ExecutionEndTracer, ExecutionProcessing, VmTracer,
 };
 use crate::vm_virtual_blocks::types::internals::ZkSyncVmState;
+use crate::vm_virtual_blocks::SimpleMemory;
 use zksync_state::WriteStorage;
 
 #[derive(Debug, Default, Clone)]
@@ -20,7 +22,7 @@ impl StorageInvocations {
 
 /// Tracer responsible for calculating the number of storage invocations and
 /// stopping the VM execution if the limit is reached.
-impl<S, H: HistoryMode> DynTracer<S, H> for StorageInvocations {}
+impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for StorageInvocations {}
 
 impl<H: HistoryMode> ExecutionEndTracer<H> for StorageInvocations {
     fn should_stop_execution(&self) -> bool {

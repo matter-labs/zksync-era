@@ -1,3 +1,4 @@
+use crate::interface::dyn_tracers::vm_1_3_3::DynTracer;
 use crate::interface::VmExecutionResultAndLogs;
 use zk_evm_1_3_3::tracing::{
     AfterDecodingData, AfterExecutionData, BeforeExecutionData, VmLocalStateData,
@@ -11,8 +12,9 @@ use crate::vm_virtual_blocks::types::internals::ZkSyncVmState;
 use crate::vm_virtual_blocks::VmExecutionStopReason;
 
 /// Run tracer for collecting data during the vm execution cycles
+#[auto_impl::auto_impl(&mut, Box)]
 pub trait ExecutionProcessing<S: WriteStorage, H: HistoryMode>:
-    DynTracer<S, H> + ExecutionEndTracer<H>
+    DynTracer<S, SimpleMemory<H>> + ExecutionEndTracer<H>
 {
     fn initialize_tracer(&mut self, _state: &mut ZkSyncVmState<S, H>) {}
     fn before_cycle(&mut self, _state: &mut ZkSyncVmState<S, H>) {}
@@ -32,6 +34,7 @@ pub trait ExecutionProcessing<S: WriteStorage, H: HistoryMode>:
 }
 
 /// Stop the vm execution if the tracer conditions are met
+#[auto_impl::auto_impl(&mut, Box)]
 pub trait ExecutionEndTracer<H: HistoryMode> {
     // Returns whether the vm execution should stop.
     fn should_stop_execution(&self) -> bool {
@@ -39,37 +42,10 @@ pub trait ExecutionEndTracer<H: HistoryMode> {
     }
 }
 
-/// Version of zk_evm_1_3_3::Tracer suitable for dynamic dispatch.
-pub trait DynTracer<S, H: HistoryMode> {
-    fn before_decoding(&mut self, _state: VmLocalStateData<'_>, _memory: &SimpleMemory<H>) {}
-    fn after_decoding(
-        &mut self,
-        _state: VmLocalStateData<'_>,
-        _data: AfterDecodingData,
-        _memory: &SimpleMemory<H>,
-    ) {
-    }
-    fn before_execution(
-        &mut self,
-        _state: VmLocalStateData<'_>,
-        _data: BeforeExecutionData,
-        _memory: &SimpleMemory<H>,
-        _storage: StoragePtr<S>,
-    ) {
-    }
-    fn after_execution(
-        &mut self,
-        _state: VmLocalStateData<'_>,
-        _data: AfterExecutionData,
-        _memory: &SimpleMemory<H>,
-        _storage: StoragePtr<S>,
-    ) {
-    }
-}
-
 /// Save the results of the vm execution.
+#[auto_impl::auto_impl(&mut, Box)]
 pub trait VmTracer<S: WriteStorage, H: HistoryMode>:
-    DynTracer<S, H> + ExecutionEndTracer<H> + ExecutionProcessing<S, H> + Send
+    DynTracer<S, SimpleMemory<H>> + ExecutionEndTracer<H> + ExecutionProcessing<S, H> + Send
 {
     fn save_results(&mut self, _result: &mut VmExecutionResultAndLogs) {}
 }

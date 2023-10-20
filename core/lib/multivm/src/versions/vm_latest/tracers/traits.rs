@@ -9,6 +9,7 @@ use crate::vm_latest::old_vm::memory::SimpleMemory;
 use crate::vm_latest::types::internals::ZkSyncVmState;
 
 /// Run tracer for collecting data during the vm execution cycles
+#[auto_impl::auto_impl(&mut, Box)]
 pub trait VmTracer<S: WriteStorage, H: HistoryMode>: DynTracer<S, SimpleMemory<H>> {
     /// Initialize the tracer before the vm execution
     fn initialize_tracer(&mut self, _state: &mut ZkSyncVmState<S, H>) {}
