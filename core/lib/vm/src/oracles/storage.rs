@@ -134,10 +134,7 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
 
         query.read_value = current_value;
 
-        if !self.initial_values.inner().contains_key(&key) {
-            self.initial_values
-                .insert(key, current_value, query.timestamp);
-        }
+        self.set_initial_value(&key, current_value, query.timestamp);
 
         let mut storage_log_query = StorageLogQuery {
             log_query: query,
@@ -340,8 +337,6 @@ impl<S: WriteStorage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
             let initial_value = self
                 .get_initial_value(&storage_key)
                 .unwrap_or(self.storage.read_from_storage(&storage_key));
-
-            self.set_initial_value(&storage_key, initial_value, query.timestamp);
 
             if to_pay_by_user > prepaid {
                 self.paid_changes.apply_historic_record(
