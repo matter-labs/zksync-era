@@ -5,7 +5,6 @@ pub use old_vm::{
 };
 
 pub use tracers::{
-    call::CallTracer,
     traits::{BoxedTracer, ExecutionEndTracer, ExecutionProcessing, VmTracer},
     utils::VmExecutionStopReason,
     StorageInvocations, ValidationError, ValidationTracer, ValidationTracerParams,

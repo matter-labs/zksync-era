@@ -8,8 +8,8 @@ use zksync_state::{ReadStorage, StorageView};
 use zksync_utils::bytecode::{hash_bytecode, CompressedBytecodeInfo};
 
 use crate::glue::history_mode::HistoryMode;
-use crate::glue::tracer::{IntoLatestTracer, MultivmTracer};
 use crate::glue::GlueInto;
+use crate::interface::traits::tracers::multivm_tracer::MultivmTracer;
 
 pub struct VmInstance<S: ReadStorage, H: HistoryMode> {
     pub(crate) vm: VmInstanceVersion<S, H>,
@@ -185,25 +185,14 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
     }
 
     /// Execute next transaction with custom tracers
-    pub fn inspect_next_transaction(
+    pub fn inspect_next_transaction<T: MultivmTracer<StorageView<S>, H>>(
         &mut self,
-        tracers: Vec<Box<dyn MultivmTracer<StorageView<S>, H>>>,
+        tracer: T,
     ) -> crate::interface::VmExecutionResultAndLogs {
         match &mut self.vm {
-            VmInstanceVersion::VmVirtualBlocks(vm) => {
-                todo!()
-                // vm
-                //     .inspect(
-                //         tracers
-                //             .into_iter()
-                //             .map(|tracer| tracer.vm_virtual_blocks())
-                //             .collect(),
-                //         VmExecutionMode::OneTx.glue_into(),
-                //     )
-                //     .glue_into()
-            }
+            VmInstanceVersion::VmVirtualBlocks(vm) => vm.inspect(tracer, VmExecutionMode::OneTx),
             VmInstanceVersion::VmVirtualBlocksRefundsEnhancement(vm) => {
-                todo!()
+                vm.inspect(tracer, VmExecutionMode::OneTx)
             }
             _ => self.execute_next_transaction(),
         }
@@ -365,9 +354,9 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
     }
 
     /// Inspect transaction with optional bytecode compression.
-    pub fn inspect_transaction_with_bytecode_compression(
+    pub fn inspect_transaction_with_bytecode_compression<T: MultivmTracer<StorageView<S>, H>>(
         &mut self,
-        tracers: Vec<Box<dyn MultivmTracer<StorageView<S>, H>>>,
+        tracer: T,
         tx: zksync_types::Transaction,
         with_compression: bool,
     ) -> Result<
@@ -376,19 +365,11 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
     > {
         match &mut self.vm {
             VmInstanceVersion::VmVirtualBlocks(vm) => {
-                todo!()
-                // vm
-                //     .inspect_transaction_with_bytecode_compression(
-                //         tracers
-                //             .into_iter()
-                //             .map(|tracer| tracer.vm_virtual_blocks())
-                //             .collect(),
-                //         tx,
-                //         with_compression,
-                //     )
-                //     .glue_into()
+                vm.inspect_transaction_with_bytecode_compression(tracer, tx, with_compression)
             }
-            VmInstanceVersion::VmVirtualBlocksRefundsEnhancement(vm) => todo!(),
+            VmInstanceVersion::VmVirtualBlocksRefundsEnhancement(vm) => {
+                vm.inspect_transaction_with_bytecode_compression(tracer, tx, with_compression)
+            }
             _ => {
                 self.last_tx_compressed_bytecodes = vec![];
                 self.execute_transaction_with_bytecode_compression(tx, with_compression)

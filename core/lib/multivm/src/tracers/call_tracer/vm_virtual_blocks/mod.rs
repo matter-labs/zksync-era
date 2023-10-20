@@ -1,51 +1,22 @@
-use once_cell::sync::OnceCell;
-use std::marker::PhantomData;
-use std::sync::Arc;
+use crate::interface::dyn_tracers::vm_1_3_3::DynTracer;
+use crate::interface::VmRevertReason;
+use crate::tracers::call_tracer::{CallTracer, FarcallAndNearCallCount};
+use crate::vm_virtual_blocks::{
+    ExecutionEndTracer, ExecutionProcessing, HistoryMode, SimpleMemory, VmTracer,
+};
 
 use zk_evm_1_3_3::tracing::{AfterExecutionData, VmLocalStateData};
 use zk_evm_1_3_3::zkevm_opcode_defs::{
-    FarCallABI, FarCallOpcode, FatPointer, Opcode, RetOpcode,
-    CALL_IMPLICIT_CALLDATA_FAT_PTR_REGISTER, RET_IMPLICIT_RETURNDATA_PARAMS_REGISTER,
+    FarCallABI, FatPointer, Opcode, RetOpcode, CALL_IMPLICIT_CALLDATA_FAT_PTR_REGISTER,
+    RET_IMPLICIT_RETURNDATA_PARAMS_REGISTER,
 };
-
-use crate::interface::tracer::VmExecutionStopReason;
-use crate::interface::traits::tracers::dyn_tracers::vm_1_3_3::DynTracer;
-use crate::interface::VmRevertReason;
 use zksync_state::{StoragePtr, WriteStorage};
 use zksync_system_constants::CONTRACT_DEPLOYER_ADDRESS;
 use zksync_types::vm_trace::{Call, CallType};
+use zksync_types::FarCallOpcode;
 use zksync_types::U256;
 
-use crate::vm_latest::old_vm::history_recorder::HistoryMode;
-use crate::vm_latest::old_vm::memory::SimpleMemory;
-use crate::vm_latest::tracers::traits::VmTracer;
-use crate::vm_latest::types::internals::ZkSyncVmState;
-use crate::vm_latest::BootloaderState;
-
-#[derive(Debug, Clone)]
-pub struct CallTracer<H: HistoryMode> {
-    stack: Vec<FarcallAndNearCallCount>,
-    pub result: Arc<OnceCell<Vec<Call>>>,
-    _phantom: PhantomData<fn() -> H>,
-}
-
-#[derive(Debug, Clone)]
-struct FarcallAndNearCallCount {
-    farcall: Call,
-    near_calls_after: usize,
-}
-
-impl<H: HistoryMode> CallTracer<H> {
-    pub fn new(resulted_stack: Arc<OnceCell<Vec<Call>>>, _history: H) -> Self {
-        Self {
-            stack: vec![],
-            result: resulted_stack,
-            _phantom: PhantomData,
-        }
-    }
-}
-
-impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for CallTracer<H> {
+impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for CallTracer {
     fn after_execution(
         &mut self,
         state: VmLocalStateData<'_>,
@@ -91,26 +62,14 @@ impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for CallTracer<H> {
     }
 }
 
-impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for CallTracer<H> {
-    fn after_vm_execution(
-        &mut self,
-        _state: &mut ZkSyncVmState<S, H>,
-        _bootloader_state: &BootloaderState,
-        _stop_reason: VmExecutionStopReason,
-    ) {
-        self.result
-            .set(
-                std::mem::take(&mut self.stack)
-                    .into_iter()
-                    .map(|x| x.farcall)
-                    .collect(),
-            )
-            .expect("Result is already set");
-    }
-}
+impl<H: HistoryMode> ExecutionEndTracer<H> for CallTracer {}
 
-impl<H: HistoryMode> CallTracer<H> {
-    fn handle_far_call_op_code(
+impl<S: WriteStorage, H: HistoryMode> ExecutionProcessing<S, H> for CallTracer {}
+
+impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for CallTracer {}
+
+impl CallTracer {
+    fn handle_far_call_op_code<H: HistoryMode>(
         &mut self,
         state: VmLocalStateData<'_>,
         _data: AfterExecutionData,
@@ -166,7 +125,7 @@ impl<H: HistoryMode> CallTracer<H> {
         current_call.gas = current.ergs_remaining;
     }
 
-    fn save_output(
+    fn save_output<H: HistoryMode>(
         &mut self,
         state: VmLocalStateData<'_>,
         memory: &SimpleMemory<H>,
@@ -210,7 +169,7 @@ impl<H: HistoryMode> CallTracer<H> {
         }
     }
 
-    fn handle_ret_op_code(
+    fn handle_ret_op_code<H: HistoryMode>(
         &mut self,
         state: VmLocalStateData<'_>,
         _data: AfterExecutionData,

@@ -247,13 +247,13 @@ pub(super) fn execute_internal_transfer_test() -> u32 {
     let input: Vec<_> = bytes_to_be_words(input).into_iter().enumerate().collect();
 
     let tracer_result = Rc::new(RefCell::new(0));
-    let tracer = SpecialBootloaderTracer {
+    let mut tracer = SpecialBootloaderTracer {
         input,
         output: tracer_result.clone(),
     };
     let mut vm: Vm<_, HistoryEnabled> =
         Vm::new(l1_batch, system_env, Rc::new(RefCell::new(storage_view)));
-    let result = vm.inspect(vec![tracer.into_boxed()], VmExecutionMode::Bootloader);
+    let result = vm.inspect(&mut tracer, VmExecutionMode::Bootloader);
 
     assert!(!result.result.is_failed(), "The internal call has reverted");
     tracer_result.take()

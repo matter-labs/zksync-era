@@ -8,7 +8,6 @@ pub(crate) mod default_tracers;
 pub(crate) mod refunds;
 pub(crate) mod result_tracer;
 
-pub(crate) mod call;
 pub(crate) mod storage_invocations;
 pub(crate) mod traits;
 pub(crate) mod utils;
