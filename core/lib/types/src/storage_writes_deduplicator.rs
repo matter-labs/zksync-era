@@ -447,6 +447,14 @@ mod tests {
         ];
         deduplicator.apply(&logs);
         assert_eq!(expected, deduplicator.modified_key_values);
+
+        let expected_metrics = DeduplicatedWritesMetrics {
+            initial_storage_writes: 0,
+            repeated_storage_writes: 6,
+            total_updated_values_size: 12,
+        };
+
+        assert_eq!(expected_metrics, deduplicator.metrics());
     }
 
     #[test]
@@ -488,6 +496,14 @@ mod tests {
         ];
         deduplicator.apply(&logs);
         assert_eq!(expected, deduplicator.modified_key_values);
+
+        let expected_metrics = DeduplicatedWritesMetrics {
+            initial_storage_writes: 0,
+            repeated_storage_writes: 3,
+            total_updated_values_size: 6,
+        };
+
+        assert_eq!(expected_metrics, deduplicator.metrics());
     }
 
     #[test]
@@ -526,6 +542,14 @@ mod tests {
         ];
         deduplicator.apply(&logs);
         assert_eq!(expected, deduplicator.modified_key_values);
+
+        let expected_metrics = DeduplicatedWritesMetrics {
+            initial_storage_writes: 0,
+            repeated_storage_writes: 1,
+            total_updated_values_size: 2,
+        };
+
+        assert_eq!(expected_metrics, deduplicator.metrics());
     }
 
     #[test]
@@ -564,5 +588,13 @@ mod tests {
         ];
         deduplicator.apply(&logs);
         assert_eq!(expected, deduplicator.modified_key_values);
+
+        let expected_metrics = DeduplicatedWritesMetrics {
+            initial_storage_writes: 0,
+            repeated_storage_writes: 1,
+            total_updated_values_size: 2,
+        };
+
+        assert_eq!(expected_metrics, deduplicator.metrics());
     }
 }
