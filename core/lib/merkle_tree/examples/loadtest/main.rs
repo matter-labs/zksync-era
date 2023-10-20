@@ -6,6 +6,7 @@
 use clap::Parser;
 use rand::{rngs::StdRng, seq::IteratorRandom, SeedableRng};
 use tempfile::TempDir;
+use tracing_subscriber::EnvFilter;
 
 use std::{
     thread,
@@ -66,8 +67,16 @@ struct Cli {
 }
 
 impl Cli {
+    fn init_logging() {
+        tracing_subscriber::fmt()
+            .pretty()
+            .with_env_filter(EnvFilter::from_default_env())
+            .init();
+    }
+
     fn run(self) {
-        println!("Launched with options: {self:?}");
+        Self::init_logging();
+        tracing::info!("Launched with options: {self:?}");
 
         let (mut mock_db, mut rocksdb);
         let mut _temp_dir = None;
@@ -77,7 +86,7 @@ impl Cli {
             &mut mock_db
         } else {
             let dir = TempDir::new().expect("failed creating temp dir for RocksDB");
-            println!(
+            tracing::info!(
                 "Created temp dir for RocksDB: {}",
                 dir.path().to_string_lossy()
             );
@@ -127,7 +136,7 @@ impl Cli {
             let updated_keys = Self::generate_keys(updated_indices.into_iter());
             let kvs = new_keys.into_iter().chain(updated_keys).zip(values);
 
-            println!("Processing block #{version}");
+            tracing::info!("Processing block #{version}");
             let start = Instant::now();
             let root_hash = if self.proofs {
                 let reads = Self::generate_keys(read_indices.into_iter())
@@ -143,15 +152,15 @@ impl Cli {
                 output.root_hash
             };
             let elapsed = start.elapsed();
-            println!("Processed block #{version} in {elapsed:?}, root hash = {root_hash:?}");
+            tracing::info!("Processed block #{version} in {elapsed:?}, root hash = {root_hash:?}");
         }
 
-        println!("Verifying tree consistency...");
+        tracing::info!("Verifying tree consistency...");
         let start = Instant::now();
         tree.verify_consistency(self.commit_count - 1)
             .expect("tree consistency check failed");
         let elapsed = start.elapsed();
-        println!("Verified tree consistency in {elapsed:?}");
+        tracing::info!("Verified tree consistency in {elapsed:?}");
 
         if let Some((pruner_handle, pruner_thread)) = pruner_handles {
             pruner_handle.abort();
@@ -170,5 +179,5 @@ impl Cli {
 }
 
 fn main() {
-    Cli::parse().run()
+    Cli::parse().run();
 }

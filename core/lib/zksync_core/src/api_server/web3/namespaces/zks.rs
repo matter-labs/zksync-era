@@ -18,7 +18,7 @@ use zksync_types::{
     L1BatchNumber, MiniblockNumber, Transaction, L1_MESSENGER_ADDRESS, L2_ETH_TOKEN_ADDRESS,
     MAX_GAS_PER_PUBDATA_BYTE, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256, U64,
 };
-use zksync_utils::address_to_h256;
+use zksync_utils::{address_to_h256, ratio_to_big_decimal_normalized};
 use zksync_web3_decl::{
     error::Web3Error,
     types::{Address, Filter, Log, Token, H256},
@@ -27,7 +27,6 @@ use zksync_web3_decl::{
 use crate::api_server::web3::{
     backend_jsonrpc::error::internal_error, metrics::API_METRICS, RpcState,
 };
-use crate::fee_ticker::{error::TickerError, FeeTicker, TokenPriceRequestType};
 use crate::l1_gas_price::L1GasPriceProvider;
 
 #[derive(Debug)]
@@ -178,6 +177,13 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
     pub async fn get_token_price_impl(&self, l2_token: Address) -> Result<BigDecimal, Web3Error> {
         const METHOD_NAME: &str = "get_token_price";
 
+        /// Amount of possible symbols after the decimal dot in the USD.
+        /// Used to convert `Ratio<BigUint>` to `BigDecimal`.
+        const USD_PRECISION: usize = 100;
+        /// Minimum amount of symbols after the decimal dot in the USD.
+        /// Used to convert `Ratio<BigUint>` to `BigDecimal`.
+        const MIN_PRECISION: usize = 2;
+
         let method_latency = API_METRICS.start_call(METHOD_NAME);
         let token_price_result = {
             let mut storage = self
@@ -186,20 +192,19 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
                 .access_storage_tagged("api")
                 .await
                 .unwrap();
-            let mut tokens_web3_dal = storage.tokens_web3_dal();
-            FeeTicker::get_l2_token_price(
-                &mut tokens_web3_dal,
-                TokenPriceRequestType::USDForOneToken,
-                &l2_token,
-            )
-            .await
+            storage.tokens_web3_dal().get_token_price(&l2_token).await
         };
 
         let result = match token_price_result {
-            Ok(price) => Ok(price),
-            Err(TickerError::PriceNotTracked(_)) => Ok(BigDecimal::zero()),
+            Ok(Some(price)) => Ok(ratio_to_big_decimal_normalized(
+                &price.usd_price,
+                USD_PRECISION,
+                MIN_PRECISION,
+            )),
+            Ok(None) => Ok(BigDecimal::zero()),
             Err(err) => Err(internal_error(METHOD_NAME, err)),
         };
+
         method_latency.observe();
         result
     }

@@ -55,6 +55,14 @@ pub enum ConsistencyError {
     },
     #[error("leaf with key {full_key} has same index {index} as another key")]
     DuplicateLeafIndex { index: u64, full_key: Key },
+    #[error("internal node with key {key} does not have children")]
+    EmptyInternalNode { key: NodeKey },
+    #[error(
+        "internal node with key {key} should have version {expected_version} (max among child ref versions)"
+    )]
+    KeyVersionMismatch { key: NodeKey, expected_version: u64 },
+    #[error("root node should have version >={max_child_version} (max among child ref versions)")]
+    RootVersionMismatch { max_child_version: u64 },
 }
 
 impl<DB> MerkleTree<'_, DB>
@@ -109,6 +117,21 @@ where
             }
 
             Node::Internal(node) => {
+                let expected_version = node.child_refs().map(|child_ref| child_ref.version).max();
+                let Some(expected_version) = expected_version else {
+                    return Err(ConsistencyError::EmptyInternalNode { key });
+                };
+                if !key.is_empty() && expected_version != key.version {
+                    return Err(ConsistencyError::KeyVersionMismatch {
+                        key,
+                        expected_version,
+                    });
+                } else if key.is_empty() && expected_version > key.version {
+                    return Err(ConsistencyError::RootVersionMismatch {
+                        max_child_version: expected_version,
+                    });
+                }
+
                 // `.into_par_iter()` below is the only place where `rayon`-based parallelism
                 // is used in tree verification.
                 let children: Vec<_> = node.children().collect();
@@ -239,7 +262,7 @@ mod tests {
     use std::num::NonZeroU64;
 
     use super::*;
-    use crate::PatchSet;
+    use crate::{types::InternalNode, PatchSet};
     use zksync_types::{H256, U256};
 
     const FIRST_KEY: Key = U256([0, 0, 0, 0x_dead_beef_0000_0000]);
@@ -284,7 +307,7 @@ mod tests {
     #[test]
     fn missing_root_error() {
         let mut db = prepare_database();
-        db.roots_mut().remove(&0);
+        db.remove_root(0);
 
         let err = MerkleTree::new(db).verify_consistency(0).unwrap_err();
         assert_matches!(err, ConsistencyError::MissingRoot(0));
@@ -311,7 +334,7 @@ mod tests {
     fn leaf_count_mismatch_error() {
         let mut db = prepare_database();
 
-        let root = db.roots_mut().get_mut(&0).unwrap();
+        let root = db.root_mut(0).unwrap();
         let Root::Filled { leaf_count, .. } = root else {
             panic!("unexpected root: {root:?}");
         };
@@ -331,7 +354,7 @@ mod tests {
     fn hash_mismatch_error() {
         let mut db = prepare_database();
 
-        let root = db.roots_mut().get_mut(&0).unwrap();
+        let root = db.root_mut(0).unwrap();
         let Root::Filled {
             node: Node::Internal(node),
             ..
@@ -411,5 +434,63 @@ mod tests {
 
         let err = MerkleTree::new(db).verify_consistency(0).unwrap_err();
         assert_matches!(err, ConsistencyError::DuplicateLeafIndex { index: 1, .. });
+    }
+
+    #[test]
+    fn empty_internal_node_error() {
+        let mut db = prepare_database();
+        let node_key = db.nodes_mut().find_map(|(key, node)| {
+            if let Node::Internal(node) = node {
+                *node = InternalNode::default();
+                return Some(*key);
+            }
+            None
+        });
+        let node_key = node_key.unwrap();
+
+        let err = MerkleTree::new(db).verify_consistency(0).unwrap_err();
+        assert_matches!(err, ConsistencyError::EmptyInternalNode { key } if key == node_key);
+    }
+
+    #[test]
+    fn version_mismatch_error() {
+        let mut db = prepare_database();
+        let node_key = db.nodes_mut().find_map(|(key, node)| {
+            if let Node::Internal(node) = node {
+                let (nibble, _) = node.children().next().unwrap();
+                node.child_ref_mut(nibble).unwrap().version = 1;
+                return Some(*key);
+            }
+            None
+        });
+        let node_key = node_key.unwrap();
+
+        let err = MerkleTree::new(db).verify_consistency(0).unwrap_err();
+        assert_matches!(
+            err,
+            ConsistencyError::KeyVersionMismatch { key, expected_version: 1 } if key == node_key
+        );
+    }
+
+    #[test]
+    fn root_version_mismatch_error() {
+        let mut db = prepare_database();
+        let Some(Root::Filled {
+            node: Node::Internal(node),
+            ..
+        }) = db.root_mut(0)
+        else {
+            unreachable!();
+        };
+        let (nibble, _) = node.children().next().unwrap();
+        node.child_ref_mut(nibble).unwrap().version = 42;
+
+        let err = MerkleTree::new(db).verify_consistency(0).unwrap_err();
+        assert_matches!(
+            err,
+            ConsistencyError::RootVersionMismatch {
+                max_child_version: 42,
+            }
+        );
     }
 }
