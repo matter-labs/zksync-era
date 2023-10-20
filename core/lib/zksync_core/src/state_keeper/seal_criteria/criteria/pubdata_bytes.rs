@@ -1,4 +1,4 @@
-use zksync_types::MAX_PUBDATA_PER_L1_BATCH;
+use zksync_types::{ProtocolVersionId, MAX_PUBDATA_PER_L1_BATCH};
 
 use crate::state_keeper::seal_criteria::{
     SealCriterion, SealData, SealResolution, StateKeeperConfig,
@@ -15,14 +15,17 @@ impl SealCriterion for PubDataBytesCriterion {
         _tx_count: usize,
         block_data: &SealData,
         tx_data: &SealData,
+        protocol_version: ProtocolVersionId,
     ) -> SealResolution {
         let max_pubdata_per_l1_batch = MAX_PUBDATA_PER_L1_BATCH as usize;
         let reject_bound =
             (max_pubdata_per_l1_batch as f64 * config.reject_tx_at_eth_params_percentage).round();
         let include_and_seal_bound =
             (max_pubdata_per_l1_batch as f64 * config.close_block_at_eth_params_percentage).round();
-        let block_size = block_data.execution_metrics.size() + block_data.writes_metrics.size();
-        let tx_size = tx_data.execution_metrics.size() + tx_data.writes_metrics.size();
+        let block_size =
+            block_data.execution_metrics.size() + block_data.writes_metrics.size(protocol_version);
+        let tx_size =
+            tx_data.execution_metrics.size() + tx_data.writes_metrics.size(protocol_version);
 
         if tx_size > reject_bound as usize {
             let message = "Transaction cannot be sent to L1 due to pubdata limits";
@@ -69,6 +72,7 @@ mod tests {
                 ..SealData::default()
             },
             &SealData::default(),
+            ProtocolVersionId::latest(),
         );
         assert_eq!(empty_block_resolution, SealResolution::NoSeal);
 
@@ -89,6 +93,7 @@ mod tests {
                 ..SealData::default()
             },
             &SealData::default(),
+            ProtocolVersionId::latest(),
         );
         assert_eq!(full_block_resolution, SealResolution::IncludeAndSeal);
 
@@ -105,6 +110,7 @@ mod tests {
                 ..SealData::default()
             },
             &SealData::default(),
+            ProtocolVersionId::latest(),
         );
         assert_eq!(full_block_resolution, SealResolution::ExcludeAndSeal);
     }

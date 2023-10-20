@@ -4,6 +4,7 @@ use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_types::{
     circuit::{GEOMETRY_CONFIG, SCHEDULER_UPPER_BOUND},
     tx::tx_execution_info::{DeduplicatedWritesMetrics, ExecutionMetrics},
+    ProtocolVersionId,
 };
 
 // Local uses
@@ -40,6 +41,7 @@ where
         _tx_count: usize,
         block_data: &SealData,
         tx_data: &SealData,
+        _protocol_version_id: ProtocolVersionId,
     ) -> SealResolution {
         let reject_bound =
             (T::limit_per_block() as f64 * config.reject_tx_at_geometry_percentage).round();
@@ -161,6 +163,7 @@ mod tests {
                 ..SealData::default()
             },
             &SealData::default(),
+            ProtocolVersionId::latest(),
         );
         assert_eq!(block_resolution, SealResolution::NoSeal);
     }
@@ -181,6 +184,7 @@ mod tests {
                 ..SealData::default()
             },
             &SealData::default(),
+            ProtocolVersionId::latest(),
         );
         assert_eq!(block_resolution, SealResolution::IncludeAndSeal);
     }
@@ -201,6 +205,7 @@ mod tests {
                 ..SealData::default()
             },
             &SealData::default(),
+            ProtocolVersionId::latest(),
         );
         assert_eq!(block_resolution, SealResolution::ExcludeAndSeal);
     }
@@ -221,6 +226,7 @@ mod tests {
                 writes_metrics: tx_writes_metrics,
                 ..SealData::default()
             },
+            ProtocolVersionId::latest(),
         );
 
         assert_eq!(

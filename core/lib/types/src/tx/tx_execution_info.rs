@@ -1,8 +1,10 @@
 use crate::commitment::SerializeCommitment;
 use crate::fee::TransactionExecutionMetrics;
 use crate::l2_to_l1_log::L2ToL1Log;
-use crate::writes::{InitialStorageWrite, RepeatedStorageWrite};
-use crate::{StorageLogQuery, VmEvent};
+use crate::writes::{
+    InitialStorageWrite, RepeatedStorageWrite, BYTES_PER_DERIVED_KEY, BYTES_PER_ENUMERATION_INDEX,
+};
+use crate::{ProtocolVersionId, StorageLogQuery, VmEvent};
 use std::ops::{Add, AddAssign};
 
 /// Events/storage logs/l2->l1 logs created within transaction execution.
@@ -50,9 +52,18 @@ impl DeduplicatedWritesMetrics {
         }
     }
 
-    pub fn size(&self) -> usize {
-        self.initial_storage_writes * InitialStorageWrite::SERIALIZED_SIZE
-            + self.repeated_storage_writes * RepeatedStorageWrite::SERIALIZED_SIZE
+    pub fn size(&self, protocol_version: ProtocolVersionId) -> usize {
+        match protocol_version {
+            ProtocolVersionId::Version17 => {
+                self.total_updated_values_size
+                    + (BYTES_PER_DERIVED_KEY as usize) * self.initial_storage_writes
+                    + (BYTES_PER_ENUMERATION_INDEX as usize) * self.repeated_storage_writes
+            }
+            _ => {
+                self.initial_storage_writes * InitialStorageWrite::SERIALIZED_SIZE
+                    + self.repeated_storage_writes * RepeatedStorageWrite::SERIALIZED_SIZE
+            }
+        }
     }
 }
 

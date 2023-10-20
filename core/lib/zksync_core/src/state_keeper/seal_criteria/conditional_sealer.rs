@@ -4,6 +4,7 @@
 //! which unconditionally follows the instructions from the main node).
 
 use zksync_config::configs::chain::StateKeeperConfig;
+use zksync_types::ProtocolVersionId;
 
 use super::{criteria, SealCriterion, SealData, SealResolution, AGGREGATION_METRICS};
 
@@ -27,7 +28,14 @@ impl ConditionalSealer {
             const MOCK_BLOCK_TIMESTAMP: u128 = 0;
             const TX_COUNT: usize = 1;
 
-            let resolution = sealer.should_seal(config, MOCK_BLOCK_TIMESTAMP, TX_COUNT, data, data);
+            let resolution = sealer.should_seal(
+                config,
+                MOCK_BLOCK_TIMESTAMP,
+                TX_COUNT,
+                data,
+                data,
+                ProtocolVersionId::latest(),
+            );
             if matches!(resolution, SealResolution::Unexecutable(_)) {
                 return Some(sealer.prom_criterion_name());
             }
@@ -55,6 +63,7 @@ impl ConditionalSealer {
         tx_count: usize,
         block_data: &SealData,
         tx_data: &SealData,
+        protocol_version: ProtocolVersionId,
     ) -> SealResolution {
         tracing::trace!(
             "Determining seal resolution for L1 batch #{l1_batch_number} with {tx_count} transactions \
@@ -70,6 +79,7 @@ impl ConditionalSealer {
                 tx_count,
                 block_data,
                 tx_data,
+                protocol_version,
             );
             match &seal_resolution {
                 SealResolution::IncludeAndSeal
