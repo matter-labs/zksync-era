@@ -12,8 +12,8 @@ pub struct ModifiedSlot {
     pub value: U256,
     /// Index (in L1 batch) of the transaction that lastly modified the slot.
     pub tx_index: u16,
-    /// Size of pubdata update in bytes
-    pub size: usize,
+    /// Size of compressed pubdata update in bytes
+    pub compressed_size: usize,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -118,7 +118,7 @@ impl StorageWritesDeduplicator {
                         panic!("tried removing key: {:?} before insertion", key)
                     });
                     *field_to_change -= 1;
-                    *total_size -= value.size;
+                    *total_size -= value.compressed_size;
                     updates.push(UpdateItem {
                         key,
                         update_type: UpdateType::Remove(value),
@@ -134,7 +134,7 @@ impl StorageWritesDeduplicator {
                             ModifiedSlot {
                                 value: new_value,
                                 tx_index: log.log_query.tx_number_in_block,
-                                size: value_size,
+                                compressed_size: value_size,
                             },
                         )
                         .unwrap_or_else(|| {
@@ -145,7 +145,7 @@ impl StorageWritesDeduplicator {
                         update_type: UpdateType::Update(old_value),
                         is_write_initial,
                     });
-                    *total_size -= old_value.size;
+                    *total_size -= old_value.compressed_size;
                     *total_size += value_size;
                 }
                 (false, Some(new_value)) => {
@@ -155,7 +155,7 @@ impl StorageWritesDeduplicator {
                         ModifiedSlot {
                             value: new_value,
                             tx_index: log.log_query.tx_number_in_block,
-                            size: value_size,
+                            compressed_size: value_size,
                         },
                     );
                     *field_to_change += 1;
@@ -191,7 +191,7 @@ impl StorageWritesDeduplicator {
                             panic!("tried removing key: {:?} before insertion", item.key)
                         });
                     *field_to_change -= 1;
-                    *total_size -= value.size;
+                    *total_size -= value.compressed_size;
                 }
                 UpdateType::Update(value) => {
                     let old_value = self
@@ -200,13 +200,13 @@ impl StorageWritesDeduplicator {
                         .unwrap_or_else(|| {
                             panic!("tried removing key: {:?} before insertion", item.key)
                         });
-                    *total_size += value.size;
-                    *total_size -= old_value.size;
+                    *total_size += value.compressed_size;
+                    *total_size -= old_value.compressed_size;
                 }
                 UpdateType::Remove(value) => {
                     self.modified_key_values.insert(item.key, value);
                     *field_to_change += 1;
-                    *total_size += value.size;
+                    *total_size += value.compressed_size;
                 }
             }
         }
@@ -392,7 +392,7 @@ mod tests {
                 ModifiedSlot {
                     value: 8u32.into(),
                     tx_index: 0,
-                    size: 2,
+                    compressed_size: 2,
                 },
             ),
             (
@@ -400,7 +400,7 @@ mod tests {
                 ModifiedSlot {
                     value: 6u32.into(),
                     tx_index: 0,
-                    size: 2,
+                    compressed_size: 2,
                 },
             ),
             (
@@ -408,7 +408,7 @@ mod tests {
                 ModifiedSlot {
                     value: 9u32.into(),
                     tx_index: 0,
-                    size: 2,
+                    compressed_size: 2,
                 },
             ),
             (
@@ -416,7 +416,7 @@ mod tests {
                 ModifiedSlot {
                     value: 11u32.into(),
                     tx_index: 0,
-                    size: 2,
+                    compressed_size: 2,
                 },
             ),
             (
@@ -424,7 +424,7 @@ mod tests {
                 ModifiedSlot {
                     value: 2u32.into(),
                     tx_index: 0,
-                    size: 2,
+                    compressed_size: 2,
                 },
             ),
             (
@@ -432,7 +432,7 @@ mod tests {
                 ModifiedSlot {
                     value: 7u32.into(),
                     tx_index: 0,
-                    size: 2,
+                    compressed_size: 2,
                 },
             ),
         ]);
@@ -457,7 +457,7 @@ mod tests {
                 ModifiedSlot {
                     value: 6u32.into(),
                     tx_index: 0,
-                    size: 2,
+                    compressed_size: 2,
                 },
             ),
             (
@@ -465,7 +465,7 @@ mod tests {
                 ModifiedSlot {
                     value: 11u32.into(),
                     tx_index: 0,
-                    size: 2,
+                    compressed_size: 2,
                 },
             ),
             (
@@ -473,7 +473,7 @@ mod tests {
                 ModifiedSlot {
                     value: 7u32.into(),
                     tx_index: 0,
-                    size: 2,
+                    compressed_size: 2,
                 },
             ),
         ]);
@@ -498,7 +498,7 @@ mod tests {
                 ModifiedSlot {
                     value: 3u32.into(),
                     tx_index: 0,
-                    size: 2,
+                    compressed_size: 2,
                 },
             ),
             (
@@ -506,7 +506,7 @@ mod tests {
                 ModifiedSlot {
                     value: 4u32.into(),
                     tx_index: 0,
-                    size: 2,
+                    compressed_size: 2,
                 },
             ),
             (
@@ -514,7 +514,7 @@ mod tests {
                 ModifiedSlot {
                     value: 5u32.into(),
                     tx_index: 0,
-                    size: 2,
+                    compressed_size: 2,
                 },
             ),
         ]);
@@ -535,7 +535,7 @@ mod tests {
             ModifiedSlot {
                 value: 2u32.into(),
                 tx_index: 0,
-                size: 2,
+                compressed_size: 2,
             },
         )]);
         let mut deduplicator = StorageWritesDeduplicator::new();
