@@ -10,9 +10,11 @@ pub struct BasicWitnessInputProducerDal<'a, 'c> {
     pub(crate) storage: &'a mut StorageProcessor<'c>,
 }
 
-const GET_JOB_MAX_ATTEMPT: i32 = 10;
+/// The amount of attempts to process a job before giving up.
+const JOB_MAX_ATTEMPT: i32 = 10;
 
-const PROCESSING_TIMEOUT: PgInterval = pg_interval_from_duration(Duration::from_secs(60));
+/// Time to wait for job to be processed
+const JOB_PROCESSING_TIMEOUT: PgInterval = pg_interval_from_duration(Duration::from_secs(10 * 60));
 
 /// Status of a job that the producer will work on.
 #[derive(Debug, strum::Display, strum::EnumString, strum::AsRefStr)]
@@ -86,8 +88,8 @@ impl BasicWitnessInputProducerDal<'_, '_> {
             BasicWitnessInputProducerJobStatus::InProgress.to_string(),
             BasicWitnessInputProducerJobStatus::Queued.to_string(),
             BasicWitnessInputProducerJobStatus::Failed.to_string(),
-            &processing_timeout,
-            GET_JOB_MAX_ATTEMPT,
+            &JOB_PROCESSING_TIMEOUT,
+            JOB_MAX_ATTEMPT,
         )
         .instrument("get_next_basic_witness_input_producer_job")
         .report_latency()
