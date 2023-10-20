@@ -7,7 +7,7 @@ pub use oracles::storage::StorageOracle;
 
 pub use tracers::{
     traits::{BoxedTracer, VmTracer},
-    StorageInvocations, ValidationError, ValidationTracer, ValidationTracerParams,
+    ValidationError, ValidationTracer, ValidationTracerParams,
 };
 
 pub use utils::transaction_encoding::TransactionVmExt;

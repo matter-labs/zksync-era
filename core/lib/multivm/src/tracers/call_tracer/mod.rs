@@ -1,5 +1,3 @@
-use once_cell::sync::OnceCell;
-use std::sync::Arc;
 use zksync_types::vm_trace::Call;
 
 pub mod vm_latest;

@@ -7,7 +7,7 @@ pub use old_vm::{
 pub use tracers::{
     traits::{BoxedTracer, ExecutionEndTracer, ExecutionProcessing, VmTracer},
     utils::VmExecutionStopReason,
-    StorageInvocations, ValidationError, ValidationTracer, ValidationTracerParams,
+    ValidationError, ValidationTracer, ValidationTracerParams,
 };
 
 pub use types::internals::ZkSyncVmState;

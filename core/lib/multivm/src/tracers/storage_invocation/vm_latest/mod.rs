@@ -1,26 +1,10 @@
-use crate::interface::traits::tracers::dyn_tracers::vm_1_3_3::DynTracer;
-use crate::interface::types::tracer::{TracerExecutionStatus, TracerExecutionStopReason};
-use crate::interface::Halt;
-use crate::vm_latest::bootloader_state::BootloaderState;
-use crate::vm_latest::old_vm::history_recorder::HistoryMode;
-use crate::vm_latest::tracers::traits::VmTracer;
-use crate::vm_latest::types::internals::ZkSyncVmState;
-use crate::vm_latest::SimpleMemory;
+use crate::interface::tracer::{TracerExecutionStatus, TracerExecutionStopReason};
+use crate::interface::{traits::tracers::dyn_tracers::vm_1_3_3::DynTracer, Halt};
+use crate::tracers::storage_invocation::StorageInvocations;
+use crate::vm_latest::VmTracer;
+use crate::vm_latest::{BootloaderState, HistoryMode, SimpleMemory, ZkSyncVmState};
 use zksync_state::WriteStorage;
 
-#[derive(Debug, Default, Clone)]
-pub struct StorageInvocations {
-    pub limit: usize,
-}
-
-impl StorageInvocations {
-    pub fn new(limit: usize) -> Self {
-        Self { limit }
-    }
-}
-
-/// Tracer responsible for calculating the number of storage invocations and
-/// stopping the VM execution if the limit is reached.
 impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for StorageInvocations {}
 
 impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for StorageInvocations {
