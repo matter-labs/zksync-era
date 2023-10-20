@@ -12,6 +12,7 @@ use crate::{
     hasher::{HasherWithStats, MerklePath},
     types::{NodeKey, TreeInstruction, KEY_SIZE},
 };
+use zksync_crypto::hasher::blake2::Blake2Hasher;
 use zksync_types::{H256, U256};
 
 pub(super) const FIRST_KEY: Key = U256([0, 0, 0, 0x_dead_beef_0000_0000]);
@@ -35,14 +36,21 @@ pub(super) fn create_patch(
     nodes: HashMap<NodeKey, Node>,
 ) -> PatchSet {
     let manifest = Manifest::new(latest_version + 1, &());
-    PatchSet::new(manifest, latest_version, root, nodes, vec![])
+    PatchSet::new(
+        manifest,
+        latest_version,
+        root,
+        nodes,
+        vec![],
+        Operation::Insert,
+    )
 }
 
 #[test]
 fn inserting_entries_in_empty_database() {
     let db = PatchSet::default();
     let mut updater = TreeUpdater::new(0, Root::Empty);
-    assert_eq!(updater.patch_set.version(), 0);
+    assert_eq!(updater.patch_set.root_version(), 0);
     assert!(updater.patch_set.get(&Nibbles::EMPTY).is_none());
 
     let sorted_keys = SortedKeys::new([FIRST_KEY, SECOND_KEY, THIRD_KEY].into_iter());
@@ -166,7 +174,7 @@ fn changing_child_ref_type() {
 #[test]
 fn inserting_node_in_non_empty_database() {
     let mut db = PatchSet::default();
-    let storage = Storage::new(&db, &(), 0);
+    let storage = Storage::new(&db, &(), 0, true);
     let kvs = vec![(FIRST_KEY, H256([1; 32])), (SECOND_KEY, H256([2; 32]))];
     let (_, patch) = storage.extend(kvs);
     db.apply_patch(patch);
@@ -220,7 +228,7 @@ fn inserting_node_in_non_empty_database() {
 #[test]
 fn inserting_node_in_non_empty_database_with_moved_key() {
     let mut db = PatchSet::default();
-    let storage = Storage::new(&db, &(), 0);
+    let storage = Storage::new(&db, &(), 0, true);
     let kvs = vec![(FIRST_KEY, H256([1; 32])), (THIRD_KEY, H256([3; 32]))];
     let (_, patch) = storage.extend(kvs);
     db.apply_patch(patch);
@@ -290,22 +298,22 @@ fn finalize_merkle_path(mut path: MerklePath, hasher: &HasherWithStats<'_>) -> V
 #[test]
 fn reading_keys_does_not_change_child_version() {
     let mut db = PatchSet::default();
-    let storage = Storage::new(&db, &(), 0);
+    let storage = Storage::new(&db, &(), 0, true);
     let kvs = vec![(FIRST_KEY, H256([0; 32])), (SECOND_KEY, H256([1; 32]))];
     let (_, patch) = storage.extend(kvs);
     db.apply_patch(patch);
 
-    let storage = Storage::new(&db, &(), 1);
+    let storage = Storage::new(&db, &(), 1, true);
     let instructions = vec![
         (FIRST_KEY, TreeInstruction::Read),
         (E_KEY, TreeInstruction::Write(H256([2; 32]))),
     ];
 
     let (_, patch) = storage.extend_with_proofs(instructions);
-    let Root::Filled {
+    let Some(Root::Filled {
         leaf_count,
         node: Node::Internal(node),
-    } = &patch.roots[&1]
+    }) = &patch.patches_by_version[&1].root
     else {
         panic!("unexpected root");
     };
@@ -317,15 +325,15 @@ fn reading_keys_does_not_change_child_version() {
 #[test]
 fn read_ops_are_not_reflected_in_patch() {
     let mut db = PatchSet::default();
-    let storage = Storage::new(&db, &(), 0);
+    let storage = Storage::new(&db, &(), 0, true);
     let kvs = vec![(FIRST_KEY, H256([0; 32])), (SECOND_KEY, H256([1; 32]))];
     let (_, patch) = storage.extend(kvs);
     db.apply_patch(patch);
 
-    let storage = Storage::new(&db, &(), 1);
+    let storage = Storage::new(&db, &(), 1, true);
     let instructions = vec![(FIRST_KEY, TreeInstruction::Read)];
     let (_, patch) = storage.extend_with_proofs(instructions);
-    assert!(patch.nodes_by_version[&1].is_empty());
+    assert!(patch.patches_by_version[&1].nodes.is_empty());
 }
 
 // This maps small indices to keys that differ in the starting nibbles.
@@ -339,7 +347,7 @@ fn test_read_instructions_do_not_lead_to_copied_nodes(writes_per_block: u64) {
     // Write some keys into the database.
     let mut key_count = writes_per_block;
     let mut database = PatchSet::default();
-    let storage = Storage::new(&database, &(), 0);
+    let storage = Storage::new(&database, &(), 0, true);
     let kvs = (0..key_count)
         .map(|i| (big_endian_key(i), H256::zero()))
         .collect();
@@ -360,7 +368,7 @@ fn test_read_instructions_do_not_lead_to_copied_nodes(writes_per_block: u64) {
         instructions.shuffle(&mut rng);
         key_count += writes_per_block;
 
-        let storage = Storage::new(&database, &(), 1);
+        let storage = Storage::new(&database, &(), 1, true);
         let (_, patch) = storage.extend_with_proofs(instructions);
         assert_no_copied_nodes(&database, &patch);
         database.apply_patch(patch);
@@ -368,13 +376,13 @@ fn test_read_instructions_do_not_lead_to_copied_nodes(writes_per_block: u64) {
 }
 
 fn assert_no_copied_nodes(database: &PatchSet, patch: &PatchSet) {
-    assert_eq!(patch.nodes_by_version.len(), 1);
+    assert_eq!(patch.patches_by_version.len(), 1);
 
-    let (&version, nodes) = patch.nodes_by_version.iter().next().unwrap();
-    for (key, node) in nodes {
+    let (&version, patch) = patch.patches_by_version.iter().next().unwrap();
+    for (key, node) in &patch.nodes {
         let prev_node = (0..version).rev().find_map(|v| {
             let prev_key = key.nibbles.with_version(v);
-            database.nodes_by_version[&v].get(&prev_key)
+            database.patches_by_version[&v].nodes.get(&prev_key)
         });
         if let Some(prev_node) = prev_node {
             assert_ne!(node, prev_node, "node at {key:?} is copied");
@@ -395,7 +403,7 @@ fn test_replaced_keys_are_correctly_tracked(writes_per_block: usize, with_proofs
 
     // Write some keys into the database.
     let mut database = PatchSet::default();
-    let storage = Storage::new(&database, &(), 0);
+    let storage = Storage::new(&database, &(), 0, true);
     let kvs = (0..100)
         .map(|i| (big_endian_key(i), H256::zero()))
         .collect();
@@ -411,7 +419,7 @@ fn test_replaced_keys_are_correctly_tracked(writes_per_block: usize, with_proofs
             .into_iter()
             .map(|i| (big_endian_key(i), H256::zero()));
 
-        let storage = Storage::new(&database, &(), new_version);
+        let storage = Storage::new(&database, &(), new_version, true);
         let patch = if with_proofs {
             let instructions = updates.map(|(key, value)| (key, TreeInstruction::Write(value)));
             storage.extend_with_proofs(instructions.collect()).1
@@ -440,17 +448,18 @@ fn replaced_keys_are_correctly_tracked_with_proofs() {
 }
 
 fn assert_replaced_keys(db: &PatchSet, patch: &PatchSet) {
-    assert_eq!(patch.nodes_by_version.len(), 1);
-    let (&version, patch_nodes) = patch.nodes_by_version.iter().next().unwrap();
+    assert_eq!(patch.patches_by_version.len(), 1);
+    let (&version, sub_patch) = patch.patches_by_version.iter().next().unwrap();
     assert_eq!(patch.stale_keys_by_version.len(), 1);
     let replaced_keys = patch.stale_keys_by_version.values().next().unwrap();
 
-    let expected_replaced_keys = patch_nodes.keys().filter_map(|key| {
+    let expected_replaced_keys = sub_patch.nodes.keys().filter_map(|key| {
         (0..key.version).rev().find_map(|v| {
             let prev_key = key.nibbles.with_version(v);
             let contains_key = db
-                .nodes_by_version
+                .patches_by_version
                 .get(&prev_key.version)?
+                .nodes
                 .contains_key(&prev_key);
             contains_key.then_some(prev_key)
         })
@@ -469,18 +478,345 @@ fn tree_handles_keys_at_terminal_level() {
     let kvs = (0_u32..100)
         .map(|i| (Key::from(i), ValueHash::zero()))
         .collect();
-    let (_, patch) = Storage::new(&db, &(), 0).extend(kvs);
+    let (_, patch) = Storage::new(&db, &(), 0, true).extend(kvs);
     db.apply_patch(patch);
 
     // Overwrite a key and check that we don't panic.
     let new_kvs = vec![(Key::from(0), ValueHash::from_low_u64_be(1))];
-    let (_, patch) = Storage::new(&db, &(), 1).extend(new_kvs);
+    let (_, patch) = Storage::new(&db, &(), 1, true).extend(new_kvs);
 
-    assert_eq!(patch.roots[&1].leaf_count(), 100);
-    assert_eq!(patch.nodes_by_version[&1].len(), 2 * KEY_SIZE); // root is counted separately
-    for (key, node) in &patch.nodes_by_version[&1] {
+    assert_eq!(
+        patch.patches_by_version[&1]
+            .root
+            .as_ref()
+            .unwrap()
+            .leaf_count(),
+        100
+    );
+    assert_eq!(patch.patches_by_version[&1].nodes.len(), 2 * KEY_SIZE); // root is counted separately
+    for (key, node) in &patch.patches_by_version[&1].nodes {
         let is_terminal = key.nibbles.nibble_count() == 2 * KEY_SIZE;
         assert_eq!(is_terminal, matches!(node, Node::Leaf(_)));
     }
     assert_eq!(patch.stale_keys_by_version[&1].len(), 2 * KEY_SIZE + 1);
+}
+
+#[test]
+fn recovery_flattens_node_versions() {
+    let recovery_version = 100;
+    let recovery_entries = (0_u64..10).map(|i| RecoveryEntry {
+        key: Key::from(i) << 252, // the first key nibbles are distinct
+        value: ValueHash::zero(),
+        leaf_index: i + 1,
+    });
+    let patch = Storage::new(&PatchSet::default(), &(), recovery_version, false)
+        .extend_during_recovery(recovery_entries.collect());
+    assert_eq!(patch.patches_by_version.len(), 1);
+    let (updated_version, patch) = patch.patches_by_version.into_iter().next().unwrap();
+    assert_eq!(updated_version, recovery_version);
+
+    let root = patch.root.unwrap();
+    assert_eq!(root.leaf_count(), 10);
+    let Root::Filled {
+        node: Node::Internal(root_node),
+        ..
+    } = &root
+    else {
+        panic!("Unexpected root: {root:?}");
+    };
+    for nibble in 0..10 {
+        assert_eq!(
+            root_node.child_ref(nibble).unwrap().version,
+            recovery_version
+        );
+        let expected_key = Nibbles::single(nibble).with_version(recovery_version);
+        assert_matches!(patch.nodes[&expected_key], Node::Leaf { .. });
+    }
+}
+
+fn test_recovery_with_node_hierarchy(chunk_size: usize) {
+    let recovery_version = 100;
+    let recovery_entries = (0_u64..256).map(|i| RecoveryEntry {
+        key: Key::from(i) << 248, // the first two key nibbles are distinct
+        value: ValueHash::zero(),
+        leaf_index: i + 1,
+    });
+    let recovery_entries: Vec<_> = recovery_entries.collect();
+
+    let mut db = PatchSet::default();
+    for recovery_chunk in recovery_entries.chunks(chunk_size) {
+        let patch = Storage::new(&db, &(), recovery_version, false)
+            .extend_during_recovery(recovery_chunk.to_vec());
+        db.apply_patch(patch);
+    }
+    assert_eq!(db.updated_version, Some(recovery_version));
+    let patch = db.patches_by_version.remove(&recovery_version).unwrap();
+
+    let root = patch.root.unwrap();
+    assert_eq!(root.leaf_count(), 256);
+    let Root::Filled {
+        node: Node::Internal(root_node),
+        ..
+    } = &root
+    else {
+        panic!("Unexpected root: {root:?}");
+    };
+
+    for nibble in 0..16 {
+        let child_ref = root_node.child_ref(nibble).unwrap();
+        assert!(!child_ref.is_leaf);
+        assert_eq!(child_ref.version, recovery_version);
+
+        let internal_node_key = Nibbles::single(nibble).with_version(recovery_version);
+        let node = &patch.nodes[&internal_node_key];
+        let Node::Internal(node) = node else {
+            panic!("Unexpected upper-level node: {node:?}");
+        };
+        assert_eq!(node.child_count(), 16);
+
+        for (second_nibble, child_ref) in node.children() {
+            let i = nibble * 16 + second_nibble;
+            assert!(child_ref.is_leaf);
+            assert_eq!(child_ref.version, recovery_version);
+            let leaf_key = Nibbles::new(&(Key::from(i) << 248), 2).with_version(recovery_version);
+            assert_matches!(patch.nodes[&leaf_key], Node::Leaf { .. });
+        }
+    }
+}
+
+#[test]
+fn recovery_with_node_hierarchy() {
+    test_recovery_with_node_hierarchy(256); // single chunk
+    for chunk_size in [4, 5, 20, 69, 127, 128] {
+        println!("Testing recovery with chunk size {chunk_size}");
+        test_recovery_with_node_hierarchy(chunk_size);
+    }
+}
+
+fn test_recovery_with_deep_node_hierarchy(chunk_size: usize) {
+    let recovery_version = 1_000;
+    let recovery_entries = (0_u64..256).map(|i| RecoveryEntry {
+        key: Key::from(i), // the last two key nibbles are distinct
+        value: ValueHash::zero(),
+        leaf_index: i + 1,
+    });
+    let recovery_entries: Vec<_> = recovery_entries.collect();
+
+    let mut db = PatchSet::default();
+    for recovery_chunk in recovery_entries.chunks(chunk_size) {
+        let patch = Storage::new(&db, &(), recovery_version, false)
+            .extend_during_recovery(recovery_chunk.to_vec());
+        db.apply_patch(patch);
+    }
+    let mut patch = db.patches_by_version.remove(&recovery_version).unwrap();
+    // Manually remove all stale keys from the patch
+    assert_eq!(db.stale_keys_by_version.len(), 1);
+    for stale_key in &db.stale_keys_by_version[&recovery_version] {
+        assert!(
+            patch.nodes.remove(stale_key).is_some(),
+            "Stale key {stale_key} is missing"
+        );
+    }
+
+    let root = patch.root.unwrap();
+    assert_eq!(root.leaf_count(), 256);
+    let Root::Filled {
+        node: Node::Internal(root_node),
+        ..
+    } = &root
+    else {
+        panic!("Unexpected root: {root:?}");
+    };
+    assert_eq!(root_node.child_count(), 1);
+    let child_ref = root_node.child_ref(0).unwrap();
+    assert!(!child_ref.is_leaf);
+    assert_eq!(child_ref.version, recovery_version);
+
+    for (node_key, node) in patch.nodes {
+        assert_eq!(
+            node_key.version, recovery_version,
+            "Unexpected version for {node_key}"
+        );
+
+        let nibble_count = node_key.nibbles.nibble_count();
+        if nibble_count < 64 {
+            let Node::Internal(node) = node else {
+                panic!("Unexpected node at {node_key}: {node:?}");
+            };
+            assert_eq!(node.child_count(), if nibble_count < 62 { 1 } else { 16 });
+        } else {
+            assert_matches!(
+                node,
+                Node::Leaf(_),
+                "Unexpected node at {node_key}: {node:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn recovery_with_deep_node_hierarchy() {
+    test_recovery_with_deep_node_hierarchy(256);
+    for chunk_size in [5, 7, 20, 59, 127, 128] {
+        println!("Testing recovery with chunk size {chunk_size}");
+        test_recovery_with_deep_node_hierarchy(chunk_size);
+    }
+}
+
+#[test]
+fn recovery_workflow_with_multiple_stages() {
+    let mut db = PatchSet::default();
+    let recovery_version = 100;
+    let recovery_entries = (0_u64..100).map(|i| RecoveryEntry {
+        key: Key::from(i),
+        value: ValueHash::zero(),
+        leaf_index: i,
+    });
+    let patch = Storage::new(&db, &(), recovery_version, false)
+        .extend_during_recovery(recovery_entries.collect());
+    assert_eq!(patch.root(recovery_version).unwrap().leaf_count(), 100);
+    db.apply_patch(patch);
+
+    let more_recovery_entries = (100_u64..200).map(|i| RecoveryEntry {
+        key: Key::from(i),
+        value: ValueHash::zero(),
+        leaf_index: i,
+    });
+
+    let patch = Storage::new(&db, &(), recovery_version, false)
+        .extend_during_recovery(more_recovery_entries.collect());
+    assert_eq!(patch.root(recovery_version).unwrap().leaf_count(), 200);
+    db.apply_patch(patch);
+
+    // Check that all entries can be accessed
+    let storage = Storage::new(&db, &(), recovery_version + 1, true);
+    let instructions = (0_u32..200).map(|i| (Key::from(i), TreeInstruction::Read));
+    let (output, _) = storage.extend_with_proofs(instructions.collect());
+    assert_eq!(output.leaf_count, 200);
+    assert_eq!(output.logs.len(), 200);
+    assert!(output
+        .logs
+        .iter()
+        .all(|log| matches!(log.base, TreeLogEntry::Read { .. })));
+}
+
+fn test_recovery_pruning_equivalence(
+    chunk_size: usize,
+    recovery_chunk_size: usize,
+    hasher: &dyn HashTree,
+) {
+    const RNG_SEED: u64 = 123;
+
+    println!(
+        "Testing recovery–pruning equivalence (chunk size: {chunk_size}, recovery chunk size: \
+         {recovery_chunk_size})"
+    );
+
+    let mut rng = StdRng::seed_from_u64(RNG_SEED);
+    let kvs = (0..100).map(|i| {
+        (
+            U256([rng.gen(), rng.gen(), rng.gen(), rng.gen()]),
+            ValueHash::repeat_byte(i),
+        )
+    });
+    let kvs: Vec<_> = kvs.collect();
+
+    // Add `kvs` into the tree in several commits.
+    let mut db = PatchSet::default();
+    for (version, chunk) in kvs.chunks(chunk_size).enumerate() {
+        let (_, patch) = Storage::new(&db, hasher, version as u64, true).extend(chunk.to_vec());
+        db.apply_patch(patch);
+    }
+    // Unite all remaining nodes to a map and manually remove all stale keys.
+    let recovered_version = db.manifest.version_count - 1;
+    let mut root = db.root(recovered_version).unwrap();
+    let mut all_nodes: HashMap<_, _> = db
+        .patches_by_version
+        .into_values()
+        .flat_map(|sub_patch| sub_patch.nodes)
+        .collect();
+    for stale_key in db.stale_keys_by_version.values().flatten() {
+        all_nodes.remove(stale_key);
+    }
+
+    // Generate recovery entries.
+    let recovery_entries = all_nodes.values().filter_map(|node| {
+        if let Node::Leaf(leaf) = node {
+            return Some(RecoveryEntry {
+                key: leaf.full_key,
+                value: leaf.value_hash,
+                leaf_index: leaf.leaf_index,
+            });
+        }
+        None
+    });
+    let mut recovery_entries: Vec<_> = recovery_entries.collect();
+    assert_eq!(recovery_entries.len(), 100);
+    recovery_entries.sort_unstable_by_key(|entry| entry.key);
+
+    // Recover the tree.
+    let mut recovered_db = PatchSet::default();
+    for recovery_chunk in recovery_entries.chunks(recovery_chunk_size) {
+        let patch = Storage::new(&recovered_db, hasher, recovered_version, false)
+            .extend_during_recovery(recovery_chunk.to_vec());
+        recovered_db.apply_patch(patch);
+    }
+    let sub_patch = recovered_db
+        .patches_by_version
+        .remove(&recovered_version)
+        .unwrap();
+    let recovered_root = sub_patch.root.unwrap();
+    let mut all_recovered_nodes = sub_patch.nodes;
+    for stale_key in db.stale_keys_by_version.values().flatten() {
+        all_recovered_nodes.remove(stale_key);
+    }
+
+    // Nodes must be identical for the pruned and recovered trees up to the version.
+    if let Root::Filled {
+        node: Node::Internal(node),
+        ..
+    } = &mut root
+    {
+        for child_ref in node.child_refs_mut() {
+            child_ref.version = recovered_version;
+        }
+    }
+    assert_eq!(recovered_root, root);
+
+    let flattened_version_nodes: HashMap<_, _> = all_nodes
+        .into_iter()
+        .map(|(key, mut node)| {
+            if let Node::Internal(node) = &mut node {
+                for child_ref in node.child_refs_mut() {
+                    child_ref.version = recovered_version;
+                }
+            }
+            (key.nibbles.with_version(recovered_version), node)
+        })
+        .collect();
+    assert_eq!(all_recovered_nodes, flattened_version_nodes);
+}
+
+#[test]
+fn recovery_pruning_equivalence() {
+    for chunk_size in [3, 5, 7, 11, 21, 42, 99, 100] {
+        // No chunking during recovery (simple case).
+        test_recovery_pruning_equivalence(chunk_size, 100, &());
+        // Recovery is chunked (more complex case).
+        for recovery_chunk_size in [chunk_size, 1, 6, 19, 50, 73] {
+            test_recovery_pruning_equivalence(chunk_size, recovery_chunk_size, &());
+        }
+    }
+}
+
+#[test]
+fn recovery_pruning_equivalence_with_hashing() {
+    for chunk_size in [3, 7, 21, 42, 100] {
+        // No chunking during recovery (simple case).
+        test_recovery_pruning_equivalence(chunk_size, 100, &Blake2Hasher);
+        // Recovery is chunked (more complex case).
+        for recovery_chunk_size in [chunk_size, 1, 19, 73] {
+            test_recovery_pruning_equivalence(chunk_size, recovery_chunk_size, &Blake2Hasher);
+        }
+    }
 }

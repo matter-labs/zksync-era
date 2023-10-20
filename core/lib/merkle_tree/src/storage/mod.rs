@@ -18,12 +18,21 @@ pub use self::{
 use crate::{
     hasher::HashTree,
     metrics::{TreeUpdaterStats, BLOCK_TIMINGS, GENERAL_METRICS},
+    recovery::RecoveryEntry,
     types::{
         BlockOutput, ChildRef, InternalNode, Key, LeafNode, Manifest, Nibbles, Node, Root,
         TreeLogEntry, TreeTags, ValueHash,
     },
     utils::increment_counter,
 };
+
+/// Tree operation: either inserting a new version or updating an existing one (the latter is only
+/// used during tree recovery).
+#[derive(Debug, Clone, Copy)]
+enum Operation {
+    Insert,
+    Update,
+}
 
 /// Mutable storage encapsulating AR16MT update logic.
 #[derive(Debug)]
@@ -92,6 +101,14 @@ impl TreeUpdater {
         longest_prefixes
     }
 
+    /// Loads the greatest key from the database.
+    fn load_greatest_key<DB: Database + ?Sized>(&mut self, db: &DB) -> Option<(LeafNode, Nibbles)> {
+        let (leaf, load_result) = self.patch_set.load_greatest_key(db)?;
+        self.metrics.db_reads += load_result.db_reads;
+        assert_eq!(load_result.longest_prefixes.len(), 1);
+        Some((leaf, load_result.longest_prefixes[0]))
+    }
+
     /// Inserts or updates a value hash for the specified `key`. This implementation
     /// is almost verbatim the algorithm described in the Jellyfish Merkle tree white paper.
     /// The algorithm from the paper is as follows:
@@ -120,7 +137,7 @@ impl TreeUpdater {
         parent_nibbles: &Nibbles,
         leaf_index_fn: impl FnOnce() -> u64,
     ) -> (TreeLogEntry, NewLeafData) {
-        let version = self.patch_set.version();
+        let version = self.patch_set.root_version();
         let traverse_outcome = self.patch_set.traverse(key, parent_nibbles);
         let (log, leaf_data) = match traverse_outcome {
             TraverseOutcome::LeafMatch(nibbles, mut leaf) => {
@@ -132,12 +149,7 @@ impl TreeUpdater {
             }
 
             TraverseOutcome::LeafMismatch(nibbles, leaf) => {
-                if let Some((parent_nibbles, last_nibble)) = nibbles.split_last() {
-                    self.patch_set
-                        .child_ref_mut(&parent_nibbles, last_nibble)
-                        .unwrap()
-                        .is_leaf = false;
-                }
+                self.update_moved_leaf_ref(&nibbles);
 
                 let mut nibble_idx = nibbles.nibble_count();
                 loop {
@@ -203,14 +215,25 @@ impl TreeUpdater {
         // Traverse nodes up to the root level and update `ChildRef.version`.
         let mut cursor = traverse_outcome.position();
         while let Some((parent_nibbles, last_nibble)) = cursor.split_last() {
-            self.patch_set
+            let child_ref = self
+                .patch_set
                 .child_ref_mut(&parent_nibbles, last_nibble)
-                .unwrap()
-                .version = version;
+                .unwrap();
+            child_ref.version = child_ref.version.max(version);
             cursor = parent_nibbles;
         }
 
         (log, leaf_data)
+    }
+
+    fn update_moved_leaf_ref(&mut self, leaf_nibbles: &Nibbles) {
+        if let Some((parent_nibbles, last_nibble)) = leaf_nibbles.split_last() {
+            let child_ref = self
+                .patch_set
+                .child_ref_mut(&parent_nibbles, last_nibble)
+                .unwrap();
+            child_ref.is_leaf = false;
+        }
     }
 }
 
@@ -221,22 +244,33 @@ pub(crate) struct Storage<'a, DB: ?Sized> {
     hasher: &'a dyn HashTree,
     manifest: Manifest,
     leaf_count: u64,
+    operation: Operation,
     updater: TreeUpdater,
 }
 
 impl<'a, DB: Database + ?Sized> Storage<'a, DB> {
     /// Creates storage for a new version of the tree.
-    pub fn new(db: &'a DB, hasher: &'a dyn HashTree, version: u64) -> Self {
+    pub fn new(
+        db: &'a DB,
+        hasher: &'a dyn HashTree,
+        version: u64,
+        create_new_version: bool,
+    ) -> Self {
         let mut manifest = db.manifest().unwrap_or_default();
         if manifest.tags.is_none() {
             manifest.tags = Some(TreeTags::new(hasher));
         }
         manifest.version_count = version + 1;
 
-        let root = if version == 0 {
-            Root::Empty
+        let base_version = if create_new_version {
+            version.checked_sub(1)
         } else {
-            db.root(version - 1).expect("no previous root")
+            Some(version)
+        };
+        let root = if let Some(base_version) = base_version {
+            db.root(base_version).unwrap_or(Root::Empty)
+        } else {
+            Root::Empty
         };
 
         Self {
@@ -244,6 +278,11 @@ impl<'a, DB: Database + ?Sized> Storage<'a, DB> {
             hasher,
             manifest,
             leaf_count: root.leaf_count(),
+            operation: if create_new_version {
+                Operation::Insert
+            } else {
+                Operation::Update
+            },
             updater: TreeUpdater::new(version, root),
         }
     }
@@ -254,7 +293,8 @@ impl<'a, DB: Database + ?Sized> Storage<'a, DB> {
         let load_nodes_latency = BLOCK_TIMINGS.load_nodes.start();
         let sorted_keys = SortedKeys::new(key_value_pairs.iter().map(|(key, _)| *key));
         let parent_nibbles = self.updater.load_ancestors(&sorted_keys, self.db);
-        load_nodes_latency.observe();
+        let load_nodes_latency = load_nodes_latency.observe();
+        tracing::debug!("Load stage took {load_nodes_latency:?}");
 
         let extend_patch_latency = BLOCK_TIMINGS.extend_patch.start();
         let mut logs = Vec::with_capacity(key_value_pairs.len());
@@ -264,7 +304,8 @@ impl<'a, DB: Database + ?Sized> Storage<'a, DB> {
             });
             logs.push(log);
         }
-        extend_patch_latency.observe();
+        let extend_patch_latency = extend_patch_latency.observe();
+        tracing::debug!("Tree traversal stage took {extend_patch_latency:?}");
 
         let leaf_count = self.leaf_count;
         let (root_hash, patch) = self.finalize();
@@ -276,16 +317,64 @@ impl<'a, DB: Database + ?Sized> Storage<'a, DB> {
         (output, patch)
     }
 
+    pub fn greatest_key(mut self) -> Option<Key> {
+        Some(self.updater.load_greatest_key(self.db)?.0.full_key)
+    }
+
+    pub fn extend_during_recovery(mut self, recovery_entries: Vec<RecoveryEntry>) -> PatchSet {
+        let (mut prev_key, mut prev_nibbles) = match self.updater.load_greatest_key(self.db) {
+            Some((leaf, nibbles)) => (Some(leaf.full_key), nibbles),
+            None => (None, Nibbles::EMPTY),
+        };
+
+        let extend_patch_latency = BLOCK_TIMINGS.extend_patch.start();
+        for entry in recovery_entries {
+            if let Some(prev_key) = prev_key {
+                assert!(
+                    entry.key > prev_key,
+                    "Recovery entries must be ordered by increasing key (previous key: {prev_key:0>64x}, \
+                     offending entry: {entry:?})"
+                );
+            }
+            prev_key = Some(entry.key);
+
+            let key_nibbles = Nibbles::new(&entry.key, prev_nibbles.nibble_count());
+            let parent_nibbles = prev_nibbles.common_prefix(&key_nibbles);
+            let (_, new_leaf) =
+                self.updater
+                    .insert(entry.key, entry.value, &parent_nibbles, || entry.leaf_index);
+            prev_nibbles = new_leaf.nibbles;
+            self.leaf_count += 1;
+        }
+        let extend_patch_latency = extend_patch_latency.observe();
+        tracing::debug!("Tree traversal stage took {extend_patch_latency:?}");
+
+        let (_, patch) = self.finalize();
+        patch
+    }
+
     fn finalize(self) -> (ValueHash, PatchSet) {
+        tracing::debug!(
+            "Finished updating tree; total leaf count: {}, stats: {:?}",
+            self.leaf_count,
+            self.updater.metrics
+        );
         self.updater.metrics.report();
 
-        let finalize_patch = BLOCK_TIMINGS.finalize_patch.start();
-        let (root_hash, patch, stats) =
-            self.updater
-                .patch_set
-                .finalize(self.manifest, self.leaf_count, self.hasher);
+        let finalize_patch_latency = BLOCK_TIMINGS.finalize_patch.start();
+        let (root_hash, patch, stats) = self.updater.patch_set.finalize(
+            self.manifest,
+            self.leaf_count,
+            self.operation,
+            self.hasher,
+        );
         GENERAL_METRICS.leaf_count.set(self.leaf_count);
-        finalize_patch.observe();
+        let finalize_patch_latency = finalize_patch_latency.observe();
+        tracing::debug!(
+            "Tree finalization stage took {finalize_patch_latency:?}; hashed {:?}B in {:?}",
+            stats.hashed_bytes,
+            stats.hashing_duration
+        );
         stats.report();
 
         (root_hash, patch)
