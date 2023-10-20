@@ -25,7 +25,8 @@ async function dockerCommand(
     command: 'push' | 'build',
     image: string,
     customTag?: string,
-    publishPublic: boolean = false
+    publishPublic: boolean = false,
+    hyperchainName?: string
 ) {
     // Generating all tags for containers. We need 2 tags here: SHA and SHA+TS
     const { stdout: COMMIT_SHORT_SHA }: { stdout: string } = await utils.exec('git rev-parse --short HEAD');
@@ -52,7 +53,7 @@ async function dockerCommand(
     // COMMIT_SHORT_SHA returns with newline, so we need to trim it
     switch (command) {
         case 'build':
-            await _build(image, tagList);
+            await _build(image, tagList, hyperchainName);
             break;
         case 'push':
             await _push(image, tagList, publishPublic);
@@ -85,13 +86,17 @@ function defaultTagList(image: string, imageTagSha: string, imageTagShaTS: strin
     return tagList;
 }
 
-async function _build(image: string, tagList: string[]) {
+async function _build(image: string, tagList: string[], hyperchainName?: string) {
     if (image === 'server-v2' || image === 'external-node' || image === 'prover') {
         await contract.build();
     }
-
-    const tagsToBuild = tagList.map((tag) => `-t matterlabs/${image}:${tag}`).join(' ');
+    let tagsToBuild = ""
     // generate list of tags for image - we want 3 tags (latest, SHA, SHA+TimeStamp) for listed components and only "latest" for everything else
+    if(hyperchainName) {
+        tagsToBuild = tagList.map((tag) => `-t ${hyperchainName}/${image}:${tag}`).join(' ');
+    } else {
+        tagsToBuild = tagList.map((tag) => `-t matterlabs/${image}:${tag}`).join(' ');
+    }
 
     // Conditionally add build argument if image is prover-v2
     let buildArgs = '';
@@ -136,6 +141,10 @@ async function _push(image: string, tagList: string[], publishPublic: boolean = 
 
 export async function build(image: string, cmd: Command) {
     await dockerCommand('build', image, cmd.customTag);
+}
+
+export async function customBuildForHyperchain(image: string, imageName: string) {
+    await dockerCommand('build', image, "", false, imageName);
 }
 
 export async function push(image: string, cmd: Command) {
