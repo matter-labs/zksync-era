@@ -21,7 +21,7 @@ import { command as clean } from './clean';
 import { command as db } from './database';
 import { command as verifyUpgrade } from './verify-upgrade';
 import * as env from './env';
-import { explorerCommand as explorer } from './explorer'
+import { explorerCommand as explorer } from './explorer';
 
 const COMMANDS = [
     server,
