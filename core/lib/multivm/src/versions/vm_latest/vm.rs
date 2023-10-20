@@ -103,6 +103,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
             l2_to_l1_logs,
             total_log_queries,
             cycles_used: self.state.local_state.monotonic_cycle_counter,
+            storage_refunds: self.state.storage.returned_refunds.inner().clone(),
         }
     }
 
