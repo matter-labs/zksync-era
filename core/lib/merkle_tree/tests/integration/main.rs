@@ -4,3 +4,4 @@ mod common;
 mod consistency;
 mod domain;
 mod merkle_tree;
+mod recovery;

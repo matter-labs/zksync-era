@@ -7,7 +7,9 @@ use std::{
 };
 
 use crate::types::Nibbles;
-use vise::{Buckets, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Global, Histogram, Metrics};
+use vise::{
+    Buckets, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Global, Histogram, Metrics, Unit,
+};
 
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "merkle_tree")]
@@ -24,19 +26,20 @@ const BYTE_SIZE_BUCKETS: Buckets = Buckets::exponential(65_536.0..=16.0 * 1_024.
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "merkle_tree_finalize_patch")]
 struct HashingMetrics {
-    /// Total amount of hashing input performed while processing a single block.
-    #[metrics(buckets = BYTE_SIZE_BUCKETS)]
-    hashed_bytes: Histogram<u64>,
+    /// Total amount of hashing input performed while processing a patch.
+    #[metrics(buckets = BYTE_SIZE_BUCKETS, unit = Unit::Bytes)]
+    hashed: Histogram<u64>,
+    /// Total time spent on hashing while processing a patch.
+    #[metrics(buckets = Buckets::LATENCIES, unit = Unit::Seconds)]
+    hashing_duration: Histogram<Duration>,
 }
-
-#[vise::register]
-static HASHING_METRICS: Global<HashingMetrics> = Global::new();
 
 /// Hashing-related statistics reported as metrics for each block of operations.
 #[derive(Debug, Default)]
 #[must_use = "hashing stats should be `report()`ed"]
 pub(crate) struct HashingStats {
     pub hashed_bytes: AtomicU64,
+    pub hashing_duration: Duration,
 }
 
 impl HashingStats {
@@ -45,8 +48,14 @@ impl HashingStats {
     }
 
     pub fn report(self) {
+        #[vise::register]
+        static HASHING_METRICS: Global<HashingMetrics> = Global::new();
+
         let hashed_bytes = self.hashed_bytes.into_inner();
-        HASHING_METRICS.hashed_bytes.observe(hashed_bytes);
+        HASHING_METRICS.hashed.observe(hashed_bytes);
+        HASHING_METRICS
+            .hashing_duration
+            .observe(self.hashing_duration);
     }
 }
 
@@ -96,7 +105,7 @@ struct TreeUpdateMetrics {
 static TREE_UPDATE_METRICS: Global<TreeUpdateMetrics> = Global::new();
 
 #[must_use = "tree updater stats should be `report()`ed"]
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Clone, Copy, Default)]
 pub(crate) struct TreeUpdaterStats {
     pub new_leaves: u64,
     pub new_internal_nodes: u64,
@@ -110,6 +119,24 @@ pub(crate) struct TreeUpdaterStats {
     pub patch_reads: u64,
 }
 
+impl fmt::Debug for TreeUpdaterStats {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("TreeUpdaterStats")
+            .field("new_leaves", &self.new_leaves)
+            .field("new_internal_nodes", &self.new_internal_nodes)
+            .field("moved_leaves", &self.moved_leaves)
+            .field("updated_leaves", &self.updated_leaves)
+            .field("avg_leaf_level", &self.avg_leaf_level())
+            .field("max_leaf_level", &self.max_leaf_level)
+            .field("key_reads", &self.key_reads)
+            .field("missing_key_reads", &self.missing_key_reads)
+            .field("db_reads", &self.db_reads)
+            .field("patch_reads", &self.patch_reads)
+            .finish_non_exhaustive()
+    }
+}
+
 impl TreeUpdaterStats {
     pub(crate) fn update_leaf_levels(&mut self, nibble_count: usize) {
         let leaf_level = nibble_count as u64 * 4;
@@ -118,20 +145,22 @@ impl TreeUpdaterStats {
     }
 
     #[allow(clippy::cast_precision_loss)] // Acceptable for metrics
+    fn avg_leaf_level(&self) -> f64 {
+        let touched_leaves = self.new_leaves + self.moved_leaves;
+        if touched_leaves > 0 {
+            self.leaf_level_sum as f64 / touched_leaves as f64
+        } else {
+            0.0
+        }
+    }
+
     pub(crate) fn report(self) {
         let metrics = &TREE_UPDATE_METRICS;
         metrics.new_leaves.observe(self.new_leaves);
         metrics.new_internal_nodes.observe(self.new_internal_nodes);
         metrics.moved_leaves.observe(self.moved_leaves);
         metrics.updated_leaves.observe(self.updated_leaves);
-
-        let touched_leaves = self.new_leaves + self.moved_leaves;
-        let avg_leaf_level = if touched_leaves > 0 {
-            self.leaf_level_sum as f64 / touched_leaves as f64
-        } else {
-            0.0
-        };
-        metrics.avg_leaf_level.observe(avg_leaf_level);
+        metrics.avg_leaf_level.observe(self.avg_leaf_level());
         metrics.max_leaf_level.observe(self.max_leaf_level);
 
         if self.key_reads > 0 {
@@ -297,7 +326,7 @@ struct PruningMetrics {
 static PRUNING_METRICS: Global<PruningMetrics> = Global::new();
 
 #[derive(Debug)]
-pub(crate) struct PruningStats {
+pub struct PruningStats {
     pub target_retained_version: u64,
     pub pruned_key_count: usize,
     pub deleted_stale_key_versions: ops::Range<u64>,
