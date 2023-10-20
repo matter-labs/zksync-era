@@ -15,7 +15,7 @@ use super::{
     extractors,
     io::{MiniblockParams, PendingBatchData, StateKeeperIO},
     metrics::{AGGREGATION_METRICS, KEEPER_METRICS, L1_BATCH_METRICS},
-    seal_criteria::{SealData, SealManager, SealResolution},
+    seal_criteria::{ConditionalSealer, SealData, SealResolution},
     types::ExecutionMetricsForCriteria,
     updates::UpdatesManager,
 };
@@ -57,7 +57,7 @@ pub struct ZkSyncStateKeeper {
     stop_receiver: watch::Receiver<bool>,
     io: Box<dyn StateKeeperIO>,
     batch_executor_base: Box<dyn L1BatchExecutorBuilder>,
-    sealer: SealManager,
+    sealer: Option<ConditionalSealer>,
 }
 
 impl ZkSyncStateKeeper {
@@ -65,13 +65,26 @@ impl ZkSyncStateKeeper {
         stop_receiver: watch::Receiver<bool>,
         io: Box<dyn StateKeeperIO>,
         batch_executor_base: Box<dyn L1BatchExecutorBuilder>,
-        sealer: SealManager,
+        sealer: ConditionalSealer,
     ) -> Self {
-        ZkSyncStateKeeper {
+        Self {
             stop_receiver,
             io,
             batch_executor_base,
-            sealer,
+            sealer: Some(sealer),
+        }
+    }
+
+    pub fn without_sealer(
+        stop_receiver: watch::Receiver<bool>,
+        io: Box<dyn StateKeeperIO>,
+        batch_executor_base: Box<dyn L1BatchExecutorBuilder>,
+    ) -> Self {
+        Self {
+            stop_receiver,
+            io,
+            batch_executor_base,
+            sealer: None,
         }
     }
 
@@ -371,7 +384,7 @@ impl ZkSyncStateKeeper {
 
         while !self.is_canceled() {
             if self
-                .sealer
+                .io
                 .should_seal_l1_batch_unconditionally(updates_manager)
             {
                 tracing::debug!(
@@ -381,7 +394,7 @@ impl ZkSyncStateKeeper {
                 return Ok(());
             }
 
-            if self.sealer.should_seal_miniblock(updates_manager) {
+            if self.io.should_seal_miniblock(updates_manager) {
                 tracing::debug!(
                     "Miniblock #{} (L1 batch #{}) should be sealed as per sealing rules",
                     self.io.current_miniblock_number(),
@@ -632,13 +645,18 @@ impl ZkSyncStateKeeper {
                         + updates_manager.pending_txs_encoding_size(),
                     writes_metrics: block_writes_metrics,
                 };
-                self.sealer.should_seal_l1_batch(
-                    self.io.current_l1_batch_number().0,
-                    updates_manager.batch_timestamp() as u128 * 1_000,
-                    updates_manager.pending_executed_transactions_len() + 1,
-                    &block_data,
-                    &tx_data,
-                )
+
+                if let Some(sealer) = &self.sealer {
+                    sealer.should_seal_l1_batch(
+                        self.io.current_l1_batch_number().0,
+                        updates_manager.batch_timestamp() as u128 * 1_000,
+                        updates_manager.pending_executed_transactions_len() + 1,
+                        &block_data,
+                        &tx_data,
+                    )
+                } else {
+                    SealResolution::NoSeal
+                }
             }
         };
         (resolution, exec_result)

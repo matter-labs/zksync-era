@@ -43,11 +43,3 @@ pub struct TokenPrice {
     pub usd_price: Ratio<BigUint>,
     pub last_updated: DateTime<Utc>,
 }
-
-/// Token price known to the zkSync network.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TokenMarketVolume {
-    #[serde(with = "UnsignedRatioSerializeAsDecimal")]
-    pub market_volume: Ratio<BigUint>,
-    pub last_updated: DateTime<Utc>,
-}
