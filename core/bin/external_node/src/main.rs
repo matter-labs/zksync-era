@@ -4,6 +4,7 @@ use tokio::{sync::watch, task, time::sleep};
 
 use std::{sync::Arc, time::Duration};
 
+use futures::FutureExt;
 use prometheus_exporter::PrometheusExporterConfig;
 use zksync_basic_types::{Address, L2ChainId};
 use zksync_core::{
@@ -363,7 +364,7 @@ async fn main() -> anyhow::Result<()> {
         return Ok(());
     }
 
-    let mut sigint_receiver = setup_sigint_handler();
+    let mut sigint_receiver = setup_sigint_handler().fuse();
 
     tracing::warn!("The external node is in the alpha phase, and should be used with caution.");
 
@@ -381,7 +382,7 @@ async fn main() -> anyhow::Result<()> {
 
     let (stop_sender, stop_receiver) = watch::channel::<bool>(false);
 
-    let (task_handles, mut consistency_checker_handle, health_check_handle) = init_tasks(
+    let (task_handles, consistency_checker_handle, health_check_handle) = init_tasks(
         config.clone(),
         connection_pool.clone(),
         stop_receiver.clone(),
@@ -396,12 +397,14 @@ async fn main() -> anyhow::Result<()> {
     let graceful_shutdown = None::<futures::future::Ready<()>>;
     let tasks_allowed_to_finish = false;
 
+    let mut consistency_checker_handle = consistency_checker_handle.fuse();
     let wait_for_tasks = wait_for_tasks(
         task_handles,
         particular_crypto_alerts,
         graceful_shutdown,
         tasks_allowed_to_finish,
-    );
+    )
+    .fuse();
 
     tokio::pin!(wait_for_tasks);
 
