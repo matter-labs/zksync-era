@@ -17,9 +17,9 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
         self.state.local_state.callstack.current.ergs_remaining
     }
 
-    pub(crate) fn calculate_computational_gas_used(
+    pub(crate) fn calculate_computational_gas_used<T>(
         &self,
-        tracer: &DefaultExecutionTracer<S, H::VmVirtualBlocksMode>,
+        tracer: &DefaultExecutionTracer<S, H::VmVirtualBlocksMode, T>,
         gas_remaining_before: u32,
         spent_pubdata_counter_before: u32,
     ) -> u32 {

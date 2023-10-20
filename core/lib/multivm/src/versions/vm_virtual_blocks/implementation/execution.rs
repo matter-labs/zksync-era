@@ -12,33 +12,39 @@ use crate::vm_virtual_blocks::vm::Vm;
 use crate::vm_virtual_blocks::VmExecutionStopReason;
 
 impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
-    pub(crate) fn inspect_inner(
+    pub(crate) fn inspect_inner<T: VmTracer<S, H::VmVirtualBlocksMode>>(
         &mut self,
-        mut tracers: Vec<Box<dyn VmTracer<S, H::VmVirtualBlocksMode>>>,
+        tracer: T,
         execution_mode: VmExecutionMode,
     ) -> VmExecutionResultAndLogs {
+        let mut enable_refund_tracer = false;
         if let VmExecutionMode::OneTx = execution_mode {
             // For correct results we have to include refunds tracer to the desired tracers
-            tracers.push(RefundsTracer::new(self.batch_env.clone()).into_boxed());
+            enable_refund_tracer = true;
             // Move the pointer to the next transaction
             self.bootloader_state.move_tx_to_execute_pointer();
         }
-        let (_, result) = self.inspect_and_collect_results(tracers, execution_mode);
+        let (_, result) =
+            self.inspect_and_collect_results(tracer, execution_mode, enable_refund_tracer);
         result
     }
 
     /// Execute VM with given traces until the stop reason is reached.
     /// Collect the result from the default tracers.
-    fn inspect_and_collect_results(
+    fn inspect_and_collect_results<T: VmTracer<S, H::VmVirtualBlocksMode>>(
         &mut self,
-        tracers: Vec<Box<dyn VmTracer<S, H::VmVirtualBlocksMode>>>,
+        tracer: T,
         execution_mode: VmExecutionMode,
+        enable_refund_tracer: bool,
     ) -> (VmExecutionStopReason, VmExecutionResultAndLogs) {
-        let mut tx_tracer: DefaultExecutionTracer<S, H::VmVirtualBlocksMode> =
+        let refund_tracer =
+            enable_refund_tracer.then_some(RefundsTracer::new(self.batch_env.clone()));
+        let mut tx_tracer: DefaultExecutionTracer<S, H::VmVirtualBlocksMode, T> =
             DefaultExecutionTracer::new(
                 self.system_env.default_validation_computational_gas_limit,
                 execution_mode,
-                tracers,
+                tracer,
+                refund_tracer,
                 self.storage.clone(),
             );
 
@@ -69,19 +75,20 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
             result,
             logs,
             statistics,
-            refunds: Default::default(),
+            refunds: tx_tracer
+                .refund_tracer
+                .map(|r| r.get_refunds())
+                .unwrap_or_default(),
         };
 
-        for tracer in tx_tracer.custom_tracers.iter_mut() {
-            tracer.save_results(&mut result);
-        }
+        tx_tracer.custom_tracer.save_results(&mut result);
         (stop_reason, result)
     }
 
     /// Execute vm with given tracers until the stop reason is reached.
-    fn execute_with_default_tracer(
+    fn execute_with_default_tracer<T: VmTracer<S, H::VmVirtualBlocksMode>>(
         &mut self,
-        tracer: &mut DefaultExecutionTracer<S, H::VmVirtualBlocksMode>,
+        tracer: &mut DefaultExecutionTracer<S, H::VmVirtualBlocksMode, T>,
     ) -> VmExecutionStopReason {
         tracer.initialize_tracer(&mut self.state);
         let result = loop {

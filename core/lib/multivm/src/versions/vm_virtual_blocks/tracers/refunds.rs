@@ -66,9 +66,13 @@ impl RefundsTracer {
             l1_batch,
         }
     }
-}
+    pub(crate) fn get_refunds(&self) -> Refunds {
+        Refunds {
+            gas_refunded: self.refund_gas,
+            operator_suggested_refund: self.operator_refund.unwrap_or_default(),
+        }
+    }
 
-impl RefundsTracer {
     fn requested_refund(&self) -> Option<u32> {
         self.pending_operator_refund
     }

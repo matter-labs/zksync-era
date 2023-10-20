@@ -14,11 +14,11 @@ use crate::vm_virtual_blocks::vm::Vm;
 impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
     /// Get statistics about TX execution.
     #[allow(clippy::too_many_arguments)]
-    pub(crate) fn get_statistics(
+    pub(crate) fn get_statistics<T>(
         &self,
         timestamp_initial: Timestamp,
         cycles_initial: u32,
-        tracer: &DefaultExecutionTracer<S, H::VmVirtualBlocksMode>,
+        tracer: &DefaultExecutionTracer<S, H::VmVirtualBlocksMode, T>,
         gas_remaining_before: u32,
         gas_remaining_after: u32,
         spent_pubdata_counter_before: u32,

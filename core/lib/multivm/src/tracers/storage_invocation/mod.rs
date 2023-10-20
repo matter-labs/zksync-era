@@ -1,5 +1,3 @@
-use zksync_types::vm_trace::Call;
-
 pub mod vm_latest;
 pub mod vm_virtual_blocks;
 

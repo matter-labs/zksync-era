@@ -55,8 +55,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
         tracer: T,
         execution_mode: VmExecutionMode,
     ) -> VmExecutionResultAndLogs {
-        todo!()
-        // self.inspect_inner(tracers, execution_mode)
+        self.inspect_inner(tracer, execution_mode)
     }
 
     /// Get current state of bootloader memory.
@@ -108,14 +107,13 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
         tx: Transaction,
         with_compression: bool,
     ) -> Result<VmExecutionResultAndLogs, BytecodeCompressionError> {
-        todo!()
-        // self.push_transaction_with_compression(tx, with_compression);
-        // let result = self.inspect(tracers, VmExecutionMode::OneTx);
-        // if self.has_unpublished_bytecodes() {
-        //     Err(BytecodeCompressionError::BytecodeCompressionFailed)
-        // } else {
-        //     Ok(result)
-        // }
+        self.push_transaction_with_compression(tx, with_compression);
+        let result = self.inspect_inner(tracer, VmExecutionMode::OneTx);
+        if self.has_unpublished_bytecodes() {
+            Err(BytecodeCompressionError::BytecodeCompressionFailed)
+        } else {
+            Ok(result)
+        }
     }
 }
 
