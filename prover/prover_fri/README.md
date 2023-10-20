@@ -21,22 +21,25 @@ These are the main components to this process:
 All of them will be sharing information through a database.
 The general idea is that the sequencer will produce blocks and the gateway will place them into the database to be proven. Then, the rest of the components will pull jobs from the database and do their part of the pipeline.
 
-### Block proving
+### Prerequisites
+
+Make sure these dependencies are installed and available on your machine: [Installing dependencies](./setup-dev.md)
+Once that is done, before starting, make sure you go into the root of the repository, then run
+
+```
+export ZKSYNC_HOME=$(pwd)
+```
+
+The whole setup below will NOT work if you don't have this environment variable properly set, as the entirety of the `zk`
+tool depends on it.
+
+### Block proving with CPU
 Below steps can be used to prove a block on local machine using CPU prover. This is useful for debugging and testing
 Machine specs:
 
 - CPU: At least 8 physical cores
 - RAM: 60GB of RAM(if you have lower RAM machine enable swap)
 - Disk: 400GB of free disk
-
-Before starting, make sure you go into the root of the repository, then run
-
-```
-export ZKSYNC_HOME=$(pwd)
-```
-
-The whole setup below will NOT work if you don't have this environment variable properly set, as the entirety of `zk`
-depends on it.
 
 1. Install the correct nightly version using command: `rustup install nightly-2023-07-21`
 2. Initialize DB and run migrations. Go into the root of the repository, then run
@@ -130,13 +133,15 @@ which means the proof for the block was verified on L1.
 
 ## Proving a block using GPU prover locally
 
-Below steps can be used to prove a block on local machine using GPU prover, It requires Cuda 12.0 installation as
-pre-requisite. This is useful for debugging and testing Machine specs:
+Below steps can be used to prove a block on local machine using GPU prover.
+Running a GPU prover requires a Cuda 12.0 installation as a pre-requisite, alongside these machine specs:
 
 - CPU: At least 8 physical cores
 - RAM: 16GB of RAM(if you have lower RAM machine enable swap)
 - Disk: 30GB of free disk
 - GPU: 1x Nvidia L4/T4 with 16GB of GPU RAM
+
+
 
 1. Install the correct nightly version using command: `rustup install nightly-2023-07-21`
 2. Generate the gpu setup data (no need to regenerate if it's already there). This will consume around 300Gb of disk.
