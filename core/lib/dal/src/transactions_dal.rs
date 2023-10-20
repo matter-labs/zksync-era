@@ -5,7 +5,7 @@ use sqlx::{error, types::chrono::NaiveDateTime};
 use std::{collections::HashMap, fmt, time::Duration};
 
 use zksync_types::{
-    block::MiniblockReexecuteData,
+    block::{MiniblockExecutionData, MiniblockExecutionMode},
     fee::TransactionExecutionMetrics,
     get_nonce_key,
     l1::L1Tx,
@@ -968,59 +968,61 @@ impl TransactionsDal<'_, '_> {
         }
     }
 
-    pub async fn get_miniblock_with_transactions_for_l1_batch(
+    async fn get_miniblock_with_transactions_for(
         &mut self,
-        l1_batch_number: L1BatchNumber,
+        mode: MiniblockExecutionMode,
     ) -> Vec<(MiniblockNumber, Vec<Transaction>)> {
-        sqlx::query_as!(
-            StorageTransaction,
-            "SELECT * FROM transactions \
-            WHERE l1_batch_number = $1 \
-            ORDER BY miniblock_number, index_in_block",
-            l1_batch_number.0 as i64,
-        )
-        .fetch_all(self.storage.conn())
-        .await
-        .unwrap()
-        .into_iter()
-        .group_by(|tx| tx.miniblock_number.unwrap())
-        .into_iter()
-        .map(|(miniblock_number, txs)| {
-            (
-                MiniblockNumber(miniblock_number as u32),
-                txs.map(Transaction::from).collect::<Vec<_>>(),
-            )
-        })
-        .collect()
+        let transactions = match mode {
+            MiniblockExecutionMode::Reexecute => {
+                sqlx::query_as!(
+                    StorageTransaction,
+                    "SELECT * FROM transactions \
+                    WHERE miniblock_number IS NOT NULL AND l1_batch_number IS NULL \
+                    ORDER BY miniblock_number, index_in_block",
+                )
+                .fetch_all(self.storage.conn())
+                .await
+            }
+            MiniblockExecutionMode::L1Batch(l1_batch_number) => {
+                sqlx::query_as!(
+                    StorageTransaction,
+                    "SELECT * FROM transactions \
+                    WHERE l1_batch_number = $1 \
+                    ORDER BY miniblock_number, index_in_block",
+                    l1_batch_number.0 as i64,
+                )
+                .fetch_all(self.storage.conn())
+                .await
+            }
+        };
+        transactions
+            .unwrap()
+            .into_iter()
+            .group_by(|tx| tx.miniblock_number.unwrap())
+            .into_iter()
+            .map(|(miniblock_number, txs)| {
+                (
+                    MiniblockNumber(miniblock_number as u32),
+                    txs.map(Transaction::from).collect::<Vec<_>>(),
+                )
+            })
+            .collect()
     }
 
-    /// Returns miniblocks with their transactions that state_keeper needs to reexecute on restart.
-    /// These are the transactions that are included to some miniblock,
-    /// but not included to L1 batch. The order of the transactions is the same as it was
-    /// during the previous execution.
-    pub async fn get_miniblocks_to_reexecute(&mut self) -> Vec<MiniblockReexecuteData> {
-        let transactions_by_miniblock: Vec<(MiniblockNumber, Vec<Transaction>)> = sqlx::query_as!(
-            StorageTransaction,
-            "SELECT * FROM transactions \
-            WHERE miniblock_number IS NOT NULL AND l1_batch_number IS NULL \
-            ORDER BY miniblock_number, index_in_block",
-        )
-        .fetch_all(self.storage.conn())
-        .await
-        .unwrap()
-        .into_iter()
-        .group_by(|tx| tx.miniblock_number.unwrap())
-        .into_iter()
-        .map(|(miniblock_number, txs)| {
-            (
-                MiniblockNumber(miniblock_number as u32),
-                txs.map(Transaction::from).collect::<Vec<_>>(),
-            )
-        })
-        .collect();
-        if transactions_by_miniblock.is_empty() {
-            return Vec::new();
-        }
+    /// Returns miniblocks with their transactions to be used in VM execution.
+    /// `miniblock_execution_mode` parameter describes what miniblocks are collected:
+    ///    - Reexecution -- miniblocks state_keeper needs to reexecute on restart.
+    ///      These are the transactions that are included to some miniblock,
+    ///      but not included to L1 batch. The order of the transactions is the same as it was
+    ///      during the previous execution.
+    ///    - L1Batch -- miniblocks that are included in the given L1 batch.
+    pub async fn get_miniblocks_to_execute_for(
+        &mut self,
+        miniblock_execution_mode: MiniblockExecutionMode,
+    ) -> Vec<MiniblockExecutionData> {
+        let transactions_by_miniblock = self
+            .get_miniblock_with_transactions_for(miniblock_execution_mode)
+            .await;
 
         let from_miniblock = transactions_by_miniblock.first().unwrap().0;
         let to_miniblock = transactions_by_miniblock.last().unwrap().0;
@@ -1060,7 +1062,7 @@ impl TransactionsDal<'_, '_> {
             .zip(miniblock_data)
             .zip(prev_hashes)
             .map(
-                |(((number, txs), miniblock_data_row), prev_hash_row)| MiniblockReexecuteData {
+                |(((number, txs), miniblock_data_row), prev_hash_row)| MiniblockExecutionData {
                     number,
                     timestamp: miniblock_data_row.timestamp as u64,
                     prev_block_hash: H256::from_slice(&prev_hash_row.hash),

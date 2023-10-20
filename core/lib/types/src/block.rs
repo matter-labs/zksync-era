@@ -82,14 +82,23 @@ pub struct MiniblockHeader {
     pub virtual_blocks: u32,
 }
 
-/// Data needed to re-execute miniblock.
+/// Data needed to execute a miniblock in the VM.
 #[derive(Debug)]
-pub struct MiniblockReexecuteData {
+pub struct MiniblockExecutionData {
     pub number: MiniblockNumber,
     pub timestamp: u64,
     pub prev_block_hash: H256,
     pub virtual_blocks: u32,
     pub txs: Vec<Transaction>,
+}
+
+/// Used to determine what kind of query to apply when collection MiniblockExecutionData.
+///   - Reexecute will get all miniblocks with transactions that need reexecution.
+///   - L1Batch will get all miniblocks with transactions belonging to an already executed L1 batch.
+#[derive(Debug)]
+pub enum MiniblockExecutionMode {
+    Reexecute,
+    L1Batch(L1BatchNumber),
 }
 
 impl L1BatchHeader {

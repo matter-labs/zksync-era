@@ -638,9 +638,13 @@ pub async fn initialize_components(
     .context("add_witness_generator_to_task_futures()")?;
 
     if components.contains(&Component::BasicWitnessInputProducer) {
+        let singleton_connection_pool = ConnectionPool::singleton(DbVariant::Master)
+            .build()
+            .await
+            .context("failed to build singleton connection_pool")?;
         add_basic_witness_input_producer_to_task_futures(
             &mut task_futures,
-            &connection_pool,
+            &singleton_connection_pool,
             &store_factory,
             NetworkConfig::from_env()
                 .context("NetworkConfig::from_env()")?

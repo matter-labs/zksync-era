@@ -5,15 +5,18 @@ use zksync_dal::ConnectionPool;
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::witness_block_state::WitnessBlockState;
-use zksync_types::{L1BatchNumber, L2ChainId};
+use zksync_types::{L1BatchNumber, L2ChainId, MiniblockNumber};
 
 use async_trait::async_trait;
+use multivm::interface::L2BlockEnv;
 use tokio::runtime::Handle;
 use tokio::task::JoinHandle;
 
 mod vm_interactions;
 
-use vm_interactions::{create_vm, execute_tx, get_miniblock_transition_state};
+use crate::basic_witness_input_producer::vm_interactions::start_next_miniblock;
+use vm_interactions::{create_vm, execute_tx};
+use zksync_types::block::MiniblockExecutionMode;
 
 /// Component that extracts all data (from DB) necessary to run a Basic Witness Generator.
 /// This component will upload Witness Inputs to the object store.
@@ -50,7 +53,13 @@ impl BasicWitnessInputProducer {
         validation_computational_gas_limit: u32,
         l2_chain_id: L2ChainId,
     ) -> anyhow::Result<WitnessBlockState> {
-        let connection = rt_handle.block_on(connection_pool.access_storage())?;
+        let mut connection = rt_handle.block_on(connection_pool.access_storage())?;
+
+        let miniblocks_execution_data = rt_handle.block_on(
+            connection
+                .transactions_dal()
+                .get_miniblocks_to_execute_for(MiniblockExecutionMode::L1Batch(l1_batch_number)),
+        );
 
         let (mut vm, storage_view) = create_vm(
             rt_handle.clone(),
@@ -60,24 +69,27 @@ impl BasicWitnessInputProducer {
             l2_chain_id,
         );
 
-        let mut connection = rt_handle.block_on(connection_pool.access_storage())?;
-        let miniblock_and_transactions = rt_handle.block_on(
-            connection
-                .transactions_dal()
-                .get_miniblock_with_transactions_for_l1_batch(l1_batch_number),
-        );
         tracing::info!("Started execution of l1_batch: {l1_batch_number:?}");
-        for (miniblock, txs) in miniblock_and_transactions {
-            tracing::debug!("Started execution of miniblock: {miniblock:?}");
-            for tx in txs {
+        for (index, miniblock_execution_data) in miniblocks_execution_data.iter().enumerate() {
+            tracing::debug!(
+                "Started execution of miniblock: {:?}",
+                miniblock_execution_data.number
+            );
+            for tx in &miniblock_execution_data.txs {
                 tracing::debug!("Started execution of tx: {tx:?}");
-                execute_tx(&tx, &mut vm);
+                execute_tx(tx, &mut vm);
                 tracing::debug!("Finished execution of tx: {tx:?}");
             }
-            let miniblock_state =
-                rt_handle.block_on(get_miniblock_transition_state(&mut connection, miniblock));
-            vm.start_new_l2_block(miniblock_state);
-            tracing::debug!("Finished execution of miniblock: {miniblock:?}");
+            let next_miniblock_execution_data = if index + 1 < miniblocks_execution_data.len() {
+                Some(&miniblocks_execution_data[index + 1])
+            } else {
+                None
+            };
+            start_next_miniblock(&mut vm, next_miniblock_execution_data);
+            tracing::debug!(
+                "Finished execution of miniblock: {:?}",
+                miniblock_execution_data.number
+            );
         }
         vm.finish_batch();
         tracing::info!("Finished execution of l1_batch: {l1_batch_number:?}");

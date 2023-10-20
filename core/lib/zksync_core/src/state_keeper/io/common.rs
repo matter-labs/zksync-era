@@ -4,6 +4,7 @@ use multivm::interface::{L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode};
 use multivm::vm_latest::constants::BLOCK_GAS_LIMIT;
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::StorageProcessor;
+use zksync_types::block::MiniblockExecutionMode;
 use zksync_types::{
     Address, L1BatchNumber, L2ChainId, MiniblockNumber, ProtocolVersionId, H256, U256,
     ZKPORTER_IS_AVAILABLE,
@@ -156,7 +157,7 @@ pub(crate) async fn load_pending_batch(
 
     let pending_miniblocks = storage
         .transactions_dal()
-        .get_miniblocks_to_reexecute()
+        .get_miniblocks_to_execute_for(MiniblockExecutionMode::Reexecute)
         .await;
 
     Some(PendingBatchData {
