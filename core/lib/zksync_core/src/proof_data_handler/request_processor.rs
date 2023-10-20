@@ -31,7 +31,6 @@ pub(crate) struct RequestProcessor {
 }
 
 pub(crate) enum RequestProcessorError {
-    NoPendingBatches,
     ObjectStore(ObjectStoreError),
     Sqlx(SqlxError),
 }
@@ -39,10 +38,6 @@ pub(crate) enum RequestProcessorError {
 impl IntoResponse for RequestProcessorError {
     fn into_response(self) -> Response {
         let (status_code, message) = match self {
-            Self::NoPendingBatches => (
-                StatusCode::NOT_FOUND,
-                "No pending batches to process".to_owned(),
-            ),
             RequestProcessorError::ObjectStore(err) => {
                 tracing::error!("GCS error: {:?}", err);
                 (
@@ -88,15 +83,19 @@ impl RequestProcessor {
     ) -> Result<Json<ProofGenerationDataResponse>, RequestProcessorError> {
         tracing::info!("Received request for proof generation data: {:?}", request);
 
-        let l1_batch_number = self
+        let l1_batch_number_result = self
             .pool
             .access_storage()
             .await
             .unwrap()
             .proof_generation_dal()
             .get_next_block_to_be_proven(self.config.proof_generation_timeout())
-            .await
-            .ok_or(RequestProcessorError::NoPendingBatches)?;
+            .await;
+
+        let l1_batch_number = match l1_batch_number_result {
+            Some(number) => number,
+            None => return Ok(Json(ProofGenerationDataResponse::Success(None))), // no batches pending to be proven
+        };
 
         let blob = self
             .blob_store
@@ -125,7 +124,9 @@ impl RequestProcessor {
             l1_verifier_config,
         };
 
-        Ok(Json(ProofGenerationDataResponse::Success(proof_gen_data)))
+        Ok(Json(ProofGenerationDataResponse::Success(Some(
+            proof_gen_data,
+        ))))
     }
 
     pub(crate) async fn submit_proof(
