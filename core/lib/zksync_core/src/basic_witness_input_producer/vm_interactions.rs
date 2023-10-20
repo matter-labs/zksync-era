@@ -9,14 +9,8 @@ use multivm::VmInstance;
 use tokio::runtime::Handle;
 use zksync_dal::StorageProcessor;
 use zksync_state::{PostgresStorage, ReadStorage, StorageView};
-use zksync_system_constants::{
-    SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
-};
-use zksync_types::block::{unpack_block_info, MiniblockExecutionData};
-use zksync_types::{
-    AccountTreeId, L1BatchNumber, L2ChainId, MiniblockNumber, StorageKey, Transaction,
-};
-use zksync_utils::h256_to_u256;
+use zksync_types::block::MiniblockExecutionData;
+use zksync_types::{L1BatchNumber, L2ChainId, Transaction};
 
 pub(super) fn create_vm(
     rt_handle: Handle,
@@ -73,45 +67,6 @@ pub(super) fn create_vm(
 
     (vm, storage_view)
 }
-
-// pub(super) async fn get_miniblock_transition_state(
-//     connection: &mut StorageProcessor<'_>,
-//     miniblock_number: MiniblockNumber,
-// ) -> L2BlockEnv {
-//     let l2_block_info_key = StorageKey::new(
-//         AccountTreeId::new(SYSTEM_CONTEXT_ADDRESS),
-//         SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
-//     );
-//     let l2_block_info = connection
-//         .storage_web3_dal()
-//         .get_historical_value_unchecked(&l2_block_info_key, miniblock_number + 1)
-//         .await
-//         .unwrap();
-//
-//     let (next_miniblock_number, next_miniblock_timestamp) =
-//         unpack_block_info(h256_to_u256(l2_block_info));
-//
-//     let miniblock_hash = connection
-//         .blocks_web3_dal()
-//         .get_miniblock_hash(miniblock_number)
-//         .await
-//         .unwrap()
-//         .unwrap();
-//
-//     let virtual_blocks = connection
-//         .blocks_dal()
-//         .get_virtual_blocks_for_miniblock(miniblock_number + 1)
-//         .await
-//         .unwrap()
-//         .unwrap();
-//
-//     L2BlockEnv {
-//         number: next_miniblock_number as u32,
-//         timestamp: next_miniblock_timestamp,
-//         prev_block_hash: miniblock_hash,
-//         max_virtual_blocks_to_create: virtual_blocks,
-//     }
-// }
 
 pub(super) fn execute_tx<S: ReadStorage>(tx: &Transaction, vm: &mut VmInstance<S, HistoryEnabled>) {
     // attempt to run with bytecode compression

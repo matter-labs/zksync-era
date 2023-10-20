@@ -5,10 +5,9 @@ use zksync_dal::ConnectionPool;
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::witness_block_state::WitnessBlockState;
-use zksync_types::{L1BatchNumber, L2ChainId, MiniblockNumber};
+use zksync_types::{L1BatchNumber, L2ChainId};
 
 use async_trait::async_trait;
-use multivm::interface::L2BlockEnv;
 use tokio::runtime::Handle;
 use tokio::task::JoinHandle;
 
@@ -152,7 +151,7 @@ impl JobProcessor for BasicWitnessInputProducer {
         let l2_chain_id = self.l2_chain_id;
         let connection_pool = self.connection_pool.clone();
         tokio::task::spawn_blocking(move || {
-            let rt_handle = tokio::runtime::Handle::current();
+            let rt_handle = Handle::current();
             Self::process_job_impl(
                 rt_handle,
                 job,
