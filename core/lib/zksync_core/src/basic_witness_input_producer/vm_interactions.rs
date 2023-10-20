@@ -3,13 +3,11 @@ use std::rc::Rc;
 
 use crate::state_keeper::io::common::load_l1_batch_params;
 
-use multivm::interface::L2BlockEnv;
 use multivm::vm_latest::HistoryEnabled;
 use multivm::VmInstance;
 use tokio::runtime::Handle;
 use zksync_dal::StorageProcessor;
 use zksync_state::{PostgresStorage, ReadStorage, StorageView};
-use zksync_types::block::MiniblockExecutionData;
 use zksync_types::{L1BatchNumber, L2ChainId, Transaction};
 
 pub(super) fn create_vm(
@@ -82,17 +80,4 @@ pub(super) fn execute_tx<S: ReadStorage>(tx: &Transaction, vm: &mut VmInstance<S
     vm.rollback_to_the_latest_snapshot();
     vm.inspect_transaction_with_bytecode_compression(vec![], tx.clone(), false)
         .expect("Compression can't fail if we don't apply it");
-}
-
-pub(super) fn start_next_miniblock<S: ReadStorage>(
-    vm: &mut VmInstance<S, HistoryEnabled>,
-    miniblock_execution_data: &MiniblockExecutionData,
-) {
-    let miniblock_state = L2BlockEnv {
-        number: miniblock_execution_data.number.0,
-        timestamp: miniblock_execution_data.timestamp,
-        prev_block_hash: miniblock_execution_data.prev_block_hash,
-        max_virtual_blocks_to_create: miniblock_execution_data.virtual_blocks,
-    };
-    vm.start_new_l2_block(miniblock_state);
 }

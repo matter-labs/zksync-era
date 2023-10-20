@@ -13,7 +13,6 @@ use tokio::task::JoinHandle;
 
 mod vm_interactions;
 
-use crate::basic_witness_input_producer::vm_interactions::start_next_miniblock;
 use vm_interactions::{create_vm, execute_tx};
 use zksync_types::block::MiniblockExecutionMode;
 
@@ -80,7 +79,7 @@ impl BasicWitnessInputProducer {
                 tracing::debug!("Finished execution of tx: {tx:?}");
             }
             if index + 1 < miniblocks_execution_data.len() {
-                start_next_miniblock(&mut vm, &miniblocks_execution_data[index + 1]);
+                vm.start_new_l2_block((&miniblocks_execution_data[index + 1]).into());
             };
 
             tracing::debug!(
