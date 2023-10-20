@@ -2712,38 +2712,6 @@
     },
     "query": "INSERT INTO eth_txs_history\n                    (eth_tx_id, base_fee_per_gas, priority_fee_per_gas, tx_hash, signed_raw_tx, created_at, updated_at, confirmed_at)\n                    VALUES ($1, 0, 0, $2, '\\x00', now(), now(), $3)\n                    RETURNING id"
   },
-  "393345441797999e9f11b8b5ddce0b64356e1e167056d7f76ef6dfffd3534607": {
-    "describe": {
-      "columns": [
-        {
-          "name": "name!",
-          "ordinal": 0,
-          "type_info": "Varchar"
-        },
-        {
-          "name": "symbol!",
-          "ordinal": 1,
-          "type_info": "Varchar"
-        },
-        {
-          "name": "decimals!",
-          "ordinal": 2,
-          "type_info": "Int4"
-        }
-      ],
-      "nullable": [
-        null,
-        null,
-        null
-      ],
-      "parameters": {
-        "Left": [
-          "Bytea"
-        ]
-      }
-    },
-    "query": "\n                SELECT\n                    COALESCE(token_list_name, name) as \"name!\",\n                    COALESCE(token_list_symbol, symbol) as \"symbol!\",\n                    COALESCE(token_list_decimals, decimals) as \"decimals!\"\n                FROM tokens WHERE l2_address = $1\n                "
-  },
   "394bbd64939d47fda4e1545e2752b208901e872b7234a5c3af456bdf429a6074": {
     "describe": {
       "columns": [
@@ -3002,20 +2970,6 @@
       }
     },
     "query": "DELETE FROM events WHERE miniblock_number > $1"
-  },
-  "3de5668eca2211f9701304e374100d45b359b1f7832d4a30b325fa679012c3e7": {
-    "describe": {
-      "columns": [],
-      "nullable": [],
-      "parameters": {
-        "Left": [
-          "Bytea",
-          "Numeric",
-          "Timestamp"
-        ]
-      }
-    },
-    "query": "UPDATE tokens SET market_volume = $2, market_volume_updated_at = $3, updated_at = now() WHERE l1_address = $1"
   },
   "3f6332706376ef4cadda96498872429b6ed28eca5402b03b1aa3b77b8262bccd": {
     "describe": {
@@ -7691,29 +7645,6 @@
     },
     "query": "SELECT l1_batch_number FROM initial_writes WHERE hashed_key = $1"
   },
-  "a9b7a880dbde4f7de5a6c2ff4009281527f2d01a547228981af3af2129ffb3f7": {
-    "describe": {
-      "columns": [
-        {
-          "name": "count!",
-          "ordinal": 0,
-          "type_info": "Int8"
-        }
-      ],
-      "nullable": [
-        null
-      ],
-      "parameters": {
-        "Left": [
-          "Bytea",
-          "Numeric",
-          "Interval",
-          "Interval"
-        ]
-      }
-    },
-    "query": "\n                SELECT COUNT(*) as \"count!\" FROM tokens\n                WHERE l2_address = $1 AND\n                    market_volume > $2 AND now() - market_volume_updated_at < $3 AND\n                    usd_price > 0 AND now() - usd_price_updated_at < $4\n                "
-  },
   "a9d96d6774af2637173d471f02995652cd4c131c05fdcb3d0e1644bcd1aa1809": {
     "describe": {
       "columns": [
@@ -7984,32 +7915,6 @@
       }
     },
     "query": "\n                    UPDATE scheduler_witness_jobs\n                        SET aggregation_result_coords = $1,\n                            updated_at = now()\n                    WHERE l1_batch_number = $2\n                    "
-  },
-  "adc9ad2c944f9dacc28b5bd133aa37d9e8ea99eca1c5dfbeef37cda4b793f434": {
-    "describe": {
-      "columns": [
-        {
-          "name": "market_volume",
-          "ordinal": 0,
-          "type_info": "Numeric"
-        },
-        {
-          "name": "market_volume_updated_at",
-          "ordinal": 1,
-          "type_info": "Timestamp"
-        }
-      ],
-      "nullable": [
-        true,
-        true
-      ],
-      "parameters": {
-        "Left": [
-          "Bytea"
-        ]
-      }
-    },
-    "query": "SELECT market_volume, market_volume_updated_at FROM tokens WHERE l2_address = $1"
   },
   "ae072f51b65d0b5212264be9a34027922e5aedef7e4741517ad8104bf5aa79e9": {
     "describe": {
