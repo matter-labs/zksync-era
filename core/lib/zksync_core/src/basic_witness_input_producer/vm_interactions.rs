@@ -52,7 +52,6 @@ pub(super) fn create_vm(
         });
     let (system_env, l1_batch_env) = rt_handle
         .block_on(load_l1_batch_params(
-            // rt_handle.clone(),
             &mut connection,
             l1_batch_number,
             fee_account_addr,
