@@ -86,15 +86,13 @@ pub(super) fn execute_tx<S: ReadStorage>(tx: &Transaction, vm: &mut VmInstance<S
 
 pub(super) fn start_next_miniblock<S: ReadStorage>(
     vm: &mut VmInstance<S, HistoryEnabled>,
-    miniblock_execution_data: Option<&MiniblockExecutionData>,
+    miniblock_execution_data: &MiniblockExecutionData,
 ) {
-    if let Some(miniblock_data) = miniblock_execution_data {
-        let miniblock_state = L2BlockEnv {
-            number: miniblock_data.number.0,
-            timestamp: miniblock_data.timestamp,
-            prev_block_hash: miniblock_data.prev_block_hash,
-            max_virtual_blocks_to_create: miniblock_data.virtual_blocks,
-        };
-        vm.start_new_l2_block(miniblock_state);
-    }
+    let miniblock_state = L2BlockEnv {
+        number: miniblock_execution_data.number.0,
+        timestamp: miniblock_execution_data.timestamp,
+        prev_block_hash: miniblock_execution_data.prev_block_hash,
+        max_virtual_blocks_to_create: miniblock_execution_data.virtual_blocks,
+    };
+    vm.start_new_l2_block(miniblock_state);
 }

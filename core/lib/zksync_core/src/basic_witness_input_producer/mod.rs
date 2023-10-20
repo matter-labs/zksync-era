@@ -80,11 +80,9 @@ impl BasicWitnessInputProducer {
                 tracing::debug!("Finished execution of tx: {tx:?}");
             }
             let next_miniblock_execution_data = if index + 1 < miniblocks_execution_data.len() {
-                Some(&miniblocks_execution_data[index + 1])
-            } else {
-                None
+                start_next_miniblock(&mut vm, &miniblocks_execution_data[index + 1]);
             };
-            start_next_miniblock(&mut vm, next_miniblock_execution_data);
+
             tracing::debug!(
                 "Finished execution of miniblock: {:?}",
                 miniblock_execution_data.number
