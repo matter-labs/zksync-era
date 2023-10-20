@@ -71,5 +71,3 @@ cache-zk/
 zksolc
 verified_sources
 
-# RustRover IDE artifacts
-rustc-ice-*
