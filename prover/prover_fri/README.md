@@ -18,25 +18,29 @@ These are the main components to this process:
  - Witness
  - Prover
  - Compressor
-All of them will be sharing information through a database.
-The general idea is that the sequencer will produce blocks and the gateway will place them into the database to be proven. Then, the rest of the components will pull jobs from the database and do their part of the pipeline.
 
-### Block proving
-Below steps can be used to prove a block on local machine using CPU prover. This is useful for debugging and testing
-Machine specs:
+All of them will be sharing information through a SQL database.
+The general idea is that the sequencer will produce blocks and the gateway will place them into the database to be proven. Then, the rest of the components will pull jobs from the database and do their part of the pipeline. 
 
-- CPU: At least 8 physical cores
-- RAM: 60GB of RAM(if you have lower RAM machine enable swap)
-- Disk: 400GB of free disk
+### Prerequisites
 
-Before starting, make sure you go into the root of the repository, then run
+Make sure these dependencies are installed and available on your machine: [Installing dependencies](./setup-dev.md)
+Once that is done, before starting, make sure you go into the root of the repository, then run
 
 ```
 export ZKSYNC_HOME=$(pwd)
 ```
 
-The whole setup below will NOT work if you don't have this environment variable properly set, as the entirety of `zk`
-depends on it.
+The whole setup below will NOT work if you don't have this environment variable properly set, as the entirety of the `zk`
+CLI tool depends on it.
+
+### Block proving with CPU
+Below steps can be used to prove a block on local machine using CPU prover. This is useful for debugging and testing
+Machine specs:
+
+- CPU: At least 8 physical cores
+- RAM: 60GB of RAM (if you have lower RAM machine enable swap)
+- Disk: 400GB of free disk
 
 1. Install the correct nightly version using command: `rustup install nightly-2023-07-21`
 2. Initialize DB and run migrations. Go into the root of the repository, then run
@@ -48,7 +52,7 @@ depends on it.
    For this, run
 
    ```
-   ./setup.sh
+   ./prover/setup.sh
    ```
 
 For the following steps, we recommend using `tmux` to run every command on a separate session, so you can attach to and
@@ -86,7 +90,67 @@ monitor logs for each one.
    zk f cargo run --release --bin zksync_proof_fri_compressor
    ```
 
-After this is done, the server should have at least three blocks, you can see the first one by running
+## Proving a block using GPU prover locally
+
+Below steps can be used to prove a block on local machine using GPU prover.
+Running a GPU prover requires a Cuda 12.0 installation as a pre-requisite, alongside these machine specs:
+
+- CPU: At least 8 physical cores
+- RAM: 16GB of RAM(if you have lower RAM machine enable swap)
+- Disk: 30GB of free disk
+- GPU: 1x Nvidia L4/T4 with 16GB of GPU RAM
+
+1. Install the correct nightly version using command: `rustup install nightly-2023-07-21`
+2. Initialize DB and run migrations: `zk init`
+3. Generate the GPU setup data (no need to regenerate if it's already there). This will consume around 300Gb of disk.
+   For this, run
+
+   ```
+   ./prover/setup_gpu.sh
+   ```
+
+4. Run the sequencer/operator. In the root of the repository:
+
+   ```
+   zk server --components=api,eth,tree,state_keeper,housekeeper,proof_data_handler
+   ```
+
+   to produce blocks to be proven
+
+5. Run prover gateway to fetch blocks to be proven from server:
+
+   ```
+   zk f cargo run --release --bin zksync_prover_fri_gateway
+   ```
+
+6. Run 4 witness generators to generate witness for each round:
+
+   ```
+   API_PROMETHEUS_LISTENER_PORT=3116 zk f cargo run --release --bin zksync_witness_generator -- --round=basic_circuits
+   API_PROMETHEUS_LISTENER_PORT=3117 zk f cargo run --release --bin zksync_witness_generator -- --round=leaf_aggregation
+   API_PROMETHEUS_LISTENER_PORT=3118 zk f cargo run --release --bin zksync_witness_generator -- --round=node_aggregation
+   API_PROMETHEUS_LISTENER_PORT=3119 zk f cargo run --release --bin zksync_witness_generator -- --round=scheduler
+   ```
+
+7. Run prover to perform actual proving: `zk f cargo run --features "gpu" --release --bin zksync_prover_fri`
+
+8. Run 5 witness vector generators to feed jobs to GPU prover:
+
+   ```
+   FRI_WITNESS_VECTOR_GENERATOR_PROMETHEUS_LISTENER_PORT=3416 zk f cargo run --release --bin zksync_witness_vector_generator
+   FRI_WITNESS_VECTOR_GENERATOR_PROMETHEUS_LISTENER_PORT=3417 zk f cargo run --release --bin zksync_witness_vector_generator
+   FRI_WITNESS_VECTOR_GENERATOR_PROMETHEUS_LISTENER_PORT=3418 zk f cargo run --release --bin zksync_witness_vector_generator
+   FRI_WITNESS_VECTOR_GENERATOR_PROMETHEUS_LISTENER_PORT=3419 zk f cargo run --release --bin zksync_witness_vector_generator
+   FRI_WITNESS_VECTOR_GENERATOR_PROMETHEUS_LISTENER_PORT=3420 zk f cargo run --release --bin zksync_witness_vector_generator
+   ```
+
+9. Finally, run proof compressor to compress the proof to be sent on L1:
+    `zk f cargo run --release --bin zksync_proof_fri_compressor`
+
+
+## Checking the status of the prover
+
+Once everything is running (either with the CPU or GPU prover), the server should have at least three blocks, and you can see the first one by running
 
 ```
 curl -X POST -H 'content-type: application/json' localhost:3050 -d '{"jsonrpc": "2.0", "id": 1, "method": "zks_getBlockDetails", "params": [0]}'
@@ -103,7 +167,7 @@ You can follow the status of this pipeline by running
 zk status prover
 ```
 
-This will take a while (around an hour and a half on my machine), you can check on it once in a while. A succesful flow
+This might take a while (around an hour and a half on my machine using the CPU prover), you can check on it once in a while. A succesful flow
 should output something like
 
 ```
@@ -127,67 +191,6 @@ L1 state: block verified: 1, block committed: 1
 ```
 
 which means the proof for the block was verified on L1.
-
-## Proving a block using GPU prover locally
-
-Below steps can be used to prove a block on local machine using GPU prover, It requires Cuda 12.0 installation as
-pre-requisite. This is useful for debugging and testing Machine specs:
-
-- CPU: At least 8 physical cores
-- RAM: 16GB of RAM(if you have lower RAM machine enable swap)
-- Disk: 30GB of free disk
-- GPU: 1x Nvidia L4/T4 with 16GB of GPU RAM
-
-1. Install the correct nightly version using command: `rustup install nightly-2023-07-21`
-2. Generate the gpu setup data (no need to regenerate if it's already there). This will consume around 300Gb of disk.
-   Use these commands:
-
-   ```markdown
-   for i in {1..13}; do zk f cargo run --features "gpu" --release --bin zksync_setup_data_generator_fri --
-   --numeric-circuit $i --is_base_layer done
-
-   for i in {1..15}; do zk f cargo run --features "gpu" --release --bin zksync_setup_data_generator_fri --
-   --numeric-circuit $i done
-   ```
-
-3. Initialize DB and run migrations: `zk init`
-
-4. Override the following configuration in your `dev.env`:
-
-   ```
-   ETH_SENDER_SENDER_PROOF_SENDING_MODE=OnlyRealProofs
-   ETH_SENDER_SENDER_PROOF_LOADING_MODE=FriProofFromGcs
-   OBJECT_STORE_FILE_BACKED_BASE_PATH=/path/to/server/artifacts
-   PROVER_OBJECT_STORE_FILE_BACKED_BASE_PATH=/path/to/prover/artifacts
-   FRI_PROVER_SETUP_DATA_PATH=/path/to/above-generated/gpu-setup-data
-   ```
-
-5. Run server `zk server --components=api,eth,tree,state_keeper,housekeeper,proof_data_handler` to produce blocks to be
-   proven
-6. Run prover gateway to fetch blocks to be proven from server :
-   `zk f cargo run --release --bin zksync_prover_fri_gateway`
-7. Run 4 witness generators to generate witness for each round:
-
-   ```
-   API_PROMETHEUS_LISTENER_PORT=3116 zk f cargo run --release --bin zksync_witness_generator -- --round=basic_circuits
-   API_PROMETHEUS_LISTENER_PORT=3117 zk f cargo run --release --bin zksync_witness_generator -- --round=leaf_aggregation
-   API_PROMETHEUS_LISTENER_PORT=3118 zk f cargo run --release --bin zksync_witness_generator -- --round=node_aggregation
-   API_PROMETHEUS_LISTENER_PORT=3119 zk f cargo run --release --bin zksync_witness_generator -- --round=scheduler
-   ```
-
-8. Run prover to perform actual proving: `zk f cargo run --features "gpu" --release --bin zksync_prover_fri`
-9. Run 5 witness vector generators to feed jobs to GPU prover:
-
-   ```
-   FRI_WITNESS_VECTOR_GENERATOR_PROMETHEUS_LISTENER_PORT=3416 zk f cargo run --release --bin zksync_witness_vector_generator
-   FRI_WITNESS_VECTOR_GENERATOR_PROMETHEUS_LISTENER_PORT=3417 zk f cargo run --release --bin zksync_witness_vector_generator
-   FRI_WITNESS_VECTOR_GENERATOR_PROMETHEUS_LISTENER_PORT=3418 zk f cargo run --release --bin zksync_witness_vector_generator
-   FRI_WITNESS_VECTOR_GENERATOR_PROMETHEUS_LISTENER_PORT=3419 zk f cargo run --release --bin zksync_witness_vector_generator
-   FRI_WITNESS_VECTOR_GENERATOR_PROMETHEUS_LISTENER_PORT=3420 zk f cargo run --release --bin zksync_witness_vector_generator
-   ```
-
-10. Finally, run proof compressor to compress the proof to be sent on L1:
-    `zk f cargo run --release --bin zksync_proof_fri_compressor`
 
 ## Performing circuit upgrade
 
