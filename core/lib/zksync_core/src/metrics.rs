@@ -180,6 +180,8 @@ pub(crate) struct ExternalNodeMetrics {
     pub sync_lag: Gauge<u64>,
     /// Number of the last L1 batch checked by the reorg detector or consistency checker.
     pub last_correct_batch: Family<CheckerComponent, Gauge<u64>>,
+    /// Number of the last miniblock checked by the reorg detector or consistency checker.
+    pub last_correct_miniblock: Family<CheckerComponent, Gauge<u64>>,
 }
 
 #[vise::register]
