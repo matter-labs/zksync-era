@@ -22,6 +22,7 @@ pub(crate) mod seal_logic;
 pub(crate) use self::mempool::MempoolIO;
 use super::{
     metrics::{MiniblockQueueStage, MINIBLOCK_METRICS},
+    seal_criteria::IoSealCriteria,
     updates::{MiniblockSealCommand, UpdatesManager},
 };
 
@@ -65,7 +66,7 @@ pub struct MiniblockParams {
 /// it's used to receive volatile parameters (such as batch parameters), and also it's used to perform
 /// mutable operations on the persistent state (e.g. persist executed batches).
 #[async_trait]
-pub trait StateKeeperIO: 'static + Send {
+pub trait StateKeeperIO: 'static + Send + IoSealCriteria {
     /// Returns the number of the currently processed L1 batch.
     fn current_l1_batch_number(&self) -> L1BatchNumber;
     /// Returns the number of the currently processed miniblock (aka L2 block).

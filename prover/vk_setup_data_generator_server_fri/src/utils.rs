@@ -52,7 +52,7 @@ use zkevm_test_harness::witness::full_block_artifact::{
 use zkevm_test_harness::witness::recursive_aggregation::compute_leaf_params;
 use zkevm_test_harness::witness::tree::{BinarySparseStorageTree, ZKSyncTestingTree};
 
-use zkevm_test_harness::in_memory_data_source::InMemoryDataSource;
+use zkevm_test_harness::data_source::in_memory_data_source::InMemoryDataSource;
 
 pub const CYCLE_LIMIT: usize = 20000;
 

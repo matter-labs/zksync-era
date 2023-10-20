@@ -118,141 +118,58 @@ pub(super) trait SealCriterion: fmt::Debug + Send + 'static {
     fn prom_criterion_name(&self) -> &'static str;
 }
 
-/// Sealer function that returns a boolean.
-pub type SealerFn = dyn Fn(&UpdatesManager) -> bool + Send;
-
-pub struct SealManager {
-    /// Conditional sealer, i.e. one that can decide whether the batch should be sealed after executing a tx.
-    /// Currently, it's expected to be `Some` on the main node and `None` on the external nodes, since external nodes
-    /// do not decide whether to seal the batch or not.
-    conditional_sealer: Option<ConditionalSealer>,
-    /// Unconditional batch sealer, i.e. one that can be used if we should seal the batch *without* executing a tx.
-    /// If any of the unconditional sealers returns `true`, the batch will be sealed.
-    ///
-    /// Note: only non-empty batch can be sealed.
-    unconditional_sealers: Vec<Box<SealerFn>>,
-    /// Miniblock sealer function used to determine if we should seal the miniblock.
-    /// If any of the miniblock sealers returns `true`, the miniblock will be sealed.
-    miniblock_sealers: Vec<Box<SealerFn>>,
+/// I/O-dependent seal criteria.
+pub trait IoSealCriteria {
+    /// Checks whether an L1 batch should be sealed unconditionally (i.e., regardless of metrics
+    /// related to transaction execution) given the provided `manager` state.
+    fn should_seal_l1_batch_unconditionally(&mut self, manager: &UpdatesManager) -> bool;
+    /// Checks whether a miniblock should be sealed given the provided `manager` state.
+    fn should_seal_miniblock(&mut self, manager: &UpdatesManager) -> bool;
 }
 
-impl fmt::Debug for SealManager {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter
-            .debug_struct("SealManager")
-            .finish_non_exhaustive()
-    }
+#[derive(Debug, Clone, Copy)]
+pub(super) struct TimeoutSealer {
+    block_commit_deadline_ms: u64,
+    miniblock_commit_deadline_ms: u64,
 }
 
-impl SealManager {
-    /// Creates a default pre-configured seal manager for the main node.
-    pub(super) fn new(config: StateKeeperConfig) -> Self {
-        let timeout_batch_sealer = Self::timeout_batch_sealer(config.block_commit_deadline_ms);
-        let timeout_miniblock_sealer =
-            Self::timeout_miniblock_sealer(config.miniblock_commit_deadline_ms);
-        // Currently, it's assumed that timeout is the only criterion for miniblock sealing.
-        // If this doesn't hold and some miniblocks are sealed in less than 1 second,
-        // then state keeper will be blocked waiting for the miniblock timestamp to be changed.
-        let miniblock_sealers = vec![timeout_miniblock_sealer];
-
-        let conditional_sealer = ConditionalSealer::new(config);
-
-        Self::custom(
-            Some(conditional_sealer),
-            vec![timeout_batch_sealer],
-            miniblock_sealers,
-        )
-    }
-
-    /// Allows to create a seal manager object from externally-defined sealers.
-    pub fn custom(
-        conditional_sealer: Option<ConditionalSealer>,
-        unconditional_sealers: Vec<Box<SealerFn>>,
-        miniblock_sealers: Vec<Box<SealerFn>>,
-    ) -> Self {
+impl TimeoutSealer {
+    pub fn new(config: &StateKeeperConfig) -> Self {
         Self {
-            conditional_sealer,
-            unconditional_sealers,
-            miniblock_sealers,
+            block_commit_deadline_ms: config.block_commit_deadline_ms,
+            miniblock_commit_deadline_ms: config.miniblock_commit_deadline_ms,
         }
     }
+}
 
-    /// Creates a sealer function that would seal the batch because of the timeout.
-    fn timeout_batch_sealer(block_commit_deadline_ms: u64) -> Box<SealerFn> {
+impl IoSealCriteria for TimeoutSealer {
+    fn should_seal_l1_batch_unconditionally(&mut self, manager: &UpdatesManager) -> bool {
         const RULE_NAME: &str = "no_txs_timeout";
 
-        Box::new(move |manager| {
-            // Verify timestamp
-            let should_seal_timeout =
-                millis_since(manager.batch_timestamp()) > block_commit_deadline_ms;
-
-            if should_seal_timeout {
-                AGGREGATION_METRICS.inc_criterion(RULE_NAME);
-                tracing::debug!(
-                    "Decided to seal L1 batch using rule `{RULE_NAME}`; batch timestamp: {}, \
-                     commit deadline: {block_commit_deadline_ms}ms",
-                    extractors::display_timestamp(manager.batch_timestamp())
-                );
-            }
-            should_seal_timeout
-        })
-    }
-
-    /// Creates a sealer function that would seal the miniblock because of the timeout.
-    /// Will only trigger for the non-empty miniblocks.
-    fn timeout_miniblock_sealer(miniblock_commit_deadline_ms: u64) -> Box<SealerFn> {
-        if miniblock_commit_deadline_ms < 1000 {
-            panic!("`miniblock_commit_deadline_ms` should be at least 1000, because miniblocks must have different timestamps");
+        if manager.pending_executed_transactions_len() == 0 {
+            // Regardless of which sealers are provided, we never want to seal an empty batch.
+            return false;
         }
 
-        Box::new(move |manager| {
-            !manager.miniblock.executed_transactions.is_empty()
-                && millis_since(manager.miniblock.timestamp) > miniblock_commit_deadline_ms
-        })
-    }
+        let block_commit_deadline_ms = self.block_commit_deadline_ms;
+        // Verify timestamp
+        let should_seal_timeout =
+            millis_since(manager.batch_timestamp()) > block_commit_deadline_ms;
 
-    pub(super) fn should_seal_l1_batch(
-        &self,
-        l1_batch_number: u32,
-        block_open_timestamp_ms: u128,
-        tx_count: usize,
-        block_data: &SealData,
-        tx_data: &SealData,
-    ) -> SealResolution {
-        if let Some(sealer) = &self.conditional_sealer {
-            sealer.should_seal_l1_batch(
-                l1_batch_number,
-                block_open_timestamp_ms,
-                tx_count,
-                block_data,
-                tx_data,
-            )
-        } else {
-            SealResolution::NoSeal
+        if should_seal_timeout {
+            AGGREGATION_METRICS.inc_criterion(RULE_NAME);
+            tracing::debug!(
+                "Decided to seal L1 batch using rule `{RULE_NAME}`; batch timestamp: {}, \
+                 commit deadline: {block_commit_deadline_ms}ms",
+                extractors::display_timestamp(manager.batch_timestamp())
+            );
         }
+        should_seal_timeout
     }
 
-    pub(super) fn should_seal_l1_batch_unconditionally(
-        &self,
-        updates_manager: &UpdatesManager,
-    ) -> bool {
-        // Regardless of which sealers are provided, we never want to seal an empty batch.
-        updates_manager.pending_executed_transactions_len() != 0
-            && self
-                .unconditional_sealers
-                .iter()
-                .any(|sealer| (sealer)(updates_manager))
-    }
-
-    pub(super) fn should_seal_miniblock(&self, updates_manager: &UpdatesManager) -> bool {
-        // Unlike with the L1 batch, we don't check the number of transactions in the miniblock,
-        // because we might want to seal the miniblock even if it's empty (e.g. on an external node,
-        // where we have to replicate the state of the main node, including the last (empty) miniblock of the batch).
-        // The check for the number of transactions is expected to be done, if relevant, in the `miniblock_sealer`
-        // directly.
-        self.miniblock_sealers
-            .iter()
-            .any(|sealer| (sealer)(updates_manager))
+    fn should_seal_miniblock(&mut self, manager: &UpdatesManager) -> bool {
+        !manager.miniblock.executed_transactions.is_empty()
+            && millis_since(manager.miniblock.timestamp) > self.miniblock_commit_deadline_ms
     }
 }
 
@@ -280,20 +197,23 @@ mod tests {
     /// This test mostly exists to make sure that we can't seal empty miniblocks on the main node.
     #[test]
     fn timeout_miniblock_sealer() {
-        let timeout_miniblock_sealer = SealManager::timeout_miniblock_sealer(10_000);
+        let mut timeout_miniblock_sealer = TimeoutSealer {
+            block_commit_deadline_ms: 10_000,
+            miniblock_commit_deadline_ms: 10_000,
+        };
 
         let mut manager = create_updates_manager();
         // Empty miniblock should not trigger.
         manager.miniblock.timestamp = seconds_since_epoch() - 10;
         assert!(
-            !timeout_miniblock_sealer(&manager),
+            !timeout_miniblock_sealer.should_seal_miniblock(&manager),
             "Empty miniblock shouldn't be sealed"
         );
 
         // Non-empty miniblock should trigger.
         apply_tx_to_manager(&mut manager);
         assert!(
-            timeout_miniblock_sealer(&manager),
+            timeout_miniblock_sealer.should_seal_miniblock(&manager),
             "Non-empty miniblock with old timestamp should be sealed"
         );
 
@@ -302,7 +222,7 @@ mod tests {
         // by other tests).
         manager.miniblock.timestamp = seconds_since_epoch();
         assert!(
-            !timeout_miniblock_sealer(&manager),
+            !timeout_miniblock_sealer.should_seal_miniblock(&manager),
             "Non-empty miniblock with too recent timestamp shouldn't be sealed"
         );
     }
