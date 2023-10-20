@@ -48,6 +48,7 @@ mod getters;
 mod hasher;
 mod metrics;
 mod pruning;
+pub mod recovery;
 mod storage;
 mod types;
 mod utils;
@@ -146,7 +147,7 @@ impl<'a, DB: Database> MerkleTree<'a, DB> {
     pub fn with_hasher(db: DB, hasher: &'a dyn HashTree) -> Self {
         let tags = db.manifest().and_then(|manifest| manifest.tags);
         if let Some(tags) = tags {
-            tags.assert_consistency(hasher);
+            tags.assert_consistency(hasher, false);
         }
         // If there are currently no tags in the tree, we consider that it fits
         // for backward compatibility. The tags will be added the next time the tree is saved.
@@ -208,7 +209,7 @@ impl<'a, DB: Database> MerkleTree<'a, DB> {
     /// Returns information about the update such as the final tree hash.
     pub fn extend(&mut self, key_value_pairs: Vec<(Key, ValueHash)>) -> BlockOutput {
         let next_version = self.db.manifest().unwrap_or_default().version_count;
-        let storage = Storage::new(&self.db, self.hasher, next_version);
+        let storage = Storage::new(&self.db, self.hasher, next_version, true);
         let (output, patch) = storage.extend(key_value_pairs);
         self.db.apply_patch(patch);
         output
@@ -226,7 +227,7 @@ impl<'a, DB: Database> MerkleTree<'a, DB> {
         instructions: Vec<(Key, TreeInstruction)>,
     ) -> BlockOutputWithProofs {
         let next_version = self.db.manifest().unwrap_or_default().version_count;
-        let storage = Storage::new(&self.db, self.hasher, next_version);
+        let storage = Storage::new(&self.db, self.hasher, next_version, true);
         let (output, patch) = storage.extend_with_proofs(instructions);
         self.db.apply_patch(patch);
         output
@@ -246,6 +247,7 @@ mod tests {
             architecture: "AR64MT".to_owned(),
             depth: 256,
             hasher: "blake2s256".to_string(),
+            is_recovering: false,
         });
 
         MerkleTree::new(db);
@@ -259,6 +261,7 @@ mod tests {
             architecture: "AR16MT".to_owned(),
             depth: 128,
             hasher: "blake2s256".to_string(),
+            is_recovering: false,
         });
 
         MerkleTree::new(db);
@@ -272,6 +275,7 @@ mod tests {
             architecture: "AR16MT".to_owned(),
             depth: 256,
             hasher: "sha256".to_string(),
+            is_recovering: false,
         });
 
         MerkleTree::new(db);
