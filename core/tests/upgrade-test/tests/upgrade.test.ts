@@ -12,8 +12,11 @@ const L1_CONTRACTS_FOLDER = `${process.env.ZKSYNC_HOME}/contracts/ethereum/artif
 const L1_DEFAULT_UPGRADE_ABI = new ethers.utils.Interface(
     require(`${L1_CONTRACTS_FOLDER}/upgrades/DefaultUpgrade.sol/DefaultUpgrade.json`).abi
 );
-const DIAMOND_CUT_FACET_ABI = new ethers.utils.Interface(
-    require(`${L1_CONTRACTS_FOLDER}/zksync/facets/DiamondCut.sol/DiamondCutFacet.json`).abi
+const GOVERNANCE_ABI = new ethers.utils.Interface(
+    require(`${L1_CONTRACTS_FOLDER}/governance/Governance.sol/Governance.json`).abi
+);
+const ADMIN_FACET_ABI = new ethers.utils.Interface(
+    require(`${L1_CONTRACTS_FOLDER}/zksync/facets/Admin.sol/AdminFacet.json`).abi
 );
 const L2_FORCE_DEPLOY_UPGRADER_ABI = new ethers.utils.Interface(
     require(`${process.env.ZKSYNC_HOME}/contracts/zksync/artifacts-zk/cache-zk/solpp-generated-contracts/ForceDeployUpgrader.sol/ForceDeployUpgrader.json`).abi
@@ -30,9 +33,10 @@ describe('Upgrade test', function () {
     let alice: zkweb3.Wallet;
     let govWallet: ethers.Wallet;
     let mainContract: ethers.Contract;
+    let governanceContract: ethers.Contract;
     let bootloaderHash: string;
-    let proposeUpgradeCalldata: string;
-    let executeUpgradeCalldata: string;
+    let scheduleTransparentOperation: string;
+    let executeOperation: string;
     let forceDeployAddress: string;
     let forceDeployBytecode: string;
     let logs: fs.WriteStream;
@@ -78,6 +82,8 @@ describe('Upgrade test', function () {
         if (!mainContract) {
             throw new Error('Server did not start');
         }
+        const governanceContractAddr = await mainContract.getGovernor();
+        governanceContract = new zkweb3.Contract(governanceContractAddr, GOVERNANCE_ABI, tester.syncWallet);
         let blocksCommitted = await mainContract.getTotalBlocksCommitted();
 
         const initialL1BatchNumber = await tester.web3Provider.getL1BatchNumber();
@@ -140,7 +146,7 @@ describe('Upgrade test', function () {
         await waitForNewL1Batch(alice);
     });
 
-    step('Propose upgrade', async () => {
+    step('Schedule governance call', async () => {
         forceDeployAddress = '0xf04ce00000000000000000000000000000000000';
         forceDeployBytecode = COUNTER_BYTECODE;
 
@@ -180,13 +186,13 @@ describe('Upgrade test', function () {
             upgradeTimestamp: 0,
             newProtocolVersion
         });
-        proposeUpgradeCalldata = calldata.proposeTransparentUpgrade;
-        executeUpgradeCalldata = calldata.executeUpgrade;
+        scheduleTransparentOperation = calldata.scheduleTransparentOperation;
+        executeOperation = calldata.executeOperation;
 
         await (
             await govWallet.sendTransaction({
-                to: mainContract.address,
-                data: proposeUpgradeCalldata
+                to: governanceContract.address,
+                data: scheduleTransparentOperation
             })
         ).wait();
 
@@ -224,8 +230,8 @@ describe('Upgrade test', function () {
         // Send execute tx.
         await (
             await govWallet.sendTransaction({
-                to: mainContract.address,
-                data: executeUpgradeCalldata
+                to: governanceContract.address,
+                data: executeOperation
             })
         ).wait();
 
@@ -366,13 +372,6 @@ async function prepareUpgradeCalldata(
     const zkSyncContract = await l2Provider.getMainContractAddress();
     const zkSync = new ethers.Contract(zkSyncContract, zkweb3.utils.BRIDGEHUB_ABI, govWallet);
 
-    // In case there is some pending upgrade there, we cancel it
-    const upgradeProposalState = await zkSync.getUpgradeProposalState();
-    if (upgradeProposalState != 0) {
-        const currentProposalHash = await zkSync.getProposedUpgradeHash();
-        await (await zkSync.connect(govWallet).cancelUpgradeProposal(currentProposalHash)).wait();
-    }
-
     const newProtocolVersion = params.newProtocolVersion ?? (await zkSync.getProtocolVersion()).add(1);
     params.l2ProtocolUpgradeTx.nonce ??= newProtocolVersion;
     const upgradeInitData = L1_DEFAULT_UPGRADE_ABI.encodeFunctionData('upgrade', [
@@ -397,21 +396,32 @@ async function prepareUpgradeCalldata(
         initAddress: upgradeAddress,
         initCalldata: upgradeInitData
     };
-    const currentProposalId = (await zkSync.getCurrentProposalId()).add(1);
-    // Get transaction data of the `proposeTransparentUpgrade`
-    const proposeTransparentUpgrade = DIAMOND_CUT_FACET_ABI.encodeFunctionData('proposeTransparentUpgrade', [
-        upgradeParam,
-        currentProposalId
+
+    // Prepare calldata for upgrading diamond proxy
+    const diamondProxyUpgradeCalldata = ADMIN_FACET_ABI.encodeFunctionData('executeUpgrade', [upgradeParam]);
+
+    const call = {
+        target: zkSyncContract,
+        value: 0,
+        data: diamondProxyUpgradeCalldata
+    };
+    const governanceOperation = {
+        calls: [call],
+        predecessor: ethers.constants.HashZero,
+        salt: ethers.constants.HashZero
+    };
+
+    // Get transaction data of the `scheduleTransparent`
+    const scheduleTransparentOperation = GOVERNANCE_ABI.encodeFunctionData('scheduleTransparent', [
+        governanceOperation,
+        0 // delay
     ]);
 
-    // Get transaction data of the `executeUpgrade`
-    const executeUpgrade = DIAMOND_CUT_FACET_ABI.encodeFunctionData('executeUpgrade', [
-        upgradeParam,
-        ethers.constants.HashZero
-    ]);
+    // Get transaction data of the `execute`
+    const executeOperation = GOVERNANCE_ABI.encodeFunctionData('execute', [governanceOperation]);
 
     return {
-        proposeTransparentUpgrade,
-        executeUpgrade
+        scheduleTransparentOperation,
+        executeOperation
     };
 }

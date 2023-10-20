@@ -1,7 +1,7 @@
 pub mod queue;
 
-use std::env;
 pub use circuit_definitions;
+use std::env;
 
 use circuit_definitions::aux_definitions::witness_oracle::VmWitnessOracle;
 use circuit_definitions::boojum::cs::implementations::witness::WitnessVec;
@@ -21,6 +21,7 @@ use zksync_types::proofs::AggregationRound;
 use zksync_types::L1BatchNumber;
 
 #[derive(serde::Serialize, serde::Deserialize, Clone)]
+#[allow(clippy::large_enum_variant)]
 pub enum CircuitWrapper {
     Base(
         ZkSyncBaseLayerCircuit<
@@ -118,7 +119,6 @@ impl ProverServiceDataKey {
     }
 }
 
-
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct AuxOutputWitnessWrapper(pub BlockAuxilaryOutputWitness<GoldilocksField>);
 
@@ -134,6 +134,5 @@ impl StoredObject for AuxOutputWitnessWrapper {
 }
 
 pub fn get_current_pod_name() -> String {
-    env::var("POD_NAME")
-        .unwrap_or("UNKNOWN_POD".to_owned())
+    env::var("POD_NAME").unwrap_or("UNKNOWN_POD".to_owned())
 }

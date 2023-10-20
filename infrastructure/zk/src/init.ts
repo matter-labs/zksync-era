@@ -17,14 +17,23 @@ const announce = chalk.yellow;
 const success = chalk.green;
 const timestamp = chalk.grey;
 
-export async function init(skipSubmodulesCheckout: boolean) {
-    await initSetup(skipSubmodulesCheckout);
-    await initBridgehubStateTransition();
-    await initHyperchain();
+export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
+    await initSetup(initArgs);
+    await initBridgehubStateTransition(initArgs);
+    await initHyperchain(initArgs);
 }
 
-async function initSetup(skipSubmodulesCheckout: boolean) {
-    if (!process.env.CI) {
+async function initSetup(initArgs: InitArgs = DEFAULT_ARGS) {
+    const {
+        skipSubmodulesCheckout,
+        skipEnvSetup,
+        testTokens,
+        deployerL1ContractInputArgs,
+        governorPrivateKeyArgs,
+        deployerL2ContractInput
+    } = initArgs;
+
+    if (!process.env.CI && !skipEnvSetup) {
         await announced('Pulling images', docker.pull());
         await announced('Checking environment', checkEnv());
         await announced('Checking git hooks', env.gitHooks());
@@ -34,14 +43,26 @@ async function initSetup(skipSubmodulesCheckout: boolean) {
     if (!skipSubmodulesCheckout) {
         // await announced('Checkout submodules', submoduleUpdate());
     }
+
     await announced('Compiling JS packages', run.yarn());
     await announced('Building L1 L2 contracts', contract.build());
-    await announced('Deploying localhost ERC20 tokens', run.deployERC20('dev'));
+    if (testTokens.deploy) {
+        await announced('Deploying localhost ERC20 tokens', run.deployERC20('dev', '', '', '', testTokens.args));
+    }
 
     await announced('Compile L2 system contracts', compiler.compileAll());
 }
 
-export async function initBridgehubStateTransition() {
+export async function initBridgehubStateTransition(initArgs: InitArgs = DEFAULT_ARGS) {
+    const {
+        skipSubmodulesCheckout,
+        skipEnvSetup,
+        testTokens,
+        deployerL1ContractInputArgs,
+        governorPrivateKeyArgs,
+        deployerL2ContractInput
+    } = initArgs;
+
     await announced('Building L1 L2 contracts', contract.build());
 
     // we have to initiate the db here, as we need to create the genesis block to initialize the L1 contracts
@@ -53,11 +74,20 @@ export async function initBridgehubStateTransition() {
     await announced('Reloading env', env.reload());
 
     await announced('Running server genesis setup', server.genesisFromSources());
-    await announced('Deploying L1 contracts', contract.redeployL1([]));
-    await announced('Initializing bridges', contract.initializeBridges([]));
+    await announced('Deploying L1 contracts', contract.redeployL1(governorPrivateKeyArgs));
+    await announced('Initializing bridges', contract.initializeBridges(governorPrivateKeyArgs));
 }
 
-export async function initHyperchain() {
+export async function initHyperchain(initArgs: InitArgs = DEFAULT_ARGS) {
+    const {
+        skipSubmodulesCheckout,
+        skipEnvSetup,
+        testTokens,
+        deployerL1ContractInputArgs,
+        governorPrivateKeyArgs,
+        deployerL2ContractInput
+    } = initArgs;
+
     // await announced('Building L1 L2 contracts', contract.build());
 
     // // we initialise with genesis chainId
@@ -71,9 +101,17 @@ export async function initHyperchain() {
     await announced('Registering Hyperchain', contract.registerHyperchain([]));
     await announced('Reloading env', env.reload());
     await announced('Initializing validator', contract.initializeValidator());
-    await announced('Initialize L1 allow list', contract.initializeL1AllowList());
-    await announced('Deploying L2 contracts', contract.deployL2([], true, true));
-    await announced('Initializing L2 WETH token', contract.initializeWethToken());
+    await announced('Initialize L1 allow list', contract.initializeL1AllowList(governorPrivateKeyArgs));
+    await announced(
+        'Deploying L2 contracts',
+        contract.deployL2(
+            deployerL2ContractInput.args,
+            deployerL2ContractInput.includePaymaster,
+            deployerL2ContractInput.includeL2WETH
+        )
+    );
+    await announced('Initializing L2 WETH token', contract.initializeWethToken(governorPrivateKeyArgs));
+    await announced('Initializing governance', contract.initializeGovernance(governorPrivateKeyArgs));
 }
 
 // A smaller version of `init` that "resets" the localhost environment, for which `init` was already called before.
@@ -92,10 +130,11 @@ export async function reinit() {
     await announced('Reloading env', env.reload());
     await announced('Running server genesis setup', server.genesisFromSources());
     await announced('Deploying L1 contracts', contract.redeployL1([]));
-    await announced('Initializing validator', contract.initializeValidator());
     await announced('Initializing L1 Allow list', contract.initializeL1AllowList());
     await announced('Deploying L2 contracts', contract.deployL2([], true, true));
     await announced('Initializing L2 WETH token', contract.initializeWethToken());
+    await announced('Initializing governance', contract.initializeGovernance());
+    await announced('Initializing validator', contract.initializeValidator());
 }
 
 // A lightweight version of `init` that sets up local databases, generates genesis and deploys precompiled contracts
@@ -109,6 +148,7 @@ export async function lightweightInit() {
     await announced('Initializing validator', contract.initializeValidator());
     await announced('Initializing L1 Allow list', contract.initializeL1AllowList());
     await announced('Deploying L2 contracts', contract.deployL2([], true, false));
+    await announced('Initializing governance', contract.initializeGovernance());
 }
 
 // Wrapper that writes an announcement and completion notes for each executed task.
@@ -146,16 +186,51 @@ export async function checkEnv() {
     }
 }
 
+export interface InitArgs {
+    skipSubmodulesCheckout: boolean;
+    skipEnvSetup: boolean;
+    deployerL1ContractInputArgs: any[];
+    governorPrivateKeyArgs: any[];
+    deployerL2ContractInput: {
+        args: any[];
+        includePaymaster: boolean;
+        includeL2WETH: boolean;
+    };
+    testTokens: {
+        deploy: boolean;
+        args: any[];
+    };
+}
+
+const DEFAULT_ARGS: InitArgs = {
+    skipSubmodulesCheckout: false,
+    skipEnvSetup: false,
+    deployerL1ContractInputArgs: [],
+    governorPrivateKeyArgs: [],
+    deployerL2ContractInput: { args: [], includePaymaster: true, includeL2WETH: true },
+    testTokens: { deploy: true, args: [] }
+};
+
 export const initCommand = new Command('init')
     .option('--skip-submodules-checkout')
+    .option('--skip-env-setup')
     .option('--env-name <env-name>', 'chain name to use for initialization')
     .description('perform zksync network initialization for development')
     .action(async (cmd: Command) => {
-        if (cmd.l2ChainName) {
+        if (cmd.envName) {
             process.env.ZKSYNC_ENV = cmd.l2ChainName;
             env.reload();
         }
-        await init(cmd.skipSubmodulesCheckout);
+
+        const initArgs: InitArgs = {
+            skipSubmodulesCheckout: cmd.skipSubmodulesCheckout,
+            skipEnvSetup: cmd.skipEnvSetup,
+            deployerL1ContractInputArgs: [],
+            governorPrivateKeyArgs: [],
+            deployerL2ContractInput: { args: [], includePaymaster: true, includeL2WETH: true },
+            testTokens: { deploy: true, args: [] }
+        };
+        await init(initArgs);
     });
 export const reinitCommand = new Command('reinit')
     .description('"reinitializes" network. Runs faster than `init`, but requires `init` to be executed prior')

@@ -88,6 +88,21 @@ impl ReadStorage for ShadowStorage<'_> {
         }
         source_value
     }
+
+    fn get_enumeration_index(&mut self, key: &StorageKey) -> Option<u64> {
+        let source_value = self.source_storage.get_enumeration_index(key);
+        let expected_value = self.to_check_storage.get_enumeration_index(key);
+        let mut metric_value = 0.0;
+        if source_value != expected_value {
+            metric_value = 1.0;
+            tracing::error!("get_enumeration_index({:?}) -- l1_batch_number={:?} -- expected source={:?} to be equal to to_check={:?}", key, self.l1_batch_number, source_value, expected_value);
+        }
+        metrics::histogram!(
+            "shadow_storage.get_enumeration_index_mismatch",
+            metric_value
+        );
+        source_value
+    }
 }
 
 // TODO: Add unit tests when we swap metrics crate; blocked by: https://linear.app/matterlabs/issue/QIT-3/rework-metrics-approach

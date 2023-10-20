@@ -1,9 +1,10 @@
 use async_trait::async_trait;
 
 use zksync_dal::ConnectionPool;
+use zksync_prover_utils::periodic_job::PeriodicJob;
 use zksync_utils::time::seconds_since_epoch;
 
-use zksync_prover_utils::periodic_job::PeriodicJob;
+use crate::metrics::{BlockL1Stage, BlockStage, L1StageLatencyLabel, APP_METRICS};
 
 #[derive(Debug)]
 pub struct L1BatchMetricsReporter {
@@ -27,59 +28,45 @@ impl L1BatchMetricsReporter {
                     .get_sealed_l1_batch_number()
                     .await
                     .unwrap(),
-                "sealed".to_string(),
+                BlockStage::Sealed,
             ),
             (
                 conn.blocks_dal()
                     .get_last_l1_batch_number_with_metadata()
                     .await
                     .unwrap(),
-                "metadata_calculated".to_string(),
+                BlockStage::MetadataCalculated,
             ),
             (
                 conn.blocks_dal()
                     .get_last_l1_batch_number_with_witness_inputs()
                     .await
                     .unwrap(),
-                "merkle_proof_calculated".to_string(),
+                BlockStage::MerkleProofCalculated,
             ),
         ];
 
         let eth_stats = conn.eth_sender_dal().get_eth_l1_batches().await;
         for (tx_type, l1_batch) in eth_stats.saved {
-            block_metrics.push((l1_batch, format!("l1_saved_{}", tx_type.as_str())))
+            let stage = BlockStage::L1 {
+                l1_stage: BlockL1Stage::Saved,
+                tx_type,
+            };
+            block_metrics.push((l1_batch, stage))
         }
 
         for (tx_type, l1_batch) in eth_stats.mined {
-            block_metrics.push((l1_batch, format!("l1_mined_{}", tx_type.as_str())))
+            let stage = BlockStage::L1 {
+                l1_stage: BlockL1Stage::Mined,
+                tx_type,
+            };
+            block_metrics.push((l1_batch, stage))
         }
 
-        // todo: PLA-335
-        // block_metrics.append(
-        //     &mut conn
-        //         .prover_dal()
-        //         .get_proven_l1_batches()
-        //         .into_iter()
-        //         .map(|(l1_batch_number, stage)| (l1_batch_number, format!("prove_{:?}", stage)))
-        //         .collect(),
-        // );
-
-        // todo: PLA-335
-        // block_metrics.append(
-        //     &mut conn
-        //         .witness_generator_dal()
-        //         .get_witness_generated_l1_batches()
-        //         .into_iter()
-        //         .map(|(l1_batch_number, stage)| (l1_batch_number, format!("wit_gen_{:?}", stage)))
-        //         .collect(),
-        // );
+        // TODO (PLA-335): Restore prover and witgen metrics
 
         for (l1_batch_number, stage) in block_metrics {
-            metrics::gauge!(
-                "server.block_number",
-                l1_batch_number.0 as f64,
-                "stage" => stage
-            );
+            APP_METRICS.block_number[&stage].set(l1_batch_number.0.into());
         }
 
         let oldest_uncommitted_batch_timestamp = conn
@@ -101,27 +88,17 @@ impl L1BatchMetricsReporter {
         let now = seconds_since_epoch();
 
         if let Some(timestamp) = oldest_uncommitted_batch_timestamp {
-            metrics::gauge!(
-                "server.blocks_state.block_eth_stage_latency",
-                now.saturating_sub(timestamp) as f64,
-                "stage" => "uncommitted_block"
-            );
+            APP_METRICS.blocks_state_block_eth_stage_latency
+                [&L1StageLatencyLabel::UncommittedBlock]
+                .set(now.saturating_sub(timestamp));
         }
-
         if let Some(timestamp) = oldest_unproved_batch_timestamp {
-            metrics::gauge!(
-                "server.blocks_state.block_eth_stage_latency",
-                now.saturating_sub(timestamp) as f64,
-                "stage" => "unproved_block"
-            );
+            APP_METRICS.blocks_state_block_eth_stage_latency[&L1StageLatencyLabel::UnprovedBlock]
+                .set(now.saturating_sub(timestamp));
         }
-
         if let Some(timestamp) = oldest_unexecuted_batch_timestamp {
-            metrics::gauge!(
-                "server.blocks_state.block_eth_stage_latency",
-                now.saturating_sub(timestamp) as f64,
-                "stage" => "unexecuted_block"
-            );
+            APP_METRICS.blocks_state_block_eth_stage_latency[&L1StageLatencyLabel::UnexecutedBlock]
+                .set(now.saturating_sub(timestamp));
         }
     }
 }

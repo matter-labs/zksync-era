@@ -9,7 +9,7 @@ use std::{
         atomic::{AtomicU32, Ordering},
         Arc,
     },
-    time::{Duration, Instant},
+    time::Duration,
 };
 
 use zksync_config::configs::{api::Web3JsonRpcConfig, chain::NetworkConfig, ContractsConfig};
@@ -27,6 +27,7 @@ use zksync_web3_decl::{
     types::{Filter, Log, TypedFilter},
 };
 
+use super::metrics::API_METRICS;
 use crate::{
     api_server::{
         execution_sandbox::BlockArgs,
@@ -65,7 +66,7 @@ impl InternalApiConfig {
     ) -> Self {
         Self {
             l1_chain_id: eth_config.network.chain_id(),
-            l2_chain_id: L2ChainId(eth_config.zksync_network_id),
+            l2_chain_id: eth_config.zksync_network_id,
             max_tx_size: web3_config.max_tx_size,
             estimate_gas_scale_factor: web3_config.estimate_gas_scale_factor,
             estimate_gas_acceptable_overestimation: web3_config
@@ -195,7 +196,7 @@ impl<E> Clone for RpcState<E> {
 impl<E> RpcState<E> {
     pub fn parse_transaction_bytes(&self, bytes: &[u8]) -> Result<(L2Tx, H256), Web3Error> {
         let chain_id = self.api_config.l2_chain_id;
-        let (tx_request, hash) = api::TransactionRequest::from_bytes(bytes, chain_id.0)?;
+        let (tx_request, hash) = api::TransactionRequest::from_bytes(bytes, chain_id)?;
 
         Ok((
             L2Tx::from_request(tx_request, self.api_config.max_tx_size)?,
@@ -326,9 +327,9 @@ impl<E> RpcState<E> {
 
     /// Returns logs for the given filter, taking into account block.number migration with virtual blocks
     pub async fn translate_get_logs(&self, filter: Filter) -> Result<Vec<Log>, Web3Error> {
-        let start = Instant::now();
         const METHOD_NAME: &str = "translate_get_logs";
 
+        let method_latency = API_METRICS.start_call(METHOD_NAME);
         // no support for block hash filtering
         if filter.block_hash.is_some() {
             return Err(Web3Error::InvalidFilterBlockHash);
@@ -424,8 +425,7 @@ impl<E> RpcState<E> {
             )
             .await;
 
-        metrics::histogram!("api.web3.call", start.elapsed(), "method" => METHOD_NAME);
-
+        method_latency.observe();
         result
     }
 

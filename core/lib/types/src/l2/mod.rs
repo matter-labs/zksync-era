@@ -93,7 +93,7 @@ impl L2TxCommonData {
         self.input = Some(InputData { hash, data: input })
     }
 
-    pub fn extract_chain_id(&self) -> Option<u16> {
+    pub fn extract_chain_id(&self) -> Option<u64> {
         let bytes = self.input_data()?;
         let chain_id = match bytes.first() {
             Some(x) if *x >= 0x80 => {
@@ -226,7 +226,7 @@ impl L2Tx {
     pub fn get_rlp_bytes(&self, chain_id: L2ChainId) -> Bytes {
         let mut rlp_stream = RlpStream::new();
         let tx: TransactionRequest = self.clone().into();
-        tx.rlp(&mut rlp_stream, chain_id.0, None);
+        tx.rlp(&mut rlp_stream, chain_id.as_u64(), None);
         Bytes(rlp_stream.as_raw().to_vec())
     }
 
@@ -329,7 +329,7 @@ impl From<L2Tx> for TransactionRequest {
             transaction_type: None,
             access_list: None,
             eip712_meta: None,
-            chain_id: tx.common_data.extract_chain_id().unwrap_or_default().into(),
+            chain_id: tx.common_data.extract_chain_id(),
         };
         match tx_type as u8 {
             LEGACY_TX_TYPE => {}
@@ -389,7 +389,7 @@ impl From<L2Tx> for api::Transaction {
 
         Self {
             hash: tx.hash(),
-            chain_id: tx.common_data.extract_chain_id().unwrap_or_default().into(),
+            chain_id: U256::from(tx.common_data.extract_chain_id().unwrap_or_default()),
             nonce: U256::from(tx.common_data.nonce.0),
             from: Some(tx.common_data.initiator_address),
             to: Some(tx.recipient_account()),

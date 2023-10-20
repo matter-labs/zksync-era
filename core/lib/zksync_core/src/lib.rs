@@ -1,6 +1,6 @@
 #![allow(clippy::upper_case_acronyms, clippy::derive_partial_eq_without_eq)]
 
-use std::{str::FromStr, sync::Arc, time::Instant};
+use std::{net::Ipv4Addr, str::FromStr, sync::Arc, time::Instant};
 
 use anyhow::Context as _;
 use futures::channel::oneshot;
@@ -12,6 +12,7 @@ use zksync_circuit_breaker::{
     replication_lag::ReplicationLagChecker, CircuitBreaker, CircuitBreakerChecker,
     CircuitBreakerError,
 };
+use zksync_config::configs::api::MerkleTreeApiConfig;
 use zksync_config::configs::{
     api::{HealthCheckConfig, Web3JsonRpcConfig},
     chain::{
@@ -32,6 +33,7 @@ use zksync_dal::{
     connection::DbVariant, healthcheck::ConnectionPoolHealthCheck, ConnectionPool, StorageProcessor,
 };
 use zksync_eth_client::clients::http::QueryClient;
+use zksync_eth_client::EthInterface;
 use zksync_eth_client::{clients::http::PKSigningClient, BoundEthInterface};
 use zksync_health_check::{CheckHealth, HealthStatus, ReactiveHealthCheck};
 use zksync_object_store::ObjectStoreFactory;
@@ -42,9 +44,28 @@ use zksync_types::{
     proofs::AggregationRound,
     protocol_version::{L1VerifierConfig, VerifierParams},
     system_contracts::get_system_smart_contracts,
-    Address, L2ChainId, PackedEthSignature, ProtocolVersionId,
+    Address, PackedEthSignature, ProtocolVersionId,
 };
 use zksync_verification_key_server::get_cached_commitments;
+
+pub mod api_server;
+pub mod block_reverter;
+pub mod consistency_checker;
+pub mod data_fetchers;
+pub mod eth_sender;
+pub mod eth_watch;
+pub mod fee_ticker;
+pub mod gas_tracker;
+pub mod genesis;
+pub mod house_keeper;
+pub mod l1_gas_price;
+pub mod metadata_calculator;
+mod metrics;
+pub mod proof_data_handler;
+pub mod reorg_detector;
+pub mod state_keeper;
+pub mod sync_layer;
+pub mod witness_generator;
 
 use crate::api_server::healthcheck::HealthCheckHandle;
 use crate::api_server::tx_sender::TxSenderConfig;
@@ -85,31 +106,15 @@ use crate::{
     data_fetchers::run_data_fetchers,
     eth_sender::EthTxAggregator,
     eth_watch::start_eth_watch,
+    metrics::{InitStage, APP_METRICS},
 };
-
-pub mod api_server;
-pub mod block_reverter;
-pub mod consistency_checker;
-pub mod data_fetchers;
-pub mod eth_sender;
-pub mod eth_watch;
-pub mod fee_ticker;
-pub mod gas_tracker;
-pub mod genesis;
-pub mod house_keeper;
-pub mod l1_gas_price;
-pub mod metadata_calculator;
-pub mod proof_data_handler;
-pub mod reorg_detector;
-pub mod state_keeper;
-pub mod sync_layer;
-pub mod witness_generator;
 
 /// Inserts the initial information about zkSync tokens into the database.
 pub async fn genesis_init(
     eth_sender: &ETHSenderConfig,
     network_config: &NetworkConfig,
     contracts_config: &ContractsConfig,
+    eth_client_url: &str,
 ) -> anyhow::Result<()> {
     let mut storage = StorageProcessor::establish_connection(true)
         .await
@@ -122,9 +127,52 @@ pub async fn genesis_init(
     )
     .context("Failed to restore operator address from private key")?;
 
+    // Select the first prover to be used during genesis.
+    // Later we can change provers using the system upgrades, but for genesis
+    // we should select one using the environment config.
+    let first_l1_verifier_config = if contracts_config.prover_at_genesis == "fri" {
+        let l1_verifier_config = L1VerifierConfig {
+            params: VerifierParams {
+                recursion_node_level_vk_hash: contracts_config.fri_recursion_node_level_vk_hash,
+                recursion_leaf_level_vk_hash: contracts_config.fri_recursion_leaf_level_vk_hash,
+                recursion_circuits_set_vks_hash: zksync_types::H256::zero(),
+            },
+            recursion_scheduler_level_vk_hash: contracts_config.snark_wrapper_vk_hash,
+        };
+
+        let eth_client = QueryClient::new(eth_client_url)?;
+        let vk_hash: zksync_types::H256 = eth_client
+            .call_contract_function(
+                "verificationKeyHash",
+                (),
+                None,
+                Default::default(),
+                None,
+                contracts_config.verifier_addr,
+                zksync_contracts::verifier_contract(),
+            )
+            .await?;
+
+        assert_eq!(
+            vk_hash, l1_verifier_config.recursion_scheduler_level_vk_hash,
+            "L1 verifier key does not match the one in the config"
+        );
+
+        l1_verifier_config
+    } else {
+        L1VerifierConfig {
+            params: VerifierParams {
+                recursion_node_level_vk_hash: contracts_config.recursion_node_level_vk_hash,
+                recursion_leaf_level_vk_hash: contracts_config.recursion_leaf_level_vk_hash,
+                recursion_circuits_set_vks_hash: contracts_config.recursion_circuits_set_vks_hash,
+            },
+            recursion_scheduler_level_vk_hash: contracts_config.recursion_scheduler_level_vk_hash,
+        }
+    };
+
     genesis::ensure_genesis_state(
         &mut storage,
-        L2ChainId(network_config.zksync_network_id),
+        network_config.zksync_network_id,
         &genesis::GenesisParams {
             // We consider the operator to be the first validator for now.
             first_validator: operator_address,
@@ -132,16 +180,7 @@ pub async fn genesis_init(
             base_system_contracts: BaseSystemContracts::load_from_disk(),
             system_contracts: get_system_smart_contracts(),
             first_verifier_address: contracts_config.verifier_addr,
-            first_l1_verifier_config: L1VerifierConfig {
-                params: VerifierParams {
-                    recursion_node_level_vk_hash: contracts_config.recursion_node_level_vk_hash,
-                    recursion_leaf_level_vk_hash: contracts_config.recursion_leaf_level_vk_hash,
-                    recursion_circuits_set_vks_hash: contracts_config
-                        .recursion_circuits_set_vks_hash,
-                },
-                recursion_scheduler_level_vk_hash: contracts_config
-                    .recursion_scheduler_level_vk_hash,
-            },
+            first_l1_verifier_config,
         },
     )
     .await?;
@@ -173,34 +212,36 @@ pub fn setup_sigint_handler() -> oneshot::Receiver<()> {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Component {
-    // Public Web3 API running on HTTP server.
+    /// Public Web3 API running on HTTP server.
     HttpApi,
-    // Public Web3 API running on HTTP/WebSocket server and redirect eth_getLogs to another method.
+    /// Public Web3 API running on HTTP/WebSocket server and redirect eth_getLogs to another method.
     ApiTranslator,
-    // Public Web3 API (including PubSub) running on WebSocket server.
+    /// Public Web3 API (including PubSub) running on WebSocket server.
     WsApi,
-    // REST API for contract verification.
+    /// REST API for contract verification.
     ContractVerificationApi,
-    // Metadata Calculator.
+    /// Metadata calculator.
     Tree,
     // TODO(BFT-273): Remove `TreeLightweight` component as obsolete
     TreeLightweight,
     TreeBackup,
+    /// Merkle tree API.
+    TreeApi,
     EthWatcher,
-    // Eth tx generator
+    /// Eth tx generator.
     EthTxAggregator,
-    // Manager for eth tx
+    /// Manager for eth tx.
     EthTxManager,
-    // Data fetchers: list fetcher, volume fetcher, price fetcher.
+    /// Data fetchers: list fetcher, volume fetcher, price fetcher.
     DataFetcher,
-    // State keeper.
+    /// State keeper.
     StateKeeper,
-    // Witness Generator. The first argument is a number of jobs to process. If None, runs indefinitely.
-    // The second argument is the type of the witness-generation performed
+    /// Witness Generator. The first argument is a number of jobs to process. If None, runs indefinitely.
+    /// The second argument is the type of the witness-generation performed
     WitnessGenerator(Option<usize>, AggregationRound),
-    // Component for housekeeping task such as cleaning blobs from GCS, reporting metrics etc.
+    /// Component for housekeeping task such as cleaning blobs from GCS, reporting metrics etc.
     Housekeeper,
-    // Component for exposing API's to prover for providing proof generation data and accepting proofs.
+    /// Component for exposing API's to prover for providing proof generation data and accepting proofs.
     ProofDataHandler,
 }
 
@@ -226,6 +267,7 @@ impl FromStr for Components {
                 Ok(Components(vec![Component::TreeLightweight]))
             }
             "tree_backup" => Ok(Components(vec![Component::TreeBackup])),
+            "tree_api" => Ok(Components(vec![Component::TreeApi])),
             "data_fetcher" => Ok(Components(vec![Component::DataFetcher])),
             "state_keeper" => Ok(Components(vec![Component::StateKeeper])),
             "housekeeper" => Ok(Components(vec![Component::Housekeeper])),
@@ -308,6 +350,7 @@ pub async fn initialize_components(
         CircuitBreakerConfig::from_env().context("CircuitBreakerConfig::from_env()")?;
 
     let state_transition_chain_contract = contracts_config.diamond_proxy_addr;
+    let governance_contract_address = contracts_config.governance_addr;
     let circuit_breaker_checker = CircuitBreakerChecker::new(
         circuit_breakers_for_components(
             &components,
@@ -365,7 +408,7 @@ pub async fn initialize_components(
         let tx_sender_config = TxSenderConfig::new(
             &state_keeper_config,
             &api_config.web3_json_rpc,
-            L2ChainId(network_config.zksync_network_id),
+            network_config.zksync_network_id,
         );
         let internal_api_config = InternalApiConfig::new(
             &network_config,
@@ -408,8 +451,9 @@ pub async fn initialize_components(
             .context("run_http_api")?;
             task_futures.extend(futures);
             healthchecks.push(Box::new(health_check));
-            tracing::info!("initialized HTTP API in {:?}", started_at.elapsed());
-            metrics::gauge!("server.init.latency", started_at.elapsed(), "stage" => "http_api");
+            let elapsed = started_at.elapsed();
+            APP_METRICS.init_latency[&InitStage::HttpApi].set(elapsed);
+            tracing::info!("initialized HTTP API in {elapsed:?}");
         }
 
         if components.contains(&Component::WsApi) {
@@ -441,8 +485,9 @@ pub async fn initialize_components(
             .context("run_ws_api")?;
             task_futures.extend(futures);
             healthchecks.push(Box::new(health_check));
-            tracing::info!("initialized WS API in {:?}", started_at.elapsed());
-            metrics::gauge!("server.init.latency", started_at.elapsed(), "stage" => "ws_api");
+            let elapsed = started_at.elapsed();
+            APP_METRICS.init_latency[&InitStage::WsApi].set(elapsed);
+            tracing::info!("initialized WS API in {elapsed:?}");
         }
 
         if components.contains(&Component::ContractVerificationApi) {
@@ -454,11 +499,9 @@ pub async fn initialize_components(
                 api_config.contract_verification.clone(),
                 stop_receiver.clone(),
             ));
-            tracing::info!(
-                "initialized contract verification REST API in {:?}",
-                started_at.elapsed()
-            );
-            metrics::gauge!("server.init.latency", started_at.elapsed(), "stage" => "contract_verification_api");
+            let elapsed = started_at.elapsed();
+            APP_METRICS.init_latency[&InitStage::ContractVerificationApi].set(elapsed);
+            tracing::info!("initialized contract verification REST API in {elapsed:?}");
         }
     }
 
@@ -481,8 +524,10 @@ pub async fn initialize_components(
         )
         .await
         .context("add_state_keeper_to_task_futures()")?;
-        tracing::info!("initialized State Keeper in {:?}", started_at.elapsed());
-        metrics::gauge!("server.init.latency", started_at.elapsed(), "stage" => "state_keeper");
+
+        let elapsed = started_at.elapsed();
+        APP_METRICS.init_latency[&InitStage::StateKeeper].set(elapsed);
+        tracing::info!("initialized State Keeper in {elapsed:?}");
     }
 
     if components.contains(&Component::EthWatcher) {
@@ -497,13 +542,15 @@ pub async fn initialize_components(
                 eth_watch_pool,
                 query_client.clone(),
                 state_transition_chain_contract,
+                governance_contract_address,
                 stop_receiver.clone(),
             )
             .await
             .context("start_eth_watch()")?,
         );
-        tracing::info!("initialized ETH-Watcher in {:?}", started_at.elapsed());
-        metrics::gauge!("server.init.latency", started_at.elapsed(), "stage" => "eth_watcher");
+        let elapsed = started_at.elapsed();
+        APP_METRICS.init_latency[&InitStage::EthWatcher].set(elapsed);
+        tracing::info!("initialized ETH-Watcher in {elapsed:?}");
     }
 
     let store_factory = ObjectStoreFactory::from_env().context("ObjectStoreFactor::from_env()")?;
@@ -541,8 +588,9 @@ pub async fn initialize_components(
             eth_client,
             stop_receiver.clone(),
         )));
-        tracing::info!("initialized ETH-TxAggregator in {:?}", started_at.elapsed());
-        metrics::gauge!("server.init.latency", started_at.elapsed(), "stage" => "eth_tx_aggregator");
+        let elapsed = started_at.elapsed();
+        APP_METRICS.init_latency[&InitStage::EthTxAggregator].set(elapsed);
+        tracing::info!("initialized ETH-TxAggregator in {elapsed:?}");
     }
 
     if components.contains(&Component::EthTxManager) {
@@ -566,8 +614,9 @@ pub async fn initialize_components(
         task_futures.extend([tokio::spawn(
             eth_tx_manager_actor.run(eth_manager_pool, stop_receiver.clone()),
         )]);
-        tracing::info!("initialized ETH-TxManager in {:?}", started_at.elapsed());
-        metrics::gauge!("server.init.latency", started_at.elapsed(), "stage" => "eth_tx_aggregator");
+        let elapsed = started_at.elapsed();
+        APP_METRICS.init_latency[&InitStage::EthTxManager].set(elapsed);
+        tracing::info!("initialized ETH-TxManager in {elapsed:?}");
     }
 
     if components.contains(&Component::DataFetcher) {
@@ -581,8 +630,9 @@ pub async fn initialize_components(
             connection_pool.clone(),
             stop_receiver.clone(),
         ));
-        tracing::info!("initialized data fetchers in {:?}", started_at.elapsed());
-        metrics::gauge!("server.init.latency", started_at.elapsed(), "stage" => "data_fetchers");
+        let elapsed = started_at.elapsed();
+        APP_METRICS.init_latency[&InitStage::DataFetcher].set(elapsed);
+        tracing::info!("initialized data fetchers in {elapsed:?}");
     }
 
     add_trees_to_task_futures(
@@ -661,7 +711,7 @@ async fn add_state_keeper_to_task_futures<E: L1GasPriceProvider + Send + Sync + 
         .next_priority_id()
         .await;
     let mempool = MempoolGuard::new(next_priority_id, mempool_config.capacity);
-    tokio::task::spawn(mempool.run_metrics_reporting());
+    mempool.register_metrics();
 
     let miniblock_sealer_pool = pool_builder
         .build()
@@ -718,6 +768,13 @@ async fn add_trees_to_task_futures(
     let db_config = DBConfig::from_env().context("DBConfig::from_env()")?;
     let operation_config =
         OperationsManagerConfig::from_env().context("OperationManagerConfig::from_env()")?;
+    let api_config = ApiConfig::from_env()
+        .context("ApiConfig::from_env()")?
+        .merkle_tree;
+    let api_config = components
+        .contains(&Component::TreeApi)
+        .then_some(&api_config);
+
     let has_tree_component = components.contains(&Component::Tree);
     let has_lightweight_component = components.contains(&Component::TreeLightweight);
     let mode = match (has_tree_component, has_lightweight_component) {
@@ -731,22 +788,37 @@ async fn add_trees_to_task_futures(
             MerkleTreeMode::Lightweight => MetadataCalculatorModeConfig::Lightweight,
             MerkleTreeMode::Full => MetadataCalculatorModeConfig::Full { store_factory },
         },
-        (false, false) => return Ok(()),
+        (false, false) => {
+            anyhow::ensure!(
+                !components.contains(&Component::TreeApi),
+                "Merkle tree API cannot be started without a tree component"
+            );
+            return Ok(());
+        }
     };
-    let (future, tree_health_check) = run_tree(&db_config, &operation_config, mode, stop_receiver)
-        .await
-        .context("run_tree()")?;
-    task_futures.push(future);
-    healthchecks.push(Box::new(tree_health_check));
-    Ok(())
+
+    run_tree(
+        task_futures,
+        healthchecks,
+        &db_config,
+        api_config,
+        &operation_config,
+        mode,
+        stop_receiver,
+    )
+    .await
+    .context("run_tree()")
 }
 
 async fn run_tree(
-    config: &DBConfig,
+    task_futures: &mut Vec<JoinHandle<anyhow::Result<()>>>,
+    healthchecks: &mut Vec<Box<dyn CheckHealth>>,
+    db_config: &DBConfig,
+    api_config: Option<&MerkleTreeApiConfig>,
     operation_manager: &OperationsManagerConfig,
     mode: MetadataCalculatorModeConfig<'_>,
     stop_receiver: watch::Receiver<bool>,
-) -> anyhow::Result<(JoinHandle<anyhow::Result<()>>, ReactiveHealthCheck)> {
+) -> anyhow::Result<()> {
     let started_at = Instant::now();
     let mode_str = if matches!(mode, MetadataCalculatorModeConfig::Full { .. }) {
         "full"
@@ -755,9 +827,18 @@ async fn run_tree(
     };
     tracing::info!("Initializing Merkle tree in {mode_str} mode");
 
-    let config = MetadataCalculatorConfig::for_main_node(config, operation_manager, mode);
+    let config = MetadataCalculatorConfig::for_main_node(db_config, operation_manager, mode);
     let metadata_calculator = MetadataCalculator::new(&config).await;
+    if let Some(api_config) = api_config {
+        let address = (Ipv4Addr::UNSPECIFIED, api_config.port).into();
+        let server_task = metadata_calculator
+            .tree_reader()
+            .run_api_server(address, stop_receiver.clone());
+        task_futures.push(tokio::spawn(server_task));
+    }
+
     let tree_health_check = metadata_calculator.tree_health_check();
+    healthchecks.push(Box::new(tree_health_check));
     let pool = ConnectionPool::singleton(DbVariant::Master)
         .build()
         .await
@@ -766,16 +847,13 @@ async fn run_tree(
         .build()
         .await
         .context("failed to build prover_pool")?;
-    let future = tokio::spawn(metadata_calculator.run(pool, prover_pool, stop_receiver));
+    let tree_task = tokio::spawn(metadata_calculator.run(pool, prover_pool, stop_receiver));
+    task_futures.push(tree_task);
 
-    tracing::info!("Initialized {mode_str} tree in {:?}", started_at.elapsed());
-    metrics::gauge!(
-        "server.init.latency",
-        started_at.elapsed(),
-        "stage" => "tree",
-        "tree" => mode_str
-    );
-    Ok((future, tree_health_check))
+    let elapsed = started_at.elapsed();
+    APP_METRICS.init_latency[&InitStage::Tree].set(elapsed);
+    tracing::info!("Initialized {mode_str} tree in {elapsed:?}");
+    Ok(())
 }
 
 async fn add_witness_generator_to_task_futures(
@@ -863,15 +941,9 @@ async fn add_witness_generator_to_task_futures(
         };
         task_futures.push(task);
 
-        tracing::info!(
-            "initialized {component_type:?} witness generator in {:?}",
-            started_at.elapsed()
-        );
-        metrics::gauge!(
-            "server.init.latency",
-            started_at.elapsed(),
-            "stage" => format!("witness_generator_{component_type:?}")
-        );
+        let elapsed = started_at.elapsed();
+        APP_METRICS.init_latency[&InitStage::WitnessGenerator(component_type)].set(elapsed);
+        tracing::info!("initialized {component_type:?} witness generator in {elapsed:?}");
     }
     Ok(())
 }

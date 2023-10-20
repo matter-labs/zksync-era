@@ -15,15 +15,13 @@ use crate::old_vm::{
     utils::{vm_may_have_ended_inner, VmExecutionResult},
 };
 use crate::tracers::{
-    traits::{DynTracer, ExecutionEndTracer, ExecutionProcessing, VmTracer},
+    traits::{DynTracer, VmTracer},
     utils::{get_vm_hook_params, read_pointer, VmHook},
 };
-use crate::types::{
-    internals::ZkSyncVmState,
-    outputs::{ExecutionResult, VmExecutionResultAndLogs},
-};
+use crate::types::{internals::ZkSyncVmState, outputs::ExecutionResult};
 
 use crate::constants::{BOOTLOADER_HEAP_PAGE, RESULT_SUCCESS_FIRST_SLOT};
+use crate::tracers::traits::TracerExecutionStopReason;
 use crate::{Halt, TxRevertReason};
 use crate::{VmExecutionMode, VmExecutionStopReason};
 
@@ -103,9 +101,7 @@ impl<S, H: HistoryMode> DynTracer<S, H> for ResultTracer {
     }
 }
 
-impl<H: HistoryMode> ExecutionEndTracer<H> for ResultTracer {}
-
-impl<S: WriteStorage, H: HistoryMode> ExecutionProcessing<S, H> for ResultTracer {
+impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for ResultTracer {
     fn after_vm_execution(
         &mut self,
         state: &mut ZkSyncVmState<S, H>,
@@ -120,9 +116,11 @@ impl<S: WriteStorage, H: HistoryMode> ExecutionProcessing<S, H> for ResultTracer
             // One of the tracers above has requested to stop the execution.
             // If it was the correct stop we already have the result,
             // otherwise it can be out of gas error
-            VmExecutionStopReason::TracerRequestedStop => {
+            VmExecutionStopReason::TracerRequestedStop(reason) => {
                 match self.execution_mode {
-                    VmExecutionMode::OneTx => self.vm_stopped_execution(state, bootloader_state),
+                    VmExecutionMode::OneTx => {
+                        self.vm_stopped_execution(state, bootloader_state, reason)
+                    }
                     VmExecutionMode::Batch => self.vm_finished_execution(state),
                     VmExecutionMode::Bootloader => self.vm_finished_execution(state),
                 };
@@ -188,7 +186,13 @@ impl ResultTracer {
         &mut self,
         state: &ZkSyncVmState<S, H>,
         bootloader_state: &BootloaderState,
+        reason: TracerExecutionStopReason,
     ) {
+        if let TracerExecutionStopReason::Abort(halt) = reason {
+            self.result = Some(Result::Halt { reason: halt });
+            return;
+        }
+
         if self.bootloader_out_of_gas {
             self.result = Some(Result::Halt {
                 reason: Halt::BootloaderOutOfGas,
@@ -226,10 +230,6 @@ impl ResultTracer {
             Result::Halt { reason } => ExecutionResult::Halt { reason },
         }
     }
-}
-
-impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for ResultTracer {
-    fn save_results(&mut self, _result: &mut VmExecutionResultAndLogs) {}
 }
 
 pub(crate) fn tx_has_failed<S: WriteStorage, H: HistoryMode>(

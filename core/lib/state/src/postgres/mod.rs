@@ -495,4 +495,14 @@ impl ReadStorage for PostgresStorage<'_> {
         latency.observe();
         result
     }
+
+    fn get_enumeration_index(&mut self, key: &StorageKey) -> Option<u64> {
+        let mut dal = self.connection.storage_logs_dedup_dal();
+
+        let value = self
+            .rt_handle
+            .block_on(dal.get_enumeration_index_for_key(*key));
+
+        value
+    }
 }

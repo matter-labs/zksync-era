@@ -1,18 +1,19 @@
 //! Tying the Merkle tree implementation to the problem domain.
 
 use rayon::{ThreadPool, ThreadPoolBuilder};
+use zksync_utils::h256_to_u256;
 
 use crate::{
     storage::{MerkleTreeColumnFamily, PatchSet, Patched, RocksDBWrapper},
-    types::{Key, LeafData, Root, TreeInstruction, TreeLogEntry, ValueHash, TREE_DEPTH},
-    BlockOutput, HashTree, MerkleTree,
+    types::{Key, Root, TreeEntryWithProof, TreeInstruction, TreeLogEntry, ValueHash, TREE_DEPTH},
+    BlockOutput, HashTree, MerkleTree, NoVersionError,
 };
 use zksync_crypto::hasher::blake2::Blake2Hasher;
 use zksync_storage::RocksDB;
 use zksync_types::{
     proofs::{PrepareBasicCircuitsJob, StorageLogMetadata},
-    writes::{InitialStorageWrite, RepeatedStorageWrite},
-    L1BatchNumber, StorageLog, StorageLogKind,
+    writes::{InitialStorageWrite, RepeatedStorageWrite, StateDiffRecord},
+    L1BatchNumber, StorageKey, StorageLog, StorageLogKind, U256,
 };
 
 /// Metadata for the current tree state.
@@ -29,6 +30,8 @@ pub struct TreeMetadata {
     pub repeated_writes: Vec<RepeatedStorageWrite>,
     /// Witness information. As with `repeated_writes`, no-op updates will be omitted from Merkle paths.
     pub witness: Option<PrepareBasicCircuitsJob>,
+    /// State diffs performed in the processed L1 batch in the order of provided `StorageLog`s.
+    pub state_diffs: Vec<StateDiffRecord>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -68,6 +71,11 @@ impl ZkSyncTree {
             instr_count = kvs.len()
         );
 
+        let kvs = kvs
+            .iter()
+            .map(|(k, v)| (k.hashed_key_u256(), *v))
+            .collect::<Vec<(Key, ValueHash)>>();
+
         let mut in_memory_tree = MerkleTree::new(PatchSet::default());
         let output = in_memory_tree.extend(kvs);
 
@@ -96,6 +104,13 @@ impl ZkSyncTree {
             thread_pool: None,
             mode,
         }
+    }
+
+    /// Returns a readonly handle to the tree. The handle **does not** see uncommitted changes to the tree,
+    /// only ones flushed to RocksDB.
+    pub fn reader(&self) -> ZkSyncTreeReader {
+        let db = self.tree.db.inner().clone();
+        ZkSyncTreeReader(MerkleTree::new(db))
     }
 
     /// Sets the chunk size for multi-get operations. The requested keys will be split
@@ -159,17 +174,6 @@ impl ZkSyncTree {
         });
     }
 
-    /// Reads leaf nodes with the specified keys from the tree storage. The nodes
-    /// are returned in a `Vec` in the same order as requested.
-    pub fn read_leaves(
-        &self,
-        l1_batch_number: L1BatchNumber,
-        leaf_keys: &[Key],
-    ) -> Vec<Option<LeafData>> {
-        let version = u64::from(l1_batch_number.0);
-        self.tree.read_leaves(version, leaf_keys)
-    }
-
     /// Processes an iterator of storage logs comprising a single L1 batch.
     pub fn process_l1_batch(&mut self, storage_logs: &[StorageLog]) -> TreeMetadata {
         match self.mode {
@@ -184,15 +188,20 @@ impl ZkSyncTree {
         let starting_leaf_count = self.tree.latest_root().leaf_count();
         let starting_root_hash = self.tree.latest_root_hash();
 
+        let instructions_with_hashed_keys = instructions
+            .iter()
+            .map(|(k, instr)| (k.hashed_key_u256(), *instr))
+            .collect::<Vec<(Key, TreeInstruction)>>();
+
         tracing::info!(
             "Extending Merkle tree with batch #{l1_batch_number} with {instr_count} ops in full mode",
             instr_count = instructions.len()
         );
 
         let output = if let Some(thread_pool) = &self.thread_pool {
-            thread_pool.install(|| self.tree.extend_with_proofs(instructions.clone()))
+            thread_pool.install(|| self.tree.extend_with_proofs(instructions_with_hashed_keys))
         } else {
-            self.tree.extend_with_proofs(instructions.clone())
+            self.tree.extend_with_proofs(instructions_with_hashed_keys)
         };
 
         let mut witness = PrepareBasicCircuitsJob::new(starting_leaf_count + 1);
@@ -216,7 +225,7 @@ impl ZkSyncTree {
                 is_write: !log.base.is_read(),
                 first_write: matches!(log.base, TreeLogEntry::Inserted { .. }),
                 merkle_paths,
-                leaf_hashed_key: *key,
+                leaf_hashed_key: key.hashed_key_u256(),
                 leaf_enumeration_index: match log.base {
                     TreeLogEntry::Updated { leaf_index, .. }
                     | TreeLogEntry::Inserted { leaf_index }
@@ -250,7 +259,7 @@ impl ZkSyncTree {
             };
             Some((key, value))
         });
-        let (initial_writes, repeated_writes) = Self::extract_writes(logs, kvs);
+        let (initial_writes, repeated_writes, state_diffs) = Self::extract_writes(logs, kvs);
 
         tracing::info!(
             "Processed batch #{l1_batch_number}; root hash is {root_hash}, \
@@ -267,12 +276,13 @@ impl ZkSyncTree {
             initial_writes,
             repeated_writes,
             witness: Some(witness),
+            state_diffs,
         }
     }
 
-    fn transform_logs(storage_logs: &[StorageLog]) -> Vec<(Key, TreeInstruction)> {
+    fn transform_logs(storage_logs: &[StorageLog]) -> Vec<(StorageKey, TreeInstruction)> {
         let instructions = storage_logs.iter().map(|log| {
-            let key = log.key.hashed_key_u256();
+            let key = log.key;
             let instruction = match log.kind {
                 StorageLogKind::Write => TreeInstruction::Write(log.value),
                 StorageLogKind::Read => TreeInstruction::Read,
@@ -284,17 +294,30 @@ impl ZkSyncTree {
 
     fn extract_writes(
         logs: impl Iterator<Item = TreeLogEntry>,
-        kvs: impl Iterator<Item = (Key, ValueHash)>,
-    ) -> (Vec<InitialStorageWrite>, Vec<RepeatedStorageWrite>) {
+        kvs: impl Iterator<Item = (StorageKey, ValueHash)>,
+    ) -> (
+        Vec<InitialStorageWrite>,
+        Vec<RepeatedStorageWrite>,
+        Vec<StateDiffRecord>,
+    ) {
         let mut initial_writes = vec![];
         let mut repeated_writes = vec![];
+        let mut state_diffs = vec![];
         for (log_entry, (key, value)) in logs.zip(kvs) {
             match log_entry {
                 TreeLogEntry::Inserted { leaf_index } => {
                     initial_writes.push(InitialStorageWrite {
                         index: leaf_index,
-                        key,
+                        key: key.hashed_key_u256(),
                         value,
+                    });
+                    state_diffs.push(StateDiffRecord {
+                        address: *key.address(),
+                        key: h256_to_u256(*key.key()),
+                        derived_key: StorageKey::raw_hashed_key(key.address(), key.key()),
+                        enumeration_index: 0u64,
+                        initial_value: U256::default(),
+                        final_value: h256_to_u256(value),
                     });
                 }
                 TreeLogEntry::Updated {
@@ -306,13 +329,21 @@ impl ZkSyncTree {
                             index: leaf_index,
                             value,
                         });
+                        state_diffs.push(StateDiffRecord {
+                            address: *key.address(),
+                            key: h256_to_u256(*key.key()),
+                            derived_key: StorageKey::raw_hashed_key(key.address(), key.key()),
+                            enumeration_index: leaf_index,
+                            initial_value: h256_to_u256(previous_value),
+                            final_value: h256_to_u256(value),
+                        });
                     }
                     // Else we have a no-op update that must be omitted from `repeated_writes`.
                 }
                 TreeLogEntry::Read { .. } | TreeLogEntry::ReadMissingKey => {}
             }
         }
-        (initial_writes, repeated_writes)
+        (initial_writes, repeated_writes, state_diffs)
     }
 
     fn process_l1_batch_lightweight(&mut self, storage_logs: &[StorageLog]) -> TreeMetadata {
@@ -324,12 +355,17 @@ impl ZkSyncTree {
             kv_count = kvs.len()
         );
 
+        let kvs_with_derived_key = kvs
+            .iter()
+            .map(|(k, v)| (k.hashed_key_u256(), *v))
+            .collect::<Vec<(Key, ValueHash)>>();
+
         let output = if let Some(thread_pool) = &self.thread_pool {
-            thread_pool.install(|| self.tree.extend(kvs.clone()))
+            thread_pool.install(|| self.tree.extend(kvs_with_derived_key.clone()))
         } else {
-            self.tree.extend(kvs.clone())
+            self.tree.extend(kvs_with_derived_key.clone())
         };
-        let (initial_writes, repeated_writes) =
+        let (initial_writes, repeated_writes, state_diffs) =
             Self::extract_writes(output.logs.into_iter(), kvs.into_iter());
 
         tracing::info!(
@@ -348,13 +384,14 @@ impl ZkSyncTree {
             initial_writes,
             repeated_writes,
             witness: None,
+            state_diffs,
         }
     }
 
-    fn filter_write_logs(storage_logs: &[StorageLog]) -> Vec<(Key, ValueHash)> {
+    fn filter_write_logs(storage_logs: &[StorageLog]) -> Vec<(StorageKey, ValueHash)> {
         let kvs = storage_logs.iter().filter_map(|log| match log.kind {
             StorageLogKind::Write => {
-                let key = log.key.hashed_key_u256();
+                let key = log.key;
                 Some((key, log.value))
             }
             StorageLogKind::Read => None,
@@ -382,5 +419,52 @@ impl ZkSyncTree {
     /// Resets the tree to the latest database state.
     pub fn reset(&mut self) {
         self.tree.db.reset();
+    }
+}
+
+/// Readonly handle to a [`ZkSyncTree`].
+#[derive(Debug)]
+pub struct ZkSyncTreeReader(MerkleTree<'static, RocksDBWrapper>);
+
+// While cloning `MerkleTree` is logically unsound, cloning a reader is reasonable since it is readonly.
+impl Clone for ZkSyncTreeReader {
+    fn clone(&self) -> Self {
+        Self(MerkleTree::new(self.0.db.clone()))
+    }
+}
+
+impl ZkSyncTreeReader {
+    /// Returns the current root hash of this tree.
+    pub fn root_hash(&self) -> ValueHash {
+        self.0.latest_root_hash()
+    }
+
+    /// Returns the next L1 batch number that should be processed by the tree.
+    #[allow(clippy::missing_panics_doc)]
+    pub fn next_l1_batch_number(&self) -> L1BatchNumber {
+        let number = self.0.latest_version().map_or(0, |version| {
+            u32::try_from(version + 1).expect("integer overflow for L1 batch number")
+        });
+        L1BatchNumber(number)
+    }
+
+    /// Returns the number of leaves in the tree.
+    pub fn leaf_count(&self) -> u64 {
+        self.0.latest_root().leaf_count()
+    }
+
+    /// Reads entries together with Merkle proofs with the specified keys from the tree. The entries are returned
+    /// in the same order as requested.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the tree `version` is missing.
+    pub fn entries_with_proofs(
+        &self,
+        l1_batch_number: L1BatchNumber,
+        keys: &[Key],
+    ) -> Result<Vec<TreeEntryWithProof>, NoVersionError> {
+        let version = u64::from(l1_batch_number.0);
+        self.0.entries_with_proofs(version, keys)
     }
 }

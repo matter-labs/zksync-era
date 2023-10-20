@@ -10,7 +10,7 @@ use std::{
 
 use vm::{
     constants::BLOCK_GAS_LIMIT, CurrentExecutionState, ExecutionResult, FinishedL1Batch,
-    L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionResultAndLogs,
+    L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionLogs, VmExecutionResultAndLogs,
     VmExecutionStatistics,
 };
 use zksync_config::{configs::chain::StateKeeperConfig, constants::ZKPORTER_IS_AVAILABLE};
@@ -25,7 +25,6 @@ use zksync_types::{
     fee::Fee,
     l2::L2Tx,
     transaction_request::PaymasterParams,
-    tx::tx_execution_info::VmExecutionLogs,
     Address, L1BatchNumber, L2ChainId, LogQuery, MiniblockNumber, Nonce, ProtocolVersionId,
     StorageLogQuery, StorageLogQueryType, Timestamp, Transaction, H256, U256,
 };
@@ -58,7 +57,7 @@ pub(super) fn default_system_env() -> SystemEnv {
         gas_limit: BLOCK_GAS_LIMIT,
         execution_mode: TxExecutionMode::VerifyExecute,
         default_validation_computational_gas_limit: BLOCK_GAS_LIMIT,
-        chain_id: L2ChainId(270),
+        chain_id: L2ChainId::from(270),
     }
 }
 
@@ -102,6 +101,9 @@ pub(super) fn create_l1_batch_metadata(number: u32) -> L1BatchMetadata {
         aux_data_hash: H256::zero(),
         meta_parameters_hash: H256::zero(),
         pass_through_data_hash: H256::zero(),
+        state_diffs_compressed: vec![],
+        events_queue_commitment: Some(H256::zero()),
+        bootloader_initial_content_commitment: Some(H256::zero()),
     }
 }
 
@@ -117,9 +119,11 @@ pub(super) fn default_vm_block_result() -> FinishedL1Batch {
             events: vec![],
             storage_log_queries: vec![],
             used_contract_hashes: vec![],
-            l2_to_l1_logs: vec![],
+            user_l2_to_l1_logs: vec![],
+            system_logs: vec![],
             total_log_queries: 0,
             cycles_used: 0,
+            deduplicated_events_logs: vec![],
         },
         final_bootloader_memory: Some(vec![]),
     }
@@ -147,7 +151,7 @@ pub(super) fn create_l2_transaction(fee_per_gas: u64, gas_per_pubdata: u32) -> L
         Nonce(0),
         fee,
         U256::zero(),
-        L2ChainId(271),
+        L2ChainId::from(271),
         &H256::repeat_byte(0x11),
         None,
         PaymasterParams::default(),
@@ -178,7 +182,8 @@ pub(super) fn create_execution_result(
         result: ExecutionResult::Success { output: vec![] },
         logs: VmExecutionLogs {
             events: vec![],
-            l2_to_l1_logs: vec![],
+            system_l2_to_l1_logs: vec![],
+            user_l2_to_l1_logs: vec![],
             storage_logs,
             total_log_queries_count: total_log_queries,
         },

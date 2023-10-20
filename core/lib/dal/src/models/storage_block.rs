@@ -43,6 +43,8 @@ pub struct StorageL1BatchHeader {
     pub bootloader_code_hash: Option<Vec<u8>>,
     pub default_aa_code_hash: Option<Vec<u8>>,
     pub protocol_version: Option<i32>,
+    pub system_logs: Vec<Vec<u8>>,
+    pub compressed_state_diffs: Option<Vec<u8>>,
 }
 
 impl From<StorageL1BatchHeader> for L1BatchHeader {
@@ -51,6 +53,12 @@ impl From<StorageL1BatchHeader> for L1BatchHeader {
             .priority_ops_onchain_data
             .into_iter()
             .map(|raw_data| raw_data.into())
+            .collect();
+
+        let system_logs: Vec<_> = l1_batch
+            .system_logs
+            .into_iter()
+            .map(|raw_log| L2ToL1Log::from_slice(&raw_log))
             .collect();
 
         L1BatchHeader {
@@ -77,6 +85,7 @@ impl From<StorageL1BatchHeader> for L1BatchHeader {
             ),
             l1_gas_price: l1_batch.l1_gas_price as u64,
             l2_fair_gas_price: l1_batch.l2_fair_gas_price as u64,
+            system_logs,
             protocol_version: l1_batch
                 .protocol_version
                 .map(|v| (v as u16).try_into().unwrap()),
@@ -106,7 +115,7 @@ fn convert_base_system_contracts_hashes(
     }
 }
 
-/// Projection of the `l1_batches` table corresponding to [`L1BatchHeader`] + [`L1BatchMetadata`].
+/// Projection of the columns corresponding to [`L1BatchHeader`] + [`L1BatchMetadata`].
 // TODO(PLA-369): use `#[sqlx(flatten)]` once upgraded to newer `sqlx`
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct StorageL1Batch {
@@ -151,7 +160,19 @@ pub struct StorageL1Batch {
     pub l1_gas_price: i64,
     pub l2_fair_gas_price: i64,
 
+    // These fields are not used, but are present for compatibility reasons
+    pub gas_per_pubdata_byte_in_block: Option<i32>,
+    pub gas_per_pubdata_limit: i64,
+
+    pub skip_proof: bool,
+
+    pub system_logs: Vec<Vec<u8>>,
+    pub compressed_state_diffs: Option<Vec<u8>>,
+
     pub protocol_version: Option<i32>,
+
+    pub events_queue_commitment: Option<Vec<u8>>,
+    pub bootloader_initial_content_commitment: Option<Vec<u8>>,
 }
 
 impl From<StorageL1Batch> for L1BatchHeader {
@@ -160,6 +181,12 @@ impl From<StorageL1Batch> for L1BatchHeader {
             .priority_ops_onchain_data
             .into_iter()
             .map(Vec::into)
+            .collect();
+
+        let system_logs: Vec<_> = l1_batch
+            .system_logs
+            .into_iter()
+            .map(|raw_log| L2ToL1Log::from_slice(&raw_log))
             .collect();
 
         L1BatchHeader {
@@ -186,6 +213,7 @@ impl From<StorageL1Batch> for L1BatchHeader {
             ),
             l1_gas_price: l1_batch.l1_gas_price as u64,
             l2_fair_gas_price: l1_batch.l2_fair_gas_price as u64,
+            system_logs,
             protocol_version: l1_batch
                 .protocol_version
                 .map(|v| (v as u16).try_into().unwrap()),
@@ -257,6 +285,13 @@ impl TryInto<L1BatchMetadata> for StorageL1Batch {
                         .ok_or(StorageL1BatchConvertError::Incomplete)?,
                 ),
             },
+            state_diffs_compressed: self
+                .compressed_state_diffs
+                .ok_or(StorageL1BatchConvertError::Incomplete)?,
+            events_queue_commitment: self.events_queue_commitment.map(|v| H256::from_slice(&v)),
+            bootloader_initial_content_commitment: self
+                .bootloader_initial_content_commitment
+                .map(|v| H256::from_slice(&v)),
         })
     }
 }

@@ -10,12 +10,14 @@ keywords = ["blockchain", "zksync"]
 categories = ["cryptography"]
 
 [dependencies]
+vise = { git = "https://github.com/matter-labs/vise.git", version = "0.1.0", rev = "dd05139b76ab0843443ab3ff730174942c825dae" }
 zksync_state = { path = "../state" }
 zksync_types = { path = "../types" }
 zksync_dal = { path = "../dal" }
 zksync_config = { path = "../config" }
 zksync_utils = { path = "../utils" }
 zksync_contracts = { path = "../contracts" }
+zksync_commitment_utils = { path = "../commitment_utils" }
 zksync_eth_client = { path = "../eth_client" }
 zksync_eth_signer = { path = "../eth_signer" }
 zksync_mempool = { path = "../mempool" }
@@ -40,8 +42,8 @@ multivm = { path = "../multivm" }
 
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-metrics = "0.21"
 itertools = "0.10.3"
+metrics = "0.21"
 ctrlc = { version = "3.1", features = ["termination"] }
 rand = "0.8"
 
@@ -80,6 +82,8 @@ actix-cors = "0.6.0-beta.2"
 actix-web = "4.0.0-beta.8"
 
 tracing = "0.1.26"
+
+zkevm_test_harness = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.4.0" }
 
 [dev-dependencies]
 db_test_macro = { path = "../db_test_macro" }

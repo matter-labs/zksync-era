@@ -30,6 +30,8 @@ const STATE_TRANSITION_CONTRACT_FILE: &str =
     "contracts/ethereum/artifacts/cache/solpp-generated-contracts/state-transition/state-transition-interfaces/IStateTransition.sol/IStateTransition.json";
 const STATE_TRANSITION_CHAIN_CONTRACT_FILE: &str =
     "contracts/ethereum/artifacts/cache/solpp-generated-contracts/state-transition/chain-interfaces/IStateTransitionChain.sol/IStateTransitionChain.json";
+const GOVERNANCE_CONTRACT_FILE: &str =
+    "contracts/ethereum/artifacts/cache/solpp-generated-contracts/governance/IGovernance.sol/IGovernance.json";
 const MULTICALL3_CONTRACT_FILE: &str =
     "contracts/ethereum/artifacts/cache/solpp-generated-contracts/dev-contracts/Multicall3.sol/Multicall3.json";
 const VERIFIER_CONTRACT_FILE: &str =
@@ -83,6 +85,10 @@ pub fn state_transition_contract() -> Contract {
 
 pub fn state_transition_chain_contract() -> Contract {
     load_contract(STATE_TRANSITION_CHAIN_CONTRACT_FILE)
+}
+
+pub fn governance_contract() -> Contract {
+    load_contract(GOVERNANCE_CONTRACT_FILE)
 }
 
 pub fn multicall_contract() -> Contract {

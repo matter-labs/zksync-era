@@ -4,7 +4,7 @@ use clap::Parser;
 use std::{str::FromStr, time::Duration};
 use zksync_config::configs::chain::NetworkConfig;
 
-use zksync_config::{ContractsConfig, ETHSenderConfig};
+use zksync_config::{ContractsConfig, ETHClientConfig, ETHSenderConfig};
 use zksync_core::{
     genesis_init, initialize_components, is_genesis_needed, setup_sigint_handler, Component,
     Components,
@@ -80,7 +80,8 @@ async fn main() -> anyhow::Result<()> {
         let network = NetworkConfig::from_env().context("NetworkConfig")?;
         let eth_sender = ETHSenderConfig::from_env().context("ETHSenderConfig")?;
         let contracts = ContractsConfig::from_env().context("ContractsConfig")?;
-        genesis_init(&eth_sender, &network, &contracts)
+        let eth_client = ETHClientConfig::from_env().context("EthClientConfig")?;
+        genesis_init(&eth_sender, &network, &contracts, &eth_client.web3_url)
             .await
             .context("genesis_init")?;
         if opt.genesis {

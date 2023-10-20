@@ -1,35 +1,57 @@
 use once_cell::sync::Lazy;
+use std::cell::RefCell;
+use std::rc::Rc;
+use vm::constants::{BLOCK_GAS_LIMIT, BOOTLOADER_HEAP_PAGE};
 use vm::{
-    utils::{create_test_block_params, read_bootloader_test_code, BLOCK_GAS_LIMIT},
-    vm_with_bootloader::{
-        init_vm_inner, push_raw_transaction_to_bootloader_memory, BlockContextMode,
-        BootloaderJobType, DerivedBlockContext, TxExecutionMode,
-    },
-    zk_evm::{aux_structures::Timestamp, zkevm_opcode_defs::BOOTLOADER_HEAP_PAGE},
-    HistoryEnabled, OracleTools,
+    BootloaderState, BoxedTracer, DynTracer, HistoryEnabled, HistoryMode, L1BatchEnv, L2BlockEnv,
+    SystemEnv, TxExecutionMode, Vm, VmExecutionMode, VmExecutionStopReason, VmTracer,
+    ZkSyncVmState,
 };
 use zksync_contracts::{
-    load_sys_contract, read_bootloader_code, read_sys_contract_bytecode, BaseSystemContracts,
-    ContractLanguage, SystemContractCode,
+    load_sys_contract, read_bootloader_code, read_sys_contract_bytecode, read_zbin_bytecode,
+    BaseSystemContracts, ContractLanguage, SystemContractCode,
 };
 use zksync_state::{InMemoryStorage, StorageView, WriteStorage};
+use zksync_types::block::legacy_miniblock_hash;
 use zksync_types::{
-    ethabi::Token,
-    fee::Fee,
-    l1::L1Tx,
-    l2::L2Tx,
-    tx::{
-        tx_execution_info::{TxExecutionStatus, VmExecutionLogs},
-        ExecutionMetrics,
-    },
-    utils::storage_key_for_eth_balance,
-    AccountTreeId, Address, Execute, L1TxCommonData, L2ChainId, Nonce, StorageKey, Transaction,
-    BOOTLOADER_ADDRESS, H256, SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_GAS_PRICE_POSITION,
-    SYSTEM_CONTEXT_TX_ORIGIN_POSITION, U256,
+    ethabi::Token, fee::Fee, l1::L1Tx, l2::L2Tx, utils::storage_key_for_eth_balance, AccountTreeId,
+    Address, Execute, L1BatchNumber, L1TxCommonData, L2ChainId, MiniblockNumber, Nonce,
+    ProtocolVersionId, StorageKey, Timestamp, Transaction, BOOTLOADER_ADDRESS, H256,
+    SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_GAS_PRICE_POSITION, SYSTEM_CONTEXT_TX_ORIGIN_POSITION,
+    U256, ZKPORTER_IS_AVAILABLE,
 };
 use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, u256_to_h256};
 
 use crate::intrinsic_costs::VmSpentResourcesResult;
+
+/// Tracer for setting the data for bootloader with custom input
+/// and receive an output from this custom bootloader
+struct SpecialBootloaderTracer {
+    input: Vec<(usize, U256)>,
+    output: Rc<RefCell<u32>>,
+}
+
+impl<S: WriteStorage, H: HistoryMode> DynTracer<S, H> for SpecialBootloaderTracer {}
+
+impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for SpecialBootloaderTracer {
+    fn initialize_tracer(&mut self, state: &mut ZkSyncVmState<S, H>) {
+        state.memory.populate_page(
+            BOOTLOADER_HEAP_PAGE as usize,
+            self.input.clone(),
+            Timestamp(0),
+        );
+    }
+    fn after_vm_execution(
+        &mut self,
+        state: &mut ZkSyncVmState<S, H>,
+        _bootloader_state: &BootloaderState,
+        _stop_reason: VmExecutionStopReason,
+    ) {
+        let value_recorded_from_test = state.memory.read_slot(BOOTLOADER_HEAP_PAGE as usize, 0);
+        let mut res = self.output.borrow_mut();
+        *res = value_recorded_from_test.value.as_u32();
+    }
+}
 
 pub static GAS_TEST_SYSTEM_CONTRACTS: Lazy<BaseSystemContracts> = Lazy::new(|| {
     let bytecode = read_bootloader_code("gas_test");
@@ -66,7 +88,7 @@ pub(super) fn get_l2_tx(contract_address: Address, signer: &H256, pubdata_price:
             gas_per_pubdata_limit: pubdata_price.into(),
         },
         U256::from(0),
-        L2ChainId(270),
+        L2ChainId::from(270),
         signer,
         None,
         Default::default(),
@@ -135,25 +157,47 @@ pub(super) fn get_l1_txs(number_of_txs: usize) -> (Vec<Transaction>, Vec<Transac
     (txs_with_pubdata_price, txs_without_pubdata_price)
 }
 
+fn read_bootloader_test_code(test: &str) -> Vec<u8> {
+    read_zbin_bytecode(format!(
+        "etc/system-contracts/bootloader/tests/artifacts/{}.yul/{}.yul.zbin",
+        test, test
+    ))
+}
+
+fn default_l1_batch() -> L1BatchEnv {
+    L1BatchEnv {
+        previous_batch_hash: None,
+        number: L1BatchNumber(1),
+        timestamp: 100,
+        l1_gas_price: 50_000_000_000,   // 50 gwei
+        fair_l2_gas_price: 250_000_000, // 0.25 gwei
+        fee_account: Address::random(),
+        enforced_base_fee: None,
+        first_l2_block: L2BlockEnv {
+            number: 1,
+            timestamp: 100,
+            prev_block_hash: legacy_miniblock_hash(MiniblockNumber(0)),
+            max_virtual_blocks_to_create: 100,
+        },
+    }
+}
+
 /// Executes the "internal transfer test" of the bootloader -- the test that
 /// returns the amount of gas needed to perform and internal transfer, assuming no gas price
 /// per pubdata, i.e. under assumption that the refund will not touch any new slots.
 pub(super) fn execute_internal_transfer_test() -> u32 {
-    let (block_context, block_properties) = create_test_block_params();
-    let block_context: DerivedBlockContext = block_context.into();
-
     let raw_storage = InMemoryStorage::with_system_contracts(hash_bytecode);
     let mut storage_view = StorageView::new(raw_storage);
     let bootloader_balance_key = storage_key_for_eth_balance(&BOOTLOADER_ADDRESS);
     storage_view.set_value(bootloader_balance_key, u256_to_h256(U256([0, 0, 1, 0])));
-    let mut oracle_tools = OracleTools::new(&mut storage_view, HistoryEnabled);
-
     let bytecode = read_bootloader_test_code("transfer_test");
     let hash = hash_bytecode(&bytecode);
     let bootloader = SystemContractCode {
         code: bytes_to_be_words(bytecode),
         hash,
     };
+
+    let l1_batch = default_l1_batch();
 
     let bytecode = read_sys_contract_bytecode("", "DefaultAccount", ContractLanguage::Sol);
     let hash = hash_bytecode(&bytecode);
@@ -162,19 +206,20 @@ pub(super) fn execute_internal_transfer_test() -> u32 {
         hash,
     };
 
-    let base_system_contract = BaseSystemContracts {
+    let base_system_smart_contracts = BaseSystemContracts {
         bootloader,
         default_aa,
     };
 
-    let mut vm = init_vm_inner(
-        &mut oracle_tools,
-        BlockContextMode::NewBlock(block_context, Default::default()),
-        &block_properties,
-        BLOCK_GAS_LIMIT,
-        &base_system_contract,
-        TxExecutionMode::VerifyExecute,
-    );
+    let system_env = SystemEnv {
+        zk_porter_available: ZKPORTER_IS_AVAILABLE,
+        version: ProtocolVersionId::latest(),
+        base_system_smart_contracts,
+        gas_limit: BLOCK_GAS_LIMIT,
+        execution_mode: TxExecutionMode::VerifyExecute,
+        default_validation_computational_gas_limit: BLOCK_GAS_LIMIT,
+        chain_id: L2ChainId::default(),
+    };
 
     let eth_token_sys_contract = load_sys_contract("L2EthToken");
     let transfer_from_to = &eth_token_sys_contract
@@ -197,24 +242,22 @@ pub(super) fn execute_internal_transfer_test() -> u32 {
         input
     };
     let input: Vec<_> = bytes_to_be_words(input).into_iter().enumerate().collect();
-    vm.state
-        .memory
-        .populate_page(BOOTLOADER_HEAP_PAGE as usize, input, Timestamp(0));
 
-    let result = vm.execute_till_block_end(BootloaderJobType::BlockPostprocessing);
-
-    assert!(
-        result.block_tip_result.revert_reason.is_none(),
-        "The internal call has reverted"
+    let tracer_result = Rc::new(RefCell::new(0));
+    let tracer = SpecialBootloaderTracer {
+        input,
+        output: tracer_result.clone(),
+    };
+    let mut vm = Vm::new(
+        l1_batch,
+        system_env,
+        Rc::new(RefCell::new(storage_view)),
+        HistoryEnabled,
     );
-    assert!(
-        result.full_result.revert_reason.is_none(),
-        "The internal call has reverted"
-    );
+    let result = vm.inspect(vec![tracer.into_boxed()], VmExecutionMode::Bootloader);
 
-    let value_recorded_from_test = vm.state.memory.read_slot(BOOTLOADER_HEAP_PAGE as usize, 0);
-
-    value_recorded_from_test.value.as_u32()
+    assert!(!result.result.is_failed(), "The internal call has reverted");
+    tracer_result.take()
 }
 
 // Executes an array of transactions in the VM.
@@ -225,9 +268,6 @@ pub(super) fn execute_user_txs_in_test_gas_vm(
     let total_gas_paid_upfront = txs
         .iter()
         .fold(U256::zero(), |sum, elem| sum + elem.gas_limit());
-
-    let (block_context, block_properties) = create_test_block_params();
-    let block_context: DerivedBlockContext = block_context.into();
 
     let raw_storage = InMemoryStorage::with_system_contracts(hash_bytecode);
     let mut storage_view = StorageView::new(raw_storage);
@@ -256,61 +296,43 @@ pub(super) fn execute_user_txs_in_test_gas_vm(
         storage_view.set_value(tx_gas_price_key, u256_to_h256(U256([1, 0, 0, 0])));
     }
 
-    let mut oracle_tools = OracleTools::new(&mut storage_view, HistoryEnabled);
+    let l1_batch = default_l1_batch();
+    let system_env = SystemEnv {
+        zk_porter_available: ZKPORTER_IS_AVAILABLE,
+        version: ProtocolVersionId::latest(),
+        base_system_smart_contracts: GAS_TEST_SYSTEM_CONTRACTS.clone(),
+        gas_limit: BLOCK_GAS_LIMIT,
+        execution_mode: TxExecutionMode::VerifyExecute,
+        default_validation_computational_gas_limit: BLOCK_GAS_LIMIT,
+        chain_id: L2ChainId::default(),
+    };
 
-    let mut vm = init_vm_inner(
-        &mut oracle_tools,
-        BlockContextMode::NewBlock(block_context, Default::default()),
-        &block_properties,
-        BLOCK_GAS_LIMIT,
-        &GAS_TEST_SYSTEM_CONTRACTS,
-        TxExecutionMode::VerifyExecute,
+    let mut vm = Vm::new(
+        l1_batch,
+        system_env,
+        Rc::new(RefCell::new(storage_view)),
+        HistoryEnabled,
     );
-    vm.start_next_l2_block(vm.get_current_l2_block_info().dummy_next_block_info());
 
     let mut total_gas_refunded = 0;
     for tx in txs {
-        push_raw_transaction_to_bootloader_memory(
-            &mut vm,
-            tx.clone().into(),
-            TxExecutionMode::VerifyExecute,
-            0,
-            None,
-        );
-        let tx_execution_result = vm
-            .execute_next_tx(u32::MAX, false)
-            .expect("Bootloader failed while processing transaction");
+        vm.push_transaction(tx);
+        let tx_execution_result = vm.execute(VmExecutionMode::OneTx);
 
-        total_gas_refunded += tx_execution_result.gas_refunded;
+        total_gas_refunded += tx_execution_result.refunds.gas_refunded;
         if !accept_failure {
-            assert_eq!(
-                tx_execution_result.status,
-                TxExecutionStatus::Success,
+            assert!(
+                !tx_execution_result.result.is_failed(),
                 "A transaction has failed"
             );
         }
     }
 
-    let result = vm.execute_till_block_end(BootloaderJobType::BlockPostprocessing);
-    let execution_logs = VmExecutionLogs {
-        storage_logs: result.full_result.storage_log_queries,
-        events: result.full_result.events,
-        l2_to_l1_logs: result.full_result.l2_to_l1_logs,
-        total_log_queries_count: result.full_result.total_log_queries,
-    };
-
-    let metrics = ExecutionMetrics::new(
-        &execution_logs,
-        result.full_result.gas_used as usize,
-        0, // The number of contracts deployed is irrelevant for our needs
-        result.full_result.contracts_used,
-        result.full_result.cycles_used,
-        result.full_result.computational_gas_used,
-        result.full_result.total_log_queries,
-    );
+    let result = vm.execute(VmExecutionMode::Bootloader);
+    let metrics = result.get_execution_metrics(None);
 
     VmSpentResourcesResult {
-        gas_consumed: vm.gas_consumed(),
+        gas_consumed: result.statistics.gas_used,
         total_gas_paid: total_gas_paid_upfront.as_u32() - total_gas_refunded,
         pubdata_published: metrics.size() as u32,
         total_pubdata_paid: 0,

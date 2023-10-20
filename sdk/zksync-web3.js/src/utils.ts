@@ -20,6 +20,7 @@ export * from './paymaster-utils';
 export const ETH_ADDRESS = '0x0000000000000000000000000000000000000000';
 
 export const BRIDGEHUB_ABI = new utils.Interface(require('../../abi/IBridgehub.json').abi);
+export const STATE_TRANSITION_CHAIN_ABI = new utils.Interface(require('../../abi/IStateTransitionChain.json').abi);
 export const CONTRACT_DEPLOYER = new utils.Interface(require('../../abi/ContractDeployer.json').abi);
 export const L1_MESSENGER = new utils.Interface(require('../../abi/IL1Messenger.json').abi);
 export const IERC20 = new utils.Interface(require('../../abi/IERC20.json').abi);

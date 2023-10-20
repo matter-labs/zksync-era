@@ -1,28 +1,40 @@
+use std::convert::TryFrom;
+use std::time::Instant;
+use zksync_contracts::{governance_contract, state_transition_chain_contract};
+use zksync_dal::StorageProcessor;
+use zksync_types::{
+    protocol_version::GovernanceOperation, web3::types::Log, Address, ProtocolUpgrade,
+    ProtocolVersionId, H256,
+};
+
 use crate::eth_watch::{
     client::{Error, EthClient},
     event_processors::EventProcessor,
+    metrics::{PollStage, METRICS},
 };
-use std::convert::TryFrom;
-use std::time::Instant;
-use zksync_contracts::state_transition_chain_contract;
-use zksync_dal::StorageProcessor;
-use zksync_types::{web3::types::Log, ProtocolUpgrade, ProtocolVersionId, H256};
 
 /// Responsible for saving new protocol upgrade proposals to the database.
 #[derive(Debug)]
 pub struct UpgradesEventProcessor {
+    diamond_proxy_address: Address,
     last_seen_version_id: ProtocolVersionId,
     upgrade_proposal_signature: H256,
+    execute_upgrade_short_signature: [u8; 4],
 }
 
 impl UpgradesEventProcessor {
-    pub fn new(last_seen_version_id: ProtocolVersionId) -> Self {
+    pub fn new(diamond_proxy_address: Address, last_seen_version_id: ProtocolVersionId) -> Self {
         Self {
+            diamond_proxy_address,
             last_seen_version_id,
-            upgrade_proposal_signature: state_transition_chain_contract()
-                .event("ProposeTransparentUpgrade")
-                .expect("ProposeTransparentUpgrade event is missing in abi")
+            upgrade_proposal_signature: governance_contract()
+                .event("TransparentOperationScheduled")
+                .expect("TransparentOperationScheduled event is missing in abi")
                 .signature(),
+            execute_upgrade_short_signature: zksync_contract()
+                .function("executeUpgrade")
+                .unwrap()
+                .short_signature(),
         }
     }
 }
@@ -40,15 +52,29 @@ impl<W: EthClient + Sync> EventProcessor<W> for UpgradesEventProcessor {
             .into_iter()
             .filter(|event| event.topics[0] == self.upgrade_proposal_signature)
         {
-            let upgrade = ProtocolUpgrade::try_from(event)
+            let governance_operation = GovernanceOperation::try_from(event)
                 .map_err(|err| Error::LogParse(format!("{:?}", err)))?;
-            // Scheduler VK is not present in proposal event. It is hardcoded in verifier contract.
-            let scheduler_vk_hash = if let Some(address) = upgrade.verifier_address {
-                Some(client.scheduler_vk_hash(address).await?)
-            } else {
-                None
-            };
-            upgrades.push((upgrade, scheduler_vk_hash));
+            // Some calls can target other contracts than Diamond proxy, skip them.
+            for call in governance_operation
+                .calls
+                .into_iter()
+                .filter(|call| call.target == self.diamond_proxy_address)
+            {
+                if call.data.len() < 4 || &call.data[..4] != &self.execute_upgrade_short_signature {
+                    continue;
+                }
+
+                let upgrade = ProtocolUpgrade::try_from(call)
+                    .map_err(|err| Error::LogParse(format!("{:?}", err)))?;
+
+                // Scheduler VK is not present in proposal event. It is hardcoded in verifier contract.
+                let scheduler_vk_hash = if let Some(address) = upgrade.verifier_address {
+                    Some(client.scheduler_vk_hash(address).await?)
+                } else {
+                    None
+                };
+                upgrades.push((upgrade, scheduler_vk_hash));
+            }
         }
 
         if upgrades.is_empty() {
@@ -70,7 +96,7 @@ impl<W: EthClient + Sync> EventProcessor<W> for UpgradesEventProcessor {
         }
 
         let last_id = new_upgrades.last().unwrap().0.id;
-        let stage_start = Instant::now();
+        let stage_latency = METRICS.poll_eth_node[&PollStage::PersistUpgrades].start();
         for (upgrade, scheduler_vk_hash) in new_upgrades {
             let previous_version = storage
                 .protocol_versions_dal()
@@ -83,10 +109,8 @@ impl<W: EthClient + Sync> EventProcessor<W> for UpgradesEventProcessor {
                 .save_protocol_version_with_tx(new_version)
                 .await;
         }
-        metrics::histogram!("eth_watcher.poll_eth_node", stage_start.elapsed(), "stage" => "persist_upgrades");
-
+        stage_latency.observe();
         self.last_seen_version_id = last_id;
-
         Ok(())
     }
 

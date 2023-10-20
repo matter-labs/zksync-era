@@ -6,13 +6,12 @@ pub enum VmVersion {
     M6BugWithCompressionFixed,
     Vm1_3_2,
     VmVirtualBlocks,
-    // kl todo delete local vm verion
-    Local,
+    VmVirtualBlocksRefundsEnhancement,
 }
 
 impl VmVersion {
     /// Returns the latest supported VM version.
     pub const fn latest() -> VmVersion {
-        Self::VmVirtualBlocks
+        Self::VmVirtualBlocksRefundsEnhancement
     }
 }

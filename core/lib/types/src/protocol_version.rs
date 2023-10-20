@@ -36,19 +36,17 @@ pub enum ProtocolVersionId {
     Version14,
     Version15,
     Version16,
-    // kl todo delete local vm verion
-    Local = 65535,
+    Version17,
+    Version18,
 }
 
 impl ProtocolVersionId {
     pub fn latest() -> Self {
-        // kl todo delete local vm verion
-        Self::Local
-        // Self::Version15
+        Self::Version17
     }
 
     pub fn next() -> Self {
-        Self::Version16
+        Self::Version18
     }
 
     /// Returns VM version to be used by API for this protocol version.
@@ -71,9 +69,9 @@ impl ProtocolVersionId {
             ProtocolVersionId::Version13 => VmVersion::VmVirtualBlocks,
             ProtocolVersionId::Version14 => VmVersion::VmVirtualBlocks,
             ProtocolVersionId::Version15 => VmVersion::VmVirtualBlocks,
-            ProtocolVersionId::Version16 => VmVersion::VmVirtualBlocks,
-            // kl todo delete local vm verion
-            ProtocolVersionId::Local => VmVersion::Local,
+            ProtocolVersionId::Version16 => VmVersion::VmVirtualBlocksRefundsEnhancement,
+            ProtocolVersionId::Version17 => VmVersion::VmVirtualBlocksRefundsEnhancement,
+            ProtocolVersionId::Version18 => VmVersion::VmVirtualBlocksRefundsEnhancement,
         }
     }
 }
@@ -160,6 +158,32 @@ pub struct L1VerifierConfig {
     pub recursion_scheduler_level_vk_hash: H256,
 }
 
+/// Represents a call to be made during governance operation.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Call {
+    /// The address to which the call will be made.
+    pub target: Address,
+    ///  The amount of Ether (in wei) to be sent along with the call.
+    pub value: U256,
+    /// The calldata to be executed on the `target` address.
+    pub data: Vec<u8>,
+    /// Hash of the corresponding Ethereum transaction. Size should be 32 bytes.
+    pub eth_hash: H256,
+    /// Block in which Ethereum transaction was included.
+    pub eth_block: u64,
+}
+
+/// Defines the structure of an operation that Governance contract executes.
+#[derive(Debug, Clone, Default)]
+pub struct GovernanceOperation {
+    /// An array of `Call` structs, each representing a call to be made during the operation.
+    pub calls: Vec<Call>,
+    /// The hash of the predecessor operation, that should be executed before this operation.
+    pub predecessor: H256,
+    /// The value used for creating unique operation hashes.
+    pub salt: H256,
+}
+
 /// Protocol upgrade proposal from L1.
 /// Most of the fields are optional meaning if value is none
 /// then this field is not changed within an upgrade.
@@ -181,10 +205,63 @@ pub struct ProtocolUpgrade {
     pub tx: Option<ProtocolUpgradeTx>,
 }
 
-impl TryFrom<Log> for ProtocolUpgrade {
+impl TryFrom<Log> for GovernanceOperation {
     type Error = crate::ethabi::Error;
 
     fn try_from(event: Log) -> Result<Self, Self::Error> {
+        let call_param_type = ParamType::Tuple(vec![
+            ParamType::Address,
+            ParamType::Uint(256),
+            ParamType::Bytes,
+        ]);
+
+        let operation_param_type = ParamType::Tuple(vec![
+            ParamType::Array(Box::new(call_param_type)),
+            ParamType::FixedBytes(32),
+            ParamType::FixedBytes(32),
+        ]);
+        let mut decoded = decode(&[ParamType::Uint(256), operation_param_type], &event.data.0)?;
+        decoded = decoded.remove(1).into_tuple().unwrap();
+
+        let eth_hash = event
+            .transaction_hash
+            .expect("Event transaction hash is missing");
+        let eth_block = event
+            .block_number
+            .expect("Event block number is missing")
+            .as_u64();
+
+        let calls = decoded.remove(0).into_array().unwrap();
+        let predecessor = H256::from_slice(&decoded.remove(0).into_fixed_bytes().unwrap());
+        let salt = H256::from_slice(&decoded.remove(0).into_fixed_bytes().unwrap());
+
+        let calls = calls
+            .into_iter()
+            .map(|call| {
+                let mut decoded = call.into_tuple().unwrap();
+
+                Call {
+                    target: decoded.remove(0).into_address().unwrap(),
+                    value: decoded.remove(0).into_uint().unwrap(),
+                    data: decoded.remove(0).into_bytes().unwrap(),
+                    eth_hash,
+                    eth_block,
+                }
+            })
+            .collect();
+
+        Ok(Self {
+            calls,
+            predecessor,
+            salt,
+        })
+    }
+}
+
+impl TryFrom<Call> for ProtocolUpgrade {
+    type Error = crate::ethabi::Error;
+
+    fn try_from(call: Call) -> Result<Self, Self::Error> {
         let facet_cut_param_type = ParamType::Tuple(vec![
             ParamType::Address,
             ParamType::Uint(8),
@@ -196,10 +273,7 @@ impl TryFrom<Log> for ProtocolUpgrade {
             ParamType::Address,
             ParamType::Bytes,
         ]);
-        let mut decoded = decode(
-            &[diamond_cut_data_param_type, ParamType::FixedBytes(32)],
-            &event.data.0,
-        )?;
+        let mut decoded = decode(&[diamond_cut_data_param_type], &call.data[4..])?;
 
         let init_calldata = match decoded.remove(0) {
             Token::Tuple(tokens) => tokens[2].clone().into_bytes().unwrap(),
@@ -320,14 +394,6 @@ impl TryFrom<Log> for ProtocolUpgrade {
                 let reserved_dynamic = transaction.remove(0).into_bytes().unwrap();
                 assert_eq!(reserved_dynamic.len(), 0);
 
-                let eth_hash = event
-                    .transaction_hash
-                    .expect("Event transaction hash is missing");
-                let eth_block = event
-                    .block_number
-                    .expect("Event block number is missing")
-                    .as_u64();
-
                 let common_data = ProtocolUpgradeTxCommonData {
                     canonical_tx_hash,
                     sender,
@@ -337,8 +403,8 @@ impl TryFrom<Log> for ProtocolUpgrade {
                     gas_limit,
                     max_fee_per_gas,
                     gas_per_pubdata_limit,
-                    eth_hash,
-                    eth_block,
+                    eth_hash: call.eth_hash,
+                    eth_block: call.eth_block,
                 };
 
                 let factory_deps = factory_deps
@@ -558,9 +624,9 @@ impl From<ProtocolVersionId> for VmVersion {
             ProtocolVersionId::Version13 => VmVersion::VmVirtualBlocks,
             ProtocolVersionId::Version14 => VmVersion::VmVirtualBlocks,
             ProtocolVersionId::Version15 => VmVersion::VmVirtualBlocks,
-            ProtocolVersionId::Version16 => VmVersion::VmVirtualBlocks,
-            // kl todo delete local vm verion
-            ProtocolVersionId::Local => VmVersion::Local,
+            ProtocolVersionId::Version16 => VmVersion::VmVirtualBlocksRefundsEnhancement,
+            ProtocolVersionId::Version17 => VmVersion::VmVirtualBlocksRefundsEnhancement,
+            ProtocolVersionId::Version18 => VmVersion::VmVirtualBlocksRefundsEnhancement,
         }
     }
 }

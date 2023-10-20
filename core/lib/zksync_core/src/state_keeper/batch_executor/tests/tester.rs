@@ -28,7 +28,7 @@ use crate::state_keeper::{
 };
 
 const DEFAULT_GAS_PER_PUBDATA: u32 = 100;
-const CHAIN_ID: L2ChainId = L2ChainId(270);
+const CHAIN_ID: u32 = 270;
 
 /// Representation of configuration parameters used by the state keeper.
 /// Has sensible defaults for most tests, each of which can be overridden.
@@ -100,6 +100,8 @@ impl Tester {
             .access_storage_tagged("state_keeper")
             .await
             .unwrap();
+
+        secondary_storage.enable_enum_index_migration(100);
         secondary_storage.update_from_postgres(&mut conn).await;
         drop(conn);
 
@@ -144,7 +146,7 @@ impl Tester {
             create_genesis_l1_batch(
                 &mut storage,
                 self.fee_account,
-                CHAIN_ID,
+                L2ChainId::from(CHAIN_ID),
                 ProtocolVersionId::latest(),
                 &BASE_SYSTEM_CONTRACTS,
                 &get_system_smart_contracts(),
@@ -172,16 +174,27 @@ impl Tester {
                 address,
             );
             let value = u256_to_h256(eth_amount);
-            let storage_logs = vec![StorageLog::new_write_log(key, value)];
+            let storage_log = StorageLog::new_write_log(key, value);
 
             storage
                 .storage_logs_dal()
-                .append_storage_logs(MiniblockNumber(0), &[(H256::zero(), storage_logs.clone())])
+                .append_storage_logs(MiniblockNumber(0), &[(H256::zero(), vec![storage_log])])
                 .await;
             storage
                 .storage_dal()
-                .apply_storage_logs(&[(H256::zero(), storage_logs)])
+                .apply_storage_logs(&[(H256::zero(), vec![storage_log])])
                 .await;
+            if storage
+                .storage_logs_dedup_dal()
+                .filter_written_slots(&[storage_log.key.hashed_key()])
+                .await
+                .is_empty()
+            {
+                storage
+                    .storage_logs_dedup_dal()
+                    .insert_initial_writes(L1BatchNumber(0), &[storage_log.key])
+                    .await
+            }
         }
     }
 }

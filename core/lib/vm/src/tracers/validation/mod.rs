@@ -19,7 +19,8 @@ use zksync_config::constants::{
 use zksync_state::{StoragePtr, WriteStorage};
 
 use zksync_types::{
-    get_code_key, web3::signing::keccak256, AccountTreeId, Address, StorageKey, H256, U256,
+    get_code_key, vm_trace::ViolatedValidationRule, web3::signing::keccak256, AccountTreeId,
+    Address, StorageKey, H256, U256,
 };
 use zksync_utils::{
     be_bytes_to_safe_address, h256_to_account_address, u256_to_account_address, u256_to_h256,
@@ -27,18 +28,20 @@ use zksync_utils::{
 
 use crate::old_vm::history_recorder::HistoryMode;
 use crate::old_vm::memory::SimpleMemory;
-use crate::tracers::traits::{DynTracer, ExecutionEndTracer, ExecutionProcessing, VmTracer};
+use crate::tracers::traits::{
+    DynTracer, TracerExecutionStatus, TracerExecutionStopReason, VmTracer,
+};
 use crate::tracers::utils::{
     computational_gas_price, get_calldata_page_via_abi, print_debug_if_needed, VmHook,
 };
 
-pub use error::{ValidationError, ViolatedValidationRule};
+pub use error::ValidationError;
 pub use params::ValidationTracerParams;
 
 use types::NewTrustedValidationItems;
 use types::ValidationTracerMode;
 
-use crate::VmExecutionResultAndLogs;
+use crate::{BootloaderState, Halt, ZkSyncVmState};
 
 /// Tracer that is used to ensure that the validation adheres to all the rules
 /// to prevent DDoS attacks on the server.
@@ -56,7 +59,7 @@ pub struct ValidationTracer<H> {
     trusted_address_slots: HashSet<(Address, U256)>,
     computational_gas_used: u32,
     computational_gas_limit: u32,
-    result: Arc<OnceCell<ViolatedValidationRule>>,
+    pub result: Arc<OnceCell<ViolatedValidationRule>>,
     _marker: PhantomData<fn(H) -> H>,
 }
 
@@ -186,6 +189,17 @@ impl<H: HistoryMode> ValidationTracer<H> {
             Some(H256(slot))
         } else {
             None
+        }
+    }
+
+    pub fn params(&self) -> ValidationTracerParams {
+        ValidationTracerParams {
+            user_address: self.user_address,
+            paymaster_address: self.paymaster_address,
+            trusted_slots: self.trusted_slots.clone(),
+            trusted_addresses: self.trusted_addresses.clone(),
+            trusted_address_slots: self.trusted_address_slots.clone(),
+            computational_gas_limit: self.computational_gas_limit,
         }
     }
 
@@ -340,16 +354,22 @@ impl<S: WriteStorage, H: HistoryMode> DynTracer<S, H> for ValidationTracer<H> {
     }
 }
 
-impl<H: HistoryMode> ExecutionEndTracer<H> for ValidationTracer<H> {
-    fn should_stop_execution(&self) -> bool {
-        self.should_stop_execution || self.result.get().is_some()
-    }
-}
-
-impl<S: WriteStorage, H: HistoryMode> ExecutionProcessing<S, H> for ValidationTracer<H> {}
-
 impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for ValidationTracer<H> {
-    fn save_results(&mut self, _result: &mut VmExecutionResultAndLogs) {}
+    fn finish_cycle(
+        &mut self,
+        _state: &mut ZkSyncVmState<S, H>,
+        _bootloader_state: &mut BootloaderState,
+    ) -> TracerExecutionStatus {
+        if self.should_stop_execution {
+            return TracerExecutionStatus::Stop(TracerExecutionStopReason::Finish);
+        }
+        if let Some(result) = self.result.get() {
+            return TracerExecutionStatus::Stop(TracerExecutionStopReason::Abort(
+                Halt::TracerCustom(format!("Validation error: {:#?}", result)),
+            ));
+        }
+        TracerExecutionStatus::Continue
+    }
 }
 
 fn touches_allowed_context(address: Address, key: U256) -> bool {

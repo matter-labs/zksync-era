@@ -1,13 +1,16 @@
 import { BigNumber, BytesLike } from 'ethers';
 import { ethers } from 'ethers';
-import { Provider, utils } from 'zksync-web3';
+import { Provider, utils, Contract } from 'zksync-web3';
 
 const L1_CONTRACTS_FOLDER = `${process.env.ZKSYNC_HOME}/contracts/ethereum/artifacts/cache/solpp-generated-contracts`;
 const DIAMOND_UPGRADE_INIT_ABI = new ethers.utils.Interface(
     require(`${L1_CONTRACTS_FOLDER}/bridgehub/upgrade-initializers/DiamondUpgradeInit1.sol/DiamondUpgradeInit1.json`).abi
 );
-const DIAMOND_CUT_FACET_ABI = new ethers.utils.Interface(
-    require(`${L1_CONTRACTS_FOLDER}/state-transition/chain-deps/facets/DiamondCut.sol/DiamondCutFacet.json`).abi
+const GOVERNANCE_ABI = new ethers.utils.Interface(
+    require(`${L1_CONTRACTS_FOLDER}/governance/Governance.sol/Governance.json`).abi
+);
+const ADMIN_FACET_ABI = new ethers.utils.Interface(
+    require(`${L1_CONTRACTS_FOLDER}/state-transition/chain-deps/facets/Admin.sol/AdminFacet.json`).abi
 );
 
 export interface ForceDeployment {
@@ -58,16 +61,14 @@ export async function deployOnAnyLocalAddress(
 
     const govWallet = ethers.Wallet.fromMnemonic(govMnemonic, "m/44'/60'/0'/0/1").connect(ethProvider);
 
-    const bridgehubChainContract = await l2Provider.getMainContractAddress();
+    const stateTransitionChainContract = await l2Provider.getMainContractAddress();
 
-    const zkSync = new ethers.Contract(bridgehubChainContract, utils.BRIDGEHUB_ABI, govWallet);
-
-    // In case there is some pending upgrade there, we cancel it
-    const upgradeProposalState = await zkSync.getUpgradeProposalState();
-    if (upgradeProposalState != 0) {
-        const currentProposalHash = await zkSync.getProposedUpgradeHash();
-        await zkSync.connect(govWallet).cancelUpgradeProposal(currentProposalHash);
-    }
+    const stateTransitionChain = new ethers.Contract(
+        stateTransitionChainContract,
+        utils.STATE_TRANSITION_ABI,
+        govWallet
+    );
+    const governanceContractAddr = await stateTransitionChain.getGovernor();
 
     // Encode data for the upgrade call
     const encodedParams = utils.CONTRACT_DEPLOYER.encodeFunctionData('forceDeployOnAddresses', [deployments]);
@@ -80,24 +81,35 @@ export async function deployOnAnyLocalAddress(
     ]);
 
     const upgradeParam = diamondCut([], diamondUpgradeInitAddress, upgradeInitData);
-    const currentProposalId = (await zkSync.getCurrentProposalId()).add(1);
-    // Get transaction data of the `proposeTransparentUpgrade`
-    const proposeTransparentUpgrade = DIAMOND_CUT_FACET_ABI.encodeFunctionData('proposeTransparentUpgrade', [
-        upgradeParam,
-        currentProposalId
+
+    // Prepare calldata for upgrading diamond proxy
+    const diamondProxyUpgradeCalldata = ADMIN_FACET_ABI.encodeFunctionData('executeUpgrade', [upgradeParam]);
+
+    const call = {
+        target: stateTransitionChainContract,
+        value: 0,
+        data: diamondProxyUpgradeCalldata
+    };
+    const governanceOperation = {
+        calls: [call],
+        predecessor: ethers.constants.HashZero,
+        salt: ethers.constants.HashZero
+    };
+
+    // Get transaction data of the `scheduleTransparent`
+    const scheduleTransparentOperation = GOVERNANCE_ABI.encodeFunctionData('scheduleTransparent', [
+        governanceOperation,
+        0 // delay
     ]);
 
-    // Get transaction data of the `executeUpgrade`
-    const executeUpgrade = DIAMOND_CUT_FACET_ABI.encodeFunctionData('executeUpgrade', [
-        upgradeParam,
-        ethers.constants.HashZero
-    ]);
+    // Get transaction data of the `execute`
+    const executeOperation = GOVERNANCE_ABI.encodeFunctionData('execute', [governanceOperation]);
 
     // Proposing the upgrade
     await (
         await govWallet.sendTransaction({
-            to: bridgehubChainContract,
-            data: proposeTransparentUpgrade,
+            to: governanceContractAddr,
+            data: scheduleTransparentOperation,
             gasLimit: BigNumber.from(10000000)
         })
     ).wait();
@@ -105,13 +117,13 @@ export async function deployOnAnyLocalAddress(
     // Finalize the upgrade
     const receipt = await (
         await govWallet.sendTransaction({
-            to: bridgehubChainContract,
-            data: executeUpgrade,
+            to: governanceContractAddr,
+            data: executeOperation,
             gasLimit: BigNumber.from(10000000)
         })
     ).wait();
 
-    const txHash = utils.getL2HashFromPriorityOp(receipt, bridgehubChainContract);
+    const txHash = utils.getL2HashFromPriorityOp(receipt, stateTransitionChainContract);
 
     return await l2Provider.waitForTransaction(txHash);
 }

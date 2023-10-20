@@ -49,7 +49,7 @@ async function create_genesis(cmd: string) {
     await utils.confirmAction();
     await utils.spawn(`${cmd} | tee genesis.log`);
     const genesisContents = fs.readFileSync('genesis.log').toString().split('\n');
-    const genesisBlockCommitment = genesisContents.find((line) => line.includes('CONTRACTS_GENESIS_BLOCK_COMMITMENT='));
+    const genesisBlockCommitment = genesisContents.find((line) => line.includes('CONTRACTS_GENESIS_BATCH_COMMITMENT='));
     const genesisBootloaderHash = genesisContents.find((line) => line.includes('CHAIN_STATE_KEEPER_BOOTLOADER_HASH='));
     const genesisDefaultAAHash = genesisContents.find((line) => line.includes('CHAIN_STATE_KEEPER_DEFAULT_AA_HASH='));
     const genesisRoot = genesisContents.find((line) => line.includes('CONTRACTS_GENESIS_ROOT='));
@@ -76,7 +76,7 @@ async function create_genesis(cmd: string) {
 
     if (
         genesisBlockCommitment == null ||
-        !/^CONTRACTS_GENESIS_BLOCK_COMMITMENT=0x[a-fA-F0-9]{64}$/.test(genesisBlockCommitment)
+        !/^CONTRACTS_GENESIS_BATCH_COMMITMENT=0x[a-fA-F0-9]{64}$/.test(genesisBlockCommitment)
     ) {
         throw Error(`Genesis is not needed (either Postgres DB or tree's Rocks DB is not empty)`);
     }

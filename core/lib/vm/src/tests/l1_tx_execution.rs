@@ -1,7 +1,7 @@
 use zksync_config::constants::BOOTLOADER_ADDRESS;
 use zksync_types::l2_to_l1_log::L2ToL1Log;
 use zksync_types::storage_writes_deduplicator::StorageWritesDeduplicator;
-use zksync_types::{get_code_key, get_known_code_key, L2ChainId, U256};
+use zksync_types::{get_code_key, get_known_code_key, U256};
 use zksync_utils::u256_to_h256;
 
 use crate::tests::tester::{TxType, VmTesterBuilder};
@@ -16,13 +16,17 @@ fn test_l1_tx_execution() {
     // Here instead of marking code hash via the bootloader means, we will be
     // using L1->L2 communication, the same it would likely be done during the priority mode.
 
-    // There are always at least 3 initial writes here, because we pay fees from l1:
+    // There are always at least 7 initial writes here, because we pay fees from l1:
     // - totalSupply of ETH token
     // - balance of the refund recipient
     // - balance of the bootloader
-    // - tx_rollout hash
+    // - tx_rolling hash
+    // - rolling hash of L2->L1 logs
+    // - transaction number in block counter
+    // - L2->L1 log counter in L1Messenger
 
-    let basic_initial_writes = 1;
+    // TODO(PLA-537): right now we are using 4 slots instead of 7 due to 0 fee for transaction.
+    let basic_initial_writes = 4;
 
     let mut vm = VmTesterBuilder::new(HistoryEnabled)
         .with_empty_in_memory_storage()
@@ -41,7 +45,7 @@ fn test_l1_tx_execution() {
         is_service: true,
         tx_number_in_block: 0,
         sender: BOOTLOADER_ADDRESS,
-        key: tx_data.tx_hash(L2ChainId(0)),
+        key: tx_data.tx_hash(0.into()),
         value: u256_to_h256(U256::from(1u32)),
     }];
 
@@ -63,7 +67,7 @@ fn test_l1_tx_execution() {
 
     verify_required_storage(&vm.vm.state, expected_slots);
 
-    assert_eq!(res.logs.l2_to_l1_logs, required_l2_to_l1_logs);
+    assert_eq!(res.logs.user_l2_to_l1_logs, required_l2_to_l1_logs);
 
     let tx = account.get_test_contract_transaction(
         deploy_tx.address,

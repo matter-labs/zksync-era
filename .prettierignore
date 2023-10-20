@@ -3,3 +3,6 @@ bellman-cuda
 sdk/zksync-web3.js/CHANGELOG.md
 sdk/zksync-rs/CHANGELOG.md
 CHANGELOG.md
+
+# ignore era-contracts, since they have their own formatting CI
+contracts

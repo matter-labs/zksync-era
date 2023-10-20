@@ -8,13 +8,13 @@ use zksync_config::{
     ContractsConfig, DBConfig,
 };
 use zksync_dal::ConnectionPool;
-use zksync_types::L2ChainId;
 
 mod batch_executor;
 pub(crate) mod extractors;
 pub(crate) mod io;
 mod keeper;
 mod mempool_actor;
+pub(crate) mod metrics;
 pub(crate) mod seal_criteria;
 #[cfg(test)]
 mod tests;
@@ -60,6 +60,7 @@ where
         state_keeper_config.max_allowed_l2_tx_gas_limit.into(),
         state_keeper_config.save_call_traces,
         state_keeper_config.upload_witness_inputs_to_gcs,
+        state_keeper_config.enum_index_migration_chunk_size(),
     );
 
     let io = MempoolIO::new(
@@ -71,7 +72,7 @@ where
         mempool_config.delay_interval(),
         contracts_config.l2_erc20_bridge_addr,
         state_keeper_config.validation_computational_gas_limit,
-        L2ChainId(network_config.zksync_network_id),
+        network_config.zksync_network_id,
     )
     .await;
 

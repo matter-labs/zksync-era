@@ -18,7 +18,8 @@ pub struct MiniblockUpdates {
     pub executed_transactions: Vec<TransactionExecutionResult>,
     pub events: Vec<VmEvent>,
     pub storage_logs: Vec<StorageLogQuery>,
-    pub l2_to_l1_logs: Vec<L2ToL1Log>,
+    pub user_l2_to_l1_logs: Vec<L2ToL1Log>,
+    pub system_l2_to_l1_logs: Vec<L2ToL1Log>,
     pub new_factory_deps: HashMap<H256, Vec<u8>>,
     /// How much L1 gas will it take to submit this block?
     pub l1_gas_count: BlockGasCount,
@@ -44,7 +45,8 @@ impl MiniblockUpdates {
             executed_transactions: vec![],
             events: vec![],
             storage_logs: vec![],
-            l2_to_l1_logs: vec![],
+            user_l2_to_l1_logs: vec![],
+            system_l2_to_l1_logs: vec![],
             new_factory_deps: HashMap::new(),
             l1_gas_count: BlockGasCount::default(),
             block_execution_metrics: ExecutionMetrics::default(),
@@ -61,7 +63,10 @@ impl MiniblockUpdates {
     pub(crate) fn extend_from_fictive_transaction(&mut self, result: VmExecutionResultAndLogs) {
         self.events.extend(result.logs.events);
         self.storage_logs.extend(result.logs.storage_logs);
-        self.l2_to_l1_logs.extend(result.logs.l2_to_l1_logs);
+        self.user_l2_to_l1_logs
+            .extend(result.logs.user_l2_to_l1_logs);
+        self.system_l2_to_l1_logs
+            .extend(result.logs.system_l2_to_l1_logs);
     }
 
     pub(crate) fn extend_from_executed_transaction(
@@ -76,8 +81,10 @@ impl MiniblockUpdates {
         let saved_factory_deps =
             extract_bytecodes_marked_as_known(&tx_execution_result.logs.events);
         self.events.extend(tx_execution_result.logs.events);
-        self.l2_to_l1_logs
-            .extend(tx_execution_result.logs.l2_to_l1_logs);
+        self.user_l2_to_l1_logs
+            .extend(tx_execution_result.logs.user_l2_to_l1_logs);
+        self.system_l2_to_l1_logs
+            .extend(tx_execution_result.logs.system_l2_to_l1_logs);
 
         let gas_refunded = tx_execution_result.refunds.gas_refunded;
         let operator_suggested_refund = tx_execution_result.refunds.operator_suggested_refund;
@@ -182,10 +189,11 @@ mod tests {
         assert_eq!(accumulator.executed_transactions.len(), 1);
         assert_eq!(accumulator.events.len(), 0);
         assert_eq!(accumulator.storage_logs.len(), 0);
-        assert_eq!(accumulator.l2_to_l1_logs.len(), 0);
+        assert_eq!(accumulator.user_l2_to_l1_logs.len(), 0);
+        assert_eq!(accumulator.system_l2_to_l1_logs.len(), 0);
         assert_eq!(accumulator.l1_gas_count, Default::default());
         assert_eq!(accumulator.new_factory_deps.len(), 0);
-        assert_eq!(accumulator.block_execution_metrics.l2_l1_logs, 0);
+        assert_eq!(accumulator.block_execution_metrics.l2_to_l1_logs, 0);
         assert_eq!(accumulator.txs_encoding_size, bootloader_encoding_size);
     }
 }

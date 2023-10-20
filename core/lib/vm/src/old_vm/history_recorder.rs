@@ -330,6 +330,10 @@ impl<K: Eq + Hash + Copy, V: Clone + Debug, H: HistoryMode> HistoryRecorder<Hash
             timestamp,
         )
     }
+
+    pub(crate) fn remove(&mut self, key: K, timestamp: Timestamp) -> Option<V> {
+        self.apply_historic_record(HashMapHistoryEvent { key, value: None }, timestamp)
+    }
 }
 
 /// A stack of stacks. The inner stacks are called frames.

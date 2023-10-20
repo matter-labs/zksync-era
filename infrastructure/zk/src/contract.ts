@@ -47,6 +47,15 @@ export async function initializeValidator(args: any[] = []) {
     await utils.spawn(`${baseCommandL1} initialize-validator ${args.join(' ')} | tee initializeValidator.log`);
 }
 
+export async function initializeGovernance(args: any[] = []) {
+    await utils.confirmAction();
+
+    const isLocalSetup = process.env.ZKSYNC_LOCAL_SETUP;
+    const baseCommandL1 = isLocalSetup ? `yarn --cwd /contracts/ethereum` : `yarn l1-contracts`;
+
+    await utils.spawn(`${baseCommandL1} initialize-governance ${args.join(' ')} | tee initializeGovernance.log`);
+}
+
 export async function initializeL1AllowList(args: any[] = []) {
     await utils.confirmAction();
 
@@ -147,6 +156,7 @@ export async function deployL1(args: any[]) {
         'CONTRACTS_STATE_TRANSITION_PROXY_ADDR',
         'CONTRACTS_STATE_TRANSITION_IMPL_ADDR',
         'CONTRACTS_STATE_TRANSITION_PROXY_ADMIN_ADDR',
+        'CONTRACTS_GOVERNANCE_ADDR',
 
         'CONTRACTS_VERIFIER_ADDR',
 

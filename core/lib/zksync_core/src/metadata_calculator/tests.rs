@@ -196,7 +196,7 @@ async fn running_metadata_calculator_with_additional_blocks(
 
     let calculator_handle =
         tokio::spawn(calculator.run(pool.clone(), prover_pool.clone(), stop_rx));
-    // Wait until the calculator has processed initial blocks.
+    // Wait until the calculator has processed initial L1 batches.
     let (next_l1_batch, _) = tokio::time::timeout(RUN_TIMEOUT, delay_rx.recv())
         .await
         .expect("metadata calculator timed out processing initial blocks")
@@ -282,7 +282,7 @@ async fn test_postgres_backup_recovery(
         // Re-insert the last batch without metadata immediately.
         storage
             .blocks_dal()
-            .insert_l1_batch(batch_without_metadata, &[], BlockGasCount::default())
+            .insert_l1_batch(batch_without_metadata, &[], BlockGasCount::default(), &[])
             .await
             .unwrap();
         insert_initial_writes_for_batch(&mut storage, batch_without_metadata.number).await;
@@ -307,7 +307,7 @@ async fn test_postgres_backup_recovery(
     for batch_header in &removed_batches {
         storage
             .blocks_dal()
-            .insert_l1_batch(batch_header, &[], BlockGasCount::default())
+            .insert_l1_batch(batch_header, &[], BlockGasCount::default(), &[])
             .await
             .unwrap();
         insert_initial_writes_for_batch(&mut storage, batch_header.number).await;
@@ -356,7 +356,7 @@ async fn postgres_backup_recovery_with_excluded_metadata(
     test_postgres_backup_recovery(pool, prover_pool, false, true).await;
 }
 
-async fn setup_calculator(
+pub(crate) async fn setup_calculator(
     db_path: &Path,
     pool: &ConnectionPool,
 ) -> (MetadataCalculator, Box<dyn ObjectStore>) {
@@ -397,7 +397,7 @@ async fn setup_calculator_with_options(
 
     let mut storage = pool.access_storage().await.unwrap();
     if storage.blocks_dal().is_genesis_needed().await.unwrap() {
-        let chain_id = L2ChainId(270);
+        let chain_id = L2ChainId::from(270);
         let protocol_version = ProtocolVersionId::latest();
         let base_system_contracts = BaseSystemContracts::load_from_disk();
         let system_contracts = get_system_smart_contracts();
@@ -426,7 +426,7 @@ fn path_to_string(path: &Path) -> String {
     path.to_str().unwrap().to_owned()
 }
 
-async fn run_calculator(
+pub(crate) async fn run_calculator(
     mut calculator: MetadataCalculator,
     pool: ConnectionPool,
     prover_pool: ConnectionPool,
@@ -451,7 +451,7 @@ async fn run_calculator(
     delayer_handle.await.unwrap()
 }
 
-pub(super) async fn reset_db_state(pool: &ConnectionPool, num_batches: usize) {
+pub(crate) async fn reset_db_state(pool: &ConnectionPool, num_batches: usize) {
     let mut storage = pool.access_storage().await.unwrap();
     // Drops all L1 batches (except the L1 batch with number 0) and their storage logs.
     storage
@@ -520,7 +520,7 @@ pub(super) async fn extend_db_state(
 
         storage
             .blocks_dal()
-            .insert_l1_batch(&header, &[], BlockGasCount::default())
+            .insert_l1_batch(&header, &[], BlockGasCount::default(), &[])
             .await
             .unwrap();
         storage
@@ -572,7 +572,7 @@ async fn insert_initial_writes_for_batch(
         .await;
 }
 
-pub(super) fn gen_storage_logs(
+pub(crate) fn gen_storage_logs(
     indices: ops::Range<u32>,
     num_batches: usize,
 ) -> Vec<Vec<StorageLog>> {
@@ -650,7 +650,7 @@ async fn deduplication_works_as_expected(pool: ConnectionPool) {
     let first_verifier_address = Address::zero();
     ensure_genesis_state(
         &mut storage,
-        L2ChainId(270),
+        L2ChainId::from(270),
         &GenesisParams {
             protocol_version,
             first_validator,
@@ -669,12 +669,12 @@ async fn deduplication_works_as_expected(pool: ConnectionPool) {
 
     let initial_writes = storage
         .storage_logs_dal()
-        .get_l1_batches_for_initial_writes(&hashed_keys)
+        .get_l1_batches_and_indices_for_initial_writes(&hashed_keys)
         .await;
     assert_eq!(initial_writes.len(), hashed_keys.len());
     assert!(initial_writes
         .values()
-        .all(|&batch| batch == L1BatchNumber(1)));
+        .all(|&(batch, _)| batch == L1BatchNumber(1)));
 
     let mut new_logs = gen_storage_logs(120..140, 1).pop().unwrap();
     let new_hashed_keys: Vec<_> = new_logs.iter().map(|log| log.key.hashed_key()).collect();
@@ -688,21 +688,21 @@ async fn deduplication_works_as_expected(pool: ConnectionPool) {
     // Initial writes for previously inserted keys should not change.
     let initial_writes = storage
         .storage_logs_dal()
-        .get_l1_batches_for_initial_writes(&hashed_keys)
+        .get_l1_batches_and_indices_for_initial_writes(&hashed_keys)
         .await;
     assert_eq!(initial_writes.len(), hashed_keys.len());
     assert!(initial_writes
         .values()
-        .all(|&batch| batch == L1BatchNumber(1)));
+        .all(|&(batch, _)| batch == L1BatchNumber(1)));
 
     let initial_writes = storage
         .storage_logs_dal()
-        .get_l1_batches_for_initial_writes(&new_hashed_keys)
+        .get_l1_batches_and_indices_for_initial_writes(&new_hashed_keys)
         .await;
     assert_eq!(initial_writes.len(), new_hashed_keys.len());
     assert!(initial_writes
         .values()
-        .all(|&batch| batch == L1BatchNumber(2)));
+        .all(|&(batch, _)| batch == L1BatchNumber(2)));
 
     let mut no_op_logs = gen_storage_logs(140..160, 1).pop().unwrap();
     let no_op_hashed_keys: Vec<_> = no_op_logs.iter().map(|log| log.key.hashed_key()).collect();
@@ -713,7 +713,7 @@ async fn deduplication_works_as_expected(pool: ConnectionPool) {
 
     let initial_writes = storage
         .storage_logs_dal()
-        .get_l1_batches_for_initial_writes(&no_op_hashed_keys)
+        .get_l1_batches_and_indices_for_initial_writes(&no_op_hashed_keys)
         .await;
     assert!(initial_writes.is_empty());
 
@@ -730,10 +730,10 @@ async fn deduplication_works_as_expected(pool: ConnectionPool) {
 
     let initial_writes = storage
         .storage_logs_dal()
-        .get_l1_batches_for_initial_writes(&no_op_hashed_keys)
+        .get_l1_batches_and_indices_for_initial_writes(&no_op_hashed_keys)
         .await;
     assert_eq!(initial_writes.len(), no_op_hashed_keys.len() / 2);
     for key in no_op_hashed_keys.iter().step_by(2) {
-        assert_eq!(initial_writes[key], L1BatchNumber(4));
+        assert_eq!(initial_writes[key].0, L1BatchNumber(4));
     }
 }

@@ -1,7 +1,12 @@
 use std::time::Duration;
+
 use zksync_dal::ConnectionPool;
-use zksync_types::web3::{error, ethabi, transports::Http, types::TransactionId, Web3};
-use zksync_types::L1BatchNumber;
+use zksync_types::{
+    web3::{error, ethabi, transports::Http, types::TransactionId, Web3},
+    L1BatchNumber,
+};
+
+use crate::metrics::{CheckerComponent, EN_METRICS};
 
 #[derive(Debug)]
 pub struct ConsistencyChecker {
@@ -95,7 +100,7 @@ impl ConsistencyChecker {
 
         let commitments = self
             .contract
-            .function("commitBlocks")
+            .function("commitBatches")
             .unwrap()
             .decode_input(&commit_tx.input.0[4..])
             .unwrap()
@@ -108,7 +113,7 @@ impl ConsistencyChecker {
         // the one that corresponds to the batch we're checking.
         let first_batch_number = match &commitments[0] {
             ethabi::Token::Tuple(tuple) => tuple[0].clone().into_uint().unwrap().as_usize(),
-            _ => panic!("ABI does not match the commitBlocks() function on the zkSync contract"),
+            _ => panic!("ABI does not match the commitBatches() function on the zkSync contract"),
         };
         let commitment = &commitments[batch_number.0 as usize - first_batch_number];
 
@@ -169,11 +174,8 @@ impl ConsistencyChecker {
             match self.check_commitments(batch_number).await {
                 Ok(true) => {
                     tracing::info!("Batch {} is consistent with L1", batch_number.0);
-                    metrics::gauge!(
-                        "external_node.last_correct_batch",
-                        batch_number.0 as f64,
-                        "component" => "consistency_checker",
-                    );
+                    EN_METRICS.last_correct_batch[&CheckerComponent::ConsistencyChecker]
+                        .set(batch_number.0.into());
                     batch_number.0 += 1;
                 }
                 Ok(false) => {

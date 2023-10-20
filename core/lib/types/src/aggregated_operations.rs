@@ -9,7 +9,7 @@ use zkevm_test_harness::bellman::plonk::better_better_cs::proof::Proof;
 use zkevm_test_harness::witness::oracle::VmWitnessOracle;
 use zksync_basic_types::{ethabi::Token, L1BatchNumber};
 
-use crate::{commitment::L1BatchWithMetadata, U256};
+use crate::commitment::L1BatchWithMetadata;
 
 fn l1_batch_range_from_batches(
     batches: &[L1BatchWithMetadata],
@@ -93,19 +93,14 @@ impl L1BatchProofOperation {
             assert_eq!(self.l1_batches.len(), 1);
 
             let L1BatchProofForL1 {
-                aggregation_result_coords,
+                aggregation_result_coords: _,
                 scheduler_proof,
             } = self.proofs.first().unwrap();
 
-            let (_, proof) = serialize_proof(scheduler_proof);
+            let (_inputs, proof) = serialize_proof(scheduler_proof);
 
             let proof_input = Token::Tuple(vec![
-                Token::Array(
-                    aggregation_result_coords
-                        .iter()
-                        .map(|bytes| Token::Uint(U256::from_big_endian(bytes)))
-                        .collect(),
-                ),
+                Token::Array(vec![]),
                 Token::Array(proof.into_iter().map(Token::Uint).collect()),
             ]);
 
@@ -144,7 +139,7 @@ impl L1BatchExecuteOperation {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum AggregatedActionType {
     Commit,
     PublishProofOnchain,

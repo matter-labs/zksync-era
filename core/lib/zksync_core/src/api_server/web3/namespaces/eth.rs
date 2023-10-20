@@ -1,5 +1,3 @@
-use std::time::Instant;
-
 use zksync_types::{
     api::{
         BlockId, BlockNumber, GetLogsFilter, Transaction, TransactionId, TransactionReceipt,
@@ -19,11 +17,15 @@ use zksync_web3_decl::{
     types::{Address, Block, Filter, FilterChanges, Log, TypedFilter, U64},
 };
 
-use super::report_latency_with_block_id_and_diff;
 use crate::{
     api_server::{
         execution_sandbox::BlockArgs,
-        web3::{backend_jsonrpc::error::internal_error, resolve_block, state::RpcState},
+        web3::{
+            backend_jsonrpc::error::internal_error,
+            metrics::{BlockCallObserver, API_METRICS},
+            resolve_block,
+            state::RpcState,
+        },
     },
     l1_gas_price::L1GasPriceProvider,
 };
@@ -53,7 +55,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
     pub async fn get_block_number_impl(&self) -> Result<U64, Web3Error> {
         const METHOD_NAME: &str = "get_block_number";
 
-        let start = Instant::now();
+        let method_latency = API_METRICS.start_call(METHOD_NAME);
         let block_number = self
             .state
             .connection_pool
@@ -66,7 +68,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
             .map(|n| U64::from(n.0))
             .map_err(|err| internal_error(METHOD_NAME, err));
 
-        metrics::histogram!("api.web3.call", start.elapsed(), "method" => METHOD_NAME);
+        method_latency.observe();
         block_number
     }
 
@@ -77,16 +79,16 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
         block_id: Option<BlockId>,
     ) -> Result<Bytes, Web3Error> {
         const METHOD_NAME: &str = "call";
-        let start = Instant::now();
 
-        let block = block_id.unwrap_or(BlockId::Number(BlockNumber::Pending));
+        let block_id = block_id.unwrap_or(BlockId::Number(BlockNumber::Pending));
+        let method_latency = API_METRICS.start_block_call(METHOD_NAME, block_id);
         let mut connection = self
             .state
             .connection_pool
             .access_storage_tagged("api")
             .await
             .unwrap();
-        let block_args = BlockArgs::new(&mut connection, block)
+        let block_args = BlockArgs::new(&mut connection, block_id)
             .await
             .map_err(|err| internal_error("eth_call", err))?
             .ok_or(Web3Error::NoBlock)?;
@@ -102,8 +104,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
             .state
             .last_sealed_miniblock
             .diff_with_block_args(&block_args);
-        report_latency_with_block_id_and_diff(METHOD_NAME, start, block, block_diff);
-
+        method_latency.observe(block_diff);
         Ok(res_bytes.into())
     }
 
@@ -113,9 +114,10 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
         request: CallRequest,
         _block: Option<BlockNumber>,
     ) -> Result<U256, Web3Error> {
-        let start = Instant::now();
-        let mut request_with_gas_per_pubdata_overridden = request;
+        const METHOD_NAME: &str = "estimate_gas";
 
+        let method_latency = API_METRICS.start_call(METHOD_NAME);
+        let mut request_with_gas_per_pubdata_overridden = request;
         self.state
             .set_nonce_for_call_request(&mut request_with_gas_per_pubdata_overridden)
             .await?;
@@ -159,7 +161,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
             .await
             .map_err(|err| Web3Error::SubmitTransactionError(err.to_string(), err.data()))?;
 
-        metrics::histogram!("api.web3.call", start.elapsed(), "method" => "estimate_gas");
+        method_latency.observe();
         Ok(fee.gas_limit)
     }
 
@@ -167,11 +169,9 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
     pub fn gas_price_impl(&self) -> Result<U256, Web3Error> {
         const METHOD_NAME: &str = "gas_price";
 
-        let start = Instant::now();
+        let method_latency = API_METRICS.start_call(METHOD_NAME);
         let price = self.state.tx_sender.gas_price();
-
-        metrics::histogram!("api.web3.call", start.elapsed(), "method" => METHOD_NAME);
-
+        method_latency.observe();
         Ok(price.into())
     }
 
@@ -183,15 +183,15 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
     ) -> Result<U256, Web3Error> {
         const METHOD_NAME: &str = "get_balance";
 
-        let start = Instant::now();
+        let block_id = block_id.unwrap_or(BlockId::Number(BlockNumber::Pending));
+        let method_latency = API_METRICS.start_block_call(METHOD_NAME, block_id);
         let mut connection = self
             .state
             .connection_pool
             .access_storage_tagged("api")
             .await
             .unwrap();
-        let block = block_id.unwrap_or(BlockId::Number(BlockNumber::Pending));
-        let block_number = resolve_block(&mut connection, block, METHOD_NAME).await?;
+        let block_number = resolve_block(&mut connection, block_id, METHOD_NAME).await?;
         let balance = connection
             .storage_web3_dal()
             .standard_token_historical_balance(
@@ -201,50 +201,47 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
             )
             .await
             .map_err(|err| internal_error(METHOD_NAME, err))?;
-        self.report_latency_with_block_id(METHOD_NAME, start, block, block_number);
+        self.report_latency_with_block_id(method_latency, block_number);
 
         Ok(balance)
     }
 
     fn report_latency_with_block_id(
         &self,
-        method_name: &'static str,
-        start: Instant,
-        block: BlockId,
+        observer: BlockCallObserver<'_>,
         block_number: MiniblockNumber,
     ) {
         let block_diff = self.state.last_sealed_miniblock.diff(block_number);
-        report_latency_with_block_id_and_diff(method_name, start, block, block_diff);
+        observer.observe(block_diff);
     }
 
     #[tracing::instrument(skip(self, filter))]
     pub async fn get_logs_impl(&self, mut filter: Filter) -> Result<Vec<Log>, Web3Error> {
+        const METHOD_NAME: &str = "get_logs";
+
         if self.state.logs_translator_enabled {
             return self.state.translate_get_logs(filter).await;
         }
 
-        let start = Instant::now();
-
+        let method_latency = API_METRICS.start_call(METHOD_NAME);
         self.state.resolve_filter_block_hash(&mut filter).await?;
         let (from_block, to_block) = self.state.resolve_filter_block_range(&filter).await?;
 
         filter.to_block = Some(BlockNumber::Number(to_block.0.into()));
-        let changes = self
+        let (changes, _) = self
             .filter_changes(TypedFilter::Events(filter, from_block))
-            .await?
-            .0;
-
-        metrics::histogram!("api.web3.call", start.elapsed(), "method" => "get_logs");
+            .await?;
+        method_latency.observe();
         Ok(match changes {
             FilterChanges::Logs(list) => list,
             _ => unreachable!("Unexpected `FilterChanges` type, expected `Logs`"),
         })
     }
 
-    // #[tracing::instrument(skip(self))]
     pub async fn get_filter_logs_impl(&self, idx: U256) -> Result<FilterChanges, Web3Error> {
-        let start = Instant::now();
+        const METHOD_NAME: &str = "get_filter_logs";
 
+        let method_latency = API_METRICS.start_call(METHOD_NAME);
         // Note: We have to keep this as a separate variable, since otherwise the lock guard would exist
         // for duration of the whole `match` block, and this guard is not `Send`. This would make the whole future
         // not `Send`, since `match` has an `await` point.
@@ -261,8 +258,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
         };
 
         let logs = self.filter_changes(filter).await?.0;
-
-        metrics::histogram!("api.web3.call", start.elapsed(), "method" => "get_filter_logs");
+        method_latency.observe();
         Ok(logs)
     }
 
@@ -272,12 +268,12 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
         block_id: BlockId,
         full_transactions: bool,
     ) -> Result<Option<Block<TransactionVariant>>, Web3Error> {
-        let start = Instant::now();
         let method_name = if full_transactions {
             "get_block_with_txs"
         } else {
             "get_block"
         };
+        let method_latency = API_METRICS.start_block_call(method_name, block_id);
 
         let block = self
             .state
@@ -296,14 +292,9 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
 
         if let Ok(Some(block)) = &block {
             let block_number = MiniblockNumber(block.number.as_u32());
-            self.report_latency_with_block_id(method_name, start, block_id, block_number);
+            self.report_latency_with_block_id(method_latency, block_number);
         } else {
-            metrics::histogram!(
-                "api.web3.call",
-                start.elapsed(),
-                "method" => method_name,
-                "block_id" => block_id.extract_block_tag()
-            );
+            method_latency.observe_without_diff();
         }
         block
     }
@@ -315,7 +306,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
     ) -> Result<Option<U256>, Web3Error> {
         const METHOD_NAME: &str = "get_block_transaction_count";
 
-        let start = Instant::now();
+        let method_latency = API_METRICS.start_block_call(METHOD_NAME, block_id);
         let tx_count = self
             .state
             .connection_pool
@@ -328,14 +319,9 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
             .map_err(|err| internal_error(METHOD_NAME, err));
 
         if let Ok(Some((block_number, _))) = &tx_count {
-            self.report_latency_with_block_id(METHOD_NAME, start, block_id, *block_number);
+            self.report_latency_with_block_id(method_latency, *block_number);
         } else {
-            metrics::histogram!(
-                "api.web3.call",
-                start.elapsed(),
-                "method" => METHOD_NAME,
-                "block_id" => block_id.extract_block_tag(),
-            );
+            method_latency.observe_without_diff();
         }
         Ok(tx_count?.map(|(_, count)| count))
     }
@@ -348,28 +334,28 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
     ) -> Result<Bytes, Web3Error> {
         const METHOD_NAME: &str = "get_code";
 
-        let start = Instant::now();
+        let block_id = block_id.unwrap_or(BlockId::Number(BlockNumber::Pending));
+        let method_latency = API_METRICS.start_block_call(METHOD_NAME, block_id);
         let mut connection = self
             .state
             .connection_pool
             .access_storage_tagged("api")
             .await
             .unwrap();
-        let block = block_id.unwrap_or(BlockId::Number(BlockNumber::Pending));
-        let block_number = resolve_block(&mut connection, block, METHOD_NAME).await?;
+        let block_number = resolve_block(&mut connection, block_id, METHOD_NAME).await?;
         let contract_code = connection
             .storage_web3_dal()
             .get_contract_code_unchecked(address, block_number)
             .await
             .map_err(|err| internal_error(METHOD_NAME, err))?;
 
-        self.report_latency_with_block_id(METHOD_NAME, start, block, block_number);
+        self.report_latency_with_block_id(method_latency, block_number);
         Ok(contract_code.unwrap_or_default().into())
     }
 
     #[tracing::instrument(skip(self))]
     pub fn chain_id_impl(&self) -> U64 {
-        self.state.api_config.l2_chain_id.0.into()
+        self.state.api_config.l2_chain_id.as_u64().into()
     }
 
     #[tracing::instrument(skip(self))]
@@ -381,8 +367,8 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
     ) -> Result<H256, Web3Error> {
         const METHOD_NAME: &str = "get_storage_at";
 
-        let start = Instant::now();
-        let block = block_id.unwrap_or(BlockId::Number(BlockNumber::Pending));
+        let block_id = block_id.unwrap_or(BlockId::Number(BlockNumber::Pending));
+        let method_latency = API_METRICS.start_block_call(METHOD_NAME, block_id);
         let storage_key = StorageKey::new(AccountTreeId::new(address), u256_to_h256(idx));
         let mut connection = self
             .state
@@ -390,14 +376,14 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
             .access_storage_tagged("api")
             .await
             .unwrap();
-        let block_number = resolve_block(&mut connection, block, METHOD_NAME).await?;
+        let block_number = resolve_block(&mut connection, block_id, METHOD_NAME).await?;
         let value = connection
             .storage_web3_dal()
             .get_historical_value_unchecked(&storage_key, block_number)
             .await
             .map_err(|err| internal_error(METHOD_NAME, err))?;
 
-        self.report_latency_with_block_id(METHOD_NAME, start, block, block_number);
+        self.report_latency_with_block_id(method_latency, block_number);
         Ok(value)
     }
 
@@ -408,13 +394,12 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
         address: Address,
         block_id: Option<BlockId>,
     ) -> Result<U256, Web3Error> {
-        let start = Instant::now();
-        let block = block_id.unwrap_or(BlockId::Number(BlockNumber::Pending));
-
-        let method_name = match block {
+        let block_id = block_id.unwrap_or(BlockId::Number(BlockNumber::Pending));
+        let method_name = match block_id {
             BlockId::Number(BlockNumber::Pending) => "get_pending_transaction_count",
             _ => "get_historical_transaction_count",
         };
+        let method_latency = API_METRICS.start_block_call(method_name, block_id);
 
         let mut connection = self
             .state
@@ -423,7 +408,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
             .await
             .unwrap();
 
-        let (full_nonce, block_number) = match block {
+        let (full_nonce, block_number) = match block_id {
             BlockId::Number(BlockNumber::Pending) => {
                 let nonce = connection
                     .transactions_web3_dal()
@@ -433,7 +418,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
                 (nonce, None)
             }
             _ => {
-                let block_number = resolve_block(&mut connection, block, method_name).await?;
+                let block_number = resolve_block(&mut connection, block_id, method_name).await?;
                 let nonce = connection
                     .storage_web3_dal()
                     .get_address_historical_nonce(address, block_number)
@@ -450,7 +435,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
 
         let block_diff =
             block_number.map_or(0, |number| self.state.last_sealed_miniblock.diff(number));
-        report_latency_with_block_id_and_diff(method_name, start, block, block_diff);
+        method_latency.observe(block_diff);
         account_nonce
     }
 
@@ -461,7 +446,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
     ) -> Result<Option<Transaction>, Web3Error> {
         const METHOD_NAME: &str = "get_transaction";
 
-        let start = Instant::now();
+        let method_latency = API_METRICS.start_call(METHOD_NAME);
         let mut transaction = self
             .state
             .connection_pool
@@ -496,7 +481,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
             }
         }
 
-        metrics::histogram!("api.web3.call", start.elapsed(), "method" => METHOD_NAME);
+        method_latency.observe();
         transaction
     }
 
@@ -507,7 +492,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
     ) -> Result<Option<TransactionReceipt>, Web3Error> {
         const METHOD_NAME: &str = "get_transaction_receipt";
 
-        let start = Instant::now();
+        let method_latency = API_METRICS.start_call(METHOD_NAME);
         let mut receipt = self
             .state
             .connection_pool
@@ -544,7 +529,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
             }
         }
 
-        metrics::histogram!("api.web3.call", start.elapsed(), "method" => METHOD_NAME);
+        method_latency.observe();
         receipt
     }
 
@@ -552,7 +537,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
     pub async fn new_block_filter_impl(&self) -> Result<U256, Web3Error> {
         const METHOD_NAME: &str = "new_block_filter";
 
-        let start = Instant::now();
+        let method_latency = API_METRICS.start_call(METHOD_NAME);
         let last_block_number = self
             .state
             .connection_pool
@@ -571,14 +556,15 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
             .await
             .add(TypedFilter::Blocks(last_block_number));
 
-        metrics::histogram!("api.web3.call", start.elapsed(), "method" => METHOD_NAME);
+        method_latency.observe();
         Ok(idx)
     }
 
     #[tracing::instrument(skip(self, filter))]
     pub async fn new_filter_impl(&self, mut filter: Filter) -> Result<U256, Web3Error> {
-        let start = Instant::now();
+        const METHOD_NAME: &str = "new_filter";
 
+        let method_latency = API_METRICS.start_call(METHOD_NAME);
         if let Some(topics) = filter.topics.as_ref() {
             if topics.len() > EVENT_TOPIC_NUMBER_LIMIT {
                 return Err(Web3Error::TooManyTopics);
@@ -593,14 +579,15 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
             .await
             .add(TypedFilter::Events(filter, from_block));
 
-        metrics::histogram!("api.web3.call", start.elapsed(), "method" => "new_filter");
+        method_latency.observe();
         Ok(idx)
     }
 
     #[tracing::instrument(skip(self))]
     pub async fn new_pending_transaction_filter_impl(&self) -> U256 {
-        let start = Instant::now();
+        const METHOD_NAME: &str = "new_pending_transaction_filter";
 
+        let method_latency = API_METRICS.start_call(METHOD_NAME);
         let idx = self
             .state
             .installed_filters
@@ -609,15 +596,15 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
             .add(TypedFilter::PendingTransactions(
                 chrono::Utc::now().naive_utc(),
             ));
-
-        metrics::histogram!("api.web3.call", start.elapsed(), "method" => "new_pending_transaction_filter");
+        method_latency.observe();
         idx
     }
 
     #[tracing::instrument(skip(self))]
     pub async fn get_filter_changes_impl(&self, idx: U256) -> Result<FilterChanges, Web3Error> {
-        let start = Instant::now();
+        const METHOD_NAME: &str = "get_filter_changes";
 
+        let method_latency = API_METRICS.start_call(METHOD_NAME);
         let filter = self
             .state
             .installed_filters
@@ -643,18 +630,17 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
             }
             Err(err) => Err(err),
         };
-
-        metrics::histogram!("api.web3.call", start.elapsed(), "method" => "get_filter_changes");
+        method_latency.observe();
         result
     }
 
     #[tracing::instrument(skip(self))]
     pub async fn uninstall_filter_impl(&self, idx: U256) -> bool {
-        let start = Instant::now();
+        const METHOD_NAME: &str = "uninstall_filter";
 
+        let method_latency = API_METRICS.start_call(METHOD_NAME);
         let removed = self.state.installed_filters.write().await.remove(idx);
-
-        metrics::histogram!("api.web3.call", start.elapsed(), "method" => "uninstall_filter");
+        method_latency.observe();
         removed
     }
 
@@ -666,22 +652,20 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
 
     #[tracing::instrument(skip(self, tx_bytes))]
     pub async fn send_raw_transaction_impl(&self, tx_bytes: Bytes) -> Result<H256, Web3Error> {
-        let start = Instant::now();
+        const METHOD_NAME: &str = "send_raw_transaction";
+
+        let method_latency = API_METRICS.start_call(METHOD_NAME);
         let (mut tx, hash) = self.state.parse_transaction_bytes(&tx_bytes.0)?;
         tx.set_input(tx_bytes.0, hash);
 
         let submit_result = self.state.tx_sender.submit_tx(tx).await;
         let submit_result = submit_result.map(|_| hash).map_err(|err| {
             tracing::debug!("Send raw transaction error: {err}");
-            metrics::counter!(
-                "api.submit_tx_error",
-                1,
-                "reason" => err.grafana_error_code()
-            );
+            API_METRICS.submit_tx_error[&err.prom_error_code()].inc();
             Web3Error::SubmitTransactionError(err.to_string(), err.data())
         });
 
-        metrics::histogram!("api.web3.call", start.elapsed(), "method" => "send_raw_transaction");
+        method_latency.observe();
         submit_result
     }
 
@@ -718,8 +702,8 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
     ) -> Result<FeeHistory, Web3Error> {
         const METHOD_NAME: &str = "fee_history";
 
-        let start = Instant::now();
-
+        let method_latency =
+            API_METRICS.start_block_call(METHOD_NAME, BlockId::Number(newest_block));
         // Limit `block_count`.
         let block_count = block_count
             .as_u64()
@@ -755,12 +739,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
         // `base_fee_per_gas` for next miniblock cannot be calculated, appending last fee as a placeholder.
         base_fee_per_gas.push(*base_fee_per_gas.last().unwrap());
 
-        self.report_latency_with_block_id(
-            METHOD_NAME,
-            start,
-            BlockId::Number(newest_block),
-            newest_miniblock,
-        );
+        self.report_latency_with_block_id(method_latency, newest_miniblock);
         Ok(FeeHistory {
             oldest_block: web3::types::BlockNumber::Number(oldest_block.into()),
             base_fee_per_gas,

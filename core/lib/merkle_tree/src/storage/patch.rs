@@ -5,14 +5,14 @@ use rayon::prelude::*;
 use std::collections::{hash_map::Entry, HashMap};
 
 use crate::{
-    hasher::HashTree,
+    hasher::{HashTree, HasherWithStats, MerklePath},
     metrics::HashingStats,
-    storage::{proofs::SUBTREE_COUNT, SortedKeys},
+    storage::{proofs::SUBTREE_COUNT, SortedKeys, TraverseOutcome},
     types::{
-        ChildRef, InternalNode, Manifest, Nibbles, NibblesBytes, Node, NodeKey, Root, ValueHash,
-        KEY_SIZE,
+        ChildRef, InternalNode, Key, LeafNode, Manifest, Nibbles, NibblesBytes, Node, NodeKey,
+        Root, ValueHash, KEY_SIZE,
     },
-    Database,
+    utils, Database,
 };
 
 /// Raw set of database changes.
@@ -269,7 +269,7 @@ impl WorkingPatchSet {
 
     /// Splits this patch set by the first nibble of the contained keys.
     pub fn split(self) -> [Self; SUBTREE_COUNT] {
-        let mut parts = [(); SUBTREE_COUNT].map(|_| Self {
+        let mut parts = [(); SUBTREE_COUNT].map(|()| Self {
             version: self.version,
             changes_by_nibble_count: vec![HashMap::new(); self.changes_by_nibble_count.len()],
         });
@@ -511,6 +511,83 @@ impl WorkingPatchSet {
             longest_prefixes,
             db_reads,
         }
+    }
+
+    pub(super) fn traverse(&self, key: Key, parent_nibbles: &Nibbles) -> TraverseOutcome {
+        for nibble_idx in parent_nibbles.nibble_count().. {
+            let nibbles = Nibbles::new(&key, nibble_idx);
+            match self.get(&nibbles) {
+                Some(Node::Internal(_)) => { /* continue descent */ }
+                Some(Node::Leaf(leaf)) if leaf.full_key == key => {
+                    return TraverseOutcome::LeafMatch(nibbles, *leaf);
+                }
+                Some(Node::Leaf(leaf)) => {
+                    return TraverseOutcome::LeafMismatch(nibbles, *leaf);
+                }
+                None => return TraverseOutcome::MissingChild(nibbles),
+            }
+        }
+        unreachable!("We must have encountered a leaf or missing node when traversing");
+    }
+
+    /// Creates a Merkle proof for the specified `key`, which has given `parent_nibbles`
+    /// in this patch set. `root_nibble_count` specifies to which level the proof needs to be constructed.
+    pub(crate) fn create_proof(
+        &mut self,
+        hasher: &mut HasherWithStats<'_>,
+        key: Key,
+        parent_nibbles: &Nibbles,
+        root_nibble_count: usize,
+    ) -> (Option<LeafNode>, MerklePath) {
+        let traverse_outcome = self.traverse(key, parent_nibbles);
+        let merkle_path = match traverse_outcome {
+            TraverseOutcome::MissingChild(_) | TraverseOutcome::LeafMatch(..) => None,
+            TraverseOutcome::LeafMismatch(nibbles, leaf) => {
+                // Find the level at which `leaf.full_key` and `key` diverge.
+                // Note the addition of 1; e.g., if the keys differ at 0th bit, they
+                // differ at level 1 of the tree.
+                let diverging_level = utils::find_diverging_bit(key, leaf.full_key) + 1;
+                let nibble_count = nibbles.nibble_count();
+                debug_assert!(diverging_level > 4 * nibble_count);
+                let mut path = MerklePath::new(diverging_level);
+                // Find the hash of the existing `leaf` at the level, and include it
+                // as the first hash on the Merkle path.
+                let adjacent_hash = leaf.hash(hasher, diverging_level);
+                path.push(hasher, Some(adjacent_hash));
+                // Fill the path with empty hashes until we've reached the leaf level.
+                for _ in (4 * nibble_count + 1)..diverging_level {
+                    path.push(hasher, None);
+                }
+                Some(path)
+            }
+        };
+
+        let mut nibbles = traverse_outcome.position();
+        let leaf_level = nibbles.nibble_count() * 4;
+        debug_assert!(leaf_level >= root_nibble_count);
+
+        let mut merkle_path = merkle_path.unwrap_or_else(|| MerklePath::new(leaf_level));
+        while let Some((parent_nibbles, last_nibble)) = nibbles.split_last() {
+            if parent_nibbles.nibble_count() < root_nibble_count {
+                break;
+            }
+
+            let parent = self.get_mut_without_updating(&parent_nibbles);
+            let Some(Node::Internal(parent)) = parent else {
+                unreachable!()
+            };
+            let parent_level = parent_nibbles.nibble_count() * 4;
+            parent
+                .updater(hasher, parent_level, last_nibble)
+                .extend_merkle_path(&mut merkle_path);
+            nibbles = parent_nibbles;
+        }
+
+        let leaf = match traverse_outcome {
+            TraverseOutcome::MissingChild(_) | TraverseOutcome::LeafMismatch(..) => None,
+            TraverseOutcome::LeafMatch(_, leaf) => Some(leaf),
+        };
+        (leaf, merkle_path)
     }
 }
 

@@ -26,28 +26,21 @@ on:
         type: string
         default: "push"
         required: false
+      is_pr_from_fork:
+        description: "Indicates whether the workflow is invoked from a PR created from fork"
+        type: boolean
+        default: false
+        required: false
 
 jobs:
-  era-bellman-cuda:
-    name: Get era-bellman-cuda release URLs.
-    runs-on: [ubuntu-latest]
-    outputs:
-      source: ${{ steps.release.outputs.source }}
-      binary: ${{ steps.release.outputs.binary }}
-    steps:
-      - id: release
-        run: |
-          release=($(curl -v --silent https://api.github.com/repos/matter-labs/era-bellman-cuda/releases/tags/${{ inputs.ERA_BELLMAN_CUDA_RELEASE }} | jq -r ".name, .tarball_url, .assets[0].browser_download_url"))
-          echo "source=${release[1]}" >> "$GITHUB_OUTPUT"
-          echo "binary=${release[2]}" >> "$GITHUB_OUTPUT"
-
   build-images:
     name: Build and Push Docker Images
     env:
       image_tag: ${{ inputs.image_tag }}
       IMAGE_TAG_SUFFIX: ${{ inputs.image_tag_suffix }}
+      RUNNER_COMPOSE_FILE: "docker-compose-runner-nightly.yml"
+      ERA_BELLMAN_CUDA_RELEASE: ${{ inputs.ERA_BELLMAN_CUDA_RELEASE }}
     runs-on: [matterlabs-ci-runner]
-    needs: [era-bellman-cuda]
     strategy:
       matrix:
         component:
@@ -63,9 +56,6 @@ jobs:
       - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
         with:
           submodules: "recursive"
-
-      - name: Prepare bellman-cuda directory
-        run: etc/scripts/prepare_era_bellman_cuda.sh ${{ needs.era-bellman-cuda.outputs.source }} ${{ needs.era-bellman-cuda.outputs.binary }}
 
       - name: setup-env
         run: |
@@ -96,6 +86,55 @@ jobs:
           ci_run zk f yarn run l2-contracts build
           ci_run curl -LO https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2\^26.key
 
+      - name: login to Docker registries
+        if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
+        run: |
+          ci_run docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
+          ci_run gcloud auth configure-docker us-docker.pkg.dev,asia-docker.pkg.dev -q
+
+      # We need to run this only when ERA_BELLMAN_CUDA_RELEASE is not available
+      # In our case it happens only when PR is created from fork
+      - name: Wait for runner IP to be not rate-limited against GH API
+        if: inputs.is_pr_from_fork == true
+        run: |
+          api_endpoint="https://api.github.com/users/zksync-era-bot"
+          wait_time=60
+          max_retries=60
+          retry_count=0
+
+          while [[ $retry_count -lt $max_retries ]]; do
+            response=$(curl -s -w "%{http_code}" -o temp.json "$api_endpoint")
+            http_code=$(echo "$response" | tail -n1)
+
+            if [[ "$http_code" == "200" ]]; then
+              echo "Request successful. Not rate-limited."
+              cat temp.json
+              rm temp.json
+              exit 0
+            elif [[ "$http_code" == "403" ]]; then
+              rate_limit_exceeded=$(jq -r '.message' temp.json | grep -i "API rate limit exceeded")
+              if [[ -n "$rate_limit_exceeded" ]]; then
+                retry_count=$((retry_count+1))
+                echo "API rate limit exceeded. Retry $retry_count of $max_retries. Retrying in $wait_time seconds..."
+                sleep $wait_time
+              else
+                echo "Request failed with HTTP status $http_code."
+                cat temp.json
+                rm temp.json
+                exit 1
+              fi
+            else
+              echo "Request failed with HTTP status $http_code."
+              cat temp.json
+              rm temp.json
+              exit 1
+            fi
+          done
+
+          echo "Reached the maximum number of retries ($max_retries). Exiting."
+          rm temp.json
+          exit 1
+
       - name: update-images
         env:
           DOCKER_ACTION: ${{ inputs.action }}
@@ -112,9 +151,7 @@ jobs:
               "proof-fri-compressor"
             )
         run: |
-          nightly_components=${{env.RUST_NIGHTLY_COMPONENTS}}
-          ci_run docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
-          ci_run gcloud auth configure-docker us-docker.pkg.dev,asia-docker.pkg.dev -q
+          nightly_components=${{ env.RUST_NIGHTLY_COMPONENTS }}
 
           if [[ " ${nightly_components[*]} " =~ " ${COMPONENT} " ]]; then
             underscored_name=$(echo "$COMPONENT" | tr '-' '_')
@@ -126,10 +163,10 @@ jobs:
             if [ "$underscored_name" == "prover_gpu_fri" ]; then
               underscored_name="prover_fri"
             fi
-            ci_run rustup default nightly-2023-07-21
             ci_run echo [workspace] > Cargo.toml
             ci_run echo members = [\"prover/${underscored_name}\"] >> Cargo.toml
             ci_run cp prover/Cargo.lock Cargo.lock
+            PASSED_ENV_VARS="ERA_BELLMAN_CUDA_RELEASE"  \
             ci_run zk docker $DOCKER_ACTION $COMPONENT
           else
             ci_run zk docker $DOCKER_ACTION $COMPONENT

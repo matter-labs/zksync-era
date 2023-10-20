@@ -91,6 +91,10 @@ pub async fn ensure_genesis_state(
         vec![],
         base_system_contracts_hashes.bootloader,
         base_system_contracts_hashes.default_aa,
+        vec![],
+        vec![],
+        H256::zero(),
+        H256::zero(),
     );
 
     save_genesis_l1_batch_metadata(
@@ -107,7 +111,7 @@ pub async fn ensure_genesis_state(
     // We need to `println` this value because it will be used to initialize the smart contract.
     println!("CONTRACTS_GENESIS_ROOT={:?}", genesis_root_hash);
     println!(
-        "CONTRACTS_GENESIS_BLOCK_COMMITMENT={:?}",
+        "CONTRACTS_GENESIS_BATCH_COMMITMENT={:?}",
         block_commitment.hash().commitment
     );
     println!(
@@ -292,7 +296,7 @@ pub(crate) async fn create_genesis_l1_batch(
         .await;
     transaction
         .blocks_dal()
-        .insert_l1_batch(&genesis_l1_batch_header, &[], BlockGasCount::default())
+        .insert_l1_batch(&genesis_l1_batch_header, &[], BlockGasCount::default(), &[])
         .await
         .unwrap();
     transaction
@@ -360,6 +364,9 @@ pub(crate) async fn save_genesis_l1_batch_metadata(
         aux_data_hash: commitment_hash.aux_output,
         meta_parameters_hash: commitment_hash.meta_parameters,
         pass_through_data_hash: commitment_hash.pass_through_data,
+        state_diffs_compressed: vec![],
+        events_queue_commitment: None,
+        bootloader_initial_content_commitment: None,
     };
     storage
         .blocks_dal()
@@ -389,7 +396,7 @@ mod tests {
             first_l1_verifier_config: L1VerifierConfig::default(),
             first_verifier_address: Address::random(),
         };
-        ensure_genesis_state(&mut conn, L2ChainId(270), &params)
+        ensure_genesis_state(&mut conn, L2ChainId::from(270), &params)
             .await
             .unwrap();
 
@@ -403,8 +410,34 @@ mod tests {
         assert_ne!(root_hash, H256::zero());
 
         // Check that `ensure_genesis_state()` doesn't panic on repeated runs.
-        ensure_genesis_state(&mut conn, L2ChainId(270), &params)
+        ensure_genesis_state(&mut conn, L2ChainId::from(270), &params)
             .await
             .unwrap();
+    }
+
+    #[db_test]
+    async fn running_genesis_with_big_chain_id(pool: ConnectionPool) {
+        let mut conn: StorageProcessor<'_> = pool.access_storage().await.unwrap();
+        conn.blocks_dal().delete_genesis().await.unwrap();
+
+        let params = GenesisParams {
+            protocol_version: ProtocolVersionId::latest(),
+            first_validator: Address::random(),
+            base_system_contracts: BaseSystemContracts::load_from_disk(),
+            system_contracts: get_system_smart_contracts(),
+            first_l1_verifier_config: L1VerifierConfig::default(),
+            first_verifier_address: Address::random(),
+        };
+        ensure_genesis_state(&mut conn, L2ChainId::max(), &params)
+            .await
+            .unwrap();
+
+        assert!(!conn.blocks_dal().is_genesis_needed().await.unwrap());
+        let metadata = conn
+            .blocks_dal()
+            .get_l1_batch_metadata(L1BatchNumber(0))
+            .await;
+        let root_hash = metadata.unwrap().unwrap().metadata.root_hash;
+        assert_ne!(root_hash, H256::zero());
     }
 }

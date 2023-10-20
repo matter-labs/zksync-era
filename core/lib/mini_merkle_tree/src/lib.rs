@@ -7,7 +7,7 @@
 
 use once_cell::sync::Lazy;
 
-use std::{fmt, iter};
+use std::{fmt, iter, str::FromStr};
 
 #[cfg(test)]
 mod tests;
@@ -15,8 +15,9 @@ mod tests;
 use zksync_basic_types::H256;
 use zksync_crypto::hasher::{keccak::KeccakHasher, Hasher};
 
-/// Maximum supported depth of Merkle trees. 10 means that the tree must have <=1,024 leaves.
-const MAX_TREE_DEPTH: usize = 10;
+/// Maximum supported depth of the tree. 32 corresponds to `2^32` elements in the tree, which
+/// we unlikely to ever hit.
+const MAX_TREE_DEPTH: usize = 32;
 
 /// In-memory Merkle tree of bounded depth (no more than 10).
 ///
@@ -27,69 +28,71 @@ const MAX_TREE_DEPTH: usize = 10;
 pub struct MiniMerkleTree<'a, const LEAF_SIZE: usize> {
     hasher: &'a dyn HashEmptySubtree<LEAF_SIZE>,
     hashes: Box<[H256]>,
-    tree_size: usize,
+    binary_tree_size: usize,
 }
 
 impl<const LEAF_SIZE: usize> MiniMerkleTree<'static, LEAF_SIZE>
 where
     KeccakHasher: HashEmptySubtree<LEAF_SIZE>,
 {
-    /// Creates a new Merkle tree from the supplied leaves. If `tree_size` is larger than the
-    /// number of the supplied leaves, the remaining leaves are `[0_u8; LEAF_SIZE]`.
+    /// Creates a new Merkle tree from the supplied leaves. If `min_tree_size` is supplied and is larger
+    /// than the number of the supplied leaves, the leaves are padded to `min_tree_size` with `[0_u8; LEAF_SIZE]` entries.
     /// The hash function used in keccak-256.
     ///
     /// # Panics
     ///
     /// Panics in the same situations as [`Self::with_hasher()`].
-    pub fn new(leaves: impl Iterator<Item = [u8; LEAF_SIZE]>, tree_size: usize) -> Self {
-        Self::with_hasher(&KeccakHasher, leaves, tree_size)
+    pub fn new(
+        leaves: impl Iterator<Item = [u8; LEAF_SIZE]>,
+        min_tree_size: Option<usize>,
+    ) -> Self {
+        Self::with_hasher(&KeccakHasher, leaves, min_tree_size)
     }
 }
 
 impl<'a, const LEAF_SIZE: usize> MiniMerkleTree<'a, LEAF_SIZE> {
-    /// Creates a new Merkle tree from the supplied leaves. If `tree_size` is larger than the
-    /// number of the supplied leaves, the remaining leaves are `[0_u8; LEAF_SIZE]`.
+    /// Creates a new Merkle tree from the supplied leaves. If `min_tree_size` is supplied and is larger than the
+    /// number of the supplied leaves, the leaves are padded to `min_tree_size` with `[0_u8; LEAF_SIZE]` entries.
     ///
     /// # Panics
     ///
     /// Panics if any of the following conditions applies:
     ///
-    /// - The number of `leaves` is greater than `tree_size`.
-    /// - `tree_size > 1_024`.
-    /// - `tree_size` is not a power of 2.
+    /// - `min_tree_size` (if supplied) is not a power of 2.
     pub fn with_hasher(
         hasher: &'a dyn HashEmptySubtree<LEAF_SIZE>,
         leaves: impl Iterator<Item = [u8; LEAF_SIZE]>,
-        tree_size: usize,
+        min_tree_size: Option<usize>,
     ) -> Self {
-        assert!(
-            tree_size <= 1 << MAX_TREE_DEPTH,
-            "tree size must be <={}",
-            1 << MAX_TREE_DEPTH
-        );
-        assert!(
-            tree_size.is_power_of_two(),
-            "tree size must be a power of 2"
-        );
-
         let hashes: Box<[H256]> = leaves.map(|bytes| hasher.hash_bytes(&bytes)).collect();
+        let mut binary_tree_size = hashes.len().next_power_of_two();
+        if let Some(min_tree_size) = min_tree_size {
+            assert!(
+                min_tree_size.is_power_of_two(),
+                "tree size must be a power of 2"
+            );
+            binary_tree_size = min_tree_size.max(binary_tree_size);
+        }
         assert!(
-            hashes.len() <= tree_size,
-            "tree size must be greater or equal the number of supplied leaves"
+            tree_depth_by_size(binary_tree_size) <= MAX_TREE_DEPTH,
+            "Tree contains more than {} items; this is not supported",
+            1 << MAX_TREE_DEPTH
         );
 
         Self {
             hasher,
             hashes,
-            tree_size,
+            binary_tree_size,
         }
     }
 
     /// Returns the root hash of this tree.
+    /// # Panics
+    /// Will panic if the constant below is invalid.
     pub fn merkle_root(self) -> H256 {
         if self.hashes.is_empty() {
-            // TODO (SMA-184): change constant to the real root hash of empty merkle tree.
-            H256::zero()
+            H256::from_str("fef7bd9f889811e59e4076a0174087135f080177302763019adaf531257e3a87")
+                .unwrap()
         } else {
             self.compute_merkle_root_and_path(0, None)
         }
@@ -97,7 +100,7 @@ impl<'a, const LEAF_SIZE: usize> MiniMerkleTree<'a, LEAF_SIZE> {
 
     /// Returns the root hash and the Merkle proof for a leaf with the specified 0-based `index`.
     pub fn merkle_root_and_path(self, index: usize) -> (H256, Vec<H256>) {
-        let mut merkle_path = Vec::with_capacity(MAX_TREE_DEPTH);
+        let mut merkle_path = vec![];
         let root_hash = self.compute_merkle_root_and_path(index, Some(&mut merkle_path));
         (root_hash, merkle_path)
     }
@@ -109,7 +112,10 @@ impl<'a, const LEAF_SIZE: usize> MiniMerkleTree<'a, LEAF_SIZE> {
     ) -> H256 {
         assert!(index < self.hashes.len(), "invalid tree leaf index");
 
-        let depth = tree_depth_by_size(self.tree_size);
+        let depth = tree_depth_by_size(self.binary_tree_size);
+        if let Some(merkle_path) = merkle_path.as_deref_mut() {
+            merkle_path.reserve(depth);
+        }
 
         let mut hashes = self.hashes;
         let mut level_len = hashes.len();

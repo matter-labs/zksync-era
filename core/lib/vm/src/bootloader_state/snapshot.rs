@@ -12,6 +12,8 @@ pub(crate) struct BootloaderStateSnapshot {
     pub(crate) compressed_bytecodes_encoding: usize,
     /// Current offset of the free space in the bootloader memory.
     pub(crate) free_tx_offset: usize,
+    /// Whether the pubdata information has been provided already
+    pub(crate) pubdata_information: bool,
 }
 
 #[derive(Debug, Clone)]

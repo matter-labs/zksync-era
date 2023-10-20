@@ -1,17 +1,14 @@
 import { Command } from 'commander';
 import enquirer from 'enquirer';
-import { BigNumber, ethers } from 'ethers';
+import { BigNumber, ethers, utils } from 'ethers';
 import chalk from 'chalk';
-import { announced, submoduleUpdate } from './init';
 import * as contract from './contract';
-import * as run from './run/run';
-import * as compiler from './compiler';
-import * as env from './env';
 import { compileConfig, pushConfig } from './config';
-import * as fs from 'fs';
-import * as db from './database';
-import { clean } from './clean';
+import { announced, init, InitArgs } from './init';
 import * as server from './server';
+import * as db from './database';
+import * as env from './env';
+import * as fs from 'fs';
 import fetch from 'node-fetch';
 import { up } from './up';
 
@@ -38,34 +35,33 @@ interface BasePromptOptions {
     skip?: ((state: object) => boolean | Promise<boolean>) | boolean;
 }
 
-// An init command that allows configuring and spinning up a new Hyperchain network
+// An init command that allows configuring and spinning up a new Hyperchain network.
 async function initHyperchain() {
     await announced('Initializing Hyperchain creation', setupConfiguration());
-
-    await announced('Drop postgres db', db.drop());
-    await announced('Setup postgres db', db.setup());
-    await announced('Clean rocksdb', clean('db'));
-    await announced('Clean backups', clean('backups'));
-    await announced('Building L1 and L2 contracts', contract.build());
-
-    await announced('Deploy test tokens', initializeTestERC20s());
-    await announced('Deploying L1 verifier', contract.deployVerifier([]));
-    await announced('Running server genesis setup', server.genesisFromSources());
 
     const deployerPrivateKey = process.env.DEPLOYER_PRIVATE_KEY;
     const governorPrivateKey = process.env.GOVERNOR_PRIVATE_KEY;
     const governorAddress = process.env.GOVERNOR_ADDRESS;
+    const deployL2Weth = Boolean(process.env.DEPLOY_L2_WETH || false);
+    const deployTestTokens = Boolean(process.env.DEPLOY_TEST_TOKENS || false);
 
-    await announced(
-        'Deploying L1 contracts',
-        contract.redeployL1(['--private-key', deployerPrivateKey, '--governor-address', governorAddress])
-    );
+    const initArgs: InitArgs = {
+        skipSubmodulesCheckout: false,
+        skipEnvSetup: false,
+        deployerL1ContractInputArgs: ['--private-key', deployerPrivateKey, '--governor-address', governorAddress],
+        governorPrivateKeyArgs: ['--private-key', governorPrivateKey],
+        deployerL2ContractInput: {
+            args: ['--private-key', deployerPrivateKey],
+            includePaymaster: false,
+            includeL2WETH: deployL2Weth
+        },
+        testTokens: {
+            deploy: deployTestTokens,
+            args: ['--private-key', deployerPrivateKey, '--envFile', process.env.CHAIN_ETH_NETWORK!]
+        }
+    };
 
-    await announced('Initializing validator', contract.initializeValidator(['--private-key', governorPrivateKey]));
-    await announced('Initialize L1 allow list', contract.initializeL1AllowList(['--private-key', governorPrivateKey]));
-    await announced('Deploying L2 contracts', contract.deployL2(['--private-key', deployerPrivateKey], false));
-
-    await announced('Initialize WETH Token', initializeWethTokenForHyperchain());
+    await init(initArgs);
 
     console.log(announce(`\nYour Hyperchain configuration is available at ${process.env.ENV_FILE}\n`));
 
@@ -87,7 +83,7 @@ async function setupConfiguration() {
     const results: any = await enquirer.prompt(questions);
 
     if (results.config === CONFIGURE) {
-        await announced('Setting Hyperchain metadata', setHyperchainMetadata());
+        await announced('Setting Hyperchain configuration', setHyperchainMetadata());
         await announced('Validating information and balances to deploy Hyperchain', checkReadinessToDeploy());
     } else {
         const envs = env.getAvailableEnvsFromFiles();
@@ -104,10 +100,6 @@ async function setupConfiguration() {
         const envResults: any = await enquirer.prompt(envQuestions);
         env.set(envResults.env);
     }
-    await announced('Checkout system-contracts submodule', submoduleUpdate());
-    await announced('Compiling JS packages', run.yarn());
-    await announced('Compiling system contracts', compiler.compileSystemContracts());
-    await announced('Compile l2 contracts', compiler.compileAll());
 }
 
 async function setHyperchainMetadata() {
@@ -122,19 +114,22 @@ async function setHyperchainMetadata() {
     const INSERT_KEYS = 'Insert keys';
     const questions: BasePromptOptions[] = [
         {
-            message: 'What is your hyperchain name?',
+            message: 'What is your Hyperchain name?',
             name: 'chainName',
-            type: 'input'
+            type: 'input',
+            required: true
         },
         {
-            message: 'What is your hyperchain id? Make sure this is not used by other chains.',
+            message: 'What is your Hyperchain id? Make sure this is not used by other chains.',
             name: 'chainId',
-            type: 'input'
+            type: 'numeral',
+            required: true
         },
         {
-            message: 'To which L1 Network will your hyperchain rollup to?',
+            message: 'To which L1 Network will your Hyperchain rollup to?',
             name: 'l1Chain',
             type: 'select',
+            required: true,
             choices: BASE_NETWORKS
         }
     ];
@@ -144,20 +139,25 @@ async function setHyperchainMetadata() {
     let deployer, governor, ethOperator, feeReceiver: ethers.Wallet | undefined;
     let feeReceiverAddress, l1Rpc, l1Id;
 
+    await initializeTestERC20s();
+    await initializeWethTokenForHyperchain();
+
     if (results.l1Chain !== BaseNetwork.LOCALHOST) {
         const rpcQuestions: BasePromptOptions[] = [
             {
                 message: 'What is the RPC url for the L1 Network?',
                 name: 'l1Rpc',
-                type: 'input'
+                type: 'input',
+                required: true
             }
         ];
 
         if (results.l1Chain === BaseNetwork.LOCALHOST_CUSTOM) {
             rpcQuestions.push({
-                message: 'What is netowrk id of your L1 Network?',
+                message: 'What is network id of your L1 Network?',
                 name: 'l1NetworkId',
-                type: 'input'
+                type: 'numeral',
+                required: true
             });
         }
 
@@ -190,26 +190,47 @@ async function setHyperchainMetadata() {
                 {
                     message: 'Private key of the L1 Deployer (the one that deploys the contracts)',
                     name: 'deployerKey',
-                    type: 'password'
+                    type: 'password',
+                    required: true
                 },
                 {
                     message: 'Private key of the L1 Governor (the one that can upgrade the contracts)',
                     name: 'governorKey',
-                    type: 'password'
+                    type: 'password',
+                    required: true
                 },
                 {
                     message: 'Private key of the L1 ETH Operator (the one that rolls up the batches)',
                     name: 'ethOperator',
-                    type: 'password'
+                    type: 'password',
+                    required: true
                 },
                 {
                     message: 'Address of L2 fee receiver (the one that collects fees)',
                     name: 'feeReceiver',
-                    type: 'input'
+                    type: 'input',
+                    required: true
                 }
             ];
 
             const keyResults: any = await enquirer.prompt(keyQuestions);
+
+            if (!utils.isAddress(keyResults.deployerKey)) {
+                throw Error(error('Deployer address is not a valid address'));
+            }
+            if (!utils.isAddress(keyResults.governorKey)) {
+                throw Error(error('Governor address is not a valid address'));
+            }
+            if (!utils.isAddress(keyResults.ethOperator)) {
+                throw Error(error('ETH Operator address is not a valid address'));
+            }
+            if (!utils.isAddress(keyResults.feeReceiver)) {
+                throw Error(error('Fee Receiver address is not a valid address'));
+            }
+
+            if (keyResults.deployerKey == keyResults.governorKey) {
+                throw Error(error('Governor and Deployer should not be the same'));
+            }
 
             deployer = new ethers.Wallet(keyResults.deployerKey);
             governor = new ethers.Wallet(keyResults.governorKey);
@@ -250,10 +271,6 @@ async function setHyperchainMetadata() {
         )
     );
 
-    if (governor.address == deployer.address) {
-        throw Error(error('Governor and Deployer cannot be the same'));
-    }
-
     if (results.l1Chain !== BaseNetwork.LOCALHOST_CUSTOM && results.l1Chain !== BaseNetwork.LOCALHOST) {
         const verifyQuestions: BasePromptOptions[] = [
             {
@@ -270,7 +287,8 @@ async function setHyperchainMetadata() {
                 {
                     message: 'Please provide your Etherscan API Key.',
                     name: 'etherscanKey',
-                    type: 'input'
+                    type: 'input',
+                    required: true
                 }
             ];
 
@@ -328,21 +346,12 @@ async function initializeTestERC20s() {
     const results: any = await enquirer.prompt(questions);
 
     if (results.deployERC20s) {
-        const privateKey = process.env.DEPLOYER_PRIVATE_KEY;
-        await announced(
-            'Deploying localhost ERC20 tokens',
-            run.deployERC20('dev', '', '', '', [
-                '--private-key',
-                privateKey,
-                '--envFile',
-                process.env.CHAIN_ETH_NETWORK!
-            ])
-        );
+        env.modify('DEPLOY_TEST_TOKENS', 'true', 'etc/env/l1-inits/.init.env');
         console.log(
             warning(
-                `The addresses for the tokens can be found on the /etc/tokens/${getEnv(
+                `The addresses for the tokens will be available at the /etc/tokens/${getEnv(
                     process.env.CHAIN_ETH_NETWORK!
-                )}.json file. The deployer address is the owner of the token contracts.`
+                )}.json file.`
             )
         );
     }
@@ -351,7 +360,7 @@ async function initializeTestERC20s() {
 async function initializeWethTokenForHyperchain() {
     const questions: BasePromptOptions[] = [
         {
-            message: 'Do you want to deploy a Wrapped ETH Bridge?',
+            message: 'Do you want to deploy Wrapped ETH to your Hyperchain?',
             name: 'deployWeth',
             type: 'confirm'
         }
@@ -360,39 +369,44 @@ async function initializeWethTokenForHyperchain() {
     const results: any = await enquirer.prompt(questions);
 
     if (results.deployWeth) {
-        const tokens = getTokens(process.env.CHAIN_ETH_NETWORK!);
+        env.modify('DEPLOY_L2_WETH', 'true', `etc/env/l2-inits/${process.env.ZKSYNC_ENV}.init.env`);
 
-        let baseWethToken = tokens.find((token: { symbol: string }) => token.symbol == 'WETH')?.address;
+        if (!process.env.DEPLOY_TEST_TOKENS) {
+            // Only try to fetch this info if no test tokens will be deployed, otherwise WETH address will be defined later.
+            const tokens = getTokens(process.env.CHAIN_ETH_NETWORK!);
 
-        if (!baseWethToken) {
-            const wethQuestions = [
-                {
-                    message: 'What is the address of the Wrapped ETH on the base chain?',
-                    name: 'l1Weth',
-                    type: 'input'
+            let baseWethToken = tokens.find((token: { symbol: string }) => token.symbol == 'WETH')?.address;
+
+            if (!baseWethToken) {
+                const wethQuestions = [
+                    {
+                        message: 'What is the address of the Wrapped ETH on the base chain?',
+                        name: 'l1Weth',
+                        type: 'input',
+                        required: true
+                    }
+                ];
+
+                const wethResults: any = await enquirer.prompt(wethQuestions);
+
+                baseWethToken = wethResults.l1Weth;
+
+                if (fs.existsSync(`/etc/tokens/${getEnv(process.env.ZKSYNC_ENV!)}.json`)) {
+                    tokens.push({
+                        name: 'Wrapped Ether',
+                        symbol: 'WETH',
+                        decimals: 18,
+                        address: baseWethToken!
+                    });
+                    fs.writeFileSync(
+                        `/etc/tokens/${getEnv(process.env.ZKSYNC_ENV!)}.json`,
+                        JSON.stringify(tokens, null, 4)
+                    );
                 }
-            ];
-
-            const wethResults: any = await enquirer.prompt(wethQuestions);
-
-            baseWethToken = wethResults.l1Weth;
-
-            if (fs.existsSync(`/etc/tokens/${getEnv(process.env.ZKSYNC_ENV!)}.json`)) {
-                tokens.push({
-                    name: 'Wrapped Ether',
-                    symbol: 'WETH',
-                    decimals: 18,
-                    address: baseWethToken!
-                });
-                fs.writeFileSync(
-                    `/etc/tokens/${getEnv(process.env.ZKSYNC_ENV!)}.json`,
-                    JSON.stringify(tokens, null, 4)
-                );
             }
+
+            env.modify('CONTRACTS_L1_WETH_TOKEN_ADDR', baseWethToken!, 'etc/env/l1-inits/.init.env');
         }
-
-        env.modify('CONTRACTS_L1_WETH_TOKEN_ADDR', baseWethToken!, 'etc/env/l1-inits/.init.env');
-
         const governorPrivateKey = process.env.GOVERNOR_PRIVATE_KEY;
 
         await announced(
@@ -526,13 +540,13 @@ function getL1Name(baseChain: BaseNetwork) {
 
 function getEnv(chainName: string) {
     return String(chainName)
-        .normalize('NFKD') // split accented characters into their base characters and diacritical marks
-        .replace(/[\u0300-\u036f]/g, '') // remove all the accents, which happen to be all in the \u03xx UNICODE block.
-        .trim() // trim leading or trailing whitespace
-        .toLowerCase() // convert to lowercase
-        .replace(/[^a-z0-9 -]/g, '') // remove non-alphanumeric characters
-        .replace(/\s+/g, '-') // replace spaces with hyphens
-        .replace(/-+/g, '-'); // remove consecutive hyphens
+        .normalize('NFKD') // Split accented characters into their base characters and diacritical marks.
+        .replace(/[\u0300-\u036f]/g, '') // Remove all the accents, which happen to be all in the \u03xx UNICODE block.
+        .trim() // Trim leading or trailing whitespace.
+        .toLowerCase() // Convert to lowercase.
+        .replace(/[^a-z0-9 -]/g, '') // Remove non-alphanumeric characters.
+        .replace(/\s+/g, '-') // Replace spaces with hyphens.
+        .replace(/-+/g, '-'); // Remove consecutive hyphens.
 }
 
 type L1Token = {
@@ -556,5 +570,5 @@ export function getTokens(network: string): L1Token[] {
 }
 
 export const initHyperchainCommand = new Command('init-hyperchain')
-    .description('Initializes a new hyperchain network')
+    .description('Initializes a new Hyperchain network')
     .action(initHyperchain);

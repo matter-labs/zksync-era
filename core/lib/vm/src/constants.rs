@@ -50,8 +50,25 @@ pub(crate) const TX_TRUSTED_GAS_LIMIT_SLOTS: usize = MAX_TXS_IN_BLOCK;
 
 pub(crate) const COMPRESSED_BYTECODES_SLOTS: usize = 32768;
 
-pub(crate) const BOOTLOADER_TX_DESCRIPTION_OFFSET: usize =
+pub(crate) const PRIORITY_TXS_L1_DATA_OFFSET: usize =
     COMPRESSED_BYTECODES_OFFSET + COMPRESSED_BYTECODES_SLOTS;
+pub(crate) const PRIORITY_TXS_L1_DATA_SLOTS: usize = 2;
+
+pub const OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_OFFSET: usize =
+    PRIORITY_TXS_L1_DATA_OFFSET + PRIORITY_TXS_L1_DATA_SLOTS;
+
+/// One of "worst case" scenarios for the number of state diffs in a batch is when 120kb of pubdata is spent
+/// on repeated writes, that are all zeroed out. In this case, the number of diffs is 120k / 5 = 24k. This means that they will have
+/// accoomdate 6528000 bytes of calldata for the uncompressed state diffs. Adding 120k on top leaves us with
+/// roughly 6650000 bytes needed for calldata. 207813 slots are needed to accomodate this amount of data.
+/// We round up to 208000 slots just in case.
+///
+/// In theory though much more calldata could be used (if for instance 1 byte is used for enum index). It is the responsibility of the
+/// operator to ensure that it can form the correct calldata for the L1Messenger.
+pub(crate) const OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_SLOTS: usize = 208000;
+
+pub(crate) const BOOTLOADER_TX_DESCRIPTION_OFFSET: usize =
+    OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_OFFSET + OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_SLOTS;
 
 /// The size of the bootloader memory dedicated to the encodings of transactions
 pub const BOOTLOADER_TX_ENCODING_SPACE: u32 =
@@ -70,8 +87,8 @@ pub(crate) const TX_GAS_LIMIT_OFFSET: usize = 4;
 
 const INITIAL_BASE_PAGE: u32 = 8;
 pub const BOOTLOADER_HEAP_PAGE: u32 = heap_page_from_base(MemoryPage(INITIAL_BASE_PAGE)).0;
-pub(crate) const BLOCK_OVERHEAD_GAS: u32 = 1200000;
-pub(crate) const BLOCK_OVERHEAD_L1_GAS: u32 = 1000000;
+pub const BLOCK_OVERHEAD_GAS: u32 = 1200000;
+pub const BLOCK_OVERHEAD_L1_GAS: u32 = 1000000;
 pub const BLOCK_OVERHEAD_PUBDATA: u32 = BLOCK_OVERHEAD_L1_GAS / L1_GAS_PER_PUBDATA_BYTE;
 
 /// VM Hooks are used for communication between bootloader and tracers.

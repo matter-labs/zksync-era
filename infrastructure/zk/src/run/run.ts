@@ -4,6 +4,8 @@ import { Wallet } from 'ethers';
 import fs from 'fs';
 import * as path from 'path';
 import * as dataRestore from './data-restore';
+import { getTokens } from '../hyperchain_wizard';
+import * as env from '../env';
 
 export { dataRestore };
 
@@ -43,6 +45,8 @@ export async function deployERC20(
                 { "name": "MLTTL", "symbol": "MLTTW", "decimals": 18 },
                 { "name": "Wrapped Ether", "symbol": "WETH", "decimals": 18, "implementation": "WETH9"}
             ]' ${args.join(' ')} > ./etc/tokens/${destinationFile}.json`);
+        const WETH = getTokens(destinationFile).find((token) => token.symbol === 'WETH')!;
+        env.modify('CONTRACTS_L1_WETH_TOKEN_ADDR', `CONTRACTS_L1_WETH_TOKEN_ADDR=${WETH.address}`);
     } else if (command == 'new') {
         await utils.spawn(
             `yarn --silent --cwd contracts/ethereum deploy-erc20 add --token-name ${name} --symbol ${symbol} --decimals ${decimals}`

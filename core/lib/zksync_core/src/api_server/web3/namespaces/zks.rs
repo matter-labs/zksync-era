@@ -1,6 +1,7 @@
-use std::{collections::HashMap, convert::TryInto, time::Instant};
+use std::{collections::HashMap, convert::TryInto};
 
 use bigdecimal::{BigDecimal, Zero};
+use zksync_dal::StorageProcessor;
 
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_types::{
@@ -8,7 +9,6 @@ use zksync_types::{
         BlockDetails, BridgeAddresses, GetLogsFilter, L1BatchDetails, L2ToL1LogProof,
         ProtocolVersion, TransactionDetails,
     },
-    commitment::SerializeCommitment,
     fee::Fee,
     l1::L1Tx,
     l2::L2Tx,
@@ -24,7 +24,9 @@ use zksync_web3_decl::{
     types::{Address, Filter, Log, Token, H256},
 };
 
-use crate::api_server::web3::{backend_jsonrpc::error::internal_error, RpcState};
+use crate::api_server::web3::{
+    backend_jsonrpc::error::internal_error, metrics::API_METRICS, RpcState,
+};
 use crate::fee_ticker::{error::TickerError, FeeTicker, TokenPriceRequestType};
 use crate::l1_gas_price::L1GasPriceProvider;
 
@@ -48,7 +50,9 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
 
     #[tracing::instrument(skip(self, request))]
     pub async fn estimate_fee_impl(&self, request: CallRequest) -> Result<Fee, Web3Error> {
-        let start = Instant::now();
+        const METHOD_NAME: &str = "estimate_fee";
+
+        let method_latency = API_METRICS.start_call(METHOD_NAME);
         let mut request_with_gas_per_pubdata_overridden = request;
 
         self.state
@@ -70,8 +74,7 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
         tx.common_data.fee.gas_per_pubdata_limit = MAX_GAS_PER_PUBDATA_BYTE.into();
 
         let fee = self.estimate_fee(tx.into()).await?;
-
-        metrics::histogram!("api.web3.call", start.elapsed(), "method" => "estimate_fee");
+        method_latency.observe();
         Ok(fee)
     }
 
@@ -80,7 +83,9 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
         &self,
         request: CallRequest,
     ) -> Result<U256, Web3Error> {
-        let start = Instant::now();
+        const METHOD_NAME: &str = "estimate_gas_l1_to_l2";
+
+        let method_latency = API_METRICS.start_call(METHOD_NAME);
         let mut request_with_gas_per_pubdata_overridden = request;
         // When we're estimating fee, we are trying to deduce values related to fee, so we should
         // not consider provided ones.
@@ -95,8 +100,7 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
             .map_err(Web3Error::SerializationError)?;
 
         let fee = self.estimate_fee(tx.into()).await?;
-
-        metrics::histogram!("api.web3.call", start.elapsed(), "method" => "estimate_gas_l1_to_l2");
+        method_latency.observe();
         Ok(fee.gas_limit)
     }
 
@@ -144,7 +148,7 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
     ) -> Result<Vec<Token>, Web3Error> {
         const METHOD_NAME: &str = "get_confirmed_tokens";
 
-        let start = Instant::now();
+        let method_latency = API_METRICS.start_call(METHOD_NAME);
         let tokens = self
             .state
             .connection_pool
@@ -167,7 +171,7 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
             })
             .collect();
 
-        metrics::histogram!("api.web3.call", start.elapsed(), "method" => METHOD_NAME);
+        method_latency.observe();
         Ok(tokens)
     }
 
@@ -175,7 +179,7 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
     pub async fn get_token_price_impl(&self, l2_token: Address) -> Result<BigDecimal, Web3Error> {
         const METHOD_NAME: &str = "get_token_price";
 
-        let start = Instant::now();
+        let method_latency = API_METRICS.start_call(METHOD_NAME);
         let token_price_result = {
             let mut storage = self
                 .state
@@ -197,8 +201,7 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
             Err(TickerError::PriceNotTracked(_)) => Ok(BigDecimal::zero()),
             Err(err) => Err(internal_error(METHOD_NAME, err)),
         };
-
-        metrics::histogram!("api.web3.call", start.elapsed(), "method" => METHOD_NAME);
+        method_latency.observe();
         result
     }
 
@@ -209,7 +212,7 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
     ) -> Result<HashMap<Address, U256>, Web3Error> {
         const METHOD_NAME: &str = "get_all_balances";
 
-        let start = Instant::now();
+        let method_latency = API_METRICS.start_call(METHOD_NAME);
         let balances = self
             .state
             .connection_pool
@@ -230,7 +233,7 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
             })
             .collect();
 
-        metrics::histogram!("api.web3.call", start.elapsed(), "method" => METHOD_NAME);
+        method_latency.observe();
         Ok(balances)
     }
 
@@ -244,7 +247,7 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
     ) -> Result<Option<L2ToL1LogProof>, Web3Error> {
         const METHOD_NAME: &str = "get_l2_to_l1_msg_proof";
 
-        let start = Instant::now();
+        let method_latency = API_METRICS.start_call(METHOD_NAME);
         let mut storage = self
             .state
             .connection_pool
@@ -267,15 +270,9 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
             .map_err(|err| internal_error(METHOD_NAME, err))?
             .expect("L1 batch should contain at least one miniblock");
 
-        let all_l1_logs_in_batch = storage
-            .blocks_web3_dal()
-            .get_l2_to_l1_logs(l1_batch_number)
-            .await
-            .map_err(|err| internal_error(METHOD_NAME, err))?;
-
         // Position of l1 log in L1 batch relative to logs with identical data
         let l1_log_relative_position = if let Some(l2_log_position) = l2_log_position {
-            let pos = storage
+            let logs = storage
                 .events_web3_dal()
                 .get_logs(
                     GetLogsFilter {
@@ -287,48 +284,69 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
                     self.state.api_config.req_entities_limit,
                 )
                 .await
-                .map_err(|err| internal_error(METHOD_NAME, err))?
-                .iter()
-                .position(|event| {
-                    event.block_number == Some(block_number.0.into())
-                        && event.log_index == Some(l2_log_position.into())
-                });
-            match pos {
+                .map_err(|err| internal_error(METHOD_NAME, err))?;
+            let maybe_pos = logs.iter().position(|event| {
+                event.block_number == Some(block_number.0.into())
+                    && event.log_index == Some(l2_log_position.into())
+            });
+            match maybe_pos {
                 Some(pos) => pos,
-                None => {
-                    return Ok(None);
-                }
+                None => return Ok(None),
             }
         } else {
             0
         };
 
-        let l1_log_index = match all_l1_logs_in_batch
+        let log_proof = self
+            .get_l2_to_l1_log_proof_inner(
+                METHOD_NAME,
+                &mut storage,
+                l1_batch_number,
+                l1_log_relative_position,
+                |log| {
+                    log.sender == L1_MESSENGER_ADDRESS
+                        && log.key == address_to_h256(&sender)
+                        && log.value == msg
+                },
+            )
+            .await?;
+
+        method_latency.observe();
+        Ok(log_proof)
+    }
+
+    async fn get_l2_to_l1_log_proof_inner(
+        &self,
+        method_name: &'static str,
+        storage: &mut StorageProcessor<'_>,
+        l1_batch_number: L1BatchNumber,
+        index_in_filtered_logs: usize,
+        log_filter: impl Fn(&L2ToL1Log) -> bool,
+    ) -> Result<Option<L2ToL1LogProof>, Web3Error> {
+        let all_l1_logs_in_batch = storage
+            .blocks_web3_dal()
+            .get_l2_to_l1_logs(l1_batch_number)
+            .await
+            .map_err(|err| internal_error(method_name, err))?;
+
+        let Some((l1_log_index, _)) = all_l1_logs_in_batch
             .iter()
             .enumerate()
-            .filter(|(_, log)| {
-                log.sender == L1_MESSENGER_ADDRESS
-                    && log.key == address_to_h256(&sender)
-                    && log.value == msg
-            })
-            .nth(l1_log_relative_position)
-        {
-            Some(nth_elem) => nth_elem.0,
-            None => {
-                return Ok(None);
-            }
+            .filter(|(_, log)| log_filter(log))
+            .nth(index_in_filtered_logs)
+        else {
+            return Ok(None);
         };
 
         let merkle_tree_leaves = all_l1_logs_in_batch.iter().map(L2ToL1Log::to_bytes);
-        let (root, proof) = MiniMerkleTree::new(merkle_tree_leaves, L2ToL1Log::LIMIT_PER_L1_BATCH)
+        let min_tree_size = Some(L2ToL1Log::LEGACY_LIMIT_PER_L1_BATCH);
+        let (root, proof) = MiniMerkleTree::new(merkle_tree_leaves, min_tree_size)
             .merkle_root_and_path(l1_log_index);
-        let msg_proof = L2ToL1LogProof {
+        Ok(Some(L2ToL1LogProof {
             proof,
             root,
             id: l1_log_index as u32,
-        };
-        metrics::histogram!("api.web3.call", start.elapsed(), "method" => METHOD_NAME);
-        Ok(Some(msg_proof))
+        }))
     }
 
     #[tracing::instrument(skip(self))]
@@ -339,59 +357,41 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
     ) -> Result<Option<L2ToL1LogProof>, Web3Error> {
         const METHOD_NAME: &str = "get_l2_to_l1_msg_proof";
 
-        let start = Instant::now();
+        let method_latency = API_METRICS.start_call(METHOD_NAME);
         let mut storage = self
             .state
             .connection_pool
             .access_storage_tagged("api")
             .await
             .unwrap();
-        let (l1_batch_number, l1_batch_tx_index) = match storage
+        let Some((l1_batch_number, l1_batch_tx_index)) = storage
             .blocks_web3_dal()
             .get_l1_batch_info_for_tx(tx_hash)
             .await
             .map_err(|err| internal_error(METHOD_NAME, err))?
-        {
-            Some(x) => x,
-            None => return Ok(None),
+        else {
+            return Ok(None);
         };
 
-        let all_l1_logs_in_batch = storage
-            .blocks_web3_dal()
-            .get_l2_to_l1_logs(l1_batch_number)
-            .await
-            .map_err(|err| internal_error(METHOD_NAME, err))?;
+        let log_proof = self
+            .get_l2_to_l1_log_proof_inner(
+                METHOD_NAME,
+                &mut storage,
+                l1_batch_number,
+                index.unwrap_or(0),
+                |log| log.tx_number_in_block == l1_batch_tx_index,
+            )
+            .await?;
 
-        let l1_log_index = match all_l1_logs_in_batch
-            .iter()
-            .enumerate()
-            .filter(|(_, log)| log.tx_number_in_block == l1_batch_tx_index)
-            .nth(index.unwrap_or(0))
-        {
-            Some(nth_elem) => nth_elem.0,
-            None => {
-                return Ok(None);
-            }
-        };
-
-        let merkle_tree_leaves = all_l1_logs_in_batch.iter().map(L2ToL1Log::to_bytes);
-        let (root, proof) = MiniMerkleTree::new(merkle_tree_leaves, L2ToL1Log::LIMIT_PER_L1_BATCH)
-            .merkle_root_and_path(l1_log_index);
-        let msg_proof = L2ToL1LogProof {
-            proof,
-            root,
-            id: l1_log_index as u32,
-        };
-
-        metrics::histogram!("api.web3.call", start.elapsed(), "method" => METHOD_NAME);
-        Ok(Some(msg_proof))
+        method_latency.observe();
+        Ok(log_proof)
     }
 
     #[tracing::instrument(skip(self))]
     pub async fn get_l1_batch_number_impl(&self) -> Result<U64, Web3Error> {
         const METHOD_NAME: &str = "get_l1_batch_number";
 
-        let start = Instant::now();
+        let method_latency = API_METRICS.start_call(METHOD_NAME);
         let l1_batch_number = self
             .state
             .connection_pool
@@ -404,7 +404,7 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
             .map(|n| U64::from(n.0))
             .map_err(|err| internal_error(METHOD_NAME, err));
 
-        metrics::histogram!("api.web3.call", start.elapsed(), "endpoint" => METHOD_NAME);
+        method_latency.observe();
         l1_batch_number
     }
 
@@ -415,7 +415,7 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
     ) -> Result<Option<(U64, U64)>, Web3Error> {
         const METHOD_NAME: &str = "get_miniblock_range";
 
-        let start = Instant::now();
+        let method_latency = API_METRICS.start_call(METHOD_NAME);
         let minmax = self
             .state
             .connection_pool
@@ -428,7 +428,7 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
             .map(|minmax| minmax.map(|(min, max)| (U64::from(min.0), U64::from(max.0))))
             .map_err(|err| internal_error(METHOD_NAME, err));
 
-        metrics::histogram!("api.web3.call", start.elapsed(), "endpoint" => METHOD_NAME);
+        method_latency.observe();
         minmax
     }
 
@@ -439,7 +439,7 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
     ) -> Result<Option<BlockDetails>, Web3Error> {
         const METHOD_NAME: &str = "get_block_details";
 
-        let start = Instant::now();
+        let method_latency = API_METRICS.start_call(METHOD_NAME);
         let block_details = self
             .state
             .connection_pool
@@ -454,7 +454,7 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
             .await
             .map_err(|err| internal_error(METHOD_NAME, err));
 
-        metrics::histogram!("api.web3.call", start.elapsed(), "method" => METHOD_NAME);
+        method_latency.observe();
         block_details
     }
 
@@ -465,7 +465,7 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
     ) -> Result<Vec<Transaction>, Web3Error> {
         const METHOD_NAME: &str = "get_raw_block_transactions";
 
-        let start = Instant::now();
+        let method_latency = API_METRICS.start_call(METHOD_NAME);
         let transactions = self
             .state
             .connection_pool
@@ -477,7 +477,7 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
             .await
             .map_err(|err| internal_error(METHOD_NAME, err));
 
-        metrics::histogram!("api.web3.call", start.elapsed(), "method" => METHOD_NAME);
+        method_latency.observe();
         transactions
     }
 
@@ -488,7 +488,7 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
     ) -> Result<Option<TransactionDetails>, Web3Error> {
         const METHOD_NAME: &str = "get_transaction_details";
 
-        let start = Instant::now();
+        let method_latency = API_METRICS.start_call(METHOD_NAME);
         let mut tx_details = self
             .state
             .connection_pool
@@ -512,7 +512,7 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
             }
         }
 
-        metrics::histogram!("api.web3.call", start.elapsed(), "method" => METHOD_NAME);
+        method_latency.observe();
         tx_details
     }
 
@@ -523,7 +523,7 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
     ) -> Result<Option<L1BatchDetails>, Web3Error> {
         const METHOD_NAME: &str = "get_l1_batch";
 
-        let start = Instant::now();
+        let method_latency = API_METRICS.start_call(METHOD_NAME);
         let l1_batch = self
             .state
             .connection_pool
@@ -535,7 +535,7 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
             .await
             .map_err(|err| internal_error(METHOD_NAME, err));
 
-        metrics::histogram!("api.web3.call", start.elapsed(), "method" => METHOD_NAME);
+        method_latency.observe();
         l1_batch
     }
 
@@ -543,7 +543,7 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
     pub async fn get_bytecode_by_hash_impl(&self, hash: H256) -> Option<Vec<u8>> {
         const METHOD_NAME: &str = "get_bytecode_by_hash";
 
-        let start = Instant::now();
+        let method_latency = API_METRICS.start_call(METHOD_NAME);
         let bytecode = self
             .state
             .connection_pool
@@ -554,7 +554,7 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
             .get_factory_dep(hash)
             .await;
 
-        metrics::histogram!("api.web3.call", start.elapsed(), "method" => METHOD_NAME);
+        method_latency.observe();
         bytecode
     }
 
@@ -562,7 +562,7 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
     pub fn get_l1_gas_price_impl(&self) -> U64 {
         const METHOD_NAME: &str = "get_l1_gas_price";
 
-        let start = Instant::now();
+        let method_latency = API_METRICS.start_call(METHOD_NAME);
         let gas_price = self
             .state
             .tx_sender
@@ -570,7 +570,7 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
             .l1_gas_price_source
             .estimate_effective_gas_price();
 
-        metrics::histogram!("api.web3.call", start.elapsed(), "method" => METHOD_NAME);
+        method_latency.observe();
         gas_price.into()
     }
 
@@ -579,9 +579,9 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
         &self,
         version_id: Option<u16>,
     ) -> Option<ProtocolVersion> {
-        let start = Instant::now();
         const METHOD_NAME: &str = "get_protocol_version";
 
+        let method_latency = API_METRICS.start_call(METHOD_NAME);
         let protocol_version = match version_id {
             Some(id) => {
                 self.state
@@ -604,8 +604,8 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
                     .await,
             ),
         };
-        metrics::histogram!("api.web3.call", start.elapsed(), "method" => METHOD_NAME);
 
+        method_latency.observe();
         protocol_version
     }
 

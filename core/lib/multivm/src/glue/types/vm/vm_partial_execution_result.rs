@@ -1,5 +1,5 @@
 use crate::glue::{GlueFrom, GlueInto};
-use zksync_types::tx::tx_execution_info::VmExecutionLogs;
+use vm_latest::VmExecutionLogs;
 
 impl GlueFrom<vm_m5::vm::VmPartialExecutionResult> for vm_latest::VmExecutionResultAndLogs {
     fn glue_from(value: vm_m5::vm::VmPartialExecutionResult) -> Self {
@@ -7,7 +7,8 @@ impl GlueFrom<vm_m5::vm::VmPartialExecutionResult> for vm_latest::VmExecutionRes
             result: value.revert_reason.glue_into(),
             logs: VmExecutionLogs {
                 events: value.logs.events.clone(),
-                l2_to_l1_logs: value.logs.l2_to_l1_logs.clone(),
+                user_l2_to_l1_logs: value.logs.l2_to_l1_logs.clone(),
+                system_l2_to_l1_logs: vec![],
                 storage_logs: value.logs.storage_logs.clone(),
                 total_log_queries_count: value.logs.total_log_queries_count,
             },
@@ -34,7 +35,8 @@ impl GlueFrom<vm_m6::vm::VmPartialExecutionResult> for vm_latest::VmExecutionRes
             result: value.revert_reason.glue_into(),
             logs: VmExecutionLogs {
                 events: value.logs.events.clone(),
-                l2_to_l1_logs: value.logs.l2_to_l1_logs.clone(),
+                user_l2_to_l1_logs: value.logs.l2_to_l1_logs.clone(),
+                system_l2_to_l1_logs: vec![],
                 storage_logs: value.logs.storage_logs.clone(),
                 total_log_queries_count: value.logs.total_log_queries_count,
             },
@@ -59,7 +61,8 @@ impl GlueFrom<vm_1_3_2::vm::VmPartialExecutionResult> for vm_latest::VmExecution
             result: value.revert_reason.glue_into(),
             logs: VmExecutionLogs {
                 events: value.logs.events.clone(),
-                l2_to_l1_logs: value.logs.l2_to_l1_logs.clone(),
+                user_l2_to_l1_logs: value.logs.l2_to_l1_logs.clone(),
+                system_l2_to_l1_logs: vec![],
                 storage_logs: value.logs.storage_logs.clone(),
                 total_log_queries_count: value.logs.total_log_queries_count,
             },

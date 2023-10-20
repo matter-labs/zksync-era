@@ -8,6 +8,8 @@ use super::envy_load;
 /// Data about deployed contracts.
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct ContractsConfig {
+    pub governance_addr: Address,
+
     pub bridgehub_diamond_proxy_addr: Address,
     pub bridgehub_admin_facet_addr: Address,
     pub bridgehub_mailbox_facet_addr: Address,
@@ -45,6 +47,8 @@ pub struct ContractsConfig {
     pub fri_recursion_scheduler_level_vk_hash: H256,
     pub fri_recursion_node_level_vk_hash: H256,
     pub fri_recursion_leaf_level_vk_hash: H256,
+    pub prover_at_genesis: String,
+    pub snark_wrapper_vk_hash: H256,
 }
 
 impl ContractsConfig {
@@ -67,6 +71,8 @@ mod tests {
             bridgehub_mailbox_facet_addr: addr("0f6Fa881EF414Fc6E818180657c2d5CD7Ac6cCAd"),
             bridgehub_getters_facet_addr: addr("0f6Fa881EF414Fc6E818180657c2d5CD7Ac6cCAd"),
             bridgehub_diamond_init_addr: addr("0f6Fa881EF414Fc6E818180657c2d5CD7Ac6cCAd"),
+            governance_addr: addr("d8dA6BF26964aF9D7eEd9e03E53415D37aA96045"),
+
             verifier_addr: addr("34782eE00206EAB6478F2692caa800e4A581687b"),
             state_transition_proxy_addr: addr("0f6Fa881EF414Fc6E818180657c2d5CD7Ac6cCAd"),
             state_transition_impl_addr: addr("0f6Fa881EF414Fc6E818180657c2d5CD7Ac6cCAd"),
@@ -113,6 +119,10 @@ mod tests {
             fri_recursion_leaf_level_vk_hash: hash(
                 "0x72167c43a46cf38875b267d67716edc4563861364a3c03ab7aee73498421e828",
             ),
+            prover_at_genesis: "fri".to_string(),
+            snark_wrapper_vk_hash: hash(
+                "0x4be443afd605a782b6e56d199df2460a025c81b3dea144e135bece83612563f2",
+            ),
         }
     }
 
@@ -125,14 +135,13 @@ CONTRACTS_BRIDGEHUB_ADMIN_FACET_ADDR="0f6Fa881EF414Fc6E818180657c2d5CD7Ac6cCAd"
 CONTRACTS_BRIDGEHUB_MAILBOX_FACET_ADDR="0f6Fa881EF414Fc6E818180657c2d5CD7Ac6cCAd"
 CONTRACTS_BRIDGEHUB_GETTERS_FACET_ADDR="0f6Fa881EF414Fc6E818180657c2d5CD7Ac6cCAd"
 CONTRACTS_BRIDGEHUB_DIAMOND_INIT_ADDR="0f6Fa881EF414Fc6E818180657c2d5CD7Ac6cCAd"
-
+CONTRACTS_GOVERNANCE_ADDR="0x1e12b20BE86bEc3A0aC95aA52ade345cB9AE7a32"
 CONTRACTS_VERIFIER_ADDR="0x34782eE00206EAB6478F2692caa800e4A581687b"
 CONTRACTS_STATE_TRANSITION_PROXY_ADDR="0f6Fa881EF414Fc6E818180657c2d5CD7Ac6cCAd"
 CONTRACTS_STATE_TRANSITION_IMPL_ADDR="0f6Fa881EF414Fc6E818180657c2d5CD7Ac6cCAd"
 CONTRACTS_STATE_TRANSITION_PROXY_admin_ADDR="0f6Fa881EF414Fc6E818180657c2d5CD7Ac6cCAd"
-
 CONTRACTS_EXECUTOR_FACET_ADDR="0x18B631537801963A964211C0E86645c1aBfbB2d3"
-CONTRACTS_GOVERNANCE_FACET_ADDR="0x1e12b20BE86bEc3A0aC95aA52ade345cB9AE7a32"
+CONTRACTS_ADMIN_FACET_ADDR="0x1e12b20BE86bEc3A0aC95aA52ade345cB9AE7a32"
 CONTRACTS_DIAMOND_CUT_FACET_ADDR="0x8656770FA78c830456B00B4fFCeE6b1De0e1b888"
 CONTRACTS_MAILBOX_FACET_ADDR="0x8656770FA78c830456B00B4fFCeE6b1De0e1b888"
 CONTRACTS_GETTERS_FACET_ADDR="0x8656770FA78c830456B00B4fFCeE6b1De0e1b888"
@@ -158,7 +167,8 @@ CONTRACTS_L1_MULTICALL3_ADDR="0xcA11bde05977b3631167028862bE2a173976CA11"
 CONTRACTS_FRI_RECURSION_SCHEDULER_LEVEL_VK_HASH="0x201d4c7d8e781d51a3bbd451a43a8f45240bb765b565ae6ce69192d918c3563d"
 CONTRACTS_FRI_RECURSION_NODE_LEVEL_VK_HASH="0x5a3ef282b21e12fe1f4438e5bb158fc5060b160559c5158c6389d62d9fe3d080"
 CONTRACTS_FRI_RECURSION_LEAF_LEVEL_VK_HASH="0x72167c43a46cf38875b267d67716edc4563861364a3c03ab7aee73498421e828"
-
+CONTRACTS_PROVER_AT_GENESIS="fri"
+SNARK_WRAPPER_VK_HASH="0x4be443afd605a782b6e56d199df2460a025c81b3dea144e135bece83612563f2"
         "#;
         lock.set_env(config);
 

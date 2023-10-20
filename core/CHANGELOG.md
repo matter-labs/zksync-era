@@ -1,5 +1,51 @@
 # Changelog
 
+## [16.0.2](https://github.com/matter-labs/zksync-era/compare/core-v16.0.1...core-v16.0.2) (2023-10-12)
+
+
+### Bug Fixes
+
+* **API:** return correct v value for Legacy tx ([#154](https://github.com/matter-labs/zksync-era/issues/154)) ([ed502ea](https://github.com/matter-labs/zksync-era/commit/ed502ea9aff50627ae9620f1570579893cbf2722))
+* **API:** U256 for chainId in api::Transaction struct ([#211](https://github.com/matter-labs/zksync-era/issues/211)) ([ca98a1c](https://github.com/matter-labs/zksync-era/commit/ca98a1c70c8482397215221b4e00bdb2edeccd84))
+* **prover:** Fix statistic query ([#193](https://github.com/matter-labs/zksync-era/issues/193)) ([5499093](https://github.com/matter-labs/zksync-era/commit/54990933051632e505c76bd98b83462617cb725a))
+* **state-keeper:** Add L2ToL1LogsCriterion ([#195](https://github.com/matter-labs/zksync-era/issues/195)) ([64459b2](https://github.com/matter-labs/zksync-era/commit/64459b2383a344b558ae648743c3f7d91c1b24c0))
+
+## [16.0.0](https://github.com/matter-labs/zksync-era/compare/core-v15.1.1...core-v16.0.0) (2023-10-11)
+
+
+### ⚠ BREAKING CHANGES
+
+* **vm:** Update Refund model ([#181](https://github.com/matter-labs/zksync-era/issues/181))
+
+### Features
+
+* change chainId to u64 ([#167](https://github.com/matter-labs/zksync-era/issues/167)) ([f14bf68](https://github.com/matter-labs/zksync-era/commit/f14bf6851059a7add6677c89b3192e1b23cbf3c5))
+* **merkle tree:** Provide Merkle proofs for tree entries and entry ranges ([#119](https://github.com/matter-labs/zksync-era/issues/119)) ([1e30d0b](https://github.com/matter-labs/zksync-era/commit/1e30d0ba8d243f41ad1e86e77d24848d64bd11e6))
+* **storage:** save enum indices in RocksDB ([#162](https://github.com/matter-labs/zksync-era/issues/162)) ([bab099d](https://github.com/matter-labs/zksync-era/commit/bab099d83d9640c965bc02b32d90cce86a3f53cb))
+* **vm:** Update Refund model ([#181](https://github.com/matter-labs/zksync-era/issues/181)) ([92b6f59](https://github.com/matter-labs/zksync-era/commit/92b6f5999b66666f01b89b5ff188d220139751a2))
+
+
+### Bug Fixes
+
+* **db:** drop constraint prover_jobs_fri_l1_batch_number_fkey ([#173](https://github.com/matter-labs/zksync-era/issues/173)) ([fa71650](https://github.com/matter-labs/zksync-era/commit/fa7165002884e7137b623feec3721cbbe3332a40))
+* **vm:** Make execution status and stop reason public ([#169](https://github.com/matter-labs/zksync-era/issues/169)) ([f98c4fa](https://github.com/matter-labs/zksync-era/commit/f98c4fab0f10d190ceb2ae9bfa77929bf793a6ea))
+
+## [15.1.1](https://github.com/matter-labs/zksync-era/compare/core-v15.1.0...core-v15.1.1) (2023-10-05)
+
+
+### Bug Fixes
+
+* use gauge instead histogram for replication lag metric ([#159](https://github.com/matter-labs/zksync-era/issues/159)) ([0d952d4](https://github.com/matter-labs/zksync-era/commit/0d952d43a021c2fbf18920da3e7d770a6309d990))
+
+## [15.1.0](https://github.com/matter-labs/zksync-era/compare/core-v15.0.2...core-v15.1.0) (2023-10-03)
+
+
+### Features
+
+* Implement dynamic L2-to-L1 log tree depth ([#126](https://github.com/matter-labs/zksync-era/issues/126)) ([7dfbc5e](https://github.com/matter-labs/zksync-era/commit/7dfbc5eddab94cd24f96912e0d43ba36e1cf363f))
+* **vm:** Introduce new way of returning from the tracer [#2569](https://github.com/matter-labs/zksync-era/issues/2569) ([#116](https://github.com/matter-labs/zksync-era/issues/116)) ([cf44a49](https://github.com/matter-labs/zksync-era/commit/cf44a491a324199b4cf457d28658da44b6dafc61))
+* **vm:** Restore system-constants-generator ([#115](https://github.com/matter-labs/zksync-era/issues/115)) ([5e61bdc](https://github.com/matter-labs/zksync-era/commit/5e61bdc75b2baa03004d4d3e801170c094766964))
+
 ## [15.0.1](https://github.com/matter-labs/zksync-2-dev/compare/core-v15.0.0...core-v15.0.1) (2023-09-27)
 
 

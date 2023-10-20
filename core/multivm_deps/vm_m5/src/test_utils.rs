@@ -91,7 +91,7 @@ pub struct VmInstanceInnerState {
     local_state: VmLocalState,
 }
 
-impl<'a, S: Storage> VmInstance<'a, S> {
+impl<S: Storage> VmInstance<S> {
     /// This method is mostly to be used in tests. It dumps the inner state of all the oracles and the VM itself.
     pub fn dump_inner_state(&self) -> VmInstanceInnerState {
         let event_sink = self.state.event_sink.clone();
@@ -171,7 +171,7 @@ pub fn mock_loadnext_test_call(
         nonce,
         fee,
         Default::default(),
-        L2ChainId(270),
+        L2ChainId::from(270),
         &eth_private_key,
         None,
         Default::default(),
@@ -208,7 +208,7 @@ pub fn mock_loadnext_gas_burn_call(
         nonce,
         fee,
         Default::default(),
-        L2ChainId(270),
+        L2ChainId::from(270),
         &eth_private_key,
         None,
         Default::default(),
@@ -275,7 +275,7 @@ pub fn get_deploy_tx(
         nonce,
         fee,
         U256::zero(),
-        L2ChainId(270),
+        L2ChainId::from(270),
         &account_private_key,
         Some(factory_deps),
         Default::default(),
@@ -302,7 +302,7 @@ pub fn get_error_tx(
         nonce,
         fee,
         U256::zero(),
-        L2ChainId(270),
+        L2ChainId::from(270),
         &account_private_key,
         Some(factory_deps),
         Default::default(),

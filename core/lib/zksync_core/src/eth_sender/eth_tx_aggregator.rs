@@ -18,10 +18,12 @@ use zksync_types::{
 };
 
 use crate::eth_sender::{
-    grafana_metrics::track_eth_tx_metrics, zksync_functions::ZkSyncFunctions, Aggregator,
-    ETHSenderError,
+    metrics::{PubdataKind, METRICS},
+    zksync_functions::ZkSyncFunctions,
+    Aggregator, ETHSenderError,
 };
 use crate::gas_tracker::agg_l1_batch_base_cost;
+use crate::metrics::BlockL1Stage;
 
 /// Data queried from L1 using multicall contract.
 #[derive(Debug)]
@@ -303,20 +305,39 @@ impl EthTxAggregator {
         eth_client: &E,
         verifier_address: Address,
     ) -> Result<H256, ETHSenderError> {
-        let token: Token = eth_client
-            .call_contract_function(
-                &self.functions.get_verification_key.name,
-                (),
-                None,
-                Default::default(),
-                None,
-                verifier_address,
-                self.functions.verifier_contract.clone(),
-            )
-            .await?;
-        let recursion_scheduler_level_vk_hash = l1_vk_commitment(token);
-
-        Ok(recursion_scheduler_level_vk_hash)
+        // This is here for backward compatibility with the old verifier:
+        // Legacy verifier returns the full verification key;
+        // New verifier returns the hash of the verification key
+        if let Some(get_vk) = &self.functions.get_verification_key {
+            tracing::debug!("Calling get_verification_key");
+            let vk = eth_client
+                .call_contract_function(
+                    &get_vk.name,
+                    (),
+                    None,
+                    Default::default(),
+                    None,
+                    verifier_address,
+                    self.functions.verifier_contract.clone(),
+                )
+                .await?;
+            Ok(l1_vk_commitment(vk))
+        } else {
+            let get_vk_hash = self.functions.verification_key_hash.as_ref();
+            tracing::debug!("Calling verificationKeyHash");
+            let vk_hash = eth_client
+                .call_contract_function(
+                    &get_vk_hash.unwrap().name,
+                    (),
+                    None,
+                    Default::default(),
+                    None,
+                    verifier_address,
+                    self.functions.verifier_contract.clone(),
+                )
+                .await?;
+            Ok(vk_hash)
+        }
     }
 
     #[tracing::instrument(skip(self, storage, eth_client))]
@@ -331,11 +352,19 @@ impl EthTxAggregator {
             verifier_params,
             verifier_address,
             protocol_version_id,
-        } = self.get_multicall_data(eth_client).await?;
+        } = self.get_multicall_data(eth_client).await.map_err(|err| {
+            tracing::error!("Failed to get multicall data");
+            err
+        })?;
 
         let recursion_scheduler_level_vk_hash = self
             .get_recursion_scheduler_level_vk_hash(eth_client, verifier_address)
-            .await?;
+            .await
+            .map_err(|err| {
+                tracing::error!("Failed to get VK hash from the Verifier");
+                err
+            })?;
+
         let l1_verifier_config = L1VerifierConfig {
             params: verifier_params,
             recursion_scheduler_level_vk_hash,
@@ -371,31 +400,21 @@ impl EthTxAggregator {
 
         if let AggregatedOperation::Commit(commit_op) = &aggregated_op {
             for batch in &commit_op.l1_batches {
-                metrics::histogram!(
-                    "server.eth_sender.pubdata_size",
-                    batch.metadata.l2_l1_messages_compressed.len() as f64,
-                    "kind" => "l2_l1_messages_compressed"
-                );
-                metrics::histogram!(
-                    "server.eth_sender.pubdata_size",
-                    batch.metadata.initial_writes_compressed.len() as f64,
-                    "kind" => "initial_writes_compressed"
-                );
-                metrics::histogram!(
-                    "server.eth_sender.pubdata_size",
-                    batch.metadata.repeated_writes_compressed.len() as f64,
-                    "kind" => "repeated_writes_compressed"
-                );
+                METRICS.pubdata_size[&PubdataKind::L2ToL1MessagesCompressed]
+                    .observe(batch.metadata.l2_l1_messages_compressed.len());
+                METRICS.pubdata_size[&PubdataKind::InitialWritesCompressed]
+                    .observe(batch.metadata.initial_writes_compressed.len());
+                METRICS.pubdata_size[&PubdataKind::RepeatedWritesCompressed]
+                    .observe(batch.metadata.repeated_writes_compressed.len());
             }
         }
 
         let range_size = l1_batch_number_range.end().0 - l1_batch_number_range.start().0 + 1;
-        metrics::histogram!(
-            "server.eth_sender.block_range_size",
-            range_size as f64,
-            "type" => aggregated_op.get_action_type().as_str()
-        );
-        track_eth_tx_metrics(storage, "save", tx).await;
+        METRICS.block_range_size[&aggregated_op.get_action_type().into()]
+            .observe(range_size.into());
+        METRICS
+            .track_eth_tx_metrics(storage, BlockL1Stage::Saved, tx)
+            .await;
     }
 
     fn encode_aggregated_op(&self, op: &AggregatedOperation) -> Vec<u8> {
