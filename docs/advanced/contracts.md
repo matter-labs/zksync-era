@@ -59,7 +59,7 @@ If you look on your hardhat example, you'll notice that your `deploy.ts` is actu
 `hardhat-zksync-deploy` plugin.
 
 Which inside uses the zkSync's web3.js, that calls the contract deployer
-[here](https://github.com/matter-labs/zksync-2-dev/blob/a2853871778cebe8f09faebe6f2f5c07d29b81f1/sdk/zksync-web3.js/src/contract.ts#L62)
+[here](https://github.com/matter-labs/zksync-era/blob/main/sdk/zksync-web3.js/src/contract.ts#L44)
 
 ```typescript
 override getDeployTransaction(..) {
