@@ -33,8 +33,11 @@ impl TxExecutionStatus {
 
 #[derive(Debug, Default, Clone, Copy, PartialEq)]
 pub struct DeduplicatedWritesMetrics {
+    // The number of initial storage writes.
     pub initial_storage_writes: usize,
+    // The number of repeated storage writes.
     pub repeated_storage_writes: usize,
+    // This is the total number of bytes used for value updates as part of storage writes.
     pub total_updated_values_size: usize,
 }
 
