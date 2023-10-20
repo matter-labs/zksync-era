@@ -1023,7 +1023,9 @@ impl TransactionsDal<'_, '_> {
         let transactions_by_miniblock = self
             .get_miniblock_with_transactions_for(miniblock_execution_mode)
             .await;
-
+        if transactions_by_miniblock.is_empty() {
+            return Vec::new();
+        }
         let from_miniblock = transactions_by_miniblock.first().unwrap().0;
         let to_miniblock = transactions_by_miniblock.last().unwrap().0;
         let miniblock_data = sqlx::query!(
