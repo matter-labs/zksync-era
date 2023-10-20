@@ -18,7 +18,7 @@ use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes};
 use zksync_system_constants::ZKPORTER_IS_AVAILABLE;
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
-    block::{legacy_miniblock_hash, miniblock_hash, BlockGasCount, MiniblockReexecuteData},
+    block::{legacy_miniblock_hash, miniblock_hash, BlockGasCount, MiniblockExecutionData},
     commitment::{L1BatchMetaParameters, L1BatchMetadata},
     fee::Fee,
     l2::L2Tx,
@@ -436,14 +436,14 @@ async fn pending_batch_is_applied() {
     let sealer = ConditionalSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
 
     let pending_batch = pending_batch_data(vec![
-        MiniblockReexecuteData {
+        MiniblockExecutionData {
             number: MiniblockNumber(1),
             timestamp: 1,
             prev_block_hash: miniblock_hash(MiniblockNumber(0), 0, H256::zero(), H256::zero()),
             virtual_blocks: 1,
             txs: vec![random_tx(1)],
         },
-        MiniblockReexecuteData {
+        MiniblockExecutionData {
             number: MiniblockNumber(2),
             timestamp: 2,
             prev_block_hash: miniblock_hash(MiniblockNumber(1), 1, H256::zero(), H256::zero()),
@@ -521,7 +521,7 @@ async fn miniblock_timestamp_after_pending_batch() {
     };
     let sealer = ConditionalSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
 
-    let pending_batch = pending_batch_data(vec![MiniblockReexecuteData {
+    let pending_batch = pending_batch_data(vec![MiniblockExecutionData {
         number: MiniblockNumber(1),
         timestamp: 1,
         prev_block_hash: miniblock_hash(MiniblockNumber(0), 0, H256::zero(), H256::zero()),
