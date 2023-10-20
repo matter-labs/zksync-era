@@ -90,9 +90,9 @@ async function _build(image: string, tagList: string[], hyperchainName?: string)
     if (image === 'server-v2' || image === 'external-node' || image === 'prover') {
         await contract.build();
     }
-    let tagsToBuild = ""
+    let tagsToBuild = '';
     // generate list of tags for image - we want 3 tags (latest, SHA, SHA+TimeStamp) for listed components and only "latest" for everything else
-    if(hyperchainName) {
+    if (hyperchainName) {
         tagsToBuild = tagList.map((tag) => `-t ${hyperchainName}/${image}:${tag}`).join(' ');
     } else {
         tagsToBuild = tagList.map((tag) => `-t matterlabs/${image}:${tag}`).join(' ');
@@ -144,7 +144,7 @@ export async function build(image: string, cmd: Command) {
 }
 
 export async function customBuildForHyperchain(image: string, imageName: string) {
-    await dockerCommand('build', image, "", false, imageName);
+    await dockerCommand('build', image, '', false, imageName);
 }
 
 export async function push(image: string, cmd: Command) {

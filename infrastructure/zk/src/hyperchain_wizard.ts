@@ -89,7 +89,7 @@ async function setupConfiguration() {
         await announced('Setting Hyperchain configuration', setHyperchainMetadata());
         await announced('Validating information and balances to deploy Hyperchain', checkReadinessToDeploy());
     } else {
-        const envName = await selectHyperchainConfiguration()
+        const envName = await selectHyperchainConfiguration();
 
         env.set(envName);
     }
@@ -143,8 +143,7 @@ async function setHyperchainMetadata() {
         ];
 
         if (results.l1Chain === BaseNetwork.LOCALHOST_CUSTOM) {
-
-            connectionsQuestions[0].initial = "http://localhost:8545";
+            connectionsQuestions[0].initial = 'http://localhost:8545';
 
             connectionsQuestions.push({
                 message: 'What is network id of your L1 Network?',
@@ -155,7 +154,8 @@ async function setHyperchainMetadata() {
         }
 
         connectionsQuestions.push({
-            message: 'What is the connection URL for your Postgress 14 database (format is postgres://<user>:<pass>@<hostname>:<port>/<database>)?',
+            message:
+                'What is the connection URL for your Postgress 14 database (format is postgres://<user>:<pass>@<hostname>:<port>/<database>)?',
             name: 'dbUrl',
             type: 'input',
             initial: 'postgres://postgres@localhost/zksync_local',
@@ -188,7 +188,6 @@ async function setHyperchainMetadata() {
             feeReceiver = ethers.Wallet.createRandom();
             feeReceiverAddress = feeReceiver.address;
         } else {
-
             const keyQuestions: BasePromptOptions[] = [
                 {
                     message: 'Private key of the L1 Deployer (the one that deploys the contracts)',
@@ -593,19 +592,18 @@ async function selectHyperchainConfiguration() {
 }
 
 async function generateDockerImages() {
+    await warning(`\nThis process will build the docker images and it can take a while. Please be patient.\n`);
 
-    await warning(`\nThis process will build the docker images and it can take a while. Please be patient.\n`)
+    const envName = await selectHyperchainConfiguration();
 
-    const envName = await selectHyperchainConfiguration()
-    
-    await docker.customBuildForHyperchain("server-v2", envName);
+    await docker.customBuildForHyperchain('server-v2', envName);
 
-    await warning(`\n\n\n\n\nDocker image for server created: Server image: ${envName}/server-v2:latest\n`)
+    await warning(`\n\n\n\n\nDocker image for server created: Server image: ${envName}/server-v2:latest\n`);
 
-    let hasProver = false
+    let hasProver = false;
 
-    if(process.env.ETH_SENDER_SENDER_PROOF_SENDING_MODE !== "SkipEveryProof") {
-        hasProver = true
+    if (process.env.ETH_SENDER_SENDER_PROOF_SENDING_MODE !== 'SkipEveryProof') {
+        hasProver = true;
         // TODO: Hyperchain is using prover, so we must include Boojum images - wait for Boojum merge
         // proof-fri-compressor, prover-fri, witness-generator, prover-fri-gateway
     }
@@ -613,10 +611,10 @@ async function generateDockerImages() {
     const composeArgs = {
         envFilePath: `./etc/env/${envName}.env`,
         serverImageName: envName,
-        hasProver,
-    }
+        hasProver
+    };
 
-    const templateFileName = "docker-compose-hyperchain-template"
+    const templateFileName = 'docker-compose-hyperchain-template';
 
     const templateString = fs.existsSync(templateFileName) && fs.readFileSync(templateFileName).toString().trim();
 
@@ -626,12 +624,18 @@ async function generateDockerImages() {
 
     fs.writeFileSync(`hyperchain-${envName}.yml`, result);
 
-    await announce(`Docker images generated successfully, and compose file generate (hyperchain-${envName}.yml). Run the images with "docker compose -f hyperchain-${envName} up)".`);
-
+    await announce(
+        `Docker images generated successfully, and compose file generate (hyperchain-${envName}.yml). Run the images with "docker compose -f hyperchain-${envName} up)".`
+    );
 }
 
-export const initHyperchainCommand = new Command('stack')
-    .description('ZK Stack Hyperchains management')
+export const initHyperchainCommand = new Command('stack').description('ZK Stack Hyperchains management');
 
-initHyperchainCommand.command('init').description('Wizard for Hyperchain creation/configuration').action(initHyperchain);
-initHyperchainCommand.command('docker-setup').description('Generate docker images and compose file for your Hyperchain').action(generateDockerImages);
+initHyperchainCommand
+    .command('init')
+    .description('Wizard for Hyperchain creation/configuration')
+    .action(initHyperchain);
+initHyperchainCommand
+    .command('docker-setup')
+    .description('Generate docker images and compose file for your Hyperchain')
+    .action(generateDockerImages);
