@@ -21,7 +21,7 @@ The following questions will be answered by the following resources:
 
 ## Policies
 
-- [Security policy](SECURITY.md)
+- [Security policy](./SECURITY.md)
 - [Contribution policy](CONTRIBUTING.md)
 
 ## License
