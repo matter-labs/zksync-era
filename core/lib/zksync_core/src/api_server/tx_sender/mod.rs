@@ -918,9 +918,9 @@ impl<G: L1GasPriceProvider> TxSender<G> {
             .get_last_sealed_miniblock_header()
             .await
             .unwrap()
-            .unwrap_or_default()
+            .unwrap()
             .protocol_version
-            .unwrap_or_default();
+            .unwrap();
 
         let seal_data = SealData::for_transaction(transaction, tx_metrics, protocol_version);
         if let Some(reason) =
