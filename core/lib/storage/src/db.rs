@@ -213,6 +213,7 @@ struct StalledWritesRetries {
     max_batch_size: usize,
     retry_count: usize,
     start_interval: Duration,
+    max_interval: Duration,
     scale_factor: f64,
 }
 
@@ -220,8 +221,9 @@ impl Default for StalledWritesRetries {
     fn default() -> Self {
         Self {
             max_batch_size: 128 << 20, // 128 MiB
-            retry_count: 10,
+            retry_count: 20,
             start_interval: Duration::from_millis(50),
+            max_interval: Duration::from_secs(2),
             scale_factor: 1.5,
         }
     }
@@ -231,6 +233,7 @@ impl StalledWritesRetries {
     fn interval(&self, retry_index: usize) -> Duration {
         self.start_interval
             .mul_f64(self.scale_factor.powi(retry_index as i32))
+            .min(self.max_interval)
     }
 
     // **NB.** The error message may change between RocksDB versions!
@@ -582,6 +585,7 @@ mod tests {
         assert_close(retries.interval(0), Duration::from_millis(50));
         assert_close(retries.interval(1), Duration::from_millis(75));
         assert_close(retries.interval(2), Duration::from_micros(112_500));
+        assert_close(retries.interval(20), retries.max_interval);
     }
 
     fn assert_close(lhs: Duration, rhs: Duration) {
