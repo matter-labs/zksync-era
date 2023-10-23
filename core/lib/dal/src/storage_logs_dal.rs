@@ -548,7 +548,7 @@ mod tests {
         );
         header.is_finished = true;
         conn.blocks_dal()
-            .insert_l1_batch(&header, &[], BlockGasCount::default(), &[])
+            .insert_l1_batch(&header, &[], BlockGasCount::default(), &[], &[])
             .await
             .unwrap();
         conn.blocks_dal()
