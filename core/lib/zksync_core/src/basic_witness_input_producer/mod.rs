@@ -13,8 +13,10 @@ use multivm::interface::L2BlockEnv;
 use tokio::runtime::Handle;
 use tokio::task::JoinHandle;
 
+mod metrics;
 mod vm_interactions;
 
+use metrics::BASIC_WITNESS_INPUT_PRODUCER_METRICS;
 use vm_interactions::{create_vm, execute_tx};
 use zksync_types::block::MiniblockExecutionMode;
 
@@ -88,10 +90,9 @@ impl BasicWitnessInputProducer {
         vm.finish_batch();
         tracing::info!("Finished execution of l1_batch: {l1_batch_number:?}");
 
-        metrics::histogram!(
-            "basic_witness_input_producer.input_producer_time",
-            started_at.elapsed(),
-        );
+        BASIC_WITNESS_INPUT_PRODUCER_METRICS
+            .process_batch_time
+            .observe(started_at.elapsed());
         tracing::info!(
             "BasicWitnessInputProducer took {:?} for L1BatchNumber {}",
             started_at.elapsed(),
@@ -171,10 +172,9 @@ impl JobProcessor for BasicWitnessInputProducer {
             .put(job_id, &artifacts)
             .await
             .context("failed to upload artifacts for BasicWitnessInputProducer")?;
-        metrics::histogram!(
-            "basic_witness_input_producer.upload_input_time",
-            upload_started_at.elapsed(),
-        );
+        BASIC_WITNESS_INPUT_PRODUCER_METRICS
+            .upload_input_time
+            .observe(upload_started_at.elapsed());
         let mut connection = self
             .connection_pool
             .access_storage()
