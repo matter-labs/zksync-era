@@ -22,6 +22,8 @@ These are the main components to this process:
 All of them will be sharing information through a SQL database.
 The general idea is that the sequencer will produce blocks and the gateway will place them into the database to be proven. Then, the rest of the components will pull jobs from the database and do their part of the pipeline. 
 
+[Pipeline](block_proving_pipeline.png)
+
 ### Prerequisites
 
 Make sure these dependencies are installed and available on your machine: [Installing dependencies](./setup-dev.md)
