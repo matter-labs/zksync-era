@@ -43,7 +43,7 @@ jobs:
               - .github/workflows/zk-environment-cuda-12-0.publish.yml
 
   zk_environment:
-    if: needs.changed_files.outputs.zk_environment == 'true' && github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
+    if: needs.changed_files.outputs.zk_environment == 'true'
     name: Push zk-environment Docker images to Docker Hub
     runs-on: ubuntu-latest
     needs: changed_files
@@ -92,7 +92,7 @@ jobs:
           file: docker/zk-environment/Dockerfile
 
   zk_environment_cuda_12:
-    if: needs.changed_files.outputs.zk_environment_cuda_12 == 'true' && github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
+    if: needs.changed_files.outputs.zk_environment_cuda_12 == 'true'
     name: Build and push zk-environment CUDA 12 Docker image
     runs-on: [matterlabs-ci-runner]
     needs: changed_files
