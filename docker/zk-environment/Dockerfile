@@ -54,6 +54,7 @@ RUN apt-get update && apt-get install -y \
     wget \
     bzip2
 
+# Install dependencies for RocksDB.
 RUN apt-get update && \
     apt-get install -y \
     curl \
@@ -69,9 +70,6 @@ RUN curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
 RUN add-apt-repository "deb [arch=${ARCH}] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
 RUN apt update; apt install -y docker-ce-cli
 
-# Configurate git
-RUN git config --global http.postBuffer 1048576000
-
 # Install node and yarn
 ENV NODE_MAJOR=20
 RUN mkdir -p /etc/apt/keyrings && \
@@ -85,6 +83,7 @@ ENV RUSTUP_HOME=/usr/local/rustup \
     CARGO_HOME=/usr/local/cargo \
     PATH=/usr/local/cargo/bin:$PATH
 
+# Install gloud for GCR/GAR login
 ENV GCLOUD_VERSION=451.0.1
 RUN echo "deb [arch=${ARCH}] http://packages.cloud.google.com/apt cloud-sdk main" > /etc/apt/sources.list.d/google-cloud-sdk.list && \
     curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add - && \
@@ -117,13 +116,16 @@ RUN wget https://github.com/matter-labs/zksolc-bin/raw/main/linux-${ARCH}/zksolc
     && mv zksolc-linux-${ARCH}-musl-v1.3.15 /usr/bin/zksolc \
     && chmod +x /usr/bin/zksolc
 
+# Somehow it is installed with some other packages
 RUN apt-get remove valgrind -y
 
+# We need valgrind 3.20, which is unavailable in repos or ppa, so we will build it from source
 RUN wget https://sourceware.org/pub/valgrind/valgrind-3.20.0.tar.bz2 && \
     tar -xf valgrind-3.20.0.tar.bz2 && \
     cd valgrind-3.20.0 && ./configure && make && make install && \
     cd ../ && rm -rf valgrind-3.20.0.tar.bz2 && rm -rf valgrind-3.20.0
 
+# Setup the environment
 ENV ZKSYNC_HOME=/usr/src/zksync
 ENV PATH="${ZKSYNC_HOME}/bin:${PATH}"
 ENV CI=1
