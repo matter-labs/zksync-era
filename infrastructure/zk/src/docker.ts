@@ -107,8 +107,8 @@ async function _build(image: string, tagList: string[], platforms: string[] = ['
 
     for (const platform of platforms) {
         const buildCommand =
-            `DOCKER_BUILDKIT=1 docker build ${tagsToBuild}` +
-            ` --platform=${platform}` +
+            `DOCKER_BUILDKIT=1 docker buildx build ${tagsToBuild}` +
+            ` --platform=${platforms.join(',')}` +
             (buildArgs ? ` ${buildArgs}` : '') +
             ` -f ./docker/${imagePath}/Dockerfile .`;
 
