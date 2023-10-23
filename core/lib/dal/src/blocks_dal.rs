@@ -249,7 +249,7 @@ impl BlocksDal<'_, '_> {
             "SELECT storage_refunds FROM l1_batches WHERE number = $1",
             number.0 as i64
         )
-        .instrument("get_initial_bootloader_heap")
+        .instrument("get_storage_refunds")
         .report_latency()
         .with_arg("number", &number)
         .fetch_optional(self.storage.conn())
