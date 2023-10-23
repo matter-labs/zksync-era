@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::vm_latest::old_vm::history_recorder::{
     AppDataFrameManagerWithHistory, HashMapHistoryEvent, HistoryEnabled, HistoryMode,
-    HistoryRecorder, StorageWrapper, WithHistory,
+    HistoryRecorder, StorageWrapper, VectorHistoryEvent, WithHistory,
 };
 use crate::vm_latest::old_vm::oracles::OracleWithHistory;
 
@@ -52,6 +52,9 @@ pub struct StorageOracle<S: WriteStorage, H: HistoryMode> {
     // While formally it does not have to be rollbackable, we still do it to avoid memory bloat
     // for unused slots.
     pub(crate) initial_values: HistoryRecorder<HashMap<StorageKey, U256>, H>,
+
+    // Storage refunds that oracle has returned in `estimate_refunds_for_write`.
+    pub(crate) returned_refunds: HistoryRecorder<Vec<u32>, H>,
 }
 
 impl<S: WriteStorage> OracleWithHistory for StorageOracle<S, HistoryEnabled> {
@@ -61,6 +64,7 @@ impl<S: WriteStorage> OracleWithHistory for StorageOracle<S, HistoryEnabled> {
         self.pre_paid_changes.rollback_to_timestamp(timestamp);
         self.paid_changes.rollback_to_timestamp(timestamp);
         self.initial_values.rollback_to_timestamp(timestamp);
+        self.returned_refunds.rollback_to_timestamp(timestamp);
     }
 }
 
@@ -72,6 +76,7 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
             pre_paid_changes: Default::default(),
             paid_changes: Default::default(),
             initial_values: Default::default(),
+            returned_refunds: Default::default(),
         }
     }
 
@@ -81,6 +86,7 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
         self.pre_paid_changes.delete_history();
         self.paid_changes.delete_history();
         self.initial_values.delete_history();
+        self.returned_refunds.delete_history();
     }
 
     fn is_storage_key_free(&self, key: &StorageKey) -> bool {
@@ -338,11 +344,17 @@ impl<S: WriteStorage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
     ) -> RefundType {
         let price_to_pay = self.value_update_price(partial_query);
 
-        RefundType::RepeatedWrite(RefundedAmounts {
+        let refund = RefundType::RepeatedWrite(RefundedAmounts {
             ergs: 0,
             // `INITIAL_STORAGE_WRITE_PUBDATA_BYTES` is the default amount of pubdata bytes the user pays for.
             pubdata_bytes: (INITIAL_STORAGE_WRITE_PUBDATA_BYTES as u32) - price_to_pay,
-        })
+        });
+        self.returned_refunds.apply_historic_record(
+            VectorHistoryEvent::Push(refund.pubdata_refund()),
+            partial_query.timestamp,
+        );
+
+        refund
     }
 
     // Indicate a start of execution frame for rollback purposes

@@ -826,7 +826,7 @@ async fn insert_l1_batch(tester: &EthSenderTester, number: L1BatchNumber) -> L1B
         .storage()
         .await
         .blocks_dal()
-        .insert_l1_batch(&header, &[], Default::default(), &[])
+        .insert_l1_batch(&header, &[], Default::default(), &[], &[])
         .await
         .unwrap();
     tester

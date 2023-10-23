@@ -121,6 +121,7 @@ pub(super) fn default_vm_block_result() -> FinishedL1Batch {
             l2_to_l1_logs: vec![],
             total_log_queries: 0,
             cycles_used: 0,
+            storage_refunds: Vec::new(),
         },
         final_bootloader_memory: Some(vec![]),
     }
@@ -149,7 +150,7 @@ pub(crate) fn create_l2_transaction(fee_per_gas: u64, gas_per_pubdata: u32) -> L
         fee,
         U256::zero(),
         L2ChainId::from(271),
-        &H256::repeat_byte(0x11),
+        &H256::random(),
         None,
         PaymasterParams::default(),
     )

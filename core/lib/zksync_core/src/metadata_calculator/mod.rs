@@ -70,8 +70,11 @@ pub struct MetadataCalculatorConfig<'a> {
     /// Chunk size for multi-get operations. Can speed up loading data for the Merkle tree on some environments,
     /// but the effects vary wildly depending on the setup (e.g., the filesystem used).
     pub multi_get_chunk_size: usize,
-    /// Capacity of RocksDB block cache in bytes. Reasonable values range from ~100 MB to several GB.
+    /// Capacity of RocksDB block cache in bytes. Reasonable values range from ~100 MiB to several GB.
     pub block_cache_capacity: usize,
+    /// Capacity of RocksDB memtables. Can be set to a reasonably large value (order of 512 MiB)
+    /// to mitigate write stalls.
+    pub memtable_capacity: usize,
 }
 
 impl<'a> MetadataCalculatorConfig<'a> {
@@ -87,6 +90,7 @@ impl<'a> MetadataCalculatorConfig<'a> {
             max_l1_batches_per_iter: db_config.merkle_tree.max_l1_batches_per_iter,
             multi_get_chunk_size: db_config.merkle_tree.multi_get_chunk_size,
             block_cache_capacity: db_config.merkle_tree.block_cache_size(),
+            memtable_capacity: db_config.merkle_tree.memtable_capacity(),
         }
     }
 }

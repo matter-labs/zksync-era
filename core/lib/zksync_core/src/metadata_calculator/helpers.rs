@@ -18,7 +18,7 @@ use zksync_merkle_tree::{
     domain::{TreeMetadata, ZkSyncTree, ZkSyncTreeReader},
     Key, MerkleTreeColumnFamily, NoVersionError, TreeEntryWithProof,
 };
-use zksync_storage::RocksDB;
+use zksync_storage::{RocksDB, RocksDBOptions};
 use zksync_types::{block::L1BatchHeader, L1BatchNumber, StorageLog, H256};
 
 use super::metrics::{LoadChangesStage, TreeUpdateStage, METRICS};
@@ -61,15 +61,16 @@ impl AsyncTree {
         mode: MerkleTreeMode,
         multi_get_chunk_size: usize,
         block_cache_capacity: usize,
+        memtable_capacity: usize,
     ) -> Self {
         tracing::info!(
             "Initializing Merkle tree at `{db_path}` with {multi_get_chunk_size} multi-get chunk size, \
-             {block_cache_capacity}B block cache",
+             {block_cache_capacity}B block cache, {memtable_capacity}B memtable capacity",
             db_path = db_path.display()
         );
 
         let mut tree = tokio::task::spawn_blocking(move || {
-            let db = Self::create_db(&db_path, block_cache_capacity);
+            let db = Self::create_db(&db_path, block_cache_capacity, memtable_capacity);
             match mode {
                 MerkleTreeMode::Full => ZkSyncTree::new(db),
                 MerkleTreeMode::Lightweight => ZkSyncTree::new_lightweight(db),
@@ -85,8 +86,18 @@ impl AsyncTree {
         }
     }
 
-    fn create_db(path: &Path, block_cache_capacity: usize) -> RocksDB<MerkleTreeColumnFamily> {
-        let db = RocksDB::with_cache(path, Some(block_cache_capacity));
+    fn create_db(
+        path: &Path,
+        block_cache_capacity: usize,
+        memtable_capacity: usize,
+    ) -> RocksDB<MerkleTreeColumnFamily> {
+        let db = RocksDB::with_options(
+            path,
+            RocksDBOptions {
+                block_cache_capacity: Some(block_cache_capacity),
+                large_memtable_capacity: Some(memtable_capacity),
+            },
+        );
         if cfg!(test) {
             // We need sync writes for the unit tests to execute reliably. With the default config,
             // some writes to RocksDB may occur, but not be visible to the test code.
@@ -439,11 +450,21 @@ mod tests {
         extend_db_state(&mut storage, logs).await;
 
         let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
-        let mut tree =
-            AsyncTree::new(temp_dir.path().to_owned(), MerkleTreeMode::Full, 500, 0).await;
+        let mut tree = create_tree(&temp_dir).await;
         for number in 0..3 {
             assert_log_equivalence(&mut storage, &mut tree, L1BatchNumber(number)).await;
         }
+    }
+
+    async fn create_tree(temp_dir: &TempDir) -> AsyncTree {
+        AsyncTree::new(
+            temp_dir.path().to_owned(),
+            MerkleTreeMode::Full,
+            500,
+            0,
+            16 << 20, // 16 MiB
+        )
+        .await
     }
 
     async fn assert_log_equivalence(
@@ -540,8 +561,7 @@ mod tests {
         extend_db_state(&mut storage, logs).await;
 
         let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
-        let mut tree =
-            AsyncTree::new(temp_dir.path().to_owned(), MerkleTreeMode::Full, 500, 0).await;
+        let mut tree = create_tree(&temp_dir).await;
         for batch_number in 0..5 {
             assert_log_equivalence(&mut storage, &mut tree, L1BatchNumber(batch_number)).await;
         }
@@ -580,8 +600,7 @@ mod tests {
         assert_eq!(read_logs_count, 7);
 
         let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
-        let mut tree =
-            AsyncTree::new(temp_dir.path().to_owned(), MerkleTreeMode::Full, 500, 0).await;
+        let mut tree = create_tree(&temp_dir).await;
         for batch_number in 0..3 {
             assert_log_equivalence(&mut storage, &mut tree, L1BatchNumber(batch_number)).await;
         }
