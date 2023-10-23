@@ -105,15 +105,13 @@ async function _build(image: string, tagList: string[], platforms: string[] = ['
     // For prover-v2 which is not a prover, but should be built from the prover dockerfile. So here we go.
     const imagePath = image == 'prover-v2' ? 'prover' : image;
 
-    for (const platform of platforms) {
-        const buildCommand =
-            `DOCKER_BUILDKIT=1 docker buildx build ${tagsToBuild}` +
-            ` --platform=${platforms.join(',')}` +
-            (buildArgs ? ` ${buildArgs}` : '') +
-            ` -f ./docker/${imagePath}/Dockerfile .`;
+    const buildCommand =
+        `DOCKER_BUILDKIT=1 docker buildx build ${tagsToBuild}` +
+        ` --platform=${platforms.join(',')}` +
+        (buildArgs ? ` ${buildArgs}` : '') +
+        ` -f ./docker/${imagePath}/Dockerfile .`;
 
-        await utils.spawn(buildCommand);
-    }
+    await utils.spawn(buildCommand);
 }
 
 async function _push(image: string, tagList: string[], publishPublic: boolean = false) {
