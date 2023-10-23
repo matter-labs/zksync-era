@@ -43,7 +43,7 @@ jobs:
       - name: run benchmarks on base branch
         shell: bash
         run: |
-          # ci_run zk
+          ci_run zk
           # ci_run zk compiler system-contracts
           # ci_run cargo bench --package vm-benchmark --bench iai | tee base-iai
           docker compose -f docker-compose-runner.yml down
