@@ -26,7 +26,7 @@ async function dockerCommand(
     image: string,
     customTag?: string,
     publishPublic: boolean = false,
-    hyperchainName?: string
+    dockerOrg: string = "matterlabs"
 ) {
     // Generating all tags for containers. We need 2 tags here: SHA and SHA+TS
     const { stdout: COMMIT_SHORT_SHA }: { stdout: string } = await utils.exec('git rev-parse --short HEAD');
@@ -53,7 +53,7 @@ async function dockerCommand(
     // COMMIT_SHORT_SHA returns with newline, so we need to trim it
     switch (command) {
         case 'build':
-            await _build(image, tagList, hyperchainName);
+            await _build(image, tagList, dockerOrg);
             break;
         case 'push':
             await _push(image, tagList, publishPublic);
@@ -86,17 +86,14 @@ function defaultTagList(image: string, imageTagSha: string, imageTagShaTS: strin
     return tagList;
 }
 
-async function _build(image: string, tagList: string[], hyperchainName?: string) {
+async function _build(image: string, tagList: string[], dockerOrg: string) {
     if (image === 'server-v2' || image === 'external-node' || image === 'prover') {
         await contract.build();
     }
     let tagsToBuild = '';
+
     // generate list of tags for image - we want 3 tags (latest, SHA, SHA+TimeStamp) for listed components and only "latest" for everything else
-    if (hyperchainName) {
-        tagsToBuild = tagList.map((tag) => `-t ${hyperchainName}/${image}:${tag}`).join(' ');
-    } else {
-        tagsToBuild = tagList.map((tag) => `-t matterlabs/${image}:${tag}`).join(' ');
-    }
+    tagsToBuild = tagList.map((tag) => `-t ${dockerOrg}/${image}:${tag}`).join(' ');
 
     // Conditionally add build argument if image is prover-v2
     let buildArgs = '';

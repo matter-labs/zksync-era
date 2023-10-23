@@ -15,7 +15,7 @@
 # PROVER_OBJECT_STORE_FILE_BACKED_BASE_PATH: /path/to/prover/artifacts
 # - Inspired by https://github.com/matter-labs/zksync-era/tree/main/prover/prover_fri
 # TODOS:
-# - Figure out how to properly set metrics ports for each service in env
+# - (PRO-47): Figure out how to properly set metrics ports for each service in env
 
 version: '3.2'
 networks:
@@ -35,7 +35,7 @@ services:
     environment:
       ZKSYNC_HOME: /
     ports: # assumes default ports in .env
-      # - "3312:3312" # prometheus metrics # do we need a separate metrics port for each component?
+      # - "3312:3312" # prometheus metrics # we need a separate metrics port for each component
       - "3075:3075" # proof_data_handler api
     volumes:
       - prover_artifacts:/etc_prover_artifacts
@@ -51,7 +51,7 @@ services:
       ZKSYNC_HOME: /
     ports: # assumes default ports in .env
       - "3071:3071" # health
-      - "3312:3312" # prometheus metrics # do we need a separate metrics port for each component?
+      - "3312:3312" # prometheus metrics # we need a separate metrics port for each component
       - "3050:3050" # http_api
       - "3051:3051" # ws_api
   {{#if hasProver}}

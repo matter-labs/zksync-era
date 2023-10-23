@@ -592,19 +592,19 @@ async function selectHyperchainConfiguration() {
 }
 
 async function generateDockerImages() {
-    await warning(`\nThis process will build the docker images and it can take a while. Please be patient.\n`);
+    console.log(warning(`\nThis process will build the docker images and it can take a while. Please be patient.\n`));
 
     const envName = await selectHyperchainConfiguration();
 
     await docker.customBuildForHyperchain('server-v2', envName);
 
-    await warning(`\n\n\n\n\nDocker image for server created: Server image: ${envName}/server-v2:latest\n`);
+    console.log(warning(`\nDocker image for server created: Server image: ${envName}/server-v2:latest\n`));
 
     let hasProver = false;
 
     if (process.env.ETH_SENDER_SENDER_PROOF_SENDING_MODE !== 'SkipEveryProof') {
         hasProver = true;
-        // TODO: Hyperchain is using prover, so we must include Boojum images - wait for Boojum merge
+        // TODO: (PRO-48) Hyperchain is using prover, so we must include Boojum images - wait for Boojum merge
         // proof-fri-compressor, prover-fri, witness-generator, prover-fri-gateway
     }
 
@@ -614,19 +614,16 @@ async function generateDockerImages() {
         hasProver
     };
 
-    const templateFileName = 'docker-compose-hyperchain-template';
-
+    const templateFileName = './etc/hyperchains/docker-compose-hyperchain-template';
     const templateString = fs.existsSync(templateFileName) && fs.readFileSync(templateFileName).toString().trim();
-
-    var template = Handlebars.compile(templateString);
-
-    var result = template(composeArgs);
+    const template = Handlebars.compile(templateString);
+    const result = template(composeArgs);
 
     fs.writeFileSync(`hyperchain-${envName}.yml`, result);
 
-    await announce(
-        `Docker images generated successfully, and compose file generate (hyperchain-${envName}.yml). Run the images with "docker compose -f hyperchain-${envName} up)".`
-    );
+    console.log(announce(
+        `Docker images generated successfully, and compose file generate (hyperchain-${envName}.yml). Run the images with "docker compose -f hyperchain-${envName} up)".\n\n`
+    ));
 }
 
 export const initHyperchainCommand = new Command('stack').description('ZK Stack Hyperchains management');
