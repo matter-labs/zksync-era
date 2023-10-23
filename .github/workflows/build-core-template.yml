@@ -56,7 +56,7 @@ jobs:
       - name: start-services
         run: |
           echo "IMAGE_TAG_SUFFIX=${{ env.IMAGE_TAG_SUFFIX }}" >> .env
-          docker-compose -f docker-compose-runner.yml up -d zk
+          docker-compose -f docker-compose-runner.yml up --no-deps -d zk
           ci_run sccache --start-server
 
       - name: init
