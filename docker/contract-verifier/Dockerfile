@@ -63,10 +63,10 @@ RUN mkdir -p /etc/zksolc-bin/v1.3.9 \
     && wget https://github.com/matter-labs/zksolc-bin/raw/main/linux-amd64/zksolc-linux-amd64-musl-v1.3.9 \
     && mv zksolc-linux-amd64-musl-v1.3.9 /etc/zksolc-bin/v1.3.9/zksolc \
     && chmod +x /etc/zksolc-bin/v1.3.9/zksolc
-RUN mkdir -p /etc/zksolc-bin/v1.3.10 \
-    && wget https://github.com/matter-labs/zksolc-bin/raw/main/linux-amd64/zksolc-linux-amd64-musl-v1.3.10 \
-    && mv zksolc-linux-amd64-musl-v1.3.10 /etc/zksolc-bin/v1.3.10/zksolc \
-    && chmod +x /etc/zksolc-bin/v1.3.10/zksolc
+RUN mkdir -p /etc/zksolc-bin/v1.3.11 \
+    && wget https://github.com/matter-labs/zksolc-bin/raw/main/linux-amd64/zksolc-linux-amd64-musl-v1.3.11 \
+    && mv zksolc-linux-amd64-musl-v1.3.11 /etc/zksolc-bin/v1.3.11/zksolc \
+    && chmod +x /etc/zksolc-bin/v1.3.11/zksolc
 RUN mkdir -p /etc/zksolc-bin/v1.3.11 \
     && wget https://github.com/matter-labs/zksolc-bin/raw/main/linux-amd64/zksolc-linux-amd64-musl-v1.3.11 \
     && mv zksolc-linux-amd64-musl-v1.3.11 /etc/zksolc-bin/v1.3.11/zksolc \
@@ -75,20 +75,20 @@ RUN mkdir -p /etc/zksolc-bin/v1.3.13 \
     && wget https://github.com/matter-labs/zksolc-bin/raw/main/linux-amd64/zksolc-linux-amd64-musl-v1.3.13 \
     && mv zksolc-linux-amd64-musl-v1.3.13 /etc/zksolc-bin/v1.3.13/zksolc \
     && chmod +x /etc/zksolc-bin/v1.3.13/zksolc
-RUN mkdir -p /etc/zksolc-bin/v1.3.14 \
-    && wget https://github.com/matter-labs/zksolc-bin/raw/main/linux-amd64/zksolc-linux-amd64-musl-v1.3.14 \
-    && mv zksolc-linux-amd64-musl-v1.3.14 /etc/zksolc-bin/v1.3.14/zksolc \
-    && chmod +x /etc/zksolc-bin/v1.3.14/zksolc
+RUN mkdir -p /etc/zksolc-bin/v1.3.15 \
+    && wget https://github.com/matter-labs/zksolc-bin/raw/main/linux-amd64/zksolc-linux-amd64-musl-v1.3.15 \
+    && mv zksolc-linux-amd64-musl-v1.3.15 /etc/zksolc-bin/v1.3.15/zksolc \
+    && chmod +x /etc/zksolc-bin/v1.3.15/zksolc
 
 # install zkvyper
 RUN mkdir -p /etc/zkvyper-bin/v1.3.9 \
     && wget https://github.com/matter-labs/zkvyper-bin/raw/main/linux-amd64/zkvyper-linux-amd64-musl-v1.3.9 \
     && mv zkvyper-linux-amd64-musl-v1.3.9 /etc/zkvyper-bin/v1.3.9/zkvyper \
     && chmod +x /etc/zkvyper-bin/v1.3.9/zkvyper
-RUN mkdir -p /etc/zkvyper-bin/v1.3.10 \
-    && wget https://github.com/matter-labs/zkvyper-bin/raw/main/linux-amd64/zkvyper-linux-amd64-musl-v1.3.10 \
-    && mv zkvyper-linux-amd64-musl-v1.3.10 /etc/zkvyper-bin/v1.3.10/zkvyper \
-    && chmod +x /etc/zkvyper-bin/v1.3.10/zkvyper
+RUN mkdir -p /etc/zkvyper-bin/v1.3.11 \
+    && wget https://github.com/matter-labs/zkvyper-bin/raw/main/linux-amd64/zkvyper-linux-amd64-musl-v1.3.11 \
+    && mv zkvyper-linux-amd64-musl-v1.3.11 /etc/zkvyper-bin/v1.3.11/zkvyper \
+    && chmod +x /etc/zkvyper-bin/v1.3.11/zkvyper
 
 # install solc
 COPY docker/contract-verifier/install-all-solc.sh install-all-solc.sh

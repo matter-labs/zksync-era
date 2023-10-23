@@ -57,6 +57,3 @@ exclude = []
 [profile.perf]
 inherits = "release"
 debug = true
-
-[patch.crates-io]
-ahash = "=0.8.5"
