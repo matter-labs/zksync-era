@@ -3,7 +3,8 @@ use zksync_utils::ceil_div;
 
 use crate::U256;
 
-#[derive(Debug, Default, Clone, Copy)]
+#[derive(Debug, Default, Clone, Copy, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", tag = "result")]
 pub struct TransactionExecutionMetrics {
     pub initial_storage_writes: usize,
     pub repeated_storage_writes: usize,
