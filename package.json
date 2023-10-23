@@ -46,5 +46,8 @@
     "prettier": "^2.3.2",
     "prettier-plugin-solidity": "=1.0.0-dev.22",
     "solhint": "^3.3.2"
+  },
+  "dependencies": {
+    "hardhat": "2.18.2"
   }
 }
