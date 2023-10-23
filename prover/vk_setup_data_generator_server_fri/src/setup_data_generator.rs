@@ -49,7 +49,7 @@ fn main() -> anyhow::Result<()> {
     let opt = Opt::from_args();
 
     #[cfg(feature = "gpu")]
-    { 
+    {
         generate_gpu_setup_data(opt.is_base_layer, opt.numeric_circuit)
             .context("generate_gpu_setup_data()")
     }
@@ -65,8 +65,8 @@ fn main() -> anyhow::Result<()> {
 fn generate_cpu_setup_data(is_base_layer: bool, numeric_circuit: u8) -> anyhow::Result<()> {
     match is_base_layer {
         true => {
-            let circuit = get_base_layer_circuit(numeric_circuit)
-                .context("get_base_layer_circuit")?;
+            let circuit =
+                get_base_layer_circuit(numeric_circuit).context("get_base_layer_circuit")?;
             let prover_setup_data = generate_cpu_base_layer_setup_data(circuit)
                 .context("generate_cpu_base_layer_setup_data()")?;
             // Serialization should always succeed.
@@ -75,11 +75,12 @@ fn generate_cpu_setup_data(is_base_layer: bool, numeric_circuit: u8) -> anyhow::
             save_setup_data(
                 ProverServiceDataKey::new(numeric_circuit, AggregationRound::BasicCircuits),
                 &serialized,
-            ).context("save_setup_data()")
+            )
+            .context("save_setup_data()")
         }
         false => {
-            let circuit = get_recursive_circuit(numeric_circuit)
-                .context("get_recursive_circuit()")?;
+            let circuit =
+                get_recursive_circuit(numeric_circuit).context("get_recursive_circuit()")?;
             let prover_setup_data = generate_cpu_recursive_layer_setup_data(circuit)
                 .context("generate_cpu_recursive_layer_setup_data()")?;
             // Serialization should always succeed.
@@ -89,18 +90,21 @@ fn generate_cpu_setup_data(is_base_layer: bool, numeric_circuit: u8) -> anyhow::
             save_setup_data(
                 ProverServiceDataKey::new(numeric_circuit, round),
                 &serialized,
-            ).context("save_setup_data()")
+            )
+            .context("save_setup_data()")
         }
     }
 }
 
 fn get_base_layer_circuit(
     id: u8,
-) -> anyhow::Result<ZkSyncBaseLayerCircuit<
-    GoldilocksField,
-    VmWitnessOracle<GoldilocksField>,
-    ZkSyncDefaultRoundFunction,
->> {
+) -> anyhow::Result<
+    ZkSyncBaseLayerCircuit<
+        GoldilocksField,
+        VmWitnessOracle<GoldilocksField>,
+        ZkSyncDefaultRoundFunction,
+    >,
+> {
     get_basic_circuits(CYCLE_LIMIT, get_geometry_config())
         .context("get_basic_circuits()")?
         .into_iter()
@@ -138,8 +142,8 @@ fn generate_cpu_recursive_layer_setup_data(
         circuit_type,
         get_round_for_recursive_circuit_type(circuit_type),
     );
-    let existing_finalization_hint = get_finalization_hints(key)
-        .context("get_finalization_hints()")?;
+    let existing_finalization_hint =
+        get_finalization_hints(key).context("get_finalization_hints()")?;
     if existing_finalization_hint != finalization_hint {
         anyhow::bail!("finalization hint mismatch for circuit: {circuit_type}");
     }
@@ -164,18 +168,20 @@ fn generate_gpu_setup_data(is_base_layer: bool, numeric_circuit: u8) -> anyhow::
     let _context = ProverContext::create().context("failed initializing gpu prover context")?;
     let (cpu_setup_data, round) = match is_base_layer {
         true => {
-            let circuit = get_base_layer_circuit(numeric_circuit)
-                .context("get_base_layer_circuit()")?;
+            let circuit =
+                get_base_layer_circuit(numeric_circuit).context("get_base_layer_circuit()")?;
             (
-                generate_cpu_base_layer_setup_data(circuit.clone()).context("generate_cpu_base_layer_setup_data()")?,
+                generate_cpu_base_layer_setup_data(circuit.clone())
+                    .context("generate_cpu_base_layer_setup_data()")?,
                 AggregationRound::BasicCircuits,
             )
         }
         false => {
-            let circuit = get_recursive_circuit(numeric_circuit)
-                .context("get_recursive_circuit()")?;
+            let circuit =
+                get_recursive_circuit(numeric_circuit).context("get_recursive_circuit()")?;
             (
-                generate_cpu_recursive_layer_setup_data(circuit.clone()).context("generate_cpu_recursive_layer_setup_data()")?,
+                generate_cpu_recursive_layer_setup_data(circuit.clone())
+                    .context("generate_cpu_recursive_layer_setup_data()")?,
                 get_round_for_recursive_circuit_type(numeric_circuit),
             )
         }
@@ -197,5 +203,6 @@ fn generate_gpu_setup_data(is_base_layer: bool, numeric_circuit: u8) -> anyhow::
     save_setup_data(
         ProverServiceDataKey::new(numeric_circuit, round),
         &serialized,
-    ).context("save_setup_data")
+    )
+    .context("save_setup_data")
 }

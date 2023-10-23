@@ -1,14 +1,18 @@
-use std::time::{Duration, Instant};
+use tokio::sync::watch;
 
-use tokio::sync::watch::Receiver;
+use std::time::Duration;
 
-use crate::sync_layer::sync_action::{ActionQueue, SyncAction};
 use zksync_dal::ConnectionPool;
 use zksync_types::{L1BatchNumber, MiniblockNumber, H256};
-use zksync_web3_decl::jsonrpsee::core::Error as RpcError;
-use zksync_web3_decl::RpcResult;
+use zksync_web3_decl::{jsonrpsee::core::Error as RpcError, RpcResult};
 
-use super::{cached_main_node_client::CachedMainNodeClient, SyncState};
+use super::{
+    cached_main_node_client::CachedMainNodeClient,
+    metrics::{FetchStage, L1BatchStage, FETCHER_METRICS},
+    sync_action::{ActionQueueSender, SyncAction},
+    SyncState,
+};
+use crate::metrics::{TxStage, APP_METRICS};
 
 const DELAY_INTERVAL: Duration = Duration::from_millis(500);
 const RETRY_DELAY_INTERVAL: Duration = Duration::from_secs(5);
@@ -19,18 +23,18 @@ pub struct MainNodeFetcher {
     client: CachedMainNodeClient,
     current_l1_batch: L1BatchNumber,
     current_miniblock: MiniblockNumber,
-    actions: ActionQueue,
+    actions: ActionQueueSender,
     sync_state: SyncState,
-    stop_receiver: Receiver<bool>,
+    stop_receiver: watch::Receiver<bool>,
 }
 
 impl MainNodeFetcher {
     pub async fn new(
         pool: ConnectionPool,
         main_node_url: &str,
-        actions: ActionQueue,
+        actions: ActionQueueSender,
         sync_state: SyncState,
-        stop_receiver: Receiver<bool>,
+        stop_receiver: watch::Receiver<bool>,
     ) -> Self {
         let mut storage = pool.access_storage_tagged("sync_layer").await.unwrap();
         let last_sealed_l1_batch_header = storage
@@ -136,9 +140,8 @@ impl MainNodeFetcher {
     /// Tries to fetch the next miniblock and insert it to the sync queue.
     /// Returns `true` if a miniblock was processed and `false` otherwise.
     async fn fetch_next_miniblock(&mut self) -> RpcResult<bool> {
-        let start = Instant::now();
-
-        let request_start = Instant::now();
+        let total_latency = FETCHER_METRICS.fetch_next_miniblock.start();
+        let request_latency = FETCHER_METRICS.requests[&FetchStage::SyncL2Block].start();
         let Some(block) = self.client.sync_l2_block(self.current_miniblock).await? else {
             return Ok(false);
         };
@@ -149,13 +152,7 @@ impl MainNodeFetcher {
             .sync_l2_block(self.current_miniblock - 1)
             .await?
             .expect("Previous block must exist");
-
-        metrics::histogram!(
-            "external_node.fetcher.requests",
-            request_start.elapsed(),
-            "stage" => "sync_l2_block",
-            "actor" => "miniblock_fetcher"
-        );
+        request_latency.observe();
 
         let mut new_actions = Vec::new();
         if block.l1_batch_number != self.current_l1_batch {
@@ -183,7 +180,7 @@ impl MainNodeFetcher {
                 // Same for `prev_block.hash` as above.
                 prev_miniblock_hash: prev_block.hash.unwrap_or_else(H256::zero),
             });
-            metrics::gauge!("external_node.fetcher.l1_batch", block.l1_batch_number.0 as f64, "status" => "open");
+            FETCHER_METRICS.l1_batch[&L1BatchStage::Open].set(block.l1_batch_number.0.into());
             self.current_l1_batch += 1;
         } else {
             // New batch implicitly means a new miniblock, so we only need to push the miniblock action
@@ -194,17 +191,13 @@ impl MainNodeFetcher {
                 // `block.virtual_blocks` can be `None` only for old VM versions where it's not used, so it's fine to provide any number.
                 virtual_blocks: block.virtual_blocks.unwrap_or(0),
             });
-            metrics::gauge!("external_node.fetcher.miniblock", block.number.0 as f64);
+            FETCHER_METRICS.miniblock.set(block.number.0.into());
         }
 
         let txs: Vec<zksync_types::Transaction> = block
             .transactions
             .expect("Transactions are always requested");
-        metrics::counter!(
-            "server.processed_txs",
-            txs.len() as u64,
-            "stage" => "mempool_added"
-        );
+        APP_METRICS.processed_txs[&TxStage::added_to_mempool()].inc_by(txs.len() as u64);
         new_actions.extend(txs.into_iter().map(SyncAction::from));
 
         // Last miniblock of the batch is a "fictive" miniblock and would be replicated locally.
@@ -227,12 +220,9 @@ impl MainNodeFetcher {
         self.client
             .forget_miniblock(MiniblockNumber(self.current_miniblock.0.saturating_sub(1)));
         self.current_miniblock += 1;
-        self.actions.push_actions(new_actions);
+        self.actions.push_actions(new_actions).await;
 
-        metrics::histogram!(
-            "external_node.fetcher.fetch_next_miniblock",
-            start.elapsed()
-        );
+        total_latency.observe();
         Ok(true)
     }
 }

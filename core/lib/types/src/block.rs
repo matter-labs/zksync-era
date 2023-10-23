@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use zksync_config::constants::SYSTEM_BLOCK_INFO_BLOCK_NUMBER_MULTIPLIER;
+use zksync_system_constants::SYSTEM_BLOCK_INFO_BLOCK_NUMBER_MULTIPLIER;
 
 use std::{fmt, ops};
 

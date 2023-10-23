@@ -492,6 +492,8 @@ fn default_l1_batch_metadata() -> L1BatchMetadata {
         aux_data_hash: Default::default(),
         meta_parameters_hash: Default::default(),
         pass_through_data_hash: Default::default(),
+        events_queue_commitment: Some(H256::zero()),
+        bootloader_initial_content_commitment: Some(H256::zero()),
     }
 }
 
@@ -508,9 +510,9 @@ async fn correct_order_for_confirmations() -> anyhow::Result<()> {
     let connection_pool = ConnectionPool::test_pool().await;
     let mut tester = EthSenderTester::new(connection_pool, vec![100; 100], true).await;
     insert_genesis_protocol_version(&tester).await;
-    let genesis_l1_batch = insert_l1_batch(&mut tester, L1BatchNumber(0)).await;
-    let first_l1_batch = insert_l1_batch(&mut tester, L1BatchNumber(1)).await;
-    let second_l1_batch = insert_l1_batch(&mut tester, L1BatchNumber(2)).await;
+    let genesis_l1_batch = insert_l1_batch(&tester, L1BatchNumber(0)).await;
+    let first_l1_batch = insert_l1_batch(&tester, L1BatchNumber(1)).await;
+    let second_l1_batch = insert_l1_batch(&tester, L1BatchNumber(2)).await;
 
     commit_l1_batch(
         &mut tester,
@@ -569,9 +571,9 @@ async fn skipped_l1_batch_at_the_start() -> anyhow::Result<()> {
     let connection_pool = ConnectionPool::test_pool().await;
     let mut tester = EthSenderTester::new(connection_pool, vec![100; 100], true).await;
     insert_genesis_protocol_version(&tester).await;
-    let genesis_l1_batch = insert_l1_batch(&mut tester, L1BatchNumber(0)).await;
-    let first_l1_batch = insert_l1_batch(&mut tester, L1BatchNumber(1)).await;
-    let second_l1_batch = insert_l1_batch(&mut tester, L1BatchNumber(2)).await;
+    let genesis_l1_batch = insert_l1_batch(&tester, L1BatchNumber(0)).await;
+    let first_l1_batch = insert_l1_batch(&tester, L1BatchNumber(1)).await;
+    let second_l1_batch = insert_l1_batch(&tester, L1BatchNumber(2)).await;
 
     commit_l1_batch(
         &mut tester,
@@ -604,8 +606,8 @@ async fn skipped_l1_batch_at_the_start() -> anyhow::Result<()> {
     .await;
     execute_l1_batches(&mut tester, vec![second_l1_batch.clone()], true).await;
 
-    let third_l1_batch = insert_l1_batch(&mut tester, L1BatchNumber(3)).await;
-    let fourth_l1_batch = insert_l1_batch(&mut tester, L1BatchNumber(4)).await;
+    let third_l1_batch = insert_l1_batch(&tester, L1BatchNumber(3)).await;
+    let fourth_l1_batch = insert_l1_batch(&tester, L1BatchNumber(4)).await;
     // DO NOT CONFIRM THIRD BLOCK
     let third_l1_batch_commit_tx_hash = commit_l1_batch(
         &mut tester,
@@ -662,9 +664,9 @@ async fn skipped_l1_batch_in_the_middle() -> anyhow::Result<()> {
     let connection_pool = ConnectionPool::test_pool().await;
     let mut tester = EthSenderTester::new(connection_pool, vec![100; 100], true).await;
     insert_genesis_protocol_version(&tester).await;
-    let genesis_l1_batch = insert_l1_batch(&mut tester, L1BatchNumber(0)).await;
-    let first_l1_batch = insert_l1_batch(&mut tester, L1BatchNumber(1)).await;
-    let second_l1_batch = insert_l1_batch(&mut tester, L1BatchNumber(2)).await;
+    let genesis_l1_batch = insert_l1_batch(&tester, L1BatchNumber(0)).await;
+    let first_l1_batch = insert_l1_batch(&tester, L1BatchNumber(1)).await;
+    let second_l1_batch = insert_l1_batch(&tester, L1BatchNumber(2)).await;
     commit_l1_batch(
         &mut tester,
         genesis_l1_batch.clone(),
@@ -689,8 +691,8 @@ async fn skipped_l1_batch_in_the_middle() -> anyhow::Result<()> {
     )
     .await;
 
-    let third_l1_batch = insert_l1_batch(&mut tester, L1BatchNumber(3)).await;
-    let fourth_l1_batch = insert_l1_batch(&mut tester, L1BatchNumber(4)).await;
+    let third_l1_batch = insert_l1_batch(&tester, L1BatchNumber(3)).await;
+    let fourth_l1_batch = insert_l1_batch(&tester, L1BatchNumber(4)).await;
     // DO NOT CONFIRM THIRD BLOCK
     let third_l1_batch_commit_tx_hash = commit_l1_batch(
         &mut tester,
@@ -841,7 +843,7 @@ async fn insert_genesis_protocol_version(tester: &EthSenderTester) {
         .await;
 }
 
-async fn insert_l1_batch(tester: &mut EthSenderTester, number: L1BatchNumber) -> L1BatchHeader {
+async fn insert_l1_batch(tester: &EthSenderTester, number: L1BatchNumber) -> L1BatchHeader {
     let mut header = L1BatchHeader::new(
         number,
         0,
@@ -856,7 +858,7 @@ async fn insert_l1_batch(tester: &mut EthSenderTester, number: L1BatchNumber) ->
         .storage()
         .await
         .blocks_dal()
-        .insert_l1_batch(&header, &[], Default::default())
+        .insert_l1_batch(&header, &[], Default::default(), &[])
         .await
         .unwrap();
     tester

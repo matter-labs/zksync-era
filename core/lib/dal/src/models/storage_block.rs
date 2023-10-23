@@ -106,7 +106,7 @@ fn convert_base_system_contracts_hashes(
     }
 }
 
-/// Projection of the `l1_batches` table corresponding to [`L1BatchHeader`] + [`L1BatchMetadata`].
+/// Projection of the columns corresponding to [`L1BatchHeader`] + [`L1BatchMetadata`].
 // TODO(PLA-369): use `#[sqlx(flatten)]` once upgraded to newer `sqlx`
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct StorageL1Batch {
@@ -152,6 +152,9 @@ pub struct StorageL1Batch {
     pub l2_fair_gas_price: i64,
 
     pub protocol_version: Option<i32>,
+
+    pub events_queue_commitment: Option<Vec<u8>>,
+    pub bootloader_initial_content_commitment: Option<Vec<u8>>,
 }
 
 impl From<StorageL1Batch> for L1BatchHeader {
@@ -257,6 +260,10 @@ impl TryInto<L1BatchMetadata> for StorageL1Batch {
                         .ok_or(StorageL1BatchConvertError::Incomplete)?,
                 ),
             },
+            events_queue_commitment: self.events_queue_commitment.map(|v| H256::from_slice(&v)),
+            bootloader_initial_content_commitment: self
+                .bootloader_initial_content_commitment
+                .map(|v| H256::from_slice(&v)),
         })
     }
 }

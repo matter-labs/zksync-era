@@ -19,14 +19,14 @@ use zksync_prover_fri_types::circuit_definitions::{
 
 use zkevm_test_harness::prover_utils::{prove_base_layer_circuit, prove_recursion_layer_circuit};
 
-use zksync_config::configs::fri_prover_group::{CircuitIdRoundTuple, FriProverGroupConfig};
+use zksync_config::configs::fri_prover_group::FriProverGroupConfig;
 use zksync_config::configs::FriProverConfig;
 use zksync_dal::ConnectionPool;
 use zksync_object_store::ObjectStore;
 use zksync_prover_fri_types::{CircuitWrapper, FriProofWrapper, ProverJob, ProverServiceDataKey};
 use zksync_prover_fri_utils::fetch_next_circuit;
 use zksync_queued_job_processor::{async_trait, JobProcessor};
-use zksync_types::protocol_version::L1VerifierConfig;
+use zksync_types::{basic_fri_types::CircuitIdRoundTuple, protocol_version::L1VerifierConfig};
 use zksync_vk_setup_data_server_fri::{
     get_cpu_setup_data_for_circuit_type, GoldilocksProverSetupData,
 };
@@ -72,7 +72,10 @@ impl Prover {
         }
     }
 
-    fn get_setup_data(&self, key: ProverServiceDataKey) -> anyhow::Result<Arc<GoldilocksProverSetupData>> {
+    fn get_setup_data(
+        &self,
+        key: ProverServiceDataKey,
+    ) -> anyhow::Result<Arc<GoldilocksProverSetupData>> {
         Ok(match &self.setup_load_mode {
             SetupLoadMode::FromMemory(cache) => cache
                 .get(&key)
@@ -196,13 +199,18 @@ impl JobProcessor for Prover {
             &self.circuit_ids_for_round_to_be_proven,
             &self.vk_commitments,
         )
-        .await else { return Ok(None) };
-       Ok(Some((prover_job.job_id, prover_job)))
+        .await
+        else {
+            return Ok(None);
+        };
+        Ok(Some((prover_job.job_id, prover_job)))
     }
 
     async fn save_failure(&self, job_id: Self::JobId, _started_at: Instant, error: String) {
         self.prover_connection_pool
-            .access_storage().await.unwrap()
+            .access_storage()
+            .await
+            .unwrap()
             .fri_prover_jobs_dal()
             .save_proof_error(job_id, error)
             .await;
@@ -216,7 +224,11 @@ impl JobProcessor for Prover {
         let config = Arc::clone(&self.config);
         let setup_data = self.get_setup_data(job.setup_data_key.clone());
         tokio::task::spawn_blocking(move || {
-            Ok(Self::prove(job, config, setup_data.context("get_setup_data()")?))
+            Ok(Self::prove(
+                job,
+                config,
+                setup_data.context("get_setup_data()")?,
+            ))
         })
     }
 

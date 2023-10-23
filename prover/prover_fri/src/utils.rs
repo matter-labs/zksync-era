@@ -1,3 +1,5 @@
+#![cfg_attr(not(feature = "gpu"), allow(unused_imports))]
+
 use std::sync::Arc;
 use std::time::Instant;
 use zksync_prover_fri_types::circuit_definitions::boojum::config::ProvingCSConfig;
@@ -5,7 +7,6 @@ use zksync_prover_fri_types::circuit_definitions::boojum::cs::implementations::r
 
 use tokio::sync::Mutex;
 use zkevm_test_harness::prover_utils::{verify_base_layer_proof, verify_recursion_layer_proof};
-use zksync_config::configs::fri_prover_group::CircuitIdRoundTuple;
 use zksync_dal::StorageProcessor;
 use zksync_object_store::ObjectStore;
 use zksync_prover_fri_types::circuit_definitions::boojum::algebraic_props::round_function::AbsorptionModeOverwrite;
@@ -23,13 +24,15 @@ use zksync_prover_fri_types::{
 };
 use zksync_prover_fri_utils::get_base_layer_circuit_id_for_recursive_layer;
 
-use zksync_types::L1BatchNumber;
+use zksync_types::{basic_fri_types::CircuitIdRoundTuple, L1BatchNumber};
 
 pub type F = GoldilocksField;
 pub type H = GoldilocksPoseidon2Sponge<AbsorptionModeOverwrite>;
-pub type EXT = GoldilocksExt2;
+pub type Ext = GoldilocksExt2;
 
+#[cfg(feature = "gpu")]
 pub type ProvingAssembly = CSReferenceAssembly<F, F, ProvingCSConfig>;
+#[cfg(feature = "gpu")]
 pub type SharedWitnessVectorQueue = Arc<Mutex<FixedSizeQueue<GpuProverJob>>>;
 
 pub struct ProverArtifacts {
@@ -46,6 +49,7 @@ impl ProverArtifacts {
     }
 }
 
+#[cfg(feature = "gpu")]
 pub struct GpuProverJob {
     pub witness_vector_artifacts: WitnessVectorArtifacts,
     pub assembly: ProvingAssembly,
@@ -120,18 +124,18 @@ pub async fn save_proof(
 
 pub fn verify_proof(
     circuit_wrapper: &CircuitWrapper,
-    proof: &Proof<F, H, EXT>,
+    proof: &Proof<F, H, Ext>,
     vk: &VerificationKey<F, H>,
     job_id: u32,
 ) {
     let started_at = Instant::now();
     let (is_valid, circuit_id) = match circuit_wrapper {
         CircuitWrapper::Base(base_circuit) => (
-            verify_base_layer_proof::<NoPow>(&base_circuit, proof, vk),
+            verify_base_layer_proof::<NoPow>(base_circuit, proof, vk),
             base_circuit.numeric_circuit_type(),
         ),
         CircuitWrapper::Recursive(recursive_circuit) => (
-            verify_recursion_layer_proof::<NoPow>(&recursive_circuit, proof, vk),
+            verify_recursion_layer_proof::<NoPow>(recursive_circuit, proof, vk),
             recursive_circuit.numeric_circuit_type(),
         ),
     };

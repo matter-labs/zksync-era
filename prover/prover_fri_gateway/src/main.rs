@@ -4,7 +4,7 @@ use tokio::{sync::oneshot, sync::watch};
 
 use crate::api_data_fetcher::{PeriodicApiStruct, PROOF_GENERATION_DATA_PATH, SUBMIT_PROOF_PATH};
 use prometheus_exporter::PrometheusExporterConfig;
-use zksync_config::configs::{FriProverGatewayConfig};
+use zksync_config::configs::FriProverGatewayConfig;
 use zksync_dal::connection::DbVariant;
 use zksync_dal::ConnectionPool;
 use zksync_object_store::ObjectStoreFactory;
@@ -33,12 +33,14 @@ async fn main() -> anyhow::Result<()> {
     }
     let _guard = builder.build();
 
-    let config = FriProverGatewayConfig::from_env()
-        .context("FriProverGatewayConfig::from_env()")?;
-    let pool = ConnectionPool::builder(DbVariant::Prover).build().await
+    let config =
+        FriProverGatewayConfig::from_env().context("FriProverGatewayConfig::from_env()")?;
+    let pool = ConnectionPool::builder(DbVariant::Prover)
+        .build()
+        .await
         .context("failed to build a connection pool")?;
-    let store_factory = ObjectStoreFactory::prover_from_env()
-        .context("ObjectStoreFactory::prover_from_env()")?;
+    let store_factory =
+        ObjectStoreFactory::prover_from_env().context("ObjectStoreFactory::prover_from_env()")?;
 
     let proof_submitter = PeriodicApiStruct {
         blob_store: store_factory.create_store().await,
@@ -70,7 +72,8 @@ async fn main() -> anyhow::Result<()> {
 
     let tasks = vec![
         tokio::spawn(
-            PrometheusExporterConfig::pull(config.prometheus_listener_port).run(stop_receiver.clone()),
+            PrometheusExporterConfig::pull(config.prometheus_listener_port)
+                .run(stop_receiver.clone()),
         ),
         tokio::spawn(
             proof_gen_data_fetcher.run::<ProofGenerationDataRequest>(stop_receiver.clone()),

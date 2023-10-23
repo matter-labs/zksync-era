@@ -1,23 +1,25 @@
-use std::collections::hash_map::DefaultHasher;
-use std::collections::{HashMap, HashSet};
-use std::hash::{Hash, Hasher};
-
-use std::sync::Arc;
-use std::time::Instant;
-
 use anyhow::Context as _;
 use async_trait::async_trait;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 
-use vm::{constants::MAX_CYCLES_FOR_TX, HistoryDisabled, SimpleMemory, StorageOracle};
+use std::{
+    collections::{hash_map::DefaultHasher, HashMap, HashSet},
+    hash::{Hash, Hasher},
+    sync::Arc,
+    time::Instant,
+};
+
+use multivm::vm_latest::{
+    constants::MAX_CYCLES_FOR_TX, HistoryDisabled, SimpleMemory, StorageOracle,
+};
 use zksync_config::configs::witness_generator::BasicWitnessGeneratorDataSource;
 use zksync_config::configs::WitnessGeneratorConfig;
-use zksync_config::constants::BOOTLOADER_ADDRESS;
 use zksync_dal::ConnectionPool;
 use zksync_object_store::{Bucket, ObjectStore, ObjectStoreFactory, StoredObject};
 use zksync_queued_job_processor::JobProcessor;
 use zksync_state::{PostgresStorage, ReadStorage, ShadowStorage, StorageView, WitnessStorage};
+use zksync_system_constants::BOOTLOADER_ADDRESS;
 use zksync_types::{
     circuit::GEOMETRY_CONFIG,
     proofs::{AggregationRound, BasicCircuitWitnessGeneratorInput, PrepareBasicCircuitsJob},
@@ -29,13 +31,14 @@ use zksync_types::{
         witness::oracle::VmWitnessOracle,
         SchedulerCircuitInstanceWitness,
     },
-    Address, L1BatchNumber, ProtocolVersionId, H256, U256,
+    Address, L1BatchNumber, ProtocolVersionId, H256, U256, USED_BOOTLOADER_MEMORY_BYTES,
 };
-use zksync_utils::{bytes_to_chunks, h256_to_u256, u256_to_h256};
+use zksync_utils::{bytes_to_chunks, expand_memory_contents, h256_to_u256, u256_to_h256};
 
-use crate::witness_generator::precalculated_merkle_paths_provider::PrecalculatedMerklePathsProvider;
-use crate::witness_generator::track_witness_generation_stage;
-use crate::witness_generator::utils::{expand_bootloader_contents, save_prover_input_artifacts};
+use super::{
+    precalculated_merkle_paths_provider::PrecalculatedMerklePathsProvider,
+    utils::save_prover_input_artifacts, METRICS,
+};
 
 pub struct BasicCircuitArtifacts {
     basic_circuits: BlockBasicCircuits<Bn256>,
@@ -101,7 +104,7 @@ impl BasicWitnessGenerator {
             // We get value higher than `blocks_proving_percentage` with prob = `1 - blocks_proving_percentage`.
             // In this case job should be skipped.
             if threshold > blocks_proving_percentage {
-                metrics::counter!("server.witness_generator.skipped_blocks", 1);
+                METRICS.skipped_blocks.inc();
                 tracing::info!(
                     "Skipping witness generation for block {}, blocks_proving_percentage: {}",
                     block_number.0,
@@ -122,7 +125,7 @@ impl BasicWitnessGenerator {
             }
         }
 
-        metrics::counter!("server.witness_generator.sampled_blocks", 1);
+        METRICS.sampled_blocks.inc();
         tracing::info!(
             "Starting witness generation of type {:?} for block {}",
             AggregationRound::BasicCircuits,
@@ -314,7 +317,7 @@ async fn update_database(
         .await;
 
     transaction.commit().await.unwrap();
-    track_witness_generation_stage(started_at, AggregationRound::BasicCircuits);
+    METRICS.processing_time[&AggregationRound::BasicCircuits.into()].observe(started_at.elapsed());
 }
 
 async fn get_artifacts(
@@ -377,15 +380,9 @@ pub async fn build_basic_circuits_witness_generator_input(
         .await
         .unwrap()
         .unwrap();
-    let (_, previous_block_timestamp) = connection
+    let (previous_block_hash, previous_block_timestamp) = connection
         .blocks_dal()
         .get_l1_batch_state_root_and_timestamp(l1_batch_number - 1)
-        .await
-        .unwrap()
-        .unwrap();
-    let previous_block_hash = connection
-        .blocks_dal()
-        .get_l1_batch_state_root(l1_batch_number - 1)
         .await
         .unwrap()
         .expect("cannot generate witness before the root hash is computed");
@@ -429,7 +426,8 @@ pub async fn generate_witness(
         .await
         .expect("Default aa bytecode should exist");
     let account_bytecode = bytes_to_chunks(&account_bytecode_bytes);
-    let bootloader_contents = expand_bootloader_contents(&input.initial_heap_content);
+    let bootloader_contents =
+        expand_memory_contents(&input.initial_heap_content, USED_BOOTLOADER_MEMORY_BYTES);
     let account_code_hash = h256_to_u256(header.base_system_contracts_hashes.default_aa);
 
     let hashes: HashSet<H256> = input

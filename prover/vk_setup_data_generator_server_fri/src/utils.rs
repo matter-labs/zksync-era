@@ -52,7 +52,7 @@ use zkevm_test_harness::witness::full_block_artifact::{
 use zkevm_test_harness::witness::recursive_aggregation::compute_leaf_params;
 use zkevm_test_harness::witness::tree::{BinarySparseStorageTree, ZKSyncTestingTree};
 
-use zkevm_test_harness::in_memory_data_source::InMemoryDataSource;
+use zkevm_test_harness::data_source::in_memory_data_source::InMemoryDataSource;
 
 pub const CYCLE_LIMIT: usize = 20000;
 
@@ -65,12 +65,14 @@ fn read_witness_artifact(filepath: &str) -> anyhow::Result<TestArtifact> {
 pub fn get_basic_circuits(
     cycle_limit: usize,
     geometry: GeometryConfig,
-) -> anyhow::Result<Vec<
-    ZkSyncBaseLayerCircuit<
-        GoldilocksField,
-        VmWitnessOracle<GoldilocksField>,
-        ZkSyncDefaultRoundFunction,
-    >>,
+) -> anyhow::Result<
+    Vec<
+        ZkSyncBaseLayerCircuit<
+            GoldilocksField,
+            VmWitnessOracle<GoldilocksField>,
+            ZkSyncDefaultRoundFunction,
+        >,
+    >,
 > {
     let path = format!("{}/witness_artifacts.json", get_base_path());
     let test_artifact = read_witness_artifact(&path).context("read_withess_artifact()")?;
@@ -96,7 +98,7 @@ pub fn get_leaf_circuits() -> anyhow::Result<Vec<ZkSyncRecursiveLayerCircuit>> {
     {
         let input = RecursionLeafInput::placeholder_witness();
         let vk = get_base_layer_vk_for_circuit_type(base_circuit_type)
-            .with_context(||format!("get_base_layer_vk_for_circuit_type({base_circuit_type})"))?;
+            .with_context(|| format!("get_base_layer_vk_for_circuit_type({base_circuit_type})"))?;
 
         let witness = RecursionLeafInstanceWitness {
             input,
@@ -116,8 +118,8 @@ pub fn get_leaf_circuits() -> anyhow::Result<Vec<ZkSyncRecursiveLayerCircuit>> {
 
         let circuit = ZkSyncLeafLayerRecursiveCircuit {
             base_layer_circuit_type: BaseLayerCircuitType::from_numeric_value(base_circuit_type),
-            witness: witness,
-            config: config,
+            witness,
+            config,
             transcript_params: (),
             _marker: std::marker::PhantomData,
         };
@@ -136,7 +138,8 @@ pub fn get_node_circuit() -> anyhow::Result<ZkSyncRecursiveLayerCircuit> {
 
     let input_vk = get_recursive_layer_vk_for_circuit_type(
         ZkSyncRecursionLayerStorageType::LeafLayerCircuitForMainVM as u8,
-    ).context("get_recursive_layer_vk_for_circuit_type(LeafLAyerCircyutFromMainVM")?;
+    )
+    .context("get_recursive_layer_vk_for_circuit_type(LeafLAyerCircyutFromMainVM")?;
     let witness = RecursionNodeInstanceWitness {
         input,
         vk_witness: input_vk.clone().into_inner(),
@@ -152,8 +155,8 @@ pub fn get_node_circuit() -> anyhow::Result<ZkSyncRecursiveLayerCircuit> {
         _marker: std::marker::PhantomData,
     };
     let circuit = ZkSyncNodeLayerRecursiveCircuit {
-        witness: witness,
-        config: config,
+        witness,
+        config,
         transcript_params: (),
         _marker: std::marker::PhantomData,
     };
@@ -183,7 +186,9 @@ pub fn get_scheduler_circuit() -> anyhow::Result<ZkSyncRecursiveLayerCircuit> {
         transcript_params: (),
         _marker: std::marker::PhantomData,
     };
-    Ok(ZkSyncRecursiveLayerCircuit::SchedulerCircuit(scheduler_circuit))
+    Ok(ZkSyncRecursiveLayerCircuit::SchedulerCircuit(
+        scheduler_circuit,
+    ))
 }
 
 #[allow(dead_code)]
@@ -204,7 +209,8 @@ fn get_recursive_layer_proofs() -> Vec<ZkSyncRecursionProof> {
     scheduler_proofs
 }
 
-pub fn get_leaf_vk_params() -> anyhow::Result<Vec<(u8, RecursionLeafParametersWitness<GoldilocksField>)>> {
+pub fn get_leaf_vk_params(
+) -> anyhow::Result<Vec<(u8, RecursionLeafParametersWitness<GoldilocksField>)>> {
     let mut leaf_vk_commits = vec![];
 
     for circuit_type in
@@ -214,15 +220,18 @@ pub fn get_leaf_vk_params() -> anyhow::Result<Vec<(u8, RecursionLeafParametersWi
             BaseLayerCircuitType::from_numeric_value(circuit_type),
         );
         let base_vk = get_base_layer_vk_for_circuit_type(circuit_type)
-            .with_context(||format!("get_base_layer_vk_for_circuit_type({circuit_type})"))?;
+            .with_context(|| format!("get_base_layer_vk_for_circuit_type({circuit_type})"))?;
         let leaf_vk = get_recursive_layer_vk_for_circuit_type(recursive_circuit_type as u8)
-            .with_context(||format!("get_recursive_layer_vk_for_circuit_type({recursive_circuit_type:?})"))?;
+            .with_context(|| {
+                format!("get_recursive_layer_vk_for_circuit_type({recursive_circuit_type:?})")
+            })?;
         let params = compute_leaf_params(circuit_type, base_vk, leaf_vk);
         leaf_vk_commits.push((circuit_type, params));
     }
     Ok(leaf_vk_commits)
 }
 
+#[allow(clippy::type_complexity)]
 fn get_circuits(
     mut test_artifact: TestArtifact,
     cycle_limit: usize,
@@ -259,10 +268,10 @@ fn get_circuits(
     let used_bytecodes = HashMap::from_iter(
         test_artifact
             .predeployed_contracts
-            .iter()
-            .map(|(_, bytecode)| {
+            .values()
+            .map(|bytecode| {
                 (
-                    bytecode_to_code_hash(&bytecode).unwrap().into(),
+                    bytecode_to_code_hash(bytecode).unwrap().into(),
                     bytecode.clone(),
                 )
             })
@@ -281,24 +290,24 @@ fn get_circuits(
     // simualate content hash
 
     let mut hasher = Keccak256::new();
-    hasher.update(&previous_enumeration_index.to_be_bytes());
-    hasher.update(&previous_root);
-    hasher.update(&0u64.to_be_bytes()); // porter shard
-    hasher.update(&[0u8; 32]); // porter shard
+    hasher.update(previous_enumeration_index.to_be_bytes());
+    hasher.update(previous_root);
+    hasher.update(0u64.to_be_bytes()); // porter shard
+    hasher.update([0u8; 32]); // porter shard
 
     let mut previous_data_hash = [0u8; 32];
-    (&mut previous_data_hash[..]).copy_from_slice(&hasher.finalize().as_slice());
+    previous_data_hash[..].copy_from_slice(hasher.finalize().as_slice());
 
     let previous_aux_hash = [0u8; 32];
     let previous_meta_hash = [0u8; 32];
 
     let mut hasher = Keccak256::new();
-    hasher.update(&previous_data_hash);
-    hasher.update(&previous_meta_hash);
-    hasher.update(&previous_aux_hash);
+    hasher.update(previous_data_hash);
+    hasher.update(previous_meta_hash);
+    hasher.update(previous_aux_hash);
 
     let mut previous_content_hash = [0u8; 32];
-    (&mut previous_content_hash[..]).copy_from_slice(&hasher.finalize().as_slice());
+    previous_content_hash[..].copy_from_slice(hasher.finalize().as_slice());
 
     let default_account_codehash =
         bytecode_to_code_hash(&test_artifact.default_account_code).unwrap();
@@ -320,7 +329,7 @@ fn get_circuits(
         used_bytecodes,
         vec![],
         cycle_limit,
-        round_function.clone(),
+        round_function,
         geometry,
         storage_impl,
         &mut tree,

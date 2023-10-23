@@ -1,7 +1,7 @@
 use bigdecimal::BigDecimal;
 use sqlx::Row;
 
-use zksync_config::constants::EMPTY_UNCLES_HASH;
+use zksync_system_constants::EMPTY_UNCLES_HASH;
 use zksync_types::{
     api,
     ethabi::Address,

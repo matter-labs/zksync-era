@@ -5,7 +5,6 @@ use async_trait::async_trait;
 use tokio::task::JoinHandle;
 
 use tokio::time::sleep;
-use zksync_config::configs::fri_prover_group::CircuitIdRoundTuple;
 use zksync_config::configs::FriWitnessVectorGeneratorConfig;
 use zksync_dal::ConnectionPool;
 use zksync_object_store::ObjectStore;
@@ -15,6 +14,7 @@ use zksync_prover_fri_utils::fetch_next_circuit;
 use zksync_prover_fri_utils::get_numeric_circuit_id;
 use zksync_prover_fri_utils::socket_utils::send_assembly;
 use zksync_queued_job_processor::JobProcessor;
+use zksync_types::basic_fri_types::CircuitIdRoundTuple;
 use zksync_types::proofs::{GpuProverInstanceStatus, SocketAddress};
 use zksync_types::protocol_version::L1VerifierConfig;
 use zksync_vk_setup_data_server_fri::get_finalization_hints;
@@ -58,7 +58,10 @@ impl WitnessVectorGenerator {
                 recursive_circuit.synthesis::<GoldilocksField>(&finalization_hints)
             }
         };
-        Ok(WitnessVectorArtifacts::new(cs.materialize_witness_vec(), job))
+        Ok(WitnessVectorArtifacts::new(
+            cs.materialize_witness_vec(),
+            job,
+        ))
     }
 }
 
@@ -77,13 +80,18 @@ impl JobProcessor for WitnessVectorGenerator {
             &self.circuit_ids_for_round_to_be_proven,
             &self.vk_commitments,
         )
-        .await else { return Ok(None) };
+        .await
+        else {
+            return Ok(None);
+        };
         Ok(Some((job.job_id, job)))
     }
 
     async fn save_failure(&self, job_id: Self::JobId, _started_at: Instant, error: String) {
         self.pool
-            .access_storage().await.unwrap()
+            .access_storage()
+            .await
+            .unwrap()
             .fri_prover_jobs_dal()
             .save_proof_error(job_id, error)
             .await;
@@ -114,7 +122,7 @@ impl JobProcessor for WitnessVectorGenerator {
             started_at.elapsed()
         );
 
-        let mut serialized: Vec<u8> =
+        let serialized: Vec<u8> =
             bincode::serialize(&artifacts).expect("Failed to serialize witness vector artifacts");
 
         let now = Instant::now();
@@ -123,7 +131,9 @@ impl JobProcessor for WitnessVectorGenerator {
         while now.elapsed() < self.config.prover_instance_wait_timeout() {
             let prover = self
                 .pool
-                .access_storage().await.unwrap()
+                .access_storage()
+                .await
+                .unwrap()
                 .fri_gpu_prover_queue_dal()
                 .lock_available_prover(
                     self.config.max_prover_reservation_duration(),
@@ -133,7 +143,7 @@ impl JobProcessor for WitnessVectorGenerator {
                 .await;
 
             if let Some(address) = prover {
-                let result = send_assembly(job_id, &mut serialized, &address);
+                let result = send_assembly(job_id, &serialized, &address);
                 handle_send_result(&result, job_id, &address, &self.pool, self.zone.clone()).await;
 
                 if result.is_ok() {
@@ -179,7 +189,9 @@ async fn handle_send_result(
                 "blob_size_in_mb" => blob_size_in_mb.to_string(),
             );
 
-            pool.access_storage().await.unwrap()
+            pool.access_storage()
+                .await
+                .unwrap()
                 .fri_prover_jobs_dal()
                 .update_status(job_id, "in_gpu_proof")
                 .await;
@@ -192,13 +204,17 @@ async fn handle_send_result(
             );
 
             // mark prover instance in gpu_prover_queue dead
-            pool.access_storage().await.unwrap()
+            pool.access_storage()
+                .await
+                .unwrap()
                 .fri_gpu_prover_queue_dal()
                 .update_prover_instance_status(address.clone(), GpuProverInstanceStatus::Dead, zone)
                 .await;
 
             // mark the job as failed
-            pool.access_storage().await.unwrap()
+            pool.access_storage()
+                .await
+                .unwrap()
                 .fri_prover_jobs_dal()
                 .save_proof_error(job_id, "prover instance unreachable".to_string())
                 .await;

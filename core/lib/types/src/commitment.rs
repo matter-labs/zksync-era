@@ -10,8 +10,8 @@ use serde::{Deserialize, Serialize};
 
 use std::{collections::HashMap, convert::TryFrom};
 
-use zksync_config::constants::ZKPORTER_IS_AVAILABLE;
 use zksync_mini_merkle_tree::MiniMerkleTree;
+use zksync_system_constants::ZKPORTER_IS_AVAILABLE;
 
 use crate::{
     block::L1BatchHeader,
@@ -61,6 +61,12 @@ pub struct L1BatchMetadata {
     pub aux_data_hash: H256,
     pub meta_parameters_hash: H256,
     pub pass_through_data_hash: H256,
+    /// The commitment to the final events queue state after the batch is committed.
+    /// Practically, it is a commitment to all events that happened on L2 during the batch execution.
+    pub events_queue_commitment: Option<H256>,
+    /// The commitment to the initial heap content of the bootloader. Practically it serves as a
+    /// commitment to the transactions in the batch.
+    pub bootloader_initial_content_commitment: Option<H256>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

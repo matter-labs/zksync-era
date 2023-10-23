@@ -1,20 +1,20 @@
 use bigdecimal::BigDecimal;
-use std::collections::HashMap;
-use std::fmt::{self, Debug};
-use std::iter::FromIterator;
-use std::time::Duration;
-
 use itertools::Itertools;
-use sqlx::error;
-use sqlx::types::chrono::NaiveDateTime;
+use sqlx::{error, types::chrono::NaiveDateTime};
 
-use zksync_types::tx::tx_execution_info::TxExecutionStatus;
-use zksync_types::vm_trace::Call;
+use std::{collections::HashMap, fmt, time::Duration};
+
 use zksync_types::{
-    block::MiniblockReexecuteData, fee::TransactionExecutionMetrics, get_nonce_key, l1::L1Tx,
-    l2::L2Tx, protocol_version::ProtocolUpgradeTx, tx::TransactionExecutionResult,
-    vm_trace::VmExecutionTrace, Address, ExecuteTransactionCommon, L1BatchNumber, L1BlockNumber,
-    MiniblockNumber, Nonce, PriorityOpId, Transaction, H256, PROTOCOL_UPGRADE_TX_TYPE, U256,
+    block::MiniblockReexecuteData,
+    fee::TransactionExecutionMetrics,
+    get_nonce_key,
+    l1::L1Tx,
+    l2::L2Tx,
+    protocol_version::ProtocolUpgradeTx,
+    tx::{tx_execution_info::TxExecutionStatus, TransactionExecutionResult},
+    vm_trace::{Call, VmExecutionTrace},
+    Address, ExecuteTransactionCommon, L1BatchNumber, L1BlockNumber, MiniblockNumber, Nonce,
+    PriorityOpId, Transaction, H256, PROTOCOL_UPGRADE_TX_TYPE, U256,
 };
 use zksync_utils::{h256_to_u32, u256_to_big_decimal};
 
@@ -35,8 +35,14 @@ pub enum L2TxSubmissionResult {
 }
 
 impl fmt::Display for L2TxSubmissionResult {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:?}", self)
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(match self {
+            Self::Added => "added",
+            Self::Replaced => "replaced",
+            Self::AlreadyExecuted => "already_executed",
+            Self::Duplicate => "duplicate",
+            Self::Proxied => "proxied",
+        })
     }
 }
 
@@ -378,11 +384,8 @@ impl TransactionsDal<'_, '_> {
         transactions: &[TransactionExecutionResult],
     ) {
         {
-            let hashes: Vec<Vec<u8>> = transactions
-                .iter()
-                .map(|tx| tx.hash.as_bytes().to_vec())
-                .collect();
-            let l1_batch_tx_indexes = Vec::from_iter(0..transactions.len() as i32);
+            let hashes: Vec<_> = transactions.iter().map(|tx| tx.hash.as_bytes()).collect();
+            let l1_batch_tx_indexes: Vec<_> = (0..transactions.len() as i32).collect();
             sqlx::query!(
                 "
                     UPDATE transactions
@@ -398,7 +401,7 @@ impl TransactionsDal<'_, '_> {
                     WHERE transactions.hash=data_table.hash 
                 ",
                 &l1_batch_tx_indexes,
-                &hashes,
+                &hashes as &[&[u8]],
                 block_number.0 as i64
             )
             .execute(self.storage.conn())

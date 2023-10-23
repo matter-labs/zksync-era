@@ -1,11 +1,11 @@
 use std::time::Instant;
 
-use zksync_config::configs::fri_prover_group::CircuitIdRoundTuple;
 use zksync_dal::StorageProcessor;
 use zksync_object_store::{FriCircuitKey, ObjectStore};
 use zksync_prover_fri_types::circuit_definitions::circuit_definitions::recursion_layer::base_circuit_type_into_recursive_leaf_circuit_type;
 use zksync_prover_fri_types::circuit_definitions::circuit_definitions::recursion_layer::ZkSyncRecursionLayerStorageType;
 use zksync_prover_fri_types::circuit_definitions::zkevm_circuits::scheduler::aux::BaseLayerCircuitType;
+use zksync_types::basic_fri_types::CircuitIdRoundTuple;
 
 use zksync_prover_fri_types::{
     get_current_pod_name, CircuitWrapper, ProverJob, ProverServiceDataKey,
@@ -24,7 +24,7 @@ pub async fn fetch_next_circuit(
 ) -> Option<ProverJob> {
     let protocol_versions = storage
         .fri_protocol_versions_dal()
-        .protocol_version_for(&vk_commitments)
+        .protocol_version_for(vk_commitments)
         .await;
     let pod_name = get_current_pod_name();
     let prover_job = match &circuit_ids_for_round_to_be_proven.is_empty() {
@@ -33,7 +33,7 @@ pub async fn fetch_next_circuit(
             storage
                 .fri_prover_jobs_dal()
                 .get_next_job_for_circuit_id_round(
-                    &circuit_ids_for_round_to_be_proven,
+                    circuit_ids_for_round_to_be_proven,
                     &protocol_versions,
                     &pod_name,
                 )
