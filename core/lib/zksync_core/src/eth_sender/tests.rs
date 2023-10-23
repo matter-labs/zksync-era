@@ -140,7 +140,7 @@ async fn confirm_many(connection_pool: ConnectionPool) -> anyhow::Result<()> {
     for _ in 0..5 {
         let tx = tester
             .aggregator
-            .save_eth_tx(&mut tester.storage().await, &DUMMY_OPERATION)
+            .save_eth_tx(&mut tester.storage().await, &DUMMY_OPERATION, true)
             .await?;
         let hash = tester
             .manager
@@ -211,7 +211,7 @@ async fn resend_each_block(connection_pool: ConnectionPool) -> anyhow::Result<()
     let block = L1BlockNumber(tester.gateway.block_number("").await?.as_u32());
     let tx = tester
         .aggregator
-        .save_eth_tx(&mut tester.storage().await, &DUMMY_OPERATION)
+        .save_eth_tx(&mut tester.storage().await, &DUMMY_OPERATION, true)
         .await?;
 
     let hash = tester
@@ -285,7 +285,7 @@ async fn dont_resend_already_mined(connection_pool: ConnectionPool) -> anyhow::R
     let mut tester = EthSenderTester::new(connection_pool, vec![100; 100], false).await;
     let tx = tester
         .aggregator
-        .save_eth_tx(&mut tester.storage().await, &DUMMY_OPERATION)
+        .save_eth_tx(&mut tester.storage().await, &DUMMY_OPERATION, true)
         .await
         .unwrap();
 
@@ -352,7 +352,7 @@ async fn three_scenarios(connection_pool: ConnectionPool) -> anyhow::Result<()> 
     for _ in 0..3 {
         let tx = tester
             .aggregator
-            .save_eth_tx(&mut tester.storage().await, &DUMMY_OPERATION)
+            .save_eth_tx(&mut tester.storage().await, &DUMMY_OPERATION, true)
             .await
             .unwrap();
 
@@ -417,7 +417,7 @@ async fn failed_eth_tx(connection_pool: ConnectionPool) {
 
     let tx = tester
         .aggregator
-        .save_eth_tx(&mut tester.storage().await, &DUMMY_OPERATION)
+        .save_eth_tx(&mut tester.storage().await, &DUMMY_OPERATION, true)
         .await
         .unwrap();
 
@@ -889,7 +889,7 @@ async fn send_operation(
 ) -> H256 {
     let tx = tester
         .aggregator
-        .save_eth_tx(&mut tester.storage().await, &aggregated_operation)
+        .save_eth_tx(&mut tester.storage().await, &aggregated_operation, true)
         .await
         .unwrap();
 

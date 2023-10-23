@@ -72,6 +72,10 @@ impl ProtocolVersionId {
             ProtocolVersionId::Version17 => VmVersion::VmVirtualBlocksRefundsEnhancement,
         }
     }
+
+    pub fn is_pre_boojum(&self) -> bool {
+        self < &ProtocolVersionId::Version17
+    }
 }
 
 impl Default for ProtocolVersionId {
