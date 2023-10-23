@@ -57,7 +57,7 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USER }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build and push Docker image
+      - name: Build and push zk-environment lightweight Docker image
         uses: docker/build-push-action@3b5e8027fcad23fda98b2e3ac259d8d67585f671 # v4.0.0
         with:
           context: .
@@ -65,39 +65,9 @@ jobs:
           push: true
           tags: "matterlabs/zk-environment:latest2.0-lightweight"
           file: docker/zk-environment/Dockerfile
-          no-cache: true
+          platforms: linux/amd64,linux/arm64,linux/arm64/v8
 
-
-      - name: Build and push Docker image
-        uses: docker/build-push-action@3b5e8027fcad23fda98b2e3ac259d8d67585f671 # v4.0.0
-        with:
-          context: .
-          target: nvidia-tools
-          push: true
-          tags: "matterlabs/zk-environment:latest2.0"
-          file: docker/zk-environment/Dockerfile
-          no-cache: true
-
-  rust_nightly:
-    if: needs.changed_files.outputs.zk_environment == 'true' && github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
-    name: Push rust nightly docker image to Docker Hub
-    needs: changed_files
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
-        with:
-          submodules: "recursive"
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@f03ac48505955848960e80bbb68046aa35c7b9e7 # v2
-
-      - name: Log in to Docker Hub
-        uses: docker/login-action@f4ef78c080cd8ba55a85445d5b36e214a81df20a # v2.1.0
-        with:
-          username: ${{ secrets.DOCKERHUB_USER }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Build and push Docker image
+      - name: Build and push zk-environment Rust nightly Docker image
         uses: docker/build-push-action@3b5e8027fcad23fda98b2e3ac259d8d67585f671 # v4.0.0
         with:
           context: .
@@ -105,8 +75,16 @@ jobs:
           target: rust-nightly
           tags: "matterlabs/zksync_rust:nightly"
           file: docker/zk-environment/Dockerfile
-          no-cache: true
+          platforms: linux/amd64,linux/arm64,linux/arm64/v8
 
+      - name: Build and push zk-environment CUDA 11.8 Docker image
+        uses: docker/build-push-action@3b5e8027fcad23fda98b2e3ac259d8d67585f671 # v4.0.0
+        with:
+          context: .
+          target: nvidia-tools
+          push: true
+          tags: "matterlabs/zk-environment:latest2.0"
+          file: docker/zk-environment/Dockerfile
 
   zk_environment_cuda_12:
     if: needs.changed_files.outputs.zk_environment_cuda_12 == 'true' && github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
