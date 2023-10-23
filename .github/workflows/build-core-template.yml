@@ -29,7 +29,7 @@ jobs:
     env:
       image_tag: ${{ inputs.image_tag }}
       IMAGE_TAG_SUFFIX: ${{ inputs.image_tag_suffix }}
-    runs-on: [matterlabs-ci-runner]
+    runs-on: ${{ matrix.runner }}
     strategy:
       matrix:
         component:
@@ -37,6 +37,9 @@ jobs:
           - external-node
           - contract-verifier
           - cross-external-nodes-checker
+        runner:
+          - matterlabs-ci-runner
+          - matterlabs-ci-runner-arm
     steps:
       - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
         with:
@@ -53,7 +56,7 @@ jobs:
       - name: start-services
         run: |
           echo "IMAGE_TAG_SUFFIX=${{ env.IMAGE_TAG_SUFFIX }}" >> .env
-          docker-compose -f docker-compose-runner.yml up -d zk geth postgres
+          docker-compose -f docker-compose-runner.yml up -d zk
           ci_run sccache --start-server
 
       - name: init
@@ -82,7 +85,12 @@ jobs:
           DOCKER_ACTION: ${{ inputs.action }}
           COMPONENT: ${{ matrix.component }}
         run: |
-          ci_run zk docker $DOCKER_ACTION $COMPONENT --platforms "linux/amd64,linux/arm64,linux/arm64/v8" -- --public
+          if [[ "${{ matrix.runner }}" == "matterlabs-ci-runner-arm" ]]; then
+            PLATFORMS="linux/arm64,linux/arm64/v8"
+          else
+            PLATFORMS="linux/amd64"
+          fi
+          ci_run zk docker $DOCKER_ACTION $COMPONENT --platforms "$PLATFORMS" -- --public
 
       - name: Show sccache stats
         if: always()
