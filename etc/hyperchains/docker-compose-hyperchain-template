@@ -1,22 +1,3 @@
-# System requirements:
-# ~16+ CPU cores
-# ~384+ GB RAM
-# This assumes the following:
-# - This Docker Compose is running from https://github.com/matter-labs/zksync-era/tree/boojum-integration
-# - Hyperchain Wizard was already ran and common.env file is generated in this dir
-# - DB is available/ready/initialized and common.env is pointing to it
-# - Contracts are already built and setup key is downloaded (most of the things should be done in Hyperchain Wizard)
-# reference: https://github.com/matter-labs/zksync-era/blob/main/.github/workflows/build-core-template.yml#L67-L72
-# - Data keys are already downloaded
-# from: https://console.cloud.google.com/storage/browser/matterlabs-zksync-v2-infra-blob-store/prover_setup_data/2d33a27?pageState=(%22StorageObjectListTable%22:(%22f%22:%22%255B%255D%22))&orgonly=true&project=matterlabs-infra&supportedpurview=organizationId&prefix=&forceOnObjectsSortingFiltering=false
-# to: ./prover_setup-data
-# - Following should be added to common.env:
-# OBJECT_STORE_FILE_BACKED_BASE_PATH: /path/to/server/artifacts
-# PROVER_OBJECT_STORE_FILE_BACKED_BASE_PATH: /path/to/prover/artifacts
-# - Inspired by https://github.com/matter-labs/zksync-era/tree/main/prover/prover_fri
-# TODOS:
-# - (PRO-47): Figure out how to properly set metrics ports for each service in env
-
 version: '3.2'
 networks:
   zkstack:
@@ -55,6 +36,21 @@ services:
       - "3050:3050" # http_api
       - "3051:3051" # ws_api
   {{#if hasProver}}
+  # System requirements for CPU proving:
+  # ~16+ CPU cores
+  # ~384+ GB RAM
+  # This assumes the following:
+  # - Contracts are already built and setup key is downloaded (most of the things should be done in Hyperchain Wizard)
+  # reference: https://github.com/matter-labs/zksync-era/blob/main/.github/workflows/build-core-template.yml#L67-L72
+  # - Data keys are already downloaded
+  # from: https://console.cloud.google.com/storage/browser/matterlabs-zksync-v2-infra-blob-store/prover_setup_data/2d33a27?pageState=(%22StorageObjectListTable%22:(%22f%22:%22%255B%255D%22))&orgonly=true&project=matterlabs-infra&supportedpurview=organizationId&prefix=&forceOnObjectsSortingFiltering=false
+  # to: ./prover_setup-data
+  # - Following should be added to the hyperchain env file:
+  # OBJECT_STORE_FILE_BACKED_BASE_PATH: /path/to/server/artifacts
+  # PROVER_OBJECT_STORE_FILE_BACKED_BASE_PATH: /path/to/prover/artifacts
+  # - Inspired by https://github.com/matter-labs/zksync-era/tree/main/prover/prover_fri
+  # TODOS:
+  # - (PRO-47): Figure out how to properly set metrics ports for each service in env
   zkstack-prover-fri-gateway:
     networks:
       - zkstack
