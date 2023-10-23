@@ -999,9 +999,7 @@ impl BlocksDal<'_, '_> {
                 AND number != 0 \
                 AND protocol_versions.bootloader_code_hash = $1 AND protocol_versions.default_account_code_hash = $2 \
                 AND commitment IS NOT NULL \
-                AND (protocol_versions.id = $3 OR protocol_versions.upgrade_tx_hash IS NULL) \
-                AND events_queue_commitment IS NOT NULL \
-                AND bootloader_initial_content_commitment IS NOT NULL
+                AND (protocol_versions.id = $3 OR protocol_versions.upgrade_tx_hash IS NULL)
             ORDER BY number LIMIT $4",
             bootloader_hash.as_bytes(),
             default_aa_hash.as_bytes(),
