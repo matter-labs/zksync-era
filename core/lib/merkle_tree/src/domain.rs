@@ -344,7 +344,7 @@ impl ZkSyncTree {
                 TreeLogEntry::Read { .. } | TreeLogEntry::ReadMissingKey => {}
             }
         }
-        state_diffs.sort_by_key(|rec| (rec.address, rec.key));
+        state_diffs.sort_unstable_by_key(|rec| (rec.address, rec.key));
         (initial_writes, repeated_writes, state_diffs)
     }
 
