@@ -9,9 +9,8 @@ on:
       - main
     paths:
       - "docker/zk-environment/Dockerfile"
-      - ".github/workflows/zk-environment.publish.yml"
       - "docker/zk-environment-cuda-12-0/Dockerfile"
-      - ".github/workflows/zk-environment-cuda-12-0.publish.yml"
+      - ".github/workflows/zk-environment.publish.yml"
   workflow_dispatch:
 
 concurrency:
@@ -40,7 +39,7 @@ jobs:
               - .github/workflows/zk-environment.publish.yml
             zk_env_cuda_12:
               - docker/zk-environment-cuda-12-0/Dockerfile
-              - .github/workflows/zk-environment-cuda-12-0.publish.yml
+              - .github/workflows/zk-environment.publish.yml
 
   zk_environment:
     if: needs.changed_files.outputs.zk_environment == 'true'
@@ -68,24 +67,27 @@ jobs:
       - name: Build and optionally push zk-environment lightweight
         uses: docker/build-push-action@3b5e8027fcad23fda98b2e3ac259d8d67585f671
         with:
+          file: docker/zk-environment/Dockerfile
           target: base
-          push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
           tags: "matterlabs/zk-environment:latest2.0-lightweight"
           build-args: ARCH=${{ matrix.arch }}
+          push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
       - name: Build and optionally push zk-environment Rust nightly
         uses: docker/build-push-action@3b5e8027fcad23fda98b2e3ac259d8d67585f671
         with:
-          push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+          file: docker/zk-environment/Dockerfile
           target: rust-nightly
           tags: "matterlabs/zksync_rust:nightly"
           build-args: ARCH=${{ matrix.arch }}
+          push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
       - name: Build and optionally push zk-environment CUDA 11.8
         if: matrix.arch == 'amd64'
         uses: docker/build-push-action@3b5e8027fcad23fda98b2e3ac259d8d67585f671
         with:
+          file: docker/zk-environment/Dockerfile
           target: nvidia-tools
-          push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
           tags: "matterlabs/zk-environment:latest2.0"
+          push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
 
   zk_environment_cuda_12:
     if: needs.changed_files.outputs.zk_environment_cuda_12 == 'true'
