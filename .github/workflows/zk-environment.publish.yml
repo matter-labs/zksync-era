@@ -47,8 +47,11 @@ jobs:
     name: Build and optionally push zk-environment Docker images to Docker Hub
     strategy:
       matrix:
-        runner: [matterlabs-ci-runner, matterlabs-ci-runner-arm]
-        arch: [amd64, arm64]
+        include:
+          - runner: matterlabs-ci-runner
+            arch: amd64
+          - runner: matterlabs-ci-runner-arm
+            arch: arm64
     runs-on: ${{ matrix.runner }}
     needs: changed_files
     steps:
