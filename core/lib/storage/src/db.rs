@@ -12,7 +12,7 @@ use std::{
     path::Path,
     sync::{Arc, Condvar, Mutex},
     thread,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use crate::metrics::{RocksdbLabels, RocksdbSizeMetrics, METRICS};
@@ -176,11 +176,12 @@ impl RocksDBInner {
     /// Waits until writes are not stopped for any of the CFs. Writes can stop immediately on DB initialization
     /// if there are too many level-0 SST files; in this case, it may help waiting several seconds until
     /// these files are compacted.
-    fn wait_for_writes_to_resume(&self) {
-        const RETRY_COUNT: usize = 10;
+    fn wait_for_writes_to_resume(&self, timeout: Duration) {
         const RETRY_INTERVAL: Duration = Duration::from_secs(1);
 
-        for retry in 0..RETRY_COUNT {
+        let started_at = Instant::now();
+        let mut retry = 0;
+        while started_at.elapsed() < timeout {
             let cfs_with_stopped_writes = self.cf_names.iter().copied().filter(|cf_name| {
                 let cf = self.db.cf_handle(cf_name).unwrap();
                 // ^ `unwrap()` is safe (CF existence is checked during DB initialization)
@@ -192,16 +193,16 @@ impl RocksDBInner {
             } else {
                 tracing::info!(
                     "Writes are stopped for column families {cfs_with_stopped_writes:?} in DB `{}` \
-                     (retry: {retry}/{RETRY_COUNT})",
+                     (retry: {retry})",
                     self.db_name
                 );
                 thread::sleep(RETRY_INTERVAL);
+                retry += 1;
             }
         }
 
         tracing::warn!(
-            "Exceeded {RETRY_COUNT} retries waiting for writes to resume in DB `{}`; \
-             proceeding with stopped writes",
+            "Exceeded retries waiting for writes to resume in DB `{}`; proceeding with stopped writes",
             self.db_name
         );
     }
@@ -240,7 +241,7 @@ impl StalledWritesRetries {
 }
 
 /// [`RocksDB`] options.
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy)]
 pub struct RocksDBOptions {
     /// Byte capacity of the block cache (the main RocksDB cache for reads). If not set, default RocksDB
     /// cache options will be used.
@@ -250,6 +251,18 @@ pub struct RocksDBOptions {
     /// Setting this to a reasonably large value (order of 512 MiB) is helpful for large DBs that experience
     /// write stalls. If not set, large CFs will not be configured specially.
     pub large_memtable_capacity: Option<usize>,
+    /// Timeout to wait for the database to run compaction on startup so that it doesn't have stopped writes.
+    pub init_stopped_writes_timeout: Duration,
+}
+
+impl Default for RocksDBOptions {
+    fn default() -> Self {
+        Self {
+            block_cache_capacity: None,
+            large_memtable_capacity: None,
+            init_stopped_writes_timeout: Duration::from_secs(10),
+        }
+    }
 }
 
 /// Thin wrapper around a RocksDB instance.
@@ -336,7 +349,7 @@ impl<CF: NamedColumnFamily> RocksDB<CF> {
             path.display()
         );
 
-        inner.wait_for_writes_to_resume();
+        inner.wait_for_writes_to_resume(options.init_stopped_writes_timeout);
         Self {
             inner,
             sync_writes: false,
