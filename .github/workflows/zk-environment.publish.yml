@@ -44,88 +44,74 @@ jobs:
 
   zk_environment:
     if: needs.changed_files.outputs.zk_environment == 'true'
-    name: Build and push zk-environment Docker images to Docker Hub
-    runs-on: ubuntu-latest
+    name: Build and optionally push zk-environment Docker images to Docker Hub
+    strategy:
+      matrix:
+        runner: [matterlabs-ci-runner, matterlabs-ci-runner-arm]
+        arch: [amd64, arm64]
+    runs-on: ${{ matrix.runner }}
     needs: changed_files
     steps:
-      - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
+      - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c
         with:
           submodules: "recursive"
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@f03ac48505955848960e80bbb68046aa35c7b9e7 # v2
-
+      - uses: docker/setup-buildx-action@f03ac48505955848960e80bbb68046aa35c7b9e7
       - name: Log in to Docker Hub
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: docker/login-action@f4ef78c080cd8ba55a85445d5b36e214a81df20a # v2.1.0
+        uses: docker/login-action@f4ef78c080cd8ba55a85445d5b36e214a81df20a
         with:
           username: ${{ secrets.DOCKERHUB_USER }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Build and push zk-environment lightweight
-        uses: docker/build-push-action@3b5e8027fcad23fda98b2e3ac259d8d67585f671 # v4.0.0
+      - name: Build and optionally push zk-environment lightweight
+        uses: docker/build-push-action@3b5e8027fcad23fda98b2e3ac259d8d67585f671
         with:
-          context: .
           target: base
           push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
           tags: "matterlabs/zk-environment:latest2.0-lightweight"
-          file: docker/zk-environment/Dockerfile
-          platforms: linux/amd64,linux/arm64,linux/arm64/v8
-
-      - name: Build and push zk-environment Rust nightly
-        uses: docker/build-push-action@3b5e8027fcad23fda98b2e3ac259d8d67585f671 # v4.0.0
+          build-args: ARCH=${{ matrix.arch }}
+      - name: Build and optionally push zk-environment Rust nightly
+        uses: docker/build-push-action@3b5e8027fcad23fda98b2e3ac259d8d67585f671
         with:
-          context: .
           push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
           target: rust-nightly
           tags: "matterlabs/zksync_rust:nightly"
-          file: docker/zk-environment/Dockerfile
-          platforms: linux/amd64,linux/arm64,linux/arm64/v8
-
-      - name: Build and push zk-environment CUDA 11.8
-        uses: docker/build-push-action@3b5e8027fcad23fda98b2e3ac259d8d67585f671 # v4.0.0
+          build-args: ARCH=${{ matrix.arch }}
+      - name: Build and optionally push zk-environment CUDA 11.8
+        if: matrix.arch == 'amd64'
+        uses: docker/build-push-action@3b5e8027fcad23fda98b2e3ac259d8d67585f671
         with:
-          context: .
           target: nvidia-tools
           push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
           tags: "matterlabs/zk-environment:latest2.0"
-          file: docker/zk-environment/Dockerfile
 
   zk_environment_cuda_12:
     if: needs.changed_files.outputs.zk_environment_cuda_12 == 'true'
-    name: Build and push zk-environment CUDA 12 Docker image
+    name: Build and optionally push zk-environment CUDA 12 Docker image
     runs-on: [matterlabs-ci-runner]
     needs: changed_files
     steps:
       - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
         with:
           submodules: "recursive"
-
       - name: Log in to us-central1 GAR
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
           gcloud auth print-access-token --lifetime=7200 --impersonate-service-account=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com | docker login -u oauth2accesstoken --password-stdin https://us-docker.pkg.dev
-
       - name: Log in to Docker Hub
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: docker/login-action@f4ef78c080cd8ba55a85445d5b36e214a81df20a # v2.1.0
         with:
           username: ${{ secrets.DOCKERHUB_USER }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
-
-      - name: Build and push
+      - name: Build and optionally push
         uses: docker/build-push-action@v4
         with:
-          context: .
           file: docker/zk-environment-cuda-12-0/Dockerfile
           push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
-          target: nvidia-tools
           tags: |
             us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/zk-environment-cuda-12-0:latest
             matterlabs/zk-environment:cuda-12-0-latest
