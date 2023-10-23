@@ -14,6 +14,10 @@ on:
       - ".github/workflows/zk-environment-cuda-12-0.publish.yml"
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   changed_files:
     name: Changed files
