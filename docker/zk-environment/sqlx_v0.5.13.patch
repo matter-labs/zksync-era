@@ -1,5 +1,4 @@
 diff --git a/Cargo.toml b/Cargo.toml
-index e83b873b..a0c71889 100644
 --- a/Cargo.toml
 +++ b/Cargo.toml
 @@ -281,3 +281,6 @@ required-features = ["mssql"]
@@ -10,7 +9,6 @@ index e83b873b..a0c71889 100644
 +[patch.crates-io]
 +ahash = { git = "https://github.com/tkaitchuck/ahash.git", tag = "v0.7.6" }
 diff --git a/sqlx-core/src/sqlite/statement/handle.rs b/sqlx-core/src/sqlite/statement/handle.rs
-index af53c079..41331b55 100644
 --- a/sqlx-core/src/sqlite/statement/handle.rs
 +++ b/sqlx-core/src/sqlite/statement/handle.rs
 @@ -384,6 +384,7 @@ impl Notify {
