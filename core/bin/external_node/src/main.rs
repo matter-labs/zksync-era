@@ -24,7 +24,8 @@ use zksync_core::{
     state_keeper::{L1BatchExecutorBuilder, MainBatchExecutorBuilder, ZkSyncStateKeeper},
     sync_layer::{
         batch_status_updater::BatchStatusUpdater, external_io::ExternalIO,
-        fetcher::MainNodeFetcher, genesis::perform_genesis_if_needed, ActionQueue, SyncState,
+        fetcher::MainNodeFetcherCursor, genesis::perform_genesis_if_needed, ActionQueue,
+        MainNodeClient, SyncState,
     },
 };
 use zksync_dal::{connection::DbVariant, healthcheck::ConnectionPoolHealthCheck, ConnectionPool};
@@ -49,8 +50,6 @@ async fn build_state_keeper(
     stop_receiver: watch::Receiver<bool>,
     chain_id: L2ChainId,
 ) -> ZkSyncStateKeeper {
-    let main_node_url = config.required.main_node_url().unwrap();
-
     // These config values are used on the main node, and depending on these values certain transactions can
     // be *rejected* (that is, not included into the block). However, external node only mirrors what the main
     // node has already executed, so we can safely set these values to the maximum possible values - if the main
@@ -70,21 +69,22 @@ async fn build_state_keeper(
             config.optional.enum_index_migration_chunk_size,
         ));
 
-    let io = Box::new(
-        ExternalIO::new(
-            connection_pool,
-            action_queue,
-            sync_state,
-            main_node_url,
-            l2_erc20_bridge_addr,
-            validation_computational_gas_limit,
-            chain_id,
-        )
-        .await,
-    );
+    let main_node_url = config.required.main_node_url().unwrap();
+    let main_node_client = <dyn MainNodeClient>::json_rpc(&main_node_url)
+        .expect("Failed creating JSON-RPC client for main node");
+    let io = ExternalIO::new(
+        connection_pool,
+        action_queue,
+        sync_state,
+        Box::new(main_node_client),
+        l2_erc20_bridge_addr,
+        validation_computational_gas_limit,
+        chain_id,
+    )
+    .await;
     io.recalculate_miniblock_hashes().await;
 
-    ZkSyncStateKeeper::without_sealer(stop_receiver, io, batch_executor_base)
+    ZkSyncStateKeeper::without_sealer(stop_receiver, Box::new(io), batch_executor_base)
 }
 
 async fn init_tasks(
@@ -99,7 +99,7 @@ async fn init_tasks(
         .required
         .main_node_url()
         .expect("Main node URL is incorrect");
-    let (stop_sender, stop_receiver) = watch::channel::<bool>(false);
+    let (stop_sender, stop_receiver) = watch::channel(false);
     let mut healthchecks: Vec<Box<dyn CheckHealth>> = Vec::new();
     // Create components.
     let gas_adjuster = Arc::new(MainNodeGasPriceFetcher::new(&main_node_url));
@@ -118,18 +118,25 @@ async fn init_tasks(
     )
     .await;
 
+    let main_node_client = <dyn MainNodeClient>::json_rpc(&main_node_url)
+        .context("Failed creating JSON-RPC client for main node")?;
     let singleton_pool_builder = ConnectionPool::singleton(DbVariant::Master);
-    let fetcher = MainNodeFetcher::new(
-        singleton_pool_builder
+    let fetcher_cursor = {
+        let pool = singleton_pool_builder
             .build()
             .await
-            .context("failed to build a connection pool for MainNodeFetcher")?,
-        &main_node_url,
+            .context("failed to build a connection pool for `MainNodeFetcher`")?;
+        let mut storage = pool.access_storage_tagged("sync_layer").await?;
+        MainNodeFetcherCursor::new(&mut storage)
+            .await
+            .context("failed to load `MainNodeFetcher` cursor from Postgres")?
+    };
+    let fetcher = fetcher_cursor.into_fetcher(
+        Box::new(main_node_client),
         action_queue_sender,
         sync_state.clone(),
         stop_receiver.clone(),
-    )
-    .await;
+    );
 
     let metadata_calculator = MetadataCalculator::new(&MetadataCalculatorConfig {
         db_path: &config.required.merkle_tree_path,
@@ -227,7 +234,7 @@ async fn init_tasks(
         (tx_sender, vm_barrier, cache_update_handle)
     };
 
-    let (http_api_handle, http_api_healthcheck) =
+    let http_server_handles =
         ApiBuilder::jsonrpc_backend(config.clone().into(), connection_pool.clone())
             .http(config.required.http_port)
             .with_filter_limit(config.optional.filters_limit)
@@ -238,9 +245,10 @@ async fn init_tasks(
             .with_sync_state(sync_state.clone())
             .enable_api_namespaces(config.optional.api_namespaces())
             .build(stop_receiver.clone())
-            .await;
+            .await
+            .context("Failed initializing HTTP JSON-RPC server")?;
 
-    let (mut task_handles, ws_api_healthcheck) =
+    let ws_server_handles =
         ApiBuilder::jsonrpc_backend(config.clone().into(), connection_pool.clone())
             .ws(config.required.ws_port)
             .with_filter_limit(config.optional.filters_limit)
@@ -253,21 +261,24 @@ async fn init_tasks(
             .with_sync_state(sync_state)
             .enable_api_namespaces(config.optional.api_namespaces())
             .build(stop_receiver.clone())
-            .await;
+            .await
+            .context("Failed initializing WS JSON-RPC server")?;
 
-    healthchecks.push(Box::new(ws_api_healthcheck));
-    healthchecks.push(Box::new(http_api_healthcheck));
+    healthchecks.push(Box::new(ws_server_handles.health_check));
+    healthchecks.push(Box::new(http_server_handles.health_check));
     healthchecks.push(Box::new(ConnectionPoolHealthCheck::new(connection_pool)));
     let healthcheck_handle = HealthCheckHandle::spawn_server(
         ([0, 0, 0, 0], config.required.healthcheck_port).into(),
         healthchecks,
     );
+
+    let mut task_handles = vec![];
     if let Some(port) = config.optional.prometheus_port {
         let prometheus_task = PrometheusExporterConfig::pull(port).run(stop_receiver.clone());
         task_handles.push(tokio::spawn(prometheus_task));
     }
-
-    task_handles.extend(http_api_handle);
+    task_handles.extend(http_server_handles.tasks);
+    task_handles.extend(ws_server_handles.tasks);
     task_handles.extend(cache_update_handle);
     task_handles.extend([
         sk_handle,
@@ -380,10 +391,12 @@ async fn main() -> anyhow::Result<()> {
     tracing::info!("Main node URL is: {}", main_node_url);
 
     // Make sure that genesis is performed.
+    let main_node_client = <dyn MainNodeClient>::json_rpc(&main_node_url)
+        .context("Failed creating JSON-RPC client for main node")?;
     perform_genesis_if_needed(
         &mut connection_pool.access_storage().await.unwrap(),
         config.remote.l2_chain_id,
-        main_node_url.clone(),
+        &main_node_client,
     )
     .await
     .context("Performing genesis failed")?;
