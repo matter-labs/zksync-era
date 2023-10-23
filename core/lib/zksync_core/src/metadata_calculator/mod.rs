@@ -75,6 +75,9 @@ pub struct MetadataCalculatorConfig<'a> {
     /// Capacity of RocksDB memtables. Can be set to a reasonably large value (order of 512 MiB)
     /// to mitigate write stalls.
     pub memtable_capacity: usize,
+    /// Timeout to wait for the Merkle tree database to run compaction on startup so that it doesn't have
+    /// stopped writes.
+    pub init_stopped_writes_timeout: Duration,
 }
 
 impl<'a> MetadataCalculatorConfig<'a> {
@@ -91,6 +94,7 @@ impl<'a> MetadataCalculatorConfig<'a> {
             multi_get_chunk_size: db_config.merkle_tree.multi_get_chunk_size,
             block_cache_capacity: db_config.merkle_tree.block_cache_size(),
             memtable_capacity: db_config.merkle_tree.memtable_capacity(),
+            init_stopped_writes_timeout: db_config.merkle_tree.init_stopped_writes_timeout(),
         }
     }
 }
