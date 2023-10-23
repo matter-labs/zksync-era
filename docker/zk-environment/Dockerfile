@@ -1,5 +1,5 @@
 ARG ARCH=amd64
-FROM ubuntu:20.04
+FROM ubuntu:20.04 as base
 
 WORKDIR /usr/src/zksync
 ENV DEBIAN_FRONTEND noninteractive

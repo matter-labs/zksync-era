@@ -44,7 +44,7 @@ jobs:
 
   zk_environment:
     if: needs.changed_files.outputs.zk_environment == 'true'
-    name: Push zk-environment Docker images to Docker Hub
+    name: Build and push zk-environment Docker images to Docker Hub
     runs-on: ubuntu-latest
     needs: changed_files
     steps:
