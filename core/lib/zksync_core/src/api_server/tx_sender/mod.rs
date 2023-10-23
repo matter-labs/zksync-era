@@ -354,7 +354,8 @@ impl<G: L1GasPriceProvider> TxSender<G> {
         }
 
         let stage_started_at = Instant::now();
-        self.ensure_tx_executable(tx.clone().into(), &tx_metrics, true)?;
+        self.ensure_tx_executable(tx.clone().into(), &tx_metrics, true)
+            .await?;
 
         if let Some(proxy) = &self.0.proxy {
             // We're running an external node: we have to proxy the transaction to the main node.
@@ -825,7 +826,8 @@ impl<G: L1GasPriceProvider> TxSender<G> {
             .await;
 
         result.into_api_call_result()?;
-        self.ensure_tx_executable(tx.clone(), &tx_metrics, false)?;
+        self.ensure_tx_executable(tx.clone(), &tx_metrics, false)
+            .await?;
 
         let overhead = derive_overhead(
             suggested_gas_limit,
@@ -885,7 +887,7 @@ impl<G: L1GasPriceProvider> TxSender<G> {
         base_fee
     }
 
-    fn ensure_tx_executable(
+    async fn ensure_tx_executable(
         &self,
         transaction: Transaction,
         tx_metrics: &TransactionExecutionMetrics,
@@ -906,13 +908,24 @@ impl<G: L1GasPriceProvider> TxSender<G> {
             H256::zero()
         };
 
-        let seal_data =
-            SealData::for_transaction(transaction, tx_metrics, ProtocolVersionId::latest());
-        if let Some(reason) = ConditionalSealer::find_unexecutable_reason(
-            sk_config,
-            &seal_data,
-            ProtocolVersionId::latest(),
-        ) {
+        let protocol_version = self
+            .0
+            .replica_connection_pool
+            .access_storage_tagged("api")
+            .await
+            .unwrap()
+            .blocks_dal()
+            .get_last_sealed_miniblock_header()
+            .await
+            .unwrap()
+            .unwrap_or_default()
+            .protocol_version
+            .unwrap_or_default();
+
+        let seal_data = SealData::for_transaction(transaction, tx_metrics, protocol_version);
+        if let Some(reason) =
+            ConditionalSealer::find_unexecutable_reason(sk_config, &seal_data, protocol_version)
+        {
             let message = format!(
                 "Tx is Unexecutable because of {reason}; inputs for decision: {seal_data:?}"
             );
