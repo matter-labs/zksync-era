@@ -28,7 +28,7 @@ services:
   zkstack_core:
     networks:
       - zkstack
-    image: {{serverImageName}}/server-v2:latest
+    image: {{orgName}}/server-v2:latest
     command: ["--components", "tree_new,eth,data_fetcher,state_keeper,housekeeper"]
     env_file:
       - {{envFilePath}}
@@ -43,7 +43,7 @@ services:
   zkstack-apis:
     networks:
       - zkstack
-    image: {{serverImageName}}/server-v2:latest
+    image: {{orgName}}/server-v2:latest
     command: ["--components", "http_api,ws_api"]
     env_file:
       - ./etc/env/a-new-world.env

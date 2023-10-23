@@ -591,14 +591,15 @@ async function selectHyperchainConfiguration() {
     return envResults.env;
 }
 
-async function generateDockerImages() {
+async function generateDockerImages(cmd: Command) {
     console.log(warning(`\nThis process will build the docker images and it can take a while. Please be patient.\n`));
 
     const envName = await selectHyperchainConfiguration();
+    const orgName = cmd.customDockerOrg ?? envName;
 
-    await docker.customBuildForHyperchain('server-v2', envName);
+    await docker.customBuildForHyperchain('server-v2', orgName);
 
-    console.log(warning(`\nDocker image for server created: Server image: ${envName}/server-v2:latest\n`));
+    console.log(warning(`\nDocker image for server created: Server image: ${orgName}/server-v2:latest\n`));
 
     let hasProver = false;
 
@@ -610,7 +611,7 @@ async function generateDockerImages() {
 
     const composeArgs = {
         envFilePath: `./etc/env/${envName}.env`,
-        serverImageName: envName,
+        orgName,
         hasProver
     };
 
@@ -636,5 +637,6 @@ initHyperchainCommand
     .action(initHyperchain);
 initHyperchainCommand
     .command('docker-setup')
+    .option('--custom-docker-org <value>', 'Custom organization name for the docker images')
     .description('Generate docker images and compose file for your Hyperchain')
     .action(generateDockerImages);
