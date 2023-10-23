@@ -1,4 +1,4 @@
-use anyhow::anyhow;
+use anyhow::{anyhow, Context};
 
 use crate::state_keeper::io::common::load_l1_batch_params;
 
@@ -9,22 +9,25 @@ use zksync_dal::StorageProcessor;
 use zksync_state::{PostgresStorage, ReadStorage, StoragePtr, StorageView};
 use zksync_types::{L1BatchNumber, L2ChainId, Transaction};
 
+pub(super) type VmAndStorage<'a> = (
+    VmInstance<PostgresStorage<'a>, HistoryEnabled>,
+    StoragePtr<StorageView<PostgresStorage<'a>>>,
+);
+
 pub(super) fn create_vm(
     rt_handle: Handle,
     l1_batch_number: L1BatchNumber,
     mut connection: StorageProcessor<'_>,
     l2_chain_id: L2ChainId,
-) -> anyhow::Result<(
-    VmInstance<PostgresStorage, HistoryEnabled>,
-    StoragePtr<StorageView<PostgresStorage>>,
-)> {
+) -> anyhow::Result<VmAndStorage> {
     let prev_l1_batch_number = l1_batch_number - 1;
     let (_, miniblock_number) = rt_handle
         .block_on(
             connection
                 .blocks_dal()
                 .get_miniblock_range_of_l1_batch(prev_l1_batch_number),
-        )?
+        )
+        .context("failed to get miniblock range")?
         .ok_or_else(|| {
             anyhow!(
                 "l1_batch_number {l1_batch_number:?} must have a previous miniblock to start from"
@@ -78,7 +81,10 @@ pub(super) fn execute_tx<S: ReadStorage>(
 
     // If failed with bytecode compression, attempt to run without bytecode compression.
     vm.rollback_to_the_latest_snapshot();
-    if let Err(_) = vm.inspect_transaction_with_bytecode_compression(vec![], tx.clone(), false) {
+    if vm
+        .inspect_transaction_with_bytecode_compression(vec![], tx.clone(), false)
+        .is_err()
+    {
         return Err(anyhow!("compression can't fail if we don't apply it"));
     }
     Ok(())
