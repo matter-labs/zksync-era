@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Context};
+use anyhow::anyhow;
 
 use crate::state_keeper::io::common::load_l1_batch_params;
 
@@ -26,8 +26,7 @@ pub(super) fn create_vm(
             connection
                 .blocks_dal()
                 .get_miniblock_range_of_l1_batch(prev_l1_batch_number),
-        )
-        .context("failed to get miniblock range")?
+        )?
         .ok_or_else(|| {
             anyhow!(
                 "l1_batch_number {l1_batch_number:?} must have a previous miniblock to start from"
