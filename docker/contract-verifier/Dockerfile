@@ -79,6 +79,10 @@ RUN mkdir -p /etc/zksolc-bin/v1.3.14 \
     && wget https://github.com/matter-labs/zksolc-bin/raw/main/linux-amd64/zksolc-linux-amd64-musl-v1.3.14 \
     && mv zksolc-linux-amd64-musl-v1.3.14 /etc/zksolc-bin/v1.3.14/zksolc \
     && chmod +x /etc/zksolc-bin/v1.3.14/zksolc
+RUN mkdir -p /etc/zksolc-bin/v1.3.15 \
+    && wget https://github.com/matter-labs/zksolc-bin/raw/main/linux-amd64/zksolc-linux-amd64-musl-v1.3.15 \
+    && mv zksolc-linux-amd64-musl-v1.3.15 /etc/zksolc-bin/v1.3.15/zksolc \
+    && chmod +x /etc/zksolc-bin/v1.3.15/zksolc
 
 # install zkvyper
 RUN mkdir -p /etc/zkvyper-bin/v1.3.9 \

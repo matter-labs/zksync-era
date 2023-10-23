@@ -4,7 +4,7 @@ import '@matterlabs/hardhat-zksync-vyper';
 
 export default {
     zksolc: {
-        version: '1.3.14',
+        version: '1.3.15',
         compilerSource: 'binary',
         settings: {
             isSystem: true
