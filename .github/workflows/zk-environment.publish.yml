@@ -1,18 +1,18 @@
 name: publish zk-environment docker images
 
 on:
+  push:
+    branches:
+      - main
   pull_request:
     branches:
       - main
-    types: [closed]
     paths:
       - "docker/zk-environment/Dockerfile"
       - ".github/workflows/zk-environment.publish.yml"
       - "docker/zk-environment-cuda-12-0/Dockerfile"
       - ".github/workflows/zk-environment-cuda-12-0.publish.yml"
   workflow_dispatch:
-    branches:
-      - "main"
 
 jobs:
   changed_files:
