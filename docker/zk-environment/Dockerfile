@@ -1,7 +1,6 @@
-ARG ARCH=amd64
-FROM ubuntu:20.04 as base
+FROM ubuntu:22.04 as base
 
-ENV ARCH=${ARCH}
+ARG ARCH=amd64
 
 WORKDIR /usr/src/zksync
 ENV DEBIAN_FRONTEND noninteractive
@@ -30,17 +29,14 @@ RUN apt-get update && apt-get install -y \
     wget \
     bzip2
 
-# Install dependencies for RocksDB. `liburing` is not available for Ubuntu 20.04,
-# so we use a PPA with the backport
-RUN add-apt-repository ppa:savoury1/virtualisation && \
-    apt-get update && \
+RUN apt-get update && \
     apt-get install -y \
     curl \
     gnutls-bin git \
     build-essential \
-    clang-7 \
-    lldb-7 \
-    lld-7 \
+    clang-15 \
+    lldb-15 \
+    lld-15 \
     liburing-dev
 
 # Install docker engine
@@ -61,7 +57,7 @@ ENV RUSTUP_HOME=/usr/local/rustup \
     CARGO_HOME=/usr/local/cargo \
     PATH=/usr/local/cargo/bin:$PATH
 
-ENV GCLOUD_VERSION=403.0.0
+ENV GCLOUD_VERSION=451.0.1
 RUN echo "deb [arch=${ARCH}] http://packages.cloud.google.com/apt cloud-sdk main" > /etc/apt/sources.list.d/google-cloud-sdk.list && \
     curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add - && \
     apt-get update -y && apt-get install google-cloud-cli=${GCLOUD_VERSION}-0 --no-install-recommends -y && \
