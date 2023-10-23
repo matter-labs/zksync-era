@@ -53,7 +53,7 @@ function ignoreError(_err: any, context?: string) {
 
 const depositAmount = ethers.utils.parseEther('0.001');
 
-describe('Block reverting test', function () {
+describe('Block reverting test', function() {
     let tester: Tester;
     let alice: zkweb3.Wallet;
     let mainContract: Contract;

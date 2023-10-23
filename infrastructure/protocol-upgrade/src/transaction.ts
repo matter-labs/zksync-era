@@ -261,13 +261,16 @@ export function buildDefaultUpgradeTx(
 
     let l1upgradeCalldata = prepareDefaultCalldataForL1upgrade(proposeUpgradeTx);
 
-    let [proposeTransparentUpgradeCalldata, executeUpgradeCalldata, transparentUpgrade] =
-        prepareproposeTransparentUpgradeCalldata(
-            l1upgradeCalldata,
-            upgradeAddress,
-            facetCuts,
-            diamondUpgradeProposalId
-        );
+    let [
+        proposeTransparentUpgradeCalldata,
+        executeUpgradeCalldata,
+        transparentUpgrade
+    ] = prepareproposeTransparentUpgradeCalldata(
+        l1upgradeCalldata,
+        upgradeAddress,
+        facetCuts,
+        diamondUpgradeProposalId
+    );
     const transactions = {
         proposeUpgradeTx,
         l1upgradeCalldata,
@@ -421,7 +424,7 @@ command
     .option('--diamond-upgrade-proposal-id <diamondUpgradeProposalId>')
     .option('--l1rpc <l1prc>')
     .option('--zksync-address <zksyncAddress>')
-    .action(async (options) => {
+    .action(async options => {
         let diamondUpgradeProposalId = options.diamondUpgradeProposalId;
         if (!diamondUpgradeProposalId) {
             diamondUpgradeProposalId = await getNewDiamondUpgradeProposalId(options.l1rpc, options.zksyncAddress);
@@ -445,7 +448,7 @@ command
     .option('--gas-price <gasPrice>')
     .option('--nonce <nonce>')
     .option('--l1rpc <l1prc>')
-    .action(async (options) => {
+    .action(async options => {
         await proposeUpgrade(
             options.privateKey,
             options.l1rpc,
@@ -464,7 +467,7 @@ command
     .option('--gas-price <gasPrice>')
     .option('--nonce <nonce>')
     .option('--l1rpc <l1prc>')
-    .action(async (options) => {
+    .action(async options => {
         await executeUpgrade(
             options.privateKey,
             options.l1rpc,
@@ -484,7 +487,7 @@ command
     .option('--nonce <nonce>')
     .option('--l1rpc <l1prc>')
     .option('--execute')
-    .action(async (options) => {
+    .action(async options => {
         await cancelUpgrade(
             options.privateKey,
             options.l1rpc,

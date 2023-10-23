@@ -24,7 +24,7 @@ export function spawn(command: string) {
     const child = _spawn(command, { stdio: 'inherit', shell: true });
     return new Promise((resolve, reject) => {
         child.on('error', reject);
-        child.on('close', (code) => {
+        child.on('close', code => {
             code == 0 ? resolve(code) : reject(`Child process exited with code ${code}`);
         });
     });
@@ -46,7 +46,7 @@ export async function compile(path: string, files: string[], outputDirName: stri
 }
 
 export async function compileFolder(path: string, type: string) {
-    let files: string[] = (await fs.promises.readdir(path)).filter((fn) => fn.endsWith(`.${type}`));
+    let files: string[] = (await fs.promises.readdir(path)).filter(fn => fn.endsWith(`.${type}`));
     for (const file of files) {
         await compile(path, [file], `${file}`, type);
     }
@@ -86,7 +86,7 @@ async function main() {
 
 main()
     .then(() => process.exit(0))
-    .catch((err) => {
+    .catch(err => {
         console.error('Error:', err.message || err);
         process.exit(1);
     });

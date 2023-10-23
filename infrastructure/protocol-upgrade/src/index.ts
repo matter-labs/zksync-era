@@ -19,7 +19,10 @@ async function main() {
         process.chdir(ZKSYNC_HOME);
     }
 
-    program.version('0.1.0').name('zk').description('zksync protocol upgrade tools');
+    program
+        .version('0.1.0')
+        .name('zk')
+        .description('zksync protocol upgrade tools');
 
     for (const command of COMMANDS) {
         program.addCommand(command);

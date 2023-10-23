@@ -46,7 +46,7 @@ command
     .option('--recursion-leaf-level-vk <recursionLeafLevelVk>')
     .option('--recursion-circuits-set-vks <recursionCircuitsSetVks>')
     .option('--environment <environment>')
-    .action(async (cmd) => {
+    .action(async cmd => {
         await saveVerificationKeys(
             cmd.recursionNodeLevelVk,
             cmd.recursionLeafLevelVk,
@@ -64,7 +64,7 @@ command
     .option('--gas-price <gasPrice>')
     .option('--environment <environment>')
     .description('Deploy verifier contract')
-    .action(async (cmd) => {
+    .action(async cmd => {
         console.log('Deploying verifier contract');
         const path = getUpgradePath(cmd.environment);
         const tmpFile = `${path}/cryptoTmp.json`;

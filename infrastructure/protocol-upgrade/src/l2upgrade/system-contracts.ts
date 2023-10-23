@@ -86,7 +86,7 @@ command
     .option('--l1rpc <l1Rpc>')
     .option('--l2rpc <l2Rpc>')
     .option('--environment <environment>')
-    .action(async (cmd) => {
+    .action(async cmd => {
         await publishAllFactoryDeps(cmd.l1rpc, cmd.privateKey, cmd.l2rpc, cmd.gasPrice, cmd.nonce, cmd.environment);
     });
 
@@ -102,7 +102,7 @@ command
     .option('--bootloader')
     .option('--default-aa')
     .option('--system-contracts')
-    .action(async (cmd) => {
+    .action(async cmd => {
         await publishAndMergeFiles(
             cmd.l1rpc,
             cmd.privateKey,

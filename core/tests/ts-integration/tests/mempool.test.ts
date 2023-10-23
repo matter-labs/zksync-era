@@ -32,7 +32,7 @@ describe('Tests for the mempool behavior', () => {
         const startNonce = await alice.getTransactionCount();
 
         const nonceOffsets = [4, 0, 3, 1, 2];
-        const txs = nonceOffsets.map((offset) => sendTxWithNonce(alice, startNonce + offset).then((tx) => tx.wait()));
+        const txs = nonceOffsets.map(offset => sendTxWithNonce(alice, startNonce + offset).then(tx => tx.wait()));
 
         // If any of txs would fail, it would throw.
         // If txs would get stuck, test would be killed because of timeout.
@@ -85,7 +85,7 @@ describe('Tests for the mempool behavior', () => {
         await expect(alice.provider.getTransaction(tx2.hash)).resolves.toBeNull();
 
         // Now fill the gap and see what gets executed
-        await sendTxWithNonce(alice, startNonce).then((tx) => tx.wait());
+        await sendTxWithNonce(alice, startNonce).then(tx => tx.wait());
         const replacedReceipt = await replacedTx2.wait();
 
         expect(replacedReceipt.to).toEqual(bob.address);
@@ -101,8 +101,11 @@ describe('Tests for the mempool behavior', () => {
 
         const gasLimit = await alice.estimateGas({ to: alice.address });
         const gasPrice = await alice.provider.getGasPrice();
-        const fund = gasLimit.mul(gasPrice).mul(13).div(10);
-        await alice.sendTransaction({ to: poorBob.address, value: fund }).then((tx) => tx.wait());
+        const fund = gasLimit
+            .mul(gasPrice)
+            .mul(13)
+            .div(10);
+        await alice.sendTransaction({ to: poorBob.address, value: fund }).then(tx => tx.wait());
 
         const delayedTx = await poorBob.sendTransaction({
             to: poorBob.address,

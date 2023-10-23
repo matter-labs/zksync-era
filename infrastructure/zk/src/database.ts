@@ -72,11 +72,35 @@ export async function checkSqlxData() {
 
 export const command = new Command('db').description('database management');
 
-command.command('drop').description('drop the database').action(drop);
-command.command('migrate').description('run migrations').action(migrate);
-command.command('new-migration <name>').description('generate a new migration').action(generateMigration);
-command.command('setup').description('initialize the database and perform migrations').action(setup);
-command.command('wait').description('wait for database to get ready for interaction').action(wait);
-command.command('reset').description('reinitialize the database').action(reset);
-command.command('reset-test').description('reinitialize the database for test').action(resetTest);
-command.command('check-sqlx-data').description('check sqlx-data.json is up to date').action(checkSqlxData);
+command
+    .command('drop')
+    .description('drop the database')
+    .action(drop);
+command
+    .command('migrate')
+    .description('run migrations')
+    .action(migrate);
+command
+    .command('new-migration <name>')
+    .description('generate a new migration')
+    .action(generateMigration);
+command
+    .command('setup')
+    .description('initialize the database and perform migrations')
+    .action(setup);
+command
+    .command('wait')
+    .description('wait for database to get ready for interaction')
+    .action(wait);
+command
+    .command('reset')
+    .description('reinitialize the database')
+    .action(reset);
+command
+    .command('reset-test')
+    .description('reinitialize the database for test')
+    .action(resetTest);
+command
+    .command('check-sqlx-data')
+    .description('check sqlx-data.json is up to date')
+    .action(checkSqlxData);

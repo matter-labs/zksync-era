@@ -30,7 +30,10 @@ export function getL2TransactionsFileName(environment): string {
 }
 
 export function getNameOfTheLastUpgrade(): string {
-    return fs.readdirSync(DEFAULT_UPGRADE_PATH).sort().reverse()[0];
+    return fs
+        .readdirSync(DEFAULT_UPGRADE_PATH)
+        .sort()
+        .reverse()[0];
 }
 
 export function getCommonDataFileName(): string {

@@ -193,10 +193,10 @@ describe('System behavior checks', () => {
         const amount = 1;
 
         // Fund bob's account.
-        await alice.transfer({ amount, to: bob.address, token: l2Token }).then((tx) => tx.wait());
+        await alice.transfer({ amount, to: bob.address, token: l2Token }).then(tx => tx.wait());
         await alice
             .transfer({ amount: L2_ETH_PER_ACCOUNT.div(8), to: bob.address, token: zksync.utils.ETH_ADDRESS })
-            .then((tx) => tx.wait());
+            .then(tx => tx.wait());
 
         // Prepare matcher modifiers for L1 balance change.
         const aliceChange = await shouldChangeTokenBalances(l1Token, [{ wallet: alice, change: amount }], { l1: true });
@@ -207,10 +207,8 @@ describe('System behavior checks', () => {
         // most likely there exists a very big problem in the system.
         const aliceWithdrawalPromise = alice
             .withdraw({ token: l2Token, amount })
-            .then((response) => response.waitFinalize());
-        const bobWithdrawalPromise = bob
-            .withdraw({ token: l2Token, amount })
-            .then((response) => response.waitFinalize());
+            .then(response => response.waitFinalize());
+        const bobWithdrawalPromise = bob.withdraw({ token: l2Token, amount }).then(response => response.waitFinalize());
 
         const [aliceReceipt, bobReceipt] = await Promise.all([aliceWithdrawalPromise, bobWithdrawalPromise]);
         await expect(alice.finalizeWithdrawal(aliceReceipt.transactionHash)).toBeAccepted([aliceChange]);
@@ -239,10 +237,10 @@ describe('System behavior checks', () => {
         const nonce = await alice.getTransactionCount();
         const withdrawal1 = alice
             .withdraw({ token: l2Token, amount, overrides: { nonce } })
-            .then((response) => response.waitFinalize());
+            .then(response => response.waitFinalize());
         const withdrawal2 = alice
             .withdraw({ token: l2Token, amount, overrides: { nonce: nonce + 1 } })
-            .then((response) => response.waitFinalize());
+            .then(response => response.waitFinalize());
 
         const [receipt1, receipt2] = await Promise.all([withdrawal1, withdrawal2]);
         await expect(alice.finalizeWithdrawal(receipt1.transactionHash)).toBeAccepted([change1]);
@@ -293,7 +291,7 @@ describe('System behavior checks', () => {
         // so will not override the storage
         const eventsBytecode = contracts.events.bytecode;
         await testForcedDeployments(
-            forcedDeployments.map((deployment) => ({ ...deployment, bytecodeHash: hashBytecode(eventsBytecode) })),
+            forcedDeployments.map(deployment => ({ ...deployment, bytecodeHash: hashBytecode(eventsBytecode) })),
             eventsBytecode
         );
         // Checking that the methods of the `events` contract work

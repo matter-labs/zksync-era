@@ -41,7 +41,7 @@ export const command = new Command('fmt')
             }
         } else {
             // Run all the checks concurrently.
-            const promises = EXTENSIONS.map((ext) => prettier(ext, cmd.check));
+            const promises = EXTENSIONS.map(ext => prettier(ext, cmd.check));
             promises.push(rustfmt(cmd.check));
             await Promise.all(promises);
         }

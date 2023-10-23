@@ -38,7 +38,7 @@ export async function server(options: string[] = []) {
         );
         process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID = configs.get('CHAIN_ETH_ZKSYNC_NETWORK_ID');
     }
-    await utils.spawn('yarn ts-integration test ' + options.map((opt) => `'${opt}'`).join(' '));
+    await utils.spawn('yarn ts-integration test ' + options.map(opt => `'${opt}'`).join(' '));
 }
 
 export async function fees() {
@@ -84,7 +84,7 @@ export async function testkit(args: string[], timeout: number) {
     // the only solution is to use beforeExit hook
     // but be careful! this is not called upon explicit termination
     // e.g. on SIGINT or process.exit()
-    process.on('beforeExit', async (code) => {
+    process.on('beforeExit', async code => {
         if (process.env.ZKSYNC_ENV == 'dev' && process.env.CI != '1') {
             try {
                 // probably should be replaced with child_process.execSync in future

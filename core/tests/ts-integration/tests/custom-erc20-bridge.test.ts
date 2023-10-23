@@ -99,7 +99,7 @@ export function spawn(command: string) {
     const child = _spawn(command, { stdio: 'inherit', shell: true });
     return new Promise((resolve, reject) => {
         child.on('error', reject);
-        child.on('close', (code) => {
+        child.on('close', code => {
             code == 0 ? resolve(code) : reject(`Child process exited with code ${code}`);
         });
     });

@@ -129,7 +129,7 @@ describe('ERC20 contract checks', () => {
         // Fund bob's account to perform a transaction from it.
         await alice
             .transfer({ to: bob.address, amount: L2_ETH_PER_ACCOUNT.div(8), token: zksync.utils.ETH_ADDRESS })
-            .then((tx) => tx.wait());
+            .then(tx => tx.wait());
 
         await expect(aliceErc20.allowance(alice.address, bob.address)).resolves.bnToBeEq(0);
         await expect(aliceErc20.approve(bob.address, approveAmount)).toBeAccepted();

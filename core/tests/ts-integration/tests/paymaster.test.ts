@@ -49,7 +49,7 @@ describe('Paymaster tests', () => {
     test('Should deploy a paymaster', async () => {
         paymaster = await deployContract(alice, contracts.customPaymaster, []);
         // Supplying paymaster with ETH it would need to cover the fees for the user
-        await alice.transfer({ to: paymaster.address, amount: L2_ETH_PER_ACCOUNT.div(4) }).then((tx) => tx.wait());
+        await alice.transfer({ to: paymaster.address, amount: L2_ETH_PER_ACCOUNT.div(4) }).then(tx => tx.wait());
     });
 
     test('Should pay fee with paymaster', async () => {
@@ -83,7 +83,7 @@ describe('Paymaster tests', () => {
         );
         await expect(txPromise).toBeAccepted([
             checkReceipt(
-                (receipt) => paidFeeWithPaymaster(receipt, CUSTOM_PAYMASTER_RATE_NUMERATOR, paymaster.address),
+                receipt => paidFeeWithPaymaster(receipt, CUSTOM_PAYMASTER_RATE_NUMERATOR, paymaster.address),
                 'Fee was not paid (or paid incorrectly)'
             )
         ]);
@@ -124,7 +124,7 @@ describe('Paymaster tests', () => {
         );
         await expect(txPromise).toBeAccepted([
             checkReceipt(
-                (receipt) => paidFeeWithPaymaster(receipt, CUSTOM_PAYMASTER_RATE_NUMERATOR, paymaster.address),
+                receipt => paidFeeWithPaymaster(receipt, CUSTOM_PAYMASTER_RATE_NUMERATOR, paymaster.address),
                 'Fee was not paid (or paid incorrectly)'
             )
         ]);
@@ -144,7 +144,7 @@ describe('Paymaster tests', () => {
         expect(testnetPaymaster).toBeTruthy();
 
         // Supplying paymaster with ETH it would need to cover the fees for the user
-        await alice.transfer({ to: testnetPaymaster, amount: L2_ETH_PER_ACCOUNT.div(4) }).then((tx) => tx.wait());
+        await alice.transfer({ to: testnetPaymaster, amount: L2_ETH_PER_ACCOUNT.div(4) }).then(tx => tx.wait());
 
         const tx = await erc20.populateTransaction.transfer(alice.address, AMOUNT);
         const gasPrice = await alice.provider.getGasPrice();
@@ -190,7 +190,7 @@ describe('Paymaster tests', () => {
 
         await expect(txPromise).toBeAccepted([
             checkReceipt(
-                (receipt) => paidFeeWithPaymaster(receipt, TESTNET_PAYMASTER_RATE_NUMERATOR, testnetPaymaster),
+                receipt => paidFeeWithPaymaster(receipt, TESTNET_PAYMASTER_RATE_NUMERATOR, testnetPaymaster),
                 'Fee was not paid (or paid incorrectly)'
             )
         ]);
@@ -228,7 +228,7 @@ describe('Paymaster tests', () => {
         ).toBeRejected('Paymaster validation error');
     });
 
-    it('Should deploy nonce-check paymaster and not fail validation', async function () {
+    it('Should deploy nonce-check paymaster and not fail validation', async function() {
         const deployer = new Deployer(hre, alice);
         const paymaster = await deployPaymaster(deployer);
         const token = testMaster.environment().erc20Token;
@@ -335,7 +335,7 @@ function paidFeeWithPaymaster(
     const paddedPaymaster = ethers.utils.hexZeroPad(ethers.utils.arrayify(paymaster), 32);
     // ERC20 fee log is one that sends money to the paymaster.
     const erc20TransferTopic = ethers.utils.id('Transfer(address,address,uint256)');
-    const erc20FeeLog = receipt.logs.find((log) => {
+    const erc20FeeLog = receipt.logs.find(log => {
         return (
             log.topics.length == 3 &&
             log.topics[0] == erc20TransferTopic &&
@@ -362,7 +362,11 @@ function getTestPaymasterFeeInToken(feeInEth: ethers.BigNumber, numerator: ether
     // tokenAmount = ceil(feeInEth * exchangeRateDenominator / exchangeRateNumerator)
     // for easier ceiling we do the following:
     // tokenAmount = (ethNeeded * exchangeRateDenominator + exchangeRateNumerator - 1) / exchangeRateNumerator
-    return feeInEth.mul(PAYMASTER_RATE_DENOMINATOR).add(numerator).sub(1).div(numerator);
+    return feeInEth
+        .mul(PAYMASTER_RATE_DENOMINATOR)
+        .add(numerator)
+        .sub(1)
+        .div(numerator);
 }
 
 function getTestPaymasterInnerInput(signature: ethers.BytesLike, tokenAmount: ethers.BigNumber) {

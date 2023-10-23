@@ -41,9 +41,18 @@ export async function rust(options: string[]) {
 
 export const command = new Command('test').description('run test suites').addCommand(integration.command);
 
-command.command('js').description('run unit-tests for javascript packages').action(js);
-command.command('prover').description('run unit-tests for the prover').action(prover);
-command.command('l1-contracts').description('run unit-tests for the layer 1 smart contracts').action(l1Contracts);
+command
+    .command('js')
+    .description('run unit-tests for javascript packages')
+    .action(js);
+command
+    .command('prover')
+    .description('run unit-tests for the prover')
+    .action(prover);
+command
+    .command('l1-contracts')
+    .description('run unit-tests for the layer 1 smart contracts')
+    .action(l1Contracts);
 command
     .command('rust [command...]')
     .allowUnknownOption()

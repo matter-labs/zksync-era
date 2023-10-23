@@ -159,11 +159,24 @@ command
     .allowUnknownOption(true)
     .description('redeploy contracts')
     .action(redeployL1);
-command.command('deploy [deploy-opts...]').allowUnknownOption(true).description('deploy contracts').action(deployL1);
-command.command('build').description('build contracts').action(build);
-command.command('initialize-validator').description('initialize validator').action(initializeValidator);
+command
+    .command('deploy [deploy-opts...]')
+    .allowUnknownOption(true)
+    .description('deploy contracts')
+    .action(deployL1);
+command
+    .command('build')
+    .description('build contracts')
+    .action(build);
+command
+    .command('initialize-validator')
+    .description('initialize validator')
+    .action(initializeValidator);
 command
     .command('initialize-l1-allow-list-contract')
     .description('initialize L1 allow list contract')
     .action(initializeL1AllowList);
-command.command('verify').description('verify L1 contracts').action(verifyL1Contracts);
+command
+    .command('verify')
+    .description('verify L1 contracts')
+    .action(verifyL1Contracts);

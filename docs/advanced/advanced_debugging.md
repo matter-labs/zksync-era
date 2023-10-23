@@ -130,31 +130,6 @@ Afterwards, you can look at one of the tests (for example
 [tests/solidity/simple/default.sol](https://github.com/matter-labs/era-compiler-tests/blob/main/solidity/simple/default.sol)).
 
 ```solidity
-//! { "cases": [ {
-//!     "name": "first",
-//!     "inputs": [
-//!         {
-//!             "method": "first",
-//!             "calldata": [
-//!             ]
-//!         }
-//!     ],
-//!     "expected": [
-//!         "42"
-//!     ]
-//! }, ] }
-
-// SPDX-License-Identifier: MIT
-
-pragma solidity >=0.4.16;
-
-contract Test {
-  function first() public pure returns (uint64) {
-    uint64 result = 42;
-    return result;
-  }
-}
-
 ```
 
 As you can see - it is self-contained - it has the solidity code at the bottom, and the top comments are used to define

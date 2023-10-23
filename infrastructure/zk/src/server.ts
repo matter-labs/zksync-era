@@ -51,14 +51,15 @@ export async function externalNode(reinit: boolean = false) {
 async function create_genesis(cmd: string) {
     await utils.confirmAction();
     await utils.spawn(`${cmd} | tee genesis.log`);
-    const genesisContents = fs.readFileSync('genesis.log').toString().split('\n');
-    const genesisBlockCommitment = genesisContents.find((line) => line.includes('CONTRACTS_GENESIS_BLOCK_COMMITMENT='));
-    const genesisBootloaderHash = genesisContents.find((line) => line.includes('CHAIN_STATE_KEEPER_BOOTLOADER_HASH='));
-    const genesisDefaultAAHash = genesisContents.find((line) => line.includes('CHAIN_STATE_KEEPER_DEFAULT_AA_HASH='));
-    const genesisRoot = genesisContents.find((line) => line.includes('CONTRACTS_GENESIS_ROOT='));
-    const genesisRollupLeafIndex = genesisContents.find((line) =>
-        line.includes('CONTRACTS_GENESIS_ROLLUP_LEAF_INDEX=')
-    );
+    const genesisContents = fs
+        .readFileSync('genesis.log')
+        .toString()
+        .split('\n');
+    const genesisBlockCommitment = genesisContents.find(line => line.includes('CONTRACTS_GENESIS_BLOCK_COMMITMENT='));
+    const genesisBootloaderHash = genesisContents.find(line => line.includes('CHAIN_STATE_KEEPER_BOOTLOADER_HASH='));
+    const genesisDefaultAAHash = genesisContents.find(line => line.includes('CHAIN_STATE_KEEPER_DEFAULT_AA_HASH='));
+    const genesisRoot = genesisContents.find(line => line.includes('CONTRACTS_GENESIS_ROOT='));
+    const genesisRollupLeafIndex = genesisContents.find(line => line.includes('CONTRACTS_GENESIS_ROLLUP_LEAF_INDEX='));
     if (genesisRoot == null || !/^CONTRACTS_GENESIS_ROOT=0x[a-fA-F0-9]{64}$/.test(genesisRoot)) {
         throw Error(`Genesis is not needed (either Postgres DB or tree's Rocks DB is not empty)`);
     }

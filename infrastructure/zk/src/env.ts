@@ -7,7 +7,7 @@ import * as config from './config';
 export const getAvailableEnvsFromFiles = () => {
     const envs = new Set();
 
-    fs.readdirSync(`etc/env`).forEach((file) => {
+    fs.readdirSync(`etc/env`).forEach(file => {
         if (!file.startsWith('.') && (file.endsWith('.env') || file.endsWith('.toml'))) {
             envs.add(file.replace(/\..*$/, ''));
         }
@@ -16,7 +16,12 @@ export const getAvailableEnvsFromFiles = () => {
 };
 export function get(print: boolean = false) {
     const current = `etc/env/.current`;
-    const inCurrent = fs.existsSync(current) && fs.readFileSync(current).toString().trim();
+    const inCurrent =
+        fs.existsSync(current) &&
+        fs
+            .readFileSync(current)
+            .toString()
+            .trim();
 
     const currentEnv = (process.env.ZKSYNC_ENV =
         process.env.ZKSYNC_ENV || inCurrent || (process.env.IN_DOCKER ? 'docker' : 'dev'));
@@ -24,7 +29,7 @@ export function get(print: boolean = false) {
     const envs = getAvailableEnvsFromFiles();
 
     if (print) {
-        [...envs].sort().forEach((env) => {
+        [...envs].sort().forEach(env => {
             if (env === currentEnv) {
                 console.log(`* ${env}`);
             } else {

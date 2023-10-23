@@ -16,7 +16,7 @@ const EXCLUDED_FILES = ['self-unit.test.ts'];
 export function lookupPrerequisites(): string[] {
     const files = loadFilesRecursively(`${__dirname}/../tests/`);
 
-    return files.filter((file) => !EXCLUDED_FILES.includes(file) && file.endsWith(TEST_SUITE_MARKER));
+    return files.filter(file => !EXCLUDED_FILES.includes(file) && file.endsWith(TEST_SUITE_MARKER));
 }
 
 /**
@@ -30,7 +30,7 @@ export function lookupPrerequisites(): string[] {
 function loadFilesRecursively(base: string, dirPath: string = '', arrayOfFiles: string[] = []): string[] {
     const files = fs.readdirSync(base + dirPath);
 
-    files.forEach((file) => {
+    files.forEach(file => {
         if (fs.statSync(base + dirPath + '/' + file).isDirectory()) {
             arrayOfFiles = loadFilesRecursively(base, dirPath + '/' + file, arrayOfFiles);
         } else {

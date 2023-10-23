@@ -64,6 +64,8 @@ export class Tester {
     }
 
     emptyWallet() {
-        return zkweb3.Wallet.createRandom().connect(this.web3Provider).connectToL1(this.ethProvider);
+        return zkweb3.Wallet.createRandom()
+            .connect(this.web3Provider)
+            .connectToL1(this.ethProvider);
     }
 }

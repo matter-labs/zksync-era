@@ -60,8 +60,8 @@ describe('ETH token checks', () => {
         await expect(depositOp).toBeAccepted([l2ethBalanceChange]);
 
         const depositFee = await depositOp
-            .then((op) => op.waitL1Commit())
-            .then(async (receipt) => {
+            .then(op => op.waitL1Commit())
+            .then(async receipt => {
                 const l1GasFee = receipt.gasUsed.mul(receipt.effectiveGasPrice);
                 return l1GasFee.add(expectedL2Costs);
             });
@@ -78,7 +78,7 @@ describe('ETH token checks', () => {
             { wallet: bob, change: value }
         ]);
         const correctReceiptType = checkReceipt(
-            (receipt) => receipt.type == LEGACY_TX_TYPE,
+            receipt => receipt.type == LEGACY_TX_TYPE,
             'Incorrect tx type in receipt'
         );
 
@@ -102,7 +102,7 @@ describe('ETH token checks', () => {
             { wallet: bob, change: value }
         ]);
         const correctReceiptType = checkReceipt(
-            (receipt) => receipt.type == LEGACY_TX_TYPE,
+            receipt => receipt.type == LEGACY_TX_TYPE,
             'Incorrect tx type in receipt'
         );
 
@@ -120,13 +120,13 @@ describe('ETH token checks', () => {
             { wallet: bob, change: value }
         ]);
         const correctReceiptType = checkReceipt(
-            (receipt) => receipt.type == zksync.utils.EIP712_TX_TYPE,
+            receipt => receipt.type == zksync.utils.EIP712_TX_TYPE,
             'Incorrect tx type in receipt'
         );
 
-        await expect(alice.sendTransaction({ type: zksync.utils.EIP712_TX_TYPE, to: bob.address, value })).toBeAccepted(
-            [ethBalanceChange, correctReceiptType]
-        );
+        await expect(
+            alice.sendTransaction({ type: zksync.utils.EIP712_TX_TYPE, to: bob.address, value })
+        ).toBeAccepted([ethBalanceChange, correctReceiptType]);
     });
 
     test('Can perform a transfer (EIP1559)', async () => {
@@ -138,7 +138,7 @@ describe('ETH token checks', () => {
             { wallet: bob, change: value }
         ]);
         const correctReceiptType = checkReceipt(
-            (receipt) => receipt.type == EIP1559_TX_TYPE,
+            receipt => receipt.type == EIP1559_TX_TYPE,
             'Incorrect tx type in receipt'
         );
 

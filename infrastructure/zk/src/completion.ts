@@ -16,7 +16,7 @@ function commandInfo(cmd: Command): CommandInfo {
         command: cmd._name,
         description: cmd._description,
         options: cmd.options.map((option: Option) => option.long || option.short),
-        subcommands: cmd.commands.map((subcmd) => commandInfo(subcmd as Command))
+        subcommands: cmd.commands.map(subcmd => commandInfo(subcmd as Command))
     };
 }
 
@@ -26,7 +26,7 @@ function completer(env: any, info: CommandInfo) {
     if (!env.complete) return;
     if (env.prev == info.command) {
         tabtab.log(
-            info.subcommands.map((subcmd) => {
+            info.subcommands.map(subcmd => {
                 return {
                     name: subcmd.command,
                     description: subcmd.description
@@ -36,7 +36,7 @@ function completer(env: any, info: CommandInfo) {
         tabtab.log(info.options);
         return;
     }
-    info.subcommands.map((subcmd) => completer(env, subcmd));
+    info.subcommands.map(subcmd => completer(env, subcmd));
 }
 
 // the command `completion` without subcommands

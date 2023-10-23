@@ -8,7 +8,10 @@ import {
 
 async function createCustomUpgrade(defaultUpgradePath: string) {
     const name = getNameOfTheLastUpgrade();
-    const nameWithoutTimestamp = name.split('-').slice(1).join('_');
+    const nameWithoutTimestamp = name
+        .split('-')
+        .slice(1)
+        .join('_');
     const upgradePath = `${defaultUpgradePath}/${name}`;
     const upgradeFile = `${upgradePath}/Upgrade.sol`;
     fs.mkdirSync(upgradePath, { recursive: true });
@@ -25,7 +28,7 @@ command
     .option('--l2')
     .option('--l1')
     .description('Create custom contract upgrade')
-    .action(async (options) => {
+    .action(async options => {
         if (options.l2) {
             await createCustomUpgrade(DEFAULT_L2CONTRACTS_FOR_UPGRADE_PATH);
         } else if (options.l1) {

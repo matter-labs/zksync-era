@@ -468,7 +468,7 @@ async function checkReadinessToDeploy() {
         checkPromises.push(checkBalance(governor, ethers.utils.parseEther('0.1')));
         checkPromises.push(checkBalance(ethOperator, ethers.utils.parseEther('0.5')));
         const results = await Promise.all(checkPromises);
-        return results.every((result) => result);
+        return results.every(result => result);
     }
 
     while (true) {

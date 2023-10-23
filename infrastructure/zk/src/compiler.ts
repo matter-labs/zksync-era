@@ -27,6 +27,15 @@ export async function compileAll() {
 
 export const command = new Command('compiler').description('compile contract');
 
-command.command('all').description('').action(compileAll);
-command.command('system-contracts').description('').action(compileSystemContracts);
-command.command('test-contracts').description('').action(compileTestContracts);
+command
+    .command('all')
+    .description('')
+    .action(compileAll);
+command
+    .command('system-contracts')
+    .description('')
+    .action(compileSystemContracts);
+command
+    .command('test-contracts')
+    .description('')
+    .action(compileTestContracts);

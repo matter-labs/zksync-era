@@ -41,7 +41,7 @@ export async function deployERC20(
                 { "name": "MLTTL", "symbol": "MLTTW", "decimals": 18 },
                 { "name": "Wrapped Ether", "symbol": "WETH", "decimals": 18, "implementation": "WETH9"}
             ]' ${args.join(' ')} > ./etc/tokens/${destinationFile}.json`);
-        const WETH = getTokens(destinationFile).find((token) => token.symbol === 'WETH')!;
+        const WETH = getTokens(destinationFile).find(token => token.symbol === 'WETH')!;
         env.modify('CONTRACTS_L1_WETH_TOKEN_ADDR', `CONTRACTS_L1_WETH_TOKEN_ADDR=${WETH.address}`);
     } else if (command == 'new') {
         await utils.spawn(
@@ -138,9 +138,18 @@ export async function cross_en_checker() {
 
 export const command = new Command('run').description('run miscellaneous applications').addCommand(dataRestore.command);
 
-command.command('test-accounts').description('print ethereum test accounts').action(testAccounts);
-command.command('yarn').description('install all JS dependencies').action(yarn);
-command.command('cat-logs [exit_code]').description('print server and prover logs').action(catLogs);
+command
+    .command('test-accounts')
+    .description('print ethereum test accounts')
+    .action(testAccounts);
+command
+    .command('yarn')
+    .description('install all JS dependencies')
+    .action(yarn);
+command
+    .command('cat-logs [exit_code]')
+    .description('print server and prover logs')
+    .action(catLogs);
 
 command
     .command('deploy-erc20 <dev|new> [name] [symbol] [decimals]')
@@ -165,8 +174,8 @@ command
     .action(async (powers?: string) => {
         const powersArray = powers
             ?.split(' ')
-            .map((x) => parseInt(x))
-            .filter((x) => !Number.isNaN(x));
+            .map(x => parseInt(x))
+            .filter(x => !Number.isNaN(x));
         await plonkSetup(powersArray);
     });
 

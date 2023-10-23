@@ -174,7 +174,7 @@ command
     .option('--create2-address <create2Address>')
     .option('--zksync-address <zksyncAddress>')
     .option('--environment <environment>')
-    .action(async (cmd) => {
+    .action(async cmd => {
         await deployAllFacetsAndGenerateFacetCuts(
             cmd.l1rpc,
             cmd.privateKey,
@@ -200,7 +200,7 @@ command
     .option('--diamond-cut')
     .option('--getters')
     .option('--mailbox')
-    .action(async (cmd) => {
+    .action(async cmd => {
         await deployFacetsAndMergeFiles(
             cmd.l1Rpc,
             cmd.privateKey,
@@ -222,7 +222,7 @@ command
     .option('--l1rpc <l1Rpc>')
     .option('--zksync-address <zksyncAddress>')
     .option('--environment <environment>')
-    .action(async (cmd) => {
+    .action(async cmd => {
         try {
             await generateFacetCuts(cmd.l1rpc, cmd.zksyncAddress, cmd.environment);
         } catch (e) {

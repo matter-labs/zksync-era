@@ -96,7 +96,7 @@ describe('Tests for the WETH bridge/token behavior', () => {
         // Fund bob's account to perform a transaction from it.
         await alice
             .transfer({ to: bob.address, amount: L2_ETH_PER_ACCOUNT.div(8), token: zksync.utils.ETH_ADDRESS })
-            .then((tx) => tx.wait());
+            .then(tx => tx.wait());
 
         const bobTokenBalanceChange = await shouldChangeTokenBalances(aliceL2Weth.address, [
             { wallet: alice, change: -approveAmount },

@@ -66,7 +66,7 @@ export function calldataBytes(calldata: CallData): Uint8Array {
         buffer[CONSTRUCTOR_DATA_OFFSET] |= 0b00000001;
 
         let calldataOffset = OFFSET_DATA * FIELD_SIZE;
-        calldata.input.forEach((value) => {
+        calldata.input.forEach(value => {
             toLeBytes(value).forEach((byte, index) => {
                 buffer[index + calldataOffset] = byte;
             });

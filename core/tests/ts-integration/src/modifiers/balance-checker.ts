@@ -203,7 +203,7 @@ export function extractFee(receipt: zksync.types.TransactionReceipt, from?: stri
     // We need to pad address to represent 256-bit value.
     const fromAccountAddress = ethers.utils.hexZeroPad(ethers.utils.arrayify(from), 32);
     // Fee log is one that sends money to the system contract account.
-    const feeLog = receipt.logs.find((log) => {
+    const feeLog = receipt.logs.find(log => {
         return log.topics.length == 3 && log.topics[1] == fromAccountAddress && log.topics[2] == systemAccountAddress;
     });
     if (!feeLog) {
@@ -217,12 +217,12 @@ export function extractFee(receipt: zksync.types.TransactionReceipt, from?: stri
 
     // There may be more than one refund log for the user
     const feeRefund = receipt.logs
-        .filter((log) => {
+        .filter(log => {
             return (
                 log.topics.length == 3 && log.topics[1] == systemAccountAddress && log.topics[2] == fromAccountAddress
             );
         })
-        .map((log) => ethers.BigNumber.from(log.data))
+        .map(log => ethers.BigNumber.from(log.data))
         .reduce((prev, cur) => {
             return prev.add(cur);
         }, ethers.BigNumber.from(0));
@@ -246,7 +246,7 @@ function extractRefundForL1ToL2(receipt: zksync.types.TransactionReceipt, refund
 
     const mintTopic = ethers.utils.keccak256(ethers.utils.toUtf8Bytes('Mint(address,uint256)'));
 
-    const refundLogs = receipt.logs.filter((log) => {
+    const refundLogs = receipt.logs.filter(log => {
         return log.topics.length == 2 && log.topics[0] == mintTopic;
     });
 

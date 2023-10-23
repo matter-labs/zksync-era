@@ -44,9 +44,18 @@ export async function checkExisting() {
 
 export const command = new Command('data-restore');
 
-command.command('restart').description('wipe the database and run data restore in finite mode').action(restart);
-command.command('resume').description('run data restore in "resume" mode').action(resume);
-command.command('run').description('do not wipe the database and run data restore in finite mode').action(run);
+command
+    .command('restart')
+    .description('wipe the database and run data restore in finite mode')
+    .action(restart);
+command
+    .command('resume')
+    .description('run data restore in "resume" mode')
+    .action(resume);
+command
+    .command('run')
+    .description('do not wipe the database and run data restore in finite mode')
+    .action(run);
 
 command
     .command('check <hash>')

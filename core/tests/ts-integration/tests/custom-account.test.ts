@@ -54,14 +54,14 @@ describe('Tests for the custom account behavior', () => {
     });
 
     test('Should fund the custom account', async () => {
-        await alice.transfer({ to: customAccount.address, amount: ETH_PER_CUSTOM_ACCOUNT }).then((tx) => tx.wait());
+        await alice.transfer({ to: customAccount.address, amount: ETH_PER_CUSTOM_ACCOUNT }).then(tx => tx.wait());
         await alice
             .transfer({
                 to: customAccount.address,
                 token: erc20Address,
                 amount: ERC20_PER_ACCOUNT.div(4)
             })
-            .then((tx) => tx.wait());
+            .then(tx => tx.wait());
     });
 
     test('Should execute contract by custom account', async () => {
@@ -108,14 +108,14 @@ describe('Tests for the custom account behavior', () => {
                 to: badCustomAccount.address,
                 amount: ETH_PER_CUSTOM_ACCOUNT
             })
-            .then((tx) => tx.wait());
+            .then(tx => tx.wait());
         await alice
             .transfer({
                 to: badCustomAccount.address,
                 token: erc20Address,
                 amount: TRANSFER_AMOUNT
             })
-            .then((tx) => tx.wait());
+            .then(tx => tx.wait());
 
         let tx = await erc20.populateTransaction.transfer(alice.address, TRANSFER_AMOUNT);
         await expect(sendCustomAccountTransaction(tx, alice.provider, badCustomAccount.address)).toBeRejected(
@@ -130,14 +130,14 @@ describe('Tests for the custom account behavior', () => {
         const nonAccount = await deployContract(alice, contracts.customAccount, [violateRules], 'create');
 
         // Fund the account.
-        await alice.transfer({ to: nonAccount.address, amount: ETH_PER_CUSTOM_ACCOUNT }).then((tx) => tx.wait());
+        await alice.transfer({ to: nonAccount.address, amount: ETH_PER_CUSTOM_ACCOUNT }).then(tx => tx.wait());
         await alice
             .transfer({
                 to: nonAccount.address,
                 token: erc20Address,
                 amount: TRANSFER_AMOUNT
             })
-            .then((tx) => tx.wait());
+            .then(tx => tx.wait());
 
         let tx = await erc20.populateTransaction.transfer(alice.address, TRANSFER_AMOUNT);
         await expect(sendCustomAccountTransaction(tx, alice.provider, nonAccount.address)).toBeRejected(
@@ -172,14 +172,14 @@ describe('Tests for the custom account behavior', () => {
                 to: badCustomAccount.address,
                 amount: ETH_PER_CUSTOM_ACCOUNT
             })
-            .then((tx) => tx.wait());
+            .then(tx => tx.wait());
         await alice
             .transfer({
                 to: badCustomAccount.address,
                 token: erc20Address,
                 amount: TRANSFER_AMOUNT
             })
-            .then((tx) => tx.wait());
+            .then(tx => tx.wait());
 
         // Set flag to do many calculations during validation.
         const validationGasLimit = +process.env.CHAIN_STATE_KEEPER_VALIDATION_COMPUTATIONAL_GAS_LIMIT!;
@@ -207,14 +207,14 @@ describe('Tests for the custom account behavior', () => {
                 to: badCustomAccount.address,
                 amount: ETH_PER_CUSTOM_ACCOUNT
             })
-            .then((tx) => tx.wait());
+            .then(tx => tx.wait());
         await alice
             .transfer({
                 to: badCustomAccount.address,
                 token: erc20Address,
                 amount: TRANSFER_AMOUNT
             })
-            .then((tx) => tx.wait());
+            .then(tx => tx.wait());
 
         const transfer = await erc20.populateTransaction.transfer(alice.address, TRANSFER_AMOUNT);
         const nonce = await alice.provider.getTransactionCount(badCustomAccount.address);

@@ -70,9 +70,6 @@ We can use the ABI decoder tool <https://calldata-decoder.apoorv.xyz/> to see wh
 So the last question is -- what is the 'magic' contract address: `0x800a` ?
 
 ```solidity
-/// @dev The address of the eth token system contract
-address constant L2_ETH_TOKEN_SYSTEM_CONTRACT_ADDR = address(0x800a);
-
 ```
 
 ### System contracts (on L2)

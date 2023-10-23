@@ -69,7 +69,9 @@ export class Tester {
         l1Token: zkweb3.types.Address,
         tokenAmount: ethers.BigNumberish
     ) {
-        const newWallet = zkweb3.Wallet.createRandom().connect(this.web3Provider).connectToL1(this.ethProvider);
+        const newWallet = zkweb3.Wallet.createRandom()
+            .connect(this.web3Provider)
+            .connectToL1(this.ethProvider);
 
         let ethBalance = await this.syncWallet.getBalanceL1();
         expect(ethBalance.gt(ethAmount), 'Insufficient eth balance to create funded wallet').to.be.true;
@@ -98,6 +100,8 @@ export class Tester {
     }
 
     emptyWallet() {
-        return zkweb3.Wallet.createRandom().connect(this.web3Provider).connectToL1(this.ethProvider);
+        return zkweb3.Wallet.createRandom()
+            .connect(this.web3Provider)
+            .connectToL1(this.ethProvider);
     }
 }

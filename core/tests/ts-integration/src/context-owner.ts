@@ -99,7 +99,7 @@ export class TestContextOwner {
             await this.cancelPendingTxs();
             this.wallets = await this.prepareWallets();
             this.reporter.finishAction();
-        } catch (error: any) {
+        } catch (error) {
             // Report the issue to the console and mark the last action as failed.
             this.reporter.error(`An error occurred: ${error.message || error}`);
             this.reporter.failAction();
@@ -136,7 +136,7 @@ export class TestContextOwner {
             cancellationTxs.push(
                 ethWallet
                     .sendTransaction({ to: ethWallet.address, nonce, maxFeePerGas, maxPriorityFeePerGas })
-                    .then((tx) => tx.wait())
+                    .then(tx => tx.wait())
             );
         }
         if (cancellationTxs.length > 0) {
@@ -187,7 +187,9 @@ export class TestContextOwner {
             ? requiredL2ETHAmount.sub(actualL2ETHAmount)
             : ethers.BigNumber.from(0);
 
-        const requiredL1ETHAmount = this.requiredL1ETHPerAccount().mul(accountsAmount).add(l2ETHAmountToDeposit);
+        const requiredL1ETHAmount = this.requiredL1ETHPerAccount()
+            .mul(accountsAmount)
+            .add(l2ETHAmountToDeposit);
         const actualL1ETHAmount = await this.mainSyncWallet.getBalanceL1();
         this.reporter.message(`Operator balance on L1 is ${ethers.utils.formatEther(actualL1ETHAmount)} ETH`);
 
@@ -250,7 +252,7 @@ export class TestContextOwner {
                         gasPrice
                     }
                 })
-                .then((tx) => {
+                .then(tx => {
                     const amount = ethers.utils.formatEther(l2ETHAmountToDeposit);
                     this.reporter.debug(`Sent ETH deposit. Nonce ${tx.nonce}, amount: ${amount}, hash: ${tx.hash}`);
                     tx.wait();
@@ -292,7 +294,7 @@ export class TestContextOwner {
                     gasPrice
                 }
             })
-            .then((tx) => {
+            .then(tx => {
                 // Note: there is an `approve` tx, not listed here.
                 this.reporter.debug(`Sent ERC20 deposit transaction. Hash: ${tx.hash}, nonce: ${tx.nonce}`);
                 return tx.wait();
@@ -380,7 +382,7 @@ export class TestContextOwner {
             await this.collectFunds();
 
             this.reporter.finishAction();
-        } catch (error: any) {
+        } catch (error) {
             // Report the issue to the console and mark the last action as failed.
             this.reporter.error(`An error occurred: ${error.message || error}`);
             this.reporter.failAction();
@@ -396,9 +398,9 @@ export class TestContextOwner {
     private async collectFunds() {
         this.reporter.startAction(`Collecting funds back to the main account`);
 
-        const l1Wallets = Object.values(this.wallets!).map((pk) => new ethers.Wallet(pk, this.l1Provider));
+        const l1Wallets = Object.values(this.wallets!).map(pk => new ethers.Wallet(pk, this.l1Provider));
         const l2Wallets = Object.values(this.wallets!).map(
-            (pk) => new zksync.Wallet(pk, this.l2Provider, this.l1Provider)
+            pk => new zksync.Wallet(pk, this.l2Provider, this.l1Provider)
         );
         const wallets = l1Wallets.concat(l2Wallets);
 
@@ -451,7 +453,7 @@ export async function sendTransfers(
             };
 
             reporter?.debug(`Inititated ETH transfer with nonce: ${tx.nonce}`);
-            return wallet.sendTransaction(tx).then((tx) => {
+            return wallet.sendTransaction(tx).then(tx => {
                 reporter?.debug(`Sent ETH transfer tx: ${tx.hash}, nonce: ${tx.nonce}`);
                 return tx.wait();
             });
@@ -463,7 +465,7 @@ export async function sendTransfers(
             });
             reporter?.debug(`Inititated ERC20 transfer with nonce: ${txNonce}`);
             // @ts-ignore
-            return tx.then((tx) => {
+            return tx.then(tx => {
                 reporter?.debug(`Sent ERC20 transfer tx: ${tx.hash}, nonce: ${tx.nonce}`);
                 return tx.wait();
             });
@@ -526,11 +528,11 @@ export async function claimEtherBack(
                 gasLimit,
                 gasPrice
             })
-            .then((tx) => {
+            .then(tx => {
                 reporter?.debug(`Sent tx: ${tx.hash}`);
                 return tx.wait();
             })
-            .catch((reason) => {
+            .catch(reason => {
                 // We don't care about failed transactions.
                 reporter?.debug(`One of the transactions failed. Info: ${reason}`);
             });

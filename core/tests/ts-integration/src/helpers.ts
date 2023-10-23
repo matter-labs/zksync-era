@@ -58,7 +58,7 @@ export async function deployContract(
  * @returns Transaction receipt.
  */
 export async function anyTransaction(wallet: zksync.Wallet): Promise<ethers.providers.TransactionReceipt> {
-    return await wallet.transfer({ to: wallet.address, amount: 0 }).then((tx) => tx.wait());
+    return await wallet.transfer({ to: wallet.address, amount: 0 }).then(tx => tx.wait());
 }
 
 /**

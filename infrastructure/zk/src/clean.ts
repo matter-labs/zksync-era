@@ -17,7 +17,7 @@ export const command = new Command('clean')
     .option('--artifacts')
     .option('--all')
     .description('removes generated files')
-    .action(async (cmd) => {
+    .action(async cmd => {
         if (!cmd.contracts && !cmd.config && !cmd.database && !cmd.backups && !cmd.artifacts) {
             cmd.all = true; // default is all
         }

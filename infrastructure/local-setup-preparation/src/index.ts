@@ -7,7 +7,7 @@ const AMOUNT_TO_DEPOSIT = ethers.utils.parseEther('1000000000000');
 
 async function depositWithRichAccounts() {
     const ethProvider = getEthersProvider();
-    const wallets = getWalletKeys().map((wk) => new ethers.Wallet(wk.privateKey, ethProvider));
+    const wallets = getWalletKeys().map(wk => new ethers.Wallet(wk.privateKey, ethProvider));
 
     const handles: Promise<any>[] = [];
 
@@ -55,7 +55,7 @@ async function depositWithRichAccounts() {
         );
     }
 
-    const depositHandles = (await Promise.all(handles)).map((h) => h.wait());
+    const depositHandles = (await Promise.all(handles)).map(h => h.wait());
     await Promise.all(depositHandles);
 }
 
@@ -67,6 +67,6 @@ main()
     .then(() => {
         console.log('Successfully deposited funds for the rich accounts!');
     })
-    .catch((e) => {
+    .catch(e => {
         console.log(`Execution failed with error ${e}`);
     });

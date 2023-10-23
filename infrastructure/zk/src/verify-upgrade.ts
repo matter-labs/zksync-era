@@ -151,7 +151,7 @@ function loadChainState(chainStateDir: string, previousChainState: ChainState | 
             });
         });
     }
-    sysContracts.forEach((element) => {
+    sysContracts.forEach(element => {
         if (SYSTEM_CONTRACT_MAP.get(element.name) == null) {
             throw new Error(`Invalid system contract name ${element.name}`);
         }
@@ -187,7 +187,7 @@ function loadChainStateHistoryFromDisk(): ChainStateHistory {
     let prevTestnet2: ChainState | null = null;
     let prevStage2: ChainState | null = null;
 
-    fs.readdirSync(UPGRADES_DIR).forEach((file) => {
+    fs.readdirSync(UPGRADES_DIR).forEach(file => {
         // Assuming that upgrade directories are sorted in increasing order.
         const upgradePath = path.join(UPGRADES_DIR, file);
         let details = getUpgradeDetails(upgradePath);
@@ -242,7 +242,7 @@ function getChangeSummary(chainState: ChainState | null): string {
         result += 'AA, ';
     }
     let sysContractChanges = 0;
-    chainState.systemContracts.forEach((entry) => {
+    chainState.systemContracts.forEach(entry => {
         if (entry.wasChanged) {
             sysContractChanges += 1;
         }
@@ -490,10 +490,10 @@ function renderTable(data: string[][]): string {
     }
 
     // Generate horizontal separator line
-    const separator = '+' + colWidths.map((width) => '-'.repeat(width + 2)).join('+') + '+';
+    const separator = '+' + colWidths.map(width => '-'.repeat(width + 2)).join('+') + '+';
 
     // Render each row
-    const rows = data.map((row) => {
+    const rows = data.map(row => {
         return '|' + row.map((cell, i) => ` ${cell.padEnd(colWidths[i])} `).join('|') + '|';
     });
 

@@ -56,7 +56,7 @@ export const command = new Command('l2-transaction').description('publish system
 command
     .command('force-deployment-calldata')
     .option('--environment <environment>')
-    .action(async (cmd) => {
+    .action(async cmd => {
         const l2upgradeFileName = getL2UpgradeFileName(cmd.environment);
         if (fs.existsSync(l2upgradeFileName)) {
             console.log(`Found l2 upgrade file ${l2upgradeFileName}`);
@@ -73,7 +73,7 @@ command
     });
 
 function systemContractsToForceDeployments(systemContracts): ForceDeployment[] {
-    return systemContracts.map((dependency) => {
+    return systemContracts.map(dependency => {
         return {
             bytecodeHash: dependency.bytecodeHashes[0],
             newAddress: dependency.address,
@@ -97,7 +97,7 @@ command
         'Use contract deployer address instead of complex upgrader address. ' +
             "Warning: this shouldn't be a default option, it's only for first upgrade purposes"
     )
-    .action(async (cmd) => {
+    .action(async cmd => {
         const l2upgradeFileName = getL2UpgradeFileName(cmd.environment);
         const l2UpgraderAddress = cmd.l2UpgraderAddress ?? process.env.CONTRACTS_L2_DEFAULT_UPGRADE_ADDR;
         const commonData = JSON.parse(fs.readFileSync(getCommonDataFileName(), { encoding: 'utf-8' }));

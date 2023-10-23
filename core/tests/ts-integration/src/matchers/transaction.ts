@@ -29,7 +29,7 @@ export async function toBeAccepted(
         }
 
         return pass();
-    } catch (error: any) {
+    } catch (error) {
         // Check if an error was raised by `jest` (e.g. by using `expect` inside of the modifier).
         if (error.matcherResult) {
             // It was, just re-broadcast it.
@@ -63,7 +63,7 @@ export async function toBeReverted(
             .build();
 
         return fail(message);
-    } catch (error: any) {
+    } catch (error) {
         const receipt = error.receipt;
         if (!receipt) {
             const message = new TestMessage()
@@ -135,7 +135,7 @@ async function toBeRejectedWithPrefix(
             .build();
 
         return fail(message);
-    } catch (error: any) {
+    } catch (error) {
         if (errorSubstring) {
             // We expect thrown exception to always have the `message` field.
             let fullErrorSubstring = `${prefix}${errorSubstring}`;

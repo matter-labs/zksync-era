@@ -14,12 +14,6 @@ For ease of understanding, here's a quick visual guide. We will unpack each part
 Consider the following contract. Its main function is to forward any received string to L1:
 
 ```solidity
-contract Messenger {
-  function sendMessage(string memory message) public returns (bytes32 messageHash) {
-    messageHash = L1_MESSENGER_CONTRACT.sendToL1(bytes(message));
-  }
-}
-
 ```
 
 From a developer's standpoint, you only need to invoke the `sendToL1` method, and your task is complete.
@@ -35,12 +29,6 @@ The previously mentioned `sendToL1` method executes a call to the `L1Messenger.s
 then it broadcasts an Event carrying the complete message.
 
 ```solidity
-function sendToL1(bytes calldata _message) external override returns (bytes32 hash) {
-  // ...
-  SystemContractHelper.toL1(true, bytes32(uint256(uint160(msg.sender))), hash);
-  emit L1MessageSent(msg.sender, hash, _message);
-}
-
 ```
 
 As depicted in the leading image, this stage is where the message data splits. The full body of the message is emitted
@@ -50,18 +38,6 @@ for retrieval in Part 5 by the StateKeeper, while the hash of the message procee
 The method then sends the message's hash to the `SystemContractHelper`, which makes an internal call:
 
 ```solidity
-function toL1(
-  bool _isService,
-  bytes32 _key,
-  bytes32 _value
-) internal {
-  // ...
-  address callAddr = TO_L1_CALL_ADDRESS;
-  assembly {
-    call(_isService, callAddr, _key, _value, 0xFFFF, 0, 0)
-  }
-}
-
 ```
 
 Following the `TO_L1_CALL_ADDRESS`, we discover that it's set to a placeholder value. So what exactly is occurring here?
