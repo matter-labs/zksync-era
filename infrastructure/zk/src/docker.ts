@@ -26,7 +26,7 @@ async function dockerCommand(
     image: string,
     customTag?: string,
     publishPublic: boolean = false,
-    dockerOrg: string = "matterlabs"
+    dockerOrg: string = 'matterlabs'
 ) {
     // Generating all tags for containers. We need 2 tags here: SHA and SHA+TS
     const { stdout: COMMIT_SHORT_SHA }: { stdout: string } = await utils.exec('git rev-parse --short HEAD');

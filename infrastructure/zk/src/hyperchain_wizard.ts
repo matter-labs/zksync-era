@@ -621,9 +621,11 @@ async function generateDockerImages() {
 
     fs.writeFileSync(`hyperchain-${envName}.yml`, result);
 
-    console.log(announce(
-        `Docker images generated successfully, and compose file generate (hyperchain-${envName}.yml). Run the images with "docker compose -f hyperchain-${envName} up)".\n\n`
-    ));
+    console.log(
+        announce(
+            `Docker images generated successfully, and compose file generate (hyperchain-${envName}.yml). Run the images with "docker compose -f hyperchain-${envName} up)".\n\n`
+        )
+    );
 }
 
 export const initHyperchainCommand = new Command('stack').description('ZK Stack Hyperchains management');
