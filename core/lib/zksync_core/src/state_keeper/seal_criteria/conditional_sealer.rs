@@ -23,6 +23,7 @@ impl ConditionalSealer {
     pub(crate) fn find_unexecutable_reason(
         config: &StateKeeperConfig,
         data: &SealData,
+        protocol_version: ProtocolVersionId,
     ) -> Option<&'static str> {
         for sealer in &Self::default_sealers() {
             const MOCK_BLOCK_TIMESTAMP: u128 = 0;
@@ -34,7 +35,7 @@ impl ConditionalSealer {
                 TX_COUNT,
                 data,
                 data,
-                ProtocolVersionId::latest(),
+                protocol_version,
             );
             if matches!(resolution, SealResolution::Unexecutable(_)) {
                 return Some(sealer.prom_criterion_name());

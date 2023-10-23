@@ -112,7 +112,7 @@ pub(crate) fn commit_gas_count_for_l1_batch(
 
     // Protocol Version 17 introduces boojum, and along with boojum an update to how storage writes
     // are communicated/compressed.
-    let additional_calldata_bytes = match header.protocol_version.unwrap() {
+    let state_diff_size = match header.protocol_version.unwrap() {
         ProtocolVersionId::Version17 => {
             panic!("add in the size of the compressed state diffs from metadata")
         }
@@ -120,7 +120,10 @@ pub(crate) fn commit_gas_count_for_l1_batch(
             metadata.initial_writes_compressed.len() as u32
                 + metadata.repeated_writes_compressed.len() as u32
         }
-    } + metadata.l2_l1_messages_compressed.len() as u32
+    };
+
+    let additional_calldata_bytes = state_diff_size
+        + metadata.l2_l1_messages_compressed.len() as u32
         + total_messages_len
         + total_factory_deps_len;
     let additional_cost = additional_calldata_bytes * GAS_PER_BYTE;

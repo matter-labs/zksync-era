@@ -907,7 +907,11 @@ impl<G: L1GasPriceProvider> TxSender<G> {
         };
 
         let seal_data = SealData::for_transaction(transaction, tx_metrics);
-        if let Some(reason) = ConditionalSealer::find_unexecutable_reason(sk_config, &seal_data) {
+        if let Some(reason) = ConditionalSealer::find_unexecutable_reason(
+            sk_config,
+            &seal_data,
+            ProtocolVersionId::latest(),
+        ) {
             let message = format!(
                 "Tx is Unexecutable because of {reason}; inputs for decision: {seal_data:?}"
             );

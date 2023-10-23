@@ -54,7 +54,7 @@ impl DeduplicatedWritesMetrics {
 
     pub fn size(&self, protocol_version: ProtocolVersionId) -> usize {
         match protocol_version {
-            ProtocolVersionId::Version17 => {
+            version if version >= ProtocolVersionId::Version17 => {
                 self.total_updated_values_size
                     + (BYTES_PER_DERIVED_KEY as usize) * self.initial_storage_writes
                     + (BYTES_PER_ENUMERATION_INDEX as usize) * self.repeated_storage_writes
