@@ -82,7 +82,7 @@ jobs:
           DOCKER_ACTION: ${{ inputs.action }}
           COMPONENT: ${{ matrix.component }}
         run: |
-          ci_run zk docker $DOCKER_ACTION $COMPONENT -- --public
+          ci_run zk docker $DOCKER_ACTION $COMPONENT --platforms "linux/amd64,linux/arm64,linux/arm64/v8" -- --public
 
       - name: Show sccache stats
         if: always()
