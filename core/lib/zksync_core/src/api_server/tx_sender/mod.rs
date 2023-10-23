@@ -906,7 +906,8 @@ impl<G: L1GasPriceProvider> TxSender<G> {
             H256::zero()
         };
 
-        let seal_data = SealData::for_transaction(transaction, tx_metrics);
+        let seal_data =
+            SealData::for_transaction(transaction, tx_metrics, ProtocolVersionId::latest());
         if let Some(reason) = ConditionalSealer::find_unexecutable_reason(
             sk_config,
             &seal_data,
