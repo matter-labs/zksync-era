@@ -38,6 +38,10 @@ pub struct MerkleTreeConfig {
     /// The default value is 128 MB.
     #[serde(default = "MerkleTreeConfig::default_block_cache_size_mb")]
     pub block_cache_size_mb: usize,
+    /// Byte capacity of memtables (recent, non-persisted changes to RocksDB). Setting this to a reasonably
+    /// large value (order of 512 MiB) is helpful for large DBs that experience write stalls.
+    #[serde(default = "MerkleTreeConfig::default_memtable_capacity_mb")]
+    pub memtable_capacity_mb: usize,
     /// Maximum number of L1 batches to be processed by the Merkle tree at a time.
     #[serde(default = "MerkleTreeConfig::default_max_l1_batches_per_iter")]
     pub max_l1_batches_per_iter: usize,
@@ -51,6 +55,7 @@ impl Default for MerkleTreeConfig {
             mode: MerkleTreeMode::default(),
             multi_get_chunk_size: Self::default_multi_get_chunk_size(),
             block_cache_size_mb: Self::default_block_cache_size_mb(),
+            memtable_capacity_mb: Self::default_memtable_capacity_mb(),
             max_l1_batches_per_iter: Self::default_max_l1_batches_per_iter(),
         }
     }
@@ -73,6 +78,10 @@ impl MerkleTreeConfig {
         128
     }
 
+    const fn default_memtable_capacity_mb() -> usize {
+        256
+    }
+
     const fn default_max_l1_batches_per_iter() -> usize {
         20
     }
@@ -80,6 +89,11 @@ impl MerkleTreeConfig {
     /// Returns the size of block cache size for Merkle tree in bytes.
     pub fn block_cache_size(&self) -> usize {
         self.block_cache_size_mb * super::BYTES_IN_MEGABYTE
+    }
+
+    /// Returns the memtable capacity in bytes.
+    pub fn memtable_capacity(&self) -> usize {
+        self.memtable_capacity_mb * super::BYTES_IN_MEGABYTE
     }
 }
 

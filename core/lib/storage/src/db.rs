@@ -4,7 +4,7 @@ use rocksdb::{
 };
 
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     ffi::CStr,
     fmt,
     marker::PhantomData,
@@ -29,6 +29,12 @@ pub trait NamedColumnFamily: 'static + Copy {
     const ALL: &'static [Self];
     /// Names a column family to access it in `RocksDB`. Also used in metrics reporting.
     fn name(&self) -> &'static str;
+
+    /// Returns whether this CF is so large that it's likely to require special configuration in terms
+    /// of compaction / memtables.
+    fn requires_tuning(&self) -> bool {
+        false
+    }
 }
 
 /// Thin typesafe wrapper around RocksDB `WriteBatch`.
@@ -96,11 +102,38 @@ pub(crate) struct RocksDBInner {
 }
 
 impl RocksDBInner {
-    pub(crate) fn report_sizes(&self, metrics: &RocksdbSizeMetrics) {
+    pub(crate) fn collect_metrics(&self, metrics: &RocksdbSizeMetrics) {
         for &cf_name in &self.cf_names {
             let cf = self.db.cf_handle(cf_name).unwrap();
             // ^ `unwrap()` is safe (CF existence is checked during DB initialization)
             let labels = RocksdbLabels::new(self.db_name, cf_name);
+
+            let writes_stopped = self.int_property(cf, properties::IS_WRITE_STOPPED);
+            let writes_stopped = writes_stopped == Some(1);
+            metrics.writes_stopped[&labels].set(writes_stopped.into());
+
+            let num_immutable_memtables =
+                self.int_property(cf, properties::NUM_IMMUTABLE_MEM_TABLE);
+            if let Some(num_immutable_memtables) = num_immutable_memtables {
+                metrics.immutable_mem_tables[&labels].set(num_immutable_memtables);
+            }
+            let num_level0_files = self.int_property(cf, &properties::num_files_at_level(0));
+            if let Some(num_level0_files) = num_level0_files {
+                metrics.level0_files[&labels].set(num_level0_files);
+            }
+            let num_flushes = self.int_property(cf, properties::NUM_RUNNING_FLUSHES);
+            if let Some(num_flushes) = num_flushes {
+                metrics.running_flushes[&labels].set(num_flushes);
+            }
+            let num_compactions = self.int_property(cf, properties::NUM_RUNNING_COMPACTIONS);
+            if let Some(num_compactions) = num_compactions {
+                metrics.running_compactions[&labels].set(num_compactions);
+            }
+            let pending_compactions =
+                self.int_property(cf, properties::ESTIMATE_PENDING_COMPACTION_BYTES);
+            if let Some(pending_compactions) = pending_compactions {
+                metrics.pending_compactions[&labels].set(pending_compactions);
+            }
 
             let live_data_size = self.int_property(cf, properties::ESTIMATE_LIVE_DATA_SIZE);
             if let Some(size) = live_data_size {
@@ -139,31 +172,84 @@ impl RocksDBInner {
         }
         property
     }
+
+    /// Waits until writes are not stopped for any of the CFs. Writes can stop immediately on DB initialization
+    /// if there are too many level-0 SST files; in this case, it may help waiting several seconds until
+    /// these files are compacted.
+    fn wait_for_writes_to_resume(&self) {
+        const RETRY_COUNT: usize = 10;
+        const RETRY_INTERVAL: Duration = Duration::from_secs(1);
+
+        for retry in 0..RETRY_COUNT {
+            let cfs_with_stopped_writes = self.cf_names.iter().copied().filter(|cf_name| {
+                let cf = self.db.cf_handle(cf_name).unwrap();
+                // ^ `unwrap()` is safe (CF existence is checked during DB initialization)
+                self.int_property(cf, properties::IS_WRITE_STOPPED) == Some(1)
+            });
+            let cfs_with_stopped_writes: Vec<_> = cfs_with_stopped_writes.collect();
+            if cfs_with_stopped_writes.is_empty() {
+                return;
+            } else {
+                tracing::info!(
+                    "Writes are stopped for column families {cfs_with_stopped_writes:?} in DB `{}` \
+                     (retry: {retry}/{RETRY_COUNT})",
+                    self.db_name
+                );
+                thread::sleep(RETRY_INTERVAL);
+            }
+        }
+
+        tracing::warn!(
+            "Exceeded {RETRY_COUNT} retries waiting for writes to resume in DB `{}`; \
+             proceeding with stopped writes",
+            self.db_name
+        );
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
 struct StalledWritesRetries {
     max_batch_size: usize,
     retry_count: usize,
-    interval: Duration,
+    start_interval: Duration,
+    scale_factor: f64,
 }
 
 impl Default for StalledWritesRetries {
     fn default() -> Self {
         Self {
             max_batch_size: 128 << 20, // 128 MiB
-            retry_count: 3,
-            interval: Duration::from_millis(100),
+            retry_count: 10,
+            start_interval: Duration::from_millis(50),
+            scale_factor: 1.5,
         }
     }
 }
 
 impl StalledWritesRetries {
+    fn interval(&self, retry_index: usize) -> Duration {
+        self.start_interval
+            .mul_f64(self.scale_factor.powi(retry_index as i32))
+    }
+
     // **NB.** The error message may change between RocksDB versions!
     fn is_write_stall_error(error: &rocksdb::Error) -> bool {
         matches!(error.kind(), rocksdb::ErrorKind::ShutdownInProgress)
             && error.as_ref().ends_with("stalled writes")
     }
+}
+
+/// [`RocksDB`] options.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct RocksDBOptions {
+    /// Byte capacity of the block cache (the main RocksDB cache for reads). If not set, default RocksDB
+    /// cache options will be used.
+    pub block_cache_capacity: Option<usize>,
+    /// Byte capacity of memtables (recent, non-persisted changes to RocksDB) set for large CFs
+    /// (as defined in [`NamedColumnFamily::requires_tuning()`]).
+    /// Setting this to a reasonably large value (order of 512 MiB) is helpful for large DBs that experience
+    /// write stalls. If not set, large CFs will not be configured specially.
+    pub large_memtable_capacity: Option<usize>,
 }
 
 /// Thin wrapper around a RocksDB instance.
@@ -179,13 +265,13 @@ pub struct RocksDB<CF> {
 
 impl<CF: NamedColumnFamily> RocksDB<CF> {
     pub fn new(path: &Path) -> Self {
-        Self::with_cache(path, None)
+        Self::with_options(path, RocksDBOptions::default())
     }
 
-    pub fn with_cache(path: &Path, block_cache_capacity: Option<usize>) -> Self {
-        let caches = RocksDBCaches::new(block_cache_capacity);
-        let options = Self::rocksdb_options(None);
-        let existing_cfs = DB::list_cf(&options, path).unwrap_or_else(|err| {
+    pub fn with_options(path: &Path, options: RocksDBOptions) -> Self {
+        let caches = RocksDBCaches::new(options.block_cache_capacity);
+        let db_options = Self::rocksdb_options(None, None);
+        let existing_cfs = DB::list_cf(&db_options, path).unwrap_or_else(|err| {
             tracing::warn!(
                 "Failed getting column families for RocksDB `{}` at `{}`, assuming CFs are empty; {err}",
                 CF::DB_NAME,
@@ -194,15 +280,18 @@ impl<CF: NamedColumnFamily> RocksDB<CF> {
             vec![]
         });
 
-        let cf_names: HashSet<_> = CF::ALL.iter().map(|cf| cf.name()).collect();
+        let cfs_and_options: HashMap<_, _> = CF::ALL
+            .iter()
+            .map(|cf| (cf.name(), cf.requires_tuning()))
+            .collect();
         let obsolete_cfs: Vec<_> = existing_cfs
             .iter()
             .filter_map(|cf_name| {
                 let cf_name = cf_name.as_str();
                 // The default CF is created on RocksDB instantiation in any case; it doesn't need
                 // to be explicitly opened.
-                let is_obsolete =
-                    cf_name != rocksdb::DEFAULT_COLUMN_FAMILY_NAME && !cf_names.contains(cf_name);
+                let is_obsolete = cf_name != rocksdb::DEFAULT_COLUMN_FAMILY_NAME
+                    && !cfs_and_options.contains_key(cf_name);
                 is_obsolete.then_some(cf_name)
             })
             .collect();
@@ -216,18 +305,22 @@ impl<CF: NamedColumnFamily> RocksDB<CF> {
         }
 
         // Open obsolete CFs as well; RocksDB initialization will panic otherwise.
-        let all_cf_names = cf_names.iter().copied().chain(obsolete_cfs);
-        let cfs = all_cf_names.map(|cf_name| {
+        let cf_names = cfs_and_options.keys().copied().collect();
+        let all_cfs_and_options = cfs_and_options
+            .into_iter()
+            .chain(obsolete_cfs.into_iter().map(|name| (name, false)));
+        let cfs = all_cfs_and_options.map(|(cf_name, requires_tuning)| {
             let mut block_based_options = BlockBasedOptions::default();
             block_based_options.set_bloom_filter(10.0, false);
             if let Some(cache) = &caches.shared {
                 block_based_options.set_block_cache(cache);
             }
-            let cf_options = Self::rocksdb_options(Some(block_based_options));
+            let memtable_capacity = options.large_memtable_capacity.filter(|_| requires_tuning);
+            let cf_options = Self::rocksdb_options(memtable_capacity, Some(block_based_options));
             ColumnFamilyDescriptor::new(cf_name, cf_options)
         });
 
-        let db = DB::open_cf_descriptors(&options, path, cfs).expect("failed to init rocksdb");
+        let db = DB::open_cf_descriptors(&db_options, path, cfs).expect("failed to init rocksdb");
         let inner = Arc::new(RocksDBInner {
             db,
             db_name: CF::DB_NAME,
@@ -237,6 +330,13 @@ impl<CF: NamedColumnFamily> RocksDB<CF> {
         });
         RocksdbSizeMetrics::register(CF::DB_NAME, Arc::downgrade(&inner));
 
+        tracing::info!(
+            "Initialized RocksDB `{}` at `{}` with {options:?}",
+            CF::DB_NAME,
+            path.display()
+        );
+
+        inner.wait_for_writes_to_resume();
         Self {
             inner,
             sync_writes: false,
@@ -253,16 +353,21 @@ impl<CF: NamedColumnFamily> RocksDB<CF> {
         self
     }
 
-    fn rocksdb_options(block_based_options: Option<BlockBasedOptions>) -> Options {
+    fn rocksdb_options(
+        memtable_capacity: Option<usize>,
+        block_based_options: Option<BlockBasedOptions>,
+    ) -> Options {
         let mut options = Options::default();
         options.create_missing_column_families(true);
         options.create_if_missing(true);
 
         let num_cpus = num_cpus::get() as i32;
         options.increase_parallelism(num_cpus);
+        if let Some(memtable_capacity) = memtable_capacity {
+            options.optimize_level_style_compaction(memtable_capacity);
+        }
         // Settings below are taken as per PingCAP recommendations:
         // https://www.pingcap.com/blog/how-to-troubleshoot-rocksdb-write-stalls-in-tikv/
-        options.set_max_write_buffer_number(5);
         let max_background_jobs = (num_cpus - 1).clamp(1, 8);
         options.set_max_background_jobs(max_background_jobs);
 
@@ -323,14 +428,18 @@ impl<CF: NamedColumnFamily> RocksDB<CF> {
             match self.write_inner(raw_batch) {
                 Ok(()) => return Ok(()),
                 Err(err) => {
-                    let should_retry = StalledWritesRetries::is_write_stall_error(&err)
-                        && retry_count < retries.retry_count;
-                    if should_retry {
+                    let is_stalled_write = StalledWritesRetries::is_write_stall_error(&err);
+                    if is_stalled_write {
+                        METRICS.report_stalled_write(CF::DB_NAME);
+                    }
+
+                    if is_stalled_write && retry_count < retries.retry_count {
+                        let retry_interval = retries.interval(retry_count);
                         tracing::warn!(
-                            "Writes stalled when writing to DB `{}`; will retry after a delay",
+                            "Writes stalled when writing to DB `{}`; will retry after {retry_interval:?}",
                             CF::DB_NAME
                         );
-                        thread::sleep(retries.interval);
+                        thread::sleep(retry_interval);
                         retry_count += 1;
                         raw_batch = rocksdb::WriteBatch::from_data(&raw_batch_bytes);
                     } else {
@@ -453,6 +562,20 @@ mod tests {
     use tempfile::TempDir;
 
     use super::*;
+
+    #[test]
+    fn retry_interval_computation() {
+        let retries = StalledWritesRetries::default();
+        assert_close(retries.interval(0), Duration::from_millis(50));
+        assert_close(retries.interval(1), Duration::from_millis(75));
+        assert_close(retries.interval(2), Duration::from_micros(112_500));
+    }
+
+    fn assert_close(lhs: Duration, rhs: Duration) {
+        let lhs_millis = (lhs.as_secs_f64() * 1_000.0).round() as u64;
+        let rhs_millis = (rhs.as_secs_f64() * 1_000.0).round() as u64;
+        assert_eq!(lhs_millis, rhs_millis);
+    }
 
     #[derive(Debug, Clone, Copy)]
     enum OldColumnFamilies {
