@@ -42,10 +42,9 @@ pub struct MerkleTreeConfig {
     /// large value (order of 512 MiB) is helpful for large DBs that experience write stalls.
     #[serde(default = "MerkleTreeConfig::default_memtable_capacity_mb")]
     pub memtable_capacity_mb: usize,
-    /// Timeout to wait for the Merkle tree database to run compaction on startup so that it doesn't have
-    /// stopped writes.
-    #[serde(default = "MerkleTreeConfig::default_init_stopped_writes_timeout_sec")]
-    pub init_stopped_writes_timeout_sec: u64,
+    /// Timeout to wait for the Merkle tree database to run compaction on stalled writes.
+    #[serde(default = "MerkleTreeConfig::default_stalled_writes_timeout_sec")]
+    pub stalled_writes_timeout_sec: u64,
     /// Maximum number of L1 batches to be processed by the Merkle tree at a time.
     #[serde(default = "MerkleTreeConfig::default_max_l1_batches_per_iter")]
     pub max_l1_batches_per_iter: usize,
@@ -60,7 +59,7 @@ impl Default for MerkleTreeConfig {
             multi_get_chunk_size: Self::default_multi_get_chunk_size(),
             block_cache_size_mb: Self::default_block_cache_size_mb(),
             memtable_capacity_mb: Self::default_memtable_capacity_mb(),
-            init_stopped_writes_timeout_sec: Self::default_init_stopped_writes_timeout_sec(),
+            stalled_writes_timeout_sec: Self::default_stalled_writes_timeout_sec(),
             max_l1_batches_per_iter: Self::default_max_l1_batches_per_iter(),
         }
     }
@@ -87,7 +86,7 @@ impl MerkleTreeConfig {
         256
     }
 
-    const fn default_init_stopped_writes_timeout_sec() -> u64 {
+    const fn default_stalled_writes_timeout_sec() -> u64 {
         30
     }
 
@@ -105,10 +104,9 @@ impl MerkleTreeConfig {
         self.memtable_capacity_mb * super::BYTES_IN_MEGABYTE
     }
 
-    /// Returns the timeout to wait for the Merkle tree database to run compaction on startup so that
-    /// it doesn't have stopped writes.
-    pub fn init_stopped_writes_timeout(&self) -> Duration {
-        Duration::from_secs(self.init_stopped_writes_timeout_sec)
+    /// Returns the timeout to wait for the Merkle tree database to run compaction on stalled writes.
+    pub fn stalled_writes_timeout(&self) -> Duration {
+        Duration::from_secs(self.stalled_writes_timeout_sec)
     }
 }
 
@@ -181,7 +179,7 @@ mod tests {
             DATABASE_MERKLE_TREE_MODE=lightweight
             DATABASE_MERKLE_TREE_MULTI_GET_CHUNK_SIZE=250
             DATABASE_MERKLE_TREE_MEMTABLE_CAPACITY_MB=512
-            DATABASE_MERKLE_TREE_INIT_STOPPED_WRITES_TIMEOUT_SEC=60
+            DATABASE_MERKLE_TREE_STALLED_WRITES_TIMEOUT_SEC=60
             DATABASE_MERKLE_TREE_MAX_L1_BATCHES_PER_ITER=50
             DATABASE_BACKUP_COUNT=5
             DATABASE_BACKUP_INTERVAL_MS=60000
@@ -196,7 +194,7 @@ mod tests {
         assert_eq!(db_config.merkle_tree.multi_get_chunk_size, 250);
         assert_eq!(db_config.merkle_tree.max_l1_batches_per_iter, 50);
         assert_eq!(db_config.merkle_tree.memtable_capacity_mb, 512);
-        assert_eq!(db_config.merkle_tree.init_stopped_writes_timeout_sec, 60);
+        assert_eq!(db_config.merkle_tree.stalled_writes_timeout_sec, 60);
         assert_eq!(db_config.backup_count, 5);
         assert_eq!(db_config.backup_interval().as_secs(), 60);
     }
@@ -212,7 +210,7 @@ mod tests {
             "DATABASE_MERKLE_TREE_MULTI_GET_CHUNK_SIZE",
             "DATABASE_MERKLE_TREE_BLOCK_CACHE_SIZE_MB",
             "DATABASE_MERKLE_TREE_MEMTABLE_CAPACITY_MB",
-            "DATABASE_MERKLE_TREE_INIT_STOPPED_WRITES_TIMEOUT_SEC",
+            "DATABASE_MERKLE_TREE_STALLED_WRITES_TIMEOUT_SEC",
             "DATABASE_MERKLE_TREE_MAX_L1_BATCHES_PER_ITER",
             "DATABASE_BACKUP_COUNT",
             "DATABASE_BACKUP_INTERVAL_MS",
@@ -227,7 +225,7 @@ mod tests {
         assert_eq!(db_config.merkle_tree.max_l1_batches_per_iter, 20);
         assert_eq!(db_config.merkle_tree.block_cache_size_mb, 128);
         assert_eq!(db_config.merkle_tree.memtable_capacity_mb, 256);
-        assert_eq!(db_config.merkle_tree.init_stopped_writes_timeout_sec, 30);
+        assert_eq!(db_config.merkle_tree.stalled_writes_timeout_sec, 30);
         assert_eq!(db_config.backup_count, 5);
         assert_eq!(db_config.backup_interval().as_secs(), 60);
 

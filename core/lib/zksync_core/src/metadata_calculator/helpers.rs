@@ -18,7 +18,7 @@ use zksync_merkle_tree::{
     domain::{TreeMetadata, ZkSyncTree, ZkSyncTreeReader},
     Key, MerkleTreeColumnFamily, NoVersionError, TreeEntryWithProof,
 };
-use zksync_storage::{RocksDB, RocksDBOptions};
+use zksync_storage::{RocksDB, RocksDBOptions, StalledWritesRetries};
 use zksync_types::{block::L1BatchHeader, L1BatchNumber, StorageLog, H256};
 
 use super::metrics::{LoadChangesStage, TreeUpdateStage, METRICS};
@@ -62,11 +62,12 @@ impl AsyncTree {
         multi_get_chunk_size: usize,
         block_cache_capacity: usize,
         memtable_capacity: usize,
-        init_stopped_writes_timeout: Duration,
+        stalled_writes_timeout: Duration,
     ) -> Self {
         tracing::info!(
             "Initializing Merkle tree at `{db_path}` with {multi_get_chunk_size} multi-get chunk size, \
-             {block_cache_capacity}B block cache, {memtable_capacity}B memtable capacity",
+             {block_cache_capacity}B block cache, {memtable_capacity}B memtable capacity, \
+             {stalled_writes_timeout:?} stalled writes timeout",
             db_path = db_path.display()
         );
 
@@ -75,7 +76,7 @@ impl AsyncTree {
                 &db_path,
                 block_cache_capacity,
                 memtable_capacity,
-                init_stopped_writes_timeout,
+                stalled_writes_timeout,
             );
             match mode {
                 MerkleTreeMode::Full => ZkSyncTree::new(db),
@@ -96,14 +97,14 @@ impl AsyncTree {
         path: &Path,
         block_cache_capacity: usize,
         memtable_capacity: usize,
-        init_stopped_writes_timeout: Duration,
+        stalled_writes_timeout: Duration,
     ) -> RocksDB<MerkleTreeColumnFamily> {
         let db = RocksDB::with_options(
             path,
             RocksDBOptions {
                 block_cache_capacity: Some(block_cache_capacity),
                 large_memtable_capacity: Some(memtable_capacity),
-                init_stopped_writes_timeout,
+                stalled_writes_retries: StalledWritesRetries::new(stalled_writes_timeout),
             },
         );
         if cfg!(test) {

@@ -194,10 +194,9 @@ pub struct OptionalENConfig {
     /// large value (order of 512 MiB) is helpful for large DBs that experience write stalls.
     #[serde(default = "OptionalENConfig::default_merkle_tree_memtable_capacity_mb")]
     merkle_tree_memtable_capacity_mb: usize,
-    /// Timeout to wait for the Merkle tree database to run compaction on startup so that it doesn't have
-    /// stopped writes.
-    #[serde(default = "OptionalENConfig::default_merkle_tree_init_stopped_writes_timeout_sec")]
-    merkle_tree_init_stopped_writes_timeout_sec: u64,
+    /// Timeout to wait for the Merkle tree database to run compaction on stalled writes.
+    #[serde(default = "OptionalENConfig::default_merkle_tree_stalled_writes_timeout_sec")]
+    merkle_tree_stalled_writes_timeout_sec: u64,
 
     // Other config settings
     /// Port on which the Prometheus exporter server is listening.
@@ -286,7 +285,7 @@ impl OptionalENConfig {
         256
     }
 
-    const fn default_merkle_tree_init_stopped_writes_timeout_sec() -> u64 {
+    const fn default_merkle_tree_stalled_writes_timeout_sec() -> u64 {
         30
     }
 
@@ -339,10 +338,9 @@ impl OptionalENConfig {
         self.merkle_tree_memtable_capacity_mb * BYTES_IN_MEGABYTE
     }
 
-    /// Returns the timeout to wait for the Merkle tree database to run compaction on startup so that
-    /// it doesn't have stopped writes.
-    pub fn merkle_tree_init_stopped_writes_timeout(&self) -> Duration {
-        Duration::from_secs(self.merkle_tree_init_stopped_writes_timeout_sec)
+    /// Returns the timeout to wait for the Merkle tree database to run compaction on stalled writes.
+    pub fn merkle_tree_stalled_writes_timeout(&self) -> Duration {
+        Duration::from_secs(self.merkle_tree_stalled_writes_timeout_sec)
     }
 
     pub fn api_namespaces(&self) -> Vec<Namespace> {
