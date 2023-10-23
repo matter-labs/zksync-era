@@ -607,6 +607,14 @@ async function generateDockerImages(cmd: Command) {
         hasProver = true;
         // TODO: (PRO-48) Hyperchain is using prover, so we must include Boojum images - wait for Boojum merge
         // proof-fri-compressor, prover-fri, witness-generator, prover-fri-gateway
+        // Must be added to the init flow
+        // Setup key is downloaded and added somewhere - reference: https://github.com/matter-labs/zksync-era/blob/7b23ab0ba14cb6600ecf7e596a9e9536ffa5fda2/.github/workflows/build-core-template.yml#L72C1-L73C1
+        // Data keys are already downloaded from: https://console.cloud.google.com/storage/browser/matterlabs-zksync-v2-infra-blob-store/prover_setup_data/2d33a27?pageState=(%22StorageObjectListTable%22:(%22f%22:%22%255B%255D%22))&orgonly=true&project=matterlabs-infra&supportedpurview=organizationId&prefix=&forceOnObjectsSortingFiltering=false
+        // to: ./prover_setup-data
+        // - Following should be added to the hyperchain env file:
+        // OBJECT_STORE_FILE_BACKED_BASE_PATH: /path/to/server/artifacts
+        // PROVER_OBJECT_STORE_FILE_BACKED_BASE_PATH: /path/to/prover/artifacts
+        // - Inspired by https://github.com/matter-labs/zksync-era/tree/main/prover/prover_fri
     }
 
     const composeArgs = {

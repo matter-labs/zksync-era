@@ -27,7 +27,7 @@ services:
     image: {{orgName}}/server-v2:latest
     command: ["--components", "http_api,ws_api"]
     env_file:
-      - ./etc/env/a-new-world.env
+      - {{envFilePath}}
     environment:
       ZKSYNC_HOME: /
     ports: # assumes default ports in .env
@@ -39,16 +39,6 @@ services:
   # System requirements for CPU proving:
   # ~16+ CPU cores
   # ~384+ GB RAM
-  # This assumes the following:
-  # - Contracts are already built and setup key is downloaded (most of the things should be done in Hyperchain Wizard)
-  # reference: https://github.com/matter-labs/zksync-era/blob/main/.github/workflows/build-core-template.yml#L67-L72
-  # - Data keys are already downloaded
-  # from: https://console.cloud.google.com/storage/browser/matterlabs-zksync-v2-infra-blob-store/prover_setup_data/2d33a27?pageState=(%22StorageObjectListTable%22:(%22f%22:%22%255B%255D%22))&orgonly=true&project=matterlabs-infra&supportedpurview=organizationId&prefix=&forceOnObjectsSortingFiltering=false
-  # to: ./prover_setup-data
-  # - Following should be added to the hyperchain env file:
-  # OBJECT_STORE_FILE_BACKED_BASE_PATH: /path/to/server/artifacts
-  # PROVER_OBJECT_STORE_FILE_BACKED_BASE_PATH: /path/to/prover/artifacts
-  # - Inspired by https://github.com/matter-labs/zksync-era/tree/main/prover/prover_fri
   # TODOS:
   # - (PRO-47): Figure out how to properly set metrics ports for each service in env
   zkstack-prover-fri-gateway:
@@ -74,7 +64,7 @@ services:
       dockerfile: ./docker/witness-generator/Dockerfile
     command: ["--round", "basic_circuits"]
     env_file:
-      - ./common.env
+      - {{envFilePath}}
     ports: # assumes default ports in .env
       - "3312:3312" # prometheus metrics
     volumes:
@@ -88,7 +78,7 @@ services:
       dockerfile: ./docker/witness-generator/Dockerfile
     command: ["--round", "leaf_aggregation"]
     env_file:
-      - ./common.env
+      - {{envFilePath}}
     ports: # assumes default ports in .env
       - "3312:3312" # prometheus metrics
     volumes:
@@ -102,7 +92,7 @@ services:
       dockerfile: ./docker/witness-generator/Dockerfile
     command: ["--round", "node_aggregation"]
     env_file:
-      - ./common.env
+      - {{envFilePath}}
     ports: # assumes default ports in .env
       - "3312:3312" # prometheus metrics
     volumes:
@@ -116,7 +106,7 @@ services:
       dockerfile: ./docker/witness-generator/Dockerfile
     command: ["--round", "scheduler"]
     env_file:
-      - ./common.env
+      - {{envFilePath}}
     ports: # assumes default ports in .env
       - "3312:3312" # prometheus metrics
     volumes:
@@ -129,7 +119,7 @@ services:
       context: .
       dockerfile: ./docker/prover-fri/Dockerfile
     env_file:
-      - ./common.env
+      - {{envFilePath}}
     env:
       FRI_PROVER_SETUP_DATA_PATH: /etc/prover_setup_data
     ports: # assumes default ports in .env
@@ -145,7 +135,7 @@ services:
       context: .
       dockerfile: ./docker/proof-fri-compressor/Dockerfile
     env_file:
-      - ./common.env
+      - {{envFilePath}}
     ports: # assumes default ports in .env
       - "3312:3312" # prometheus metrics
     volumes:
