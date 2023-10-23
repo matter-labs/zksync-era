@@ -48,7 +48,7 @@ impl BasicWitnessInputProducerDal<'_, '_> {
     pub async fn create_basic_witness_input_producer_job(
         &mut self,
         l1_batch_number: L1BatchNumber,
-    ) -> anyhow::Result<()> {
+    ) -> sqlx::Result<()> {
         sqlx::query!(
             "INSERT INTO basic_witness_input_producer_jobs \
                 (l1_batch_number, status, created_at, updated_at) \
@@ -66,7 +66,7 @@ impl BasicWitnessInputProducerDal<'_, '_> {
 
     pub async fn get_next_basic_witness_input_producer_job(
         &mut self,
-    ) -> anyhow::Result<Option<L1BatchNumber>> {
+    ) -> sqlx::Result<Option<L1BatchNumber>> {
         let l1_batch_number = sqlx::query!(
             "UPDATE basic_witness_input_producer_jobs \
             SET status = $1, \
@@ -83,7 +83,7 @@ impl BasicWitnessInputProducerDal<'_, '_> {
                 LIMIT 1 \
                 FOR UPDATE \
                 SKIP LOCKED \
-            )
+            ) \
             RETURNING basic_witness_input_producer_jobs.l1_batch_number",
             BasicWitnessInputProducerJobStatus::InProgress.to_string(),
             BasicWitnessInputProducerJobStatus::Queued.to_string(),
@@ -104,8 +104,8 @@ impl BasicWitnessInputProducerDal<'_, '_> {
         &mut self,
         l1_batch_number: L1BatchNumber,
         started_at: Instant,
-        object_path: String,
-    ) -> anyhow::Result<()> {
+        object_path: &str,
+    ) -> sqlx::Result<()> {
         sqlx::query!(
             "UPDATE basic_witness_input_producer_jobs \
             SET status = $1, \
@@ -131,7 +131,7 @@ impl BasicWitnessInputProducerDal<'_, '_> {
         l1_batch_number: L1BatchNumber,
         started_at: Instant,
         error: String,
-    ) -> anyhow::Result<Option<u32>> {
+    ) -> sqlx::Result<Option<u32>> {
         let attempts = sqlx::query!(
             "UPDATE basic_witness_input_producer_jobs \
             SET status = $1, \
@@ -149,8 +149,7 @@ impl BasicWitnessInputProducerDal<'_, '_> {
         .instrument("mark_job_as_failed")
         .report_latency()
         .fetch_optional(self.storage.conn())
-        .await
-        .expect("failed to mark basic witness input producer job as failed")
+        .await?
         .map(|job| job.attempts as u32);
 
         Ok(attempts)
@@ -159,7 +158,7 @@ impl BasicWitnessInputProducerDal<'_, '_> {
 
 /// These functions should only be used for tests.
 impl BasicWitnessInputProducerDal<'_, '_> {
-    pub async fn delete_all_jobs(&mut self) -> anyhow::Result<()> {
+    pub async fn delete_all_jobs(&mut self) -> sqlx::Result<()> {
         sqlx::query!("DELETE FROM basic_witness_input_producer_jobs")
             .execute(self.storage.conn())
             .await?;

@@ -2,6 +2,7 @@ use bigdecimal::BigDecimal;
 use itertools::Itertools;
 use sqlx::{error, types::chrono::NaiveDateTime};
 
+use anyhow::anyhow;
 use std::{collections::HashMap, fmt, time::Duration};
 
 use zksync_types::{
@@ -971,7 +972,7 @@ impl TransactionsDal<'_, '_> {
     async fn get_miniblock_with_transactions_for(
         &mut self,
         mode: MiniblockExecutionMode,
-    ) -> Vec<(MiniblockNumber, Vec<Transaction>)> {
+    ) -> sqlx::Result<Vec<(MiniblockNumber, Vec<Transaction>)>> {
         let transactions = match mode {
             MiniblockExecutionMode::Reexecute => {
                 sqlx::query_as!(
@@ -995,8 +996,7 @@ impl TransactionsDal<'_, '_> {
                 .await
             }
         };
-        transactions
-            .unwrap()
+        transactions?
             .into_iter()
             .group_by(|tx| tx.miniblock_number.unwrap())
             .into_iter()
@@ -1019,23 +1019,28 @@ impl TransactionsDal<'_, '_> {
     pub async fn get_miniblocks_to_execute_for(
         &mut self,
         miniblock_execution_mode: MiniblockExecutionMode,
-    ) -> Vec<MiniblockExecutionData> {
+    ) -> anyhow::Result<Vec<MiniblockExecutionData>> {
         let transactions_by_miniblock = self
             .get_miniblock_with_transactions_for(miniblock_execution_mode)
-            .await;
+            .await?;
         if transactions_by_miniblock.is_empty() {
-            return Vec::new();
+            return Ok(Vec::new());
         }
-        let from_miniblock = transactions_by_miniblock.first().unwrap().0;
-        let to_miniblock = transactions_by_miniblock.last().unwrap().0;
+        let from_miniblock = transactions_by_miniblock
+            .first()
+            .ok_or_else(|| anyhow!("No first transaction found for miniblock"))?
+            .0;
+        let to_miniblock = transactions_by_miniblock
+            .last()
+            .ok_or_else(|| anyhow!("No last transaction found for miniblock"))?
+            .0;
         let miniblock_data = sqlx::query!(
             "SELECT timestamp, virtual_blocks FROM miniblocks WHERE number BETWEEN $1 AND $2 ORDER BY number",
             from_miniblock.0 as i64,
             to_miniblock.0 as i64,
         )
         .fetch_all(self.storage.conn())
-        .await
-        .unwrap();
+        .await?;
 
         let prev_hashes = sqlx::query!(
             "SELECT hash FROM miniblocks \
@@ -1045,8 +1050,7 @@ impl TransactionsDal<'_, '_> {
             to_miniblock.0 as i64 - 1,
         )
         .fetch_all(self.storage.conn())
-        .await
-        .unwrap();
+        .await?;
 
         assert_eq!(
             miniblock_data.len(),
@@ -1059,7 +1063,7 @@ impl TransactionsDal<'_, '_> {
             "Not enough previous hashes retrieved"
         );
 
-        transactions_by_miniblock
+        Ok(transactions_by_miniblock
             .into_iter()
             .zip(miniblock_data)
             .zip(prev_hashes)
@@ -1072,7 +1076,7 @@ impl TransactionsDal<'_, '_> {
                     txs,
                 },
             )
-            .collect()
+            .collect())
     }
 
     pub async fn get_tx_locations(&mut self, l1_batch_number: L1BatchNumber) -> TxLocations {

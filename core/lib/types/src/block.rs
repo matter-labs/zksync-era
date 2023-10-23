@@ -93,11 +93,11 @@ pub struct MiniblockExecutionData {
 }
 
 /// Used to determine what kind of query to apply when collection MiniblockExecutionData.
-///   - Reexecute will get all miniblocks with transactions that need reexecution.
-///   - L1Batch will get all miniblocks with transactions belonging to an already executed L1 batch.
 #[derive(Debug)]
 pub enum MiniblockExecutionMode {
+    /// Reexecute will get all miniblocks with transactions that need reexecution.
     Reexecute,
+    /// L1Batch will get all miniblocks with transactions belonging to an already executed L1 batch.
     L1Batch(L1BatchNumber),
 }
 

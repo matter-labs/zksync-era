@@ -158,7 +158,8 @@ pub(crate) async fn load_pending_batch(
     let pending_miniblocks = storage
         .transactions_dal()
         .get_miniblocks_to_execute_for(MiniblockExecutionMode::Reexecute)
-        .await;
+        .await
+        .unwrap();
 
     Some(PendingBatchData {
         l1_batch_env,

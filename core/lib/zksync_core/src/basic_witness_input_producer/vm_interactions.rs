@@ -1,3 +1,4 @@
+use anyhow::anyhow;
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -14,40 +15,38 @@ pub(super) fn create_vm(
     rt_handle: Handle,
     l1_batch_number: L1BatchNumber,
     mut connection: StorageProcessor<'_>,
-    validation_computational_gas_limit: u32,
     l2_chain_id: L2ChainId,
-) -> (
+) -> anyhow::Result<(
     VmInstance<PostgresStorage, HistoryEnabled>,
     Rc<RefCell<StorageView<PostgresStorage>>>,
-) {
+)> {
     let prev_l1_batch_number = l1_batch_number - 1;
     let (_, miniblock_number) = rt_handle
         .block_on(
             connection
                 .blocks_dal()
                 .get_miniblock_range_of_l1_batch(prev_l1_batch_number),
-        )
-        .unwrap()
-        .unwrap_or_else(|| {
-            panic!(
-                "l1_batch_number {:?} must have a previous miniblock to start from",
-                l1_batch_number
+        )?
+        .ok_or_else(|| {
+            anyhow!(
+                "l1_batch_number {l1_batch_number:?} must have a previous miniblock to start from"
             )
-        });
+        })?;
 
     let fee_account_addr = rt_handle
         .block_on(
             connection
                 .blocks_dal()
                 .get_fee_address_for_l1_batch(l1_batch_number),
-        )
-        .unwrap()
-        .unwrap_or_else(|| {
-            panic!(
-                "l1_batch_number {:?} must have fee_address_account",
-                l1_batch_number
-            )
-        });
+        )?
+        .ok_or_else(|| {
+            anyhow!("l1_batch_number {l1_batch_number:?} must have fee_address_account")
+        })?;
+
+    // In the state keeper, this value is used to reject execution.
+    // All batches ran by BasicWitnessInputProducer have already been executed by State Keeper.
+    // This means we don't want to reject any execution, therefore we're using MAX as an allow all.
+    let validation_computational_gas_limit = u32::MAX;
     let (system_env, l1_batch_env) = rt_handle
         .block_on(load_l1_batch_params(
             &mut connection,
@@ -56,28 +55,33 @@ pub(super) fn create_vm(
             validation_computational_gas_limit,
             l2_chain_id,
         ))
-        .unwrap();
+        .ok_or_else(|| anyhow!("expected miniblock to be executed and sealed"))?;
 
     let pg_storage = PostgresStorage::new(rt_handle.clone(), connection, miniblock_number, true);
     let storage_view = StorageView::new(pg_storage).to_rc_ptr();
     let vm = VmInstance::new(l1_batch_env, system_env, storage_view.clone());
 
-    (vm, storage_view)
+    Ok((vm, storage_view))
 }
 
-pub(super) fn execute_tx<S: ReadStorage>(tx: &Transaction, vm: &mut VmInstance<S, HistoryEnabled>) {
-    // attempt to run with bytecode compression
+pub(super) fn execute_tx<S: ReadStorage>(
+    tx: &Transaction,
+    vm: &mut VmInstance<S, HistoryEnabled>,
+) -> anyhow::Result<()> {
+    // Attempt to run VM with bytecode compression on.
     vm.make_snapshot();
     if vm
         .inspect_transaction_with_bytecode_compression(vec![], tx.clone(), true)
         .is_ok()
     {
         vm.pop_snapshot_no_rollback();
-        return;
+        return Ok(());
     }
 
-    // attempt to run without bytecode compression, if it failed with compression
+    // If failed with bytecode compression, attempt to run without bytecode compression.
     vm.rollback_to_the_latest_snapshot();
-    vm.inspect_transaction_with_bytecode_compression(vec![], tx.clone(), false)
-        .expect("Compression can't fail if we don't apply it");
+    if let Err(_) = vm.inspect_transaction_with_bytecode_compression(vec![], tx.clone(), false) {
+        return Err(anyhow!("compression can't fail if we don't apply it"));
+    }
+    Ok(())
 }

@@ -1,3 +1,4 @@
+use anyhow::Context;
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -8,6 +9,7 @@ use zksync_types::witness_block_state::WitnessBlockState;
 use zksync_types::{L1BatchNumber, L2ChainId};
 
 use async_trait::async_trait;
+use multivm::interface::L2BlockEnv;
 use tokio::runtime::Handle;
 use tokio::task::JoinHandle;
 
@@ -23,7 +25,6 @@ use zksync_types::block::MiniblockExecutionMode;
 #[derive(Debug)]
 pub struct BasicWitnessInputProducer {
     connection_pool: ConnectionPool,
-    validation_computational_gas_limit: u32,
     l2_chain_id: L2ChainId,
     object_store: Arc<dyn ObjectStore>,
 }
@@ -34,10 +35,8 @@ impl BasicWitnessInputProducer {
         store_factory: &ObjectStoreFactory,
         l2_chain_id: L2ChainId,
     ) -> anyhow::Result<Self> {
-        let validation_computational_gas_limit = u32::MAX;
         Ok(BasicWitnessInputProducer {
             connection_pool,
-            validation_computational_gas_limit,
             object_store: store_factory.create_store().await.into(),
             l2_chain_id,
         })
@@ -48,39 +47,39 @@ impl BasicWitnessInputProducer {
         l1_batch_number: L1BatchNumber,
         started_at: Instant,
         connection_pool: ConnectionPool,
-        validation_computational_gas_limit: u32,
         l2_chain_id: L2ChainId,
     ) -> anyhow::Result<WitnessBlockState> {
-        let mut connection = rt_handle.block_on(connection_pool.access_storage())?;
+        let mut connection = rt_handle
+            .block_on(connection_pool.access_storage())
+            .context("failed to get connection for BasicWitnessInputProducer")?;
 
-        let miniblocks_execution_data = rt_handle.block_on(
-            connection
-                .transactions_dal()
-                .get_miniblocks_to_execute_for(MiniblockExecutionMode::L1Batch(l1_batch_number)),
-        );
+        let miniblocks_execution_data =
+            rt_handle
+                .block_on(connection.transactions_dal().get_miniblocks_to_execute_for(
+                    MiniblockExecutionMode::L1Batch(l1_batch_number),
+                ))
+                .conext("failed to get miniblocks for BasicWitnessInputProducer")?;
 
-        let (mut vm, storage_view) = create_vm(
-            rt_handle.clone(),
-            l1_batch_number,
-            connection,
-            validation_computational_gas_limit,
-            l2_chain_id,
-        );
+        let (mut vm, storage_view) =
+            create_vm(rt_handle.clone(), l1_batch_number, connection, l2_chain_id)
+                .context("failed to create vm for BasicWitnessInputProducer")?;
 
         tracing::info!("Started execution of l1_batch: {l1_batch_number:?}");
-        for (index, miniblock_execution_data) in miniblocks_execution_data.iter().enumerate() {
+        let mut next_miniblocks_data = miniblocks_execution_data.iter().skip(1);
+        for miniblock_execution_data in miniblocks_execution_data.iter() {
             tracing::debug!(
                 "Started execution of miniblock: {:?}",
                 miniblock_execution_data.number
             );
             for tx in &miniblock_execution_data.txs {
-                tracing::debug!("Started execution of tx: {tx:?}");
-                execute_tx(tx, &mut vm);
-                tracing::debug!("Finished execution of tx: {tx:?}");
+                tracing::trace!("Started execution of tx: {tx:?}");
+                execute_tx(tx, &mut vm)
+                    .context("failed to execute transaction in BasicWitnessInputProducer")?;
+                tracing::trace!("Finished execution of tx: {tx:?}");
             }
-            if index + 1 < miniblocks_execution_data.len() {
-                vm.start_new_l2_block((&miniblocks_execution_data[index + 1]).into());
-            };
+            if let Some(next_miniblock_data) = next_miniblocks_data.next() {
+                vm.start_new_l2_block(L2BlockEnv::from_miniblock_data(next_miniblock_data));
+            }
 
             tracing::debug!(
                 "Finished execution of miniblock: {:?}",
@@ -117,7 +116,8 @@ impl JobProcessor for BasicWitnessInputProducer {
         let l1_batch_to_process = connection
             .basic_witness_input_producer_dal()
             .get_next_basic_witness_input_producer_job()
-            .await?;
+            .await
+            .context("failed to get next basic witness input producer job")?;
         Ok(l1_batch_to_process.map(|number| (number, number)))
     }
 
@@ -146,7 +146,6 @@ impl JobProcessor for BasicWitnessInputProducer {
         job: Self::Job,
         started_at: Instant,
     ) -> JoinHandle<anyhow::Result<Self::JobArtifacts>> {
-        let validation_computational_gas_limit = self.validation_computational_gas_limit;
         let l2_chain_id = self.l2_chain_id;
         let connection_pool = self.connection_pool.clone();
         tokio::task::spawn_blocking(move || {
@@ -156,7 +155,6 @@ impl JobProcessor for BasicWitnessInputProducer {
                 job,
                 started_at,
                 connection_pool.clone(),
-                validation_computational_gas_limit,
                 l2_chain_id,
             )
         })
@@ -169,17 +167,25 @@ impl JobProcessor for BasicWitnessInputProducer {
         artifacts: Self::JobArtifacts,
     ) -> anyhow::Result<()> {
         let upload_started_at = Instant::now();
-        let object_path = self.object_store.put(job_id, &artifacts).await?;
+        let object_path = self
+            .object_store
+            .put(job_id, &artifacts)
+            .await
+            .context("failed to upload artifacts for BasicWitnessInputProducer")?;
         metrics::histogram!(
             "basic_witness_input_producer.upload_input_time",
             upload_started_at.elapsed(),
         );
-        let mut connection = self.connection_pool.access_storage().await?;
+        let mut connection = self
+            .connection_pool
+            .access_storage()
+            .await
+            .context("failed to acquire DB connection for BasicWitnessInputProducer")?;
         connection
             .basic_witness_input_producer_dal()
-            .mark_job_as_successful(job_id, started_at, object_path)
+            .mark_job_as_successful(job_id, started_at, &object_path)
             .await
-            .unwrap();
+            .context("failed to mark job as successful for BasicWitnessInputProducer")?;
         Ok(())
     }
 }

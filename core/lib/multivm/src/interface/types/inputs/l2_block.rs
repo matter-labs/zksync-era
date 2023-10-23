@@ -8,8 +8,8 @@ pub struct L2BlockEnv {
     pub max_virtual_blocks_to_create: u32,
 }
 
-impl From<&MiniblockExecutionData> for L2BlockEnv {
-    fn from(miniblock_execution_data: &MiniblockExecutionData) -> Self {
+impl L2BlockEnv {
+    pub fn from_miniblock_data(miniblock_execution_data: &MiniblockExecutionData) -> Self {
         Self {
             number: miniblock_execution_data.number.0,
             timestamp: miniblock_execution_data.timestamp,

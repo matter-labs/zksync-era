@@ -863,6 +863,11 @@ async fn add_basic_witness_input_producer_to_task_futures(
     l2_chain_id: L2ChainId,
     stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<()> {
+    // Witness Generator won't be spawned with `ZKSYNC_LOCAL_SETUP` running.
+    // BasicWitnessInputProducer shouldn't be producing input for it locally either.
+    if std::env::var("ZKSYNC_LOCAL_SETUP") == Ok("true".to_owned()) {
+        return Ok(());
+    }
     let started_at = Instant::now();
     tracing::info!("initializing BasicWitnessInputProducer");
     let producer =
