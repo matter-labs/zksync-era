@@ -512,7 +512,7 @@ mod tests {
     #[tokio::test]
     async fn rocksdb_storage_basics() {
         let dir = TempDir::new().expect("cannot create temporary dir for state keeper");
-        let mut storage = RocksdbStorage::new_testing(dir.path());
+        let mut storage = RocksdbStorage::new(dir.path());
         let mut storage_logs: HashMap<_, _> = gen_storage_logs(0..20)
             .into_iter()
             .map(|log| (log.key, log.value))
@@ -554,7 +554,7 @@ mod tests {
         create_l1_batch(&mut conn, L1BatchNumber(1), &storage_logs).await;
 
         let dir = TempDir::new().expect("cannot create temporary dir for state keeper");
-        let mut storage = RocksdbStorage::new_testing(dir.path());
+        let mut storage = RocksdbStorage::new(dir.path());
         storage.update_from_postgres(&mut conn).await;
 
         assert_eq!(storage.l1_batch_number(), L1BatchNumber(2));
@@ -604,7 +604,7 @@ mod tests {
         create_l1_batch(&mut conn, L1BatchNumber(2), &inserted_storage_logs).await;
 
         let dir = TempDir::new().expect("cannot create temporary dir for state keeper");
-        let mut storage = RocksdbStorage::new_testing(dir.path());
+        let mut storage = RocksdbStorage::new(dir.path());
         storage.update_from_postgres(&mut conn).await;
 
         // Perform some sanity checks before the revert.
@@ -663,7 +663,7 @@ mod tests {
             .collect();
 
         let dir = TempDir::new().expect("cannot create temporary dir for state keeper");
-        let mut storage = RocksdbStorage::new_testing(dir.path());
+        let mut storage = RocksdbStorage::new(dir.path());
         storage.update_from_postgres(&mut conn).await;
 
         assert_eq!(storage.l1_batch_number(), L1BatchNumber(2));
