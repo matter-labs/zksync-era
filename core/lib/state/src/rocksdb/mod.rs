@@ -118,16 +118,8 @@ impl RocksdbStorage {
         Self {
             db,
             pending_patch: InMemoryStorage::default(),
-            enum_index_migration_chunk_size: 0,
+            enum_index_migration_chunk_size: 100,
         }
-    }
-
-    #[cfg(test)]
-    pub fn new_testing(path: &Path) -> Self {
-        let mut new_self = Self::new(path);
-        new_self.enable_enum_index_migration(100);
-
-        new_self
     }
 
     /// Enables enum indices migration.
@@ -192,12 +184,6 @@ impl RocksdbStorage {
         tracing::info!(
             "Secondary storage for L1 batch #{latest_l1_batch_number} initialized, size is {estimated_size}"
         );
-
-        assert!(self.enum_index_migration_chunk_size > 0);
-        // Enum indices must be at the storage. Run migration till the end.
-        while self.enum_migration_start_from().is_some() {
-            self.save_missing_enum_indices(conn).await;
-        }
     }
 
     async fn apply_storage_logs(
