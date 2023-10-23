@@ -34,7 +34,7 @@ services:
       - "5432:5432"
     environment:
       - POSTGRES_HOST_AUTH_METHOD=trust
-  postgres_tmp:
+  postgres_for_unit_tests:
     image: "postgres:14"
     command: "postgres -c fsync=false"
     ports:
