@@ -53,12 +53,11 @@ impl BasicWitnessInputProducer {
             .block_on(connection_pool.access_storage())
             .context("failed to get connection for BasicWitnessInputProducer")?;
 
-        let miniblocks_execution_data =
-            rt_handle
-                .block_on(connection.transactions_dal().get_miniblocks_to_execute_for(
-                    MiniblockExecutionMode::L1Batch(l1_batch_number),
-                ))
-                .conext("failed to get miniblocks for BasicWitnessInputProducer")?;
+        let miniblocks_execution_data = rt_handle.block_on(
+            connection
+                .transactions_dal()
+                .get_miniblocks_to_execute_for(MiniblockExecutionMode::L1Batch(l1_batch_number)),
+        )?;
 
         let (mut vm, storage_view) =
             create_vm(rt_handle.clone(), l1_batch_number, connection, l2_chain_id)

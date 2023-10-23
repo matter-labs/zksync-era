@@ -1,6 +1,4 @@
 use anyhow::anyhow;
-use std::cell::RefCell;
-use std::rc::Rc;
 
 use crate::state_keeper::io::common::load_l1_batch_params;
 
@@ -8,7 +6,7 @@ use multivm::vm_latest::HistoryEnabled;
 use multivm::VmInstance;
 use tokio::runtime::Handle;
 use zksync_dal::StorageProcessor;
-use zksync_state::{PostgresStorage, ReadStorage, StorageView};
+use zksync_state::{PostgresStorage, ReadStorage, StoragePtr, StorageView};
 use zksync_types::{L1BatchNumber, L2ChainId, Transaction};
 
 pub(super) fn create_vm(
@@ -18,7 +16,7 @@ pub(super) fn create_vm(
     l2_chain_id: L2ChainId,
 ) -> anyhow::Result<(
     VmInstance<PostgresStorage, HistoryEnabled>,
-    Rc<RefCell<StorageView<PostgresStorage>>>,
+    StoragePtr<StorageView<PostgresStorage>>,
 )> {
     let prev_l1_batch_number = l1_batch_number - 1;
     let (_, miniblock_number) = rt_handle

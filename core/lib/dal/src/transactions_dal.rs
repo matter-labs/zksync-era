@@ -972,7 +972,7 @@ impl TransactionsDal<'_, '_> {
     async fn get_miniblock_with_transactions_for(
         &mut self,
         mode: MiniblockExecutionMode,
-    ) -> sqlx::Result<Vec<(MiniblockNumber, Vec<Transaction>)>> {
+    ) -> anyhow::Result<Vec<(MiniblockNumber, Vec<Transaction>)>> {
         let transactions = match mode {
             MiniblockExecutionMode::Reexecute => {
                 sqlx::query_as!(
@@ -996,7 +996,7 @@ impl TransactionsDal<'_, '_> {
                 .await
             }
         };
-        transactions?
+        Ok(transactions?
             .into_iter()
             .group_by(|tx| tx.miniblock_number.unwrap())
             .into_iter()
@@ -1006,7 +1006,7 @@ impl TransactionsDal<'_, '_> {
                     txs.map(Transaction::from).collect::<Vec<_>>(),
                 )
             })
-            .collect()
+            .collect())
     }
 
     /// Returns miniblocks with their transactions to be used in VM execution.
