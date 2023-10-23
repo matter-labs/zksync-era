@@ -1,3 +1,27 @@
+FROM ubuntu:22.04 as solidity_builder
+
+# Install prerequisites
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    cmake \
+    git \
+    libboost-all-dev
+
+# Clone Solidity repository
+RUN git clone https://github.com/ethereum/solidity.git
+
+# Checkout specific version
+WORKDIR /solidity
+RUN git checkout v0.8.20
+
+# Initialize and update submodules
+RUN git submodule update --init --recursive
+
+# Build Solidity
+WORKDIR /solidity/build
+RUN cmake ..
+RUN make
+
 FROM ubuntu:22.04 as base
 
 ARG ARCH=amd64
@@ -73,10 +97,9 @@ RUN cargo install cargo-tarpaulin
 RUN cargo install cargo-nextest
 
 # Copy compiler (both solc and zksolc) binaries
-# Obtain `solc` 0.8.20.
-RUN wget https://github.com/ethereum/solc-bin/raw/gh-pages/linux-${ARCH}/solc-linux-${ARCH}-v0.8.20%2Bcommit.a1b79de6 \
-    && mv solc-linux-${ARCH}-v0.8.20+commit.a1b79de6 /usr/bin/solc \
-    && chmod +x /usr/bin/solc
+# Obtain `solc` 0.8.20
+COPY --from=solidity_builder /solidity/build/solc/solc /usr/bin/
+RUN chmod +x /usr/bin/solc
 # Obtain `zksolc` 1.3.15.
 RUN wget https://github.com/matter-labs/zksolc-bin/raw/main/linux-${ARCH}/zksolc-linux-${ARCH}-musl-v1.3.15 \
     && mv zksolc-linux-${ARCH}-musl-v1.3.15 /usr/bin/zksolc \
