@@ -241,6 +241,30 @@ impl BlocksDal<'_, '_> {
         Ok(Some(heap))
     }
 
+    pub async fn get_storage_refunds(
+        &mut self,
+        number: L1BatchNumber,
+    ) -> anyhow::Result<Option<Vec<u32>>> {
+        let Some(row) = sqlx::query!(
+            "SELECT storage_refunds FROM l1_batches WHERE number = $1",
+            number.0 as i64
+        )
+        .instrument("get_storage_refunds")
+        .report_latency()
+        .with_arg("number", &number)
+        .fetch_optional(self.storage.conn())
+        .await?
+        else {
+            return Ok(None);
+        };
+        let Some(storage_refunds) = row.storage_refunds else {
+            return Ok(None);
+        };
+
+        let storage_refunds: Vec<_> = storage_refunds.into_iter().map(|n| n as u32).collect();
+        Ok(Some(storage_refunds))
+    }
+
     pub async fn get_events_queue(
         &mut self,
         number: L1BatchNumber,
@@ -316,6 +340,7 @@ impl BlocksDal<'_, '_> {
         initial_bootloader_contents: &[(usize, U256)],
         predicted_block_gas: BlockGasCount,
         events_queue: &[LogQuery],
+        storage_refunds: &[u32],
     ) -> anyhow::Result<()> {
         let priority_onchain_data: Vec<Vec<u8>> = header
             .priority_ops_onchain_data
@@ -338,6 +363,7 @@ impl BlocksDal<'_, '_> {
             .expect("failed to serialize used_contract_hashes to JSON value");
         let base_fee_per_gas = BigDecimal::from_u64(header.base_fee_per_gas)
             .context("block.base_fee_per_gas should fit in u64")?;
+        let storage_refunds: Vec<_> = storage_refunds.iter().map(|n| *n as i64).collect();
 
         let mut transaction = self.storage.start_transaction().await?;
         sqlx::query!(
@@ -347,9 +373,9 @@ impl BlocksDal<'_, '_> {
                 bloom, priority_ops_onchain_data, \
                 predicted_commit_gas_cost, predicted_prove_gas_cost, predicted_execute_gas_cost, \
                 initial_bootloader_heap_content, used_contract_hashes, base_fee_per_gas, \
-                l1_gas_price, l2_fair_gas_price, bootloader_code_hash, default_aa_code_hash, protocol_version, \
+                l1_gas_price, l2_fair_gas_price, bootloader_code_hash, default_aa_code_hash, protocol_version, storage_refunds, \
                 created_at, updated_at \
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, now(), now())",
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, now(), now())",
             header.number.0 as i64,
             header.l1_tx_count as i32,
             header.l2_tx_count as i32,
@@ -377,6 +403,7 @@ impl BlocksDal<'_, '_> {
                 .default_aa
                 .as_bytes(),
             header.protocol_version.map(|v| v as i32),
+            &storage_refunds,
         )
         .execute(transaction.conn())
         .await?;
@@ -1471,7 +1498,7 @@ mod tests {
         header.l2_to_l1_messages.push(vec![33; 33]);
 
         conn.blocks_dal()
-            .insert_l1_batch(&header, &[], BlockGasCount::default(), &[])
+            .insert_l1_batch(&header, &[], BlockGasCount::default(), &[], &[])
             .await
             .unwrap();
 
@@ -1519,7 +1546,7 @@ mod tests {
             execute: 10,
         };
         conn.blocks_dal()
-            .insert_l1_batch(&header, &[], predicted_gas, &[])
+            .insert_l1_batch(&header, &[], predicted_gas, &[], &[])
             .await
             .unwrap();
 
@@ -1527,7 +1554,7 @@ mod tests {
         header.timestamp += 100;
         predicted_gas += predicted_gas;
         conn.blocks_dal()
-            .insert_l1_batch(&header, &[], predicted_gas, &[])
+            .insert_l1_batch(&header, &[], predicted_gas, &[], &[])
             .await
             .unwrap();
 
