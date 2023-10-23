@@ -37,6 +37,7 @@ impl GlueFrom<crate::vm_m5::vm::VmBlockResult> for crate::interface::FinishedL1B
                 l2_to_l1_logs: value.full_result.l2_to_l1_logs,
                 total_log_queries: value.full_result.total_log_queries,
                 cycles_used: value.full_result.cycles_used,
+                storage_refunds: Vec::new(),
             },
             final_bootloader_memory: None,
         }
@@ -70,6 +71,7 @@ impl GlueFrom<crate::vm_m6::vm::VmBlockResult> for crate::interface::FinishedL1B
                 l2_to_l1_logs: value.full_result.l2_to_l1_logs,
                 total_log_queries: value.full_result.total_log_queries,
                 cycles_used: value.full_result.cycles_used,
+                storage_refunds: Vec::new(),
             },
             final_bootloader_memory: None,
         }
@@ -103,6 +105,7 @@ impl GlueFrom<crate::vm_1_3_2::vm::VmBlockResult> for crate::interface::Finished
                 l2_to_l1_logs: value.full_result.l2_to_l1_logs,
                 total_log_queries: value.full_result.total_log_queries,
                 cycles_used: value.full_result.cycles_used,
+                storage_refunds: Vec::new(),
             },
             final_bootloader_memory: None,
         }
