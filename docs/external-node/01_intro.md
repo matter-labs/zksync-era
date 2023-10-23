@@ -49,7 +49,7 @@ A more detailed overview of the EN's components is provided in the [components](
 API exposed by the EN strives to be Web3-compliant. If some method is exposed but behaves differently compared to
 Ethereum, it should be considered a bug. Please [report][contact_us] such cases.
 
-[contact_us]: https://docs.zksync.io/contact/
+[contact_us]: https://docs.zksync.io/dev/contracts/
 
 ### `eth` namespace
 
