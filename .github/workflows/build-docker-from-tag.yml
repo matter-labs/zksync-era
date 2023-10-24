@@ -76,6 +76,7 @@ jobs:
       setup_keys_id: 4989f12
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
       push_asia: true
+      push_europe: true
 
   build-gar-prover-fri-gpu:
     name: Build GAR prover FRI GPU
