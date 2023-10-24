@@ -95,15 +95,7 @@ RUN echo "deb [arch=${ARCH}] http://packages.cloud.google.com/apt cloud-sdk main
 RUN curl https://sh.rustup.rs -sSf | bash -s -- -y && \
     rustup default stable
 
-# HACK: Build sqlx v0.5.13
-COPY sqlx_v0.5.13.patch sqlx_v0.5.13.patch
-RUN git clone https://github.com/launchbadge/sqlx.git && \
-    cd sqlx && \
-    git checkout v0.5.13 && \
-    git apply ../sqlx_v0.5.13.patch && \
-    cd sqlx-cli && \
-    cargo install --path .
-
+RUN cargo install sqlx --version 0.5.13
 RUN cargo install cargo-tarpaulin
 RUN cargo install cargo-nextest
 
