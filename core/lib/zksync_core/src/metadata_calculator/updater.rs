@@ -44,6 +44,8 @@ impl TreeUpdater {
             mode,
             config.multi_get_chunk_size,
             config.block_cache_capacity,
+            config.memtable_capacity,
+            config.stalled_writes_timeout,
         )
         .await;
         Self {

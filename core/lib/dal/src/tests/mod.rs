@@ -290,7 +290,7 @@ async fn test_duplicate_insert_prover_jobs(connection_pool: ConnectionPool) {
     );
     storage
         .blocks_dal()
-        .insert_l1_batch(&header, &[], Default::default(), &[])
+        .insert_l1_batch(&header, &[], Default::default(), &[], &[])
         .await
         .unwrap();
 
@@ -352,7 +352,7 @@ async fn test_requeue_prover_jobs(connection_pool: ConnectionPool) {
     );
     storage
         .blocks_dal()
-        .insert_l1_batch(&header, &[], Default::default(), &[])
+        .insert_l1_batch(&header, &[], Default::default(), &[], &[])
         .await
         .unwrap();
 
@@ -415,7 +415,7 @@ async fn test_move_leaf_aggregation_jobs_from_waiting_to_queued(connection_pool:
     );
     storage
         .blocks_dal()
-        .insert_l1_batch(&header, &[], Default::default(), &[])
+        .insert_l1_batch(&header, &[], Default::default(), &[], &[])
         .await
         .unwrap();
 
@@ -495,7 +495,7 @@ async fn test_move_node_aggregation_jobs_from_waiting_to_queued(connection_pool:
     );
     storage
         .blocks_dal()
-        .insert_l1_batch(&header, &[], Default::default(), &[])
+        .insert_l1_batch(&header, &[], Default::default(), &[], &[])
         .await
         .unwrap();
 
@@ -582,7 +582,7 @@ async fn test_move_scheduler_jobs_from_waiting_to_queued(connection_pool: Connec
     );
     storage
         .blocks_dal()
-        .insert_l1_batch(&header, &[], Default::default(), &[])
+        .insert_l1_batch(&header, &[], Default::default(), &[], &[])
         .await
         .unwrap();
 

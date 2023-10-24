@@ -190,6 +190,13 @@ pub struct OptionalENConfig {
     /// The default value is 128 MiB.
     #[serde(default = "OptionalENConfig::default_merkle_tree_block_cache_size_mb")]
     merkle_tree_block_cache_size_mb: usize,
+    /// Byte capacity of memtables (recent, non-persisted changes to RocksDB). Setting this to a reasonably
+    /// large value (order of 512 MiB) is helpful for large DBs that experience write stalls.
+    #[serde(default = "OptionalENConfig::default_merkle_tree_memtable_capacity_mb")]
+    merkle_tree_memtable_capacity_mb: usize,
+    /// Timeout to wait for the Merkle tree database to run compaction on stalled writes.
+    #[serde(default = "OptionalENConfig::default_merkle_tree_stalled_writes_timeout_sec")]
+    merkle_tree_stalled_writes_timeout_sec: u64,
 
     // Other config settings
     /// Port on which the Prometheus exporter server is listening.
@@ -271,6 +278,14 @@ impl OptionalENConfig {
         128
     }
 
+    const fn default_merkle_tree_memtable_capacity_mb() -> usize {
+        256
+    }
+
+    const fn default_merkle_tree_stalled_writes_timeout_sec() -> u64 {
+        30
+    }
+
     const fn default_fee_history_limit() -> u64 {
         1_024
     }
@@ -313,6 +328,16 @@ impl OptionalENConfig {
     /// Returns the size of block cache for Merkle tree in bytes.
     pub fn merkle_tree_block_cache_size(&self) -> usize {
         self.merkle_tree_block_cache_size_mb * BYTES_IN_MEGABYTE
+    }
+
+    /// Returns the memtable capacity for Merkle tree in bytes.
+    pub fn merkle_tree_memtable_capacity(&self) -> usize {
+        self.merkle_tree_memtable_capacity_mb * BYTES_IN_MEGABYTE
+    }
+
+    /// Returns the timeout to wait for the Merkle tree database to run compaction on stalled writes.
+    pub fn merkle_tree_stalled_writes_timeout(&self) -> Duration {
+        Duration::from_secs(self.merkle_tree_stalled_writes_timeout_sec)
     }
 
     pub fn api_namespaces(&self) -> Vec<Namespace> {
