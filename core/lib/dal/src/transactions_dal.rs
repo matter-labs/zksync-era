@@ -2,7 +2,7 @@ use bigdecimal::BigDecimal;
 use itertools::Itertools;
 use sqlx::{error, types::chrono::NaiveDateTime};
 
-use anyhow::anyhow;
+use anyhow::Context;
 use std::{collections::HashMap, fmt, time::Duration};
 
 use zksync_types::{
@@ -1028,11 +1028,11 @@ impl TransactionsDal<'_, '_> {
         }
         let from_miniblock = transactions_by_miniblock
             .first()
-            .ok_or_else(|| anyhow!("No first transaction found for miniblock"))?
+            .context("No first transaction found for miniblock")?
             .0;
         let to_miniblock = transactions_by_miniblock
             .last()
-            .ok_or_else(|| anyhow!("No last transaction found for miniblock"))?
+            .context("No last transaction found for miniblock")?
             .0;
         let miniblock_data = sqlx::query!(
             "SELECT timestamp, virtual_blocks FROM miniblocks WHERE number BETWEEN $1 AND $2 ORDER BY number",

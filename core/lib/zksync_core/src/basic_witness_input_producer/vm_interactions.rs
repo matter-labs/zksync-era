@@ -1,4 +1,4 @@
-use anyhow::anyhow;
+use anyhow::{anyhow, Context};
 
 use crate::state_keeper::io::common::load_l1_batch_params;
 
@@ -27,8 +27,8 @@ pub(super) fn create_vm(
                 .blocks_dal()
                 .get_miniblock_range_of_l1_batch(prev_l1_batch_number),
         )?
-        .ok_or_else(|| {
-            anyhow!(
+        .with_context(|| {
+            format!(
                 "l1_batch_number {l1_batch_number:?} must have a previous miniblock to start from"
             )
         })?;
@@ -39,8 +39,8 @@ pub(super) fn create_vm(
                 .blocks_dal()
                 .get_fee_address_for_l1_batch(l1_batch_number),
         )?
-        .ok_or_else(|| {
-            anyhow!("l1_batch_number {l1_batch_number:?} must have fee_address_account")
+        .with_context(|| {
+            format!("l1_batch_number {l1_batch_number:?} must have fee_address_account")
         })?;
 
     // In the state keeper, this value is used to reject execution.
@@ -55,7 +55,7 @@ pub(super) fn create_vm(
             validation_computational_gas_limit,
             l2_chain_id,
         ))
-        .ok_or_else(|| anyhow!("expected miniblock to be executed and sealed"))?;
+        .context("expected miniblock to be executed and sealed")?;
 
     let pg_storage = PostgresStorage::new(rt_handle.clone(), connection, miniblock_number, true);
     let storage_view = StorageView::new(pg_storage).to_rc_ptr();
