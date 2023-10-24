@@ -128,7 +128,11 @@ async function _push(image: string, tagList: string[], publishPublic: boolean = 
             await utils.spawn(
                 `docker tag us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${image}:${tag} asia-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${image}:${tag}`
             );
+            await utils.spawn(
+                `docker tag us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${image}:${tag} europe-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${image}:${tag}`
+            );
             await utils.spawn(`docker push asia-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${image}:${tag}`);
+            await utils.spawn(`docker push europe-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${image}:${tag}`);
         }
         if (image == 'external-node' && publishPublic) {
             await utils.spawn(`docker push matterlabs/${image}-public:${tag}`);
