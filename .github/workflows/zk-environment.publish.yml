@@ -45,6 +45,7 @@ jobs:
     if: needs.changed_files.outputs.zk_environment == 'true'
     name: Build and optionally push zk-environment Docker images to Docker Hub
     strategy:
+      fail-fast: false
       matrix:
         include:
           - runner: matterlabs-ci-runner
