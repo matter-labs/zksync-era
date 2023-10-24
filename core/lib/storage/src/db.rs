@@ -203,6 +203,16 @@ impl RocksDBInner {
     }
 }
 
+impl Drop for RocksDBInner {
+    fn drop(&mut self) {
+        tracing::debug!(
+            "Canceling background compactions / flushes for DB `{}`",
+            self.db_name
+        );
+        self.db.cancel_all_background_work(true);
+    }
+}
+
 /// Configuration for retries when RocksDB writes are stalled.
 #[derive(Debug, Clone, Copy)]
 pub struct StalledWritesRetries {
@@ -557,12 +567,6 @@ impl RocksDB<()> {
             num_instances = cvar.wait(num_instances).unwrap();
         }
         tracing::info!("All the RocksDB instances are dropped");
-    }
-}
-
-impl<CF> Drop for RocksDB<CF> {
-    fn drop(&mut self) {
-        self.inner.db.cancel_all_background_work(true);
     }
 }
 
