@@ -11,7 +11,7 @@ use std::{
 };
 
 use multivm::vm_latest::{
-    constants::MAX_CYCLES_FOR_TX, HistoryDisabled, SimpleMemory, StorageOracle,
+    constants::MAX_CYCLES_FOR_TX, HistoryDisabled, SimpleMemory, StorageOracle as VmStorageOracle,
 };
 use zksync_config::configs::witness_generator::BasicWitnessGeneratorDataSource;
 use zksync_config::configs::WitnessGeneratorConfig;
@@ -37,7 +37,7 @@ use zksync_utils::{bytes_to_chunks, expand_memory_contents, h256_to_u256, u256_t
 
 use super::{
     precalculated_merkle_paths_provider::PrecalculatedMerklePathsProvider,
-    utils::save_prover_input_artifacts, METRICS,
+    storage_oracle::StorageOracle, utils::save_prover_input_artifacts, METRICS,
 };
 
 pub struct BasicCircuitArtifacts {
@@ -458,6 +458,12 @@ pub async fn generate_witness(
         .await
         .unwrap()
         .expect("L1 batch should contain at least one miniblock");
+    let storage_refunds = connection
+        .blocks_dal()
+        .get_storage_refunds(input.block_number)
+        .await
+        .unwrap()
+        .unwrap();
 
     drop(connection);
     let rt_handle = tokio::runtime::Handle::current();
@@ -514,8 +520,9 @@ pub async fn generate_witness(
 
         let storage_view = StorageView::new(storage);
         let storage_view = storage_view.to_rc_ptr();
-        let storage_oracle: StorageOracle<StorageView<Box<dyn ReadStorage>>, HistoryDisabled> =
-            StorageOracle::new(storage_view);
+        let vm_storage_oracle: VmStorageOracle<StorageView<Box<dyn ReadStorage>>, HistoryDisabled> =
+            VmStorageOracle::new(storage_view);
+        let storage_oracle = StorageOracle::new(vm_storage_oracle, storage_refunds);
         let memory: SimpleMemory<HistoryDisabled> = SimpleMemory::default();
         let mut hasher = DefaultHasher::new();
         GEOMETRY_CONFIG.hash(&mut hasher);

@@ -16,6 +16,8 @@ pub struct CurrentExecutionState {
     pub total_log_queries: usize,
     /// Number of cycles used by the VM.
     pub cycles_used: u32,
+    /// Refunds returned by `StorageOracle`.
+    pub storage_refunds: Vec<u32>,
 }
 
 /// Bootloader Memory of the VM.

@@ -280,7 +280,13 @@ async fn test_postgres_backup_recovery(
         // Re-insert the last batch without metadata immediately.
         storage
             .blocks_dal()
-            .insert_l1_batch(batch_without_metadata, &[], BlockGasCount::default(), &[])
+            .insert_l1_batch(
+                batch_without_metadata,
+                &[],
+                BlockGasCount::default(),
+                &[],
+                &[],
+            )
             .await
             .unwrap();
         insert_initial_writes_for_batch(&mut storage, batch_without_metadata.number).await;
@@ -305,7 +311,7 @@ async fn test_postgres_backup_recovery(
     for batch_header in &removed_batches {
         storage
             .blocks_dal()
-            .insert_l1_batch(batch_header, &[], BlockGasCount::default(), &[])
+            .insert_l1_batch(batch_header, &[], BlockGasCount::default(), &[], &[])
             .await
             .unwrap();
         insert_initial_writes_for_batch(&mut storage, batch_header.number).await;
@@ -500,7 +506,7 @@ pub(super) async fn extend_db_state(
 
         storage
             .blocks_dal()
-            .insert_l1_batch(&header, &[], BlockGasCount::default(), &[])
+            .insert_l1_batch(&header, &[], BlockGasCount::default(), &[], &[])
             .await
             .unwrap();
         storage
