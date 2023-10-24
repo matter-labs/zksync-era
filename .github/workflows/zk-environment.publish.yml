@@ -126,7 +126,7 @@ jobs:
           docker manifest create matterlabs/zksync_rust:nightly \
             --amend matterlabs/zk-environment:${{ needs.get_short_sha.outputs.short_sha }}-nightly-amd64 \
             --amend matterlabs/zk-environment:${{ needs.get_short_sha.outputs.short_sha }}-nightly-arm64
-          docker manifest push matterlabs/zk-environment:zksync_rust:nightly
+          docker manifest push matterlabs/zksync_rust:nightly
 
   zk_environment_cuda_12:
     if: needs.changed_files.outputs.zk_environment_cuda_12 == 'true'
