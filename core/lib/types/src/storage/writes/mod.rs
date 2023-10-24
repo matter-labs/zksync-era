@@ -8,9 +8,11 @@ use self::compression::{compress_with_best_strategy, COMPRESSION_VERSION_NUMBER}
 
 pub mod compression;
 
+/// The number of bytes being used for state diff enumeration indices. Applicable to repeated writes.
 pub const BYTES_PER_ENUMERATION_INDEX: u8 = 4;
+/// The number of bytes used to represent a state diff derived key.
 pub const BYTES_PER_DERIVED_KEY: u8 = 32;
-// Total byte size of all fields in StateDiffRecord struct
+/// Total byte size of all fields in StateDiffRecord struct
 // 20 + 32 + 32 + 8 + 32 + 32
 const STATE_DIFF_RECORD_SIZE: usize = 156;
 
