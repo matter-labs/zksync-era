@@ -184,6 +184,8 @@ impl RocksdbStorage {
         tracing::info!(
             "Secondary storage for L1 batch #{latest_l1_batch_number} initialized, size is {estimated_size}"
         );
+
+        self.save_missing_enum_indices(conn).await;
     }
 
     async fn apply_storage_logs(
