@@ -4629,7 +4629,20 @@
       "nullable": [],
       "parameters": {
         "Left": [
-          "Text",
+          {
+            "Custom": {
+              "kind": {
+                "Enum": [
+                  "Queued",
+                  "ManuallySkipped",
+                  "InProgress",
+                  "Successful",
+                  "Failed"
+                ]
+              },
+              "name": "basic_witness_input_producer_job_status"
+            }
+          },
           "Int8",
           "Time",
           "Text"
@@ -7454,7 +7467,20 @@
       "parameters": {
         "Left": [
           "Int8",
-          "Text"
+          {
+            "Custom": {
+              "kind": {
+                "Enum": [
+                  "Queued",
+                  "ManuallySkipped",
+                  "InProgress",
+                  "Successful",
+                  "Failed"
+                ]
+              },
+              "name": "basic_witness_input_producer_job_status"
+            }
+          }
         ]
       }
     },
@@ -10406,9 +10432,48 @@
       ],
       "parameters": {
         "Left": [
-          "Text",
-          "Text",
-          "Text",
+          {
+            "Custom": {
+              "kind": {
+                "Enum": [
+                  "Queued",
+                  "ManuallySkipped",
+                  "InProgress",
+                  "Successful",
+                  "Failed"
+                ]
+              },
+              "name": "basic_witness_input_producer_job_status"
+            }
+          },
+          {
+            "Custom": {
+              "kind": {
+                "Enum": [
+                  "Queued",
+                  "ManuallySkipped",
+                  "InProgress",
+                  "Successful",
+                  "Failed"
+                ]
+              },
+              "name": "basic_witness_input_producer_job_status"
+            }
+          },
+          {
+            "Custom": {
+              "kind": {
+                "Enum": [
+                  "Queued",
+                  "ManuallySkipped",
+                  "InProgress",
+                  "Successful",
+                  "Failed"
+                ]
+              },
+              "name": "basic_witness_input_producer_job_status"
+            }
+          },
           "Interval",
           "Int2"
         ]
@@ -11511,11 +11576,37 @@
       ],
       "parameters": {
         "Left": [
-          "Text",
+          {
+            "Custom": {
+              "kind": {
+                "Enum": [
+                  "Queued",
+                  "ManuallySkipped",
+                  "InProgress",
+                  "Successful",
+                  "Failed"
+                ]
+              },
+              "name": "basic_witness_input_producer_job_status"
+            }
+          },
           "Int8",
           "Time",
           "Text",
-          "Text"
+          {
+            "Custom": {
+              "kind": {
+                "Enum": [
+                  "Queued",
+                  "ManuallySkipped",
+                  "InProgress",
+                  "Successful",
+                  "Failed"
+                ]
+              },
+              "name": "basic_witness_input_producer_job_status"
+            }
+          }
         ]
       }
     },

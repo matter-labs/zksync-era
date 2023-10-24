@@ -17,30 +17,27 @@ const JOB_MAX_ATTEMPT: i16 = 10;
 const JOB_PROCESSING_TIMEOUT: PgInterval = pg_interval_from_duration(Duration::from_secs(10 * 60));
 
 /// Status of a job that the producer will work on.
-#[derive(Debug, strum::Display, strum::EnumString, strum::AsRefStr)]
+
+#[derive(Debug, sqlx::Type)]
+#[sqlx(type_name = "basic_witness_input_producer_job_status")]
 pub enum BasicWitnessInputProducerJobStatus {
     /// When the job is queued. Metadata calculator creates the job and marks it as queued.
-    #[strum(serialize = "queued")]
     Queued,
     /// The job is not going to be processed. This state is designed for manual operations on DB.
     /// It is expected to be used if some jobs should be skipped like:
     /// - testing purposes (want to check a specific L1 Batch, I can mark everything before it skipped)
     /// - trim down costs on some environments (if I've done breaking changes,
     /// makes no sense to wait for everything to be processed, I can just skip them and save resources)
-    #[strum(serialize = "manually_skipped")]
     ManuallySkipped,
     /// Currently being processed by one of the jobs. Transitory state, will transition to either
     /// [`BasicWitnessInputProducerStatus::Successful`] or [`BasicWitnessInputProducerStatus::Failed`].
-    #[strum(serialize = "in_progress")]
     InProgress,
     /// The final (happy case) state we expect all jobs to end up. After the run is complete,
     /// the job uploaded it's inputs, it lands in successful.
-    #[strum(serialize = "successful")]
     Successful,
     /// The job failed for reasons. It will be marked as such and the error persisted in DB.
     /// If it failed less than MAX_ATTEMPTs, the job will be retried,
     /// otherwise it will stay in this state as final state.
-    #[strum(serialize = "failed")]
     Failed,
 }
 
@@ -55,7 +52,7 @@ impl BasicWitnessInputProducerDal<'_, '_> {
             VALUES ($1, $2, now(), now()) \
             ON CONFLICT (l1_batch_number) DO NOTHING",
             l1_batch_number.0 as i64,
-            BasicWitnessInputProducerJobStatus::Queued.to_string(),
+            BasicWitnessInputProducerJobStatus::Queued as BasicWitnessInputProducerJobStatus,
         )
         .instrument("create_basic_witness_input_producer_job")
         .report_latency()
@@ -86,9 +83,9 @@ impl BasicWitnessInputProducerDal<'_, '_> {
                 SKIP LOCKED \
             ) \
             RETURNING basic_witness_input_producer_jobs.l1_batch_number",
-            BasicWitnessInputProducerJobStatus::InProgress.to_string(),
-            BasicWitnessInputProducerJobStatus::Queued.to_string(),
-            BasicWitnessInputProducerJobStatus::Failed.to_string(),
+            BasicWitnessInputProducerJobStatus::InProgress as BasicWitnessInputProducerJobStatus,
+            BasicWitnessInputProducerJobStatus::Queued as BasicWitnessInputProducerJobStatus,
+            BasicWitnessInputProducerJobStatus::Failed as BasicWitnessInputProducerJobStatus,
             &JOB_PROCESSING_TIMEOUT,
             JOB_MAX_ATTEMPT,
         )
@@ -114,7 +111,7 @@ impl BasicWitnessInputProducerDal<'_, '_> {
                 time_taken = $3, \
                 input_blob_url = $4 \
             WHERE l1_batch_number = $2",
-            BasicWitnessInputProducerJobStatus::Successful.to_string(),
+            BasicWitnessInputProducerJobStatus::Successful as BasicWitnessInputProducerJobStatus,
             l1_batch_number.0 as i64,
             duration_to_naive_time(started_at.elapsed()),
             object_path,
@@ -141,11 +138,11 @@ impl BasicWitnessInputProducerDal<'_, '_> {
                 error = $4 \
             WHERE l1_batch_number = $2 AND status != $5 \
             RETURNING basic_witness_input_producer_jobs.attempts",
-            BasicWitnessInputProducerJobStatus::Failed.to_string(),
+            BasicWitnessInputProducerJobStatus::Failed as BasicWitnessInputProducerJobStatus,
             l1_batch_number.0 as i64,
             duration_to_naive_time(started_at.elapsed()),
             error,
-            BasicWitnessInputProducerJobStatus::Successful.to_string(),
+            BasicWitnessInputProducerJobStatus::Successful as BasicWitnessInputProducerJobStatus,
         )
         .instrument("mark_job_as_failed")
         .report_latency()
