@@ -53,16 +53,13 @@ impl DeduplicatedWritesMetrics {
     }
 
     pub fn size(&self, protocol_version: ProtocolVersionId) -> usize {
-        match protocol_version {
-            version if version >= ProtocolVersionId::Version17 => {
-                self.total_updated_values_size
-                    + (BYTES_PER_DERIVED_KEY as usize) * self.initial_storage_writes
-                    + (BYTES_PER_ENUMERATION_INDEX as usize) * self.repeated_storage_writes
-            }
-            _ => {
-                self.initial_storage_writes * InitialStorageWrite::SERIALIZED_SIZE
-                    + self.repeated_storage_writes * RepeatedStorageWrite::SERIALIZED_SIZE
-            }
+        if protocol_version >= ProtocolVersionId::Version17 {
+            self.total_updated_values_size
+                + (BYTES_PER_DERIVED_KEY as usize) * self.initial_storage_writes
+                + (BYTES_PER_ENUMERATION_INDEX as usize) * self.repeated_storage_writes
+        } else {
+            self.initial_storage_writes * InitialStorageWrite::SERIALIZED_SIZE
+                + self.repeated_storage_writes * RepeatedStorageWrite::SERIALIZED_SIZE
         }
     }
 }
