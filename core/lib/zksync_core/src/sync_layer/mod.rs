@@ -1,5 +1,6 @@
 pub mod batch_status_updater;
 mod client;
+mod consensus;
 pub mod external_io;
 pub mod fetcher;
 pub mod genesis;
