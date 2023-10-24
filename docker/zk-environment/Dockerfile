@@ -218,7 +218,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 ENV LIBRARY_PATH /usr/local/cuda/lib64/stubs
 
-
 FROM base as rust-nightly
 
 RUN rustup install nightly-2023-07-21 && \
