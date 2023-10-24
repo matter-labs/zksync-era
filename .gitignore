@@ -70,3 +70,5 @@ artifacts-zk/
 cache-zk/
 zksolc
 verified_sources
+
+hyperchain-*.yml

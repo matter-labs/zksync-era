@@ -27,6 +27,7 @@ async function dockerCommand(
     customTag?: string,
     publishPublic: boolean = false,
     platforms: string[] = ['linux/amd64']
+    dockerOrg: string = 'matterlabs'
 ) {
     // Generating all tags for containers. We need 2 tags here: SHA and SHA+TS
     const { stdout: COMMIT_SHORT_SHA }: { stdout: string } = await utils.exec('git rev-parse --short HEAD');
@@ -53,7 +54,7 @@ async function dockerCommand(
     // COMMIT_SHORT_SHA returns with newline, so we need to trim it
     switch (command) {
         case 'build':
-            await _build(image, tagList, platforms);
+            await _build(image, tagList, dockerOrg, platforms);
             break;
         case 'push':
             await _push(image, tagList, publishPublic);
@@ -86,13 +87,15 @@ function defaultTagList(image: string, imageTagSha: string, imageTagShaTS: strin
     return tagList;
 }
 
-async function _build(image: string, tagList: string[], platforms: string[] = ['linux/amd64']) {
+
+async function _build(image: string, tagList: string[], dockerOrg: string, platforms: string[] = ['linux/amd64']) {
     if (image === 'server-v2' || image === 'external-node' || image === 'prover') {
         await contract.build();
     }
+    let tagsToBuild = '';
 
-    const tagsToBuild = tagList.map((tag) => `-t matterlabs/${image}:${tag}`).join(' ');
     // generate list of tags for image - we want 3 tags (latest, SHA, SHA+TimeStamp) for listed components and only "latest" for everything else
+    tagsToBuild = tagList.map((tag) => `-t ${dockerOrg}/${image}:${tag}`).join(' ');
 
     // Conditionally add build argument if image is prover-v2
     let buildArgs = '';
@@ -138,6 +141,10 @@ async function _push(image: string, tagList: string[], publishPublic: boolean = 
 
 export async function build(image: string, cmd: Command) {
     await dockerCommand('build', image, cmd.customTag, false, cmd.platforms);
+}
+
+export async function customBuildForHyperchain(image: string, dockerOrg: string) {
+    await dockerCommand('build', image, '', false, dockerOrg);
 }
 
 export async function push(image: string, cmd: Command) {
