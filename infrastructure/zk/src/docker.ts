@@ -87,7 +87,6 @@ function defaultTagList(image: string, imageTagSha: string, imageTagShaTS: strin
     return tagList;
 }
 
-
 async function _build(image: string, tagList: string[], dockerOrg: string, platforms: string[] = ['linux/amd64']) {
     if (image === 'server-v2' || image === 'external-node' || image === 'prover') {
         await contract.build();
