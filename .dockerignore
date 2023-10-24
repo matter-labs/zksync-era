@@ -21,7 +21,7 @@ keys/setup
 !package.json
 !Cargo.lock
 !Cargo.toml
-!docker/zk-environment/sqlx_v0.5.13.patch
+!sqlx_v0.5.13.patch
 !contracts/
 !setup_2\^26.key
 # It's required to remove .git from contracts,
