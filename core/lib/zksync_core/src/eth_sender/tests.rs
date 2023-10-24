@@ -1,6 +1,8 @@
 use assert_matches::assert_matches;
 use std::sync::{atomic::Ordering, Arc};
 
+use once_cell::sync::Lazy;
+
 use db_test_macro::db_test;
 use zksync_config::{
     configs::eth_sender::{ProofSendingMode, SenderConfig},
@@ -30,8 +32,21 @@ use crate::l1_gas_price::GasAdjuster;
 // Alias to conveniently call static methods of ETHSender.
 type MockEthTxManager = EthTxManager<Arc<MockEthereum>, GasAdjuster<Arc<MockEthereum>>>;
 
-const DUMMY_OPERATION: AggregatedOperation =
-    AggregatedOperation::Execute(L1BatchExecuteOperation { l1_batches: vec![] });
+static DUMMY_OPERATION: Lazy<AggregatedOperation> = Lazy::new(|| {
+    AggregatedOperation::Execute(L1BatchExecuteOperation {
+        l1_batches: vec![L1BatchWithMetadata {
+            header: L1BatchHeader::new(
+                L1BatchNumber(1),
+                1,
+                Address::default(),
+                BaseSystemContractsHashes::default(),
+                ProtocolVersionId::latest(),
+            ),
+            metadata: default_l1_batch_metadata(),
+            factory_deps: Vec::new(),
+        }],
+    })
+});
 
 #[derive(Debug)]
 struct EthSenderTester {
