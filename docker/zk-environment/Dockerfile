@@ -96,7 +96,7 @@ RUN curl https://sh.rustup.rs -sSf | bash -s -- -y && \
     rustup default stable
 
 # HACK: Build sqlx v0.5.13
-COPY docker/zk-environment/sqlx_v0.5.13.patch sqlx_v0.5.13.patch
+COPY sqlx_v0.5.13.patch sqlx_v0.5.13.patch
 RUN git clone https://github.com/launchbadge/sqlx.git && \
     cd sqlx && \
     git checkout v0.5.13 && \
