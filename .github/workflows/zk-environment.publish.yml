@@ -117,16 +117,16 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
       - name: Create and push multi-arch zk-environment lightweight manifest
         run: |
-          docker pull matterlabs/zk-environment:${{ needs.get_short_sha.outputs.short_sha }}-lightweight-amd64
-          docker pull matterlabs/zk-environment:${{ needs.get_short_sha.outputs.short_sha }}-lightweight-arm64
+          docker pull matterlabs/zk-environment:${{ needs.get_short_sha.outputs.short_sha }}-lightweight-amd64 --platform linux/amd64
+          docker pull matterlabs/zk-environment:${{ needs.get_short_sha.outputs.short_sha }}-lightweight-arm64 --platform linux/arm64
           docker manifest create matterlabs/zk-environment:latest2.0-lightweight \
             --amend matterlabs/zk-environment:${{ needs.get_short_sha.outputs.short_sha }}-lightweight-amd64 \
             --amend matterlabs/zk-environment:${{ needs.get_short_sha.outputs.short_sha }}-lightweight-arm64
           docker manifest push matterlabs/zk-environment:latest2.0-lightweight
       - name: Create and push multi-arch zk-environment Rust nightly manifest
         run: |
-          docker pull matterlabs/zk-environment:${{ needs.get_short_sha.outputs.short_sha }}-nightly-amd64
-          docker pull matterlabs/zk-environment:${{ needs.get_short_sha.outputs.short_sha }}-nightly-arm64
+          docker pull matterlabs/zk-environment:${{ needs.get_short_sha.outputs.short_sha }}-nightly-amd64 --platform linux/amd64
+          docker pull matterlabs/zk-environment:${{ needs.get_short_sha.outputs.short_sha }}-nightly-arm64 --platform linux/arm64
           docker manifest create matterlabs/zksync_rust:nightly \
             --amend matterlabs/zk-environment:${{ needs.get_short_sha.outputs.short_sha }}-nightly-amd64 \
             --amend matterlabs/zk-environment:${{ needs.get_short_sha.outputs.short_sha }}-nightly-arm64
