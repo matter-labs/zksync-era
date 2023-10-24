@@ -4,7 +4,7 @@ use tokio::{sync::watch, task, time::sleep};
 
 use std::{sync::Arc, time::Duration};
 
-use futures::FutureExt;
+use futures::{future::FusedFuture, FutureExt};
 use prometheus_exporter::PrometheusExporterConfig;
 use zksync_basic_types::{Address, L2ChainId};
 use zksync_core::{
@@ -91,17 +91,17 @@ async fn build_state_keeper(
 async fn init_tasks(
     config: ExternalNodeConfig,
     connection_pool: ConnectionPool,
-    stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<(
     Vec<task::JoinHandle<anyhow::Result<()>>>,
-    tokio::task::JoinHandle<anyhow::Result<()>>,
+    watch::Sender<bool>,
     HealthCheckHandle,
+    watch::Receiver<bool>,
 )> {
     let main_node_url = config
         .required
         .main_node_url()
         .expect("Main node URL is incorrect");
-  
+    let (stop_sender, stop_receiver) = watch::channel(false);
     let mut healthchecks: Vec<Box<dyn CheckHealth>> = Vec::new();
     // Create components.
     let gas_adjuster = Arc::new(MainNodeGasPriceFetcher::new(&main_node_url));
@@ -285,12 +285,13 @@ async fn init_tasks(
         tree_handle,
         gas_adjuster_handle,
     ]);
+    task_handles.push(consistency_checker_handle);
 
-    Ok((task_handles, consistency_checker_handle, healthcheck_handle))
+    Ok((task_handles, stop_sender, healthcheck_handle, stop_receiver))
 }
 
 async fn shutdown_components(
-    stop_sender: &watch::Sender<bool>,
+    stop_sender: watch::Sender<bool>,
     healthcheck_handle: HealthCheckHandle,
 ) {
     stop_sender.send(true).ok();
@@ -378,7 +379,7 @@ async fn main() -> anyhow::Result<()> {
         return Ok(());
     }
 
-    let mut sigint_receiver = setup_sigint_handler().fuse();
+    let sigint_receiver = setup_sigint_handler();
 
     tracing::warn!("The external node is in the alpha phase, and should be used with caution.");
 
@@ -396,77 +397,58 @@ async fn main() -> anyhow::Result<()> {
     .await
     .context("Performing genesis failed")?;
 
-    let (stop_sender, stop_receiver) = watch::channel::<bool>(false);
-
-    let (task_handles, consistency_checker_handle, health_check_handle) = init_tasks(
-        config.clone(),
-        connection_pool.clone(),
-        stop_receiver.clone(),
-    )
-    .await
-    .context("init_tasks")?;
+    let (task_handles, stop_sender, health_check_handle, stop_receiver) =
+        init_tasks(config.clone(), connection_pool.clone())
+            .await
+            .context("init_tasks")?;
 
     let reorg_detector = ReorgDetector::new(&main_node_url, connection_pool.clone(), stop_receiver);
-    let mut reorg_detector_handle = tokio::spawn(reorg_detector.run());
+    let mut reorg_detector_handle = tokio::spawn(reorg_detector.run()).fuse();
 
     let particular_crypto_alerts = None;
     let graceful_shutdown = None::<futures::future::Ready<()>>;
     let tasks_allowed_to_finish = false;
+    let mut reord_detector_last_correct_batch = None;
 
-    let mut consistency_checker_handle = consistency_checker_handle.fuse();
-    let wait_for_tasks = wait_for_tasks(
-        task_handles,
-        particular_crypto_alerts,
-        graceful_shutdown,
-        tasks_allowed_to_finish,
-    )
-    .fuse();
-
-    tokio::pin!(wait_for_tasks);
-
-    loop {
-        tokio::select! {
-            _ = &mut wait_for_tasks => {
-                tracing::info!("Tasks have stopped, shutting down");
-            },
-            _ = &mut sigint_receiver => {
-                tracing::info!("Stop signal received, shutting down");
-                stop_sender.send(true).ok();
-            },
-            consistency_checker = &mut consistency_checker_handle => {
-                // Consistency checker exited, but the reorg detector may still
-                // be doing its thing. Signal it that things should be stop but
-                // carry on the loop execution until the reorg checker actually stops.
-                match consistency_checker {
-                    Ok(Ok(())) => tracing::info!("Consistency Checker has stopped"),
-                    Ok(Err(error)) => tracing::error!("Consistency checker has stopped with {error}"),
-                    Err(error) => tracing::error!("Consistency checker handle has failed with {error}"),
-                }
-                stop_sender.send(true).ok();
-            },
-            last_correct_batch = &mut reorg_detector_handle => {
-                if let Ok(last_correct_batch) = last_correct_batch {
-                    if let Some(last_correct_batch) = last_correct_batch {
-                        tracing::info!("Performing rollback to block {}", last_correct_batch);
-                        shutdown_components(&stop_sender, health_check_handle).await;
-                        let reverter = BlockReverter::new(
-                            config.required.state_cache_path,
-                            config.required.merkle_tree_path,
-                            None,
-                            connection_pool,
-                            L1ExecutedBatchesRevert::Allowed,
-                        );
-                        reverter
-                            .rollback_db(last_correct_batch, BlockReverterFlags::all())
-                            .await;
-                        tracing::info!("Rollback successfully completed, the node has to restart to continue working");
-                    }
-                } else {
-                    tracing::error!("Reorg detector actor failed");
-                }
-                break
+    tokio::select! {
+        _ = wait_for_tasks(task_handles, particular_crypto_alerts, graceful_shutdown, tasks_allowed_to_finish) => {},
+        _ = sigint_receiver => {
+            tracing::info!("Stop signal received, shutting down");
+        },
+        last_correct_batch = &mut reorg_detector_handle => {
+            if let Ok(last_correct_batch) = last_correct_batch {
+            reord_detector_last_correct_batch = last_correct_batch;
+            } else {
+                tracing::error!("Reorg detector actor failed");
             }
         }
+    };
+
+    // Reaching this point means that either some actor exited unexpectedly or we received a stop signal.
+    // Broadcast the stop signal to all actors and exit.
+    shutdown_components(stop_sender, health_check_handle).await;
+
+    if reorg_detector_handle.is_terminated() {
+        if let Ok(Some(last_correct_batch)) = reorg_detector_handle.await {
+            reord_detector_last_correct_batch = Some(last_correct_batch);
+        }
+    }
+
+    if let Some(last_correct_batch) = reord_detector_last_correct_batch {
+        tracing::info!("Performing rollback to block {}", last_correct_batch);
+        let reverter = BlockReverter::new(
+            config.required.state_cache_path,
+            config.required.merkle_tree_path,
+            None,
+            connection_pool,
+            L1ExecutedBatchesRevert::Allowed,
+        );
+        reverter
+            .rollback_db(last_correct_batch, BlockReverterFlags::all())
+            .await;
+        tracing::info!(
+            "Rollback successfully completed, the node has to restart to continue working"
+        );
     }
 
     Ok(())
