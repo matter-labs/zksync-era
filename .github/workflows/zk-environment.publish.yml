@@ -19,7 +19,6 @@ concurrency:
 
 jobs:
   changed_files:
-    name: Changed files
     outputs:
       zk_environment: ${{ steps.changed-files-yaml.outputs.zk_env_any_changed }}
       zk_environment_cuda_12: ${{ steps.changed-files-yaml.outputs.zk_env_cuda_12_any_changed }}
