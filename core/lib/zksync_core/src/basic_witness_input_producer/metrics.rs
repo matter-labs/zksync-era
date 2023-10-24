@@ -15,6 +15,4 @@ pub(crate) struct BasicWitnessInputProducerMetrics {
 }
 
 #[vise::register]
-pub(crate) static BASIC_WITNESS_INPUT_PRODUCER_METRICS: vise::Global<
-    BasicWitnessInputProducerMetrics,
-> = vise::Global::new();
+pub(super) static METRICS: vise::Global<BasicWitnessInputProducerMetrics> = vise::Global::new();

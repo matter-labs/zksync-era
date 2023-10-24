@@ -16,8 +16,9 @@ use tokio::task::JoinHandle;
 mod metrics;
 mod vm_interactions;
 
-use metrics::BASIC_WITNESS_INPUT_PRODUCER_METRICS;
-use vm_interactions::{create_vm, execute_tx};
+use self::metrics::METRICS;
+use self::vm_interactions::{create_vm, execute_tx};
+
 use zksync_types::block::MiniblockExecutionMode;
 
 /// Component that extracts all data (from DB) necessary to run a Basic Witness Generator.
@@ -90,9 +91,7 @@ impl BasicWitnessInputProducer {
         vm.finish_batch();
         tracing::info!("Finished execution of l1_batch: {l1_batch_number:?}");
 
-        BASIC_WITNESS_INPUT_PRODUCER_METRICS
-            .process_batch_time
-            .observe(started_at.elapsed());
+        METRICS.process_batch_time.observe(started_at.elapsed());
         tracing::info!(
             "BasicWitnessInputProducer took {:?} for L1BatchNumber {}",
             started_at.elapsed(),
@@ -172,7 +171,7 @@ impl JobProcessor for BasicWitnessInputProducer {
             .put(job_id, &artifacts)
             .await
             .context("failed to upload artifacts for BasicWitnessInputProducer")?;
-        BASIC_WITNESS_INPUT_PRODUCER_METRICS
+        METRICS
             .upload_input_time
             .observe(upload_started_at.elapsed());
         let mut connection = self
@@ -185,9 +184,7 @@ impl JobProcessor for BasicWitnessInputProducer {
             .mark_job_as_successful(job_id, started_at, &object_path)
             .await
             .context("failed to mark job as successful for BasicWitnessInputProducer")?;
-        BASIC_WITNESS_INPUT_PRODUCER_METRICS
-            .block_number_processed
-            .set(job_id.0 as i64);
+        METRICS.block_number_processed.set(job_id.0 as i64);
         Ok(())
     }
 }
