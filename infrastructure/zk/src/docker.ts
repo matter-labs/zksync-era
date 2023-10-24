@@ -143,7 +143,7 @@ export async function build(image: string, cmd: Command) {
 }
 
 export async function customBuildForHyperchain(image: string, dockerOrg: string) {
-    await dockerCommand('build', image, '', false, dockerOrg);
+    await dockerCommand('build', image, '', false, [], dockerOrg);
 }
 
 export async function push(image: string, cmd: Command) {
