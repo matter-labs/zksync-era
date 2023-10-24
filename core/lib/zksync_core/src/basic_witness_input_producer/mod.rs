@@ -70,8 +70,9 @@ impl BasicWitnessInputProducer {
         let mut next_miniblocks_data = miniblocks_execution_data.iter().skip(1);
         for miniblock_execution_data in miniblocks_execution_data.iter() {
             tracing::debug!(
-                "Started execution of miniblock: {:?}",
-                miniblock_execution_data.number
+                "Started execution of miniblock: {:?}, executing {:?} transactions",
+                miniblock_execution_data.number,
+                miniblock_execution_data.txs.len(),
             );
             for tx in &miniblock_execution_data.txs {
                 tracing::trace!("Started execution of tx: {tx:?}");
