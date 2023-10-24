@@ -4,12 +4,14 @@ import { BigNumber, ethers, utils } from 'ethers';
 import chalk from 'chalk';
 import { announced, init, InitArgs } from './init';
 import * as server from './server';
+import * as docker from './docker';
 import * as db from './database';
 import * as env from './env';
 import { compileConfig } from './config';
 import * as fs from 'fs';
 import fetch from 'node-fetch';
 import { up } from './up';
+import * as Handlebars from 'handlebars';
 
 const title = chalk.blueBright;
 const warning = chalk.yellowBright;
@@ -46,7 +48,7 @@ async function initHyperchain() {
 
     const initArgs: InitArgs = {
         skipSubmodulesCheckout: false,
-        skipEnvSetup: false,
+        skipEnvSetup: true,
         deployerL1ContractInputArgs: ['--private-key', deployerPrivateKey, '--governor-address', governorAddress],
         governorPrivateKeyArgs: ['--private-key', governorPrivateKey],
         deployerL2ContractInput: {
@@ -87,19 +89,9 @@ async function setupConfiguration() {
         await announced('Setting Hyperchain configuration', setHyperchainMetadata());
         await announced('Validating information and balances to deploy Hyperchain', checkReadinessToDeploy());
     } else {
-        const envs = env.getAvailableEnvsFromFiles();
+        const envName = await selectHyperchainConfiguration();
 
-        const envQuestions = [
-            {
-                message: 'Which environment do you want to use?',
-                name: 'env',
-                type: 'select',
-                choices: [...envs].sort()
-            }
-        ];
-
-        const envResults: any = await enquirer.prompt(envQuestions);
-        env.set(envResults.env);
+        env.set(envName);
     }
 }
 
@@ -138,13 +130,10 @@ async function setHyperchainMetadata() {
     const results: any = await enquirer.prompt(questions);
 
     let deployer, governor, ethOperator, feeReceiver: ethers.Wallet | undefined;
-    let feeReceiverAddress, l1Rpc, l1Id;
-
-    await initializeTestERC20s();
-    await initializeWethTokenForHyperchain();
+    let feeReceiverAddress, l1Rpc, l1Id, databaseUrl;
 
     if (results.l1Chain !== BaseNetwork.LOCALHOST) {
-        const rpcQuestions: BasePromptOptions[] = [
+        const connectionsQuestions: BasePromptOptions[] = [
             {
                 message: 'What is the RPC url for the L1 Network?',
                 name: 'l1Rpc',
@@ -154,7 +143,9 @@ async function setHyperchainMetadata() {
         ];
 
         if (results.l1Chain === BaseNetwork.LOCALHOST_CUSTOM) {
-            rpcQuestions.push({
+            connectionsQuestions[0].initial = 'http://localhost:8545';
+
+            connectionsQuestions.push({
                 message: 'What is network id of your L1 Network?',
                 name: 'l1NetworkId',
                 type: 'numeral',
@@ -162,7 +153,16 @@ async function setHyperchainMetadata() {
             });
         }
 
-        rpcQuestions.push({
+        connectionsQuestions.push({
+            message:
+                'What is the connection URL for your Postgress 14 database (format is postgres://<user>:<pass>@<hostname>:<port>/<database>)?',
+            name: 'dbUrl',
+            type: 'input',
+            initial: 'postgres://postgres@localhost/zksync_local',
+            required: true
+        });
+
+        connectionsQuestions.push({
             message:
                 'Do you want to generate new addresses/keys for the Deployer, Governor and ETh Operator, or insert your own keys?',
             name: 'generateKeys',
@@ -170,17 +170,18 @@ async function setHyperchainMetadata() {
             choices: [GENERATE_KEYS, INSERT_KEYS]
         });
 
-        const rpcResults: any = await enquirer.prompt(questions);
+        const connectionsResults: any = await enquirer.prompt(connectionsQuestions);
 
-        l1Rpc = rpcResults.l1Rpc;
+        l1Rpc = connectionsResults.l1Rpc;
+        databaseUrl = connectionsResults.dbUrl;
 
         if (results.l1Chain === BaseNetwork.LOCALHOST_CUSTOM) {
-            l1Id = rpcResults.l1NetworkId;
+            l1Id = connectionsResults.l1NetworkId;
         } else {
             l1Id = getL1Id(results.l1Chain);
         }
 
-        if (rpcResults.generateKeys === GENERATE_KEYS) {
+        if (connectionsResults.generateKeys === GENERATE_KEYS) {
             deployer = ethers.Wallet.createRandom();
             governor = ethers.Wallet.createRandom();
             ethOperator = ethers.Wallet.createRandom();
@@ -216,32 +217,35 @@ async function setHyperchainMetadata() {
 
             const keyResults: any = await enquirer.prompt(keyQuestions);
 
-            if (!utils.isAddress(keyResults.deployerKey)) {
-                throw Error(error('Deployer address is not a valid address'));
+            try {
+                deployer = new ethers.Wallet(keyResults.deployerKey);
+            } catch (e) {
+                throw Error(error('Deployer private key is invalid'));
             }
-            if (!utils.isAddress(keyResults.governorKey)) {
-                throw Error(error('Governor address is not a valid address'));
+
+            try {
+                governor = new ethers.Wallet(keyResults.governorKey);
+            } catch (e) {
+                throw Error(error('Governor private key is invalid'));
             }
-            if (!utils.isAddress(keyResults.ethOperator)) {
-                throw Error(error('ETH Operator address is not a valid address'));
+
+            try {
+                ethOperator = new ethers.Wallet(keyResults.ethOperator);
+            } catch (e) {
+                throw Error(error('ETH Operator private key is invalid'));
             }
+
             if (!utils.isAddress(keyResults.feeReceiver)) {
                 throw Error(error('Fee Receiver address is not a valid address'));
             }
 
-            if (keyResults.deployerKey == keyResults.governorKey) {
-                throw Error(error('Governor and Deployer should not be the same'));
-            }
-
-            deployer = new ethers.Wallet(keyResults.deployerKey);
-            governor = new ethers.Wallet(keyResults.governorKey);
-            ethOperator = new ethers.Wallet(keyResults.ethOperator);
             feeReceiver = undefined;
             feeReceiverAddress = keyResults.feeReceiver;
         }
     } else {
         l1Rpc = 'http://localhost:8545';
         l1Id = 9;
+        databaseUrl = 'postgres://postgres@localhost/zksync_local';
 
         const richWalletsRaw = await fetch(
             'https://raw.githubusercontent.com/matter-labs/local-setup/main/rich-wallets.json'
@@ -258,6 +262,9 @@ async function setHyperchainMetadata() {
         await up();
         await announced('Ensuring databases are up', db.wait());
     }
+
+    await initializeTestERC20s();
+    await initializeWethTokenForHyperchain();
 
     console.log('\n');
 
@@ -304,6 +311,7 @@ async function setHyperchainMetadata() {
     await compileConfig(environment);
     env.set(environment);
 
+    wrapEnvModify('DATABASE_URL', databaseUrl);
     wrapEnvModify('ETH_CLIENT_CHAIN_ID', l1Id.toString());
     wrapEnvModify('ETH_CLIENT_WEB3_URL', l1Rpc);
     wrapEnvModify('CHAIN_ETH_NETWORK', getL1Name(results.l1Chain));
@@ -567,6 +575,76 @@ export function getTokens(network: string): L1Token[] {
     }
 }
 
-export const initHyperchainCommand = new Command('init-hyperchain')
-    .description('Initializes a new Hyperchain network')
+async function selectHyperchainConfiguration() {
+    const envs = env.getAvailableEnvsFromFiles();
+
+    const envQuestions = [
+        {
+            message: 'Which Hyperchain configuration do you want to use?',
+            name: 'env',
+            type: 'select',
+            choices: [...envs].sort()
+        }
+    ];
+
+    const envResults: any = await enquirer.prompt(envQuestions);
+    return envResults.env;
+}
+
+async function generateDockerImages(cmd: Command) {
+    console.log(warning(`\nThis process will build the docker images and it can take a while. Please be patient.\n`));
+
+    const envName = await selectHyperchainConfiguration();
+    const orgName = cmd.customDockerOrg ?? envName;
+
+    await docker.customBuildForHyperchain('server-v2', orgName);
+
+    console.log(warning(`\nDocker image for server created: Server image: ${orgName}/server-v2:latest\n`));
+
+    let hasProver = false;
+
+    if (process.env.ETH_SENDER_SENDER_PROOF_SENDING_MODE !== 'SkipEveryProof') {
+        hasProver = true;
+        // TODO: (PRO-48) Hyperchain is using prover, so we must include Boojum images - wait for Boojum merge
+        // proof-fri-compressor, prover-fri, witness-generator, prover-fri-gateway
+        // Must be added to the init flow
+        // Setup key is downloaded and added somewhere - reference: https://github.com/matter-labs/zksync-era/blob/7b23ab0ba14cb6600ecf7e596a9e9536ffa5fda2/.github/workflows/build-core-template.yml#L72C1-L73C1
+        // Data keys are already downloaded from: https://console.cloud.google.com/storage/browser/matterlabs-zksync-v2-infra-blob-store/prover_setup_data/2d33a27?pageState=(%22StorageObjectListTable%22:(%22f%22:%22%255B%255D%22))&orgonly=true&project=matterlabs-infra&supportedpurview=organizationId&prefix=&forceOnObjectsSortingFiltering=false
+        // to: ./prover_setup-data
+        // - Following should be added to the hyperchain env file:
+        // OBJECT_STORE_FILE_BACKED_BASE_PATH: /path/to/server/artifacts
+        // PROVER_OBJECT_STORE_FILE_BACKED_BASE_PATH: /path/to/prover/artifacts
+        // - Inspired by https://github.com/matter-labs/zksync-era/tree/main/prover/prover_fri
+    }
+
+    const composeArgs = {
+        envFilePath: `./etc/env/${envName}.env`,
+        orgName,
+        hasProver
+    };
+
+    const templateFileName = './etc/hyperchains/docker-compose-hyperchain-template';
+    const templateString = fs.existsSync(templateFileName) && fs.readFileSync(templateFileName).toString().trim();
+    const template = Handlebars.compile(templateString);
+    const result = template(composeArgs);
+
+    fs.writeFileSync(`hyperchain-${envName}.yml`, result);
+
+    console.log(
+        announce(
+            `Docker images generated successfully, and compose file generate (hyperchain-${envName}.yml). Run the images with "docker compose -f hyperchain-${envName} up)".\n\n`
+        )
+    );
+}
+
+export const initHyperchainCommand = new Command('stack').description('ZK Stack Hyperchains management');
+
+initHyperchainCommand
+    .command('init')
+    .description('Wizard for Hyperchain creation/configuration')
     .action(initHyperchain);
+initHyperchainCommand
+    .command('docker-setup')
+    .option('--custom-docker-org <value>', 'Custom organization name for the docker images')
+    .description('Generate docker images and compose file for your Hyperchain')
+    .action(generateDockerImages);
