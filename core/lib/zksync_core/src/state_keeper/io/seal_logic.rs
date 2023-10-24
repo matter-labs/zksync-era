@@ -2,9 +2,9 @@
 //! It contains the logic of the block sealing, which is used by both the mempool-based and external node IO.
 
 use itertools::Itertools;
-use zkevm_test_harness::witness::utils::{
-    events_queue_commitment_fixed, initial_heap_content_commitment_fixed,
-};
+// use zkevm_test_harness::witness::utils::{
+//     events_queue_commitment_fixed, initial_heap_content_commitment_fixed,
+// };
 
 use std::{
     collections::HashMap,

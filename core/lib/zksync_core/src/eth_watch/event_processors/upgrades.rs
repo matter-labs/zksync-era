@@ -1,5 +1,5 @@
 use std::convert::TryFrom;
-use std::time::Instant;
+// use std::time::Instant;
 use zksync_contracts::{governance_contract, state_transition_chain_contract};
 use zksync_dal::StorageProcessor;
 use zksync_types::{
@@ -31,7 +31,7 @@ impl UpgradesEventProcessor {
                 .event("TransparentOperationScheduled")
                 .expect("TransparentOperationScheduled event is missing in abi")
                 .signature(),
-            execute_upgrade_short_signature: zksync_contract()
+            execute_upgrade_short_signature: state_transition_chain_contract()
                 .function("executeUpgrade")
                 .unwrap()
                 .short_signature(),

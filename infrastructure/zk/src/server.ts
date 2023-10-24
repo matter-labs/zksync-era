@@ -21,8 +21,8 @@ export async function server(rebuildTree: boolean, uring: boolean, components?: 
     if (components) {
         options += ` --components=${components}`;
     }
-    // await utils.spawn(`RUST_LOG=vm=trace cargo run --bin zksync_server --release ${options}`);
-    await utils.spawn(`cargo run --bin zksync_server --release ${options}`);
+    await utils.spawn(`RUST_LOG=vm=trace cargo run --bin zksync_server --release ${options}`);
+    // await utils.spawn(`cargo run --bin zksync_server --release ${options}`);
 }
 
 export async function externalNode(reinit: boolean = false) {
@@ -103,7 +103,7 @@ async function create_genesis(cmd: string) {
     env.modify('CONTRACTS_GENESIS_ROOT', genesisRoot, 'etc/env/l1-inits/.init.env');
     env.modify('CHAIN_STATE_KEEPER_BOOTLOADER_HASH', genesisBootloaderHash, 'etc/env/l1-inits/.init.env');
     env.modify('CHAIN_STATE_KEEPER_DEFAULT_AA_HASH', genesisDefaultAAHash, 'etc/env/l1-inits/.init.env');
-    env.modify('CONTRACTS_GENESIS_BLOCK_COMMITMENT', genesisBlockCommitment, 'etc/env/l1-inits/.init.env');
+    env.modify('CONTRACTS_GENESIS_BATCH_COMMITMENT', genesisBlockCommitment, 'etc/env/l1-inits/.init.env');
     env.modify('CONTRACTS_GENESIS_ROLLUP_LEAF_INDEX', genesisRollupLeafIndex, 'etc/env/l1-inits/.init.env');
 }
 

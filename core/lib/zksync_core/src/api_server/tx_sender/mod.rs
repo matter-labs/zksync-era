@@ -98,6 +98,8 @@ impl MultiVMBaseSystemContracts {
             | ProtocolVersionId::Version16
             | ProtocolVersionId::Version17
             | ProtocolVersionId::Version18 => self.post_virtual_blocks_finish_upgrade_fix,
+            // kl todo delete local vm verion
+            ProtocolVersionId::Local => self.local,
         }
     }
 }

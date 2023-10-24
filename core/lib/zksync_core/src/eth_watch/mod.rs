@@ -192,7 +192,7 @@ pub async fn start_eth_watch<E: EthInterface + Send + Sync + 'static>(
     );
 
     let mut eth_watch = EthWatch::new(
-        diamond_proxy_addr,
+        state_transition_chain_contract_addr,
         eth_client,
         &pool,
         eth_watch.poll_interval(),

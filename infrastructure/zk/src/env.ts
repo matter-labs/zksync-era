@@ -58,7 +58,7 @@ export function set(environment: string, print: boolean = false) {
     const envFile = (process.env.ENV_FILE = `etc/env/target/${environment}.env`);
     if (!fs.existsSync(envFile)) {
         // No .env file found - we should compile it!
-        config.compileConfig(env);
+        config.compileConfig(environment);
     }
     reload();
     get(print);
