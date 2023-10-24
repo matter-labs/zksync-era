@@ -26,22 +26,24 @@ on:
 jobs:
   build-images:
     name: Build and Push Docker Images
+    runs-on: ${{fromJson(matrix.runner)}}
+    strategy:
+      matrix:
+        include:
+          - component: server-v2
+            runner: '["matterlabs-ci-runner"]'
+          - component: contract-verifier
+            runner: '["matterlabs-ci-runner"]'
+          - component: cross-external-nodes-checker
+            runner: '["matterlabs-ci-runner"]'
+          - component: external-node
+            runner: '["matterlabs-ci-runner", "matterlabs-ci-runner-arm"]'
+      fail-fast: false
     env:
       image_tag: ${{ inputs.image_tag }}
       IMAGE_TAG_SUFFIX: ${{ inputs.image_tag_suffix }}
-    runs-on: ${{ matrix.runner }}
-    strategy:
-      matrix:
-        component:
-          - server-v2
-          - external-node
-          - contract-verifier
-          - cross-external-nodes-checker
-        runner:
-          - matterlabs-ci-runner
-          - matterlabs-ci-runner-arm
     steps:
-      - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
+      - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c
         with:
           submodules: "recursive"
 
@@ -85,7 +87,7 @@ jobs:
           DOCKER_ACTION: ${{ inputs.action }}
           COMPONENT: ${{ matrix.component }}
         run: |
-          if [[ "${{ matrix.runner }}" == "matterlabs-ci-runner-arm" ]]; then
+          if [[ "${{ fromJson(matrix.runner) }}" == "matterlabs-ci-runner-arm" ]]; then
             PLATFORMS="linux/arm64,linux/arm64/v8"
           else
             PLATFORMS="linux/amd64"
