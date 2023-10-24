@@ -1010,11 +1010,11 @@ impl TransactionsDal<'_, '_> {
     }
 
     /// Returns miniblocks with their transactions to be used in VM execution.
+    /// The order of the transactions is the same as it was during previous execution.
     /// `miniblock_execution_mode` parameter describes what miniblocks are collected:
     ///    - Reexecution -- miniblocks state_keeper needs to reexecute on restart.
     ///      These are the transactions that are included to some miniblock,
-    ///      but not included to L1 batch. The order of the transactions is the same as it was
-    ///      during the previous execution.
+    ///      but not included to L1 batch.
     ///    - L1Batch -- miniblocks that are included in the given L1 batch.
     pub async fn get_miniblocks_to_execute_for(
         &mut self,
