@@ -22,6 +22,7 @@ use self::vm_interactions::{create_vm, execute_tx};
 use zksync_types::block::MiniblockExecutionMode;
 
 /// Component that extracts all data (from DB) necessary to run a Basic Witness Generator.
+/// Does this by rerunning an entire L1Batch and extracting information from both the VM run and DB.
 /// This component will upload Witness Inputs to the object store.
 /// This allows Witness Generator workflow (that needs only Basic Witness Generator Inputs)
 /// to be run only using the object store information, having no other external dependency.
