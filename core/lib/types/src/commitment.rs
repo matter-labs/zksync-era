@@ -260,6 +260,7 @@ struct L1BatchAuxiliaryOutput {
 
     // Once cut over to boojum, these fields are no longer required as their values
     // are covered by state_diffs_compressed and its hash.
+    // Task to remove: PLA-640
     initial_writes_compressed: Vec<u8>,
     initial_writes_hash: H256,
     repeated_writes_compressed: Vec<u8>,
