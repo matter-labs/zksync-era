@@ -185,6 +185,9 @@ impl JobProcessor for BasicWitnessInputProducer {
             .mark_job_as_successful(job_id, started_at, &object_path)
             .await
             .context("failed to mark job as successful for BasicWitnessInputProducer")?;
+        BASIC_WITNESS_INPUT_PRODUCER_METRICS
+            .block_number_processed
+            .set(job_id.0 as i64);
         Ok(())
     }
 }
