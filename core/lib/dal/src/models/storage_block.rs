@@ -166,12 +166,6 @@ pub struct StorageL1Batch {
     pub l1_gas_price: i64,
     pub l2_fair_gas_price: i64,
 
-    // These fields are not used, but are present for compatibility reasons
-    pub gas_per_pubdata_byte_in_block: Option<i32>,
-    pub gas_per_pubdata_limit: i64,
-
-    pub skip_proof: bool,
-
     pub system_logs: Vec<Vec<u8>>,
     pub compressed_state_diffs: Option<Vec<u8>>,
 
