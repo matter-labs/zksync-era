@@ -92,15 +92,6 @@ pub struct MiniblockExecutionData {
     pub txs: Vec<Transaction>,
 }
 
-/// Used to determine what kind of query to apply when collection MiniblockExecutionData.
-#[derive(Debug)]
-pub enum MiniblockExecutionMode {
-    /// Reexecute will get all miniblocks with transactions that need reexecution.
-    Reexecute,
-    /// L1Batch will get all miniblocks with transactions belonging to an already executed L1 batch.
-    L1Batch(L1BatchNumber),
-}
-
 impl L1BatchHeader {
     pub fn new(
         number: L1BatchNumber,

@@ -19,8 +19,6 @@ mod vm_interactions;
 use self::metrics::METRICS;
 use self::vm_interactions::{create_vm, execute_tx};
 
-use zksync_types::block::MiniblockExecutionMode;
-
 /// Component that extracts all data (from DB) necessary to run a Basic Witness Generator.
 /// Does this by rerunning an entire L1Batch and extracting information from both the VM run and DB.
 /// This component will upload Witness Inputs to the object store.
@@ -60,7 +58,7 @@ impl BasicWitnessInputProducer {
         let miniblocks_execution_data = rt_handle.block_on(
             connection
                 .transactions_dal()
-                .get_miniblocks_to_execute_for(MiniblockExecutionMode::L1Batch(l1_batch_number)),
+                .get_miniblocks_to_execute_for_l1_batch(l1_batch_number),
         )?;
 
         let (mut vm, storage_view) =
