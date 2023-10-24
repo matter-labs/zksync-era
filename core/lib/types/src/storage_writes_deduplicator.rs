@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use zksync_utils::u256_to_h256;
 
 use crate::tx::tx_execution_info::DeduplicatedWritesMetrics;
-use crate::writes::compression::compress_with_best_strategy;
+use crate::writes::compress_with_best_strategy;
 use crate::{AccountTreeId, StorageKey, StorageLogQuery, StorageLogQueryType, U256};
 
 #[derive(Debug, Clone, Copy, PartialEq)]

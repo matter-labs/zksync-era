@@ -4,9 +4,9 @@ use crate::H256;
 use serde::{Deserialize, Serialize};
 use zksync_basic_types::{Address, U256};
 
-use self::compression::{compress_with_best_strategy, COMPRESSION_VERSION_NUMBER};
+pub(crate) use self::compression::{compress_with_best_strategy, COMPRESSION_VERSION_NUMBER};
 
-pub mod compression;
+mod compression;
 
 /// The number of bytes being used for state diff enumeration indices. Applicable to repeated writes.
 pub const BYTES_PER_ENUMERATION_INDEX: u8 = 4;
