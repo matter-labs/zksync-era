@@ -26,7 +26,7 @@ async function dockerCommand(
     image: string,
     customTag?: string,
     publishPublic: boolean = false,
-    platforms: string[] = ['linux/amd64']
+    platforms: string[] = ['linux/amd64'],
     dockerOrg: string = 'matterlabs'
 ) {
     // Generating all tags for containers. We need 2 tags here: SHA and SHA+TS
