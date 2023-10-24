@@ -52,7 +52,8 @@ impl BasicWitnessInputProducerDal<'_, '_> {
         sqlx::query!(
             "INSERT INTO basic_witness_input_producer_jobs \
                 (l1_batch_number, status, created_at, updated_at) \
-            VALUES ($1, $2, now(), now())",
+            VALUES ($1, $2, now(), now()) \
+            ON CONFLICT (l1_batch_number) DO NOTHING",
             l1_batch_number.0 as i64,
             BasicWitnessInputProducerJobStatus::Queued.to_string(),
         )

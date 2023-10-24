@@ -203,23 +203,15 @@ impl TreeUpdater {
                     .witness_generator_dal()
                     .save_witness_inputs(l1_batch_number, object_key, protocol_version_id)
                     .await;
-                let mut transaction = storage
-                    .start_transaction()
-                    .await
-                    .expect("could not start DB transaction");
-                transaction
+                storage
                     .basic_witness_input_producer_dal()
                     .create_basic_witness_input_producer_job(l1_batch_number)
                     .await
                     .expect("failed to create basic_witness_input_producer job");
-                transaction
+                storage
                     .proof_generation_dal()
                     .insert_proof_generation_details(l1_batch_number, object_key)
                     .await;
-                transaction
-                    .commit()
-                    .await
-                    .expect("could not commit transaction");
             }
             save_postgres_latency.observe();
             tracing::info!("Updated metadata for L1 batch #{l1_batch_number} in Postgres");
