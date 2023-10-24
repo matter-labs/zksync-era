@@ -288,7 +288,7 @@ jobs:
         run: |
           ci_run cat server.log
           ci_run cat ext-node.log
-          # ci_run cat core/tests/revert-test/revert.log
+          ci_run cat core/tests/revert-test/revert.log
           ci_run cat core/tests/upgrade-test/upgrade.log
           ci_run sccache --show-stats
           ci_run cat /tmp/sccache_log.txt
