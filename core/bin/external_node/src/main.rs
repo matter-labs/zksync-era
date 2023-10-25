@@ -428,7 +428,7 @@ async fn main() -> anyhow::Result<()> {
     // Broadcast the stop signal to all actors and exit.
     shutdown_components(stop_sender, health_check_handle).await;
 
-    if reorg_detector_handle.is_terminated() {
+    if !reorg_detector_handle.is_terminated() {
         if let Ok(Some(last_correct_batch)) = reorg_detector_handle.await {
             reorg_detector_last_correct_batch = Some(last_correct_batch);
         }
