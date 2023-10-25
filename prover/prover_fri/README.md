@@ -82,6 +82,11 @@ monitor logs for each one.
    API_PROMETHEUS_LISTENER_PORT=3118 zk f cargo run --release --bin zksync_witness_generator -- --round=node_aggregation
    API_PROMETHEUS_LISTENER_PORT=3119 zk f cargo run --release --bin zksync_witness_generator -- --round=scheduler
    ```
+   These 4 steps can be reduced to a single command
+   ```
+   API_PROMETHEUS_LISTENER_PORT=3116 zk f cargo run --release --bin zksync_witness_generator -- --all_rounds
+   ```
+   Note that this will automatically open the three ports after the one specified in enviromental variable, in this case 3117, 3118 and 3119 as well. 
 
 7. Run prover to perform actual proving:
    ```
