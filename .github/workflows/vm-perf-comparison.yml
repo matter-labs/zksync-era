@@ -50,7 +50,9 @@ jobs:
 
       - name: checkout PR
         run: |
+          git clean -x -d -f -e base-iai
           git checkout --force FETCH_HEAD
+          touch .env
           docker compose -f docker-compose-runner.yml up -d zk
 
       - name: run benchmarks on PR
