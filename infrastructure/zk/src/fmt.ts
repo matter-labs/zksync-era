@@ -1,7 +1,7 @@
 import { Command } from 'commander';
 import * as utils from './utils';
 
-const EXTENSIONS = ['ts', 'md', 'sol', 'js'];
+const EXTENSIONS = ['js', 'json', 'md', 'sol', 'ts', 'yaml'];
 const CONFIG_PATH = 'etc/prettier-config';
 
 export async function prettier(extension: string, check: boolean = false) {
