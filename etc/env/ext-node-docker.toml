@@ -1,5 +1,5 @@
 database_url = "postgres://postgres@postgres/zksync_local_ext_node"
-test_database_url = "postgres://postgres@postgres_for_unit_tests/zksync_local_test_ext_node"
+test_database_url = "postgres://postgres@host:7000/zksync_local_test_ext_node"
 database_pool_size = 50
 zksync_action="dont_ask"
 

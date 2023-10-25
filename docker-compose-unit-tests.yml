@@ -1,0 +1,11 @@
+version: '3.2'
+name: unit_tests
+services:
+  # An instance of postgres configured to execute Rust unit-tests, tuned for performance.
+  postgres:
+    image: "postgres:14"
+    command: "postgres -c fsync=false"
+    ports:
+      - "7000:5432"
+    environment:
+      - POSTGRES_HOST_AUTH_METHOD=trust

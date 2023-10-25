@@ -12,8 +12,8 @@ export async function resetTest() {
     process.env.DATABASE_URL = process.env.TEST_DATABASE_URL;
     await utils.confirmAction();
     console.log('recreating postgres container for unit tests');
-    await utils.spawn('docker compose -f docker-compose-runner.yml down postgres_for_unit_tests');
-    await utils.spawn('docker compose -f docker-compose-runner.yml up -d postgres_for_unit_tests');
+    await utils.spawn('docker compose -f docker-compose-unit-tests.yml down');
+    await utils.spawn('docker compose -f docker-compose-unit-tests.yml up -d');
     await wait(100);
     console.log('setting up a database template');
     await setup();

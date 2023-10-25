@@ -38,7 +38,7 @@ jobs:
 
       - name: init
         run: |
-          docker compose -f docker-compose-runner.yml up -d zk
+          docker-compose -f docker-compose-runner.yml up -d zk
 
       - name: run benchmarks on base branch
         shell: bash
@@ -46,12 +46,9 @@ jobs:
           ci_run zk
           ci_run zk compiler system-contracts
           ci_run cargo bench --package vm-benchmark --bench iai | tee base-iai
-          docker compose -f docker-compose-runner.yml down
 
       - name: checkout PR
-        run: |
-          git checkout --force FETCH_HEAD
-          docker compose -f docker-compose-runner.yml up -d zk
+        run: git checkout --force FETCH_HEAD
 
       - name: run benchmarks on PR
         shell: bash

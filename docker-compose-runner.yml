@@ -1,5 +1,4 @@
 version: '3.2'
-name: runner
 services:
   geth:
     image: "matterlabs/geth:latest"
@@ -28,17 +27,12 @@ services:
       - GITHUB_WORKSPACE=$GITHUB_WORKSPACE
     env_file:
       - ./.env
+    extra_hosts:
+      - "host:host-gateway"
   postgres:
     image: "postgres:14"
     ports:
       - "5432:5432"
     environment:
       - POSTGRES_HOST_AUTH_METHOD=trust
-  # An instance of postgres configured to execute Rust unit-tests, tuned for performance.
-  postgres_for_unit_tests:
-    image: "postgres:14"
-    command: "postgres -c fsync=false"
-    ports:
-      - "7000:5432"
-    environment:
-      - POSTGRES_HOST_AUTH_METHOD=trust
+
