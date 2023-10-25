@@ -2,9 +2,10 @@
 
 use tracing::{span, Level};
 
+use multivm::glue::tracers::MultivmTracer;
 use multivm::interface::{TxExecutionMode, VmExecutionResultAndLogs};
-use multivm::vm_latest::{constants::ETH_CALL_GAS_LIMIT, StorageInvocations};
-use multivm::MultivmTracer;
+use multivm::tracers::{NoopTracer, StorageInvocations};
+use multivm::vm_latest::constants::ETH_CALL_GAS_LIMIT;
 use zksync_dal::ConnectionPool;
 
 use zksync_types::{

@@ -11,6 +11,7 @@ pub(crate) mod block_properties;
 pub(crate) mod history_mode;
 pub(crate) mod init_vm;
 pub(crate) mod oracle_tools;
+pub mod tracers;
 mod types;
 
 /// This trait is a workaround on the Rust'c [orphan rule](orphan_rule).

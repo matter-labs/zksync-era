@@ -14,6 +14,10 @@ struct FarcallAndNearCallCount {
 }
 
 impl CallTracer {
+    pub fn new() -> Self {
+        Self { stack: vec![] }
+    }
+
     fn extract_result(&mut self) -> Vec<Call> {
         std::mem::take(&mut self.stack)
             .into_iter()

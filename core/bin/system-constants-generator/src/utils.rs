@@ -1,11 +1,12 @@
 use multivm::interface::dyn_tracers::vm_1_3_3::DynTracer;
+use multivm::interface::tracer::VmExecutionStopReason;
 use multivm::interface::{
     L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode, VmInterface,
 };
 use multivm::vm_latest::{
     constants::{BLOCK_GAS_LIMIT, BOOTLOADER_HEAP_PAGE},
-    BootloaderState, BoxedTracer, HistoryEnabled, HistoryMode, SimpleMemory, Vm,
-    VmExecutionStopReason, VmTracer, ZkSyncVmState,
+    BootloaderState, HistoryEnabled, HistoryMode, SimpleMemory, ToTracerPointer, Vm, VmTracer,
+    ZkSyncVmState,
 };
 use once_cell::sync::Lazy;
 use std::cell::RefCell;
@@ -250,10 +251,11 @@ pub(super) fn execute_internal_transfer_test() -> u32 {
     let mut tracer = SpecialBootloaderTracer {
         input,
         output: tracer_result.clone(),
-    };
+    }
+    .into_tracer_pointer();
     let mut vm: Vm<_, HistoryEnabled> =
         Vm::new(l1_batch, system_env, Rc::new(RefCell::new(storage_view)));
-    let result = vm.inspect(&mut tracer, VmExecutionMode::Bootloader);
+    let result = vm.inspect(tracer.clone().into(), VmExecutionMode::Bootloader);
 
     assert!(!result.result.is_failed(), "The internal call has reverted");
     tracer_result.take()

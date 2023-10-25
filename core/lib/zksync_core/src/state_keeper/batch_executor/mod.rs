@@ -11,8 +11,9 @@ use multivm::interface::{
     ExecutionResult, FinishedL1Batch, Halt, L1BatchEnv, L2BlockEnv, SystemEnv,
     VmExecutionResultAndLogs,
 };
-use multivm::vm_latest::{CallTracer, HistoryEnabled};
-use multivm::{MultivmTracer, VmInstance};
+use multivm::tracers::{CallTracer, NoopTracer};
+use multivm::vm_latest::HistoryEnabled;
+use multivm::VmInstance;
 use zksync_dal::ConnectionPool;
 use zksync_state::{ReadStorage, RocksdbStorage, StorageView};
 use zksync_types::{vm_trace::Call, witness_block_state::WitnessBlockState, Transaction, U256};
@@ -453,14 +454,16 @@ impl BatchExecutor {
         vm.make_snapshot();
 
         let call_tracer_result = Arc::new(OnceCell::default());
-        let custom_tracers = if self.save_call_traces {
-            vec![CallTracer::new(call_tracer_result.clone(), HistoryEnabled).into_boxed()]
+        let result = if self.save_call_traces {
+            vm.inspect_transaction_with_bytecode_compression(
+                CallTracer::new(call_tracer_result.clone(), HistoryEnabled),
+                tx.clone(),
+                true,
+            )
         } else {
-            vec![]
+            vm.inspect_transaction_with_bytecode_compression(NoopTracer, tx.clone(), true)
         };
-        if let Ok(result) =
-            vm.inspect_transaction_with_bytecode_compression(custom_tracers, tx.clone(), true)
-        {
+        if let Ok(result) = result {
             let compressed_bytecodes = vm.get_last_tx_compressed_bytecodes();
             vm.pop_snapshot_no_rollback();
 
@@ -470,17 +473,19 @@ impl BatchExecutor {
                 .unwrap_or_default();
             return (result, compressed_bytecodes, trace);
         }
+        vm.rollback_to_the_latest_snapshot();
 
         let call_tracer_result = Arc::new(OnceCell::default());
-        let custom_tracers = if self.save_call_traces {
-            vec![CallTracer::new(call_tracer_result.clone(), HistoryEnabled).into_boxed()]
+        let result = if self.save_call_traces {
+            vm.inspect_transaction_with_bytecode_compression(
+                CallTracer::new(call_tracer_result.clone(), HistoryEnabled),
+                tx.clone(),
+                false,
+            )
         } else {
-            vec![]
-        };
-        vm.rollback_to_the_latest_snapshot();
-        let result = vm
-            .inspect_transaction_with_bytecode_compression(custom_tracers, tx.clone(), false)
-            .expect("Compression can't fail if we don't apply it");
+            vm.inspect_transaction_with_bytecode_compression(NoopTracer, tx.clone(), false)
+        }
+        .unwrap();
         let compressed_bytecodes = vm.get_last_tx_compressed_bytecodes();
 
         // TODO implement tracer manager which will be responsible

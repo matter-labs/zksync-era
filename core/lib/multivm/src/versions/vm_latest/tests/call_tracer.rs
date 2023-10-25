@@ -1,8 +1,9 @@
-use crate::interface::{TxExecutionMode, VmExecutionMode};
+use crate::interface::{TxExecutionMode, VmExecutionMode, VmInterface};
+use crate::tracers::CallTracer;
 use crate::vm_latest::constants::BLOCK_GAS_LIMIT;
 use crate::vm_latest::tests::tester::VmTesterBuilder;
 use crate::vm_latest::tests::utils::{read_max_depth_contract, read_test_contract};
-use crate::vm_latest::{CallTracer, HistoryEnabled};
+use crate::vm_latest::HistoryEnabled;
 use once_cell::sync::OnceCell;
 use std::sync::Arc;
 use zksync_types::{Address, Execute};

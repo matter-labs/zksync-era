@@ -1,10 +1,11 @@
+use multivm::glue::tracers::MultivmTracer;
 use multivm::interface::ExecutionResult;
 use std::collections::HashSet;
 
+use multivm::tracers::StorageInvocations;
 use multivm::vm_latest::{
-    HistoryDisabled, StorageInvocations, ValidationError, ValidationTracer, ValidationTracerParams,
+    HistoryDisabled, ValidationError, ValidationTracer, ValidationTracerParams,
 };
-use multivm::MultivmTracer;
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_types::{l2::L2Tx, Transaction, TRUSTED_ADDRESS_SLOTS, TRUSTED_TOKEN_SLOTS, U256};
 

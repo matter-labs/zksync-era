@@ -1,6 +1,9 @@
-use multivm::vm_latest::{CallTracer, HistoryMode};
-use multivm::MultivmTracer;
+use multivm::glue::tracers::MultivmTracer;
+use multivm::tracers::CallTracer;
+use multivm::vm_latest::HistoryMode;
 use once_cell::sync::OnceCell;
+use std::cell::RefCell;
+use std::rc::Rc;
 use std::sync::Arc;
 use zksync_state::WriteStorage;
 use zksync_types::vm_trace::Call;
@@ -19,7 +22,7 @@ impl ApiTracer {
         self,
     ) -> Box<dyn MultivmTracer<S, H>> {
         match self {
-            ApiTracer::CallTracer(tracer) => CallTracer::new(tracer, H::default()).into_boxed(),
+            ApiTracer::CallTracer(tracer) => CallTracer::new().into_boxed(),
         }
     }
 }

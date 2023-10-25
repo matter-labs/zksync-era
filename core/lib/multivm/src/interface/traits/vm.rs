@@ -1,10 +1,10 @@
 use crate::interface::traits::tracers::multivm_tracer::MultivmTracer;
-use crate::interface::traits::tracers::noop::NoopTracer;
 use crate::interface::types::errors::BytecodeCompressionError;
 use crate::interface::types::inputs::{L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode};
 use crate::interface::types::outputs::{
     BootloaderMemory, CurrentExecutionState, VmExecutionResultAndLogs,
 };
+use crate::tracers::noop::NoopTracer;
 use crate::vm_latest::HistoryEnabled;
 use crate::HistoryMode;
 use zksync_state::{StoragePtr, WriteStorage};

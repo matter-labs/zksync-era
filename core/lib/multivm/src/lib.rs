@@ -11,11 +11,11 @@ pub use crate::{
 };
 pub use zksync_types::vm_version::VmVersion;
 
-mod glue;
+pub mod glue;
 mod vm_instance;
 
 pub mod interface;
-mod tracers;
+pub mod tracers;
 pub mod versions;
 
 pub use versions::vm_1_3_2;

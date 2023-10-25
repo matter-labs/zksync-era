@@ -10,8 +10,8 @@ use zksync_state::{ReadStorage, StorageView};
 use zksync_utils::bytecode::{hash_bytecode, CompressedBytecodeInfo};
 
 use crate::glue::history_mode::HistoryMode;
+use crate::glue::tracers::MultivmTracer;
 use crate::glue::GlueInto;
-use crate::interface::traits::tracers::multivm_tracer::MultivmTracer;
 
 pub struct VmInstance<S: ReadStorage, H: HistoryMode> {
     pub(crate) vm: VmInstanceVersion<S, H>,
@@ -187,20 +187,20 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
     }
 
     /// Execute next transaction with custom tracers
-    pub fn inspect_next_transaction<T: MultivmTracer<StorageView<S>, H> + 'static>(
+    pub fn inspect_next_transaction(
         &mut self,
-        tracer: T,
+        tracers: Vec<Box<dyn MultivmTracer<StorageView<S>, H>>>,
     ) -> crate::interface::VmExecutionResultAndLogs {
         match &mut self.vm {
             VmInstanceVersion::VmVirtualBlocks(vm) => {
                 let dispatcher = crate::vm_virtual_blocks::TracerDispatcher {
-                    tracers: vec![Rc::new(RefCell::new(tracer))],
+                    tracers: tracers.into_iter().map(|t| t.vm_virtual_blocks()).collect(),
                 };
                 vm.inspect(dispatcher, VmExecutionMode::OneTx)
             }
             VmInstanceVersion::VmVirtualBlocksRefundsEnhancement(vm) => {
                 let dispatcher = crate::vm_latest::TracerDispatcher {
-                    tracers: vec![Rc::new(RefCell::new(tracer))],
+                    tracers: tracers.into_iter().map(|t| t.latest()).collect(),
                 };
                 vm.inspect(dispatcher, VmExecutionMode::OneTx)
             }
@@ -366,7 +366,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
     /// Inspect transaction with optional bytecode compression.
     pub fn inspect_transaction_with_bytecode_compression<T: MultivmTracer<StorageView<S>, H>>(
         &mut self,
-        tracer: T,
+        tracers: Vec<Box<dyn MultivmTracer<StorageView<S>, H>>>,
         tx: zksync_types::Transaction,
         with_compression: bool,
     ) -> Result<
