@@ -268,7 +268,8 @@ jobs:
       - name: Run revert test
         run: |
           ci_run sleep 2
-          ci_run echo $ZKSYNC_ENV && zk test i revert
+          ci_run echo $ZKSYNC_ENV
+          ci_run zk test i revert
           # Check that the rollback was performed on the EN
           ci_run grep -q 'Rollback successfully completed' ext-node.log
           # Restart the EN
