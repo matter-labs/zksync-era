@@ -1,6 +1,8 @@
 use crate::interface::dyn_tracers::vm_1_3_3::DynTracer;
 use crate::interface::tracer::VmExecutionStopReason;
 use crate::interface::VmExecutionResultAndLogs;
+use std::cell::RefCell;
+use std::rc::Rc;
 use zksync_state::WriteStorage;
 
 use crate::vm_virtual_blocks::bootloader_state::BootloaderState;
@@ -8,6 +10,7 @@ use crate::vm_virtual_blocks::old_vm::history_recorder::HistoryMode;
 use crate::vm_virtual_blocks::old_vm::memory::SimpleMemory;
 use crate::vm_virtual_blocks::types::internals::ZkSyncVmState;
 
+pub type TracerPointer<S, H> = Rc<RefCell<dyn VmTracer<S, H>>>;
 /// Run tracer for collecting data during the vm execution cycles
 #[auto_impl::auto_impl(&mut, Box)]
 pub trait ExecutionProcessing<S: WriteStorage, H: HistoryMode>:
@@ -47,12 +50,12 @@ pub trait VmTracer<S: WriteStorage, H: HistoryMode>:
     fn save_results(&mut self, _result: &mut VmExecutionResultAndLogs) {}
 }
 
-pub trait BoxedTracer<S, H> {
-    fn into_boxed(self) -> Box<dyn VmTracer<S, H>>;
+pub trait ToTracerPointer<S, H> {
+    fn into_tracer_pointer(self) -> Rc<RefCell<dyn VmTracer<S, H>>>;
 }
 
-impl<S: WriteStorage, H: HistoryMode, T: VmTracer<S, H> + 'static> BoxedTracer<S, H> for T {
-    fn into_boxed(self) -> Box<dyn VmTracer<S, H>> {
-        Box::new(self)
+impl<S: WriteStorage, H: HistoryMode, T: VmTracer<S, H> + 'static> ToTracerPointer<S, H> for T {
+    fn into_tracer_pointer(self) -> Rc<RefCell<dyn VmTracer<S, H>>> {
+        Rc::new(RefCell::new(self))
     }
 }

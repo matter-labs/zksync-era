@@ -6,7 +6,7 @@ pub use old_vm::{
 
 pub use tracers::{
     dispatcher::TracerDispatcher,
-    traits::{BoxedTracer, ExecutionEndTracer, ExecutionProcessing, VmTracer},
+    traits::{ExecutionEndTracer, ExecutionProcessing, ToTracerPointer, TracerPointer, VmTracer},
     utils::VmExecutionStopReason,
     ValidationError, ValidationTracer, ValidationTracerParams,
 };
