@@ -192,7 +192,7 @@ transmitted to L1 for final verification.
 [iterate_over_events]:
   https://github.com/matter-labs/zksync-era/blob/43d7bd587a84b1b4489f4c6a4169ccb90e0df467/core/lib/types/src/event.rs#L147
 [vm_execution_result]:
-  https://github.com/matter-labs/zksync-2-dev/blob/43d7bd587a84b1b4489f4c6a4169ccb90e0df467/core/lib/vm/src/vm.rs#L81
+  https://github.com/matter-labs/zksync-era/blob/43d7bd587a84b1b4489f4c6a4169ccb90e0df467/core/lib/vm/src/vm.rs#L81
 [log_queries]:
   https://github.com/matter-labs/zk_evm_abstractions/blob/839721a4ae2093c5c0aa8ffd49758f32ecd172ed/src/queries.rs#L30C2-L30C2
 [aux_bytes]:
