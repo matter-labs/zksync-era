@@ -408,7 +408,7 @@ async fn main() -> anyhow::Result<()> {
     let particular_crypto_alerts = None;
     let graceful_shutdown = None::<futures::future::Ready<()>>;
     let tasks_allowed_to_finish = false;
-    let mut reord_detector_last_correct_batch = None;
+    let mut reorg_detector_last_correct_batch = None;
 
     tokio::select! {
         _ = wait_for_tasks(task_handles, particular_crypto_alerts, graceful_shutdown, tasks_allowed_to_finish) => {},
@@ -417,7 +417,7 @@ async fn main() -> anyhow::Result<()> {
         },
         last_correct_batch = &mut reorg_detector_handle => {
             if let Ok(last_correct_batch) = last_correct_batch {
-            reord_detector_last_correct_batch = last_correct_batch;
+                reorg_detector_last_correct_batch = last_correct_batch;
             } else {
                 tracing::error!("Reorg detector actor failed");
             }
