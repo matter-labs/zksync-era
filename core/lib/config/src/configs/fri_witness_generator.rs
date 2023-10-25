@@ -5,7 +5,7 @@ use std::time::Duration;
 use serde::Deserialize;
 
 // Local uses
-use super::envy_load;
+use super::{envy_load, FromEnv};
 
 /// Configuration for the fri witness generation
 #[derive(Debug, Deserialize, Clone, PartialEq)]
@@ -29,11 +29,13 @@ pub struct FriWitnessGeneratorConfig {
     pub shall_save_to_public_bucket: bool,
 }
 
-impl FriWitnessGeneratorConfig {
-    pub fn from_env() -> anyhow::Result<Self> {
+impl FromEnv for FriWitnessGeneratorConfig {
+    fn from_env() -> anyhow::Result<Self> {
         envy_load("fri_witness", "FRI_WITNESS_")
     }
+}
 
+impl FriWitnessGeneratorConfig {
     pub fn witness_generation_timeout(&self) -> Duration {
         Duration::from_secs(self.generation_timeout_in_secs as u64)
     }

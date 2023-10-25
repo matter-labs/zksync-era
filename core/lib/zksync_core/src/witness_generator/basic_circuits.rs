@@ -13,8 +13,9 @@ use std::{
 use multivm::vm_latest::{
     constants::MAX_CYCLES_FOR_TX, HistoryDisabled, SimpleMemory, StorageOracle as VmStorageOracle,
 };
-use zksync_config::configs::witness_generator::BasicWitnessGeneratorDataSource;
-use zksync_config::configs::WitnessGeneratorConfig;
+use zksync_config::configs::{
+    witness_generator::BasicWitnessGeneratorDataSource, FromEnv, WitnessGeneratorConfig,
+};
 use zksync_dal::ConnectionPool;
 use zksync_object_store::{Bucket, ObjectStore, ObjectStoreFactory, StoredObject};
 use zksync_queued_job_processor::JobProcessor;

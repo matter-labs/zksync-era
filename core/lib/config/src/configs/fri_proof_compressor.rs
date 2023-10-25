@@ -1,7 +1,7 @@
 use serde::Deserialize;
 use std::time::Duration;
 
-use super::envy_load;
+use super::{envy_load, FromEnv};
 
 /// Configuration for the fri proof compressor
 #[derive(Debug, Deserialize, Clone, PartialEq)]
@@ -28,11 +28,13 @@ pub struct FriProofCompressorConfig {
     pub verify_wrapper_proof: bool,
 }
 
-impl FriProofCompressorConfig {
-    pub fn from_env() -> anyhow::Result<Self> {
+impl FromEnv for FriProofCompressorConfig {
+    fn from_env() -> anyhow::Result<Self> {
         envy_load("fri_proof_compressor", "FRI_PROOF_COMPRESSOR_")
     }
+}
 
+impl FriProofCompressorConfig {
     pub fn generation_timeout(&self) -> Duration {
         Duration::from_secs(self.generation_timeout_in_secs as u64)
     }

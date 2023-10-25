@@ -1,6 +1,6 @@
 use anyhow::Context as _;
 use async_trait::async_trait;
-use zksync_config::configs::ProverGroupConfig;
+use zksync_config::configs::{FromEnv, ProverGroupConfig};
 use zksync_dal::ConnectionPool;
 use zksync_prover_utils::circuit_name_to_numeric_index;
 

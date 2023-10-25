@@ -6,7 +6,7 @@ use tokio::sync::{mpsc, watch};
 
 use std::{future::Future, ops, panic, path::Path, time::Duration};
 
-use zksync_config::{configs::chain::OperationsManagerConfig, DBConfig};
+use zksync_config::{configs::chain::OperationsManagerConfig, DBConfig, FromEnv};
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_health_check::{CheckHealth, HealthStatus};

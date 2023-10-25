@@ -15,7 +15,7 @@ use zkevm_test_harness::witness::oracle::VmWitnessOracle;
 
 use zksync_config::configs::prover_group::ProverGroupConfig;
 use zksync_config::configs::CircuitSynthesizerConfig;
-use zksync_config::ProverConfigs;
+use zksync_config::{FromEnv, ProverConfigs};
 use zksync_dal::ConnectionPool;
 use zksync_object_store::{CircuitKey, ObjectStore, ObjectStoreError, ObjectStoreFactory};
 use zksync_prover_fri_utils::socket_utils::send_assembly;

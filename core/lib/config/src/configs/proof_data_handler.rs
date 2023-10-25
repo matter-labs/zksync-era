@@ -1,4 +1,4 @@
-use super::envy_load;
+use super::{envy_load, FromEnv};
 use serde::Deserialize;
 use std::time::Duration;
 
@@ -16,11 +16,13 @@ pub struct ProofDataHandlerConfig {
     pub fri_protocol_version_id: u16,
 }
 
-impl ProofDataHandlerConfig {
-    pub fn from_env() -> anyhow::Result<Self> {
+impl FromEnv for ProofDataHandlerConfig {
+    fn from_env() -> anyhow::Result<Self> {
         envy_load("proof_data_handler", "PROOF_DATA_HANDLER_")
     }
+}
 
+impl ProofDataHandlerConfig {
     pub fn proof_generation_timeout(&self) -> Duration {
         Duration::from_secs(self.proof_generation_timeout_in_secs as u64)
     }

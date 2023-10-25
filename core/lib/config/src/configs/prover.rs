@@ -5,7 +5,7 @@ use std::time::Duration;
 use serde::Deserialize;
 
 // Local uses
-use super::envy_load;
+use super::{envy_load, FromEnv};
 
 /// Configuration for the prover application
 #[derive(Debug, Deserialize, Clone, PartialEq)]
@@ -65,8 +65,8 @@ impl ProverConfig {
     }
 }
 
-impl ProverConfigs {
-    pub fn from_env() -> anyhow::Result<Self> {
+impl FromEnv for ProverConfigs {
+    fn from_env() -> anyhow::Result<Self> {
         Ok(Self {
             non_gpu: envy_load("non_gpu", "PROVER_NON_GPU_")?,
             two_gpu_forty_gb_mem: envy_load(

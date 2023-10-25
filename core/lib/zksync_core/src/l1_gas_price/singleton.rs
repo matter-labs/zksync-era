@@ -3,7 +3,7 @@ use anyhow::Context as _;
 use std::sync::Arc;
 use tokio::sync::{watch, OnceCell};
 use tokio::task::JoinHandle;
-use zksync_config::{ETHClientConfig, GasAdjusterConfig};
+use zksync_config::{ETHClientConfig, FromEnv, GasAdjusterConfig};
 use zksync_eth_client::clients::http::QueryClient;
 
 /// Special struct for creating a singleton of `GasAdjuster`.

@@ -8,7 +8,7 @@ use zksync_basic_types::network::Network;
 use zksync_basic_types::{Address, L2ChainId, H256};
 use zksync_contracts::BaseSystemContractsHashes;
 
-use super::envy_load;
+use super::{envy_load, FromEnv};
 
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct ChainConfig {
@@ -24,8 +24,8 @@ pub struct ChainConfig {
     pub circuit_breaker: CircuitBreakerConfig,
 }
 
-impl ChainConfig {
-    pub fn from_env() -> anyhow::Result<Self> {
+impl FromEnv for ChainConfig {
+    fn from_env() -> anyhow::Result<Self> {
         Ok(Self {
             // TODO rename `eth` to `network`
             network: NetworkConfig::from_env().context("NetworkConfig")?,
@@ -50,8 +50,8 @@ pub struct NetworkConfig {
     pub zksync_network_id: L2ChainId,
 }
 
-impl NetworkConfig {
-    pub fn from_env() -> anyhow::Result<Self> {
+impl FromEnv for NetworkConfig {
+    fn from_env() -> anyhow::Result<Self> {
         envy_load("network", "CHAIN_ETH_")
     }
 }
@@ -114,11 +114,13 @@ pub struct StateKeeperConfig {
     pub enum_index_migration_chunk_size: Option<usize>,
 }
 
-impl StateKeeperConfig {
-    pub fn from_env() -> anyhow::Result<Self> {
+impl FromEnv for StateKeeperConfig {
+    fn from_env() -> anyhow::Result<Self> {
         envy_load("state_keeper", "CHAIN_STATE_KEEPER_")
     }
+}
 
+impl StateKeeperConfig {
     pub fn base_system_contracts_hashes(&self) -> BaseSystemContractsHashes {
         BaseSystemContractsHashes {
             bootloader: self.bootloader_hash,
@@ -137,11 +139,13 @@ pub struct OperationsManagerConfig {
     pub delay_interval: u64,
 }
 
-impl OperationsManagerConfig {
-    pub fn from_env() -> anyhow::Result<Self> {
+impl FromEnv for OperationsManagerConfig {
+    fn from_env() -> anyhow::Result<Self> {
         envy_load("operations_manager", "CHAIN_OPERATIONS_MANAGER_")
     }
+}
 
+impl OperationsManagerConfig {
     pub fn delay_interval(&self) -> Duration {
         Duration::from_millis(self.delay_interval)
     }
@@ -155,11 +159,13 @@ pub struct CircuitBreakerConfig {
     pub replication_lag_limit_sec: Option<u32>,
 }
 
-impl CircuitBreakerConfig {
-    pub fn from_env() -> anyhow::Result<Self> {
+impl FromEnv for CircuitBreakerConfig {
+    fn from_env() -> anyhow::Result<Self> {
         envy_load("circuit_breaker", "CHAIN_CIRCUIT_BREAKER_")
     }
+}
 
+impl CircuitBreakerConfig {
     pub fn sync_interval(&self) -> Duration {
         Duration::from_millis(self.sync_interval_ms)
     }
@@ -191,8 +197,10 @@ impl MempoolConfig {
     pub fn delay_interval(&self) -> Duration {
         Duration::from_millis(self.delay_interval)
     }
+}
 
-    pub fn from_env() -> anyhow::Result<Self> {
+impl FromEnv for MempoolConfig {
+    fn from_env() -> anyhow::Result<Self> {
         envy_load("mempool", "CHAIN_MEMPOOL_")
     }
 }

@@ -10,7 +10,7 @@ use std::{
 };
 
 use db_test_macro::db_test;
-use zksync_config::configs::chain::NetworkConfig;
+use zksync_config::configs::{chain::NetworkConfig, FromEnv};
 use zksync_contracts::{BaseSystemContractsHashes, SystemContractCode};
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_types::{

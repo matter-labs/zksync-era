@@ -3,7 +3,7 @@ use prometheus_exporter::PrometheusExporterConfig;
 use structopt::StructOpt;
 use tokio::{sync::oneshot, sync::watch};
 
-use zksync_config::configs::{AlertsConfig, CircuitSynthesizerConfig, ProverGroupConfig};
+use zksync_config::configs::{AlertsConfig, CircuitSynthesizerConfig, FromEnv, ProverGroupConfig};
 use zksync_dal::connection::DbVariant;
 use zksync_dal::ConnectionPool;
 use zksync_object_store::ObjectStoreFactory;

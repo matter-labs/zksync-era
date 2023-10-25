@@ -1,6 +1,6 @@
 use serde::Deserialize;
 
-use super::envy_load;
+use super::{envy_load, FromEnv};
 
 /// Configuration for the grouping of specialized provers.
 /// This config would be used by circuit-synthesizer and provers.
@@ -25,11 +25,13 @@ pub struct ProverGroupConfig {
     pub synthesizer_per_gpu: u16,
 }
 
-impl ProverGroupConfig {
-    pub fn from_env() -> anyhow::Result<Self> {
+impl FromEnv for ProverGroupConfig {
+    fn from_env() -> anyhow::Result<Self> {
         envy_load("prover_group", "PROVER_GROUP_")
     }
+}
 
+impl ProverGroupConfig {
     pub fn get_circuit_ids_for_group_id(&self, group_id: u8) -> Option<Vec<u8>> {
         match group_id {
             0 => Some(self.group_0_circuit_ids.clone()),

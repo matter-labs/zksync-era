@@ -3,7 +3,7 @@ use std::sync::Mutex;
 use assert_matches::assert_matches;
 use async_trait::async_trait;
 
-use zksync_config::configs::{chain::CircuitBreakerConfig, ContractsConfig};
+use zksync_config::configs::{chain::CircuitBreakerConfig, ContractsConfig, FromEnv};
 use zksync_eth_client::{
     types::{Error, ExecutedTxStatus, FailureInfo, SignedCallResult},
     BoundEthInterface, EthInterface,

@@ -8,7 +8,7 @@ use tokio::task::JoinHandle;
 use prometheus_exporter::PrometheusExporterConfig;
 use zksync_config::configs::fri_prover_group::FriProverGroupConfig;
 use zksync_config::configs::FriProverConfig;
-use zksync_config::ObjectStoreConfig;
+use zksync_config::{FromEnv, ObjectStoreConfig};
 use zksync_dal::connection::DbVariant;
 use zksync_dal::ConnectionPool;
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};

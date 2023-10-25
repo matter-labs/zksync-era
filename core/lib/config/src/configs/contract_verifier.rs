@@ -3,7 +3,7 @@ use std::time::Duration;
 // External uses
 use serde::Deserialize;
 // Local uses
-use super::envy_load;
+use super::{envy_load, FromEnv};
 
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct ContractVerifierConfig {
@@ -15,11 +15,13 @@ pub struct ContractVerifierConfig {
     pub prometheus_port: u16,
 }
 
-impl ContractVerifierConfig {
-    pub fn from_env() -> anyhow::Result<Self> {
+impl FromEnv for ContractVerifierConfig {
+    fn from_env() -> anyhow::Result<Self> {
         envy_load("contract_verifier", "CONTRACT_VERIFIER_")
     }
+}
 
+impl ContractVerifierConfig {
     pub fn compilation_timeout(&self) -> Duration {
         Duration::from_secs(self.compilation_timeout)
     }

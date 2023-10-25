@@ -30,6 +30,7 @@ impl SealCriterion for SlotsCriterion {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use zksync_config::FromEnv;
 
     #[test]
     fn test_slots_seal_criterion() {

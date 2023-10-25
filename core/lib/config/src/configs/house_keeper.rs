@@ -1,6 +1,6 @@
 use serde::Deserialize;
 
-use super::envy_load;
+use super::{envy_load, FromEnv};
 
 /// Configuration for the house keeper.
 #[derive(Debug, Deserialize, Clone, PartialEq)]
@@ -21,8 +21,8 @@ pub struct HouseKeeperConfig {
     pub fri_proof_compressor_stats_reporting_interval_ms: u64,
 }
 
-impl HouseKeeperConfig {
-    pub fn from_env() -> anyhow::Result<Self> {
+impl FromEnv for HouseKeeperConfig {
+    fn from_env() -> anyhow::Result<Self> {
         envy_load("house_keeper", "HOUSE_KEEPER_")
     }
 }

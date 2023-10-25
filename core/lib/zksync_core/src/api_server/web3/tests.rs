@@ -6,7 +6,7 @@ use db_test_macro::db_test;
 use zksync_config::configs::{
     api::Web3JsonRpcConfig,
     chain::{NetworkConfig, StateKeeperConfig},
-    ContractsConfig,
+    ContractsConfig, FromEnv,
 };
 use zksync_dal::ConnectionPool;
 use zksync_health_check::CheckHealth;

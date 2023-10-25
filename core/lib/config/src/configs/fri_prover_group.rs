@@ -4,6 +4,8 @@ use std::env;
 
 use zksync_basic_types::basic_fri_types::CircuitIdRoundTuple;
 
+use super::FromEnv;
+
 fn load_from_env_variable() -> HashMap<String, HashSet<CircuitIdRoundTuple>> {
     // Prepare a hash map to store the mapping of group to a vector of tuples
     let mut groups: HashMap<String, HashSet<CircuitIdRoundTuple>> = (0..=12)
@@ -64,8 +66,8 @@ pub struct FriProverGroupConfig {
     pub group_12: HashSet<CircuitIdRoundTuple>,
 }
 
-impl FriProverGroupConfig {
-    pub fn from_env() -> Self {
+impl FromEnv for FriProverGroupConfig {
+    fn from_env() -> anyhow::Result<Self> {
         let mut groups = load_from_env_variable();
         let config = FriProverGroupConfig {
             group_0: groups.remove("group_0").unwrap_or_default(),
@@ -83,9 +85,11 @@ impl FriProverGroupConfig {
             group_12: groups.remove("group_12").unwrap_or_default(),
         };
         config.validate();
-        config
+        Ok(config)
     }
+}
 
+impl FriProverGroupConfig {
     pub fn get_circuit_ids_for_group_id(&self, group_id: u8) -> Option<Vec<CircuitIdRoundTuple>> {
         match group_id {
             0 => Some(self.group_0.clone().into_iter().collect()),
@@ -424,7 +428,7 @@ mod tests {
             );
         }
 
-        let actual = FriProverGroupConfig::from_env();
+        let actual = FriProverGroupConfig::from_env().unwrap();
         assert_eq!(actual, expected_config());
     }
 }

@@ -21,8 +21,8 @@ use zksync_config::configs::{
     },
     database::MerkleTreeMode,
     house_keeper::HouseKeeperConfig,
-    FriProofCompressorConfig, FriProverConfig, FriWitnessGeneratorConfig, PrometheusConfig,
-    ProofDataHandlerConfig, ProverGroupConfig, WitnessGeneratorConfig,
+    FriProofCompressorConfig, FriProverConfig, FriWitnessGeneratorConfig, FromEnv,
+    PrometheusConfig, ProofDataHandlerConfig, ProverGroupConfig, WitnessGeneratorConfig,
 };
 use zksync_config::{
     ApiConfig, ContractsConfig, DBConfig, ETHClientConfig, ETHSenderConfig, FetcherConfig,

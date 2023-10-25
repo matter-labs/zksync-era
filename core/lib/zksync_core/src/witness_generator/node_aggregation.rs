@@ -3,7 +3,7 @@ use async_trait::async_trait;
 
 use std::{collections::HashMap, env, time::Instant};
 
-use zksync_config::configs::WitnessGeneratorConfig;
+use zksync_config::{configs::WitnessGeneratorConfig, FromEnv};
 use zksync_dal::ConnectionPool;
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_queued_job_processor::JobProcessor;

@@ -7,7 +7,7 @@ use tokio::{sync::oneshot, sync::watch};
 
 use crate::generator::WitnessVectorGenerator;
 use zksync_config::configs::fri_prover_group::FriProverGroupConfig;
-use zksync_config::configs::FriWitnessVectorGeneratorConfig;
+use zksync_config::configs::{FriWitnessVectorGeneratorConfig, FromEnv};
 use zksync_dal::connection::DbVariant;
 use zksync_dal::ConnectionPool;
 use zksync_object_store::ObjectStoreFactory;

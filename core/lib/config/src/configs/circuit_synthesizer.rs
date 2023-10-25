@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use serde::Deserialize;
 
-use super::envy_load;
+use super::{envy_load, FromEnv};
 
 /// Configuration for the witness generation
 #[derive(Debug, Deserialize, Clone, PartialEq)]
@@ -25,11 +25,13 @@ pub struct CircuitSynthesizerConfig {
     pub prover_group_id: u8,
 }
 
-impl CircuitSynthesizerConfig {
-    pub fn from_env() -> anyhow::Result<Self> {
+impl FromEnv for CircuitSynthesizerConfig {
+    fn from_env() -> anyhow::Result<Self> {
         envy_load("circuit_synthesizer", "CIRCUIT_SYNTHESIZER_")
     }
+}
 
+impl CircuitSynthesizerConfig {
     pub fn generation_timeout(&self) -> Duration {
         Duration::from_secs(self.generation_timeout_in_secs as u64)
     }

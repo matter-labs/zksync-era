@@ -42,6 +42,7 @@ impl SealCriterion for TxEncodingSizeCriterion {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use zksync_config::FromEnv;
 
     #[test]
     fn seal_criterion() {

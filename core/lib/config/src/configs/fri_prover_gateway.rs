@@ -1,4 +1,4 @@
-use super::envy_load;
+use super::{envy_load, FromEnv};
 use serde::Deserialize;
 use std::time::Duration;
 
@@ -13,11 +13,13 @@ pub struct FriProverGatewayConfig {
     pub prometheus_push_interval_ms: Option<u64>,
 }
 
-impl FriProverGatewayConfig {
-    pub fn from_env() -> anyhow::Result<Self> {
+impl FromEnv for FriProverGatewayConfig {
+    fn from_env() -> anyhow::Result<Self> {
         envy_load("fri_prover_gateway", "FRI_PROVER_GATEWAY_")
     }
+}
 
+impl FriProverGatewayConfig {
     pub fn api_poll_duration(&self) -> Duration {
         Duration::from_secs(self.api_poll_duration_secs as u64)
     }

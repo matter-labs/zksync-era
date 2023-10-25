@@ -3,7 +3,7 @@ use serde::Deserialize;
 
 use std::{net::SocketAddr, time::Duration};
 
-use super::envy_load;
+use super::{envy_load, FromEnv};
 pub use crate::configs::PrometheusConfig;
 use zksync_basic_types::H256;
 
@@ -22,8 +22,8 @@ pub struct ApiConfig {
     pub merkle_tree: MerkleTreeApiConfig,
 }
 
-impl ApiConfig {
-    pub fn from_env() -> anyhow::Result<Self> {
+impl FromEnv for ApiConfig {
+    fn from_env() -> anyhow::Result<Self> {
         Ok(Self {
             web3_json_rpc: Web3JsonRpcConfig::from_env().context("Web3JsonRpcConfig")?,
             contract_verification: ContractVerificationApiConfig::from_env()
@@ -104,11 +104,13 @@ pub struct Web3JsonRpcConfig {
     pub websocket_requests_per_minute_limit: Option<u32>,
 }
 
-impl Web3JsonRpcConfig {
-    pub fn from_env() -> anyhow::Result<Self> {
+impl FromEnv for Web3JsonRpcConfig {
+    fn from_env() -> anyhow::Result<Self> {
         envy_load("web3_json_rpc", "API_WEB3_JSON_RPC_")
     }
+}
 
+impl Web3JsonRpcConfig {
     pub fn http_bind_addr(&self) -> SocketAddr {
         SocketAddr::new("0.0.0.0".parse().unwrap(), self.http_port)
     }
@@ -196,11 +198,13 @@ pub struct HealthCheckConfig {
     pub port: u16,
 }
 
-impl HealthCheckConfig {
-    pub fn from_env() -> anyhow::Result<Self> {
+impl FromEnv for HealthCheckConfig {
+    fn from_env() -> anyhow::Result<Self> {
         envy_load("healthcheck", "API_HEALTHCHECK_")
     }
+}
 
+impl HealthCheckConfig {
     pub fn bind_addr(&self) -> SocketAddr {
         SocketAddr::new("0.0.0.0".parse().unwrap(), self.port)
     }
@@ -220,8 +224,10 @@ impl ContractVerificationApiConfig {
     pub fn bind_addr(&self) -> SocketAddr {
         SocketAddr::new("0.0.0.0".parse().unwrap(), self.port)
     }
+}
 
-    pub fn from_env() -> anyhow::Result<Self> {
+impl FromEnv for ContractVerificationApiConfig {
+    fn from_env() -> anyhow::Result<Self> {
         envy_load("contract_verification", "API_CONTRACT_VERIFICATION_")
     }
 }
@@ -238,9 +244,11 @@ impl MerkleTreeApiConfig {
     const fn default_port() -> u16 {
         3_072
     }
+}
 
+impl FromEnv for MerkleTreeApiConfig {
     /// Loads configuration from env variables.
-    pub fn from_env() -> anyhow::Result<Self> {
+    fn from_env() -> anyhow::Result<Self> {
         envy_load("merkle_tree_api", "API_MERKLE_TREE_")
     }
 }

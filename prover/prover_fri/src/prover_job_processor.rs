@@ -20,7 +20,7 @@ use zksync_prover_fri_types::circuit_definitions::{
 use zkevm_test_harness::prover_utils::{prove_base_layer_circuit, prove_recursion_layer_circuit};
 
 use zksync_config::configs::fri_prover_group::FriProverGroupConfig;
-use zksync_config::configs::FriProverConfig;
+use zksync_config::configs::{FriProverConfig, FromEnv};
 use zksync_dal::ConnectionPool;
 use zksync_object_store::ObjectStore;
 use zksync_prover_fri_types::{CircuitWrapper, FriProofWrapper, ProverJob, ProverServiceDataKey};

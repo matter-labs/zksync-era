@@ -43,6 +43,7 @@ impl SealCriterion for PubDataBytesCriterion {
 
 #[cfg(test)]
 mod tests {
+    use zksync_config::FromEnv;
     use zksync_types::tx::ExecutionMetrics;
 
     use super::*;

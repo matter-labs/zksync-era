@@ -1,7 +1,7 @@
 // External uses
 use serde::Deserialize;
 // Local uses
-use super::envy_load;
+use super::{envy_load, FromEnv};
 
 /// Configuration for the Ethereum gateways.
 #[derive(Debug, Deserialize, Clone, PartialEq)]
@@ -12,8 +12,8 @@ pub struct ETHClientConfig {
     pub web3_url: String,
 }
 
-impl ETHClientConfig {
-    pub fn from_env() -> anyhow::Result<Self> {
+impl FromEnv for ETHClientConfig {
+    fn from_env() -> anyhow::Result<Self> {
         let config: Self = envy_load("eth_client", "ETH_CLIENT_")?;
         if config.web3_url.find(',').is_some() {
             anyhow::bail!(

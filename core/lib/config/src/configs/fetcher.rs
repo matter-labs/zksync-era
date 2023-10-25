@@ -5,7 +5,7 @@ use std::time::Duration;
 use serde::Deserialize;
 // Workspace uses
 // Local uses
-use super::envy_load;
+use super::{envy_load, FromEnv};
 
 #[derive(Debug, Deserialize, Clone, Copy, PartialEq)]
 pub enum TokenListSource {
@@ -50,8 +50,8 @@ pub struct FetcherConfig {
     pub token_trading_volume: SingleFetcherConfig<TokenTradingVolumeSource>,
 }
 
-impl FetcherConfig {
-    pub fn from_env() -> anyhow::Result<Self> {
+impl FromEnv for FetcherConfig {
+    fn from_env() -> anyhow::Result<Self> {
         Ok(Self {
             token_list: envy_load("token_list", "FETCHER_TOKEN_LIST_")?,
             token_price: envy_load("token_price", "FETCHER_TOKEN_PRICE_")?,

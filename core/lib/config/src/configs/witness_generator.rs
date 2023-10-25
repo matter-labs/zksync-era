@@ -5,7 +5,7 @@ use std::time::Duration;
 use serde::Deserialize;
 
 // Local uses
-use super::envy_load;
+use super::{envy_load, FromEnv};
 
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 pub enum BasicWitnessGeneratorDataSource {
@@ -37,11 +37,13 @@ pub struct WitnessGeneratorConfig {
     pub data_source: BasicWitnessGeneratorDataSource,
 }
 
-impl WitnessGeneratorConfig {
-    pub fn from_env() -> anyhow::Result<Self> {
+impl FromEnv for WitnessGeneratorConfig {
+    fn from_env() -> anyhow::Result<Self> {
         envy_load("witness", "WITNESS_")
     }
+}
 
+impl WitnessGeneratorConfig {
     pub fn witness_generation_timeout(&self) -> Duration {
         Duration::from_secs(self.generation_timeout_in_secs as u64)
     }

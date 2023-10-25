@@ -4,7 +4,7 @@ use clap::Parser;
 use std::{str::FromStr, time::Duration};
 use zksync_config::configs::chain::NetworkConfig;
 
-use zksync_config::{ContractsConfig, ETHSenderConfig};
+use zksync_config::{ContractsConfig, ETHSenderConfig, FromEnv};
 use zksync_core::{
     genesis_init, initialize_components, is_genesis_needed, setup_sigint_handler, Component,
     Components,

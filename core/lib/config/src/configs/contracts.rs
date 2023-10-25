@@ -3,7 +3,7 @@ use serde::Deserialize;
 // Workspace uses
 use zksync_basic_types::{Address, H256};
 // Local uses
-use super::envy_load;
+use super::{envy_load, FromEnv};
 
 /// Data about deployed contracts.
 #[derive(Debug, Deserialize, Clone, PartialEq)]
@@ -38,8 +38,8 @@ pub struct ContractsConfig {
     pub snark_wrapper_vk_hash: H256,
 }
 
-impl ContractsConfig {
-    pub fn from_env() -> anyhow::Result<Self> {
+impl FromEnv for ContractsConfig {
+    fn from_env() -> anyhow::Result<Self> {
         envy_load("contracts", "CONTRACTS_")
     }
 }

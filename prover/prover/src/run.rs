@@ -8,7 +8,7 @@ use queues::Buffer;
 use prometheus_exporter::PrometheusExporterConfig;
 use zksync_config::{
     configs::{api::PrometheusConfig, prover_group::ProverGroupConfig, AlertsConfig},
-    ApiConfig, ProverConfig, ProverConfigs,
+    ApiConfig, FromEnv, ProverConfig, ProverConfigs,
 };
 use zksync_dal::{connection::DbVariant, ConnectionPool};
 use zksync_object_store::ObjectStoreFactory;

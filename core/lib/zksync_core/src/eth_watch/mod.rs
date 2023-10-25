@@ -9,7 +9,7 @@ use tokio::{sync::watch, task::JoinHandle};
 
 use std::time::Duration;
 
-use zksync_config::ETHWatchConfig;
+use zksync_config::{ETHWatchConfig, FromEnv};
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_eth_client::EthInterface;
 use zksync_system_constants::PRIORITY_EXPIRATION;

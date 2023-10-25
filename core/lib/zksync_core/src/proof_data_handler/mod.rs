@@ -6,7 +6,7 @@ use std::net::SocketAddr;
 use tokio::sync::watch;
 use zksync_config::{
     configs::{proof_data_handler::ProtocolVersionLoadingMode, ProofDataHandlerConfig},
-    ContractsConfig,
+    ContractsConfig, FromEnv,
 };
 use zksync_dal::ConnectionPool;
 use zksync_object_store::ObjectStore;

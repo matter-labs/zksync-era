@@ -1,6 +1,6 @@
 use serde::Deserialize;
 
-use super::envy_load;
+use super::{envy_load, FromEnv};
 
 #[derive(Debug, Deserialize, Eq, PartialEq, Clone, Copy)]
 pub enum ObjectStoreMode {
@@ -19,11 +19,13 @@ pub struct ObjectStoreConfig {
     pub max_retries: u16,
 }
 
-impl ObjectStoreConfig {
-    pub fn from_env() -> anyhow::Result<Self> {
+impl FromEnv for ObjectStoreConfig {
+    fn from_env() -> anyhow::Result<Self> {
         envy_load("object_store", "OBJECT_STORE_")
     }
+}
 
+impl ObjectStoreConfig {
     pub fn public_from_env() -> anyhow::Result<Self> {
         envy_load("public_object_store", "PUBLIC_OBJECT_STORE_")
     }

@@ -47,6 +47,7 @@ impl SealCriterion for GasCriterion {
 
 #[cfg(test)]
 mod tests {
+    use zksync_config::FromEnv;
     use zksync_types::block::BlockGasCount;
 
     use super::*;

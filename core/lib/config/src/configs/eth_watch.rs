@@ -3,7 +3,7 @@ use std::time::Duration;
 // External uses
 use serde::Deserialize;
 // Local uses
-use super::envy_load;
+use super::{envy_load, FromEnv};
 
 /// Configuration for the Ethereum sender crate.
 #[derive(Debug, Deserialize, Clone, PartialEq)]
@@ -16,11 +16,13 @@ pub struct ETHWatchConfig {
     pub eth_node_poll_interval: u64,
 }
 
-impl ETHWatchConfig {
-    pub fn from_env() -> anyhow::Result<Self> {
+impl FromEnv for ETHWatchConfig {
+    fn from_env() -> anyhow::Result<Self> {
         envy_load("eth_watch", "ETH_WATCH_")
     }
+}
 
+impl ETHWatchConfig {
     /// Converts `self.eth_node_poll_interval` into `Duration`.
     pub fn poll_interval(&self) -> Duration {
         Duration::from_millis(self.eth_node_poll_interval)

@@ -46,13 +46,17 @@ pub(crate) mod test_utils;
 
 const BYTES_IN_MEGABYTE: usize = 1_024 * 1_024;
 
+pub trait FromEnv: Sized {
+    fn from_env() -> anyhow::Result<Self>;
+}
+
 /// Convenience function that loads the structure from the environment variable given the prefix.
 /// Panics if the config cannot be loaded from the environment variables.
-pub fn envy_load<T: DeserializeOwned>(name: &str, prefix: &str) -> anyhow::Result<T> {
+pub(crate) fn envy_load<T: DeserializeOwned>(name: &str, prefix: &str) -> anyhow::Result<T> {
     envy_try_load(prefix).with_context(|| format!("Cannot load config <{name}>"))
 }
 
 /// Convenience function that loads the structure from the environment variable given the prefix.
-pub fn envy_try_load<T: DeserializeOwned>(prefix: &str) -> Result<T, envy::Error> {
+pub(crate) fn envy_try_load<T: DeserializeOwned>(prefix: &str) -> Result<T, envy::Error> {
     envy::prefixed(prefix).from_env()
 }

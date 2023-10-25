@@ -2,7 +2,7 @@
 // External uses
 use serde::Deserialize;
 
-use super::envy_load;
+use super::{envy_load, FromEnv};
 
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct AlertsConfig {
@@ -11,8 +11,8 @@ pub struct AlertsConfig {
     pub sporadic_crypto_errors_substrs: Vec<String>,
 }
 
-impl AlertsConfig {
-    pub fn from_env() -> anyhow::Result<Self> {
+impl FromEnv for AlertsConfig {
+    fn from_env() -> anyhow::Result<Self> {
         envy_load("sporadic_crypto_errors_substrs", "ALERTS_")
     }
 }

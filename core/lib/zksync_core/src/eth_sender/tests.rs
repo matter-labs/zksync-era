@@ -4,7 +4,7 @@ use std::sync::{atomic::Ordering, Arc};
 use db_test_macro::db_test;
 use zksync_config::{
     configs::eth_sender::{ProofSendingMode, SenderConfig},
-    ContractsConfig, ETHSenderConfig, GasAdjusterConfig,
+    ContractsConfig, ETHSenderConfig, FromEnv, GasAdjusterConfig,
 };
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{ConnectionPool, StorageProcessor};

@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use serde::Deserialize;
 
-use super::envy_load;
+use super::{envy_load, FromEnv};
 
 /// Configuration for the witness vector generator
 #[derive(Debug, Deserialize, Clone, PartialEq)]
@@ -24,14 +24,16 @@ pub struct FriWitnessVectorGeneratorConfig {
     pub specialized_group_id: u8,
 }
 
-impl FriWitnessVectorGeneratorConfig {
-    pub fn from_env() -> anyhow::Result<Self> {
+impl FromEnv for FriWitnessVectorGeneratorConfig {
+    fn from_env() -> anyhow::Result<Self> {
         envy_load(
             "fri_witness_vector_generator",
             "FRI_WITNESS_VECTOR_GENERATOR_",
         )
     }
+}
 
+impl FriWitnessVectorGeneratorConfig {
     pub fn prover_instance_wait_timeout(&self) -> Duration {
         Duration::from_secs(self.prover_instance_wait_timeout_in_secs as u64)
     }

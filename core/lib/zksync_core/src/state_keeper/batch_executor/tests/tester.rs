@@ -6,7 +6,7 @@ use tempfile::TempDir;
 use multivm::interface::{L1BatchEnv, SystemEnv};
 use multivm::vm_latest::constants::INITIAL_STORAGE_WRITE_PUBDATA_BYTES;
 
-use zksync_config::configs::chain::StateKeeperConfig;
+use zksync_config::configs::{chain::StateKeeperConfig, FromEnv};
 use zksync_contracts::{get_loadnext_contract, test_contracts::LoadnextContractExecutionParams};
 use zksync_dal::ConnectionPool;
 use zksync_state::RocksdbStorage;

@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use std::time::Duration;
 
-use super::envy_load;
+use super::{envy_load, FromEnv};
 
 /// Mode of operation for the Merkle tree.
 ///
@@ -132,6 +132,15 @@ pub struct DBConfig {
     pub backup_interval_ms: u64,
 }
 
+impl FromEnv for DBConfig {
+    fn from_env() -> anyhow::Result<Self> {
+        Ok(Self {
+            merkle_tree: envy_load("database_merkle_tree", "DATABASE_MERKLE_TREE_")?,
+            ..envy_load("database", "DATABASE_")?
+        })
+    }
+}
+
 impl DBConfig {
     fn default_state_keeper_db_path() -> String {
         "./db/state_keeper".to_owned()
@@ -143,13 +152,6 @@ impl DBConfig {
 
     const fn default_backup_interval_ms() -> u64 {
         60_000
-    }
-
-    pub fn from_env() -> anyhow::Result<Self> {
-        Ok(Self {
-            merkle_tree: envy_load("database_merkle_tree", "DATABASE_MERKLE_TREE_")?,
-            ..envy_load("database", "DATABASE_")?
-        })
     }
 
     /// Returns the Postgres statement timeout.

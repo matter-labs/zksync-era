@@ -10,7 +10,7 @@ use lazy_static::lazy_static;
 use regex::Regex;
 use tokio::time;
 
-use zksync_config::ContractVerifierConfig;
+use zksync_config::{ContractVerifierConfig, FromEnv};
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_queued_job_processor::{async_trait, JobProcessor};
 use zksync_types::{

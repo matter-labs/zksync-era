@@ -6,7 +6,7 @@ use serde::Deserialize;
 // Workspace uses
 use zksync_basic_types::H256;
 // Local uses
-use super::envy_load;
+use super::{envy_load, FromEnv};
 
 /// Configuration for the Ethereum sender crate.
 #[derive(Debug, Deserialize, Clone, PartialEq)]
@@ -17,8 +17,8 @@ pub struct ETHSenderConfig {
     pub gas_adjuster: GasAdjusterConfig,
 }
 
-impl ETHSenderConfig {
-    pub fn from_env() -> anyhow::Result<Self> {
+impl FromEnv for ETHSenderConfig {
+    fn from_env() -> anyhow::Result<Self> {
         Ok(Self {
             sender: SenderConfig::from_env().context("SenderConfig")?,
             gas_adjuster: GasAdjusterConfig::from_env().context("GasAdjusterConfig")?,
@@ -90,8 +90,10 @@ impl SenderConfig {
             .ok()
             .map(|pk| pk.parse().unwrap())
     }
+}
 
-    pub fn from_env() -> anyhow::Result<Self> {
+impl FromEnv for SenderConfig {
+    fn from_env() -> anyhow::Result<Self> {
         envy_load("eth_sender", "ETH_SENDER_SENDER_")
     }
 }
@@ -125,8 +127,10 @@ impl GasAdjusterConfig {
     pub fn max_l1_gas_price(&self) -> u64 {
         self.max_l1_gas_price.unwrap_or(u64::MAX)
     }
+}
 
-    pub fn from_env() -> anyhow::Result<Self> {
+impl FromEnv for GasAdjusterConfig {
+    fn from_env() -> anyhow::Result<Self> {
         envy_load("eth_sender.gas_adjuster", "ETH_SENDER_GAS_ADJUSTER_")
     }
 }

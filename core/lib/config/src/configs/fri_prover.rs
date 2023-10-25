@@ -1,4 +1,4 @@
-use super::envy_load;
+use super::{envy_load, FromEnv};
 use serde::Deserialize;
 use std::time::Duration;
 
@@ -27,11 +27,13 @@ pub struct FriProverConfig {
     pub shall_save_to_public_bucket: bool,
 }
 
-impl FriProverConfig {
-    pub fn from_env() -> anyhow::Result<Self> {
+impl FromEnv for FriProverConfig {
+    fn from_env() -> anyhow::Result<Self> {
         envy_load("fri_prover", "FRI_PROVER_")
     }
+}
 
+impl FriProverConfig {
     pub fn proof_generation_timeout(&self) -> Duration {
         Duration::from_secs(self.generation_timeout_in_secs as u64)
     }

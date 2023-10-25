@@ -17,7 +17,7 @@ pub mod gpu_prover {
     use zksync_prover_fri_types::WitnessVectorArtifacts;
 
     use zksync_config::configs::fri_prover_group::FriProverGroupConfig;
-    use zksync_config::configs::FriProverConfig;
+    use zksync_config::configs::{FriProverConfig, FromEnv};
     use zksync_dal::ConnectionPool;
     use zksync_object_store::ObjectStore;
     use zksync_prover_fri_types::{CircuitWrapper, FriProofWrapper, ProverServiceDataKey};

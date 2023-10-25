@@ -3,7 +3,7 @@ use regex::Regex;
 use reqwest::header::{HeaderMap, HeaderValue};
 use reqwest::Method;
 
-use zksync_config::configs::ProverGroupConfig;
+use zksync_config::configs::{FromEnv, ProverGroupConfig};
 use zksync_utils::http_with_retries::send_request_with_retries;
 
 pub async fn get_region() -> anyhow::Result<String> {
