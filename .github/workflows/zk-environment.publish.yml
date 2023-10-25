@@ -126,7 +126,7 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USER }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Create and push multi-arch images
+      - name: Create and push multi-arch zk-environment lightweight manifests
         run: |
           images=("lightweight" "lightweight-nightly")
           archs=("amd64" "arm64")
