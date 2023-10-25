@@ -129,4 +129,4 @@ jobs:
           if [[ ${{ contains(join(needs.*.result, ','), 'failure') }} == "true" ]]; then
             echo "Intentionally failing to block PR from merging"
             exit 1
-          fi
+          fi[![CI](https://github.com/matter-labs/zksync-era/actions/workflows/ci.yml/badge.svg?event=merge_group)](https://github.com/matter-labs/zksync-era/actions/workflows/ci.yml)
