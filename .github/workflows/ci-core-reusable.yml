@@ -274,6 +274,7 @@ jobs:
           ci_run zk env
           ci_run zk test i revert
           # Check that the rollback was performed on the EN
+          ci_run sleep 20
           ci_run grep -q 'Rollback successfully completed' ext-node.log
           # Restart the EN
           ci_run zk server &>>server.log &
