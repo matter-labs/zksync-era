@@ -141,7 +141,7 @@ jobs:
               individual_images+=("matterlabs/zk-environment:${TAG}")
             done
 
-            docker buildx imagetools create --tag $multiarch_tag ${individual_images[@]}
+            docker buildx imagetools create --tag "${multiarch_tag}" "${individual_images[@]}"
           done
 
   zk_environment_cuda_12:
