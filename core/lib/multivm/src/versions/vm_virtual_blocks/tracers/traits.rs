@@ -1,15 +1,12 @@
 use crate::interface::dyn_tracers::vm_1_3_3::DynTracer;
+use crate::interface::tracer::VmExecutionStopReason;
 use crate::interface::VmExecutionResultAndLogs;
-use zk_evm_1_3_3::tracing::{
-    AfterDecodingData, AfterExecutionData, BeforeExecutionData, VmLocalStateData,
-};
-use zksync_state::{StoragePtr, WriteStorage};
+use zksync_state::WriteStorage;
 
 use crate::vm_virtual_blocks::bootloader_state::BootloaderState;
 use crate::vm_virtual_blocks::old_vm::history_recorder::HistoryMode;
 use crate::vm_virtual_blocks::old_vm::memory::SimpleMemory;
 use crate::vm_virtual_blocks::types::internals::ZkSyncVmState;
-use crate::vm_virtual_blocks::VmExecutionStopReason;
 
 /// Run tracer for collecting data during the vm execution cycles
 #[auto_impl::auto_impl(&mut, Box)]
@@ -45,7 +42,7 @@ pub trait ExecutionEndTracer<H: HistoryMode> {
 /// Save the results of the vm execution.
 #[auto_impl::auto_impl(&mut, Box)]
 pub trait VmTracer<S: WriteStorage, H: HistoryMode>:
-    DynTracer<S, SimpleMemory<H>> + ExecutionEndTracer<H> + ExecutionProcessing<S, H> + Send
+    DynTracer<S, SimpleMemory<H>> + ExecutionEndTracer<H> + ExecutionProcessing<S, H>
 {
     fn save_results(&mut self, _result: &mut VmExecutionResultAndLogs) {}
 }

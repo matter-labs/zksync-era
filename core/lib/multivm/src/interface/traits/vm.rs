@@ -13,14 +13,15 @@ use zksync_utils::bytecode::CompressedBytecodeInfo;
 
 /// Public interface for VM
 pub trait VmInterface<S: WriteStorage, H: HistoryMode> {
+    type Tracer: Default;
     fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage: StoragePtr<S>) -> Self;
     fn push_transaction(&mut self, tx: Transaction);
     fn execute(&mut self, execution_mode: VmExecutionMode) -> VmExecutionResultAndLogs {
-        self.inspect(NoopTracer, execution_mode)
+        self.inspect(Self::Tracer::default(), execution_mode)
     }
-    fn inspect<T: MultivmTracer<S, H>>(
+    fn inspect(
         &mut self,
-        tracer: T,
+        tracer: Self::Tracer,
         execution_mode: VmExecutionMode,
     ) -> VmExecutionResultAndLogs;
     fn get_bootloader_memory(&self) -> BootloaderMemory;
@@ -37,13 +38,17 @@ pub trait VmInterface<S: WriteStorage, H: HistoryMode> {
         tx: Transaction,
         with_compression: bool,
     ) -> Result<VmExecutionResultAndLogs, BytecodeCompressionError> {
-        self.inspect_transaction_with_bytecode_compression(NoopTracer, tx, with_compression)
+        self.inspect_transaction_with_bytecode_compression(
+            Self::Tracer::default(),
+            tx,
+            with_compression,
+        )
     }
 
     /// Inspect transaction with optional bytecode compression.
-    fn inspect_transaction_with_bytecode_compression<T: MultivmTracer<S, H>>(
+    fn inspect_transaction_with_bytecode_compression(
         &mut self,
-        tracer: T,
+        tracer: Self::Tracer,
         tx: Transaction,
         with_compression: bool,
     ) -> Result<VmExecutionResultAndLogs, BytecodeCompressionError>;

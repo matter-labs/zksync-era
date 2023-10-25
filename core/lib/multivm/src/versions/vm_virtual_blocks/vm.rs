@@ -11,6 +11,7 @@ use zksync_utils::bytecode::CompressedBytecodeInfo;
 use crate::vm_virtual_blocks::old_vm::events::merge_events;
 
 use crate::vm_virtual_blocks::bootloader_state::BootloaderState;
+use crate::vm_virtual_blocks::tracers::dispatcher::TracerDispatcher;
 use crate::vm_virtual_blocks::tracers::traits::VmTracer;
 use crate::vm_virtual_blocks::types::internals::{new_vm_state, VmSnapshot, ZkSyncVmState};
 
@@ -31,6 +32,8 @@ pub struct Vm<S: WriteStorage, H: HistoryMode> {
 
 /// Public interface for VM
 impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
+    type Tracer = TracerDispatcher<S, H::VmVirtualBlocksMode>;
+
     fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage: StoragePtr<S>) -> Self {
         let (state, bootloader_state) = new_vm_state(storage.clone(), &system_env, &batch_env);
         Self {
@@ -50,9 +53,9 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
     }
 
     /// Execute VM with custom tracers.
-    fn inspect<T: VmTracer<S, H::VmVirtualBlocksMode>>(
+    fn inspect(
         &mut self,
-        tracer: T,
+        tracer: TracerDispatcher<S, H::VmVirtualBlocksMode>,
         execution_mode: VmExecutionMode,
     ) -> VmExecutionResultAndLogs {
         self.inspect_inner(tracer, execution_mode)
@@ -101,9 +104,9 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
     }
 
     /// Inspect transaction with optional bytecode compression.
-    fn inspect_transaction_with_bytecode_compression<T: VmTracer<S, H::VmVirtualBlocksMode>>(
+    fn inspect_transaction_with_bytecode_compression(
         &mut self,
-        tracer: T,
+        tracer: TracerDispatcher<S, H::VmVirtualBlocksMode>,
         tx: Transaction,
         with_compression: bool,
     ) -> Result<VmExecutionResultAndLogs, BytecodeCompressionError> {

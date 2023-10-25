@@ -15,11 +15,11 @@ use crate::vm_latest::VmTracer;
 impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
     /// Get statistics about TX execution.
     #[allow(clippy::too_many_arguments)]
-    pub(crate) fn get_statistics<T: VmTracer<S, H::VmVirtualBlocksRefundsEnhancement>>(
+    pub(crate) fn get_statistics(
         &self,
         timestamp_initial: Timestamp,
         cycles_initial: u32,
-        tracer: &DefaultExecutionTracer<S, H::VmVirtualBlocksRefundsEnhancement, T>,
+        tracer: &DefaultExecutionTracer<S, H::VmVirtualBlocksRefundsEnhancement>,
         gas_remaining_before: u32,
         gas_remaining_after: u32,
         spent_pubdata_counter_before: u32,

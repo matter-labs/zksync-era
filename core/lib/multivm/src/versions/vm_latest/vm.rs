@@ -12,6 +12,7 @@ use crate::interface::{
 };
 use crate::interface::{BytecodeCompressionError, VmInterface};
 use crate::vm_latest::bootloader_state::BootloaderState;
+use crate::vm_latest::tracers::dispatcher::TracerDispatcher;
 use crate::vm_latest::tracers::traits::VmTracer;
 use crate::vm_latest::types::internals::{new_vm_state, VmSnapshot, ZkSyncVmState};
 
@@ -32,6 +33,8 @@ pub struct Vm<S: WriteStorage, H: HistoryMode> {
 
 /// Public interface for VM
 impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
+    type Tracer = TracerDispatcher<S, H::VmVirtualBlocksRefundsEnhancement>;
+
     fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage: StoragePtr<S>) -> Self {
         let (state, bootloader_state) = new_vm_state(storage.clone(), &system_env, &batch_env);
         Self {
@@ -54,9 +57,9 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
     /// how the vm will be processed.
 
     /// Execute VM with custom tracers.
-    fn inspect<T: VmTracer<S, H::VmVirtualBlocksRefundsEnhancement>>(
+    fn inspect(
         &mut self,
-        tracer: T,
+        tracer: Self::Tracer,
         execution_mode: VmExecutionMode,
     ) -> VmExecutionResultAndLogs {
         self.inspect_inner(tracer, execution_mode)
@@ -107,11 +110,9 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
     /// Execute transaction with optional bytecode compression.
 
     /// Inspect transaction with optional bytecode compression.
-    fn inspect_transaction_with_bytecode_compression<
-        T: VmTracer<S, H::VmVirtualBlocksRefundsEnhancement>,
-    >(
+    fn inspect_transaction_with_bytecode_compression(
         &mut self,
-        tracer: T,
+        tracer: Self::Tracer,
         tx: Transaction,
         with_compression: bool,
     ) -> Result<VmExecutionResultAndLogs, BytecodeCompressionError> {

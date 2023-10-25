@@ -190,9 +190,13 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
         tracer: T,
     ) -> crate::interface::VmExecutionResultAndLogs {
         match &mut self.vm {
-            VmInstanceVersion::VmVirtualBlocks(vm) => vm.inspect(tracer, VmExecutionMode::OneTx),
+            VmInstanceVersion::VmVirtualBlocks(vm) => {
+                todo!()
+                // vm.inspect(tracer, VmExecutionMode::OneTx)
+            }
             VmInstanceVersion::VmVirtualBlocksRefundsEnhancement(vm) => {
-                vm.inspect(tracer, VmExecutionMode::OneTx)
+                todo!()
+                // vm.inspect(tracer, VmExecutionMode::OneTx)
             }
             _ => self.execute_next_transaction(),
         }
@@ -365,10 +369,12 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
     > {
         match &mut self.vm {
             VmInstanceVersion::VmVirtualBlocks(vm) => {
-                vm.inspect_transaction_with_bytecode_compression(tracer, tx, with_compression)
+                todo!()
+                // vm.inspect_transaction_with_bytecode_compression(tracer, tx, with_compression)
             }
             VmInstanceVersion::VmVirtualBlocksRefundsEnhancement(vm) => {
-                vm.inspect_transaction_with_bytecode_compression(tracer, tx, with_compression)
+                todo!()
+                // vm.inspect_transaction_with_bytecode_compression(tracer, tx, with_compression)
             }
             _ => {
                 self.last_tx_compressed_bytecodes = vec![];

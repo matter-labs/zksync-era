@@ -2,6 +2,7 @@ use std::fmt::{Debug, Formatter};
 use std::marker::PhantomData;
 
 use crate::interface::dyn_tracers::vm_1_3_3::DynTracer;
+use crate::interface::tracer::VmExecutionStopReason;
 use crate::interface::VmExecutionMode;
 use zk_evm_1_3_3::witness_trace::DummyTracer;
 use zk_evm_1_3_3::zkevm_opcode_defs::{Opcode, RetOpcode};
@@ -19,6 +20,7 @@ use crate::vm_virtual_blocks::bootloader_state::BootloaderState;
 use crate::vm_virtual_blocks::constants::BOOTLOADER_HEAP_PAGE;
 use crate::vm_virtual_blocks::old_vm::history_recorder::HistoryMode;
 use crate::vm_virtual_blocks::old_vm::memory::SimpleMemory;
+use crate::vm_virtual_blocks::tracers::dispatcher::TracerDispatcher;
 use crate::vm_virtual_blocks::tracers::traits::{
     ExecutionEndTracer, ExecutionProcessing, VmTracer,
 };
@@ -28,10 +30,9 @@ use crate::vm_virtual_blocks::tracers::utils::{
 };
 use crate::vm_virtual_blocks::tracers::{RefundsTracer, ResultTracer};
 use crate::vm_virtual_blocks::types::internals::ZkSyncVmState;
-use crate::vm_virtual_blocks::VmExecutionStopReason;
 
 /// Default tracer for the VM. It manages the other tracers execution and stop the vm when needed.
-pub(crate) struct DefaultExecutionTracer<S, H, T> {
+pub(crate) struct DefaultExecutionTracer<S: WriteStorage, H: HistoryMode> {
     tx_has_been_processed: bool,
     execution_mode: VmExecutionMode,
 
@@ -44,21 +45,19 @@ pub(crate) struct DefaultExecutionTracer<S, H, T> {
     final_batch_info_requested: bool,
     pub(crate) result_tracer: ResultTracer,
     pub(crate) refund_tracer: Option<RefundsTracer>,
-    pub(crate) custom_tracer: T,
+    pub(crate) dispatcher: TracerDispatcher<S, H>,
     ret_from_the_bootloader: Option<RetOpcode>,
     storage: StoragePtr<S>,
     _phantom: PhantomData<H>,
 }
 
-impl<S, H: HistoryMode, T> Debug for DefaultExecutionTracer<S, H, T> {
+impl<S: WriteStorage, H: HistoryMode> Debug for DefaultExecutionTracer<S, H> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("DefaultExecutionTracer").finish()
     }
 }
 
-impl<S: WriteStorage, H: HistoryMode, T: VmTracer<S, H>> Tracer
-    for DefaultExecutionTracer<S, H, T>
-{
+impl<S: WriteStorage, H: HistoryMode> Tracer for DefaultExecutionTracer<S, H> {
     const CALL_BEFORE_DECODING: bool = false;
     const CALL_AFTER_DECODING: bool = true;
     const CALL_BEFORE_EXECUTION: bool = true;
@@ -85,7 +84,7 @@ impl<S: WriteStorage, H: HistoryMode, T: VmTracer<S, H>> Tracer
             );
         }
 
-        self.custom_tracer.after_decoding(state, data, memory);
+        self.dispatcher.after_decoding(state, data, memory);
     }
 
     fn before_execution(
@@ -119,7 +118,7 @@ impl<S: WriteStorage, H: HistoryMode, T: VmTracer<S, H>> Tracer
             refund.before_execution(state, data, memory, self.storage.clone());
         }
 
-        self.custom_tracer
+        self.dispatcher
             .before_execution(state, data, memory, self.storage.clone());
     }
 
@@ -149,14 +148,12 @@ impl<S: WriteStorage, H: HistoryMode, T: VmTracer<S, H>> Tracer
             refund.after_execution(state, data, memory, self.storage.clone());
         }
 
-        self.custom_tracer
+        self.dispatcher
             .after_execution(state, data, memory, self.storage.clone());
     }
 }
 
-impl<S: WriteStorage, H: HistoryMode, T: VmTracer<S, H>> ExecutionEndTracer<H>
-    for DefaultExecutionTracer<S, H, T>
-{
+impl<S: WriteStorage, H: HistoryMode> ExecutionEndTracer<H> for DefaultExecutionTracer<S, H> {
     fn should_stop_execution(&self) -> bool {
         let mut should_stop = match self.execution_mode {
             VmExecutionMode::OneTx => self.tx_has_been_processed(),
@@ -164,16 +161,16 @@ impl<S: WriteStorage, H: HistoryMode, T: VmTracer<S, H>> ExecutionEndTracer<H>
             VmExecutionMode::Bootloader => self.ret_from_the_bootloader == Some(RetOpcode::Ok),
         };
         should_stop = should_stop || self.validation_run_out_of_gas();
-        should_stop = should_stop || self.custom_tracer.should_stop_execution();
+        should_stop = should_stop || self.dispatcher.should_stop_execution();
         should_stop
     }
 }
 
-impl<S: WriteStorage, H: HistoryMode, T> DefaultExecutionTracer<S, H, T> {
+impl<S: WriteStorage, H: HistoryMode> DefaultExecutionTracer<S, H> {
     pub(crate) fn new(
         computational_gas_limit: u32,
         execution_mode: VmExecutionMode,
-        custom_tracer: T,
+        dispatcher: TracerDispatcher<S, H>,
         refund_tracer: Option<RefundsTracer>,
         storage: StoragePtr<S>,
     ) -> Self {
@@ -187,7 +184,7 @@ impl<S: WriteStorage, H: HistoryMode, T> DefaultExecutionTracer<S, H, T> {
             final_batch_info_requested: false,
             result_tracer: ResultTracer::new(execution_mode),
             refund_tracer,
-            custom_tracer,
+            dispatcher,
             ret_from_the_bootloader: None,
             storage,
             _phantom: Default::default(),
@@ -223,13 +220,13 @@ impl<S: WriteStorage, H: HistoryMode, T> DefaultExecutionTracer<S, H, T> {
     }
 }
 
-impl<S: WriteStorage, H: HistoryMode, T: VmTracer<S, H>> DefaultExecutionTracer<S, H, T> {
+impl<S: WriteStorage, H: HistoryMode> DefaultExecutionTracer<S, H> {
     pub(crate) fn initialize_tracer(&mut self, state: &mut ZkSyncVmState<S, H>) {
         self.result_tracer.initialize_tracer(state);
         if let Some(refund) = &mut self.refund_tracer {
             refund.initialize_tracer(state);
         }
-        self.custom_tracer.initialize_tracer(state);
+        self.dispatcher.initialize_tracer(state);
     }
 
     pub(crate) fn before_cycle(&mut self, state: &mut ZkSyncVmState<S, H>) {
@@ -237,7 +234,7 @@ impl<S: WriteStorage, H: HistoryMode, T: VmTracer<S, H>> DefaultExecutionTracer<
         if let Some(refund) = &mut self.refund_tracer {
             refund.before_cycle(state);
         }
-        self.custom_tracer.before_cycle(state);
+        self.dispatcher.before_cycle(state);
     }
 
     pub(crate) fn after_cycle(
@@ -249,7 +246,7 @@ impl<S: WriteStorage, H: HistoryMode, T: VmTracer<S, H>> DefaultExecutionTracer<
         if let Some(refund) = &mut self.refund_tracer {
             refund.after_cycle(state, bootloader_state);
         }
-        self.custom_tracer.after_cycle(state, bootloader_state);
+        self.dispatcher.after_cycle(state, bootloader_state);
         if self.final_batch_info_requested {
             self.set_fictive_l2_block(state, bootloader_state)
         }
@@ -262,12 +259,12 @@ impl<S: WriteStorage, H: HistoryMode, T: VmTracer<S, H>> DefaultExecutionTracer<
         stop_reason: VmExecutionStopReason,
     ) {
         self.result_tracer
-            .after_vm_execution(state, bootloader_state, stop_reason);
+            .after_vm_execution(state, bootloader_state, stop_reason.clone());
         if let Some(refund) = &mut self.refund_tracer {
-            refund.after_vm_execution(state, bootloader_state, stop_reason);
+            refund.after_vm_execution(state, bootloader_state, stop_reason.clone());
         }
-        self.custom_tracer
-            .after_vm_execution(state, bootloader_state, stop_reason);
+        self.dispatcher
+            .after_vm_execution(state, bootloader_state, stop_reason.clone());
     }
 }
 

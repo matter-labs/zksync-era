@@ -6,6 +6,7 @@ use zk_evm_1_3_3::{
 use zksync_state::{StoragePtr, WriteStorage};
 
 use crate::interface::dyn_tracers::vm_1_3_3::DynTracer;
+use crate::interface::tracer::VmExecutionStopReason;
 use crate::interface::{
     ExecutionResult, Halt, TxRevertReason, VmExecutionMode, VmExecutionResultAndLogs,
     VmRevertReason,
@@ -25,7 +26,6 @@ use crate::vm_virtual_blocks::tracers::{
 use crate::vm_virtual_blocks::types::internals::ZkSyncVmState;
 
 use crate::vm_virtual_blocks::constants::{BOOTLOADER_HEAP_PAGE, RESULT_SUCCESS_FIRST_SLOT};
-use crate::vm_virtual_blocks::VmExecutionStopReason;
 
 #[derive(Debug, Clone)]
 enum Result {
@@ -120,7 +120,7 @@ impl<S: WriteStorage, H: HistoryMode> ExecutionProcessing<S, H> for ResultTracer
             // One of the tracers above has requested to stop the execution.
             // If it was the correct stop we already have the result,
             // otherwise it can be out of gas error
-            VmExecutionStopReason::TracerRequestedStop => {
+            VmExecutionStopReason::TracerRequestedStop(_) => {
                 match self.execution_mode {
                     VmExecutionMode::OneTx => self.vm_stopped_execution(state, bootloader_state),
                     VmExecutionMode::Batch => self.vm_finished_execution(state),
