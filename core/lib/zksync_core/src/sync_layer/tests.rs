@@ -9,7 +9,6 @@ use std::{
     time::{Duration, Instant},
 };
 
-use db_test_macro::db_test;
 use zksync_config::configs::chain::NetworkConfig;
 use zksync_contracts::{BaseSystemContractsHashes, SystemContractCode};
 use zksync_dal::{ConnectionPool, StorageProcessor};
@@ -30,7 +29,6 @@ use crate::{
         ZkSyncStateKeeper,
     },
 };
-use zksync_dal::ConnectionPool;
 
 const TEST_TIMEOUT: Duration = Duration::from_secs(10);
 const POLL_INTERVAL: Duration = Duration::from_millis(50);
@@ -326,8 +324,9 @@ async fn run_state_keeper_with_multiple_miniblocks(pool: ConnectionPool) -> Vec<
     tx_hashes
 }
 
-#[db_test]
-async fn external_io_with_multiple_miniblocks(pool: ConnectionPool) {
+#[tokio::test]
+async fn external_io_with_multiple_miniblocks() {
+    let pool = ConnectionPool::test_pool().await;
     let tx_hashes = run_state_keeper_with_multiple_miniblocks(pool.clone()).await;
     assert_eq!(tx_hashes.len(), 8);
 
@@ -492,8 +491,9 @@ async fn external_io_with_multiple_l1_batches() {
     assert_eq!(fictive_miniblock.l2_tx_count, 0);
 }
 
-#[db_test]
-async fn fetcher_basics(pool: ConnectionPool) {
+#[tokio::test]
+async fn fetcher_basics() {
+    let pool = ConnectionPool::test_pool().await;
     let mut storage = pool.access_storage().await.unwrap();
     ensure_genesis(&mut storage).await;
     let fetcher_cursor = MainNodeFetcherCursor::new(&mut storage).await.unwrap();
@@ -570,8 +570,9 @@ async fn fetcher_basics(pool: ConnectionPool) {
     fetcher_task.await.unwrap().unwrap();
 }
 
-#[db_test]
-async fn fetcher_with_real_server(pool: ConnectionPool) {
+#[tokio::test]
+async fn fetcher_with_real_server() {
+    let pool = ConnectionPool::test_pool().await;
     // Fill in transactions grouped in multiple miniblocks in the storage.
     let tx_hashes = run_state_keeper_with_multiple_miniblocks(pool.clone()).await;
     let mut tx_hashes = VecDeque::from(tx_hashes);
