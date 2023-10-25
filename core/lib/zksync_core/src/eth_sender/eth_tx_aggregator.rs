@@ -437,10 +437,10 @@ impl EthTxAggregator {
             AggregatedOperation::Commit(op) => {
                 assert_eq!(contracts_are_pre_boojum, operation_is_pre_boojum);
                 let f = if contracts_are_pre_boojum {
-                    &self.functions.commit_blocks
+                    &self.functions.pre_boojum_commit
                 } else {
                     self.functions
-                        .commit_batches
+                        .post_boojum_commit
                         .as_ref()
                         .expect("Missing ABI for commitBatches")
                 };
@@ -449,10 +449,10 @@ impl EthTxAggregator {
             AggregatedOperation::PublishProofOnchain(op) => {
                 assert_eq!(contracts_are_pre_boojum, operation_is_pre_boojum);
                 let f = if contracts_are_pre_boojum {
-                    &self.functions.prove_blocks
+                    &self.functions.pre_boojum_prove
                 } else {
                     self.functions
-                        .prove_batches
+                        .post_boojum_prove
                         .as_ref()
                         .expect("Missing ABI for proveBatches")
                 };
@@ -460,10 +460,10 @@ impl EthTxAggregator {
             }
             AggregatedOperation::Execute(op) => {
                 let f = if contracts_are_pre_boojum {
-                    &self.functions.execute_blocks
+                    &self.functions.pre_boojum_execute
                 } else {
                     self.functions
-                        .execute_batches
+                        .post_boojum_execute
                         .as_ref()
                         .expect("Missing ABI for executeBatches")
                 };

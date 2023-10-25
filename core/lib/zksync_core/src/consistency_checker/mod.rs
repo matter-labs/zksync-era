@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use zksync_contracts::COMMIT_BLOCKS_FUNCTION;
+use zksync_contracts::PRE_BOOJUM_COMMIT_FUNCTION;
 use zksync_dal::ConnectionPool;
 use zksync_types::{
     web3::{error, ethabi, transports::Http, types::TransactionId, Web3},
@@ -104,7 +104,7 @@ impl ConsistencyChecker {
             .unwrap()
             .is_pre_boojum()
         {
-            COMMIT_BLOCKS_FUNCTION.clone()
+            PRE_BOOJUM_COMMIT_FUNCTION.clone()
         } else {
             self.contract.function("commitBatches").unwrap().clone()
         };

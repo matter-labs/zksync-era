@@ -1,17 +1,17 @@
 use zksync_contracts::{
-    multicall_contract, verifier_contract, zksync_contract, COMMIT_BLOCKS_FUNCTION,
-    EXECUTE_BLOCKS_FUNCTION, PROVE_BLOCKS_FUNCTION,
+    multicall_contract, verifier_contract, zksync_contract, PRE_BOOJUM_COMMIT_FUNCTION,
+    PRE_BOOJUM_EXECUTE_FUNCTION, PRE_BOOJUM_PROVE_FUNCTION,
 };
 use zksync_types::ethabi::{Contract, Function};
 
 #[derive(Debug)]
 pub(super) struct ZkSyncFunctions {
-    pub(super) commit_blocks: Function,
-    pub(super) commit_batches: Option<Function>,
-    pub(super) prove_blocks: Function,
-    pub(super) prove_batches: Option<Function>,
-    pub(super) execute_blocks: Function,
-    pub(super) execute_batches: Option<Function>,
+    pub(super) pre_boojum_commit: Function,
+    pub(super) post_boojum_commit: Option<Function>,
+    pub(super) pre_boojum_prove: Function,
+    pub(super) post_boojum_prove: Option<Function>,
+    pub(super) pre_boojum_execute: Function,
+    pub(super) post_boojum_execute: Option<Function>,
     pub(super) get_l2_bootloader_bytecode_hash: Function,
     pub(super) get_l2_default_account_bytecode_hash: Function,
     pub(super) get_verifier: Function,
@@ -50,12 +50,12 @@ impl Default for ZkSyncFunctions {
         let verifier_contract = verifier_contract();
         let multicall_contract = multicall_contract();
 
-        let commit_blocks = COMMIT_BLOCKS_FUNCTION.clone();
-        let commit_batches = get_optional_function(&zksync_contract, "commitBatches");
-        let prove_blocks = PROVE_BLOCKS_FUNCTION.clone();
-        let prove_batches = get_optional_function(&zksync_contract, "proveBatches");
-        let execute_blocks = EXECUTE_BLOCKS_FUNCTION.clone();
-        let execute_batches = get_optional_function(&zksync_contract, "executeBatches");
+        let pre_boojum_commit = PRE_BOOJUM_COMMIT_FUNCTION.clone();
+        let post_boojum_commit = get_optional_function(&zksync_contract, "commitBatches");
+        let pre_boojum_prove = PRE_BOOJUM_PROVE_FUNCTION.clone();
+        let post_boojum_prove = get_optional_function(&zksync_contract, "proveBatches");
+        let pre_boojum_execute = PRE_BOOJUM_EXECUTE_FUNCTION.clone();
+        let post_boojum_execute = get_optional_function(&zksync_contract, "executeBatches");
         let get_l2_bootloader_bytecode_hash =
             get_function(&zksync_contract, "getL2BootloaderBytecodeHash");
         let get_l2_default_account_bytecode_hash =
@@ -69,12 +69,12 @@ impl Default for ZkSyncFunctions {
             get_optional_function(&verifier_contract, "verificationKeyHash");
 
         ZkSyncFunctions {
-            commit_blocks,
-            commit_batches,
-            prove_blocks,
-            prove_batches,
-            execute_blocks,
-            execute_batches,
+            pre_boojum_commit,
+            post_boojum_commit,
+            pre_boojum_prove,
+            post_boojum_prove,
+            pre_boojum_execute,
+            post_boojum_execute,
             get_l2_bootloader_bytecode_hash,
             get_l2_default_account_bytecode_hash,
             get_verifier,

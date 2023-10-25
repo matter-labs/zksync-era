@@ -394,7 +394,7 @@ impl BaseSystemContracts {
     }
 }
 
-pub static COMMIT_BLOCKS_FUNCTION: Lazy<Function> = Lazy::new(|| {
+pub static PRE_BOOJUM_COMMIT_FUNCTION: Lazy<Function> = Lazy::new(|| {
     let abi = r#"
     {
       "inputs": [
@@ -521,7 +521,7 @@ pub static COMMIT_BLOCKS_FUNCTION: Lazy<Function> = Lazy::new(|| {
     serde_json::from_str(abi).unwrap()
 });
 
-pub static PROVE_BLOCKS_FUNCTION: Lazy<Function> = Lazy::new(|| {
+pub static PRE_BOOJUM_PROVE_FUNCTION: Lazy<Function> = Lazy::new(|| {
     let abi = r#"
     {
       "inputs": [
@@ -645,7 +645,7 @@ pub static PROVE_BLOCKS_FUNCTION: Lazy<Function> = Lazy::new(|| {
     serde_json::from_str(abi).unwrap()
 });
 
-pub static EXECUTE_BLOCKS_FUNCTION: Lazy<Function> = Lazy::new(|| {
+pub static PRE_BOOJUM_EXECUTE_FUNCTION: Lazy<Function> = Lazy::new(|| {
     let abi = r#"
     {
       "inputs": [
