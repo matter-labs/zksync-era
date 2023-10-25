@@ -121,27 +121,28 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Login to DockerHub
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: docker/login-action@f4ef78c080cd8ba55a85445d5b36e214a81df20a # v2.1.0
         with:
           username: ${{ secrets.DOCKERHUB_USER }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-      - name: Create and push multi-arch zk-environment lightweight manifest
+
+      - name: Create and push multi-arch images
         run: |
-          docker pull matterlabs/zk-environment:${{ needs.get_short_sha.outputs.short_sha }}-lightweight-amd64 --platform linux/amd64
-          docker pull matterlabs/zk-environment:${{ needs.get_short_sha.outputs.short_sha }}-lightweight-arm64 --platform linux/arm64
-          docker manifest create matterlabs/zk-environment:latest2.0-lightweight \
-            --amend matterlabs/zk-environment:${{ needs.get_short_sha.outputs.short_sha }}-lightweight-amd64 \
-            --amend matterlabs/zk-environment:${{ needs.get_short_sha.outputs.short_sha }}-lightweight-arm64
-          docker manifest push matterlabs/zk-environment:latest2.0-lightweight
-      - name: Create and push multi-arch zk-environment Rust nightly manifest
-        run: |
-          docker pull matterlabs/zk-environment:${{ needs.get_short_sha.outputs.short_sha }}-nightly-amd64 --platform linux/amd64
-          docker pull matterlabs/zk-environment:${{ needs.get_short_sha.outputs.short_sha }}-nightly-arm64 --platform linux/arm64
-          docker manifest create matterlabs/zksync_rust:nightly \
-            --amend matterlabs/zk-environment:${{ needs.get_short_sha.outputs.short_sha }}-nightly-amd64 \
-            --amend matterlabs/zk-environment:${{ needs.get_short_sha.outputs.short_sha }}-nightly-arm64
-          docker manifest push matterlabs/zksync_rust:nightly
+          images=("lightweight" "lightweight-nightly")
+          archs=("amd64" "arm64")
+
+          for img in "${images[@]}"; do
+            multiarch_tag="matterlabs/zk-environment:latest2.0-${img}"
+            individual_images=()
+
+            for arch in "${archs[@]}"; do
+              TAG="${{ needs.get_short_sha.outputs.short_sha }}-${img}-${arch}"
+              docker pull matterlabs/zk-environment:${TAG} --platform linux/${arch}
+              individual_images+=("matterlabs/zk-environment:${TAG}")
+            done
+
+            docker buildx imagetools create --tag $multiarch_tag ${individual_images[@]}
+          done
 
   zk_environment_cuda_12:
     if: needs.changed_files.outputs.zk_environment_cuda_12 == 'true'
