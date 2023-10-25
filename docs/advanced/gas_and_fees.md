@@ -130,5 +130,5 @@ There are a few reasons why refunds might be 'larger' on zkSync (i.e., why we mi
   https://github.com/matter-labs/zksync-2-dev/blob/d590b3f0965a23eb0011779aab829d86d4fdc1d1/core/bin/zksync_core/src/l1_gas_price/gas_adjuster/mod.rs#L25
   'gas_adjuster'
 [get_txs_fee_in_wei]:
-  https://github.com/matter-labs/zksync-2-dev/blob/d590b3f0965a23eb0011779aab829d86d4fdc1d1/core/bin/zksync_core/src/api_server/tx_sender/mod.rs#L450
+  https://github.com/matter-labs/zksync-era/blob/d590b3f0965a23eb0011779aab829d86d4fdc1d1/core/bin/zksync_core/src/api_server/tx_sender/mod.rs#L450
   'get_txs_fee_in_wei'
