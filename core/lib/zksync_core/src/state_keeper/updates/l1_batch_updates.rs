@@ -51,7 +51,7 @@ mod tests {
         gas_tracker::new_block_gas_count,
         state_keeper::tests::{create_execution_result, create_transaction},
     };
-    use vm::TransactionVmExt;
+    use multivm::vm_latest::TransactionVmExt;
 
     #[test]
     fn apply_miniblock_with_empty_tx() {

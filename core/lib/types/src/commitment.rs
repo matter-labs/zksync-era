@@ -10,8 +10,8 @@ use serde::{Deserialize, Serialize};
 
 use std::{collections::HashMap, convert::TryFrom};
 
-use zksync_config::constants::ZKPORTER_IS_AVAILABLE;
 use zksync_mini_merkle_tree::MiniMerkleTree;
+use zksync_system_constants::ZKPORTER_IS_AVAILABLE;
 
 use crate::{
     block::L1BatchHeader,

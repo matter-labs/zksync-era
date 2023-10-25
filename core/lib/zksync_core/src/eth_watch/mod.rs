@@ -9,12 +9,13 @@ use tokio::{sync::watch, task::JoinHandle};
 
 use std::time::Duration;
 
-use zksync_config::constants::PRIORITY_EXPIRATION;
 use zksync_config::ETHWatchConfig;
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_eth_client::EthInterface;
+use zksync_system_constants::PRIORITY_EXPIRATION;
 use zksync_types::{
-    web3::types::BlockNumber as Web3BlockNumber, Address, PriorityOpId, ProtocolVersionId,
+    ethabi::Contract, web3::types::BlockNumber as Web3BlockNumber, Address, PriorityOpId,
+    ProtocolVersionId,
 };
 
 mod client;
@@ -26,6 +27,7 @@ mod tests;
 use self::{
     client::{Error, EthClient, EthHttpQueryClient, RETRY_LIMIT},
     event_processors::{
+        governance_upgrades::GovernanceUpgradesEventProcessor,
         priority_ops::PriorityOpsEventProcessor, upgrades::UpgradesEventProcessor, EventProcessor,
     },
     metrics::{PollStage, METRICS},
@@ -50,6 +52,7 @@ pub struct EthWatch<W: EthClient + Sync> {
 impl<W: EthClient + Sync> EthWatch<W> {
     pub async fn new(
         diamond_proxy_address: Address,
+        governance_contract: Option<Contract>,
         mut client: W,
         pool: &ConnectionPool,
         poll_interval: Duration,
@@ -64,10 +67,19 @@ impl<W: EthClient + Sync> EthWatch<W> {
             PriorityOpsEventProcessor::new(state.next_expected_priority_id);
         let upgrades_processor =
             UpgradesEventProcessor::new(diamond_proxy_address, state.last_seen_version_id);
-        let event_processors: Vec<Box<dyn EventProcessor<W>>> = vec![
+        let mut event_processors: Vec<Box<dyn EventProcessor<W>>> = vec![
             Box::new(priority_ops_processor),
             Box::new(upgrades_processor),
         ];
+
+        if let Some(governance_contract) = governance_contract {
+            let governance_upgrades_processor = GovernanceUpgradesEventProcessor::new(
+                diamond_proxy_address,
+                state.last_seen_version_id,
+                &governance_contract,
+            );
+            event_processors.push(Box::new(governance_upgrades_processor))
+        }
 
         let topics = event_processors
             .iter()
@@ -180,19 +192,20 @@ pub async fn start_eth_watch<E: EthInterface + Send + Sync + 'static>(
     pool: ConnectionPool,
     eth_gateway: E,
     diamond_proxy_addr: Address,
-    governance_addr: Address,
+    governance: Option<(Contract, Address)>,
     stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<JoinHandle<anyhow::Result<()>>> {
     let eth_watch = ETHWatchConfig::from_env().context("ETHWatchConfig::from_env()")?;
     let eth_client = EthHttpQueryClient::new(
         eth_gateway,
         diamond_proxy_addr,
-        governance_addr,
+        governance.as_ref().map(|(_, address)| *address),
         eth_watch.confirmations_for_eth_event,
     );
 
     let mut eth_watch = EthWatch::new(
         diamond_proxy_addr,
+        governance.map(|(contract, _)| contract),
         eth_client,
         &pool,
         eth_watch.poll_interval(),

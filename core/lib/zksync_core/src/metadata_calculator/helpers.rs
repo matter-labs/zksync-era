@@ -18,7 +18,7 @@ use zksync_merkle_tree::{
     domain::{TreeMetadata, ZkSyncTree, ZkSyncTreeReader},
     Key, MerkleTreeColumnFamily, NoVersionError, TreeEntryWithProof,
 };
-use zksync_storage::RocksDB;
+use zksync_storage::{RocksDB, RocksDBOptions, StalledWritesRetries};
 use zksync_types::{block::L1BatchHeader, L1BatchNumber, StorageLog, H256};
 
 use super::metrics::{LoadChangesStage, TreeUpdateStage, METRICS};
@@ -61,15 +61,23 @@ impl AsyncTree {
         mode: MerkleTreeMode,
         multi_get_chunk_size: usize,
         block_cache_capacity: usize,
+        memtable_capacity: usize,
+        stalled_writes_timeout: Duration,
     ) -> Self {
         tracing::info!(
             "Initializing Merkle tree at `{db_path}` with {multi_get_chunk_size} multi-get chunk size, \
-             {block_cache_capacity}B block cache",
+             {block_cache_capacity}B block cache, {memtable_capacity}B memtable capacity, \
+             {stalled_writes_timeout:?} stalled writes timeout",
             db_path = db_path.display()
         );
 
         let mut tree = tokio::task::spawn_blocking(move || {
-            let db = Self::create_db(&db_path, block_cache_capacity);
+            let db = Self::create_db(
+                &db_path,
+                block_cache_capacity,
+                memtable_capacity,
+                stalled_writes_timeout,
+            );
             match mode {
                 MerkleTreeMode::Full => ZkSyncTree::new(db),
                 MerkleTreeMode::Lightweight => ZkSyncTree::new_lightweight(db),
@@ -85,8 +93,20 @@ impl AsyncTree {
         }
     }
 
-    fn create_db(path: &Path, block_cache_capacity: usize) -> RocksDB<MerkleTreeColumnFamily> {
-        let db = RocksDB::with_cache(path, true, Some(block_cache_capacity));
+    fn create_db(
+        path: &Path,
+        block_cache_capacity: usize,
+        memtable_capacity: usize,
+        stalled_writes_timeout: Duration,
+    ) -> RocksDB<MerkleTreeColumnFamily> {
+        let db = RocksDB::with_options(
+            path,
+            RocksDBOptions {
+                block_cache_capacity: Some(block_cache_capacity),
+                large_memtable_capacity: Some(memtable_capacity),
+                stalled_writes_retries: StalledWritesRetries::new(stalled_writes_timeout),
+            },
+        );
         if cfg!(test) {
             // We need sync writes for the unit tests to execute reliably. With the default config,
             // some writes to RocksDB may occur, but not be visible to the test code.
@@ -327,13 +347,8 @@ mod tests {
     use tempfile::TempDir;
 
     use db_test_macro::db_test;
-    use zksync_contracts::BaseSystemContracts;
     use zksync_dal::ConnectionPool;
-    use zksync_types::{
-        proofs::PrepareBasicCircuitsJob, protocol_version::L1VerifierConfig,
-        system_contracts::get_system_smart_contracts, Address, L2ChainId, ProtocolVersionId,
-        StorageKey, StorageLogKind,
-    };
+    use zksync_types::{proofs::PrepareBasicCircuitsJob, L2ChainId, StorageKey, StorageLogKind};
 
     use super::*;
     use crate::{
@@ -403,23 +418,12 @@ mod tests {
         }
     }
 
-    fn mock_genesis_params() -> GenesisParams {
-        GenesisParams {
-            first_validator: Address::repeat_byte(0x01),
-            protocol_version: ProtocolVersionId::latest(),
-            base_system_contracts: BaseSystemContracts::load_from_disk(),
-            system_contracts: get_system_smart_contracts(),
-            first_l1_verifier_config: L1VerifierConfig::default(),
-            first_verifier_address: Address::zero(),
-        }
-    }
-
     #[db_test]
     async fn loaded_logs_equivalence_basics(pool: ConnectionPool) {
         ensure_genesis_state(
             &mut pool.access_storage().await.unwrap(),
             L2ChainId::from(270),
-            &mock_genesis_params(),
+            &GenesisParams::mock(),
         )
         .await
         .unwrap();
@@ -441,7 +445,7 @@ mod tests {
     #[db_test]
     async fn loaded_logs_equivalence_with_zero_no_op_logs(pool: ConnectionPool) {
         let mut storage = pool.access_storage().await.unwrap();
-        ensure_genesis_state(&mut storage, L2ChainId::from(270), &mock_genesis_params())
+        ensure_genesis_state(&mut storage, L2ChainId::from(270), &GenesisParams::mock())
             .await
             .unwrap();
 
@@ -455,11 +459,22 @@ mod tests {
         extend_db_state(&mut storage, logs).await;
 
         let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
-        let mut tree =
-            AsyncTree::new(temp_dir.path().to_owned(), MerkleTreeMode::Full, 500, 0).await;
+        let mut tree = create_tree(&temp_dir).await;
         for number in 0..3 {
             assert_log_equivalence(&mut storage, &mut tree, L1BatchNumber(number)).await;
         }
+    }
+
+    async fn create_tree(temp_dir: &TempDir) -> AsyncTree {
+        AsyncTree::new(
+            temp_dir.path().to_owned(),
+            MerkleTreeMode::Full,
+            500,
+            0,
+            16 << 20,       // 16 MiB,
+            Duration::ZERO, // writes should never be stalled in tests
+        )
+        .await
     }
 
     async fn assert_log_equivalence(
@@ -519,7 +534,7 @@ mod tests {
     #[db_test]
     async fn loaded_logs_equivalence_with_non_zero_no_op_logs(pool: ConnectionPool) {
         let mut storage = pool.access_storage().await.unwrap();
-        ensure_genesis_state(&mut storage, L2ChainId::from(270), &mock_genesis_params())
+        ensure_genesis_state(&mut storage, L2ChainId::from(270), &GenesisParams::mock())
             .await
             .unwrap();
 
@@ -556,8 +571,7 @@ mod tests {
         extend_db_state(&mut storage, logs).await;
 
         let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
-        let mut tree =
-            AsyncTree::new(temp_dir.path().to_owned(), MerkleTreeMode::Full, 500, 0).await;
+        let mut tree = create_tree(&temp_dir).await;
         for batch_number in 0..5 {
             assert_log_equivalence(&mut storage, &mut tree, L1BatchNumber(batch_number)).await;
         }
@@ -566,7 +580,7 @@ mod tests {
     #[db_test]
     async fn loaded_logs_equivalence_with_protective_reads(pool: ConnectionPool) {
         let mut storage = pool.access_storage().await.unwrap();
-        ensure_genesis_state(&mut storage, L2ChainId::from(270), &mock_genesis_params())
+        ensure_genesis_state(&mut storage, L2ChainId::from(270), &GenesisParams::mock())
             .await
             .unwrap();
 
@@ -596,8 +610,7 @@ mod tests {
         assert_eq!(read_logs_count, 7);
 
         let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
-        let mut tree =
-            AsyncTree::new(temp_dir.path().to_owned(), MerkleTreeMode::Full, 500, 0).await;
+        let mut tree = create_tree(&temp_dir).await;
         for batch_number in 0..3 {
             assert_log_equivalence(&mut storage, &mut tree, L1BatchNumber(batch_number)).await;
         }

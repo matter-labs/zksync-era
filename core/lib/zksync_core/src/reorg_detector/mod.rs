@@ -1,11 +1,11 @@
 use std::{future::Future, time::Duration};
 
 use zksync_dal::ConnectionPool;
-use zksync_types::L1BatchNumber;
+use zksync_types::{L1BatchNumber, MiniblockNumber};
 use zksync_web3_decl::{
     jsonrpsee::core::Error as RpcError,
     jsonrpsee::http_client::{HttpClient, HttpClientBuilder},
-    namespaces::ZksNamespaceClient,
+    namespaces::{EthNamespaceClient, ZksNamespaceClient},
     RpcResult,
 };
 
@@ -41,6 +41,40 @@ impl ReorgDetector {
         Self { client, pool }
     }
 
+    /// Compares hashes of the given local miniblock and the same miniblock from main node.
+    async fn miniblock_hashes_match(&self, miniblock_number: MiniblockNumber) -> RpcResult<bool> {
+        let local_hash = self
+            .pool
+            .access_storage()
+            .await
+            .unwrap()
+            .blocks_dal()
+            .get_miniblock_header(miniblock_number)
+            .await
+            .unwrap()
+            .unwrap_or_else(|| {
+                panic!(
+                    "Header does not exist for local miniblock #{}",
+                    miniblock_number
+                )
+            })
+            .hash;
+
+        let Some(hash) = self
+            .client
+            .get_block_by_number(miniblock_number.0.into(), false)
+            .await?
+            .map(|header| header.hash)
+        else {
+            // Due to reorg, locally we may be ahead of the main node.
+            // Lack of the hash on the main node is treated as a hash match,
+            // We need to wait for our knowledge of main node to catch up.
+            return Ok(true);
+        };
+
+        Ok(hash == local_hash)
+    }
+
     /// Compares root hashes of the latest local batch and of the same batch from the main node.
     async fn root_hashes_match(&self, l1_batch_number: L1BatchNumber) -> RpcResult<bool> {
         // Unwrapping is fine since the caller always checks that these root hashes exist.
@@ -66,9 +100,9 @@ impl ReorgDetector {
             .and_then(|b| b.base.root_hash)
         else {
             // Due to reorg, locally we may be ahead of the main node.
-            // Lack of the root hash on the main node is treated as a hash mismatch,
-            // so we can continue searching for the last correct block.
-            return Ok(false);
+            // Lack of the root hash on the main node is treated as a hash match,
+            // We need to wait for our knowledge of main node to catch up.
+            return Ok(true);
         };
         Ok(hash == local_hash)
     }
@@ -100,36 +134,6 @@ impl ReorgDetector {
         }
     }
 
-    /// Checks if the external node is ahead of the main node *NOT* because of a reorg.
-    /// In such an event, we should not do anything.
-    ///
-    /// Theoretically, external node might calculate batch root hash before the main
-    /// node. Therefore, we need to be sure that we check a batch which has root hashes
-    /// both on the main node and on the external node.
-    async fn is_legally_ahead_of_main_node(
-        &self,
-        sealed_l1_batch_number: L1BatchNumber,
-    ) -> RpcResult<bool> {
-        // We must know the latest batch on the main node *before* we ask it for a root hash
-        // to prevent a race condition (asked for root hash, batch sealed on main node, we've got
-        // inconsistent results).
-        let last_main_node_l1_batch = self.client.get_l1_batch_number().await?;
-        let main_node_l1_batch_root_hash = self
-            .client
-            .get_l1_batch_details(sealed_l1_batch_number)
-            .await?
-            .and_then(|b| b.base.root_hash);
-
-        let en_ahead_for = sealed_l1_batch_number
-            .0
-            .checked_sub(last_main_node_l1_batch.as_u32());
-        // Theoretically it's possible that the EN would not only calculate the root hash, but also seal the batch
-        // quicker than the main node. So, we allow us to be at most one batch ahead of the main node.
-        // If the gap is bigger, it's certainly a reorg.
-        // Allowing the gap is safe: if reorg has happened, it'll be detected anyway in the future iterations.
-        Ok(main_node_l1_batch_root_hash.is_none() && en_ahead_for <= Some(1))
-    }
-
     async fn run_inner(&self) -> RpcResult<L1BatchNumber> {
         loop {
             let sealed_l1_batch_number = self
@@ -142,29 +146,50 @@ impl ReorgDetector {
                 .await
                 .unwrap();
 
-            // If the main node has to catch up with us, we should not do anything just yet.
-            if self
-                .is_legally_ahead_of_main_node(sealed_l1_batch_number)
-                .await?
-            {
-                tracing::trace!(
-                    "Local state was updated ahead of the main node. Waiting for the main node to seal the batch"
-                );
-                tokio::time::sleep(SLEEP_INTERVAL).await;
-                continue;
-            }
+            let sealed_miniblock_number = self
+                .pool
+                .access_storage()
+                .await
+                .unwrap()
+                .blocks_dal()
+                .get_sealed_miniblock_number()
+                .await
+                .unwrap();
 
-            // At this point we're certain that if we detect a reorg, it's real.
-            tracing::trace!("Checking for reorgs - L1 batch #{sealed_l1_batch_number}");
-            if self.root_hashes_match(sealed_l1_batch_number).await? {
+            tracing::trace!(
+                "Checking for reorgs - L1 batch #{sealed_l1_batch_number}, \
+                miniblock number #{sealed_miniblock_number}"
+            );
+
+            let root_hashes_match = self.root_hashes_match(sealed_l1_batch_number).await?;
+            let miniblock_hashes_match =
+                self.miniblock_hashes_match(sealed_miniblock_number).await?;
+
+            // The only event that triggers reorg detection and node rollback is if the
+            // hash mismatch at the same block height is detected, be it miniblocks or batches.
+            //
+            // In other cases either there is only a height mismatch which means that one of
+            // the nodes needs to do catching up, howver it is not certain that there is actually
+            // a reorg taking place.
+            if root_hashes_match && miniblock_hashes_match {
                 EN_METRICS.last_correct_batch[&CheckerComponent::ReorgDetector]
                     .set(sealed_l1_batch_number.0.into());
+                EN_METRICS.last_correct_miniblock[&CheckerComponent::ReorgDetector]
+                    .set(sealed_miniblock_number.0.into());
                 tokio::time::sleep(SLEEP_INTERVAL).await;
             } else {
-                tracing::warn!(
-                    "Reorg detected: last state hash doesn't match the state hash from main node \
-                     (L1 batch #{sealed_l1_batch_number})"
-                );
+                if !root_hashes_match {
+                    tracing::warn!(
+                        "Reorg detected: last state hash doesn't match the state hash from \
+                        main node (L1 batch #{sealed_l1_batch_number})"
+                    );
+                }
+                if !miniblock_hashes_match {
+                    tracing::warn!(
+                        "Reorg detected: last state hash doesn't match the state hash from \
+                        main node (MiniblockNumber #{sealed_miniblock_number})"
+                    );
+                }
                 tracing::info!("Searching for the first diverged batch");
                 let last_correct_l1_batch = self.detect_reorg(sealed_l1_batch_number).await?;
                 tracing::info!(

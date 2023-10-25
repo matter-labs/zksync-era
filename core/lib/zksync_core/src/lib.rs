@@ -28,7 +28,7 @@ use zksync_config::{
     ApiConfig, ContractsConfig, DBConfig, ETHClientConfig, ETHSenderConfig, FetcherConfig,
     ProverConfigs,
 };
-use zksync_contracts::BaseSystemContracts;
+use zksync_contracts::{governance_contract, BaseSystemContracts};
 use zksync_dal::{
     connection::DbVariant, healthcheck::ConnectionPoolHealthCheck, ConnectionPool, StorageProcessor,
 };
@@ -54,7 +54,6 @@ pub mod consistency_checker;
 pub mod data_fetchers;
 pub mod eth_sender;
 pub mod eth_watch;
-pub mod fee_ticker;
 pub mod gas_tracker;
 pub mod genesis;
 pub mod house_keeper;
@@ -68,9 +67,8 @@ pub mod sync_layer;
 pub mod witness_generator;
 
 use crate::api_server::healthcheck::HealthCheckHandle;
-use crate::api_server::tx_sender::TxSenderConfig;
-use crate::api_server::tx_sender::{TxSender, TxSenderBuilder};
-use crate::api_server::web3::{state::InternalApiConfig, Namespace};
+use crate::api_server::tx_sender::{TxSender, TxSenderBuilder, TxSenderConfig};
+use crate::api_server::web3::{state::InternalApiConfig, ApiServerHandles, Namespace};
 use crate::eth_sender::{Aggregator, EthTxManager};
 use crate::house_keeper::fri_proof_compressor_job_retry_manager::FriProofCompressorJobRetryManager;
 use crate::house_keeper::fri_proof_compressor_queue_monitor::FriProofCompressorStatsReporter;
@@ -350,7 +348,6 @@ pub async fn initialize_components(
         CircuitBreakerConfig::from_env().context("CircuitBreakerConfig::from_env()")?;
 
     let main_zksync_contract_address = contracts_config.diamond_proxy_addr;
-    let governance_contract_address = contracts_config.governance_addr;
     let circuit_breaker_checker = CircuitBreakerChecker::new(
         circuit_breakers_for_components(
             &components,
@@ -429,12 +426,12 @@ pub async fn initialize_components(
             );
 
             let started_at = Instant::now();
-            tracing::info!("initializing HTTP API");
+            tracing::info!("Initializing HTTP API");
             let bounded_gas_adjuster = gas_adjuster
                 .get_or_init_bounded()
                 .await
                 .context("gas_adjuster.get_or_init_bounded()")?;
-            let (futures, health_check) = run_http_api(
+            let server_handles = run_http_api(
                 &tx_sender_config,
                 &state_keeper_config,
                 &internal_api_config,
@@ -449,18 +446,22 @@ pub async fn initialize_components(
             )
             .await
             .context("run_http_api")?;
-            task_futures.extend(futures);
-            healthchecks.push(Box::new(health_check));
+
+            task_futures.extend(server_handles.tasks);
+            healthchecks.push(Box::new(server_handles.health_check));
             let elapsed = started_at.elapsed();
             APP_METRICS.init_latency[&InitStage::HttpApi].set(elapsed);
-            tracing::info!("initialized HTTP API in {elapsed:?}");
+            tracing::info!(
+                "Initialized HTTP API on {:?} in {elapsed:?}",
+                server_handles.local_addr
+            );
         }
 
         if components.contains(&Component::WsApi) {
             let storage_caches = match storage_caches {
                 Some(storage_caches) => storage_caches,
                 None => build_storage_caches(&replica_connection_pool, &mut task_futures)
-                    .context("build_Storage_caches()")?,
+                    .context("build_storage_caches()")?,
             };
 
             let started_at = Instant::now();
@@ -469,7 +470,7 @@ pub async fn initialize_components(
                 .get_or_init_bounded()
                 .await
                 .context("gas_adjuster.get_or_init_bounded()")?;
-            let (futures, health_check) = run_ws_api(
+            let server_handles = run_ws_api(
                 &tx_sender_config,
                 &state_keeper_config,
                 &internal_api_config,
@@ -483,11 +484,15 @@ pub async fn initialize_components(
             )
             .await
             .context("run_ws_api")?;
-            task_futures.extend(futures);
-            healthchecks.push(Box::new(health_check));
+
+            task_futures.extend(server_handles.tasks);
+            healthchecks.push(Box::new(server_handles.health_check));
             let elapsed = started_at.elapsed();
             APP_METRICS.init_latency[&InitStage::WsApi].set(elapsed);
-            tracing::info!("initialized WS API in {elapsed:?}");
+            tracing::info!(
+                "initialized WS API on {:?} in {elapsed:?}",
+                server_handles.local_addr
+            );
         }
 
         if components.contains(&Component::ContractVerificationApi) {
@@ -537,12 +542,17 @@ pub async fn initialize_components(
             .build()
             .await
             .context("failed to build eth_watch_pool")?;
+        let governance = contracts_config.governance_addr.map(|addr| {
+            let contract = governance_contract()
+                .expect("Governance contract must be present if governance_addr is set in config");
+            (contract, addr)
+        });
         task_futures.push(
             start_eth_watch(
                 eth_watch_pool,
                 query_client.clone(),
                 main_zksync_contract_address,
-                governance_contract_address,
+                governance,
                 stop_receiver.clone(),
             )
             .await
@@ -1140,7 +1150,7 @@ async fn run_http_api<G: L1GasPriceProvider + Send + Sync + 'static>(
     with_debug_namespace: bool,
     with_logs_request_translator_enabled: bool,
     storage_caches: PostgresStorageCaches,
-) -> anyhow::Result<(Vec<JoinHandle<anyhow::Result<()>>>, ReactiveHealthCheck)> {
+) -> anyhow::Result<ApiServerHandles> {
     let (tx_sender, vm_barrier) = build_tx_sender(
         tx_sender_config,
         &api_config.web3_json_rpc,
@@ -1175,7 +1185,7 @@ async fn run_http_api<G: L1GasPriceProvider + Send + Sync + 'static>(
     if with_logs_request_translator_enabled {
         api_builder = api_builder.enable_request_translator();
     }
-    Ok(api_builder.build(stop_receiver.clone()).await)
+    api_builder.build(stop_receiver).await
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1190,7 +1200,7 @@ async fn run_ws_api<G: L1GasPriceProvider + Send + Sync + 'static>(
     stop_receiver: watch::Receiver<bool>,
     storage_caches: PostgresStorageCaches,
     with_logs_request_translator_enabled: bool,
-) -> anyhow::Result<(Vec<JoinHandle<anyhow::Result<()>>>, ReactiveHealthCheck)> {
+) -> anyhow::Result<ApiServerHandles> {
     let (tx_sender, vm_barrier) = build_tx_sender(
         tx_sender_config,
         &api_config.web3_json_rpc,
@@ -1227,7 +1237,7 @@ async fn run_ws_api<G: L1GasPriceProvider + Send + Sync + 'static>(
     if with_logs_request_translator_enabled {
         api_builder = api_builder.enable_request_translator();
     }
-    Ok(api_builder.build(stop_receiver.clone()).await)
+    api_builder.build(stop_receiver.clone()).await
 }
 
 async fn circuit_breakers_for_components(

@@ -215,7 +215,7 @@ impl TreeUpdater {
         mut root: InternalNode,
         logs: Vec<(usize, TreeLogEntryWithProof<MerklePath>)>,
     ) -> Vec<TreeLogEntryWithProof> {
-        let version = self.patch_set.version();
+        let version = self.patch_set.root_version();
         let mut root_hash = root.hash(hasher, 0);
 
         // Check the kind of each of subtrees. This is used later to ensure the correct
@@ -348,6 +348,11 @@ impl<'a, DB: Database + ?Sized> Storage<'a, DB> {
         root: InternalNode,
         logs: Vec<(usize, TreeLogEntryWithProof<MerklePath>)>,
     ) -> (BlockOutputWithProofs, PatchSet) {
+        tracing::debug!(
+            "Finished updating tree; total leaf count: {}, stats: {:?}",
+            self.leaf_count,
+            self.updater.metrics
+        );
         let logs = self.updater.finalize_logs(hasher, root, logs);
         self.updater.metrics.report();
 
@@ -499,7 +504,7 @@ mod tests {
     fn computing_leaf_indices() {
         let db = prepare_db();
         let (instructions, expected_indices) = get_instructions_and_leaf_indices();
-        let mut storage = Storage::new(&db, &(), 1);
+        let mut storage = Storage::new(&db, &(), 1, true);
         let sorted_keys = SortedKeys::new(instructions.iter().map(|(key, _)| *key));
         let parent_nibbles = storage.updater.load_ancestors(&sorted_keys, &db);
 
@@ -511,7 +516,7 @@ mod tests {
     fn prepare_db() -> PatchSet {
         let mut db = PatchSet::default();
         let (_, patch) =
-            Storage::new(&db, &(), 0).extend(vec![(byte_key(2), HASH), (byte_key(1), HASH)]);
+            Storage::new(&db, &(), 0, true).extend(vec![(byte_key(2), HASH), (byte_key(1), HASH)]);
         db.apply_patch(patch);
         db
     }
@@ -538,7 +543,7 @@ mod tests {
     fn extending_storage_with_proofs() {
         let db = prepare_db();
         let (instructions, expected_indices) = get_instructions_and_leaf_indices();
-        let storage = Storage::new(&db, &(), 1);
+        let storage = Storage::new(&db, &(), 1, true);
         let (block_output, _) = storage.extend_with_proofs(instructions);
         assert_eq!(block_output.leaf_count, 4);
 
@@ -557,7 +562,7 @@ mod tests {
     #[test]
     fn proofs_for_empty_storage() {
         let db = PatchSet::default();
-        let storage = Storage::new(&db, &(), 0);
+        let storage = Storage::new(&db, &(), 0, true);
         let instructions = vec![
             (byte_key(1), TreeInstruction::Read),
             (byte_key(2), TreeInstruction::Read),
@@ -571,6 +576,6 @@ mod tests {
             .all(|log| matches!(log.base, TreeLogEntry::ReadMissingKey));
         assert!(all_misses);
 
-        assert_matches!(patch.roots[&0], Root::Empty);
+        assert_matches!(patch.patches_by_version[&0].root, Some(Root::Empty));
     }
 }

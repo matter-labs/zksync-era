@@ -8,7 +8,7 @@ reconstructed from L1 if needed).
 Given the want/need to cutdown on space used, bytecode is compressed prior to being posted to L1. At a high level
 bytecode is chunked into opcodes (which have a size of 8 bytes), assigned a 2 byte index, and the newly formed byte
 sequence (indexes) are verified and sent to L1. This process is split into 2 different parts: (1)
-[the server side operator](https://github.com/matter-labs/zksync-2-dev/blob/main/core/lib/utils/src/bytecode.rs#L31)
+[the server side operator](https://github.com/matter-labs/zksync-era/blob/main/core/lib/utils/src/bytecode.rs#L31)
 handling the compression and (2)
 [the system contract](https://github.com/matter-labs/system-contracts/blob/main/contracts/BytecodeCompressor.sol)
 verifying that the compression is correct before sending to L1.

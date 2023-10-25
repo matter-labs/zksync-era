@@ -10,14 +10,16 @@ use std::{
     time::Instant,
 };
 
-use vm::{constants::MAX_CYCLES_FOR_TX, HistoryDisabled, SimpleMemory, StorageOracle};
+use multivm::vm_latest::{
+    constants::MAX_CYCLES_FOR_TX, HistoryDisabled, SimpleMemory, StorageOracle as VmStorageOracle,
+};
 use zksync_config::configs::witness_generator::BasicWitnessGeneratorDataSource;
 use zksync_config::configs::WitnessGeneratorConfig;
-use zksync_config::constants::BOOTLOADER_ADDRESS;
 use zksync_dal::ConnectionPool;
 use zksync_object_store::{Bucket, ObjectStore, ObjectStoreFactory, StoredObject};
 use zksync_queued_job_processor::JobProcessor;
 use zksync_state::{PostgresStorage, ReadStorage, ShadowStorage, StorageView, WitnessStorage};
+use zksync_system_constants::BOOTLOADER_ADDRESS;
 use zksync_types::{
     circuit::GEOMETRY_CONFIG,
     proofs::{AggregationRound, BasicCircuitWitnessGeneratorInput, PrepareBasicCircuitsJob},
@@ -35,7 +37,7 @@ use zksync_utils::{bytes_to_chunks, expand_memory_contents, h256_to_u256, u256_t
 
 use super::{
     precalculated_merkle_paths_provider::PrecalculatedMerklePathsProvider,
-    utils::save_prover_input_artifacts, METRICS,
+    storage_oracle::StorageOracle, utils::save_prover_input_artifacts, METRICS,
 };
 
 pub struct BasicCircuitArtifacts {
@@ -378,15 +380,9 @@ pub async fn build_basic_circuits_witness_generator_input(
         .await
         .unwrap()
         .unwrap();
-    let (_, previous_block_timestamp) = connection
+    let (previous_block_hash, previous_block_timestamp) = connection
         .blocks_dal()
         .get_l1_batch_state_root_and_timestamp(l1_batch_number - 1)
-        .await
-        .unwrap()
-        .unwrap();
-    let previous_block_hash = connection
-        .blocks_dal()
-        .get_l1_batch_state_root(l1_batch_number - 1)
         .await
         .unwrap()
         .expect("cannot generate witness before the root hash is computed");
@@ -462,6 +458,12 @@ pub async fn generate_witness(
         .await
         .unwrap()
         .expect("L1 batch should contain at least one miniblock");
+    let storage_refunds = connection
+        .blocks_dal()
+        .get_storage_refunds(input.block_number)
+        .await
+        .unwrap()
+        .unwrap();
 
     drop(connection);
     let rt_handle = tokio::runtime::Handle::current();
@@ -518,8 +520,9 @@ pub async fn generate_witness(
 
         let storage_view = StorageView::new(storage);
         let storage_view = storage_view.to_rc_ptr();
-        let storage_oracle: StorageOracle<StorageView<Box<dyn ReadStorage>>, HistoryDisabled> =
-            StorageOracle::new(storage_view);
+        let vm_storage_oracle: VmStorageOracle<StorageView<Box<dyn ReadStorage>>, HistoryDisabled> =
+            VmStorageOracle::new(storage_view);
+        let storage_oracle = StorageOracle::new(vm_storage_oracle, storage_refunds);
         let memory: SimpleMemory<HistoryDisabled> = SimpleMemory::default();
         let mut hasher = DefaultHasher::new();
         GEOMETRY_CONFIG.hash(&mut hasher);

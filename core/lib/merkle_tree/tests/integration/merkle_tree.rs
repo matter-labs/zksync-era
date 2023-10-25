@@ -1,69 +1,17 @@
 //! Tests not tied to the zksync domain.
 
-use once_cell::sync::Lazy;
 use rand::{rngs::StdRng, seq::SliceRandom, Rng, SeedableRng};
 
 use std::{cmp, mem};
 
-use zksync_crypto::hasher::{blake2::Blake2Hasher, Hasher};
+use zksync_crypto::hasher::blake2::Blake2Hasher;
 use zksync_merkle_tree::{
     Database, HashTree, MerkleTree, PatchSet, Patched, TreeInstruction, TreeLogEntry,
     TreeRangeDigest,
 };
 use zksync_types::{AccountTreeId, Address, StorageKey, H256, U256};
 
-use crate::common::generate_key_value_pairs;
-
-fn convert_to_writes(kvs: &[(U256, H256)]) -> Vec<(U256, TreeInstruction)> {
-    let kvs = kvs
-        .iter()
-        .map(|&(key, hash)| (key, TreeInstruction::Write(hash)));
-    kvs.collect()
-}
-
-// The extended version of computations used in `InternalNode`.
-fn compute_tree_hash(kvs: &[(U256, H256)]) -> H256 {
-    assert!(!kvs.is_empty());
-
-    let hasher = Blake2Hasher;
-    let mut empty_tree_hash = hasher.hash_bytes(&[0_u8; 40]);
-    let level = kvs.iter().enumerate().map(|(i, (key, value))| {
-        let leaf_index = i as u64 + 1;
-        let mut bytes = [0_u8; 40];
-        bytes[..8].copy_from_slice(&leaf_index.to_be_bytes());
-        bytes[8..].copy_from_slice(value.as_ref());
-        (*key, hasher.hash_bytes(&bytes))
-    });
-    let mut level: Vec<(U256, H256)> = level.collect();
-    level.sort_unstable_by_key(|(key, _)| *key);
-
-    for _ in 0..256 {
-        let mut next_level = vec![];
-        let mut i = 0;
-        while i < level.len() {
-            let (pos, hash) = level[i];
-            let aggregate_hash = if pos.bit(0) {
-                // `pos` corresponds to a right branch of its parent
-                hasher.compress(&empty_tree_hash, &hash)
-            } else if let Some((next_pos, next_hash)) = level.get(i + 1) {
-                if pos + 1 == *next_pos {
-                    i += 1;
-                    hasher.compress(&hash, next_hash)
-                } else {
-                    hasher.compress(&hash, &empty_tree_hash)
-                }
-            } else {
-                hasher.compress(&hash, &empty_tree_hash)
-            };
-            next_level.push((pos >> 1, aggregate_hash));
-            i += 1;
-        }
-
-        level = next_level;
-        empty_tree_hash = hasher.compress(&empty_tree_hash, &empty_tree_hash);
-    }
-    level[0].1
-}
+use crate::common::{compute_tree_hash, convert_to_writes, generate_key_value_pairs, KVS_AND_HASH};
 
 #[test]
 fn compute_tree_hash_works_correctly() {
@@ -76,7 +24,7 @@ fn compute_tree_hash_works_correctly() {
     let address: Address = "4b3af74f66ab1f0da3f2e4ec7a3cb99baf1af7b2".parse().unwrap();
     let key = StorageKey::new(AccountTreeId::new(address), H256::zero());
     let key = key.hashed_key_u256();
-    let hash = compute_tree_hash(&[(key, H256([1; 32]))]);
+    let hash = compute_tree_hash([(key, H256([1; 32]))].into_iter());
     assert_eq!(hash, EXPECTED_HASH);
 }
 
@@ -87,7 +35,7 @@ fn root_hash_is_computed_correctly_on_empty_tree() {
 
         let mut tree = MerkleTree::new(PatchSet::default());
         let kvs = generate_key_value_pairs(0..kv_count);
-        let expected_hash = compute_tree_hash(&kvs);
+        let expected_hash = compute_tree_hash(kvs.iter().copied());
         let output = tree.extend(kvs);
         assert_eq!(output.root_hash, expected_hash);
     }
@@ -104,7 +52,7 @@ fn output_proofs_are_computed_correctly_on_empty_tree() {
 
         let mut tree = MerkleTree::new(PatchSet::default());
         let kvs = generate_key_value_pairs(0..kv_count);
-        let expected_hash = compute_tree_hash(&kvs);
+        let expected_hash = compute_tree_hash(kvs.iter().copied());
         let instructions = convert_to_writes(&kvs);
         let output = tree.extend_with_proofs(instructions.clone());
 
@@ -134,7 +82,7 @@ fn entry_proofs_are_computed_correctly_on_empty_tree() {
 
         let mut tree = MerkleTree::new(PatchSet::default());
         let kvs = generate_key_value_pairs(0..kv_count);
-        let expected_hash = compute_tree_hash(&kvs);
+        let expected_hash = compute_tree_hash(kvs.iter().copied());
         tree.extend(kvs.clone());
 
         let existing_keys: Vec<_> = kvs.iter().map(|(key, _)| *key).collect();
@@ -182,7 +130,7 @@ fn proofs_are_computed_correctly_for_mixed_instructions() {
     let mut instructions: Vec<_> = reads.collect();
     // Overwrite all keys in the tree.
     let writes: Vec<_> = kvs.iter().map(|(key, _)| (*key, H256::zero())).collect();
-    let expected_hash = compute_tree_hash(&writes);
+    let expected_hash = compute_tree_hash(writes.iter().copied());
     instructions.extend(convert_to_writes(&writes));
     instructions.shuffle(&mut rng);
 
@@ -220,13 +168,6 @@ fn proofs_are_computed_correctly_for_missing_keys() {
     let empty_tree_hash = Blake2Hasher.empty_subtree_hash(256);
     output.verify_proofs(&Blake2Hasher, empty_tree_hash, &instructions);
 }
-
-// Computing the expected hash takes some time in the debug mode, so we memoize it.
-static KVS_AND_HASH: Lazy<(Vec<(U256, H256)>, H256)> = Lazy::new(|| {
-    let kvs = generate_key_value_pairs(0..100);
-    let expected_hash = compute_tree_hash(&kvs);
-    (kvs, expected_hash)
-});
 
 fn test_intermediate_commits(db: &mut impl Database, chunk_size: usize) {
     let (kvs, expected_hash) = &*KVS_AND_HASH;
@@ -374,7 +315,7 @@ fn test_root_hash_computing_with_key_updates(db: impl Database) {
 
     let mut kvs = generate_key_value_pairs(0..50);
     let mut tree = MerkleTree::new(db);
-    let expected_hash = compute_tree_hash(&kvs);
+    let expected_hash = compute_tree_hash(kvs.iter().copied());
     let output = tree.extend(kvs.clone());
     assert_eq!(output.root_hash, expected_hash);
 
@@ -389,7 +330,7 @@ fn test_root_hash_computing_with_key_updates(db: impl Database) {
     let changed_kvs: Vec<_> = changed_kvs.collect();
     let new_kvs = generate_key_value_pairs(50..75);
     kvs.extend_from_slice(&new_kvs);
-    let expected_hash = compute_tree_hash(&kvs);
+    let expected_hash = compute_tree_hash(kvs.iter().copied());
 
     // We can merge `changed_kvs` and `new_kvs` in any way that preserves `new_kvs` ordering.
     // We'll do multiple ways (which also will effectively test DB rollbacks).
@@ -504,7 +445,7 @@ fn test_root_hash_equals_to_previous_implementation(db: &mut impl Database) {
     let values = (0..100).map(H256::from_low_u64_be);
     let kvs: Vec<_> = keys.zip(values).collect();
 
-    let expected_hash = compute_tree_hash(&kvs);
+    let expected_hash = compute_tree_hash(kvs.iter().copied());
     assert_eq!(expected_hash, PREV_IMPL_HASH);
 
     let mut tree = MerkleTree::new(db);
@@ -618,7 +559,7 @@ mod rocksdb {
     use std::collections::BTreeMap;
 
     use super::*;
-    use zksync_merkle_tree::{MerkleTreeColumnFamily, RocksDBWrapper};
+    use zksync_merkle_tree::{MerkleTreeColumnFamily, MerkleTreePruner, RocksDBWrapper};
     use zksync_storage::RocksDB;
 
     #[derive(Debug)]
@@ -683,14 +624,34 @@ mod rocksdb {
             let raw_db = db.into_inner();
             let snapshot_name = format!("db-snapshot-{chunk_size}-chunked-commits");
             insta::assert_yaml_snapshot!(snapshot_name, DatabaseSnapshot::new(&raw_db));
+            db = clean_db(raw_db);
+        }
+    }
 
-            // Clear the entire database instead of using `MerkleTree::truncate_versions()`
-            // so that it doesn't contain any junk that can influence snapshots.
-            let mut batch = raw_db.new_write_batch();
-            let cf = MerkleTreeColumnFamily::Tree;
-            batch.delete_range_cf(cf, (&[] as &[_])..&u64::MAX.to_be_bytes());
-            raw_db.write(batch).unwrap();
-            db = RocksDBWrapper::from(raw_db);
+    fn clean_db(raw_db: RocksDB<MerkleTreeColumnFamily>) -> RocksDBWrapper {
+        // Clear the entire database instead of using `MerkleTree::truncate_versions()`
+        // so that it doesn't contain any junk that can influence snapshots.
+        let mut batch = raw_db.new_write_batch();
+        let cf = MerkleTreeColumnFamily::Tree;
+        batch.delete_range_cf(cf, (&[] as &[_])..&u64::MAX.to_be_bytes());
+        raw_db.write(batch).unwrap();
+        RocksDBWrapper::from(raw_db)
+    }
+
+    #[test]
+    fn snapshot_for_pruned_tree() {
+        let Harness { mut db, dir: _dir } = Harness::new();
+        for chunk_size in [3, 8, 21] {
+            test_intermediate_commits(&mut db, chunk_size);
+            let (mut pruner, _) = MerkleTreePruner::new(&mut db, 0);
+            pruner.run_once();
+
+            let raw_db = db.into_inner();
+            let snapshot_name = format!("db-snapshot-{chunk_size}-chunked-commits-pruned");
+            let db_snapshot = DatabaseSnapshot::new(&raw_db);
+            assert!(db_snapshot.stale_keys.is_empty());
+            insta::assert_yaml_snapshot!(snapshot_name, db_snapshot);
+            db = clean_db(raw_db);
         }
     }
 

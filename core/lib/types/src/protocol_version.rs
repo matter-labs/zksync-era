@@ -205,59 +205,6 @@ pub struct ProtocolUpgrade {
     pub tx: Option<ProtocolUpgradeTx>,
 }
 
-impl TryFrom<Log> for GovernanceOperation {
-    type Error = crate::ethabi::Error;
-
-    fn try_from(event: Log) -> Result<Self, Self::Error> {
-        let call_param_type = ParamType::Tuple(vec![
-            ParamType::Address,
-            ParamType::Uint(256),
-            ParamType::Bytes,
-        ]);
-
-        let operation_param_type = ParamType::Tuple(vec![
-            ParamType::Array(Box::new(call_param_type)),
-            ParamType::FixedBytes(32),
-            ParamType::FixedBytes(32),
-        ]);
-        let mut decoded = decode(&[ParamType::Uint(256), operation_param_type], &event.data.0)?;
-        decoded = decoded.remove(1).into_tuple().unwrap();
-
-        let eth_hash = event
-            .transaction_hash
-            .expect("Event transaction hash is missing");
-        let eth_block = event
-            .block_number
-            .expect("Event block number is missing")
-            .as_u64();
-
-        let calls = decoded.remove(0).into_array().unwrap();
-        let predecessor = H256::from_slice(&decoded.remove(0).into_fixed_bytes().unwrap());
-        let salt = H256::from_slice(&decoded.remove(0).into_fixed_bytes().unwrap());
-
-        let calls = calls
-            .into_iter()
-            .map(|call| {
-                let mut decoded = call.into_tuple().unwrap();
-
-                Call {
-                    target: decoded.remove(0).into_address().unwrap(),
-                    value: decoded.remove(0).into_uint().unwrap(),
-                    data: decoded.remove(0).into_bytes().unwrap(),
-                    eth_hash,
-                    eth_block,
-                }
-            })
-            .collect();
-
-        Ok(Self {
-            calls,
-            predecessor,
-            salt,
-        })
-    }
-}
-
 impl TryFrom<Call> for ProtocolUpgrade {
     type Error = crate::ethabi::Error;
 
@@ -478,6 +425,74 @@ impl TryFrom<Call> for ProtocolUpgrade {
     }
 }
 
+impl TryFrom<Log> for GovernanceOperation {
+    type Error = crate::ethabi::Error;
+
+    fn try_from(event: Log) -> Result<Self, Self::Error> {
+        let call_param_type = ParamType::Tuple(vec![
+            ParamType::Address,
+            ParamType::Uint(256),
+            ParamType::Bytes,
+        ]);
+
+        let operation_param_type = ParamType::Tuple(vec![
+            ParamType::Array(Box::new(call_param_type)),
+            ParamType::FixedBytes(32),
+            ParamType::FixedBytes(32),
+        ]);
+        // Decode data.
+        let mut decoded = decode(&[ParamType::Uint(256), operation_param_type], &event.data.0)?;
+        // Extract `GovernanceOperation` data.
+        let mut decoded_governance_operation = decoded.remove(1).into_tuple().unwrap();
+
+        let eth_hash = event
+            .transaction_hash
+            .expect("Event transaction hash is missing");
+        let eth_block = event
+            .block_number
+            .expect("Event block number is missing")
+            .as_u64();
+
+        let calls = decoded_governance_operation.remove(0).into_array().unwrap();
+        let predecessor = H256::from_slice(
+            &decoded_governance_operation
+                .remove(0)
+                .into_fixed_bytes()
+                .unwrap(),
+        );
+        let salt = H256::from_slice(
+            &decoded_governance_operation
+                .remove(0)
+                .into_fixed_bytes()
+                .unwrap(),
+        );
+
+        let calls = calls
+            .into_iter()
+            .map(|call| {
+                let mut decoded_governance_operation = call.into_tuple().unwrap();
+
+                Call {
+                    target: decoded_governance_operation
+                        .remove(0)
+                        .into_address()
+                        .unwrap(),
+                    value: decoded_governance_operation.remove(0).into_uint().unwrap(),
+                    data: decoded_governance_operation.remove(0).into_bytes().unwrap(),
+                    eth_hash,
+                    eth_block,
+                }
+            })
+            .collect();
+
+        Ok(Self {
+            calls,
+            predecessor,
+            salt,
+        })
+    }
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct ProtocolVersion {
     /// Protocol version ID
@@ -628,5 +643,48 @@ impl From<ProtocolVersionId> for VmVersion {
             ProtocolVersionId::Version17 => VmVersion::VmVirtualBlocksRefundsEnhancement,
             ProtocolVersionId::Version18 => VmVersion::VmVirtualBlocksRefundsEnhancement,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn governance_operation_from_log() {
+        let call_token = Token::Tuple(vec![
+            Token::Address(Address::random()),
+            Token::Uint(U256::zero()),
+            Token::Bytes(vec![1, 2, 3]),
+        ]);
+        let operation_token = Token::Tuple(vec![
+            Token::Array(vec![call_token]),
+            Token::FixedBytes(H256::random().0.to_vec()),
+            Token::FixedBytes(H256::random().0.to_vec()),
+        ]);
+        let event_data = encode(&[Token::Uint(U256::zero()), operation_token]);
+
+        let correct_log = Log {
+            address: Default::default(),
+            topics: Default::default(),
+            data: event_data.into(),
+            block_hash: Default::default(),
+            block_number: Some(1u64.into()),
+            transaction_hash: Some(H256::random()),
+            transaction_index: Default::default(),
+            log_index: Default::default(),
+            transaction_log_index: Default::default(),
+            log_type: Default::default(),
+            removed: Default::default(),
+        };
+        let decoded_op: GovernanceOperation = correct_log.clone().try_into().unwrap();
+        assert_eq!(decoded_op.calls.len(), 1);
+
+        let mut incorrect_log = correct_log;
+        incorrect_log
+            .data
+            .0
+            .truncate(incorrect_log.data.0.len() - 32);
+        assert!(TryInto::<GovernanceOperation>::try_into(incorrect_log).is_err());
     }
 }

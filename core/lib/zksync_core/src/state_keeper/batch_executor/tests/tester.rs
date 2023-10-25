@@ -3,10 +3,8 @@
 
 use tempfile::TempDir;
 
-use vm::{
-    constants::INITIAL_STORAGE_WRITE_PUBDATA_BYTES,
-    {L1BatchEnv, SystemEnv},
-};
+use multivm::interface::{L1BatchEnv, SystemEnv};
+use multivm::vm_latest::constants::INITIAL_STORAGE_WRITE_PUBDATA_BYTES;
 
 use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_contracts::{get_loadnext_contract, test_contracts::LoadnextContractExecutionParams};

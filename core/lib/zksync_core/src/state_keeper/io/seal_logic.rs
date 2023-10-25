@@ -11,9 +11,9 @@ use std::{
     time::{Duration, Instant},
 };
 
-use vm::{FinishedL1Batch, L1BatchEnv};
-use zksync_config::constants::ACCOUNT_CODE_STORAGE_ADDRESS;
+use multivm::interface::{FinishedL1Batch, L1BatchEnv};
 use zksync_dal::StorageProcessor;
+use zksync_system_constants::ACCOUNT_CODE_STORAGE_ADDRESS;
 use zksync_types::{
     block::unpack_block_info, CURRENT_VIRTUAL_BLOCK_INFO_POSITION, SYSTEM_CONTEXT_ADDRESS,
 };
@@ -147,6 +147,7 @@ impl UpdatesManager {
                 &finished_batch.final_bootloader_memory.as_ref().unwrap(),
                 self.l1_batch.l1_gas_count,
                 &events_queue,
+                &finished_batch.final_execution_state.storage_refunds,
             )
             .await
             .unwrap();
