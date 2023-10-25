@@ -2,7 +2,7 @@ version: '3.2'
 name: runner
 services:
   zk:
-    image: matterlabs/zksync_rust:nightly
+    image: matterlabs/zk-environment:latest2.0-lightweight-nightly
     extends:
       file: docker-compose-runner.yml
       service: zk

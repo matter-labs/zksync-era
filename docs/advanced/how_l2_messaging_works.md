@@ -185,9 +185,9 @@ transmitted to L1 for final verification.
 [overview_image]: https://user-images.githubusercontent.com/128217157/257739371-f971c10b-87c7-4ee9-bd0e-731670c616ac.png
 [user_docs]: https://era.zksync.io/docs/dev/how-to/send-message-l2-l1.html
 [l1_messenger]:
-  https://github.com/matter-labs/system-contracts/blob/f01df555c03860b6093dd669d119eed4d9f8ec99/contracts/L1Messenger.sol#L22
+  https://github.com/matter-labs/era-system-contracts/blob/f01df555c03860b6093dd669d119eed4d9f8ec99/contracts/L1Messenger.sol#L22
 [list_of_opcodes]:
-  https://github.com/matter-labs/system-contracts/blob/e96dfe0b5093fa95c2fb340c0411c646327db921/contracts/libraries/SystemContractsCaller.sol#L12
+  https://github.com/matter-labs/era-system-contracts/blob/e96dfe0b5093fa95c2fb340c0411c646327db921/contracts/libraries/SystemContractsCaller.sol#L12
 [opcode_catch_compiler]: https://github.com/matter-labs/era-compiler-llvm-context/blob/main/src/evm/call.rs#L39
 [iterate_over_events]:
   https://github.com/matter-labs/zksync-2-dev/blob/43d7bd587a84b1b4489f4c6a4169ccb90e0df467/core/lib/types/src/event.rs#L147
