@@ -86,7 +86,7 @@ monitor logs for each one.
    ```
    API_PROMETHEUS_LISTENER_PORT=3116 zk f cargo run --release --bin zksync_witness_generator -- --all_rounds
    ```
-   Note that this will automatically open the three ports after the one specified in enviromental variable, in this case 3117, 3118 and 3119 as well. 
+   Note that this will automatically open the three ports after the one specified in enviromental variable, in this case 3117, 3118 and 3119. 
 
 7. Run prover to perform actual proving:
    ```
