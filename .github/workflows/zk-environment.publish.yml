@@ -103,7 +103,7 @@ jobs:
         with:
           file: docker/zk-environment/Dockerfile
           target: rust-lightweight-nightly
-          tags: "matterlabs/zk-environment:latest2.0-${{ needs.get_short_sha.outputs.short_sha }}-lightweight-nightly-${{ matrix.arch }}"
+          tags: "matterlabs/zk-environment:${{ needs.get_short_sha.outputs.short_sha }}-lightweight-nightly-${{ matrix.arch }}"
           build-args: ARCH=${{ matrix.arch }}
           push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
       - name: Build and optionally push zk-environment CUDA 11.8
