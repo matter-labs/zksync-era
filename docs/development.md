@@ -16,7 +16,7 @@ You may also configure autocompletion for your shell via:
 zk completion install
 ```
 
-Once all the dependencies were installed, project can be initialized:
+Once all the dependencies are installed, the project can be initialized:
 
 ```
 zk init
@@ -30,12 +30,12 @@ This command will do the following:
 - Generate required smart contracts.
 - Compile all the smart contracts.
 - Deploy smart contracts to the local Ethereum network.
-- Create “genesis block” for server.
+- Create a “genesis block” for the server.
 
 Initializing may take pretty long, but many steps (such as downloading & unpacking keys and initializing containers) are
 required to be done only once.
 
-Usually, it is a good idea to do `zk init` once after each merge to the `main` branch (as application setup may change).
+Usually, it is a good idea to do `zk init` once after each merge to the `main` branch (as the application setup may change).
 
 Additionally, there is a subcommand `zk clean` to remove previously generated data. Examples:
 
@@ -129,7 +129,7 @@ To switch dummy prover to real prover, one must change `dummy_verifier` to `fals
 
   ```
   zk server # Has to be run in the 1st terminal
-  zk prover # Has to be run in the 2nd terminal if you want to use real prover, otherwise it's not required.
+  zk prover # Has to be run in the 2nd terminal if you want to use real prover, otherwise, it's not required.
   zk run loadtest # Has to be run in the 3rd terminal
   ```
 
