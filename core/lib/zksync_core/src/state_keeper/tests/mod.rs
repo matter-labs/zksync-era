@@ -12,7 +12,7 @@ use multivm::interface::{
     CurrentExecutionState, ExecutionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv, Refunds,
     SystemEnv, TxExecutionMode, VmExecutionResultAndLogs, VmExecutionStatistics,
 };
-use multivm::vm_latest::constants::BLOCK_GAS_LIMIT;
+use multivm::vm_latest::{constants::BLOCK_GAS_LIMIT, VmExecutionLogs};
 use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes};
 use zksync_system_constants::ZKPORTER_IS_AVAILABLE;
@@ -23,7 +23,7 @@ use zksync_types::{
     fee::Fee,
     l2::L2Tx,
     transaction_request::PaymasterParams,
-    tx::tx_execution_info::{ExecutionMetrics, VmExecutionLogs},
+    tx::tx_execution_info::ExecutionMetrics,
     Address, L1BatchNumber, L2ChainId, LogQuery, MiniblockNumber, Nonce, ProtocolVersionId,
     StorageLogQuery, StorageLogQueryType, Timestamp, Transaction, H256, U256,
 };
