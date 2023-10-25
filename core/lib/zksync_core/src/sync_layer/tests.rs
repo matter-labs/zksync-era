@@ -17,7 +17,7 @@ use zksync_types::{
 };
 
 use super::{
-    fetcher::MainNodeFetcherCursor,
+    fetcher::FetcherCursor,
     sync_action::{ActionQueueSender, SyncAction},
     *,
 };
@@ -496,7 +496,7 @@ async fn fetcher_basics() {
     let pool = ConnectionPool::test_pool().await;
     let mut storage = pool.access_storage().await.unwrap();
     ensure_genesis(&mut storage).await;
-    let fetcher_cursor = MainNodeFetcherCursor::new(&mut storage).await.unwrap();
+    let fetcher_cursor = FetcherCursor::new(&mut storage).await.unwrap();
     assert_eq!(fetcher_cursor.l1_batch, L1BatchNumber(0));
     assert_eq!(fetcher_cursor.miniblock, MiniblockNumber(1));
     drop(storage);
@@ -589,7 +589,7 @@ async fn fetcher_with_real_server() {
     let sync_state = SyncState::default();
     let (actions_sender, mut actions) = ActionQueue::new();
     let client = <dyn MainNodeClient>::json_rpc(&format!("http://{server_addr}/")).unwrap();
-    let fetcher_cursor = MainNodeFetcherCursor {
+    let fetcher_cursor = FetcherCursor {
         miniblock: MiniblockNumber(1),
         l1_batch: L1BatchNumber(0),
     };

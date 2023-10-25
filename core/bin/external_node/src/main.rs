@@ -24,9 +24,8 @@ use zksync_core::{
     setup_sigint_handler,
     state_keeper::{L1BatchExecutorBuilder, MainBatchExecutorBuilder, ZkSyncStateKeeper},
     sync_layer::{
-        batch_status_updater::BatchStatusUpdater, external_io::ExternalIO,
-        fetcher::MainNodeFetcherCursor, genesis::perform_genesis_if_needed, ActionQueue,
-        MainNodeClient, SyncState,
+        batch_status_updater::BatchStatusUpdater, external_io::ExternalIO, fetcher::FetcherCursor,
+        genesis::perform_genesis_if_needed, ActionQueue, MainNodeClient, SyncState,
     },
 };
 use zksync_dal::{connection::DbVariant, healthcheck::ConnectionPoolHealthCheck, ConnectionPool};
@@ -129,7 +128,7 @@ async fn init_tasks(
             .await
             .context("failed to build a connection pool for `MainNodeFetcher`")?;
         let mut storage = pool.access_storage_tagged("sync_layer").await?;
-        MainNodeFetcherCursor::new(&mut storage)
+        FetcherCursor::new(&mut storage)
             .await
             .context("failed to load `MainNodeFetcher` cursor from Postgres")?
     };

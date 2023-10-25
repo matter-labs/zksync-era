@@ -4,7 +4,7 @@ use tokio::sync::watch;
 use std::time::Duration;
 
 use zksync_dal::StorageProcessor;
-use zksync_types::{L1BatchNumber, MiniblockNumber, H256};
+use zksync_types::{api::en::SyncBlock, L1BatchNumber, MiniblockNumber, H256};
 use zksync_web3_decl::jsonrpsee::core::Error as RpcError;
 
 use super::{
@@ -20,13 +20,80 @@ const RETRY_DELAY_INTERVAL: Duration = Duration::from_secs(5);
 
 /// Cursor of [`MainNodeFetcher`].
 #[derive(Debug)]
-pub struct MainNodeFetcherCursor {
+pub struct FetcherCursor {
     // Fields are public for testing purposes.
     pub(super) miniblock: MiniblockNumber,
     pub(super) l1_batch: L1BatchNumber,
 }
 
-impl MainNodeFetcherCursor {
+impl FetcherCursor {
+    pub(super) fn advance(
+        &mut self,
+        block: SyncBlock,
+        prev_miniblock_hash: H256,
+    ) -> Vec<SyncAction> {
+        let mut new_actions = Vec::new();
+        if block.l1_batch_number != self.l1_batch {
+            assert_eq!(
+                block.l1_batch_number,
+                self.l1_batch.next(),
+                "Unexpected batch number in the next received miniblock"
+            );
+
+            tracing::info!(
+                "New L1 batch: {}. Timestamp: {}",
+                block.l1_batch_number,
+                block.timestamp
+            );
+
+            new_actions.push(SyncAction::OpenBatch {
+                number: block.l1_batch_number,
+                timestamp: block.timestamp,
+                l1_gas_price: block.l1_gas_price,
+                l2_fair_gas_price: block.l2_fair_gas_price,
+                operator_address: block.operator_address,
+                protocol_version: block.protocol_version,
+                // `block.virtual_blocks` can be `None` only for old VM versions where it's not used, so it's fine to provide any number.
+                first_miniblock_info: (block.number, block.virtual_blocks.unwrap_or(0)),
+                prev_miniblock_hash,
+            });
+            FETCHER_METRICS.l1_batch[&L1BatchStage::Open].set(block.l1_batch_number.0.into());
+            self.l1_batch += 1;
+        } else {
+            // New batch implicitly means a new miniblock, so we only need to push the miniblock action
+            // if it's not a new batch.
+            new_actions.push(SyncAction::Miniblock {
+                number: block.number,
+                timestamp: block.timestamp,
+                // `block.virtual_blocks` can be `None` only for old VM versions where it's not used, so it's fine to provide any number.
+                virtual_blocks: block.virtual_blocks.unwrap_or(0),
+            });
+            FETCHER_METRICS.miniblock.set(block.number.0.into());
+        }
+
+        let txs = block
+            .transactions
+            .expect("Transactions are always requested");
+        APP_METRICS.processed_txs[&TxStage::added_to_mempool()].inc_by(txs.len() as u64);
+        new_actions.extend(txs.into_iter().map(SyncAction::from));
+
+        // Last miniblock of the batch is a "fictive" miniblock and would be replicated locally.
+        // We don't need to seal it explicitly, so we only put the seal miniblock command if it's not the last miniblock.
+        if block.last_in_batch {
+            new_actions.push(SyncAction::SealBatch {
+                // `block.virtual_blocks` can be `None` only for old VM versions where it's not used, so it's fine to provide any number.
+                virtual_blocks: block.virtual_blocks.unwrap_or(0),
+            });
+        } else {
+            new_actions.push(SyncAction::SealMiniblock);
+        }
+        self.miniblock += 1;
+
+        new_actions
+    }
+}
+
+impl FetcherCursor {
     /// Loads the cursor
     pub async fn new(storage: &mut StorageProcessor<'_>) -> anyhow::Result<Self> {
         let last_sealed_l1_batch_header = storage
@@ -87,7 +154,7 @@ impl MainNodeFetcherCursor {
 #[derive(Debug)]
 pub struct MainNodeFetcher {
     client: CachingMainNodeClient,
-    cursor: MainNodeFetcherCursor,
+    cursor: FetcherCursor,
     actions: ActionQueueSender,
     sync_state: SyncState,
     stop_receiver: watch::Receiver<bool>,
@@ -174,72 +241,19 @@ impl MainNodeFetcher {
             .expect("Previous block must exist");
         request_latency.observe();
 
-        let mut new_actions = Vec::new();
-        if block.l1_batch_number != self.cursor.l1_batch {
-            assert_eq!(
-                block.l1_batch_number,
-                self.cursor.l1_batch.next(),
-                "Unexpected batch number in the next received miniblock"
-            );
-
-            tracing::info!(
-                "New batch: {}. Timestamp: {}",
-                block.l1_batch_number,
-                block.timestamp
-            );
-
-            new_actions.push(SyncAction::OpenBatch {
-                number: block.l1_batch_number,
-                timestamp: block.timestamp,
-                l1_gas_price: block.l1_gas_price,
-                l2_fair_gas_price: block.l2_fair_gas_price,
-                operator_address: block.operator_address,
-                protocol_version: block.protocol_version,
-                // `block.virtual_blocks` can be `None` only for old VM versions where it's not used, so it's fine to provide any number.
-                first_miniblock_info: (block.number, block.virtual_blocks.unwrap_or(0)),
-                // Same for `prev_block.hash` as above.
-                prev_miniblock_hash: prev_block.hash.unwrap_or_else(H256::zero),
-            });
-            FETCHER_METRICS.l1_batch[&L1BatchStage::Open].set(block.l1_batch_number.0.into());
-            self.cursor.l1_batch += 1;
-        } else {
-            // New batch implicitly means a new miniblock, so we only need to push the miniblock action
-            // if it's not a new batch.
-            new_actions.push(SyncAction::Miniblock {
-                number: block.number,
-                timestamp: block.timestamp,
-                // `block.virtual_blocks` can be `None` only for old VM versions where it's not used, so it's fine to provide any number.
-                virtual_blocks: block.virtual_blocks.unwrap_or(0),
-            });
-            FETCHER_METRICS.miniblock.set(block.number.0.into());
-        }
-
-        let txs: Vec<zksync_types::Transaction> = block
-            .transactions
-            .expect("Transactions are always requested");
-        APP_METRICS.processed_txs[&TxStage::added_to_mempool()].inc_by(txs.len() as u64);
-        new_actions.extend(txs.into_iter().map(SyncAction::from));
-
-        // Last miniblock of the batch is a "fictive" miniblock and would be replicated locally.
-        // We don't need to seal it explicitly, so we only put the seal miniblock command if it's not the last miniblock.
-        if block.last_in_batch {
-            new_actions.push(SyncAction::SealBatch {
-                // `block.virtual_blocks` can be `None` only for old VM versions where it's not used, so it's fine to provide any number.
-                virtual_blocks: block.virtual_blocks.unwrap_or(0),
-            });
-        } else {
-            new_actions.push(SyncAction::SealMiniblock);
-        }
+        let block_number = block.number;
+        let new_actions = self
+            .cursor
+            .advance(block, prev_block.hash.unwrap_or_default());
 
         tracing::info!(
-            "New miniblock: {} / {}",
-            block.number,
-            self.sync_state.get_main_node_block().max(block.number)
+            "New miniblock: {block_number} / {}",
+            self.sync_state.get_main_node_block().max(block_number)
         );
         // Forgetting only the previous one because we still need the current one in cache for the next iteration.
-        let prev_miniblock_number = MiniblockNumber(self.cursor.miniblock.0.saturating_sub(1));
+        let prev_miniblock_number = MiniblockNumber(block_number.0.saturating_sub(1));
+        // FIXME: the old implementation had block_number.0.saturating_sub(2) for some reason
         self.client.forget_miniblock(prev_miniblock_number);
-        self.cursor.miniblock += 1;
         self.actions.push_actions(new_actions).await;
 
         total_latency.observe();
