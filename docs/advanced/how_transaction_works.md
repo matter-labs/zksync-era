@@ -77,7 +77,7 @@ The transaction can have three different results in state keeper:
   happen - as we cannot charge the fee in such scenario, and it opens the possiblity for the DDoS attack.
 
 [transaction_request_from_bytes]:
-  https://github.com/matter-labs/zksync-2-dev/blob/e0820f994982f179c0466cd724a0a327327a501a/core/lib/types/src/transaction_request.rs#L539
+  https://github.com/MoneyBund/zksync-era/blob/main/core/lib/types/src/transaction_request.rs#L554
   'transaction request from bytes'
 [get_priority_op_events]:
   https://github.com/matter-labs/zksync-2-dev/blob/e0820f994982f179c0466cd724a0a327327a501a/core/bin/zksync_core/src/eth_watch/client.rs#L112
