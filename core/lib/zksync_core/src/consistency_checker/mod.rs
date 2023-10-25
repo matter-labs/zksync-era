@@ -4,7 +4,7 @@ use zksync_contracts::COMMIT_BLOCKS_FUNCTION;
 use zksync_dal::ConnectionPool;
 use zksync_types::{
     web3::{error, ethabi, transports::Http, types::TransactionId, Web3},
-    L1BatchNumber, ProtocolVersionId,
+    L1BatchNumber,
 };
 
 use crate::metrics::{CheckerComponent, EN_METRICS};
@@ -98,12 +98,16 @@ impl ConsistencyChecker {
             Some(1.into()),
             "Main node gave us a failed commit tx"
         );
-        let commit_function =
-            if block_metadata.header.protocol_version.unwrap() <= ProtocolVersionId::Version16 {
-                COMMIT_BLOCKS_FUNCTION.clone()
-            } else {
-                self.contract.function("commitBatches").unwrap().clone()
-            };
+        let commit_function = if block_metadata
+            .header
+            .protocol_version
+            .unwrap()
+            .is_pre_boojum()
+        {
+            COMMIT_BLOCKS_FUNCTION.clone()
+        } else {
+            self.contract.function("commitBatches").unwrap().clone()
+        };
 
         let commitments = commit_function
             .decode_input(&commit_tx.input.0[4..])
