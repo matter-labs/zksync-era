@@ -8,7 +8,7 @@ use super::envy_load;
 /// Data about deployed contracts.
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct ContractsConfig {
-    pub governance_addr: Option<Address>,
+    pub governance_addr: Address,
     pub mailbox_facet_addr: Address,
     pub executor_facet_addr: Address,
     pub admin_facet_addr: Address,
@@ -53,7 +53,7 @@ mod tests {
 
     fn expected_config() -> ContractsConfig {
         ContractsConfig {
-            governance_addr: Some(addr("d8dA6BF26964aF9D7eEd9e03E53415D37aA96045")),
+            governance_addr: addr("d8dA6BF26964aF9D7eEd9e03E53415D37aA96045"),
             mailbox_facet_addr: addr("0f6Fa881EF414Fc6E818180657c2d5CD7Ac6cCAd"),
             executor_facet_addr: addr("18B631537801963A964211C0E86645c1aBfbB2d3"),
             admin_facet_addr: addr("1e12b20BE86bEc3A0aC95aA52ade345cB9AE7a32"),

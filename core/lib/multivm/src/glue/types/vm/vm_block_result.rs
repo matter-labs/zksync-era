@@ -14,13 +14,7 @@ impl GlueFrom<crate::vm_m5::vm::VmBlockResult> for crate::interface::FinishedL1B
         crate::interface::FinishedL1Batch {
             block_tip_execution_result: VmExecutionResultAndLogs {
                 result: value.block_tip_result.revert_reason.glue_into(),
-                logs: VmExecutionLogs {
-                    events: value.block_tip_result.logs.events.clone(),
-                    user_l2_to_l1_logs: value.block_tip_result.logs.l2_to_l1_logs.clone(),
-                    system_l2_to_l1_logs: vec![],
-                    storage_logs: value.block_tip_result.logs.storage_logs.clone(),
-                    total_log_queries_count: value.block_tip_result.logs.total_log_queries_count,
-                },
+                logs: value.block_tip_result.logs.clone(),
                 statistics: VmExecutionStatistics {
                     contracts_used: value.block_tip_result.contracts_used,
                     cycles_used: value.block_tip_result.cycles_used,
@@ -51,13 +45,7 @@ impl GlueFrom<crate::vm_m6::vm::VmBlockResult> for crate::interface::FinishedL1B
         crate::interface::FinishedL1Batch {
             block_tip_execution_result: VmExecutionResultAndLogs {
                 result: value.block_tip_result.revert_reason.glue_into(),
-                logs: VmExecutionLogs {
-                    events: value.block_tip_result.logs.events,
-                    user_l2_to_l1_logs: value.block_tip_result.logs.l2_to_l1_logs,
-                    system_l2_to_l1_logs: vec![],
-                    storage_logs: value.block_tip_result.logs.storage_logs,
-                    total_log_queries_count: value.block_tip_result.logs.total_log_queries_count,
-                },
+                logs: value.block_tip_result.logs.clone(),
                 statistics: VmExecutionStatistics {
                     contracts_used: value.block_tip_result.contracts_used,
                     cycles_used: value.block_tip_result.cycles_used,
@@ -90,8 +78,8 @@ impl GlueFrom<crate::vm_1_3_2::vm::VmBlockResult> for crate::interface::Finished
                 result: value.block_tip_result.revert_reason.glue_into(),
                 logs: VmExecutionLogs {
                     events: value.block_tip_result.logs.events,
-                    user_l2_to_l1_logs: value.block_tip_result.logs.l2_to_l1_logs,
-                    system_l2_to_l1_logs: vec![],
+                    user_l2_to_l1_logs: value.block_tip_result.logs.user_l2_to_l1_logs.clone(),
+                    system_l2_to_l1_logs: value.block_tip_result.logs.system_l2_to_l1_logs.clone(),
                     storage_logs: value.block_tip_result.logs.storage_logs,
                     total_log_queries_count: value.block_tip_result.logs.total_log_queries_count,
                 },
@@ -167,13 +155,7 @@ impl GlueFrom<crate::vm_m5::vm::VmBlockResult> for crate::interface::VmExecution
 
         VmExecutionResultAndLogs {
             result,
-            logs: VmExecutionLogs {
-                events: value.full_result.events,
-                user_l2_to_l1_logs: value.full_result.l2_to_l1_logs,
-                system_l2_to_l1_logs: vec![],
-                storage_logs: value.full_result.storage_log_queries,
-                total_log_queries_count: value.full_result.total_log_queries,
-            },
+            logs: value.block_tip_result.logs.clone(),
             statistics: VmExecutionStatistics {
                 contracts_used: value.full_result.contracts_used,
                 cycles_used: value.full_result.cycles_used,

@@ -81,8 +81,8 @@ pub fn read_contract_abi(path: impl AsRef<Path>) -> String {
         .to_string()
 }
 
-pub fn governance_contract() -> Option<Contract> {
-    load_contract_if_present(GOVERNANCE_CONTRACT_FILE)
+pub fn governance_contract() -> Contract {
+    load_contract_if_present(GOVERNANCE_CONTRACT_FILE).expect("Governance contract not found")
 }
 
 pub fn zksync_contract() -> Contract {

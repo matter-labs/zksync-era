@@ -24,7 +24,7 @@ use zksync_utils::{
     misc::ceil_div,
 };
 
-use crate::interface::types::legacy_types::VmExecutionLogs;
+use crate::interface::types::outputs::VmExecutionLogs;
 use crate::vm_m6::storage::Storage;
 use crate::vm_m6::{
     bootloader_state::BootloaderState,

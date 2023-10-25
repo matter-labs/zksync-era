@@ -542,11 +542,7 @@ pub async fn initialize_components(
             .build()
             .await
             .context("failed to build eth_watch_pool")?;
-        let governance = contracts_config.governance_addr.map(|addr| {
-            let contract = governance_contract()
-                .expect("Governance contract must be present if governance_addr is set in config");
-            (contract, addr)
-        });
+        let governance = (governance_contract(), contracts_config.governance_addr);
         task_futures.push(
             start_eth_watch(
                 eth_watch_pool,

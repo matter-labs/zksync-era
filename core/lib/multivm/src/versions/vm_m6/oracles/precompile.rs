@@ -3,7 +3,7 @@ use zk_evm_1_3_1::{
     abstractions::PrecompileCyclesWitness,
     abstractions::PrecompilesProcessor,
     aux_structures::{LogQuery, MemoryQuery, Timestamp},
-    zk_evm_abstractions::precompiles::DefaultPrecompilesProcessor,
+    precompiles::DefaultPrecompilesProcessor,
 };
 
 use crate::vm_m6::history_recorder::{HistoryEnabled, HistoryMode, HistoryRecorder};

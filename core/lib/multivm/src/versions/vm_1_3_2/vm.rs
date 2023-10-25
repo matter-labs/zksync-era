@@ -15,7 +15,7 @@ use zksync_types::tx::tx_execution_info::TxExecutionStatus;
 use zksync_types::vm_trace::{Call, VmExecutionTrace, VmTrace};
 use zksync_types::{L1BatchNumber, StorageLogQuery, VmEvent, U256};
 
-use crate::interface::types::legacy_types::VmExecutionLogs;
+use crate::interface::types::outputs::VmExecutionLogs;
 use crate::vm_1_3_2::bootloader_state::BootloaderState;
 use crate::vm_1_3_2::errors::{TxRevertReason, VmRevertReason, VmRevertReasonParsingResult};
 use crate::vm_1_3_2::event_sink::InMemoryEventSink;
@@ -428,10 +428,11 @@ impl<H: HistoryMode, S: WriteStorage> VmInstance<S, H> {
         VmExecutionLogs {
             storage_logs,
             events,
-            l2_to_l1_logs,
+            user_l2_to_l1_logs: l2_to_l1_logs,
             total_log_queries_count: storage_logs_count
                 + log_queries.len()
                 + precompile_calls_count,
+            system_l2_to_l1_logs: vec![],
         }
     }
 

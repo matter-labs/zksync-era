@@ -100,9 +100,11 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
             events,
             storage_log_queries: self.state.storage.get_final_log_queries(),
             used_contract_hashes: self.get_used_contracts(),
+            system_logs: vec![],
             user_l2_to_l1_logs: l2_to_l1_logs,
             total_log_queries,
             cycles_used: self.state.local_state.monotonic_cycle_counter,
+            deduplicated_events_logs: vec![],
             storage_refunds: self.state.storage.returned_refunds.inner().clone(),
         }
     }
