@@ -2,7 +2,7 @@
 
 use anyhow::{anyhow, Context as _};
 use prometheus_exporter::PrometheusExporterConfig;
-//use std::time::Instant;
+use std::time::Instant;
 use structopt::StructOpt;
 use tokio::sync::watch;
 use zksync_config::configs::{FriWitnessGeneratorConfig, PrometheusConfig};
@@ -71,7 +71,7 @@ async fn main() -> anyhow::Result<()> {
     }
 
     let opt = Opt::from_args();
-    //let started_at = Instant::now();
+    let started_at = Instant::now();
     let use_push_gateway = opt.batch_size.is_some();
 
     let store_factory =
@@ -96,13 +96,6 @@ async fn main() -> anyhow::Result<()> {
         .fri_protocol_versions_dal()
         .protocol_version_for(&vk_commitments)
         .await;
-
-    /*tracing::info!(
-        "initializing the {:?} witness generator, batch size: {:?} with protocol_versions: {:?}",
-        opt.round,
-        opt.batch_size,
-        protocol_versions
-    );*/
 
     // If batch_size is none, it means that the job is 'looping forever' (this is the usual setup in local network).
     // At the same time, we're reading the protocol_version only once at startup - so if there is no protocol version
@@ -133,6 +126,13 @@ async fn main() -> anyhow::Result<()> {
     let mut tasks = Vec::new();
 
     for (i, round) in rounds.iter().enumerate() {
+        tracing::info!(
+            "initializing the {:?} witness generator, batch size: {:?} with protocol_versions: {:?}",
+            round,
+            opt.batch_size,
+            &protocol_versions
+        );
+
         let prometheus_config = if use_push_gateway {
             PrometheusExporterConfig::push(
                 prometheus_config.gateway_endpoint(),
@@ -200,20 +200,19 @@ async fn main() -> anyhow::Result<()> {
 
         tasks.push(tokio::spawn(prometheus_task));
         tasks.push(tokio::spawn(witness_generator_task));
-    }
-        /*
-    tracing::info!(
-        "initialized {:?} witness generator in {:?}",
-        opt.round,
-        started_at.elapsed()
-    );
-    metrics::gauge!(
-        "server.init.latency",
-        started_at.elapsed(),
-        "stage" => format!("fri_witness_generator_{:?}", opt.round)
-    );
-    */
 
+        tracing::info!(
+            "initialized {:?} witness generator in {:?}",
+            round,
+            started_at.elapsed()
+        );
+        metrics::gauge!(
+            "server.init.latency",
+            started_at.elapsed(),
+            "stage" => format!("fri_witness_generator_{:?}", round)
+        );
+    }
+        
     let mut stop_signal_receiver = get_stop_signal_receiver();
     let graceful_shutdown = None::<futures::future::Ready<()>>;
     let tasks_allowed_to_finish = true;
