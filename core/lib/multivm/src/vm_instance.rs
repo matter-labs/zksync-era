@@ -2,7 +2,9 @@ use crate::interface::{
     FinishedL1Batch, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode, VmInterface,
     VmInterfaceHistoryEnabled, VmMemoryMetrics,
 };
+use std::cell::RefCell;
 use std::collections::HashSet;
+use std::rc::Rc;
 
 use zksync_state::{ReadStorage, StorageView};
 use zksync_utils::bytecode::{hash_bytecode, CompressedBytecodeInfo};
@@ -185,18 +187,22 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
     }
 
     /// Execute next transaction with custom tracers
-    pub fn inspect_next_transaction<T: MultivmTracer<StorageView<S>, H>>(
+    pub fn inspect_next_transaction<T: MultivmTracer<StorageView<S>, H> + 'static>(
         &mut self,
         tracer: T,
     ) -> crate::interface::VmExecutionResultAndLogs {
         match &mut self.vm {
             VmInstanceVersion::VmVirtualBlocks(vm) => {
-                todo!()
-                // vm.inspect(tracer, VmExecutionMode::OneTx)
+                let dispatcher = crate::vm_virtual_blocks::TracerDispatcher {
+                    tracers: vec![Rc::new(RefCell::new(tracer))],
+                };
+                vm.inspect(dispatcher, VmExecutionMode::OneTx)
             }
             VmInstanceVersion::VmVirtualBlocksRefundsEnhancement(vm) => {
-                todo!()
-                // vm.inspect(tracer, VmExecutionMode::OneTx)
+                let dispatcher = crate::vm_latest::TracerDispatcher {
+                    tracers: vec![Rc::new(RefCell::new(tracer))],
+                };
+                vm.inspect(dispatcher, VmExecutionMode::OneTx)
             }
             _ => self.execute_next_transaction(),
         }

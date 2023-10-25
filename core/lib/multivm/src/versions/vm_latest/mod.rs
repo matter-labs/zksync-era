@@ -6,6 +6,7 @@ pub use old_vm::{
 pub use oracles::storage::StorageOracle;
 
 pub use tracers::{
+    dispatcher::TracerDispatcher,
     traits::{BoxedTracer, VmTracer},
     ValidationError, ValidationTracer, ValidationTracerParams,
 };
