@@ -106,7 +106,7 @@ In this article, we covered the 'life of a call' from the RPC to the inner worki
 'out-of-circuit' VM with the bootloader.
 
 [namespaces_rpc_api]:
-  https://github.com/matter-labs/zksync-era/blob/edd48fc37bdd58f9f9d85e27d684c01ef2cac8ae/core/bin/zksync_core/src/api_server/web3/backend_jsonrpc/namespaces/eth.rs 
+  https://github.com/matter-labs/zksync-era/blob/edd48fc37bdd58f9f9d85e27d684c01ef2cac8ae/core/bin/zksync_core/src/api_server/web3/backend_jsonrpc/namespaces/eth.rs
   'namespaces RPC api'
 [namespaces_rpc_impl]:
   https://github.com/matter-labs/zksync-2-dev/blob/edd48fc37bdd58f9f9d85e27d684c01ef2cac8ae/core/bin/zksync_core/src/api_server/web3/namespaces/eth.rs#L94
