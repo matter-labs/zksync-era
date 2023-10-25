@@ -2,7 +2,7 @@
 
 ## Supported operating systems
 
-zkSync currently can be launched on any \*nix operating system (e.g. any linux distribution or MacOS).
+zkSync currently can be launched on any \*nix operating system (e.g. any Linux distribution or MacOS).
 
 If you're using Windows, then make sure to use WSL 2, since WSL 1 is known to cause troubles.
 
@@ -20,7 +20,7 @@ If you are a NixOS user or would like to have a reproducible environment, skip t
 Install `docker`. It is recommended to follow the instructions from the
 [official site](https://docs.docker.com/install/).
 
-Note: currently official site proposes using Docker Desktop for linux, which is a GUI tool with plenty of quirks. If you
+Note: currently official site proposes using Docker Desktop for Linux, which is a GUI tool with plenty of quirks. If you
 want to only have CLI tool, you need the `docker-ce` package and you can follow
 [this guide](https://www.digitalocean.com/community/tutorials/how-to-install-and-use-docker-on-ubuntu-20-04) for Ubuntu.
 
@@ -30,7 +30,7 @@ You need to install both `docker` and `docker-compose`.
 
 **Note:** `docker-compose` is installed automatically with `Docker Desktop`.
 
-**Note:** On linux you may encounter the following error when you’ll try to work with `zksync`:
+**Note:** On Linux you may encounter the following error when you’ll try to work with `zksync`:
 
 ```
 ERROR: Couldn't connect to Docker daemon - you might need to run `docker-machine start default`.
@@ -63,7 +63,7 @@ If logging out does not help, restarting the computer should.
 2. Install `yarn` (make sure to get version 1.22.19 - you can change the version by running `yarn set version 1.22.19`).
    Instructions can be found on the [official site](https://classic.yarnpkg.com/en/docs/install/).  
    Check if `yarn` is installed by running `yarn -v`. If you face any problems when installing `yarn`, it might be the
-   case that your package manager installed the wrong package.Make sure to thoroughly follow the instructions above on
+   case that your package manager installed the wrong package. Make sure to thoroughly follow the instructions above on
    the official website. It contains a lot of troubleshooting guides in it.
 
 ## `Axel`
@@ -76,7 +76,7 @@ On mac:
 brew install axel
 ```
 
-On debian-based linux:
+On Debian-based Linux:
 
 ```bash
 sudo apt-get install axel
@@ -92,9 +92,9 @@ Make sure the version is higher than `2.17.10`.
 
 ## `clang`
 
-In order to compile RocksDB, you must have LLVM available. On debian-based linux it can be installed as follows:
+In order to compile RocksDB, you must have LLVM available. On Debian-based Linux it can be installed as follows:
 
-On linux:
+On Linux:
 
 ```bash
 sudo apt-get install build-essential pkg-config cmake clang lldb lld
@@ -154,12 +154,12 @@ active toolchain
 ```
 
 If you see `x86_64` mentioned in the output, probably you're running (or used to run) your IDE/terminal in Rosetta. If
-that's the case, you should probably change the way you run terminal, and/or reinstall your IDE, and then reinstall the
+that's the case, you should probably change the way you run the terminal, and/or reinstall your IDE, and then reinstall the
 Rust toolchain as well.
 
 ## Postgres
 
-Install the latest postgres:
+Install the latest Postgres:
 
 On mac:
 
@@ -176,7 +176,7 @@ brew install postgresql@14
 cargo install cargo-nextest
 ```
 
-On linux:
+On Linux:
 
 ```bash
 sudo apt-get install postgresql
@@ -212,7 +212,7 @@ it is likely that it can be adapted to Mac.
 
 Install `nix`. Enable the nix command and flakes.
 
-Install docker, rustup and use rust to install SQLx CLI like described above. If you are on NixOS, you also need to
+Install docker, rustup and use rust to install SQLx CLI as described above. If you are on NixOS, you also need to
 enable nix-ld.
 
 Go to the zksync folder and run `nix develop --impure`. After it finishes, you are in a shell that has all the
@@ -242,8 +242,8 @@ Follow the instructions in the repo in order to install it and enable for Rust.
 
 ## Tip: Speeding up building `RocksDB`
 
-By default, each time you compile `rocksdb` crate, it will compile required C++ sources from scratch. It can be avoided
-by using precompiled versions of library, and it will significantly improve your build times.
+By default, each time you compile `rocksdb` crate, it will compile the required C++ sources from scratch. It can be avoided
+by using precompiled versions of the library, and it will significantly improve your build times.
 
 In order to do so, you can put compiled libraries to some persistent location, and add the following to your shell
 configuration file (e.g. `.zshrc` or `.bashrc`):
