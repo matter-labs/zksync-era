@@ -205,10 +205,10 @@ pub struct ProtocolUpgrade {
     pub tx: Option<ProtocolUpgradeTx>,
 }
 
-impl TryFrom<Call> for ProtocolUpgrade {
+impl TryFrom<Log> for ProtocolUpgrade {
     type Error = crate::ethabi::Error;
 
-    fn try_from(call: Call) -> Result<Self, Self::Error> {
+    fn try_from(event: Log) -> Result<Self, Self::Error> {
         let facet_cut_param_type = ParamType::Tuple(vec![
             ParamType::Address,
             ParamType::Uint(8),
@@ -220,7 +220,10 @@ impl TryFrom<Call> for ProtocolUpgrade {
             ParamType::Address,
             ParamType::Bytes,
         ]);
-        let mut decoded = decode(&[diamond_cut_data_param_type], &call.data[4..])?;
+        let mut decoded = decode(
+            &[diamond_cut_data_param_type, ParamType::FixedBytes(32)],
+            &event.data.0,
+        )?;
 
         let init_calldata = match decoded.remove(0) {
             Token::Tuple(tokens) => tokens[2].clone().into_bytes().unwrap(),
@@ -341,6 +344,14 @@ impl TryFrom<Call> for ProtocolUpgrade {
                 let reserved_dynamic = transaction.remove(0).into_bytes().unwrap();
                 assert_eq!(reserved_dynamic.len(), 0);
 
+                let eth_hash = event
+                    .transaction_hash
+                    .expect("Event transaction hash is missing");
+                let eth_block = event
+                    .block_number
+                    .expect("Event block number is missing")
+                    .as_u64();
+
                 let common_data = ProtocolUpgradeTxCommonData {
                     canonical_tx_hash,
                     sender,
@@ -350,8 +361,8 @@ impl TryFrom<Call> for ProtocolUpgrade {
                     gas_limit,
                     max_fee_per_gas,
                     gas_per_pubdata_limit,
-                    eth_hash: call.eth_hash,
-                    eth_block: call.eth_block,
+                    eth_hash,
+                    eth_block,
                 };
 
                 let factory_deps = factory_deps
@@ -422,6 +433,38 @@ impl TryFrom<Call> for ProtocolUpgrade {
             timestamp: timestamp.as_u64(),
             tx,
         })
+    }
+}
+
+impl TryFrom<Call> for ProtocolUpgrade {
+    type Error = crate::ethabi::Error;
+
+    fn try_from(call: Call) -> Result<Self, Self::Error> {
+        // Reuses `ProtocolUpgrade::try_from`.
+        // `ProtocolUpgrade::try_from` only uses 3 log fields: `data`, `block_number`, `transaction_hash`. Others can be filled with dummy values.
+        // We build data as `call.data` without first 4 bytes which are for selector
+        // and append it with `bytes32(0)` for compatibility with old event data.
+        let data = call
+            .data
+            .into_iter()
+            .skip(4)
+            .chain(encode(&[Token::FixedBytes(H256::zero().0.to_vec())]))
+            .collect::<Vec<u8>>()
+            .into();
+        let log = Log {
+            address: Default::default(),
+            topics: Default::default(),
+            data,
+            block_hash: Default::default(),
+            block_number: Some(call.eth_block.into()),
+            transaction_hash: Some(call.eth_hash),
+            transaction_index: Default::default(),
+            log_index: Default::default(),
+            transaction_log_index: Default::default(),
+            log_type: Default::default(),
+            removed: Default::default(),
+        };
+        ProtocolUpgrade::try_from(log)
     }
 }
 
