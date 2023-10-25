@@ -1,0 +1,35 @@
+#cloud-config
+users:
+- name: root
+  gecos: root user
+  shell: /bin/bash
+  groups: users,admin,wheel
+  sudo: ALL=(ALL) NOPASSWD:ALL
+  ssh_authorized_keys:
+      - ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQDJbpjhYB2/wlBUl9eoULOVYNVcOYHSw8QhADHn2p72v1VMW4shNhjVmoCg7+mWN/LfR+f+RcqXFRX9l4G3CH38xOgRtBmQ6dNBXrEHzdrDP7BY/Bdscmjkqa2XPNgxJeY7kPcSSEkNqU1E+0END+3m27NoltL8J+zZyVwOWH2vJeEYiaWYn4A5uYf0c1dyjXuYv/8rxgt/tuVYbhho+M0T94l+KyoVRkAIOq5kkDR983I9oN3/g1FBedn4eay1+rVhztpFIBLplppea9/B7q7O1SW4TidxFO57rgNU673swM1O8fQ0aLQ4293SJlpZK7IoBiKZc2iwsDn4y23nrgnFkwNr5PSVoXh4tQJZTZ6l3HJvPguu4bFwnAsXJGiQWoVwf+SPx2VaaDPfEXk2Lw011QT8bu27Uh6JB7cLvtqpO+lKsHWzGSFV1Md0LiXui0zziOxEs+b+K7/EOV0M5YNhj2KDNNSp5nO+utQB9rWqZ8+68DLotwq4s4Z7gyyJ6hbvcCqUD7Y8SKJoh656oCw54kQELb9OqFRssKJlhpmKYoEsH3Ij8p0yezetl/LN6jdQmbig1mQMXQnBGCYXtyyZrllB9hEMeiyeKzJJURr3x5qajEsP8VUM/6Or/H7VwhPttp+vbkRoOkwxvQf75OA6H6V9NEPVpOtOPX76oi7Xgw== amigoigna@gmail.com
+package_update: true
+package_upgrade: true
+packages:
+  - git
+  - awscli
+  - vim
+  - python3-boto 
+  - python3-pip
+  - python3-dev
+  - librsync-dev
+  - gettext
+  - build-essential
+  - zip
+  - unzip
+  - ansible
+
+runcmd:
+  # Install docker
+  - curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+  - chmod a+r /etc/apt/keyrings/docker.gpg
+  - echo "deb [arch="$(dpkg --print-architecture)" signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian "$(. /etc/os-release && echo "$VERSION_CODENAME")" stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+  - apt-get update -y
+  - apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+  - echo "deb http://security.debian.org/debian-security buster/updates main" > /etc/apt/sources.list.d/libssl1.list
+  - apt-get update -y
+  - apt-get install -y libssl1.1
