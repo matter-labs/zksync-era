@@ -144,11 +144,6 @@ impl ReorgDetector {
         loop {
             let should_stop = *self.should_stop.borrow();
 
-            if should_stop {
-                tracing::info!("Shutting down reorg detector");
-                return Ok(None);
-            }
-
             let sealed_l1_batch_number = self
                 .pool
                 .access_storage()
@@ -189,7 +184,6 @@ impl ReorgDetector {
                     .set(sealed_l1_batch_number.0.into());
                 EN_METRICS.last_correct_miniblock[&CheckerComponent::ReorgDetector]
                     .set(sealed_miniblock_number.0.into());
-                tokio::time::sleep(SLEEP_INTERVAL).await;
             } else {
                 if !root_hashes_match {
                     tracing::warn!(
@@ -210,6 +204,11 @@ impl ReorgDetector {
                 );
                 return Ok(Some(last_correct_l1_batch));
             }
+            if should_stop {
+                tracing::info!("Shutting down reorg detector");
+                return Ok(None);
+            }
+            tokio::time::sleep(SLEEP_INTERVAL).await;
         }
     }
 }
