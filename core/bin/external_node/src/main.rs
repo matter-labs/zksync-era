@@ -430,11 +430,11 @@ async fn main() -> anyhow::Result<()> {
 
     if reorg_detector_handle.is_terminated() {
         if let Ok(Some(last_correct_batch)) = reorg_detector_handle.await {
-            reord_detector_last_correct_batch = Some(last_correct_batch);
+            reorg_detector_last_correct_batch = Some(last_correct_batch);
         }
     }
 
-    if let Some(last_correct_batch) = reord_detector_last_correct_batch {
+    if let Some(last_correct_batch) = reorg_detector_last_correct_batch {
         tracing::info!("Performing rollback to block {}", last_correct_batch);
         let reverter = BlockReverter::new(
             config.required.state_cache_path,
