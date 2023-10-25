@@ -10,7 +10,5 @@
     "preserveSymlinks": true,
     "preserveWatchOutput": true
   },
-  "files": [
-    "src/index.ts"
-  ]
+  "files": ["src/index.ts"]
 }

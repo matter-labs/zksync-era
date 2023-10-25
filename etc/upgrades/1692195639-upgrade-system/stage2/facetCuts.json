@@ -1,25 +1,13 @@
 [
   {
     "facet": "0x0000000000000000000000000000000000000000",
-    "selectors": [
-      "0x0c4dd810",
-      "0xce9dcf16",
-      "0x7739cbe7",
-      "0xa9a2d18a"
-    ],
+    "selectors": ["0x0c4dd810", "0xce9dcf16", "0x7739cbe7", "0xa9a2d18a"],
     "action": 2,
     "isFreezable": false
   },
   {
     "facet": "0x0000000000000000000000000000000000000000",
-    "selectors": [
-      "0x6c0960f9",
-      "0xb473318e",
-      "0x042901c7",
-      "0x263b7f8e",
-      "0xe4948f43",
-      "0xeb672419"
-    ],
+    "selectors": ["0x6c0960f9", "0xb473318e", "0x042901c7", "0x263b7f8e", "0xe4948f43", "0xeb672419"],
     "action": 2,
     "isFreezable": false
   },
@@ -153,37 +141,19 @@
   },
   {
     "facet": "0x5349E94435Cc9Cab9FfB40A492DA46935052733A",
-    "selectors": [
-      "0x6c0960f9",
-      "0xb473318e",
-      "0x042901c7",
-      "0x263b7f8e",
-      "0xe4948f43",
-      "0xeb672419"
-    ],
+    "selectors": ["0x6c0960f9", "0xb473318e", "0x042901c7", "0x263b7f8e", "0xe4948f43", "0xeb672419"],
     "action": 0,
     "isFreezable": true
   },
   {
     "facet": "0xB54f822966FD4940b6fb465AC67075e5119094C3",
-    "selectors": [
-      "0x0c4dd810",
-      "0xce9dcf16",
-      "0x7739cbe7",
-      "0xa9a2d18a"
-    ],
+    "selectors": ["0x0c4dd810", "0xce9dcf16", "0x7739cbe7", "0xa9a2d18a"],
     "action": 0,
     "isFreezable": true
   },
   {
     "facet": "0x2E64926BE35412f7710A3E097Ba076740bF97CC0",
-    "selectors": [
-      "0xe58bb639",
-      "0xf235757f",
-      "0x1cc5d103",
-      "0xbe6f11cf",
-      "0x4623c91d"
-    ],
+    "selectors": ["0xe58bb639", "0xf235757f", "0x1cc5d103", "0xbe6f11cf", "0x4623c91d"],
     "action": 0,
     "isFreezable": true
   }
