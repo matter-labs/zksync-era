@@ -269,7 +269,7 @@ jobs:
         run: |
           ci_run pkill zksync_server || true
           ci_run sleep 2
-          ci_run echo "ZKSYNC_ENV $ZKSYNC_ENV"
+          ci_run zk env
           ci_run zk test i revert
           # Check that the rollback was performed on the EN
           ci_run grep -q 'Rollback successfully completed' ext-node.log
