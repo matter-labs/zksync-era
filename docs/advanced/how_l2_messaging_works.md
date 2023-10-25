@@ -190,7 +190,7 @@ transmitted to L1 for final verification.
   https://github.com/matter-labs/era-system-contracts/blob/e96dfe0b5093fa95c2fb340c0411c646327db921/contracts/libraries/SystemContractsCaller.sol#L12
 [opcode_catch_compiler]: https://github.com/matter-labs/era-compiler-llvm-context/blob/main/src/evm/call.rs#L39
 [iterate_over_events]:
-  https://github.com/matter-labs/zksync-2-dev/blob/43d7bd587a84b1b4489f4c6a4169ccb90e0df467/core/lib/types/src/event.rs#L147
+  https://github.com/matter-labs/zksync-era/blob/43d7bd587a84b1b4489f4c6a4169ccb90e0df467/core/lib/types/src/event.rs#L147
 [vm_execution_result]:
   https://github.com/matter-labs/zksync-2-dev/blob/43d7bd587a84b1b4489f4c6a4169ccb90e0df467/core/lib/vm/src/vm.rs#L81
 [log_queries]:
