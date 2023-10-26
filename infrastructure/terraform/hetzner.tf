@@ -20,7 +20,7 @@ resource "hcloud_server" "web" {
   count         = var.instances
   name          = "zksync-${count.index}"
   image         = "debian-12"
-  server_type   = "ccx23"
+  server_type   = "cx11"
   location      = var.location
   #ssh_keys    	= ["bastion_key"] TODO: Restore
   firewall_ids	= [hcloud_firewall.webservers_fw.id]
@@ -37,7 +37,7 @@ resource "hcloud_server" "web" {
 resource "hcloud_server" "bastion" {
   name         = "zksync-bastion"
   image        = "debian-12"
-  server_type  = "cpx21"
+  server_type  = "cx11"
   location     = var.location
   #ssh_keys     = ["zksync_ssh"] TODO: Restore
   firewall_ids = [hcloud_firewall.bastion_fw.id]
@@ -99,7 +99,7 @@ resource "hcloud_network_subnet" "private_subnet" {
 resource "hcloud_server_network" "webservers_network" {
   count      = var.instances
   server_id  = hcloud_server.web[count.index].id
-  ip		 = "10.0.1.${count.index + var.instances}" # 10.0.1.[0-2]
+  ip		 = "10.0.1.${count.index + var.instances + 2}" # 10.0.1.[0-2]
   subnet_id  = hcloud_network_subnet.private_subnet.id
 }
 

@@ -7,7 +7,7 @@ terraform {
   }
   backend "s3" {
     bucket = "terraform-lambdaclass"
-    key = "zksync-era/terraform.tfstate" # TODO: this should be a variable probably
+    key = "zksync/terraform.tfstate" # TODO: this should be a variable probably
     region = "us-west-2"
   }
 }
