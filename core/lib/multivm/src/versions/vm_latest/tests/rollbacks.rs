@@ -14,7 +14,9 @@ use crate::vm_latest::tests::tester::{
 };
 use crate::vm_latest::tests::utils::read_test_contract;
 use crate::vm_latest::types::internals::ZkSyncVmState;
-use crate::vm_latest::{BootloaderState, HistoryEnabled, HistoryMode, SimpleMemory, VmTracer};
+use crate::vm_latest::{
+    BootloaderState, HistoryEnabled, HistoryMode, SimpleMemory, ToTracerPointer, VmTracer,
+};
 
 #[test]
 fn test_vm_rollbacks() {
@@ -225,7 +227,7 @@ fn test_layered_rollback() {
         MaxRecursionTracer {
             max_recursion_depth: 15,
         }
-        .to_rc_ptr()
+        .into_tracer_pointer()
         .into(),
         VmExecutionMode::OneTx,
     );

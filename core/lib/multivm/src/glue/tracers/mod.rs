@@ -36,8 +36,6 @@
 //! - Add this trait as a trait bound to the `MultivmTracer`.
 //! - Add this trait as a trait bound for `T` in `MultivmTracer` implementation.
 //! - Integrate the newly added method to the MultiVM itself (e.g. add required tracer conversions where applicable).
-// mod implementation;
-
 use crate::HistoryMode;
 use std::cell::RefCell;
 use std::rc::Rc;

@@ -12,7 +12,6 @@ use crate::vm_virtual_blocks::types::internals::ZkSyncVmState;
 
 pub type TracerPointer<S, H> = Rc<RefCell<dyn VmTracer<S, H>>>;
 /// Run tracer for collecting data during the vm execution cycles
-#[auto_impl::auto_impl(&mut, Box)]
 pub trait ExecutionProcessing<S: WriteStorage, H: HistoryMode>:
     DynTracer<S, SimpleMemory<H>> + ExecutionEndTracer<H>
 {
@@ -34,7 +33,6 @@ pub trait ExecutionProcessing<S: WriteStorage, H: HistoryMode>:
 }
 
 /// Stop the vm execution if the tracer conditions are met
-#[auto_impl::auto_impl(&mut, Box)]
 pub trait ExecutionEndTracer<H: HistoryMode> {
     // Returns whether the vm execution should stop.
     fn should_stop_execution(&self) -> bool {
@@ -43,7 +41,6 @@ pub trait ExecutionEndTracer<H: HistoryMode> {
 }
 
 /// Save the results of the vm execution.
-#[auto_impl::auto_impl(&mut, Box)]
 pub trait VmTracer<S: WriteStorage, H: HistoryMode>:
     DynTracer<S, SimpleMemory<H>> + ExecutionEndTracer<H> + ExecutionProcessing<S, H>
 {
@@ -51,7 +48,7 @@ pub trait VmTracer<S: WriteStorage, H: HistoryMode>:
 }
 
 pub trait ToTracerPointer<S, H> {
-    fn into_tracer_pointer(self) -> Rc<RefCell<dyn VmTracer<S, H>>>;
+    fn into_tracer_pointer(self) -> TracerPointer<S, H>;
 }
 
 impl<S: WriteStorage, H: HistoryMode, T: VmTracer<S, H> + 'static> ToTracerPointer<S, H> for T {

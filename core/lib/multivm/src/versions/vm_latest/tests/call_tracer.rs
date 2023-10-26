@@ -3,7 +3,7 @@ use crate::tracers::CallTracer;
 use crate::vm_latest::constants::BLOCK_GAS_LIMIT;
 use crate::vm_latest::tests::tester::VmTesterBuilder;
 use crate::vm_latest::tests::utils::{read_max_depth_contract, read_test_contract};
-use crate::vm_latest::{HistoryEnabled, VmTracer};
+use crate::vm_latest::{HistoryEnabled, ToTracerPointer};
 use once_cell::sync::OnceCell;
 use std::sync::Arc;
 use zksync_types::{Address, Execute};
@@ -35,7 +35,7 @@ fn test_max_depth() {
     );
 
     let result = Arc::new(OnceCell::new());
-    let call_tracer = CallTracer::new(result.clone()).to_rc_ptr();
+    let call_tracer = CallTracer::new(result.clone()).into_tracer_pointer();
     vm.vm.push_transaction(tx);
     let res = vm.vm.inspect(call_tracer.into(), VmExecutionMode::OneTx);
     assert!(result.get().is_some());
@@ -70,7 +70,7 @@ fn test_basic_behavior() {
     );
 
     let result = Arc::new(OnceCell::new());
-    let call_tracer = CallTracer::new(result.clone()).to_rc_ptr();
+    let call_tracer = CallTracer::new(result.clone()).into_tracer_pointer();
     vm.vm.push_transaction(tx);
     let res = vm.vm.inspect(call_tracer.into(), VmExecutionMode::OneTx);
 

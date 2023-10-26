@@ -1,6 +1,8 @@
+use std::marker::PhantomData;
 use zksync_contracts::BaseSystemContracts;
 use zksync_state::{InMemoryStorage, StoragePtr, StorageView, WriteStorage};
 
+use crate::HistoryMode;
 use zksync_types::block::legacy_miniblock_hash;
 use zksync_types::helpers::unix_timestamp_ms;
 use zksync_types::utils::{deployed_address_create, storage_key_for_eth_balance};
@@ -13,13 +15,13 @@ use zksync_utils::u256_to_h256;
 
 use crate::vm_virtual_blocks::constants::BLOCK_GAS_LIMIT;
 
-use crate::interface::TxExecutionMode;
 use crate::interface::{L1BatchEnv, L2Block, L2BlockEnv, SystemEnv, VmExecutionMode};
+use crate::interface::{TxExecutionMode, VmInterface};
 use crate::vm_virtual_blocks::tests::tester::Account;
 use crate::vm_virtual_blocks::tests::tester::TxType;
 use crate::vm_virtual_blocks::tests::utils::read_test_contract;
 use crate::vm_virtual_blocks::utils::l2_blocks::load_last_l2_block;
-use crate::vm_virtual_blocks::{HistoryMode, Vm};
+use crate::vm_virtual_blocks::Vm;
 
 pub(crate) type InMemoryStorageView = StorageView<InMemoryStorage>;
 
@@ -31,7 +33,7 @@ pub(crate) struct VmTester<H: HistoryMode> {
     pub(crate) test_contract: Option<Address>,
     pub(crate) rich_accounts: Vec<Account>,
     pub(crate) custom_contracts: Vec<ContractsToDeploy>,
-    history_mode: H,
+    _phantom: PhantomData<H>,
 }
 
 impl<H: HistoryMode> VmTester<H> {
@@ -88,12 +90,7 @@ impl<H: HistoryMode> VmTester<H> {
             };
         }
 
-        let vm = Vm::new(
-            l1_batch,
-            self.vm.system_env.clone(),
-            self.storage.clone(),
-            self.history_mode.clone(),
-        );
+        let vm = Vm::new(l1_batch, self.vm.system_env.clone(), self.storage.clone());
 
         if self.test_contract.is_some() {
             self.deploy_test_contract();
@@ -106,7 +103,7 @@ impl<H: HistoryMode> VmTester<H> {
 pub(crate) type ContractsToDeploy = (Vec<u8>, Address, bool);
 
 pub(crate) struct VmTesterBuilder<H: HistoryMode> {
-    history_mode: H,
+    _phantom: PhantomData<H>,
     storage: Option<InMemoryStorage>,
     l1_batch_env: Option<L1BatchEnv>,
     system_env: SystemEnv,
@@ -118,7 +115,7 @@ pub(crate) struct VmTesterBuilder<H: HistoryMode> {
 impl<H: HistoryMode> Clone for VmTesterBuilder<H> {
     fn clone(&self) -> Self {
         Self {
-            history_mode: Default::default(),
+            _phantom: Default::default(),
             storage: None,
             l1_batch_env: self.l1_batch_env.clone(),
             system_env: self.system_env.clone(),
@@ -131,9 +128,9 @@ impl<H: HistoryMode> Clone for VmTesterBuilder<H> {
 
 #[allow(dead_code)]
 impl<H: HistoryMode> VmTesterBuilder<H> {
-    pub(crate) fn new(history_mode: H) -> Self {
+    pub(crate) fn new(_: H) -> Self {
         Self {
-            history_mode,
+            _phantom: Default::default(),
             storage: None,
             l1_batch_env: None,
             system_env: SystemEnv {
@@ -229,12 +226,7 @@ impl<H: HistoryMode> VmTesterBuilder<H> {
         }
         let fee_account = l1_batch_env.fee_account;
 
-        let vm = Vm::new(
-            l1_batch_env,
-            self.system_env,
-            storage_ptr.clone(),
-            self.history_mode.clone(),
-        );
+        let vm = Vm::new(l1_batch_env, self.system_env, storage_ptr.clone());
 
         VmTester {
             vm,
@@ -244,7 +236,7 @@ impl<H: HistoryMode> VmTesterBuilder<H> {
             test_contract: None,
             rich_accounts: self.rich_accounts.clone(),
             custom_contracts: self.custom_contracts.clone(),
-            history_mode: self.history_mode,
+            _phantom: Default::default(),
         }
     }
 }

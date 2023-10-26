@@ -6,7 +6,7 @@ pub use old_vm::{
 
 pub use tracers::{
     dispatcher::TracerDispatcher,
-    traits::{ExecutionEndTracer, ExecutionProcessing, ToTracerPointer, TracerPointer, VmTracer},
+    traits::{ExecutionEndTracer, ExecutionProcessing, TracerPointer, VmTracer},
     utils::VmExecutionStopReason,
 };
 
@@ -27,5 +27,5 @@ mod vm;
 pub mod constants;
 pub mod utils;
 
-// #[cfg(test)]
-// mod tests;
+#[cfg(test)]
+mod tests;
