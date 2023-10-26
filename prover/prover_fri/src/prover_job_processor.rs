@@ -78,6 +78,7 @@ impl Prover {
         &self,
         key: ProverServiceDataKey,
     ) -> anyhow::Result<Arc<GoldilocksProverSetupData>> {
+        let key = get_setup_data_key(key);
         Ok(match &self.setup_load_mode {
             SetupLoadMode::FromMemory(cache) => cache
                 .get(&key)
