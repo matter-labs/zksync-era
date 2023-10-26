@@ -42,6 +42,7 @@ export async function externalNode(reinit: boolean = false) {
     if (reinit) {
         await utils.confirmAction();
         await db.reset();
+        await db.reset_prover();
         clean(path.dirname(process.env.EN_MERKLE_TREE_PATH!));
     }
 
