@@ -3411,8 +3411,6 @@
     },
     "query": "\n                    UPDATE scheduler_witness_jobs\n                        SET final_node_aggregations_blob_url = $2,\n                         status = 'waiting_for_proofs',\n                         updated_at = now()\n                    WHERE l1_batch_number = $1 AND status != 'queued'\n                    "
   },
-<<<<<<< HEAD
-=======
   "42762c079948860eb59ba807eb9ae5a53b94c93e6b5635471d0018dde1d4c9d9": {
     "describe": {
       "columns": [
@@ -3439,241 +3437,6 @@
     },
     "query": "SELECT l1_batch_number, merkel_tree_paths_blob_url FROM witness_inputs WHERE status = 'successful' AND merkel_tree_paths_blob_url is NOT NULL AND updated_at < NOW() - INTERVAL '30 days' LIMIT $1"
   },
-  "430ffa460ea553cb46c25ebaf1442229cc94f10fd642366e0f827b94f5c0b9f7": {
-    "describe": {
-      "columns": [
-        {
-          "name": "number",
-          "ordinal": 0,
-          "type_info": "Int8"
-        },
-        {
-          "name": "timestamp",
-          "ordinal": 1,
-          "type_info": "Int8"
-        },
-        {
-          "name": "is_finished",
-          "ordinal": 2,
-          "type_info": "Bool"
-        },
-        {
-          "name": "l1_tx_count",
-          "ordinal": 3,
-          "type_info": "Int4"
-        },
-        {
-          "name": "l2_tx_count",
-          "ordinal": 4,
-          "type_info": "Int4"
-        },
-        {
-          "name": "fee_account_address",
-          "ordinal": 5,
-          "type_info": "Bytea"
-        },
-        {
-          "name": "bloom",
-          "ordinal": 6,
-          "type_info": "Bytea"
-        },
-        {
-          "name": "priority_ops_onchain_data",
-          "ordinal": 7,
-          "type_info": "ByteaArray"
-        },
-        {
-          "name": "hash",
-          "ordinal": 8,
-          "type_info": "Bytea"
-        },
-        {
-          "name": "parent_hash",
-          "ordinal": 9,
-          "type_info": "Bytea"
-        },
-        {
-          "name": "commitment",
-          "ordinal": 10,
-          "type_info": "Bytea"
-        },
-        {
-          "name": "compressed_write_logs",
-          "ordinal": 11,
-          "type_info": "Bytea"
-        },
-        {
-          "name": "compressed_contracts",
-          "ordinal": 12,
-          "type_info": "Bytea"
-        },
-        {
-          "name": "eth_prove_tx_id",
-          "ordinal": 13,
-          "type_info": "Int4"
-        },
-        {
-          "name": "eth_commit_tx_id",
-          "ordinal": 14,
-          "type_info": "Int4"
-        },
-        {
-          "name": "eth_execute_tx_id",
-          "ordinal": 15,
-          "type_info": "Int4"
-        },
-        {
-          "name": "merkle_root_hash",
-          "ordinal": 16,
-          "type_info": "Bytea"
-        },
-        {
-          "name": "l2_to_l1_logs",
-          "ordinal": 17,
-          "type_info": "ByteaArray"
-        },
-        {
-          "name": "l2_to_l1_messages",
-          "ordinal": 18,
-          "type_info": "ByteaArray"
-        },
-        {
-          "name": "used_contract_hashes",
-          "ordinal": 19,
-          "type_info": "Jsonb"
-        },
-        {
-          "name": "compressed_initial_writes",
-          "ordinal": 20,
-          "type_info": "Bytea"
-        },
-        {
-          "name": "compressed_repeated_writes",
-          "ordinal": 21,
-          "type_info": "Bytea"
-        },
-        {
-          "name": "l2_l1_compressed_messages",
-          "ordinal": 22,
-          "type_info": "Bytea"
-        },
-        {
-          "name": "l2_l1_merkle_root",
-          "ordinal": 23,
-          "type_info": "Bytea"
-        },
-        {
-          "name": "l1_gas_price",
-          "ordinal": 24,
-          "type_info": "Int8"
-        },
-        {
-          "name": "l2_fair_gas_price",
-          "ordinal": 25,
-          "type_info": "Int8"
-        },
-        {
-          "name": "rollup_last_leaf_index",
-          "ordinal": 26,
-          "type_info": "Int8"
-        },
-        {
-          "name": "zkporter_is_available",
-          "ordinal": 27,
-          "type_info": "Bool"
-        },
-        {
-          "name": "bootloader_code_hash",
-          "ordinal": 28,
-          "type_info": "Bytea"
-        },
-        {
-          "name": "default_aa_code_hash",
-          "ordinal": 29,
-          "type_info": "Bytea"
-        },
-        {
-          "name": "base_fee_per_gas",
-          "ordinal": 30,
-          "type_info": "Numeric"
-        },
-        {
-          "name": "aux_data_hash",
-          "ordinal": 31,
-          "type_info": "Bytea"
-        },
-        {
-          "name": "pass_through_data_hash",
-          "ordinal": 32,
-          "type_info": "Bytea"
-        },
-        {
-          "name": "meta_parameters_hash",
-          "ordinal": 33,
-          "type_info": "Bytea"
-        },
-        {
-          "name": "protocol_version",
-          "ordinal": 34,
-          "type_info": "Int4"
-        },
-        {
-          "name": "events_queue_commitment",
-          "ordinal": 35,
-          "type_info": "Bytea"
-        },
-        {
-          "name": "bootloader_initial_content_commitment",
-          "ordinal": 36,
-          "type_info": "Bytea"
-        }
-      ],
-      "nullable": [
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        false,
-        false,
-        false,
-        true,
-        true,
-        true,
-        true,
-        false,
-        false,
-        true,
-        true,
-        true,
-        true,
-        false,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true
-      ],
-      "parameters": {
-        "Left": []
-      }
-    },
-    "query": "SELECT number, timestamp, is_finished, l1_tx_count, l2_tx_count, fee_account_address, bloom, priority_ops_onchain_data, hash, parent_hash, commitment, compressed_write_logs, compressed_contracts, eth_prove_tx_id, eth_commit_tx_id, eth_execute_tx_id, merkle_root_hash, l2_to_l1_logs, l2_to_l1_messages, used_contract_hashes, compressed_initial_writes, compressed_repeated_writes, l2_l1_compressed_messages, l2_l1_merkle_root, l1_gas_price, l2_fair_gas_price, rollup_last_leaf_index, zkporter_is_available, bootloader_code_hash, default_aa_code_hash, base_fee_per_gas, aux_data_hash, pass_through_data_hash, meta_parameters_hash, protocol_version, events_queue_commitment, bootloader_initial_content_commitment FROM l1_batches LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number WHERE number = 0 OR eth_commit_tx_id IS NOT NULL AND commitment IS NOT NULL ORDER BY number DESC LIMIT 1"
-  },
->>>>>>> 5494591 (feat(house_keeper): Remove GCS Blob Cleaner)
   "433d5da4d72150cf2c1e1007ee3ff51edfa51924f4b662b8cf382f06e60fd228": {
     "describe": {
       "columns": [],
@@ -5781,269 +5544,6 @@
       }
     },
     "query": "\n                    INSERT INTO leaf_aggregation_witness_jobs\n                        (l1_batch_number, basic_circuits, basic_circuits_inputs, basic_circuits_blob_url, basic_circuits_inputs_blob_url, number_of_basic_circuits, protocol_version, status, created_at, updated_at)\n                    VALUES ($1, $2, $3, $4, $5, $6, $7, 'waiting_for_proofs', now(), now())\n                    "
-  },
-<<<<<<< HEAD
-  "7acba1f016450b084a5fd97199a757a471f8b8a880a800c29737f1bceae3ff46": {
-    "describe": {
-      "columns": [
-        {
-          "name": "l1_batch_number",
-=======
-  "7b71d5390f82b405eab5373ba05448ed7189338da059817d158d3607efe3efd1": {
-    "describe": {
-      "columns": [
-        {
-          "name": "number",
->>>>>>> 5494591 (feat(house_keeper): Remove GCS Blob Cleaner)
-          "ordinal": 0,
-          "type_info": "Int8"
-        },
-        {
-<<<<<<< HEAD
-          "name": "merkel_tree_paths_blob_url",
-          "ordinal": 1,
-          "type_info": "Text"
-=======
-          "name": "timestamp",
-          "ordinal": 1,
-          "type_info": "Int8"
-        },
-        {
-          "name": "is_finished",
-          "ordinal": 2,
-          "type_info": "Bool"
-        },
-        {
-          "name": "l1_tx_count",
-          "ordinal": 3,
-          "type_info": "Int4"
-        },
-        {
-          "name": "l2_tx_count",
-          "ordinal": 4,
-          "type_info": "Int4"
-        },
-        {
-          "name": "fee_account_address",
-          "ordinal": 5,
-          "type_info": "Bytea"
-        },
-        {
-          "name": "bloom",
-          "ordinal": 6,
-          "type_info": "Bytea"
-        },
-        {
-          "name": "priority_ops_onchain_data",
-          "ordinal": 7,
-          "type_info": "ByteaArray"
-        },
-        {
-          "name": "hash",
-          "ordinal": 8,
-          "type_info": "Bytea"
-        },
-        {
-          "name": "parent_hash",
-          "ordinal": 9,
-          "type_info": "Bytea"
-        },
-        {
-          "name": "commitment",
-          "ordinal": 10,
-          "type_info": "Bytea"
-        },
-        {
-          "name": "compressed_write_logs",
-          "ordinal": 11,
-          "type_info": "Bytea"
-        },
-        {
-          "name": "compressed_contracts",
-          "ordinal": 12,
-          "type_info": "Bytea"
-        },
-        {
-          "name": "eth_prove_tx_id",
-          "ordinal": 13,
-          "type_info": "Int4"
-        },
-        {
-          "name": "eth_commit_tx_id",
-          "ordinal": 14,
-          "type_info": "Int4"
-        },
-        {
-          "name": "eth_execute_tx_id",
-          "ordinal": 15,
-          "type_info": "Int4"
-        },
-        {
-          "name": "merkle_root_hash",
-          "ordinal": 16,
-          "type_info": "Bytea"
-        },
-        {
-          "name": "l2_to_l1_logs",
-          "ordinal": 17,
-          "type_info": "ByteaArray"
-        },
-        {
-          "name": "l2_to_l1_messages",
-          "ordinal": 18,
-          "type_info": "ByteaArray"
-        },
-        {
-          "name": "used_contract_hashes",
-          "ordinal": 19,
-          "type_info": "Jsonb"
-        },
-        {
-          "name": "compressed_initial_writes",
-          "ordinal": 20,
-          "type_info": "Bytea"
-        },
-        {
-          "name": "compressed_repeated_writes",
-          "ordinal": 21,
-          "type_info": "Bytea"
-        },
-        {
-          "name": "l2_l1_compressed_messages",
-          "ordinal": 22,
-          "type_info": "Bytea"
-        },
-        {
-          "name": "l2_l1_merkle_root",
-          "ordinal": 23,
-          "type_info": "Bytea"
-        },
-        {
-          "name": "l1_gas_price",
-          "ordinal": 24,
-          "type_info": "Int8"
-        },
-        {
-          "name": "l2_fair_gas_price",
-          "ordinal": 25,
-          "type_info": "Int8"
-        },
-        {
-          "name": "rollup_last_leaf_index",
-          "ordinal": 26,
-          "type_info": "Int8"
-        },
-        {
-          "name": "zkporter_is_available",
-          "ordinal": 27,
-          "type_info": "Bool"
-        },
-        {
-          "name": "bootloader_code_hash",
-          "ordinal": 28,
-          "type_info": "Bytea"
-        },
-        {
-          "name": "default_aa_code_hash",
-          "ordinal": 29,
-          "type_info": "Bytea"
-        },
-        {
-          "name": "base_fee_per_gas",
-          "ordinal": 30,
-          "type_info": "Numeric"
-        },
-        {
-          "name": "aux_data_hash",
-          "ordinal": 31,
-          "type_info": "Bytea"
-        },
-        {
-          "name": "pass_through_data_hash",
-          "ordinal": 32,
-          "type_info": "Bytea"
-        },
-        {
-          "name": "meta_parameters_hash",
-          "ordinal": 33,
-          "type_info": "Bytea"
-        },
-        {
-          "name": "protocol_version",
-          "ordinal": 34,
-          "type_info": "Int4"
-        },
-        {
-          "name": "events_queue_commitment",
-          "ordinal": 35,
-          "type_info": "Bytea"
-        },
-        {
-          "name": "bootloader_initial_content_commitment",
-          "ordinal": 36,
-          "type_info": "Bytea"
->>>>>>> 5494591 (feat(house_keeper): Remove GCS Blob Cleaner)
-        }
-      ],
-      "nullable": [
-        false,
-<<<<<<< HEAD
-=======
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        false,
-        false,
-        false,
-        true,
-        true,
-        true,
-        true,
-        false,
-        false,
-        true,
-        true,
-        true,
-        true,
-        false,
-        true,
-        true,
-        true,
-        true,
-        true,
->>>>>>> 5494591 (feat(house_keeper): Remove GCS Blob Cleaner)
-        true
-      ],
-      "parameters": {
-        "Left": [
-<<<<<<< HEAD
-=======
-          "Bytea",
-          "Bytea",
-          "Int4",
->>>>>>> 5494591 (feat(house_keeper): Remove GCS Blob Cleaner)
-          "Int8"
-        ]
-      }
-    },
-<<<<<<< HEAD
-    "query": "SELECT l1_batch_number, merkel_tree_paths_blob_url FROM witness_inputs WHERE status = 'successful' AND is_blob_cleaned = FALSE AND merkel_tree_paths_blob_url is NOT NULL AND updated_at < NOW() - INTERVAL '30 days' LIMIT $1"
-=======
-    "query": "SELECT number, l1_batches.timestamp, is_finished, l1_tx_count, l2_tx_count, fee_account_address, bloom, priority_ops_onchain_data, hash, parent_hash, commitment, compressed_write_logs, compressed_contracts, eth_prove_tx_id, eth_commit_tx_id, eth_execute_tx_id, merkle_root_hash, l2_to_l1_logs, l2_to_l1_messages, used_contract_hashes, compressed_initial_writes, compressed_repeated_writes, l2_l1_compressed_messages, l2_l1_merkle_root, l1_gas_price, l2_fair_gas_price, rollup_last_leaf_index, zkporter_is_available, l1_batches.bootloader_code_hash, l1_batches.default_aa_code_hash, base_fee_per_gas, aux_data_hash, pass_through_data_hash, meta_parameters_hash, protocol_version, events_queue_commitment, bootloader_initial_content_commitment FROM l1_batches LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number JOIN protocol_versions ON protocol_versions.id = l1_batches.protocol_version WHERE eth_commit_tx_id IS NULL AND number != 0 AND protocol_versions.bootloader_code_hash = $1 AND protocol_versions.default_account_code_hash = $2 AND commitment IS NOT NULL AND (protocol_versions.id = $3 OR protocol_versions.upgrade_tx_hash IS NULL) ORDER BY number LIMIT $4"
->>>>>>> 5494591 (feat(house_keeper): Remove GCS Blob Cleaner)
   },
   "7b8043a59029a19a3ba2433a438e8a4fe560aba7eda57b7a63b580de2e19aacb": {
     "describe": {
@@ -8555,7 +8055,6 @@
     },
     "query": "\n                UPDATE leaf_aggregation_witness_jobs_fri\n                SET status = 'in_progress', attempts = attempts + 1,\n                    updated_at = now(), processing_started_at = now(),\n                    picked_by = $2\n                WHERE id = (\n                    SELECT id\n                    FROM leaf_aggregation_witness_jobs_fri\n                    WHERE status = 'queued'\n                    AND protocol_version = ANY($1)\n                    ORDER BY l1_batch_number ASC, id ASC\n                    LIMIT 1\n                    FOR UPDATE\n                    SKIP LOCKED\n                )\n                RETURNING leaf_aggregation_witness_jobs_fri.*\n                "
   },
-<<<<<<< HEAD
   "a0aa877e052e63b1c3df6fc4432eeb44f7f3930f624e66b034baa1c5d0f8bb30": {
     "describe": {
       "columns": [],
@@ -8581,7 +8080,7 @@
       }
     },
     "query": "INSERT INTO basic_witness_input_producer_jobs (l1_batch_number, status, created_at, updated_at) VALUES ($1, $2, now(), now()) ON CONFLICT (l1_batch_number) DO NOTHING"
-=======
+  },
   "a0b720f4e9a558cb073725ecb62765c27d1635f3099d1850e7269bce8bf0ab36": {
     "describe": {
       "columns": [
@@ -8613,7 +8112,6 @@
       }
     },
     "query": "\n                    SELECT l1_batch_number, leaf_layer_subqueues_blob_url, aggregation_outputs_blob_url FROM node_aggregation_witness_jobs\n                    WHERE status='successful'\n                    AND leaf_layer_subqueues_blob_url is NOT NULL\n                    AND aggregation_outputs_blob_url is NOT NULL\n                    AND updated_at < NOW() - INTERVAL '30 days'\n                    LIMIT $1;\n                "
->>>>>>> 5494591 (feat(house_keeper): Remove GCS Blob Cleaner)
   },
   "a19b7137403c5cdf1be5f5122ce4d297ed661fa8bdb3bc91f8a81fe9da47469e": {
     "describe": {
@@ -10565,19 +10063,6 @@
     },
     "query": "UPDATE l1_batches SET skip_proof = TRUE WHERE number = $1"
   },
-<<<<<<< HEAD
-  "dba127c0f3023586217bfb214c5d3749e8e7ec3edc0c99cfd970332e31f81cb7": {
-    "describe": {
-      "columns": [
-        {
-          "name": "virtual_blocks",
-          "ordinal": 0,
-          "type_info": "Int8"
-        }
-      ],
-      "nullable": [
-        false
-=======
   "d91a80fdfe140ac71760755a0bb6c29cf4f613dc3fd88df6facd63d7338b8470": {
     "describe": {
       "columns": [
@@ -10601,7 +10086,6 @@
         false,
         true,
         true
->>>>>>> 5494591 (feat(house_keeper): Remove GCS Blob Cleaner)
       ],
       "parameters": {
         "Left": [
@@ -10609,11 +10093,27 @@
         ]
       }
     },
-<<<<<<< HEAD
-    "query": "SELECT virtual_blocks FROM miniblocks WHERE number = $1"
-=======
     "query": "\n                    SELECT l1_batch_number, scheduler_witness_blob_url, final_node_aggregations_blob_url FROM scheduler_witness_jobs\n                    WHERE status='successful'\n                    AND updated_at < NOW() - INTERVAL '30 days'\n                    AND scheduler_witness_blob_url is NOT NULL\n                    AND final_node_aggregations_blob_url is NOT NULL\n                    LIMIT $1;\n                "
->>>>>>> 5494591 (feat(house_keeper): Remove GCS Blob Cleaner)
+  },
+  "dba127c0f3023586217bfb214c5d3749e8e7ec3edc0c99cfd970332e31f81cb7": {
+    "describe": {
+      "columns": [
+        {
+          "name": "virtual_blocks",
+          "ordinal": 0,
+          "type_info": "Int8"
+        }
+      ],
+      "nullable": [
+        false
+      ],
+      "parameters": {
+        "Left": [
+          "Int8"
+        ]
+      }
+    },
+    "query": "SELECT virtual_blocks FROM miniblocks WHERE number = $1"
   },
   "dc16d0fac093a52480b66dfcb5976fb01e6629e8c982c265f2af1d5000090572": {
     "describe": {
@@ -11372,44 +10872,6 @@
       }
     },
     "query": "SELECT timestamp FROM l1_batches WHERE eth_prove_tx_id IS NULL AND number > 0 ORDER BY number LIMIT 1"
-  },
-<<<<<<< HEAD
-  "edc9e374698c57ba9f65f83f0e1945e4785d8b4bc95f46ed4d16c095e5511709": {
-=======
-  "ee5727dc06a7385969e834556b96bbfdf12a5049a1a1c270f203ef3fa0e8cb94": {
->>>>>>> 5494591 (feat(house_keeper): Remove GCS Blob Cleaner)
-    "describe": {
-      "columns": [],
-      "nullable": [],
-      "parameters": {
-        "Left": [
-<<<<<<< HEAD
-          "Int8Array"
-        ]
-      }
-    },
-    "query": "\n                UPDATE leaf_aggregation_witness_jobs\n                SET is_blob_cleaned=TRUE\n                WHERE l1_batch_number = ANY($1);\n            "
-=======
-          "Bytea",
-          "Bytea",
-          "Bytea",
-          "Bytea",
-          "Bytea",
-          "Bytea",
-          "Bytea",
-          "Bytea",
-          "Bool",
-          "Bytea",
-          "Int8",
-          "Bytea",
-          "Bytea",
-          "Bytea",
-          "Int8"
-        ]
-      }
-    },
-    "query": "UPDATE l1_batches SET hash = $1, merkle_root_hash = $2, commitment = $3, default_aa_code_hash = $4, compressed_repeated_writes = $5, compressed_initial_writes = $6, l2_l1_compressed_messages = $7, l2_l1_merkle_root = $8, zkporter_is_available = $9, bootloader_code_hash = $10, rollup_last_leaf_index = $11, aux_data_hash = $12, pass_through_data_hash = $13, meta_parameters_hash = $14, updated_at = now() WHERE number = $15"
->>>>>>> 5494591 (feat(house_keeper): Remove GCS Blob Cleaner)
   },
   "ee74b42d1a6a52784124751dae6c7eca3fd36f5a3bb26de56efc2b810da7033a": {
     "describe": {
