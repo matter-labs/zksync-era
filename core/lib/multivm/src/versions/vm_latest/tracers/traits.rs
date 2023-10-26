@@ -10,7 +10,7 @@ use crate::vm_latest::old_vm::history_recorder::HistoryMode;
 use crate::vm_latest::old_vm::memory::SimpleMemory;
 use crate::vm_latest::types::internals::ZkSyncVmState;
 
-pub type TracerPointer<S, H> = Rc<RefCell<dyn VmTracer<S, H>>>;
+pub type TracerPointer<S, H> = Box<dyn VmTracer<S, H>>;
 
 /// Run tracer for collecting data during the vm execution cycles
 pub trait VmTracer<S: WriteStorage, H: HistoryMode>: DynTracer<S, SimpleMemory<H>> {
@@ -39,7 +39,8 @@ pub trait ToTracerPointer<S, H> {
 }
 
 impl<S: WriteStorage, H: HistoryMode, T: VmTracer<S, H> + 'static> ToTracerPointer<S, H> for T {
-    fn into_tracer_pointer(self) -> Rc<RefCell<dyn VmTracer<S, H>>> {
-        Rc::new(RefCell::new(self))
+    fn into_tracer_pointer(self) -> TracerPointer<S, H> {
+        Box::new(self)
+        // Rc::new(RefCell::new(self))
     }
 }

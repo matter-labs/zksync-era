@@ -52,7 +52,7 @@ pub trait ToTracerPointer<S, H> {
 }
 
 impl<S: WriteStorage, H: HistoryMode, T: VmTracer<S, H> + 'static> ToTracerPointer<S, H> for T {
-    fn into_tracer_pointer(self) -> Rc<RefCell<dyn VmTracer<S, H>>> {
+    fn into_tracer_pointer(self) -> TracerPointer<S, H> {
         Rc::new(RefCell::new(self))
     }
 }

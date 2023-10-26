@@ -1,14 +1,12 @@
 use crate::interface::dyn_tracers::vm_1_3_3::DynTracer;
 use crate::interface::tracer::{TracerExecutionStatus, VmExecutionStopReason};
-use crate::vm_latest::{BootloaderState, HistoryMode, SimpleMemory, VmTracer, ZkSyncVmState};
-use std::cell::RefCell;
-use std::rc::Rc;
+use crate::vm_latest::{
+    BootloaderState, HistoryMode, SimpleMemory, TracerPointer, VmTracer, ZkSyncVmState,
+};
 use zk_evm_1_3_3::tracing::{
     AfterDecodingData, AfterExecutionData, BeforeExecutionData, VmLocalStateData,
 };
 use zksync_state::{StoragePtr, WriteStorage};
-
-pub type TracerPointer<S, H> = Rc<RefCell<dyn VmTracer<S, H>>>;
 
 impl<S: WriteStorage, H: HistoryMode> From<TracerPointer<S, H>> for TracerDispatcher<S, H> {
     fn from(value: TracerPointer<S, H>) -> Self {
@@ -37,8 +35,8 @@ impl<S: WriteStorage, H: HistoryMode> Default for TracerDispatcher<S, H> {
 impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for TracerDispatcher<S, H> {
     #[inline(always)]
     fn before_decoding(&mut self, _state: VmLocalStateData<'_>, _memory: &SimpleMemory<H>) {
-        for tracer in self.tracers.iter() {
-            tracer.borrow_mut().before_decoding(_state, _memory);
+        for tracer in self.tracers.iter_mut() {
+            tracer.before_decoding(_state, _memory);
         }
     }
 
@@ -49,8 +47,8 @@ impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for TracerDi
         _data: AfterDecodingData,
         _memory: &SimpleMemory<H>,
     ) {
-        for tracer in self.tracers.iter() {
-            tracer.borrow_mut().after_decoding(_state, _data, _memory);
+        for tracer in self.tracers.iter_mut() {
+            tracer.after_decoding(_state, _data, _memory);
         }
     }
 
@@ -62,10 +60,8 @@ impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for TracerDi
         _memory: &SimpleMemory<H>,
         _storage: StoragePtr<S>,
     ) {
-        for tracer in self.tracers.iter() {
-            tracer
-                .borrow_mut()
-                .before_execution(_state, _data, _memory, _storage.clone());
+        for tracer in self.tracers.iter_mut() {
+            tracer.before_execution(_state, _data, _memory, _storage.clone());
         }
     }
 
@@ -77,18 +73,16 @@ impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for TracerDi
         _memory: &SimpleMemory<H>,
         _storage: StoragePtr<S>,
     ) {
-        for tracer in self.tracers.iter() {
-            tracer
-                .borrow_mut()
-                .after_execution(_state, _data, _memory, _storage.clone());
+        for tracer in self.tracers.iter_mut() {
+            tracer.after_execution(_state, _data, _memory, _storage.clone());
         }
     }
 }
 
 impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for TracerDispatcher<S, H> {
     fn initialize_tracer(&mut self, _state: &mut ZkSyncVmState<S, H>) {
-        for tracer in self.tracers.iter() {
-            tracer.borrow_mut().initialize_tracer(_state);
+        for tracer in self.tracers.iter_mut() {
+            tracer.initialize_tracer(_state);
         }
     }
     /// Run after each vm execution cycle
@@ -99,8 +93,8 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for TracerDispatcher<S, H> 
         _bootloader_state: &mut BootloaderState,
     ) -> TracerExecutionStatus {
         let mut result = TracerExecutionStatus::Continue;
-        for tracer in self.tracers.iter() {
-            result = result.stricter(&tracer.borrow_mut().finish_cycle(_state, _bootloader_state));
+        for tracer in self.tracers.iter_mut() {
+            result = result.stricter(&tracer.finish_cycle(_state, _bootloader_state));
         }
         result
     }
@@ -111,10 +105,8 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for TracerDispatcher<S, H> 
         _bootloader_state: &BootloaderState,
         _stop_reason: VmExecutionStopReason,
     ) {
-        for tracer in self.tracers.iter() {
-            tracer
-                .borrow_mut()
-                .after_vm_execution(_state, _bootloader_state, _stop_reason.clone());
+        for tracer in self.tracers.iter_mut() {
+            tracer.after_vm_execution(_state, _bootloader_state, _stop_reason.clone());
         }
     }
 }

@@ -53,15 +53,13 @@ pub trait MultivmTracer<S: WriteStorage, H: HistoryMode>:
 }
 
 pub trait IntoLatestTracer<S: WriteStorage, H: HistoryMode> {
-    fn latest(
-        &self,
-    ) -> Rc<RefCell<dyn crate::vm_latest::VmTracer<S, H::VmVirtualBlocksRefundsEnhancement>>>;
+    fn latest(&self) -> crate::vm_latest::TracerPointer<S, H::VmVirtualBlocksRefundsEnhancement>;
 }
 
 pub trait IntoVmVirtualBlocksTracer<S: WriteStorage, H: HistoryMode> {
     fn vm_virtual_blocks(
         &self,
-    ) -> Rc<RefCell<dyn crate::vm_virtual_blocks::VmTracer<S, H::VmVirtualBlocksMode>>>;
+    ) -> crate::vm_virtual_blocks::TracerPointer<S, H::VmVirtualBlocksMode>;
 }
 
 impl<S, T, H> IntoLatestTracer<S, H> for T
@@ -70,10 +68,8 @@ where
     H: HistoryMode,
     T: crate::vm_latest::VmTracer<S, H::VmVirtualBlocksRefundsEnhancement> + Clone + 'static,
 {
-    fn latest(
-        &self,
-    ) -> Rc<RefCell<dyn crate::vm_latest::VmTracer<S, H::VmVirtualBlocksRefundsEnhancement>>> {
-        Rc::new(RefCell::new(self.clone()))
+    fn latest(&self) -> crate::vm_latest::TracerPointer<S, H::VmVirtualBlocksRefundsEnhancement> {
+        Box::new(self.clone())
     }
 }
 
@@ -85,7 +81,7 @@ where
 {
     fn vm_virtual_blocks(
         &self,
-    ) -> Rc<RefCell<dyn crate::vm_virtual_blocks::VmTracer<S, H::VmVirtualBlocksMode>>> {
+    ) -> crate::vm_virtual_blocks::TracerPointer<S, H::VmVirtualBlocksMode> {
         Rc::new(RefCell::new(self.clone()))
     }
 }
