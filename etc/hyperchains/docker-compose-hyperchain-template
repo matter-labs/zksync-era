@@ -1,0 +1,144 @@
+version: '3.2'
+networks:
+  zkstack:
+    driver: bridge
+volumes:
+  prover_artifacts:
+  server_artifacts:
+services:
+  zkstack_core:
+    networks:
+      - zkstack
+    image: {{orgName}}/server-v2:latest
+    command: ["--components", "tree_new,eth,data_fetcher,state_keeper,housekeeper"]
+    env_file:
+      - {{envFilePath}}
+    environment:
+      ZKSYNC_HOME: /
+    ports: # assumes default ports in .env
+      # - "3312:3312" # prometheus metrics # we need a separate metrics port for each component
+      - "3075:3075" # proof_data_handler api
+    volumes:
+      - prover_artifacts:/etc_prover_artifacts
+      - server_artifacts:/etc_server_artifacts
+  zkstack-apis:
+    networks:
+      - zkstack
+    image: {{orgName}}/server-v2:latest
+    command: ["--components", "http_api,ws_api"]
+    env_file:
+      - {{envFilePath}}
+    environment:
+      ZKSYNC_HOME: /
+    ports: # assumes default ports in .env
+      - "3071:3071" # health
+      - "3312:3312" # prometheus metrics # we need a separate metrics port for each component
+      - "3050:3050" # http_api
+      - "3051:3051" # ws_api
+  {{#if hasProver}}
+  # System requirements for CPU proving:
+  # ~16+ CPU cores
+  # ~384+ GB RAM
+  # TODOS:
+  # - (PRO-47): Figure out how to properly set metrics ports for each service in env
+  zkstack-prover-fri-gateway:
+    networks:
+      - zkstack
+    build:
+      context: .
+      dockerfile: ./docker/prover-fri-gateway/Dockerfile
+    env_file:
+      - ./common.env
+    env:
+      FRI_PROVER_GATEWAY_API_URL: http://zkstack-core:3075
+    ports: # assumes default ports in .env
+      - "3312:3312" # prometheus metrics
+    volumes:
+      - prover_artifacts:/etc_prover_artifacts
+      - server_artifacts:/etc_server_artifacts
+  zkstack-witness-generator-basic-circuits:
+    networks:
+      - zkstack
+    build:
+      context: .
+      dockerfile: ./docker/witness-generator/Dockerfile
+    command: ["--round", "basic_circuits"]
+    env_file:
+      - {{envFilePath}}
+    ports: # assumes default ports in .env
+      - "3312:3312" # prometheus metrics
+    volumes:
+      - prover_artifacts:/etc_prover_artifacts
+      - server_artifacts:/etc_server_artifacts
+  zkstack-witness-generator-leaf-aggregation:
+    networks:
+      - zkstack
+    build:
+      context: .
+      dockerfile: ./docker/witness-generator/Dockerfile
+    command: ["--round", "leaf_aggregation"]
+    env_file:
+      - {{envFilePath}}
+    ports: # assumes default ports in .env
+      - "3312:3312" # prometheus metrics
+    volumes:
+      - prover_artifacts:/etc_prover_artifacts
+      - server_artifacts:/etc_server_artifacts
+  zkstack-witness-generator-node-aggregation:
+    networks:
+      - zkstack
+    build:
+      context: .
+      dockerfile: ./docker/witness-generator/Dockerfile
+    command: ["--round", "node_aggregation"]
+    env_file:
+      - {{envFilePath}}
+    ports: # assumes default ports in .env
+      - "3312:3312" # prometheus metrics
+    volumes:
+      - prover_artifacts:/etc_prover_artifacts
+      - server_artifacts:/etc_server_artifacts
+  zkstack-witness-generator-scheduler:
+    networks:
+      - zkstack
+    build:
+      context: .
+      dockerfile: ./docker/witness-generator/Dockerfile
+    command: ["--round", "scheduler"]
+    env_file:
+      - {{envFilePath}}
+    ports: # assumes default ports in .env
+      - "3312:3312" # prometheus metrics
+    volumes:
+      - prover_artifacts:/etc_prover_artifacts
+      - server_artifacts:/etc_server_artifacts
+  zkstack-prover-fri:
+    networks:
+      - zkstack
+    build:
+      context: .
+      dockerfile: ./docker/prover-fri/Dockerfile
+    env_file:
+      - {{envFilePath}}
+    env:
+      FRI_PROVER_SETUP_DATA_PATH: /etc/prover_setup_data
+    ports: # assumes default ports in .env
+      - "3312:3312" # prometheus metrics
+    volumes:
+      - prover_artifacts:/etc_prover_artifacts
+      - server_artifacts:/etc_server_artifacts
+      - ./prover_setup-data:/etc/prover_setup_data
+  zkstack-proof-fri-compressor:
+    networks:
+      - zkstack
+    build:
+      context: .
+      dockerfile: ./docker/proof-fri-compressor/Dockerfile
+    env_file:
+      - {{envFilePath}}
+    ports: # assumes default ports in .env
+      - "3312:3312" # prometheus metrics
+    volumes:
+      - prover_artifacts:/etc_prover_artifacts
+      - server_artifacts:/etc_server_artifacts
+  {{/if}}

@@ -6,13 +6,13 @@ use rocksdb::{
 use std::{
     collections::{HashMap, HashSet},
     ffi::CStr,
-    fmt,
+    fmt, iter,
     marker::PhantomData,
     ops,
     path::Path,
     sync::{Arc, Condvar, Mutex},
     thread,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use crate::metrics::{RocksdbLabels, RocksdbSizeMetrics, METRICS};
@@ -176,11 +176,8 @@ impl RocksDBInner {
     /// Waits until writes are not stopped for any of the CFs. Writes can stop immediately on DB initialization
     /// if there are too many level-0 SST files; in this case, it may help waiting several seconds until
     /// these files are compacted.
-    fn wait_for_writes_to_resume(&self) {
-        const RETRY_COUNT: usize = 10;
-        const RETRY_INTERVAL: Duration = Duration::from_secs(1);
-
-        for retry in 0..RETRY_COUNT {
+    fn wait_for_writes_to_resume(&self, retries: &StalledWritesRetries) {
+        for (retry_idx, retry_interval) in retries.intervals().enumerate() {
             let cfs_with_stopped_writes = self.cf_names.iter().copied().filter(|cf_name| {
                 let cf = self.db.cf_handle(cf_name).unwrap();
                 // ^ `unwrap()` is safe (CF existence is checked during DB initialization)
@@ -192,44 +189,68 @@ impl RocksDBInner {
             } else {
                 tracing::info!(
                     "Writes are stopped for column families {cfs_with_stopped_writes:?} in DB `{}` \
-                     (retry: {retry}/{RETRY_COUNT})",
+                     (retry #{retry_idx})",
                     self.db_name
                 );
-                thread::sleep(RETRY_INTERVAL);
+                thread::sleep(retry_interval);
             }
         }
 
         tracing::warn!(
-            "Exceeded {RETRY_COUNT} retries waiting for writes to resume in DB `{}`; \
-             proceeding with stopped writes",
+            "Exceeded retries waiting for writes to resume in DB `{}`; proceeding with stopped writes",
             self.db_name
         );
     }
 }
 
+impl Drop for RocksDBInner {
+    fn drop(&mut self) {
+        tracing::debug!(
+            "Canceling background compactions / flushes for DB `{}`",
+            self.db_name
+        );
+        self.db.cancel_all_background_work(true);
+    }
+}
+
+/// Configuration for retries when RocksDB writes are stalled.
 #[derive(Debug, Clone, Copy)]
-struct StalledWritesRetries {
+pub struct StalledWritesRetries {
     max_batch_size: usize,
-    retry_count: usize,
+    timeout: Duration,
     start_interval: Duration,
+    max_interval: Duration,
     scale_factor: f64,
 }
 
-impl Default for StalledWritesRetries {
-    fn default() -> Self {
+impl StalledWritesRetries {
+    /// Creates retries configuration with the specified timeout.
+    pub fn new(timeout: Duration) -> Self {
         Self {
             max_batch_size: 128 << 20, // 128 MiB
-            retry_count: 10,
+            timeout,
             start_interval: Duration::from_millis(50),
+            max_interval: Duration::from_secs(2),
             scale_factor: 1.5,
         }
     }
 }
 
 impl StalledWritesRetries {
-    fn interval(&self, retry_index: usize) -> Duration {
-        self.start_interval
-            .mul_f64(self.scale_factor.powi(retry_index as i32))
+    fn intervals(&self) -> impl Iterator<Item = Duration> {
+        let &Self {
+            timeout,
+            start_interval,
+            max_interval,
+            scale_factor,
+            ..
+        } = self;
+        let started_at = Instant::now();
+
+        iter::successors(Some(start_interval), move |&prev_interval| {
+            Some(prev_interval.mul_f64(scale_factor).min(max_interval))
+        })
+        .take_while(move |_| started_at.elapsed() <= timeout)
     }
 
     // **NB.** The error message may change between RocksDB versions!
@@ -240,7 +261,7 @@ impl StalledWritesRetries {
 }
 
 /// [`RocksDB`] options.
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy)]
 pub struct RocksDBOptions {
     /// Byte capacity of the block cache (the main RocksDB cache for reads). If not set, default RocksDB
     /// cache options will be used.
@@ -250,6 +271,19 @@ pub struct RocksDBOptions {
     /// Setting this to a reasonably large value (order of 512 MiB) is helpful for large DBs that experience
     /// write stalls. If not set, large CFs will not be configured specially.
     pub large_memtable_capacity: Option<usize>,
+    /// Timeout to wait for the database to run compaction on stalled writes during startup or
+    /// when the corresponding RocksDB error is encountered.
+    pub stalled_writes_retries: StalledWritesRetries,
+}
+
+impl Default for RocksDBOptions {
+    fn default() -> Self {
+        Self {
+            block_cache_capacity: None,
+            large_memtable_capacity: None,
+            stalled_writes_retries: StalledWritesRetries::new(Duration::from_secs(10)),
+        }
+    }
 }
 
 /// Thin wrapper around a RocksDB instance.
@@ -336,11 +370,11 @@ impl<CF: NamedColumnFamily> RocksDB<CF> {
             path.display()
         );
 
-        inner.wait_for_writes_to_resume();
+        inner.wait_for_writes_to_resume(&options.stalled_writes_retries);
         Self {
             inner,
             sync_writes: false,
-            stalled_writes_retries: StalledWritesRetries::default(),
+            stalled_writes_retries: options.stalled_writes_retries,
             _cf: PhantomData,
         }
     }
@@ -423,24 +457,32 @@ impl<CF: NamedColumnFamily> RocksDB<CF> {
         }
 
         let raw_batch_bytes = raw_batch.data().to_vec();
-        let mut retry_count = 0;
+        let mut retries = self.stalled_writes_retries.intervals();
+        let mut stalled_write_reported = false;
+        let started_at = Instant::now();
         loop {
             match self.write_inner(raw_batch) {
-                Ok(()) => return Ok(()),
+                Ok(()) => {
+                    if stalled_write_reported {
+                        METRICS.observe_stalled_write_duration(CF::DB_NAME, started_at.elapsed());
+                    }
+                    return Ok(());
+                }
                 Err(err) => {
                     let is_stalled_write = StalledWritesRetries::is_write_stall_error(&err);
-                    if is_stalled_write {
-                        METRICS.report_stalled_write(CF::DB_NAME);
+                    if is_stalled_write && !stalled_write_reported {
+                        METRICS.observe_stalled_write(CF::DB_NAME);
+                        stalled_write_reported = true;
+                    } else {
+                        return Err(err);
                     }
 
-                    if is_stalled_write && retry_count < retries.retry_count {
-                        let retry_interval = retries.interval(retry_count);
+                    if let Some(retry_interval) = retries.next() {
                         tracing::warn!(
                             "Writes stalled when writing to DB `{}`; will retry after {retry_interval:?}",
                             CF::DB_NAME
                         );
                         thread::sleep(retry_interval);
-                        retry_count += 1;
                         raw_batch = rocksdb::WriteBatch::from_data(&raw_batch_bytes);
                     } else {
                         return Err(err);
@@ -528,12 +570,6 @@ impl RocksDB<()> {
     }
 }
 
-impl<CF> Drop for RocksDB<CF> {
-    fn drop(&mut self) {
-        self.inner.db.cancel_all_background_work(true);
-    }
-}
-
 /// Empty struct used to register rocksdb instance
 #[derive(Debug)]
 struct RegistryEntry;
@@ -565,10 +601,23 @@ mod tests {
 
     #[test]
     fn retry_interval_computation() {
-        let retries = StalledWritesRetries::default();
-        assert_close(retries.interval(0), Duration::from_millis(50));
-        assert_close(retries.interval(1), Duration::from_millis(75));
-        assert_close(retries.interval(2), Duration::from_micros(112_500));
+        let retries = StalledWritesRetries::new(Duration::from_secs(10));
+        let intervals: Vec<_> = retries.intervals().take(20).collect();
+        assert_close(intervals[0], Duration::from_millis(50));
+        assert_close(intervals[1], Duration::from_millis(75));
+        assert_close(intervals[2], Duration::from_micros(112_500));
+        assert_close(intervals[19], retries.max_interval);
+    }
+
+    #[test]
+    fn retries_iterator_is_finite() {
+        let retries = StalledWritesRetries::new(Duration::from_millis(10));
+        let mut retry_count = 0;
+        for _ in retries.intervals() {
+            thread::sleep(Duration::from_millis(5));
+            retry_count += 1;
+        }
+        assert!(retry_count <= 2);
     }
 
     fn assert_close(lhs: Duration, rhs: Duration) {

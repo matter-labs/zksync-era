@@ -118,6 +118,10 @@ impl ReadStorage for &InMemoryStorage {
     fn load_factory_dep(&mut self, hash: H256) -> Option<Vec<u8>> {
         self.factory_deps.get(&hash).cloned()
     }
+
+    fn get_enumeration_index(&mut self, key: &StorageKey) -> Option<u64> {
+        self.state.get(key).map(|(_, idx)| *idx)
+    }
 }
 
 impl ReadStorage for InMemoryStorage {
@@ -131,5 +135,9 @@ impl ReadStorage for InMemoryStorage {
 
     fn load_factory_dep(&mut self, hash: H256) -> Option<Vec<u8>> {
         (&*self).load_factory_dep(hash)
+    }
+
+    fn get_enumeration_index(&mut self, key: &StorageKey) -> Option<u64> {
+        (&*self).get_enumeration_index(key)
     }
 }

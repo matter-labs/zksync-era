@@ -75,6 +75,8 @@ pub struct MetadataCalculatorConfig<'a> {
     /// Capacity of RocksDB memtables. Can be set to a reasonably large value (order of 512 MiB)
     /// to mitigate write stalls.
     pub memtable_capacity: usize,
+    /// Timeout to wait for the Merkle tree database to run compaction on stalled writes.
+    pub stalled_writes_timeout: Duration,
 }
 
 impl<'a> MetadataCalculatorConfig<'a> {
@@ -91,6 +93,7 @@ impl<'a> MetadataCalculatorConfig<'a> {
             multi_get_chunk_size: db_config.merkle_tree.multi_get_chunk_size,
             block_cache_capacity: db_config.merkle_tree.block_cache_size(),
             memtable_capacity: db_config.merkle_tree.memtable_capacity(),
+            stalled_writes_timeout: db_config.merkle_tree.stalled_writes_timeout(),
         }
     }
 }
@@ -192,6 +195,10 @@ impl MetadataCalculator {
             tree_metadata.repeated_writes,
             header.base_system_contracts_hashes.bootloader,
             header.base_system_contracts_hashes.default_aa,
+            header.system_logs.clone(),
+            tree_metadata.state_diffs,
+            bootloader_initial_content_commitment.unwrap_or_default(),
+            events_queue_commitment.unwrap_or_default(),
         );
         let commitment_hash = commitment.hash();
         tracing::trace!("L1 batch commitment: {commitment:?}");
@@ -209,6 +216,7 @@ impl MetadataCalculator {
             aux_data_hash: commitment_hash.aux_output,
             meta_parameters_hash: commitment_hash.meta_parameters,
             pass_through_data_hash: commitment_hash.pass_through_data,
+            state_diffs_compressed: commitment.state_diffs_compressed().to_vec(),
             events_queue_commitment,
             bootloader_initial_content_commitment,
         };
