@@ -4,6 +4,10 @@ on:
   push:
     branches:
       - main
+    paths:
+      - "docker/zk-environment/Dockerfile"
+      - "docker/zk-environment-cuda-12-0/Dockerfile"
+      - ".github/workflows/zk-environment.publish.yml"
   pull_request:
     branches:
       - main
@@ -94,16 +98,16 @@ jobs:
         uses: docker/build-push-action@3b5e8027fcad23fda98b2e3ac259d8d67585f671
         with:
           file: docker/zk-environment/Dockerfile
-          target: base
+          target: rust-lightweight
           tags: "matterlabs/zk-environment:${{ needs.get_short_sha.outputs.short_sha }}-lightweight-${{ matrix.arch }}"
           build-args: ARCH=${{ matrix.arch }}
           push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
-      - name: Build and optionally push zk-environment Rust nightly
+      - name: Build and optionally push zk-environment lightweight Rust nightly
         uses: docker/build-push-action@3b5e8027fcad23fda98b2e3ac259d8d67585f671
         with:
           file: docker/zk-environment/Dockerfile
-          target: rust-nightly
-          tags: "matterlabs/zksync_rust:${{ needs.get_short_sha.outputs.short_sha }}-nightly-${{ matrix.arch }}"
+          target: rust-lightweight-nightly
+          tags: "matterlabs/zk-environment:${{ needs.get_short_sha.outputs.short_sha }}-lightweight-nightly-${{ matrix.arch }}"
           build-args: ARCH=${{ matrix.arch }}
           push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
       - name: Build and optionally push zk-environment CUDA 11.8
