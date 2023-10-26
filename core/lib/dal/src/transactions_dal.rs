@@ -979,8 +979,8 @@ impl TransactionsDal<'_, '_> {
         let transactions = sqlx::query_as!(
             StorageTransaction,
             "SELECT * FROM transactions \
-                    WHERE miniblock_number IS NOT NULL AND l1_batch_number IS NULL \
-                    ORDER BY miniblock_number, index_in_block",
+            WHERE miniblock_number IS NOT NULL AND l1_batch_number IS NULL \
+            ORDER BY miniblock_number, index_in_block",
         )
         .fetch_all(self.storage.conn())
         .await?;

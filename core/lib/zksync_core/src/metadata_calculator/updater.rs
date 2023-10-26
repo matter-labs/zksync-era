@@ -174,8 +174,6 @@ impl TreeUpdater {
             // That is, if we run multiple tree instances, we'll get metadata correspondence
             // right away without having to implement dedicated code.
 
-            // If there is an `object_key`, then the witness is being processed.
-            // If not, it must've been skipped (witness/proving is done at a very small percentage on testnet).
             if let Some(object_key) = &object_key {
                 let protocol_version_id = storage
                     .blocks_dal()

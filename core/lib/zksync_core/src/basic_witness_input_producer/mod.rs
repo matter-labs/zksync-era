@@ -66,26 +66,33 @@ impl BasicWitnessInputProducer {
                 .context("failed to create vm for BasicWitnessInputProducer")?;
 
         tracing::info!("Started execution of l1_batch: {l1_batch_number:?}");
-        let mut next_miniblocks_data = miniblocks_execution_data.iter().skip(1);
-        for miniblock_execution_data in miniblocks_execution_data.iter() {
+
+        let next_miniblocks_data = miniblocks_execution_data
+            .iter()
+            .skip(1)
+            .map(Some)
+            .chain([None]);
+        let miniblocks_data = miniblocks_execution_data.iter().zip(next_miniblocks_data);
+
+        for (miniblock_data, next_miniblock_data) in miniblocks_data {
             tracing::debug!(
                 "Started execution of miniblock: {:?}, executing {:?} transactions",
-                miniblock_execution_data.number,
-                miniblock_execution_data.txs.len(),
+                miniblock_data.number,
+                miniblock_data.txs.len(),
             );
-            for tx in &miniblock_execution_data.txs {
+            for tx in &miniblock_data.txs {
                 tracing::trace!("Started execution of tx: {tx:?}");
                 execute_tx(tx, &mut vm)
                     .context("failed to execute transaction in BasicWitnessInputProducer")?;
                 tracing::trace!("Finished execution of tx: {tx:?}");
             }
-            if let Some(next_miniblock_data) = next_miniblocks_data.next() {
+            if let Some(next_miniblock_data) = next_miniblock_data {
                 vm.start_new_l2_block(L2BlockEnv::from_miniblock_data(next_miniblock_data));
             }
 
             tracing::debug!(
                 "Finished execution of miniblock: {:?}",
-                miniblock_execution_data.number
+                miniblock_data.number
             );
         }
         vm.finish_batch();
@@ -130,13 +137,10 @@ impl JobProcessor for BasicWitnessInputProducer {
             .mark_job_as_failed(job_id, started_at, error)
             .await
             .expect("errored whilst marking job as failed");
-        match attempts {
-            Some(tries) => {
-                tracing::warn!("Failed to process job: {job_id:?}, after {tries} tries.");
-            }
-            None => {
-                tracing::warn!("L1 Batch {job_id:?} was processed successfully by another worker.");
-            }
+        if let Some(tries) = attempts {
+            tracing::warn!("Failed to process job: {job_id:?}, after {tries} tries.");
+        } else {
+            tracing::warn!("L1 Batch {job_id:?} was processed successfully by another worker.");
         }
     }
 
