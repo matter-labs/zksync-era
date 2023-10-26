@@ -1,5 +1,19 @@
 # Changelog
 
+## [16.2.0](https://github.com/matter-labs/zksync-era/compare/core-v16.1.0...core-v16.2.0) (2023-10-26)
+
+
+### Features
+
+* **basic_witness_producer_input:** Add Basic Witness Producer Input component ([#156](https://github.com/matter-labs/zksync-era/issues/156)) ([3cd24c9](https://github.com/matter-labs/zksync-era/commit/3cd24c92b1f3011a5c43a61238e7fecf1a01ae3d))
+* **core:** adding pubdata to statekeeper and merkle tree ([#259](https://github.com/matter-labs/zksync-era/issues/259)) ([1659c84](https://github.com/matter-labs/zksync-era/commit/1659c840687e4c71e8d5f7be3f2e66785d5fd0dc))
+
+
+### Bug Fixes
+
+* **db:** Fix root cause of RocksDB misbehavior ([#301](https://github.com/matter-labs/zksync-era/issues/301)) ([d6c30ab](https://github.com/matter-labs/zksync-era/commit/d6c30abbb842b1db04db276838144737525e3f86))
+* **en:** gracefully shutdown en waiting for reorg detector ([#270](https://github.com/matter-labs/zksync-era/issues/270)) ([f048485](https://github.com/matter-labs/zksync-era/commit/f048485a0cdb7631c61b241d64d6a428f33178be))
+
 ## [16.1.0](https://github.com/matter-labs/zksync-era/compare/core-v16.0.2...core-v16.1.0) (2023-10-24)
 
 
