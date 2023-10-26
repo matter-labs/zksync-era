@@ -4,6 +4,10 @@ on:
   push:
     branches:
       - main
+    paths:
+      - "docker/zk-environment/Dockerfile"
+      - "docker/zk-environment-cuda-12-0/Dockerfile"
+      - ".github/workflows/zk-environment.publish.yml"
   pull_request:
     branches:
       - main
@@ -12,9 +16,20 @@ on:
       - "docker/zk-environment-cuda-12-0/Dockerfile"
       - ".github/workflows/zk-environment.publish.yml"
   workflow_dispatch:
+    inputs:
+      build_zk_environment:
+        description: 'Build zk-environment'
+        required: false
+        type: boolean
+        default: true
+      build_zk_environment_cuda_12:
+        description: 'Build zk-environment-cuda-12'
+        required: false
+        type: boolean
+        default: true
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.sha }}
   cancel-in-progress: true
 
 jobs:
@@ -41,7 +56,7 @@ jobs:
               - .github/workflows/zk-environment.publish.yml
 
   get_short_sha:
-    if: needs.changed_files.outputs.zk_environment == 'true'
+    if: (needs.changed_files.outputs.zk_environment == 'true' && github.event_name != 'workflow_dispatch') || (github.event_name == 'workflow_dispatch' && github.event.inputs.build_zk_environment == 'true')
     needs: [changed_files]
     runs-on: ubuntu-latest
     outputs:
@@ -55,7 +70,7 @@ jobs:
         run: echo "short_sha=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
 
   zk_environment:
-    if: needs.changed_files.outputs.zk_environment == 'true'
+    if: (needs.changed_files.outputs.zk_environment == 'true' && github.event_name != 'workflow_dispatch') || (github.event_name == 'workflow_dispatch' && github.event.inputs.build_zk_environment == 'true')
     needs: [changed_files, get_short_sha]
     name: Build and optionally push zk-environment Docker images to Docker Hub
     strategy:
@@ -83,16 +98,16 @@ jobs:
         uses: docker/build-push-action@3b5e8027fcad23fda98b2e3ac259d8d67585f671
         with:
           file: docker/zk-environment/Dockerfile
-          target: base
+          target: rust-lightweight
           tags: "matterlabs/zk-environment:${{ needs.get_short_sha.outputs.short_sha }}-lightweight-${{ matrix.arch }}"
           build-args: ARCH=${{ matrix.arch }}
           push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
-      - name: Build and optionally push zk-environment Rust nightly
+      - name: Build and optionally push zk-environment lightweight Rust nightly
         uses: docker/build-push-action@3b5e8027fcad23fda98b2e3ac259d8d67585f671
         with:
           file: docker/zk-environment/Dockerfile
-          target: rust-nightly
-          tags: "matterlabs/zksync_rust:${{ needs.get_short_sha.outputs.short_sha }}-nightly-${{ matrix.arch }}"
+          target: rust-lightweight-nightly
+          tags: "matterlabs/zk-environment:${{ needs.get_short_sha.outputs.short_sha }}-lightweight-nightly-${{ matrix.arch }}"
           build-args: ARCH=${{ matrix.arch }}
           push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
       - name: Build and optionally push zk-environment CUDA 11.8
@@ -110,27 +125,28 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Login to DockerHub
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: docker/login-action@f4ef78c080cd8ba55a85445d5b36e214a81df20a # v2.1.0
         with:
           username: ${{ secrets.DOCKERHUB_USER }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-      - name: Create and push multi-arch zk-environment lightweight manifest
+
+      - name: Create and push multi-arch zk-environment lightweight manifests
         run: |
-          docker pull matterlabs/zk-environment:${{ needs.get_short_sha.outputs.short_sha }}-lightweight-amd64 --platform linux/amd64
-          docker pull matterlabs/zk-environment:${{ needs.get_short_sha.outputs.short_sha }}-lightweight-arm64 --platform linux/arm64
-          docker manifest create matterlabs/zk-environment:latest2.0-lightweight \
-            --amend matterlabs/zk-environment:${{ needs.get_short_sha.outputs.short_sha }}-lightweight-amd64 \
-            --amend matterlabs/zk-environment:${{ needs.get_short_sha.outputs.short_sha }}-lightweight-arm64
-          docker manifest push matterlabs/zk-environment:latest2.0-lightweight
-      - name: Create and push multi-arch zk-environment Rust nightly manifest
-        run: |
-          docker pull matterlabs/zk-environment:${{ needs.get_short_sha.outputs.short_sha }}-nightly-amd64 --platform linux/amd64
-          docker pull matterlabs/zk-environment:${{ needs.get_short_sha.outputs.short_sha }}-nightly-arm64 --platform linux/arm64
-          docker manifest create matterlabs/zksync_rust:nightly \
-            --amend matterlabs/zk-environment:${{ needs.get_short_sha.outputs.short_sha }}-nightly-amd64 \
-            --amend matterlabs/zk-environment:${{ needs.get_short_sha.outputs.short_sha }}-nightly-arm64
-          docker manifest push matterlabs/zksync_rust:nightly
+          images=("lightweight" "lightweight-nightly")
+          archs=("amd64" "arm64")
+
+          for img in "${images[@]}"; do
+            multiarch_tag="matterlabs/zk-environment:latest2.0-${img}"
+            individual_images=()
+
+            for arch in "${archs[@]}"; do
+              TAG="${{ needs.get_short_sha.outputs.short_sha }}-${img}-${arch}"
+              docker pull matterlabs/zk-environment:${TAG} --platform linux/${arch}
+              individual_images+=("matterlabs/zk-environment:${TAG}")
+            done
+
+            docker buildx imagetools create --tag "${multiarch_tag}" "${individual_images[@]}"
+          done
 
   zk_environment_cuda_12:
     if: needs.changed_files.outputs.zk_environment_cuda_12 == 'true'
