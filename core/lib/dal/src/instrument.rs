@@ -241,14 +241,14 @@ where
 
 #[cfg(test)]
 mod tests {
-    use db_test_macro::db_test;
     use zksync_types::{MiniblockNumber, H256};
 
     use super::*;
     use crate::ConnectionPool;
 
-    #[db_test(dal_crate)]
-    async fn instrumenting_erroneous_query(pool: ConnectionPool) {
+    #[tokio::test]
+    async fn instrumenting_erroneous_query() {
+        let pool = ConnectionPool::test_pool().await;
         // Add `vlog::init()` here to debug this test
 
         let mut conn = pool.access_storage().await.unwrap();
@@ -262,8 +262,9 @@ mod tests {
             .unwrap_err();
     }
 
-    #[db_test(dal_crate)]
-    async fn instrumenting_slow_query(pool: ConnectionPool) {
+    #[tokio::test]
+    async fn instrumenting_slow_query() {
+        let pool = ConnectionPool::test_pool().await;
         // Add `vlog::init()` here to debug this test
 
         let mut conn = pool.access_storage().await.unwrap();

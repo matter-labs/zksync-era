@@ -114,10 +114,11 @@ impl RocksdbStorage {
 
     /// Creates a new storage with the provided RocksDB `path`.
     pub fn new(path: &Path) -> Self {
+        let db = RocksDB::new(path);
         Self {
-            db: RocksDB::new(path),
+            db,
             pending_patch: InMemoryStorage::default(),
-            enum_index_migration_chunk_size: 0,
+            enum_index_migration_chunk_size: 100,
         }
     }
 
@@ -489,11 +490,17 @@ impl ReadStorage for RocksdbStorage {
             .get_cf(cf, hash.as_bytes())
             .expect("failed to read RocksDB state value")
     }
+
+    fn get_enumeration_index(&mut self, key: &StorageKey) -> Option<u64> {
+        // Can safely unwrap here since it indicates that the migration has not yet ended and boojum will
+        // only be deployed when the migration is finished.
+        self.read_state_value(key)
+            .map(|state_value| state_value.enum_index.unwrap())
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use db_test_macro::db_test;
     use tempfile::TempDir;
 
     use super::*;
@@ -539,8 +546,9 @@ mod tests {
         }
     }
 
-    #[db_test]
-    async fn rocksdb_storage_syncing_with_postgres(pool: ConnectionPool) {
+    #[tokio::test]
+    async fn rocksdb_storage_syncing_with_postgres() {
+        let pool = ConnectionPool::test_pool().await;
         let mut conn = pool.access_storage().await.unwrap();
         prepare_postgres(&mut conn).await;
         let storage_logs = gen_storage_logs(20..40);
@@ -570,8 +578,9 @@ mod tests {
             .await;
     }
 
-    #[db_test]
-    async fn rocksdb_storage_revert(pool: ConnectionPool) {
+    #[tokio::test]
+    async fn rocksdb_storage_revert() {
+        let pool = ConnectionPool::test_pool().await;
         let mut conn = pool.access_storage().await.unwrap();
         prepare_postgres(&mut conn).await;
         let storage_logs = gen_storage_logs(20..40);
@@ -641,8 +650,9 @@ mod tests {
         }
     }
 
-    #[db_test]
-    async fn rocksdb_enum_index_migration(pool: ConnectionPool) {
+    #[tokio::test]
+    async fn rocksdb_enum_index_migration() {
+        let pool = ConnectionPool::test_pool().await;
         let mut conn = pool.access_storage().await.unwrap();
         prepare_postgres(&mut conn).await;
         let storage_logs = gen_storage_logs(20..40);
