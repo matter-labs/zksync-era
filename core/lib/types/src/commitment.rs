@@ -167,7 +167,35 @@ impl L1BatchWithMetadata {
                 ),
             ])
         } else {
-            unimplemented!()
+            Token::Tuple(vec![
+                Token::Uint(U256::from(self.header.number.0)),
+                Token::Uint(U256::from(self.header.timestamp)),
+                Token::Uint(U256::from(self.metadata.rollup_last_leaf_index)),
+                Token::FixedBytes(self.metadata.merkle_root_hash.as_bytes().to_vec()),
+                Token::Uint(U256::from(self.header.l1_tx_count)),
+                Token::FixedBytes(
+                    self.header
+                        .priority_ops_onchain_data_hash()
+                        .as_bytes()
+                        .to_vec(),
+                ),
+                Token::FixedBytes(
+                    self.metadata
+                        .bootloader_initial_content_commitment
+                        .unwrap()
+                        .as_bytes()
+                        .to_vec(),
+                ),
+                Token::FixedBytes(
+                    self.metadata
+                        .events_queue_commitment
+                        .unwrap()
+                        .as_bytes()
+                        .to_vec(),
+                ),
+                Token::Bytes(self.metadata.l2_l1_messages_compressed.clone()),
+                Token::Bytes(self.construct_pubdata()),
+            ])
         }
     }
 
