@@ -30,8 +30,8 @@ pub mod gpu_prover {
     };
 
     use crate::utils::{
-        save_proof, setup_metadata_to_setup_data_key, verify_proof, GpuProverJob, ProverArtifacts,
-        SharedWitnessVectorQueue,
+        get_setup_data_key, save_proof, setup_metadata_to_setup_data_key, verify_proof,
+        GpuProverJob, ProverArtifacts, SharedWitnessVectorQueue,
     };
 
     type DefaultTranscript = GoldilocksPoisedon2Transcript;
