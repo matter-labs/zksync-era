@@ -6,10 +6,6 @@ on:
   push:
     branches:
       - main
-    paths:
-      - "docker/zk-environment/Dockerfile"
-      - "docker/zk-environment-cuda-12-0/Dockerfile"
-      - ".github/workflows/zk-environment.publish.yml"
 
 jobs:
   zk_environment_old:
