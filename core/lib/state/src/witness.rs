@@ -2,7 +2,7 @@ use vise::{Counter, Metrics};
 
 use crate::ReadStorage;
 
-use zksync_types::{witness_block_state::WitnessHashBlockState, StorageKey, StorageValue, H256};
+use zksync_types::{witness_block_state::WitnessBlockState, StorageKey, StorageValue, H256};
 
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "witness_storage")]
@@ -19,13 +19,13 @@ static METRICS: vise::Global<WitnessStorageMetrics> = vise::Global::new();
 /// FactoryDeps data is used straight inside witness generator, loaded with the blob.
 #[derive(Debug)]
 pub struct WitnessStorage<'a> {
-    block_state: WitnessHashBlockState,
+    block_state: WitnessBlockState,
     metrics: &'a WitnessStorageMetrics,
 }
 
 impl WitnessStorage<'_> {
     /// Creates a new storage with the provided witness's block state.
-    pub fn new(block_state: WitnessHashBlockState) -> Self {
+    pub fn new(block_state: WitnessBlockState) -> Self {
         Self {
             block_state,
             metrics: &METRICS,
@@ -38,16 +38,12 @@ impl ReadStorage for WitnessStorage<'_> {
         *self
             .block_state
             .read_storage_key
-            .get(&key.hashed_key_u256())
+            .get(key)
             .unwrap_or(&H256::default())
     }
 
     fn is_write_initial(&mut self, key: &StorageKey) -> bool {
-        *self
-            .block_state
-            .is_write_initial
-            .get(&key.hashed_key_u256())
-            .unwrap_or(&false)
+        *self.block_state.is_write_initial.get(key).unwrap_or(&false)
     }
 
     fn load_factory_dep(&mut self, _hash: H256) -> Option<Vec<u8>> {

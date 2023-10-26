@@ -4349,6 +4349,26 @@
     },
     "query": "SELECT MAX(l1_batch_number) FROM witness_inputs WHERE merkel_tree_paths_blob_url IS NOT NULL"
   },
+  "5a2f35f3b0135ab88451ea141e97b1160ea1b4cf495b6700b5d178a43499e0d8": {
+    "describe": {
+      "columns": [
+        {
+          "name": "fee_account_address",
+          "ordinal": 0,
+          "type_info": "Bytea"
+        }
+      ],
+      "nullable": [
+        false
+      ],
+      "parameters": {
+        "Left": [
+          "Int8"
+        ]
+      }
+    },
+    "query": "SELECT fee_account_address FROM l1_batches WHERE number = $1"
+  },
   "5a31eab41a980cc82ad3609610d377a185ce38bd654ee93766c119aa6cae1040": {
     "describe": {
       "columns": [
@@ -5054,6 +5074,34 @@
       }
     },
     "query": "SELECT number, timestamp, is_finished, l1_tx_count, l2_tx_count, fee_account_address, bloom, priority_ops_onchain_data, hash, parent_hash, commitment, compressed_write_logs, compressed_contracts, eth_prove_tx_id, eth_commit_tx_id, eth_execute_tx_id, merkle_root_hash, l2_to_l1_logs, l2_to_l1_messages, used_contract_hashes, compressed_initial_writes, compressed_repeated_writes, l2_l1_compressed_messages, l2_l1_merkle_root, l1_gas_price, l2_fair_gas_price, rollup_last_leaf_index, zkporter_is_available, bootloader_code_hash, default_aa_code_hash, base_fee_per_gas, aux_data_hash, pass_through_data_hash, meta_parameters_hash, system_logs, compressed_state_diffs, protocol_version, events_queue_commitment, bootloader_initial_content_commitment FROM (SELECT l1_batches.*, row_number() OVER (ORDER BY number ASC) AS row_number FROM l1_batches WHERE eth_commit_tx_id IS NOT NULL AND l1_batches.skip_proof = TRUE AND l1_batches.number > $1 ORDER BY number LIMIT $2) inn LEFT JOIN commitments ON commitments.l1_batch_number = inn.number WHERE number - row_number = $1"
+  },
+  "65e2cdb70ccef97d886fb53d1bb298875e13b0ffe7b744ac5dd86433f0929eb0": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Left": [
+          {
+            "Custom": {
+              "kind": {
+                "Enum": [
+                  "Queued",
+                  "ManuallySkipped",
+                  "InProgress",
+                  "Successful",
+                  "Failed"
+                ]
+              },
+              "name": "basic_witness_input_producer_job_status"
+            }
+          },
+          "Int8",
+          "Time",
+          "Text"
+        ]
+      }
+    },
+    "query": "UPDATE basic_witness_input_producer_jobs SET status = $1, updated_at = now(), time_taken = $3, input_blob_url = $4 WHERE l1_batch_number = $2"
   },
   "665112c83ed7f126f94d1c47408de3495ee6431970e334d94ae75f853496eb48": {
     "describe": {
@@ -8157,6 +8205,32 @@
     },
     "query": "\n                UPDATE leaf_aggregation_witness_jobs_fri\n                SET status = 'in_progress', attempts = attempts + 1,\n                    updated_at = now(), processing_started_at = now(),\n                    picked_by = $2\n                WHERE id = (\n                    SELECT id\n                    FROM leaf_aggregation_witness_jobs_fri\n                    WHERE status = 'queued'\n                    AND protocol_version = ANY($1)\n                    ORDER BY l1_batch_number ASC, id ASC\n                    LIMIT 1\n                    FOR UPDATE\n                    SKIP LOCKED\n                )\n                RETURNING leaf_aggregation_witness_jobs_fri.*\n                "
   },
+  "a0aa877e052e63b1c3df6fc4432eeb44f7f3930f624e66b034baa1c5d0f8bb30": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Left": [
+          "Int8",
+          {
+            "Custom": {
+              "kind": {
+                "Enum": [
+                  "Queued",
+                  "ManuallySkipped",
+                  "InProgress",
+                  "Successful",
+                  "Failed"
+                ]
+              },
+              "name": "basic_witness_input_producer_job_status"
+            }
+          }
+        ]
+      }
+    },
+    "query": "INSERT INTO basic_witness_input_producer_jobs (l1_batch_number, status, created_at, updated_at) VALUES ($1, $2, now(), now()) ON CONFLICT (l1_batch_number) DO NOTHING"
+  },
   "a19b7137403c5cdf1be5f5122ce4d297ed661fa8bdb3bc91f8a81fe9da47469e": {
     "describe": {
       "columns": [
@@ -8337,6 +8411,16 @@
       }
     },
     "query": "SELECT transactions.hash, transactions.received_at FROM transactions LEFT JOIN miniblocks ON miniblocks.number = miniblock_number WHERE received_at > $1 ORDER BY received_at ASC LIMIT $2"
+  },
+  "a4f240188c1447f5b6dcef33dfcc9d00b105f62a6b4c3949a825bea979954160": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Left": []
+      }
+    },
+    "query": "DELETE FROM basic_witness_input_producer_jobs"
   },
   "a5115658f3a53462a9570fd6676f1931604d1c17a9a2b5f1475519006aaf03ba": {
     "describe": {
@@ -10095,6 +10179,26 @@
     },
     "query": "UPDATE l1_batches SET skip_proof = TRUE WHERE number = $1"
   },
+  "dba127c0f3023586217bfb214c5d3749e8e7ec3edc0c99cfd970332e31f81cb7": {
+    "describe": {
+      "columns": [
+        {
+          "name": "virtual_blocks",
+          "ordinal": 0,
+          "type_info": "Int8"
+        }
+      ],
+      "nullable": [
+        false
+      ],
+      "parameters": {
+        "Left": [
+          "Int8"
+        ]
+      }
+    },
+    "query": "SELECT virtual_blocks FROM miniblocks WHERE number = $1"
+  },
   "dc16d0fac093a52480b66dfcb5976fb01e6629e8c982c265f2af1d5000090572": {
     "describe": {
       "columns": [
@@ -10470,6 +10574,69 @@
       }
     },
     "query": "SELECT number, hash FROM miniblocks WHERE number >= $1 and protocol_version = $2 ORDER BY number LIMIT $3"
+  },
+  "e429061bd0f67910ad8676a34f2b89a051a6df3097c8afde81a491c342a10e3a": {
+    "describe": {
+      "columns": [
+        {
+          "name": "l1_batch_number",
+          "ordinal": 0,
+          "type_info": "Int8"
+        }
+      ],
+      "nullable": [
+        false
+      ],
+      "parameters": {
+        "Left": [
+          {
+            "Custom": {
+              "kind": {
+                "Enum": [
+                  "Queued",
+                  "ManuallySkipped",
+                  "InProgress",
+                  "Successful",
+                  "Failed"
+                ]
+              },
+              "name": "basic_witness_input_producer_job_status"
+            }
+          },
+          {
+            "Custom": {
+              "kind": {
+                "Enum": [
+                  "Queued",
+                  "ManuallySkipped",
+                  "InProgress",
+                  "Successful",
+                  "Failed"
+                ]
+              },
+              "name": "basic_witness_input_producer_job_status"
+            }
+          },
+          {
+            "Custom": {
+              "kind": {
+                "Enum": [
+                  "Queued",
+                  "ManuallySkipped",
+                  "InProgress",
+                  "Successful",
+                  "Failed"
+                ]
+              },
+              "name": "basic_witness_input_producer_job_status"
+            }
+          },
+          "Interval",
+          "Int2"
+        ]
+      }
+    },
+    "query": "UPDATE basic_witness_input_producer_jobs SET status = $1, attempts = attempts + 1, updated_at = now(), processing_started_at = now() WHERE l1_batch_number = ( SELECT l1_batch_number FROM basic_witness_input_producer_jobs WHERE status = $2 OR (status = $1 AND processing_started_at < now() - $4::interval) OR (status = $3 AND attempts < $5) ORDER BY l1_batch_number ASC LIMIT 1 FOR UPDATE SKIP LOCKED ) RETURNING basic_witness_input_producer_jobs.l1_batch_number"
   },
   "e626aa2efb6ba875a12f2b4e37b0ba8052810e73fa5e2d3280f747f7b89b956f": {
     "describe": {
@@ -11150,6 +11317,236 @@
     },
     "query": "\n                UPDATE gpu_prover_queue\n                SET instance_status = 'available', updated_at = now(), queue_free_slots = $3\n                WHERE instance_host = $1::text::inet\n                AND instance_port = $2\n                AND instance_status = 'full'\n                AND region = $4\n                AND zone = $5\n                "
   },
+  "f365ada84c576a9049551a28f800ca8cb1d0096f3ba1c9edec725e11892a5a6c": {
+    "describe": {
+      "columns": [
+        {
+          "name": "hash",
+          "ordinal": 0,
+          "type_info": "Bytea"
+        },
+        {
+          "name": "is_priority",
+          "ordinal": 1,
+          "type_info": "Bool"
+        },
+        {
+          "name": "full_fee",
+          "ordinal": 2,
+          "type_info": "Numeric"
+        },
+        {
+          "name": "layer_2_tip_fee",
+          "ordinal": 3,
+          "type_info": "Numeric"
+        },
+        {
+          "name": "initiator_address",
+          "ordinal": 4,
+          "type_info": "Bytea"
+        },
+        {
+          "name": "nonce",
+          "ordinal": 5,
+          "type_info": "Int8"
+        },
+        {
+          "name": "signature",
+          "ordinal": 6,
+          "type_info": "Bytea"
+        },
+        {
+          "name": "input",
+          "ordinal": 7,
+          "type_info": "Bytea"
+        },
+        {
+          "name": "data",
+          "ordinal": 8,
+          "type_info": "Jsonb"
+        },
+        {
+          "name": "received_at",
+          "ordinal": 9,
+          "type_info": "Timestamp"
+        },
+        {
+          "name": "priority_op_id",
+          "ordinal": 10,
+          "type_info": "Int8"
+        },
+        {
+          "name": "l1_batch_number",
+          "ordinal": 11,
+          "type_info": "Int8"
+        },
+        {
+          "name": "index_in_block",
+          "ordinal": 12,
+          "type_info": "Int4"
+        },
+        {
+          "name": "error",
+          "ordinal": 13,
+          "type_info": "Varchar"
+        },
+        {
+          "name": "gas_limit",
+          "ordinal": 14,
+          "type_info": "Numeric"
+        },
+        {
+          "name": "gas_per_storage_limit",
+          "ordinal": 15,
+          "type_info": "Numeric"
+        },
+        {
+          "name": "gas_per_pubdata_limit",
+          "ordinal": 16,
+          "type_info": "Numeric"
+        },
+        {
+          "name": "tx_format",
+          "ordinal": 17,
+          "type_info": "Int4"
+        },
+        {
+          "name": "created_at",
+          "ordinal": 18,
+          "type_info": "Timestamp"
+        },
+        {
+          "name": "updated_at",
+          "ordinal": 19,
+          "type_info": "Timestamp"
+        },
+        {
+          "name": "execution_info",
+          "ordinal": 20,
+          "type_info": "Jsonb"
+        },
+        {
+          "name": "contract_address",
+          "ordinal": 21,
+          "type_info": "Bytea"
+        },
+        {
+          "name": "in_mempool",
+          "ordinal": 22,
+          "type_info": "Bool"
+        },
+        {
+          "name": "l1_block_number",
+          "ordinal": 23,
+          "type_info": "Int4"
+        },
+        {
+          "name": "value",
+          "ordinal": 24,
+          "type_info": "Numeric"
+        },
+        {
+          "name": "paymaster",
+          "ordinal": 25,
+          "type_info": "Bytea"
+        },
+        {
+          "name": "paymaster_input",
+          "ordinal": 26,
+          "type_info": "Bytea"
+        },
+        {
+          "name": "max_fee_per_gas",
+          "ordinal": 27,
+          "type_info": "Numeric"
+        },
+        {
+          "name": "max_priority_fee_per_gas",
+          "ordinal": 28,
+          "type_info": "Numeric"
+        },
+        {
+          "name": "effective_gas_price",
+          "ordinal": 29,
+          "type_info": "Numeric"
+        },
+        {
+          "name": "miniblock_number",
+          "ordinal": 30,
+          "type_info": "Int8"
+        },
+        {
+          "name": "l1_batch_tx_index",
+          "ordinal": 31,
+          "type_info": "Int4"
+        },
+        {
+          "name": "refunded_gas",
+          "ordinal": 32,
+          "type_info": "Int8"
+        },
+        {
+          "name": "l1_tx_mint",
+          "ordinal": 33,
+          "type_info": "Numeric"
+        },
+        {
+          "name": "l1_tx_refund_recipient",
+          "ordinal": 34,
+          "type_info": "Bytea"
+        },
+        {
+          "name": "upgrade_id",
+          "ordinal": 35,
+          "type_info": "Int4"
+        }
+      ],
+      "nullable": [
+        false,
+        false,
+        true,
+        true,
+        false,
+        true,
+        true,
+        true,
+        false,
+        false,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        false,
+        false,
+        false,
+        true,
+        false,
+        true,
+        false,
+        false,
+        false,
+        true,
+        true,
+        true,
+        true,
+        true,
+        false,
+        true,
+        true,
+        true
+      ],
+      "parameters": {
+        "Left": [
+          "Int8"
+        ]
+      }
+    },
+    "query": "SELECT * FROM transactions WHERE l1_batch_number = $1 ORDER BY miniblock_number, index_in_block"
+  },
   "f5e3c4b23fa0d0686b400b64c42cf78b2219f0cbcf1c9240b77e4132513e36ef": {
     "describe": {
       "columns": [
@@ -11181,6 +11578,56 @@
       }
     },
     "query": "SELECT address, key, value FROM storage_logs WHERE miniblock_number BETWEEN (SELECT MIN(number) FROM miniblocks WHERE l1_batch_number = $1) AND (SELECT MAX(number) FROM miniblocks WHERE l1_batch_number = $1) ORDER BY miniblock_number, operation_number"
+  },
+  "f69542ca7e27a74d3703f359d9be33cf11c1f066c42754b92fced2af410c4558": {
+    "describe": {
+      "columns": [
+        {
+          "name": "attempts",
+          "ordinal": 0,
+          "type_info": "Int2"
+        }
+      ],
+      "nullable": [
+        false
+      ],
+      "parameters": {
+        "Left": [
+          {
+            "Custom": {
+              "kind": {
+                "Enum": [
+                  "Queued",
+                  "ManuallySkipped",
+                  "InProgress",
+                  "Successful",
+                  "Failed"
+                ]
+              },
+              "name": "basic_witness_input_producer_job_status"
+            }
+          },
+          "Int8",
+          "Time",
+          "Text",
+          {
+            "Custom": {
+              "kind": {
+                "Enum": [
+                  "Queued",
+                  "ManuallySkipped",
+                  "InProgress",
+                  "Successful",
+                  "Failed"
+                ]
+              },
+              "name": "basic_witness_input_producer_job_status"
+            }
+          }
+        ]
+      }
+    },
+    "query": "UPDATE basic_witness_input_producer_jobs SET status = $1, updated_at = now(), time_taken = $3, error = $4 WHERE l1_batch_number = $2 AND status != $5 RETURNING basic_witness_input_producer_jobs.attempts"
   },
   "f78960549e6201527454d060d5b483db032f4df80b4269a624f0309ed9a6a38e": {
     "describe": {
