@@ -83,8 +83,7 @@ list here
 
 This is the place were we specify that `bootloader` is at address 0x8001, `NonceHolder` at 0x8003 etc.
 
-This brings us to [L2EthToken.sol](https://github.com/matter-labs/era-system-contracts/blob/main/contracts/L2EthToken.sol#L80)
-that has the implementation of the L2 Eth.
+This brings us to [L2EthToken.sol][l2_eth_token] that has the implementation of the L2 Eth.
 
 When we look inside, we can see:
 
@@ -143,3 +142,6 @@ DiamondProxy contract (Mailbox.sol to be exact).
 
 To prove that we actually can withdraw the money, we have to say in which L2 block the withdrawal happened, and provide
 the merkle proof from our withdrawal log, to the root that is stored in the L1 contract.
+
+[l2_eth_token]:
+  https://github.com/matter-labs/era-system-contracts/blob/main/contracts/L2EthToken.sol#L80
