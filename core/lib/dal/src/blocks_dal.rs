@@ -12,8 +12,8 @@ use zksync_types::{
     aggregated_operations::AggregatedActionType,
     block::{BlockGasCount, L1BatchHeader, MiniblockHeader},
     commitment::{L1BatchMetadata, L1BatchWithMetadata},
-    L1BatchNumber, LogQuery, MiniblockNumber, ProtocolVersionId, H256, MAX_GAS_PER_PUBDATA_BYTE,
-    U256,
+    Address, L1BatchNumber, LogQuery, MiniblockNumber, ProtocolVersionId, H256,
+    MAX_GAS_PER_PUBDATA_BYTE, U256,
 };
 
 use crate::{
@@ -1421,6 +1421,32 @@ impl BlocksDal<'_, '_> {
         .execute(self.storage.conn())
         .await?;
         Ok(())
+    }
+
+    pub async fn get_fee_address_for_l1_batch(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+    ) -> sqlx::Result<Option<Address>> {
+        Ok(sqlx::query!(
+            "SELECT fee_account_address FROM l1_batches WHERE number = $1",
+            l1_batch_number.0 as u32
+        )
+        .fetch_optional(self.storage.conn())
+        .await?
+        .map(|row| Address::from_slice(&row.fee_account_address)))
+    }
+
+    pub async fn get_virtual_blocks_for_miniblock(
+        &mut self,
+        miniblock_number: MiniblockNumber,
+    ) -> sqlx::Result<Option<u32>> {
+        Ok(sqlx::query!(
+            "SELECT virtual_blocks FROM miniblocks WHERE number = $1",
+            miniblock_number.0 as u32
+        )
+        .fetch_optional(self.storage.conn())
+        .await?
+        .map(|row| row.virtual_blocks as u32))
     }
 }
 

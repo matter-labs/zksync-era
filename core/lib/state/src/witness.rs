@@ -1,18 +1,18 @@
 use crate::ReadStorage;
 
-use zksync_types::{witness_block_state::WitnessHashBlockState, StorageKey, StorageValue, H256};
+use zksync_types::{witness_block_state::WitnessBlockState, StorageKey, StorageValue, H256};
 
 /// [`ReadStorage`] implementation backed by binary serialized [`WitnessHashBlockState`].
 /// Note that `load_factory_deps` is not used.
 /// FactoryDeps data is used straight inside witness generator, loaded with the blob.
 #[derive(Debug)]
 pub struct WitnessStorage {
-    block_state: WitnessHashBlockState,
+    block_state: WitnessBlockState,
 }
 
 impl WitnessStorage {
     /// Creates a new storage with the provided witness's block state.
-    pub fn new(block_state: WitnessHashBlockState) -> Self {
+    pub fn new(block_state: WitnessBlockState) -> Self {
         Self { block_state }
     }
 }
@@ -22,16 +22,12 @@ impl ReadStorage for WitnessStorage {
         *self
             .block_state
             .read_storage_key
-            .get(&key.hashed_key_u256())
+            .get(key)
             .unwrap_or(&H256::default())
     }
 
     fn is_write_initial(&mut self, key: &StorageKey) -> bool {
-        *self
-            .block_state
-            .is_write_initial
-            .get(&key.hashed_key_u256())
-            .unwrap_or(&false)
+        *self.block_state.is_write_initial.get(key).unwrap_or(&false)
     }
 
     fn load_factory_dep(&mut self, _hash: H256) -> Option<Vec<u8>> {
