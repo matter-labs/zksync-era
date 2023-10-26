@@ -1,6 +1,7 @@
 use crate::commitment::SerializeCommitment;
 use crate::fee::TransactionExecutionMetrics;
 use crate::l2_to_l1_log::L2ToL1Log;
+use crate::protocol_version::BOOJUM_PROTOCOL_VERSION;
 use crate::writes::{
     InitialStorageWrite, RepeatedStorageWrite, BYTES_PER_DERIVED_KEY, BYTES_PER_ENUMERATION_INDEX,
 };
@@ -53,7 +54,7 @@ impl DeduplicatedWritesMetrics {
     }
 
     pub fn size(&self, protocol_version: ProtocolVersionId) -> usize {
-        if protocol_version >= ProtocolVersionId::Version17 {
+        if protocol_version >= BOOJUM_PROTOCOL_VERSION {
             self.total_updated_values_size
                 + (BYTES_PER_DERIVED_KEY as usize) * self.initial_storage_writes
                 + (BYTES_PER_ENUMERATION_INDEX as usize) * self.repeated_storage_writes
