@@ -6,6 +6,6 @@ services:
     image: "postgres:14"
     command: "postgres -c fsync=false"
     ports:
-      - "7000:5432"
+      - "5433:5432"
     environment:
       - POSTGRES_HOST_AUTH_METHOD=trust
