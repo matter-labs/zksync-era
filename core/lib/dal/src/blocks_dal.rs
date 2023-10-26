@@ -12,8 +12,8 @@ use zksync_types::{
     aggregated_operations::AggregatedActionType,
     block::{BlockGasCount, L1BatchHeader, MiniblockHeader},
     commitment::{L1BatchMetadata, L1BatchWithMetadata},
-    L1BatchNumber, LogQuery, MiniblockNumber, ProtocolVersionId, H256, MAX_GAS_PER_PUBDATA_BYTE,
-    U256,
+    Address, L1BatchNumber, LogQuery, MiniblockNumber, ProtocolVersionId, H256,
+    MAX_GAS_PER_PUBDATA_BYTE, U256,
 };
 
 use crate::{
@@ -1422,6 +1422,32 @@ impl BlocksDal<'_, '_> {
         .await?;
         Ok(())
     }
+
+    pub async fn get_fee_address_for_l1_batch(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+    ) -> sqlx::Result<Option<Address>> {
+        Ok(sqlx::query!(
+            "SELECT fee_account_address FROM l1_batches WHERE number = $1",
+            l1_batch_number.0 as u32
+        )
+        .fetch_optional(self.storage.conn())
+        .await?
+        .map(|row| Address::from_slice(&row.fee_account_address)))
+    }
+
+    pub async fn get_virtual_blocks_for_miniblock(
+        &mut self,
+        miniblock_number: MiniblockNumber,
+    ) -> sqlx::Result<Option<u32>> {
+        Ok(sqlx::query!(
+            "SELECT virtual_blocks FROM miniblocks WHERE number = $1",
+            miniblock_number.0 as u32
+        )
+        .fetch_optional(self.storage.conn())
+        .await?
+        .map(|row| row.virtual_blocks as u32))
+    }
 }
 
 /// These functions should only be used for tests.
@@ -1456,15 +1482,15 @@ impl BlocksDal<'_, '_> {
 
 #[cfg(test)]
 mod tests {
-    use db_test_macro::db_test;
     use zksync_contracts::BaseSystemContractsHashes;
     use zksync_types::{l2_to_l1_log::L2ToL1Log, Address, ProtocolVersion, ProtocolVersionId};
 
     use super::*;
     use crate::ConnectionPool;
 
-    #[db_test(dal_crate)]
-    async fn loading_l1_batch_header(pool: ConnectionPool) {
+    #[tokio::test]
+    async fn loading_l1_batch_header() {
+        let pool = ConnectionPool::test_pool().await;
         let mut conn = pool.access_storage().await.unwrap();
         conn.blocks_dal()
             .delete_l1_batches(L1BatchNumber(0))
@@ -1523,8 +1549,9 @@ mod tests {
             .is_none());
     }
 
-    #[db_test(dal_crate)]
-    async fn getting_predicted_gas(pool: ConnectionPool) {
+    #[tokio::test]
+    async fn getting_predicted_gas() {
+        let pool = ConnectionPool::test_pool().await;
         let mut conn = pool.access_storage().await.unwrap();
         conn.blocks_dal()
             .delete_l1_batches(L1BatchNumber(0))

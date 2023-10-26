@@ -30,8 +30,8 @@ pub mod gpu_prover {
     };
 
     use crate::utils::{
-        save_proof, setup_metadata_to_setup_data_key, verify_proof, GpuProverJob, ProverArtifacts,
-        SharedWitnessVectorQueue,
+        get_setup_data_key, save_proof, setup_metadata_to_setup_data_key, verify_proof,
+        GpuProverJob, ProverArtifacts, SharedWitnessVectorQueue,
     };
 
     type DefaultTranscript = GoldilocksPoisedon2Transcript;
@@ -90,6 +90,7 @@ pub mod gpu_prover {
             &self,
             key: ProverServiceDataKey,
         ) -> anyhow::Result<Arc<GoldilocksGpuProverSetupData>> {
+            let key = get_setup_data_key(key);
             Ok(match &self.setup_load_mode {
                 SetupLoadMode::FromMemory(cache) => cache
                     .get(&key)

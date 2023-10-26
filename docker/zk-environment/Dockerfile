@@ -1,5 +1,5 @@
 # Building solidity from sources so binary is available for any architecture
-FROM ubuntu:22.04 as solidity_builder
+FROM ubuntu:22.04 as solidity-builder
 
 # Install prerequisites
 RUN apt-get update && apt-get install -y \
@@ -23,7 +23,7 @@ WORKDIR /solidity/build
 RUN cmake ..
 RUN make
 
-FROM ubuntu:22.04 as base
+FROM ubuntu:22.04 as rust-lightweight
 
 ARG ARCH=amd64
 
@@ -101,7 +101,7 @@ RUN cargo install cargo-nextest
 
 # Copy compiler (both solc and zksolc) binaries
 # Obtain `solc` 0.8.20
-COPY --from=solidity_builder /solidity/build/solc/solc /usr/bin/
+COPY --from=solidity-builder /solidity/build/solc/solc /usr/bin/
 RUN chmod +x /usr/bin/solc
 # Obtain `zksolc` 1.3.15.
 RUN wget https://github.com/matter-labs/zksolc-bin/raw/main/linux-${ARCH}/zksolc-linux-${ARCH}-musl-v1.3.15 \
@@ -124,7 +124,7 @@ ENV CI=1
 RUN cargo install sccache
 ENV RUSTC_WRAPPER=/usr/local/cargo/bin/sccache
 
-FROM base as nvidia-tools
+FROM rust-lightweight as nvidia-tools
 
 # Install Rust and required cargo packages
 ENV RUSTUP_HOME=/usr/local/rustup \
@@ -219,7 +219,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 ENV LIBRARY_PATH /usr/local/cuda/lib64/stubs
 
 
-FROM base as rust-nightly
+FROM rust-lightweight as rust-lightweight-nightly
 
 RUN rustup install nightly-2023-07-21 && \
     rustup default nightly-2023-07-21

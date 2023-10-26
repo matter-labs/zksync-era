@@ -82,9 +82,9 @@ pub struct MiniblockHeader {
     pub virtual_blocks: u32,
 }
 
-/// Data needed to re-execute miniblock.
+/// Data needed to execute a miniblock in the VM.
 #[derive(Debug)]
-pub struct MiniblockReexecuteData {
+pub struct MiniblockExecutionData {
     pub number: MiniblockNumber,
     pub timestamp: u64,
     pub prev_block_hash: H256,
