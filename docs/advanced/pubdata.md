@@ -34,7 +34,7 @@ function _storeCodeHash(address _address, bytes32 _hash) internal {
 
 ```
 
-# Current System
+## Current System
 
 In our current system the superset of pubdata fields and input to the `commitBlocks` function follows the following
 format:
@@ -86,7 +86,7 @@ For the ids on the repeated writes, they are generated as we process the first t
 `key1` it will be encoded as `<1, new_val>` and so on and so forth. There is a little shortcut here where the last new
 id generated as part of a batch will be in the `indexRepeatedStorageChanges` field.
 
-# New System (Boojum)
+## New System (Boojum)
 
 ```solidity
 /// @notice Data needed to commit new block
@@ -123,9 +123,9 @@ The 2 main fields needed for state reconstruction are the bytecodes and the stat
 structure and reasoning in the old system (as explained above). The state diffs will follow the compression illustrated
 below.
 
-# Compression of State Diffs Under the New System
+## Compression of State Diffs Under the New System
 
-## Keys
+### Keys
 
 Keys will be packed in the same way as they were before. The only change is that we’ll avoid using the 8-byte
 enumeration index and will pack it to the minimal necessary number of bytes. This number will be part of the pubdata.
@@ -136,7 +136,7 @@ bytes on nonce/balance key, but ultimately the complexity may not be worth it.
 There is some room for the keys that are being written for the first time, however, these are rather more complex and
 achieve only a one-time effect (when the key is published for the first time).
 
-## Values
+### Values
 
 Values are much easier to compress, since they usually contain only zeroes. Also, we can leverage the nature of how
 those values are changed. For instance if nonce has been increased only by 1, we do not need to write the entire 32-byte
@@ -157,7 +157,7 @@ that it has been zeroed out). For `NoCompression` the whole 32 byte value is use
 
 So the format of the pubdata will be the following:
 
-### Part 1. Header.
+#### Part 1. Header
 
 - `<version = 1 byte>` — this will enable easier automated unpacking in the future. Currently, it will be only equal to
   `1`.
@@ -165,7 +165,7 @@ So the format of the pubdata will be the following:
 - `<the number of bytes used for derived keys = 1 byte>`. At the beginning it will be equal to `4`, but then it will
   automatically switch to `5` when needed.
 
-### Part 2. Initial writes.
+#### Part 2. Initial writes
 
 - `<num_of_initial_writes = 2 bytes>` (since each initial write publishes at least 32 bytes for key, then
   `2^16 * 32 = 2097152` will be enough for a lot of time (right now with the limit of 120kb it will take more than 15 L1
@@ -177,7 +177,7 @@ So the format of the pubdata will be the following:
     [below](https://www.notion.so/Pubdata-compression-v1-4b0dd8c151014c8ab96dbd7e66e17599?pvs=21).
   - The packed value itself.
 
-### Part 3. Repeated writes.
+#### Part 3. Repeated writes
 
 Note, that there is no need to write the number of repeated writes, since we know that until the end of the pubdata, all
 the writes will be repeated ones.
@@ -188,7 +188,7 @@ the writes will be repeated ones.
     the type of the packing (either `Add`, `Sub`, `Transform` or `NoCompression`).
   - The packed value itself.
 
-# L2 State Recosntruction Tool
+## L2 State Recosntruction Tool
 
 Given the structure above, there is a tool, created by the [Equilibrium Team](https://equilibrium.co/) that solely uses
 L1 pubdata for reconstructing the state and verifying that the state root on L1 can be created using pubdata. A link to
