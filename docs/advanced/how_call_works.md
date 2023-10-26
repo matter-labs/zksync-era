@@ -118,7 +118,7 @@ In this article, we covered the 'life of a call' from the RPC to the inner worki
   https://github.com/matter-labs/zksync-2-dev/blob/dc3b3d6b055c558b0e1a76ef5de3184291489d9f/core/lib/vm/src/vm.rs#L544
   'vm code'
 [bootloader_code]:
-  https://github.com/matter-labs/system-contracts/blob/93a375ef6ccfe0181a248cb712c88a1babe1f119/bootloader/bootloader.yul
+  https://github.com/matter-labs/era-system-contracts/blob/93a375ef6ccfe0181a248cb712c88a1babe1f119/bootloader/bootloader.yul
   'bootloader code'
 [init_vm_inner]:
   https://github.com/matter-labs/zksync-2-dev/blob/dc3b3d6b055c558b0e1a76ef5de3184291489d9f/core/lib/vm/src/vm_with_bootloader.rs#L348
