@@ -10,7 +10,7 @@ keywords = ["blockchain", "zksync"]
 categories = ["cryptography"]
 
 [dependencies]
-zk_evm_1_3_3 = { package = "zk_evm", git = "https://github.com/matter-labs/era-zk_evm.git", tag= "v1.3.3-rc1" }
+zk_evm_1_3_3 = { package = "zk_evm", git = "https://github.com/matter-labs/era-zk_evm.git", tag= "v1.3.3-rc2" }
 zk_evm_1_3_1 = { package = "zk_evm", git = "https://github.com/matter-labs/era-zk_evm.git", tag= "v1.3.1-rc2" }
 
 zksync_types = { path = "../types" }

@@ -44,6 +44,8 @@ impl TreeUpdater {
             mode,
             config.multi_get_chunk_size,
             config.block_cache_capacity,
+            config.memtable_capacity,
+            config.stalled_writes_timeout,
         )
         .await;
         Self {
@@ -200,6 +202,11 @@ impl TreeUpdater {
                     .witness_generator_dal()
                     .save_witness_inputs(l1_batch_number, object_key, protocol_version_id)
                     .await;
+                storage
+                    .basic_witness_input_producer_dal()
+                    .create_basic_witness_input_producer_job(l1_batch_number)
+                    .await
+                    .expect("failed to create basic_witness_input_producer job");
                 storage
                     .proof_generation_dal()
                     .insert_proof_generation_details(l1_batch_number, object_key)

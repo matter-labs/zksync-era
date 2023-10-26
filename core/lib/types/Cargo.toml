@@ -19,7 +19,7 @@ zksync_mini_merkle_tree = { path = "../mini_merkle_tree" }
 # We need this import because we wanat DAL to be responsible for (de)serialization
 codegen = { git = "https://github.com/matter-labs/solidity_plonk_verifier.git", branch = "dev" }
 zkevm_test_harness = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.3.3" }
-zk_evm = { git = "https://github.com/matter-labs/era-zk_evm.git", tag = "v1.3.3-rc1" }
+zk_evm = { git = "https://github.com/matter-labs/era-zk_evm.git", tag = "v1.3.3-rc2" }
 
 chrono = { version = "0.4", features = ["serde"] }
 num = { version = "0.3.1", features = ["serde"] }

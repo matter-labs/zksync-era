@@ -14,7 +14,7 @@ use multivm::interface::{
 };
 use multivm::vm_latest::constants::BLOCK_GAS_LIMIT;
 use zksync_types::{
-    block::MiniblockReexecuteData, protocol_version::ProtocolUpgradeTx,
+    block::MiniblockExecutionData, protocol_version::ProtocolUpgradeTx,
     witness_block_state::WitnessBlockState, Address, L1BatchNumber, L2ChainId, MiniblockNumber,
     ProtocolVersionId, Transaction, H256,
 };
@@ -301,7 +301,7 @@ pub(crate) fn bootloader_tip_out_of_gas() -> TxExecutionResult {
 
 /// Creates a mock `PendingBatchData` object containing the provided sequence of miniblocks.
 pub(crate) fn pending_batch_data(
-    pending_miniblocks: Vec<MiniblockReexecuteData>,
+    pending_miniblocks: Vec<MiniblockExecutionData>,
 ) -> PendingBatchData {
     PendingBatchData {
         l1_batch_env: default_l1_batch_env(1, 1, FEE_ACCOUNT),

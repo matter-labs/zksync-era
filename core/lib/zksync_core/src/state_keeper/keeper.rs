@@ -6,7 +6,7 @@ use std::time::{Duration, Instant};
 
 use multivm::interface::{Halt, L1BatchEnv, SystemEnv};
 use zksync_types::{
-    block::MiniblockReexecuteData, l2::TransactionType, protocol_version::ProtocolUpgradeTx,
+    block::MiniblockExecutionData, l2::TransactionType, protocol_version::ProtocolUpgradeTx,
     storage_writes_deduplicator::StorageWritesDeduplicator, Transaction,
 };
 
@@ -285,7 +285,7 @@ impl ZkSyncStateKeeper {
         &mut self,
         batch_executor: &BatchExecutorHandle,
         updates_manager: &mut UpdatesManager,
-        miniblocks_to_reexecute: Vec<MiniblockReexecuteData>,
+        miniblocks_to_reexecute: Vec<MiniblockExecutionData>,
     ) -> Result<(), Error> {
         if miniblocks_to_reexecute.is_empty() {
             return Ok(());

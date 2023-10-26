@@ -17,7 +17,7 @@ use zksync_crypto::hasher::blake2::Blake2Hasher;
 use zksync_merkle_tree::{
     Database, HashTree, MerkleTree, MerkleTreePruner, PatchSet, RocksDBWrapper, TreeInstruction,
 };
-use zksync_storage::RocksDB;
+use zksync_storage::{RocksDB, RocksDBOptions};
 use zksync_types::{AccountTreeId, Address, StorageKey, H256, U256};
 
 mod batch;
@@ -90,12 +90,15 @@ impl Cli {
                 "Created temp dir for RocksDB: {}",
                 dir.path().to_string_lossy()
             );
-            rocksdb = if let Some(block_cache_capacity) = self.block_cache {
-                let db = RocksDB::with_cache(dir.path(), Some(block_cache_capacity));
-                RocksDBWrapper::from(db)
-            } else {
-                RocksDBWrapper::new(dir.path())
-            };
+            let db = RocksDB::with_options(
+                dir.path(),
+                RocksDBOptions {
+                    block_cache_capacity: self.block_cache,
+                    ..RocksDBOptions::default()
+                },
+            );
+            rocksdb = RocksDBWrapper::from(db);
+
             if let Some(chunk_size) = self.chunk_size {
                 rocksdb.set_multi_get_chunk_size(chunk_size);
             }
