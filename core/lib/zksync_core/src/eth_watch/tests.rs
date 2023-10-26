@@ -609,7 +609,7 @@ fn upgrade_into_log(upgrade: ProtocolUpgrade, eth_block: u64) -> Log {
         ),
     ]);
 
-    let execute_upgrade_selector = zksync_contract()
+    let execute_upgrade_selector = state_transition_chain_contract()
         .function("executeUpgrade")
         .unwrap()
         .short_signature();

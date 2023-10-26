@@ -26,7 +26,8 @@ mod tests;
 use self::{
     client::{Error, EthClient, EthHttpQueryClient, RETRY_LIMIT},
     event_processors::{
-        priority_ops::PriorityOpsEventProcessor, upgrades::UpgradesEventProcessor, EventProcessor,
+        priority_ops::PriorityOpsEventProcessor, set_chain_id::SetChainIDEventProcessor,
+        upgrades::UpgradesEventProcessor, EventProcessor,
     },
     metrics::{PollStage, METRICS},
 };
@@ -64,9 +65,11 @@ impl<W: EthClient + Sync> EthWatch<W> {
             PriorityOpsEventProcessor::new(state.next_expected_priority_id);
         let upgrades_processor =
             UpgradesEventProcessor::new(diamond_proxy_address, state.last_seen_version_id);
+        let set_chain_id_processor = SetChainIDEventProcessor::new(diamond_proxy_address);
         let event_processors: Vec<Box<dyn EventProcessor<W>>> = vec![
             Box::new(priority_ops_processor),
             Box::new(upgrades_processor),
+            Box::new(set_chain_id_processor),
         ];
 
         let topics = event_processors

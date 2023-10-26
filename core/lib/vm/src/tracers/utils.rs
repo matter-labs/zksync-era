@@ -107,6 +107,7 @@ pub(crate) fn get_debug_log<H: HistoryMode>(
     let tx_id = state.vm_local_state.tx_number_in_block;
 
     format!("Bootloader transaction {}: {} {}", tx_id, msg, data_str)
+    // format!("Bootloader transaction kl todo {}: {} {} {:#?}", tx_id, msg, data_str, state.vm_local_state.callstack)
 }
 
 /// Reads the memory slice represented by the fat pointer.

@@ -54,14 +54,13 @@ impl<E: EthInterface + std::fmt::Debug> FacetSelectorsChecker<E> {
                 let facet_name: &str = file_name.as_str().split('.').next().unwrap();
                 // Exclude `Base` contract.
                 if (facet_name != "Bridgehub")
-                    || (facet_name != "BridgehubChain")
                     || (facet_name != "StateTransition")
                     || (facet_name != "StateTransitionChain")
                 {
                     return None;
                 }
                 let env_name = format!(
-                    "CONTRACTS_{}_PROXY_ADDR",
+                    "CONTRACTS_{}_FACET_ADDR",
                     facet_name.to_case(Case::ScreamingSnake)
                 );
                 let address = Address::from_str(&env::var(env_name).unwrap()).unwrap();
