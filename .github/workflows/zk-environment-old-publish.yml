@@ -1,0 +1,35 @@
+# Temp workflow to build and push old Ubuntu 22.04 image for debugging purposes
+# TODO: delete me
+name: Publish zk-environment Docker images
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "docker/zk-environment/Dockerfile"
+      - "docker/zk-environment-cuda-12-0/Dockerfile"
+      - ".github/workflows/zk-environment.publish.yml"
+
+jobs:
+  zk_environment_old:
+    name: Build and push zk-environment "old" Docker images to Docker Hub
+    runs-on: matterlabs-ci-runner
+    steps:
+      - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c
+        with:
+          submodules: "recursive"
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f03ac48505955848960e80bbb68046aa35c7b9e7 # v2
+      - name: Log in to Docker Hub
+        uses: docker/login-action@f4ef78c080cd8ba55a85445d5b36e214a81df20a # v2.1.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USER }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Build and optionally push zk-environment lightweight
+        uses: docker/build-push-action@3b5e8027fcad23fda98b2e3ac259d8d67585f671
+        with:
+          file: docker/zk-environment/20.04_amd64_old.Dockerfile
+          target: rust-lightweight
+          tags: matterlabs/zk-environment:old-lightweight
+          push: true
