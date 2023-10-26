@@ -453,8 +453,34 @@ fn get_pubdata_price_bytes(initial_value: U256, final_value: U256, is_initial: b
         compress_with_best_strategy(initial_value, final_value).len() as u32;
 
     if is_initial {
-        zk_evm_1_3_3::zkevm_opcode_defs::system_params::INITIAL_STORAGE_WRITE_PUBDATA_BYTES as u32
+        (BYTES_PER_DERIVED_KEY as u32) + compressed_value_size
     } else {
-        zk_evm_1_3_3::zkevm_opcode_defs::system_params::REPEATED_STORAGE_WRITE_PUBDATA_BYTES as u32
+        (BYTES_PER_ENUMERATION_INDEX as u32) + compressed_value_size
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_get_pubdata_price_bytes() {
+        let initial_value = U256::default();
+        let final_value = U256::from(92122);
+        let is_initial = true;
+
+        let compression_len = 4;
+
+        let initial_bytes_price = get_pubdata_price_bytes(initial_value, final_value, is_initial);
+        let repeated_bytes_price = get_pubdata_price_bytes(initial_value, final_value, !is_initial);
+
+        assert_eq!(
+            initial_bytes_price,
+            (compression_len + BYTES_PER_DERIVED_KEY as usize) as u32
+        );
+        assert_eq!(
+            repeated_bytes_price,
+            (compression_len + BYTES_PER_ENUMERATION_INDEX as usize) as u32
+        );
     }
 }
