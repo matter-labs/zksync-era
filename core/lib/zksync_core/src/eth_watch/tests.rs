@@ -4,7 +4,6 @@ use std::sync::Arc;
 
 use tokio::sync::RwLock;
 
-use db_test_macro::db_test;
 use zksync_contracts::{governance_contract, zksync_contract};
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_types::protocol_version::{ProtocolUpgradeTx, ProtocolUpgradeTxCommonData};

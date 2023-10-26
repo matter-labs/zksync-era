@@ -132,9 +132,8 @@ impl UpdatesManager {
             l1_gas_price: self.l1_gas_price(),
             l2_fair_gas_price: self.fair_l2_gas_price(),
             base_system_contracts_hashes: self.base_system_contract_hashes(),
-            system_logs: finished_batch.final_execution_state.system_logs,
             protocol_version: Some(self.protocol_version()),
-            system_logs: vec![],
+            system_logs: finished_batch.final_execution_state.system_logs,
         };
 
         let events_queue = finished_batch

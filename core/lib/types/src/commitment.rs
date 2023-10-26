@@ -63,7 +63,6 @@ pub struct L1BatchMetadata {
     pub aux_data_hash: H256,
     pub meta_parameters_hash: H256,
     pub pass_through_data_hash: H256,
-    pub state_diffs_compressed: Vec<u8>,
     /// The commitment to the final events queue state after the batch is committed.
     /// Practically, it is a commitment to all events that happened on L2 during the batch execution.
     pub events_queue_commitment: Option<H256>,
@@ -338,7 +337,7 @@ impl L1BatchAuxiliaryOutput {
         result.extend(self.system_logs_linear_hash.as_bytes());
         result.extend(self.state_diffs_hash.as_bytes());
         result.extend(self.bootloader_heap_hash.as_bytes());
-        result.extend(self.events_state_hash.as_bytes());
+        result.extend(self.events_state_queue_hash.as_bytes());
         result
     }
 

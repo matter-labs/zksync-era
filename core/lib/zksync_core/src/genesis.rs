@@ -386,7 +386,6 @@ pub(crate) async fn save_genesis_l1_batch_metadata(
         aux_data_hash: commitment_hash.aux_output,
         meta_parameters_hash: commitment_hash.meta_parameters,
         pass_through_data_hash: commitment_hash.pass_through_data,
-        state_diffs_compressed: vec![],
         events_queue_commitment: None,
         bootloader_initial_content_commitment: None,
         state_diffs_compressed: vec![],
