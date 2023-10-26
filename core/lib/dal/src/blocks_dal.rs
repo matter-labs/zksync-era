@@ -1304,7 +1304,7 @@ impl BlocksDal<'_, '_> {
         let rows = sqlx::query!(
             "SELECT l1_batch_number, merkel_tree_paths_blob_url \
             FROM witness_inputs \
-            WHERE status = 'successful' AND is_blob_cleaned = FALSE \
+            WHERE status = 'successful' \
                 AND merkel_tree_paths_blob_url is NOT NULL \
                 AND updated_at < NOW() - INTERVAL '30 days' \
             LIMIT $1",
@@ -1317,21 +1317,6 @@ impl BlocksDal<'_, '_> {
             .into_iter()
             .map(|row| (row.l1_batch_number, row.merkel_tree_paths_blob_url.unwrap()))
             .collect())
-    }
-
-    pub async fn mark_gcs_blobs_as_cleaned(
-        &mut self,
-        l1_batch_numbers: &[i64],
-    ) -> Result<(), sqlx::Error> {
-        sqlx::query!(
-            "UPDATE witness_inputs \
-            SET is_blob_cleaned = TRUE \
-            WHERE l1_batch_number = ANY($1)",
-            l1_batch_numbers
-        )
-        .execute(self.storage.conn())
-        .await?;
-        Ok(())
     }
 
     // methods used for measuring Eth tx stage transition latencies

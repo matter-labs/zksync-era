@@ -6,7 +6,6 @@ use super::envy_load;
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct HouseKeeperConfig {
     pub l1_batch_metrics_reporting_interval_ms: u64,
-    pub blob_cleaning_interval_ms: u64,
     pub gpu_prover_queue_reporting_interval_ms: u64,
     pub prover_job_retrying_interval_ms: u64,
     pub prover_stats_reporting_interval_ms: u64,
@@ -37,7 +36,6 @@ mod tests {
     fn expected_config() -> HouseKeeperConfig {
         HouseKeeperConfig {
             l1_batch_metrics_reporting_interval_ms: 10_000,
-            blob_cleaning_interval_ms: 60_000,
             gpu_prover_queue_reporting_interval_ms: 10_000,
             prover_job_retrying_interval_ms: 300_000,
             prover_stats_reporting_interval_ms: 5_000,
@@ -58,7 +56,6 @@ mod tests {
         let mut lock = MUTEX.lock();
         let config = r#"
             HOUSE_KEEPER_L1_BATCH_METRICS_REPORTING_INTERVAL_MS="10000"
-            HOUSE_KEEPER_BLOB_CLEANING_INTERVAL_MS="60000"
             HOUSE_KEEPER_GPU_PROVER_QUEUE_REPORTING_INTERVAL_MS="10000"
             HOUSE_KEEPER_PROVER_JOB_RETRYING_INTERVAL_MS="300000"
             HOUSE_KEEPER_PROVER_STATS_REPORTING_INTERVAL_MS="5000"
