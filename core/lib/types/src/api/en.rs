@@ -45,3 +45,31 @@ pub struct SyncBlock {
     /// Version of the protocol used for this block.
     pub protocol_version: ProtocolVersionId,
 }
+
+/// A heartbeat version 1 struct that EN may send to main server
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HeartbeatV1 {
+    /// Name of the node
+    pub name: String,
+
+    /// Version of the node
+    pub server_version: semver::Version,
+
+    /// Version of the protocol of the node
+    pub protocol_version: usize,
+
+    /// Last executed batch number
+    pub executed_l1_batch_number: L1BatchNumber,
+
+    /// Last known batch number
+    pub last_known_l1_batch_number: L1BatchNumber,
+}
+
+/// A heartbeat that EN may send to main server
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub enum Heartbeat {
+    V1(HeartbeatV1),
+}

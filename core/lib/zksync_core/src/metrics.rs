@@ -1,6 +1,9 @@
 //! Application-wide metrics.
 
-use vise::{Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, Metrics};
+use vise::{
+    Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, LabeledFamily,
+    Metrics,
+};
 
 use std::{fmt, time::Duration};
 
@@ -150,6 +153,22 @@ pub(crate) struct AppMetrics {
 
 #[vise::register]
 pub(crate) static APP_METRICS: vise::Global<AppMetrics> = vise::Global::new();
+
+#[derive(Debug, Metrics)]
+#[metrics(prefix = "en_heartbeats")]
+pub(crate) struct EnHeartbeatMetrics {
+    #[metrics(labels = ["name", "server_version", "protocol_version"])]
+    pub versions: LabeledFamily<(String, String, usize), Gauge<u64>, 3>,
+
+    #[metrics(labels = ["name"])]
+    pub executed_l1_batch_number: LabeledFamily<String, Gauge<u64>>,
+
+    #[metrics(labels = ["name"])]
+    pub last_known_l1_batch_number: LabeledFamily<String, Gauge<u64>>,
+}
+
+#[vise::register]
+pub(crate) static EN_HEARTBEAT_METRICS: vise::Global<EnHeartbeatMetrics> = vise::Global::new();
 
 /// Type of VM interaction with the storage. Used both for API server and state keeper metrics.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]

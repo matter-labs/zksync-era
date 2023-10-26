@@ -32,6 +32,7 @@ strum = { version = "0.24", features = ["derive"] }
 thiserror = "1.0"
 num_enum = "0.6"
 hex = "0.4"
+semver = { version = "1", features = ["serde"] }
 
 # Crypto stuff
 # TODO (PLA-440): remove parity-crypto

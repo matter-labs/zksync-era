@@ -8345,6 +8345,7 @@ dependencies = [
  "parity-crypto",
  "rlp",
  "secp256k1 0.27.0",
+ "semver",
  "serde",
  "serde_json",
  "serde_with",

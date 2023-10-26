@@ -1,5 +1,8 @@
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
-use zksync_types::{api::en::SyncBlock, MiniblockNumber};
+use zksync_types::{
+    api::en::{Heartbeat, SyncBlock},
+    MiniblockNumber,
+};
 
 #[cfg_attr(
     all(feature = "client", feature = "server"),
@@ -20,4 +23,7 @@ pub trait EnNamespace {
         block_number: MiniblockNumber,
         include_transactions: bool,
     ) -> RpcResult<Option<SyncBlock>>;
+
+    #[method(name = "sendHeartbeat")]
+    async fn send_heartbeat(&self, heartbeat: Heartbeat) -> RpcResult<()>;
 }
