@@ -15,8 +15,8 @@ use crate::accounts_dal::AccountsDal;
 use crate::basic_witness_input_producer_dal::BasicWitnessInputProducerDal;
 use crate::blocks_dal::BlocksDal;
 use crate::blocks_web3_dal::BlocksWeb3Dal;
+use crate::connection::holder::ConnectionHolder;
 pub use crate::connection::ConnectionPool;
-use crate::connection::{holder::ConnectionHolder, test_pool::TestPoolLock};
 use crate::contract_verification_dal::ContractVerificationDal;
 use crate::eth_sender_dal::EthSenderDal;
 use crate::events_dal::EventsDal;
@@ -158,13 +158,6 @@ impl<'a> StorageProcessor<'a> {
         }
     }
 
-    pub fn from_test_transaction(conn: TestPoolLock) -> StorageProcessor<'static> {
-        StorageProcessor {
-            conn: ConnectionHolder::TestTransaction(conn),
-            in_transaction: true,
-        }
-    }
-
     pub async fn commit(self) -> sqlx::Result<()> {
         if let ConnectionHolder::Transaction(transaction) = self.conn {
             transaction.commit().await
@@ -188,7 +181,6 @@ impl<'a> StorageProcessor<'a> {
             ConnectionHolder::Pooled(conn) => conn,
             ConnectionHolder::Direct(conn) => conn,
             ConnectionHolder::Transaction(conn) => conn,
-            ConnectionHolder::TestTransaction(conn) => conn.as_connection(),
         }
     }
 

@@ -2,7 +2,7 @@
 # All the variables must be provided explicitly.
 # This is on purpose: if EN will accidentally depend on the main node env, it may cause problems.
 
-test_database_url = "postgres://postgres@localhost/zksync_local_test_ext_node"
+test_database_url = "postgres://postgres@localhost:5433/zksync_local_test_ext_node"
 database_url = "postgres://postgres@localhost/zksync_local_ext_node"
 database_pool_size = 50
 zksync_action="dont_ask"

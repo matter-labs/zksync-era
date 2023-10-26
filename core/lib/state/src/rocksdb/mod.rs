@@ -493,7 +493,6 @@ impl ReadStorage for RocksdbStorage {
 
 #[cfg(test)]
 mod tests {
-    use db_test_macro::db_test;
     use tempfile::TempDir;
 
     use super::*;
@@ -539,8 +538,9 @@ mod tests {
         }
     }
 
-    #[db_test]
-    async fn rocksdb_storage_syncing_with_postgres(pool: ConnectionPool) {
+    #[tokio::test]
+    async fn rocksdb_storage_syncing_with_postgres() {
+        let pool = ConnectionPool::test_pool().await;
         let mut conn = pool.access_storage().await.unwrap();
         prepare_postgres(&mut conn).await;
         let storage_logs = gen_storage_logs(20..40);
@@ -570,8 +570,9 @@ mod tests {
             .await;
     }
 
-    #[db_test]
-    async fn rocksdb_storage_revert(pool: ConnectionPool) {
+    #[tokio::test]
+    async fn rocksdb_storage_revert() {
+        let pool = ConnectionPool::test_pool().await;
         let mut conn = pool.access_storage().await.unwrap();
         prepare_postgres(&mut conn).await;
         let storage_logs = gen_storage_logs(20..40);
@@ -641,8 +642,9 @@ mod tests {
         }
     }
 
-    #[db_test]
-    async fn rocksdb_enum_index_migration(pool: ConnectionPool) {
+    #[tokio::test]
+    async fn rocksdb_enum_index_migration() {
+        let pool = ConnectionPool::test_pool().await;
         let mut conn = pool.access_storage().await.unwrap();
         prepare_postgres(&mut conn).await;
         let storage_logs = gen_storage_logs(20..40);

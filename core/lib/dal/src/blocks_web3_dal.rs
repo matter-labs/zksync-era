@@ -582,7 +582,6 @@ impl BlocksWeb3Dal<'_, '_> {
 
 #[cfg(test)]
 mod tests {
-    use db_test_macro::db_test;
     use zksync_contracts::BaseSystemContractsHashes;
     use zksync_types::{
         block::{miniblock_hash, MiniblockHeader},
@@ -592,9 +591,10 @@ mod tests {
     use super::*;
     use crate::{tests::create_miniblock_header, ConnectionPool};
 
-    #[db_test(dal_crate)]
-    async fn getting_web3_block_and_tx_count(connection_pool: ConnectionPool) {
-        let mut conn = connection_pool.access_test_storage().await;
+    #[tokio::test]
+    async fn getting_web3_block_and_tx_count() {
+        let connection_pool = ConnectionPool::test_pool().await;
+        let mut conn = connection_pool.access_storage().await.unwrap();
         conn.blocks_dal()
             .delete_miniblocks(MiniblockNumber(0))
             .await
@@ -659,9 +659,10 @@ mod tests {
         }
     }
 
-    #[db_test(dal_crate)]
-    async fn resolving_earliest_block_id(connection_pool: ConnectionPool) {
-        let mut conn = connection_pool.access_test_storage().await;
+    #[tokio::test]
+    async fn resolving_earliest_block_id() {
+        let connection_pool = ConnectionPool::test_pool().await;
+        let mut conn = connection_pool.access_storage().await.unwrap();
         conn.blocks_dal()
             .delete_miniblocks(MiniblockNumber(0))
             .await
@@ -674,9 +675,10 @@ mod tests {
         assert_eq!(miniblock_number.unwrap(), Some(MiniblockNumber(0)));
     }
 
-    #[db_test(dal_crate)]
-    async fn resolving_latest_block_id(connection_pool: ConnectionPool) {
-        let mut conn = connection_pool.access_test_storage().await;
+    #[tokio::test]
+    async fn resolving_latest_block_id() {
+        let connection_pool = ConnectionPool::test_pool().await;
+        let mut conn = connection_pool.access_storage().await.unwrap();
         conn.blocks_dal()
             .delete_miniblocks(MiniblockNumber(0))
             .await
@@ -729,9 +731,10 @@ mod tests {
         assert_eq!(miniblock_number.unwrap(), Some(MiniblockNumber(1)));
     }
 
-    #[db_test(dal_crate)]
-    async fn resolving_block_by_hash(connection_pool: ConnectionPool) {
-        let mut conn = connection_pool.access_test_storage().await;
+    #[tokio::test]
+    async fn resolving_block_by_hash() {
+        let connection_pool = ConnectionPool::test_pool().await;
+        let mut conn = connection_pool.access_storage().await.unwrap();
         conn.blocks_dal()
             .delete_miniblocks(MiniblockNumber(0))
             .await
@@ -759,9 +762,10 @@ mod tests {
         assert_eq!(miniblock_number.unwrap(), None);
     }
 
-    #[db_test(dal_crate)]
-    async fn getting_miniblocks_for_virtual_block(connection_pool: ConnectionPool) {
-        let mut conn = connection_pool.access_test_storage().await;
+    #[tokio::test]
+    async fn getting_miniblocks_for_virtual_block() {
+        let connection_pool = ConnectionPool::test_pool().await;
+        let mut conn = connection_pool.access_storage().await.unwrap();
 
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
