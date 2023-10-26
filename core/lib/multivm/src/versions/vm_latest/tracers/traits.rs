@@ -13,7 +13,6 @@ use crate::vm_latest::types::internals::ZkSyncVmState;
 pub type TracerPointer<S, H> = Rc<RefCell<dyn VmTracer<S, H>>>;
 
 /// Run tracer for collecting data during the vm execution cycles
-#[auto_impl::auto_impl(&mut, Box)]
 pub trait VmTracer<S: WriteStorage, H: HistoryMode>: DynTracer<S, SimpleMemory<H>> {
     /// Initialize the tracer before the vm execution
     fn initialize_tracer(&mut self, _state: &mut ZkSyncVmState<S, H>) {}
@@ -32,6 +31,13 @@ pub trait VmTracer<S: WriteStorage, H: HistoryMode>: DynTracer<S, SimpleMemory<H
         _bootloader_state: &BootloaderState,
         _stop_reason: VmExecutionStopReason,
     ) {
+    }
+
+    fn to_rc_ptr(self) -> TracerPointer<S, H>
+    where
+        Self: Sized + 'static,
+    {
+        Rc::new(RefCell::new(self))
     }
 }
 

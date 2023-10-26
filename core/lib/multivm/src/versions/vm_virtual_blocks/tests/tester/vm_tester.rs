@@ -118,7 +118,7 @@ pub(crate) struct VmTesterBuilder<H: HistoryMode> {
 impl<H: HistoryMode> Clone for VmTesterBuilder<H> {
     fn clone(&self) -> Self {
         Self {
-            history_mode: self.history_mode.clone(),
+            history_mode: Default::default(),
             storage: None,
             l1_batch_env: self.l1_batch_env.clone(),
             system_env: self.system_env.clone(),

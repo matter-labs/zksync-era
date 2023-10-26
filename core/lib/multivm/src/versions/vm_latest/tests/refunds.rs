@@ -1,4 +1,4 @@
-use crate::interface::{TxExecutionMode, VmExecutionMode};
+use crate::interface::{TxExecutionMode, VmExecutionMode, VmInterface};
 use crate::vm_latest::tests::tester::{DeployContractsTx, TxType, VmTesterBuilder};
 use crate::vm_latest::tests::utils::read_test_contract;
 
