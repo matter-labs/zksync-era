@@ -5,6 +5,7 @@ use tokio::{
     task::JoinHandle,
 };
 
+use multivm::glue::tracers::MultivmTracer;
 use std::{fmt, sync::Arc};
 
 use multivm::interface::{
@@ -454,16 +455,15 @@ impl BatchExecutor {
         vm.make_snapshot();
 
         let call_tracer_result = Arc::new(OnceCell::default());
-        let result = if self.save_call_traces {
-            vm.inspect_transaction_with_bytecode_compression(
-                CallTracer::new(call_tracer_result.clone(), HistoryEnabled),
-                tx.clone(),
-                true,
-            )
+        let tracer = if self.save_call_traces {
+            vec![CallTracer::new(call_tracer_result.clone()).into_boxed()]
         } else {
-            vm.inspect_transaction_with_bytecode_compression(NoopTracer, tx.clone(), true)
+            vec![]
         };
-        if let Ok(result) = result {
+
+        if let Ok(result) =
+            vm.inspect_transaction_with_bytecode_compression(tracer, tx.clone(), true)
+        {
             let compressed_bytecodes = vm.get_last_tx_compressed_bytecodes();
             vm.pop_snapshot_no_rollback();
 
@@ -476,16 +476,15 @@ impl BatchExecutor {
         vm.rollback_to_the_latest_snapshot();
 
         let call_tracer_result = Arc::new(OnceCell::default());
-        let result = if self.save_call_traces {
-            vm.inspect_transaction_with_bytecode_compression(
-                CallTracer::new(call_tracer_result.clone(), HistoryEnabled),
-                tx.clone(),
-                false,
-            )
+        let tracer = if self.save_call_traces {
+            vec![CallTracer::new(call_tracer_result.clone()).into_boxed()]
         } else {
-            vm.inspect_transaction_with_bytecode_compression(NoopTracer, tx.clone(), false)
-        }
-        .unwrap();
+            vec![]
+        };
+
+        let result = vm
+            .inspect_transaction_with_bytecode_compression(tracer, tx.clone(), false)
+            .unwrap();
         let compressed_bytecodes = vm.get_last_tx_compressed_bytecodes();
 
         // TODO implement tracer manager which will be responsible

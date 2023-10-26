@@ -364,7 +364,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
     }
 
     /// Inspect transaction with optional bytecode compression.
-    pub fn inspect_transaction_with_bytecode_compression<T: MultivmTracer<StorageView<S>, H>>(
+    pub fn inspect_transaction_with_bytecode_compression(
         &mut self,
         tracers: Vec<Box<dyn MultivmTracer<StorageView<S>, H>>>,
         tx: zksync_types::Transaction,

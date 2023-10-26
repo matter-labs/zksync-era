@@ -20,9 +20,8 @@ use zksync_types::{
 use zksync_utils::{be_bytes_to_safe_address, u256_to_account_address, u256_to_h256};
 
 use crate::interface::traits::tracers::dyn_tracers::vm_1_3_3::DynTracer;
-use crate::tracers::validator::types::{
-    NewTrustedValidationItems, ValidationTracerMode, ValidationTracerParams,
-};
+use crate::tracers::validator::types::{NewTrustedValidationItems, ValidationTracerMode};
+pub use crate::tracers::validator::types::{ValidationError, ValidationTracerParams};
 
 /// Tracer that is used to ensure that the validation adheres to all the rules
 /// to prevent DDoS attacks on the server.
