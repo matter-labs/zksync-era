@@ -3,6 +3,7 @@ use zksync_dal::StorageProcessor;
 use zksync_types::{web3::types::Log, H256};
 
 pub mod priority_ops;
+pub mod set_chain_id;
 pub mod upgrades;
 
 #[async_trait::async_trait]

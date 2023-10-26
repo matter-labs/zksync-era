@@ -156,6 +156,15 @@ export function pushConfig(environment?: string, diff?: string) {
     env.modify('DATABASE_STATE_KEEPER_DB_PATH', `./db/${environment}/state_keeper`, l2InitFile, false);
     env.modify('DATABASE_MERKLE_TREE_PATH', `./db/${environment}/tree`, l2InitFile, false);
     env.modify('DATABASE_MERKLE_TREE_BACKUP_PATH', `./db/${environment}/backups`, l2InitFile, false);
+
+    if (process.env.CONTRACTS_DEV_PROTOCOL_VERSION) {
+        env.modify(
+            'CONTRACTS_LATEST_PROTOCOL_VERSION',
+            (parseInt(process.env.CONTRACTS_LATEST_PROTOCOL_VERSION!) + 2).toString(),
+            l2InitFile,
+            false
+        );
+    }
     env.reload();
 }
 

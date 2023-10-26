@@ -24,14 +24,7 @@ export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
 }
 
 async function initSetup(initArgs: InitArgs = DEFAULT_ARGS) {
-    const {
-        skipSubmodulesCheckout,
-        skipEnvSetup,
-        testTokens,
-        deployerL1ContractInputArgs,
-        governorPrivateKeyArgs,
-        deployerL2ContractInput
-    } = initArgs;
+    const { skipSubmodulesCheckout, skipEnvSetup, testTokens } = initArgs;
 
     if (!process.env.CI && !skipEnvSetup) {
         await announced('Pulling images', docker.pull());
@@ -54,14 +47,7 @@ async function initSetup(initArgs: InitArgs = DEFAULT_ARGS) {
 }
 
 export async function initBridgehubStateTransition(initArgs: InitArgs = DEFAULT_ARGS) {
-    const {
-        skipSubmodulesCheckout,
-        skipEnvSetup,
-        testTokens,
-        deployerL1ContractInputArgs,
-        governorPrivateKeyArgs,
-        deployerL2ContractInput
-    } = initArgs;
+    const { governorPrivateKeyArgs } = initArgs;
 
     await announced('Building L1 L2 contracts', contract.build());
 
@@ -79,14 +65,7 @@ export async function initBridgehubStateTransition(initArgs: InitArgs = DEFAULT_
 }
 
 export async function initHyperchain(initArgs: InitArgs = DEFAULT_ARGS) {
-    const {
-        skipSubmodulesCheckout,
-        skipEnvSetup,
-        testTokens,
-        deployerL1ContractInputArgs,
-        governorPrivateKeyArgs,
-        deployerL2ContractInput
-    } = initArgs;
+    const { governorPrivateKeyArgs, deployerL2ContractInput } = initArgs;
 
     // await announced('Building L1 L2 contracts', contract.build());
 

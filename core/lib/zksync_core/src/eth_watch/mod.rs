@@ -65,7 +65,7 @@ impl<W: EthClient + Sync> EthWatch<W> {
             PriorityOpsEventProcessor::new(state.next_expected_priority_id);
         let upgrades_processor =
             UpgradesEventProcessor::new(diamond_proxy_address, state.last_seen_version_id);
-        let set_chain_id_processor = SetChainIDEventProcessor::new(diamond_proxy_address);
+        let set_chain_id_processor = SetChainIDEventProcessor::new();
         let event_processors: Vec<Box<dyn EventProcessor<W>>> = vec![
             Box::new(priority_ops_processor),
             Box::new(upgrades_processor),
