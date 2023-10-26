@@ -1,5 +1,4 @@
 use assert_matches::assert_matches;
-use db_test_macro::db_test;
 
 use zksync_dal::ConnectionPool;
 use zksync_types::PriorityOpId;
@@ -33,8 +32,9 @@ fn assert_reverted(execution_result: &TxExecutionResult) {
 }
 
 /// Checks that we can successfully execute a single L2 tx in batch executor.
-#[db_test]
-async fn execute_l2_tx(connection_pool: ConnectionPool) {
+#[tokio::test]
+async fn execute_l2_tx() {
+    let connection_pool = ConnectionPool::test_pool().await;
     let mut alice = Account::random();
 
     let tester = Tester::new(connection_pool);
@@ -49,8 +49,9 @@ async fn execute_l2_tx(connection_pool: ConnectionPool) {
 }
 
 /// Checks that we can successfully execute a single L1 tx in batch executor.
-#[db_test]
-async fn execute_l1_tx(connection_pool: ConnectionPool) {
+#[tokio::test]
+async fn execute_l1_tx() {
+    let connection_pool = ConnectionPool::test_pool().await;
     let mut alice = Account::random();
 
     let tester = Tester::new(connection_pool);
@@ -65,8 +66,9 @@ async fn execute_l1_tx(connection_pool: ConnectionPool) {
 }
 
 /// Checks that we can successfully execute a single L2 tx and a single L1 tx in batch executor.
-#[db_test]
-async fn execute_l2_and_l1_txs(connection_pool: ConnectionPool) {
+#[tokio::test]
+async fn execute_l2_and_l1_txs() {
+    let connection_pool = ConnectionPool::test_pool().await;
     let mut alice = Account::random();
 
     let tester = Tester::new(connection_pool);
@@ -84,8 +86,9 @@ async fn execute_l2_and_l1_txs(connection_pool: ConnectionPool) {
 }
 
 /// Checks that we can successfully rollback the transaction and execute it once again.
-#[db_test]
-async fn rollback(connection_pool: ConnectionPool) {
+#[tokio::test]
+async fn rollback() {
+    let connection_pool = ConnectionPool::test_pool().await;
     let mut alice = Account::random();
 
     let tester = Tester::new(connection_pool);
@@ -127,8 +130,9 @@ async fn rollback(connection_pool: ConnectionPool) {
 }
 
 /// Checks that incorrect transactions are marked as rejected.
-#[db_test]
-async fn reject_tx(connection_pool: ConnectionPool) {
+#[tokio::test]
+async fn reject_tx() {
+    let connection_pool = ConnectionPool::test_pool().await;
     let mut alice = Account::random();
 
     let tester = Tester::new(connection_pool);
@@ -142,8 +146,9 @@ async fn reject_tx(connection_pool: ConnectionPool) {
 }
 
 /// Checks that tx with too big gas limit is correctly rejected.
-#[db_test]
-async fn too_big_gas_limit(connection_pool: ConnectionPool) {
+#[tokio::test]
+async fn too_big_gas_limit() {
+    let connection_pool = ConnectionPool::test_pool().await;
     let mut alice = Account::random();
 
     let tester = Tester::new(connection_pool);
@@ -188,8 +193,9 @@ async fn too_big_gas_limit(connection_pool: ConnectionPool) {
 }
 
 /// Checks that we can't execute the same transaction twice.
-#[db_test]
-async fn tx_cant_be_reexecuted(connection_pool: ConnectionPool) {
+#[tokio::test]
+async fn tx_cant_be_reexecuted() {
+    let connection_pool = ConnectionPool::test_pool().await;
     let mut alice = Account::random();
 
     let tester = Tester::new(connection_pool);
@@ -207,8 +213,9 @@ async fn tx_cant_be_reexecuted(connection_pool: ConnectionPool) {
 }
 
 /// Checks that we can deploy and call the loadnext contract.
-#[db_test]
-async fn deploy_and_call_loadtest(connection_pool: ConnectionPool) {
+#[tokio::test]
+async fn deploy_and_call_loadtest() {
+    let connection_pool = ConnectionPool::test_pool().await;
     let mut alice = Account::random();
 
     let tester = Tester::new(connection_pool);
@@ -232,8 +239,9 @@ async fn deploy_and_call_loadtest(connection_pool: ConnectionPool) {
 }
 
 /// Checks that a tx that is reverted by the VM still can be included into a batch.
-#[db_test]
-async fn execute_reverted_tx(connection_pool: ConnectionPool) {
+#[tokio::test]
+async fn execute_reverted_tx() {
+    let connection_pool = ConnectionPool::test_pool().await;
     let mut alice = Account::random();
 
     let tester = Tester::new(connection_pool);
@@ -258,8 +266,9 @@ async fn execute_reverted_tx(connection_pool: ConnectionPool) {
 
 /// Runs the batch executor through a semi-realistic basic scenario:
 /// a batch with different operations, both successful and not.
-#[db_test]
-async fn execute_realistic_scenario(connection_pool: ConnectionPool) {
+#[tokio::test]
+async fn execute_realistic_scenario() {
+    let connection_pool = ConnectionPool::test_pool().await;
     let mut alice = Account::random();
     let mut bob = Account::random();
 
@@ -307,8 +316,9 @@ async fn execute_realistic_scenario(connection_pool: ConnectionPool) {
 }
 
 /// Checks that we handle the bootloader out of gas error on execution phase.
-#[db_test]
-async fn bootloader_out_of_gas_for_any_tx(connection_pool: ConnectionPool) {
+#[tokio::test]
+async fn bootloader_out_of_gas_for_any_tx() {
+    let connection_pool = ConnectionPool::test_pool().await;
     let mut alice = Account::random();
 
     let tester = Tester::with_config(
@@ -331,9 +341,10 @@ async fn bootloader_out_of_gas_for_any_tx(connection_pool: ConnectionPool) {
 }
 
 /// Checks that we can handle the bootloader out of gas error on tip phase.
-#[db_test]
+#[tokio::test]
 #[ignore] // This test fails.
-async fn bootloader_tip_out_of_gas(connection_pool: ConnectionPool) {
+async fn bootloader_tip_out_of_gas() {
+    let connection_pool = ConnectionPool::test_pool().await;
     let mut alice = Account::random();
 
     let mut tester = Tester::new(connection_pool);

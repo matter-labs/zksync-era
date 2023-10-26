@@ -1,5 +1,4 @@
 use assert_matches::assert_matches;
-use db_test_macro::db_test;
 use itertools::Itertools;
 use tempfile::TempDir;
 use tokio::sync::{mpsc, watch};
@@ -38,8 +37,10 @@ where
     }
 }
 
-#[db_test]
-async fn genesis_creation(pool: ConnectionPool, prover_pool: ConnectionPool) {
+#[tokio::test]
+async fn genesis_creation() {
+    let pool = ConnectionPool::test_pool().await;
+    let prover_pool = ConnectionPool::test_pool().await;
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
 
     let (calculator, _) = setup_calculator(temp_dir.path(), &pool).await;
@@ -53,8 +54,11 @@ async fn genesis_creation(pool: ConnectionPool, prover_pool: ConnectionPool) {
 
 // TODO (SMA-1726): Restore tests for tree backup mode
 
-#[db_test]
-async fn basic_workflow(pool: ConnectionPool, prover_pool: ConnectionPool) {
+#[tokio::test]
+async fn basic_workflow() {
+    let pool = ConnectionPool::test_pool().await;
+    let prover_pool = ConnectionPool::test_pool().await;
+
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
 
     let (calculator, object_store) = setup_calculator(temp_dir.path(), &pool).await;
@@ -96,8 +100,10 @@ async fn expected_tree_hash(pool: &ConnectionPool) -> H256 {
     ZkSyncTree::process_genesis_batch(&all_logs).root_hash
 }
 
-#[db_test]
-async fn status_receiver_has_correct_states(pool: ConnectionPool, prover_pool: ConnectionPool) {
+#[tokio::test]
+async fn status_receiver_has_correct_states() {
+    let pool = ConnectionPool::test_pool().await;
+    let prover_pool = ConnectionPool::test_pool().await;
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
 
     let (mut calculator, _) = setup_calculator(temp_dir.path(), &pool).await;
@@ -143,8 +149,11 @@ async fn status_receiver_has_correct_states(pool: ConnectionPool, prover_pool: C
     );
 }
 
-#[db_test]
-async fn multi_l1_batch_workflow(pool: ConnectionPool, prover_pool: ConnectionPool) {
+#[tokio::test]
+async fn multi_l1_batch_workflow() {
+    let pool = ConnectionPool::test_pool().await;
+    let prover_pool = ConnectionPool::test_pool().await;
+
     // Collect all storage logs in a single L1 batch
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
     let (calculator, _) = setup_calculator(temp_dir.path(), &pool).await;
@@ -177,11 +186,11 @@ async fn multi_l1_batch_workflow(pool: ConnectionPool, prover_pool: ConnectionPo
     }
 }
 
-#[db_test]
-async fn running_metadata_calculator_with_additional_blocks(
-    pool: ConnectionPool,
-    prover_pool: ConnectionPool,
-) {
+#[tokio::test]
+async fn running_metadata_calculator_with_additional_blocks() {
+    let pool = ConnectionPool::test_pool().await;
+    let prover_pool = ConnectionPool::test_pool().await;
+
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
     let calculator = setup_lightweight_calculator(temp_dir.path(), &pool).await;
     reset_db_state(&pool, 5).await;
@@ -229,8 +238,10 @@ async fn running_metadata_calculator_with_additional_blocks(
     assert_eq!(root_hash_for_full_tree, updated_root_hash);
 }
 
-#[db_test]
-async fn shutting_down_calculator(pool: ConnectionPool, prover_pool: ConnectionPool) {
+#[tokio::test]
+async fn shutting_down_calculator() {
+    let pool = ConnectionPool::test_pool().await;
+    let prover_pool = ConnectionPool::test_pool().await;
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
     let (db_config, mut operation_config) = create_config(temp_dir.path());
     operation_config.delay_interval = 30_000; // ms; chosen to be larger than `RUN_TIMEOUT`
@@ -256,11 +267,11 @@ async fn shutting_down_calculator(pool: ConnectionPool, prover_pool: ConnectionP
 }
 
 async fn test_postgres_backup_recovery(
-    pool: ConnectionPool,
-    prover_pool: ConnectionPool,
     sleep_between_batches: bool,
     insert_batch_without_metadata: bool,
 ) {
+    let pool = ConnectionPool::test_pool().await;
+    let prover_pool = ConnectionPool::test_pool().await;
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
     let calculator = setup_lightweight_calculator(temp_dir.path(), &pool).await;
     reset_db_state(&pool, 5).await;
@@ -280,7 +291,13 @@ async fn test_postgres_backup_recovery(
         // Re-insert the last batch without metadata immediately.
         storage
             .blocks_dal()
-            .insert_l1_batch(batch_without_metadata, &[], BlockGasCount::default(), &[])
+            .insert_l1_batch(
+                batch_without_metadata,
+                &[],
+                BlockGasCount::default(),
+                &[],
+                &[],
+            )
             .await
             .unwrap();
         insert_initial_writes_for_batch(&mut storage, batch_without_metadata.number).await;
@@ -303,12 +320,13 @@ async fn test_postgres_backup_recovery(
     // Re-insert L1 batches to the storage after recovery.
     let mut storage = pool.access_storage().await.unwrap();
     for batch_header in &removed_batches {
-        storage
-            .blocks_dal()
-            .insert_l1_batch(batch_header, &[], BlockGasCount::default(), &[])
+        let mut txn = storage.start_transaction().await.unwrap();
+        txn.blocks_dal()
+            .insert_l1_batch(batch_header, &[], BlockGasCount::default(), &[], &[])
             .await
             .unwrap();
-        insert_initial_writes_for_batch(&mut storage, batch_header.number).await;
+        insert_initial_writes_for_batch(&mut txn, batch_header.number).await;
+        txn.commit().await.unwrap();
         if sleep_between_batches {
             tokio::time::sleep(Duration::from_millis(100)).await;
         }
@@ -333,25 +351,19 @@ async fn test_postgres_backup_recovery(
         .unwrap();
 }
 
-#[db_test]
-async fn postgres_backup_recovery(pool: ConnectionPool, prover_pool: ConnectionPool) {
-    test_postgres_backup_recovery(pool, prover_pool, false, false).await;
+#[tokio::test]
+async fn postgres_backup_recovery() {
+    test_postgres_backup_recovery(false, false).await;
 }
 
-#[db_test]
-async fn postgres_backup_recovery_with_delay_between_batches(
-    pool: ConnectionPool,
-    prover_pool: ConnectionPool,
-) {
-    test_postgres_backup_recovery(pool, prover_pool, true, false).await;
+#[tokio::test]
+async fn postgres_backup_recovery_with_delay_between_batches() {
+    test_postgres_backup_recovery(true, false).await;
 }
 
-#[db_test]
-async fn postgres_backup_recovery_with_excluded_metadata(
-    pool: ConnectionPool,
-    prover_pool: ConnectionPool,
-) {
-    test_postgres_backup_recovery(pool, prover_pool, false, true).await;
+#[tokio::test]
+async fn postgres_backup_recovery_with_excluded_metadata() {
+    test_postgres_backup_recovery(false, true).await;
 }
 
 pub(crate) async fn setup_calculator(
@@ -448,6 +460,11 @@ pub(crate) async fn reset_db_state(pool: &ConnectionPool, num_batches: usize) {
         .delete_l1_batches(L1BatchNumber(0))
         .await
         .unwrap();
+    storage
+        .basic_witness_input_producer_dal()
+        .delete_all_jobs()
+        .await
+        .unwrap();
 
     let logs = gen_storage_logs(0..100, num_batches);
     extend_db_state(&mut storage, logs).await;
@@ -457,6 +474,7 @@ pub(super) async fn extend_db_state(
     storage: &mut StorageProcessor<'_>,
     new_logs: impl IntoIterator<Item = Vec<StorageLog>>,
 ) {
+    let mut storage = storage.start_transaction().await.unwrap();
     let next_l1_batch = storage
         .blocks_dal()
         .get_sealed_l1_batch_number()
@@ -500,7 +518,7 @@ pub(super) async fn extend_db_state(
 
         storage
             .blocks_dal()
-            .insert_l1_batch(&header, &[], BlockGasCount::default(), &[])
+            .insert_l1_batch(&header, &[], BlockGasCount::default(), &[], &[])
             .await
             .unwrap();
         storage
@@ -517,8 +535,9 @@ pub(super) async fn extend_db_state(
             .mark_miniblocks_as_executed_in_l1_batch(batch_number)
             .await
             .unwrap();
-        insert_initial_writes_for_batch(storage, batch_number).await;
+        insert_initial_writes_for_batch(&mut storage, batch_number).await;
     }
+    storage.commit().await.unwrap();
 }
 
 async fn insert_initial_writes_for_batch(
@@ -618,8 +637,9 @@ async fn remove_l1_batches(
     batch_headers
 }
 
-#[db_test]
-async fn deduplication_works_as_expected(pool: ConnectionPool) {
+#[tokio::test]
+async fn deduplication_works_as_expected() {
+    let pool = ConnectionPool::test_pool().await;
     let mut storage = pool.access_storage().await.unwrap();
     ensure_genesis_state(&mut storage, L2ChainId::from(270), &GenesisParams::mock())
         .await

@@ -17,14 +17,16 @@ use zksync_prover_fri_types::circuit_definitions::boojum::cs::implementations::v
 use zksync_prover_fri_types::circuit_definitions::boojum::field::goldilocks::{
     GoldilocksExt2, GoldilocksField,
 };
-use zksync_prover_fri_types::circuit_definitions::circuit_definitions::recursion_layer::ZkSyncRecursionLayerProof;
+use zksync_prover_fri_types::circuit_definitions::circuit_definitions::recursion_layer::{
+    ZkSyncRecursionLayerProof, ZkSyncRecursionLayerStorageType,
+};
 use zksync_prover_fri_types::queue::FixedSizeQueue;
 use zksync_prover_fri_types::{
     CircuitWrapper, FriProofWrapper, ProverServiceDataKey, WitnessVectorArtifacts,
 };
 use zksync_prover_fri_utils::get_base_layer_circuit_id_for_recursive_layer;
 
-use zksync_types::{basic_fri_types::CircuitIdRoundTuple, L1BatchNumber};
+use zksync_types::{basic_fri_types::CircuitIdRoundTuple, proofs::AggregationRound, L1BatchNumber};
 
 pub type F = GoldilocksField;
 pub type H = GoldilocksPoseidon2Sponge<AbsorptionModeOverwrite>;
@@ -159,5 +161,53 @@ pub fn setup_metadata_to_setup_data_key(
     ProverServiceDataKey {
         circuit_id: setup_metadata.circuit_id,
         round: setup_metadata.aggregation_round.into(),
+    }
+}
+
+pub fn get_setup_data_key(key: ProverServiceDataKey) -> ProverServiceDataKey {
+    match key.round {
+        AggregationRound::NodeAggregation => {
+            // For node aggregation only one key exist for all circuit types
+            ProverServiceDataKey {
+                circuit_id: ZkSyncRecursionLayerStorageType::NodeLayerCircuit as u8,
+                round: key.round,
+            }
+        }
+        _ => key,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_get_setup_data_key_for_node_agg_key() {
+        let key = ProverServiceDataKey {
+            circuit_id: 10,
+            round: AggregationRound::NodeAggregation,
+        };
+        let expected = ProverServiceDataKey {
+            circuit_id: ZkSyncRecursionLayerStorageType::NodeLayerCircuit as u8,
+            round: AggregationRound::NodeAggregation,
+        };
+
+        let result = get_setup_data_key(key);
+
+        // Check if the circuit_id has been changed to NodeLayerCircuit's id
+        assert_eq!(expected, result);
+    }
+
+    #[test]
+    fn test_get_setup_data_key_for_non_node_agg_key() {
+        let key = ProverServiceDataKey {
+            circuit_id: 10,
+            round: AggregationRound::BasicCircuits,
+        };
+
+        let result = get_setup_data_key(key.clone());
+
+        // Check if the key has remained same
+        assert_eq!(key, result);
     }
 }

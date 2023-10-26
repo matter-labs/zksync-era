@@ -90,7 +90,7 @@ jobs:
         if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
         run: |
           ci_run docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
-          ci_run gcloud auth configure-docker us-docker.pkg.dev,asia-docker.pkg.dev -q
+          ci_run gcloud auth configure-docker us-docker.pkg.dev,asia-docker.pkg.dev,europe-docker.pkg.dev -q
 
       # We need to run this only when ERA_BELLMAN_CUDA_RELEASE is not available
       # In our case it happens only when PR is created from fork

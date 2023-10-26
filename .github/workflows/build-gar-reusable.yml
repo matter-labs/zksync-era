@@ -16,6 +16,11 @@ on:
         required: false
         default: false
         type: boolean
+      push_europe:
+        description: "Push images to EU GAR"
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   build-gar-prover:
@@ -78,4 +83,16 @@ jobs:
         run: |
           docker buildx imagetools create \
             --tag asia-docker.pkg.dev/matterlabs-infra/matterlabs-docker/prover-v2-gar:2.0-${{ inputs.image_tag_suffix }}-prover-${{ matrix.setup_keys.prover_id }}-${{ inputs.setup_keys_id }} \
+            us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/prover-v2-gar:2.0-${{ inputs.image_tag_suffix }}-prover-${{ matrix.setup_keys.prover_id }}-${{ inputs.setup_keys_id }}
+
+      - name: Login to EU GAR
+        if: "${{ inputs.push_europe }}"
+        run: |
+          gcloud auth print-access-token --lifetime=7200 --impersonate-service-account=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com | docker login -u oauth2accesstoken --password-stdin https://europe-docker.pkg.dev
+
+      - name: Push image to EU
+        if: "${{ inputs.push_europe }}"
+        run: |
+          docker buildx imagetools create \
+            --tag europe-docker.pkg.dev/matterlabs-infra/matterlabs-docker/prover-v2-gar:2.0-${{ inputs.image_tag_suffix }}-prover-${{ matrix.setup_keys.prover_id }}-${{ inputs.setup_keys_id }} \
             us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/prover-v2-gar:2.0-${{ inputs.image_tag_suffix }}-prover-${{ matrix.setup_keys.prover_id }}-${{ inputs.setup_keys_id }}

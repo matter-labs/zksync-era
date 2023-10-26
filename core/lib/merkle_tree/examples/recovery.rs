@@ -12,7 +12,7 @@ use zksync_merkle_tree::{
     recovery::{MerkleTreeRecovery, RecoveryEntry},
     HashTree, Key, PatchSet, PruneDatabase, RocksDBWrapper, ValueHash,
 };
-use zksync_storage::RocksDB;
+use zksync_storage::{RocksDB, RocksDBOptions};
 
 /// CLI for load-testing Merkle tree recovery.
 #[derive(Debug, Parser)]
@@ -60,12 +60,14 @@ impl Cli {
                 "Created temp dir for RocksDB: {}",
                 dir.path().to_string_lossy()
             );
-            rocksdb = if let Some(block_cache_capacity) = self.block_cache {
-                let db = RocksDB::with_cache(dir.path(), Some(block_cache_capacity));
-                RocksDBWrapper::from(db)
-            } else {
-                RocksDBWrapper::new(dir.path())
-            };
+            let db = RocksDB::with_options(
+                dir.path(),
+                RocksDBOptions {
+                    block_cache_capacity: self.block_cache,
+                    ..RocksDBOptions::default()
+                },
+            );
+            rocksdb = RocksDBWrapper::from(db);
             _temp_dir = Some(dir);
             &mut rocksdb
         };

@@ -33,7 +33,6 @@ jobs:
           ci_run zk db setup
           ci_run zk compiler all
           ci_run zk contract build
-          ci_run zk run yarn
 
       - name: Contracts unit tests
         run: ci_run zk test l1-contracts
@@ -119,20 +118,20 @@ jobs:
           mv solc-linux-amd64-v0.8.21+commit.d9974bed $(pwd)/etc/solc-bin/0.8.21/solc
           chmod +x $(pwd)/etc/solc-bin/0.8.21/solc
 
-          mkdir -p $(pwd)/etc/zksolc-bin/v1.3.14
-          wget https://github.com/matter-labs/zksolc-bin/raw/main/linux-amd64/zksolc-linux-amd64-musl-v1.3.14
-          mv zksolc-linux-amd64-musl-v1.3.14 $(pwd)/etc/zksolc-bin/v1.3.14/zksolc
-          chmod +x $(pwd)/etc/zksolc-bin/v1.3.14/zksolc
+          mkdir -p $(pwd)/etc/zksolc-bin/v1.3.15
+          wget https://github.com/matter-labs/zksolc-bin/raw/main/linux-amd64/zksolc-linux-amd64-musl-v1.3.15
+          mv zksolc-linux-amd64-musl-v1.3.15 $(pwd)/etc/zksolc-bin/v1.3.15/zksolc
+          chmod +x $(pwd)/etc/zksolc-bin/v1.3.15/zksolc
 
           mkdir -p $(pwd)/etc/vyper-bin/0.3.3
           wget -O vyper0.3.3 https://github.com/vyperlang/vyper/releases/download/v0.3.3/vyper.0.3.3%2Bcommit.48e326f0.linux
           mv vyper0.3.3 $(pwd)/etc/vyper-bin/0.3.3/vyper
           chmod +x $(pwd)/etc/vyper-bin/0.3.3/vyper
 
-          mkdir -p $(pwd)/etc/zkvyper-bin/v1.3.10
-          wget https://github.com/matter-labs/zkvyper-bin/raw/main/linux-amd64/zkvyper-linux-amd64-musl-v1.3.10
-          mv zkvyper-linux-amd64-musl-v1.3.10 $(pwd)/etc/zkvyper-bin/v1.3.10/zkvyper
-          chmod +x $(pwd)/etc/zkvyper-bin/v1.3.10/zkvyper
+          mkdir -p $(pwd)/etc/zkvyper-bin/v1.3.11
+          wget https://github.com/matter-labs/zkvyper-bin/raw/main/linux-amd64/zkvyper-linux-amd64-musl-v1.3.11
+          mv zkvyper-linux-amd64-musl-v1.3.11 $(pwd)/etc/zkvyper-bin/v1.3.11/zkvyper
+          chmod +x $(pwd)/etc/zkvyper-bin/v1.3.11/zkvyper
 
       - name: Start services
         run: |
@@ -217,20 +216,20 @@ jobs:
           mv solc-linux-amd64-v0.8.21+commit.d9974bed $(pwd)/etc/solc-bin/0.8.21/solc
           chmod +x $(pwd)/etc/solc-bin/0.8.21/solc
 
-          mkdir -p $(pwd)/etc/zksolc-bin/v1.3.14
-          wget https://github.com/matter-labs/zksolc-bin/raw/main/linux-amd64/zksolc-linux-amd64-musl-v1.3.14
-          mv zksolc-linux-amd64-musl-v1.3.14 $(pwd)/etc/zksolc-bin/v1.3.14/zksolc
-          chmod +x $(pwd)/etc/zksolc-bin/v1.3.14/zksolc
+          mkdir -p $(pwd)/etc/zksolc-bin/v1.3.15
+          wget https://github.com/matter-labs/zksolc-bin/raw/main/linux-amd64/zksolc-linux-amd64-musl-v1.3.15
+          mv zksolc-linux-amd64-musl-v1.3.15 $(pwd)/etc/zksolc-bin/v1.3.15/zksolc
+          chmod +x $(pwd)/etc/zksolc-bin/v1.3.15/zksolc
 
           mkdir -p $(pwd)/etc/vyper-bin/0.3.3
           wget -O vyper0.3.3 https://github.com/vyperlang/vyper/releases/download/v0.3.3/vyper.0.3.3%2Bcommit.48e326f0.linux
           mv vyper0.3.3 $(pwd)/etc/vyper-bin/0.3.3/vyper
           chmod +x $(pwd)/etc/vyper-bin/0.3.3/vyper
 
-          mkdir -p $(pwd)/etc/zkvyper-bin/v1.3.10
-          wget https://github.com/matter-labs/zkvyper-bin/raw/main/linux-amd64/zkvyper-linux-amd64-musl-v1.3.10
-          mv zkvyper-linux-amd64-musl-v1.3.10 $(pwd)/etc/zkvyper-bin/v1.3.10/zkvyper
-          chmod +x $(pwd)/etc/zkvyper-bin/v1.3.10/zkvyper
+          mkdir -p $(pwd)/etc/zkvyper-bin/v1.3.11
+          wget https://github.com/matter-labs/zkvyper-bin/raw/main/linux-amd64/zkvyper-linux-amd64-musl-v1.3.11
+          mv zkvyper-linux-amd64-musl-v1.3.11 $(pwd)/etc/zkvyper-bin/v1.3.11/zkvyper
+          chmod +x $(pwd)/etc/zkvyper-bin/v1.3.11/zkvyper
 
       - name: Start services
         run: |
@@ -266,18 +265,22 @@ jobs:
       - name: Run Cross EN Checker
         run: ci_run zk run cross-en-checker
 
-      # - name: Run revert test
-      #   run: |
-      #     ci_run pkill zksync_server || true
-      #     ci_run sleep 2
-      #     ci_run zk test i revert
-      #     # Check that the rollback was performed on the EN
-      #     ci_run grep -q 'Rollback successfully completed' ext-node.log
-      #     # Restart the EN
-      #     ci_run zk server &>>server.log &
-      #     ci_run sleep 30
-      #     ZKSYNC_ENV=ext-node-docker ci_run zk external-node &>>ext-node.log &
-      #     ci_run sleep 30
+      - name: Run revert test
+        run: |
+          ci_run zk env
+          ci_run zk env docker
+          ci_run pkill zksync_server || true
+          ci_run sleep 2
+          ci_run zk env
+          ci_run zk test i revert
+          # Check that the rollback was performed on the EN
+          ci_run sleep 20
+          ci_run grep -q 'Rollback successfully completed' ext-node.log
+          # Restart the EN
+          ci_run zk server &>>server.log &
+          ci_run sleep 30
+          ZKSYNC_ENV=ext-node-docker ci_run zk external-node &>>ext-node.log &
+          ci_run sleep 30
 
       - name: Run upgrade test
         run: |
@@ -289,7 +292,7 @@ jobs:
         run: |
           ci_run cat server.log
           ci_run cat ext-node.log
-          # ci_run cat core/tests/revert-test/revert.log
+          ci_run cat core/tests/revert-test/revert.log
           ci_run cat core/tests/upgrade-test/upgrade.log
           ci_run sccache --show-stats
           ci_run cat /tmp/sccache_log.txt

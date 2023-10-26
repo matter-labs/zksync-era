@@ -70,8 +70,13 @@ pub struct MetadataCalculatorConfig<'a> {
     /// Chunk size for multi-get operations. Can speed up loading data for the Merkle tree on some environments,
     /// but the effects vary wildly depending on the setup (e.g., the filesystem used).
     pub multi_get_chunk_size: usize,
-    /// Capacity of RocksDB block cache in bytes. Reasonable values range from ~100 MB to several GB.
+    /// Capacity of RocksDB block cache in bytes. Reasonable values range from ~100 MiB to several GB.
     pub block_cache_capacity: usize,
+    /// Capacity of RocksDB memtables. Can be set to a reasonably large value (order of 512 MiB)
+    /// to mitigate write stalls.
+    pub memtable_capacity: usize,
+    /// Timeout to wait for the Merkle tree database to run compaction on stalled writes.
+    pub stalled_writes_timeout: Duration,
 }
 
 impl<'a> MetadataCalculatorConfig<'a> {
@@ -87,6 +92,8 @@ impl<'a> MetadataCalculatorConfig<'a> {
             max_l1_batches_per_iter: db_config.merkle_tree.max_l1_batches_per_iter,
             multi_get_chunk_size: db_config.merkle_tree.multi_get_chunk_size,
             block_cache_capacity: db_config.merkle_tree.block_cache_size(),
+            memtable_capacity: db_config.merkle_tree.memtable_capacity(),
+            stalled_writes_timeout: db_config.merkle_tree.stalled_writes_timeout(),
         }
     }
 }
@@ -187,6 +194,10 @@ impl MetadataCalculator {
             tree_metadata.repeated_writes,
             header.base_system_contracts_hashes.bootloader,
             header.base_system_contracts_hashes.default_aa,
+            header.system_logs.clone(),
+            tree_metadata.state_diffs,
+            bootloader_initial_content_commitment.unwrap_or_default(),
+            events_queue_commitment.unwrap_or_default(),
         );
         let commitment_hash = commitment.hash();
         tracing::trace!("L1 batch commitment: {commitment:?}");
@@ -204,6 +215,7 @@ impl MetadataCalculator {
             aux_data_hash: commitment_hash.aux_output,
             meta_parameters_hash: commitment_hash.meta_parameters,
             pass_through_data_hash: commitment_hash.pass_through_data,
+            state_diffs_compressed: commitment.state_diffs_compressed().to_vec(),
             events_queue_commitment,
             bootloader_initial_content_commitment,
         };
