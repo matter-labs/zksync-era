@@ -8191,6 +8191,7 @@ dependencies = [
  "zksync_storage",
  "zksync_system_constants",
  "zksync_types",
+ "zksync_utils",
 ]
 
 [[package]]

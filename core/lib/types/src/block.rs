@@ -45,7 +45,7 @@ pub struct L1BatchHeader {
     pub l2_tx_count: u16,
     /// The data of the processed priority operations hash which must be sent to the smart contract.
     pub priority_ops_onchain_data: Vec<PriorityOpOnchainData>,
-    /// All L2 -> L1 logs in the block.
+    /// All user generated L2 -> L1 logs in the block.
     pub l2_to_l1_logs: Vec<L2ToL1Log>,
     /// Preimages of the hashes that were sent as value of L2 logs by special system L2 contract.
     pub l2_to_l1_messages: Vec<Vec<u8>>,
@@ -60,6 +60,8 @@ pub struct L1BatchHeader {
     /// The L2 gas price that the operator agrees on.
     pub l2_fair_gas_price: u64,
     pub base_system_contracts_hashes: BaseSystemContractsHashes,
+    /// System logs are those emitted as part of the Vm excecution.
+    pub system_logs: Vec<L2ToL1Log>,
     /// Version of protocol used for the L1 batch.
     pub protocol_version: Option<ProtocolVersionId>,
 }
@@ -116,6 +118,7 @@ impl L1BatchHeader {
             l1_gas_price: 0,
             l2_fair_gas_price: 0,
             base_system_contracts_hashes,
+            system_logs: vec![],
             protocol_version: Some(protocol_version),
         }
     }

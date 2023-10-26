@@ -103,6 +103,7 @@ pub(crate) fn create_l1_batch_metadata(number: u32) -> L1BatchMetadata {
         pass_through_data_hash: H256::zero(),
         events_queue_commitment: Some(H256::zero()),
         bootloader_initial_content_commitment: Some(H256::zero()),
+        state_diffs_compressed: vec![],
     }
 }
 
