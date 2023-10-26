@@ -62,7 +62,7 @@ describe('Upgrade test', function () {
         process.env.CHAIN_STATE_KEEPER_BLOCK_COMMIT_DEADLINE_MS = '2000';
         // Run server in background.
         utils.background(
-            'cd $ZKSYNC_HOME && cargo run --bin zksync_server --release -- --components=api,tree,eth,data_fetcher,state_keeper',
+            'cd $ZKSYNC_HOME && ZKSYNC_PRE_BOOJUM=true cargo run --bin zksync_server --release -- --components=api,tree,eth,data_fetcher,state_keeper',
             [null, logs, logs]
         );
         // Server may need some time to recompile if it's a cold run, so wait for it.
@@ -251,7 +251,7 @@ describe('Upgrade test', function () {
 
         // Run again.
         utils.background(
-            'cd $ZKSYNC_HOME && cargo run --bin zksync_server --release -- --components=api,tree,eth,data_fetcher,state_keeper &>> upgrade.log',
+            'cd $ZKSYNC_HOME && ZKSYNC_PRE_BOOJUM=true cargo run --bin zksync_server --release -- --components=api,tree,eth,data_fetcher,state_keeper &>> upgrade.log',
             [null, logs, logs]
         );
         await utils.sleep(10);
