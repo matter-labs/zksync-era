@@ -52,3 +52,32 @@ impl From<EventMessage> for L2ToL1Log {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::L2ToL1Log;
+    use zksync_basic_types::U256;
+    use zksync_system_constants::L1_MESSENGER_ADDRESS;
+    use zksync_utils::u256_to_h256;
+
+    #[test]
+    fn l2_to_l1_log_to_bytes() {
+        let expected_log_bytes = [
+            0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 128, 8, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 11, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 19,
+        ];
+
+        let log = L2ToL1Log {
+            shard_id: 0u8,
+            is_service: false,
+            tx_number_in_block: 6u16,
+            sender: L1_MESSENGER_ADDRESS,
+            key: u256_to_h256(U256::from(11)),
+            value: u256_to_h256(U256::from(19)),
+        };
+
+        assert_eq!(expected_log_bytes, log.to_bytes());
+    }
+}

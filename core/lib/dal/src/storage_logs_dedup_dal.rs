@@ -118,6 +118,19 @@ impl StorageLogsDedupDal<'_, '_> {
         .collect()
     }
 
+    pub async fn get_enumeration_index_for_key(&mut self, key: StorageKey) -> Option<u64> {
+        sqlx::query!(
+            "SELECT index \
+             FROM initial_writes \
+             WHERE hashed_key = $1",
+            key.hashed_key().0.to_vec()
+        )
+        .fetch_optional(self.storage.conn())
+        .await
+        .unwrap()
+        .map(|row| row.index as u64)
+    }
+
     /// Returns `hashed_keys` that are both present in the input and in `initial_writes` table.
     pub async fn filter_written_slots(&mut self, hashed_keys: &[H256]) -> HashSet<H256> {
         let hashed_keys: Vec<_> = hashed_keys.iter().map(H256::as_bytes).collect();

@@ -18,7 +18,10 @@ use crate::{
     ethabi::Token,
     l2_to_l1_log::L2ToL1Log,
     web3::signing::keccak256,
-    writes::{InitialStorageWrite, RepeatedStorageWrite},
+    writes::{
+        compress_state_diffs, InitialStorageWrite, RepeatedStorageWrite, StateDiffRecord,
+        PADDED_ENCODED_STORAGE_DIFF_LEN_BYTES,
+    },
     H256, KNOWN_CODES_STORAGE_ADDRESS, U256,
 };
 
@@ -67,6 +70,7 @@ pub struct L1BatchMetadata {
     /// The commitment to the initial heap content of the bootloader. Practically it serves as a
     /// commitment to the transactions in the batch.
     pub bootloader_initial_content_commitment: Option<H256>,
+    pub state_diffs_compressed: Vec<u8>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -166,6 +170,38 @@ impl L1BatchWithMetadata {
     pub fn l1_commit_data_size(&self) -> usize {
         crate::ethabi::encode(&[Token::Array(vec![self.l1_commit_data()])]).len()
     }
+
+    /// Packs all pubdata needed for batch commitment in boojum into one bytes array. The packing contains the
+    /// following: logs, messages, bytecodes, and compressed state diffs.
+    /// This data is currently part of calldata but will be submitted as part of the blob section post EIP-4844.
+    pub fn construct_pubdata(&self) -> Vec<u8> {
+        let mut res: Vec<u8> = vec![];
+
+        // Process and Pack Logs
+        res.extend((self.header.l2_to_l1_logs.len() as u32).to_be_bytes());
+        for l2_to_l1_log in &self.header.l2_to_l1_logs {
+            res.extend(l2_to_l1_log.to_bytes());
+        }
+
+        // Process and Pack Msgs
+        res.extend((self.header.l2_to_l1_messages.len() as u32).to_be_bytes());
+        for msg in &self.header.l2_to_l1_messages {
+            res.extend((msg.len() as u32).to_be_bytes());
+            res.extend(msg);
+        }
+
+        // Process and Pack Bytecodes
+        res.extend((self.factory_deps.len() as u32).to_be_bytes());
+        for bytecode in &self.factory_deps {
+            res.extend((bytecode.len() as u32).to_be_bytes());
+            res.extend(bytecode);
+        }
+
+        // Extend with Compressed StateDiffs
+        res.extend(&self.metadata.state_diffs_compressed);
+
+        res
+    }
 }
 
 impl SerializeCommitment for L2ToL1Log {
@@ -199,6 +235,14 @@ impl SerializeCommitment for RepeatedStorageWrite {
     }
 }
 
+impl SerializeCommitment for StateDiffRecord {
+    const SERIALIZED_SIZE: usize = PADDED_ENCODED_STORAGE_DIFF_LEN_BYTES;
+
+    fn serialize_commitment(&self, buffer: &mut [u8]) {
+        buffer.copy_from_slice(&self.encode_padded());
+    }
+}
+
 /// Block Output produced by Virtual Machine
 #[derive(Debug, Clone)]
 struct L1BatchAuxiliaryOutput {
@@ -209,13 +253,30 @@ struct L1BatchAuxiliaryOutput {
     initial_writes: Vec<InitialStorageWrite>,
     #[allow(dead_code)]
     repeated_writes: Vec<RepeatedStorageWrite>,
+
     l2_l1_logs_compressed: Vec<u8>,
     l2_l1_logs_linear_hash: H256,
     l2_l1_logs_merkle_root: H256,
+
+    // Once cut over to boojum, these fields are no longer required as their values
+    // are covered by state_diffs_compressed and its hash.
+    // Task to remove: PLA-640
     initial_writes_compressed: Vec<u8>,
     initial_writes_hash: H256,
     repeated_writes_compressed: Vec<u8>,
     repeated_writes_hash: H256,
+
+    // The fields below are necessary for boojum.
+    system_logs_compressed: Vec<u8>,
+    #[allow(dead_code)]
+    system_logs_linear_hash: H256,
+    #[allow(dead_code)]
+    state_diffs_hash: H256,
+    state_diffs_compressed: Vec<u8>,
+    #[allow(dead_code)]
+    bootloader_heap_hash: H256,
+    #[allow(dead_code)]
+    events_state_queue_hash: H256,
 }
 
 impl L1BatchAuxiliaryOutput {
@@ -223,14 +284,24 @@ impl L1BatchAuxiliaryOutput {
         l2_l1_logs: Vec<L2ToL1Log>,
         initial_writes: Vec<InitialStorageWrite>,
         repeated_writes: Vec<RepeatedStorageWrite>,
+        system_logs: Vec<L2ToL1Log>,
+        state_diffs: Vec<StateDiffRecord>,
+        bootloader_heap_hash: H256,
+        events_state_queue_hash: H256,
     ) -> Self {
         let l2_l1_logs_compressed = serialize_commitments(&l2_l1_logs);
         let initial_writes_compressed = serialize_commitments(&initial_writes);
         let repeated_writes_compressed = serialize_commitments(&repeated_writes);
+        let system_logs_compressed = serialize_commitments(&system_logs);
+        let state_diffs_packed = serialize_commitments(&state_diffs);
+
+        let state_diffs_compressed = compress_state_diffs(state_diffs.clone());
 
         let l2_l1_logs_linear_hash = H256::from(keccak256(&l2_l1_logs_compressed));
+        let system_logs_linear_hash = H256::from(keccak256(&system_logs_compressed));
         let initial_writes_hash = H256::from(keccak256(&initial_writes_compressed));
         let repeated_writes_hash = H256::from(keccak256(&repeated_writes_compressed));
+        let state_diffs_hash = H256::from(keccak256(&(state_diffs_packed)));
 
         let merkle_tree_leaves = l2_l1_logs_compressed[4..]
             .chunks(L2ToL1Log::SERIALIZED_SIZE)
@@ -251,6 +322,13 @@ impl L1BatchAuxiliaryOutput {
             l2_l1_logs_merkle_root,
             initial_writes_hash,
             repeated_writes_hash,
+            system_logs_compressed,
+            system_logs_linear_hash,
+            state_diffs_hash,
+            state_diffs_compressed,
+
+            bootloader_heap_hash,
+            events_state_queue_hash,
         }
     }
 
@@ -342,6 +420,7 @@ pub struct L1BatchCommitmentHash {
 }
 
 impl L1BatchCommitment {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         l2_to_l1_logs: Vec<L2ToL1Log>,
         rollup_last_leaf_index: u64,
@@ -350,6 +429,10 @@ impl L1BatchCommitment {
         repeated_writes: Vec<RepeatedStorageWrite>,
         bootloader_code_hash: H256,
         default_aa_code_hash: H256,
+        system_logs: Vec<L2ToL1Log>,
+        state_diffs: Vec<StateDiffRecord>,
+        bootloader_heap_hash: H256,
+        events_state_queue_hash: H256,
     ) -> Self {
         let meta_parameters = L1BatchMetaParameters {
             zkporter_is_available: ZKPORTER_IS_AVAILABLE,
@@ -375,6 +458,10 @@ impl L1BatchCommitment {
                 l2_to_l1_logs,
                 initial_writes,
                 repeated_writes,
+                system_logs,
+                state_diffs,
+                bootloader_heap_hash,
+                events_state_queue_hash,
             ),
             meta_parameters,
         }
@@ -410,6 +497,14 @@ impl L1BatchCommitment {
 
     pub fn repeated_writes_pubdata_hash(&self) -> H256 {
         self.auxiliary_output.repeated_writes_hash
+    }
+
+    pub fn system_logs_compressed(&self) -> &[u8] {
+        &self.auxiliary_output.system_logs_compressed
+    }
+
+    pub fn state_diffs_compressed(&self) -> &[u8] {
+        &self.auxiliary_output.state_diffs_compressed
     }
 
     pub fn hash(&self) -> L1BatchCommitmentHash {
@@ -513,6 +608,10 @@ mod tests {
             commitment_test.auxiliary_input.l2_l1_logs.clone(),
             initial_writes,
             commitment_test.auxiliary_input.repeated_writes.clone(),
+            vec![],
+            vec![],
+            H256::zero(),
+            H256::zero(),
         );
 
         let commitment = L1BatchCommitment {
