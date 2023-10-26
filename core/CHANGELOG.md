@@ -1,5 +1,35 @@
 # Changelog
 
+## [16.1.0](https://github.com/matter-labs/zksync-era/compare/core-v16.0.2...core-v16.1.0) (2023-10-24)
+
+
+### Features
+
+* Add new commitments ([#219](https://github.com/matter-labs/zksync-era/issues/219)) ([a19256e](https://github.com/matter-labs/zksync-era/commit/a19256e2b369f059ab1a469e14de6654768d37aa))
+* arm64 zk-environment rust Docker images and other ([#296](https://github.com/matter-labs/zksync-era/issues/296)) ([33174aa](https://github.com/matter-labs/zksync-era/commit/33174aa5955596f4fc8a283b1c150b8f957cce40))
+* **config:** Extract everything not related to the env config from zksync_config crate ([#245](https://github.com/matter-labs/zksync-era/issues/245)) ([42c64e9](https://github.com/matter-labs/zksync-era/commit/42c64e91e13b6b37619f1459f927fa046ef01097))
+* **eth-watch:** process governor upgrades ([#247](https://github.com/matter-labs/zksync-era/issues/247)) ([d250294](https://github.com/matter-labs/zksync-era/commit/d2502941081fb53387881631c2150803e9f559cc))
+* **merkle tree:** Expose Merkle tree API ([#209](https://github.com/matter-labs/zksync-era/issues/209)) ([4010c7e](https://github.com/matter-labs/zksync-era/commit/4010c7ea63e6eb0f0999457fb2e8e8ad92ad988f))
+* **merkle tree:** Snapshot recovery for Merkle tree ([#163](https://github.com/matter-labs/zksync-era/issues/163)) ([9e20703](https://github.com/matter-labs/zksync-era/commit/9e2070380e6720d84563a14a2246fc18fdb1f8f9))
+* **multivm:** Remove lifetime from multivm ([#218](https://github.com/matter-labs/zksync-era/issues/218)) ([7eda27c](https://github.com/matter-labs/zksync-era/commit/7eda27ca0156225e965f29bc92748083d36ccf05))
+* Remove fee_ticker and token_trading_volume fetcher modules ([#262](https://github.com/matter-labs/zksync-era/issues/262)) ([44f7179](https://github.com/matter-labs/zksync-era/commit/44f71794a66a32f565048636ea5b05aea190653a))
+* **reorg_detector:** compare miniblock hashes for reorg detection ([#236](https://github.com/matter-labs/zksync-era/issues/236)) ([2c930b2](https://github.com/matter-labs/zksync-era/commit/2c930b2f53562cb63874c48c0112537d6efb1958))
+* Rewrite server binary to use `vise` metrics ([#120](https://github.com/matter-labs/zksync-era/issues/120)) ([26ee1fb](https://github.com/matter-labs/zksync-era/commit/26ee1fbb16cbd7c4fad334cbc6804e7d779029b6))
+* **types:** introduce state diff record type and compression ([#194](https://github.com/matter-labs/zksync-era/issues/194)) ([ccf753c](https://github.com/matter-labs/zksync-era/commit/ccf753c5e1befb58eb6bb3d9ce2b392d5de60bdd))
+* **vm:** Improve tracer trait ([#121](https://github.com/matter-labs/zksync-era/issues/121)) ([ff60138](https://github.com/matter-labs/zksync-era/commit/ff601386686cdae0ab4f227203a006816e7a49a5))
+* **vm:** Move all vm versions to the one crate ([#249](https://github.com/matter-labs/zksync-era/issues/249)) ([e3fb489](https://github.com/matter-labs/zksync-era/commit/e3fb4894d08aa98a84e64eaa95b51001055cf911))
+
+
+### Bug Fixes
+
+* **crypto:** update snark-vk to be used in server and update args for proof wrapping ([#240](https://github.com/matter-labs/zksync-era/issues/240)) ([4a5c54c](https://github.com/matter-labs/zksync-era/commit/4a5c54c48bbc100c29fa719c4b1dc3535743003d))
+* **db:** Fix write stalls in RocksDB ([#250](https://github.com/matter-labs/zksync-era/issues/250)) ([650124c](https://github.com/matter-labs/zksync-era/commit/650124cfffc97b11e6bdce8fa7c5449fc9234991))
+* **db:** Fix write stalls in RocksDB (again) ([#265](https://github.com/matter-labs/zksync-era/issues/265)) ([7b23ab0](https://github.com/matter-labs/zksync-era/commit/7b23ab0ba14cb6600ecf7e596a9e9536ffa5fda2))
+* **db:** Fix write stalls in RocksDB (for real this time) ([#292](https://github.com/matter-labs/zksync-era/issues/292)) ([0f15919](https://github.com/matter-labs/zksync-era/commit/0f15919ccd229a141679f358088b1526e66b2d18))
+* Fix `TxStage` string representation ([#255](https://github.com/matter-labs/zksync-era/issues/255)) ([246b5a0](https://github.com/matter-labs/zksync-era/commit/246b5a07435e2d48810126fbd259c12885b54127))
+* fix typos ([#226](https://github.com/matter-labs/zksync-era/issues/226)) ([feb8a6c](https://github.com/matter-labs/zksync-era/commit/feb8a6c7053cc5e0202088f6a1f7644316e1ad05))
+* **witness-generator:** Witness generator oracle with cached storage refunds ([#274](https://github.com/matter-labs/zksync-era/issues/274)) ([8928a41](https://github.com/matter-labs/zksync-era/commit/8928a4169faa3fd74d6816453aa192e1d0c3e4fe))
+
 ## [16.0.2](https://github.com/matter-labs/zksync-era/compare/core-v16.0.1...core-v16.0.2) (2023-10-12)
 
 ### Bug Fixes

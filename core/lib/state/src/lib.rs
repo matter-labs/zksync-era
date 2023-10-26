@@ -57,7 +57,7 @@ pub trait ReadStorage: fmt::Debug {
     }
 
     /// Retrieves the enumeration index for a given `key`.
-    fn get_enumeration_index(&mut self, _key: &StorageKey) -> Option<u64>;
+    fn get_enumeration_index(&mut self, key: &StorageKey) -> Option<u64>;
 }
 
 /// Functionality to write to the VM storage in a batch.

@@ -2,7 +2,6 @@ use tokio::sync::watch;
 
 use std::{sync::Arc, time::Instant};
 
-use db_test_macro::db_test;
 use zksync_config::configs::{
     api::Web3JsonRpcConfig,
     chain::{NetworkConfig, StateKeeperConfig},
@@ -101,8 +100,9 @@ pub(crate) async fn spawn_http_server(
         .expect("Failed spawning JSON-RPC server")
 }
 
-#[db_test]
-async fn http_server_can_start(pool: ConnectionPool) {
+#[tokio::test]
+async fn http_server_can_start() {
+    let pool = ConnectionPool::test_pool().await;
     let network_config = NetworkConfig::from_env().unwrap();
     let mut storage = pool.access_storage().await.unwrap();
     if storage.blocks_dal().is_genesis_needed().await.unwrap() {

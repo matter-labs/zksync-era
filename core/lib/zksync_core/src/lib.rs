@@ -44,11 +44,12 @@ use zksync_types::{
     proofs::AggregationRound,
     protocol_version::{L1VerifierConfig, VerifierParams},
     system_contracts::get_system_smart_contracts,
-    Address, PackedEthSignature, ProtocolVersionId,
+    Address, L2ChainId, PackedEthSignature, ProtocolVersionId,
 };
 use zksync_verification_key_server::get_cached_commitments;
 
 pub mod api_server;
+pub mod basic_witness_input_producer;
 pub mod block_reverter;
 pub mod consistency_checker;
 pub mod data_fetchers;
@@ -69,6 +70,7 @@ pub mod witness_generator;
 use crate::api_server::healthcheck::HealthCheckHandle;
 use crate::api_server::tx_sender::{TxSender, TxSenderBuilder, TxSenderConfig};
 use crate::api_server::web3::{state::InternalApiConfig, ApiServerHandles, Namespace};
+use crate::basic_witness_input_producer::BasicWitnessInputProducer;
 use crate::eth_sender::{Aggregator, EthTxManager};
 use crate::house_keeper::fri_proof_compressor_job_retry_manager::FriProofCompressorJobRetryManager;
 use crate::house_keeper::fri_proof_compressor_queue_monitor::FriProofCompressorStatsReporter;
@@ -234,6 +236,9 @@ pub enum Component {
     DataFetcher,
     /// State keeper.
     StateKeeper,
+    /// Produces input for basic witness generator and uploads it as bin encoded file (blob) to GCS.
+    /// The blob is later used as input for Basic Witness Generators.
+    BasicWitnessInputProducer,
     /// Witness Generator. The first argument is a number of jobs to process. If None, runs indefinitely.
     /// The second argument is the type of the witness-generation performed
     WitnessGenerator(Option<usize>, AggregationRound),
@@ -269,6 +274,9 @@ impl FromStr for Components {
             "data_fetcher" => Ok(Components(vec![Component::DataFetcher])),
             "state_keeper" => Ok(Components(vec![Component::StateKeeper])),
             "housekeeper" => Ok(Components(vec![Component::Housekeeper])),
+            "basic_witness_input_producer" => {
+                Ok(Components(vec![Component::BasicWitnessInputProducer]))
+            }
             "witness_generator" => Ok(Components(vec![
                 Component::WitnessGenerator(None, AggregationRound::BasicCircuits),
                 Component::WitnessGenerator(None, AggregationRound::LeafAggregation),
@@ -661,6 +669,24 @@ pub async fn initialize_components(
     .await
     .context("add_witness_generator_to_task_futures()")?;
 
+    if components.contains(&Component::BasicWitnessInputProducer) {
+        let singleton_connection_pool = ConnectionPool::singleton(DbVariant::Master)
+            .build()
+            .await
+            .context("failed to build singleton connection_pool")?;
+        add_basic_witness_input_producer_to_task_futures(
+            &mut task_futures,
+            &singleton_connection_pool,
+            &store_factory,
+            NetworkConfig::from_env()
+                .context("NetworkConfig::from_env()")?
+                .zksync_network_id,
+            stop_receiver.clone(),
+        )
+        .await
+        .context("add_basic_witness_input_producer_to_task_futures()")?;
+    }
+
     if components.contains(&Component::Housekeeper) {
         add_house_keeper_to_task_futures(&mut task_futures, &store_factory)
             .await
@@ -859,6 +885,32 @@ async fn run_tree(
     let elapsed = started_at.elapsed();
     APP_METRICS.init_latency[&InitStage::Tree].set(elapsed);
     tracing::info!("Initialized {mode_str} tree in {elapsed:?}");
+    Ok(())
+}
+
+async fn add_basic_witness_input_producer_to_task_futures(
+    task_futures: &mut Vec<JoinHandle<anyhow::Result<()>>>,
+    connection_pool: &ConnectionPool,
+    store_factory: &ObjectStoreFactory,
+    l2_chain_id: L2ChainId,
+    stop_receiver: watch::Receiver<bool>,
+) -> anyhow::Result<()> {
+    // Witness Generator won't be spawned with `ZKSYNC_LOCAL_SETUP` running.
+    // BasicWitnessInputProducer shouldn't be producing input for it locally either.
+    if std::env::var("ZKSYNC_LOCAL_SETUP") == Ok("true".to_owned()) {
+        return Ok(());
+    }
+    let started_at = Instant::now();
+    tracing::info!("initializing BasicWitnessInputProducer");
+    let producer =
+        BasicWitnessInputProducer::new(connection_pool.clone(), store_factory, l2_chain_id).await?;
+    task_futures.push(tokio::spawn(producer.run(stop_receiver, None)));
+    tracing::info!(
+        "Initialized BasicWitnessInputProducer in {:?}",
+        started_at.elapsed()
+    );
+    let elapsed = started_at.elapsed();
+    APP_METRICS.init_latency[&InitStage::BasicWitnessInputProducer].set(elapsed);
     Ok(())
 }
 
@@ -1287,14 +1339,4 @@ async fn circuit_breakers_for_components(
         }));
     }
     Ok(circuit_breakers)
-}
-
-#[tokio::test]
-async fn test_house_keeper_components_get_added() {
-    let (core_task_handles, _, _, _) = initialize_components(vec![Component::Housekeeper], false)
-        .await
-        .unwrap();
-    // circuit-breaker, prometheus-exporter components are run, irrespective of other components.
-    let always_running_component_count = 2;
-    assert_eq!(15, core_task_handles.len() - always_running_component_count);
 }

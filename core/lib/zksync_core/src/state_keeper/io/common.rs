@@ -67,15 +67,14 @@ pub(crate) fn poll_iters(delay_interval: Duration, max_wait: Duration) -> usize 
     ((max_wait_millis + delay_interval_millis - 1) / delay_interval_millis).max(1) as usize
 }
 
-/// Loads the pending L1 block data from the database.
-pub(crate) async fn load_pending_batch(
+pub(crate) async fn load_l1_batch_params(
     storage: &mut StorageProcessor<'_>,
     current_l1_batch_number: L1BatchNumber,
     fee_account: Address,
     validation_computational_gas_limit: u32,
     chain_id: L2ChainId,
-) -> Option<PendingBatchData> {
-    // If pending miniblock doesn't exist, it means that there is no unsynced state (i.e. no transaction
+) -> Option<(SystemEnv, L1BatchEnv)> {
+    // If miniblock doesn't exist (for instance if it's pending), it means that there is no unsynced state (i.e. no transactions
     // were executed after the last sealed batch).
     let pending_miniblock_number = {
         let (_, last_miniblock_number_included_in_l1_batch) = storage
@@ -118,7 +117,7 @@ pub(crate) async fn load_pending_batch(
         .await;
 
     tracing::info!("Previous l1_batch_hash: {}", previous_l1_batch_hash);
-    let (system_env, l1_batch_env) = l1_batch_params(
+    Some(l1_batch_params(
         current_l1_batch_number,
         fee_account,
         pending_miniblock_header.timestamp,
@@ -134,12 +133,31 @@ pub(crate) async fn load_pending_batch(
             .expect("`protocol_version` must be set for pending miniblock"),
         pending_miniblock_header.virtual_blocks,
         chain_id,
-    );
+    ))
+}
+
+/// Loads the pending L1 block data from the database.
+pub(crate) async fn load_pending_batch(
+    storage: &mut StorageProcessor<'_>,
+    current_l1_batch_number: L1BatchNumber,
+    fee_account: Address,
+    validation_computational_gas_limit: u32,
+    chain_id: L2ChainId,
+) -> Option<PendingBatchData> {
+    let (system_env, l1_batch_env) = load_l1_batch_params(
+        storage,
+        current_l1_batch_number,
+        fee_account,
+        validation_computational_gas_limit,
+        chain_id,
+    )
+    .await?;
 
     let pending_miniblocks = storage
         .transactions_dal()
         .get_miniblocks_to_reexecute()
-        .await;
+        .await
+        .unwrap();
 
     Some(PendingBatchData {
         l1_batch_env,

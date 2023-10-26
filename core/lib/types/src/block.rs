@@ -45,7 +45,7 @@ pub struct L1BatchHeader {
     pub l2_tx_count: u16,
     /// The data of the processed priority operations hash which must be sent to the smart contract.
     pub priority_ops_onchain_data: Vec<PriorityOpOnchainData>,
-    /// All L2 -> L1 logs in the block.
+    /// All user generated L2 -> L1 logs in the block.
     pub l2_to_l1_logs: Vec<L2ToL1Log>,
     /// Preimages of the hashes that were sent as value of L2 logs by special system L2 contract.
     pub l2_to_l1_messages: Vec<Vec<u8>>,
@@ -84,9 +84,9 @@ pub struct MiniblockHeader {
     pub virtual_blocks: u32,
 }
 
-/// Data needed to re-execute miniblock.
+/// Data needed to execute a miniblock in the VM.
 #[derive(Debug)]
-pub struct MiniblockReexecuteData {
+pub struct MiniblockExecutionData {
     pub number: MiniblockNumber,
     pub timestamp: u64,
     pub prev_block_hash: H256,
