@@ -35,7 +35,6 @@ impl<S: WriteStorage, H: HistoryMode> Default for TracerDispatcher<S, H> {
         Self { tracers: vec![] }
     }
 }
-
 impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for TracerDispatcher<S, H> {
     fn before_decoding(&mut self, _state: VmLocalStateData<'_>, _memory: &SimpleMemory<H>) {
         for tracer in self.tracers.iter() {

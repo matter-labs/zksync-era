@@ -35,12 +35,14 @@ impl<S: WriteStorage, H: HistoryMode> Default for TracerDispatcher<S, H> {
 }
 
 impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for TracerDispatcher<S, H> {
+    #[inline(always)]
     fn before_decoding(&mut self, _state: VmLocalStateData<'_>, _memory: &SimpleMemory<H>) {
         for tracer in self.tracers.iter() {
             tracer.borrow_mut().before_decoding(_state, _memory);
         }
     }
 
+    #[inline(always)]
     fn after_decoding(
         &mut self,
         _state: VmLocalStateData<'_>,
@@ -52,6 +54,7 @@ impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for TracerDi
         }
     }
 
+    #[inline(always)]
     fn before_execution(
         &mut self,
         _state: VmLocalStateData<'_>,
@@ -65,6 +68,8 @@ impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for TracerDi
                 .before_execution(_state, _data, _memory, _storage.clone());
         }
     }
+
+    #[inline(always)]
     fn after_execution(
         &mut self,
         _state: VmLocalStateData<'_>,
@@ -87,6 +92,7 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for TracerDispatcher<S, H> 
         }
     }
     /// Run after each vm execution cycle
+    #[inline(always)]
     fn finish_cycle(
         &mut self,
         _state: &mut ZkSyncVmState<S, H>,
