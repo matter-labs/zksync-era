@@ -7,7 +7,6 @@ use zksync_types::U256;
 use crate::interface::{VmExecutionStatistics, VmMemoryMetrics};
 use crate::vm_latest::tracers::DefaultExecutionTracer;
 use crate::vm_latest::vm::Vm;
-use crate::vm_latest::VmTracer;
 
 /// Module responsible for observing the VM behavior, i.e. calculating the statistics of the VM runs
 /// or reporting the VM memory usage.

@@ -2,9 +2,8 @@ use crate::interface::{
     FinishedL1Batch, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode, VmInterface,
     VmInterfaceHistoryEnabled, VmMemoryMetrics,
 };
-use std::cell::RefCell;
+
 use std::collections::HashSet;
-use std::rc::Rc;
 
 use zksync_state::{ReadStorage, StorageView};
 use zksync_utils::bytecode::{hash_bytecode, CompressedBytecodeInfo};

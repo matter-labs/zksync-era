@@ -4,7 +4,7 @@ use tracing::{span, Level};
 
 use multivm::glue::tracers::MultivmTracer;
 use multivm::interface::{TxExecutionMode, VmExecutionResultAndLogs};
-use multivm::tracers::{NoopTracer, StorageInvocations};
+use multivm::tracers::StorageInvocations;
 use multivm::vm_latest::constants::ETH_CALL_GAS_LIMIT;
 use zksync_dal::ConnectionPool;
 

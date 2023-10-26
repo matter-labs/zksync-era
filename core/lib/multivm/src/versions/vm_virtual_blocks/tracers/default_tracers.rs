@@ -21,9 +21,7 @@ use crate::vm_virtual_blocks::constants::BOOTLOADER_HEAP_PAGE;
 use crate::vm_virtual_blocks::old_vm::history_recorder::HistoryMode;
 use crate::vm_virtual_blocks::old_vm::memory::SimpleMemory;
 use crate::vm_virtual_blocks::tracers::dispatcher::TracerDispatcher;
-use crate::vm_virtual_blocks::tracers::traits::{
-    ExecutionEndTracer, ExecutionProcessing, VmTracer,
-};
+use crate::vm_virtual_blocks::tracers::traits::{ExecutionEndTracer, ExecutionProcessing};
 use crate::vm_virtual_blocks::tracers::utils::{
     computational_gas_price, gas_spent_on_bytecodes_and_long_messages_this_opcode,
     print_debug_if_needed, VmHook,

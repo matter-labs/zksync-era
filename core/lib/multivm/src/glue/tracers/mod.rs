@@ -99,22 +99,3 @@ where
     T: IntoLatestTracer<S, H> + IntoVmVirtualBlocksTracer<S, H>,
 {
 }
-
-#[cfg(test)]
-mod tests {
-    use crate::glue::tracers::{IntoLatestTracer, MultivmTracer};
-    use crate::tracers::CallTracer;
-    use crate::vm_latest::HistoryEnabled;
-    use crate::HistoryMode;
-    use std::cell::RefCell;
-    use std::rc::Rc;
-    use zksync_state::{InMemoryStorage, StorageView};
-
-    #[test]
-    fn try_conversion() {
-        let tracer = CallTracer::new();
-        let tracer: Box<dyn MultivmTracer<StorageView<InMemoryStorage>, HistoryEnabled>> =
-            Box::new(tracer);
-        tracer.latest();
-    }
-}

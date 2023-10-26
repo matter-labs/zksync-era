@@ -248,7 +248,7 @@ pub(super) fn execute_internal_transfer_test() -> u32 {
     let input: Vec<_> = bytes_to_be_words(input).into_iter().enumerate().collect();
 
     let tracer_result = Rc::new(RefCell::new(0));
-    let mut tracer = SpecialBootloaderTracer {
+    let tracer = SpecialBootloaderTracer {
         input,
         output: tracer_result.clone(),
     }

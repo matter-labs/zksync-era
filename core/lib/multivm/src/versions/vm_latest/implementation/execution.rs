@@ -7,7 +7,7 @@ use crate::interface::types::tracer::TracerExecutionStatus;
 use crate::interface::{VmExecutionMode, VmExecutionResultAndLogs};
 use crate::vm_latest::old_vm::utils::{vm_may_have_ended_inner, VmExecutionResult};
 use crate::vm_latest::tracers::dispatcher::TracerDispatcher;
-use crate::vm_latest::tracers::{traits::VmTracer, DefaultExecutionTracer, RefundsTracer};
+use crate::vm_latest::tracers::{DefaultExecutionTracer, RefundsTracer};
 use crate::vm_latest::vm::Vm;
 
 impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {

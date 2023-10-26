@@ -12,7 +12,7 @@ use multivm::interface::{
     ExecutionResult, FinishedL1Batch, Halt, L1BatchEnv, L2BlockEnv, SystemEnv,
     VmExecutionResultAndLogs,
 };
-use multivm::tracers::{CallTracer, NoopTracer};
+use multivm::tracers::CallTracer;
 use multivm::vm_latest::HistoryEnabled;
 use multivm::VmInstance;
 use zksync_dal::ConnectionPool;

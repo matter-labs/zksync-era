@@ -7,7 +7,7 @@ use zksync_state::WriteStorage;
 use crate::vm_virtual_blocks::old_vm::utils::{vm_may_have_ended_inner, VmExecutionResult};
 use crate::vm_virtual_blocks::tracers::dispatcher::TracerDispatcher;
 use crate::vm_virtual_blocks::tracers::{
-    traits::{ExecutionEndTracer, ExecutionProcessing, VmTracer},
+    traits::{ExecutionEndTracer, VmTracer},
     DefaultExecutionTracer, RefundsTracer,
 };
 use crate::vm_virtual_blocks::vm::Vm;

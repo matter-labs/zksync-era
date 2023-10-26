@@ -8,7 +8,7 @@ use zksync_system_constants::KECCAK256_PRECOMPILE_ADDRESS;
 
 use crate::HistoryMode;
 use zksync_types::vm_trace::ViolatedValidationRule;
-use zksync_types::{get_code_key, AccountTreeId, StorageKey, H256, U256};
+use zksync_types::{get_code_key, AccountTreeId, StorageKey, H256};
 use zksync_utils::{h256_to_account_address, u256_to_account_address, u256_to_h256};
 
 use crate::vm_virtual_blocks::tracers::utils::{

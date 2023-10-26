@@ -13,7 +13,7 @@ use crate::interface::{
 use crate::interface::{BytecodeCompressionError, VmInterface};
 use crate::vm_latest::bootloader_state::BootloaderState;
 use crate::vm_latest::tracers::dispatcher::TracerDispatcher;
-use crate::vm_latest::tracers::traits::VmTracer;
+
 use crate::vm_latest::types::internals::{new_vm_state, VmSnapshot, ZkSyncVmState};
 
 /// Main entry point for Virtual Machine integration.

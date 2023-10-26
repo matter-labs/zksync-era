@@ -12,7 +12,7 @@ use crate::vm_virtual_blocks::old_vm::events::merge_events;
 
 use crate::vm_virtual_blocks::bootloader_state::BootloaderState;
 use crate::vm_virtual_blocks::tracers::dispatcher::TracerDispatcher;
-use crate::vm_virtual_blocks::tracers::traits::VmTracer;
+
 use crate::vm_virtual_blocks::types::internals::{new_vm_state, VmSnapshot, ZkSyncVmState};
 
 /// Main entry point for Virtual Machine integration.

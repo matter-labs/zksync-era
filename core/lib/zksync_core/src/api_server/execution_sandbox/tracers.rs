@@ -2,8 +2,7 @@ use multivm::glue::tracers::MultivmTracer;
 use multivm::tracers::CallTracer;
 use multivm::vm_latest::HistoryMode;
 use once_cell::sync::OnceCell;
-use std::cell::RefCell;
-use std::rc::Rc;
+
 use std::sync::Arc;
 use zksync_state::WriteStorage;
 use zksync_types::vm_trace::Call;

@@ -6,8 +6,7 @@ use crate::vm_virtual_blocks::{
     BootloaderState, ExecutionEndTracer, ExecutionProcessing, HistoryMode, SimpleMemory, VmTracer,
     ZkSyncVmState,
 };
-use std::cell::RefCell;
-use std::rc::Rc;
+
 use zk_evm_1_3_3::tracing::{
     AfterDecodingData, AfterExecutionData, BeforeExecutionData, VmLocalStateData,
 };
@@ -87,7 +86,7 @@ impl<S: WriteStorage, H: HistoryMode> ExecutionEndTracer<H> for TracerDispatcher
     fn should_stop_execution(&self) -> bool {
         let mut result = false;
         for tracer in self.tracers.iter() {
-            result = result | tracer.borrow_mut().should_stop_execution();
+            result |= tracer.borrow_mut().should_stop_execution();
         }
         result
     }
