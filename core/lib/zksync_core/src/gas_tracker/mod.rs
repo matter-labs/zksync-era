@@ -113,9 +113,7 @@ pub(crate) fn commit_gas_count_for_l1_batch(
     // Protocol Version 17 introduces boojum, and along with boojum an update to how storage writes
     // are communicated/compressed.
     let state_diff_size = match header.protocol_version.unwrap() {
-        ProtocolVersionId::Version17 => {
-            panic!("add in the size of the compressed state diffs from metadata")
-        }
+        ProtocolVersionId::Version17 => metadata.state_diffs_compressed.len() as u32,
         _ => {
             metadata.initial_writes_compressed.len() as u32
                 + metadata.repeated_writes_compressed.len() as u32
