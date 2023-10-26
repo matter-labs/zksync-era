@@ -117,7 +117,7 @@ returns
 
 The deposit command has called the contract on address `0x54e8` (which is exactly the `CONTRACTS_DIAMOND_PROXY_ADDR`
 from `deployL1.log`), and it has called the method `0xeb672419` - which is the `requestL2Transaction` from
-[Mailbox.sol](https://github.com/matter-labs/zksync-2-contracts/blob/main/ethereum/contracts/zksync/facets/Mailbox.sol#L205)
+[Mailbox.sol](https://github.com/matter-labs/era-contracts/blob/f06a58360a2b8e7129f64413998767ac169d1efd/ethereum/contracts/zksync/facets/Mailbox.sol#L220)
 
 #### Quick note on our L1 contracts
 
