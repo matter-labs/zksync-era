@@ -169,7 +169,7 @@ async fn test_buffered_storage(
     let last_block_number = BlockNumber((block_count + initial_block_count) as u64);
 
     scope::run!(ctx, |ctx, s| async {
-        s.spawn_bg(buffered_store.as_ref().run_updates(ctx, block_receiver));
+        s.spawn_bg(buffered_store.inner().run_updates(ctx, block_receiver));
         s.spawn_bg(async {
             let err = buffered_store.listen_to_updates(ctx).await.unwrap_err();
             match &err {
@@ -212,9 +212,9 @@ async fn test_buffered_storage(
             ctx.sleep(block_interval).await?;
         }
 
-        let mut inner_subscriber = buffered_store.as_ref().subscribe_to_block_writes();
+        let mut inner_subscriber = buffered_store.inner().subscribe_to_block_writes();
         while buffered_store
-            .as_ref()
+            .inner()
             .last_contiguous_block_number(ctx)
             .await?
             < last_block_number

@@ -154,15 +154,14 @@ impl<T: ContiguousBlockStore> BufferedStorage<T> {
     }
 
     #[cfg(test)]
-    pub(crate) fn set_events_sender(
+    pub(super) fn set_events_sender(
         &mut self,
         sender: channel::UnboundedSender<BufferedStorageEvent>,
     ) {
         self.events_sender = sender;
     }
 
-    #[cfg(test)]
-    pub(crate) fn as_ref(&self) -> &T {
+    pub(super) fn inner(&self) -> &T {
         &self.inner
     }
 
