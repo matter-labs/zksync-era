@@ -22,7 +22,7 @@ impl ApiTracer {
         self,
     ) -> Box<dyn MultivmTracer<S, H>> {
         match self {
-            ApiTracer::CallTracer(tracer) => CallTracer::new().into_boxed(),
+            ApiTracer::CallTracer(tracer) => CallTracer::new(tracer.clone()).into_boxed(),
         }
     }
 }

@@ -1,5 +1,5 @@
 use crate::interface::dyn_tracers::vm_1_3_3::DynTracer;
-use crate::interface::VmRevertReason;
+use crate::interface::{VmExecutionResultAndLogs, VmRevertReason};
 use crate::tracers::call_tracer::{CallTracer, FarcallAndNearCallCount};
 use crate::vm_virtual_blocks::{
     ExecutionEndTracer, ExecutionProcessing, HistoryMode, SimpleMemory, VmTracer,
@@ -66,7 +66,11 @@ impl<H: HistoryMode> ExecutionEndTracer<H> for CallTracer {}
 
 impl<S: WriteStorage, H: HistoryMode> ExecutionProcessing<S, H> for CallTracer {}
 
-impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for CallTracer {}
+impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for CallTracer {
+    fn save_results(&mut self, _result: &mut VmExecutionResultAndLogs) {
+        self.store_result()
+    }
+}
 
 impl CallTracer {
     fn handle_far_call_op_code<H: HistoryMode>(

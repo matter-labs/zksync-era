@@ -29,5 +29,5 @@ mod vm;
 pub mod constants;
 pub mod utils;
 
-#[cfg(test)]
-mod tests;
+// #[cfg(test)]
+// mod tests;

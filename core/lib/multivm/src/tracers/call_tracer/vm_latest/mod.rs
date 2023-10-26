@@ -67,6 +67,7 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for CallTracer {
         _bootloader_state: &BootloaderState,
         _stop_reason: VmExecutionStopReason,
     ) {
+        self.store_result()
     }
 }
 
