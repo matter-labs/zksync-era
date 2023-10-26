@@ -67,7 +67,7 @@ pub struct L1BatchHeader {
 }
 
 /// Holder for the miniblock metadata that is not available from transactions themselves.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct MiniblockHeader {
     pub number: MiniblockNumber,
     pub timestamp: u64,
