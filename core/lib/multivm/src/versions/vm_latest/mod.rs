@@ -8,7 +8,6 @@ pub use oracles::storage::StorageOracle;
 pub use tracers::{
     dispatcher::TracerDispatcher,
     traits::{ToTracerPointer, TracerPointer, VmTracer},
-    ValidationError, ValidationTracer, ValidationTracerParams,
 };
 
 pub use utils::transaction_encoding::TransactionVmExt;
@@ -22,7 +21,7 @@ mod bootloader_state;
 mod implementation;
 mod old_vm;
 mod oracles;
-mod tracers;
+pub(crate) mod tracers;
 mod types;
 mod vm;
 

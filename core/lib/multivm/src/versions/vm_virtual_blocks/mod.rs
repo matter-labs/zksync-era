@@ -8,7 +8,6 @@ pub use tracers::{
     dispatcher::TracerDispatcher,
     traits::{ExecutionEndTracer, ExecutionProcessing, ToTracerPointer, TracerPointer, VmTracer},
     utils::VmExecutionStopReason,
-    ValidationError, ValidationTracer, ValidationTracerParams,
 };
 
 pub use types::internals::ZkSyncVmState;
@@ -21,7 +20,7 @@ pub use vm::Vm;
 mod bootloader_state;
 mod implementation;
 mod old_vm;
-mod tracers;
+pub(crate) mod tracers;
 mod types;
 mod vm;
 
