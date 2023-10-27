@@ -10,8 +10,8 @@ pub fn events_queue_commitment(
     protocol_version: ProtocolVersionId,
 ) -> Option<H256> {
     match protocol_version {
-        id if id < ProtocolVersionId::Version17 => None,
-        ProtocolVersionId::Version17 => Some(H256(events_queue_commitment_fixed(events_queue))),
+        id if id < ProtocolVersionId::Version18 => None,
+        ProtocolVersionId::Version18 => Some(H256(events_queue_commitment_fixed(events_queue))),
         id => unimplemented!("events_queue_commitment is not implemented for {id:?}"),
     }
 }
@@ -21,8 +21,8 @@ pub fn bootloader_initial_content_commitment(
     protocol_version: ProtocolVersionId,
 ) -> Option<H256> {
     match protocol_version {
-        id if id < ProtocolVersionId::Version17 => None,
-        ProtocolVersionId::Version17 => {
+        id if id < ProtocolVersionId::Version18 => None,
+        ProtocolVersionId::Version18 => {
             let full_bootloader_memory =
                 expand_memory_contents(initial_bootloader_contents, USED_BOOTLOADER_MEMORY_BYTES);
             Some(H256(initial_heap_content_commitment_fixed(
