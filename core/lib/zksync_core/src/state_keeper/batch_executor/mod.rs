@@ -5,7 +5,7 @@ use tokio::{
     task::JoinHandle,
 };
 
-use multivm::glue::tracers::MultivmTracer;
+use multivm::MultivmTracer;
 use std::{fmt, sync::Arc};
 
 use multivm::interface::{
@@ -456,7 +456,7 @@ impl BatchExecutor {
 
         let call_tracer_result = Arc::new(OnceCell::default());
         let tracer = if self.save_call_traces {
-            vec![CallTracer::new(call_tracer_result.clone()).into_boxed()]
+            vec![CallTracer::new(call_tracer_result.clone()).into_tracer_pointer()]
         } else {
             vec![]
         };
@@ -477,14 +477,14 @@ impl BatchExecutor {
 
         let call_tracer_result = Arc::new(OnceCell::default());
         let tracer = if self.save_call_traces {
-            vec![CallTracer::new(call_tracer_result.clone()).into_boxed()]
+            vec![CallTracer::new(call_tracer_result.clone()).into_tracer_pointer()]
         } else {
             vec![]
         };
 
         let result = vm
             .inspect_transaction_with_bytecode_compression(tracer, tx.clone(), false)
-            .unwrap();
+            .expect("Compression can't fail if we don't apply it");
         let compressed_bytecodes = vm.get_last_tx_compressed_bytecodes();
 
         // TODO implement tracer manager which will be responsible

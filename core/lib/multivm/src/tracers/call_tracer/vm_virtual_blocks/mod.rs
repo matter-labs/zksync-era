@@ -48,14 +48,14 @@ impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for CallTracer {
                     ..Default::default()
                 };
 
-                self.handle_far_call_op_code(state, data, memory, &mut current_call);
+                self.handle_far_call_op_code_virtual_blocks(state, data, memory, &mut current_call);
                 self.stack.push(FarcallAndNearCallCount {
                     farcall: current_call,
                     near_calls_after: 0,
                 });
             }
             Opcode::Ret(ret_code) => {
-                self.handle_ret_op_code(state, data, memory, ret_code);
+                self.handle_ret_op_code_virtual_blocks(state, data, memory, ret_code);
             }
             _ => {}
         };
@@ -73,7 +73,7 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for CallTracer {
 }
 
 impl CallTracer {
-    fn handle_far_call_op_code<H: HistoryMode>(
+    fn handle_far_call_op_code_virtual_blocks<H: HistoryMode>(
         &mut self,
         state: VmLocalStateData<'_>,
         _data: AfterExecutionData,
@@ -129,7 +129,7 @@ impl CallTracer {
         current_call.gas = current.ergs_remaining;
     }
 
-    fn save_output<H: HistoryMode>(
+    fn save_output_virtual_blocks<H: HistoryMode>(
         &mut self,
         state: VmLocalStateData<'_>,
         memory: &SimpleMemory<H>,
@@ -173,7 +173,7 @@ impl CallTracer {
         }
     }
 
-    fn handle_ret_op_code<H: HistoryMode>(
+    fn handle_ret_op_code_virtual_blocks<H: HistoryMode>(
         &mut self,
         state: VmLocalStateData<'_>,
         _data: AfterExecutionData,
@@ -195,7 +195,7 @@ impl CallTracer {
             .parent_gas
             .saturating_sub(state.vm_local_state.callstack.current.ergs_remaining);
 
-        self.save_output(state, memory, ret_opcode, &mut current_call.farcall);
+        self.save_output_virtual_blocks(state, memory, ret_opcode, &mut current_call.farcall);
 
         // If there is a parent call, push the current call to it
         // Otherwise, push the current call to the stack, because it's the top level call

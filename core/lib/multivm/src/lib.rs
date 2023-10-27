@@ -5,13 +5,16 @@
 
 pub use crate::{
     glue::{
-        block_properties::BlockProperties, history_mode::HistoryMode, oracle_tools::OracleTools,
+        block_properties::BlockProperties,
+        history_mode::HistoryMode,
+        oracle_tools::OracleTools,
+        tracers::{MultiVmTracerPointer, MultivmTracer},
     },
     vm_instance::VmInstance,
 };
 pub use zksync_types::vm_version::VmVersion;
 
-pub mod glue;
+mod glue;
 mod vm_instance;
 
 pub mod interface;

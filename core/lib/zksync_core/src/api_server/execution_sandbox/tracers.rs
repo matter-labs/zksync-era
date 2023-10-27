@@ -1,6 +1,6 @@
-use multivm::glue::tracers::MultivmTracer;
 use multivm::tracers::CallTracer;
 use multivm::vm_latest::HistoryMode;
+use multivm::{MultiVmTracerPointer, MultivmTracer};
 use once_cell::sync::OnceCell;
 
 use std::sync::Arc;
@@ -19,9 +19,9 @@ impl ApiTracer {
         H: HistoryMode + multivm::HistoryMode<VmVirtualBlocksRefundsEnhancement = H> + 'static,
     >(
         self,
-    ) -> Box<dyn MultivmTracer<S, H>> {
+    ) -> MultiVmTracerPointer<S, H> {
         match self {
-            ApiTracer::CallTracer(tracer) => CallTracer::new(tracer.clone()).into_boxed(),
+            ApiTracer::CallTracer(tracer) => CallTracer::new(tracer.clone()).into_tracer_pointer(),
         }
     }
 }

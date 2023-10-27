@@ -32,7 +32,7 @@ pub struct Vm<S: WriteStorage, H: HistoryMode> {
 
 /// Public interface for VM
 impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
-    type Tracer = TracerDispatcher<S, H::VmVirtualBlocksMode>;
+    type TracerDispatcher = TracerDispatcher<S, H::VmVirtualBlocksMode>;
 
     fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage: StoragePtr<S>) -> Self {
         let (state, bootloader_state) = new_vm_state(storage.clone(), &system_env, &batch_env);

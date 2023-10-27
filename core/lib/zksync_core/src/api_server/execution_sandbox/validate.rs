@@ -1,9 +1,11 @@
-use multivm::glue::tracers::MultivmTracer;
 use multivm::interface::ExecutionResult;
+use multivm::MultivmTracer;
 use std::collections::HashSet;
 
-use multivm::tracers::validator::{ValidationError, ValidationTracer, ValidationTracerParams};
-use multivm::tracers::StorageInvocations;
+use multivm::tracers::{
+    validator::{ValidationError, ValidationTracer, ValidationTracerParams},
+    StorageInvocations,
+};
 use multivm::vm_latest::HistoryDisabled;
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_types::{l2::L2Tx, Transaction, TRUSTED_ADDRESS_SLOTS, TRUSTED_TOKEN_SLOTS, U256};
@@ -81,9 +83,9 @@ impl TxSharedArgs {
                         ValidationTracer::<HistoryDisabled>::new(validation_params);
 
                     let result = vm.inspect_next_transaction(vec![
-                        tracer.into_boxed(),
+                        tracer.into_tracer_pointer(),
                         StorageInvocations::new(execution_args.missed_storage_invocation_limit)
-                            .into_boxed(),
+                            .into_tracer_pointer(),
                     ]);
 
                     let result = match (result.result, validation_result.get()) {

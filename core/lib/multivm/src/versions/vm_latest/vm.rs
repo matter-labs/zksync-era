@@ -33,7 +33,7 @@ pub struct Vm<S: WriteStorage, H: HistoryMode> {
 
 /// Public interface for VM
 impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
-    type Tracer = TracerDispatcher<S, H::VmVirtualBlocksRefundsEnhancement>;
+    type TracerDispatcher = TracerDispatcher<S, H::VmVirtualBlocksRefundsEnhancement>;
 
     fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage: StoragePtr<S>) -> Self {
         let (state, bootloader_state) = new_vm_state(storage.clone(), &system_env, &batch_env);
@@ -59,7 +59,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
     /// Execute VM with custom tracers.
     fn inspect(
         &mut self,
-        tracer: Self::Tracer,
+        tracer: Self::TracerDispatcher,
         execution_mode: VmExecutionMode,
     ) -> VmExecutionResultAndLogs {
         self.inspect_inner(tracer, execution_mode)
@@ -112,7 +112,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
     /// Inspect transaction with optional bytecode compression.
     fn inspect_transaction_with_bytecode_compression(
         &mut self,
-        tracer: Self::Tracer,
+        tracer: Self::TracerDispatcher,
         tx: Transaction,
         with_compression: bool,
     ) -> Result<VmExecutionResultAndLogs, BytecodeCompressionError> {

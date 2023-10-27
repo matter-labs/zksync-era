@@ -3,6 +3,7 @@ use zk_evm_1_3_3::tracing::{
     AfterDecodingData, AfterExecutionData, BeforeExecutionData, VmLocalStateData,
 };
 use zksync_state::StoragePtr;
+
 /// Version of zk_evm_1_3_3::Tracer suitable for dynamic dispatch.
 pub trait DynTracer<S, M: Memory> {
     fn before_decoding(&mut self, _state: VmLocalStateData<'_>, _memory: &M) {}

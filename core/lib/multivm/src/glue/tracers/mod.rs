@@ -32,10 +32,12 @@
 use crate::HistoryMode;
 use zksync_state::WriteStorage;
 
+pub type MultiVmTracerPointer<S, H> = Box<dyn MultivmTracer<S, H>>;
+
 pub trait MultivmTracer<S: WriteStorage, H: HistoryMode>:
     IntoLatestTracer<S, H> + IntoVmVirtualBlocksTracer<S, H>
 {
-    fn into_boxed(self) -> Box<dyn MultivmTracer<S, H>>
+    fn into_tracer_pointer(self) -> MultiVmTracerPointer<S, H>
     where
         Self: Sized + 'static,
     {
