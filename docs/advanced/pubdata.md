@@ -8,12 +8,13 @@ Pubdata in zkSync can be divided up into 4 different categories:
 4. Storage writes
 
 Using data corresponding to these 4 facets, across all executed batches, we’re able to reconstruct the full state of L2.
-With the upgrade to our new proof system, boojum, the way this data is represented will change. At a high level, in the
-current system these are represented as separate fields while for boojum they will be packed into a single bytes array.
-Once 4844 gets integrated this bytes array will move from being part of the calldata to blob data.
+One thing to note is that the way that the data is represented changes in a pre-boojum and post-boojum zkSync Era. At a high level, in a
+pre-boojum era these are represented as separate fields while in boojum they will be packed into a single bytes array.
 
-While the structure of the pubdata changes, the way in which one can go about pulling the information will remain the
-same. First, we need to filter all of the transactions to the L1 zkSync contract for only the `commitBlocks`
+> Note: Once 4844 gets integrated this bytes array will move from being part of the calldata to blob data.
+
+While the structure of the pubdata changes, we can use the same strategy to pull the relevant information. 
+First, we need to filter all of the transactions to the L1 zkSync contract for only the `commitBlocks`
 transactions where the proposed block has been referenced by a corresponding `executeBlocks` call (the reason for this
 is that a committed or even proven block can be reverted but an executed one cannot). Once we have all the committed
 blocks that have been executed, we then will pull the transaction input and the relevant fields, applying them in order
@@ -34,9 +35,9 @@ function _storeCodeHash(address _address, bytes32 _hash) internal {
 
 ```
 
-## Current System
+## Pre-Boojum Era
 
-In our current system the superset of pubdata fields and input to the `commitBlocks` function follows the following
+In pre-boojum era the superset of pubdata fields and input to the `commitBlocks` function follows the following
 format:
 
 ```solidity
@@ -86,7 +87,7 @@ For the ids on the repeated writes, they are generated as we process the first t
 `key1` it will be encoded as `<1, new_val>` and so on and so forth. There is a little shortcut here where the last new
 id generated as part of a batch will be in the `indexRepeatedStorageChanges` field.
 
-## New System (Boojum)
+## Post-Boojum Era
 
 ```solidity
 /// @notice Data needed to commit new block
@@ -111,7 +112,7 @@ struct CommitBlockInfo {
 
 ```
 
-The main difference between the old and the new `CommitBlockInfo` is that we have essentially taken a few of the fields
+The main difference between the two `CommitBlockInfo` structs is that we have taken a few of the fields
 and merged them into a single bytes array called `totalL2ToL1Pubdata`. The contents of pubdata include:
 
 1. L2 to L1 Logs
@@ -123,11 +124,11 @@ The 2 main fields needed for state reconstruction are the bytecodes and the stat
 structure and reasoning in the old system (as explained above). The state diffs will follow the compression illustrated
 below.
 
-## Compression of State Diffs Under the New System
+## Compression of State Diffs in Post-Boojum Era
 
 ### Keys
 
-Keys will be packed in the same way as they were before. The only change is that we’ll avoid using the 8-byte
+Keys will be packed in the same way as they were before boojum. The only change is that we’ll avoid using the 8-byte
 enumeration index and will pack it to the minimal necessary number of bytes. This number will be part of the pubdata.
 Once a key has been used, it can already use the 4 or 5 byte enumeration index and it is very hard to have something
 cheaper for keys that has been used already. The opportunity comes when remembering the ids for accounts to spare some
