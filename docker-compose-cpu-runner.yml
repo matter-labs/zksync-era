@@ -6,7 +6,7 @@ services:
       - PLUGIN_CONFIG
 
   zk:
-    image: "matterlabs/zk-environment:latest2.0-lightweight"
+    image: "matterlabs/zk-environment:latest2.0-lightweight-nightly"
     depends_on:
       - geth
       - postgres
