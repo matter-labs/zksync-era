@@ -1,8 +1,16 @@
 version: '3.2'
 services:
+  geth:
+    image: "matterlabs/geth:latest"
+    environment:
+      - PLUGIN_CONFIG
+
   zk:
     image: "matterlabs/zk-environment:latest2.0"
     container_name: zk
+    depends_on:
+      - geth
+      - postgres
     security_opt:
       - seccomp:unconfined
     command: tail -f /dev/null
@@ -28,3 +36,9 @@ services:
           devices:
             - capabilities: [gpu]
 
+  postgres:
+    image: "postgres:14"
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_HOST_AUTH_METHOD=trust
