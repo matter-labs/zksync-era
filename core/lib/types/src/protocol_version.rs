@@ -257,7 +257,7 @@ impl TryFrom<Log> for ProtocolUpgrade {
         let mut decoded = decode(
             &[ParamType::Tuple(vec![
                 transaction_param_type,                       // transaction data
-                ParamType::Array(Box::new(ParamType::Bytes)), //factory deps
+                ParamType::Array(Box::new(ParamType::Bytes)), // factory deps
                 ParamType::FixedBytes(32),                    // bootloader code hash
                 ParamType::FixedBytes(32),                    // default account code hash
                 ParamType::Address,                           // verifier address
@@ -441,7 +441,8 @@ impl TryFrom<Call> for ProtocolUpgrade {
 
     fn try_from(call: Call) -> Result<Self, Self::Error> {
         // Reuses `ProtocolUpgrade::try_from`.
-        // `ProtocolUpgrade::try_from` only uses 3 log fields: `data`, `block_number`, `transaction_hash`. Others can be filled with dummy values.
+        // `ProtocolUpgrade::try_from` only uses 3 log fields: `data`, `block_number`, `transaction_hash`.
+        // Others can be filled with dummy values.
         // We build data as `call.data` without first 4 bytes which are for selector
         // and append it with `bytes32(0)` for compatibility with old event data.
         let data = call
