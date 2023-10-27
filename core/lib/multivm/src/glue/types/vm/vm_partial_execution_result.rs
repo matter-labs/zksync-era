@@ -1,5 +1,4 @@
 use crate::glue::{GlueFrom, GlueInto};
-use crate::versions::vm_latest::VmExecutionLogs;
 
 impl GlueFrom<crate::vm_m5::vm::VmPartialExecutionResult>
     for crate::interface::VmExecutionResultAndLogs

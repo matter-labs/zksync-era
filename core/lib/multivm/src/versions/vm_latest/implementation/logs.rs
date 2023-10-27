@@ -6,7 +6,6 @@ use zksync_types::l2_to_l1_log::L2ToL1Log;
 use zksync_types::VmEvent;
 
 use crate::interface::types::outputs::VmExecutionLogs;
-use crate::vm_latest::old_vm::events::merge_events;
 use crate::vm_latest::old_vm::history_recorder::HistoryMode;
 use crate::vm_latest::old_vm::utils::precompile_calls_count_after_timestamp;
 use crate::vm_latest::utils::logs;

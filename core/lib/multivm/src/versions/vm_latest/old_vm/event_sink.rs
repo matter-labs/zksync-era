@@ -114,7 +114,7 @@ impl<H: HistoryMode> InMemoryEventSink<H> {
                 } else {
                     // The event on the stack has not been rolled back. It must be a different event,
                     // with a different timestamp.
-                    assert!(el.rollback == false);
+                    assert!(!el.rollback);
                     stack.push(*el);
 
                     // cleanup some fields

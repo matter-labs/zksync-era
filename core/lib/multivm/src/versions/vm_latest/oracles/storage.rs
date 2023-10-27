@@ -101,7 +101,7 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
     }
 
     fn set_initial_value(&mut self, storage_key: &StorageKey, value: U256, timestamp: Timestamp) {
-        if !self.initial_values.inner().contains_key(&storage_key) {
+        if !self.initial_values.inner().contains_key(storage_key) {
             self.initial_values.insert(*storage_key, value, timestamp);
         }
     }

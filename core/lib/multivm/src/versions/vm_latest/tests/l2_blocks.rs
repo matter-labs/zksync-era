@@ -12,14 +12,12 @@ use crate::vm_latest::tests::tester::VmTesterBuilder;
 use crate::vm_latest::utils::l2_blocks::get_l2_block_hash_key;
 use crate::vm_latest::{HistoryEnabled, HistoryMode, Vm};
 use zk_evm_1_3_3::aux_structures::Timestamp;
-use zksync_state::{ReadStorage, WriteStorage};
-use zksync_system_constants::{
-    CURRENT_VIRTUAL_BLOCK_INFO_POSITION, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE,
-};
-use zksync_types::block::{pack_block_info, unpack_block_info};
+use zksync_state::WriteStorage;
+use zksync_system_constants::REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE;
+use zksync_types::block::pack_block_info;
 use zksync_types::{
     block::{legacy_miniblock_hash, miniblock_hash},
-    get_code_key, AccountTreeId, Execute, ExecuteTransactionCommon, L1BatchNumber, L1TxCommonData,
+    AccountTreeId, Execute, ExecuteTransactionCommon, L1BatchNumber, L1TxCommonData,
     MiniblockNumber, StorageKey, Transaction, H160, H256, SYSTEM_CONTEXT_ADDRESS,
     SYSTEM_CONTEXT_BLOCK_INFO_POSITION, SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
     SYSTEM_CONTEXT_CURRENT_TX_ROLLING_HASH_POSITION, U256,
