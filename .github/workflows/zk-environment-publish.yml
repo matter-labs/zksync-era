@@ -156,7 +156,7 @@ jobs:
         run: |
           key="zk_environment_cuda_${{ matrix.cuda_version }}"
           changed_files_output=$(echo '${{ toJson(needs.changed_files.outputs) }}' | jq -r ".$key")
-          echo "::set-output name=should_run::$changed_files_output"
+          echo "should_run=$changed_files_output" >> "$GITHUB_OUTPUT"
 
       - name: Checkout code
         if: steps.condition.outputs.should_run == 'true'
