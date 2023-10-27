@@ -53,10 +53,10 @@ jobs:
               - docker/zk-environment/Dockerfile
               - .github/workflows/zk-environment.publish.yml
             zk_env_cuda_11_8:
-              - docker/zk-environment/20.04_amd64_cuda_11.8.Dockerfile
+              - docker/zk-environment/20.04_amd64_cuda_11_8.Dockerfile
               - .github/workflows/zk-environment.publish.yml
             zk_env_cuda_12:
-              - docker/zk-environment/20.04_amd64_cuda_12.0.Dockerfile
+              - docker/zk-environment/20.04_amd64_cuda_12_0.Dockerfile
               - .github/workflows/zk-environment.publish.yml
 
   get_short_sha:
@@ -157,10 +157,6 @@ jobs:
           key="zk_environment_cuda_${{ matrix.cuda_version }}"
           changed_files_output=$(echo '${{ toJson(needs.changed_files.outputs) }}' | jq -r ".$key")
           echo "::set-output name=should_run::$changed_files_output"
-
-      - name: Debug outputs of changed_files
-        run: |
-          echo "Outputs of changed_files: ${{ toJson(needs.changed_files.outputs) }}"
 
       - name: Checkout code
         if: steps.condition.outputs.should_run == 'true'
