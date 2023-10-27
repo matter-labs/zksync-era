@@ -340,10 +340,6 @@ impl<S: WriteStorage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
             let to_pay_by_user = self.base_price_for_write_query(&query);
             let prepaid = self.prepaid_for_write(&storage_key);
 
-            let initial_value = self
-                .get_initial_value(&storage_key)
-                .unwrap_or(self.storage.read_from_storage(&storage_key));
-
             if to_pay_by_user > prepaid {
                 self.paid_changes.apply_historic_record(
                     HashMapHistoryEvent {
