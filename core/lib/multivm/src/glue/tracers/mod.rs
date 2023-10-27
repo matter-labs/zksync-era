@@ -22,23 +22,14 @@
 //! For `MultivmTracer` to be implemented, Tracer must implement all N currently
 //! existing sub-traits.
 //!
-//! Any tracer compatible with the current VM automatically
-//! supports conversion into the latest VM,
-//! but the remaining traits required by the MultivmTracer should be implemented manually.
-//! If a certain tracer is not intended to be used with VMs other than the latest one,
-//! these traits should still be implemented, but one may just write a panicking implementation.
-//!
 //! ## Adding a new VM version
 //!
 //! To add support for one more VM version to MultivmTracer, one needs to:
 //! - Create a new trait performing conversion to the specified VM tracer, e.g. `Into<VmVersion>Tracer`.
-//! - Provide implementations of this trait for all the structures that currently implement `MultivmTracer`.
 //! - Add this trait as a trait bound to the `MultivmTracer`.
 //! - Add this trait as a trait bound for `T` in `MultivmTracer` implementation.
 //! - Integrate the newly added method to the MultiVM itself (e.g. add required tracer conversions where applicable).
 use crate::HistoryMode;
-use std::cell::RefCell;
-use std::rc::Rc;
 use zksync_state::WriteStorage;
 
 pub trait MultivmTracer<S: WriteStorage, H: HistoryMode>:
@@ -82,7 +73,7 @@ where
     fn vm_virtual_blocks(
         &self,
     ) -> crate::vm_virtual_blocks::TracerPointer<S, H::VmVirtualBlocksMode> {
-        Rc::new(RefCell::new(self.clone()))
+        Box::new(self.clone())
     }
 }
 
