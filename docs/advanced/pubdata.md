@@ -8,17 +8,18 @@ Pubdata in zkSync can be divided up into 4 different categories:
 4. Storage writes
 
 Using data corresponding to these 4 facets, across all executed batches, we’re able to reconstruct the full state of L2.
-One thing to note is that the way that the data is represented changes in a pre-boojum and post-boojum zkSync Era. At a high level, in a
-pre-boojum era these are represented as separate fields while in boojum they will be packed into a single bytes array.
+One thing to note is that the way that the data is represented changes in a pre-boojum and post-boojum zkSync Era. At a
+high level, in a pre-boojum era these are represented as separate fields while in boojum they will be packed into a
+single bytes array.
 
 > Note: Once 4844 gets integrated this bytes array will move from being part of the calldata to blob data.
 
-While the structure of the pubdata changes, we can use the same strategy to pull the relevant information. 
-First, we need to filter all of the transactions to the L1 zkSync contract for only the `commitBlocks`
-transactions where the proposed block has been referenced by a corresponding `executeBlocks` call (the reason for this
-is that a committed or even proven block can be reverted but an executed one cannot). Once we have all the committed
-blocks that have been executed, we then will pull the transaction input and the relevant fields, applying them in order
-to reconstruct the current state of L2.
+While the structure of the pubdata changes, we can use the same strategy to pull the relevant information. First, we
+need to filter all of the transactions to the L1 zkSync contract for only the `commitBlocks` transactions where the
+proposed block has been referenced by a corresponding `executeBlocks` call (the reason for this is that a committed or
+even proven block can be reverted but an executed one cannot). Once we have all the committed blocks that have been
+executed, we then will pull the transaction input and the relevant fields, applying them in order to reconstruct the
+current state of L2.
 
 One thing to note is that in both systems some of the contract bytecode is compressed into an array of indices where
 each 2 byte index corresponds to an 8 byte word in a dictionary. More on how that is done
@@ -37,8 +38,7 @@ function _storeCodeHash(address _address, bytes32 _hash) internal {
 
 ## Pre-Boojum Era
 
-In pre-boojum era the superset of pubdata fields and input to the `commitBlocks` function follows the following
-format:
+In pre-boojum era the superset of pubdata fields and input to the `commitBlocks` function follows the following format:
 
 ```solidity
 /// @notice Data needed to commit new block
@@ -112,8 +112,8 @@ struct CommitBlockInfo {
 
 ```
 
-The main difference between the two `CommitBlockInfo` structs is that we have taken a few of the fields
-and merged them into a single bytes array called `totalL2ToL1Pubdata`. The contents of pubdata include:
+The main difference between the two `CommitBlockInfo` structs is that we have taken a few of the fields and merged them
+into a single bytes array called `totalL2ToL1Pubdata`. The contents of pubdata include:
 
 1. L2 to L1 Logs
 2. L2 to L1 Messages
