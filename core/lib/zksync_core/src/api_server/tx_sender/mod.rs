@@ -899,7 +899,7 @@ impl<G: L1GasPriceProvider> TxSender<G> {
         transaction: Transaction,
         tx_metrics: &TransactionExecutionMetrics,
         log_message: bool,
-        storage_processor: &mut StorageProcessor<'_>,
+        _storage_processor: &mut StorageProcessor<'_>,
     ) -> Result<(), SubmitTxError> {
         let Some(sk_config) = &self.0.state_keeper_config else {
             // No config provided, so we can't check if transaction satisfies the seal criteria.
@@ -916,14 +916,16 @@ impl<G: L1GasPriceProvider> TxSender<G> {
             H256::zero()
         };
 
-        let protocol_version = storage_processor
-            .blocks_dal()
-            .get_last_sealed_miniblock_header()
-            .await
-            .unwrap()
-            .unwrap()
-            .protocol_version
-            .unwrap();
+        // let protocol_version = storage_processor
+        //     .blocks_dal()
+        //     .get_last_sealed_miniblock_header()
+        //     .await
+        //     .unwrap()
+        //     .unwrap()
+        //     .protocol_version
+        //     .unwrap();
+
+        let protocol_version = ProtocolVersionId::latest();
 
         let seal_data = SealData::for_transaction(transaction, tx_metrics, protocol_version);
         if let Some(reason) =
