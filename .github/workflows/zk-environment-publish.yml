@@ -144,66 +144,52 @@ jobs:
             docker buildx imagetools create --tag "${multiarch_tag}" "${individual_images[@]}"
           done
 
-  zk_environment_cuda_11_8:
-    if: needs.changed_files.outputs.zk_environment_cuda_11_8 == 'true'
+  zk_environment_cuda:
     needs: changed_files
-    name: Build and optionally push zk-environment CUDA 11.8 Docker image
     runs-on: [matterlabs-ci-runner]
+    strategy:
+      matrix:
+        cuda_version: ['11_8', '12_0']
     steps:
-      - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
-        with:
-          submodules: "recursive"
-      - name: Log in to US GAR
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      - name: Evaluate condition
+        id: condition
         run: |
-          gcloud auth print-access-token --lifetime=7200 --impersonate-service-account=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com | docker login -u oauth2accesstoken --password-stdin https://us-docker.pkg.dev
-      - name: Log in to Docker Hub
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: docker/login-action@f4ef78c080cd8ba55a85445d5b36e214a81df20a # v2.1.0
-        with:
-          username: ${{ secrets.DOCKERHUB_USER }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v2
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@f03ac48505955848960e80bbb68046aa35c7b9e7 # v2
-      - name: Build and optionally push
-        uses: docker/build-push-action@3b5e8027fcad23fda98b2e3ac259d8d67585f671
-        with:
-          file: docker/zk-environment/20.04_amd64_cuda_11.8.Dockerfile
-          push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
-          tags: |
-            us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/zk-environment-cuda-11-8:latest
-            matterlabs/zk-environment:cuda-11-8-latest
+          key="zk_environment_cuda_${{ matrix.cuda_version }}"
+          changed_files_output=$(echo "${{ toJson(needs.changed_files.outputs) }}" | jq -r ".$key")
+          echo "::set-output name=should_run::$changed_files_output"
 
-  zk_environment_cuda_12:
-    if: needs.changed_files.outputs.zk_environment_cuda_12 == 'true'
-    needs: changed_files
-    name: Build and optionally push zk-environment CUDA 12.0 Docker image
-    runs-on: [matterlabs-ci-runner]
-    steps:
-      - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
+      - name: Checkout code
+        if: steps.condition.outputs.should_run == 'true'
+        uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c
         with:
           submodules: "recursive"
+
       - name: Log in to US GAR
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: steps.condition.outputs.should_run == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
           gcloud auth print-access-token --lifetime=7200 --impersonate-service-account=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com | docker login -u oauth2accesstoken --password-stdin https://us-docker.pkg.dev
+
       - name: Log in to Docker Hub
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: docker/login-action@f4ef78c080cd8ba55a85445d5b36e214a81df20a # v2.1.0
+        if: steps.condition.outputs.should_run == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: docker/login-action@f4ef78c080cd8ba55a85445d5b36e214a81df20a
         with:
           username: ${{ secrets.DOCKERHUB_USER }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
+
       - name: Set up QEMU
+        if: steps.condition.outputs.should_run == 'true'
         uses: docker/setup-qemu-action@v2
+
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@f03ac48505955848960e80bbb68046aa35c7b9e7 # v2
+        if: steps.condition.outputs.should_run == 'true'
+        uses: docker/setup-buildx-action@f03ac48505955848960e80bbb68046aa35c7b9e7
+
       - name: Build and optionally push
+        if: steps.condition.outputs.should_run == 'true'
         uses: docker/build-push-action@3b5e8027fcad23fda98b2e3ac259d8d67585f671
         with:
-          file: docker/zk-environment/20.04_amd64_cuda_12.0.Dockerfile
+          file: docker/zk-environment/20.04_amd64_cuda_${{ matrix.cuda_version }}.Dockerfile
           push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
           tags: |
-            us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/zk-environment-cuda-12-0:latest
-            matterlabs/zk-environment:cuda-12-0-latest
+            us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/zk-environment-cuda-${{ matrix.cuda_version }}:latest
+            matterlabs/zk-environment:cuda-${{ matrix.cuda_version }}-latest
