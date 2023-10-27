@@ -285,36 +285,6 @@
     },
     "query": "\n                    INSERT INTO node_aggregation_witness_jobs\n                        (l1_batch_number, protocol_version, status, created_at, updated_at)\n                    VALUES ($1, $2, 'waiting_for_artifacts', now(), now())\n                    "
   },
-  "0c729d441aceba247e36c08a89661c35b476d4d7c73882147699009affe78472": {
-    "describe": {
-      "columns": [
-        {
-          "name": "l1_batch_number!",
-          "ordinal": 0,
-          "type_info": "Int8"
-        },
-        {
-          "name": "circuit_id",
-          "ordinal": 1,
-          "type_info": "Int2"
-        },
-        {
-          "name": "aggregation_round",
-          "ordinal": 2,
-          "type_info": "Int2"
-        }
-      ],
-      "nullable": [
-        null,
-        false,
-        false
-      ],
-      "parameters": {
-        "Left": []
-      }
-    },
-    "query": "\n                    SELECT MIN(l1_batch_number) as \"l1_batch_number!\", circuit_id, aggregation_round\n                    FROM prover_jobs_fri\n                    WHERE status IN('queued', 'in_progress', 'failed')\n                    GROUP BY circuit_id, aggregation_round\n                "
-  },
   "0d1bed183c38304ff1a6c8c78dca03964e2e188a6d01f98eaf0c6b24f19b8b6f": {
     "describe": {
       "columns": [],
@@ -7761,6 +7731,36 @@
       }
     },
     "query": "UPDATE prover_jobs_fri SET status = $1, updated_at = now() WHERE id = $2"
+  },
+  "98c81ee6f73859c6cd6ba54ab438c900dda646b70a700f936e5218d9ba3bd0ec": {
+    "describe": {
+      "columns": [
+        {
+          "name": "l1_batch_number!",
+          "ordinal": 0,
+          "type_info": "Int8"
+        },
+        {
+          "name": "circuit_id",
+          "ordinal": 1,
+          "type_info": "Int2"
+        },
+        {
+          "name": "aggregation_round",
+          "ordinal": 2,
+          "type_info": "Int2"
+        }
+      ],
+      "nullable": [
+        null,
+        false,
+        false
+      ],
+      "parameters": {
+        "Left": []
+      }
+    },
+    "query": "\n                    SELECT MIN(l1_batch_number) as \"l1_batch_number!\", circuit_id, aggregation_round\n                    FROM prover_jobs_fri\n                    WHERE status IN('queued', 'in_gpu_proof', 'in_progress', 'failed')\n                    GROUP BY circuit_id, aggregation_round\n                "
   },
   "9970bb69f5ca9ab9f103e1547eb40c1d4f5dd3a540ff6f1b9724821350c9501a": {
     "describe": {
