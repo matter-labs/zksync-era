@@ -9,8 +9,8 @@ Pubdata in zkSync can be divided up into 4 different categories:
 
 Using data corresponding to these 4 facets, across all executed batches, we’re able to reconstruct the full state of L2.
 One thing to note is that the way that the data is represented changes in a pre-boojum and post-boojum zkSync Era. At a
-high level, in a pre-boojum era these are represented as separate fields while in boojum they will be packed into a
-single bytes array.
+high level, in a pre-boojum era these are represented as separate fields while in boojum they are packed into a single
+bytes array.
 
 > Note: Once 4844 gets integrated this bytes array will move from being part of the calldata to blob data.
 
