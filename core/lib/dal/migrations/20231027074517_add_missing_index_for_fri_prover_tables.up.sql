@@ -1,4 +1,4 @@
-CREATE INDEX IF NOT EXISTS prover_jobs_fri_status_processing_started_at_idx ON prover_jobs_fri (status, processing_started_at)
+CREATE INDEX IF NOT EXISTS prover_jobs_fri_status_processing_started_at_idx_2 ON prover_jobs_fri (status, processing_started_at)
     WHERE (attempts < 20);
 
 DROP INDEX IF EXISTS idx_prover_jobs_fri_status_processing_attempts;
