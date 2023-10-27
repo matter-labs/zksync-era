@@ -39,7 +39,7 @@ RUN add-apt-repository ppa:savoury1/virtualisation && \
     liburing-dev
 
 # Install docker engine
-RUN curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
+RUN wget -c -O - https://download.docker.com/linux/ubuntu/gpg | apt-key add -
 RUN add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
 RUN apt update; apt install -y docker-ce-cli
 
@@ -47,7 +47,7 @@ RUN apt update; apt install -y docker-ce-cli
 RUN git config --global http.postBuffer 1048576000
 
 # Install node and yarn
-RUN curl -sL https://deb.nodesource.com/setup_18.x | bash -
+RUN wget -c -O - https://deb.nodesource.com/setup_18.x | bash -
 RUN apt-get install -y nodejs
 RUN npm install -g yarn
 
@@ -59,13 +59,13 @@ ENV RUSTUP_HOME=/usr/local/rustup \
 ENV GCLOUD_VERSION=451.0.1
 # Install gloud for gcr login and gcfuze for mounting buckets
 RUN echo "deb http://packages.cloud.google.com/apt cloud-sdk main" > /etc/apt/sources.list.d/google-cloud-sdk.list && \
-    curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add - && \
+    wget -c -O - https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add - && \
     apt-get update -y && apt-get install google-cloud-cli=${GCLOUD_VERSION}-0 --no-install-recommends -y && \
     gcloud config set core/disable_usage_reporting true && \
     gcloud config set component_manager/disable_update_check true && \
     gcloud config set metrics/environment github_docker_image
 
-RUN curl https://sh.rustup.rs -sSf | bash -s -- -y
+RUN wget -c -O - https://sh.rustup.rs | bash -s -- -y
 RUN rustup install nightly-2023-07-21
 RUN rustup default stable
 RUN cargo install --version=0.5.13 sqlx-cli
@@ -74,11 +74,11 @@ RUN cargo install cargo-nextest
 
 # Copy compiler (both solc and zksolc) binaries
 # Obtain `solc` 0.8.20.
-RUN wget https://github.com/ethereum/solc-bin/raw/gh-pages/linux-amd64/solc-linux-amd64-v0.8.20%2Bcommit.a1b79de6 \
+RUN wget -c https://github.com/ethereum/solc-bin/raw/gh-pages/linux-amd64/solc-linux-amd64-v0.8.20%2Bcommit.a1b79de6 \
     && mv solc-linux-amd64-v0.8.20+commit.a1b79de6 /usr/bin/solc \
     && chmod +x /usr/bin/solc
 # Obtain `zksolc` 1.3.13.
-RUN wget https://github.com/matter-labs/zksolc-bin/raw/main/linux-amd64/zksolc-linux-amd64-musl-v1.3.13 \
+RUN wget -c https://github.com/matter-labs/zksolc-bin/raw/main/linux-amd64/zksolc-linux-amd64-musl-v1.3.13 \
     && mv zksolc-linux-amd64-musl-v1.3.13 /usr/bin/zksolc \
     && chmod +x /usr/bin/zksolc
 
@@ -113,7 +113,7 @@ ENV NV_CUDA_COMPAT_PACKAGE cuda-compat-12-0
 # curl purging is removed, it's required in next steps
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gnupg2 curl ca-certificates && \
-    curl -fsSL https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/${NVARCH}/3bf863cc.pub | apt-key add - && \
+    wget -c -O - https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/${NVARCH}/3bf863cc.pub | apt-key add - && \
     echo "deb https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/${NVARCH} /" > /etc/apt/sources.list.d/cuda.list && \
     rm -rf /var/lib/apt/lists/*
 
@@ -241,6 +241,6 @@ RUN apt-mark hold ${NV_LIBCUBLAS_DEV_PACKAGE_NAME} ${NV_LIBNCCL_DEV_PACKAGE_NAME
 ENV LIBRARY_PATH /usr/local/cuda/lib64/stubs
 
 # Install cmake 3.24, as we need it for boojum-cuda
-RUN curl -LO https://github.com/Kitware/CMake/releases/download/v3.24.3/cmake-3.24.3-linux-x86_64.sh && \
+RUN wget -c https://github.com/Kitware/CMake/releases/download/v3.24.3/cmake-3.24.3-linux-x86_64.sh && \
     chmod +x cmake-3.24.3-linux-x86_64.sh && \
     ./cmake-3.24.3-linux-x86_64.sh --skip-license --prefix=/usr/local
