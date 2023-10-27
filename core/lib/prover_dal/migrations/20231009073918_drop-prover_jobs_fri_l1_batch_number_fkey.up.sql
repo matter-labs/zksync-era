@@ -1,1 +1,0 @@
-ALTER TABLE prover_jobs_fri DROP CONSTRAINT IF EXISTS prover_jobs_fri_l1_batch_number_fkey;

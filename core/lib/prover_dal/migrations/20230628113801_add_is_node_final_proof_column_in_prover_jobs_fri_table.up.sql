@@ -1,1 +1,0 @@
-ALTER TABLE prover_jobs_fri ADD COLUMN IF NOT EXISTS is_node_final_proof BOOLEAN NOT NULL DEFAULT FALSE;

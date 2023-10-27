@@ -1,1 +1,0 @@
-ALTER TABLE prover_jobs ADD COLUMN IF NOT EXISTS sequence_number INT NOT NULL default 0;

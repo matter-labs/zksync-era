@@ -1,1 +1,0 @@
-DROP TABLE prover_jobs;

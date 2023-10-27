@@ -1,1 +1,0 @@
-ALTER TABLE prover_jobs ADD COLUMN result BYTEA;

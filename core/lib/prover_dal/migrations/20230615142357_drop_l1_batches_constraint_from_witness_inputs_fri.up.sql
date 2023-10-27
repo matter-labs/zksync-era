@@ -1,2 +1,0 @@
-ALTER TABLE witness_inputs_fri DROP CONSTRAINT witness_inputs_fri_l1_batch_number_fkey;
-

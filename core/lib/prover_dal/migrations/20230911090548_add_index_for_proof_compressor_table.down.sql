@@ -1,2 +1,0 @@
-DROP INDEX IF EXISTS idx_proof_compressor_jobs_fri_queued_order;
-DROP INDEX IF EXISTS idx_witness_inputs_fri_queued_order;

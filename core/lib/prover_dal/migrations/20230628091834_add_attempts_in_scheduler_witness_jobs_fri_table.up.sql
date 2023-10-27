@@ -1,1 +1,0 @@
-ALTER TABLE scheduler_witness_jobs_fri ADD COLUMN IF NOT EXISTS attempts SMALLINT NOT NULL DEFAULT 0;

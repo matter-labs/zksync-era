@@ -1,1 +1,0 @@
-DROP TABLE IF EXISTS node_aggregation_witness_jobs_fri;

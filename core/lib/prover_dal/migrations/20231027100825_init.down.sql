@@ -1,0 +1,71 @@
+-- Add down migration script here
+DROP INDEX gpu_prover_queue_zone_region_idx;
+DROP TABLE gpu_prover_queue;
+
+DROP INDEX gpu_prover_queue_fri_host_port_zone_idx;
+DROP TABLE gpu_prover_queue_fri;
+
+DROP INDEX leaf_aggregation_witness_jobs_blob_cleanup_status_index;
+DROP TABLE leaf_aggregation_witness_jobs;
+
+DROP INDEX leaf_aggregation_witness_jobs_fri_composite_index;
+DROP INDEX idx_leaf_aggregation_witness_jobs_fri_queued_order;
+DROP INDEX idx_leaf_aggregation_fri_status_processing_attempts;
+DROP TABLE leaf_aggregation_witness_jobs_fri
+
+DROP INDEX node_aggregation_witness_jobs_blob_cleanup_status_index;
+DROP TABLE node_aggregation_witness_jobs
+
+DROP INDEX node_aggregation_witness_jobs_fri_composite_index;
+DROP INDEX idx_node_aggregation_witness_jobs_fri_queued_order;
+DROP INDEX idx_node_aggregation_fri_status_processing_attempts;
+DROP TABLE node_aggregation_witness_jobs_fri
+
+DROP INDEX idx_proof_compression_jobs_fri_status_processing_attempts;
+DROP INDEX idx_proof_compressor_jobs_fri_queued_order;
+DROP TABLE proof_compression_jobs_fri;
+
+DROP TABLE protocol_versions;
+
+DROP TABLE prover_fri_protocol_versions;
+
+DROP INDEX prover_jobs_composite_index
+DROP INDEX prover_jobs_blob_cleanup_status_index;
+DROP INDEX ix_prover_jobs_t1;
+DROP INDEX prover_jobs_circuit_type_and_status_index;
+DROP INDEX ix_prover_jobs_t2;
+DROP INDEX ix_prover_jobs_t3;
+DROP INDEX ix_prover_jobs_circuits_0_2;
+DROP INDEX ix_prover_jobs_circuits_1_2;
+DROP INDEX ix_prover_jobs_circuits_2_2;
+DROP INDEX ix_prover_jobs_circuits_3_2;
+DROP INDEX ix_prover_jobs_circuits_4_2;
+DROP INDEX ix_prover_jobs_circuits_5_2;
+DROP INDEX ix_prover_jobs_circuits_6_2;
+DROP INDEX ix_prover_jobs_circuits_7_2;
+DROP INDEX ix_prover_jobs_circuits_8_2;
+DROP INDEX ix_prover_jobs_circuits_9_2;
+DROP TABLE prover_jobs;
+
+DROP INDEX prover_jobs_fri_composite_index;
+DROP INDEX idx_prover_jobs_fri_queued_order
+DROP INDEX idx_prover_jobs_fri_status_processing_attempts;
+DROP TABLE prover_jobs_fri;
+
+DROP TABLE prover_protocol_versions;
+
+DROP INDEX idx_scheduler_dependency_tracker_fri_circuit_ids_filtered;
+DROP TABLE scheduler_dependency_tracker_fri;
+
+DROP INDEX scheduler_witness_jobs_blob_cleanup_status_index;
+DROP TABLE scheduler_witness_jobs;
+
+DROP INDEX idx_scheduler_fri_status_processing_attempts;
+DROP TABLE scheduler_witness_jobs_fri;
+
+DROP INDEX witness_inputs_blob_cleanup_status_index;
+DROP TABLE witness_inputs;
+
+DROP INDEX idx_witness_inputs_fri_status_processing_attempts;
+DROP INDEX idx_witness_inputs_fri_queued_order;
+DROP TABLE witness_inputs_fri;

@@ -1,3 +1,0 @@
-DROP INDEX IF EXISTS prover_jobs_fri_composite_index;
-DROP INDEX IF EXISTS leaf_aggregation_witness_jobs_fri_composite_index;
-DROP INDEX IF EXISTS node_aggregation_witness_jobs_fri_composite_index;

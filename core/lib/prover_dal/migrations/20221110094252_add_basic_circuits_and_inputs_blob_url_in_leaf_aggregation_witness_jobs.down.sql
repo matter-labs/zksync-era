@@ -1,2 +1,0 @@
-ALTER TABLE leaf_aggregation_witness_jobs DROP COLUMN IF EXISTS basic_circuits_blob_url;
-ALTER TABLE leaf_aggregation_witness_jobs DROP COLUMN IF EXISTS basic_circuits_inputs_blob_url;

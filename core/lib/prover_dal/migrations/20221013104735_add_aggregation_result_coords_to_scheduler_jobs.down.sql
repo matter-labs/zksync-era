@@ -1,1 +1,0 @@
-ALTER TABLE scheduler_witness_jobs DROP COLUMN aggregation_result_coords;
