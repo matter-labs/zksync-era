@@ -488,16 +488,13 @@ pub async fn generate_witness(
                 let connection = rt_handle
                     .block_on(connection_pool.access_storage())
                     .unwrap();
+                let block_state = rt_handle.block_on(object_store.get(header.number)).unwrap();
                 let source_storage = Box::new(PostgresStorage::new(
                     rt_handle.clone(),
                     connection,
                     last_miniblock_number,
                     true,
                 ));
-                let block_state = input
-                    .merkle_paths_input
-                    .clone()
-                    .into_witness_hash_block_state();
                 let checked_storage = Box::new(WitnessStorage::new(block_state));
                 Box::new(ShadowStorage::new(
                     source_storage,
@@ -506,10 +503,7 @@ pub async fn generate_witness(
                 ))
             }
             BasicWitnessGeneratorDataSource::FromBlob => {
-                let block_state = input
-                    .merkle_paths_input
-                    .clone()
-                    .into_witness_hash_block_state();
+                let block_state = rt_handle.block_on(object_store.get(header.number)).unwrap();
                 Box::new(WitnessStorage::new(block_state))
             }
         };

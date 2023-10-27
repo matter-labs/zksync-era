@@ -28,6 +28,8 @@ services:
       - GITHUB_WORKSPACE=$GITHUB_WORKSPACE
     env_file:
       - ./.env
+    extra_hosts:
+      - "host:host-gateway"
   postgres:
     image: "postgres:14"
     ports:
