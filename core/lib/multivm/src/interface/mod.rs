@@ -1,7 +1,9 @@
 pub(crate) mod traits;
 
-pub use traits::tracers::{dyn_tracers, multivm_tracer::MultivmTracer};
-pub use traits::vm::{VmInterface, VmInterfaceHistoryEnabled};
+pub use traits::{
+    tracers::{dyn_tracers, multivm_tracer::MultivmTracer},
+    vm::{VmInterface, VmInterfaceHistoryEnabled},
+};
 pub mod types;
 
 pub use types::{

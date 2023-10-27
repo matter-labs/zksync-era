@@ -23,7 +23,7 @@ impl<S: WriteStorage, H: HistoryMode> From<Vec<TracerPointer<S, H>>> for TracerD
 }
 
 pub struct TracerDispatcher<S: WriteStorage, H: HistoryMode> {
-    pub(crate) tracers: Vec<TracerPointer<S, H>>,
+    tracers: Vec<TracerPointer<S, H>>,
 }
 
 impl<S: WriteStorage, H: HistoryMode> Default for TracerDispatcher<S, H> {

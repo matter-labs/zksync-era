@@ -192,16 +192,12 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
     ) -> crate::interface::VmExecutionResultAndLogs {
         match &mut self.vm {
             VmInstanceVersion::VmVirtualBlocks(vm) => {
-                let dispatcher = crate::vm_virtual_blocks::TracerDispatcher {
-                    tracers: tracers.into_iter().map(|t| t.vm_virtual_blocks()).collect(),
-                };
-                vm.inspect(dispatcher, VmExecutionMode::OneTx)
+                let tracers: Vec<_> = tracers.into_iter().map(|t| t.vm_virtual_blocks()).collect();
+                vm.inspect(tracers.into(), VmExecutionMode::OneTx)
             }
             VmInstanceVersion::VmVirtualBlocksRefundsEnhancement(vm) => {
-                let dispatcher = crate::vm_latest::TracerDispatcher {
-                    tracers: tracers.into_iter().map(|t| t.latest()).collect(),
-                };
-                vm.inspect(dispatcher, VmExecutionMode::OneTx)
+                let tracers: Vec<_> = tracers.into_iter().map(|t| t.latest()).collect();
+                vm.inspect(tracers.into(), VmExecutionMode::OneTx)
             }
             _ => self.execute_next_transaction(),
         }
@@ -374,18 +370,20 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
     > {
         match &mut self.vm {
             VmInstanceVersion::VmVirtualBlocks(vm) => {
-                let dispatcher = crate::vm_virtual_blocks::TracerDispatcher {
-                    tracers: tracers.into_iter().map(|t| t.vm_virtual_blocks()).collect(),
-                };
-
-                vm.inspect_transaction_with_bytecode_compression(dispatcher, tx, with_compression)
+                let tracers: Vec<_> = tracers.into_iter().map(|t| t.vm_virtual_blocks()).collect();
+                vm.inspect_transaction_with_bytecode_compression(
+                    tracers.into(),
+                    tx,
+                    with_compression,
+                )
             }
             VmInstanceVersion::VmVirtualBlocksRefundsEnhancement(vm) => {
-                let dispatcher = crate::vm_latest::TracerDispatcher {
-                    tracers: tracers.into_iter().map(|t| t.latest()).collect(),
-                };
-
-                vm.inspect_transaction_with_bytecode_compression(dispatcher, tx, with_compression)
+                let tracers: Vec<_> = tracers.into_iter().map(|t| t.latest()).collect();
+                vm.inspect_transaction_with_bytecode_compression(
+                    tracers.into(),
+                    tx,
+                    with_compression,
+                )
             }
             _ => {
                 self.last_tx_compressed_bytecodes = vec![];
