@@ -158,6 +158,10 @@ jobs:
           changed_files_output=$(echo '${{ toJson(needs.changed_files.outputs) }}' | jq -r ".$key")
           echo "::set-output name=should_run::$changed_files_output"
 
+      - name: Debug outputs of changed_files
+        run: |
+          echo "Outputs of changed_files: ${{ toJson(needs.changed_files.outputs) }}"
+
       - name: Checkout code
         if: steps.condition.outputs.should_run == 'true'
         uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c
