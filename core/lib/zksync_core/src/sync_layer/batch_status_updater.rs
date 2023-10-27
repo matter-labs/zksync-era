@@ -179,7 +179,7 @@ impl BatchStatusUpdater {
             else {
                 // We cannot recover from an external API inconsistency.
                 panic!(
-                    "Node API is inconsistent: miniblock {} was reported to be a part of {} L1batch, \
+                    "Node API is inconsistent: miniblock {} was reported to be a part of {} L1 batch, \
                     but API has no information about this miniblock", start_miniblock, batch
                 );
             };

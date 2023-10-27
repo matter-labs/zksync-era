@@ -6,7 +6,7 @@ services:
       - PLUGIN_CONFIG
 
   zk:
-    image: "matterlabs/zk-environment:latest2.0-lightweight"
+    image: "matterlabs/zk-environment:old-lightweight"
     depends_on:
       - geth
       - postgres
@@ -28,6 +28,8 @@ services:
       - GITHUB_WORKSPACE=$GITHUB_WORKSPACE
     env_file:
       - ./.env
+    extra_hosts:
+      - "host:host-gateway"
   postgres:
     image: "postgres:14"
     ports:
