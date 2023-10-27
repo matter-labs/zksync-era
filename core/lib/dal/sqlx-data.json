@@ -285,36 +285,6 @@
     },
     "query": "\n                    INSERT INTO node_aggregation_witness_jobs\n                        (l1_batch_number, protocol_version, status, created_at, updated_at)\n                    VALUES ($1, $2, 'waiting_for_artifacts', now(), now())\n                    "
   },
-  "0c729d441aceba247e36c08a89661c35b476d4d7c73882147699009affe78472": {
-    "describe": {
-      "columns": [
-        {
-          "name": "l1_batch_number!",
-          "ordinal": 0,
-          "type_info": "Int8"
-        },
-        {
-          "name": "circuit_id",
-          "ordinal": 1,
-          "type_info": "Int2"
-        },
-        {
-          "name": "aggregation_round",
-          "ordinal": 2,
-          "type_info": "Int2"
-        }
-      ],
-      "nullable": [
-        null,
-        false,
-        false
-      ],
-      "parameters": {
-        "Left": []
-      }
-    },
-    "query": "\n                    SELECT MIN(l1_batch_number) as \"l1_batch_number!\", circuit_id, aggregation_round\n                    FROM prover_jobs_fri\n                    WHERE status IN('queued', 'in_progress', 'failed')\n                    GROUP BY circuit_id, aggregation_round\n                "
-  },
   "0d1bed183c38304ff1a6c8c78dca03964e2e188a6d01f98eaf0c6b24f19b8b6f": {
     "describe": {
       "columns": [],
@@ -1373,42 +1343,6 @@
       }
     },
     "query": "\n                UPDATE node_aggregation_witness_jobs_fri\n                SET status='queued'\n                WHERE (l1_batch_number, circuit_id, depth) IN\n                      (SELECT prover_jobs_fri.l1_batch_number, prover_jobs_fri.circuit_id, prover_jobs_fri.depth\n                       FROM prover_jobs_fri\n                                JOIN node_aggregation_witness_jobs_fri nawj ON\n                                prover_jobs_fri.l1_batch_number = nawj.l1_batch_number\n                                AND prover_jobs_fri.circuit_id = nawj.circuit_id\n                                AND prover_jobs_fri.depth = nawj.depth\n                       WHERE nawj.status = 'waiting_for_proofs'\n                         AND prover_jobs_fri.status = 'successful'\n                         AND prover_jobs_fri.aggregation_round = 1\n                         AND prover_jobs_fri.depth = 0\n                       GROUP BY prover_jobs_fri.l1_batch_number, prover_jobs_fri.circuit_id, prover_jobs_fri.depth, nawj.number_of_dependent_jobs\n                       HAVING COUNT(*) = nawj.number_of_dependent_jobs)\n                RETURNING l1_batch_number, circuit_id, depth;\n            "
-  },
-  "1e68306cbd83eb6b5de59fb8f638c8f3252732b9074e2455f7b5aedf6fdc886f": {
-    "describe": {
-      "columns": [
-        {
-          "name": "count!",
-          "ordinal": 0,
-          "type_info": "Int8"
-        },
-        {
-          "name": "circuit_id!",
-          "ordinal": 1,
-          "type_info": "Int2"
-        },
-        {
-          "name": "aggregation_round!",
-          "ordinal": 2,
-          "type_info": "Int2"
-        },
-        {
-          "name": "status!",
-          "ordinal": 3,
-          "type_info": "Text"
-        }
-      ],
-      "nullable": [
-        null,
-        false,
-        false,
-        false
-      ],
-      "parameters": {
-        "Left": []
-      }
-    },
-    "query": "\n                SELECT COUNT(*) as \"count!\", circuit_id as \"circuit_id!\", aggregation_round as \"aggregation_round!\", status as \"status!\"\n                FROM prover_jobs_fri\n                GROUP BY circuit_id, aggregation_round, status\n                "
   },
   "1ed353a16e8d0abaf426e5c235b20a79c727c08bc23fb1708a833a6930131691": {
     "describe": {
@@ -4037,6 +3971,42 @@
       }
     },
     "query": "SELECT bootloader_code_hash, default_account_code_hash FROM protocol_versions\n                WHERE id = $1\n            "
+  },
+  "51d02f2e314ebf78c27949cc10997bd2171755400cc3a13c63994c85e15cb3df": {
+    "describe": {
+      "columns": [
+        {
+          "name": "count!",
+          "ordinal": 0,
+          "type_info": "Int8"
+        },
+        {
+          "name": "circuit_id!",
+          "ordinal": 1,
+          "type_info": "Int2"
+        },
+        {
+          "name": "aggregation_round!",
+          "ordinal": 2,
+          "type_info": "Int2"
+        },
+        {
+          "name": "status!",
+          "ordinal": 3,
+          "type_info": "Text"
+        }
+      ],
+      "nullable": [
+        null,
+        false,
+        false,
+        false
+      ],
+      "parameters": {
+        "Left": []
+      }
+    },
+    "query": "\n                SELECT COUNT(*) as \"count!\", circuit_id as \"circuit_id!\", aggregation_round as \"aggregation_round!\", status as \"status!\"\n                FROM prover_jobs_fri\n                WHERE status <> 'skipped' and status <> 'successful'\n                GROUP BY circuit_id, aggregation_round, status\n                "
   },
   "52eeb8c529efb796fdefb30a381fcf6c931512f30e55e24c155f6c649e662909": {
     "describe": {
@@ -7761,6 +7731,36 @@
       }
     },
     "query": "UPDATE prover_jobs_fri SET status = $1, updated_at = now() WHERE id = $2"
+  },
+  "98c81ee6f73859c6cd6ba54ab438c900dda646b70a700f936e5218d9ba3bd0ec": {
+    "describe": {
+      "columns": [
+        {
+          "name": "l1_batch_number!",
+          "ordinal": 0,
+          "type_info": "Int8"
+        },
+        {
+          "name": "circuit_id",
+          "ordinal": 1,
+          "type_info": "Int2"
+        },
+        {
+          "name": "aggregation_round",
+          "ordinal": 2,
+          "type_info": "Int2"
+        }
+      ],
+      "nullable": [
+        null,
+        false,
+        false
+      ],
+      "parameters": {
+        "Left": []
+      }
+    },
+    "query": "\n                    SELECT MIN(l1_batch_number) as \"l1_batch_number!\", circuit_id, aggregation_round\n                    FROM prover_jobs_fri\n                    WHERE status IN('queued', 'in_gpu_proof', 'in_progress', 'failed')\n                    GROUP BY circuit_id, aggregation_round\n                "
   },
   "9970bb69f5ca9ab9f103e1547eb40c1d4f5dd3a540ff6f1b9724821350c9501a": {
     "describe": {
