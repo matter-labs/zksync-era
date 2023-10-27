@@ -28,8 +28,7 @@
     "revert-test": "yarn workspace revert-test",
     "upgrade-test": "yarn workspace upgrade-test",
     "ts-integration": "yarn workspace ts-integration",
-    "zk": "yarn workspace zk",
-    "init-build": "yarn npm-run-all --parallel build:*"
+    "zk": "yarn workspace zk"
   },
   "devDependencies": {
     "@ethersproject/bignumber": "~5.5.0",
