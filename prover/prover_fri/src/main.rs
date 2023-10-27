@@ -6,7 +6,7 @@ use tokio::sync::watch::Receiver;
 use tokio::task::JoinHandle;
 
 use prometheus_exporter::PrometheusExporterConfig;
-use zksync_config::configs::fri_prover_group::{CircuitIdRoundTuple, FriProverGroupConfig};
+use zksync_config::configs::fri_prover_group::FriProverGroupConfig;
 use zksync_config::configs::FriProverConfig;
 use zksync_config::ObjectStoreConfig;
 use zksync_dal::connection::DbVariant;
@@ -17,6 +17,7 @@ use zksync_prover_fri_utils::get_all_circuit_id_round_tuples_for;
 use local_ip_address::local_ip;
 use zksync_prover_utils::region_fetcher::get_zone;
 use zksync_queued_job_processor::JobProcessor;
+use zksync_types::basic_fri_types::CircuitIdRoundTuple;
 use zksync_types::proofs::GpuProverInstanceStatus;
 use zksync_types::proofs::SocketAddress;
 use zksync_utils::wait_for_tasks::wait_for_tasks;
@@ -35,7 +36,9 @@ async fn graceful_shutdown(port: u16) -> anyhow::Result<impl Future<Output = ()>
     let zone = get_zone().await.context("get_zone()")?;
     let address = SocketAddress { host, port };
     Ok(async move {
-        pool.access_storage().await.unwrap()
+        pool.access_storage()
+            .await
+            .unwrap()
             .fri_gpu_prover_queue_dal()
             .update_prover_instance_status(address, GpuProverInstanceStatus::Dead, zone)
             .await
@@ -67,8 +70,7 @@ async fn main() -> anyhow::Result<()> {
         tracing::info!("No sentry URL was provided");
     }
 
-    let prover_config = FriProverConfig::from_env()
-        .context("FriProverConfig::from_env()")?;
+    let prover_config = FriProverConfig::from_env().context("FriProverConfig::from_env()")?;
     let exporter_config = PrometheusExporterConfig::pull(prover_config.prometheus_port);
 
     let (stop_signal_sender, stop_signal_receiver) = oneshot::channel();
@@ -81,24 +83,24 @@ async fn main() -> anyhow::Result<()> {
     .context("Error setting Ctrl+C handler")?;
 
     let (stop_sender, stop_receiver) = tokio::sync::watch::channel(false);
-    let blob_store = ObjectStoreFactory::prover_from_env()
-        .context("ObjectStoreFactory::prover_from_env()")?;
+    let blob_store =
+        ObjectStoreFactory::prover_from_env().context("ObjectStoreFactory::prover_from_env()")?;
     let public_blob_store = match prover_config.shall_save_to_public_bucket {
         false => None,
         true => Some(
             ObjectStoreFactory::new(
                 ObjectStoreConfig::public_from_env()
-                    .context("ObjectStoreConfig::public_from_env()")?
+                    .context("ObjectStoreConfig::public_from_env()")?,
             )
-                .create_store()
-                .await,
+            .create_store()
+            .await,
         ),
     };
     let specialized_group_id = prover_config.specialized_group_id;
 
     let circuit_ids_for_round_to_be_proven = FriProverGroupConfig::from_env()
         .get_circuit_ids_for_group_id(specialized_group_id)
-        .unwrap_or(vec![]);
+        .unwrap_or_default();
     let circuit_ids_for_round_to_be_proven =
         get_all_circuit_id_round_tuples_for(circuit_ids_for_round_to_be_proven);
 
@@ -166,8 +168,8 @@ async fn get_prover_tasks(
         vk_commitments
     );
 
-    let setup_load_mode = load_setup_data_cache(&prover_config)
-        .context("load_setup_data_cache()")?;
+    let setup_load_mode =
+        load_setup_data_cache(&prover_config).context("load_setup_data_cache()")?;
     let prover = Prover::new(
         store_factory.create_store().await,
         public_blob_store,
@@ -195,8 +197,8 @@ async fn get_prover_tasks(
     use tokio::sync::Mutex;
     use zksync_prover_fri_types::queue::FixedSizeQueue;
 
-    let setup_load_mode = gpu_prover::load_setup_data_cache(&prover_config)
-        .context("load_setup_data_cache()")?;
+    let setup_load_mode =
+        gpu_prover::load_setup_data_cache(&prover_config).context("load_setup_data_cache()")?;
     let witness_vector_queue = FixedSizeQueue::new(prover_config.queue_capacity);
     let shared_witness_vector_queue = Arc::new(Mutex::new(witness_vector_queue));
     let consumer = shared_witness_vector_queue.clone();

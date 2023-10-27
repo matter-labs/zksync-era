@@ -1,8 +1,9 @@
 use ethabi::Token;
-use zksync_config::constants::{
+use zksync_contracts::test_contracts::LoadnextContractExecutionParams;
+use zksync_contracts::{deployer_contract, load_contract};
+use zksync_system_constants::{
     CONTRACT_DEPLOYER_ADDRESS, MAX_GAS_PER_PUBDATA_BYTE, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE,
 };
-use zksync_contracts::{deployer_contract, load_contract};
 use zksync_types::fee::Fee;
 use zksync_types::l2::L2Tx;
 use zksync_types::utils::deployed_address_create;
@@ -209,6 +210,26 @@ impl Account {
             value: value.unwrap_or_default(),
             factory_deps: None,
         };
+        match tx_type {
+            TxType::L2 => self.get_l2_tx_for_execute(execute, None),
+            TxType::L1 { serial_id } => self.get_l1_tx(execute, serial_id),
+        }
+    }
+
+    pub fn get_loadnext_transaction(
+        &mut self,
+        address: Address,
+        params: LoadnextContractExecutionParams,
+        tx_type: TxType,
+    ) -> Transaction {
+        let calldata = params.to_bytes();
+        let execute = Execute {
+            contract_address: address,
+            calldata,
+            value: U256::zero(),
+            factory_deps: None,
+        };
+
         match tx_type {
             TxType::L2 => self.get_l2_tx_for_execute(execute, None),
             TxType::L1 { serial_id } => self.get_l1_tx(execute, serial_id),

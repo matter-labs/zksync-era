@@ -3,7 +3,7 @@ use sqlx::Row;
 
 use std::{collections::HashMap, time::Instant};
 
-use crate::StorageProcessor;
+use crate::{instrument::InstrumentExt, StorageProcessor};
 use zksync_types::{
     get_code_key, AccountTreeId, Address, L1BatchNumber, MiniblockNumber, StorageKey, StorageLog,
     FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH, H256,
@@ -244,7 +244,7 @@ impl StorageLogsDal<'_, '_> {
     pub async fn get_storage_logs_for_revert(
         &mut self,
         l1_batch_number: L1BatchNumber,
-    ) -> HashMap<H256, Option<H256>> {
+    ) -> HashMap<H256, Option<(H256, u64)>> {
         let miniblock_range = self
             .storage
             .blocks_dal()
@@ -268,7 +268,9 @@ impl StorageLogsDal<'_, '_> {
         // as per `initial_writes`, so if we return such keys from this method, it will lead to
         // the incorrect state after revert.
         let stage_start = Instant::now();
-        let l1_batch_by_key = self.get_l1_batches_for_initial_writes(&modified_keys).await;
+        let l1_batch_and_index_by_key = self
+            .get_l1_batches_and_indices_for_initial_writes(&modified_keys)
+            .await;
         tracing::info!(
             "Loaded initial write info for modified keys in {:?}",
             stage_start.elapsed()
@@ -277,12 +279,12 @@ impl StorageLogsDal<'_, '_> {
         let stage_start = Instant::now();
         let mut output = HashMap::with_capacity(modified_keys.len());
         modified_keys.retain(|key| {
-            match l1_batch_by_key.get(key) {
+            match l1_batch_and_index_by_key.get(key) {
                 None => {
                     // Key is completely deduped. It should not be present in the output map.
                     false
                 }
-                Some(write_batch) if *write_batch > l1_batch_number => {
+                Some((write_batch, _)) if *write_batch > l1_batch_number => {
                     // Key was initially written to after the specified L1 batch.
                     output.insert(*key, None);
                     false
@@ -295,18 +297,24 @@ impl StorageLogsDal<'_, '_> {
             stage_start.elapsed()
         );
 
-        let deduped_count = modified_keys_count - l1_batch_by_key.len();
+        let deduped_count = modified_keys_count - l1_batch_and_index_by_key.len();
         tracing::info!(
             "Keys to update: {update_count}, to delete: {delete_count}; {deduped_count} modified keys \
              are deduped and will be ignored",
             update_count = modified_keys.len(),
-            delete_count = l1_batch_by_key.len() - modified_keys.len()
+            delete_count = l1_batch_and_index_by_key.len() - modified_keys.len()
         );
 
         let stage_start = Instant::now();
         let prev_values_for_updated_keys = self
             .get_storage_values(&modified_keys, last_miniblock)
-            .await;
+            .await
+            .into_iter()
+            .map(|(key, value)| {
+                let value = value.unwrap(); // We already filtered out keys that weren't touched.
+                let index = l1_batch_and_index_by_key[&key].1;
+                (key, Some((value, index)))
+            });
         tracing::info!(
             "Loaded previous values for {} keys in {:?}",
             prev_values_for_updated_keys.len(),
@@ -316,20 +324,22 @@ impl StorageLogsDal<'_, '_> {
         output
     }
 
-    pub async fn get_l1_batches_for_initial_writes(
+    pub async fn get_l1_batches_and_indices_for_initial_writes(
         &mut self,
         hashed_keys: &[H256],
-    ) -> HashMap<H256, L1BatchNumber> {
+    ) -> HashMap<H256, (L1BatchNumber, u64)> {
         if hashed_keys.is_empty() {
             return HashMap::new(); // Shortcut to save time on communication with DB in the common case
         }
 
         let hashed_keys: Vec<_> = hashed_keys.iter().map(H256::as_bytes).collect();
         let rows = sqlx::query!(
-            "SELECT hashed_key, l1_batch_number FROM initial_writes \
+            "SELECT hashed_key, l1_batch_number, index FROM initial_writes \
             WHERE hashed_key = ANY($1::bytea[])",
             &hashed_keys as &[&[u8]],
         )
+        .instrument("get_l1_batches_and_indices_for_initial_writes")
+        .report_latency()
         .fetch_all(self.storage.conn())
         .await
         .unwrap();
@@ -338,7 +348,7 @@ impl StorageLogsDal<'_, '_> {
             .map(|row| {
                 (
                     H256::from_slice(&row.hashed_key),
-                    L1BatchNumber(row.l1_batch_number as u32),
+                    (L1BatchNumber(row.l1_batch_number as u32), row.index as u64),
                 )
             })
             .collect()
@@ -521,7 +531,6 @@ impl StorageLogsDal<'_, '_> {
 mod tests {
     use super::*;
     use crate::{tests::create_miniblock_header, ConnectionPool};
-    use db_test_macro::db_test;
     use zksync_contracts::BaseSystemContractsHashes;
     use zksync_types::{
         block::{BlockGasCount, L1BatchHeader},
@@ -538,7 +547,7 @@ mod tests {
         );
         header.is_finished = true;
         conn.blocks_dal()
-            .insert_l1_batch(&header, &[], BlockGasCount::default())
+            .insert_l1_batch(&header, &[], BlockGasCount::default(), &[], &[])
             .await
             .unwrap();
         conn.blocks_dal()
@@ -557,8 +566,9 @@ mod tests {
             .unwrap();
     }
 
-    #[db_test(dal_crate)]
-    async fn inserting_storage_logs(pool: ConnectionPool) {
+    #[tokio::test]
+    async fn inserting_storage_logs() {
+        let pool = ConnectionPool::test_pool().await;
         let mut conn = pool.access_storage().await.unwrap();
 
         conn.blocks_dal()
@@ -649,8 +659,9 @@ mod tests {
         assert!(value.is_none());
     }
 
-    #[db_test(dal_crate)]
-    async fn getting_storage_logs_for_revert(pool: ConnectionPool) {
+    #[tokio::test]
+    async fn getting_storage_logs_for_revert() {
+        let pool = ConnectionPool::test_pool().await;
         let mut conn = pool.access_storage().await.unwrap();
 
         conn.blocks_dal()
@@ -696,7 +707,7 @@ mod tests {
             .await;
         assert_eq!(logs_for_revert.len(), 15); // 5 updated + 10 new keys
         for log in &logs[5..] {
-            let prev_value = logs_for_revert[&log.key.hashed_key()].unwrap();
+            let prev_value = logs_for_revert[&log.key.hashed_key()].unwrap().0;
             assert_eq!(prev_value, log.value);
         }
         for log in &new_logs[5..] {
@@ -704,8 +715,9 @@ mod tests {
         }
     }
 
-    #[db_test(dal_crate)]
-    async fn reverting_keys_without_initial_write(pool: ConnectionPool) {
+    #[tokio::test]
+    async fn reverting_keys_without_initial_write() {
+        let pool = ConnectionPool::test_pool().await;
         let mut conn = pool.access_storage().await.unwrap();
 
         conn.blocks_dal()

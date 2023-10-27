@@ -4,28 +4,31 @@ use std::sync::Arc;
 
 use zksync_config::{
     configs::chain::{MempoolConfig, NetworkConfig, StateKeeperConfig},
-    constants::MAX_TXS_IN_BLOCK,
     ContractsConfig, DBConfig,
 };
 use zksync_dal::ConnectionPool;
+use zksync_system_constants::MAX_TXS_IN_BLOCK;
 
 mod batch_executor;
 pub(crate) mod extractors;
 pub(crate) mod io;
 mod keeper;
 mod mempool_actor;
+pub(crate) mod metrics;
 pub(crate) mod seal_criteria;
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;
 pub(crate) mod types;
 pub(crate) mod updates;
 
 pub use self::{
     batch_executor::{L1BatchExecutorBuilder, MainBatchExecutorBuilder},
     keeper::ZkSyncStateKeeper,
-    seal_criteria::SealManager,
 };
-pub(crate) use self::{io::MiniblockSealer, mempool_actor::MempoolFetcher, types::MempoolGuard};
+pub(crate) use self::{
+    io::MiniblockSealer, mempool_actor::MempoolFetcher, seal_criteria::ConditionalSealer,
+    types::MempoolGuard,
+};
 
 use self::io::{MempoolIO, MiniblockSealerHandle};
 use crate::l1_gas_price::L1GasPriceProvider;
@@ -59,6 +62,7 @@ where
         state_keeper_config.max_allowed_l2_tx_gas_limit.into(),
         state_keeper_config.save_call_traces,
         state_keeper_config.upload_witness_inputs_to_gcs,
+        state_keeper_config.enum_index_migration_chunk_size(),
     );
 
     let io = MempoolIO::new(
@@ -74,7 +78,7 @@ where
     )
     .await;
 
-    let sealer = SealManager::new(state_keeper_config);
+    let sealer = ConditionalSealer::new(state_keeper_config);
     ZkSyncStateKeeper::new(
         stop_receiver,
         Box::new(io),

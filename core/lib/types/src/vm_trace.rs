@@ -2,8 +2,10 @@ use crate::{Address, U256};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::collections::{HashMap, HashSet};
 use std::fmt;
+use std::fmt::Display;
 use zk_evm::zkevm_opcode_defs::FarCallOpcode;
-use zksync_config::constants::BOOTLOADER_ADDRESS;
+use zksync_system_constants::BOOTLOADER_ADDRESS;
+use zksync_utils::u256_to_h256;
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub enum VmTrace {
@@ -192,5 +194,39 @@ impl fmt::Debug for Call {
             .field("revert_reason", &format_args!("{:?}", self.revert_reason))
             .field("call_traces", &self.calls)
             .finish()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum ViolatedValidationRule {
+    TouchedUnallowedStorageSlots(Address, U256),
+    CalledContractWithNoCode(Address),
+    TouchedUnallowedContext,
+    TookTooManyComputationalGas(u32),
+}
+
+impl Display for ViolatedValidationRule {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ViolatedValidationRule::TouchedUnallowedStorageSlots(contract, key) => write!(
+                f,
+                "Touched unallowed storage slots: address {}, key: {}",
+                hex::encode(contract),
+                hex::encode(u256_to_h256(*key))
+            ),
+            ViolatedValidationRule::CalledContractWithNoCode(contract) => {
+                write!(f, "Called contract with no code: {}", hex::encode(contract))
+            }
+            ViolatedValidationRule::TouchedUnallowedContext => {
+                write!(f, "Touched unallowed context")
+            }
+            ViolatedValidationRule::TookTooManyComputationalGas(gas_limit) => {
+                write!(
+                    f,
+                    "Took too many computational gas, allowed limit: {}",
+                    gas_limit
+                )
+            }
+        }
     }
 }

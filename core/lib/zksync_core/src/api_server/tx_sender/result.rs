@@ -1,7 +1,8 @@
 use crate::api_server::execution_sandbox::SandboxExecutionError;
 use thiserror::Error;
 
-use vm::{ExecutionResult, ValidationError, VmExecutionResultAndLogs};
+use multivm::interface::{ExecutionResult, VmExecutionResultAndLogs};
+use multivm::vm_latest::ValidationError;
 use zksync_types::l2::error::TxCheckError;
 use zksync_types::U256;
 
@@ -70,7 +71,7 @@ pub enum SubmitTxError {
 }
 
 impl SubmitTxError {
-    pub fn grafana_error_code(&self) -> &'static str {
+    pub fn prom_error_code(&self) -> &'static str {
         match self {
             Self::NonceIsTooHigh(_, _, _) => "nonce-is-too-high",
             Self::NonceIsTooLow(_, _, _) => "nonce-is-too-low",

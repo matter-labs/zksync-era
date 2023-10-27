@@ -12,7 +12,7 @@ readme = "README.md"
 
 [dependencies]
 zksync_types = { path = "../types" }
-zksync_config = { path = "../config" }
+zksync_system_constants = { path = "../constants" }
 zksync_utils = { path = "../utils" }
 zksync_eth_signer = { path = "../eth_signer" }
 zksync_contracts = { path = "../contracts" }

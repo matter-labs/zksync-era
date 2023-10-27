@@ -16,13 +16,13 @@ pub mod gpu_prover {
     use zksync_prover_fri_types::circuit_definitions::circuit_definitions::recursion_layer::ZkSyncRecursionLayerProof;
     use zksync_prover_fri_types::WitnessVectorArtifacts;
 
-    use zksync_config::configs::fri_prover_group::{CircuitIdRoundTuple, FriProverGroupConfig};
+    use zksync_config::configs::fri_prover_group::FriProverGroupConfig;
     use zksync_config::configs::FriProverConfig;
     use zksync_dal::ConnectionPool;
     use zksync_object_store::ObjectStore;
     use zksync_prover_fri_types::{CircuitWrapper, FriProofWrapper, ProverServiceDataKey};
     use zksync_queued_job_processor::{async_trait, JobProcessor};
-    use zksync_types::proofs::SocketAddress;
+    use zksync_types::{basic_fri_types::CircuitIdRoundTuple, proofs::SocketAddress};
     use zksync_vk_setup_data_server_fri::get_setup_data_for_circuit_type;
     use {
         shivini::gpu_prove_from_external_witness_data, shivini::ProverContext,
@@ -30,8 +30,8 @@ pub mod gpu_prover {
     };
 
     use crate::utils::{
-        save_proof, setup_metadata_to_setup_data_key, verify_proof, GpuProverJob, ProverArtifacts,
-        SharedWitnessVectorQueue,
+        get_setup_data_key, save_proof, setup_metadata_to_setup_data_key, verify_proof,
+        GpuProverJob, ProverArtifacts, SharedWitnessVectorQueue,
     };
 
     type DefaultTranscript = GoldilocksPoisedon2Transcript;
@@ -86,7 +86,11 @@ pub mod gpu_prover {
             }
         }
 
-        fn get_setup_data(&self, key: ProverServiceDataKey) -> anyhow::Result<Arc<GoldilocksGpuProverSetupData>> {
+        fn get_setup_data(
+            &self,
+            key: ProverServiceDataKey,
+        ) -> anyhow::Result<Arc<GoldilocksGpuProverSetupData>> {
+            let key = get_setup_data_key(key);
             Ok(match &self.setup_load_mode {
                 SetupLoadMode::FromMemory(cache) => cache
                     .get(&key)
@@ -198,7 +202,9 @@ pub mod gpu_prover {
                 Ok(item) => {
                     if is_full {
                         self.prover_connection_pool
-                            .access_storage().await.unwrap()
+                            .access_storage()
+                            .await
+                            .unwrap()
                             .fri_gpu_prover_queue_dal()
                             .update_prover_instance_from_full_to_available(
                                 self.address.clone(),
@@ -210,14 +216,19 @@ pub mod gpu_prover {
                         "Started GPU proving for job: {:?}",
                         item.witness_vector_artifacts.prover_job.job_id
                     );
-                    Ok(Some((item.witness_vector_artifacts.prover_job.job_id, item)))
+                    Ok(Some((
+                        item.witness_vector_artifacts.prover_job.job_id,
+                        item,
+                    )))
                 }
             }
         }
 
         async fn save_failure(&self, job_id: Self::JobId, _started_at: Instant, error: String) {
             self.prover_connection_pool
-                .access_storage().await.unwrap()
+                .access_storage()
+                .await
+                .unwrap()
                 .fri_prover_jobs_dal()
                 .save_proof_error(job_id, error)
                 .await;
@@ -234,7 +245,9 @@ pub mod gpu_prover {
                     .setup_data_key
                     .clone(),
             );
-            tokio::task::spawn_blocking(move || Ok(Self::prove(job, setup_data.context("get_setup_data()")?)))
+            tokio::task::spawn_blocking(move || {
+                Ok(Self::prove(job, setup_data.context("get_setup_data()")?))
+            })
         }
 
         async fn save_result(

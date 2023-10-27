@@ -7,5 +7,3 @@ pub use crate::configs::{
 };
 
 pub mod configs;
-pub mod constants;
-pub mod test_config;

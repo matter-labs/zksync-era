@@ -1,9 +1,9 @@
 use std::{collections::HashMap, convert::TryFrom, time::Duration};
 
-use zksync_config::configs::fri_prover_group::CircuitIdRoundTuple;
-use zksync_types::protocol_version::FriProtocolVersionId;
 use zksync_types::{
+    basic_fri_types::CircuitIdRoundTuple,
     proofs::{AggregationRound, FriProverJobMetadata, JobCountStatistics, StuckJobs},
+    protocol_version::FriProtocolVersionId,
     L1BatchNumber,
 };
 
@@ -213,6 +213,7 @@ impl FriProverDal<'_, '_> {
                 UPDATE prover_jobs_fri
                 SET status = 'queued', attempts = attempts + 1, updated_at = now(), processing_started_at = now()
                 WHERE (status = 'in_progress' AND  processing_started_at <= now() - $1::interval AND attempts < $2)
+                OR (status = 'in_gpu_proof' AND  processing_started_at <= now() - $1::interval AND attempts < $2)
                 OR (status = 'failed' AND attempts < $2)
                 RETURNING id, status, attempts
                 ",

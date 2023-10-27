@@ -13,13 +13,13 @@ use std::{cmp, num::NonZeroU32, sync::Arc, time::Instant};
 
 // Workspace uses
 
-use vm::{
+use multivm::interface::VmExecutionResultAndLogs;
+use multivm::vm_latest::{
     constants::{BLOCK_GAS_LIMIT, MAX_PUBDATA_PER_BLOCK},
     utils::{
         fee::derive_base_fee_and_gas_per_pubdata,
         overhead::{derive_overhead, OverheadCoeficients},
     },
-    VmExecutionResultAndLogs,
 };
 
 use zksync_config::configs::{api::Web3JsonRpcConfig, chain::StateKeeperConfig};
@@ -43,14 +43,16 @@ use zksync_utils::h256_to_u256;
 use crate::api_server::{
     execution_sandbox::{
         adjust_l1_gas_price_for_tx, execute_tx_eth_call, execute_tx_with_pending_state,
-        get_pubdata_for_factory_deps, BlockArgs, TxExecutionArgs, TxSharedArgs,
-        VmConcurrencyLimiter, VmPermit,
+        get_pubdata_for_factory_deps, BlockArgs, SubmitTxStage, TxExecutionArgs, TxSharedArgs,
+        VmConcurrencyLimiter, VmPermit, SANDBOX_METRICS,
     },
     tx_sender::result::ApiCallResult,
 };
-
-use crate::l1_gas_price::L1GasPriceProvider;
-use crate::state_keeper::seal_criteria::{ConditionalSealer, SealData};
+use crate::{
+    l1_gas_price::L1GasPriceProvider,
+    metrics::{TxStage, APP_METRICS},
+    state_keeper::seal_criteria::{ConditionalSealer, SealData},
+};
 
 mod proxy;
 mod result;
@@ -90,7 +92,8 @@ impl MultiVMBaseSystemContracts {
             ProtocolVersionId::Version13 => self.post_virtual_blocks,
             ProtocolVersionId::Version14
             | ProtocolVersionId::Version15
-            | ProtocolVersionId::Version16 => self.post_virtual_blocks_finish_upgrade_fix,
+            | ProtocolVersionId::Version16
+            | ProtocolVersionId::Version17 => self.post_virtual_blocks_finish_upgrade_fix,
         }
     }
 }
@@ -309,11 +312,11 @@ impl<G: L1GasPriceProvider> TxSender<G> {
             }
         }
 
-        let mut stage_started_at = Instant::now();
+        let stage_latency = SANDBOX_METRICS.submit_tx[&SubmitTxStage::Validate].start();
         self.validate_tx(&tx).await?;
-        metrics::histogram!("api.web3.submit_tx", stage_started_at.elapsed(), "stage" => "1_validate");
-        stage_started_at = Instant::now();
+        stage_latency.observe();
 
+        let stage_latency = SANDBOX_METRICS.submit_tx[&SubmitTxStage::DryRun].start();
         let shared_args = self.shared_args();
         let vm_permit = self.0.vm_concurrency_limiter.acquire().await;
         let vm_permit = vm_permit.ok_or(SubmitTxError::ServerShuttingDown)?;
@@ -332,9 +335,9 @@ impl<G: L1GasPriceProvider> TxSender<G> {
             tx.hash(),
             tx_metrics
         );
-        metrics::histogram!("api.web3.submit_tx", stage_started_at.elapsed(), "stage" => "2_dry_run");
-        stage_started_at = Instant::now();
+        stage_latency.observe();
 
+        let stage_latency = SANDBOX_METRICS.submit_tx[&SubmitTxStage::VerifyExecute].start();
         let computational_gas_limit = self.0.sender_config.validation_computational_gas_limit;
         let validation_result = shared_args
             .validate_tx_with_pending_state(
@@ -344,14 +347,13 @@ impl<G: L1GasPriceProvider> TxSender<G> {
                 computational_gas_limit,
             )
             .await;
-
-        metrics::histogram!("api.web3.submit_tx", stage_started_at.elapsed(), "stage" => "3_verify_execute");
-        stage_started_at = Instant::now();
+        stage_latency.observe();
 
         if let Err(err) = validation_result {
             return Err(err.into());
         }
 
+        let stage_started_at = Instant::now();
         self.ensure_tx_executable(tx.clone().into(), &tx_metrics, true)?;
 
         if let Some(proxy) = &self.0.proxy {
@@ -364,8 +366,8 @@ impl<G: L1GasPriceProvider> TxSender<G> {
             // since we don't want to store txs that might have been replaced or otherwise removed
             // from the mempool.
             proxy.forget_tx(tx.hash()).await;
-            metrics::histogram!("api.web3.submit_tx", stage_started_at.elapsed(), "stage" => "4_tx_proxy");
-            metrics::counter!("server.processed_txs", 1, "stage" => "proxied");
+            SANDBOX_METRICS.submit_tx[&SubmitTxStage::TxProxy].observe(stage_started_at.elapsed());
+            APP_METRICS.processed_txs[&TxStage::Proxied].inc();
             return Ok(L2TxSubmissionResult::Proxied);
         } else {
             assert!(
@@ -389,37 +391,21 @@ impl<G: L1GasPriceProvider> TxSender<G> {
             .insert_transaction_l2(tx, tx_metrics)
             .await;
 
-        let status: String;
-        let submission_result = match submission_res_handle {
-            L2TxSubmissionResult::AlreadyExecuted => {
-                status = "already_executed".to_string();
-                Err(SubmitTxError::NonceIsTooLow(
-                    expected_nonce.0,
-                    expected_nonce.0 + self.0.sender_config.max_nonce_ahead,
-                    nonce,
-                ))
-            }
-            L2TxSubmissionResult::Duplicate => {
-                status = "duplicated".to_string();
-                Err(SubmitTxError::IncorrectTx(TxDuplication(hash)))
-            }
+        APP_METRICS.processed_txs[&TxStage::Mempool(submission_res_handle)].inc();
+
+        match submission_res_handle {
+            L2TxSubmissionResult::AlreadyExecuted => Err(SubmitTxError::NonceIsTooLow(
+                expected_nonce.0,
+                expected_nonce.0 + self.0.sender_config.max_nonce_ahead,
+                nonce,
+            )),
+            L2TxSubmissionResult::Duplicate => Err(SubmitTxError::IncorrectTx(TxDuplication(hash))),
             _ => {
-                metrics::histogram!("api.web3.submit_tx", stage_started_at.elapsed(), "stage" => "4_db_insert");
-                status = format!(
-                    "mempool_{}",
-                    submission_res_handle.to_string().to_lowercase()
-                );
+                SANDBOX_METRICS.submit_tx[&SubmitTxStage::DbInsert]
+                    .observe(stage_started_at.elapsed());
                 Ok(submission_res_handle)
             }
-        };
-
-        metrics::counter!(
-            "server.processed_txs",
-            1,
-            "stage" => status
-        );
-
-        submission_result
+        }
     }
 
     fn shared_args(&self) -> TxSharedArgs {
@@ -817,10 +803,9 @@ impl<G: L1GasPriceProvider> TxSender<G> {
             );
             number_of_iterations += 1;
         }
-        metrics::histogram!(
-            "api.web3.estimate_gas_binary_search_iterations",
-            number_of_iterations as f64
-        );
+        SANDBOX_METRICS
+            .estimate_gas_binary_search_iterations
+            .observe(number_of_iterations);
 
         let tx_body_gas_limit = cmp::min(
             MAX_L2_TX_GAS_LIMIT as u32,

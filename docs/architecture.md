@@ -43,26 +43,7 @@ This section provides a physical map of folders & files in this repository.
   - `/bin`: Executables for the microservices components comprising zkSync Core Node.
 
     - `/admin-tools`: CLI tools for admin operations (e.g. restarting prover jobs).
-    - `/prover`: zkSync prover orchestrator application.
-
-    - `zksync_core/src`
-      - `/api_server` Externally facing APIs.
-        - `/web3`: zkSync implementation of the Web3 API.
-        - `/tx_sender`: Helper module encapsulating the transaction processing logic.
-      - `/bin`: The executable main starting point for the zkSync server.
-      - `/circuit_breaker_checker`: zkSync watchdog.
-      - `/eth_sender`: Submits transactions to the zkSync smart contract.
-      - `/eth_watch`: Fetches data from the L1. for L2 censorship resistance.
-      - `/fee_monitor`: Monitors the ratio of fees collected by executing txs over the costs of interacting with
-        Ethereum.
-      - `/fee_ticker`: Module to define the price components of L2 transactions.
-      - `/gas_adjuster`: Module to determine the fees to pay in txs containing blocks submitted to the L1.
-      - `/gas_tracker`: Module for predicting L1 gas cost for the Commit/PublishProof/Execute operations.
-      - `/metadata_calculator`: Module to maintain the zkSync state tree.
-      - `/state_keeper`: The sequencer. In charge of collecting the pending txs from the mempool, executing them in the
-        VM, and sealing them in blocks.
-      - `/witness_generator`: Takes the sealed blocks and generates a _Witness_, the input for the prover containing the
-        circuits to be proved.
+    - `/external_node`: A read replica that can sync from the main node.
 
   - `/lib`: All the library crates used as dependencies of the binary crates above.
 
@@ -78,28 +59,50 @@ This section provides a physical map of folders & files in this repository.
     - `/mempool`: Implementation of the zkSync transaction pool.
     - `/merkle_tree`: Implementation of a sparse Merkle tree.
     - `/mini_merkle_tree`: In-memory implementation of a sparse Merkle tree.
+    - `/multivm`: A wrapper over several versions of VM that have been used by the main node.
     - `/object_store`: Abstraction for storing blobs outside the main data store.
     - `/prometheus_exporter`: Prometheus data exporter.
     - `/prover_utils`: Utilities related to the proof generation.
     - `/queued_job_processor`: An abstraction for async job processing
+    - `/state`: A state keeper responsible for handling transaction execution and creating miniblocks and L1 batches.
     - `/storage`: An encapsulated database interface.
+    - `/test_account`: A representation of zkSync account.
     - `/types`: zkSync network operations, transactions, and common types.
     - `/utils`: Miscellaneous helpers for zkSync crates.
     - `/vlog`: zkSync logging utility.
     - `/vm`: ULightweight out-of-circuit VM interface.
     - `/web3_decl`: Declaration of the Web3 API.
+    - `zksync_core/src`
+      - `/api_server` Externally facing APIs.
+        - `/web3`: zkSync implementation of the Web3 API.
+        - `/tx_sender`: Helper module encapsulating the transaction processing logic.
+      - `/bin`: The executable main starting point for the zkSync server.
+      - `/consistency_checker`: zkSync watchdog.
+      - `/eth_sender`: Submits transactions to the zkSync smart contract.
+      - `/eth_watch`: Fetches data from the L1. for L2 censorship resistance.
+      - `/fee_monitor`: Monitors the ratio of fees collected by executing txs over the costs of interacting with
+        Ethereum.
+      - `/fee_ticker`: Module to define the price components of L2 transactions.
+      - `/gas_adjuster`: Module to determine the fees to pay in txs containing blocks submitted to the L1.
+      - `/gas_tracker`: Module for predicting L1 gas cost for the Commit/PublishProof/Execute operations.
+      - `/metadata_calculator`: Module to maintain the zkSync state tree.
+      - `/state_keeper`: The sequencer. In charge of collecting the pending txs from the mempool, executing them in the
+        VM, and sealing them in blocks.
+      - `/witness_generator`: Takes the sealed blocks and generates a _Witness_, the input for the prover containing the
+        circuits to be proved.
 
   - `/tests`: Testing infrastructure for zkSync network.
+    - `/cross_external_nodes_checker`: A tool for checking external nodes consistency against the main node.
     - `/loadnext`: An app for load testing the zkSync server.
-    - `/test_account`: A representation of zkSync account.
-    - `/testkit`: A relatively low-level testing library and test suite for zkSync.
     - `/ts-integration`: Integration tests set implemented in TypeScript.
+
+- `/prover`: zkSync prover orchestrator application.
 
 - `/docker`: Project docker files.
 
 - `/bin` & `/infrastructure`: Infrastructure scripts that help to work with zkSync applications.
 
-- `/etc`: Configration files.
+- `/etc`: Configuration files.
 
   - `/env`:`.env` files that contain environment variables for different configurations of zkSync Server / Prover.
 

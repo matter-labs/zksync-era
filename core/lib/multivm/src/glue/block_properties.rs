@@ -9,8 +9,8 @@ use zksync_types::{VmVersion, U256};
 /// boilerplate leaving the necessary wrappers only.
 pub enum BlockProperties {
     // M5 & M6 are covered by this variant.
-    Vm1_3_1(vm_m6::zk_evm::block_properties::BlockProperties),
-    Vm1_3_2(vm_1_3_2::zk_evm::block_properties::BlockProperties),
+    Vm1_3_1(zk_evm_1_3_1::block_properties::BlockProperties),
+    Vm1_3_2(zk_evm_1_3_3::block_properties::BlockProperties),
 }
 
 impl BlockProperties {
@@ -20,29 +20,29 @@ impl BlockProperties {
             | VmVersion::M5WithRefunds
             | VmVersion::M6Initial
             | VmVersion::M6BugWithCompressionFixed => {
-                let inner = vm_m6::zk_evm::block_properties::BlockProperties {
+                let inner = zk_evm_1_3_1::block_properties::BlockProperties {
                     zkporter_is_available: false,
                     default_aa_code_hash,
                 };
                 Self::Vm1_3_1(inner)
             }
             VmVersion::Vm1_3_2 => {
-                let inner = vm_1_3_2::zk_evm::block_properties::BlockProperties {
+                let inner = zk_evm_1_3_3::block_properties::BlockProperties {
                     zkporter_is_available: false,
                     default_aa_code_hash,
                 };
                 Self::Vm1_3_2(inner)
             }
-            VmVersion::VmVirtualBlocks => {
+            VmVersion::VmVirtualBlocks | VmVersion::VmVirtualBlocksRefundsEnhancement => {
                 unreachable!(
-                    "Vm with virtual blocks has another initialization logic, \
+                    "From VmVirtualBlocks we have another initialization logic, \
                      so it's not required to have BlockProperties for it"
                 )
             }
         }
     }
 
-    pub fn m5(&self) -> &vm_m5::zk_evm::block_properties::BlockProperties {
+    pub fn m5(&self) -> &zk_evm_1_3_1::block_properties::BlockProperties {
         // This is not a typo, M5 is covered by this variant. See doc-comment for the enum.
         if let BlockProperties::Vm1_3_1(inner) = self {
             inner
@@ -51,7 +51,7 @@ impl BlockProperties {
         }
     }
 
-    pub fn m6(&self) -> &vm_m6::zk_evm::block_properties::BlockProperties {
+    pub fn m6(&self) -> &zk_evm_1_3_1::block_properties::BlockProperties {
         // This is not a typo, M6 is covered by this variant. See doc-comment for the enum.
         if let BlockProperties::Vm1_3_1(inner) = self {
             inner
@@ -60,7 +60,7 @@ impl BlockProperties {
         }
     }
 
-    pub fn vm1_3_2(&self) -> &vm_1_3_2::zk_evm::block_properties::BlockProperties {
+    pub fn vm1_3_2(&self) -> &zk_evm_1_3_3::block_properties::BlockProperties {
         if let BlockProperties::Vm1_3_2(inner) = self {
             inner
         } else {

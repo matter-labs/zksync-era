@@ -16,6 +16,7 @@
         "deep-extend": "^0.6.0",
         "dotenv": "^8.2.0",
         "ethers": "~5.5.0",
+        "handlebars": "^4.7.8",
         "node-fetch": "^2.6.1",
         "tabtab": "^3.0.2",
         "zksync-web3": "^0.15.5"

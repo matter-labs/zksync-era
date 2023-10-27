@@ -1,23 +1,25 @@
-use std::collections::hash_map::DefaultHasher;
-use std::collections::{HashMap, HashSet};
-use std::hash::{Hash, Hasher};
-
-use std::sync::Arc;
-use std::time::Instant;
-
 use anyhow::Context as _;
 use async_trait::async_trait;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 
-use vm::{constants::MAX_CYCLES_FOR_TX, HistoryDisabled, SimpleMemory, StorageOracle};
+use std::{
+    collections::{hash_map::DefaultHasher, HashMap, HashSet},
+    hash::{Hash, Hasher},
+    sync::Arc,
+    time::Instant,
+};
+
+use multivm::vm_latest::{
+    constants::MAX_CYCLES_FOR_TX, HistoryDisabled, SimpleMemory, StorageOracle as VmStorageOracle,
+};
 use zksync_config::configs::witness_generator::BasicWitnessGeneratorDataSource;
 use zksync_config::configs::WitnessGeneratorConfig;
-use zksync_config::constants::BOOTLOADER_ADDRESS;
 use zksync_dal::ConnectionPool;
 use zksync_object_store::{Bucket, ObjectStore, ObjectStoreFactory, StoredObject};
 use zksync_queued_job_processor::JobProcessor;
 use zksync_state::{PostgresStorage, ReadStorage, ShadowStorage, StorageView, WitnessStorage};
+use zksync_system_constants::BOOTLOADER_ADDRESS;
 use zksync_types::{
     circuit::GEOMETRY_CONFIG,
     proofs::{AggregationRound, BasicCircuitWitnessGeneratorInput, PrepareBasicCircuitsJob},
@@ -29,13 +31,14 @@ use zksync_types::{
         witness::oracle::VmWitnessOracle,
         SchedulerCircuitInstanceWitness,
     },
-    Address, L1BatchNumber, ProtocolVersionId, H256, U256,
+    Address, L1BatchNumber, ProtocolVersionId, H256, U256, USED_BOOTLOADER_MEMORY_BYTES,
 };
-use zksync_utils::{bytes_to_chunks, h256_to_u256, u256_to_h256};
+use zksync_utils::{bytes_to_chunks, expand_memory_contents, h256_to_u256, u256_to_h256};
 
-use crate::witness_generator::precalculated_merkle_paths_provider::PrecalculatedMerklePathsProvider;
-use crate::witness_generator::track_witness_generation_stage;
-use crate::witness_generator::utils::{expand_bootloader_contents, save_prover_input_artifacts};
+use super::{
+    precalculated_merkle_paths_provider::PrecalculatedMerklePathsProvider,
+    storage_oracle::StorageOracle, utils::save_prover_input_artifacts, METRICS,
+};
 
 pub struct BasicCircuitArtifacts {
     basic_circuits: BlockBasicCircuits<Bn256>,
@@ -101,7 +104,7 @@ impl BasicWitnessGenerator {
             // We get value higher than `blocks_proving_percentage` with prob = `1 - blocks_proving_percentage`.
             // In this case job should be skipped.
             if threshold > blocks_proving_percentage {
-                metrics::counter!("server.witness_generator.skipped_blocks", 1);
+                METRICS.skipped_blocks.inc();
                 tracing::info!(
                     "Skipping witness generation for block {}, blocks_proving_percentage: {}",
                     block_number.0,
@@ -122,7 +125,7 @@ impl BasicWitnessGenerator {
             }
         }
 
-        metrics::counter!("server.witness_generator.sampled_blocks", 1);
+        METRICS.sampled_blocks.inc();
         tracing::info!(
             "Starting witness generation of type {:?} for block {}",
             AggregationRound::BasicCircuits,
@@ -314,7 +317,7 @@ async fn update_database(
         .await;
 
     transaction.commit().await.unwrap();
-    track_witness_generation_stage(started_at, AggregationRound::BasicCircuits);
+    METRICS.processing_time[&AggregationRound::BasicCircuits.into()].observe(started_at.elapsed());
 }
 
 async fn get_artifacts(
@@ -377,15 +380,9 @@ pub async fn build_basic_circuits_witness_generator_input(
         .await
         .unwrap()
         .unwrap();
-    let (_, previous_block_timestamp) = connection
+    let (previous_block_hash, previous_block_timestamp) = connection
         .blocks_dal()
         .get_l1_batch_state_root_and_timestamp(l1_batch_number - 1)
-        .await
-        .unwrap()
-        .unwrap();
-    let previous_block_hash = connection
-        .blocks_dal()
-        .get_l1_batch_state_root(l1_batch_number - 1)
         .await
         .unwrap()
         .expect("cannot generate witness before the root hash is computed");
@@ -429,7 +426,8 @@ pub async fn generate_witness(
         .await
         .expect("Default aa bytecode should exist");
     let account_bytecode = bytes_to_chunks(&account_bytecode_bytes);
-    let bootloader_contents = expand_bootloader_contents(&input.initial_heap_content);
+    let bootloader_contents =
+        expand_memory_contents(&input.initial_heap_content, USED_BOOTLOADER_MEMORY_BYTES);
     let account_code_hash = h256_to_u256(header.base_system_contracts_hashes.default_aa);
 
     let hashes: HashSet<H256> = input
@@ -460,6 +458,12 @@ pub async fn generate_witness(
         .await
         .unwrap()
         .expect("L1 batch should contain at least one miniblock");
+    let storage_refunds = connection
+        .blocks_dal()
+        .get_storage_refunds(input.block_number)
+        .await
+        .unwrap()
+        .unwrap();
 
     drop(connection);
     let rt_handle = tokio::runtime::Handle::current();
@@ -484,16 +488,13 @@ pub async fn generate_witness(
                 let connection = rt_handle
                     .block_on(connection_pool.access_storage())
                     .unwrap();
+                let block_state = rt_handle.block_on(object_store.get(header.number)).unwrap();
                 let source_storage = Box::new(PostgresStorage::new(
                     rt_handle.clone(),
                     connection,
                     last_miniblock_number,
                     true,
                 ));
-                let block_state = input
-                    .merkle_paths_input
-                    .clone()
-                    .into_witness_hash_block_state();
                 let checked_storage = Box::new(WitnessStorage::new(block_state));
                 Box::new(ShadowStorage::new(
                     source_storage,
@@ -502,10 +503,7 @@ pub async fn generate_witness(
                 ))
             }
             BasicWitnessGeneratorDataSource::FromBlob => {
-                let block_state = input
-                    .merkle_paths_input
-                    .clone()
-                    .into_witness_hash_block_state();
+                let block_state = rt_handle.block_on(object_store.get(header.number)).unwrap();
                 Box::new(WitnessStorage::new(block_state))
             }
         };
@@ -516,8 +514,9 @@ pub async fn generate_witness(
 
         let storage_view = StorageView::new(storage);
         let storage_view = storage_view.to_rc_ptr();
-        let storage_oracle: StorageOracle<StorageView<Box<dyn ReadStorage>>, HistoryDisabled> =
-            StorageOracle::new(storage_view);
+        let vm_storage_oracle: VmStorageOracle<StorageView<Box<dyn ReadStorage>>, HistoryDisabled> =
+            VmStorageOracle::new(storage_view);
+        let storage_oracle = StorageOracle::new(vm_storage_oracle, storage_refunds);
         let memory: SimpleMemory<HistoryDisabled> = SimpleMemory::default();
         let mut hasher = DefaultHasher::new();
         GEOMETRY_CONFIG.hash(&mut hasher);

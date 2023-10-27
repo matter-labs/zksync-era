@@ -4,6 +4,7 @@ use tokio::{sync::watch, task, time::sleep};
 
 use std::{sync::Arc, time::Duration};
 
+use futures::{future::FusedFuture, FutureExt};
 use prometheus_exporter::PrometheusExporterConfig;
 use zksync_basic_types::{Address, L2ChainId};
 use zksync_core::{
@@ -21,13 +22,11 @@ use zksync_core::{
     },
     reorg_detector::ReorgDetector,
     setup_sigint_handler,
-    state_keeper::{
-        L1BatchExecutorBuilder, MainBatchExecutorBuilder, SealManager, ZkSyncStateKeeper,
-    },
+    state_keeper::{L1BatchExecutorBuilder, MainBatchExecutorBuilder, ZkSyncStateKeeper},
     sync_layer::{
         batch_status_updater::BatchStatusUpdater, external_io::ExternalIO,
-        fetcher::MainNodeFetcher, genesis::perform_genesis_if_needed, ActionQueue,
-        ExternalNodeSealer, SyncState,
+        fetcher::MainNodeFetcherCursor, genesis::perform_genesis_if_needed, ActionQueue,
+        MainNodeClient, SyncState,
     },
 };
 use zksync_dal::{connection::DbVariant, healthcheck::ConnectionPoolHealthCheck, ConnectionPool};
@@ -52,14 +51,6 @@ async fn build_state_keeper(
     stop_receiver: watch::Receiver<bool>,
     chain_id: L2ChainId,
 ) -> ZkSyncStateKeeper {
-    let en_sealer = ExternalNodeSealer::new(action_queue.clone());
-    let main_node_url = config.required.main_node_url().unwrap();
-    let sealer = SealManager::custom(
-        None,
-        vec![en_sealer.clone().into_unconditional_batch_seal_criterion()],
-        vec![en_sealer.into_miniblock_seal_criterion()],
-    );
-
     // These config values are used on the main node, and depending on these values certain transactions can
     // be *rejected* (that is, not included into the block). However, external node only mirrors what the main
     // node has already executed, so we can safely set these values to the maximum possible values - if the main
@@ -76,24 +67,25 @@ async fn build_state_keeper(
             max_allowed_l2_tx_gas_limit,
             save_call_traces,
             false,
+            config.optional.enum_index_migration_chunk_size,
         ));
 
-    let io = Box::new(
-        ExternalIO::new(
-            connection_pool,
-            action_queue,
-            sync_state,
-            main_node_url,
-            l2_erc20_bridge_addr,
-            validation_computational_gas_limit,
-            chain_id,
-        )
-        .await,
-    );
-
+    let main_node_url = config.required.main_node_url().unwrap();
+    let main_node_client = <dyn MainNodeClient>::json_rpc(&main_node_url)
+        .expect("Failed creating JSON-RPC client for main node");
+    let io = ExternalIO::new(
+        connection_pool,
+        action_queue,
+        sync_state,
+        Box::new(main_node_client),
+        l2_erc20_bridge_addr,
+        validation_computational_gas_limit,
+        chain_id,
+    )
+    .await;
     io.recalculate_miniblock_hashes().await;
 
-    ZkSyncStateKeeper::new(stop_receiver, io, batch_executor_base, sealer)
+    ZkSyncStateKeeper::without_sealer(stop_receiver, Box::new(io), batch_executor_base)
 }
 
 async fn init_tasks(
@@ -103,20 +95,21 @@ async fn init_tasks(
     Vec<task::JoinHandle<anyhow::Result<()>>>,
     watch::Sender<bool>,
     HealthCheckHandle,
+    watch::Receiver<bool>,
 )> {
     let main_node_url = config
         .required
         .main_node_url()
         .expect("Main node URL is incorrect");
-    let (stop_sender, stop_receiver) = watch::channel::<bool>(false);
+    let (stop_sender, stop_receiver) = watch::channel(false);
     let mut healthchecks: Vec<Box<dyn CheckHealth>> = Vec::new();
     // Create components.
     let gas_adjuster = Arc::new(MainNodeGasPriceFetcher::new(&main_node_url));
 
     let sync_state = SyncState::new();
-    let action_queue = ActionQueue::new();
+    let (action_queue_sender, action_queue) = ActionQueue::new();
     let state_keeper = build_state_keeper(
-        action_queue.clone(),
+        action_queue,
         config.required.state_cache_path.clone(),
         &config,
         connection_pool.clone(),
@@ -127,18 +120,25 @@ async fn init_tasks(
     )
     .await;
 
+    let main_node_client = <dyn MainNodeClient>::json_rpc(&main_node_url)
+        .context("Failed creating JSON-RPC client for main node")?;
     let singleton_pool_builder = ConnectionPool::singleton(DbVariant::Master);
-    let fetcher = MainNodeFetcher::new(
-        singleton_pool_builder
+    let fetcher_cursor = {
+        let pool = singleton_pool_builder
             .build()
             .await
-            .context("failed to build a connection pool for MainNodeFetcher")?,
-        &main_node_url,
-        action_queue.clone(),
+            .context("failed to build a connection pool for `MainNodeFetcher`")?;
+        let mut storage = pool.access_storage_tagged("sync_layer").await?;
+        MainNodeFetcherCursor::new(&mut storage)
+            .await
+            .context("failed to load `MainNodeFetcher` cursor from Postgres")?
+    };
+    let fetcher = fetcher_cursor.into_fetcher(
+        Box::new(main_node_client),
+        action_queue_sender,
         sync_state.clone(),
         stop_receiver.clone(),
-    )
-    .await;
+    );
 
     let metadata_calculator = MetadataCalculator::new(&MetadataCalculatorConfig {
         db_path: &config.required.merkle_tree_path,
@@ -147,6 +147,8 @@ async fn init_tasks(
         max_l1_batches_per_iter: config.optional.max_l1_batches_per_tree_iter,
         multi_get_chunk_size: config.optional.merkle_tree_multi_get_chunk_size,
         block_cache_capacity: config.optional.merkle_tree_block_cache_size(),
+        memtable_capacity: config.optional.merkle_tree_memtable_capacity(),
+        stalled_writes_timeout: config.optional.merkle_tree_stalled_writes_timeout(),
     })
     .await;
     healthchecks.push(Box::new(metadata_calculator.tree_health_check()));
@@ -186,12 +188,7 @@ async fn init_tasks(
     let tree_handle =
         task::spawn(metadata_calculator.run(tree_pool, prover_tree_pool, tree_stop_receiver));
 
-    let consistency_checker_handle = if !config.optional.experimental_multivm_support {
-        Some(tokio::spawn(consistency_checker.run(stop_receiver.clone())))
-    } else {
-        // TODO (BFT-264): Current behavior of consistency checker makes development of MultiVM harder.
-        None
-    };
+    let consistency_checker_handle = tokio::spawn(consistency_checker.run(stop_receiver.clone()));
 
     let updater_handle = task::spawn(batch_status_updater.run(stop_receiver.clone()));
     let sk_handle = task::spawn(state_keeper.run());
@@ -235,7 +232,7 @@ async fn init_tasks(
         (tx_sender, vm_barrier, cache_update_handle)
     };
 
-    let (http_api_handle, http_api_healthcheck) =
+    let http_server_handles =
         ApiBuilder::jsonrpc_backend(config.clone().into(), connection_pool.clone())
             .http(config.required.http_port)
             .with_filter_limit(config.optional.filters_limit)
@@ -246,9 +243,10 @@ async fn init_tasks(
             .with_sync_state(sync_state.clone())
             .enable_api_namespaces(config.optional.api_namespaces())
             .build(stop_receiver.clone())
-            .await;
+            .await
+            .context("Failed initializing HTTP JSON-RPC server")?;
 
-    let (mut task_handles, ws_api_healthcheck) =
+    let ws_server_handles =
         ApiBuilder::jsonrpc_backend(config.clone().into(), connection_pool.clone())
             .ws(config.required.ws_port)
             .with_filter_limit(config.optional.filters_limit)
@@ -261,21 +259,24 @@ async fn init_tasks(
             .with_sync_state(sync_state)
             .enable_api_namespaces(config.optional.api_namespaces())
             .build(stop_receiver.clone())
-            .await;
+            .await
+            .context("Failed initializing WS JSON-RPC server")?;
 
-    healthchecks.push(Box::new(ws_api_healthcheck));
-    healthchecks.push(Box::new(http_api_healthcheck));
+    healthchecks.push(Box::new(ws_server_handles.health_check));
+    healthchecks.push(Box::new(http_server_handles.health_check));
     healthchecks.push(Box::new(ConnectionPoolHealthCheck::new(connection_pool)));
     let healthcheck_handle = HealthCheckHandle::spawn_server(
         ([0, 0, 0, 0], config.required.healthcheck_port).into(),
         healthchecks,
     );
+
+    let mut task_handles = vec![];
     if let Some(port) = config.optional.prometheus_port {
         let prometheus_task = PrometheusExporterConfig::pull(port).run(stop_receiver.clone());
         task_handles.push(tokio::spawn(prometheus_task));
     }
-
-    task_handles.extend(http_api_handle);
+    task_handles.extend(http_server_handles.tasks);
+    task_handles.extend(ws_server_handles.tasks);
     task_handles.extend(cache_update_handle);
     task_handles.extend([
         sk_handle,
@@ -284,11 +285,9 @@ async fn init_tasks(
         tree_handle,
         gas_adjuster_handle,
     ]);
-    if let Some(consistency_checker) = consistency_checker_handle {
-        task_handles.push(consistency_checker);
-    }
+    task_handles.push(consistency_checker_handle);
 
-    Ok((task_handles, stop_sender, healthcheck_handle))
+    Ok((task_handles, stop_sender, healthcheck_handle, stop_receiver))
 }
 
 async fn shutdown_components(
@@ -388,54 +387,69 @@ async fn main() -> anyhow::Result<()> {
     tracing::info!("Main node URL is: {}", main_node_url);
 
     // Make sure that genesis is performed.
+    let main_node_client = <dyn MainNodeClient>::json_rpc(&main_node_url)
+        .context("Failed creating JSON-RPC client for main node")?;
     perform_genesis_if_needed(
         &mut connection_pool.access_storage().await.unwrap(),
         config.remote.l2_chain_id,
-        main_node_url.clone(),
+        &main_node_client,
     )
     .await
     .context("Performing genesis failed")?;
 
-    let (task_handles, stop_sender, health_check_handle) =
+    let (task_handles, stop_sender, health_check_handle, stop_receiver) =
         init_tasks(config.clone(), connection_pool.clone())
             .await
             .context("init_tasks")?;
 
-    let reorg_detector = ReorgDetector::new(&main_node_url, connection_pool.clone());
-    let reorg_detector_handle = tokio::spawn(reorg_detector.run());
+    let reorg_detector = ReorgDetector::new(&main_node_url, connection_pool.clone(), stop_receiver);
+    let mut reorg_detector_handle = tokio::spawn(reorg_detector.run()).fuse();
 
     let particular_crypto_alerts = None;
     let graceful_shutdown = None::<futures::future::Ready<()>>;
     let tasks_allowed_to_finish = false;
+    let mut reorg_detector_last_correct_batch = None;
+
     tokio::select! {
         _ = wait_for_tasks(task_handles, particular_crypto_alerts, graceful_shutdown, tasks_allowed_to_finish) => {},
         _ = sigint_receiver => {
             tracing::info!("Stop signal received, shutting down");
         },
-        last_correct_batch = reorg_detector_handle => {
+        last_correct_batch = &mut reorg_detector_handle => {
             if let Ok(last_correct_batch) = last_correct_batch {
-                tracing::info!("Performing rollback to block {}", last_correct_batch);
-                shutdown_components(stop_sender, health_check_handle).await;
-                let reverter = BlockReverter::new(
-                    config.required.state_cache_path,
-                    config.required.merkle_tree_path,
-                    None,
-                    connection_pool,
-                    L1ExecutedBatchesRevert::Allowed,
-                );
-                reverter
-                    .rollback_db(last_correct_batch, BlockReverterFlags::all())
-                    .await;
-                tracing::info!("Rollback successfully completed, the node has to restart to continue working");
-                return Ok(());
+                reorg_detector_last_correct_batch = last_correct_batch;
             } else {
                 tracing::error!("Reorg detector actor failed");
             }
         }
-    }
+    };
 
     // Reaching this point means that either some actor exited unexpectedly or we received a stop signal.
     // Broadcast the stop signal to all actors and exit.
     shutdown_components(stop_sender, health_check_handle).await;
+
+    if !reorg_detector_handle.is_terminated() {
+        if let Ok(Some(last_correct_batch)) = reorg_detector_handle.await {
+            reorg_detector_last_correct_batch = Some(last_correct_batch);
+        }
+    }
+
+    if let Some(last_correct_batch) = reorg_detector_last_correct_batch {
+        tracing::info!("Performing rollback to block {}", last_correct_batch);
+        let reverter = BlockReverter::new(
+            config.required.state_cache_path,
+            config.required.merkle_tree_path,
+            None,
+            connection_pool,
+            L1ExecutedBatchesRevert::Allowed,
+        );
+        reverter
+            .rollback_db(last_correct_batch, BlockReverterFlags::all())
+            .await;
+        tracing::info!(
+            "Rollback successfully completed, the node has to restart to continue working"
+        );
+    }
+
     Ok(())
 }

@@ -11,7 +11,7 @@ mod utils;
 
 use codegen::Block;
 use codegen::Scope;
-use vm::constants::{
+use multivm::vm_latest::constants::{
     BLOCK_OVERHEAD_GAS, BLOCK_OVERHEAD_L1_GAS, BOOTLOADER_TX_ENCODING_SPACE, MAX_PUBDATA_PER_BLOCK,
 };
 use zksync_types::zkevm_test_harness::zk_evm::zkevm_opcode_defs::circuit_prices::{

@@ -1,7 +1,3 @@
-use std::fmt;
-use std::sync::Arc;
-use std::time::Instant;
-
 use async_trait::async_trait;
 use once_cell::sync::OnceCell;
 use tokio::{
@@ -9,15 +5,17 @@ use tokio::{
     task::JoinHandle,
 };
 
-use multivm::{MultivmTracer, VmInstance, VmInstanceData};
-use vm::{
-    CallTracer, ExecutionResult, FinishedL1Batch, Halt, HistoryEnabled, L1BatchEnv, L2BlockEnv,
-    SystemEnv, VmExecutionResultAndLogs,
+use std::{fmt, sync::Arc};
+
+use multivm::interface::{
+    ExecutionResult, FinishedL1Batch, Halt, L1BatchEnv, L2BlockEnv, SystemEnv,
+    VmExecutionResultAndLogs,
 };
+use multivm::vm_latest::{CallTracer, HistoryEnabled};
+use multivm::{MultivmTracer, VmInstance};
 use zksync_dal::ConnectionPool;
 use zksync_state::{ReadStorage, RocksdbStorage, StorageView};
 use zksync_types::{vm_trace::Call, witness_block_state::WitnessBlockState, Transaction, U256};
-
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
 #[cfg(test)]
@@ -25,7 +23,11 @@ mod tests;
 
 use crate::{
     gas_tracker::{gas_count_from_metrics, gas_count_from_tx_and_metrics},
-    state_keeper::types::ExecutionMetricsForCriteria,
+    metrics::{InteractionType, TxStage, APP_METRICS},
+    state_keeper::{
+        metrics::{ExecutorCommand, TxExecutionStage, EXECUTOR_METRICS, KEEPER_METRICS},
+        types::ExecutionMetricsForCriteria,
+    },
 };
 
 /// Representation of a transaction executed in the virtual machine.
@@ -69,7 +71,7 @@ impl TxExecutionResult {
 #[async_trait]
 pub trait L1BatchExecutorBuilder: 'static + Send + Sync + fmt::Debug {
     async fn init_batch(
-        &self,
+        &mut self,
         l1_batch_params: L1BatchEnv,
         system_env: SystemEnv,
     ) -> BatchExecutorHandle;
@@ -84,6 +86,7 @@ pub struct MainBatchExecutorBuilder {
     save_call_traces: bool,
     max_allowed_tx_gas_limit: U256,
     upload_witness_inputs_to_gcs: bool,
+    enum_index_migration_chunk_size: usize,
 }
 
 impl MainBatchExecutorBuilder {
@@ -93,6 +96,7 @@ impl MainBatchExecutorBuilder {
         max_allowed_tx_gas_limit: U256,
         save_call_traces: bool,
         upload_witness_inputs_to_gcs: bool,
+        enum_index_migration_chunk_size: usize,
     ) -> Self {
         Self {
             state_keeper_db_path,
@@ -100,6 +104,7 @@ impl MainBatchExecutorBuilder {
             save_call_traces,
             max_allowed_tx_gas_limit,
             upload_witness_inputs_to_gcs,
+            enum_index_migration_chunk_size,
         }
     }
 }
@@ -107,11 +112,12 @@ impl MainBatchExecutorBuilder {
 #[async_trait]
 impl L1BatchExecutorBuilder for MainBatchExecutorBuilder {
     async fn init_batch(
-        &self,
+        &mut self,
         l1_batch_params: L1BatchEnv,
         system_env: SystemEnv,
     ) -> BatchExecutorHandle {
         let mut secondary_storage = RocksdbStorage::new(self.state_keeper_db_path.as_ref());
+        secondary_storage.enable_enum_index_migration(self.enum_index_migration_chunk_size);
         let mut conn = self
             .pool
             .access_storage_tagged("state_keeper")
@@ -190,28 +196,26 @@ impl BatchExecutorHandle {
             .await
             .unwrap();
 
-        let start = Instant::now();
+        let latency = EXECUTOR_METRICS.batch_executor_command_response_time
+            [&ExecutorCommand::ExecuteTx]
+            .start();
         let res = response_receiver.await.unwrap();
-        let elapsed = start.elapsed();
-
-        metrics::histogram!("state_keeper.batch_executor.command_response_time", elapsed, "command" => "execute_tx");
+        let elapsed = latency.observe();
 
         if let TxExecutionResult::Success { tx_metrics, .. } = res {
-            metrics::histogram!(
-                "state_keeper.computational_gas_per_nanosecond",
-                tx_metrics.execution_metrics.computational_gas_used as f64
-                    / elapsed.as_nanos() as f64
-            );
+            let gas_per_nanosecond = tx_metrics.execution_metrics.computational_gas_used as f64
+                / elapsed.as_nanos() as f64;
+            EXECUTOR_METRICS
+                .computational_gas_per_nanosecond
+                .observe(gas_per_nanosecond);
         } else {
             // The amount of computational gas paid for failed transactions is hard to get
             // but comparing to the gas limit makes sense, since we can burn all gas
             // if some kind of failure is a DDoS vector otherwise.
-            metrics::histogram!(
-                "state_keeper.failed_tx_gas_limit_per_nanosecond",
-                tx_gas_limit as f64 / elapsed.as_nanos() as f64
-            );
+            EXECUTOR_METRICS
+                .failed_tx_gas_limit_per_nanosecond
+                .observe(tx_gas_limit as f64 / elapsed.as_nanos() as f64);
         }
-
         res
     }
 
@@ -223,9 +227,11 @@ impl BatchExecutorHandle {
             .send(Command::StartNextMiniblock(miniblock_info, response_sender))
             .await
             .unwrap();
-        let start = Instant::now();
+        let latency = EXECUTOR_METRICS.batch_executor_command_response_time
+            [&ExecutorCommand::StartNextMiniblock]
+            .start();
         response_receiver.await.unwrap();
-        metrics::histogram!("state_keeper.batch_executor.command_response_time", start.elapsed(), "command" => "start_next_miniblock");
+        latency.observe();
     }
 
     pub(super) async fn rollback_last_tx(&self) {
@@ -236,9 +242,11 @@ impl BatchExecutorHandle {
             .send(Command::RollbackLastTx(response_sender))
             .await
             .unwrap();
-        let start = Instant::now();
+        let latency = EXECUTOR_METRICS.batch_executor_command_response_time
+            [&ExecutorCommand::RollbackLastTx]
+            .start();
         response_receiver.await.unwrap();
-        metrics::histogram!("state_keeper.batch_executor.command_response_time", start.elapsed(), "command" => "rollback_last_tx");
+        latency.observe();
     }
 
     pub(super) async fn finish_batch(self) -> (FinishedL1Batch, Option<WitnessBlockState>) {
@@ -247,10 +255,12 @@ impl BatchExecutorHandle {
             .send(Command::FinishBatch(response_sender))
             .await
             .unwrap();
-        let start = Instant::now();
+        let latency = EXECUTOR_METRICS.batch_executor_command_response_time
+            [&ExecutorCommand::FinishBatch]
+            .start();
         let resp = response_receiver.await.unwrap();
         self.handle.await.unwrap();
-        metrics::histogram!("state_keeper.batch_executor.command_response_time", start.elapsed(), "command" => "finish_batch");
+        latency.observe();
         resp
     }
 }
@@ -288,9 +298,7 @@ impl BatchExecutor {
 
         let storage_view = StorageView::new(secondary_storage).to_rc_ptr();
 
-        let mut instance_data =
-            VmInstanceData::new(storage_view.clone(), &system_env, HistoryEnabled);
-        let mut vm = VmInstance::new(l1_batch_params, system_env, &mut instance_data);
+        let mut vm = VmInstance::new(l1_batch_params, system_env, storage_view.clone());
 
         while let Some(cmd) = self.commands.blocking_recv() {
             match cmd {
@@ -318,17 +326,10 @@ impl BatchExecutor {
                     // storage_view cannot be accessed while borrowed by the VM,
                     // so this is the only point at which storage metrics can be obtained
                     let metrics = storage_view.as_ref().borrow_mut().metrics();
-                    metrics::histogram!(
-                        "state_keeper.batch_storage_interaction_duration",
-                        metrics.time_spent_on_get_value,
-                        "interaction" => "get_value"
-                    );
-                    metrics::histogram!(
-                        "state_keeper.batch_storage_interaction_duration",
-                        metrics.time_spent_on_set_value,
-                        "interaction" => "set_value"
-                    );
-
+                    EXECUTOR_METRICS.batch_storage_interaction_duration[&InteractionType::GetValue]
+                        .observe(metrics.time_spent_on_get_value);
+                    EXECUTOR_METRICS.batch_storage_interaction_duration[&InteractionType::SetValue]
+                        .observe(metrics.time_spent_on_set_value);
                     return;
                 }
             }
@@ -340,7 +341,7 @@ impl BatchExecutor {
     fn execute_tx<S: ReadStorage>(
         &self,
         tx: &Transaction,
-        vm: &mut VmInstance<'_, S, HistoryEnabled>,
+        vm: &mut VmInstance<S, HistoryEnabled>,
     ) -> TxExecutionResult {
         // Save pre-`execute_next_tx` VM snapshot.
         vm.make_snapshot();
@@ -360,22 +361,11 @@ impl BatchExecutor {
         }
 
         // Execute the transaction.
-        let stage_started_at = Instant::now();
+        let latency = KEEPER_METRICS.tx_execution_time[&TxExecutionStage::Execution].start();
         let (tx_result, compressed_bytecodes, call_tracer_result) = self.execute_tx_in_vm(tx, vm);
-        metrics::histogram!(
-            "server.state_keeper.tx_execution_time",
-            stage_started_at.elapsed(),
-            "stage" => "execution"
-        );
-        metrics::increment_counter!(
-            "server.processed_txs",
-            "stage" => "state_keeper"
-        );
-        metrics::counter!(
-            "server.processed_l1_txs",
-            tx.is_l1() as u64,
-            "stage" => "state_keeper"
-        );
+        latency.observe();
+        APP_METRICS.processed_txs[&TxStage::StateKeeper].inc();
+        APP_METRICS.processed_l1_txs[&TxStage::StateKeeper].inc_by(tx.is_l1().into());
 
         if let ExecutionResult::Halt { reason } = tx_result.result {
             return match reason {
@@ -410,27 +400,23 @@ impl BatchExecutor {
         }
     }
 
-    fn rollback_last_tx<S: ReadStorage>(&self, vm: &mut VmInstance<'_, S, HistoryEnabled>) {
-        let stage_started_at = Instant::now();
+    fn rollback_last_tx<S: ReadStorage>(&self, vm: &mut VmInstance<S, HistoryEnabled>) {
+        let latency = KEEPER_METRICS.tx_execution_time[&TxExecutionStage::TxRollback].start();
         vm.rollback_to_the_latest_snapshot();
-        metrics::histogram!(
-            "server.state_keeper.tx_execution_time",
-            stage_started_at.elapsed(),
-            "stage" => "tx_rollback"
-        );
+        latency.observe();
     }
 
     fn start_next_miniblock<S: ReadStorage>(
         &self,
         l2_block_env: L2BlockEnv,
-        vm: &mut VmInstance<'_, S, HistoryEnabled>,
+        vm: &mut VmInstance<S, HistoryEnabled>,
     ) {
         vm.start_new_l2_block(l2_block_env);
     }
 
     fn finish_batch<S: ReadStorage>(
         &self,
-        vm: &mut VmInstance<'_, S, HistoryEnabled>,
+        vm: &mut VmInstance<S, HistoryEnabled>,
     ) -> FinishedL1Batch {
         // The vm execution was paused right after the last transaction was executed.
         // There is some post-processing work that the VM needs to do before the block is fully processed.
@@ -448,7 +434,7 @@ impl BatchExecutor {
     fn execute_tx_in_vm<S: ReadStorage>(
         &self,
         tx: &Transaction,
-        vm: &mut VmInstance<'_, S, HistoryEnabled>,
+        vm: &mut VmInstance<S, HistoryEnabled>,
     ) -> (
         VmExecutionResultAndLogs,
         Vec<CompressedBytecodeInfo>,
@@ -508,54 +494,33 @@ impl BatchExecutor {
 
     fn dryrun_block_tip<S: ReadStorage>(
         &self,
-        vm: &mut VmInstance<'_, S, HistoryEnabled>,
+        vm: &mut VmInstance<S, HistoryEnabled>,
     ) -> (VmExecutionResultAndLogs, ExecutionMetricsForCriteria) {
-        let started_at = Instant::now();
-        let mut stage_started_at = Instant::now();
-
+        let total_latency =
+            KEEPER_METRICS.tx_execution_time[&TxExecutionStage::DryRunRollback].start();
+        let stage_latency =
+            KEEPER_METRICS.tx_execution_time[&TxExecutionStage::DryRunMakeSnapshot].start();
         // Save pre-`execute_till_block_end` VM snapshot.
         vm.make_snapshot();
+        stage_latency.observe();
 
-        metrics::histogram!(
-            "server.state_keeper.tx_execution_time",
-            stage_started_at.elapsed(),
-            "stage" => "dryrun_make_snapshot",
-        );
-        stage_started_at = Instant::now();
-
+        let stage_latency =
+            KEEPER_METRICS.tx_execution_time[&TxExecutionStage::DryRunExecuteBlockTip].start();
         let block_tip_result = vm.execute_block_tip();
+        stage_latency.observe();
 
-        metrics::histogram!(
-            "server.state_keeper.tx_execution_time",
-            stage_started_at.elapsed(),
-            "stage" => "dryrun_execute_block_tip",
-        );
-        stage_started_at = Instant::now();
-
+        let stage_latency =
+            KEEPER_METRICS.tx_execution_time[&TxExecutionStage::DryRunGetExecutionMetrics].start();
         let metrics = Self::get_execution_metrics(None, &block_tip_result);
+        stage_latency.observe();
 
-        metrics::histogram!(
-            "server.state_keeper.tx_execution_time",
-            stage_started_at.elapsed(),
-            "stage" => "dryrun_get_execution_metrics",
-        );
-        stage_started_at = Instant::now();
-
+        let stage_latency = KEEPER_METRICS.tx_execution_time
+            [&TxExecutionStage::DryRunRollbackToLatestSnapshot]
+            .start();
         // Rollback to the pre-`execute_till_block_end` state.
         vm.rollback_to_the_latest_snapshot();
-
-        metrics::histogram!(
-            "server.state_keeper.tx_execution_time",
-            stage_started_at.elapsed(),
-            "stage" => "dryrun_rollback_to_the_latest_snapshot"
-        );
-
-        metrics::histogram!(
-            "server.state_keeper.tx_execution_time",
-            started_at.elapsed(),
-            "stage" => "dryrun_rollback"
-        );
-
+        stage_latency.observe();
+        total_latency.observe();
         (block_tip_result, metrics)
     }
 

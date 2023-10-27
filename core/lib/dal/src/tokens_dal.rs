@@ -1,9 +1,8 @@
-use crate::models::storage_token::StorageTokenMarketVolume;
 use crate::StorageProcessor;
 use num::{rational::Ratio, BigUint};
 use sqlx::types::chrono::Utc;
 use zksync_types::{
-    tokens::{TokenInfo, TokenMarketVolume, TokenMetadata, TokenPrice},
+    tokens::{TokenInfo, TokenMetadata, TokenPrice},
     Address, MiniblockNumber, ACCOUNT_CODE_STORAGE_ADDRESS,
     FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH,
 };
@@ -155,41 +154,6 @@ impl TokensDal<'_, '_> {
             .execute(self.storage.conn())
             .await
             .unwrap();
-        }
-    }
-
-    pub async fn set_l1_token_market_volume(
-        &mut self,
-        l1_address: &Address,
-        market_volume: TokenMarketVolume,
-    ) {
-        {
-            sqlx::query!(
-            "UPDATE tokens SET market_volume = $2, market_volume_updated_at = $3, updated_at = now() WHERE l1_address = $1",
-            l1_address.as_bytes(),
-            ratio_to_big_decimal(&market_volume.market_volume, STORED_USD_PRICE_PRECISION),
-            market_volume.last_updated.naive_utc(),
-        )
-            .execute(self.storage.conn())
-            .await
-            .unwrap();
-        }
-    }
-
-    pub async fn get_token_market_volume(
-        &mut self,
-        l2_address: &Address,
-    ) -> Option<TokenMarketVolume> {
-        {
-            let storage_market_volume = sqlx::query_as!(
-                StorageTokenMarketVolume,
-                "SELECT market_volume, market_volume_updated_at FROM tokens WHERE l2_address = $1",
-                l2_address.as_bytes(),
-            )
-            .fetch_optional(self.storage.conn())
-            .await
-            .unwrap();
-            storage_market_volume.and_then(Into::into)
         }
     }
 

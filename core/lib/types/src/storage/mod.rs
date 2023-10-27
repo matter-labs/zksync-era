@@ -11,7 +11,7 @@ pub mod witness_block_state;
 pub mod writes;
 
 pub use log::*;
-pub use zksync_config::constants::*;
+pub use zksync_system_constants::*;
 use zksync_utils::address_to_h256;
 
 /// Typed fully qualified key of the storage slot in global state tree.

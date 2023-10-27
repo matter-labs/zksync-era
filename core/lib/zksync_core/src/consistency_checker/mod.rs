@@ -1,7 +1,12 @@
 use std::time::Duration;
+
 use zksync_dal::ConnectionPool;
-use zksync_types::web3::{error, ethabi, transports::Http, types::TransactionId, Web3};
-use zksync_types::L1BatchNumber;
+use zksync_types::{
+    web3::{error, ethabi, transports::Http, types::TransactionId, Web3},
+    L1BatchNumber,
+};
+
+use crate::metrics::{CheckerComponent, EN_METRICS};
 
 #[derive(Debug)]
 pub struct ConsistencyChecker {
@@ -169,11 +174,8 @@ impl ConsistencyChecker {
             match self.check_commitments(batch_number).await {
                 Ok(true) => {
                     tracing::info!("Batch {} is consistent with L1", batch_number.0);
-                    metrics::gauge!(
-                        "external_node.last_correct_batch",
-                        batch_number.0 as f64,
-                        "component" => "consistency_checker",
-                    );
+                    EN_METRICS.last_correct_batch[&CheckerComponent::ConsistencyChecker]
+                        .set(batch_number.0.into());
                     batch_number.0 += 1;
                 }
                 Ok(false) => {

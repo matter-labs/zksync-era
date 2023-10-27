@@ -1,12 +1,12 @@
+use multivm::interface::{L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode};
+use multivm::vm_latest::{
+    constants::{BLOCK_GAS_LIMIT, BOOTLOADER_HEAP_PAGE},
+    BootloaderState, BoxedTracer, DynTracer, HistoryEnabled, HistoryMode, Vm,
+    VmExecutionStopReason, VmTracer, ZkSyncVmState,
+};
 use once_cell::sync::Lazy;
 use std::cell::RefCell;
 use std::rc::Rc;
-use vm::constants::{BLOCK_GAS_LIMIT, BOOTLOADER_HEAP_PAGE};
-use vm::{
-    BootloaderState, BoxedTracer, DynTracer, ExecutionEndTracer, ExecutionProcessing,
-    HistoryEnabled, HistoryMode, L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, Vm,
-    VmExecutionMode, VmExecutionStopReason, VmTracer, ZkSyncVmState,
-};
 use zksync_contracts::{
     load_sys_contract, read_bootloader_code, read_sys_contract_bytecode, read_zbin_bytecode,
     BaseSystemContracts, ContractLanguage, SystemContractCode,
@@ -33,9 +33,7 @@ struct SpecialBootloaderTracer {
 
 impl<S: WriteStorage, H: HistoryMode> DynTracer<S, H> for SpecialBootloaderTracer {}
 
-impl<H: HistoryMode> ExecutionEndTracer<H> for SpecialBootloaderTracer {}
-
-impl<S: WriteStorage, H: HistoryMode> ExecutionProcessing<S, H> for SpecialBootloaderTracer {
+impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for SpecialBootloaderTracer {
     fn initialize_tracer(&mut self, state: &mut ZkSyncVmState<S, H>) {
         state.memory.populate_page(
             BOOTLOADER_HEAP_PAGE as usize,
@@ -54,8 +52,6 @@ impl<S: WriteStorage, H: HistoryMode> ExecutionProcessing<S, H> for SpecialBootl
         *res = value_recorded_from_test.value.as_u32();
     }
 }
-
-impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for SpecialBootloaderTracer {}
 
 pub static GAS_TEST_SYSTEM_CONTRACTS: Lazy<BaseSystemContracts> = Lazy::new(|| {
     let bytecode = read_bootloader_code("gas_test");

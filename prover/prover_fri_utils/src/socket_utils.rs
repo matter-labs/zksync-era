@@ -8,7 +8,7 @@ use zksync_types::proofs::SocketAddress;
 
 pub fn send_assembly(
     job_id: u32,
-    serialized: &mut Vec<u8>,
+    mut serialized: &[u8],
     address: &SocketAddress,
 ) -> Result<(Duration, u64), String> {
     tracing::trace!(
@@ -24,7 +24,7 @@ pub fn send_assembly(
     for _ in 0..10 {
         match TcpStream::connect(socket_address) {
             Ok(mut stream) => {
-                return send(&mut serialized.as_slice(), &mut stream)
+                return send(&mut serialized, &mut stream)
                     .map(|result| (started_at.elapsed(), result))
                     .map_err(|err| format!("Could not send assembly to prover: {err:?}"));
             }
