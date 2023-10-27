@@ -204,6 +204,9 @@ pub struct OptionalENConfig {
     /// Number of keys that is processed by enum_index migration in State Keeper each L1 batch.
     #[serde(default = "OptionalENConfig::default_enum_index_migration_chunk_size")]
     pub enum_index_migration_chunk_size: usize,
+
+    /// A name of the server if sending the heartbeats to main node
+    pub heartbeats_server_name: Option<String>,
 }
 
 impl OptionalENConfig {

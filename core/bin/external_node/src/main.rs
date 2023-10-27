@@ -16,6 +16,7 @@ use zksync_core::{
     },
     block_reverter::{BlockReverter, BlockReverterFlags, L1ExecutedBatchesRevert},
     consistency_checker::ConsistencyChecker,
+    en_heartbeater::Heartbeater,
     l1_gas_price::MainNodeGasPriceFetcher,
     metadata_calculator::{
         MetadataCalculator, MetadataCalculatorConfig, MetadataCalculatorModeConfig,
@@ -38,6 +39,9 @@ use zksync_utils::wait_for_tasks::wait_for_tasks;
 mod config;
 
 use crate::config::ExternalNodeConfig;
+
+const RELEASE_MANIFEST: &str =
+    std::include_str!("../../../../.github/release-please/manifest.json");
 
 /// Creates the state keeper configured to work in the external node mode.
 #[allow(clippy::too_many_arguments)]
@@ -97,6 +101,10 @@ async fn init_tasks(
     HealthCheckHandle,
     watch::Receiver<bool>,
 )> {
+    let release_manifest: serde_json::Value = serde_json::from_str(RELEASE_MANIFEST)?;
+    let release_manifest_version = release_manifest["core"].as_str().unwrap();
+    let version = semver::Version::parse(release_manifest_version)?;
+
     let main_node_url = config
         .required
         .main_node_url()
@@ -264,7 +272,9 @@ async fn init_tasks(
 
     healthchecks.push(Box::new(ws_server_handles.health_check));
     healthchecks.push(Box::new(http_server_handles.health_check));
-    healthchecks.push(Box::new(ConnectionPoolHealthCheck::new(connection_pool)));
+    healthchecks.push(Box::new(ConnectionPoolHealthCheck::new(
+        connection_pool.clone(),
+    )));
     let healthcheck_handle = HealthCheckHandle::spawn_server(
         ([0, 0, 0, 0], config.required.healthcheck_port).into(),
         healthchecks,
@@ -275,6 +285,22 @@ async fn init_tasks(
         let prometheus_task = PrometheusExporterConfig::pull(port).run(stop_receiver.clone());
         task_handles.push(tokio::spawn(prometheus_task));
     }
+
+    if let Some(heartbeats_server_name) = config.optional.heartbeats_server_name {
+        let heartbeater = Heartbeater::new(
+            heartbeats_server_name,
+            &main_node_url,
+            connection_pool,
+            stop_receiver.clone(),
+            version,
+        );
+
+        task_handles.push(tokio::spawn(async move {
+            heartbeater.run().await;
+            Ok(())
+        }));
+    }
+
     task_handles.extend(http_server_handles.tasks);
     task_handles.extend(ws_server_handles.tasks);
     task_handles.extend(cache_update_handle);
@@ -314,7 +340,6 @@ struct Cli {
 async fn main() -> anyhow::Result<()> {
     // Initial setup.
     let opt = Cli::parse();
-
     #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
     let log_format = vlog::log_format_from_env();
     #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
@@ -341,6 +366,7 @@ async fn main() -> anyhow::Result<()> {
     let config = ExternalNodeConfig::collect()
         .await
         .context("Failed to load external node config")?;
+    println!("{config:?}");
     let main_node_url = config
         .required
         .main_node_url()

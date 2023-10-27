@@ -57,7 +57,7 @@ pub struct HeartbeatV1 {
     pub server_version: semver::Version,
 
     /// Version of the protocol of the node
-    pub protocol_version: usize,
+    pub protocol_version: ProtocolVersionId,
 
     /// Last executed batch number
     pub executed_l1_batch_number: L1BatchNumber,

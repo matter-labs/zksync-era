@@ -31,7 +31,7 @@ impl<G: L1GasPriceProvider + Send + Sync + 'static> EnNamespaceServer for EnName
                 EN_HEARTBEAT_METRICS.versions[&(
                     hb_v1.name.clone(),
                     format!("{}", hb_v1.server_version),
-                    hb_v1.protocol_version,
+                    hb_v1.protocol_version as u16,
                 )]
                     .set(1);
 
@@ -41,7 +41,9 @@ impl<G: L1GasPriceProvider + Send + Sync + 'static> EnNamespaceServer for EnName
                 EN_HEARTBEAT_METRICS.last_known_l1_batch_number[&hb_v1.name]
                     .set(hb_v1.last_known_l1_batch_number.0 as u64);
             }
-            _ => {}
+            h => {
+                tracing::warn!("unexpected version of heartbeat {h:?}");
+            }
         }
         Ok(())
     }

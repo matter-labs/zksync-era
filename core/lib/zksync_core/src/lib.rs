@@ -52,6 +52,7 @@ pub mod basic_witness_input_producer;
 pub mod block_reverter;
 pub mod consistency_checker;
 pub mod data_fetchers;
+pub mod en_heartbeater;
 pub mod eth_sender;
 pub mod eth_watch;
 pub mod gas_tracker;

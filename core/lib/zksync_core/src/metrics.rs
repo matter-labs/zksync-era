@@ -158,7 +158,7 @@ pub(crate) static APP_METRICS: vise::Global<AppMetrics> = vise::Global::new();
 #[metrics(prefix = "en_heartbeats")]
 pub(crate) struct EnHeartbeatMetrics {
     #[metrics(labels = ["name", "server_version", "protocol_version"])]
-    pub versions: LabeledFamily<(String, String, usize), Gauge<u64>, 3>,
+    pub versions: LabeledFamily<(String, String, u16), Gauge<u64>, 3>,
 
     #[metrics(labels = ["name"])]
     pub executed_l1_batch_number: LabeledFamily<String, Gauge<u64>>,
