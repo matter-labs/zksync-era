@@ -102,7 +102,9 @@ async fn init_tasks(
     watch::Receiver<bool>,
 )> {
     let release_manifest: serde_json::Value = serde_json::from_str(RELEASE_MANIFEST)?;
-    let release_manifest_version = release_manifest["core"].as_str().unwrap();
+    let release_manifest_version = release_manifest["core"].as_str().expect(
+        "a release-please manifest with \"core\" version field was specified at build time; qed.",
+    );
     let version = semver::Version::parse(release_manifest_version)?;
 
     let main_node_url = config
@@ -340,6 +342,7 @@ struct Cli {
 async fn main() -> anyhow::Result<()> {
     // Initial setup.
     let opt = Cli::parse();
+
     #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
     let log_format = vlog::log_format_from_env();
     #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
@@ -366,7 +369,6 @@ async fn main() -> anyhow::Result<()> {
     let config = ExternalNodeConfig::collect()
         .await
         .context("Failed to load external node config")?;
-    println!("{config:?}");
     let main_node_url = config
         .required
         .main_node_url()
