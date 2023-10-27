@@ -210,7 +210,7 @@ fn save_file(path_in_repo: &str, content: String) {
 fn update_rust_system_constants(intrinsic_gas_constants: &IntrinsicSystemGasConstants) {
     let rust_fee_constants = generate_rust_fee_constants(intrinsic_gas_constants);
     save_file(
-        "core/lib/config/src/constants/fees/intrinsic.rs",
+        "core/lib/constants/src/fees/intrinsic.rs",
         rust_fee_constants,
     );
 }

@@ -57,10 +57,10 @@ and now let's bridge it over to L2.
 
 ## Bridging over to L2
 
-We'll use the zksync-cli from: <https://github.com/matter-labs/zksync-cli> and then run:
+For an easy way to bridge we'll use [zkSync CLI](https://github.com/matter-labs/zksync-cli)
 
 ```shell
-npx zksync-cli deposit --chain=local-dockerized
+npx zksync-cli bridge deposit --chain=local-dockerized
 # Amount of ETH to deposit: 3
 # Private key of the sender: 0x5090c024edb3bdf4ce2ebc2da96bedee925d9d77d729687e5e2d56382cf0a5a6
 # Recipient address on L2: 0x618263CE921F7dd5F4f40C29f6c524Aaf97b9bbd
@@ -127,7 +127,7 @@ the requests to different contracts (facets) that can be independently updated a
 ![Diamond proxy layout](https://user-images.githubusercontent.com/128217157/229521292-1532a59b-665c-4cc4-8342-d25ad45a8fcd.png)
 
 You can find more detailed description in
-[Contract docs](https://github.com/matter-labs/zksync-2-contracts/blob/main/docs/Overview.md)
+[Contract docs](https://github.com/matter-labs/era-contracts/blob/main/docs/Overview.md)
 
 #### requestL2Transaction Function details
 
