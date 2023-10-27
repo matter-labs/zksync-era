@@ -8532,17 +8532,13 @@ kleur@^3.0.3:
   resolved "https://registry.yarnpkg.com/kleur/-/kleur-3.0.3.tgz#a79c9ecc86ee1ce3fa6206d1216c501f147fc07e"
   integrity sha512-eTIzlVOSUR+JxdDFepEYcBMtZ9Qqdef+rnzWdRZuMbOywu5tO2w2N7rqjoANZ5k9vywhL6Br1VRjUIgTQx4E8w==
 
-"l1-zksync-contracts@file:contracts/ethereum":
-  version "0.1.0"
-  dependencies:
-    dotenv "^16.0.3"
-  optionalDependencies:
-    zksync-web3 "^0.14.3"
+"l1-zksync-contracts@link:contracts/ethereum":
+  version "0.0.0"
+  uid ""
 
-"l2-zksync-contracts@file:contracts/zksync":
-  version "0.1.0"
-  dependencies:
-    dotenv "^16.0.3"
+"l2-zksync-contracts@link:contracts/zksync":
+  version "0.0.0"
+  uid ""
 
 lcid@^1.0.0:
   version "1.0.0"
