@@ -14,7 +14,7 @@ use std::convert::{TryFrom, TryInto};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_utils::u256_to_account_address;
 
-pub const BOOJUM_PROTOCOL_VERSION: ProtocolVersionId = ProtocolVersionId::Version17;
+pub const BOOJUM_PROTOCOL_VERSION: ProtocolVersionId = ProtocolVersionId::Version18;
 
 #[repr(u16)]
 #[derive(
@@ -39,6 +39,7 @@ pub enum ProtocolVersionId {
     Version15,
     Version16,
     Version17,
+    Version18,
 }
 
 impl ProtocolVersionId {
@@ -72,6 +73,7 @@ impl ProtocolVersionId {
             ProtocolVersionId::Version15 => VmVersion::VmVirtualBlocks,
             ProtocolVersionId::Version16 => VmVersion::VmVirtualBlocksRefundsEnhancement,
             ProtocolVersionId::Version17 => VmVersion::VmVirtualBlocksRefundsEnhancement,
+            ProtocolVersionId::Version18 => VmVersion::VmVirtualBlocksRefundsEnhancement,
         }
     }
 }
@@ -684,6 +686,7 @@ impl From<ProtocolVersionId> for VmVersion {
             ProtocolVersionId::Version15 => VmVersion::VmVirtualBlocks,
             ProtocolVersionId::Version16 => VmVersion::VmVirtualBlocksRefundsEnhancement,
             ProtocolVersionId::Version17 => VmVersion::VmVirtualBlocksRefundsEnhancement,
+            ProtocolVersionId::Version18 => todo!("holding for boojum"),
         }
     }
 }
