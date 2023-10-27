@@ -268,6 +268,7 @@ impl FriProverDal<'_, '_> {
                 r#"
                 SELECT COUNT(*) as "count!", circuit_id as "circuit_id!", aggregation_round as "aggregation_round!", status as "status!"
                 FROM prover_jobs_fri
+                WHERE status <> 'skipped' and status <> 'successful'
                 GROUP BY circuit_id, aggregation_round, status
                 "#
             )
