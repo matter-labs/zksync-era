@@ -1,0 +1,45 @@
+#cloud-config
+users:
+  - name: root
+    groups: users, admin
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    shell: /bin/bash
+    ssh_authorized_keys:
+      - ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQC6qU90rL3jmSCdGsCP/kMMkvaI3hhoI1vGGe0sLZ+gJYdL9srEEkDImmV5y+Rxwg46zfIMh6v3WTYv+Lf1e/AfSxd2q7WPZ/Vpk1wqzQydS8cA+ufNT11W45fj++uKLHuUx5dbkXGGgkLjXKVxvW1Z1g6eaIYP7KDS8UR+2nlx0DEiXjr30jBqfMqOs1NMz8ILmznQkoUGl4zztHVrlpwPTqiCi4fPKed/OZR/FmNgiIJ8HJSIN/ovqj/qzXKC6C+SPArmlVt5QoOU0vN+6dWgHpJ4vB+xaUZtY0HYl0dm+NsFe8kOgfQPHAuffDl0G95qj9LDl9mAcIBl1rzRQ9JpKHjxPorWhnSy6+mJ3AI4q9hCqLuN4OSCDM4YvdJPSdj33oOFP9oX2KxwJfo7NRbUioB/gANjbFwWFr1dKHozV6z2NvORPW5jnpCCAZQdNSqd62S7Gy4Gtdk4NJo3myEyUE9sxdShYW44UnTUhvvGXGlJ06P78v7jbuozpOjRZYGICPwsCYmdmVDTnzRvwrsbXfXmmIaaUyh+7OaGVqOnaaPqrCbCrm1lYzRpkzLpX2acBqmX/Mh9VpYW6poLFxz/sjVuiM21u/0BlcJHsnc71UKxctM2dyUM66duDRYBlhAPtg2GehitYEHzQ2r1wKQRCSHA/r8GZipBf58WA3Q9cw== lambda@lambdas-MacBook-Air.local
+package_update: true
+package_upgrade: true
+packages:
+      - ca-certificates
+      - curl
+      - gnupg
+      - vim
+      - git
+      - zip
+      - unzip
+      - openssl
+      - libssl-dev
+      - build-essential
+      - libclang-dev
+runcmd:
+  - apt-get install pkg-config cmake clang lldb lld -y
+  - wget -P /root/ https://nodejs.org/dist/v18.18.0/node-v18.18.0-linux-x64.tar.xz
+  - tar -xf /root/node-v18.18.0-linux-x64.tar.xz --directory=/usr/local/ --strip-components=1
+  - rm /root/node-v18.18.0-linux-x64.tar.xz
+  - npm install --global yarn
+  - curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | bash -s -- -y
+  - echo ". /root/.cargo/env" >> /root/.bashrc
+  - install -m 0755 -d /etc/apt/keyrings
+  - curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+  - chmod a+r /etc/apt/keyrings/docker.gpg
+  - echo "deb [arch="$(dpkg --print-architecture)" signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian "$(. /etc/os-release && echo "$VERSION_CODENAME")" stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+  - apt-get update -y
+  - apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+  - apt-get install -y docker-compose
+  - apt-get install axel
+  - /root/.cargo/bin/cargo install cargo-nextest
+  - apt-get install postgresql -y
+  - /root/.cargo/bin/cargo install sqlx-cli --version 0.5.13
+  - service postgresql stop
+  - git clone https://github.com/matter-labs/zksync-era.git /root/zksync-era
+  - echo "export ZKSYNC_HOME=/root/zksync-era" >> /root/.bashrc && echo "export PATH=$ZKSYNC_HOME/bin:$PATH" >> /root/.bashrc && source /root/.bashrc && cd /root/zksync-era && zk && zk init && zk server
+
