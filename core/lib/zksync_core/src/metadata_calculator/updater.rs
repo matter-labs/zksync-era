@@ -171,7 +171,7 @@ impl TreeUpdater {
                 .await
                 .unwrap();
             // ^ Note that `save_l1_batch_metadata()` will not blindly overwrite changes if L1 batch
-            // metadata already exists; instead, it'll check that the old an new metadata match.
+            // metadata already exists; instead, it'll check that the old and new metadata match.
             // That is, if we run multiple tree instances, we'll get metadata correspondence
             // right away without having to implement dedicated code.
 
