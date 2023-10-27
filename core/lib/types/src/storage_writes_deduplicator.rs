@@ -3,7 +3,6 @@ use std::collections::HashMap;
 use zksync_utils::u256_to_h256;
 
 use crate::tx::tx_execution_info::DeduplicatedWritesMetrics;
-use crate::writes::compress_with_best_strategy;
 use crate::{AccountTreeId, StorageKey, StorageLogQuery, StorageLogQueryType, U256};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -126,7 +125,7 @@ impl StorageWritesDeduplicator {
                     });
                 }
                 (true, Some(new_value)) => {
-                    let value_size = compress_with_best_strategy(initial_value, new_value).len();
+                    let value_size = (new_value.bits() + 7) / 8;
                     let old_value = self
                         .modified_key_values
                         .insert(
@@ -149,7 +148,7 @@ impl StorageWritesDeduplicator {
                     *total_size += value_size;
                 }
                 (false, Some(new_value)) => {
-                    let value_size = compress_with_best_strategy(initial_value, new_value).len();
+                    let value_size = (new_value.bits() + 7) / 8;
                     self.modified_key_values.insert(
                         key,
                         ModifiedSlot {
