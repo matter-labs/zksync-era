@@ -79,7 +79,7 @@ address constant L2_ETH_TOKEN_SYSTEM_CONTRACT_ADDR = address(0x800a);
 
 This is a good opportunity to talk about system contracts that are automatically deployed on L2. You can find the full
 list here
-[in github](https://github.com/matter-labs/system-contracts/blob/436d57da2fb35c40e38bcb6637c3a090ddf60701/scripts/constants.ts#L29)
+[in github](https://github.com/matter-labs/era-system-contracts/blob/436d57da2fb35c40e38bcb6637c3a090ddf60701/scripts/constants.ts#L29)
 
 This is the place were we specify that `bootloader` is at address 0x8001, `NonceHolder` at 0x8003 etc.
 
