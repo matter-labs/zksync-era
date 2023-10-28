@@ -5,28 +5,14 @@ on:
     branches:
       - main
     paths:
-      - "docker/zk-environment/Dockerfile"
-      - "docker/zk-environment-cuda-12-0/Dockerfile"
+      - "docker/zk-environment/*"
       - ".github/workflows/zk-environment.publish.yml"
   pull_request:
     branches:
       - main
     paths:
-      - "docker/zk-environment/Dockerfile"
-      - "docker/zk-environment-cuda-12-0/Dockerfile"
+      - "docker/zk-environment/*"
       - ".github/workflows/zk-environment.publish.yml"
-  workflow_dispatch:
-    inputs:
-      build_zk_environment:
-        description: 'Build zk-environment'
-        required: false
-        type: boolean
-        default: true
-      build_zk_environment_cuda_12:
-        description: 'Build zk-environment-cuda-12'
-        required: false
-        type: boolean
-        default: true
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.sha }}
@@ -60,7 +46,7 @@ jobs:
               - .github/workflows/zk-environment.publish.yml
 
   get_short_sha:
-    if: (needs.changed_files.outputs.zk_environment == 'true' && github.event_name != 'workflow_dispatch') || (github.event_name == 'workflow_dispatch' && github.event.inputs.build_zk_environment == 'true')
+    if: needs.changed_files.outputs.zk_environment == 'true'
     needs: [changed_files]
     runs-on: ubuntu-latest
     outputs:
@@ -74,7 +60,7 @@ jobs:
         run: echo "short_sha=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
 
   zk_environment:
-    if: (needs.changed_files.outputs.zk_environment == 'true' && github.event_name != 'workflow_dispatch') || (github.event_name == 'workflow_dispatch' && github.event.inputs.build_zk_environment == 'true')
+    if: needs.changed_files.outputs.zk_environment == 'true'
     needs: [changed_files, get_short_sha]
     name: Build and optionally push zk-environment Docker images to Docker Hub
     strategy:
