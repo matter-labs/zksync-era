@@ -728,7 +728,7 @@ impl WitnessGeneratorDal<'_, '_> {
         {
             sqlx::query!(
                 "INSERT INTO witness_inputs(l1_batch_number, merkle_tree_paths, merkel_tree_paths_blob_url, status, protocol_version, created_at, updated_at) \
-                 VALUES ($1, $2, $3, 'queued', $4, now(), now())
+                 VALUES ($1, $2, $3, 'waiting_for_artifacts', $4, now(), now()) \
                  ON CONFLICT (l1_batch_number) DO NOTHING",
                 block_number.0 as i64,
                 // TODO(SMA-1476): remove the below column once blob is migrated to GCS.
@@ -740,6 +740,19 @@ impl WitnessGeneratorDal<'_, '_> {
                 .await
                 .unwrap();
         }
+    }
+
+    pub async fn mark_witness_inputs_job_as_queued(&mut self, block_number: L1BatchNumber) {
+        sqlx::query!(
+            "UPDATE witness_inputs \
+            SET status='queued' \
+            WHERE l1_batch_number=$1 \
+                AND status='waiting_for_artifacts'",
+            block_number.0 as i64,
+        )
+        .execute(self.storage.conn())
+        .await
+        .unwrap();
     }
 
     pub async fn get_basic_circuit_and_circuit_inputs_blob_urls_to_be_cleaned(
