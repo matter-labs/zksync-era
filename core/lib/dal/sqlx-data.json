@@ -575,8 +575,13 @@
           "type_info": "Text"
         },
         {
-          "name": "protocol_version",
+          "name": "is_blob_cleaned",
           "ordinal": 13,
+          "type_info": "Bool"
+        },
+        {
+          "name": "protocol_version",
+          "ordinal": 14,
           "type_info": "Int4"
         }
       ],
@@ -594,6 +599,7 @@
         false,
         true,
         true,
+        false,
         true
       ],
       "parameters": {
@@ -1485,8 +1491,13 @@
           "type_info": "Text"
         },
         {
-          "name": "protocol_version",
+          "name": "is_blob_cleaned",
           "ordinal": 16,
+          "type_info": "Bool"
+        },
+        {
+          "name": "protocol_version",
+          "ordinal": 17,
           "type_info": "Int4"
         }
       ],
@@ -1507,6 +1518,7 @@
         false,
         true,
         true,
+        false,
         true
       ],
       "parameters": {
@@ -3168,8 +3180,13 @@
           "type_info": "Text"
         },
         {
-          "name": "protocol_version",
+          "name": "is_blob_cleaned",
           "ordinal": 13,
+          "type_info": "Bool"
+        },
+        {
+          "name": "protocol_version",
+          "ordinal": 14,
           "type_info": "Int4"
         }
       ],
@@ -3187,6 +3204,7 @@
         true,
         true,
         true,
+        false,
         true
       ],
       "parameters": {
@@ -4529,8 +4547,13 @@
           "type_info": "Text"
         },
         {
-          "name": "protocol_version",
+          "name": "is_blob_cleaned",
           "ordinal": 13,
+          "type_info": "Bool"
+        },
+        {
+          "name": "protocol_version",
+          "ordinal": 14,
           "type_info": "Int4"
         }
       ],
@@ -4548,6 +4571,7 @@
         false,
         true,
         true,
+        false,
         true
       ],
       "parameters": {
@@ -5613,8 +5637,13 @@
           "type_info": "Text"
         },
         {
-          "name": "protocol_version",
+          "name": "is_blob_cleaned",
           "ordinal": 16,
+          "type_info": "Bool"
+        },
+        {
+          "name": "protocol_version",
+          "ordinal": 17,
           "type_info": "Int4"
         }
       ],
@@ -5635,6 +5664,7 @@
         false,
         true,
         true,
+        false,
         true
       ],
       "parameters": {
@@ -7702,8 +7732,13 @@
           "type_info": "Text"
         },
         {
-          "name": "protocol_version",
+          "name": "is_blob_cleaned",
           "ordinal": 16,
+          "type_info": "Bool"
+        },
+        {
+          "name": "protocol_version",
+          "ordinal": 17,
           "type_info": "Int4"
         }
       ],
@@ -7724,6 +7759,7 @@
         false,
         true,
         true,
+        false,
         true
       ],
       "parameters": {
@@ -10349,8 +10385,13 @@
           "type_info": "Text"
         },
         {
-          "name": "protocol_version",
+          "name": "is_blob_cleaned",
           "ordinal": 10,
+          "type_info": "Bool"
+        },
+        {
+          "name": "protocol_version",
+          "ordinal": 11,
           "type_info": "Int4"
         }
       ],
@@ -10365,6 +10406,7 @@
         true,
         false,
         true,
+        false,
         true
       ],
       "parameters": {
