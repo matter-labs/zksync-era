@@ -131,7 +131,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
                     system_env.clone().glue_into(),
                     storage_view.clone(),
                 );
-                let vm = VmInstanceVersion::VmVirtualBlocks(Box::new(vm));
+                let vm = VmInstanceVersion::VmVirtualBlocks(vm);
                 Self {
                     vm,
                     system_env,
@@ -144,7 +144,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
                     system_env.clone(),
                     storage_view.clone(),
                 );
-                let vm = VmInstanceVersion::VmVirtualBlocksRefundsEnhancement(Box::new(vm));
+                let vm = VmInstanceVersion::VmVirtualBlocksRefundsEnhancement(vm);
                 Self {
                     vm,
                     system_env,
