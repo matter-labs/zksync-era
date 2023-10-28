@@ -1,6 +1,7 @@
 use crate::interface::{
-    BootloaderMemory, BytecodeCompressionError, CurrentExecutionState, L1BatchEnv, L2BlockEnv,
-    SystemEnv, VmExecutionMode, VmExecutionResultAndLogs, VmInterface, VmInterfaceHistoryEnabled,
+    BootloaderMemory, BytecodeCompressionError, CurrentExecutionState, FinishedL1Batch, L1BatchEnv,
+    L2BlockEnv, SystemEnv, VmExecutionMode, VmExecutionResultAndLogs, VmInterface,
+    VmInterfaceHistoryEnabled, VmMemoryMetrics,
 };
 use crate::vm_latest::HistoryEnabled;
 use crate::HistoryMode;
@@ -117,6 +118,21 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
             Err(BytecodeCompressionError::BytecodeCompressionFailed)
         } else {
             Ok(result)
+        }
+    }
+
+    fn record_vm_memory_metrics(&self) -> VmMemoryMetrics {
+        self.record_vm_memory_metrics_inner()
+    }
+
+    fn finish_batch(&mut self) -> FinishedL1Batch {
+        let result = self.execute(VmExecutionMode::Batch);
+        let execution_state = self.get_current_execution_state();
+        let bootloader_memory = self.get_bootloader_memory();
+        FinishedL1Batch {
+            block_tip_execution_result: result,
+            final_execution_state: execution_state,
+            final_bootloader_memory: Some(bootloader_memory),
         }
     }
 }

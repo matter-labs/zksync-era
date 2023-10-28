@@ -53,6 +53,7 @@ use crate::interface::types::outputs::{
     BootloaderMemory, CurrentExecutionState, VmExecutionResultAndLogs,
 };
 
+use crate::interface::{FinishedL1Batch, VmMemoryMetrics};
 use crate::vm_latest::HistoryEnabled;
 use crate::HistoryMode;
 use zksync_state::{StoragePtr, WriteStorage};
@@ -113,6 +114,9 @@ pub trait VmInterface<S: WriteStorage, H: HistoryMode> {
         tx: Transaction,
         with_compression: bool,
     ) -> Result<VmExecutionResultAndLogs, BytecodeCompressionError>;
+
+    fn record_vm_memory_metrics(&self) -> VmMemoryMetrics;
+    fn finish_batch(&mut self) -> FinishedL1Batch;
 }
 
 /// Methods of VM requiring history manipulations.
