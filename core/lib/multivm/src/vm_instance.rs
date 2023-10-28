@@ -1,6 +1,6 @@
 use crate::interface::{
-    FinishedL1Batch, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode, VmInterface,
-    VmInterfaceHistoryEnabled, VmMemoryMetrics,
+    FinishedL1Batch, L2BlockEnv, VmExecutionMode, VmInterface, VmInterfaceHistoryEnabled,
+    VmMemoryMetrics,
 };
 
 use zksync_state::{ReadStorage, StorageView};
@@ -12,13 +12,11 @@ use crate::glue::GlueInto;
 
 pub struct VmInstance<S: ReadStorage, H: HistoryMode> {
     pub(crate) vm: VmInstanceVersion<S, H>,
-    pub(crate) system_env: SystemEnv,
-    pub(crate) last_tx_compressed_bytecodes: Vec<CompressedBytecodeInfo>,
 }
 
 #[derive(Debug)]
 pub(crate) enum VmInstanceVersion<S: ReadStorage, H: HistoryMode> {
-    VmM5(Box<crate::vm_m5::VmInstance<StorageView<S>>>),
+    VmM5(crate::vm_m5::Vm<StorageView<S>, H>),
     VmM6(crate::vm_m6::Vm<StorageView<S>, H>),
     Vm1_3_2(crate::vm_1_3_2::Vm<StorageView<S>, H>),
     VmVirtualBlocks(crate::vm_virtual_blocks::Vm<StorageView<S>, H>),
@@ -30,11 +28,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
     pub fn push_transaction(&mut self, tx: &zksync_types::Transaction) {
         match &mut self.vm {
             VmInstanceVersion::VmM5(vm) => {
-                crate::vm_m5::vm_with_bootloader::push_transaction_to_bootloader_memory(
-                    vm,
-                    tx,
-                    self.system_env.execution_mode.glue_into(),
-                )
+                vm.push_transaction(tx.clone());
             }
             VmInstanceVersion::VmM6(vm) => {
                 vm.push_transaction(tx.clone());
@@ -54,11 +48,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
     /// Return the results of execution of all batch
     pub fn finish_batch(&mut self) -> FinishedL1Batch {
         match &mut self.vm {
-            VmInstanceVersion::VmM5(vm) => vm
-                .execute_till_block_end(
-                    crate::vm_m5::vm_with_bootloader::BootloaderJobType::BlockPostprocessing,
-                )
-                .glue_into(),
+            VmInstanceVersion::VmM5(vm) => vm.finish_batch(),
             VmInstanceVersion::VmM6(vm) => vm.finish_batch(),
             VmInstanceVersion::Vm1_3_2(vm) => vm.finish_batch(),
             VmInstanceVersion::VmVirtualBlocks(vm) => vm.finish_batch(),
@@ -70,7 +60,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
     /// This method allows to execute the part  of the VM cycle after executing all txs.
     pub fn execute_block_tip(&mut self) -> crate::interface::VmExecutionResultAndLogs {
         match &mut self.vm {
-            VmInstanceVersion::VmM5(vm) => vm.execute_block_tip().glue_into(),
+            VmInstanceVersion::VmM5(vm) => vm.execute(VmExecutionMode::Bootloader),
             VmInstanceVersion::VmM6(vm) => vm.execute(VmExecutionMode::Bootloader),
             VmInstanceVersion::Vm1_3_2(vm) => vm.execute(VmExecutionMode::Bootloader),
             VmInstanceVersion::VmVirtualBlocks(vm) => vm.execute(VmExecutionMode::Bootloader),
@@ -83,14 +73,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
     /// Execute next transaction and stop vm right after next transaction execution
     pub fn execute_next_transaction(&mut self) -> crate::interface::VmExecutionResultAndLogs {
         match &mut self.vm {
-            VmInstanceVersion::VmM5(vm) => match self.system_env.execution_mode {
-                TxExecutionMode::VerifyExecute => vm.execute_next_tx().glue_into(),
-                TxExecutionMode::EstimateFee | TxExecutionMode::EthCall => vm
-                    .execute_till_block_end(
-                        crate::vm_m5::vm_with_bootloader::BootloaderJobType::TransactionExecution,
-                    )
-                    .glue_into(),
-            },
+            VmInstanceVersion::VmM5(vm) => vm.execute(VmExecutionMode::OneTx),
             VmInstanceVersion::VmM6(vm) => vm.execute(VmExecutionMode::OneTx),
             VmInstanceVersion::Vm1_3_2(vm) => vm.execute(VmExecutionMode::OneTx),
             VmInstanceVersion::VmVirtualBlocks(vm) => {
@@ -111,7 +94,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
             }
             VmInstanceVersion::Vm1_3_2(vm) => vm.get_last_tx_compressed_bytecodes(),
             VmInstanceVersion::VmM6(vm) => vm.get_last_tx_compressed_bytecodes(),
-            _ => self.last_tx_compressed_bytecodes.clone(),
+            VmInstanceVersion::VmM5(vm) => vm.get_last_tx_compressed_bytecodes(),
         }
     }
 
@@ -131,7 +114,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
             }
             VmInstanceVersion::Vm1_3_2(vm) => vm.execute(VmExecutionMode::OneTx),
             VmInstanceVersion::VmM6(vm) => vm.execute(VmExecutionMode::OneTx),
-            _ => self.execute_next_transaction(),
+            VmInstanceVersion::VmM5(vm) => vm.execute(VmExecutionMode::OneTx),
         }
     }
 
@@ -146,12 +129,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
     > {
         match &mut self.vm {
             VmInstanceVersion::VmM5(vm) => {
-                crate::vm_m5::vm_with_bootloader::push_transaction_to_bootloader_memory(
-                    vm,
-                    &tx,
-                    self.system_env.execution_mode.glue_into(),
-                );
-                Ok(vm.execute_next_tx().glue_into())
+                vm.execute_transaction_with_bytecode_compression(tx, with_compression)
             }
             VmInstanceVersion::VmM6(vm) => {
                 vm.execute_transaction_with_bytecode_compression(tx, with_compression)
@@ -205,10 +183,11 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
                 tx,
                 with_compression,
             ),
-            _ => {
-                self.last_tx_compressed_bytecodes = vec![];
-                self.execute_transaction_with_bytecode_compression(tx, with_compression)
-            }
+            VmInstanceVersion::VmM5(vm) => vm.inspect_transaction_with_bytecode_compression(
+                Default::default(),
+                tx,
+                with_compression,
+            ),
         }
     }
 
@@ -226,13 +205,15 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
             VmInstanceVersion::Vm1_3_2(vm) => {
                 vm.start_new_l2_block(l2_block_env);
             }
-            _ => {}
+            VmInstanceVersion::VmM5(vm) => {
+                vm.start_new_l2_block(l2_block_env);
+            }
         }
     }
 
     pub fn record_vm_memory_metrics(&self) -> Option<VmMemoryMetrics> {
         match &self.vm {
-            VmInstanceVersion::VmM5(_) => None,
+            VmInstanceVersion::VmM5(vm) => Some(vm.record_vm_memory_metrics()),
             VmInstanceVersion::VmM6(vm) => Some(vm.record_vm_memory_metrics()),
             VmInstanceVersion::Vm1_3_2(vm) => Some(vm.record_vm_memory_metrics()),
             VmInstanceVersion::VmVirtualBlocks(vm) => Some(vm.record_vm_memory_metrics()),
@@ -246,7 +227,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
 impl<S: ReadStorage> VmInstance<S, crate::vm_latest::HistoryEnabled> {
     pub fn make_snapshot(&mut self) {
         match &mut self.vm {
-            VmInstanceVersion::VmM5(vm) => vm.save_current_vm_as_snapshot(),
+            VmInstanceVersion::VmM5(vm) => vm.make_snapshot(),
             VmInstanceVersion::VmM6(vm) => vm.make_snapshot(),
             VmInstanceVersion::Vm1_3_2(vm) => vm.make_snapshot(),
             VmInstanceVersion::VmVirtualBlocks(vm) => vm.make_snapshot(),
@@ -256,7 +237,7 @@ impl<S: ReadStorage> VmInstance<S, crate::vm_latest::HistoryEnabled> {
 
     pub fn rollback_to_the_latest_snapshot(&mut self) {
         match &mut self.vm {
-            VmInstanceVersion::VmM5(vm) => vm.rollback_to_latest_snapshot_popping(),
+            VmInstanceVersion::VmM5(vm) => vm.rollback_to_the_latest_snapshot(),
             VmInstanceVersion::VmM6(vm) => vm.rollback_to_the_latest_snapshot(),
             VmInstanceVersion::Vm1_3_2(vm) => vm.rollback_to_the_latest_snapshot(),
             VmInstanceVersion::VmVirtualBlocks(vm) => {
@@ -272,7 +253,7 @@ impl<S: ReadStorage> VmInstance<S, crate::vm_latest::HistoryEnabled> {
         match &mut self.vm {
             VmInstanceVersion::VmM5(vm) => {
                 // A dedicated method was added later.
-                vm.snapshots.pop().unwrap();
+                vm.pop_snapshot_no_rollback();
             }
             VmInstanceVersion::VmM6(vm) => vm.pop_snapshot_no_rollback(),
             VmInstanceVersion::Vm1_3_2(vm) => vm.pop_snapshot_no_rollback(),

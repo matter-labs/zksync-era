@@ -20,13 +20,14 @@ pub mod vm_with_bootloader;
 
 #[cfg(test)]
 mod tests;
+mod vm;
 
 pub use errors::TxRevertReason;
 pub use oracle_tools::OracleTools;
 pub use oracles::storage::StorageOracle;
+pub use vm::Vm;
 pub use vm_instance::VmBlockResult;
 pub use vm_instance::VmExecutionResult;
-pub use vm_instance::VmInstance;
 pub use zk_evm_1_3_1;
 pub use zksync_types::vm_trace::VmExecutionTrace;
 

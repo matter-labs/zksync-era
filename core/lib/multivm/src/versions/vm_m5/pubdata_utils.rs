@@ -2,7 +2,7 @@ use crate::vm_m5::glue::GlueInto;
 use crate::vm_m5::oracles::storage::storage_key_of_log;
 use crate::vm_m5::storage::Storage;
 use crate::vm_m5::utils::collect_storage_log_queries_after_timestamp;
-use crate::vm_m5::VmInstance;
+use crate::vm_m5::vm_instance::VmInstance;
 use std::collections::HashMap;
 use zk_evm_1_3_1::aux_structures::Timestamp;
 
