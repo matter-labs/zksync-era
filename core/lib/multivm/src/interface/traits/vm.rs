@@ -56,11 +56,12 @@ use crate::interface::types::outputs::{
 use crate::interface::{FinishedL1Batch, VmMemoryMetrics};
 use crate::vm_latest::HistoryEnabled;
 use crate::HistoryMode;
-use zksync_state::{StoragePtr, WriteStorage};
+use zksync_state::StoragePtr;
 use zksync_types::Transaction;
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
-pub trait VmInterface<S: WriteStorage, H: HistoryMode> {
+/// Public interface for VM
+pub trait VmInterface<S, H: HistoryMode> {
     type TracerDispatcher: Default;
 
     /// Initialize VM.
@@ -119,9 +120,9 @@ pub trait VmInterface<S: WriteStorage, H: HistoryMode> {
     fn finish_batch(&mut self) -> FinishedL1Batch;
 }
 
-/// Methods of VM requiring history manipulations.
-pub trait VmInterfaceHistoryEnabled<S: WriteStorage>: VmInterface<S, HistoryEnabled> {
-    /// Create a snapshot of the current VM state and push it into memory.
+/// Methods of vm, which required some history manipullations
+pub trait VmInterfaceHistoryEnabled<S>: VmInterface<S, HistoryEnabled> {
+    /// Create snapshot of current vm state and push it into the memory
     fn make_snapshot(&mut self);
 
     /// Roll back VM state to the latest snapshot and destroy the snapshot.

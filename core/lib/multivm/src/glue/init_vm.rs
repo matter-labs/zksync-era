@@ -78,26 +78,11 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
                 }
             }
             VmVersion::M6Initial => {
-                let oracle_tools =
-                    crate::vm_m6::OracleTools::new(storage_view.clone(), H::VmM6Mode::default());
-                let block_properties = zk_evm_1_3_1::block_properties::BlockProperties {
-                    default_aa_code_hash: h256_to_u256(
-                        system_env.base_system_smart_contracts.default_aa.hash,
-                    ),
-                    zkporter_is_available: false,
-                };
-
-                let inner_vm = crate::vm_m6::vm_with_bootloader::init_vm_with_gas_limit(
-                    crate::vm_m6::vm_instance::MultiVMSubversion::V1,
-                    oracle_tools,
-                    l1_batch_env.glue_into(),
-                    block_properties,
-                    system_env.execution_mode.glue_into(),
-                    &system_env.base_system_smart_contracts.clone().glue_into(),
-                    system_env.gas_limit,
-                );
-                VmInstance {
-                    vm: VmInstanceVersion::VmM6(inner_vm),
+                let vm =
+                    crate::vm_m6::Vm::new(l1_batch_env, system_env.clone(), storage_view.clone());
+                let vm = VmInstanceVersion::VmM6(vm);
+                Self {
+                    vm,
                     system_env,
                     last_tx_compressed_bytecodes: vec![],
                 }
@@ -113,7 +98,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
                 };
 
                 let inner_vm = crate::vm_m6::vm_with_bootloader::init_vm_with_gas_limit(
-                    crate::vm_m6::vm_instance::MultiVMSubversion::V2,
+                    crate::vm_m6::vm::MultiVMSubversion::V2,
                     oracle_tools,
                     l1_batch_env.glue_into(),
                     block_properties,
@@ -129,8 +114,8 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
             }
             VmVersion::Vm1_3_2 => {
                 let vm = crate::vm_1_3_2::Vm::new(
-                    l1_batch_env.glue_into(),
-                    system_env.clone().glue_into(),
+                    l1_batch_env,
+                    system_env.clone(),
                     storage_view.clone(),
                 );
                 let vm = VmInstanceVersion::Vm1_3_2(vm);

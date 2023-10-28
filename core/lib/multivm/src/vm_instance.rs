@@ -3,10 +3,8 @@ use crate::interface::{
     VmInterfaceHistoryEnabled, VmMemoryMetrics,
 };
 
-use std::collections::HashSet;
-
 use zksync_state::{ReadStorage, StorageView};
-use zksync_utils::bytecode::{hash_bytecode, CompressedBytecodeInfo};
+use zksync_utils::bytecode::CompressedBytecodeInfo;
 
 use crate::glue::history_mode::HistoryMode;
 use crate::glue::tracers::MultivmTracer;
@@ -21,7 +19,7 @@ pub struct VmInstance<S: ReadStorage, H: HistoryMode> {
 #[derive(Debug)]
 pub(crate) enum VmInstanceVersion<S: ReadStorage, H: HistoryMode> {
     VmM5(Box<crate::vm_m5::VmInstance<StorageView<S>>>),
-    VmM6(Box<crate::vm_m6::VmInstance<StorageView<S>, H::VmM6Mode>>),
+    VmM6(crate::vm_m6::Vm<StorageView<S>, H>),
     Vm1_3_2(crate::vm_1_3_2::Vm<StorageView<S>, H>),
     VmVirtualBlocks(Box<crate::vm_virtual_blocks::Vm<StorageView<S>, H>>),
     VmVirtualBlocksRefundsEnhancement(Box<crate::vm_latest::Vm<StorageView<S>, H>>),
@@ -39,12 +37,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
                 )
             }
             VmInstanceVersion::VmM6(vm) => {
-                crate::vm_m6::vm_with_bootloader::push_transaction_to_bootloader_memory(
-                    vm,
-                    tx,
-                    self.system_env.execution_mode.glue_into(),
-                    None,
-                )
+                vm.push_transaction(tx.clone());
             }
             VmInstanceVersion::Vm1_3_2(vm) => {
                 vm.push_transaction(tx.clone());
@@ -66,11 +59,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
                     crate::vm_m5::vm_with_bootloader::BootloaderJobType::BlockPostprocessing,
                 )
                 .glue_into(),
-            VmInstanceVersion::VmM6(vm) => vm
-                .execute_till_block_end(
-                    crate::vm_m6::vm_with_bootloader::BootloaderJobType::BlockPostprocessing,
-                )
-                .glue_into(),
+            VmInstanceVersion::VmM6(vm) => vm.finish_batch(),
             VmInstanceVersion::Vm1_3_2(vm) => vm.finish_batch(),
             VmInstanceVersion::VmVirtualBlocks(vm) => vm.finish_batch(),
             VmInstanceVersion::VmVirtualBlocksRefundsEnhancement(vm) => vm.finish_batch(),
@@ -82,7 +71,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
     pub fn execute_block_tip(&mut self) -> crate::interface::VmExecutionResultAndLogs {
         match &mut self.vm {
             VmInstanceVersion::VmM5(vm) => vm.execute_block_tip().glue_into(),
-            VmInstanceVersion::VmM6(vm) => vm.execute_block_tip().glue_into(),
+            VmInstanceVersion::VmM6(vm) => vm.execute(VmExecutionMode::Bootloader),
             VmInstanceVersion::Vm1_3_2(vm) => vm.execute(VmExecutionMode::Bootloader),
             VmInstanceVersion::VmVirtualBlocks(vm) => vm.execute(VmExecutionMode::Bootloader),
             VmInstanceVersion::VmVirtualBlocksRefundsEnhancement(vm) => {
@@ -102,23 +91,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
                     )
                     .glue_into(),
             },
-            VmInstanceVersion::VmM6(vm) => {
-                match self.system_env.execution_mode {
-                    TxExecutionMode::VerifyExecute => {
-                        // Even that call tracer is supported by vm vm1.3.2, we don't use it for multivm
-                        vm.execute_next_tx(
-                            self.system_env.default_validation_computational_gas_limit,
-                            false,
-                        )
-                        .glue_into()
-                    }
-                    TxExecutionMode::EstimateFee | TxExecutionMode::EthCall => vm
-                        .execute_till_block_end(
-                             crate::vm_m6::vm_with_bootloader::BootloaderJobType::TransactionExecution,
-                        )
-                        .glue_into(),
-                }
-            }
+            VmInstanceVersion::VmM6(vm) => vm.execute(VmExecutionMode::OneTx),
             VmInstanceVersion::Vm1_3_2(vm) => vm.execute(VmExecutionMode::OneTx),
             VmInstanceVersion::VmVirtualBlocks(vm) => {
                 vm.execute(VmExecutionMode::OneTx).glue_into()
@@ -137,6 +110,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
                 vm.get_last_tx_compressed_bytecodes()
             }
             VmInstanceVersion::Vm1_3_2(vm) => vm.get_last_tx_compressed_bytecodes(),
+            VmInstanceVersion::VmM6(vm) => vm.get_last_tx_compressed_bytecodes(),
             _ => self.last_tx_compressed_bytecodes.clone(),
         }
     }
@@ -156,7 +130,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
                 vm.inspect(tracers.into(), VmExecutionMode::OneTx)
             }
             VmInstanceVersion::Vm1_3_2(vm) => vm.execute(VmExecutionMode::OneTx),
-
+            VmInstanceVersion::VmM6(vm) => vm.execute(VmExecutionMode::OneTx),
             _ => self.execute_next_transaction(),
         }
     }
@@ -180,68 +154,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
                 Ok(vm.execute_next_tx().glue_into())
             }
             VmInstanceVersion::VmM6(vm) => {
-                use crate::vm_m6::storage::Storage;
-                let bytecodes = if with_compression {
-                    let deps = tx.execute.factory_deps.as_deref().unwrap_or_default();
-                    let mut deps_hashes = HashSet::with_capacity(deps.len());
-                    let mut bytecode_hashes = vec![];
-                    let filtered_deps = deps.iter().filter_map(|bytecode| {
-                        let bytecode_hash = hash_bytecode(bytecode);
-                        let is_known = !deps_hashes.insert(bytecode_hash)
-                            || vm
-                                .state
-                                .storage
-                                .storage
-                                .get_ptr()
-                                .borrow_mut()
-                                .is_bytecode_exists(&bytecode_hash);
-
-                        if is_known {
-                            None
-                        } else {
-                            bytecode_hashes.push(bytecode_hash);
-                            CompressedBytecodeInfo::from_original(bytecode.clone()).ok()
-                        }
-                    });
-                    let compressed_bytecodes: Vec<_> = filtered_deps.collect();
-
-                    self.last_tx_compressed_bytecodes = compressed_bytecodes.clone();
-                    crate::vm_m6::vm_with_bootloader::push_transaction_to_bootloader_memory(
-                        vm,
-                        &tx,
-                        self.system_env.execution_mode.glue_into(),
-                        Some(compressed_bytecodes),
-                    );
-                    bytecode_hashes
-                } else {
-                    crate::vm_m6::vm_with_bootloader::push_transaction_to_bootloader_memory(
-                        vm,
-                        &tx,
-                        self.system_env.execution_mode.glue_into(),
-                        Some(vec![]),
-                    );
-                    vec![]
-                };
-
-                // Even that call tracer is supported by vm m6, we don't use it for multivm
-                let result = vm
-                    .execute_next_tx(
-                        self.system_env.default_validation_computational_gas_limit,
-                        false,
-                    )
-                    .glue_into();
-                if bytecodes.iter().any(|info| {
-                    !vm.state
-                        .storage
-                        .storage
-                        .get_ptr()
-                        .borrow_mut()
-                        .is_bytecode_exists(info)
-                }) {
-                    Err(crate::interface::BytecodeCompressionError::BytecodeCompressionFailed)
-                } else {
-                    Ok(result)
-                }
+                vm.execute_transaction_with_bytecode_compression(tx, with_compression)
             }
             VmInstanceVersion::Vm1_3_2(vm) => {
                 vm.execute_transaction_with_bytecode_compression(tx, with_compression)
@@ -282,6 +195,16 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
                     with_compression,
                 )
             }
+            VmInstanceVersion::VmM6(vm) => vm.inspect_transaction_with_bytecode_compression(
+                Default::default(),
+                tx,
+                with_compression,
+            ),
+            VmInstanceVersion::Vm1_3_2(vm) => vm.inspect_transaction_with_bytecode_compression(
+                Default::default(),
+                tx,
+                with_compression,
+            ),
             _ => {
                 self.last_tx_compressed_bytecodes = vec![];
                 self.execute_transaction_with_bytecode_compression(tx, with_compression)
@@ -297,6 +220,12 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
             VmInstanceVersion::VmVirtualBlocksRefundsEnhancement(vm) => {
                 vm.start_new_l2_block(l2_block_env);
             }
+            VmInstanceVersion::VmM6(vm) => {
+                vm.start_new_l2_block(l2_block_env);
+            }
+            VmInstanceVersion::Vm1_3_2(vm) => {
+                vm.start_new_l2_block(l2_block_env);
+            }
             _ => {}
         }
     }
@@ -304,19 +233,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
     pub fn record_vm_memory_metrics(&self) -> Option<VmMemoryMetrics> {
         match &self.vm {
             VmInstanceVersion::VmM5(_) => None,
-            VmInstanceVersion::VmM6(vm) => Some(VmMemoryMetrics {
-                event_sink_inner: vm.state.event_sink.get_size(),
-                event_sink_history: vm.state.event_sink.get_history_size(),
-                memory_inner: vm.state.memory.get_size(),
-                memory_history: vm.state.memory.get_history_size(),
-                decommittment_processor_inner: vm.state.decommittment_processor.get_size(),
-                decommittment_processor_history: vm
-                    .state
-                    .decommittment_processor
-                    .get_history_size(),
-                storage_inner: vm.state.storage.get_size(),
-                storage_history: vm.state.storage.get_history_size(),
-            }),
+            VmInstanceVersion::VmM6(vm) => Some(vm.record_vm_memory_metrics()),
             VmInstanceVersion::Vm1_3_2(vm) => Some(vm.record_vm_memory_metrics()),
             VmInstanceVersion::VmVirtualBlocks(vm) => Some(vm.record_vm_memory_metrics()),
             VmInstanceVersion::VmVirtualBlocksRefundsEnhancement(vm) => {
@@ -330,7 +247,7 @@ impl<S: ReadStorage> VmInstance<S, crate::vm_latest::HistoryEnabled> {
     pub fn make_snapshot(&mut self) {
         match &mut self.vm {
             VmInstanceVersion::VmM5(vm) => vm.save_current_vm_as_snapshot(),
-            VmInstanceVersion::VmM6(vm) => vm.save_current_vm_as_snapshot(),
+            VmInstanceVersion::VmM6(vm) => vm.make_snapshot(),
             VmInstanceVersion::Vm1_3_2(vm) => vm.make_snapshot(),
             VmInstanceVersion::VmVirtualBlocks(vm) => vm.make_snapshot(),
             VmInstanceVersion::VmVirtualBlocksRefundsEnhancement(vm) => vm.make_snapshot(),
@@ -340,7 +257,7 @@ impl<S: ReadStorage> VmInstance<S, crate::vm_latest::HistoryEnabled> {
     pub fn rollback_to_the_latest_snapshot(&mut self) {
         match &mut self.vm {
             VmInstanceVersion::VmM5(vm) => vm.rollback_to_latest_snapshot_popping(),
-            VmInstanceVersion::VmM6(vm) => vm.rollback_to_latest_snapshot_popping(),
+            VmInstanceVersion::VmM6(vm) => vm.rollback_to_the_latest_snapshot(),
             VmInstanceVersion::Vm1_3_2(vm) => vm.rollback_to_the_latest_snapshot(),
             VmInstanceVersion::VmVirtualBlocks(vm) => {
                 vm.rollback_to_the_latest_snapshot();

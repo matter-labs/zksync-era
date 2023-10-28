@@ -219,7 +219,7 @@ pub fn init_vm<S: Storage, H: HistoryMode>(
     block_properties: BlockProperties,
     execution_mode: TxExecutionMode,
     base_system_contract: &BaseSystemContracts,
-) -> Box<VmInstance<S, H>> {
+) -> VmInstance<S, H> {
     init_vm_with_gas_limit(
         vm_subversion,
         oracle_tools,
@@ -239,7 +239,7 @@ pub fn init_vm_with_gas_limit<S: Storage, H: HistoryMode>(
     execution_mode: TxExecutionMode,
     base_system_contract: &BaseSystemContracts,
     gas_limit: u32,
-) -> Box<VmInstance<S, H>> {
+) -> VmInstance<S, H> {
     init_vm_inner(
         vm_subversion,
         oracle_tools,
@@ -336,7 +336,7 @@ pub fn init_vm_inner<S: Storage, H: HistoryMode>(
     gas_limit: u32,
     base_system_contract: &BaseSystemContracts,
     execution_mode: TxExecutionMode,
-) -> Box<VmInstance<S, H>> {
+) -> VmInstance<S, H> {
     oracle_tools.decommittment_processor.populate(
         vec![(
             h256_to_u256(base_system_contract.default_aa.hash),
@@ -361,7 +361,7 @@ pub fn init_vm_inner<S: Storage, H: HistoryMode>(
 
     let state = get_default_local_state(oracle_tools, block_properties, gas_limit);
 
-    Box::new(VmInstance {
+    VmInstance {
         gas_limit,
         state,
         execution_mode,
@@ -369,7 +369,7 @@ pub fn init_vm_inner<S: Storage, H: HistoryMode>(
         bootloader_state: BootloaderState::new(),
         snapshots: Vec::new(),
         vm_subversion,
-    })
+    }
 }
 
 fn bootloader_initial_memory(block_properties: &BlockContextMode) -> Vec<(usize, U256)> {
