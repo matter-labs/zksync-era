@@ -54,10 +54,9 @@ export async function tokenInfo(address: string) {
     await utils.spawn(`yarn l1-contracts token-info info ${address}`);
 }
 
-// installs all dependencies and builds our js packages
+// installs all dependencies
 export async function yarn() {
     await utils.spawn('yarn');
-    await utils.spawn('yarn init-build');
 }
 
 export async function deployTestkit(genesisRoot: string) {
