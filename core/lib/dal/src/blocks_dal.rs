@@ -12,8 +12,8 @@ use zksync_types::{
     aggregated_operations::AggregatedActionType,
     block::{BlockGasCount, L1BatchHeader, MiniblockHeader},
     commitment::{L1BatchMetadata, L1BatchWithMetadata},
-    L1BatchNumber, LogQuery, MiniblockNumber, ProtocolVersionId, H256, MAX_GAS_PER_PUBDATA_BYTE,
-    U256,
+    Address, L1BatchNumber, LogQuery, MiniblockNumber, ProtocolVersionId, H256,
+    MAX_GAS_PER_PUBDATA_BYTE, U256,
 };
 
 use crate::{
@@ -184,8 +184,7 @@ impl BlocksDal<'_, '_> {
                 l2_l1_compressed_messages, l2_l1_merkle_root, l1_gas_price, l2_fair_gas_price, \
                 rollup_last_leaf_index, zkporter_is_available, bootloader_code_hash, \
                 default_aa_code_hash, base_fee_per_gas, aux_data_hash, pass_through_data_hash, \
-                meta_parameters_hash, protocol_version, system_logs, compressed_state_diffs, skip_proof, 
-                gas_per_pubdata_byte_in_block, gas_per_pubdata_limit, \
+                meta_parameters_hash, protocol_version, system_logs, compressed_state_diffs, \
                 events_queue_commitment, bootloader_initial_content_commitment \
             FROM l1_batches \
             LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number \
@@ -242,6 +241,30 @@ impl BlocksDal<'_, '_> {
         let heap = serde_json::from_value(row.initial_bootloader_heap_content)
             .context("invalid value for initial_bootloader_heap_content in the DB")?;
         Ok(Some(heap))
+    }
+
+    pub async fn get_storage_refunds(
+        &mut self,
+        number: L1BatchNumber,
+    ) -> anyhow::Result<Option<Vec<u32>>> {
+        let Some(row) = sqlx::query!(
+            "SELECT storage_refunds FROM l1_batches WHERE number = $1",
+            number.0 as i64
+        )
+        .instrument("get_storage_refunds")
+        .report_latency()
+        .with_arg("number", &number)
+        .fetch_optional(self.storage.conn())
+        .await?
+        else {
+            return Ok(None);
+        };
+        let Some(storage_refunds) = row.storage_refunds else {
+            return Ok(None);
+        };
+
+        let storage_refunds: Vec<_> = storage_refunds.into_iter().map(|n| n as u32).collect();
+        Ok(Some(storage_refunds))
     }
 
     pub async fn get_events_queue(
@@ -319,6 +342,7 @@ impl BlocksDal<'_, '_> {
         initial_bootloader_contents: &[(usize, U256)],
         predicted_block_gas: BlockGasCount,
         events_queue: &[LogQuery],
+        storage_refunds: &[u32],
     ) -> anyhow::Result<()> {
         let priority_onchain_data: Vec<Vec<u8>> = header
             .priority_ops_onchain_data
@@ -346,6 +370,7 @@ impl BlocksDal<'_, '_> {
             .expect("failed to serialize used_contract_hashes to JSON value");
         let base_fee_per_gas = BigDecimal::from_u64(header.base_fee_per_gas)
             .context("block.base_fee_per_gas should fit in u64")?;
+        let storage_refunds: Vec<_> = storage_refunds.iter().map(|n| *n as i64).collect();
 
         let mut transaction = self.storage.start_transaction().await?;
         sqlx::query!(
@@ -355,9 +380,9 @@ impl BlocksDal<'_, '_> {
                 bloom, priority_ops_onchain_data, \
                 predicted_commit_gas_cost, predicted_prove_gas_cost, predicted_execute_gas_cost, \
                 initial_bootloader_heap_content, used_contract_hashes, base_fee_per_gas, \
-                l1_gas_price, l2_fair_gas_price, bootloader_code_hash, default_aa_code_hash, \
-                protocol_version, system_logs, created_at, updated_at\
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, now(), now())",
+                l1_gas_price, l2_fair_gas_price, bootloader_code_hash, default_aa_code_hash, protocol_version, system_logs, \
+                storage_refunds, created_at, updated_at \
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, now(), now())",
             header.number.0 as i64,
             header.l1_tx_count as i32,
             header.l2_tx_count as i32,
@@ -386,6 +411,7 @@ impl BlocksDal<'_, '_> {
                 .as_bytes(),
             header.protocol_version.map(|v| v as i32),
             &system_logs,
+            &storage_refunds,
         )
         .execute(transaction.conn())
         .await?;
@@ -664,8 +690,7 @@ impl BlocksDal<'_, '_> {
                 rollup_last_leaf_index, zkporter_is_available, bootloader_code_hash, \
                 default_aa_code_hash, base_fee_per_gas, aux_data_hash, pass_through_data_hash, \
                 meta_parameters_hash, protocol_version, compressed_state_diffs, \
-                gas_per_pubdata_byte_in_block, gas_per_pubdata_limit, skip_proof, system_logs, \
-                events_queue_commitment, bootloader_initial_content_commitment
+                system_logs, events_queue_commitment, bootloader_initial_content_commitment
             FROM l1_batches \
             LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number \
             WHERE number = 0 OR eth_commit_tx_id IS NOT NULL AND commitment IS NOT NULL \
@@ -762,8 +787,7 @@ impl BlocksDal<'_, '_> {
                 rollup_last_leaf_index, zkporter_is_available, bootloader_code_hash, \
                 default_aa_code_hash, base_fee_per_gas, aux_data_hash, pass_through_data_hash, \
                 meta_parameters_hash, protocol_version, compressed_state_diffs, \
-                gas_per_pubdata_byte_in_block, gas_per_pubdata_limit, skip_proof, system_logs, \
-                events_queue_commitment, bootloader_initial_content_commitment \
+                system_logs, events_queue_commitment, bootloader_initial_content_commitment \
             FROM l1_batches \
             LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number \
             WHERE eth_commit_tx_id IS NOT NULL AND eth_prove_tx_id IS NULL \
@@ -830,8 +854,8 @@ impl BlocksDal<'_, '_> {
                 l2_l1_compressed_messages, l2_l1_merkle_root, l1_gas_price, l2_fair_gas_price, \
                 rollup_last_leaf_index, zkporter_is_available, bootloader_code_hash, \
                 default_aa_code_hash, base_fee_per_gas, aux_data_hash, pass_through_data_hash, \
-                meta_parameters_hash, skip_proof, gas_per_pubdata_byte_in_block, gas_per_pubdata_limit, \
-                system_logs, compressed_state_diffs, protocol_version, events_queue_commitment, bootloader_initial_content_commitment \
+                meta_parameters_hash, system_logs, compressed_state_diffs, protocol_version, \
+                events_queue_commitment, bootloader_initial_content_commitment \
             FROM \
             (SELECT l1_batches.*, row_number() OVER (ORDER BY number ASC) AS row_number \
                 FROM l1_batches \
@@ -872,8 +896,7 @@ impl BlocksDal<'_, '_> {
                     rollup_last_leaf_index, zkporter_is_available, bootloader_code_hash, \
                     default_aa_code_hash, base_fee_per_gas, aux_data_hash, pass_through_data_hash, \
                     meta_parameters_hash, protocol_version, compressed_state_diffs, \
-                    gas_per_pubdata_byte_in_block, gas_per_pubdata_limit, skip_proof, system_logs, \
-                    events_queue_commitment, bootloader_initial_content_commitment \
+                    system_logs, events_queue_commitment, bootloader_initial_content_commitment \
                 FROM l1_batches \
                 LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number \
                 WHERE eth_prove_tx_id IS NOT NULL AND eth_execute_tx_id IS NULL \
@@ -952,8 +975,7 @@ impl BlocksDal<'_, '_> {
                     rollup_last_leaf_index, zkporter_is_available, bootloader_code_hash, \
                     default_aa_code_hash, base_fee_per_gas, aux_data_hash, pass_through_data_hash, \
                     meta_parameters_hash, protocol_version, compressed_state_diffs, \
-                    gas_per_pubdata_byte_in_block, gas_per_pubdata_limit, skip_proof, system_logs, \
-                    events_queue_commitment, bootloader_initial_content_commitment \
+                    system_logs, events_queue_commitment, bootloader_initial_content_commitment \
                 FROM l1_batches \
                 LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number \
                 WHERE number BETWEEN $1 AND $2 \
@@ -990,8 +1012,7 @@ impl BlocksDal<'_, '_> {
                 rollup_last_leaf_index, zkporter_is_available, l1_batches.bootloader_code_hash, \
                 l1_batches.default_aa_code_hash, base_fee_per_gas, aux_data_hash, pass_through_data_hash, \
                 meta_parameters_hash, protocol_version, compressed_state_diffs, \
-                gas_per_pubdata_byte_in_block, gas_per_pubdata_limit, skip_proof, system_logs, \
-                events_queue_commitment, bootloader_initial_content_commitment \
+                system_logs, events_queue_commitment, bootloader_initial_content_commitment \
             FROM l1_batches \
             LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number \
             JOIN protocol_versions ON protocol_versions.id = l1_batches.protocol_version \
@@ -1414,6 +1435,32 @@ impl BlocksDal<'_, '_> {
         .await?;
         Ok(())
     }
+
+    pub async fn get_fee_address_for_l1_batch(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+    ) -> sqlx::Result<Option<Address>> {
+        Ok(sqlx::query!(
+            "SELECT fee_account_address FROM l1_batches WHERE number = $1",
+            l1_batch_number.0 as u32
+        )
+        .fetch_optional(self.storage.conn())
+        .await?
+        .map(|row| Address::from_slice(&row.fee_account_address)))
+    }
+
+    pub async fn get_virtual_blocks_for_miniblock(
+        &mut self,
+        miniblock_number: MiniblockNumber,
+    ) -> sqlx::Result<Option<u32>> {
+        Ok(sqlx::query!(
+            "SELECT virtual_blocks FROM miniblocks WHERE number = $1",
+            miniblock_number.0 as u32
+        )
+        .fetch_optional(self.storage.conn())
+        .await?
+        .map(|row| row.virtual_blocks as u32))
+    }
 }
 
 /// These functions should only be used for tests.
@@ -1448,15 +1495,15 @@ impl BlocksDal<'_, '_> {
 
 #[cfg(test)]
 mod tests {
-    use db_test_macro::db_test;
     use zksync_contracts::BaseSystemContractsHashes;
     use zksync_types::{l2_to_l1_log::L2ToL1Log, Address, ProtocolVersion, ProtocolVersionId};
 
     use super::*;
     use crate::ConnectionPool;
 
-    #[db_test(dal_crate)]
-    async fn loading_l1_batch_header(pool: ConnectionPool) {
+    #[tokio::test]
+    async fn loading_l1_batch_header() {
+        let pool = ConnectionPool::test_pool().await;
         let mut conn = pool.access_storage().await.unwrap();
         conn.blocks_dal()
             .delete_l1_batches(L1BatchNumber(0))
@@ -1490,7 +1537,7 @@ mod tests {
         header.l2_to_l1_messages.push(vec![33; 33]);
 
         conn.blocks_dal()
-            .insert_l1_batch(&header, &[], BlockGasCount::default(), &[])
+            .insert_l1_batch(&header, &[], BlockGasCount::default(), &[], &[])
             .await
             .unwrap();
 
@@ -1515,8 +1562,9 @@ mod tests {
             .is_none());
     }
 
-    #[db_test(dal_crate)]
-    async fn getting_predicted_gas(pool: ConnectionPool) {
+    #[tokio::test]
+    async fn getting_predicted_gas() {
+        let pool = ConnectionPool::test_pool().await;
         let mut conn = pool.access_storage().await.unwrap();
         conn.blocks_dal()
             .delete_l1_batches(L1BatchNumber(0))
@@ -1538,7 +1586,7 @@ mod tests {
             execute: 10,
         };
         conn.blocks_dal()
-            .insert_l1_batch(&header, &[], predicted_gas, &[])
+            .insert_l1_batch(&header, &[], predicted_gas, &[], &[])
             .await
             .unwrap();
 
@@ -1546,7 +1594,7 @@ mod tests {
         header.timestamp += 100;
         predicted_gas += predicted_gas;
         conn.blocks_dal()
-            .insert_l1_batch(&header, &[], predicted_gas, &[])
+            .insert_l1_batch(&header, &[], predicted_gas, &[], &[])
             .await
             .unwrap();
 

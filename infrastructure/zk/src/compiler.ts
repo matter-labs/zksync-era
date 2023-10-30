@@ -2,15 +2,13 @@ import { Command } from 'commander';
 import * as utils from './utils';
 
 export async function compileTestContracts() {
-    await utils.spawn('yarn --cwd etc/contracts-test-data hardhat compile');
-    process.chdir('core/tests/ts-integration');
-    await utils.spawn('yarn hardhat compile');
-    await utils.spawn('yarn hardhat run ./scripts/compile-yul.ts');
-    process.chdir('../../..');
+    await utils.spawn('yarn workspace contracts-test-data build');
+    await utils.spawn('yarn ts-integration build');
+    await utils.spawn('yarn ts-integration build-yul');
 }
 
 export async function compileSystemContracts() {
-    await utils.spawn('yarn --cwd etc/ERC20 hardhat compile');
+    await utils.spawn('yarn workspace zksync-erc20 build');
 
     process.chdir('etc/system-contracts');
     await utils.spawn('yarn');

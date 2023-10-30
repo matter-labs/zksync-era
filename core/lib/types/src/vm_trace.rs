@@ -4,7 +4,7 @@ use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::fmt::Display;
 use zk_evm::zkevm_opcode_defs::FarCallOpcode;
-use zksync_config::constants::BOOTLOADER_ADDRESS;
+use zksync_system_constants::BOOTLOADER_ADDRESS;
 use zksync_utils::u256_to_h256;
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]

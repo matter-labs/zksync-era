@@ -28,7 +28,7 @@ use zksync_config::{
     ApiConfig, ContractsConfig, DBConfig, ETHClientConfig, ETHSenderConfig, FetcherConfig,
     ProverConfigs,
 };
-use zksync_contracts::BaseSystemContracts;
+use zksync_contracts::{governance_contract, BaseSystemContracts};
 use zksync_dal::{
     connection::DbVariant, healthcheck::ConnectionPoolHealthCheck, ConnectionPool, StorageProcessor,
 };
@@ -44,17 +44,17 @@ use zksync_types::{
     proofs::AggregationRound,
     protocol_version::{L1VerifierConfig, VerifierParams},
     system_contracts::get_system_smart_contracts,
-    Address, PackedEthSignature, ProtocolVersionId,
+    Address, L2ChainId, PackedEthSignature, ProtocolVersionId,
 };
 use zksync_verification_key_server::get_cached_commitments;
 
 pub mod api_server;
+pub mod basic_witness_input_producer;
 pub mod block_reverter;
 pub mod consistency_checker;
 pub mod data_fetchers;
 pub mod eth_sender;
 pub mod eth_watch;
-pub mod fee_ticker;
 pub mod gas_tracker;
 pub mod genesis;
 pub mod house_keeper;
@@ -68,9 +68,9 @@ pub mod sync_layer;
 pub mod witness_generator;
 
 use crate::api_server::healthcheck::HealthCheckHandle;
-use crate::api_server::tx_sender::TxSenderConfig;
-use crate::api_server::tx_sender::{TxSender, TxSenderBuilder};
-use crate::api_server::web3::{state::InternalApiConfig, Namespace};
+use crate::api_server::tx_sender::{TxSender, TxSenderBuilder, TxSenderConfig};
+use crate::api_server::web3::{state::InternalApiConfig, ApiServerHandles, Namespace};
+use crate::basic_witness_input_producer::BasicWitnessInputProducer;
 use crate::eth_sender::{Aggregator, EthTxManager};
 use crate::house_keeper::fri_proof_compressor_job_retry_manager::FriProofCompressorJobRetryManager;
 use crate::house_keeper::fri_proof_compressor_queue_monitor::FriProofCompressorStatsReporter;
@@ -236,6 +236,9 @@ pub enum Component {
     DataFetcher,
     /// State keeper.
     StateKeeper,
+    /// Produces input for basic witness generator and uploads it as bin encoded file (blob) to GCS.
+    /// The blob is later used as input for Basic Witness Generators.
+    BasicWitnessInputProducer,
     /// Witness Generator. The first argument is a number of jobs to process. If None, runs indefinitely.
     /// The second argument is the type of the witness-generation performed
     WitnessGenerator(Option<usize>, AggregationRound),
@@ -271,6 +274,9 @@ impl FromStr for Components {
             "data_fetcher" => Ok(Components(vec![Component::DataFetcher])),
             "state_keeper" => Ok(Components(vec![Component::StateKeeper])),
             "housekeeper" => Ok(Components(vec![Component::Housekeeper])),
+            "basic_witness_input_producer" => {
+                Ok(Components(vec![Component::BasicWitnessInputProducer]))
+            }
             "witness_generator" => Ok(Components(vec![
                 Component::WitnessGenerator(None, AggregationRound::BasicCircuits),
                 Component::WitnessGenerator(None, AggregationRound::LeafAggregation),
@@ -350,7 +356,6 @@ pub async fn initialize_components(
         CircuitBreakerConfig::from_env().context("CircuitBreakerConfig::from_env()")?;
 
     let main_zksync_contract_address = contracts_config.diamond_proxy_addr;
-    let governance_contract_address = contracts_config.governance_addr;
     let circuit_breaker_checker = CircuitBreakerChecker::new(
         circuit_breakers_for_components(
             &components,
@@ -429,12 +434,12 @@ pub async fn initialize_components(
             );
 
             let started_at = Instant::now();
-            tracing::info!("initializing HTTP API");
+            tracing::info!("Initializing HTTP API");
             let bounded_gas_adjuster = gas_adjuster
                 .get_or_init_bounded()
                 .await
                 .context("gas_adjuster.get_or_init_bounded()")?;
-            let (futures, health_check) = run_http_api(
+            let server_handles = run_http_api(
                 &tx_sender_config,
                 &state_keeper_config,
                 &internal_api_config,
@@ -449,18 +454,22 @@ pub async fn initialize_components(
             )
             .await
             .context("run_http_api")?;
-            task_futures.extend(futures);
-            healthchecks.push(Box::new(health_check));
+
+            task_futures.extend(server_handles.tasks);
+            healthchecks.push(Box::new(server_handles.health_check));
             let elapsed = started_at.elapsed();
             APP_METRICS.init_latency[&InitStage::HttpApi].set(elapsed);
-            tracing::info!("initialized HTTP API in {elapsed:?}");
+            tracing::info!(
+                "Initialized HTTP API on {:?} in {elapsed:?}",
+                server_handles.local_addr
+            );
         }
 
         if components.contains(&Component::WsApi) {
             let storage_caches = match storage_caches {
                 Some(storage_caches) => storage_caches,
                 None => build_storage_caches(&replica_connection_pool, &mut task_futures)
-                    .context("build_Storage_caches()")?,
+                    .context("build_storage_caches()")?,
             };
 
             let started_at = Instant::now();
@@ -469,7 +478,7 @@ pub async fn initialize_components(
                 .get_or_init_bounded()
                 .await
                 .context("gas_adjuster.get_or_init_bounded()")?;
-            let (futures, health_check) = run_ws_api(
+            let server_handles = run_ws_api(
                 &tx_sender_config,
                 &state_keeper_config,
                 &internal_api_config,
@@ -483,11 +492,15 @@ pub async fn initialize_components(
             )
             .await
             .context("run_ws_api")?;
-            task_futures.extend(futures);
-            healthchecks.push(Box::new(health_check));
+
+            task_futures.extend(server_handles.tasks);
+            healthchecks.push(Box::new(server_handles.health_check));
             let elapsed = started_at.elapsed();
             APP_METRICS.init_latency[&InitStage::WsApi].set(elapsed);
-            tracing::info!("initialized WS API in {elapsed:?}");
+            tracing::info!(
+                "initialized WS API on {:?} in {elapsed:?}",
+                server_handles.local_addr
+            );
         }
 
         if components.contains(&Component::ContractVerificationApi) {
@@ -537,12 +550,13 @@ pub async fn initialize_components(
             .build()
             .await
             .context("failed to build eth_watch_pool")?;
+        let governance = (governance_contract(), contracts_config.governance_addr);
         task_futures.push(
             start_eth_watch(
                 eth_watch_pool,
                 query_client.clone(),
                 main_zksync_contract_address,
-                governance_contract_address,
+                governance,
                 stop_receiver.clone(),
             )
             .await
@@ -654,6 +668,24 @@ pub async fn initialize_components(
     )
     .await
     .context("add_witness_generator_to_task_futures()")?;
+
+    if components.contains(&Component::BasicWitnessInputProducer) {
+        let singleton_connection_pool = ConnectionPool::singleton(DbVariant::Master)
+            .build()
+            .await
+            .context("failed to build singleton connection_pool")?;
+        add_basic_witness_input_producer_to_task_futures(
+            &mut task_futures,
+            &singleton_connection_pool,
+            &store_factory,
+            NetworkConfig::from_env()
+                .context("NetworkConfig::from_env()")?
+                .zksync_network_id,
+            stop_receiver.clone(),
+        )
+        .await
+        .context("add_basic_witness_input_producer_to_task_futures()")?;
+    }
 
     if components.contains(&Component::Housekeeper) {
         add_house_keeper_to_task_futures(&mut task_futures, &store_factory)
@@ -853,6 +885,32 @@ async fn run_tree(
     let elapsed = started_at.elapsed();
     APP_METRICS.init_latency[&InitStage::Tree].set(elapsed);
     tracing::info!("Initialized {mode_str} tree in {elapsed:?}");
+    Ok(())
+}
+
+async fn add_basic_witness_input_producer_to_task_futures(
+    task_futures: &mut Vec<JoinHandle<anyhow::Result<()>>>,
+    connection_pool: &ConnectionPool,
+    store_factory: &ObjectStoreFactory,
+    l2_chain_id: L2ChainId,
+    stop_receiver: watch::Receiver<bool>,
+) -> anyhow::Result<()> {
+    // Witness Generator won't be spawned with `ZKSYNC_LOCAL_SETUP` running.
+    // BasicWitnessInputProducer shouldn't be producing input for it locally either.
+    if std::env::var("ZKSYNC_LOCAL_SETUP") == Ok("true".to_owned()) {
+        return Ok(());
+    }
+    let started_at = Instant::now();
+    tracing::info!("initializing BasicWitnessInputProducer");
+    let producer =
+        BasicWitnessInputProducer::new(connection_pool.clone(), store_factory, l2_chain_id).await?;
+    task_futures.push(tokio::spawn(producer.run(stop_receiver, None)));
+    tracing::info!(
+        "Initialized BasicWitnessInputProducer in {:?}",
+        started_at.elapsed()
+    );
+    let elapsed = started_at.elapsed();
+    APP_METRICS.init_latency[&InitStage::BasicWitnessInputProducer].set(elapsed);
     Ok(())
 }
 
@@ -1140,7 +1198,7 @@ async fn run_http_api<G: L1GasPriceProvider + Send + Sync + 'static>(
     with_debug_namespace: bool,
     with_logs_request_translator_enabled: bool,
     storage_caches: PostgresStorageCaches,
-) -> anyhow::Result<(Vec<JoinHandle<anyhow::Result<()>>>, ReactiveHealthCheck)> {
+) -> anyhow::Result<ApiServerHandles> {
     let (tx_sender, vm_barrier) = build_tx_sender(
         tx_sender_config,
         &api_config.web3_json_rpc,
@@ -1175,7 +1233,7 @@ async fn run_http_api<G: L1GasPriceProvider + Send + Sync + 'static>(
     if with_logs_request_translator_enabled {
         api_builder = api_builder.enable_request_translator();
     }
-    Ok(api_builder.build(stop_receiver.clone()).await)
+    api_builder.build(stop_receiver).await
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1190,7 +1248,7 @@ async fn run_ws_api<G: L1GasPriceProvider + Send + Sync + 'static>(
     stop_receiver: watch::Receiver<bool>,
     storage_caches: PostgresStorageCaches,
     with_logs_request_translator_enabled: bool,
-) -> anyhow::Result<(Vec<JoinHandle<anyhow::Result<()>>>, ReactiveHealthCheck)> {
+) -> anyhow::Result<ApiServerHandles> {
     let (tx_sender, vm_barrier) = build_tx_sender(
         tx_sender_config,
         &api_config.web3_json_rpc,
@@ -1227,7 +1285,7 @@ async fn run_ws_api<G: L1GasPriceProvider + Send + Sync + 'static>(
     if with_logs_request_translator_enabled {
         api_builder = api_builder.enable_request_translator();
     }
-    Ok(api_builder.build(stop_receiver.clone()).await)
+    api_builder.build(stop_receiver.clone()).await
 }
 
 async fn circuit_breakers_for_components(
@@ -1281,14 +1339,4 @@ async fn circuit_breakers_for_components(
         }));
     }
     Ok(circuit_breakers)
-}
-
-#[tokio::test]
-async fn test_house_keeper_components_get_added() {
-    let (core_task_handles, _, _, _) = initialize_components(vec![Component::Housekeeper], false)
-        .await
-        .unwrap();
-    // circuit-breaker, prometheus-exporter components are run, irrespective of other components.
-    let always_running_component_count = 2;
-    assert_eq!(15, core_task_handles.len() - always_running_component_count);
 }

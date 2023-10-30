@@ -23,6 +23,7 @@ pub enum ContractLanguage {
     Sol,
     Yul,
 }
+
 const GOVERNANCE_CONTRACT_FILE: &str =
     "contracts/ethereum/artifacts/cache/solpp-generated-contracts/governance/IGovernance.sol/IGovernance.json";
 const ZKSYNC_CONTRACT_FILE: &str =
@@ -51,9 +52,19 @@ fn read_file_to_json_value(path: impl AsRef<Path>) -> serde_json::Value {
     .unwrap_or_else(|e| panic!("Failed to parse file {:?}: {}", path, e))
 }
 
+pub fn load_contract_if_present<P: AsRef<Path> + std::fmt::Debug>(path: P) -> Option<Contract> {
+    let zksync_home = std::env::var("ZKSYNC_HOME").unwrap_or_else(|_| ".".into());
+    let path = Path::new(&zksync_home).join(path);
+    path.exists().then(|| {
+        serde_json::from_value(read_file_to_json_value(&path)["abi"].take())
+            .unwrap_or_else(|e| panic!("Failed to parse contract abi from file {:?}: {}", path, e))
+    })
+}
+
 pub fn load_contract<P: AsRef<Path> + std::fmt::Debug>(path: P) -> Contract {
-    serde_json::from_value(read_file_to_json_value(&path)["abi"].take())
-        .unwrap_or_else(|e| panic!("Failed to parse contract abi from file {:?}: {}", path, e))
+    load_contract_if_present(&path).unwrap_or_else(|| {
+        panic!("Failed to load contract from {:?}", path);
+    })
 }
 
 pub fn load_sys_contract(contract_name: &str) -> Contract {
@@ -71,7 +82,7 @@ pub fn read_contract_abi(path: impl AsRef<Path>) -> String {
 }
 
 pub fn governance_contract() -> Contract {
-    load_contract(GOVERNANCE_CONTRACT_FILE)
+    load_contract_if_present(GOVERNANCE_CONTRACT_FILE).expect("Governance contract not found")
 }
 
 pub fn zksync_contract() -> Contract {

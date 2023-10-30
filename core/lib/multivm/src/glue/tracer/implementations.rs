@@ -1,5 +1,5 @@
 use crate::glue::tracer::IntoVmVirtualBlocksTracer;
-use vm_latest::{CallTracer, StorageInvocations, ValidationTracer};
+use crate::vm_latest::{CallTracer, StorageInvocations, ValidationTracer};
 use zksync_state::WriteStorage;
 
 impl<S, H> IntoVmVirtualBlocksTracer<S, H> for StorageInvocations
@@ -7,8 +7,12 @@ where
     H: crate::HistoryMode,
     S: WriteStorage,
 {
-    fn vm_virtual_blocks(&self) -> Box<dyn vm_virtual_blocks::VmTracer<S, H::VmVirtualBlocksMode>> {
-        Box::new(vm_virtual_blocks::StorageInvocations::new(self.limit))
+    fn vm_virtual_blocks(
+        &self,
+    ) -> Box<dyn crate::vm_virtual_blocks::VmTracer<S, H::VmVirtualBlocksMode>> {
+        Box::new(crate::vm_virtual_blocks::StorageInvocations::new(
+            self.limit,
+        ))
     }
 }
 
@@ -17,8 +21,10 @@ where
     H: crate::HistoryMode + 'static,
     S: WriteStorage,
 {
-    fn vm_virtual_blocks(&self) -> Box<dyn vm_virtual_blocks::VmTracer<S, H::VmVirtualBlocksMode>> {
-        Box::new(vm_virtual_blocks::CallTracer::new(
+    fn vm_virtual_blocks(
+        &self,
+    ) -> Box<dyn crate::vm_virtual_blocks::VmTracer<S, H::VmVirtualBlocksMode>> {
+        Box::new(crate::vm_virtual_blocks::CallTracer::new(
             self.result.clone(),
             H::VmVirtualBlocksMode::default(),
         ))
@@ -31,10 +37,12 @@ where
     H: crate::HistoryMode + 'static,
     S: WriteStorage,
 {
-    fn vm_virtual_blocks(&self) -> Box<dyn vm_virtual_blocks::VmTracer<S, H::VmVirtualBlocksMode>> {
+    fn vm_virtual_blocks(
+        &self,
+    ) -> Box<dyn crate::vm_virtual_blocks::VmTracer<S, H::VmVirtualBlocksMode>> {
         let params = self.params();
-        Box::new(vm_virtual_blocks::ValidationTracer::new(
-            vm_virtual_blocks::ValidationTracerParams {
+        Box::new(crate::vm_virtual_blocks::ValidationTracer::new(
+            crate::vm_virtual_blocks::ValidationTracerParams {
                 user_address: params.user_address,
                 paymaster_address: params.paymaster_address,
                 trusted_slots: params.trusted_slots,

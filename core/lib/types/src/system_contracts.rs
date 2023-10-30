@@ -1,10 +1,10 @@
 use std::path::PathBuf;
 
 use zksync_basic_types::{AccountTreeId, Address, U256};
-use zksync_config::constants::{
+use zksync_contracts::{read_sys_contract_bytecode, ContractLanguage, SystemContractsRepo};
+use zksync_system_constants::{
     BOOTLOADER_UTILITIES_ADDRESS, COMPRESSOR_ADDRESS, EVENT_WRITER_ADDRESS,
 };
-use zksync_contracts::{read_sys_contract_bytecode, ContractLanguage, SystemContractsRepo};
 
 use crate::{
     block::DeployedContract, ACCOUNT_CODE_STORAGE_ADDRESS, BOOTLOADER_ADDRESS,
