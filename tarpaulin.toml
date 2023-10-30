@@ -7,7 +7,6 @@ exclude = ["loadnext", "zksync_testkit", "zksync"]
 exclude-files = [
     "core/lib/eth_client/src/clients/mock.rs",
     "core/tests/loadnext/*",
-    "sdk/zksync-rs/*",
 ]
 skip-clean = true
 ignore-tests = true

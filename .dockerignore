@@ -29,7 +29,6 @@ keys/setup
 contracts/.git
 !infrastructure/local-setup-preparation
 !infrastructure/zk
-!sdk/zksync-rs
 !etc/system-contracts/bootloader/build/artifacts
 !etc/system-contracts/contracts/artifacts
 !etc/system-contracts/contracts/precompiles/artifacts

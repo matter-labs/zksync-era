@@ -107,6 +107,3 @@ This section provides a physical map of folders & files in this repository.
   - `/env`:`.env` files that contain environment variables for different configurations of zkSync Server / Prover.
 
 - `/keys`: Verification keys for `circuit` module.
-
-- `/sdk`: Implementation of client libraries for the zkSync network in different programming languages.
-  - `/zksync-rs`: Rust client library for zkSync.

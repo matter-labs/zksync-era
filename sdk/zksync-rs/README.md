@@ -1,4 +1,3 @@
-# Rust SDK for zkSync
+# JavaScript SDK for zkSync
 
-This SDK is currently under construction and is only used for internal needs. A public version of the SDK would be
-announced later.
+🔗 This SDK migrated into its own [GitHub repo](https://github.com/zksync-sdk/zksync2-rust).

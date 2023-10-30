@@ -11,7 +11,6 @@ categories = ["cryptography"]
 publish = false                                           # We don't want to publish our tests.
 
 [dependencies]
-zksync = { path = "../../../sdk/zksync-rs", features = ["mint"] }
 zksync_types = { path = "../../lib/types" }
 zksync_utils = { path = "../../lib/utils" }
 zksync_eth_signer = { path = "../../lib/eth_signer" }
@@ -23,6 +22,7 @@ zksync_system_constants = { path = "../../lib/constants" }
 vlog = { path = "../../lib/vlog" }
 prometheus_exporter = { path = "../../lib/prometheus_exporter" }
 
+zksync = { version = "0.0.1", features = ["mint"] }
 async-trait = "0.1"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
