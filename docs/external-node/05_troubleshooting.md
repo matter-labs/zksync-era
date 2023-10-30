@@ -27,7 +27,7 @@ Other kinds of panic aren't normally expected. While in most cases, the state wi
 The EN is supposed to start with an applied DB dump. If you see any genesis-related errors, it probably means the EN was
 started without an applied dump.
 
-[contact_us]: https://docs.zksync.io/contact/
+[contact_us]: https://zksync.io/contact
 
 ## Logs
 
