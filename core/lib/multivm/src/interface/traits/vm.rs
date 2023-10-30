@@ -116,7 +116,10 @@ pub trait VmInterface<S, H: HistoryMode> {
         with_compression: bool,
     ) -> Result<VmExecutionResultAndLogs, BytecodeCompressionError>;
 
+    /// Record VM memory metrics.
     fn record_vm_memory_metrics(&self) -> VmMemoryMetrics;
+    /// Execute batch till the end and return the result, with final execution state
+    /// and bootloader memory.
     fn finish_batch(&mut self) -> FinishedL1Batch;
 }
 
