@@ -179,3 +179,193 @@ impl ContiguousBlockStore for PostgresBlockStore {
         self.schedule_block(ctx, block).await.map_err(Into::into)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use assert_matches::assert_matches;
+
+    use zksync_concurrency::{scope, time};
+    use zksync_types::{L1BatchNumber, L2ChainId};
+
+    use super::*;
+    use crate::{
+        genesis::{ensure_genesis_state, GenesisParams},
+        sync_layer::{
+            sync_action::SyncAction, tests::run_state_keeper_with_multiple_miniblocks, ActionQueue,
+        },
+    };
+
+    const TEST_TIMEOUT: time::Duration = time::Duration::seconds(1);
+    const POLL_INTERVAL: time::Duration = time::Duration::milliseconds(50);
+
+    #[tokio::test]
+    async fn block_store_basics_for_postgres() {
+        let pool = ConnectionPool::test_pool().await;
+        run_state_keeper_with_multiple_miniblocks(pool.clone()).await;
+
+        let mut storage = pool.access_storage().await.unwrap();
+        let cursor = FetcherCursor::new(&mut storage).await.unwrap();
+        drop(storage);
+        let (actions_sender, _) = ActionQueue::new();
+        let storage = PostgresBlockStore::new(pool.clone(), actions_sender, cursor);
+
+        let ctx = &ctx::test_root(&ctx::RealClock);
+        let genesis_block = BlockStore::first_block(&storage, ctx).await.unwrap();
+        assert_eq!(genesis_block.header.number, BlockNumber(0));
+        let head_block = BlockStore::head_block(&storage, ctx).await.unwrap();
+        assert_eq!(head_block.header.number, BlockNumber(2));
+        let last_contiguous_block_number = storage.last_contiguous_block_number(ctx).await.unwrap();
+        assert_eq!(last_contiguous_block_number, BlockNumber(2));
+
+        let block = storage
+            .block(ctx, BlockNumber(1))
+            .await
+            .unwrap()
+            .expect("no block #1");
+        assert_eq!(block.header.number, BlockNumber(1));
+        let missing_block = storage.block(ctx, BlockNumber(3)).await.unwrap();
+        assert!(missing_block.is_none(), "{missing_block:?}");
+    }
+
+    #[tokio::test]
+    async fn subscribing_to_block_updates_for_postgres() {
+        let pool = ConnectionPool::test_pool().await;
+        let mut storage = pool.access_storage().await.unwrap();
+        if storage.blocks_dal().is_genesis_needed().await.unwrap() {
+            ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
+                .await
+                .unwrap();
+        }
+        let cursor = FetcherCursor::new(&mut storage).await.unwrap();
+        // ^ This is logically incorrect (the storage should not be updated other than using
+        // `ContiguousBlockStore`), but for testing subscriptions this is fine.
+        drop(storage);
+        let (actions_sender, _) = ActionQueue::new();
+        let storage = PostgresBlockStore::new(pool.clone(), actions_sender, cursor);
+        let mut subscriber = storage.subscribe_to_block_writes();
+
+        let ctx = &ctx::test_root(&ctx::RealClock);
+        scope::run!(&ctx.with_timeout(TEST_TIMEOUT), |ctx, s| async {
+            s.spawn_bg(async {
+                match storage.listen_to_updates(ctx).await {
+                    Ok(()) | Err(StorageError::Canceled(_)) => Ok(()),
+                    Err(err) => Err(err.into()),
+                }
+            });
+            s.spawn(async {
+                run_state_keeper_with_multiple_miniblocks(pool.clone()).await;
+                Ok(())
+            });
+
+            loop {
+                let block = *sync::changed(ctx, &mut subscriber).await?;
+                if block == BlockNumber(2) {
+                    // We should receive at least the last update.
+                    break;
+                }
+            }
+            anyhow::Ok(())
+        })
+        .await
+        .unwrap();
+    }
+
+    #[tokio::test]
+    async fn processing_new_blocks() {
+        let pool = ConnectionPool::test_pool().await;
+        run_state_keeper_with_multiple_miniblocks(pool.clone()).await;
+
+        let mut storage = pool.access_storage().await.unwrap();
+        let first_block = storage
+            .sync_dal()
+            .sync_block(MiniblockNumber(1), Address::repeat_byte(1), true)
+            .await
+            .unwrap()
+            .expect("no sync block #1");
+        let first_block = sync_block_to_consensus_block(first_block);
+        let second_block = storage
+            .sync_dal()
+            .sync_block(MiniblockNumber(2), Address::repeat_byte(1), true)
+            .await
+            .unwrap()
+            .expect("no sync block #2");
+        let second_block = sync_block_to_consensus_block(second_block);
+        storage
+            .transactions_dal()
+            .reset_transactions_state(MiniblockNumber(0))
+            .await;
+        storage
+            .blocks_dal()
+            .delete_miniblocks(MiniblockNumber(0))
+            .await
+            .unwrap();
+        let cursor = FetcherCursor::new(&mut storage).await.unwrap();
+        drop(storage);
+
+        let (actions_sender, mut actions) = ActionQueue::new();
+        let storage = PostgresBlockStore::new(pool.clone(), actions_sender, cursor);
+        let ctx = &ctx::test_root(&ctx::RealClock);
+        storage.schedule_block(ctx, &first_block).await.unwrap();
+
+        scope::run!(&ctx.with_timeout(TEST_TIMEOUT), |ctx, _| async {
+            let mut received_actions = vec![];
+            while !matches!(received_actions.last(), Some(SyncAction::SealMiniblock)) {
+                let Some(action) = actions.pop_action() else {
+                    ctx.sleep(POLL_INTERVAL).await?;
+                    continue;
+                };
+                received_actions.push(action);
+            }
+            assert_matches!(
+                received_actions.as_slice(),
+                [
+                    SyncAction::OpenBatch {
+                        number: L1BatchNumber(1),
+                        timestamp: 1,
+                        first_miniblock_info: (MiniblockNumber(1), 1),
+                        ..
+                    },
+                    SyncAction::Tx(_),
+                    SyncAction::Tx(_),
+                    SyncAction::Tx(_),
+                    SyncAction::Tx(_),
+                    SyncAction::Tx(_),
+                    SyncAction::SealMiniblock,
+                ]
+            );
+            anyhow::Ok(())
+        })
+        .await
+        .unwrap();
+
+        storage.schedule_block(ctx, &second_block).await.unwrap();
+
+        scope::run!(&ctx.with_timeout(TEST_TIMEOUT), |ctx, _| async {
+            let mut received_actions = vec![];
+            while !matches!(received_actions.last(), Some(SyncAction::SealMiniblock)) {
+                let Some(action) = actions.pop_action() else {
+                    ctx.sleep(POLL_INTERVAL).await?;
+                    continue;
+                };
+                received_actions.push(action);
+            }
+            assert_matches!(
+                received_actions.as_slice(),
+                [
+                    SyncAction::Miniblock {
+                        number: MiniblockNumber(2),
+                        timestamp: 2,
+                        virtual_blocks: 1,
+                    },
+                    SyncAction::Tx(_),
+                    SyncAction::Tx(_),
+                    SyncAction::Tx(_),
+                    SyncAction::SealMiniblock,
+                ]
+            );
+            anyhow::Ok(())
+        })
+        .await
+        .unwrap();
+    }
+}

@@ -278,7 +278,7 @@ async fn external_io_basics() {
     assert_eq!(tx_receipt.transaction_index, 0.into());
 }
 
-async fn run_state_keeper_with_multiple_miniblocks(pool: ConnectionPool) -> Vec<H256> {
+pub(super) async fn run_state_keeper_with_multiple_miniblocks(pool: ConnectionPool) -> Vec<H256> {
     let open_l1_batch = open_l1_batch(1, 1, 1);
     let txs = (0..5).map(|_| {
         let tx = create_l2_transaction(10, 100);
