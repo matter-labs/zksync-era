@@ -1,5 +1,5 @@
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
-use zksync_types::snapshots::{AllSnapshots, SnapshotFullInfo};
+use zksync_types::snapshots::{AllSnapshots, Snapshot};
 use zksync_types::L1BatchNumber;
 
 #[cfg_attr(
@@ -22,5 +22,5 @@ pub trait SnapshotsNamespace {
     async fn get_snapshot_by_l1_batch_number(
         &self,
         l1_batch_number: L1BatchNumber,
-    ) -> RpcResult<Option<SnapshotFullInfo>>;
+    ) -> RpcResult<Option<Snapshot>>;
 }

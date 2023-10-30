@@ -1,5 +1,5 @@
 use crate::StorageProcessor;
-use zksync_types::snapshots::{FactoryDependency, SingleStorageLogSnapshot};
+use zksync_types::snapshots::{SnapshotFactoryDependency, SnapshotStorageLog};
 use zksync_types::{AccountTreeId, Address, L1BatchNumber, MiniblockNumber, StorageKey, H256};
 
 #[derive(Debug)]
@@ -44,7 +44,7 @@ impl SnapshotChunksDal<'_, '_> {
         l1_batch_number: L1BatchNumber,
         chunk_id: u64,
         chunk_size: u64,
-    ) -> Result<Vec<SingleStorageLogSnapshot>, sqlx::Error> {
+    ) -> Result<Vec<SnapshotStorageLog>, sqlx::Error> {
         let miniblock_number = self
             .get_last_miniblock_number(l1_batch_number)
             .await
@@ -82,7 +82,7 @@ impl SnapshotChunksDal<'_, '_> {
         .fetch_all(self.storage.conn())
         .await?
         .iter()
-        .map(|row| SingleStorageLogSnapshot {
+        .map(|row| SnapshotStorageLog {
             key: StorageKey::new(
                 AccountTreeId::new(Address::from_slice(&row.address)),
                 H256::from_slice(&row.key),
@@ -99,7 +99,7 @@ impl SnapshotChunksDal<'_, '_> {
     pub async fn get_all_factory_deps(
         &mut self,
         miniblock_number: MiniblockNumber,
-    ) -> Vec<FactoryDependency> {
+    ) -> Vec<SnapshotFactoryDependency> {
         sqlx::query!(
             "SELECT bytecode, bytecode_hash FROM factory_deps WHERE miniblock_number <= $1",
             miniblock_number.0 as i64,
@@ -108,7 +108,7 @@ impl SnapshotChunksDal<'_, '_> {
         .await
         .unwrap()
         .into_iter()
-        .map(|row| FactoryDependency {
+        .map(|row| SnapshotFactoryDependency {
             bytecode_hash: H256::from_slice(&row.bytecode_hash),
             bytecode: row.bytecode,
         })

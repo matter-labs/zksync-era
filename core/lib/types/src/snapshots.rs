@@ -7,48 +7,49 @@ use zksync_basic_types::{L1BatchNumber, MiniblockNumber};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AllSnapshots {
-    pub snapshots: Vec<SnapshotBasicMetadata>,
+    pub snapshots: Vec<SnapshotMetadata>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct SnapshotBasicMetadata {
+pub struct SnapshotMetadata {
     pub l1_batch_number: L1BatchNumber,
     pub generated_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct SnapshotsWithFiles {
-    pub metadata: SnapshotBasicMetadata,
-    pub storage_logs_files: Vec<String>,
+pub struct Snapshot {
+    pub metadata: SnapshotMetadata,
+    pub miniblock_number: MiniblockNumber,
+    pub chunks: Vec<SnapshotChunkMetadata>,
+    pub last_l1_batch_with_metadata: L1BatchWithMetadata,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct SnapshotFullInfo {
-    pub metadata: SnapshotBasicMetadata,
-    pub miniblock_number: MiniblockNumber,
-    pub storage_logs_files: Vec<String>,
-    pub last_l1_batch_with_metadata: L1BatchWithMetadata,
+pub struct SnapshotChunkMetadata {
+    pub key: SnapshotStorageKey,
+    pub filepath: String,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SnapshotStorageKey {
     pub l1_batch_number: L1BatchNumber,
     pub chunk_id: u64,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SnapshotChunk {
-    pub storage_logs: Vec<SingleStorageLogSnapshot>,
-    pub factory_deps: Vec<FactoryDependency>,
+    pub storage_logs: Vec<SnapshotStorageLog>,
+    pub factory_deps: Vec<SnapshotFactoryDependency>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct SingleStorageLogSnapshot {
+pub struct SnapshotStorageLog {
     pub key: StorageKey,
     pub value: StorageValue,
     pub miniblock_number: MiniblockNumber,
@@ -64,9 +65,9 @@ pub struct AppliedSnapshotStatus {
     pub last_finished_chunk_id: Option<u64>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct FactoryDependency {
+pub struct SnapshotFactoryDependency {
     pub bytecode_hash: H256,
     pub bytecode: Vec<u8>,
 }

@@ -55,7 +55,7 @@ cross_nodes_checker=debug,\
 backtrace="full"
 lib_backtrace="1"
 
-[object_store]
+[snapshots_object_store]
 bucket_base_url="base_url"
 mode="FileBacked"
 file_backed_base_path="artifacts"

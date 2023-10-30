@@ -48,11 +48,11 @@ describe('Snapshots API tests', () => {
 
         let l1BatchNumber = addedSnapshots[0].l1BatchNumber;
         let fullSnapshot = await getSnapshot(l1BatchNumber);
-        let miniblockNumber = fullSnapshot.metadata.miniblockNumber;
+        let miniblockNumber = fullSnapshot.miniblockNumber;
 
         expect(fullSnapshot.metadata.l1BatchNumber).toEqual(addedSnapshots[0].l1BatchNumber);
         //TODO make this more generic so that it for instance works in GCS
-        let path = `${process.env.ZKSYNC_HOME}/${process.env.OBJECT_STORE_FILE_BACKED_BASE_PATH}/storage_logs_snapshots/${fullSnapshot.storageLogsFiles[0]}`;
+        let path = `${process.env.ZKSYNC_HOME}/${fullSnapshot.chunks[0].filepath}`;
 
         let output = JSON.parse(fs.readFileSync(path).toString());
 

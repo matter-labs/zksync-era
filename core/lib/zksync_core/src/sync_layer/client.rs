@@ -7,7 +7,7 @@ use std::{collections::HashMap, convert::TryInto, fmt};
 
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes, SystemContractCode};
 use zksync_system_constants::ACCOUNT_CODE_STORAGE_ADDRESS;
-use zksync_types::snapshots::SnapshotFullInfo;
+use zksync_types::snapshots::Snapshot;
 use zksync_types::{
     api::{self, en::SyncBlock},
     get_code_key, Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, H256, U64,
@@ -63,7 +63,7 @@ pub trait MainNodeClient: 'static + Send + Sync + fmt::Debug {
         with_transactions: bool,
     ) -> anyhow::Result<Option<SyncBlock>>;
 
-    async fn fetch_newest_snapshot(&self) -> anyhow::Result<Option<SnapshotFullInfo>>;
+    async fn fetch_newest_snapshot(&self) -> anyhow::Result<Option<Snapshot>>;
 }
 
 impl dyn MainNodeClient {
@@ -75,7 +75,7 @@ impl dyn MainNodeClient {
 
 #[async_trait]
 impl MainNodeClient for HttpClient {
-    async fn fetch_newest_snapshot(&self) -> anyhow::Result<Option<SnapshotFullInfo>> {
+    async fn fetch_newest_snapshot(&self) -> anyhow::Result<Option<Snapshot>> {
         let snapshots = self.get_all_snapshots().await?;
         let latest_snapshot = snapshots
             .snapshots

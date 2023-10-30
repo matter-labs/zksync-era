@@ -45,4 +45,8 @@ impl ObjectStore for MockStore {
         bucket_map.remove(key);
         Ok(())
     }
+
+    fn get_full_path_raw(&self, bucket: Bucket, key: &str) -> String {
+        format!("{bucket}#{key}")
+    }
 }

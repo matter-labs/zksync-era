@@ -27,6 +27,8 @@ use zksync_core::{
         batch_status_updater::BatchStatusUpdater, external_io::ExternalIO,
         fetcher::MainNodeFetcherCursor, genesis::perform_genesis_if_needed, ActionQueue,
         MainNodeClient, SyncState,
+        fetcher::MainNodeFetcherCursor, genesis::perform_genesis_if_needed,
+        snapshots::load_from_snapshot_if_needed, ActionQueue, MainNodeClient, SyncState,
     },
 };
 use zksync_dal::{connection::DbVariant, healthcheck::ConnectionPoolHealthCheck, ConnectionPool};
@@ -391,6 +393,15 @@ async fn main() -> anyhow::Result<()> {
     // Make sure that genesis is performed.
     let main_node_client = <dyn MainNodeClient>::json_rpc(&main_node_url)
         .context("Failed creating JSON-RPC client for main node")?;
+
+    load_from_snapshot_if_needed(
+        &mut connection_pool.access_storage().await.unwrap(),
+        &main_node_client,
+        &config.required.merkle_tree_path,
+    )
+    .await
+    .context("Loading newest snapshot failed")?;
+
     perform_genesis_if_needed(
         &mut connection_pool.access_storage().await.unwrap(),
         config.remote.l2_chain_id,

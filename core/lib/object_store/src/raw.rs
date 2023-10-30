@@ -115,6 +115,8 @@ pub trait ObjectStore: fmt::Debug + Send + Sync {
     ///
     /// Returns an error if removal fails.
     async fn remove_raw(&self, bucket: Bucket, key: &str) -> Result<(), ObjectStoreError>;
+
+    fn get_full_path_raw(&self, bucket: Bucket, key: &str) -> String;
 }
 
 #[async_trait]
@@ -134,6 +136,10 @@ impl<T: ObjectStore + ?Sized> ObjectStore for Arc<T> {
 
     async fn remove_raw(&self, bucket: Bucket, key: &str) -> Result<(), ObjectStoreError> {
         (**self).remove_raw(bucket, key).await
+    }
+
+    fn get_full_path_raw(&self, bucket: Bucket, key: &str) -> String {
+        (**self).get_full_path_raw(bucket, key)
     }
 }
 

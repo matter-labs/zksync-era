@@ -2,7 +2,7 @@ use crate::api_server::web3::backend_jsonrpsee::into_jsrpc_error;
 use crate::api_server::web3::namespaces::SnapshotsNamespace;
 use crate::l1_gas_price::L1GasPriceProvider;
 use async_trait::async_trait;
-use zksync_types::snapshots::{AllSnapshots, SnapshotFullInfo};
+use zksync_types::snapshots::{AllSnapshots, Snapshot};
 use zksync_types::L1BatchNumber;
 use zksync_web3_decl::jsonrpsee::core::RpcResult;
 use zksync_web3_decl::namespaces::SnapshotsNamespaceServer;
@@ -20,7 +20,7 @@ impl<G: L1GasPriceProvider + Send + Sync + 'static> SnapshotsNamespaceServer
     async fn get_snapshot_by_l1_batch_number(
         &self,
         l1_batch_number: L1BatchNumber,
-    ) -> RpcResult<Option<SnapshotFullInfo>> {
+    ) -> RpcResult<Option<Snapshot>> {
         self.get_snapshot_by_l1_batch_number_impl(l1_batch_number)
             .await
             .map_err(into_jsrpc_error)

@@ -70,6 +70,10 @@ impl ObjectStore for FileBackedObjectStore {
         let filename = self.filename(bucket, key);
         fs::remove_file(filename).await.map_err(From::from)
     }
+
+    fn get_full_path_raw(&self, bucket: Bucket, key: &str) -> String {
+        self.filename(bucket, key)
+    }
 }
 
 #[cfg(test)]

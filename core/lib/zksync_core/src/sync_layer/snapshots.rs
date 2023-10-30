@@ -1,4 +1,5 @@
 use crate::sync_layer::MainNodeClient;
+use anyhow::Context;
 use std::collections::HashMap;
 use std::convert::TryInto;
 use std::path::Path;
@@ -6,13 +7,13 @@ use std::time::Instant;
 use zksync_dal::StorageProcessor;
 use zksync_merkle_tree::recovery::{MerkleTreeRecovery, RecoveryEntry};
 use zksync_merkle_tree::{PruneDatabase, RocksDBWrapper};
-use zksync_object_store::ObjectStore;
+use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_storage::RocksDB;
 use zksync_types::block::{BlockGasCount, MiniblockHeader};
 use zksync_types::commitment::L1BatchWithMetadata;
 use zksync_types::snapshots::{
-    AppliedSnapshotStatus, FactoryDependency, SingleStorageLogSnapshot, SnapshotBasicMetadata,
-    SnapshotChunk, SnapshotStorageKey,
+    AppliedSnapshotStatus, SnapshotChunk, SnapshotFactoryDependency, SnapshotMetadata,
+    SnapshotStorageKey, SnapshotStorageLog,
 };
 use zksync_types::{
     L1BatchNumber, MiniblockNumber, ProtocolVersionId, StorageKey, StorageLog, StorageLogKind, H256,
@@ -104,7 +105,7 @@ async fn sync_l1_batch_metadata(
 async fn sync_initial_writes_chunk(
     storage: &mut StorageProcessor<'_>,
     l1_batch_number: L1BatchNumber,
-    storage_logs: &[SingleStorageLogSnapshot],
+    storage_logs: &[SnapshotStorageLog],
 ) {
     tracing::info!("Loading {} storage logs into postgres", storage_logs.len());
     let storage_logs_keys: Vec<StorageKey> = storage_logs.iter().map(|log| log.key).collect();
@@ -116,7 +117,7 @@ async fn sync_initial_writes_chunk(
 async fn sync_storage_logs_chunk(
     storage: &mut StorageProcessor<'_>,
     miniblock_number: MiniblockNumber,
-    storage_logs: &[SingleStorageLogSnapshot],
+    storage_logs: &[SnapshotStorageLog],
 ) {
     let transformed_logs = storage_logs
         .iter()
@@ -134,7 +135,7 @@ async fn sync_storage_logs_chunk(
 
 async fn sync_tree_chunk(
     recovery: &mut MerkleTreeRecovery<'_, &mut dyn PruneDatabase>,
-    storage_logs: &[SingleStorageLogSnapshot],
+    storage_logs: &[SnapshotStorageLog],
 ) {
     let logs_for_merkle_tree = storage_logs
         .iter()
@@ -148,25 +149,10 @@ async fn sync_tree_chunk(
     recovery.extend(logs_for_merkle_tree);
 }
 
-async fn fetch_storage_logs_chunk(
-    blob_store: &dyn ObjectStore,
-    l1_batch_number: L1BatchNumber,
-    chunk_id: u64,
-) -> SnapshotChunk {
-    tracing::info!("Fetching snapshot chunk {chunk_id}");
-    blob_store
-        .get(SnapshotStorageKey {
-            l1_batch_number,
-            chunk_id,
-        })
-        .await
-        .unwrap()
-}
-
 async fn sync_factory_deps_chunk(
     storage: &mut StorageProcessor<'_>,
     miniblock_number: MiniblockNumber,
-    factory_deps: Vec<FactoryDependency>,
+    factory_deps: Vec<SnapshotFactoryDependency>,
 ) {
     if !factory_deps.is_empty() {
         let all_deps_hashmap: HashMap<H256, Vec<u8>> = factory_deps
@@ -180,10 +166,9 @@ async fn sync_factory_deps_chunk(
     }
 }
 
-pub async fn load_snapshot_if_needed(
+pub async fn load_from_snapshot_if_needed(
     storage: &mut StorageProcessor<'_>,
     client: &dyn MainNodeClient,
-    blob_store: &dyn ObjectStore,
     merkle_tree_db_path: &String,
 ) -> anyhow::Result<()> {
     let mut applied_snapshot_status = storage
@@ -214,7 +199,7 @@ pub async fn load_snapshot_if_needed(
     let metadata = snapshot.metadata;
     let l1_batch_number = metadata.l1_batch_number;
     let miniblock_number = snapshot.miniblock_number;
-    tracing::info!("Found snapshot with data up to l1_batch {}, created at {}, storage_logs are divided into {} chunk(s)", l1_batch_number, metadata.generated_at, snapshot.storage_logs_files.len());
+    tracing::info!("Found snapshot with data up to l1_batch {}, created at {}, storage_logs are divided into {} chunk(s)", l1_batch_number, metadata.generated_at, snapshot.chunks.len());
 
     if applied_snapshot_status.is_none() {
         applied_snapshot_status = Some(AppliedSnapshotStatus {
@@ -247,18 +232,30 @@ pub async fn load_snapshot_if_needed(
         .await
         .unwrap();
 
-    for (chunk_id, _) in snapshot.storage_logs_files.iter().enumerate() {
+    let blob_store = ObjectStoreFactory::snapshots_from_env()
+        .context("ObjectStoreFactor::snapshots_from_env()")?
+        .create_store()
+        .await;
+
+    for chunk in snapshot.chunks.iter() {
+        let storage_key = chunk.key;
+
+        let chunk_id = storage_key.chunk_id;
         if applied_snapshot_status.last_finished_chunk_id.is_some()
-            && chunk_id as u64 > applied_snapshot_status.last_finished_chunk_id.unwrap()
+            && chunk_id > applied_snapshot_status.last_finished_chunk_id.unwrap()
         {
             tracing::info!(
                 "Skipping processing chunk {}, file already processed",
                 chunk_id
             );
         }
+        tracing::info!(
+            "Processing chunk {} located in {}",
+            chunk_id,
+            &chunk.filepath
+        );
 
-        let storage_snapshot_chunk =
-            fetch_storage_logs_chunk(blob_store, l1_batch_number, chunk_id as u64).await;
+        let storage_snapshot_chunk: SnapshotChunk = blob_store.get(storage_key).await.unwrap();
 
         let factory_deps = storage_snapshot_chunk.factory_deps;
         sync_factory_deps_chunk(storage, miniblock_number, factory_deps).await;
@@ -270,7 +267,7 @@ pub async fn load_snapshot_if_needed(
 
         sync_tree_chunk(&mut recovery, storage_logs).await;
 
-        applied_snapshot_status.last_finished_chunk_id = Some(chunk_id as u64);
+        applied_snapshot_status.last_finished_chunk_id = Some(chunk_id);
         storage
             .applied_snapshot_status_dal()
             .set_applied_snapshot_status(&applied_snapshot_status)

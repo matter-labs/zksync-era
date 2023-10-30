@@ -74,7 +74,7 @@ impl StoredObject for SnapshotChunk {
 
     fn encode_key(key: Self::Key<'_>) -> String {
         format!(
-            "storage_logs_{}_part{}.json",
+            "snapshot_l1_batch_{}_part_{:0<3}.json",
             key.l1_batch_number, key.chunk_id
         )
     }
@@ -267,5 +267,10 @@ impl dyn ObjectStore + '_ {
         let bytes = value.serialize().map_err(ObjectStoreError::Serialization)?;
         self.put_raw(V::BUCKET, &key, bytes).await?;
         Ok(key)
+    }
+
+    pub fn get_full_path<V: StoredObject>(&self, key: V::Key<'_>) -> String {
+        let key = V::encode_key(key);
+        self.get_full_path_raw(V::BUCKET, &key)
     }
 }

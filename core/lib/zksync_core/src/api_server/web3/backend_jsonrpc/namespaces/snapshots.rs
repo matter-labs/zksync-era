@@ -7,7 +7,7 @@ use jsonrpc_derive::rpc;
 // Workspace uses
 use crate::api_server::web3::backend_jsonrpc::error::into_jsrpc_error;
 use crate::l1_gas_price::L1GasPriceProvider;
-use zksync_types::snapshots::{AllSnapshots, SnapshotFullInfo};
+use zksync_types::snapshots::{AllSnapshots, Snapshot};
 use zksync_types::L1BatchNumber;
 
 // Local uses
@@ -22,7 +22,7 @@ pub trait SnapshotsNamespaceT {
     fn get_snapshot_by_l1_batch_number(
         &self,
         l1_batch_number: L1BatchNumber,
-    ) -> BoxFuture<Result<Option<SnapshotFullInfo>>>;
+    ) -> BoxFuture<Result<Option<Snapshot>>>;
 }
 
 impl<G: L1GasPriceProvider + Send + Sync + 'static> SnapshotsNamespaceT for SnapshotsNamespace<G> {
@@ -39,7 +39,7 @@ impl<G: L1GasPriceProvider + Send + Sync + 'static> SnapshotsNamespaceT for Snap
     fn get_snapshot_by_l1_batch_number(
         &self,
         l1_batch_number: L1BatchNumber,
-    ) -> BoxFuture<Result<Option<SnapshotFullInfo>>> {
+    ) -> BoxFuture<Result<Option<Snapshot>>> {
         let self_ = self.clone();
         Box::pin(async move {
             self_

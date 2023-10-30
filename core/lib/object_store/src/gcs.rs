@@ -205,6 +205,12 @@ impl ObjectStore for GoogleCloudStorage {
     async fn remove_raw(&self, bucket: Bucket, key: &str) -> Result<(), ObjectStoreError> {
         self.remove_inner(bucket.as_str(), key).await
     }
+
+    fn get_full_path_raw(&self, bucket: Bucket, key: &str) -> String {
+        let filename = Self::filename(bucket.as_str(), key);
+        let bucket_name = self.bucket_prefix.clone();
+        format!("gs://{bucket_name}/{filename}")
+    }
 }
 
 #[cfg(test)]
