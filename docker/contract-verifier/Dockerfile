@@ -23,9 +23,9 @@ FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y curl libpq5 ca-certificates wget python3 && rm -rf /var/lib/apt/lists/*
 
 # install zksolc 1.3.x
-RUN skip_versions=("v1.3.12" "v1.3.15") && \
+RUN skip_versions="v1.3.12 v1.3.15" && \
     for VERSION in $(seq -f "v1.3.%g" 0 16); do \
-    if [[ " ${skip_versions[@]} " =~ " ${VERSION} " ]]; then \
+    if echo " $skip_versions " | grep -q -w " $VERSION "; then \
     continue; \
     fi; \
     mkdir -p /etc/zksolc-bin/$VERSION && \
