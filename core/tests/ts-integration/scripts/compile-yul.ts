@@ -4,7 +4,7 @@ import { spawn as _spawn } from 'child_process';
 
 import { getZksolcPath, getZksolcUrl, saltFromUrl } from '@matterlabs/hardhat-zksync-solc';
 
-const COMPILER_VERSION = '1.3.15';
+const COMPILER_VERSION = '1.3.16';
 const IS_COMPILER_PRE_RELEASE = false;
 
 async function compilerLocation(): Promise<string> {
