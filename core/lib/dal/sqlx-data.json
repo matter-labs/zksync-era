@@ -2976,6 +2976,19 @@
     },
     "query": "INSERT INTO node_aggregation_witness_jobs_fri (l1_batch_number, circuit_id, depth, aggregations_url, number_of_dependent_jobs, protocol_version, status, created_at, updated_at)\n                    VALUES ($1, $2, $3, $4, $5, $6, 'waiting_for_proofs', now(), now())\n                    ON CONFLICT(l1_batch_number, circuit_id, depth)\n                    DO UPDATE SET updated_at=now()"
   },
+  "3127124ca4e42675e1b9f924653ac6b96ef39a5ef8a0b20d658f18c641b2cb5b": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Left": [
+          "Bytea",
+          "Int4"
+        ]
+      }
+    },
+    "query": "UPDATE protocol_versions SET upgrade_tx_hash = $1 WHERE id = $2"
+  },
   "334197fef9eeca55790d366ae67bbe95d77181bdfd2ad3208a32bd50585aef2d": {
     "describe": {
       "columns": [

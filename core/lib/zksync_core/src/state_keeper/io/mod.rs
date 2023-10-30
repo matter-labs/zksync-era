@@ -105,6 +105,8 @@ pub trait StateKeeperIO: 'static + Send {
     ) -> anyhow::Result<()>;
     /// Loads protocol version of the previous l1 batch.
     async fn load_previous_batch_version_id(&mut self) -> Option<ProtocolVersionId>;
+    /// Loads protocol version of the genesis l1 batch.
+    async fn load_genesis_batch_version_id(&mut self) -> Option<ProtocolVersionId>;
     /// Loads protocol upgrade tx for given version.
     async fn load_upgrade_tx(&mut self, version_id: ProtocolVersionId)
         -> Option<ProtocolUpgradeTx>;

@@ -20,6 +20,7 @@ use super::{
     updates::UpdatesManager,
 };
 use crate::gas_tracker::gas_count_from_writes;
+use crate::genesis;
 
 /// Amount of time to block on waiting for some resource. The exact value is not really important,
 /// we only need it to not block on waiting indefinitely and be able to process cancellation requests.
@@ -135,11 +136,14 @@ impl ZkSyncStateKeeper {
 
         let previous_batch_protocol_version =
             self.io.load_previous_batch_version_id().await.unwrap();
-        let version_changed = protocol_version != previous_batch_protocol_version;
+        let genesis_batch_protocol_version = self.io.load_genesis_batch_version_id().await.unwrap();
+        let version_changed_or_genesis = (protocol_version != previous_batch_protocol_version)
+            || (previous_batch_protocol_version == genesis_batch_protocol_version);
 
-        let mut protocol_upgrade_tx = if pending_miniblocks.is_empty() && version_changed {
+        let mut protocol_upgrade_tx = if pending_miniblocks.is_empty() && version_changed_or_genesis
+        {
             self.io.load_upgrade_tx(protocol_version).await
-        } else if !pending_miniblocks.is_empty() && version_changed {
+        } else if !pending_miniblocks.is_empty() && version_changed_or_genesis {
             // Sanity check: if `txs_to_reexecute` is not empty and upgrade tx is present for this block
             // then it must be the first one in `txs_to_reexecute`.
             if self.io.load_upgrade_tx(protocol_version).await.is_some() {

@@ -47,6 +47,19 @@ impl ProtocolVersionsDal<'_, '_> {
             .unwrap();
     }
 
+    pub async fn save_genesis_upgrade(&mut self, id: ProtocolVersionId, tx_hash: Option<H256>) {
+        sqlx::query!(
+            "UPDATE protocol_versions \
+            SET upgrade_tx_hash = $1 \
+            WHERE id = $2",
+            tx_hash.map(|tx_hash| tx_hash.0.to_vec()),
+            id as i32,
+        )
+        .execute(self.storage.conn())
+        .await
+        .unwrap();
+    }
+
     pub async fn save_protocol_version_with_tx(&mut self, version: ProtocolVersion) {
         let tx_hash = version.tx.as_ref().map(|tx| tx.common_data.hash());
 

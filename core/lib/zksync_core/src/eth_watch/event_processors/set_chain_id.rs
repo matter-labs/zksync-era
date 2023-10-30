@@ -40,8 +40,6 @@ impl<W: EthClient + Sync> EventProcessor<W> for SetChainIDEventProcessor {
 
         // SetChainId does not go throught the governance contract, so we need to parse it separately.
         for event in events_iter.filter(|event| event.topics[0] == self.set_chain_id_signature) {
-            tracing::debug!("KL todo Set chain id upgrade");
-
             let upgrade = ProtocolUpgrade::try_from(event)
                 .map_err(|err| Error::LogParse(format!("{:?}", err)))?;
 
@@ -56,26 +54,38 @@ impl<W: EthClient + Sync> EventProcessor<W> for SetChainIDEventProcessor {
             .iter()
             .map(|(u, _)| format!("{}", u.id as u16))
             .collect();
-        tracing::debug!("Received upgrades with ids: {}", ids_str.join(", "));
+        tracing::debug!("Received set chain upgrade with id: {}", ids_str.join(", "));
 
         let stage_latency = METRICS.poll_eth_node[&PollStage::PersistUpgrades].start();
         for (upgrade, scheduler_vk_hash) in upgrades {
+            let version_id = upgrade.id;
             let previous_version = storage
                 .protocol_versions_dal()
-                .get_protocol_version(upgrade.id)
+                .get_protocol_version(version_id)
                 .await
                 .expect("Expected the version to be in the DB");
             let new_version = previous_version.apply_upgrade(upgrade, scheduler_vk_hash);
 
-            let mut db_transaction = storage.start_transaction().await.unwrap();
-            if let Some(tx) = new_version.tx {
-                db_transaction
+            // let mut db_transaction = storage.start_transaction().await.unwrap();
+            if let Some(tx) = new_version.tx.clone() {
+                storage
                     .transactions_dal()
                     .insert_system_transaction(tx)
                     .await;
+                storage
+                    .protocol_versions_dal()
+                    .save_genesis_upgrade(
+                        version_id,
+                        new_version.tx.as_ref().map(|tx| tx.common_data.hash()),
+                    )
+                    .await;
             }
 
-            db_transaction.commit().await.unwrap();
+            // db_transaction.execute(self.storage.conn())
+            // .await
+            // .unwrap();
+
+            // db_transaction.commit().await.unwrap();
         }
         stage_latency.observe();
         Ok(())

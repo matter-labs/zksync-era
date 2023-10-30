@@ -324,6 +324,15 @@ impl<G: L1GasPriceProvider + 'static + Send + Sync> StateKeeperIO for MempoolIO<
             .unwrap()
     }
 
+    async fn load_genesis_batch_version_id(&mut self) -> Option<ProtocolVersionId> {
+        let mut storage = self.pool.access_storage().await.unwrap();
+        storage
+            .blocks_dal()
+            .get_batch_protocol_version_id(L1BatchNumber(0))
+            .await
+            .unwrap()
+    }
+
     async fn load_upgrade_tx(
         &mut self,
         version_id: ProtocolVersionId,
