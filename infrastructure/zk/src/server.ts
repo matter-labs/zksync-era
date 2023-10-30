@@ -27,7 +27,7 @@ export async function server(rebuildTree: boolean, uring: boolean, components?: 
 
 export async function externalNode(reinit: boolean = false) {
     if (process.env.ZKSYNC_ENV != 'ext-node') {
-        console.warn(`WARINING: using ${process.env.ZKSYNC_ENV} environment for external node`);
+        console.warn(`WARNING: using ${process.env.ZKSYNC_ENV} environment for external node`);
         console.warn('If this is a mistake, set $ZKSYNC_ENV to "ext-node" or other environment');
     }
 
