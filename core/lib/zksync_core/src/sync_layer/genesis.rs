@@ -15,6 +15,16 @@ pub async fn perform_genesis_if_needed(
     zksync_chain_id: L2ChainId,
     client: &dyn MainNodeClient,
 ) -> anyhow::Result<()> {
+    let applied_snapshot = storage
+        .applied_snapshot_status_dal()
+        .get_applied_snapshot_status()
+        .await
+        .unwrap();
+    if applied_snapshot.is_some() && applied_snapshot.unwrap().is_finished {
+        tracing::info!("skipping regenesis, data has already been loaded from a snapshot");
+        return Ok(());
+    }
+
     let mut transaction = storage.start_transaction().await?;
     // We want to check whether the genesis is needed before we create genesis params to not
     // make the node startup slower.

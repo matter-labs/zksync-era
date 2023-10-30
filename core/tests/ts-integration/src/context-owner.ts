@@ -109,7 +109,8 @@ export class TestContextOwner {
         }
         return {
             wallets: this.wallets,
-            environment: this.env
+            environment: this.env,
+            env: process.env
         };
     }
 

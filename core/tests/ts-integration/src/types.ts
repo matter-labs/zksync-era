@@ -1,4 +1,5 @@
 import { ethers } from 'ethers';
+import Dict = NodeJS.Dict;
 
 /**
  * Description of an ERC20 token.
@@ -75,6 +76,7 @@ export type TestWallets = {
 export interface TestContext {
     wallets: TestWallets;
     environment: TestEnvironment;
+    env: Dict<string>;
 }
 
 export interface Fee {

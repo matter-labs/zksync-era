@@ -4,6 +4,7 @@ pub mod external_io;
 pub mod fetcher;
 pub mod genesis;
 mod metrics;
+pub mod snapshots;
 pub(crate) mod sync_action;
 mod sync_state;
 #[cfg(test)]

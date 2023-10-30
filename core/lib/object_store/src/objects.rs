@@ -1,10 +1,10 @@
 //! Stored objects.
 
 use zksync_types::aggregated_operations::L1BatchProofForL1;
-use zksync_types::snapshots::StorageLogsSnapshotKey;
+use zksync_types::snapshots::SnapshotStorageKey;
 use zksync_types::{
     proofs::{AggregationRound, PrepareBasicCircuitsJob},
-    snapshots::StorageLogsSnapshot,
+    snapshots::SnapshotChunk,
     storage::witness_block_state::WitnessBlockState,
     zkevm_test_harness::{
         abstract_zksync_circuit::concrete_circuits::ZkSyncCircuit,
@@ -68,9 +68,9 @@ macro_rules! serialize_using_bincode {
 /// Derives [`StoredObject::serialize()`] and [`StoredObject::deserialize()`] using
 /// the `json` (de)serializer. Should be used in `impl StoredObject` blocks.
 
-impl StoredObject for StorageLogsSnapshot {
+impl StoredObject for SnapshotChunk {
     const BUCKET: Bucket = Bucket::StorageSnapshot;
-    type Key<'a> = StorageLogsSnapshotKey;
+    type Key<'a> = SnapshotStorageKey;
 
     fn encode_key(key: Self::Key<'_>) -> String {
         format!(

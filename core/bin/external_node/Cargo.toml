@@ -19,6 +19,7 @@ zksync_utils = { path = "../../lib/utils" }
 zksync_state = { path = "../../lib/state" }
 zksync_basic_types = { path = "../../lib/basic_types" }
 zksync_contracts = { path = "../../lib/contracts" }
+zksync_object_store = { path = "../../lib/object_store" }
 
 prometheus_exporter = { path = "../../lib/prometheus_exporter" }
 zksync_health_check = { path = "../../lib/health_check" }

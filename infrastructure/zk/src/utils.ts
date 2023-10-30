@@ -35,10 +35,29 @@ export function exec(command: string) {
     return promisified(command);
 }
 
+export function augment_command_with_env_changes(command: string) {
+    if (process.env.ZKSYNC_JEST_TEST_CONTEXT === undefined) {
+        return command;
+    }
+    const start_env = JSON.parse(process.env.ZKSYNC_JEST_TEST_CONTEXT)['env'];
+    for (let variable in process.env) {
+        if (
+            start_env[variable] != process.env[variable] &&
+            variable !== 'ZKSYNC_JEST_TEST_CONTEXT' &&
+            variable !== 'JEST_WORKER_ID'
+        ) {
+            command = `export ${variable}="${process.env[variable]}"; ${command}`;
+        }
+    }
+    console.log(command);
+    return command;
+}
+
 // executes a command in a new shell
 // but pipes data to parent's stdout/stderr
 export function spawn(command: string) {
     command = command.replace(/\n/g, ' ');
+    command = augment_command_with_env_changes(command);
     const child = _spawn(command, { stdio: 'inherit', shell: true });
     return new Promise((resolve, reject) => {
         child.on('error', reject);

@@ -3,7 +3,7 @@ use anyhow::Context as _;
 use zksync_dal::connection::DbVariant;
 use zksync_dal::ConnectionPool;
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
-use zksync_types::snapshots::{StorageLogsSnapshot, StorageLogsSnapshotKey};
+use zksync_types::snapshots::{FactoryDependency, SnapshotChunk, SnapshotStorageKey};
 use zksync_utils::ceil_div;
 
 async fn run(blob_store: Box<dyn ObjectStore>, pool: ConnectionPool) {
@@ -46,14 +46,20 @@ async fn run(blob_store: Box<dyn ObjectStore>, pool: ConnectionPool) {
             .get_storage_logs_chunk(batch_id, chunk_id, chunk_size)
             .await
             .unwrap();
-        let result = StorageLogsSnapshot {
-            last_l1_batch_number: batch_id,
-            last_miniblock_number: miniblock_number,
+        let mut factory_deps: Vec<FactoryDependency> = vec![];
+        if chunk_id == 0 {
+            factory_deps = conn
+                .storage_logs_snapshots_dal()
+                .get_all_factory_deps(miniblock_number)
+                .await;
+        }
+        let result = SnapshotChunk {
             storage_logs: logs,
+            factory_deps,
         };
-        let key = StorageLogsSnapshotKey {
+        let key = SnapshotStorageKey {
             l1_batch_number: batch_id,
-            chunk_id: 123,
+            chunk_id,
         };
         let result = blob_store.put(key, &result).await;
         let output_file = result.unwrap();
@@ -67,7 +73,7 @@ async fn run(blob_store: Box<dyn ObjectStore>, pool: ConnectionPool) {
     }
 
     conn.snapshots_dal()
-        .add_snapshot(batch_id, &output_files)
+        .add_snapshot(batch_id, miniblock_number, &output_files)
         .await
         .unwrap();
 }

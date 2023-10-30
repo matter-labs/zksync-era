@@ -1,13 +1,13 @@
 use crate::StorageProcessor;
-use zksync_types::snapshots::SingleStorageLogSnapshot;
+use zksync_types::snapshots::{FactoryDependency, SingleStorageLogSnapshot};
 use zksync_types::{AccountTreeId, Address, L1BatchNumber, MiniblockNumber, StorageKey, H256};
 
 #[derive(Debug)]
-pub struct StorageLogsSnapshotsDal<'a, 'c> {
+pub struct SnapshotChunksDal<'a, 'c> {
     pub(crate) storage: &'a mut StorageProcessor<'c>,
 }
 
-impl StorageLogsSnapshotsDal<'_, '_> {
+impl SnapshotChunksDal<'_, '_> {
     // not yet used by snapshot_creator
     pub async fn get_last_miniblock_number(
         &mut self,
@@ -56,7 +56,8 @@ impl StorageLogsSnapshotsDal<'_, '_> {
                    storage_logs.value,
                    storage_logs.address,
                    storage_logs.miniblock_number,
-                   initial_writes.l1_batch_number
+                   initial_writes.l1_batch_number,
+                   initial_writes.index
             FROM (SELECT hashed_key,
                          max(ARRAY [miniblock_number, operation_number]::int[]) AS op
                   FROM storage_logs
@@ -68,6 +69,10 @@ impl StorageLogsSnapshotsDal<'_, '_> {
                 AND storage_logs.operation_number = keys.op[2]
                      INNER JOIN initial_writes ON keys.hashed_key = initial_writes.hashed_key
             WHERE miniblock_number <= $1
+            ORDER BY ARRAY(
+                 SELECT get_byte(storage_logs.hashed_key, 32 - generate_series)
+                 FROM generate_series(1, 32)
+             )
             LIMIT $2 OFFSET $3;
              "#,
             miniblock_number.0 as i64,
@@ -85,8 +90,28 @@ impl StorageLogsSnapshotsDal<'_, '_> {
             value: H256::from_slice(&row.value),
             miniblock_number: MiniblockNumber(row.miniblock_number as u32),
             l1_batch_number: L1BatchNumber(row.l1_batch_number as u32),
+            enumeration_index: row.index as u64,
         })
         .collect();
         Ok(storage_logs)
+    }
+
+    pub async fn get_all_factory_deps(
+        &mut self,
+        miniblock_number: MiniblockNumber,
+    ) -> Vec<FactoryDependency> {
+        sqlx::query!(
+            "SELECT bytecode, bytecode_hash FROM factory_deps WHERE miniblock_number <= $1",
+            miniblock_number.0 as i64,
+        )
+        .fetch_all(self.storage.conn())
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|row| FactoryDependency {
+            bytecode_hash: H256::from_slice(&row.bytecode_hash),
+            bytecode: row.bytecode,
+        })
+        .collect()
     }
 }

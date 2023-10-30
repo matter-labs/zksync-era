@@ -1,7 +1,11 @@
-import fetch from 'node-fetch';
 import { TestMaster } from '../../src/index';
 import * as utils from 'zk/build/utils';
 import fs from 'fs';
+// import * as db from 'zk/build/database';
+// import { clean } from 'zk/build/clean';
+// import path from 'path';
+// import * as env from 'zk/build/env';
+// import { externalNode } from 'zk/build/server';
 
 describe('Snapshots API tests', () => {
     let testMaster: TestMaster;
@@ -10,7 +14,7 @@ describe('Snapshots API tests', () => {
         testMaster = TestMaster.getInstance(__filename);
 
         if (process.env.ZKSYNC_ENV!.startsWith('ext-node')) {
-            console.warn("You are trying to run contract verification tests on external node. It's not supported.");
+            console.warn("You are trying to run snapshots creator tests on external node. It's not supported.");
         }
     });
 
@@ -18,22 +22,19 @@ describe('Snapshots API tests', () => {
         console.log('Starting creator');
         await utils.spawn(`cd $ZKSYNC_HOME && cargo run --bin snapshot_creator --release`);
     }
-    async function getRequest(url: string) {
-        const init = {
-            method: 'GET',
-            headers: {
-                'Content-Type': 'application/json'
-            }
-        };
-        return await (await fetch(new URL(url, testMaster.environment().snapshotsUrl), init)).json();
+
+    async function rpcRequest(name: string, params: any) {
+        const response = await testMaster.mainAccount().provider.send(name, params);
+        console.log(response);
+        return response;
     }
 
     async function getAllSnapshots() {
-        return getRequest('/snapshots');
+        return await rpcRequest('snapshots_getAllSnapshots', []);
     }
 
     async function getSnapshot(snapshotL1Batch: number) {
-        return getRequest(`/snapshots/${snapshotL1Batch}`);
+        return rpcRequest('snapshots_getSnapshot', [snapshotL1Batch]);
     }
 
     test('snapshots can be created and contain valid values', async () => {
@@ -45,17 +46,15 @@ describe('Snapshots API tests', () => {
         );
         expect(addedSnapshots.length).toEqual(1);
 
-        let expectedWholeSnapshotBatchNumber = addedSnapshots[0].l1BatchNumber;
-        let fullSnapshot = await getSnapshot(expectedWholeSnapshotBatchNumber);
+        let l1BatchNumber = addedSnapshots[0].l1BatchNumber;
+        let fullSnapshot = await getSnapshot(l1BatchNumber);
+        let miniblockNumber = fullSnapshot.metadata.miniblockNumber;
 
-        expect(fullSnapshot.l1BatchNumber).toEqual(addedSnapshots[0].l1BatchNumber);
+        expect(fullSnapshot.metadata.l1BatchNumber).toEqual(addedSnapshots[0].l1BatchNumber);
         //TODO make this more generic so that it for instance works in GCS
         let path = `${process.env.ZKSYNC_HOME}/${process.env.OBJECT_STORE_FILE_BACKED_BASE_PATH}/storage_logs_snapshots/${fullSnapshot.storageLogsFiles[0]}`;
 
         let output = JSON.parse(fs.readFileSync(path).toString());
-        let l1BatchNumber = output['lastL1BatchNumber'];
-        let miniblockNumber = output['lastMiniblockNumber'];
-        expect(l1BatchNumber).toEqual(expectedWholeSnapshotBatchNumber);
 
         for (const storageLog of output['storageLogs'] as any[]) {
             let snapshotAccountAddress = storageLog['key']['account']['address'];
@@ -69,4 +68,16 @@ describe('Snapshots API tests', () => {
             expect(snapshotL1BatchNumber).toBeLessThanOrEqual(l1BatchNumber);
         }
     });
+
+    // test('ext-node can be started using snapshot', async () => {
+    //     process.chdir(process.env.ZKSYNC_HOME as string);
+    //     let start_env = env.get();
+    //     try {
+    //         env.set('ext-node');
+    //         await db.resetTest();
+    //         await externalNode();
+    //     } finally {
+    //         env.set(start_env);
+    //     }
+    // });
 });

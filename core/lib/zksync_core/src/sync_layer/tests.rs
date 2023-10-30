@@ -12,6 +12,7 @@ use std::{
 use zksync_config::configs::chain::NetworkConfig;
 use zksync_contracts::{BaseSystemContractsHashes, SystemContractCode};
 use zksync_dal::{ConnectionPool, StorageProcessor};
+use zksync_types::snapshots::SnapshotFullInfo;
 use zksync_types::{
     api, Address, L1BatchNumber, L2ChainId, MiniblockNumber, ProtocolVersionId, Transaction, H256,
 };
@@ -83,6 +84,9 @@ impl MockMainNodeClient {
 
 #[async_trait]
 impl MainNodeClient for MockMainNodeClient {
+    async fn fetch_newest_snapshot(&self) -> anyhow::Result<Option<SnapshotFullInfo>> {
+        anyhow::bail!("Not implemented");
+    }
     async fn fetch_system_contract_by_hash(
         &self,
         _hash: H256,

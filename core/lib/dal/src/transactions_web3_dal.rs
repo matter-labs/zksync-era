@@ -32,7 +32,7 @@ impl TransactionsWeb3Dal<'_, '_> {
                 WITH sl AS (
                     SELECT * FROM storage_logs
                     WHERE storage_logs.address = $1 AND storage_logs.tx_hash = $2
-                    ORDER BY storage_logs.miniblock_number DESC, storage_logs.operation_number DESC
+                    ORDER BY storage_logs.miniblock_number DESC, storage_logs.hashed_key DESC
                     LIMIT 1
                 )
                 SELECT

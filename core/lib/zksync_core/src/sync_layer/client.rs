@@ -7,10 +7,12 @@ use std::{collections::HashMap, convert::TryInto, fmt};
 
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes, SystemContractCode};
 use zksync_system_constants::ACCOUNT_CODE_STORAGE_ADDRESS;
+use zksync_types::snapshots::SnapshotFullInfo;
 use zksync_types::{
     api::{self, en::SyncBlock},
     get_code_key, Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, H256, U64,
 };
+use zksync_web3_decl::namespaces::SnapshotsNamespaceClient;
 use zksync_web3_decl::{
     jsonrpsee::http_client::{HttpClient, HttpClientBuilder},
     namespaces::{EnNamespaceClient, EthNamespaceClient, ZksNamespaceClient},
@@ -60,6 +62,8 @@ pub trait MainNodeClient: 'static + Send + Sync + fmt::Debug {
         number: MiniblockNumber,
         with_transactions: bool,
     ) -> anyhow::Result<Option<SyncBlock>>;
+
+    async fn fetch_newest_snapshot(&self) -> anyhow::Result<Option<SnapshotFullInfo>>;
 }
 
 impl dyn MainNodeClient {
@@ -71,6 +75,19 @@ impl dyn MainNodeClient {
 
 #[async_trait]
 impl MainNodeClient for HttpClient {
+    async fn fetch_newest_snapshot(&self) -> anyhow::Result<Option<SnapshotFullInfo>> {
+        let snapshots = self.get_all_snapshots().await?;
+        let latest_snapshot = snapshots
+            .snapshots
+            .into_iter()
+            .max_by_key(|key| key.generated_at);
+        if latest_snapshot.is_none() {
+            return Ok(None);
+        }
+        return Ok(self
+            .get_snapshot_by_l1_batch_number(latest_snapshot.unwrap().l1_batch_number)
+            .await?);
+    }
     async fn fetch_system_contract_by_hash(
         &self,
         hash: H256,

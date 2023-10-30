@@ -6,6 +6,7 @@ mod en;
 pub(crate) mod eth;
 mod eth_subscribe;
 mod net;
+mod snapshots;
 mod web3;
 mod zks;
 
@@ -15,6 +16,7 @@ pub use self::{
     eth::EthNamespace,
     eth_subscribe::{EthSubscribe, SubscriptionMap},
     net::NetNamespace,
+    snapshots::SnapshotsNamespace,
     web3::Web3Namespace,
     zks::ZksNamespace,
 };
