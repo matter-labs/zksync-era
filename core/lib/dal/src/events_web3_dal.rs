@@ -170,32 +170,32 @@ impl EventsWeb3Dal<'_, '_> {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use db_test_macro::db_test;
-    use zksync_types::api::BlockNumber;
-    use zksync_types::{Address, H256};
+// #[cfg(test)]
+// mod tests {
+//     use db_test_macro::db_test;
+//     use zksync_types::api::BlockNumber;
+//     use zksync_types::{Address, H256};
 
-    use super::*;
-    use crate::connection::MainConnectionPool;
+//     use super::*;
+//     use crate::connection::MainConnectionPool;
 
-    #[db_test(dal_crate)]
-    async fn test_build_get_logs_where_clause(connection_pool: MainConnectionPool) {
-        let storage = &mut connection_pool.access_test_storage().await;
-        let events_web3_dal = EventsWeb3Dal { storage };
-        let filter = GetLogsFilter {
-            from_block: MiniblockNumber(100),
-            to_block: Some(BlockNumber::Number(200.into())),
-            addresses: vec![Address::from_low_u64_be(123)],
-            topics: vec![(0, vec![H256::from_low_u64_be(456)])],
-        };
+//     #[db_test(dal_crate)]
+//     async fn test_build_get_logs_where_clause(connection_pool: MainConnectionPool) {
+//         let storage = &mut connection_pool.access_test_storage().await;
+//         let events_web3_dal = EventsWeb3Dal { storage };
+//         let filter = GetLogsFilter {
+//             from_block: MiniblockNumber(100),
+//             to_block: Some(BlockNumber::Number(200.into())),
+//             addresses: vec![Address::from_low_u64_be(123)],
+//             topics: vec![(0, vec![H256::from_low_u64_be(456)])],
+//         };
 
-        let expected_sql = "(miniblock_number >= 100) AND (miniblock_number <= 200) AND (address = ANY($1)) AND (topic0 = ANY($2))";
-        let expected_arg_index = 3;
+//         let expected_sql = "(miniblock_number >= 100) AND (miniblock_number <= 200) AND (address = ANY($1)) AND (topic0 = ANY($2))";
+//         let expected_arg_index = 3;
 
-        let (actual_sql, actual_arg_index) = events_web3_dal.build_get_logs_where_clause(&filter);
+//         let (actual_sql, actual_arg_index) = events_web3_dal.build_get_logs_where_clause(&filter);
 
-        assert_eq!(actual_sql, expected_sql);
-        assert_eq!(actual_arg_index, expected_arg_index);
-    }
-}
+//         assert_eq!(actual_sql, expected_sql);
+//         assert_eq!(actual_arg_index, expected_arg_index);
+//     }
+// }

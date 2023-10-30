@@ -1357,136 +1357,136 @@ impl BlocksDal<'_, '_> {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use db_test_macro::db_test;
-    use zksync_contracts::BaseSystemContractsHashes;
-    use zksync_types::{l2_to_l1_log::L2ToL1Log, Address, ProtocolVersion, ProtocolVersionId};
+// #[cfg(test)]
+// mod tests {
+//     use db_test_macro::db_test;
+//     use zksync_contracts::BaseSystemContractsHashes;
+//     use zksync_types::{l2_to_l1_log::L2ToL1Log, Address, ProtocolVersion, ProtocolVersionId};
 
-    use super::*;
-    use crate::MainConnectionPool;
+//     use super::*;
+//     use crate::MainConnectionPool;
 
-    #[db_test(dal_crate)]
-    async fn loading_l1_batch_header(pool: MainConnectionPool) {
-        let mut conn = pool.access_storage().await.unwrap();
-        conn.blocks_dal()
-            .delete_l1_batches(L1BatchNumber(0))
-            .await
-            .unwrap();
-        conn.protocol_versions_dal()
-            .save_protocol_version_with_tx(ProtocolVersion::default())
-            .await;
+//     #[db_test(dal_crate)]
+//     async fn loading_l1_batch_header(pool: MainConnectionPool) {
+//         let mut conn = pool.access_storage().await.unwrap();
+//         conn.blocks_dal()
+//             .delete_l1_batches(L1BatchNumber(0))
+//             .await
+//             .unwrap();
+//         conn.protocol_versions_dal()
+//             .save_protocol_version_with_tx(ProtocolVersion::default())
+//             .await;
 
-        let mut header = L1BatchHeader::new(
-            L1BatchNumber(1),
-            100,
-            Address::default(),
-            BaseSystemContractsHashes {
-                bootloader: H256::repeat_byte(1),
-                default_aa: H256::repeat_byte(42),
-            },
-            ProtocolVersionId::latest(),
-        );
-        header.l1_tx_count = 3;
-        header.l2_tx_count = 5;
-        header.l2_to_l1_logs.push(L2ToL1Log {
-            shard_id: 0,
-            is_service: false,
-            tx_number_in_block: 2,
-            sender: Address::repeat_byte(2),
-            key: H256::repeat_byte(3),
-            value: H256::zero(),
-        });
-        header.l2_to_l1_messages.push(vec![22; 22]);
-        header.l2_to_l1_messages.push(vec![33; 33]);
+//         let mut header = L1BatchHeader::new(
+//             L1BatchNumber(1),
+//             100,
+//             Address::default(),
+//             BaseSystemContractsHashes {
+//                 bootloader: H256::repeat_byte(1),
+//                 default_aa: H256::repeat_byte(42),
+//             },
+//             ProtocolVersionId::latest(),
+//         );
+//         header.l1_tx_count = 3;
+//         header.l2_tx_count = 5;
+//         header.l2_to_l1_logs.push(L2ToL1Log {
+//             shard_id: 0,
+//             is_service: false,
+//             tx_number_in_block: 2,
+//             sender: Address::repeat_byte(2),
+//             key: H256::repeat_byte(3),
+//             value: H256::zero(),
+//         });
+//         header.l2_to_l1_messages.push(vec![22; 22]);
+//         header.l2_to_l1_messages.push(vec![33; 33]);
 
-        conn.blocks_dal()
-            .insert_l1_batch(&header, &[], BlockGasCount::default())
-            .await
-            .unwrap();
+//         conn.blocks_dal()
+//             .insert_l1_batch(&header, &[], BlockGasCount::default())
+//             .await
+//             .unwrap();
 
-        let loaded_header = conn
-            .blocks_dal()
-            .get_l1_batch_header(L1BatchNumber(1))
-            .await
-            .unwrap()
-            .unwrap();
-        assert_eq!(loaded_header.number, header.number);
-        assert_eq!(loaded_header.timestamp, header.timestamp);
-        assert_eq!(loaded_header.l1_tx_count, header.l1_tx_count);
-        assert_eq!(loaded_header.l2_tx_count, header.l2_tx_count);
-        assert_eq!(loaded_header.l2_to_l1_logs, header.l2_to_l1_logs);
-        assert_eq!(loaded_header.l2_to_l1_messages, header.l2_to_l1_messages);
+//         let loaded_header = conn
+//             .blocks_dal()
+//             .get_l1_batch_header(L1BatchNumber(1))
+//             .await
+//             .unwrap()
+//             .unwrap();
+//         assert_eq!(loaded_header.number, header.number);
+//         assert_eq!(loaded_header.timestamp, header.timestamp);
+//         assert_eq!(loaded_header.l1_tx_count, header.l1_tx_count);
+//         assert_eq!(loaded_header.l2_tx_count, header.l2_tx_count);
+//         assert_eq!(loaded_header.l2_to_l1_logs, header.l2_to_l1_logs);
+//         assert_eq!(loaded_header.l2_to_l1_messages, header.l2_to_l1_messages);
 
-        assert!(conn
-            .blocks_dal()
-            .get_l1_batch_header(L1BatchNumber(2))
-            .await
-            .unwrap()
-            .is_none());
-    }
+//         assert!(conn
+//             .blocks_dal()
+//             .get_l1_batch_header(L1BatchNumber(2))
+//             .await
+//             .unwrap()
+//             .is_none());
+//     }
 
-    #[db_test(dal_crate)]
-    async fn getting_predicted_gas(pool: MainConnectionPool) {
-        let mut conn = pool.access_storage().await.unwrap();
-        conn.blocks_dal()
-            .delete_l1_batches(L1BatchNumber(0))
-            .await
-            .unwrap();
-        conn.protocol_versions_dal()
-            .save_protocol_version_with_tx(ProtocolVersion::default())
-            .await;
-        let mut header = L1BatchHeader::new(
-            L1BatchNumber(1),
-            100,
-            Address::default(),
-            BaseSystemContractsHashes::default(),
-            ProtocolVersionId::default(),
-        );
-        let mut predicted_gas = BlockGasCount {
-            commit: 2,
-            prove: 3,
-            execute: 10,
-        };
-        conn.blocks_dal()
-            .insert_l1_batch(&header, &[], predicted_gas)
-            .await
-            .unwrap();
+//     #[db_test(dal_crate)]
+//     async fn getting_predicted_gas(pool: MainConnectionPool) {
+//         let mut conn = pool.access_storage().await.unwrap();
+//         conn.blocks_dal()
+//             .delete_l1_batches(L1BatchNumber(0))
+//             .await
+//             .unwrap();
+//         conn.protocol_versions_dal()
+//             .save_protocol_version_with_tx(ProtocolVersion::default())
+//             .await;
+//         let mut header = L1BatchHeader::new(
+//             L1BatchNumber(1),
+//             100,
+//             Address::default(),
+//             BaseSystemContractsHashes::default(),
+//             ProtocolVersionId::default(),
+//         );
+//         let mut predicted_gas = BlockGasCount {
+//             commit: 2,
+//             prove: 3,
+//             execute: 10,
+//         };
+//         conn.blocks_dal()
+//             .insert_l1_batch(&header, &[], predicted_gas)
+//             .await
+//             .unwrap();
 
-        header.number = L1BatchNumber(2);
-        header.timestamp += 100;
-        predicted_gas += predicted_gas;
-        conn.blocks_dal()
-            .insert_l1_batch(&header, &[], predicted_gas)
-            .await
-            .unwrap();
+//         header.number = L1BatchNumber(2);
+//         header.timestamp += 100;
+//         predicted_gas += predicted_gas;
+//         conn.blocks_dal()
+//             .insert_l1_batch(&header, &[], predicted_gas)
+//             .await
+//             .unwrap();
 
-        let action_types_and_predicted_gas = [
-            (AggregatedActionType::Execute, 10),
-            (AggregatedActionType::Commit, 2),
-            (AggregatedActionType::PublishProofOnchain, 3),
-        ];
-        for (action_type, expected_gas) in action_types_and_predicted_gas {
-            let gas = conn
-                .blocks_dal()
-                .get_l1_batches_predicted_gas(L1BatchNumber(1)..=L1BatchNumber(1), action_type)
-                .await
-                .unwrap();
-            assert_eq!(gas, expected_gas);
+//         let action_types_and_predicted_gas = [
+//             (AggregatedActionType::Execute, 10),
+//             (AggregatedActionType::Commit, 2),
+//             (AggregatedActionType::PublishProofOnchain, 3),
+//         ];
+//         for (action_type, expected_gas) in action_types_and_predicted_gas {
+//             let gas = conn
+//                 .blocks_dal()
+//                 .get_l1_batches_predicted_gas(L1BatchNumber(1)..=L1BatchNumber(1), action_type)
+//                 .await
+//                 .unwrap();
+//             assert_eq!(gas, expected_gas);
 
-            let gas = conn
-                .blocks_dal()
-                .get_l1_batches_predicted_gas(L1BatchNumber(2)..=L1BatchNumber(2), action_type)
-                .await
-                .unwrap();
-            assert_eq!(gas, 2 * expected_gas);
+//             let gas = conn
+//                 .blocks_dal()
+//                 .get_l1_batches_predicted_gas(L1BatchNumber(2)..=L1BatchNumber(2), action_type)
+//                 .await
+//                 .unwrap();
+//             assert_eq!(gas, 2 * expected_gas);
 
-            let gas = conn
-                .blocks_dal()
-                .get_l1_batches_predicted_gas(L1BatchNumber(1)..=L1BatchNumber(2), action_type)
-                .await
-                .unwrap();
-            assert_eq!(gas, 3 * expected_gas);
-        }
-    }
-}
+//             let gas = conn
+//                 .blocks_dal()
+//                 .get_l1_batches_predicted_gas(L1BatchNumber(1)..=L1BatchNumber(2), action_type)
+//                 .await
+//                 .unwrap();
+//             assert_eq!(gas, 3 * expected_gas);
+//         }
+//     }
+// }

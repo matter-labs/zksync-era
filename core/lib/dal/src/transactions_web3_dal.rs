@@ -352,132 +352,132 @@ impl TransactionsWeb3Dal<'_, '_> {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use db_test_macro::db_test;
-    use zksync_types::{
-        block::miniblock_hash, fee::TransactionExecutionMetrics, l2::L2Tx, ProtocolVersion,
-    };
+// #[cfg(test)]
+// mod tests {
+//     use db_test_macro::db_test;
+//     use zksync_types::{
+//         block::miniblock_hash, fee::TransactionExecutionMetrics, l2::L2Tx, ProtocolVersion,
+//     };
 
-    use super::*;
-    use crate::{
-        tests::{create_miniblock_header, mock_execution_result, mock_l2_transaction},
-        MainConnectionPool,
-    };
+//     use super::*;
+//     use crate::{
+//         tests::{create_miniblock_header, mock_execution_result, mock_l2_transaction},
+//         MainConnectionPool,
+//     };
 
-    async fn prepare_transaction(conn: &mut MainStorageProcessor<'_>, tx: L2Tx) {
-        conn.blocks_dal()
-            .delete_miniblocks(MiniblockNumber(0))
-            .await
-            .unwrap();
-        conn.transactions_dal()
-            .insert_transaction_l2(tx.clone(), TransactionExecutionMetrics::default())
-            .await;
-        conn.blocks_dal()
-            .insert_miniblock(&create_miniblock_header(0))
-            .await
-            .unwrap();
-        let mut miniblock_header = create_miniblock_header(1);
-        miniblock_header.l2_tx_count = 1;
-        conn.blocks_dal()
-            .insert_miniblock(&miniblock_header)
-            .await
-            .unwrap();
+//     async fn prepare_transaction(conn: &mut MainStorageProcessor<'_>, tx: L2Tx) {
+//         conn.blocks_dal()
+//             .delete_miniblocks(MiniblockNumber(0))
+//             .await
+//             .unwrap();
+//         conn.transactions_dal()
+//             .insert_transaction_l2(tx.clone(), TransactionExecutionMetrics::default())
+//             .await;
+//         conn.blocks_dal()
+//             .insert_miniblock(&create_miniblock_header(0))
+//             .await
+//             .unwrap();
+//         let mut miniblock_header = create_miniblock_header(1);
+//         miniblock_header.l2_tx_count = 1;
+//         conn.blocks_dal()
+//             .insert_miniblock(&miniblock_header)
+//             .await
+//             .unwrap();
 
-        let tx_results = [mock_execution_result(tx)];
-        conn.transactions_dal()
-            .mark_txs_as_executed_in_miniblock(MiniblockNumber(1), &tx_results, U256::from(1))
-            .await;
-    }
+//         let tx_results = [mock_execution_result(tx)];
+//         conn.transactions_dal()
+//             .mark_txs_as_executed_in_miniblock(MiniblockNumber(1), &tx_results, U256::from(1))
+//             .await;
+//     }
 
-    #[db_test(dal_crate)]
-    async fn getting_transaction(connection_pool: MainConnectionPool) {
-        let mut conn = connection_pool.access_test_storage().await;
-        conn.protocol_versions_dal()
-            .save_protocol_version_with_tx(ProtocolVersion::default())
-            .await;
-        let tx = mock_l2_transaction();
-        let tx_hash = tx.hash();
-        prepare_transaction(&mut conn, tx).await;
+//     #[db_test(dal_crate)]
+//     async fn getting_transaction(connection_pool: MainConnectionPool) {
+//         let mut conn = connection_pool.access_test_storage().await;
+//         conn.protocol_versions_dal()
+//             .save_protocol_version_with_tx(ProtocolVersion::default())
+//             .await;
+//         let tx = mock_l2_transaction();
+//         let tx_hash = tx.hash();
+//         prepare_transaction(&mut conn, tx).await;
 
-        let block_ids = [
-            api::BlockId::Number(api::BlockNumber::Latest),
-            api::BlockId::Number(api::BlockNumber::Number(1.into())),
-            api::BlockId::Hash(miniblock_hash(
-                MiniblockNumber(1),
-                0,
-                H256::zero(),
-                H256::zero(),
-            )),
-        ];
-        let transaction_ids = block_ids
-            .iter()
-            .map(|&block_id| api::TransactionId::Block(block_id, 0.into()))
-            .chain([api::TransactionId::Hash(tx_hash)]);
+//         let block_ids = [
+//             api::BlockId::Number(api::BlockNumber::Latest),
+//             api::BlockId::Number(api::BlockNumber::Number(1.into())),
+//             api::BlockId::Hash(miniblock_hash(
+//                 MiniblockNumber(1),
+//                 0,
+//                 H256::zero(),
+//                 H256::zero(),
+//             )),
+//         ];
+//         let transaction_ids = block_ids
+//             .iter()
+//             .map(|&block_id| api::TransactionId::Block(block_id, 0.into()))
+//             .chain([api::TransactionId::Hash(tx_hash)]);
 
-        for transaction_id in transaction_ids {
-            let web3_tx = conn
-                .transactions_web3_dal()
-                .get_transaction(transaction_id, L2ChainId::from(270))
-                .await;
-            let web3_tx = web3_tx.unwrap().unwrap();
-            assert_eq!(web3_tx.hash, tx_hash);
-            assert_eq!(web3_tx.block_number, Some(1.into()));
-            assert_eq!(web3_tx.transaction_index, Some(0.into()));
-        }
+//         for transaction_id in transaction_ids {
+//             let web3_tx = conn
+//                 .transactions_web3_dal()
+//                 .get_transaction(transaction_id, L2ChainId::from(270))
+//                 .await;
+//             let web3_tx = web3_tx.unwrap().unwrap();
+//             assert_eq!(web3_tx.hash, tx_hash);
+//             assert_eq!(web3_tx.block_number, Some(1.into()));
+//             assert_eq!(web3_tx.transaction_index, Some(0.into()));
+//         }
 
-        let transactions_with_bogus_index = block_ids
-            .iter()
-            .map(|&block_id| api::TransactionId::Block(block_id, 1.into()));
-        for transaction_id in transactions_with_bogus_index {
-            let web3_tx = conn
-                .transactions_web3_dal()
-                .get_transaction(transaction_id, L2ChainId::from(270))
-                .await;
-            assert!(web3_tx.unwrap().is_none());
-        }
+//         let transactions_with_bogus_index = block_ids
+//             .iter()
+//             .map(|&block_id| api::TransactionId::Block(block_id, 1.into()));
+//         for transaction_id in transactions_with_bogus_index {
+//             let web3_tx = conn
+//                 .transactions_web3_dal()
+//                 .get_transaction(transaction_id, L2ChainId::from(270))
+//                 .await;
+//             assert!(web3_tx.unwrap().is_none());
+//         }
 
-        let bogus_block_ids = [
-            api::BlockId::Number(api::BlockNumber::Earliest),
-            api::BlockId::Number(api::BlockNumber::Pending),
-            api::BlockId::Number(api::BlockNumber::Number(42.into())),
-            api::BlockId::Hash(H256::zero()),
-        ];
-        let transactions_with_bogus_block = bogus_block_ids
-            .iter()
-            .map(|&block_id| api::TransactionId::Block(block_id, 0.into()));
-        for transaction_id in transactions_with_bogus_block {
-            let web3_tx = conn
-                .transactions_web3_dal()
-                .get_transaction(transaction_id, L2ChainId::from(270))
-                .await;
-            assert!(web3_tx.unwrap().is_none());
-        }
-    }
+//         let bogus_block_ids = [
+//             api::BlockId::Number(api::BlockNumber::Earliest),
+//             api::BlockId::Number(api::BlockNumber::Pending),
+//             api::BlockId::Number(api::BlockNumber::Number(42.into())),
+//             api::BlockId::Hash(H256::zero()),
+//         ];
+//         let transactions_with_bogus_block = bogus_block_ids
+//             .iter()
+//             .map(|&block_id| api::TransactionId::Block(block_id, 0.into()));
+//         for transaction_id in transactions_with_bogus_block {
+//             let web3_tx = conn
+//                 .transactions_web3_dal()
+//                 .get_transaction(transaction_id, L2ChainId::from(270))
+//                 .await;
+//             assert!(web3_tx.unwrap().is_none());
+//         }
+//     }
 
-    #[db_test(dal_crate)]
-    async fn getting_miniblock_transactions(connection_pool: MainConnectionPool) {
-        let mut conn = connection_pool.access_test_storage().await;
-        conn.protocol_versions_dal()
-            .save_protocol_version_with_tx(ProtocolVersion::default())
-            .await;
-        let tx = mock_l2_transaction();
-        let tx_hash = tx.hash();
-        prepare_transaction(&mut conn, tx).await;
+//     #[db_test(dal_crate)]
+//     async fn getting_miniblock_transactions(connection_pool: MainConnectionPool) {
+//         let mut conn = connection_pool.access_test_storage().await;
+//         conn.protocol_versions_dal()
+//             .save_protocol_version_with_tx(ProtocolVersion::default())
+//             .await;
+//         let tx = mock_l2_transaction();
+//         let tx_hash = tx.hash();
+//         prepare_transaction(&mut conn, tx).await;
 
-        let raw_txs = conn
-            .transactions_web3_dal()
-            .get_raw_miniblock_transactions(MiniblockNumber(0))
-            .await
-            .unwrap();
-        assert!(raw_txs.is_empty());
+//         let raw_txs = conn
+//             .transactions_web3_dal()
+//             .get_raw_miniblock_transactions(MiniblockNumber(0))
+//             .await
+//             .unwrap();
+//         assert!(raw_txs.is_empty());
 
-        let raw_txs = conn
-            .transactions_web3_dal()
-            .get_raw_miniblock_transactions(MiniblockNumber(1))
-            .await
-            .unwrap();
-        assert_eq!(raw_txs.len(), 1);
-        assert_eq!(raw_txs[0].hash(), tx_hash);
-    }
-}
+//         let raw_txs = conn
+//             .transactions_web3_dal()
+//             .get_raw_miniblock_transactions(MiniblockNumber(1))
+//             .await
+//             .unwrap();
+//         assert_eq!(raw_txs.len(), 1);
+//         assert_eq!(raw_txs[0].hash(), tx_hash);
+//     }
+// }

@@ -6,8 +6,8 @@ ALTER TABLE proof RENAME COLUMN l1_batch_number TO block_number;
 ALTER TABLE prover_jobs RENAME CONSTRAINT prover_jobs_l1_batch_number_fkey TO prover_jobs_block_number_fkey;
 ALTER TABLE prover_jobs RENAME COLUMN l1_batch_number TO block_number;
 
-ALTER TABLE witness_inputs RENAME CONSTRAINT witness_inputs_l1_batch_number_fkey TO witness_inputs_block_number_fkey;
-ALTER TABLE witness_inputs RENAME COLUMN l1_batch_number TO block_number;
+ALTER TABLE IF EXISTS witness_inputs RENAME CONSTRAINT witness_inputs_l1_batch_number_fkey TO witness_inputs_block_number_fkey;
+ALTER TABLE IF EXISTS witness_inputs RENAME COLUMN l1_batch_number TO block_number;
 
 ALTER TABLE storage_logs_dedup RENAME CONSTRAINT storage_logs_dedup_l1_batch_number_fkey TO storage_logs_dedup_block_number_fkey;
 ALTER TABLE storage_logs_dedup RENAME COLUMN l1_batch_number TO block_number;

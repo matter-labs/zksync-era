@@ -85,7 +85,7 @@ export async function setup_prover_db() {
     process.chdir('core/lib/prover_dal');
     const localDbUrl = 'postgres://postgres@localhost';
     if (process.env.DATABASE_PROVER_URL!.startsWith(localDbUrl)) {
-        console.log(`Using localhost database:`);
+        console.log(`Using localhost prover database:`);
         console.log(`DATABASE_URL = ${process.env.DATABASE_PROVER_URL}`);
     } else {
         // Remote database, we can't show the contents.

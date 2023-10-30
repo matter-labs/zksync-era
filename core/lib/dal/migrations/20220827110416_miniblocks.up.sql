@@ -56,11 +56,11 @@ ALTER TABLE storage_logs ADD CONSTRAINT storage_logs_miniblock_number_fkey
 ALTER TABLE storage_logs_dedup RENAME COLUMN block_number TO l1_batch_number;
 ALTER TABLE storage_logs_dedup RENAME CONSTRAINT storage_logs_dedup_block_number_fkey TO storage_logs_dedup_l1_batch_number_fkey;
 
-ALTER TABLE witness_inputs RENAME COLUMN block_number TO l1_batch_number;
-ALTER TABLE witness_inputs RENAME CONSTRAINT witness_inputs_block_number_fkey TO witness_inputs_l1_batch_number_fkey;
+ALTER TABLE IF EXISTS witness_inputs RENAME COLUMN block_number TO l1_batch_number;
+ALTER TABLE IF EXISTS witness_inputs RENAME CONSTRAINT witness_inputs_block_number_fkey TO witness_inputs_l1_batch_number_fkey;
 
-ALTER TABLE prover_jobs RENAME COLUMN block_number TO l1_batch_number;
-ALTER TABLE prover_jobs RENAME CONSTRAINT prover_jobs_block_number_fkey TO prover_jobs_l1_batch_number_fkey;
+ALTER TABLE IF EXISTS prover_jobs RENAME COLUMN block_number TO l1_batch_number;
+ALTER TABLE IF EXISTS prover_jobs RENAME CONSTRAINT prover_jobs_block_number_fkey TO prover_jobs_l1_batch_number_fkey;
 
 ALTER TABLE proof RENAME COLUMN block_number TO l1_batch_number;
 ALTER TABLE proof RENAME CONSTRAINT proof_block_number_fkey TO proof_l1_batch_number_fkey;

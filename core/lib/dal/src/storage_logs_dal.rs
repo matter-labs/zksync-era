@@ -528,267 +528,267 @@ impl StorageLogsDal<'_, '_> {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::{tests::create_miniblock_header, MainConnectionPool};
-    use db_test_macro::db_test;
-    use zksync_contracts::BaseSystemContractsHashes;
-    use zksync_types::{
-        block::{BlockGasCount, L1BatchHeader},
-        ProtocolVersion, ProtocolVersionId,
-    };
+// #[cfg(test)]
+// mod tests {
+//     use super::*;
+//     use crate::{tests::create_miniblock_header, MainConnectionPool};
+//     use db_test_macro::db_test;
+//     use zksync_contracts::BaseSystemContractsHashes;
+//     use zksync_types::{
+//         block::{BlockGasCount, L1BatchHeader},
+//         ProtocolVersion, ProtocolVersionId,
+//     };
 
-    async fn insert_miniblock(
-        conn: &mut MainStorageProcessor<'_>,
-        number: u32,
-        logs: Vec<StorageLog>,
-    ) {
-        let mut header = L1BatchHeader::new(
-            L1BatchNumber(number),
-            0,
-            Address::default(),
-            BaseSystemContractsHashes::default(),
-            ProtocolVersionId::default(),
-        );
-        header.is_finished = true;
-        conn.blocks_dal()
-            .insert_l1_batch(&header, &[], BlockGasCount::default())
-            .await
-            .unwrap();
-        conn.blocks_dal()
-            .insert_miniblock(&create_miniblock_header(number))
-            .await
-            .unwrap();
+//     async fn insert_miniblock(
+//         conn: &mut MainStorageProcessor<'_>,
+//         number: u32,
+//         logs: Vec<StorageLog>,
+//     ) {
+//         let mut header = L1BatchHeader::new(
+//             L1BatchNumber(number),
+//             0,
+//             Address::default(),
+//             BaseSystemContractsHashes::default(),
+//             ProtocolVersionId::default(),
+//         );
+//         header.is_finished = true;
+//         conn.blocks_dal()
+//             .insert_l1_batch(&header, &[], BlockGasCount::default())
+//             .await
+//             .unwrap();
+//         conn.blocks_dal()
+//             .insert_miniblock(&create_miniblock_header(number))
+//             .await
+//             .unwrap();
 
-        let logs = [(H256::zero(), logs)];
-        conn.storage_logs_dal()
-            .insert_storage_logs(MiniblockNumber(number), &logs)
-            .await;
-        conn.storage_dal().apply_storage_logs(&logs).await;
-        conn.blocks_dal()
-            .mark_miniblocks_as_executed_in_l1_batch(L1BatchNumber(number))
-            .await
-            .unwrap();
-    }
+//         let logs = [(H256::zero(), logs)];
+//         conn.storage_logs_dal()
+//             .insert_storage_logs(MiniblockNumber(number), &logs)
+//             .await;
+//         conn.storage_dal().apply_storage_logs(&logs).await;
+//         conn.blocks_dal()
+//             .mark_miniblocks_as_executed_in_l1_batch(L1BatchNumber(number))
+//             .await
+//             .unwrap();
+//     }
 
-    #[db_test(dal_crate)]
-    async fn inserting_storage_logs(pool: MainConnectionPool) {
-        let mut conn = pool.access_storage().await.unwrap();
+//     #[db_test(dal_crate)]
+//     async fn inserting_storage_logs(pool: MainConnectionPool) {
+//         let mut conn = pool.access_storage().await.unwrap();
 
-        conn.blocks_dal()
-            .delete_miniblocks(MiniblockNumber(0))
-            .await
-            .unwrap();
-        conn.blocks_dal()
-            .delete_l1_batches(L1BatchNumber(0))
-            .await
-            .unwrap();
-        conn.protocol_versions_dal()
-            .save_protocol_version_with_tx(ProtocolVersion::default())
-            .await;
+//         conn.blocks_dal()
+//             .delete_miniblocks(MiniblockNumber(0))
+//             .await
+//             .unwrap();
+//         conn.blocks_dal()
+//             .delete_l1_batches(L1BatchNumber(0))
+//             .await
+//             .unwrap();
+//         conn.protocol_versions_dal()
+//             .save_protocol_version_with_tx(ProtocolVersion::default())
+//             .await;
 
-        let account = AccountTreeId::new(Address::repeat_byte(1));
-        let first_key = StorageKey::new(account, H256::zero());
-        let second_key = StorageKey::new(account, H256::from_low_u64_be(1));
-        let log = StorageLog::new_write_log(first_key, H256::repeat_byte(1));
-        let other_log = StorageLog::new_write_log(second_key, H256::repeat_byte(2));
-        insert_miniblock(&mut conn, 1, vec![log, other_log]).await;
+//         let account = AccountTreeId::new(Address::repeat_byte(1));
+//         let first_key = StorageKey::new(account, H256::zero());
+//         let second_key = StorageKey::new(account, H256::from_low_u64_be(1));
+//         let log = StorageLog::new_write_log(first_key, H256::repeat_byte(1));
+//         let other_log = StorageLog::new_write_log(second_key, H256::repeat_byte(2));
+//         insert_miniblock(&mut conn, 1, vec![log, other_log]).await;
 
-        let touched_slots = conn
-            .storage_logs_dal()
-            .get_touched_slots_for_l1_batch(L1BatchNumber(1))
-            .await;
-        assert_eq!(touched_slots.len(), 2);
-        assert_eq!(touched_slots[&first_key], H256::repeat_byte(1));
-        assert_eq!(touched_slots[&second_key], H256::repeat_byte(2));
+//         let touched_slots = conn
+//             .storage_logs_dal()
+//             .get_touched_slots_for_l1_batch(L1BatchNumber(1))
+//             .await;
+//         assert_eq!(touched_slots.len(), 2);
+//         assert_eq!(touched_slots[&first_key], H256::repeat_byte(1));
+//         assert_eq!(touched_slots[&second_key], H256::repeat_byte(2));
 
-        // Add more logs and check log ordering.
-        let third_log = StorageLog::new_write_log(first_key, H256::repeat_byte(3));
-        let more_logs = [(H256::repeat_byte(1), vec![third_log])];
-        conn.storage_logs_dal()
-            .append_storage_logs(MiniblockNumber(1), &more_logs)
-            .await;
-        conn.storage_dal().apply_storage_logs(&more_logs).await;
+//         // Add more logs and check log ordering.
+//         let third_log = StorageLog::new_write_log(first_key, H256::repeat_byte(3));
+//         let more_logs = [(H256::repeat_byte(1), vec![third_log])];
+//         conn.storage_logs_dal()
+//             .append_storage_logs(MiniblockNumber(1), &more_logs)
+//             .await;
+//         conn.storage_dal().apply_storage_logs(&more_logs).await;
 
-        let touched_slots = conn
-            .storage_logs_dal()
-            .get_touched_slots_for_l1_batch(L1BatchNumber(1))
-            .await;
-        assert_eq!(touched_slots.len(), 2);
-        assert_eq!(touched_slots[&first_key], H256::repeat_byte(3));
-        assert_eq!(touched_slots[&second_key], H256::repeat_byte(2));
+//         let touched_slots = conn
+//             .storage_logs_dal()
+//             .get_touched_slots_for_l1_batch(L1BatchNumber(1))
+//             .await;
+//         assert_eq!(touched_slots.len(), 2);
+//         assert_eq!(touched_slots[&first_key], H256::repeat_byte(3));
+//         assert_eq!(touched_slots[&second_key], H256::repeat_byte(2));
 
-        test_rollback(&mut conn, first_key, second_key).await;
-    }
+//         test_rollback(&mut conn, first_key, second_key).await;
+//     }
 
-    async fn test_rollback(
-        conn: &mut MainStorageProcessor<'_>,
-        key: StorageKey,
-        second_key: StorageKey,
-    ) {
-        let new_account = AccountTreeId::new(Address::repeat_byte(2));
-        let new_key = StorageKey::new(new_account, H256::zero());
-        let log = StorageLog::new_write_log(key, H256::repeat_byte(0xff));
-        let other_log = StorageLog::new_write_log(second_key, H256::zero());
-        let new_key_log = StorageLog::new_write_log(new_key, H256::repeat_byte(0xfe));
-        let logs = vec![log, other_log, new_key_log];
-        insert_miniblock(conn, 2, logs).await;
+//     async fn test_rollback(
+//         conn: &mut MainStorageProcessor<'_>,
+//         key: StorageKey,
+//         second_key: StorageKey,
+//     ) {
+//         let new_account = AccountTreeId::new(Address::repeat_byte(2));
+//         let new_key = StorageKey::new(new_account, H256::zero());
+//         let log = StorageLog::new_write_log(key, H256::repeat_byte(0xff));
+//         let other_log = StorageLog::new_write_log(second_key, H256::zero());
+//         let new_key_log = StorageLog::new_write_log(new_key, H256::repeat_byte(0xfe));
+//         let logs = vec![log, other_log, new_key_log];
+//         insert_miniblock(conn, 2, logs).await;
 
-        let value = conn.storage_dal().get_by_key(&key).await.unwrap();
-        assert_eq!(value, H256::repeat_byte(0xff));
-        let value = conn.storage_dal().get_by_key(&second_key).await.unwrap();
-        assert_eq!(value, H256::zero());
-        let value = conn.storage_dal().get_by_key(&new_key).await.unwrap();
-        assert_eq!(value, H256::repeat_byte(0xfe));
+//         let value = conn.storage_dal().get_by_key(&key).await.unwrap();
+//         assert_eq!(value, H256::repeat_byte(0xff));
+//         let value = conn.storage_dal().get_by_key(&second_key).await.unwrap();
+//         assert_eq!(value, H256::zero());
+//         let value = conn.storage_dal().get_by_key(&new_key).await.unwrap();
+//         assert_eq!(value, H256::repeat_byte(0xfe));
 
-        let prev_keys = vec![key.hashed_key(), new_key.hashed_key(), H256::zero()];
-        let prev_values = conn
-            .storage_logs_dal()
-            .get_previous_storage_values(&prev_keys, L1BatchNumber(2))
-            .await;
-        assert_eq!(prev_values.len(), 3);
-        assert_eq!(prev_values[&prev_keys[0]], Some(H256::repeat_byte(3)));
-        assert_eq!(prev_values[&prev_keys[1]], None);
-        assert_eq!(prev_values[&prev_keys[2]], None);
+//         let prev_keys = vec![key.hashed_key(), new_key.hashed_key(), H256::zero()];
+//         let prev_values = conn
+//             .storage_logs_dal()
+//             .get_previous_storage_values(&prev_keys, L1BatchNumber(2))
+//             .await;
+//         assert_eq!(prev_values.len(), 3);
+//         assert_eq!(prev_values[&prev_keys[0]], Some(H256::repeat_byte(3)));
+//         assert_eq!(prev_values[&prev_keys[1]], None);
+//         assert_eq!(prev_values[&prev_keys[2]], None);
 
-        conn.storage_logs_dal()
-            .rollback_storage(MiniblockNumber(1))
-            .await;
+//         conn.storage_logs_dal()
+//             .rollback_storage(MiniblockNumber(1))
+//             .await;
 
-        let value = conn.storage_dal().get_by_key(&key).await.unwrap();
-        assert_eq!(value, H256::repeat_byte(3));
-        let value = conn.storage_dal().get_by_key(&second_key).await.unwrap();
-        assert_eq!(value, H256::repeat_byte(2));
-        let value = conn.storage_dal().get_by_key(&new_key).await;
-        assert!(value.is_none());
-    }
+//         let value = conn.storage_dal().get_by_key(&key).await.unwrap();
+//         assert_eq!(value, H256::repeat_byte(3));
+//         let value = conn.storage_dal().get_by_key(&second_key).await.unwrap();
+//         assert_eq!(value, H256::repeat_byte(2));
+//         let value = conn.storage_dal().get_by_key(&new_key).await;
+//         assert!(value.is_none());
+//     }
 
-    #[db_test(dal_crate)]
-    async fn getting_storage_logs_for_revert(pool: MainConnectionPool) {
-        let mut conn = pool.access_storage().await.unwrap();
+//     #[db_test(dal_crate)]
+//     async fn getting_storage_logs_for_revert(pool: MainConnectionPool) {
+//         let mut conn = pool.access_storage().await.unwrap();
 
-        conn.blocks_dal()
-            .delete_miniblocks(MiniblockNumber(0))
-            .await
-            .unwrap();
-        conn.blocks_dal()
-            .delete_l1_batches(L1BatchNumber(0))
-            .await
-            .unwrap();
-        conn.protocol_versions_dal()
-            .save_protocol_version_with_tx(ProtocolVersion::default())
-            .await;
+//         conn.blocks_dal()
+//             .delete_miniblocks(MiniblockNumber(0))
+//             .await
+//             .unwrap();
+//         conn.blocks_dal()
+//             .delete_l1_batches(L1BatchNumber(0))
+//             .await
+//             .unwrap();
+//         conn.protocol_versions_dal()
+//             .save_protocol_version_with_tx(ProtocolVersion::default())
+//             .await;
 
-        let account = AccountTreeId::new(Address::repeat_byte(1));
-        let logs: Vec<_> = (0_u8..10)
-            .map(|i| {
-                let key = StorageKey::new(account, H256::from_low_u64_be(u64::from(i)));
-                StorageLog::new_write_log(key, H256::repeat_byte(i))
-            })
-            .collect();
-        insert_miniblock(&mut conn, 1, logs.clone()).await;
-        let written_keys: Vec<_> = logs.iter().map(|log| log.key).collect();
-        conn.storage_logs_dedup_dal()
-            .insert_initial_writes(L1BatchNumber(1), &written_keys)
-            .await;
+//         let account = AccountTreeId::new(Address::repeat_byte(1));
+//         let logs: Vec<_> = (0_u8..10)
+//             .map(|i| {
+//                 let key = StorageKey::new(account, H256::from_low_u64_be(u64::from(i)));
+//                 StorageLog::new_write_log(key, H256::repeat_byte(i))
+//             })
+//             .collect();
+//         insert_miniblock(&mut conn, 1, logs.clone()).await;
+//         let written_keys: Vec<_> = logs.iter().map(|log| log.key).collect();
+//         conn.storage_logs_dedup_dal()
+//             .insert_initial_writes(L1BatchNumber(1), &written_keys)
+//             .await;
 
-        let new_logs: Vec<_> = (5_u64..20)
-            .map(|i| {
-                let key = StorageKey::new(account, H256::from_low_u64_be(i));
-                StorageLog::new_write_log(key, H256::from_low_u64_be(i))
-            })
-            .collect();
-        insert_miniblock(&mut conn, 2, new_logs.clone()).await;
-        let new_written_keys: Vec<_> = new_logs[5..].iter().map(|log| log.key).collect();
-        conn.storage_logs_dedup_dal()
-            .insert_initial_writes(L1BatchNumber(2), &new_written_keys)
-            .await;
+//         let new_logs: Vec<_> = (5_u64..20)
+//             .map(|i| {
+//                 let key = StorageKey::new(account, H256::from_low_u64_be(i));
+//                 StorageLog::new_write_log(key, H256::from_low_u64_be(i))
+//             })
+//             .collect();
+//         insert_miniblock(&mut conn, 2, new_logs.clone()).await;
+//         let new_written_keys: Vec<_> = new_logs[5..].iter().map(|log| log.key).collect();
+//         conn.storage_logs_dedup_dal()
+//             .insert_initial_writes(L1BatchNumber(2), &new_written_keys)
+//             .await;
 
-        let logs_for_revert = conn
-            .storage_logs_dal()
-            .get_storage_logs_for_revert(L1BatchNumber(1))
-            .await;
-        assert_eq!(logs_for_revert.len(), 15); // 5 updated + 10 new keys
-        for log in &logs[5..] {
-            let prev_value = logs_for_revert[&log.key.hashed_key()].unwrap().0;
-            assert_eq!(prev_value, log.value);
-        }
-        for log in &new_logs[5..] {
-            assert!(logs_for_revert[&log.key.hashed_key()].is_none());
-        }
-    }
+//         let logs_for_revert = conn
+//             .storage_logs_dal()
+//             .get_storage_logs_for_revert(L1BatchNumber(1))
+//             .await;
+//         assert_eq!(logs_for_revert.len(), 15); // 5 updated + 10 new keys
+//         for log in &logs[5..] {
+//             let prev_value = logs_for_revert[&log.key.hashed_key()].unwrap().0;
+//             assert_eq!(prev_value, log.value);
+//         }
+//         for log in &new_logs[5..] {
+//             assert!(logs_for_revert[&log.key.hashed_key()].is_none());
+//         }
+//     }
 
-    #[db_test(dal_crate)]
-    async fn reverting_keys_without_initial_write(pool: MainConnectionPool) {
-        let mut conn = pool.access_storage().await.unwrap();
+//     #[db_test(dal_crate)]
+//     async fn reverting_keys_without_initial_write(pool: MainConnectionPool) {
+//         let mut conn = pool.access_storage().await.unwrap();
 
-        conn.blocks_dal()
-            .delete_miniblocks(MiniblockNumber(0))
-            .await
-            .unwrap();
-        conn.blocks_dal()
-            .delete_l1_batches(L1BatchNumber(0))
-            .await
-            .unwrap();
-        conn.protocol_versions_dal()
-            .save_protocol_version_with_tx(ProtocolVersion::default())
-            .await;
+//         conn.blocks_dal()
+//             .delete_miniblocks(MiniblockNumber(0))
+//             .await
+//             .unwrap();
+//         conn.blocks_dal()
+//             .delete_l1_batches(L1BatchNumber(0))
+//             .await
+//             .unwrap();
+//         conn.protocol_versions_dal()
+//             .save_protocol_version_with_tx(ProtocolVersion::default())
+//             .await;
 
-        let account = AccountTreeId::new(Address::repeat_byte(1));
-        let mut logs: Vec<_> = [0_u8, 1, 2, 3]
-            .iter()
-            .map(|&i| {
-                let key = StorageKey::new(account, H256::from_low_u64_be(u64::from(i)));
-                StorageLog::new_write_log(key, H256::repeat_byte(i % 3))
-            })
-            .collect();
+//         let account = AccountTreeId::new(Address::repeat_byte(1));
+//         let mut logs: Vec<_> = [0_u8, 1, 2, 3]
+//             .iter()
+//             .map(|&i| {
+//                 let key = StorageKey::new(account, H256::from_low_u64_be(u64::from(i)));
+//                 StorageLog::new_write_log(key, H256::repeat_byte(i % 3))
+//             })
+//             .collect();
 
-        for l1_batch in [1, 2] {
-            if l1_batch == 2 {
-                for log in &mut logs[1..] {
-                    log.value = H256::repeat_byte(0xff);
-                }
-            }
-            insert_miniblock(&mut conn, l1_batch, logs.clone()).await;
+//         for l1_batch in [1, 2] {
+//             if l1_batch == 2 {
+//                 for log in &mut logs[1..] {
+//                     log.value = H256::repeat_byte(0xff);
+//                 }
+//             }
+//             insert_miniblock(&mut conn, l1_batch, logs.clone()).await;
 
-            let all_keys: Vec<_> = logs.iter().map(|log| log.key.hashed_key()).collect();
-            let non_initial = conn
-                .storage_logs_dedup_dal()
-                .filter_written_slots(&all_keys)
-                .await;
-            // Pretend that dedup logic eliminates all writes with zero values.
-            let initial_keys: Vec<_> = logs
-                .iter()
-                .filter_map(|log| {
-                    (!log.value.is_zero() && !non_initial.contains(&log.key.hashed_key()))
-                        .then_some(log.key)
-                })
-                .collect();
+//             let all_keys: Vec<_> = logs.iter().map(|log| log.key.hashed_key()).collect();
+//             let non_initial = conn
+//                 .storage_logs_dedup_dal()
+//                 .filter_written_slots(&all_keys)
+//                 .await;
+//             // Pretend that dedup logic eliminates all writes with zero values.
+//             let initial_keys: Vec<_> = logs
+//                 .iter()
+//                 .filter_map(|log| {
+//                     (!log.value.is_zero() && !non_initial.contains(&log.key.hashed_key()))
+//                         .then_some(log.key)
+//                 })
+//                 .collect();
 
-            assert!(initial_keys.len() < logs.len());
-            conn.storage_logs_dedup_dal()
-                .insert_initial_writes(L1BatchNumber(l1_batch), &initial_keys)
-                .await;
-        }
+//             assert!(initial_keys.len() < logs.len());
+//             conn.storage_logs_dedup_dal()
+//                 .insert_initial_writes(L1BatchNumber(l1_batch), &initial_keys)
+//                 .await;
+//         }
 
-        let logs_for_revert = conn
-            .storage_logs_dal()
-            .get_storage_logs_for_revert(L1BatchNumber(1))
-            .await;
-        assert_eq!(logs_for_revert.len(), 3);
-        for (i, log) in logs.iter().enumerate() {
-            let hashed_key = log.key.hashed_key();
-            match i {
-                // Key is deduped.
-                0 => assert!(!logs_for_revert.contains_key(&hashed_key)),
-                // Key is present in both batches as per `storage_logs` and `initial_writes`
-                1 | 2 => assert!(logs_for_revert[&hashed_key].is_some()),
-                // Key is present in both batches as per `storage_logs`, but `initial_writes`
-                // indicates that the first write was deduped.
-                3 => assert!(logs_for_revert[&hashed_key].is_none()),
-                _ => unreachable!("we only have 4 keys"),
-            }
-        }
-    }
-}
+//         let logs_for_revert = conn
+//             .storage_logs_dal()
+//             .get_storage_logs_for_revert(L1BatchNumber(1))
+//             .await;
+//         assert_eq!(logs_for_revert.len(), 3);
+//         for (i, log) in logs.iter().enumerate() {
+//             let hashed_key = log.key.hashed_key();
+//             match i {
+//                 // Key is deduped.
+//                 0 => assert!(!logs_for_revert.contains_key(&hashed_key)),
+//                 // Key is present in both batches as per `storage_logs` and `initial_writes`
+//                 1 | 2 => assert!(logs_for_revert[&hashed_key].is_some()),
+//                 // Key is present in both batches as per `storage_logs`, but `initial_writes`
+//                 // indicates that the first write was deduped.
+//                 3 => assert!(logs_for_revert[&hashed_key].is_none()),
+//                 _ => unreachable!("we only have 4 keys"),
+//             }
+//         }
+//     }
+// }

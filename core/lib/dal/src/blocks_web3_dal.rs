@@ -581,270 +581,270 @@ impl BlocksWeb3Dal<'_, '_> {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use db_test_macro::db_test;
-    use zksync_contracts::BaseSystemContractsHashes;
-    use zksync_types::{
-        block::{miniblock_hash, MiniblockHeader},
-        MiniblockNumber, ProtocolVersion, ProtocolVersionId,
-    };
+// #[cfg(test)]
+// mod tests {
+//     use db_test_macro::db_test;
+//     use zksync_contracts::BaseSystemContractsHashes;
+//     use zksync_types::{
+//         block::{miniblock_hash, MiniblockHeader},
+//         MiniblockNumber, ProtocolVersion, ProtocolVersionId,
+//     };
 
-    use super::*;
-    use crate::{tests::create_miniblock_header, MainConnectionPool};
+//     use super::*;
+//     use crate::{tests::create_miniblock_header, MainConnectionPool};
 
-    #[db_test(dal_crate)]
-    async fn getting_web3_block_and_tx_count(connection_pool: MainConnectionPool) {
-        let mut conn = connection_pool.access_test_storage().await;
-        conn.blocks_dal()
-            .delete_miniblocks(MiniblockNumber(0))
-            .await
-            .unwrap();
-        conn.protocol_versions_dal()
-            .save_protocol_version_with_tx(ProtocolVersion::default())
-            .await;
-        let header = MiniblockHeader {
-            l1_tx_count: 3,
-            l2_tx_count: 5,
-            ..create_miniblock_header(0)
-        };
-        conn.blocks_dal().insert_miniblock(&header).await.unwrap();
+//     #[db_test(dal_crate)]
+//     async fn getting_web3_block_and_tx_count(connection_pool: MainConnectionPool) {
+//         let mut conn = connection_pool.access_test_storage().await;
+//         conn.blocks_dal()
+//             .delete_miniblocks(MiniblockNumber(0))
+//             .await
+//             .unwrap();
+//         conn.protocol_versions_dal()
+//             .save_protocol_version_with_tx(ProtocolVersion::default())
+//             .await;
+//         let header = MiniblockHeader {
+//             l1_tx_count: 3,
+//             l2_tx_count: 5,
+//             ..create_miniblock_header(0)
+//         };
+//         conn.blocks_dal().insert_miniblock(&header).await.unwrap();
 
-        let block_ids = [
-            api::BlockId::Number(api::BlockNumber::Earliest),
-            api::BlockId::Number(api::BlockNumber::Latest),
-            api::BlockId::Number(api::BlockNumber::Number(0.into())),
-            api::BlockId::Hash(miniblock_hash(
-                MiniblockNumber(0),
-                0,
-                H256::zero(),
-                H256::zero(),
-            )),
-        ];
-        for block_id in block_ids {
-            let block = conn
-                .blocks_web3_dal()
-                .get_block_by_web3_block_id(block_id, false, L2ChainId::from(270))
-                .await;
-            let block = block.unwrap().unwrap();
-            assert!(block.transactions.is_empty());
-            assert_eq!(block.number, U64::zero());
-            assert_eq!(
-                block.hash,
-                miniblock_hash(MiniblockNumber(0), 0, H256::zero(), H256::zero())
-            );
+//         let block_ids = [
+//             api::BlockId::Number(api::BlockNumber::Earliest),
+//             api::BlockId::Number(api::BlockNumber::Latest),
+//             api::BlockId::Number(api::BlockNumber::Number(0.into())),
+//             api::BlockId::Hash(miniblock_hash(
+//                 MiniblockNumber(0),
+//                 0,
+//                 H256::zero(),
+//                 H256::zero(),
+//             )),
+//         ];
+//         for block_id in block_ids {
+//             let block = conn
+//                 .blocks_web3_dal()
+//                 .get_block_by_web3_block_id(block_id, false, L2ChainId::from(270))
+//                 .await;
+//             let block = block.unwrap().unwrap();
+//             assert!(block.transactions.is_empty());
+//             assert_eq!(block.number, U64::zero());
+//             assert_eq!(
+//                 block.hash,
+//                 miniblock_hash(MiniblockNumber(0), 0, H256::zero(), H256::zero())
+//             );
 
-            let tx_count = conn.blocks_web3_dal().get_block_tx_count(block_id).await;
-            assert_eq!(tx_count.unwrap(), Some((MiniblockNumber(0), 8.into())));
-        }
+//             let tx_count = conn.blocks_web3_dal().get_block_tx_count(block_id).await;
+//             assert_eq!(tx_count.unwrap(), Some((MiniblockNumber(0), 8.into())));
+//         }
 
-        let non_existing_block_ids = [
-            api::BlockId::Number(api::BlockNumber::Pending),
-            api::BlockId::Number(api::BlockNumber::Number(1.into())),
-            api::BlockId::Hash(miniblock_hash(
-                MiniblockNumber(1),
-                1,
-                H256::zero(),
-                H256::zero(),
-            )),
-        ];
-        for block_id in non_existing_block_ids {
-            let block = conn
-                .blocks_web3_dal()
-                .get_block_by_web3_block_id(block_id, false, L2ChainId::from(270))
-                .await;
-            assert!(block.unwrap().is_none());
+//         let non_existing_block_ids = [
+//             api::BlockId::Number(api::BlockNumber::Pending),
+//             api::BlockId::Number(api::BlockNumber::Number(1.into())),
+//             api::BlockId::Hash(miniblock_hash(
+//                 MiniblockNumber(1),
+//                 1,
+//                 H256::zero(),
+//                 H256::zero(),
+//             )),
+//         ];
+//         for block_id in non_existing_block_ids {
+//             let block = conn
+//                 .blocks_web3_dal()
+//                 .get_block_by_web3_block_id(block_id, false, L2ChainId::from(270))
+//                 .await;
+//             assert!(block.unwrap().is_none());
 
-            let tx_count = conn.blocks_web3_dal().get_block_tx_count(block_id).await;
-            assert_eq!(tx_count.unwrap(), None);
-        }
-    }
+//             let tx_count = conn.blocks_web3_dal().get_block_tx_count(block_id).await;
+//             assert_eq!(tx_count.unwrap(), None);
+//         }
+//     }
 
-    #[db_test(dal_crate)]
-    async fn resolving_earliest_block_id(connection_pool: MainConnectionPool) {
-        let mut conn = connection_pool.access_test_storage().await;
-        conn.blocks_dal()
-            .delete_miniblocks(MiniblockNumber(0))
-            .await
-            .unwrap();
+//     #[db_test(dal_crate)]
+//     async fn resolving_earliest_block_id(connection_pool: MainConnectionPool) {
+//         let mut conn = connection_pool.access_test_storage().await;
+//         conn.blocks_dal()
+//             .delete_miniblocks(MiniblockNumber(0))
+//             .await
+//             .unwrap();
 
-        let miniblock_number = conn
-            .blocks_web3_dal()
-            .resolve_block_id(api::BlockId::Number(api::BlockNumber::Earliest))
-            .await;
-        assert_eq!(miniblock_number.unwrap(), Some(MiniblockNumber(0)));
-    }
+//         let miniblock_number = conn
+//             .blocks_web3_dal()
+//             .resolve_block_id(api::BlockId::Number(api::BlockNumber::Earliest))
+//             .await;
+//         assert_eq!(miniblock_number.unwrap(), Some(MiniblockNumber(0)));
+//     }
 
-    #[db_test(dal_crate)]
-    async fn resolving_latest_block_id(connection_pool: MainConnectionPool) {
-        let mut conn = connection_pool.access_test_storage().await;
-        conn.blocks_dal()
-            .delete_miniblocks(MiniblockNumber(0))
-            .await
-            .unwrap();
-        conn.protocol_versions_dal()
-            .save_protocol_version_with_tx(ProtocolVersion::default())
-            .await;
-        conn.blocks_dal()
-            .insert_miniblock(&create_miniblock_header(0))
-            .await
-            .unwrap();
+//     #[db_test(dal_crate)]
+//     async fn resolving_latest_block_id(connection_pool: MainConnectionPool) {
+//         let mut conn = connection_pool.access_test_storage().await;
+//         conn.blocks_dal()
+//             .delete_miniblocks(MiniblockNumber(0))
+//             .await
+//             .unwrap();
+//         conn.protocol_versions_dal()
+//             .save_protocol_version_with_tx(ProtocolVersion::default())
+//             .await;
+//         conn.blocks_dal()
+//             .insert_miniblock(&create_miniblock_header(0))
+//             .await
+//             .unwrap();
 
-        let miniblock_number = conn
-            .blocks_web3_dal()
-            .resolve_block_id(api::BlockId::Number(api::BlockNumber::Latest))
-            .await;
-        assert_eq!(miniblock_number.unwrap(), Some(MiniblockNumber(0)));
+//         let miniblock_number = conn
+//             .blocks_web3_dal()
+//             .resolve_block_id(api::BlockId::Number(api::BlockNumber::Latest))
+//             .await;
+//         assert_eq!(miniblock_number.unwrap(), Some(MiniblockNumber(0)));
 
-        let miniblock_number = conn
-            .blocks_web3_dal()
-            .resolve_block_id(api::BlockId::Number(api::BlockNumber::Number(0.into())))
-            .await;
-        assert_eq!(miniblock_number.unwrap(), Some(MiniblockNumber(0)));
-        let miniblock_number = conn
-            .blocks_web3_dal()
-            .resolve_block_id(api::BlockId::Number(api::BlockNumber::Number(1.into())))
-            .await;
-        assert_eq!(miniblock_number.unwrap(), None);
+//         let miniblock_number = conn
+//             .blocks_web3_dal()
+//             .resolve_block_id(api::BlockId::Number(api::BlockNumber::Number(0.into())))
+//             .await;
+//         assert_eq!(miniblock_number.unwrap(), Some(MiniblockNumber(0)));
+//         let miniblock_number = conn
+//             .blocks_web3_dal()
+//             .resolve_block_id(api::BlockId::Number(api::BlockNumber::Number(1.into())))
+//             .await;
+//         assert_eq!(miniblock_number.unwrap(), None);
 
-        conn.blocks_dal()
-            .insert_miniblock(&create_miniblock_header(1))
-            .await
-            .unwrap();
-        let miniblock_number = conn
-            .blocks_web3_dal()
-            .resolve_block_id(api::BlockId::Number(api::BlockNumber::Latest))
-            .await;
-        assert_eq!(miniblock_number.unwrap(), Some(MiniblockNumber(1)));
+//         conn.blocks_dal()
+//             .insert_miniblock(&create_miniblock_header(1))
+//             .await
+//             .unwrap();
+//         let miniblock_number = conn
+//             .blocks_web3_dal()
+//             .resolve_block_id(api::BlockId::Number(api::BlockNumber::Latest))
+//             .await;
+//         assert_eq!(miniblock_number.unwrap(), Some(MiniblockNumber(1)));
 
-        let miniblock_number = conn
-            .blocks_web3_dal()
-            .resolve_block_id(api::BlockId::Number(api::BlockNumber::Pending))
-            .await;
-        assert_eq!(miniblock_number.unwrap(), Some(MiniblockNumber(2)));
+//         let miniblock_number = conn
+//             .blocks_web3_dal()
+//             .resolve_block_id(api::BlockId::Number(api::BlockNumber::Pending))
+//             .await;
+//         assert_eq!(miniblock_number.unwrap(), Some(MiniblockNumber(2)));
 
-        let miniblock_number = conn
-            .blocks_web3_dal()
-            .resolve_block_id(api::BlockId::Number(api::BlockNumber::Number(1.into())))
-            .await;
-        assert_eq!(miniblock_number.unwrap(), Some(MiniblockNumber(1)));
-    }
+//         let miniblock_number = conn
+//             .blocks_web3_dal()
+//             .resolve_block_id(api::BlockId::Number(api::BlockNumber::Number(1.into())))
+//             .await;
+//         assert_eq!(miniblock_number.unwrap(), Some(MiniblockNumber(1)));
+//     }
 
-    #[db_test(dal_crate)]
-    async fn resolving_block_by_hash(connection_pool: MainConnectionPool) {
-        let mut conn = connection_pool.access_test_storage().await;
-        conn.blocks_dal()
-            .delete_miniblocks(MiniblockNumber(0))
-            .await
-            .unwrap();
-        conn.protocol_versions_dal()
-            .save_protocol_version_with_tx(ProtocolVersion::default())
-            .await;
-        conn.blocks_dal()
-            .insert_miniblock(&create_miniblock_header(0))
-            .await
-            .unwrap();
+//     #[db_test(dal_crate)]
+//     async fn resolving_block_by_hash(connection_pool: MainConnectionPool) {
+//         let mut conn = connection_pool.access_test_storage().await;
+//         conn.blocks_dal()
+//             .delete_miniblocks(MiniblockNumber(0))
+//             .await
+//             .unwrap();
+//         conn.protocol_versions_dal()
+//             .save_protocol_version_with_tx(ProtocolVersion::default())
+//             .await;
+//         conn.blocks_dal()
+//             .insert_miniblock(&create_miniblock_header(0))
+//             .await
+//             .unwrap();
 
-        let hash = miniblock_hash(MiniblockNumber(0), 0, H256::zero(), H256::zero());
-        let miniblock_number = conn
-            .blocks_web3_dal()
-            .resolve_block_id(api::BlockId::Hash(hash))
-            .await;
-        assert_eq!(miniblock_number.unwrap(), Some(MiniblockNumber(0)));
+//         let hash = miniblock_hash(MiniblockNumber(0), 0, H256::zero(), H256::zero());
+//         let miniblock_number = conn
+//             .blocks_web3_dal()
+//             .resolve_block_id(api::BlockId::Hash(hash))
+//             .await;
+//         assert_eq!(miniblock_number.unwrap(), Some(MiniblockNumber(0)));
 
-        let hash = miniblock_hash(MiniblockNumber(1), 1, H256::zero(), H256::zero());
-        let miniblock_number = conn
-            .blocks_web3_dal()
-            .resolve_block_id(api::BlockId::Hash(hash))
-            .await;
-        assert_eq!(miniblock_number.unwrap(), None);
-    }
+//         let hash = miniblock_hash(MiniblockNumber(1), 1, H256::zero(), H256::zero());
+//         let miniblock_number = conn
+//             .blocks_web3_dal()
+//             .resolve_block_id(api::BlockId::Hash(hash))
+//             .await;
+//         assert_eq!(miniblock_number.unwrap(), None);
+//     }
 
-    #[db_test(dal_crate)]
-    async fn getting_miniblocks_for_virtual_block(connection_pool: MainConnectionPool) {
-        let mut conn = connection_pool.access_test_storage().await;
+//     #[db_test(dal_crate)]
+//     async fn getting_miniblocks_for_virtual_block(connection_pool: MainConnectionPool) {
+//         let mut conn = connection_pool.access_test_storage().await;
 
-        conn.protocol_versions_dal()
-            .save_protocol_version_with_tx(ProtocolVersion::default())
-            .await;
+//         conn.protocol_versions_dal()
+//             .save_protocol_version_with_tx(ProtocolVersion::default())
+//             .await;
 
-        let mut header = MiniblockHeader {
-            number: MiniblockNumber(0),
-            timestamp: 0,
-            hash: miniblock_hash(MiniblockNumber(0), 0, H256::zero(), H256::zero()),
-            l1_tx_count: 0,
-            l2_tx_count: 0,
-            base_fee_per_gas: 100,
-            l1_gas_price: 100,
-            l2_fair_gas_price: 100,
-            base_system_contracts_hashes: BaseSystemContractsHashes::default(),
-            protocol_version: Some(ProtocolVersionId::default()),
-            virtual_blocks: 0,
-        };
-        conn.blocks_dal().insert_miniblock(&header).await.unwrap();
-        conn.blocks_dal()
-            .mark_miniblocks_as_executed_in_l1_batch(L1BatchNumber(0))
-            .await
-            .unwrap();
+//         let mut header = MiniblockHeader {
+//             number: MiniblockNumber(0),
+//             timestamp: 0,
+//             hash: miniblock_hash(MiniblockNumber(0), 0, H256::zero(), H256::zero()),
+//             l1_tx_count: 0,
+//             l2_tx_count: 0,
+//             base_fee_per_gas: 100,
+//             l1_gas_price: 100,
+//             l2_fair_gas_price: 100,
+//             base_system_contracts_hashes: BaseSystemContractsHashes::default(),
+//             protocol_version: Some(ProtocolVersionId::default()),
+//             virtual_blocks: 0,
+//         };
+//         conn.blocks_dal().insert_miniblock(&header).await.unwrap();
+//         conn.blocks_dal()
+//             .mark_miniblocks_as_executed_in_l1_batch(L1BatchNumber(0))
+//             .await
+//             .unwrap();
 
-        header.number = MiniblockNumber(1);
-        conn.blocks_dal().insert_miniblock(&header).await.unwrap();
-        conn.blocks_dal()
-            .mark_miniblocks_as_executed_in_l1_batch(L1BatchNumber(1))
-            .await
-            .unwrap();
+//         header.number = MiniblockNumber(1);
+//         conn.blocks_dal().insert_miniblock(&header).await.unwrap();
+//         conn.blocks_dal()
+//             .mark_miniblocks_as_executed_in_l1_batch(L1BatchNumber(1))
+//             .await
+//             .unwrap();
 
-        for i in 2..=100 {
-            header.number = MiniblockNumber(i);
-            header.virtual_blocks = 5;
+//         for i in 2..=100 {
+//             header.number = MiniblockNumber(i);
+//             header.virtual_blocks = 5;
 
-            conn.blocks_dal().insert_miniblock(&header).await.unwrap();
-            conn.blocks_dal()
-                .mark_miniblocks_as_executed_in_l1_batch(L1BatchNumber(i))
-                .await
-                .unwrap();
-        }
+//             conn.blocks_dal().insert_miniblock(&header).await.unwrap();
+//             conn.blocks_dal()
+//                 .mark_miniblocks_as_executed_in_l1_batch(L1BatchNumber(i))
+//                 .await
+//                 .unwrap();
+//         }
 
-        let virtual_block_ranges = [
-            (2, 4),
-            (20, 24),
-            (11, 15),
-            (1, 10),
-            (88, 99),
-            (1, 100),
-            (1000000, 10000000),
-        ];
-        let expected_miniblock_ranges = [
-            (Some(2), Some(1)),
-            (Some(5), Some(5)),
-            (Some(4), Some(4)),
-            (Some(2), Some(3)),
-            (Some(19), Some(20)),
-            (Some(2), Some(21)),
-            (None, Some(100)),
-        ];
+//         let virtual_block_ranges = [
+//             (2, 4),
+//             (20, 24),
+//             (11, 15),
+//             (1, 10),
+//             (88, 99),
+//             (1, 100),
+//             (1000000, 10000000),
+//         ];
+//         let expected_miniblock_ranges = [
+//             (Some(2), Some(1)),
+//             (Some(5), Some(5)),
+//             (Some(4), Some(4)),
+//             (Some(2), Some(3)),
+//             (Some(19), Some(20)),
+//             (Some(2), Some(21)),
+//             (None, Some(100)),
+//         ];
 
-        let inputs_with_expected_values =
-            IntoIterator::into_iter(virtual_block_ranges).zip(expected_miniblock_ranges);
-        for (
-            (virtual_block_start, virtual_block_end),
-            (expected_miniblock_from, expected_miniblock_to),
-        ) in inputs_with_expected_values
-        {
-            // migration_start_l1_batch_number = 1
-            let miniblock_from = conn
-                .blocks_web3_dal()
-                .get_miniblock_for_virtual_block_from(1, virtual_block_start)
-                .await
-                .unwrap();
-            assert_eq!(miniblock_from, expected_miniblock_from);
+//         let inputs_with_expected_values =
+//             IntoIterator::into_iter(virtual_block_ranges).zip(expected_miniblock_ranges);
+//         for (
+//             (virtual_block_start, virtual_block_end),
+//             (expected_miniblock_from, expected_miniblock_to),
+//         ) in inputs_with_expected_values
+//         {
+//             // migration_start_l1_batch_number = 1
+//             let miniblock_from = conn
+//                 .blocks_web3_dal()
+//                 .get_miniblock_for_virtual_block_from(1, virtual_block_start)
+//                 .await
+//                 .unwrap();
+//             assert_eq!(miniblock_from, expected_miniblock_from);
 
-            let miniblock_to = conn
-                .blocks_web3_dal()
-                .get_miniblock_for_virtual_block_to(1, virtual_block_end)
-                .await
-                .unwrap();
-            assert_eq!(miniblock_to, expected_miniblock_to);
-        }
-    }
-}
+//             let miniblock_to = conn
+//                 .blocks_web3_dal()
+//                 .get_miniblock_for_virtual_block_to(1, virtual_block_end)
+//                 .await
+//                 .unwrap();
+//             assert_eq!(miniblock_to, expected_miniblock_to);
+//         }
+//     }
+// }

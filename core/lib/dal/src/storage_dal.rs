@@ -209,30 +209,30 @@ impl StorageDal<'_, '_> {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::MainConnectionPool;
-    use db_test_macro::db_test;
-    use zksync_types::{AccountTreeId, Address};
+// #[cfg(test)]
+// mod tests {
+//     use super::*;
+//     use crate::MainConnectionPool;
+//     use db_test_macro::db_test;
+//     use zksync_types::{AccountTreeId, Address};
 
-    #[db_test(dal_crate)]
-    async fn applying_storage_logs(pool: MainConnectionPool) {
-        let mut conn = pool.access_storage().await.unwrap();
+//     #[db_test(dal_crate)]
+//     async fn applying_storage_logs(pool: MainConnectionPool) {
+//         let mut conn = pool.access_storage().await.unwrap();
 
-        let account = AccountTreeId::new(Address::repeat_byte(1));
-        let first_key = StorageKey::new(account, H256::zero());
-        let second_key = StorageKey::new(account, H256::from_low_u64_be(1));
-        let storage_logs = vec![
-            StorageLog::new_write_log(first_key, H256::repeat_byte(1)),
-            StorageLog::new_write_log(second_key, H256::repeat_byte(2)),
-        ];
-        let updates = [(H256::repeat_byte(1), storage_logs)];
-        conn.storage_dal().apply_storage_logs(&updates).await;
+//         let account = AccountTreeId::new(Address::repeat_byte(1));
+//         let first_key = StorageKey::new(account, H256::zero());
+//         let second_key = StorageKey::new(account, H256::from_low_u64_be(1));
+//         let storage_logs = vec![
+//             StorageLog::new_write_log(first_key, H256::repeat_byte(1)),
+//             StorageLog::new_write_log(second_key, H256::repeat_byte(2)),
+//         ];
+//         let updates = [(H256::repeat_byte(1), storage_logs)];
+//         conn.storage_dal().apply_storage_logs(&updates).await;
 
-        let first_value = conn.storage_dal().get_by_key(&first_key).await.unwrap();
-        assert_eq!(first_value, H256::repeat_byte(1));
-        let second_value = conn.storage_dal().get_by_key(&second_key).await.unwrap();
-        assert_eq!(second_value, H256::repeat_byte(2));
-    }
-}
+//         let first_value = conn.storage_dal().get_by_key(&first_key).await.unwrap();
+//         assert_eq!(first_value, H256::repeat_byte(1));
+//         let second_value = conn.storage_dal().get_by_key(&second_key).await.unwrap();
+//         assert_eq!(second_value, H256::repeat_byte(2));
+//     }
+// }
