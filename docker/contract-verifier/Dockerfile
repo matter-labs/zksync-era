@@ -22,21 +22,22 @@ FROM debian:bookworm-slim
 
 RUN apt-get update && apt-get install -y curl libpq5 ca-certificates wget python3 && rm -rf /var/lib/apt/lists/*
 
-# install zksolc 1.3.0-1.3.16
-RUN for VERSION in $(seq -f "v1.3.%g" 0 16); do \
-    if [ "$VERSION" = "v1.3.12" ] || [ "$VERSION" = "v1.3.15" ]; then \
-    continue; \
-    fi; \
-    mkdir -p /etc/zksolc-bin/$VERSION && \
-    wget https://github.com/matter-labs/zksolc-bin/raw/main/linux-amd64/zksolc-linux-amd64-musl-$VERSION -O /etc/zksolc-bin/$VERSION/zksolc && \
-    chmod +x /etc/zksolc-bin/$VERSION/zksolc; \
+# install zksolc 1.3.x
+RUN skip_versions=("v1.3.12" "v1.3.15") && \
+    for VERSION in $(seq -f "v1.3.%g" 0 16); do \
+        if [[ " ${skip_versions[@]} " =~ " ${VERSION} " ]]; then \
+            continue; \
+        fi; \
+        mkdir -p /etc/zksolc-bin/$VERSION && \
+        wget https://github.com/matter-labs/zksolc-bin/raw/main/linux-amd64/zksolc-linux-amd64-musl-$VERSION -O /etc/zksolc-bin/$VERSION/zksolc && \
+        chmod +x /etc/zksolc-bin/$VERSION/zksolc; \
     done
 
-# install zkvyper 1.3.9-1.3.11
+# install zkvyper 1.3.x
 RUN for VERSION in $(seq -f "v1.3.%g" 9 11); do \
-    mkdir -p /etc/zkvyper-bin/$VERSION && \
-    wget https://github.com/matter-labs/zkvyper-bin/raw/main/linux-amd64/zkvyper-linux-amd64-musl-$VERSION -O /etc/zkvyper-bin/$VERSION/zkvyper && \
-    chmod +x /etc/zkvyper-bin/$VERSION/zkvyper; \
+        mkdir -p /etc/zkvyper-bin/$VERSION && \
+        wget https://github.com/matter-labs/zkvyper-bin/raw/main/linux-amd64/zkvyper-linux-amd64-musl-$VERSION -O /etc/zkvyper-bin/$VERSION/zkvyper && \
+        chmod +x /etc/zkvyper-bin/$VERSION/zkvyper; \
     done
 
 # install solc
