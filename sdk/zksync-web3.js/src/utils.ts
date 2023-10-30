@@ -366,7 +366,7 @@ export function getL2HashFromPriorityOp(
         }
 
         try {
-            const priorityQueueLog = BRIDGEHUB_ABI.parseLog(log);
+            const priorityQueueLog = STATE_TRANSITION_CHAIN_ABI.parseLog(log);
             if (priorityQueueLog && priorityQueueLog.args.txHash != null) {
                 txHash = priorityQueueLog.args.txHash;
             }

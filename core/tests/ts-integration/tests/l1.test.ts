@@ -126,7 +126,7 @@ describe('Tests for L1 behavior', () => {
             receipt.l1BatchNumber,
             id,
             {
-                txNumberInBlock: receipt.l1BatchTxIndex,
+                txNumberInBatch: receipt.l1BatchTxIndex,
                 sender: alice.address,
                 data: message
             },

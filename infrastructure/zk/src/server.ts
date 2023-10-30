@@ -21,8 +21,8 @@ export async function server(rebuildTree: boolean, uring: boolean, components?: 
     if (components) {
         options += ` --components=${components}`;
     }
-    await utils.spawn(`RUST_LOG=vm=trace cargo run --bin zksync_server --release ${options}`);
-    // await utils.spawn(`cargo run --bin zksync_server --release ${options}`);
+    // await utils.spawn(`RUST_LOG=vm=trace cargo run --bin zksync_server --release ${options}`);
+    await utils.spawn(`cargo run --bin zksync_server --release ${options}`);
 }
 
 export async function externalNode(reinit: boolean = false) {

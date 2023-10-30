@@ -88,7 +88,11 @@ export async function initializeBridges(args: any[] = []) {
     const baseCommandL1 = isLocalSetup ? `yarn --cwd /contracts/ethereum` : `yarn l1-contracts`;
 
     await utils.spawn(`${baseCommandL1} initialize-bridges ${args.join(' ')} | tee deployL1.log`);
-    const l2DeploymentEnvVars: string[] = [];
+    const l2DeploymentEnvVars: string[] = [
+        'CONTRACTS_L2_WETH_BRIDGE_ADDR',
+        'CONTRACTS_L2_WETH_TOKEN_IMPL_ADDR',
+        'CONTRACTS_L2_WETH_TOKEN_PROXY_ADDR'
+    ];
     const l1DeployLog = fs.readFileSync('deployL1.log').toString();
     updateContractsEnv(`etc/env/l1-inits/${process.env.ZKSYNC_ENV!}.init.env`, l1DeployLog, l2DeploymentEnvVars);
 }

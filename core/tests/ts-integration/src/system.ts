@@ -4,7 +4,7 @@ import { Provider, utils, Contract } from 'zksync-web3';
 
 const L1_CONTRACTS_FOLDER = `${process.env.ZKSYNC_HOME}/contracts/ethereum/artifacts/cache/solpp-generated-contracts`;
 const DIAMOND_UPGRADE_INIT_ABI = new ethers.utils.Interface(
-    require(`${L1_CONTRACTS_FOLDER}/bridgehub/upgrade-initializers/DiamondUpgradeInit1.sol/DiamondUpgradeInit1.json`).abi
+    require(`${L1_CONTRACTS_FOLDER}/state-transition/upgrade-initializers/DiamondUpgradeInit1.sol/DiamondUpgradeInit1.json`).abi
 );
 const GOVERNANCE_ABI = new ethers.utils.Interface(
     require(`${L1_CONTRACTS_FOLDER}/governance/Governance.sol/Governance.json`).abi
@@ -65,7 +65,7 @@ export async function deployOnAnyLocalAddress(
 
     const stateTransitionChain = new ethers.Contract(
         stateTransitionChainContract,
-        utils.STATE_TRANSITION_ABI,
+        utils.STATE_TRANSITION_CHAIN_ABI,
         govWallet
     );
     const governanceContractAddr = await stateTransitionChain.getGovernor();
