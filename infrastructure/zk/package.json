@@ -19,7 +19,7 @@
         "handlebars": "^4.7.8",
         "node-fetch": "^2.6.1",
         "tabtab": "^3.0.2",
-        "zksync-web3": "link:../../sdk/zksync-web3.js"
+        "zksync-web3": "^0.15.5"
     },
     "devDependencies": {
         "@matterlabs/hardhat-zksync-solc": "^0.3.15",
