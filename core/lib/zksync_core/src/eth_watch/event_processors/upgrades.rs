@@ -1,11 +1,6 @@
 use std::convert::TryFrom;
-use std::time::Instant;
-use zksync_contracts::{governance_contract, zksync_contract};
 use zksync_dal::StorageProcessor;
-use zksync_types::{
-    ethabi::Contract, protocol_version::GovernanceOperation, web3::types::Log, Address,
-    ProtocolUpgrade, ProtocolVersionId, H256,
-};
+use zksync_types::{ethabi::Contract, web3::types::Log, ProtocolUpgrade, ProtocolVersionId, H256};
 
 use crate::eth_watch::{
     client::{Error, EthClient},
@@ -16,25 +11,18 @@ use crate::eth_watch::{
 /// Responsible for saving new protocol upgrade proposals to the database.
 #[derive(Debug)]
 pub struct UpgradesEventProcessor {
-    diamond_proxy_address: Address,
     last_seen_version_id: ProtocolVersionId,
     upgrade_proposal_signature: H256,
-    execute_upgrade_short_signature: [u8; 4],
 }
 
 impl UpgradesEventProcessor {
-    pub fn new(diamond_proxy_address: Address, last_seen_version_id: ProtocolVersionId) -> Self {
+    pub fn new(last_seen_version_id: ProtocolVersionId) -> Self {
         Self {
-            diamond_proxy_address,
             last_seen_version_id,
             upgrade_proposal_signature: old_zksync_contract()
                 .event("ProposeTransparentUpgrade")
                 .expect("ProposeTransparentUpgrade event is missing in abi")
                 .signature(),
-            execute_upgrade_short_signature: zksync_contract()
-                .function("executeUpgrade")
-                .unwrap()
-                .short_signature(),
         }
     }
 }
@@ -170,63 +158,6 @@ pub fn old_zksync_contract() -> Contract {
           ],
           "name": "ProposeTransparentUpgrade",
           "type": "event"
-        },
-        {
-          "inputs": [
-            {
-              "components": [
-                {
-                  "components": [
-                    {
-                      "internalType": "address",
-                      "name": "facet",
-                      "type": "address"
-                    },
-                    {
-                      "internalType": "enum Diamond.Action",
-                      "name": "action",
-                      "type": "uint8"
-                    },
-                    {
-                      "internalType": "bool",
-                      "name": "isFreezable",
-                      "type": "bool"
-                    },
-                    {
-                      "internalType": "bytes4[]",
-                      "name": "selectors",
-                      "type": "bytes4[]"
-                    }
-                  ],
-                  "internalType": "struct Diamond.FacetCut[]",
-                  "name": "facetCuts",
-                  "type": "tuple[]"
-                },
-                {
-                  "internalType": "address",
-                  "name": "initAddress",
-                  "type": "address"
-                },
-                {
-                  "internalType": "bytes",
-                  "name": "initCalldata",
-                  "type": "bytes"
-                }
-              ],
-              "internalType": "struct Diamond.DiamondCutData",
-              "name": "_diamondCut",
-              "type": "tuple"
-            },
-            {
-              "internalType": "bytes32",
-              "name": "_proposalSalt",
-              "type": "bytes32"
-            }
-          ],
-          "name": "executeUpgrade",
-          "outputs": [],
-          "stateMutability": "nonpayable",
-          "type": "function"
         },
         {
           "anonymous": false,
