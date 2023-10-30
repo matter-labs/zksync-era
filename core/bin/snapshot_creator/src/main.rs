@@ -63,7 +63,7 @@ async fn run(blob_store: Box<dyn ObjectStore>, pool: ConnectionPool) {
             l1_batch_number: l1_batch_number,
             chunk_id,
         };
-        blob_store.put(key, &result).await;
+        blob_store.put(key, &result).await.unwrap();
         let output_file = blob_store.get_full_path::<SnapshotChunk>(key);
         output_files.push(output_file.clone());
         tracing::info!(

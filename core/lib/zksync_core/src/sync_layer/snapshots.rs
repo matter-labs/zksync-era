@@ -7,13 +7,12 @@ use std::time::Instant;
 use zksync_dal::StorageProcessor;
 use zksync_merkle_tree::recovery::{MerkleTreeRecovery, RecoveryEntry};
 use zksync_merkle_tree::{PruneDatabase, RocksDBWrapper};
-use zksync_object_store::{ObjectStore, ObjectStoreFactory};
+use zksync_object_store::ObjectStoreFactory;
 use zksync_storage::RocksDB;
 use zksync_types::block::{BlockGasCount, MiniblockHeader};
 use zksync_types::commitment::L1BatchWithMetadata;
 use zksync_types::snapshots::{
-    AppliedSnapshotStatus, SnapshotChunk, SnapshotFactoryDependency, SnapshotMetadata,
-    SnapshotStorageKey, SnapshotStorageLog,
+    AppliedSnapshotStatus, SnapshotChunk, SnapshotFactoryDependency, SnapshotStorageLog,
 };
 use zksync_types::{
     L1BatchNumber, MiniblockNumber, ProtocolVersionId, StorageKey, StorageLog, StorageLogKind, H256,
