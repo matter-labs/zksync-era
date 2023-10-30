@@ -100,7 +100,7 @@ impl BlockBuffer {
     }
 
     fn put_block(&mut self, block: FinalBlock) {
-        let block_number = block.block.number;
+        let block_number = block.header.number;
         assert!(block_number > self.store_block_number);
         // ^ Must be checked previously
         self.blocks.insert(block_number, block);
@@ -187,7 +187,7 @@ impl<T: ContiguousBlockStore> BufferedStorage<T> {
             };
             if let Some(block) = next_block_for_store {
                 self.inner.schedule_next_block(ctx, &block).await?;
-                let block_number = block.block.number;
+                let block_number = block.header.number;
                 tracing::trace!(%block_number, "Block scheduled in underlying storage");
             }
 
@@ -254,7 +254,7 @@ impl<T: ContiguousBlockStore> WriteBlockStore for BufferedStorage<T> {
     async fn put_block(&self, ctx: &ctx::Ctx, block: &FinalBlock) -> StorageResult<()> {
         let next_block_for_store = {
             let mut buffer = sync::lock(ctx, &self.buffer).await?;
-            let block_number = block.block.number;
+            let block_number = block.header.number;
             if block_number <= buffer.store_block_number {
                 let err = anyhow::anyhow!(
                     "Cannot replace a block #{block_number} since it is already present in the underlying storage",
@@ -267,9 +267,9 @@ impl<T: ContiguousBlockStore> WriteBlockStore for BufferedStorage<T> {
 
         if let Some(block) = next_block_for_store {
             self.inner.schedule_next_block(ctx, &block).await?;
-            tracing::trace!(block_number = %block.block.number, "Block scheduled in underlying storage");
+            tracing::trace!(block_number = %block.header.number, "Block scheduled in underlying storage");
         }
-        self.block_writes_sender.send_replace(block.block.number);
+        self.block_writes_sender.send_replace(block.header.number);
         Ok(())
     }
 }

@@ -3,7 +3,6 @@
 use assert_matches::assert_matches;
 use async_trait::async_trait;
 use rand::{rngs::StdRng, seq::SliceRandom, Rng};
-use tempfile::TempDir;
 use test_casing::test_casing;
 
 use std::{iter, ops};
@@ -14,34 +13,35 @@ use zksync_concurrency::{
     sync::{self, watch},
     time,
 };
-use zksync_consensus_roles::validator::{Block, BlockNumber, FinalBlock};
+use zksync_consensus_roles::validator::{BlockHeader, BlockNumber, FinalBlock, Payload};
 use zksync_consensus_storage::{
-    BlockStore, RocksdbStorage, StorageError, StorageResult, WriteBlockStore,
+    BlockStore, InMemoryStorage, StorageError, StorageResult, WriteBlockStore,
 };
 
 use super::buffered::{BufferedStorage, BufferedStorageEvent, ContiguousBlockStore};
 
-async fn init_store<R: Rng>(ctx: &ctx::Ctx, rng: &mut R) -> (FinalBlock, RocksdbStorage, TempDir) {
+fn init_store(rng: &mut impl Rng) -> (FinalBlock, InMemoryStorage) {
+    let payload = Payload(vec![]);
     let genesis_block = FinalBlock {
-        block: Block::genesis(vec![]),
+        header: BlockHeader::genesis(payload.hash()),
+        payload,
         justification: rng.gen(),
     };
-    let temp_dir = TempDir::new().unwrap();
-    let block_store = RocksdbStorage::new(ctx, &genesis_block, temp_dir.path())
-        .await
-        .unwrap();
-    (genesis_block, block_store, temp_dir)
+    let block_store = InMemoryStorage::new(genesis_block.clone());
+    (genesis_block, block_store)
 }
 
 fn gen_blocks(rng: &mut impl Rng, genesis_block: FinalBlock, count: usize) -> Vec<FinalBlock> {
     let blocks = iter::successors(Some(genesis_block), |parent| {
-        let block = Block {
-            parent: parent.block.hash(),
-            number: parent.block.number.next(),
-            payload: Vec::new(),
+        let payload = Payload(vec![]);
+        let header = BlockHeader {
+            parent: parent.header.hash(),
+            number: parent.header.number.next(),
+            payload: payload.hash(),
         };
         Some(FinalBlock {
-            block,
+            header,
+            payload,
             justification: rng.gen(),
         })
     });
@@ -50,12 +50,12 @@ fn gen_blocks(rng: &mut impl Rng, genesis_block: FinalBlock, count: usize) -> Ve
 
 #[derive(Debug)]
 struct MockContiguousStore {
-    inner: RocksdbStorage,
+    inner: InMemoryStorage,
     block_sender: channel::Sender<FinalBlock>,
 }
 
 impl MockContiguousStore {
-    fn new(inner: RocksdbStorage) -> (Self, channel::Receiver<FinalBlock>) {
+    fn new(inner: InMemoryStorage) -> (Self, channel::Receiver<FinalBlock>) {
         let (block_sender, block_receiver) = channel::bounded(1);
         let this = Self {
             inner,
@@ -117,8 +117,8 @@ impl BlockStore for MockContiguousStore {
 #[async_trait]
 impl ContiguousBlockStore for MockContiguousStore {
     async fn schedule_next_block(&self, ctx: &ctx::Ctx, block: &FinalBlock) -> StorageResult<()> {
-        let head_block_number = self.head_block(ctx).await?.block.number;
-        assert_eq!(block.block.number, head_block_number.next());
+        let head_block_number = self.head_block(ctx).await?.header.number;
+        assert_eq!(block.header.number, head_block_number.next());
         self.block_sender
             .try_send(block.clone())
             .expect("BufferedStorage is rushing");
@@ -136,7 +136,7 @@ async fn test_buffered_storage(
     let ctx = &ctx::test_root(&ctx::RealClock);
     let rng = &mut ctx.rng();
 
-    let (genesis_block, block_store, _temp_dir) = init_store(ctx, rng).await;
+    let (genesis_block, block_store) = init_store(rng);
     let mut initial_blocks = gen_blocks(rng, genesis_block.clone(), initial_block_count);
     for block in &initial_blocks {
         block_store.put_block(ctx, block).await.unwrap();
@@ -155,7 +155,7 @@ async fn test_buffered_storage(
         last_initial_block
     );
     for block in &initial_blocks {
-        let block_result = buffered_store.block(ctx, block.block.number).await;
+        let block_result = buffered_store.block(ctx, block.header.number).await;
         assert_eq!(block_result.unwrap().as_ref(), Some(block));
     }
     let mut subscriber = buffered_store.subscribe_to_block_writes();
@@ -181,11 +181,11 @@ async fn test_buffered_storage(
         for (idx, block) in blocks.iter().enumerate() {
             buffered_store.put_block(ctx, block).await?;
             let new_block_number = *sync::changed(ctx, &mut subscriber).await?;
-            assert_eq!(new_block_number, block.block.number);
+            assert_eq!(new_block_number, block.header.number);
 
             // Check that all written blocks are immediately accessible.
             for existing_block in initial_blocks.iter().chain(&blocks[0..=idx]) {
-                let number = existing_block.block.number;
+                let number = existing_block.header.number;
                 assert_eq!(
                     buffered_store.block(ctx, number).await?.as_ref(),
                     Some(existing_block)
@@ -195,13 +195,13 @@ async fn test_buffered_storage(
 
             let expected_head_block = blocks[0..=idx]
                 .iter()
-                .max_by_key(|block| block.block.number)
+                .max_by_key(|block| block.header.number)
                 .unwrap();
             assert_eq!(buffered_store.head_block(ctx).await?, *expected_head_block);
 
             let expected_last_contiguous_block = blocks[(idx + 1)..]
                 .iter()
-                .map(|block| block.block.number)
+                .map(|block| block.header.number)
                 .min()
                 .map_or(last_block_number, BlockNumber::prev);
             assert_eq!(

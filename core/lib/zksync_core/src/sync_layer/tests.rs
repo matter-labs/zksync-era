@@ -576,6 +576,15 @@ async fn fetcher_with_real_server() {
     // Fill in transactions grouped in multiple miniblocks in the storage.
     let tx_hashes = run_state_keeper_with_multiple_miniblocks(pool.clone()).await;
     let mut tx_hashes = VecDeque::from(tx_hashes);
+    let mut connection = pool.access_storage().await.unwrap();
+    let genesis_miniblock_hash = connection
+        .blocks_dal()
+        .get_miniblock_header(MiniblockNumber(0))
+        .await
+        .unwrap()
+        .expect("No genesis miniblock")
+        .hash;
+    drop(connection);
 
     // Start the API server.
     let network_config = NetworkConfig::from_env().unwrap();
@@ -591,6 +600,7 @@ async fn fetcher_with_real_server() {
     let client = <dyn MainNodeClient>::json_rpc(&format!("http://{server_addr}/")).unwrap();
     let fetcher_cursor = FetcherCursor {
         miniblock: MiniblockNumber(1),
+        prev_miniblock_hash: genesis_miniblock_hash,
         l1_batch: L1BatchNumber(0),
     };
     let fetcher = fetcher_cursor.into_fetcher(

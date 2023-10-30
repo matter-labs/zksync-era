@@ -10,6 +10,7 @@ use zksync_dal::ConnectionPool;
 use zksync_executor::{Executor, ExecutorConfig};
 
 mod buffered;
+mod conversions;
 mod storage;
 #[cfg(test)]
 mod tests;

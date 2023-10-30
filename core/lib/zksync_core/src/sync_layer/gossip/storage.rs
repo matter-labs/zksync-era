@@ -13,18 +13,13 @@ use zksync_concurrency::{
 use zksync_consensus_roles::validator::{BlockNumber, FinalBlock};
 use zksync_consensus_storage::{BlockStore, StorageError, StorageResult};
 use zksync_dal::{ConnectionPool, StorageProcessor};
-use zksync_types::{api::en::SyncBlock, Address, MiniblockNumber, H256};
+use zksync_types::{Address, MiniblockNumber};
 
-use super::buffered::ContiguousBlockStore;
-use crate::sync_layer::{fetcher::FetcherCursor, sync_action::ActionQueueSender};
-
-fn sync_block_to_consensus_block(_block: SyncBlock) -> FinalBlock {
-    todo!()
-}
-
-fn consensus_block_to_sync_block(_block: &FinalBlock) -> SyncBlock {
-    todo!()
-}
+use super::{buffered::ContiguousBlockStore, conversions::sync_block_to_consensus_block};
+use crate::sync_layer::{
+    fetcher::{FetchedBlock, FetcherCursor},
+    sync_action::ActionQueueSender,
+};
 
 #[derive(Debug)]
 pub(super) struct PostgresBlockStore {
@@ -115,14 +110,12 @@ impl PostgresBlockStore {
         Ok(BlockNumber(number.0.into()))
     }
 
-    async fn schedule_block(&self, ctx: &ctx::Ctx, block: &FinalBlock) -> ctx::OrCanceled<()> {
-        let prev_miniblock_hash = H256::zero(); // FIXME
-        let block = consensus_block_to_sync_block(block);
-        let actions = sync::lock(ctx, &self.cursor)
-            .await?
-            .advance(block, prev_miniblock_hash);
+    async fn schedule_block(&self, ctx: &ctx::Ctx, block: &FinalBlock) -> StorageResult<()> {
+        let fetched_block =
+            FetchedBlock::from_gossip_block(block).map_err(StorageError::Database)?;
+        let actions = sync::lock(ctx, &self.cursor).await?.advance(fetched_block);
         tokio::select! {
-            () = ctx.canceled() => Err(ctx::Canceled),
+            () = ctx.canceled() => Err(ctx::Canceled.into()),
             () = self.actions.push_actions(actions) => Ok(()),
         }
     }
