@@ -74,11 +74,6 @@ impl ProtocolVersionId {
     }
 
     pub fn is_pre_boojum(&self) -> bool {
-        // TODO: Fix for upgrade test. Remove when boojum code will be merged fully.
-        if std::env::var("ZKSYNC_PRE_BOOJUM").is_ok() {
-            return true;
-        }
-
         self < &ProtocolVersionId::Version17
     }
 }
