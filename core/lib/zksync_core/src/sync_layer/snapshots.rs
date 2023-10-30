@@ -202,7 +202,7 @@ pub async fn load_from_snapshot_if_needed(
 
     if applied_snapshot_status.is_none() {
         applied_snapshot_status = Some(AppliedSnapshotStatus {
-            l1_batch_number: l1_batch_number,
+            l1_batch_number,
             is_finished: false,
             last_finished_chunk_id: None,
         });

@@ -71,7 +71,7 @@ impl<G: L1GasPriceProvider> SnapshotsNamespace<G> {
                 metadata: snapshot_metadata,
                 miniblock_number,
                 last_l1_batch_with_metadata: l1_batch_with_metadata,
-                chunks: chunks,
+                chunks,
             }))
         }
     }

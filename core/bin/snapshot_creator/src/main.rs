@@ -60,7 +60,7 @@ async fn run(blob_store: Box<dyn ObjectStore>, pool: ConnectionPool) {
             factory_deps,
         };
         let key = SnapshotStorageKey {
-            l1_batch_number: l1_batch_number,
+            l1_batch_number,
             chunk_id,
         };
         blob_store.put(key, &result).await.unwrap();
