@@ -41,4 +41,4 @@ runcmd:
   - /root/.cargo/bin/cargo install sqlx-cli --version 0.5.13
   - service postgresql stop
   - git clone https://github.com/matter-labs/zksync-era.git /root/zksync-era
-  - export PATH="$PATH:$HOME/.cargo/bin && export PATH="$PATH:$HOME/.cargo/env && export ZKSYNC_HOME=/root/zksync-era && export PATH=$ZKSYNC_HOME/bin:$PATH && cd /root/zksync-era && zk && zk init && zk server
+  - ln -s "$HOME/.cargo/bin/cargo" /usr/bin/cargo && export ZKSYNC_HOME=/root/zksync-era && export PATH=$ZKSYNC_HOME/bin:$PATH && cd /root/zksync-era && zk && zk init && zk server
