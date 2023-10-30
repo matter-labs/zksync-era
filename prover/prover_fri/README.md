@@ -14,7 +14,7 @@ Below steps can be used to prove a block on local machine using CPU prover. This
 Machine specs:
 
 - CPU: At least 8 physical cores
-- RAM: 60GB of RAM(if you have lower RAM machine enable swap)
+- RAM: 128GB of RAM (if you have lower RAM machine enable swap)
 - Disk: 400GB of free disk
 
 1. Install the correct nightly version using command: `rustup install nightly-2023-07-21`
