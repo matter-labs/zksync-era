@@ -7851,21 +7851,9 @@ dependencies = [
 
 [[package]]
 name = "zksync"
-version = "0.4.0"
-dependencies = [
- "anyhow",
- "hex",
- "num 0.3.1",
- "serde_json",
- "thiserror",
- "tokio",
- "zksync_config",
- "zksync_eth_client",
- "zksync_eth_signer",
- "zksync_types",
- "zksync_utils",
- "zksync_web3_decl",
-]
+version = "0.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3467dcfbb98f04e537a529a249a0886151a066ca80acb25231c06d5a5c63d830"
 
 [[package]]
 name = "zksync_basic_types"

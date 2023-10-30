@@ -22,7 +22,7 @@ zksync_system_constants = { path = "../../lib/constants" }
 vlog = { path = "../../lib/vlog" }
 prometheus_exporter = { path = "../../lib/prometheus_exporter" }
 
-zksync = { version = "0.0.1", features = ["mint"] }
+zksync = { version = "0.0.1" }
 async-trait = "0.1"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
