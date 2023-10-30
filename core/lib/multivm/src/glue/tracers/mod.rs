@@ -1,6 +1,6 @@
 //! # Multivm Tracing
 //!
-//! The MultiVM tracing module enables Tracers support for different versions of virtual machines
+//! The MultiVM tracing module enables support for Tracers in different versions of virtual machines.
 //!
 //! ## Overview
 //!
@@ -8,27 +8,28 @@
 //! this module defines one primary trait:
 //!
 //! - `MultivmTracer<S, H>`: This trait represents a tracer that can be converted into a tracer for
-//! specific VM version.
+//! a specific VM version.
 //!
-//! Specific traits for each VM version, which supports Custom Tracers
+//! Specific traits for each VM version, which support Custom Tracers:
 //! - `IntoLatestTracer<S, H>`: This trait is responsible for converting a tracer
 //! into a form compatible with the latest VM version.
 //! It defines a method `latest` for obtaining a boxed tracer.
 //!
-//! - `IntoVmVirtualBlocksTracer<S, H>`:This trait is responsible for converting a tracer
+//! - `IntoVmVirtualBlocksTracer<S, H>`: This trait is responsible for converting a tracer
 //! into a form compatible with the vm_virtual_blocks version.
 //! It defines a method `vm_virtual_blocks` for obtaining a boxed tracer.
 //!
-//! For `MultivmTracer` to be implemented, Tracer must implement all N currently
+//! For `MultivmTracer` to be implemented, the Tracer must implement all N currently
 //! existing sub-traits.
 //!
 //! ## Adding a new VM version
 //!
 //! To add support for one more VM version to MultivmTracer, one needs to:
-//! - Create a new trait performing conversion to the specified VM tracer, e.g. `Into<VmVersion>Tracer`.
+//! - Create a new trait performing conversion to the specified VM tracer, e.g., `Into<VmVersion>Tracer`.
 //! - Add this trait as a trait bound to the `MultivmTracer`.
 //! - Add this trait as a trait bound for `T` in `MultivmTracer` implementation.
-//! - Integrate the newly added method to the MultiVM itself (e.g. add required tracer conversions where applicable).
+//! — Implement the trait for `T` with a bound to `VmTracer` for a specific version.
+//!
 use crate::HistoryMode;
 use zksync_state::WriteStorage;
 

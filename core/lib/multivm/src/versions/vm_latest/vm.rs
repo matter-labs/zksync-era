@@ -47,14 +47,11 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
             _phantom: Default::default(),
         }
     }
+
+    /// Push tx into memory for the future execution
     fn push_transaction(&mut self, tx: Transaction) {
         self.push_transaction_with_compression(tx, true);
     }
-
-    /// Push tx into memory for the future execution
-
-    /// Execute VM with default tracers. The execution mode determines whether the VM will stop and
-    /// how the vm will be processed.
 
     /// Execute VM with custom tracers.
     fn inspect(

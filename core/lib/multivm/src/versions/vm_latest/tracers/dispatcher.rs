@@ -8,6 +8,11 @@ use zk_evm_1_3_3::tracing::{
 };
 use zksync_state::{StoragePtr, WriteStorage};
 
+/// Tracer dispatcher is a tracer that can dispatch calls to multiple tracers.
+pub struct TracerDispatcher<S: WriteStorage, H: HistoryMode> {
+    tracers: Vec<TracerPointer<S, H>>,
+}
+
 impl<S: WriteStorage, H: HistoryMode> From<TracerPointer<S, H>> for TracerDispatcher<S, H> {
     fn from(value: TracerPointer<S, H>) -> Self {
         Self {
@@ -20,10 +25,6 @@ impl<S: WriteStorage, H: HistoryMode> From<Vec<TracerPointer<S, H>>> for TracerD
     fn from(value: Vec<TracerPointer<S, H>>) -> Self {
         Self { tracers: value }
     }
-}
-
-pub struct TracerDispatcher<S: WriteStorage, H: HistoryMode> {
-    tracers: Vec<TracerPointer<S, H>>,
 }
 
 impl<S: WriteStorage, H: HistoryMode> Default for TracerDispatcher<S, H> {
