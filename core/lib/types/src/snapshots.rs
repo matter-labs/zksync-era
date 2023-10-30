@@ -14,7 +14,6 @@ pub struct AllSnapshots {
 #[serde(rename_all = "camelCase")]
 pub struct SnapshotBasicMetadata {
     pub l1_batch_number: L1BatchNumber,
-    pub miniblock_number: MiniblockNumber,
     pub generated_at: DateTime<Utc>,
 }
 
@@ -29,6 +28,7 @@ pub struct SnapshotsWithFiles {
 #[serde(rename_all = "camelCase")]
 pub struct SnapshotFullInfo {
     pub metadata: SnapshotBasicMetadata,
+    pub miniblock_number: MiniblockNumber,
     pub storage_logs_files: Vec<String>,
     pub last_l1_batch_with_metadata: L1BatchWithMetadata,
 }
@@ -60,7 +60,6 @@ pub struct SingleStorageLogSnapshot {
 #[serde(rename_all = "camelCase")]
 pub struct AppliedSnapshotStatus {
     pub l1_batch_number: L1BatchNumber,
-    pub miniblock_number: MiniblockNumber,
     pub is_finished: bool,
     pub last_finished_chunk_id: Option<u64>,
 }

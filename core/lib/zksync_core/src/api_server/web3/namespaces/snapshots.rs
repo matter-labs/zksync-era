@@ -47,8 +47,14 @@ impl<G: L1GasPriceProvider> SnapshotsNamespace<G> {
                 .await
                 .unwrap()
                 .unwrap();
+            let miniblock_number = storage_processor
+                .storage_logs_snapshots_dal()
+                .get_last_miniblock_number(l1_batch_number)
+                .await
+                .unwrap();
             Ok(Some(SnapshotFullInfo {
                 metadata: snapshot_with_files.metadata.clone(),
+                miniblock_number,
                 storage_logs_files: snapshot_with_files.storage_logs_files.clone(),
                 last_l1_batch_with_metadata: l1_batch_with_metadata,
             }))

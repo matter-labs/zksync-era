@@ -15,7 +15,7 @@ use zksync_types::snapshots::{
     SnapshotChunk, SnapshotStorageKey,
 };
 use zksync_types::{
-    MiniblockNumber, ProtocolVersionId, StorageKey, StorageLog, StorageLogKind, H256,
+    L1BatchNumber, MiniblockNumber, ProtocolVersionId, StorageKey, StorageLog, StorageLogKind, H256,
 };
 
 async fn sync_protocol_version(
@@ -101,18 +101,23 @@ async fn sync_l1_batch_metadata(
         .unwrap();
 }
 
-async fn sync_storage_logs_from_snapshot_chunk(
+async fn sync_initial_writes_chunk(
     storage: &mut StorageProcessor<'_>,
-    snapshot_metadata: &SnapshotBasicMetadata,
+    l1_batch_number: L1BatchNumber,
     storage_logs: &[SingleStorageLogSnapshot],
 ) {
     tracing::info!("Loading {} storage logs into postgres", storage_logs.len());
     let storage_logs_keys: Vec<StorageKey> = storage_logs.iter().map(|log| log.key).collect();
     storage
         .storage_logs_dedup_dal()
-        .insert_initial_writes(snapshot_metadata.l1_batch_number, &storage_logs_keys)
+        .insert_initial_writes(l1_batch_number, &storage_logs_keys)
         .await;
-
+}
+async fn sync_storage_logs_chunk(
+    storage: &mut StorageProcessor<'_>,
+    miniblock_number: MiniblockNumber,
+    storage_logs: &[SingleStorageLogSnapshot],
+) {
     let transformed_logs = storage_logs
         .iter()
         .map(|log| StorageLog {
@@ -123,14 +128,11 @@ async fn sync_storage_logs_from_snapshot_chunk(
         .collect();
     storage
         .storage_logs_dal()
-        .append_storage_logs(
-            snapshot_metadata.miniblock_number,
-            &[(H256::zero(), transformed_logs)],
-        )
+        .append_storage_logs(miniblock_number, &[(H256::zero(), transformed_logs)])
         .await;
 }
 
-async fn sync_tree_from_snapshot_chunk(
+async fn sync_tree_chunk(
     recovery: &mut MerkleTreeRecovery<'_, &mut dyn PruneDatabase>,
     storage_logs: &[SingleStorageLogSnapshot],
 ) {
@@ -148,22 +150,22 @@ async fn sync_tree_from_snapshot_chunk(
 
 async fn fetch_storage_logs_chunk(
     blob_store: &dyn ObjectStore,
-    metadata: &SnapshotBasicMetadata,
+    l1_batch_number: L1BatchNumber,
     chunk_id: u64,
 ) -> SnapshotChunk {
     tracing::info!("Fetching snapshot chunk {chunk_id}");
     blob_store
         .get(SnapshotStorageKey {
-            l1_batch_number: metadata.l1_batch_number,
+            l1_batch_number,
             chunk_id,
         })
         .await
         .unwrap()
 }
 
-async fn sync_factory_deps_from_snapshot_chunk(
+async fn sync_factory_deps_chunk(
     storage: &mut StorageProcessor<'_>,
-    metadata: &SnapshotBasicMetadata,
+    miniblock_number: MiniblockNumber,
     factory_deps: Vec<FactoryDependency>,
 ) {
     if !factory_deps.is_empty() {
@@ -173,7 +175,7 @@ async fn sync_factory_deps_from_snapshot_chunk(
             .collect();
         storage
             .storage_dal()
-            .insert_factory_deps(metadata.miniblock_number, &all_deps_hashmap)
+            .insert_factory_deps(miniblock_number, &all_deps_hashmap)
             .await;
     }
 }
@@ -209,12 +211,14 @@ pub async fn load_snapshot_if_needed(
         return Ok(());
     }
     let snapshot = snapshot_response.unwrap();
-    tracing::info!("Found snapshot with data up to l1_batch {}, created at {}, storage_logs are divided into {} chunk(s)", snapshot.metadata.l1_batch_number, snapshot.metadata.generated_at, snapshot.storage_logs_files.len());
+    let metadata = snapshot.metadata;
+    let l1_batch_number = metadata.l1_batch_number;
+    let miniblock_number = snapshot.miniblock_number;
+    tracing::info!("Found snapshot with data up to l1_batch {}, created at {}, storage_logs are divided into {} chunk(s)", l1_batch_number, metadata.generated_at, snapshot.storage_logs_files.len());
 
     if applied_snapshot_status.is_none() {
         applied_snapshot_status = Some(AppliedSnapshotStatus {
-            l1_batch_number: snapshot.metadata.l1_batch_number,
-            miniblock_number: snapshot.metadata.miniblock_number,
+            l1_batch_number: l1_batch_number,
             is_finished: false,
             last_finished_chunk_id: None,
         });
@@ -227,14 +231,12 @@ pub async fn load_snapshot_if_needed(
         .await
         .unwrap();
 
-    let metadata = snapshot.metadata;
-
-    let recovered_version = metadata.l1_batch_number.0 as u64;
+    let recovered_version = l1_batch_number.0 as u64;
     let db = RocksDB::new(Path::new(&merkle_tree_db_path));
     let db: &mut dyn PruneDatabase = &mut (RocksDBWrapper::from(db));
     let mut recovery = MerkleTreeRecovery::new(db, recovered_version);
 
-    sync_miniblock_header(storage, client, metadata.miniblock_number).await;
+    sync_miniblock_header(storage, client, miniblock_number).await;
 
     sync_l1_batch_metadata(storage, &snapshot.last_l1_batch_with_metadata).await;
 
@@ -256,14 +258,17 @@ pub async fn load_snapshot_if_needed(
         }
 
         let storage_snapshot_chunk =
-            fetch_storage_logs_chunk(blob_store, &metadata, chunk_id as u64).await;
+            fetch_storage_logs_chunk(blob_store, l1_batch_number, chunk_id as u64).await;
 
         let factory_deps = storage_snapshot_chunk.factory_deps;
-        sync_factory_deps_from_snapshot_chunk(storage, &metadata, factory_deps).await;
+        sync_factory_deps_chunk(storage, miniblock_number, factory_deps).await;
 
         let storage_logs = &storage_snapshot_chunk.storage_logs;
-        sync_storage_logs_from_snapshot_chunk(storage, &metadata, storage_logs).await;
-        sync_tree_from_snapshot_chunk(&mut recovery, storage_logs).await;
+        sync_storage_logs_chunk(storage, miniblock_number, storage_logs).await;
+
+        sync_initial_writes_chunk(storage, l1_batch_number, storage_logs).await;
+
+        sync_tree_chunk(&mut recovery, storage_logs).await;
 
         applied_snapshot_status.last_finished_chunk_id = Some(chunk_id as u64);
         storage

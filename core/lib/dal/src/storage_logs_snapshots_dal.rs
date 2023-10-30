@@ -14,7 +14,7 @@ impl SnapshotChunksDal<'_, '_> {
         l1_batch_number: L1BatchNumber,
     ) -> Result<MiniblockNumber, sqlx::Error> {
         let miniblock_number: i64 = sqlx::query!(
-            "select MAX(number) from miniblocks where l1_batch_number <= $1",
+            "select MAX(number) from miniblocks where l1_batch_number = $1",
             l1_batch_number.0 as i64
         )
         .fetch_one(self.storage.conn())
@@ -28,7 +28,7 @@ impl SnapshotChunksDal<'_, '_> {
         l1_batch_number: L1BatchNumber,
     ) -> Result<u64, sqlx::Error> {
         let count = sqlx::query!(
-            "SELECT count(*) FROM initial_writes WHERE l1_batch_number >= $1",
+            "SELECT count(*) FROM initial_writes WHERE l1_batch_number <= $1",
             l1_batch_number.0 as i32
         )
         .fetch_one(self.storage.conn())
