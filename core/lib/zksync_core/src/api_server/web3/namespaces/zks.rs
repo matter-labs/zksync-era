@@ -1,8 +1,4 @@
-use std::{
-    collections::HashMap,
-    convert::{TryFrom, TryInto},
-    sync::atomic::Ordering,
-};
+use std::{collections::HashMap, convert::TryInto};
 
 use bigdecimal::{BigDecimal, Zero};
 use zksync_dal::StorageProcessor;
@@ -19,9 +15,8 @@ use zksync_types::{
     l2_to_l1_log::L2ToL1Log,
     tokens::ETHEREUM_ADDRESS,
     transaction_request::CallRequest,
-    L1BatchNumber, MiniblockNumber, ProtocolVersionId, Transaction, L1_MESSENGER_ADDRESS,
-    L2_ETH_TOKEN_ADDRESS, MAX_GAS_PER_PUBDATA_BYTE, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256,
-    U64,
+    L1BatchNumber, MiniblockNumber, Transaction, L1_MESSENGER_ADDRESS, L2_ETH_TOKEN_ADDRESS,
+    MAX_GAS_PER_PUBDATA_BYTE, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256, U64,
 };
 use zksync_utils::{address_to_h256, ratio_to_big_decimal_normalized};
 use zksync_web3_decl::{
@@ -113,23 +108,10 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
         let acceptable_overestimation =
             self.state.api_config.estimate_gas_acceptable_overestimation;
 
-        let protocol_version = self
-            .state
-            .last_sealed_miniblock
-            .0
-             .1
-            .load(Ordering::Relaxed);
-        let protocol_version = ProtocolVersionId::try_from(protocol_version).unwrap();
-
         let fee = self
             .state
             .tx_sender
-            .get_txs_fee_in_wei(
-                tx,
-                scale_factor,
-                acceptable_overestimation,
-                protocol_version,
-            )
+            .get_txs_fee_in_wei(tx, scale_factor, acceptable_overestimation)
             .await
             .map_err(|err| Web3Error::SubmitTransactionError(err.to_string(), err.data()))?;
 

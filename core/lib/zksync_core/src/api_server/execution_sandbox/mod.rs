@@ -5,7 +5,7 @@ use tokio::runtime::Handle;
 use zksync_dal::{ConnectionPool, SqlxError, StorageProcessor};
 use zksync_state::{PostgresStorage, PostgresStorageCaches, ReadStorage, StorageView};
 use zksync_system_constants::PUBLISH_BYTECODE_OVERHEAD;
-use zksync_types::{api, AccountTreeId, L2ChainId, MiniblockNumber, ProtocolVersionId, U256};
+use zksync_types::{api, AccountTreeId, L2ChainId, MiniblockNumber, U256};
 use zksync_utils::bytecode::{compress_bytecode, hash_bytecode};
 
 // Note: keep the modules private, and instead re-export functions that make public interface.
@@ -166,15 +166,15 @@ pub(super) fn adjust_l1_gas_price_for_tx(
 
 async fn get_pending_state(
     connection: &mut StorageProcessor<'_>,
-) -> (api::BlockId, MiniblockNumber, ProtocolVersionId) {
+) -> (api::BlockId, MiniblockNumber) {
     let block_id = api::BlockId::Number(api::BlockNumber::Pending);
-    let (resolved_block_number, protocol_version) = connection
+    let resolved_block_number = connection
         .blocks_web3_dal()
-        .resolve_block_id_for_miniblock_header(block_id)
+        .resolve_block_id(block_id)
         .await
         .unwrap()
         .expect("Pending block should be present");
-    (block_id, resolved_block_number, protocol_version)
+    (block_id, resolved_block_number)
 }
 
 /// Returns the number of the pubdata that the transaction will spend on factory deps.
@@ -189,7 +189,7 @@ pub(super) async fn get_pubdata_for_factory_deps(
     }
 
     let mut connection = connection_pool.access_storage_tagged("api").await.unwrap();
-    let (_, block_number, _) = get_pending_state(&mut connection).await;
+    let (_, block_number) = get_pending_state(&mut connection).await;
     drop(connection);
 
     let rt_handle = Handle::current();
@@ -239,18 +239,15 @@ pub(crate) struct BlockArgs {
     block_id: api::BlockId,
     resolved_block_number: MiniblockNumber,
     l1_batch_timestamp_s: Option<u64>,
-    protocol_version: ProtocolVersionId,
 }
 
 impl BlockArgs {
     async fn pending(connection: &mut StorageProcessor<'_>) -> Self {
-        let (block_id, resolved_block_number, protocol_version) =
-            get_pending_state(connection).await;
+        let (block_id, resolved_block_number) = get_pending_state(connection).await;
         Self {
             block_id,
             resolved_block_number,
             l1_batch_timestamp_s: None,
-            protocol_version,
         }
     }
 
@@ -263,13 +260,11 @@ impl BlockArgs {
             return Ok(Some(BlockArgs::pending(connection).await));
         }
 
-        let resolved_block_number_and_protocol_version = connection
+        let resolved_block_number = connection
             .blocks_web3_dal()
-            .resolve_block_id_for_miniblock_header(block_id)
+            .resolve_block_id(block_id)
             .await?;
-        let Some((resolved_block_number, protocol_version)) =
-            resolved_block_number_and_protocol_version
-        else {
+        let Some(resolved_block_number) = resolved_block_number else {
             return Ok(None);
         };
 
@@ -290,7 +285,6 @@ impl BlockArgs {
             block_id,
             resolved_block_number,
             l1_batch_timestamp_s,
-            protocol_version,
         }))
     }
 
@@ -305,9 +299,5 @@ impl BlockArgs {
                 api::BlockNumber::Pending | api::BlockNumber::Latest | api::BlockNumber::Committed
             )
         )
-    }
-
-    pub fn protocol_version(&self) -> ProtocolVersionId {
-        self.protocol_version
     }
 }

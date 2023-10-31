@@ -1,8 +1,3 @@
-use std::{
-    convert::{TryFrom, TryInto},
-    sync::atomic::Ordering,
-};
-
 use zksync_types::{
     api::{
         BlockId, BlockNumber, GetLogsFilter, Transaction, TransactionId, TransactionReceipt,
@@ -13,8 +8,8 @@ use zksync_types::{
     utils::decompose_full_nonce,
     web3,
     web3::types::{FeeHistory, SyncInfo, SyncState},
-    AccountTreeId, Bytes, MiniblockNumber, ProtocolVersionId, StorageKey, H256,
-    L2_ETH_TOKEN_ADDRESS, MAX_GAS_PER_PUBDATA_BYTE, U256,
+    AccountTreeId, Bytes, MiniblockNumber, StorageKey, H256, L2_ETH_TOKEN_ADDRESS,
+    MAX_GAS_PER_PUBDATA_BYTE, U256,
 };
 use zksync_utils::u256_to_h256;
 use zksync_web3_decl::{
@@ -159,23 +154,10 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
         let acceptable_overestimation =
             self.state.api_config.estimate_gas_acceptable_overestimation;
 
-        let protocol_version = self
-            .state
-            .last_sealed_miniblock
-            .0
-             .1
-            .load(Ordering::Relaxed);
-        let protocol_version = ProtocolVersionId::try_from(protocol_version).unwrap();
-
         let fee = self
             .state
             .tx_sender
-            .get_txs_fee_in_wei(
-                tx.into(),
-                scale_factor,
-                acceptable_overestimation,
-                protocol_version,
-            )
+            .get_txs_fee_in_wei(tx.into(), scale_factor, acceptable_overestimation)
             .await
             .map_err(|err| Web3Error::SubmitTransactionError(err.to_string(), err.data()))?;
 
@@ -209,7 +191,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
             .access_storage_tagged("api")
             .await
             .unwrap();
-        let (block_number, _) = resolve_block(&mut connection, block_id, METHOD_NAME).await?;
+        let block_number = resolve_block(&mut connection, block_id, METHOD_NAME).await?;
         let balance = connection
             .storage_web3_dal()
             .standard_token_historical_balance(
@@ -229,17 +211,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
         observer: BlockCallObserver<'_>,
         block_number: MiniblockNumber,
     ) {
-        let protocol_version = self
-            .state
-            .last_sealed_miniblock
-            .0
-             .1
-            .load(Ordering::Relaxed);
-        let protocol_version = ProtocolVersionId::from(protocol_version.try_into().unwrap());
-        let block_diff = self
-            .state
-            .last_sealed_miniblock
-            .diff(block_number, protocol_version);
+        let block_diff = self.state.last_sealed_miniblock.diff(block_number);
         observer.observe(block_diff);
     }
 
@@ -370,7 +342,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
             .access_storage_tagged("api")
             .await
             .unwrap();
-        let (block_number, _) = resolve_block(&mut connection, block_id, METHOD_NAME).await?;
+        let block_number = resolve_block(&mut connection, block_id, METHOD_NAME).await?;
         let contract_code = connection
             .storage_web3_dal()
             .get_contract_code_unchecked(address, block_number)
@@ -404,7 +376,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
             .access_storage_tagged("api")
             .await
             .unwrap();
-        let (block_number, _) = resolve_block(&mut connection, block_id, METHOD_NAME).await?;
+        let block_number = resolve_block(&mut connection, block_id, METHOD_NAME).await?;
         let value = connection
             .storage_web3_dal()
             .get_historical_value_unchecked(&storage_key, block_number)
@@ -446,8 +418,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
                 (nonce, None)
             }
             _ => {
-                let (block_number, _) =
-                    resolve_block(&mut connection, block_id, method_name).await?;
+                let block_number = resolve_block(&mut connection, block_id, method_name).await?;
                 let nonce = connection
                     .storage_web3_dal()
                     .get_address_historical_nonce(address, block_number)
@@ -462,19 +433,8 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
         //  Strip off deployer nonce part.
         let account_nonce = full_nonce.map(|nonce| decompose_full_nonce(nonce).0);
 
-        let protocol_version = self
-            .state
-            .last_sealed_miniblock
-            .0
-             .1
-            .load(Ordering::Relaxed);
-        let protocol_version = ProtocolVersionId::try_from(protocol_version).unwrap();
-
-        let block_diff = block_number.map_or(0, |number| {
-            self.state
-                .last_sealed_miniblock
-                .diff(number, protocol_version)
-        });
+        let block_diff =
+            block_number.map_or(0, |number| self.state.last_sealed_miniblock.diff(number));
         method_latency.observe(block_diff);
         account_nonce
     }
@@ -698,15 +658,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
         let (mut tx, hash) = self.state.parse_transaction_bytes(&tx_bytes.0)?;
         tx.set_input(tx_bytes.0, hash);
 
-        let protocol_version = self
-            .state
-            .last_sealed_miniblock
-            .0
-             .1
-            .load(Ordering::Relaxed);
-        let protocol_version = ProtocolVersionId::try_from(protocol_version).unwrap();
-
-        let submit_result = self.state.tx_sender.submit_tx(tx, protocol_version).await;
+        let submit_result = self.state.tx_sender.submit_tx(tx).await;
         let submit_result = submit_result.map(|_| hash).map_err(|err| {
             tracing::debug!("Send raw transaction error: {err}");
             API_METRICS.submit_tx_error[&err.prom_error_code()].inc();
@@ -764,7 +716,7 @@ impl<G: L1GasPriceProvider> EthNamespace<G> {
             .access_storage_tagged("api")
             .await
             .unwrap();
-        let (newest_miniblock, _) =
+        let newest_miniblock =
             resolve_block(&mut connection, BlockId::Number(newest_block), METHOD_NAME).await?;
 
         let mut base_fee_per_gas = connection

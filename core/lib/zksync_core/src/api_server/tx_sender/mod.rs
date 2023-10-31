@@ -9,7 +9,7 @@ use governor::{
 };
 
 // Built-in uses
-use std::{cmp, num::NonZeroU32, sync::Arc, time::Instant};
+use std::{borrow::BorrowMut, cmp, num::NonZeroU32, sync::Arc, time::Instant};
 
 // Workspace uses
 
@@ -24,7 +24,7 @@ use multivm::vm_latest::{
 
 use zksync_config::configs::{api::Web3JsonRpcConfig, chain::StateKeeperConfig};
 use zksync_contracts::BaseSystemContracts;
-use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool};
+use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool, StorageProcessor};
 use zksync_state::PostgresStorageCaches;
 use zksync_types::{
     fee::{Fee, TransactionExecutionMetrics},
@@ -306,11 +306,7 @@ impl<G: L1GasPriceProvider> TxSender<G> {
     }
 
     #[tracing::instrument(skip(self, tx))]
-    pub async fn submit_tx(
-        &self,
-        tx: L2Tx,
-        protocol_version: ProtocolVersionId,
-    ) -> Result<L2TxSubmissionResult, SubmitTxError> {
+    pub async fn submit_tx(&self, tx: L2Tx) -> Result<L2TxSubmissionResult, SubmitTxError> {
         if let Some(rate_limiter) = &self.0.rate_limiter {
             if rate_limiter.check().is_err() {
                 return Err(SubmitTxError::RateLimitExceeded);
@@ -358,8 +354,18 @@ impl<G: L1GasPriceProvider> TxSender<G> {
             return Err(err.into());
         }
 
+        let mut storage_processor = self
+            .0
+            .master_connection_pool
+            .as_ref()
+            .unwrap() // Checked above
+            .access_storage_tagged("api")
+            .await
+            .unwrap();
+
         let stage_started_at = Instant::now();
-        self.ensure_tx_executable(tx.clone().into(), &tx_metrics, true, protocol_version)?;
+        self.ensure_tx_executable(tx.clone().into(), &tx_metrics, true, &mut storage_processor)
+            .await?;
 
         if let Some(proxy) = &self.0.proxy {
             // We're running an external node: we have to proxy the transaction to the main node.
@@ -384,14 +390,7 @@ impl<G: L1GasPriceProvider> TxSender<G> {
         let nonce = tx.common_data.nonce.0;
         let hash = tx.hash();
         let expected_nonce = self.get_expected_nonce(&tx).await;
-        let submission_res_handle = self
-            .0
-            .master_connection_pool
-            .as_ref()
-            .unwrap() // Checked above
-            .access_storage_tagged("api")
-            .await
-            .unwrap()
+        let submission_res_handle = storage_processor
             .transactions_dal()
             .insert_transaction_l2(tx, tx_metrics)
             .await;
@@ -662,7 +661,6 @@ impl<G: L1GasPriceProvider> TxSender<G> {
         mut tx: Transaction,
         estimated_fee_scale_factor: f64,
         acceptable_overestimation: u32,
-        protocol_version: ProtocolVersionId,
     ) -> Result<Fee, SubmitTxError> {
         let estimation_started_at = Instant::now();
         let l1_gas_price = {
@@ -697,15 +695,19 @@ impl<G: L1GasPriceProvider> TxSender<G> {
         }
 
         let hashed_key = get_code_key(&tx.initiator_account());
-        // if the default account does not have enough funds
-        // for transferring tx.value, without taking into account the fee,
-        // there is no sense to estimate the fee
-        let account_code_hash = self
+
+        let mut storage_processor = self
             .0
             .replica_connection_pool
             .access_storage_tagged("api")
             .await
-            .unwrap()
+            .unwrap();
+
+        // if the default account does not have enough funds
+        // for transferring tx.value, without taking into account the fee,
+        // there is no sense to estimate the fee
+        let account_code_hash = storage_processor
+            .borrow_mut()
             .storage_dal()
             .get_by_key(&hashed_key)
             .await
@@ -831,7 +833,8 @@ impl<G: L1GasPriceProvider> TxSender<G> {
             .await;
 
         result.into_api_call_result()?;
-        self.ensure_tx_executable(tx.clone(), &tx_metrics, false, protocol_version)?;
+        self.ensure_tx_executable(tx.clone(), &tx_metrics, false, &mut storage_processor)
+            .await?;
 
         let overhead = derive_overhead(
             suggested_gas_limit,
@@ -891,12 +894,12 @@ impl<G: L1GasPriceProvider> TxSender<G> {
         base_fee
     }
 
-    fn ensure_tx_executable(
+    async fn ensure_tx_executable(
         &self,
         transaction: Transaction,
         tx_metrics: &TransactionExecutionMetrics,
         log_message: bool,
-        protocol_version: ProtocolVersionId,
+        storage_processor: &mut StorageProcessor<'_>,
     ) -> Result<(), SubmitTxError> {
         let Some(sk_config) = &self.0.state_keeper_config else {
             // No config provided, so we can't check if transaction satisfies the seal criteria.
@@ -912,6 +915,15 @@ impl<G: L1GasPriceProvider> TxSender<G> {
         } else {
             H256::zero()
         };
+
+        let protocol_version = storage_processor
+            .blocks_dal()
+            .get_last_sealed_miniblock_header()
+            .await
+            .unwrap()
+            .unwrap()
+            .protocol_version
+            .unwrap();
 
         let seal_data = SealData::for_transaction(transaction, tx_metrics, protocol_version);
         if let Some(reason) =
