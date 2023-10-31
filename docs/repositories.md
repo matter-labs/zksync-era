@@ -4,10 +4,10 @@
 
 ### Core components
 
-| Internal repository                                         | Public repository                                                     | Description                                               |
-| ----------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------- |
-| [zksync-2-dev](https://github.com/matter-labs/zksync-2-dev) | [zksync-era](https://github.com/matter-labs/zksync-era)               | zk server logic, including the APIs and database accesses |
-| -                                                           | [zksync-wallet-vue](https://github.com/matter-labs/zksync-wallet-vue) | Wallet frontend                                           |
+| Public repository                                                     | Description                                               |
+| --------------------------------------------------------------------- | --------------------------------------------------------- |
+| [zksync-era](https://github.com/matter-labs/zksync-era)               | zk server logic, including the APIs and database accesses |
+| [zksync-wallet-vue](https://github.com/matter-labs/zksync-wallet-vue) | Wallet frontend                                           |
 
 ### Contracts
 

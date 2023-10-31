@@ -41,6 +41,7 @@ at your option.
 - [Twitter](https://twitter.com/zksync)
 - [Twitter for Devs](https://twitter.com/zkSyncDevs)
 - [Discord](https://join.zksync.dev/)
+- [Mirror](https://zksync.mirror.xyz/)
 
 ## Disclaimer
 
