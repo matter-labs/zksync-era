@@ -160,7 +160,7 @@
 
 * **API:** new translator for virtual blocks for zks_getLogs endpoint ([#2505](https://github.com/matter-labs/zksync-2-dev/issues/2505)) ([35b0553](https://github.com/matter-labs/zksync-2-dev/commit/35b05537dc8fecf11be477bd156da332d75b1320))
 * **contract-verifier:** Add zkvyper v1.3.11 ([#2554](https://github.com/matter-labs/zksync-2-dev/issues/2554)) ([711c5db](https://github.com/matter-labs/zksync-2-dev/commit/711c5db4bd48e9b4b166256e8c9554ef0e54fad8))
-* **contract-verifier:** Support verification for zksolc v1.3.15  ([#2546](https://github.com/matter-labs/zksync-2-dev/issues/2546)) ([adea3ef](https://github.com/matter-labs/zksync-2-dev/commit/adea3efd39099ef9599e24d47de6c7cffe6b0287))
+* **contract-verifier:** Support verification for zksolc v1.3.16  ([#2546](https://github.com/matter-labs/zksync-2-dev/issues/2546)) ([adea3ef](https://github.com/matter-labs/zksync-2-dev/commit/adea3efd39099ef9599e24d47de6c7cffe6b0287))
 * Decrease crate versions back to 0.1.0 ([#2528](https://github.com/matter-labs/zksync-2-dev/issues/2528)) ([adb7614](https://github.com/matter-labs/zksync-2-dev/commit/adb76142882dde197cd64b1aaaffb01906427054))
 * **prover-fri:** Restrict prover to pick jobs for which they have vk's ([#2541](https://github.com/matter-labs/zksync-2-dev/issues/2541)) ([cedba03](https://github.com/matter-labs/zksync-2-dev/commit/cedba03ea66fc0da479e60d5ca30d8f67e32358a))
 * **vm:** Make execute interface more obvious ([#2536](https://github.com/matter-labs/zksync-2-dev/issues/2536)) ([4cb18cb](https://github.com/matter-labs/zksync-2-dev/commit/4cb18cb06e87628ad122fc9857c789d1411a7f77))
