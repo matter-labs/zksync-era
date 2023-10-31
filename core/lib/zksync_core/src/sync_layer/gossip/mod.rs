@@ -26,6 +26,18 @@ pub async fn start_gossip_fetcher(
     executor_config: ExecutorConfig,
     node_key: node::SecretKey,
 ) -> anyhow::Result<()> {
+    start_gossip_fetcher_inner(&ctx::root(), pool, actions, executor_config, node_key).await
+}
+
+async fn start_gossip_fetcher_inner(
+    ctx: &ctx::Ctx,
+    pool: ConnectionPool,
+    actions: ActionQueueSender,
+    mut executor_config: ExecutorConfig,
+    node_key: node::SecretKey,
+) -> anyhow::Result<()> {
+    executor_config.skip_qc_validation = true;
+
     let mut storage = pool
         .access_storage_tagged("sync_layer")
         .await
@@ -39,7 +51,7 @@ pub async fn start_gossip_fetcher(
     let executor = Executor::new(executor_config, node_key, buffered_store.clone())
         .context("Node executor misconfiguration")?;
 
-    scope::run!(&ctx::root(), |ctx, s| async {
+    scope::run!(ctx, |ctx, s| async {
         s.spawn_bg(async {
             store
                 .listen_to_updates(ctx)

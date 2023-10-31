@@ -4,7 +4,10 @@ use anyhow::Context as _;
 use rand::{thread_rng, Rng};
 use serde::{Deserialize, Serialize};
 
-use zksync_consensus_roles::validator::{BlockHeader, BlockNumber, FinalBlock, Payload};
+use zksync_consensus_roles::validator::{
+    BlockHeader, BlockNumber, CommitQC, FinalBlock, Payload, ReplicaCommit, ViewNumber,
+    CURRENT_VERSION,
+};
 use zksync_types::{
     api::en::SyncBlock, Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, H256,
 };
@@ -38,14 +41,22 @@ pub(super) fn sync_block_to_consensus_block(block: SyncBlock) -> FinalBlock {
             .expect("Transactions are always requested"),
     });
     let payload = Payload(payload.expect("Failed serializing block payload"));
+    let header = BlockHeader {
+        parent: thread_rng().gen(), // FIXME
+        number: BlockNumber(block.number.0.into()),
+        payload: payload.hash(),
+    };
     FinalBlock {
-        header: BlockHeader {
-            parent: thread_rng().gen(), // FIXME
-            number: BlockNumber(block.number.0.into()),
-            payload: payload.hash(),
-        },
+        header,
         payload,
-        justification: thread_rng().gen(), // FIXME
+        justification: CommitQC {
+            message: ReplicaCommit {
+                protocol_version: CURRENT_VERSION,
+                view: ViewNumber(header.number.0),
+                proposal: header,
+            },
+            ..thread_rng().gen() // FIXME
+        },
     }
 }
 

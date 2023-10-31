@@ -31,10 +31,11 @@ pub(super) struct PostgresBlockStore {
 
 impl PostgresBlockStore {
     pub fn new(pool: ConnectionPool, actions: ActionQueueSender, cursor: FetcherCursor) -> Self {
+        let current_block_number = cursor.next_miniblock.0.saturating_sub(1).into();
         Self {
             pool,
             actions,
-            block_sender: watch::channel(BlockNumber(cursor.miniblock.0.into())).0,
+            block_sender: watch::channel(BlockNumber(current_block_number)).0,
             cursor: Mutex::new(cursor),
         }
     }
@@ -182,21 +183,21 @@ impl ContiguousBlockStore for PostgresBlockStore {
 
 #[cfg(test)]
 mod tests {
-    use assert_matches::assert_matches;
-
-    use zksync_concurrency::{scope, time};
-    use zksync_types::{L1BatchNumber, L2ChainId};
+    use zksync_concurrency::scope;
+    use zksync_types::L2ChainId;
 
     use super::*;
     use crate::{
         genesis::{ensure_genesis_state, GenesisParams},
         sync_layer::{
-            sync_action::SyncAction, tests::run_state_keeper_with_multiple_miniblocks, ActionQueue,
+            gossip::tests::{
+                assert_first_block_actions, assert_second_block_actions, load_final_block,
+                TEST_TIMEOUT,
+            },
+            tests::run_state_keeper_with_multiple_miniblocks,
+            ActionQueue,
         },
     };
-
-    const TEST_TIMEOUT: time::Duration = time::Duration::seconds(1);
-    const POLL_INTERVAL: time::Duration = time::Duration::milliseconds(50);
 
     #[tokio::test]
     async fn block_store_basics_for_postgres() {
@@ -276,20 +277,8 @@ mod tests {
         run_state_keeper_with_multiple_miniblocks(pool.clone()).await;
 
         let mut storage = pool.access_storage().await.unwrap();
-        let first_block = storage
-            .sync_dal()
-            .sync_block(MiniblockNumber(1), Address::repeat_byte(1), true)
-            .await
-            .unwrap()
-            .expect("no sync block #1");
-        let first_block = sync_block_to_consensus_block(first_block);
-        let second_block = storage
-            .sync_dal()
-            .sync_block(MiniblockNumber(2), Address::repeat_byte(1), true)
-            .await
-            .unwrap()
-            .expect("no sync block #2");
-        let second_block = sync_block_to_consensus_block(second_block);
+        let first_block = load_final_block(&mut storage, 1).await;
+        let second_block = load_final_block(&mut storage, 2).await;
         storage
             .transactions_dal()
             .reset_transactions_state(MiniblockNumber(0))
@@ -306,66 +295,11 @@ mod tests {
         let storage = PostgresBlockStore::new(pool.clone(), actions_sender, cursor);
         let ctx = &ctx::test_root(&ctx::RealClock);
         storage.schedule_block(ctx, &first_block).await.unwrap();
-
-        scope::run!(&ctx.with_timeout(TEST_TIMEOUT), |ctx, _| async {
-            let mut received_actions = vec![];
-            while !matches!(received_actions.last(), Some(SyncAction::SealMiniblock)) {
-                let Some(action) = actions.pop_action() else {
-                    ctx.sleep(POLL_INTERVAL).await?;
-                    continue;
-                };
-                received_actions.push(action);
-            }
-            assert_matches!(
-                received_actions.as_slice(),
-                [
-                    SyncAction::OpenBatch {
-                        number: L1BatchNumber(1),
-                        timestamp: 1,
-                        first_miniblock_info: (MiniblockNumber(1), 1),
-                        ..
-                    },
-                    SyncAction::Tx(_),
-                    SyncAction::Tx(_),
-                    SyncAction::Tx(_),
-                    SyncAction::Tx(_),
-                    SyncAction::Tx(_),
-                    SyncAction::SealMiniblock,
-                ]
-            );
-            anyhow::Ok(())
-        })
-        .await
-        .unwrap();
+        assert_first_block_actions(ctx, &mut actions).await.unwrap();
 
         storage.schedule_block(ctx, &second_block).await.unwrap();
-
-        scope::run!(&ctx.with_timeout(TEST_TIMEOUT), |ctx, _| async {
-            let mut received_actions = vec![];
-            while !matches!(received_actions.last(), Some(SyncAction::SealMiniblock)) {
-                let Some(action) = actions.pop_action() else {
-                    ctx.sleep(POLL_INTERVAL).await?;
-                    continue;
-                };
-                received_actions.push(action);
-            }
-            assert_matches!(
-                received_actions.as_slice(),
-                [
-                    SyncAction::Miniblock {
-                        number: MiniblockNumber(2),
-                        timestamp: 2,
-                        virtual_blocks: 1,
-                    },
-                    SyncAction::Tx(_),
-                    SyncAction::Tx(_),
-                    SyncAction::Tx(_),
-                    SyncAction::SealMiniblock,
-                ]
-            );
-            anyhow::Ok(())
-        })
-        .await
-        .unwrap();
+        assert_second_block_actions(ctx, &mut actions)
+            .await
+            .unwrap();
     }
 }

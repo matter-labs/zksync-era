@@ -5,7 +5,7 @@ use async_trait::async_trait;
 use rand::{rngs::StdRng, seq::SliceRandom, Rng};
 use test_casing::test_casing;
 
-use std::{iter, ops};
+use std::{future::Future, iter, ops};
 
 use zksync_concurrency::{
     ctx::{self, channel},
@@ -17,8 +17,21 @@ use zksync_consensus_roles::validator::{BlockHeader, BlockNumber, FinalBlock, Pa
 use zksync_consensus_storage::{
     BlockStore, InMemoryStorage, StorageError, StorageResult, WriteBlockStore,
 };
+use zksync_dal::{ConnectionPool, StorageProcessor};
+use zksync_executor::testonly::FullValidatorConfig;
+use zksync_types::{Address, L1BatchNumber, MiniblockNumber};
 
-use super::buffered::{BufferedStorage, BufferedStorageEvent, ContiguousBlockStore};
+use super::{
+    buffered::{BufferedStorage, BufferedStorageEvent, ContiguousBlockStore},
+    *,
+};
+use crate::sync_layer::tests::StateKeeperHandles;
+use crate::sync_layer::{
+    sync_action::SyncAction, tests::run_state_keeper_with_multiple_miniblocks, ActionQueue,
+};
+
+pub(super) const TEST_TIMEOUT: time::Duration = time::Duration::seconds(1);
+pub(super) const POLL_INTERVAL: time::Duration = time::Duration::milliseconds(50);
 
 fn init_store(rng: &mut impl Rng) -> (FinalBlock, InMemoryStorage) {
     let payload = Payload(vec![]);
@@ -46,6 +59,20 @@ fn gen_blocks(rng: &mut impl Rng, genesis_block: FinalBlock, count: usize) -> Ve
         })
     });
     blocks.skip(1).take(count).collect()
+}
+
+/// Loads a block from the storage and converts it to a `FinalBlock`.
+pub(super) async fn load_final_block(
+    storage: &mut StorageProcessor<'_>,
+    number: u32,
+) -> FinalBlock {
+    let sync_block = storage
+        .sync_dal()
+        .sync_block(MiniblockNumber(number), Address::repeat_byte(1), true)
+        .await
+        .unwrap()
+        .unwrap_or_else(|| panic!("no sync block #{number}"));
+    conversions::sync_block_to_consensus_block(sync_block)
 }
 
 #[derive(Debug)]
@@ -292,4 +319,147 @@ async fn buffered_storage_with_initial_blocks_and_slight_shuffling(block_interva
         }
     })
     .await;
+}
+
+pub(super) async fn assert_first_block_actions(
+    ctx: &ctx::Ctx,
+    actions: &mut ActionQueue,
+) -> ctx::OrCanceled<Vec<SyncAction>> {
+    let mut received_actions = vec![];
+    while !matches!(received_actions.last(), Some(SyncAction::SealMiniblock)) {
+        let Some(action) = actions.pop_action() else {
+            ctx.sleep(POLL_INTERVAL).await?;
+            continue;
+        };
+        received_actions.push(action);
+    }
+    assert_matches!(
+        received_actions.as_slice(),
+        [
+            SyncAction::OpenBatch {
+                number: L1BatchNumber(1),
+                timestamp: 1,
+                first_miniblock_info: (MiniblockNumber(1), 1),
+                ..
+            },
+            SyncAction::Tx(_),
+            SyncAction::Tx(_),
+            SyncAction::Tx(_),
+            SyncAction::Tx(_),
+            SyncAction::Tx(_),
+            SyncAction::SealMiniblock,
+        ]
+    );
+    Ok(received_actions)
+}
+
+pub(super) async fn assert_second_block_actions(
+    ctx: &ctx::Ctx,
+    actions: &mut ActionQueue,
+) -> ctx::OrCanceled<Vec<SyncAction>> {
+    let mut received_actions = vec![];
+    while !matches!(received_actions.last(), Some(SyncAction::SealMiniblock)) {
+        let Some(action) = actions.pop_action() else {
+            ctx.sleep(POLL_INTERVAL).await?;
+            continue;
+        };
+        received_actions.push(action);
+    }
+    assert_matches!(
+        received_actions.as_slice(),
+        [
+            SyncAction::Miniblock {
+                number: MiniblockNumber(2),
+                timestamp: 2,
+                virtual_blocks: 1,
+            },
+            SyncAction::Tx(_),
+            SyncAction::Tx(_),
+            SyncAction::Tx(_),
+            SyncAction::SealMiniblock,
+        ]
+    );
+    Ok(received_actions)
+}
+
+async fn wrap_bg_task(task: impl Future<Output = anyhow::Result<()>>) -> anyhow::Result<()> {
+    match task.await {
+        Ok(()) => Ok(()),
+        Err(err) if err.root_cause().is::<ctx::Canceled>() => Ok(()),
+        Err(err) => Err(err),
+    }
+}
+
+#[tokio::test]
+async fn syncing_via_gossip_fetcher() {
+    zksync_concurrency::testonly::abort_on_panic();
+    let pool = ConnectionPool::test_pool().await;
+    let tx_hashes = run_state_keeper_with_multiple_miniblocks(pool.clone()).await;
+
+    let mut storage = pool.access_storage().await.unwrap();
+    let genesis_block = load_final_block(&mut storage, 0).await;
+    let first_block = load_final_block(&mut storage, 1).await;
+    let second_block = load_final_block(&mut storage, 2).await;
+    storage
+        .transactions_dal()
+        .reset_transactions_state(MiniblockNumber(0))
+        .await;
+    storage
+        .blocks_dal()
+        .delete_miniblocks(MiniblockNumber(0))
+        .await
+        .unwrap();
+    drop(storage);
+
+    let ctx = &ctx::test_root(&ctx::AffineClock::new(20.0));
+    let rng = &mut ctx.rng();
+    let mut validator =
+        FullValidatorConfig::for_single_validator(rng, genesis_block.payload.clone());
+    let external_node = validator.connect_external_node(rng);
+
+    let validator_storage = Arc::new(InMemoryStorage::new(genesis_block));
+    validator_storage
+        .put_block(ctx, &first_block)
+        .await
+        .unwrap();
+    validator_storage
+        .put_block(ctx, &second_block)
+        .await
+        .unwrap();
+    let validator =
+        Executor::new(validator.node_config, validator.node_key, validator_storage).unwrap();
+    // ^ We intentionally do not run consensus on the validator node, since it'll produce blocks
+    // with payloads that cannot be parsed by the external node.
+
+    let (actions_sender, mut actions) = ActionQueue::new();
+    let state_keeper = StateKeeperHandles::new(pool.clone(), &[&tx_hashes]).await;
+    scope::run!(ctx, |ctx, s| async {
+        s.spawn_bg(wrap_bg_task(validator.run(ctx)));
+        s.spawn_bg(wrap_bg_task(start_gossip_fetcher_inner(
+            ctx,
+            pool,
+            actions_sender,
+            external_node.node_config,
+            external_node.node_key,
+        )));
+
+        let received_actions = assert_first_block_actions(ctx, &mut actions).await?;
+        // Manually replicate actions to the state keeper.
+        state_keeper
+            .actions_sender
+            .push_actions(received_actions)
+            .await;
+
+        let received_actions = assert_second_block_actions(ctx, &mut actions).await?;
+        state_keeper
+            .actions_sender
+            .push_actions(received_actions)
+            .await;
+        state_keeper
+            .wait(|state| state.get_local_block() == MiniblockNumber(2))
+            .await;
+        Ok(())
+    })
+    .await
+    .unwrap();
 }

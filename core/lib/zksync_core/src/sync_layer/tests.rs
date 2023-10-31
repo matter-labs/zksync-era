@@ -145,15 +145,55 @@ fn open_l1_batch(number: u32, timestamp: u64, first_miniblock_number: u32) -> Sy
 }
 
 #[derive(Debug)]
-struct StateKeeperHandles {
-    actions_sender: ActionQueueSender,
-    stop_sender: watch::Sender<bool>,
-    sync_state: SyncState,
-    task: JoinHandle<anyhow::Result<()>>,
+pub(super) struct StateKeeperHandles {
+    pub actions_sender: ActionQueueSender,
+    pub stop_sender: watch::Sender<bool>,
+    pub sync_state: SyncState,
+    pub task: JoinHandle<anyhow::Result<()>>,
 }
 
 impl StateKeeperHandles {
-    async fn wait(self, mut condition: impl FnMut(&SyncState) -> bool) {
+    /// `tx_hashes` are grouped by the L1 batch.
+    pub async fn new(pool: ConnectionPool, tx_hashes: &[&[H256]]) -> Self {
+        assert!(!tx_hashes.is_empty());
+        assert!(tx_hashes.iter().all(|tx_hashes| !tx_hashes.is_empty()));
+
+        ensure_genesis(&mut pool.access_storage().await.unwrap()).await;
+
+        let (actions_sender, actions) = ActionQueue::new();
+        let sync_state = SyncState::new();
+        let io = ExternalIO::new(
+            pool,
+            actions,
+            sync_state.clone(),
+            Box::<MockMainNodeClient>::default(),
+            Address::repeat_byte(1),
+            u32::MAX,
+            L2ChainId::default(),
+        )
+        .await;
+
+        let (stop_sender, stop_receiver) = watch::channel(false);
+        let mut batch_executor_base = TestBatchExecutorBuilder::default();
+        for &tx_hashes_in_l1_batch in tx_hashes {
+            batch_executor_base.push_successful_transactions(tx_hashes_in_l1_batch);
+        }
+
+        let state_keeper = ZkSyncStateKeeper::without_sealer(
+            stop_receiver,
+            Box::new(io),
+            Box::new(batch_executor_base),
+        );
+        Self {
+            actions_sender,
+            stop_sender,
+            sync_state,
+            task: tokio::spawn(state_keeper.run()),
+        }
+    }
+
+    /// Waits for the given condition.
+    pub async fn wait(self, mut condition: impl FnMut(&SyncState) -> bool) {
         let started_at = Instant::now();
         loop {
             assert!(
@@ -186,45 +226,6 @@ async fn ensure_genesis(storage: &mut StorageProcessor<'_>) {
     }
 }
 
-/// `tx_hashes` are grouped by the L1 batch.
-async fn run_state_keeper(pool: ConnectionPool, tx_hashes: &[&[H256]]) -> StateKeeperHandles {
-    assert!(!tx_hashes.is_empty());
-    assert!(tx_hashes.iter().all(|tx_hashes| !tx_hashes.is_empty()));
-
-    ensure_genesis(&mut pool.access_storage().await.unwrap()).await;
-
-    let (actions_sender, actions) = ActionQueue::new();
-    let sync_state = SyncState::new();
-    let io = ExternalIO::new(
-        pool,
-        actions,
-        sync_state.clone(),
-        Box::<MockMainNodeClient>::default(),
-        Address::repeat_byte(1),
-        u32::MAX,
-        L2ChainId::default(),
-    )
-    .await;
-
-    let (stop_sender, stop_receiver) = watch::channel(false);
-    let mut batch_executor_base = TestBatchExecutorBuilder::default();
-    for &tx_hashes_in_l1_batch in tx_hashes {
-        batch_executor_base.push_successful_transactions(tx_hashes_in_l1_batch);
-    }
-
-    let state_keeper = ZkSyncStateKeeper::without_sealer(
-        stop_receiver,
-        Box::new(io),
-        Box::new(batch_executor_base),
-    );
-    StateKeeperHandles {
-        actions_sender,
-        stop_sender,
-        sync_state,
-        task: tokio::spawn(state_keeper.run()),
-    }
-}
-
 fn extract_tx_hashes<'a>(actions: impl IntoIterator<Item = &'a SyncAction>) -> Vec<H256> {
     actions
         .into_iter()
@@ -247,7 +248,7 @@ async fn external_io_basics() {
     let tx = SyncAction::Tx(Box::new(tx.into()));
     let actions = vec![open_l1_batch, tx, SyncAction::SealMiniblock];
 
-    let state_keeper = run_state_keeper(pool.clone(), &[&extract_tx_hashes(&actions)]).await;
+    let state_keeper = StateKeeperHandles::new(pool.clone(), &[&extract_tx_hashes(&actions)]).await;
     state_keeper.actions_sender.push_actions(actions).await;
     // Wait until the miniblock is sealed.
     state_keeper
@@ -308,7 +309,7 @@ pub(super) async fn run_state_keeper_with_multiple_miniblocks(pool: ConnectionPo
             .iter()
             .chain(&second_miniblock_actions),
     );
-    let state_keeper = run_state_keeper(pool, &[&tx_hashes]).await;
+    let state_keeper = StateKeeperHandles::new(pool, &[&tx_hashes]).await;
     state_keeper
         .actions_sender
         .push_actions(first_miniblock_actions)
@@ -365,7 +366,7 @@ async fn test_external_io_recovery(pool: ConnectionPool, mut tx_hashes: Vec<H256
     tx_hashes.push(new_tx.hash());
     let new_tx = SyncAction::Tx(Box::new(new_tx.into()));
 
-    let state_keeper = run_state_keeper(pool.clone(), &[&tx_hashes]).await;
+    let state_keeper = StateKeeperHandles::new(pool.clone(), &[&tx_hashes]).await;
     // Check that the state keeper state is restored.
     assert_eq!(
         state_keeper.sync_state.get_local_block(),
@@ -441,7 +442,8 @@ async fn external_io_with_multiple_l1_batches() {
     let second_tx = SyncAction::Tx(Box::new(second_tx.into()));
     let second_l1_batch_actions = vec![l1_batch, second_tx, SyncAction::SealMiniblock];
 
-    let state_keeper = run_state_keeper(pool.clone(), &[&[first_tx_hash], &[second_tx_hash]]).await;
+    let state_keeper =
+        StateKeeperHandles::new(pool.clone(), &[&[first_tx_hash], &[second_tx_hash]]).await;
     state_keeper
         .actions_sender
         .push_actions(first_l1_batch_actions)
@@ -498,7 +500,7 @@ async fn fetcher_basics() {
     ensure_genesis(&mut storage).await;
     let fetcher_cursor = FetcherCursor::new(&mut storage).await.unwrap();
     assert_eq!(fetcher_cursor.l1_batch, L1BatchNumber(0));
-    assert_eq!(fetcher_cursor.miniblock, MiniblockNumber(1));
+    assert_eq!(fetcher_cursor.next_miniblock, MiniblockNumber(1));
     drop(storage);
 
     let mut mock_client = MockMainNodeClient::default();
@@ -599,7 +601,7 @@ async fn fetcher_with_real_server() {
     let (actions_sender, mut actions) = ActionQueue::new();
     let client = <dyn MainNodeClient>::json_rpc(&format!("http://{server_addr}/")).unwrap();
     let fetcher_cursor = FetcherCursor {
-        miniblock: MiniblockNumber(1),
+        next_miniblock: MiniblockNumber(1),
         prev_miniblock_hash: genesis_miniblock_hash,
         l1_batch: L1BatchNumber(0),
     };
