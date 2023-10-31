@@ -3,7 +3,7 @@
     "26ee1fb":
     {
       "US": "gs://matterlabs-setup-data-us/26ee1fb/",
-      "EU": "gs://matterlabs-setup-data-europe/26ee1fb/",
+      "EUROPE": "gs://matterlabs-setup-data-europe/26ee1fb/",
       "ASIA": "gs://matterlabs-setup-data-asia/26ee1fb/"
     }
   }

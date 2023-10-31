@@ -3,7 +3,7 @@
     "26ee1fb-gpu":
     {
       "US": "gs://matterlabs-setup-data-us/26ee1fb-gpu/",
-      "EU": "gs://matterlabs-setup-data-europe/26ee1fb-gpu/",
+      "EUROPE": "gs://matterlabs-setup-data-europe/26ee1fb-gpu/",
       "ASIA": "gs://matterlabs-setup-data-asia/26ee1fb-gpu/"
     }
   }
