@@ -14,8 +14,6 @@ use std::convert::{TryFrom, TryInto};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_utils::u256_to_account_address;
 
-pub const BOOJUM_PROTOCOL_VERSION: ProtocolVersionId = ProtocolVersionId::Version18;
-
 #[repr(u16)]
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, TryFromPrimitive, Serialize, Deserialize,
@@ -75,6 +73,10 @@ impl ProtocolVersionId {
             ProtocolVersionId::Version17 => VmVersion::VmVirtualBlocksRefundsEnhancement,
             ProtocolVersionId::Version18 => VmVersion::VmVirtualBlocksRefundsEnhancement,
         }
+    }
+
+    pub fn is_pre_boojum(&self) -> bool {
+        self <= &ProtocolVersionId::Version17
     }
 }
 

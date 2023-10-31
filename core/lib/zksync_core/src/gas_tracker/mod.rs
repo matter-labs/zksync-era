@@ -6,7 +6,6 @@ use zksync_types::{
     aggregated_operations::AggregatedActionType,
     block::{BlockGasCount, L1BatchHeader},
     commitment::{L1BatchMetadata, L1BatchWithMetadata},
-    protocol_version::BOOJUM_PROTOCOL_VERSION,
     tx::tx_execution_info::{DeduplicatedWritesMetrics, ExecutionMetrics},
     ExecuteTransactionCommon, ProtocolVersionId, Transaction, H256,
 };
@@ -114,7 +113,7 @@ pub(crate) fn commit_gas_count_for_l1_batch(
     // Protocol Version 17 introduces boojum, and along with boojum an update to how storage writes
     // are communicated/compressed.
     let state_diff_size = match header.protocol_version.unwrap() {
-        BOOJUM_PROTOCOL_VERSION => metadata.state_diffs_compressed.len() as u32,
+        id if id.is_pre_boojum() => metadata.state_diffs_compressed.len() as u32,
         _ => {
             metadata.initial_writes_compressed.len() as u32
                 + metadata.repeated_writes_compressed.len() as u32

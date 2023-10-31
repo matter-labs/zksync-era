@@ -2,10 +2,7 @@
 use zkevm_test_harness::witness::utils::{
     events_queue_commitment_fixed, initial_heap_content_commitment_fixed,
 };
-use zksync_types::{
-    protocol_version::BOOJUM_PROTOCOL_VERSION, LogQuery, ProtocolVersionId, H256, U256,
-    USED_BOOTLOADER_MEMORY_BYTES,
-};
+use zksync_types::{LogQuery, ProtocolVersionId, H256, U256, USED_BOOTLOADER_MEMORY_BYTES};
 use zksync_utils::expand_memory_contents;
 
 pub fn events_queue_commitment(
@@ -13,8 +10,8 @@ pub fn events_queue_commitment(
     protocol_version: ProtocolVersionId,
 ) -> Option<H256> {
     match protocol_version {
-        id if id < BOOJUM_PROTOCOL_VERSION => None,
-        BOOJUM_PROTOCOL_VERSION => Some(H256(events_queue_commitment_fixed(events_queue))),
+        id if id.is_pre_boojum() => None,
+        ProtocolVersionId::Version17 => Some(H256(events_queue_commitment_fixed(events_queue))),
         id => unimplemented!("events_queue_commitment is not implemented for {id:?}"),
     }
 }
@@ -24,8 +21,8 @@ pub fn bootloader_initial_content_commitment(
     protocol_version: ProtocolVersionId,
 ) -> Option<H256> {
     match protocol_version {
-        id if id < BOOJUM_PROTOCOL_VERSION => None,
-        BOOJUM_PROTOCOL_VERSION => {
+        id if id.is_pre_boojum() => None,
+        ProtocolVersionId::Version17 => {
             let full_bootloader_memory =
                 expand_memory_contents(initial_bootloader_contents, USED_BOOTLOADER_MEMORY_BYTES);
             Some(H256(initial_heap_content_commitment_fixed(
