@@ -2,18 +2,14 @@
 //! It contains the logic of the block sealing, which is used by both the mempool-based and external node IO.
 
 use itertools::Itertools;
-// use zkevm_test_harness::witness::utils::{
-//     events_queue_commitment_fixed, initial_heap_content_commitment_fixed,
-// };
-
 use std::{
     collections::HashMap,
     time::{Duration, Instant},
 };
 
-use vm::{FinishedL1Batch, L1BatchEnv};
-use zksync_config::constants::ACCOUNT_CODE_STORAGE_ADDRESS;
+use multivm::interface::{FinishedL1Batch, L1BatchEnv};
 use zksync_dal::StorageProcessor;
+use zksync_system_constants::ACCOUNT_CODE_STORAGE_ADDRESS;
 use zksync_types::{
     block::unpack_block_info, CURRENT_VIRTUAL_BLOCK_INFO_POSITION, SYSTEM_CONTEXT_ADDRESS,
 };
@@ -132,8 +128,8 @@ impl UpdatesManager {
             l1_gas_price: self.l1_gas_price(),
             l2_fair_gas_price: self.fair_l2_gas_price(),
             base_system_contracts_hashes: self.base_system_contract_hashes(),
-            system_logs: finished_batch.final_execution_state.system_logs,
             protocol_version: Some(self.protocol_version()),
+            system_logs: finished_batch.final_execution_state.system_logs,
         };
 
         let events_queue = finished_batch
@@ -147,6 +143,7 @@ impl UpdatesManager {
                 &finished_batch.final_bootloader_memory.as_ref().unwrap(),
                 self.l1_batch.l1_gas_count,
                 &events_queue,
+                &finished_batch.final_execution_state.storage_refunds,
             )
             .await
             .unwrap();
@@ -457,7 +454,14 @@ impl MiniblockSealCommand {
 
         deduplicated_logs
             .into_iter()
-            .map(|(key, ModifiedSlot { value, tx_index })| (tx_index, (key, value)))
+            .map(
+                |(
+                    key,
+                    ModifiedSlot {
+                        value, tx_index, ..
+                    },
+                )| (tx_index, (key, value)),
+            )
             .sorted_by_key(|(tx_index, _)| *tx_index)
             .group_by(|(tx_index, _)| *tx_index)
             .into_iter()

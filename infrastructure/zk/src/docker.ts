@@ -25,7 +25,8 @@ async function dockerCommand(
     command: 'push' | 'build',
     image: string,
     customTag?: string,
-    publishPublic: boolean = false
+    publishPublic: boolean = false,
+    dockerOrg: string = 'matterlabs'
 ) {
     // Generating all tags for containers. We need 2 tags here: SHA and SHA+TS
     const { stdout: COMMIT_SHORT_SHA }: { stdout: string } = await utils.exec('git rev-parse --short HEAD');
@@ -52,7 +53,7 @@ async function dockerCommand(
     // COMMIT_SHORT_SHA returns with newline, so we need to trim it
     switch (command) {
         case 'build':
-            await _build(image, tagList);
+            await _build(image, tagList, dockerOrg);
             break;
         case 'push':
             await _push(image, tagList, publishPublic);
@@ -85,13 +86,14 @@ function defaultTagList(image: string, imageTagSha: string, imageTagShaTS: strin
     return tagList;
 }
 
-async function _build(image: string, tagList: string[]) {
+async function _build(image: string, tagList: string[], dockerOrg: string) {
     if (image === 'server-v2' || image === 'external-node' || image === 'prover') {
         await contract.build();
     }
+    let tagsToBuild = '';
 
-    const tagsToBuild = tagList.map((tag) => `-t matterlabs/${image}:${tag}`).join(' ');
     // generate list of tags for image - we want 3 tags (latest, SHA, SHA+TimeStamp) for listed components and only "latest" for everything else
+    tagsToBuild = tagList.map((tag) => `-t ${dockerOrg}/${image}:${tag}`).join(' ');
 
     // Conditionally add build argument if image is prover-v2
     let buildArgs = '';
@@ -126,7 +128,11 @@ async function _push(image: string, tagList: string[], publishPublic: boolean = 
             await utils.spawn(
                 `docker tag us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${image}:${tag} asia-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${image}:${tag}`
             );
+            await utils.spawn(
+                `docker tag us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${image}:${tag} europe-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${image}:${tag}`
+            );
             await utils.spawn(`docker push asia-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${image}:${tag}`);
+            await utils.spawn(`docker push europe-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${image}:${tag}`);
         }
         if (image == 'external-node' && publishPublic) {
             await utils.spawn(`docker push matterlabs/${image}-public:${tag}`);
@@ -136,6 +142,10 @@ async function _push(image: string, tagList: string[], publishPublic: boolean = 
 
 export async function build(image: string, cmd: Command) {
     await dockerCommand('build', image, cmd.customTag);
+}
+
+export async function customBuildForHyperchain(image: string, dockerOrg: string) {
+    await dockerCommand('build', image, '', false, dockerOrg);
 }
 
 export async function push(image: string, cmd: Command) {

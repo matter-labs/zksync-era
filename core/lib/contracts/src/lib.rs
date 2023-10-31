@@ -58,9 +58,19 @@ fn read_file_to_json_value(path: impl AsRef<Path>) -> serde_json::Value {
     .unwrap_or_else(|e| panic!("Failed to parse file {:?}: {}", path, e))
 }
 
+pub fn load_contract_if_present<P: AsRef<Path> + std::fmt::Debug>(path: P) -> Option<Contract> {
+    let zksync_home = std::env::var("ZKSYNC_HOME").unwrap_or_else(|_| ".".into());
+    let path = Path::new(&zksync_home).join(path);
+    path.exists().then(|| {
+        serde_json::from_value(read_file_to_json_value(&path)["abi"].take())
+            .unwrap_or_else(|e| panic!("Failed to parse contract abi from file {:?}: {}", path, e))
+    })
+}
+
 pub fn load_contract<P: AsRef<Path> + std::fmt::Debug>(path: P) -> Contract {
-    serde_json::from_value(read_file_to_json_value(&path)["abi"].take())
-        .unwrap_or_else(|e| panic!("Failed to parse contract abi from file {:?}: {}", path, e))
+    load_contract_if_present(&path).unwrap_or_else(|| {
+        panic!("Failed to load contract from {:?}", path);
+    })
 }
 
 pub fn load_sys_contract(contract_name: &str) -> Contract {
@@ -81,6 +91,10 @@ pub fn bridgehub_contract() -> Contract {
     load_contract(BRIDGEHUB_CONTRACT_FILE)
 }
 
+pub fn governance_contract() -> Contract {
+    load_contract_if_present(GOVERNANCE_CONTRACT_FILE).expect("Governance contract not found")
+}
+
 pub fn state_transition_contract() -> Contract {
     load_contract(STATE_TRANSITION_CONTRACT_FILE)
 }
@@ -91,10 +105,6 @@ pub fn state_transition_chain_contract() -> Contract {
 
 pub fn diamond_init_contract() -> Contract {
     load_contract(DIAMOND_INIT_CONTRACT_FILE)
-}
-
-pub fn governance_contract() -> Contract {
-    load_contract(GOVERNANCE_CONTRACT_FILE)
 }
 
 pub fn multicall_contract() -> Contract {

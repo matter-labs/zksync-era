@@ -8,7 +8,9 @@
         "long-running-test": "zk f jest",
         "fee-test": "RUN_FEE_TEST=1 zk f jest -- fees.test.ts",
         "api-test": "zk f jest -- api/web3.test.ts",
-        "contract-verification-test": "zk f jest -- api/contract-verification.test.ts"
+        "contract-verification-test": "zk f jest -- api/contract-verification.test.ts",
+        "build": "hardhat compile",
+        "build-yul": "hardhat run scripts/compile-yul.ts"
     },
     "devDependencies": {
         "@matterlabs/hardhat-zksync-deploy": "^0.6.1",
@@ -28,9 +30,6 @@
         "ts-jest": "^29.0.1",
         "ts-node": "^10.1.0",
         "typescript": "^4.3.5",
-        "zksync-web3": "link:../../../sdk/zksync-web3.js"
-    },
-    "dependencies": {
-        "@matterlabs/hardhat-zksync-solc": "0.4.2"
+        "zksync-web3": "^0.15.5"
     }
 }

@@ -9,11 +9,18 @@ export async function reset() {
 }
 
 export async function resetTest() {
-    const databaseUrl = process.env.DATABASE_URL as string;
-    process.env.DATABASE_URL = databaseUrl.replace('zksync_local', 'zksync_local_test');
+    process.env.DATABASE_URL = process.env.TEST_DATABASE_URL;
     await utils.confirmAction();
-    await drop();
+    console.log('recreating postgres container for unit tests');
+    await utils.spawn('docker compose -f docker-compose-unit-tests.yml down');
+    await utils.spawn('docker compose -f docker-compose-unit-tests.yml up -d');
+    await wait(100);
+    console.log('setting up a database template');
     await setup();
+    console.log('disallowing connections to the template');
+    await utils.spawn(
+        `psql "${process.env.DATABASE_URL}" -c "update pg_database set datallowconn = false where datname = current_database()"`
+    );
 }
 
 export async function drop() {
@@ -59,7 +66,8 @@ export async function wait(tries: number = 4) {
     for (let i = 0; i < tries; i++) {
         const result = await utils.allowFail(utils.exec(`pg_isready -d "${process.env.DATABASE_URL}"`));
         if (result !== null) return; // null means failure
-        await utils.sleep(5);
+        console.log(`waiting for postgres ${process.env.DATABASE_URL}`);
+        await utils.sleep(1);
     }
     await utils.exec(`pg_isready -d "${process.env.DATABASE_URL}"`);
 }

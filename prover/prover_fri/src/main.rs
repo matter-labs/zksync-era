@@ -6,7 +6,7 @@ use tokio::sync::watch::Receiver;
 use tokio::task::JoinHandle;
 
 use prometheus_exporter::PrometheusExporterConfig;
-use zksync_config::configs::fri_prover_group::{CircuitIdRoundTuple, FriProverGroupConfig};
+use zksync_config::configs::fri_prover_group::FriProverGroupConfig;
 use zksync_config::configs::FriProverConfig;
 use zksync_config::ObjectStoreConfig;
 use zksync_dal::connection::DbVariant;
@@ -17,6 +17,7 @@ use zksync_prover_fri_utils::get_all_circuit_id_round_tuples_for;
 use local_ip_address::local_ip;
 use zksync_prover_utils::region_fetcher::get_zone;
 use zksync_queued_job_processor::JobProcessor;
+use zksync_types::basic_fri_types::CircuitIdRoundTuple;
 use zksync_types::proofs::GpuProverInstanceStatus;
 use zksync_types::proofs::SocketAddress;
 use zksync_utils::wait_for_tasks::wait_for_tasks;

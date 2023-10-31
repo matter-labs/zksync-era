@@ -9,9 +9,9 @@ use zksync::utils::{
 };
 use zksync::web3::{contract::Options, types::TransactionReceipt};
 use zksync::{EthNamespaceClient, EthereumProvider, ZksNamespaceClient};
-use zksync_config::constants::MAX_L1_TRANSACTION_GAS_LIMIT;
 use zksync_eth_client::{BoundEthInterface, EthInterface};
 use zksync_eth_signer::PrivateKeySigner;
+use zksync_system_constants::MAX_L1_TRANSACTION_GAS_LIMIT;
 use zksync_types::{
     api::BlockNumber, tokens::ETHEREUM_ADDRESS, Address, Nonce,
     REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256, U64,

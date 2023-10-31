@@ -1,20 +1,21 @@
 use bigdecimal::BigDecimal;
-use std::collections::HashMap;
-use std::fmt::{self, Debug};
-use std::iter::FromIterator;
-use std::time::Duration;
-
 use itertools::Itertools;
-use sqlx::error;
-use sqlx::types::chrono::NaiveDateTime;
+use sqlx::{error, types::chrono::NaiveDateTime};
 
-use zksync_types::tx::tx_execution_info::TxExecutionStatus;
-use zksync_types::vm_trace::Call;
+use anyhow::Context;
+use std::{collections::HashMap, fmt, time::Duration};
+
 use zksync_types::{
-    block::MiniblockReexecuteData, fee::TransactionExecutionMetrics, get_nonce_key, l1::L1Tx,
-    l2::L2Tx, protocol_version::ProtocolUpgradeTx, tx::TransactionExecutionResult,
-    vm_trace::VmExecutionTrace, Address, ExecuteTransactionCommon, L1BatchNumber, L1BlockNumber,
-    MiniblockNumber, Nonce, PriorityOpId, Transaction, H256, PROTOCOL_UPGRADE_TX_TYPE, U256,
+    block::MiniblockExecutionData,
+    fee::TransactionExecutionMetrics,
+    get_nonce_key,
+    l1::L1Tx,
+    l2::L2Tx,
+    protocol_version::ProtocolUpgradeTx,
+    tx::{tx_execution_info::TxExecutionStatus, TransactionExecutionResult},
+    vm_trace::{Call, VmExecutionTrace},
+    Address, ExecuteTransactionCommon, L1BatchNumber, L1BlockNumber, MiniblockNumber, Nonce,
+    PriorityOpId, Transaction, H256, PROTOCOL_UPGRADE_TX_TYPE, U256,
 };
 use zksync_utils::{h256_to_u32, u256_to_big_decimal};
 
@@ -35,8 +36,14 @@ pub enum L2TxSubmissionResult {
 }
 
 impl fmt::Display for L2TxSubmissionResult {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:?}", self)
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(match self {
+            Self::Added => "added",
+            Self::Replaced => "replaced",
+            Self::AlreadyExecuted => "already_executed",
+            Self::Duplicate => "duplicate",
+            Self::Proxied => "proxied",
+        })
     }
 }
 
@@ -378,11 +385,8 @@ impl TransactionsDal<'_, '_> {
         transactions: &[TransactionExecutionResult],
     ) {
         {
-            let hashes: Vec<Vec<u8>> = transactions
-                .iter()
-                .map(|tx| tx.hash.as_bytes().to_vec())
-                .collect();
-            let l1_batch_tx_indexes = Vec::from_iter(0..transactions.len() as i32);
+            let hashes: Vec<_> = transactions.iter().map(|tx| tx.hash.as_bytes()).collect();
+            let l1_batch_tx_indexes: Vec<_> = (0..transactions.len() as i32).collect();
             sqlx::query!(
                 "
                     UPDATE transactions
@@ -398,7 +402,7 @@ impl TransactionsDal<'_, '_> {
                     WHERE transactions.hash=data_table.hash 
                 ",
                 &l1_batch_tx_indexes,
-                &hashes,
+                &hashes as &[&[u8]],
                 block_number.0 as i64
             )
             .execute(self.storage.conn())
@@ -969,40 +973,74 @@ impl TransactionsDal<'_, '_> {
     /// These are the transactions that are included to some miniblock,
     /// but not included to L1 batch. The order of the transactions is the same as it was
     /// during the previous execution.
-    pub async fn get_miniblocks_to_reexecute(&mut self) -> Vec<MiniblockReexecuteData> {
-        let transactions_by_miniblock: Vec<(MiniblockNumber, Vec<Transaction>)> = sqlx::query_as!(
+    pub async fn get_miniblocks_to_reexecute(
+        &mut self,
+    ) -> anyhow::Result<Vec<MiniblockExecutionData>> {
+        let transactions = sqlx::query_as!(
             StorageTransaction,
             "SELECT * FROM transactions \
             WHERE miniblock_number IS NOT NULL AND l1_batch_number IS NULL \
             ORDER BY miniblock_number, index_in_block",
         )
         .fetch_all(self.storage.conn())
-        .await
-        .unwrap()
-        .into_iter()
-        .group_by(|tx| tx.miniblock_number.unwrap())
-        .into_iter()
-        .map(|(miniblock_number, txs)| {
-            (
-                MiniblockNumber(miniblock_number as u32),
-                txs.map(Transaction::from).collect::<Vec<_>>(),
-            )
-        })
-        .collect();
-        if transactions_by_miniblock.is_empty() {
-            return Vec::new();
-        }
+        .await?;
 
-        let from_miniblock = transactions_by_miniblock.first().unwrap().0;
-        let to_miniblock = transactions_by_miniblock.last().unwrap().0;
+        self.get_miniblocks_to_execute(transactions).await
+    }
+
+    /// Returns miniblocks with their transactions to be used in VM execution.
+    /// The order of the transactions is the same as it was during previous execution.
+    /// All miniblocks are retrieved for the given l1_batch.
+    pub async fn get_miniblocks_to_execute_for_l1_batch(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+    ) -> anyhow::Result<Vec<MiniblockExecutionData>> {
+        let transactions = sqlx::query_as!(
+            StorageTransaction,
+            "SELECT * FROM transactions \
+                    WHERE l1_batch_number = $1 \
+                    ORDER BY miniblock_number, index_in_block",
+            l1_batch_number.0 as i64,
+        )
+        .fetch_all(self.storage.conn())
+        .await?;
+
+        self.get_miniblocks_to_execute(transactions).await
+    }
+
+    async fn get_miniblocks_to_execute(
+        &mut self,
+        transactions: Vec<StorageTransaction>,
+    ) -> anyhow::Result<Vec<MiniblockExecutionData>> {
+        let transactions_by_miniblock: Vec<(MiniblockNumber, Vec<Transaction>)> = transactions
+            .into_iter()
+            .group_by(|tx| tx.miniblock_number.unwrap())
+            .into_iter()
+            .map(|(miniblock_number, txs)| {
+                (
+                    MiniblockNumber(miniblock_number as u32),
+                    txs.map(Transaction::from).collect::<Vec<_>>(),
+                )
+            })
+            .collect();
+        if transactions_by_miniblock.is_empty() {
+            return Ok(Vec::new());
+        }
+        let from_miniblock = transactions_by_miniblock
+            .first()
+            .context("No first transaction found for miniblock")?
+            .0;
+        let to_miniblock = transactions_by_miniblock
+            .last()
+            .context("No last transaction found for miniblock")?
+            .0;
         let miniblock_data = sqlx::query!(
             "SELECT timestamp, virtual_blocks FROM miniblocks WHERE number BETWEEN $1 AND $2 ORDER BY number",
             from_miniblock.0 as i64,
             to_miniblock.0 as i64,
         )
         .fetch_all(self.storage.conn())
-        .await
-        .unwrap();
+        .await?;
 
         let prev_hashes = sqlx::query!(
             "SELECT hash FROM miniblocks \
@@ -1012,8 +1050,7 @@ impl TransactionsDal<'_, '_> {
             to_miniblock.0 as i64 - 1,
         )
         .fetch_all(self.storage.conn())
-        .await
-        .unwrap();
+        .await?;
 
         assert_eq!(
             miniblock_data.len(),
@@ -1026,12 +1063,12 @@ impl TransactionsDal<'_, '_> {
             "Not enough previous hashes retrieved"
         );
 
-        transactions_by_miniblock
+        Ok(transactions_by_miniblock
             .into_iter()
             .zip(miniblock_data)
             .zip(prev_hashes)
             .map(
-                |(((number, txs), miniblock_data_row), prev_hash_row)| MiniblockReexecuteData {
+                |(((number, txs), miniblock_data_row), prev_hash_row)| MiniblockExecutionData {
                     number,
                     timestamp: miniblock_data_row.timestamp as u64,
                     prev_block_hash: H256::from_slice(&prev_hash_row.hash),
@@ -1039,7 +1076,7 @@ impl TransactionsDal<'_, '_> {
                     txs,
                 },
             )
-            .collect()
+            .collect())
     }
 
     pub async fn get_tx_locations(&mut self, l1_batch_number: L1BatchNumber) -> TxLocations {

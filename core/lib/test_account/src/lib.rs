@@ -1,9 +1,9 @@
 use ethabi::Token;
-use zksync_config::constants::{
-    CONTRACT_DEPLOYER_ADDRESS, MAX_GAS_PER_PUBDATA_BYTE, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE,
-};
 use zksync_contracts::test_contracts::LoadnextContractExecutionParams;
 use zksync_contracts::{deployer_contract, load_contract};
+use zksync_system_constants::{
+    CONTRACT_DEPLOYER_ADDRESS, MAX_GAS_PER_PUBDATA_BYTE, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE,
+};
 use zksync_types::fee::Fee;
 use zksync_types::l2::L2Tx;
 use zksync_types::utils::deployed_address_create;

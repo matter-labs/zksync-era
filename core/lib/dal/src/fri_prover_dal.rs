@@ -1,9 +1,9 @@
 use std::{collections::HashMap, convert::TryFrom, time::Duration};
 
-use zksync_config::configs::fri_prover_group::CircuitIdRoundTuple;
-use zksync_types::protocol_version::FriProtocolVersionId;
 use zksync_types::{
+    basic_fri_types::CircuitIdRoundTuple,
     proofs::{AggregationRound, FriProverJobMetadata, JobCountStatistics, StuckJobs},
+    protocol_version::FriProtocolVersionId,
     L1BatchNumber,
 };
 
@@ -213,6 +213,7 @@ impl FriProverDal<'_, '_> {
                 UPDATE prover_jobs_fri
                 SET status = 'queued', attempts = attempts + 1, updated_at = now(), processing_started_at = now()
                 WHERE (status = 'in_progress' AND  processing_started_at <= now() - $1::interval AND attempts < $2)
+                OR (status = 'in_gpu_proof' AND  processing_started_at <= now() - $1::interval AND attempts < $2)
                 OR (status = 'failed' AND attempts < $2)
                 RETURNING id, status, attempts
                 ",
@@ -267,6 +268,7 @@ impl FriProverDal<'_, '_> {
                 r#"
                 SELECT COUNT(*) as "count!", circuit_id as "circuit_id!", aggregation_round as "aggregation_round!", status as "status!"
                 FROM prover_jobs_fri
+                WHERE status <> 'skipped' and status <> 'successful'
                 GROUP BY circuit_id, aggregation_round, status
                 "#
             )
@@ -300,7 +302,7 @@ impl FriProverDal<'_, '_> {
                 r#"
                     SELECT MIN(l1_batch_number) as "l1_batch_number!", circuit_id, aggregation_round
                     FROM prover_jobs_fri
-                    WHERE status IN('queued', 'in_progress', 'failed')
+                    WHERE status IN('queued', 'in_gpu_proof', 'in_progress', 'failed')
                     GROUP BY circuit_id, aggregation_round
                 "#
             )

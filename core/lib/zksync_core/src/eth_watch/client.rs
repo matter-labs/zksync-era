@@ -48,7 +48,9 @@ pub struct EthHttpQueryClient<E> {
     client: E,
     topics: Vec<H256>,
     state_transition_chain_contract_addr: Address,
-    governance_address: Address,
+    /// Address of the `Governance` contract. It's optional because it is present only for post-boojum chains.
+    /// If address is some then client will listen to events coming from it.
+    governance_address: Option<Address>,
     verifier_contract_abi: Contract,
     confirmations_for_eth_event: Option<u64>,
 }
@@ -57,11 +59,11 @@ impl<E: EthInterface> EthHttpQueryClient<E> {
     pub fn new(
         client: E,
         state_transition_chain_contract_addr: Address,
-        governance_address: Address,
+        governance_address: Option<Address>,
         confirmations_for_eth_event: Option<u64>,
     ) -> Self {
         tracing::debug!(
-            "New eth client, zkSync addr: {:x}, governance addr: {:x}",
+            "New eth client, zkSync addr: {:x}, governance addr: {:?}",
             state_transition_chain_contract_addr,
             governance_address
         );
@@ -82,10 +84,16 @@ impl<E: EthInterface> EthHttpQueryClient<E> {
         topics: Vec<H256>,
     ) -> Result<Vec<Log>, Error> {
         let filter = FilterBuilder::default()
-            .address(vec![
-                self.state_transition_chain_contract_addr,
-                self.governance_address,
-            ])
+            .address(
+                [
+                    Some(self.state_transition_chain_contract_addr),
+                    self.governance_address,
+                ]
+                .iter()
+                .flatten()
+                .copied()
+                .collect(),
+            )
             .from_block(from)
             .to_block(to)
             .topics(Some(topics), None, None, None)
@@ -100,7 +108,7 @@ impl<E: EthInterface + Send + Sync + 'static> EthClient for EthHttpQueryClient<E
     async fn scheduler_vk_hash(&self, verifier_address: Address) -> Result<H256, Error> {
         // This is here for backward compatibility with the old verifier:
         // Legacy verifier returns the full verification key;
-        // New verifier returns the hash of the verification key
+        // New verifier returns the hash of the verification key.
 
         let vk_hash = self
             .client

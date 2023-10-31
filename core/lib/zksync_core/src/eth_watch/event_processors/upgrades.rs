@@ -1,11 +1,6 @@
 use std::convert::TryFrom;
-// use std::time::Instant;
-use zksync_contracts::{governance_contract, state_transition_chain_contract};
 use zksync_dal::StorageProcessor;
-use zksync_types::{
-    protocol_version::GovernanceOperation, web3::types::Log, Address, ProtocolUpgrade,
-    ProtocolVersionId, H256,
-};
+use zksync_types::{ethabi::Contract, web3::types::Log, ProtocolUpgrade, ProtocolVersionId, H256};
 
 use crate::eth_watch::{
     client::{Error, EthClient},
@@ -16,25 +11,18 @@ use crate::eth_watch::{
 /// Responsible for saving new protocol upgrade proposals to the database.
 #[derive(Debug)]
 pub struct UpgradesEventProcessor {
-    diamond_proxy_address: Address,
     last_seen_version_id: ProtocolVersionId,
     upgrade_proposal_signature: H256,
-    execute_upgrade_short_signature: [u8; 4],
 }
 
 impl UpgradesEventProcessor {
-    pub fn new(diamond_proxy_address: Address, last_seen_version_id: ProtocolVersionId) -> Self {
+    pub fn new(last_seen_version_id: ProtocolVersionId) -> Self {
         Self {
-            diamond_proxy_address,
             last_seen_version_id,
-            upgrade_proposal_signature: governance_contract()
-                .event("TransparentOperationScheduled")
-                .expect("TransparentOperationScheduled event is missing in abi")
+            upgrade_proposal_signature: old_zksync_contract()
+                .event("ProposeTransparentUpgrade")
+                .expect("ProposeTransparentUpgrade event is missing in abi")
                 .signature(),
-            execute_upgrade_short_signature: state_transition_chain_contract()
-                .function("executeUpgrade")
-                .unwrap()
-                .short_signature(),
         }
     }
 }
@@ -52,29 +40,15 @@ impl<W: EthClient + Sync> EventProcessor<W> for UpgradesEventProcessor {
             .into_iter()
             .filter(|event| event.topics[0] == self.upgrade_proposal_signature)
         {
-            let governance_operation = GovernanceOperation::try_from(event)
+            let upgrade = ProtocolUpgrade::try_from(event)
                 .map_err(|err| Error::LogParse(format!("{:?}", err)))?;
-            // Some calls can target other contracts than Diamond proxy, skip them.
-            for call in governance_operation
-                .calls
-                .into_iter()
-                .filter(|call| call.target == self.diamond_proxy_address)
-            {
-                if call.data.len() < 4 || &call.data[..4] != &self.execute_upgrade_short_signature {
-                    continue;
-                }
-
-                let upgrade = ProtocolUpgrade::try_from(call)
-                    .map_err(|err| Error::LogParse(format!("{:?}", err)))?;
-
-                // Scheduler VK is not present in proposal event. It is hardcoded in verifier contract.
-                let scheduler_vk_hash = if let Some(address) = upgrade.verifier_address {
-                    Some(client.scheduler_vk_hash(address).await?)
-                } else {
-                    None
-                };
-                upgrades.push((upgrade, scheduler_vk_hash));
-            }
+            // Scheduler VK is not present in proposal event. It is hardcoded in verifier contract.
+            let scheduler_vk_hash = if let Some(address) = upgrade.verifier_address {
+                Some(client.scheduler_vk_hash(address).await?)
+            } else {
+                None
+            };
+            upgrades.push((upgrade, scheduler_vk_hash));
         }
 
         if upgrades.is_empty() {
@@ -117,4 +91,193 @@ impl<W: EthClient + Sync> EventProcessor<W> for UpgradesEventProcessor {
     fn relevant_topic(&self) -> H256 {
         self.upgrade_proposal_signature
     }
+}
+
+pub fn old_zksync_contract() -> Contract {
+    let json = r#"[
+        {
+          "anonymous": false,
+          "inputs": [
+            {
+              "components": [
+                {
+                  "components": [
+                    {
+                      "internalType": "address",
+                      "name": "facet",
+                      "type": "address"
+                    },
+                    {
+                      "internalType": "enum Diamond.Action",
+                      "name": "action",
+                      "type": "uint8"
+                    },
+                    {
+                      "internalType": "bool",
+                      "name": "isFreezable",
+                      "type": "bool"
+                    },
+                    {
+                      "internalType": "bytes4[]",
+                      "name": "selectors",
+                      "type": "bytes4[]"
+                    }
+                  ],
+                  "internalType": "struct Diamond.FacetCut[]",
+                  "name": "facetCuts",
+                  "type": "tuple[]"
+                },
+                {
+                  "internalType": "address",
+                  "name": "initAddress",
+                  "type": "address"
+                },
+                {
+                  "internalType": "bytes",
+                  "name": "initCalldata",
+                  "type": "bytes"
+                }
+              ],
+              "indexed": false,
+              "internalType": "struct Diamond.DiamondCutData",
+              "name": "diamondCut",
+              "type": "tuple"
+            },
+            {
+              "indexed": true,
+              "internalType": "uint256",
+              "name": "proposalId",
+              "type": "uint256"
+            },
+            {
+              "indexed": false,
+              "internalType": "bytes32",
+              "name": "proposalSalt",
+              "type": "bytes32"
+            }
+          ],
+          "name": "ProposeTransparentUpgrade",
+          "type": "event"
+        },
+        {
+          "anonymous": false,
+          "inputs": [
+            {
+              "indexed": false,
+              "internalType": "uint256",
+              "name": "txId",
+              "type": "uint256"
+            },
+            {
+              "indexed": false,
+              "internalType": "bytes32",
+              "name": "txHash",
+              "type": "bytes32"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint64",
+              "name": "expirationTimestamp",
+              "type": "uint64"
+            },
+            {
+              "components": [
+                {
+                  "internalType": "uint256",
+                  "name": "txType",
+                  "type": "uint256"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "from",
+                  "type": "uint256"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "to",
+                  "type": "uint256"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "gasLimit",
+                  "type": "uint256"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "gasPerPubdataByteLimit",
+                  "type": "uint256"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "maxFeePerGas",
+                  "type": "uint256"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "maxPriorityFeePerGas",
+                  "type": "uint256"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "paymaster",
+                  "type": "uint256"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "nonce",
+                  "type": "uint256"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "value",
+                  "type": "uint256"
+                },
+                {
+                  "internalType": "uint256[4]",
+                  "name": "reserved",
+                  "type": "uint256[4]"
+                },
+                {
+                  "internalType": "bytes",
+                  "name": "data",
+                  "type": "bytes"
+                },
+                {
+                  "internalType": "bytes",
+                  "name": "signature",
+                  "type": "bytes"
+                },
+                {
+                  "internalType": "uint256[]",
+                  "name": "factoryDeps",
+                  "type": "uint256[]"
+                },
+                {
+                  "internalType": "bytes",
+                  "name": "paymasterInput",
+                  "type": "bytes"
+                },
+                {
+                  "internalType": "bytes",
+                  "name": "reservedDynamic",
+                  "type": "bytes"
+                }
+              ],
+              "indexed": false,
+              "internalType": "struct IMailbox.L2CanonicalTransaction",
+              "name": "transaction",
+              "type": "tuple"
+            },
+            {
+              "indexed": false,
+              "internalType": "bytes[]",
+              "name": "factoryDeps",
+              "type": "bytes[]"
+            }
+          ],
+          "name": "NewPriorityRequest",
+          "type": "event"
+        }
+    ]"#;
+    serde_json::from_str(json).unwrap()
 }

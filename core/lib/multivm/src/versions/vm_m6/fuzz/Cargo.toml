@@ -1,0 +1,26 @@
+[package]
+name = "vm-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2018"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+vm-benchmark = {path = "../../../../../../tests/vm-benchmark"}
+zksync_types = {path = "../../../../../types"}
+
+# Prevent this from interfering with workspaces
+[workspace]
+members = ["."]
+
+[profile.release]
+debug = 1
+
+[[bin]]
+name = "deploy_transaction"
+path = "fuzz_targets/deploy_transaction.rs"
+test = false
+doc = false

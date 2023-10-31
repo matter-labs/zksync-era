@@ -309,7 +309,6 @@ impl EthTxAggregator {
         // Legacy verifier returns the full verification key;
         // New verifier returns the hash of the verification key
         if let Some(get_vk) = &self.functions.get_verification_key {
-            tracing::debug!("Calling get_verification_key");
             let vk = eth_client
                 .call_contract_function(
                     &get_vk.name,
@@ -324,7 +323,6 @@ impl EthTxAggregator {
             Ok(l1_vk_commitment(vk))
         } else {
             let get_vk_hash = self.functions.verification_key_hash.as_ref();
-            tracing::debug!("Calling verificationKeyHash");
             let vk_hash = eth_client
                 .call_contract_function(
                     &get_vk_hash.unwrap().name,

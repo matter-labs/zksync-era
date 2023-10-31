@@ -1,5 +1,5 @@
+use multivm::vm_latest::constants::{ERGS_PER_CIRCUIT, MAX_CYCLES_FOR_TX};
 use std::fmt;
-use vm::constants::{ERGS_PER_CIRCUIT, MAX_CYCLES_FOR_TX};
 use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_types::{
     circuit::{GEOMETRY_CONFIG, SCHEDULER_UPPER_BOUND},

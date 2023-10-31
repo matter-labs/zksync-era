@@ -30,7 +30,8 @@ pub struct TreeMetadata {
     pub repeated_writes: Vec<RepeatedStorageWrite>,
     /// Witness information. As with `repeated_writes`, no-op updates will be omitted from Merkle paths.
     pub witness: Option<PrepareBasicCircuitsJob>,
-    /// State diffs performed in the processed L1 batch in the order of provided `StorageLog`s.
+    /// State diffs performed in the processed L1 batch sorted by (address, key) as expected by the circuits/
+    /// The information in here is an aggregation of `initial_writes` and `repeated_writes`.
     pub state_diffs: Vec<StateDiffRecord>,
 }
 
@@ -343,6 +344,7 @@ impl ZkSyncTree {
                 TreeLogEntry::Read { .. } | TreeLogEntry::ReadMissingKey => {}
             }
         }
+        state_diffs.sort_unstable_by_key(|rec| (rec.address, rec.key));
         (initial_writes, repeated_writes, state_diffs)
     }
 
