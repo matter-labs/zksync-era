@@ -6,7 +6,7 @@ use std::{
     convert::TryFrom,
     future::Future,
     sync::{
-        atomic::{AtomicU32, Ordering},
+        atomic::{AtomicU16, AtomicU32, Ordering},
         Arc,
     },
     time::Duration,
@@ -19,8 +19,9 @@ use zksync_types::{
     block::unpack_block_upgrade_info,
     l2::L2Tx,
     transaction_request::CallRequest,
-    AccountTreeId, Address, L1BatchNumber, L1ChainId, L2ChainId, MiniblockNumber, StorageKey, H256,
-    SYSTEM_CONTEXT_ADDRESS, U256, U64, VIRTUIAL_BLOCK_UPGRADE_INFO_POSITION,
+    AccountTreeId, Address, L1BatchNumber, L1ChainId, L2ChainId, MiniblockNumber,
+    ProtocolVersionId, StorageKey, H256, SYSTEM_CONTEXT_ADDRESS, U256, U64,
+    VIRTUIAL_BLOCK_UPGRADE_INFO_POSITION,
 };
 use zksync_web3_decl::{
     error::Web3Error,
@@ -91,7 +92,7 @@ impl InternalApiConfig {
 /// (e.g., for metrics reporting). The value is updated by [`Self::diff()`] and [`Self::diff_with_block_args()`]
 /// and on an interval specified when creating an instance.
 #[derive(Debug, Clone)]
-pub(crate) struct SealedMiniblockNumber(Arc<AtomicU32>);
+pub(crate) struct SealedMiniblockNumber(pub Arc<(AtomicU32, AtomicU16)>);
 
 impl SealedMiniblockNumber {
     /// Creates a handle to the last sealed miniblock number together with a task that will update
@@ -111,15 +112,18 @@ impl SealedMiniblockNumber {
                 }
 
                 let mut connection = connection_pool.access_storage_tagged("api").await.unwrap();
-                let last_sealed_miniblock = connection
-                    .blocks_web3_dal()
-                    .get_sealed_miniblock_number()
+                let last_sealed_miniblock_header = connection
+                    .blocks_dal()
+                    .get_last_sealed_miniblock_header()
                     .await;
                 drop(connection);
 
-                match last_sealed_miniblock {
-                    Ok(number) => {
-                        number_updater.update(number);
+                match last_sealed_miniblock_header {
+                    Ok(header) => {
+                        number_updater.update(
+                            header.clone().unwrap().number,
+                            header.unwrap().protocol_version.unwrap(),
+                        );
                     }
                     Err(err) => tracing::warn!(
                         "Failed fetching latest sealed miniblock to update the watch channel: {err}"
@@ -136,15 +140,25 @@ impl SealedMiniblockNumber {
     /// sealed miniblock number (not necessarily the last one).
     ///
     /// Returns the last sealed miniblock number after the update.
-    fn update(&self, maybe_newer_miniblock_number: MiniblockNumber) -> MiniblockNumber {
+    fn update(
+        &self,
+        maybe_newer_miniblock_number: MiniblockNumber,
+        protocol_version: ProtocolVersionId,
+    ) -> MiniblockNumber {
         let prev_value = self
             .0
+             .0
             .fetch_max(maybe_newer_miniblock_number.0, Ordering::Relaxed);
+        self.0 .1.store(protocol_version as u16, Ordering::Relaxed);
         MiniblockNumber(prev_value).max(maybe_newer_miniblock_number)
     }
 
-    pub fn diff(&self, miniblock_number: MiniblockNumber) -> u32 {
-        let sealed_miniblock_number = self.update(miniblock_number);
+    pub fn diff(
+        &self,
+        miniblock_number: MiniblockNumber,
+        protocol_version: ProtocolVersionId,
+    ) -> u32 {
+        let sealed_miniblock_number = self.update(miniblock_number, protocol_version);
         sealed_miniblock_number.0.saturating_sub(miniblock_number.0)
     }
 
@@ -152,7 +166,10 @@ impl SealedMiniblockNumber {
     /// from `block_args`.
     pub fn diff_with_block_args(&self, block_args: &BlockArgs) -> u32 {
         // We compute the difference in any case, since it may update the stored value.
-        let diff = self.diff(block_args.resolved_block_number());
+        let diff = self.diff(
+            block_args.resolved_block_number(),
+            block_args.protocol_version(),
+        );
 
         if block_args.resolves_to_latest_sealed_miniblock() {
             0 // Overwrite potentially inaccurate value
@@ -314,7 +331,7 @@ impl<E> RpcState<E> {
                 .access_storage_tagged("api")
                 .await
                 .unwrap();
-            let block_number = resolve_block(&mut connection, block_id, METHOD_NAME).await?;
+            let (block_number, _) = resolve_block(&mut connection, block_id, METHOD_NAME).await?;
             let address_historical_nonce = connection
                 .storage_web3_dal()
                 .get_address_historical_nonce(from, block_number)

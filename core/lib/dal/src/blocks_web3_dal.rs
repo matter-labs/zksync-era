@@ -1,3 +1,5 @@
+use std::convert::TryFrom;
+
 use bigdecimal::BigDecimal;
 use sqlx::Row;
 
@@ -9,14 +11,14 @@ use zksync_types::{
     vm_trace::Call,
     web3::types::{BlockHeader, U64},
     zkevm_test_harness::zk_evm::zkevm_opcode_defs::system_params,
-    Bytes, L1BatchNumber, L2ChainId, MiniblockNumber, H160, H2048, H256, U256,
+    Bytes, L1BatchNumber, L2ChainId, MiniblockNumber, ProtocolVersionId, H160, H2048, H256, U256,
 };
 use zksync_utils::bigdecimal_to_u256;
 
 use crate::models::{
     storage_block::{
-        bind_block_where_sql_params, web3_block_number_to_sql, web3_block_where_sql,
-        StorageBlockDetails, StorageL1BatchDetails,
+        bind_block_where_sql_params, web3_block_number_protocol_version_to_sql,
+        web3_block_number_to_sql, web3_block_where_sql, StorageBlockDetails, StorageL1BatchDetails,
     },
     storage_transaction::{extract_web3_transaction, web3_transaction_select_sql, CallTrace},
 };
@@ -247,6 +249,48 @@ impl BlocksWeb3Dal<'_, '_> {
             .and_then(|row| row.get::<Option<i64>, &str>("number"))
             .map(|n| MiniblockNumber(n as u32));
         Ok(block_number)
+    }
+
+    pub async fn resolve_block_id_for_miniblock_header(
+        &mut self,
+        block_id: api::BlockId,
+    ) -> Result<Option<(MiniblockNumber, ProtocolVersionId)>, sqlx::Error> {
+        let query_string = match block_id {
+            api::BlockId::Hash(_) => {
+                "SELECT number, protocol_version FROM miniblocks WHERE hash = $1".to_owned()
+            }
+            api::BlockId::Number(api::BlockNumber::Number(_)) => {
+                // The reason why instead of returning the `block_number` directly we use query is
+                // to handle numbers of blocks that are not created yet.
+                // the `SELECT number FROM miniblocks WHERE number=block_number` for
+                // non-existing block number will returns zero.
+                "SELECT number, protocol_version FROM miniblocks WHERE number = $1".to_owned()
+            }
+            api::BlockId::Number(api::BlockNumber::Earliest) => {
+                return Ok(Some((MiniblockNumber(0), ProtocolVersionId::Version0)));
+            }
+            api::BlockId::Number(block_number) => {
+                web3_block_number_protocol_version_to_sql(block_number)
+            }
+        };
+        let row = bind_block_where_sql_params(&block_id, sqlx::query(&query_string))
+            .fetch_optional(self.storage.conn())
+            .await?;
+
+        let block_number_and_protocol_version = row
+            .map(|row| {
+                (
+                    row.get::<u32, &str>("number"),
+                    row.get::<u32, &str>("protocol_version"),
+                )
+            })
+            .map(|(n, pv)| {
+                (
+                    MiniblockNumber(n as u32),
+                    ProtocolVersionId::try_from(pv as u16).unwrap(),
+                )
+            });
+        Ok(block_number_and_protocol_version)
     }
 
     /// Returns L1 batch timestamp for either sealed or pending L1 batch.

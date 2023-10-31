@@ -324,6 +324,33 @@ pub fn web3_block_number_to_sql(block_number: api::BlockNumber) -> String {
     }
 }
 
+/// Returns block_number SQL statement
+pub fn web3_block_number_protocol_version_to_sql(block_number: api::BlockNumber) -> String {
+    match block_number {
+        api::BlockNumber::Number(number) => number.to_string(),
+        api::BlockNumber::Earliest => 0.to_string(),
+        api::BlockNumber::Pending => {
+            "(SELECT (number + 1) as number, protocol_version FROM miniblocks ORDER BY number DESC LIMIT 1)".to_string()
+        }
+        api::BlockNumber::Latest | api::BlockNumber::Committed => {
+            "(SELECT number, protocol_version FROM miniblocks ORDER BY number DESC LIMIT 1)".to_string()
+        }
+        api::BlockNumber::Finalized => "
+            (SELECT number, protocol_version FROM miniblocks
+            WHERE l1_batch_number = (
+                SELECT MAX(number) FROM l1_batches
+                JOIN eth_txs ON
+                    l1_batches.eth_execute_tx_id = eth_txs.id
+                WHERE
+                    eth_txs.confirmed_eth_tx_history_id IS NOT NULL
+            )
+            ORDER BY number DESC
+            LIMIT 1)
+            "
+        .to_string(),
+    }
+}
+
 pub fn web3_block_where_sql(block_id: api::BlockId, arg_index: u8) -> String {
     match block_id {
         api::BlockId::Hash(_) => format!("miniblocks.hash = ${arg_index}"),

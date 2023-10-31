@@ -75,7 +75,8 @@ impl DebugNamespace {
             .access_storage_tagged("api")
             .await
             .unwrap();
-        let block_number = resolve_block(&mut connection, block_id, METHOD_NAME).await?;
+        let (block_number, protocol_version) =
+            resolve_block(&mut connection, block_id, METHOD_NAME).await?;
         let call_trace = connection
             .blocks_web3_dal()
             .get_trace_for_miniblock(block_number)
@@ -91,7 +92,9 @@ impl DebugNamespace {
             })
             .collect();
 
-        let block_diff = self.last_sealed_miniblock.diff(block_number);
+        let block_diff = self
+            .last_sealed_miniblock
+            .diff(block_number, protocol_version);
         method_latency.observe(block_diff);
         Ok(call_trace)
     }
