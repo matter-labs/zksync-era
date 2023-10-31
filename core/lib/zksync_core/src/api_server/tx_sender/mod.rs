@@ -9,7 +9,7 @@ use governor::{
 };
 
 // Built-in uses
-use std::{borrow::BorrowMut, cmp, num::NonZeroU32, sync::Arc, time::Instant};
+use std::{cmp, num::NonZeroU32, sync::Arc, time::Instant};
 
 // Workspace uses
 
@@ -24,7 +24,7 @@ use multivm::vm_latest::{
 
 use zksync_config::configs::{api::Web3JsonRpcConfig, chain::StateKeeperConfig};
 use zksync_contracts::BaseSystemContracts;
-use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool, StorageProcessor};
+use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool};
 use zksync_state::PostgresStorageCaches;
 use zksync_types::{
     fee::{Fee, TransactionExecutionMetrics},
@@ -354,18 +354,8 @@ impl<G: L1GasPriceProvider> TxSender<G> {
             return Err(err.into());
         }
 
-        let mut storage_processor = self
-            .0
-            .master_connection_pool
-            .as_ref()
-            .unwrap() // Checked above
-            .access_storage_tagged("api")
-            .await
-            .unwrap();
-
         let stage_started_at = Instant::now();
-        self.ensure_tx_executable(tx.clone().into(), &tx_metrics, true, &mut storage_processor)
-            .await?;
+        self.ensure_tx_executable(tx.clone().into(), &tx_metrics, true)?;
 
         if let Some(proxy) = &self.0.proxy {
             // We're running an external node: we have to proxy the transaction to the main node.
@@ -390,7 +380,14 @@ impl<G: L1GasPriceProvider> TxSender<G> {
         let nonce = tx.common_data.nonce.0;
         let hash = tx.hash();
         let expected_nonce = self.get_expected_nonce(&tx).await;
-        let submission_res_handle = storage_processor
+        let submission_res_handle = self
+            .0
+            .master_connection_pool
+            .as_ref()
+            .unwrap() // Checked above
+            .access_storage_tagged("api")
+            .await
+            .unwrap()
             .transactions_dal()
             .insert_transaction_l2(tx, tx_metrics)
             .await;
@@ -695,19 +692,15 @@ impl<G: L1GasPriceProvider> TxSender<G> {
         }
 
         let hashed_key = get_code_key(&tx.initiator_account());
-
-        let mut storage_processor = self
+        // if the default account does not have enough funds
+        // for transferring tx.value, without taking into account the fee,
+        // there is no sense to estimate the fee
+        let account_code_hash = self
             .0
             .replica_connection_pool
             .access_storage_tagged("api")
             .await
-            .unwrap();
-
-        // if the default account does not have enough funds
-        // for transferring tx.value, without taking into account the fee,
-        // there is no sense to estimate the fee
-        let account_code_hash = storage_processor
-            .borrow_mut()
+            .unwrap()
             .storage_dal()
             .get_by_key(&hashed_key)
             .await
@@ -833,8 +826,7 @@ impl<G: L1GasPriceProvider> TxSender<G> {
             .await;
 
         result.into_api_call_result()?;
-        self.ensure_tx_executable(tx.clone(), &tx_metrics, false, &mut storage_processor)
-            .await?;
+        self.ensure_tx_executable(tx.clone(), &tx_metrics, false)?;
 
         let overhead = derive_overhead(
             suggested_gas_limit,
@@ -894,12 +886,11 @@ impl<G: L1GasPriceProvider> TxSender<G> {
         base_fee
     }
 
-    async fn ensure_tx_executable(
+    fn ensure_tx_executable(
         &self,
         transaction: Transaction,
         tx_metrics: &TransactionExecutionMetrics,
         log_message: bool,
-        storage_processor: &mut StorageProcessor<'_>,
     ) -> Result<(), SubmitTxError> {
         let Some(sk_config) = &self.0.state_keeper_config else {
             // No config provided, so we can't check if transaction satisfies the seal criteria.
@@ -916,19 +907,13 @@ impl<G: L1GasPriceProvider> TxSender<G> {
             H256::zero()
         };
 
-        let protocol_version = storage_processor
-            .blocks_dal()
-            .get_last_sealed_miniblock_header()
-            .await
-            .unwrap()
-            .unwrap()
-            .protocol_version
-            .unwrap();
-
-        let seal_data = SealData::for_transaction(transaction, tx_metrics, protocol_version);
-        if let Some(reason) =
-            ConditionalSealer::find_unexecutable_reason(sk_config, &seal_data, protocol_version)
-        {
+        let seal_data =
+            SealData::for_transaction(transaction, tx_metrics, ProtocolVersionId::latest());
+        if let Some(reason) = ConditionalSealer::find_unexecutable_reason(
+            sk_config,
+            &seal_data,
+            ProtocolVersionId::latest(),
+        ) {
             let message = format!(
                 "Tx is Unexecutable because of {reason}; inputs for decision: {seal_data:?}"
             );
