@@ -21,7 +21,6 @@ members = [
     "core/lib/circuit_breaker",
     "core/lib/commitment_utils",
     "core/lib/dal",
-    "core/lib/db_test_macro",
     "core/lib/eth_client",
     "core/lib/eth_signer",
     "core/lib/mempool",

@@ -203,6 +203,16 @@ impl RocksDBInner {
     }
 }
 
+impl Drop for RocksDBInner {
+    fn drop(&mut self) {
+        tracing::debug!(
+            "Canceling background compactions / flushes for DB `{}`",
+            self.db_name
+        );
+        self.db.cancel_all_background_work(true);
+    }
+}
+
 /// Configuration for retries when RocksDB writes are stalled.
 #[derive(Debug, Clone, Copy)]
 pub struct StalledWritesRetries {
@@ -448,13 +458,21 @@ impl<CF: NamedColumnFamily> RocksDB<CF> {
 
         let raw_batch_bytes = raw_batch.data().to_vec();
         let mut retries = self.stalled_writes_retries.intervals();
+        let mut stalled_write_reported = false;
+        let started_at = Instant::now();
         loop {
             match self.write_inner(raw_batch) {
-                Ok(()) => return Ok(()),
+                Ok(()) => {
+                    if stalled_write_reported {
+                        METRICS.observe_stalled_write_duration(CF::DB_NAME, started_at.elapsed());
+                    }
+                    return Ok(());
+                }
                 Err(err) => {
                     let is_stalled_write = StalledWritesRetries::is_write_stall_error(&err);
-                    if is_stalled_write {
-                        METRICS.report_stalled_write(CF::DB_NAME);
+                    if is_stalled_write && !stalled_write_reported {
+                        METRICS.observe_stalled_write(CF::DB_NAME);
+                        stalled_write_reported = true;
                     } else {
                         return Err(err);
                     }
@@ -549,12 +567,6 @@ impl RocksDB<()> {
             num_instances = cvar.wait(num_instances).unwrap();
         }
         tracing::info!("All the RocksDB instances are dropped");
-    }
-}
-
-impl<CF> Drop for RocksDB<CF> {
-    fn drop(&mut self) {
-        self.inner.db.cancel_all_background_work(true);
     }
 }
 

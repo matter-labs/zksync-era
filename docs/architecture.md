@@ -43,8 +43,35 @@ This section provides a physical map of folders & files in this repository.
   - `/bin`: Executables for the microservices components comprising zkSync Core Node.
 
     - `/admin-tools`: CLI tools for admin operations (e.g. restarting prover jobs).
-    - `/prover`: zkSync prover orchestrator application.
+    - `/external_node`: A read replica that can sync from the main node.
 
+  - `/lib`: All the library crates used as dependencies of the binary crates above.
+
+    - `/basic_types`: Crate with essential zkSync primitive types.
+    - `/config`: All the configured values used by the different zkSync apps.
+    - `/contracts`: Contains definitions of commonly used smart contracts.
+    - `/crypto`: Cryptographical primitives used by the different zkSync crates.
+    - `/dal`: Data availability layer
+      - `/migrations`: All the db migrations applied to create the storage layer.
+      - `/src`: Functionality to interact with the different db tables.
+    - `/eth_client`: Module providing an interface to interact with an Ethereum node.
+    - `/eth_signer`: Module to sign messages and txs.
+    - `/mempool`: Implementation of the zkSync transaction pool.
+    - `/merkle_tree`: Implementation of a sparse Merkle tree.
+    - `/mini_merkle_tree`: In-memory implementation of a sparse Merkle tree.
+    - `/multivm`: A wrapper over several versions of VM that have been used by the main node.
+    - `/object_store`: Abstraction for storing blobs outside the main data store.
+    - `/prometheus_exporter`: Prometheus data exporter.
+    - `/prover_utils`: Utilities related to the proof generation.
+    - `/queued_job_processor`: An abstraction for async job processing
+    - `/state`: A state keeper responsible for handling transaction execution and creating miniblocks and L1 batches.
+    - `/storage`: An encapsulated database interface.
+    - `/test_account`: A representation of zkSync account.
+    - `/types`: zkSync network operations, transactions, and common types.
+    - `/utils`: Miscellaneous helpers for zkSync crates.
+    - `/vlog`: zkSync logging utility.
+    - `/vm`: ULightweight out-of-circuit VM interface.
+    - `/web3_decl`: Declaration of the Web3 API.
     - `zksync_core/src`
       - `/api_server` Externally facing APIs.
         - `/web3`: zkSync implementation of the Web3 API.
@@ -64,36 +91,12 @@ This section provides a physical map of folders & files in this repository.
       - `/witness_generator`: Takes the sealed blocks and generates a _Witness_, the input for the prover containing the
         circuits to be proved.
 
-  - `/lib`: All the library crates used as dependencies of the binary crates above.
-
-    - `/basic_types`: Crate with essential zkSync primitive types.
-    - `/config`: All the configured values used by the different zkSync apps.
-    - `/contracts`: Contains definitions of commonly used smart contracts.
-    - `/crypto`: Cryptographical primitives used by the different zkSync crates.
-    - `/dal`: Data availability layer
-      - `/migrations`: All the db migrations applied to create the storage layer.
-      - `/src`: Functionality to interact with the different db tables.
-    - `/eth_client`: Module providing an interface to interact with an Ethereum node.
-    - `/eth_signer`: Module to sign messages and txs.
-    - `/mempool`: Implementation of the zkSync transaction pool.
-    - `/merkle_tree`: Implementation of a sparse Merkle tree.
-    - `/mini_merkle_tree`: In-memory implementation of a sparse Merkle tree.
-    - `/object_store`: Abstraction for storing blobs outside the main data store.
-    - `/prometheus_exporter`: Prometheus data exporter.
-    - `/prover_utils`: Utilities related to the proof generation.
-    - `/queued_job_processor`: An abstraction for async job processing
-    - `/storage`: An encapsulated database interface.
-    - `/types`: zkSync network operations, transactions, and common types.
-    - `/utils`: Miscellaneous helpers for zkSync crates.
-    - `/vlog`: zkSync logging utility.
-    - `/vm`: ULightweight out-of-circuit VM interface.
-    - `/web3_decl`: Declaration of the Web3 API.
-
   - `/tests`: Testing infrastructure for zkSync network.
+    - `/cross_external_nodes_checker`: A tool for checking external nodes consistency against the main node.
     - `/loadnext`: An app for load testing the zkSync server.
-    - `/test_account`: A representation of zkSync account.
-    - `/testkit`: A relatively low-level testing library and test suite for zkSync.
     - `/ts-integration`: Integration tests set implemented in TypeScript.
+
+- `/prover`: zkSync prover orchestrator application.
 
 - `/docker`: Project docker files.
 
@@ -107,4 +110,3 @@ This section provides a physical map of folders & files in this repository.
 
 - `/sdk`: Implementation of client libraries for the zkSync network in different programming languages.
   - `/zksync-rs`: Rust client library for zkSync.
-  - `/zksync-web3.js`: A JavaScript / TypeScript client library for zkSync.

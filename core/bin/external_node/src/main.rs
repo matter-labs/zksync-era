@@ -4,6 +4,7 @@ use tokio::{sync::watch, task, time::sleep};
 
 use std::{sync::Arc, time::Duration};
 
+use futures::{future::FusedFuture, FutureExt};
 use prometheus_exporter::PrometheusExporterConfig;
 use zksync_basic_types::{Address, L2ChainId};
 use zksync_core::{
@@ -94,6 +95,7 @@ async fn init_tasks(
     Vec<task::JoinHandle<anyhow::Result<()>>>,
     watch::Sender<bool>,
     HealthCheckHandle,
+    watch::Receiver<bool>,
 )> {
     let main_node_url = config
         .required
@@ -140,7 +142,9 @@ async fn init_tasks(
 
     let metadata_calculator = MetadataCalculator::new(&MetadataCalculatorConfig {
         db_path: &config.required.merkle_tree_path,
-        mode: MetadataCalculatorModeConfig::Lightweight,
+        mode: MetadataCalculatorModeConfig::Full {
+            store_factory: None,
+        },
         delay_interval: config.optional.metadata_calculator_delay(),
         max_l1_batches_per_iter: config.optional.max_l1_batches_per_tree_iter,
         multi_get_chunk_size: config.optional.merkle_tree_multi_get_chunk_size,
@@ -186,12 +190,7 @@ async fn init_tasks(
     let tree_handle =
         task::spawn(metadata_calculator.run(tree_pool, prover_tree_pool, tree_stop_receiver));
 
-    let consistency_checker_handle = if !config.optional.experimental_multivm_support {
-        Some(tokio::spawn(consistency_checker.run(stop_receiver.clone())))
-    } else {
-        // TODO (BFT-264): Current behavior of consistency checker makes development of MultiVM harder.
-        None
-    };
+    let consistency_checker_handle = tokio::spawn(consistency_checker.run(stop_receiver.clone()));
 
     let updater_handle = task::spawn(batch_status_updater.run(stop_receiver.clone()));
     let sk_handle = task::spawn(state_keeper.run());
@@ -288,11 +287,9 @@ async fn init_tasks(
         tree_handle,
         gas_adjuster_handle,
     ]);
-    if let Some(consistency_checker) = consistency_checker_handle {
-        task_handles.push(consistency_checker);
-    }
+    task_handles.push(consistency_checker_handle);
 
-    Ok((task_handles, stop_sender, healthcheck_handle))
+    Ok((task_handles, stop_sender, healthcheck_handle, stop_receiver))
 }
 
 async fn shutdown_components(
@@ -402,46 +399,59 @@ async fn main() -> anyhow::Result<()> {
     .await
     .context("Performing genesis failed")?;
 
-    let (task_handles, stop_sender, health_check_handle) =
+    let (task_handles, stop_sender, health_check_handle, stop_receiver) =
         init_tasks(config.clone(), connection_pool.clone())
             .await
             .context("init_tasks")?;
 
-    let reorg_detector = ReorgDetector::new(&main_node_url, connection_pool.clone());
-    let reorg_detector_handle = tokio::spawn(reorg_detector.run());
+    let reorg_detector = ReorgDetector::new(&main_node_url, connection_pool.clone(), stop_receiver);
+    let mut reorg_detector_handle = tokio::spawn(reorg_detector.run()).fuse();
 
     let particular_crypto_alerts = None;
     let graceful_shutdown = None::<futures::future::Ready<()>>;
     let tasks_allowed_to_finish = false;
+    let mut reorg_detector_last_correct_batch = None;
+
     tokio::select! {
         _ = wait_for_tasks(task_handles, particular_crypto_alerts, graceful_shutdown, tasks_allowed_to_finish) => {},
         _ = sigint_receiver => {
             tracing::info!("Stop signal received, shutting down");
         },
-        last_correct_batch = reorg_detector_handle => {
+        last_correct_batch = &mut reorg_detector_handle => {
             if let Ok(last_correct_batch) = last_correct_batch {
-                tracing::info!("Performing rollback to block {}", last_correct_batch);
-                shutdown_components(stop_sender, health_check_handle).await;
-                let reverter = BlockReverter::new(
-                    config.required.state_cache_path,
-                    config.required.merkle_tree_path,
-                    None,
-                    connection_pool,
-                    L1ExecutedBatchesRevert::Allowed,
-                );
-                reverter
-                    .rollback_db(last_correct_batch, BlockReverterFlags::all())
-                    .await;
-                tracing::info!("Rollback successfully completed, the node has to restart to continue working");
-                return Ok(());
+                reorg_detector_last_correct_batch = last_correct_batch;
             } else {
                 tracing::error!("Reorg detector actor failed");
             }
         }
-    }
+    };
 
     // Reaching this point means that either some actor exited unexpectedly or we received a stop signal.
     // Broadcast the stop signal to all actors and exit.
     shutdown_components(stop_sender, health_check_handle).await;
+
+    if !reorg_detector_handle.is_terminated() {
+        if let Ok(Some(last_correct_batch)) = reorg_detector_handle.await {
+            reorg_detector_last_correct_batch = Some(last_correct_batch);
+        }
+    }
+
+    if let Some(last_correct_batch) = reorg_detector_last_correct_batch {
+        tracing::info!("Performing rollback to block {}", last_correct_batch);
+        let reverter = BlockReverter::new(
+            config.required.state_cache_path,
+            config.required.merkle_tree_path,
+            None,
+            connection_pool,
+            L1ExecutedBatchesRevert::Allowed,
+        );
+        reverter
+            .rollback_db(last_correct_batch, BlockReverterFlags::all())
+            .await;
+        tracing::info!(
+            "Rollback successfully completed, the node has to restart to continue working"
+        );
+    }
+
     Ok(())
 }
