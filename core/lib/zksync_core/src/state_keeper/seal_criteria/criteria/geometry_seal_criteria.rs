@@ -91,7 +91,7 @@ impl MetricExtractor for RepeatedWritesCriterion {
     /// In boojum we dont want any batches to be sealed based on repeated or initial writes. They should be sealed based
     /// on pubdata bytes requirement instead.
     fn limit_per_block(protocol_version_id: ProtocolVersionId) -> usize {
-        if protocol_version_id.is_pre_boojum() {
+        if !protocol_version_id.is_pre_boojum() {
             usize::MAX
         } else {
             GEOMETRY_CONFIG.limit_for_repeated_writes_pubdata_hasher as usize
@@ -105,7 +105,7 @@ impl MetricExtractor for RepeatedWritesCriterion {
         writes: &DeduplicatedWritesMetrics,
         protocol_version_id: ProtocolVersionId,
     ) -> usize {
-        if protocol_version_id.is_pre_boojum() {
+        if !protocol_version_id.is_pre_boojum() {
             usize::MIN
         } else {
             writes.repeated_storage_writes
@@ -119,7 +119,7 @@ impl MetricExtractor for InitialWritesCriterion {
     /// In boojum we dont want any batches to be sealed based on repeated or initial writes. They should be sealed based
     /// on pubdata bytes requirement instead.
     fn limit_per_block(protocol_version_id: ProtocolVersionId) -> usize {
-        if protocol_version_id.is_pre_boojum() {
+        if !protocol_version_id.is_pre_boojum() {
             usize::MAX
         } else {
             GEOMETRY_CONFIG.limit_for_initial_writes_pubdata_hasher as usize
@@ -133,7 +133,7 @@ impl MetricExtractor for InitialWritesCriterion {
         writes: &DeduplicatedWritesMetrics,
         protocol_version_id: ProtocolVersionId,
     ) -> usize {
-        if protocol_version_id.is_pre_boojum() {
+        if !protocol_version_id.is_pre_boojum() {
             usize::MIN
         } else {
             writes.initial_storage_writes
@@ -250,7 +250,7 @@ mod tests {
             protocol_version_id,
         );
 
-        if protocol_version_id.is_pre_boojum() {
+        if !protocol_version_id.is_pre_boojum() {
             assert_eq!(block_resolution, SealResolution::NoSeal);
         } else {
             assert_eq!(block_resolution, SealResolution::IncludeAndSeal);
@@ -277,7 +277,7 @@ mod tests {
             protocol_version_id,
         );
 
-        if protocol_version_id.is_pre_boojum() {
+        if !protocol_version_id.is_pre_boojum() {
             assert_eq!(block_resolution, SealResolution::NoSeal);
         } else {
             assert_eq!(block_resolution, SealResolution::ExcludeAndSeal);
@@ -304,7 +304,7 @@ mod tests {
             protocol_version_id,
         );
 
-        if protocol_version_id.is_pre_boojum() {
+        if !protocol_version_id.is_pre_boojum() {
             assert_eq!(block_resolution, SealResolution::NoSeal);
         } else {
             assert_eq!(
@@ -454,7 +454,7 @@ mod tests {
             RepeatedWritesCriterion,
             repeated_storage_writes,
             usize,
-            ProtocolVersionId::Version18,
+            ProtocolVersionId::Version18
         );
     }
 
@@ -464,7 +464,7 @@ mod tests {
             InitialWritesCriterion,
             initial_storage_writes,
             usize,
-            ProtocolVersionId::Version18,
+            ProtocolVersionId::Version18
         );
     }
 
