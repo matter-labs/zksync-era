@@ -742,40 +742,6 @@ impl WitnessGeneratorDal<'_, '_> {
         }
     }
 
-    pub async fn get_basic_circuit_and_circuit_inputs_blob_urls_to_be_cleaned(
-        &mut self,
-        limit: u8,
-    ) -> Vec<(i64, (String, String))> {
-        {
-            let job_ids = sqlx::query!(
-                r#"
-                    SELECT l1_batch_number, basic_circuits_blob_url, basic_circuits_inputs_blob_url FROM leaf_aggregation_witness_jobs
-                    WHERE status='successful'
-                    AND basic_circuits_blob_url is NOT NULL
-                    AND basic_circuits_inputs_blob_url is NOT NULL
-                    AND updated_at < NOW() - INTERVAL '30 days'
-                    LIMIT $1;
-                "#,
-                limit as i32
-            )
-                .fetch_all(self.storage.conn())
-                .await
-                .unwrap();
-            job_ids
-                .into_iter()
-                .map(|row| {
-                    (
-                        row.l1_batch_number,
-                        (
-                            row.basic_circuits_blob_url.unwrap(),
-                            row.basic_circuits_inputs_blob_url.unwrap(),
-                        ),
-                    )
-                })
-                .collect()
-        }
-    }
-
     pub async fn get_leaf_layer_subqueues_and_aggregation_outputs_blob_urls_to_be_cleaned(
         &mut self,
         limit: u8,
