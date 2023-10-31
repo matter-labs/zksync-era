@@ -29,7 +29,8 @@ SNARK based with KZG commitment. This results in slightly different contents of 
 
 ## Keys
 
-> You can find links to buckets with latest keys [here](https://github.com/matter-labs/zksync-era/blob/main/prover/setup-data-keys.json).
+> You can find links to buckets with latest keys
+> [here](https://github.com/matter-labs/zksync-era/blob/main/prover/setup-data-keys.json).
 
 ### Setup key (big, 14GB)
 
