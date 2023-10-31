@@ -83,8 +83,9 @@ list here
 
 This is the place were we specify that `bootloader` is at address 0x8001, `NonceHolder` at 0x8003 etc.
 
-This brings us to [L2EthToken.sol](https://github.com/matter-labs/era-system-contracts/blob/main/contracts/L2EthToken.sol)
-that has the implementation of the L2 Eth.
+This brings us to
+[L2EthToken.sol](https://github.com/matter-labs/era-system-contracts/blob/main/contracts/L2EthToken.sol) that has the
+implementation of the L2 Eth.
 
 When we look inside, we can see:
 
