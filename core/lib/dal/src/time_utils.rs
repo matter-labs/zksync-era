@@ -12,7 +12,7 @@ pub fn duration_to_naive_time(duration: Duration) -> NaiveTime {
     .unwrap()
 }
 
-pub fn pg_interval_from_duration(processing_timeout: Duration) -> PgInterval {
+pub const fn pg_interval_from_duration(processing_timeout: Duration) -> PgInterval {
     PgInterval {
         months: 0,
         days: 0,

@@ -31,7 +31,9 @@ use zksync_vk_setup_data_server_fri::{
     get_cpu_setup_data_for_circuit_type, GoldilocksProverSetupData,
 };
 
-use crate::utils::{save_proof, setup_metadata_to_setup_data_key, verify_proof, ProverArtifacts};
+use crate::utils::{
+    get_setup_data_key, save_proof, setup_metadata_to_setup_data_key, verify_proof, ProverArtifacts,
+};
 
 pub enum SetupLoadMode {
     FromMemory(HashMap<ProverServiceDataKey, Arc<GoldilocksProverSetupData>>),
@@ -76,6 +78,7 @@ impl Prover {
         &self,
         key: ProverServiceDataKey,
     ) -> anyhow::Result<Arc<GoldilocksProverSetupData>> {
+        let key = get_setup_data_key(key);
         Ok(match &self.setup_load_mode {
             SetupLoadMode::FromMemory(cache) => cache
                 .get(&key)
