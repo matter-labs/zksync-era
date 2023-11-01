@@ -192,12 +192,13 @@ mod tests {
         sync_layer::{
             gossip::tests::{
                 assert_first_block_actions, assert_second_block_actions, load_final_block,
-                TEST_TIMEOUT,
             },
             tests::run_state_keeper_with_multiple_miniblocks,
             ActionQueue,
         },
     };
+
+    const TEST_TIMEOUT: time::Duration = time::Duration::seconds(1);
 
     #[tokio::test]
     async fn block_store_basics_for_postgres() {

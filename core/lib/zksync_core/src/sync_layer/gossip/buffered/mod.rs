@@ -13,6 +13,9 @@ use zksync_concurrency::{
 use zksync_consensus_roles::validator::{BlockNumber, FinalBlock};
 use zksync_consensus_storage::{BlockStore, StorageError, StorageResult, WriteBlockStore};
 
+#[cfg(test)]
+mod tests;
+
 use super::utils::MissingBlockNumbers;
 
 /// [`BlockStore`] variation that upholds additional invariants as to how blocks are processed.
@@ -154,10 +157,7 @@ impl<T: ContiguousBlockStore> BufferedStorage<T> {
     }
 
     #[cfg(test)]
-    pub(super) fn set_events_sender(
-        &mut self,
-        sender: channel::UnboundedSender<BufferedStorageEvent>,
-    ) {
+    fn set_events_sender(&mut self, sender: channel::UnboundedSender<BufferedStorageEvent>) {
         self.events_sender = sender;
     }
 
@@ -166,7 +166,7 @@ impl<T: ContiguousBlockStore> BufferedStorage<T> {
     }
 
     #[cfg(test)]
-    pub(crate) async fn buffer_len(&self) -> usize {
+    async fn buffer_len(&self) -> usize {
         self.buffer.lock().await.blocks.len()
     }
 

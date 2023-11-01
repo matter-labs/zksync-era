@@ -5,9 +5,9 @@ use anyhow::Context as _;
 use std::sync::Arc;
 
 use zksync_concurrency::{ctx, scope};
+use zksync_consensus_executor::{Executor, ExecutorConfig};
 use zksync_consensus_roles::node;
 use zksync_dal::ConnectionPool;
-use zksync_executor::{Executor, ExecutorConfig};
 
 mod buffered;
 mod conversions;
