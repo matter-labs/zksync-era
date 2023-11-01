@@ -457,9 +457,9 @@ impl<H: HistoryMode, S: Storage> VmInstance<S, H> {
     /// Returns a tuple of `VmExecutionStopReason` and the size of the refund proposed by the operator
     fn execute_with_custom_tracer_and_refunds<
         T: ExecutionEndTracer<H>
-        + PendingRefundTracer<H>
-        + PubdataSpentTracer<H>
-        + StorageInvocationTracer<H>,
+            + PendingRefundTracer<H>
+            + PubdataSpentTracer<H>
+            + StorageInvocationTracer<H>,
     >(
         &mut self,
         tracer: &mut T,
@@ -511,10 +511,10 @@ impl<H: HistoryMode, S: Storage> VmInstance<S, H> {
 
                 let refund_to_propose = tx_body_refund
                     + self.block_overhead_refund(
-                    timestamp_initial,
-                    gas_remaining_before,
-                    gas_spent_on_pubdata,
-                );
+                        timestamp_initial,
+                        gas_remaining_before,
+                        gas_spent_on_pubdata,
+                    );
 
                 let current_tx_index = self.bootloader_state.tx_to_execute() - 1;
                 let refund_slot = OPERATOR_REFUNDS_OFFSET + current_tx_index;
@@ -571,9 +571,9 @@ impl<H: HistoryMode, S: Storage> VmInstance<S, H> {
     // Executes VM until the end or tracer says to stop.
     pub(crate) fn execute_with_custom_tracer<
         T: ExecutionEndTracer<H>
-        + PendingRefundTracer<H>
-        + PubdataSpentTracer<H>
-        + StorageInvocationTracer<H>,
+            + PendingRefundTracer<H>
+            + PubdataSpentTracer<H>
+            + StorageInvocationTracer<H>,
     >(
         &mut self,
         tracer: &mut T,

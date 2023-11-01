@@ -283,6 +283,7 @@ fn filter_near_call(mut call: Call) -> Vec<Call> {
 
 #[cfg(test)]
 mod tests {
+    use crate::glue::GlueInto;
     use crate::vm_m6::oracles::tracer::call::{filter_near_call, Call, CallType};
     use zk_evm_1_3_1::zkevm_opcode_defs::FarCallOpcode;
 
