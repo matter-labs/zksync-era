@@ -441,7 +441,7 @@ impl TryFrom<Log> for ProtocolUpgrade {
             tx,
         })
     }
-}  
+}
 
 impl TryFrom<Call> for ProtocolUpgrade {
     type Error = crate::ethabi::Error;
