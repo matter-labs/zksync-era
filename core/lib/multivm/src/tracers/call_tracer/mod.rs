@@ -5,11 +5,12 @@ use zksync_types::vm_trace::Call;
 pub mod vm_latest;
 pub mod vm_virtual_blocks;
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct CallTracer {
     stack: Vec<FarcallAndNearCallCount>,
-    result: Option<Arc<OnceCell<Vec<Call>>>>,
+    result: Arc<OnceCell<Vec<Call>>>,
 }
+
 #[derive(Debug, Clone)]
 struct FarcallAndNearCallCount {
     farcall: Call,
@@ -20,7 +21,7 @@ impl CallTracer {
     pub fn new(result: Arc<OnceCell<Vec<Call>>>) -> Self {
         Self {
             stack: vec![],
-            result: Some(result),
+            result,
         }
     }
 
@@ -32,11 +33,8 @@ impl CallTracer {
     }
 
     fn store_result(&mut self) {
-        if self.result.is_none() {
-            return;
-        }
         let result = self.extract_result();
-        let cell = self.result.as_ref().unwrap();
+        let cell = self.result.as_ref();
         cell.set(result).unwrap();
     }
 }

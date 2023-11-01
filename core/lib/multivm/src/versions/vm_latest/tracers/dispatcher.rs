@@ -86,6 +86,7 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for TracerDispatcher<S, H> 
             tracer.initialize_tracer(_state);
         }
     }
+
     /// Run after each vm execution cycle
     #[inline(always)]
     fn finish_cycle(
@@ -99,6 +100,7 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for TracerDispatcher<S, H> 
         }
         result
     }
+
     /// Run after the vm execution
     fn after_vm_execution(
         &mut self,

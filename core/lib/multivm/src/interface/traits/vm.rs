@@ -1,51 +1,52 @@
-/// This module contains traits for the VM interface.
-/// All VMs should implement these traits to be used in our system.
-/// The trait is generic over the storage type, allowing it to be used with any storage implementation.
-/// Additionally, this trait is generic over HistoryMode, allowing it to be used with or without history.
-///
-/// `TracerDispatcher` is an associated type used to dispatch tracers in VMs.
-/// It manages tracers across different VM versions.
-/// Even though we use the same interface for all VM versions,
-/// we can now specify only the necessary trait bounds for each VM version.
-///
-/// Generally speaking, in most cases, the tracer dispatcher is a wrapper around `Vec<Box<dyn VmTracer>>`,
-/// where `VmTracer` is a trait implemented for a specific VM version.
-///
-/// Example usage:
-/// ```
-/// use std::{
-///     cell::RefCell,
-///     rc::Rc,
-///     sync::Arc
-/// };
-/// use once_cell::sync::OnceCell;
-/// use multivm::{
-///     interface::{L1BatchEnv, SystemEnv, VmInterface},
-///     tracers::CallTracer ,
-///     vm_latest::ToTracerPointer
-/// };
-/// use zksync_state::{InMemoryStorage, StorageView};
-/// use zksync_types::Transaction;
-///
-/// // Prepare the environment for the VM.
-/// let l1_batch_env = L1BatchEnv::new();
-/// let system_env = SystemEnv::default();
-/// // Create storage
-/// let storage = Rc::new(RefCell::new(StorageView::new(InMemoryStorage::default())));
-/// // Instantiate VM with the desired version.
-/// let mut vm = multivm::vm_latest::Vm::new(l1_batch_env, system_env, storage);
-/// // Push a transaction to the VM.
-/// let tx = Transaction::default();
-/// vm.push_transaction(tx);
-/// // Instantiate a tracer.
-/// let result = Arc::new(OnceCell::new());
-/// let call_tracer = CallTracer::new(result.clone()).into_tracer_pointer();
-/// // Inspect the transaction with a tracer. You can use either one tracer or a vector of tracers.
-/// let result = vm.inspect(call_tracer.into(), multivm::interface::VmExecutionMode::OneTx);
-///
-/// // To obtain the result of the entire batch, you can use the following code:
-/// let result = vm.execute(multivm::interface::VmExecutionMode::Batch);
-/// ```
+//! This module contains traits for the VM interface.
+//! All VMs should implement these traits to be used in our system.
+//! The trait is generic over the storage type, allowing it to be used with any storage implementation.
+//! Additionally, this trait is generic over HistoryMode, allowing it to be used with or without history.
+//!
+//! `TracerDispatcher` is an associated type used to dispatch tracers in VMs.
+//! It manages tracers across different VM versions.
+//! Even though we use the same interface for all VM versions,
+//! we can now specify only the necessary trait bounds for each VM version.
+//!
+//! Generally speaking, in most cases, the tracer dispatcher is a wrapper around `Vec<Box<dyn VmTracer>>`,
+//! where `VmTracer` is a trait implemented for a specific VM version.
+//!
+//! Example usage:
+//! ```
+//! use std::{
+//!     cell::RefCell,
+//!     rc::Rc,
+//!     sync::Arc
+//! };
+//! use once_cell::sync::OnceCell;
+//! use multivm::{
+//!     interface::{L1BatchEnv, SystemEnv, VmInterface},
+//!     tracers::CallTracer ,
+//!     vm_latest::ToTracerPointer
+//! };
+//! use zksync_state::{InMemoryStorage, StorageView};
+//! use zksync_types::Transaction;
+//!
+//! // Prepare the environment for the VM.
+//! let l1_batch_env = L1BatchEnv::new();
+//! let system_env = SystemEnv::default();
+//! // Create storage
+//! let storage = Rc::new(RefCell::new(StorageView::new(InMemoryStorage::default())));
+//! // Instantiate VM with the desired version.
+//! let mut vm = multivm::vm_latest::Vm::new(l1_batch_env, system_env, storage);
+//! // Push a transaction to the VM.
+//! let tx = Transaction::default();
+//! vm.push_transaction(tx);
+//! // Instantiate a tracer.
+//! let result = Arc::new(OnceCell::new());
+//! let call_tracer = CallTracer::new(result.clone()).into_tracer_pointer();
+//! // Inspect the transaction with a tracer. You can use either one tracer or a vector of tracers.
+//! let result = vm.inspect(call_tracer.into(), multivm::interface::VmExecutionMode::OneTx);
+//!
+//! // To obtain the result of the entire batch, you can use the following code:
+//! let result = vm.execute(multivm::interface::VmExecutionMode::Batch);
+//! ```
+
 use crate::interface::types::errors::BytecodeCompressionError;
 use crate::interface::types::inputs::{L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode};
 use crate::interface::types::outputs::{

@@ -93,6 +93,7 @@ impl<S: WriteStorage, H: HistoryMode> ExecutionProcessing<S, H> for TracerDispat
             tracer.initialize_tracer(_state);
         }
     }
+
     /// Run after each vm execution cycle
     fn after_cycle(
         &mut self,

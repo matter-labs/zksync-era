@@ -22,8 +22,6 @@ use crate::interface::VmExecutionResultAndLogs;
 use crate::tracers::validator::types::{NewTrustedValidationItems, ValidationTracerMode};
 use crate::tracers::validator::{ValidationRoundResult, ValidationTracer};
 
-/// Tracer that is used to ensure that the validation adheres to all the rules
-/// to prevent DDoS attacks on the server.
 impl<H: HistoryMode> ValidationTracer<H> {
     fn check_user_restrictions_vm_virtual_blocks<S: WriteStorage>(
         &mut self,
