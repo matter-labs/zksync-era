@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 # This script sets up the necessary data needed by the CPU FRI prover to be used locally.
 
+GPU_FLAG=""
+if [ "$1" = "gpu" ]; then
+    GPU_FLAG='--features "gpu"'
+fi
+
 if [[ -z "${ZKSYNC_HOME}" ]]; then
   echo "Environment variable ZKSYNC_HOME is not set. Make sure it's set and pointing to the root of this repository"
   exit 1
@@ -18,10 +23,14 @@ zk config compile dev
 
 for i in {1..13}
 do
-    zk f cargo run --release --bin zksync_setup_data_generator_fri -- --numeric-circuit $i --is_base_layer
+    if ! [ -f vk_setup_data_generator_server_fri/data/setup_basic_13_data.bin]; then
+        zk f cargo run $GPU_FLAG --release --bin zksync_setup_data_generator_fri -- --numeric-circuit $i --is_base_layer
+    fi
 done
 
 for i in {1..15}
 do
-    zk f cargo run --release --bin zksync_setup_data_generator_fri -- --numeric-circuit $i
+    if ! [ -f vk_setup_data_generator_server_fri/data/setup_leaf_15_data.bin ]; then
+        zk f cargo run $GPU_FLAG --release --bin zksync_setup_data_generator_fri -- --numeric-circuit $i
+    fi
 done

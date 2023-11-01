@@ -37,10 +37,12 @@ struct Opt {
     /// Number of times witness generator should be run.
     #[structopt(short = "b", long = "batch_size")]
     batch_size: Option<usize>,
-    /// aggregation round for the witness generator.
+    /// Aggregation rounds options, they can be run individually or together.
+    ///
+    /// Single aggregation round for the witness generator.
     #[structopt(short = "r", long = "round")]
     round: Option<AggregationRound>,
-    /// start all aggregation rounds for the witness generator.
+    /// Start all aggregation rounds for the witness generator.
     #[structopt(short = "a", long = "all_rounds")]
     all_rounds: bool,
 }
