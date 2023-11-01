@@ -2,7 +2,7 @@ import '@matterlabs/hardhat-zksync-solc';
 
 export default {
     zksolc: {
-        version: '1.3.1',
+        version: '1.3.14',
         compilerSource: 'binary',
         settings: {
             isSystem: true
@@ -14,6 +14,6 @@ export default {
         }
     },
     solidity: {
-        version: '0.8.16'
+        version: '0.8.20'
     }
 };
