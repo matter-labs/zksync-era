@@ -6,7 +6,6 @@ import fs from 'fs';
 import { deployContract, getContractSource, getTestContract } from '../../src/helpers';
 import { sleep } from 'zksync-web3/build/src/utils';
 
-
 // Regular expression to match ISO dates.
 const DATE_REGEX = /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{6})?/;
 
