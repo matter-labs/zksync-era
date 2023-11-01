@@ -2,6 +2,7 @@ use super::GlueInto;
 use crate::glue::history_mode::HistoryMode;
 use crate::interface::{L1BatchEnv, SystemEnv, VmInterface};
 use crate::vm_instance::VmInstanceVersion;
+
 use crate::VmInstance;
 use zksync_state::{ReadStorage, StoragePtr, StorageView};
 use zksync_types::VmVersion;
@@ -25,26 +26,42 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
     ) -> Self {
         match vm_version {
             VmVersion::M5WithoutRefunds => {
-                let vm =
-                    crate::vm_m5::Vm::new(l1_batch_env, system_env.clone(), storage_view.clone());
+                let vm = crate::vm_m5::Vm::new_with_subversion(
+                    l1_batch_env,
+                    system_env.clone(),
+                    storage_view.clone(),
+                    crate::vm_m5::vm_instance::MultiVMSubversion::V1,
+                );
                 let vm = VmInstanceVersion::VmM5(vm);
                 Self { vm }
             }
             VmVersion::M5WithRefunds => {
-                let vm =
-                    crate::vm_m5::Vm::new(l1_batch_env, system_env.clone(), storage_view.clone());
+                let vm = crate::vm_m5::Vm::new_with_subversion(
+                    l1_batch_env,
+                    system_env.clone(),
+                    storage_view.clone(),
+                    crate::vm_m5::vm_instance::MultiVMSubversion::V2,
+                );
                 let vm = VmInstanceVersion::VmM5(vm);
                 Self { vm }
             }
             VmVersion::M6Initial => {
-                let vm =
-                    crate::vm_m6::Vm::new(l1_batch_env, system_env.clone(), storage_view.clone());
+                let vm = crate::vm_m6::Vm::new_with_subversion(
+                    l1_batch_env,
+                    system_env.clone(),
+                    storage_view.clone(),
+                    crate::vm_m6::vm_instance::MultiVMSubversion::V1,
+                );
                 let vm = VmInstanceVersion::VmM6(vm);
                 Self { vm }
             }
             VmVersion::M6BugWithCompressionFixed => {
-                let vm =
-                    crate::vm_m6::Vm::new(l1_batch_env, system_env.clone(), storage_view.clone());
+                let vm = crate::vm_m6::Vm::new_with_subversion(
+                    l1_batch_env,
+                    system_env.clone(),
+                    storage_view.clone(),
+                    crate::vm_m6::vm_instance::MultiVMSubversion::V2,
+                );
                 let vm = VmInstanceVersion::VmM6(vm);
                 Self { vm }
             }

@@ -27,17 +27,13 @@ pub struct Vm<S: Storage, H: HistoryMode> {
     _phantom: std::marker::PhantomData<H>,
 }
 
-impl<S: Storage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
-    /// Tracers are not supported for vm 1.3.2. So we use `Vec<Box<dyn Any>>` as a placeholder
-    type TracerDispatcher = Vec<Box<dyn Any>>;
-
-    fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage: StoragePtr<S>) -> Self {
-        let vm_version: VmVersion = system_env.version.into();
-        let vm_sub_version = match vm_version {
-            VmVersion::M5WithoutRefunds => MultiVMSubversion::V1,
-            VmVersion::M5WithRefunds => MultiVMSubversion::V2,
-            _ => panic!("Unsupported protocol version for vm_m6: {:?}", vm_version),
-        };
+impl<S: Storage, H: HistoryMode> Vm<S, H> {
+    pub fn new_with_subversion(
+        batch_env: L1BatchEnv,
+        system_env: SystemEnv,
+        storage: StoragePtr<S>,
+        vm_sub_version: MultiVMSubversion,
+    ) -> Self {
         let oracle_tools = crate::vm_m5::OracleTools::new(storage.clone(), vm_sub_version);
         let block_properties = zk_evm_1_3_1::block_properties::BlockProperties {
             default_aa_code_hash: h256_to_u256(
@@ -61,6 +57,21 @@ impl<S: Storage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
             last_tx_compressed_bytecodes: vec![],
             _phantom: Default::default(),
         }
+    }
+}
+
+impl<S: Storage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
+    /// Tracers are not supported for vm 1.3.2. So we use `Vec<Box<dyn Any>>` as a placeholder
+    type TracerDispatcher = Vec<Box<dyn Any>>;
+
+    fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage: StoragePtr<S>) -> Self {
+        let vm_version: VmVersion = system_env.version.into();
+        let vm_sub_version = match vm_version {
+            VmVersion::M5WithoutRefunds => MultiVMSubversion::V1,
+            VmVersion::M5WithRefunds => MultiVMSubversion::V2,
+            _ => panic!("Unsupported protocol version for vm_m6: {:?}", vm_version),
+        };
+        Self::new_with_subversion(batch_env, system_env, storage, vm_sub_version)
     }
 
     fn push_transaction(&mut self, tx: Transaction) {
