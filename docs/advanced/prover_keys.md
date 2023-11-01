@@ -31,6 +31,8 @@ SNARK based with KZG commitment. This results in slightly different contents of 
 
 ### Setup key (big, 14GB)
 
+> In the following [CPU](https://github.com/matter-labs/zksync-era/blob/main/prover/setup-data-cpu-keys.json) and [GPU](https://github.com/matter-labs/zksync-era/blob/main/prover/setup-data-gpu-keys.json) links, you'll find GCS buckets containing the latest keys.
+
 The primary key for a given circuit is called `setup key`. These keys can be substantial in size - approximately 14GB
 for our circuits. Due to their size, we don't store them directly on GitHub; instead, they need to be generated.
 
