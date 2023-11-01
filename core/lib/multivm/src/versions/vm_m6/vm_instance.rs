@@ -1,6 +1,7 @@
 use std::convert::TryFrom;
 use std::fmt::Debug;
 
+use crate::glue::GlueInto;
 use zk_evm_1_3_1::aux_structures::Timestamp;
 use zk_evm_1_3_1::vm_state::{PrimitiveValue, VmLocalState, VmState};
 use zk_evm_1_3_1::witness_trace::DummyTracer;
@@ -18,7 +19,6 @@ use crate::vm_m6::bootloader_state::BootloaderState;
 use crate::vm_m6::errors::{TxRevertReason, VmRevertReason, VmRevertReasonParsingResult};
 use crate::vm_m6::event_sink::InMemoryEventSink;
 use crate::vm_m6::events::merge_events;
-use crate::vm_m6::glue::GlueInto;
 use crate::vm_m6::history_recorder::{HistoryEnabled, HistoryMode};
 use crate::vm_m6::memory::SimpleMemory;
 use crate::vm_m6::oracles::decommitter::DecommitterOracle;

@@ -4,7 +4,6 @@ mod bootloader_state;
 pub mod errors;
 pub mod event_sink;
 mod events;
-pub(crate) mod glue;
 mod history_recorder;
 pub mod memory;
 mod oracle_tools;

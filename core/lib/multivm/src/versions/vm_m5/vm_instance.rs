@@ -10,6 +10,7 @@ use zk_evm_1_3_1::zkevm_opcode_defs::decoding::{
 use zk_evm_1_3_1::zkevm_opcode_defs::definitions::RET_IMPLICIT_RETURNDATA_PARAMS_REGISTER;
 use zksync_system_constants::MAX_TXS_IN_BLOCK;
 
+use crate::glue::GlueInto;
 use zksync_types::l2_to_l1_log::L2ToL1Log;
 use zksync_types::tx::tx_execution_info::{TxExecutionStatus, VmExecutionLogs};
 use zksync_types::vm_trace::VmExecutionTrace;
@@ -19,7 +20,6 @@ use crate::vm_m5::bootloader_state::BootloaderState;
 use crate::vm_m5::errors::{TxRevertReason, VmRevertReason, VmRevertReasonParsingResult};
 use crate::vm_m5::event_sink::InMemoryEventSink;
 use crate::vm_m5::events::merge_events;
-use crate::vm_m5::glue::GlueInto;
 use crate::vm_m5::memory::SimpleMemory;
 use crate::vm_m5::oracles::decommitter::DecommitterOracle;
 use crate::vm_m5::oracles::precompile::PrecompilesProcessorWithHistory;

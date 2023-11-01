@@ -9,7 +9,6 @@ use zksync_types::VmVersion;
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
 use crate::glue::history_mode::HistoryMode;
-use crate::glue::GlueInto;
 use crate::tracers::TracerDispatcher;
 
 #[derive(Debug)]
@@ -167,7 +166,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for VmInstance<S, H> {
     fn start_new_l2_block(&mut self, l2_block_env: L2BlockEnv) {
         match self {
             VmInstance::VmVirtualBlocks(vm) => {
-                vm.start_new_l2_block(l2_block_env.glue_into());
+                vm.start_new_l2_block(l2_block_env);
             }
             VmInstance::VmVirtualBlocksRefundsEnhancement(vm) => {
                 vm.start_new_l2_block(l2_block_env);
@@ -316,15 +315,15 @@ impl<S: WriteStorage, H: HistoryMode> VmInstance<S, H> {
             }
             VmVersion::VmVirtualBlocks => {
                 let vm = crate::vm_virtual_blocks::Vm::new(
-                    l1_batch_env.glue_into(),
-                    system_env.clone().glue_into(),
+                    l1_batch_env,
+                    system_env.clone(),
                     storage_view.clone(),
                 );
                 VmInstance::VmVirtualBlocks(vm)
             }
             VmVersion::VmVirtualBlocksRefundsEnhancement => {
                 let vm = crate::vm_latest::Vm::new(
-                    l1_batch_env.glue_into(),
+                    l1_batch_env,
                     system_env.clone(),
                     storage_view.clone(),
                 );
