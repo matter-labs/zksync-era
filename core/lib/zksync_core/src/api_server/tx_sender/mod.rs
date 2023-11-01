@@ -886,6 +886,9 @@ impl<G: L1GasPriceProvider> TxSender<G> {
         base_fee
     }
 
+    // Using `ProtocolVersionId::latest()` for a short period we might end up in a scenario where the StateKeeper is still pre-boojum
+    // but the API assumes we are post boojum. In this situation we will determine a tx as being executable but the StateKeeper will
+    // still reject them as its not.
     fn ensure_tx_executable(
         &self,
         transaction: Transaction,
