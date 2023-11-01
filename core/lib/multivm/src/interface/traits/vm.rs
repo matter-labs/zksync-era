@@ -13,40 +13,39 @@
 //!
 //! Example usage:
 //! ```
-//! use std::{
-//!     cell::RefCell,
-//!     rc::Rc,
-//!     sync::Arc
-//! };
-//! use once_cell::sync::OnceCell;
-//! use multivm::{
-//!     interface::{L1BatchEnv, SystemEnv, VmInterface},
-//!     tracers::CallTracer ,
-//!     vm_latest::ToTracerPointer
-//! };
-//! use zksync_state::{InMemoryStorage, StorageView};
-//! use zksync_types::Transaction;
-//!
-//! // Prepare the environment for the VM.
-//! let l1_batch_env = L1BatchEnv::new();
-//! let system_env = SystemEnv::default();
-//! // Create storage
-//! let storage = Rc::new(RefCell::new(StorageView::new(InMemoryStorage::default())));
-//! // Instantiate VM with the desired version.
-//! let mut vm = multivm::vm_latest::Vm::new(l1_batch_env, system_env, storage);
-//! // Push a transaction to the VM.
-//! let tx = Transaction::default();
-//! vm.push_transaction(tx);
-//! // Instantiate a tracer.
-//! let result = Arc::new(OnceCell::new());
-//! let call_tracer = CallTracer::new(result.clone()).into_tracer_pointer();
-//! // Inspect the transaction with a tracer. You can use either one tracer or a vector of tracers.
-//! let result = vm.inspect(call_tracer.into(), multivm::interface::VmExecutionMode::OneTx);
-//!
-//! // To obtain the result of the entire batch, you can use the following code:
-//! let result = vm.execute(multivm::interface::VmExecutionMode::Batch);
-//! ```
-
+/// use std::{
+///     cell::RefCell,
+///     rc::Rc,
+///     sync::Arc
+/// };
+/// use once_cell::sync::OnceCell;
+/// use multivm::{
+///     interface::{L1BatchEnv, SystemEnv, VmInterface},
+///     tracers::CallTracer ,
+///     vm_latest::ToTracerPointer
+/// };
+/// use zksync_state::{InMemoryStorage, StorageView};
+/// use zksync_types::Transaction;
+///
+/// // Prepare the environment for the VM.
+/// let l1_batch_env = L1BatchEnv::new();
+/// let system_env = SystemEnv::default();
+/// // Create storage
+/// let storage = Rc::new(RefCell::new(StorageView::new(InMemoryStorage::default())));
+/// // Instantiate VM with the desired version.
+/// let mut vm = multivm::vm_latest::Vm::new(l1_batch_env, system_env, storage);
+/// // Push a transaction to the VM.
+/// let tx = Transaction::default();
+/// vm.push_transaction(tx);
+/// // Instantiate a tracer.
+/// let result = Arc::new(OnceCell::new());
+/// let call_tracer = CallTracer::new(result.clone()).into_tracer_pointer();
+/// // Inspect the transaction with a tracer. You can use either one tracer or a vector of tracers.
+/// let result = vm.inspect(call_tracer.into(), multivm::interface::VmExecutionMode::OneTx);
+///
+/// // To obtain the result of the entire batch, you can use the following code:
+/// let result = vm.execute(multivm::interface::VmExecutionMode::Batch);
+/// ```
 use crate::interface::types::errors::BytecodeCompressionError;
 use crate::interface::types::inputs::{L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode};
 use crate::interface::types::outputs::{

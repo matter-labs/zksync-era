@@ -1,4 +1,4 @@
-use multivm::interface::ExecutionResult;
+use multivm::interface::{ExecutionResult, VmExecutionMode, VmInterface};
 use multivm::MultivmTracer;
 use std::collections::HashSet;
 
@@ -77,16 +77,20 @@ impl TxSharedArgs {
                 |vm, tx| {
                     let stage_latency = SANDBOX_METRICS.sandbox[&SandboxStage::Validation].start();
                     let span = tracing::debug_span!("validation").entered();
-                    vm.push_transaction(&tx);
+                    vm.push_transaction(tx);
 
                     let (tracer, validation_result) =
                         ValidationTracer::<HistoryDisabled>::new(validation_params);
 
-                    let result = vm.inspect_next_transaction(vec![
-                        tracer.into_tracer_pointer(),
-                        StorageInvocations::new(execution_args.missed_storage_invocation_limit)
-                            .into_tracer_pointer(),
-                    ]);
+                    let result = vm.inspect(
+                        vec![
+                            tracer.into_tracer_pointer(),
+                            StorageInvocations::new(execution_args.missed_storage_invocation_limit)
+                                .into_tracer_pointer(),
+                        ]
+                        .into(),
+                        VmExecutionMode::OneTx,
+                    );
 
                     let result = match (result.result, validation_result.get()) {
                         (_, Some(err)) => Err(ValidationError::ViolatedRule(err.clone())),
