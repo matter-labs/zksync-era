@@ -198,7 +198,7 @@ mod tests {
         },
     };
 
-    const TEST_TIMEOUT: time::Duration = time::Duration::seconds(1);
+    const TEST_TIMEOUT: time::Duration = time::Duration::seconds(10);
 
     #[tokio::test]
     async fn block_store_basics_for_postgres() {
@@ -295,12 +295,11 @@ mod tests {
         let (actions_sender, mut actions) = ActionQueue::new();
         let storage = PostgresBlockStorage::new(pool.clone(), actions_sender, cursor);
         let ctx = &ctx::test_root(&ctx::RealClock);
+        let ctx = &ctx.with_timeout(TEST_TIMEOUT);
         storage.schedule_block(ctx, &first_block).await.unwrap();
-        assert_first_block_actions(ctx, &mut actions).await.unwrap();
+        assert_first_block_actions(&mut actions).await;
 
         storage.schedule_block(ctx, &second_block).await.unwrap();
-        assert_second_block_actions(ctx, &mut actions)
-            .await
-            .unwrap();
+        assert_second_block_actions(&mut actions).await;
     }
 }

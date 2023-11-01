@@ -526,15 +526,11 @@ async fn fetcher_basics() {
     let mut current_miniblock_number = MiniblockNumber(0);
     let mut tx_count_in_miniblock = 0;
     let started_at = Instant::now();
+    let deadline = started_at + TEST_TIMEOUT;
     loop {
-        assert!(
-            started_at.elapsed() <= TEST_TIMEOUT,
-            "Timed out waiting for fetcher"
-        );
-        let Some(action) = actions.pop_action() else {
-            tokio::time::sleep(POLL_INTERVAL).await;
-            continue;
-        };
+        let action = tokio::time::timeout_at(deadline.into(), actions.recv_action())
+            .await
+            .unwrap();
         match action {
             SyncAction::OpenBatch { number, .. } => {
                 current_l1_batch_number += 1;
@@ -614,15 +610,11 @@ async fn fetcher_with_real_server() {
     let mut tx_count_in_miniblock = 0;
     let miniblock_number_to_tx_count = HashMap::from([(1, 5), (2, 3)]);
     let started_at = Instant::now();
+    let deadline = started_at + TEST_TIMEOUT;
     loop {
-        assert!(
-            started_at.elapsed() <= TEST_TIMEOUT,
-            "Timed out waiting for fetcher actions"
-        );
-        let Some(action) = actions.pop_action() else {
-            tokio::time::sleep(POLL_INTERVAL).await;
-            continue;
-        };
+        let action = tokio::time::timeout_at(deadline.into(), actions.recv_action())
+            .await
+            .unwrap();
         match action {
             SyncAction::OpenBatch {
                 number,

@@ -39,17 +39,10 @@ pub(super) async fn load_final_block(
     conversions::sync_block_to_consensus_block(sync_block)
 }
 
-pub(super) async fn assert_first_block_actions(
-    ctx: &ctx::Ctx,
-    actions: &mut ActionQueue,
-) -> ctx::OrCanceled<Vec<SyncAction>> {
+pub(super) async fn assert_first_block_actions(actions: &mut ActionQueue) -> Vec<SyncAction> {
     let mut received_actions = vec![];
     while !matches!(received_actions.last(), Some(SyncAction::SealMiniblock)) {
-        let Some(action) = actions.pop_action() else {
-            ctx.sleep(POLL_INTERVAL).await?;
-            continue;
-        };
-        received_actions.push(action);
+        received_actions.push(actions.recv_action().await);
     }
     assert_matches!(
         received_actions.as_slice(),
@@ -68,20 +61,13 @@ pub(super) async fn assert_first_block_actions(
             SyncAction::SealMiniblock,
         ]
     );
-    Ok(received_actions)
+    received_actions
 }
 
-pub(super) async fn assert_second_block_actions(
-    ctx: &ctx::Ctx,
-    actions: &mut ActionQueue,
-) -> ctx::OrCanceled<Vec<SyncAction>> {
+pub(super) async fn assert_second_block_actions(actions: &mut ActionQueue) -> Vec<SyncAction> {
     let mut received_actions = vec![];
     while !matches!(received_actions.last(), Some(SyncAction::SealMiniblock)) {
-        let Some(action) = actions.pop_action() else {
-            ctx.sleep(POLL_INTERVAL).await?;
-            continue;
-        };
-        received_actions.push(action);
+        received_actions.push(actions.recv_action().await);
     }
     assert_matches!(
         received_actions.as_slice(),
@@ -97,7 +83,7 @@ pub(super) async fn assert_second_block_actions(
             SyncAction::SealMiniblock,
         ]
     );
-    Ok(received_actions)
+    received_actions
 }
 
 /// Wraps a background task so that it returns `Ok(())` if it's canceled.
@@ -172,7 +158,7 @@ async fn syncing_via_gossip_fetcher(delay_first_block: bool, delay_second_block:
             }
         }
 
-        let received_actions = assert_first_block_actions(ctx, &mut actions).await?;
+        let received_actions = assert_first_block_actions(&mut actions).await;
         // Manually replicate actions to the state keeper.
         keeper_actions_sender.push_actions(received_actions).await;
 
@@ -183,7 +169,7 @@ async fn syncing_via_gossip_fetcher(delay_first_block: bool, delay_second_block:
                 .unwrap();
         }
 
-        let received_actions = assert_second_block_actions(ctx, &mut actions).await?;
+        let received_actions = assert_second_block_actions(&mut actions).await;
         keeper_actions_sender.push_actions(received_actions).await;
         state_keeper
             .wait(|state| state.get_local_block() == MiniblockNumber(2))

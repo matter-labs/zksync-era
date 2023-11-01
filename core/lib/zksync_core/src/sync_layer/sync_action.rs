@@ -89,7 +89,7 @@ impl ActionQueue {
     }
 
     /// Removes the first action from the queue.
-    pub(crate) fn pop_action(&mut self) -> Option<SyncAction> {
+    pub(super) fn pop_action(&mut self) -> Option<SyncAction> {
         if let Some(peeked) = self.peeked.take() {
             QUEUE_METRICS.action_queue_size.dec_by(1);
             return Some(peeked);
@@ -101,8 +101,19 @@ impl ActionQueue {
         action
     }
 
+    #[cfg(test)]
+    pub(super) async fn recv_action(&mut self) -> SyncAction {
+        if let Some(peeked) = self.peeked.take() {
+            return peeked;
+        }
+        self.receiver
+            .recv()
+            .await
+            .expect("actions sender was dropped prematurely")
+    }
+
     /// Returns the first action from the queue without removing it.
-    pub(crate) fn peek_action(&mut self) -> Option<SyncAction> {
+    pub(super) fn peek_action(&mut self) -> Option<SyncAction> {
         if let Some(action) = &self.peeked {
             return Some(action.clone());
         }
