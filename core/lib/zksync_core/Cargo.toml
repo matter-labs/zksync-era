@@ -1,7 +1,7 @@
 [package]
 name = "zksync_core"
 version = "0.1.0"
-edition = "2018"
+edition = "2021"
 authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
 homepage = "https://zksync.io/"
 repository = "https://github.com/matter-labs/zksync-era"
@@ -39,6 +39,11 @@ zksync_health_check = { path = "../health_check" }
 vlog = { path = "../vlog" }
 
 multivm = { path = "../multivm" }
+# Consensus dependenices
+zksync_concurrency = { package = "concurrency", version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "470e75d9318c2961ecfaf1d6e9223eeb5326a189" }
+zksync_consensus_roles = { package = "roles", version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "470e75d9318c2961ecfaf1d6e9223eeb5326a189" }
+zksync_consensus_storage = { package = "storage", version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "470e75d9318c2961ecfaf1d6e9223eeb5326a189" }
+zksync_consensus_executor = { package = "executor", version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "470e75d9318c2961ecfaf1d6e9223eeb5326a189" }
 
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -84,8 +89,8 @@ actix-web = "4.0.0-beta.8"
 tracing = "0.1.26"
 
 [dev-dependencies]
-
-assert_matches = "1.5"
 zksync_test_account = { path = "../test_account" }
 
+assert_matches = "1.5"
 tempfile = "3.0.2"
+test-casing = { version = "0.1.1", git = "https://github.com/slowli/test-casing.git", rev = "cb033e145c0de24d71532f3f6f219c0234ff4c44" }
