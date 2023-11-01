@@ -23,6 +23,6 @@ export default {
         version: '0.8.21'
     },
     vyper: {
-        version: '0.3.10'
+        version: '0.3.9'
     }
 };
