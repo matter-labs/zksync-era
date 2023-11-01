@@ -114,9 +114,9 @@ impl FriProverDal<'_, '_> {
                 WHERE id = (
                     SELECT pj.id
                     FROM prover_jobs_fri AS pj
-                     JOIN (SELECT *
-                            FROM unnest($1::smallint[], $2::smallint[])
-                     )
+                    JOIN (
+                        SELECT * FROM unnest($1::smallint[], $2::smallint[])
+                    )
                     AS tuple (circuit_id, round)
                     ON tuple.circuit_id = pj.circuit_id AND tuple.round = pj.aggregation_round
                     WHERE pj.status = 'queued'
