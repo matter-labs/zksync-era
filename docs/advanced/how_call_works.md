@@ -109,10 +109,10 @@ In this article, we covered the 'life of a call' from the RPC to the inner worki
   https://github.com/matter-labs/zksync-era/blob/edd48fc37bdd58f9f9d85e27d684c01ef2cac8ae/core/bin/zksync_core/src/api_server/web3/backend_jsonrpc/namespaces/eth.rs
   'namespaces RPC api'
 [namespaces_rpc_impl]:
-  https://github.com/matter-labs/zksync-2-dev/blob/edd48fc37bdd58f9f9d85e27d684c01ef2cac8ae/core/bin/zksync_core/src/api_server/web3/namespaces/eth.rs#L94
+  https://github.com/matter-labs/zksync-era/blob/main/core/lib/zksync_core/src/api_server/web3/namespaces/eth.rs#L94
   'namespaces RPC implementation'
 [execution_sandbox]:
-  https://github.com/matter-labs/zksync-2-dev/blob/dc3b3d6b055c558b0e1a76ef5de3184291489d9f/core/bin/zksync_core/src/api_server/execution_sandbox.rs#L99
+  https://github.com/matter-labs/zksync-era/blob/main/core/lib/zksync_core/src/api_server/execution_sandbox/execute.rs
   'execution sandbox'
 [vm_code]:
   https://github.com/matter-labs/zksync-2-dev/blob/dc3b3d6b055c558b0e1a76ef5de3184291489d9f/core/lib/vm/src/vm.rs#L544
