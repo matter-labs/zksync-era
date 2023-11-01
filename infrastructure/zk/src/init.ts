@@ -40,8 +40,10 @@ export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
 
     await announced('Compiling JS packages', run.yarn());
     await announced('Compile l2 contracts', compiler.compileAll());
-    await announced('Drop postgres db', db.drop());
-    await announced('Setup postgres db', db.setup());
+    await announced('Drop postgres main db', db.dropMain());
+    await announced('Drop postgres main db', db.dropMain());
+    await announced('Setup postgres prover db', db.setupProver());
+    await announced('Setup postgres prover db', db.setupProver());
     await announced('Clean rocksdb', clean('db'));
     await announced('Clean backups', clean('backups'));
     await announced('Building contracts', contract.build());
@@ -74,8 +76,10 @@ export async function reinit() {
     await announced('Setting up containers', up());
     await announced('Compiling JS packages', run.yarn());
     await announced('Compile l2 contracts', compiler.compileAll());
-    await announced('Drop postgres db', db.drop());
-    await announced('Setup postgres db', db.setup());
+    await announced('Drop postgres main db', db.dropMain());
+    await announced('Drop postgres main db', db.dropMain());
+    await announced('Setup postgres prover db', db.setupProver());
+    await announced('Setup postgres prover db', db.setupProver());
     await announced('Clean rocksdb', clean('db'));
     await announced('Clean backups', clean('backups'));
     await announced('Building contracts', contract.build());
