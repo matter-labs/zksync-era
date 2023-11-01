@@ -55,7 +55,7 @@ For bytecode to be considered valid it must satisfy the following:
 2. Bytecode length must be a multiple of 32.
 3. Number of words cannot be even.
 
-[Source](https://github.com/matter-labs/zksync-2-dev/blob/ec4037ca0d9dc148eda3ca9e04380302574e03d8/core/lib/utils/src/bytecode.rs#L133)
+[Source](https://github.com/matter-labs/zksync-era/blob/main/core/lib/utils/src/bytecode.rs#L133)
 
 ### Compression Algorithm
 
