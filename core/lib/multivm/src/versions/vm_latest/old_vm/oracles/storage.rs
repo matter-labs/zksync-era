@@ -117,7 +117,6 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
         storage_log_query.log_query.rollback = true;
         self.frames_stack
             .push_rollback(Box::new(storage_log_query), query.timestamp);
-        storage_log_query.log_query.rollback = false;
 
         query
     }
