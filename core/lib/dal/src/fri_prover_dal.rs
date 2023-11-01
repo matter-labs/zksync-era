@@ -113,12 +113,12 @@ impl FriProverDal<'_, '_> {
                     picked_by = $4
                 WHERE id = (
                     SELECT pj.id
-                    FROM prover_jobs_fri as pj
-                     join (SELECT *
+                    FROM prover_jobs_fri AS pj
+                     JOIN (SELECT *
                             FROM unnest($1::smallint[], $2::smallint[])
                      )
-                     as tuple (circuit_id, round)
-                     on tuple.circuit_id = pj.circuit_id and tuple.round = pj.aggregation_round
+                    AS tuple (circuit_id, round)
+                    ON tuple.circuit_id = pj.circuit_id AND tuple.round = pj.aggregation_round
                     WHERE pj.status = 'queued'
                     AND pj.protocol_version = ANY($3)
                     ORDER BY pj.l1_batch_number ASC, pj.aggregation_round DESC, pj.id ASC
