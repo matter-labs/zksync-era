@@ -1,7 +1,7 @@
 use crate::vm_1_3_2::history_recorder::HistoryMode;
 use crate::vm_1_3_2::memory::SimpleMemory;
 use crate::vm_1_3_2::utils::{aux_heap_page_from_base, heap_page_from_base};
-use crate::vm_1_3_2::vm::{get_vm_hook_params, VM_HOOK_POSITION};
+use crate::vm_1_3_2::vm_instance::{get_vm_hook_params, VM_HOOK_POSITION};
 use crate::vm_1_3_2::vm_with_bootloader::BOOTLOADER_HEAP_PAGE;
 
 use zk_evm_1_3_3::aux_structures::MemoryPage;

@@ -1,10 +1,10 @@
 use crate::glue::{GlueFrom, GlueInto};
 use zksync_types::tx::tx_execution_info::VmExecutionLogs;
 
-impl GlueFrom<crate::vm_m5::vm::VmPartialExecutionResult>
+impl GlueFrom<crate::vm_m5::vm_instance::VmPartialExecutionResult>
     for crate::interface::VmExecutionResultAndLogs
 {
-    fn glue_from(value: crate::vm_m5::vm::VmPartialExecutionResult) -> Self {
+    fn glue_from(value: crate::vm_m5::vm_instance::VmPartialExecutionResult) -> Self {
         Self {
             result: value.revert_reason.glue_into(),
             logs: VmExecutionLogs {
@@ -30,10 +30,10 @@ impl GlueFrom<crate::vm_m5::vm::VmPartialExecutionResult>
     }
 }
 
-impl GlueFrom<crate::vm_m6::vm::VmPartialExecutionResult>
+impl GlueFrom<crate::vm_m6::vm_instance::VmPartialExecutionResult>
     for crate::interface::VmExecutionResultAndLogs
 {
-    fn glue_from(value: crate::vm_m6::vm::VmPartialExecutionResult) -> Self {
+    fn glue_from(value: crate::vm_m6::vm_instance::VmPartialExecutionResult) -> Self {
         Self {
             result: value.revert_reason.glue_into(),
             logs: VmExecutionLogs {
@@ -57,10 +57,10 @@ impl GlueFrom<crate::vm_m6::vm::VmPartialExecutionResult>
     }
 }
 
-impl GlueFrom<crate::vm_1_3_2::vm::VmPartialExecutionResult>
+impl GlueFrom<crate::vm_1_3_2::vm_instance::VmPartialExecutionResult>
     for crate::interface::VmExecutionResultAndLogs
 {
-    fn glue_from(value: crate::vm_1_3_2::vm::VmPartialExecutionResult) -> Self {
+    fn glue_from(value: crate::vm_1_3_2::vm_instance::VmPartialExecutionResult) -> Self {
         Self {
             result: value.revert_reason.glue_into(),
             logs: VmExecutionLogs {
