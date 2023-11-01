@@ -1,6 +1,7 @@
 //! Consensus adapter for EN synchronization logic.
 
 use anyhow::Context as _;
+use tokio::sync::watch;
 
 use std::sync::Arc;
 
@@ -16,7 +17,7 @@ mod storage;
 mod tests;
 mod utils;
 
-use self::{buffered::BufferedStorage, storage::PostgresBlockStore};
+use self::{buffered::Buffered, storage::PostgresBlockStorage};
 use super::{fetcher::FetcherCursor, sync_action::ActionQueueSender};
 
 /// Starts fetching L2 blocks using peer-to-peer gossip network.
@@ -25,8 +26,31 @@ pub async fn start_gossip_fetcher(
     actions: ActionQueueSender,
     executor_config: ExecutorConfig,
     node_key: node::SecretKey,
+    mut stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<()> {
-    start_gossip_fetcher_inner(&ctx::root(), pool, actions, executor_config, node_key).await
+    let result = scope::run!(&ctx::root(), |ctx, s| {
+        s.spawn_bg(async {
+            if stop_receiver.changed().await.is_err() {
+                tracing::warn!(
+                    "Stop signal sender for gossip fetcher was dropped without sending a signal"
+                );
+            }
+            s.cancel();
+            tracing::info!("Stop signal received, gossip fetcher is shutting down");
+            Ok(())
+        });
+        start_gossip_fetcher_inner(ctx, pool, actions, executor_config, node_key)
+    })
+    .await;
+
+    result.or_else(|err| {
+        if err.root_cause().is::<ctx::Canceled>() {
+            tracing::info!("Gossip fetcher is shut down");
+            Ok(())
+        } else {
+            Err(err)
+        }
+    })
 }
 
 async fn start_gossip_fetcher_inner(
@@ -37,6 +61,10 @@ async fn start_gossip_fetcher_inner(
     node_key: node::SecretKey,
 ) -> anyhow::Result<()> {
     executor_config.skip_qc_validation = true;
+    tracing::info!(
+        "Starting gossip fetcher with {executor_config:?} and node key {:?}",
+        node_key.public()
+    );
 
     let mut storage = pool
         .access_storage_tagged("sync_layer")
@@ -45,10 +73,10 @@ async fn start_gossip_fetcher_inner(
     let cursor = FetcherCursor::new(&mut storage).await?;
     drop(storage);
 
-    let store = PostgresBlockStore::new(pool, actions, cursor);
-    let buffered_store = Arc::new(BufferedStorage::new(store));
-    let store = buffered_store.inner();
-    let executor = Executor::new(executor_config, node_key, buffered_store.clone())
+    let store = PostgresBlockStorage::new(pool, actions, cursor);
+    let buffered = Arc::new(Buffered::new(store));
+    let store = buffered.inner();
+    let executor = Executor::new(executor_config, node_key, buffered.clone())
         .context("Node executor misconfiguration")?;
 
     scope::run!(ctx, |ctx, s| async {
@@ -56,13 +84,13 @@ async fn start_gossip_fetcher_inner(
             store
                 .listen_to_updates(ctx)
                 .await
-                .context("`PostgresBlockStore` listener failed")
+                .context("`PostgresBlockStorage` listener failed")
         });
         s.spawn_bg(async {
-            buffered_store
+            buffered
                 .listen_to_updates(ctx)
                 .await
-                .context("`BufferedStore` listener failed")
+                .context("`Buffered` storage listener failed")
         });
 
         executor.run(ctx).await.context("Node executor terminated")

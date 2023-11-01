@@ -22,14 +22,14 @@ use crate::sync_layer::{
 };
 
 #[derive(Debug)]
-pub(super) struct PostgresBlockStore {
+pub(super) struct PostgresBlockStorage {
     pool: ConnectionPool,
     actions: ActionQueueSender,
     block_sender: watch::Sender<BlockNumber>,
     cursor: Mutex<FetcherCursor>,
 }
 
-impl PostgresBlockStore {
+impl PostgresBlockStorage {
     pub fn new(pool: ConnectionPool, actions: ActionQueueSender, cursor: FetcherCursor) -> Self {
         let current_block_number = cursor.next_miniblock.0.saturating_sub(1).into();
         Self {
@@ -123,7 +123,7 @@ impl PostgresBlockStore {
 }
 
 #[async_trait]
-impl BlockStore for PostgresBlockStore {
+impl BlockStore for PostgresBlockStorage {
     async fn head_block(&self, ctx: &ctx::Ctx) -> StorageResult<FinalBlock> {
         tokio::select! {
             () = ctx.canceled() => Err(ctx::Canceled.into()),
@@ -175,7 +175,7 @@ impl BlockStore for PostgresBlockStore {
 }
 
 #[async_trait]
-impl ContiguousBlockStore for PostgresBlockStore {
+impl ContiguousBlockStore for PostgresBlockStorage {
     async fn schedule_next_block(&self, ctx: &ctx::Ctx, block: &FinalBlock) -> StorageResult<()> {
         self.schedule_block(ctx, block).await.map_err(Into::into)
     }
@@ -209,7 +209,7 @@ mod tests {
         let cursor = FetcherCursor::new(&mut storage).await.unwrap();
         drop(storage);
         let (actions_sender, _) = ActionQueue::new();
-        let storage = PostgresBlockStore::new(pool.clone(), actions_sender, cursor);
+        let storage = PostgresBlockStorage::new(pool.clone(), actions_sender, cursor);
 
         let ctx = &ctx::test_root(&ctx::RealClock);
         let genesis_block = BlockStore::first_block(&storage, ctx).await.unwrap();
@@ -243,7 +243,7 @@ mod tests {
         // `ContiguousBlockStore`), but for testing subscriptions this is fine.
         drop(storage);
         let (actions_sender, _) = ActionQueue::new();
-        let storage = PostgresBlockStore::new(pool.clone(), actions_sender, cursor);
+        let storage = PostgresBlockStorage::new(pool.clone(), actions_sender, cursor);
         let mut subscriber = storage.subscribe_to_block_writes();
 
         let ctx = &ctx::test_root(&ctx::RealClock);
@@ -293,7 +293,7 @@ mod tests {
         drop(storage);
 
         let (actions_sender, mut actions) = ActionQueue::new();
-        let storage = PostgresBlockStore::new(pool.clone(), actions_sender, cursor);
+        let storage = PostgresBlockStorage::new(pool.clone(), actions_sender, cursor);
         let ctx = &ctx::test_root(&ctx::RealClock);
         storage.schedule_block(ctx, &first_block).await.unwrap();
         assert_first_block_actions(ctx, &mut actions).await.unwrap();

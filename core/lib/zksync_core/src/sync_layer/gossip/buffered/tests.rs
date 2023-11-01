@@ -144,7 +144,7 @@ async fn test_buffered_storage(
     initial_blocks.insert(0, genesis_block.clone());
 
     let (block_store, block_receiver) = MockContiguousStore::new(block_store);
-    let mut buffered_store = BufferedStorage::new(block_store);
+    let mut buffered_store = Buffered::new(block_store);
     let (events_sender, mut events_receiver) = channel::unbounded();
     buffered_store.set_events_sender(events_sender);
 

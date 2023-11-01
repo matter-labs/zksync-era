@@ -32,7 +32,7 @@ pub(super) trait ContiguousBlockStore: BlockStore {
     /// expected that it will be added to the store eventually, which will be signaled via
     /// a subscriber returned from [`BlockStore::subscribe_to_block_writes()`].
     ///
-    /// [`BufferedStorage`] guarantees that this method will only ever be called:
+    /// [`Buffered`] guarantees that this method will only ever be called:
     ///
     /// - with the next block (i.e., one immediately after [`BlockStore::head_block()`])
     /// - sequentially (i.e., multiple blocks cannot be scheduled at once)
@@ -121,7 +121,7 @@ impl BlockBuffer {
     }
 }
 
-/// Events emitted by [`BufferedStorage`].
+/// Events emitted by [`Buffered`].
 #[cfg(test)]
 #[derive(Debug)]
 pub(super) enum BufferedStorageEvent {
@@ -131,7 +131,7 @@ pub(super) enum BufferedStorageEvent {
 
 /// [`BlockStore`] with an in-memory buffer for pending blocks.
 #[derive(Debug)]
-pub(super) struct BufferedStorage<T> {
+pub(super) struct Buffered<T> {
     inner: T,
     inner_subscriber: watch::Receiver<BlockNumber>,
     block_writes_sender: watch::Sender<BlockNumber>,
@@ -140,7 +140,7 @@ pub(super) struct BufferedStorage<T> {
     events_sender: channel::UnboundedSender<BufferedStorageEvent>,
 }
 
-impl<T: ContiguousBlockStore> BufferedStorage<T> {
+impl<T: ContiguousBlockStore> Buffered<T> {
     /// Creates a new buffered storage. The buffer is initially empty.
     pub fn new(store: T) -> Self {
         let inner_subscriber = store.subscribe_to_block_writes();
@@ -171,7 +171,7 @@ impl<T: ContiguousBlockStore> BufferedStorage<T> {
     }
 
     /// Listens to the updates in the underlying storage. This method must be spawned as a background task
-    /// which should be running as long at the [`BufferedStorage`] is in use. Otherwise,
+    /// which should be running as long at the [`Buffered`] is in use. Otherwise,
     /// `BufferedStorage` will function incorrectly.
     #[tracing::instrument(level = "trace", skip_all, err)]
     pub async fn listen_to_updates(&self, ctx: &ctx::Ctx) -> StorageResult<()> {
@@ -199,7 +199,7 @@ impl<T: ContiguousBlockStore> BufferedStorage<T> {
 }
 
 #[async_trait]
-impl<T: ContiguousBlockStore> BlockStore for BufferedStorage<T> {
+impl<T: ContiguousBlockStore> BlockStore for Buffered<T> {
     async fn head_block(&self, ctx: &ctx::Ctx) -> StorageResult<FinalBlock> {
         let buffered_head_block = sync::lock(ctx, &self.buffer).await?.head_block();
         if let Some(block) = buffered_head_block {
@@ -250,7 +250,7 @@ impl<T: ContiguousBlockStore> BlockStore for BufferedStorage<T> {
 }
 
 #[async_trait]
-impl<T: ContiguousBlockStore> WriteBlockStore for BufferedStorage<T> {
+impl<T: ContiguousBlockStore> WriteBlockStore for Buffered<T> {
     async fn put_block(&self, ctx: &ctx::Ctx, block: &FinalBlock) -> StorageResult<()> {
         let next_block_for_store = {
             let mut buffer = sync::lock(ctx, &self.buffer).await?;
