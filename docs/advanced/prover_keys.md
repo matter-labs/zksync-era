@@ -29,7 +29,9 @@ SNARK based with KZG commitment. This results in slightly different contents of 
 
 ## Keys
 
-> In the following links you can find links to buckets with latest keys for [CPU](https://github.com/matter-labs/zksync-era/blob/main/prover/setup-data-cpu-keys.json) and [GPU](https://github.com/matter-labs/zksync-era/blob/main/prover/setup-data-gpu-keys.json).
+> In the following links you can find links to buckets with latest keys for
+> [CPU](https://github.com/matter-labs/zksync-era/blob/main/prover/setup-data-cpu-keys.json) and
+> [GPU](https://github.com/matter-labs/zksync-era/blob/main/prover/setup-data-gpu-keys.json).
 
 ### Setup key (big, 14GB)
 
