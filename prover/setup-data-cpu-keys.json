@@ -1,16 +1,5 @@
-
 {
-  "latest":
-  {
-    "us": "gs://matterlabs-setup-data-us/26ee1fb/",
-    "europe": "gs://matterlabs-setup-data-europe/26ee1fb/",
-    "asia": "gs://matterlabs-setup-data-asia/26ee1fb/"
-  },
-  "26ee1fb":
-  {
-    "us": "gs://matterlabs-setup-data-us/26ee1fb/",
-    "europe": "gs://matterlabs-setup-data-europe/26ee1fb/",
-    "asia": "gs://matterlabs-setup-data-asia/26ee1fb/"
-  }
+  "us": "gs://matterlabs-setup-data-us/26ee1fb/",
+  "europe": "gs://matterlabs-setup-data-europe/26ee1fb/",
+  "asia": "gs://matterlabs-setup-data-asia/26ee1fb/"
 }
-

@@ -1,15 +1,5 @@
 {
-  "latest": 
-  {
-    "us": "gs://matterlabs-setup-data-us/26ee1fb-gpu/",
-    "europe": "gs://matterlabs-setup-data-europe/26ee1fb-gpu/",
-    "asia": "gs://matterlabs-setup-data-asia/26ee1fb-gpu/"
-  },
-  "26ee1fb":
-  {
-    "us": "gs://matterlabs-setup-data-us/26ee1fb-gpu/",
-    "europe": "gs://matterlabs-setup-data-europe/26ee1fb-gpu/",
-    "asia": "gs://matterlabs-setup-data-asia/26ee1fb-gpu/"
-  }
+  "us": "gs://matterlabs-setup-data-us/26ee1fb-gpu/",
+  "europe": "gs://matterlabs-setup-data-europe/26ee1fb-gpu/",
+  "asia": "gs://matterlabs-setup-data-asia/26ee1fb-gpu/"
 }
-
