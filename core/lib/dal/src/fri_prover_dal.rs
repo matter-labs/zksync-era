@@ -112,14 +112,16 @@ impl FriProverDal<'_, '_> {
                     updated_at = now(), processing_started_at = now(),
                     picked_by = $4
                 WHERE id = (
-                    SELECT id
-                    FROM prover_jobs_fri
-                    WHERE status = 'queued'
-                    AND (circuit_id, aggregation_round) IN (
-                        SELECT * FROM UNNEST($1::smallint[], $2::smallint[])
-                    )
-                    AND protocol_version = ANY($3)
-                    ORDER BY aggregation_round DESC, l1_batch_number ASC, id ASC
+                    SELECT pj.id
+                    FROM prover_jobs_fri AS pj
+                    JOIN (
+                        SELECT unnest($1::smallint[]) AS circuit_id, unnest($2::smallint[]) AS aggregation_round
+                    ) AS unnested_data
+                    ON pj.circuit_id = unnested_data.circuit_id
+                    AND pj.aggregation_round = unnested_data.aggregation_round
+                    WHERE pj.status = 'queued'
+                    AND pj.protocol_version = ANY($3)
+                    ORDER BY pj.aggregation_round DESC, pj.l1_batch_number ASC, pj.id ASC
                     LIMIT 1
                     FOR UPDATE
                     SKIP LOCKED
