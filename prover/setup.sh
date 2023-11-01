@@ -23,7 +23,7 @@ zk config compile dev
 
 for i in {1..13}
 do
-    if ! [ -f vk_setup_data_generator_server_fri/data/setup_basic_13_data.bin]; then
+    if ! [ -f vk_setup_data_generator_server_fri/data/setup_basic_13_data.bin ]; then
         zk f cargo run $GPU_FLAG --release --bin zksync_setup_data_generator_fri -- --numeric-circuit $i --is_base_layer
     fi
 done
