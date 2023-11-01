@@ -21,8 +21,8 @@ use zkevm_test_harness::prover_utils::{prove_base_layer_circuit, prove_recursion
 
 use zksync_config::configs::fri_prover_group::FriProverGroupConfig;
 use zksync_config::configs::FriProverConfig;
-use zksync_dal::ConnectionPool;
 use zksync_object_store::ObjectStore;
+use zksync_prover_dal::ProverConnectionPool;
 use zksync_prover_fri_types::{CircuitWrapper, FriProofWrapper, ProverJob, ProverServiceDataKey};
 use zksync_prover_fri_utils::fetch_next_circuit;
 use zksync_queued_job_processor::{async_trait, JobProcessor};
@@ -44,7 +44,7 @@ pub struct Prover {
     blob_store: Box<dyn ObjectStore>,
     public_blob_store: Option<Box<dyn ObjectStore>>,
     config: Arc<FriProverConfig>,
-    prover_connection_pool: ConnectionPool,
+    prover_connection_pool: ProverConnectionPool,
     setup_load_mode: SetupLoadMode,
     // Only pick jobs for the configured circuit id and aggregation rounds.
     // Empty means all jobs are picked.
@@ -58,7 +58,7 @@ impl Prover {
         blob_store: Box<dyn ObjectStore>,
         public_blob_store: Option<Box<dyn ObjectStore>>,
         config: FriProverConfig,
-        prover_connection_pool: ConnectionPool,
+        prover_connection_pool: ProverConnectionPool,
         setup_load_mode: SetupLoadMode,
         circuit_ids_for_round_to_be_proven: Vec<CircuitIdRoundTuple>,
         vk_commitments: L1VerifierConfig,

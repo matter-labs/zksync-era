@@ -3,7 +3,7 @@ use async_trait::async_trait;
 use std::{collections::HashMap, time::Instant};
 
 use zksync_config::configs::WitnessGeneratorConfig;
-use zksync_dal::ConnectionPool;
+use zksync_dal::MainConnectionPool;
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::{
@@ -47,8 +47,8 @@ pub struct LeafAggregationWitnessGenerator {
     config: WitnessGeneratorConfig,
     object_store: Box<dyn ObjectStore>,
     protocol_versions: Vec<ProtocolVersionId>,
-    connection_pool: ConnectionPool,
-    prover_connection_pool: ConnectionPool,
+    connection_pool: MainConnectionPool,
+    prover_connection_pool: MainConnectionPool,
 }
 
 impl LeafAggregationWitnessGenerator {
@@ -56,8 +56,8 @@ impl LeafAggregationWitnessGenerator {
         config: WitnessGeneratorConfig,
         store_factory: &ObjectStoreFactory,
         protocol_versions: Vec<ProtocolVersionId>,
-        connection_pool: ConnectionPool,
-        prover_connection_pool: ConnectionPool,
+        connection_pool: MainConnectionPool,
+        prover_connection_pool: MainConnectionPool,
     ) -> Self {
         Self {
             config,
@@ -233,7 +233,7 @@ pub fn process_leaf_aggregation_job(
 }
 
 async fn update_database(
-    prover_connection_pool: &ConnectionPool,
+    prover_connection_pool: &MainConnectionPool,
     started_at: Instant,
     block_number: L1BatchNumber,
     leaf_circuits_len: usize,

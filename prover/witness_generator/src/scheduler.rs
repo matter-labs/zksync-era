@@ -17,8 +17,8 @@ use zksync_vk_setup_data_server_fri::get_recursive_layer_vk_for_circuit_type;
 use zksync_vk_setup_data_server_fri::utils::get_leaf_vk_params;
 
 use crate::utils::{load_proofs_for_job_ids, SchedulerPartialInputWrapper};
-use zksync_dal::ConnectionPool;
 use zksync_object_store::{FriCircuitKey, ObjectStore, ObjectStoreFactory};
+use zksync_prover_dal::ProverConnectionPool;
 use zksync_prover_fri_types::{get_current_pod_name, CircuitWrapper, FriProofWrapper};
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::proofs::AggregationRound;
@@ -43,14 +43,14 @@ pub struct SchedulerWitnessGeneratorJob {
 #[derive(Debug)]
 pub struct SchedulerWitnessGenerator {
     object_store: Box<dyn ObjectStore>,
-    prover_connection_pool: ConnectionPool,
+    prover_connection_pool: ProverConnectionPool,
     protocol_versions: Vec<FriProtocolVersionId>,
 }
 
 impl SchedulerWitnessGenerator {
     pub async fn new(
         store_factory: &ObjectStoreFactory,
-        prover_connection_pool: ConnectionPool,
+        prover_connection_pool: ProverConnectionPool,
         protocol_versions: Vec<FriProtocolVersionId>,
     ) -> Self {
         Self {

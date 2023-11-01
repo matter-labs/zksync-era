@@ -1,10 +1,10 @@
 use std::io::Write;
-use zksync_dal::{connection::DbVariant, ConnectionPool};
+use zksync_dal::{connection::DbVariant, MainConnectionPool};
 use zksync_types::contract_verification_api::SourceCodeData;
 
 #[tokio::main]
 async fn main() {
-    let pool = ConnectionPool::singleton(DbVariant::Replica)
+    let pool = MainConnectionPool::singleton(DbVariant::Replica)
         .build()
         .await
         .unwrap();

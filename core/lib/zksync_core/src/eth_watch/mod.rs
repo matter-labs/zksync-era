@@ -10,7 +10,7 @@ use tokio::{sync::watch, task::JoinHandle};
 use std::time::Duration;
 
 use zksync_config::ETHWatchConfig;
-use zksync_dal::{ConnectionPool, MainStorageProcessor};
+use zksync_dal::{MainConnectionPool, MainStorageProcessor};
 use zksync_eth_client::EthInterface;
 use zksync_system_constants::PRIORITY_EXPIRATION;
 use zksync_types::{
@@ -54,7 +54,7 @@ impl<W: EthClient + Sync> EthWatch<W> {
         diamond_proxy_address: Address,
         governance_contract: Option<Contract>,
         mut client: W,
-        pool: &ConnectionPool,
+        pool: &MainConnectionPool,
         poll_interval: Duration,
     ) -> Self {
         let mut storage = pool.access_storage_tagged("eth_watch").await.unwrap();
@@ -132,7 +132,7 @@ impl<W: EthClient + Sync> EthWatch<W> {
 
     pub async fn run(
         &mut self,
-        pool: ConnectionPool,
+        pool: MainConnectionPool,
         stop_receiver: watch::Receiver<bool>,
     ) -> anyhow::Result<()> {
         let mut timer = tokio::time::interval(self.poll_interval);
@@ -191,7 +191,7 @@ impl<W: EthClient + Sync> EthWatch<W> {
 }
 
 pub async fn start_eth_watch<E: EthInterface + Send + Sync + 'static>(
-    pool: ConnectionPool,
+    pool: MainConnectionPool,
     eth_gateway: E,
     diamond_proxy_addr: Address,
     governance: Option<(Contract, Address)>,

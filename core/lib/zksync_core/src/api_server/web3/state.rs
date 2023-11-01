@@ -13,7 +13,7 @@ use std::{
 };
 
 use zksync_config::configs::{api::Web3JsonRpcConfig, chain::NetworkConfig, ContractsConfig};
-use zksync_dal::ConnectionPool;
+use zksync_dal::MainConnectionPool;
 use zksync_types::{
     api::{self, BlockId, BlockNumber, GetLogsFilter},
     block::unpack_block_upgrade_info,
@@ -97,7 +97,7 @@ impl SealedMiniblockNumber {
     /// Creates a handle to the last sealed miniblock number together with a task that will update
     /// it on a schedule.
     pub fn new(
-        connection_pool: ConnectionPool,
+        connection_pool: MainConnectionPool,
         update_interval: Duration,
     ) -> (Self, impl Future<Output = ()> + Send) {
         let this = Self(Arc::default());
@@ -166,7 +166,7 @@ impl SealedMiniblockNumber {
 #[derive(Debug)]
 pub struct RpcState<E> {
     pub installed_filters: Arc<RwLock<Filters>>,
-    pub connection_pool: ConnectionPool,
+    pub connection_pool: MainConnectionPool,
     pub tx_sender: TxSender<E>,
     pub sync_state: Option<SyncState>,
     pub(super) api_config: InternalApiConfig,

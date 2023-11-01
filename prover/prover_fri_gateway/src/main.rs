@@ -5,9 +5,8 @@ use tokio::{sync::oneshot, sync::watch};
 use crate::api_data_fetcher::{PeriodicApiStruct, PROOF_GENERATION_DATA_PATH, SUBMIT_PROOF_PATH};
 use prometheus_exporter::PrometheusExporterConfig;
 use zksync_config::configs::FriProverGatewayConfig;
-use zksync_dal::connection::DbVariant;
-use zksync_dal::ConnectionPool;
 use zksync_object_store::ObjectStoreFactory;
+use zksync_prover_dal::{connection::DbVariant, ProverConnectionPool};
 use zksync_types::prover_server_api::{ProofGenerationDataRequest, SubmitProofRequest};
 use zksync_utils::wait_for_tasks::wait_for_tasks;
 
@@ -35,7 +34,7 @@ async fn main() -> anyhow::Result<()> {
 
     let config =
         FriProverGatewayConfig::from_env().context("FriProverGatewayConfig::from_env()")?;
-    let pool = ConnectionPool::builder(DbVariant::Prover)
+    let pool = ProverConnectionPool::builder(DbVariant::Real)
         .build()
         .await
         .context("failed to build a connection pool")?;

@@ -5,7 +5,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use zksync_config::configs::eth_sender::SenderConfig;
-use zksync_dal::{ConnectionPool, MainStorageProcessor};
+use zksync_dal::{MainConnectionPool, MainStorageProcessor};
 use zksync_eth_client::{
     types::{Error, ExecutedTxStatus, SignedCallResult},
     BoundEthInterface,
@@ -538,7 +538,7 @@ where
 
     pub async fn run(
         mut self,
-        pool: ConnectionPool,
+        pool: MainConnectionPool,
         stop_receiver: watch::Receiver<bool>,
     ) -> anyhow::Result<()> {
         {

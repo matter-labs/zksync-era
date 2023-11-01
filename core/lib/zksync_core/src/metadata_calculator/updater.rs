@@ -8,7 +8,7 @@ use std::{ops, time::Instant};
 
 use zksync_commitment_utils::{bootloader_initial_content_commitment, events_queue_commitment};
 use zksync_config::configs::database::MerkleTreeMode;
-use zksync_dal::{ConnectionPool, MainStorageProcessor};
+use zksync_dal::{MainConnectionPool, MainStorageProcessor};
 use zksync_health_check::HealthUpdater;
 use zksync_merkle_tree::domain::TreeMetadata;
 use zksync_object_store::ObjectStore;
@@ -296,8 +296,8 @@ impl TreeUpdater {
     pub async fn loop_updating_tree(
         mut self,
         delayer: Delayer,
-        pool: &ConnectionPool,
-        prover_pool: &ConnectionPool,
+        pool: &MainConnectionPool,
+        prover_pool: &MainConnectionPool,
         mut stop_receiver: watch::Receiver<bool>,
         health_updater: HealthUpdater,
     ) -> anyhow::Result<()> {

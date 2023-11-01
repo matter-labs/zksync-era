@@ -41,8 +41,8 @@ export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
     await announced('Compiling JS packages', run.yarn());
     await announced('Compile l2 contracts', compiler.compileAll());
     await announced('Drop postgres main db', db.dropMain());
-    await announced('Drop postgres main db', db.dropMain());
-    await announced('Setup postgres prover db', db.setupProver());
+    await announced('Drop postgres prover db', db.dropProver());
+    await announced('Setup postgres main db', db.setupMain());
     await announced('Setup postgres prover db', db.setupProver());
     await announced('Clean rocksdb', clean('db'));
     await announced('Clean backups', clean('backups'));
@@ -77,8 +77,8 @@ export async function reinit() {
     await announced('Compiling JS packages', run.yarn());
     await announced('Compile l2 contracts', compiler.compileAll());
     await announced('Drop postgres main db', db.dropMain());
-    await announced('Drop postgres main db', db.dropMain());
-    await announced('Setup postgres prover db', db.setupProver());
+    await announced('Drop postgres prover db', db.dropProver());
+    await announced('Setup postgres main db', db.setupMain());
     await announced('Setup postgres prover db', db.setupProver());
     await announced('Clean rocksdb', clean('db'));
     await announced('Clean backups', clean('backups'));

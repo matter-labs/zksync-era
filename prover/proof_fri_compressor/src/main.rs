@@ -7,9 +7,9 @@ use std::time::Duration;
 
 use prometheus_exporter::PrometheusExporterConfig;
 use zksync_config::configs::FriProofCompressorConfig;
-use zksync_dal::connection::DbVariant;
-use zksync_dal::ConnectionPool;
 use zksync_object_store::ObjectStoreFactory;
+use zksync_prover_dal::connection::DbVariant;
+use zksync_prover_dal::ProverConnectionPool;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_utils::wait_for_tasks::wait_for_tasks;
 
@@ -48,7 +48,7 @@ async fn main() -> anyhow::Result<()> {
 
     let opt = Opt::from_args();
     let config = FriProofCompressorConfig::from_env().context("FriProofCompressorConfig")?;
-    let pool = ConnectionPool::builder(DbVariant::Prover)
+    let pool = ProverConnectionPool::builder(DbVariant::Real)
         .build()
         .await
         .context("failed to build a connection pool")?;

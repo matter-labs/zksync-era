@@ -9,7 +9,7 @@ use std::{
 
 use multivm::interface::{FinishedL1Batch, L1BatchEnv, SystemEnv};
 use zksync_contracts::{BaseSystemContracts, SystemContractCode};
-use zksync_dal::ConnectionPool;
+use zksync_dal::MainConnectionPool;
 use zksync_types::{
     block::legacy_miniblock_hash, ethabi::Address, l1::L1Tx, l2::L2Tx,
     protocol_version::ProtocolUpgradeTx, witness_block_state::WitnessBlockState, L1BatchNumber,
@@ -47,7 +47,7 @@ const POLL_INTERVAL: Duration = Duration::from_millis(100);
 /// to the one in the mempool IO (which is used in the main node).
 #[derive(Debug)]
 pub struct ExternalIO {
-    pool: ConnectionPool,
+    pool: MainConnectionPool,
 
     current_l1_batch_number: L1BatchNumber,
     current_miniblock_number: MiniblockNumber,
@@ -64,7 +64,7 @@ pub struct ExternalIO {
 
 impl ExternalIO {
     pub async fn new(
-        pool: ConnectionPool,
+        pool: MainConnectionPool,
         actions: ActionQueue,
         sync_state: SyncState,
         main_node_client: Box<dyn MainNodeClient>,

@@ -1,7 +1,7 @@
 use std::{future::Future, time::Duration};
 
 use tokio::sync::watch;
-use zksync_dal::ConnectionPool;
+use zksync_dal::MainConnectionPool;
 use zksync_types::{L1BatchNumber, MiniblockNumber};
 use zksync_web3_decl::{
     jsonrpsee::core::Error as RpcError,
@@ -31,12 +31,12 @@ const SLEEP_INTERVAL: Duration = Duration::from_secs(5);
 #[derive(Debug)]
 pub struct ReorgDetector {
     client: HttpClient,
-    pool: ConnectionPool,
+    pool: MainConnectionPool,
     should_stop: watch::Receiver<bool>,
 }
 
 impl ReorgDetector {
-    pub fn new(url: &str, pool: ConnectionPool, should_stop: watch::Receiver<bool>) -> Self {
+    pub fn new(url: &str, pool: MainConnectionPool, should_stop: watch::Receiver<bool>) -> Self {
         let client = HttpClientBuilder::default()
             .build(url)
             .expect("Failed to create HTTP client");

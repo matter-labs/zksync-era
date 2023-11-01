@@ -23,8 +23,8 @@ use crate::utils::{
     save_recursive_layer_prover_input_artifacts, ClosedFormInputWrapper,
 };
 use zksync_config::configs::FriWitnessGeneratorConfig;
-use zksync_dal::ConnectionPool;
 use zksync_object_store::{ClosedFormInputKey, ObjectStore, ObjectStoreFactory};
+use zksync_prover_dal::ProverConnectionPool;
 use zksync_prover_fri_types::circuit_definitions::zkevm_circuits::recursion::leaf_layer::input::RecursionLeafParametersWitness;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::proofs::{AggregationRound, LeafAggregationJobMetadata};
@@ -63,7 +63,7 @@ pub struct LeafAggregationWitnessGenerator {
     #[allow(dead_code)]
     config: FriWitnessGeneratorConfig,
     object_store: Box<dyn ObjectStore>,
-    prover_connection_pool: ConnectionPool,
+    prover_connection_pool: ProverConnectionPool,
     protocol_versions: Vec<FriProtocolVersionId>,
 }
 
@@ -71,7 +71,7 @@ impl LeafAggregationWitnessGenerator {
     pub async fn new(
         config: FriWitnessGeneratorConfig,
         store_factory: &ObjectStoreFactory,
-        prover_connection_pool: ConnectionPool,
+        prover_connection_pool: ProverConnectionPool,
         protocol_versions: Vec<FriProtocolVersionId>,
     ) -> Self {
         Self {
@@ -242,7 +242,7 @@ pub fn process_leaf_aggregation_job(
 }
 
 async fn update_database(
-    prover_connection_pool: &ConnectionPool,
+    prover_connection_pool: &ProverConnectionPool,
     started_at: Instant,
     block_number: L1BatchNumber,
     job_id: u32,

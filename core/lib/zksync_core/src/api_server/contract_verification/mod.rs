@@ -8,7 +8,7 @@ use actix_web::{
 use tokio::{sync::watch, task::JoinHandle};
 
 use zksync_config::configs::api::ContractVerificationApiConfig;
-use zksync_dal::connection::ConnectionPool;
+use zksync_dal::connection::MainConnectionPool;
 use zksync_utils::panic_notify::{spawn_panic_handler, ThreadPanicNotify};
 
 mod api_decl;
@@ -48,8 +48,8 @@ fn start_server(api: RestApi, bind_to: SocketAddr, threads: usize) -> Server {
 
 /// Start HTTP REST API
 pub fn start_server_thread_detached(
-    master_connection_pool: ConnectionPool,
-    replica_connection_pool: ConnectionPool,
+    master_connection_pool: MainConnectionPool,
+    replica_connection_pool: MainConnectionPool,
     api_config: ContractVerificationApiConfig,
     mut stop_receiver: watch::Receiver<bool>,
 ) -> JoinHandle<anyhow::Result<()>> {

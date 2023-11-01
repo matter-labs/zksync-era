@@ -1497,11 +1497,11 @@ mod tests {
     use zksync_types::{l2_to_l1_log::L2ToL1Log, Address, ProtocolVersion, ProtocolVersionId};
 
     use super::*;
-    use crate::ConnectionPool;
+    use crate::MainConnectionPool;
 
     #[tokio::test]
     async fn loading_l1_batch_header() {
-        let pool = ConnectionPool::test_pool().await;
+        let pool = MainConnectionPool::test_pool().await;
         let mut conn = pool.access_storage().await.unwrap();
         conn.blocks_dal()
             .delete_l1_batches(L1BatchNumber(0))
@@ -1562,7 +1562,7 @@ mod tests {
 
     #[tokio::test]
     async fn getting_predicted_gas() {
-        let pool = ConnectionPool::test_pool().await;
+        let pool = MainConnectionPool::test_pool().await;
         let mut conn = pool.access_storage().await.unwrap();
         conn.blocks_dal()
             .delete_l1_batches(L1BatchNumber(0))

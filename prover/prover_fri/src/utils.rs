@@ -7,8 +7,8 @@ use zksync_prover_fri_types::circuit_definitions::boojum::cs::implementations::r
 
 use tokio::sync::Mutex;
 use zkevm_test_harness::prover_utils::{verify_base_layer_proof, verify_recursion_layer_proof};
-use zksync_dal::MainStorageProcessor;
 use zksync_object_store::ObjectStore;
+use zksync_prover_dal::ProverStorageProcessor;
 use zksync_prover_fri_types::circuit_definitions::boojum::algebraic_props::round_function::AbsorptionModeOverwrite;
 use zksync_prover_fri_types::circuit_definitions::boojum::algebraic_props::sponge::GoldilocksPoseidon2Sponge;
 use zksync_prover_fri_types::circuit_definitions::boojum::cs::implementations::pow::NoPow;
@@ -64,7 +64,7 @@ pub async fn save_proof(
     blob_store: &dyn ObjectStore,
     public_blob_store: Option<&dyn ObjectStore>,
     shall_save_to_public_bucket: bool,
-    storage_processor: &mut MainStorageProcessor<'_>,
+    storage_processor: &mut ProverStorageProcessor<'_>,
 ) {
     tracing::info!(
         "Successfully proven job: {}, total time taken: {:?}",

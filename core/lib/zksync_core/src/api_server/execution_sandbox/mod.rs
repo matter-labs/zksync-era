@@ -2,7 +2,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::runtime::Handle;
 
-use zksync_dal::{ConnectionPool, MainStorageProcessor, SqlxError};
+use zksync_dal::{MainConnectionPool, MainStorageProcessor, SqlxError};
 use zksync_state::{PostgresStorage, PostgresStorageCaches, ReadStorage, StorageView};
 use zksync_system_constants::PUBLISH_BYTECODE_OVERHEAD;
 use zksync_types::{api, AccountTreeId, L2ChainId, MiniblockNumber, U256};
@@ -180,7 +180,7 @@ async fn get_pending_state(
 /// Returns the number of the pubdata that the transaction will spend on factory deps.
 pub(super) async fn get_pubdata_for_factory_deps(
     _vm_permit: &VmPermit,
-    connection_pool: &ConnectionPool,
+    connection_pool: &MainConnectionPool,
     factory_deps: &[Vec<u8>],
     storage_caches: PostgresStorageCaches,
 ) -> u32 {

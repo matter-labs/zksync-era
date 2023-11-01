@@ -360,7 +360,7 @@ mod tests {
     use super::*;
     use crate::{
         tests::{create_miniblock_header, mock_execution_result, mock_l2_transaction},
-        ConnectionPool,
+        MainConnectionPool,
     };
 
     async fn prepare_transaction(conn: &mut MainStorageProcessor<'_>, tx: L2Tx) {
@@ -390,7 +390,7 @@ mod tests {
 
     #[tokio::test]
     async fn getting_transaction() {
-        let connection_pool = ConnectionPool::test_pool().await;
+        let connection_pool = MainConnectionPool::test_pool().await;
         let mut conn = connection_pool.access_storage().await.unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
@@ -456,7 +456,7 @@ mod tests {
 
     #[tokio::test]
     async fn getting_miniblock_transactions() {
-        let connection_pool = ConnectionPool::test_pool().await;
+        let connection_pool = MainConnectionPool::test_pool().await;
         let mut conn = connection_pool.access_storage().await.unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())

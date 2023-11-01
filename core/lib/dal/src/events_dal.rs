@@ -195,7 +195,7 @@ impl EventsDal<'_, '_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{tests::create_miniblock_header, ConnectionPool};
+    use crate::{tests::create_miniblock_header, MainConnectionPool};
     use zksync_types::{Address, L1BatchNumber, ProtocolVersion};
 
     fn create_vm_event(index: u8, topic_count: u8) -> VmEvent {
@@ -210,7 +210,7 @@ mod tests {
 
     #[tokio::test]
     async fn storing_events() {
-        let pool = ConnectionPool::test_pool().await;
+        let pool = MainConnectionPool::test_pool().await;
         let mut conn = pool.access_storage().await.unwrap();
         conn.events_dal().rollback_events(MiniblockNumber(0)).await;
         conn.blocks_dal()
@@ -286,7 +286,7 @@ mod tests {
 
     #[tokio::test]
     async fn storing_l2_to_l1_logs() {
-        let pool = ConnectionPool::test_pool().await;
+        let pool = MainConnectionPool::test_pool().await;
         let mut conn = pool.access_storage().await.unwrap();
         conn.events_dal()
             .rollback_l2_to_l1_logs(MiniblockNumber(0))

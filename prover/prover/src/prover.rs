@@ -10,15 +10,17 @@ use zkevm_test_harness::abstract_zksync_circuit::concrete_circuits::ZkSyncProof;
 use zkevm_test_harness::pairing::bn256::Bn256;
 
 use zksync_config::ProverConfig;
-use zksync_dal::MainStorageProcessor;
-use zksync_dal::{connection::DbVariant, ConnectionPool};
+use zksync_main_dal::MainConnectionPool;
 use zksync_object_store::{Bucket, ObjectStore, ObjectStoreFactory};
+use zksync_prover_dal::connection::DbVariant;
+use zksync_prover_dal::{connection::DbVariant, ProverConnectionPool, ProverStorageProcessor};
 use zksync_types::proofs::ProverJobMetadata;
 
 #[derive(Debug)]
 pub struct ProverReporter {
     rt_handle: Handle,
-    pool: ConnectionPool,
+    prover_pool: ProverConnectionPool,
+    main_pool: MainConnectionPool,
     config: ProverConfig,
     processed_by: String,
     object_store: Box<dyn ObjectStore>,
@@ -34,11 +36,18 @@ impl ProverReporter {
         store_factory: &ObjectStoreFactory,
         rt_handle: Handle,
     ) -> anyhow::Result<Self> {
-        let pool = rt_handle
-            .block_on(ConnectionPool::singleton(DbVariant::Prover).build())
-            .context("failed to build a connection pool")?;
+        let prover_pool = rt_handle
+            .block_on(ProverConnectionPool::singleton(DbVariant::Real).build())
+            .context("failed to build a connection prover_pool")?;
+        let main_pool = rt_handle
+            .block_on(
+                MainConnectionPool::singleton(zksync_main_dal::connection::DbVariant::Master)
+                    .build(),
+            )
+            .context("failed to build a connection prover_pool")?;
         Ok(Self {
-            pool,
+            prover_pool,
+            main_pool,
             config,
             processed_by: env::var("POD_NAME").unwrap_or("Unknown".to_string()),
             object_store: rt_handle.block_on(store_factory.create_store()),
@@ -70,7 +79,7 @@ impl ProverReporter {
         );
         let job_id = job_id as u32;
         self.rt_handle.block_on(async {
-            let mut connection = self.pool.access_storage().await.unwrap();
+            let mut connection = self.prover_pool.access_storage().await.unwrap();
             let mut transaction = connection.start_transaction().await.unwrap();
 
             // BEWARE, HERE BE DRAGONS.
@@ -99,7 +108,7 @@ impl ProverReporter {
 
     fn get_circuit_type(&self, job_id: usize) -> String {
         let prover_job_metadata = self.rt_handle.block_on(async {
-            let mut connection = self.pool.access_storage().await.unwrap();
+            let mut connection = self.prover_pool.access_storage().await.unwrap();
             self.get_prover_job_metadata_by_id_and_exit_if_error(&mut connection, job_id as u32)
                 .await
         });
@@ -108,7 +117,7 @@ impl ProverReporter {
 
     async fn get_prover_job_metadata_by_id_and_exit_if_error(
         &self,
-        connection: &mut MainStorageProcessor<'_>,
+        connection: &mut ProverStorageProcessor<'_>,
         job_id: u32,
     ) -> ProverJobMetadata {
         // BEWARE, HERE BE DRAGONS.
@@ -150,12 +159,12 @@ impl JobReporter for ProverReporter {
                 );
                 self.rt_handle.block_on(async {
                     let result = self
-                        .pool
+                        .prover_pool
                         .access_storage()
                         .await
                         .unwrap()
                         .prover_dal()
-                        .save_proof_error(job_id as u32, error, self.config.max_attempts)
+                        .save_proof_error(job_id as u32, error)
                         .await;
                     // BEWARE, HERE BE DRAGONS.
                     // `send_report` method is called in an operating system thread,
@@ -170,6 +179,19 @@ impl JobReporter for ProverReporter {
                     if let Err(e) = result {
                         tracing::warn!("panicked inside heavy-ops thread: {e:?}; exiting...");
                         std::process::exit(-1);
+                    } else {
+                        let attempts = result.0;
+                        let l1_batch_number = result.1;
+                        if attempts >= self.config.max_attempts {
+                            self.main_pool
+                                .access_storage()
+                                .await
+                                .unwrap()
+                                .blocks_dal()
+                                .set_skip_proof_for_l1_batch(L1BatchNumber(l1_batch_number))
+                                .await
+                                .unwrap();
+                        }
                     }
                 });
             }

@@ -20,8 +20,8 @@ use crate::utils::{
     load_proofs_for_job_ids, save_node_aggregations_artifacts,
     save_recursive_layer_prover_input_artifacts, AggregationWrapper,
 };
-use zksync_dal::ConnectionPool;
 use zksync_object_store::{AggregationsKey, ObjectStore, ObjectStoreFactory};
+use zksync_prover_dal::ProverConnectionPool;
 use zksync_prover_fri_types::{get_current_pod_name, FriProofWrapper};
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::proofs::NodeAggregationJobMetadata;
@@ -64,14 +64,14 @@ pub struct NodeAggregationWitnessGeneratorJob {
 #[derive(Debug)]
 pub struct NodeAggregationWitnessGenerator {
     object_store: Box<dyn ObjectStore>,
-    prover_connection_pool: ConnectionPool,
+    prover_connection_pool: ProverConnectionPool,
     protocol_versions: Vec<FriProtocolVersionId>,
 }
 
 impl NodeAggregationWitnessGenerator {
     pub async fn new(
         store_factory: &ObjectStoreFactory,
-        prover_connection_pool: ConnectionPool,
+        prover_connection_pool: ProverConnectionPool,
         protocol_versions: Vec<FriProtocolVersionId>,
     ) -> Self {
         Self {
@@ -251,7 +251,7 @@ pub async fn prepare_job(
 
 #[allow(clippy::too_many_arguments)]
 async fn update_database(
-    prover_connection_pool: &ConnectionPool,
+    prover_connection_pool: &ProverConnectionPool,
     started_at: Instant,
     id: u32,
     block_number: L1BatchNumber,

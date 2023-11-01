@@ -29,7 +29,9 @@ use zksync_core::{
         MainNodeClient, SyncState,
     },
 };
-use zksync_dal::{connection::DbVariant, healthcheck::ConnectionPoolHealthCheck, ConnectionPool};
+use zksync_dal::{
+    connection::DbVariant, healthcheck::MainConnectionPoolHealthCheck, MainConnectionPool,
+};
 use zksync_health_check::CheckHealth;
 use zksync_state::PostgresStorageCaches;
 use zksync_storage::RocksDB;
@@ -45,7 +47,7 @@ async fn build_state_keeper(
     action_queue: ActionQueue,
     state_keeper_db_path: String,
     config: &ExternalNodeConfig,
-    connection_pool: ConnectionPool,
+    connection_pool: MainConnectionPool,
     sync_state: SyncState,
     l2_erc20_bridge_addr: Address,
     stop_receiver: watch::Receiver<bool>,
@@ -90,7 +92,7 @@ async fn build_state_keeper(
 
 async fn init_tasks(
     config: ExternalNodeConfig,
-    connection_pool: ConnectionPool,
+    connection_pool: MainConnectionPool,
 ) -> anyhow::Result<(
     Vec<task::JoinHandle<anyhow::Result<()>>>,
     watch::Sender<bool>,
@@ -122,7 +124,7 @@ async fn init_tasks(
 
     let main_node_client = <dyn MainNodeClient>::json_rpc(&main_node_url)
         .context("Failed creating JSON-RPC client for main node")?;
-    let singleton_pool_builder = ConnectionPool::singleton(DbVariant::Master);
+    let singleton_pool_builder = MainConnectionPool::singleton(DbVariant::Master);
     let fetcher_cursor = {
         let pool = singleton_pool_builder
             .build()
@@ -183,7 +185,7 @@ async fn init_tasks(
         .await
         .context("failed to build a tree_pool")?;
     // todo: PLA-335
-    let prover_tree_pool = ConnectionPool::singleton(DbVariant::Prover)
+    let prover_tree_pool = MainConnectionPool::singleton(DbVariant::Prover)
         .build()
         .await
         .context("failed to build a prover_tree_pool")?;
@@ -266,7 +268,9 @@ async fn init_tasks(
 
     healthchecks.push(Box::new(ws_server_handles.health_check));
     healthchecks.push(Box::new(http_server_handles.health_check));
-    healthchecks.push(Box::new(ConnectionPoolHealthCheck::new(connection_pool)));
+    healthchecks.push(Box::new(MainConnectionPoolHealthCheck::new(
+        connection_pool,
+    )));
     let healthcheck_handle = HealthCheckHandle::spawn_server(
         ([0, 0, 0, 0], config.required.healthcheck_port).into(),
         healthchecks,
@@ -348,7 +352,7 @@ async fn main() -> anyhow::Result<()> {
         .main_node_url()
         .context("Main node URL is incorrect")?;
 
-    let connection_pool = ConnectionPool::builder(DbVariant::Master)
+    let connection_pool = MainConnectionPool::builder(DbVariant::Master)
         .build()
         .await
         .context("failed to build a connection_pool")?;

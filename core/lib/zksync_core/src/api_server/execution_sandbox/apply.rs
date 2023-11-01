@@ -12,7 +12,7 @@ use multivm::vm_latest::{constants::BLOCK_GAS_LIMIT, HistoryDisabled};
 
 use multivm::interface::{L1BatchEnv, L2BlockEnv, SystemEnv};
 use multivm::VmInstance;
-use zksync_dal::{ConnectionPool, MainStorageProcessor, SqlxError};
+use zksync_dal::{MainConnectionPool, MainStorageProcessor, SqlxError};
 use zksync_state::{PostgresStorage, ReadStorage, StorageView, WriteStorage};
 use zksync_system_constants::{
     SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
@@ -38,7 +38,7 @@ pub(super) fn apply_vm_in_sandbox<T>(
     vm_permit: VmPermit,
     shared_args: TxSharedArgs,
     execution_args: &TxExecutionArgs,
-    connection_pool: &ConnectionPool,
+    connection_pool: &MainConnectionPool,
     tx: Transaction,
     block_args: BlockArgs,
     apply: impl FnOnce(&mut VmInstance<PostgresStorage<'_>, HistoryDisabled>, Transaction) -> T,

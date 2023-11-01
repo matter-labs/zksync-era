@@ -20,7 +20,6 @@ use crate::fri_prover_dal::FriProverDal;
 use crate::fri_scheduler_dependency_tracker_dal::FriSchedulerDependencyTrackerDal;
 use crate::fri_witness_generator_dal::FriWitnessGeneratorDal;
 use crate::gpu_prover_queue_dal::GpuProverQueueDal;
-use crate::proof_generation_dal::ProofGenerationDal;
 use crate::prover_dal::ProverDal;
 use crate::prover_protocol_versions_dal::ProverProtocolVersionsDal;
 use crate::witness_generator_dal::WitnessGeneratorDal;
@@ -37,17 +36,13 @@ pub mod fri_witness_generator_dal;
 pub mod gpu_prover_queue_dal;
 pub mod healthcheck;
 mod models;
-pub mod proof_generation_dal;
 pub mod prover_dal;
 pub mod prover_protocol_versions_dal;
 pub mod witness_generator_dal;
 
 /// Obtains the master prover database URL from the environment variable.
 pub fn get_prover_database_url() -> anyhow::Result<String> {
-    match env::var("DATABASE_PROVER_URL") {
-        Ok(url) => Ok(url),
-        Err(_) => get_master_database_url(),
-    }
+    Ok(env::var("DATABASE_PROVER_URL")?)
 }
 
 /// Obtains the test database URL from the environment variable.
@@ -66,7 +61,7 @@ pub struct ProverStorageProcessor<'a> {
 
 impl<'a> ProverStorageProcessor<'a> {
     pub async fn establish_connection() -> anyhow::Result<ProverStorageProcessor<'static>> {
-        let database_url = get_prover_database_url();
+        let database_url = get_prover_database_url()?;
         let connection = PgConnection::connect(&database_url)
             .await
             .context("PgConnectio::connect()")?;
@@ -151,10 +146,6 @@ impl<'a> ProverStorageProcessor<'a> {
         &mut self,
     ) -> FriSchedulerDependencyTrackerDal<'_, 'a> {
         FriSchedulerDependencyTrackerDal { storage: self }
-    }
-
-    pub fn proof_generation_dal(&mut self) -> ProofGenerationDal<'_, 'a> {
-        ProofGenerationDal { storage: self }
     }
 
     pub fn fri_gpu_prover_queue_dal(&mut self) -> FriGpuProverQueueDal<'_, 'a> {

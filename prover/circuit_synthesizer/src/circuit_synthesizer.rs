@@ -16,8 +16,8 @@ use zkevm_test_harness::witness::oracle::VmWitnessOracle;
 use zksync_config::configs::prover_group::ProverGroupConfig;
 use zksync_config::configs::CircuitSynthesizerConfig;
 use zksync_config::ProverConfigs;
-use zksync_dal::ConnectionPool;
 use zksync_object_store::{CircuitKey, ObjectStore, ObjectStoreError, ObjectStoreFactory};
+use zksync_prover_dal::ProverConnectionPool;
 use zksync_prover_fri_utils::socket_utils::send_assembly;
 use zksync_prover_utils::numeric_index_to_circuit_name;
 use zksync_prover_utils::region_fetcher::{get_region, get_zone};
@@ -48,7 +48,8 @@ pub struct CircuitSynthesizer {
     region: String,
     zone: String,
     vk_commitments: L1VerifierConfig,
-    prover_connection_pool: ConnectionPool,
+    prover_connection_pool: ProverConnectionPool,
+    main_connection_pool: MainConnectionPool,
 }
 
 impl CircuitSynthesizer {
@@ -57,7 +58,8 @@ impl CircuitSynthesizer {
         prover_groups: ProverGroupConfig,
         store_factory: &ObjectStoreFactory,
         vk_commitments: L1VerifierConfig,
-        prover_connection_pool: ConnectionPool,
+        prover_connection_pool: ProverConnectionPool,
+        main_connection_pool: MainConnectionPool,
     ) -> Result<Self, CircuitSynthesizerError> {
         let is_specialized = prover_groups.is_specialized_group_id(config.prover_group_id);
         let allowed_circuit_types = if is_specialized {
@@ -96,6 +98,7 @@ impl CircuitSynthesizer {
                 .map_err(CircuitSynthesizerError::GetZoneFailed)?,
             vk_commitments,
             prover_connection_pool,
+            main_connection_pool,
         })
     }
 
@@ -140,7 +143,7 @@ impl JobProcessor for CircuitSynthesizer {
         );
         let mut storage = self.prover_connection_pool.access_storage().await.unwrap();
         let protocol_versions = storage
-            .protocol_versions_dal()
+            .prover_protocol_versions_dal()
             .protocol_version_for(&self.vk_commitments)
             .await;
 
@@ -184,10 +187,23 @@ impl JobProcessor for CircuitSynthesizer {
             .await
             .unwrap()
             .prover_dal()
-            .save_proof_error(job_id, error, self.config.max_attempts)
+            .save_proof_error(job_id, error)
             .await;
         if let Err(err) = res {
             tracing::error!("save_proof_error(): {err:#}");
+        } else {
+            let attempts = res.0;
+            let l1_batch_number = res.1;
+            if attempts >= self.config.max_attempts {
+                self.main_connection_pool
+                    .access_storage()
+                    .await
+                    .unwrap()
+                    .blocks_dal()
+                    .set_skip_proof_for_l1_batch(L1BatchNumber(l1_batch_number))
+                    .await
+                    .unwrap();
+            }
         }
     }
 
@@ -277,7 +293,7 @@ async fn handle_send_result(
     result: &Result<(Duration, u64), String>,
     job_id: u32,
     address: &SocketAddress,
-    pool: &ConnectionPool,
+    pool: &ProverConnectionPool,
     region: String,
     zone: String,
 ) -> anyhow::Result<()> {
@@ -337,14 +353,23 @@ async fn handle_send_result(
                 .await
                 .unwrap()
                 .prover_dal()
-                .save_proof_error(
-                    job_id,
-                    "prover instance unreachable".to_string(),
-                    prover_config.max_attempts,
-                )
+                .save_proof_error(job_id, "prover instance unreachable".to_string())
                 .await;
             if let Err(err) = res {
                 tracing::error!("save_proof_error(): {err}");
+            } else {
+                let attempts = res.0;
+                let l1_batch_number = res.1;
+                if attempts >= self.config.max_attempts {
+                    self.main_connection_pool
+                        .access_storage()
+                        .await
+                        .unwrap()
+                        .blocks_dal()
+                        .set_skip_proof_for_l1_batch(L1BatchNumber(l1_batch_number))
+                        .await
+                        .unwrap();
+                }
             }
         }
     }

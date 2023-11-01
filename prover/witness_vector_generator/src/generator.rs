@@ -6,8 +6,8 @@ use tokio::task::JoinHandle;
 
 use tokio::time::sleep;
 use zksync_config::configs::FriWitnessVectorGeneratorConfig;
-use zksync_dal::ConnectionPool;
 use zksync_object_store::ObjectStore;
+use zksync_prover_dal::ProverConnectionPool;
 use zksync_prover_fri_types::circuit_definitions::boojum::field::goldilocks::GoldilocksField;
 use zksync_prover_fri_types::{CircuitWrapper, ProverJob, WitnessVectorArtifacts};
 use zksync_prover_fri_utils::fetch_next_circuit;
@@ -21,7 +21,7 @@ use zksync_vk_setup_data_server_fri::get_finalization_hints;
 
 pub struct WitnessVectorGenerator {
     blob_store: Box<dyn ObjectStore>,
-    pool: ConnectionPool,
+    pool: ProverConnectionPool,
     circuit_ids_for_round_to_be_proven: Vec<CircuitIdRoundTuple>,
     zone: String,
     config: FriWitnessVectorGeneratorConfig,
@@ -31,7 +31,7 @@ pub struct WitnessVectorGenerator {
 impl WitnessVectorGenerator {
     pub fn new(
         blob_store: Box<dyn ObjectStore>,
-        prover_connection_pool: ConnectionPool,
+        prover_connection_pool: ProverConnectionPool,
         circuit_ids_for_round_to_be_proven: Vec<CircuitIdRoundTuple>,
         zone: String,
         config: FriWitnessVectorGeneratorConfig,
@@ -172,7 +172,7 @@ async fn handle_send_result(
     result: &Result<(Duration, u64), String>,
     job_id: u32,
     address: &SocketAddress,
-    pool: &ConnectionPool,
+    pool: &ProverConnectionPool,
     zone: String,
 ) {
     match result {

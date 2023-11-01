@@ -4,9 +4,9 @@ use structopt::StructOpt;
 use tokio::{sync::oneshot, sync::watch};
 
 use zksync_config::configs::{AlertsConfig, CircuitSynthesizerConfig, ProverGroupConfig};
-use zksync_dal::connection::DbVariant;
-use zksync_dal::ConnectionPool;
 use zksync_object_store::ObjectStoreFactory;
+use zksync_prover_dal::connection::DbVariant;
+use zksync_prover_dal::ProverConnectionPool;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_utils::wait_for_tasks::wait_for_tasks;
 use zksync_verification_key_server::get_cached_commitments;
@@ -44,7 +44,7 @@ async fn main() -> anyhow::Result<()> {
     let opt = Opt::from_args();
     let config: CircuitSynthesizerConfig =
         CircuitSynthesizerConfig::from_env().context("CircuitSynthesizerConfig::from_env()")?;
-    let pool = ConnectionPool::builder(DbVariant::Prover)
+    let pool = ProverConnectionPool::builder(DbVariant::Real)
         .build()
         .await
         .context("failed to build a connection pool")?;

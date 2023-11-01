@@ -1,10 +1,10 @@
-use zksync_dal::ConnectionPool;
+use zksync_dal::MainConnectionPool;
 
 use crate::{CircuitBreaker, CircuitBreakerError};
 
 #[derive(Debug)]
 pub struct ReplicationLagChecker {
-    pub pool: ConnectionPool,
+    pub pool: MainConnectionPool,
     pub replication_lag_limit_sec: Option<u32>,
 }
 

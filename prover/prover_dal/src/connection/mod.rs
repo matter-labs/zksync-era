@@ -9,9 +9,8 @@ use std::time::Duration;
 
 use zksync_utils::parse_env;
 
-use zksync_dal::{
-    get_prover_database_url, get_test_prover_database_url, metrics::CONNECTION_METRICS,
-};
+use crate::{get_prover_database_url, get_test_prover_database_url};
+use zksync_dal::metrics::CONNECTION_METRICS;
 
 use crate::ProverStorageProcessor;
 

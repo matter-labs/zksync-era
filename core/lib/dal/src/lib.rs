@@ -21,6 +21,7 @@ use crate::contract_verification_dal::ContractVerificationDal;
 use crate::eth_sender_dal::EthSenderDal;
 use crate::events_dal::EventsDal;
 use crate::events_web3_dal::EventsWeb3Dal;
+use crate::proof_generation_dal::ProofGenerationDal;
 use crate::protocol_versions_dal::ProtocolVersionsDal;
 use crate::protocol_versions_web3_dal::ProtocolVersionsWeb3Dal;
 use crate::storage_dal::StorageDal;
@@ -46,9 +47,10 @@ pub mod eth_sender_dal;
 pub mod events_dal;
 pub mod events_web3_dal;
 pub mod healthcheck;
-mod instrument;
-mod metrics;
+pub mod instrument;
+pub mod metrics;
 mod models;
+pub mod proof_generation_dal;
 pub mod protocol_versions_dal;
 pub mod protocol_versions_web3_dal;
 pub mod storage_dal;
@@ -236,5 +238,9 @@ impl<'a> MainStorageProcessor<'a> {
 
     pub fn basic_witness_input_producer_dal(&mut self) -> BasicWitnessInputProducerDal<'_, 'a> {
         BasicWitnessInputProducerDal { storage: self }
+    }
+
+    pub fn proof_generation_dal(&mut self) -> ProofGenerationDal<'_, 'a> {
+        ProofGenerationDal { storage: self }
     }
 }

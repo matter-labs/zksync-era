@@ -7,8 +7,8 @@ use structopt::StructOpt;
 use tokio::sync::watch;
 use zksync_config::configs::{FriWitnessGeneratorConfig, PrometheusConfig};
 use zksync_config::ObjectStoreConfig;
-use zksync_dal::{connection::DbVariant, ConnectionPool};
 use zksync_object_store::ObjectStoreFactory;
+use zksync_prover_dal::{connection::DbVariant, ProverConnectionPool};
 use zksync_prover_utils::get_stop_signal_receiver;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::proofs::AggregationRound;
@@ -76,11 +76,12 @@ async fn main() -> anyhow::Result<()> {
     let config =
         FriWitnessGeneratorConfig::from_env().context("FriWitnessGeneratorConfig::from_env()")?;
     let prometheus_config = PrometheusConfig::from_env().context("PrometheusConfig::from_env()")?;
-    let connection_pool = ConnectionPool::builder(DbVariant::Master)
-        .build()
-        .await
-        .context("failed to build a connection_pool")?;
-    let prover_connection_pool = ConnectionPool::builder(DbVariant::Prover)
+    let connection_pool =
+        MainConnectionPool::builder(zksync_main_dal::connection::DbVariant::Master)
+            .build()
+            .await
+            .context("failed to build a connection_pool")?;
+    let prover_connection_pool = ProverConnectionPool::builder(DbVariant::Real)
         .build()
         .await
         .context("failed to build a prover_connection_pool")?;

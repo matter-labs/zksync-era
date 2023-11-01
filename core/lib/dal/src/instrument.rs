@@ -39,7 +39,7 @@ impl fmt::Display for QueryArgs<'_> {
 }
 
 /// Extension trait for instrumenting `sqlx::query!` outputs.
-pub(crate) trait InstrumentExt: Sized {
+pub trait InstrumentExt: Sized {
     /// Instruments a query, assigning it the provided name.
     fn instrument(self, name: &'static str) -> Instrumented<'static, Self>;
 }
@@ -168,7 +168,7 @@ impl<'a> InstrumentedData<'a> {
 /// - Slow and erroneous queries are also reported using metrics (`dal.request.slow` and `dal.request.error`,
 ///   respectively). The query name is included as a metric label; args are not included for obvious reasons.
 #[derive(Debug)]
-pub(crate) struct Instrumented<'a, Q> {
+pub struct Instrumented<'a, Q> {
     query: Q,
     data: InstrumentedData<'a>,
 }
@@ -244,11 +244,11 @@ mod tests {
     use zksync_types::{MiniblockNumber, H256};
 
     use super::*;
-    use crate::ConnectionPool;
+    use crate::MainConnectionPool;
 
     #[tokio::test]
     async fn instrumenting_erroneous_query() {
-        let pool = ConnectionPool::test_pool().await;
+        let pool = MainConnectionPool::test_pool().await;
         // Add `vlog::init()` here to debug this test
 
         let mut conn = pool.access_storage().await.unwrap();
@@ -264,7 +264,7 @@ mod tests {
 
     #[tokio::test]
     async fn instrumenting_slow_query() {
-        let pool = ConnectionPool::test_pool().await;
+        let pool = MainConnectionPool::test_pool().await;
         // Add `vlog::init()` here to debug this test
 
         let mut conn = pool.access_storage().await.unwrap();

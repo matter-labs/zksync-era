@@ -18,8 +18,8 @@ pub mod gpu_prover {
 
     use zksync_config::configs::fri_prover_group::FriProverGroupConfig;
     use zksync_config::configs::FriProverConfig;
-    use zksync_dal::ConnectionPool;
     use zksync_object_store::ObjectStore;
+    use zksync_prover_dal::ProverConnectionPool;
     use zksync_prover_fri_types::{CircuitWrapper, FriProofWrapper, ProverServiceDataKey};
     use zksync_queued_job_processor::{async_trait, JobProcessor};
     use zksync_types::{basic_fri_types::CircuitIdRoundTuple, proofs::SocketAddress};
@@ -47,7 +47,7 @@ pub mod gpu_prover {
         blob_store: Box<dyn ObjectStore>,
         public_blob_store: Option<Box<dyn ObjectStore>>,
         config: Arc<FriProverConfig>,
-        prover_connection_pool: ConnectionPool,
+        prover_connection_pool: ProverConnectionPool,
         setup_load_mode: SetupLoadMode,
         // Only pick jobs for the configured circuit id and aggregation rounds.
         // Empty means all jobs are picked.
@@ -64,7 +64,7 @@ pub mod gpu_prover {
             blob_store: Box<dyn ObjectStore>,
             public_blob_store: Option<Box<dyn ObjectStore>>,
             config: FriProverConfig,
-            prover_connection_pool: ConnectionPool,
+            prover_connection_pool: ProverConnectionPool,
             setup_load_mode: SetupLoadMode,
             circuit_ids_for_round_to_be_proven: Vec<CircuitIdRoundTuple>,
             witness_vector_queue: SharedWitnessVectorQueue,

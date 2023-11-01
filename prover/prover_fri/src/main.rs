@@ -9,9 +9,8 @@ use prometheus_exporter::PrometheusExporterConfig;
 use zksync_config::configs::fri_prover_group::FriProverGroupConfig;
 use zksync_config::configs::FriProverConfig;
 use zksync_config::ObjectStoreConfig;
-use zksync_dal::connection::DbVariant;
-use zksync_dal::ConnectionPool;
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
+use zksync_prover_dal::{connection::DbVariant, ProverConnectionPool};
 use zksync_prover_fri_utils::get_all_circuit_id_round_tuples_for;
 
 use local_ip_address::local_ip;
@@ -28,7 +27,7 @@ mod socket_listener;
 mod utils;
 
 async fn graceful_shutdown(port: u16) -> anyhow::Result<impl Future<Output = ()>> {
-    let pool = ConnectionPool::singleton(DbVariant::Prover)
+    let pool = ProverConnectionPool::singleton(DbVariant::Real)
         .build()
         .await
         .context("failed to build a connection pool")?;
@@ -109,7 +108,7 @@ async fn main() -> anyhow::Result<()> {
         specialized_group_id,
         circuit_ids_for_round_to_be_proven.clone()
     );
-    let pool = ConnectionPool::builder(DbVariant::Prover)
+    let pool = ProverConnectionPool::builder(DbVariant::Real)
         .build()
         .await
         .context("failed to build a connection pool")?;
@@ -155,7 +154,7 @@ async fn get_prover_tasks(
     stop_receiver: Receiver<bool>,
     store_factory: ObjectStoreFactory,
     public_blob_store: Option<Box<dyn ObjectStore>>,
-    pool: ConnectionPool,
+    pool: ProverConnectionPool,
     circuit_ids_for_round_to_be_proven: Vec<CircuitIdRoundTuple>,
 ) -> anyhow::Result<Vec<JoinHandle<anyhow::Result<()>>>> {
     use crate::prover_job_processor::{load_setup_data_cache, Prover};
@@ -188,7 +187,7 @@ async fn get_prover_tasks(
     stop_receiver: Receiver<bool>,
     store_factory: ObjectStoreFactory,
     public_blob_store: Option<Box<dyn ObjectStore>>,
-    pool: ConnectionPool,
+    pool: ProverConnectionPool,
     circuit_ids_for_round_to_be_proven: Vec<CircuitIdRoundTuple>,
 ) -> anyhow::Result<Vec<JoinHandle<anyhow::Result<()>>>> {
     use gpu_prover_job_processor::gpu_prover;

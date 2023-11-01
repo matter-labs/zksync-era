@@ -11,7 +11,7 @@ use regex::Regex;
 use tokio::time;
 
 use zksync_config::ContractVerifierConfig;
-use zksync_dal::{ConnectionPool, MainStorageProcessor};
+use zksync_dal::{MainConnectionPool, MainStorageProcessor};
 use zksync_queued_job_processor::{async_trait, JobProcessor};
 use zksync_types::{
     contract_verification_api::{
@@ -40,11 +40,11 @@ enum ConstructorArgs {
 #[derive(Debug)]
 pub struct ContractVerifier {
     config: ContractVerifierConfig,
-    connection_pool: ConnectionPool,
+    connection_pool: MainConnectionPool,
 }
 
 impl ContractVerifier {
-    pub fn new(config: ContractVerifierConfig, connection_pool: ConnectionPool) -> Self {
+    pub fn new(config: ContractVerifierConfig, connection_pool: MainConnectionPool) -> Self {
         Self {
             config,
             connection_pool,

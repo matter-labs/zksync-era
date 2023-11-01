@@ -5,7 +5,7 @@ use std::{collections::HashMap, time::Duration};
 use async_trait::async_trait;
 
 use zksync_config::{configs::fetcher::TokenPriceSource, FetcherConfig};
-use zksync_dal::{ConnectionPool, MainStorageProcessor};
+use zksync_dal::{MainConnectionPool, MainStorageProcessor};
 use zksync_types::{tokens::TokenPrice, Address};
 
 use super::error::{ApiFetchError, ErrorAnalyzer};
@@ -64,7 +64,7 @@ impl TokenPriceFetcher {
 
     pub async fn run(
         mut self,
-        pool: ConnectionPool,
+        pool: MainConnectionPool,
         stop_receiver: watch::Receiver<bool>,
     ) -> anyhow::Result<()> {
         let mut fetching_interval =

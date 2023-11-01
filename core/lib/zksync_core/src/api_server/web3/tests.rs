@@ -7,7 +7,7 @@ use zksync_config::configs::{
     chain::{NetworkConfig, StateKeeperConfig},
     ContractsConfig,
 };
-use zksync_dal::ConnectionPool;
+use zksync_dal::MainConnectionPool;
 use zksync_health_check::CheckHealth;
 use zksync_state::PostgresStorageCaches;
 use zksync_types::{L1BatchNumber, U64};
@@ -67,7 +67,7 @@ impl ApiServerHandles {
 
 pub(crate) async fn spawn_http_server(
     network_config: &NetworkConfig,
-    pool: ConnectionPool,
+    pool: MainConnectionPool,
     stop_receiver: watch::Receiver<bool>,
 ) -> ApiServerHandles {
     let contracts_config = ContractsConfig::from_env().unwrap();
@@ -102,7 +102,7 @@ pub(crate) async fn spawn_http_server(
 
 #[tokio::test]
 async fn http_server_can_start() {
-    let pool = ConnectionPool::test_pool().await;
+    let pool = MainConnectionPool::test_pool().await;
     let network_config = NetworkConfig::from_env().unwrap();
     let mut storage = pool.access_storage().await.unwrap();
     if storage.blocks_dal().is_genesis_needed().await.unwrap() {

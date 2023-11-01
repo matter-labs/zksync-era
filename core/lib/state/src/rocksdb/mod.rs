@@ -507,7 +507,7 @@ mod tests {
     use crate::test_utils::{
         create_l1_batch, create_miniblock, gen_storage_logs, prepare_postgres,
     };
-    use zksync_dal::ConnectionPool;
+    use zksync_dal::MainConnectionPool;
     use zksync_types::{MiniblockNumber, StorageLog};
 
     #[tokio::test]
@@ -548,7 +548,7 @@ mod tests {
 
     #[tokio::test]
     async fn rocksdb_storage_syncing_with_postgres() {
-        let pool = ConnectionPool::test_pool().await;
+        let pool = MainConnectionPool::test_pool().await;
         let mut conn = pool.access_storage().await.unwrap();
         prepare_postgres(&mut conn).await;
         let storage_logs = gen_storage_logs(20..40);
@@ -580,7 +580,7 @@ mod tests {
 
     #[tokio::test]
     async fn rocksdb_storage_revert() {
-        let pool = ConnectionPool::test_pool().await;
+        let pool = MainConnectionPool::test_pool().await;
         let mut conn = pool.access_storage().await.unwrap();
         prepare_postgres(&mut conn).await;
         let storage_logs = gen_storage_logs(20..40);
@@ -652,7 +652,7 @@ mod tests {
 
     #[tokio::test]
     async fn rocksdb_enum_index_migration() {
-        let pool = ConnectionPool::test_pool().await;
+        let pool = MainConnectionPool::test_pool().await;
         let mut conn = pool.access_storage().await.unwrap();
         prepare_postgres(&mut conn).await;
         let storage_logs = gen_storage_logs(20..40);

@@ -3,7 +3,7 @@ use async_trait::async_trait;
 use std::{collections::HashMap, slice, time::Instant};
 
 use zksync_config::configs::WitnessGeneratorConfig;
-use zksync_dal::ConnectionPool;
+use zksync_dal::MainConnectionPool;
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::{
@@ -41,8 +41,8 @@ pub struct SchedulerWitnessGenerator {
     config: WitnessGeneratorConfig,
     object_store: Box<dyn ObjectStore>,
     protocol_versions: Vec<ProtocolVersionId>,
-    connection_pool: ConnectionPool,
-    prover_connection_pool: ConnectionPool,
+    connection_pool: MainConnectionPool,
+    prover_connection_pool: MainConnectionPool,
 }
 
 impl SchedulerWitnessGenerator {
@@ -50,8 +50,8 @@ impl SchedulerWitnessGenerator {
         config: WitnessGeneratorConfig,
         store_factory: &ObjectStoreFactory,
         protocol_versions: Vec<ProtocolVersionId>,
-        connection_pool: ConnectionPool,
-        prover_connection_pool: ConnectionPool,
+        connection_pool: MainConnectionPool,
+        prover_connection_pool: MainConnectionPool,
     ) -> Self {
         Self {
             config,
@@ -253,8 +253,8 @@ pub fn process_scheduler_job(
 }
 
 pub async fn update_database(
-    connection_pool: &ConnectionPool,
-    prover_connection_pool: &ConnectionPool,
+    connection_pool: &MainConnectionPool,
+    prover_connection_pool: &MainConnectionPool,
     started_at: Instant,
     block_number: L1BatchNumber,
     final_aggregation_result: BlockApplicationWitness<Bn256>,

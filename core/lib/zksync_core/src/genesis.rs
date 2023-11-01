@@ -399,14 +399,14 @@ pub(crate) async fn save_genesis_l1_batch_metadata(
 
 #[cfg(test)]
 mod tests {
-    use zksync_dal::ConnectionPool;
+    use zksync_dal::MainConnectionPool;
     use zksync_types::system_contracts::get_system_smart_contracts;
 
     use super::*;
 
     #[tokio::test]
     async fn running_genesis() {
-        let pool = ConnectionPool::test_pool().await;
+        let pool = MainConnectionPool::test_pool().await;
         let mut conn = pool.access_storage().await.unwrap();
         conn.blocks_dal().delete_genesis().await.unwrap();
 
@@ -439,7 +439,7 @@ mod tests {
 
     #[tokio::test]
     async fn running_genesis_with_big_chain_id() {
-        let pool = ConnectionPool::test_pool().await;
+        let pool = MainConnectionPool::test_pool().await;
         let mut conn: MainStorageProcessor<'_> = pool.access_storage().await.unwrap();
         conn.blocks_dal().delete_genesis().await.unwrap();
 

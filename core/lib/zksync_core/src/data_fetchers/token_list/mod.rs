@@ -17,7 +17,7 @@ use async_trait::async_trait;
 use tokio::sync::watch;
 
 use zksync_config::{configs::fetcher::TokenListSource, FetcherConfig};
-use zksync_dal::{ConnectionPool, MainStorageProcessor};
+use zksync_dal::{MainConnectionPool, MainStorageProcessor};
 use zksync_types::network::Network;
 use zksync_types::{tokens::TokenMetadata, Address};
 
@@ -64,7 +64,7 @@ impl TokenListFetcher {
 
     pub async fn run(
         mut self,
-        pool: ConnectionPool,
+        pool: MainConnectionPool,
         stop_receiver: watch::Receiver<bool>,
     ) -> anyhow::Result<()> {
         let mut fetching_interval =

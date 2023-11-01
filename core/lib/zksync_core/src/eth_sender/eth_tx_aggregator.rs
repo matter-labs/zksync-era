@@ -4,7 +4,7 @@ use tokio::sync::watch;
 
 use zksync_config::configs::eth_sender::SenderConfig;
 use zksync_contracts::BaseSystemContractsHashes;
-use zksync_dal::{ConnectionPool, MainStorageProcessor};
+use zksync_dal::{MainConnectionPool, MainStorageProcessor};
 use zksync_eth_client::BoundEthInterface;
 use zksync_types::{
     aggregated_operations::AggregatedOperation,
@@ -71,8 +71,8 @@ impl EthTxAggregator {
 
     pub async fn run<E: BoundEthInterface>(
         mut self,
-        pool: ConnectionPool,
-        prover_pool: ConnectionPool,
+        pool: MainConnectionPool,
+        prover_pool: MainConnectionPool,
         eth_client: E,
         stop_receiver: watch::Receiver<bool>,
     ) -> anyhow::Result<()> {

@@ -1,7 +1,7 @@
 use std::time::Instant;
 
-use zksync_dal::MainStorageProcessor;
 use zksync_object_store::{FriCircuitKey, ObjectStore};
+use zksync_prover_dal::ProverStorageProcessor;
 use zksync_prover_fri_types::circuit_definitions::circuit_definitions::recursion_layer::base_circuit_type_into_recursive_leaf_circuit_type;
 use zksync_prover_fri_types::circuit_definitions::circuit_definitions::recursion_layer::ZkSyncRecursionLayerStorageType;
 use zksync_prover_fri_types::circuit_definitions::zkevm_circuits::scheduler::aux::BaseLayerCircuitType;
@@ -17,7 +17,7 @@ use zksync_types::protocol_version::L1VerifierConfig;
 pub mod socket_utils;
 
 pub async fn fetch_next_circuit(
-    storage: &mut MainStorageProcessor<'_>,
+    storage: &mut ProverStorageProcessor<'_>,
     blob_store: &dyn ObjectStore,
     circuit_ids_for_round_to_be_proven: &Vec<CircuitIdRoundTuple>,
     vk_commitments: &L1VerifierConfig,

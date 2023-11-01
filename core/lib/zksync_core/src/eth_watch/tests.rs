@@ -5,7 +5,7 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 
 use zksync_contracts::zksync_contract;
-use zksync_dal::{ConnectionPool, MainStorageProcessor};
+use zksync_dal::{MainConnectionPool, MainStorageProcessor};
 use zksync_types::protocol_version::{ProtocolUpgradeTx, ProtocolUpgradeTxCommonData};
 use zksync_types::web3::types::{Address, BlockNumber};
 use zksync_types::{
@@ -203,7 +203,7 @@ fn build_upgrade_tx(id: ProtocolVersionId, eth_block: u64) -> ProtocolUpgradeTx 
 
 #[tokio::test]
 async fn test_normal_operation_l1_txs() {
-    let connection_pool = ConnectionPool::test_pool().await;
+    let connection_pool = MainConnectionPool::test_pool().await;
     setup_db(&connection_pool).await;
 
     let mut client = FakeEthClient::new();
@@ -251,7 +251,7 @@ async fn test_normal_operation_l1_txs() {
 
 #[tokio::test]
 async fn test_normal_operation_upgrades() {
-    let connection_pool = ConnectionPool::test_pool().await;
+    let connection_pool = MainConnectionPool::test_pool().await;
     setup_db(&connection_pool).await;
 
     let mut client = FakeEthClient::new();
@@ -312,7 +312,7 @@ async fn test_normal_operation_upgrades() {
 
 #[tokio::test]
 async fn test_gap_in_upgrades() {
-    let connection_pool = ConnectionPool::test_pool().await;
+    let connection_pool = MainConnectionPool::test_pool().await;
     setup_db(&connection_pool).await;
 
     let mut client = FakeEthClient::new();
@@ -351,7 +351,7 @@ async fn test_gap_in_upgrades() {
 
 #[tokio::test]
 async fn test_normal_operation_governance_upgrades() {
-    let connection_pool = ConnectionPool::test_pool().await;
+    let connection_pool = MainConnectionPool::test_pool().await;
     setup_db(&connection_pool).await;
 
     let mut client = FakeEthClient::new();
@@ -413,7 +413,7 @@ async fn test_normal_operation_governance_upgrades() {
 #[tokio::test]
 #[should_panic]
 async fn test_gap_in_single_batch() {
-    let connection_pool = ConnectionPool::test_pool().await;
+    let connection_pool = MainConnectionPool::test_pool().await;
     setup_db(&connection_pool).await;
 
     let mut client = FakeEthClient::new();
@@ -443,7 +443,7 @@ async fn test_gap_in_single_batch() {
 #[tokio::test]
 #[should_panic]
 async fn test_gap_between_batches() {
-    let connection_pool = ConnectionPool::test_pool().await;
+    let connection_pool = MainConnectionPool::test_pool().await;
     setup_db(&connection_pool).await;
 
     let mut client = FakeEthClient::new();
@@ -478,7 +478,7 @@ async fn test_gap_between_batches() {
 
 #[tokio::test]
 async fn test_overlapping_batches() {
-    let connection_pool = ConnectionPool::test_pool().await;
+    let connection_pool = MainConnectionPool::test_pool().await;
     setup_db(&connection_pool).await;
 
     let mut client = FakeEthClient::new();
@@ -765,7 +765,7 @@ fn upgrade_into_diamond_cut(upgrade: ProtocolUpgrade) -> Token {
     ])
 }
 
-async fn setup_db(connection_pool: &ConnectionPool) {
+async fn setup_db(connection_pool: &MainConnectionPool) {
     connection_pool
         .access_storage()
         .await

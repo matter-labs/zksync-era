@@ -23,9 +23,10 @@ use crate::ProverStorageProcessor;
 
 use zksync_dal::{
     instrument::InstrumentExt,
-    models::storage_prover_job_info::StorageProverJobInfo,
     time_utils::{duration_to_naive_time, pg_interval_from_duration},
 };
+
+use crate::models::storage_prover_job_info::StorageProverJobInfo;
 
 #[derive(Debug)]
 pub struct ProverDal<'a, 'c> {
@@ -202,12 +203,7 @@ impl ProverDal<'_, '_> {
         Ok(())
     }
 
-    pub async fn save_proof_error(
-        &mut self,
-        id: u32,
-        error: String,
-        max_attempts: u32,
-    ) -> Result<(), Error> {
+    pub async fn save_proof_error(&mut self, id: u32, error: String) -> Result<(u32, u32), Error> {
         {
             let mut transaction = self.storage.start_transaction().await.unwrap();
 
@@ -224,16 +220,8 @@ impl ProverDal<'_, '_> {
             .fetch_one(transaction.conn())
             .await?;
 
-            if row.attempts as u32 >= max_attempts {
-                transaction
-                    .blocks_dal()
-                    .set_skip_proof_for_l1_batch(L1BatchNumber(row.l1_batch_number as u32))
-                    .await
-                    .unwrap();
-            }
-
             transaction.commit().await.unwrap();
-            Ok(())
+            Ok((row.attempts as u32, row.l1_batch_number as u32))
         }
     }
 

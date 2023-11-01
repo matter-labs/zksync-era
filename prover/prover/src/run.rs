@@ -10,8 +10,8 @@ use zksync_config::{
     configs::{api::PrometheusConfig, prover_group::ProverGroupConfig, AlertsConfig},
     ApiConfig, ProverConfig, ProverConfigs,
 };
-use zksync_dal::{connection::DbVariant, ConnectionPool};
 use zksync_object_store::ObjectStoreFactory;
+use zksync_prover_dal::{connection::DbVariant, ProverConnectionPool};
 use zksync_prover_utils::region_fetcher::{get_region, get_zone};
 use zksync_types::proofs::{GpuProverInstanceStatus, SocketAddress};
 use zksync_utils::wait_for_tasks::wait_for_tasks;
@@ -23,7 +23,7 @@ use crate::socket_listener::incoming_socket_listener;
 use crate::synthesized_circuit_provider::SynthesizedCircuitProvider;
 
 async fn graceful_shutdown() -> anyhow::Result<impl Future<Output = ()>> {
-    let pool = ConnectionPool::singleton(DbVariant::Prover)
+    let pool = ProverConnectionPool::singleton(DbVariant::Real)
         .build()
         .await
         .context("failed to build a connection pool")?;
@@ -172,7 +172,7 @@ pub async fn run() -> anyhow::Result<()> {
         local_ip,
         prover_config.assembly_receiver_port,
         producer,
-        ConnectionPool::singleton(DbVariant::Prover)
+        ProverConnectionPool::singleton(DbVariant::Real)
             .build()
             .await
             .context("failed to build a connection pool")?,
@@ -185,7 +185,7 @@ pub async fn run() -> anyhow::Result<()> {
     let params = ProverParams::new(&prover_config);
     let store_factory = ObjectStoreFactory::from_env().context("ObjectStoreFactory::from_env()")?;
 
-    let circuit_provider_pool = ConnectionPool::singleton(DbVariant::Prover)
+    let circuit_provider_pool = ProverConnectionPool::singleton(DbVariant::Real)
         .build()
         .await
         .context("failed to build circuit_provider_pool")?;
