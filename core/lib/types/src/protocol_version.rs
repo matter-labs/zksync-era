@@ -282,135 +282,12 @@ impl TryFrom<Log> for ProtocolUpgrade {
             _ => unreachable!(),
         };
 
-        let transaction = match decoded.remove(0) {
+        let mut transaction = match decoded.remove(0) {
             Token::Tuple(x) => x,
             _ => unreachable!(),
         };
         let factory_deps = decoded.remove(0).into_array().unwrap();
 
-        let tx =
-            ProtocolUpgradeTx::decode_tx(transaction, call.eth_hash, call.eth_block, factory_deps);
-
-        let bootloader_code_hash = H256::from_slice(&decoded.remove(0).into_fixed_bytes().unwrap());
-        let default_account_code_hash =
-            H256::from_slice(&decoded.remove(0).into_fixed_bytes().unwrap());
-        let verifier_address = decoded.remove(0).into_address().unwrap();
-        let mut verifier_params = match decoded.remove(0) {
-            Token::Tuple(tx) => tx,
-            _ => unreachable!(),
-        };
-        let recursion_node_level_vk_hash =
-            H256::from_slice(&verifier_params.remove(0).into_fixed_bytes().unwrap());
-        let recursion_leaf_level_vk_hash =
-            H256::from_slice(&verifier_params.remove(0).into_fixed_bytes().unwrap());
-        let recursion_circuits_set_vks_hash =
-            H256::from_slice(&verifier_params.remove(0).into_fixed_bytes().unwrap());
-
-        let _l1_custom_data = decoded.remove(0);
-        let _l1_post_upgrade_custom_data = decoded.remove(0);
-        let timestamp = decoded.remove(0).into_uint().unwrap();
-        let version_id = decoded.remove(0).into_uint().unwrap();
-        if version_id > u16::MAX.into() {
-            panic!("Version ID is too big, max expected is {}", u16::MAX);
-        }
-
-        let _allow_list_address = decoded.remove(0).into_address().unwrap();
-
-        Ok(Self {
-            id: ProtocolVersionId::try_from(version_id.as_u32() as u16)
-                .expect("Version is not supported"),
-            bootloader_code_hash: (bootloader_code_hash != H256::zero())
-                .then_some(bootloader_code_hash),
-            default_account_code_hash: (default_account_code_hash != H256::zero())
-                .then_some(default_account_code_hash),
-            verifier_params: (recursion_node_level_vk_hash != H256::zero()
-                && recursion_leaf_level_vk_hash != H256::zero()
-                && recursion_circuits_set_vks_hash != H256::zero())
-            .then_some(VerifierParams {
-                recursion_node_level_vk_hash,
-                recursion_leaf_level_vk_hash,
-                recursion_circuits_set_vks_hash,
-            }),
-            verifier_address: (verifier_address != Address::zero()).then_some(verifier_address),
-            timestamp: timestamp.as_u64(),
-            tx,
-        })
-    }
-}
-
-impl TryFrom<Log> for ProtocolUpgrade {
-    type Error = crate::ethabi::Error;
-
-    fn try_from(event: Log) -> Result<Self, Self::Error> {
-        let transaction_param_type = ParamType::Tuple(vec![
-            ParamType::Uint(256),                                     // txType
-            ParamType::Uint(256),                                     // sender
-            ParamType::Uint(256),                                     // to
-            ParamType::Uint(256),                                     // gasLimit
-            ParamType::Uint(256),                                     // gasPerPubdataLimit
-            ParamType::Uint(256),                                     // maxFeePerGas
-            ParamType::Uint(256),                                     // maxPriorityFeePerGas
-            ParamType::Uint(256),                                     // paymaster
-            ParamType::Uint(256),                                     // nonce (serial ID)
-            ParamType::Uint(256),                                     // value
-            ParamType::FixedArray(Box::new(ParamType::Uint(256)), 4), // reserved
-            ParamType::Bytes,                                         // calldata
-            ParamType::Bytes,                                         // signature
-            ParamType::Array(Box::new(ParamType::Uint(256))),         // factory deps
-            ParamType::Bytes,                                         // paymaster input
-            ParamType::Bytes,                                         // reservedDynamic
-        ]);
-
-        let mut decoded = decode(
-            &[
-                transaction_param_type,
-                ParamType::Uint(256),
-                ParamType::Uint(256),
-            ],
-            &event.data.0,
-        )?;
-        let transaction = match decoded.remove(0) {
-            Token::Tuple(x) => x,
-            _ => unreachable!(),
-        };
-
-        let timestamp = decoded.remove(0).into_uint().unwrap();
-        let version_id = decoded.remove(0).into_uint().unwrap();
-
-        let eth_hash = event
-            .transaction_hash
-            .expect("Event transaction hash is missing");
-        let eth_block = event
-            .block_number
-            .expect("Event block number is missing")
-            .as_u64();
-
-        let factory_deps: Vec<Token> = Vec::new();
-
-        let upgrade_tx =
-            ProtocolUpgradeTx::decode_tx(transaction, eth_hash, eth_block, factory_deps);
-
-        let upgrade = ProtocolUpgrade {
-            id: ProtocolVersionId::try_from(version_id.as_u32() as u16)
-                .expect("Version is not supported"),
-            bootloader_code_hash: None,
-            default_account_code_hash: None,
-            verifier_params: None,
-            verifier_address: None,
-            timestamp: timestamp.as_u64(),
-            tx: upgrade_tx,
-        };
-        Ok(upgrade)
-    }
-}
-
-impl ProtocolUpgradeTx {
-    pub fn decode_tx(
-        mut transaction: Vec<Token>,
-        eth_hash: H256,
-        eth_block: u64,
-        factory_deps: Vec<Token>,
-    ) -> Option<ProtocolUpgradeTx> {
         let tx = {
             let canonical_tx_hash = H256(keccak256(&encode(&[Token::Tuple(transaction.clone())])));
 
@@ -518,9 +395,53 @@ impl ProtocolUpgradeTx {
                 panic!("Unexpected tx type {} when decoding upgrade", tx_type);
             }
         };
-        tx
+
+        let bootloader_code_hash = H256::from_slice(&decoded.remove(0).into_fixed_bytes().unwrap());
+        let default_account_code_hash =
+            H256::from_slice(&decoded.remove(0).into_fixed_bytes().unwrap());
+        let verifier_address = decoded.remove(0).into_address().unwrap();
+        let mut verifier_params = match decoded.remove(0) {
+            Token::Tuple(tx) => tx,
+            _ => unreachable!(),
+        };
+        let recursion_node_level_vk_hash =
+            H256::from_slice(&verifier_params.remove(0).into_fixed_bytes().unwrap());
+        let recursion_leaf_level_vk_hash =
+            H256::from_slice(&verifier_params.remove(0).into_fixed_bytes().unwrap());
+        let recursion_circuits_set_vks_hash =
+            H256::from_slice(&verifier_params.remove(0).into_fixed_bytes().unwrap());
+
+        let _l1_custom_data = decoded.remove(0);
+        let _l1_post_upgrade_custom_data = decoded.remove(0);
+        let timestamp = decoded.remove(0).into_uint().unwrap();
+        let version_id = decoded.remove(0).into_uint().unwrap();
+        if version_id > u16::MAX.into() {
+            panic!("Version ID is too big, max expected is {}", u16::MAX);
+        }
+
+        let _allow_list_address = decoded.remove(0).into_address().unwrap();
+
+        Ok(Self {
+            id: ProtocolVersionId::try_from(version_id.as_u32() as u16)
+                .expect("Version is not supported"),
+            bootloader_code_hash: (bootloader_code_hash != H256::zero())
+                .then_some(bootloader_code_hash),
+            default_account_code_hash: (default_account_code_hash != H256::zero())
+                .then_some(default_account_code_hash),
+            verifier_params: (recursion_node_level_vk_hash != H256::zero()
+                && recursion_leaf_level_vk_hash != H256::zero()
+                && recursion_circuits_set_vks_hash != H256::zero())
+            .then_some(VerifierParams {
+                recursion_node_level_vk_hash,
+                recursion_leaf_level_vk_hash,
+                recursion_circuits_set_vks_hash,
+            }),
+            verifier_address: (verifier_address != Address::zero()).then_some(verifier_address),
+            timestamp: timestamp.as_u64(),
+            tx,
+        })
     }
-}
+}  
 
 impl TryFrom<Call> for ProtocolUpgrade {
     type Error = crate::ethabi::Error;

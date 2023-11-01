@@ -2994,6 +2994,17 @@ array-unique@^0.3.2:
   resolved "https://registry.yarnpkg.com/array-unique/-/array-unique-0.3.2.tgz#a894b75d4bc4f6cd679ef3244a9fd8f46ae2d428"
   integrity sha512-SleRWjh9JUud2wH1hPs9rZBZ33H6T9HOiL0uwGnGx9FpE6wKGyfWugmbkEOIs6qWrZhg0LWeLziLrEwQJhs5mQ==
 
+array.prototype.findlast@^1.2.2:
+  version "1.2.3"
+  resolved "https://registry.yarnpkg.com/array.prototype.findlast/-/array.prototype.findlast-1.2.3.tgz#4e4b375de5adf4897fed155e2d2771564865cc3b"
+  integrity sha512-kcBubumjciBg4JKp5KTKtI7ec7tRefPk88yjkWJwaVKYd9QfTaxcsOxoMNKd7iBr447zCfDV0z1kOF47umv42g==
+  dependencies:
+    call-bind "^1.0.2"
+    define-properties "^1.2.0"
+    es-abstract "^1.22.1"
+    es-shim-unscopables "^1.0.0"
+    get-intrinsic "^1.2.1"
+
 array.prototype.reduce@^1.0.6:
   version "1.0.6"
   resolved "https://registry.yarnpkg.com/array.prototype.reduce/-/array.prototype.reduce-1.0.6.tgz#63149931808c5fc1e1354814923d92d45f7d96d5"
@@ -5040,15 +5051,6 @@ define-properties@^1.1.3, define-properties@^1.1.4, define-properties@^1.2.0:
     has-property-descriptors "^1.0.0"
     object-keys "^1.1.1"
 
-define-properties@^1.2.0:
-  version "1.2.1"
-  resolved "https://registry.yarnpkg.com/define-properties/-/define-properties-1.2.1.tgz#10781cc616eb951a80a034bafcaa7377f6af2b6c"
-  integrity sha512-8QmQKqEASLd5nx0U1B1okLElbUuuttJ/AnYmRXbbbGDWh6uS208EjD4Xqq/I9wK7u0v6O08XhTWnt5XtEbR6Dg==
-  dependencies:
-    define-data-property "^1.0.1"
-    has-property-descriptors "^1.0.0"
-    object-keys "^1.1.1"
-
 define-property@^0.2.5:
   version "0.2.5"
   resolved "https://registry.yarnpkg.com/define-property/-/define-property-0.2.5.tgz#c35b1ef918ec3c990f9a5bc57be04aacec5c8116"
@@ -5343,51 +5345,6 @@ error-ex@^1.2.0, error-ex@^1.3.1:
   integrity sha512-7dFHNmqeFSEt2ZBsCriorKnn3Z2pj+fd9kmI6QoWw4//DL+icEBfc0U7qJCisqrTsKTjw4fNFy2pW9OqStD84g==
   dependencies:
     is-arrayish "^0.2.1"
-
-es-abstract@^1.22.1:
-  version "1.22.3"
-  resolved "https://registry.yarnpkg.com/es-abstract/-/es-abstract-1.22.3.tgz#48e79f5573198de6dee3589195727f4f74bc4f32"
-  integrity sha512-eiiY8HQeYfYH2Con2berK+To6GrK2RxbPawDkGq4UiCQQfZHb6wX9qQqkbpPqaxQFcl8d9QzZqo0tGE0VcrdwA==
-  dependencies:
-    array-buffer-byte-length "^1.0.0"
-    arraybuffer.prototype.slice "^1.0.2"
-    available-typed-arrays "^1.0.5"
-    call-bind "^1.0.5"
-    es-set-tostringtag "^2.0.1"
-    es-to-primitive "^1.2.1"
-    function.prototype.name "^1.1.6"
-    get-intrinsic "^1.2.2"
-    get-symbol-description "^1.0.0"
-    globalthis "^1.0.3"
-    gopd "^1.0.1"
-    has-property-descriptors "^1.0.0"
-    has-proto "^1.0.1"
-    has-symbols "^1.0.3"
-    hasown "^2.0.0"
-    internal-slot "^1.0.5"
-    is-array-buffer "^3.0.2"
-    is-callable "^1.2.7"
-    is-negative-zero "^2.0.2"
-    is-regex "^1.1.4"
-    is-shared-array-buffer "^1.0.2"
-    is-string "^1.0.7"
-    is-typed-array "^1.1.12"
-    is-weakref "^1.0.2"
-    object-inspect "^1.13.1"
-    object-keys "^1.1.1"
-    object.assign "^4.1.4"
-    regexp.prototype.flags "^1.5.1"
-    safe-array-concat "^1.0.1"
-    safe-regex-test "^1.0.0"
-    string.prototype.trim "^1.2.8"
-    string.prototype.trimend "^1.0.7"
-    string.prototype.trimstart "^1.0.7"
-    typed-array-buffer "^1.0.0"
-    typed-array-byte-length "^1.0.0"
-    typed-array-byte-offset "^1.0.0"
-    typed-array-length "^1.0.4"
-    unbox-primitive "^1.0.2"
-    which-typed-array "^1.1.13"
 
 es-abstract@^1.22.1:
   version "1.22.3"
@@ -6028,7 +5985,7 @@ ethereumjs-util@^5.0.0, ethereumjs-util@^5.0.1, ethereumjs-util@^5.1.1, ethereum
     rlp "^2.0.0"
     safe-buffer "^5.1.1"
 
-ethereumjs-util@^7.0.2:
+ethereumjs-util@^7.0.2, ethereumjs-util@^7.0.3:
   version "7.1.5"
   resolved "https://registry.yarnpkg.com/ethereumjs-util/-/ethereumjs-util-7.1.5.tgz#9ecf04861e4fbbeed7465ece5f23317ad1129181"
   integrity sha512-SDl5kKrQAudFBUe5OJM9Ac6WmMyYmXX/6sTmLZ3ffG2eY6ZIGBes3pEDxNN6V72WyOw4CPD5RomKdsa8DAAwLg==
@@ -6804,16 +6761,6 @@ function.prototype.name@^1.1.6:
     es-abstract "^1.22.1"
     functions-have-names "^1.2.3"
 
-function.prototype.name@^1.1.6:
-  version "1.1.6"
-  resolved "https://registry.yarnpkg.com/function.prototype.name/-/function.prototype.name-1.1.6.tgz#cdf315b7d90ee77a4c6ee216c3c3362da07533fd"
-  integrity sha512-Z5kx79swU5P27WEayXM1tBi5Ze/lbIyiNgU3qyXUOf9b2rgXYyF9Dy9Cx+IQv/Lc8WCG6L82zwUPpSS9hGehIg==
-  dependencies:
-    call-bind "^1.0.2"
-    define-properties "^1.2.0"
-    es-abstract "^1.22.1"
-    functions-have-names "^1.2.3"
-
 functional-red-black-tree@^1.0.1, functional-red-black-tree@~1.0.1:
   version "1.0.1"
   resolved "https://registry.yarnpkg.com/functional-red-black-tree/-/functional-red-black-tree-1.0.1.tgz#1b0ab3bd553b2a0d6399d29c0e3ea0b252078327"
@@ -6882,16 +6829,6 @@ get-func-name@^2.0.1, get-func-name@^2.0.2:
   integrity sha512-8vXOvuE167CtIc3OyItco7N/dpRtBbYOsPsXCz7X/PMnlGjYjSGuZJgM1Y7mmew7BKf9BqvLX2tnOVy1BBUsxQ==
 
 get-intrinsic@^1.0.2, get-intrinsic@^1.1.1, get-intrinsic@^1.1.3, get-intrinsic@^1.2.0, get-intrinsic@^1.2.1, get-intrinsic@^1.2.2:
-  version "1.2.2"
-  resolved "https://registry.yarnpkg.com/get-intrinsic/-/get-intrinsic-1.2.2.tgz#281b7622971123e1ef4b3c90fd7539306da93f3b"
-  integrity sha512-0gSo4ml/0j98Y3lngkFEot/zhiCeWsbYIlZ+uZOVgzLyLaUw7wxUL+nCTP0XJvJg1AXulJRI3UJi8GsbDuxdGA==
-  dependencies:
-    function-bind "^1.1.2"
-    has-proto "^1.0.1"
-    has-symbols "^1.0.3"
-    hasown "^2.0.0"
-
-get-intrinsic@^1.2.0, get-intrinsic@^1.2.1, get-intrinsic@^1.2.2:
   version "1.2.2"
   resolved "https://registry.yarnpkg.com/get-intrinsic/-/get-intrinsic-1.2.2.tgz#281b7622971123e1ef4b3c90fd7539306da93f3b"
   integrity sha512-0gSo4ml/0j98Y3lngkFEot/zhiCeWsbYIlZ+uZOVgzLyLaUw7wxUL+nCTP0XJvJg1AXulJRI3UJi8GsbDuxdGA==
@@ -7670,15 +7607,6 @@ internal-slot@^1.0.5:
     hasown "^2.0.0"
     side-channel "^1.0.4"
 
-internal-slot@^1.0.5:
-  version "1.0.6"
-  resolved "https://registry.yarnpkg.com/internal-slot/-/internal-slot-1.0.6.tgz#37e756098c4911c5e912b8edbf71ed3aa116f930"
-  integrity sha512-Xj6dv+PsbtwyPpEflsejS+oIZxmMlV44zAhG479uYu89MsjcYOhCFnNyKrkJrihbsiasQyY0afoCl/9BLR65bg==
-  dependencies:
-    get-intrinsic "^1.2.2"
-    hasown "^2.0.0"
-    side-channel "^1.0.4"
-
 interpret@^1.0.0:
   version "1.4.0"
   resolved "https://registry.yarnpkg.com/interpret/-/interpret-1.4.0.tgz#665ab8bc4da27a774a40584e812e3e0fa45b1a1e"
@@ -7724,15 +7652,6 @@ is-arguments@^1.0.4:
     has-tostringtag "^1.0.0"
 
 is-array-buffer@^3.0.1, is-array-buffer@^3.0.2:
-  version "3.0.2"
-  resolved "https://registry.yarnpkg.com/is-array-buffer/-/is-array-buffer-3.0.2.tgz#f2653ced8412081638ecb0ebbd0c41c6e0aecbbe"
-  integrity sha512-y+FyyR/w8vfIRq4eQcM1EYgSTnmHXPqaF+IgzgraytCFq5Xh8lllDVmAZolPJiZttZLeFSINPYMaEJ7/vWUa1w==
-  dependencies:
-    call-bind "^1.0.2"
-    get-intrinsic "^1.2.0"
-    is-typed-array "^1.1.10"
-
-is-array-buffer@^3.0.2:
   version "3.0.2"
   resolved "https://registry.yarnpkg.com/is-array-buffer/-/is-array-buffer-3.0.2.tgz#f2653ced8412081638ecb0ebbd0c41c6e0aecbbe"
   integrity sha512-y+FyyR/w8vfIRq4eQcM1EYgSTnmHXPqaF+IgzgraytCFq5Xh8lllDVmAZolPJiZttZLeFSINPYMaEJ7/vWUa1w==
@@ -7974,13 +7893,6 @@ is-symbol@^1.0.2, is-symbol@^1.0.3:
     has-symbols "^1.0.2"
 
 is-typed-array@^1.1.10, is-typed-array@^1.1.12, is-typed-array@^1.1.9:
-  version "1.1.12"
-  resolved "https://registry.yarnpkg.com/is-typed-array/-/is-typed-array-1.1.12.tgz#d0bab5686ef4a76f7a73097b95470ab199c57d4a"
-  integrity sha512-Z14TF2JNG8Lss5/HMqt0//T9JeHXttXy5pH/DBU4vi98ozO2btxzq9MwYDZYnKwU8nRsz/+GVFVRDq3DkVuSPg==
-  dependencies:
-    which-typed-array "^1.1.11"
-
-is-typed-array@^1.1.12:
   version "1.1.12"
   resolved "https://registry.yarnpkg.com/is-typed-array/-/is-typed-array-1.1.12.tgz#d0bab5686ef4a76f7a73097b95470ab199c57d4a"
   integrity sha512-Z14TF2JNG8Lss5/HMqt0//T9JeHXttXy5pH/DBU4vi98ozO2btxzq9MwYDZYnKwU8nRsz/+GVFVRDq3DkVuSPg==
@@ -8792,6 +8704,7 @@ kleur@^3.0.3:
   version "0.1.0"
   dependencies:
     dotenv "^16.0.3"
+    solhint-plugin-prettier "^0.0.5"
   optionalDependencies:
     zksync-web3 "^0.14.3"
 
@@ -9542,12 +9455,7 @@ minimatch@~3.0.4:
   dependencies:
     brace-expansion "^1.1.7"
 
-minimist@^1.2.0, minimist@^1.2.5, minimist@^1.2.6, minimist@~1.2.5, minimist@~1.2.8:
-  version "1.2.8"
-  resolved "https://registry.yarnpkg.com/minimist/-/minimist-1.2.8.tgz#c1a464e7693302e082a075cee0c057741ac4772c"
-  integrity sha512-2yyAR8qBkN3YuheJanUpWC5U3bb5osDywNB8RzDVlDwDHbocAJveqqj1u8+SVD7jkWT4yvsHCpWqqWqAxb0zCA==
-
-minimist@^1.2.7:
+minimist@^1.2.0, minimist@^1.2.5, minimist@^1.2.6, minimist@^1.2.7, minimist@~1.2.5, minimist@~1.2.8:
   version "1.2.8"
   resolved "https://registry.yarnpkg.com/minimist/-/minimist-1.2.8.tgz#c1a464e7693302e082a075cee0c057741ac4772c"
   integrity sha512-2yyAR8qBkN3YuheJanUpWC5U3bb5osDywNB8RzDVlDwDHbocAJveqqj1u8+SVD7jkWT4yvsHCpWqqWqAxb0zCA==
@@ -9965,11 +9873,6 @@ object-copy@^0.1.0:
     kind-of "^3.0.3"
 
 object-inspect@^1.13.1, object-inspect@^1.9.0:
-  version "1.13.1"
-  resolved "https://registry.yarnpkg.com/object-inspect/-/object-inspect-1.13.1.tgz#b96c6109324ccfef6b12216a956ca4dc2ff94bc2"
-  integrity sha512-5qoj1RUiKOMsCCNLV1CBiPYE10sziTsnmNxkAI/rZhiD63CF7IqdFGC/XzjWjpSgLf0LxXX3bDFIh0E18f6UhQ==
-
-object-inspect@^1.13.1:
   version "1.13.1"
   resolved "https://registry.yarnpkg.com/object-inspect/-/object-inspect-1.13.1.tgz#b96c6109324ccfef6b12216a956ca4dc2ff94bc2"
   integrity sha512-5qoj1RUiKOMsCCNLV1CBiPYE10sziTsnmNxkAI/rZhiD63CF7IqdFGC/XzjWjpSgLf0LxXX3bDFIh0E18f6UhQ==
@@ -12065,15 +11968,6 @@ string.prototype.trimstart@^1.0.7:
     define-properties "^1.2.0"
     es-abstract "^1.22.1"
 
-string.prototype.trimstart@^1.0.7:
-  version "1.0.7"
-  resolved "https://registry.yarnpkg.com/string.prototype.trimstart/-/string.prototype.trimstart-1.0.7.tgz#d4cdb44b83a4737ffbac2d406e405d43d0184298"
-  integrity sha512-NGhtDFu3jCEm7B4Fy0DpLewdJQOZcQ0rGbwQ/+stjnrp2i+rlKeCvos9hOIeCmqwratM47OBxY7uFZzjxHXmrg==
-  dependencies:
-    call-bind "^1.0.2"
-    define-properties "^1.2.0"
-    es-abstract "^1.22.1"
-
 string_decoder@^1.1.1:
   version "1.3.0"
   resolved "https://registry.yarnpkg.com/string_decoder/-/string_decoder-1.3.0.tgz#42f114594a46cf1a8e30b0a84f56c78c3edac21e"
@@ -13646,3 +13540,6 @@ zksync-web3@^0.15.4, zksync-web3@^0.15.5:
   integrity sha512-97gB7OKJL4spegl8fGO54g6cvTd/75G6yFWZWEa2J09zhjTrfqabbwE/GwiUJkFQ5BbzoH4JaTlVz1hoYZI+DQ==
   dependencies:
     ethers "~5.7.0"
+
+"zksync-web3@file:../zksync2-js":
+  version "0.2.2"

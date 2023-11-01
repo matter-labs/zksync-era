@@ -1,5 +1,6 @@
 import * as zksync from 'zksync-web3';
 import * as ethers from 'ethers';
+import { BigNumberish } from 'ethers';
 
 import { TestContext, TestEnvironment, TestWallets } from './types';
 import { lookupPrerequisites } from './prerequisites';
@@ -246,7 +247,7 @@ export class TestContextOwner {
                 .deposit({
                     chainId,
                     token: zksync.utils.ETH_ADDRESS,
-                    amount: l2ETHAmountToDeposit,
+                    amount: l2ETHAmountToDeposit as BigNumberish,
                     overrides: {
                         nonce: nonce++,
                         gasPrice

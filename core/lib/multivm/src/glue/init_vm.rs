@@ -178,7 +178,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
                 }
             }
             VmVersion::Local => {
-                let vm = vm_latest::Vm::new(
+                let vm = crate::vm_latest::Vm::new(
                     l1_batch_env.glue_into(),
                     system_env.clone(),
                     storage_view.clone(),
