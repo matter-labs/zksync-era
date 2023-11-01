@@ -7,7 +7,7 @@ import * as ethers from 'ethers';
 import { TestMessage } from '../matchers/matcher-helpers';
 import { MatcherModifier, MatcherMessage } from '.';
 import { Fee } from '../types';
-import { IERC20MetadataFactory } from 'zksync-web3/build/typechain';
+import { IERC20Factory } from 'zksync-web3/build/typechain';
 
 /**
  * Modifier that ensures that fee was taken from the wallet for a transaction.
@@ -293,7 +293,7 @@ async function getBalance(
     if (zksync.utils.isETH(token)) {
         return await provider.getBalance(address);
     } else {
-        const erc20contract = IERC20MetadataFactory.connect(token, provider);
+        const erc20contract = IERC20Factory.connect(token, provider);
         return await erc20contract.balanceOf(address);
     }
 }
