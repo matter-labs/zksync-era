@@ -24,16 +24,14 @@ pub struct ApiConfig {
 
 impl ApiConfig {
     pub fn from_env() -> anyhow::Result<Self> {
-        let a = Ok(Self {
+        Ok(Self {
             web3_json_rpc: Web3JsonRpcConfig::from_env().context("Web3JsonRpcConfig")?,
             contract_verification: ContractVerificationApiConfig::from_env()
                 .context("ContractVerificationApiConfig")?,
             prometheus: PrometheusConfig::from_env().context("PrometheusConfig")?,
             healthcheck: HealthCheckConfig::from_env().context("HealthCheckConfig")?,
             merkle_tree: MerkleTreeApiConfig::from_env().context("MerkleTreeApiConfig")?,
-        });
-
-        a
+        })
     }
 }
 
