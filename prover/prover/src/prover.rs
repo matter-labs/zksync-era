@@ -10,7 +10,7 @@ use zkevm_test_harness::abstract_zksync_circuit::concrete_circuits::ZkSyncProof;
 use zkevm_test_harness::pairing::bn256::Bn256;
 
 use zksync_config::ProverConfig;
-use zksync_dal::StorageProcessor;
+use zksync_dal::MainStorageProcessor;
 use zksync_dal::{connection::DbVariant, ConnectionPool};
 use zksync_object_store::{Bucket, ObjectStore, ObjectStoreFactory};
 use zksync_types::proofs::ProverJobMetadata;
@@ -108,7 +108,7 @@ impl ProverReporter {
 
     async fn get_prover_job_metadata_by_id_and_exit_if_error(
         &self,
-        connection: &mut StorageProcessor<'_>,
+        connection: &mut MainStorageProcessor<'_>,
         job_id: u32,
     ) -> ProverJobMetadata {
         // BEWARE, HERE BE DRAGONS.

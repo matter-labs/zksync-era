@@ -3,7 +3,7 @@ use sqlx::Row;
 
 use std::{collections::HashMap, time::Instant};
 
-use crate::{instrument::InstrumentExt, StorageProcessor};
+use crate::{instrument::InstrumentExt, MainStorageProcessor};
 use zksync_types::{
     get_code_key, AccountTreeId, Address, L1BatchNumber, MiniblockNumber, StorageKey, StorageLog,
     FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH, H256,
@@ -11,7 +11,7 @@ use zksync_types::{
 
 #[derive(Debug)]
 pub struct StorageLogsDal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+    pub(crate) storage: &'a mut MainStorageProcessor<'c>,
 }
 
 impl StorageLogsDal<'_, '_> {
@@ -537,7 +537,11 @@ mod tests {
         ProtocolVersion, ProtocolVersionId,
     };
 
-    async fn insert_miniblock(conn: &mut StorageProcessor<'_>, number: u32, logs: Vec<StorageLog>) {
+    async fn insert_miniblock(
+        conn: &mut MainStorageProcessor<'_>,
+        number: u32,
+        logs: Vec<StorageLog>,
+    ) {
         let mut header = L1BatchHeader::new(
             L1BatchNumber(number),
             0,
@@ -618,7 +622,7 @@ mod tests {
     }
 
     async fn test_rollback(
-        conn: &mut StorageProcessor<'_>,
+        conn: &mut MainStorageProcessor<'_>,
         key: StorageKey,
         second_key: StorageKey,
     ) {

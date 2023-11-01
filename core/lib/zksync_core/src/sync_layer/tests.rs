@@ -11,7 +11,7 @@ use std::{
 
 use zksync_config::configs::chain::NetworkConfig;
 use zksync_contracts::{BaseSystemContractsHashes, SystemContractCode};
-use zksync_dal::{ConnectionPool, StorageProcessor};
+use zksync_dal::{ConnectionPool, MainStorageProcessor};
 use zksync_types::{
     api, Address, L1BatchNumber, L2ChainId, MiniblockNumber, ProtocolVersionId, Transaction, H256,
 };
@@ -178,7 +178,7 @@ impl StateKeeperHandles {
     }
 }
 
-async fn ensure_genesis(storage: &mut StorageProcessor<'_>) {
+async fn ensure_genesis(storage: &mut MainStorageProcessor<'_>) {
     if storage.blocks_dal().is_genesis_needed().await.unwrap() {
         ensure_genesis_state(storage, L2ChainId::default(), &GenesisParams::mock())
             .await

@@ -17,7 +17,7 @@ use async_trait::async_trait;
 use tokio::sync::watch;
 
 use zksync_config::{configs::fetcher::TokenListSource, FetcherConfig};
-use zksync_dal::{ConnectionPool, StorageProcessor};
+use zksync_dal::{ConnectionPool, MainStorageProcessor};
 use zksync_types::network::Network;
 use zksync_types::{tokens::TokenMetadata, Address};
 
@@ -112,7 +112,7 @@ impl TokenListFetcher {
 
     async fn update_tokens(
         &self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut MainStorageProcessor<'_>,
         tokens: HashMap<Address, TokenMetadata>,
     ) {
         let mut tokens_dal = storage.tokens_dal();
@@ -123,7 +123,10 @@ impl TokenListFetcher {
         }
     }
 
-    async fn load_unknown_tokens(&self, storage: &mut StorageProcessor<'_>) -> HashSet<Address> {
+    async fn load_unknown_tokens(
+        &self,
+        storage: &mut MainStorageProcessor<'_>,
+    ) -> HashSet<Address> {
         storage
             .tokens_dal()
             .get_unknown_l1_token_addresses()

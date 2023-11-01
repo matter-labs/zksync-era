@@ -1,7 +1,7 @@
 use std::{collections::HashMap, convert::TryInto};
 
 use bigdecimal::{BigDecimal, Zero};
-use zksync_dal::StorageProcessor;
+use zksync_dal::MainStorageProcessor;
 
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_types::{
@@ -322,7 +322,7 @@ impl<G: L1GasPriceProvider> ZksNamespace<G> {
     async fn get_l2_to_l1_log_proof_inner(
         &self,
         method_name: &'static str,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut MainStorageProcessor<'_>,
         l1_batch_number: L1BatchNumber,
         index_in_filtered_logs: usize,
         log_filter: impl Fn(&L2ToL1Log) -> bool,

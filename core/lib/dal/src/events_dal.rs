@@ -2,7 +2,7 @@ use sqlx::types::chrono::Utc;
 
 use std::fmt;
 
-use crate::{models::storage_event::StorageL2ToL1Log, SqlxError, StorageProcessor};
+use crate::{models::storage_event::StorageL2ToL1Log, MainStorageProcessor, SqlxError};
 use zksync_types::{
     l2_to_l1_log::L2ToL1Log, tx::IncludedTxLocation, MiniblockNumber, VmEvent, H256,
 };
@@ -23,7 +23,7 @@ impl fmt::LowerHex for EventTopic<'_> {
 
 #[derive(Debug)]
 pub struct EventsDal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+    pub(crate) storage: &'a mut MainStorageProcessor<'c>,
 }
 
 impl EventsDal<'_, '_> {

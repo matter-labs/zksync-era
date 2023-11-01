@@ -19,12 +19,12 @@ use zksync_types::{
 use crate::{
     instrument::InstrumentExt,
     models::storage_block::{StorageL1Batch, StorageL1BatchHeader, StorageMiniblockHeader},
-    StorageProcessor,
+    MainStorageProcessor,
 };
 
 #[derive(Debug)]
 pub struct BlocksDal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+    pub(crate) storage: &'a mut MainStorageProcessor<'c>,
 }
 
 impl BlocksDal<'_, '_> {

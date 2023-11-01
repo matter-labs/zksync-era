@@ -1,13 +1,13 @@
 use crate::instrument::InstrumentExt;
 use crate::time_utils::{duration_to_naive_time, pg_interval_from_duration};
-use crate::StorageProcessor;
+use crate::MainStorageProcessor;
 use sqlx::postgres::types::PgInterval;
 use std::time::{Duration, Instant};
 use zksync_types::L1BatchNumber;
 
 #[derive(Debug)]
 pub struct BasicWitnessInputProducerDal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+    pub(crate) storage: &'a mut MainStorageProcessor<'c>,
 }
 
 /// The amount of attempts to process a job before giving up.

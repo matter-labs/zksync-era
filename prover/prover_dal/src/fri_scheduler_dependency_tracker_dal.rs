@@ -1,9 +1,9 @@
-use crate::StorageProcessor;
+use crate::ProverStorageProcessor;
 use zksync_types::L1BatchNumber;
 
 #[derive(Debug)]
 pub struct FriSchedulerDependencyTrackerDal<'a, 'c> {
-    pub storage: &'a mut StorageProcessor<'c>,
+    pub storage: &'a mut ProverStorageProcessor<'c>,
 }
 
 impl FriSchedulerDependencyTrackerDal<'_, '_> {

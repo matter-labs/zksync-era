@@ -3,14 +3,14 @@ use sqlx::PgPool;
 
 use zksync_health_check::{async_trait, CheckHealth, Health, HealthStatus};
 
-use crate::MainConnectionPool;
+use crate::ProverConnectionPool;
 
 #[derive(Debug, Serialize)]
-struct MainConnectionPoolHealthDetails {
+struct ProverConnectionPoolHealthDetails {
     pool_size: u32,
 }
 
-impl MainConnectionPoolHealthDetails {
+impl ProverConnectionPoolHealthDetails {
     async fn new(pool: &PgPool) -> Self {
         Self {
             pool_size: pool.size(),
@@ -22,27 +22,27 @@ impl MainConnectionPoolHealthDetails {
 // This guarantees that the app can use it's main "communication" channel.
 // Used in the /health endpoint
 #[derive(Clone, Debug)]
-pub struct MainConnectionPoolHealthCheck {
-    connection_pool: MainConnectionPool,
+pub struct ProverConnectionPoolHealthCheck {
+    connection_pool: ProverConnectionPool,
 }
 
-impl MainConnectionPoolHealthCheck {
-    pub fn new(connection_pool: MainConnectionPool) -> MainConnectionPoolHealthCheck {
+impl ProverConnectionPoolHealthCheck {
+    pub fn new(connection_pool: ProverConnectionPool) -> ProverConnectionPoolHealthCheck {
         Self { connection_pool }
     }
 }
 
 #[async_trait]
-impl CheckHealth for MainConnectionPoolHealthCheck {
+impl CheckHealth for ProverConnectionPoolHealthCheck {
     fn name(&self) -> &'static str {
-        "main_connection_pool"
+        "prover_connection_pool"
     }
 
     async fn check_health(&self) -> Health {
         // This check is rather feeble, plan to make reliable here:
         // https://linear.app/matterlabs/issue/PLA-255/revamp-db-connection-health-check
         self.connection_pool.access_storage().await.unwrap();
-        let details = MainConnectionPoolHealthDetails::new(&self.connection_pool.0).await;
+        let details = ProverConnectionPoolHealthDetails::new(&self.connection_pool.0).await;
         Health::from(HealthStatus::Ready).with_details(details)
     }
 }

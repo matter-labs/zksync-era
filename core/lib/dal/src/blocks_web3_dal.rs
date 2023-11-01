@@ -20,13 +20,13 @@ use crate::models::{
     },
     storage_transaction::{extract_web3_transaction, web3_transaction_select_sql, CallTrace},
 };
-use crate::{instrument::InstrumentExt, StorageProcessor};
+use crate::{instrument::InstrumentExt, MainStorageProcessor};
 
 const BLOCK_GAS_LIMIT: u32 = system_params::VM_INITIAL_FRAME_ERGS;
 
 #[derive(Debug)]
 pub struct BlocksWeb3Dal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+    pub(crate) storage: &'a mut MainStorageProcessor<'c>,
 }
 
 impl BlocksWeb3Dal<'_, '_> {

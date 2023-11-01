@@ -7,7 +7,7 @@ use std::{future::Future, ops, panic, path::Path, time::Duration};
 
 use zksync_config::{configs::chain::OperationsManagerConfig, DBConfig};
 use zksync_contracts::BaseSystemContracts;
-use zksync_dal::{ConnectionPool, StorageProcessor};
+use zksync_dal::{ConnectionPool, MainStorageProcessor};
 use zksync_health_check::{CheckHealth, HealthStatus};
 use zksync_merkle_tree::domain::ZkSyncTree;
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
@@ -473,7 +473,7 @@ pub(crate) async fn reset_db_state(pool: &ConnectionPool, num_batches: usize) {
 }
 
 pub(super) async fn extend_db_state(
-    storage: &mut StorageProcessor<'_>,
+    storage: &mut MainStorageProcessor<'_>,
     new_logs: impl IntoIterator<Item = Vec<StorageLog>>,
 ) {
     let mut storage = storage.start_transaction().await.unwrap();
@@ -543,7 +543,7 @@ pub(super) async fn extend_db_state(
 }
 
 async fn insert_initial_writes_for_batch(
-    connection: &mut StorageProcessor<'_>,
+    connection: &mut MainStorageProcessor<'_>,
     l1_batch_number: L1BatchNumber,
 ) {
     let written_non_zero_slots: Vec<_> = connection
@@ -611,7 +611,7 @@ pub(crate) fn gen_storage_logs(
 }
 
 async fn remove_l1_batches(
-    storage: &mut StorageProcessor<'_>,
+    storage: &mut MainStorageProcessor<'_>,
     last_l1_batch_to_keep: L1BatchNumber,
 ) -> Vec<L1BatchHeader> {
     let sealed_l1_batch_number = storage

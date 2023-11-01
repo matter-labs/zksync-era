@@ -7,6 +7,9 @@ edition = "2021"
 
 [dependencies]
 zksync_types = { path = "../../core/lib/types" }
+zksync_utils = { path = "../../core/lib/utils" }
+zksync_health_check = { path = "../../core/lib/health_check" }
+zksync_dal = { path = "../../core/lib/dal"}
 
 sqlx = { version = "0.5.13", default-features = false, features = [
     "runtime-tokio-native-tls",
@@ -19,3 +22,15 @@ sqlx = { version = "0.5.13", default-features = false, features = [
     "migrate",
     "ipnetwork",
 ] }
+anyhow = "1.0"
+itertools = "0.10.1"
+tokio = { version = "1", features = ["full"] }
+url = "2"
+rand = "0.8"
+serde = { version = "1.0", features = ["derive"] }
+bigdecimal = "0.2.2"
+bincode = "1"
+tracing = "0.1"
+
+[dev-dependencies]
+assert_matches = "1.5.0"

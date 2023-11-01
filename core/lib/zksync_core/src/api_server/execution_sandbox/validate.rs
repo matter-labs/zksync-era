@@ -5,7 +5,7 @@ use multivm::vm_latest::{
     HistoryDisabled, StorageInvocations, ValidationError, ValidationTracer, ValidationTracerParams,
 };
 use multivm::MultivmTracer;
-use zksync_dal::{ConnectionPool, StorageProcessor};
+use zksync_dal::{ConnectionPool, MainStorageProcessor};
 use zksync_types::{l2::L2Tx, Transaction, TRUSTED_ADDRESS_SLOTS, TRUSTED_TOKEN_SLOTS, U256};
 
 use super::{
@@ -114,7 +114,7 @@ impl TxSharedArgs {
 // trusted to change between validation and execution in general case, but
 // sometimes we can safely rely on them to not change often.
 async fn get_validation_params(
-    connection: &mut StorageProcessor<'_>,
+    connection: &mut MainStorageProcessor<'_>,
     tx: &L2Tx,
     computational_gas_limit: u32,
 ) -> ValidationTracerParams {

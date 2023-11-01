@@ -1,5 +1,5 @@
 use crate::eth_watch::client::{Error, EthClient};
-use zksync_dal::StorageProcessor;
+use zksync_dal::MainStorageProcessor;
 use zksync_types::{web3::types::Log, H256};
 
 pub mod governance_upgrades;
@@ -11,7 +11,7 @@ pub trait EventProcessor<W: EthClient + Sync>: Send + std::fmt::Debug {
     /// Processes given events
     async fn process_events(
         &mut self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut MainStorageProcessor<'_>,
         client: &W,
         events: Vec<Log>,
     ) -> Result<(), Error>;

@@ -2,13 +2,13 @@ use std::time::Duration;
 
 use zksync_types::L1BatchNumber;
 
-use crate::time_utils::pg_interval_from_duration;
-use crate::{SqlxError, StorageProcessor};
+use crate::{ProverStorageProcessor, SqlxError};
 use strum::{Display, EnumString};
+use zksync_dal::time_utils::pg_interval_from_duration;
 
 #[derive(Debug)]
 pub struct ProofGenerationDal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+    pub(crate) storage: &'a mut ProverStorageProcessor<'c>,
 }
 
 #[derive(Debug, EnumString, Display)]

@@ -8,12 +8,12 @@ use zksync_types::{
 use crate::{
     instrument::InstrumentExt,
     models::{storage_block::web3_block_number_to_sql, storage_event::StorageWeb3Log},
-    SqlxError, StorageProcessor,
+    MainStorageProcessor, SqlxError,
 };
 
 #[derive(Debug)]
 pub struct EventsWeb3Dal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+    pub(crate) storage: &'a mut MainStorageProcessor<'c>,
 }
 
 impl EventsWeb3Dal<'_, '_> {

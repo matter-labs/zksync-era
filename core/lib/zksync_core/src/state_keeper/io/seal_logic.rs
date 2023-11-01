@@ -9,7 +9,7 @@ use std::{
 };
 
 use multivm::interface::{FinishedL1Batch, L1BatchEnv};
-use zksync_dal::StorageProcessor;
+use zksync_dal::MainStorageProcessor;
 use zksync_system_constants::ACCOUNT_CODE_STORAGE_ADDRESS;
 use zksync_types::{
     block::unpack_block_info, CURRENT_VIRTUAL_BLOCK_INFO_POSITION, SYSTEM_CONTEXT_ADDRESS,
@@ -45,7 +45,7 @@ impl UpdatesManager {
     /// the events generated during the bootloader "tip phase".
     pub(crate) async fn seal_l1_batch(
         mut self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut MainStorageProcessor<'_>,
         current_miniblock_number: MiniblockNumber,
         l1_batch_env: &L1BatchEnv,
         finished_batch: FinishedL1Batch,
@@ -254,7 +254,7 @@ impl UpdatesManager {
 }
 
 impl MiniblockSealCommand {
-    pub async fn seal(&self, storage: &mut StorageProcessor<'_>) {
+    pub async fn seal(&self, storage: &mut MainStorageProcessor<'_>) {
         self.seal_inner(storage, false).await;
     }
 
@@ -267,7 +267,7 @@ impl MiniblockSealCommand {
     /// one for sending fees to the operator).
     ///
     /// `l2_erc20_bridge_addr` is required to extract the information on newly added tokens.
-    async fn seal_inner(&self, storage: &mut StorageProcessor<'_>, is_fictive: bool) {
+    async fn seal_inner(&self, storage: &mut MainStorageProcessor<'_>, is_fictive: bool) {
         self.assert_valid_miniblock(is_fictive);
 
         let l1_batch_number = self.l1_batch_number;

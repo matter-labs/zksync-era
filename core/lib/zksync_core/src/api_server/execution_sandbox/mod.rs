@@ -2,7 +2,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::runtime::Handle;
 
-use zksync_dal::{ConnectionPool, SqlxError, StorageProcessor};
+use zksync_dal::{ConnectionPool, MainStorageProcessor, SqlxError};
 use zksync_state::{PostgresStorage, PostgresStorageCaches, ReadStorage, StorageView};
 use zksync_system_constants::PUBLISH_BYTECODE_OVERHEAD;
 use zksync_types::{api, AccountTreeId, L2ChainId, MiniblockNumber, U256};
@@ -165,7 +165,7 @@ pub(super) fn adjust_l1_gas_price_for_tx(
 }
 
 async fn get_pending_state(
-    connection: &mut StorageProcessor<'_>,
+    connection: &mut MainStorageProcessor<'_>,
 ) -> (api::BlockId, MiniblockNumber) {
     let block_id = api::BlockId::Number(api::BlockNumber::Pending);
     let resolved_block_number = connection
@@ -242,7 +242,7 @@ pub(crate) struct BlockArgs {
 }
 
 impl BlockArgs {
-    async fn pending(connection: &mut StorageProcessor<'_>) -> Self {
+    async fn pending(connection: &mut MainStorageProcessor<'_>) -> Self {
         let (block_id, resolved_block_number) = get_pending_state(connection).await;
         Self {
             block_id,
@@ -253,7 +253,7 @@ impl BlockArgs {
 
     /// Loads block information from DB.
     pub async fn new(
-        connection: &mut StorageProcessor<'_>,
+        connection: &mut MainStorageProcessor<'_>,
         block_id: api::BlockId,
     ) -> Result<Option<Self>, SqlxError> {
         if block_id == api::BlockId::Number(api::BlockNumber::Pending) {

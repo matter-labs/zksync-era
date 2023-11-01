@@ -29,7 +29,8 @@ use zksync_config::{
 };
 use zksync_contracts::{governance_contract, BaseSystemContracts};
 use zksync_dal::{
-    connection::DbVariant, healthcheck::ConnectionPoolHealthCheck, ConnectionPool, StorageProcessor,
+    connection::DbVariant, healthcheck::ConnectionPoolHealthCheck, ConnectionPool,
+    MainStorageProcessor,
 };
 use zksync_eth_client::clients::http::QueryClient;
 use zksync_eth_client::{clients::http::PKSigningClient, BoundEthInterface};
@@ -113,7 +114,7 @@ pub async fn genesis_init(
     network_config: &NetworkConfig,
     contracts_config: &ContractsConfig,
 ) -> anyhow::Result<()> {
-    let mut storage = StorageProcessor::establish_connection(true)
+    let mut storage = MainStorageProcessor::establish_connection(true)
         .await
         .context("establish_connection")?;
     let operator_address = PackedEthSignature::address_from_private_key(
@@ -151,7 +152,9 @@ pub async fn genesis_init(
 }
 
 pub async fn is_genesis_needed() -> bool {
-    let mut storage = StorageProcessor::establish_connection(true).await.unwrap();
+    let mut storage = MainStorageProcessor::establish_connection(true)
+        .await
+        .unwrap();
     storage.blocks_dal().is_genesis_needed().await.unwrap()
 }
 

@@ -10,7 +10,7 @@ use tower_http::{cors::CorsLayer, metrics::InFlightRequestsLayer};
 use std::{net::SocketAddr, sync::Arc, time::Duration};
 use tokio::task::JoinHandle;
 
-use zksync_dal::{ConnectionPool, StorageProcessor};
+use zksync_dal::{ConnectionPool, MainStorageProcessor};
 use zksync_health_check::{HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_types::{api, MiniblockNumber};
 use zksync_web3_decl::{
@@ -779,7 +779,7 @@ impl jsonrpc_ws_server::SessionStats for TrackOpenWsConnections {
 }
 
 async fn resolve_block(
-    connection: &mut StorageProcessor<'_>,
+    connection: &mut MainStorageProcessor<'_>,
     block: api::BlockId,
     method_name: &'static str,
 ) -> Result<MiniblockNumber, Web3Error> {

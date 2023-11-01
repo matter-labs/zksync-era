@@ -3,6 +3,8 @@
 
 database_url="postgres://postgres@localhost/zksync_local"
 test_database_url="postgres://postgres@localhost:5433/zksync_local_test"
+database_prover_url="postgres://postgres@localhost/zksync_local_prover"
+test_database_prover_url="postgres://postgres@localhost:5433/zksync_local_prover_test"
 
 [eth_sender.sender]
 # Set in env file for development, production, staging and testnet.

@@ -4,7 +4,7 @@ use vise::{Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Hi
 
 use std::{fmt, time::Duration};
 
-use zksync_dal::StorageProcessor;
+use zksync_dal::MainStorageProcessor;
 use zksync_types::{aggregated_operations::AggregatedActionType, eth_sender::EthTx};
 use zksync_utils::time::seconds_since_epoch;
 
@@ -93,7 +93,7 @@ pub(super) struct EthSenderMetrics {
 impl EthSenderMetrics {
     pub async fn track_eth_tx_metrics(
         &self,
-        connection: &mut StorageProcessor<'_>,
+        connection: &mut MainStorageProcessor<'_>,
         l1_stage: BlockL1Stage,
         tx: &EthTx,
     ) {

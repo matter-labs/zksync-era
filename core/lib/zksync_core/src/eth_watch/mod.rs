@@ -10,7 +10,7 @@ use tokio::{sync::watch, task::JoinHandle};
 use std::time::Duration;
 
 use zksync_config::ETHWatchConfig;
-use zksync_dal::{ConnectionPool, StorageProcessor};
+use zksync_dal::{ConnectionPool, MainStorageProcessor};
 use zksync_eth_client::EthInterface;
 use zksync_system_constants::PRIORITY_EXPIRATION;
 use zksync_types::{
@@ -94,7 +94,7 @@ impl<W: EthClient + Sync> EthWatch<W> {
         }
     }
 
-    async fn initialize_state(client: &W, storage: &mut StorageProcessor<'_>) -> EthWatchState {
+    async fn initialize_state(client: &W, storage: &mut MainStorageProcessor<'_>) -> EthWatchState {
         let next_expected_priority_id: PriorityOpId = storage
             .transactions_dal()
             .last_priority_id()
@@ -160,7 +160,10 @@ impl<W: EthClient + Sync> EthWatch<W> {
     }
 
     #[tracing::instrument(skip(self, storage))]
-    async fn loop_iteration(&mut self, storage: &mut StorageProcessor<'_>) -> Result<(), Error> {
+    async fn loop_iteration(
+        &mut self,
+        storage: &mut MainStorageProcessor<'_>,
+    ) -> Result<(), Error> {
         let stage_latency = METRICS.poll_eth_node[&PollStage::Request].start();
         let to_block = self.client.finalized_block_number().await?;
         if to_block <= self.last_processed_ethereum_block {

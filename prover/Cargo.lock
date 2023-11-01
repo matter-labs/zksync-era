@@ -205,6 +205,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "96d30a06541fbafbc7f82ed10c06164cfbd2c401138f6addd8404629c4b16711"
 
 [[package]]
+name = "assert_matches"
+version = "1.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9b34d609dfbaf33d6889b2b7106d3ca345eacad44200913df5ba02bfd31d2ba9"
+
+[[package]]
 name = "async-stream"
 version = "0.3.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6871,8 +6877,21 @@ dependencies = [
 name = "zksync_prover_dal"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
+ "assert_matches",
+ "bigdecimal",
+ "bincode",
+ "itertools 0.10.5",
+ "rand 0.8.5",
+ "serde",
  "sqlx",
+ "tokio",
+ "tracing",
+ "url",
+ "zksync_dal",
+ "zksync_health_check",
  "zksync_types",
+ "zksync_utils",
 ]
 
 [[package]]

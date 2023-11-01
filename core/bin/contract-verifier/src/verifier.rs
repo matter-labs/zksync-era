@@ -11,7 +11,7 @@ use regex::Regex;
 use tokio::time;
 
 use zksync_config::ContractVerifierConfig;
-use zksync_dal::{ConnectionPool, StorageProcessor};
+use zksync_dal::{ConnectionPool, MainStorageProcessor};
 use zksync_queued_job_processor::{async_trait, JobProcessor};
 use zksync_types::{
     contract_verification_api::{
@@ -52,7 +52,7 @@ impl ContractVerifier {
     }
 
     async fn verify(
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut MainStorageProcessor<'_>,
         mut request: VerificationRequest,
         config: ContractVerifierConfig,
     ) -> Result<VerificationInfo, ContractVerifierError> {
@@ -414,7 +414,7 @@ impl ContractVerifier {
     }
 
     async fn process_result(
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut MainStorageProcessor<'_>,
         request_id: usize,
         verification_result: Result<VerificationInfo, ContractVerifierError>,
     ) {

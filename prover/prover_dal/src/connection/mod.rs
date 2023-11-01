@@ -9,37 +9,35 @@ use std::time::Duration;
 
 use zksync_utils::parse_env;
 
-pub mod holder;
-
-use crate::{
-    get_master_database_url, get_replica_database_url, metrics::CONNECTION_METRICS,
-    MainStorageProcessor,
+use zksync_dal::{
+    get_prover_database_url, get_test_prover_database_url, metrics::CONNECTION_METRICS,
 };
+
+use crate::ProverStorageProcessor;
 
 #[derive(Debug, Clone, Copy)]
 pub enum DbVariant {
-    Master,
-    Replica,
+    Real,
     TestTmp,
 }
 
-/// Builder for [`MainConnectionPool`]s.
+/// Builder for [`ProverConnectionPool`]s.
 #[derive(Debug)]
-pub struct MainConnectionPoolBuilder {
+pub struct ProverConnectionPoolBuilder {
     db: DbVariant,
     max_size: Option<u32>,
     statement_timeout: Option<Duration>,
 }
 
-impl MainConnectionPoolBuilder {
-    /// Sets the maximum size of the created pool. If not specified, the max pool size will be
-    /// taken from the `DATABASE_POOL_SIZE` env variable.
+impl ProverConnectionPoolBuilder {
+    /// Sets the maximum size of the created prover pool. If not specified, the max pool size will be
+    /// taken from the `PROVER_DB_POOL_SIZE` env variable.
     pub fn set_max_size(&mut self, max_size: Option<u32>) -> &mut Self {
         self.max_size = max_size;
         self
     }
 
-    /// Sets the statement timeout for the pool. See [Postgres docs] for semantics.
+    /// Sets the statement timeout for the prover pool. See [Postgres docs] for semantics.
     /// If not specified, the statement timeout will not be set.
     ///
     /// [Postgres docs]: https://www.postgresql.org/docs/14/runtime-config-client.html
@@ -48,14 +46,13 @@ impl MainConnectionPoolBuilder {
         self
     }
 
-    /// Builds a connection pool from this builder.
-    pub async fn build(&self) -> anyhow::Result<MainConnectionPool> {
+    /// Builds a prover connection pool from this builder.
+    pub async fn build(&self) -> anyhow::Result<ProverConnectionPool> {
         let database_url = match self.db {
-            DbVariant::Master => get_master_database_url()?,
-            DbVariant::Replica => get_replica_database_url()?,
-            DbVariant::TestTmp => create_test_db()
+            DbVariant::Real => get_prover_database_url()?,
+            DbVariant::TestTmp => create_test_prover_db()
                 .await
-                .context("create_test_db()")?
+                .context("create_test_prover_db()")?
                 .to_string(),
         };
         self.build_inner(&database_url)
@@ -63,15 +60,15 @@ impl MainConnectionPoolBuilder {
             .context("build_inner()")
     }
 
-    pub async fn build_inner(&self, database_url: &str) -> anyhow::Result<MainConnectionPool> {
+    pub async fn build_inner(&self, database_url: &str) -> anyhow::Result<ProverConnectionPool> {
         let max_connections = self
             .max_size
-            .unwrap_or_else(|| parse_env("DATABASE_POOL_SIZE"));
+            .unwrap_or_else(|| parse_env("PROVER_DB_POOL_SIZE"));
 
         let options = PgPoolOptions::new().max_connections(max_connections);
         let mut connect_options: PgConnectOptions = database_url
             .parse()
-            .with_context(|| format!("Failed parsing {:?} database URL", self.db))?;
+            .with_context(|| format!("Failed parsing {:?} prover database URL", self.db))?;
         if let Some(timeout) = self.statement_timeout {
             let timeout_string = format!("{}s", timeout.as_secs());
             connect_options = connect_options.options([("statement_timeout", timeout_string)]);
@@ -79,36 +76,36 @@ impl MainConnectionPoolBuilder {
         let pool = options
             .connect_with(connect_options)
             .await
-            .with_context(|| format!("Failed connecting to {:?} database", self.db))?;
+            .with_context(|| format!("Failed connecting to {:?} prover database", self.db))?;
         tracing::info!(
-            "Created pool for {db:?} database with {max_connections} max connections \
+            "Created pool for {db:?} prover database with {max_connections} max connections \
              and {statement_timeout:?} statement timeout",
             db = self.db,
             statement_timeout = self.statement_timeout
         );
-        Ok(MainConnectionPool(pool))
+        Ok(ProverConnectionPool(pool))
     }
 }
 
-/// Constructucts a new temporary database (with a randomized name)
-/// by cloning the database template pointed by TEST_DATABASE_URL env var.
+/// Constructucts a new temporary prover database (with a randomized name)
+/// by cloning the database template pointed by PROVER_TEST_DB_URL env var.
 /// The template is expected to have all migrations from dal/migrations applied.
-/// For efficiency, the postgres container of TEST_DATABASE_URL should be
+/// For efficiency, the postgres container of PROVER_TEST_DB_URL should be
 /// configured with option "fsync=off" - it disables waiting for disk synchronization
 /// whenever you write to the DBs, therefore making it as fast as an inmem postgres instance.
 /// The database is not cleaned up automatically, but rather the whole postgres
 /// container is recreated whenever you call "zk test rust".
-pub(super) async fn create_test_db() -> anyhow::Result<url::Url> {
+pub(super) async fn create_test_prover_db() -> anyhow::Result<url::Url> {
     use rand::Rng as _;
     use sqlx::{Connection as _, Executor as _};
     const PREFIX: &str = "test-";
-    let db_url = crate::get_test_database_url().unwrap();
+    let db_url = crate::get_test_prover_database_url().unwrap();
     let mut db_url = url::Url::parse(&db_url)
-        .with_context(|| format!("{} is not a valid database address", db_url))?;
+        .with_context(|| format!("{} is not a valid prover database address", db_url))?;
     let db_name = db_url
         .path()
         .strip_prefix('/')
-        .with_context(|| format!("{} is not a valid database address", db_url.as_ref()))?
+        .with_context(|| format!("{} is not a valid prover database address", db_url.as_ref()))?
         .to_string();
     let db_copy_name = format!("{PREFIX}{}", rand::thread_rng().gen::<u64>());
     db_url.set_path("");
@@ -135,22 +132,22 @@ pub(super) async fn create_test_db() -> anyhow::Result<url::Url> {
 }
 
 #[derive(Clone)]
-pub struct MainConnectionPool(pub(crate) PgPool);
+pub struct ProverConnectionPool(pub(crate) PgPool);
 
-impl fmt::Debug for MainConnectionPool {
+impl fmt::Debug for ProverConnectionPool {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_tuple("MainConnectionPool").finish()
+        f.debug_tuple("ProverConnectionPool").finish()
     }
 }
 
-impl MainConnectionPool {
-    pub async fn test_pool() -> MainConnectionPool {
+impl ProverConnectionPool {
+    pub async fn test_pool() -> ProverConnectionPool {
         Self::builder(DbVariant::TestTmp).build().await.unwrap()
     }
 
-    /// Initializes a builder for connection pools.
-    pub fn builder(db: DbVariant) -> MainConnectionPoolBuilder {
-        MainConnectionPoolBuilder {
+    /// Initializes a builder for prover connection pools.
+    pub fn builder(db: DbVariant) -> ProverConnectionPoolBuilder {
+        ProverConnectionPoolBuilder {
             db,
             max_size: None,
             statement_timeout: None,
@@ -159,15 +156,15 @@ impl MainConnectionPool {
 
     /// Initializes a builder for connection pools with a single connection. This is equivalent
     /// to calling `Self::builder(db).set_max_size(Some(1))`.
-    pub fn singleton(db: DbVariant) -> MainConnectionPoolBuilder {
-        MainConnectionPoolBuilder {
+    pub fn singleton(db: DbVariant) -> ProverConnectionPoolBuilder {
+        ProverConnectionPoolBuilder {
             db,
             max_size: Some(1),
             statement_timeout: None,
         }
     }
 
-    /// Creates a `MainStorageProcessor` entity over a recoverable connection.
+    /// Creates a `ProverStorageProcessor` entity over a recoverable connection.
     /// Upon a database outage connection will block the thread until
     /// it will be able to recover the connection (or, if connection cannot
     /// be restored after several retries, this will be considered as
@@ -175,7 +172,7 @@ impl MainConnectionPool {
     ///
     /// This method is intended to be used in crucial contexts, where the
     /// database access is must-have (e.g. block committer).
-    pub async fn access_storage(&self) -> anyhow::Result<MainStorageProcessor<'_>> {
+    pub async fn access_storage(&self) -> anyhow::Result<ProverStorageProcessor<'_>> {
         self.access_storage_inner(None).await
     }
 
@@ -187,14 +184,14 @@ impl MainConnectionPool {
     pub async fn access_storage_tagged(
         &self,
         requester: &'static str,
-    ) -> anyhow::Result<MainStorageProcessor<'_>> {
+    ) -> anyhow::Result<ProverStorageProcessor<'_>> {
         self.access_storage_inner(Some(requester)).await
     }
 
     async fn access_storage_inner(
         &self,
         requester: Option<&'static str>,
-    ) -> anyhow::Result<MainStorageProcessor<'_>> {
+    ) -> anyhow::Result<ProverStorageProcessor<'_>> {
         let acquire_latency = CONNECTION_METRICS.acquire.start();
         let conn = self
             .acquire_connection_retried()
@@ -204,7 +201,7 @@ impl MainConnectionPool {
         if let Some(requester) = requester {
             CONNECTION_METRICS.acquire_tagged[&requester].observe(elapsed);
         }
-        Ok(MainStorageProcessor::from_pool(conn))
+        Ok(ProverStorageProcessor::from_pool(conn))
     }
 
     async fn acquire_connection_retried(&self) -> anyhow::Result<PoolConnection<Postgres>> {
@@ -227,7 +224,7 @@ impl MainConnectionPool {
 
             Self::report_connection_error(&connection_err);
             tracing::warn!(
-                "Failed to get connection to DB, backing off for {BACKOFF_INTERVAL:?}: {connection_err}"
+                "Failed to get connection to prover DB, backing off for {BACKOFF_INTERVAL:?}: {connection_err}"
             );
             tokio::time::sleep(BACKOFF_INTERVAL).await;
         }
@@ -237,7 +234,9 @@ impl MainConnectionPool {
             Ok(conn) => Ok(conn),
             Err(err) => {
                 Self::report_connection_error(&err);
-                anyhow::bail!("Run out of retries getting a DB connetion, last error: {err}");
+                anyhow::bail!(
+                    "Run out of retries getting a prover DB connection, last error: {err}"
+                );
             }
         }
     }
@@ -255,16 +254,16 @@ mod tests {
 
     #[tokio::test]
     async fn setting_statement_timeout() {
-        let pool = MainConnectionPool::builder(DbVariant::TestTmp)
+        let prover_pool = ProverConnectionPool::builder(DbVariant::TestTmp)
             .set_statement_timeout(Some(Duration::from_secs(1)))
             .build()
             .await
             .unwrap();
 
-        let mut storage = pool.access_storage().await.unwrap();
+        let mut prover_storage = prover_pool.access_storage().await.unwrap();
         let err = sqlx::query("SELECT pg_sleep(2)")
             .map(drop)
-            .fetch_optional(storage.conn())
+            .fetch_optional(prover_storage.conn())
             .await
             .unwrap_err();
         assert_matches!(

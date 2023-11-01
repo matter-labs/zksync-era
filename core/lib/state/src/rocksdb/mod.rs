@@ -22,7 +22,7 @@
 use itertools::{Either, Itertools};
 use std::{collections::HashMap, convert::TryInto, mem, path::Path, time::Instant};
 
-use zksync_dal::StorageProcessor;
+use zksync_dal::MainStorageProcessor;
 use zksync_storage::{db::NamedColumnFamily, RocksDB};
 use zksync_types::{L1BatchNumber, StorageKey, StorageValue, H256, U256};
 use zksync_utils::{h256_to_u256, u256_to_h256};
@@ -133,7 +133,7 @@ impl RocksdbStorage {
     ///
     /// Panics if the local L1 batch number is greater than the last sealed L1 batch number
     /// in Postgres.
-    pub async fn update_from_postgres(&mut self, conn: &mut StorageProcessor<'_>) {
+    pub async fn update_from_postgres(&mut self, conn: &mut MainStorageProcessor<'_>) {
         let latency = METRICS.update.start();
         let latest_l1_batch_number = conn
             .blocks_dal()
@@ -191,7 +191,7 @@ impl RocksdbStorage {
     async fn apply_storage_logs(
         &mut self,
         storage_logs: HashMap<StorageKey, H256>,
-        conn: &mut StorageProcessor<'_>,
+        conn: &mut MainStorageProcessor<'_>,
     ) {
         let (logs_with_known_indices, logs_with_unknown_indices): (Vec<_>, Vec<_>) = self
             .process_transaction_logs(storage_logs)
@@ -221,7 +221,7 @@ impl RocksdbStorage {
                 .collect();
     }
 
-    async fn save_missing_enum_indices(&self, conn: &mut StorageProcessor<'_>) {
+    async fn save_missing_enum_indices(&self, conn: &mut MainStorageProcessor<'_>) {
         let (Some(start_from), true) = (
             self.enum_migration_start_from(),
             self.enum_index_migration_chunk_size > 0,
@@ -333,7 +333,7 @@ impl RocksdbStorage {
     /// Panics on RocksDB errors.
     pub async fn rollback(
         &mut self,
-        connection: &mut StorageProcessor<'_>,
+        connection: &mut MainStorageProcessor<'_>,
         last_l1_batch_to_keep: L1BatchNumber,
     ) {
         tracing::info!("Rolling back state keeper storage to L1 batch #{last_l1_batch_to_keep}...");
@@ -566,7 +566,7 @@ mod tests {
     }
 
     async fn insert_factory_deps(
-        conn: &mut StorageProcessor<'_>,
+        conn: &mut MainStorageProcessor<'_>,
         miniblock_number: MiniblockNumber,
         indices: impl Iterator<Item = u8>,
     ) {

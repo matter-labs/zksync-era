@@ -5,7 +5,7 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 
 use zksync_contracts::zksync_contract;
-use zksync_dal::{ConnectionPool, StorageProcessor};
+use zksync_dal::{ConnectionPool, MainStorageProcessor};
 use zksync_types::protocol_version::{ProtocolUpgradeTx, ProtocolUpgradeTxCommonData};
 use zksync_types::web3::types::{Address, BlockNumber};
 use zksync_types::{
@@ -524,7 +524,7 @@ async fn test_overlapping_batches() {
     assert_eq!(tx.common_data.serial_id.0, 4);
 }
 
-async fn get_all_db_txs(storage: &mut StorageProcessor<'_>) -> Vec<Transaction> {
+async fn get_all_db_txs(storage: &mut MainStorageProcessor<'_>) -> Vec<Transaction> {
     storage.transactions_dal().reset_mempool().await;
     storage
         .transactions_dal()

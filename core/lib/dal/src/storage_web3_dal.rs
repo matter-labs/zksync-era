@@ -9,13 +9,13 @@ use zksync_types::{
 use zksync_utils::h256_to_u256;
 
 use crate::{
-    instrument::InstrumentExt, models::storage_block::ResolvedL1BatchForMiniblock, SqlxError,
-    StorageProcessor,
+    instrument::InstrumentExt, models::storage_block::ResolvedL1BatchForMiniblock,
+    MainStorageProcessor, SqlxError,
 };
 
 #[derive(Debug)]
 pub struct StorageWeb3Dal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+    pub(crate) storage: &'a mut MainStorageProcessor<'c>,
 }
 
 impl StorageWeb3Dal<'_, '_> {

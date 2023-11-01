@@ -8,11 +8,11 @@ use zksync_types::{
 use crate::models::storage_protocol_version::{
     protocol_version_from_storage, StorageProtocolVersion,
 };
-use crate::StorageProcessor;
+use crate::MainStorageProcessor;
 
 #[derive(Debug)]
 pub struct ProtocolVersionsDal<'a, 'c> {
-    pub storage: &'a mut StorageProcessor<'c>,
+    pub storage: &'a mut MainStorageProcessor<'c>,
 }
 
 impl ProtocolVersionsDal<'_, '_> {

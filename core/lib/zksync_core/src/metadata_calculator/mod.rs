@@ -9,7 +9,7 @@ use zksync_config::configs::{
     chain::OperationsManagerConfig,
     database::{DBConfig, MerkleTreeMode},
 };
-use zksync_dal::{ConnectionPool, StorageProcessor};
+use zksync_dal::{ConnectionPool, MainStorageProcessor};
 use zksync_health_check::{HealthUpdater, ReactiveHealthCheck};
 use zksync_merkle_tree::domain::TreeMetadata;
 use zksync_object_store::ObjectStoreFactory;
@@ -159,7 +159,7 @@ impl MetadataCalculator {
     /// in the State Keeper, where storage writes aren't yet deduplicated, whereas L1 batch metadata
     /// contains deduplicated storage writes.
     async fn reestimate_l1_batch_commit_gas(
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut MainStorageProcessor<'_>,
         header: &L1BatchHeader,
         metadata: &L1BatchMetadata,
     ) {

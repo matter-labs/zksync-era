@@ -14,11 +14,11 @@ use crate::models::{
         StorageTransactionDetails,
     },
 };
-use crate::{instrument::InstrumentExt, SqlxError, StorageProcessor};
+use crate::{instrument::InstrumentExt, MainStorageProcessor, SqlxError};
 
 #[derive(Debug)]
 pub struct TransactionsWeb3Dal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+    pub(crate) storage: &'a mut MainStorageProcessor<'c>,
 }
 
 impl TransactionsWeb3Dal<'_, '_> {
@@ -363,7 +363,7 @@ mod tests {
         ConnectionPool,
     };
 
-    async fn prepare_transaction(conn: &mut StorageProcessor<'_>, tx: L2Tx) {
+    async fn prepare_transaction(conn: &mut MainStorageProcessor<'_>, tx: L2Tx) {
         conn.blocks_dal()
             .delete_miniblocks(MiniblockNumber(0))
             .await

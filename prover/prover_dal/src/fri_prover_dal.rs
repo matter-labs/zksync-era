@@ -7,16 +7,16 @@ use zksync_types::{
     L1BatchNumber,
 };
 
-use crate::{
+use crate::ProverStorageProcessor;
+use zksync_dal::{
     instrument::InstrumentExt,
     metrics::MethodLatency,
     time_utils::{duration_to_naive_time, pg_interval_from_duration},
-    StorageProcessor,
 };
 
 #[derive(Debug)]
 pub struct FriProverDal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+    pub(crate) storage: &'a mut ProverStorageProcessor<'c>,
 }
 
 impl FriProverDal<'_, '_> {

@@ -3,11 +3,11 @@ use std::convert::TryFrom;
 use zksync_types::protocol_version::FriProtocolVersionId;
 use zksync_types::protocol_version::L1VerifierConfig;
 
-use crate::StorageProcessor;
+use crate::ProverStorageProcessor;
 
 #[derive(Debug)]
 pub struct FriProtocolVersionsDal<'a, 'c> {
-    pub storage: &'a mut StorageProcessor<'c>,
+    pub storage: &'a mut ProverStorageProcessor<'c>,
 }
 
 impl FriProtocolVersionsDal<'_, '_> {
