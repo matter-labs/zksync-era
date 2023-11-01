@@ -51,10 +51,10 @@ Machine specs:
    ```
 
 3. Generate the cpu setup data (no need to regenerate if it's already there). This will consume around 300Gb of disk.
-   For this, run
+   For this, move to the `prover` directory, and run
 
    ```
-   ./prover/setup.sh
+   ./setup.sh
    ```
 
 For the following steps, we recommend using `tmux` to run every command on a separate session, so you can attach to and
@@ -110,10 +110,10 @@ Running a GPU prover requires a Cuda 12.0 installation as a pre-requisite, along
 1. Install the correct nightly version using command: `rustup install nightly-2023-07-21`
 2. Initialize DB and run migrations: `zk init`
 3. Generate the GPU setup data (no need to regenerate if it's already there). This will consume around 300Gb of disk.
-   For this, run
+   For this, move to the `prover` directory, and run
 
    ```
-   ./prover/setup_gpu.sh
+   ./setup.sh gpu
    ```
 
 4. Run the sequencer/operator. In the root of the repository:
