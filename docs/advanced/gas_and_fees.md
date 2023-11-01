@@ -123,9 +123,6 @@ There are a few reasons why refunds might be 'larger' on zkSync (i.e., why we mi
   might cause the estimation to be significantly higher, especially when the L1 gas price is already high, as it then
   impacts the amount of gas used by pubdata.
 
-[main_node_fetcher]:
-  https://github.com/matter-labs/zksync-era/blob/main/core/lib/zksync_core/src/l1_gas_price/main_node_fetcher.rs#L32
-  'main node fetcher'
 [gas_adjuster]:
   https://github.com/matter-labs/zksync-era/blob/main/core/lib/zksync_core/src/l1_gas_price/gas_adjuster/mod.rs#L30
   'gas_adjuster'
