@@ -8,8 +8,6 @@
 //! The "private glue" lies in the `types` module.
 
 pub(crate) mod history_mode;
-pub(crate) mod init_vm;
-pub(crate) mod oracle_tools;
 pub mod tracers;
 mod types;
 

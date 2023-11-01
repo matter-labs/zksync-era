@@ -6,7 +6,6 @@
 pub use crate::{
     glue::{
         history_mode::HistoryMode,
-        oracle_tools::OracleTools,
         tracers::{MultiVmTracerPointer, MultivmTracer},
     },
     vm_instance::VmInstance,

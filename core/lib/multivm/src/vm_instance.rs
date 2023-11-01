@@ -1,120 +1,101 @@
 use crate::interface::{
-    FinishedL1Batch, L2BlockEnv, VmExecutionMode, VmInterface, VmInterfaceHistoryEnabled,
+    BootloaderMemory, CurrentExecutionState, FinishedL1Batch, L1BatchEnv, L2BlockEnv, SystemEnv,
+    VmExecutionMode, VmExecutionResultAndLogs, VmInterface, VmInterfaceHistoryEnabled,
     VmMemoryMetrics,
 };
 
-use zksync_state::{ReadStorage, StorageView};
+use zksync_state::{StoragePtr, WriteStorage};
+use zksync_types::VmVersion;
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
 use crate::glue::history_mode::HistoryMode;
-use crate::glue::tracers::MultivmTracer;
 use crate::glue::GlueInto;
-
-pub struct VmInstance<S: ReadStorage, H: HistoryMode> {
-    pub(crate) vm: VmInstanceVersion<S, H>,
-}
+use crate::tracers::TracerDispatcher;
 
 #[derive(Debug)]
-pub(crate) enum VmInstanceVersion<S: ReadStorage, H: HistoryMode> {
-    VmM5(crate::vm_m5::Vm<StorageView<S>, H>),
-    VmM6(crate::vm_m6::Vm<StorageView<S>, H>),
-    Vm1_3_2(crate::vm_1_3_2::Vm<StorageView<S>, H>),
-    VmVirtualBlocks(crate::vm_virtual_blocks::Vm<StorageView<S>, H>),
-    VmVirtualBlocksRefundsEnhancement(crate::vm_latest::Vm<StorageView<S>, H>),
+pub enum VmInstance<S: WriteStorage, H: HistoryMode> {
+    VmM5(crate::vm_m5::Vm<S, H>),
+    VmM6(crate::vm_m6::Vm<S, H>),
+    Vm1_3_2(crate::vm_1_3_2::Vm<S, H>),
+    VmVirtualBlocks(crate::vm_virtual_blocks::Vm<S, H>),
+    VmVirtualBlocksRefundsEnhancement(crate::vm_latest::Vm<S, H>),
 }
 
-impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
+impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for VmInstance<S, H> {
+    type TracerDispatcher = TracerDispatcher<S, H>;
     /// Push tx into memory for the future execution
-    pub fn push_transaction(&mut self, tx: &zksync_types::Transaction) {
-        match &mut self.vm {
-            VmInstanceVersion::VmM5(vm) => {
+    fn push_transaction(&mut self, tx: zksync_types::Transaction) {
+        match self {
+            VmInstance::VmM5(vm) => {
                 vm.push_transaction(tx.clone());
             }
-            VmInstanceVersion::VmM6(vm) => {
+            VmInstance::VmM6(vm) => {
                 vm.push_transaction(tx.clone());
             }
-            VmInstanceVersion::Vm1_3_2(vm) => {
+            VmInstance::Vm1_3_2(vm) => {
                 vm.push_transaction(tx.clone());
             }
-            VmInstanceVersion::VmVirtualBlocks(vm) => {
+            VmInstance::VmVirtualBlocks(vm) => {
                 vm.push_transaction(tx.clone());
             }
-            VmInstanceVersion::VmVirtualBlocksRefundsEnhancement(vm) => {
+            VmInstance::VmVirtualBlocksRefundsEnhancement(vm) => {
                 vm.push_transaction(tx.clone());
             }
         }
     }
 
     /// Return the results of execution of all batch
-    pub fn finish_batch(&mut self) -> FinishedL1Batch {
-        match &mut self.vm {
-            VmInstanceVersion::VmM5(vm) => vm.finish_batch(),
-            VmInstanceVersion::VmM6(vm) => vm.finish_batch(),
-            VmInstanceVersion::Vm1_3_2(vm) => vm.finish_batch(),
-            VmInstanceVersion::VmVirtualBlocks(vm) => vm.finish_batch(),
-            VmInstanceVersion::VmVirtualBlocksRefundsEnhancement(vm) => vm.finish_batch(),
+    fn finish_batch(&mut self) -> FinishedL1Batch {
+        match self {
+            VmInstance::VmM5(vm) => vm.finish_batch(),
+            VmInstance::VmM6(vm) => vm.finish_batch(),
+            VmInstance::Vm1_3_2(vm) => vm.finish_batch(),
+            VmInstance::VmVirtualBlocks(vm) => vm.finish_batch(),
+            VmInstance::VmVirtualBlocksRefundsEnhancement(vm) => vm.finish_batch(),
         }
     }
 
     /// Execute the batch without stops after each tx.
     /// This method allows to execute the part  of the VM cycle after executing all txs.
-    pub fn execute_block_tip(&mut self) -> crate::interface::VmExecutionResultAndLogs {
-        match &mut self.vm {
-            VmInstanceVersion::VmM5(vm) => vm.execute(VmExecutionMode::Bootloader),
-            VmInstanceVersion::VmM6(vm) => vm.execute(VmExecutionMode::Bootloader),
-            VmInstanceVersion::Vm1_3_2(vm) => vm.execute(VmExecutionMode::Bootloader),
-            VmInstanceVersion::VmVirtualBlocks(vm) => vm.execute(VmExecutionMode::Bootloader),
-            VmInstanceVersion::VmVirtualBlocksRefundsEnhancement(vm) => {
-                vm.execute(VmExecutionMode::Bootloader)
-            }
-        }
-    }
-
-    /// Execute next transaction and stop vm right after next transaction execution
-    pub fn execute_next_transaction(&mut self) -> crate::interface::VmExecutionResultAndLogs {
-        match &mut self.vm {
-            VmInstanceVersion::VmM5(vm) => vm.execute(VmExecutionMode::OneTx),
-            VmInstanceVersion::VmM6(vm) => vm.execute(VmExecutionMode::OneTx),
-            VmInstanceVersion::Vm1_3_2(vm) => vm.execute(VmExecutionMode::OneTx),
-            VmInstanceVersion::VmVirtualBlocks(vm) => {
-                vm.execute(VmExecutionMode::OneTx).glue_into()
-            }
-            VmInstanceVersion::VmVirtualBlocksRefundsEnhancement(vm) => {
-                vm.execute(VmExecutionMode::OneTx)
-            }
+    fn execute(&mut self, execution_mode: VmExecutionMode) -> VmExecutionResultAndLogs {
+        match self {
+            VmInstance::VmM5(vm) => vm.execute(execution_mode),
+            VmInstance::VmM6(vm) => vm.execute(execution_mode),
+            VmInstance::Vm1_3_2(vm) => vm.execute(execution_mode),
+            VmInstance::VmVirtualBlocks(vm) => vm.execute(execution_mode),
+            VmInstance::VmVirtualBlocksRefundsEnhancement(vm) => vm.execute(execution_mode),
         }
     }
 
     /// Get compressed bytecodes of the last executed transaction
-    pub fn get_last_tx_compressed_bytecodes(&self) -> Vec<CompressedBytecodeInfo> {
-        match &self.vm {
-            VmInstanceVersion::VmVirtualBlocks(vm) => vm.get_last_tx_compressed_bytecodes(),
-            VmInstanceVersion::VmVirtualBlocksRefundsEnhancement(vm) => {
+    fn get_last_tx_compressed_bytecodes(&self) -> Vec<CompressedBytecodeInfo> {
+        match self {
+            VmInstance::VmVirtualBlocks(vm) => vm.get_last_tx_compressed_bytecodes(),
+            VmInstance::VmVirtualBlocksRefundsEnhancement(vm) => {
                 vm.get_last_tx_compressed_bytecodes()
             }
-            VmInstanceVersion::Vm1_3_2(vm) => vm.get_last_tx_compressed_bytecodes(),
-            VmInstanceVersion::VmM6(vm) => vm.get_last_tx_compressed_bytecodes(),
-            VmInstanceVersion::VmM5(vm) => vm.get_last_tx_compressed_bytecodes(),
+            VmInstance::Vm1_3_2(vm) => vm.get_last_tx_compressed_bytecodes(),
+            VmInstance::VmM6(vm) => vm.get_last_tx_compressed_bytecodes(),
+            VmInstance::VmM5(vm) => vm.get_last_tx_compressed_bytecodes(),
         }
     }
 
     /// Execute next transaction with custom tracers
-    pub fn inspect_next_transaction(
+    fn inspect(
         &mut self,
-        tracers: Vec<Box<dyn MultivmTracer<StorageView<S>, H>>>,
-    ) -> crate::interface::VmExecutionResultAndLogs {
-        match &mut self.vm {
-            VmInstanceVersion::VmVirtualBlocks(vm) => {
-                let tracers: Vec<_> = tracers.into_iter().map(|t| t.vm_virtual_blocks()).collect();
-                vm.inspect(tracers.into(), VmExecutionMode::OneTx)
+        dispatcher: Self::TracerDispatcher,
+        execution_mode: VmExecutionMode,
+    ) -> VmExecutionResultAndLogs {
+        match self {
+            VmInstance::VmVirtualBlocks(vm) => {
+                vm.inspect(dispatcher.into(), VmExecutionMode::OneTx)
             }
-            VmInstanceVersion::VmVirtualBlocksRefundsEnhancement(vm) => {
-                let tracers: Vec<_> = tracers.into_iter().map(|t| t.latest()).collect();
-                vm.inspect(tracers.into(), VmExecutionMode::OneTx)
+            VmInstance::VmVirtualBlocksRefundsEnhancement(vm) => {
+                vm.inspect(dispatcher.into(), VmExecutionMode::OneTx)
             }
-            VmInstanceVersion::Vm1_3_2(vm) => vm.execute(VmExecutionMode::OneTx),
-            VmInstanceVersion::VmM6(vm) => vm.execute(VmExecutionMode::OneTx),
-            VmInstanceVersion::VmM5(vm) => vm.execute(VmExecutionMode::OneTx),
+            VmInstance::Vm1_3_2(vm) => vm.execute(execution_mode),
+            VmInstance::VmM6(vm) => vm.execute(execution_mode),
+            VmInstance::VmM5(vm) => vm.execute(execution_mode),
         }
     }
 
@@ -123,67 +104,59 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
         &mut self,
         tx: zksync_types::Transaction,
         with_compression: bool,
-    ) -> Result<
-        crate::interface::VmExecutionResultAndLogs,
-        crate::interface::BytecodeCompressionError,
-    > {
-        match &mut self.vm {
-            VmInstanceVersion::VmM5(vm) => {
+    ) -> Result<VmExecutionResultAndLogs, crate::interface::BytecodeCompressionError> {
+        match self {
+            VmInstance::VmM5(vm) => {
                 vm.execute_transaction_with_bytecode_compression(tx, with_compression)
             }
-            VmInstanceVersion::VmM6(vm) => {
+            VmInstance::VmM6(vm) => {
                 vm.execute_transaction_with_bytecode_compression(tx, with_compression)
             }
-            VmInstanceVersion::Vm1_3_2(vm) => {
+            VmInstance::Vm1_3_2(vm) => {
                 vm.execute_transaction_with_bytecode_compression(tx, with_compression)
             }
-            VmInstanceVersion::VmVirtualBlocks(vm) => {
+            VmInstance::VmVirtualBlocks(vm) => {
                 vm.execute_transaction_with_bytecode_compression(tx, with_compression)
             }
-            VmInstanceVersion::VmVirtualBlocksRefundsEnhancement(vm) => {
+            VmInstance::VmVirtualBlocksRefundsEnhancement(vm) => {
                 vm.execute_transaction_with_bytecode_compression(tx, with_compression)
             }
         }
     }
 
     /// Inspect transaction with optional bytecode compression.
-    pub fn inspect_transaction_with_bytecode_compression(
+    fn inspect_transaction_with_bytecode_compression(
         &mut self,
-        tracers: Vec<Box<dyn MultivmTracer<StorageView<S>, H>>>,
+        dispatcher: Self::TracerDispatcher,
         tx: zksync_types::Transaction,
         with_compression: bool,
     ) -> Result<
         crate::interface::VmExecutionResultAndLogs,
         crate::interface::BytecodeCompressionError,
     > {
-        match &mut self.vm {
-            VmInstanceVersion::VmVirtualBlocks(vm) => {
-                let tracers: Vec<_> = tracers.into_iter().map(|t| t.vm_virtual_blocks()).collect();
-                vm.inspect_transaction_with_bytecode_compression(
-                    tracers.into(),
+        match self {
+            VmInstance::VmVirtualBlocks(vm) => vm.inspect_transaction_with_bytecode_compression(
+                dispatcher.into(),
+                tx,
+                with_compression,
+            ),
+            VmInstance::VmVirtualBlocksRefundsEnhancement(vm) => vm
+                .inspect_transaction_with_bytecode_compression(
+                    dispatcher.into(),
                     tx,
                     with_compression,
-                )
-            }
-            VmInstanceVersion::VmVirtualBlocksRefundsEnhancement(vm) => {
-                let tracers: Vec<_> = tracers.into_iter().map(|t| t.latest()).collect();
-                vm.inspect_transaction_with_bytecode_compression(
-                    tracers.into(),
-                    tx,
-                    with_compression,
-                )
-            }
-            VmInstanceVersion::VmM6(vm) => vm.inspect_transaction_with_bytecode_compression(
+                ),
+            VmInstance::VmM6(vm) => vm.inspect_transaction_with_bytecode_compression(
                 Default::default(),
                 tx,
                 with_compression,
             ),
-            VmInstanceVersion::Vm1_3_2(vm) => vm.inspect_transaction_with_bytecode_compression(
+            VmInstance::Vm1_3_2(vm) => vm.inspect_transaction_with_bytecode_compression(
                 Default::default(),
                 tx,
                 with_compression,
             ),
-            VmInstanceVersion::VmM5(vm) => vm.inspect_transaction_with_bytecode_compression(
+            VmInstance::VmM5(vm) => vm.inspect_transaction_with_bytecode_compression(
                 Default::default(),
                 tx,
                 with_compression,
@@ -191,75 +164,171 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
         }
     }
 
-    pub fn start_new_l2_block(&mut self, l2_block_env: L2BlockEnv) {
-        match &mut self.vm {
-            VmInstanceVersion::VmVirtualBlocks(vm) => {
+    fn start_new_l2_block(&mut self, l2_block_env: L2BlockEnv) {
+        match self {
+            VmInstance::VmVirtualBlocks(vm) => {
                 vm.start_new_l2_block(l2_block_env.glue_into());
             }
-            VmInstanceVersion::VmVirtualBlocksRefundsEnhancement(vm) => {
+            VmInstance::VmVirtualBlocksRefundsEnhancement(vm) => {
                 vm.start_new_l2_block(l2_block_env);
             }
-            VmInstanceVersion::VmM6(vm) => {
+            VmInstance::VmM6(vm) => {
                 vm.start_new_l2_block(l2_block_env);
             }
-            VmInstanceVersion::Vm1_3_2(vm) => {
+            VmInstance::Vm1_3_2(vm) => {
                 vm.start_new_l2_block(l2_block_env);
             }
-            VmInstanceVersion::VmM5(vm) => {
+            VmInstance::VmM5(vm) => {
                 vm.start_new_l2_block(l2_block_env);
             }
         }
     }
 
-    pub fn record_vm_memory_metrics(&self) -> Option<VmMemoryMetrics> {
-        match &self.vm {
-            VmInstanceVersion::VmM5(vm) => Some(vm.record_vm_memory_metrics()),
-            VmInstanceVersion::VmM6(vm) => Some(vm.record_vm_memory_metrics()),
-            VmInstanceVersion::Vm1_3_2(vm) => Some(vm.record_vm_memory_metrics()),
-            VmInstanceVersion::VmVirtualBlocks(vm) => Some(vm.record_vm_memory_metrics()),
-            VmInstanceVersion::VmVirtualBlocksRefundsEnhancement(vm) => {
-                Some(vm.record_vm_memory_metrics())
-            }
+    fn record_vm_memory_metrics(&self) -> VmMemoryMetrics {
+        match &self {
+            VmInstance::VmM5(vm) => vm.record_vm_memory_metrics(),
+            VmInstance::VmM6(vm) => vm.record_vm_memory_metrics(),
+            VmInstance::Vm1_3_2(vm) => vm.record_vm_memory_metrics(),
+            VmInstance::VmVirtualBlocks(vm) => vm.record_vm_memory_metrics(),
+            VmInstance::VmVirtualBlocksRefundsEnhancement(vm) => vm.record_vm_memory_metrics(),
+        }
+    }
+
+    fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage_view: StoragePtr<S>) -> Self {
+        let protocol_version = system_env.version;
+        let vm_version: VmVersion = protocol_version.into();
+        Self::new_with_specific_version(batch_env, system_env, storage_view, vm_version)
+    }
+
+    fn get_bootloader_memory(&self) -> BootloaderMemory {
+        match &self {
+            VmInstance::VmM5(vm) => vm.get_bootloader_memory(),
+            VmInstance::VmM6(vm) => vm.get_bootloader_memory(),
+            VmInstance::Vm1_3_2(vm) => vm.get_bootloader_memory(),
+            VmInstance::VmVirtualBlocks(vm) => vm.get_bootloader_memory(),
+            VmInstance::VmVirtualBlocksRefundsEnhancement(vm) => vm.get_bootloader_memory(),
+        }
+    }
+
+    fn get_current_execution_state(&self) -> CurrentExecutionState {
+        match &self {
+            VmInstance::VmM5(vm) => vm.get_current_execution_state(),
+            VmInstance::VmM6(vm) => vm.get_current_execution_state(),
+            VmInstance::Vm1_3_2(vm) => vm.get_current_execution_state(),
+            VmInstance::VmVirtualBlocks(vm) => vm.get_current_execution_state(),
+            VmInstance::VmVirtualBlocksRefundsEnhancement(vm) => vm.get_current_execution_state(),
         }
     }
 }
 
-impl<S: ReadStorage> VmInstance<S, crate::vm_latest::HistoryEnabled> {
-    pub fn make_snapshot(&mut self) {
-        match &mut self.vm {
-            VmInstanceVersion::VmM5(vm) => vm.make_snapshot(),
-            VmInstanceVersion::VmM6(vm) => vm.make_snapshot(),
-            VmInstanceVersion::Vm1_3_2(vm) => vm.make_snapshot(),
-            VmInstanceVersion::VmVirtualBlocks(vm) => vm.make_snapshot(),
-            VmInstanceVersion::VmVirtualBlocksRefundsEnhancement(vm) => vm.make_snapshot(),
+impl<S: WriteStorage> VmInterfaceHistoryEnabled<S>
+    for VmInstance<S, crate::vm_latest::HistoryEnabled>
+{
+    fn make_snapshot(&mut self) {
+        match self {
+            VmInstance::VmM5(vm) => vm.make_snapshot(),
+            VmInstance::VmM6(vm) => vm.make_snapshot(),
+            VmInstance::Vm1_3_2(vm) => vm.make_snapshot(),
+            VmInstance::VmVirtualBlocks(vm) => vm.make_snapshot(),
+            VmInstance::VmVirtualBlocksRefundsEnhancement(vm) => vm.make_snapshot(),
         }
     }
 
-    pub fn rollback_to_the_latest_snapshot(&mut self) {
-        match &mut self.vm {
-            VmInstanceVersion::VmM5(vm) => vm.rollback_to_the_latest_snapshot(),
-            VmInstanceVersion::VmM6(vm) => vm.rollback_to_the_latest_snapshot(),
-            VmInstanceVersion::Vm1_3_2(vm) => vm.rollback_to_the_latest_snapshot(),
-            VmInstanceVersion::VmVirtualBlocks(vm) => {
+    fn rollback_to_the_latest_snapshot(&mut self) {
+        match self {
+            VmInstance::VmM5(vm) => vm.rollback_to_the_latest_snapshot(),
+            VmInstance::VmM6(vm) => vm.rollback_to_the_latest_snapshot(),
+            VmInstance::Vm1_3_2(vm) => vm.rollback_to_the_latest_snapshot(),
+            VmInstance::VmVirtualBlocks(vm) => {
                 vm.rollback_to_the_latest_snapshot();
             }
-            VmInstanceVersion::VmVirtualBlocksRefundsEnhancement(vm) => {
+            VmInstance::VmVirtualBlocksRefundsEnhancement(vm) => {
                 vm.rollback_to_the_latest_snapshot();
             }
         }
     }
 
-    pub fn pop_snapshot_no_rollback(&mut self) {
-        match &mut self.vm {
-            VmInstanceVersion::VmM5(vm) => {
+    fn pop_snapshot_no_rollback(&mut self) {
+        match self {
+            VmInstance::VmM5(vm) => {
                 // A dedicated method was added later.
                 vm.pop_snapshot_no_rollback();
             }
-            VmInstanceVersion::VmM6(vm) => vm.pop_snapshot_no_rollback(),
-            VmInstanceVersion::Vm1_3_2(vm) => vm.pop_snapshot_no_rollback(),
-            VmInstanceVersion::VmVirtualBlocks(vm) => vm.pop_snapshot_no_rollback(),
-            VmInstanceVersion::VmVirtualBlocksRefundsEnhancement(vm) => {
-                vm.pop_snapshot_no_rollback()
+            VmInstance::VmM6(vm) => vm.pop_snapshot_no_rollback(),
+            VmInstance::Vm1_3_2(vm) => vm.pop_snapshot_no_rollback(),
+            VmInstance::VmVirtualBlocks(vm) => vm.pop_snapshot_no_rollback(),
+            VmInstance::VmVirtualBlocksRefundsEnhancement(vm) => vm.pop_snapshot_no_rollback(),
+        }
+    }
+}
+
+impl<S: WriteStorage, H: HistoryMode> VmInstance<S, H> {
+    pub fn new_with_specific_version(
+        l1_batch_env: L1BatchEnv,
+        system_env: SystemEnv,
+        storage_view: StoragePtr<S>,
+        vm_version: VmVersion,
+    ) -> Self {
+        match vm_version {
+            VmVersion::M5WithoutRefunds => {
+                let vm = crate::vm_m5::Vm::new_with_subversion(
+                    l1_batch_env,
+                    system_env.clone(),
+                    storage_view.clone(),
+                    crate::vm_m5::vm_instance::MultiVMSubversion::V1,
+                );
+                VmInstance::VmM5(vm)
+            }
+            VmVersion::M5WithRefunds => {
+                let vm = crate::vm_m5::Vm::new_with_subversion(
+                    l1_batch_env,
+                    system_env.clone(),
+                    storage_view.clone(),
+                    crate::vm_m5::vm_instance::MultiVMSubversion::V2,
+                );
+                VmInstance::VmM5(vm)
+            }
+            VmVersion::M6Initial => {
+                let vm = crate::vm_m6::Vm::new_with_subversion(
+                    l1_batch_env,
+                    system_env.clone(),
+                    storage_view.clone(),
+                    crate::vm_m6::vm_instance::MultiVMSubversion::V1,
+                );
+                VmInstance::VmM6(vm)
+            }
+            VmVersion::M6BugWithCompressionFixed => {
+                let vm = crate::vm_m6::Vm::new_with_subversion(
+                    l1_batch_env,
+                    system_env.clone(),
+                    storage_view.clone(),
+                    crate::vm_m6::vm_instance::MultiVMSubversion::V2,
+                );
+                VmInstance::VmM6(vm)
+            }
+            VmVersion::Vm1_3_2 => {
+                let vm = crate::vm_1_3_2::Vm::new(
+                    l1_batch_env,
+                    system_env.clone(),
+                    storage_view.clone(),
+                );
+                VmInstance::Vm1_3_2(vm)
+            }
+            VmVersion::VmVirtualBlocks => {
+                let vm = crate::vm_virtual_blocks::Vm::new(
+                    l1_batch_env.glue_into(),
+                    system_env.clone().glue_into(),
+                    storage_view.clone(),
+                );
+                VmInstance::VmVirtualBlocks(vm)
+            }
+            VmVersion::VmVirtualBlocksRefundsEnhancement => {
+                let vm = crate::vm_latest::Vm::new(
+                    l1_batch_env.glue_into(),
+                    system_env.clone(),
+                    storage_view.clone(),
+                );
+                VmInstance::VmVirtualBlocksRefundsEnhancement(vm)
             }
         }
     }
