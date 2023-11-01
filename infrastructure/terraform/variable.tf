@@ -19,7 +19,7 @@ variable "instances" {
 }
 
 variable "server_type" {
-    default = "cx31"
+    default = "cpx31"
 }
 
 variable "os_type" {
@@ -27,7 +27,7 @@ variable "os_type" {
 }
 
 variable "disk_size" {
-    default = "50"
+    default = "60"
 }
 
 variable "ip_range" {
