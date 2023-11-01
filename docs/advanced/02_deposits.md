@@ -127,7 +127,7 @@ the requests to different contracts (facets) that can be independently updated a
 ![Diamond proxy layout](https://user-images.githubusercontent.com/128217157/229521292-1532a59b-665c-4cc4-8342-d25ad45a8fcd.png)
 
 You can find more detailed description in
-[Contract docs](https://github.com/matter-labs/zksync-2-contracts/blob/main/docs/Overview.md)
+[Contract docs](https://github.com/matter-labs/era-contracts/blob/main/docs/Overview.md)
 
 #### requestL2Transaction Function details
 
@@ -158,7 +158,7 @@ The call to requestL2Transaction, is adding the transaction to the priorityQueue
 
 The zk server (that you started with `zk server` command) is listening on events that are emitted from this contract
 (via eth_watcher module -
-[`loop_iteration` function](https://github.com/matter-labs/zksync-2-dev/blob/main/core/bin/zksync_core/src/eth_watch/mod.rs#L128])
+[`loop_iteration` function](https://github.com/matter-labs/zksync-era/blob/main/core/lib/zksync_core/src/eth_watch/mod.rs#L163)
 ) and adds them to the postgres database (into `transactions` table).
 
 You can actually check it - by running the psql and looking at the contents of the table - then you'll notice that
