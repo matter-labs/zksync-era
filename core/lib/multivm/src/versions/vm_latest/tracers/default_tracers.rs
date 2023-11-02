@@ -1,7 +1,7 @@
 use std::fmt::{Debug, Formatter};
 
 use crate::interface::{Halt, VmExecutionMode};
-use zk_evm_1_3_3::{
+use zk_evm_1_4_0::{
     tracing::{
         AfterDecodingData, AfterExecutionData, BeforeExecutionData, Tracer, VmLocalStateData,
     },
@@ -135,7 +135,7 @@ impl<S, H: HistoryMode> Tracer for DefaultExecutionTracer<S, H> {
         memory: &Self::SupportedMemory,
     ) {
         if let VmExecutionMode::Bootloader = self.execution_mode {
-            let (next_opcode, _, _) = zk_evm_1_3_3::vm_state::read_and_decode(
+            let (next_opcode, _, _) = zk_evm_1_4_0::vm_state::read_and_decode(
                 state.vm_local_state,
                 memory,
                 &mut DummyTracer,

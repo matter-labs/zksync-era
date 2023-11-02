@@ -1,7 +1,7 @@
 use vise::{Buckets, EncodeLabelSet, EncodeLabelValue, Family, Histogram, Metrics};
 
 use crate::interface::{L1BatchEnv, Refunds};
-use zk_evm_1_3_3::{
+use zk_evm_1_4_0::{
     aux_structures::Timestamp,
     tracing::{BeforeExecutionData, VmLocalStateData},
     vm_state::VmLocalState,
@@ -319,7 +319,7 @@ pub(crate) fn pubdata_published<S: WriteStorage, H: HistoryMode>(
         })
         .filter(|log| log.sender != SYSTEM_CONTEXT_ADDRESS)
         .count() as u32)
-        * zk_evm_1_3_3::zkevm_opcode_defs::system_params::L1_MESSAGE_PUBDATA_BYTES;
+        * zk_evm_1_4_0::zkevm_opcode_defs::system_params::L1_MESSAGE_PUBDATA_BYTES;
     let l2_l1_long_messages_bytes: u32 = extract_long_l2_to_l1_messages(&events)
         .iter()
         .map(|event| event.len() as u32)

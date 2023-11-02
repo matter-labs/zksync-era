@@ -6,9 +6,9 @@ use crate::vm_latest::old_vm::history_recorder::{
 };
 use crate::vm_latest::old_vm::oracles::OracleWithHistory;
 
-use zk_evm_1_3_3::abstractions::RefundedAmounts;
-use zk_evm_1_3_3::zkevm_opcode_defs::system_params::INITIAL_STORAGE_WRITE_PUBDATA_BYTES;
-use zk_evm_1_3_3::{
+use zk_evm_1_4_0::abstractions::RefundedAmounts;
+use zk_evm_1_4_0::zkevm_opcode_defs::system_params::INITIAL_STORAGE_WRITE_PUBDATA_BYTES;
+use zk_evm_1_4_0::{
     abstractions::{RefundType, Storage as VmStorageOracle},
     aux_structures::{LogQuery, Timestamp},
 };
