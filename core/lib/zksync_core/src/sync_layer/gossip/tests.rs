@@ -112,8 +112,8 @@ async fn syncing_via_gossip_fetcher(delay_first_block: bool, delay_second_block:
     let ctx = &ctx::test_root(&ctx::AffineClock::new(CLOCK_SPEEDUP as f64));
     let rng = &mut ctx.rng();
     let mut validator =
-        FullValidatorConfig::for_single_validator(rng, genesis_block.payload.clone());
-    let external_node = validator.connect_external_node(rng);
+        FullValidatorConfig::for_single_validator(rng, genesis_block.payload.clone()).await;
+    let external_node = validator.connect_external_node(rng).await;
 
     let validator_storage = Arc::new(InMemoryStorage::new(genesis_block));
     if !delay_first_block {
@@ -231,8 +231,8 @@ async fn syncing_via_gossip_fetcher_with_multiple_l1_batches(initial_block_count
     let ctx = &ctx::test_root(&ctx::AffineClock::new(CLOCK_SPEEDUP as f64));
     let rng = &mut ctx.rng();
     let mut validator =
-        FullValidatorConfig::for_single_validator(rng, genesis_block.payload.clone());
-    let external_node = validator.connect_external_node(rng);
+        FullValidatorConfig::for_single_validator(rng, genesis_block.payload.clone()).await;
+    let external_node = validator.connect_external_node(rng).await;
 
     let validator_storage = Arc::new(InMemoryStorage::new(genesis_block));
     for block in initial_blocks {
