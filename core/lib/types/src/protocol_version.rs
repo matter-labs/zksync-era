@@ -73,6 +73,7 @@ impl ProtocolVersionId {
             ProtocolVersionId::Version16 => VmVersion::VmVirtualBlocksRefundsEnhancement,
             ProtocolVersionId::Version17 => VmVersion::VmVirtualBlocksRefundsEnhancement,
             ProtocolVersionId::Version18 => VmVersion::VmVirtualBlocksRefundsEnhancement,
+            ProtocolVersionId::Version19 => VmVersion::VmVirtualBlocksRefundsEnhancement,
         }
     }
 
@@ -691,6 +692,7 @@ impl From<ProtocolVersionId> for VmVersion {
             ProtocolVersionId::Version16 => VmVersion::VmVirtualBlocksRefundsEnhancement,
             ProtocolVersionId::Version17 => VmVersion::VmVirtualBlocksRefundsEnhancement,
             ProtocolVersionId::Version18 => VmVersion::VmVirtualBlocksRefundsEnhancement,
+            ProtocolVersionId::Version19 => VmVersion::VmVirtualBlocksRefundsEnhancement,
         }
     }
 }
