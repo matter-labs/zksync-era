@@ -3,7 +3,7 @@ use tokio::sync::watch;
 
 use std::time::Duration;
 
-use zksync_dal::MainStorageProcessor;
+use zksync_server_dal::ServerStorageProcessor;
 use zksync_types::{L1BatchNumber, MiniblockNumber, H256};
 use zksync_web3_decl::jsonrpsee::core::Error as RpcError;
 
@@ -28,7 +28,7 @@ pub struct MainNodeFetcherCursor {
 
 impl MainNodeFetcherCursor {
     /// Loads the cursor
-    pub async fn new(storage: &mut MainStorageProcessor<'_>) -> anyhow::Result<Self> {
+    pub async fn new(storage: &mut ServerStorageProcessor<'_>) -> anyhow::Result<Self> {
         let last_sealed_l1_batch_header = storage
             .blocks_dal()
             .get_newest_l1_batch_header()

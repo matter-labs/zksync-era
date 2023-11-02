@@ -6,12 +6,12 @@ use zksync_contracts::{BaseSystemContracts, SystemContractCode};
 use zksync_types::{MiniblockNumber, StorageKey, StorageLog, StorageValue, H256, U256};
 use zksync_utils::{bytes_to_be_words, bytes_to_chunks};
 
-use crate::MainStorageProcessor;
+use crate::ServerStorageProcessor;
 
 use zksync_db_utils::instrument::InstrumentExt;
 #[derive(Debug)]
 pub struct StorageDal<'a, 'c> {
-    pub(crate) storage: &'a mut MainStorageProcessor<'c>,
+    pub(crate) storage: &'a mut ServerStorageProcessor<'c>,
 }
 
 impl StorageDal<'_, '_> {
@@ -212,12 +212,12 @@ impl StorageDal<'_, '_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::MainConnectionPool;
+    use crate::ServerConnectionPool;
     use zksync_types::{AccountTreeId, Address};
 
     #[tokio::test]
     async fn applying_storage_logs() {
-        let pool = MainConnectionPool::test_pool().await;
+        let pool = ServerConnectionPool::test_pool().await;
         let mut conn = pool.access_storage().await.unwrap();
 
         let account = AccountTreeId::new(Address::repeat_byte(1));

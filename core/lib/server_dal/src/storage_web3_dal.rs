@@ -8,13 +8,15 @@ use zksync_types::{
 };
 use zksync_utils::h256_to_u256;
 
-use crate::{models::storage_block::ResolvedL1BatchForMiniblock, MainStorageProcessor, SqlxError};
+use crate::{
+    models::storage_block::ResolvedL1BatchForMiniblock, ServerStorageProcessor, SqlxError,
+};
 
 use zksync_db_utils::instrument::InstrumentExt;
 
 #[derive(Debug)]
 pub struct StorageWeb3Dal<'a, 'c> {
-    pub(crate) storage: &'a mut MainStorageProcessor<'c>,
+    pub(crate) storage: &'a mut ServerStorageProcessor<'c>,
 }
 
 impl StorageWeb3Dal<'_, '_> {

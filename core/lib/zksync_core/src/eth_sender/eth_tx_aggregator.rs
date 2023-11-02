@@ -4,8 +4,8 @@ use tokio::sync::watch;
 
 use zksync_config::configs::eth_sender::SenderConfig;
 use zksync_contracts::BaseSystemContractsHashes;
-use zksync_dal::{MainConnectionPool, MainStorageProcessor};
 use zksync_eth_client::BoundEthInterface;
+use zksync_server_dal::{ServerConnectionPool, ServerStorageProcessor};
 use zksync_types::{
     aggregated_operations::AggregatedOperation,
     contracts::{Multicall3Call, Multicall3Result},
@@ -71,8 +71,8 @@ impl EthTxAggregator {
 
     pub async fn run<E: BoundEthInterface>(
         mut self,
-        pool: MainConnectionPool,
-        prover_pool: MainConnectionPool,
+        pool: ServerConnectionPool,
+        prover_pool: ServerConnectionPool,
         eth_client: E,
         stop_receiver: watch::Receiver<bool>,
     ) -> anyhow::Result<()> {
@@ -344,8 +344,8 @@ impl EthTxAggregator {
     #[tracing::instrument(skip(self, storage, eth_client))]
     async fn loop_iteration<E: BoundEthInterface>(
         &mut self,
-        storage: &mut MainStorageProcessor<'_>,
-        prover_storage: &mut MainStorageProcessor<'_>,
+        storage: &mut ServerStorageProcessor<'_>,
+        prover_storage: &mut ServerStorageProcessor<'_>,
         eth_client: &E,
     ) -> Result<(), ETHSenderError> {
         let MulticallData {
@@ -394,7 +394,7 @@ impl EthTxAggregator {
     }
 
     async fn report_eth_tx_saving(
-        storage: &mut MainStorageProcessor<'_>,
+        storage: &mut ServerStorageProcessor<'_>,
         aggregated_op: AggregatedOperation,
         tx: &EthTx,
     ) {
@@ -475,7 +475,7 @@ impl EthTxAggregator {
 
     pub(super) async fn save_eth_tx(
         &self,
-        storage: &mut MainStorageProcessor<'_>,
+        storage: &mut ServerStorageProcessor<'_>,
         aggregated_op: &AggregatedOperation,
         contracts_are_pre_boojum: bool,
     ) -> Result<EthTx, ETHSenderError> {
@@ -514,7 +514,7 @@ impl EthTxAggregator {
 
     async fn get_next_nonce(
         &self,
-        storage: &mut MainStorageProcessor<'_>,
+        storage: &mut ServerStorageProcessor<'_>,
     ) -> Result<u64, ETHSenderError> {
         let db_nonce = storage.eth_sender_dal().get_next_nonce().await.unwrap_or(0);
         // Between server starts we can execute some txs using operator account or remove some txs from the database

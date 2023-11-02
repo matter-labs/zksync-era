@@ -1,8 +1,8 @@
 use zksync_config::configs::eth_sender::{ProofLoadingMode, ProofSendingMode, SenderConfig};
 use zksync_contracts::BaseSystemContractsHashes;
-use zksync_dal::MainStorageProcessor;
 use zksync_object_store::ObjectStore;
 use zksync_prover_utils::gcs_proof_fetcher::load_wrapped_fri_proofs_for_range;
+use zksync_server_dal::ServerStorageProcessor;
 use zksync_types::{
     aggregated_operations::{
         AggregatedActionType, AggregatedOperation, L1BatchCommitOperation, L1BatchExecuteOperation,
@@ -90,8 +90,8 @@ impl Aggregator {
 
     pub async fn get_next_ready_operation(
         &mut self,
-        storage: &mut MainStorageProcessor<'_>,
-        prover_storage: &mut MainStorageProcessor<'_>,
+        storage: &mut ServerStorageProcessor<'_>,
+        prover_storage: &mut ServerStorageProcessor<'_>,
         base_system_contracts_hashes: BaseSystemContractsHashes,
         protocol_version_id: ProtocolVersionId,
         l1_verifier_config: L1VerifierConfig,
@@ -136,7 +136,7 @@ impl Aggregator {
 
     async fn get_execute_operations(
         &mut self,
-        storage: &mut MainStorageProcessor<'_>,
+        storage: &mut ServerStorageProcessor<'_>,
         limit: usize,
         last_sealed_l1_batch: L1BatchNumber,
     ) -> Option<L1BatchExecuteOperation> {
@@ -162,7 +162,7 @@ impl Aggregator {
 
     async fn get_commit_operation(
         &mut self,
-        storage: &mut MainStorageProcessor<'_>,
+        storage: &mut ServerStorageProcessor<'_>,
         limit: usize,
         last_sealed_batch: L1BatchNumber,
         base_system_contracts_hashes: BaseSystemContractsHashes,
@@ -209,8 +209,8 @@ impl Aggregator {
     }
 
     async fn load_real_proof_operation(
-        storage: &mut MainStorageProcessor<'_>,
-        prover_storage: &mut MainStorageProcessor<'_>,
+        storage: &mut ServerStorageProcessor<'_>,
+        prover_storage: &mut ServerStorageProcessor<'_>,
         l1_verifier_config: L1VerifierConfig,
         proof_loading_mode: &ProofLoadingMode,
         blob_store: &dyn ObjectStore,
@@ -287,7 +287,7 @@ impl Aggregator {
 
     async fn prepare_dummy_proof_operation(
         &mut self,
-        storage: &mut MainStorageProcessor<'_>,
+        storage: &mut ServerStorageProcessor<'_>,
         ready_for_proof_l1_batches: Vec<L1BatchWithMetadata>,
         last_sealed_l1_batch: L1BatchNumber,
     ) -> Option<L1BatchProofOperation> {
@@ -316,8 +316,8 @@ impl Aggregator {
 
     async fn get_proof_operation(
         &mut self,
-        storage: &mut MainStorageProcessor<'_>,
-        prover_storage: &mut MainStorageProcessor<'_>,
+        storage: &mut ServerStorageProcessor<'_>,
+        prover_storage: &mut ServerStorageProcessor<'_>,
         limit: usize,
         last_sealed_l1_batch: L1BatchNumber,
         l1_verifier_config: L1VerifierConfig,
@@ -379,7 +379,7 @@ impl Aggregator {
 }
 
 async fn extract_ready_subrange(
-    storage: &mut MainStorageProcessor<'_>,
+    storage: &mut ServerStorageProcessor<'_>,
     publish_criteria: &mut [Box<dyn L1BatchPublishCriterion>],
     unpublished_l1_batches: Vec<L1BatchWithMetadata>,
     last_sealed_l1_batch: L1BatchNumber,

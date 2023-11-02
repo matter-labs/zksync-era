@@ -1,12 +1,12 @@
 use std::time::Duration;
 
 use async_trait::async_trait;
-use zksync_dal::MainConnectionPool;
 use zksync_prover_utils::periodic_job::PeriodicJob;
+use zksync_server_dal::ServerConnectionPool;
 
 #[derive(Debug)]
 pub struct FriProofCompressorJobRetryManager {
-    pool: MainConnectionPool,
+    pool: ServerConnectionPool,
     max_attempts: u32,
     processing_timeout: Duration,
     retry_interval_ms: u64,
@@ -17,7 +17,7 @@ impl FriProofCompressorJobRetryManager {
         max_attempts: u32,
         processing_timeout: Duration,
         retry_interval_ms: u64,
-        pool: MainConnectionPool,
+        pool: ServerConnectionPool,
     ) -> Self {
         Self {
             max_attempts,

@@ -5,7 +5,7 @@ use crate::state_keeper::io::common::load_l1_batch_params;
 use multivm::vm_latest::HistoryEnabled;
 use multivm::VmInstance;
 use tokio::runtime::Handle;
-use zksync_dal::MainStorageProcessor;
+use zksync_server_dal::ServerStorageProcessor;
 use zksync_state::{PostgresStorage, ReadStorage, StoragePtr, StorageView};
 use zksync_types::{L1BatchNumber, L2ChainId, Transaction};
 
@@ -17,7 +17,7 @@ pub(super) type VmAndStorage<'a> = (
 pub(super) fn create_vm(
     rt_handle: Handle,
     l1_batch_number: L1BatchNumber,
-    mut connection: MainStorageProcessor<'_>,
+    mut connection: ServerStorageProcessor<'_>,
     l2_chain_id: L2ChainId,
 ) -> anyhow::Result<VmAndStorage> {
     let prev_l1_batch_number = l1_batch_number - 1;

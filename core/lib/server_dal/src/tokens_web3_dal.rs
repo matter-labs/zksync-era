@@ -1,5 +1,5 @@
 use crate::models::storage_token::StorageTokenPrice;
-use crate::MainStorageProcessor;
+use crate::ServerStorageProcessor;
 use crate::SqlxError;
 use zksync_types::{
     tokens::{TokenInfo, TokenMetadata, TokenPrice},
@@ -8,7 +8,7 @@ use zksync_types::{
 
 #[derive(Debug)]
 pub struct TokensWeb3Dal<'a, 'c> {
-    pub(crate) storage: &'a mut MainStorageProcessor<'c>,
+    pub(crate) storage: &'a mut ServerStorageProcessor<'c>,
 }
 
 impl TokensWeb3Dal<'_, '_> {

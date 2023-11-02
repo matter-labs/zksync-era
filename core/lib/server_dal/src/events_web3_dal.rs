@@ -7,14 +7,14 @@ use zksync_types::{
 
 use crate::{
     models::{storage_block::web3_block_number_to_sql, storage_event::StorageWeb3Log},
-    MainStorageProcessor, SqlxError,
+    ServerStorageProcessor, SqlxError,
 };
 
 use zksync_db_utils::instrument::InstrumentExt;
 
 #[derive(Debug)]
 pub struct EventsWeb3Dal<'a, 'c> {
-    pub(crate) storage: &'a mut MainStorageProcessor<'c>,
+    pub(crate) storage: &'a mut ServerStorageProcessor<'c>,
 }
 
 impl EventsWeb3Dal<'_, '_> {
@@ -177,11 +177,11 @@ mod tests {
     use zksync_types::{Address, H256};
 
     use super::*;
-    use crate::connection::MainConnectionPool;
+    use crate::connection::ServerConnectionPool;
 
     #[tokio::test]
     async fn test_build_get_logs_where_clause() {
-        let connection_pool = MainConnectionPool::test_pool().await;
+        let connection_pool = ServerConnectionPool::test_pool().await;
         let storage = &mut connection_pool.access_storage().await.unwrap();
         let events_web3_dal = EventsWeb3Dal { storage };
         let filter = GetLogsFilter {

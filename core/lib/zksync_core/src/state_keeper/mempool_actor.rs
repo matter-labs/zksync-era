@@ -4,8 +4,8 @@ use std::{sync::Arc, time::Duration};
 
 use multivm::vm_latest::utils::fee::derive_base_fee_and_gas_per_pubdata;
 use zksync_config::configs::chain::MempoolConfig;
-use zksync_dal::MainConnectionPool;
 use zksync_mempool::L2TxFilter;
+use zksync_server_dal::ServerConnectionPool;
 
 use super::{metrics::KEEPER_METRICS, types::MempoolGuard};
 use crate::l1_gas_price::L1GasPriceProvider;
@@ -52,7 +52,7 @@ impl<G: L1GasPriceProvider> MempoolFetcher<G> {
 
     pub async fn run(
         mut self,
-        pool: MainConnectionPool,
+        pool: ServerConnectionPool,
         remove_stuck_txs: bool,
         stuck_tx_timeout: Duration,
         fair_l2_gas_price: u64,

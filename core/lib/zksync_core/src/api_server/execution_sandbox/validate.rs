@@ -5,7 +5,7 @@ use multivm::vm_latest::{
     HistoryDisabled, StorageInvocations, ValidationError, ValidationTracer, ValidationTracerParams,
 };
 use multivm::MultivmTracer;
-use zksync_dal::{MainConnectionPool, MainStorageProcessor};
+use zksync_server_dal::{ServerConnectionPool, ServerStorageProcessor};
 use zksync_types::{l2::L2Tx, Transaction, TRUSTED_ADDRESS_SLOTS, TRUSTED_TOKEN_SLOTS, U256};
 
 use super::{
@@ -18,7 +18,7 @@ impl TxSharedArgs {
     pub async fn validate_tx_with_pending_state(
         mut self,
         vm_permit: VmPermit,
-        connection_pool: MainConnectionPool,
+        connection_pool: ServerConnectionPool,
         tx: L2Tx,
         computational_gas_limit: u32,
     ) -> Result<(), ValidationError> {
@@ -48,7 +48,7 @@ impl TxSharedArgs {
 
     async fn validate_tx_in_sandbox(
         self,
-        connection_pool: MainConnectionPool,
+        connection_pool: ServerConnectionPool,
         vm_permit: VmPermit,
         tx: L2Tx,
         block_args: BlockArgs,
@@ -114,7 +114,7 @@ impl TxSharedArgs {
 // trusted to change between validation and execution in general case, but
 // sometimes we can safely rely on them to not change often.
 async fn get_validation_params(
-    connection: &mut MainStorageProcessor<'_>,
+    connection: &mut ServerStorageProcessor<'_>,
     tx: &L2Tx,
     computational_gas_limit: u32,
 ) -> ValidationTracerParams {

@@ -20,7 +20,7 @@ members = [
     "core/lib/crypto",
     "core/lib/circuit_breaker",
     "core/lib/commitment_utils",
-    "core/lib/dal",
+    "core/lib/server_dal",
     "core/lib/eth_client",
     "core/lib/eth_signer",
     "core/lib/mempool",

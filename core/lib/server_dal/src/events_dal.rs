@@ -2,7 +2,7 @@ use sqlx::types::chrono::Utc;
 
 use std::fmt;
 
-use crate::{models::storage_event::StorageL2ToL1Log, MainStorageProcessor, SqlxError};
+use crate::{models::storage_event::StorageL2ToL1Log, ServerStorageProcessor, SqlxError};
 use zksync_types::{
     l2_to_l1_log::L2ToL1Log, tx::IncludedTxLocation, MiniblockNumber, VmEvent, H256,
 };
@@ -23,7 +23,7 @@ impl fmt::LowerHex for EventTopic<'_> {
 
 #[derive(Debug)]
 pub struct EventsDal<'a, 'c> {
-    pub(crate) storage: &'a mut MainStorageProcessor<'c>,
+    pub(crate) storage: &'a mut ServerStorageProcessor<'c>,
 }
 
 impl EventsDal<'_, '_> {
@@ -198,7 +198,7 @@ impl EventsDal<'_, '_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{tests::create_miniblock_header, MainConnectionPool};
+    use crate::{tests::create_miniblock_header, ServerConnectionPool};
     use zksync_types::{Address, L1BatchNumber, ProtocolVersion};
 
     fn create_vm_event(index: u8, topic_count: u8) -> VmEvent {
@@ -213,7 +213,7 @@ mod tests {
 
     #[tokio::test]
     async fn storing_events() {
-        let pool = MainConnectionPool::test_pool().await;
+        let pool = ServerConnectionPool::test_pool().await;
         let mut conn = pool.access_storage().await.unwrap();
         conn.events_dal().rollback_events(MiniblockNumber(0)).await;
         conn.blocks_dal()
@@ -289,7 +289,7 @@ mod tests {
 
     #[tokio::test]
     async fn storing_l2_to_l1_logs() {
-        let pool = MainConnectionPool::test_pool().await;
+        let pool = ServerConnectionPool::test_pool().await;
         let mut conn = pool.access_storage().await.unwrap();
         conn.events_dal()
             .rollback_l2_to_l1_logs(MiniblockNumber(0))

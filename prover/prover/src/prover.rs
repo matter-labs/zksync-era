@@ -10,7 +10,7 @@ use zkevm_test_harness::abstract_zksync_circuit::concrete_circuits::ZkSyncProof;
 use zkevm_test_harness::pairing::bn256::Bn256;
 
 use zksync_config::ProverConfig;
-use zksync_main_dal::MainConnectionPool;
+use zksync_main_dal::ServerConnectionPool;
 use zksync_object_store::{Bucket, ObjectStore, ObjectStoreFactory};
 use zksync_prover_dal::connection::DbVariant;
 use zksync_prover_dal::{connection::DbVariant, ProverConnectionPool, ProverStorageProcessor};
@@ -20,7 +20,7 @@ use zksync_types::proofs::ProverJobMetadata;
 pub struct ProverReporter {
     rt_handle: Handle,
     prover_pool: ProverConnectionPool,
-    main_pool: MainConnectionPool,
+    main_pool: ServerConnectionPool,
     config: ProverConfig,
     processed_by: String,
     object_store: Box<dyn ObjectStore>,
@@ -41,7 +41,7 @@ impl ProverReporter {
             .context("failed to build a connection prover_pool")?;
         let main_pool = rt_handle
             .block_on(
-                MainConnectionPool::singleton(zksync_main_dal::connection::DbVariant::Master)
+                ServerConnectionPool::singleton(zksync_main_dal::connection::DbVariant::Master)
                     .build(),
             )
             .context("failed to build a connection prover_pool")?;

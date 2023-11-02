@@ -10,13 +10,14 @@ use anyhow::Context as _;
 use sqlx::pool::PoolConnection;
 pub use sqlx::types::BigDecimal;
 
+use zksync_db_utils::connection_holder::ConnectionHolder;
+
 // Local imports
 use crate::accounts_dal::AccountsDal;
 use crate::basic_witness_input_producer_dal::BasicWitnessInputProducerDal;
 use crate::blocks_dal::BlocksDal;
 use crate::blocks_web3_dal::BlocksWeb3Dal;
-use crate::connection::holder::ConnectionHolder;
-pub use crate::connection::MainConnectionPool;
+pub use crate::connection::ServerConnectionPool;
 use crate::contract_verification_dal::ContractVerificationDal;
 use crate::eth_sender_dal::EthSenderDal;
 use crate::events_dal::EventsDal;
@@ -85,15 +86,15 @@ pub fn get_test_database_url() -> anyhow::Result<String> {
 /// It holds down the connection (either direct or pooled) to the database
 /// and provide methods to obtain different storage schemas.
 #[derive(Debug)]
-pub struct MainStorageProcessor<'a> {
+pub struct ServerStorageProcessor<'a> {
     conn: ConnectionHolder<'a>,
     in_transaction: bool,
 }
 
-impl<'a> MainStorageProcessor<'a> {
+impl<'a> ServerStorageProcessor<'a> {
     pub async fn establish_connection(
         connect_to_master: bool,
-    ) -> anyhow::Result<MainStorageProcessor<'static>> {
+    ) -> anyhow::Result<ServerStorageProcessor<'static>> {
         let database_url = if connect_to_master {
             get_master_database_url()?
         } else {
@@ -102,7 +103,7 @@ impl<'a> MainStorageProcessor<'a> {
         let connection = PgConnection::connect(&database_url)
             .await
             .context("PgConnectio::connect()")?;
-        Ok(MainStorageProcessor {
+        Ok(ServerStorageProcessor {
             conn: ConnectionHolder::Direct(connection),
             in_transaction: false,
         })
@@ -110,14 +111,14 @@ impl<'a> MainStorageProcessor<'a> {
 
     pub async fn start_transaction<'c: 'b, 'b>(
         &'c mut self,
-    ) -> sqlx::Result<MainStorageProcessor<'b>> {
+    ) -> sqlx::Result<ServerStorageProcessor<'b>> {
         let transaction = self.conn().begin().await?;
-        let mut processor = MainStorageProcessor::from_transaction(transaction);
+        let mut processor = ServerStorageProcessor::from_transaction(transaction);
         processor.in_transaction = true;
         Ok(processor)
     }
 
-    /// Checks if the `MainStorageProcessor` is currently within database transaction.
+    /// Checks if the `ServerStorageProcessor` is currently within database transaction.
     pub fn in_transaction(&self) -> bool {
         self.in_transaction
     }
@@ -133,11 +134,11 @@ impl<'a> MainStorageProcessor<'a> {
         if let ConnectionHolder::Transaction(transaction) = self.conn {
             transaction.commit().await
         } else {
-            panic!("MainStorageProcessor::commit can only be invoked after calling MainStorageProcessor::begin_transaction");
+            panic!("ServerStorageProcessor::commit can only be invoked after calling ServerStorageProcessor::begin_transaction");
         }
     }
 
-    /// Creates a `MainStorageProcessor` using a pool of connections.
+    /// Creates a `ServerStorageProcessor` using a pool of connections.
     /// This method borrows one of the connections from the pool, and releases it
     /// after `drop`.
     pub fn from_pool(conn: PoolConnection<Postgres>) -> Self {

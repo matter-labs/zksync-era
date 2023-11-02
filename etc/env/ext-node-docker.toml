@@ -38,7 +38,7 @@ default_aa_hash="0x0100038dc66b69be75ec31653c64cb931678299b9b659472772b2550b703f
 log="""\
 warn,\
 zksync_core=debug,\
-zksync_dal=info,\
+zksync_server_dal=info,\
 zksync_eth_client=info,\
 zksync_storage=info,\
 zksync_merkle_tree=info,\

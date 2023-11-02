@@ -76,11 +76,11 @@ async fn main() -> anyhow::Result<()> {
     let config =
         FriWitnessGeneratorConfig::from_env().context("FriWitnessGeneratorConfig::from_env()")?;
     let prometheus_config = PrometheusConfig::from_env().context("PrometheusConfig::from_env()")?;
-    let connection_pool =
-        MainConnectionPool::builder(zksync_main_dal::connection::DbVariant::Master)
+    let server_connection_pool =
+        ServerConnectionPool::builder(zksync_main_dal::connection::DbVariant::Master)
             .build()
             .await
-            .context("failed to build a connection_pool")?;
+            .context("failed to build a server connection_pool")?;
     let prover_connection_pool = ProverConnectionPool::builder(DbVariant::Real)
         .build()
         .await
@@ -140,7 +140,7 @@ async fn main() -> anyhow::Result<()> {
                 config,
                 &store_factory,
                 public_blob_store,
-                connection_pool,
+                server_connection_pool,
                 prover_connection_pool,
                 protocol_versions.clone(),
             )

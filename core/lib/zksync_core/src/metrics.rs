@@ -4,7 +4,7 @@ use vise::{Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Hi
 
 use std::{fmt, time::Duration};
 
-use zksync_dal::transactions_dal::L2TxSubmissionResult;
+use zksync_server_dal::transactions_dal::L2TxSubmissionResult;
 use zksync_types::{aggregated_operations::AggregatedActionType, proofs::AggregationRound};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]

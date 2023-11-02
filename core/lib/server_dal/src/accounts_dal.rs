@@ -5,11 +5,11 @@ use zksync_types::{
     Address, L2_ETH_TOKEN_ADDRESS, U256,
 };
 
-use crate::{MainStorageProcessor, SqlxError};
+use crate::{ServerStorageProcessor, SqlxError};
 
 #[derive(Debug)]
 pub struct AccountsDal<'a, 'c> {
-    pub(super) storage: &'a mut MainStorageProcessor<'c>,
+    pub(super) storage: &'a mut ServerStorageProcessor<'c>,
 }
 
 impl AccountsDal<'_, '_> {

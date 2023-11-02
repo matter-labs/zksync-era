@@ -18,7 +18,7 @@ fn create_circuits() -> Vec<(&'static str, String)> {
 
 #[tokio::test]
 async fn test_duplicate_insert_prover_jobs() {
-    let connection_pool = MainConnectionPool::test_pool().await;
+    let connection_pool = ServerConnectionPool::test_pool().await;
     let storage = &mut connection_pool.access_storage().await.unwrap();
     storage
         .protocol_versions_dal()
@@ -80,7 +80,7 @@ async fn test_duplicate_insert_prover_jobs() {
 
 #[tokio::test]
 async fn test_requeue_prover_jobs() {
-    let connection_pool = MainConnectionPool::test_pool().await;
+    let connection_pool = ServerConnectionPool::test_pool().await;
     let storage = &mut connection_pool.access_storage().await.unwrap();
     let protocol_version = ProtocolVersion::default();
     storage
@@ -144,7 +144,7 @@ async fn test_requeue_prover_jobs() {
 
 #[tokio::test]
 async fn test_move_leaf_aggregation_jobs_from_waiting_to_queued() {
-    let connection_pool = MainConnectionPool::test_pool().await;
+    let connection_pool = ServerConnectionPool::test_pool().await;
     let storage = &mut connection_pool.access_storage().await.unwrap();
     let protocol_version = ProtocolVersion::default();
     storage
@@ -225,7 +225,7 @@ async fn test_move_leaf_aggregation_jobs_from_waiting_to_queued() {
 
 #[tokio::test]
 async fn test_move_node_aggregation_jobs_from_waiting_to_queued() {
-    let connection_pool = MainConnectionPool::test_pool().await;
+    let connection_pool = ServerConnectionPool::test_pool().await;
     let storage = &mut connection_pool.access_storage().await.unwrap();
     let protocol_version = ProtocolVersion::default();
     storage
@@ -313,7 +313,7 @@ async fn test_move_node_aggregation_jobs_from_waiting_to_queued() {
 
 #[tokio::test]
 async fn test_move_scheduler_jobs_from_waiting_to_queued() {
-    let connection_pool = MainConnectionPool::test_pool().await;
+    let connection_pool = ServerConnectionPool::test_pool().await;
     let storage = &mut connection_pool.access_storage().await.unwrap();
     let protocol_version = ProtocolVersion::default();
     storage
@@ -415,4 +415,3 @@ fn get_sample_proof() -> Vec<u8> {
     fs::read(format!("{}/etc/prover-test-data/proof.bin", zksync_home))
         .expect("Failed reading test proof file")
 }
-

@@ -1,5 +1,5 @@
 [package]
-name = "zksync_dal"
+name = "zksync_server_dal"
 version = "0.1.0"
 edition = "2018"
 authors = ["The Matter Labs Team <hello@matterlabs.dev>"]

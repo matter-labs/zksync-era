@@ -6628,8 +6628,8 @@ dependencies = [
  "tracing",
  "zksync_config",
  "zksync_contracts",
- "zksync_dal",
  "zksync_eth_client",
+ "zksync_server_dal",
  "zksync_types",
 ]
 
@@ -6704,35 +6704,6 @@ dependencies = [
  "sha2 0.9.9",
  "thiserror",
  "zksync_basic_types",
-]
-
-[[package]]
-name = "zksync_dal"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "bigdecimal",
- "bincode",
- "hex",
- "itertools 0.10.5",
- "num 0.3.1",
- "once_cell",
- "rand 0.8.5",
- "serde",
- "serde_json",
- "sqlx",
- "strum",
- "thiserror",
- "tokio",
- "tracing",
- "url",
- "vise",
- "zksync_contracts",
- "zksync_db_utils",
- "zksync_health_check",
- "zksync_system_constants",
- "zksync_types",
- "zksync_utils",
 ]
 
 [[package]]
@@ -6926,12 +6897,12 @@ dependencies = [
  "vlog",
  "zkevm_test_harness 1.4.0",
  "zksync_config",
- "zksync_dal",
  "zksync_object_store",
  "zksync_prover_fri_types",
  "zksync_prover_fri_utils",
  "zksync_prover_utils",
  "zksync_queued_job_processor",
+ "zksync_server_dal",
  "zksync_types",
  "zksync_utils",
 ]
@@ -6953,8 +6924,8 @@ dependencies = [
  "tracing",
  "vlog",
  "zksync_config",
- "zksync_dal",
  "zksync_object_store",
+ "zksync_server_dal",
  "zksync_types",
  "zksync_utils",
 ]
@@ -6977,9 +6948,9 @@ dependencies = [
  "serde",
  "tracing",
  "zksync_config",
- "zksync_dal",
  "zksync_object_store",
  "zksync_prover_fri_types",
+ "zksync_server_dal",
  "zksync_types",
 ]
 
@@ -7014,6 +6985,35 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_server_dal"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bigdecimal",
+ "bincode",
+ "hex",
+ "itertools 0.10.5",
+ "num 0.3.1",
+ "once_cell",
+ "rand 0.8.5",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "strum",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "url",
+ "vise",
+ "zksync_contracts",
+ "zksync_db_utils",
+ "zksync_health_check",
+ "zksync_system_constants",
+ "zksync_types",
+ "zksync_utils",
+]
+
+[[package]]
 name = "zksync_state"
 version = "0.1.0"
 dependencies = [
@@ -7023,7 +7023,7 @@ dependencies = [
  "tokio",
  "tracing",
  "vise",
- "zksync_dal",
+ "zksync_server_dal",
  "zksync_storage",
  "zksync_types",
  "zksync_utils",
@@ -7151,12 +7151,12 @@ dependencies = [
  "zk_evm 1.4.0",
  "zkevm_test_harness 1.4.0",
  "zksync_config",
- "zksync_dal",
  "zksync_object_store",
  "zksync_prover_fri_types",
  "zksync_prover_fri_utils",
  "zksync_prover_utils",
  "zksync_queued_job_processor",
+ "zksync_server_dal",
  "zksync_state",
  "zksync_system_constants",
  "zksync_types",
@@ -7182,12 +7182,12 @@ dependencies = [
  "vk_setup_data_generator_server_fri",
  "vlog",
  "zksync_config",
- "zksync_dal",
  "zksync_object_store",
  "zksync_prover_fri_types",
  "zksync_prover_fri_utils",
  "zksync_prover_utils",
  "zksync_queued_job_processor",
+ "zksync_server_dal",
  "zksync_types",
  "zksync_utils",
 ]

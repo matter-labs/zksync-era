@@ -2,8 +2,8 @@ use std::collections::hash_map::{Entry, HashMap};
 
 use clap::Parser;
 
-use zksync_dal::connection::DbVariant;
-use zksync_dal::MainConnectionPool;
+use zksync_server_dal::connection::DbVariant;
+use zksync_server_dal::ServerConnectionPool;
 use zksync_types::{MiniblockNumber, H256};
 
 /// When the threshold is reached then the migration is blocked on vacuuming.
@@ -46,7 +46,7 @@ impl StateCache {
 #[tokio::main]
 async fn main() {
     let opt = Cli::parse();
-    let pool = MainConnectionPool::singleton(DbVariant::Master)
+    let pool = ServerConnectionPool::singleton(DbVariant::Master)
         .build()
         .await
         .unwrap();

@@ -51,7 +51,7 @@ This section provides a physical map of folders & files in this repository.
     - `/config`: All the configured values used by the different zkSync apps.
     - `/contracts`: Contains definitions of commonly used smart contracts.
     - `/crypto`: Cryptographical primitives used by the different zkSync crates.
-    - `/dal`: Data availability layer
+    - `/server_dal`: Data availability layer
       - `/migrations`: All the db migrations applied to create the storage layer.
       - `/src`: Functionality to interact with the different db tables.
     - `/eth_client`: Module providing an interface to interact with an Ethereum node.

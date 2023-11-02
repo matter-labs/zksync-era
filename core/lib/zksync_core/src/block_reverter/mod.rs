@@ -7,8 +7,8 @@ use std::time::Duration;
 
 use zksync_config::{ContractsConfig, ETHSenderConfig};
 use zksync_contracts::zksync_contract;
-use zksync_dal::MainConnectionPool;
 use zksync_merkle_tree::domain::ZkSyncTree;
+use zksync_server_dal::ServerConnectionPool;
 use zksync_state::RocksdbStorage;
 use zksync_storage::RocksDB;
 use zksync_types::aggregated_operations::AggregatedActionType;
@@ -91,7 +91,7 @@ pub struct BlockReverter {
     state_keeper_cache_path: String,
     merkle_tree_path: String,
     eth_config: Option<BlockReverterEthConfig>,
-    connection_pool: MainConnectionPool,
+    connection_pool: ServerConnectionPool,
     executed_batches_revert_mode: L1ExecutedBatchesRevert,
 }
 
@@ -100,7 +100,7 @@ impl BlockReverter {
         state_keeper_cache_path: String,
         merkle_tree_path: String,
         eth_config: Option<BlockReverterEthConfig>,
-        connection_pool: MainConnectionPool,
+        connection_pool: ServerConnectionPool,
         executed_batches_revert_mode: L1ExecutedBatchesRevert,
     ) -> Self {
         Self {

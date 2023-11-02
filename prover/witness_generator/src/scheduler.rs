@@ -43,19 +43,19 @@ pub struct SchedulerWitnessGeneratorJob {
 #[derive(Debug)]
 pub struct SchedulerWitnessGenerator {
     object_store: Box<dyn ObjectStore>,
-    prover_connection_pool: ProverConnectionPool,
+    connection_pool: ProverConnectionPool,
     protocol_versions: Vec<FriProtocolVersionId>,
 }
 
 impl SchedulerWitnessGenerator {
     pub async fn new(
         store_factory: &ObjectStoreFactory,
-        prover_connection_pool: ProverConnectionPool,
+        connection_pool: ProverConnectionPool,
         protocol_versions: Vec<FriProtocolVersionId>,
     ) -> Self {
         Self {
             object_store: store_factory.create_store().await,
-            prover_connection_pool,
+            connection_pool,
             protocol_versions,
         }
     }
@@ -109,16 +109,16 @@ impl JobProcessor for SchedulerWitnessGenerator {
     const SERVICE_NAME: &'static str = "fri_scheduler_witness_generator";
 
     async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, Self::Job)>> {
-        let mut prover_connection = self.prover_connection_pool.access_storage().await.unwrap();
+        let mut connection = self.connection_pool.access_storage().await.unwrap();
         let pod_name = get_current_pod_name();
-        let Some(l1_batch_number) = prover_connection
+        let Some(l1_batch_number) = connection
             .fri_witness_generator_dal()
             .get_next_scheduler_witness_job(&self.protocol_versions, &pod_name)
             .await
         else {
             return Ok(None);
         };
-        let proof_job_ids = prover_connection
+        let proof_job_ids = connection
             .fri_scheduler_dependency_tracker_dal()
             .get_final_prover_job_ids_for(l1_batch_number)
             .await;
@@ -132,7 +132,7 @@ impl JobProcessor for SchedulerWitnessGenerator {
     }
 
     async fn save_failure(&self, job_id: L1BatchNumber, _started_at: Instant, error: String) -> () {
-        self.prover_connection_pool
+        self.connection_pool
             .access_storage()
             .await
             .unwrap()
@@ -175,8 +175,8 @@ impl JobProcessor for SchedulerWitnessGenerator {
                     "aggregation_round" => format!("{:?}", AggregationRound::Scheduler),
         );
 
-        let mut prover_connection = self.prover_connection_pool.access_storage().await.unwrap();
-        let mut transaction = prover_connection.start_transaction().await.unwrap();
+        let mut connection = self.connection_pool.access_storage().await.unwrap();
+        let mut transaction = connection.start_transaction().await.unwrap();
         let protocol_version_id = transaction
             .fri_witness_generator_dal()
             .protocol_version_for_l1_batch(job_id)

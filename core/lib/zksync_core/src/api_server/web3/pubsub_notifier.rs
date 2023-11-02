@@ -3,7 +3,7 @@ use jsonrpc_pubsub::typed;
 use tokio::sync::watch;
 use tokio::time::{interval, Duration};
 
-use zksync_dal::MainConnectionPool;
+use zksync_server_dal::ServerConnectionPool;
 use zksync_types::MiniblockNumber;
 use zksync_web3_decl::types::{PubSubFilter, PubSubResult};
 
@@ -14,7 +14,7 @@ use super::{
 
 pub async fn notify_blocks(
     subscribers: SubscriptionMap<typed::Sink<PubSubResult>>,
-    connection_pool: MainConnectionPool,
+    connection_pool: ServerConnectionPool,
     polling_interval: Duration,
     stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<()> {
@@ -75,7 +75,7 @@ pub async fn notify_blocks(
 
 pub async fn notify_txs(
     subscribers: SubscriptionMap<typed::Sink<PubSubResult>>,
-    connection_pool: MainConnectionPool,
+    connection_pool: ServerConnectionPool,
     polling_interval: Duration,
     stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<()> {
@@ -128,7 +128,7 @@ pub async fn notify_txs(
 
 pub async fn notify_logs(
     subscribers: SubscriptionMap<(typed::Sink<PubSubResult>, PubSubFilter)>,
-    connection_pool: MainConnectionPool,
+    connection_pool: ServerConnectionPool,
     polling_interval: Duration,
     stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<()> {

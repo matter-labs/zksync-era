@@ -3,8 +3,8 @@ use std::cell::RefCell;
 use anyhow::Context as _;
 use prometheus_exporter::PrometheusExporterConfig;
 use zksync_config::{configs::PrometheusConfig, ApiConfig, ContractVerifierConfig};
-use zksync_dal::MainConnectionPool;
 use zksync_queued_job_processor::JobProcessor;
+use zksync_server_dal::ServerConnectionPool;
 use zksync_utils::wait_for_tasks::wait_for_tasks;
 
 use futures::{channel::mpsc, executor::block_on, SinkExt, StreamExt};
@@ -17,7 +17,7 @@ pub mod verifier;
 pub mod zksolc_utils;
 pub mod zkvyper_utils;
 
-async fn update_compiler_versions(connection_pool: &MainConnectionPool) {
+async fn update_compiler_versions(connection_pool: &ServerConnectionPool) {
     let mut storage = connection_pool.access_storage().await.unwrap();
     let mut transaction = storage.start_transaction().await.unwrap();
 
@@ -112,7 +112,7 @@ async fn update_compiler_versions(connection_pool: &MainConnectionPool) {
 }
 
 use structopt::StructOpt;
-use zksync_dal::connection::DbVariant;
+use zksync_server_dal::connection::DbVariant;
 
 #[derive(StructOpt)]
 #[structopt(name = "zkSync contract code verifier", author = "Matter Labs")]
@@ -131,7 +131,7 @@ async fn main() -> anyhow::Result<()> {
         listener_port: verifier_config.prometheus_port,
         ..ApiConfig::from_env().context("ApiConfig")?.prometheus
     };
-    let pool = MainConnectionPool::singleton(DbVariant::Master)
+    let pool = ServerConnectionPool::singleton(DbVariant::Master)
         .build()
         .await
         .unwrap();

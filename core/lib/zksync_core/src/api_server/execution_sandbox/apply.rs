@@ -12,7 +12,7 @@ use multivm::vm_latest::{constants::BLOCK_GAS_LIMIT, HistoryDisabled};
 
 use multivm::interface::{L1BatchEnv, L2BlockEnv, SystemEnv};
 use multivm::VmInstance;
-use zksync_dal::{MainConnectionPool, MainStorageProcessor, SqlxError};
+use zksync_server_dal::{ServerConnectionPool, ServerStorageProcessor, SqlxError};
 use zksync_state::{PostgresStorage, ReadStorage, StorageView, WriteStorage};
 use zksync_system_constants::{
     SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
@@ -38,7 +38,7 @@ pub(super) fn apply_vm_in_sandbox<T>(
     vm_permit: VmPermit,
     shared_args: TxSharedArgs,
     execution_args: &TxExecutionArgs,
-    connection_pool: &MainConnectionPool,
+    connection_pool: &ServerConnectionPool,
     tx: Transaction,
     block_args: BlockArgs,
     apply: impl FnOnce(&mut VmInstance<PostgresStorage<'_>, HistoryDisabled>, Transaction) -> T,
@@ -244,7 +244,7 @@ struct StoredL2BlockInfo {
 }
 
 async fn read_l2_block_info(
-    connection: &mut MainStorageProcessor<'_>,
+    connection: &mut ServerStorageProcessor<'_>,
     miniblock_number: MiniblockNumber,
 ) -> StoredL2BlockInfo {
     let l2_block_info_key = StorageKey::new(
@@ -301,7 +301,7 @@ impl BlockArgs {
 
     async fn resolve_block_info(
         &self,
-        connection: &mut MainStorageProcessor<'_>,
+        connection: &mut ServerStorageProcessor<'_>,
     ) -> Result<ResolvedBlockInfo, SqlxError> {
         let (state_l2_block_number, vm_l1_batch_number, l1_batch_timestamp) =
             if self.is_pending_miniblock() {

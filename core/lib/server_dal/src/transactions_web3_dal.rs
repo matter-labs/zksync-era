@@ -16,11 +16,11 @@ use crate::models::{
 };
 use zksync_db_utils::instrument::InstrumentExt;
 
-use crate::{MainStorageProcessor, SqlxError};
+use crate::{ServerStorageProcessor, SqlxError};
 
 #[derive(Debug)]
 pub struct TransactionsWeb3Dal<'a, 'c> {
-    pub(crate) storage: &'a mut MainStorageProcessor<'c>,
+    pub(crate) storage: &'a mut ServerStorageProcessor<'c>,
 }
 
 impl TransactionsWeb3Dal<'_, '_> {
@@ -362,10 +362,10 @@ mod tests {
     use super::*;
     use crate::{
         tests::{create_miniblock_header, mock_execution_result, mock_l2_transaction},
-        MainConnectionPool,
+        ServerConnectionPool,
     };
 
-    async fn prepare_transaction(conn: &mut MainStorageProcessor<'_>, tx: L2Tx) {
+    async fn prepare_transaction(conn: &mut ServerStorageProcessor<'_>, tx: L2Tx) {
         conn.blocks_dal()
             .delete_miniblocks(MiniblockNumber(0))
             .await
@@ -392,7 +392,7 @@ mod tests {
 
     #[tokio::test]
     async fn getting_transaction() {
-        let connection_pool = MainConnectionPool::test_pool().await;
+        let connection_pool = ServerConnectionPool::test_pool().await;
         let mut conn = connection_pool.access_storage().await.unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
@@ -458,7 +458,7 @@ mod tests {
 
     #[tokio::test]
     async fn getting_miniblock_transactions() {
-        let connection_pool = MainConnectionPool::test_pool().await;
+        let connection_pool = ServerConnectionPool::test_pool().await;
         let mut conn = connection_pool.access_storage().await.unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())

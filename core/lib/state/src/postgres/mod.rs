@@ -5,7 +5,7 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use zksync_dal::{MainConnectionPool, MainStorageProcessor};
+use zksync_server_dal::{ServerConnectionPool, ServerStorageProcessor};
 use zksync_types::{L1BatchNumber, MiniblockNumber, StorageKey, StorageValue, H256};
 
 mod metrics;
@@ -146,7 +146,7 @@ impl ValuesCache {
         from_miniblock: MiniblockNumber,
         to_miniblock: MiniblockNumber,
         rt_handle: &Handle,
-        connection: &mut MainStorageProcessor<'_>,
+        connection: &mut ServerStorageProcessor<'_>,
     ) {
         const MAX_MINIBLOCKS_LAG: u32 = 5;
 
@@ -271,7 +271,7 @@ impl PostgresStorageCaches {
     pub fn configure_storage_values_cache(
         &mut self,
         capacity: u64,
-        connection_pool: MainConnectionPool,
+        connection_pool: ServerConnectionPool,
         rt_handle: Handle,
     ) -> impl FnOnce() -> anyhow::Result<()> + Send {
         assert!(
@@ -333,7 +333,7 @@ impl PostgresStorageCaches {
 #[derive(Debug)]
 pub struct PostgresStorage<'a> {
     rt_handle: Handle,
-    connection: MainStorageProcessor<'a>,
+    connection: ServerStorageProcessor<'a>,
     miniblock_number: MiniblockNumber,
     l1_batch_number_for_miniblock: L1BatchNumber,
     pending_l1_batch_number: L1BatchNumber,
@@ -347,7 +347,7 @@ impl<'a> PostgresStorage<'a> {
     /// Panics on Postgres errors.
     pub fn new(
         rt_handle: Handle,
-        mut connection: MainStorageProcessor<'a>,
+        mut connection: ServerStorageProcessor<'a>,
         block_number: MiniblockNumber,
         consider_new_l1_batch: bool,
     ) -> PostgresStorage<'a> {

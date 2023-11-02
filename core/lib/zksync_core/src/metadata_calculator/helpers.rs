@@ -12,12 +12,12 @@ use std::{
 };
 
 use zksync_config::configs::database::MerkleTreeMode;
-use zksync_dal::MainStorageProcessor;
 use zksync_health_check::{Health, HealthStatus};
 use zksync_merkle_tree::{
     domain::{TreeMetadata, ZkSyncTree, ZkSyncTreeReader},
     Key, MerkleTreeColumnFamily, NoVersionError, TreeEntryWithProof,
 };
+use zksync_server_dal::ServerStorageProcessor;
 use zksync_storage::{RocksDB, RocksDBOptions, StalledWritesRetries};
 use zksync_types::{block::L1BatchHeader, L1BatchNumber, StorageLog, H256};
 
@@ -247,7 +247,7 @@ pub(crate) struct L1BatchWithLogs {
 
 impl L1BatchWithLogs {
     pub async fn new(
-        storage: &mut MainStorageProcessor<'_>,
+        storage: &mut ServerStorageProcessor<'_>,
         l1_batch_number: L1BatchNumber,
     ) -> Option<Self> {
         tracing::debug!("Loading storage logs data for L1 batch #{l1_batch_number}");
@@ -346,7 +346,7 @@ impl L1BatchWithLogs {
 mod tests {
     use tempfile::TempDir;
 
-    use zksync_dal::MainConnectionPool;
+    use zksync_server_dal::ServerConnectionPool;
     use zksync_types::{proofs::PrepareBasicCircuitsJob, L2ChainId, StorageKey, StorageLogKind};
 
     use super::*;
@@ -358,7 +358,7 @@ mod tests {
     impl L1BatchWithLogs {
         /// Old, slower method of loading storage logs. We want to test its equivalence to the new implementation.
         async fn slow(
-            storage: &mut MainStorageProcessor<'_>,
+            storage: &mut ServerStorageProcessor<'_>,
             l1_batch_number: L1BatchNumber,
         ) -> Option<Self> {
             let header = storage
@@ -419,7 +419,7 @@ mod tests {
 
     #[tokio::test]
     async fn loaded_logs_equivalence_basics() {
-        let pool = MainConnectionPool::test_pool().await;
+        let pool = ServerConnectionPool::test_pool().await;
         ensure_genesis_state(
             &mut pool.access_storage().await.unwrap(),
             L2ChainId::from(270),
@@ -444,7 +444,7 @@ mod tests {
 
     #[tokio::test]
     async fn loaded_logs_equivalence_with_zero_no_op_logs() {
-        let pool = MainConnectionPool::test_pool().await;
+        let pool = ServerConnectionPool::test_pool().await;
         let mut storage = pool.access_storage().await.unwrap();
         ensure_genesis_state(&mut storage, L2ChainId::from(270), &GenesisParams::mock())
             .await
@@ -479,7 +479,7 @@ mod tests {
     }
 
     async fn assert_log_equivalence(
-        storage: &mut MainStorageProcessor<'_>,
+        storage: &mut ServerStorageProcessor<'_>,
         tree: &mut AsyncTree,
         l1_batch_number: L1BatchNumber,
     ) {
@@ -534,7 +534,7 @@ mod tests {
 
     #[tokio::test]
     async fn loaded_logs_equivalence_with_non_zero_no_op_logs() {
-        let pool = MainConnectionPool::test_pool().await;
+        let pool = ServerConnectionPool::test_pool().await;
         let mut storage = pool.access_storage().await.unwrap();
         ensure_genesis_state(&mut storage, L2ChainId::from(270), &GenesisParams::mock())
             .await
@@ -581,7 +581,7 @@ mod tests {
 
     #[tokio::test]
     async fn loaded_logs_equivalence_with_protective_reads() {
-        let pool = MainConnectionPool::test_pool().await;
+        let pool = ServerConnectionPool::test_pool().await;
         let mut storage = pool.access_storage().await.unwrap();
         ensure_genesis_state(&mut storage, L2ChainId::from(270), &GenesisParams::mock())
             .await

@@ -4,7 +4,7 @@ use crate::eth_watch::{
 };
 use std::convert::TryFrom;
 use std::time::Instant;
-use zksync_dal::MainStorageProcessor;
+use zksync_server_dal::ServerStorageProcessor;
 use zksync_types::{
     ethabi::Contract, protocol_version::GovernanceOperation, web3::types::Log, Address,
     ProtocolUpgrade, ProtocolVersionId, H256,
@@ -40,7 +40,7 @@ impl GovernanceUpgradesEventProcessor {
 impl<W: EthClient + Sync> EventProcessor<W> for GovernanceUpgradesEventProcessor {
     async fn process_events(
         &mut self,
-        storage: &mut MainStorageProcessor<'_>,
+        storage: &mut ServerStorageProcessor<'_>,
         client: &W,
         events: Vec<Log>,
     ) -> Result<(), Error> {

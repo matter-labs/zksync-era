@@ -18,13 +18,13 @@ use zksync_types::{
 
 use crate::{
     models::storage_block::{StorageL1Batch, StorageL1BatchHeader, StorageMiniblockHeader},
-    MainStorageProcessor,
+    ServerStorageProcessor,
 };
 
 use zksync_db_utils::instrument::InstrumentExt;
 #[derive(Debug)]
 pub struct BlocksDal<'a, 'c> {
-    pub(crate) storage: &'a mut MainStorageProcessor<'c>,
+    pub(crate) storage: &'a mut ServerStorageProcessor<'c>,
 }
 
 impl BlocksDal<'_, '_> {
@@ -1497,11 +1497,11 @@ mod tests {
     use zksync_types::{l2_to_l1_log::L2ToL1Log, Address, ProtocolVersion, ProtocolVersionId};
 
     use super::*;
-    use crate::MainConnectionPool;
+    use crate::ServerConnectionPool;
 
     #[tokio::test]
     async fn loading_l1_batch_header() {
-        let pool = MainConnectionPool::test_pool().await;
+        let pool = ServerConnectionPool::test_pool().await;
         let mut conn = pool.access_storage().await.unwrap();
         conn.blocks_dal()
             .delete_l1_batches(L1BatchNumber(0))
@@ -1562,7 +1562,7 @@ mod tests {
 
     #[tokio::test]
     async fn getting_predicted_gas() {
-        let pool = MainConnectionPool::test_pool().await;
+        let pool = ServerConnectionPool::test_pool().await;
         let mut conn = pool.access_storage().await.unwrap();
         conn.blocks_dal()
             .delete_l1_batches(L1BatchNumber(0))

@@ -1,15 +1,15 @@
 use async_trait::async_trait;
-use zksync_dal::MainConnectionPool;
 use zksync_prover_utils::periodic_job::PeriodicJob;
+use zksync_server_dal::ServerConnectionPool;
 
 #[derive(Debug)]
 pub struct FriProverStatsReporter {
     reporting_interval_ms: u64,
-    prover_connection_pool: MainConnectionPool,
+    prover_connection_pool: ServerConnectionPool,
 }
 
 impl FriProverStatsReporter {
-    pub fn new(reporting_interval_ms: u64, prover_connection_pool: MainConnectionPool) -> Self {
+    pub fn new(reporting_interval_ms: u64, prover_connection_pool: ServerConnectionPool) -> Self {
         Self {
             reporting_interval_ms,
             prover_connection_pool,

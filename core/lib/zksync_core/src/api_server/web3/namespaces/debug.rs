@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use multivm::interface::ExecutionResult;
 
-use zksync_dal::MainConnectionPool;
+use zksync_server_dal::ServerConnectionPool;
 use zksync_state::PostgresStorageCaches;
 use zksync_types::{
     api::{BlockId, BlockNumber, DebugCall, ResultDebugCall, TracerConfig},
@@ -31,7 +31,7 @@ use crate::l1_gas_price::L1GasPriceProvider;
 
 #[derive(Debug, Clone)]
 pub struct DebugNamespace {
-    connection_pool: MainConnectionPool,
+    connection_pool: ServerConnectionPool,
     fair_l2_gas_price: u64,
     api_contracts: ApiContracts,
     vm_execution_cache_misses_limit: Option<usize>,

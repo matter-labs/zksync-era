@@ -8,7 +8,7 @@ use multivm::vm_latest::constants::INITIAL_STORAGE_WRITE_PUBDATA_BYTES;
 
 use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_contracts::{get_loadnext_contract, test_contracts::LoadnextContractExecutionParams};
-use zksync_dal::MainConnectionPool;
+use zksync_server_dal::ServerConnectionPool;
 use zksync_state::RocksdbStorage;
 use zksync_test_account::{Account, DeployContractsTx, TxType};
 use zksync_types::{
@@ -55,21 +55,21 @@ impl TestConfig {
 }
 
 /// Tester represents an entity that can initialize the state and create batch executors over this storage.
-/// Important: `Tester` must be a *sole* owner of the `MainConnectionPool`, since the test pool cannot be shared.
+/// Important: `Tester` must be a *sole* owner of the `ServerConnectionPool`, since the test pool cannot be shared.
 #[derive(Debug)]
 pub(super) struct Tester {
     fee_account: Address,
     db_dir: TempDir,
-    pool: MainConnectionPool,
+    pool: ServerConnectionPool,
     config: TestConfig,
 }
 
 impl Tester {
-    pub(super) fn new(pool: MainConnectionPool) -> Self {
+    pub(super) fn new(pool: ServerConnectionPool) -> Self {
         Self::with_config(pool, TestConfig::new())
     }
 
-    pub(super) fn with_config(pool: MainConnectionPool, config: TestConfig) -> Self {
+    pub(super) fn with_config(pool: ServerConnectionPool, config: TestConfig) -> Self {
         Self {
             fee_account: Address::repeat_byte(0x01),
             db_dir: TempDir::new().unwrap(),
@@ -102,7 +102,7 @@ impl Tester {
         secondary_storage.update_from_postgres(&mut conn).await;
         drop(conn);
 
-        // We don't use the builder because it would require us to clone the `MainConnectionPool`, which is forbidden
+        // We don't use the builder because it would require us to clone the `ServerConnectionPool`, which is forbidden
         // for the test pool (see the doc-comment on `TestPool` for details).
         BatchExecutorHandle::new(
             self.config.save_call_traces,

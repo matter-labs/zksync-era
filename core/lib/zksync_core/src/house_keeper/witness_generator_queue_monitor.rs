@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use async_trait::async_trait;
-use zksync_dal::MainConnectionPool;
+use zksync_server_dal::ServerConnectionPool;
 use zksync_types::proofs::{AggregationRound, JobCountStatistics};
 
 use zksync_prover_utils::periodic_job::PeriodicJob;
@@ -11,11 +11,11 @@ const WITNESS_GENERATOR_SERVICE_NAME: &str = "witness_generator";
 #[derive(Debug)]
 pub struct WitnessGeneratorStatsReporter {
     reporting_interval_ms: u64,
-    prover_connection_pool: MainConnectionPool,
+    prover_connection_pool: ServerConnectionPool,
 }
 
 impl WitnessGeneratorStatsReporter {
-    pub fn new(reporting_interval_ms: u64, prover_connection_pool: MainConnectionPool) -> Self {
+    pub fn new(reporting_interval_ms: u64, prover_connection_pool: ServerConnectionPool) -> Self {
         Self {
             reporting_interval_ms,
             prover_connection_pool,
@@ -23,7 +23,7 @@ impl WitnessGeneratorStatsReporter {
     }
 
     async fn get_job_statistics(
-        prover_connection_pool: &MainConnectionPool,
+        prover_connection_pool: &ServerConnectionPool,
     ) -> HashMap<AggregationRound, JobCountStatistics> {
         let mut conn = prover_connection_pool.access_storage().await.unwrap();
         HashMap::from([

@@ -26,7 +26,7 @@ COPY infrastructure/zk /infrastructure/zk
 # Copy `local-setup-preparation` tool
 COPY infrastructure/local-setup-preparation /infrastructure/local-setup-preparation
 # Copy migrations
-COPY core/lib/dal/migrations /migrations
+COPY core/lib/server_dal/migrations /migrations
 # Copy dev configs
 COPY etc/env /etc/env
 # Copy test configs (required to list rich accounts)

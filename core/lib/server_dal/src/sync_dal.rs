@@ -2,14 +2,14 @@ use zksync_types::{api::en::SyncBlock, Address, MiniblockNumber, Transaction};
 
 use crate::{
     models::{storage_sync::StorageSyncBlock, storage_transaction::StorageTransaction},
-    MainStorageProcessor, SqlxError,
+    ServerStorageProcessor, SqlxError,
 };
 use zksync_db_utils::{instrument::InstrumentExt, metrics::MethodLatency};
 
 /// DAL subset dedicated to the EN synchronization.
 #[derive(Debug)]
 pub struct SyncDal<'a, 'c> {
-    pub storage: &'a mut MainStorageProcessor<'c>,
+    pub storage: &'a mut ServerStorageProcessor<'c>,
 }
 
 impl SyncDal<'_, '_> {

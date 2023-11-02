@@ -1,7 +1,7 @@
 use crate::models::storage_eth_tx::{
     L1BatchEthSenderStats, StorageEthTx, StorageTxHistory, StorageTxHistoryToSend,
 };
-use crate::MainStorageProcessor;
+use crate::ServerStorageProcessor;
 use sqlx::{
     types::chrono::{DateTime, Utc},
     Row,
@@ -14,7 +14,7 @@ use zksync_types::{Address, L1BatchNumber, H256, U256};
 
 #[derive(Debug)]
 pub struct EthSenderDal<'a, 'c> {
-    pub(crate) storage: &'a mut MainStorageProcessor<'c>,
+    pub(crate) storage: &'a mut ServerStorageProcessor<'c>,
 }
 
 impl EthSenderDal<'_, '_> {

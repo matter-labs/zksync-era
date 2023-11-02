@@ -13,7 +13,7 @@ categories = ["cryptography"]
 zksync_types = { path = "../types" }
 zksync_config = { path = "../config" }
 zksync_contracts = { path = "../contracts" }
-zksync_dal = { path = "../dal" }
+zksync_server_dal = { path = "../server_dal" }
 zksync_eth_client = { path = "../eth_client" }
 thiserror = "1.0"
 serde_json = "1.0"

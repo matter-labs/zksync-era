@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use zksync_contracts::PRE_BOOJUM_COMMIT_FUNCTION;
-use zksync_dal::MainConnectionPool;
+use zksync_server_dal::ServerConnectionPool;
 use zksync_types::{
     web3::{error, ethabi, transports::Http, types::TransactionId, Web3},
     L1BatchNumber,
@@ -16,13 +16,13 @@ pub struct ConsistencyChecker {
     // How many past batches to check when starting
     max_batches_to_recheck: u32,
     web3: Web3<Http>,
-    db: MainConnectionPool,
+    db: ServerConnectionPool,
 }
 
 const SLEEP_DELAY: Duration = Duration::from_secs(5);
 
 impl ConsistencyChecker {
-    pub fn new(web3_url: &str, max_batches_to_recheck: u32, db: MainConnectionPool) -> Self {
+    pub fn new(web3_url: &str, max_batches_to_recheck: u32, db: ServerConnectionPool) -> Self {
         let web3 = Web3::new(Http::new(web3_url).unwrap());
         let contract = zksync_contracts::zksync_contract();
         Self {

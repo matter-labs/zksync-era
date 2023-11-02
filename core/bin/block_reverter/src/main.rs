@@ -3,7 +3,7 @@ use clap::{Parser, Subcommand};
 use tokio::io::{self, AsyncReadExt};
 
 use zksync_config::{ContractsConfig, DBConfig, ETHClientConfig, ETHSenderConfig};
-use zksync_dal::{connection::DbVariant, MainConnectionPool};
+use zksync_server_dal::{connection::DbVariant, ServerConnectionPool};
 use zksync_types::{L1BatchNumber, U256};
 
 use zksync_core::block_reverter::{
@@ -93,7 +93,7 @@ async fn main() -> anyhow::Result<()> {
     let contracts = ContractsConfig::from_env().context("ContractsConfig::from_env()")?;
     let config = BlockReverterEthConfig::new(eth_sender, contracts, eth_client.web3_url.clone());
 
-    let connection_pool = MainConnectionPool::builder(DbVariant::Master)
+    let connection_pool = ServerConnectionPool::builder(DbVariant::Master)
         .build()
         .await
         .context("failed to build a connection pool")?;

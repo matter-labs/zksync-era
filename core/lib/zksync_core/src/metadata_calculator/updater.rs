@@ -8,10 +8,10 @@ use std::{ops, time::Instant};
 
 use zksync_commitment_utils::{bootloader_initial_content_commitment, events_queue_commitment};
 use zksync_config::configs::database::MerkleTreeMode;
-use zksync_dal::{MainConnectionPool, MainStorageProcessor};
 use zksync_health_check::HealthUpdater;
 use zksync_merkle_tree::domain::TreeMetadata;
 use zksync_object_store::ObjectStore;
+use zksync_server_dal::{ServerConnectionPool, ServerStorageProcessor};
 use zksync_types::{block::L1BatchHeader, writes::InitialStorageWrite, L1BatchNumber, H256, U256};
 
 use super::{
@@ -103,8 +103,8 @@ impl TreeUpdater {
     /// is slow for whatever reason.
     async fn process_multiple_batches(
         &mut self,
-        storage: &mut MainStorageProcessor<'_>,
-        prover_storage: &mut MainStorageProcessor<'_>,
+        storage: &mut ServerStorageProcessor<'_>,
+        prover_storage: &mut ServerStorageProcessor<'_>,
         l1_batch_numbers: ops::RangeInclusive<u32>,
     ) -> L1BatchNumber {
         let start = Instant::now();
@@ -230,7 +230,7 @@ impl TreeUpdater {
 
     async fn calculate_commitments(
         &self,
-        conn: &mut MainStorageProcessor<'_>,
+        conn: &mut ServerStorageProcessor<'_>,
         header: &L1BatchHeader,
     ) -> (Option<H256>, Option<H256>) {
         let events_queue_commitment_latency =
@@ -267,8 +267,8 @@ impl TreeUpdater {
 
     async fn step(
         &mut self,
-        mut storage: MainStorageProcessor<'_>,
-        mut prover_storage: MainStorageProcessor<'_>,
+        mut storage: ServerStorageProcessor<'_>,
+        mut prover_storage: ServerStorageProcessor<'_>,
         next_l1_batch_to_seal: &mut L1BatchNumber,
     ) {
         let last_sealed_l1_batch = storage
@@ -296,8 +296,8 @@ impl TreeUpdater {
     pub async fn loop_updating_tree(
         mut self,
         delayer: Delayer,
-        pool: &MainConnectionPool,
-        prover_pool: &MainConnectionPool,
+        pool: &ServerConnectionPool,
+        prover_pool: &ServerConnectionPool,
         mut stop_receiver: watch::Receiver<bool>,
         health_updater: HealthUpdater,
     ) -> anyhow::Result<()> {
@@ -411,7 +411,7 @@ impl TreeUpdater {
     }
 
     async fn check_initial_writes_consistency(
-        connection: &mut MainStorageProcessor<'_>,
+        connection: &mut ServerStorageProcessor<'_>,
         l1_batch_number: L1BatchNumber,
         tree_initial_writes: &[InitialStorageWrite],
     ) {

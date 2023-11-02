@@ -13,7 +13,7 @@ use zksync_types::{
 };
 
 use crate::blocks_dal::BlocksDal;
-use crate::connection::MainConnectionPool;
+use crate::connection::ServerConnectionPool;
 use crate::protocol_versions_dal::ProtocolVersionsDal;
 use crate::transactions_dal::L2TxSubmissionResult;
 use crate::transactions_dal::TransactionsDal;
@@ -115,7 +115,7 @@ pub(crate) fn mock_execution_result(transaction: L2Tx) -> TransactionExecutionRe
 
 #[tokio::test]
 async fn workflow_with_submit_tx_equal_hashes() {
-    let connection_pool = MainConnectionPool::test_pool().await;
+    let connection_pool = ServerConnectionPool::test_pool().await;
     let storage = &mut connection_pool.access_storage().await.unwrap();
     let mut transactions_dal = TransactionsDal { storage };
 
@@ -135,7 +135,7 @@ async fn workflow_with_submit_tx_equal_hashes() {
 
 #[tokio::test]
 async fn workflow_with_submit_tx_diff_hashes() {
-    let connection_pool = MainConnectionPool::test_pool().await;
+    let connection_pool = ServerConnectionPool::test_pool().await;
     let storage = &mut connection_pool.access_storage().await.unwrap();
     let mut transactions_dal = TransactionsDal { storage };
 
@@ -162,7 +162,7 @@ async fn workflow_with_submit_tx_diff_hashes() {
 
 #[tokio::test]
 async fn remove_stuck_txs() {
-    let connection_pool = MainConnectionPool::test_pool().await;
+    let connection_pool = ServerConnectionPool::test_pool().await;
     let storage = &mut connection_pool.access_storage().await.unwrap();
     let mut protocol_versions_dal = ProtocolVersionsDal { storage };
     protocol_versions_dal

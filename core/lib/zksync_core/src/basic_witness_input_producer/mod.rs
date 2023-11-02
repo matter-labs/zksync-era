@@ -2,9 +2,9 @@ use anyhow::Context;
 use std::sync::Arc;
 use std::time::Instant;
 
-use zksync_dal::MainConnectionPool;
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_queued_job_processor::JobProcessor;
+use zksync_server_dal::ServerConnectionPool;
 use zksync_types::witness_block_state::WitnessBlockState;
 use zksync_types::{L1BatchNumber, L2ChainId};
 
@@ -26,14 +26,14 @@ use self::vm_interactions::{create_vm, execute_tx};
 /// to be run only using the object store information, having no other external dependency.
 #[derive(Debug)]
 pub struct BasicWitnessInputProducer {
-    connection_pool: MainConnectionPool,
+    connection_pool: ServerConnectionPool,
     l2_chain_id: L2ChainId,
     object_store: Arc<dyn ObjectStore>,
 }
 
 impl BasicWitnessInputProducer {
     pub async fn new(
-        connection_pool: MainConnectionPool,
+        connection_pool: ServerConnectionPool,
         store_factory: &ObjectStoreFactory,
         l2_chain_id: L2ChainId,
     ) -> anyhow::Result<Self> {
@@ -48,7 +48,7 @@ impl BasicWitnessInputProducer {
         rt_handle: Handle,
         l1_batch_number: L1BatchNumber,
         started_at: Instant,
-        connection_pool: MainConnectionPool,
+        connection_pool: ServerConnectionPool,
         l2_chain_id: L2ChainId,
     ) -> anyhow::Result<WitnessBlockState> {
         let mut connection = rt_handle

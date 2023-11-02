@@ -11,7 +11,7 @@ categories = ["cryptography"]
 publish = false # We don't want to publish our binaries.
 
 [dependencies]
-zksync_dal = { path = "../../lib/dal" }
+zksync_server_dal = { path = "../../lib/server_dal" }
 zksync_types = { path = "../../lib/types" }
 
 anyhow = "1.0"

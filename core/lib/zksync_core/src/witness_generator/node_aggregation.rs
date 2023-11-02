@@ -4,9 +4,9 @@ use async_trait::async_trait;
 use std::{collections::HashMap, env, time::Instant};
 
 use zksync_config::configs::WitnessGeneratorConfig;
-use zksync_dal::MainConnectionPool;
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_queued_job_processor::JobProcessor;
+use zksync_server_dal::ServerConnectionPool;
 use zksync_types::{
     circuit::{
         LEAF_CIRCUIT_INDEX, LEAF_SPLITTING_FACTOR, NODE_CIRCUIT_INDEX, NODE_SPLITTING_FACTOR,
@@ -54,8 +54,8 @@ pub struct NodeAggregationWitnessGenerator {
     config: WitnessGeneratorConfig,
     object_store: Box<dyn ObjectStore>,
     protocol_versions: Vec<ProtocolVersionId>,
-    connection_pool: MainConnectionPool,
-    prover_connection_pool: MainConnectionPool,
+    connection_pool: ServerConnectionPool,
+    prover_connection_pool: ServerConnectionPool,
 }
 
 impl NodeAggregationWitnessGenerator {
@@ -63,8 +63,8 @@ impl NodeAggregationWitnessGenerator {
         config: WitnessGeneratorConfig,
         store_factory: &ObjectStoreFactory,
         protocol_versions: Vec<ProtocolVersionId>,
-        connection_pool: MainConnectionPool,
-        prover_connection_pool: MainConnectionPool,
+        connection_pool: ServerConnectionPool,
+        prover_connection_pool: ServerConnectionPool,
     ) -> Self {
         Self {
             config,
@@ -277,7 +277,7 @@ pub fn process_node_aggregation_job(
 }
 
 async fn update_database(
-    prover_connection_pool: &MainConnectionPool,
+    prover_connection_pool: &ServerConnectionPool,
     started_at: Instant,
     block_number: L1BatchNumber,
     blob_urls: BlobUrls,

@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use zksync_dal::MainConnectionPool;
+use zksync_server_dal::ServerConnectionPool;
 use zksync_types::proofs::JobCountStatistics;
 
 use zksync_prover_utils::periodic_job::PeriodicJob;
@@ -9,18 +9,18 @@ const PROOF_COMPRESSOR_SERVICE_NAME: &str = "proof_compressor";
 #[derive(Debug)]
 pub struct FriProofCompressorStatsReporter {
     reporting_interval_ms: u64,
-    pool: MainConnectionPool,
+    pool: ServerConnectionPool,
 }
 
 impl FriProofCompressorStatsReporter {
-    pub fn new(reporting_interval_ms: u64, pool: MainConnectionPool) -> Self {
+    pub fn new(reporting_interval_ms: u64, pool: ServerConnectionPool) -> Self {
         Self {
             reporting_interval_ms,
             pool,
         }
     }
 
-    async fn get_job_statistics(pool: &MainConnectionPool) -> JobCountStatistics {
+    async fn get_job_statistics(pool: &ServerConnectionPool) -> JobCountStatistics {
         pool.access_storage()
             .await
             .unwrap()

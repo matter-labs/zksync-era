@@ -49,7 +49,7 @@ pub struct CircuitSynthesizer {
     zone: String,
     vk_commitments: L1VerifierConfig,
     prover_connection_pool: ProverConnectionPool,
-    main_connection_pool: MainConnectionPool,
+    main_connection_pool: ServerConnectionPool,
 }
 
 impl CircuitSynthesizer {
@@ -59,7 +59,7 @@ impl CircuitSynthesizer {
         store_factory: &ObjectStoreFactory,
         vk_commitments: L1VerifierConfig,
         prover_connection_pool: ProverConnectionPool,
-        main_connection_pool: MainConnectionPool,
+        main_connection_pool: ServerConnectionPool,
     ) -> Result<Self, CircuitSynthesizerError> {
         let is_specialized = prover_groups.is_specialized_group_id(config.prover_group_id);
         let allowed_circuit_types = if is_specialized {

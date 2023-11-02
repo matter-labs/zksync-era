@@ -10,8 +10,8 @@ use tokio::{sync::watch, task::JoinHandle};
 use std::time::Duration;
 
 use zksync_config::ETHWatchConfig;
-use zksync_dal::{MainConnectionPool, MainStorageProcessor};
 use zksync_eth_client::EthInterface;
+use zksync_server_dal::{ServerConnectionPool, ServerStorageProcessor};
 use zksync_system_constants::PRIORITY_EXPIRATION;
 use zksync_types::{
     ethabi::Contract, web3::types::BlockNumber as Web3BlockNumber, Address, PriorityOpId,
@@ -54,7 +54,7 @@ impl<W: EthClient + Sync> EthWatch<W> {
         diamond_proxy_address: Address,
         governance_contract: Option<Contract>,
         mut client: W,
-        pool: &MainConnectionPool,
+        pool: &ServerConnectionPool,
         poll_interval: Duration,
     ) -> Self {
         let mut storage = pool.access_storage_tagged("eth_watch").await.unwrap();
@@ -94,7 +94,10 @@ impl<W: EthClient + Sync> EthWatch<W> {
         }
     }
 
-    async fn initialize_state(client: &W, storage: &mut MainStorageProcessor<'_>) -> EthWatchState {
+    async fn initialize_state(
+        client: &W,
+        storage: &mut ServerStorageProcessor<'_>,
+    ) -> EthWatchState {
         let next_expected_priority_id: PriorityOpId = storage
             .transactions_dal()
             .last_priority_id()
@@ -132,7 +135,7 @@ impl<W: EthClient + Sync> EthWatch<W> {
 
     pub async fn run(
         &mut self,
-        pool: MainConnectionPool,
+        pool: ServerConnectionPool,
         stop_receiver: watch::Receiver<bool>,
     ) -> anyhow::Result<()> {
         let mut timer = tokio::time::interval(self.poll_interval);
@@ -162,7 +165,7 @@ impl<W: EthClient + Sync> EthWatch<W> {
     #[tracing::instrument(skip(self, storage))]
     async fn loop_iteration(
         &mut self,
-        storage: &mut MainStorageProcessor<'_>,
+        storage: &mut ServerStorageProcessor<'_>,
     ) -> Result<(), Error> {
         let stage_latency = METRICS.poll_eth_node[&PollStage::Request].start();
         let to_block = self.client.finalized_block_number().await?;
@@ -191,7 +194,7 @@ impl<W: EthClient + Sync> EthWatch<W> {
 }
 
 pub async fn start_eth_watch<E: EthInterface + Send + Sync + 'static>(
-    pool: MainConnectionPool,
+    pool: ServerConnectionPool,
     eth_gateway: E,
     diamond_proxy_addr: Address,
     governance: Option<(Contract, Address)>,

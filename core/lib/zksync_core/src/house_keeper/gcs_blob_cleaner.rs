@@ -1,6 +1,6 @@
 use async_trait::async_trait;
-use zksync_dal::MainConnectionPool;
 use zksync_object_store::{Bucket, ObjectStore, ObjectStoreError, ObjectStoreFactory};
+use zksync_server_dal::ServerConnectionPool;
 
 use zksync_prover_utils::periodic_job::PeriodicJob;
 
@@ -24,7 +24,7 @@ impl AsBlobUrls for (String, String) {
 pub struct GcsBlobCleaner {
     object_store: Box<dyn ObjectStore>,
     cleaning_interval_ms: u64,
-    pool: MainConnectionPool,
+    pool: ServerConnectionPool,
 }
 
 const BATCH_CLEANUP_SIZE: u8 = 5;
@@ -44,7 +44,7 @@ fn handle_remove_result(result: Result<(), ObjectStoreError>) {
 impl GcsBlobCleaner {
     pub async fn new(
         store_factory: &ObjectStoreFactory,
-        pool: MainConnectionPool,
+        pool: ServerConnectionPool,
         cleaning_interval_ms: u64,
     ) -> Self {
         Self {

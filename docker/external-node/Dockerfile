@@ -37,7 +37,7 @@ COPY contracts/zksync/artifacts-zk/ /contracts/zksync/artifacts-zk/
 COPY etc/tokens/ /etc/tokens/
 COPY etc/ERC20/ /etc/ERC20/
 COPY etc/multivm_bootloaders/ /etc/multivm_bootloaders/
-COPY core/lib/dal/migrations/ /migrations
+COPY core/lib/server_dal/migrations/ /migrations
 
 RUN chmod +x /usr/bin/entrypoint.sh
 

@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 zksync_types = { path = "../../core/lib/types" }
-zksync_dal = { path = "../../core/lib/dal" }
+zksync_server_dal = { path = "../../core/lib/server_dal" }
 zksync_config = { path = "../../core/lib/config" }
 zksync_object_store = { path = "../../core/lib/object_store" }
 zksync_prover_fri_utils = { path = "../prover_fri_utils" }

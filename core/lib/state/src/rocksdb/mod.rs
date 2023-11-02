@@ -22,7 +22,7 @@
 use itertools::{Either, Itertools};
 use std::{collections::HashMap, convert::TryInto, mem, path::Path, time::Instant};
 
-use zksync_dal::MainStorageProcessor;
+use zksync_server_dal::ServerStorageProcessor;
 use zksync_storage::{db::NamedColumnFamily, RocksDB};
 use zksync_types::{L1BatchNumber, StorageKey, StorageValue, H256, U256};
 use zksync_utils::{h256_to_u256, u256_to_h256};
@@ -133,7 +133,7 @@ impl RocksdbStorage {
     ///
     /// Panics if the local L1 batch number is greater than the last sealed L1 batch number
     /// in Postgres.
-    pub async fn update_from_postgres(&mut self, conn: &mut MainStorageProcessor<'_>) {
+    pub async fn update_from_postgres(&mut self, conn: &mut ServerStorageProcessor<'_>) {
         let latency = METRICS.update.start();
         let latest_l1_batch_number = conn
             .blocks_dal()
@@ -191,7 +191,7 @@ impl RocksdbStorage {
     async fn apply_storage_logs(
         &mut self,
         storage_logs: HashMap<StorageKey, H256>,
-        conn: &mut MainStorageProcessor<'_>,
+        conn: &mut ServerStorageProcessor<'_>,
     ) {
         let (logs_with_known_indices, logs_with_unknown_indices): (Vec<_>, Vec<_>) = self
             .process_transaction_logs(storage_logs)
@@ -221,7 +221,7 @@ impl RocksdbStorage {
                 .collect();
     }
 
-    async fn save_missing_enum_indices(&self, conn: &mut MainStorageProcessor<'_>) {
+    async fn save_missing_enum_indices(&self, conn: &mut ServerStorageProcessor<'_>) {
         let (Some(start_from), true) = (
             self.enum_migration_start_from(),
             self.enum_index_migration_chunk_size > 0,
@@ -333,7 +333,7 @@ impl RocksdbStorage {
     /// Panics on RocksDB errors.
     pub async fn rollback(
         &mut self,
-        connection: &mut MainStorageProcessor<'_>,
+        connection: &mut ServerStorageProcessor<'_>,
         last_l1_batch_to_keep: L1BatchNumber,
     ) {
         tracing::info!("Rolling back state keeper storage to L1 batch #{last_l1_batch_to_keep}...");
@@ -507,7 +507,7 @@ mod tests {
     use crate::test_utils::{
         create_l1_batch, create_miniblock, gen_storage_logs, prepare_postgres,
     };
-    use zksync_dal::MainConnectionPool;
+    use zksync_server_dal::ServerConnectionPool;
     use zksync_types::{MiniblockNumber, StorageLog};
 
     #[tokio::test]
@@ -548,7 +548,7 @@ mod tests {
 
     #[tokio::test]
     async fn rocksdb_storage_syncing_with_postgres() {
-        let pool = MainConnectionPool::test_pool().await;
+        let pool = ServerConnectionPool::test_pool().await;
         let mut conn = pool.access_storage().await.unwrap();
         prepare_postgres(&mut conn).await;
         let storage_logs = gen_storage_logs(20..40);
@@ -566,7 +566,7 @@ mod tests {
     }
 
     async fn insert_factory_deps(
-        conn: &mut MainStorageProcessor<'_>,
+        conn: &mut ServerStorageProcessor<'_>,
         miniblock_number: MiniblockNumber,
         indices: impl Iterator<Item = u8>,
     ) {
@@ -580,7 +580,7 @@ mod tests {
 
     #[tokio::test]
     async fn rocksdb_storage_revert() {
-        let pool = MainConnectionPool::test_pool().await;
+        let pool = ServerConnectionPool::test_pool().await;
         let mut conn = pool.access_storage().await.unwrap();
         prepare_postgres(&mut conn).await;
         let storage_logs = gen_storage_logs(20..40);
@@ -652,7 +652,7 @@ mod tests {
 
     #[tokio::test]
     async fn rocksdb_enum_index_migration() {
-        let pool = MainConnectionPool::test_pool().await;
+        let pool = ServerConnectionPool::test_pool().await;
         let mut conn = pool.access_storage().await.unwrap();
         prepare_postgres(&mut conn).await;
         let storage_logs = gen_storage_logs(20..40);

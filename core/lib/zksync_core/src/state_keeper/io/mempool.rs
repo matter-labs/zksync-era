@@ -12,9 +12,9 @@ use multivm::interface::{FinishedL1Batch, L1BatchEnv, SystemEnv};
 use multivm::vm_latest::utils::fee::derive_base_fee_and_gas_per_pubdata;
 
 use zksync_config::configs::chain::StateKeeperConfig;
-use zksync_dal::MainConnectionPool;
 use zksync_mempool::L2TxFilter;
 use zksync_object_store::ObjectStoreFactory;
+use zksync_server_dal::ServerConnectionPool;
 use zksync_types::{
     block::MiniblockHeader, protocol_version::ProtocolUpgradeTx,
     witness_block_state::WitnessBlockState, Address, L1BatchNumber, L2ChainId, MiniblockNumber,
@@ -46,7 +46,7 @@ use crate::{
 #[derive(Debug)]
 pub(crate) struct MempoolIO<G> {
     mempool: MempoolGuard,
-    pool: MainConnectionPool,
+    pool: ServerConnectionPool,
     timeout_sealer: TimeoutSealer,
     filter: L2TxFilter,
     current_miniblock_number: MiniblockNumber,
@@ -407,7 +407,7 @@ impl<G: L1GasPriceProvider> MempoolIO<G> {
         mempool: MempoolGuard,
         miniblock_sealer_handle: MiniblockSealerHandle,
         l1_gas_price_provider: Arc<G>,
-        pool: MainConnectionPool,
+        pool: ServerConnectionPool,
         config: &StateKeeperConfig,
         delay_interval: Duration,
         l2_erc20_bridge_addr: Address,

@@ -244,11 +244,11 @@ mod tests {
     use zksync_types::{MiniblockNumber, H256};
 
     use super::*;
-    use crate::MainConnectionPool;
+    use crate::ServerConnectionPool;
 
     #[tokio::test]
     async fn instrumenting_erroneous_query() {
-        let pool = MainConnectionPool::test_pool().await;
+        let pool = ServerConnectionPool::test_pool().await;
         // Add `vlog::init()` here to debug this test
 
         let mut conn = pool.access_storage().await.unwrap();
@@ -264,7 +264,7 @@ mod tests {
 
     #[tokio::test]
     async fn instrumenting_slow_query() {
-        let pool = MainConnectionPool::test_pool().await;
+        let pool = ServerConnectionPool::test_pool().await;
         // Add `vlog::init()` here to debug this test
 
         let mut conn = pool.access_storage().await.unwrap();

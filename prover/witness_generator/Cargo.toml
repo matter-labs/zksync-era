@@ -11,7 +11,7 @@ categories = ["cryptography"]
 publish = false # We don't want to publish our binaries.
 
 [dependencies]
-zksync_dal = { path = "../../core/lib/dal" }
+zksync_server_dal = { path = "../../core/lib/server_dal" }
 zksync_config = { path = "../../core/lib/config" }
 zksync_system_constants = { path = "../../core/lib/constants" }
 prometheus_exporter = { path = "../../core/lib/prometheus_exporter" }
