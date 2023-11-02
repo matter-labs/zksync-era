@@ -6,6 +6,7 @@ use vise::{Buckets, Collector, Counter, EncodeLabelSet, Family, Gauge, Histogram
 use std::{
     collections::HashMap,
     sync::{Mutex, Weak},
+    time::Duration,
 };
 
 use crate::db::RocksDBInner;
@@ -41,8 +42,15 @@ pub(crate) struct RocksdbMetrics {
     /// Size of a serialized `WriteBatch` written to a RocksDB instance.
     #[metrics(buckets = BYTE_SIZE_BUCKETS)]
     write_batch_size: Family<DbLabel, Histogram<usize>>,
-    /// Number of stalled writes for a RocksDB instance.
+    /// Number of independent stalled writes for a RocksDB instance.
+    // The counter is similar for the counter in `stalled_write_duration` histogram, but is reported earlier
+    // (immediately when stalled write is encountered, rather than when it's resolved).
     write_stalled: Family<DbLabel, Counter>,
+    /// Total duration of a stalled writes instance for a RocksDB instance. Naturally, this only reports
+    /// stalled writes that were resolved in time (otherwise, the stall error is propagated, which
+    /// leads to a panic).
+    #[metrics(buckets = Buckets::LATENCIES, unit = Unit::Seconds)]
+    stalled_write_duration: Family<DbLabel, Histogram<Duration>>,
 }
 
 impl RocksdbMetrics {
@@ -50,8 +58,16 @@ impl RocksdbMetrics {
         self.write_batch_size[&db.into()].observe(batch_size);
     }
 
-    pub(crate) fn report_stalled_write(&self, db: &'static str) {
+    pub(crate) fn observe_stalled_write(&self, db: &'static str) {
         self.write_stalled[&db.into()].inc();
+    }
+
+    pub(crate) fn observe_stalled_write_duration(
+        &self,
+        db: &'static str,
+        stall_duration: Duration,
+    ) {
+        self.stalled_write_duration[&db.into()].observe(stall_duration);
     }
 }
 

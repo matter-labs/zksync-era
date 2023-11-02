@@ -1,6 +1,5 @@
 # Ignore submodule
 bellman-cuda
-sdk/zksync-web3.js/CHANGELOG.md
 sdk/zksync-rs/CHANGELOG.md
 CHANGELOG.md
 

@@ -1,3 +1,7 @@
+# For using private GitHub dependencies, CI downdloads all crates outside of the contatiner
+# Not expected to work locally
+
+# BUILDING STAGE
 # syntax=docker/dockerfile:experimental
 FROM debian:bookworm-slim as builder
 

@@ -201,9 +201,6 @@ pub struct OptionalENConfig {
     // Other config settings
     /// Port on which the Prometheus exporter server is listening.
     pub prometheus_port: Option<u16>,
-    /// Whether to try running EN with MultiVM.
-    #[serde(default)]
-    pub experimental_multivm_support: bool,
     /// Number of keys that is processed by enum_index migration in State Keeper each L1 batch.
     #[serde(default = "OptionalENConfig::default_enum_index_migration_chunk_size")]
     pub enum_index_migration_chunk_size: usize,

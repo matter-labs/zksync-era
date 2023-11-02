@@ -98,6 +98,7 @@ impl Tester {
             .access_storage_tagged("state_keeper")
             .await
             .unwrap();
+
         secondary_storage.update_from_postgres(&mut conn).await;
         drop(conn);
 

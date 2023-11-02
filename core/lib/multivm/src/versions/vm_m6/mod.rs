@@ -6,6 +6,7 @@ pub mod event_sink;
 mod events;
 pub(crate) mod glue;
 mod history_recorder;
+pub mod legacy_types;
 pub mod memory;
 mod oracle_tools;
 pub mod oracles;

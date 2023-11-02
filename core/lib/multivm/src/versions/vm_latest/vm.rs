@@ -1,5 +1,5 @@
 use zksync_state::{StoragePtr, WriteStorage};
-use zksync_types::Transaction;
+use zksync_types::{event::extract_l2tol1logs_from_l1_messenger, Transaction};
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
 use crate::vm_latest::old_vm::events::merge_events;
@@ -82,12 +82,14 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
     /// This method should be used only after the batch execution.
     /// Otherwise it can panic.
     pub fn get_current_execution_state(&self) -> CurrentExecutionState {
-        let (_full_history, raw_events, l1_messages) = self.state.event_sink.flatten();
-        let events = merge_events(raw_events)
+        let (deduplicated_events_logs, raw_events, l1_messages) = self.state.event_sink.flatten();
+        let events: Vec<_> = merge_events(raw_events)
             .into_iter()
             .map(|e| e.into_vm_event(self.batch_env.number))
             .collect();
-        let l2_to_l1_logs = l1_messages.into_iter().map(|log| log.into()).collect();
+
+        let user_l2_to_l1_logs = extract_l2tol1logs_from_l1_messenger(&events);
+        let system_logs = l1_messages.into_iter().map(|log| log.into()).collect();
         let total_log_queries = self.state.event_sink.get_log_queries()
             + self
                 .state
@@ -100,9 +102,14 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
             events,
             storage_log_queries: self.state.storage.get_final_log_queries(),
             used_contract_hashes: self.get_used_contracts(),
-            l2_to_l1_logs,
+            user_l2_to_l1_logs: user_l2_to_l1_logs
+                .into_iter()
+                .map(|log| log.into())
+                .collect(),
+            system_logs,
             total_log_queries,
             cycles_used: self.state.local_state.monotonic_cycle_counter,
+            deduplicated_events_logs,
             storage_refunds: self.state.storage.returned_refunds.inner().clone(),
         }
     }

@@ -8,9 +8,8 @@ use prometheus_exporter::PrometheusExporterConfig;
 use tokio::{sync::watch, task::JoinHandle};
 
 use zksync_circuit_breaker::{
-    facet_selectors::FacetSelectorsChecker, l1_txs::FailedL1TransactionChecker,
-    replication_lag::ReplicationLagChecker, CircuitBreaker, CircuitBreakerChecker,
-    CircuitBreakerError,
+    l1_txs::FailedL1TransactionChecker, replication_lag::ReplicationLagChecker, CircuitBreaker,
+    CircuitBreakerChecker, CircuitBreakerError,
 };
 use zksync_config::configs::api::MerkleTreeApiConfig;
 use zksync_config::configs::{
@@ -33,6 +32,7 @@ use zksync_dal::{
     connection::DbVariant, healthcheck::ConnectionPoolHealthCheck, ConnectionPool, StorageProcessor,
 };
 use zksync_eth_client::clients::http::QueryClient;
+use zksync_eth_client::EthInterface;
 use zksync_eth_client::{clients::http::PKSigningClient, BoundEthInterface};
 use zksync_health_check::{CheckHealth, HealthStatus, ReactiveHealthCheck};
 use zksync_object_store::ObjectStoreFactory;
@@ -43,11 +43,12 @@ use zksync_types::{
     proofs::AggregationRound,
     protocol_version::{L1VerifierConfig, VerifierParams},
     system_contracts::get_system_smart_contracts,
-    Address, PackedEthSignature, ProtocolVersionId,
+    L2ChainId, PackedEthSignature, ProtocolVersionId,
 };
 use zksync_verification_key_server::get_cached_commitments;
 
 pub mod api_server;
+pub mod basic_witness_input_producer;
 pub mod block_reverter;
 pub mod consistency_checker;
 pub mod data_fetchers;
@@ -68,6 +69,7 @@ pub mod witness_generator;
 use crate::api_server::healthcheck::HealthCheckHandle;
 use crate::api_server::tx_sender::{TxSender, TxSenderBuilder, TxSenderConfig};
 use crate::api_server::web3::{state::InternalApiConfig, ApiServerHandles, Namespace};
+use crate::basic_witness_input_producer::BasicWitnessInputProducer;
 use crate::eth_sender::{Aggregator, EthTxManager};
 use crate::house_keeper::fri_proof_compressor_job_retry_manager::FriProofCompressorJobRetryManager;
 use crate::house_keeper::fri_proof_compressor_queue_monitor::FriProofCompressorStatsReporter;
@@ -111,6 +113,7 @@ pub async fn genesis_init(
     eth_sender: &ETHSenderConfig,
     network_config: &NetworkConfig,
     contracts_config: &ContractsConfig,
+    eth_client_url: &str,
 ) -> anyhow::Result<()> {
     let mut storage = StorageProcessor::establish_connection(true)
         .await
@@ -123,6 +126,49 @@ pub async fn genesis_init(
     )
     .context("Failed to restore operator address from private key")?;
 
+    // Select the first prover to be used during genesis.
+    // Later we can change provers using the system upgrades, but for genesis
+    // we should select one using the environment config.
+    let first_l1_verifier_config = if contracts_config.prover_at_genesis == "fri" {
+        let l1_verifier_config = L1VerifierConfig {
+            params: VerifierParams {
+                recursion_node_level_vk_hash: contracts_config.fri_recursion_node_level_vk_hash,
+                recursion_leaf_level_vk_hash: contracts_config.fri_recursion_leaf_level_vk_hash,
+                recursion_circuits_set_vks_hash: zksync_types::H256::zero(),
+            },
+            recursion_scheduler_level_vk_hash: contracts_config.snark_wrapper_vk_hash,
+        };
+
+        let eth_client = QueryClient::new(eth_client_url)?;
+        let vk_hash: zksync_types::H256 = eth_client
+            .call_contract_function(
+                "verificationKeyHash",
+                (),
+                None,
+                Default::default(),
+                None,
+                contracts_config.verifier_addr,
+                zksync_contracts::verifier_contract(),
+            )
+            .await?;
+
+        assert_eq!(
+            vk_hash, l1_verifier_config.recursion_scheduler_level_vk_hash,
+            "L1 verifier key does not match the one in the config"
+        );
+
+        l1_verifier_config
+    } else {
+        L1VerifierConfig {
+            params: VerifierParams {
+                recursion_node_level_vk_hash: contracts_config.recursion_node_level_vk_hash,
+                recursion_leaf_level_vk_hash: contracts_config.recursion_leaf_level_vk_hash,
+                recursion_circuits_set_vks_hash: contracts_config.recursion_circuits_set_vks_hash,
+            },
+            recursion_scheduler_level_vk_hash: contracts_config.recursion_scheduler_level_vk_hash,
+        }
+    };
+
     genesis::ensure_genesis_state(
         &mut storage,
         network_config.zksync_network_id,
@@ -133,16 +179,7 @@ pub async fn genesis_init(
             base_system_contracts: BaseSystemContracts::load_from_disk(),
             system_contracts: get_system_smart_contracts(),
             first_verifier_address: contracts_config.verifier_addr,
-            first_l1_verifier_config: L1VerifierConfig {
-                params: VerifierParams {
-                    recursion_node_level_vk_hash: contracts_config.recursion_node_level_vk_hash,
-                    recursion_leaf_level_vk_hash: contracts_config.recursion_leaf_level_vk_hash,
-                    recursion_circuits_set_vks_hash: contracts_config
-                        .recursion_circuits_set_vks_hash,
-                },
-                recursion_scheduler_level_vk_hash: contracts_config
-                    .recursion_scheduler_level_vk_hash,
-            },
+            first_l1_verifier_config,
         },
     )
     .await?;
@@ -198,6 +235,9 @@ pub enum Component {
     DataFetcher,
     /// State keeper.
     StateKeeper,
+    /// Produces input for basic witness generator and uploads it as bin encoded file (blob) to GCS.
+    /// The blob is later used as input for Basic Witness Generators.
+    BasicWitnessInputProducer,
     /// Witness Generator. The first argument is a number of jobs to process. If None, runs indefinitely.
     /// The second argument is the type of the witness-generation performed
     WitnessGenerator(Option<usize>, AggregationRound),
@@ -233,6 +273,9 @@ impl FromStr for Components {
             "data_fetcher" => Ok(Components(vec![Component::DataFetcher])),
             "state_keeper" => Ok(Components(vec![Component::StateKeeper])),
             "housekeeper" => Ok(Components(vec![Component::Housekeeper])),
+            "basic_witness_input_producer" => {
+                Ok(Components(vec![Component::BasicWitnessInputProducer]))
+            }
             "witness_generator" => Ok(Components(vec![
                 Component::WitnessGenerator(None, AggregationRound::BasicCircuits),
                 Component::WitnessGenerator(None, AggregationRound::LeafAggregation),
@@ -311,16 +354,10 @@ pub async fn initialize_components(
     let circuit_breaker_config =
         CircuitBreakerConfig::from_env().context("CircuitBreakerConfig::from_env()")?;
 
-    let main_zksync_contract_address = contracts_config.diamond_proxy_addr;
     let circuit_breaker_checker = CircuitBreakerChecker::new(
-        circuit_breakers_for_components(
-            &components,
-            &eth_client_config.web3_url,
-            &circuit_breaker_config,
-            main_zksync_contract_address,
-        )
-        .await
-        .context("circuit_breakers_for_components")?,
+        circuit_breakers_for_components(&components, &circuit_breaker_config)
+            .await
+            .context("circuit_breakers_for_components")?,
         &circuit_breaker_config,
     );
     circuit_breaker_checker.check().await.unwrap_or_else(|err| {
@@ -499,6 +536,7 @@ pub async fn initialize_components(
         tracing::info!("initialized State Keeper in {elapsed:?}");
     }
 
+    let main_zksync_contract_address = contracts_config.diamond_proxy_addr;
     if components.contains(&Component::EthWatcher) {
         let started_at = Instant::now();
         tracing::info!("initializing ETH-Watcher");
@@ -506,11 +544,7 @@ pub async fn initialize_components(
             .build()
             .await
             .context("failed to build eth_watch_pool")?;
-        let governance = contracts_config.governance_addr.map(|addr| {
-            let contract = governance_contract()
-                .expect("Governance contract must be present if governance_addr is set in config");
-            (contract, addr)
-        });
+        let governance = (governance_contract(), contracts_config.governance_addr);
         task_futures.push(
             start_eth_watch(
                 eth_watch_pool,
@@ -628,6 +662,24 @@ pub async fn initialize_components(
     )
     .await
     .context("add_witness_generator_to_task_futures()")?;
+
+    if components.contains(&Component::BasicWitnessInputProducer) {
+        let singleton_connection_pool = ConnectionPool::singleton(DbVariant::Master)
+            .build()
+            .await
+            .context("failed to build singleton connection_pool")?;
+        add_basic_witness_input_producer_to_task_futures(
+            &mut task_futures,
+            &singleton_connection_pool,
+            &store_factory,
+            NetworkConfig::from_env()
+                .context("NetworkConfig::from_env()")?
+                .zksync_network_id,
+            stop_receiver.clone(),
+        )
+        .await
+        .context("add_basic_witness_input_producer_to_task_futures()")?;
+    }
 
     if components.contains(&Component::Housekeeper) {
         add_house_keeper_to_task_futures(&mut task_futures, &store_factory)
@@ -760,7 +812,9 @@ async fn add_trees_to_task_futures(
         (false, true) => MetadataCalculatorModeConfig::Lightweight,
         (true, false) => match db_config.merkle_tree.mode {
             MerkleTreeMode::Lightweight => MetadataCalculatorModeConfig::Lightweight,
-            MerkleTreeMode::Full => MetadataCalculatorModeConfig::Full { store_factory },
+            MerkleTreeMode::Full => MetadataCalculatorModeConfig::Full {
+                store_factory: Some(store_factory),
+            },
         },
         (false, false) => {
             anyhow::ensure!(
@@ -827,6 +881,32 @@ async fn run_tree(
     let elapsed = started_at.elapsed();
     APP_METRICS.init_latency[&InitStage::Tree].set(elapsed);
     tracing::info!("Initialized {mode_str} tree in {elapsed:?}");
+    Ok(())
+}
+
+async fn add_basic_witness_input_producer_to_task_futures(
+    task_futures: &mut Vec<JoinHandle<anyhow::Result<()>>>,
+    connection_pool: &ConnectionPool,
+    store_factory: &ObjectStoreFactory,
+    l2_chain_id: L2ChainId,
+    stop_receiver: watch::Receiver<bool>,
+) -> anyhow::Result<()> {
+    // Witness Generator won't be spawned with `ZKSYNC_LOCAL_SETUP` running.
+    // BasicWitnessInputProducer shouldn't be producing input for it locally either.
+    if std::env::var("ZKSYNC_LOCAL_SETUP") == Ok("true".to_owned()) {
+        return Ok(());
+    }
+    let started_at = Instant::now();
+    tracing::info!("initializing BasicWitnessInputProducer");
+    let producer =
+        BasicWitnessInputProducer::new(connection_pool.clone(), store_factory, l2_chain_id).await?;
+    task_futures.push(tokio::spawn(producer.run(stop_receiver, None)));
+    tracing::info!(
+        "Initialized BasicWitnessInputProducer in {:?}",
+        started_at.elapsed()
+    );
+    let elapsed = started_at.elapsed();
+    APP_METRICS.init_latency[&InitStage::BasicWitnessInputProducer].set(elapsed);
     Ok(())
 }
 
@@ -1206,9 +1286,7 @@ async fn run_ws_api<G: L1GasPriceProvider + Send + Sync + 'static>(
 
 async fn circuit_breakers_for_components(
     components: &[Component],
-    web3_url: &str,
     circuit_breaker_config: &CircuitBreakerConfig,
-    main_contract: Address,
 ) -> anyhow::Result<Vec<Box<dyn CircuitBreaker>>> {
     let mut circuit_breakers: Vec<Box<dyn CircuitBreaker>> = Vec::new();
 
@@ -1223,18 +1301,6 @@ async fn circuit_breakers_for_components(
             .await
             .context("failed to build a connection pool")?;
         circuit_breakers.push(Box::new(FailedL1TransactionChecker { pool }));
-    }
-
-    if components
-        .iter()
-        .any(|c| matches!(c, Component::EthTxAggregator | Component::EthTxManager))
-    {
-        let eth_client = QueryClient::new(web3_url).unwrap();
-        circuit_breakers.push(Box::new(FacetSelectorsChecker::new(
-            circuit_breaker_config,
-            eth_client,
-            main_contract,
-        )));
     }
 
     if components.iter().any(|c| {
@@ -1255,14 +1321,4 @@ async fn circuit_breakers_for_components(
         }));
     }
     Ok(circuit_breakers)
-}
-
-#[tokio::test]
-async fn test_house_keeper_components_get_added() {
-    let (core_task_handles, _, _, _) = initialize_components(vec![Component::Housekeeper], false)
-        .await
-        .unwrap();
-    // circuit-breaker, prometheus-exporter components are run, irrespective of other components.
-    let always_running_component_count = 2;
-    assert_eq!(15, core_task_handles.len() - always_running_component_count);
 }

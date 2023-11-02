@@ -11,10 +11,11 @@ use zk_evm_1_3_1::zkevm_opcode_defs::definitions::RET_IMPLICIT_RETURNDATA_PARAMS
 use zksync_system_constants::MAX_TXS_IN_BLOCK;
 
 use zksync_types::l2_to_l1_log::L2ToL1Log;
-use zksync_types::tx::tx_execution_info::{TxExecutionStatus, VmExecutionLogs};
+use zksync_types::tx::tx_execution_info::TxExecutionStatus;
 use zksync_types::vm_trace::VmExecutionTrace;
 use zksync_types::{L1BatchNumber, StorageLogQuery, VmEvent, U256};
 
+use crate::interface::types::outputs::VmExecutionLogs;
 use crate::vm_m5::bootloader_state::BootloaderState;
 use crate::vm_m5::errors::{TxRevertReason, VmRevertReason, VmRevertReasonParsingResult};
 use crate::vm_m5::event_sink::InMemoryEventSink;
@@ -499,7 +500,8 @@ impl<S: Storage> VmInstance<S> {
         VmExecutionLogs {
             storage_logs,
             events,
-            l2_to_l1_logs,
+            user_l2_to_l1_logs: l2_to_l1_logs,
+            system_l2_to_l1_logs: vec![],
             total_log_queries_count: storage_logs_count
                 + log_queries.len()
                 + precompile_calls_count,

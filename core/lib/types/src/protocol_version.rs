@@ -37,15 +37,17 @@ pub enum ProtocolVersionId {
     Version15,
     Version16,
     Version17,
+    Version18,
+    Version19,
 }
 
 impl ProtocolVersionId {
     pub fn latest() -> Self {
-        Self::Version16
+        Self::Version18
     }
 
     pub fn next() -> Self {
-        Self::Version17
+        Self::Version19
     }
 
     /// Returns VM version to be used by API for this protocol version.
@@ -70,7 +72,13 @@ impl ProtocolVersionId {
             ProtocolVersionId::Version15 => VmVersion::VmVirtualBlocks,
             ProtocolVersionId::Version16 => VmVersion::VmVirtualBlocksRefundsEnhancement,
             ProtocolVersionId::Version17 => VmVersion::VmVirtualBlocksRefundsEnhancement,
+            ProtocolVersionId::Version18 => VmVersion::VmVirtualBlocksRefundsEnhancement,
+            ProtocolVersionId::Version19 => VmVersion::VmVirtualBlocksRefundsEnhancement,
         }
+    }
+
+    pub fn is_pre_boojum(&self) -> bool {
+        self <= &ProtocolVersionId::Version17
     }
 }
 
@@ -156,7 +164,7 @@ pub struct L1VerifierConfig {
     pub recursion_scheduler_level_vk_hash: H256,
 }
 
-/// Represents a call that was made during governance operation.
+/// Represents a call to be made during governance operation.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Call {
     /// The address to which the call will be made.
@@ -165,13 +173,13 @@ pub struct Call {
     pub value: U256,
     /// The calldata to be executed on the `target` address.
     pub data: Vec<u8>,
-    /// Hash of the corresponding Ethereum transaction.
+    /// Hash of the corresponding Ethereum transaction. Size should be 32 bytes.
     pub eth_hash: H256,
     /// Block in which Ethereum transaction was included.
     pub eth_block: u64,
 }
 
-/// Defines the structure of an operation that Governance contract executed.
+/// Defines the structure of an operation that Governance contract executes.
 #[derive(Debug, Clone, Default)]
 pub struct GovernanceOperation {
     /// An array of `Call` structs, each representing a call to be made during the operation.
@@ -255,7 +263,7 @@ impl TryFrom<Log> for ProtocolUpgrade {
         let mut decoded = decode(
             &[ParamType::Tuple(vec![
                 transaction_param_type,                       // transaction data
-                ParamType::Array(Box::new(ParamType::Bytes)), //factory deps
+                ParamType::Array(Box::new(ParamType::Bytes)), // factory deps
                 ParamType::FixedBytes(32),                    // bootloader code hash
                 ParamType::FixedBytes(32),                    // default account code hash
                 ParamType::Address,                           // verifier address
@@ -434,6 +442,39 @@ impl TryFrom<Log> for ProtocolUpgrade {
     }
 }
 
+impl TryFrom<Call> for ProtocolUpgrade {
+    type Error = crate::ethabi::Error;
+
+    fn try_from(call: Call) -> Result<Self, Self::Error> {
+        // Reuses `ProtocolUpgrade::try_from`.
+        // `ProtocolUpgrade::try_from` only uses 3 log fields: `data`, `block_number`, `transaction_hash`.
+        // Others can be filled with dummy values.
+        // We build data as `call.data` without first 4 bytes which are for selector
+        // and append it with `bytes32(0)` for compatibility with old event data.
+        let data = call
+            .data
+            .into_iter()
+            .skip(4)
+            .chain(encode(&[Token::FixedBytes(H256::zero().0.to_vec())]))
+            .collect::<Vec<u8>>()
+            .into();
+        let log = Log {
+            address: Default::default(),
+            topics: Default::default(),
+            data,
+            block_hash: Default::default(),
+            block_number: Some(call.eth_block.into()),
+            transaction_hash: Some(call.eth_hash),
+            transaction_index: Default::default(),
+            log_index: Default::default(),
+            transaction_log_index: Default::default(),
+            log_type: Default::default(),
+            removed: Default::default(),
+        };
+        ProtocolUpgrade::try_from(log)
+    }
+}
+
 impl TryFrom<Log> for GovernanceOperation {
     type Error = crate::ethabi::Error;
 
@@ -499,38 +540,6 @@ impl TryFrom<Log> for GovernanceOperation {
             predecessor,
             salt,
         })
-    }
-}
-
-impl TryFrom<Call> for ProtocolUpgrade {
-    type Error = crate::ethabi::Error;
-
-    fn try_from(call: Call) -> Result<Self, Self::Error> {
-        // Reuses `ProtocolUpgrade::try_from`.
-        // `ProtocolUpgrade::try_from` only uses 3 log fields: `data`, `block_number`, `transaction_hash`. Others can be filled with dummy values.
-        // We build data as `call.data` without first 4 bytes which are for selector
-        // and append it with `bytes32(0)` for compatibility with old event data.
-        let data = call
-            .data
-            .into_iter()
-            .skip(4)
-            .chain(encode(&[Token::FixedBytes(H256::zero().0.to_vec())]))
-            .collect::<Vec<u8>>()
-            .into();
-        let log = Log {
-            address: Default::default(),
-            topics: Default::default(),
-            data,
-            block_hash: Default::default(),
-            block_number: Some(call.eth_block.into()),
-            transaction_hash: Some(call.eth_hash),
-            transaction_index: Default::default(),
-            log_index: Default::default(),
-            transaction_log_index: Default::default(),
-            log_type: Default::default(),
-            removed: Default::default(),
-        };
-        ProtocolUpgrade::try_from(log)
     }
 }
 
@@ -682,6 +691,8 @@ impl From<ProtocolVersionId> for VmVersion {
             ProtocolVersionId::Version15 => VmVersion::VmVirtualBlocks,
             ProtocolVersionId::Version16 => VmVersion::VmVirtualBlocksRefundsEnhancement,
             ProtocolVersionId::Version17 => VmVersion::VmVirtualBlocksRefundsEnhancement,
+            ProtocolVersionId::Version18 => VmVersion::VmVirtualBlocksRefundsEnhancement,
+            ProtocolVersionId::Version19 => VmVersion::VmVirtualBlocksRefundsEnhancement,
         }
     }
 }

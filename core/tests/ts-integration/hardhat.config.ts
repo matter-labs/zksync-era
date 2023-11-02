@@ -1,10 +1,11 @@
-import '@nomiclabs/hardhat-vyper';
 import '@matterlabs/hardhat-zksync-solc';
-import '@matterlabs/hardhat-zksync-vyper';
+// TODO (EVM-374): Uncomment after https://github.com/NomicFoundation/hardhat/pull/4552 is merged and released.
+// import '@nomiclabs/hardhat-vyper';
+// import '@matterlabs/hardhat-zksync-vyper';
 
 export default {
     zksolc: {
-        version: '1.3.15',
+        version: '1.3.16',
         compilerSource: 'binary',
         settings: {
             isSystem: true

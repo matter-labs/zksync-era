@@ -80,6 +80,10 @@ where
     fn is_bytecode_known(&mut self, bytecode_hash: &H256) -> bool {
         (**self).is_bytecode_known(bytecode_hash)
     }
+
+    fn get_enumeration_index(&mut self, key: &StorageKey) -> Option<u64> {
+        (**self).get_enumeration_index(key)
+    }
 }
 
 impl<S: ReadStorage + fmt::Debug> StorageView<S> {
@@ -162,6 +166,10 @@ impl<S: ReadStorage + fmt::Debug> ReadStorage for StorageView<S> {
 
     fn load_factory_dep(&mut self, hash: H256) -> Option<Vec<u8>> {
         self.storage_handle.load_factory_dep(hash)
+    }
+
+    fn get_enumeration_index(&mut self, key: &StorageKey) -> Option<u64> {
+        self.storage_handle.get_enumeration_index(key)
     }
 }
 
