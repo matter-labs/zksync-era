@@ -39,10 +39,10 @@ pub enum MetadataCalculatorModeConfig<'a> {
     /// In this mode, `MetadataCalculator` computes Merkle tree root hashes and some auxiliary information
     /// for L1 batches, but not witness inputs.
     Lightweight,
-    /// In this mode, `MetadataCalculator` will compute witness inputs for all storage operations
-    /// and put them into the object store as provided by `store_factory` (e.g., GCS).
+    /// In this mode, `MetadataCalculator` will compute commitments and witness inputs for all storage operations
+    /// and optionally put witness inputs into the object store as provided by `store_factory` (e.g., GCS).
     Full {
-        store_factory: &'a ObjectStoreFactory,
+        store_factory: Option<&'a ObjectStoreFactory>,
     },
 }
 
@@ -112,9 +112,10 @@ impl MetadataCalculator {
 
         let mode = config.mode.to_mode();
         let object_store = match config.mode {
-            MetadataCalculatorModeConfig::Full { store_factory } => {
-                Some(store_factory.create_store().await)
-            }
+            MetadataCalculatorModeConfig::Full { store_factory } => match store_factory {
+                Some(f) => Some(f.create_store().await),
+                None => None,
+            },
             MetadataCalculatorModeConfig::Lightweight => None,
         };
         let updater = TreeUpdater::new(mode, config, object_store).await;

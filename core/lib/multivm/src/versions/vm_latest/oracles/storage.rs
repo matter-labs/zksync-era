@@ -125,7 +125,7 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
         query
     }
 
-    pub fn write_value(&mut self, mut query: LogQuery) -> LogQuery {
+    pub fn write_value(&mut self, query: LogQuery) -> LogQuery {
         let key = triplet_to_storage_key(query.shard_id, query.address, query.key);
         let current_value =
             self.storage
@@ -137,8 +137,6 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
         } else {
             StorageLogQueryType::RepeatedWrite
         };
-
-        query.read_value = current_value;
 
         self.set_initial_value(&key, current_value, query.timestamp);
 
@@ -320,7 +318,7 @@ impl<S: WriteStorage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
     fn execute_partial_query(
         &mut self,
         _monotonic_cycle_counter: u32,
-        query: LogQuery,
+        mut query: LogQuery,
     ) -> LogQuery {
         // tracing::trace!(
         //     "execute partial query cyc {:?} addr {:?} key {:?}, rw {:?}, wr {:?}, tx {:?}",
@@ -335,6 +333,8 @@ impl<S: WriteStorage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
         if query.rw_flag {
             // The number of bytes that have been compensated by the user to perform this write
             let storage_key = storage_key_of_log(&query);
+            let read_value = self.storage.read_from_storage(&storage_key);
+            query.read_value = read_value;
 
             // It is considered that the user has paid for the whole base price for the writes
             let to_pay_by_user = self.base_price_for_write_query(&query);
@@ -363,8 +363,13 @@ impl<S: WriteStorage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
         _monotonic_cycle_counter: u32,
         partial_query: &LogQuery,
     ) -> RefundType {
+        let storage_key = storage_key_of_log(partial_query);
+        let mut partial_query = *partial_query;
+        let read_value = self.storage.read_from_storage(&storage_key);
+        partial_query.read_value = read_value;
+
         let price_to_pay = self
-            .value_update_price(partial_query)
+            .value_update_price(&partial_query)
             .min(INITIAL_STORAGE_WRITE_PUBDATA_BYTES as u32);
 
         let refund = RefundType::RepeatedWrite(RefundedAmounts {

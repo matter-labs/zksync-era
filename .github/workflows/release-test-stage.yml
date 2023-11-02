@@ -37,7 +37,7 @@ jobs:
               - '!prover/**'
   setup:
     name: Setup
-    runs-on: [self-hosted, k8s, stage]
+    runs-on: [matterlabs-deployer-stage]
     outputs:
       image_tag_suffix: ${{ steps.generate-tag-suffix.outputs.image_tag_suffix }}
     steps:

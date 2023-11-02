@@ -76,6 +76,10 @@ impl ProtocolVersionId {
             ProtocolVersionId::Version19 => VmVersion::VmBoojumIntegration,
         }
     }
+
+    pub fn is_pre_boojum(&self) -> bool {
+        self <= &ProtocolVersionId::Version17
+    }
 }
 
 impl Default for ProtocolVersionId {
