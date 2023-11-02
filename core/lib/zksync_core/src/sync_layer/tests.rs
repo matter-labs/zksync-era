@@ -69,6 +69,8 @@ impl MockMainNodeClient {
                 virtual_blocks: Some(!is_fictive as u32),
                 hash: Some(H256::repeat_byte(1)),
                 protocol_version: ProtocolVersionId::latest(),
+                prev_consensus_block_hash: None,
+                commit_qc_bytes: None,
             }
         });
 

@@ -3,7 +3,7 @@ use std::convert::TryInto;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_types::api::en::SyncBlock;
 use zksync_types::Transaction;
-use zksync_types::{Address, L1BatchNumber, MiniblockNumber, H256};
+use zksync_types::{Address, Bytes, L1BatchNumber, MiniblockNumber, H256};
 
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct StorageSyncBlock {
@@ -22,6 +22,8 @@ pub struct StorageSyncBlock {
     pub protocol_version: i32,
     pub virtual_blocks: i64,
     pub hash: Vec<u8>,
+    pub commit_qc: Option<Vec<u8>>,
+    pub prev_consensus_block_hash: Option<Vec<u8>>,
 }
 
 impl StorageSyncBlock {
@@ -60,6 +62,10 @@ impl StorageSyncBlock {
             virtual_blocks: Some(self.virtual_blocks as u32),
             hash: Some(H256::from_slice(&self.hash)),
             protocol_version: (self.protocol_version as u16).try_into().unwrap(),
+            prev_consensus_block_hash: self
+                .prev_consensus_block_hash
+                .map(|hash| H256::from_slice(&hash)),
+            commit_qc_bytes: self.commit_qc.map(Bytes::from),
         }
     }
 }
