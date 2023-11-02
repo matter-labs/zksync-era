@@ -38,15 +38,16 @@ pub enum ProtocolVersionId {
     Version16,
     Version17,
     Version18,
+    Version19,
 }
 
 impl ProtocolVersionId {
     pub fn latest() -> Self {
-        Self::Version17
+        Self::Version18
     }
 
     pub fn next() -> Self {
-        Self::Version18
+        Self::Version19
     }
 
     /// Returns VM version to be used by API for this protocol version.
