@@ -74,11 +74,11 @@ impl MetricExtractor for RepeatedWritesCriterion {
     const PROM_METRIC_CRITERION_NAME: &'static str = "repeated_storage_writes";
 
     fn limit_per_block(protocol_version_id: ProtocolVersionId) -> usize {
-        if !protocol_version_id.is_pre_boojum() {
+        if protocol_version_id.is_pre_boojum() {
+            GEOMETRY_CONFIG.limit_for_repeated_writes_pubdata_hasher as usize
+        } else {
             // In boojum there is no limit for repeated writes.
             usize::MAX
-        } else {
-            GEOMETRY_CONFIG.limit_for_repeated_writes_pubdata_hasher as usize
         }
     }
 
@@ -91,11 +91,11 @@ impl MetricExtractor for InitialWritesCriterion {
     const PROM_METRIC_CRITERION_NAME: &'static str = "initial_storage_writes";
 
     fn limit_per_block(protocol_version_id: ProtocolVersionId) -> usize {
-        if !protocol_version_id.is_pre_boojum() {
+        if protocol_version_id.is_pre_boojum() {
+            GEOMETRY_CONFIG.limit_for_initial_writes_pubdata_hasher as usize
+        } else {
             // In boojum there is no limit for initial writes.
             usize::MAX
-        } else {
-            GEOMETRY_CONFIG.limit_for_initial_writes_pubdata_hasher as usize
         }
     }
 
@@ -139,11 +139,11 @@ impl MetricExtractor for L2ToL1LogsCriterion {
     const PROM_METRIC_CRITERION_NAME: &'static str = "l2_to_l1_logs";
 
     fn limit_per_block(protocol_version_id: ProtocolVersionId) -> usize {
-        if !protocol_version_id.is_pre_boojum() {
+        if protocol_version_id.is_pre_boojum() {
+            GEOMETRY_CONFIG.limit_for_l1_messages_merklizer as usize
+        } else {
             // In boojum there is no limit for L2 to L1 logs.
             usize::MAX
-        } else {
-            GEOMETRY_CONFIG.limit_for_l1_messages_merklizer as usize
         }
     }
 
