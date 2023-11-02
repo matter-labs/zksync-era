@@ -20,6 +20,7 @@ pub(crate) enum InitStage {
     DataFetcher,
     Tree,
     WitnessGenerator(AggregationRound),
+    BasicWitnessInputProducer,
 }
 
 impl fmt::Display for InitStage {
@@ -35,6 +36,7 @@ impl fmt::Display for InitStage {
             Self::DataFetcher => formatter.write_str("data_fetchers"),
             Self::Tree => formatter.write_str("tree"),
             Self::WitnessGenerator(round) => write!(formatter, "witness_generator_{round:?}"),
+            Self::BasicWitnessInputProducer => formatter.write_str("basic_witness_input_producer"),
         }
     }
 }
@@ -180,6 +182,8 @@ pub(crate) struct ExternalNodeMetrics {
     pub sync_lag: Gauge<u64>,
     /// Number of the last L1 batch checked by the reorg detector or consistency checker.
     pub last_correct_batch: Family<CheckerComponent, Gauge<u64>>,
+    /// Number of the last miniblock checked by the reorg detector or consistency checker.
+    pub last_correct_miniblock: Family<CheckerComponent, Gauge<u64>>,
 }
 
 #[vise::register]

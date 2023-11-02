@@ -34,6 +34,22 @@ pub struct GenesisParams {
     pub first_l1_verifier_config: L1VerifierConfig,
 }
 
+impl GenesisParams {
+    #[cfg(test)]
+    pub(crate) fn mock() -> Self {
+        use zksync_types::system_contracts::get_system_smart_contracts;
+
+        Self {
+            first_validator: Address::repeat_byte(0x01),
+            protocol_version: ProtocolVersionId::latest(),
+            base_system_contracts: BaseSystemContracts::load_from_disk(),
+            system_contracts: get_system_smart_contracts(),
+            first_l1_verifier_config: L1VerifierConfig::default(),
+            first_verifier_address: Address::zero(),
+        }
+    }
+}
+
 pub async fn ensure_genesis_state(
     storage: &mut StorageProcessor<'_>,
     zksync_chain_id: L2ChainId,
@@ -91,6 +107,10 @@ pub async fn ensure_genesis_state(
         vec![],
         base_system_contracts_hashes.bootloader,
         base_system_contracts_hashes.default_aa,
+        vec![],
+        vec![],
+        H256::zero(),
+        H256::zero(),
     );
 
     save_genesis_l1_batch_metadata(
@@ -292,7 +312,13 @@ pub(crate) async fn create_genesis_l1_batch(
         .await;
     transaction
         .blocks_dal()
-        .insert_l1_batch(&genesis_l1_batch_header, &[], BlockGasCount::default(), &[])
+        .insert_l1_batch(
+            &genesis_l1_batch_header,
+            &[],
+            BlockGasCount::default(),
+            &[],
+            &[],
+        )
         .await
         .unwrap();
     transaction
@@ -362,6 +388,7 @@ pub(crate) async fn save_genesis_l1_batch_metadata(
         pass_through_data_hash: commitment_hash.pass_through_data,
         events_queue_commitment: None,
         bootloader_initial_content_commitment: None,
+        state_diffs_compressed: vec![],
     };
     storage
         .blocks_dal()
@@ -372,14 +399,14 @@ pub(crate) async fn save_genesis_l1_batch_metadata(
 
 #[cfg(test)]
 mod tests {
-    use db_test_macro::db_test;
     use zksync_dal::ConnectionPool;
     use zksync_types::system_contracts::get_system_smart_contracts;
 
     use super::*;
 
-    #[db_test]
-    async fn running_genesis(pool: ConnectionPool) {
+    #[tokio::test]
+    async fn running_genesis() {
+        let pool = ConnectionPool::test_pool().await;
         let mut conn = pool.access_storage().await.unwrap();
         conn.blocks_dal().delete_genesis().await.unwrap();
 
@@ -410,8 +437,9 @@ mod tests {
             .unwrap();
     }
 
-    #[db_test]
-    async fn running_genesis_with_big_chain_id(pool: ConnectionPool) {
+    #[tokio::test]
+    async fn running_genesis_with_big_chain_id() {
+        let pool = ConnectionPool::test_pool().await;
         let mut conn: StorageProcessor<'_> = pool.access_storage().await.unwrap();
         conn.blocks_dal().delete_genesis().await.unwrap();
 

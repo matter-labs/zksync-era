@@ -49,19 +49,10 @@ pub(super) struct FetcherMetrics {
 #[vise::register]
 pub(super) static FETCHER_METRICS: vise::Global<FetcherMetrics> = vise::Global::new();
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
-#[metrics(label = "action", rename_all = "snake_case")]
-pub(super) enum LockAction {
-    AcquireRead,
-    AcquireWrite,
-}
-
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "external_node_action_queue")]
 pub(super) struct ActionQueueMetrics {
     pub action_queue_size: Gauge<usize>,
-    #[metrics(buckets = Buckets::LATENCIES)]
-    pub lock: Family<LockAction, Histogram<Duration>>,
 }
 
 #[vise::register]

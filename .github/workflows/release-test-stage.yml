@@ -37,7 +37,7 @@ jobs:
               - '!prover/**'
   setup:
     name: Setup
-    runs-on: [self-hosted, k8s, stage]
+    runs-on: [matterlabs-deployer-stage]
     outputs:
       image_tag_suffix: ${{ steps.generate-tag-suffix.outputs.image_tag_suffix }}
     steps:
@@ -86,6 +86,7 @@ jobs:
       setup_keys_id: 4989f12
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
       push_asia: false
+      push_europe: false
 
   build-gar-prover-fri-gpu:
     name: Build GAR prover FRI GPU

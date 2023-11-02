@@ -27,7 +27,7 @@ fn fri_l1_verifier_config_from_env() -> anyhow::Result<L1VerifierConfig> {
             // The base layer commitment is not used in the FRI prover verification.
             recursion_circuits_set_vks_hash: H256::zero(),
         },
-        recursion_scheduler_level_vk_hash: config.fri_recursion_scheduler_level_vk_hash,
+        recursion_scheduler_level_vk_hash: config.snark_wrapper_vk_hash,
     })
 }
 

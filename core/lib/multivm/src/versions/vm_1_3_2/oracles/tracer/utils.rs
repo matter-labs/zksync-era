@@ -65,7 +65,7 @@ impl VmHook {
             8 => Self::AskOperatorForRefund,
             9 => Self::NotifyAboutRefund,
             10 => Self::ExecutionResult,
-            _ => panic!("Unkown hook"),
+            _ => panic!("Unknown hook: {}", value.as_u32()),
         }
     }
 }

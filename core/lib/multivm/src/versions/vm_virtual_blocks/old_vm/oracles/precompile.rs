@@ -60,7 +60,7 @@ impl<const B: bool, H: HistoryMode> PrecompilesProcessor for PrecompilesProcesso
     ) -> Option<(Vec<MemoryQuery>, Vec<MemoryQuery>, PrecompileCyclesWitness)> {
         // In the next line we same `query.timestamp` as both
         // an operation in the history of precompiles processor and
-        // the time when this operation occured.
+        // the time when this operation occurred.
         // While slightly weird, it is done for consistency with other oracles
         // where operations and timestamp have different types.
         self.timestamp_history

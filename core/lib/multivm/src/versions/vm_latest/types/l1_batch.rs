@@ -1,5 +1,4 @@
 use crate::interface::L1BatchEnv;
-use std::collections::HashMap;
 use zksync_types::U256;
 use zksync_utils::{address_to_u256, h256_to_u256};
 
@@ -14,12 +13,17 @@ const SHOULD_SET_NEW_BLOCK_SLOT: usize = 7;
 
 /// Returns the initial memory for the bootloader based on the current batch environment.
 pub(crate) fn bootloader_initial_memory(l1_batch: &L1BatchEnv) -> Vec<(usize, U256)> {
-    let mut base_params: HashMap<usize, U256> = vec![
+    let (prev_block_hash, should_set_new_block) = l1_batch
+        .previous_batch_hash
+        .map(|prev_block_hash| (h256_to_u256(prev_block_hash), U256::one()))
+        .unwrap_or_default();
+
+    vec![
         (
             OPERATOR_ADDRESS_SLOT,
             address_to_u256(&l1_batch.fee_account),
         ),
-        (PREV_BLOCK_HASH_SLOT, Default::default()),
+        (PREV_BLOCK_HASH_SLOT, prev_block_hash),
         (NEW_BLOCK_TIMESTAMP_SLOT, U256::from(l1_batch.timestamp)),
         (NEW_BLOCK_NUMBER_SLOT, U256::from(l1_batch.number.0)),
         (L1_GAS_PRICE_SLOT, U256::from(l1_batch.l1_gas_price)),
@@ -28,14 +32,6 @@ pub(crate) fn bootloader_initial_memory(l1_batch: &L1BatchEnv) -> Vec<(usize, U2
             U256::from(l1_batch.fair_l2_gas_price),
         ),
         (EXPECTED_BASE_FEE_SLOT, U256::from(l1_batch.base_fee())),
-        (SHOULD_SET_NEW_BLOCK_SLOT, U256::from(0u32)),
+        (SHOULD_SET_NEW_BLOCK_SLOT, should_set_new_block),
     ]
-    .into_iter()
-    .collect();
-
-    if let Some(prev_block_hash) = l1_batch.previous_batch_hash {
-        base_params.insert(PREV_BLOCK_HASH_SLOT, h256_to_u256(prev_block_hash));
-        base_params.insert(SHOULD_SET_NEW_BLOCK_SLOT, U256::from(1u32));
-    }
-    base_params.into_iter().collect()
 }

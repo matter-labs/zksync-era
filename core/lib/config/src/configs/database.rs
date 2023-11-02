@@ -10,8 +10,8 @@ use super::envy_load;
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum MerkleTreeMode {
-    /// In this mode, `MetadataCalculator` will compute witness inputs for all storage operations
-    /// and put them into the object store as provided by `store_factory` (e.g., GCS).
+    /// In this mode, `MetadataCalculator` will compute commitments and witness inputs for all storage operations
+    /// and optionally put witness inputs into the object store as provided by `store_factory` (e.g., GCS).
     #[default]
     Full,
     /// In this mode, `MetadataCalculator` computes Merkle tree root hashes and some auxiliary information
@@ -38,6 +38,13 @@ pub struct MerkleTreeConfig {
     /// The default value is 128 MB.
     #[serde(default = "MerkleTreeConfig::default_block_cache_size_mb")]
     pub block_cache_size_mb: usize,
+    /// Byte capacity of memtables (recent, non-persisted changes to RocksDB). Setting this to a reasonably
+    /// large value (order of 512 MiB) is helpful for large DBs that experience write stalls.
+    #[serde(default = "MerkleTreeConfig::default_memtable_capacity_mb")]
+    pub memtable_capacity_mb: usize,
+    /// Timeout to wait for the Merkle tree database to run compaction on stalled writes.
+    #[serde(default = "MerkleTreeConfig::default_stalled_writes_timeout_sec")]
+    pub stalled_writes_timeout_sec: u64,
     /// Maximum number of L1 batches to be processed by the Merkle tree at a time.
     #[serde(default = "MerkleTreeConfig::default_max_l1_batches_per_iter")]
     pub max_l1_batches_per_iter: usize,
@@ -51,6 +58,8 @@ impl Default for MerkleTreeConfig {
             mode: MerkleTreeMode::default(),
             multi_get_chunk_size: Self::default_multi_get_chunk_size(),
             block_cache_size_mb: Self::default_block_cache_size_mb(),
+            memtable_capacity_mb: Self::default_memtable_capacity_mb(),
+            stalled_writes_timeout_sec: Self::default_stalled_writes_timeout_sec(),
             max_l1_batches_per_iter: Self::default_max_l1_batches_per_iter(),
         }
     }
@@ -73,6 +82,14 @@ impl MerkleTreeConfig {
         128
     }
 
+    const fn default_memtable_capacity_mb() -> usize {
+        256
+    }
+
+    const fn default_stalled_writes_timeout_sec() -> u64 {
+        30
+    }
+
     const fn default_max_l1_batches_per_iter() -> usize {
         20
     }
@@ -80,6 +97,16 @@ impl MerkleTreeConfig {
     /// Returns the size of block cache size for Merkle tree in bytes.
     pub fn block_cache_size(&self) -> usize {
         self.block_cache_size_mb * super::BYTES_IN_MEGABYTE
+    }
+
+    /// Returns the memtable capacity in bytes.
+    pub fn memtable_capacity(&self) -> usize {
+        self.memtable_capacity_mb * super::BYTES_IN_MEGABYTE
+    }
+
+    /// Returns the timeout to wait for the Merkle tree database to run compaction on stalled writes.
+    pub fn stalled_writes_timeout(&self) -> Duration {
+        Duration::from_secs(self.stalled_writes_timeout_sec)
     }
 }
 
@@ -151,6 +178,8 @@ mod tests {
             DATABASE_MERKLE_TREE_PATH="/db/tree"
             DATABASE_MERKLE_TREE_MODE=lightweight
             DATABASE_MERKLE_TREE_MULTI_GET_CHUNK_SIZE=250
+            DATABASE_MERKLE_TREE_MEMTABLE_CAPACITY_MB=512
+            DATABASE_MERKLE_TREE_STALLED_WRITES_TIMEOUT_SEC=60
             DATABASE_MERKLE_TREE_MAX_L1_BATCHES_PER_ITER=50
             DATABASE_BACKUP_COUNT=5
             DATABASE_BACKUP_INTERVAL_MS=60000
@@ -164,6 +193,8 @@ mod tests {
         assert_eq!(db_config.merkle_tree.mode, MerkleTreeMode::Lightweight);
         assert_eq!(db_config.merkle_tree.multi_get_chunk_size, 250);
         assert_eq!(db_config.merkle_tree.max_l1_batches_per_iter, 50);
+        assert_eq!(db_config.merkle_tree.memtable_capacity_mb, 512);
+        assert_eq!(db_config.merkle_tree.stalled_writes_timeout_sec, 60);
         assert_eq!(db_config.backup_count, 5);
         assert_eq!(db_config.backup_interval().as_secs(), 60);
     }
@@ -178,6 +209,8 @@ mod tests {
             "DATABASE_MERKLE_TREE_MODE",
             "DATABASE_MERKLE_TREE_MULTI_GET_CHUNK_SIZE",
             "DATABASE_MERKLE_TREE_BLOCK_CACHE_SIZE_MB",
+            "DATABASE_MERKLE_TREE_MEMTABLE_CAPACITY_MB",
+            "DATABASE_MERKLE_TREE_STALLED_WRITES_TIMEOUT_SEC",
             "DATABASE_MERKLE_TREE_MAX_L1_BATCHES_PER_ITER",
             "DATABASE_BACKUP_COUNT",
             "DATABASE_BACKUP_INTERVAL_MS",
@@ -191,6 +224,8 @@ mod tests {
         assert_eq!(db_config.merkle_tree.multi_get_chunk_size, 500);
         assert_eq!(db_config.merkle_tree.max_l1_batches_per_iter, 20);
         assert_eq!(db_config.merkle_tree.block_cache_size_mb, 128);
+        assert_eq!(db_config.merkle_tree.memtable_capacity_mb, 256);
+        assert_eq!(db_config.merkle_tree.stalled_writes_timeout_sec, 30);
         assert_eq!(db_config.backup_count, 5);
         assert_eq!(db_config.backup_interval().as_secs(), 60);
 

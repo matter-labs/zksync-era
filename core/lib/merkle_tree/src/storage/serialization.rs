@@ -200,6 +200,7 @@ impl TreeTags {
         let mut architecture = None;
         let mut hasher = None;
         let mut depth = None;
+        let mut is_recovering = false;
 
         for _ in 0..tag_count {
             let key = Self::deserialize_str(bytes)?;
@@ -216,6 +217,15 @@ impl TreeTags {
                     })?;
                     depth = Some(parsed);
                 }
+                "is_recovering" => {
+                    let parsed = value.parse::<bool>().map_err(|err| {
+                        DeserializeErrorKind::MalformedTag {
+                            name: "is_recovering",
+                            err: err.into(),
+                        }
+                    })?;
+                    is_recovering = parsed;
+                }
                 _ => return Err(DeserializeErrorKind::UnknownTag(key.to_owned()).into()),
             }
         }
@@ -223,6 +233,7 @@ impl TreeTags {
             architecture: architecture.ok_or(DeserializeErrorKind::MissingTag("architecture"))?,
             hasher: hasher.ok_or(DeserializeErrorKind::MissingTag("hasher"))?,
             depth: depth.ok_or(DeserializeErrorKind::MissingTag("depth"))?,
+            is_recovering,
         })
     }
 
@@ -244,13 +255,18 @@ impl TreeTags {
     }
 
     fn serialize(&self, buffer: &mut Vec<u8>) {
-        leb128::write::unsigned(buffer, 3).unwrap();
+        let entry_count = 3 + u64::from(self.is_recovering);
+        leb128::write::unsigned(buffer, entry_count).unwrap();
         Self::serialize_str(buffer, "architecture");
         Self::serialize_str(buffer, &self.architecture);
         Self::serialize_str(buffer, "depth");
         Self::serialize_str(buffer, &self.depth.to_string());
         Self::serialize_str(buffer, "hasher");
         Self::serialize_str(buffer, &self.hasher);
+        if self.is_recovering {
+            Self::serialize_str(buffer, "is_recovering");
+            Self::serialize_str(buffer, "true");
+        }
     }
 }
 
@@ -293,6 +309,24 @@ mod tests {
         assert_eq!(
             buffer[2..],
             *b"\x0Carchitecture\x06AR16MT\x05depth\x03256\x06hasher\x08no_op256"
+        );
+        // ^ length-prefixed tag names and values
+
+        let manifest_copy = Manifest::deserialize(&buffer).unwrap();
+        assert_eq!(manifest_copy, manifest);
+    }
+
+    #[test]
+    fn serializing_manifest_with_recovery_flag() {
+        let mut manifest = Manifest::new(42, &());
+        manifest.tags.as_mut().unwrap().is_recovering = true;
+        let mut buffer = vec![];
+        manifest.serialize(&mut buffer);
+        assert_eq!(buffer[0], 42); // version count
+        assert_eq!(buffer[1], 4); // number of tags
+        assert_eq!(
+            buffer[2..],
+            *b"\x0Carchitecture\x06AR16MT\x05depth\x03256\x06hasher\x08no_op256\x0Dis_recovering\x04true"
         );
         // ^ length-prefixed tag names and values
 

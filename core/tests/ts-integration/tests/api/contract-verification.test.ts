@@ -6,26 +6,13 @@ import fs from 'fs';
 import { deployContract, getContractSource, getTestContract } from '../../src/helpers';
 import { sleep } from 'zksync-web3/build/src/utils';
 
-const contracts = {
-    counter: getTestContract('Counter'),
-    customAccount: getTestContract('CustomAccount'),
-    create: {
-        ...getTestContract('Import'),
-        factoryDep: getTestContract('Foo').bytecode
-    },
-    greeter2: {
-        ...getTestContract('Greeter2'),
-        factoryDep: getTestContract('Greeter').bytecode
-    }
-};
-
 // Regular expression to match ISO dates.
 const DATE_REGEX = /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{6})?/;
 
-const ZKSOLC_VERSION = 'v1.3.14';
+const ZKSOLC_VERSION = 'v1.3.16';
 const SOLC_VERSION = '0.8.21';
 
-const ZKVYPER_VERSION = 'v1.3.10';
+const ZKVYPER_VERSION = 'v1.3.11';
 const VYPER_VERSION = '0.3.3';
 
 type HttpMethod = 'POST' | 'GET';
@@ -39,6 +26,19 @@ describe('Tests for the contract verification API', () => {
             return;
         });
     } else {
+        const contracts = {
+            counter: getTestContract('Counter'),
+            customAccount: getTestContract('CustomAccount'),
+            create: {
+                ...getTestContract('Import'),
+                factoryDep: getTestContract('Foo').bytecode
+            },
+            greeter2: {
+                ...getTestContract('Greeter2'),
+                factoryDep: getTestContract('Greeter').bytecode
+            }
+        };
+
         beforeAll(() => {
             testMaster = TestMaster.getInstance(__filename);
             alice = testMaster.mainAccount();

@@ -5,7 +5,7 @@ CircuitType enum in sync_vm repo).
 
 Each such circuit requires a separate verification key.
 
-This create fulfills 2 roles:
+This crate fulfills 2 roles:
 
 - it has the binaries that can generate the updated versions of the keys (for example if VM code changes)
 - it provides the libraries that can be used by other components that need to use these keys (for example provers) -

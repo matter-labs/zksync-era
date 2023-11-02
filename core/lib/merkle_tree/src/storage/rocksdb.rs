@@ -35,6 +35,10 @@ impl NamedColumnFamily for MerkleTreeColumnFamily {
             Self::StaleKeys => "stale_keys",
         }
     }
+
+    fn requires_tuning(&self) -> bool {
+        matches!(self, Self::Tree)
+    }
 }
 
 /// Main [`Database`] implementation wrapping a [`RocksDB`] reference.
@@ -194,26 +198,29 @@ impl Database for RocksDBWrapper {
         patch.manifest.serialize(&mut node_bytes);
         write_batch.put_cf(tree_cf, Self::MANIFEST_KEY, &node_bytes);
 
-        for (root_version, root) in patch.roots {
-            node_bytes.clear();
-            let root_key = NodeKey::empty(root_version);
-            // Delete the key range corresponding to the entire new version. This removes
-            // potential garbage left after reverting the tree to a previous version.
-            let next_root_key = NodeKey::empty(root_version + 1);
-            let keys_to_delete = &*root_key.to_db_key()..&*next_root_key.to_db_key();
-            write_batch.delete_range_cf(tree_cf, keys_to_delete);
+        for (version, sub_patch) in patch.patches_by_version {
+            let is_update = patch.updated_version == Some(version);
+            let root_key = NodeKey::empty(version);
+            if !is_update {
+                // Delete the key range corresponding to the entire new version. This removes
+                // potential garbage left after reverting the tree to a previous version.
+                let next_root_key = NodeKey::empty(version + 1);
+                let keys_to_delete = &*root_key.to_db_key()..&*next_root_key.to_db_key();
+                write_batch.delete_range_cf(tree_cf, keys_to_delete);
+            }
 
-            root.serialize(&mut node_bytes);
-            metrics.update_node_bytes(&Nibbles::EMPTY, &node_bytes);
-            write_batch.put_cf(tree_cf, &root_key.to_db_key(), &node_bytes);
-        }
-
-        let all_nodes = patch.nodes_by_version.into_values().flatten();
-        for (node_key, node) in all_nodes {
-            node_bytes.clear();
-            node.serialize(&mut node_bytes);
-            metrics.update_node_bytes(&node_key.nibbles, &node_bytes);
-            write_batch.put_cf(tree_cf, &node_key.to_db_key(), &node_bytes);
+            if let Some(root) = sub_patch.root {
+                node_bytes.clear();
+                root.serialize(&mut node_bytes);
+                metrics.update_node_bytes(&Nibbles::EMPTY, &node_bytes);
+                write_batch.put_cf(tree_cf, &root_key.to_db_key(), &node_bytes);
+            }
+            for (node_key, node) in sub_patch.nodes {
+                node_bytes.clear();
+                node.serialize(&mut node_bytes);
+                metrics.update_node_bytes(&node_key.nibbles, &node_bytes);
+                write_batch.put_cf(tree_cf, &node_key.to_db_key(), &node_bytes);
+            }
         }
 
         let stale_keys_cf = MerkleTreeColumnFamily::StaleKeys;
