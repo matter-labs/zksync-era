@@ -22,6 +22,13 @@ pub enum VmInstance<S: WriteStorage, H: HistoryMode> {
 
 impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for VmInstance<S, H> {
     type TracerDispatcher = TracerDispatcher<S, H>;
+
+    fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage_view: StoragePtr<S>) -> Self {
+        let protocol_version = system_env.version;
+        let vm_version: VmVersion = protocol_version.into();
+        Self::new_with_specific_version(batch_env, system_env, storage_view, vm_version)
+    }
+
     /// Push tx into memory for the future execution
     fn push_transaction(&mut self, tx: zksync_types::Transaction) {
         match self {
@@ -92,9 +99,9 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for VmInstance<S, H> {
             VmInstance::VmVirtualBlocksRefundsEnhancement(vm) => {
                 vm.inspect(dispatcher.into(), VmExecutionMode::OneTx)
             }
-            VmInstance::Vm1_3_2(vm) => vm.execute(execution_mode),
-            VmInstance::VmM6(vm) => vm.execute(execution_mode),
-            VmInstance::VmM5(vm) => vm.execute(execution_mode),
+            VmInstance::Vm1_3_2(vm) => vm.inspect(dispatcher.into(), execution_mode),
+            VmInstance::VmM6(vm) => vm.inspect(dispatcher.into(), execution_mode),
+            VmInstance::VmM5(vm) => vm.inspect(dispatcher.into(), execution_mode),
         }
     }
 
@@ -129,10 +136,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for VmInstance<S, H> {
         dispatcher: Self::TracerDispatcher,
         tx: zksync_types::Transaction,
         with_compression: bool,
-    ) -> Result<
-        crate::interface::VmExecutionResultAndLogs,
-        crate::interface::BytecodeCompressionError,
-    > {
+    ) -> Result<VmExecutionResultAndLogs, crate::interface::BytecodeCompressionError> {
         match self {
             VmInstance::VmVirtualBlocks(vm) => vm.inspect_transaction_with_bytecode_compression(
                 dispatcher.into(),
@@ -191,12 +195,6 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for VmInstance<S, H> {
             VmInstance::VmVirtualBlocks(vm) => vm.record_vm_memory_metrics(),
             VmInstance::VmVirtualBlocksRefundsEnhancement(vm) => vm.record_vm_memory_metrics(),
         }
-    }
-
-    fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage_view: StoragePtr<S>) -> Self {
-        let protocol_version = system_env.version;
-        let vm_version: VmVersion = protocol_version.into();
-        Self::new_with_specific_version(batch_env, system_env, storage_view, vm_version)
     }
 
     fn get_bootloader_memory(&self) -> BootloaderMemory {
