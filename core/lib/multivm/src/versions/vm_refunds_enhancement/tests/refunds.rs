@@ -80,8 +80,18 @@ fn test_predetermined_refunded_gas() {
     );
 
     assert_eq!(
-        current_state_with_predefined_refunds.l2_to_l1_logs,
-        current_state_without_predefined_refunds.l2_to_l1_logs
+        current_state_with_predefined_refunds.user_l2_to_l1_logs,
+        current_state_without_predefined_refunds.user_l2_to_l1_logs
+    );
+
+    assert_eq!(
+        current_state_with_predefined_refunds.system_logs,
+        current_state_without_predefined_refunds.system_logs
+    );
+
+    assert_eq!(
+        current_state_with_predefined_refunds.deduplicated_events_logs,
+        current_state_without_predefined_refunds.deduplicated_events_logs
     );
 
     assert_eq!(
@@ -128,8 +138,18 @@ fn test_predetermined_refunded_gas() {
     );
 
     assert_eq!(
-        current_state_with_changed_predefined_refunds.l2_to_l1_logs,
-        current_state_without_predefined_refunds.l2_to_l1_logs
+        current_state_with_changed_predefined_refunds.user_l2_to_l1_logs,
+        current_state_without_predefined_refunds.user_l2_to_l1_logs
+    );
+
+    assert_eq!(
+        current_state_with_changed_predefined_refunds.system_logs,
+        current_state_without_predefined_refunds.system_logs
+    );
+
+    assert_eq!(
+        current_state_with_changed_predefined_refunds.deduplicated_events_logs,
+        current_state_without_predefined_refunds.deduplicated_events_logs
     );
 
     assert_eq!(

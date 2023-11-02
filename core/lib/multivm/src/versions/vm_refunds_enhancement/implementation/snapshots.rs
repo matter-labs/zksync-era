@@ -23,7 +23,7 @@ enum RollbackStage {
 }
 
 #[derive(Debug, Metrics)]
-#[metrics(prefix = "server_vm")]
+#[metrics(prefix = "server_vm_refunds_enhancement")]
 struct VmMetrics {
     #[metrics(buckets = Buckets::LATENCIES)]
     rollback_time: Family<RollbackStage, Histogram<Duration>>,
