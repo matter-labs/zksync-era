@@ -1,6 +1,7 @@
 - checkout validium branch
 - init the era-contracts submodule
 - replace `Executor.sol` in the submodule for the file in the root of this repo
+- run the zksync era node normally (`zk init && zk server`) 
 - `cd zksync_full_stack && cargo run` inits a wallet, deploys a contract and executes a tx
 - query the node for the tx hash (output of the zksync_full_stack binary):
 
