@@ -1,5 +1,5 @@
 use crate::interface::Halt;
-use zk_evm_1_3_3::tracing::{
+use zk_evm_1_4_0::tracing::{
     AfterDecodingData, AfterExecutionData, BeforeExecutionData, VmLocalStateData,
 };
 use zksync_state::{StoragePtr, WriteStorage};
@@ -32,7 +32,7 @@ pub trait VmTracer<S: WriteStorage, H: HistoryMode>: DynTracer<S, H> {
     }
 }
 
-/// Version of zk_evm_1_3_3::Tracer suitable for dynamic dispatch.
+/// Version of zk_evm_1_4_0::Tracer suitable for dynamic dispatch.
 pub trait DynTracer<S, H: HistoryMode> {
     fn before_decoding(&mut self, _state: VmLocalStateData<'_>, _memory: &SimpleMemory<H>) {}
     fn after_decoding(

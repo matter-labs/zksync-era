@@ -1,4 +1,4 @@
-use zk_evm_1_3_3::{
+use zk_evm_1_4_0::{
     aux_structures::Timestamp,
     tracing::{BeforeExecutionData, VmLocalStateData},
 };

@@ -4,7 +4,7 @@ use crate::vm_latest::old_vm::{
 };
 use itertools::Itertools;
 use std::{cmp::Ordering, collections::HashMap};
-use zk_evm_1_3_3::{
+use zk_evm_1_4_0::{
     abstractions::EventSink,
     aux_structures::{LogQuery, Timestamp},
     reference_impls::event_sink::EventMessage,
