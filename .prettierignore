@@ -3,5 +3,6 @@ bellman-cuda
 sdk/zksync-rs/CHANGELOG.md
 CHANGELOG.md
 
-# ignore era-contracts, since they have their own formatting CI
+# Ignore contract submodules
 contracts
+etc/system-contracts

@@ -6,7 +6,7 @@ services:
       - PLUGIN_CONFIG
 
   zk:
-    image: "matterlabs/zk-environment:latest2.0"
+    image: "matterlabs/zk-environment:cuda-11-8-latest"
     depends_on:
       - geth
       - postgres
