@@ -147,8 +147,7 @@ version 1.4.0.
   https://github.com/matter-labs/sync_vm/blob/683ade0bbb445f3e2ceb82dd3f4346a0c5d16a78/src/glue/ecrecover_circuit/mod.rs#L157
 [zksync core witness]:
   https://github.com/matter-labs/zksync-era/blob/main/core/lib/zksync_core/src/witness_generator/mod.rs
-[separate witness binary]:
-  https://github.com/matter-labs/zksync-2-dev/blob/847e7e099175052ccdcad90ea8b3f92c443cc8cd/core/bin/witness_generator/src/main.rs#L37
+[separate witness binary]: https://github.com/matter-labs/zksync-era/blob/main/prover/witness_generator/src/main.rs
 [zkevm_test_harness witness]:
   https://github.com/matter-labs/zkevm_test_harness/blob/0c17bc7baa4e0b64634d414942ef4200d8613bbd/src/external_calls.rs#L575
 [heavy_ops_service repo]: https://github.com/matter-labs/heavy-ops-service/tree/v1.3.2
