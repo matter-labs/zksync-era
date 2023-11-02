@@ -93,4 +93,4 @@ zksync_test_account = { path = "../test_account" }
 
 assert_matches = "1.5"
 tempfile = "3.0.2"
-test-casing = { version = "0.1.1", git = "https://github.com/slowli/test-casing.git", rev = "cb033e145c0de24d71532f3f6f219c0234ff4c44" }
+test-casing = "0.1.2"

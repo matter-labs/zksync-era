@@ -7207,16 +7207,18 @@ dependencies = [
 
 [[package]]
 name = "test-casing"
-version = "0.1.1"
-source = "git+https://github.com/slowli/test-casing.git?rev=cb033e145c0de24d71532f3f6f219c0234ff4c44#cb033e145c0de24d71532f3f6f219c0234ff4c44"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b2378d657757969a2cec9ec4eb616be8f01be98c21c6467991f91cb182e4653b"
 dependencies = [
  "test-casing-macro",
 ]
 
 [[package]]
 name = "test-casing-macro"
-version = "0.1.1"
-source = "git+https://github.com/slowli/test-casing.git?rev=cb033e145c0de24d71532f3f6f219c0234ff4c44#cb033e145c0de24d71532f3f6f219c0234ff4c44"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2cfbe7811249c4c914b06141b8ac0f2cee2733fb883d05eb19668a45fc60c3d5"
 dependencies = [
  "proc-macro2 1.0.66",
  "quote 1.0.33",
