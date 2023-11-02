@@ -147,6 +147,8 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
             l2_to_l1_logs,
             total_log_queries,
             cycles_used: self.vm.state.local_state.monotonic_cycle_counter,
+            // It's not applicable for vm 1.3.2
+            storage_refunds: vec![],
         }
     }
 
