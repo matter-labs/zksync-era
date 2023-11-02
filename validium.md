@@ -24,7 +24,9 @@ curl -X POST -H 'content-type: application/json' 127.0.0.1:3050 -d '{"jsonrpc": 
   "id": 1
 }
 ```
-Not all the eth tx hash might be displayed depending on how much time passes between sending the tx and querying the node, since the transactions are bundled into batches which get entered into the batch pipeline
+
+Not all the eth tx hash might be displayed depending on how much time passes between sending the tx and querying the
+node, since the transactions are bundled into batches which get entered into the batch pipeline
 
 - query the geth node with the commit tx hash
 
@@ -58,10 +60,10 @@ curl -X POST -H 'content-type: application/json' 127.0.0.1:8545 -d '{"jsonrpc": 
 }
 ```
 
-if the same process is followed for the boojum-integration branch, there is more data in the input field (see after the `01020309` sub-array which was put in place for detecting these changes):
+if the same process is followed for the boojum-integration branch, there is more data in the input field (see after the
+`01020309` sub-array which was put in place for detecting these changes):
 
-
-```
+````
  block-explorer git:(main) ✗ curl -X POST -H 'content-type: application/json' 127.0.0.1:8545 -d '{"jsonrpc": "2.0", "id": 1, "method": "eth_getTransactionByHash", "params": ["0xf2daa7aeba7ded2c4dcb1ceb7892c6fa34ef57fec3a175f8593d313bf2c5d314"]}' | jq
   % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
                                  Dload  Upload   Total   Spent    Left  Speed
@@ -91,3 +93,4 @@ if the same process is followed for the boojum-integration branch, there is more
     "s": "0xdab5e41a8cfbe73295f57e1bd1ac409170ba251eefc822b8e2c6936aaf3ed"
   }
 }```
+````
