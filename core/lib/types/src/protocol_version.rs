@@ -37,7 +37,6 @@ pub enum ProtocolVersionId {
     Version15,
     Version16,
     Version17,
-    Version18,
 }
 
 impl ProtocolVersionId {
@@ -71,7 +70,6 @@ impl ProtocolVersionId {
             ProtocolVersionId::Version15 => VmVersion::VmVirtualBlocks,
             ProtocolVersionId::Version16 => VmVersion::VmVirtualBlocksRefundsEnhancement,
             ProtocolVersionId::Version17 => VmVersion::VmVirtualBlocksRefundsEnhancement,
-            ProtocolVersionId::Version18 => VmVersion::VmVirtualBlocksRefundsEnhancement,
         }
     }
 
@@ -688,7 +686,6 @@ impl From<ProtocolVersionId> for VmVersion {
             ProtocolVersionId::Version15 => VmVersion::VmVirtualBlocks,
             ProtocolVersionId::Version16 => VmVersion::VmVirtualBlocksRefundsEnhancement,
             ProtocolVersionId::Version17 => VmVersion::VmVirtualBlocksRefundsEnhancement,
-            ProtocolVersionId::Version18 => todo!("holding for boojum"),
         }
     }
 }
