@@ -35,15 +35,14 @@ impl L1BatchCommitOperation {
     pub fn get_eth_tx_args(&self) -> Vec<Token> {
         let stored_batch_info = self.last_committed_l1_batch.l1_header_data();
         println!("stored batch info: {}", stored_batch_info);
-       // println!("l1 batches: {:?}", self.l1_batches);
+        // println!("l1 batches: {:?}", self.l1_batches);
         let l1_batches_to_commit = self
             .l1_batches
             .iter()
             .map(|x| {
                 println!("constructing pubdata for commit op");
                 L1BatchWithMetadata::l1_commit_data(x)
-            }
-            )
+            })
             .collect();
         vec![stored_batch_info, Token::Array(l1_batches_to_commit)]
     }

@@ -189,7 +189,6 @@ impl L1BatchWithMetadata {
             res.extend(msg);
         }
 
-
         res.extend(vec![1u8, 2u8, 3u8, 9u8]);
 
         // Process and Pack Bytecodes
@@ -198,17 +197,16 @@ impl L1BatchWithMetadata {
         // Extend with Compressed StateDiffs
         // res.extend(&[0u8]);
 
-
         // Process and Pack Bytecodes
         res.extend((self.factory_deps.len() as u32).to_be_bytes());
         for bytecode in &self.factory_deps {
             res.extend((bytecode.len() as u32).to_be_bytes());
             res.extend(bytecode);
         }
-    
+
         // Extend with Compressed StateDiffs
         res.extend(&self.metadata.state_diffs_compressed);
-        
+
         res
     }
 }
