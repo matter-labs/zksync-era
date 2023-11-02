@@ -16,7 +16,7 @@ where
     }
 }
 
-impl<S, H> IntoVmVirtualBlocksTracer<S, H> for CallTracer<H::VmVirtualBlocksRefundsEnhancement>
+impl<S, H> IntoVmVirtualBlocksTracer<S, H> for CallTracer<H::VmBoojumIntegration>
 where
     H: crate::HistoryMode + 'static,
     S: WriteStorage,
@@ -31,8 +31,7 @@ where
     }
 }
 
-impl<S, H> IntoVmVirtualBlocksTracer<S, H>
-    for ValidationTracer<H::VmVirtualBlocksRefundsEnhancement>
+impl<S, H> IntoVmVirtualBlocksTracer<S, H> for ValidationTracer<H::VmBoojumIntegration>
 where
     H: crate::HistoryMode + 'static,
     S: WriteStorage,

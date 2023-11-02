@@ -7,11 +7,12 @@ pub enum VmVersion {
     Vm1_3_2,
     VmVirtualBlocks,
     VmVirtualBlocksRefundsEnhancement,
+    VmBoojumIntegration,
 }
 
 impl VmVersion {
     /// Returns the latest supported VM version.
     pub const fn latest() -> VmVersion {
-        Self::VmVirtualBlocksRefundsEnhancement
+        Self::VmBoojumIntegration
     }
 }
