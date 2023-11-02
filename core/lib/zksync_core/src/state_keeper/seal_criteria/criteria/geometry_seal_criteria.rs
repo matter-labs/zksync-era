@@ -4,6 +4,7 @@ use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_types::{
     circuit::{GEOMETRY_CONFIG, SCHEDULER_UPPER_BOUND},
     tx::tx_execution_info::{DeduplicatedWritesMetrics, ExecutionMetrics},
+    ProtocolVersionId,
 };
 
 // Local uses
@@ -25,7 +26,7 @@ pub struct L2ToL1LogsCriterion;
 
 trait MetricExtractor {
     const PROM_METRIC_CRITERION_NAME: &'static str;
-    fn limit_per_block() -> usize;
+    fn limit_per_block(protocol_version: ProtocolVersionId) -> usize;
     fn extract(metric: &ExecutionMetrics, writes: &DeduplicatedWritesMetrics) -> usize;
 }
 
@@ -40,16 +41,19 @@ where
         _tx_count: usize,
         block_data: &SealData,
         tx_data: &SealData,
+        protocol_version_id: ProtocolVersionId,
     ) -> SealResolution {
-        let reject_bound =
-            (T::limit_per_block() as f64 * config.reject_tx_at_geometry_percentage).round();
-        let close_bound =
-            (T::limit_per_block() as f64 * config.close_block_at_geometry_percentage).round();
+        let reject_bound = (T::limit_per_block(protocol_version_id) as f64
+            * config.reject_tx_at_geometry_percentage)
+            .round();
+        let close_bound = (T::limit_per_block(protocol_version_id) as f64
+            * config.close_block_at_geometry_percentage)
+            .round();
 
         if T::extract(&tx_data.execution_metrics, &tx_data.writes_metrics) > reject_bound as usize {
             SealResolution::Unexecutable("ZK proof cannot be generated for a transaction".into())
         } else if T::extract(&block_data.execution_metrics, &block_data.writes_metrics)
-            >= T::limit_per_block()
+            >= T::limit_per_block(protocol_version_id)
         {
             SealResolution::ExcludeAndSeal
         } else if T::extract(&block_data.execution_metrics, &block_data.writes_metrics)
@@ -69,8 +73,13 @@ where
 impl MetricExtractor for RepeatedWritesCriterion {
     const PROM_METRIC_CRITERION_NAME: &'static str = "repeated_storage_writes";
 
-    fn limit_per_block() -> usize {
-        GEOMETRY_CONFIG.limit_for_repeated_writes_pubdata_hasher as usize
+    fn limit_per_block(protocol_version_id: ProtocolVersionId) -> usize {
+        if !protocol_version_id.is_pre_boojum() {
+            // In boojum there is no limit for repeated writes.
+            usize::MAX
+        } else {
+            GEOMETRY_CONFIG.limit_for_repeated_writes_pubdata_hasher as usize
+        }
     }
 
     fn extract(_metrics: &ExecutionMetrics, writes: &DeduplicatedWritesMetrics) -> usize {
@@ -81,8 +90,13 @@ impl MetricExtractor for RepeatedWritesCriterion {
 impl MetricExtractor for InitialWritesCriterion {
     const PROM_METRIC_CRITERION_NAME: &'static str = "initial_storage_writes";
 
-    fn limit_per_block() -> usize {
-        GEOMETRY_CONFIG.limit_for_initial_writes_pubdata_hasher as usize
+    fn limit_per_block(protocol_version_id: ProtocolVersionId) -> usize {
+        if !protocol_version_id.is_pre_boojum() {
+            // In boojum there is no limit for initial writes.
+            usize::MAX
+        } else {
+            GEOMETRY_CONFIG.limit_for_initial_writes_pubdata_hasher as usize
+        }
     }
 
     fn extract(_metrics: &ExecutionMetrics, writes: &DeduplicatedWritesMetrics) -> usize {
@@ -93,7 +107,7 @@ impl MetricExtractor for InitialWritesCriterion {
 impl MetricExtractor for MaxCyclesCriterion {
     const PROM_METRIC_CRITERION_NAME: &'static str = "max_cycles";
 
-    fn limit_per_block() -> usize {
+    fn limit_per_block(_protocol_version_id: ProtocolVersionId) -> usize {
         MAX_CYCLES_FOR_TX as usize
     }
 
@@ -105,7 +119,7 @@ impl MetricExtractor for MaxCyclesCriterion {
 impl MetricExtractor for ComputationalGasCriterion {
     const PROM_METRIC_CRITERION_NAME: &'static str = "computational_gas";
 
-    fn limit_per_block() -> usize {
+    fn limit_per_block(_protocol_version_id: ProtocolVersionId) -> usize {
         // We subtract constant to take into account that circuits may be not fully filled.
         // This constant should be greater than number of circuits types
         // but we keep it larger to be on the safe side.
@@ -124,8 +138,13 @@ impl MetricExtractor for ComputationalGasCriterion {
 impl MetricExtractor for L2ToL1LogsCriterion {
     const PROM_METRIC_CRITERION_NAME: &'static str = "l2_to_l1_logs";
 
-    fn limit_per_block() -> usize {
-        GEOMETRY_CONFIG.limit_for_l1_messages_merklizer as usize
+    fn limit_per_block(protocol_version_id: ProtocolVersionId) -> usize {
+        if !protocol_version_id.is_pre_boojum() {
+            // In boojum there is no limit for L2 to L1 logs.
+            usize::MAX
+        } else {
+            GEOMETRY_CONFIG.limit_for_l1_messages_merklizer as usize
+        }
     }
 
     fn extract(metrics: &ExecutionMetrics, _writes: &DeduplicatedWritesMetrics) -> usize {
@@ -161,6 +180,7 @@ mod tests {
                 ..SealData::default()
             },
             &SealData::default(),
+            ProtocolVersionId::Version17,
         );
         assert_eq!(block_resolution, SealResolution::NoSeal);
     }
@@ -181,6 +201,7 @@ mod tests {
                 ..SealData::default()
             },
             &SealData::default(),
+            ProtocolVersionId::Version17,
         );
         assert_eq!(block_resolution, SealResolution::IncludeAndSeal);
     }
@@ -201,6 +222,7 @@ mod tests {
                 ..SealData::default()
             },
             &SealData::default(),
+            ProtocolVersionId::Version17,
         );
         assert_eq!(block_resolution, SealResolution::ExcludeAndSeal);
     }
