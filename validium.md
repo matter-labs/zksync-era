@@ -65,9 +65,8 @@ if the same process is followed for the boojum-integration branch, there is more
 
 ````
  block-explorer git:(main) ✗ curl -X POST -H 'content-type: application/json' 127.0.0.1:8545 -d '{"jsonrpc": "2.0", "id": 1, "method": "eth_getTransactionByHash", "params": ["0xf2daa7aeba7ded2c4dcb1ceb7892c6fa34ef57fec3a175f8593d313bf2c5d314"]}' | jq
-  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
-                                 Dload  Upload   Total   Spent    Left  Speed
-  0     0    0     0    0     0      0      0 --:--:100  4300    0  4153  100   147   753k  27308 --:--:-- --:--:-- --:--:-- 2099k
+
+
 {
   "jsonrpc": "2.0",
   "id": 1,
