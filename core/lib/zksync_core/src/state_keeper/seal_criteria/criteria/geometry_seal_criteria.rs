@@ -168,6 +168,7 @@ mod tests {
         block_execution_metrics: ExecutionMetrics,
         block_writes_metrics: DeduplicatedWritesMetrics,
         criterion: &dyn SealCriterion,
+        protocol_version: ProtocolVersionId,
     ) {
         let config = get_config();
         let block_resolution = criterion.should_seal(
@@ -180,7 +181,7 @@ mod tests {
                 ..SealData::default()
             },
             &SealData::default(),
-            ProtocolVersionId::Version17,
+            protocol_version,
         );
         assert_eq!(block_resolution, SealResolution::NoSeal);
     }
@@ -189,6 +190,7 @@ mod tests {
         block_execution_metrics: ExecutionMetrics,
         block_writes_metrics: DeduplicatedWritesMetrics,
         criterion: &dyn SealCriterion,
+        protocol_version: ProtocolVersionId,
     ) {
         let config = get_config();
         let block_resolution = criterion.should_seal(
@@ -201,7 +203,7 @@ mod tests {
                 ..SealData::default()
             },
             &SealData::default(),
-            ProtocolVersionId::Version17,
+            protocol_version,
         );
         assert_eq!(block_resolution, SealResolution::IncludeAndSeal);
     }
@@ -210,6 +212,7 @@ mod tests {
         block_execution_metrics: ExecutionMetrics,
         block_writes_metrics: DeduplicatedWritesMetrics,
         criterion: &dyn SealCriterion,
+        protocol_version: ProtocolVersionId,
     ) {
         let config = get_config();
         let block_resolution = criterion.should_seal(
@@ -222,7 +225,7 @@ mod tests {
                 ..SealData::default()
             },
             &SealData::default(),
-            ProtocolVersionId::Version17,
+            protocol_version,
         );
         assert_eq!(block_resolution, SealResolution::ExcludeAndSeal);
     }
@@ -231,6 +234,7 @@ mod tests {
         tx_execution_metrics: ExecutionMetrics,
         tx_writes_metrics: DeduplicatedWritesMetrics,
         criterion: &dyn SealCriterion,
+        protocol_version: ProtocolVersionId,
     ) {
         let config = get_config();
         let block_resolution = criterion.should_seal(
@@ -243,6 +247,7 @@ mod tests {
                 writes_metrics: tx_writes_metrics,
                 ..SealData::default()
             },
+            protocol_version,
         );
 
         assert_eq!(
@@ -252,17 +257,22 @@ mod tests {
     }
 
     macro_rules! test_scenario_execution_metrics {
-        ($criterion: tt, $metric_name: ident, $metric_type: ty) => {
+        ($criterion: tt, $metric_name: ident, $metric_type: ty, $protocol_version: expr) => {
             let config = get_config();
             let writes_metrics = DeduplicatedWritesMetrics::default();
             let block_execution_metrics = ExecutionMetrics {
-                $metric_name: ($criterion::limit_per_block() / 2) as $metric_type,
+                $metric_name: ($criterion::limit_per_block($protocol_version) / 2) as $metric_type,
                 ..ExecutionMetrics::default()
             };
-            test_no_seal_block_resolution(block_execution_metrics, writes_metrics, &$criterion);
+            test_no_seal_block_resolution(
+                block_execution_metrics,
+                writes_metrics,
+                &$criterion,
+                $protocol_version,
+            );
 
             let block_execution_metrics = ExecutionMetrics {
-                $metric_name: ($criterion::limit_per_block() - 1) as $metric_type,
+                $metric_name: ($criterion::limit_per_block($protocol_version) - 1) as $metric_type,
                 ..ExecutionMetrics::default()
             };
 
@@ -270,10 +280,11 @@ mod tests {
                 block_execution_metrics,
                 writes_metrics,
                 &$criterion,
+                $protocol_version,
             );
 
             let block_execution_metrics = ExecutionMetrics {
-                $metric_name: ($criterion::limit_per_block()) as $metric_type,
+                $metric_name: ($criterion::limit_per_block($protocol_version)) as $metric_type,
                 ..ExecutionMetrics::default()
             };
 
@@ -281,32 +292,43 @@ mod tests {
                 block_execution_metrics,
                 writes_metrics,
                 &$criterion,
+                $protocol_version,
             );
 
             let tx_execution_metrics = ExecutionMetrics {
-                $metric_name: ($criterion::limit_per_block() as f64
+                $metric_name: ($criterion::limit_per_block($protocol_version) as f64
                     * config.reject_tx_at_geometry_percentage
                     + 1f64)
                     .round() as $metric_type,
                 ..ExecutionMetrics::default()
             };
 
-            test_unexecutable_tx_resolution(tx_execution_metrics, writes_metrics, &$criterion);
+            test_unexecutable_tx_resolution(
+                tx_execution_metrics,
+                writes_metrics,
+                &$criterion,
+                $protocol_version,
+            );
         };
     }
 
     macro_rules! test_scenario_writes_metrics {
-        ($criterion:tt, $metric_name:ident, $metric_type:ty) => {
+        ($criterion:tt, $metric_name:ident, $metric_type:ty, $protocol_version:expr) => {
             let config = get_config();
             let execution_metrics = ExecutionMetrics::default();
             let block_writes_metrics = DeduplicatedWritesMetrics {
-                $metric_name: ($criterion::limit_per_block() / 2) as $metric_type,
+                $metric_name: ($criterion::limit_per_block($protocol_version) / 2) as $metric_type,
                 ..Default::default()
             };
-            test_no_seal_block_resolution(execution_metrics, block_writes_metrics, &$criterion);
+            test_no_seal_block_resolution(
+                execution_metrics,
+                block_writes_metrics,
+                &$criterion,
+                $protocol_version,
+            );
 
             let block_writes_metrics = DeduplicatedWritesMetrics {
-                $metric_name: ($criterion::limit_per_block() - 1) as $metric_type,
+                $metric_name: ($criterion::limit_per_block($protocol_version) - 1) as $metric_type,
                 ..Default::default()
             };
 
@@ -314,10 +336,11 @@ mod tests {
                 execution_metrics,
                 block_writes_metrics,
                 &$criterion,
+                $protocol_version,
             );
 
             let block_writes_metrics = DeduplicatedWritesMetrics {
-                $metric_name: ($criterion::limit_per_block()) as $metric_type,
+                $metric_name: ($criterion::limit_per_block($protocol_version)) as $metric_type,
                 ..Default::default()
             };
 
@@ -325,42 +348,73 @@ mod tests {
                 execution_metrics,
                 block_writes_metrics,
                 &$criterion,
+                $protocol_version,
             );
 
             let tx_writes_metrics = DeduplicatedWritesMetrics {
-                $metric_name: ($criterion::limit_per_block() as f64
+                $metric_name: ($criterion::limit_per_block($protocol_version) as f64
                     * config.reject_tx_at_geometry_percentage
                     + 1f64)
                     .round() as $metric_type,
                 ..Default::default()
             };
 
-            test_unexecutable_tx_resolution(execution_metrics, tx_writes_metrics, &$criterion);
+            test_unexecutable_tx_resolution(
+                execution_metrics,
+                tx_writes_metrics,
+                &$criterion,
+                $protocol_version,
+            );
         };
     }
 
     #[test]
     fn repeated_writes_seal_criterion() {
-        test_scenario_writes_metrics!(RepeatedWritesCriterion, repeated_storage_writes, usize);
+        test_scenario_writes_metrics!(
+            RepeatedWritesCriterion,
+            repeated_storage_writes,
+            usize,
+            ProtocolVersionId::Version17
+        );
     }
 
     #[test]
     fn initial_writes_seal_criterion() {
-        test_scenario_writes_metrics!(InitialWritesCriterion, initial_storage_writes, usize);
+        test_scenario_writes_metrics!(
+            InitialWritesCriterion,
+            initial_storage_writes,
+            usize,
+            ProtocolVersionId::Version17
+        );
     }
 
     #[test]
     fn max_cycles_seal_criterion() {
-        test_scenario_execution_metrics!(MaxCyclesCriterion, cycles_used, u32);
+        test_scenario_execution_metrics!(
+            MaxCyclesCriterion,
+            cycles_used,
+            u32,
+            ProtocolVersionId::Version17
+        );
     }
 
     #[test]
     fn computational_gas_seal_criterion() {
-        test_scenario_execution_metrics!(ComputationalGasCriterion, computational_gas_used, u32);
+        test_scenario_execution_metrics!(
+            ComputationalGasCriterion,
+            computational_gas_used,
+            u32,
+            ProtocolVersionId::Version17
+        );
     }
 
     #[test]
     fn l2_to_l1_logs_seal_criterion() {
-        test_scenario_execution_metrics!(L2ToL1LogsCriterion, l2_l1_logs, usize);
+        test_scenario_execution_metrics!(
+            L2ToL1LogsCriterion,
+            l2_l1_logs,
+            usize,
+            ProtocolVersionId::Version17
+        );
     }
 }
