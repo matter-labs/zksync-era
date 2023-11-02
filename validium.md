@@ -25,7 +25,7 @@ curl -X POST -H 'content-type: application/json' 127.0.0.1:3050 -d '{"jsonrpc": 
 }
 ```
 
-Not all the eth tx hash might be displayed depending on how much time passes between sending the tx and querying the
+Not all the eth-related transaction hashes might be displayed depending on how much time passes between sending the tx and querying the
 node, since the transactions are bundled into batches which get entered into the batch pipeline
 
 - query the geth node with the commit tx hash
