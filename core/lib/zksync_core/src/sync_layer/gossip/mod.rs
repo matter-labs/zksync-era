@@ -12,6 +12,7 @@ use zksync_dal::ConnectionPool;
 
 mod buffered;
 mod conversions;
+mod metrics;
 mod storage;
 #[cfg(test)]
 mod tests;

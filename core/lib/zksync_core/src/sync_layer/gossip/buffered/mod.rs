@@ -2,7 +2,7 @@
 
 use async_trait::async_trait;
 
-use std::{collections::BTreeMap, ops};
+use std::{collections::BTreeMap, ops, time::Instant};
 
 #[cfg(test)]
 use zksync_concurrency::ctx::channel;
@@ -16,7 +16,10 @@ use zksync_consensus_storage::{BlockStore, StorageError, StorageResult, WriteBlo
 #[cfg(test)]
 mod tests;
 
-use super::utils::MissingBlockNumbers;
+use super::{
+    metrics::{BlockResponseKind, METRICS},
+    utils::MissingBlockNumbers,
+};
 
 /// [`BlockStore`] variation that upholds additional invariants as to how blocks are processed.
 ///
@@ -76,7 +79,8 @@ impl BlockBuffer {
         let old_len = self.blocks.len();
         self.blocks = self.blocks.split_off(&store_block_number.next());
         // ^ Removes all entries up to and including `store_block_number`
-        tracing::trace!("Removed {} blocks from buffer", old_len - self.blocks.len());
+        tracing::debug!("Removed {} blocks from buffer", old_len - self.blocks.len());
+        METRICS.buffer_size.set(self.blocks.len());
     }
 
     fn last_contiguous_block_number(&self) -> BlockNumber {
@@ -107,7 +111,8 @@ impl BlockBuffer {
         assert!(block_number > self.store_block_number);
         // ^ Must be checked previously
         self.blocks.insert(block_number, block);
-        tracing::trace!(%block_number, "Inserted block in buffer");
+        tracing::debug!(%block_number, "Inserted block in buffer");
+        METRICS.buffer_size.set(self.blocks.len());
     }
 
     fn next_block_for_store(&mut self) -> Option<FinalBlock> {
@@ -121,11 +126,11 @@ impl BlockBuffer {
     }
 }
 
-/// Events emitted by [`Buffered`].
+/// Events emitted by [`Buffered`] storage.
 #[cfg(test)]
 #[derive(Debug)]
 pub(super) enum BufferedStorageEvent {
-    /// Update was received from
+    /// Update was received from the underlying storage.
     UpdateReceived(BlockNumber),
 }
 
@@ -145,7 +150,10 @@ impl<T: ContiguousBlockStore> Buffered<T> {
     pub fn new(store: T) -> Self {
         let inner_subscriber = store.subscribe_to_block_writes();
         let store_block_number = *inner_subscriber.borrow();
-        tracing::trace!(%store_block_number, "Initialized buffer storage");
+        tracing::debug!(
+            store_block_number = store_block_number.0,
+            "Initialized buffer storage"
+        );
         Self {
             inner: store,
             inner_subscriber,
@@ -178,7 +186,10 @@ impl<T: ContiguousBlockStore> Buffered<T> {
         let mut subscriber = self.inner_subscriber.clone();
         loop {
             let store_block_number = *sync::changed(ctx, &mut subscriber).await?;
-            tracing::trace!("Underlying block number updated to {store_block_number}");
+            tracing::debug!(
+                store_block_number = store_block_number.0,
+                "Underlying block number updated"
+            );
 
             let next_block_for_store = {
                 let mut buffer = sync::lock(ctx, &self.buffer).await?;
@@ -188,7 +199,10 @@ impl<T: ContiguousBlockStore> Buffered<T> {
             if let Some(block) = next_block_for_store {
                 self.inner.schedule_next_block(ctx, &block).await?;
                 let block_number = block.header.number;
-                tracing::trace!(%block_number, "Block scheduled in underlying storage");
+                tracing::debug!(
+                    block_number = block_number.0,
+                    "Block scheduled in underlying storage"
+                );
             }
 
             #[cfg(test)]
@@ -224,13 +238,19 @@ impl<T: ContiguousBlockStore> BlockStore for Buffered<T> {
         ctx: &ctx::Ctx,
         number: BlockNumber,
     ) -> StorageResult<Option<FinalBlock>> {
+        let started_at = Instant::now();
         {
             let buffer = sync::lock(ctx, &self.buffer).await?;
             if number > buffer.store_block_number {
-                return Ok(buffer.blocks.get(&number).cloned());
+                let block = buffer.blocks.get(&number).cloned();
+                METRICS.get_block_latency[&BlockResponseKind::InMemory]
+                    .observe(started_at.elapsed());
+                return Ok(block);
             }
         }
-        self.inner.block(ctx, number).await
+        let block = self.inner.block(ctx, number).await?;
+        METRICS.get_block_latency[&BlockResponseKind::Persisted].observe(started_at.elapsed());
+        Ok(block)
     }
 
     async fn missing_block_numbers(
@@ -252,6 +272,7 @@ impl<T: ContiguousBlockStore> BlockStore for Buffered<T> {
 #[async_trait]
 impl<T: ContiguousBlockStore> WriteBlockStore for Buffered<T> {
     async fn put_block(&self, ctx: &ctx::Ctx, block: &FinalBlock) -> StorageResult<()> {
+        let buffer_block_latency = METRICS.buffer_block_latency.start();
         let next_block_for_store = {
             let mut buffer = sync::lock(ctx, &self.buffer).await?;
             let block_number = block.header.number;
@@ -267,9 +288,13 @@ impl<T: ContiguousBlockStore> WriteBlockStore for Buffered<T> {
 
         if let Some(block) = next_block_for_store {
             self.inner.schedule_next_block(ctx, &block).await?;
-            tracing::trace!(block_number = %block.header.number, "Block scheduled in underlying storage");
+            tracing::debug!(
+                block_number = block.header.number.0,
+                "Block scheduled in underlying storage"
+            );
         }
         self.block_writes_sender.send_replace(block.header.number);
+        buffer_block_latency.observe();
         Ok(())
     }
 }

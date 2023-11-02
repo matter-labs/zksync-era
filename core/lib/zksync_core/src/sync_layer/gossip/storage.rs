@@ -177,7 +177,7 @@ impl BlockStore for PostgresBlockStorage {
 #[async_trait]
 impl ContiguousBlockStore for PostgresBlockStorage {
     async fn schedule_next_block(&self, ctx: &ctx::Ctx, block: &FinalBlock) -> StorageResult<()> {
-        self.schedule_block(ctx, block).await.map_err(Into::into)
+        self.schedule_block(ctx, block).await
     }
 }
 
