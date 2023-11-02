@@ -14,7 +14,7 @@ use zksync_types::zkevm_test_harness::witness::oracle::VmWitnessOracle;
 use zksync_types::{L1BatchNumber, ProtocolVersionId};
 
 use crate::{models::storage_witness_job_info::StorageWitnessJobInfo, ProverStorageProcessor};
-use zksync_dal::{
+use zksync_db_utils::{
     instrument::InstrumentExt,
     metrics::MethodLatency,
     time_utils::{duration_to_naive_time, pg_interval_from_duration},

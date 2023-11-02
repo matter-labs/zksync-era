@@ -6,8 +6,9 @@ use zksync_contracts::{BaseSystemContracts, SystemContractCode};
 use zksync_types::{MiniblockNumber, StorageKey, StorageLog, StorageValue, H256, U256};
 use zksync_utils::{bytes_to_be_words, bytes_to_chunks};
 
-use crate::{instrument::InstrumentExt, MainStorageProcessor};
+use crate::MainStorageProcessor;
 
+use zksync_db_utils::instrument::InstrumentExt;
 #[derive(Debug)]
 pub struct StorageDal<'a, 'c> {
     pub(crate) storage: &'a mut MainStorageProcessor<'c>,

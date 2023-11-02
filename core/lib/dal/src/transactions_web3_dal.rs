@@ -14,7 +14,9 @@ use crate::models::{
         StorageTransactionDetails,
     },
 };
-use crate::{instrument::InstrumentExt, MainStorageProcessor, SqlxError};
+use zksync_db_utils::instrument::InstrumentExt;
+
+use crate::{MainStorageProcessor, SqlxError};
 
 #[derive(Debug)]
 pub struct TransactionsWeb3Dal<'a, 'c> {

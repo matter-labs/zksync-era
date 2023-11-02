@@ -19,10 +19,10 @@ use zksync_types::{
 };
 use zksync_utils::{h256_to_u32, u256_to_big_decimal};
 
+use zksync_db_utils::{instrument::InstrumentExt, time_utils::pg_interval_from_duration};
+
 use crate::{
-    instrument::InstrumentExt,
     models::storage_transaction::{CallTrace, StorageTransaction},
-    time_utils::pg_interval_from_duration,
     MainStorageProcessor,
 };
 

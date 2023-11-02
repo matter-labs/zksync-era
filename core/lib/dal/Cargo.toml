@@ -16,6 +16,7 @@ zksync_system_constants = { path = "../constants" }
 zksync_contracts = { path = "../contracts" }
 zksync_types = { path = "../types" }
 zksync_health_check = { path = "../health_check" }
+zksync_db_utils = { path = "../db_utils"}
 
 itertools = "0.10.1"
 thiserror = "1.0"

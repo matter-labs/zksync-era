@@ -8,7 +8,7 @@ use zksync_types::{
 };
 
 use crate::ProverStorageProcessor;
-use zksync_dal::{
+use zksync_db_utils::{
     instrument::InstrumentExt,
     metrics::MethodLatency,
     time_utils::{duration_to_naive_time, pg_interval_from_duration},

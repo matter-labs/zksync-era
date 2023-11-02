@@ -12,7 +12,7 @@ use zksync_types::{
     L1BatchNumber,
 };
 
-use zksync_dal::{
+use zksync_db_utils::{
     metrics::MethodLatency,
     time_utils::{duration_to_naive_time, pg_interval_from_duration},
 };

@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use crate::ProverStorageProcessor;
 use std::collections::HashMap;
-use zksync_dal::time_utils::pg_interval_from_duration;
+use zksync_db_utils::time_utils::pg_interval_from_duration;
 use zksync_types::proofs::{GpuProverInstanceStatus, SocketAddress};
 
 #[derive(Debug)]

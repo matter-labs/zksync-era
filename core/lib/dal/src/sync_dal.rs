@@ -1,11 +1,10 @@
 use zksync_types::{api::en::SyncBlock, Address, MiniblockNumber, Transaction};
 
 use crate::{
-    instrument::InstrumentExt,
-    metrics::MethodLatency,
     models::{storage_sync::StorageSyncBlock, storage_transaction::StorageTransaction},
     MainStorageProcessor, SqlxError,
 };
+use zksync_db_utils::{instrument::InstrumentExt, metrics::MethodLatency};
 
 /// DAL subset dedicated to the EN synchronization.
 #[derive(Debug)]

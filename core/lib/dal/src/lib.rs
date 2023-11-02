@@ -35,8 +35,6 @@ use crate::tokens_web3_dal::TokensWeb3Dal;
 use crate::transactions_dal::TransactionsDal;
 use crate::transactions_web3_dal::TransactionsWeb3Dal;
 
-#[macro_use]
-mod macro_utils;
 pub mod accounts_dal;
 pub mod basic_witness_input_producer_dal;
 pub mod blocks_dal;
@@ -47,8 +45,6 @@ pub mod eth_sender_dal;
 pub mod events_dal;
 pub mod events_web3_dal;
 pub mod healthcheck;
-pub mod instrument;
-pub mod metrics;
 mod models;
 pub mod proof_generation_dal;
 pub mod protocol_versions_dal;
@@ -59,7 +55,6 @@ pub mod storage_logs_dedup_dal;
 pub mod storage_web3_dal;
 pub mod sync_dal;
 pub mod system_dal;
-pub mod time_utils;
 pub mod tokens_dal;
 pub mod tokens_web3_dal;
 pub mod transactions_dal;

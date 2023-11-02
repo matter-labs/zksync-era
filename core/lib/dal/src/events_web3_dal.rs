@@ -6,10 +6,11 @@ use zksync_types::{
 };
 
 use crate::{
-    instrument::InstrumentExt,
     models::{storage_block::web3_block_number_to_sql, storage_event::StorageWeb3Log},
     MainStorageProcessor, SqlxError,
 };
+
+use zksync_db_utils::instrument::InstrumentExt;
 
 #[derive(Debug)]
 pub struct EventsWeb3Dal<'a, 'c> {

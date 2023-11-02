@@ -10,7 +10,7 @@ use anyhow::Context as _;
 use sqlx::pool::PoolConnection;
 pub use sqlx::types::BigDecimal;
 
-use zksync_dal::connection::holder::ConnectionHolder;
+use zksync_db_utils::connection_holder::ConnectionHolder;
 
 // Local imports
 use crate::fri_gpu_prover_queue_dal::FriGpuProverQueueDal;

@@ -17,11 +17,11 @@ use zksync_types::{
 };
 
 use crate::{
-    instrument::InstrumentExt,
     models::storage_block::{StorageL1Batch, StorageL1BatchHeader, StorageMiniblockHeader},
     MainStorageProcessor,
 };
 
+use zksync_db_utils::instrument::InstrumentExt;
 #[derive(Debug)]
 pub struct BlocksDal<'a, 'c> {
     pub(crate) storage: &'a mut MainStorageProcessor<'c>,

@@ -3,11 +3,13 @@ use sqlx::Row;
 
 use std::{collections::HashMap, time::Instant};
 
-use crate::{instrument::InstrumentExt, MainStorageProcessor};
+use crate::MainStorageProcessor;
 use zksync_types::{
     get_code_key, AccountTreeId, Address, L1BatchNumber, MiniblockNumber, StorageKey, StorageLog,
     FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH, H256,
 };
+
+use zksync_db_utils::instrument::InstrumentExt;
 
 #[derive(Debug)]
 pub struct StorageLogsDal<'a, 'c> {
@@ -48,7 +50,7 @@ impl StorageLogsDal<'_, '_> {
         let now = Utc::now().naive_utc().to_string();
         for (tx_hash, logs) in logs {
             for log in logs {
-                write_str!(
+                zksync_db_utils::write_str!(
                     &mut buffer,
                     r"\\x{hashed_key:x}|\\x{address:x}|\\x{key:x}|\\x{value:x}|",
                     hashed_key = log.key.hashed_key(),
@@ -56,7 +58,7 @@ impl StorageLogsDal<'_, '_> {
                     key = log.key.key(),
                     value = log.value
                 );
-                writeln_str!(
+                zksync_db_utils::writeln_str!(
                     &mut buffer,
                     r"{operation_number}|\\x{tx_hash:x}|{block_number}|{now}|{now}"
                 );

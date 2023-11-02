@@ -20,7 +20,9 @@ use crate::models::{
     },
     storage_transaction::{extract_web3_transaction, web3_transaction_select_sql, CallTrace},
 };
-use crate::{instrument::InstrumentExt, MainStorageProcessor};
+use crate::MainStorageProcessor;
+
+use zksync_db_utils::instrument::InstrumentExt;
 
 const BLOCK_GAS_LIMIT: u32 = system_params::VM_INITIAL_FRAME_ERGS;
 

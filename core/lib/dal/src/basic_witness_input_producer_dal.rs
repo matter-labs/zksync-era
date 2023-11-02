@@ -1,8 +1,8 @@
-use crate::instrument::InstrumentExt;
-use crate::time_utils::{duration_to_naive_time, pg_interval_from_duration};
 use crate::MainStorageProcessor;
 use sqlx::postgres::types::PgInterval;
 use std::time::{Duration, Instant};
+use zksync_db_utils::instrument::InstrumentExt;
+use zksync_db_utils::time_utils::{duration_to_naive_time, pg_interval_from_duration};
 use zksync_types::L1BatchNumber;
 
 #[derive(Debug)]

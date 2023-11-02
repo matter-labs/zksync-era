@@ -11,10 +11,8 @@ use zksync_utils::parse_env;
 
 pub mod holder;
 
-use crate::{
-    get_master_database_url, get_replica_database_url, metrics::CONNECTION_METRICS,
-    MainStorageProcessor,
-};
+use crate::{get_master_database_url, get_replica_database_url, MainStorageProcessor};
+use zksync_db_utils::metrics::CONNECTION_METRICS;
 
 #[derive(Debug, Clone, Copy)]
 pub enum DbVariant {

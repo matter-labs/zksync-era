@@ -8073,10 +8073,21 @@ dependencies = [
  "url",
  "vise",
  "zksync_contracts",
+ "zksync_db_utils",
  "zksync_health_check",
  "zksync_system_constants",
  "zksync_types",
  "zksync_utils",
+]
+
+[[package]]
+name = "zksync_db_utils"
+version = "0.1.0"
+dependencies = [
+ "sqlx",
+ "tokio",
+ "tracing",
+ "vise",
 ]
 
 [[package]]

@@ -60,13 +60,16 @@ impl EventsDal<'_, '_> {
             } = tx_location;
 
             for (event_index_in_tx, event) in events.iter().enumerate() {
-                write_str!(
+                zksync_db_utils::write_str!(
                     &mut buffer,
                     r"{block_number}|\\x{tx_hash:x}|{tx_index_in_miniblock}|\\x{address:x}|",
                     address = event.address
                 );
-                write_str!(&mut buffer, "{event_index_in_block}|{event_index_in_tx}|");
-                write_str!(
+                zksync_db_utils::write_str!(
+                    &mut buffer,
+                    "{event_index_in_block}|{event_index_in_tx}|"
+                );
+                zksync_db_utils::write_str!(
                     &mut buffer,
                     r"\\x{topic0:x}|\\x{topic1:x}|\\x{topic2:x}|\\x{topic3:x}|",
                     topic0 = EventTopic(event.indexed_topics.get(0)),
@@ -74,7 +77,7 @@ impl EventsDal<'_, '_> {
                     topic2 = EventTopic(event.indexed_topics.get(2)),
                     topic3 = EventTopic(event.indexed_topics.get(3))
                 );
-                writeln_str!(
+                zksync_db_utils::write_str!(
                     &mut buffer,
                     r"\\x{value}|\\x{tx_initiator_address:x}|{now}|{now}",
                     value = hex::encode(&event.value)
@@ -141,15 +144,15 @@ impl EventsDal<'_, '_> {
                     value,
                 } = log;
 
-                write_str!(
+                zksync_db_utils::write_str!(
                     &mut buffer,
                     r"{block_number}|{log_index_in_miniblock}|{log_index_in_tx}|\\x{tx_hash:x}|"
                 );
-                write_str!(
+                zksync_db_utils::write_str!(
                     &mut buffer,
                     r"{tx_index_in_miniblock}|{tx_number_in_block}|{shard_id}|{is_service}|"
                 );
-                writeln_str!(
+                zksync_db_utils::write_str!(
                     &mut buffer,
                     r"\\x{sender:x}|\\x{key:x}|\\x{value:x}|{now}|{now}"
                 );
