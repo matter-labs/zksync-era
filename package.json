@@ -9,6 +9,7 @@
       "contracts/zksync",
       "etc/contracts-test-data",
       "etc/ERC20",
+      "etc/system-contracts",
       "infrastructure/zk",
       "infrastructure/local-setup-preparation",
       "core/tests/revert-test",
