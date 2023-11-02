@@ -58,6 +58,7 @@ pub struct ExecutionMetrics {
     pub total_log_queries: usize,
     pub cycles_used: u32,
     pub computational_gas_used: u32,
+    pub pubdata_published: u32,
 }
 
 impl ExecutionMetrics {
@@ -74,6 +75,7 @@ impl ExecutionMetrics {
             total_log_queries: tx_metrics.total_log_queries,
             cycles_used: tx_metrics.cycles_used,
             computational_gas_used: tx_metrics.computational_gas_used,
+            pubdata_published: tx_metrics.pubdata_published,
         }
     }
 
@@ -104,6 +106,7 @@ impl Add for ExecutionMetrics {
             total_log_queries: self.total_log_queries + other.total_log_queries,
             cycles_used: self.cycles_used + other.cycles_used,
             computational_gas_used: self.computational_gas_used + other.computational_gas_used,
+            pubdata_published: self.pubdata_published + other.pubdata_published,
         }
     }
 }

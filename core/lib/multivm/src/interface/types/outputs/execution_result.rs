@@ -95,6 +95,7 @@ impl VmExecutionResultAndLogs {
             total_log_queries: self.statistics.total_log_queries,
             cycles_used: self.statistics.cycles_used,
             computational_gas_used: self.statistics.computational_gas_used,
+            pubdata_published: self.statistics.pubdata_published,
         }
     }
 }

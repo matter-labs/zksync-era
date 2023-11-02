@@ -21,9 +21,16 @@ impl SealCriterion for PubDataBytesCriterion {
             (max_pubdata_per_l1_batch as f64 * config.reject_tx_at_eth_params_percentage).round();
         let include_and_seal_bound =
             (max_pubdata_per_l1_batch as f64 * config.close_block_at_eth_params_percentage).round();
-        let block_size = block_data.execution_metrics.size() + block_data.writes_metrics.size();
-        let tx_size = tx_data.execution_metrics.size() + tx_data.writes_metrics.size();
 
+        let block_size = block_data.execution_metrics.size() + block_data.writes_metrics.size();
+        // For backward compatibility, we need to keep calculating the size of the pubdata based
+        // StorageDeduplication metrics. All vm versions
+        // after vm with virtual blocks will provide the size of the pubdata in the execution metrics.
+        let tx_size = if tx_data.execution_metrics.pubdata_published == 0 {
+            tx_data.execution_metrics.size() + tx_data.writes_metrics.size()
+        } else {
+            tx_data.execution_metrics.pubdata_published as usize
+        };
         if tx_size > reject_bound as usize {
             let message = "Transaction cannot be sent to L1 due to pubdata limits";
             SealResolution::Unexecutable(message.into())
