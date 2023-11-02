@@ -237,6 +237,5 @@ pub async fn run() -> anyhow::Result<()> {
     // The process hangs here if we panic outside `run_prover_with_remote_synthesizer`.
     // Given the task is spawned as blocking, it's in a different thread that can't be cancelled on demand.
     // See: https://docs.rs/tokio/latest/tokio/task/fn.spawn_blocking.html for more information
-    // Follow [PR](https://github.com/matter-labs/zksync-2-dev/pull/2129) for logic behind it
     std::process::exit(-1);
 }
