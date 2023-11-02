@@ -216,7 +216,7 @@ impl BootloaderState {
                 return &block.txs[tx_index - block.first_tx_index];
             }
         }
-        panic!("The tx with this index must exist")
+        panic!("The tx with index {} must exist", tx_index)
     }
 
     fn find_tx_mut(&mut self, tx_index: usize) -> &mut BootloaderTx {
@@ -225,7 +225,7 @@ impl BootloaderState {
                 return &mut block.txs[tx_index - block.first_tx_index];
             }
         }
-        panic!("The tx with this index must exist")
+        panic!("The tx with index {} must exist", tx_index)
     }
 
     pub(crate) fn get_snapshot(&self) -> BootloaderStateSnapshot {
