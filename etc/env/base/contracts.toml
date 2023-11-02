@@ -46,6 +46,8 @@ SNARK_WRAPPER_VK_HASH = "0x4be443afd605a782b6e56d199df2460a025c81b3dea144e135bec
 # Prover that should be used at genesis. 'fri' or 'snark'
 PROVER_AT_GENESIS="fri"
 
+INITIAL_PROTOCOL_VERSION=18
+
 [contracts.test]
 dummy_verifier=true
 easy_priority_mode=false
