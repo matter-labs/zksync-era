@@ -52,8 +52,8 @@ impl<S: WriteStorage, H: HistoryMode> From<TracerDispatcher<S, H>>
 }
 
 /// This is a hack to make `TracerDispatcher` work with VMs, where we don't support tracers.
-impl<S: WriteStorage, H: HistoryMode> Into<Vec<Box<dyn Any>>> for TracerDispatcher<S, H> {
-    fn into(self) -> Vec<Box<dyn Any>> {
+impl<S: WriteStorage, H: HistoryMode> From<TracerDispatcher<S, H>> for Vec<Box<dyn Any>> {
+    fn from(_value: TracerDispatcher<S, H>) -> Self {
         vec![]
     }
 }
