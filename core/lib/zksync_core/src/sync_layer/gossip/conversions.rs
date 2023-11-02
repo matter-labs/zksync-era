@@ -1,12 +1,10 @@
 //! Conversion logic between server and consensus types.
 
 use anyhow::Context as _;
-use rand::{thread_rng, Rng};
 use serde::{Deserialize, Serialize};
 
 use zksync_consensus_roles::validator::{
-    BlockHeader, BlockNumber, CommitQC, FinalBlock, Payload, ReplicaCommit, ViewNumber,
-    CURRENT_VERSION,
+    BlockHeader, BlockHeaderHash, BlockNumber, CommitQC, FinalBlock, Payload,
 };
 use zksync_types::{
     api::en::SyncBlock, Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, H256,
@@ -27,7 +25,7 @@ struct BlockPayload {
     transactions: Vec<zksync_types::Transaction>,
 }
 
-pub(super) fn sync_block_to_consensus_block(block: SyncBlock) -> FinalBlock {
+pub(super) fn sync_block_to_consensus_block(block: SyncBlock) -> anyhow::Result<FinalBlock> {
     let payload = serde_json::to_vec(&BlockPayload {
         hash: block.hash.unwrap_or_default(),
         l1_batch_number: block.l1_batch_number,
@@ -38,26 +36,25 @@ pub(super) fn sync_block_to_consensus_block(block: SyncBlock) -> FinalBlock {
         operator_address: block.operator_address,
         transactions: block
             .transactions
-            .expect("Transactions are always requested"),
+            .context("Transactions are always requested")?,
     });
-    let payload = Payload(payload.expect("Failed serializing block payload"));
+    let payload = Payload(payload.context("Failed serializing block payload")?);
+    let prev_block_hash = block
+        .prev_consensus_block_hash
+        .context("Missing previous block hash")?;
     let header = BlockHeader {
-        parent: thread_rng().gen(), // FIXME
+        parent: BlockHeaderHash::from_bytes(prev_block_hash.0),
         number: BlockNumber(block.number.0.into()),
         payload: payload.hash(),
     };
-    FinalBlock {
+    let justification = block.commit_qc_bytes.context("Missing commit QC")?;
+    let justification: CommitQC = zksync_consensus_schema::decode(&justification.0)
+        .context("Failed deserializing commit QC from Protobuf")?;
+    Ok(FinalBlock {
         header,
         payload,
-        justification: CommitQC {
-            message: ReplicaCommit {
-                protocol_version: CURRENT_VERSION,
-                view: ViewNumber(header.number.0),
-                proposal: header,
-            },
-            ..thread_rng().gen() // FIXME
-        },
-    }
+        justification,
+    })
 }
 
 impl FetchedBlock {

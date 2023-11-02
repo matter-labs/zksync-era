@@ -41,6 +41,7 @@ vlog = { path = "../vlog" }
 multivm = { path = "../multivm" }
 # Consensus dependenices
 zksync_concurrency = { package = "concurrency", version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "3be8165f0d4490ab2ab85d9d869644478e55bed5" }
+zksync_consensus_schema = { package = "schema", version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "3be8165f0d4490ab2ab85d9d869644478e55bed5" }
 zksync_consensus_roles = { package = "roles", version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "3be8165f0d4490ab2ab85d9d869644478e55bed5" }
 zksync_consensus_storage = { package = "storage", version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "3be8165f0d4490ab2ab85d9d869644478e55bed5" }
 zksync_consensus_executor = { package = "executor", version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "3be8165f0d4490ab2ab85d9d869644478e55bed5" }

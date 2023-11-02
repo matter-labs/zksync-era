@@ -91,7 +91,8 @@ impl PostgresBlockStorage {
         else {
             return Ok(None);
         };
-        Ok(Some(sync_block_to_consensus_block(block)))
+        let block = sync_block_to_consensus_block(block)?;
+        Ok(Some(block))
     }
 
     async fn first_block(&self) -> anyhow::Result<FinalBlock> {

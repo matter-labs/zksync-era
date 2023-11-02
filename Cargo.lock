@@ -8762,6 +8762,7 @@ dependencies = [
  "rand 0.8.5",
  "reqwest",
  "roles",
+ "schema",
  "serde",
  "serde_json",
  "storage",

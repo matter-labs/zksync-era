@@ -36,7 +36,7 @@ pub(super) async fn load_final_block(
         .await
         .unwrap()
         .unwrap_or_else(|| panic!("no sync block #{number}"));
-    conversions::sync_block_to_consensus_block(sync_block)
+    conversions::sync_block_to_consensus_block(sync_block).unwrap()
 }
 
 pub(super) async fn assert_first_block_actions(actions: &mut ActionQueue) -> Vec<SyncAction> {
