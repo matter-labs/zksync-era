@@ -115,6 +115,7 @@ impl ConsistencyChecker {
             ethabi::Token::Tuple(tuple) => tuple[0].clone().into_uint().unwrap().as_usize(),
             _ => panic!("ABI does not match the commitBatches() function on the zkSync contract"),
         };
+
         let commitment = &commitments[batch_number.0 as usize - first_batch_number];
 
         Ok(commitment == &block_metadata.l1_commit_data())

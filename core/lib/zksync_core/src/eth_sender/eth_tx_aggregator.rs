@@ -416,21 +416,35 @@ impl EthTxAggregator {
     }
 
     fn encode_aggregated_op(&self, op: &AggregatedOperation) -> Vec<u8> {
-        match &op {
-            AggregatedOperation::Commit(op) => self
+        let return_value = match &op {
+            AggregatedOperation::Commit(op) => {
+                println!("enconding inputs for Commit");
+                self
                 .functions
                 .commit_blocks
-                .encode_input(&op.get_eth_tx_args()),
-            AggregatedOperation::PublishProofOnchain(op) => self
+                .encode_input(&op.get_eth_tx_args())
+            },
+            AggregatedOperation::PublishProofOnchain(op) => {
+                println!("enconding inputs for PublishProof op");
+
+                self
                 .functions
                 .prove_blocks
-                .encode_input(&op.get_eth_tx_args()),
-            AggregatedOperation::Execute(op) => self
+                .encode_input(&op.get_eth_tx_args())
+            },
+            AggregatedOperation::Execute(op) => {
+                println!("enconding inputs for Execute op");
+                
+                self
                 .functions
                 .execute_blocks
-                .encode_input(&op.get_eth_tx_args()),
+                .encode_input(&op.get_eth_tx_args())
+            },
         }
-        .expect("Failed to encode transaction data")
+        .expect("Failed to encode transaction data");
+
+        println!("encoding worked");
+        return return_value;    
     }
 
     pub(super) async fn save_eth_tx(
