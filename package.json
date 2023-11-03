@@ -33,7 +33,7 @@
   },
   "devDependencies": {
     "@ethersproject/bignumber": "~5.5.0",
-    "@typescript-eslint/eslint-plugin": "^4.10.0",
+    "@typescript-eslint/eslint-plugin": "^6.7.4",
     "@typescript-eslint/parser": "^4.10.0",
     "babel-eslint": "^10.1.0",
     "eslint": "^7.16.0",
