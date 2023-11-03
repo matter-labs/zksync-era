@@ -22,6 +22,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
         gas_remaining_before: u32,
         gas_remaining_after: u32,
         spent_pubdata_counter_before: u32,
+        pubdata_published: u32,
         total_log_queries_count: usize,
     ) -> VmExecutionStatistics {
         let computational_gas_used = self.calculate_computational_gas_used(
@@ -38,8 +39,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
             gas_used: gas_remaining_before - gas_remaining_after,
             computational_gas_used,
             total_log_queries: total_log_queries_count,
-            // This field will be populated by the RefundTracer
-            pubdata_published: 0,
+            pubdata_published,
         }
     }
 

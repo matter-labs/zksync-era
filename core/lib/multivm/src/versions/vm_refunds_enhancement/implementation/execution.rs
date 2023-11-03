@@ -59,6 +59,12 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
 
         let logs = self.collect_execution_logs_after_timestamp(timestamp_initial);
 
+        let (refunds, pubdata_published) = tx_tracer
+            .refund_tracer
+            .as_ref()
+            .map(|x| (x.get_refunds(), x.pubdata_published()))
+            .unwrap_or_default();
+
         let statistics = self.get_statistics(
             timestamp_initial,
             cycles_initial,
@@ -66,15 +72,11 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
             gas_remaining_before,
             gas_remaining_after,
             spent_pubdata_counter_before,
+            pubdata_published,
             logs.total_log_queries_count,
         );
 
         let result = tx_tracer.result_tracer.into_result();
-
-        let refunds = tx_tracer
-            .refund_tracer
-            .map(|x| x.get_refunds())
-            .unwrap_or_default();
 
         let result = VmExecutionResultAndLogs {
             result,
