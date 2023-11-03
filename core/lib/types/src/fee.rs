@@ -22,6 +22,7 @@ pub struct TransactionExecutionMetrics {
     pub total_log_queries: usize,
     pub cycles_used: u32,
     pub computational_gas_used: u32,
+    pub pubdata_published: u32,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]

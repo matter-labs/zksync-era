@@ -1,3 +1,5 @@
+use zksync_types::ProtocolVersionId;
+
 use crate::state_keeper::seal_criteria::{
     SealCriterion, SealData, SealResolution, StateKeeperConfig,
 };
@@ -14,6 +16,7 @@ impl SealCriterion for SlotsCriterion {
         tx_count: usize,
         _block_data: &SealData,
         _tx_data: &SealData,
+        _protocol_version: ProtocolVersionId,
     ) -> SealResolution {
         if tx_count >= config.transaction_slots {
             SealResolution::IncludeAndSeal
@@ -47,6 +50,7 @@ mod tests {
             config.transaction_slots - 1,
             &SealData::default(),
             &SealData::default(),
+            ProtocolVersionId::latest(),
         );
         assert_eq!(almost_full_block_resolution, SealResolution::NoSeal);
 
@@ -56,6 +60,7 @@ mod tests {
             config.transaction_slots,
             &SealData::default(),
             &SealData::default(),
+            ProtocolVersionId::latest(),
         );
         assert_eq!(full_block_resolution, SealResolution::IncludeAndSeal);
     }

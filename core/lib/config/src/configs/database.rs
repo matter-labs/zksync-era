@@ -8,8 +8,8 @@ use std::time::Duration;
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum MerkleTreeMode {
-    /// In this mode, `MetadataCalculator` will compute witness inputs for all storage operations
-    /// and put them into the object store as provided by `store_factory` (e.g., GCS).
+    /// In this mode, `MetadataCalculator` will compute commitments and witness inputs for all storage operations
+    /// and optionally put witness inputs into the object store as provided by `store_factory` (e.g., GCS).
     #[default]
     Full,
     /// In this mode, `MetadataCalculator` computes Merkle tree root hashes and some auxiliary information

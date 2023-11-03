@@ -372,7 +372,9 @@ pub(crate) async fn setup_calculator(
 ) -> (MetadataCalculator, Box<dyn ObjectStore>) {
     let store_factory = &ObjectStoreFactory::mock();
     let (merkle_tree_config, operation_manager) = create_config(db_path);
-    let mode = MetadataCalculatorModeConfig::Full { store_factory };
+    let mode = MetadataCalculatorModeConfig::Full {
+        store_factory: Some(store_factory),
+    };
     let calculator =
         setup_calculator_with_options(&merkle_tree_config, &operation_manager, pool, mode).await;
     (calculator, store_factory.create_store().await)

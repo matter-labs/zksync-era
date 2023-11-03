@@ -1,4 +1,5 @@
 use multivm::vm_latest::constants::BOOTLOADER_TX_ENCODING_SPACE;
+use zksync_types::ProtocolVersionId;
 
 use crate::state_keeper::seal_criteria::{
     SealCriterion, SealData, SealResolution, StateKeeperConfig,
@@ -15,6 +16,7 @@ impl SealCriterion for TxEncodingSizeCriterion {
         _tx_count: usize,
         block_data: &SealData,
         tx_data: &SealData,
+        _protocol_version_id: ProtocolVersionId,
     ) -> SealResolution {
         let reject_bound =
             (BOOTLOADER_TX_ENCODING_SPACE as f64 * config.reject_tx_at_geometry_percentage).round();
@@ -54,8 +56,14 @@ mod tests {
 
         let criterion = TxEncodingSizeCriterion;
 
-        let empty_block_resolution =
-            criterion.should_seal(&config, 0, 0, &SealData::default(), &SealData::default());
+        let empty_block_resolution = criterion.should_seal(
+            &config,
+            0,
+            0,
+            &SealData::default(),
+            &SealData::default(),
+            ProtocolVersionId::latest(),
+        );
         assert_eq!(empty_block_resolution, SealResolution::NoSeal);
 
         let unexecutable_resolution = criterion.should_seal(
@@ -67,6 +75,7 @@ mod tests {
                 cumulative_size: BOOTLOADER_TX_ENCODING_SPACE as usize + 1,
                 ..SealData::default()
             },
+            ProtocolVersionId::latest(),
         );
         assert_eq!(
             unexecutable_resolution,
@@ -87,6 +96,7 @@ mod tests {
                 cumulative_size: 1,
                 ..SealData::default()
             },
+            ProtocolVersionId::latest(),
         );
         assert_eq!(exclude_and_seal_resolution, SealResolution::ExcludeAndSeal);
 
@@ -102,6 +112,7 @@ mod tests {
                 cumulative_size: 1,
                 ..SealData::default()
             },
+            ProtocolVersionId::latest(),
         );
         assert_eq!(include_and_seal_resolution, SealResolution::IncludeAndSeal);
     }
