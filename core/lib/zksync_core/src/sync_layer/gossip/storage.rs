@@ -184,6 +184,8 @@ impl ContiguousBlockStore for PostgresBlockStorage {
 
 #[cfg(test)]
 mod tests {
+    use rand::{thread_rng, Rng};
+
     use zksync_concurrency::scope;
     use zksync_types::L2ChainId;
 
@@ -192,7 +194,8 @@ mod tests {
         genesis::{ensure_genesis_state, GenesisParams},
         sync_layer::{
             gossip::tests::{
-                assert_first_block_actions, assert_second_block_actions, load_final_block,
+                add_consensus_fields, assert_first_block_actions, assert_second_block_actions,
+                load_final_block,
             },
             tests::run_state_keeper_with_multiple_miniblocks,
             ActionQueue,
@@ -207,6 +210,7 @@ mod tests {
         run_state_keeper_with_multiple_miniblocks(pool.clone()).await;
 
         let mut storage = pool.access_storage().await.unwrap();
+        add_consensus_fields(&mut storage, &thread_rng().gen(), 3).await;
         let cursor = FetcherCursor::new(&mut storage).await.unwrap();
         drop(storage);
         let (actions_sender, _) = ActionQueue::new();
@@ -279,6 +283,7 @@ mod tests {
         run_state_keeper_with_multiple_miniblocks(pool.clone()).await;
 
         let mut storage = pool.access_storage().await.unwrap();
+        add_consensus_fields(&mut storage, &thread_rng().gen(), 3).await;
         let first_block = load_final_block(&mut storage, 1).await;
         let second_block = load_final_block(&mut storage, 2).await;
         storage

@@ -58,10 +58,9 @@ async fn start_gossip_fetcher_inner(
     ctx: &ctx::Ctx,
     pool: ConnectionPool,
     actions: ActionQueueSender,
-    mut executor_config: ExecutorConfig,
+    executor_config: ExecutorConfig,
     node_key: node::SecretKey,
 ) -> anyhow::Result<()> {
-    executor_config.skip_qc_validation = true;
     tracing::info!(
         "Starting gossip fetcher with {executor_config:?} and node key {:?}",
         node_key.public()

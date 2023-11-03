@@ -7,10 +7,10 @@ use std::future::Future;
 
 use zksync_concurrency::{ctx, scope, time};
 use zksync_consensus_executor::testonly::FullValidatorConfig;
-use zksync_consensus_roles::validator::FinalBlock;
+use zksync_consensus_roles::validator::{self, FinalBlock};
 use zksync_consensus_storage::{InMemoryStorage, WriteBlockStore};
 use zksync_dal::{ConnectionPool, StorageProcessor};
-use zksync_types::{Address, L1BatchNumber, MiniblockNumber};
+use zksync_types::{block::ConsensusBlockFields, Address, L1BatchNumber, MiniblockNumber, H256};
 
 use super::*;
 use crate::sync_layer::{
@@ -37,6 +37,53 @@ pub(super) async fn load_final_block(
         .unwrap()
         .unwrap_or_else(|| panic!("no sync block #{number}"));
     conversions::sync_block_to_consensus_block(sync_block).unwrap()
+}
+
+pub async fn block_payload(storage: &mut StorageProcessor<'_>, number: u32) -> validator::Payload {
+    let sync_block = storage
+        .sync_dal()
+        .sync_block(MiniblockNumber(number), Address::repeat_byte(1), true)
+        .await
+        .unwrap()
+        .unwrap_or_else(|| panic!("no sync block #{number}"));
+    conversions::sync_block_to_payload(sync_block)
+}
+
+/// Adds consensus information for the specified `count` of miniblocks, starting from the genesis.
+pub(super) async fn add_consensus_fields(
+    storage: &mut StorageProcessor<'_>,
+    validator_key: &validator::SecretKey,
+    count: u32,
+) {
+    let mut prev_block_hash = validator::BlockHeaderHash::from_bytes([0; 32]);
+    let validator_set = validator::ValidatorSet::new([validator_key.public()]).unwrap();
+    for number in 0..count {
+        let payload = block_payload(storage, number).await;
+        let block_header = validator::BlockHeader {
+            parent: prev_block_hash,
+            number: validator::BlockNumber(number.into()),
+            payload: payload.hash(),
+        };
+        let replica_commit = validator::ReplicaCommit {
+            protocol_version: validator::CURRENT_VERSION,
+            view: validator::ViewNumber(number.into()),
+            proposal: block_header,
+        };
+        let replica_commit = validator_key.sign_msg(replica_commit);
+        let commit_qc = validator::CommitQC::from(&[replica_commit], &validator_set)
+            .expect("Failed creating QC");
+
+        let consensus = ConsensusBlockFields {
+            prev_block_hash: H256(*prev_block_hash.as_bytes()),
+            commit_qc_bytes: zksync_consensus_schema::canonical(&commit_qc).into(),
+        };
+        storage
+            .blocks_dal()
+            .set_miniblock_consensus_fields(MiniblockNumber(number), &consensus)
+            .await
+            .unwrap();
+        prev_block_hash = block_header.hash();
+    }
 }
 
 pub(super) async fn assert_first_block_actions(actions: &mut ActionQueue) -> Vec<SyncAction> {
@@ -102,18 +149,19 @@ async fn syncing_via_gossip_fetcher(delay_first_block: bool, delay_second_block:
     let pool = ConnectionPool::test_pool().await;
     let tx_hashes = run_state_keeper_with_multiple_miniblocks(pool.clone()).await;
 
-    let storage = pool.access_storage().await.unwrap();
-    let (genesis_block, blocks) = get_blocks_and_reset_storage(storage).await;
+    let mut storage = pool.access_storage().await.unwrap();
+    let genesis_block_payload = block_payload(&mut storage, 0).await;
+    let ctx = &ctx::test_root(&ctx::AffineClock::new(CLOCK_SPEEDUP as f64));
+    let rng = &mut ctx.rng();
+    let mut validator = FullValidatorConfig::for_single_validator(rng, genesis_block_payload).await;
+    let external_node = validator.connect_external_node(rng).await;
+
+    let (genesis_block, blocks) =
+        get_blocks_and_reset_storage(storage, &validator.validator_key).await;
     let [first_block, second_block] = blocks.as_slice() else {
         unreachable!("Unexpected blocks in storage: {blocks:?}");
     };
     tracing::trace!("Node storage reset");
-
-    let ctx = &ctx::test_root(&ctx::AffineClock::new(CLOCK_SPEEDUP as f64));
-    let rng = &mut ctx.rng();
-    let mut validator =
-        FullValidatorConfig::for_single_validator(rng, genesis_block.payload.clone()).await;
-    let external_node = validator.connect_external_node(rng).await;
 
     let validator_storage = Arc::new(InMemoryStorage::new(genesis_block));
     if !delay_first_block {
@@ -182,13 +230,15 @@ async fn syncing_via_gossip_fetcher(delay_first_block: bool, delay_second_block:
 
 async fn get_blocks_and_reset_storage(
     mut storage: StorageProcessor<'_>,
+    validator_key: &validator::SecretKey,
 ) -> (FinalBlock, Vec<FinalBlock>) {
-    let genesis_block = load_final_block(&mut storage, 0).await;
     let sealed_miniblock_number = storage
         .blocks_dal()
         .get_sealed_miniblock_number()
         .await
         .unwrap();
+    add_consensus_fields(&mut storage, validator_key, sealed_miniblock_number.0 + 1).await;
+    let genesis_block = load_final_block(&mut storage, 0).await;
 
     let mut blocks = Vec::with_capacity(sealed_miniblock_number.0 as usize);
     for number in 1..=sealed_miniblock_number.0 {
@@ -222,17 +272,18 @@ async fn syncing_via_gossip_fetcher_with_multiple_l1_batches(initial_block_count
     let tx_hashes = run_state_keeper_with_multiple_l1_batches(pool.clone()).await;
     let tx_hashes: Vec<_> = tx_hashes.iter().map(Vec::as_slice).collect();
 
-    let storage = pool.access_storage().await.unwrap();
-    let (genesis_block, blocks) = get_blocks_and_reset_storage(storage).await;
+    let mut storage = pool.access_storage().await.unwrap();
+    let genesis_block_payload = block_payload(&mut storage, 0).await;
+    let ctx = &ctx::test_root(&ctx::AffineClock::new(CLOCK_SPEEDUP as f64));
+    let rng = &mut ctx.rng();
+    let mut validator = FullValidatorConfig::for_single_validator(rng, genesis_block_payload).await;
+    let external_node = validator.connect_external_node(rng).await;
+
+    let (genesis_block, blocks) =
+        get_blocks_and_reset_storage(storage, &validator.validator_key).await;
     assert_eq!(blocks.len(), 3); // 2 real + 1 fictive blocks
     tracing::trace!("Node storage reset");
     let (initial_blocks, delayed_blocks) = blocks.split_at(initial_block_count);
-
-    let ctx = &ctx::test_root(&ctx::AffineClock::new(CLOCK_SPEEDUP as f64));
-    let rng = &mut ctx.rng();
-    let mut validator =
-        FullValidatorConfig::for_single_validator(rng, genesis_block.payload.clone()).await;
-    let external_node = validator.connect_external_node(rng).await;
 
     let validator_storage = Arc::new(InMemoryStorage::new(genesis_block));
     for block in initial_blocks {

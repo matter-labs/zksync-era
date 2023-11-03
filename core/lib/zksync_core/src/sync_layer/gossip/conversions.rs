@@ -26,7 +26,7 @@ struct BlockPayload {
     transactions: Vec<zksync_types::Transaction>,
 }
 
-pub(super) fn sync_block_to_consensus_block(block: SyncBlock) -> anyhow::Result<FinalBlock> {
+pub(super) fn sync_block_to_payload(block: SyncBlock) -> Payload {
     let payload = serde_json::to_vec(&BlockPayload {
         hash: block.hash.unwrap_or_default(),
         l1_batch_number: block.l1_batch_number,
@@ -37,14 +37,19 @@ pub(super) fn sync_block_to_consensus_block(block: SyncBlock) -> anyhow::Result<
         operator_address: block.operator_address,
         transactions: block
             .transactions
-            .context("Transactions are always requested")?,
+            .expect("Transactions are always requested"),
     });
-    let payload = Payload(payload.context("Failed serializing block payload")?);
-    let consensus = block.consensus.context("Missing consensus fields")?;
+    Payload(payload.expect("Failed serializing block payload"))
+}
+
+pub(super) fn sync_block_to_consensus_block(mut block: SyncBlock) -> anyhow::Result<FinalBlock> {
+    let number = BlockNumber(block.number.0.into());
+    let consensus = block.consensus.take().context("Missing consensus fields")?;
     let prev_block_hash = consensus.prev_block_hash;
+    let payload = sync_block_to_payload(block);
     let header = BlockHeader {
         parent: BlockHeaderHash::from_bytes(prev_block_hash.0),
-        number: BlockNumber(block.number.0.into()),
+        number,
         payload: payload.hash(),
     };
     let justification: CommitQC = zksync_consensus_schema::decode(&consensus.commit_qc_bytes.0)
