@@ -20,6 +20,7 @@ import { command as config } from './config';
 import { command as clean } from './clean';
 import { command as db } from './database';
 import { command as verifyUpgrade } from './verify-upgrade';
+import { proverCommand } from './proverSetup';
 import * as env from './env';
 
 const COMMANDS = [
@@ -43,6 +44,7 @@ const COMMANDS = [
     clean,
     compiler,
     verifyUpgrade,
+    proverCommand,
     env.command,
     completion(program as Command)
 ];

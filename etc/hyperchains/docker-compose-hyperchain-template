@@ -2,15 +2,17 @@ version: '3.2'
 networks:
   zkstack:
     driver: bridge
+{{#if hasProver}}
 volumes:
-  prover_artifacts:
-  server_artifacts:
+  prover_artifacts: {{proverArtifacts}}
+  server_artifacts: {{serverArtifacts}}
+{{/if}}
 services:
   zkstack_core:
     networks:
       - zkstack
     image: {{orgName}}/server-v2:latest
-    command: ["--components", "tree_new,eth,data_fetcher,state_keeper,housekeeper"]
+    command: ["--components", "tree_new,eth,data_fetcher,state_keeper,housekeeper,proof_data_handler"]
     env_file:
       - {{envFilePath}}
     environment:
@@ -48,7 +50,7 @@ services:
       context: .
       dockerfile: ./docker/prover-fri-gateway/Dockerfile
     env_file:
-      - ./common.env
+      - {{envFilePath}}
     env:
       FRI_PROVER_GATEWAY_API_URL: http://zkstack-core:3075
     ports: # assumes default ports in .env
