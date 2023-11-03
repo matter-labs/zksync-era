@@ -1443,7 +1443,7 @@ dependencies = [
 [[package]]
 name = "concurrency"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=3be8165f0d4490ab2ab85d9d869644478e55bed5#3be8165f0d4490ab2ab85d9d869644478e55bed5"
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=a0905d4896a12d60296e24130dee6a0c0b730c32#a0905d4896a12d60296e24130dee6a0c0b730c32"
 dependencies = [
  "anyhow",
  "once_cell",
@@ -1461,7 +1461,7 @@ dependencies = [
 [[package]]
 name = "consensus"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=3be8165f0d4490ab2ab85d9d869644478e55bed5#3be8165f0d4490ab2ab85d9d869644478e55bed5"
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=a0905d4896a12d60296e24130dee6a0c0b730c32#a0905d4896a12d60296e24130dee6a0c0b730c32"
 dependencies = [
  "anyhow",
  "concurrency",
@@ -1805,7 +1805,7 @@ checksum = "7a81dae078cea95a014a339291cec439d2f232ebe854a9d672b796c6afafa9b7"
 [[package]]
 name = "crypto"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=3be8165f0d4490ab2ab85d9d869644478e55bed5#3be8165f0d4490ab2ab85d9d869644478e55bed5"
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=a0905d4896a12d60296e24130dee6a0c0b730c32#a0905d4896a12d60296e24130dee6a0c0b730c32"
 dependencies = [
  "anyhow",
  "blst",
@@ -2368,7 +2368,7 @@ checksum = "0206175f82b8d6bf6652ff7d71a1e27fd2e4efde587fd368662814d6ec1d9ce0"
 [[package]]
 name = "executor"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=3be8165f0d4490ab2ab85d9d869644478e55bed5#3be8165f0d4490ab2ab85d9d869644478e55bed5"
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=a0905d4896a12d60296e24130dee6a0c0b730c32#a0905d4896a12d60296e24130dee6a0c0b730c32"
 dependencies = [
  "anyhow",
  "concurrency",
@@ -4337,7 +4337,7 @@ dependencies = [
 [[package]]
 name = "network"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=3be8165f0d4490ab2ab85d9d869644478e55bed5#3be8165f0d4490ab2ab85d9d869644478e55bed5"
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=a0905d4896a12d60296e24130dee6a0c0b730c32#a0905d4896a12d60296e24130dee6a0c0b730c32"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6025,7 +6025,7 @@ dependencies = [
 [[package]]
 name = "roles"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=3be8165f0d4490ab2ab85d9d869644478e55bed5#3be8165f0d4490ab2ab85d9d869644478e55bed5"
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=a0905d4896a12d60296e24130dee6a0c0b730c32#a0905d4896a12d60296e24130dee6a0c0b730c32"
 dependencies = [
  "anyhow",
  "bit-vec",
@@ -6195,7 +6195,7 @@ dependencies = [
 [[package]]
 name = "schema"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=3be8165f0d4490ab2ab85d9d869644478e55bed5#3be8165f0d4490ab2ab85d9d869644478e55bed5"
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=a0905d4896a12d60296e24130dee6a0c0b730c32#a0905d4896a12d60296e24130dee6a0c0b730c32"
 dependencies = [
  "anyhow",
  "bit-vec",
@@ -6969,7 +6969,7 @@ checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 [[package]]
 name = "storage"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=3be8165f0d4490ab2ab85d9d869644478e55bed5#3be8165f0d4490ab2ab85d9d869644478e55bed5"
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=a0905d4896a12d60296e24130dee6a0c0b730c32#a0905d4896a12d60296e24130dee6a0c0b730c32"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -7101,7 +7101,7 @@ dependencies = [
 [[package]]
 name = "sync_blocks"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=3be8165f0d4490ab2ab85d9d869644478e55bed5#3be8165f0d4490ab2ab85d9d869644478e55bed5"
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=a0905d4896a12d60296e24130dee6a0c0b730c32#a0905d4896a12d60296e24130dee6a0c0b730c32"
 dependencies = [
  "anyhow",
  "concurrency",
@@ -7820,7 +7820,7 @@ checksum = "711b9620af191e0cdc7468a8d14e709c3dcdb115b36f838e601583af800a370a"
 [[package]]
 name = "utils"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=3be8165f0d4490ab2ab85d9d869644478e55bed5#3be8165f0d4490ab2ab85d9d869644478e55bed5"
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=a0905d4896a12d60296e24130dee6a0c0b730c32#a0905d4896a12d60296e24130dee6a0c0b730c32"
 dependencies = [
  "concurrency",
  "thiserror",
