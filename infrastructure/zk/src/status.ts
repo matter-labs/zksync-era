@@ -16,8 +16,6 @@ const GETTER_ABI = [
 const VERIFIER_ABI = ['function verificationKeyHash() view returns (bytes32)'];
 
 export async function query(text: string, params?: any[]): Promise<any> {
-    const start = Date.now();
-
     const res = await pool!.query(text, params);
     return res;
 }
