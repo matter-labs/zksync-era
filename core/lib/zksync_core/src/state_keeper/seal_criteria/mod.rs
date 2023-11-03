@@ -18,7 +18,7 @@ use zksync_types::{
     block::BlockGasCount,
     fee::TransactionExecutionMetrics,
     tx::tx_execution_info::{DeduplicatedWritesMetrics, ExecutionMetrics},
-    Transaction,
+    ProtocolVersionId, Transaction,
 };
 use zksync_utils::time::millis_since;
 
@@ -111,6 +111,7 @@ pub(super) trait SealCriterion: fmt::Debug + Send + 'static {
         tx_count: usize,
         block_data: &SealData,
         tx_data: &SealData,
+        protocol_version: ProtocolVersionId,
     ) -> SealResolution;
 
     // We need self here only for rust restrictions for creating an object from trait

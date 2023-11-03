@@ -76,7 +76,7 @@ impl VmHook {
             10 => Self::ExecutionResult,
             11 => Self::FinalBatchInfo,
             12 => Self::PubdataRequested,
-            _ => panic!("Unkown hook"),
+            _ => panic!("Unknown hook: {}", value.as_u32()),
         }
     }
 }
