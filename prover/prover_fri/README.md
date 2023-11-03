@@ -148,3 +148,4 @@ finalization hints if the circuit changes. Below steps can be used to perform ci
 9. Run the GPU integration test
    [workflow](https://github.com/matter-labs/zksync-era/actions/workflows/fri-gpu-prover-integration-test.yml) against
    the PR to verify the GPU prover is working fine with new circuits.
+
