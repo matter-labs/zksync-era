@@ -21,6 +21,7 @@ import { command as clean } from './clean';
 import { command as db } from './database';
 import { command as verifyUpgrade } from './verify-upgrade';
 import { proverCommand } from './proverSetup';
+import { command as status } from './status';
 import * as env from './env';
 
 const COMMANDS = [
@@ -46,6 +47,7 @@ const COMMANDS = [
     verifyUpgrade,
     proverCommand,
     env.command,
+    status,
     completion(program as Command)
 ];
 

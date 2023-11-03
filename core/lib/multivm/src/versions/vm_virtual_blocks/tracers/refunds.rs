@@ -48,6 +48,7 @@ pub(crate) struct RefundsTracer {
     gas_remaining_before: u32,
     spent_pubdata_counter_before: u32,
     gas_spent_on_bytecodes_and_long_messages: u32,
+    pubdata_published: u32,
     l1_batch: L1BatchEnv,
 }
 
@@ -62,6 +63,7 @@ impl RefundsTracer {
             gas_remaining_before: 0,
             spent_pubdata_counter_before: 0,
             gas_spent_on_bytecodes_and_long_messages: 0,
+            pubdata_published: 0,
             l1_batch,
         }
     }
@@ -225,6 +227,7 @@ impl<S: WriteStorage, H: HistoryMode> ExecutionProcessing<S, H> for RefundsTrace
 
             let pubdata_published =
                 pubdata_published(state, self.timestamp_initial, self.l1_batch.number);
+            self.pubdata_published = pubdata_published;
 
             let current_ergs_per_pubdata_byte = state.local_state.current_ergs_per_pubdata_byte;
             let tx_body_refund = self.tx_body_refund(
@@ -388,6 +391,7 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for RefundsTracer {
         result.refunds = Refunds {
             gas_refunded: self.refund_gas,
             operator_suggested_refund: self.operator_refund.unwrap_or_default(),
-        }
+        };
+        result.statistics.pubdata_published = self.pubdata_published;
     }
 }

@@ -237,5 +237,6 @@ pub(super) fn collect_tx_execution_metrics(
         total_log_queries: result.statistics.total_log_queries,
         cycles_used: result.statistics.cycles_used,
         computational_gas_used: result.statistics.computational_gas_used,
+        pubdata_published: result.statistics.pubdata_published,
     }
 }

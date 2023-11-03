@@ -653,6 +653,7 @@ impl ZkSyncStateKeeper {
                         updates_manager.pending_executed_transactions_len() + 1,
                         &block_data,
                         &tx_data,
+                        updates_manager.protocol_version(),
                     )
                 } else {
                     SealResolution::NoSeal
