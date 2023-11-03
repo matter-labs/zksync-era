@@ -646,12 +646,16 @@ async function selectHyperchainConfiguration() {
 }
 
 async function generateDockerImages(cmd: Command) {
+    await _generateDockerImages(cmd.customDockerOrg);
+}
+
+async function _generateDockerImages(_orgName?: string) {
     console.log(warning(`\nThis process will build the docker images and it can take a while. Please be patient.\n`));
 
     const envName = await selectHyperchainConfiguration();
     env.set(envName);
 
-    const orgName = cmd.customDockerOrg ?? envName;
+    const orgName = _orgName || envName;
 
     await docker.customBuildForHyperchain('server-v2', orgName);
 
@@ -691,6 +695,50 @@ async function generateDockerImages(cmd: Command) {
     );
 }
 
+async function configDemoHyperchain(cmd: Command) {
+    fs.existsSync('/etc/env/demo.env') && fs.unlinkSync('/etc/env/demo.env');
+    fs.existsSync('/etc/hyperchains/hyperchain-demo.yml') && fs.unlinkSync('/etc/hyperchains/hyperchain-demo.yml');
+    await compileConfig('demo');
+    env.set('demo');
+
+    wrapEnvModify('CHAIN_ETH_ZKSYNC_NETWORK', 'Zeek hyperchain');
+    wrapEnvModify('CHAIN_ETH_ZKSYNC_NETWORK_ID', '1337');
+    wrapEnvModify('ETH_SENDER_SENDER_PROOF_SENDING_MODE', 'SkipEveryProof');
+    wrapEnvModify('ETH_SENDER_SENDER_L1_BATCH_MIN_AGE_BEFORE_EXECUTE_SECONDS', '20');
+
+    const deployerPrivateKey = process.env.DEPLOYER_PRIVATE_KEY;
+    const governorPrivateKey = process.env.GOVERNOR_PRIVATE_KEY;
+    const governorAddress = process.env.GOVERNOR_ADDRESS;
+    const deployL2Weth = true;
+    const deployTestTokens = true;
+
+    const initArgs: InitArgs = {
+        skipSubmodulesCheckout: false,
+        skipEnvSetup: true,
+        deployerL1ContractInputArgs: ['--private-key', deployerPrivateKey, '--governor-address', governorAddress],
+        governorPrivateKeyArgs: ['--private-key', governorPrivateKey],
+        deployerL2ContractInput: {
+            args: ['--private-key', deployerPrivateKey],
+            includePaymaster: false,
+            includeL2WETH: deployL2Weth
+        },
+        testTokens: {
+            deploy: deployTestTokens,
+            args: ['--private-key', deployerPrivateKey, '--envFile', process.env.CHAIN_ETH_NETWORK!]
+        }
+    };
+
+    await init(initArgs);
+
+    if (cmd.prover) {
+        await setupProver(cmd.prover === 'GPU' ? ProverType.GPU : ProverType.CPU);
+    }
+
+    env.mergeInitToEnv();
+
+    await _generateDockerImages();
+}
+
 function printReadme() {
     console.log(
         title(
@@ -720,7 +768,7 @@ function printReadme() {
 }
 
 export const initHyperchainCommand = new Command('stack')
-    .description('ZK Stack Hyperchains management')
+    .description('ZK Stack hyperchains management')
     .action(printReadme);
 
 initHyperchainCommand
@@ -736,3 +784,8 @@ initHyperchainCommand
     .command('prover-setup')
     .description('Configure the ZK Prover instance for your hyperchain')
     .action(setupHyperchainProver);
+initHyperchainCommand
+    .command('demo')
+    .option('--prover <type>', 'Includes CPU or GPU prover')
+    .description('Configures and spins up a Hyperchain with default configurations')
+    .action(configDemoHyperchain);
