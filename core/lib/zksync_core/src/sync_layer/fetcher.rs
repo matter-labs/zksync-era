@@ -67,7 +67,7 @@ pub struct FetcherCursor {
 }
 
 impl FetcherCursor {
-    /// Loads the cursor
+    /// Loads the cursor from Postgres.
     pub async fn new(storage: &mut StorageProcessor<'_>) -> anyhow::Result<Self> {
         let last_sealed_l1_batch_header = storage
             .blocks_dal()
@@ -150,7 +150,8 @@ impl FetcherCursor {
             FETCHER_METRICS.miniblock.set(block.number.0.into());
         }
 
-        // FIXME: shaky assumption
+        // This detection is somewhat shaky. For now, the only empty miniblocks are fictive ones (i.e.,
+        // the last miniblock in an L1 batch); all other miniblocks must contain at least 1 transaction.
         let last_in_batch = block.transactions.is_empty();
         APP_METRICS.processed_txs[&TxStage::added_to_mempool()]
             .inc_by(block.transactions.len() as u64);
@@ -289,7 +290,6 @@ impl MainNodeFetcher {
         );
         // Forgetting only the previous one because we still need the current one in cache for the next iteration.
         let prev_miniblock_number = MiniblockNumber(block_number.0.saturating_sub(1));
-        // FIXME: the old implementation had block_number.0.saturating_sub(2) for some reason
         self.client.forget_miniblock(prev_miniblock_number);
         self.actions.push_actions(new_actions).await;
 
