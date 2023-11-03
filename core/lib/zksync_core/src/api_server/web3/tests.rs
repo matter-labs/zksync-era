@@ -5,7 +5,7 @@ use std::{sync::Arc, time::Instant};
 use zksync_config::configs::{
     api::Web3JsonRpcConfig,
     chain::{NetworkConfig, StateKeeperConfig},
-    ContractsConfig, FromEnv,
+    ContractsConfig,
 };
 use zksync_dal::ConnectionPool;
 use zksync_health_check::CheckHealth;
@@ -70,9 +70,9 @@ pub(crate) async fn spawn_http_server(
     pool: ConnectionPool,
     stop_receiver: watch::Receiver<bool>,
 ) -> ApiServerHandles {
-    let contracts_config = ContractsConfig::from_env().unwrap();
-    let web3_config = Web3JsonRpcConfig::from_env().unwrap();
-    let state_keeper_config = StateKeeperConfig::from_env().unwrap();
+    let contracts_config = ContractsConfig::for_tests();
+    let web3_config = Web3JsonRpcConfig::for_tests();
+    let state_keeper_config = StateKeeperConfig::for_tests();
     let api_config = InternalApiConfig::new(network_config, &web3_config, &contracts_config);
     let tx_sender_config =
         TxSenderConfig::new(&state_keeper_config, &web3_config, api_config.l2_chain_id);
@@ -103,7 +103,7 @@ pub(crate) async fn spawn_http_server(
 #[tokio::test]
 async fn http_server_can_start() {
     let pool = ConnectionPool::test_pool().await;
-    let network_config = NetworkConfig::from_env().unwrap();
+    let network_config = NetworkConfig::for_tests();
     let mut storage = pool.access_storage().await.unwrap();
     if storage.blocks_dal().is_genesis_needed().await.unwrap() {
         ensure_genesis_state(

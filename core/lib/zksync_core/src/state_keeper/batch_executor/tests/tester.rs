@@ -6,7 +6,6 @@ use tempfile::TempDir;
 use multivm::interface::{L1BatchEnv, SystemEnv};
 use multivm::vm_latest::constants::INITIAL_STORAGE_WRITE_PUBDATA_BYTES;
 
-use zksync_config::configs::{chain::StateKeeperConfig, FromEnv};
 use zksync_contracts::{get_loadnext_contract, test_contracts::LoadnextContractExecutionParams};
 use zksync_dal::ConnectionPool;
 use zksync_state::RocksdbStorage;
@@ -41,14 +40,17 @@ pub(super) struct TestConfig {
 
 impl TestConfig {
     pub(super) fn new() -> Self {
-        // It's OK to use env config here, since we would load the postgres URL from there anyway.
-        let config = StateKeeperConfig::from_env().unwrap();
+        // Values are taken from the actual env config used in local development.
+        // These values remain static for a long time, so it's a better alternative than to introduce dependency
+        // on env config.
+        const MAX_ALLOWED_TX_GAS_LIMIT: u32 = 4000000000;
+        const VALIDATION_COMPUTATIONAL_GAS_LIMIT: u32 = 300000;
 
         Self {
             vm_gas_limit: None,
             save_call_traces: false,
-            max_allowed_tx_gas_limit: config.max_allowed_l2_tx_gas_limit,
-            validation_computational_gas_limit: config.validation_computational_gas_limit,
+            max_allowed_tx_gas_limit: MAX_ALLOWED_TX_GAS_LIMIT,
+            validation_computational_gas_limit: VALIDATION_COMPUTATIONAL_GAS_LIMIT,
             upload_witness_inputs_to_gcs: false,
         }
     }

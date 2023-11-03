@@ -2,8 +2,6 @@ use serde::Deserialize;
 
 use std::{env, time::Duration};
 
-use crate::configs::{envy_load, FromEnv};
-
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct PrometheusConfig {
     /// Port to which the Prometheus exporter server is listening.
@@ -12,12 +10,6 @@ pub struct PrometheusConfig {
     pub pushgateway_url: String,
     /// Push interval in ms.
     pub push_interval_ms: Option<u64>,
-}
-
-impl FromEnv for PrometheusConfig {
-    fn from_env() -> anyhow::Result<Self> {
-        envy_load("prometheus", "API_PROMETHEUS_")
-    }
 }
 
 impl PrometheusConfig {

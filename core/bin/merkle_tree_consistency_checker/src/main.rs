@@ -3,7 +3,8 @@ use clap::Parser;
 
 use std::{path::Path, time::Instant};
 
-use zksync_config::{DBConfig, FromEnv};
+use zksync_config::DBConfig;
+use zksync_env_config::FromEnv;
 use zksync_merkle_tree::domain::ZkSyncTree;
 use zksync_storage::RocksDB;
 use zksync_types::L1BatchNumber;

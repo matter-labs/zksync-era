@@ -43,14 +43,19 @@ impl SealCriterion for PubDataBytesCriterion {
 
 #[cfg(test)]
 mod tests {
-    use zksync_config::FromEnv;
     use zksync_types::tx::ExecutionMetrics;
 
     use super::*;
 
     #[test]
     fn seal_criterion() {
-        let config = StateKeeperConfig::from_env().unwrap();
+        // Create an empty config and only setup fields relevant for the test.
+        let config = StateKeeperConfig {
+            reject_tx_at_eth_params_percentage: 0.95,
+            close_block_at_eth_params_percentage: 0.95,
+            ..Default::default()
+        };
+
         let criterion = PubDataBytesCriterion;
 
         let block_execution_metrics = ExecutionMetrics {

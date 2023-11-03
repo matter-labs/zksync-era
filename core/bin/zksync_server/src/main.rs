@@ -4,11 +4,12 @@ use clap::Parser;
 use std::{str::FromStr, time::Duration};
 use zksync_config::configs::chain::NetworkConfig;
 
-use zksync_config::{ContractsConfig, ETHSenderConfig, FromEnv};
+use zksync_config::{ContractsConfig, ETHSenderConfig};
 use zksync_core::{
     genesis_init, initialize_components, is_genesis_needed, setup_sigint_handler, Component,
     Components,
 };
+use zksync_env_config::FromEnv;
 use zksync_storage::RocksDB;
 use zksync_utils::wait_for_tasks::wait_for_tasks;
 

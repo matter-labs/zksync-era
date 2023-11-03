@@ -230,8 +230,6 @@ pub struct TxSenderConfig {
     pub fair_l2_gas_price: u64,
     pub vm_execution_cache_misses_limit: Option<usize>,
     pub validation_computational_gas_limit: u32,
-    pub default_aa: H256,
-    pub bootloader: H256,
     pub chain_id: L2ChainId,
 }
 
@@ -250,8 +248,6 @@ impl TxSenderConfig {
             vm_execution_cache_misses_limit: web3_json_config.vm_execution_cache_misses_limit,
             validation_computational_gas_limit: state_keeper_config
                 .validation_computational_gas_limit,
-            default_aa: state_keeper_config.default_aa_hash,
-            bootloader: state_keeper_config.bootloader_hash,
             chain_id,
         }
     }

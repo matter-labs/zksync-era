@@ -9,7 +9,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use zksync_config::configs::{chain::NetworkConfig, FromEnv};
+use zksync_config::configs::chain::NetworkConfig;
 use zksync_contracts::{BaseSystemContractsHashes, SystemContractCode};
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_types::{
@@ -578,7 +578,7 @@ async fn fetcher_with_real_server() {
     let mut tx_hashes = VecDeque::from(tx_hashes);
 
     // Start the API server.
-    let network_config = NetworkConfig::from_env().unwrap();
+    let network_config = NetworkConfig::for_tests();
     let (stop_sender, stop_receiver) = watch::channel(false);
     let server_handles =
         spawn_http_server(&network_config, pool.clone(), stop_receiver.clone()).await;

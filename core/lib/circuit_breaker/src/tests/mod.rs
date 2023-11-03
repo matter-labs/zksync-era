@@ -3,7 +3,7 @@ use std::sync::Mutex;
 use assert_matches::assert_matches;
 use async_trait::async_trait;
 
-use zksync_config::configs::{chain::CircuitBreakerConfig, ContractsConfig, FromEnv};
+use zksync_config::configs::{chain::CircuitBreakerConfig, ContractsConfig};
 use zksync_eth_client::{
     types::{Error, ExecutedTxStatus, FailureInfo, SignedCallResult},
     BoundEthInterface, EthInterface,
@@ -272,7 +272,7 @@ async fn retries_for_facet_selectors() {
         )))
     );
 
-    let contracts = ContractsConfig::from_env().unwrap();
+    let contracts = ContractsConfig::for_tests();
     let config = get_test_circuit_breaker_config();
     let facet_selectors_checker = crate::facet_selectors::FacetSelectorsChecker::new(
         &config,

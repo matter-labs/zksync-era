@@ -21,12 +21,12 @@ use zksync_config::configs::{
     },
     database::MerkleTreeMode,
     house_keeper::HouseKeeperConfig,
-    FriProofCompressorConfig, FriProverConfig, FriWitnessGeneratorConfig, FromEnv,
-    PrometheusConfig, ProofDataHandlerConfig, ProverGroupConfig, WitnessGeneratorConfig,
+    FriProofCompressorConfig, FriProverConfig, FriWitnessGeneratorConfig, PrometheusConfig,
+    ProofDataHandlerConfig, ProverGroupConfig, WitnessGeneratorConfig,
 };
 use zksync_config::{
-    ApiConfig, ContractsConfig, DBConfig, ETHClientConfig, ETHSenderConfig, FetcherConfig,
-    ProverConfigs,
+    ApiConfig, ContractsConfig, DBConfig, ETHClientConfig, ETHSenderConfig, ETHWatchConfig,
+    FetcherConfig, GasAdjusterConfig, ProverConfigs,
 };
 use zksync_contracts::{governance_contract, BaseSystemContracts};
 use zksync_dal::{
@@ -35,7 +35,7 @@ use zksync_dal::{
 use zksync_eth_client::clients::http::QueryClient;
 use zksync_eth_client::{clients::http::PKSigningClient, BoundEthInterface};
 use zksync_health_check::{CheckHealth, HealthStatus, ReactiveHealthCheck};
-use zksync_object_store::ObjectStoreFactory;
+use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_prover_utils::periodic_job::PeriodicJob;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_state::PostgresStorageCaches;
@@ -287,6 +287,17 @@ impl FromStr for Components {
     }
 }
 
+// To make it compile
+trait TodoFromEnv: Sized {
+    fn from_env() -> anyhow::Result<Self>;
+}
+
+impl<T> TodoFromEnv for T {
+    fn from_env() -> anyhow::Result<Self> {
+        todo!()
+    }
+}
+
 pub async fn initialize_components(
     components: Vec<Component>,
     use_prometheus_push_gateway: bool,
@@ -336,7 +347,10 @@ pub async fn initialize_components(
     });
 
     let query_client = QueryClient::new(&eth_client_config.web3_url).unwrap();
-    let mut gas_adjuster = GasAdjusterSingleton::new();
+    let gas_adjuster_config =
+        GasAdjusterConfig::from_env().context("GasAdjusterConfig::from_env()")?;
+    let mut gas_adjuster =
+        GasAdjusterSingleton::new(eth_client_config.web3_url.clone(), gas_adjuster_config);
 
     let (stop_sender, stop_receiver) = watch::channel(false);
     let (cb_sender, cb_receiver) = oneshot::channel();
@@ -482,6 +496,8 @@ pub async fn initialize_components(
         }
     }
 
+    let store_factory = ObjectStoreFactory::from_env().context("ObjectStoreFactor::from_env()")?;
+
     if components.contains(&Component::StateKeeper) {
         let started_at = Instant::now();
         tracing::info!("initializing State Keeper");
@@ -497,6 +513,7 @@ pub async fn initialize_components(
             &db_config,
             &MempoolConfig::from_env().context("MempoolConfig::from_env()")?,
             bounded_gas_adjuster,
+            store_factory.create_store().await,
             stop_receiver.clone(),
         )
         .await
@@ -519,8 +536,10 @@ pub async fn initialize_components(
                 .expect("Governance contract must be present if governance_addr is set in config");
             (contract, addr)
         });
+        let eth_watch_config = ETHWatchConfig::from_env().context("ETHWatchConfig::from_env()")?;
         task_futures.push(
             start_eth_watch(
+                eth_watch_config,
                 eth_watch_pool,
                 query_client.clone(),
                 main_zksync_contract_address,
@@ -534,8 +553,6 @@ pub async fn initialize_components(
         APP_METRICS.init_latency[&InitStage::EthWatcher].set(elapsed);
         tracing::info!("initialized ETH-Watcher in {elapsed:?}");
     }
-
-    let store_factory = ObjectStoreFactory::from_env().context("ObjectStoreFactor::from_env()")?;
 
     if components.contains(&Component::EthTxAggregator) {
         let started_at = Instant::now();
@@ -664,6 +681,7 @@ pub async fn initialize_components(
     if components.contains(&Component::ProofDataHandler) {
         task_futures.push(tokio::spawn(proof_data_handler::run_server(
             ProofDataHandlerConfig::from_env().context("ProofDataHandlerConfig::from_env()")?,
+            ContractsConfig::from_env().context("ContractsConfig::from_env()")?,
             store_factory.create_store().await,
             connection_pool.clone(),
             stop_receiver.clone(),
@@ -695,6 +713,7 @@ async fn add_state_keeper_to_task_futures<E: L1GasPriceProvider + Send + Sync + 
     db_config: &DBConfig,
     mempool_config: &MempoolConfig,
     gas_adjuster: Arc<E>,
+    object_store: Box<dyn ObjectStore>,
     stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<()> {
     let fair_l2_gas_price = state_keeper_config.fair_l2_gas_price;
@@ -733,6 +752,7 @@ async fn add_state_keeper_to_task_futures<E: L1GasPriceProvider + Send + Sync + 
         mempool.clone(),
         gas_adjuster.clone(),
         miniblock_sealer_handle,
+        object_store,
         stop_receiver.clone(),
     )
     .await;
@@ -827,7 +847,8 @@ async fn run_tree(
     };
     tracing::info!("Initializing Merkle tree in {mode_str} mode");
 
-    let config = MetadataCalculatorConfig::for_main_node(db_config, operation_manager, mode);
+    let config =
+        MetadataCalculatorConfig::for_main_node(&db_config.merkle_tree, operation_manager, mode);
     let metadata_calculator = MetadataCalculator::new(&config).await;
     if let Some(api_config) = api_config {
         let address = (Ipv4Addr::UNSPECIFIED, api_config.port).into();
@@ -1013,6 +1034,7 @@ async fn add_house_keeper_to_task_futures(
     let prover_stats_reporter = ProverStatsReporter::new(
         house_keeper_config.prover_stats_reporting_interval_ms,
         prover_connection_pool.clone(),
+        ProverGroupConfig::from_env().context("ProverGroupConfig::from_env()")?,
     );
     let waiting_to_queued_witness_job_mover = WaitingToQueuedWitnessJobMover::new(
         house_keeper_config.witness_job_moving_interval_ms,

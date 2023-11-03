@@ -42,11 +42,16 @@ impl SealCriterion for TxEncodingSizeCriterion {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use zksync_config::FromEnv;
 
     #[test]
     fn seal_criterion() {
-        let config = StateKeeperConfig::from_env().unwrap();
+        // Create an empty config and only setup fields relevant for the test.
+        let config = StateKeeperConfig {
+            reject_tx_at_geometry_percentage: 0.95,
+            close_block_at_geometry_percentage: 0.95,
+            ..Default::default()
+        };
+
         let criterion = TxEncodingSizeCriterion;
 
         let empty_block_resolution =
