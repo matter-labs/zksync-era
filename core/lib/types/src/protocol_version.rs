@@ -78,7 +78,7 @@ impl ProtocolVersionId {
     }
 
     pub fn is_pre_boojum(&self) -> bool {
-        self <= &ProtocolVersionId::Version18
+        self < &ProtocolVersionId::Version18
     }
 }
 
