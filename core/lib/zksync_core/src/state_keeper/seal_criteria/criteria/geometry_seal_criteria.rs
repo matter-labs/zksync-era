@@ -412,7 +412,7 @@ mod tests {
     fn l2_to_l1_logs_seal_criterion() {
         test_scenario_execution_metrics!(
             L2ToL1LogsCriterion,
-            l2_l1_logs,
+            l2_to_l1_logs,
             usize,
             ProtocolVersionId::Version17
         );
