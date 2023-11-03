@@ -73,7 +73,7 @@ jobs:
     uses: ./.github/workflows/build-gar-reusable.yml
     if: contains(github.ref_name, 'prover')
     with:
-      setup_keys_id: 4989f12
+      setup_keys_id: bccc7de
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
       push_asia: true
       push_europe: true

@@ -544,8 +544,8 @@ impl StateKeeperIO for ExternalIO {
 
         self.sync_state
             .set_local_block(self.current_miniblock_number);
-        self.current_miniblock_number += 1;
         tracing::info!("Miniblock {} is sealed", self.current_miniblock_number);
+        self.current_miniblock_number += 1;
     }
 
     async fn seal_l1_batch(
