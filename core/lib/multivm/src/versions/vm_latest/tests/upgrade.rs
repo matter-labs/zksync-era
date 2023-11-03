@@ -34,9 +34,27 @@ fn test_protocol_upgrade_is_first() {
         .build();
 
     let bytecode_hash = hash_bytecode(&read_test_contract());
+    vm.vm
+        .storage
+        .borrow_mut()
+        .set_value(get_known_code_key(&bytecode_hash), u256_to_h256(1.into()));
 
     // Here we just use some random transaction of protocol upgrade type:
     let protocol_upgrade_transaction = get_forced_deploy_tx(&[ForceDeployment {
+        // The bytecode hash to put on an address
+        bytecode_hash,
+        // The address on which to deploy the bytecodehash to
+        address: H160::random(),
+        // Whether to run the constructor on the force deployment
+        call_constructor: false,
+        // The value with which to initialize a contract
+        value: U256::zero(),
+        // The constructor calldata
+        input: vec![],
+    }]);
+
+    // Another random upgrade transaction
+    let another_protocol_upgrade_transaction = get_forced_deploy_tx(&[ForceDeployment {
         // The bytecode hash to put on an address
         bytecode_hash,
         // The address on which to deploy the bytecodehash to
@@ -60,7 +78,7 @@ fn test_protocol_upgrade_is_first() {
     // Test 1: there must be only one system transaction in block
     vm.vm.push_transaction(protocol_upgrade_transaction.clone());
     vm.vm.push_transaction(normal_l1_transaction.clone());
-    vm.vm.push_transaction(protocol_upgrade_transaction.clone());
+    vm.vm.push_transaction(another_protocol_upgrade_transaction);
 
     vm.vm.execute(VmExecutionMode::OneTx);
     vm.vm.execute(VmExecutionMode::OneTx);

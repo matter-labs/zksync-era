@@ -1,6 +1,3 @@
-# Ignore submodule
-bellman-cuda
-
 # Ignore contract submodules
 contracts
 etc/system-contracts

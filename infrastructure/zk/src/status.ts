@@ -1,8 +1,8 @@
 import { Command } from 'commander';
 
-import { Pool } from 'pg';
-import { ethers } from 'ethers';
 import { assert } from 'console';
+import { ethers } from 'ethers';
+import { Pool } from 'pg';
 
 // Postgress connection pool - must be intialized later - as the ENV variables are set later.
 let pool: Pool | null = null;
@@ -16,10 +16,7 @@ const GETTER_ABI = [
 const VERIFIER_ABI = ['function verificationKeyHash() view returns (bytes32)'];
 
 export async function query(text: string, params?: any[]): Promise<any> {
-    const start = Date.now();
-
     const res = await pool!.query(text, params);
-    const duration = Date.now() - start;
     return res;
 }
 
