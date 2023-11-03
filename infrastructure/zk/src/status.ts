@@ -8,8 +8,8 @@ import { assert } from 'console';
 let pool: Pool | null = null;
 
 const GETTER_ABI = [
-    'function getTotalBlocksCommitted() view returns (uint256)',
-    'function getTotalBlocksVerified() view returns (uint256)',
+    'function getTotalBatchesCommitted() view returns (uint256)',
+    'function getTotalBatchesVerified() view returns (uint256)',
     'function getVerifierParams() view returns (bytes32, bytes32, bytes32)'
 ];
 
@@ -19,7 +19,6 @@ export async function query(text: string, params?: any[]): Promise<any> {
     const start = Date.now();
 
     const res = await pool!.query(text, params);
-    const duration = Date.now() - start;
     return res;
 }
 
@@ -29,7 +28,7 @@ async function queryAndReturnRows(text: string, params?: any[]): Promise<any> {
 }
 
 async function getProofProgress(l1_batch_number: number) {
-    const result = await query('select * from prover_jobs_fri where l1_batch_number = $1 ', [l1_batch_number]);
+    const result = await query('select * from prover_jobs_fri where l1_batch_number = $1', [l1_batch_number]);
 
     let successful = 0;
     let failed = 0;
@@ -53,7 +52,7 @@ async function getProofProgress(l1_batch_number: number) {
         }
     });
 
-    const compression_results = await query('select * from proof_compression_jobs_fri where l1_batch_number = $1 ', [
+    const compression_results = await query('select * from proof_compression_jobs_fri where l1_batch_number = $1', [
         l1_batch_number
     ]);
 
@@ -81,8 +80,8 @@ async function getL1ValidatorStatus(): Promise<[number, number]> {
     let contract = new ethers.Contract(process.env.CONTRACTS_DIAMOND_PROXY_ADDR!, GETTER_ABI, provider);
 
     try {
-        const blocksCommitted = await contract.getTotalBlocksCommitted();
-        const blocksVerified = await contract.getTotalBlocksVerified();
+        const blocksCommitted = await contract.getTotalBatchesCommitted();
+        const blocksVerified = await contract.getTotalBatchesVerified();
         return [Number(blocksCommitted), Number(blocksVerified)];
     } catch (error) {
         console.error(`Error calling L1 contract: ${error}`);
@@ -142,7 +141,7 @@ async function compareVerificationParams() {
     }
 
     let protocol_version = await query(
-        'select recursion_node_level_vk_hash, recursion_leaf_level_vk_hash, recursion_circuits_set_vks_hash  from prover_fri_protocol_versions'
+        'select recursion_node_level_vk_hash, recursion_leaf_level_vk_hash, recursion_circuits_set_vks_hash from prover_fri_protocol_versions'
     );
     if (protocol_version.rowCount != 1) {
         console.log(`${redStart}Got ${protocol_version.rowCount} rows with protocol versions, expected 1${resetColor}`);
