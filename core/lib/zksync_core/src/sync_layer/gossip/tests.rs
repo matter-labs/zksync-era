@@ -154,6 +154,7 @@ async fn syncing_via_gossip_fetcher(delay_first_block: bool, delay_second_block:
     let ctx = &ctx::test_root(&ctx::AffineClock::new(CLOCK_SPEEDUP as f64));
     let rng = &mut ctx.rng();
     let mut validator = FullValidatorConfig::for_single_validator(rng, genesis_block_payload).await;
+    let validator_set = validator.node_config.validators.clone();
     let external_node = validator.connect_external_node(rng).await;
 
     let (genesis_block, blocks) =
@@ -189,7 +190,7 @@ async fn syncing_via_gossip_fetcher(delay_first_block: bool, delay_second_block:
         s.spawn_bg(wrap_bg_task(validator.run(ctx)));
         s.spawn_bg(wrap_bg_task(start_gossip_fetcher_inner(
             ctx,
-            pool,
+            pool.clone(),
             actions_sender,
             external_node.node_config,
             external_node.node_key,
@@ -226,6 +227,13 @@ async fn syncing_via_gossip_fetcher(delay_first_block: bool, delay_second_block:
     })
     .await
     .unwrap();
+
+    // Check that received blocks have consensus fields persisted.
+    let mut storage = pool.access_storage().await.unwrap();
+    for number in [1, 2] {
+        let block = load_final_block(&mut storage, number).await;
+        block.justification.verify(&validator_set, 1).unwrap();
+    }
 }
 
 async fn get_blocks_and_reset_storage(
@@ -277,6 +285,7 @@ async fn syncing_via_gossip_fetcher_with_multiple_l1_batches(initial_block_count
     let ctx = &ctx::test_root(&ctx::AffineClock::new(CLOCK_SPEEDUP as f64));
     let rng = &mut ctx.rng();
     let mut validator = FullValidatorConfig::for_single_validator(rng, genesis_block_payload).await;
+    let validator_set = validator.node_config.validators.clone();
     let external_node = validator.connect_external_node(rng).await;
 
     let (genesis_block, blocks) =
@@ -315,7 +324,7 @@ async fn syncing_via_gossip_fetcher_with_multiple_l1_batches(initial_block_count
         });
         s.spawn_bg(wrap_bg_task(start_gossip_fetcher_inner(
             ctx,
-            pool,
+            pool.clone(),
             actions_sender,
             external_node.node_config,
             external_node.node_key,
@@ -328,4 +337,11 @@ async fn syncing_via_gossip_fetcher_with_multiple_l1_batches(initial_block_count
     })
     .await
     .unwrap();
+
+    // Check that received blocks have consensus fields persisted.
+    let mut storage = pool.access_storage().await.unwrap();
+    for number in [1, 2, 3] {
+        let block = load_final_block(&mut storage, number).await;
+        block.justification.verify(&validator_set, 1).unwrap();
+    }
 }
