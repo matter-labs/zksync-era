@@ -89,7 +89,6 @@ async function getL1ValidatorStatus(): Promise<[number, number]> {
     }
 }
 
-
 async function compareVerificationKeys() {
     // Setup a provider
     let provider = new ethers.providers.JsonRpcProvider(process.env.ETH_CLIENT_WEB3_URL);
