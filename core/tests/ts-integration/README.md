@@ -102,8 +102,7 @@ are others (like `shouldChangeTokenBalances` or `shouldOnlyTakeFee`), and if nee
 These modifiers would be applied to the transaction receipt, and you can implement any kind of custom logic there. To do
 so, you just need to declare a class that inherits `MatcherModifier` class and implements the `check` method.
 
-For more details on the interface, see the
-[index.ts](./src/modifiers/index.ts).
+For more details on the interface, see the [index.ts](./src/modifiers/index.ts).
 
 Note: you don't have to always declare modifiers there. If your modifier is specific to one suite only, you can declare
 it right there and use in your tests.
