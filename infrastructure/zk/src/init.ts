@@ -1,15 +1,15 @@
-import { Command } from 'commander';
 import chalk from 'chalk';
+import { Command } from 'commander';
 import * as utils from './utils';
 
-import * as server from './server';
-import * as contract from './contract';
-import * as run from './run/run';
-import * as compiler from './compiler';
-import * as db from './database';
 import { clean } from './clean';
-import * as env from './env';
+import * as compiler from './compiler';
+import * as contract from './contract';
+import * as db from './database';
 import * as docker from './docker';
+import * as env from './env';
+import * as run from './run/run';
+import * as server from './server';
 import { up } from './up';
 
 const entry = chalk.bold.yellow;
@@ -22,6 +22,7 @@ export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
         skipSubmodulesCheckout,
         skipEnvSetup,
         testTokens,
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         deployerL1ContractInputArgs,
         governorPrivateKeyArgs,
         deployerL2ContractInput

@@ -1,6 +1,5 @@
-import { BigNumber, BytesLike } from 'ethers';
-import { ethers } from 'ethers';
-import { Provider, utils, Contract } from 'zksync-web3';
+import { BigNumber, BytesLike, ethers } from 'ethers';
+import { Provider, utils } from 'zksync-web3';
 
 const L1_CONTRACTS_FOLDER = `${process.env.ZKSYNC_HOME}/contracts/ethereum/artifacts/cache/solpp-generated-contracts`;
 const DIAMOND_UPGRADE_INIT_ABI = new ethers.utils.Interface(
