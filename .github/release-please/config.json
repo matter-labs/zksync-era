@@ -7,8 +7,7 @@
   "packages": {
       "core": {
         "release-type": "simple",
-        "component": "core",
-        "release-as": "17.1.0"
+        "component": "core"
       },
       "sdk/zksync-rs": {
         "release-type": "rust",
@@ -16,8 +15,7 @@
       },
       "prover": {
         "release-type": "simple",
-        "component": "prover",
-        "release-as": "8.1.0"
+        "component": "prover"
       }
   }
 }
