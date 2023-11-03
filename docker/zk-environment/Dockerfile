@@ -110,9 +110,9 @@ RUN cargo install cargo-nextest
 # Obtain `solc` 0.8.20.
 COPY --from=solidity-builder /solidity/build/solc/solc /usr/bin/
 RUN chmod +x /usr/bin/solc
-# Obtain `zksolc` 1.3.15.
-RUN wget -c https://github.com/matter-labs/zksolc-bin/raw/main/linux-${ARCH}/zksolc-linux-${ARCH}-musl-v1.3.15 \
-    && mv zksolc-linux-${ARCH}-musl-v1.3.15 /usr/bin/zksolc \
+# Obtain `zksolc` 1.3.16.
+RUN wget -c https://github.com/matter-labs/zksolc-bin/raw/main/linux-${ARCH}/zksolc-linux-${ARCH}-musl-v1.3.16 \
+    && mv zksolc-linux-${ARCH}-musl-v1.3.16 /usr/bin/zksolc \
     && chmod +x /usr/bin/zksolc
 
 # Somehow it is installed with some other packages

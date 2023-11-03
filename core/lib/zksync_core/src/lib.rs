@@ -8,9 +8,8 @@ use prometheus_exporter::PrometheusExporterConfig;
 use tokio::{sync::watch, task::JoinHandle};
 
 use zksync_circuit_breaker::{
-    facet_selectors::FacetSelectorsChecker, l1_txs::FailedL1TransactionChecker,
-    replication_lag::ReplicationLagChecker, CircuitBreaker, CircuitBreakerChecker,
-    CircuitBreakerError,
+    l1_txs::FailedL1TransactionChecker, replication_lag::ReplicationLagChecker, CircuitBreaker,
+    CircuitBreakerChecker, CircuitBreakerError,
 };
 use zksync_config::configs::api::MerkleTreeApiConfig;
 use zksync_config::configs::{
@@ -43,7 +42,7 @@ use zksync_types::{
     proofs::AggregationRound,
     protocol_version::{L1VerifierConfig, VerifierParams},
     system_contracts::get_system_smart_contracts,
-    Address, L2ChainId, PackedEthSignature, ProtocolVersionId,
+    L2ChainId, PackedEthSignature, ProtocolVersionId,
 };
 use zksync_verification_key_server::get_cached_commitments;
 
@@ -318,16 +317,10 @@ pub async fn initialize_components(
     let circuit_breaker_config =
         CircuitBreakerConfig::from_env().context("CircuitBreakerConfig::from_env()")?;
 
-    let main_zksync_contract_address = contracts_config.diamond_proxy_addr;
     let circuit_breaker_checker = CircuitBreakerChecker::new(
-        circuit_breakers_for_components(
-            &components,
-            &eth_client_config.web3_url,
-            &circuit_breaker_config,
-            main_zksync_contract_address,
-        )
-        .await
-        .context("circuit_breakers_for_components")?,
+        circuit_breakers_for_components(&components, &circuit_breaker_config)
+            .await
+            .context("circuit_breakers_for_components")?,
         &circuit_breaker_config,
     );
     circuit_breaker_checker.check().await.unwrap_or_else(|err| {
@@ -506,6 +499,7 @@ pub async fn initialize_components(
         tracing::info!("initialized State Keeper in {elapsed:?}");
     }
 
+    let main_zksync_contract_address = contracts_config.diamond_proxy_addr;
     if components.contains(&Component::EthWatcher) {
         let started_at = Instant::now();
         tracing::info!("initializing ETH-Watcher");
@@ -785,7 +779,9 @@ async fn add_trees_to_task_futures(
         (false, true) => MetadataCalculatorModeConfig::Lightweight,
         (true, false) => match db_config.merkle_tree.mode {
             MerkleTreeMode::Lightweight => MetadataCalculatorModeConfig::Lightweight,
-            MerkleTreeMode::Full => MetadataCalculatorModeConfig::Full { store_factory },
+            MerkleTreeMode::Full => MetadataCalculatorModeConfig::Full {
+                store_factory: Some(store_factory),
+            },
         },
         (false, false) => {
             anyhow::ensure!(
@@ -1249,9 +1245,7 @@ async fn run_ws_api<G: L1GasPriceProvider + Send + Sync + 'static>(
 
 async fn circuit_breakers_for_components(
     components: &[Component],
-    web3_url: &str,
     circuit_breaker_config: &CircuitBreakerConfig,
-    main_contract: Address,
 ) -> anyhow::Result<Vec<Box<dyn CircuitBreaker>>> {
     let mut circuit_breakers: Vec<Box<dyn CircuitBreaker>> = Vec::new();
 
@@ -1266,18 +1260,6 @@ async fn circuit_breakers_for_components(
             .await
             .context("failed to build a connection pool")?;
         circuit_breakers.push(Box::new(FailedL1TransactionChecker { pool }));
-    }
-
-    if components
-        .iter()
-        .any(|c| matches!(c, Component::EthTxAggregator | Component::EthTxManager))
-    {
-        let eth_client = QueryClient::new(web3_url).unwrap();
-        circuit_breakers.push(Box::new(FacetSelectorsChecker::new(
-            circuit_breaker_config,
-            eth_client,
-            main_contract,
-        )));
     }
 
     if components.iter().any(|c| {

@@ -21,6 +21,7 @@ impl GlueFrom<crate::vm_m5::vm::VmPartialExecutionResult>
                 gas_used: 0,
                 // There are no such fields in m5
                 computational_gas_used: 0,
+                pubdata_published: 0,
             },
             refunds: crate::interface::Refunds {
                 gas_refunded: 0,
@@ -48,6 +49,7 @@ impl GlueFrom<crate::vm_m6::vm::VmPartialExecutionResult>
                 gas_used: value.computational_gas_used,
                 computational_gas_used: value.computational_gas_used,
                 total_log_queries: value.logs.total_log_queries_count,
+                pubdata_published: 0,
             },
             refunds: crate::interface::Refunds {
                 gas_refunded: 0,
@@ -75,6 +77,7 @@ impl GlueFrom<crate::vm_1_3_2::vm::VmPartialExecutionResult>
                 gas_used: value.computational_gas_used,
                 computational_gas_used: value.computational_gas_used,
                 total_log_queries: value.logs.total_log_queries_count,
+                pubdata_published: 0,
             },
             refunds: crate::interface::Refunds {
                 gas_refunded: 0,

@@ -4610,6 +4610,65 @@
     },
     "query": "INSERT INTO events_queue (l1_batch_number, serialized_events_queue) VALUES ($1, $2)"
   },
+  "62aaa047e3da5bd966608fec421ddad1b8afa04aaf35e946219d703bbe6ac9c5": {
+    "describe": {
+      "columns": [
+        {
+          "name": "id",
+          "ordinal": 0,
+          "type_info": "Int8"
+        },
+        {
+          "name": "l1_batch_number",
+          "ordinal": 1,
+          "type_info": "Int8"
+        },
+        {
+          "name": "circuit_id",
+          "ordinal": 2,
+          "type_info": "Int2"
+        },
+        {
+          "name": "aggregation_round",
+          "ordinal": 3,
+          "type_info": "Int2"
+        },
+        {
+          "name": "sequence_number",
+          "ordinal": 4,
+          "type_info": "Int4"
+        },
+        {
+          "name": "depth",
+          "ordinal": 5,
+          "type_info": "Int4"
+        },
+        {
+          "name": "is_node_final_proof",
+          "ordinal": 6,
+          "type_info": "Bool"
+        }
+      ],
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "parameters": {
+        "Left": [
+          "Int2Array",
+          "Int2Array",
+          "Int4Array",
+          "Text"
+        ]
+      }
+    },
+    "query": "\n                UPDATE prover_jobs_fri\n                SET status = 'in_progress', attempts = attempts + 1,\n                    updated_at = now(), processing_started_at = now(),\n                    picked_by = $4\n                WHERE id = (\n                    SELECT pj.id\n                    FROM prover_jobs_fri AS pj\n                    JOIN (\n                        SELECT * FROM unnest($1::smallint[], $2::smallint[])\n                    )\n                    AS tuple (circuit_id, round)\n                    ON tuple.circuit_id = pj.circuit_id AND tuple.round = pj.aggregation_round\n                    WHERE pj.status = 'queued'\n                    AND pj.protocol_version = ANY($3)\n                    ORDER BY pj.l1_batch_number ASC, pj.aggregation_round DESC, pj.id ASC\n                    LIMIT 1\n                    FOR UPDATE\n                    SKIP LOCKED\n                )\n                RETURNING prover_jobs_fri.id, prover_jobs_fri.l1_batch_number, prover_jobs_fri.circuit_id,\n                prover_jobs_fri.aggregation_round, prover_jobs_fri.sequence_number, prover_jobs_fri.depth,\n                prover_jobs_fri.is_node_final_proof\n                "
+  },
   "62e8b4afd4df9e30bfa08cb30c74ba4566fa2e9f4934b7a2777f9e90b49e8fce": {
     "describe": {
       "columns": [],
@@ -4686,65 +4745,6 @@
       }
     },
     "query": "\n                SELECT status, error, compilation_errors FROM contract_verification_requests\n                WHERE id = $1\n                "
-  },
-  "654e133230ee435e95cfda5bc4d72c8dd26412fe9d364e218e95eb4fe64559e9": {
-    "describe": {
-      "columns": [
-        {
-          "name": "id",
-          "ordinal": 0,
-          "type_info": "Int8"
-        },
-        {
-          "name": "l1_batch_number",
-          "ordinal": 1,
-          "type_info": "Int8"
-        },
-        {
-          "name": "circuit_id",
-          "ordinal": 2,
-          "type_info": "Int2"
-        },
-        {
-          "name": "aggregation_round",
-          "ordinal": 3,
-          "type_info": "Int2"
-        },
-        {
-          "name": "sequence_number",
-          "ordinal": 4,
-          "type_info": "Int4"
-        },
-        {
-          "name": "depth",
-          "ordinal": 5,
-          "type_info": "Int4"
-        },
-        {
-          "name": "is_node_final_proof",
-          "ordinal": 6,
-          "type_info": "Bool"
-        }
-      ],
-      "nullable": [
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false
-      ],
-      "parameters": {
-        "Left": [
-          "Int2Array",
-          "Int2Array",
-          "Int4Array",
-          "Text"
-        ]
-      }
-    },
-    "query": "\n                UPDATE prover_jobs_fri\n                SET status = 'in_progress', attempts = attempts + 1,\n                    updated_at = now(), processing_started_at = now(),\n                    picked_by = $4\n                WHERE id = (\n                    SELECT id\n                    FROM prover_jobs_fri\n                    WHERE status = 'queued'\n                    AND (circuit_id, aggregation_round) IN (\n                        SELECT * FROM UNNEST($1::smallint[], $2::smallint[])\n                    )\n                    AND protocol_version = ANY($3)\n                    ORDER BY aggregation_round DESC, l1_batch_number ASC, id ASC\n                    LIMIT 1\n                    FOR UPDATE\n                    SKIP LOCKED\n                )\n                RETURNING prover_jobs_fri.id, prover_jobs_fri.l1_batch_number, prover_jobs_fri.circuit_id,\n                prover_jobs_fri.aggregation_round, prover_jobs_fri.sequence_number, prover_jobs_fri.depth,\n                prover_jobs_fri.is_node_final_proof\n                "
   },
   "65a31949cd7f8890e9448d26a0efee852ddf59bfbbc858b51fba10048d47d27b": {
     "describe": {
