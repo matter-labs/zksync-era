@@ -199,6 +199,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
             VmInstanceVersion::VmVirtualBlocksRefundsEnhancement(vm) => {
                 vm.get_last_tx_compressed_bytecodes()
             }
+            VmInstanceVersion::VmBoojumIntegration(vm) => vm.get_last_tx_compressed_bytecodes(),
             _ => self.last_tx_compressed_bytecodes.clone(),
         }
     }
@@ -440,6 +441,9 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
                 vm.start_new_l2_block(l2_block_env.glue_into());
             }
             VmInstanceVersion::VmVirtualBlocksRefundsEnhancement(vm) => {
+                vm.start_new_l2_block(l2_block_env);
+            }
+            VmInstanceVersion::VmBoojumIntegration(vm) => {
                 vm.start_new_l2_block(l2_block_env);
             }
             _ => {}
