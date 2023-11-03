@@ -4,7 +4,7 @@ import { Pool } from 'pg';
 import { ethers } from 'ethers';
 import { assert } from 'console';
 
-// Postgress connection pool - must be intialized later - as the ENV variables are set later.
+// Postgres connection pool - must be intialized later - as the ENV variables are set later.
 let pool: Pool | null = null;
 
 const GETTER_ABI = [
@@ -89,9 +89,6 @@ async function getL1ValidatorStatus(): Promise<[number, number]> {
     }
 }
 
-function bytesToHex(bytes: Uint8Array): string {
-    return bytes.reduce((hex, byte) => hex + byte.toString(16).padStart(2, '0'), '');
-}
 
 async function compareVerificationKeys() {
     // Setup a provider
@@ -113,7 +110,7 @@ async function compareVerificationKeys() {
         console.log(`${redStart}Got ${protocol_version.rowCount} rows with protocol versions, expected 1${resetColor}`);
         return;
     }
-    let dbHash = '0x' + bytesToHex(protocol_version.rows[0].recursion_scheduler_level_vk_hash);
+    let dbHash = ethers.utils.hexlify(protocol_version.rows[0].recursion_scheduler_level_vk_hash);
 
     console.log(`Verification key in database is ${dbHash}`);
     if (dbHash != verificationKeyHash) {
@@ -147,9 +144,9 @@ async function compareVerificationParams() {
         console.log(`${redStart}Got ${protocol_version.rowCount} rows with protocol versions, expected 1${resetColor}`);
         return;
     }
-    let dbNode = '0x' + bytesToHex(protocol_version.rows[0].recursion_node_level_vk_hash);
-    let dbLeaf = '0x' + bytesToHex(protocol_version.rows[0].recursion_leaf_level_vk_hash);
-    let dbCircuit = '0x' + bytesToHex(protocol_version.rows[0].recursion_circuits_set_vks_hash);
+    let dbNode = ethers.utils.hexlify(protocol_version.rows[0].recursion_node_level_vk_hash);
+    let dbLeaf = ethers.utils.hexlify(protocol_version.rows[0].recursion_leaf_level_vk_hash);
+    let dbCircuit = ethers.utils.hexlify(protocol_version.rows[0].recursion_circuits_set_vks_hash);
 
     let fail = false;
 
