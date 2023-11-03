@@ -72,8 +72,8 @@ impl ProtocolVersionId {
             ProtocolVersionId::Version15 => VmVersion::VmVirtualBlocks,
             ProtocolVersionId::Version16 => VmVersion::VmVirtualBlocksRefundsEnhancement,
             ProtocolVersionId::Version17 => VmVersion::VmVirtualBlocksRefundsEnhancement,
-            ProtocolVersionId::Version18 => VmVersion::VmVirtualBlocksRefundsEnhancement,
-            ProtocolVersionId::Version19 => VmVersion::VmVirtualBlocksRefundsEnhancement,
+            ProtocolVersionId::Version18 => VmVersion::VmBoojumIntegration,
+            ProtocolVersionId::Version19 => VmVersion::VmBoojumIntegration,
         }
     }
 
@@ -691,8 +691,8 @@ impl From<ProtocolVersionId> for VmVersion {
             ProtocolVersionId::Version15 => VmVersion::VmVirtualBlocks,
             ProtocolVersionId::Version16 => VmVersion::VmVirtualBlocksRefundsEnhancement,
             ProtocolVersionId::Version17 => VmVersion::VmVirtualBlocksRefundsEnhancement,
-            ProtocolVersionId::Version18 => VmVersion::VmVirtualBlocksRefundsEnhancement,
-            ProtocolVersionId::Version19 => VmVersion::VmVirtualBlocksRefundsEnhancement,
+            ProtocolVersionId::Version18 => VmVersion::VmBoojumIntegration,
+            ProtocolVersionId::Version19 => VmVersion::VmBoojumIntegration,
         }
     }
 }
