@@ -182,18 +182,19 @@ impl CachingMainNodeClient {
 
     /// Cached version of [`HttpClient::sync_l2_block`].
     pub async fn fetch_l2_block(
-        &self,
+        &mut self,
         miniblock: MiniblockNumber,
     ) -> anyhow::Result<Option<SyncBlock>> {
-        let block = self.blocks.get(&miniblock).cloned();
         FETCHER_METRICS.cache_total[&CachedMethod::SyncL2Block].inc();
-        match block {
-            Some(block) => {
-                FETCHER_METRICS.cache_hit[&CachedMethod::SyncL2Block].inc();
-                Ok(Some(block))
-            }
-            None => self.client.fetch_l2_block(miniblock, true).await,
+        if let Some(block) = self.blocks.get(&miniblock).cloned() {
+            FETCHER_METRICS.cache_hit[&CachedMethod::SyncL2Block].inc();
+            return Ok(Some(block));
         }
+        let block = self.client.fetch_l2_block(miniblock, true).await?;
+        if let Some(block) = block.clone() {
+            self.blocks.insert(miniblock, block);
+        }
+        Ok(block)
     }
 
     /// Re-export of [`MainNodeClient::fetch_l2_block_number()`]. Added to not expose the internal client.
