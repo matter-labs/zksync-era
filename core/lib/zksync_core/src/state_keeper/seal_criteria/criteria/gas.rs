@@ -59,7 +59,7 @@ mod tests {
         // Create an empty config and only setup fields relevant for the test.
         let config = StateKeeperConfig {
             max_single_tx_gas: 6000000,
-            reject_tx_at_eth_params_percentage: 0.95,
+            reject_tx_at_gas_percentage: 0.95,
             close_block_at_gas_percentage: 0.95,
             ..Default::default()
         };

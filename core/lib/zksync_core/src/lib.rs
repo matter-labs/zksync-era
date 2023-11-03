@@ -5,27 +5,23 @@ use std::{net::Ipv4Addr, str::FromStr, sync::Arc, time::Instant};
 use anyhow::Context as _;
 use futures::channel::oneshot;
 use prometheus_exporter::PrometheusExporterConfig;
+use temp_config_store::TempConfigStore;
 use tokio::{sync::watch, task::JoinHandle};
 
 use zksync_circuit_breaker::{
     l1_txs::FailedL1TransactionChecker, replication_lag::ReplicationLagChecker, CircuitBreaker,
     CircuitBreakerChecker, CircuitBreakerError,
 };
-use zksync_config::configs::api::MerkleTreeApiConfig;
-use zksync_config::configs::{
-    api::{HealthCheckConfig, Web3JsonRpcConfig},
-    chain::{
-        self, CircuitBreakerConfig, MempoolConfig, NetworkConfig, OperationsManagerConfig,
-        StateKeeperConfig,
-    },
-    database::MerkleTreeMode,
-    house_keeper::HouseKeeperConfig,
-    FriProofCompressorConfig, FriProverConfig, FriWitnessGeneratorConfig, PrometheusConfig,
-    ProofDataHandlerConfig, ProverGroupConfig, WitnessGeneratorConfig,
-};
 use zksync_config::{
-    ApiConfig, ContractsConfig, DBConfig, ETHClientConfig, ETHSenderConfig, ETHWatchConfig,
-    FetcherConfig, GasAdjusterConfig, ProverConfigs,
+    configs::{
+        api::{MerkleTreeApiConfig, Web3JsonRpcConfig},
+        chain::{
+            CircuitBreakerConfig, MempoolConfig, NetworkConfig, OperationsManagerConfig,
+            StateKeeperConfig,
+        },
+        database::MerkleTreeMode,
+    },
+    ApiConfig, ContractsConfig, DBConfig, ETHSenderConfig,
 };
 use zksync_contracts::{governance_contract, BaseSystemContracts};
 use zksync_dal::{
@@ -63,6 +59,7 @@ pub mod proof_data_handler;
 pub mod reorg_detector;
 pub mod state_keeper;
 pub mod sync_layer;
+pub mod temp_config_store;
 pub mod witness_generator;
 
 use crate::api_server::healthcheck::HealthCheckHandle;
@@ -286,18 +283,8 @@ impl FromStr for Components {
     }
 }
 
-// To make it compile
-trait TodoFromEnv: Sized {
-    fn from_env() -> anyhow::Result<Self>;
-}
-
-impl<T> TodoFromEnv for T {
-    fn from_env() -> anyhow::Result<Self> {
-        todo!()
-    }
-}
-
 pub async fn initialize_components(
+    configs: &TempConfigStore,
     components: Vec<Component>,
     use_prometheus_push_gateway: bool,
 ) -> anyhow::Result<(
@@ -308,7 +295,10 @@ pub async fn initialize_components(
 )> {
     tracing::info!("Starting the components: {components:?}");
 
-    let db_config = DBConfig::from_env().context("DbConfig::from_env()")?;
+    let db_config = configs
+        .db_config
+        .clone()
+        .ok_or_else(|| anyhow::anyhow!("db_config"))?;
     let connection_pool = ConnectionPool::builder(DbVariant::Master)
         .build()
         .await
@@ -324,10 +314,18 @@ pub async fn initialize_components(
         .context("failed to build replica_connection_pool")?;
 
     let mut healthchecks: Vec<Box<dyn CheckHealth>> = Vec::new();
-    let contracts_config = ContractsConfig::from_env().context("ContractsConfig::from_env()")?;
-    let eth_client_config = ETHClientConfig::from_env().context("ETHClientConfig::from_env()")?;
-    let circuit_breaker_config =
-        CircuitBreakerConfig::from_env().context("CircuitBreakerConfig::from_env()")?;
+    let contracts_config = configs
+        .contracts_config
+        .clone()
+        .ok_or_else(|| anyhow::anyhow!("contracts_config"))?;
+    let eth_client_config = configs
+        .eth_client_config
+        .clone()
+        .ok_or_else(|| anyhow::anyhow!("eth_client_config"))?;
+    let circuit_breaker_config = configs
+        .circuit_breaker_config
+        .clone()
+        .ok_or_else(|| anyhow::anyhow!("circuit_breaker_config"))?;
 
     let circuit_breaker_checker = CircuitBreakerChecker::new(
         circuit_breakers_for_components(&components, &circuit_breaker_config)
@@ -340,8 +338,9 @@ pub async fn initialize_components(
     });
 
     let query_client = QueryClient::new(&eth_client_config.web3_url).unwrap();
-    let gas_adjuster_config =
-        GasAdjusterConfig::from_env().context("GasAdjusterConfig::from_env()")?;
+    let gas_adjuster_config = configs
+        .gas_adjuster_config
+        .ok_or_else(|| anyhow::anyhow!("gas_adjuster_config"))?;
     let mut gas_adjuster =
         GasAdjusterSingleton::new(eth_client_config.web3_url.clone(), gas_adjuster_config);
 
@@ -349,7 +348,10 @@ pub async fn initialize_components(
     let (cb_sender, cb_receiver) = oneshot::channel();
 
     // Prometheus exporter and circuit breaker checker should run for every component configuration.
-    let prom_config = PrometheusConfig::from_env().context("PrometheusConfig::from_env()")?;
+    let prom_config = configs
+        .prometheus_config
+        .clone()
+        .ok_or_else(|| anyhow::anyhow!("prometheus_config"))?;
     let prom_config = if use_prometheus_push_gateway {
         PrometheusExporterConfig::push(prom_config.gateway_endpoint(), prom_config.push_interval())
     } else {
@@ -377,10 +379,18 @@ pub async fn initialize_components(
         || components.contains(&Component::ContractVerificationApi)
         || components.contains(&Component::ApiTranslator)
     {
-        let api_config = ApiConfig::from_env().context("ApiConfig::from_env()")?;
-        let state_keeper_config =
-            StateKeeperConfig::from_env().context("StateKeeperConfig::from_env()")?;
-        let network_config = NetworkConfig::from_env().context("NetworkConfig::from_env()")?;
+        let api_config = configs
+            .api_config
+            .clone()
+            .ok_or_else(|| anyhow::anyhow!("api_config"))?;
+        let state_keeper_config = configs
+            .state_keeper_config
+            .clone()
+            .ok_or_else(|| anyhow::anyhow!("state_keeper_config"))?;
+        let network_config = configs
+            .network_config
+            .clone()
+            .ok_or_else(|| anyhow::anyhow!("network_config"))?;
         let tx_sender_config = TxSenderConfig::new(
             &state_keeper_config,
             &api_config.web3_json_rpc,
@@ -400,7 +410,7 @@ pub async fn initialize_components(
 
         if components.contains(&Component::HttpApi) {
             storage_caches = Some(
-                build_storage_caches(&replica_connection_pool, &mut task_futures)
+                build_storage_caches(configs, &replica_connection_pool, &mut task_futures)
                     .context("build_storage_caches()")?,
             );
 
@@ -439,7 +449,7 @@ pub async fn initialize_components(
         if components.contains(&Component::WsApi) {
             let storage_caches = match storage_caches {
                 Some(storage_caches) => storage_caches,
-                None => build_storage_caches(&replica_connection_pool, &mut task_futures)
+                None => build_storage_caches(configs, &replica_connection_pool, &mut task_futures)
                     .context("build_storage_caches()")?,
             };
 
@@ -489,7 +499,11 @@ pub async fn initialize_components(
         }
     }
 
-    let store_factory = ObjectStoreFactory::from_env().context("ObjectStoreFactor::from_env()")?;
+    let object_store_config = configs
+        .object_store_config
+        .clone()
+        .ok_or_else(|| anyhow::anyhow!("object_store_config"))?;
+    let store_factory = ObjectStoreFactory::new(object_store_config);
 
     if components.contains(&Component::StateKeeper) {
         let started_at = Instant::now();
@@ -501,10 +515,19 @@ pub async fn initialize_components(
         add_state_keeper_to_task_futures(
             &mut task_futures,
             &contracts_config,
-            StateKeeperConfig::from_env().context("StateKeeperConfig::from_env()")?,
-            &NetworkConfig::from_env().context("NetworkConfig::from_env()")?,
+            configs
+                .state_keeper_config
+                .clone()
+                .ok_or_else(|| anyhow::anyhow!("state_keeper_config"))?,
+            &configs
+                .network_config
+                .clone()
+                .ok_or_else(|| anyhow::anyhow!("network_config"))?,
             &db_config,
-            &MempoolConfig::from_env().context("MempoolConfig::from_env()")?,
+            &configs
+                .mempool_config
+                .clone()
+                .ok_or_else(|| anyhow::anyhow!("mempool_config"))?,
             bounded_gas_adjuster,
             store_factory.create_store().await,
             stop_receiver.clone(),
@@ -530,7 +553,10 @@ pub async fn initialize_components(
                 .expect("Governance contract must be present if governance_addr is set in config");
             (contract, addr)
         });
-        let eth_watch_config = ETHWatchConfig::from_env().context("ETHWatchConfig::from_env()")?;
+        let eth_watch_config = configs
+            .eth_watch_config
+            .clone()
+            .ok_or_else(|| anyhow::anyhow!("eth_watch_config"))?;
         task_futures.push(
             start_eth_watch(
                 eth_watch_config,
@@ -560,7 +586,10 @@ pub async fn initialize_components(
             .await
             .context("failed to build eth_sender_prover_pool")?;
 
-        let eth_sender = ETHSenderConfig::from_env().context("ETHSenderConfig::from_env()")?;
+        let eth_sender = configs
+            .eth_sender_config
+            .clone()
+            .ok_or_else(|| anyhow::anyhow!("eth_sender_config"))?;
         let eth_client =
             PKSigningClient::from_config(&eth_sender, &contracts_config, &eth_client_config);
         let nonce = eth_client.pending_nonce("eth_sender").await.unwrap();
@@ -593,7 +622,10 @@ pub async fn initialize_components(
             .build()
             .await
             .context("failed to build eth_manager_pool")?;
-        let eth_sender = ETHSenderConfig::from_env().context("ETHSenderConfig::from_env()")?;
+        let eth_sender = configs
+            .eth_sender_config
+            .clone()
+            .ok_or_else(|| anyhow::anyhow!("eth_sender_config"))?;
         let eth_client =
             PKSigningClient::from_config(&eth_sender, &contracts_config, &eth_client_config);
         let eth_tx_manager_actor = EthTxManager::new(
@@ -614,8 +646,14 @@ pub async fn initialize_components(
 
     if components.contains(&Component::DataFetcher) {
         let started_at = Instant::now();
-        let fetcher_config = FetcherConfig::from_env().context("FetcherConfig::from_env()")?;
-        let eth_network = chain::NetworkConfig::from_env().context("NetworkConfig::from_env()")?;
+        let fetcher_config = configs
+            .fetcher_config
+            .clone()
+            .ok_or_else(|| anyhow::anyhow!("fetcher_config"))?;
+        let eth_network = configs
+            .network_config
+            .clone()
+            .ok_or_else(|| anyhow::anyhow!("network_config"))?;
         tracing::info!("initializing data fetchers");
         task_futures.extend(run_data_fetchers(
             &fetcher_config,
@@ -629,6 +667,7 @@ pub async fn initialize_components(
     }
 
     add_trees_to_task_futures(
+        configs,
         &mut task_futures,
         &mut healthchecks,
         &components,
@@ -638,6 +677,7 @@ pub async fn initialize_components(
     .await
     .context("add_trees_to_task_futures()")?;
     add_witness_generator_to_task_futures(
+        configs,
         &mut task_futures,
         &components,
         &connection_pool,
@@ -653,13 +693,15 @@ pub async fn initialize_components(
             .build()
             .await
             .context("failed to build singleton connection_pool")?;
+        let network_config = configs
+            .network_config
+            .clone()
+            .ok_or_else(|| anyhow::anyhow!("network_config"))?;
         add_basic_witness_input_producer_to_task_futures(
             &mut task_futures,
             &singleton_connection_pool,
             &store_factory,
-            NetworkConfig::from_env()
-                .context("NetworkConfig::from_env()")?
-                .zksync_network_id,
+            network_config.zksync_network_id,
             stop_receiver.clone(),
         )
         .await
@@ -667,15 +709,21 @@ pub async fn initialize_components(
     }
 
     if components.contains(&Component::Housekeeper) {
-        add_house_keeper_to_task_futures(&mut task_futures, &store_factory)
+        add_house_keeper_to_task_futures(configs, &mut task_futures, &store_factory)
             .await
             .context("add_house_keeper_to_task_futures()")?;
     }
 
     if components.contains(&Component::ProofDataHandler) {
         task_futures.push(tokio::spawn(proof_data_handler::run_server(
-            ProofDataHandlerConfig::from_env().context("ProofDataHandlerConfig::from_env()")?,
-            ContractsConfig::from_env().context("ContractsConfig::from_env()")?,
+            configs
+                .proof_data_handler_config
+                .clone()
+                .ok_or_else(|| anyhow::anyhow!("proof_data_handler_config"))?,
+            configs
+                .contracts_config
+                .clone()
+                .ok_or_else(|| anyhow::anyhow!("contracts_config"))?,
             store_factory.create_store().await,
             connection_pool.clone(),
             stop_receiver.clone(),
@@ -687,8 +735,10 @@ pub async fn initialize_components(
         replica_connection_pool,
     )));
 
-    let healtcheck_api_config =
-        HealthCheckConfig::from_env().context("HealthCheckConfig::from_env()")?;
+    let healtcheck_api_config = configs
+        .health_check_config
+        .clone()
+        .ok_or_else(|| anyhow::anyhow!("health_check_config"))?;
     let health_check_handle =
         HealthCheckHandle::spawn_server(healtcheck_api_config.bind_addr(), healthchecks);
 
@@ -769,6 +819,7 @@ async fn add_state_keeper_to_task_futures<E: L1GasPriceProvider + Send + Sync + 
 }
 
 async fn add_trees_to_task_futures(
+    configs: &TempConfigStore,
     task_futures: &mut Vec<JoinHandle<anyhow::Result<()>>>,
     healthchecks: &mut Vec<Box<dyn CheckHealth>>,
     components: &[Component],
@@ -779,11 +830,18 @@ async fn add_trees_to_task_futures(
         anyhow::bail!("Tree backup mode is disabled");
     }
 
-    let db_config = DBConfig::from_env().context("DBConfig::from_env()")?;
-    let operation_config =
-        OperationsManagerConfig::from_env().context("OperationManagerConfig::from_env()")?;
-    let api_config = ApiConfig::from_env()
-        .context("ApiConfig::from_env()")?
+    let db_config = configs
+        .db_config
+        .clone()
+        .ok_or_else(|| anyhow::anyhow!("db_config"))?;
+    let operation_config = configs
+        .operations_manager_config
+        .clone()
+        .ok_or_else(|| anyhow::anyhow!("operations_manager_config"))?;
+    let api_config = configs
+        .api_config
+        .clone()
+        .ok_or_else(|| anyhow::anyhow!("api_config"))?
         .merkle_tree;
     let api_config = components
         .contains(&Component::TreeApi)
@@ -900,6 +958,7 @@ async fn add_basic_witness_input_producer_to_task_futures(
 }
 
 async fn add_witness_generator_to_task_futures(
+    configs: &TempConfigStore,
     task_futures: &mut Vec<JoinHandle<anyhow::Result<()>>>,
     components: &[Component],
     connection_pool: &ConnectionPool,
@@ -934,8 +993,10 @@ async fn add_witness_generator_to_task_futures(
             .protocol_versions_dal()
             .protocol_version_for(&vk_commitments)
             .await;
-        let config =
-            WitnessGeneratorConfig::from_env().context("WitnessGeneratorConfig::from_env()")?;
+        let config = configs
+            .witness_generator_config
+            .clone()
+            .ok_or_else(|| anyhow::anyhow!("witness_generator_config"))?;
         let task = match component_type {
             AggregationRound::BasicCircuits => {
                 let witness_generator = BasicWitnessGenerator::new(
@@ -992,11 +1053,14 @@ async fn add_witness_generator_to_task_futures(
 }
 
 async fn add_house_keeper_to_task_futures(
+    configs: &TempConfigStore,
     task_futures: &mut Vec<JoinHandle<anyhow::Result<()>>>,
     store_factory: &ObjectStoreFactory,
 ) -> anyhow::Result<()> {
-    let house_keeper_config =
-        HouseKeeperConfig::from_env().context("HouseKeeperConfig::from_env()")?;
+    let house_keeper_config = configs
+        .house_keeper_config
+        .clone()
+        .ok_or_else(|| anyhow::anyhow!("house_keeper_config"))?;
     let connection_pool = ConnectionPool::singleton(DbVariant::Replica)
         .build()
         .await
@@ -1011,16 +1075,20 @@ async fn add_house_keeper_to_task_futures(
         .build()
         .await
         .context("failed to build a prover_connection_pool")?;
+    let prover_group_config = configs
+        .prover_group_config
+        .clone()
+        .ok_or_else(|| anyhow::anyhow!("prover_group_config"))?;
+    let prover_configs = configs
+        .prover_configs
+        .clone()
+        .ok_or_else(|| anyhow::anyhow!("prover_configs"))?;
     let gpu_prover_queue = GpuProverQueueMonitor::new(
-        ProverGroupConfig::from_env()
-            .context("ProverGroupConfig::from_env()")?
-            .synthesizer_per_gpu,
+        prover_group_config.synthesizer_per_gpu,
         house_keeper_config.gpu_prover_queue_reporting_interval_ms,
         prover_connection_pool.clone(),
     );
-    let config = ProverConfigs::from_env()
-        .context("ProverCOnfigs::from_env()")?
-        .non_gpu;
+    let config = prover_configs.non_gpu.clone();
     let prover_job_retry_manager = ProverJobRetryManager::new(
         config.max_attempts,
         config.proof_generation_timeout(),
@@ -1030,7 +1098,7 @@ async fn add_house_keeper_to_task_futures(
     let prover_stats_reporter = ProverStatsReporter::new(
         house_keeper_config.prover_stats_reporting_interval_ms,
         prover_connection_pool.clone(),
-        ProverGroupConfig::from_env().context("ProverGroupConfig::from_env()")?,
+        prover_group_config.clone(),
     );
     let waiting_to_queued_witness_job_mover = WaitingToQueuedWitnessJobMover::new(
         house_keeper_config.witness_job_moving_interval_ms,
@@ -1056,7 +1124,10 @@ async fn add_house_keeper_to_task_futures(
     task_futures.push(tokio::spawn(prover_job_retry_manager.run()));
 
     // All FRI Prover related components are configured below.
-    let fri_prover_config = FriProverConfig::from_env().context("FriProverConfig::from_env()")?;
+    let fri_prover_config = configs
+        .fri_prover_config
+        .clone()
+        .ok_or_else(|| anyhow::anyhow!("fri_prover_config"))?;
     let fri_prover_job_retry_manager = FriProverJobRetryManager::new(
         fri_prover_config.max_attempts,
         fri_prover_config.proof_generation_timeout(),
@@ -1065,8 +1136,10 @@ async fn add_house_keeper_to_task_futures(
     );
     task_futures.push(tokio::spawn(fri_prover_job_retry_manager.run()));
 
-    let fri_witness_gen_config =
-        FriWitnessGeneratorConfig::from_env().context("FriWitnessGeneratorConfig::from_env")?;
+    let fri_witness_gen_config = configs
+        .fri_witness_generator_config
+        .clone()
+        .ok_or_else(|| anyhow::anyhow!("fri_witness_generator_config"))?;
     let fri_witness_gen_job_retry_manager = FriWitnessGeneratorJobRetryManager::new(
         fri_witness_gen_config.max_attempts,
         fri_witness_gen_config.witness_generation_timeout(),
@@ -1099,8 +1172,10 @@ async fn add_house_keeper_to_task_futures(
     );
     task_futures.push(tokio::spawn(fri_prover_stats_reporter.run()));
 
-    let proof_compressor_config =
-        FriProofCompressorConfig::from_env().context("FriProofCompressorConfig")?;
+    let proof_compressor_config = configs
+        .fri_proof_compressor_config
+        .clone()
+        .ok_or_else(|| anyhow::anyhow!("fri_proof_compressor_config"))?;
     let fri_proof_compressor_stats_reporter = FriProofCompressorStatsReporter::new(
         house_keeper_config.fri_proof_compressor_stats_reporting_interval_ms,
         prover_connection_pool.clone(),
@@ -1118,10 +1193,14 @@ async fn add_house_keeper_to_task_futures(
 }
 
 fn build_storage_caches(
+    configs: &TempConfigStore,
     replica_connection_pool: &ConnectionPool,
     task_futures: &mut Vec<JoinHandle<anyhow::Result<()>>>,
 ) -> anyhow::Result<PostgresStorageCaches> {
-    let rpc_config = Web3JsonRpcConfig::from_env().context("Web3JsonRpcConfig::from_env()")?;
+    let rpc_config = configs
+        .web3_json_rpc_config
+        .clone()
+        .ok_or_else(|| anyhow::anyhow!("web3_json_rpc_config"))?;
     let factory_deps_capacity = rpc_config.factory_deps_cache_size() as u64;
     let initial_writes_capacity = rpc_config.initial_writes_cache_size() as u64;
     let values_capacity = rpc_config.latest_values_cache_size() as u64;
