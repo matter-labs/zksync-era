@@ -10,10 +10,7 @@ export async function compileTestContracts() {
 export async function compileSystemContracts() {
     await utils.spawn('yarn workspace zksync-erc20 build');
 
-    process.chdir('etc/system-contracts');
-    await utils.spawn('yarn');
-    await utils.spawn('yarn build');
-    process.chdir('../..');
+    await utils.spawn('yarn workspace system-contracts build');
 }
 
 export async function compileAll() {
