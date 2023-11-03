@@ -8641,6 +8641,20 @@
     },
     "query": "SELECT * FROM eth_txs_history WHERE eth_tx_id = $1 ORDER BY created_at DESC LIMIT 1"
   },
+  "ad48c26546edaa5f872e5698eb0b0d3ced291db178dd6c065fe6a39def4ea751": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Left": [
+          "Int8",
+          "Bytea",
+          "Bytea"
+        ]
+      }
+    },
+    "query": "UPDATE miniblocks SET prev_consensus_block_hash = $2, commit_qc = $3 WHERE number = $1"
+  },
   "ad4f74aa6f131df0243f4fa500ade1b98aa335bd71ed417b02361e2c697e60f8": {
     "describe": {
       "columns": [],

@@ -3,7 +3,7 @@ use zksync_system_constants::SYSTEM_BLOCK_INFO_BLOCK_NUMBER_MULTIPLIER;
 
 use std::{fmt, ops};
 
-use zksync_basic_types::{H2048, H256, U256};
+use zksync_basic_types::{Bytes, H2048, H256, U256};
 use zksync_contracts::BaseSystemContractsHashes;
 
 use crate::{
@@ -82,6 +82,16 @@ pub struct MiniblockHeader {
     pub protocol_version: Option<ProtocolVersionId>,
     /// The maximal number of virtual blocks to be created in the miniblock.
     pub virtual_blocks: u32,
+}
+
+/// Consensus-related L2 block (= miniblock) fields.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConsensusBlockFields {
+    /// Hash of the previous consensus block.
+    pub prev_block_hash: H256,
+    /// Protobuf serialization of quorum certificate for the block.
+    pub commit_qc_bytes: Bytes,
 }
 
 /// Data needed to execute a miniblock in the VM.

@@ -5,7 +5,8 @@ use std::time::Duration;
 
 use zksync_dal::StorageProcessor;
 use zksync_types::{
-    api::en::SyncBlock, Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, H256,
+    api::en::SyncBlock, block::ConsensusBlockFields, Address, L1BatchNumber, MiniblockNumber,
+    ProtocolVersionId, H256,
 };
 use zksync_web3_decl::jsonrpsee::core::Error as RpcError;
 
@@ -33,6 +34,7 @@ pub(super) struct FetchedBlock {
     pub virtual_blocks: u32,
     pub operator_address: Address,
     pub transactions: Vec<zksync_types::Transaction>,
+    pub consensus: Option<ConsensusBlockFields>,
 }
 
 impl FetchedBlock {
@@ -50,6 +52,7 @@ impl FetchedBlock {
             transactions: block
                 .transactions
                 .expect("Transactions are always requested"),
+            consensus: block.consensus,
         }
     }
 }
@@ -159,9 +162,10 @@ impl FetcherCursor {
             new_actions.push(SyncAction::SealBatch {
                 // `block.virtual_blocks` can be `None` only for old VM versions where it's not used, so it's fine to provide any number.
                 virtual_blocks: block.virtual_blocks,
+                consensus: block.consensus,
             });
         } else {
-            new_actions.push(SyncAction::SealMiniblock);
+            new_actions.push(SyncAction::SealMiniblock(block.consensus));
         }
         self.next_miniblock += 1;
         self.prev_miniblock_hash = block.hash;

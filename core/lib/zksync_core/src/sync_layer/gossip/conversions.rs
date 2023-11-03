@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use zksync_consensus_roles::validator::{
     BlockHeader, BlockHeaderHash, BlockNumber, CommitQC, FinalBlock, Payload,
 };
+use zksync_types::block::ConsensusBlockFields;
 use zksync_types::{
     api::en::SyncBlock, Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, H256,
 };
@@ -39,16 +40,14 @@ pub(super) fn sync_block_to_consensus_block(block: SyncBlock) -> anyhow::Result<
             .context("Transactions are always requested")?,
     });
     let payload = Payload(payload.context("Failed serializing block payload")?);
-    let prev_block_hash = block
-        .prev_consensus_block_hash
-        .context("Missing previous block hash")?;
+    let consensus = block.consensus.context("Missing consensus fields")?;
+    let prev_block_hash = consensus.prev_block_hash;
     let header = BlockHeader {
         parent: BlockHeaderHash::from_bytes(prev_block_hash.0),
         number: BlockNumber(block.number.0.into()),
         payload: payload.hash(),
     };
-    let justification = block.commit_qc_bytes.context("Missing commit QC")?;
-    let justification: CommitQC = zksync_consensus_schema::decode(&justification.0)
+    let justification: CommitQC = zksync_consensus_schema::decode(&consensus.commit_qc_bytes.0)
         .context("Failed deserializing commit QC from Protobuf")?;
     Ok(FinalBlock {
         header,
@@ -75,6 +74,10 @@ impl FetchedBlock {
             virtual_blocks: payload.virtual_blocks,
             operator_address: payload.operator_address,
             transactions: payload.transactions,
+            consensus: Some(ConsensusBlockFields {
+                prev_block_hash: H256(*block.header.parent.as_bytes()),
+                commit_qc_bytes: zksync_consensus_schema::canonical(&block.justification).into(),
+            }),
         })
     }
 }

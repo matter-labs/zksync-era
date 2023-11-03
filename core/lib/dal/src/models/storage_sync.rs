@@ -2,8 +2,9 @@ use std::convert::TryInto;
 
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_types::api::en::SyncBlock;
-use zksync_types::Transaction;
-use zksync_types::{Address, Bytes, L1BatchNumber, MiniblockNumber, H256};
+use zksync_types::{
+    block::ConsensusBlockFields, Address, Bytes, L1BatchNumber, MiniblockNumber, Transaction, H256,
+};
 
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct StorageSyncBlock {
@@ -32,12 +33,15 @@ impl StorageSyncBlock {
         current_operator_address: Address,
         transactions: Option<Vec<Transaction>>,
     ) -> SyncBlock {
+        let number = self.number;
+        let commit_qc = self.commit_qc;
+
         SyncBlock {
             number: MiniblockNumber(self.number as u32),
             l1_batch_number: L1BatchNumber(self.l1_batch_number as u32),
             last_in_batch: self
                 .last_batch_miniblock
-                .map(|n| n == self.number)
+                .map(|n| n == number)
                 .unwrap_or(false),
             timestamp: self.timestamp as u64,
             root_hash: self.root_hash.as_deref().map(H256::from_slice),
@@ -62,10 +66,12 @@ impl StorageSyncBlock {
             virtual_blocks: Some(self.virtual_blocks as u32),
             hash: Some(H256::from_slice(&self.hash)),
             protocol_version: (self.protocol_version as u16).try_into().unwrap(),
-            prev_consensus_block_hash: self
-                .prev_consensus_block_hash
-                .map(|hash| H256::from_slice(&hash)),
-            commit_qc_bytes: self.commit_qc.map(Bytes::from),
+            consensus: self.prev_consensus_block_hash.and_then(|hash| {
+                Some(ConsensusBlockFields {
+                    prev_block_hash: H256::from_slice(&hash),
+                    commit_qc_bytes: Bytes(commit_qc?),
+                })
+            }),
         }
     }
 }

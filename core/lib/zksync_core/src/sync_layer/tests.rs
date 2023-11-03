@@ -69,8 +69,7 @@ impl MockMainNodeClient {
                 virtual_blocks: Some(!is_fictive as u32),
                 hash: Some(H256::repeat_byte(1)),
                 protocol_version: ProtocolVersionId::latest(),
-                prev_consensus_block_hash: None,
-                commit_qc_bytes: None,
+                consensus: None,
             }
         });
 
@@ -241,7 +240,7 @@ async fn external_io_basics() {
     let tx = create_l2_transaction(10, 100);
     let tx_hash = tx.hash();
     let tx = SyncAction::Tx(Box::new(tx.into()));
-    let actions = vec![open_l1_batch, tx, SyncAction::SealMiniblock];
+    let actions = vec![open_l1_batch, tx, SyncAction::SealMiniblock(None)];
 
     let (actions_sender, action_queue) = ActionQueue::new();
     let state_keeper =
@@ -284,7 +283,7 @@ pub(super) async fn run_state_keeper_with_multiple_miniblocks(pool: ConnectionPo
     });
     let first_miniblock_actions: Vec<_> = iter::once(open_l1_batch)
         .chain(txs)
-        .chain([SyncAction::SealMiniblock])
+        .chain([SyncAction::SealMiniblock(None)])
         .collect();
 
     let open_miniblock = SyncAction::Miniblock {
@@ -298,7 +297,7 @@ pub(super) async fn run_state_keeper_with_multiple_miniblocks(pool: ConnectionPo
     });
     let second_miniblock_actions: Vec<_> = iter::once(open_miniblock)
         .chain(more_txs)
-        .chain([SyncAction::SealMiniblock])
+        .chain([SyncAction::SealMiniblock(None)])
         .collect();
 
     let tx_hashes = extract_tx_hashes(
@@ -372,7 +371,7 @@ async fn test_external_io_recovery(pool: ConnectionPool, mut tx_hashes: Vec<H256
         timestamp: 3,
         virtual_blocks: 1,
     };
-    let actions = vec![open_miniblock, new_tx, SyncAction::SealMiniblock];
+    let actions = vec![open_miniblock, new_tx, SyncAction::SealMiniblock(None)];
     actions_sender.push_actions(actions).await;
     state_keeper
         .wait(|state| state.get_local_block() == MiniblockNumber(3))
@@ -420,21 +419,24 @@ pub(super) async fn run_state_keeper_with_multiple_l1_batches(
     let first_tx = create_l2_transaction(10, 100);
     let first_tx_hash = first_tx.hash();
     let first_tx = SyncAction::Tx(Box::new(first_tx.into()));
-    let first_l1_batch_actions = vec![l1_batch, first_tx, SyncAction::SealMiniblock];
+    let first_l1_batch_actions = vec![l1_batch, first_tx, SyncAction::SealMiniblock(None)];
 
     let fictive_miniblock = SyncAction::Miniblock {
         number: MiniblockNumber(2),
         timestamp: 2,
         virtual_blocks: 0,
     };
-    let seal_l1_batch = SyncAction::SealBatch { virtual_blocks: 0 };
+    let seal_l1_batch = SyncAction::SealBatch {
+        virtual_blocks: 0,
+        consensus: None,
+    };
     let fictive_miniblock_actions = vec![fictive_miniblock, seal_l1_batch];
 
     let l1_batch = open_l1_batch(2, 3, 3);
     let second_tx = create_l2_transaction(10, 100);
     let second_tx_hash = second_tx.hash();
     let second_tx = SyncAction::Tx(Box::new(second_tx.into()));
-    let second_l1_batch_actions = vec![l1_batch, second_tx, SyncAction::SealMiniblock];
+    let second_l1_batch_actions = vec![l1_batch, second_tx, SyncAction::SealMiniblock(None)];
 
     let (actions_sender, action_queue) = ActionQueue::new();
     let state_keeper = StateKeeperHandles::new(
@@ -545,7 +547,7 @@ async fn fetcher_basics() {
                 tx_count_in_miniblock = 0;
                 assert_eq!(number, current_miniblock_number);
             }
-            SyncAction::SealBatch { virtual_blocks } => {
+            SyncAction::SealBatch { virtual_blocks, .. } => {
                 assert_eq!(virtual_blocks, 0);
                 assert_eq!(tx_count_in_miniblock, 0);
                 if current_miniblock_number == MiniblockNumber(5) {
@@ -556,7 +558,7 @@ async fn fetcher_basics() {
                 assert_eq!(tx.hash(), tx_hashes.pop_front().unwrap());
                 tx_count_in_miniblock += 1;
             }
-            SyncAction::SealMiniblock => {
+            SyncAction::SealMiniblock(_) => {
                 assert_eq!(tx_count_in_miniblock, 1);
             }
         }
@@ -638,7 +640,7 @@ async fn fetcher_with_real_server() {
                 assert_eq!(tx.hash(), tx_hashes.pop_front().unwrap());
                 tx_count_in_miniblock += 1;
             }
-            SyncAction::SealMiniblock => {
+            SyncAction::SealMiniblock(_) => {
                 assert_eq!(
                     tx_count_in_miniblock,
                     miniblock_number_to_tx_count[&current_miniblock_number]

@@ -41,7 +41,7 @@ pub(super) async fn load_final_block(
 
 pub(super) async fn assert_first_block_actions(actions: &mut ActionQueue) -> Vec<SyncAction> {
     let mut received_actions = vec![];
-    while !matches!(received_actions.last(), Some(SyncAction::SealMiniblock)) {
+    while !matches!(received_actions.last(), Some(SyncAction::SealMiniblock(_))) {
         received_actions.push(actions.recv_action().await);
     }
     assert_matches!(
@@ -58,7 +58,7 @@ pub(super) async fn assert_first_block_actions(actions: &mut ActionQueue) -> Vec
             SyncAction::Tx(_),
             SyncAction::Tx(_),
             SyncAction::Tx(_),
-            SyncAction::SealMiniblock,
+            SyncAction::SealMiniblock(_),
         ]
     );
     received_actions
@@ -66,7 +66,7 @@ pub(super) async fn assert_first_block_actions(actions: &mut ActionQueue) -> Vec
 
 pub(super) async fn assert_second_block_actions(actions: &mut ActionQueue) -> Vec<SyncAction> {
     let mut received_actions = vec![];
-    while !matches!(received_actions.last(), Some(SyncAction::SealMiniblock)) {
+    while !matches!(received_actions.last(), Some(SyncAction::SealMiniblock(_))) {
         received_actions.push(actions.recv_action().await);
     }
     assert_matches!(
@@ -80,7 +80,7 @@ pub(super) async fn assert_second_block_actions(actions: &mut ActionQueue) -> Ve
             SyncAction::Tx(_),
             SyncAction::Tx(_),
             SyncAction::Tx(_),
-            SyncAction::SealMiniblock,
+            SyncAction::SealMiniblock(_),
         ]
     );
     received_actions

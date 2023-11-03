@@ -2,10 +2,10 @@
 
 use serde::{Deserialize, Serialize};
 use zk_evm::ethereum_types::Address;
-use zksync_basic_types::{Bytes, L1BatchNumber, MiniblockNumber, H256};
+use zksync_basic_types::{L1BatchNumber, MiniblockNumber, H256};
 use zksync_contracts::BaseSystemContractsHashes;
 
-use crate::ProtocolVersionId;
+use crate::{block::ConsensusBlockFields, ProtocolVersionId};
 
 /// Representation of the L2 block, as needed for the EN synchronization.
 /// This structure has several fields that describe *L1 batch* rather than
@@ -44,9 +44,7 @@ pub struct SyncBlock {
     pub hash: Option<H256>,
     /// Version of the protocol used for this block.
     pub protocol_version: ProtocolVersionId,
-
-    /// Hash of the previous consensus block.
-    pub prev_consensus_block_hash: Option<H256>,
-    /// Protobuf serialization of quorum certificate for the block.
-    pub commit_qc_bytes: Option<Bytes>,
+    /// Consensus-related information about the block. Not present if consensus is not enabled
+    /// for the environment.
+    pub consensus: Option<ConsensusBlockFields>,
 }

@@ -245,6 +245,7 @@ async fn processing_storage_logs_when_sealing_miniblock() {
         base_system_contracts_hashes: BaseSystemContractsHashes::default(),
         protocol_version: Some(ProtocolVersionId::latest()),
         l2_erc20_bridge_addr: Address::default(),
+        consensus: None,
     };
     let mut conn = connection_pool
         .access_storage_tagged("state_keeper")
@@ -321,6 +322,7 @@ async fn processing_events_when_sealing_miniblock() {
         base_system_contracts_hashes: BaseSystemContractsHashes::default(),
         protocol_version: Some(ProtocolVersionId::latest()),
         l2_erc20_bridge_addr: Address::default(),
+        consensus: None,
     };
     let mut conn = pool.access_storage_tagged("state_keeper").await.unwrap();
     conn.protocol_versions_dal()
@@ -434,6 +436,7 @@ async fn miniblock_sealer_handle_blocking() {
         L1BatchNumber(1),
         MiniblockNumber(1),
         Address::default(),
+        None,
     );
     sealer_handle.submit(seal_command).await;
 
@@ -442,6 +445,7 @@ async fn miniblock_sealer_handle_blocking() {
         L1BatchNumber(1),
         MiniblockNumber(2),
         Address::default(),
+        None,
     );
     {
         let submit_future = sealer_handle.submit(seal_command);
@@ -470,6 +474,7 @@ async fn miniblock_sealer_handle_blocking() {
         L1BatchNumber(2),
         MiniblockNumber(3),
         Address::default(),
+        None,
     );
     sealer_handle.submit(seal_command).await;
     let command = sealer.commands_receiver.recv().await.unwrap();
@@ -489,6 +494,7 @@ async fn miniblock_sealer_handle_parallel_processing() {
             L1BatchNumber(1),
             MiniblockNumber(i),
             Address::default(),
+            None,
         );
         sealer_handle.submit(seal_command).await;
     }
