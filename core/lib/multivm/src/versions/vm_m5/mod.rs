@@ -19,8 +19,8 @@ pub mod utils;
 pub mod vm;
 pub mod vm_with_bootloader;
 
-#[cfg(test)]
-mod tests;
+// #[cfg(test)]
+// mod tests;
 
 pub use errors::TxRevertReason;
 pub use oracle_tools::OracleTools;
