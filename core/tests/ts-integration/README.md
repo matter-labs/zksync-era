@@ -43,7 +43,7 @@ Sample test suite would look like this:
  */
 
 import { TestMaster } from '../src/index';
-import { shouldChangeETHBalances } from '../src/matchers/transaction-modifiers';
+import { shouldChangeETHBalances } from '../src/matchers/balance-checker.ts';
 
 import * as zksync from 'zksync-web3';
 import { BigNumber } from 'ethers';
