@@ -16,10 +16,13 @@ use zksync_types::{
 use zksync_utils::u256_to_h256;
 use zksync_utils::{h256_to_u256, u256_to_bytes_be};
 
-use crate::vm_latest::{constants::BOOTLOADER_HEAP_PAGE, TracerExecutionStatus};
 use crate::vm_latest::{
     old_vm::{history_recorder::HistoryMode, memory::SimpleMemory},
     types::internals::pubdata::PubdataInput,
+};
+use crate::{
+    vm_latest::StorageOracle,
+    vm_latest::{constants::BOOTLOADER_HEAP_PAGE, TracerExecutionStatus},
 };
 
 use crate::interface::types::inputs::L1BatchEnv;
@@ -116,11 +119,10 @@ impl PubdataTracer {
     // Packs part of L1Messenger total pubdata that corresponds to
     // State diffs needed to be published on L1
     fn get_state_diffs<S: WriteStorage, H: HistoryMode>(
-        state: &ZkSyncVmState<S, H>,
+        storage: &StorageOracle<S, H>,
     ) -> Vec<StateDiffRecord> {
         sort_storage_access_queries(
-            state
-                .storage
+            storage
                 .storage_log_queries_after_timestamp(Timestamp(0))
                 .iter()
                 .map(|log| &log.log_query),
@@ -134,8 +136,7 @@ impl PubdataTracer {
             address: log.address,
             key: log.key,
             derived_key: log.derive_final_address(),
-            enumeration_index: state
-                .storage
+            enumeration_index: storage
                 .storage
                 .get_ptr()
                 .borrow_mut()
@@ -158,7 +159,7 @@ impl PubdataTracer {
             user_logs: self.get_total_user_logs(state),
             l2_to_l1_messages: self.get_total_l1_messenger_messages(state),
             published_bytecodes: self.get_total_published_bytecodes(state),
-            state_diffs: Self::get_state_diffs(state),
+            state_diffs: Self::get_state_diffs(&state.storage),
         }
     }
 }
