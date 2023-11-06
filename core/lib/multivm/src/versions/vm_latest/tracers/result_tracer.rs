@@ -1,3 +1,4 @@
+use std::marker::PhantomData;
 use zk_evm_1_3_3::{
     tracing::{AfterDecodingData, BeforeExecutionData, VmLocalStateData},
     vm_state::{ErrorFlags, VmLocalState},
@@ -32,18 +33,20 @@ enum Result {
 
 /// Tracer responsible for handling the VM execution result.
 #[derive(Debug, Clone)]
-pub(crate) struct ResultTracer {
+pub(crate) struct ResultTracer<S> {
     result: Option<Result>,
     bootloader_out_of_gas: bool,
     execution_mode: VmExecutionMode,
+    _phantom: PhantomData<S>,
 }
 
-impl ResultTracer {
+impl<S> ResultTracer<S> {
     pub(crate) fn new(execution_mode: VmExecutionMode) -> Self {
         Self {
             result: None,
             bootloader_out_of_gas: false,
             execution_mode,
+            _phantom: Default::default(),
         }
     }
 }
@@ -55,7 +58,7 @@ fn current_frame_is_bootloader(local_state: &VmLocalState) -> bool {
     local_state.callstack.inner.len() == 1
 }
 
-impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for ResultTracer {
+impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for ResultTracer<S> {
     fn after_decoding(
         &mut self,
         state: VmLocalStateData<'_>,
@@ -99,7 +102,7 @@ impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for ResultTracer {
     }
 }
 
-impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for ResultTracer {
+impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for ResultTracer<S> {
     fn after_vm_execution(
         &mut self,
         state: &mut ZkSyncVmState<S, H>,
@@ -127,11 +130,8 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for ResultTracer {
     }
 }
 
-impl ResultTracer {
-    fn vm_finished_execution<S: WriteStorage, H: HistoryMode>(
-        &mut self,
-        state: &ZkSyncVmState<S, H>,
-    ) {
+impl<S: WriteStorage> ResultTracer<S> {
+    fn vm_finished_execution<H: HistoryMode>(&mut self, state: &ZkSyncVmState<S, H>) {
         let Some(result) = vm_may_have_ended_inner(state) else {
             // The VM has finished execution, but the result is not yet available.
             self.result = Some(Result::Success {
@@ -180,7 +180,7 @@ impl ResultTracer {
         }
     }
 
-    fn vm_stopped_execution<S: WriteStorage, H: HistoryMode>(
+    fn vm_stopped_execution<H: HistoryMode>(
         &mut self,
         state: &ZkSyncVmState<S, H>,
         bootloader_state: &BootloaderState,

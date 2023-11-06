@@ -9,3 +9,5 @@ pub(crate) mod result_tracer;
 pub mod dispatcher;
 pub(crate) mod traits;
 pub(crate) mod utils;
+#[macro_use]
+mod dispatcher_macros;
