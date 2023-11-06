@@ -501,7 +501,8 @@ impl EthTxAggregator {
                 self.timelock_contract_address,
                 eth_tx_predicted_gas,
             )
-            .await;
+            .await
+            .unwrap();
 
         transaction
             .blocks_dal()

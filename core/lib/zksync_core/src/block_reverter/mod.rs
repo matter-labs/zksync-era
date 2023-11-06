@@ -422,7 +422,8 @@ impl BlockReverter {
             .unwrap()
             .eth_sender_dal()
             .clear_failed_transactions()
-            .await;
+            .await
+            .unwrap();
     }
 
     pub fn change_rollback_executed_l1_batches_allowance(
