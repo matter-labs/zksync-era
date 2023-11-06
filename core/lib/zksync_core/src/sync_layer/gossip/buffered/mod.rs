@@ -161,19 +161,25 @@ impl<T: ContiguousBlockStore> Buffered<T> {
     }
 
     /// Listens to the updates in the underlying storage.
-    #[tracing::instrument(level = "trace", skip_all, err)]
-    async fn listen_to_updates(&self, ctx: &ctx::Ctx) -> StorageResult<()> {
+    #[tracing::instrument(level = "trace", skip_all)]
+    async fn listen_to_updates(&self, ctx: &ctx::Ctx) {
         let mut subscriber = self.inner_subscriber.clone();
         loop {
-            let store_block_number = *sync::changed(ctx, &mut subscriber).await?;
+            let store_block_number = {
+                let Ok(number) = sync::changed(ctx, &mut subscriber).await else {
+                    return; // Do not propagate cancellation errors
+                };
+                *number
+            };
             tracing::debug!(
                 store_block_number = store_block_number.0,
                 "Underlying block number updated"
             );
 
-            sync::lock(ctx, &self.buffer)
-                .await?
-                .set_store_block(store_block_number);
+            let Ok(mut buffer) = sync::lock(ctx, &self.buffer).await else {
+                return; // Do not propagate cancellation errors
+            };
+            buffer.set_store_block(store_block_number);
             #[cfg(test)]
             self.events_sender
                 .send(BufferedStorageEvent::UpdateReceived(store_block_number));
@@ -184,20 +190,27 @@ impl<T: ContiguousBlockStore> Buffered<T> {
     #[tracing::instrument(level = "trace", skip_all, err)]
     async fn schedule_blocks(&self, ctx: &ctx::Ctx) -> StorageResult<()> {
         let mut blocks_subscriber = self.block_writes_sender.subscribe();
-        let mut next_scheduled_block_number = sync::lock(ctx, &self.buffer)
-            .await?
-            .store_block_number
-            .next();
+
+        let mut next_scheduled_block_number = {
+            let Ok(buffer) = sync::lock(ctx, &self.buffer).await else {
+                return Ok(()); // Do not propagate cancellation errors
+            };
+            buffer.store_block_number.next()
+        };
         loop {
-            while let Some(block) = self
-                .buffered_block(ctx, next_scheduled_block_number)
-                .await?
-            {
+            loop {
+                let block = match self.buffered_block(ctx, next_scheduled_block_number).await {
+                    Err(ctx::Canceled) => return Ok(()), // Do not propagate cancellation errors
+                    Ok(None) => break,
+                    Ok(Some(block)) => block,
+                };
                 self.inner.schedule_next_block(ctx, &block).await?;
                 next_scheduled_block_number = next_scheduled_block_number.next();
             }
             // Wait until some more blocks are pushed into the buffer.
-            let number = *sync::changed(ctx, &mut blocks_subscriber).await?;
+            let Ok(number) = sync::changed(ctx, &mut blocks_subscriber).await else {
+                return Ok(()); // Do not propagate cancellation errors
+            };
             tracing::debug!(block_number = number.0, "Received new block");
         }
     }
@@ -218,7 +231,10 @@ impl<T: ContiguousBlockStore> Buffered<T> {
     /// which should be running as long at the [`Buffered`] is in use; otherwise, it will function incorrectly.
     pub async fn run_background_tasks(&self, ctx: &ctx::Ctx) -> StorageResult<()> {
         scope::run!(ctx, |ctx, s| {
-            s.spawn(self.listen_to_updates(ctx));
+            s.spawn(async {
+                self.listen_to_updates(ctx).await;
+                Ok(())
+            });
             self.schedule_blocks(ctx)
         })
         .await

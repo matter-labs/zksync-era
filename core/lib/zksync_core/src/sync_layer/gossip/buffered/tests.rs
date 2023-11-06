@@ -14,9 +14,7 @@ use zksync_concurrency::{
     time,
 };
 use zksync_consensus_roles::validator::{BlockHeader, BlockNumber, FinalBlock, Payload};
-use zksync_consensus_storage::{
-    BlockStore, InMemoryStorage, StorageError, StorageResult, WriteBlockStore,
-};
+use zksync_consensus_storage::{BlockStore, InMemoryStorage, StorageResult, WriteBlockStore};
 
 use super::*;
 
@@ -170,13 +168,7 @@ async fn test_buffered_storage(
 
     scope::run!(ctx, |ctx, s| async {
         s.spawn_bg(buffered_store.inner().run_updates(ctx, block_receiver));
-        s.spawn_bg(async {
-            let err = buffered_store.run_background_tasks(ctx).await.unwrap_err();
-            match &err {
-                StorageError::Canceled(_) => Ok(()), // Test has successfully finished
-                StorageError::Database(_) => Err(err),
-            }
-        });
+        s.spawn_bg(buffered_store.run_background_tasks(ctx));
 
         for (idx, block) in blocks.iter().enumerate() {
             buffered_store.put_block(ctx, block).await?;

@@ -91,7 +91,9 @@ impl PostgresBlockStorage {
                     false
                 }
             });
-            ctx.sleep(POLL_INTERVAL).await?;
+            if ctx.sleep(POLL_INTERVAL).await.is_err() {
+                return Ok(()); // Do not propagate cancellation errors
+            }
         }
     }
 
@@ -290,12 +292,7 @@ mod tests {
 
         let ctx = &ctx::test_root(&ctx::RealClock);
         scope::run!(&ctx.with_timeout(TEST_TIMEOUT), |ctx, s| async {
-            s.spawn_bg(async {
-                match storage.run_background_tasks(ctx).await {
-                    Ok(()) | Err(StorageError::Canceled(_)) => Ok(()),
-                    Err(err) => Err(err.into()),
-                }
-            });
+            s.spawn_bg(storage.run_background_tasks(ctx));
             s.spawn(async {
                 run_state_keeper_with_multiple_miniblocks(pool.clone()).await;
                 Ok(())
@@ -308,7 +305,7 @@ mod tests {
                     break;
                 }
             }
-            anyhow::Ok(())
+            Ok(())
         })
         .await
         .unwrap();
