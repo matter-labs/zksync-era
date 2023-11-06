@@ -352,12 +352,12 @@ impl BlocksDal<'_, '_> {
         let l2_to_l1_logs: Vec<_> = header
             .l2_to_l1_logs
             .iter()
-            .map(|log| log.to_bytes().to_vec())
+            .map(|log| log.0.to_bytes().to_vec())
             .collect();
         let system_logs = header
             .system_logs
             .iter()
-            .map(|log| log.to_bytes().to_vec())
+            .map(|log| log.0.to_bytes().to_vec())
             .collect::<Vec<Vec<u8>>>();
 
         // Serialization should always succeed.

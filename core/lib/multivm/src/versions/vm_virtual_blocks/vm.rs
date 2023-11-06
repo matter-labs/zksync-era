@@ -4,6 +4,7 @@ use crate::interface::{
 };
 use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::event::extract_l2tol1logs_from_l1_messenger;
+use zksync_types::l2_to_l1_log::UserL2ToL1Log;
 use zksync_types::Transaction;
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
@@ -88,8 +89,10 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
             .map(|e| e.into_vm_event(self.batch_env.number))
             .collect();
 
-        let user_l2_to_l1_logs = extract_l2tol1logs_from_l1_messenger(&events);
-        let system_logs = l1_messages.into_iter().map(|log| log.into()).collect();
+        let l2_to_l1_logs = l1_messages
+            .into_iter()
+            .map(|log| UserL2ToL1Log(log.into()))
+            .collect();
         let total_log_queries = self.state.event_sink.get_log_queries()
             + self
                 .state
@@ -102,11 +105,8 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
             events,
             storage_log_queries: self.state.storage.get_final_log_queries(),
             used_contract_hashes: self.get_used_contracts(),
-            user_l2_to_l1_logs: user_l2_to_l1_logs
-                .into_iter()
-                .map(|log| log.into())
-                .collect(),
-            system_logs,
+            user_l2_to_l1_logs: l2_to_l1_logs,
+            system_logs: vec![],
             total_log_queries,
             cycles_used: self.state.local_state.monotonic_cycle_counter,
             deduplicated_events_logs,

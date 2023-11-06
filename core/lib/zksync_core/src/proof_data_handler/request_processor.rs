@@ -176,8 +176,9 @@ impl RequestProcessor {
                     .header
                     .system_logs
                     .into_iter()
-                    .find(|elem| elem.key == u256_to_h256(2.into()))
+                    .find(|elem| elem.0.key == u256_to_h256(2.into()))
                     .expect("No state diff hash key")
+                    .0
                     .value;
 
                 if events_queue_state != events_queue_state_from_prover

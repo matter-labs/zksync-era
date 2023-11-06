@@ -8,7 +8,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use std::{collections::HashMap, convert::TryFrom};
+use std::{alloc::System, collections::HashMap, convert::TryFrom};
 
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_system_constants::ZKPORTER_IS_AVAILABLE;
@@ -16,7 +16,7 @@ use zksync_system_constants::ZKPORTER_IS_AVAILABLE;
 use crate::{
     block::L1BatchHeader,
     ethabi::Token,
-    l2_to_l1_log::L2ToL1Log,
+    l2_to_l1_log::{L2ToL1Log, SystemL2ToL1Log, UserL2ToL1Log},
     web3::signing::keccak256,
     writes::{
         compress_state_diffs, InitialStorageWrite, RepeatedStorageWrite, StateDiffRecord,
@@ -98,12 +98,13 @@ impl L1BatchWithMetadata {
         unsorted_factory_deps: &'a HashMap<H256, Vec<u8>>,
     ) -> impl Iterator<Item = &'a [u8]> + 'a {
         header.l2_to_l1_logs.iter().filter_map(move |log| {
-            if log.sender == KNOWN_CODES_STORAGE_ADDRESS {
-                let bytecode = unsorted_factory_deps.get(&log.key).unwrap_or_else(|| {
+            let inner = &log.0;
+            if inner.sender == KNOWN_CODES_STORAGE_ADDRESS {
+                let bytecode = unsorted_factory_deps.get(&inner.key).unwrap_or_else(|| {
                     panic!(
                         "Failed to get bytecode that was marked as known: bytecode_hash {:?}, \
                              L1 batch number {:?}",
-                        log.key, header.number
+                        inner.key, header.number
                     );
                 });
                 Some(bytecode.as_slice())
@@ -209,7 +210,7 @@ impl L1BatchWithMetadata {
         // Process and Pack Logs
         res.extend((self.header.l2_to_l1_logs.len() as u32).to_be_bytes());
         for l2_to_l1_log in &self.header.l2_to_l1_logs {
-            res.extend(l2_to_l1_log.to_bytes());
+            res.extend(l2_to_l1_log.0.to_bytes());
         }
 
         // Process and Pack Msgs
@@ -246,6 +247,22 @@ impl SerializeCommitment for L2ToL1Log {
     }
 }
 
+impl SerializeCommitment for UserL2ToL1Log {
+    const SERIALIZED_SIZE: usize = L2ToL1Log::SERIALIZED_SIZE;
+
+    fn serialize_commitment(&self, buffer: &mut [u8]) {
+        self.0.serialize_commitment(buffer);
+    }
+}
+
+impl SerializeCommitment for SystemL2ToL1Log {
+    const SERIALIZED_SIZE: usize = L2ToL1Log::SERIALIZED_SIZE;
+
+    fn serialize_commitment(&self, buffer: &mut [u8]) {
+        self.0.serialize_commitment(buffer);
+    }
+}
+
 impl SerializeCommitment for InitialStorageWrite {
     const SERIALIZED_SIZE: usize = 64;
 
@@ -277,7 +294,7 @@ impl SerializeCommitment for StateDiffRecord {
 struct L1BatchAuxiliaryOutput {
     // We use initial fields for debugging
     #[allow(dead_code)]
-    l2_l1_logs: Vec<L2ToL1Log>,
+    l2_l1_logs: Vec<UserL2ToL1Log>,
     #[allow(dead_code)]
     initial_writes: Vec<InitialStorageWrite>,
     #[allow(dead_code)]
@@ -310,10 +327,10 @@ struct L1BatchAuxiliaryOutput {
 
 impl L1BatchAuxiliaryOutput {
     fn new(
-        l2_l1_logs: Vec<L2ToL1Log>,
+        l2_l1_logs: Vec<UserL2ToL1Log>,
         initial_writes: Vec<InitialStorageWrite>,
         repeated_writes: Vec<RepeatedStorageWrite>,
-        system_logs: Vec<L2ToL1Log>,
+        system_logs: Vec<SystemL2ToL1Log>,
         state_diffs: Vec<StateDiffRecord>,
         bootloader_heap_hash: H256,
         events_state_queue_hash: H256,
@@ -333,8 +350,8 @@ impl L1BatchAuxiliaryOutput {
         let state_diffs_hash = H256::from(keccak256(&(state_diffs_packed)));
 
         let merkle_tree_leaves = l2_l1_logs_compressed
-            .chunks(L2ToL1Log::SERIALIZED_SIZE)
-            .map(|chunk| <[u8; L2ToL1Log::SERIALIZED_SIZE]>::try_from(chunk).unwrap());
+            .chunks(UserL2ToL1Log::SERIALIZED_SIZE)
+            .map(|chunk| <[u8; UserL2ToL1Log::SERIALIZED_SIZE]>::try_from(chunk).unwrap());
         // ^ Skip first 4 bytes of the serialized logs (i.e., the number of logs).
         let min_tree_size = Some(L2ToL1Log::LEGACY_LIMIT_PER_L1_BATCH);
         let l2_l1_logs_merkle_root =
@@ -451,14 +468,14 @@ pub struct L1BatchCommitmentHash {
 impl L1BatchCommitment {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        l2_to_l1_logs: Vec<L2ToL1Log>,
+        l2_to_l1_logs: Vec<UserL2ToL1Log>,
         rollup_last_leaf_index: u64,
         rollup_root_hash: H256,
         initial_writes: Vec<InitialStorageWrite>,
         repeated_writes: Vec<RepeatedStorageWrite>,
         bootloader_code_hash: H256,
         default_aa_code_hash: H256,
-        system_logs: Vec<L2ToL1Log>,
+        system_logs: Vec<SystemL2ToL1Log>,
         state_diffs: Vec<StateDiffRecord>,
         bootloader_heap_hash: H256,
         events_state_queue_hash: H256,
@@ -557,13 +574,15 @@ impl L1BatchCommitment {
 
 #[cfg(test)]
 mod tests {
+    use std::alloc::System;
+
     use serde::{Deserialize, Serialize};
     use serde_with::serde_as;
 
     use crate::commitment::{
         L1BatchAuxiliaryOutput, L1BatchCommitment, L1BatchMetaParameters, L1BatchPassThroughData,
     };
-    use crate::l2_to_l1_log::L2ToL1Log;
+    use crate::l2_to_l1_log::{L2ToL1Log, SystemL2ToL1Log, UserL2ToL1Log};
     use crate::writes::{InitialStorageWrite, RepeatedStorageWrite};
     use crate::{H256, U256};
 
@@ -636,7 +655,12 @@ mod tests {
             })
             .collect();
         let auxiliary_output = L1BatchAuxiliaryOutput::new(
-            commitment_test.auxiliary_input.l2_l1_logs.clone(),
+            commitment_test
+                .auxiliary_input
+                .l2_l1_logs
+                .into_iter()
+                .map(UserL2ToL1Log)
+                .collect(),
             initial_writes,
             commitment_test.auxiliary_input.repeated_writes.clone(),
             vec![],

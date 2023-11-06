@@ -12,6 +12,7 @@ use zksync_circuit_breaker::{
     CircuitBreakerChecker, CircuitBreakerError,
 };
 use zksync_config::configs::api::MerkleTreeApiConfig;
+use zksync_config::configs::contracts::ProverAtGenesis;
 use zksync_config::configs::{
     api::{HealthCheckConfig, Web3JsonRpcConfig},
     chain::{
