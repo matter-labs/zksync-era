@@ -3,7 +3,7 @@ use crate::vm_latest::old_vm::{
     oracles::OracleWithHistory,
 };
 use itertools::Itertools;
-use std::{cmp::Ordering, collections::HashMap};
+use std::collections::HashMap;
 use zk_evm_1_4_0::{
     abstractions::EventSink,
     aux_structures::{LogQuery, Timestamp},
@@ -76,16 +76,7 @@ impl<H: HistoryMode> InMemoryEventSink<H> {
 
         // Sort the events by timestamp and rollback flag, basically ensuring that
         // if an event has been rolled back, the original event and its rollback will be put together
-        events.sort_by(|a, b| match a.timestamp.0.cmp(&b.timestamp.0) {
-            Ordering::Equal => {
-                if b.rollback {
-                    Ordering::Less
-                } else {
-                    Ordering::Greater
-                }
-            }
-            r => r,
-        });
+        events.sort_by_key(|log| (log.timestamp, log.rollback));
 
         let mut stack = Vec::<LogQuery>::new();
         let mut net_history = vec![];
