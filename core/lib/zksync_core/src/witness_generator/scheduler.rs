@@ -4,6 +4,7 @@ use std::{collections::HashMap, slice, time::Instant};
 
 use zksync_config::configs::WitnessGeneratorConfig;
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
+use zksync_prover_dal::ProverConnectionPool;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_server_dal::ServerConnectionPool;
 use zksync_types::{
@@ -41,8 +42,8 @@ pub struct SchedulerWitnessGenerator {
     config: WitnessGeneratorConfig,
     object_store: Box<dyn ObjectStore>,
     protocol_versions: Vec<ProtocolVersionId>,
-    connection_pool: ServerConnectionPool,
-    prover_connection_pool: ServerConnectionPool,
+    server_connection_pool: ServerConnectionPool,
+    prover_connection_pool: ProverConnectionPool,
 }
 
 impl SchedulerWitnessGenerator {
@@ -51,13 +52,13 @@ impl SchedulerWitnessGenerator {
         store_factory: &ObjectStoreFactory,
         protocol_versions: Vec<ProtocolVersionId>,
         connection_pool: ServerConnectionPool,
-        prover_connection_pool: ServerConnectionPool,
+        prover_connection_pool: ProverConnectionPool,
     ) -> Self {
         Self {
             config,
             object_store: store_factory.create_store().await,
             protocol_versions,
-            connection_pool,
+            server_connection_pool: connection_pool,
             prover_connection_pool,
         }
     }
@@ -86,7 +87,7 @@ impl JobProcessor for SchedulerWitnessGenerator {
     const SERVICE_NAME: &'static str = "scheduler_witness_generator";
 
     async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, Self::Job)>> {
-        let mut connection = self.connection_pool.access_storage().await.unwrap();
+        let mut connection = self.server_connection_pool.access_storage().await.unwrap();
         let mut prover_connection = self.prover_connection_pool.access_storage().await.unwrap();
         let last_l1_batch_to_process = self.config.last_l1_batch_to_process();
 
@@ -140,7 +141,7 @@ impl JobProcessor for SchedulerWitnessGenerator {
             .await;
 
         if attempts >= self.config.max_attempts {
-            self.connection_pool
+            self.server_connection_pool
                 .access_storage()
                 .await
                 .unwrap()
@@ -169,7 +170,7 @@ impl JobProcessor for SchedulerWitnessGenerator {
         let circuit_types_and_urls =
             save_artifacts(job_id, &artifacts.scheduler_circuit, &*self.object_store).await;
         update_database(
-            &self.connection_pool,
+            &self.server_connection_pool,
             &self.prover_connection_pool,
             started_at,
             job_id,
@@ -254,7 +255,7 @@ pub fn process_scheduler_job(
 
 pub async fn update_database(
     connection_pool: &ServerConnectionPool,
-    prover_connection_pool: &ServerConnectionPool,
+    prover_connection_pool: &ProverConnectionPool,
     started_at: Instant,
     block_number: L1BatchNumber,
     final_aggregation_result: BlockApplicationWitness<Bn256>,

@@ -1,16 +1,16 @@
 use async_trait::async_trait;
-use zksync_server_dal::ServerConnectionPool;
+use zksync_prover_dal::ProverConnectionPool;
 
 use zksync_prover_utils::periodic_job::PeriodicJob;
 
 #[derive(Debug)]
 pub struct SchedulerCircuitQueuer {
     queuing_interval_ms: u64,
-    pool: ServerConnectionPool,
+    pool: ProverConnectionPool,
 }
 
 impl SchedulerCircuitQueuer {
-    pub fn new(queuing_interval_ms: u64, pool: ServerConnectionPool) -> Self {
+    pub fn new(queuing_interval_ms: u64, pool: ProverConnectionPool) -> Self {
         Self {
             queuing_interval_ms,
             pool,

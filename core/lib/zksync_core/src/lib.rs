@@ -32,6 +32,7 @@ use zksync_eth_client::clients::http::QueryClient;
 use zksync_eth_client::{clients::http::PKSigningClient, BoundEthInterface};
 use zksync_health_check::{CheckHealth, HealthStatus, ReactiveHealthCheck};
 use zksync_object_store::ObjectStoreFactory;
+use zksync_prover_dal::{connection, ProverConnectionPool};
 use zksync_prover_utils::periodic_job::PeriodicJob;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_server_dal::{
@@ -305,7 +306,7 @@ pub async fn initialize_components(
         .build()
         .await
         .context("failed to build connection_pool")?;
-    let prover_connection_pool = ServerConnectionPool::builder(DbVariant::Prover)
+    let prover_connection_pool = ProverConnectionPool::builder(connection::DbVariant::Real)
         .build()
         .await
         .context("failed to build prover_connection_pool")?;
@@ -541,7 +542,7 @@ pub async fn initialize_components(
             .build()
             .await
             .context("failed to build eth_sender_pool")?;
-        let eth_sender_prover_pool = ServerConnectionPool::singleton(DbVariant::Prover)
+        let eth_sender_prover_pool = ProverConnectionPool::singleton(connection::DbVariant::Real)
             .build()
             .await
             .context("failed to build eth_sender_prover_pool")?;
@@ -838,15 +839,17 @@ async fn run_tree(
 
     let tree_health_check = metadata_calculator.tree_health_check();
     healthchecks.push(Box::new(tree_health_check));
-    let pool = ServerConnectionPool::singleton(DbVariant::Master)
+
+    let server_pool = ServerConnectionPool::singleton(DbVariant::Master)
         .build()
         .await
         .context("failed to build connection pool")?;
-    let prover_pool = ServerConnectionPool::singleton(DbVariant::Prover)
+    let prover_pool = ProverConnectionPool::singleton(connection::DbVariant::Real)
         .build()
         .await
         .context("failed to build prover_pool")?;
-    let tree_task = tokio::spawn(metadata_calculator.run(pool, prover_pool, stop_receiver));
+
+    let tree_task = tokio::spawn(metadata_calculator.run(server_pool, prover_pool, stop_receiver));
     task_futures.push(tree_task);
 
     let elapsed = started_at.elapsed();
@@ -885,7 +888,7 @@ async fn add_witness_generator_to_task_futures(
     task_futures: &mut Vec<JoinHandle<anyhow::Result<()>>>,
     components: &[Component],
     connection_pool: &ServerConnectionPool,
-    prover_connection_pool: &ServerConnectionPool,
+    prover_connection_pool: &ProverConnectionPool,
     store_factory: &ObjectStoreFactory,
     stop_receiver: &watch::Receiver<bool>,
 ) -> anyhow::Result<()> {
@@ -913,7 +916,7 @@ async fn add_witness_generator_to_task_futures(
             .access_storage()
             .await
             .unwrap()
-            .protocol_versions_dal()
+            .prover_protocol_versions_dal()
             .protocol_version_for(&vk_commitments)
             .await;
         let config =
@@ -979,20 +982,20 @@ async fn add_house_keeper_to_task_futures(
 ) -> anyhow::Result<()> {
     let house_keeper_config =
         HouseKeeperConfig::from_env().context("HouseKeeperConfig::from_env()")?;
-    let connection_pool = ServerConnectionPool::singleton(DbVariant::Replica)
+    let server_connection_pool = ServerConnectionPool::singleton(DbVariant::Replica)
         .build()
         .await
-        .context("failed to build a connection pool")?;
+        .context("failed to build a server connection pool")?;
     let l1_batch_metrics_reporter = L1BatchMetricsReporter::new(
         house_keeper_config.l1_batch_metrics_reporting_interval_ms,
-        connection_pool,
+        server_connection_pool.clone(),
     );
 
-    let prover_connection_pool = ServerConnectionPool::builder(DbVariant::Prover)
+    let prover_connection_pool = ProverConnectionPool::builder(connection::DbVariant::Real)
         .set_max_size(Some(house_keeper_config.prover_db_pool_size))
         .build()
         .await
-        .context("failed to build a prover_connection_pool")?;
+        .context("failed to build a prover connection pool")?;
     let gpu_prover_queue = GpuProverQueueMonitor::new(
         ProverGroupConfig::from_env()
             .context("ProverGroupConfig::from_env()")?
@@ -1024,6 +1027,7 @@ async fn add_house_keeper_to_task_futures(
     let gcs_blob_cleaner = GcsBlobCleaner::new(
         store_factory,
         prover_connection_pool.clone(),
+        server_connection_pool,
         house_keeper_config.blob_cleaning_interval_ms,
     )
     .await;

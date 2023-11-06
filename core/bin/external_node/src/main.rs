@@ -184,11 +184,6 @@ async fn init_tasks(
         .build()
         .await
         .context("failed to build a tree_pool")?;
-    // todo: PLA-335
-    let prover_tree_pool = ServerConnectionPool::singleton(DbVariant::Prover)
-        .build()
-        .await
-        .context("failed to build a prover_tree_pool")?;
     let tree_handle =
         task::spawn(metadata_calculator.run(tree_pool, prover_tree_pool, tree_stop_receiver));
 

@@ -1,8 +1,9 @@
 use async_trait::async_trait;
 use zksync_object_store::{Bucket, ObjectStore, ObjectStoreError, ObjectStoreFactory};
-use zksync_server_dal::ServerConnectionPool;
+use zksync_prover_dal::ProverConnectionPool;
 
 use zksync_prover_utils::periodic_job::PeriodicJob;
+use zksync_server_dal::ServerConnectionPool;
 
 trait AsBlobUrls {
     fn as_blob_urls(&self) -> (&str, Option<&str>);
@@ -24,7 +25,8 @@ impl AsBlobUrls for (String, String) {
 pub struct GcsBlobCleaner {
     object_store: Box<dyn ObjectStore>,
     cleaning_interval_ms: u64,
-    pool: ServerConnectionPool,
+    prover_pool: ProverConnectionPool,
+    server_pool: ServerConnectionPool,
 }
 
 const BATCH_CLEANUP_SIZE: u8 = 5;
@@ -44,13 +46,15 @@ fn handle_remove_result(result: Result<(), ObjectStoreError>) {
 impl GcsBlobCleaner {
     pub async fn new(
         store_factory: &ObjectStoreFactory,
-        pool: ServerConnectionPool,
+        prover_pool: ProverConnectionPool,
+        server_pool: ServerConnectionPool,
         cleaning_interval_ms: u64,
     ) -> Self {
         Self {
             object_store: store_factory.create_store().await,
             cleaning_interval_ms,
-            pool,
+            prover_pool,
+            server_pool,
         }
     }
 
@@ -63,7 +67,7 @@ impl GcsBlobCleaner {
     }
 
     async fn cleanup_prover_jobs_blobs(&self) {
-        let mut conn = self.pool.access_storage().await.unwrap();
+        let mut conn = self.prover_pool.access_storage().await.unwrap();
         let blob_urls = conn
             .prover_dal()
             .get_circuit_input_blob_urls_to_be_cleaned(BATCH_CLEANUP_SIZE)
@@ -92,7 +96,7 @@ impl GcsBlobCleaner {
     }
 
     async fn cleanup_witness_inputs_blobs(&self) {
-        let mut conn = self.pool.access_storage().await.unwrap();
+        let mut conn = self.server_pool.access_storage().await.unwrap();
         let blob_urls = conn
             .blocks_dal()
             .get_merkle_tree_paths_blob_urls_to_be_cleaned(BATCH_CLEANUP_SIZE)
@@ -108,7 +112,7 @@ impl GcsBlobCleaner {
     }
 
     async fn cleanup_leaf_aggregation_witness_jobs_blobs(&self) {
-        let mut conn = self.pool.access_storage().await.unwrap();
+        let mut conn = self.prover_pool.access_storage().await.unwrap();
 
         let blob_urls = conn
             .witness_generator_dal()
@@ -123,7 +127,7 @@ impl GcsBlobCleaner {
     }
 
     async fn cleanup_node_aggregation_witness_jobs_blobs(&self) {
-        let mut conn = self.pool.access_storage().await.unwrap();
+        let mut conn = self.prover_pool.access_storage().await.unwrap();
         let blob_urls = conn
             .witness_generator_dal()
             .get_leaf_layer_subqueues_and_aggregation_outputs_blob_urls_to_be_cleaned(
@@ -139,7 +143,7 @@ impl GcsBlobCleaner {
     }
 
     async fn cleanup_scheduler_witness_jobs_blobs(&self) {
-        let mut conn = self.pool.access_storage().await.unwrap();
+        let mut conn = self.prover_pool.access_storage().await.unwrap();
         let blob_urls = conn
             .witness_generator_dal()
             .get_scheduler_witness_and_node_aggregations_blob_urls_to_be_cleaned(BATCH_CLEANUP_SIZE)

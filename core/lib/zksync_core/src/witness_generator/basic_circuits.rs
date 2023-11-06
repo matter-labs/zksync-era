@@ -281,7 +281,7 @@ pub async fn process_basic_circuits_job(
 }
 
 async fn update_database(
-    prover_connection_pool: &ServerConnectionPool,
+    prover_connection_pool: &ProverConnectionPool,
     started_at: Instant,
     block_number: L1BatchNumber,
     blob_urls: BlobUrls,

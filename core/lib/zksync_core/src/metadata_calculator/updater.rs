@@ -3,6 +3,7 @@
 use anyhow::Context as _;
 use futures::{future, FutureExt};
 use tokio::sync::watch;
+use zksync_prover_dal::{ProverConnectionPool, ProverStorageProcessor};
 
 use std::{ops, time::Instant};
 
@@ -104,7 +105,7 @@ impl TreeUpdater {
     async fn process_multiple_batches(
         &mut self,
         storage: &mut ServerStorageProcessor<'_>,
-        prover_storage: &mut ServerStorageProcessor<'_>,
+        prover_storage: &mut ProverStorageProcessor<'_>,
         l1_batch_numbers: ops::RangeInclusive<u32>,
     ) -> L1BatchNumber {
         let start = Instant::now();
@@ -183,7 +184,7 @@ impl TreeUpdater {
                     .unwrap();
                 if let Some(id) = protocol_version_id {
                     if !prover_storage
-                        .protocol_versions_dal()
+                        .prover_protocol_versions_dal()
                         .prover_protocol_version_exists(id)
                         .await
                     {
@@ -193,7 +194,7 @@ impl TreeUpdater {
                             .await
                             .unwrap();
                         prover_storage
-                            .protocol_versions_dal()
+                            .prover_protocol_versions_dal()
                             .save_prover_protocol_version(protocol_version)
                             .await;
                     }
@@ -268,7 +269,7 @@ impl TreeUpdater {
     async fn step(
         &mut self,
         mut storage: ServerStorageProcessor<'_>,
-        mut prover_storage: ServerStorageProcessor<'_>,
+        mut prover_storage: ProverStorageProcessor<'_>,
         next_l1_batch_to_seal: &mut L1BatchNumber,
     ) {
         let last_sealed_l1_batch = storage
@@ -297,7 +298,7 @@ impl TreeUpdater {
         mut self,
         delayer: Delayer,
         pool: &ServerConnectionPool,
-        prover_pool: &ServerConnectionPool,
+        prover_pool: &ProverConnectionPool,
         mut stop_receiver: watch::Receiver<bool>,
         health_updater: HealthUpdater,
     ) -> anyhow::Result<()> {
