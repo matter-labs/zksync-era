@@ -18,15 +18,52 @@ use zksync_types::{Address, MiniblockNumber};
 use super::{buffered::ContiguousBlockStore, conversions::sync_block_to_consensus_block};
 use crate::sync_layer::{
     fetcher::{FetchedBlock, FetcherCursor},
-    sync_action::ActionQueueSender,
+    sync_action::{ActionQueueSender, SyncAction},
 };
+
+#[derive(Debug)]
+struct CursorWithCachedBlock {
+    inner: FetcherCursor,
+    maybe_last_block_in_batch: Option<FetchedBlock>,
+}
+
+impl From<FetcherCursor> for CursorWithCachedBlock {
+    fn from(inner: FetcherCursor) -> Self {
+        Self {
+            inner,
+            maybe_last_block_in_batch: None,
+        }
+    }
+}
+
+impl CursorWithCachedBlock {
+    fn advance(&mut self, block: FetchedBlock) -> Vec<Vec<SyncAction>> {
+        let mut actions = Vec::with_capacity(2);
+        if let Some(mut prev_block) = self.maybe_last_block_in_batch.take() {
+            prev_block.last_in_batch = prev_block.l1_batch_number != block.l1_batch_number;
+            actions.push(self.inner.advance(prev_block));
+        }
+
+        // We take advantage of the fact that the last block in a batch is a *fictive* block that
+        // does not contain transactions. Thus, any block with transactions cannot be last in an L1 batch.
+        let can_be_last_in_batch = block.transactions.is_empty();
+        if can_be_last_in_batch {
+            self.maybe_last_block_in_batch = Some(block);
+            // We cannot convert the block into actions yet, since we don't know whether it seals an L1 batch.
+        } else {
+            actions.push(self.inner.advance(block));
+        }
+        dbg!(&self.inner);
+        dbg!(actions)
+    }
+}
 
 #[derive(Debug)]
 pub(super) struct PostgresBlockStorage {
     pool: ConnectionPool,
     actions: ActionQueueSender,
     block_sender: watch::Sender<BlockNumber>,
-    cursor: Mutex<FetcherCursor>,
+    cursor: Mutex<CursorWithCachedBlock>,
 }
 
 impl PostgresBlockStorage {
@@ -36,7 +73,7 @@ impl PostgresBlockStorage {
             pool,
             actions,
             block_sender: watch::channel(BlockNumber(current_block_number)).0,
-            cursor: Mutex::new(cursor),
+            cursor: Mutex::new(cursor.into()),
         }
     }
 
@@ -111,16 +148,6 @@ impl PostgresBlockStorage {
             .context("Failed getting sealed miniblock number")?;
         Ok(BlockNumber(number.0.into()))
     }
-
-    async fn schedule_block(&self, ctx: &ctx::Ctx, block: &FinalBlock) -> StorageResult<()> {
-        let fetched_block =
-            FetchedBlock::from_gossip_block(block).map_err(StorageError::Database)?;
-        let actions = sync::lock(ctx, &self.cursor).await?.advance(fetched_block);
-        tokio::select! {
-            () = ctx.canceled() => Err(ctx::Canceled.into()),
-            () = self.actions.push_actions(actions) => Ok(()),
-        }
-    }
 }
 
 #[async_trait]
@@ -178,7 +205,18 @@ impl BlockStore for PostgresBlockStorage {
 #[async_trait]
 impl ContiguousBlockStore for PostgresBlockStorage {
     async fn schedule_next_block(&self, ctx: &ctx::Ctx, block: &FinalBlock) -> StorageResult<()> {
-        self.schedule_block(ctx, block).await
+        let fetched_block =
+            FetchedBlock::from_gossip_block(block).map_err(StorageError::Database)?;
+        let actions = sync::lock(ctx, &self.cursor).await?.advance(fetched_block);
+        let push_all_actions = async {
+            for actions_chunk in actions {
+                self.actions.push_actions(actions_chunk).await;
+            }
+        };
+        tokio::select! {
+            () = ctx.canceled() => Err(ctx::Canceled.into()),
+            () = push_all_actions => Ok(()),
+        }
     }
 }
 
@@ -302,10 +340,16 @@ mod tests {
         let storage = PostgresBlockStorage::new(pool.clone(), actions_sender, cursor);
         let ctx = &ctx::test_root(&ctx::RealClock);
         let ctx = &ctx.with_timeout(TEST_TIMEOUT);
-        storage.schedule_block(ctx, &first_block).await.unwrap();
+        storage
+            .schedule_next_block(ctx, &first_block)
+            .await
+            .unwrap();
         assert_first_block_actions(&mut actions).await;
 
-        storage.schedule_block(ctx, &second_block).await.unwrap();
+        storage
+            .schedule_next_block(ctx, &second_block)
+            .await
+            .unwrap();
         assert_second_block_actions(&mut actions).await;
     }
 }

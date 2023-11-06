@@ -62,6 +62,8 @@ pub(super) fn sync_block_to_consensus_block(mut block: SyncBlock) -> anyhow::Res
 }
 
 impl FetchedBlock {
+    /// **Important.** `last_in_batch` is always set to `false` by this method; it must be properly
+    /// set by the outside logic (currently implemented by `CursorWithCachedBlock`).
     pub(super) fn from_gossip_block(block: &FinalBlock) -> anyhow::Result<Self> {
         let number = u32::try_from(block.header.number.0)
             .context("Integer overflow converting block number")?;
@@ -71,6 +73,7 @@ impl FetchedBlock {
         Ok(Self {
             number: MiniblockNumber(number),
             l1_batch_number: payload.l1_batch_number,
+            last_in_batch: false,
             protocol_version: ProtocolVersionId::latest(), // FIXME
             timestamp: payload.timestamp,
             hash: payload.hash,

@@ -45,7 +45,7 @@ pub(super) trait ContiguousBlockStore: BlockStore {
 #[derive(Debug)]
 struct BlockBuffer {
     store_block_number: BlockNumber,
-    is_block_scheduled: bool,
+    is_block_scheduled: bool, // FIXME: remove in favor of "last / next scheduled block"
     blocks: BTreeMap<BlockNumber, FinalBlock>,
 }
 

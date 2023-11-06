@@ -26,6 +26,7 @@ const RETRY_DELAY_INTERVAL: Duration = Duration::from_secs(5);
 pub(super) struct FetchedBlock {
     pub number: MiniblockNumber,
     pub l1_batch_number: L1BatchNumber,
+    pub last_in_batch: bool,
     pub protocol_version: ProtocolVersionId,
     pub timestamp: u64,
     pub hash: H256,
@@ -42,6 +43,7 @@ impl FetchedBlock {
         Self {
             number: block.number,
             l1_batch_number: block.l1_batch_number,
+            last_in_batch: block.last_in_batch,
             protocol_version: block.protocol_version,
             timestamp: block.timestamp,
             hash: block.hash.unwrap_or_default(),
@@ -150,16 +152,13 @@ impl FetcherCursor {
             FETCHER_METRICS.miniblock.set(block.number.0.into());
         }
 
-        // This detection is somewhat shaky. For now, the only empty miniblocks are fictive ones (i.e.,
-        // the last miniblock in an L1 batch); all other miniblocks must contain at least 1 transaction.
-        let last_in_batch = block.transactions.is_empty();
         APP_METRICS.processed_txs[&TxStage::added_to_mempool()]
             .inc_by(block.transactions.len() as u64);
         new_actions.extend(block.transactions.into_iter().map(SyncAction::from));
 
         // Last miniblock of the batch is a "fictive" miniblock and would be replicated locally.
         // We don't need to seal it explicitly, so we only put the seal miniblock command if it's not the last miniblock.
-        if last_in_batch {
+        if block.last_in_batch {
             new_actions.push(SyncAction::SealBatch {
                 // `block.virtual_blocks` can be `None` only for old VM versions where it's not used, so it's fine to provide any number.
                 virtual_blocks: block.virtual_blocks,
