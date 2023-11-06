@@ -79,7 +79,8 @@ impl DebugNamespace {
         let call_trace = connection
             .blocks_web3_dal()
             .get_trace_for_miniblock(block_number)
-            .await;
+            .await
+            .unwrap();
         let call_trace = call_trace
             .into_iter()
             .map(|call_trace| {
