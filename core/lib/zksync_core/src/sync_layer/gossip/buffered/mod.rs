@@ -7,7 +7,7 @@ use std::{collections::BTreeMap, ops, time::Instant};
 #[cfg(test)]
 use zksync_concurrency::ctx::channel;
 use zksync_concurrency::{
-    ctx,
+    ctx, scope,
     sync::{self, watch, Mutex},
 };
 use zksync_consensus_roles::validator::{BlockNumber, FinalBlock};
@@ -45,7 +45,6 @@ pub(super) trait ContiguousBlockStore: BlockStore {
 #[derive(Debug)]
 struct BlockBuffer {
     store_block_number: BlockNumber,
-    is_block_scheduled: bool, // FIXME: remove in favor of "last / next scheduled block"
     blocks: BTreeMap<BlockNumber, FinalBlock>,
 }
 
@@ -53,7 +52,6 @@ impl BlockBuffer {
     fn new(store_block_number: BlockNumber) -> Self {
         Self {
             store_block_number,
-            is_block_scheduled: false,
             blocks: BTreeMap::new(),
         }
     }
@@ -64,18 +62,12 @@ impl BlockBuffer {
 
     #[tracing::instrument(level = "trace", skip(self))]
     fn set_store_block(&mut self, store_block_number: BlockNumber) {
-        assert_eq!(
-            store_block_number,
-            self.store_block_number.next(),
-            "`ContiguousBlockStore` invariant broken: unexpected new head block number"
-        );
         assert!(
-            self.is_block_scheduled,
-            "`ContiguousBlockStore` invariant broken: unexpected update"
+            store_block_number > self.store_block_number,
+            "`ContiguousBlockStore` invariant broken: unexpected new head block number"
         );
 
         self.store_block_number = store_block_number;
-        self.is_block_scheduled = false;
         let old_len = self.blocks.len();
         self.blocks = self.blocks.split_off(&store_block_number.next());
         // ^ Removes all entries up to and including `store_block_number`
@@ -113,16 +105,6 @@ impl BlockBuffer {
         self.blocks.insert(block_number, block);
         tracing::debug!(%block_number, "Inserted block in buffer");
         METRICS.buffer_size.set(self.blocks.len());
-    }
-
-    fn next_block_for_store(&mut self) -> Option<FinalBlock> {
-        if self.is_block_scheduled {
-            None
-        } else {
-            let next_block = self.blocks.get(&self.store_block_number.next()).cloned();
-            self.is_block_scheduled = next_block.is_some();
-            next_block
-        }
     }
 }
 
@@ -178,11 +160,9 @@ impl<T: ContiguousBlockStore> Buffered<T> {
         self.buffer.lock().await.blocks.len()
     }
 
-    /// Listens to the updates in the underlying storage. This method must be spawned as a background task
-    /// which should be running as long at the [`Buffered`] is in use. Otherwise,
-    /// `BufferedStorage` will function incorrectly.
+    /// Listens to the updates in the underlying storage.
     #[tracing::instrument(level = "trace", skip_all, err)]
-    pub async fn listen_to_updates(&self, ctx: &ctx::Ctx) -> StorageResult<()> {
+    async fn listen_to_updates(&self, ctx: &ctx::Ctx) -> StorageResult<()> {
         let mut subscriber = self.inner_subscriber.clone();
         loop {
             let store_block_number = *sync::changed(ctx, &mut subscriber).await?;
@@ -191,24 +171,57 @@ impl<T: ContiguousBlockStore> Buffered<T> {
                 "Underlying block number updated"
             );
 
-            let next_block_for_store = {
-                let mut buffer = sync::lock(ctx, &self.buffer).await?;
-                buffer.set_store_block(store_block_number);
-                buffer.next_block_for_store()
-            };
-            if let Some(block) = next_block_for_store {
-                self.inner.schedule_next_block(ctx, &block).await?;
-                let block_number = block.header.number;
-                tracing::debug!(
-                    block_number = block_number.0,
-                    "Block scheduled in underlying storage"
-                );
-            }
-
+            sync::lock(ctx, &self.buffer)
+                .await?
+                .set_store_block(store_block_number);
             #[cfg(test)]
             self.events_sender
                 .send(BufferedStorageEvent::UpdateReceived(store_block_number));
         }
+    }
+
+    /// Schedules blocks in the underlying store as they are pushed to this store.
+    #[tracing::instrument(level = "trace", skip_all, err)]
+    async fn schedule_blocks(&self, ctx: &ctx::Ctx) -> StorageResult<()> {
+        let mut blocks_subscriber = self.block_writes_sender.subscribe();
+        let mut next_scheduled_block_number = sync::lock(ctx, &self.buffer)
+            .await?
+            .store_block_number
+            .next();
+        loop {
+            while let Some(block) = self
+                .buffered_block(ctx, next_scheduled_block_number)
+                .await?
+            {
+                self.inner.schedule_next_block(ctx, &block).await?;
+                next_scheduled_block_number = next_scheduled_block_number.next();
+            }
+            // Wait until some more blocks are pushed into the buffer.
+            let number = *sync::changed(ctx, &mut blocks_subscriber).await?;
+            tracing::debug!(block_number = number.0, "Received new block");
+        }
+    }
+
+    async fn buffered_block(
+        &self,
+        ctx: &ctx::Ctx,
+        number: BlockNumber,
+    ) -> ctx::OrCanceled<Option<FinalBlock>> {
+        Ok(sync::lock(ctx, &self.buffer)
+            .await?
+            .blocks
+            .get(&number)
+            .cloned())
+    }
+
+    /// Schedules background tasks for this store. This method **must** be spawned as a background task
+    /// which should be running as long at the [`Buffered`] is in use; otherwise, it will function incorrectly.
+    pub async fn run_background_tasks(&self, ctx: &ctx::Ctx) -> StorageResult<()> {
+        scope::run!(ctx, |ctx, s| {
+            s.spawn(self.listen_to_updates(ctx));
+            self.schedule_blocks(ctx)
+        })
+        .await
     }
 }
 
@@ -273,7 +286,7 @@ impl<T: ContiguousBlockStore> BlockStore for Buffered<T> {
 impl<T: ContiguousBlockStore> WriteBlockStore for Buffered<T> {
     async fn put_block(&self, ctx: &ctx::Ctx, block: &FinalBlock) -> StorageResult<()> {
         let buffer_block_latency = METRICS.buffer_block_latency.start();
-        let next_block_for_store = {
+        {
             let mut buffer = sync::lock(ctx, &self.buffer).await?;
             let block_number = block.header.number;
             if block_number <= buffer.store_block_number {
@@ -283,15 +296,6 @@ impl<T: ContiguousBlockStore> WriteBlockStore for Buffered<T> {
                 return Err(StorageError::Database(err));
             }
             buffer.put_block(block.clone());
-            buffer.next_block_for_store()
-        };
-
-        if let Some(block) = next_block_for_store {
-            self.inner.schedule_next_block(ctx, &block).await?;
-            tracing::debug!(
-                block_number = block.header.number.0,
-                "Block scheduled in underlying storage"
-            );
         }
         self.block_writes_sender.send_replace(block.header.number);
         buffer_block_latency.observe();

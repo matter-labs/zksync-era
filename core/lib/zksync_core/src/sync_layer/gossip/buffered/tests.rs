@@ -51,12 +51,12 @@ fn gen_blocks(rng: &mut impl Rng, genesis_block: FinalBlock, count: usize) -> Ve
 #[derive(Debug)]
 struct MockContiguousStore {
     inner: InMemoryStorage,
-    block_sender: channel::Sender<FinalBlock>,
+    block_sender: channel::UnboundedSender<FinalBlock>,
 }
 
 impl MockContiguousStore {
-    fn new(inner: InMemoryStorage) -> (Self, channel::Receiver<FinalBlock>) {
-        let (block_sender, block_receiver) = channel::bounded(1);
+    fn new(inner: InMemoryStorage) -> (Self, channel::UnboundedReceiver<FinalBlock>) {
+        let (block_sender, block_receiver) = channel::unbounded();
         let this = Self {
             inner,
             block_sender,
@@ -67,10 +67,13 @@ impl MockContiguousStore {
     async fn run_updates(
         &self,
         ctx: &ctx::Ctx,
-        mut block_receiver: channel::Receiver<FinalBlock>,
+        mut block_receiver: channel::UnboundedReceiver<FinalBlock>,
     ) -> StorageResult<()> {
         let rng = &mut ctx.rng();
         while let Ok(block) = block_receiver.recv(ctx).await {
+            let head_block_number = self.head_block(ctx).await?.header.number;
+            assert_eq!(block.header.number, head_block_number.next());
+
             let sleep_duration = time::Duration::milliseconds(rng.gen_range(0..5));
             ctx.sleep(sleep_duration).await?;
             self.inner.put_block(ctx, &block).await?;
@@ -116,12 +119,9 @@ impl BlockStore for MockContiguousStore {
 
 #[async_trait]
 impl ContiguousBlockStore for MockContiguousStore {
-    async fn schedule_next_block(&self, ctx: &ctx::Ctx, block: &FinalBlock) -> StorageResult<()> {
-        let head_block_number = self.head_block(ctx).await?.header.number;
-        assert_eq!(block.header.number, head_block_number.next());
-        self.block_sender
-            .try_send(block.clone())
-            .expect("BufferedStorage is rushing");
+    async fn schedule_next_block(&self, _ctx: &ctx::Ctx, block: &FinalBlock) -> StorageResult<()> {
+        tracing::trace!(block_number = block.header.number.0, "Scheduled next block");
+        self.block_sender.send(block.clone());
         Ok(())
     }
 }
@@ -171,7 +171,7 @@ async fn test_buffered_storage(
     scope::run!(ctx, |ctx, s| async {
         s.spawn_bg(buffered_store.inner().run_updates(ctx, block_receiver));
         s.spawn_bg(async {
-            let err = buffered_store.listen_to_updates(ctx).await.unwrap_err();
+            let err = buffered_store.run_background_tasks(ctx).await.unwrap_err();
             match &err {
                 StorageError::Canceled(_) => Ok(()), // Test has successfully finished
                 StorageError::Database(_) => Err(err),

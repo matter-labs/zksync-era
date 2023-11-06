@@ -82,15 +82,15 @@ async fn start_gossip_fetcher_inner(
     scope::run!(ctx, |ctx, s| async {
         s.spawn_bg(async {
             store
-                .listen_to_updates(ctx)
+                .run_background_tasks(ctx)
                 .await
-                .context("`PostgresBlockStorage` listener failed")
+                .context("`PostgresBlockStorage` background tasks failed")
         });
         s.spawn_bg(async {
             buffered
-                .listen_to_updates(ctx)
+                .run_background_tasks(ctx)
                 .await
-                .context("`Buffered` storage listener failed")
+                .context("`Buffered` storage background tasks failed")
         });
 
         executor.run(ctx).await.context("Node executor terminated")

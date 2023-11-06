@@ -53,8 +53,7 @@ impl CursorWithCachedBlock {
         } else {
             actions.push(self.inner.advance(block));
         }
-        dbg!(&self.inner);
-        dbg!(actions)
+        actions
     }
 }
 
@@ -77,7 +76,7 @@ impl PostgresBlockStorage {
         }
     }
 
-    pub async fn listen_to_updates(&self, ctx: &ctx::Ctx) -> StorageResult<()> {
+    pub async fn run_background_tasks(&self, ctx: &ctx::Ctx) -> StorageResult<()> {
         const POLL_INTERVAL: time::Duration = time::Duration::milliseconds(50);
         loop {
             let sealed_miniblock_number = self
@@ -292,7 +291,7 @@ mod tests {
         let ctx = &ctx::test_root(&ctx::RealClock);
         scope::run!(&ctx.with_timeout(TEST_TIMEOUT), |ctx, s| async {
             s.spawn_bg(async {
-                match storage.listen_to_updates(ctx).await {
+                match storage.run_background_tasks(ctx).await {
                     Ok(()) | Err(StorageError::Canceled(_)) => Ok(()),
                     Err(err) => Err(err.into()),
                 }
