@@ -20,7 +20,8 @@ pub struct CurrentExecutionState {
     pub total_log_queries: usize,
     /// Number of cycles used by the VM.
     pub cycles_used: u32,
-    /// Sorted & deduplicated events logs for batch
+    /// Sorted & deduplicated events logs for batch. Note, that this is a more "low-level" representation of
+    /// the `events` field of this struct TODO(PLA-649): refactor to remove duplication of data.
     pub deduplicated_events_logs: Vec<LogQuery>,
     /// Refunds returned by `StorageOracle`.
     pub storage_refunds: Vec<u32>,
