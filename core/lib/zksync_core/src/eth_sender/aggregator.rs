@@ -176,7 +176,7 @@ impl Aggregator {
 
         let ready_for_commit_l1_batches = if protocol_version_id.is_pre_boojum() {
             blocks_dal
-                .legacy_get_ready_for_commit_l1_batches(
+                .pre_boojum_get_ready_for_commit_l1_batches(
                     limit,
                     base_system_contracts_hashes.bootloader,
                     base_system_contracts_hashes.default_aa,

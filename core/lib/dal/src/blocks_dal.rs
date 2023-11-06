@@ -994,7 +994,7 @@ impl BlocksDal<'_, '_> {
         })
     }
 
-    pub async fn legacy_get_ready_for_commit_l1_batches(
+    pub async fn pre_boojum_get_ready_for_commit_l1_batches(
         &mut self,
         limit: usize,
         bootloader_hash: H256,
