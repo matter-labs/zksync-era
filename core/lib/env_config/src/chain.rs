@@ -8,7 +8,6 @@ use zksync_config::configs::chain::{
 impl FromEnv for ChainConfig {
     fn from_env() -> anyhow::Result<Self> {
         Ok(Self {
-            // TODO rename `eth` to `network`
             network: NetworkConfig::from_env().context("NetworkConfig")?,
             state_keeper: StateKeeperConfig::from_env().context("StateKeeperConfig")?,
             operations_manager: OperationsManagerConfig::from_env()
