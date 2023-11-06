@@ -1,6 +1,4 @@
 use std::convert::TryFrom;
-
-use zksync_contracts::zksync_contract;
 use zksync_dal::StorageProcessor;
 use zksync_types::{web3::types::Log, ProtocolUpgrade, ProtocolVersionId, H256};
 
@@ -10,21 +8,21 @@ use crate::eth_watch::{
     metrics::{PollStage, METRICS},
 };
 
+pub(crate) const UPGRADE_PROPOSAL_SIGNATURE: H256 = H256([
+    105, 17, 91, 73, 175, 231, 166, 16, 26, 46, 122, 241, 125, 66, 30, 218, 29, 193, 83, 189, 38,
+    214, 153, 240, 19, 196, 255, 240, 64, 70, 70, 166,
+]);
+
 /// Responsible for saving new protocol upgrade proposals to the database.
 #[derive(Debug)]
 pub struct UpgradesEventProcessor {
     last_seen_version_id: ProtocolVersionId,
-    upgrade_proposal_signature: H256,
 }
 
 impl UpgradesEventProcessor {
     pub fn new(last_seen_version_id: ProtocolVersionId) -> Self {
         Self {
             last_seen_version_id,
-            upgrade_proposal_signature: zksync_contract()
-                .event("ProposeTransparentUpgrade")
-                .expect("ProposeTransparentUpgrade event is missing in abi")
-                .signature(),
         }
     }
 }
@@ -40,7 +38,7 @@ impl<W: EthClient + Sync> EventProcessor<W> for UpgradesEventProcessor {
         let mut upgrades = Vec::new();
         for event in events
             .into_iter()
-            .filter(|event| event.topics[0] == self.upgrade_proposal_signature)
+            .filter(|event| event.topics[0] == UPGRADE_PROPOSAL_SIGNATURE)
         {
             let upgrade = ProtocolUpgrade::try_from(event)
                 .map_err(|err| Error::LogParse(format!("{:?}", err)))?;
@@ -91,6 +89,6 @@ impl<W: EthClient + Sync> EventProcessor<W> for UpgradesEventProcessor {
     }
 
     fn relevant_topic(&self) -> H256 {
-        self.upgrade_proposal_signature
+        UPGRADE_PROPOSAL_SIGNATURE
     }
 }

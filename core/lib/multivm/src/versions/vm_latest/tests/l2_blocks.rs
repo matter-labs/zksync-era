@@ -14,7 +14,7 @@ use crate::vm_latest::tests::tester::VmTesterBuilder;
 use crate::vm_latest::utils::l2_blocks::get_l2_block_hash_key;
 use crate::vm_latest::{HistoryEnabled, Vm};
 use crate::HistoryMode;
-use zk_evm_1_3_3::aux_structures::Timestamp;
+use zk_evm_1_4_0::aux_structures::Timestamp;
 use zksync_state::{ReadStorage, WriteStorage};
 use zksync_system_constants::{
     CURRENT_VIRTUAL_BLOCK_INFO_POSITION, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE,
@@ -22,7 +22,7 @@ use zksync_system_constants::{
 use zksync_types::block::{pack_block_info, unpack_block_info};
 use zksync_types::{
     block::{legacy_miniblock_hash, miniblock_hash},
-    get_code_key, AccountTreeId, Execute, ExecuteTransactionCommon, L1BatchNumber, L1TxCommonData,
+    AccountTreeId, Execute, ExecuteTransactionCommon, L1BatchNumber, L1TxCommonData,
     MiniblockNumber, StorageKey, Transaction, H160, H256, SYSTEM_CONTEXT_ADDRESS,
     SYSTEM_CONTEXT_BLOCK_INFO_POSITION, SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
     SYSTEM_CONTEXT_CURRENT_TX_ROLLING_HASH_POSITION, U256,
@@ -405,72 +405,6 @@ fn test_l2_block_first_in_batch() {
         },
         Some(Halt::FailedToSetL2Block("The timestamp of the L2 block must be greater than or equal to the timestamp of the current batch".to_string())),
     );
-}
-
-#[test]
-fn test_l2_block_upgrade() {
-    let mut vm = VmTesterBuilder::new(HistoryEnabled)
-        .with_empty_in_memory_storage()
-        .with_execution_mode(TxExecutionMode::VerifyExecute)
-        .with_random_rich_accounts(1)
-        .build();
-
-    vm.vm
-        .state
-        .storage
-        .storage
-        .get_ptr()
-        .borrow_mut()
-        .set_value(get_code_key(&SYSTEM_CONTEXT_ADDRESS), H256::default());
-
-    let l1_tx = get_l1_noop();
-    // Firstly we execute the first transaction
-    vm.vm.push_transaction(l1_tx);
-    let result = vm.vm.execute(VmExecutionMode::OneTx);
-    assert!(!result.result.is_failed(), "No revert reason expected");
-    let result = vm.vm.execute(VmExecutionMode::Batch);
-    assert!(!result.result.is_failed(), "No revert reason expected");
-}
-
-#[test]
-fn test_l2_block_upgrade_ending() {
-    let mut l1_batch = default_l1_batch(L1BatchNumber(1));
-    l1_batch.timestamp = 1;
-    let mut vm = VmTesterBuilder::new(HistoryEnabled)
-        .with_empty_in_memory_storage()
-        .with_execution_mode(TxExecutionMode::VerifyExecute)
-        .with_l1_batch_env(l1_batch.clone())
-        .with_random_rich_accounts(1)
-        .build();
-
-    let l1_tx = get_l1_noop();
-
-    let storage = vm.storage.clone();
-
-    storage
-        .borrow_mut()
-        .set_value(get_code_key(&SYSTEM_CONTEXT_ADDRESS), H256::default());
-
-    vm.vm.push_transaction(l1_tx.clone());
-    let result = vm.vm.execute(VmExecutionMode::OneTx);
-
-    assert!(!result.result.is_failed(), "No revert reason expected");
-
-    let virtual_block_info = storage.borrow_mut().read_value(&StorageKey::new(
-        AccountTreeId::new(SYSTEM_CONTEXT_ADDRESS),
-        CURRENT_VIRTUAL_BLOCK_INFO_POSITION,
-    ));
-
-    let (virtual_block_number, virtual_block_timestamp) =
-        unpack_block_info(h256_to_u256(virtual_block_info));
-
-    assert_eq!(virtual_block_number as u32, l1_batch.first_l2_block.number);
-    assert_eq!(virtual_block_timestamp, l1_batch.first_l2_block.timestamp);
-    vm.vm.push_transaction(l1_tx);
-    let result = vm.vm.execute(VmExecutionMode::OneTx);
-    assert!(!result.result.is_failed(), "No revert reason expected");
-    let result = vm.vm.execute(VmExecutionMode::Batch);
-    assert!(!result.result.is_failed(), "No revert reason expected");
 }
 
 fn set_manual_l2_block_info<S: WriteStorage, H: HistoryMode>(

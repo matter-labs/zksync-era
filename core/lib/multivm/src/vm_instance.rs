@@ -24,7 +24,8 @@ pub(crate) enum VmInstanceVersion<S: ReadStorage, H: HistoryMode> {
     VmM6(Box<crate::vm_m6::VmInstance<StorageView<S>, H::VmM6Mode>>),
     Vm1_3_2(Box<crate::vm_1_3_2::VmInstance<StorageView<S>, H::Vm1_3_2Mode>>),
     VmVirtualBlocks(Box<crate::vm_virtual_blocks::Vm<StorageView<S>, H>>),
-    VmVirtualBlocksRefundsEnhancement(Box<crate::vm_latest::Vm<StorageView<S>, H>>),
+    VmVirtualBlocksRefundsEnhancement(Box<crate::vm_refunds_enhancement::Vm<StorageView<S>, H>>),
+    VmBoojumIntegration(Box<crate::vm_latest::Vm<StorageView<S>, H::VmBoojumIntegration>>),
 }
 
 impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
@@ -58,6 +59,9 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
                 vm.push_transaction(tx.clone());
             }
             VmInstanceVersion::VmVirtualBlocksRefundsEnhancement(vm) => {
+                vm.push_transaction(tx.clone());
+            }
+            VmInstanceVersion::VmBoojumIntegration(vm) => {
                 vm.push_transaction(tx.clone());
             }
         }
@@ -101,6 +105,16 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
                     final_bootloader_memory: Some(bootloader_memory),
                 }
             }
+            VmInstanceVersion::VmBoojumIntegration(vm) => {
+                let result = vm.execute(VmExecutionMode::Batch);
+                let execution_state = vm.get_current_execution_state();
+                let bootloader_memory = vm.get_bootloader_memory();
+                FinishedL1Batch {
+                    block_tip_execution_result: result,
+                    final_execution_state: execution_state,
+                    final_bootloader_memory: Some(bootloader_memory),
+                }
+            }
         }
     }
 
@@ -117,6 +131,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
             VmInstanceVersion::VmVirtualBlocksRefundsEnhancement(vm) => {
                 vm.execute(VmExecutionMode::Bootloader)
             }
+            VmInstanceVersion::VmBoojumIntegration(vm) => vm.execute(VmExecutionMode::Bootloader),
         }
     }
 
@@ -171,6 +186,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
             VmInstanceVersion::VmVirtualBlocksRefundsEnhancement(vm) => {
                 vm.execute(VmExecutionMode::OneTx)
             }
+            VmInstanceVersion::VmBoojumIntegration(vm) => vm.execute(VmExecutionMode::OneTx),
         }
     }
 
@@ -181,6 +197,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
             VmInstanceVersion::VmVirtualBlocksRefundsEnhancement(vm) => {
                 vm.get_last_tx_compressed_bytecodes()
             }
+            VmInstanceVersion::VmBoojumIntegration(vm) => vm.get_last_tx_compressed_bytecodes(),
             _ => self.last_tx_compressed_bytecodes.clone(),
         }
     }
@@ -199,6 +216,10 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
                 let tracers: Vec<_> = tracers.into_iter().map(|t| t.latest()).collect();
                 vm.inspect(tracers.into(), VmExecutionMode::OneTx)
             }
+            VmInstanceVersion::VmBoojumIntegration(vm) => vm.inspect(
+                tracers.into_iter().map(|tracer| tracer.latest()).collect(),
+                VmExecutionMode::OneTx,
+            ),
             _ => self.execute_next_transaction(),
         }
     }
@@ -355,6 +376,9 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
             VmInstanceVersion::VmVirtualBlocksRefundsEnhancement(vm) => {
                 vm.execute_transaction_with_bytecode_compression(tx, with_compression)
             }
+            VmInstanceVersion::VmBoojumIntegration(vm) => {
+                vm.execute_transaction_with_bytecode_compression(tx, with_compression)
+            }
         }
     }
 
@@ -385,6 +409,12 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
                     with_compression,
                 )
             }
+            VmInstanceVersion::VmBoojumIntegration(vm) => vm
+                .inspect_transaction_with_bytecode_compression(
+                    tracers.into_iter().map(|tracer| tracer.latest()).collect(),
+                    tx,
+                    with_compression,
+                ),
             _ => {
                 self.last_tx_compressed_bytecodes = vec![];
                 self.execute_transaction_with_bytecode_compression(tx, with_compression)
@@ -398,6 +428,9 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
                 vm.start_new_l2_block(l2_block_env.glue_into());
             }
             VmInstanceVersion::VmVirtualBlocksRefundsEnhancement(vm) => {
+                vm.start_new_l2_block(l2_block_env);
+            }
+            VmInstanceVersion::VmBoojumIntegration(vm) => {
                 vm.start_new_l2_block(l2_block_env);
             }
             _ => {}
@@ -439,6 +472,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
             VmInstanceVersion::VmVirtualBlocksRefundsEnhancement(vm) => {
                 Some(vm.record_vm_memory_metrics())
             }
+            VmInstanceVersion::VmBoojumIntegration(vm) => Some(vm.record_vm_memory_metrics()),
         }
     }
 }
@@ -451,6 +485,7 @@ impl<S: ReadStorage> VmInstance<S, crate::vm_latest::HistoryEnabled> {
             VmInstanceVersion::Vm1_3_2(vm) => vm.save_current_vm_as_snapshot(),
             VmInstanceVersion::VmVirtualBlocks(vm) => vm.make_snapshot(),
             VmInstanceVersion::VmVirtualBlocksRefundsEnhancement(vm) => vm.make_snapshot(),
+            VmInstanceVersion::VmBoojumIntegration(vm) => vm.make_snapshot(),
         }
     }
 
@@ -463,6 +498,9 @@ impl<S: ReadStorage> VmInstance<S, crate::vm_latest::HistoryEnabled> {
                 vm.rollback_to_the_latest_snapshot();
             }
             VmInstanceVersion::VmVirtualBlocksRefundsEnhancement(vm) => {
+                vm.rollback_to_the_latest_snapshot();
+            }
+            VmInstanceVersion::VmBoojumIntegration(vm) => {
                 vm.rollback_to_the_latest_snapshot();
             }
         }
@@ -480,6 +518,7 @@ impl<S: ReadStorage> VmInstance<S, crate::vm_latest::HistoryEnabled> {
             VmInstanceVersion::VmVirtualBlocksRefundsEnhancement(vm) => {
                 vm.pop_snapshot_no_rollback()
             }
+            VmInstanceVersion::VmBoojumIntegration(vm) => vm.pop_snapshot_no_rollback(),
         }
     }
 }

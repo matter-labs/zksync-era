@@ -35,7 +35,8 @@ where
             }
             VmVersion::VmVirtualBlocks
             | VmVersion::VmVirtualBlocksRefundsEnhancement
-            | VmVersion::Vm1_3_2 => {
+            | VmVersion::Vm1_3_2
+            | VmVersion::VmBoojumIntegration => {
                 panic!("oracle tools for after VM1.3.2 do not exist")
             }
         }

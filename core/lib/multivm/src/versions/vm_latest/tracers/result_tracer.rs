@@ -1,4 +1,4 @@
-use zk_evm_1_3_3::{
+use zk_evm_1_4_0::{
     tracing::{AfterDecodingData, BeforeExecutionData, VmLocalStateData},
     vm_state::{ErrorFlags, VmLocalState},
     zkevm_opcode_defs::FatPointer,

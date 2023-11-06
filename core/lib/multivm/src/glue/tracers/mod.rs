@@ -36,7 +36,7 @@ use zksync_state::WriteStorage;
 pub type MultiVmTracerPointer<S, H> = Box<dyn MultivmTracer<S, H>>;
 
 pub trait MultivmTracer<S: WriteStorage, H: HistoryMode>:
-    IntoLatestTracer<S, H> + IntoVmVirtualBlocksTracer<S, H>
+    IntoLatestTracer<S, H> + IntoVmVirtualBlocksTracer<S, H> + IntoVmRefundsEnhancementTracer<S, H>
 {
     fn into_tracer_pointer(self) -> MultiVmTracerPointer<S, H>
     where
@@ -56,11 +56,17 @@ pub trait IntoVmVirtualBlocksTracer<S: WriteStorage, H: HistoryMode> {
     ) -> crate::vm_virtual_blocks::TracerPointer<S, H::VmVirtualBlocksMode>;
 }
 
+pub trait IntoVmRefundsEnhancementTracer<S: WriteStorage, H: HistoryMode> {
+    fn vm_refunds_enhancement(
+        &self,
+    ) -> Box<dyn crate::vm_refunds_enhancement::VmTracer<S, H::VmVirtualBlocksRefundsEnhancement>>;
+}
+
 impl<S, T, H> IntoLatestTracer<S, H> for T
 where
     S: WriteStorage,
     H: HistoryMode,
-    T: crate::vm_latest::VmTracer<S, H::VmVirtualBlocksRefundsEnhancement> + Clone + 'static,
+    T: crate::vm_latest::VmTracer<S, H::VmBoojumIntegration> + Clone + 'static,
 {
     fn latest(&self) -> crate::vm_latest::TracerPointer<S, H::VmVirtualBlocksRefundsEnhancement> {
         Box::new(self.clone())

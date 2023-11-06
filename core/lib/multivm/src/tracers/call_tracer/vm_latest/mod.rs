@@ -3,8 +3,8 @@ use crate::interface::{traits::tracers::dyn_tracers::vm_1_3_3::DynTracer, VmReve
 use crate::tracers::call_tracer::{CallTracer, FarcallAndNearCallCount};
 use crate::vm_latest::VmTracer;
 use crate::vm_latest::{BootloaderState, HistoryMode, SimpleMemory, ZkSyncVmState};
-use zk_evm_1_3_3::tracing::{AfterExecutionData, VmLocalStateData};
-use zk_evm_1_3_3::zkevm_opcode_defs::{
+use zk_evm_1_4_0::tracing::{AfterExecutionData, VmLocalStateData};
+use zk_evm_1_4_0::zkevm_opcode_defs::{
     FarCallABI, FatPointer, Opcode, RetOpcode, CALL_IMPLICIT_CALLDATA_FAT_PTR_REGISTER,
     RET_IMPLICIT_RETURNDATA_PARAMS_REGISTER,
 };
