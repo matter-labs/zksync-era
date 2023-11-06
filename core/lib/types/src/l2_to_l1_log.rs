@@ -16,10 +16,9 @@ pub struct L2ToL1Log {
 }
 
 impl L2ToL1Log {
-    /// Legacy upper bound of L2-to-L1 logs per single L1 batch. This is not used as a limit now,
-    /// but still determines the minimum number of items in the Merkle tree built from L2-to-L1 logs
+    /// Determines the minimum number of items in the Merkle tree built from L2-to-L1 logs
     /// for a certain batch.
-    pub const LEGACY_LIMIT_PER_L1_BATCH: usize = 2048;
+    pub const MIN_L2_L1_LOGS_TREE_SIZE: usize = 2048;
 
     pub fn from_slice(data: &[u8]) -> Self {
         assert_eq!(data.len(), Self::SERIALIZED_SIZE);

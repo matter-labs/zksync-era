@@ -716,3 +716,175 @@ pub static PRE_BOOJUM_EXECUTE_FUNCTION: Lazy<Function> = Lazy::new(|| {
     }"#;
     serde_json::from_str(abi).unwrap()
 });
+
+pub static PRE_BOOJUM_GET_VK_FUNCTION: Lazy<Function> = Lazy::new(|| {
+    let abi = r#"{
+      "inputs": [],
+      "name": "get_verification_key",
+      "outputs": [
+        {
+          "components": [
+            {
+              "internalType": "uint256",
+              "name": "domain_size",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "num_inputs",
+              "type": "uint256"
+            },
+            {
+              "components": [
+                {
+                  "internalType": "uint256",
+                  "name": "value",
+                  "type": "uint256"
+                }
+              ],
+              "internalType": "struct PairingsBn254.Fr",
+              "name": "omega",
+              "type": "tuple"
+            },
+            {
+              "components": [
+                {
+                  "internalType": "uint256",
+                  "name": "X",
+                  "type": "uint256"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "Y",
+                  "type": "uint256"
+                }
+              ],
+              "internalType": "struct PairingsBn254.G1Point[2]",
+              "name": "gate_selectors_commitments",
+              "type": "tuple[2]"
+            },
+            {
+              "components": [
+                {
+                  "internalType": "uint256",
+                  "name": "X",
+                  "type": "uint256"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "Y",
+                  "type": "uint256"
+                }
+              ],
+              "internalType": "struct PairingsBn254.G1Point[8]",
+              "name": "gate_setup_commitments",
+              "type": "tuple[8]"
+            },
+            {
+              "components": [
+                {
+                  "internalType": "uint256",
+                  "name": "X",
+                  "type": "uint256"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "Y",
+                  "type": "uint256"
+                }
+              ],
+              "internalType": "struct PairingsBn254.G1Point[4]",
+              "name": "permutation_commitments",
+              "type": "tuple[4]"
+            },
+            {
+              "components": [
+                {
+                  "internalType": "uint256",
+                  "name": "X",
+                  "type": "uint256"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "Y",
+                  "type": "uint256"
+                }
+              ],
+              "internalType": "struct PairingsBn254.G1Point",
+              "name": "lookup_selector_commitment",
+              "type": "tuple"
+            },
+            {
+              "components": [
+                {
+                  "internalType": "uint256",
+                  "name": "X",
+                  "type": "uint256"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "Y",
+                  "type": "uint256"
+                }
+              ],
+              "internalType": "struct PairingsBn254.G1Point[4]",
+              "name": "lookup_tables_commitments",
+              "type": "tuple[4]"
+            },
+            {
+              "components": [
+                {
+                  "internalType": "uint256",
+                  "name": "X",
+                  "type": "uint256"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "Y",
+                  "type": "uint256"
+                }
+              ],
+              "internalType": "struct PairingsBn254.G1Point",
+              "name": "lookup_table_type_commitment",
+              "type": "tuple"
+            },
+            {
+              "components": [
+                {
+                  "internalType": "uint256",
+                  "name": "value",
+                  "type": "uint256"
+                }
+              ],
+              "internalType": "struct PairingsBn254.Fr[3]",
+              "name": "non_residues",
+              "type": "tuple[3]"
+            },
+            {
+              "components": [
+                {
+                  "internalType": "uint256[2]",
+                  "name": "X",
+                  "type": "uint256[2]"
+                },
+                {
+                  "internalType": "uint256[2]",
+                  "name": "Y",
+                  "type": "uint256[2]"
+                }
+              ],
+              "internalType": "struct PairingsBn254.G2Point[2]",
+              "name": "g2_elements",
+              "type": "tuple[2]"
+            }
+          ],
+          "internalType": "struct VerificationKey",
+          "name": "vk",
+          "type": "tuple"
+        }
+      ],
+      "stateMutability": "pure",
+      "type": "function"
+    }"#;
+    serde_json::from_str(abi).unwrap()
+});

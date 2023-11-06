@@ -1001,6 +1001,7 @@ impl BlocksDal<'_, '_> {
         default_aa_hash: H256,
         protocol_version_id: ProtocolVersionId,
     ) -> anyhow::Result<Vec<L1BatchWithMetadata>> {
+        let is_pre_boojum = protocol_version_id.is_pre_boojum();
         let raw_batches = sqlx::query_as!(
             StorageL1Batch,
             "SELECT number, l1_batches.timestamp, is_finished, l1_tx_count, l2_tx_count, fee_account_address, \
@@ -1021,12 +1022,14 @@ impl BlocksDal<'_, '_> {
                 AND protocol_versions.bootloader_code_hash = $1 AND protocol_versions.default_account_code_hash = $2 \
                 AND commitment IS NOT NULL \
                 AND (protocol_versions.id = $3 OR protocol_versions.upgrade_tx_hash IS NULL) \
-                AND events_queue_commitment IS NOT NULL \
-                AND bootloader_initial_content_commitment IS NOT NULL
-            ORDER BY number LIMIT $4",
+                AND (events_queue_commitment IS NOT NULL AND bootloader_initial_content_commitment IS NOT NULL
+                    OR $4 = FALSE
+                )
+            ORDER BY number LIMIT $5",
             bootloader_hash.as_bytes(),
             default_aa_hash.as_bytes(),
             protocol_version_id as i32,
+            is_pre_boojum,
             limit as i64,
         )
         .instrument("get_ready_for_commit_l1_batches")
