@@ -154,13 +154,6 @@ impl RequestProcessor {
 
                 let mut storage = self.pool.access_storage().await.unwrap();
 
-                // let header = storage
-                //     .blocks_dal()
-                //     .get_l1_batch_header(l1_batch_number)
-                //     .await
-                //     .unwrap()
-                //     .expect("Proved block without a header");
-
                 let l1_batch = storage
                     .blocks_dal()
                     .get_l1_batch_metadata(l1_batch_number)

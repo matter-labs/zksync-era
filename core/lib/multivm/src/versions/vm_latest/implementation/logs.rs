@@ -26,7 +26,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
         let storage_logs_count = storage_logs.len();
 
         let (events, system_l2_to_l1_logs) =
-            self.collect_events_and_l1_logs_after_timestamp(from_timestamp);
+            self.collect_events_and_l1_system_logs_after_timestamp(from_timestamp);
 
         let log_queries = self
             .state
@@ -52,11 +52,11 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
         }
     }
 
-    pub(crate) fn collect_events_and_l1_logs_after_timestamp(
+    pub(crate) fn collect_events_and_l1_system_logs_after_timestamp(
         &self,
         from_timestamp: Timestamp,
     ) -> (Vec<VmEvent>, Vec<L2ToL1Log>) {
-        logs::collect_events_and_l1_logs_after_timestamp(
+        logs::collect_events_and_l1_system_logs_after_timestamp(
             &self.state,
             &self.batch_env,
             from_timestamp,

@@ -255,7 +255,7 @@ impl BootloaderState {
             last_l2_block: self.last_l2_block().make_snapshot(),
             compressed_bytecodes_encoding: self.compressed_bytecodes_encoding,
             free_tx_offset: self.free_tx_offset,
-            pubdata_information: self.pubdata_information.get().is_some(),
+            is_pubdata_information_provided: self.pubdata_information.get().is_some(),
         }
     }
 
@@ -271,12 +271,15 @@ impl BootloaderState {
         self.last_mut_l2_block()
             .apply_snapshot(snapshot.last_l2_block);
 
-        if !snapshot.pubdata_information {
+        if !snapshot.is_pubdata_information_provided {
             self.pubdata_information = Default::default();
         } else {
+            // Under the correct usage of the snapshots of the bootloader state,
+            // this assertion should never fail, i.e. since the pubdata information
+            // can be set only once. However, we have this assertion just in case.
             assert!(
                 self.pubdata_information.get().is_some(),
-                "Can not use snapshot from future"
+                "Snapshot with no pubdata can not rollback to snapshot with one"
             );
         }
     }

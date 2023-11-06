@@ -18,6 +18,8 @@ pub struct Refunds {
 pub struct VmExecutionLogs {
     pub storage_logs: Vec<StorageLogQuery>,
     pub events: Vec<VmEvent>,
+    // For pre-boojum VMs, there was no distinction between user logs and system
+    // logs and so all the outputted logs were treated as user_l2_to_l1_logs.
     pub user_l2_to_l1_logs: Vec<L2ToL1Log>,
     pub system_l2_to_l1_logs: Vec<L2ToL1Log>,
     // This field moved to statistics, but we need to keep it for backward compatibility

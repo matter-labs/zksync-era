@@ -12,7 +12,9 @@ pub struct CurrentExecutionState {
     pub used_contract_hashes: Vec<U256>,
     /// L2 to L1 logs produced by the VM.
     pub system_logs: Vec<L2ToL1Log>,
-    /// L2 to L1 logs produced by the L1Messeger
+    /// L2 to L1 logs produced by the L1Messeger.
+    /// For pre-boojum VMs, there was no distinction between user logs and system
+    /// logs and so all the outputted logs were treated as user_l2_to_l1_logs.
     pub user_l2_to_l1_logs: Vec<L2ToL1Log>,
     /// Number of log queries produced by the VM. Including l2_to_l1 logs, storage logs and events.
     pub total_log_queries: usize,
