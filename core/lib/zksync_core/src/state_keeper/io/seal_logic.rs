@@ -18,7 +18,6 @@ use zksync_types::{
 use zksync_types::{
     block::{L1BatchHeader, MiniblockHeader},
     event::{extract_added_tokens, extract_long_l2_to_l1_messages},
-    l2_to_l1_log::L2ToL1Log,
     storage_writes_deduplicator::{ModifiedSlot, StorageWritesDeduplicator},
     tx::{
         tx_execution_info::DeduplicatedWritesMetrics, IncludedTxLocation,

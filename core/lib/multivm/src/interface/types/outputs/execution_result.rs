@@ -1,7 +1,7 @@
 use crate::interface::{Halt, VmExecutionStatistics, VmRevertReason};
 use zksync_system_constants::PUBLISH_BYTECODE_OVERHEAD;
 use zksync_types::event::{extract_long_l2_to_l1_messages, extract_published_bytecodes};
-use zksync_types::l2_to_l1_log::{L2ToL1Log, SystemL2ToL1Log, UserL2ToL1Log};
+use zksync_types::l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log};
 use zksync_types::tx::ExecutionMetrics;
 use zksync_types::{StorageLogQuery, Transaction, VmEvent};
 use zksync_utils::bytecode::bytecode_len_in_bytes;

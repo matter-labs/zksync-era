@@ -2,7 +2,6 @@ use zk_evm_1_4_0::aux_structures::Timestamp;
 use zksync_state::WriteStorage;
 
 use crate::interface::{VmExecutionMode, VmExecutionResultAndLogs};
-use crate::versions::vm_latest::tracers::traits::BoxedTracer;
 use crate::vm_latest::old_vm::{
     history_recorder::HistoryMode,
     utils::{vm_may_have_ended_inner, VmExecutionResult},
@@ -17,7 +16,7 @@ use crate::vm_latest::VmExecutionStopReason;
 impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
     pub(crate) fn inspect_inner(
         &mut self,
-        mut tracers: Vec<Box<dyn VmTracer<S, H>>>,
+        tracers: Vec<Box<dyn VmTracer<S, H>>>,
         execution_mode: VmExecutionMode,
     ) -> VmExecutionResultAndLogs {
         let mut enable_refund_tracer = false;

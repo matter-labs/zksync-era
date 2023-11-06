@@ -6,7 +6,6 @@ use zksync_types::l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log};
 use zksync_types::{
     block::{legacy_miniblock_hash, miniblock_hash, BlockGasCount},
     event::extract_bytecodes_marked_as_known,
-    l2_to_l1_log::L2ToL1Log,
     tx::tx_execution_info::TxExecutionStatus,
     tx::{ExecutionMetrics, TransactionExecutionResult},
     vm_trace::Call,
