@@ -71,3 +71,64 @@ impl PubdataInput {
         l1_messenger_abi_encoded_pubdata[32..].to_vec()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use zksync_system_constants::{ACCOUNT_CODE_STORAGE_ADDRESS, BOOTLOADER_ADDRESS};
+    use zksync_types::{Address, U256};
+    use zksync_utils::u256_to_h256;
+
+    use super::*;
+
+    #[test]
+    fn test_basic_pubdata_building() {
+        // Just using some constant addresses for tests
+        let addr1 = BOOTLOADER_ADDRESS;
+        let addr2 = ACCOUNT_CODE_STORAGE_ADDRESS;
+
+        let user_logs = vec![L1MessengerL2ToL1Log {
+            l2_shard_id: 0,
+            is_service: false,
+            tx_number_in_block: 0,
+            sender: addr1,
+            key: 1.into(),
+            value: 128.into(),
+        }];
+
+        let l2_to_l1_messages = vec![hex::decode("deadbeef").unwrap()];
+
+        let published_bytecodes = vec![hex::decode("aaaabbbb").unwrap()];
+
+        // For covering more cases, we have two state diffs:
+        // One with enumeration index present (and so it is a repeated write) and the one without it.
+        let state_diffs = vec![
+            StateDiffRecord {
+                address: addr2,
+                key: 155.into(),
+                derived_key: u256_to_h256(125.into()).0,
+                enumeration_index: 12,
+                initial_value: 11.into(),
+                final_value: 12.into(),
+            },
+            StateDiffRecord {
+                address: addr2,
+                key: 156.into(),
+                derived_key: u256_to_h256(126.into()).0,
+                enumeration_index: 0,
+                initial_value: 0.into(),
+                final_value: 14.into(),
+            },
+        ];
+
+        let input = PubdataInput {
+            user_logs,
+            l2_to_l1_messages,
+            published_bytecodes,
+            state_diffs,
+        };
+
+        let pubdata = input.build_pubdata();
+
+        assert_eq!(hex::encode(pubdata), "00000000000000000000000000000000000000000000000000000000000002c700000001000000000000000000000000000000000000000000008001000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000800000000100000004deadbeef0000000100000004aaaabbbb0100002a040001000000000000000000000000000000000000000000000000000000000000007e090e0000000c0901000000020000000000000000000000000000000000008002000000000000000000000000000000000000000000000000000000000000009b000000000000000000000000000000000000000000000000000000000000007d000000000000000c000000000000000000000000000000000000000000000000000000000000000b000000000000000000000000000000000000000000000000000000000000000c00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000008002000000000000000000000000000000000000000000000000000000000000009c000000000000000000000000000000000000000000000000000000000000007e00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000e000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000");
+    }
+}
