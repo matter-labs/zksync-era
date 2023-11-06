@@ -2,7 +2,6 @@ use zksync_types::U256;
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 use zksync_utils::{bytes_to_be_words, h256_to_u256};
 
-use crate::interface::types::outputs::PubdataInput;
 use crate::interface::{BootloaderMemory, TxExecutionMode};
 use crate::vm_latest::bootloader_state::l2_block::BootloaderL2Block;
 use crate::vm_latest::constants::{
@@ -11,6 +10,7 @@ use crate::vm_latest::constants::{
     TX_OPERATOR_L2_BLOCK_INFO_OFFSET, TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO, TX_OVERHEAD_OFFSET,
     TX_TRUSTED_GAS_LIMIT_OFFSET,
 };
+use crate::vm_latest::types::internals::pubdata::PubdataInput;
 
 use super::tx::BootloaderTx;
 

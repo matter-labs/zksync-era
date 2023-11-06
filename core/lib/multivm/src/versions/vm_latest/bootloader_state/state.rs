@@ -6,8 +6,8 @@ use std::cmp::Ordering;
 use zksync_types::{L2ChainId, U256};
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
-use crate::interface::types::outputs::PubdataInput;
 use crate::interface::{BootloaderMemory, L2BlockEnv, TxExecutionMode};
+use crate::vm_latest::types::internals::pubdata::PubdataInput;
 use crate::vm_latest::{
     constants::TX_DESCRIPTION_OFFSET, types::internals::TransactionData,
     utils::l2_blocks::assert_next_block,

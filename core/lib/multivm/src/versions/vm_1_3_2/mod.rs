@@ -5,7 +5,6 @@ pub mod errors;
 pub mod event_sink;
 mod events;
 mod history_recorder;
-pub mod legacy_types;
 pub mod memory;
 mod oracle_tools;
 pub mod oracles;

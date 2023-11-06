@@ -16,8 +16,11 @@ use zksync_types::{
 use zksync_utils::u256_to_h256;
 use zksync_utils::{h256_to_u256, u256_to_bytes_be};
 
-use crate::vm_latest::old_vm::{history_recorder::HistoryMode, memory::SimpleMemory};
 use crate::vm_latest::{constants::BOOTLOADER_HEAP_PAGE, TracerExecutionStatus};
+use crate::vm_latest::{
+    old_vm::{history_recorder::HistoryMode, memory::SimpleMemory},
+    types::internals::pubdata::PubdataInput,
+};
 
 use crate::interface::types::inputs::L1BatchEnv;
 use crate::vm_latest::tracers::{
@@ -27,7 +30,6 @@ use crate::vm_latest::tracers::{
 use crate::vm_latest::types::internals::ZkSyncVmState;
 use crate::vm_latest::utils::logs::collect_events_and_l1_logs_after_timestamp;
 use crate::{
-    interface::types::outputs::PubdataInput,
     interface::VmExecutionMode,
     vm_latest::bootloader_state::{utils::apply_pubdata_to_memory, BootloaderState},
 };

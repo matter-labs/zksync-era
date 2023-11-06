@@ -34,9 +34,7 @@ pub trait SerializeCommitment {
     fn serialize_commitment(&self, buffer: &mut [u8]);
 }
 
-/// Serialize elements for commitment. The results consist of:
-/// 1. Number of elements (4 bytes)
-/// 2. Serialized elements
+/// Serialize elements for commitment. The result consists of packed serialized elements.
 pub fn serialize_commitments<I: SerializeCommitment>(values: &[I]) -> Vec<u8> {
     let final_len = values.len() * I::SERIALIZED_SIZE;
     let mut input = vec![0_u8; final_len];
