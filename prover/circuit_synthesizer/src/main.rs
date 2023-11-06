@@ -3,7 +3,9 @@ use prometheus_exporter::PrometheusExporterConfig;
 use structopt::StructOpt;
 use tokio::{sync::oneshot, sync::watch};
 
-use zksync_config::configs::{AlertsConfig, CircuitSynthesizerConfig, ProverGroupConfig};
+use zksync_config::configs::{
+    AlertsConfig, CircuitSynthesizerConfig, ObjectStoreConfig, ProverGroupConfig,
+};
 use zksync_dal::connection::DbVariant;
 use zksync_dal::ConnectionPool;
 use zksync_env_config::FromEnv;
@@ -51,10 +53,12 @@ async fn main() -> anyhow::Result<()> {
         .context("failed to build a connection pool")?;
     let vk_commitments = get_cached_commitments();
 
+    let object_store_config =
+        ObjectStoreConfig::from_env().context("ObjectStoreConfig::from_env()")?;
     let circuit_synthesizer = CircuitSynthesizer::new(
         config.clone(),
         ProverGroupConfig::from_env().context("ProverGroupConfig::from_env()")?,
-        &ObjectStoreFactory::from_env().context("ObjectStoreFactory::from_env()")?,
+        &ObjectStoreFactory::new(object_store_config),
         vk_commitments,
         pool,
     )

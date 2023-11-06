@@ -89,10 +89,10 @@ impl CircuitSynthesizer {
             blob_store: store_factory.create_store().await,
             allowed_circuit_types: allowed_circuit_types
                 .map(|x| x.into_iter().map(|x| x.1).collect()),
-            region: get_region()
+            region: get_region(&prover_groups)
                 .await
                 .map_err(CircuitSynthesizerError::GetRegionFailed)?,
-            zone: get_zone()
+            zone: get_zone(&prover_groups)
                 .await
                 .map_err(CircuitSynthesizerError::GetZoneFailed)?,
             vk_commitments,

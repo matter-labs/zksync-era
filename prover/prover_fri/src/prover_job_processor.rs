@@ -272,6 +272,7 @@ pub fn load_setup_data_cache(config: &FriProverConfig) -> anyhow::Result<SetupLo
                 &config.specialized_group_id
             );
             let prover_setup_metadata_list = FriProverGroupConfig::from_env()
+                .context("FriProverGroupConfig::from_env()")?
                 .get_circuit_ids_for_group_id(config.specialized_group_id)
                 .expect(
                     "At least one circuit should be configured for group when running in FromMemory mode",
