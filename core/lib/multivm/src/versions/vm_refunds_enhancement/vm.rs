@@ -5,7 +5,6 @@ use zksync_utils::bytecode::CompressedBytecodeInfo;
 
 use crate::vm_refunds_enhancement::old_vm::events::merge_events;
 use crate::vm_refunds_enhancement::old_vm::history_recorder::{HistoryEnabled, HistoryMode};
-use zksync_types::event::extract_l2tol1logs_from_l1_messenger;
 
 use crate::interface::BytecodeCompressionError;
 use crate::interface::{

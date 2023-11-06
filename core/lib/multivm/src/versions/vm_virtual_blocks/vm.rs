@@ -3,7 +3,6 @@ use crate::interface::{
     SystemEnv, VmExecutionMode, VmExecutionResultAndLogs,
 };
 use zksync_state::{StoragePtr, WriteStorage};
-use zksync_types::event::extract_l2tol1logs_from_l1_messenger;
 use zksync_types::l2_to_l1_log::UserL2ToL1Log;
 use zksync_types::Transaction;
 use zksync_utils::bytecode::CompressedBytecodeInfo;

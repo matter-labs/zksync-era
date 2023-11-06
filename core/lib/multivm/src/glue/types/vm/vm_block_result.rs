@@ -1,4 +1,3 @@
-use itertools::Itertools;
 use zksync_types::l2_to_l1_log::UserL2ToL1Log;
 
 use crate::glue::{GlueFrom, GlueInto};

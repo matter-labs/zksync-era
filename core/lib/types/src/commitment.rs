@@ -8,7 +8,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use std::{alloc::System, collections::HashMap, convert::TryFrom};
+use std::{collections::HashMap, convert::TryFrom};
 
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_system_constants::ZKPORTER_IS_AVAILABLE;
@@ -574,15 +574,13 @@ impl L1BatchCommitment {
 
 #[cfg(test)]
 mod tests {
-    use std::alloc::System;
-
     use serde::{Deserialize, Serialize};
     use serde_with::serde_as;
 
     use crate::commitment::{
         L1BatchAuxiliaryOutput, L1BatchCommitment, L1BatchMetaParameters, L1BatchPassThroughData,
     };
-    use crate::l2_to_l1_log::{L2ToL1Log, SystemL2ToL1Log, UserL2ToL1Log};
+    use crate::l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log};
     use crate::writes::{InitialStorageWrite, RepeatedStorageWrite};
     use crate::{H256, U256};
 

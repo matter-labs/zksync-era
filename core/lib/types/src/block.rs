@@ -7,7 +7,7 @@ use zksync_basic_types::{H2048, H256, U256};
 use zksync_contracts::BaseSystemContractsHashes;
 
 use crate::{
-    l2_to_l1_log::{L2ToL1Log, SystemL2ToL1Log, UserL2ToL1Log},
+    l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
     priority_op_onchain_data::PriorityOpOnchainData,
     web3::signing::keccak256,
     AccountTreeId, Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, Transaction,
