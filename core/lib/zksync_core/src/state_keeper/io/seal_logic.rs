@@ -11,7 +11,9 @@ use multivm::interface::{FinishedL1Batch, L1BatchEnv};
 use zksync_dal::StorageProcessor;
 use zksync_system_constants::ACCOUNT_CODE_STORAGE_ADDRESS;
 use zksync_types::{
-    block::unpack_block_info, CURRENT_VIRTUAL_BLOCK_INFO_POSITION, SYSTEM_CONTEXT_ADDRESS,
+    block::unpack_block_info,
+    l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
+    CURRENT_VIRTUAL_BLOCK_INFO_POSITION, SYSTEM_CONTEXT_ADDRESS,
 };
 use zksync_types::{
     block::{L1BatchHeader, MiniblockHeader},
@@ -399,7 +401,7 @@ impl MiniblockSealCommand {
         let progress = MINIBLOCK_METRICS.start(MiniblockSealStage::InsertL2ToL1Logs, is_fictive);
         transaction
             .events_dal()
-            .save_l2_to_l1_logs(miniblock_number, &user_l2_to_l1_logs)
+            .save_user_l2_to_l1_logs(miniblock_number, &user_l2_to_l1_logs)
             .await;
         progress.observe(user_l2_to_l1_log_count);
 
@@ -540,18 +542,18 @@ impl MiniblockSealCommand {
     fn extract_system_l2_to_l1_logs(
         &self,
         is_fictive: bool,
-    ) -> Vec<(IncludedTxLocation, Vec<&L2ToL1Log>)> {
+    ) -> Vec<(IncludedTxLocation, Vec<&SystemL2ToL1Log>)> {
         self.group_by_tx_location(&self.miniblock.system_l2_to_l1_logs, is_fictive, |log| {
-            u32::from(log.tx_number_in_block)
+            u32::from(log.0.tx_number_in_block)
         })
     }
 
     fn extract_user_l2_to_l1_logs(
         &self,
         is_fictive: bool,
-    ) -> Vec<(IncludedTxLocation, Vec<&L2ToL1Log>)> {
+    ) -> Vec<(IncludedTxLocation, Vec<&UserL2ToL1Log>)> {
         self.group_by_tx_location(&self.miniblock.user_l2_to_l1_logs, is_fictive, |log| {
-            u32::from(log.tx_number_in_block)
+            u32::from(log.0.tx_number_in_block)
         })
     }
 
