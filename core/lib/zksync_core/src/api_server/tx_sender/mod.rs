@@ -911,11 +911,11 @@ impl<G: L1GasPriceProvider> TxSender<G> {
             H256::zero()
         };
 
-        let seal_data = SealData::for_transaction(transaction, tx_metrics);
         // Using `ProtocolVersionId::latest()` for a short period we might end up in a scenario where the StateKeeper is still pre-boojum
         // but the API assumes we are post boojum. In this situation we will determine a tx as being executable but the StateKeeper will
         // still reject them as it's not.
         let protocol_version = ProtocolVersionId::latest();
+        let seal_data = SealData::for_transaction(transaction, tx_metrics, protocol_version);
         if let Some(reason) =
             ConditionalSealer::find_unexecutable_reason(sk_config, &seal_data, protocol_version)
         {

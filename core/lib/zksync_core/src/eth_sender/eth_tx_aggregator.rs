@@ -313,7 +313,7 @@ impl EthTxAggregator {
         if contracts_are_pre_boojum {
             let vk = eth_client
                 .call_contract_function(
-                    &self.functions.get_verification_key.as_ref().unwrap().name,
+                    &self.functions.get_verification_key.name,
                     (),
                     None,
                     Default::default(),

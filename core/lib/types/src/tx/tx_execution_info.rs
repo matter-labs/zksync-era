@@ -2,7 +2,11 @@ use crate::fee::TransactionExecutionMetrics;
 use crate::l2_to_l1_log::L2ToL1Log;
 use crate::{
     commitment::SerializeCommitment,
-    writes::{BYTES_PER_DERIVED_KEY, BYTES_PER_ENUMERATION_INDEX},
+    writes::{
+        InitialStorageWrite, RepeatedStorageWrite, BYTES_PER_DERIVED_KEY,
+        BYTES_PER_ENUMERATION_INDEX,
+    },
+    ProtocolVersionId,
 };
 use std::ops::{Add, AddAssign};
 
@@ -38,10 +42,15 @@ impl DeduplicatedWritesMetrics {
         }
     }
 
-    pub fn size(&self) -> usize {
-        self.total_updated_values_size
-            + (BYTES_PER_DERIVED_KEY as usize) * self.initial_storage_writes
-            + (BYTES_PER_ENUMERATION_INDEX as usize) * self.repeated_storage_writes
+    pub fn size(&self, protocol_version: ProtocolVersionId) -> usize {
+        if protocol_version.is_pre_boojum() {
+            self.initial_storage_writes * InitialStorageWrite::SERIALIZED_SIZE
+                + self.repeated_storage_writes * RepeatedStorageWrite::SERIALIZED_SIZE
+        } else {
+            self.total_updated_values_size
+                + (BYTES_PER_DERIVED_KEY as usize) * self.initial_storage_writes
+                + (BYTES_PER_ENUMERATION_INDEX as usize) * self.repeated_storage_writes
+        }
     }
 }
 

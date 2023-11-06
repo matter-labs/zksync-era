@@ -1,6 +1,6 @@
 use zksync_contracts::{
     multicall_contract, verifier_contract, zksync_contract, PRE_BOOJUM_COMMIT_FUNCTION,
-    PRE_BOOJUM_EXECUTE_FUNCTION, PRE_BOOJUM_PROVE_FUNCTION,
+    PRE_BOOJUM_EXECUTE_FUNCTION, PRE_BOOJUM_GET_VK_FUNCTION, PRE_BOOJUM_PROVE_FUNCTION,
 };
 use zksync_types::ethabi::{Contract, Function};
 
@@ -19,7 +19,7 @@ pub(super) struct ZkSyncFunctions {
     pub(super) get_protocol_version: Function,
 
     pub(super) verifier_contract: Contract,
-    pub(super) get_verification_key: Option<Function>,
+    pub(super) get_verification_key: Function,
     pub(super) verification_key_hash: Option<Function>,
 
     pub(super) multicall_contract: Contract,
@@ -63,8 +63,7 @@ impl Default for ZkSyncFunctions {
         let get_verifier = get_function(&zksync_contract, "getVerifier");
         let get_verifier_params = get_function(&zksync_contract, "getVerifierParams");
         let get_protocol_version = get_function(&zksync_contract, "getProtocolVersion");
-        let get_verification_key =
-            get_optional_function(&verifier_contract, "get_verification_key");
+        let get_verification_key = PRE_BOOJUM_GET_VK_FUNCTION.clone();
         let aggregate3 = get_function(&multicall_contract, "aggregate3");
         let verification_key_hash =
             get_optional_function(&verifier_contract, "verificationKeyHash");

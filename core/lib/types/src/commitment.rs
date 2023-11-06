@@ -353,7 +353,7 @@ impl L1BatchAuxiliaryOutput {
             .chunks(UserL2ToL1Log::SERIALIZED_SIZE)
             .map(|chunk| <[u8; UserL2ToL1Log::SERIALIZED_SIZE]>::try_from(chunk).unwrap());
         // ^ Skip first 4 bytes of the serialized logs (i.e., the number of logs).
-        let min_tree_size = Some(L2ToL1Log::LEGACY_LIMIT_PER_L1_BATCH);
+        let min_tree_size = Some(L2ToL1Log::MIN_L2_L1_LOGS_TREE_SIZE);
         let l2_l1_logs_merkle_root =
             MiniMerkleTree::new(merkle_tree_leaves, min_tree_size).merkle_root();
 
