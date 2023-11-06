@@ -83,8 +83,10 @@ impl ExecutionMetrics {
         self.l2_to_l1_logs * L2ToL1Log::SERIALIZED_SIZE
             + self.l2_l1_long_messages
             + self.published_bytecode_bytes
-            // TODO: refactor this constant
-            // It represents the need to store the length's of messages as well as bytecodes
+            // TODO(PLA-648): refactor this constant
+            // It represents the need to store the length's of messages as well as bytecodes. 
+            // It works due to the fact that each bytecode/L2->L1 long message is accompanied by a corresponding
+            // user L2->L1 log.  
             + self.l2_to_l1_logs * 4
     }
 }
