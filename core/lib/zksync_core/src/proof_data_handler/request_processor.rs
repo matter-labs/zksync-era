@@ -188,7 +188,10 @@ impl RequestProcessor {
                 {
                     let server_values = format!("{system_logs_hash} {state_diff_hash} {events_queue_state} {bootloader_heap_initial_content}");
                     let prover_values = format!("{system_logs_hash_from_prover} {state_diff_hash_from_prover} {events_queue_state_from_prover} {bootloader_heap_initial_content_from_prover}");
-                    tracing::error!("Auxilary output doesn't match, server values: {server_values} prover values: {prover_values}");
+                    panic!(
+                        "Auxilary output doesn't match, server values: {} prover values: {}",
+                        server_values, prover_values
+                    );
                 }
                 storage
                     .proof_generation_dal()
