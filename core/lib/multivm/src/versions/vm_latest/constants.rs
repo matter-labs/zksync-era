@@ -59,7 +59,7 @@ pub const OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_OFFSET: usize =
 
 /// One of "worst case" scenarios for the number of state diffs in a batch is when 120kb of pubdata is spent
 /// on repeated writes, that are all zeroed out. In this case, the number of diffs is 120k / 5 = 24k. This means that they will have
-/// accoomdate 6528000 bytes of calldata for the uncompressed state diffs. Adding 120k on top leaves us with
+/// accommodate 6528000 bytes of calldata for the uncompressed state diffs. Adding 120k on top leaves us with
 /// roughly 6650000 bytes needed for calldata. 207813 slots are needed to accomodate this amount of data.
 /// We round up to 208000 slots just in case.
 ///
