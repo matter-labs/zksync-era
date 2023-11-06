@@ -2,7 +2,6 @@ use zk_evm_1_4_0::aux_structures::Timestamp;
 use zksync_state::WriteStorage;
 
 use crate::interface::{VmExecutionMode, VmExecutionResultAndLogs};
-use crate::versions::vm_latest::tracers::traits::BoxedTracer;
 use crate::vm_latest::old_vm::{
     history_recorder::HistoryMode,
     utils::{vm_may_have_ended_inner, VmExecutionResult},
@@ -17,7 +16,7 @@ use crate::vm_latest::VmExecutionStopReason;
 impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
     pub(crate) fn inspect_inner(
         &mut self,
-        mut tracers: Vec<Box<dyn VmTracer<S, H>>>,
+        tracers: Vec<Box<dyn VmTracer<S, H>>>,
         execution_mode: VmExecutionMode,
     ) -> VmExecutionResultAndLogs {
         let mut enable_refund_tracer = false;
@@ -26,7 +25,6 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
             self.bootloader_state.move_tx_to_execute_pointer();
             enable_refund_tracer = true;
         }
-        tracers.push(PubdataTracer::new(self.batch_env.clone(), execution_mode).into_boxed());
 
         let (_, result) =
             self.inspect_and_collect_results(tracers, execution_mode, enable_refund_tracer);
@@ -49,6 +47,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
             tracers,
             self.storage.clone(),
             refund_tracers,
+            Some(PubdataTracer::new(self.batch_env.clone(), execution_mode)),
         );
 
         let timestamp_initial = Timestamp(self.state.local_state.timestamp);

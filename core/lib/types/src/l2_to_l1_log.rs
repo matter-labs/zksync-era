@@ -15,6 +15,17 @@ pub struct L2ToL1Log {
     pub value: H256,
 }
 
+/// A struct representing a "user" L2->L1 log, i.e. the one that has been emitted by using the L1Messenger.
+/// It is identical to the SystemL2ToL1Log struct, but
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default, Eq)]
+pub struct UserL2ToL1Log(pub L2ToL1Log);
+
+/// A struct representing a "user" L2->L1 log, i.e. the one that has been emitted by using the L1Messenger.
+/// It is identical to the SystemL2ToL1Log struct, but
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default, Eq)]
+pub struct SystemL2ToL1Log(pub L2ToL1Log);
+
 impl L2ToL1Log {
     /// Legacy upper bound of L2-to-L1 logs per single L1 batch. This is not used as a limit now,
     /// but still determines the minimum number of items in the Merkle tree built from L2-to-L1 logs

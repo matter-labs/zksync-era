@@ -16,8 +16,14 @@ use zksync_types::{
 use zksync_utils::u256_to_h256;
 use zksync_utils::{h256_to_u256, u256_to_bytes_be};
 
-use crate::vm_latest::old_vm::{history_recorder::HistoryMode, memory::SimpleMemory};
-use crate::vm_latest::{constants::BOOTLOADER_HEAP_PAGE, TracerExecutionStatus};
+use crate::vm_latest::{
+    old_vm::{history_recorder::HistoryMode, memory::SimpleMemory},
+    types::internals::pubdata::PubdataInput,
+};
+use crate::{
+    vm_latest::StorageOracle,
+    vm_latest::{constants::BOOTLOADER_HEAP_PAGE, TracerExecutionStatus},
+};
 
 use crate::interface::types::inputs::L1BatchEnv;
 use crate::vm_latest::tracers::{
@@ -25,9 +31,8 @@ use crate::vm_latest::tracers::{
     utils::VmHook,
 };
 use crate::vm_latest::types::internals::ZkSyncVmState;
-use crate::vm_latest::utils::logs::collect_events_and_l1_logs_after_timestamp;
+use crate::vm_latest::utils::logs::collect_events_and_l1_system_logs_after_timestamp;
 use crate::{
-    interface::types::outputs::PubdataInput,
     interface::VmExecutionMode,
     vm_latest::bootloader_state::{utils::apply_pubdata_to_memory, BootloaderState},
 };
@@ -57,8 +62,11 @@ impl PubdataTracer {
         &self,
         state: &ZkSyncVmState<S, H>,
     ) -> Vec<L1MessengerL2ToL1Log> {
-        let (all_generated_events, _) =
-            collect_events_and_l1_logs_after_timestamp(state, &self.l1_batch_env, Timestamp(0));
+        let (all_generated_events, _) = collect_events_and_l1_system_logs_after_timestamp(
+            state,
+            &self.l1_batch_env,
+            Timestamp(0),
+        );
         extract_l2tol1logs_from_l1_messenger(&all_generated_events)
     }
 
@@ -68,8 +76,11 @@ impl PubdataTracer {
         &self,
         state: &ZkSyncVmState<S, H>,
     ) -> Vec<Vec<u8>> {
-        let (all_generated_events, _) =
-            collect_events_and_l1_logs_after_timestamp(state, &self.l1_batch_env, Timestamp(0));
+        let (all_generated_events, _) = collect_events_and_l1_system_logs_after_timestamp(
+            state,
+            &self.l1_batch_env,
+            Timestamp(0),
+        );
 
         extract_long_l2_to_l1_messages(&all_generated_events)
     }
@@ -80,8 +91,11 @@ impl PubdataTracer {
         &self,
         state: &ZkSyncVmState<S, H>,
     ) -> Vec<Vec<u8>> {
-        let (all_generated_events, _) =
-            collect_events_and_l1_logs_after_timestamp(state, &self.l1_batch_env, Timestamp(0));
+        let (all_generated_events, _) = collect_events_and_l1_system_logs_after_timestamp(
+            state,
+            &self.l1_batch_env,
+            Timestamp(0),
+        );
 
         let bytecode_publication_requests =
             extract_bytecode_publication_requests_from_l1_messenger(&all_generated_events);
@@ -105,11 +119,10 @@ impl PubdataTracer {
     // Packs part of L1Messenger total pubdata that corresponds to
     // State diffs needed to be published on L1
     fn get_state_diffs<S: WriteStorage, H: HistoryMode>(
-        state: &ZkSyncVmState<S, H>,
+        storage: &StorageOracle<S, H>,
     ) -> Vec<StateDiffRecord> {
         sort_storage_access_queries(
-            state
-                .storage
+            storage
                 .storage_log_queries_after_timestamp(Timestamp(0))
                 .iter()
                 .map(|log| &log.log_query),
@@ -123,8 +136,7 @@ impl PubdataTracer {
             address: log.address,
             key: log.key,
             derived_key: log.derive_final_address(),
-            enumeration_index: state
-                .storage
+            enumeration_index: storage
                 .storage
                 .get_ptr()
                 .borrow_mut()
@@ -147,7 +159,7 @@ impl PubdataTracer {
             user_logs: self.get_total_user_logs(state),
             l2_to_l1_messages: self.get_total_l1_messenger_messages(state),
             published_bytecodes: self.get_total_published_bytecodes(state),
-            state_diffs: Self::get_state_diffs(state),
+            state_diffs: Self::get_state_diffs(&state.storage),
         }
     }
 }
@@ -183,7 +195,6 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for PubdataTracer {
         }
 
         if self.pubdata_info_requested {
-            // Whenever we are executing the block tip, we want to avoid publishing the full pubdata
             let pubdata_input = self.build_pubdata_input(state);
 
             // Save the pubdata for the future initial bootloader memory building

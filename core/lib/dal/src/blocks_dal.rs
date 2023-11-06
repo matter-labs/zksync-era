@@ -352,12 +352,12 @@ impl BlocksDal<'_, '_> {
         let l2_to_l1_logs: Vec<_> = header
             .l2_to_l1_logs
             .iter()
-            .map(|log| log.to_bytes().to_vec())
+            .map(|log| log.0.to_bytes().to_vec())
             .collect();
         let system_logs = header
             .system_logs
             .iter()
-            .map(|log| log.to_bytes().to_vec())
+            .map(|log| log.0.to_bytes().to_vec())
             .collect::<Vec<Vec<u8>>>();
 
         // Serialization should always succeed.
@@ -1496,7 +1496,10 @@ impl BlocksDal<'_, '_> {
 #[cfg(test)]
 mod tests {
     use zksync_contracts::BaseSystemContractsHashes;
-    use zksync_types::{l2_to_l1_log::L2ToL1Log, Address, ProtocolVersion, ProtocolVersionId};
+    use zksync_types::{
+        l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
+        Address, ProtocolVersion, ProtocolVersionId,
+    };
 
     use super::*;
     use crate::ConnectionPool;
@@ -1525,14 +1528,14 @@ mod tests {
         );
         header.l1_tx_count = 3;
         header.l2_tx_count = 5;
-        header.l2_to_l1_logs.push(L2ToL1Log {
+        header.l2_to_l1_logs.push(UserL2ToL1Log(L2ToL1Log {
             shard_id: 0,
             is_service: false,
             tx_number_in_block: 2,
             sender: Address::repeat_byte(2),
             key: H256::repeat_byte(3),
             value: H256::zero(),
-        });
+        }));
         header.l2_to_l1_messages.push(vec![22; 22]);
         header.l2_to_l1_messages.push(vec![33; 33]);
 

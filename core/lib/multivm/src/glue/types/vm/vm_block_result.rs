@@ -1,3 +1,5 @@
+use zksync_types::l2_to_l1_log::UserL2ToL1Log;
+
 use crate::glue::{GlueFrom, GlueInto};
 use crate::interface::{
     types::outputs::VmExecutionLogs, CurrentExecutionState, ExecutionResult, Refunds,
@@ -29,7 +31,12 @@ impl GlueFrom<crate::vm_m5::vm::VmBlockResult> for crate::interface::FinishedL1B
                 events: value.full_result.events,
                 storage_log_queries: value.full_result.storage_log_queries,
                 used_contract_hashes: value.full_result.used_contract_hashes,
-                user_l2_to_l1_logs: value.full_result.l2_to_l1_logs,
+                user_l2_to_l1_logs: value
+                    .full_result
+                    .l2_to_l1_logs
+                    .into_iter()
+                    .map(UserL2ToL1Log)
+                    .collect(),
                 system_logs: vec![],
                 total_log_queries: value.full_result.total_log_queries,
                 cycles_used: value.full_result.cycles_used,
@@ -61,7 +68,12 @@ impl GlueFrom<crate::vm_m6::vm::VmBlockResult> for crate::interface::FinishedL1B
                 events: value.full_result.events,
                 storage_log_queries: value.full_result.storage_log_queries,
                 used_contract_hashes: value.full_result.used_contract_hashes,
-                user_l2_to_l1_logs: value.full_result.l2_to_l1_logs,
+                user_l2_to_l1_logs: value
+                    .full_result
+                    .l2_to_l1_logs
+                    .into_iter()
+                    .map(UserL2ToL1Log)
+                    .collect(),
                 system_logs: vec![],
                 total_log_queries: value.full_result.total_log_queries,
                 cycles_used: value.full_result.cycles_used,
@@ -99,7 +111,12 @@ impl GlueFrom<crate::vm_1_3_2::vm::VmBlockResult> for crate::interface::Finished
                 events: value.full_result.events,
                 storage_log_queries: value.full_result.storage_log_queries,
                 used_contract_hashes: value.full_result.used_contract_hashes,
-                user_l2_to_l1_logs: value.full_result.l2_to_l1_logs,
+                user_l2_to_l1_logs: value
+                    .full_result
+                    .l2_to_l1_logs
+                    .into_iter()
+                    .map(UserL2ToL1Log)
+                    .collect(),
                 system_logs: vec![],
                 total_log_queries: value.full_result.total_log_queries,
                 cycles_used: value.full_result.cycles_used,
@@ -127,7 +144,12 @@ impl GlueFrom<crate::vm_1_3_2::vm::VmBlockResult> for crate::interface::VmExecut
             result,
             logs: VmExecutionLogs {
                 events: value.full_result.events,
-                user_l2_to_l1_logs: value.full_result.l2_to_l1_logs,
+                user_l2_to_l1_logs: value
+                    .full_result
+                    .l2_to_l1_logs
+                    .into_iter()
+                    .map(UserL2ToL1Log)
+                    .collect(),
                 system_l2_to_l1_logs: vec![],
                 storage_logs: value.full_result.storage_log_queries,
                 total_log_queries_count: value.full_result.total_log_queries,
@@ -189,7 +211,12 @@ impl GlueFrom<crate::vm_m6::vm::VmBlockResult> for crate::interface::VmExecution
             result,
             logs: VmExecutionLogs {
                 events: value.full_result.events,
-                user_l2_to_l1_logs: value.full_result.l2_to_l1_logs,
+                user_l2_to_l1_logs: value
+                    .full_result
+                    .l2_to_l1_logs
+                    .into_iter()
+                    .map(UserL2ToL1Log)
+                    .collect(),
                 system_l2_to_l1_logs: vec![],
                 storage_logs: value.full_result.storage_log_queries,
                 total_log_queries_count: value.full_result.total_log_queries,
