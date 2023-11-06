@@ -8,9 +8,10 @@ use tokio::task::JoinHandle;
 use prometheus_exporter::PrometheusExporterConfig;
 use zksync_config::configs::fri_prover_group::FriProverGroupConfig;
 use zksync_config::configs::FriProverConfig;
-use zksync_config::{FromEnv, ObjectStoreConfig};
+use zksync_config::ObjectStoreConfig;
 use zksync_dal::connection::DbVariant;
 use zksync_dal::ConnectionPool;
+use zksync_env_config::FromEnv;
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_prover_fri_utils::get_all_circuit_id_round_tuples_for;
 

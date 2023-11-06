@@ -1,6 +1,5 @@
 use anyhow::Context as _;
 use clap::Parser;
-use zksync_core::temp_config_store::TempConfigStore;
 
 use std::{str::FromStr, time::Duration};
 
@@ -19,6 +18,7 @@ use zksync_config::{
     FetcherConfig, GasAdjusterConfig, ObjectStoreConfig, ProverConfigs,
 };
 
+use zksync_core::temp_config_store::TempConfigStore;
 use zksync_core::{
     genesis_init, initialize_components, is_genesis_needed, setup_sigint_handler, Component,
     Components,
@@ -116,6 +116,10 @@ async fn main() -> anyhow::Result<()> {
         [Component::WitnessGenerator(Some(_), _)]
     );
 
+    // TODO (QIT-22): Only deserialize configs on demand.
+    // Right now, we are trying to deserialize all the configs that may be needed by `zksync_core`.
+    // "May" is the key word here, since some configs are only used by certain component configuration,
+    // hence we are using `Option`s.
     let configs = TempConfigStore {
         health_check_config: HealthCheckConfig::from_env().ok(),
         merkle_tree_api_config: MerkleTreeApiConfig::from_env().ok(),

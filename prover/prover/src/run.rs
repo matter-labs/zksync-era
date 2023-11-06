@@ -8,9 +8,10 @@ use queues::Buffer;
 use prometheus_exporter::PrometheusExporterConfig;
 use zksync_config::{
     configs::{api::PrometheusConfig, prover_group::ProverGroupConfig, AlertsConfig},
-    ApiConfig, FromEnv, ProverConfig, ProverConfigs,
+    ApiConfig, ProverConfig, ProverConfigs,
 };
 use zksync_dal::{connection::DbVariant, ConnectionPool};
+use zksync_env_config::FromEnv;
 use zksync_object_store::ObjectStoreFactory;
 use zksync_prover_utils::region_fetcher::{get_region, get_zone};
 use zksync_types::proofs::{GpuProverInstanceStatus, SocketAddress};

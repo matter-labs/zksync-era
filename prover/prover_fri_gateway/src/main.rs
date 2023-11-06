@@ -4,9 +4,10 @@ use tokio::{sync::oneshot, sync::watch};
 
 use crate::api_data_fetcher::{PeriodicApiStruct, PROOF_GENERATION_DATA_PATH, SUBMIT_PROOF_PATH};
 use prometheus_exporter::PrometheusExporterConfig;
-use zksync_config::configs::{FriProverGatewayConfig, FromEnv};
+use zksync_config::configs::FriProverGatewayConfig;
 use zksync_dal::connection::DbVariant;
 use zksync_dal::ConnectionPool;
+use zksync_env_config::FromEnv;
 use zksync_object_store::ObjectStoreFactory;
 use zksync_types::prover_server_api::{ProofGenerationDataRequest, SubmitProofRequest};
 use zksync_utils::wait_for_tasks::wait_for_tasks;

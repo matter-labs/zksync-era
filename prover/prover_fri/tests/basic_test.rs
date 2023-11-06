@@ -2,7 +2,8 @@ use anyhow::Context as _;
 use std::sync::Arc;
 
 use zksync_config::configs::FriProverConfig;
-use zksync_config::{FromEnv, ObjectStoreConfig};
+use zksync_config::ObjectStoreConfig;
+use zksync_env_config::FromEnv;
 use zksync_object_store::{bincode, FriCircuitKey, ObjectStoreFactory};
 use zksync_types::proofs::AggregationRound;
 use zksync_types::L1BatchNumber;

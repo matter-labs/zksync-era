@@ -10,7 +10,8 @@ use zkevm_test_harness::witness::recursive_aggregation::padding_aggregations;
 use zkevm_test_harness::witness::vk_set_generator::circuits_for_vk_generation;
 use zksync_types::circuit::GEOMETRY_CONFIG;
 
-use zksync_config::{FromEnv, ProverConfigs};
+use zksync_config::ProverConfigs;
+use zksync_env_config::FromEnv;
 use zksync_types::circuit::{LEAF_SPLITTING_FACTOR, NODE_SPLITTING_FACTOR, SCHEDULER_UPPER_BOUND};
 pub fn get_setup_for_circuit_type(circuit_type: u8) -> anyhow::Result<Box<dyn Read>> {
     let filepath = get_setup_key_file_path(circuit_type).context("get_setup_key_file_path()")?;

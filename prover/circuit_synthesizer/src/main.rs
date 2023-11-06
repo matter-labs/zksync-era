@@ -3,9 +3,10 @@ use prometheus_exporter::PrometheusExporterConfig;
 use structopt::StructOpt;
 use tokio::{sync::oneshot, sync::watch};
 
-use zksync_config::configs::{AlertsConfig, CircuitSynthesizerConfig, FromEnv, ProverGroupConfig};
+use zksync_config::configs::{AlertsConfig, CircuitSynthesizerConfig, ProverGroupConfig};
 use zksync_dal::connection::DbVariant;
 use zksync_dal::ConnectionPool;
+use zksync_env_config::FromEnv;
 use zksync_object_store::ObjectStoreFactory;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_utils::wait_for_tasks::wait_for_tasks;

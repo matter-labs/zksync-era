@@ -6,9 +6,10 @@ use tokio::{sync::oneshot, sync::watch};
 use std::time::Duration;
 
 use prometheus_exporter::PrometheusExporterConfig;
-use zksync_config::configs::{FriProofCompressorConfig, FromEnv};
+use zksync_config::configs::FriProofCompressorConfig;
 use zksync_dal::connection::DbVariant;
 use zksync_dal::ConnectionPool;
+use zksync_env_config::FromEnv;
 use zksync_object_store::ObjectStoreFactory;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_utils::wait_for_tasks::wait_for_tasks;

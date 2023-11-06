@@ -1,7 +1,8 @@
 use std::time::Instant;
 
 use serde::Serialize;
-use zksync_config::{FromEnv, ObjectStoreConfig};
+use zksync_config::ObjectStoreConfig;
+use zksync_env_config::FromEnv;
 use zksync_object_store::{AggregationsKey, FriCircuitKey, ObjectStoreFactory};
 use zksync_types::proofs::{
     AggregationRound, LeafAggregationJobMetadata, NodeAggregationJobMetadata,

@@ -42,7 +42,8 @@ use zksync_prover_fri_types::circuit_definitions::{
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use zkevm_test_harness::prover_utils::create_base_layer_setup_data;
-use zksync_config::configs::{FriProverConfig, FromEnv};
+use zksync_config::configs::FriProverConfig;
+use zksync_env_config::FromEnv;
 use zksync_types::proofs::AggregationRound;
 use zksync_types::zkevm_test_harness::abstract_zksync_circuit::concrete_circuits::ZkSyncCircuit;
 use zksync_types::zkevm_test_harness::bellman::bn256::Bn256;

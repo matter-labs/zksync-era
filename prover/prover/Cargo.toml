@@ -13,6 +13,7 @@ publish = false # We don't want to publish our binaries.
 [dependencies]
 zksync_dal = { path = "../../core/lib/dal" }
 zksync_config = { path = "../../core/lib/config" }
+zksync_env_config = { path = "../../core/lib/config" }
 zksync_utils = { path = "../../core/lib/utils" }
 zksync_prover_utils = { path = "../../core/lib/prover_utils" }
 zksync_circuit_breaker = { path = "../../core/lib/circuit_breaker" }
