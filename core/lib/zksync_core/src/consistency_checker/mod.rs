@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{time::Duration, env};
 
 use zksync_dal::ConnectionPool;
 use zksync_types::{
@@ -34,6 +34,12 @@ impl ConsistencyChecker {
 
     async fn check_commitments(&self, batch_number: L1BatchNumber) -> Result<bool, error::Error> {
         let mut storage = self.db.access_storage().await.unwrap();
+        let validium: bool = env::var("VALIDIUM").map(|v| 
+            match v.as_str() {
+                "true" => true,
+                _ => false,
+            }
+        ).unwrap_or(false);
 
         let storage_l1_batch = storage
             .blocks_dal()
@@ -118,7 +124,7 @@ impl ConsistencyChecker {
 
         let commitment = &commitments[batch_number.0 as usize - first_batch_number];
 
-        Ok(commitment == &block_metadata.l1_commit_data())
+        Ok(commitment == &block_metadata.l1_commit_data(validium))
     }
 
     async fn last_committed_batch(&self) -> L1BatchNumber {

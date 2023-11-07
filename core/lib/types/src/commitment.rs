@@ -133,7 +133,7 @@ impl L1BatchWithMetadata {
         ])
     }
 
-    pub fn l1_commit_data(&self) -> Token {
+    pub fn l1_commit_data(&self, validium: bool) -> Token {
         Token::Tuple(vec![
             Token::Uint(U256::from(self.header.number.0)),
             Token::Uint(U256::from(self.header.timestamp)),
@@ -161,18 +161,18 @@ impl L1BatchWithMetadata {
                     .to_vec(),
             ),
             Token::Bytes(self.metadata.l2_l1_messages_compressed.clone()),
-            Token::Bytes(self.construct_pubdata()),
+            Token::Bytes(self.construct_pubdata(validium)),
         ])
     }
 
-    pub fn l1_commit_data_size(&self) -> usize {
-        crate::ethabi::encode(&[Token::Array(vec![self.l1_commit_data()])]).len()
+    pub fn l1_commit_data_size(&self, validium: bool) -> usize {
+        crate::ethabi::encode(&[Token::Array(vec![self.l1_commit_data(validium)])]).len()
     }
 
     /// Packs all pubdata needed for batch commitment in boojum into one bytes array. The packing contains the
     /// following: logs, messages, bytecodes, and compressed state diffs.
     /// This data is currently part of calldata but will be submitted as part of the blob section post EIP-4844.
-    pub fn construct_pubdata(&self) -> Vec<u8> {
+    pub fn construct_pubdata(&self, validium: bool) -> Vec<u8> {
         println!("entered construct_pubdata()");
         let mut res: Vec<u8> = vec![];
 
@@ -182,14 +182,26 @@ impl L1BatchWithMetadata {
             res.extend(l2_to_l1_log.to_bytes());
         }
 
-        // Process and Pack Msgs
-        res.extend((self.header.l2_to_l1_messages.len() as u32).to_be_bytes());
-        for msg in &self.header.l2_to_l1_messages {
-            res.extend((msg.len() as u32).to_be_bytes());
-            res.extend(msg);
-        }
+        if validium {
+            res.extend(vec![1u8, 2u8, 3u8, 9u8]); // to check on eth_getTransactionByHash for the commit op
+        } else {
+            // Process and Pack Msgs
+            res.extend((self.header.l2_to_l1_messages.len() as u32).to_be_bytes());
+            for msg in &self.header.l2_to_l1_messages {
+                res.extend((msg.len() as u32).to_be_bytes());
+                res.extend(msg);
+            }
+            
+            // Process and Pack Bytecodes
+            res.extend((self.factory_deps.len() as u32).to_be_bytes());
+            for bytecode in &self.factory_deps {
+                res.extend((bytecode.len() as u32).to_be_bytes());
+                res.extend(bytecode);
+            }
 
-        res.extend(vec![1u8, 2u8, 3u8, 9u8]); // to check on eth_getTransactionByHash for the commit op
+            // Extend with Compressed StateDiffs
+            res.extend(&self.metadata.state_diffs_compressed);
+        }
 
         res
     }

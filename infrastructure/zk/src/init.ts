@@ -21,11 +21,13 @@ export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
     const {
         skipSubmodulesCheckout,
         skipEnvSetup,
+        validium,
         testTokens,
         deployerL1ContractInputArgs,
         governorPrivateKeyArgs,
         deployerL2ContractInput
     } = initArgs;
+
 
     if (!process.env.CI && !skipEnvSetup) {
         await announced('Pulling images', docker.pull());
@@ -50,8 +52,8 @@ export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
     }
     await announced('Deploying L1 verifier', contract.deployVerifier([]));
     await announced('Reloading env', env.reload());
+    await announced('Deploying L1 contracts', contract.redeployL1(governorPrivateKeyArgs, validium));
     await announced('Running server genesis setup', server.genesisFromSources());
-    await announced('Deploying L1 contracts', contract.redeployL1(governorPrivateKeyArgs));
     await announced('Initializing validator', contract.initializeValidator(governorPrivateKeyArgs));
     await announced('Initialize L1 allow list', contract.initializeL1AllowList(governorPrivateKeyArgs));
     await announced(
@@ -71,7 +73,7 @@ export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
 
 // A smaller version of `init` that "resets" the localhost environment, for which `init` was already called before.
 // It does less and runs much faster.
-export async function reinit() {
+export async function reinit(validium: boolean) {
     await announced('Setting up containers', up());
     await announced('Compiling JS packages', run.yarn());
     await announced('Compile l2 contracts', compiler.compileAll());
@@ -83,7 +85,7 @@ export async function reinit() {
     await announced('Deploying L1 verifier', contract.deployVerifier([]));
     await announced('Reloading env', env.reload());
     await announced('Running server genesis setup', server.genesisFromSources());
-    await announced('Deploying L1 contracts', contract.redeployL1([]));
+    await announced('Deploying L1 contracts', contract.redeployL1([], validium));
     await announced('Initializing L1 Allow list', contract.initializeL1AllowList());
     await announced('Deploying L2 contracts', contract.deployL2([], true, true));
     await announced('Initializing L2 WETH token', contract.initializeWethToken());
@@ -92,13 +94,13 @@ export async function reinit() {
 }
 
 // A lightweight version of `init` that sets up local databases, generates genesis and deploys precompiled contracts
-export async function lightweightInit() {
+export async function lightweightInit(validium: boolean) {
     await announced('Clean rocksdb', clean('db'));
     await announced('Clean backups', clean('backups'));
     await announced('Deploying L1 verifier', contract.deployVerifier([]));
     await announced('Reloading env', env.reload());
     await announced('Running server genesis setup', server.genesisFromBinary());
-    await announced('Deploying L1 contracts', contract.redeployL1([]));
+    await announced('Deploying L1 contracts', contract.redeployL1([], validium));
     await announced('Initializing validator', contract.initializeValidator());
     await announced('Initializing L1 Allow list', contract.initializeL1AllowList());
     await announced('Deploying L2 contracts', contract.deployL2([], true, false));
@@ -143,6 +145,7 @@ async function checkEnv() {
 export interface InitArgs {
     skipSubmodulesCheckout: boolean;
     skipEnvSetup: boolean;
+    validium: boolean;
     deployerL1ContractInputArgs: any[];
     governorPrivateKeyArgs: any[];
     deployerL2ContractInput: {
@@ -159,6 +162,7 @@ export interface InitArgs {
 const DEFAULT_ARGS: InitArgs = {
     skipSubmodulesCheckout: false,
     skipEnvSetup: false,
+    validium: false,
     deployerL1ContractInputArgs: [],
     governorPrivateKeyArgs: [],
     deployerL2ContractInput: { args: [], includePaymaster: true, includeL2WETH: true },
@@ -168,11 +172,13 @@ const DEFAULT_ARGS: InitArgs = {
 export const initCommand = new Command('init')
     .option('--skip-submodules-checkout')
     .option('--skip-env-setup')
+    .option('--validium')
     .description('perform zksync network initialization for development')
     .action(async (cmd: Command) => {
         const initArgs: InitArgs = {
             skipSubmodulesCheckout: cmd.skipSubmodulesCheckout,
             skipEnvSetup: cmd.skipEnvSetup,
+            validium: cmd.validium,
             deployerL1ContractInputArgs: [],
             governorPrivateKeyArgs: [],
             deployerL2ContractInput: { args: [], includePaymaster: true, includeL2WETH: true },
@@ -181,8 +187,13 @@ export const initCommand = new Command('init')
         await init(initArgs);
     });
 export const reinitCommand = new Command('reinit')
+    .option('--validium')
     .description('"reinitializes" network. Runs faster than `init`, but requires `init` to be executed prior')
-    .action(reinit);
+    .action(async (cmd: Command) => {
+        await reinit(cmd.validium);
+    });;
 export const lightweightInitCommand = new Command('lightweight-init')
     .description('perform lightweight zksync network initialization for development')
-    .action(lightweightInit);
+    .action(async (cmd: Command) => {
+        await lightweightInit(cmd.validium);
+    });;

@@ -590,6 +590,7 @@ pub async fn initialize_components(
             Aggregator::new(
                 eth_sender.sender.clone(),
                 store_factory.create_store().await,
+                true //todo change
             ),
             contracts_config.validator_timelock_addr,
             contracts_config.l1_multicall3_addr,

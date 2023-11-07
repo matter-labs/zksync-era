@@ -47,7 +47,7 @@ impl<E: EthInterface + std::fmt::Debug> FacetSelectorsChecker<E> {
                 let file_name: String = path.unwrap().file_name().into_string().unwrap();
                 let facet_name: &str = file_name.as_str().split('.').next().unwrap();
                 // Exclude `Base` contract.
-                if facet_name == "Base" {
+                if facet_name == "Base" || facet_name.contains("validium") {
                     return None;
                 }
                 let env_name = format!(

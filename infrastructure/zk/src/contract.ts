@@ -152,8 +152,13 @@ export async function deployL1(args: any[]) {
     fs.writeFileSync('deployed_contracts.log', updatedContracts);
 }
 
-export async function redeployL1(args: any[]) {
-    await deployL1(args);
+export async function redeployL1(args: any[], validium: boolean) {
+    if (validium) { 
+        await deployL1([...args, '--only-verifier']);
+    } else {
+        await deployL1(args);
+    }
+
     await verifyL1Contracts();
 }
 

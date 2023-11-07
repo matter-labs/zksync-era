@@ -56,6 +56,7 @@ mod tests {
             governance_addr: addr("d8dA6BF26964aF9D7eEd9e03E53415D37aA96045"),
             mailbox_facet_addr: addr("0f6Fa881EF414Fc6E818180657c2d5CD7Ac6cCAd"),
             executor_facet_addr: addr("18B631537801963A964211C0E86645c1aBfbB2d3"),
+            validium: false,
             admin_facet_addr: addr("1e12b20BE86bEc3A0aC95aA52ade345cB9AE7a32"),
             getters_facet_addr: addr("8656770FA78c830456B00B4fFCeE6b1De0e1b888"),
             verifier_addr: addr("34782eE00206EAB6478F2692caa800e4A581687b"),
