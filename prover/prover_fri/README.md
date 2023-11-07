@@ -22,7 +22,22 @@ These are the main components to this process:
 All of them will be sharing information through a SQL database.
 The general idea is that the sequencer will produce blocks and the gateway will place them into the database to be proven. Then, the rest of the components will pull jobs from the database and do their part of the pipeline. 
 
-![Pipeline](block_proving_pipeline.svg)
+```mermaid
+flowchart LR
+    A["Operator"] --> |Produces block| F[Prover Gateway]
+    F --> |Inserts into DB| B["Postgress DB"]
+    B --> |Retrieves proven block \nafter compression| F
+    B --> C["Witness"]
+    C --- C1["Basic Circuits"]
+    C --- C2["Leaf Aggregation"]
+    C --- C3["Node Aggregation"]
+    C --- C4["Scheduler"]
+    C --> B
+    B --> D["Prover"]
+    D --> |Proven Block| B
+    B --> E["Compressor"]
+    E --> |Compressed block| B
+```
 
 ### Prerequisites
 
