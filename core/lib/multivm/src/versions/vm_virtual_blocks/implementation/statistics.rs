@@ -2,9 +2,9 @@ use zk_evm_1_3_3::aux_structures::Timestamp;
 use zksync_state::WriteStorage;
 
 use crate::interface::{VmExecutionStatistics, VmMemoryMetrics};
+use crate::HistoryMode;
 use zksync_types::U256;
 
-use crate::vm_virtual_blocks::old_vm::history_recorder::HistoryMode;
 use crate::vm_virtual_blocks::tracers::DefaultExecutionTracer;
 use crate::vm_virtual_blocks::vm::Vm;
 
@@ -18,7 +18,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
         &self,
         timestamp_initial: Timestamp,
         cycles_initial: u32,
-        tracer: &DefaultExecutionTracer<S, H>,
+        tracer: &DefaultExecutionTracer<S, H::VmVirtualBlocksMode>,
         gas_remaining_before: u32,
         gas_remaining_after: u32,
         spent_pubdata_counter_before: u32,
@@ -38,6 +38,8 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
             gas_used: gas_remaining_before - gas_remaining_after,
             computational_gas_used,
             total_log_queries: total_log_queries_count,
+            // This field will be populated by the RefundTracer
+            pubdata_published: 0,
         }
     }
 

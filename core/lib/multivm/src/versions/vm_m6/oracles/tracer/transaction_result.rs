@@ -12,7 +12,7 @@ use crate::vm_m6::oracles::tracer::{
     CallTracer, ExecutionEndTracer, PendingRefundTracer, PubdataSpentTracer,
     StorageInvocationTracer,
 };
-use crate::vm_m6::vm::get_vm_hook_params;
+use crate::vm_m6::vm_instance::get_vm_hook_params;
 use crate::vm_m6::{
     history_recorder::HistoryMode,
     oracles::tracer::utils::{

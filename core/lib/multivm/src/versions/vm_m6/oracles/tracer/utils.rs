@@ -1,7 +1,7 @@
 use crate::vm_m6::history_recorder::HistoryMode;
 use crate::vm_m6::memory::SimpleMemory;
 use crate::vm_m6::utils::{aux_heap_page_from_base, heap_page_from_base};
-use crate::vm_m6::vm::{get_vm_hook_params, VM_HOOK_POSITION};
+use crate::vm_m6::vm_instance::{get_vm_hook_params, VM_HOOK_POSITION};
 use crate::vm_m6::vm_with_bootloader::BOOTLOADER_HEAP_PAGE;
 
 use zk_evm_1_3_1::aux_structures::MemoryPage;
@@ -65,7 +65,7 @@ impl VmHook {
             8 => Self::AskOperatorForRefund,
             9 => Self::NotifyAboutRefund,
             10 => Self::ExecutionResult,
-            _ => panic!("Unkown hook"),
+            _ => panic!("Unknown hook: {}", value.as_u32()),
         }
     }
 }

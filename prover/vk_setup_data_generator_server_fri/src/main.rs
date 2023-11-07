@@ -1,19 +1,18 @@
 #![feature(generic_const_exprs)]
 use anyhow::Context as _;
-use circuit_definitions::circuit_definitions::recursion_layer::{
-    ZkSyncRecursionLayerProof, ZkSyncRecursionLayerVerificationKey,
-};
+use circuit_definitions::circuit_definitions::recursion_layer::ZkSyncRecursionLayerVerificationKey;
 use zkevm_test_harness::compute_setups::{
     generate_base_layer_vks_and_proofs, generate_recursive_layer_vks_and_proofs,
 };
+use zkevm_test_harness::data_source::in_memory_data_source::InMemoryDataSource;
 use zkevm_test_harness::data_source::SetupDataSource;
-use zkevm_test_harness::in_memory_data_source::InMemoryDataSource;
-use zkevm_test_harness::proof_wrapper_utils::wrap_proof;
+use zkevm_test_harness::proof_wrapper_utils::{
+    get_wrapper_setup_and_vk_from_scheduler_vk, WrapperConfig,
+};
 use zksync_prover_fri_types::circuit_definitions::circuit_definitions::recursion_layer::ZkSyncRecursionLayerStorageType;
 use zksync_prover_fri_types::circuit_definitions::zkevm_circuits::scheduler::aux::BaseLayerCircuitType;
 use zksync_prover_fri_types::ProverServiceDataKey;
 use zksync_types::proofs::AggregationRound;
-use zksync_vk_setup_data_server_fri::utils::get_scheduler_proof_for_snark_vk_generation;
 use zksync_vk_setup_data_server_fri::{
     get_round_for_recursive_circuit_type, save_base_layer_vk, save_finalization_hints,
     save_recursive_layer_vk, save_snark_vk,
@@ -122,11 +121,12 @@ fn save_finalization_hints_using_source(source: &dyn SetupDataSource) -> anyhow:
 }
 
 fn generate_snark_vk(
-    proof: ZkSyncRecursionLayerProof,
     scheduler_vk: ZkSyncRecursionLayerVerificationKey,
     compression_mode: u8,
 ) -> anyhow::Result<()> {
-    let (_, vk) = wrap_proof(proof, scheduler_vk, compression_mode);
+    let config = WrapperConfig::new(compression_mode);
+
+    let (_, vk) = get_wrapper_setup_and_vk_from_scheduler_vk(scheduler_vk, config);
     save_snark_vk(vk).context("save_snark_vk")
 }
 
@@ -141,12 +141,10 @@ fn generate_vks() -> anyhow::Result<()> {
     save_vks(&in_memory_source).context("save_vks()")?;
 
     // Generate snark VK
-    let proof = get_scheduler_proof_for_snark_vk_generation()
-        .context("get_scheduler_proof_for_snark_vk_generation")?;
     let scheduler_vk = in_memory_source
         .get_recursion_layer_vk(ZkSyncRecursionLayerStorageType::SchedulerCircuit as u8)
         .map_err(|err| anyhow::anyhow!("Failed to get scheduler vk: {err}"))?;
-    generate_snark_vk(proof, scheduler_vk, 1).context("generate_snark_vk")
+    generate_snark_vk(scheduler_vk, 1).context("generate_snark_vk")
 }
 
 fn main() -> anyhow::Result<()> {

@@ -16,13 +16,17 @@ where
     pub fn new(version: VmVersion, state: StoragePtr<StorageView<S>>, history: H) -> Self {
         match version {
             VmVersion::M5WithoutRefunds => {
-                let oracle_tools =
-                    crate::vm_m5::OracleTools::new(state, crate::vm_m5::vm::MultiVMSubversion::V1);
+                let oracle_tools = crate::vm_m5::OracleTools::new(
+                    state,
+                    crate::vm_m5::vm_instance::MultiVMSubversion::V1,
+                );
                 OracleTools::M5(oracle_tools)
             }
             VmVersion::M5WithRefunds => {
-                let oracle_tools =
-                    crate::vm_m5::OracleTools::new(state, crate::vm_m5::vm::MultiVMSubversion::V2);
+                let oracle_tools = crate::vm_m5::OracleTools::new(
+                    state,
+                    crate::vm_m5::vm_instance::MultiVMSubversion::V2,
+                );
                 OracleTools::M5(oracle_tools)
             }
             VmVersion::M6Initial | VmVersion::M6BugWithCompressionFixed => {
@@ -31,7 +35,8 @@ where
             }
             VmVersion::VmVirtualBlocks
             | VmVersion::VmVirtualBlocksRefundsEnhancement
-            | VmVersion::Vm1_3_2 => {
+            | VmVersion::Vm1_3_2
+            | VmVersion::VmBoojumIntegration => {
                 panic!("oracle tools for after VM1.3.2 do not exist")
             }
         }

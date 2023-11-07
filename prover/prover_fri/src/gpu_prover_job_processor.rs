@@ -19,6 +19,7 @@ pub mod gpu_prover {
     use zksync_config::configs::fri_prover_group::FriProverGroupConfig;
     use zksync_config::configs::FriProverConfig;
     use zksync_dal::ConnectionPool;
+    use zksync_env_config::FromEnv;
     use zksync_object_store::ObjectStore;
     use zksync_prover_fri_types::{CircuitWrapper, FriProofWrapper, ProverServiceDataKey};
     use zksync_queued_job_processor::{async_trait, JobProcessor};
@@ -30,8 +31,8 @@ pub mod gpu_prover {
     };
 
     use crate::utils::{
-        save_proof, setup_metadata_to_setup_data_key, verify_proof, GpuProverJob, ProverArtifacts,
-        SharedWitnessVectorQueue,
+        get_setup_data_key, save_proof, setup_metadata_to_setup_data_key, verify_proof,
+        GpuProverJob, ProverArtifacts, SharedWitnessVectorQueue,
     };
 
     type DefaultTranscript = GoldilocksPoisedon2Transcript;
@@ -90,6 +91,7 @@ pub mod gpu_prover {
             &self,
             key: ProverServiceDataKey,
         ) -> anyhow::Result<Arc<GoldilocksGpuProverSetupData>> {
+            let key = get_setup_data_key(key);
             Ok(match &self.setup_load_mode {
                 SetupLoadMode::FromMemory(cache) => cache
                     .get(&key)
@@ -284,6 +286,7 @@ pub mod gpu_prover {
                     &config.specialized_group_id
                 );
                 let prover_setup_metadata_list = FriProverGroupConfig::from_env()
+                    .context("FriProverGroupConfig::from_env()")?
                     .get_circuit_ids_for_group_id(config.specialized_group_id)
                     .context(
                         "At least one circuit should be configured for group when running in FromMemory mode",

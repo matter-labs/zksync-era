@@ -1,4 +1,3 @@
-use anyhow::Context as _;
 use async_trait::async_trait;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
@@ -11,10 +10,11 @@ use std::{
 };
 
 use multivm::vm_latest::{
-    constants::MAX_CYCLES_FOR_TX, HistoryDisabled, SimpleMemory, StorageOracle,
+    constants::MAX_CYCLES_FOR_TX, HistoryDisabled, SimpleMemory, StorageOracle as VmStorageOracle,
 };
-use zksync_config::configs::witness_generator::BasicWitnessGeneratorDataSource;
-use zksync_config::configs::WitnessGeneratorConfig;
+use zksync_config::configs::{
+    witness_generator::BasicWitnessGeneratorDataSource, WitnessGeneratorConfig,
+};
 use zksync_dal::ConnectionPool;
 use zksync_object_store::{Bucket, ObjectStore, ObjectStoreFactory, StoredObject};
 use zksync_queued_job_processor::JobProcessor;
@@ -37,7 +37,7 @@ use zksync_utils::{bytes_to_chunks, expand_memory_contents, h256_to_u256, u256_t
 
 use super::{
     precalculated_merkle_paths_provider::PrecalculatedMerklePathsProvider,
-    utils::save_prover_input_artifacts, METRICS,
+    storage_oracle::StorageOracle, utils::save_prover_input_artifacts, METRICS,
 };
 
 pub struct BasicCircuitArtifacts {
@@ -88,14 +88,13 @@ impl BasicWitnessGenerator {
     }
 
     async fn process_job_impl(
+        config: WitnessGeneratorConfig,
         object_store: Arc<dyn ObjectStore>,
         connection_pool: ConnectionPool,
         prover_connection_pool: ConnectionPool,
         basic_job: BasicWitnessGeneratorJob,
         started_at: Instant,
     ) -> anyhow::Result<Option<BasicCircuitArtifacts>> {
-        let config =
-            WitnessGeneratorConfig::from_env().context("WitnessGeneratorConfig::from_env()")?;
         let BasicWitnessGeneratorJob { block_number, job } = basic_job;
 
         if let Some(blocks_proving_percentage) = config.blocks_proving_percentage {
@@ -213,7 +212,9 @@ impl JobProcessor for BasicWitnessGenerator {
         started_at: Instant,
     ) -> tokio::task::JoinHandle<anyhow::Result<Option<BasicCircuitArtifacts>>> {
         let object_store = Arc::clone(&self.object_store);
+        let config = self.config.clone();
         tokio::spawn(Self::process_job_impl(
+            config,
             object_store,
             self.connection_pool.clone(),
             self.prover_connection_pool.clone(),
@@ -458,6 +459,12 @@ pub async fn generate_witness(
         .await
         .unwrap()
         .expect("L1 batch should contain at least one miniblock");
+    let storage_refunds = connection
+        .blocks_dal()
+        .get_storage_refunds(input.block_number)
+        .await
+        .unwrap()
+        .unwrap();
 
     drop(connection);
     let rt_handle = tokio::runtime::Handle::current();
@@ -482,16 +489,13 @@ pub async fn generate_witness(
                 let connection = rt_handle
                     .block_on(connection_pool.access_storage())
                     .unwrap();
+                let block_state = rt_handle.block_on(object_store.get(header.number)).unwrap();
                 let source_storage = Box::new(PostgresStorage::new(
                     rt_handle.clone(),
                     connection,
                     last_miniblock_number,
                     true,
                 ));
-                let block_state = input
-                    .merkle_paths_input
-                    .clone()
-                    .into_witness_hash_block_state();
                 let checked_storage = Box::new(WitnessStorage::new(block_state));
                 Box::new(ShadowStorage::new(
                     source_storage,
@@ -500,10 +504,7 @@ pub async fn generate_witness(
                 ))
             }
             BasicWitnessGeneratorDataSource::FromBlob => {
-                let block_state = input
-                    .merkle_paths_input
-                    .clone()
-                    .into_witness_hash_block_state();
+                let block_state = rt_handle.block_on(object_store.get(header.number)).unwrap();
                 Box::new(WitnessStorage::new(block_state))
             }
         };
@@ -514,8 +515,9 @@ pub async fn generate_witness(
 
         let storage_view = StorageView::new(storage);
         let storage_view = storage_view.to_rc_ptr();
-        let storage_oracle: StorageOracle<StorageView<Box<dyn ReadStorage>>, HistoryDisabled> =
-            StorageOracle::new(storage_view);
+        let vm_storage_oracle: VmStorageOracle<StorageView<Box<dyn ReadStorage>>, HistoryDisabled> =
+            VmStorageOracle::new(storage_view);
+        let storage_oracle = StorageOracle::new(vm_storage_oracle, storage_refunds);
         let memory: SimpleMemory<HistoryDisabled> = SimpleMemory::default();
         let mut hasher = DefaultHasher::new();
         GEOMETRY_CONFIG.hash(&mut hasher);

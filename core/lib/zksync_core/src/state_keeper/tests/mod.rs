@@ -12,18 +12,18 @@ use multivm::interface::{
     CurrentExecutionState, ExecutionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv, Refunds,
     SystemEnv, TxExecutionMode, VmExecutionResultAndLogs, VmExecutionStatistics,
 };
-use multivm::vm_latest::constants::BLOCK_GAS_LIMIT;
+use multivm::vm_latest::{constants::BLOCK_GAS_LIMIT, VmExecutionLogs};
 use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes};
 use zksync_system_constants::ZKPORTER_IS_AVAILABLE;
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
-    block::{legacy_miniblock_hash, miniblock_hash, BlockGasCount, MiniblockReexecuteData},
+    block::{legacy_miniblock_hash, miniblock_hash, BlockGasCount, MiniblockExecutionData},
     commitment::{L1BatchMetaParameters, L1BatchMetadata},
     fee::Fee,
     l2::L2Tx,
     transaction_request::PaymasterParams,
-    tx::tx_execution_info::{ExecutionMetrics, VmExecutionLogs},
+    tx::tx_execution_info::ExecutionMetrics,
     Address, L1BatchNumber, L2ChainId, LogQuery, MiniblockNumber, Nonce, ProtocolVersionId,
     StorageLogQuery, StorageLogQueryType, Timestamp, Transaction, H256, U256,
 };
@@ -103,6 +103,7 @@ pub(crate) fn create_l1_batch_metadata(number: u32) -> L1BatchMetadata {
         pass_through_data_hash: H256::zero(),
         events_queue_commitment: Some(H256::zero()),
         bootloader_initial_content_commitment: Some(H256::zero()),
+        state_diffs_compressed: vec![],
     }
 }
 
@@ -118,9 +119,12 @@ pub(super) fn default_vm_block_result() -> FinishedL1Batch {
             events: vec![],
             storage_log_queries: vec![],
             used_contract_hashes: vec![],
-            l2_to_l1_logs: vec![],
+            user_l2_to_l1_logs: vec![],
+            system_logs: vec![],
             total_log_queries: 0,
             cycles_used: 0,
+            deduplicated_events_logs: vec![],
+            storage_refunds: Vec::new(),
         },
         final_bootloader_memory: Some(vec![]),
     }
@@ -149,7 +153,7 @@ pub(crate) fn create_l2_transaction(fee_per_gas: u64, gas_per_pubdata: u32) -> L
         fee,
         U256::zero(),
         L2ChainId::from(271),
-        &H256::repeat_byte(0x11),
+        &H256::random(),
         None,
         PaymasterParams::default(),
     )
@@ -179,7 +183,8 @@ pub(super) fn create_execution_result(
         result: ExecutionResult::Success { output: vec![] },
         logs: VmExecutionLogs {
             events: vec![],
-            l2_to_l1_logs: vec![],
+            system_l2_to_l1_logs: vec![],
+            user_l2_to_l1_logs: vec![],
             storage_logs,
             total_log_queries_count: total_log_queries,
         },
@@ -189,6 +194,7 @@ pub(super) fn create_execution_result(
             gas_used: 0,
             computational_gas_used: 0,
             total_log_queries,
+            pubdata_published: 0,
         },
         refunds: Refunds::default(),
     }
@@ -435,14 +441,14 @@ async fn pending_batch_is_applied() {
     let sealer = ConditionalSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
 
     let pending_batch = pending_batch_data(vec![
-        MiniblockReexecuteData {
+        MiniblockExecutionData {
             number: MiniblockNumber(1),
             timestamp: 1,
             prev_block_hash: miniblock_hash(MiniblockNumber(0), 0, H256::zero(), H256::zero()),
             virtual_blocks: 1,
             txs: vec![random_tx(1)],
         },
-        MiniblockReexecuteData {
+        MiniblockExecutionData {
             number: MiniblockNumber(2),
             timestamp: 2,
             prev_block_hash: miniblock_hash(MiniblockNumber(1), 1, H256::zero(), H256::zero()),
@@ -520,7 +526,7 @@ async fn miniblock_timestamp_after_pending_batch() {
     };
     let sealer = ConditionalSealer::with_sealers(config, vec![Box::new(SlotsCriterion)]);
 
-    let pending_batch = pending_batch_data(vec![MiniblockReexecuteData {
+    let pending_batch = pending_batch_data(vec![MiniblockExecutionData {
         number: MiniblockNumber(1),
         timestamp: 1,
         prev_block_hash: miniblock_hash(MiniblockNumber(0), 0, H256::zero(), H256::zero()),
