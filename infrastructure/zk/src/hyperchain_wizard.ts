@@ -49,7 +49,6 @@ async function initHyperchain() {
 
     const deployerPrivateKey = process.env.DEPLOYER_PRIVATE_KEY;
     const governorPrivateKey = process.env.GOVERNOR_PRIVATE_KEY;
-    const governorAddress = process.env.GOVERNOR_ADDRESS;
     const deployL2Weth = Boolean(process.env.DEPLOY_L2_WETH || false);
     const deployTestTokens = Boolean(process.env.DEPLOY_TEST_TOKENS || false);
 
@@ -57,7 +56,6 @@ async function initHyperchain() {
         skipSubmodulesCheckout: false,
         skipEnvSetup: true,
         skipPlonkStep: true,
-        deployerL1ContractInputArgs: ['--private-key', deployerPrivateKey, '--governor-address', governorAddress],
         governorPrivateKeyArgs: ['--private-key', governorPrivateKey],
         deployerL2ContractInput: {
             args: ['--private-key', deployerPrivateKey],
@@ -724,7 +722,6 @@ async function configDemoHyperchain(cmd: Command) {
 
     const deployerPrivateKey = process.env.DEPLOYER_PRIVATE_KEY;
     const governorPrivateKey = process.env.GOVERNOR_PRIVATE_KEY;
-    const governorAddress = process.env.GOVERNOR_ADDRESS;
     const deployL2Weth = Boolean(process.env.DEPLOY_L2_WETH || false);
     const deployTestTokens = Boolean(process.env.DEPLOY_TEST_TOKENS || false);
 
@@ -732,7 +729,6 @@ async function configDemoHyperchain(cmd: Command) {
         skipSubmodulesCheckout: false,
         skipEnvSetup: cmd.skipEnvSetup,
         skipPlonkStep: true,
-        deployerL1ContractInputArgs: ['--private-key', deployerPrivateKey, '--governor-address', governorAddress],
         governorPrivateKeyArgs: ['--private-key', governorPrivateKey],
         deployerL2ContractInput: {
             args: ['--private-key', deployerPrivateKey],
@@ -745,8 +741,11 @@ async function configDemoHyperchain(cmd: Command) {
         }
     };
 
+    if(!cmd.skipEnvSetup) {
+        await up();
+    }
     await init(initArgs);
-
+    
     env.mergeInitToEnv();
 
     if (cmd.prover) {

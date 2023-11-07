@@ -23,8 +23,6 @@ export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
         skipEnvSetup,
         skipPlonkStep,
         testTokens,
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        deployerL1ContractInputArgs,
         governorPrivateKeyArgs,
         deployerL2ContractInput
     } = initArgs;
@@ -146,7 +144,6 @@ export interface InitArgs {
     skipSubmodulesCheckout: boolean;
     skipEnvSetup: boolean;
     skipPlonkStep: boolean;
-    deployerL1ContractInputArgs: any[];
     governorPrivateKeyArgs: any[];
     deployerL2ContractInput: {
         args: any[];
@@ -163,7 +160,6 @@ const DEFAULT_ARGS: InitArgs = {
     skipSubmodulesCheckout: false,
     skipEnvSetup: false,
     skipPlonkStep: false,
-    deployerL1ContractInputArgs: [],
     governorPrivateKeyArgs: [],
     deployerL2ContractInput: { args: [], includePaymaster: true, includeL2WETH: true },
     testTokens: { deploy: true, args: [] }
@@ -178,7 +174,6 @@ export const initCommand = new Command('init')
             skipSubmodulesCheckout: cmd.skipSubmodulesCheckout,
             skipEnvSetup: cmd.skipEnvSetup,
             skipPlonkStep: false,
-            deployerL1ContractInputArgs: [],
             governorPrivateKeyArgs: [],
             deployerL2ContractInput: { args: [], includePaymaster: true, includeL2WETH: true },
             testTokens: { deploy: true, args: [] }
