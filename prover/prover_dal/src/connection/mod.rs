@@ -62,7 +62,7 @@ impl ProverConnectionPoolBuilder {
     pub async fn build_inner(&self, database_url: &str) -> anyhow::Result<ProverConnectionPool> {
         let max_connections = self
             .max_size
-            .unwrap_or_else(|| parse_env("PROVER_DB_POOL_SIZE"));
+            .unwrap_or_else(|| parse_env("HOUSE_KEEPER_PROVER_DB_POOL_SIZE"));
 
         let options = PgPoolOptions::new().max_connections(max_connections);
         let mut connect_options: PgConnectOptions = database_url

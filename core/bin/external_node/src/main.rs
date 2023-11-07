@@ -184,8 +184,7 @@ async fn init_tasks(
         .build()
         .await
         .context("failed to build a tree_pool")?;
-    let tree_handle =
-        task::spawn(metadata_calculator.run(tree_pool, prover_tree_pool, tree_stop_receiver));
+    let tree_handle = task::spawn(metadata_calculator.run(tree_pool, None, tree_stop_receiver));
 
     let consistency_checker_handle = tokio::spawn(consistency_checker.run(stop_receiver.clone()));
 

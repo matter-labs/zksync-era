@@ -849,7 +849,8 @@ async fn run_tree(
         .await
         .context("failed to build prover_pool")?;
 
-    let tree_task = tokio::spawn(metadata_calculator.run(server_pool, prover_pool, stop_receiver));
+    let tree_task =
+        tokio::spawn(metadata_calculator.run(server_pool, Some(prover_pool), stop_receiver));
     task_futures.push(tree_task);
 
     let elapsed = started_at.elapsed();

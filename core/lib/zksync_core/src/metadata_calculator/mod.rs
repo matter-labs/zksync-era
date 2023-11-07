@@ -2,6 +2,7 @@
 //! stores them in the DB.
 
 use tokio::sync::watch;
+use zksync_prover_dal::ProverConnectionPool;
 
 use std::time::Duration;
 
@@ -141,14 +142,14 @@ impl MetadataCalculator {
     pub async fn run(
         self,
         pool: ServerConnectionPool,
-        prover_pool: ServerConnectionPool,
+        prover_pool: Option<ProverConnectionPool>,
         stop_receiver: watch::Receiver<bool>,
     ) -> anyhow::Result<()> {
         self.updater
             .loop_updating_tree(
                 self.delayer,
                 &pool,
-                &prover_pool,
+                prover_pool.as_ref(),
                 stop_receiver,
                 self.health_updater,
             )
