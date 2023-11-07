@@ -51,8 +51,7 @@ impl ContractsConfig {
         Self {
             mailbox_facet_addr: Address::repeat_byte(0x01),
             executor_facet_addr: Address::repeat_byte(0x02),
-            governance_facet_addr: Address::repeat_byte(0x03),
-            diamond_cut_facet_addr: Address::repeat_byte(0x04),
+            admin_facet_addr: Address::repeat_byte(0x03),
             getters_facet_addr: Address::repeat_byte(0x05),
             verifier_addr: Address::repeat_byte(0x06),
             diamond_init_addr: Address::repeat_byte(0x07),
@@ -75,7 +74,8 @@ impl ContractsConfig {
             fri_recursion_scheduler_level_vk_hash: H256::repeat_byte(0x06),
             fri_recursion_node_level_vk_hash: H256::repeat_byte(0x07),
             fri_recursion_leaf_level_vk_hash: H256::repeat_byte(0x08),
-            governance_addr: Some(Address::repeat_byte(0x13)),
+            governance_addr: Address::repeat_byte(0x13),
+            prover_at_genesis: ProverAtGenesis::Fri,
             snark_wrapper_vk_hash: H256::repeat_byte(0x09),
         }
     }
