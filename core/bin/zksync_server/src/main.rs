@@ -95,7 +95,8 @@ async fn main() -> anyhow::Result<()> {
         let network = NetworkConfig::from_env().context("NetworkConfig")?;
         let eth_sender = ETHSenderConfig::from_env().context("ETHSenderConfig")?;
         let contracts = ContractsConfig::from_env().context("ContractsConfig")?;
-        genesis_init(&eth_sender, &network, &contracts)
+        let eth_client = ETHClientConfig::from_env().context("EthClientConfig")?;
+        genesis_init(&eth_sender, &network, &contracts, &eth_client.web3_url)
             .await
             .context("genesis_init")?;
         if opt.genesis {

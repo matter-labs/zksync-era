@@ -2,14 +2,20 @@
 use serde::Deserialize;
 // Workspace uses
 use zksync_basic_types::{Address, H256};
+#[derive(Debug, Deserialize, Clone, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum ProverAtGenesis {
+    Fri,
+    Old,
+}
 
 /// Data about deployed contracts.
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct ContractsConfig {
+    pub governance_addr: Address,
     pub mailbox_facet_addr: Address,
     pub executor_facet_addr: Address,
-    pub governance_facet_addr: Address,
-    pub diamond_cut_facet_addr: Address,
+    pub admin_facet_addr: Address,
     pub getters_facet_addr: Address,
     pub verifier_addr: Address,
     pub diamond_init_addr: Address,
@@ -32,7 +38,7 @@ pub struct ContractsConfig {
     pub fri_recursion_scheduler_level_vk_hash: H256,
     pub fri_recursion_node_level_vk_hash: H256,
     pub fri_recursion_leaf_level_vk_hash: H256,
-    pub governance_addr: Option<Address>,
+    pub prover_at_genesis: ProverAtGenesis,
     pub snark_wrapper_vk_hash: H256,
 }
 

@@ -191,19 +191,19 @@ pub async fn start_eth_watch<E: EthInterface + Send + Sync + 'static>(
     pool: ConnectionPool,
     eth_gateway: E,
     diamond_proxy_addr: Address,
-    governance: Option<(Contract, Address)>,
+    governance: (Contract, Address),
     stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<JoinHandle<anyhow::Result<()>>> {
     let eth_client = EthHttpQueryClient::new(
         eth_gateway,
         diamond_proxy_addr,
-        governance.as_ref().map(|(_, address)| *address),
+        Some(governance.1),
         config.confirmations_for_eth_event,
     );
 
     let mut eth_watch = EthWatch::new(
         diamond_proxy_addr,
-        governance.map(|(contract, _)| contract),
+        Some(governance.0),
         eth_client,
         &pool,
         config.poll_interval(),

@@ -2,7 +2,7 @@ use vise::{Buckets, EncodeLabelSet, EncodeLabelValue, Family, Histogram, Metrics
 
 use std::time::Duration;
 
-use zk_evm_1_3_3::aux_structures::Timestamp;
+use zk_evm_1_4_0::aux_structures::Timestamp;
 use zksync_state::WriteStorage;
 
 use crate::vm_latest::{

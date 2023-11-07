@@ -12,10 +12,17 @@ pub use tracers::{
     StorageInvocations, ValidationError, ValidationTracer, ValidationTracerParams,
 };
 
+pub use crate::interface::types::{
+    inputs::{L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode},
+    outputs::{
+        BootloaderMemory, CurrentExecutionState, ExecutionResult, FinishedL1Batch, L2Block,
+        Refunds, VmExecutionLogs, VmExecutionResultAndLogs, VmExecutionStatistics, VmMemoryMetrics,
+    },
+};
+pub use types::internals::ZkSyncVmState;
 pub use utils::transaction_encoding::TransactionVmExt;
 
 pub use bootloader_state::BootloaderState;
-pub use types::internals::ZkSyncVmState;
 
 pub use vm::Vm;
 
