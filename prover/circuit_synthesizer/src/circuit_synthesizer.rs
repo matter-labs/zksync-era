@@ -17,6 +17,7 @@ use zksync_config::configs::prover_group::ProverGroupConfig;
 use zksync_config::configs::CircuitSynthesizerConfig;
 use zksync_config::ProverConfigs;
 use zksync_dal::ConnectionPool;
+use zksync_env_config::FromEnv;
 use zksync_object_store::{CircuitKey, ObjectStore, ObjectStoreError, ObjectStoreFactory};
 use zksync_prover_fri_utils::socket_utils::send_assembly;
 use zksync_prover_utils::numeric_index_to_circuit_name;
@@ -88,10 +89,10 @@ impl CircuitSynthesizer {
             blob_store: store_factory.create_store().await,
             allowed_circuit_types: allowed_circuit_types
                 .map(|x| x.into_iter().map(|x| x.1).collect()),
-            region: get_region()
+            region: get_region(&prover_groups)
                 .await
                 .map_err(CircuitSynthesizerError::GetRegionFailed)?,
-            zone: get_zone()
+            zone: get_zone(&prover_groups)
                 .await
                 .map_err(CircuitSynthesizerError::GetZoneFailed)?,
             vk_commitments,

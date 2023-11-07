@@ -27,7 +27,10 @@ pub(crate) enum BootloaderErrorCode {
     MintEtherFailed,
     FailedToAppendTransactionToL2Block,
     FailedToSetL2Block,
-    FailedToPublishBlockDataToL1,
+    FailedToPublishTimestampDataToL1,
+    L1MessengerPublishingFailed,
+    L1MessengerLogSendingFailed,
+    FailedToCallSystemContext,
     Unknown,
 }
 
@@ -60,7 +63,10 @@ impl From<u8> for BootloaderErrorCode {
             23 => BootloaderErrorCode::MintEtherFailed,
             24 => BootloaderErrorCode::FailedToAppendTransactionToL2Block,
             25 => BootloaderErrorCode::FailedToSetL2Block,
-            26 => BootloaderErrorCode::FailedToPublishBlockDataToL1,
+            26 => BootloaderErrorCode::FailedToPublishTimestampDataToL1,
+            27 => BootloaderErrorCode::L1MessengerPublishingFailed,
+            28 => BootloaderErrorCode::L1MessengerLogSendingFailed,
+            29 => BootloaderErrorCode::FailedToCallSystemContext,
             _ => BootloaderErrorCode::Unknown,
         }
     }
