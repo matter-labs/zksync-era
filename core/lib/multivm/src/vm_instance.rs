@@ -4,7 +4,6 @@ use crate::interface::{
     VmMemoryMetrics,
 };
 
-use crate::dispatch_vm;
 use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::VmVersion;
 use zksync_utils::bytecode::CompressedBytecodeInfo;
@@ -20,6 +19,19 @@ pub enum VmInstance<S: WriteStorage, H: HistoryMode> {
     VmVirtualBlocks(crate::vm_virtual_blocks::Vm<S, H>),
     VmVirtualBlocksRefundsEnhancement(crate::vm_refunds_enhancement::Vm<S, H>),
     VmBoojumIntegration(crate::vm_latest::Vm<S, H>),
+}
+
+macro_rules! dispatch_vm {
+    ($self:ident.$function:ident($($params:tt)*)) => {
+        match $self {
+            VmInstance::VmM5(vm) => vm.$function($($params)*),
+            VmInstance::VmM6(vm) => vm.$function($($params)*),
+            VmInstance::Vm1_3_2(vm) => vm.$function($($params)*),
+            VmInstance::VmVirtualBlocks(vm) => vm.$function($($params)*),
+            VmInstance::VmVirtualBlocksRefundsEnhancement(vm) => vm.$function($($params)*),
+            VmInstance::VmBoojumIntegration(vm) => vm.$function($($params)*),
+        }
+    };
 }
 
 impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for VmInstance<S, H> {

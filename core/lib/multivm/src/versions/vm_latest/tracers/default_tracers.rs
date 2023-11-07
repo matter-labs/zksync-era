@@ -1,7 +1,6 @@
 use std::fmt::{Debug, Formatter};
 use std::marker::PhantomData;
 
-use crate::dispatch_tracers;
 use crate::interface::tracer::{TracerExecutionStopReason, VmExecutionStopReason};
 use crate::interface::{Halt, VmExecutionMode};
 use zk_evm_1_4_0::{
@@ -60,10 +59,108 @@ pub(crate) struct DefaultExecutionTracer<S: WriteStorage, H: HistoryMode> {
     _phantom: PhantomData<H>,
 }
 
+impl<S: WriteStorage, H: HistoryMode> DefaultExecutionTracer<S, H> {
+    pub(crate) fn new(
+        computational_gas_limit: u32,
+        execution_mode: VmExecutionMode,
+        dispatcher: TracerDispatcher<S, H>,
+        storage: StoragePtr<S>,
+        refund_tracer: Option<RefundsTracer<S>>,
+        pubdata_tracer: Option<PubdataTracer<S>>,
+    ) -> Self {
+        Self {
+            tx_has_been_processed: false,
+            execution_mode,
+            gas_spent_on_bytecodes_and_long_messages: 0,
+            computational_gas_used: 0,
+            tx_validation_gas_limit: computational_gas_limit,
+            in_account_validation: false,
+            final_batch_info_requested: false,
+            result_tracer: ResultTracer::new(execution_mode),
+            refund_tracer,
+            dispatcher,
+            pubdata_tracer,
+            ret_from_the_bootloader: None,
+            storage,
+            _phantom: Default::default(),
+        }
+    }
+
+    pub(crate) fn tx_has_been_processed(&self) -> bool {
+        self.tx_has_been_processed
+    }
+
+    pub(crate) fn validation_run_out_of_gas(&self) -> bool {
+        self.computational_gas_used > self.tx_validation_gas_limit
+    }
+
+    pub(crate) fn gas_spent_on_pubdata(&self, vm_local_state: &VmLocalState) -> u32 {
+        self.gas_spent_on_bytecodes_and_long_messages + vm_local_state.spent_pubdata_counter
+    }
+
+    fn set_fictive_l2_block(
+        &mut self,
+        state: &mut ZkSyncVmState<S, H>,
+        bootloader_state: &mut BootloaderState,
+    ) {
+        let current_timestamp = Timestamp(state.local_state.timestamp);
+        let txs_index = bootloader_state.free_tx_index();
+        let l2_block = bootloader_state.insert_fictive_l2_block();
+        let mut memory = vec![];
+        apply_l2_block(&mut memory, l2_block, txs_index);
+        state
+            .memory
+            .populate_page(BOOTLOADER_HEAP_PAGE as usize, memory, current_timestamp);
+        self.final_batch_info_requested = false;
+    }
+
+    fn should_stop_execution(&self) -> TracerExecutionStatus {
+        match self.execution_mode {
+            VmExecutionMode::OneTx if self.tx_has_been_processed() => {
+                return TracerExecutionStatus::Stop(TracerExecutionStopReason::Finish);
+            }
+            VmExecutionMode::Bootloader if self.ret_from_the_bootloader == Some(RetOpcode::Ok) => {
+                return TracerExecutionStatus::Stop(TracerExecutionStopReason::Finish);
+            }
+            _ => {}
+        };
+        if self.validation_run_out_of_gas() {
+            return TracerExecutionStatus::Stop(TracerExecutionStopReason::Abort(
+                Halt::ValidationOutOfGas,
+            ));
+        }
+        TracerExecutionStatus::Continue
+    }
+}
+
 impl<S: WriteStorage, H: HistoryMode> Debug for DefaultExecutionTracer<S, H> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("DefaultExecutionTracer").finish()
     }
+}
+
+macro_rules! dispatch_tracers {
+    (required:[$( $required:ident ),*],
+     optional:[$( $optional:ident ),*],
+     $self:ident.$function:ident $params:tt
+    ) => {
+        $(
+            dispatch_tracers!(@call req $required $self.$function $params);
+        )*
+        $(
+            dispatch_tracers!(@call opt $optional $self.$function $params);
+        )*
+    };
+
+    (@call req $required:ident $self:ident.$function:ident($( $params:expr ),*)) => {
+       $self.$required.$function($( $params ),*)
+    };
+
+    (@call opt $optional:ident $self:ident.$function:ident($( $params:expr ),*)) => {
+        if let Some(tracer) = &mut $self.$optional {
+            tracer.$function($( $params ),*)
+        }
+    };
 }
 
 impl<S: WriteStorage, H: HistoryMode> Tracer for DefaultExecutionTracer<S, H> {
@@ -151,80 +248,6 @@ impl<S: WriteStorage, H: HistoryMode> Tracer for DefaultExecutionTracer<S, H> {
         optional: [refund_tracer, pubdata_tracer],
             self.after_execution(state, data, memory, self.storage.clone())
         );
-    }
-}
-
-impl<S: WriteStorage, H: HistoryMode> DefaultExecutionTracer<S, H> {
-    pub(crate) fn new(
-        computational_gas_limit: u32,
-        execution_mode: VmExecutionMode,
-        dispatcher: TracerDispatcher<S, H>,
-        storage: StoragePtr<S>,
-        refund_tracer: Option<RefundsTracer<S>>,
-        pubdata_tracer: Option<PubdataTracer<S>>,
-    ) -> Self {
-        Self {
-            tx_has_been_processed: false,
-            execution_mode,
-            gas_spent_on_bytecodes_and_long_messages: 0,
-            computational_gas_used: 0,
-            tx_validation_gas_limit: computational_gas_limit,
-            in_account_validation: false,
-            final_batch_info_requested: false,
-            result_tracer: ResultTracer::new(execution_mode),
-            refund_tracer,
-            dispatcher,
-            pubdata_tracer,
-            ret_from_the_bootloader: None,
-            storage,
-            _phantom: Default::default(),
-        }
-    }
-
-    pub(crate) fn tx_has_been_processed(&self) -> bool {
-        self.tx_has_been_processed
-    }
-
-    pub(crate) fn validation_run_out_of_gas(&self) -> bool {
-        self.computational_gas_used > self.tx_validation_gas_limit
-    }
-
-    pub(crate) fn gas_spent_on_pubdata(&self, vm_local_state: &VmLocalState) -> u32 {
-        self.gas_spent_on_bytecodes_and_long_messages + vm_local_state.spent_pubdata_counter
-    }
-
-    fn set_fictive_l2_block(
-        &mut self,
-        state: &mut ZkSyncVmState<S, H>,
-        bootloader_state: &mut BootloaderState,
-    ) {
-        let current_timestamp = Timestamp(state.local_state.timestamp);
-        let txs_index = bootloader_state.free_tx_index();
-        let l2_block = bootloader_state.insert_fictive_l2_block();
-        let mut memory = vec![];
-        apply_l2_block(&mut memory, l2_block, txs_index);
-        state
-            .memory
-            .populate_page(BOOTLOADER_HEAP_PAGE as usize, memory, current_timestamp);
-        self.final_batch_info_requested = false;
-    }
-
-    fn should_stop_execution(&self) -> TracerExecutionStatus {
-        match self.execution_mode {
-            VmExecutionMode::OneTx if self.tx_has_been_processed() => {
-                return TracerExecutionStatus::Stop(TracerExecutionStopReason::Finish);
-            }
-            VmExecutionMode::Bootloader if self.ret_from_the_bootloader == Some(RetOpcode::Ok) => {
-                return TracerExecutionStatus::Stop(TracerExecutionStopReason::Finish);
-            }
-            _ => {}
-        };
-        if self.validation_run_out_of_gas() {
-            return TracerExecutionStatus::Stop(TracerExecutionStopReason::Abort(
-                Halt::ValidationOutOfGas,
-            ));
-        }
-        TracerExecutionStatus::Continue
     }
 }
 

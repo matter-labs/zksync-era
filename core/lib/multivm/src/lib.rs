@@ -16,9 +16,6 @@ mod glue;
 
 mod vm_instance;
 
-#[macro_use]
-mod dispatch_vm_macro;
-
 pub mod interface;
 pub mod tracers;
 pub mod versions;

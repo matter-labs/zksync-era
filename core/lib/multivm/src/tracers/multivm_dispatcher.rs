@@ -66,7 +66,5 @@ impl<S: WriteStorage, H: HistoryMode> From<TracerDispatcher<S, H>>
 
 /// This is a hack to make `TracerDispatcher` work with VMs, where we don't support tracers.
 impl<S, H> From<TracerDispatcher<S, H>> for () {
-    fn from(_value: TracerDispatcher<S, H>) -> Self {
-        ()
-    }
+    fn from(_value: TracerDispatcher<S, H>) -> Self {}
 }
