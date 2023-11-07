@@ -23,7 +23,7 @@ use crate::vm_latest::types::internals::{new_vm_state, VmSnapshot, ZkSyncVmState
 pub struct Vm<S: WriteStorage, H: HistoryMode> {
     pub(crate) bootloader_state: BootloaderState,
     // Current state and oracles of virtual machine
-    pub(crate) state: ZkSyncVmState<S, H::VmVirtualBlocksRefundsEnhancement>,
+    pub(crate) state: ZkSyncVmState<S, H::VmBoojumIntegration>,
     pub(crate) storage: StoragePtr<S>,
     pub(crate) system_env: SystemEnv,
     pub(crate) batch_env: L1BatchEnv,
@@ -34,7 +34,7 @@ pub struct Vm<S: WriteStorage, H: HistoryMode> {
 
 /// Public interface for VM
 impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
-    type TracerDispatcher = TracerDispatcher<S, H::VmVirtualBlocksRefundsEnhancement>;
+    type TracerDispatcher = TracerDispatcher<S, H::VmBoojumIntegration>;
 
     fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage: StoragePtr<S>) -> Self {
         let (state, bootloader_state) = new_vm_state(storage.clone(), &system_env, &batch_env);

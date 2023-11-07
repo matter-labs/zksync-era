@@ -1,10 +1,3 @@
-use crate::interface::dyn_tracers::vm_1_3_3::DynTracer;
-use crate::interface::{VmExecutionResultAndLogs, VmRevertReason};
-use crate::tracers::call_tracer::{CallTracer, FarcallAndNearCallCount};
-use crate::vm_virtual_blocks::{
-    ExecutionEndTracer, ExecutionProcessing, HistoryMode, SimpleMemory, VmTracer,
-};
-
 use zk_evm_1_3_3::tracing::{AfterExecutionData, VmLocalStateData};
 use zk_evm_1_3_3::zkevm_opcode_defs::{
     FarCallABI, FatPointer, Opcode, RetOpcode, CALL_IMPLICIT_CALLDATA_FAT_PTR_REGISTER,
@@ -15,6 +8,14 @@ use zksync_system_constants::CONTRACT_DEPLOYER_ADDRESS;
 use zksync_types::vm_trace::{Call, CallType};
 use zksync_types::FarCallOpcode;
 use zksync_types::U256;
+
+use crate::interface::{
+    dyn_tracers::vm_1_3_3::DynTracer, VmExecutionResultAndLogs, VmRevertReason,
+};
+use crate::tracers::call_tracer::{CallTracer, FarcallAndNearCallCount};
+use crate::vm_virtual_blocks::{
+    ExecutionEndTracer, ExecutionProcessing, HistoryMode, SimpleMemory, VmTracer,
+};
 
 impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for CallTracer {
     fn after_execution(

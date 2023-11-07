@@ -180,7 +180,6 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
                     l1_batch_env.glue_into(),
                     system_env.clone(),
                     storage_view.clone(),
-                    H::VmBoojumIntegration::default(),
                 );
                 let vm = VmInstanceVersion::VmBoojumIntegration(Box::new(vm));
                 Self {

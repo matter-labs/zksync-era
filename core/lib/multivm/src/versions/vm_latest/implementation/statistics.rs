@@ -18,7 +18,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
         &self,
         timestamp_initial: Timestamp,
         cycles_initial: u32,
-        tracer: &DefaultExecutionTracer<S, H::VmVirtualBlocksRefundsEnhancement>,
+        tracer: &DefaultExecutionTracer<S, H::VmBoojumIntegration>,
         gas_remaining_before: u32,
         gas_remaining_after: u32,
         spent_pubdata_counter_before: u32,

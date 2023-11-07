@@ -3,6 +3,7 @@ use std::sync::Arc;
 use zksync_types::vm_trace::Call;
 
 pub mod vm_latest;
+pub mod vm_refunds_enhancement;
 pub mod vm_virtual_blocks;
 
 #[derive(Debug, Clone)]

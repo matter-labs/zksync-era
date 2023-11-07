@@ -14,7 +14,7 @@ use zk_evm_1_4_0::{
 use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::Timestamp;
 
-use crate::interface::traits::tracers::dyn_tracers::vm_1_3_3::DynTracer;
+use crate::interface::traits::tracers::dyn_tracers::vm_1_4_0::DynTracer;
 use crate::interface::types::tracer::TracerExecutionStatus;
 use crate::vm_latest::bootloader_state::utils::apply_l2_block;
 use crate::vm_latest::bootloader_state::BootloaderState;
@@ -85,7 +85,7 @@ impl<S: WriteStorage, H: HistoryMode> Tracer for DefaultExecutionTracer<S, H> {
         data: AfterDecodingData,
         memory: &Self::SupportedMemory,
     ) {
-        <ResultTracer as DynTracer<S, Self::SupportedMemory>>::after_decoding(
+        <ResultTracer as DynTracer<S, SimpleMemory<H>>>::after_decoding(
             &mut self.result_tracer,
             state,
             data,
@@ -93,7 +93,7 @@ impl<S: WriteStorage, H: HistoryMode> Tracer for DefaultExecutionTracer<S, H> {
         );
 
         if let Some(refund_tracer) = &mut self.refund_tracer {
-            <RefundsTracer as DynTracer<S, Self::SupportedMemory>>::after_decoding(
+            <RefundsTracer as DynTracer<S, SimpleMemory<H>>>::after_decoding(
                 refund_tracer,
                 state,
                 data,
@@ -101,7 +101,12 @@ impl<S: WriteStorage, H: HistoryMode> Tracer for DefaultExecutionTracer<S, H> {
             );
         }
         if let Some(pubdata_tracer) = &mut self.pubdata_tracer {
-            <PubdataTracer as DynTracer<S, H>>::after_decoding(pubdata_tracer, state, data, memory);
+            <PubdataTracer as DynTracer<S, SimpleMemory<H>>>::after_decoding(
+                pubdata_tracer,
+                state,
+                data,
+                memory,
+            );
         }
         self.dispatcher.after_decoding(state, data, memory)
     }

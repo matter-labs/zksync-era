@@ -6,7 +6,7 @@ use zk_evm_1_4_0::{
 use zksync_state::{StoragePtr, WriteStorage};
 
 use crate::interface::{
-    tracer::VmExecutionStopReason, traits::tracers::dyn_tracers::vm_1_3_3::DynTracer,
+    tracer::VmExecutionStopReason, traits::tracers::dyn_tracers::vm_1_4_0::DynTracer,
     types::tracer::TracerExecutionStopReason, ExecutionResult, Halt, TxRevertReason,
     VmExecutionMode, VmRevertReason,
 };

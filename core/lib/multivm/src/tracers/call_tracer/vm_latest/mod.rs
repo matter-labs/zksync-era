@@ -1,18 +1,22 @@
-use crate::interface::tracer::VmExecutionStopReason;
-use crate::interface::{traits::tracers::dyn_tracers::vm_1_3_3::DynTracer, VmRevertReason};
-use crate::tracers::call_tracer::{CallTracer, FarcallAndNearCallCount};
-use crate::vm_latest::VmTracer;
-use crate::vm_latest::{BootloaderState, HistoryMode, SimpleMemory, ZkSyncVmState};
-use zk_evm_1_4_0::tracing::{AfterExecutionData, VmLocalStateData};
-use zk_evm_1_4_0::zkevm_opcode_defs::{
-    FarCallABI, FatPointer, Opcode, RetOpcode, CALL_IMPLICIT_CALLDATA_FAT_PTR_REGISTER,
-    RET_IMPLICIT_RETURNDATA_PARAMS_REGISTER,
+use zk_evm_1_4_0::{
+    tracing::{AfterExecutionData, VmLocalStateData},
+    zkevm_opcode_defs::{
+        FarCallABI, FatPointer, Opcode, RetOpcode, CALL_IMPLICIT_CALLDATA_FAT_PTR_REGISTER,
+        RET_IMPLICIT_RETURNDATA_PARAMS_REGISTER,
+    },
 };
 use zksync_state::{StoragePtr, WriteStorage};
 use zksync_system_constants::CONTRACT_DEPLOYER_ADDRESS;
 use zksync_types::vm_trace::{Call, CallType};
 use zksync_types::FarCallOpcode;
 use zksync_types::U256;
+
+use crate::interface::{
+    tracer::VmExecutionStopReason, traits::tracers::dyn_tracers::vm_1_4_0::DynTracer,
+    VmRevertReason,
+};
+use crate::tracers::call_tracer::{CallTracer, FarcallAndNearCallCount};
+use crate::vm_latest::{BootloaderState, HistoryMode, SimpleMemory, VmTracer, ZkSyncVmState};
 
 impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for CallTracer {
     fn after_execution(
