@@ -1,7 +1,8 @@
 //! Testing harness for the IO.
 
+use multivm::vm_latest::constants::BLOCK_GAS_LIMIT;
 use std::{sync::Arc, time::Duration};
-use vm::constants::BLOCK_GAS_LIMIT;
+use zksync_object_store::ObjectStoreFactory;
 
 use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_config::GasAdjusterConfig;
@@ -72,18 +73,17 @@ impl Tester {
             MiniblockSealer::new(pool.clone(), miniblock_sealer_capacity);
         tokio::spawn(miniblock_sealer.run());
 
-        let base_contract_hashes = self.base_system_contracts.hashes();
         let config = StateKeeperConfig {
             fair_l2_gas_price: self.fair_l2_gas_price(),
-            bootloader_hash: base_contract_hashes.bootloader,
-            default_aa_hash: base_contract_hashes.default_aa,
             virtual_blocks_interval: 1,
             virtual_blocks_per_miniblock: 1,
             ..StateKeeperConfig::default()
         };
+        let object_store = ObjectStoreFactory::mock().create_store().await;
         let l2_erc20_bridge_addr = Address::repeat_byte(0x5a); // Isn't relevant.
         let io = MempoolIO::new(
             mempool.clone(),
+            object_store,
             miniblock_sealer_handle,
             gas_adjuster,
             pool,
@@ -160,7 +160,7 @@ impl Tester {
         let mut storage = pool.access_storage_tagged("state_keeper").await.unwrap();
         storage
             .blocks_dal()
-            .insert_l1_batch(&batch_header, &[], Default::default())
+            .insert_l1_batch(&batch_header, &[], Default::default(), &[], &[])
             .await
             .unwrap();
         storage

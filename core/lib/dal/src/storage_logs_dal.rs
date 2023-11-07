@@ -531,7 +531,6 @@ impl StorageLogsDal<'_, '_> {
 mod tests {
     use super::*;
     use crate::{tests::create_miniblock_header, ConnectionPool};
-    use db_test_macro::db_test;
     use zksync_contracts::BaseSystemContractsHashes;
     use zksync_types::{
         block::{BlockGasCount, L1BatchHeader},
@@ -548,7 +547,7 @@ mod tests {
         );
         header.is_finished = true;
         conn.blocks_dal()
-            .insert_l1_batch(&header, &[], BlockGasCount::default())
+            .insert_l1_batch(&header, &[], BlockGasCount::default(), &[], &[])
             .await
             .unwrap();
         conn.blocks_dal()
@@ -567,8 +566,9 @@ mod tests {
             .unwrap();
     }
 
-    #[db_test(dal_crate)]
-    async fn inserting_storage_logs(pool: ConnectionPool) {
+    #[tokio::test]
+    async fn inserting_storage_logs() {
+        let pool = ConnectionPool::test_pool().await;
         let mut conn = pool.access_storage().await.unwrap();
 
         conn.blocks_dal()
@@ -659,8 +659,9 @@ mod tests {
         assert!(value.is_none());
     }
 
-    #[db_test(dal_crate)]
-    async fn getting_storage_logs_for_revert(pool: ConnectionPool) {
+    #[tokio::test]
+    async fn getting_storage_logs_for_revert() {
+        let pool = ConnectionPool::test_pool().await;
         let mut conn = pool.access_storage().await.unwrap();
 
         conn.blocks_dal()
@@ -714,8 +715,9 @@ mod tests {
         }
     }
 
-    #[db_test(dal_crate)]
-    async fn reverting_keys_without_initial_write(pool: ConnectionPool) {
+    #[tokio::test]
+    async fn reverting_keys_without_initial_write() {
+        let pool = ConnectionPool::test_pool().await;
         let mut conn = pool.access_storage().await.unwrap();
 
         conn.blocks_dal()

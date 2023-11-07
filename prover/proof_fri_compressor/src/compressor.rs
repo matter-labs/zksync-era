@@ -3,7 +3,7 @@ use async_trait::async_trait;
 use std::time::Instant;
 use tokio::task::JoinHandle;
 
-use zkevm_test_harness::proof_wrapper_utils::wrap_proof;
+use zkevm_test_harness::proof_wrapper_utils::{wrap_proof, WrapperConfig};
 use zksync_dal::ConnectionPool;
 use zksync_object_store::ObjectStore;
 use zksync_prover_fri_types::circuit_definitions::boojum::field::goldilocks::GoldilocksField;
@@ -55,7 +55,9 @@ impl ProofCompressor {
             ZkSyncRecursionLayerStorageType::SchedulerCircuit as u8,
         )
         .context("get_recursiver_layer_vk_for_circuit_type()")?;
-        let (wrapper_proof, _) = wrap_proof(proof, scheduler_vk, compression_mode);
+        let config = WrapperConfig::new(compression_mode);
+
+        let (wrapper_proof, _) = wrap_proof(proof, scheduler_vk, config);
         let inner = wrapper_proof.into_inner();
         // (Re)serialization should always succeed.
         // TODO: is that true here?

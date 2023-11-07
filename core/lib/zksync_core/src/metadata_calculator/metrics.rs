@@ -17,7 +17,10 @@ use crate::metrics::{BlockStage, APP_METRICS};
 pub(super) enum TreeUpdateStage {
     LoadChanges,
     Compute,
-    PrepareResults,
+    CheckConsistency,
+    EventsCommitment,
+    BootloaderCommitment,
+    BuildMetadata,
     #[metrics(name = "reestimate_block_commit_gas_cost")]
     ReestimateGasCost,
     SavePostgres,

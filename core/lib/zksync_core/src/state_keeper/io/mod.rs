@@ -6,11 +6,11 @@ use std::{
     time::{Duration, Instant},
 };
 
-use vm::{FinishedL1Batch, L1BatchEnv, SystemEnv};
+use multivm::interface::{FinishedL1Batch, L1BatchEnv, SystemEnv};
 
 use zksync_dal::ConnectionPool;
 use zksync_types::{
-    block::MiniblockReexecuteData, protocol_version::ProtocolUpgradeTx,
+    block::MiniblockExecutionData, protocol_version::ProtocolUpgradeTx,
     witness_block_state::WitnessBlockState, L1BatchNumber, MiniblockNumber, ProtocolVersionId,
     Transaction,
 };
@@ -22,6 +22,7 @@ pub(crate) mod seal_logic;
 pub(crate) use self::mempool::MempoolIO;
 use super::{
     metrics::{MiniblockQueueStage, MINIBLOCK_METRICS},
+    seal_criteria::IoSealCriteria,
     updates::{MiniblockSealCommand, UpdatesManager},
 };
 
@@ -43,7 +44,7 @@ pub struct PendingBatchData {
     pub(crate) l1_batch_env: L1BatchEnv,
     pub(crate) system_env: SystemEnv,
     /// List of miniblocks and corresponding transactions that were executed within batch.
-    pub(crate) pending_miniblocks: Vec<MiniblockReexecuteData>,
+    pub(crate) pending_miniblocks: Vec<MiniblockExecutionData>,
 }
 
 #[derive(Debug, Copy, Clone, Default)]
@@ -65,7 +66,7 @@ pub struct MiniblockParams {
 /// it's used to receive volatile parameters (such as batch parameters), and also it's used to perform
 /// mutable operations on the persistent state (e.g. persist executed batches).
 #[async_trait]
-pub trait StateKeeperIO: 'static + Send {
+pub trait StateKeeperIO: 'static + Send + IoSealCriteria {
     /// Returns the number of the currently processed L1 batch.
     fn current_l1_batch_number(&self) -> L1BatchNumber;
     /// Returns the number of the currently processed miniblock (aka L2 block).

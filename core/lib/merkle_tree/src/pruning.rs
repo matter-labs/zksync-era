@@ -100,8 +100,9 @@ impl<DB: PruneDatabase> MerkleTreePruner<DB> {
         latest_version.checked_sub(self.past_versions_to_keep)
     }
 
+    #[doc(hidden)] // Used in integration tests; logically private
     #[allow(clippy::range_plus_one)] // exclusive range is required by `PrunePatchSet` constructor
-    fn run_once(&mut self) -> Option<PruningStats> {
+    pub fn run_once(&mut self) -> Option<PruningStats> {
         let target_retained_version = self.target_retained_version()?;
         let min_stale_key_version = self.db.min_stale_key_version()?;
         let stale_key_new_versions = min_stale_key_version..=target_retained_version;
@@ -211,8 +212,10 @@ mod tests {
         assert!(!stats.has_more_work());
 
         // Check the `PatchSet` implementation of `PruneDatabase`.
-        assert_eq!(db.roots_mut().len(), 1);
-        assert!(db.roots_mut().contains_key(&4));
+        for version in 0..4 {
+            assert!(db.root_mut(version).is_none());
+        }
+        assert!(db.root_mut(4).is_some());
     }
 
     #[test]

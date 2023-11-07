@@ -1,40 +1,38 @@
 #![allow(clippy::upper_case_acronyms, clippy::derive_partial_eq_without_eq)]
 
-use std::{str::FromStr, sync::Arc, time::Instant};
+use std::{net::Ipv4Addr, str::FromStr, sync::Arc, time::Instant};
 
 use anyhow::Context as _;
 use futures::channel::oneshot;
 use prometheus_exporter::PrometheusExporterConfig;
+use temp_config_store::TempConfigStore;
 use tokio::{sync::watch, task::JoinHandle};
 
 use zksync_circuit_breaker::{
-    facet_selectors::FacetSelectorsChecker, l1_txs::FailedL1TransactionChecker,
-    replication_lag::ReplicationLagChecker, CircuitBreaker, CircuitBreakerChecker,
-    CircuitBreakerError,
-};
-use zksync_config::configs::{
-    api::{HealthCheckConfig, Web3JsonRpcConfig},
-    chain::{
-        self, CircuitBreakerConfig, MempoolConfig, NetworkConfig, OperationsManagerConfig,
-        StateKeeperConfig,
-    },
-    database::MerkleTreeMode,
-    house_keeper::HouseKeeperConfig,
-    FriProofCompressorConfig, FriProverConfig, FriWitnessGeneratorConfig, PrometheusConfig,
-    ProofDataHandlerConfig, ProverGroupConfig, WitnessGeneratorConfig,
+    l1_txs::FailedL1TransactionChecker, replication_lag::ReplicationLagChecker, CircuitBreaker,
+    CircuitBreakerChecker, CircuitBreakerError,
 };
 use zksync_config::{
-    ApiConfig, ContractsConfig, DBConfig, ETHClientConfig, ETHSenderConfig, FetcherConfig,
-    ProverConfigs,
+    configs::{
+        api::{MerkleTreeApiConfig, Web3JsonRpcConfig},
+        chain::{
+            CircuitBreakerConfig, MempoolConfig, NetworkConfig, OperationsManagerConfig,
+            StateKeeperConfig,
+        },
+        contracts::ProverAtGenesis,
+        database::MerkleTreeMode,
+    },
+    ApiConfig, ContractsConfig, DBConfig, ETHSenderConfig,
 };
-use zksync_contracts::BaseSystemContracts;
+use zksync_contracts::{governance_contract, BaseSystemContracts};
 use zksync_dal::{
     connection::DbVariant, healthcheck::ConnectionPoolHealthCheck, ConnectionPool, StorageProcessor,
 };
 use zksync_eth_client::clients::http::QueryClient;
+use zksync_eth_client::EthInterface;
 use zksync_eth_client::{clients::http::PKSigningClient, BoundEthInterface};
 use zksync_health_check::{CheckHealth, HealthStatus, ReactiveHealthCheck};
-use zksync_object_store::ObjectStoreFactory;
+use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_prover_utils::periodic_job::PeriodicJob;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_state::PostgresStorageCaches;
@@ -42,17 +40,17 @@ use zksync_types::{
     proofs::AggregationRound,
     protocol_version::{L1VerifierConfig, VerifierParams},
     system_contracts::get_system_smart_contracts,
-    Address, PackedEthSignature, ProtocolVersionId,
+    L2ChainId, PackedEthSignature, ProtocolVersionId,
 };
 use zksync_verification_key_server::get_cached_commitments;
 
 pub mod api_server;
+pub mod basic_witness_input_producer;
 pub mod block_reverter;
 pub mod consistency_checker;
 pub mod data_fetchers;
 pub mod eth_sender;
 pub mod eth_watch;
-pub mod fee_ticker;
 pub mod gas_tracker;
 pub mod genesis;
 pub mod house_keeper;
@@ -63,12 +61,13 @@ pub mod proof_data_handler;
 pub mod reorg_detector;
 pub mod state_keeper;
 pub mod sync_layer;
+pub mod temp_config_store;
 pub mod witness_generator;
 
 use crate::api_server::healthcheck::HealthCheckHandle;
-use crate::api_server::tx_sender::TxSenderConfig;
-use crate::api_server::tx_sender::{TxSender, TxSenderBuilder};
-use crate::api_server::web3::{state::InternalApiConfig, Namespace};
+use crate::api_server::tx_sender::{TxSender, TxSenderBuilder, TxSenderConfig};
+use crate::api_server::web3::{state::InternalApiConfig, ApiServerHandles, Namespace};
+use crate::basic_witness_input_producer::BasicWitnessInputProducer;
 use crate::eth_sender::{Aggregator, EthTxManager};
 use crate::house_keeper::fri_proof_compressor_job_retry_manager::FriProofCompressorJobRetryManager;
 use crate::house_keeper::fri_proof_compressor_queue_monitor::FriProofCompressorStatsReporter;
@@ -112,6 +111,7 @@ pub async fn genesis_init(
     eth_sender: &ETHSenderConfig,
     network_config: &NetworkConfig,
     contracts_config: &ContractsConfig,
+    eth_client_url: &str,
 ) -> anyhow::Result<()> {
     let mut storage = StorageProcessor::establish_connection(true)
         .await
@@ -124,6 +124,52 @@ pub async fn genesis_init(
     )
     .context("Failed to restore operator address from private key")?;
 
+    // Select the first prover to be used during genesis.
+    // Later we can change provers using the system upgrades, but for genesis
+    // we should select one using the environment config.
+    let first_l1_verifier_config =
+        if matches!(contracts_config.prover_at_genesis, ProverAtGenesis::Fri) {
+            let l1_verifier_config = L1VerifierConfig {
+                params: VerifierParams {
+                    recursion_node_level_vk_hash: contracts_config.fri_recursion_node_level_vk_hash,
+                    recursion_leaf_level_vk_hash: contracts_config.fri_recursion_leaf_level_vk_hash,
+                    recursion_circuits_set_vks_hash: zksync_types::H256::zero(),
+                },
+                recursion_scheduler_level_vk_hash: contracts_config.snark_wrapper_vk_hash,
+            };
+
+            let eth_client = QueryClient::new(eth_client_url)?;
+            let vk_hash: zksync_types::H256 = eth_client
+                .call_contract_function(
+                    "verificationKeyHash",
+                    (),
+                    None,
+                    Default::default(),
+                    None,
+                    contracts_config.verifier_addr,
+                    zksync_contracts::verifier_contract(),
+                )
+                .await?;
+
+            assert_eq!(
+                vk_hash, l1_verifier_config.recursion_scheduler_level_vk_hash,
+                "L1 verifier key does not match the one in the config"
+            );
+
+            l1_verifier_config
+        } else {
+            L1VerifierConfig {
+                params: VerifierParams {
+                    recursion_node_level_vk_hash: contracts_config.recursion_node_level_vk_hash,
+                    recursion_leaf_level_vk_hash: contracts_config.recursion_leaf_level_vk_hash,
+                    recursion_circuits_set_vks_hash: contracts_config
+                        .recursion_circuits_set_vks_hash,
+                },
+                recursion_scheduler_level_vk_hash: contracts_config
+                    .recursion_scheduler_level_vk_hash,
+            }
+        };
+
     genesis::ensure_genesis_state(
         &mut storage,
         network_config.zksync_network_id,
@@ -134,16 +180,7 @@ pub async fn genesis_init(
             base_system_contracts: BaseSystemContracts::load_from_disk(),
             system_contracts: get_system_smart_contracts(),
             first_verifier_address: contracts_config.verifier_addr,
-            first_l1_verifier_config: L1VerifierConfig {
-                params: VerifierParams {
-                    recursion_node_level_vk_hash: contracts_config.recursion_node_level_vk_hash,
-                    recursion_leaf_level_vk_hash: contracts_config.recursion_leaf_level_vk_hash,
-                    recursion_circuits_set_vks_hash: contracts_config
-                        .recursion_circuits_set_vks_hash,
-                },
-                recursion_scheduler_level_vk_hash: contracts_config
-                    .recursion_scheduler_level_vk_hash,
-            },
+            first_l1_verifier_config,
         },
     )
     .await?;
@@ -175,34 +212,39 @@ pub fn setup_sigint_handler() -> oneshot::Receiver<()> {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Component {
-    // Public Web3 API running on HTTP server.
+    /// Public Web3 API running on HTTP server.
     HttpApi,
-    // Public Web3 API running on HTTP/WebSocket server and redirect eth_getLogs to another method.
+    /// Public Web3 API running on HTTP/WebSocket server and redirect eth_getLogs to another method.
     ApiTranslator,
-    // Public Web3 API (including PubSub) running on WebSocket server.
+    /// Public Web3 API (including PubSub) running on WebSocket server.
     WsApi,
-    // REST API for contract verification.
+    /// REST API for contract verification.
     ContractVerificationApi,
-    // Metadata Calculator.
+    /// Metadata calculator.
     Tree,
     // TODO(BFT-273): Remove `TreeLightweight` component as obsolete
     TreeLightweight,
     TreeBackup,
+    /// Merkle tree API.
+    TreeApi,
     EthWatcher,
-    // Eth tx generator
+    /// Eth tx generator.
     EthTxAggregator,
-    // Manager for eth tx
+    /// Manager for eth tx.
     EthTxManager,
-    // Data fetchers: list fetcher, volume fetcher, price fetcher.
+    /// Data fetchers: list fetcher, volume fetcher, price fetcher.
     DataFetcher,
-    // State keeper.
+    /// State keeper.
     StateKeeper,
-    // Witness Generator. The first argument is a number of jobs to process. If None, runs indefinitely.
-    // The second argument is the type of the witness-generation performed
+    /// Produces input for basic witness generator and uploads it as bin encoded file (blob) to GCS.
+    /// The blob is later used as input for Basic Witness Generators.
+    BasicWitnessInputProducer,
+    /// Witness Generator. The first argument is a number of jobs to process. If None, runs indefinitely.
+    /// The second argument is the type of the witness-generation performed
     WitnessGenerator(Option<usize>, AggregationRound),
-    // Component for housekeeping task such as cleaning blobs from GCS, reporting metrics etc.
+    /// Component for housekeeping task such as cleaning blobs from GCS, reporting metrics etc.
     Housekeeper,
-    // Component for exposing API's to prover for providing proof generation data and accepting proofs.
+    /// Component for exposing API's to prover for providing proof generation data and accepting proofs.
     ProofDataHandler,
 }
 
@@ -228,9 +270,13 @@ impl FromStr for Components {
                 Ok(Components(vec![Component::TreeLightweight]))
             }
             "tree_backup" => Ok(Components(vec![Component::TreeBackup])),
+            "tree_api" => Ok(Components(vec![Component::TreeApi])),
             "data_fetcher" => Ok(Components(vec![Component::DataFetcher])),
             "state_keeper" => Ok(Components(vec![Component::StateKeeper])),
             "housekeeper" => Ok(Components(vec![Component::Housekeeper])),
+            "basic_witness_input_producer" => {
+                Ok(Components(vec![Component::BasicWitnessInputProducer]))
+            }
             "witness_generator" => Ok(Components(vec![
                 Component::WitnessGenerator(None, AggregationRound::BasicCircuits),
                 Component::WitnessGenerator(None, AggregationRound::LeafAggregation),
@@ -278,6 +324,7 @@ impl FromStr for Components {
 }
 
 pub async fn initialize_components(
+    configs: &TempConfigStore,
     components: Vec<Component>,
     use_prometheus_push_gateway: bool,
 ) -> anyhow::Result<(
@@ -288,7 +335,10 @@ pub async fn initialize_components(
 )> {
     tracing::info!("Starting the components: {components:?}");
 
-    let db_config = DBConfig::from_env().context("DbConfig::from_env()")?;
+    let db_config = configs
+        .db_config
+        .clone()
+        .ok_or_else(|| anyhow::anyhow!("db_config"))?;
     let connection_pool = ConnectionPool::builder(DbVariant::Master)
         .build()
         .await
@@ -304,21 +354,23 @@ pub async fn initialize_components(
         .context("failed to build replica_connection_pool")?;
 
     let mut healthchecks: Vec<Box<dyn CheckHealth>> = Vec::new();
-    let contracts_config = ContractsConfig::from_env().context("ContractsConfig::from_env()")?;
-    let eth_client_config = ETHClientConfig::from_env().context("ETHClientConfig::from_env()")?;
-    let circuit_breaker_config =
-        CircuitBreakerConfig::from_env().context("CircuitBreakerConfig::from_env()")?;
+    let contracts_config = configs
+        .contracts_config
+        .clone()
+        .ok_or_else(|| anyhow::anyhow!("contracts_config"))?;
+    let eth_client_config = configs
+        .eth_client_config
+        .clone()
+        .ok_or_else(|| anyhow::anyhow!("eth_client_config"))?;
+    let circuit_breaker_config = configs
+        .circuit_breaker_config
+        .clone()
+        .ok_or_else(|| anyhow::anyhow!("circuit_breaker_config"))?;
 
-    let main_zksync_contract_address = contracts_config.diamond_proxy_addr;
     let circuit_breaker_checker = CircuitBreakerChecker::new(
-        circuit_breakers_for_components(
-            &components,
-            &eth_client_config.web3_url,
-            &circuit_breaker_config,
-            main_zksync_contract_address,
-        )
-        .await
-        .context("circuit_breakers_for_components")?,
+        circuit_breakers_for_components(&components, &circuit_breaker_config)
+            .await
+            .context("circuit_breakers_for_components")?,
         &circuit_breaker_config,
     );
     circuit_breaker_checker.check().await.unwrap_or_else(|err| {
@@ -326,13 +378,20 @@ pub async fn initialize_components(
     });
 
     let query_client = QueryClient::new(&eth_client_config.web3_url).unwrap();
-    let mut gas_adjuster = GasAdjusterSingleton::new();
+    let gas_adjuster_config = configs
+        .gas_adjuster_config
+        .ok_or_else(|| anyhow::anyhow!("gas_adjuster_config"))?;
+    let mut gas_adjuster =
+        GasAdjusterSingleton::new(eth_client_config.web3_url.clone(), gas_adjuster_config);
 
     let (stop_sender, stop_receiver) = watch::channel(false);
     let (cb_sender, cb_receiver) = oneshot::channel();
 
     // Prometheus exporter and circuit breaker checker should run for every component configuration.
-    let prom_config = PrometheusConfig::from_env().context("PrometheusConfig::from_env()")?;
+    let prom_config = configs
+        .prometheus_config
+        .clone()
+        .ok_or_else(|| anyhow::anyhow!("prometheus_config"))?;
     let prom_config = if use_prometheus_push_gateway {
         PrometheusExporterConfig::push(prom_config.gateway_endpoint(), prom_config.push_interval())
     } else {
@@ -360,10 +419,18 @@ pub async fn initialize_components(
         || components.contains(&Component::ContractVerificationApi)
         || components.contains(&Component::ApiTranslator)
     {
-        let api_config = ApiConfig::from_env().context("ApiConfig::from_env()")?;
-        let state_keeper_config =
-            StateKeeperConfig::from_env().context("StateKeeperConfig::from_env()")?;
-        let network_config = NetworkConfig::from_env().context("NetworkConfig::from_env()")?;
+        let api_config = configs
+            .api_config
+            .clone()
+            .ok_or_else(|| anyhow::anyhow!("api_config"))?;
+        let state_keeper_config = configs
+            .state_keeper_config
+            .clone()
+            .ok_or_else(|| anyhow::anyhow!("state_keeper_config"))?;
+        let network_config = configs
+            .network_config
+            .clone()
+            .ok_or_else(|| anyhow::anyhow!("network_config"))?;
         let tx_sender_config = TxSenderConfig::new(
             &state_keeper_config,
             &api_config.web3_json_rpc,
@@ -383,17 +450,17 @@ pub async fn initialize_components(
 
         if components.contains(&Component::HttpApi) {
             storage_caches = Some(
-                build_storage_caches(&replica_connection_pool, &mut task_futures)
+                build_storage_caches(configs, &replica_connection_pool, &mut task_futures)
                     .context("build_storage_caches()")?,
             );
 
             let started_at = Instant::now();
-            tracing::info!("initializing HTTP API");
+            tracing::info!("Initializing HTTP API");
             let bounded_gas_adjuster = gas_adjuster
                 .get_or_init_bounded()
                 .await
                 .context("gas_adjuster.get_or_init_bounded()")?;
-            let (futures, health_check) = run_http_api(
+            let server_handles = run_http_api(
                 &tx_sender_config,
                 &state_keeper_config,
                 &internal_api_config,
@@ -408,18 +475,22 @@ pub async fn initialize_components(
             )
             .await
             .context("run_http_api")?;
-            task_futures.extend(futures);
-            healthchecks.push(Box::new(health_check));
+
+            task_futures.extend(server_handles.tasks);
+            healthchecks.push(Box::new(server_handles.health_check));
             let elapsed = started_at.elapsed();
             APP_METRICS.init_latency[&InitStage::HttpApi].set(elapsed);
-            tracing::info!("initialized HTTP API in {elapsed:?}");
+            tracing::info!(
+                "Initialized HTTP API on {:?} in {elapsed:?}",
+                server_handles.local_addr
+            );
         }
 
         if components.contains(&Component::WsApi) {
             let storage_caches = match storage_caches {
                 Some(storage_caches) => storage_caches,
-                None => build_storage_caches(&replica_connection_pool, &mut task_futures)
-                    .context("build_Storage_caches()")?,
+                None => build_storage_caches(configs, &replica_connection_pool, &mut task_futures)
+                    .context("build_storage_caches()")?,
             };
 
             let started_at = Instant::now();
@@ -428,7 +499,7 @@ pub async fn initialize_components(
                 .get_or_init_bounded()
                 .await
                 .context("gas_adjuster.get_or_init_bounded()")?;
-            let (futures, health_check) = run_ws_api(
+            let server_handles = run_ws_api(
                 &tx_sender_config,
                 &state_keeper_config,
                 &internal_api_config,
@@ -442,11 +513,15 @@ pub async fn initialize_components(
             )
             .await
             .context("run_ws_api")?;
-            task_futures.extend(futures);
-            healthchecks.push(Box::new(health_check));
+
+            task_futures.extend(server_handles.tasks);
+            healthchecks.push(Box::new(server_handles.health_check));
             let elapsed = started_at.elapsed();
             APP_METRICS.init_latency[&InitStage::WsApi].set(elapsed);
-            tracing::info!("initialized WS API in {elapsed:?}");
+            tracing::info!(
+                "initialized WS API on {:?} in {elapsed:?}",
+                server_handles.local_addr
+            );
         }
 
         if components.contains(&Component::ContractVerificationApi) {
@@ -464,6 +539,12 @@ pub async fn initialize_components(
         }
     }
 
+    let object_store_config = configs
+        .object_store_config
+        .clone()
+        .ok_or_else(|| anyhow::anyhow!("object_store_config"))?;
+    let store_factory = ObjectStoreFactory::new(object_store_config);
+
     if components.contains(&Component::StateKeeper) {
         let started_at = Instant::now();
         tracing::info!("initializing State Keeper");
@@ -474,11 +555,21 @@ pub async fn initialize_components(
         add_state_keeper_to_task_futures(
             &mut task_futures,
             &contracts_config,
-            StateKeeperConfig::from_env().context("StateKeeperConfig::from_env()")?,
-            &NetworkConfig::from_env().context("NetworkConfig::from_env()")?,
+            configs
+                .state_keeper_config
+                .clone()
+                .ok_or_else(|| anyhow::anyhow!("state_keeper_config"))?,
+            &configs
+                .network_config
+                .clone()
+                .ok_or_else(|| anyhow::anyhow!("network_config"))?,
             &db_config,
-            &MempoolConfig::from_env().context("MempoolConfig::from_env()")?,
+            &configs
+                .mempool_config
+                .clone()
+                .ok_or_else(|| anyhow::anyhow!("mempool_config"))?,
             bounded_gas_adjuster,
+            store_factory.create_store().await,
             stop_receiver.clone(),
         )
         .await
@@ -489,6 +580,7 @@ pub async fn initialize_components(
         tracing::info!("initialized State Keeper in {elapsed:?}");
     }
 
+    let main_zksync_contract_address = contracts_config.diamond_proxy_addr;
     if components.contains(&Component::EthWatcher) {
         let started_at = Instant::now();
         tracing::info!("initializing ETH-Watcher");
@@ -496,11 +588,18 @@ pub async fn initialize_components(
             .build()
             .await
             .context("failed to build eth_watch_pool")?;
+        let governance = (governance_contract(), contracts_config.governance_addr);
+        let eth_watch_config = configs
+            .eth_watch_config
+            .clone()
+            .ok_or_else(|| anyhow::anyhow!("eth_watch_config"))?;
         task_futures.push(
             start_eth_watch(
+                eth_watch_config,
                 eth_watch_pool,
                 query_client.clone(),
                 main_zksync_contract_address,
+                governance,
                 stop_receiver.clone(),
             )
             .await
@@ -510,8 +609,6 @@ pub async fn initialize_components(
         APP_METRICS.init_latency[&InitStage::EthWatcher].set(elapsed);
         tracing::info!("initialized ETH-Watcher in {elapsed:?}");
     }
-
-    let store_factory = ObjectStoreFactory::from_env().context("ObjectStoreFactor::from_env()")?;
 
     if components.contains(&Component::EthTxAggregator) {
         let started_at = Instant::now();
@@ -525,7 +622,10 @@ pub async fn initialize_components(
             .await
             .context("failed to build eth_sender_prover_pool")?;
 
-        let eth_sender = ETHSenderConfig::from_env().context("ETHSenderConfig::from_env()")?;
+        let eth_sender = configs
+            .eth_sender_config
+            .clone()
+            .ok_or_else(|| anyhow::anyhow!("eth_sender_config"))?;
         let eth_client =
             PKSigningClient::from_config(&eth_sender, &contracts_config, &eth_client_config);
         let nonce = eth_client.pending_nonce("eth_sender").await.unwrap();
@@ -558,7 +658,10 @@ pub async fn initialize_components(
             .build()
             .await
             .context("failed to build eth_manager_pool")?;
-        let eth_sender = ETHSenderConfig::from_env().context("ETHSenderConfig::from_env()")?;
+        let eth_sender = configs
+            .eth_sender_config
+            .clone()
+            .ok_or_else(|| anyhow::anyhow!("eth_sender_config"))?;
         let eth_client =
             PKSigningClient::from_config(&eth_sender, &contracts_config, &eth_client_config);
         let eth_tx_manager_actor = EthTxManager::new(
@@ -579,8 +682,14 @@ pub async fn initialize_components(
 
     if components.contains(&Component::DataFetcher) {
         let started_at = Instant::now();
-        let fetcher_config = FetcherConfig::from_env().context("FetcherConfig::from_env()")?;
-        let eth_network = chain::NetworkConfig::from_env().context("NetworkConfig::from_env()")?;
+        let fetcher_config = configs
+            .fetcher_config
+            .clone()
+            .ok_or_else(|| anyhow::anyhow!("fetcher_config"))?;
+        let eth_network = configs
+            .network_config
+            .clone()
+            .ok_or_else(|| anyhow::anyhow!("network_config"))?;
         tracing::info!("initializing data fetchers");
         task_futures.extend(run_data_fetchers(
             &fetcher_config,
@@ -594,6 +703,7 @@ pub async fn initialize_components(
     }
 
     add_trees_to_task_futures(
+        configs,
         &mut task_futures,
         &mut healthchecks,
         &components,
@@ -603,6 +713,7 @@ pub async fn initialize_components(
     .await
     .context("add_trees_to_task_futures()")?;
     add_witness_generator_to_task_futures(
+        configs,
         &mut task_futures,
         &components,
         &connection_pool,
@@ -613,15 +724,42 @@ pub async fn initialize_components(
     .await
     .context("add_witness_generator_to_task_futures()")?;
 
+    if components.contains(&Component::BasicWitnessInputProducer) {
+        let singleton_connection_pool = ConnectionPool::singleton(DbVariant::Master)
+            .build()
+            .await
+            .context("failed to build singleton connection_pool")?;
+        let network_config = configs
+            .network_config
+            .clone()
+            .ok_or_else(|| anyhow::anyhow!("network_config"))?;
+        add_basic_witness_input_producer_to_task_futures(
+            &mut task_futures,
+            &singleton_connection_pool,
+            &store_factory,
+            network_config.zksync_network_id,
+            stop_receiver.clone(),
+        )
+        .await
+        .context("add_basic_witness_input_producer_to_task_futures()")?;
+    }
+
     if components.contains(&Component::Housekeeper) {
-        add_house_keeper_to_task_futures(&mut task_futures, &store_factory)
+        add_house_keeper_to_task_futures(configs, &mut task_futures, &store_factory)
             .await
             .context("add_house_keeper_to_task_futures()")?;
     }
 
     if components.contains(&Component::ProofDataHandler) {
         task_futures.push(tokio::spawn(proof_data_handler::run_server(
-            ProofDataHandlerConfig::from_env().context("ProofDataHandlerConfig::from_env()")?,
+            configs
+                .proof_data_handler_config
+                .clone()
+                .ok_or_else(|| anyhow::anyhow!("proof_data_handler_config"))?,
+            configs
+                .contracts_config
+                .clone()
+                .ok_or_else(|| anyhow::anyhow!("contracts_config"))?,
             store_factory.create_store().await,
             connection_pool.clone(),
             stop_receiver.clone(),
@@ -633,8 +771,10 @@ pub async fn initialize_components(
         replica_connection_pool,
     )));
 
-    let healtcheck_api_config =
-        HealthCheckConfig::from_env().context("HealthCheckConfig::from_env()")?;
+    let healtcheck_api_config = configs
+        .health_check_config
+        .clone()
+        .ok_or_else(|| anyhow::anyhow!("health_check_config"))?;
     let health_check_handle =
         HealthCheckHandle::spawn_server(healtcheck_api_config.bind_addr(), healthchecks);
 
@@ -653,6 +793,7 @@ async fn add_state_keeper_to_task_futures<E: L1GasPriceProvider + Send + Sync + 
     db_config: &DBConfig,
     mempool_config: &MempoolConfig,
     gas_adjuster: Arc<E>,
+    object_store: Box<dyn ObjectStore>,
     stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<()> {
     let fair_l2_gas_price = state_keeper_config.fair_l2_gas_price;
@@ -691,6 +832,7 @@ async fn add_state_keeper_to_task_futures<E: L1GasPriceProvider + Send + Sync + 
         mempool.clone(),
         gas_adjuster.clone(),
         miniblock_sealer_handle,
+        object_store,
         stop_receiver.clone(),
     )
     .await;
@@ -713,6 +855,7 @@ async fn add_state_keeper_to_task_futures<E: L1GasPriceProvider + Send + Sync + 
 }
 
 async fn add_trees_to_task_futures(
+    configs: &TempConfigStore,
     task_futures: &mut Vec<JoinHandle<anyhow::Result<()>>>,
     healthchecks: &mut Vec<Box<dyn CheckHealth>>,
     components: &[Component],
@@ -723,9 +866,23 @@ async fn add_trees_to_task_futures(
         anyhow::bail!("Tree backup mode is disabled");
     }
 
-    let db_config = DBConfig::from_env().context("DBConfig::from_env()")?;
-    let operation_config =
-        OperationsManagerConfig::from_env().context("OperationManagerConfig::from_env()")?;
+    let db_config = configs
+        .db_config
+        .clone()
+        .ok_or_else(|| anyhow::anyhow!("db_config"))?;
+    let operation_config = configs
+        .operations_manager_config
+        .clone()
+        .ok_or_else(|| anyhow::anyhow!("operations_manager_config"))?;
+    let api_config = configs
+        .api_config
+        .clone()
+        .ok_or_else(|| anyhow::anyhow!("api_config"))?
+        .merkle_tree;
+    let api_config = components
+        .contains(&Component::TreeApi)
+        .then_some(&api_config);
+
     let has_tree_component = components.contains(&Component::Tree);
     let has_lightweight_component = components.contains(&Component::TreeLightweight);
     let mode = match (has_tree_component, has_lightweight_component) {
@@ -737,24 +894,41 @@ async fn add_trees_to_task_futures(
         (false, true) => MetadataCalculatorModeConfig::Lightweight,
         (true, false) => match db_config.merkle_tree.mode {
             MerkleTreeMode::Lightweight => MetadataCalculatorModeConfig::Lightweight,
-            MerkleTreeMode::Full => MetadataCalculatorModeConfig::Full { store_factory },
+            MerkleTreeMode::Full => MetadataCalculatorModeConfig::Full {
+                store_factory: Some(store_factory),
+            },
         },
-        (false, false) => return Ok(()),
+        (false, false) => {
+            anyhow::ensure!(
+                !components.contains(&Component::TreeApi),
+                "Merkle tree API cannot be started without a tree component"
+            );
+            return Ok(());
+        }
     };
-    let (future, tree_health_check) = run_tree(&db_config, &operation_config, mode, stop_receiver)
-        .await
-        .context("run_tree()")?;
-    task_futures.push(future);
-    healthchecks.push(Box::new(tree_health_check));
-    Ok(())
+
+    run_tree(
+        task_futures,
+        healthchecks,
+        &db_config,
+        api_config,
+        &operation_config,
+        mode,
+        stop_receiver,
+    )
+    .await
+    .context("run_tree()")
 }
 
 async fn run_tree(
-    config: &DBConfig,
+    task_futures: &mut Vec<JoinHandle<anyhow::Result<()>>>,
+    healthchecks: &mut Vec<Box<dyn CheckHealth>>,
+    db_config: &DBConfig,
+    api_config: Option<&MerkleTreeApiConfig>,
     operation_manager: &OperationsManagerConfig,
     mode: MetadataCalculatorModeConfig<'_>,
     stop_receiver: watch::Receiver<bool>,
-) -> anyhow::Result<(JoinHandle<anyhow::Result<()>>, ReactiveHealthCheck)> {
+) -> anyhow::Result<()> {
     let started_at = Instant::now();
     let mode_str = if matches!(mode, MetadataCalculatorModeConfig::Full { .. }) {
         "full"
@@ -763,9 +937,19 @@ async fn run_tree(
     };
     tracing::info!("Initializing Merkle tree in {mode_str} mode");
 
-    let config = MetadataCalculatorConfig::for_main_node(config, operation_manager, mode);
+    let config =
+        MetadataCalculatorConfig::for_main_node(&db_config.merkle_tree, operation_manager, mode);
     let metadata_calculator = MetadataCalculator::new(&config).await;
+    if let Some(api_config) = api_config {
+        let address = (Ipv4Addr::UNSPECIFIED, api_config.port).into();
+        let server_task = metadata_calculator
+            .tree_reader()
+            .run_api_server(address, stop_receiver.clone());
+        task_futures.push(tokio::spawn(server_task));
+    }
+
     let tree_health_check = metadata_calculator.tree_health_check();
+    healthchecks.push(Box::new(tree_health_check));
     let pool = ConnectionPool::singleton(DbVariant::Master)
         .build()
         .await
@@ -774,15 +958,43 @@ async fn run_tree(
         .build()
         .await
         .context("failed to build prover_pool")?;
-    let future = tokio::spawn(metadata_calculator.run(pool, prover_pool, stop_receiver));
+    let tree_task = tokio::spawn(metadata_calculator.run(pool, prover_pool, stop_receiver));
+    task_futures.push(tree_task);
 
     let elapsed = started_at.elapsed();
     APP_METRICS.init_latency[&InitStage::Tree].set(elapsed);
     tracing::info!("Initialized {mode_str} tree in {elapsed:?}");
-    Ok((future, tree_health_check))
+    Ok(())
+}
+
+async fn add_basic_witness_input_producer_to_task_futures(
+    task_futures: &mut Vec<JoinHandle<anyhow::Result<()>>>,
+    connection_pool: &ConnectionPool,
+    store_factory: &ObjectStoreFactory,
+    l2_chain_id: L2ChainId,
+    stop_receiver: watch::Receiver<bool>,
+) -> anyhow::Result<()> {
+    // Witness Generator won't be spawned with `ZKSYNC_LOCAL_SETUP` running.
+    // BasicWitnessInputProducer shouldn't be producing input for it locally either.
+    if std::env::var("ZKSYNC_LOCAL_SETUP") == Ok("true".to_owned()) {
+        return Ok(());
+    }
+    let started_at = Instant::now();
+    tracing::info!("initializing BasicWitnessInputProducer");
+    let producer =
+        BasicWitnessInputProducer::new(connection_pool.clone(), store_factory, l2_chain_id).await?;
+    task_futures.push(tokio::spawn(producer.run(stop_receiver, None)));
+    tracing::info!(
+        "Initialized BasicWitnessInputProducer in {:?}",
+        started_at.elapsed()
+    );
+    let elapsed = started_at.elapsed();
+    APP_METRICS.init_latency[&InitStage::BasicWitnessInputProducer].set(elapsed);
+    Ok(())
 }
 
 async fn add_witness_generator_to_task_futures(
+    configs: &TempConfigStore,
     task_futures: &mut Vec<JoinHandle<anyhow::Result<()>>>,
     components: &[Component],
     connection_pool: &ConnectionPool,
@@ -817,8 +1029,10 @@ async fn add_witness_generator_to_task_futures(
             .protocol_versions_dal()
             .protocol_version_for(&vk_commitments)
             .await;
-        let config =
-            WitnessGeneratorConfig::from_env().context("WitnessGeneratorConfig::from_env()")?;
+        let config = configs
+            .witness_generator_config
+            .clone()
+            .ok_or_else(|| anyhow::anyhow!("witness_generator_config"))?;
         let task = match component_type {
             AggregationRound::BasicCircuits => {
                 let witness_generator = BasicWitnessGenerator::new(
@@ -875,11 +1089,14 @@ async fn add_witness_generator_to_task_futures(
 }
 
 async fn add_house_keeper_to_task_futures(
+    configs: &TempConfigStore,
     task_futures: &mut Vec<JoinHandle<anyhow::Result<()>>>,
     store_factory: &ObjectStoreFactory,
 ) -> anyhow::Result<()> {
-    let house_keeper_config =
-        HouseKeeperConfig::from_env().context("HouseKeeperConfig::from_env()")?;
+    let house_keeper_config = configs
+        .house_keeper_config
+        .clone()
+        .ok_or_else(|| anyhow::anyhow!("house_keeper_config"))?;
     let connection_pool = ConnectionPool::singleton(DbVariant::Replica)
         .build()
         .await
@@ -894,16 +1111,20 @@ async fn add_house_keeper_to_task_futures(
         .build()
         .await
         .context("failed to build a prover_connection_pool")?;
+    let prover_group_config = configs
+        .prover_group_config
+        .clone()
+        .ok_or_else(|| anyhow::anyhow!("prover_group_config"))?;
+    let prover_configs = configs
+        .prover_configs
+        .clone()
+        .ok_or_else(|| anyhow::anyhow!("prover_configs"))?;
     let gpu_prover_queue = GpuProverQueueMonitor::new(
-        ProverGroupConfig::from_env()
-            .context("ProverGroupConfig::from_env()")?
-            .synthesizer_per_gpu,
+        prover_group_config.synthesizer_per_gpu,
         house_keeper_config.gpu_prover_queue_reporting_interval_ms,
         prover_connection_pool.clone(),
     );
-    let config = ProverConfigs::from_env()
-        .context("ProverCOnfigs::from_env()")?
-        .non_gpu;
+    let config = prover_configs.non_gpu.clone();
     let prover_job_retry_manager = ProverJobRetryManager::new(
         config.max_attempts,
         config.proof_generation_timeout(),
@@ -913,6 +1134,7 @@ async fn add_house_keeper_to_task_futures(
     let prover_stats_reporter = ProverStatsReporter::new(
         house_keeper_config.prover_stats_reporting_interval_ms,
         prover_connection_pool.clone(),
+        prover_group_config.clone(),
     );
     let waiting_to_queued_witness_job_mover = WaitingToQueuedWitnessJobMover::new(
         house_keeper_config.witness_job_moving_interval_ms,
@@ -938,7 +1160,10 @@ async fn add_house_keeper_to_task_futures(
     task_futures.push(tokio::spawn(prover_job_retry_manager.run()));
 
     // All FRI Prover related components are configured below.
-    let fri_prover_config = FriProverConfig::from_env().context("FriProverConfig::from_env()")?;
+    let fri_prover_config = configs
+        .fri_prover_config
+        .clone()
+        .ok_or_else(|| anyhow::anyhow!("fri_prover_config"))?;
     let fri_prover_job_retry_manager = FriProverJobRetryManager::new(
         fri_prover_config.max_attempts,
         fri_prover_config.proof_generation_timeout(),
@@ -947,8 +1172,10 @@ async fn add_house_keeper_to_task_futures(
     );
     task_futures.push(tokio::spawn(fri_prover_job_retry_manager.run()));
 
-    let fri_witness_gen_config =
-        FriWitnessGeneratorConfig::from_env().context("FriWitnessGeneratorConfig::from_env")?;
+    let fri_witness_gen_config = configs
+        .fri_witness_generator_config
+        .clone()
+        .ok_or_else(|| anyhow::anyhow!("fri_witness_generator_config"))?;
     let fri_witness_gen_job_retry_manager = FriWitnessGeneratorJobRetryManager::new(
         fri_witness_gen_config.max_attempts,
         fri_witness_gen_config.witness_generation_timeout(),
@@ -981,8 +1208,10 @@ async fn add_house_keeper_to_task_futures(
     );
     task_futures.push(tokio::spawn(fri_prover_stats_reporter.run()));
 
-    let proof_compressor_config =
-        FriProofCompressorConfig::from_env().context("FriProofCompressorConfig")?;
+    let proof_compressor_config = configs
+        .fri_proof_compressor_config
+        .clone()
+        .ok_or_else(|| anyhow::anyhow!("fri_proof_compressor_config"))?;
     let fri_proof_compressor_stats_reporter = FriProofCompressorStatsReporter::new(
         house_keeper_config.fri_proof_compressor_stats_reporting_interval_ms,
         prover_connection_pool.clone(),
@@ -1000,10 +1229,14 @@ async fn add_house_keeper_to_task_futures(
 }
 
 fn build_storage_caches(
+    configs: &TempConfigStore,
     replica_connection_pool: &ConnectionPool,
     task_futures: &mut Vec<JoinHandle<anyhow::Result<()>>>,
 ) -> anyhow::Result<PostgresStorageCaches> {
-    let rpc_config = Web3JsonRpcConfig::from_env().context("Web3JsonRpcConfig::from_env()")?;
+    let rpc_config = configs
+        .web3_json_rpc_config
+        .clone()
+        .ok_or_else(|| anyhow::anyhow!("web3_json_rpc_config"))?;
     let factory_deps_capacity = rpc_config.factory_deps_cache_size() as u64;
     let initial_writes_capacity = rpc_config.initial_writes_cache_size() as u64;
     let values_capacity = rpc_config.latest_values_cache_size() as u64;
@@ -1066,7 +1299,7 @@ async fn run_http_api<G: L1GasPriceProvider + Send + Sync + 'static>(
     with_debug_namespace: bool,
     with_logs_request_translator_enabled: bool,
     storage_caches: PostgresStorageCaches,
-) -> anyhow::Result<(Vec<JoinHandle<anyhow::Result<()>>>, ReactiveHealthCheck)> {
+) -> anyhow::Result<ApiServerHandles> {
     let (tx_sender, vm_barrier) = build_tx_sender(
         tx_sender_config,
         &api_config.web3_json_rpc,
@@ -1101,7 +1334,7 @@ async fn run_http_api<G: L1GasPriceProvider + Send + Sync + 'static>(
     if with_logs_request_translator_enabled {
         api_builder = api_builder.enable_request_translator();
     }
-    Ok(api_builder.build(stop_receiver.clone()).await)
+    api_builder.build(stop_receiver).await
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1116,7 +1349,7 @@ async fn run_ws_api<G: L1GasPriceProvider + Send + Sync + 'static>(
     stop_receiver: watch::Receiver<bool>,
     storage_caches: PostgresStorageCaches,
     with_logs_request_translator_enabled: bool,
-) -> anyhow::Result<(Vec<JoinHandle<anyhow::Result<()>>>, ReactiveHealthCheck)> {
+) -> anyhow::Result<ApiServerHandles> {
     let (tx_sender, vm_barrier) = build_tx_sender(
         tx_sender_config,
         &api_config.web3_json_rpc,
@@ -1153,14 +1386,12 @@ async fn run_ws_api<G: L1GasPriceProvider + Send + Sync + 'static>(
     if with_logs_request_translator_enabled {
         api_builder = api_builder.enable_request_translator();
     }
-    Ok(api_builder.build(stop_receiver.clone()).await)
+    api_builder.build(stop_receiver.clone()).await
 }
 
 async fn circuit_breakers_for_components(
     components: &[Component],
-    web3_url: &str,
     circuit_breaker_config: &CircuitBreakerConfig,
-    main_contract: Address,
 ) -> anyhow::Result<Vec<Box<dyn CircuitBreaker>>> {
     let mut circuit_breakers: Vec<Box<dyn CircuitBreaker>> = Vec::new();
 
@@ -1175,18 +1406,6 @@ async fn circuit_breakers_for_components(
             .await
             .context("failed to build a connection pool")?;
         circuit_breakers.push(Box::new(FailedL1TransactionChecker { pool }));
-    }
-
-    if components
-        .iter()
-        .any(|c| matches!(c, Component::EthTxAggregator | Component::EthTxManager))
-    {
-        let eth_client = QueryClient::new(web3_url).unwrap();
-        circuit_breakers.push(Box::new(FacetSelectorsChecker::new(
-            circuit_breaker_config,
-            eth_client,
-            main_contract,
-        )));
     }
 
     if components.iter().any(|c| {
@@ -1207,14 +1426,4 @@ async fn circuit_breakers_for_components(
         }));
     }
     Ok(circuit_breakers)
-}
-
-#[tokio::test]
-async fn test_house_keeper_components_get_added() {
-    let (core_task_handles, _, _, _) = initialize_components(vec![Component::Housekeeper], false)
-        .await
-        .unwrap();
-    // circuit-breaker, prometheus-exporter components are run, irrespective of other components.
-    let always_running_component_count = 2;
-    assert_eq!(15, core_task_handles.len() - always_running_component_count);
 }

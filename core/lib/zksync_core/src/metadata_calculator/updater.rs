@@ -1,26 +1,27 @@
 //! Tree updater trait and its implementations.
+
 use anyhow::Context as _;
 use futures::{future, FutureExt};
 use tokio::sync::watch;
 
 use std::{ops, time::Instant};
 
+use zksync_commitment_utils::{bootloader_initial_content_commitment, events_queue_commitment};
 use zksync_config::configs::database::MerkleTreeMode;
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_health_check::HealthUpdater;
 use zksync_merkle_tree::domain::TreeMetadata;
 use zksync_object_store::ObjectStore;
-use zksync_types::{block::L1BatchHeader, writes::InitialStorageWrite, L1BatchNumber, U256};
+use zksync_types::{block::L1BatchHeader, writes::InitialStorageWrite, L1BatchNumber, H256, U256};
 
 use super::{
-    helpers::{AsyncTree, Delayer, L1BatchWithLogs, TreeHealthCheckDetails},
+    helpers::{AsyncTree, Delayer, L1BatchWithLogs},
     metrics::{TreeUpdateStage, METRICS},
     MetadataCalculator, MetadataCalculatorConfig,
 };
 
 #[derive(Debug)]
 pub(super) struct TreeUpdater {
-    mode: MerkleTreeMode,
     tree: AsyncTree,
     max_l1_batches_per_iter: usize,
     object_store: Option<Box<dyn ObjectStore>>,
@@ -43,17 +44,17 @@ impl TreeUpdater {
             mode,
             config.multi_get_chunk_size,
             config.block_cache_capacity,
+            config.memtable_capacity,
+            config.stalled_writes_timeout,
         )
         .await;
         Self {
-            mode,
             tree,
             max_l1_batches_per_iter: config.max_l1_batches_per_iter,
             object_store,
         }
     }
 
-    #[cfg(test)]
     pub fn tree(&self) -> &AsyncTree {
         &self.tree
     }
@@ -133,17 +134,35 @@ impl TreeUpdater {
             let ((header, metadata, object_key), next_l1_batch_data) =
                 future::join(process_l1_batch_task, load_next_l1_batch_task).await;
 
-            let prepare_results_latency = METRICS.start_stage(TreeUpdateStage::PrepareResults);
+            let check_consistency_latency = METRICS.start_stage(TreeUpdateStage::CheckConsistency);
             Self::check_initial_writes_consistency(
                 storage,
                 header.number,
                 &metadata.initial_writes,
             )
             .await;
-            let metadata = MetadataCalculator::build_l1_batch_metadata(metadata, &header);
-            prepare_results_latency.observe();
+            check_consistency_latency.observe();
 
+            let (events_queue_commitment, bootloader_initial_content_commitment) =
+                if self.tree.mode() == MerkleTreeMode::Full {
+                    self.calculate_commitments(storage, &header).await
+                } else {
+                    (None, None)
+                };
+
+            let build_metadata_latency = METRICS.start_stage(TreeUpdateStage::BuildMetadata);
+            let metadata = MetadataCalculator::build_l1_batch_metadata(
+                metadata,
+                &header,
+                events_queue_commitment,
+                bootloader_initial_content_commitment,
+            );
+            build_metadata_latency.observe();
+
+            let reestimate_gas_cost_latency =
+                METRICS.start_stage(TreeUpdateStage::ReestimateGasCost);
             MetadataCalculator::reestimate_l1_batch_commit_gas(storage, &header, &metadata).await;
+            reestimate_gas_cost_latency.observe();
 
             let save_postgres_latency = METRICS.start_stage(TreeUpdateStage::SavePostgres);
             storage
@@ -152,7 +171,7 @@ impl TreeUpdater {
                 .await
                 .unwrap();
             // ^ Note that `save_l1_batch_metadata()` will not blindly overwrite changes if L1 batch
-            // metadata already exists; instead, it'll check that the old an new metadata match.
+            // metadata already exists; instead, it'll check that the old and new metadata match.
             // That is, if we run multiple tree instances, we'll get metadata correspondence
             // right away without having to implement dedicated code.
 
@@ -184,6 +203,11 @@ impl TreeUpdater {
                     .save_witness_inputs(l1_batch_number, object_key, protocol_version_id)
                     .await;
                 storage
+                    .basic_witness_input_producer_dal()
+                    .create_basic_witness_input_producer_job(l1_batch_number)
+                    .await
+                    .expect("failed to create basic_witness_input_producer job");
+                storage
                     .proof_generation_dal()
                     .insert_proof_generation_details(l1_batch_number, object_key)
                     .await;
@@ -202,6 +226,43 @@ impl TreeUpdater {
         MetadataCalculator::update_metrics(&updated_headers, total_logs, start);
 
         last_l1_batch_number + 1
+    }
+
+    async fn calculate_commitments(
+        &self,
+        conn: &mut StorageProcessor<'_>,
+        header: &L1BatchHeader,
+    ) -> (Option<H256>, Option<H256>) {
+        let events_queue_commitment_latency =
+            METRICS.start_stage(TreeUpdateStage::EventsCommitment);
+        let events_queue = conn
+            .blocks_dal()
+            .get_events_queue(header.number)
+            .await
+            .unwrap()
+            .unwrap();
+        let events_queue_commitment =
+            events_queue_commitment(&events_queue, header.protocol_version.unwrap());
+        events_queue_commitment_latency.observe();
+
+        let bootloader_commitment_latency =
+            METRICS.start_stage(TreeUpdateStage::BootloaderCommitment);
+        let initial_bootloader_contents = conn
+            .blocks_dal()
+            .get_initial_bootloader_heap(header.number)
+            .await
+            .unwrap()
+            .unwrap();
+        let bootloader_initial_content_commitment = bootloader_initial_content_commitment(
+            &initial_bootloader_contents,
+            header.protocol_version.unwrap(),
+        );
+        bootloader_commitment_latency.observe();
+
+        (
+            events_queue_commitment,
+            bootloader_initial_content_commitment,
+        )
     }
 
     async fn step(
@@ -278,11 +339,8 @@ impl TreeUpdater {
             (last_l1_batch_with_metadata.0 + 1).saturating_sub(next_l1_batch_to_seal.0);
         METRICS.backup_lag.set(backup_lag.into());
 
-        let health = TreeHealthCheckDetails {
-            mode: self.mode,
-            next_l1_batch_to_seal,
-        };
-        health_updater.update(health.into());
+        let tree_info = tree.reader().info().await;
+        health_updater.update(tree_info.into());
 
         if next_l1_batch_to_seal > last_l1_batch_with_metadata + 1 {
             // Check stop signal before proceeding with a potentially time-consuming operation.
@@ -301,11 +359,8 @@ impl TreeUpdater {
             next_l1_batch_to_seal = tree.next_l1_batch_number();
             tracing::info!("Truncated Merkle tree to L1 batch #{next_l1_batch_to_seal}");
 
-            let health = TreeHealthCheckDetails {
-                mode: self.mode,
-                next_l1_batch_to_seal,
-            };
-            health_updater.update(health.into());
+            let tree_info = tree.reader().info().await;
+            health_updater.update(tree_info.into());
         }
 
         loop {
@@ -332,11 +387,8 @@ impl TreeUpdater {
                 );
                 delayer.wait(&self.tree).left_future()
             } else {
-                let health = TreeHealthCheckDetails {
-                    mode: self.mode,
-                    next_l1_batch_to_seal,
-                };
-                health_updater.update(health.into());
+                let tree_info = self.tree.reader().info().await;
+                health_updater.update(tree_info.into());
 
                 tracing::trace!(
                     "Metadata calculator (next L1 batch: #{next_l1_batch_to_seal}) made progress from #{snapshot}"

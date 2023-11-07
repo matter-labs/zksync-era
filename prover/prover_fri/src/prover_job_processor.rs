@@ -19,19 +19,22 @@ use zksync_prover_fri_types::circuit_definitions::{
 
 use zkevm_test_harness::prover_utils::{prove_base_layer_circuit, prove_recursion_layer_circuit};
 
-use zksync_config::configs::fri_prover_group::{CircuitIdRoundTuple, FriProverGroupConfig};
+use zksync_config::configs::fri_prover_group::FriProverGroupConfig;
 use zksync_config::configs::FriProverConfig;
 use zksync_dal::ConnectionPool;
+use zksync_env_config::FromEnv;
 use zksync_object_store::ObjectStore;
 use zksync_prover_fri_types::{CircuitWrapper, FriProofWrapper, ProverJob, ProverServiceDataKey};
 use zksync_prover_fri_utils::fetch_next_circuit;
 use zksync_queued_job_processor::{async_trait, JobProcessor};
-use zksync_types::protocol_version::L1VerifierConfig;
+use zksync_types::{basic_fri_types::CircuitIdRoundTuple, protocol_version::L1VerifierConfig};
 use zksync_vk_setup_data_server_fri::{
     get_cpu_setup_data_for_circuit_type, GoldilocksProverSetupData,
 };
 
-use crate::utils::{save_proof, setup_metadata_to_setup_data_key, verify_proof, ProverArtifacts};
+use crate::utils::{
+    get_setup_data_key, save_proof, setup_metadata_to_setup_data_key, verify_proof, ProverArtifacts,
+};
 
 pub enum SetupLoadMode {
     FromMemory(HashMap<ProverServiceDataKey, Arc<GoldilocksProverSetupData>>),
@@ -76,6 +79,7 @@ impl Prover {
         &self,
         key: ProverServiceDataKey,
     ) -> anyhow::Result<Arc<GoldilocksProverSetupData>> {
+        let key = get_setup_data_key(key);
         Ok(match &self.setup_load_mode {
             SetupLoadMode::FromMemory(cache) => cache
                 .get(&key)
@@ -268,6 +272,7 @@ pub fn load_setup_data_cache(config: &FriProverConfig) -> anyhow::Result<SetupLo
                 &config.specialized_group_id
             );
             let prover_setup_metadata_list = FriProverGroupConfig::from_env()
+                .context("FriProverGroupConfig::from_env()")?
                 .get_circuit_ids_for_group_id(config.specialized_group_id)
                 .expect(
                     "At least one circuit should be configured for group when running in FromMemory mode",

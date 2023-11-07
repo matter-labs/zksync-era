@@ -214,7 +214,7 @@ it can be used as 'a' or 'b' in the Select gate example above).
 
 ### CSVarLengthEncodable
 
-Implements CircuitVarLengthEncodable - which allows encoding the struct into a vector of varaibles (think about it as
+Implements CircuitVarLengthEncodable - which allows encoding the struct into a vector of variables (think about it as
 serializing to Bytes).
 
 ### Summary
@@ -401,7 +401,7 @@ And we'll run it over all the operands:
 
         out_of_circuit_vm
             .cycle(&mut tracer)
-            .expect("cycle should finish succesfully");
+            .expect("cycle should finish successfully");
     }
 ```
 

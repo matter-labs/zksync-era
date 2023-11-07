@@ -9,6 +9,7 @@ use prometheus_exporter::PrometheusExporterConfig;
 use zksync_config::configs::FriProofCompressorConfig;
 use zksync_dal::connection::DbVariant;
 use zksync_dal::ConnectionPool;
+use zksync_env_config::{object_store::ProverObjectStoreConfig, FromEnv};
 use zksync_object_store::ObjectStoreFactory;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_utils::wait_for_tasks::wait_for_tasks;
@@ -52,8 +53,9 @@ async fn main() -> anyhow::Result<()> {
         .build()
         .await
         .context("failed to build a connection pool")?;
-    let blob_store = ObjectStoreFactory::prover_from_env()
-        .context("ObjectSToreFactor::prover_from_env()")?
+    let object_store_config =
+        ProverObjectStoreConfig::from_env().context("ProverObjectStoreConfig::from_env()")?;
+    let blob_store = ObjectStoreFactory::new(object_store_config.0)
         .create_store()
         .await;
     let proof_compressor = ProofCompressor::new(
@@ -92,7 +94,7 @@ async fn main() -> anyhow::Result<()> {
     ];
 
     let graceful_shutdown = None::<futures::future::Ready<()>>;
-    let tasks_allowed_to_finish = false;
+    let tasks_allowed_to_finish = true;
     tokio::select! {
         _ = wait_for_tasks(tasks, None, graceful_shutdown, tasks_allowed_to_finish) => {},
         _ = stop_signal_receiver => {

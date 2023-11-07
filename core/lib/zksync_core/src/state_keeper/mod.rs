@@ -1,13 +1,14 @@
 use tokio::sync::watch;
+use zksync_object_store::ObjectStore;
 
 use std::sync::Arc;
 
 use zksync_config::{
     configs::chain::{MempoolConfig, NetworkConfig, StateKeeperConfig},
-    constants::MAX_TXS_IN_BLOCK,
     ContractsConfig, DBConfig,
 };
 use zksync_dal::ConnectionPool;
+use zksync_system_constants::MAX_TXS_IN_BLOCK;
 
 mod batch_executor;
 pub(crate) mod extractors;
@@ -17,16 +18,18 @@ mod mempool_actor;
 pub(crate) mod metrics;
 pub(crate) mod seal_criteria;
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;
 pub(crate) mod types;
 pub(crate) mod updates;
 
 pub use self::{
     batch_executor::{L1BatchExecutorBuilder, MainBatchExecutorBuilder},
     keeper::ZkSyncStateKeeper,
-    seal_criteria::SealManager,
 };
-pub(crate) use self::{io::MiniblockSealer, mempool_actor::MempoolFetcher, types::MempoolGuard};
+pub(crate) use self::{
+    io::MiniblockSealer, mempool_actor::MempoolFetcher, seal_criteria::ConditionalSealer,
+    types::MempoolGuard,
+};
 
 use self::io::{MempoolIO, MiniblockSealerHandle};
 use crate::l1_gas_price::L1GasPriceProvider;
@@ -42,6 +45,7 @@ pub(crate) async fn create_state_keeper<G>(
     mempool: MempoolGuard,
     l1_gas_price_provider: Arc<G>,
     miniblock_sealer_handle: MiniblockSealerHandle,
+    object_store: Box<dyn ObjectStore>,
     stop_receiver: watch::Receiver<bool>,
 ) -> ZkSyncStateKeeper
 where
@@ -65,6 +69,7 @@ where
 
     let io = MempoolIO::new(
         mempool,
+        object_store,
         miniblock_sealer_handle,
         l1_gas_price_provider,
         pool,
@@ -76,7 +81,7 @@ where
     )
     .await;
 
-    let sealer = SealManager::new(state_keeper_config);
+    let sealer = ConditionalSealer::new(state_keeper_config);
     ZkSyncStateKeeper::new(
         stop_receiver,
         Box::new(io),

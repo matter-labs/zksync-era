@@ -1,13 +1,12 @@
 //! Various helpers for the metadata calculator.
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 #[cfg(test)]
 use tokio::sync::mpsc;
 
 use std::{
     collections::BTreeMap,
     future::Future,
-    mem,
     path::{Path, PathBuf},
     time::Duration,
 };
@@ -16,23 +15,26 @@ use zksync_config::configs::database::MerkleTreeMode;
 use zksync_dal::StorageProcessor;
 use zksync_health_check::{Health, HealthStatus};
 use zksync_merkle_tree::{
-    domain::{TreeMetadata, ZkSyncTree},
-    MerkleTreeColumnFamily,
+    domain::{TreeMetadata, ZkSyncTree, ZkSyncTreeReader},
+    Key, MerkleTreeColumnFamily, NoVersionError, TreeEntryWithProof,
 };
-use zksync_storage::RocksDB;
+use zksync_storage::{RocksDB, RocksDBOptions, StalledWritesRetries};
 use zksync_types::{block::L1BatchHeader, L1BatchNumber, StorageLog, H256};
 
 use super::metrics::{LoadChangesStage, TreeUpdateStage, METRICS};
 
-#[derive(Debug, Serialize)]
-pub(super) struct TreeHealthCheckDetails {
+/// General information about the Merkle tree.
+#[derive(Debug, Serialize, Deserialize)]
+pub(crate) struct MerkleTreeInfo {
     pub mode: MerkleTreeMode,
-    pub next_l1_batch_to_seal: L1BatchNumber,
+    pub root_hash: H256,
+    pub next_l1_batch_number: L1BatchNumber,
+    pub leaf_count: u64,
 }
 
-impl From<TreeHealthCheckDetails> for Health {
-    fn from(details: TreeHealthCheckDetails) -> Self {
-        Self::from(HealthStatus::Ready).with_details(details)
+impl From<MerkleTreeInfo> for Health {
+    fn from(tree_info: MerkleTreeInfo) -> Self {
+        Self::from(HealthStatus::Ready).with_details(tree_info)
     }
 }
 
@@ -44,27 +46,38 @@ impl From<TreeHealthCheckDetails> for Health {
 /// at least not explicitly), all `MetadataCalculator` data including `ZkSyncTree` is discarded.
 /// In the unlikely case you get a "`ZkSyncTree` is in inconsistent state" panic,
 /// cancellation is most probably the reason.
-#[derive(Debug, Default)]
-pub(super) struct AsyncTree(Option<ZkSyncTree>);
+#[derive(Debug)]
+pub(super) struct AsyncTree {
+    inner: Option<ZkSyncTree>,
+    mode: MerkleTreeMode,
+}
 
 impl AsyncTree {
     const INCONSISTENT_MSG: &'static str =
-        "`ZkSyncTree` is in inconsistent state, which could occur after one of its blocking futures was cancelled";
+        "`ZkSyncTree` is in inconsistent state, which could occur after one of its async methods was cancelled";
 
     pub async fn new(
         db_path: PathBuf,
         mode: MerkleTreeMode,
         multi_get_chunk_size: usize,
         block_cache_capacity: usize,
+        memtable_capacity: usize,
+        stalled_writes_timeout: Duration,
     ) -> Self {
         tracing::info!(
             "Initializing Merkle tree at `{db_path}` with {multi_get_chunk_size} multi-get chunk size, \
-             {block_cache_capacity}B block cache",
+             {block_cache_capacity}B block cache, {memtable_capacity}B memtable capacity, \
+             {stalled_writes_timeout:?} stalled writes timeout",
             db_path = db_path.display()
         );
 
         let mut tree = tokio::task::spawn_blocking(move || {
-            let db = Self::create_db(&db_path, block_cache_capacity);
+            let db = Self::create_db(
+                &db_path,
+                block_cache_capacity,
+                memtable_capacity,
+                stalled_writes_timeout,
+            );
             match mode {
                 MerkleTreeMode::Full => ZkSyncTree::new(db),
                 MerkleTreeMode::Lightweight => ZkSyncTree::new_lightweight(db),
@@ -74,11 +87,26 @@ impl AsyncTree {
         .unwrap();
 
         tree.set_multi_get_chunk_size(multi_get_chunk_size);
-        Self(Some(tree))
+        Self {
+            inner: Some(tree),
+            mode,
+        }
     }
 
-    fn create_db(path: &Path, block_cache_capacity: usize) -> RocksDB<MerkleTreeColumnFamily> {
-        let db = RocksDB::with_cache(path, true, Some(block_cache_capacity));
+    fn create_db(
+        path: &Path,
+        block_cache_capacity: usize,
+        memtable_capacity: usize,
+        stalled_writes_timeout: Duration,
+    ) -> RocksDB<MerkleTreeColumnFamily> {
+        let db = RocksDB::with_options(
+            path,
+            RocksDBOptions {
+                block_cache_capacity: Some(block_cache_capacity),
+                large_memtable_capacity: Some(memtable_capacity),
+                stalled_writes_retries: StalledWritesRetries::new(stalled_writes_timeout),
+            },
+        );
         if cfg!(test) {
             // We need sync writes for the unit tests to execute reliably. With the default config,
             // some writes to RocksDB may occur, but not be visible to the test code.
@@ -89,11 +117,22 @@ impl AsyncTree {
     }
 
     fn as_ref(&self) -> &ZkSyncTree {
-        self.0.as_ref().expect(Self::INCONSISTENT_MSG)
+        self.inner.as_ref().expect(Self::INCONSISTENT_MSG)
     }
 
     fn as_mut(&mut self) -> &mut ZkSyncTree {
-        self.0.as_mut().expect(Self::INCONSISTENT_MSG)
+        self.inner.as_mut().expect(Self::INCONSISTENT_MSG)
+    }
+
+    pub fn mode(&self) -> MerkleTreeMode {
+        self.mode
+    }
+
+    pub fn reader(&self) -> AsyncTreeReader {
+        AsyncTreeReader {
+            inner: self.inner.as_ref().expect(Self::INCONSISTENT_MSG).reader(),
+            mode: self.mode,
+        }
     }
 
     pub fn is_empty(&self) -> bool {
@@ -109,30 +148,62 @@ impl AsyncTree {
     }
 
     pub async fn process_l1_batch(&mut self, storage_logs: Vec<StorageLog>) -> TreeMetadata {
-        let mut tree = mem::take(self);
+        let mut tree = self.inner.take().expect(Self::INCONSISTENT_MSG);
         let (tree, metadata) = tokio::task::spawn_blocking(move || {
-            let metadata = tree.as_mut().process_l1_batch(&storage_logs);
+            let metadata = tree.process_l1_batch(&storage_logs);
             (tree, metadata)
         })
         .await
         .unwrap();
 
-        *self = tree;
+        self.inner = Some(tree);
         metadata
     }
 
     pub async fn save(&mut self) {
-        let mut tree = mem::take(self);
-        *self = tokio::task::spawn_blocking(|| {
-            tree.as_mut().save();
-            tree
-        })
-        .await
-        .unwrap();
+        let mut tree = self.inner.take().expect(Self::INCONSISTENT_MSG);
+        self.inner = Some(
+            tokio::task::spawn_blocking(|| {
+                tree.save();
+                tree
+            })
+            .await
+            .unwrap(),
+        );
     }
 
     pub fn revert_logs(&mut self, last_l1_batch_to_keep: L1BatchNumber) {
         self.as_mut().revert_logs(last_l1_batch_to_keep);
+    }
+}
+
+/// Async version of [`ZkSyncTreeReader`].
+#[derive(Debug, Clone)]
+pub(crate) struct AsyncTreeReader {
+    inner: ZkSyncTreeReader,
+    mode: MerkleTreeMode,
+}
+
+impl AsyncTreeReader {
+    pub async fn info(self) -> MerkleTreeInfo {
+        tokio::task::spawn_blocking(move || MerkleTreeInfo {
+            mode: self.mode,
+            root_hash: self.inner.root_hash(),
+            next_l1_batch_number: self.inner.next_l1_batch_number(),
+            leaf_count: self.inner.leaf_count(),
+        })
+        .await
+        .unwrap()
+    }
+
+    pub async fn entries_with_proofs(
+        self,
+        l1_batch_number: L1BatchNumber,
+        keys: Vec<Key>,
+    ) -> Result<Vec<TreeEntryWithProof>, NoVersionError> {
+        tokio::task::spawn_blocking(move || self.inner.entries_with_proofs(l1_batch_number, &keys))
+            .await
+            .unwrap()
     }
 }
 
@@ -231,11 +302,12 @@ impl L1BatchWithLogs {
         // since no new leaf indices are allocated in the tree for them, such writes are no-op on the tree side as well.
         let hashed_keys_for_zero_values: Vec<_> = touched_slots
             .iter()
-            .filter_map(|(key, value)| {
+            .filter(|(_, value)| {
                 // Only zero values are worth checking for initial writes; non-zero values are always
                 // written per deduplication rules.
-                value.is_zero().then(|| key.hashed_key())
+                value.is_zero()
             })
+            .map(|(key, _)| key.hashed_key())
             .collect();
         METRICS
             .load_changes_zero_values
@@ -274,14 +346,8 @@ impl L1BatchWithLogs {
 mod tests {
     use tempfile::TempDir;
 
-    use db_test_macro::db_test;
-    use zksync_contracts::BaseSystemContracts;
     use zksync_dal::ConnectionPool;
-    use zksync_types::{
-        proofs::PrepareBasicCircuitsJob, protocol_version::L1VerifierConfig,
-        system_contracts::get_system_smart_contracts, Address, L2ChainId, ProtocolVersionId,
-        StorageKey, StorageLogKind,
-    };
+    use zksync_types::{proofs::PrepareBasicCircuitsJob, L2ChainId, StorageKey, StorageLogKind};
 
     use super::*;
     use crate::{
@@ -351,23 +417,13 @@ mod tests {
         }
     }
 
-    fn mock_genesis_params() -> GenesisParams {
-        GenesisParams {
-            first_validator: Address::repeat_byte(0x01),
-            protocol_version: ProtocolVersionId::latest(),
-            base_system_contracts: BaseSystemContracts::load_from_disk(),
-            system_contracts: get_system_smart_contracts(),
-            first_l1_verifier_config: L1VerifierConfig::default(),
-            first_verifier_address: Address::zero(),
-        }
-    }
-
-    #[db_test]
-    async fn loaded_logs_equivalence_basics(pool: ConnectionPool) {
+    #[tokio::test]
+    async fn loaded_logs_equivalence_basics() {
+        let pool = ConnectionPool::test_pool().await;
         ensure_genesis_state(
             &mut pool.access_storage().await.unwrap(),
             L2ChainId::from(270),
-            &mock_genesis_params(),
+            &GenesisParams::mock(),
         )
         .await
         .unwrap();
@@ -386,10 +442,11 @@ mod tests {
         }
     }
 
-    #[db_test]
-    async fn loaded_logs_equivalence_with_zero_no_op_logs(pool: ConnectionPool) {
+    #[tokio::test]
+    async fn loaded_logs_equivalence_with_zero_no_op_logs() {
+        let pool = ConnectionPool::test_pool().await;
         let mut storage = pool.access_storage().await.unwrap();
-        ensure_genesis_state(&mut storage, L2ChainId::from(270), &mock_genesis_params())
+        ensure_genesis_state(&mut storage, L2ChainId::from(270), &GenesisParams::mock())
             .await
             .unwrap();
 
@@ -403,11 +460,22 @@ mod tests {
         extend_db_state(&mut storage, logs).await;
 
         let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
-        let mut tree =
-            AsyncTree::new(temp_dir.path().to_owned(), MerkleTreeMode::Full, 500, 0).await;
+        let mut tree = create_tree(&temp_dir).await;
         for number in 0..3 {
             assert_log_equivalence(&mut storage, &mut tree, L1BatchNumber(number)).await;
         }
+    }
+
+    async fn create_tree(temp_dir: &TempDir) -> AsyncTree {
+        AsyncTree::new(
+            temp_dir.path().to_owned(),
+            MerkleTreeMode::Full,
+            500,
+            0,
+            16 << 20,       // 16 MiB,
+            Duration::ZERO, // writes should never be stalled in tests
+        )
+        .await
     }
 
     async fn assert_log_equivalence(
@@ -464,10 +532,11 @@ mod tests {
         }
     }
 
-    #[db_test]
-    async fn loaded_logs_equivalence_with_non_zero_no_op_logs(pool: ConnectionPool) {
+    #[tokio::test]
+    async fn loaded_logs_equivalence_with_non_zero_no_op_logs() {
+        let pool = ConnectionPool::test_pool().await;
         let mut storage = pool.access_storage().await.unwrap();
-        ensure_genesis_state(&mut storage, L2ChainId::from(270), &mock_genesis_params())
+        ensure_genesis_state(&mut storage, L2ChainId::from(270), &GenesisParams::mock())
             .await
             .unwrap();
 
@@ -504,17 +573,17 @@ mod tests {
         extend_db_state(&mut storage, logs).await;
 
         let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
-        let mut tree =
-            AsyncTree::new(temp_dir.path().to_owned(), MerkleTreeMode::Full, 500, 0).await;
+        let mut tree = create_tree(&temp_dir).await;
         for batch_number in 0..5 {
             assert_log_equivalence(&mut storage, &mut tree, L1BatchNumber(batch_number)).await;
         }
     }
 
-    #[db_test]
-    async fn loaded_logs_equivalence_with_protective_reads(pool: ConnectionPool) {
+    #[tokio::test]
+    async fn loaded_logs_equivalence_with_protective_reads() {
+        let pool = ConnectionPool::test_pool().await;
         let mut storage = pool.access_storage().await.unwrap();
-        ensure_genesis_state(&mut storage, L2ChainId::from(270), &mock_genesis_params())
+        ensure_genesis_state(&mut storage, L2ChainId::from(270), &GenesisParams::mock())
             .await
             .unwrap();
 
@@ -544,8 +613,7 @@ mod tests {
         assert_eq!(read_logs_count, 7);
 
         let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
-        let mut tree =
-            AsyncTree::new(temp_dir.path().to_owned(), MerkleTreeMode::Full, 500, 0).await;
+        let mut tree = create_tree(&temp_dir).await;
         for batch_number in 0..3 {
             assert_log_equivalence(&mut storage, &mut tree, L1BatchNumber(batch_number)).await;
         }

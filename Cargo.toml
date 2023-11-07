@@ -7,7 +7,7 @@ members = [
     "core/bin/merkle_tree_consistency_checker",
     "core/bin/rocksdb_util",
     "core/bin/storage_logs_dedup_migration",
-     "core/bin/system-constants-generator",
+    "core/bin/system-constants-generator",
     "core/bin/verification_key_generator_and_server",
     "core/bin/verified_sources_fetcher",
     "core/bin/zksync_server",
@@ -15,11 +15,13 @@ members = [
     "core/lib/zksync_core",
     "core/lib/basic_types",
     "core/lib/config",
+    "core/lib/constants",
     "core/lib/contracts",
     "core/lib/crypto",
     "core/lib/circuit_breaker",
+    "core/lib/commitment_utils",
     "core/lib/dal",
-    "core/lib/db_test_macro",
+    "core/lib/env_config",
     "core/lib/eth_client",
     "core/lib/eth_signer",
     "core/lib/mempool",
@@ -35,13 +37,8 @@ members = [
     "core/lib/utils",
     "core/lib/vlog",
     "core/lib/multivm",
-    "core/lib/vm",
     "core/lib/web3_decl",
     "core/lib/test_account",
-
-    # MultiVM dependencies
-    "core/multivm_deps/vm_m5",
-    "core/multivm_deps/vm_m6",
 
     # Test infrastructure
     "core/tests/cross_external_nodes_checker",

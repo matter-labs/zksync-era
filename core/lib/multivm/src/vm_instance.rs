@@ -1,7 +1,7 @@
-use std::collections::HashSet;
-use vm_latest::{
+use crate::interface::{
     FinishedL1Batch, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode, VmMemoryMetrics,
 };
+use std::collections::HashSet;
 
 use zksync_state::{ReadStorage, StorageView};
 use zksync_utils::bytecode::{hash_bytecode, CompressedBytecodeInfo};
@@ -18,13 +18,16 @@ pub struct VmInstance<S: ReadStorage, H: HistoryMode> {
 
 #[derive(Debug)]
 pub(crate) enum VmInstanceVersion<S: ReadStorage, H: HistoryMode> {
-    VmM5(Box<vm_m5::VmInstance<StorageView<S>>>),
-    VmM6(Box<vm_m6::VmInstance<StorageView<S>, H::VmM6Mode>>),
-    Vm1_3_2(Box<vm_1_3_2::VmInstance<StorageView<S>, H::Vm1_3_2Mode>>),
-    VmVirtualBlocks(Box<vm_virtual_blocks::Vm<StorageView<S>, H::VmVirtualBlocksMode>>),
+    VmM5(Box<crate::vm_m5::VmInstance<StorageView<S>>>),
+    VmM6(Box<crate::vm_m6::VmInstance<StorageView<S>, H::VmM6Mode>>),
+    Vm1_3_2(Box<crate::vm_1_3_2::VmInstance<StorageView<S>, H::Vm1_3_2Mode>>),
+    VmVirtualBlocks(Box<crate::vm_virtual_blocks::Vm<StorageView<S>, H::VmVirtualBlocksMode>>),
     VmVirtualBlocksRefundsEnhancement(
-        Box<vm_latest::Vm<StorageView<S>, H::VmVirtualBlocksRefundsEnhancement>>,
+        Box<
+            crate::vm_refunds_enhancement::Vm<StorageView<S>, H::VmVirtualBlocksRefundsEnhancement>,
+        >,
     ),
+    VmBoojumIntegration(Box<crate::vm_latest::Vm<StorageView<S>, H::VmBoojumIntegration>>),
 }
 
 impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
@@ -32,14 +35,14 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
     pub fn push_transaction(&mut self, tx: &zksync_types::Transaction) {
         match &mut self.vm {
             VmInstanceVersion::VmM5(vm) => {
-                vm_m5::vm_with_bootloader::push_transaction_to_bootloader_memory(
+                crate::vm_m5::vm_with_bootloader::push_transaction_to_bootloader_memory(
                     vm,
                     tx,
                     self.system_env.execution_mode.glue_into(),
                 )
             }
             VmInstanceVersion::VmM6(vm) => {
-                vm_m6::vm_with_bootloader::push_transaction_to_bootloader_memory(
+                crate::vm_m6::vm_with_bootloader::push_transaction_to_bootloader_memory(
                     vm,
                     tx,
                     self.system_env.execution_mode.glue_into(),
@@ -47,7 +50,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
                 )
             }
             VmInstanceVersion::Vm1_3_2(vm) => {
-                vm_1_3_2::vm_with_bootloader::push_transaction_to_bootloader_memory(
+                crate::vm_1_3_2::vm_with_bootloader::push_transaction_to_bootloader_memory(
                     vm,
                     tx,
                     self.system_env.execution_mode.glue_into(),
@@ -60,6 +63,9 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
             VmInstanceVersion::VmVirtualBlocksRefundsEnhancement(vm) => {
                 vm.push_transaction(tx.clone());
             }
+            VmInstanceVersion::VmBoojumIntegration(vm) => {
+                vm.push_transaction(tx.clone());
+            }
         }
     }
 
@@ -68,17 +74,17 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
         match &mut self.vm {
             VmInstanceVersion::VmM5(vm) => vm
                 .execute_till_block_end(
-                    vm_m5::vm_with_bootloader::BootloaderJobType::BlockPostprocessing,
+                    crate::vm_m5::vm_with_bootloader::BootloaderJobType::BlockPostprocessing,
                 )
                 .glue_into(),
             VmInstanceVersion::VmM6(vm) => vm
                 .execute_till_block_end(
-                    vm_m6::vm_with_bootloader::BootloaderJobType::BlockPostprocessing,
+                    crate::vm_m6::vm_with_bootloader::BootloaderJobType::BlockPostprocessing,
                 )
                 .glue_into(),
             VmInstanceVersion::Vm1_3_2(vm) => vm
                 .execute_till_block_end(
-                    vm_1_3_2::vm_with_bootloader::BootloaderJobType::BlockPostprocessing,
+                    crate::vm_1_3_2::vm_with_bootloader::BootloaderJobType::BlockPostprocessing,
                 )
                 .glue_into(),
             VmInstanceVersion::VmVirtualBlocks(vm) => {
@@ -101,12 +107,22 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
                     final_bootloader_memory: Some(bootloader_memory),
                 }
             }
+            VmInstanceVersion::VmBoojumIntegration(vm) => {
+                let result = vm.execute(VmExecutionMode::Batch);
+                let execution_state = vm.get_current_execution_state();
+                let bootloader_memory = vm.get_bootloader_memory();
+                FinishedL1Batch {
+                    block_tip_execution_result: result,
+                    final_execution_state: execution_state,
+                    final_bootloader_memory: Some(bootloader_memory),
+                }
+            }
         }
     }
 
     /// Execute the batch without stops after each tx.
     /// This method allows to execute the part  of the VM cycle after executing all txs.
-    pub fn execute_block_tip(&mut self) -> vm_latest::VmExecutionResultAndLogs {
+    pub fn execute_block_tip(&mut self) -> crate::interface::VmExecutionResultAndLogs {
         match &mut self.vm {
             VmInstanceVersion::VmM5(vm) => vm.execute_block_tip().glue_into(),
             VmInstanceVersion::VmM6(vm) => vm.execute_block_tip().glue_into(),
@@ -117,17 +133,18 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
             VmInstanceVersion::VmVirtualBlocksRefundsEnhancement(vm) => {
                 vm.execute(VmExecutionMode::Bootloader)
             }
+            VmInstanceVersion::VmBoojumIntegration(vm) => vm.execute(VmExecutionMode::Bootloader),
         }
     }
 
     /// Execute next transaction and stop vm right after next transaction execution
-    pub fn execute_next_transaction(&mut self) -> vm_latest::VmExecutionResultAndLogs {
+    pub fn execute_next_transaction(&mut self) -> crate::interface::VmExecutionResultAndLogs {
         match &mut self.vm {
             VmInstanceVersion::VmM5(vm) => match self.system_env.execution_mode {
                 TxExecutionMode::VerifyExecute => vm.execute_next_tx().glue_into(),
                 TxExecutionMode::EstimateFee | TxExecutionMode::EthCall => vm
                     .execute_till_block_end(
-                        vm_m5::vm_with_bootloader::BootloaderJobType::TransactionExecution,
+                        crate::vm_m5::vm_with_bootloader::BootloaderJobType::TransactionExecution,
                     )
                     .glue_into(),
             },
@@ -143,7 +160,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
                     }
                     TxExecutionMode::EstimateFee | TxExecutionMode::EthCall => vm
                         .execute_till_block_end(
-                            vm_m6::vm_with_bootloader::BootloaderJobType::TransactionExecution,
+                             crate::vm_m6::vm_with_bootloader::BootloaderJobType::TransactionExecution,
                         )
                         .glue_into(),
                 }
@@ -160,7 +177,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
                     }
                     TxExecutionMode::EstimateFee | TxExecutionMode::EthCall => vm
                         .execute_till_block_end(
-                            vm_1_3_2::vm_with_bootloader::BootloaderJobType::TransactionExecution,
+                            crate::vm_1_3_2::vm_with_bootloader::BootloaderJobType::TransactionExecution,
                         )
                         .glue_into(),
                 }
@@ -171,6 +188,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
             VmInstanceVersion::VmVirtualBlocksRefundsEnhancement(vm) => {
                 vm.execute(VmExecutionMode::OneTx)
             }
+            VmInstanceVersion::VmBoojumIntegration(vm) => vm.execute(VmExecutionMode::OneTx),
         }
     }
 
@@ -181,6 +199,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
             VmInstanceVersion::VmVirtualBlocksRefundsEnhancement(vm) => {
                 vm.get_last_tx_compressed_bytecodes()
             }
+            VmInstanceVersion::VmBoojumIntegration(vm) => vm.get_last_tx_compressed_bytecodes(),
             _ => self.last_tx_compressed_bytecodes.clone(),
         }
     }
@@ -189,7 +208,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
     pub fn inspect_next_transaction(
         &mut self,
         tracers: Vec<Box<dyn MultivmTracer<StorageView<S>, H>>>,
-    ) -> vm_latest::VmExecutionResultAndLogs {
+    ) -> crate::interface::VmExecutionResultAndLogs {
         match &mut self.vm {
             VmInstanceVersion::VmVirtualBlocks(vm) => vm
                 .inspect(
@@ -201,6 +220,13 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
                 )
                 .glue_into(),
             VmInstanceVersion::VmVirtualBlocksRefundsEnhancement(vm) => vm.inspect(
+                tracers
+                    .into_iter()
+                    .map(|tracer| tracer.vm_refunds_enhancement())
+                    .collect(),
+                VmExecutionMode::OneTx,
+            ),
+            VmInstanceVersion::VmBoojumIntegration(vm) => vm.inspect(
                 tracers.into_iter().map(|tracer| tracer.latest()).collect(),
                 VmExecutionMode::OneTx,
             ),
@@ -213,10 +239,13 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
         &mut self,
         tx: zksync_types::Transaction,
         with_compression: bool,
-    ) -> Result<vm_latest::VmExecutionResultAndLogs, vm_latest::BytecodeCompressionError> {
+    ) -> Result<
+        crate::interface::VmExecutionResultAndLogs,
+        crate::interface::BytecodeCompressionError,
+    > {
         match &mut self.vm {
             VmInstanceVersion::VmM5(vm) => {
-                vm_m5::vm_with_bootloader::push_transaction_to_bootloader_memory(
+                crate::vm_m5::vm_with_bootloader::push_transaction_to_bootloader_memory(
                     vm,
                     &tx,
                     self.system_env.execution_mode.glue_into(),
@@ -224,7 +253,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
                 Ok(vm.execute_next_tx().glue_into())
             }
             VmInstanceVersion::VmM6(vm) => {
-                use vm_m6::storage::Storage;
+                use crate::vm_m6::storage::Storage;
                 let bytecodes = if with_compression {
                     let deps = tx.execute.factory_deps.as_deref().unwrap_or_default();
                     let mut deps_hashes = HashSet::with_capacity(deps.len());
@@ -250,7 +279,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
                     let compressed_bytecodes: Vec<_> = filtered_deps.collect();
 
                     self.last_tx_compressed_bytecodes = compressed_bytecodes.clone();
-                    vm_m6::vm_with_bootloader::push_transaction_to_bootloader_memory(
+                    crate::vm_m6::vm_with_bootloader::push_transaction_to_bootloader_memory(
                         vm,
                         &tx,
                         self.system_env.execution_mode.glue_into(),
@@ -258,7 +287,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
                     );
                     bytecode_hashes
                 } else {
-                    vm_m6::vm_with_bootloader::push_transaction_to_bootloader_memory(
+                    crate::vm_m6::vm_with_bootloader::push_transaction_to_bootloader_memory(
                         vm,
                         &tx,
                         self.system_env.execution_mode.glue_into(),
@@ -282,13 +311,13 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
                         .borrow_mut()
                         .is_bytecode_exists(info)
                 }) {
-                    Err(vm_latest::BytecodeCompressionError::BytecodeCompressionFailed)
+                    Err(crate::interface::BytecodeCompressionError::BytecodeCompressionFailed)
                 } else {
                     Ok(result)
                 }
             }
             VmInstanceVersion::Vm1_3_2(vm) => {
-                use vm_m6::storage::Storage;
+                use crate::vm_m6::storage::Storage;
                 let bytecodes = if with_compression {
                     let deps = tx.execute.factory_deps.as_deref().unwrap_or_default();
                     let mut deps_hashes = HashSet::with_capacity(deps.len());
@@ -314,7 +343,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
                     let compressed_bytecodes: Vec<_> = filtered_deps.collect();
 
                     self.last_tx_compressed_bytecodes = compressed_bytecodes.clone();
-                    vm_1_3_2::vm_with_bootloader::push_transaction_to_bootloader_memory(
+                    crate::vm_1_3_2::vm_with_bootloader::push_transaction_to_bootloader_memory(
                         vm,
                         &tx,
                         self.system_env.execution_mode.glue_into(),
@@ -322,7 +351,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
                     );
                     bytecode_hashes
                 } else {
-                    vm_1_3_2::vm_with_bootloader::push_transaction_to_bootloader_memory(
+                    crate::vm_1_3_2::vm_with_bootloader::push_transaction_to_bootloader_memory(
                         vm,
                         &tx,
                         self.system_env.execution_mode.glue_into(),
@@ -346,7 +375,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
                         .borrow_mut()
                         .is_bytecode_exists(info)
                 }) {
-                    Err(vm_latest::BytecodeCompressionError::BytecodeCompressionFailed)
+                    Err(crate::interface::BytecodeCompressionError::BytecodeCompressionFailed)
                 } else {
                     Ok(result)
                 }
@@ -355,6 +384,9 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
                 .execute_transaction_with_bytecode_compression(tx, with_compression)
                 .glue_into(),
             VmInstanceVersion::VmVirtualBlocksRefundsEnhancement(vm) => {
+                vm.execute_transaction_with_bytecode_compression(tx, with_compression)
+            }
+            VmInstanceVersion::VmBoojumIntegration(vm) => {
                 vm.execute_transaction_with_bytecode_compression(tx, with_compression)
             }
         }
@@ -366,7 +398,10 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
         tracers: Vec<Box<dyn MultivmTracer<StorageView<S>, H>>>,
         tx: zksync_types::Transaction,
         with_compression: bool,
-    ) -> Result<vm_latest::VmExecutionResultAndLogs, vm_latest::BytecodeCompressionError> {
+    ) -> Result<
+        crate::interface::VmExecutionResultAndLogs,
+        crate::interface::BytecodeCompressionError,
+    > {
         match &mut self.vm {
             VmInstanceVersion::VmVirtualBlocks(vm) => vm
                 .inspect_transaction_with_bytecode_compression(
@@ -379,6 +414,15 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
                 )
                 .glue_into(),
             VmInstanceVersion::VmVirtualBlocksRefundsEnhancement(vm) => vm
+                .inspect_transaction_with_bytecode_compression(
+                    tracers
+                        .into_iter()
+                        .map(|tracer| tracer.vm_refunds_enhancement())
+                        .collect(),
+                    tx,
+                    with_compression,
+                ),
+            VmInstanceVersion::VmBoojumIntegration(vm) => vm
                 .inspect_transaction_with_bytecode_compression(
                     tracers.into_iter().map(|tracer| tracer.latest()).collect(),
                     tx,
@@ -397,6 +441,9 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
                 vm.start_new_l2_block(l2_block_env.glue_into());
             }
             VmInstanceVersion::VmVirtualBlocksRefundsEnhancement(vm) => {
+                vm.start_new_l2_block(l2_block_env);
+            }
+            VmInstanceVersion::VmBoojumIntegration(vm) => {
                 vm.start_new_l2_block(l2_block_env);
             }
             _ => {}
@@ -438,11 +485,12 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
             VmInstanceVersion::VmVirtualBlocksRefundsEnhancement(vm) => {
                 Some(vm.record_vm_memory_metrics())
             }
+            VmInstanceVersion::VmBoojumIntegration(vm) => Some(vm.record_vm_memory_metrics()),
         }
     }
 }
 
-impl<S: ReadStorage> VmInstance<S, vm_latest::HistoryEnabled> {
+impl<S: ReadStorage> VmInstance<S, crate::vm_latest::HistoryEnabled> {
     pub fn make_snapshot(&mut self) {
         match &mut self.vm {
             VmInstanceVersion::VmM5(vm) => vm.save_current_vm_as_snapshot(),
@@ -450,6 +498,7 @@ impl<S: ReadStorage> VmInstance<S, vm_latest::HistoryEnabled> {
             VmInstanceVersion::Vm1_3_2(vm) => vm.save_current_vm_as_snapshot(),
             VmInstanceVersion::VmVirtualBlocks(vm) => vm.make_snapshot(),
             VmInstanceVersion::VmVirtualBlocksRefundsEnhancement(vm) => vm.make_snapshot(),
+            VmInstanceVersion::VmBoojumIntegration(vm) => vm.make_snapshot(),
         }
     }
 
@@ -462,6 +511,9 @@ impl<S: ReadStorage> VmInstance<S, vm_latest::HistoryEnabled> {
                 vm.rollback_to_the_latest_snapshot();
             }
             VmInstanceVersion::VmVirtualBlocksRefundsEnhancement(vm) => {
+                vm.rollback_to_the_latest_snapshot();
+            }
+            VmInstanceVersion::VmBoojumIntegration(vm) => {
                 vm.rollback_to_the_latest_snapshot();
             }
         }
@@ -479,6 +531,7 @@ impl<S: ReadStorage> VmInstance<S, vm_latest::HistoryEnabled> {
             VmInstanceVersion::VmVirtualBlocksRefundsEnhancement(vm) => {
                 vm.pop_snapshot_no_rollback()
             }
+            VmInstanceVersion::VmBoojumIntegration(vm) => vm.pop_snapshot_no_rollback(),
         }
     }
 }

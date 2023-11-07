@@ -17,13 +17,14 @@ zksync_dal = { path = "../dal" }
 zksync_config = { path = "../config" }
 zksync_utils = { path = "../utils" }
 zksync_contracts = { path = "../contracts" }
+zksync_system_constants = { path = "../../lib/constants" }
+zksync_commitment_utils = { path = "../commitment_utils" }
 zksync_eth_client = { path = "../eth_client" }
 zksync_eth_signer = { path = "../eth_signer" }
 zksync_mempool = { path = "../mempool" }
 zksync_prover_utils = { path = "../prover_utils" }
 zksync_queued_job_processor = { path = "../queued_job_processor" }
 zksync_circuit_breaker = { path = "../circuit_breaker" }
-vm = { path = "../vm" }
 zksync_storage = { path = "../storage" }
 zksync_merkle_tree = { path = "../merkle_tree" }
 zksync_mini_merkle_tree = { path = "../mini_merkle_tree" }
@@ -83,7 +84,6 @@ actix-web = "4.0.0-beta.8"
 tracing = "0.1.26"
 
 [dev-dependencies]
-db_test_macro = { path = "../db_test_macro" }
 
 assert_matches = "1.5"
 zksync_test_account = { path = "../test_account" }

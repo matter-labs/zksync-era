@@ -23,7 +23,7 @@ jobs:
 
       - name: Download Setup data
         run: |
-          gsutil -m rsync -r gs://matterlabs-zksync-v2-infra-blob-store/prover_setup_data/${{ inputs.setup_keys_id }} docker/prover-gpu-fri-gar
+          gsutil -m rsync -r gs://matterlabs-setup-data-us/${{ inputs.setup_keys_id }} docker/prover-gpu-fri-gar
 
       - name: Login to us-central1 GAR
         run: |
@@ -43,4 +43,24 @@ jobs:
             PROVER_IMAGE=${{ inputs.image_tag_suffix }}
           push: true
           tags: |
+            us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/prover-fri-gpu-gar:2.0-${{ inputs.image_tag_suffix }}
+
+      - name: Login to Asia GAR
+        run: |
+          gcloud auth print-access-token --lifetime=7200 --impersonate-service-account=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com | docker login -u oauth2accesstoken --password-stdin https://asia-docker.pkg.dev
+
+      - name: Build and push to Asia GAR
+        run: |
+          docker buildx imagetools create \
+            --tag asia-docker.pkg.dev/matterlabs-infra/matterlabs-docker/prover-fri-gpu-gar:2.0-${{ inputs.image_tag_suffix }} \
+            us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/prover-fri-gpu-gar:2.0-${{ inputs.image_tag_suffix }}
+
+      - name: Login to Europe GAR
+        run: |
+          gcloud auth print-access-token --lifetime=7200 --impersonate-service-account=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com | docker login -u oauth2accesstoken --password-stdin https://europe-docker.pkg.dev
+
+      - name: Build and push to Europe GAR
+        run: |
+          docker buildx imagetools create \
+            --tag europe-docker.pkg.dev/matterlabs-infra/matterlabs-docker/prover-fri-gpu-gar:2.0-${{ inputs.image_tag_suffix }} \
             us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/prover-fri-gpu-gar:2.0-${{ inputs.image_tag_suffix }}

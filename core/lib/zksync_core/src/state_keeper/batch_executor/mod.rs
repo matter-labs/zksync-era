@@ -7,11 +7,12 @@ use tokio::{
 
 use std::{fmt, sync::Arc};
 
-use multivm::{MultivmTracer, VmInstance};
-use vm::{
-    CallTracer, ExecutionResult, FinishedL1Batch, Halt, HistoryEnabled, L1BatchEnv, L2BlockEnv,
-    SystemEnv, VmExecutionResultAndLogs,
+use multivm::interface::{
+    ExecutionResult, FinishedL1Batch, Halt, L1BatchEnv, L2BlockEnv, SystemEnv,
+    VmExecutionResultAndLogs,
 };
+use multivm::vm_latest::{CallTracer, HistoryEnabled};
+use multivm::{MultivmTracer, VmInstance};
 use zksync_dal::ConnectionPool;
 use zksync_state::{ReadStorage, RocksdbStorage, StorageView};
 use zksync_types::{vm_trace::Call, witness_block_state::WitnessBlockState, Transaction, U256};
@@ -70,7 +71,7 @@ impl TxExecutionResult {
 #[async_trait]
 pub trait L1BatchExecutorBuilder: 'static + Send + Sync + fmt::Debug {
     async fn init_batch(
-        &self,
+        &mut self,
         l1_batch_params: L1BatchEnv,
         system_env: SystemEnv,
     ) -> BatchExecutorHandle;
@@ -111,7 +112,7 @@ impl MainBatchExecutorBuilder {
 #[async_trait]
 impl L1BatchExecutorBuilder for MainBatchExecutorBuilder {
     async fn init_batch(
-        &self,
+        &mut self,
         l1_batch_params: L1BatchEnv,
         system_env: SystemEnv,
     ) -> BatchExecutorHandle {
@@ -393,7 +394,7 @@ impl BatchExecutor {
             ExecutionResult::Halt { reason } => match reason {
                 Halt::BootloaderOutOfGas => TxExecutionResult::BootloaderOutOfGasForBlockTip,
                 _ => {
-                    panic!("VM must not revert when finalizing block (except `BootloaderOutOfGas`)")
+                    panic!("VM must not revert when finalizing block (except `BootloaderOutOfGas`). Reason: {:#?}", reason)
                 }
             },
         }
@@ -421,7 +422,10 @@ impl BatchExecutor {
         // There is some post-processing work that the VM needs to do before the block is fully processed.
         let result = vm.finish_batch();
         if result.block_tip_execution_result.result.is_failed() {
-            panic!("VM must not fail when finalizing block");
+            panic!(
+                "VM must not fail when finalizing block: {:#?}",
+                result.block_tip_execution_result.result
+            );
         }
         result
     }

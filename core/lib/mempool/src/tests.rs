@@ -206,7 +206,7 @@ fn two_ready_txs() {
             view(mempool.next_transaction(&L2TxFilter::default())),
             view(mempool.next_transaction(&L2TxFilter::default()))
         ]),
-        HashSet::<(_, _)>::from_iter(vec![(account0, 0), (account1, 0)].into_iter()),
+        HashSet::<(_, _)>::from_iter(vec![(account0, 0), (account1, 0)]),
     );
 }
 

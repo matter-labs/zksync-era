@@ -1,4 +1,3 @@
-use anyhow::Context as _;
 use async_trait::async_trait;
 
 use std::{
@@ -8,12 +7,13 @@ use std::{
     time::{Duration, Instant},
 };
 
-use vm::{utils::fee::derive_base_fee_and_gas_per_pubdata, FinishedL1Batch, L1BatchEnv, SystemEnv};
+use multivm::interface::{FinishedL1Batch, L1BatchEnv, SystemEnv};
+use multivm::vm_latest::utils::fee::derive_base_fee_and_gas_per_pubdata;
 
 use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_dal::ConnectionPool;
 use zksync_mempool::L2TxFilter;
-use zksync_object_store::ObjectStoreFactory;
+use zksync_object_store::ObjectStore;
 use zksync_types::{
     block::MiniblockHeader, protocol_version::ProtocolUpgradeTx,
     witness_block_state::WitnessBlockState, Address, L1BatchNumber, L2ChainId, MiniblockNumber,
@@ -28,16 +28,15 @@ use crate::{
         extractors,
         io::{
             common::{l1_batch_params, load_pending_batch, poll_iters},
-            MiniblockSealerHandle, PendingBatchData, StateKeeperIO,
+            MiniblockParams, MiniblockSealerHandle, PendingBatchData, StateKeeperIO,
         },
         mempool_actor::l2_tx_filter,
         metrics::KEEPER_METRICS,
+        seal_criteria::{IoSealCriteria, TimeoutSealer},
         updates::UpdatesManager,
         MempoolGuard,
     },
 };
-
-use super::MiniblockParams;
 
 /// Mempool-based IO for the state keeper.
 /// Receives transactions from the database through the mempool filtering logic.
@@ -47,6 +46,8 @@ use super::MiniblockParams;
 pub(crate) struct MempoolIO<G> {
     mempool: MempoolGuard,
     pool: ConnectionPool,
+    object_store: Box<dyn ObjectStore>,
+    timeout_sealer: TimeoutSealer,
     filter: L2TxFilter,
     current_miniblock_number: MiniblockNumber,
     miniblock_sealer_handle: MiniblockSealerHandle,
@@ -64,8 +65,25 @@ pub(crate) struct MempoolIO<G> {
     virtual_blocks_per_miniblock: u32,
 }
 
+impl<G> IoSealCriteria for MempoolIO<G>
+where
+    G: L1GasPriceProvider + 'static + Send + Sync,
+{
+    fn should_seal_l1_batch_unconditionally(&mut self, manager: &UpdatesManager) -> bool {
+        self.timeout_sealer
+            .should_seal_l1_batch_unconditionally(manager)
+    }
+
+    fn should_seal_miniblock(&mut self, manager: &UpdatesManager) -> bool {
+        self.timeout_sealer.should_seal_miniblock(manager)
+    }
+}
+
 #[async_trait]
-impl<G: L1GasPriceProvider + 'static + Send + Sync> StateKeeperIO for MempoolIO<G> {
+impl<G> StateKeeperIO for MempoolIO<G>
+where
+    G: L1GasPriceProvider + 'static + Send + Sync,
+{
     fn current_l1_batch_number(&self) -> L1BatchNumber {
         self.current_l1_batch_number
     }
@@ -279,11 +297,8 @@ impl<G: L1GasPriceProvider + 'static + Send + Sync> StateKeeperIO for MempoolIO<
         self.miniblock_sealer_handle.wait_for_all_commands().await;
 
         if let Some(witness_witness_block_state) = witness_block_state {
-            let object_store = ObjectStoreFactory::from_env()
-                .context("ObjectsStoreFactor::from_env()")?
-                .create_store()
-                .await;
-            match object_store
+            match self
+                .object_store
                 .put(self.current_l1_batch_number(), &witness_witness_block_state)
                 .await
             {
@@ -387,6 +402,7 @@ impl<G: L1GasPriceProvider> MempoolIO<G> {
     #[allow(clippy::too_many_arguments)]
     pub(in crate::state_keeper) async fn new(
         mempool: MempoolGuard,
+        object_store: Box<dyn ObjectStore>,
         miniblock_sealer_handle: MiniblockSealerHandle,
         l1_gas_price_provider: Arc<G>,
         pool: ConnectionPool,
@@ -421,7 +437,9 @@ impl<G: L1GasPriceProvider> MempoolIO<G> {
 
         Self {
             mempool,
+            object_store,
             pool,
+            timeout_sealer: TimeoutSealer::new(config),
             filter: L2TxFilter::default(),
             // ^ Will be initialized properly on the first newly opened batch
             current_l1_batch_number: last_sealed_l1_batch_header.number + 1,
