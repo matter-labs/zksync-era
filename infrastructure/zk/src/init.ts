@@ -21,6 +21,7 @@ export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
     const {
         skipSubmodulesCheckout,
         skipEnvSetup,
+        skipPlonkStep,
         testTokens,
         deployerL1ContractInputArgs,
         governorPrivateKeyArgs,
@@ -32,7 +33,7 @@ export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
         await announced('Checking environment', checkEnv());
         await announced('Checking git hooks', env.gitHooks());
         await announced('Setting up containers', up());
-        await announced('Checking PLONK setup', run.plonkSetup());
+        !skipPlonkStep && (await announced('Checking PLONK setup', run.plonkSetup()));
     }
     if (!skipSubmodulesCheckout) {
         await announced('Checkout system-contracts submodule', submoduleUpdate());
@@ -140,6 +141,7 @@ async function checkEnv() {
 export interface InitArgs {
     skipSubmodulesCheckout: boolean;
     skipEnvSetup: boolean;
+    skipPlonkStep: boolean;
     deployerL1ContractInputArgs: any[];
     governorPrivateKeyArgs: any[];
     deployerL2ContractInput: {
@@ -156,6 +158,7 @@ export interface InitArgs {
 const DEFAULT_ARGS: InitArgs = {
     skipSubmodulesCheckout: false,
     skipEnvSetup: false,
+    skipPlonkStep: false,
     deployerL1ContractInputArgs: [],
     governorPrivateKeyArgs: [],
     deployerL2ContractInput: { args: [], includePaymaster: true, includeL2WETH: true },
@@ -170,6 +173,7 @@ export const initCommand = new Command('init')
         const initArgs: InitArgs = {
             skipSubmodulesCheckout: cmd.skipSubmodulesCheckout,
             skipEnvSetup: cmd.skipEnvSetup,
+            skipPlonkStep: false,
             deployerL1ContractInputArgs: [],
             governorPrivateKeyArgs: [],
             deployerL2ContractInput: { args: [], includePaymaster: true, includeL2WETH: true },

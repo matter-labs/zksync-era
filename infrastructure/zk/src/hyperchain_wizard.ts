@@ -56,6 +56,7 @@ async function initHyperchain() {
     const initArgs: InitArgs = {
         skipSubmodulesCheckout: false,
         skipEnvSetup: true,
+        skipPlonkStep: true,
         deployerL1ContractInputArgs: ['--private-key', deployerPrivateKey, '--governor-address', governorAddress],
         governorPrivateKeyArgs: ['--private-key', governorPrivateKey],
         deployerL2ContractInput: {
@@ -691,6 +692,62 @@ async function generateDockerImages(cmd: Command) {
     );
 }
 
+async function initDemo(cmd: Command) {
+    await compileConfig('demo');
+    env.set('demo');
+
+    wrapEnvModify('CHAIN_ETH_ZKSYNC_NETWORK', 'Zeek hyperchain');
+    wrapEnvModify('CHAIN_ETH_ZKSYNC_NETWORK_ID', '1337');
+    wrapEnvModify('ETH_SENDER_SENDER_PROOF_SENDING_MODE', 'SkipEveryProof');
+    wrapEnvModify('ETH_SENDER_SENDER_L1_BATCH_MIN_AGE_BEFORE_EXECUTE_SECONDS', '20');
+
+    const richWalletsRaw = await fetch(
+        'https://raw.githubusercontent.com/matter-labs/local-setup/main/rich-wallets.json'
+    );
+
+    const richWallets = await richWalletsRaw.json();
+
+    const deployer = new ethers.Wallet(richWallets[0].privateKey);
+    const governor = new ethers.Wallet(richWallets[1].privateKey);
+
+    wrapEnvModify('DEPLOYER_PRIVATE_KEY', deployer.privateKey);
+    wrapEnvModify('GOVERNOR_PRIVATE_KEY', governor.privateKey);
+    wrapEnvModify('GOVERNOR_ADDRESS', governor.address);
+
+    env.load();
+
+    const deployerPrivateKey = process.env.DEPLOYER_PRIVATE_KEY;
+    const governorPrivateKey = process.env.GOVERNOR_PRIVATE_KEY;
+    const governorAddress = process.env.GOVERNOR_ADDRESS;
+    const deployL2Weth = Boolean(process.env.DEPLOY_L2_WETH || false);
+    const deployTestTokens = Boolean(process.env.DEPLOY_TEST_TOKENS || false);
+
+    const initArgs: InitArgs = {
+        skipSubmodulesCheckout: false,
+        skipEnvSetup: cmd.skipEnvSetup,
+        skipPlonkStep: true,
+        deployerL1ContractInputArgs: ['--private-key', deployerPrivateKey, '--governor-address', governorAddress],
+        governorPrivateKeyArgs: ['--private-key', governorPrivateKey],
+        deployerL2ContractInput: {
+            args: ['--private-key', deployerPrivateKey],
+            includePaymaster: false,
+            includeL2WETH: deployL2Weth
+        },
+        testTokens: {
+            deploy: deployTestTokens,
+            args: ['--private-key', deployerPrivateKey, '--envFile', process.env.CHAIN_ETH_NETWORK!]
+        }
+    };
+
+    await init(initArgs);
+
+    env.mergeInitToEnv();
+
+    if (cmd.prover) {
+        await setupProver(cmd.prover === 'gpu' ? ProverType.GPU : ProverType.CPU);
+    }
+}
+
 function printReadme() {
     console.log(
         title(
@@ -715,6 +772,11 @@ function printReadme() {
             '- Generate docker images and compose file for your hyperchain'
         )}`
     );
+    console.log(
+        `${chalk.bgBlueBright('zk stack demo')} ${chalk.blueBright(
+            '- Spin up a demo hyperchain with default settings for testing purposes'
+        )}`
+    );
 
     console.log('\n');
 }
@@ -736,3 +798,9 @@ initHyperchainCommand
     .command('prover-setup')
     .description('Configure the ZK Prover instance for your hyperchain')
     .action(setupHyperchainProver);
+initHyperchainCommand
+    .command('demo')
+    .option('--prover <value>', 'Add a cpu or gpu prover to the hyperchain')
+    .option('--skip-env-setup', 'Run env setup automatically (pull docker containers, etc)')
+    .description('Spin up a demo hyperchain with default settings for testing purposes')
+    .action(initDemo);

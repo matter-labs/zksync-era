@@ -18,7 +18,16 @@ export async function setupProver(proverType: ProverType) {
         wrapEnvModify('ETH_SENDER_SENDER_PROOF_SENDING_MODE', 'OnlyRealProofs');
         wrapEnvModify('ETH_SENDER_SENDER_PROOF_LOADING_MODE', 'FriProofFromGcs');
         await setupArtifactsMode();
-        await setupProverKeys(proverType);
+        if (process.env.CI) {
+            await setupProverKeys(proverType);
+        } else {
+            wrapEnvModify(
+                'FRI_PROVER_SETUP_DATA_PATH',
+                `${process.env.ZKSYNC_HOME}/etc/hyperchains/prover-keys/${process.env.ZKSYNC_ENV}/${
+                    proverType === ProverType.GPU ? 'gpu' : 'cpu'
+                }/`
+            );
+        }
     } else {
         console.error(`Unknown prover type: ${proverType}`);
         process.exit(1);
@@ -55,6 +64,17 @@ async function setupProverKeys(proverType: ProverType) {
 }
 
 async function setupArtifactsMode() {
+    if (process.env.CI) {
+        const currentEnv = env.get();
+        const path = `${process.env.ZKSYNC_HOME}/etc/hyperchains/artifacts/${currentEnv}/`;
+        wrapEnvModify('OBJECT_STORE_MODE', 'FileBacked');
+        wrapEnvModify('PUBLIC_OBJECT_STORE_MODE', 'FileBacked');
+        wrapEnvModify('PROVER_OBJECT_STORE_MODE', 'FileBacked');
+        wrapEnvModify('OBJECT_STORE_FILE_BACKED_BASE_PATH', path);
+        wrapEnvModify('PUBLIC_OBJECT_STORE_FILE_BACKED_BASE_PATH', path);
+        return;
+    }
+
     const LOCAL = 'Local folder';
     const GCP = 'GCP';
     const questions: BasePromptOptions[] = [
