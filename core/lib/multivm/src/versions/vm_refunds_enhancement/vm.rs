@@ -10,7 +10,7 @@ use crate::interface::{
     BootloaderMemory, CurrentExecutionState, L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode,
     VmExecutionResultAndLogs, VmInterface, VmInterfaceHistoryEnabled,
 };
-use crate::interface::{BytecodeCompressionError, FinishedL1Batch, VmMemoryMetrics};
+use crate::interface::{BytecodeCompressionError, VmMemoryMetrics};
 use crate::vm_latest::HistoryEnabled;
 use crate::vm_refunds_enhancement::bootloader_state::BootloaderState;
 use crate::vm_refunds_enhancement::tracers::dispatcher::TracerDispatcher;
@@ -31,7 +31,6 @@ pub struct Vm<S: WriteStorage, H: HistoryMode> {
     _phantom: std::marker::PhantomData<H>,
 }
 
-/// Public interface for VM
 impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
     type TracerDispatcher = TracerDispatcher<S, H::VmVirtualBlocksRefundsEnhancement>;
 
@@ -129,17 +128,6 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
 
     fn record_vm_memory_metrics(&self) -> VmMemoryMetrics {
         self.record_vm_memory_metrics_inner()
-    }
-
-    fn finish_batch(&mut self) -> FinishedL1Batch {
-        let result = self.execute(VmExecutionMode::Batch);
-        let execution_state = self.get_current_execution_state();
-        let bootloader_memory = self.get_bootloader_memory();
-        FinishedL1Batch {
-            block_tip_execution_result: result,
-            final_execution_state: execution_state,
-            final_bootloader_memory: Some(bootloader_memory),
-        }
     }
 }
 
