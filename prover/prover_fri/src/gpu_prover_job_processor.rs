@@ -19,6 +19,7 @@ pub mod gpu_prover {
     use zksync_config::configs::fri_prover_group::FriProverGroupConfig;
     use zksync_config::configs::FriProverConfig;
     use zksync_dal::ConnectionPool;
+    use zksync_env_config::FromEnv;
     use zksync_object_store::ObjectStore;
     use zksync_prover_fri_types::{CircuitWrapper, FriProofWrapper, ProverServiceDataKey};
     use zksync_queued_job_processor::{async_trait, JobProcessor};
@@ -285,6 +286,7 @@ pub mod gpu_prover {
                     &config.specialized_group_id
                 );
                 let prover_setup_metadata_list = FriProverGroupConfig::from_env()
+                    .context("FriProverGroupConfig::from_env()")?
                     .get_circuit_ids_for_group_id(config.specialized_group_id)
                     .context(
                         "At least one circuit should be configured for group when running in FromMemory mode",

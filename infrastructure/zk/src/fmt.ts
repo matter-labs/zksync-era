@@ -20,6 +20,18 @@ export async function prettier(extension: string, check: boolean = false) {
     await utils.spawn(`yarn --silent prettier --config ${CONFIG_PATH}/${extension}.js --${command} ${files}`);
 }
 
+async function prettierL1Contracts(check: boolean = false) {
+    await utils.spawn(`yarn --silent --cwd contracts/ethereum prettier:${check ? 'check' : 'fix'}`);
+}
+
+async function prettierL2Contracts(check: boolean = false) {
+    await utils.spawn(`yarn --silent --cwd contracts/zksync prettier:${check ? 'check' : 'fix'}`);
+}
+
+async function prettierSystemContracts(check: boolean = false) {
+    await utils.spawn(`yarn --silent --cwd etc/system-contracts prettier:${check ? 'check' : 'fix'}`);
+}
+
 export async function rustfmt(check: boolean = false) {
     process.chdir(process.env.ZKSYNC_HOME as string);
     const command = check ? 'cargo fmt -- --check' : 'cargo fmt';
@@ -28,21 +40,38 @@ export async function rustfmt(check: boolean = false) {
     await utils.spawn(command);
 }
 
+const ARGS = [...EXTENSIONS, 'rust', 'l1-contracts', 'l2-contracts', 'system-contracts'];
+
 export const command = new Command('fmt')
     .description('format code with prettier & rustfmt')
     .option('--check')
-    .arguments('[extension]')
+    .arguments(`[extension] ${ARGS.join('|')}`)
     .action(async (extension: string | null, cmd: Command) => {
         if (extension) {
-            if (extension == 'rust') {
-                await rustfmt(cmd.check);
-            } else {
-                await prettier(extension, cmd.check);
+            switch (extension) {
+                case 'rust':
+                    await rustfmt(cmd.check);
+                    break;
+                case 'l1-contracts':
+                    await prettierL1Contracts(cmd.check);
+                    break;
+                case 'l2-contracts':
+                    await prettierL2Contracts(cmd.check);
+                    break;
+                case 'system-contracts':
+                    await prettierSystemContracts(cmd.check);
+                    break;
+                default:
+                    await prettier(extension, cmd.check);
+                    break;
             }
         } else {
             // Run all the checks concurrently.
             const promises = EXTENSIONS.map((ext) => prettier(ext, cmd.check));
             promises.push(rustfmt(cmd.check));
+            promises.push(prettierL1Contracts(cmd.check));
+            promises.push(prettierL2Contracts(cmd.check));
+            promises.push(prettierSystemContracts(cmd.check));
             await Promise.all(promises);
         }
     });
