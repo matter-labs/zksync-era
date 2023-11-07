@@ -215,8 +215,9 @@ impl BlockStore for PostgresBlockStorage {
 #[async_trait]
 impl ContiguousBlockStore for PostgresBlockStorage {
     async fn schedule_next_block(&self, ctx: &ctx::Ctx, block: &FinalBlock) -> StorageResult<()> {
+        // last_in_batch` is always set to `false` by this call; it is properly set by `CursorWithCachedBlock`.
         let fetched_block =
-            FetchedBlock::from_gossip_block(block).map_err(StorageError::Database)?;
+            FetchedBlock::from_gossip_block(block, false).map_err(StorageError::Database)?;
         let actions = sync::lock(ctx, &self.cursor).await?.advance(fetched_block);
         let push_all_actions = async {
             for actions_chunk in actions {
