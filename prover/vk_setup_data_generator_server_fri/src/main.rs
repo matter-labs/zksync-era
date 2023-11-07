@@ -8,7 +8,9 @@ use zkevm_test_harness::compute_setups::{
 };
 use zkevm_test_harness::data_source::in_memory_data_source::InMemoryDataSource;
 use zkevm_test_harness::data_source::SetupDataSource;
-use zkevm_test_harness::proof_wrapper_utils::{wrap_proof, WrapperConfig};
+use zkevm_test_harness::proof_wrapper_utils::{
+    get_wrapper_setup_and_vk_from_scheduler_vk, WrapperConfig,
+};
 use zksync_prover_fri_types::circuit_definitions::circuit_definitions::recursion_layer::ZkSyncRecursionLayerStorageType;
 use zksync_prover_fri_types::circuit_definitions::zkevm_circuits::scheduler::aux::BaseLayerCircuitType;
 use zksync_prover_fri_types::ProverServiceDataKey;
