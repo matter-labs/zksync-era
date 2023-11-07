@@ -53,6 +53,7 @@ impl RestApi {
             .contract_verification_dal()
             .is_contract_verified(request.contract_address)
             .await
+            .unwrap()
         {
             return Ok(HttpResponse::BadRequest().body("This contract is already verified"));
         }
