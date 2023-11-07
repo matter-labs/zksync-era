@@ -4,6 +4,7 @@ use sqlx::{
 };
 
 use anyhow::Context as _;
+use std::env;
 use std::fmt;
 use std::time::Duration;
 
@@ -11,10 +12,33 @@ use zksync_utils::parse_env;
 
 pub mod holder;
 
-use crate::{
-    get_master_database_url, get_prover_database_url, get_replica_database_url,
-    metrics::CONNECTION_METRICS, StorageProcessor,
-};
+use crate::{metrics::CONNECTION_METRICS, StorageProcessor};
+
+/// Obtains the master database URL from the environment variable.
+fn get_master_database_url() -> anyhow::Result<String> {
+    env::var("DATABASE_URL").context("DATABASE_URL must be set")
+}
+
+/// Obtains the master prover database URL from the environment variable.
+fn get_prover_database_url() -> anyhow::Result<String> {
+    match env::var("DATABASE_PROVER_URL") {
+        Ok(url) => Ok(url),
+        Err(_) => get_master_database_url(),
+    }
+}
+
+/// Obtains the replica database URL from the environment variable.
+fn get_replica_database_url() -> anyhow::Result<String> {
+    match env::var("DATABASE_REPLICA_URL") {
+        Ok(url) => Ok(url),
+        Err(_) => get_master_database_url(),
+    }
+}
+
+/// Obtains the test database URL from the environment variable.
+fn get_test_database_url() -> anyhow::Result<String> {
+    env::var("TEST_DATABASE_URL").context("TEST_DATABASE_URL must be set")
+}
 
 #[derive(Debug, Clone, Copy)]
 pub enum DbVariant {
@@ -65,7 +89,7 @@ impl ConnectionPoolBuilder {
             .context("build_inner()")
     }
 
-    pub async fn build_inner(&self, database_url: &str) -> anyhow::Result<ConnectionPool> {
+    async fn build_inner(&self, database_url: &str) -> anyhow::Result<ConnectionPool> {
         let max_connections = self
             .max_size
             .unwrap_or_else(|| parse_env("DATABASE_POOL_SIZE"));
@@ -104,7 +128,7 @@ pub(super) async fn create_test_db() -> anyhow::Result<url::Url> {
     use rand::Rng as _;
     use sqlx::{Connection as _, Executor as _};
     const PREFIX: &str = "test-";
-    let db_url = crate::get_test_database_url().unwrap();
+    let db_url = get_test_database_url().unwrap();
     let mut db_url = url::Url::parse(&db_url)
         .with_context(|| format!("{} is not a valid database address", db_url))?;
     let db_name = db_url

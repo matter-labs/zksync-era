@@ -25,9 +25,7 @@ use zksync_config::{
     ApiConfig, ContractsConfig, DBConfig, ETHSenderConfig,
 };
 use zksync_contracts::{governance_contract, BaseSystemContracts};
-use zksync_dal::{
-    connection::DbVariant, healthcheck::ConnectionPoolHealthCheck, ConnectionPool, StorageProcessor,
-};
+use zksync_dal::{connection::DbVariant, healthcheck::ConnectionPoolHealthCheck, ConnectionPool};
 use zksync_eth_client::clients::http::QueryClient;
 use zksync_eth_client::EthInterface;
 use zksync_eth_client::{clients::http::PKSigningClient, BoundEthInterface};
@@ -113,9 +111,11 @@ pub async fn genesis_init(
     contracts_config: &ContractsConfig,
     eth_client_url: &str,
 ) -> anyhow::Result<()> {
-    let mut storage = StorageProcessor::establish_connection(true)
+    let pool = ConnectionPool::singleton(DbVariant::Master)
+        .build()
         .await
-        .context("establish_connection")?;
+        .context("failed to build connection_pool")?;
+    let mut storage = pool.access_storage().await.context("access_storage()")?;
     let operator_address = PackedEthSignature::address_from_private_key(
         &eth_sender
             .sender
@@ -188,7 +188,11 @@ pub async fn genesis_init(
 }
 
 pub async fn is_genesis_needed() -> bool {
-    let mut storage = StorageProcessor::establish_connection(true).await.unwrap();
+    let pool = ConnectionPool::singleton(DbVariant::Master)
+        .build()
+        .await
+        .expect("failed to build connection_pool");
+    let mut storage = pool.access_storage().await.expect("access_storage()");
     storage.blocks_dal().is_genesis_needed().await.unwrap()
 }
 
