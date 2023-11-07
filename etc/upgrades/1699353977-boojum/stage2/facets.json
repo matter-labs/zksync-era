@@ -1,0 +1,18 @@
+{
+  "ExecutorFacet": {
+    "address": "0x29cB9Dc9BcEd0bA3abd1242fB47a3d0666Ef9D36",
+    "txHash": "0x2bb351f4440d365d522be57ac31ddda9a3498ce638e06894b7fa307a43d7f8d0"
+  },
+  "AdminFacet": {
+    "address": "0x409560DE546e057ce5bD5dB487EdF2bB5E785baB",
+    "txHash": "0xe197cdba1a5fbc97eccd9a1662cd24f902781a6cf23f6e0c08b6d655ef91c1d9"
+  },
+  "GettersFacet": {
+    "address": "0xF3ACF6a03ea4a914B78Ec788624B25ceC37c14A4",
+    "txHash": "0xba75175bdada6b92c66ac909abfa6752f72883b1f4913bd1b2c82394472e2e6d"
+  },
+  "MailboxFacet": {
+    "address": "0x63b5EC36B09384fFA7106A80Ec7cfdFCa521fD08",
+    "txHash": "0x48d02eb42567983f0dbf59f87a0f9876605ec770202f1d80106b1795b65cc404"
+  }
+}
