@@ -825,7 +825,7 @@ dependencies = [
 [[package]]
 name = "circuit_definitions"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.0#290b43088d7340cec25d633e8564229d588d48da"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.0#d2e3670e0c5115b7cc7cc24e6d3dbdd17a214aad"
 dependencies = [
  "crossbeam 0.8.2",
  "derivative",
@@ -1876,7 +1876,7 @@ dependencies = [
 [[package]]
 name = "franklin-crypto"
 version = "0.0.5"
-source = "git+https://github.com/matter-labs/franklin-crypto?branch=snark_wrapper#900332b8c2fe528b5008bb4e6bf2d3f206a9ae56"
+source = "git+https://github.com/matter-labs/franklin-crypto?branch=snark_wrapper#a9e29acd73245bd3b670b62b4d481ece06d43803"
 dependencies = [
  "arr_macro",
  "bellman_ce 0.3.2 (git+https://github.com/matter-labs/bellman?branch=snark-wrapper)",
@@ -3039,6 +3039,7 @@ dependencies = [
  "vise",
  "zk_evm 1.3.1",
  "zk_evm 1.3.3 (git+https://github.com/matter-labs/era-zk_evm.git?tag=v1.3.3-rc2)",
+ "zk_evm 1.4.0",
  "zksync_contracts",
  "zksync_state",
  "zksync_system_constants",
@@ -4889,18 +4890,18 @@ checksum = "a3f0bf26fd526d2a95683cd0f87bf103b8539e2ca1ef48ce002d67aad59aa0b4"
 
 [[package]]
 name = "serde"
-version = "1.0.190"
+version = "1.0.192"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "91d3c334ca1ee894a2c6f6ad698fe8c435b76d504b13d436f0685d648d6d96f7"
+checksum = "bca2a08484b285dcb282d0f67b26cadc0df8b19f8c12502c13d966bf9482f001"
 dependencies = [
  "serde_derive",
 ]
 
 [[package]]
 name = "serde_derive"
-version = "1.0.190"
+version = "1.0.192"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "67c5609f394e5c2bd7fc51efda478004ea80ef42fee983d5c67a65e34f32c0e3"
+checksum = "d6c7207fbec9faa48073f3e3074cbe553af6ea512d7c21ba46e434e70ea9fbc1"
 dependencies = [
  "proc-macro2 1.0.69",
  "quote 1.0.33",
@@ -5164,7 +5165,7 @@ dependencies = [
 [[package]]
 name = "snark_wrapper"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/snark-wrapper.git?branch=main#52f9ef98a7e6c86b405dd0ec42291dacf6e2bcb4"
+source = "git+https://github.com/matter-labs/snark-wrapper.git?branch=main#42661a9ff9d00853441589679c101f71e3785f55"
 dependencies = [
  "derivative",
  "rand 0.4.6",
@@ -6557,7 +6558,7 @@ dependencies = [
 [[package]]
 name = "zkevm_circuits"
 version = "1.4.0"
-source = "git+https://github.com/matter-labs/era-zkevm_circuits.git?branch=main#5d02b3b7e251dc2931d3baf93438ce5f5fa06c5e"
+source = "git+https://github.com/matter-labs/era-zkevm_circuits.git?branch=main#fb3e2574b5c890342518fc930c145443f039a105"
 dependencies = [
  "arrayvec 0.7.4",
  "bincode",
@@ -6630,7 +6631,7 @@ dependencies = [
 [[package]]
 name = "zkevm_test_harness"
 version = "1.4.0"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.0#290b43088d7340cec25d633e8564229d588d48da"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.0#d2e3670e0c5115b7cc7cc24e6d3dbdd17a214aad"
 dependencies = [
  "bincode",
  "circuit_definitions",
@@ -7092,6 +7093,7 @@ dependencies = [
  "strum",
  "thiserror",
  "zk_evm 1.3.3 (git+https://github.com/matter-labs/era-zk_evm.git?tag=v1.3.3-rc2)",
+ "zk_evm 1.4.0",
  "zkevm_test_harness 1.3.3",
  "zksync_basic_types",
  "zksync_contracts",
