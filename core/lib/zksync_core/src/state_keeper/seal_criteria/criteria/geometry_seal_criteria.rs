@@ -148,7 +148,7 @@ impl MetricExtractor for L2ToL1LogsCriterion {
     }
 
     fn extract(metrics: &ExecutionMetrics, _writes: &DeduplicatedWritesMetrics) -> usize {
-        metrics.l2_l1_logs
+        metrics.l2_to_l1_logs
     }
 }
 
@@ -412,7 +412,7 @@ mod tests {
     fn l2_to_l1_logs_seal_criterion() {
         test_scenario_execution_metrics!(
             L2ToL1LogsCriterion,
-            l2_l1_logs,
+            l2_to_l1_logs,
             usize,
             ProtocolVersionId::Version17
         );

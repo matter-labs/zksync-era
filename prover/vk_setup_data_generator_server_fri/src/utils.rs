@@ -35,7 +35,6 @@ use anyhow::Context as _;
 use itertools::Itertools;
 use std::collections::{HashMap, VecDeque};
 use std::fs;
-use zksync_prover_fri_types::circuit_definitions::circuit_definitions::recursion_layer::ZkSyncRecursionLayerProof;
 use zkevm_test_harness::compute_setups::{
     generate_base_layer_vks_and_proofs, generate_recursive_layer_vks_and_proofs,
 };
@@ -82,13 +81,6 @@ pub fn get_basic_circuits(
         .into_iter()
         .dedup_by(|a, b| a.numeric_circuit_type() == b.numeric_circuit_type())
         .collect())
-}
-
-pub fn get_scheduler_proof_for_snark_vk_generation() -> anyhow::Result<ZkSyncRecursionLayerProof> {
-    let path = format!("{}/scheduler_proof.bin", get_base_path());
-    let proof_serialized = std::fs::read(path).context("Failed to read proof from file")?;
-    bincode::deserialize::<ZkSyncRecursionLayerProof>(&proof_serialized)
-        .context("Failed to deserialize proof")
 }
 
 pub fn get_leaf_circuits() -> anyhow::Result<Vec<ZkSyncRecursiveLayerCircuit>> {

@@ -1,15 +1,15 @@
-import { Command } from 'commander';
 import chalk from 'chalk';
+import { Command } from 'commander';
 import * as utils from './utils';
 
-import * as server from './server';
-import * as contract from './contract';
-import * as run from './run/run';
-import * as compiler from './compiler';
-import * as db from './database';
 import { clean } from './clean';
-import * as env from './env';
+import * as compiler from './compiler';
+import * as contract from './contract';
+import * as db from './database';
 import * as docker from './docker';
+import * as env from './env';
+import * as run from './run/run';
+import * as server from './server';
 import { up } from './up';
 
 const entry = chalk.bold.yellow;
@@ -23,6 +23,7 @@ export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
         skipEnvSetup,
         skipPlonkStep,
         testTokens,
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         deployerL1ContractInputArgs,
         governorPrivateKeyArgs,
         deployerL2ContractInput
@@ -52,9 +53,9 @@ export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
     await announced('Deploying L1 verifier', contract.deployVerifier([]));
     await announced('Reloading env', env.reload());
     await announced('Running server genesis setup', server.genesisFromSources());
-    await announced('Deploying L1 contracts', contract.redeployL1(deployerL1ContractInputArgs));
+    await announced('Deploying L1 contracts', contract.redeployL1(governorPrivateKeyArgs));
     await announced('Initializing validator', contract.initializeValidator(governorPrivateKeyArgs));
-    await announced('Initialize L1 allow list ', contract.initializeL1AllowList(governorPrivateKeyArgs));
+    await announced('Initialize L1 allow list', contract.initializeL1AllowList(governorPrivateKeyArgs));
     await announced(
         'Deploying L2 contracts',
         contract.deployL2(
@@ -67,6 +68,7 @@ export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
     if (deployerL2ContractInput.includeL2WETH) {
         await announced('Initializing L2 WETH token', contract.initializeWethToken(governorPrivateKeyArgs));
     }
+    await announced('Initializing governance', contract.initializeGovernance(governorPrivateKeyArgs));
 }
 
 // A smaller version of `init` that "resets" the localhost environment, for which `init` was already called before.
@@ -84,10 +86,11 @@ export async function reinit() {
     await announced('Reloading env', env.reload());
     await announced('Running server genesis setup', server.genesisFromSources());
     await announced('Deploying L1 contracts', contract.redeployL1([]));
-    await announced('Initializing validator', contract.initializeValidator());
     await announced('Initializing L1 Allow list', contract.initializeL1AllowList());
     await announced('Deploying L2 contracts', contract.deployL2([], true, true));
     await announced('Initializing L2 WETH token', contract.initializeWethToken());
+    await announced('Initializing governance', contract.initializeGovernance());
+    await announced('Initializing validator', contract.initializeValidator());
 }
 
 // A lightweight version of `init` that sets up local databases, generates genesis and deploys precompiled contracts
@@ -101,6 +104,7 @@ export async function lightweightInit() {
     await announced('Initializing validator', contract.initializeValidator());
     await announced('Initializing L1 Allow list', contract.initializeL1AllowList());
     await announced('Deploying L2 contracts', contract.deployL2([], true, false));
+    await announced('Initializing governance', contract.initializeGovernance());
 }
 
 // Wrapper that writes an announcement and completion notes for each executed task.

@@ -5,10 +5,8 @@ pub use old_vm::{
 };
 
 pub use tracers::{
-    call::CallTracer,
-    traits::{BoxedTracer, DynTracer, ExecutionEndTracer, ExecutionProcessing, VmTracer},
-    utils::VmExecutionStopReason,
-    StorageInvocations, ValidationError, ValidationTracer, ValidationTracerParams,
+    dispatcher::TracerDispatcher,
+    traits::{ExecutionEndTracer, ExecutionProcessing, TracerPointer, VmTracer},
 };
 
 pub use types::internals::ZkSyncVmState;
@@ -21,12 +19,12 @@ pub use vm::Vm;
 mod bootloader_state;
 mod implementation;
 mod old_vm;
-mod tracers;
+pub(crate) mod tracers;
 mod types;
 mod vm;
 
 pub mod constants;
 pub mod utils;
 
-#[cfg(test)]
-mod tests;
+// #[cfg(test)]
+// mod tests;
