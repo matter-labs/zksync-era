@@ -103,7 +103,16 @@ pub(crate) fn commit_gas_count_for_l1_batch(
     let total_factory_deps_len: u32 = sorted_factory_deps
         .map(|factory_dep| factory_dep.len() as u32)
         .sum();
-    let additional_calldata_bytes = metadata.initial_writes_compressed.len() as u32
+
+    // Boojum upgrade changes how storage writes are communicated/compressed.
+    let state_diff_size = if header.protocol_version.unwrap().is_pre_boojum() {
+        metadata.initial_writes_compressed.len() as u32
+            + metadata.repeated_writes_compressed.len() as u32
+    } else {
+        metadata.state_diffs_compressed.len() as u32
+    };
+
+    let additional_calldata_bytes = state_diff_size
         + metadata.repeated_writes_compressed.len() as u32
         + metadata.l2_l1_messages_compressed.len() as u32
         + total_messages_len

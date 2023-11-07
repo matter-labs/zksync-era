@@ -647,12 +647,16 @@ async function selectHyperchainConfiguration() {
 }
 
 async function generateDockerImages(cmd: Command) {
+    await _generateDockerImages(cmd.customDockerOrg);
+}
+
+async function _generateDockerImages(_orgName?: string) {
     console.log(warning(`\nThis process will build the docker images and it can take a while. Please be patient.\n`));
 
     const envName = await selectHyperchainConfiguration();
     env.set(envName);
 
-    const orgName = cmd.customDockerOrg ?? envName;
+    const orgName = _orgName || envName;
 
     await docker.customBuildForHyperchain('server-v2', orgName);
 
@@ -692,7 +696,9 @@ async function generateDockerImages(cmd: Command) {
     );
 }
 
-async function initDemo(cmd: Command) {
+async function configDemoHyperchain(cmd: Command) {
+    fs.existsSync('/etc/env/demo.env') && fs.unlinkSync('/etc/env/demo.env');
+    fs.existsSync('/etc/hyperchains/hyperchain-demo.yml') && fs.unlinkSync('/etc/hyperchains/hyperchain-demo.yml');
     await compileConfig('demo');
     env.set('demo');
 
@@ -782,7 +788,7 @@ function printReadme() {
 }
 
 export const initHyperchainCommand = new Command('stack')
-    .description('ZK Stack Hyperchains management')
+    .description('ZK Stack hyperchains management')
     .action(printReadme);
 
 initHyperchainCommand
@@ -803,4 +809,4 @@ initHyperchainCommand
     .option('--prover <value>', 'Add a cpu or gpu prover to the hyperchain')
     .option('--skip-env-setup', 'Run env setup automatically (pull docker containers, etc)')
     .description('Spin up a demo hyperchain with default settings for testing purposes')
-    .action(initDemo);
+    .action(configDemoHyperchain);

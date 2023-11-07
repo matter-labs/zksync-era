@@ -10,7 +10,7 @@ bytecode is chunked into opcodes (which have a size of 8 bytes), assigned a 2 by
 sequence (indexes) are verified and sent to L1. This process is split into 2 different parts: (1)
 [the server side operator](https://github.com/matter-labs/zksync-era/blob/main/core/lib/utils/src/bytecode.rs#L31)
 handling the compression and (2)
-[the system contract](https://github.com/matter-labs/system-contracts/blob/main/contracts/BytecodeCompressor.sol)
+[the system contract](https://github.com/matter-labs/era-system-contracts/blob/main/contracts/BytecodeCompressor.sol)
 verifying that the compression is correct before sending to L1.
 
 ## Example
@@ -90,7 +90,8 @@ return [len(dictionary), dictionary.keys(order=index asc), encoded_data]
 
 ## System Contract Compression Verification & Publishing
 
-The [Bytecode Compressor](https://github.com/matter-labs/system-contracts/blob/main/contracts/BytecodeCompressor.sol)
+The
+[Bytecode Compressor](https://github.com/matter-labs/era-system-contracts/blob/main/contracts/BytecodeCompressor.sol)
 contract performs validation on the compressed bytecode generated on the server side. At the current moment, publishing
 bytecode to L1 may only be called by the bootloader but in the future anyone will be able to publish compressed bytecode
 with no change to the underlying algorithm.
