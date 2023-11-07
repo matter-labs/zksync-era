@@ -741,11 +741,11 @@ async function configDemoHyperchain(cmd: Command) {
         }
     };
 
-    if(!cmd.skipEnvSetup) {
+    if (!cmd.skipEnvSetup) {
         await up();
     }
     await init(initArgs);
-    
+
     env.mergeInitToEnv();
 
     if (cmd.prover) {
