@@ -71,6 +71,8 @@ pub struct MultiVMBaseSystemContracts {
     pub(crate) post_virtual_blocks: BaseSystemContracts,
     /// Contracts to be used for protocol versions after virtual block upgrade fix.
     pub(crate) post_virtual_blocks_finish_upgrade_fix: BaseSystemContracts,
+    /// Contracts to be used for post-boojum protocol versions.
+    pub(crate) post_boojum: BaseSystemContracts,
 }
 
 impl MultiVMBaseSystemContracts {
@@ -93,8 +95,8 @@ impl MultiVMBaseSystemContracts {
             ProtocolVersionId::Version14
             | ProtocolVersionId::Version15
             | ProtocolVersionId::Version16
-            | ProtocolVersionId::Version17
-            | ProtocolVersionId::Version18 => self.post_virtual_blocks_finish_upgrade_fix,
+            | ProtocolVersionId::Version17 => self.post_virtual_blocks_finish_upgrade_fix,
+            ProtocolVersionId::Version18 | ProtocolVersionId::Version19 => self.post_boojum,
         }
     }
 }
@@ -124,12 +126,14 @@ impl ApiContracts {
                 post_virtual_blocks: BaseSystemContracts::estimate_gas_post_virtual_blocks(),
                 post_virtual_blocks_finish_upgrade_fix:
                     BaseSystemContracts::estimate_gas_post_virtual_blocks_finish_upgrade_fix(),
+                post_boojum: BaseSystemContracts::estimate_gas_post_boojum(),
             },
             eth_call: MultiVMBaseSystemContracts {
                 pre_virtual_blocks: BaseSystemContracts::playground_pre_virtual_blocks(),
                 post_virtual_blocks: BaseSystemContracts::playground_post_virtual_blocks(),
                 post_virtual_blocks_finish_upgrade_fix:
                     BaseSystemContracts::playground_post_virtual_blocks_finish_upgrade_fix(),
+                post_boojum: BaseSystemContracts::playground_post_boojum(),
             },
         }
     }
@@ -907,11 +911,11 @@ impl<G: L1GasPriceProvider> TxSender<G> {
             H256::zero()
         };
 
-        let seal_data = SealData::for_transaction(transaction, tx_metrics);
         // Using `ProtocolVersionId::latest()` for a short period we might end up in a scenario where the StateKeeper is still pre-boojum
         // but the API assumes we are post boojum. In this situation we will determine a tx as being executable but the StateKeeper will
         // still reject them as it's not.
         let protocol_version = ProtocolVersionId::latest();
+        let seal_data = SealData::for_transaction(transaction, tx_metrics, protocol_version);
         if let Some(reason) =
             ConditionalSealer::find_unexecutable_reason(sk_config, &seal_data, protocol_version)
         {

@@ -42,6 +42,15 @@ export async function initializeValidator(args: any[] = []) {
     await utils.spawn(`${baseCommandL1} initialize-validator ${args.join(' ')} | tee initializeValidator.log`);
 }
 
+export async function initializeGovernance(args: any[] = []) {
+    await utils.confirmAction();
+
+    const isLocalSetup = process.env.ZKSYNC_LOCAL_SETUP;
+    const baseCommandL1 = isLocalSetup ? `yarn --cwd /contracts/ethereum` : `yarn l1-contracts`;
+
+    await utils.spawn(`${baseCommandL1} initialize-governance ${args.join(' ')} | tee initializeGovernance.log`);
+}
+
 export async function initializeL1AllowList(args: any[] = []) {
     await utils.confirmAction();
 
@@ -117,10 +126,10 @@ export async function deployL1(args: any[]) {
     const deployLog = fs.readFileSync('deployL1.log').toString();
     const envVars = [
         'CONTRACTS_CREATE2_FACTORY_ADDR',
-        'CONTRACTS_DIAMOND_CUT_FACET_ADDR',
+        'CONTRACTS_ADMIN_FACET_ADDR',
         'CONTRACTS_DIAMOND_UPGRADE_INIT_ADDR',
         'CONTRACTS_DEFAULT_UPGRADE_ADDR',
-        'CONTRACTS_GOVERNANCE_FACET_ADDR',
+        'CONTRACTS_GOVERNANCE_ADDR',
         'CONTRACTS_MAILBOX_FACET_ADDR',
         'CONTRACTS_EXECUTOR_FACET_ADDR',
         'CONTRACTS_GETTERS_FACET_ADDR',

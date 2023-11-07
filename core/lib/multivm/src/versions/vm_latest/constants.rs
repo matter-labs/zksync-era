@@ -1,11 +1,11 @@
-use zk_evm_1_3_3::aux_structures::MemoryPage;
+use zk_evm_1_4_0::aux_structures::MemoryPage;
 
 use zksync_system_constants::{
     L1_GAS_PER_PUBDATA_BYTE, MAX_L2_TX_GAS_LIMIT, MAX_NEW_FACTORY_DEPS, MAX_TXS_IN_BLOCK,
     USED_BOOTLOADER_MEMORY_WORDS,
 };
 
-pub use zk_evm_1_3_3::zkevm_opcode_defs::system_params::{
+pub use zk_evm_1_4_0::zkevm_opcode_defs::system_params::{
     ERGS_PER_CIRCUIT, INITIAL_STORAGE_WRITE_PUBDATA_BYTES, MAX_PUBDATA_PER_BLOCK,
 };
 
@@ -50,8 +50,25 @@ pub(crate) const TX_TRUSTED_GAS_LIMIT_SLOTS: usize = MAX_TXS_IN_BLOCK;
 
 pub(crate) const COMPRESSED_BYTECODES_SLOTS: usize = 32768;
 
-pub(crate) const BOOTLOADER_TX_DESCRIPTION_OFFSET: usize =
+pub(crate) const PRIORITY_TXS_L1_DATA_OFFSET: usize =
     COMPRESSED_BYTECODES_OFFSET + COMPRESSED_BYTECODES_SLOTS;
+pub(crate) const PRIORITY_TXS_L1_DATA_SLOTS: usize = 2;
+
+pub const OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_OFFSET: usize =
+    PRIORITY_TXS_L1_DATA_OFFSET + PRIORITY_TXS_L1_DATA_SLOTS;
+
+/// One of "worst case" scenarios for the number of state diffs in a batch is when 120kb of pubdata is spent
+/// on repeated writes, that are all zeroed out. In this case, the number of diffs is 120k / 5 = 24k. This means that they will have
+/// accommodate 6528000 bytes of calldata for the uncompressed state diffs. Adding 120k on top leaves us with
+/// roughly 6650000 bytes needed for calldata. 207813 slots are needed to accomodate this amount of data.
+/// We round up to 208000 slots just in case.
+///
+/// In theory though much more calldata could be used (if for instance 1 byte is used for enum index). It is the responsibility of the
+/// operator to ensure that it can form the correct calldata for the L1Messenger.
+pub(crate) const OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_SLOTS: usize = 208000;
+
+pub(crate) const BOOTLOADER_TX_DESCRIPTION_OFFSET: usize =
+    OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_OFFSET + OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_SLOTS;
 
 /// The size of the bootloader memory dedicated to the encodings of transactions
 pub const BOOTLOADER_TX_ENCODING_SPACE: u32 =
@@ -93,7 +110,7 @@ pub const RESULT_SUCCESS_FIRST_SLOT: u32 =
 /// Note that this value doesn't correspond to the gas limit of any particular transaction
 /// (except for the fact that, of course, gas limit for each transaction should be <= `BLOCK_GAS_LIMIT`).
 pub const BLOCK_GAS_LIMIT: u32 =
-    zk_evm_1_3_3::zkevm_opcode_defs::system_params::VM_INITIAL_FRAME_ERGS;
+    zk_evm_1_4_0::zkevm_opcode_defs::system_params::VM_INITIAL_FRAME_ERGS;
 
 /// How many gas is allowed to spend on a single transaction in eth_call method
 pub const ETH_CALL_GAS_LIMIT: u32 = MAX_L2_TX_GAS_LIMIT as u32;

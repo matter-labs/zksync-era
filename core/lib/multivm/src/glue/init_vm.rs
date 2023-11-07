@@ -164,13 +164,27 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
                 }
             }
             VmVersion::VmVirtualBlocksRefundsEnhancement => {
-                let vm = crate::vm_latest::Vm::new(
+                let vm = crate::vm_refunds_enhancement::Vm::new(
                     l1_batch_env.glue_into(),
                     system_env.clone(),
                     storage_view.clone(),
                     H::VmVirtualBlocksRefundsEnhancement::default(),
                 );
                 let vm = VmInstanceVersion::VmVirtualBlocksRefundsEnhancement(Box::new(vm));
+                Self {
+                    vm,
+                    system_env,
+                    last_tx_compressed_bytecodes: vec![],
+                }
+            }
+            VmVersion::VmBoojumIntegration => {
+                let vm = crate::vm_latest::Vm::new(
+                    l1_batch_env.glue_into(),
+                    system_env.clone(),
+                    storage_view.clone(),
+                    H::VmBoojumIntegration::default(),
+                );
+                let vm = VmInstanceVersion::VmBoojumIntegration(Box::new(vm));
                 Self {
                     vm,
                     system_env,

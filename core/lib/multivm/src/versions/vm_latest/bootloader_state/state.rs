@@ -1,17 +1,20 @@
 use crate::vm_latest::bootloader_state::l2_block::BootloaderL2Block;
 use crate::vm_latest::bootloader_state::snapshot::BootloaderStateSnapshot;
 use crate::vm_latest::bootloader_state::utils::{apply_l2_block, apply_tx_to_memory};
+use once_cell::sync::OnceCell;
 use std::cmp::Ordering;
 use zksync_types::{L2ChainId, U256};
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
 use crate::interface::{BootloaderMemory, L2BlockEnv, TxExecutionMode};
+use crate::vm_latest::types::internals::pubdata::PubdataInput;
 use crate::vm_latest::{
     constants::TX_DESCRIPTION_OFFSET, types::internals::TransactionData,
     utils::l2_blocks::assert_next_block,
 };
 
 use super::tx::BootloaderTx;
+use super::utils::apply_pubdata_to_memory;
 /// Intermediate bootloader-related VM state.
 ///
 /// Required to process transactions one by one (since we intercept the VM execution to execute
@@ -37,6 +40,8 @@ pub struct BootloaderState {
     execution_mode: TxExecutionMode,
     /// Current offset of the free space in the bootloader memory.
     free_tx_offset: usize,
+    /// Information about the the pubdata that will be needed to supply to the L1Messenger
+    pubdata_information: OnceCell<PubdataInput>,
 }
 
 impl BootloaderState {
@@ -53,6 +58,7 @@ impl BootloaderState {
             initial_memory,
             execution_mode,
             free_tx_offset: 0,
+            pubdata_information: Default::default(),
         }
     }
 
@@ -62,6 +68,12 @@ impl BootloaderState {
         // Because we can fill the whole batch first and then execute txs one by one
         let tx = self.find_tx_mut(current_tx);
         tx.refund = refund;
+    }
+
+    pub(crate) fn set_pubdata_input(&mut self, info: PubdataInput) {
+        self.pubdata_information
+            .set(info)
+            .expect("Pubdata information is already set");
     }
 
     pub(crate) fn start_new_l2_block(&mut self, l2_block: L2BlockEnv) {
@@ -151,6 +163,14 @@ impl BootloaderState {
                 apply_l2_block(&mut initial_memory, l2_block, tx_index)
             }
         }
+
+        let pubdata_information = self
+            .pubdata_information
+            .clone()
+            .into_inner()
+            .expect("Empty pubdata information");
+
+        apply_pubdata_to_memory(&mut initial_memory, pubdata_information);
         initial_memory
     }
 
@@ -235,6 +255,7 @@ impl BootloaderState {
             last_l2_block: self.last_l2_block().make_snapshot(),
             compressed_bytecodes_encoding: self.compressed_bytecodes_encoding,
             free_tx_offset: self.free_tx_offset,
+            is_pubdata_information_provided: self.pubdata_information.get().is_some(),
         }
     }
 
@@ -249,5 +270,17 @@ impl BootloaderState {
         }
         self.last_mut_l2_block()
             .apply_snapshot(snapshot.last_l2_block);
+
+        if !snapshot.is_pubdata_information_provided {
+            self.pubdata_information = Default::default();
+        } else {
+            // Under the correct usage of the snapshots of the bootloader state,
+            // this assertion should never fail, i.e. since the pubdata information
+            // can be set only once. However, we have this assertion just in case.
+            assert!(
+                self.pubdata_information.get().is_some(),
+                "Snapshot with no pubdata can not rollback to snapshot with one"
+            );
+        }
     }
 }
