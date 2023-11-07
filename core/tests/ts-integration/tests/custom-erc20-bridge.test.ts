@@ -66,6 +66,9 @@ describe('Tests for the custom bridge behavior', () => {
         let command = `${baseCommandL1} initialize-bridges ${args}`;
         await spawn(command);
         await sleep(2);
+        let command2 = `${baseCommandL1} initialize-erc20-bridge-chain ${args}`;
+        await spawn(command2);
+        await sleep(2);
 
         await allowListContract.setAccessMode(l1BridgeProxy.address, 2);
         let l1bridge2 = new L1ERC20BridgeFactory(alice._signerL1()).attach(l1BridgeProxy.address);
@@ -73,7 +76,6 @@ describe('Tests for the custom bridge behavior', () => {
         const initialBalanceL1 = await alice.getBalanceL1(tokenDetails.l1Address);
         const initialBalanceL2 = await alice.getBalance(l2TokenAddress);
         let tx = await alice.deposit({
-            chainId,
             token: tokenDetails.l1Address,
             amount,
             approveERC20: true,

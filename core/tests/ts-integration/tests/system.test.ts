@@ -215,8 +215,8 @@ describe('System behavior checks', () => {
             .then((response) => response.waitFinalize());
 
         const [aliceReceipt, bobReceipt] = await Promise.all([aliceWithdrawalPromise, bobWithdrawalPromise]);
-        await expect(alice.finalizeWithdrawal(chainId, aliceReceipt.transactionHash)).toBeAccepted([aliceChange]);
-        await expect(alice.finalizeWithdrawal(chainId, bobReceipt.transactionHash)).toBeAccepted([bobChange]);
+        await expect(alice.finalizeWithdrawal(aliceReceipt.transactionHash)).toBeAccepted([aliceChange]);
+        await expect(alice.finalizeWithdrawal(bobReceipt.transactionHash)).toBeAccepted([bobChange]);
     });
 
     test('Should execute a the withdrawal with same parameters twice', async () => {
@@ -247,8 +247,8 @@ describe('System behavior checks', () => {
             .then((response) => response.waitFinalize());
 
         const [receipt1, receipt2] = await Promise.all([withdrawal1, withdrawal2]);
-        await expect(alice.finalizeWithdrawal(chainId, receipt1.transactionHash)).toBeAccepted([change1]);
-        await expect(alice.finalizeWithdrawal(chainId, receipt2.transactionHash)).toBeAccepted([change2]);
+        await expect(alice.finalizeWithdrawal(receipt1.transactionHash)).toBeAccepted([change1]);
+        await expect(alice.finalizeWithdrawal(receipt2.transactionHash)).toBeAccepted([change2]);
     });
 
     // TODO (SMA-1713): the test is flaky.

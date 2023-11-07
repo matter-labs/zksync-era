@@ -52,7 +52,6 @@ describe('Tests for the WETH bridge/token behavior', () => {
         const initialBalanceL1 = await alice.getBalanceL1(aliceL1Weth.address);
         const initialBalanceL2 = await alice.getBalance(aliceL2Weth.address);
         let tx = await alice.deposit({
-            chainId,
             token: aliceL1Weth.address,
             amount,
             approveERC20: true,
@@ -138,7 +137,7 @@ describe('Tests for the WETH bridge/token behavior', () => {
                 l1: true
             }
         );
-        await expect(alice.finalizeWithdrawal(chainId, withdrawalTx.hash)).toBeAccepted([l1BalanceChange]);
+        await expect(alice.finalizeWithdrawal(withdrawalTx.hash)).toBeAccepted([l1BalanceChange]);
     });
 
     test('Should fail to claim failed deposit', async () => {
@@ -152,7 +151,6 @@ describe('Tests for the WETH bridge/token behavior', () => {
         const initialEthL2Balance = await alice.getBalance();
         // Deposit to the zero address is forbidden and should fail with the current implementation.
         const depositHandle = await alice.deposit({
-            chainId,
             to: ethers.constants.AddressZero,
             token: aliceL1Weth.address,
             amount,
@@ -173,7 +171,7 @@ describe('Tests for the WETH bridge/token behavior', () => {
         await waitUntilBlockFinalized(alice, l2TxReceipt.blockNumber);
 
         // Try to claim failed deposit, which should revert, and ETH should be returned on L2.
-        await expect(alice.claimFailedDeposit(chainId, l2Hash)).toBeRevertedEstimateGas();
+        await expect(alice.claimFailedDeposit(l2Hash)).toBeRevertedEstimateGas();
         await expect(alice.getBalanceL1(aliceL1Weth.address)).resolves.bnToBeEq(initialWethL1Balance.sub(amount));
         await expect(alice.getBalance(aliceL2Weth.address)).resolves.bnToBeEq(initialWethL2Balance);
         await expect(alice.getBalance()).resolves.bnToBeGte(initialEthL2Balance.add(amount));

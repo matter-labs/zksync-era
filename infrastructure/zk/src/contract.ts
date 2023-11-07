@@ -56,6 +56,15 @@ export async function initializeGovernance(args: any[] = []) {
     await utils.spawn(`${baseCommandL1} initialize-governance ${args.join(' ')} | tee initializeGovernance.log`);
 }
 
+export async function initializeGovernanceChain(args: any[] = []) {
+    await utils.confirmAction();
+
+    const isLocalSetup = process.env.ZKSYNC_LOCAL_SETUP;
+    const baseCommandL1 = isLocalSetup ? `yarn --cwd /contracts/ethereum` : `yarn l1-contracts`;
+
+    await utils.spawn(`${baseCommandL1} initialize-governance-chain ${args.join(' ')} | tee initializeGovernance.log`);
+}
+
 export async function initializeL1AllowList(args: any[] = []) {
     await utils.confirmAction();
 

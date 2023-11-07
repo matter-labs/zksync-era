@@ -31,7 +31,7 @@
     "zk": "yarn workspace zk"
   },
   "devDependencies": {
-    "@ethersproject/bignumber": "~6.7.1",
+    "@ethersproject/bignumber": "~5.5.0",
     "@typescript-eslint/eslint-plugin": "^4.10.0",
     "@typescript-eslint/parser": "^4.10.0",
     "babel-eslint": "^10.1.0",

@@ -51,7 +51,6 @@ describe('ETH token checks', () => {
         });
 
         const depositOp = alice.deposit({
-            chainId,
             token: ETH_ADDRESS,
             amount,
             gasPerPubdataByte,
@@ -204,7 +203,7 @@ describe('ETH token checks', () => {
         await withdrawalTx.waitFinalize();
 
         // TODO (SMA-1374): Enable L1 ETH checks as soon as they're supported.
-        await expect(alice.finalizeWithdrawal(chainId, withdrawalTx.hash)).toBeAccepted();
+        await expect(alice.finalizeWithdrawal(withdrawalTx.hash)).toBeAccepted();
         const tx = await alice.provider.getTransactionReceipt(withdrawalTx.hash);
 
         expect(tx.l2ToL1Logs[0].txIndexInL1Batch).toEqual(expect.anything());
@@ -212,7 +211,6 @@ describe('ETH token checks', () => {
 
     test('Can perform a deposit with precalculated max value', async () => {
         const depositFee = await alice.getFullRequiredDepositFee({
-            chainId,
             token: ETH_ADDRESS
         });
         const l1Fee = depositFee.l1GasLimit.mul(depositFee.maxFeePerGas! || depositFee.gasPrice!);
@@ -233,7 +231,6 @@ describe('ETH token checks', () => {
         overrides.gasLimit = depositFee.l1GasLimit;
 
         const depositOp = await alice.deposit({
-            chainId,
             token: ETH_ADDRESS,
             amount: maxAmount,
             l2GasLimit: depositFee.l2GasLimit,

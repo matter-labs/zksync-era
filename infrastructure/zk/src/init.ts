@@ -62,6 +62,7 @@ export async function initBridgehubStateTransition(initArgs: InitArgs = DEFAULT_
     await announced('Running server genesis setup', server.genesisFromSources());
     await announced('Deploying L1 contracts', contract.redeployL1(governorPrivateKeyArgs));
     await announced('Initializing bridges', contract.initializeBridges(governorPrivateKeyArgs));
+    await announced('Initializing governance', contract.initializeGovernance(governorPrivateKeyArgs));
 }
 
 export async function initHyperchain(initArgs: InitArgs = DEFAULT_ARGS) {
@@ -69,7 +70,7 @@ export async function initHyperchain(initArgs: InitArgs = DEFAULT_ARGS) {
 
     // await announced('Building L1 L2 contracts', contract.build());
 
-    // // we initialise with genesis chainId
+    // we initialise with genesis chainId
     // await announced('Drop postgres db', db.drop());
     // await announced('Setup postgres db', db.setup());
     // await announced('Clean rocksdb', clean(`db/${process.env.ZKSYNC_ENV!}`));
@@ -90,7 +91,7 @@ export async function initHyperchain(initArgs: InitArgs = DEFAULT_ARGS) {
         )
     );
     await announced('Initializing L2 WETH token', contract.initializeWethToken(governorPrivateKeyArgs));
-    await announced('Initializing governance', contract.initializeGovernance(governorPrivateKeyArgs));
+    await announced('Initializing governance of chain', contract.initializeGovernanceChain(governorPrivateKeyArgs));
 }
 
 // A smaller version of `init` that "resets" the localhost environment, for which `init` was already called before.

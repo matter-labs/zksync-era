@@ -438,7 +438,6 @@ describe('web3 API compatibility tests', () => {
         let amount = 1;
 
         const sentTx = await alice.deposit({
-            chainId,
             token: zksync.utils.ETH_ADDRESS,
             amount
         });

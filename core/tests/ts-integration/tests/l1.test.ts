@@ -52,7 +52,6 @@ describe('Tests for L1 behavior', () => {
 
         await expect(
             alice.requestExecute({
-                chainId,
                 contractAddress: counterContract.address,
                 calldata,
                 overrides: {
@@ -69,7 +68,6 @@ describe('Tests for L1 behavior', () => {
 
         await expect(
             alice.requestExecute({
-                chainId,
                 contractAddress: contextContract.address,
                 calldata,
                 l2Value,
@@ -86,7 +84,6 @@ describe('Tests for L1 behavior', () => {
 
         await expect(
             alice.requestExecute({
-                chainId,
                 contractAddress: errorContract.address,
                 calldata,
                 l2GasLimit: DEFAULT_L2_GAS_LIMIT,
@@ -126,7 +123,7 @@ describe('Tests for L1 behavior', () => {
             receipt.l1BatchNumber,
             id,
             {
-                txNumberInBatch: receipt.l1BatchTxIndex,
+                txNumberInBlock: receipt.l1BatchTxIndex,
                 sender: alice.address,
                 data: message
             },
@@ -142,7 +139,6 @@ describe('Tests for L1 behavior', () => {
 
         // Check that the request with higher `gasLimit` fails.
         let priorityOpHandle = await alice.requestExecute({
-            chainId,
             contractAddress: alice.address,
             calldata: '0x',
             l2GasLimit: l2GasLimit + 1,
@@ -161,7 +157,6 @@ describe('Tests for L1 behavior', () => {
 
         // Check that the request with `gasLimit` succeeds.
         priorityOpHandle = await alice.requestExecute({
-            chainId,
             contractAddress: alice.address,
             calldata: '0x',
             l2GasLimit,
@@ -188,7 +183,6 @@ describe('Tests for L1 behavior', () => {
         const l2GasLimit = maxL2GasLimitForPriorityTxs();
 
         const priorityOpHandle = await alice.requestExecute({
-            chainId,
             contractAddress: contract.address,
             calldata,
             l2GasLimit,
@@ -236,7 +230,6 @@ describe('Tests for L1 behavior', () => {
         const l2GasLimit = maxL2GasLimitForPriorityTxs();
 
         const priorityOpHandle = await alice.requestExecute({
-            chainId,
             contractAddress: contract.address,
             calldata,
             l2GasLimit,
@@ -266,7 +259,6 @@ describe('Tests for L1 behavior', () => {
         const l2GasLimit = maxL2GasLimitForPriorityTxs();
 
         const priorityOpHandle = await alice.requestExecute({
-            chainId,
             contractAddress: contract.address,
             calldata,
             l2GasLimit,
@@ -299,7 +291,6 @@ describe('Tests for L1 behavior', () => {
         const l2GasLimit = maxL2GasLimitForPriorityTxs();
 
         const priorityOpHandle = await alice.requestExecute({
-            chainId,
             contractAddress: contract.address,
             calldata,
             l2GasLimit,

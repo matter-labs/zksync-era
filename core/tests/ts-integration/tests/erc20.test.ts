@@ -55,7 +55,6 @@ describe('ERC20 contract checks', () => {
         const feeCheck = await shouldOnlyTakeFee(alice, true);
         await expect(
             alice.deposit({
-                chainId: chainId,
                 token: tokenDetails.l1Address,
                 amount,
                 approveERC20: true,
@@ -164,7 +163,7 @@ describe('ERC20 contract checks', () => {
                 l1: true
             }
         );
-        await expect(alice.finalizeWithdrawal(chainId, withdrawalTx.hash)).toBeAccepted([l1BalanceChange]);
+        await expect(alice.finalizeWithdrawal(withdrawalTx.hash)).toBeAccepted([l1BalanceChange]);
     });
 
     test('Should claim failed deposit', async () => {
@@ -176,7 +175,6 @@ describe('ERC20 contract checks', () => {
         const initialBalance = await alice.getBalanceL1(tokenDetails.l1Address);
         // Deposit to the zero address is forbidden and should fail with the current implementation.
         const depositHandle = await alice.deposit({
-            chainId: chainId,
             to: ethers.constants.AddressZero,
             token: tokenDetails.l1Address,
             amount,
@@ -197,7 +195,7 @@ describe('ERC20 contract checks', () => {
         await waitUntilBlockFinalized(alice, l2TxReceipt.blockNumber);
 
         // Claim failed deposit.
-        await expect(alice.claimFailedDeposit(chainId, l2Hash)).toBeAccepted();
+        await expect(alice.claimFailedDeposit(l2Hash)).toBeAccepted();
         await expect(alice.getBalanceL1(tokenDetails.l1Address)).resolves.bnToBeEq(initialBalance);
     });
 
@@ -208,7 +206,6 @@ describe('ERC20 contract checks', () => {
         await (await alice.approveERC20(tokenDetails.l1Address, maxAmount)).wait();
 
         const depositFee = await alice.getFullRequiredDepositFee({
-            chainId: chainId,
             token: tokenDetails.l1Address
         });
         const l1Fee = depositFee.l1GasLimit.mul(depositFee.maxFeePerGas! || depositFee.gasPrice!);
@@ -231,7 +228,6 @@ describe('ERC20 contract checks', () => {
               };
         overrides.gasLimit = depositFee.l1GasLimit;
         const depositOp = await alice.deposit({
-            chainId: chainId,
             token: tokenDetails.l1Address,
             amount: maxAmount,
             l2GasLimit: depositFee.l2GasLimit,

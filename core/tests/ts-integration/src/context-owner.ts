@@ -245,7 +245,6 @@ export class TestContextOwner {
             // we have to correctly send nonce.
             const depositHandle = this.mainSyncWallet
                 .deposit({
-                    chainId,
                     token: zksync.utils.ETH_ADDRESS,
                     amount: l2ETHAmountToDeposit as BigNumberish,
                     overrides: {
@@ -283,7 +282,6 @@ export class TestContextOwner {
         // Deposit ERC20.
         const erc20DepositPromise = this.mainSyncWallet
             .deposit({
-                chainId,
                 token: erc20Token,
                 amount: l2erc20DepositAmount,
                 approveERC20: true,
