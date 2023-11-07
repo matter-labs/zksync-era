@@ -40,7 +40,7 @@ impl<W: EthClient + Sync> EventProcessor<W> for SetChainIDEventProcessor {
 
         // SetChainId does not go throught the governance contract, so we need to parse it separately.
         for event in events_iter.filter(|event| event.topics[0] == self.set_chain_id_signature) {
-            let upgrade = ProtocolUpgrade::try_from(event)
+            let upgrade = ProtocolUpgrade::decode_set_chain_id_event(event)
                 .map_err(|err| Error::LogParse(format!("{:?}", err)))?;
 
             upgrades.push((upgrade, None));
@@ -74,10 +74,7 @@ impl<W: EthClient + Sync> EventProcessor<W> for SetChainIDEventProcessor {
                     .await;
                 storage
                     .protocol_versions_dal()
-                    .save_genesis_upgrade(
-                        version_id,
-                        new_version.tx.as_ref().map(|tx| tx.common_data.hash()),
-                    )
+                    .save_genesis_upgrade_with_tx(version_id, tx)
                     .await;
             }
 
