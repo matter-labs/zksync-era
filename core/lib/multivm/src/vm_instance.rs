@@ -4,11 +4,11 @@ use crate::interface::{
     VmMemoryMetrics,
 };
 
+use crate::dispatch_vm;
 use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::VmVersion;
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
-use crate::dispatch_vm;
 use crate::glue::history_mode::HistoryMode;
 use crate::tracers::TracerDispatcher;
 

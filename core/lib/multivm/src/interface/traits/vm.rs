@@ -54,6 +54,7 @@ use crate::interface::types::outputs::{
 };
 
 use crate::interface::{FinishedL1Batch, VmMemoryMetrics};
+use crate::tracers::TracerDispatcher;
 use crate::vm_latest::HistoryEnabled;
 use crate::HistoryMode;
 use zksync_state::StoragePtr;
@@ -61,7 +62,7 @@ use zksync_types::Transaction;
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
 pub trait VmInterface<S, H: HistoryMode> {
-    type TracerDispatcher: Default;
+    type TracerDispatcher: Default + From<TracerDispatcher<S, H>>;
 
     /// Initialize VM.
     fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage: StoragePtr<S>) -> Self;

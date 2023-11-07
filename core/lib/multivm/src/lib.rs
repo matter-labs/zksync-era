@@ -13,13 +13,15 @@ pub use crate::{
 pub use zksync_types::vm_version::VmVersion;
 
 mod glue;
+
 mod vm_instance;
+
+#[macro_use]
+mod dispatch_vm_macro;
 
 pub mod interface;
 pub mod tracers;
 pub mod versions;
-#[macro_use]
-mod dispatch_vm_macro;
 
 pub use versions::vm_1_3_2;
 pub use versions::vm_latest;

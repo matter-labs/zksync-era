@@ -3,7 +3,6 @@ use crate::interface::{
     L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode, VmExecutionResultAndLogs, VmInterface,
     VmInterfaceHistoryEnabled, VmMemoryMetrics,
 };
-use std::any::Any;
 
 use zksync_state::StoragePtr;
 use zksync_types::l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log};
@@ -61,15 +60,15 @@ impl<S: Storage, H: HistoryMode> Vm<S, H> {
 }
 
 impl<S: Storage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
-    /// Tracers are not supported for vm 1.3.2. So we use `Vec<Box<dyn Any>>` as a placeholder
-    type TracerDispatcher = Vec<Box<dyn Any>>;
+    /// Tracers are not supported for here we use `()` as a placeholder
+    type TracerDispatcher = ();
 
     fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage: StoragePtr<S>) -> Self {
         let vm_version: VmVersion = system_env.version.into();
         let vm_sub_version = match vm_version {
             VmVersion::M5WithoutRefunds => MultiVMSubversion::V1,
             VmVersion::M5WithRefunds => MultiVMSubversion::V2,
-            _ => panic!("Unsupported protocol version for vm_m6: {:?}", vm_version),
+            _ => panic!("Unsupported protocol version for vm_m5: {:?}", vm_version),
         };
         Self::new_with_subversion(batch_env, system_env, storage, vm_sub_version)
     }
@@ -88,20 +87,15 @@ impl<S: Storage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
         execution_mode: VmExecutionMode,
     ) -> VmExecutionResultAndLogs {
         match execution_mode {
-            VmExecutionMode::OneTx => {
-                match self.system_env.execution_mode {
-                    TxExecutionMode::VerifyExecute => {
-                        // Even that call tracer is supported by vm vm1.3.2, we don't use it for multivm
-                        self.vm.execute_next_tx()
-                            .glue_into()
-                    }
-                    TxExecutionMode::EstimateFee | TxExecutionMode::EthCall => self.vm
-                        .execute_till_block_end(
-                            crate::vm_m5::vm_with_bootloader::BootloaderJobType::TransactionExecution,
-                        )
-                        .glue_into(),
-                }
-            }
+            VmExecutionMode::OneTx => match self.system_env.execution_mode {
+                TxExecutionMode::VerifyExecute => self.vm.execute_next_tx().glue_into(),
+                TxExecutionMode::EstimateFee | TxExecutionMode::EthCall => self
+                    .vm
+                    .execute_till_block_end(
+                        crate::vm_m5::vm_with_bootloader::BootloaderJobType::TransactionExecution,
+                    )
+                    .glue_into(),
+            },
             VmExecutionMode::Batch => self.finish_batch().block_tip_execution_result,
             VmExecutionMode::Bootloader => self.vm.execute_block_tip().glue_into(),
         }

@@ -1,9 +1,8 @@
 use crate::{HistoryMode, MultiVmTracerPointer};
-use std::any::Any;
 use zksync_state::WriteStorage;
 
 /// Tracer dispatcher is a tracer that can dispatch calls to multiple tracers.
-pub struct TracerDispatcher<S: WriteStorage, H: HistoryMode> {
+pub struct TracerDispatcher<S, H> {
     tracers: Vec<MultiVmTracerPointer<S, H>>,
 }
 
@@ -66,8 +65,8 @@ impl<S: WriteStorage, H: HistoryMode> From<TracerDispatcher<S, H>>
 }
 
 /// This is a hack to make `TracerDispatcher` work with VMs, where we don't support tracers.
-impl<S: WriteStorage, H: HistoryMode> From<TracerDispatcher<S, H>> for Vec<Box<dyn Any>> {
+impl<S, H> From<TracerDispatcher<S, H>> for () {
     fn from(_value: TracerDispatcher<S, H>) -> Self {
-        vec![]
+        ()
     }
 }

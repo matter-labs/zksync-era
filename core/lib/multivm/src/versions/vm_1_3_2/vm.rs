@@ -3,7 +3,6 @@ use crate::interface::{
     L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode, VmExecutionResultAndLogs, VmInterface,
     VmInterfaceHistoryEnabled, VmMemoryMetrics,
 };
-use std::any::Any;
 
 use std::collections::HashSet;
 
@@ -28,7 +27,7 @@ pub struct Vm<S: WriteStorage, H: HistoryMode> {
 
 impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
     /// Tracers are not supported for vm 1.3.2. So we use `Vec<Box<dyn Any>>` as a placeholder
-    type TracerDispatcher = Vec<Box<dyn Any>>;
+    type TracerDispatcher = ();
 
     fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage: StoragePtr<S>) -> Self {
         let oracle_tools = crate::vm_1_3_2::OracleTools::new(storage.clone());
@@ -73,12 +72,11 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
             VmExecutionMode::OneTx => {
                 match self.system_env.execution_mode {
                     TxExecutionMode::VerifyExecute => {
-                        // Even that call tracer is supported by vm vm1.3.2, we don't use it for multivm
+                        // Even that call tracer is supported here, we don't use it now 
                         self.vm.execute_next_tx(
                             self.system_env.default_validation_computational_gas_limit,
                             false,
-                        )
-                            .glue_into()
+                        ).glue_into()
                     }
                     TxExecutionMode::EstimateFee | TxExecutionMode::EthCall => self.vm
                         .execute_till_block_end(
@@ -206,7 +204,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
             vec![]
         };
 
-        // Even that call tracer is supported by vm m6, we don't use it for multivm
+        // Even that call tracer is supported here, we don't use it.
         let result = self.vm.execute_next_tx(
             self.system_env.default_validation_computational_gas_limit,
             false,
