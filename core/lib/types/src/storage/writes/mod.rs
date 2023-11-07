@@ -6,10 +6,13 @@ use zksync_basic_types::{Address, U256};
 
 pub(crate) use self::compression::{compress_with_best_strategy, COMPRESSION_VERSION_NUMBER};
 
-mod compression;
+pub mod compression;
 
 /// The number of bytes being used for state diff enumeration indices. Applicable to repeated writes.
 pub const BYTES_PER_ENUMERATION_INDEX: u8 = 4;
+/// The number of bytes being used for state diff derived keys. Applicable to initial writes.
+pub const BYTES_PER_DERIVED_KEY: u8 = 32;
+
 /// Total byte size of all fields in StateDiffRecord struct
 /// 20 + 32 + 32 + 8 + 32 + 32
 const STATE_DIFF_RECORD_SIZE: usize = 156;
@@ -204,8 +207,7 @@ mod tests {
         ];
         let bytes = serialize_commitments(&initial_writes);
 
-        let expected_bytes = "00000002\
-            0100000000000000000000000000000000000000000000000000000000000000\
+        let expected_bytes = "0100000000000000000000000000000000000000000000000000000000000000\
             0101010101010101010101010101010101010101010101010101010101010101\
             0200000000000000000000000000000000000000000000000000000000000000\
             0303030303030303030303030303030303030303030303030303030303030303";
@@ -224,8 +226,7 @@ mod tests {
         ];
         let bytes = serialize_commitments(&repeated_writes);
 
-        let expected_bytes = "00000002\
-            0000000000000001\
+        let expected_bytes = "0000000000000001\
             0101010101010101010101010101010101010101010101010101010101010101\
             0000000000000002\
             0303030303030303030303030303030303030303030303030303030303030303";

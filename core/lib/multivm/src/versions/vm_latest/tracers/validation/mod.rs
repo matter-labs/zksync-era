@@ -6,7 +6,7 @@ use std::sync::Arc;
 use std::{collections::HashSet, marker::PhantomData};
 
 use once_cell::sync::OnceCell;
-use zk_evm_1_3_3::{
+use zk_evm_1_4_0::{
     tracing::{BeforeExecutionData, VmLocalStateData},
     zkevm_opcode_defs::{ContextOpcode, FarCallABI, LogOpcode, Opcode},
 };

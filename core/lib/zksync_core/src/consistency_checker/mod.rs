@@ -99,6 +99,7 @@ impl ConsistencyChecker {
             Some(1.into()),
             "Main node gave us a failed commit tx"
         );
+
         let commit_function = if block_metadata
             .header
             .protocol_version

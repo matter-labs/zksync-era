@@ -351,9 +351,9 @@ impl BlockReverter {
 
     async fn get_l1_batch_number_from_contract(&self, op: AggregatedActionType) -> L1BatchNumber {
         let function_name = match op {
-            AggregatedActionType::Commit => "getTotalBlocksCommitted",
-            AggregatedActionType::PublishProofOnchain => "getTotalBlocksVerified",
-            AggregatedActionType::Execute => "getTotalBlocksExecuted",
+            AggregatedActionType::Commit => "getTotalBatchesCommitted",
+            AggregatedActionType::PublishProofOnchain => "getTotalBatchesVerified",
+            AggregatedActionType::Execute => "getTotalBatchesExecuted",
         };
         let eth_config = self
             .eth_config
