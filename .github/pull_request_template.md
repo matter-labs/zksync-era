@@ -1,4 +1,4 @@
-# What ❔
+## What ❔
 
 <!-- What are the changes this PR brings about? -->
 <!-- Example: This PR adds a PR template to the repo. -->

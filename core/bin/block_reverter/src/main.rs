@@ -4,6 +4,7 @@ use tokio::io::{self, AsyncReadExt};
 
 use zksync_config::{ContractsConfig, DBConfig, ETHClientConfig, ETHSenderConfig};
 use zksync_dal::{connection::DbVariant, ConnectionPool};
+use zksync_env_config::FromEnv;
 use zksync_types::{L1BatchNumber, U256};
 
 use zksync_core::block_reverter::{
